@@ -4,11 +4,8 @@ import {
   Entry,
   ShapeGuageToPool,
   ShapeBribeToPool,
-  ShapeWhiteListedPoolIds,
-  ShapePoolToTokens,
 } from "./cache";
-import { CacheCategory, CHAIN_CONSTANTS } from "./Constants";
-import { Address } from "web3";
+import { CacheCategory } from "./Constants";
 
 export const poolLookupStoreManager = () => {
   /*
@@ -40,12 +37,12 @@ export const poolLookupStoreManager = () => {
   ) => {
     const { gaugeToPoolCache, bribeVotingToPoolCache } = getCache(chainId);
     gaugeToPoolCache.add({
-      [details.gaugeAddress.toLowerCase()]: {
+      [details.gaugeAddress]: {
         poolAddress: details.poolAddress,
       },
     });
     bribeVotingToPoolCache.add({
-      [details.bribeVotingRewardAddress.toLowerCase()]: {
+      [details.bribeVotingRewardAddress]: {
         poolAddress: details.poolAddress,
       },
     });
@@ -56,7 +53,7 @@ export const poolLookupStoreManager = () => {
     gaugeAddress: string
   ): string | undefined => {
     const { gaugeToPoolCache } = getCache(chainId);
-    const result = gaugeToPoolCache.read(gaugeAddress.toLowerCase());
+    const result = gaugeToPoolCache.read(gaugeAddress);
     return result ? result.poolAddress : undefined;
   };
 
@@ -66,7 +63,7 @@ export const poolLookupStoreManager = () => {
   ): string | undefined => {
     const { bribeVotingToPoolCache } = getCache(chainId);
     const result = bribeVotingToPoolCache.read(
-      bribeVotingRewardAddress.toLowerCase()
+      bribeVotingRewardAddress
     );
     return result ? result.poolAddress : undefined;
   };

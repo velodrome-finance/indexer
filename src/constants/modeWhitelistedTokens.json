@@ -1,0 +1,50 @@
+[
+  {
+    "address": "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
+    "symbol": "XVELO",
+    "decimals": 18,
+    "createdBlock": 15405187
+  },
+  {
+    "address": "0xf0F161fDA2712DB8b566946122a5af183995e2eD",
+    "symbol": "USDT",
+    "decimals": 6,
+    "createdBlock": 15405187
+  },
+  {
+    "address": "0x04C0599Ae5A44757c0af6F9eC3b93da8976c150A",
+    "symbol": "weETH.mode",
+    "decimals": 18,
+    "createdBlock": 15405187
+  },
+  {
+    "address": "0xA70266C8F8Cf33647dcFEE763961aFf418D9E1E4",
+    "symbol": "iUSD",
+    "decimals": 18,
+    "createdBlock": 15405187
+  },
+  {
+    "address": "0x8b2EeA0999876AAB1E7955fe01A5D261b570452C",
+    "symbol": "wMLT",
+    "decimals": 18,
+    "createdBlock": 15405187
+  },
+  {
+    "address": "0xDfc7C877a950e49D2610114102175A06C2e3167a",
+    "symbol": "MODE",
+    "decimals": 18,
+    "createdBlock": 15405187
+  },
+  {
+    "address": "0x4200000000000000000000000000000000000006",
+    "symbol": "WETH",
+    "decimals": 18,
+    "createdBlock": 15405187
+  },
+  {
+    "address": "0xd988097fb8612cc24eeC14542bC03424c656005f",
+    "symbol": "USDC",
+    "decimals": 6,
+    "createdBlock": 15405187
+  }
+]

@@ -9,3 +9,7 @@ export const multiplyBase1e18 = (a: bigint, b: bigint): bigint => {
 export const divideBase1e18 = (a: bigint, b: bigint): bigint => {
   return (a * TEN_TO_THE_18_BI) / b;
 };
+
+export const abs = (n: bigint): bigint => {
+  return n === -0n || n < 0n ? -n : n;
+};

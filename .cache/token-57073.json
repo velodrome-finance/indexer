@@ -1,0 +1,112 @@
+{
+  "0x4200000000000000000000000000000000000006": {
+    "decimals": 18,
+    "name": "Wrapped Ether",
+    "symbol": "WETH"
+  },
+  "0xf1815bd50389c46847f0bda824ec8da914045d14": {
+    "decimals": 6,
+    "name": "Bridged USDC (Stargate)",
+    "symbol": "USDC.e"
+  },
+  "0x7f9adfbd38b669f03d1d11000bc76b9aaea28a81": {
+    "decimals": 18,
+    "name": "Superchain Velodrome",
+    "symbol": "XVELO"
+  },
+  "0x75e7a5316e44755ff4ad724ee45337d1eef6895e": {
+    "decimals": 18,
+    "name": "Pearl",
+    "symbol": "PRL"
+  },
+  "0x2a1bce657f919ac3f9ab50b2584cfc77563a02ec": {
+    "decimals": 18,
+    "name": "Andru Kollor",
+    "symbol": "AK47"
+  },
+  "0xee73d2f34d66f0f07af6ab37b42713520e33119c": {
+    "decimals": 18,
+    "name": "MystInk",
+    "symbol": "MYST"
+  },
+  "0x2e3b82891d1b2b90655597110cca9b6587607e0c": {
+    "decimals": 18,
+    "name": "Squidward",
+    "symbol": "SQUID"
+  },
+  "0x19eb460d4155e204b054de78661f9aa556b50874": {
+    "decimals": 18,
+    "name": "Octopus",
+    "symbol": "OCTO"
+  },
+  "0x01ea2e5bbfba8af74d9337fc2af9c79c12bc5e2a": {
+    "decimals": 18,
+    "name": "Pinky",
+    "symbol": "PINK"
+  },
+  "0xca5f2ccbd9c40b32657df57c716de44237f80f05": {
+    "decimals": 18,
+    "name": "Kraken",
+    "symbol": "Kraken"
+  },
+  "0x2dc2b752f4c6dffe2dbcf60b848b8357a8879a01": {
+    "decimals": 18,
+    "name": "The CthulhuWorm of Superchain",
+    "symbol": "Worm"
+  },
+  "0x1514c65c751d16bf253a9e82715771c5557e568b": {
+    "decimals": 18,
+    "name": "InkChain MemeHub",
+    "symbol": "INKYME"
+  },
+  "0xec2d096221bf7f599d1b1581dd73eb6b245807ee": {
+    "decimals": 18,
+    "name": "LIT",
+    "symbol": "LIT"
+  },
+  "0xb10626d8d72eebb9fea4d883f4c3ae99244ce0d4": {
+    "decimals": 18,
+    "name": "Architeuthis dux",
+    "symbol": "ADUX"
+  },
+  "0x4e7942a72dcfcc72fa0872068b0dba3921c1bb8a": {
+    "decimals": 18,
+    "name": "SuperChad",
+    "symbol": "CHAD"
+  },
+  "0x1b184de5952d11fe3e821fc58e6ef73d545f733e": {
+    "decimals": 18,
+    "name": "Cypherpunk",
+    "symbol": "CYPHER"
+  },
+  "0x21c97338b1ea81a0b49930483c70d5b79abcf041": {
+    "decimals": 18,
+    "name": "DickButt on INK",
+    "symbol": "DBI"
+  },
+  "0xd642b49d10cc6e1bc1c6945725667c35e0875f22": {
+    "decimals": 18,
+    "name": "Purple",
+    "symbol": "PURPLE"
+  },
+  "0x8e0f9350e294f49f8016ee250ff60448598cb8a1": {
+    "decimals": 18,
+    "name": "Gamercoin",
+    "symbol": "GAMER"
+  },
+  "0x67314f6a5732a308408969269618f38132777a45": {
+    "decimals": 18,
+    "name": "Squi",
+    "symbol": "SQUI"
+  },
+  "0xbf0cafcbaaf0be8221ae8d630500984edc908861": {
+    "decimals": 18,
+    "name": "SquidSwap",
+    "symbol": "SQUIDS"
+  },
+  "0x20c69c12abf2b6f8d8ca33604dd25c700c7e70a5": {
+    "decimals": 18,
+    "name": "Cat Call Agent",
+    "symbol": "CAT"
+  }
+}

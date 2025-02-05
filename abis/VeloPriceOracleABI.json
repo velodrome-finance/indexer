@@ -1,0 +1,26 @@
+[
+    {
+        "inputs": [
+            {
+                "internalType": "uint8",
+                "name": "src_len",
+                "type": "uint8"
+            },
+            {
+                "internalType": "contract IERC20Metadata[]",
+                "name": "connectors",
+                "type": "address[]"
+            }
+        ],
+        "name": "getManyRatesWithConnectors",
+        "outputs": [
+            {
+                "internalType": "uint256[]",
+                "name": "rates",
+                "type": "uint256[]"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    }
+]

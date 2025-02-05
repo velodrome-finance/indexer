@@ -1,5 +1,11 @@
-import { Token, Pool } from "./CustomTypes";
-// import { LatestETHPriceEntity, StateStoreEntity } from "./src/Types.gen";
+import dotenv from "dotenv";
+import { Web3 } from "web3";
+import { optimism, base, lisk, mode, fraxtal, ink, soneium } from 'viem/chains';
+import { createPublicClient, http, PublicClient } from 'viem';
+
+import PriceConnectors from "./constants/price_connectors.json";
+
+dotenv.config();
 
 export const TEN_TO_THE_3_BI = BigInt(10 ** 3);
 export const TEN_TO_THE_6_BI = BigInt(10 ** 6);
@@ -9,214 +15,252 @@ export const SECONDS_IN_AN_HOUR = BigInt(3600);
 export const SECONDS_IN_A_DAY = BigInt(86400);
 export const SECONDS_IN_A_WEEK = BigInt(604800);
 
-// export const STATE_STORE_ID = "STATE";
-
-// Hardcoded WETH, USDC and OP token addresses with decimals
-export const WETH: Token = {
-  address: "0x4200000000000000000000000000000000000006",
-  symbol: "WETH",
+type PriceConnector = {
+  address: string;
+  createdBlock: number;
 };
 
-// TODO change this name to usdc.e and import native usdc from base
-export const USDC: Token = {
-  address: "0x7F5c764cBc14f9669B88837ca1490cCa17c31607",
-  symbol: "USDC.e",
-};
+export const OPTIMISM_PRICE_CONNECTORS: PriceConnector[] =
+  PriceConnectors.optimism as PriceConnector[];
 
-export const NATIVE_USDC: Token = {
-  address: "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
-  symbol: "USDC",
-};
+export const BASE_PRICE_CONNECTORS: PriceConnector[] =
+  PriceConnectors.base as PriceConnector[];
 
-const USDC_BASE: Token = {
-  address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-  symbol: "USDC",
-};
+export const MODE_PRICE_CONNECTORS: PriceConnector[] =
+  PriceConnectors.mode as PriceConnector[];
 
-export const OP: Token = {
-  address: "0x4200000000000000000000000000000000000042",
-  symbol: "OP",
-};
+export const LISK_PRICE_CONNECTORS: PriceConnector[] =
+  PriceConnectors.lisk as PriceConnector[];
 
-// beware not checksummed.
-const LUSD: Token = {
-  address: "0xc40f949f8a4e094d1b49a23ea9241d289b7b2819",
-  symbol: "LUSD",
-};
+export const FRAXTAL_PRICE_CONNECTORS: PriceConnector[] =
+  PriceConnectors.fraxtal as PriceConnector[];
 
-export const VELO: Token = {
-  address: "0x9560e827aF36c94D2Ac33a39bCE1Fe78631088Db",
-  symbol: "VELO",
-};
+export const SONEIUM_PRICE_CONNECTORS: PriceConnector[] =
+  PriceConnectors.soneium as PriceConnector[];
 
-const USDbC: Token = {
-  address: "0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA",
-  symbol: "USCbC",
-};
+export const INK_PRICE_CONNECTORS: PriceConnector[] =
+  PriceConnectors.ink as PriceConnector[];
 
-// NB issue!! DAI address on base, Lyra address on optimism!!
-const DAI: Token = {
-  address: "0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb",
-  symbol: "DAI",
-};
-
-const AERO: Token = {
-  address: "0x940181a94A35A4569E4529A3CDfB74e38FD98631",
-  symbol: "AERO",
-};
-
-const DOLA: Token = {
-  address: "0x4621b7A9c75199271F773Ebd9A499dbd165c3191",
-  symbol: "DOLA",
-};
-// list of WHITELISTED tokens with their symbol and decimals to be used in pricing
-const OPTIMISM_WHITELISTED_TOKENS: Token[] = [WETH, USDC, VELO, OP, LUSD];
-
-const BASE_WHITELISTED_TOKENS: Token[] = [WETH, USDbC, USDC_BASE, DAI, DOLA];
-
-// List of stablecoin pools with their token0, token1 and name
-// export const PRICING_POOLS: Pool[] = [
-//   {
-//     address: "0x0493Bf8b6DBB159Ce2Db2E0E8403E753Abd1235b",
-//     token0: WETH,
-//     token1: USDC,
-//     name: "vAMM-WETH/USDC.e",
-//   },
-//   {
-//     address: "0x8134A2fDC127549480865fB8E5A9E8A8a95a54c5",
-//     token0: USDC,
-//     token1: VELO,
-//     name: "Volatile AMM - USDC.e/VELO",
-//   },
-//   {
-//     address: "0x0df083de449F75691fc5A36477a6f3284C269108",
-//     token0: OP, // these fields aren't being used currently.
-//     token1: USDC,
-//     name: "Volatile AMM - OP/USDC.e",
-//   },
-// ];
-
-// export const PRICING_POOLS_ADDRESSES: string[] = PRICING_POOLS.map(
-//   (pool) => pool.address
-// );
-
-// Very carefully check these addresses don't get created cross chain.
-// Or add more defenses.
-// const USD_TOKENS: Token[] = [USDC, USDbC, USDC_BASE, NATIVE_USDC];
-
-// update list.
-// export const USD_TOKENS_ADDRESSES: string[] = USD_TOKENS.map(
-//   (token) => token.address
-// );
-
-// const TOKENS_PRICED_IN_USD: Token[] = [WETH, OP, VELO];
-
-// update list.
-// export const TOKENS_PRICED_IN_USD_ADDRESSES: string[] =
-//   TOKENS_PRICED_IN_USD.map((token) => token.address);
-// Need to create a list of whitelisted tokens and all their known addresses.
-// I.e. WETH is a token for pricing, the WETH token across both base and optimism.
-
-// List of stablecoin pools with their token0, token1 and name
-const OPTIMISM_STABLECOIN_POOLS: Pool[] = [
-  {
-    address: "0x0493Bf8b6DBB159Ce2Db2E0E8403E753Abd1235b",
-    token0: WETH,
-    token1: USDC,
-    name: "vAMM-WETH/USDC.e",
-  },
-  {
-    address: "0x6387765fFA609aB9A1dA1B16C455548Bfed7CbEA",
-    token0: WETH,
-    token1: LUSD,
-    name: "vAMM-WETH/LUSD",
-  },
-];
-
-const BASE_STABLECOIN_POOLS: Pool[] = [
-  {
-    address: "0xB4885Bc63399BF5518b994c1d0C153334Ee579D0",
-    token0: WETH,
-    token1: USDbC,
-    name: "vAMM-WETH/USDbC",
-  },
-  {
-    address: "0x9287C921f5d920cEeE0d07d7c58d476E46aCC640",
-    token0: WETH,
-    token1: DAI,
-    name: "vAMM-WETH/DAI",
-  },
-];
-
-// List of pool addresses for testing
-const OPTIMISM_TESTING_POOL_ADDRESSES: string[] = [
-  "0x0493Bf8b6DBB159Ce2Db2E0E8403E753Abd1235b",
-  "0xd25711EdfBf747efCE181442Cc1D8F5F8fc8a0D3",
-  "0xe9581d0F1A628B038fC8B2a7F5A7d904f0e2f937",
-  "0x0df083de449F75691fc5A36477a6f3284C269108",
-  "0x8134A2fDC127549480865fB8E5A9E8A8a95a54c5",
-  "0x58e6433A6903886E440Ddf519eCC573c4046a6b2",
-  "0xB4885Bc63399BF5518b994c1d0C153334Ee579D0",
-];
-
-const BASE_TESTING_POOL_ADDRESSES: string[] = [
-  "0xB4885Bc63399BF5518b994c1d0C153334Ee579D0", // vAMM-WETH/USDbC
-  "0x9287C921f5d920cEeE0d07d7c58d476E46aCC640", // vAMM-WETH/DAI
-  "0x0B25c51637c43decd6CC1C1e3da4518D54ddb528", // sAMM-DOLA/USDbC
-];
+export const toChecksumAddress = (address: string) =>
+  Web3.utils.toChecksumAddress(address);
 
 // Object containing all the constants for a chain
 type chainConstants = {
-  eth: Token;
-  usdc: Token;
-  firstPriceFetchedBlockNumber: number;
-  rewardToken: Token;
-  rpcURL: string;
-  stablecoinPools: Pool[];
-  stablecoinPoolAddresses: string[];
-  testingPoolAddresses: string[];
-  whitelistedTokens: Token[];
-  whitelistedTokenAddresses: string[];
+  weth: string;
+  usdc: string;
+  oracle: {
+    getAddress: (blockNumber: number) => string;
+    startBlock: number;
+    updateDelta: number;
+    priceConnectors: PriceConnector[];
+  };
+  rewardToken: (blockNumber: number) => string;
+  eth_client: PublicClient;
 };
 
 // Constants for Optimism
 const OPTIMISM_CONSTANTS: chainConstants = {
-  eth: WETH,
-  usdc: USDC,
-  firstPriceFetchedBlockNumber: 106247807,
-  rewardToken: VELO,
-  rpcURL: "https://rpc.ankr.com/optimism",
-  stablecoinPools: OPTIMISM_STABLECOIN_POOLS,
-  stablecoinPoolAddresses: OPTIMISM_STABLECOIN_POOLS.map(
-    (pool) => pool.address
-  ),
-  testingPoolAddresses: OPTIMISM_TESTING_POOL_ADDRESSES,
-  whitelistedTokens: OPTIMISM_WHITELISTED_TOKENS,
-  whitelistedTokenAddresses: OPTIMISM_WHITELISTED_TOKENS.map(
-    (token) => token.address
-  ),
+  weth: "0x4200000000000000000000000000000000000006",
+  usdc: "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+  oracle: {
+    getAddress: (blockNumber: number) => {
+      return blockNumber < 124076662
+        ? "0x395942C2049604a314d39F370Dfb8D87AAC89e16"
+        : "0x6a3af44e23395d2470f7c81331add6ede8597306";
+    },
+    startBlock: 107676013,
+    updateDelta: 60 * 60, // 1 hour
+    priceConnectors: OPTIMISM_PRICE_CONNECTORS,
+  },
+  rewardToken: (blockNumber: number) => {
+    if (blockNumber < 105896880) {
+      return "0x3c8B650257cFb5f272f799F5e2b4e65093a11a05";
+    }
+    return "0x9560e827aF36c94D2Ac33a39bCE1Fe78631088Db";
+  },
+  eth_client: createPublicClient({
+    chain: optimism,
+    transport: http(process.env.ENVIO_OPTIMISM_RPC_URL || "https://rpc.ankr.com/optimism", {
+      retryCount: 10,
+      retryDelay: 1000,
+      batch: false
+    }),
+  }) as PublicClient,
 };
 
 // Constants for Base
 const BASE_CONSTANTS: chainConstants = {
-  eth: WETH,
-  usdc: USDbC,
-  firstPriceFetchedBlockNumber: 3347620,
-  rewardToken: AERO,
-  rpcURL: "https://base.publicnode.com",
-  stablecoinPools: BASE_STABLECOIN_POOLS,
-  stablecoinPoolAddresses: BASE_STABLECOIN_POOLS.map((pool) => pool.address),
-  testingPoolAddresses: BASE_TESTING_POOL_ADDRESSES,
-  whitelistedTokens: BASE_WHITELISTED_TOKENS,
-  whitelistedTokenAddresses: BASE_WHITELISTED_TOKENS.map(
-    (token) => token.address
-  ),
+  weth: "0x4200000000000000000000000000000000000006",
+  usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  oracle: {
+    getAddress: (blockNumber: number) => {
+      return blockNumber < 18480097
+        ? "0xe58920a8c684CD3d6dCaC2a41b12998e4CB17EfE"
+        : "0xcbf5b6abf55fb87271338097fdd03e9d82a9d63f";
+    },
+    startBlock: 3219857,
+    updateDelta: 60 * 60, // 1 hour
+    priceConnectors: BASE_PRICE_CONNECTORS,
+  },
+  rewardToken: (blockNumber: Number) =>
+    "0x940181a94A35A4569E4529A3CDfB74e38FD98631",
+  eth_client: createPublicClient({
+    chain: base,
+    transport: http(process.env.ENVIO_BASE_RPC_URL || "https://base.publicnode.com", {
+      retryCount: 10,
+      retryDelay: 1000,
+    }),
+  }) as PublicClient
 };
+
+// Constants for Lisk
+const LISK_CONSTANTS: chainConstants = {
+  weth: "0x4200000000000000000000000000000000000006",
+  usdc: "0xF242275d3a6527d877f2c927a82D9b057609cc71",
+  oracle: {
+    getAddress: (blockNumber: number) => {
+      return "0xE50621a0527A43534D565B67D64be7C79807F269";
+    },
+    startBlock: 8380726,
+    updateDelta: 60 * 60, // 1 hour
+    priceConnectors: LISK_PRICE_CONNECTORS,
+  },
+  rewardToken: (blockNumber: number) =>
+    "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
+  eth_client: createPublicClient({
+    chain: lisk,
+    transport: http(process.env.ENVIO_LISK_RPC_URL || "https://lisk.drpc.org", {
+      retryCount: 10,
+      retryDelay: 1000,
+    }),
+  }) as PublicClient
+};
+
+// Constants for Mode
+const MODE_CONSTANTS: chainConstants = {
+  weth: "0x4200000000000000000000000000000000000006",
+  usdc: "0xd988097fb8612cc24eeC14542bC03424c656005f",
+  oracle: {
+    getAddress: (blockNumber: number) => {
+      return "0xE50621a0527A43534D565B67D64be7C79807F269";
+    },
+    startBlock: 15591759,
+    updateDelta: 60 * 60, // 1 hour
+    priceConnectors: MODE_PRICE_CONNECTORS,
+  },
+  rewardToken: (blockNumber: number) =>
+    "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
+  eth_client: createPublicClient({
+    chain: mode,
+    transport: http(process.env.ENVIO_MODE_RPC_URL || "https://mainnet.mode.network", {
+      retryCount: 10,
+      retryDelay: 1000,
+    }),
+  }) as PublicClient,
+};
+
+// Constants for Soneium
+const SONEIUM_CONSTANTS: chainConstants = {
+  weth: "0x4200000000000000000000000000000000000006",
+  usdc: "0xbA9986D2381edf1DA03B0B9c1f8b00dc4AacC369",
+  oracle: {
+    getAddress: (blockNumber: number) => {
+      return "0xE50621a0527A43534D565B67D64be7C79807F269";
+    },
+    startBlock: 0, // TODO: Get start block
+    updateDelta: 60 * 60, // 1 hour
+    priceConnectors: SONEIUM_PRICE_CONNECTORS,
+  },
+  rewardToken: (blockNumber: number) =>
+    "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
+  eth_client: createPublicClient({
+    chain: soneium,
+    transport: http(process.env.ENVIO_SONEIUM_RPC_URL || "https://rpc.soneium.com", {
+      retryCount: 10,
+      retryDelay: 1000,
+    }),
+  }) as PublicClient,
+};
+
+
+// Constants for Fraxtal
+const FRAXTAL_CONSTANTS: chainConstants = {
+  weth: "0xFC00000000000000000000000000000000000006",
+  usdc: "0xFc00000000000000000000000000000000000001",
+  oracle: {
+    getAddress: (blockNumber: number) => {
+      return "0xE50621a0527A43534D565B67D64be7C79807F269";
+    },
+    startBlock: 12640176,
+    updateDelta: 60 * 60, // 1 hour
+    priceConnectors: FRAXTAL_PRICE_CONNECTORS,
+  },
+  rewardToken: (blockNumber: number) =>
+    "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
+  eth_client: createPublicClient({
+    chain: fraxtal,
+    transport: http(process.env.ENVIO_FRAXTAL_RPC_URL || "https://rpc.frax.com", {
+      retryCount: 10,
+      retryDelay: 1000,
+    }),
+  }) as PublicClient,
+};
+
+// Constants for Ink
+const INK_CONSTANTS: chainConstants = {
+  weth: "0x4200000000000000000000000000000000000006",
+  usdc: "0xF1815bd50389c46847f0Bda824eC8da914045D14",
+  oracle: {
+    getAddress: (blockNumber: number) => {
+      return "0xE50621a0527A43534D565B67D64be7C79807F269";
+    },
+    startBlock: 3422094,
+    updateDelta: 60 * 60, // 1 hour
+    priceConnectors: INK_PRICE_CONNECTORS,
+  },
+  rewardToken: (blockNumber: number) =>
+    "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
+  eth_client: createPublicClient({
+    chain: ink,
+    transport: http(process.env.ENVIO_INK_RPC_URL || "https://rpc-gel.inkonchain.com", {
+      retryCount: 10,
+      retryDelay: 1000,
+    }),
+  }) as PublicClient,
+};
+
+/**
+ * Create a unique ID for a token on a specific chain. Really should only be used for Token Entities.
+ * @param address
+ * @param chainId
+ * @returns string Merged Token ID.
+ */
+export const TokenIdByChain = (address: string, chainId: number) =>
+  `${toChecksumAddress(address)}-${chainId}`;
+
+/**
+ * Create a unique ID for a token on a specific chain at a specific block. Really should only be used
+ * for TokenPrice Entities.
+ * @param address
+ * @param chainId
+ * @param blockNumber
+ * @returns string Merged Token ID.
+ */
+export const TokenIdByBlock = (
+  address: string,
+  chainId: number,
+  blockNumber: number
+) => `${chainId}_${toChecksumAddress(address)}_${blockNumber}`;
 
 // Key is chain ID
 export const CHAIN_CONSTANTS: Record<number, chainConstants> = {
   10: OPTIMISM_CONSTANTS,
   8453: BASE_CONSTANTS,
+  34443: MODE_CONSTANTS,
+  1135: LISK_CONSTANTS,
+  252: FRAXTAL_CONSTANTS,
+  1868: SONEIUM_CONSTANTS,
+  57073: INK_CONSTANTS
 };
 
 export const CacheCategory = {
@@ -225,6 +269,7 @@ export const CacheCategory = {
   BribeToPool: "bribeToPool",
   WhitelistedPoolIds: "whitelistedPoolIds",
   PoolToTokens: "poolToTokens",
+  TokenPrices: "tokenPrices",
 } as const;
 
 export type CacheCategory = (typeof CacheCategory)[keyof typeof CacheCategory];

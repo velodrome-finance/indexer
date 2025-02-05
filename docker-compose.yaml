@@ -49,6 +49,12 @@ services:
     depends_on:
       graphql-engine:
         condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.8' # limit the resource of the container to 80% of 1 CPU (800m) testing for live environment
+          memory: 800M # conservative can be increased if needed
+    restart: always
     environment:
       ENVIO_POSTGRES_PASSWORD: ${ENVIO_POSTGRES_PASSWORD:-testing}
       ENVIO_PG_HOST: envio-postgres
@@ -63,12 +69,14 @@ services:
       CONFIG_FILE: ${CONFIG_FILE:-config.yaml}
       LOG_LEVEL: ${LOG_LEVEL:-trace}
       LOG_STRATEGY: ${LOG_STRATEGY:-console-pretty}
+      MAX_QUEUE_SIZE: 50_000
+      MAX_BATCH_SIZE: 10_000
       # these variables can be skips if hasura is not necessary
       HASURA_GRAPHQL_ENDPOINT: http://graphql-engine:8080/v1/metadata
       HASURA_GRAPHQL_ADMIN_SECRET: ${HASURA_GRAPHQL_ADMIN_SECRET:-testing}
       HASURA_SERVICE_HOST: graphql-engine
       HASURA_SERVICE_PORT: 8080
-      TUI_OFF: ${TUI_OFF:-false}
+      TUI_OFF: ${TUI_OFF:-true}
     healthcheck:
       # CMD from a GH issue thread, no curl or wget installed with image
       # but hasura comes with a /healthz public endpoint for checking server health

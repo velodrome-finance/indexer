@@ -1,159 +1,690 @@
-type LiquidityPoolNew {
+type LiquidityPoolAggregator {
   id: ID! # pool address
-  chainID: BigInt! # chain id of the pool
+  chainId: Int! 
   name: String! # name of the pool
-  token0: Token! # token0 entity
-  token1: Token! # token1 entity
+  token0_id: String! # token0 id
+  token1_id: String! # token1 id
+  token0_address: String! # token0 address
+  token1_address: String! # token1 address
   isStable: Boolean! # whether the pool is a stable AMM or a volatile AMM
-  reserve0: BigInt! # reserve of token0 in token units
-  reserve1: BigInt! # reserve of token1 in token units
-  totalLiquidityUSD: BigInt! # total liquidity of the swap pool in USD
-  totalVolume0: BigInt! # total swap volume of token0 in token units
-  totalVolume1: BigInt! # total swap volume of token1 in token units
-  totalVolumeUSD: BigInt! # total swap volume of the pool in USD
-  totalFees0: BigInt! # total fees collected in token0 units
-  totalFees1: BigInt! # total fees collected in token1 units
-  totalFeesUSD: BigInt! # total fees collected in USD
-  numberOfSwaps: BigInt! # total number of swaps in the pool
-  token0Price: BigInt! # price of token0 relative to token1
-  token1Price: BigInt! # price of token1 relative to token0
-  totalEmissions: BigInt! # total emissions for the pool in reward token units (VELO form Optimism and AERO for Base)
-  totalEmissionsUSD: BigInt! # total emissions for the pool in USD
-  totalBribesUSD: BigInt! # total bribes for the pool in USD
-  lastUpdatedTimestamp: BigInt! # timestamp of last update
-  liquidityPoolHourlySnapshots: [LiquidityPoolHourlySnapshot!]!  # hourly snapshots of the pool
-    @derivedFrom(field: "pool")
-  liquidityPoolDailySnapshots: [LiquidityPoolDailySnapshot!]!  # daily snapshots of the pool
-    @derivedFrom(field: "pool")
-  liquidityPoolWeeklySnapshots: [LiquidityPoolWeeklySnapshot!]!  # weekly snapshots of the pool
-    @derivedFrom(field: "pool")
+  isCL: Boolean! # whether the pool is a CL pool
+  reserve0: BigInt! @config(precision: 76) # reserve of token0 in token units
+  reserve1: BigInt! @config(precision: 76) # reserve of token1 in token units
+  totalLiquidityUSD: BigInt! @config(precision: 76) # total liquidity of the swap pool in USD
+  totalVolume0: BigInt! @config(precision: 76) # total swap volume of token0 in token units
+  totalVolume1: BigInt! @config(precision: 76) # total swap volume of token1 in token units
+  totalVolumeUSD: BigInt! @config(precision: 76) # total swap volume of the pool in USD
+  totalVolumeUSDWhitelisted: BigInt! @config(precision: 76) # total swap volume of the pool in USD
+  gaugeFees0CurrentEpoch: BigInt! @config(precision: 76) # fees collected for current epoch in token0 units
+  gaugeFees1CurrentEpoch: BigInt! @config(precision: 76) # fees collected for current epoch in token1 units
+  totalFees0: BigInt! @config(precision: 76) # total fees collected in token0 units
+  totalFees1: BigInt! @config(precision: 76) # total fees collected in token1 units
+  totalFeesUSD: BigInt! @config(precision: 76) # total fees collected in USD
+  totalFeesUSDWhitelisted: BigInt! @config(precision: 76) # total fees collected in USD
+  numberOfSwaps: BigInt! @config(precision: 76) # total number of swaps in the pool
+  token0Price: BigInt! @config(precision: 76) # price of token0 relative to token1
+  token1Price: BigInt! @config(precision: 76) # price of token1 relative to token0
+  totalVotesDeposited: BigInt! @config(precision: 76) # total votes for the pool
+  totalVotesDepositedUSD: BigInt! @config(precision: 76) # total votes for the pool in USD
+  totalEmissions: BigInt! @config(precision: 76) # total emissions for the pool in reward token units (VELO form Optimism and AERO for Base)
+  totalEmissionsUSD: BigInt! @config(precision: 76) # total emissions for the pool in USD
+  totalBribesUSD: BigInt! @config(precision: 76) # total bribes for the pool in USD
+  gaugeIsAlive: Boolean! # whether the gauge is alive
+  token0IsWhitelisted: Boolean! # whether the token0 is whitelisted
+  token1IsWhitelisted: Boolean! # whether the token1 is whitelisted
+  lastUpdatedTimestamp: Timestamp! # timestamp of last update
+  lastSnapshotTimestamp: Timestamp! # timestamp of last snapshot
+}
+
+# Snapshot of the LiquidityPool entity
+type LiquidityPoolAggregatorSnapshot {
+  id: ID! # pool address
+  chainId: Int! # chain id
+  name: String! # name of the pool
+  pool: String! # pool address
+  token0_id: String! # token0 id
+  token1_id: String! # token1 id
+  token0_address: String! # token0 address
+  token1_address: String! # token1 address
+  isStable: Boolean! # whether the pool is a stable AMM or a volatile AMM
+  isCL: Boolean!
+  reserve0: BigInt! @config(precision: 76) # reserve of token0 in token units
+  reserve1: BigInt! @config(precision: 76) # reserve of token1 in token units
+  totalLiquidityUSD: BigInt! @config(precision: 76) # total liquidity of the swap pool in USD
+  totalVolume0: BigInt! @config(precision: 76) # total swap volume of token0 in token units
+  totalVolume1: BigInt! @config(precision: 76) # total swap volume of token1 in token units
+  totalVolumeUSD: BigInt! @config(precision: 76) # total swap volume of the pool in USD
+  totalVolumeUSDWhitelisted: BigInt! @config(precision: 76) # total swap volume of the pool in USD
+  gaugeFees0CurrentEpoch: BigInt! @config(precision: 76) # fees collected for current epoch in token0 units
+  gaugeFees1CurrentEpoch: BigInt! @config(precision: 76) # fees collected for current epoch in token1 units
+  totalFees0: BigInt! @config(precision: 76) # total fees collected in token0 units
+  totalFees1: BigInt! @config(precision: 76) # total fees collected in token1 units
+  totalFeesUSD: BigInt! @config(precision: 76) # total fees collected in USD
+  totalFeesUSDWhitelisted: BigInt! @config(precision: 76) # total fees collected in USD
+  numberOfSwaps: BigInt! @config(precision: 76) # total number of swaps in the pool
+  token0Price: BigInt! @config(precision: 76) # price of token0 relative to token1
+  token1Price: BigInt! @config(precision: 76) # price of token1 relative to token0
+  totalVotesDeposited: BigInt! @config(precision: 76) # total votes for the pool
+  totalVotesDepositedUSD: BigInt! @config(precision: 76) # total votes for the pool in USD
+  totalEmissions: BigInt! @config(precision: 76) # total emissions for the pool in reward token units (VELO form Optimism and AERO for Base)
+  totalEmissionsUSD: BigInt! @config(precision: 76) # total emissions for the pool in USD
+  totalBribesUSD: BigInt! @config(precision: 76) # total bribes for the pool in USD
+  gaugeIsAlive: Boolean! # whether the gauge is alive
+  token0IsWhitelisted: Boolean! # whether the token0 is whitelisted
+  token1IsWhitelisted: Boolean! # whether the token1 is whitelisted
+  timestamp: Timestamp! # timestamp of last update
 }
 
 # Entity for tracking a unique address in the `to` or `from` of a swap event
 # Other liquidity pools don't count as users
 type User {
   id: ID! # user address
-  numberOfSwaps: BigInt! # total number of swaps the user has made
-  joined_at_timestamp: BigInt! # timestamp of the user's first swap (or being swapped to), Not accurate if run in multihead unordered mode.
-}
-
-# Hourly snapshot of the LiquidityPool entity
-type LiquidityPoolHourlySnapshot {
-  id: ID! # address of the pool - number of days since unix epoch time
-  chainID: BigInt! # chain id of the pool
-  pool: String! # address of the pool
-  name: String! # name of the pool
-  reserve0: BigInt! # reserve of token0 in token units
-  reserve1: BigInt! # reserve of token1 in token units
-  totalLiquidityUSD: BigInt! # total liquidity of the swap pool in USD
-  totalVolume0: BigInt! # total swap volume of token0 in token units
-  totalVolume1: BigInt! # total swap volume of token1 in token units
-  totalVolumeUSD: BigInt! # total swap volume of the pool in USD
-  totalFees0: BigInt! # total fees collected in token0 units
-  totalFees1: BigInt! # total fees collected in token1 units
-  totalFeesUSD: BigInt! # total fees collected in USD
-  numberOfSwaps: BigInt! # total number of swaps in the pool
-  token0Price: BigInt! # price of token0 relative to token1
-  token1Price: BigInt! # price of token1 relative to token0
-  totalEmissions: BigInt! # total emissions for the pool in reward token units (VELO form Optimism and AERO for Base)
-  totalEmissionsUSD: BigInt! # total emissions for the pool in USD
-  totalBribesUSD: BigInt! # total bribes for the pool in USD
-  lastUpdatedTimestamp: BigInt! # timestamp of last update
-}
-
-# Daily snapshot of the LiquidityPool entity
-type LiquidityPoolDailySnapshot {
-  id: ID! # address of the pool - number of days since unix epoch time
-  chainID: BigInt! # chain id of the pool
-  pool: String! # address of the pool
-  name: String! # name of the pool
-  reserve0: BigInt! # reserve of token0 in token units
-  reserve1: BigInt! # reserve of token1 in token units
-  totalLiquidityUSD: BigInt! # total liquidity of the swap pool in USD
-  totalVolume0: BigInt! # total swap volume of token0 in token units
-  totalVolume1: BigInt! # total swap volume of token1 in token units
-  totalVolumeUSD: BigInt! # total swap volume of the pool in USD
-  totalFees0: BigInt! # total fees collected in token0 units
-  totalFees1: BigInt! # total fees collected in token1 units
-  totalFeesUSD: BigInt! # total fees collected in USD
-  numberOfSwaps: BigInt! # total number of swaps in the pool
-  token0Price: BigInt! # price of token0 relative to token1
-  token1Price: BigInt! # price of token1 relative to token0
-  totalEmissions: BigInt! # total emissions for the pool in reward token units (VELO form Optimism and AERO for Base)
-  totalEmissionsUSD: BigInt! # total emissions for the pool in USD
-  totalBribesUSD: BigInt! # total bribes for the pool in USD
-  lastUpdatedTimestamp: BigInt! # timestamp of last update
-}
-
-# Weekly snapshot of the LiquidityPool entity
-type LiquidityPoolWeeklySnapshot {
-  id: ID! # address of the pool - number of weeks since unix epoch time
-  chainID: BigInt! # chain id of the pool
-  pool: String! # address of the pool
-  name: String! # name of the pool
-  reserve0: BigInt! # reserve of token0 in token units
-  reserve1: BigInt! # reserve of token1 in token units
-  # totalLiquidityETH: BigInt! # total liquidity of the swap pool in ETH
-  totalLiquidityUSD: BigInt! # total liquidity of the swap pool in USD
-  totalVolume0: BigInt! # total swap volume of token0 in token units
-  totalVolume1: BigInt! # total swap volume of token1 in token units
-  totalVolumeUSD: BigInt! # total swap volume of the pool in USD
-  totalFees0: BigInt! # total fees collected in token0 units
-  totalFees1: BigInt! # total fees collected in token1 units
-  totalFeesUSD: BigInt! # total fees collected in USD
-  numberOfSwaps: BigInt! # total number of swaps in the pool
-  token0Price: BigInt! # price of token0 relative to token1
-  token1Price: BigInt! # price of token1 relative to token0
-  totalEmissions: BigInt! # total emissions for the pool in reward token units (VELO form Optimism and AERO for Base)
-  totalEmissionsUSD: BigInt! # total emissions for the pool in USD
-  totalBribesUSD: BigInt! # total bribes for the pool in USD
-  lastUpdatedTimestamp: BigInt! # timestamp of last update
+  numberOfSwaps: BigInt! @config(precision: 76) # total number of swaps the user has made
+  joined_at_timestamp: Timestamp! # timestamp of the user's first swap (or being swapped to), Not accurate if run in multihead unordered mode.
 }
 
 # Entity that tracks the latest state of the token entity
 # By nature this entity saves the latest state of the token, and its state at different times should be attained from the snapshot entities
 type Token {
   id: ID! # token address
+  address: String! @index # token address
   symbol: String! # token symbol
   name: String! # token name
-  chainID: BigInt! # chain id of the token
-  decimals: BigInt! # number of decimals
-  pricePerUSDNew: BigInt! # price of token per USD
-  lastUpdatedTimestamp: BigInt! # timestamp of last update
-  tokenHourlySnapshots: [TokenHourlySnapshot!]! @derivedFrom(field: "token") # hourly snapshots of the token
-  tokenDailySnapshots: [TokenDailySnapshot!]! @derivedFrom(field: "token") # daily snapshots of the token
-  tokenWeeklySnapshots: [TokenWeeklySnapshot!]! @derivedFrom(field: "token") # weekly snapshots of the token
+  chainId: Int! @index
+  decimals: BigInt! @config(precision: 76) # number of decimals
+  pricePerUSDNew: BigInt! @config(precision: 76) # price of token per USD
+  lastUpdatedTimestamp: Timestamp! # timestamp of last update
+  isWhitelisted: Boolean! # whether the token is whitelisted
 }
 
-# Hourly snapshot of the LiquidityPool entity
-type TokenHourlySnapshot {
-  id: ID! # address of the token - number of weeks since unix epoch time
-  symbol: String! # token symbol
-  name: String! # token name
-  chainID: BigInt! # chain id of the token
-  token: String! # token address
-  pricePerUSDNew: BigInt! # price of token per USD
-  lastUpdatedTimestamp: BigInt! # timestamp of last update
+# Snapshot of the Token entity
+type TokenPriceSnapshot {
+  id: ID! # Unique identifier for the record, could be a combination of token address and chain ID
+  address: String! @index # Address of the token
+  pricePerUSDNew: BigInt! @config(precision: 76) # price of token per USD
+  chainId: Int!
+  isWhitelisted: Boolean! # whether the token is whitelisted
+  lastUpdatedTimestamp: Timestamp! @index # Timestamp of the last update
 }
 
-# Daily snapshot of the LiquidityPool entity
-type TokenDailySnapshot {
-  id: ID! # address of the token - number of weeks since unix epoch time
-  symbol: String! # token symbol
-  name: String! # token name
-  chainID: BigInt! # chain id of the token
-  token: String! # token address
-  pricePerUSDNew: BigInt! # price of token per USD
-  lastUpdatedTimestamp: BigInt! # timestamp of last update
+# Event for when a a concentrated liquidity pool is created
+type CLFactory_PoolCreated {
+  id: ID!
+  token0: String!
+  token1: String!
+  tickSpacing: BigInt! @config(precision: 76)
+  pool: String! @index
+  timestamp: Timestamp!
+  blockNumber: Int!
+  logIndex: Int!
+  chainId: Int!
 }
 
-# Weekly snapshot of the LiquidityPool entity
-type TokenWeeklySnapshot {
-  id: ID! # address of the token - number of weeks since unix epoch time
-  symbol: String! # token symbol
-  name: String! # token name
-  chainID: BigInt! # chain id of the token
-  token: String! # token address
-  pricePerUSDNew: BigInt! # price of token per USD
-  lastUpdatedTimestamp: BigInt! # timestamp of last update
+# Event for when a gauge is notified of a reward
+type Gauge_NotifyReward {
+  id: ID!
+  from: String!
+  amount: BigInt! @config(precision: 76)
+  sourceAddress: String!
+  timestamp: Timestamp!
+  blockNumber: Int!
+  logIndex: Int!
+  chainId: Int!
+}
+
+type Gauge_Deposit {
+  id: ID!
+  from: String!
+  amount: BigInt! @config(precision: 76)
+  sourceAddress: String!
+  timestamp: Timestamp!
+  blockNumber: Int!
+  logIndex: Int!
+  chainId: Int!
+}
+
+type Gauge_Withdraw {
+  id: ID!
+  from: String!
+  amount: BigInt! @config(precision: 76)
+  sourceAddress: String!
+  timestamp: Timestamp!
+  blockNumber: Int!
+  logIndex: Int!
+  chainId: Int!
+}
+
+# Event for when a voting reward is notified of a reward
+type VotingReward_NotifyReward {
+  id: ID!
+  from: String!
+  reward: String!
+  epoch: BigInt! @config(precision: 76)
+  pool: String!
+  amount: BigInt! @config(precision: 76)
+  sourceAddress: String!
+  timestamp: Timestamp!
+  blockNumber: Int!
+  logIndex: Int!
+  chainId: Int!
+}
+
+# Event for when a swap occurs in a pool
+type Pool_Swap {
+  id: ID!
+  sender: String!
+  to: String!
+  amount0In: BigInt! @config(precision: 76)
+  amount1In: BigInt! @config(precision: 76)
+  amount0Out: BigInt! @config(precision: 76)
+  amount1Out: BigInt! @config(precision: 76)
+  sourceAddress: String!
+  timestamp: Timestamp!
+  blockNumber: Int!
+  logIndex: Int!
+  chainId: Int!
+}
+
+# Event for when a burn occurs in a pool
+type Pool_Burn {
+  id: ID!
+  sourceAddress: String!
+  sender: String!
+  to: String!
+  amount0: BigInt! @config(precision: 76)
+  amount1: BigInt! @config(precision: 76)
+  timestamp: Timestamp!
+  blockNumber: Int!
+  logIndex: Int!
+  chainId: Int!
+}
+
+type Pool_Mint {
+  id: ID!
+  sourceAddress: String!
+  transactionHash: String!
+  sender: String!
+  amount0: BigInt! @config(precision: 76)
+  amount1: BigInt! @config(precision: 76)
+  timestamp: Timestamp!
+  blockNumber: Int!
+  logIndex: Int!
+  chainId: Int!
+}
+
+type Pool_Sync {
+  id: ID!
+  reserve0: BigInt! @config(precision: 76)
+  reserve1: BigInt! @config(precision: 76)
+  sourceAddress: String!
+  timestamp: Timestamp!
+  blockNumber: Int!
+  logIndex: Int!
+  chainId: Int!
+}
+
+type NFPM_Transfer {
+  id: ID!
+  transactionHash: String!
+  from: String!
+  to: String!
+  tokenId: BigInt! @config(precision: 76)
+  timestamp: Timestamp!
+  blockNumber: Int!
+  logIndex: Int!
+  chainId: Int!
+}
+
+type NFPM_IncreaseLiquidity {
+  id: ID!
+  transactionHash: String!
+  tokenId: BigInt! @config(precision: 76)
+  liquidity: BigInt! @config(precision: 76)
+  amount0: BigInt! @config(precision: 76)
+  amount1: BigInt! @config(precision: 76)
+  timestamp: Timestamp!
+  blockNumber: Int!
+  logIndex: Int!
+  chainId: Int!
+}
+
+type NFPM_DecreaseLiquidity {
+  id: ID!
+  transactionHash: String!
+  tokenId: BigInt! @config(precision: 76)
+  liquidity: BigInt! @config(precision: 76)
+  amount0: BigInt! @config(precision: 76)
+  amount1: BigInt! @config(precision: 76)
+  timestamp: Timestamp!
+  blockNumber: Int!
+  logIndex: Int!
+  chainId: Int!
+}
+
+type Voter {
+  id: ID!
+}
+
+type VotingReward_Deposit {
+  id: ID!
+  from: String!
+  tokenId: BigInt! @config(precision: 76)
+  amount: BigInt! @config(precision: 76)
+  sourceAddress: String!
+  timestamp: Timestamp!
+  blockNumber: Int!
+  logIndex: Int!
+  chainId: Int!
+}
+
+type VotingReward_Withdraw {
+  id: ID!
+  from: String!
+  tokenId: BigInt! @config(precision: 76)
+  amount: BigInt! @config(precision: 76)
+  sourceAddress: String!
+  timestamp: Timestamp!
+  blockNumber: Int!
+  logIndex: Int!
+  chainId: Int!
+}
+
+type Voter_Voted {
+  id: ID!
+  sender: String!
+  pool: String!
+  tokenId: BigInt! @config(precision: 76)
+  weight: BigInt! @config(precision: 76)
+  totalWeight: BigInt! @config(precision: 76)
+  timestamp: Timestamp!
+  blockNumber: Int!
+  logIndex: Int!
+  chainId: Int!
+}
+
+type Voter_DistributeReward {
+  id: ID!
+  sender: String!
+  pool: String!
+  gauge: String!
+  amount: BigInt! @config(precision: 76)
+  tokensDeposited: BigInt! @config(precision: 76)
+  timestamp: Timestamp!
+  blockNumber: Int!
+  logIndex: Int!
+  chainId: Int!
+}
+
+type Voter_GaugeCreated {
+  id: ID!
+  poolFactory: String!
+  votingRewardsFactory: String!
+  gaugeFactory: String!
+  pool: String!
+  bribeVotingReward: String!
+  feeVotingReward: String!
+  gauge: String!
+  creator: String!
+  timestamp: Timestamp!
+  blockNumber: Int!
+  logIndex: Int!
+  chainId: Int!
+}
+
+type Voter_GaugeKilled {
+  id: ID!
+  sender: String!
+  gauge: String!
+  timestamp: Timestamp!
+  blockNumber: Int!
+  logIndex: Int!
+  chainId: Int!
+}
+
+type PoolFactory_SetCustomFee {
+  id: ID!
+  pool: String!
+  fee: BigInt! @config(precision: 76)
+  timestamp: Timestamp!
+  blockNumber: Int!
+  logIndex: Int!
+  chainId: Int!
+}
+
+type CLPool_Burn {
+  id: ID!
+  owner: String!
+  tickLower: BigInt! @config(precision: 76)
+  tickUpper: BigInt! @config(precision: 76)
+  amount: BigInt! @config(precision: 76)
+  amount0: BigInt! @config(precision: 76)
+  amount1: BigInt! @config(precision: 76)
+  sourceAddress: String! @index
+  timestamp: Timestamp! @index
+  blockNumber: Int!
+  logIndex: Int!
+  chainId: Int!
+}
+
+type CLPool_Collect {
+  id: ID!
+  owner: String!
+  recipient: String!
+  tickLower: BigInt! @config(precision: 76)
+  tickUpper: BigInt! @config(precision: 76)
+  amount0: BigInt! @config(precision: 76)
+  amount1: BigInt! @config(precision: 76)
+  sourceAddress: String! @index
+  timestamp: Timestamp! @index
+  blockNumber: Int!
+  logIndex: Int!
+  chainId: Int!
+}
+
+type CLPool_CollectFees {
+  id: ID!
+  recipient: String!
+  amount0: BigInt! @config(precision: 76)
+  amount1: BigInt! @config(precision: 76)
+  sourceAddress: String! @index
+  timestamp: Timestamp! @index
+  blockNumber: Int!
+  logIndex: Int!
+  chainId: Int!
+}
+
+type CLPool_Flash {
+  id: ID!
+  sender: String!
+  recipient: String!
+  amount0: BigInt! @config(precision: 76)
+  amount1: BigInt! @config(precision: 76)
+  paid0: BigInt! @config(precision: 76)
+  paid1: BigInt! @config(precision: 76)
+  sourceAddress: String! @index
+  timestamp: Timestamp! @index
+  blockNumber: Int!
+  logIndex: Int!
+  chainId: Int!
+}
+
+type CLPool_IncreaseObservationCardinalityNext {
+  id: ID!
+  observationCardinalityNextOld: BigInt! @config(precision: 76)
+  observationCardinalityNextNew: BigInt! @config(precision: 76)
+  sourceAddress: String! @index
+  timestamp: Timestamp! @index
+  blockNumber: Int!
+  logIndex: Int!
+  chainId: Int!
+}
+
+type CLPool_Initialize {
+  id: ID!
+  sqrtPriceX96: BigInt! @config(precision: 76)
+  tick: BigInt! @config(precision: 76)
+  sourceAddress: String! @index
+  timestamp: Timestamp! @index
+  blockNumber: Int!
+  logIndex: Int!
+  chainId: Int!
+}
+
+type CLPool_Mint {
+  id: ID!
+  sender: String!
+  owner: String!
+  transactionHash: String!
+  tickLower: BigInt! @config(precision: 76)
+  tickUpper: BigInt! @config(precision: 76)
+  amount: BigInt! @config(precision: 76)
+  amount0: BigInt! @config(precision: 76)
+  amount1: BigInt! @config(precision: 76)
+  sourceAddress: String! @index
+  timestamp: Timestamp! @index
+  blockNumber: Int!
+  logIndex: Int!
+  chainId: Int!
+}
+
+type CLPool_SetFeeProtocol {
+  id: ID!
+  feeProtocol0Old: BigInt! @config(precision: 76)
+  feeProtocol1Old: BigInt! @config(precision: 76)
+  feeProtocol0New: BigInt! @config(precision: 76)
+  feeProtocol1New: BigInt! @config(precision: 76)
+  sourceAddress: String! @index
+  timestamp: Timestamp! @index
+  blockNumber: Int!
+  logIndex: Int!
+  chainId: Int!
+}
+
+type CLPool_Swap {
+  id: ID!
+  sender: String!
+  recipient: String!
+  amount0: BigInt! @config(precision: 76)
+  amount1: BigInt! @config(precision: 76)
+  sqrtPriceX96: BigInt! @config(precision: 76)
+  liquidity: BigInt! @config(precision: 76)
+  tick: BigInt! @config(precision: 76)
+  sourceAddress: String! @index
+  timestamp: Timestamp! @index
+  blockNumber: Int!
+  logIndex: Int!
+  chainId: Int!
+}
+
+
+type Voter_WhitelistToken {
+  id: ID!
+  whitelister: String!
+  token: String!
+  isWhitelisted: Boolean!
+  timestamp: Timestamp!
+  blockNumber: Int!
+  logIndex: Int!
+  chainId: Int!
+}
+
+type SuperchainCLFactory_RootPoolCreated {
+  id: ID!
+  token0: String!
+  token1: String!
+  tickSpacing: BigInt! @config(precision: 76)
+  pool: String! @index
+  timestamp: Timestamp!
+  blockNumber: Int!
+  logIndex: Int!
+  poolChainId: Int!
+  chainId: Int!
+}
+
+type SuperchainPoolFactory_RootPoolCreated {
+  id: ID!
+  token0: String!
+  token1: String!
+  stable: Boolean!
+  pool: String! @index
+  timestamp: Timestamp!
+  blockNumber: Int!
+  logIndex: Int!
+  poolChainId: Int!
+  chainId: Int!
+  length: BigInt! @config(precision: 76)
+}
+
+type VeNFTAggregator {
+  id: ID!
+  chainId: Int!
+  tokenId: BigInt! @config(precision: 76)
+  owner: String!
+  locktime: BigInt! @config(precision: 76)
+  lastUpdatedTimestamp: Timestamp!
+  totalValueLocked: BigInt! @config(precision: 76)
+  isAlive: Boolean!
+}
+
+type VeNFT_Deposit {
+  id: ID!
+  provider: String!
+  tokenId: BigInt! @config(precision: 76)
+  depositType: BigInt! @config(precision: 76)
+  value: BigInt! @config(precision: 76)
+  locktime: BigInt! @config(precision: 76)
+  ts: BigInt! @config(precision: 76)
+  timestamp: Timestamp!
+  blockNumber: Int!
+  logIndex: Int!
+  chainId: Int!
+}
+
+type VeNFT_Withdraw {
+  id: ID!
+  provider: String!
+  tokenId: BigInt! @config(precision: 76)
+  value: BigInt! @config(precision: 76)
+  ts: BigInt! @config(precision: 76)
+  timestamp: Timestamp!
+  blockNumber: Int!
+  logIndex: Int!
+  chainId: Int!
+}
+
+type VeNFT_Transfer {
+  id: ID!
+  from: String!
+  to: String!
+  tokenId: BigInt! @config(precision: 76)
+  timestamp: Timestamp!
+  blockNumber: Int!
+  logIndex: Int!
+  chainId: Int!
+}
+
+type ALMCore_Rebalance {
+  id: ID!
+  pool: String!
+  tickLower: BigInt! @config(precision: 76)
+  tickUpper: BigInt! @config(precision: 76)
+  sqrtPriceX96: BigInt! @config(precision: 76)
+  amount0: BigInt! @config(precision: 76)
+  amount1: BigInt! @config(precision: 76)
+  ammPositionIdBefore: BigInt! @config(precision: 76)
+  ammPositionIdAfter: BigInt! @config(precision: 76)
+  timestamp: Timestamp!
+  chainId: Int!
+  blockNumber: Int!
+  logIndex: Int!
+}
+
+type ALMCore_Rebalance_AmmPosition {
+  id: ID!
+  pool: String!
+  token0: String!
+  token1: String!
+  property: BigInt! @config(precision: 24)
+  tickLower: BigInt! @config(precision: 24)
+  tickUpper: BigInt! @config(precision: 24)
+  liquidity: BigInt! @config(precision: 76)
+  timestamp: Timestamp!
+  chainId: Int!
+  blockNumber: Int!
+  logIndex: Int!
+}
+
+type ALMDeployFactory_StrategyCreated {
+  id: ID!
+  pool: String!
+  lpWrapper: String!
+  strategyType: BigInt! @config(precision: 8)
+  tickNeighborhood: BigInt! @config(precision: 24)
+  tickSpacing: BigInt! @config(precision: 24)
+  width: BigInt! @config(precision: 24)
+  maxLiquidityRatioDeviationX96: BigInt! @config(precision: 76)
+  timestamp: Timestamp!
+  chainId: Int!
+  blockNumber: Int!
+  logIndex: Int!
+}
+
+type ALMDeployFactory_StrategyCreated_AmmPosition {
+  id: ID!
+  pool: String!
+  lpWrapper: String!
+  token0: String!
+  token1: String!
+  property: BigInt! @config(precision: 24)
+  tickLower: BigInt! @config(precision: 24)
+  tickUpper: BigInt! @config(precision: 24)
+  liquidity: BigInt! @config(precision: 76)
+  timestamp: Timestamp!
+  chainId: Int!
+  blockNumber: Int!
+  logIndex: Int!
+}
+
+type ALMLPWrapper_Deposit {
+  id: ID!
+  sender: String!
+  recipient: String!
+  pool: String!
+  amount0: BigInt! @config(precision: 76)
+  amount1: BigInt! @config(precision: 76)
+  lpAmount: BigInt! @config(precision: 76)
+  totalSupply: BigInt! @config(precision: 76)
+  timestamp: Timestamp!
+  chainId: Int!
+  blockNumber: Int!
+  logIndex: Int!
+}
+
+type ALMLPWrapper_Withdraw {
+  id: ID!
+  sender: String!
+  recipient: String!
+  pool: String!
+  amount0: BigInt! @config(precision: 76)
+  amount1: BigInt! @config(precision: 76)
+  lpAmount: BigInt! @config(precision: 76)
+  totalSupply: BigInt! @config(precision: 76)
+  timestamp: Timestamp!
+  chainId: Int!
+  blockNumber: Int!
+  logIndex: Int!
+}
+
+type ALMLPWrapper_Transfer {
+  id: ID!
+  from: String!
+  to: String!
+  value: BigInt! @config(precision: 76)
+  timestamp: Timestamp!
+  chainId: Int!
+  blockNumber: Int!
+  logIndex: Int!
+}
+
+type ERC20_Transfer {
+  id: ID!
+  from: String!
+  to: String!
+  value: BigInt! @config(precision: 76)
+  timestamp: Timestamp!
+  chainId: Int!
+  blockNumber: Int!
+  logIndex: Int!
+}
+
+type Dynamic_Fee_Swap_Module {
+  id: ID!
+  pool: String!
+  baseFee: BigInt! @config(precision: 76)
+  feeCap: BigInt! @config(precision: 76)
+  scalingFactor: BigInt! @config(precision: 76)
+  currentFee: BigInt! @config(precision: 76)
+  timestamp: Timestamp!
+  chainId: Int!
+  blockNumber: Int!
 }

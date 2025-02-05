@@ -1,0 +1,92 @@
+{
+  "0xdcc0f2d8f90fde85b10ac1c8ab57dc0ae946a543": {
+    "decimals": 6,
+    "name": "USD Coin",
+    "symbol": "USDC"
+  },
+  "0xfc00000000000000000000000000000000000001": {
+    "decimals": 18,
+    "name": "Frax",
+    "symbol": "FRAX"
+  },
+  "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34": {
+    "decimals": 18,
+    "name": "USDe",
+    "symbol": "USDe"
+  },
+  "0x211cc4dd073734da055fbf44a2b4667d5e5fe5d2": {
+    "decimals": 18,
+    "name": "Staked USDe",
+    "symbol": "sUSDe"
+  },
+  "0xfc00000000000000000000000000000000000005": {
+    "decimals": 18,
+    "name": "Staked Frax Ether",
+    "symbol": "sfrxETH"
+  },
+  "0xfc00000000000000000000000000000000000006": {
+    "decimals": 18,
+    "name": "Wrapped Frax Ether",
+    "symbol": "wfrxETH"
+  },
+  "0x2416092f143378750bb29b79ed961ab195cceea5": {
+    "decimals": 18,
+    "name": "Renzo Restaked ETH",
+    "symbol": "ezETH"
+  },
+  "0x748e54072189ec8540cd58a078404ebfdc2aacea": {
+    "decimals": 18,
+    "name": "Wrapped liquid staked Ether 2.0",
+    "symbol": "wstETH"
+  },
+  "0xaca9a33698cf96413a40a4eb9e87906ff40fc6ca": {
+    "decimals": 18,
+    "name": "FXB20251231",
+    "symbol": "FXB20251231"
+  },
+  "0x8e9c334afc76106f08e0383907f4fca9bb10ba3e": {
+    "decimals": 18,
+    "name": "FXB_4_DEC312026",
+    "symbol": "FXB_20261231"
+  },
+  "0xf1e2b576af4c6a7ee966b14c810b772391e92153": {
+    "decimals": 18,
+    "name": "FXB20291231",
+    "symbol": "FXB20291231"
+  },
+  "0xc38173d34afaea88bc482813b3cd267bc8a1ea83": {
+    "decimals": 18,
+    "name": "FXB20551231",
+    "symbol": "FXB20551231"
+  },
+  "0xfc00000000000000000000000000000000000002": {
+    "decimals": 18,
+    "name": "Frax Share",
+    "symbol": "FXS"
+  },
+  "0x1509706a6c66ca549ff0cb464de88231ddbe213b": {
+    "decimals": 18,
+    "name": "Aura",
+    "symbol": "AURA"
+  },
+  "0x331b9182088e2a7d6d3fe4742aba1fb231aecc56": {
+    "decimals": 18,
+    "name": "Curve DAO Token",
+    "symbol": "CRV"
+  },
+  "0x7f9adfbd38b669f03d1d11000bc76b9aaea28a81": {
+    "decimals": 18,
+    "name": "Superchain Velodrome",
+    "symbol": "XVELO"
+  },
+  "0x5bd5c0cb9e4404c63526433bcbd6d133c1d73ffe": {
+    "decimals": 18,
+    "name": "Ionic",
+    "symbol": "ION"
+  },
+  "0x788d96f655735f52c676a133f4dfc53cec614d4a": {
+    "decimals": 6,
+    "name": "dTRINITY USD",
+    "symbol": "dUSD"
+  }
+}

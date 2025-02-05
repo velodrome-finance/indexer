@@ -16,8 +16,17 @@ export const normalizeTokenAmountTo1e18 = (
 export function generatePoolName(
   token0Symbol: string,
   token1Symbol: string,
-  isStable: boolean
+  isStable: boolean,
+  clTickSpacing: number
 ): string {
-  const poolType = isStable ? "Stable" : "Volatile";
+  let poolType = "";
+  if (isStable) {
+    poolType = "Stable";
+  } else {
+    poolType = "Volatile";
+  }
+  if (clTickSpacing != 0) {
+    poolType = "CL-" + clTickSpacing;
+  }
   return `${poolType} AMM - ${token0Symbol}/${token1Symbol}`;
 }

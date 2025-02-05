@@ -1,1648 +1,315 @@
+# yaml-language-server: $schema=./node_modules/envio/evm.schema.json
 name: Velodrome_v2
 description: Multi-chain indexer for Velodrome V2 on Optimism and Aerodrome on Base
 unordered_multichain_mode: true
+rollback_on_reorg: false
 event_decoder: hypersync-client
-# Global contracts configuration that will be shared across all chains that are defined later in the config file
-# (i.e. Velodrome V2 on Optimism and Aerodrome on Base)
+field_selection:
+  transaction_fields:
+    - "hash"
 contracts:
-  # PoolFactory contract is responsible for creating new pools
+  - name: SuperchainPoolFactory
+    handler: src/EventHandlers/SuperchainPoolFactory.ts
+    events:
+      - event: RootPoolCreated(address indexed token0, address indexed token1, bool indexed stable, address pool, uint256 length)
+  - name: SuperchainCLFactory
+    handler: src/EventHandlers/SuperchainCLFactory.ts
+    events:
+      - event: RootPoolCreated(address indexed token0, address indexed token1, int24 indexed tickSpacing, uint256 chainid, address pool)
   - name: PoolFactory
-    handler: src/EventHandlers.ts
+    handler: src/EventHandlers/PoolFactory.ts
     events:
       - event: PoolCreated(address indexed token0, address indexed token1, bool indexed stable, address pool, uint256 unnamed)
-        requiredEntities:
-          - name: Token
-            arrayLabels:
-              - poolTokens
-        isAsync: true
-  # Pool contract emits all the events related to a particular swap pool
+      - event: SetCustomFee(address indexed pool, uint256 fee)
+  - name: CLFactory
+    handler: src/EventHandlers/CLFactory.ts
+    events:
+      - event: PoolCreated(address indexed token0, address indexed token1, int24 indexed tickSpacing, address pool)
+  - name: CLPool
+    handler: src/EventHandlers/CLPool.ts
+    events:
+      - event: Burn(address indexed owner, int24 indexed tickLower, int24 indexed tickUpper, uint128 amount, uint256 amount0, uint256 amount1)
+      - event: Collect(address indexed owner, address recipient, int24 indexed tickLower, int24 indexed tickUpper, uint128 amount0, uint128 amount1)
+      - event: CollectFees(address indexed recipient, uint128 amount0, uint128 amount1)
+      - event: Flash(address indexed sender, address indexed recipient, uint256 amount0, uint256 amount1, uint256 paid0, uint256 paid1)
+      - event: IncreaseObservationCardinalityNext(uint16 observationCardinalityNextOld, uint16 observationCardinalityNextNew)
+      - event: Initialize(uint160 sqrtPriceX96, int24 tick)
+      - event: Mint(address sender, address indexed owner, int24 indexed tickLower, int24 indexed tickUpper, uint128 amount, uint256 amount0, uint256 amount1)
+      - event: SetFeeProtocol(uint8 feeProtocol0Old, uint8 feeProtocol1Old, uint8 feeProtocol0New, uint8 feeProtocol1New)
+      - event: Swap(address indexed sender, address indexed recipient, int256 amount0, int256 amount1, uint160 sqrtPriceX96, uint128 liquidity, int24 tick)
+  - name: NFPM
+    abi_file_path: abis/NFPM.json
+    handler: src/EventHandlers/NFPM.ts
+    events:
+      - event: Transfer
+      - event: IncreaseLiquidity
+      - event: DecreaseLiquidity
+  - name: VeNFT
+    handler: src/EventHandlers/VeNFT.ts
+    events:
+      - event: Deposit(address indexed provider, uint256 indexed tokenId, uint8 indexed depositType, uint256 value, uint256 locktime, uint256 ts)
+      - event: Withdraw(address indexed provider, uint256 indexed tokenId, uint256 value, uint256 ts)
+      - event: Transfer(address indexed from, address indexed to, uint256 indexed tokenId)
   - name: Pool
-    handler: src/EventHandlers.ts
+    handler: src/EventHandlers/Pool.ts
     events:
-      # Used to update the total fees earned by a swap pool
+      - event: Mint(address indexed sender, uint256 amount0, uint256 amount1)
+      - event: Burn(address indexed sender, address indexed to, uint256 amount0, uint256 amount1)
       - event: Fees(address indexed sender, uint256 amount0, uint256 amount1)
-        requiredEntities:
-          - name: LiquidityPoolNew
-      # Used to update the swap and volume metrics of a particular pool and user
       - event: Swap(address indexed sender, address indexed to, uint256 amount0In, uint256 amount1In, uint256 amount0Out, uint256 amount1Out)
-        requiredEntities:
-          - name: LiquidityPoolNew
-          - name: User
-      # Used to update the liquidity values of a particular pool
       - event: Sync(uint256 reserve0, uint256 reserve1)
-        requiredEntities:
-          - name: LiquidityPoolNew
-          - name: Token
-  # Voter contract is responsible for creating reward contracts and distributing rewards to the liquidity pools
   - name: Voter
-    handler: src/EventHandlers.ts
+    abi_file_path: abis/VoterV2.json
+    handler: src/EventHandlers/Voter/Voter.ts
     events:
-      # Used to update the reward emission metrics of a particular pool
+      - event: Voted
+      - event: DistributeReward
+      - event: GaugeCreated
+      - event: GaugeKilled
+      - event: WhitelistToken
+  - name: SuperchainLeafVoter 
+    handler: src/EventHandlers/Voter/SuperchainLeafVoter.ts
+    events:
+      - event: Voted(address indexed sender, address indexed pool, uint256 indexed tokenId, uint256 weight, uint256 totalWeight, uint256 timestamp)
       - event: DistributeReward(address indexed sender, address indexed gauge, uint256 amount)
-        requiredEntities:
-          - name: LiquidityPoolNew
-            labels:
-              - emissionSinglePool
-          - name: Token
-            labels:
-              - emissionRewardToken
-      # Used to update the reward address details of a particular pool
-      - event: GaugeCreated(address indexed poolFactory, address indexed votingRewardsFactory, address indexed gaugeFactory, address pool, address bribeVotingReward, address feeVotingReward, address gauge, address creator)
-  # VotingReward contract is responsible for distributing bribe rewards to the liquidity providers
+      - event: GaugeCreated(address indexed poolFactory, address indexed votingRewardsFactory, address indexed gaugeFactory, address pool, address incentiveVotingReward, address feeVotingReward, address gauge)
+      - event: WhitelistToken(address indexed whitelister, address indexed token, bool indexed _bool)
   - name: VotingReward
-    handler: src/EventHandlers.ts
+    handler: src/EventHandlers/VotingReward.ts
     events:
-      # Used to update the bribe reward metrics of a particular pool
+      - event: Deposit(address indexed from, uint256 indexed tokenId, uint256 amount)
       - event: NotifyReward(address indexed from, address indexed reward, uint256 indexed epoch, uint256 amount)
-        requiredEntities:
-          - name: LiquidityPoolNew
-            labels:
-              - bribeSinglePool
-          - name: Token
-            labels:
-              - bribeRewardToken
-  - name: PriceFetcher
-    handler: src/EventHandlers.ts
+      - event: Withdraw(address indexed from, uint256 indexed tokenId, uint256 amount)
+  - name: Gauge
+    abi_file_path: abis/Gauge.json
+    handler: src/EventHandlers/Gauge.ts
     events:
-      # Used to update the price of a particular token in USD
-      - event: PriceFetched(address indexed token, uint256 price)
-        requiredEntities:
-          - name: Token
-# Used to define the different chains that contracts (defined above) will be indexed from
+      - event: NotifyReward
+      - event: Deposit
+      - event: Withdraw
+  - name: ALMDeployFactory
+    abi_file_path: abis/ALM/DeployFactory.json
+    handler: src/EventHandlers/ALM/DeployFactory.ts
+    events:
+      - event: StrategyCreated
+  - name: ALMCore
+    abi_file_path: abis/ALM/Core.json
+    handler: src/EventHandlers/ALM/Core.ts
+    events:
+      - event: Rebalance
+  - name: ALMLPWrapper
+    abi_file_path: abis/ALM/LPWrapper.json
+    handler: src/EventHandlers/ALM/LPWrapper.ts
+    events:
+      - event: Deposit
+      - event: Withdraw
+      - event: Transfer
+  - name: ERC20
+    abi_file_path: abis/ERC20.json
+    handler: src/EventHandlers/ERC20.ts
+    events:
+      - event: Transfer(address indexed from, address indexed to, uint256 value)
 networks:
   - id: 10 # Optimism
     start_block: 0
-    # Specification of addresses per contract type defined above
     contracts:
+      - name: ERC20
+        address:
+          - 0x3c8B650257cFb5f272f799F5e2b4e65093a11a05 # VELO
+          - 0x9560e827aF36c94D2Ac33a39bCE1Fe78631088Db # VELO v2
+      - name: VeNFT
+        address:
+          - 0xFAf8FD17D9840595845582fCB047DF13f006787d
+      - name: NFPM
+        address:
+          - 0x416b433906b1b72fa758e166e239c43d68dc6f29
       - name: PoolFactory
         address:
           - 0xF1046053aa5682b4F9a81b5481394DA16BE5FF5a
+      - name: SuperchainPoolFactory
+        address:
+          - 0x31832f2a97Fd20664D76Cc421207669b55CE4BC0
+      - name: CLFactory
+        address:
+          - 0xCc0bDDB707055e04e497aB22a59c2aF4391cd12F
+      - name: SuperchainCLFactory
+        address:
+          - 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F
       - name: Pool
         address:
-          - 0x585Af0b397AC42dbeF7f18395426BF878634f18D
-          - 0x904f14F9ED81d0b0a40D8169B28592aac5687158
-          - 0x7A7f1187c4710010DB17d0a9ad3fcE85e6ecD90a
-          - 0x8134A2fDC127549480865fB8E5A9E8A8a95a54c5
-          - 0x6e6046E9b5E3D90eac2ABbA610bcA725834Ca5b3
-          - 0x58e6433A6903886E440Ddf519eCC573c4046a6b2
-          - 0x1AD06Ca54de04DBe9e2817F4C13eCB406DCbeAf0
-          - 0xC5c247580A4A6E4d3811c0DA6215057aaC480bAc
-          - 0x77b6d0279c9cEF559Ef7c32c31d9a5d8Acb664FE
-          - 0x0D0F65C63E379263f7CE2713dd012180681D0dc5
-          - 0x5e4A183Fa83C52B1c55b11f2682f6a8421206633
-          - 0x537cB4D4fE1a9dF1E295872f2B82c1da9df7500f
-          - 0x6B95147a8d2c7f480C0CF7288FCf268400CE9970
-          - 0x4E316557f63C2156eAFdfec08f31DF4957136203
-          - 0x4BE2CBE40521279b8fc561e65Bb842bf73ec3a80
-          - 0x6387765fFA609aB9A1dA1B16C455548Bfed7CbEA
-          - 0x41cC89B91D0abe260F2cB53C1ABDa07b321E71Df
-          - 0x19715771E30c93915A5bbDa134d782b81A820076
-          - 0xfA09479d72E2b3f8B6dF63399772237Ad6658D76
-          - 0x8542DD4744edEa38b8a9306268b08F4D26d38581
-          - 0x37e7D30CC180A750C83D68ED0C2511dA10694d63
-          - 0xD330841EF9527E3Bd0abc28a230C7cA8dec9423B
-          - 0xDB61f9B480f0a8B817811cFAA89A1c219c355224
-          - 0x0df083de449F75691fc5A36477a6f3284C269108
-          - 0xB2791477DA69DDe9cd2986349F8855B8E2dA7245
-          - 0x0493Bf8b6DBB159Ce2Db2E0E8403E753Abd1235b
-          - 0xBE418771bC91F75C4d2BcE1d5E2b7286F50992da
-          - 0xe0A1467A9d86d9F433496c48c6831c0142464CE6
-          - 0x2B47C794c3789f499D8A54Ec12f949EeCCE8bA16
-          - 0x11FE68d9f9D951E2ae8758D8A5134A2ff6258397
-          - 0x667002F9DC61ebcBA8Ee1Cbeb2ad04060388f223
-          - 0xdC3E1A8d4bd5d97e7bBa2bee6d6465FEA6998141
-          - 0x4d7959d17B9710BE87e3657e69d946914221BB88
-          - 0xDeFCaC75247C6a3e09f1A72fdCa311DC883F7573
-          - 0x8F47041aDbeF5BF321c9F63A0660326614ab6B60
-          - 0xB720FBC32d60BB6dcc955Be86b98D8fD3c4bA645
-          - 0x71d53B5B7141E1ec9A3Fc9Cc48b4766102d14A4A
-          - 0x0b28C2e41058EDc7D66c516c617b664Ea86eeC5d
-          - 0xE39120b27e5bfeC953524402C2e261763c76519E
-          - 0x4E60495550071693bc8bDfFC40033d278157EAC7
-          - 0xF31cbe21Bbbb8056b75d6ca21e8fFd2CD38bD5C5
-          - 0x917AA69D539D6518440dd0BEA2eaAc142a8d5610
-          - 0x25C488e5F69aC334ac1e8f786D890A97ec1bF713
-          - 0x45922aE4B90297A2d8655ba1Ed354aDBC489dC94
-          - 0x7e0F65FAB1524dA9E2E5711D160541cf1199912E
-          - 0x9c78dA24F2843CCDD02085bDEc2484106554ca48
-          - 0xe8B8bfF1E415258eb3d5FA8DeeE9C38406e609cd
-          - 0x6dA98Bde0068d10DDD11b468b197eA97D96F96Bc
-          - 0x4ed90ca704F4f6f3955169F202EA35365e41B424
-          - 0x3DD9556a521d6e57bE480c94da102fedf0429aba
-          - 0xd25711EdfBf747efCE181442Cc1D8F5F8fc8a0D3
-          - 0xc0a0adF5E3b07e383C2c1533B2f0878A3195C622
-          - 0x7e1357fa56C0eCfE69dAF22E08489aE8De56d86C
-          - 0xFF5318f81Dd791e92d51b8A54fA3538832D2890D
-          - 0xa1055762336F92b4B8d2eDC032A0Ce45ead6280a
-          - 0xaF03f51DE7a0E62BF061F6Fc3931cF79166B0a29
-          - 0xE5F28Fc43Bb40CDF7202ebe406793815b6f07FbD
-          - 0x56770b94279539416855fe29Ef14b26438B5e421
-          - 0xE54e4020d1C3afDB312095D90054103E68fe34B0
-          - 0x0e88a5bfF34d39DA66bdD32B82dC89a32D7Bb6c9
-          - 0xc37a0a37664aeB3848f98C5dD5d7AE286A1E9Ebd
-          - 0x8453cc52F2108fF9D1636B6A108dB06Ac137B72F
-          - 0x615B9dd61f1F9a80f5bcD33A53Eb79c37b20adDC
-          - 0x6d5BA400640226e24b50214d2bBb3D4Db8e6e15a
-          - 0xeD47E3ce6D9C05F562C469AB1bf1244cc697aa73
-          - 0x7178F61694ba9109205B8d6F686282307625e62D
-          - 0x85bB876Cbb202bD77704a4Fb7e4EcBeCEbd4cdf7
-          - 0x1cdfAe29a66b39C30Eb2b090a2dbba562026e9FF
-          - 0xa3031D9FD5010496a2bAF8AFCE27Ef6f3849FB10
-          - 0x5e6E17F745fF620E87324b7c6ec672B5743BD0B4
-          - 0x3f42Dc59DC4dF5cD607163bC620168f7FF7aB970
-          - 0xB2Adb87f301B75035Ec61E87C63ef3fbddf2B1D9
-          - 0x3B375bA61920551217f5944F4F5d8a63989A438e
-          - 0x1f8b46abe1EAbF5A60CbBB5Fb2e4a6A46fA0b6e6
-          - 0x9005c76474948AF6aCa879A112B2E0FFd333128e
-          - 0xeFe139aa71b674168f5823360A824B3714f2718D
-          - 0xDFF90E4A6c229565f25337B1DB9fA12f6d8cB118
-          - 0xd95E98fc33670dC033424E7Aa0578D742D00f9C7
-          - 0xf04458f7B21265b80FC340dE7Ee598e24485c5bB
-          - 0x5e5A37445FadeB71f23514Ae7d675Ffc644e5E5A
-          - 0x5DA5e8a46D435D619A12086620Bc77bF7fB043E5
-          - 0xe9581d0F1A628B038fC8B2a7F5A7d904f0e2f937
-          - 0x60BE3FB22DDF30C17604b86eC005F6173B1170Aa
-          - 0xA5EDb0EF932f7c2f37B8FC75CB01948F6258a4f8
-          - 0x25638DdDA5AD255308accD17d5f225837A36B9aB
-          - 0x6C23fA7EC9eEa627261C4a0978664eA592ca0E19
-          - 0x7959EB3Ad41dDAaF114e0BE9833E9B4f79db3081
-          - 0x20A068f6940b28338363E8B01B07C21c1D5f197B
-          - 0x9f95AF94518694c212394977CACaf43313981835
-          - 0xC4270d957C218d263e7FAE5a3bEEDC1E98B6012D
-          - 0xcf803EA54642aed9bFBc3Aa324C3657BCAD20c61
-          - 0xfe95120AF843EBC758e1974C3cAB556257A9f333
-          - 0x30dB561826b820299F0BEF9B8bd8946127b9D89A
-          - 0x966E6059a8Ec0bDb03eB2BD21F34F7CeF75A63FC
-          - 0xEfa74728DbDA583B16622E17937F4577E2846c0f
-          - 0x6e74fD411e7c3E858678e5385B922f0a2E288fe5
-          - 0x62191C893DF8d26aC295BA1274a00975dc07190C
-          - 0xacdE89BcFc54ec2237ed3693EdB8c51F74dd2252
-          - 0x10df8a154C806f74C589466214b1C831c2315173
-          - 0xebCfdAD0015036fC99691d145127dF1764D50a6f
-          - 0xC1E5b706d5b5FEc9aAca710fc03dcBD4356fb247
-          - 0xda0253a7cDcCc4b4DEfBbEf863dbA1294bF5e3B1
-          - 0x85f096EbA10FC87769d042E37df3DCD1B51cf8c7
-          - 0x1Bf31A0932A0035c532A7b1DCB94ffe0b35aed14
-          - 0x4Ec77c33bD56d2151ACE9f28F6cA27601410e858
-          - 0x45f714d89B383f213B32A89003c2D6F813B3CDA3
-          - 0xDAe6D2e3472d780c6E6A3Dbf053514451BDacc2D
-          - 0x652B38D5a6b8F7F08E3bc86275BDebB9803973F2
-          - 0x9A166C75587f30D2b9207b53960E9Dc6B37E1235
-          - 0x0af32614EEa68B8D2232B9592FbdB6512ab6DA73
-          - 0x579e50e381a3129893EBcf979cF0D9EDc3D46dC9
-          - 0x0f0509443b7fca172f5428580468A403b2924504
-          - 0x352717910966DbAC3F0c17CA1C1aAe269Cf85036
-          - 0xB52b8cfbCf5c177feB99870D3E2dD02933553933
-          - 0x72Aba20779797904bd395b7c69B4f9fB29CBb653
-          - 0xb1786ddd79752969660E2d8f1FAa9df2C88F5a3e
-          - 0x5d3150ca6fF66a77Ee77eA110424037440b3Ef44
-          - 0x0a53F5EDe53f4d75a5dF9D8f1E3C23E2672ebDA7
-          - 0x6d27db16175741717543135ae1f27308D2909Be8
-          - 0xd956aAB64cC3F9e2a9a4bCb2BCB9dE565A404B71
-          - 0xB0A8194DC73fC6B2aA52757c514BC788B84B9163
-          - 0x814e2d6E8f7477329BB6C196111A08464ABE11DD
-          - 0x1BAfB8120f6faaa72465f828BA536A828a89475d
-          - 0xEA3A5f56014b146A39D026Fc459304378C2Ea24F
-          - 0x83e782c52CC0b834464c4a560C82610150f0850E
-          - 0x533b22a3015E60944799c2c46d6C08e7535686aB
-          - 0x475C92F613dBE3bD5D1A4F5fcafa0725cAd57256
-          - 0x31a56BC24B24F5E570a9a01b315A31fd43cb9c4A
-          - 0xd1F87E26797CE4CD1D5b37F5e6A9Ee589865644E
-          - 0x83FC89bda2914b740D389F0549c60Bd808541c99
-          - 0xf984d3e3420784a38c1884c3D63e373CF2d2de1c
-          - 0xa8E4fA96327C5a93e159Bd781F3CCfD860519d82
-          - 0xC035eb8b5a5EC5bc43f65441077801e0Fa89E9d8
-          - 0x815357CaC24319a269304E45a5a56E6c2AbB0Cc8
-          - 0xB545592E38b603F4A904a5260A6ffC538BfcB424
-          - 0x457Fd55a2d4b159679379861b470C846cff946eb
-          - 0xD4929A10a10eA11B768BfAc92541FE5A26c794ce
-          - 0xd6ac2264A19812632F942E4dAa9b1F95eC69de38
-          - 0x2890B76b1e629641026957Accca9f6EF6215D64E
-          - 0xf7a73e1995030B0198f8d6e528a1c42ACEf90a4c
-          - 0x832a6141710Fcda30F4e88305d20fE1603C61cab
-          - 0xE79B7dbDD5838D150A7aD0AF8d8b165197b31f79
-          - 0x88391365c225973032275DB256b9D15F845D2C72
-          - 0x0C3A7AA27A6E14b7a92e09456B0970aB71cc0598
-          - 0xfECc8874B6E82cc51016B92a9d622aA945478EFA
-          - 0xB762Df5893A137D730D588F05aCe1166974e0429
-          - 0xa80ad5C1f8C21b34b427EA432530aE7fF36e3926
-          - 0x6Ea71D6ef05aFF4B503A924F2C5d76DFe5B85225
-          - 0x3F95E57C7ce7cA478d7A4f0eE6072F39120E3689
-          - 0x6443907dF3EB515dcb53f157C078C8Ec7263a7F4
-          - 0x21f75B66Fe2e3A18ebCd6D7524733e9C70362373
-          - 0x0680A285dbB887EfCE41c1fdE31002BD4fBd6378
-          - 0xDB1FE6DA83698885104DA02A6e0b3b65c0B0dE80
-          - 0x1c8d7fc2eAa85af18188f7619b99f939Db34836d
-          - 0x6d1A334eF70b65a2d39cE04C3F916DF93b3a2952
-          - 0x04730579f1468C06530ae3a84B7D5c233f3a130D
-          - 0x3e237351e3Afdb367BB0F45D792b0204846fBBbc
-          - 0xD32b41C1313cC383f9d1B65c59bC2829B6D3EE81
-          - 0x4ffCFbF4c01746DAfc3fe0719Ab3A83814130f22
-          - 0x61B5EFa18C9c73Fe708F01e2Fc558c35E23DA885
-          - 0x62270F70C750D66Cf10Bc8cBe12390B120498097
-          - 0xd52FB3366c5eecf1115784659CE464b08fbF34C0
-          - 0xa08fB94A933eAEa787F8191a5a980C4403Dc015C
-          - 0x6e57B9E54ea043a829584B22182ad22bF446926C
-          - 0xadBB23Bcc3C1B9810491897cb0690Cf645B858b1
-          - 0x02A130b6D35611bC2D90e20f2ceA45431c0A9a8d
-          - 0xe9b168fa9409EaFFa07679196c7568317baf80eD
-          - 0xCac4A6C1BBBf766843D6fdCd95950e6f27F98E9b
-          - 0xfeA18C039f4FD4E4AFA95851750A1310Ce9fF34A
-          - 0x1e51282Ec1476EC44b88ff720b87878E2934775C
-          - 0x7bAaf752baA99332e9B04332A5214E84D08c6A75
-          - 0xEea82dCab12C855E3736558d80500ED52c8598cd
-          - 0x0fB402252441082646D7dF18550e4036b8F20d7e
-          - 0x70Afb28f6499982f7aA0a52B191665c7f84BCaC2
-          - 0xdCAD52616E2689A5f14861300a5db91813a6c0e5
-          - 0x13e41D76BDDcbA5Ee3dD812127C6Ba6BDb0A32a0
-          - 0x7719cAD77E2d37Bc2a8bc891Aa6363f1D50e316D
-          - 0x49cE68a4Cd43f3a9278aC7dba7b5619731CF52DD
-          - 0x8552e52cDF8D22A677307FC70CC25D7949A0da37
-          - 0x8cD53F11BBd01224B7E8A6E58e4280cFEa497dA4
-          - 0xd9940F2Fc832E48EDcD24dF16B99b1f737329c2e
-          - 0xE6c892656EBD71457c509201EDD00417F2F79f89
-          - 0x9bbE04f4b57119F6Fb2892d91692BE177d8D8043
-          - 0x39FBeef6f094e366DE326B5de87829DEeF57ddd6
-          - 0xF9Ad452A52EeEDcc29a26fD6380b76c49E837d42
-          - 0x600CBA6f28d233e0c6f42b88B8EE5A74e34aBCc5
-          - 0x2fE304b407c7fAb2a3c10962F14dB751468a4f5b
-          - 0xa4fE3A91244E782ab9ea689b19a2f3526Ed84357
-          - 0x5404c61F5337D5a06522ca686dc388e0Fc50Fd32
-          - 0xc158dAFdF2cA1Bd1200a5B199157D0b42C8448e2
-          - 0x2baA263d9bd757D587D8CB78DC3034DCEa3e0B72
-          - 0xb1165c8D035b91683e343f7526703CE42fEab490
-          - 0x477Fa18B063B7728409570D274f7a055e3da0D6E
-          - 0x376DADcec30287C6841C4D0D1e61D88E84630752
-          - 0x296182104612Ba8303326e1204A57F3407308242
-          - 0x3133CeFb57BaFBff2826fD09d4792a2b3f6Ac00E
-          - 0xF28E7Cc2Faa88eD25B2B0123835b0203dfEED2Ed
-          - 0x3627B41B977Df29417A46f2e1fF67A29dCa99f2c
-          - 0xc3F773FD67C2dDF1bd2FfBB8746E3B8340DF286c
-          - 0xBBb67D7BbC64c625D973CdF8f3567809FfcC1df2
-          - 0x439c8a3704bDF52fec25bc271D67BaA2Bd204104
-          - 0xb1A05F31E73Ba85B21ac8E9309DB643cD545C443
-          - 0x6e26660Ce7182e463a64333C185c72E2C27555fB
-          - 0x5954E5B20260c0CDD35c93bbDa98D1F2C5abecAF
-          - 0x3D4319f633b7d5A90e5B542fEeb3f6888eC790FA
-          - 0x1C5d8126B50D9b42D6568Bb33869066D94367cF3
-          - 0x87A0E4E59DA9B0866De61163626Fa73a2B71F2a9
-          - 0x00DF002A3994a56D539d184c15d1C18aB32EA2df
-          - 0x34A32B75dc1691bC46eb96D50dbbEb103c903871
-          - 0x2Ee67C42B247d18e283840A40448667326688130
-          - 0x2B6c15b11022c245ED1a0D38A9821aAd94dB7B64
-          - 0xBD29257Ca8D0F2153141c4E21bc1dA187cE6287e
-          - 0xC0970D8E2E6c1Fb26401c405aa49a05faB69f378
-          - 0xbCdaba81FB44Cc5B175d96e83890eBb04423d3D8
-          - 0x92FB369363498d8bFEFc4EB705d8c91a51d22C45
-          - 0xCEcc5dacc7B09D35e19B1c5C47a65bc822A9c559
-          - 0x501c43f2C1e32b8E6F3785Ed978C44b83E38684A
-          - 0x95E5adBE98b359f41F10f718dcC758BEC80461Af
-          - 0x83b6F73ca05826B402343bc61d3c180e1597Ae50
-          - 0x9269F5199B01B7B7Dd38321B85c3F34EE3f28F7F
-          - 0xFc233aD094C8c9C245BDEA891DfEe2d7F9e632c4
-          - 0xc3Dd967fA78Cdc6d373AbEF1053Cb6Eafc37C36C
-          - 0xA5bAc216148E0bF1e707e63013A5761C9a8eC2f0
-          - 0x602EF41cf4F6A112F8e3dcBb7660287310a9FB51
-          - 0x4BAEA65c4646459B3574424bc4f2513526b6794a
-          - 0xeA3Ac9a53F9092517Daa43572C7F2caeE0b50Ca3
-          - 0x331d19Cd079C78BC4c9E8730106D42ecC04757A5
-          - 0xf3C45b45223Df6071a478851B9C17e0630fDf535
-          - 0xfa701C7b2800daeb75D6E4Cf382f1944c439b88b
-          - 0x0a98968224ef07908437012cd8B4200db610e093
-          - 0xF40517F3cac8BDC2ef1d26cA5a89b711A444Ba31
-          - 0xC152D297284b5b6b60e5bBDcF6007632D7485443
-          - 0xe188C32a2aa8e65f9AB141f5E96F8FA96b1b7757
-          - 0xdEb56d1826f20FcF50A91d73c154CC5572908dc2
-          - 0x58D50F195C11c708A7D3F12e57a0A08625407A7D
-          - 0xdc2B136A9C1FD2a0b9497bB8b11823c2FBf47Ac4
-          - 0xE0D3c840c9e58EF1631079b978EA6bD801e9c5c3
-          - 0xf547a913Aac6Acc722a66beF3B72C256360A3D09
-          - 0xBe96502c9bAa5Aec7E4C810c13D80F75e2D669E0
-          - 0xf086a79885e4F18Ab9803a0a521B1608574958eE
-          - 0xDAF93cf10Cdc86f962ef35A967440befac36bf7d
-          - 0xe89fba6B17456A3AA60e39a93c8eEbDf3EE9c790
-          - 0xcc212eaCc4b0ae102B9C0e277057Dd365E11E0d7
-          - 0xd1aa1e9DB7Dc2AC93D9D11436e9fAbF1Ab8Dde61
-          - 0xb90Da30758B00e5f08e6C0b71BFF122712D830CB
-          - 0xfa73fDceE758cf7fA335A9BeAF13F661Fb3c6598
-          - 0xbb23011D84628eED352614fd71Cc5325Ba8d9878
-          - 0x8F7A987217d5883b8e0081Fc4A6869ae6208c17E
-          - 0xc61ee9FDad73F4809Bb4c7BA0951098E57A1dd19
-          - 0x6450a23DC646d65AFf8cF7120A421d394F4E136b
-          - 0x4D8b739114309E4dae98362c447099B671d12ecA
-          - 0x258509CF4985026B63fbF4530876DAF623771aa0
-          - 0x7F5ff1492596Fb219C844A298F69BB9d2700AAc7
-          - 0xE40e0c5045b9e44BDf437a03bCf58f82F9CD3A2e
-          - 0x2E931De1fcB2681Dc98601e0b513308DA9C5cEae
-          - 0xF2D42c46528116362Aca448837A0236459B53C63
-          - 0xdfDD0b190aDF296BB0162d19c2e0206Db68FE475
-          - 0x7764f2CbB8f165eB430aF14568E6970a4E23369F
-          - 0x97203C53dAf858Ce36D95997fbfAFA8E29122230
-          - 0x17547215D96696de1E1C8a9791D6dA18F92045AF
-          - 0x5675C7dD1708CDBc6124c05E988b0dEf9Cdf3DFf
-          - 0xF1c89b2f2a74676C0EA908d3e98beCE604BCb00E
-          - 0x3dD963F72b52182ec2894A07B85B00977D40D048
-          - 0x6102ca7475464553aC5D9360aE563A9852986406
-          - 0x8475aB2a846EA967c1b9C78f31b5F8E2F854BD7c
-          - 0x1cf0C771e3f8C94A4DF45703F6B42Ab937f23DB0
-          - 0x83407210DbB8a2Ca5796449A70776dF63d34333d
-          - 0x5D420B93fA49902a5496873BF391d9d7484F1ce7
-          - 0xA4aCbC92595DcbbFd18cEa433FBE63713D5192D5
-          - 0xDD2A8158f1df0E364D9006B399946B3AEc2C8c2d
-          - 0x7818d8aCefDd1A47d6C9094Aa413f24d9593973E
-          - 0x0d55c507b6123633fF73a546752e964D012D28A7
-          - 0x9875638296D62fa5Da64fEA1B82520Fcf528114f
-          - 0x4E1Cf47161e7BD024798fd875415AEeD21013b88
-          - 0xd02B238C78E324d4FA832566297fe3a0F45de39c
-          - 0x4207c31CCdfdB595DdC4Ff795156931E9702088E
-          - 0x3108c6e5B2C8527cb6d29accF70451a47e2871F4
-          - 0x7b32dbF6Dc77f7c339231F317742cb99FbcF4287
-          - 0xfB65d7231548696dfc15E4B8a24b88aA42853A9a
-          - 0x95a05D06Decf8e1Eb93aE09B612FbD342F2F9E2E
-          - 0x78D379273F81edC164d4C36F89883e992A074673
-          - 0x729CBdB02817C31a0D9BeCd2cEbcC63e46e5A68C
-          - 0xd6E36d93034572875F372B44E2D75deAfd813ad7
-          - 0xc424dEaEED221e84411E63d74b558568acA60317
-          - 0x990eBBd8fe9bB547986DB6e6658C3746aDd474A9
-          - 0x0f6D0173986C4E6b4dA38C77EEffdda3B59a0ce3
-          - 0xF66e01f9d175F979e9b2767B71db04470a15B598
-          - 0xAD89AC66Cd0cCf3FE93b4490C62eC20Ba447f984
-          - 0x642b016C4A269d6665368898E88FbF4573F10C34
-          - 0x427e7E54d828EafC019B044dACd17C591A8F0803
-          - 0x0333888eD5e01D0D8Bb9c8286Ae46D536aC50F08
-          - 0xBbFBF2Fbe80A28bf6919716BDaFBf56eAF7Bf886
-          - 0x2EaF7B9aAA67c70B8770f20502BAb66CFb9861fF
-          - 0xa2cEEd279476519F55c263e3A9d229c9350E60be
-          - 0xE31950F2056C7a50B60974776352960B9500b7ff
-          - 0x049E044Fd3D728F4C571438dB52AC550E66c6E12
-          - 0x3F2Bc76760b5C36aae121C0D632c60eD04853BAf
-          - 0x4Ca2F3CEDdb88C847D9204124A6EdFa0172A7DEE
-          - 0xABED09C253FB58f51D1A29Fe1491A4925958ED26
-          - 0x825e291af3555685554A13971E731145393dC8A7
-          - 0x77A8f28f6c41540cdEAE53e2182287D2A32B9109
-          - 0x4FC3ee048aeDDcEF1b48a80dB63D883686153d40
-          - 0xD23A5fECe90193E4e5E22f358DC47cBEe0c97Fbd
-          - 0x91b7C2627F974c0448D795C53bBc67ab4F480216
-          - 0xE627871E4c5e15398276cB664d31389B67744Dd8
-          - 0xc7C3Cbd80171211Cc89F8D9B277AE8958D4611D0
-          - 0x2f318c7c3835df46146768E0C981FBAd8B45483d
-          - 0x4Bde18f27447CF4fd2994Cc94E68ba9A0Ddf556c
-          - 0x7c9a7243F6A359781996822A141A28DC48AA258b
-          - 0x9db95DE2EEEebe8f9e3F7F89ab0ad688EfF5267c
-          - 0x336563C501ceb3c1E1443e36fee061E0791a5d84
-          - 0xfC42f9D40C5aF1b5206aCa3ceF7Dd22A49F697e1
-          - 0xA8C507dDF3ebEDBF251F6F643a7D891532745467
-          - 0x490eb4342955aC953D4239566079fE139A56819d
-          - 0x2Cd32FB367431fD6F499328EDf34934fDbBC6b26
-          - 0xE7F1EAf86998BAC46c32830eDC2355fc08921432
-          - 0x55DAB45389b93E549ABe1DE75552c082747D53AA
-          - 0x9c1c3a677BE1A0692dceEF89933c477F05Ba3ed1
-          - 0x3E331477EFD7FA97112C74D79De826E50d5ea345
-          - 0x020e968e640aaa10C5AFB29047f5E1EA42214F8b
-          - 0x65D6d0465eC1743C1867229c50dB5D74bc709C8E
-          - 0x13C195588ff5026bFcBaE69256e2D83f865F310A
-          - 0xF7a1C130A2112be66864513Cfd542c783E6ED5f1
-          - 0xc90a168ebF95d9eDEEa9213A28711614597d891a
-          - 0x9839a842781C32F2e80aA5e5823C3ab9E2FC9Aeb
-          - 0x0378F0ffC154606b764fB8016427094e3aC5dD11
-          - 0xa30aAD3E400f74CC0024Ef12c580CAC38Db15cE4
-          - 0x71399b1aA1E8eD45a9C7727CAB9bB45885a4cD6D
-          - 0x42F2D8E0228dE63d63eDbd752A19eB7a06338Dc2
-          - 0xeb099826C08B8c967991a08a3a8875D6a1924F40
-          - 0x04FCf6996746f581e91d015AF26fcFe5D317369a
-          - 0xfDfc541ff39a6e5F9E29Ca535d2D0f70fE55004c
-          - 0x51e2b9b62B6B58a8843ab19b6dC07c6912b5C6F8
-          - 0x1581Ae620A6717222Fa2ced0350754E43949f4F6
-          - 0xF5d8dF0a84F44bc70Eba8079d5815f0d81f8EC74
-          - 0x568EC5002dCCb2A99F5013078746C1aF02Ca514c
-          - 0x19803da985D2E0039bF8a950f625FBAFDe0Ee9c9
-          - 0xAD424066e8Ff66F899B1802CF2bF94B55943D55F
-          - 0x2Ab2683a9eEa7D62309F25b7E8bB6566cBfd2CFe
-          - 0xA925CB537584f2407984C8F903D20BF7A32A2076
-          - 0x02659556a1d9ea1Bb7b91296428698d3A748502E
-          - 0x6372e9A19b51BE4766be9121702Fa59FAbb3e303
-          - 0xBe4f9528cE29013e835c0b277e9EBC9e49E2A07f
-          - 0x32b52cFA965c7E0Cec2C747D949840b149DED860
-          - 0x91DfD1498df2B0F645883aE3768a826b1a364706
-          - 0x8e04ccBc7c6d25529748A4b767cb6E75Ddd43eA9
-          - 0x09f03c0F943BAF9cB6d7AF81673eDbd591F90300
-          - 0x6910BA3714231C3a3756207e9941A814dbe84A96
-          - 0x69A911e34142f3887e5ecb327f98eEFC136A8399
-          - 0xEa1a91cfB21EbA60d2a1a0EE5E23BD89653eCa27
-          - 0x5Dd5a7Df930F8038f6c4AcC394adCe09Bd710e86
-          - 0xee207128E39348763408BCb32641B5c39Ec14EC5
-          - 0x7d822C21e9087DfB93C67Ee4B50d15C7CeE46278
-          - 0x20b28aB9b01B3b8Fdf3995e2908ddD9FD56dfa19
-          - 0x368812F1197a3ffd803279352EE1b01F9A2c618E
-          - 0x378682CA0adc8C06E3FF8e2fC76b73bBBfbcDB11
-          - 0x6E966F72ecb1e256e11135a2140b0083Ee08B43D
-          - 0x743d69BC899035b31F021A580180c75148F68CbA
-          - 0xa7545d444f238B692de454617bCE9730F0C39E87
-          - 0xC2C7DD98b01FfD2349d17e978FCaF5cF20ddc0C2
-          - 0xAdD195658fF0E695F545e652A72714f219E64639
-          - 0x581ae147d48A05d45833F3d3011d98Cc497Ab500
-          - 0x4f26067a3c1e8c419C0D949A685b22F057e5bC80
-          - 0x70dE438D91eE592d46F5D6e79A85Ea4a47b0AAdf
-          - 0x15c61417526282a5ACb8B051A9Cb4Fc54bFEa595
-          - 0xa645B67bb192D0bc2eEc10342c5995c3fDab2E00
-          - 0xB46a36AD4D65d24B7D00A422C53A1D8c89b2E335
-          - 0xc3439bC1A747e545887192d6b7F8BE47f608473F
-          - 0x67095953055545848DD0bC292fb46d91134A069B
-          - 0x66782dD989896004b7862D8f1839C52a569f4346
-          - 0x5b6F4f3E2aA04CEDF172BAB0C734d585cb4b8714
-          - 0x1B3ACAA361C4293bCF342528A1C8dE2256496036
-          - 0x1ea4C1b34ae802B4a6b95D64dE9CF94CF1006b0B
-          - 0x5A9926bd992F143ae4108A09142632A79c4F09Ce
-          - 0x4968b491093e1F0173C4C4d0ce4f749A6F5fF0F2
-          - 0x83c3E508CB35402A902ee7860d4E0f31A1094634
-          - 0x428F2154eb1fce3412C719fdF1A1519D2c38bd8b
-          - 0xB7eA7259B6Cb6D267Baa9588EB349734313510E2
-          - 0x340962bad5Cd93eF71c1D881ba921ac3Ac1C8E8a
-          - 0x8783449b5d7d4E35A922B521665bcE9fd9c53441
-          - 0xcdcb46332b974238cBb81Fb65a91989aC816f1b0
-          - 0x72F6cCB72c9eFEFe8b0e347a05abc2A01e889c8b
-          - 0x5F47E90fE20f02Ad61cb047626410AcA6A637151
-          - 0x7B19156f1f346Ba9745275e7E6dC3443960Ba4a2
-          - 0xfB313C3068ee73d987589D5De1490A21699E797d
-          - 0xBF7b6236A68F63F75765517cedCdF45f0CD0470C
-          - 0x02E84Af1EdA7088b03625cc12b347EEF06D17556
-          - 0x4Ee160Fe1C7353B60C13BF79F44fA3bcFC6EC967
-          - 0xf8f910528be40202d9AbF9d1FE5F58eb33f0817d
-          - 0xa49d69DA906A8f4C823E0AA73BD9a37598c5C18A
-          - 0xFF7dEf90357532D5b92e5ACfd211bd7590ed93F1
-          - 0x4706e50fDe911525e4B904c240056c4Ea0884AA6
-          - 0x5CFafe2E420544f2557aaF2C104778dFa6c4EF0D
-          - 0x8E17f3D8DCeCe9E5f0aF7daaAcf5D2e637144A4E
-          - 0x08b1372974E601e25e26913A0Fe6B165AAE075bF
-          - 0x7E8C4cb10C841f0ae4F9e78740b096ACB1C9A21c
-          - 0x5f9F5E8A0CA962Fd8bf204255904186f51563463
-          - 0xA4124DAcE0e8c4a51BaF47680c3850f6fA0FbF4e
-          - 0xC5F25Cf0fbDA641C669Be906d0e9F88acA3cFb98
-          - 0x6D689d8094C96bB7c4D8E6C6Ee2040a6CA6B237b
-          - 0x2DF85AeAB4F6862b0aC92C933834403Dd1434A6b
-          - 0xE578979Dda083Ec338aeB50d784a5C583B2bD38B
-          - 0xb55246717c0e49d608eC6B2B790152c84702Ce89
-          - 0x6EFb9E4951Adeb112aBCF9900BC8A43A170A1DDd
-          - 0x40757859A6e45c66BB384bc0fe7F78F0F4b2fF05
-          - 0x674E110c5a960cA99E3ba3943B9de290CEa76019
-          - 0xF6fFB55bFb4f149B725211E7eF1CC9F3A67c5b01
-          - 0x45F285B5FeFC4aeEeFFe31ADB296410481220709
-          - 0x4f3d7a4eC52D1FCA78E1462A8507da497d8164C8
-          - 0xD41b3d02A61701E096d402d58eD0eab0dF31Da24
-          - 0x858Bc8da59BCB11411Bb92808677fdaB3265b658
-          - 0xB7120d5cd50235157C2815379B15Af2fca40E27a
-          - 0x72d0B31906c77C127CED7099e230Ddec3aB341b9
-          - 0xe148D6Ae042De77c1f9fe0d6c495EbfD7b705B4c
-          - 0x69C0254939407c87A5f893746bfCf3417c7Ee598
-          - 0x98a8F61De6653e718E7Bd7e793f9E8ee80583B04
-          - 0x71aa84275c7704D96c9cb29aAB38AC37eC320e3c
-          - 0x6d419C3A1141b9EdFf8e226F81CD634F90B69621
-          - 0xc8d33Ad752f255FC95712241FeA2563F8d986acf
-          - 0x81185b946151ec6C8A4E09fF23c95c3A0b817fCA
-          - 0x30aE58c12C56010273501bf6C6605c3C9398Ec0f
-          - 0xB32eBB6fEB392B60Dad6B338eA4DfdCb7C8712c4
-          - 0x6EB8DffCf057429d411242568f08dc2c06fc0370
-          - 0x60727C6daF095d39C10Ce2461b46f61a0fF65F69
-          - 0x823dCf6692564777dbc1c22661dCc30371E5b2B1
-          - 0x6EEc2cC1854aDB60257619B9b21D8Af4613e9C8F
-          - 0x72bFCB67f59DFe4cf77413596B5586cB7DD941dD
-          - 0x2fCca05388eb6Cb9d90BC5f841E6B9009e1AD0a2
-          - 0xcFeF85Ec8F710C9432712Ef5aAb9EF76eB1a3f23
-          - 0x07A1B06B64c232Ee2f16465148Dc1E0Dc691297e
-          - 0x46Aa300A5A7a973F44E0baea360FC207554B7157
-          - 0x7DA445e755AEC2371EcA860D9917305947FA0b01
-          - 0x25f54E5Da1C131b56d56C681fd2a94E19cc7b0b6
-          - 0x26Aa74844BC71EF137075a0FdA37Ca1fEb37a388
-          - 0x7CCC5Bc2446d25973eeD60598d00e60fCE261087
-          - 0xC2F66F50D48C9E590990FBb5909E06a9da98995A
-          - 0x46a40f92D461D76F0D44A7200aD00099a6E3dcB2
-          - 0x3755A39dd351a517F00212CEd1247427b0f95132
-          - 0xdb30F86E1daa0FE42EC3E9e4F769b519f19Cd5a5
-          - 0xFB9501E5aC740D804b2D5393F64527672806b9e6
-          - 0xc9fd3537BEc5285994E3e60C1bb4252F45f41f6D
-          - 0xD814549775B179107Dac333d26150F5664D174FC
-          - 0x112bdff900541D163ac7d54707ecb3BFaf32C10E
-          - 0x38Bc76a4C1014De6682dA151B97e0Fe7e1F89212
-          - 0xe31606De49Baa93F0192636Ce3Fa296c9C0c7388
-          - 0xbcD3Eeda1C4b603B128Ebf9aCa9f9ba1CEcaB8d0
-          - 0xa277625fB65864b33018B09006B4FAd88C661B25
-          - 0xD1bdD66704a1d52A5271855321A24738fb9dfC3C
-          - 0x82924E4D3EBe7876F8fd41c99a14056eDbF6ae03
-          - 0xAcb74dcFD945C9A0cF907C28545F6E7B20C6FA26
-          - 0x93fd9812D373Fd2087b6291945dfb2706b13DdD8
-          - 0x459aF1026e3e1fA48519a344C1b85D8c9fEDF2bf
-          - 0x2B28EAE37bb0ddaEC6E67DFaeFd7C7C685B5Cb12
-          - 0x485b2DEEA6bb76D4b7E2918FF13A0Fdb4c9C38eC
-          - 0x35675401EAD125Ff7B5aE2b11430D3964F62A81e
-          - 0xF4F2657AE744354bAcA871E56775e5083F7276Ab
-          - 0xbba830b383Ff131F7059fea36c90E9b63AE12c44
-          - 0x992e212A951F9ac95101D994d291B761107C19D3
-          - 0x713050E9eA7764afb229197E98559E20e67302f1
-          - 0x52BF61a298Ee43cAb911EBA63B2a160B8fF04493
-          - 0x390B7Ae47394CF7F112DD32886cb9164583D80C4
-          - 0xd8B6e1d4cce65c3Ce19262CD5494E8edED8db908
-          - 0x1e7c5572B3D5942Cf5dabf61f5Ba3FbC6B65e921
-          - 0xf709f28B88Fb90b7145c6A293a079F94806CdE89
-          - 0x0d8ba0F6ae12E03f8174eE5A69EA062b84552460
-          - 0x6F202515fFbb74a4cD12EBD85aff4a872C099563
-          - 0x77ce3e963DAF97d1819423099E2b81FcfC3dd344
-          - 0xa19638918A72ADA854968c8F08E7c0f76CD1ad68
-          - 0xB12A27E6A7f7e9a83693f325a706fd65E5E4905C
-          - 0xCCFf62e5d88Aa7296e80920F7FF58b7F4B75a811
-          - 0xd6f459cdAF006fe4754c6d8b066F4F34930Df11d
-          - 0x55D6b74705af99E0E40AD851a1EB8207F77c2792
-          - 0xBE360Ec4763079502Ce899aB303FC016B4b64B23
-          - 0x3D68B620Ced731Cc16bE857A8B5f91cD864C04a0
-          - 0x158F5B52f39E6C518A3aa53D7c5f86445d6b88ec
-          - 0x4f8FB118918349B99EcF298d460F1CAF2E4b0D38
-          - 0xbF9c5e1B2df9054c71B502C967477168D5cEde94
-          - 0xBf75051F6e6dF9fEcF90d9bebbBB08a85950858C
-          - 0x39137242CDDcaA2020AF946cBF58F9B8956c0F51
-          - 0x6EF1DEA7066BC5ae1D4800b3233d837730481303
-          - 0xBCc6DB38E290b85Ce8b18c5C010848320618BEb4
-          - 0xa0Dbf75A275341606f20175515a22Dc84E33f5F5
-          - 0x844D7d2fCa6786Be7De6721AabdfF6957ACE73a0
-          - 0x67F56Ac099F11aD5F65E2ec804f75F2cEa6ab8C5
-          - 0x29cA9b06864D66aFe2E2684AA85B22755891abE4
-          - 0xf0dC43BbAe48dd39b97229CEC09894A503Ea230C
-          - 0x62Bd38E9C8d80e3a6f040b062ee4Cf97fA1a6114
-          - 0x36E3c209B373b861c185ecdBb8b2EbDD98587BDb
-          - 0x42A6d27B07e4ae29efaB3cAe0F57CF1ce76435D3
-          - 0x1aF07739C16530f108995944097B3831Ec888150
-          - 0x300248Fd63234Ba30C67Dd1297FD96D61db12dda
-          - 0xb14722cA276bc6C4D5F239637ce318B0dC463056
-          - 0xFe9e5Fa92F91d25E4A55Ba727527457410dC1218
-          - 0xA14Bc4018c47441829277980c582cE437c807B84
-          - 0x6028690d90263b2FF63D071D53c79c04133aAB54
-          - 0xCa22A9Ab446DAD3E46b93EBe70B0Eea2817099b7
-          - 0x5258983634Fdf8A2824650B88BEbB68cfeC084e3
-          - 0x95A86e6A2C22e6F40D111816F2D98240753b87ea
-          - 0xFE2ad9F6b128aaa2a55ee199ecAcBDba095A20c1
-          - 0xd7b3fDc2922B54c63533f60ADFC3b18CaEAfC0D5
-          - 0x87E3cfAb77c39e42A5f21b8de8845B88AF793677
-          - 0xC8c4aF2B41Df606e340b7Ea77a06AAEBD1826d76
-          - 0x18C830F6a32A06Cf2aC4262E977a096F12bDAB8D
-          - 0x05Aa1277cb1Bc91653A0Fc1e43dec7844b08860f
-          - 0x69A9B0f791507C50B413d24aBB761acB5ac52728
-          - 0x4Bf95008601e5cd3ac393bE4025D0d70054B7e22
-          - 0xac9DF65fA9702be1359DEc59aAb0AD0D5aB43C46
-          - 0x0cF0174f04B62F0eE3129F8E909Fdf789736429f
-          - 0x1dc704D65e92D79c2Ae12719Cd635a4b3946a0d3
-          - 0x7F5F38A470D719b8fEb4bfB2dd3EB9CdB9341b60
-          - 0xAd7B943A6E3c7e092211afb3CD7664B56046E5Fd
-          - 0xA06F497385658570c0A2E84CCC3AeB298528D0e6
-          - 0x04E9e8dD950aBAA1838703B487e417199d3c1e60
-          - 0x91D748a4BCb15429f963a0057190FBd301eE6839
-          - 0x7b21F0627E85602db3FE666960B5D645D5e858a7
-          - 0xeDBe7052f368CE52F6582Ba4BcD15f194947E6a0
-          - 0xCdd60df8A313cCc563546c8A002Fb1299F495bC6
-          - 0x3C5a8A63FCf5596f6cf5476CEb3b7aBa322800D1
-          - 0xccD4E15c947960ea858a18A3A463CBB2c183Fc6D
-          - 0x6A0B2F4C6E3FE08Fe97111a7c1061b46740EB10F
-          - 0x40913c5B945c0f38EAAf5C3E2c62b7311C18aEbC
-          - 0x4500F665f91502eAb161c2049c58051C66D03D81
-          - 0x6b1fDf5EEccf6161Ef26B7D2c9D50b03e0B344C2
-          - 0x686Fc12C001869F4f11f80FF149D8de3e04C78a0
-          - 0xB016A823d04D6C62E429d07E1e674f63CE450Db8
-          - 0x1108A3297d562d5C178BC08F2062F4d43E137fb6
-          - 0xBEBd472a9b107291EFA4c3291CF5C38BF8f55f68
-          - 0xAE6c9B2A2777D0396cbE7E13Fc9ACEAC0D052e00
-          - 0xE5c8953fFb85C0aa99cB80cc96Cf0D41b391D8F5
-          - 0x641113145d9c636042168869464022bd21D56A4e
-          - 0x3F0f761a0E328222C07e0d20ef9be5f34c5FD9CD
-          - 0x05cc7Ed70F745D20Ef399f6eCa2358562a5cCbaF
-          - 0x9855c344B9302bf6F862f0f9Bc19E3C82E03A90c
-          - 0xdeA077Dc60298D98C3f7fD97b40C637e0FBFD4f2
-          - 0xb23e4aDf35cf024FC694D3Aa9f6bc7b824b51547
-          - 0x780bA022A610E25b6Da34234B338018Db6270094
-          - 0x5821daeA7B1a0e0BD3AB9805fEF7083CdA5dcf9C
-          - 0x28A3834ABf994CFA8F3D4Ca096373af5e0eD0B9e
-          - 0xEe356E3b6b5E8F4eB6B5A7A5FCe04DcF79b6FB41
-          - 0xBb82aAc888926B6B2b81b99C7927470e36fDecF4
-          - 0x5620Ca01b547A33334C80baCe3607CE445784eC9
-          - 0x3078a8738C20a19B52d11834Bee7fD46E0208fE9
-          - 0x6dA19DEAAa4106E59398A8C1cf603F5bd9E9CDdc
-          - 0xa92d83a7CC2016Bf02bFde912b349800f014c1d3
-          - 0x6E332250FEF36bA661994a48F0Ce7EE65ff9D1Cf
-          - 0xD235b298F6Ddd9f23fe97a9c9806027538841DeA
-          - 0x6Fa6F25aa23DBC448Bd2A6d4133DcFBe4395D481
-          - 0x229266e503644497a63Bd9Ee5cFaB3465C53E024
-          - 0x0335dD21957F543eD0f79fA88628faa0c65F189d
-          - 0xab0C162e0656603E2B368AeA16114299b48fb6fB
-          - 0x6Ed6Df1C23C51cb7Cc67a348cC8d9E6108EA3BFE
-          - 0xFFf37730744930Cb61Be34c0014068F4f1eC28cF
-          - 0x1A074E564014F7Ee1c34c5ef979f8099438Da04E
-          - 0xd1141f9d00DC97BD1F4fD0F67D3F112bbc98324C
-          - 0x70BcdE95Cbf0f04923e842C18d71E6A20B430a32
-          - 0xC2ab457E31c224dA284dF7aFdA70C39523df4972
-          - 0x87a214671FBEc0CB0DaE713Cd9F4DaaDD1E37D09
-          - 0xeE847E8140A679befAE14e0BD4F341E53cC03a72
-          - 0xbC26519f936A90E78fe2C9aA2A03CC208f041234
-          - 0x8cF73Ca3d33F0aD8474e335BB1Cc5dde6D550940
-          - 0x73Bb2647acF6063F79CcdA6875de934EA263C468
-          - 0xB9655427238E8DeC61fBF6bd8Cc1aD9a26b5A8A4
-          - 0xf8Bfd2C99409cfa2AbfB94448ab967288010399e
-          - 0xD3e8f7DD5BA1141f25664ba401Ecd98571cF5380
-          - 0xCa72114b86Ac6d7Ab8D583c0E94C9A7DE7540610
-          - 0x8F0364Cd47Fb819953D9096Bda1ec8017829aAa2
-          - 0xc7770ED29a3615Fe5B137cA93481Ec1752BC0efa
-          - 0x84b054bfa2C629C67aDE500A9D7132E3E5DA48eE
-          - 0x744735dD656c51eb61e3C6c59A775964bF4ED7c0
-          - 0x5B06E4Bec5c253b04D6c4Ccec548c24cD30159Ce
-          - 0xd70846DAFa7A446c151CcA2175B1eD3215d32920
-          - 0xb2737C2d51f919d1aF35E8fd9067A9C3bda5aCEe
-          - 0x1F143C3b8A5a98a5b69437d5d54F301d201076cA
-          - 0x3fa152CE7f4ECFCcfBc6eD1658b4ba01185D7353
-          - 0x76248134a79CbfFab4aF5f172BB16D987B3de235
-          - 0x73DaC4c0e02CC9d66e5Fe00569360845C241d3aE
-          - 0x77DC238E47C016A8EB65c4375fCeF9ca197e6979
-          - 0x9F34A1dBf56d7890b2603c0b4A523B25a843B9D8
-          - 0x3478057a386044FFe38eabbcFD6B2b16Fe5913c8
-          - 0xb3FB8A0862A260a63eD91151C74936885116AC27
-          - 0x489408f7214Bbc9746A853136A149B111ECD0119
-          - 0x894d6Ea97767EbeCEfE01c9410f6Bd67935AA952
-          - 0xa5F5CBB1b654455B51D07AC9B0C59D3b0f81Fdd6
-          - 0xC2c29580b60c4df0795e4F03BF01C5739171f6c3
-          - 0x0a8f0D4b3dE04AfADe29ca0C84743177c4BcEbb6
-          - 0x38160f7fcbf1e82A47c7aBc03A531ABDd48686f7
-          - 0x7983cfE52aC185c1e1a19758750Abd3739a0B9e2
-          - 0xa0A215dE234276CAc1b844fD58901351a50fec8A
-          - 0xd092024E24D3319f6FA060ffbb603Cbb16a3fcB0
-          - 0xeF6Daf40367e601451326C90691aF8dc7092B063
-          - 0xA03eff313F27d3f7A87810c8c584Ae755A182788
-          - 0xB786Ee5172defC74413a77aA55E9DBd222A50784
-          - 0xa03f54e2f8BC963816205dE51b428d705635d46c
-          - 0x8E0175af4a695958E665E71964A8CfEC00085215
-          - 0x47447902cbCe2cCCCA71c97EdFFEC8F47cd8c455
-          - 0xf9741DBE322ABD7FD6dd75E35beB3271236D2c11
-          - 0xE25F3642Bd1FCeD37D35D0b38019B2A2F58ca1dc
-          - 0x763C9dC392B6BEFe79Fa227056dD9279bAbb4E14
-          - 0xf72f804e043DE5EF0eA4b14F44c42D7e9827235c
-          - 0xB006FEda62243a5D257EEF60Ac700510196D0a2b
-          - 0x4745D7481F52334B114D2cCF4751983eaAbb3F5E
-          - 0x22a21137056db41d0f04fa02f7f88Bf6A318228C
-          - 0xfdA251c16f1aE2e0e758B8d03AAd080A636663a8
-          - 0x707ba27189e8Bf89e43b2198E6b88AAC4720124f
-          - 0xaFAa0F56E621259E210b7B005e9f1527dbC21e1e
-          - 0x03513333630B30E5caDcbbF8aDF51705c3dFD083
-          - 0x2B0f372Cb98AbF1b12439A4e0b144c71D567e230
-          - 0x140da44e3cCFD97CdaA69d09A893D7Ad71ce1f56
-          - 0x5203a034412E3ED2Ab8Efd772d8c870717F0e519
-          - 0xAaC7D612C1f23A45967f772Ea587963952CC0B80
-          - 0x2f478e1E09c5232a82532943b960a5F3C16E50cA
-          - 0x832c4E919C5ADdB51CF31AB4e665f4f7362Fa974
-          - 0x0D335486761624047c4b24b1Fd587A1f8fc741D7
-          - 0x2E6b9f413395dc6200067a81fA5175d873EB41CB
-          - 0xFC34b97B9170E743eb02257FB3E0408E76FEae1D
-          - 0xD2BF66746ab87CC52d6080D400ae75eFeed131a7
-          - 0x1C62f57a8da4f63A3B241cEBBFeCb934cA738068
-          - 0xfA078F59577dEe9ddb34b0152B03fA49Fa69Af51
-          - 0x097b8b52240ef62DfB435c0A61BDbEaDe14EF449
-          - 0x86542038d0ae1A3218e1496F4147Fe097f042655
-          - 0x18Dfa55C90eAa86Df688c5e9c55183e7eEE44395
-          - 0x870cA5e2620Dd8cFe569B8E8E0bd42b337522A18
-          - 0x108b26b322449d71A108cd000B15365A810b9848
-          - 0x2710F5464000DaeA8B55A2Df9C84227A29A7c0D9
-          - 0x984496147C8270278F00398e8f5650517d86c001
-          - 0x2a9f6E78273F7ED0C91532AC6390539dF7055576
-          - 0x0BA7fA9327f671771c1CDd879BBB59C0927a5F78
-          - 0x605cCE502dEe6BD201b493782e351e645D44abBB
-          - 0xB3eEA8Bd842B073f6411B9fFcccB06a47C6EFEf7
-          - 0x73990D7171430494D380806a1bA894B8622EEC0e
-          - 0x15238467dBccd1Cca4EaF5e866b4835444E870c6
-          - 0xB5E5a8E19d4e4918152196C051eA70EE6ecA23b8
-          - 0x3489773d0FBe6A9a8353415Cb1957A266D2fb0De
-          - 0xABDa55d7F3Bb2393D4437b58CA3569A8F63DC5D3
-          - 0x25cD315a9d69ecFCA301D0c6fB6A0d1f6A96A4bc
-          - 0x3C4782795bfF3C7be28B6E9651d1868192438641
-          - 0x369a769f8b232a04e3AD519Bf0b607e7ed6BbcdE
-          - 0xe5C046761B4E4FF626e1363De2C7BbcBfc3078A3
-          - 0x3dfa50728D7b588FC2E724FAAa09e79E54E1Dd24
-          - 0xD5Cb4b0884350E91F8f72380856AF7d101E231dd
-          - 0xB6e509d4aa93Ff401E8Ac0744baE30ff8Cdf7E0c
-          - 0x082E29035CFaA9C6c0b65EAe7FD109E0A8075eA6
-          - 0x8B7D6940B4E3b4B5133606D801c0F56bf5ddb64a
-          - 0x1f80b1E3C538Aa5E83BBD60E04386d4e2B4Fa8FC
-          - 0x68217304567e909c80Fa5b12d83D2A985C01D7d4
-          - 0xC06dAbfAB6e847fe0099E65dF3De772cdFd75239
-          - 0xbA2D4A0F35Db19cF0dC4b750996Be8aB3E949784
-          - 0xDF67069C01c1E21C076630088fA409B1f91BD015
-          - 0x61c5EE130c5bc87b428B6248f6c10116D2f96199
       - name: Voter
         address:
           - 0x41C914ee0c7E1A5edCD0295623e6dC557B5aBf3C
       - name: VotingReward
         address:
-          - 0x9afdC6c6cAaD5Ff953E2cfF9777c3af2e5d796Fb
-          - 0x67808b0d106761f51e5f2f80684c27aa3345609f
-          - 0xd57e9480234F2ac9321a48d875688827d2271451
-          - 0x5B430081478E07667bFeC7E6625061EAFB1bc565
-          - 0xe9aFF3513Cb5fFB2adbaa7e067Ac47e98AacE5ed
-          - 0x997E1919d50273EE6E2eB28Fc424b7Dbe2Db95aC
-          - 0x4863a43b2B2136f86fc2e42BaCeB5e6B6514E16f
-          - 0xE06329E465C993DEf11303BDc0dCd312A055B88a
-          - 0x397686BBF6fCd9dcEEC503ab762AE9499D4651EE
-          - 0x838be3C4Bc25242A324150494c8b93A75eac2e30
-          - 0xfeb6b0c9BFd9eE7B6f9c301D7705c3ee090a7dd2
-          - 0xD7b9431946e267e1b50eC057FDd8FB429C9A6C63
-          - 0xd92cEC1C516413533987692c046faE8B974d6D26
-          - 0x5831e5911e881576fb585BF0073975066e572Adc
-          - 0xbD4B78Ad80d54EFc53e8E982A855Fb4D240B0E91
-          - 0x1746146CFC533AAA264aF185029bC6435739c155
-          - 0x2417fa893391d3B06402d304a2512Cdc038BEf56
-          - 0x7f24Eca7680d5F5B0A397EaE89F7DF0FdD1C6C19
-          - 0xD4ADCC9ac6548db208F71Fa45B5f0c0207D8F233
-          - 0x203904F6A00f15768c3e388E093E3BfcF810D552
-          - 0x07242953F8B338552267904Ae1eb6C236DA85592
-          - 0x4d12B46A9Ad2dE47400A5Df56e2Ee28E674fe8D7
-          - 0x20249D5fE0EFf6ba1b8c044415f2E42aCedE31DB
-          - 0x1D4d7b28b1A112e0d6d80e5C14078dc78bdf73d8
-          - 0x8816C9f95b64B955D86CEF221dA3535f5606Da50
-          - 0xd0E1427e04cea330994b2b9B858bBa71E990B5E6
-          - 0x271BC34c44CD2935e55fc85e21b469Bb722cf90B
-          - 0xFd76776260963db719e719BC00A6165A283Dd10b
-          - 0x8e832AB619f69847b7bD0657267f9b0AEB62a182
-          - 0xe002962Dd83F06a96B0412Af32B18428F9Fcb68b
-          - 0x99858246a5A522a16FfE290cE298e270BfA84bef
-          - 0xa0145bb41d5cbaF03470F611fE819Eb143029bF3
-          - 0xbf186c515d3d5541be068194D63fB17e1dC323c2
-          - 0x5E197f2B44Db7C7042Fc5406AfAE829F8b4E398E
-          - 0x774B17100368B8B40f76b5cB7d60ef35188892Dc
-          - 0x7b3b591B463713A69B6Dd25083A1Ae2380bfb2f5
-          - 0x8C38f9CA10ffd943F155e5959bCe302F486fBc79
-          - 0x7481DB14C86336806A948aBfd105d11F11D11936
-          - 0xbbfc7C87CD618Df51aFc07b03c8C3b3Bdc13cFa8
-          - 0xCAaDDD88341F9E9B24eb02De275b45377eE43A8A
-          - 0x89010ad7bea850a042F991733E75A9338d222F71
-          - 0x060a40048D0Bd8E697Cea5b3922bDaFa89C7B4D1
-          - 0xf8C2EbCeDE92ab755e1B31b1762F9Cf5aFDAe349
-          - 0x99bDBAa283Ab52Ae2fD16008E854dfDF08AB6c80
-          - 0xa0673DF0F8f7ea47A2f91ea08f24D2d1D7354859
-          - 0x3eDBF5D51f865b9452637b2c585Ac4dCBa2cc58D
-          - 0x66B875FD2E940DB292930B2820eA60D748dE29A0
-          - 0xc0C33D148a4351140aBa22bA5B7727268acA34e0
-          - 0x6494D338fe68305e1FAAb981B2D434Ff6b600104
-          - 0x94fB871d0d16D42b644Cc4970ACA2a676d10A833
-          - 0x3854400B0e8bfcD6832bEf2deA4148d042Ffc295
-          - 0xC9e56E96F550b9b10CECd3acA47AC9E292eceBEA
-          - 0x436431c20c51D775b7B6f461A7E3bf80e90f938b
-          - 0xA185B3CE8384dBA7B0Cd5B49C73a6fE6BeBa5d3c
-          - 0x0030cACC891977AD8aDA568c54002dC2c11668cA
-          - 0x8C19135Ac2d294Be8403F292de63a3457211564F
-          - 0x1801131Cf4C79e40eB32039f8Fb2d20EB351C24a
-          - 0xfe3a822afFfEf1D6B8BE21f0DD7566a55FBa73bD
-          - 0x15D582BedAbE5B5100e1B07a6580874B7726435A
-          - 0xaDc6E68e5e112411233CBF671FCE8F1fCC9266a9
-          - 0x19E6b0492134A5D656501DEcD52a6b6849597680
-          - 0x2e3EB3d296001Bb54937A3E23F1f3Ea20Ab85188
-          - 0x3DC240cD6066Cbc911C5046210E85b5A495de275
-          - 0x8953D5BbA008de6D0F5847F0Be977f02849EB6d8
-          - 0x0aa03b2994A2780ec61aDBA80dA33CEe74befDb7
-          - 0x3E388238B0bCF39ac15E56908094570BB839C54B
-          - 0xdD7f1b417580C642d48Ae89A4768B57fb7Bb7372
-          - 0x5B356bE5d3AEeD2c1280650dfdc0148E08533C3C
-          - 0xC8ec2647F3121fCDC2D98B8E6f2119Ce1451a708
-          - 0x38a71248e1cb29C7f2eaDeAFf8105E7E5D8fF0D1
-          - 0xE1b02e1e5D8526247f11E0fDCaB8398Ad943c5e9
-          - 0xF5ddbAB91171BbABa7BBAc8c94186a6Af249dA18
-          - 0xDFfE07d5b9b7FA9027111D4473BAc3e3E785D028
-          - 0xbE0C9bD08a2E663DC11BB6b87A3E928af81A79cb
-          - 0x94CC45693ABADeA7B79A8F3E821681bE8c6A3466
-          - 0xC1d268a89161Ea5bFD3247eD8757F9f48cC0474F
-          - 0x3ec796923bB1F86f4bEaE0D287401fA9D934A7E8
-          - 0xA7c567e8b4C2B10D0Ebb9f4b8B134f7a7B18c162
-          - 0xCbc28Cc3CF50f830E033C50D9ECA3F61129D2346
-          - 0xaA83C9Dcfd64BB6078614FE49290f478bD85564D
-          - 0xcC6251D32FAEcd8bB3e78b30968A42Dce7D37326
-          - 0x18887D35b3Adf6aE2a19CF7ABAa89D1BF32b9118
-          - 0x9c9CCDA1694cE39928726678402a6bED988d0a8F
-          - 0x64Bc94F9Dc04b4Eb66CF53Ed9363cb39077dE123
-          - 0xF8662501CceAe3D1ef57B9faa4C495856D596749
-          - 0xf4CcAaB7C773E7819466c1eE037A1B08594C2D5F
-          - 0x78675cfFbc3F74AE0F29F29cEFf9aC4Ff79Ed77C
-          - 0x1A51c66867A6E351e5f83080da619532dB3B53eC
-          - 0x782261aC6D1496265A6000Ff61Cf5739A091b05E
-          - 0x3da2Dcff966C116C58730c6362E85eE8aef99b6D
-          - 0x2Ee7642476dA370590224c0CBED845E909ab7C85
-          - 0xC616c259f9D453897fdbf2efD4AF52b7038C705b
-          - 0x3E312A42e7f83Ad8fbEb59da1173d7Ea3F346551
-          - 0x2FF84687B7CdC6414f7D94f657B8075e54F45C34
-          - 0xa0eC762E7bE06244D7C080Fff3B0b324ae764D34
-          - 0xED51F59f81FFF1CFf8317308A4E1376404e71c8b
-          - 0xE13d87eDcf74fE5E72D5EE3ad79c528AbB7D98d6
-          - 0x2263C8E1d24DFcCf9E02743A6A49130635bEA17F
-          - 0x9e48AE4AF9a2617102CA642498476711B6b46763
-          - 0xA1B33510b01db0DE086626B8eA4368Fc504c99BA
-          - 0xdA0A8F703945Ce9f76092BdD27FD232c1268B50A
-          - 0xb9Cd8C042a0a4ABbC9fd67b365394Db3465F6b53
-          - 0xe1A4e7c825b3B4256E8F870b34274EC0c1889987
-          - 0x1764D3Ed6071ebae1A0bFBc0dC7552b241D4Ca33
-          - 0x91E83500355259de582f1d9e8E217F5E67a16e16
-          - 0xfD6aF2522033E992D118dad66e8e34a107896cb9
-          - 0x19b8496608C526e4f50A020ecE8FC5f95c98165A
-          - 0x5EeCf1816F34e4e205B14D415FfDF095750B33da
-          - 0x8eECA8E3355E5C9EA97580A6863AdEBc92D32028
-          - 0x7459e912FDFA152DfCD0C6a12bee22a47AADbccB
-          - 0x2ff0cB18bFCBaa6424f8B23C16Da455d054400f3
-          - 0x4E4670fC1745fC0E870d955013b04974C9335650
-          - 0x7b31ffE95eEfda79Cb9C6280986880E99795AD30
-          - 0x8E5fA3B797D0B7f118576d8Cd9893583dC6679D2
-          - 0xCFe069A03EAB0e39bDe931ec9B224f3359034bc6
-          - 0x1Cd2a4be9d34D6d9F9089519639A7a59c5660265
-          - 0x7AC27544bc7b28b7e47990dC6bA63c7FF2e741f3
-          - 0xd4dd2464db4a7B5fd1D532d2ad2C3c0B2CA27184
-          - 0x2f2B7CD5B27CA2f0d44e09307E07dBf53878595C
-          - 0xb379E7A84f2D044554Fe63588B98B31120F070a9
-          - 0xA6445B78300cac7f8744C2e95e62c49050e8A1D4
-          - 0x2D2A652ED2268379e1567BD6439bCacfb7477a18
-          - 0x116Dc6346Eee38a53c4014665AFeF6b49e3EB6cE
-          - 0xda195F689695a59b9F1322304A2f06cc80e084a2
-          - 0xd12b483f58fb2abd2585194CbA8166c1666a11F7
-          - 0x230bD15459A6602F74cc622916C8e4cc954De4Ab
-          - 0x121a904d91ED855b64f656f884dc0366f3081a53
-          - 0x8F68FEC597FB931C410949C8a46b17409fCfFC36
-          - 0xB331d95f54d6d44c7E22F6BD0835f397b60B0EED
-          - 0x545C48dC3F7C600b19c3124280c085034Ea06783
-          - 0x88597DC6EF6354E86C2c47A84a947fE06d59142d
-          - 0x1feC7945661660af3b6a7D296252a8461063BA92
-          - 0xA9FD8B765D5a3B30c185527153267DA1ff6c9112
-          - 0xDfFd5782EbD3696741C27FEc1d9c7773aE2D0a80
-          - 0xbbB52E768720Ce43f9d3D90B5B8f07263a5D5DBc
-          - 0xD769de0633fa3bF26e972b40A52E832Ee4bE39Bb
-          - 0x12c5d00CF3915516B920bc34d717e7A13Be3F149
-          - 0x8379b00E8FAB18a10d87cCbd28Fbd796367244C6
-          - 0xbe89f4D8F670aD498556BCC8ad12b969B8b3eF4f
-          - 0x2c690E12f9622B047b32D12D5326d90b9130C35a
-          - 0x4e9E88A26F9cF505B22b94ec0349f8F70D4a6143
-          - 0xBf9CA70A9780A79EC0F198fFa3331d9540030393
-          - 0x4305699f25Af7a20eC9107A890A89904E6194c4C
-          - 0xfFfA58e51dAC79AE767a65b81a0c73b6b461C46A
-          - 0x40C9335f0E7E2C6f886Fe4D853a5705776252200
-          - 0x7510B82c4fad99e6D64D904A8CaABbE04CA39A57
-          - 0xff8db6e1399733CFCBD978d18303AE39Bd5BFD33
-          - 0x4A1A9eCfeabef6b4d4f89644A64C2071357AB379
-          - 0xEF485E59F897413a26E24D01e168C99B5a772Ed5
-          - 0x35b7d9242bB16ae1173BF26b70F9e72c0E3D9D9d
-          - 0xCa68d2F1b9f41257Af0B50B946f0CdD7D145b1d4
-          - 0xB0c5CD799Bfe3e5dfB92eE4F90665843244DC246
-          - 0x867F26E33191753bAAc62719b1393de90F7Fa58e
-          - 0x7edA12cf44e7798AEcbA0595AE68C08c2C2A6E30
-          - 0x5561cEd4990B2C02875dC5F1205e634888A81148
-          - 0x95D31AE90870B3AF551b8e5931206e84d27C38a6
-          - 0x2259a22aE9d3eD6356a7874B9aEDcBB5A02a7A71
-          - 0x3702Ba1319962C41E34C29f73089a629a536Ee03
-          - 0x9015Af1A94d0c9896DB9BF359b62dc9B114d5587
-          - 0x243dDDA14c0E89a91bfddF4D5B2d1cE16b6824EA
-          - 0xeaD391b355c31424a63aCD68C7054ed789A4ac05
-          - 0x3726775Bb27172F8bF5ddCBA80dE05114Af30Fe2
-          - 0xc9eEBCD281d9A4c0839Eb643216caa80a68b88B1
-          - 0xf0Df439c4f9eF10EdEA480A7Acc556F9C2Aa6F93
-          - 0x184929b618c9dceEE8779f8c0ee95e1bFD358EB4
-          - 0xB8d9a0261263B93bf25A97107DF513EA38B3FC95
-          - 0x2B322acE61352F2E39A5c0377c7d23239d23522C
-          - 0x28872415B6C32fE83E98D04c27Cb585FbB5e91B8
-          - 0xd0d4022c790DB796672403D9528F6817191cD737
-          - 0xb0a518E58309A96EEFaE3342B9B28A22a48754a3
-          - 0x97f6DB9Edeb35a8Af499f82b415B89E3a958D5fC
-          - 0x0ee087A9EA64d3E77E0173c84e4044a7CF8e323C
-          - 0xBC3fbFc79b6B15870c826D4Ad65066bde5b347AE
-          - 0x85f1BACb04eeEFc6B255AE0570523544fe1dd340
-          - 0x1B15BDfAF5D3f7900B2E5A60178114fE564d9aC6
-          - 0x38b08E70699FF6c51A49Bdb14Ce105Be5edfDD86
-          - 0xbF8A08D72b00C6Bd29844192E71CC70Ee2C8afBb
-          - 0x47d2b64F49b9748c34d33D9C43b94a6779B6dF41
-          - 0xa568E6E300800Fd5F2A8495b35797Cddb21EB62D
-          - 0x54abF7FCA251A1137fCd681C7f26d95A1ACa93B0
-          - 0x600dA0A87E59Fa39B43E7f93B041E488D516C6cd
-          - 0xb28695B7Db8E548E307FB3C2dE9Ca8957AA64611
-          - 0xB16a7570B35d3A481A85880c910dEea6Aa8F68c1
-          - 0xa34Ed712c42AEeB49a505F1965084364eA966a7b
-          - 0x7887D92bf1835dC11B6c7eE18Bd38978E4d4BD7F
-          - 0x1219077B593cFf63b10Cc6861362b9Be75Ebafb8
-          - 0x296E4e9277C4259d30ef02df3ae725a5C87ACfee
-          - 0x450Ad8dB625dD5Fa7205b54240a596ECa69bec14
-          - 0x1cd3bC6E4A00C8822C4764F053B84F23FD37f530
-          - 0x7DD212ee6c1B0B22cAF51b10Cf37aBA977B2f190
-          - 0x2bab1DdBC7dAB450f21f1459e61Ca2b575937731
-          - 0xA9fC0F543225FFCEAb7C209c02aE23470940453B
-          - 0x3fD400CFa02Cd3D5a0862c77d13f2784295AA4c4
-          - 0x758D932B38AA958579F6998D25D2Ce3cc66dd728
-          - 0x45126B547235B335033b8f6c318071c738474141
-          - 0x6A632B8E55b5855F66344379c98C40Db5652AEEb
-          - 0x95191297b747BB1eB40A98140Be084722229B40F
-          - 0x7E437299B6997cf2DaFcfF3c185668dC0Da0f9ac
-          - 0xB8E3864Bb7312fe201A3A3B3C31ccb8F44f3259A
-          - 0x54EfdBC81f8824D5EaE7e4AA864ff7F0ba30c25f
-          - 0x1f055fB1996F35F7C9577A52A99a8C3D5e3C6FEf
-          - 0x29A25BA04d43562D0ecAfec2C90B202d83e3a176
-          - 0xA633FBB4A353aa17007C05463F23EB8bbC9175d8
-          - 0x0CB821007493AB4FFaf73D8FedA5f3e0F0A47C90
-          - 0x6F0D7cD731F3e39853eB2dB3be4FA5C081c586ae
-          - 0x1afc474f115Fbf780d1D407002a2E7cB5c479e62
-          - 0xA0021AE37B8Afb3c207FC4A87a23ACa99c4aBF1D
-          - 0x5c32bbFD6399C48c4165AD8608fdD307Fa66325f
-          - 0xF788441500622Ec38D90524F356BE3644987e69E
-          - 0x0226Cd3073fF122085b60D9072B4115f641F2eC2
-          - 0xB1C77e7b5D2B904731A02ab31b1f95a0C4181d3a
-          - 0x895Bf19e4bB7D73A868f503bb3Fa00Cd275BfAa6
-          - 0xD043f16c98786a4560Af55304b2a04DE7f46f4B1
-          - 0xa78f0f330E2C577d3D37F8F9f25c3424AF11B373
-          - 0x39Ea62D8C461f73795D6779FBad14D15a7053859
-          - 0x602b91502d591A49a45181f1b785fBFC346825Fc
-          - 0x17e448EFBC3693268410658f364e46148EBbb97B
-          - 0x6E0bF6C7115E58Eab69e01C50f119331B2dFb362
-          - 0xaf15abC8F4bAaD078Aa3f06e9C6d060E71a73a71
-          - 0xD2A95fc919A7c2306d6C420d4f1c69Ab0587648b
-          - 0x69d583944374825eaD4C3e0019883D7C918f3061
-          - 0xd9d4743B9b23E09B050e5280380cB69881E172e6
-          - 0xFa374690963186bF4D0A1FaDA45c6a1d99714139
-          - 0xE75E41ae504237E572385C802ca62Cc6dC52b9f8
-          - 0x5172e50e57B266C44901Bd9FFCaea906F04a1Fc2
-          - 0x7157B5cFc1437F070F21FCd35d1B032ED1be4277
-          - 0x4bDA15c040E804850D02Bd041E71f9A8F336535b
-          - 0x1c0A24be6a606B398b46a791688F5DcF8f4D4b84
-          - 0xdc5579580EeCce716E78536701c3421b5C311856
-          - 0x78675779Fa96F560769461394b4ac239d72F658A
-          - 0x1b812c4ea30900402E5B6750845dbd633fbA3b09
-          - 0x4a49Fad85ED53188e7ADb572fEBfB1169906f675
-          - 0x2e7d03Fd681AbB925F969a036fB958452D51e6c3
-          - 0x77682F2e7130275A92DdAB428f1F02F38722D360
-          - 0xD48240804EeF7199E9c5b874b385F30B60639297
-          - 0x2DD90c026170A05aEbF67fBF43e574499fe6A0F1
-          - 0xb5B37D04389066D037b8CA4a230ba89Ae493c08f
-          - 0xA8733B1A45DF66300bB7eB0e6CAccf6F7016caD7
-          - 0x954954265d153263AfbB4D6EAA54522Ae40d7027
-          - 0xed5D15E1890EAd0EE3293E556595CADd5e38C49b
-          - 0xA0c3857d1e9905A1e6489ADF6182D41f8D4c59E1
-          - 0xA4C86224304eD8cfcb0353De920044bE222595ed
-          - 0xb8087EbB76aFE390f31B954762153B1b844236cc
-          - 0x8FEC8Ef2d7006201fbf65b15610a2F24a744dC6b
-          - 0x7fC88b23DEFf8EEB390C886cfF44c516cDc9eeAB
-          - 0xA688cDB6674e425bD3425aF5F658437C22DA266D
-          - 0xB6dC0173d6933B6020e63FC8cfF0B865F316Bd3c
-          - 0xAAe433F6ce6552e402D6a50c22f8b393f1DF9367
-          - 0xc2AFeD72B05324f16807Df9D6d5a142AAa51Fae9
-          - 0xbd4d76F0911d9aFe27F2398FF1FBD8716385aFF9
-          - 0xA597FC96c5D8a9107658fFbeE8d9452317424165
-          - 0xd151DaC9C04A5331B0d859F39Ea6eAD6E727f129
-          - 0x80B4C824793004d2EC669cAF22FcB1f44dB7A7Fd
-          - 0x728f7ce58F000fa4929C6B56a3d0afa7f568cC7b
-          - 0x9472EC3535A4D3b3dB585DaaAca641124e2C2584
-          - 0x2Bc2b1644B7249773217F4f2eDE0255B8679e1d7
-          - 0x8F547241C8Edb0f73c6E8cEe0FDCC86BBccf5b0d
-          - 0xF3c3204FaCB84eD89521A0F49E1692BBB025D8CD
-          - 0x22D7929f33C9e5169489de947692fA5753D8dC3b
-          - 0xB0c4A4aB1A970285e44A0fcDD8029046B0bd5500
-          - 0x2EBdf9bA4547AF5Cd40C37C87Cd8CeFE5e8b416B
-          - 0x0638b5Ee687432Ab5084C2107C449aD2a2a38BBA
-          - 0x2734D75d6394c34bE4868D46960Bb1244fdc56F6
-          - 0x85cacfFBcE0648E89606521494cF8B99C01f1830
-          - 0x356141F44eaBEB83F6687C491AFAC51Ab10Ba9F6
-          - 0xACd8F84779105f2Cd59f13ED8359Dcce1277d481
-          - 0x24c42a3c0fA8d22F49aE0f84305d046Aa3A43A24
-          - 0xd309Ae5b795f8b5445BbF6b34b639e18DCf502d2
-          - 0x639D1bA950E9a17Dd90Cb5Ee4Bd66E7d89bB7992
-          - 0x0AfF6991DFD071bD7D2F8e676513EE82041aEEce
-          - 0x842da227e24646FA05FF0f5d7A360eb8e9D44A10
-          - 0xfdD4a181CAa5F296Bb1fBbBDff6115C1FA9EEc28
-          - 0xFEFe4D78ED53407B464026f56BCa17DD0Abd9cD4
-          - 0xdd006741f875eFD5158938fBa8B3B719304B869B
-          - 0x2C3Dd31a38D69f0f5B2315500Fa5b2C595105AfC
-          - 0x584DEafd58221Ca1A2325E81065C8Ebc31371260
-          - 0x45d5d9dc67ce527120e92EFB4538330A7301eAFB
-          - 0x0557ADB5BEE737f3b690564136d5caC64F8f4aB7
-          - 0xD31a9592005886BD5a0404da7FC0d255FE2a83De
-          - 0xA11f876d8471dcD752C721Ac83Fa737Bd72B75ea
-          - 0x44100E6F913e21daAEc2ef9222CA1428A346e0EA
-          - 0x80a57de6a68Ce9Fc67D764922c851A50f0082c08
-          - 0xe953edB0273f190b4B4339F7EA535b4E2d049335
-          - 0x22CeDA524984F2B127f73cBD106492B42c3E0b64
-          - 0xA02a65DdBd9b94C8D54BFfD5a61F989aEfB2097F
-          - 0x9436cF4ac1305A028Cb029fc6bFfDcA4caea2904
-          - 0x19DCA1d34bEe7aeCb8F77b35F97D5f2de45bB65D
-          - 0x6833453952C7CDE81F5D0c305Ba0bE9679fb5916
-          - 0xA3948c34cfFFb599B292279aC71f8E3F7229618b
-          - 0xcBc3bd07c36d7822570bE6af4F78535FCA1A0744
-          - 0xe68C0D8c1f7bD349cfED2F89A3C50b6B82019B51
-          - 0x5B182ED8Aed98dD53Ae3D5Dd7a1CE62da13AcDcB
-          - 0xc0D4c43B7Db2932AF068022816A66F09EB12E905
-          - 0x6473160eD6D83082448Fb299215503f414CEE52a
-          - 0x7a389809c2956380675185A4F8A6883062cD25cf
-          - 0x95219cb45132170D5A708de73a1563839B5C12Ae
-          - 0xC054EfdF4AEdd3B1CE76103a488F44b75dABe923
-          - 0x72B38CA4716BA405736cfcC584CB910D682D173D
-          - 0x00ECd7AeA92C8A1493e9362Ff1A9e9bD9c942f12
-          - 0xE32015a04624EE8227B763D1147F1d97295E8715
-          - 0x0c4fefB14ECCd9e09672E40b411983863b595569
-          - 0xa0EF2e2c7C067fa2aC7548c0444Dce00572d53fA
-          - 0x2243A6309c99EedD75217B48aed2AC429f7d1C27
-          - 0x4CF930ee95e58581163419feAb7E64BD7D212fA4
-          - 0x056E70cf7a86F9dE62cDe1a3CEd196dD53753502
-          - 0x6901d493aFbc7bd28292E5E0856F7bD50190c747
-          - 0x8B8F392e5bEFa1a33bB7883ed23be2E28121b590
-          - 0x5D36c52D63E27CbC46B1038bDf706C279F389411
-          - 0x3f04B170a71a2F24ceb33Bf1D6cd699C8a70102a
-          - 0x2C6D74c797326Bbf27360FacCF1a79D8A53831f6
-          - 0x1abd21C88239db0fB3124B30E0B91a9a1d1293a2
-          - 0xBdDED70D554872409FD6e5027f3651F10a741470
-          - 0x150bd0816690a514a853830DD173ebfF46Aa8002
-          - 0xDd42921DD38A9aE63bA86d0360c821b1374c8715
-          - 0x39edDF2b4c146569c5d9A0342b4701C782a6a5f8
-          - 0x8133D33553eB469f463adB2AefD1ea690efEB3F7
-          - 0x0eD8B33b5947A8927F430e5C4f49f700a8005Ee4
-          - 0xF35030CBF83Ae755C703E55c3Cbc3F6bae732bAF
-          - 0x7AF3c4e06188d1507D34E7845Ae2140942Dd3Fc4
-          - 0x6c286702B73cc062FC8a585083863BE0c51d1232
-          - 0x62C319098a2AF4EfdEfC473B71aF687ef0D7AC19
-          - 0x9106475973160698c1C018D6fC0284eBdF4d3c46
-          - 0xaA91dEdB10fc43313071A7F961A8b561d27F18f3
-          - 0x17Fd52B0852F3a4d91B82cE394749ed07792A2B2
-          - 0x41015038741294A4f3FAB8ffCc36418C2192CFE9
-          - 0xEE657e5139a7d18bDAd9FA6e5c796A81C266ED75
-          - 0x8F2ac90a743e7f9cC06E86A3Bad2980101e7f4a3
-          - 0xF01FbcB132A204677aC6F9941409CbF9389daE96
-          - 0x3523f2ab7582F96C5247d9B7611Cd7D958D30E4a
-          - 0x72D0363155e5654341ecdD41800Fd445484DeF5B
-          - 0xF197099e22A128E68494CF5fa6c82850CC103ba9
-          - 0x49011456Ac4740a06042D10883170CfFdfFFfdE5
-          - 0x1a0836C1Da448695Ab987D1d529d124653D9d752
-          - 0xBd0a7223517556f9808B68e29e7526A26BEca28B
-          - 0xDAD163eA40DE654fFFeFA29565abeF7995d7520a
-          - 0xcaC15491791ab7B4E047fc121485823F671Eb138
-          - 0xec809f50CdEcA2557a67f3bdc9EB773fCc867Dc5
-          - 0x5859CC2BFe7339ECE988A61528944Ed3f876D413
-          - 0x7380E0550082F6ECE8ecFE8adb21b742D5e8A0D2
-          - 0xCcF801a2F736f33cEd6f3A4DaB63E98EB3B68Ad3
-          - 0x164690E531f108d7637f8CEdB3b7E20cafa9d6D2
-          - 0x0c34ad80a50cef903c66e7562F17CF92e552e37d
-          - 0x9aAD5FC65E249bEdcedDC5c38101071b1266F2A4
-      - name: PriceFetcher
+      - name: CLPool
         address:
-          - 0x11BbF869250424BEDC5f162094afF8b4A45bE841
-          - 0xe255e0774416604dd53f75ea8301157dcce6eb03
-          - 0x6777E70fe05daeD585Fbed3c2fcd2Cd8fb0b4E38
+      - name: ALMDeployFactory
+        address:
+          - 0xE46EC96906fc6dEC53De25F013639969Fe10180d
+      - name: ALMCore
+        address:
+          - 0x0000000cE42D4981513060aB7E50B9e5e2D19AF1
+      - name: ALMLPWrapper
+        address:
   - id: 8453 # Base
     start_block: 0
-    # Specification of addresses per contract type defined above
     contracts:
+      - name: ERC20 
+        address:
+          - 0x940181a94A35A4569E4529A3CDfB74e38FD98631 # AERO
+      - name: VeNFT
+        address:
+          - 0xeBf418Fe2512e7E6bd9b87a8F0f294aCDC67e6B4
+      - name: NFPM
+        address:
+          - 0x827922686190790b37229fd06084350e74485b72
       - name: PoolFactory
         address:
           - 0x420DD381b31aEf6683db6B902084cB0FFECe40Da
+      - name: CLFactory
+        address:
+          - 0x5e7BB104d84c7CB9B682AaC2F3d509f5F406809A
       - name: Pool
         address:
-          - 0x723AEf6543aecE026a15662Be4D3fb3424D502A9
-          - 0x2722C8f9B5E2aC72D1f225f8e8c990E449ba0078
-          - 0xAf58FDeE432a104a932a899968d60F92838886cd
-          - 0x2B7704f1cb9324cD8586B33C6c540CbD64E58237
-          - 0x0B25c51637c43decd6CC1C1e3da4518D54ddb528
-          - 0xA819Af1CC8AbE618eA8abaDeb464960F7451CEAB
-          - 0x6e23f90E25f432c9dF9eF9276472DDa3951e4465
-          - 0x218F511431194B2C756D67a137DE536beA74E498
-          - 0xf6Aec4F97623E691a9426a69BaF5501509fCa05D
-          - 0x8b432C54d6e8E1B8D1802753514AB53044Af1861
-          - 0xb680190fB16f417647e69D6A84719aE9c7E5E20a
-          - 0x2d25E0514f23c6367687dE89Bd5167dc754D4934
-          - 0x982A169edFC1cf8Fd38dBeE76735547b23875BD1
-          - 0x535d457FFC1c4459300Bb1dd775f37808F808282
-          - 0x75D18ee68bB93BE5cB2dcCFa0d8151E25CBC8Eb8
-          - 0x1b05e4e814b3431a48b8164c41eaC834d9cE2Da6
-          - 0x4a3636608d7Bc5776CB19Eb72cAa36EbB9Ea683B
-          - 0x9e4CB8b916289864321661CE02cf66aa5BA63C94
-          - 0x6EAB8c1B93f5799daDf2C687a30230a540DbD636
-          - 0x2223F9FE624F69Da4D8256A7bCc9104FBA7F8f75
-          - 0x7f670f78B17dEC44d5Ef68a48740b6f8849cc2e6
-          - 0xF89042057D079debe2a65A1a899E48E0E825105F
-          - 0xe5fEaC3f554398795298cF90E3801edC522ED974
-          - 0x0F3742018aCE31F38ba25235E7aFC96dAf82A4De
-          - 0xB4885Bc63399BF5518b994c1d0C153334Ee579D0
-          - 0x032c7BFa435Bc98f0e9490d7928799e5913143AF
-          - 0x89dE19c640B03649206e9998481Ee9E8E23EBCAf
-          - 0x9287C921f5d920cEeE0d07d7c58d476E46aCC640
-          - 0x6dbbD2c5EC6A59F54FB0e5f750A245137Ff0492c
-          - 0xF4cA6481d13859293b78431fe80b47D0977962a8
-          - 0xe3968f5a5107338d89a53E352e13bf5424e33f84
-          - 0x44Ecc644449fC3a9858d2007CaA8CFAa4C561f91
-          - 0xE58a1997398d6269c1EDe02e49fDC4E39A4d3A6e
-          - 0x4C29E4dD4A966B27EfC846109B1393677B7E215c
-          - 0x917baB0544BEB0e681D02CC159f50446A7A38633
-          - 0x3fF36517cac7333360E1692A0B2F003e4A42Dd59
-          - 0xc40C51247C7D42F7Ddd73D1a04a290d061232acC
-          - 0x103601D82EF65667A1CeFDEA072F599E00A53457
-          - 0x80218EeA7490d4a7C48b7A98A2D6373246eB25b1
-          - 0x3Fc28BFac25fC8e93B5b2fc15EfBBD5a8aA44eFe
-          - 0x69CD4DdB6a63917f30EA22D96E02E4Ed68c331F0
-          - 0x4F9Dc2229f2357B27C22db56cB39582c854Ad6d5
-          - 0xffA3F8737C39e36dec4300B162c2153c67c8352f
-          - 0x60D473C6A68FbF54C9085CEee081aba959035579
-          - 0x3BA3886536b5B3d4FE63029a7674CB712a9F088f
-          - 0xa5e81eCC610Bf665021C6CF9465d2F4BE662B161
-          - 0xAd5c9d704F580fFA219d628b3adAcbfB1c5eDB79
-          - 0x607363389331f4B2D1b955d009506A67c565D75E
-          - 0xdC0F1F6eCd03ec1C9FFC2A17BaBAbd313477b20E
-          - 0x0056D584A4dd680c455Afb01dC00771E3Aa0Dc9d
-          - 0x605D7C5CB7c2C5dEE7711CEE06317708F41cefD1
-          - 0x5F43555b02507133eCd5b78218283ed849b07Eac
-          - 0x3f386Acc3A8E9194cF6279C219DF8DD3C5B71974
-          - 0x84Ff3B6e2046579Fb2f2b891CE18eE10b5fbDbF2
-          - 0xF4ecEbFe039e4bce40226663F54F8d1Edce80B2b
-          - 0x888092c9D44cD647a073f8f1eD11305A31e4fa66
-          - 0x74f56160dE6AFA5307A5ED4a6911c22eb78D1eCB
-          - 0x23E3E430f4c991a338f3eB041e95340584bCE3B3
-          - 0x9d202aBA253145d981F4d97105A62fc7B0F82581
-          - 0xbBf71AAD6E1F8D180D3B1D898528654c1d18b2fF
-          - 0x669A0dFa8aB0bc8E1199D08258769Cc39C0Bc3C5
-          - 0xA56bE957d432a5d0eDc040B27078d9726f54E7f6
-          - 0x554EcA2a48136724294CE47fb7bfE9AADfceE3c6
-          - 0x6313D896423efbD3d62Cc22a3778A62265fe1e1d
-          - 0xBb7E170Df05231f2CEAb51c80f35fe68E47d3af4
-          - 0xEDe039272Fce25F0Af30C1Fab8A974f148a8D52A
-          - 0x183D4A5d04baa3646817a0B22e587041a53eb50e
-          - 0x7df970e41b92b33f3BE04815e006db8Dab11796D
-          - 0x171588019BA2305c84121141710861608ed1F7ff
-          - 0x1CE21E315fA3E6DCf586B99C828dE1f8C1BB217f
-          - 0xB304b47e039E20AFAd75FA2ada6CD8D95a9eea41
-          - 0x688F778C51dB4D990bF1abaF8d33fD95e48C6641
-          - 0x4f7f293e7B7b6D1cAA1ca48784C5986f3dE5E19c
-          - 0x7B48C97D097217F960C332F2790b344c4494Dc1D
-          - 0x568Bc06fC5645bD61b2D8A1a516E32F8FaF4b1B6
-          - 0xB8F01693DDE723cB9124f5d1160Fb0721068eA7f
-          - 0x30A30f266e1173a75985997B2523EcbC19c60fF3
-          - 0x6AB07ae2D18375615411cdc9803379F55F7b4Dbb
-          - 0x45eA259712987b43FF37216AdF748F74FC6F8E62
-          - 0x5Aa9e1cDF38dbf3F57BC5CeB827dd44b4CF58c6f
-          - 0x44d7Dd237001AeF7fC7D8CB13ab4452f65CE5E40
-          - 0xfc518E70BbE90A49aF3E0512Cd6Ea57c365b9cA4
-          - 0x16119F4820f78189370a9Df276F725DCfa1fD007
-          - 0x2F31A93050Ff9F9C70090f8789fD6D8f047c1041
-          - 0xc43D0bDAB15611969d8A38ac4dae44106221F028
-          - 0x54f46b520cd17beA1E7e84dB064F6F74A440524c
-          - 0xC2F2aFBF9286616CaEB4DB1486c265cF22ddCFDa
-          - 0x679d601AAA86cd555E8bfD48ddC8b4aaDe2A0F27
-          - 0x4394B1443d819d47E39141EBC4561B60F0C10322
-          - 0xcCEe0A53c21538008ba5F04952F1850e8692FfEa
-          - 0xdc04a6978cbe9045371df5102b64035836Cc3092
-          - 0x1Be197A85666Cd1e14c270780D9c6b04ff835122
-          - 0x7a823ff83d2A87AE7570a9934B0dC8B87Be9C14A
-          - 0x1be76d01d0b29f5E0B6B2fd6006131996e674afd
-          - 0x5F45e48F9C053286cE9Ca08Db897f8b7eb3f7992
-          - 0x0912d404B3ca2070b9C74003a828A9b76bd5c1b3
-          - 0xDd4dB4770918847057EA73805A428CB2E9d2c9Af
-          - 0x5Dca56718A186AbE7eA7f219aD96325CB0C1247f
-          - 0xb905d9195019778CFbaa4e9eD90dF3FC5871CD9A
-          - 0x72618657E7947BE9a3A6dA48B11f5C0B8E80DbE5
-          - 0xE2D3b2f9d4bAAb9A0de671E95FeBAc27E37050f2
-          - 0x3ee35c06d93aBcD69FE6871eEB3492Cfd579F51b
-          - 0xe58D0E233121e3c4B5A03C2D713f97Cab01B6d27
-          - 0xb126abF20c6B64FA3C422798E253C22c49DeC59F
-          - 0xA39bdcf6ea8398D383544C266aDeE9CF34742d3C
-          - 0xe90896CfE8F8856AB00035c577b08b3d95A2FC99
-          - 0xE0901d896540cD400A9Bf727b7C58A56C3215BAc
-          - 0xc3B5ac236fb5AbE245310FeCa2526F89667D4CAe
-          - 0x03d42B234255a6D67743BFaD2b386F5745f8d785
-          - 0x446305B42258CaB3dC102660b52ecec56b0c6a1F
-          - 0x8E9154AC849e839d60299E85156bcb589De2693A
-          - 0x7398AC997F73302107ADA9c66EB08B58F5664408
-          - 0xbe26c53dA99bDb8274E9b28755440e58dDE0FeDa
-          - 0x03e2730cB3FC37315D4DD68d1DcB47358826D291
-          - 0x3CF04A380e54FA4eD31eA48acb9132EA35e2E8D9
-          - 0x1d461B9134eF8b1Bcf9f3Cc1d03be3F3342cdbD3
-          - 0xE12bFbD1f394a00eCC7F722A67a02F30aD8424CE
-          - 0x6326CE1C3301A59fa72ab3b055547eF12AdF73bc
-          - 0x27a8Afa3Bd49406e48a074350fB7b2020c43B2bD
-          - 0x96AF34c61531883aCfe0f5286a8C87B0806EDC05
-          - 0xcDAC0d6c6C59727a65F871236188350531885C43
-          - 0x6cDcb1C4A4D1C3C6d054b27AC5B77e89eAFb971d
-          - 0xBE22423dD7413CF6410AD488e5F907308e98381E
-          - 0x67b00B46FA4f4F24c03855c5C8013C0B938B3eEc
-          - 0x08B935148AB10d3699Cb8d944519e8213abE6f1D
-          - 0x2d6d32d343423Dc3057Aa8571a072a40FfBE126d
-          - 0x1c534f562933c16330114ad28b5D5ce9c6d47B34
-          - 0xB2D45b8c6D99D939c7BF81174Bfdae6fF3f18a74
-          - 0x6689a0582BAfcC286A81dc38D76e0470AcD17275
-          - 0x3FF5bfE3ff5e1877664Fe25862871554e632b9C9
-          - 0x88652ec79476F8E4832BE4432c850Cba31F8fE3A
-          - 0xDe3820c24aF47B420E6699a2e22D9a1512182a70
-          - 0x4559002C75FED909A83232d068828bf020bF9a05
-          - 0x52DE6AD4672e02254323a0aD79d5E02159f4a8c1
-          - 0xF5A5A87911a8260898916f61A965caEa507cCf24
-          - 0x532aDFFFE815064daFcDd0ECe2022E47524f3000
-          - 0xF4784435AAD798C86c5074E8481cbf5B99d9A089
-          - 0xbE23ce31C665225E27521D3d7DB9Bb7E5A76aeb8
-          - 0xd0ad69bE7C2dD8125023e5271b63735D6b7A6B06
-          - 0xF804A225371b7B8ebf1BcF054f8132C954dCc5e7
-          - 0x1D8F0ca616f363E1EE36782564Ddc6EdE81d4Cc6
-          - 0x23084f461e37d6009FaEfa5778ecb253bB72169d
-          - 0x7255182773BaE6000a1a81B401Ba387d8B026B66
-          - 0xB081B6E5EAd659aC26F5Ae04346fC506E03444bf
-          - 0xD266fB3E928b2A5f631B072a79Fd5b82704Ba983
-          - 0xF05c6b0D7Fe18879523a4DfdF2bdce376B8117F8
-          - 0x1736e4ca7f9d43744C928a65d5dd096EE1D22e15
-          - 0xa0A60D4A974A487e36855fE9A9448e7e76c0FCB7
-          - 0x184B770a6c06ff9A0C576Ef62E5479cF80Cd28d3
-          - 0xb3dfC382FF41A76A0DB72E1D87c2A831cAeacE5E
-          - 0x15756316Fb30F67a337cdD529C32096De1EBe71f
-          - 0x3bE1D477B5a3F5B41D1Dd2181202FeCfB5EB619b
-          - 0xd5524fcEeAA1b73EDa464Cd300eE6C322B5090B9
-          - 0x5a467c3e0e2F1e0A5A3dD4F707cBf41d487a355C
-          - 0x420Efbd4C3fa8f093Ad3e29b86B1bD432ab59535
-          - 0xd232c595922BE34C10218DA2D863509e43D047CB
-          - 0x61366A4e6b1DB1b85DD701f2f4BFa275EF271197
-          - 0x9E8bfEB5c73F3f897BebdB49CC4161FecE0B0c55
-          - 0xfA04eBE01c7Bfc6db84cCc3D172eF3EFf248AD06
-          - 0x67C247EA8ac79cBa228d0fD9Ec3C884C9DC58271
-          - 0x24e3c1C874F6dfFbd318709e22b97be153D0C698
-          - 0x656D48D3F337c6b3cD2ED8471B135fF54b1F96Ad
-          - 0x5F41911Bc9ab580FDb07aB4F192BcEc10C77bfd4
-          - 0x60B4af50569105021a52C454B9AA4E44A5677890
-          - 0xbA5C5cB0C2F16E580856B6E6a416debd926a88E1
-          - 0x050e91B3ABe34281285084cBB63f3A42d0dE2c21
-          - 0x70C1381F9249fDeFc2282CFbE05cAEE703010A80
-          - 0x6b7d437a94779f2F926091750d6dEa0c944C2d30
-          - 0x615FC6896BE693bB4f9A30ff8F7830a1eF66cB4B
-          - 0xfd8aA87c97D32345BFe4F753ACf25729008331C9
-          - 0x6BA0379F302BC0F5214dA18Fa846F914C12b0000
-          - 0x681F97606EEcdAfbc888b7014c3F48918A7E15Af
-          - 0xE5A1c275400608d1E08f674f236e3f2a9F748CEE
-          - 0x280284Bb2D029eFEF10ae3093C291037a4E59425
-          - 0x31285ccF9Be7F548433f73e0B13411e6eE181F58
-          - 0x8071175D8fe0055048B0654B10c88CAD5D2D1F19
-          - 0xF909B746Ce48dede23c09B05B3fA27754E768Bd2
-          - 0x9d998e865b5CFB0332799D27F3852dee0A0d92a5
-          - 0x32B0973E4a97846a7c865Bdc7590F80A9a12AD56
-          - 0xFfb2920ba4c08DF2931de06e82312eFCafa21D5E
-          - 0xe70600bC2BFe823a22514741993834B5E28DD220
-          - 0xAC0780E717517C878D58Bee7B608f1d61C77B943
-          - 0xfC337be5321ce6Cb3585287e3d99859C86157401
-          - 0x7F5735a897F8b7f8Bb7f08749931EadacBB6d4A6
-          - 0xFca502Cde28699C38ff0540a2206Fed5023e8B6A
-          - 0xb13a01382ff777b8BcF051a512A72f3316a31010
-          - 0xD54b0CD17b8976078DD37eC495a936435135066c
-          - 0xBba8e747129b1B75FA2A8881F6D5618E6E50c442
-          - 0xEF7DcD8027d0C4A33C7FaD497131aAf624e2aba1
-          - 0x4cC2FeFB2635C86b1bae1b58E0f60Fb43E95e264
-          - 0xB83Baa216816a5641733f534c8b6918927673295
-          - 0x325a5FC7a92d3166ffabe7233c992143CF5EDd2c
-          - 0xf62A89D3D75e8a3662cDdde25564C1DA3DCFDd64
-          - 0xF029b25af0B36c2845004cA734E8d69C4B7a7C9a
-          - 0x1fb70639aC7302a7529CD2CE9Be951793138545F
-          - 0x4f5f4B7381b2445937dab831Fc1952eCBB834e53
-          - 0xF5C5a84e92A0b088570e1e744B4c6d8e3075Ad57
-          - 0xb952DB258B8aE1667727Ec6F379F19517078D5bb
-          - 0x13eef064800133F116a048ca218d2A8c050E46cb
-          - 0x14110C8C747711Ec1b38B906209D299f541E0647
-          - 0x3ab457BbCF94015290762cD373EB71ac4081ab1C
-          - 0x9895F0ceaE4617c71320360Ad334194bDA236863
-          - 0xf3EBb1bb96efB96861872BBe7c8628E4392F137A
-          - 0x3E51240A5Eeed6461baa2bD9951132023B52DD49
-          - 0xfFbE7Ef7AC60A09286D564b14EB939800e4f353a
-          - 0xa491f60Dcbd14121CAE9d7eBA3d73Ee8D4ab4A6c
-          - 0x1A3b6d3389e0e0E7EE3f5C43867d6961fc98341b
-          - 0xF57D3584586b392d27bbc573B40d7FcaB5b14C4b
-          - 0x4A4f487A6B9Dc4f0352c538303ebDADB2b6aB199
-          - 0x9713D6cE9942976056F60814E2eC458D5F157629
-          - 0xd9DE1bA677785d35B27206CEc4720050CC323035
-          - 0xDeD5D28998f2B9796bA587F6ae39d4bE11967209
-          - 0xD2120B8aDFFdb1bbF19c8CC650F3c795BD8d8cD9
-          - 0x12B09cE11d99358567c29E553eCE49788A26c4a8
-          - 0x065A5C14CbBC500580Cb8dC9B4D2deB6C492ecb4
-          - 0x44a13Cf23Ba1D5589E444333626997c289697B8C
-          - 0x15bB05F5db84820D0628DBB0533A62649d91115a
-          - 0x6020EceC7BB6F2893023F13F729160cEfAcA9B0C
-          - 0x7810F8f3253ced11e8c56C6C8497f3134055D44C
-          - 0x90850A54004F9fcfBD0175A57747a39E231eA571
-          - 0xB3E7B35755F203c72e16589D1E106C32911ebcc4
-          - 0x4A1D4554fBC356d0d71d77247157AAD6Fd0cF5b4
-          - 0x6f97380469DC40aa55e0DF685c4Cd8E23dC3F7c9
-          - 0xa8cC22FC761F26210F22aDDDE41ACBe34d29584C
-          - 0x327378e42b8D3Cb9E8932D43609c5EB73e52763B
-          - 0x1ED986B73c19c46F1fC7B59450022CF89B5EEB01
-          - 0xc5734FaA279c8303Da67Ccbf1606D9cdF593e41E
-          - 0x0Ac50b3AAD3983200a3A81b2FB175e21c5D15398
-          - 0x48e2A0089dF8CA111cEd59c4ED400fc98A44bfe8
-          - 0xaef9fB9cde1dB9685474E9165F8799b2Ad3ca13A
-          - 0x5fCeb3101c6b65f39e6F0A7911C1530AA7684771
-          - 0xD8E4Fb4198Ee1cC69efC63e92D2aA222a955fEcF
-          - 0x1Dc28c110a332256d4900878C7A9E704Fa99a047
-          - 0x3c2Cf8c77E083537AfcAAdF4Eba00585CC52234C
-          - 0xa7F919DcD9E2554c552C8Aa026Ab387528952dB7
-          - 0x12032eC5fBA2937fB012Ab17fFACb6928d96615E
-          - 0x5c2B9286c4822F356C96D6471dfbFB7487E542Ae
-          - 0x303446a0f160c2367BA1123eAC9F6dA5173916D9
-          - 0xC95582235D8905Ea7dAC517286bEc72F653fa24B
-          - 0xD6E75AcD082B9607300Ff8075D749F5409c255B0
-          - 0x47E6a2030FFA486Ff07f6fcBb4cAa7c9887bD9d7
-          - 0xc078E01B31a3db4AF0ED218c028c32BCEFC00A40
-          - 0x8F77639b805752bC4BF2ebcF24777904BE101571
-          - 0x898d36Fb3b0B39412425ae511EFfAe54fD8673F5
-          - 0x11b26a19F8c5B356D4d47118fAfFAc652546FaB0
-          - 0x98F6814393BCDf1C225137DCd7E0CEB3509912f2
-          - 0xBe38994051D94623CBEE1176b47f842FFd9CEABa
-          - 0x39Df7b93a081f45158740496751F34CB22c018C6
-          - 0x4D30Ff55680aB08064f4B7AaDb256aD83B5f9D11
-          - 0x07203383292B94B0640D7583F57a67F214EdB5E4
-          - 0x64821196ce86521a8Fd304e9c7a35885f53C6510
-          - 0x323121CD6F6274c9aeB9f87e0664C8FDa5d343A5
-          - 0x2f8007cA83FDdC64DBA166000F92Fd49a49272f2
-          - 0xeff0891e5a1bd47a8F1e77ABebfEE4145974D088
-          - 0xa1d2ee6212D4375F154393E59895A5D27859C4e4
-          - 0x2a1463CeBE85315224c536AfD389b381B43F3206
-          - 0x52E9cC1aD755347BDF666ddf6Ad88EdfFe76fe68
-          - 0xa9DDFFC68Ea2cB2218Bf6e228175722c7205D858
-          - 0x2245DE5e553E651250B78Df817130d8A3243AF5E
-          - 0x9b4Db2F16199B8639BA386f44903ea2d51D65e43
-          - 0xFF55A4A606bA9937C3d9DCa201fca5EA3437A53b
-          - 0x440f8E9bc6F521A2DC29E761fDe2a6908dC57d86
-          - 0x924bb74AD42314E4434af5df984cca28b0529337
-          - 0x08A118FBEB0250B418c9a588227a15915668B76a
-          - 0xA8D5DB293917EA106A5fc4dA5A25340e8b428966
-          - 0x5BfB340FA9305abB164Fb0248D0D82FC3D82C3bb
-          - 0xb5E331615FdbA7DF49e05CdEACEb14Acdd5091c3
-          - 0x977aFe51522FfdDBc62b64e571D93f5C265d9d99
-          - 0x846Fc7F1Dc14b88206848c067Cd5f760d53B272e
-          - 0x07Eca3F678C86B89e428F452B9d5bbcb38B749Cd
-          - 0x8447e28C41c7Bf0c09Ff2027ACe22AeCe288bb2b
-          - 0x9f6a5F49E4D57a7de596c48181B65A0083AD343c
-          - 0xA6385c73961dd9C58db2EF0c4EB98cE4B60651e8
-          - 0x5D6412adf84d338d6c196fA4a6D8880eAED9B9cF
-          - 0x82a0c1a0d4EF0c0cA3cFDA3AD1AA78309Cc6139b
-          - 0xEC12E6233F75F7946F4B32420Bd270fb318fF41d
-          - 0x1a561b6c3276D8f3cb73E4c19794F97F2cB8AE29
-          - 0x52CF9eF71A7DD1aEE1F54d284bcd5648fd4E02fF
-          - 0x049AdA513c0b26C69A236B6C1D6DF7F4DE1F5326
-          - 0xd03a489c18b60176cc64a77Ee9268DAEB4f8A800
-          - 0x67C961D46D3B127FD04116045E2AEf228074C0B2
-          - 0x85c3bFE0BA32d9Aa49610978898CDF2b3c83491A
-          - 0x4C58ecb0f2529Ccb5bD41D73C5050DA9CF7651DC
-          - 0xCe615379d21020e875fbF03D7E5973226C7ba952
-          - 0x543B05534b01177666d04a7e3D6e45639c023bAe
-          - 0x88d63aE328989D99a829BFab9E308F02aB76EB52
-          - 0x60f4fEd06AE72CbB6Bca07b1410421ACa5af5052
-          - 0x3104ec722b739c01C9Fc9D1cB9840Ba6cb07d5bb
-          - 0xA75b732a2fc04fD39BE6970a19E82A82991AF794
-          - 0x933cebaa373e18f59373E76c5989c40D0B282D22
-          - 0xA42Fcd692736CeE67e92D0fcF717b59C4d6D846D
-          - 0xe11393EE8C06934C2C2737A0AbAA53e5ecC3555C
-          - 0x9ad08a62BAac4608695A710ACe8dcA66F3c9f06A
-          - 0x8c7D15fCB443e07C5dc980901A6281f96D87C10F
-          - 0x951FdfA193D92C74c9e35Ea8C8C757CBCBB85147
-          - 0x609645BF53F4Eed27101E8557841502628b10090
-          - 0x1c81e7B17724FbdC225A40D7982fd51e47acD398
-          - 0xBE0aBf47Dd240d84941024433724004F0C92CDe5
-          - 0x3548029694fbB241D45FB24Ba0cd9c9d4E745f16
-          - 0x523a0315F509553eEF99CC51463722CA511Fbc66
-          - 0x7Dc24672e78A2ee32eCBf76Fe8b9619119258F4b
-          - 0xa450EBdaa20A6C2e9c46d9324Df5dd22fb5E0e24
-          - 0x0a42f6602b2d40baDFAB1150F21E57302709E70e
-          - 0x4E275DddCe0f669A40C045241181a769faF9A696
-          - 0xfd71C487d4c530Da2401b7FB6F11c6c5d548748d
-          - 0x6553BC4aEEd1c1C38Ee3C47Fb9D21104DdF37E2a
-          - 0xC2135717aF0646B34C93979Cd351f656D8d4924C
-          - 0x92884F6d4A691cCeeeeBdf20C55c2496E3d59aba
-          - 0x4b828f7b51018bcD6ceD8f856c6425B891C2D94a
-          - 0x8105b772b148455eE0540715cac451e9FfcE35a0
-          - 0xEDe9a62391DFe0bDe9Bd6C0e90761e9883A4131c
-          - 0x190d88E4E1E9F448162aEaED3Aba5dD506cA5fb1
-          - 0x33082336140978bCA8a3D775104fe8Cf14C71614
-          - 0x1B00a1aFE48aDB8D8C76b854da22a70011446481
-          - 0xffA9401318e3c84B6B99C7FAA18e3cf9b2c743f9
-          - 0xB0d931138BF96501654f2268Cdd84420151fF52e
-          - 0x42e8dC1b1891C103291Ec01D903451E729DaAACc
-          - 0x96FF95A34Ff15F054969Bf6624C889AC2D2ba375
-          - 0x4866876388FBcC582Cfcf058eA28d2815f6BDccE
-          - 0xB543a23EBF95B35F7E472076C34705821E3b0817
-          - 0xb97356cbc185f2f727E56447a3B4FA134c2C110E
-          - 0xb1E80554Db3293eA5f7be4918641b21b0e1D5F9F
-          - 0x2745676207516f7142bBbEe0181A5bb57F2e05e7
-          - 0x5f6e331bBfeeE2e7F816b365E65A436eD2cB97fd
-          - 0xd53B4B917F2f58729A7632f03E6B61adA2f290F2
-          - 0x74B4DEE88E99b2548ABf3a9A4a79dF5fD492c631
-          - 0xf213F2D02837012dC0236cC105061e121bB03e37
-          - 0x7A034374C89C463DD65D8C9BCfe63BcBCED41f4F
-          - 0xf53B7Af40BE75043eeBa493C622F4f56b3C27A31
-          - 0x8f24dD646e2ae3615767EbdCCc6691C54C41793F
-          - 0xA04E353944181b0DB5C7F0cc6dd62434F8cD481b
-          - 0x68B41faC96b9A6E6dC6219D13834BdE39c22424d
-          - 0x1307f36BC34081401497A873522570AebA4CdE90
-          - 0x418457Ca08fA5EC77f811B105F2c585cd051Ac10
-          - 0xcC79bfA7a3212d94390c358E88afcD39294549ca
-          - 0x726C66F44F1Bab3a72181dcC22fBBD22e43c1B41
-          - 0x48c4a187B454AC80702B71f3D27991b389Ff5D83
-          - 0x95dBbA09678E373b4D650dbaB7f458958CE8BC68
-          - 0xD5c91c6aCf95CBD6a7F697595c11A0beDcCA65E3
-          - 0x56407a5998824a6F7E3E403CA17c58D86b84ebcD
-          - 0x6455162ddFd3519Ba6de079e3E5466c97fd15975
-          - 0x996869001cbCdc1dE9803712265B0b21E35cf5f2
-          - 0x790027573FD4ccD0132e04c194E7a963c2521f1d
-          - 0xE17ee09cf651dE944103636234f1845CF47037F2
-          - 0x50146BaB9A22B9839195bDCCe7012eCD354cC028
-          - 0x861Ee8B9F7e42eDCF4f1B5614c6595F71A879f3f
-          - 0xD848F4c43aE5e0446c57e9835Eb9162623f1D644
-          - 0x810dCc38E55e5D36E72c666eb519b439404195DE
-          - 0x29BBb5F85F01702Ec85D217CEEb2d9657700cF04
-          - 0x1285Fb0999FB766a95fF33C4aac6408D75599b61
-          - 0x967aEdC48f6d65D89926D202e1AA2849910d6D46
-          - 0x48A5c6D7d904E4F567861aa244063C71228932B7
-          - 0xf185f82A1948d014baE23d30b06FA8Da35110315
-          - 0x3768C4983e87A7fe3E38C5383a1081e6bC24f9cC
-          - 0xFd7F2E8F44978f58e5D895BDFC7f82891356C9CD
-          - 0x3F75b57d9f444796368605651CCd5Dc3b8de992A
-          - 0xEFE0FdD5bA270F5a684639174B2B582E769FcF5A
-          - 0xEFCCe4eB77603224b930C89BE163ba8a6d096933
-          - 0x6856981E9eeb65939841a6f8e0Af1bA7a18475C6
-          - 0x8216E65C87545AC0E46AAc8510Ee321EB573697C
-          - 0xF51dE898F12Cf3Eb93E09636ba40996782eb7671
-          - 0x0f04fbb279A5FAEB0e29dF126E5d12f306Ef40B3
-          - 0x23e629BBC2471fF96D9eFE4fF9B03145436DBE9B
-          - 0xa6e752298EC771f429314A14fd95d2A437F8947f
-          - 0x94148103D1eADf7C01742043C5dDB81aF69A38eE
-          - 0x2C4909355b0C036840819484c3A882A95659aBf3
-          - 0x120619c941eC42F27670CB1Cf8e7789e537E65C9
-          - 0x20000FbfeDFD172821821C9c59284129B04ffB2e
-          - 0x682d5fA56463998ECa1ABA1A6170B704cD2F4009
-          - 0x486C76dF7A1Fd0145e14194276550eDE051dDCe5
-          - 0xaacAaC76AC4B0D242318393f848e01b51a3be8d2
-          - 0xe2bf81F6bC96D3084De5cBe184448DDEDa08962a
-          - 0xdE7274632473Df46b4D460a8AA60f2d397a54D8A
-          - 0x5c70972f05b40Eb48C4D4CB4cd87c0FF503487Ee
-          - 0x16F8925a86175A18aBB67193db73fc2738E16EEA
-          - 0x1F9d32B4aDa2e85Fd4d000912EFF6DA5A8B1F7FE
-          - 0x5E14319D52c9C18a04BFBBE12dd3a0FE3C1A816a
-          - 0x5b841745Ed92feE5b49B92F430E7d722FbcCA06F
-          - 0xB77d96D27E0D3C0C04d02771d564A6E242992af0
-          - 0x036340934f0D161dA326e5b408B4411bd3e194bE
-          - 0xc0674B82E94aC46C1BAFC63a56980A366bD4C279
-          - 0x018eaB327F39584601e97aC748adc3C882eD22EC
-          - 0x80aBe24A3ef1fc593aC5Da960F232ca23B2069d0
-          - 0x4467AdE05776BeD7D8E0da5d5cC60F660f2351Fd
-          - 0xE96c788E66a97Cf455f46C5b27786191fD3bC50B
-          - 0xf1eB6cAe1A8b6A1241Be42055960c988be1d3f89
-          - 0x86498f47fd96695C6E4Df2AD162B9AA166E4F8c5
-          - 0x9D933f0AF9dc01A6f9e5D2e6dcB25B6D0837EA81
-          - 0x9161Bad8964238E524100DF92d1E520E72b9e910
-          - 0xDbe7b4E9bdB53e9E0C388C3fa6F9B6e1562eEF46
-          - 0x9C46C0D28787A6EF0807eaa415a28d367DD6Efa9
-          - 0x413d78628d688edcdE29518199A3A3DB955068EC
-          - 0x1a9f461a371559f82976fa18C46A6A0d29f131d0
-          - 0xda129dd6BbBE910C9B683C757e6ABaa9543c2791
-          - 0xB2dD366d733D84954C885489f9b70F8cCaFA7FFE
-          - 0x0BC12fb1415ae22abcA8F597EA2893B9B8b1a758
       - name: Voter
         address:
           - 0x16613524e02ad97eDfeF371bC883F2F5d6C480A5
       - name: VotingReward
         address:
-          - 0xB0b88cA338f183d2fBABAb0f75Ba3C90424131d9
-          - 0x1BEE27670A1faCac1B59143a387740223a203604
-          - 0x3993152dfCEe60cBf6e6C68d00b15c1c08FcAe24
-          - 0xE6742fAe461Ecaf4C6dbd3EB0e3E482bCB2C5567
-          - 0x8b82EBfeE303B9F978D2f62DcBa2cB85b9FC669B
-          - 0x78dC6Eb8821F87705903b1cD883239e46CB97e67
-          - 0x4E99c1DF842EBB174De9CC44749273287FCF77EB
-          - 0x0d851B6D10A8768bc8D3A86374E5BB77C144f4A0
-          - 0x5b73a4a616f22bc531C439a92b26Cd276a4ccef7
-          - 0xFE303d1D7D6D3F1977e79fC082B7D59957Ca7445
-          - 0xdaC5080DDC75624fF14AE83F0ed912cc53Fe4d35
-          - 0x0FCcff258472bD6d1A1A474Da0e3Aa1af5d1495C
-          - 0x47c6A374E010DBAb517b1E22CCD57A04A1dBc97A
-          - 0x8b597cc547948c97Ba84E2348507ECB30364Fdc2
-          - 0x85E0dc102fE977113B3a1F6893B7687BF6cb9D34
-          - 0x64952300B2544B3B48B7fa2effAc01d31F6C1370
-          - 0x1Cb79D8cdB7E621f1545545D50c8561dF4003D38
-          - 0xcf66F70B7d88749C1Fd2c4287Dc637ca24BA3AF2
-          - 0xcd559987cC5968654A9514829254fFD36e8469Ba
-          - 0x1007B52921268B7Ff21A6889210305b552AaBe3c
-          - 0x51ae0fbFfbe6770CaDe1423fB873e83758be00E3
-          - 0xCD4D122c71B11c9f20A1Bfa19D3C802c1c50FADB
-          - 0x4359267d91F6287e92057E144253803B2dd43993
-          - 0xde3147EadB436C4Ae4B64F1266d128AD0CF4A75C
-          - 0x50a3CA0ffa1A95C2AB8FA71138fE6f3e0B3E8E61
-          - 0x6CEd86715f74ff109ea7f908eAc78AF4ab2f41ea
-          - 0x3CAE2895a4fc57336Fc8FBab40D9e534874B17CE
-          - 0x7a9933D2ad2E1940b6AaBdB29DC6Cd99A0089D62
-          - 0x11138D6D0a285bcA9546285EA13020FCDDf857ca
-          - 0xB64d641E0d8D2845c18fFf6dD604BF304eB7F42A
-          - 0xFdFeD1a59d7E84be901AA5dCC62a6c2e02257cc7
-          - 0xcA32bDB6E2eCC323004510f98Cd55Bd201125C45
-          - 0xb30F5119022ed23267f5680B6b0Cbf8c84598106
-          - 0x9cE9473d1Fc8641d3AB1d19Cf376858559eEE314
-          - 0xFC92B85CAD1aC5aa08B65ac6822D4f0A6BB0eC90
-          - 0x62d0E505e0232D0C9830BA5FCd96F692471E563B
-          - 0xcC6cd687c7f5ce8a61262628dDe8aB7eBEE7d4e6
-          - 0x0a781B82E993B27Da76533649670FC48967EcD68
-          - 0xa1a182ce850d65984Cc3a81Ceba63Da219AB179A
-          - 0x034d0F8918b3b18A9728110596d9975e93a81333
-          - 0x6B91f83f174811E2711dF2F10bDDd9898Bbd6d85
-          - 0x9D73d5664c5D7595704e8eD1e381373A9B555E4b
-          - 0x5b050936d7a6861F04Cf691Dc1055BEeF66094fA
-          - 0x31e655594A0b7b39AcCD0AbBC673eBBB18328984
-          - 0xbDA9559BEEC28c65B7a069F803f1f908BaF7E364
-          - 0x3C4303b33717E36469EdF57f3f8B13d74Bd8CECC
-          - 0x4457909A2cd708903254AAb61946380c4F2a610f
-          - 0x1898EaCAf1b60B46d910CeA3d892E54Faf5eC58D
-          - 0xC289Cdab8436b66F810DC357BaA3dBa684377afa
-          - 0xB5030E29237F4d963F483681f26C091675F60063
-          - 0x9a0efA1968837474E23c73b60f29d705d2EB8789
-          - 0xfC996Abd85Bcf64C3fA7DA20f33278Cd46f25ab7
-          - 0x342cff449319Da8E71817C6f7480AB29Eb6caC2E
-          - 0x16f49F08fCbcd7c4eCad1B55bCE453411e933A6d
-          - 0x5A0Fb3162544f5dd1E84F9C71be26b41e76F94Ec
-          - 0xc992F864eB1054feEfda276298Da3396C7F6938d
-          - 0xDdF6973021D73E39C96204dA548D9a6675d8f998
-          - 0x6C5c62B32dc2B14Cd042F1d6E73bc18FDf009d56
-          - 0x8b516eB5F0e806b68b4D8Edd3572b361DC8d4c5f
-          - 0x3371753209EA6975be5dF825aeCE63766e374441
-          - 0x6FF40392DF6F67835961FDA9E60620fFBbf97497
-          - 0x467d7b49EDe93815ED37637F0202a18CEF884285
-          - 0x18872DD847F3086ee46aC4Ae152Fd5648D1CE648
-          - 0x2DA8A91991391acDf14cbc0480Cff8e3f1C3abcf
-          - 0xaE507c81432219593591534667729bef116CfD5D
-          - 0x7761D834aE790140F5338928FedC594Eada541cB
-          - 0xE3349C38564ba62736190d4c113C72F818ed5Da5
-          - 0xA8e1EAf0203bF2f486D22aBcb9f169c04733c53C
-          - 0xE6bB618CEf16c3FeA63db878BE6aA72a83fd1ac4
-          - 0x552889083ff5d6f80344419846E0014Aa9B069a2
-          - 0xA36c28763041fa41Ec03b2fCEc21A088F94dF192
-          - 0xD8847438AaEA2dD395bF2652a526B1CDd1F4E44D
-          - 0x9392A66011427F2E344021f24E10406983f11537
-          - 0x8Da2A9E8A5c6E18385237a27fcDD1671527417Ae
-          - 0x14BD57A885E756C7e6eD1dA9126F6Acad46bc36d
-          - 0x754e0246D689187112D8D35b7d26e11039Fd52e3
-          - 0xf9BbF917Cf7E4ed9576a017B753FB7036Aec3EAb
-          - 0xE3CB6C2a2F51c647d26e7763a54D862916008004
-          - 0xc406DB21bBAEd9bFCCd878Fa6c87F65FD576fA2e
-          - 0x461f64e54f1BABf31A589dA5FBE28520b013C3bA
-          - 0x36E5D096fD479D469120D021bb793C26Cf28E57D
-          - 0xc890CD746bcef1c8Fc3703481685ccb358d323f9
-          - 0xECAc953BCCBb4a13Ac834fFab7102Bd48D2C9958
-          - 0xe1C9D6Bc2D4B81f5C6546dC8B0dA7eFCB0194200
-          - 0x492a4ec63256F4BE3789949f26EF1Dd0B0234a37
-          - 0xd5FC97A260CDeE289D2f7C58373aC6B97b119C4c
-          - 0x6848b4d2DB31a480244b0e1d8c784248300868c2
-          - 0x401839735e8286759d503D59013EA1ad774C6364
-          - 0xf0352C8d62E0BFd64C0D43cc697525Af7a9E7Fb0
-          - 0xb288a538Ac9689a3E0A6950258417Ec75B8Dd39b
-          - 0x35A480E17DEe055ec092e34CC9a24E62400A4CbB
-          - 0xB86aBb772fcBab516C5Fb9b674ee99af13337857
-          - 0x5C79dAF480a8ed0D36893D5E4D7f81300E41fF9D
-          - 0xCfE2edDc8b4cbea4E2B19feA9b4ff12C61896f16
-          - 0x3958B4E4B055864AceFe353C17b113366328a9FC
-          - 0x240154f6E387f2A7bc8Af02dE89a5042E47F5E4F
-          - 0xF2f8D79712aB8070896B7A3D8E6C80FC6dC67076
-          - 0x0ebC88db1ac556c4800d68194429cA0295bA0bd0
-          - 0xc7aa942FDb180D6B90Fea35C3f4f37cbae756B27
-          - 0x5b3989e6223d2387951e5A961505CEBE8fe3414f
-          - 0xEBd39bf8624acAa7CEb957eb7571B7CCAdF06B55
-          - 0x5FA602A213B96754d054A55D0074A6657e677aB5
-          - 0x0f677E091D262015c1829691dBa7FA24BEE1C873
-          - 0x4f813FCB955e24b75b1D1a1eA2F0eA02677f26Bd
-          - 0xF4530dc2E8aFfF11Eab1aB677b04246866297BD4
-          - 0xF40ae9Aed4a6Bee9c279915A18AAe56332bE860C
-          - 0x3895AaB8afAb17dcfe34d99A22b7C4d94Ea27188
-          - 0x4CCFC24B5DBB83000D50d83Ef47040F0054487c0
-          - 0x1aE309f0b40a944aCcD3F9715E3861EEcB7E56F7
-          - 0xc068FC660c97132A7f9C67177aD7E41C65A3Bb37
-          - 0xeC73aCB868f93B4CAAEe51350384a0C1061B0Ef8
-          - 0x0b3e20E45ddA9e33F2bB308Cd081d37435B2231C
-          - 0xBe20eD4aB75A0536044C817A4Ff32e6f839A359d
-          - 0xBD2C9d3734bBc4f7605B42e2710248693eb99326
-          - 0xC6E666ff7E00443ca45c7e2996d953AfCdB07b6C
-          - 0xC2036ca1aA7aA61710bB9e84dfe0D6Ad0aa9b20c
-          - 0x61bD763299dbFbd75f0BCb21Ff6b65e1DD0Ea55a
-          - 0x2921A340f9B05faA47eF5480C7acBE9cd38167fE
-          - 0x232A0637851Ff8fB76FA9b62119093d1bCA16934
-          - 0x7315c597987D2D35a227a401ca058Fb85853Ca57
-          - 0x3b8a010953822117AC4686Fdc33953f0BAFA7639
-          - 0xaa2e92c755BfE054369C4982D287eeFA3ADBFe13
-          - 0x7572Fd3212eDaCbAb5492072A7aFcef6F75141B9
-          - 0x4bb6dE4f539D4a1B8F62fb0EbA21Ad523435b9ed
-          - 0x21130d6DF05CDC5E064b1629744DE8c4390504d5
-          - 0x6877658A143d9f52E6fd1Bfe26406729882B7F3E
-          - 0xbD4d052a610E28C20cBd301097Eddd7A783DcfDf
-          - 0x3c3661562f5e7f75321f4702FBA2D16827f54B90
-          - 0xb510a75e42433d1543B57425AA0aC948B90555A1
-          - 0xeb21F0CE3Ad68ac728Be113Fa24Aa871E2B4C4Ab
-          - 0x858b4eA9d7E068AD5f477d9d5e45c21e80567b66
-          - 0x07CF14837CB028E8f85B00FE651DeaFE618bCdc3
-          - 0x76CCFD6d50B2f38d925864663f14FD9f4E02551F
-          - 0xA7206F34eF1f3e2732973c39f25da4B5491B8848
-          - 0x3C5247C06CEB60Fd09177a71A513658454602613
-          - 0x0033fBeB14e9D9209B2010f40bff712BFbf217FA
-          - 0xb27b310B62489d7eB7761af15B00352ab55d0ab5
-          - 0x555A361efcD0b3C5473f620911F964B481ee5312
-          - 0x83117246FF754EDA68dB99197b7a9684b236e189
-          - 0x4dB7b66982e9b4e474cc0924276FDb4f18F958Df
-          - 0x4dadE41498Af6B6841e1B6dB2f0f09A81baE4f12
-          - 0x1A8a4b1Facec69E2039c419181609e6EE1fb7992
-          - 0xdFC3dD610480261f801dE8a5D5dB67290E1D4b97
-          - 0x152973Ee912370FB049F4F9DfDb3c80a58C9e7B9
-          - 0xbD4aeFdc6be2801436A88294864dF9c978a1e66E
-          - 0x9E9278867C250D003d27A025E272e62ff824ef22
-          - 0x5074da0EEDACB1574f4aC295451077c6dE431438
-          - 0xBe02aE4FBd7070b8e36B4F062BfDd929956bC481
-          - 0x0B681EdA2cAC584064Ee5bFFD4C820E9C6276883
-          - 0xD8B435840b8223Ab194A5571A6058a3989F4a586
-          - 0x43f3c1fca1Ea82f5d81bad06a9a8dC6F12ae5e9c
-      - name: PriceFetcher
+      - name: CLPool
         address:
-          - 0x593d092bb28ccefe33bfdd3d9457e77bd3084271
-          - 0x2910942669b9F0118d025be31B1A82E36bF88880
+      - name: ALMDeployFactory
+        address:
+          - 0xE46EC96906fc6dEC53De25F013639969Fe10180d
+      - name: ALMCore
+        address:
+          - 0x0000000cE42D4981513060aB7E50B9e5e2D19AF1
+      - name: ALMLPWrapper
+        address:
+  - id: 1863 # Soneium 
+    hypersync_config:
+      url: https://soneium.hypersync.xyz
+    start_block: 0
+    contracts:
+      - name: ERC20 
+        address:
+          - 0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81 # xVELO
+      - name: NFPM
+        address:
+          - 0x991d5546c4b442b4c5fdc4c8b8b8d131deb24702
+      - name: PoolFactory
+        address:
+          - 0x31832f2a97Fd20664D76Cc421207669b55CE4BC0
+      - name: CLFactory
+        address:
+          - 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F
+      - name: Pool
+        address:
+      - name: SuperchainLeafVoter
+        address:
+          - 0x97cDBCe21B6fd0585d29E539B1B99dAd328a1123
+      - name: VotingReward
+        address:
+      - name: CLPool
+        address:
+  - id: 57073 # Ink
+    hypersync_config:
+      url: https://ink.hypersync.xyz
+    start_block: 0
+    contracts:
+      - name: ERC20 
+        address:
+          - 0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81 # xVELO
+      - name: NFPM
+        address:
+          - 0x991d5546c4b442b4c5fdc4c8b8b8d131deb24702
+      - name: PoolFactory
+        address:
+          - 0x31832f2a97Fd20664D76Cc421207669b55CE4BC0
+      - name: CLFactory
+        address:
+          - 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F
+      - name: Pool
+        address:
+      - name: SuperchainLeafVoter
+        address:
+          - 0x97cDBCe21B6fd0585d29E539B1B99dAd328a1123
+      - name: VotingReward
+        address:
+      - name: CLPool
+        address:
+  - id: 34443 # Mode
+    start_block: 0
+    contracts:
+      - name: ERC20 
+        address:
+          - 0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81 # xVELO
+      - name: NFPM
+        address:
+          - 0x991d5546c4b442b4c5fdc4c8b8b8d131deb24702
+      - name: PoolFactory
+        address:
+          - 0x31832f2a97Fd20664D76Cc421207669b55CE4BC0
+      - name: CLFactory
+        address:
+          - 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F
+      - name: Pool
+        address:
+      - name: SuperchainLeafVoter
+        address:
+          - 0x97cDBCe21B6fd0585d29E539B1B99dAd328a1123
+      - name: VotingReward
+        address:
+      - name: CLPool
+        address:
+  - id: 1135 # Lisk
+    start_block: 0
+    contracts:
+      - name: ERC20 
+        address:
+          - 0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81 # xVELO
+      - name: NFPM
+        address:
+          - 0x991d5546C4B442B4c5fdc4c8B8b8d131DEB24702
+      - name: PoolFactory
+        address:
+          - 0x31832f2a97Fd20664D76Cc421207669b55CE4BC0
+      - name: CLFactory
+        address:
+          - 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F
+      - name: Pool
+        address:
+      - name: SuperchainLeafVoter
+        address:
+          - 0x97cDBCe21B6fd0585d29E539B1B99dAd328a1123
+      - name: VotingReward
+        address:
+      - name: CLPool
+        address:
+  - id: 252 # Fraxtal
+    hypersync_config:
+      url: https://fraxtal.hypersync.xyz
+    start_block: 0
+    contracts:
+      - name: ERC20 
+        address:
+          - 0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81 # xVELO
+      - name: NFPM
+        address:
+          - 0x991d5546C4B442B4c5fdc4c8B8b8d131DEB24702
+      - name: PoolFactory
+        address:
+          - 0x31832f2a97Fd20664D76Cc421207669b55CE4BC0
+      - name: CLFactory
+        address:
+          - 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F
+      - name: Pool
+        address:
+      - name: SuperchainLeafVoter
+        address:
+          - 0x97cDBCe21B6fd0585d29E539B1B99dAd328a1123
+      - name: VotingReward
+        address:
+      - name: CLPool
+        address:

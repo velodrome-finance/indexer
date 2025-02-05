@@ -1,0 +1,24 @@
+ No pool address found for the bribe voting address
+0x9cE9473d1Fc8641d3AB1d19Cf376858559eEE314
+	-	-	-	-	-	
+-
+	
+13 Nov 24 - 9:38:24:288	uwarn	8453	
+No pool address found for the bribe voting address
+0x62d0E505e0232D0C9830BA5FCd96F692471E563B
+	-	-	-	-	-	
+-
+	
+13 Nov 24 - 9:38:24:269	uwarn	10	
+No pool address found for the bribe voting address
+0x2259a22aE9d3eD6356a7874B9aEDcBB5A02a7A71
+	-	-	-	-	-	
+-
+	
+13 Nov 24 - 9:38:24:212	trace	-	
+New batch created for processing
+	-	-	-	-	-	
+-
+	
+13 Nov 24 - 9:38:24:202	trace	-	
+Finished processing batch

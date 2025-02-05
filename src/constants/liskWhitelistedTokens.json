@@ -1,0 +1,38 @@
+[
+  {
+    "address": "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
+    "symbol": "XVELO",
+    "decimals": 18,
+    "createdBlock": 8339184
+  },
+  {
+    "address": "0x03C7054BCB39f7b2e5B2c7AcB37583e32D70Cfa3",
+    "symbol": "WBTC",
+    "decimals": 18,
+    "createdBlock": 6478295
+  },
+  {
+    "address": "0xac485391EB2d7D88253a7F1eF18C37f4242D1A24",
+    "symbol": "LSK",
+    "decimals": 18,
+    "createdBlock": 568336
+  },
+  {
+    "address": "0x05d032ac25d322df992303dca074ee7392c117b9",
+    "symbol": "USDT",
+    "decimals": 6,
+    "createdBlock": 1639961
+  },
+  {
+    "address": "0x4200000000000000000000000000000000000006",
+    "symbol": "WETH",
+    "decimals": 18,
+    "createdBlock": 0
+  },
+  {
+    "address": "0xF242275d3a6527d877f2c927a82D9b057609cc71",
+    "symbol": "USDC",
+    "decimals": 6,
+    "createdBlock": 6495207
+  }
+]

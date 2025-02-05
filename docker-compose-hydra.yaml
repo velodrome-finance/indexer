@@ -1,0 +1,59 @@
+services:
+  envio-postgres-hydra:
+    image: ghcr.io/hydradatabase/hydra:latest
+    restart: always
+    ports:
+      - "${ENVIO_PG_PORT:-5434}:5432"
+    volumes:
+      - db_data_hydra:/var/lib/postgresql/data
+    environment:
+      POSTGRES_PASSWORD: ${ENVIO_POSTGRES_PASSWORD:-testing}
+      POSTGRES_USER: ${ENVIO_PG_USER:-postgres}
+      POSTGRES_DB: ${ENVIO_PG_DATABASE:-envio-dev}
+    networks:
+      - my-proxy-net
+  envio-indexer:
+    container_name: envio-indexer
+    build:
+      context: .
+      dockerfile: Dockerfile-hydra
+    ports:
+      - "8081:8081"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.8' # limit the resource of the container to 80% of 1 CPU (800m) testing for live environment
+          memory: 800M # conservative can be increased if needed
+    restart: always
+    environment:
+      ENVIO_POSTGRES_PASSWORD: ${ENVIO_POSTGRES_PASSWORD:-testing}
+      ENVIO_PG_HOST: envio-postgres-hydra
+      ENVIO_PG_PORT: 5432
+      ENVIO_PG_USER: ${ENVIO_PG_USER:-postgres}
+      ENVIO_PG_DATABASE: ${ENVIO_PG_DATABASE:-envio-dev}
+      PG_PASSWORD: ${ENVIO_POSTGRES_PASSWORD:-testing}
+      PG_HOST: envio-postgres-hydra
+      PG_PORT: 5432
+      PG_USER: ${ENVIO_PG_USER:-postgres}
+      PG_DATABASE: ${ENVIO_PG_DATABASE:-envio-dev}
+      CONFIG_FILE: ${CONFIG_FILE:-config.yaml}
+      LOG_LEVEL: ${LOG_LEVEL:-trace}
+      LOG_STRATEGY: ${LOG_STRATEGY:-console-pretty}
+      MAX_QUEUE_SIZE: 50_000
+      MAX_BATCH_SIZE: 10_000
+      TUI_OFF: ${TUI_OFF:-true}
+    healthcheck:
+      # CMD from a GH issue thread, no curl or wget installed with image
+      # but hasura comes with a /healthz public endpoint for checking server health
+      test: timeout 1s bash -c ':> /dev/tcp/127.0.0.1/8080' || exit 1
+      interval: 5s
+      timeout: 2s
+      retries: 50
+      start_period: 5s
+    networks:
+      - my-proxy-net
+volumes:
+  db_data_hydra:
+networks:
+  my-proxy-net:
+    name: local_test_network

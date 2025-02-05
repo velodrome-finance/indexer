@@ -8,33 +8,47 @@ type Address = string;
 type Shape = Record<string, Record<string, any>>;
 
 type ShapeRoot = Shape & Record<Address, { hash: string }>;
-export type ShapeGuageToPool = Shape & Record<Address, { poolAddress: Address }>;
-export type ShapeBribeToPool = Shape & Record<Address, { poolAddress: Address }>;
+export type ShapeGuageToPool = Shape &
+  Record<Address, { poolAddress: Address }>;
+export type ShapeBribeToPool = Shape &
+  Record<Address, { poolAddress: Address }>;
 export type tokenToPricingPairs = {
   // NOTE: a set would be a better datatype than an array here - but insert only happens seldomly, so not an issue.
   poolIdsWithWhitelistedTokens: string[];
-}
-export type ShapeWhiteListedPoolIds = Shape & Record<Address, tokenToPricingPairs>;
-export type ShapePoolToTokens = Shape & Record<Address, { token0: Address, token1: Address }>;
+};
+export type ShapeWhiteListedPoolIds = Shape &
+  Record<Address, tokenToPricingPairs>;
+export type ShapePoolToTokens = Shape &
+  Record<Address, { token0: Address; token1: Address }>;
 
+export type ShapePricesList = string[];
 
-type ShapeToken = Shape &
+export type ShapeTokenPrices = Shape & Record<string, { prices: ShapePricesList }>;
+
+export type ShapeToken = Shape &
   Record<Address, { decimals: number; name: string; symbol: string }>;
 
 export class Cache {
   static init<C = CacheCategory>(
     category: C,
-    chainId: number | string | bigint,
+    chainId: number | string | bigint
   ) {
     if (!Object.values(CacheCategory).find((c) => c === category)) {
       throw new Error("Unsupported cache category");
     }
 
-    type S = C extends "token" ? ShapeToken
-      : C extends "guageToPool" ? ShapeGuageToPool
-      : C extends "bribeToPool" ? ShapeBribeToPool
-      : C extends "whitelistedPoolIds" ? ShapeWhiteListedPoolIds
-      : C extends "poolToTokens" ? ShapePoolToTokens
+    type S = C extends "token"
+      ? ShapeToken
+      : C extends "guageToPool"
+      ? ShapeGuageToPool
+      : C extends "bribeToPool"
+      ? ShapeBribeToPool
+      : C extends "whitelistedPoolIds"
+      ? ShapeWhiteListedPoolIds
+      : C extends "poolToTokens"
+      ? ShapePoolToTokens
+      : C extends "tokenPrice"
+      ? ShapeTokenPrices
       : ShapeRoot;
     const entry = new Entry<S>(`${category}-${chainId.toString()}`);
     return entry;
@@ -101,7 +115,9 @@ export class Entry<T extends Shape> {
   }
 
   private publish() {
-    const prepared = JSON.stringify(this.memory);
+    const prepared = JSON.stringify(this.memory, (key, value) =>
+      typeof value === "bigint" ? value.toString() : value
+    );
     try {
       fs.writeFileSync(this.file, prepared);
     } catch (error) {

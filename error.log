@@ -1,0 +1,54 @@
+[13:02:45.874] ERROR (236493): Failed during batch serialization of entity Token
+    err: {
+      "type": "RescriptSchemaError",
+      "message": "Failed serializing to JSON at [\"0\"]. Reason: The S.transform serializer is missing",
+      "stack":
+          RescriptSchemaError: Failed serializing to JSON at ["0"]. Reason: The S.transform serializer is missing
+              at raise (/home/jalil/Programs/velodrome-indexer/node_modules/.pnpm/rescript-schema@8.2.0_rescript@11.1.3/node_modules/rescript-schema/src/S_Core.bs.js:415:9)
+              at invalidOperation (/home/jalil/Programs/velodrome-indexer/node_modules/.pnpm/rescript-schema@8.2.0_rescript@11.1.3/node_modules/rescript-schema/src/S_Core.bs.js:476:10)
+              at Object.b (/home/jalil/Programs/velodrome-indexer/node_modules/.pnpm/rescript-schema@8.2.0_rescript@11.1.3/node_modules/rescript-schema/src/S_Core.bs.js:1449:42)
+              at loop (/home/jalil/Programs/velodrome-indexer/node_modules/.pnpm/rescript-schema@8.2.0_rescript@11.1.3/node_modules/rescript-schema/src/S_Core.bs.js:2417:31)
+              at parse$2 (/home/jalil/Programs/velodrome-indexer/node_modules/.pnpm/rescript-schema@8.2.0_rescript@11.1.3/node_modules/rescript-schema/src/S_Core.bs.js:2443:10)
+              at loopTypeFilters (/home/jalil/Programs/velodrome-indexer/node_modules/.pnpm/rescript-schema@8.2.0_rescript@11.1.3/node_modules/rescript-schema/src/S_Core.bs.js:2496:40)
+              at loopTypeFilters (/home/jalil/Programs/velodrome-indexer/node_modules/.pnpm/rescript-schema@8.2.0_rescript@11.1.3/node_modules/rescript-schema/src/S_Core.bs.js:2503:62)
+              at Object.b (/home/jalil/Programs/velodrome-indexer/node_modules/.pnpm/rescript-schema@8.2.0_rescript@11.1.3/node_modules/rescript-schema/src/S_Core.bs.js:2506:31)
+              at definitionToOutput (/home/jalil/Programs/velodrome-indexer/node_modules/.pnpm/rescript-schema@8.2.0_rescript@11.1.3/node_modules/rescript-schema/src/S_Core.bs.js:1883:47)
+              at definitionToOutput (/home/jalil/Programs/velodrome-indexer/node_modules/.pnpm/rescript-schema@8.2.0_rescript@11.1.3/node_modules/rescript-schema/src/S_Core.bs.js:1891:23)
+      "operation": "SerializeToJson",
+      "code": {
+        "TAG": "InvalidOperation",
+        "description": "The S.transform serializer is missing"
+      },
+      "path": "[\"0\"]",
+      "RE_EXN_ID": "S_Core-RescriptSchema.Raised/1",
+      "name": "RescriptSchemaError"
+    }
+
+[13:02:46.106] ERROR (236493): Failed writing batch to database
+    context: "batch"
+    batch-size: 5000
+    first-event-timestamp: 1693198899
+    err: {
+      "type": "RescriptSchemaError",
+      "message": "Failed serializing to JSON at [\"0\"]. Reason: The S.transform serializer is missing",
+      "stack":
+          RescriptSchemaError: Failed serializing to JSON at ["0"]. Reason: The S.transform serializer is missing
+              at raise (/home/jalil/Programs/velodrome-indexer/node_modules/.pnpm/rescript-schema@8.2.0_rescript@11.1.3/node_modules/rescript-schema/src/S_Core.bs.js:415:9)
+              at invalidOperation (/home/jalil/Programs/velodrome-indexer/node_modules/.pnpm/rescript-schema@8.2.0_rescript@11.1.3/node_modules/rescript-schema/src/S_Core.bs.js:476:10)
+              at Object.b (/home/jalil/Programs/velodrome-indexer/node_modules/.pnpm/rescript-schema@8.2.0_rescript@11.1.3/node_modules/rescript-schema/src/S_Core.bs.js:1449:42)
+              at loop (/home/jalil/Programs/velodrome-indexer/node_modules/.pnpm/rescript-schema@8.2.0_rescript@11.1.3/node_modules/rescript-schema/src/S_Core.bs.js:2417:31)
+              at parse$2 (/home/jalil/Programs/velodrome-indexer/node_modules/.pnpm/rescript-schema@8.2.0_rescript@11.1.3/node_modules/rescript-schema/src/S_Core.bs.js:2443:10)
+              at loopTypeFilters (/home/jalil/Programs/velodrome-indexer/node_modules/.pnpm/rescript-schema@8.2.0_rescript@11.1.3/node_modules/rescript-schema/src/S_Core.bs.js:2496:40)
+              at loopTypeFilters (/home/jalil/Programs/velodrome-indexer/node_modules/.pnpm/rescript-schema@8.2.0_rescript@11.1.3/node_modules/rescript-schema/src/S_Core.bs.js:2503:62)
+              at Object.b (/home/jalil/Programs/velodrome-indexer/node_modules/.pnpm/rescript-schema@8.2.0_rescript@11.1.3/node_modules/rescript-schema/src/S_Core.bs.js:2506:31)
+              at definitionToOutput (/home/jalil/Programs/velodrome-indexer/node_modules/.pnpm/rescript-schema@8.2.0_rescript@11.1.3/node_modules/rescript-schema/src/S_Core.bs.js:1883:47)
+              at definitionToOutput (/home/jalil/Programs/velodrome-indexer/node_modules/.pnpm/rescript-schema@8.2.0_rescript@11.1.3/node_modules/rescript-schema/src/S_Core.bs.js:1891:23)
+      "operation": "SerializeToJson",
+      "code": {
+        "TAG": "InvalidOperation",
+        "description": "The S.transform serializer is missing"
+      },
+      "path": "[\"0\"]",
+      "RE_EXN_ID": "S_Core-RescriptSchema.Raised/1",
+      "name": "RescriptSchemaError"
+    }

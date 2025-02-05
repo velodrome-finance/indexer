@@ -1,0 +1,20 @@
+[
+  {
+    "address": "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
+    "symbol": "XVELO",
+    "decimals": 18,
+    "createdBlock": 12603122
+  },
+  {
+    "address": "0xFC00000000000000000000000000000000000006",
+    "symbol": "wfrxETH",
+    "decimals": 18,
+    "createdBlock": 0
+  },
+  {
+    "address": "0xFc00000000000000000000000000000000000001",
+    "symbol": "FRAX",
+    "decimals": 18,
+    "createdBlock": 0
+  }
+]

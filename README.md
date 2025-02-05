@@ -1,7 +1,7 @@
 ## Multi-chain indexer for Velodrome V2 and Aerodrome
 
-This repo contains the indexer for [Velodrome V2](https://velodrome.finance/) on Optimism and [Aerodrome](https://aerodrome.finance/) on Base.
-
+This repo contains the indexer for [Velodrome V2](https://velodrome.finance/) and
+[Aerodrome](https://aerodrome.finance/) across multiple chains.
 The indexer is written in TypeScript.
 
 ### Overview of user-defined files
@@ -23,23 +23,37 @@ The indexer is written in TypeScript.
   - The event handlers are written in TypeScript for Velodrome indexer.
   - Consists of a `loader` and a `handler` function for each event - see [here](https://docs.envio.dev/docs/event-handlers) for detailed explanation of the purpose of the two functions.
   - Makes use of custom helper functions and types in `/src` directory - these have been added to minimize code duplication and refactored to increase readability of the overall codebase.
+- `.env`
+  - Remove `.example` from `.env` and add variables to customize secrets in the handlers and configuration.
+  - `.env` variables will be included using the [dotenv](https://www.dotenv.org/docs/) library.
+  - Assert in deployment that the variables are included if they are necessary for the project.
 
 ### Development
 
-To develop the indexer further, refer to the [Envio documentation](https://docs.envio.dev/docs/overview) for additional guidelines.
+To develop the indexer further, refer to the [Envio documentation](https://docs.envio.dev/docs/overview) for additional guidelines. It is expected to run the
+indexer with [pnpm](https://pnpm.io/).
+
+### Installation
+
+To install the necessary packages and dependencies, run pnpm's installation. The current system
+is running with pnpm version 9.11.0.
+
+```bash
+pnpm i
+```
 
 #### Notable Envio CLI commands
 
 This command will generate the `generated` folder for the repo based on the latest `config.yaml` and `schema.graphql` files.
 
 ```bash
-envio codegen
+pnpm envio codegen
 ```
 
 During local testing, this command will drop all the existing information in the database and create new tables for a new local run.
 
 ```bash
-envio local db-migrate setup
+pnpm envio local db-migrate setup
 ```
 
 ### Running the indexer
@@ -47,7 +61,7 @@ envio local db-migrate setup
 Clone this repo and then run (this single command will spin up the required docker images, run DB migrations, perform codegen for any changes and start the indexer)
 
 ```bash
-envio dev
+pnpm envio dev
 ```
 
 > Make sure you have Docker application running
@@ -55,7 +69,7 @@ envio dev
 To stop the indexer, run
 
 ```bash
-envio stop
+pnpm envio stop
 ```
 ### Hydra-mode
 
@@ -88,6 +102,22 @@ To push the Envio indexer container to a container registry login to the registr
 `make build-push-indexer TAG=<your_image_tag> ARCH=<desired_architecture>`
 
 example: `make build-push-indexer TAG="velodrome-indexer-prod-1" ARCH="linux/amd64"`
+
+
+### Hydra setup
+
+Similar to the above, but uses a hydra postgres instance with no hasura.
+
+Setup files:
+
+- `docker-compose-hydra.yaml`
+- `Dockerfile-hydra`
+- `envio-entrypoint-hydra.sh`
+
+Make commands:
+- `make start-hydra`
+- `make hard-stop-hydra`
+- `make hard-restart-hydra`
 
 ### Testing
 
