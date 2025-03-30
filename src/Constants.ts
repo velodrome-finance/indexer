@@ -1,6 +1,6 @@
 import dotenv from "dotenv";
 import { Web3 } from "web3";
-import { optimism, base, lisk, mode, fraxtal, ink, soneium, metalL2, unichain } from 'viem/chains';
+import { optimism, base, lisk, mode, fraxtal, ink, soneium, metalL2, unichain, celo } from 'viem/chains';
 import { createPublicClient, http, PublicClient } from 'viem';
 
 import PriceConnectors from "./constants/price_connectors.json";
@@ -222,6 +222,32 @@ const MODE_CONSTANTS: chainConstants = {
   eth_client: createPublicClient({
     chain: mode,
     transport: http(process.env.ENVIO_MODE_RPC_URL || "https://mainnet.mode.network", {
+      retryCount: 10,
+      retryDelay: 1000,
+    }),
+  }) as PublicClient,
+};
+
+// Constants for Celo
+const CELO_CONSTANTS: chainConstants = {
+  weth: "0x4200000000000000000000000000000000000006",
+  usdc: "0x4200000000000000000000000000000000000006",
+  oracle: {
+    getType: (blockNumber: number) => {
+      return PriceOracleType.V3;
+    },
+    getAddress: (priceOracleType: PriceOracleType) => {
+      return "0xe58920a8c684CD3d6dCaC2a41b12998e4CB17EfE";
+    },
+    startBlock: 1863998, // TODO: Get start block
+    updateDelta: 60 * 60, // 1 hour
+    priceConnectors: SONEIUM_PRICE_CONNECTORS,
+  },
+  rewardToken: (blockNumber: number) =>
+    "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
+  eth_client: createPublicClient({
+    chain: celo,
+    transport: http(process.env.ENVIO_CELO_RPC_URL || "https://forno.celo.org", {
       retryCount: 10,
       retryDelay: 1000,
     }),

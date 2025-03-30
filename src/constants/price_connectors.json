@@ -40,5 +40,7 @@
     ],
     "unichain": [
         {"address" :"0x8f187aA05619a017077f5308904739877ce9eA21", "createdBlock": 1 }
+    ],
+    "celo": [
     ]
 }
