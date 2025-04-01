@@ -40,5 +40,8 @@
     ],
     "unichain": [
         {"address" :"0x8f187aA05619a017077f5308904739877ce9eA21", "createdBlock": 1 }
+    ],
+    "swell": [
+        {"address" :"0x2826D136F5630adA89C1678b64A61620Aab77Aea", "createdBlock": 563675 }
     ]
 }
