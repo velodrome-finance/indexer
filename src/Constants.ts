@@ -107,7 +107,7 @@ const OPTIMISM_CONSTANTS: chainConstants = {
   },
   eth_client: createPublicClient({
     chain: optimism,
-    transport: http(process.env.ENVIO_OPTIMISM_RPC_URL || "https://rpc.ankr.com/optimism", {
+    transport: http(process.env.ENVIO_OPTIMISM_RPC_URL || "https://optimism.llamarpc.com", {
       retryCount: 10,
       retryDelay: 1000,
       batch: false
@@ -311,7 +311,7 @@ const FRAXTAL_CONSTANTS: chainConstants = {
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
   eth_client: createPublicClient({
     chain: fraxtal,
-    transport: http(process.env.ENVIO_FRAXTAL_RPC_URL || "https://rpc.frax.com", {
+    transport: http(process.env.ENVIO_FRAXTAL_RPC_URL || "https://fraxtal.drpc.org", {
       retryCount: 10,
       retryDelay: 1000,
     }),
