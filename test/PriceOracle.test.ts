@@ -139,32 +139,62 @@ describe("PriceOracle", () => {
         let mockERC20Details: sinon.SinonStub;
         const chainId = 252;
 
-        beforeEach(() => {
-          mockERC20Details = sinon.stub(Erc20, "getErc20TokenDetails")
-          .onCall(0).returns({
+        describe("Scenarion USDC", () => {
+          beforeEach(() => {
+            mockERC20Details = sinon.stub(Erc20, "getErc20TokenDetails")
+            .onCall(0).returns({
+                decimals: 6n,
+                name: "USDC",
+                symbol: "USDC"
+              } as any)
+            .onCall(1).returns({
               decimals: 18n,
-              name: "WETH",
-              symbol: "WETH"
-            } as any)
-          .onCall(1).returns({
-            decimals: 18n,
-            name: "USDC",
-            symbol: "USDC"
-          } as any);
-        }); 
+              name: "FRAX",
+              symbol: "FRAX"
+            } as any);
+          }); 
 
-        afterEach(() => {
-            mockERC20Details.restore();
+          afterEach(() => {
+              mockERC20Details.restore();
+          });
+          it("should return the correct prices", async () => {
+            const test = {
+              tokenAddress: "0xDcc0F2D8F90FDe85b10aC1c8Ab57dc0AE946A543",
+              chainId: chainId,
+              blockNumber: 18371605 
+            };
+            const price = await PriceOracle.getTokenPriceData(test.tokenAddress, test.blockNumber, test.chainId);
+            expect(price.pricePerUSDNew).to.equal(1000000000000000000000n);
+          });
+
         });
+        describe("Scenario WETH", () => {
+          beforeEach(() => {
+            mockERC20Details = sinon.stub(Erc20, "getErc20TokenDetails")
+            .onCall(0).returns({
+                decimals: 18n,
+                name: "WETH",
+                symbol: "WETH"
+              } as any)
+            .onCall(1).returns({
+              decimals: 18n,
+              name: "FRAX",
+              symbol: "FRAX"
+            } as any);
+          }); 
 
-        it("Scenario Fraxtal should return the correct prices", async () => {
-          const test = {
-            tokenAddress: CHAIN_CONSTANTS[chainId].weth,
-            chainId: chainId,
-            blockNumber: 18028605
-          };
-          const price = await PriceOracle.getTokenPriceData(test.tokenAddress, test.blockNumber, test.chainId);
-          expect(price.pricePerUSDNew).to.equal(2063950680307235736469n);
+          afterEach(() => {
+              mockERC20Details.restore();
+          });
+          it("should return the correct prices", async () => {
+            const test = {
+              tokenAddress: CHAIN_CONSTANTS[chainId].weth,
+              chainId: chainId,
+              blockNumber: 18028605
+            };
+            const price = await PriceOracle.getTokenPriceData(test.tokenAddress, test.blockNumber, test.chainId);
+            expect(price.pricePerUSDNew).to.equal(2063950680307235736469n);
+          });
         });
       });
       describe("Base Suite", () => {
@@ -194,7 +224,7 @@ describe("PriceOracle", () => {
           });
 
           it("Old should return the correct prices", async () => {
-            const blockNumber = 19862773 - 1;
+            const blockNumber = 19862773 - 120;
             const price = await PriceOracle.getTokenPriceData(test.tokenAddress, blockNumber, chainId);
             expect(price.pricePerUSDNew).to.equal(2294389397280012597629n);
           });
