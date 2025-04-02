@@ -1,6 +1,6 @@
 import dotenv from "dotenv";
 import { Web3 } from "web3";
-import { optimism, base, lisk, mode, fraxtal, ink, soneium, metalL2, unichain } from 'viem/chains';
+import { optimism, base, lisk, mode, fraxtal, ink, soneium, metalL2, unichain, celo } from 'viem/chains';
 import { createPublicClient, http, PublicClient } from 'viem';
 
 import PriceConnectors from "./constants/price_connectors.json";
@@ -45,6 +45,9 @@ export const METAL_PRICE_CONNECTORS: PriceConnector[] =
   PriceConnectors.metal as PriceConnector[];
 
 export const UNICHAIN_PRICE_CONNECTORS: PriceConnector[] =
+  PriceConnectors.unichain as PriceConnector[];
+
+export const CELO_PRICE_CONNECTORS: PriceConnector[] =
   PriceConnectors.unichain as PriceConnector[];
 
 export const toChecksumAddress = (address: string) =>
@@ -228,6 +231,35 @@ const MODE_CONSTANTS: chainConstants = {
   }) as PublicClient,
 };
 
+//TODO: This is a typecast hack to get celo to work. Should be updated in viem future versions.
+const CELO_ETH_CLIENT: any = createPublicClient({
+  chain: celo,
+  transport: http(process.env.ENVIO_CELO_RPC_URL || "https://forno.celo.org", {
+    retryCount: 10,
+    retryDelay: 1000,
+  }),
+});
+
+// Constants for Celo
+const CELO_CONSTANTS: chainConstants = {
+  weth: "0x4200000000000000000000000000000000000006",
+  usdc: "0x37f750B7cC259A2f741AF45294f6a16572CF5cAd",
+  oracle: {
+    getType: (blockNumber: number) => {
+      return PriceOracleType.V3;
+    },
+    getAddress: (priceOracleType: PriceOracleType) => {
+      return "0xe58920a8c684CD3d6dCaC2a41b12998e4CB17EfE";
+    },
+    startBlock: 31278773,
+    updateDelta: 60 * 60, // 1 hour
+    priceConnectors: CELO_PRICE_CONNECTORS,
+  },
+  rewardToken: (blockNumber: number) =>
+    "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
+  eth_client: CELO_ETH_CLIENT as PublicClient,
+};
+
 // Constants for Soneium
 const SONEIUM_CONSTANTS: chainConstants = {
   weth: "0x4200000000000000000000000000000000000006",
@@ -403,7 +435,8 @@ export const CHAIN_CONSTANTS: Record<number, chainConstants> = {
   1750: METAL_CONSTANTS,
   1868: SONEIUM_CONSTANTS,
   57073: INK_CONSTANTS,
-  130: UNICHAIN_CONSTANTS
+  130: UNICHAIN_CONSTANTS,
+  42220: CELO_CONSTANTS
 };
 
 export const CacheCategory = {

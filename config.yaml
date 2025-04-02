@@ -229,6 +229,40 @@ networks:
         address:
       - name: Gauge
         address:
+  - id: 42220 # Celo
+    hypersync_config:
+      url: https://celo.hypersync.xyz
+    start_block: 0
+    contracts:
+      - name: ERC20 
+        address:
+          - 0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81 # xVELO
+      - name: NFPM
+        address:
+          - 0x991d5546c4b442b4c5fdc4c8b8b8d131deb24702
+      - name: PoolFactory
+        address:
+          - 0x31832f2a97Fd20664D76Cc421207669b55CE4BC0
+      - name: CLFactory
+        address:
+          - 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F
+      - name: Pool
+        address:
+      - name: SuperchainLeafVoter
+        address:
+          - 0x97cDBCe21B6fd0585d29E539B1B99dAd328a1123
+      - name: VotingReward
+        address:
+      - name: CLPool
+        address:
+      - name: ALMDeployFactory
+        address:
+          - 0xE46EC96906fc6dEC53De25F013639969Fe10180d
+      - name: ALMCore
+        address:
+          - 0x0000000cE42D4981513060aB7E50B9e5e2D19AF1
+      - name: ALMLPWrapper
+        address:
   - id: 1868 # Soneium 
     hypersync_config:
       url: https://soneium.hypersync.xyz
