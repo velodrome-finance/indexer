@@ -47,6 +47,9 @@ export const METAL_PRICE_CONNECTORS: PriceConnector[] =
 export const UNICHAIN_PRICE_CONNECTORS: PriceConnector[] =
   PriceConnectors.unichain as PriceConnector[];
 
+export const CELO_PRICE_CONNECTORS: PriceConnector[] =
+  PriceConnectors.unichain as PriceConnector[];
+
 export const toChecksumAddress = (address: string) =>
   Web3.utils.toChecksumAddress(address);
 
@@ -239,9 +242,9 @@ const CELO_CONSTANTS: chainConstants = {
     getAddress: (priceOracleType: PriceOracleType) => {
       return "0xe58920a8c684CD3d6dCaC2a41b12998e4CB17EfE";
     },
-    startBlock: 1863998, // TODO: Get start block
+    startBlock: 31278773,
     updateDelta: 60 * 60, // 1 hour
-    priceConnectors: SONEIUM_PRICE_CONNECTORS,
+    priceConnectors: CELO_PRICE_CONNECTORS,
   },
   rewardToken: (blockNumber: number) =>
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
@@ -429,7 +432,8 @@ export const CHAIN_CONSTANTS: Record<number, chainConstants> = {
   1750: METAL_CONSTANTS,
   1868: SONEIUM_CONSTANTS,
   57073: INK_CONSTANTS,
-  130: UNICHAIN_CONSTANTS
+  130: UNICHAIN_CONSTANTS,
+  42220: CELO_CONSTANTS
 };
 
 export const CacheCategory = {
