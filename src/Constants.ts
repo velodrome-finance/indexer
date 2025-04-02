@@ -234,7 +234,7 @@ const MODE_CONSTANTS: chainConstants = {
 // Constants for Celo
 const CELO_CONSTANTS: chainConstants = {
   weth: "0x4200000000000000000000000000000000000006",
-  usdc: "0x4200000000000000000000000000000000000006",
+  usdc: "0x37f750B7cC259A2f741AF45294f6a16572CF5cAd",
   oracle: {
     getType: (blockNumber: number) => {
       return PriceOracleType.V3;
