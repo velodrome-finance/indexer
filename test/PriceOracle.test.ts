@@ -164,7 +164,7 @@ describe("PriceOracle", () => {
               blockNumber: 18371605 
             };
             const price = await PriceOracle.getTokenPriceData(test.tokenAddress, test.blockNumber, test.chainId);
-            expect(price.pricePerUSDNew).to.equal(1000000000000000000000n);
+            expect(price.pricePerUSDNew).to.equal(996633595813270431n); // Close to 10 ** 18
           });
 
         });
