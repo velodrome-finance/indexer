@@ -231,6 +231,15 @@ const MODE_CONSTANTS: chainConstants = {
   }) as PublicClient,
 };
 
+//TODO: This is a typecast hack to get celo to work. Should be updated in viem future versions.
+const CELO_ETH_CLIENT: any = createPublicClient({
+  chain: celo,
+  transport: http(process.env.ENVIO_CELO_RPC_URL || "https://forno.celo.org", {
+    retryCount: 10,
+    retryDelay: 1000,
+  }),
+});
+
 // Constants for Celo
 const CELO_CONSTANTS: chainConstants = {
   weth: "0x4200000000000000000000000000000000000006",
@@ -248,13 +257,7 @@ const CELO_CONSTANTS: chainConstants = {
   },
   rewardToken: (blockNumber: number) =>
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
-  eth_client: createPublicClient({
-    chain: celo,
-    transport: http(process.env.ENVIO_CELO_RPC_URL || "https://forno.celo.org", {
-      retryCount: 10,
-      retryDelay: 1000,
-    }),
-  }) as PublicClient,
+  eth_client: CELO_ETH_CLIENT as PublicClient,
 };
 
 // Constants for Soneium
