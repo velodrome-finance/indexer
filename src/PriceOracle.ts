@@ -202,7 +202,6 @@ export async function read_prices(
       usdcAddress
     ]; 
     const args = [[tokenAddress], usdcAddress, false, tokenAddressArray, 10];
-    console.log("V3 args", args);
     const { result } = await ethClient.simulateContract({
       address: priceOracleAddress as `0x${string}`,
       abi: SpotPriceAggregatorABI,
@@ -220,7 +219,6 @@ export async function read_prices(
       usdcAddress
     ]; 
     const args = [1, tokenAddressArray];
-    console.log("V2 args", args);
     const { result } = await ethClient.simulateContract({
       address: priceOracleAddress as `0x${string}`,
       abi: PriceOracleABI,
