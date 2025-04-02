@@ -152,7 +152,7 @@ export async function getTokenPriceData(
 
     if (priceData.priceOracleType === PriceOracleType.V3) {
       // Convert to 18 decimals.
-      pricePerUSDNew = priceData.pricePerUSDNew * (10n** BigInt(tokenDetails.decimals)) / (TEN_TO_THE_18_BI * 10n ** BigInt(USDTokenDetails.decimals));
+      pricePerUSDNew = priceData.pricePerUSDNew * (TEN_TO_THE_18_BI * 10n** BigInt(tokenDetails.decimals)) / (10n ** BigInt(USDTokenDetails.decimals));
     } else {
       pricePerUSDNew = priceData.pricePerUSDNew;
     }
