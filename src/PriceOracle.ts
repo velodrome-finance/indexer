@@ -137,27 +137,32 @@ export async function getTokenPriceData(
     .filter((connector) => connector !== SYSTEM_TOKEN_ADDRESS);
 
   let pricePerUSDNew: bigint = 0n;
-  let decimals: bigint = 0n;
+  const decimals: bigint = BigInt(tokenDetails.decimals);
 
   const ORACLE_DEPLOYED = CHAIN_CONSTANTS[chainId].oracle.startBlock <= blockNumber;
 
   if (ORACLE_DEPLOYED) {
-    const priceData = await read_prices(
-      tokenAddress,
-      USDC_ADDRESS, 
-      SYSTEM_TOKEN_ADDRESS,
-      WETH_ADDRESS,
-      connectors,
-    chainId, blockNumber);
-
-    if (priceData.priceOracleType === PriceOracleType.V3) {
-      // Convert to 18 decimals.
-      pricePerUSDNew = priceData.pricePerUSDNew * (10n** BigInt(tokenDetails.decimals)) / (10n ** BigInt(USDTokenDetails.decimals));
-    } else {
-      pricePerUSDNew = priceData.pricePerUSDNew;
+    try {
+      const priceData = await read_prices(
+        tokenAddress,
+        USDC_ADDRESS, 
+        SYSTEM_TOKEN_ADDRESS,
+        WETH_ADDRESS,
+        connectors,
+      chainId, blockNumber);
+      
+      if (priceData.priceOracleType === PriceOracleType.V3) {
+        // Convert to 18 decimals.
+        pricePerUSDNew = priceData.pricePerUSDNew * (10n** BigInt(tokenDetails.decimals)) / (10n ** BigInt(USDTokenDetails.decimals));
+      } else {
+        pricePerUSDNew = priceData.pricePerUSDNew;
+      }
+    } catch (error) {
+      console.error(`Error fetching price data for ${tokenAddress} on chain ${chainId} at block ${blockNumber}:`, error);
+      return { pricePerUSDNew: 0n, decimals: BigInt(tokenDetails.decimals) };
     }
-    decimals = BigInt(tokenDetails.decimals);
   }
+
   return { pricePerUSDNew, decimals };
 }
 
