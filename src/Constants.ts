@@ -48,7 +48,7 @@ export const UNICHAIN_PRICE_CONNECTORS: PriceConnector[] =
   PriceConnectors.unichain as PriceConnector[];
 
 export const CELO_PRICE_CONNECTORS: PriceConnector[] =
-  PriceConnectors.unichain as PriceConnector[];
+  PriceConnectors.celo as PriceConnector[];
 
 export const toChecksumAddress = (address: string) =>
   Web3.utils.toChecksumAddress(address);
