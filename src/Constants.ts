@@ -71,7 +71,7 @@ type chainConstants = {
     priceConnectors: PriceConnector[];
   };
   rewardToken: (blockNumber: number) => string;
-  eth_client: PublicClient;
+  eth_client: PublicClient<any, any>;
 };
 
 // Constants for Optimism
@@ -115,7 +115,7 @@ const OPTIMISM_CONSTANTS: chainConstants = {
       retryDelay: 1000,
       batch: false
     }),
-  }) as PublicClient,
+  }),
 };
 
 // Constants for Base
@@ -154,7 +154,7 @@ const BASE_CONSTANTS: chainConstants = {
       retryCount: 10,
       retryDelay: 1000,
     }),
-  }) as PublicClient
+  })
 };
 
 // Constants for Lisk
@@ -191,7 +191,7 @@ const LISK_CONSTANTS: chainConstants = {
       retryCount: 10,
       retryDelay: 1000,
     }),
-  }) as PublicClient
+  })
 };
 
 // Constants for Mode
@@ -228,17 +228,9 @@ const MODE_CONSTANTS: chainConstants = {
       retryCount: 10,
       retryDelay: 1000,
     }),
-  }) as PublicClient,
+  }),
 };
 
-//TODO: This is a typecast hack to get celo to work. Should be updated in viem future versions.
-const CELO_ETH_CLIENT: any = createPublicClient({
-  chain: celo,
-  transport: http(process.env.ENVIO_CELO_RPC_URL || "https://forno.celo.org", {
-    retryCount: 10,
-    retryDelay: 1000,
-  }),
-});
 
 // Constants for Celo
 const CELO_CONSTANTS: chainConstants = {
@@ -257,7 +249,13 @@ const CELO_CONSTANTS: chainConstants = {
   },
   rewardToken: (blockNumber: number) =>
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
-  eth_client: CELO_ETH_CLIENT as PublicClient,
+  eth_client: createPublicClient({
+    chain: celo,
+    transport: http(process.env.ENVIO_CELO_RPC_URL || "https://forno.celo.org", {
+      retryCount: 10,
+      retryDelay: 1000,
+    }),
+  }),
 };
 
 // Constants for Soneium
@@ -283,7 +281,7 @@ const SONEIUM_CONSTANTS: chainConstants = {
       retryCount: 10,
       retryDelay: 1000,
     }),
-  }) as PublicClient,
+  }),
 };
 
 // Constants for Unichain
@@ -309,7 +307,7 @@ const UNICHAIN_CONSTANTS: chainConstants = {
       retryCount: 10,
       retryDelay: 1000,
     }),
-  }) as PublicClient,
+  })
 };
 
 
@@ -347,7 +345,7 @@ const FRAXTAL_CONSTANTS: chainConstants = {
       retryCount: 10,
       retryDelay: 1000,
     }),
-  }) as PublicClient,
+  })
 };
 
 // Constants for Ink
@@ -373,7 +371,7 @@ const INK_CONSTANTS: chainConstants = {
       retryCount: 10,
       retryDelay: 1000,
     }),
-  }) as PublicClient,
+  })
 };
 
 // Constants for Metal
@@ -399,7 +397,7 @@ const METAL_CONSTANTS: chainConstants = {
       retryCount: 10,
       retryDelay: 1000,
     }),
-  }) as PublicClient,
+  })
 };
 
 /**
