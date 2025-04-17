@@ -1,4 +1,4 @@
-## Multi-chain indexer for Velodrome V2 and Aerodrome
+## Velodrome and Aerodrome Indexer
 
 This repo contains the indexer for [Velodrome V2](https://velodrome.finance/) and
 [Aerodrome](https://aerodrome.finance/) across multiple chains.
@@ -72,16 +72,6 @@ To stop the indexer, run
 pnpm envio stop
 ```
 
-### Hydra-mode (deprecated)
-
-Hydra is a postgres based database that exposes the same postgres api but stores the data in a columnlar layout which is optimised for analytic type queries that aggregate data across large numbers of rows on large datasets.
-
-To run this indexer against hydra (rather than standard postgres) first run `pnpm enable-hydra`.
-
-Once that completes without error, run `pnpm start`.
-
-NOTE: it is advised not to run `envio dev` when in hydra mode. This creates risk that the indexer will revert to standard postgres mode. While developing, rather just use standard postgres, and switch to hydra once you are happy with the logic in the indexer.
-
 ### Deploying Local Docker Environment
 
 The local docker environment deploys all the containers needed to run a containerized Envio Indexer environment:
@@ -101,22 +91,6 @@ To push the Envio indexer container to a container registry login to the registr
 `make build-push-indexer TAG=<your_image_tag> ARCH=<desired_architecture>`
 
 example: `make build-push-indexer TAG="velodrome-indexer-prod-1" ARCH="linux/amd64"`
-
-### Hydra setup
-
-Similar to the above, but uses a hydra postgres instance with no hasura.
-
-Setup files:
-
-- `docker-compose-hydra.yaml`
-- `Dockerfile-hydra`
-- `envio-entrypoint-hydra.sh`
-
-Make commands:
-
-- `make start-hydra`
-- `make hard-stop-hydra`
-- `make hard-restart-hydra`
 
 ### Testing
 
