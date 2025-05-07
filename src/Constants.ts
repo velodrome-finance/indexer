@@ -29,26 +29,8 @@ export const BASE_PRICE_CONNECTORS: PriceConnector[] =
 export const MODE_PRICE_CONNECTORS: PriceConnector[] =
   PriceConnectors.mode as PriceConnector[];
 
-export const LISK_PRICE_CONNECTORS: PriceConnector[] =
-  PriceConnectors.lisk as PriceConnector[];
-
 export const FRAXTAL_PRICE_CONNECTORS: PriceConnector[] =
   PriceConnectors.fraxtal as PriceConnector[];
-
-export const SONEIUM_PRICE_CONNECTORS: PriceConnector[] =
-  PriceConnectors.soneium as PriceConnector[];
-
-export const INK_PRICE_CONNECTORS: PriceConnector[] =
-  PriceConnectors.ink as PriceConnector[];
-
-export const METAL_PRICE_CONNECTORS: PriceConnector[] =
-  PriceConnectors.metal as PriceConnector[];
-
-export const UNICHAIN_PRICE_CONNECTORS: PriceConnector[] =
-  PriceConnectors.unichain as PriceConnector[];
-
-export const CELO_PRICE_CONNECTORS: PriceConnector[] =
-  PriceConnectors.celo as PriceConnector[];
 
 export const toChecksumAddress = (address: string) =>
   Web3.utils.toChecksumAddress(address);
@@ -157,43 +139,6 @@ const BASE_CONSTANTS: chainConstants = {
   })
 };
 
-// Constants for Lisk
-const LISK_CONSTANTS: chainConstants = {
-  weth: "0x4200000000000000000000000000000000000006",
-  usdc: "0xF242275d3a6527d877f2c927a82D9b057609cc71",
-  oracle: {
-    getType: (blockNumber: number) => {
-      if (blockNumber > 8457278) {
-        return PriceOracleType.V3;
-      } else  {
-        return PriceOracleType.V2;
-      }
-    },
-    getAddress: (priceOracleType: PriceOracleType) => {
-      switch (priceOracleType) {
-        case PriceOracleType.V3:
-          return "0x024503003fFE9AF285f47c1DaAaA497D9f1166D0";
-        case PriceOracleType.V2:
-          return "0xE50621a0527A43534D565B67D64be7C79807F269";
-        case PriceOracleType.V1:
-          return "0xE50621a0527A43534D565B67D64be7C79807F269";
-      }
-    },
-    startBlock: 8380726,
-    updateDelta: 60 * 60, // 1 hour
-    priceConnectors: LISK_PRICE_CONNECTORS,
-  },
-  rewardToken: (blockNumber: number) =>
-    "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
-  eth_client: createPublicClient({
-    chain: lisk,
-    transport: http(process.env.ENVIO_LISK_RPC_URL || "https://lisk.drpc.org", {
-      retryCount: 10,
-      retryDelay: 1000,
-    }),
-  })
-};
-
 // Constants for Mode
 const MODE_CONSTANTS: chainConstants = {
   weth: "0x4200000000000000000000000000000000000006",
@@ -230,86 +175,6 @@ const MODE_CONSTANTS: chainConstants = {
     }),
   }),
 };
-
-
-// Constants for Celo
-const CELO_CONSTANTS: chainConstants = {
-  weth: "0x4200000000000000000000000000000000000006",
-  usdc: "0x37f750B7cC259A2f741AF45294f6a16572CF5cAd",
-  oracle: {
-    getType: (blockNumber: number) => {
-      return PriceOracleType.V3;
-    },
-    getAddress: (priceOracleType: PriceOracleType) => {
-      return "0xe58920a8c684CD3d6dCaC2a41b12998e4CB17EfE";
-    },
-    startBlock: 31278773,
-    updateDelta: 60 * 60, // 1 hour
-    priceConnectors: CELO_PRICE_CONNECTORS,
-  },
-  rewardToken: (blockNumber: number) =>
-    "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
-  eth_client: createPublicClient({
-    chain: celo,
-    transport: http(process.env.ENVIO_CELO_RPC_URL || "https://forno.celo.org", {
-      retryCount: 10,
-      retryDelay: 1000,
-    }),
-  }),
-};
-
-// Constants for Soneium
-const SONEIUM_CONSTANTS: chainConstants = {
-  weth: "0x4200000000000000000000000000000000000006",
-  usdc: "0xbA9986D2381edf1DA03B0B9c1f8b00dc4AacC369",
-  oracle: {
-    getType: (blockNumber: number) => {
-      return PriceOracleType.V3;
-    },
-    getAddress: (priceOracleType: PriceOracleType) => {
-      return "0xe58920a8c684CD3d6dCaC2a41b12998e4CB17EfE";
-    },
-    startBlock: 1863998, // TODO: Get start block
-    updateDelta: 60 * 60, // 1 hour
-    priceConnectors: SONEIUM_PRICE_CONNECTORS,
-  },
-  rewardToken: (blockNumber: number) =>
-    "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
-  eth_client: createPublicClient({
-    chain: soneium,
-    transport: http(process.env.ENVIO_SONEIUM_RPC_URL || "https://rpc.soneium.com", {
-      retryCount: 10,
-      retryDelay: 1000,
-    }),
-  }),
-};
-
-// Constants for Unichain
-const UNICHAIN_CONSTANTS: chainConstants = {
-  weth: "0x4200000000000000000000000000000000000006",
-  usdc: "0x078D782b760474a361dDA0AF3839290b0EF57AD6",
-  oracle: {
-    getType: (blockNumber: number) => {
-      return PriceOracleType.V3;
-    },
-    getAddress: (priceOracleType: PriceOracleType) => {
-      return "0xe58920a8c684CD3d6dCaC2a41b12998e4CB17EfE";
-    },
-    startBlock: 9415475,
-    updateDelta: 60 * 60, // 1 hour
-    priceConnectors: UNICHAIN_PRICE_CONNECTORS,
-  },
-  rewardToken: (blockNumber: number) =>
-    "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
-  eth_client: createPublicClient({
-    chain: unichain,
-    transport: http(process.env.ENVIO_UNICHAIN_RPC_URL || "	https://mainnet.unichain.org", {
-      retryCount: 10,
-      retryDelay: 1000,
-    }),
-  })
-};
-
 
 // Constants for Fraxtal
 const FRAXTAL_CONSTANTS: chainConstants = {
@@ -348,58 +213,6 @@ const FRAXTAL_CONSTANTS: chainConstants = {
   })
 };
 
-// Constants for Ink
-const INK_CONSTANTS: chainConstants = {
-  weth: "0x4200000000000000000000000000000000000006",
-  usdc: "0xF1815bd50389c46847f0Bda824eC8da914045D14",
-  oracle: {
-    getType: (blockNumber: number) => {
-      return PriceOracleType.V3;
-    },
-    getAddress: (priceOracleType: PriceOracleType) => {
-      return "0xe58920a8c684CD3d6dCaC2a41b12998e4CB17EfE";
-    },
-    startBlock: 3361885,
-    updateDelta: 60 * 60, // 1 hour
-    priceConnectors: INK_PRICE_CONNECTORS,
-  },
-  rewardToken: (blockNumber: number) =>
-    "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
-  eth_client: createPublicClient({
-    chain: ink,
-    transport: http(process.env.ENVIO_INK_RPC_URL || "https://rpc-gel.inkonchain.com", {
-      retryCount: 10,
-      retryDelay: 1000,
-    }),
-  })
-};
-
-// Constants for Metal
-const METAL_CONSTANTS: chainConstants = {
-  weth: "0x4200000000000000000000000000000000000006",
-  usdc: "0xb91CFCcA485C6E40E3bC622f9BFA02a8ACdEeBab",
-  oracle: {
-    getType: (blockNumber: number) => {
-      return PriceOracleType.V3;
-    },
-    getAddress: (priceOracleType: PriceOracleType) => {
-      return "0x3e71CCdf495d9628D3655A600Bcad3afF2ddea98";
-    },
-    startBlock: 11438647,
-    updateDelta: 60 * 60, // 1 hour
-    priceConnectors: METAL_PRICE_CONNECTORS,
-  },
-  rewardToken: (blockNumber: number) =>
-    "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
-  eth_client: createPublicClient({
-    chain: metalL2,
-    transport: http(process.env.ENVIO_METAL_RPC_URL || "https://rpc.metall2.com", {
-      retryCount: 10,
-      retryDelay: 1000,
-    }),
-  })
-};
-
 /**
  * Create a unique ID for a token on a specific chain. Really should only be used for Token Entities.
  * @param address
@@ -428,13 +241,7 @@ export const CHAIN_CONSTANTS: Record<number, chainConstants> = {
   10: OPTIMISM_CONSTANTS,
   8453: BASE_CONSTANTS,
   34443: MODE_CONSTANTS,
-  1135: LISK_CONSTANTS,
   252: FRAXTAL_CONSTANTS,
-  1750: METAL_CONSTANTS,
-  1868: SONEIUM_CONSTANTS,
-  57073: INK_CONSTANTS,
-  130: UNICHAIN_CONSTANTS,
-  42220: CELO_CONSTANTS
 };
 
 export const CacheCategory = {
