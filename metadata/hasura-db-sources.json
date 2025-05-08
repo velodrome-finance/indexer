@@ -1,0 +1,31 @@
+{
+    "type": "bulk",
+    "args": [
+        {
+            "type": "pg_add_source",
+            "args": {
+                "name": "uniswap_v3",
+                "configuration": {
+                    "connection_info": {
+                        "database_url": "postgres://postgres:testing@envio-postgres:5432/uniswap-v3-db",
+                        "isolation_level": "read-committed",
+                        "use_prepared_statements": true
+                    }
+                }
+            }
+        },
+        {
+            "type": "pg_add_source",
+            "args": {
+                "name": "velodrome",
+                "configuration": {
+                    "connection_info": {
+                        "database_url": "postgres://postgres:testing@envio-postgres:5432/velodrome-db",
+                        "isolation_level": "read-committed",
+                        "use_prepared_statements": true
+                    }
+                }
+            }
+        }
+    ]
+}

@@ -6,10 +6,10 @@ services:
       - "${ENVIO_PG_PORT:-5433}:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
+      - ./init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql
     environment:
       POSTGRES_PASSWORD: ${ENVIO_POSTGRES_PASSWORD:-testing}
       POSTGRES_USER: ${ENVIO_PG_USER:-postgres}
-      POSTGRES_DB: ${ENVIO_PG_DATABASE:-envio-dev}
     networks:
       - my-proxy-net
   graphql-engine:
@@ -37,13 +37,53 @@ services:
       timeout: 2s
       retries: 50
       start_period: 5s
+    volumes:
+      - ./hasura-metadata:/hasura-metadata
+      - ./hasura-init.sh:/docker-entrypoint-initdb.d/99-init.sh
     networks:
       - my-proxy-net
-  envio-indexer:
-    container_name: envio-indexer
+  # uniswap-v3-indexer:
+  #   container_name: uniswap-v3-indexer
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   ports:
+  #     - "8082:8081"
+  #   depends_on:
+  #     graphql-engine:
+  #       condition: service_healthy
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: '0.8' # limit the resource of the container to 80% of 1 CPU (800m) testing for live environment
+  #         memory: 800M # conservative can be increased if needed
+  #   restart: always
+  #   environment:
+  #     ENVIO_POSTGRES_PASSWORD: ${ENVIO_POSTGRES_PASSWORD:-testing}
+  #     ENVIO_PG_HOST: envio-postgres
+  #     ENVIO_PG_PORT: 5432
+  #     ENVIO_PG_USER: ${ENVIO_PG_USER:-postgres}
+  #     ENVIO_PG_DATABASE: ${ENVIO_PG_UNISWAP_V3_DATABASE:-uniswap-v3-db}
+  #     PG_PASSWORD: ${ENVIO_POSTGRES_PASSWORD:-testing}
+  #     PG_HOST: envio-postgres
+  #     PG_PORT: 5432
+  #     PG_USER: ${ENVIO_PG_USER:-postgres}
+  #     PG_DATABASE: ${ENVIO_PG_UNISWAP_V3_DATABASE:-uniswap-v3-db}
+  #     CONFIG_FILE: config.uniswap-v3.yaml
+  #     LOG_LEVEL: ${LOG_LEVEL:-trace}
+  #     LOG_STRATEGY: ${LOG_STRATEGY:-console-pretty}
+  #     MAX_QUEUE_SIZE: 50_000
+  #     MAX_BATCH_SIZE: 10_000
+  #     HASURA_GRAPHQL_ENDPOINT: http://graphql-engine:8080/v1/metadata
+  #     HASURA_GRAPHQL_ADMIN_SECRET: ${HASURA_GRAPHQL_ADMIN_SECRET:-testing}
+  #     HASURA_SERVICE_HOST: graphql-engine
+  #     HASURA_SERVICE_PORT: 8080
+  #     TUI_OFF: ${TUI_OFF:-true}
+  velodrome-indexer:
+    container_name: velodrome-indexer
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ./velodrome
+      dockerfile: Dockerfile  # Use relative path to shared Dockerfile in project root
     ports:
       - "8081:8081"
     depends_on:
@@ -60,13 +100,13 @@ services:
       ENVIO_PG_HOST: envio-postgres
       ENVIO_PG_PORT: 5432
       ENVIO_PG_USER: ${ENVIO_PG_USER:-postgres}
-      ENVIO_PG_DATABASE: ${ENVIO_PG_DATABASE:-envio-dev}
+      ENVIO_PG_DATABASE: ${ENVIO_PG_VELODROME_DATABASE:-velodrome-db}
       PG_PASSWORD: ${ENVIO_POSTGRES_PASSWORD:-testing}
       PG_HOST: envio-postgres
       PG_PORT: 5432
       PG_USER: ${ENVIO_PG_USER:-postgres}
-      PG_DATABASE: ${ENVIO_PG_DATABASE:-envio-dev}
-      CONFIG_FILE: ${CONFIG_FILE:-config.yaml}
+      PG_DATABASE: ${ENVIO_PG_VELODROME_DATABASE:-velodrome-db}
+      CONFIG_FILE: config.yaml
       LOG_LEVEL: ${LOG_LEVEL:-trace}
       LOG_STRATEGY: ${LOG_STRATEGY:-console-pretty}
       MAX_QUEUE_SIZE: 50_000

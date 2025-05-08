@@ -1,5 +1,5 @@
 {
-  "name": "velodrome v2",
+  "name": "velodrome-v2",
   "version": "0.1.0",
   "scripts": {
     "clean": "tsc --clean",
