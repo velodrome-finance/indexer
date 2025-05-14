@@ -12,19 +12,6 @@ export type ShapeGuageToPool = Shape &
   Record<Address, { poolAddress: Address }>;
 export type ShapeBribeToPool = Shape &
   Record<Address, { poolAddress: Address }>;
-export type tokenToPricingPairs = {
-  // NOTE: a set would be a better datatype than an array here - but insert only happens seldomly, so not an issue.
-  poolIdsWithWhitelistedTokens: string[];
-};
-export type ShapeWhiteListedPoolIds = Shape &
-  Record<Address, tokenToPricingPairs>;
-export type ShapePoolToTokens = Shape &
-  Record<Address, { token0: Address; token1: Address }>;
-
-export type ShapePricesList = string[];
-
-export type ShapeTokenPrices = Shape & Record<string, { prices: ShapePricesList }>;
-
 export type ShapeToken = Shape &
   Record<Address, { decimals: number; name: string; symbol: string }>;
 
@@ -43,12 +30,6 @@ export class Cache {
       ? ShapeGuageToPool
       : C extends "bribeToPool"
       ? ShapeBribeToPool
-      : C extends "whitelistedPoolIds"
-      ? ShapeWhiteListedPoolIds
-      : C extends "poolToTokens"
-      ? ShapePoolToTokens
-      : C extends "tokenPrice"
-      ? ShapeTokenPrices
       : ShapeRoot;
     const entry = new Entry<S>(`${category}-${chainId.toString()}`);
     return entry;
