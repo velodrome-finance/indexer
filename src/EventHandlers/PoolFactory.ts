@@ -1,17 +1,17 @@
 import { PoolFactory, PoolFactory_SetCustomFee } from "generated";
 import { TokenEntityMapping } from "./../CustomTypes";
-import { LiquidityPoolAggregator, PoolFactory_PoolCreated } from "./../src/Types.gen";
+import {
+  LiquidityPoolAggregator,
+  PoolFactory_PoolCreated,
+} from "./../src/Types.gen";
 import { generatePoolName } from "./../Helpers";
 import { TokenIdByChain } from "../Constants";
 import { updateLiquidityPoolAggregator } from "../Aggregators/LiquidityPoolAggregator";
 import { createTokenEntity } from "../PriceOracle";
 
-PoolFactory.PoolCreated.contractRegister(
-  ({ event, context }) => {
-    context.addPool(event.params.pool);
-  },
-  { preRegisterDynamicContracts: true }
-);
+PoolFactory.PoolCreated.contractRegister(({ event, context }) => {
+  context.addPool(event.params.pool);
+});
 
 PoolFactory.PoolCreated.handlerWithLoader({
   loader: async ({ event, context }) => {
@@ -34,7 +34,7 @@ PoolFactory.PoolCreated.handlerWithLoader({
       blockNumber: event.block.number,
       logIndex: event.logIndex,
       chainId: event.chainId,
-      transactionHash: event.transaction.hash
+      transactionHash: event.transaction.hash,
     };
 
     context.PoolFactory_PoolCreated.set(entity);
@@ -51,11 +51,17 @@ PoolFactory.PoolCreated.handlerWithLoader({
       if (poolTokenAddressMapping.tokenInstance == undefined) {
         try {
           poolTokenAddressMapping.tokenInstance = await createTokenEntity(
-            poolTokenAddressMapping.address, event.chainId, event.block.number, context);
+            poolTokenAddressMapping.address,
+            event.chainId,
+            event.block.number,
+            context
+          );
           poolTokenSymbols.push(poolTokenAddressMapping.tokenInstance.symbol);
         } catch (error) {
-          context.log.error(`Error in pool factory fetching token details` +
-            ` for ${poolTokenAddressMapping.address} on chain ${event.chainId}: ${error}`);
+          context.log.error(
+            `Error in pool factory fetching token details` +
+              ` for ${poolTokenAddressMapping.address} on chain ${event.chainId}: ${error}`
+          );
         }
       } else {
         poolTokenSymbols.push(poolTokenAddressMapping.tokenInstance.symbol);
@@ -124,7 +130,7 @@ PoolFactory.SetCustomFee.handler(async ({ event, context }) => {
     blockNumber: event.block.number,
     logIndex: event.logIndex,
     chainId: event.chainId,
-    transactionHash: event.transaction.hash
+    transactionHash: event.transaction.hash,
   };
 
   context.PoolFactory_SetCustomFee.set(entity);

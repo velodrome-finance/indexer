@@ -9,7 +9,11 @@ import {
 
 import { Token } from "generated/src/Types.gen";
 import { normalizeTokenAmountTo1e18 } from "../../Helpers";
-import { CHAIN_CONSTANTS, toChecksumAddress, TokenIdByChain } from "../../Constants";
+import {
+  CHAIN_CONSTANTS,
+  toChecksumAddress,
+  TokenIdByChain,
+} from "../../Constants";
 import { poolLookupStoreManager } from "../../Store";
 import { multiplyBase1e18 } from "../../Maths";
 import { updateLiquidityPoolAggregator } from "../../Aggregators/LiquidityPoolAggregator";
@@ -31,7 +35,7 @@ Voter.Voted.handler(async ({ event, context }) => {
     blockNumber: event.block.number,
     logIndex: event.logIndex,
     chainId: event.chainId,
-    transactionHash: event.transaction.hash
+    transactionHash: event.transaction.hash,
   };
 
   context.Voter_Voted.set(entity);
@@ -40,29 +44,25 @@ Voter.Voted.handler(async ({ event, context }) => {
 // Note:
 // These pools are hardcoded since we can't check the pool type from the Voter contract
 const CLPOOLS_LIST: string[] = [
-  '0x5e7BB104d84c7CB9B682AaC2F3d509f5F406809A', // base
-  '0xCc0bDDB707055e04e497aB22a59c2aF4391cd12F', // optimism
-].map(x => x.toLowerCase());
+  "0x5e7BB104d84c7CB9B682AaC2F3d509f5F406809A", // base
+  "0xCc0bDDB707055e04e497aB22a59c2aF4391cd12F", // optimism
+].map((x) => x.toLowerCase());
 
 const VAMM_POOLS_LIST: string[] = [
-  '0x420DD381b31aEf6683db6B902084cB0FFECe40Da', // base
-  '0xF1046053aa5682b4F9a81b5481394DA16BE5FF5a', // optimism
-].map(x => x.toLowerCase());
+  "0x420DD381b31aEf6683db6B902084cB0FFECe40Da", // base
+  "0xF1046053aa5682b4F9a81b5481394DA16BE5FF5a", // optimism
+].map((x) => x.toLowerCase());
 
-Voter.GaugeCreated.contractRegister(
-  ({ event, context }) => {
+Voter.GaugeCreated.contractRegister(({ event, context }) => {
+  if (CLPOOLS_LIST.includes(event.params.poolFactory.toLowerCase())) {
+    context.addCLGauge(event.params.gauge);
+  } else if (VAMM_POOLS_LIST.includes(event.params.poolFactory.toLowerCase())) {
+    context.addGauge(event.params.gauge);
+  }
 
-    if (CLPOOLS_LIST.includes(event.params.poolFactory.toLowerCase())) {
-      context.addCLGauge(event.params.gauge);
-    } else if (VAMM_POOLS_LIST.includes(event.params.poolFactory.toLowerCase())) {
-      context.addGauge(event.params.gauge);
-    }
-
-    context.addVotingReward(event.params.bribeVotingReward);
-    context.addVotingReward(event.params.feeVotingReward);
-  },
-  { preRegisterDynamicContracts: true }
-);
+  context.addVotingReward(event.params.bribeVotingReward);
+  context.addVotingReward(event.params.feeVotingReward);
+});
 
 Voter.GaugeCreated.handler(async ({ event, context }) => {
   const entity: Voter_GaugeCreated = {
@@ -79,7 +79,7 @@ Voter.GaugeCreated.handler(async ({ event, context }) => {
     blockNumber: event.block.number,
     logIndex: event.logIndex,
     chainId: event.chainId,
-    transactionHash: event.transaction.hash
+    transactionHash: event.transaction.hash,
   };
 
   context.Voter_GaugeCreated.set(entity);
@@ -103,7 +103,9 @@ Voter.DistributeReward.handlerWithLoader({
       event.params.gauge
     );
 
-    const rewardTokenAddress = CHAIN_CONSTANTS[event.chainId].rewardToken(event.block.number);
+    const rewardTokenAddress = CHAIN_CONSTANTS[event.chainId].rewardToken(
+      event.block.number
+    );
 
     const promisePool = poolAddress
       ? context.LiquidityPoolAggregator.get(poolAddress)
@@ -111,29 +113,35 @@ Voter.DistributeReward.handlerWithLoader({
 
     if (!poolAddress) {
       context.log.warn(
-        `No pool address found for the gauge address ${event.params.gauge.toString()} on chain ${event.chainId}`
+        `No pool address found for the gauge address ${event.params.gauge.toString()} on chain ${
+          event.chainId
+        }`
       );
     }
 
     const [currentLiquidityPool, rewardToken] = await Promise.all([
       promisePool,
-      context.Token.get(
-        TokenIdByChain(
-          rewardTokenAddress,
-          event.chainId
-        )
-      ),
+      context.Token.get(TokenIdByChain(rewardTokenAddress, event.chainId)),
     ]);
 
     return { currentLiquidityPool, rewardToken };
   },
   handler: async ({ event, context, loaderReturn }) => {
-
     if (loaderReturn && loaderReturn.rewardToken) {
       const { currentLiquidityPool, rewardToken } = loaderReturn;
 
-      const isAlive = await getIsAlive(event.srcAddress, event.params.gauge, event.block.number, event.chainId);
-      const tokensDeposited = await getTokensDeposited(rewardToken.address, event.params.gauge, event.block.number, event.chainId);
+      const isAlive = await getIsAlive(
+        event.srcAddress,
+        event.params.gauge,
+        event.block.number,
+        event.chainId
+      );
+      const tokensDeposited = await getTokensDeposited(
+        rewardToken.address,
+        event.params.gauge,
+        event.block.number,
+        event.chainId
+      );
 
       // Dev note: Assumption here is that the GaugeCreated event has already been indexed and the Gauge entity has been created
       // Dev note: Assumption here is that the reward token (VELO for Optimism and AERO for Base) entity has already been created at this point
@@ -151,7 +159,9 @@ Voter.DistributeReward.handlerWithLoader({
         // If the reward token does not have a price in USD, log
         if (rewardToken.pricePerUSDNew == 0n) {
           context.log.warn(
-            `Reward token with ID ${rewardToken.id.toString()} does not have a USD price yet on chain ${event.chainId}`
+            `Reward token with ID ${rewardToken.id.toString()} does not have a USD price yet on chain ${
+              event.chainId
+            }`
           );
         }
 
@@ -190,7 +200,9 @@ Voter.DistributeReward.handlerWithLoader({
       } else {
         // If there is no pool entity with the particular gauge address, log the error
         context.log.warn(
-          `No pool entity or reward token found for the gauge address ${event.params.gauge.toString()} on chain ${event.chainId}`
+          `No pool entity or reward token found for the gauge address ${event.params.gauge.toString()} on chain ${
+            event.chainId
+          }`
         );
       }
 
@@ -205,12 +217,11 @@ Voter.DistributeReward.handlerWithLoader({
         blockNumber: event.block.number,
         logIndex: event.logIndex,
         chainId: event.chainId,
-        transactionHash: event.transaction.hash
+        transactionHash: event.transaction.hash,
       };
 
       context.Voter_DistributeReward.set(entity);
     }
-
   },
 });
 
@@ -248,7 +259,7 @@ Voter.WhitelistToken.handlerWithLoader({
       blockNumber: event.block.number,
       logIndex: event.logIndex,
       chainId: event.chainId,
-      transactionHash: event.transaction.hash
+      transactionHash: event.transaction.hash,
     };
 
     context.Voter_WhitelistToken.set(entity);
@@ -282,7 +293,9 @@ Voter.WhitelistToken.handlerWithLoader({
         };
         context.Token.set(updatedToken);
       } catch (error) {
-        context.log.error(`Error in whitelist token event fetching token details for ${event.params.token} on chain ${event.chainId}: ${error}`);
+        context.log.error(
+          `Error in whitelist token event fetching token details for ${event.params.token} on chain ${event.chainId}: ${error}`
+        );
       }
     }
   },
@@ -297,7 +310,7 @@ Voter.GaugeKilled.handler(async ({ event, context }) => {
     blockNumber: event.block.number,
     logIndex: event.logIndex,
     chainId: event.chainId,
-    transactionHash: event.transaction.hash
+    transactionHash: event.transaction.hash,
   };
 
   context.Voter_GaugeKilled.set(entity);
