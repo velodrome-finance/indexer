@@ -1,7 +1,18 @@
 import dotenv from "dotenv";
 import { Web3 } from "web3";
-import { optimism, base, lisk, mode, fraxtal, ink, soneium, metalL2, unichain, celo } from 'viem/chains';
-import { createPublicClient, http, PublicClient } from 'viem';
+import {
+  optimism,
+  base,
+  lisk,
+  mode,
+  fraxtal,
+  ink,
+  soneium,
+  metalL2,
+  unichain,
+  celo,
+} from "viem/chains";
+import { createPublicClient, http, PublicClient } from "viem";
 
 import PriceConnectors from "./constants/price_connectors.json";
 
@@ -54,9 +65,9 @@ export const toChecksumAddress = (address: string) =>
   Web3.utils.toChecksumAddress(address);
 
 export enum PriceOracleType {
-   V3 = 'v3',
-   V2 = 'v2', 
-   V1 = 'v1',
+  V3 = "v3",
+  V2 = "v2",
+  V1 = "v1",
 }
 
 // Object containing all the constants for a chain
@@ -110,11 +121,14 @@ const OPTIMISM_CONSTANTS: chainConstants = {
   },
   eth_client: createPublicClient({
     chain: optimism,
-    transport: http(process.env.ENVIO_OPTIMISM_RPC_URL || "https://optimism.llamarpc.com", {
-      retryCount: 10,
-      retryDelay: 1000,
-      batch: false
-    }),
+    transport: http(
+      process.env.ENVIO_OPTIMISM_RPC_URL || "https://optimism.llamarpc.com",
+      {
+        retryCount: 10,
+        retryDelay: 1000,
+        batch: false,
+      }
+    ),
   }),
 };
 
@@ -150,11 +164,14 @@ const BASE_CONSTANTS: chainConstants = {
     "0x940181a94A35A4569E4529A3CDfB74e38FD98631",
   eth_client: createPublicClient({
     chain: base,
-    transport: http(process.env.ENVIO_BASE_RPC_URL || "https://base.llamarpc.com", {
-      retryCount: 10,
-      retryDelay: 1000,
-    }),
-  })
+    transport: http(
+      process.env.ENVIO_BASE_RPC_URL || "https://base.llamarpc.com",
+      {
+        retryCount: 10,
+        retryDelay: 1000,
+      }
+    ),
+  }),
 };
 
 // Constants for Lisk
@@ -165,7 +182,7 @@ const LISK_CONSTANTS: chainConstants = {
     getType: (blockNumber: number) => {
       if (blockNumber > 8457278) {
         return PriceOracleType.V3;
-      } else  {
+      } else {
         return PriceOracleType.V2;
       }
     },
@@ -191,7 +208,7 @@ const LISK_CONSTANTS: chainConstants = {
       retryCount: 10,
       retryDelay: 1000,
     }),
-  })
+  }),
 };
 
 // Constants for Mode
@@ -224,13 +241,15 @@ const MODE_CONSTANTS: chainConstants = {
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
   eth_client: createPublicClient({
     chain: mode,
-    transport: http(process.env.ENVIO_MODE_RPC_URL || "https://mainnet.mode.network", {
-      retryCount: 10,
-      retryDelay: 1000,
-    }),
+    transport: http(
+      process.env.ENVIO_MODE_RPC_URL || "https://mainnet.mode.network",
+      {
+        retryCount: 10,
+        retryDelay: 1000,
+      }
+    ),
   }),
 };
-
 
 // Constants for Celo
 const CELO_CONSTANTS: chainConstants = {
@@ -251,10 +270,13 @@ const CELO_CONSTANTS: chainConstants = {
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
   eth_client: createPublicClient({
     chain: celo,
-    transport: http(process.env.ENVIO_CELO_RPC_URL || "https://forno.celo.org", {
-      retryCount: 10,
-      retryDelay: 1000,
-    }),
+    transport: http(
+      process.env.ENVIO_CELO_RPC_URL || "https://forno.celo.org",
+      {
+        retryCount: 10,
+        retryDelay: 1000,
+      }
+    ),
   }),
 };
 
@@ -277,10 +299,13 @@ const SONEIUM_CONSTANTS: chainConstants = {
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
   eth_client: createPublicClient({
     chain: soneium,
-    transport: http(process.env.ENVIO_SONEIUM_RPC_URL || "https://rpc.soneium.com", {
-      retryCount: 10,
-      retryDelay: 1000,
-    }),
+    transport: http(
+      process.env.ENVIO_SONEIUM_RPC_URL || "https://rpc.soneium.com",
+      {
+        retryCount: 10,
+        retryDelay: 1000,
+      }
+    ),
   }),
 };
 
@@ -303,13 +328,15 @@ const UNICHAIN_CONSTANTS: chainConstants = {
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
   eth_client: createPublicClient({
     chain: unichain,
-    transport: http(process.env.ENVIO_UNICHAIN_RPC_URL || "	https://mainnet.unichain.org", {
-      retryCount: 10,
-      retryDelay: 1000,
-    }),
-  })
+    transport: http(
+      process.env.ENVIO_UNICHAIN_RPC_URL || "	https://mainnet.unichain.org",
+      {
+        retryCount: 10,
+        retryDelay: 1000,
+      }
+    ),
+  }),
 };
-
 
 // Constants for Fraxtal
 const FRAXTAL_CONSTANTS: chainConstants = {
@@ -341,11 +368,14 @@ const FRAXTAL_CONSTANTS: chainConstants = {
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
   eth_client: createPublicClient({
     chain: fraxtal,
-    transport: http(process.env.ENVIO_FRAXTAL_RPC_URL || "https://fraxtal.drpc.org", {
-      retryCount: 10,
-      retryDelay: 1000,
-    }),
-  })
+    transport: http(
+      process.env.ENVIO_FRAXTAL_RPC_URL || "https://fraxtal.drpc.org",
+      {
+        retryCount: 10,
+        retryDelay: 1000,
+      }
+    ),
+  }),
 };
 
 // Constants for Ink
@@ -367,11 +397,14 @@ const INK_CONSTANTS: chainConstants = {
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
   eth_client: createPublicClient({
     chain: ink,
-    transport: http(process.env.ENVIO_INK_RPC_URL || "https://rpc-gel.inkonchain.com", {
-      retryCount: 10,
-      retryDelay: 1000,
-    }),
-  })
+    transport: http(
+      process.env.ENVIO_INK_RPC_URL || "https://rpc-gel.inkonchain.com",
+      {
+        retryCount: 10,
+        retryDelay: 1000,
+      }
+    ),
+  }),
 };
 
 // Constants for Metal
@@ -393,11 +426,14 @@ const METAL_CONSTANTS: chainConstants = {
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
   eth_client: createPublicClient({
     chain: metalL2,
-    transport: http(process.env.ENVIO_METAL_RPC_URL || "https://rpc.metall2.com", {
-      retryCount: 10,
-      retryDelay: 1000,
-    }),
-  })
+    transport: http(
+      process.env.ENVIO_METAL_RPC_URL || "https://rpc.metall2.com",
+      {
+        retryCount: 10,
+        retryDelay: 1000,
+      }
+    ),
+  }),
 };
 
 /**
@@ -434,16 +470,13 @@ export const CHAIN_CONSTANTS: Record<number, chainConstants> = {
   1868: SONEIUM_CONSTANTS,
   57073: INK_CONSTANTS,
   130: UNICHAIN_CONSTANTS,
-  42220: CELO_CONSTANTS
+  42220: CELO_CONSTANTS,
 };
 
 export const CacheCategory = {
   Token: "token",
   GuageToPool: "guageToPool",
   BribeToPool: "bribeToPool",
-  WhitelistedPoolIds: "whitelistedPoolIds",
-  PoolToTokens: "poolToTokens",
-  TokenPrices: "tokenPrices",
 } as const;
 
 export type CacheCategory = (typeof CacheCategory)[keyof typeof CacheCategory];
