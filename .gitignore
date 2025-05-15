@@ -33,3 +33,5 @@ logs
 *.bs.js
 build
 .env
+.pnpm-store
+.DS_*

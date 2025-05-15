@@ -35,8 +35,10 @@ Envio provides a simple development workflow:
 # Generate code based on your schema and config
 pnpm envio codegen
 
-# Start the indexer (automatically sets up docker containers and starts indexing)
-pnpm envio dev
+# Start the indexer (eg. inside the existing running container) ...
+pnpm envio start
+# Or, automatically sets up docker containers and starts indexing
+pnpm dev
 ```
 
 To stop the indexer:
