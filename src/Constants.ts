@@ -446,7 +446,7 @@ const SWELL_CONSTANTS: chainConstants = {
   usdc: "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34", // USDe since usdc is not available
   oracle: {
     getType: (blockNumber: number) => {
-      return PriceOracleType.V3;
+      return PriceOracleType.V2;
     },
     getAddress: (priceOracleType: PriceOracleType) => {
       return "0xE50621a0527A43534D565B67D64be7C79807F269";
@@ -459,10 +459,13 @@ const SWELL_CONSTANTS: chainConstants = {
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
   eth_client: createPublicClient({
     chain: swellchain,
-    transport: http(process.env.ENVIO_SWELL_RPC_URL || "https://rpc.ankr.com/swell", {
-      retryCount: 10,
-      retryDelay: 1000,
-    }),
+    transport: http(
+      process.env.ENVIO_SWELL_RPC_URL || "https://rpc.ankr.com/swell",
+      {
+        retryCount: 10,
+        retryDelay: 1000,
+      }
+    ),
   }) as PublicClient,
 };
 
