@@ -1,6 +1,13 @@
 import { expect } from "chai";
 import { MockDb, Pool } from "../../../generated/src/TestHelpers.gen";
-import type { LiquidityPoolAggregator } from "../../../generated/src/Types.gen";
+import type {
+  EventFunctions_mockEventData,
+  TestHelpers_MockDb,
+} from "../../../generated/src/TestHelpers.gen";
+import type {
+  LiquidityPoolAggregator,
+  Token,
+} from "../../../generated/src/Types.gen";
 import {
   TEN_TO_THE_6_BI,
   TEN_TO_THE_18_BI,
@@ -10,14 +17,14 @@ import {
 import { setupCommon } from "./common";
 
 describe("Pool Sync Event", () => {
-  let mockToken0Data: any;
-  let mockToken1Data: any;
-  let mockLiquidityPoolData: any;
+  let mockToken0Data: Token;
+  let mockToken1Data: Token;
+  let mockLiquidityPoolData: LiquidityPoolAggregator;
 
-  const expectations: any = {};
+  const expectations = {};
 
-  let eventData: any;
-  let mockDb: any;
+  let eventData: EventFunctions_mockEventData;
+  let mockDb: TestHelpers_MockDb;
 
   beforeEach(() => {
     const setupData = setupCommon();

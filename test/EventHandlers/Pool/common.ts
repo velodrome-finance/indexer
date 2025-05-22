@@ -4,9 +4,10 @@ import {
   TEN_TO_THE_18_BI,
   TokenIdByChain,
 } from "../../../src/Constants";
+import type { LiquidityPoolAggregator, Token } from "../../../src/Types.gen";
 
 export function setupCommon() {
-  const mockToken0Data = {
+  const mockToken0Data: Token = {
     id: TokenIdByChain("0x1111111111111111111111111111111111111111", 10),
     address: "0x1111111111111111111111111111111111111111",
     symbol: "USDT",
@@ -17,7 +18,7 @@ export function setupCommon() {
     isWhitelisted: true,
   };
 
-  const mockToken1Data = {
+  const mockToken1Data: Token = {
     id: TokenIdByChain("0x2222222222222222222222222222222222222222", 10),
     address: "0x2222222222222222222222222222222222222222",
     symbol: "USDC",
@@ -28,7 +29,7 @@ export function setupCommon() {
     isWhitelisted: true,
   };
 
-  const mockLiquidityPoolData = {
+  const mockLiquidityPoolData: LiquidityPoolAggregator = {
     id: "0x3333333333333333333333333333333333333333",
     chainId: 10,
     token0_id: mockToken0Data.id,

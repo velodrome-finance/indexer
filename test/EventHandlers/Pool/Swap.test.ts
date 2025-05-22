@@ -2,6 +2,10 @@ import { expect } from "chai";
 import sinon from "sinon";
 import { MockDb, Pool } from "../../../generated/src/TestHelpers.gen";
 import type {
+  EventFunctions_mockEventData,
+  TestHelpers_MockDb,
+} from "../../../generated/src/TestHelpers.gen";
+import type {
   LiquidityPoolAggregator,
   Token,
 } from "../../../generated/src/Types.gen";
@@ -15,15 +19,15 @@ import * as PriceOracle from "../../../src/PriceOracle";
 import { setupCommon } from "./common";
 
 describe("Pool Swap Event", () => {
-  let mockToken0Data: any;
-  let mockToken1Data: any;
-  let mockLiquidityPoolData: any;
+  let mockToken0Data: Token;
+  let mockToken1Data: Token;
+  let mockLiquidityPoolData: LiquidityPoolAggregator;
 
-  const expectations: any = {};
+  const expectations = {};
 
-  let eventData: any;
+  let eventData: EventFunctions_mockEventData;
   let mockPriceOracle: sinon.SinonStub;
-  let mockDb: any;
+  let mockDb: TestHelpers_MockDb;
 
   beforeEach(() => {
     const setupData = setupCommon();
@@ -93,7 +97,7 @@ describe("Pool Swap Event", () => {
 
   describe("when both tokens exist", () => {
     let postEventDB: ReturnType<typeof MockDb.createMockDb>;
-    let updatedPool: any;
+    let updatedPool: LiquidityPoolAggregator;
 
     beforeEach(async () => {
       const updatedDB1 = mockDb.entities.LiquidityPoolAggregator.set(

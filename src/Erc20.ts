@@ -79,7 +79,7 @@ export async function getErc20TokenDetails(
       symbol: symbol?.toString() || "",
     } as const;
 
-    cache.add({ [contractAddress.toLowerCase()]: entry as any });
+    cache.add({ [contractAddress.toLowerCase()]: entry });
     console.log(
       `[getErc20TokenDetails] Token details added to cache for address: ${contractAddress}`,
     );

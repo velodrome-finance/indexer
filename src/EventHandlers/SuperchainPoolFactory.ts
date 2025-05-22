@@ -32,7 +32,7 @@ SuperchainPoolFactory.RootPoolCreated.handlerWithLoader({
     return null;
   },
   handler: async ({ event, context, loaderReturn }) => {
-    const entity: any = {
+    const entity = {
       id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
       token0: event.params.token0,
       token1: event.params.token1,

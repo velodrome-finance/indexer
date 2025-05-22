@@ -7,7 +7,7 @@ import type {
 import type { VeNFTAggregator } from "generated";
 
 export function updateVeNFTAggregator(
-  diff: any,
+  diff,
   current: VeNFTAggregator | undefined,
   timestamp: Date,
   context: handlerContext,

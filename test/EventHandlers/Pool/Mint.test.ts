@@ -3,7 +3,7 @@ import { MockDb, Pool } from "../../../generated/src/TestHelpers.gen";
 import { setupCommon } from "./common";
 
 describe("Pool Mint Event", () => {
-  let mockDb: any;
+  let mockDb: MockDb;
 
   beforeEach(() => {
     mockDb = MockDb.createMockDb();

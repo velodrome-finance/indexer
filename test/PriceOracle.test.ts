@@ -8,8 +8,8 @@ import { Cache } from "../src/cache";
 import { setupCommon } from "./EventHandlers/Pool/common";
 
 describe("PriceOracle", () => {
-  let mockContext: any;
-  let mockContract: any;
+  let mockContext: sinon.SinonStub;
+  let mockContract: sinon.SinonStub;
 
   const chainId = 10; // Optimism
   const startBlock = CHAIN_CONSTANTS[chainId].oracle.startBlock;
@@ -28,7 +28,7 @@ describe("PriceOracle", () => {
     const stubCache = sinon.stub(Cache, "init").returns({
       add: addStub,
       read: readStub,
-    } as any);
+    });
 
     mockContext = {
       Token: { set: sinon.stub(), get: sinon.stub() },
@@ -55,7 +55,7 @@ describe("PriceOracle", () => {
             decimals: 18n,
             name: "FRAX",
             symbol: "FRAX",
-          } as any);
+          });
         });
 
         it("should return the correct hardcoded $1 price data for chain USDC", async () => {
@@ -75,7 +75,7 @@ describe("PriceOracle", () => {
     let mockERC20Details: sinon.SinonStub;
     let testLastUpdated: Date;
 
-    const mockTokenPriceData: any = {
+    const mockTokenPriceData: sinon.SinonStub = {
       pricePerUSDNew: 2n * 10n ** 18n,
       decimals: mockToken0Data.decimals,
     };
@@ -88,14 +88,14 @@ describe("PriceOracle", () => {
             mockTokenPriceData.pricePerUSDNew.toString(),
             "2000000000000000000",
           ],
-        } as any);
+        });
       mockERC20Details = sinon.stub(Erc20, "getErc20TokenDetails").returns({
         decimals: mockTokenPriceData.decimals,
-      } as any);
+      });
     });
 
     describe("if the update interval hasn't passed", () => {
-      let updatedToken: any;
+      let updatedToken: Date;
       beforeEach(async () => {
         testLastUpdated = new Date(blockDatetime.getTime());
         const fetchedToken = {
@@ -118,7 +118,7 @@ describe("PriceOracle", () => {
       });
     });
     describe("if the update interval has passed", () => {
-      let updatedToken: any;
+      let updatedToken: Date;
       let testLastUpdated: Date;
       beforeEach(async () => {
         testLastUpdated = new Date(blockDatetime.getTime() - 61 * 60 * 1000);
@@ -172,13 +172,13 @@ describe("PriceOracle", () => {
                 decimals: 6n,
                 name: "USDC",
                 symbol: "USDC",
-              } as any)
+              })
               .onCall(1)
               .returns({
                 decimals: 18n,
                 name: "FRAX",
                 symbol: "FRAX",
-              } as any);
+              });
           });
 
           afterEach(() => {
@@ -207,13 +207,13 @@ describe("PriceOracle", () => {
                 decimals: 18n,
                 name: "WETH",
                 symbol: "WETH",
-              } as any)
+              })
               .onCall(1)
               .returns({
                 decimals: 18n,
                 name: "FRAX",
                 symbol: "FRAX",
-              } as any);
+              });
           });
 
           afterEach(() => {
@@ -250,13 +250,13 @@ describe("PriceOracle", () => {
                 decimals: 18n,
                 name: "WETH",
                 symbol: "WETH",
-              } as any)
+              })
               .onCall(1)
               .returns({
                 decimals: 6n,
                 name: "USDC",
                 symbol: "USDC",
-              } as any);
+              });
           });
 
           afterEach(() => {

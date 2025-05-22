@@ -1,6 +1,9 @@
 import { expect } from "chai";
 import sinon from "sinon";
-import type { LiquidityPoolAggregator } from "../../generated/src/Types.gen";
+import type {
+  GaugeFees,
+  LiquidityPoolAggregator,
+} from "../../generated/src/Types.gen";
 import {
   getCurrentAccumulatedFeeCL,
   setLiquidityPoolAggregatorSnapshot,
@@ -10,10 +13,10 @@ import {
 import { CHAIN_CONSTANTS } from "../../src/Constants";
 
 describe("LiquidityPoolAggregator Functions", () => {
-  let contextStub: any;
-  let liquidityPoolAggregator: any;
+  let contextStub: sinon.SinonStub;
+  let liquidityPoolAggregator: LiquidityPoolAggregator;
   let timestamp: Date;
-  let mockContract: any;
+  let mockContract: sinon.SinonStub;
   const blockNumber = 131536921;
 
   beforeEach(() => {
@@ -40,10 +43,10 @@ describe("LiquidityPoolAggregator Functions", () => {
         .onCall(0)
         .returns({
           result: [400, 2000, 10000000n],
-        } as any);
+        });
       mockContract.onCall(1).returns({
         result: 1900,
-      } as any);
+      });
       liquidityPoolAggregator.id = "0x478946BcD4a5a22b316470F5486fAfb928C0bA25";
       await updateDynamicFeePools(
         liquidityPoolAggregator as LiquidityPoolAggregator,
@@ -76,7 +79,7 @@ describe("LiquidityPoolAggregator Functions", () => {
   });
 
   describe("getCurrentAccumulatedFeeCL", () => {
-    let gaugeFees: any;
+    let gaugeFees: GaugeFees;
     beforeEach(async () => {
       liquidityPoolAggregator.id = "0x478946BcD4a5a22b316470F5486fAfb928C0bA25";
       mockContract = sinon
@@ -84,7 +87,7 @@ describe("LiquidityPoolAggregator Functions", () => {
         .onCall(0)
         .returns({
           result: [55255516292n, 18613785323003103999n],
-        } as any);
+        });
       gaugeFees = await getCurrentAccumulatedFeeCL(
         liquidityPoolAggregator.id,
         liquidityPoolAggregator.chainId,
@@ -124,7 +127,7 @@ describe("LiquidityPoolAggregator Functions", () => {
   });
 
   describe("Updating the Liquidity Pool Aggregator", () => {
-    let diff: any;
+    let diff = {};
     beforeEach(() => {
       diff = {
         totalVolume0: 5000n,

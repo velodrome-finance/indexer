@@ -17,7 +17,7 @@ describe("PoolFactory Events", () => {
   let mockPriceOracle: sinon.SinonStub;
 
   describe("PoolCreated event", () => {
-    let createdPool: any;
+    let createdPool: LiquidityPoolAggregator;
 
     beforeEach(async () => {
       mockPriceOracle = sinon

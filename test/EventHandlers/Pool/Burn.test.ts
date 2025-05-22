@@ -3,7 +3,7 @@ import { Pool } from "../../../generated/src/TestHelpers.gen";
 import { MockDb } from "../../../generated/src/TestHelpers.gen";
 
 describe("Pool Burn Event", () => {
-  let mockDb: any;
+  let mockDb: MockDb;
   beforeEach(() => {
     mockDb = MockDb.createMockDb();
   });

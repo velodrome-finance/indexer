@@ -182,7 +182,7 @@ export function setLiquidityPoolAggregatorSnapshot(
  * @param context - The handler context used to store the updated state and snapshots.
  */
 export async function updateLiquidityPoolAggregator(
-  diff: any,
+  diff,
   current: LiquidityPoolAggregator,
   timestamp: Date,
   context: handlerContext,

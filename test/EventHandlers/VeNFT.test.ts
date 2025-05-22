@@ -6,7 +6,7 @@ import * as VeNFTAggregator from "../../src/Aggregators/VeNFTAggregator";
 const VeNFTId = (chainId: number, tokenId: bigint) => `${chainId}_${tokenId}`;
 
 describe("VeNFT Events", () => {
-  let mockDb: any;
+  let mockDb: sinon.SinonStub;
   const chainId = 10;
   const tokenId = 1n;
 
@@ -42,9 +42,9 @@ describe("VeNFT Events", () => {
     };
 
     let stubVeNFTAggregator: sinon.SinonStub;
-    let postEventDB: any;
-    const expected: any = {};
-    let mockEvent: any;
+    let postEventDB: sinon.SinonStub;
+    const expected: sinon.SinonStub = {};
+    let mockEvent: sinon.SinonStub;
 
     beforeEach(async () => {
       stubVeNFTAggregator = sinon.stub(VeNFTAggregator, "transferVeNFT");
@@ -104,9 +104,9 @@ describe("VeNFT Events", () => {
     };
 
     let stubVeNFTAggregator: sinon.SinonStub;
-    let postEventDB: any;
-    const expected: any = {};
-    let mockEvent: any;
+    let postEventDB: sinon.SinonStub;
+    const expected: sinon.SinonStub = {};
+    let mockEvent: sinon.SinonStub;
 
     beforeEach(async () => {
       stubVeNFTAggregator = sinon.stub(VeNFTAggregator, "withdrawVeNFT");
@@ -171,9 +171,9 @@ describe("VeNFT Events", () => {
     };
 
     let stubVeNFTAggregator: sinon.SinonStub;
-    let postEventDB: any;
-    const expected: any = {};
-    let mockEvent: any;
+    let postEventDB: sinon.SinonStub;
+    const expected = {};
+    let mockEvent: sinon.SinonStub;
 
     beforeEach(async () => {
       stubVeNFTAggregator = sinon.stub(VeNFTAggregator, "depositVeNFT");

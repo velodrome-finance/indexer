@@ -74,7 +74,7 @@ describe("VotingReward Events", () => {
           .stub(CHAIN_CONSTANTS[chainId].eth_client, "simulateContract")
           .returns({
             result: [1000n, 1000n],
-          } as any);
+          });
         // Setup mock liquidity pool
         const { mockLiquidityPoolData } = setupCommon();
 
@@ -129,7 +129,7 @@ describe("VotingReward Events", () => {
           .stub(CHAIN_CONSTANTS[chainId].eth_client, "simulateContract")
           .returns({
             result: [1000n, 1000n],
-          } as any);
+          });
 
         const { mockLiquidityPoolData } = setupCommon();
         mockLiquidityPoolData.id = poolAddress;

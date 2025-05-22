@@ -82,7 +82,7 @@ type chainConstants = {
     priceConnectors: PriceConnector[];
   };
   rewardToken: (blockNumber: number) => string;
-  eth_client: PublicClient<any, any>;
+  eth_client: PublicClient;
 };
 
 // Constants for Optimism

@@ -42,7 +42,7 @@ import { refreshTokenPrice } from "../PriceOracle";
  */
 function updateCLPoolFees(
   liquidityPoolAggregator: LiquidityPoolAggregator,
-  event: any,
+  event: CLPool_Swap_event,
   token0Instance: Token | undefined,
   token1Instance: Token | undefined,
 ) {
@@ -108,7 +108,7 @@ function updateCLPoolFees(
  */
 function updateCLPoolLiquidity(
   liquidityPoolAggregator: LiquidityPoolAggregator,
-  event: any,
+  event: CLPool_Swap_event,
   token0Instance: Token | undefined,
   token1Instance: Token | undefined,
 ) {
@@ -620,7 +620,7 @@ const updateToken1SwapData = async (
 
 const updateLiquidityPoolAggregatorDiffSwap = (
   data: SwapEntityData,
-  reserveResult: any,
+  reserveResult,
 ) => {
   data.liquidityPoolAggregatorDiff = {
     ...data.liquidityPoolAggregatorDiff,

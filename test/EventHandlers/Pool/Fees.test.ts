@@ -1,8 +1,12 @@
 import { expect } from "chai";
 import { MockDb, Pool } from "../../../generated/src/TestHelpers.gen";
-import {
+import type {
+  EventFunctions_mockEventData,
+  TestHelpers_MockDb,
+} from "../../../generated/src/TestHelpers.gen";
+import type {
   LiquidityPoolAggregator,
-  type Token,
+  Token,
 } from "../../../generated/src/Types.gen";
 import {
   TEN_TO_THE_6_BI,
@@ -17,9 +21,9 @@ describe("Pool Fees Event", () => {
     setupCommon();
   const poolId = mockLiquidityPoolData.id;
 
-  let mockDb: any;
-  let updatedDB: any;
-  const expectations: any = {
+  let mockDb: TestHelpers_MockDb;
+  let updatedDB: TestHelpers_MockDb;
+  const expectations = {
     amount0In: 3n * 10n ** 18n,
     amount1In: 2n * 10n ** 6n,
     totalLiquidityUSD: 0n,
@@ -43,7 +47,7 @@ describe("Pool Fees Event", () => {
 
   expectations.totalFeesUSDWhitelisted = expectations.totalFeesUSD;
 
-  let updatedPool: any;
+  let updatedPool: LiquidityPoolAggregator;
 
   beforeEach(async () => {
     mockDb = MockDb.createMockDb();

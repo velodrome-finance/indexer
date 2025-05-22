@@ -1,6 +1,10 @@
 import { expect } from "chai";
 import sinon from "sinon";
 import { CLPool, MockDb } from "../../../generated/src/TestHelpers.gen";
+import type {
+  EventFunctions_mockEventData,
+  TestHelpers_MockDb,
+} from "../../../generated/src/TestHelpers.gen";
 import {
   CLFactory_PoolCreated,
   type LiquidityPoolAggregator,
@@ -12,7 +16,7 @@ import * as PriceOracle from "../../../src/PriceOracle";
 import { setupCommon } from "../Pool/common";
 
 describe("CLPool Event Handlers", () => {
-  let mockDb: any;
+  let mockDb: TestHelpers_MockDb;
   let updateLiquidityPoolAggregatorStub: sinon.SinonStub;
   let mockPriceOracle: sinon.SinonStub;
 
@@ -36,13 +40,13 @@ describe("CLPool Event Handlers", () => {
   });
 
   describe("Mint Event", () => {
-    let mockEvent: any;
-    let eventData: any;
+    let mockEvent: EventFunctions_mockEventData;
+    let eventData = {};
 
     const { mockToken0Data, mockToken1Data, mockLiquidityPoolData } =
       setupCommon();
 
-    const expectations: any = {
+    const expectations = {
       amount0In: 100n * 10n ** 18n,
       amount1In: 100n * 10n ** 6n,
       totalLiquidityUSD: 0n,
@@ -56,8 +60,8 @@ describe("CLPool Event Handlers", () => {
         mockToken1Data.pricePerUSDNew) /
         10n ** mockToken1Data.decimals;
 
-    let postEventDB: any;
-    let collectedEntity: any;
+    let postEventDB: MockDb;
+    let collectedEntity: CLPool_Mint;
 
     beforeEach(async () => {
       const updatedDB1 = mockDb.entities.LiquidityPoolAggregator.set(
@@ -103,7 +107,7 @@ describe("CLPool Event Handlers", () => {
     });
 
     describe("CLPool Aggregator", () => {
-      let diff: any;
+      let diff = {};
       beforeEach(() => {
         [diff] = updateLiquidityPoolAggregatorStub.firstCall.args;
       });
@@ -128,10 +132,10 @@ describe("CLPool Event Handlers", () => {
   });
 
   describe("Burn Event", () => {
-    let mockEvent: any;
-    let eventData: any;
+    let mockEvent: EventFunctions_mockEventData;
+    let eventData = {};
 
-    const expectations: any = {
+    const expectations = {
       amount0In: 100n * 10n ** 18n,
       amount1In: 100n * 10n ** 6n,
       totalLiquidity: 0n,
@@ -140,8 +144,8 @@ describe("CLPool Event Handlers", () => {
     const { mockToken0Data, mockToken1Data, mockLiquidityPoolData } =
       setupCommon();
 
-    let postEventDB: any;
-    let collectedEntity: any;
+    let postEventDB: MockDb;
+    let collectedEntity: CLPool_Burn;
 
     beforeEach(async () => {
       const updatedDB1 = mockDb.entities.LiquidityPoolAggregator.set(
@@ -188,13 +192,13 @@ describe("CLPool Event Handlers", () => {
   });
 
   describe("Collect Event", () => {
-    let mockEvent: any;
-    let mockEventData: any;
-    let setupDB: any;
+    let mockEvent: EventFunctions_mockEventData;
+    let mockEventData: EventFunctions_mockEventData;
+    let setupDB: MockDb;
     const { mockToken0Data, mockToken1Data, mockLiquidityPoolData } =
       setupCommon();
     const poolId = mockLiquidityPoolData.id;
-    const expectations: any = {
+    const expectations = {
       amount0In: 100n * 10n ** 18n,
       amount1In: 100n * 10n ** 6n,
       totalLiquidityUSD: 0n,
@@ -250,7 +254,7 @@ describe("CLPool Event Handlers", () => {
       });
 
       describe("CLPool Aggregator", () => {
-        let diff: any;
+        let diff = {};
         beforeEach(() => {
           [diff] = updateLiquidityPoolAggregatorStub.firstCall.args;
         });
@@ -275,15 +279,15 @@ describe("CLPool Event Handlers", () => {
     });
   });
   describe("Collect Fees Event", () => {
-    let mockEvent: any;
-    let mockEventData: any;
-    let setupDB: any;
+    let mockEvent: EventFunctions_mockEventData;
+    let mockEventData: EventFunctions_mockEventData;
+    let setupDB: MockDb;
 
     const { mockToken0Data, mockToken1Data, mockLiquidityPoolData } =
       setupCommon();
     const poolId = mockLiquidityPoolData.id;
 
-    const expectations: any = {
+    const expectations = {
       amount0In: 100n * 10n ** 18n,
       amount1In: 100n * 10n ** 6n,
       totalLiquidityUSD: 0n,
@@ -326,8 +330,8 @@ describe("CLPool Event Handlers", () => {
     });
 
     describe("when event is processed", () => {
-      let collectEntity: any;
-      let diff: any;
+      let collectEntity: CLPool_CollectFees;
+      let diff = {};
 
       beforeEach(async () => {
         let updatedDB = mockDb.entities.Token.set(mockToken0Data as Token);
@@ -377,7 +381,7 @@ describe("CLPool Event Handlers", () => {
         );
       });
       describe("CLPool Aggregator", () => {
-        let diff: any;
+        let diff = {};
         beforeEach(() => {
           [diff] = updateLiquidityPoolAggregatorStub.firstCall.args;
         });
@@ -404,14 +408,14 @@ describe("CLPool Event Handlers", () => {
 
   describe("Swap Event", () => {
     let mockEvent: ReturnType<typeof CLPool.Swap.createMockEvent>;
-    let swapEntity: any;
-    let aggregatorCalls: any;
+    let swapEntity: CLPool_Swap;
+    let aggregatorCalls: LiquidityPoolAggregator;
 
     const { mockToken0Data, mockToken1Data, mockLiquidityPoolData } =
       setupCommon();
     const poolId = mockLiquidityPoolData.id;
 
-    const expectations: any = {
+    const expectations = {
       amount0In: -10n * 10n ** 18n,
       amount1In: 10n * 10n ** 6n,
       totalLiquidityUSD: 0n,
@@ -449,7 +453,7 @@ describe("CLPool Event Handlers", () => {
     });
 
     describe("when tokens exist", () => {
-      let updatedLiquidityPool: any;
+      let updatedLiquidityPool: LiquidityPoolAggregator;
       beforeEach(async () => {
         let updatedDB = mockDb.entities.LiquidityPoolAggregator.set(
           mockLiquidityPoolData as LiquidityPoolAggregator,

@@ -14,7 +14,7 @@ import {
 } from "../../src/Aggregators/VeNFTAggregator";
 
 describe("VeNFTAggregator", () => {
-  let contextStub: any;
+  let contextStub: sinon.SinonStub;
   const mockVeNFTAggregator: VeNFTAggregator = {
     id: "10_1",
     chainId: 10,
@@ -48,7 +48,7 @@ describe("VeNFTAggregator", () => {
       depositType: 1n,
     };
     describe("when the veNFT is not found", () => {
-      let result: any;
+      let result: VeNFTAggregator;
       beforeEach(async () => {
         depositVeNFT(mockDeposit, undefined, timestamp, contextStub);
         result = contextStub.VeNFTAggregator.set.firstCall.args[0];
@@ -65,7 +65,7 @@ describe("VeNFTAggregator", () => {
       });
     });
     describe("when the veNFT is found", () => {
-      let result: any;
+      let result: VeNFTAggregator;
       beforeEach(async () => {
         depositVeNFT(mockDeposit, mockVeNFTAggregator, timestamp, contextStub);
         result = contextStub.VeNFTAggregator.set.firstCall.args[0];
@@ -98,7 +98,7 @@ describe("VeNFTAggregator", () => {
       tokenId: 1n,
     };
     describe("when the veNFT is not found", () => {
-      let result: any;
+      let result: VeNFTAggregator;
       beforeEach(async () => {
         withdrawVeNFT(mockWithdraw, undefined, timestamp, contextStub);
         result = contextStub.VeNFTAggregator.set.firstCall.args[0];
@@ -115,7 +115,7 @@ describe("VeNFTAggregator", () => {
       });
     });
     describe("when the veNFT is found", () => {
-      let result: any;
+      let result: VeNFTAggregator;
       beforeEach(async () => {
         withdrawVeNFT(
           mockWithdraw,
@@ -152,7 +152,7 @@ describe("VeNFTAggregator", () => {
       transactionHash: "0x1111111111111111111111111111111111111111",
     };
     describe("when the veNFT is not found", () => {
-      let result: any;
+      let result: VeNFTAggregator;
       beforeEach(async () => {
         transferVeNFT(mockTransfer, undefined, timestamp, contextStub);
         result = contextStub.VeNFTAggregator.set.firstCall.args[0];
@@ -170,7 +170,7 @@ describe("VeNFTAggregator", () => {
     });
     describe("when the veNFT is found", () => {
       describe("when the transfer is to the zero address", () => {
-        let result: any;
+        let result: VeNFTAggregator;
         beforeEach(async () => {
           const zeroTransfer = {
             ...mockTransfer,
@@ -189,7 +189,7 @@ describe("VeNFTAggregator", () => {
         });
       });
       describe("when the transfer is not the zero address", () => {
-        let result: any;
+        let result: VeNFTAggregator;
         beforeEach(async () => {
           transferVeNFT(
             mockTransfer,

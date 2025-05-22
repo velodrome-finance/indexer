@@ -21,7 +21,7 @@ async function loadCSVAddresses(filePath: string): Promise<Set<string>> {
 }
 
 // Function to read JSON and return the relevant data
-async function loadJSONData(filePath: string): Promise<any[]> {
+async function loadJSONData(filePath: string): Promise {
   const jsonData = await Deno.readTextFile(filePath);
   const data = JSON.parse(jsonData);
   return data.data.Voter_WhitelistToken;

@@ -11,7 +11,11 @@ import {
 import { PriceOracleType, TEN_TO_THE_18_BI } from "./Constants";
 import { getErc20TokenDetails } from "./Erc20";
 import { Cache } from "./cache";
-import type { Token, TokenPriceSnapshot } from "./src/Types.gen";
+import type {
+  Token,
+  TokenPriceSnapshot,
+  handlerContext,
+} from "./src/Types.gen";
 export interface TokenPriceData {
   pricePerUSDNew: bigint;
   decimals: bigint;
@@ -21,7 +25,7 @@ export async function createTokenEntity(
   tokenAddress: string,
   chainId: number,
   blockNumber: number,
-  context: any,
+  context: handlerContext,
 ) {
   const blockDatetime = new Date(blockNumber * 1000);
   const tokenDetails = await getErc20TokenDetails(tokenAddress, chainId);
@@ -63,7 +67,7 @@ export async function refreshTokenPrice(
   blockNumber: number,
   blockTimestamp: number,
   chainId: number,
-  context: any,
+  context: handlerContext,
 ): Promise<Token> {
   const blockTimestampMs = blockTimestamp * 1000;
 
