@@ -11,9 +11,10 @@
     "dottest": "mocha -w --recursive -R dot --require ts-node/register \"test/**/*.ts\" --timeout 50000",
     "test": "mocha --recursive --R spec --require ts-node/register \"test/**/*.ts\" --timeout 50000",
     "test-watch": "mocha -w --recursive --R dot --require ts-node/register \"test/**/*.ts\" --timeout 30000",
-    "enable-hydra": "./hack/hydra-mode/hydra-mode.sh"
+    "qa": "biome check"
   },
   "devDependencies": {
+    "@biomejs/biome": "1.9.4",
     "@types/chai": "^4.3.20",
     "@types/node": "^18.19.70",
     "@types/sinon": "^17.0.3",
