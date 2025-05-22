@@ -1,16 +1,18 @@
-import { CLFactory, CLFactory_PoolCreated, LiquidityPoolAggregator, Token } from "generated";
+import {
+  CLFactory,
+  CLFactory_PoolCreated,
+  LiquidityPoolAggregator,
+  Token,
+} from "generated";
 import { updateLiquidityPoolAggregator } from "../Aggregators/LiquidityPoolAggregator";
 import { TokenEntityMapping } from "../CustomTypes";
 import { TokenIdByChain } from "../Constants";
 import { generatePoolName } from "../Helpers";
 import { createTokenEntity } from "../PriceOracle";
 
-CLFactory.PoolCreated.contractRegister(
-  ({ event, context }) => {
-    context.addCLPool(event.params.pool);
-  },
-  { preRegisterDynamicContracts: true }
-);
+CLFactory.PoolCreated.contractRegister(({ event, context }) => {
+  context.addCLPool(event.params.pool);
+});
 
 CLFactory.PoolCreated.handlerWithLoader({
   loader: async ({ event, context }) => {
@@ -33,7 +35,7 @@ CLFactory.PoolCreated.handlerWithLoader({
       blockNumber: event.block.number,
       logIndex: event.logIndex,
       chainId: event.chainId,
-      transactionHash: event.transaction.hash
+      transactionHash: event.transaction.hash,
     };
 
     context.CLFactory_PoolCreated.set(entity);
@@ -49,11 +51,17 @@ CLFactory.PoolCreated.handlerWithLoader({
       if (poolTokenAddressMapping.tokenInstance == undefined) {
         try {
           poolTokenAddressMapping.tokenInstance = await createTokenEntity(
-            poolTokenAddressMapping.address, event.chainId, event.block.number, context);
+            poolTokenAddressMapping.address,
+            event.chainId,
+            event.block.number,
+            context
+          );
           poolTokenSymbols.push(poolTokenAddressMapping.tokenInstance.symbol);
         } catch (error) {
-          context.log.error(`Error in cl factory fetching token details` +
-            ` for ${poolTokenAddressMapping.address} on chain ${event.chainId}: ${error}`);
+          context.log.error(
+            `Error in cl factory fetching token details` +
+              ` for ${poolTokenAddressMapping.address} on chain ${event.chainId}: ${error}`
+          );
         }
       } else {
         poolTokenSymbols.push(poolTokenAddressMapping.tokenInstance.symbol);

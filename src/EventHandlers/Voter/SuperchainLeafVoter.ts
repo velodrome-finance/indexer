@@ -40,15 +40,12 @@ SuperchainLeafVoter.Voted.handler(async ({ event, context }) => {
   context.Voter_Voted.set(entity);
 });
 
-SuperchainLeafVoter.GaugeCreated.contractRegister(
-  ({ event, context }) => {
-    context.addVotingReward(event.params.incentiveVotingReward);
-    context.addVotingReward(event.params.feeVotingReward);
-    context.addGauge(event.params.gauge);
-    context.addCLGauge(event.params.gauge);
-  },
-  { preRegisterDynamicContracts: true }
-);
+SuperchainLeafVoter.GaugeCreated.contractRegister(({ event, context }) => {
+  context.addVotingReward(event.params.incentiveVotingReward);
+  context.addVotingReward(event.params.feeVotingReward);
+  context.addGauge(event.params.gauge);
+  context.addCLGauge(event.params.gauge);
+});
 
 SuperchainLeafVoter.GaugeCreated.handler(async ({ event, context }) => {
   const entity: Voter_GaugeCreated = {
@@ -65,7 +62,7 @@ SuperchainLeafVoter.GaugeCreated.handler(async ({ event, context }) => {
     blockNumber: event.block.number,
     logIndex: event.logIndex,
     chainId: event.chainId,
-    transactionHash: event.transaction.hash
+    transactionHash: event.transaction.hash,
   };
 
   context.Voter_GaugeCreated.set(entity);
@@ -91,7 +88,6 @@ SuperchainLeafVoter.DistributeReward.handlerWithLoader({
       event.params.gauge
     );
 
-
     const rewardTokenAddress = CHAIN_CONSTANTS[event.chainId].rewardToken(
       event.block.number
     );
@@ -102,7 +98,9 @@ SuperchainLeafVoter.DistributeReward.handlerWithLoader({
 
     if (!poolAddress) {
       context.log.warn(
-        `No pool address found for the gauge address ${event.params.gauge.toString()} on chain ${event.chainId}`
+        `No pool address found for the gauge address ${event.params.gauge.toString()} on chain ${
+          event.chainId
+        }`
       );
     }
 
@@ -115,11 +113,20 @@ SuperchainLeafVoter.DistributeReward.handlerWithLoader({
   },
   handler: async ({ event, context, loaderReturn }) => {
     if (loaderReturn && loaderReturn.rewardToken) {
-      const { currentLiquidityPool, rewardToken } =
-        loaderReturn;
+      const { currentLiquidityPool, rewardToken } = loaderReturn;
 
-      const isAlive = await getIsAlive(event.srcAddress, event.params.gauge, event.block.number, event.chainId);
-      const tokensDeposited = await getTokensDeposited(rewardToken.address, event.params.gauge, event.block.number, event.chainId);
+      const isAlive = await getIsAlive(
+        event.srcAddress,
+        event.params.gauge,
+        event.block.number,
+        event.chainId
+      );
+      const tokensDeposited = await getTokensDeposited(
+        rewardToken.address,
+        event.params.gauge,
+        event.block.number,
+        event.chainId
+      );
 
       // Dev note: Assumption here is that the GaugeCreated event has already been indexed and the Gauge entity has been created
       // Dev note: Assumption here is that the reward token (VELO for Optimism and AERO for Base) entity has already been created at this point
@@ -137,7 +144,9 @@ SuperchainLeafVoter.DistributeReward.handlerWithLoader({
         // If the reward token does not have a price in USD, log
         if (rewardToken.pricePerUSDNew == 0n) {
           context.log.warn(
-            `Reward token with ID ${rewardToken.id.toString()} does not have a USD price yet on chain ${event.chainId}`
+            `Reward token with ID ${rewardToken.id.toString()} does not have a USD price yet on chain ${
+              event.chainId
+            }`
           );
         }
 
@@ -176,7 +185,9 @@ SuperchainLeafVoter.DistributeReward.handlerWithLoader({
       } else {
         // If there is no pool entity with the particular gauge address, log the error
         context.log.warn(
-          `No pool entity or reward token found for the gauge address ${event.params.gauge.toString()} on chain ${event.chainId}`
+          `No pool entity or reward token found for the gauge address ${event.params.gauge.toString()} on chain ${
+            event.chainId
+          }`
         );
       }
 
@@ -267,8 +278,10 @@ SuperchainLeafVoter.WhitelistToken.handlerWithLoader({
         };
         context.Token.set(updatedToken);
       } catch (error) {
-        context.log.error(`Error in superchain leaf voter whitelist token event fetching token details` +
-          ` for ${event.params.token} on chain ${event.chainId}: ${error}`);
+        context.log.error(
+          `Error in superchain leaf voter whitelist token event fetching token details` +
+            ` for ${event.params.token} on chain ${event.chainId}: ${error}`
+        );
       }
     }
   },
