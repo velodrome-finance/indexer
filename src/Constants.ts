@@ -446,12 +446,12 @@ const SWELL_CONSTANTS: chainConstants = {
   usdc: "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34", // USDe since usdc is not available
   oracle: {
     getType: (blockNumber: number) => {
-      return PriceOracleType.V2;
+      return PriceOracleType.V3;
     },
     getAddress: (priceOracleType: PriceOracleType) => {
-      return "0xE50621a0527A43534D565B67D64be7C79807F269";
+      return "0xe58920a8c684CD3d6dCaC2a41b12998e4CB17EfE";
     },
-    startBlock: 3883295,
+    startBlock: 3733759,
     updateDelta: 60 * 60, // 1 hour
     priceConnectors: SWELL_PRICE_CONNECTORS,
   },
