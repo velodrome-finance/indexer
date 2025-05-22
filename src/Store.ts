@@ -1,11 +1,11 @@
-import { poolRewardAddressMapping } from "./CustomTypes";
+import { CacheCategory } from "./Constants";
+import type { poolRewardAddressMapping } from "./CustomTypes";
 import {
   Cache,
-  Entry,
-  ShapeGuageToPool,
-  ShapeBribeToPool,
+  type Entry,
+  type ShapeBribeToPool,
+  type ShapeGuageToPool,
 } from "./cache";
-import { CacheCategory } from "./Constants";
 
 export const poolLookupStoreManager = () => {
   /*
@@ -26,14 +26,13 @@ export const poolLookupStoreManager = () => {
       };
       cacheMap.set(chainId, newCache);
       return newCache;
-    } else {
-      return cache;
     }
+    return cache;
   };
 
   const addRewardAddressDetails = (
     chainId: string | number | bigint,
-    details: poolRewardAddressMapping
+    details: poolRewardAddressMapping,
   ) => {
     const { gaugeToPoolCache, bribeVotingToPoolCache } = getCache(chainId);
     gaugeToPoolCache.add({
@@ -50,7 +49,7 @@ export const poolLookupStoreManager = () => {
 
   const getPoolAddressByGaugeAddress = (
     chainId: string | number | bigint,
-    gaugeAddress: string
+    gaugeAddress: string,
   ): string | undefined => {
     const { gaugeToPoolCache } = getCache(chainId);
     const result = gaugeToPoolCache.read(gaugeAddress);
@@ -59,12 +58,10 @@ export const poolLookupStoreManager = () => {
 
   const getPoolAddressByBribeVotingRewardAddress = (
     chainId: string | number | bigint,
-    bribeVotingRewardAddress: string
+    bribeVotingRewardAddress: string,
   ): string | undefined => {
     const { bribeVotingToPoolCache } = getCache(chainId);
-    const result = bribeVotingToPoolCache.read(
-      bribeVotingRewardAddress
-    );
+    const result = bribeVotingToPoolCache.read(bribeVotingRewardAddress);
     return result ? result.poolAddress : undefined;
   };
 

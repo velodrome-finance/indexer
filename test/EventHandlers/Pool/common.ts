@@ -1,8 +1,11 @@
 import { MockDb } from "../../../generated/src/TestHelpers.gen";
-import { TEN_TO_THE_18_BI, TEN_TO_THE_6_BI, TokenIdByChain } from "../../../src/Constants";
+import {
+  TEN_TO_THE_6_BI,
+  TEN_TO_THE_18_BI,
+  TokenIdByChain,
+} from "../../../src/Constants";
 
 export function setupCommon() {
-
   const mockToken0Data = {
     id: TokenIdByChain("0x1111111111111111111111111111111111111111", 10),
     address: "0x1111111111111111111111111111111111111111",
@@ -28,11 +31,11 @@ export function setupCommon() {
   const mockLiquidityPoolData = {
     id: "0x3333333333333333333333333333333333333333",
     chainId: 10,
-    token0_id: mockToken0Data.id, 
+    token0_id: mockToken0Data.id,
     token1_id: mockToken1Data.id,
     token0_address: mockToken0Data.address,
     token1_address: mockToken1Data.address,
-    isStable:  false,
+    isStable: false,
     reserve0: 200n * TEN_TO_THE_18_BI,
     reserve1: 200n * TEN_TO_THE_6_BI,
     totalLiquidityUSD: 400n * TEN_TO_THE_18_BI,

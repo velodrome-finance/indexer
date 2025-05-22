@@ -1,5 +1,5 @@
 import { expect } from "chai";
-import { Pool, MockDb } from "../../../generated/src/TestHelpers.gen";
+import { MockDb, Pool } from "../../../generated/src/TestHelpers.gen";
 import { setupCommon } from "./common";
 
 describe("Pool Mint Event", () => {
@@ -30,7 +30,9 @@ describe("Pool Mint Event", () => {
 
     const mintEvent = result.entities.Pool_Mint.get("10_123456_1");
     expect(mintEvent).to.not.be.undefined;
-    expect(mintEvent?.sender).to.equal("0x1111111111111111111111111111111111111111");
+    expect(mintEvent?.sender).to.equal(
+      "0x1111111111111111111111111111111111111111",
+    );
     expect(mintEvent?.amount0).to.equal(1000n * 10n ** 18n);
     expect(mintEvent?.amount1).to.equal(2000n * 10n ** 18n);
     expect(mintEvent?.timestamp).to.deep.equal(new Date(1000000 * 1000));

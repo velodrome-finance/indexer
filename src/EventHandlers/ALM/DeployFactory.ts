@@ -1,35 +1,28 @@
-import { ALMDeployFactory, ALMDeployFactory_StrategyCreated, ALMDeployFactory_StrategyCreated_AmmPosition } from "generated";
-
+import {
+  ALMDeployFactory,
+  type ALMDeployFactory_StrategyCreated,
+  type ALMDeployFactory_StrategyCreated_AmmPosition,
+} from "generated";
 
 ALMDeployFactory.StrategyCreated.contractRegister(
   ({ event, context }) => {
-    const [
-        pool,
-        ammPosition,
-        strategyParams,
-        lpWrapper,
-        caller
-    ] = event.params.params;
+    const [pool, ammPosition, strategyParams, lpWrapper, caller] =
+      event.params.params;
     context.addALMLPWrapper(lpWrapper);
   },
-  { preRegisterDynamicContracts: true }
+  { preRegisterDynamicContracts: true },
 );
 
 ALMDeployFactory.StrategyCreated.handler(async ({ event, context }) => {
-  const [
-    pool,
-    ammPosition,
-    strategyParams,
-    lpWrapper,
-    caller
-  ] = event.params.params;
+  const [pool, ammPosition, strategyParams, lpWrapper, caller] =
+    event.params.params;
 
   const [
     strategyType,
     tickNeighborhood,
     tickSpacing,
     width,
-    maxLiquidityRatioDeviationX96
+    maxLiquidityRatioDeviationX96,
   ] = strategyParams;
 
   const ammPositionList = ammPosition.map((vals) => {
@@ -40,7 +33,7 @@ ALMDeployFactory.StrategyCreated.handler(async ({ event, context }) => {
       property,
       tickLower,
       tickUpper,
-      liquidity
+      liquidity,
     };
   });
 
@@ -57,13 +50,14 @@ ALMDeployFactory.StrategyCreated.handler(async ({ event, context }) => {
     timestamp: new Date(event.block.timestamp * 1000),
     chainId: event.chainId,
     blockNumber: event.block.number,
-    logIndex: event.logIndex
+    logIndex: event.logIndex,
   };
 
   context.ALMDeployFactory_StrategyCreated.set(strategy_created_entity);
 
   for (const ammPosition of ammPositionList) {
-    const { token0, token1, property, tickLower, tickUpper, liquidity } = ammPosition;
+    const { token0, token1, property, tickLower, tickUpper, liquidity } =
+      ammPosition;
     const ammPosition_entity: ALMDeployFactory_StrategyCreated_AmmPosition = {
       id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
       pool,
@@ -78,9 +72,11 @@ ALMDeployFactory.StrategyCreated.handler(async ({ event, context }) => {
       timestamp: new Date(event.block.timestamp * 1000),
       chainId: event.chainId,
       blockNumber: event.block.number,
-      logIndex: event.logIndex
+      logIndex: event.logIndex,
     };
 
-    context.ALMDeployFactory_StrategyCreated_AmmPosition.set(ammPosition_entity);
+    context.ALMDeployFactory_StrategyCreated_AmmPosition.set(
+      ammPosition_entity,
+    );
   }
 });

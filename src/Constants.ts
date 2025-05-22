@@ -1,18 +1,18 @@
 import dotenv from "dotenv";
-import { Web3 } from "web3";
+import { http, type PublicClient, createPublicClient } from "viem";
 import {
-  optimism,
   base,
-  lisk,
-  mode,
+  celo,
   fraxtal,
   ink,
-  soneium,
+  lisk,
   metalL2,
+  mode,
+  optimism,
+  soneium,
   unichain,
-  celo,
 } from "viem/chains";
-import { createPublicClient, http, PublicClient } from "viem";
+import { Web3 } from "web3";
 
 import PriceConnectors from "./constants/price_connectors.json";
 
@@ -93,11 +93,11 @@ const OPTIMISM_CONSTANTS: chainConstants = {
     getType: (blockNumber: number) => {
       if (blockNumber > 125484892) {
         return PriceOracleType.V3;
-      } else if (blockNumber > 124076662) {
-        return PriceOracleType.V2;
-      } else {
-        return PriceOracleType.V1;
       }
+      if (blockNumber > 124076662) {
+        return PriceOracleType.V2;
+      }
+      return PriceOracleType.V1;
     },
     getAddress: (priceOracleType: PriceOracleType) => {
       switch (priceOracleType) {
@@ -127,7 +127,7 @@ const OPTIMISM_CONSTANTS: chainConstants = {
         retryCount: 10,
         retryDelay: 1000,
         batch: false,
-      }
+      },
     ),
   }),
 };
@@ -140,11 +140,11 @@ const BASE_CONSTANTS: chainConstants = {
     getType: (blockNumber: number) => {
       if (blockNumber > 19862773) {
         return PriceOracleType.V3;
-      } else if (blockNumber > 18480097) {
-        return PriceOracleType.V2;
-      } else {
-        return PriceOracleType.V1;
       }
+      if (blockNumber > 18480097) {
+        return PriceOracleType.V2;
+      }
+      return PriceOracleType.V1;
     },
     getAddress: (priceOracleType: PriceOracleType) => {
       switch (priceOracleType) {
@@ -160,7 +160,7 @@ const BASE_CONSTANTS: chainConstants = {
     updateDelta: 60 * 60, // 1 hour
     priceConnectors: BASE_PRICE_CONNECTORS,
   },
-  rewardToken: (blockNumber: Number) =>
+  rewardToken: (blockNumber: number) =>
     "0x940181a94A35A4569E4529A3CDfB74e38FD98631",
   eth_client: createPublicClient({
     chain: base,
@@ -169,7 +169,7 @@ const BASE_CONSTANTS: chainConstants = {
       {
         retryCount: 10,
         retryDelay: 1000,
-      }
+      },
     ),
   }),
 };
@@ -182,9 +182,8 @@ const LISK_CONSTANTS: chainConstants = {
     getType: (blockNumber: number) => {
       if (blockNumber > 8457278) {
         return PriceOracleType.V3;
-      } else {
-        return PriceOracleType.V2;
       }
+      return PriceOracleType.V2;
     },
     getAddress: (priceOracleType: PriceOracleType) => {
       switch (priceOracleType) {
@@ -219,9 +218,8 @@ const MODE_CONSTANTS: chainConstants = {
     getType: (blockNumber: number) => {
       if (blockNumber > 15738649) {
         return PriceOracleType.V3;
-      } else {
-        return PriceOracleType.V2;
       }
+      return PriceOracleType.V2;
     },
     getAddress: (priceOracleType: PriceOracleType) => {
       switch (priceOracleType) {
@@ -246,7 +244,7 @@ const MODE_CONSTANTS: chainConstants = {
       {
         retryCount: 10,
         retryDelay: 1000,
-      }
+      },
     ),
   }),
 };
@@ -275,7 +273,7 @@ const CELO_CONSTANTS: chainConstants = {
       {
         retryCount: 10,
         retryDelay: 1000,
-      }
+      },
     ),
   }),
 };
@@ -304,7 +302,7 @@ const SONEIUM_CONSTANTS: chainConstants = {
       {
         retryCount: 10,
         retryDelay: 1000,
-      }
+      },
     ),
   }),
 };
@@ -333,7 +331,7 @@ const UNICHAIN_CONSTANTS: chainConstants = {
       {
         retryCount: 10,
         retryDelay: 1000,
-      }
+      },
     ),
   }),
 };
@@ -346,9 +344,8 @@ const FRAXTAL_CONSTANTS: chainConstants = {
     getType: (blockNumber: number) => {
       if (blockNumber > 12710720) {
         return PriceOracleType.V3;
-      } else {
-        return PriceOracleType.V2;
       }
+      return PriceOracleType.V2;
     },
     getAddress: (priceOracleType: PriceOracleType) => {
       switch (priceOracleType) {
@@ -373,7 +370,7 @@ const FRAXTAL_CONSTANTS: chainConstants = {
       {
         retryCount: 10,
         retryDelay: 1000,
-      }
+      },
     ),
   }),
 };
@@ -402,7 +399,7 @@ const INK_CONSTANTS: chainConstants = {
       {
         retryCount: 10,
         retryDelay: 1000,
-      }
+      },
     ),
   }),
 };
@@ -431,7 +428,7 @@ const METAL_CONSTANTS: chainConstants = {
       {
         retryCount: 10,
         retryDelay: 1000,
-      }
+      },
     ),
   }),
 };
@@ -456,7 +453,7 @@ export const TokenIdByChain = (address: string, chainId: number) =>
 export const TokenIdByBlock = (
   address: string,
   chainId: number,
-  blockNumber: number
+  blockNumber: number,
 ) => `${chainId}_${toChecksumAddress(address)}_${blockNumber}`;
 
 // Key is chain ID

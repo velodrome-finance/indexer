@@ -1,11 +1,18 @@
 // Run with: deno run --allow-read --allow-write --node-modules-dir scripts/update_whitelist.ts
 
-import { parse, stringify, Column } from "https://deno.land/std@0.224.0/csv/mod.ts";
+import {
+  type Column,
+  parse,
+  stringify,
+} from "https://deno.land/std@0.224.0/csv/mod.ts";
 
 // Function to read CSV and return a Set of addresses
 async function loadCSVAddresses(filePath: string): Promise<Set<string>> {
   const fileContent = await Deno.readTextFile(filePath);
-  const records = parse(fileContent, { skipFirstRow: true, columns: ["address", "blocktime"] });
+  const records = parse(fileContent, {
+    skipFirstRow: true,
+    columns: ["address", "blocktime"],
+  });
   const addresses = new Set<string>();
   for (const record of records) {
     addresses.add(record.address); // Assuming the address is the first column
@@ -43,7 +50,7 @@ async function processWhitelistData() {
   const columns: Column[] = ["address", "blocktime"];
 
   // Convert new entries to CSV format
-  const csvContent = stringify(newEntries, {columns});
+  const csvContent = stringify(newEntries, { columns });
 
   // Write new entries to a CSV file
   await Deno.writeTextFile(outputFilePath, csvContent);

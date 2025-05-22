@@ -1,4 +1,4 @@
-import { ERC20, ERC20_Transfer } from "generated";
+import { ERC20, type ERC20_Transfer } from "generated";
 
 ERC20.Transfer.handler(async ({ event, context }) => {
   const entity: ERC20_Transfer = {
@@ -10,7 +10,7 @@ ERC20.Transfer.handler(async ({ event, context }) => {
     blockNumber: event.block.number,
     logIndex: event.logIndex,
     chainId: event.chainId,
-    transactionHash: event.transaction.hash
+    transactionHash: event.transaction.hash,
   };
 
   context.ERC20_Transfer.set(entity);

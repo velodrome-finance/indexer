@@ -1,7 +1,12 @@
-import { CLFactory, CLFactory_PoolCreated, LiquidityPoolAggregator, Token } from "generated";
+import {
+  CLFactory,
+  type CLFactory_PoolCreated,
+  type LiquidityPoolAggregator,
+  Token,
+} from "generated";
 import { updateLiquidityPoolAggregator } from "../Aggregators/LiquidityPoolAggregator";
-import { TokenEntityMapping } from "../CustomTypes";
 import { TokenIdByChain } from "../Constants";
+import type { TokenEntityMapping } from "../CustomTypes";
 import { generatePoolName } from "../Helpers";
 import { createTokenEntity } from "../PriceOracle";
 
@@ -9,7 +14,7 @@ CLFactory.PoolCreated.contractRegister(
   ({ event, context }) => {
     context.addCLPool(event.params.pool);
   },
-  { preRegisterDynamicContracts: true }
+  { preRegisterDynamicContracts: true },
 );
 
 CLFactory.PoolCreated.handlerWithLoader({
@@ -33,27 +38,32 @@ CLFactory.PoolCreated.handlerWithLoader({
       blockNumber: event.block.number,
       logIndex: event.logIndex,
       chainId: event.chainId,
-      transactionHash: event.transaction.hash
+      transactionHash: event.transaction.hash,
     };
 
     context.CLFactory_PoolCreated.set(entity);
 
     const { poolToken0, poolToken1 } = loaderReturn;
-    let poolTokenSymbols: string[] = [];
-    let poolTokenAddressMappings: TokenEntityMapping[] = [
+    const poolTokenSymbols: string[] = [];
+    const poolTokenAddressMappings: TokenEntityMapping[] = [
       { address: event.params.token0, tokenInstance: poolToken0 },
       { address: event.params.token1, tokenInstance: poolToken1 },
     ];
 
-    for (let poolTokenAddressMapping of poolTokenAddressMappings) {
-      if (poolTokenAddressMapping.tokenInstance == undefined) {
+    for (const poolTokenAddressMapping of poolTokenAddressMappings) {
+      if (poolTokenAddressMapping.tokenInstance === undefined) {
         try {
           poolTokenAddressMapping.tokenInstance = await createTokenEntity(
-            poolTokenAddressMapping.address, event.chainId, event.block.number, context);
+            poolTokenAddressMapping.address,
+            event.chainId,
+            event.block.number,
+            context,
+          );
           poolTokenSymbols.push(poolTokenAddressMapping.tokenInstance.symbol);
         } catch (error) {
-          context.log.error(`Error in cl factory fetching token details` +
-            ` for ${poolTokenAddressMapping.address} on chain ${event.chainId}: ${error}`);
+          context.log.error(
+            `Error in cl factory fetching token details for ${poolTokenAddressMapping.address} on chain ${event.chainId}: ${error}`,
+          );
         }
       } else {
         poolTokenSymbols.push(poolTokenAddressMapping.tokenInstance.symbol);
@@ -67,7 +77,7 @@ CLFactory.PoolCreated.handlerWithLoader({
         poolTokenSymbols[0],
         poolTokenSymbols[1],
         false, // Pool is not stable
-        Number(event.params.tickSpacing) // Pool is CL
+        Number(event.params.tickSpacing), // Pool is CL
       ),
       token0_id: TokenIdByChain(event.params.token0, event.chainId),
       token1_id: TokenIdByChain(event.params.token1, event.chainId),
@@ -108,7 +118,7 @@ CLFactory.PoolCreated.handlerWithLoader({
       aggregator,
       new Date(event.block.timestamp * 1000),
       context,
-      event.block.number
+      event.block.number,
     );
   },
 });

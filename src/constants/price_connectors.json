@@ -1,46 +1,123 @@
 {
-    "optimism": [
-        {"address": "0x9560e827aF36c94D2Ac33a39bCE1Fe78631088Db", "createdBlock": 105896796 },
-        {"address": "0x4200000000000000000000000000000000000042", "createdBlock": 6490467 },
-        {"address": "0x9bcef72be871e61ed4fbbc7630889bee758eb81d", "createdBlock": 113681 },
-        {"address": "0x2e3d870790dc77a83dd1d18184acc7439a53f475", "createdBlock": 2153157 },
-        {"address": "0x8c6f28f2f1a3c87f0f938b96d27520d9751ec8d9", "createdBlock": 1 },
-        {"address": "0x1f32b1c2345538c0c6f582fcb022739c4a194ebb", "createdBlock": 17831118 },
-        {"address": "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1", "createdBlock": 1 },
-        {"address": "0x6c84a8f1c29108f47a79964b5fe888d4f4d0de40", "createdBlock": 89899840 },
-        {"address": "0xc40f949f8a4e094d1b49a23ea9241d289b7b2819", "createdBlock": 1 },
-        {"address": "0x94b008aa00579c1307b0ef2c499ad98a8ce58e58", "createdBlock": 1 },
-        {"address": "0x0b2c639c533813f4aa9d7837caf62653d097ff85", "createdBlock": 10 }
-    ],
-    "base": [
-        {"address" :"0x940181a94A35A4569E4529A3CDfB74e38FD98631", "createdBlock": 3200550 },
-        {"address" :"0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb", "createdBlock": 1569598 },
-        {"address" :"0x4621b7a9c75199271f773ebd9a499dbd165c3191", "createdBlock": 2361818 },
-        {"address" :"0x2ae3f1ec7f1f5012cfeab0185bfc7aa3cf0dec22", "createdBlock": 1600576 },
-        {"address" :"0xc1cba3fcea344f92d9239c08c0568f6f2f0ee452", "createdBlock": 4572990 },
-        {"address" :"0x60a3e35cc302bfa44cb288bc5a4f316fdb1adb42", "createdBlock": 15107859 },
-        {"address" :"0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca", "createdBlock": 2062407 }
-    ],
-    "mode": [
-        {"address" :"0xf0F161fDA2712DB8b566946122a5af183995e2eD", "createdBlock": 190688 },
-        {"address" :"0xDfc7C877a950e49D2610114102175A06C2e3167a", "createdBlock": 7103932 },
-        {"address" :"0xE7798f023fC62146e8Aa1b36Da45fb70855a77Ea", "createdBlock": 190669 }
-    ],
-    "lisk": [
-        {"address" :"0xac485391EB2d7D88253a7F1eF18C37f4242D1A24", "createdBlock": 568336 },
-        {"address" :"0x05D032ac25d322df992303dCa074EE7392C117b9", "createdBlock": 1639961 }
-    ],
-    "fraxtal": [
-        {"address" :"0xfc00000000000000000000000000000000000005", "createdBlock": 0 }
-    ],
-    "soneium": [],
-    "ink": [],
-    "metal": [
-        {"address" :"0xBCFc435d8F276585f6431Fc1b9EE9A850B5C00A9", "createdBlock": 79540 }
-    ],
-    "unichain": [
-        {"address" :"0x8f187aA05619a017077f5308904739877ce9eA21", "createdBlock": 1 }
-    ],
-    "celo": [
-    ]
+  "optimism": [
+    {
+      "address": "0x9560e827aF36c94D2Ac33a39bCE1Fe78631088Db",
+      "createdBlock": 105896796
+    },
+    {
+      "address": "0x4200000000000000000000000000000000000042",
+      "createdBlock": 6490467
+    },
+    {
+      "address": "0x9bcef72be871e61ed4fbbc7630889bee758eb81d",
+      "createdBlock": 113681
+    },
+    {
+      "address": "0x2e3d870790dc77a83dd1d18184acc7439a53f475",
+      "createdBlock": 2153157
+    },
+    {
+      "address": "0x8c6f28f2f1a3c87f0f938b96d27520d9751ec8d9",
+      "createdBlock": 1
+    },
+    {
+      "address": "0x1f32b1c2345538c0c6f582fcb022739c4a194ebb",
+      "createdBlock": 17831118
+    },
+    {
+      "address": "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1",
+      "createdBlock": 1
+    },
+    {
+      "address": "0x6c84a8f1c29108f47a79964b5fe888d4f4d0de40",
+      "createdBlock": 89899840
+    },
+    {
+      "address": "0xc40f949f8a4e094d1b49a23ea9241d289b7b2819",
+      "createdBlock": 1
+    },
+    {
+      "address": "0x94b008aa00579c1307b0ef2c499ad98a8ce58e58",
+      "createdBlock": 1
+    },
+    {
+      "address": "0x0b2c639c533813f4aa9d7837caf62653d097ff85",
+      "createdBlock": 10
+    }
+  ],
+  "base": [
+    {
+      "address": "0x940181a94A35A4569E4529A3CDfB74e38FD98631",
+      "createdBlock": 3200550
+    },
+    {
+      "address": "0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb",
+      "createdBlock": 1569598
+    },
+    {
+      "address": "0x4621b7a9c75199271f773ebd9a499dbd165c3191",
+      "createdBlock": 2361818
+    },
+    {
+      "address": "0x2ae3f1ec7f1f5012cfeab0185bfc7aa3cf0dec22",
+      "createdBlock": 1600576
+    },
+    {
+      "address": "0xc1cba3fcea344f92d9239c08c0568f6f2f0ee452",
+      "createdBlock": 4572990
+    },
+    {
+      "address": "0x60a3e35cc302bfa44cb288bc5a4f316fdb1adb42",
+      "createdBlock": 15107859
+    },
+    {
+      "address": "0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca",
+      "createdBlock": 2062407
+    }
+  ],
+  "mode": [
+    {
+      "address": "0xf0F161fDA2712DB8b566946122a5af183995e2eD",
+      "createdBlock": 190688
+    },
+    {
+      "address": "0xDfc7C877a950e49D2610114102175A06C2e3167a",
+      "createdBlock": 7103932
+    },
+    {
+      "address": "0xE7798f023fC62146e8Aa1b36Da45fb70855a77Ea",
+      "createdBlock": 190669
+    }
+  ],
+  "lisk": [
+    {
+      "address": "0xac485391EB2d7D88253a7F1eF18C37f4242D1A24",
+      "createdBlock": 568336
+    },
+    {
+      "address": "0x05D032ac25d322df992303dCa074EE7392C117b9",
+      "createdBlock": 1639961
+    }
+  ],
+  "fraxtal": [
+    {
+      "address": "0xfc00000000000000000000000000000000000005",
+      "createdBlock": 0
+    }
+  ],
+  "soneium": [],
+  "ink": [],
+  "metal": [
+    {
+      "address": "0xBCFc435d8F276585f6431Fc1b9EE9A850B5C00A9",
+      "createdBlock": 79540
+    }
+  ],
+  "unichain": [
+    {
+      "address": "0x8f187aA05619a017077f5308904739877ce9eA21",
+      "createdBlock": 1
+    }
+  ],
+  "celo": []
 }

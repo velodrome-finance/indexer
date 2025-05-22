@@ -30,8 +30,12 @@ describe("Pool Burn Event", () => {
 
     const burnEvent = result.entities.Pool_Burn.get("10_123456_1");
     expect(burnEvent).to.not.be.undefined;
-    expect(burnEvent?.sender).to.equal("0x1111111111111111111111111111111111111111");
-    expect(burnEvent?.to).to.equal("0x2222222222222222222222222222222222222222");
+    expect(burnEvent?.sender).to.equal(
+      "0x1111111111111111111111111111111111111111",
+    );
+    expect(burnEvent?.to).to.equal(
+      "0x2222222222222222222222222222222222222222",
+    );
     expect(burnEvent?.amount0).to.equal(500n * 10n ** 18n);
     expect(burnEvent?.amount1).to.equal(1000n * 10n ** 18n);
     expect(burnEvent?.timestamp).to.deep.equal(new Date(1000000 * 1000));

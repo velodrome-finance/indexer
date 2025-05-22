@@ -1,8 +1,8 @@
 import {
-    NFPM,
-    NFPM_Transfer,
-    NFPM_IncreaseLiquidity,
-    NFPM_DecreaseLiquidity,
+  NFPM,
+  type NFPM_DecreaseLiquidity,
+  type NFPM_IncreaseLiquidity,
+  type NFPM_Transfer,
 } from "generated";
 
 /**

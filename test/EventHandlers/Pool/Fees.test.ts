@@ -1,16 +1,25 @@
 import { expect } from "chai";
-import { Pool, MockDb } from "../../../generated/src/TestHelpers.gen";
-import { LiquidityPoolAggregator, Token } from "../../../generated/src/Types.gen";
+import { MockDb, Pool } from "../../../generated/src/TestHelpers.gen";
+import {
+  LiquidityPoolAggregator,
+  type Token,
+} from "../../../generated/src/Types.gen";
+import {
+  TEN_TO_THE_6_BI,
+  TEN_TO_THE_18_BI,
+  TokenIdByChain,
+  toChecksumAddress,
+} from "../../../src/Constants";
 import { setupCommon } from "./common";
-import { TEN_TO_THE_18_BI, TEN_TO_THE_6_BI, toChecksumAddress, TokenIdByChain } from "../../../src/Constants";
 
 describe("Pool Fees Event", () => {
-  const { mockToken0Data, mockToken1Data, mockLiquidityPoolData } = setupCommon();
+  const { mockToken0Data, mockToken1Data, mockLiquidityPoolData } =
+    setupCommon();
   const poolId = mockLiquidityPoolData.id;
 
   let mockDb: any;
   let updatedDB: any;
-  let expectations: any = {
+  const expectations: any = {
     amount0In: 3n * 10n ** 18n,
     amount1In: 2n * 10n ** 6n,
     totalLiquidityUSD: 0n,
@@ -18,23 +27,31 @@ describe("Pool Fees Event", () => {
   };
 
   expectations.totalLiquidityUSD =
-    (mockLiquidityPoolData.reserve0 - expectations.amount0In) * mockToken0Data.pricePerUSDNew / ( 10n ** (mockToken0Data.decimals) )  +
-    (mockLiquidityPoolData.reserve1 - expectations.amount1In) * mockToken1Data.pricePerUSDNew / ( 10n ** (mockToken1Data.decimals) );
-  
+    ((mockLiquidityPoolData.reserve0 - expectations.amount0In) *
+      mockToken0Data.pricePerUSDNew) /
+      10n ** mockToken0Data.decimals +
+    ((mockLiquidityPoolData.reserve1 - expectations.amount1In) *
+      mockToken1Data.pricePerUSDNew) /
+      10n ** mockToken1Data.decimals;
+
   expectations.totalFeesUSD =
-        mockLiquidityPoolData.totalFeesUSD +
-          (expectations.amount0In / 10n ** (mockToken0Data.decimals) ) * mockToken0Data.pricePerUSDNew +
-          (expectations.amount1In / 10n ** (mockToken1Data.decimals) ) * mockToken1Data.pricePerUSDNew;
+    mockLiquidityPoolData.totalFeesUSD +
+    (expectations.amount0In / 10n ** mockToken0Data.decimals) *
+      mockToken0Data.pricePerUSDNew +
+    (expectations.amount1In / 10n ** mockToken1Data.decimals) *
+      mockToken1Data.pricePerUSDNew;
 
   expectations.totalFeesUSDWhitelisted = expectations.totalFeesUSD;
 
   let updatedPool: any;
-  
+
   beforeEach(async () => {
     mockDb = MockDb.createMockDb();
     updatedDB = mockDb.entities.Token.set(mockToken0Data as Token);
     updatedDB = updatedDB.entities.Token.set(mockToken1Data as Token);
-    updatedDB = updatedDB.entities.LiquidityPoolAggregator.set(mockLiquidityPoolData);
+    updatedDB = updatedDB.entities.LiquidityPoolAggregator.set(
+      mockLiquidityPoolData,
+    );
 
     const mockEvent = Pool.Fees.createMockEvent({
       amount0: expectations.amount0In,
@@ -60,15 +77,17 @@ describe("Pool Fees Event", () => {
 
   it("should update LiquidityPoolAggregator", async () => {
     expect(updatedPool).to.not.be.undefined;
-    expect(updatedPool.lastUpdatedTimestamp).to.deep.equal(new Date(1000000 * 1000));
+    expect(updatedPool.lastUpdatedTimestamp).to.deep.equal(
+      new Date(1000000 * 1000),
+    );
   });
 
   it("should update LiquidityPoolAggregator nominal fees", async () => {
     expect(updatedPool.totalFees0).to.equal(
-      mockLiquidityPoolData.totalFees0 + expectations.amount0In
+      mockLiquidityPoolData.totalFees0 + expectations.amount0In,
     );
     expect(updatedPool.totalFees1).to.equal(
-      mockLiquidityPoolData.totalFees1 + expectations.amount1In
+      mockLiquidityPoolData.totalFees1 + expectations.amount1In,
     );
   });
 
@@ -77,6 +96,8 @@ describe("Pool Fees Event", () => {
   });
 
   it("should update LiquidityPoolAggregator total fees in USD whitelisted", async () => {
-    expect(updatedPool.totalFeesUSDWhitelisted).to.equal(expectations.totalFeesUSDWhitelisted);
+    expect(updatedPool.totalFeesUSDWhitelisted).to.equal(
+      expectations.totalFeesUSDWhitelisted,
+    );
   });
 });

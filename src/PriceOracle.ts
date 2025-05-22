@@ -1,17 +1,17 @@
+import { createHash } from "node:crypto";
+import SpotPriceAggregatorABI from "../abis/SpotPriceAggregator.json";
+import PriceOracleABI from "../abis/VeloPriceOracleABI.json";
 import {
   CHAIN_CONSTANTS,
-  TokenIdByChain,
   CacheCategory,
-  toChecksumAddress,
   TokenIdByBlock,
+  TokenIdByChain,
+  toChecksumAddress,
 } from "./Constants";
-import { Token, TokenPriceSnapshot } from "./src/Types.gen";
-import { Cache } from "./cache";
-import { createHash } from "crypto";
-import { getErc20TokenDetails } from "./Erc20";
-import PriceOracleABI from "../abis/VeloPriceOracleABI.json";
-import SpotPriceAggregatorABI from "../abis/SpotPriceAggregator.json";
 import { PriceOracleType, TEN_TO_THE_18_BI } from "./Constants";
+import { getErc20TokenDetails } from "./Erc20";
+import { Cache } from "./cache";
+import type { Token, TokenPriceSnapshot } from "./src/Types.gen";
 export interface TokenPriceData {
   pricePerUSDNew: bigint;
   decimals: bigint;
@@ -21,7 +21,7 @@ export async function createTokenEntity(
   tokenAddress: string,
   chainId: number,
   blockNumber: number,
-  context: any
+  context: any,
 ) {
   const blockDatetime = new Date(blockNumber * 1000);
   const tokenDetails = await getErc20TokenDetails(tokenAddress, chainId);
@@ -63,7 +63,7 @@ export async function refreshTokenPrice(
   blockNumber: number,
   blockTimestamp: number,
   chainId: number,
-  context: any
+  context: any,
 ): Promise<Token> {
   const blockTimestampMs = blockTimestamp * 1000;
 
@@ -74,7 +74,7 @@ export async function refreshTokenPrice(
   const tokenPriceData = await getTokenPriceData(
     token.address,
     blockNumber,
-    chainId
+    chainId,
   );
   const currentPrice = tokenPriceData.pricePerUSDNew;
   const updatedToken: Token = {
@@ -116,7 +116,7 @@ export async function refreshTokenPrice(
 export async function getTokenPriceData(
   tokenAddress: string,
   blockNumber: number,
-  chainId: number
+  chainId: number,
 ): Promise<TokenPriceData> {
   const tokenDetails = await getErc20TokenDetails(tokenAddress, chainId);
 
@@ -142,7 +142,7 @@ export async function getTokenPriceData(
     .filter((connector) => connector !== USDC_ADDRESS)
     .filter((connector) => connector !== SYSTEM_TOKEN_ADDRESS);
 
-  let pricePerUSDNew: bigint = 0n;
+  let pricePerUSDNew = 0n;
   const decimals: bigint = BigInt(tokenDetails.decimals);
 
   const ORACLE_DEPLOYED =
@@ -157,7 +157,7 @@ export async function getTokenPriceData(
         WETH_ADDRESS,
         connectors,
         chainId,
-        blockNumber
+        blockNumber,
       );
 
       if (priceData.priceOracleType === PriceOracleType.V3) {
@@ -171,7 +171,7 @@ export async function getTokenPriceData(
     } catch (error) {
       console.error(
         `Error fetching price data for ${tokenAddress} on chain ${chainId} at block ${blockNumber}:`,
-        error
+        error,
       );
       return { pricePerUSDNew: 0n, decimals: BigInt(tokenDetails.decimals) };
     }
@@ -206,7 +206,7 @@ export async function read_prices(
   wethAddress: string,
   connectors: string[],
   chainId: number,
-  blockNumber: number
+  blockNumber: number,
 ): Promise<{ pricePerUSDNew: bigint; priceOracleType: PriceOracleType }> {
   const ethClient = CHAIN_CONSTANTS[chainId].eth_client;
   const priceOracleType = CHAIN_CONSTANTS[chainId].oracle.getType(blockNumber);
@@ -229,22 +229,21 @@ export async function read_prices(
       blockNumber: BigInt(blockNumber),
     });
     return { pricePerUSDNew: BigInt(result[0]), priceOracleType };
-  } else {
-    const tokenAddressArray = [
-      tokenAddress,
-      ...connectors,
-      systemTokenAddress,
-      wethAddress,
-      usdcAddress,
-    ];
-    const args = [1, tokenAddressArray];
-    const { result } = await ethClient.simulateContract({
-      address: priceOracleAddress as `0x${string}`,
-      abi: PriceOracleABI,
-      functionName: "getManyRatesWithConnectors",
-      args,
-      blockNumber: BigInt(blockNumber),
-    });
-    return { pricePerUSDNew: BigInt(result[0]), priceOracleType };
   }
+  const tokenAddressArray = [
+    tokenAddress,
+    ...connectors,
+    systemTokenAddress,
+    wethAddress,
+    usdcAddress,
+  ];
+  const args = [1, tokenAddressArray];
+  const { result } = await ethClient.simulateContract({
+    address: priceOracleAddress as `0x${string}`,
+    abi: PriceOracleABI,
+    functionName: "getManyRatesWithConnectors",
+    args,
+    blockNumber: BigInt(blockNumber),
+  });
+  return { pricePerUSDNew: BigInt(result[0]), priceOracleType };
 }

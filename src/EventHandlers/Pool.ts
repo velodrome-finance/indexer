@@ -1,11 +1,18 @@
-import { Pool, Pool_Swap, Pool_Sync, Pool_Mint, Pool_Burn, Pool_Fees } from "generated";
+import {
+  Pool,
+  type Pool_Burn,
+  type Pool_Fees,
+  type Pool_Mint,
+  type Pool_Swap,
+  type Pool_Sync,
+} from "generated";
 
-import { normalizeTokenAmountTo1e18 } from "./../Helpers";
-import { multiplyBase1e18 } from "./../Maths";
-import { refreshTokenPrice } from "../PriceOracle";
 import { updateLiquidityPoolAggregator } from "../Aggregators/LiquidityPoolAggregator";
 import { TokenIdByChain } from "../Constants";
 import { fetchPoolLoaderData } from "../Pools/common";
+import { refreshTokenPrice } from "../PriceOracle";
+import { normalizeTokenAmountTo1e18 } from "./../Helpers";
+import { multiplyBase1e18 } from "./../Maths";
 
 Pool.Mint.handler(async ({ event, context }) => {
   const entity: Pool_Mint = {
@@ -36,7 +43,7 @@ Pool.Burn.handler(async ({ event, context }) => {
     blockNumber: event.block.number,
     logIndex: event.logIndex,
     chainId: event.chainId,
-    transactionHash: event.transaction.hash
+    transactionHash: event.transaction.hash,
   };
 
   context.Pool_Burn.set(entity);
@@ -47,7 +54,6 @@ Pool.Fees.handlerWithLoader({
     return fetchPoolLoaderData(event.srcAddress, context, event.chainId);
   },
   handler: async ({ event, context, loaderReturn }) => {
-
     const entity: Pool_Fees = {
       id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
       sender: event.params.sender,
@@ -58,16 +64,17 @@ Pool.Fees.handlerWithLoader({
       blockNumber: event.block.number,
       logIndex: event.logIndex,
       chainId: event.chainId,
-      transactionHash: event.transaction.hash
+      transactionHash: event.transaction.hash,
     };
 
     context.Pool_Fees.set(entity);
 
     switch (loaderReturn._type) {
-      case "success":
-        const { liquidityPoolAggregator, token0Instance, token1Instance } = loaderReturn;
+      case "success": {
+        const { liquidityPoolAggregator, token0Instance, token1Instance } =
+          loaderReturn;
 
-        let tokenUpdateData = {
+        const tokenUpdateData = {
           totalFees0: event.params.amount0,
           totalFees1: event.params.amount1,
           totalFeesNormalized0: 0n,
@@ -78,33 +85,42 @@ Pool.Fees.handlerWithLoader({
 
         tokenUpdateData.totalFeesNormalized0 = normalizeTokenAmountTo1e18(
           event.params.amount0,
-          Number(token0Instance.decimals)
+          Number(token0Instance.decimals),
         );
         const token0FeesUSD = multiplyBase1e18(
           tokenUpdateData.totalFeesNormalized0,
-          token0Instance.pricePerUSDNew
+          token0Instance.pricePerUSDNew,
         );
 
         tokenUpdateData.totalFeesUSD += token0FeesUSD;
-        tokenUpdateData.totalFeesUSDWhitelisted += (token0Instance.isWhitelisted) ? token0FeesUSD : 0n;
+        tokenUpdateData.totalFeesUSDWhitelisted += token0Instance.isWhitelisted
+          ? token0FeesUSD
+          : 0n;
 
-        tokenUpdateData.totalFees1 = event.params.amount1
+        tokenUpdateData.totalFees1 = event.params.amount1;
         tokenUpdateData.totalFeesNormalized1 = normalizeTokenAmountTo1e18(
           event.params.amount1,
-          Number(token1Instance.decimals)
+          Number(token1Instance.decimals),
         );
         const token1FeesUSD = multiplyBase1e18(
           tokenUpdateData.totalFeesNormalized1,
-          token1Instance.pricePerUSDNew
+          token1Instance.pricePerUSDNew,
         );
         tokenUpdateData.totalFeesUSD += token1FeesUSD;
-        tokenUpdateData.totalFeesUSDWhitelisted += (token1Instance.isWhitelisted) ? token1FeesUSD: 0n;
+        tokenUpdateData.totalFeesUSDWhitelisted += token1Instance.isWhitelisted
+          ? token1FeesUSD
+          : 0n;
 
         const liquidityPoolDiff = {
-          totalFees0: liquidityPoolAggregator.totalFees0 + tokenUpdateData.totalFees0,
-          totalFees1: liquidityPoolAggregator.totalFees1 + tokenUpdateData.totalFees1,
-          totalFeesUSD: liquidityPoolAggregator.totalFeesUSD + tokenUpdateData.totalFeesUSD,
-          totalFeesUSDWhitelisted: liquidityPoolAggregator.totalFeesUSDWhitelisted + tokenUpdateData.totalFeesUSDWhitelisted,
+          totalFees0:
+            liquidityPoolAggregator.totalFees0 + tokenUpdateData.totalFees0,
+          totalFees1:
+            liquidityPoolAggregator.totalFees1 + tokenUpdateData.totalFees1,
+          totalFeesUSD:
+            liquidityPoolAggregator.totalFeesUSD + tokenUpdateData.totalFeesUSD,
+          totalFeesUSDWhitelisted:
+            liquidityPoolAggregator.totalFeesUSDWhitelisted +
+            tokenUpdateData.totalFeesUSDWhitelisted,
           lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
         };
 
@@ -113,9 +129,10 @@ Pool.Fees.handlerWithLoader({
           liquidityPoolAggregator,
           liquidityPoolDiff.lastUpdatedTimestamp,
           context,
-          event.block.number
+          event.block.number,
         );
         return;
+      }
       case "TokenNotFoundError":
         context.log.error(loaderReturn.message);
         return;
@@ -123,11 +140,12 @@ Pool.Fees.handlerWithLoader({
         context.log.error(loaderReturn.message);
         return;
 
-      default:
+      default: {
         const _exhaustiveCheck: never = loaderReturn;
         return _exhaustiveCheck;
+      }
     }
-  }
+  },
 });
 
 Pool.Swap.handlerWithLoader({
@@ -150,19 +168,19 @@ Pool.Swap.handlerWithLoader({
       blockNumber: event.block.number,
       logIndex: event.logIndex,
       chainId: event.chainId,
-      transactionHash: event.transaction.hash
+      transactionHash: event.transaction.hash,
     };
 
     context.Pool_Swap.set(entity);
     switch (loaderReturn._type) {
-      case "success":
-        const { liquidityPoolAggregator, token0Instance, token1Instance} =
+      case "success": {
+        const { liquidityPoolAggregator, token0Instance, token1Instance } =
           loaderReturn;
 
         let token0 = token0Instance;
         let token1 = token1Instance;
 
-        let tokenUpdateData = {
+        const tokenUpdateData = {
           netAmount0: 0n,
           netAmount1: 0n,
           netVolumeToken0USD: 0n,
@@ -171,56 +189,83 @@ Pool.Swap.handlerWithLoader({
           volumeInUSDWhitelisted: 0n,
         };
 
-        tokenUpdateData.netAmount0 = event.params.amount0In + event.params.amount0Out;
+        tokenUpdateData.netAmount0 =
+          event.params.amount0In + event.params.amount0Out;
         try {
-          token0 = await refreshTokenPrice(token0, event.block.number, event.block.timestamp, event.chainId, context);
+          token0 = await refreshTokenPrice(
+            token0,
+            event.block.number,
+            event.block.timestamp,
+            event.chainId,
+            context,
+          );
         } catch (error) {
-          context.log.error(`Error refreshing token price for ${token0?.address} on chain ${event.chainId}: ${error}`);
+          context.log.error(
+            `Error refreshing token price for ${token0?.address} on chain ${event.chainId}: ${error}`,
+          );
         }
         const normalizedAmount0 = normalizeTokenAmountTo1e18(
           event.params.amount0In + event.params.amount0Out,
-          Number(token0.decimals)
+          Number(token0.decimals),
         );
         tokenUpdateData.netVolumeToken0USD = multiplyBase1e18(
           normalizedAmount0,
-          token0.pricePerUSDNew
+          token0.pricePerUSDNew,
         );
 
-        tokenUpdateData.netAmount1 = event.params.amount1In + event.params.amount1Out;
+        tokenUpdateData.netAmount1 =
+          event.params.amount1In + event.params.amount1Out;
         try {
-          token1 = await refreshTokenPrice(token1, event.block.number, event.block.timestamp, event.chainId, context);
+          token1 = await refreshTokenPrice(
+            token1,
+            event.block.number,
+            event.block.timestamp,
+            event.chainId,
+            context,
+          );
         } catch (error) {
-          context.log.error(`Error refreshing token price for ${token1?.address} on chain ${event.chainId}: ${error}`);
+          context.log.error(
+            `Error refreshing token price for ${token1?.address} on chain ${event.chainId}: ${error}`,
+          );
         }
         const normalizedAmount1 = normalizeTokenAmountTo1e18(
           event.params.amount1In + event.params.amount1Out,
-          Number(token1.decimals)
+          Number(token1.decimals),
         );
         tokenUpdateData.netVolumeToken1USD = multiplyBase1e18(
           normalizedAmount1,
-          token1.pricePerUSDNew
+          token1.pricePerUSDNew,
         );
 
         // Use volume from token 0 if it's priced, otherwise use token 1
         tokenUpdateData.volumeInUSD =
-          tokenUpdateData.netVolumeToken0USD != 0n
+          tokenUpdateData.netVolumeToken0USD !== 0n
             ? tokenUpdateData.netVolumeToken0USD
             : tokenUpdateData.netVolumeToken1USD;
 
         // If both tokens are whitelisted, add the volume of token0 to the whitelisted volume
-        tokenUpdateData.volumeInUSDWhitelisted += (token0?.isWhitelisted && token1?.isWhitelisted) ? tokenUpdateData.netVolumeToken0USD : 0n;
+        tokenUpdateData.volumeInUSDWhitelisted +=
+          token0?.isWhitelisted && token1?.isWhitelisted
+            ? tokenUpdateData.netVolumeToken0USD
+            : 0n;
 
         const liquidityPoolDiff = {
-          totalVolume0: liquidityPoolAggregator.totalVolume0 + tokenUpdateData.netAmount0,
-          totalVolume1: liquidityPoolAggregator.totalVolume1 + tokenUpdateData.netAmount1,
+          totalVolume0:
+            liquidityPoolAggregator.totalVolume0 + tokenUpdateData.netAmount0,
+          totalVolume1:
+            liquidityPoolAggregator.totalVolume1 + tokenUpdateData.netAmount1,
           totalVolumeUSD:
-            liquidityPoolAggregator.totalVolumeUSD + tokenUpdateData.volumeInUSD,
+            liquidityPoolAggregator.totalVolumeUSD +
+            tokenUpdateData.volumeInUSD,
           totalVolumeUSDWhitelisted:
-            liquidityPoolAggregator.totalVolumeUSDWhitelisted + tokenUpdateData.volumeInUSDWhitelisted,
+            liquidityPoolAggregator.totalVolumeUSDWhitelisted +
+            tokenUpdateData.volumeInUSDWhitelisted,
           token0Price:
-            token0Instance?.pricePerUSDNew ?? liquidityPoolAggregator.token0Price,
+            token0Instance?.pricePerUSDNew ??
+            liquidityPoolAggregator.token0Price,
           token1Price:
-            token1Instance?.pricePerUSDNew ?? liquidityPoolAggregator.token1Price,
+            token1Instance?.pricePerUSDNew ??
+            liquidityPoolAggregator.token1Price,
           numberOfSwaps: liquidityPoolAggregator.numberOfSwaps + 1n,
           token0IsWhitelisted: token0Instance?.isWhitelisted ?? false,
           token1IsWhitelisted: token1Instance?.isWhitelisted ?? false,
@@ -232,18 +277,20 @@ Pool.Swap.handlerWithLoader({
           liquidityPoolAggregator,
           liquidityPoolDiff.lastUpdatedTimestamp,
           context,
-          event.block.number
+          event.block.number,
         );
         return;
+      }
       case "TokenNotFoundError":
         context.log.error(loaderReturn.message);
         return;
       case "LiquidityPoolAggregatorNotFoundError":
         context.log.error(loaderReturn.message);
         return;
-      default:
+      default: {
         const _exhaustiveCheck: never = loaderReturn;
         return _exhaustiveCheck;
+      }
     }
   },
 });
@@ -258,8 +305,9 @@ Pool.Sync.handlerWithLoader({
   },
   handler: async ({ event, context, loaderReturn }) => {
     switch (loaderReturn._type) {
-      case "success":
-        const { liquidityPoolAggregator, token0Instance, token1Instance} = loaderReturn;
+      case "success": {
+        const { liquidityPoolAggregator, token0Instance, token1Instance } =
+          loaderReturn;
         const blockDatetime = new Date(event.block.timestamp * 1000);
         const entity: Pool_Sync = {
           id: `${event.chainId}_${liquidityPoolAggregator.id}_${event.block.number}_${event.logIndex}`,
@@ -270,50 +318,55 @@ Pool.Sync.handlerWithLoader({
           blockNumber: event.block.number,
           logIndex: event.logIndex,
           chainId: event.chainId,
-          transactionHash: event.transaction.hash
+          transactionHash: event.transaction.hash,
         };
 
         context.Pool_Sync.set(entity);
 
-        let tokenUpdateData = {
+        const tokenUpdateData = {
           totalLiquidityUSD: 0n,
           normalizedReserve0: 0n,
           normalizedReserve1: 0n,
-          token0PricePerUSDNew: token0Instance?.pricePerUSDNew ?? liquidityPoolAggregator.token0Price,
-          token1PricePerUSDNew: token1Instance?.pricePerUSDNew ?? liquidityPoolAggregator.token1Price,
+          token0PricePerUSDNew:
+            token0Instance?.pricePerUSDNew ??
+            liquidityPoolAggregator.token0Price,
+          token1PricePerUSDNew:
+            token1Instance?.pricePerUSDNew ??
+            liquidityPoolAggregator.token1Price,
         };
-
 
         // Update price and liquidity if the token is priced
         if (token0Instance) {
           tokenUpdateData.normalizedReserve0 += normalizeTokenAmountTo1e18(
             event.params.reserve0,
-            Number(token0Instance.decimals)
+            Number(token0Instance.decimals),
           );
           tokenUpdateData.token0PricePerUSDNew = token0Instance.pricePerUSDNew;
           tokenUpdateData.totalLiquidityUSD += multiplyBase1e18(
             tokenUpdateData.normalizedReserve0,
-            tokenUpdateData.token0PricePerUSDNew
+            tokenUpdateData.token0PricePerUSDNew,
           );
         }
 
         if (token1Instance) {
           tokenUpdateData.normalizedReserve1 += normalizeTokenAmountTo1e18(
             event.params.reserve1,
-            Number(token1Instance.decimals)
+            Number(token1Instance.decimals),
           );
 
           tokenUpdateData.token1PricePerUSDNew = token1Instance.pricePerUSDNew;
           tokenUpdateData.totalLiquidityUSD += multiplyBase1e18(
             tokenUpdateData.normalizedReserve1,
-            tokenUpdateData.token1PricePerUSDNew
+            tokenUpdateData.token1PricePerUSDNew,
           );
         }
 
         const liquidityPoolDiff = {
           reserve0: event.params.reserve0,
           reserve1: event.params.reserve1,
-          totalLiquidityUSD: tokenUpdateData.totalLiquidityUSD || liquidityPoolAggregator.totalLiquidityUSD,
+          totalLiquidityUSD:
+            tokenUpdateData.totalLiquidityUSD ||
+            liquidityPoolAggregator.totalLiquidityUSD,
           token0Price: tokenUpdateData.token0PricePerUSDNew,
           token1Price: tokenUpdateData.token1PricePerUSDNew,
           lastUpdatedTimestamp: blockDatetime,
@@ -324,18 +377,20 @@ Pool.Sync.handlerWithLoader({
           liquidityPoolAggregator,
           liquidityPoolDiff.lastUpdatedTimestamp,
           context,
-          event.block.number
+          event.block.number,
         );
         return;
+      }
       case "TokenNotFoundError":
         context.log.error(loaderReturn.message);
         return;
       case "LiquidityPoolAggregatorNotFoundError":
         context.log.error(loaderReturn.message);
         return;
-      default:
+      default: {
         const _exhaustiveCheck: never = loaderReturn;
         return _exhaustiveCheck;
+      }
     }
-  }
+  },
 });
