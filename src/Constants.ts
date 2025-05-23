@@ -449,9 +449,9 @@ const SWELL_CONSTANTS: chainConstants = {
       return PriceOracleType.V3;
     },
     getAddress: (priceOracleType: PriceOracleType) => {
-      return "0xE50621a0527A43534D565B67D64be7C79807F269";
+      return "0xe58920a8c684CD3d6dCaC2a41b12998e4CB17EfE";
     },
-    startBlock: 3883295,
+    startBlock: 3733759,
     updateDelta: 60 * 60, // 1 hour
     priceConnectors: SWELL_PRICE_CONNECTORS,
   },
@@ -459,10 +459,13 @@ const SWELL_CONSTANTS: chainConstants = {
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
   eth_client: createPublicClient({
     chain: swellchain,
-    transport: http(process.env.ENVIO_SWELL_RPC_URL || "https://rpc.ankr.com/swell", {
-      retryCount: 10,
-      retryDelay: 1000,
-    }),
+    transport: http(
+      process.env.ENVIO_SWELL_RPC_URL || "https://rpc.ankr.com/swell",
+      {
+        retryCount: 10,
+        retryDelay: 1000,
+      }
+    ),
   }) as PublicClient,
 };
 

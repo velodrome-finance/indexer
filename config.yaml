@@ -441,7 +441,7 @@ networks:
         address:
   - id: 1750 # Metal
     hypersync_config:
-        url: https://1750.hypersync.xyz # Metal L2 hypersync address
+      url: https://1750.hypersync.xyz # Metal L2 hypersync address
     start_block: 0
     contracts:
       - name: NFPM
