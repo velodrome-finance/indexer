@@ -5,7 +5,7 @@ import { CacheCategory } from "./Constants";
 
 type Address = string;
 
-type Shape = Record<string, Record<string>>;
+type Shape = Record<string, Record<string, unknown>>;
 
 type ShapeRoot = Shape & Record<Address, { hash: string }>;
 export type ShapeGuageToPool = Shape &
@@ -73,7 +73,7 @@ export class Entry<T extends Shape> {
     if (!this.memory || Object.values(this.memory).length === 0) {
       this.memory = fields;
     } else {
-      for (const key of keys) {
+      for (const key of Object.keys(fields)) {
         if (!this.memory[key]) {
           this.memory[key] = {};
         }

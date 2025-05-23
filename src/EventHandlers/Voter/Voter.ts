@@ -53,21 +53,16 @@ const VAMM_POOLS_LIST: string[] = [
   "0xF1046053aa5682b4F9a81b5481394DA16BE5FF5a", // optimism
 ].map((x) => x.toLowerCase());
 
-Voter.GaugeCreated.contractRegister(
-  ({ event, context }) => {
-    if (CLPOOLS_LIST.includes(event.params.poolFactory.toLowerCase())) {
-      context.addCLGauge(event.params.gauge);
-    } else if (
-      VAMM_POOLS_LIST.includes(event.params.poolFactory.toLowerCase())
-    ) {
-      context.addGauge(event.params.gauge);
-    }
+Voter.GaugeCreated.contractRegister(({ event, context }) => {
+  if (CLPOOLS_LIST.includes(event.params.poolFactory.toLowerCase())) {
+    context.addCLGauge(event.params.gauge);
+  } else if (VAMM_POOLS_LIST.includes(event.params.poolFactory.toLowerCase())) {
+    context.addGauge(event.params.gauge);
+  }
 
-    context.addVotingReward(event.params.bribeVotingReward);
-    context.addVotingReward(event.params.feeVotingReward);
-  },
-  { preRegisterDynamicContracts: true },
-);
+  context.addVotingReward(event.params.bribeVotingReward);
+  context.addVotingReward(event.params.feeVotingReward);
+});
 
 Voter.GaugeCreated.handler(async ({ event, context }) => {
   const entity: Voter_GaugeCreated = {

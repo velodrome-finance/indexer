@@ -40,15 +40,12 @@ SuperchainLeafVoter.Voted.handler(async ({ event, context }) => {
   context.Voter_Voted.set(entity);
 });
 
-SuperchainLeafVoter.GaugeCreated.contractRegister(
-  ({ event, context }) => {
-    context.addVotingReward(event.params.incentiveVotingReward);
-    context.addVotingReward(event.params.feeVotingReward);
-    context.addGauge(event.params.gauge);
-    context.addCLGauge(event.params.gauge);
-  },
-  { preRegisterDynamicContracts: true },
-);
+SuperchainLeafVoter.GaugeCreated.contractRegister(({ event, context }) => {
+  context.addVotingReward(event.params.incentiveVotingReward);
+  context.addVotingReward(event.params.feeVotingReward);
+  context.addGauge(event.params.gauge);
+  context.addCLGauge(event.params.gauge);
+});
 
 SuperchainLeafVoter.GaugeCreated.handler(async ({ event, context }) => {
   const entity: Voter_GaugeCreated = {
@@ -101,7 +98,9 @@ SuperchainLeafVoter.DistributeReward.handlerWithLoader({
 
     if (!poolAddress) {
       context.log.warn(
-        `No pool address found for the gauge address ${event.params.gauge.toString()} on chain ${event.chainId}`,
+        `No pool address found for the gauge address ${event.params.gauge.toString()} on chain ${
+          event.chainId
+        }`,
       );
     }
 

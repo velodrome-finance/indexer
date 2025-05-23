@@ -6,21 +6,6 @@ import type {
 } from "generated";
 import type { VeNFTAggregator } from "generated";
 
-export function updateVeNFTAggregator(
-  diff,
-  current: VeNFTAggregator | undefined,
-  timestamp: Date,
-  context: handlerContext,
-) {
-  const updated: VeNFTAggregator = {
-    ...current,
-    ...diff,
-    lastUpdatedTimestamp: timestamp,
-  };
-
-  context.VeNFTAggregator.set(updated);
-}
-
 export const VeNFTId = (chainId: number, tokenId: bigint) =>
   `${chainId}_${tokenId}`;
 

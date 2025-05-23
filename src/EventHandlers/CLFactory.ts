@@ -10,12 +10,9 @@ import type { TokenEntityMapping } from "../CustomTypes";
 import { generatePoolName } from "../Helpers";
 import { createTokenEntity } from "../PriceOracle";
 
-CLFactory.PoolCreated.contractRegister(
-  ({ event, context }) => {
-    context.addCLPool(event.params.pool);
-  },
-  { preRegisterDynamicContracts: true },
-);
+CLFactory.PoolCreated.contractRegister(({ event, context }) => {
+  context.addCLPool(event.params.pool);
+});
 
 CLFactory.PoolCreated.handlerWithLoader({
   loader: async ({ event, context }) => {

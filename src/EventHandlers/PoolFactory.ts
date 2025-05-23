@@ -9,12 +9,9 @@ import type {
   PoolFactory_PoolCreated,
 } from "./../src/Types.gen";
 
-PoolFactory.PoolCreated.contractRegister(
-  ({ event, context }) => {
-    context.addPool(event.params.pool);
-  },
-  { preRegisterDynamicContracts: true },
-);
+PoolFactory.PoolCreated.contractRegister(({ event, context }) => {
+  context.addPool(event.params.pool);
+});
 
 PoolFactory.PoolCreated.handlerWithLoader({
   loader: async ({ event, context }) => {
