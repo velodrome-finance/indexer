@@ -1,4 +1,8 @@
-import { FactoryRegistry, FactoryRegistry_Approve, FactoryRegistry_Unapprove } from "generated";
+import {
+  FactoryRegistry,
+  type FactoryRegistry_Approve,
+  type FactoryRegistry_Unapprove,
+} from "generated";
 
 FactoryRegistry.Approve.handler(async ({ event, context }) => {
   const entity: FactoryRegistry_Approve = {
@@ -17,7 +21,6 @@ FactoryRegistry.Approve.handler(async ({ event, context }) => {
 });
 
 FactoryRegistry.Unapprove.handler(async ({ event, context }) => {
-
   const entity: FactoryRegistry_Unapprove = {
     id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
     poolFactory: event.params.poolFactory,

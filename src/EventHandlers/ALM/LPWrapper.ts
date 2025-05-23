@@ -1,21 +1,14 @@
 import {
-    ALMLPWrapper,
-    ALMLPWrapper_Deposit,
-    ALMLPWrapper_Transfer,
-    ALMLPWrapper_Withdraw,
-    ALMLPWrapper_TotalSupplyLimitUpdated
+  ALMLPWrapper,
+  type ALMLPWrapper_Deposit,
+  type ALMLPWrapper_TotalSupplyLimitUpdated,
+  type ALMLPWrapper_Transfer,
+  type ALMLPWrapper_Withdraw,
 } from "generated";
 
 ALMLPWrapper.Deposit.handler(async ({ event, context }) => {
-  const {
-    sender,
-    recipient,
-    pool,
-    amount0,
-    amount1,
-    lpAmount,
-    totalSupply
-  } = event.params;
+  const { sender, recipient, pool, amount0, amount1, lpAmount, totalSupply } =
+    event.params;
 
   const entity: ALMLPWrapper_Deposit = {
     id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
@@ -30,22 +23,15 @@ ALMLPWrapper.Deposit.handler(async ({ event, context }) => {
     timestamp: new Date(event.block.timestamp * 1000),
     chainId: event.chainId,
     blockNumber: event.block.number,
-    logIndex: event.logIndex
+    logIndex: event.logIndex,
   };
 
   context.ALMLPWrapper_Deposit.set(entity);
 });
 
 ALMLPWrapper.Withdraw.handler(async ({ event, context }) => {
-  const {
-    sender,
-    recipient,
-    pool,
-    amount0,
-    amount1,
-    lpAmount,
-    totalSupply
-  } = event.params;
+  const { sender, recipient, pool, amount0, amount1, lpAmount, totalSupply } =
+    event.params;
 
   const entity: ALMLPWrapper_Withdraw = {
     id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
@@ -60,18 +46,14 @@ ALMLPWrapper.Withdraw.handler(async ({ event, context }) => {
     timestamp: new Date(event.block.timestamp * 1000),
     chainId: event.chainId,
     blockNumber: event.block.number,
-    logIndex: event.logIndex
+    logIndex: event.logIndex,
   };
 
   context.ALMLPWrapper_Withdraw.set(entity);
 });
 
 ALMLPWrapper.Transfer.handler(async ({ event, context }) => {
-  const {
-    from,
-    to,
-    value
-  } = event.params;
+  const { from, to, value } = event.params;
 
   const entity: ALMLPWrapper_Transfer = {
     id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
@@ -82,18 +64,15 @@ ALMLPWrapper.Transfer.handler(async ({ event, context }) => {
     timestamp: new Date(event.block.timestamp * 1000),
     chainId: event.chainId,
     blockNumber: event.block.number,
-    logIndex: event.logIndex
+    logIndex: event.logIndex,
   };
 
   context.ALMLPWrapper_Transfer.set(entity);
 });
 
 ALMLPWrapper.TotalSupplyLimitUpdated.handler(async ({ event, context }) => {
-  const {
-    newTotalSupplyLimit,
-    totalSupplyLimitOld,
-    totalSupplyCurrent
-  } = event.params;
+  const { newTotalSupplyLimit, totalSupplyLimitOld, totalSupplyCurrent } =
+    event.params;
 
   const entity: ALMLPWrapper_TotalSupplyLimitUpdated = {
     id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
@@ -104,8 +83,8 @@ ALMLPWrapper.TotalSupplyLimitUpdated.handler(async ({ event, context }) => {
     timestamp: new Date(event.block.timestamp * 1000),
     chainId: event.chainId,
     blockNumber: event.block.number,
-    logIndex: event.logIndex
+    logIndex: event.logIndex,
   };
 
   context.ALMLPWrapper_TotalSupplyLimitUpdated.set(entity);
-}); 
+});

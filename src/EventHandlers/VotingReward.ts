@@ -1,18 +1,18 @@
 import {
   VotingReward,
-  VotingReward_Withdraw,
-  VotingReward_Deposit,
-  VotingReward_NotifyReward,
-  VotingReward_ClaimRewards
+  type VotingReward_ClaimRewards,
+  type VotingReward_Deposit,
+  type VotingReward_NotifyReward,
+  type VotingReward_Withdraw,
 } from "generated";
 
-import { LiquidityPoolAggregator, Token } from "./../src/Types.gen";
+import { updateLiquidityPoolAggregator } from "../Aggregators/LiquidityPoolAggregator";
+import { TokenIdByChain } from "../Constants";
+import { type TokenPriceData, getTokenPriceData } from "../PriceOracle";
 import { normalizeTokenAmountTo1e18 } from "./../Helpers";
 import { multiplyBase1e18 } from "./../Maths";
 import { poolLookupStoreManager } from "./../Store";
-import { TokenIdByChain } from "../Constants";
-import { updateLiquidityPoolAggregator } from "../Aggregators/LiquidityPoolAggregator";
-import { getTokenPriceData, TokenPriceData } from "../PriceOracle";
+import { LiquidityPoolAggregator, Token } from "./../src/Types.gen";
 
 //// global state!
 const { getPoolAddressByBribeVotingRewardAddress } = poolLookupStoreManager();
@@ -21,7 +21,7 @@ VotingReward.NotifyReward.handlerWithLoader({
   loader: async ({ event, context }) => {
     const poolAddress = getPoolAddressByBribeVotingRewardAddress(
       event.chainId,
-      event.srcAddress
+      event.srcAddress,
     );
 
     const promisePool = poolAddress
@@ -30,13 +30,13 @@ VotingReward.NotifyReward.handlerWithLoader({
 
     if (!poolAddress) {
       context.log.warn(
-        `No pool address found for the bribe voting address ${event.srcAddress.toString()} on chain ${event.chainId}`
+        `No pool address found for the bribe voting address ${event.srcAddress.toString()} on chain ${event.chainId}`,
       );
     }
 
     const [currentLiquidityPool, storedToken] = await Promise.all([
       promisePool,
-      context.Token.get(TokenIdByChain(event.params.reward, event.chainId))
+      context.Token.get(TokenIdByChain(event.params.reward, event.chainId)),
     ]);
 
     return { currentLiquidityPool, storedToken };
@@ -54,7 +54,7 @@ VotingReward.NotifyReward.handlerWithLoader({
       logIndex: event.logIndex,
       sourceAddress: event.srcAddress,
       chainId: event.chainId,
-      transactionHash: event.transaction.hash
+      transactionHash: event.transaction.hash,
     };
 
     context.VotingReward_NotifyReward.set(entity);
@@ -66,39 +66,44 @@ VotingReward.NotifyReward.handlerWithLoader({
 
       if (!storedToken) {
         try {
-          rewardToken = await getTokenPriceData(event.params.reward, event.block.number, event.chainId);
+          rewardToken = await getTokenPriceData(
+            event.params.reward,
+            event.block.number,
+            event.chainId,
+          );
         } catch (error) {
-          context.log.error(`Error in voting reward notify reward event fetching token details` +
-            ` for ${event.params.reward} on chain ${event.chainId}: ${error}`);
+          context.log.error(
+            `Error in voting reward notify reward event fetching token details for ${event.params.reward} on chain ${event.chainId}: ${error}`,
+          );
         }
       } else {
         rewardToken = {
           pricePerUSDNew: storedToken.pricePerUSDNew,
-          decimals: storedToken.decimals
-        }
+          decimals: storedToken.decimals,
+        };
       }
 
       if (currentLiquidityPool && rewardToken) {
-        let normalizedBribesAmount = normalizeTokenAmountTo1e18(
+        const normalizedBribesAmount = normalizeTokenAmountTo1e18(
           event.params.amount,
-          Number(rewardToken.decimals)
+          Number(rewardToken.decimals),
         );
 
         // If the reward token does not have a price in USD, log
-        if (rewardToken.pricePerUSDNew == 0n) {
+        if (rewardToken.pricePerUSDNew === 0n) {
           context.log.warn(
-            `Reward token with ID ${event.params.reward.toString()} does not have a USD price yet on chain ${event.chainId}`
+            `Reward token with ID ${event.params.reward.toString()} does not have a USD price yet on chain ${event.chainId}`,
           );
         }
 
         // Calculate the bribes amount in USD
-        let normalizedBribesAmountUsd = multiplyBase1e18(
+        const normalizedBribesAmountUsd = multiplyBase1e18(
           normalizedBribesAmount,
-          rewardToken.pricePerUSDNew
+          rewardToken.pricePerUSDNew,
         );
 
         // Create a new instance of LiquidityPoolEntity to be updated in the DB
-        let lpDiff = {
+        const lpDiff = {
           totalBribesUSD:
             currentLiquidityPool.totalBribesUSD + normalizedBribesAmountUsd,
           lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
@@ -110,7 +115,7 @@ VotingReward.NotifyReward.handlerWithLoader({
           currentLiquidityPool,
           new Date(event.block.timestamp * 1000),
           context,
-          event.block.number
+          event.block.number,
         );
       }
     }
@@ -128,7 +133,7 @@ VotingReward.Deposit.handler(async ({ event, context }) => {
     logIndex: event.logIndex,
     sourceAddress: event.srcAddress,
     chainId: event.chainId,
-    transactionHash: event.transaction.hash
+    transactionHash: event.transaction.hash,
   };
 
   context.VotingReward_Deposit.set(entity);
@@ -145,7 +150,7 @@ VotingReward.ClaimRewards.handler(async ({ event, context }) => {
     logIndex: event.logIndex,
     sourceAddress: event.srcAddress,
     chainId: event.chainId,
-    transactionHash: event.transaction.hash
+    transactionHash: event.transaction.hash,
   };
 
   context.VotingReward_ClaimRewards.set(entity);
@@ -162,7 +167,7 @@ VotingReward.Withdraw.handler(async ({ event, context }) => {
     logIndex: event.logIndex,
     sourceAddress: event.srcAddress,
     chainId: event.chainId,
-    transactionHash: event.transaction.hash
+    transactionHash: event.transaction.hash,
   };
 
   context.VotingReward_Withdraw.set(entity);

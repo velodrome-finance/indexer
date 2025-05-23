@@ -1,6 +1,6 @@
 type LiquidityPoolAggregator {
   id: ID! # pool address
-  chainId: Int! 
+  chainId: Int!
   name: String! # name of the pool
   token0_id: String! # token0 id
   token1_id: String! # token1 id
@@ -578,7 +578,6 @@ type CLPool_Swap {
   logIndex: Int!
   chainId: Int!
 }
-
 
 type Voter_WhitelistToken {
   id: ID!

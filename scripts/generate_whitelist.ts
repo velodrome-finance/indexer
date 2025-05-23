@@ -1,6 +1,6 @@
+import Web3 from "npm:web3@4.0.1";
 // Run with: deno run --allow-read --allow-write --node-modules-dir scripts/generate_whitelist.ts
 import { parse } from "https://deno.land/std@0.182.0/csv/mod.ts";
-import Web3 from "npm:web3@4.0.1";
 import "jsr:@std/dotenv/load";
 
 const CHAIN_ARGS = {
@@ -35,7 +35,7 @@ async function generateTokenData(chain: string) {
   const RPC_URL = CHAIN_ARGS[chain].RPC_URL;
   if (!RPC_URL) {
     console.error(
-      `${chain.toUpperCase()}_RPC_URL is not set in the environment variables`
+      `${chain.toUpperCase()}_RPC_URL is not set in the environment variables`,
     );
     Deno.exit(1);
   }
@@ -83,7 +83,7 @@ async function generateTokenData(chain: string) {
     } catch (error) {
       console.error(
         `Error processing token at address ${address}:`,
-        error.message
+        error.message,
       );
     }
   }
@@ -93,7 +93,7 @@ async function generateTokenData(chain: string) {
   // Write the result to a JSON file
   await Deno.writeTextFile(
     OUTPUT_FILE,
-    JSON.stringify(whitelistedTokens, null, 2)
+    JSON.stringify(whitelistedTokens, null, 2),
   );
   console.log(`Whitelist generated successfully for ${chain}!`);
 }

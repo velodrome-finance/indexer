@@ -1,8 +1,8 @@
 import {
   Gauge,
-  Gauge_NotifyReward,
-  Gauge_Deposit,
-  Gauge_Withdraw,
+  type Gauge_Deposit,
+  type Gauge_NotifyReward,
+  type Gauge_Withdraw,
 } from "generated";
 
 Gauge.NotifyReward.handler(async ({ event, context }) => {
@@ -15,14 +15,13 @@ Gauge.NotifyReward.handler(async ({ event, context }) => {
     logIndex: event.logIndex,
     sourceAddress: event.srcAddress,
     chainId: event.chainId,
-    transactionHash: event.transaction.hash
+    transactionHash: event.transaction.hash,
   };
 
   context.Gauge_NotifyReward.set(entity);
 });
 
 Gauge.Deposit.handler(async ({ event, context }) => {
-
   const entity: Gauge_Deposit = {
     id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
     from: event.params.from,
@@ -32,7 +31,7 @@ Gauge.Deposit.handler(async ({ event, context }) => {
     logIndex: event.logIndex,
     sourceAddress: event.srcAddress,
     chainId: event.chainId,
-    transactionHash: event.transaction.hash
+    transactionHash: event.transaction.hash,
   };
 
   context.Gauge_Deposit.set(entity);
@@ -48,7 +47,7 @@ Gauge.Withdraw.handler(async ({ event, context }) => {
     logIndex: event.logIndex,
     sourceAddress: event.srcAddress,
     chainId: event.chainId,
-    transactionHash: event.transaction.hash
+    transactionHash: event.transaction.hash,
   };
 
   context.Gauge_Withdraw.set(entity);

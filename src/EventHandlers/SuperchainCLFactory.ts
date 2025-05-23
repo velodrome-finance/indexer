@@ -1,4 +1,7 @@
-import { SuperchainCLFactory, SuperchainCLFactory_RootPoolCreated } from "generated";
+import {
+  SuperchainCLFactory,
+  type SuperchainCLFactory_RootPoolCreated,
+} from "generated";
 
 SuperchainCLFactory.RootPoolCreated.handler(async ({ event, context }) => {
   const poolChainId = event.params.chainid;
@@ -14,7 +17,7 @@ SuperchainCLFactory.RootPoolCreated.handler(async ({ event, context }) => {
     tickSpacing: event.params.tickSpacing,
     blockNumber: event.block.number,
     logIndex: event.logIndex,
-    transactionHash: event.transaction.hash
+    transactionHash: event.transaction.hash,
   };
 
   context.SuperchainCLFactory_RootPoolCreated.set(entity);

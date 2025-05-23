@@ -1,12 +1,12 @@
 import {
   CLFactory,
-  CLFactory_PoolCreated,
-  LiquidityPoolAggregator,
+  type CLFactory_PoolCreated,
+  type LiquidityPoolAggregator,
   Token,
 } from "generated";
 import { updateLiquidityPoolAggregator } from "../Aggregators/LiquidityPoolAggregator";
-import { TokenEntityMapping } from "../CustomTypes";
 import { TokenIdByChain } from "../Constants";
+import type { TokenEntityMapping } from "../CustomTypes";
 import { generatePoolName } from "../Helpers";
 import { createTokenEntity } from "../PriceOracle";
 
@@ -41,26 +41,25 @@ CLFactory.PoolCreated.handlerWithLoader({
     context.CLFactory_PoolCreated.set(entity);
 
     const { poolToken0, poolToken1 } = loaderReturn;
-    let poolTokenSymbols: string[] = [];
-    let poolTokenAddressMappings: TokenEntityMapping[] = [
+    const poolTokenSymbols: string[] = [];
+    const poolTokenAddressMappings: TokenEntityMapping[] = [
       { address: event.params.token0, tokenInstance: poolToken0 },
       { address: event.params.token1, tokenInstance: poolToken1 },
     ];
 
-    for (let poolTokenAddressMapping of poolTokenAddressMappings) {
-      if (poolTokenAddressMapping.tokenInstance == undefined) {
+    for (const poolTokenAddressMapping of poolTokenAddressMappings) {
+      if (poolTokenAddressMapping.tokenInstance === undefined) {
         try {
           poolTokenAddressMapping.tokenInstance = await createTokenEntity(
             poolTokenAddressMapping.address,
             event.chainId,
             event.block.number,
-            context
+            context,
           );
           poolTokenSymbols.push(poolTokenAddressMapping.tokenInstance.symbol);
         } catch (error) {
           context.log.error(
-            `Error in cl factory fetching token details` +
-              ` for ${poolTokenAddressMapping.address} on chain ${event.chainId}: ${error}`
+            `Error in cl factory fetching token details for ${poolTokenAddressMapping.address} on chain ${event.chainId}: ${error}`,
           );
         }
       } else {
@@ -75,7 +74,7 @@ CLFactory.PoolCreated.handlerWithLoader({
         poolTokenSymbols[0],
         poolTokenSymbols[1],
         false, // Pool is not stable
-        Number(event.params.tickSpacing) // Pool is CL
+        Number(event.params.tickSpacing), // Pool is CL
       ),
       token0_id: TokenIdByChain(event.params.token0, event.chainId),
       token1_id: TokenIdByChain(event.params.token1, event.chainId),
@@ -116,7 +115,7 @@ CLFactory.PoolCreated.handlerWithLoader({
       aggregator,
       new Date(event.block.timestamp * 1000),
       context,
-      event.block.number
+      event.block.number,
     );
   },
 });

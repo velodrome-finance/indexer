@@ -1,32 +1,38 @@
-import { SuperchainPoolFactory, SuperchainPoolFactory_RootPoolCreated } from "generated";
-import { CHAIN_CONSTANTS } from "../Constants";
+import {
+  SuperchainPoolFactory,
+  type SuperchainPoolFactory_RootPoolCreated,
+} from "generated";
 import SuperchainPoolABI from "../../abis/SuperchainPoolABI.json";
+import { CHAIN_CONSTANTS } from "../Constants";
 
 async function getPoolChainId(poolAddress: string, eventChainId: number) {
-    const ethClient = CHAIN_CONSTANTS[eventChainId].eth_client;
-    const { result } = await ethClient.simulateContract({
-        address: poolAddress as `0x${string}`,
-        abi: SuperchainPoolABI,
-        functionName: 'chainid',
-        args: [],
-    })
-    return Number(result);
+  const ethClient = CHAIN_CONSTANTS[eventChainId].eth_client;
+  const { result } = await ethClient.simulateContract({
+    address: poolAddress as `0x${string}`,
+    abi: SuperchainPoolABI,
+    functionName: "chainid",
+    args: [],
+  });
+  return Number(result);
 }
 
 SuperchainPoolFactory.RootPoolCreated.handlerWithLoader({
   loader: async ({ event, context }) => {
     try {
-      const poolChainId = await getPoolChainId(event.params.pool, event.chainId);
+      const poolChainId = await getPoolChainId(
+        event.params.pool,
+        event.chainId,
+      );
       return { poolChainId };
     } catch (error) {
-      console.error(`Error getting superchain pool chain id for pool ${event.params.pool} on chain ${event.chainId}: ${error}`);
+      console.error(
+        `Error getting superchain pool chain id for pool ${event.params.pool} on chain ${event.chainId}: ${error}`,
+      );
     }
     return null;
-
   },
   handler: async ({ event, context, loaderReturn }) => {
-
-    const entity: any = {
+    const entity = {
       id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
       token0: event.params.token0,
       token1: event.params.token1,
@@ -38,7 +44,7 @@ SuperchainPoolFactory.RootPoolCreated.handlerWithLoader({
       chainId: event.chainId,
       stable: event.params.stable,
       length: event.params.length,
-      transactionHash: event.transaction.hash
+      transactionHash: event.transaction.hash,
     };
 
     if (loaderReturn) {
@@ -46,6 +52,8 @@ SuperchainPoolFactory.RootPoolCreated.handlerWithLoader({
       entity.poolChainId = poolChainId;
     }
 
-    context.SuperchainPoolFactory_RootPoolCreated.set(entity as SuperchainPoolFactory_RootPoolCreated);
+    context.SuperchainPoolFactory_RootPoolCreated.set(
+      entity as SuperchainPoolFactory_RootPoolCreated,
+    );
   },
 });
