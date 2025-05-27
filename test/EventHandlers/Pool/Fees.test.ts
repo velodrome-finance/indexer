@@ -1,10 +1,6 @@
 import { expect } from "chai";
 import { MockDb, Pool } from "../../../generated/src/TestHelpers.gen";
 import type {
-  EventFunctions_mockEventData,
-  TestHelpers_MockDb,
-} from "../../../generated/src/TestHelpers.gen";
-import type {
   LiquidityPoolAggregator,
   Token,
 } from "../../../generated/src/Types.gen";
@@ -21,13 +17,14 @@ describe("Pool Fees Event", () => {
     setupCommon();
   const poolId = mockLiquidityPoolData.id;
 
-  let mockDb: TestHelpers_MockDb;
-  let updatedDB: TestHelpers_MockDb;
+  let mockDb: ReturnType<typeof MockDb.createMockDb>;
+  let updatedDB: ReturnType<typeof MockDb.createMockDb>;
   const expectations = {
     amount0In: 3n * 10n ** 18n,
     amount1In: 2n * 10n ** 6n,
     totalLiquidityUSD: 0n,
     totalFeesUSDWhitelisted: 0n,
+    totalFeesUSD: 0n,
   };
 
   expectations.totalLiquidityUSD =
@@ -47,7 +44,7 @@ describe("Pool Fees Event", () => {
 
   expectations.totalFeesUSDWhitelisted = expectations.totalFeesUSD;
 
-  let updatedPool: LiquidityPoolAggregator;
+  let updatedPool: LiquidityPoolAggregator | undefined;
 
   beforeEach(async () => {
     mockDb = MockDb.createMockDb();
@@ -81,26 +78,26 @@ describe("Pool Fees Event", () => {
 
   it("should update LiquidityPoolAggregator", async () => {
     expect(updatedPool).to.not.be.undefined;
-    expect(updatedPool.lastUpdatedTimestamp).to.deep.equal(
+    expect(updatedPool?.lastUpdatedTimestamp).to.deep.equal(
       new Date(1000000 * 1000),
     );
   });
 
   it("should update LiquidityPoolAggregator nominal fees", async () => {
-    expect(updatedPool.totalFees0).to.equal(
+    expect(updatedPool?.totalFees0).to.equal(
       mockLiquidityPoolData.totalFees0 + expectations.amount0In,
     );
-    expect(updatedPool.totalFees1).to.equal(
+    expect(updatedPool?.totalFees1).to.equal(
       mockLiquidityPoolData.totalFees1 + expectations.amount1In,
     );
   });
 
   it("should update LiquidityPoolAggregator total fees in USD", async () => {
-    expect(updatedPool.totalFeesUSD).to.equal(expectations.totalFeesUSD);
+    expect(updatedPool?.totalFeesUSD).to.equal(expectations.totalFeesUSD);
   });
 
   it("should update LiquidityPoolAggregator total fees in USD whitelisted", async () => {
-    expect(updatedPool.totalFeesUSDWhitelisted).to.equal(
+    expect(updatedPool?.totalFeesUSDWhitelisted).to.equal(
       expectations.totalFeesUSDWhitelisted,
     );
   });

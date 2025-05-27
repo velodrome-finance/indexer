@@ -140,7 +140,13 @@ describe("SuperchainLeafVoter Events", () => {
     describe("when reward token and liquidity pool exist", () => {
       const { mockLiquidityPoolData, mockToken0Data, mockToken1Data } =
         setupCommon();
-      let expectations = {};
+
+      let expectations = {
+        totalEmissions: 0n,
+        totalEmissionsUSD: 0n,
+        getTokensDeposited: 0n,
+        getTokensDepositedUSD: 0n,
+      };
 
       beforeEach(async () => {
         const rewardTokenInfo =

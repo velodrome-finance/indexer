@@ -2,10 +2,6 @@ import { expect } from "chai";
 import sinon from "sinon";
 import { MockDb, Pool } from "../../../generated/src/TestHelpers.gen";
 import type {
-  EventFunctions_mockEventData,
-  TestHelpers_MockDb,
-} from "../../../generated/src/TestHelpers.gen";
-import type {
   LiquidityPoolAggregator,
   Token,
 } from "../../../generated/src/Types.gen";
@@ -23,11 +19,39 @@ describe("Pool Swap Event", () => {
   let mockToken1Data: Token;
   let mockLiquidityPoolData: LiquidityPoolAggregator;
 
-  const expectations = {};
+  const expectations = {
+    swapAmount0In: 0n,
+    swapAmount1Out: 0n,
+    expectedNetAmount0: 0n,
+    expectedNetAmount1: 0n,
+    totalVolume0: 0n,
+    totalVolume1: 0n,
+    expectedLPVolumeUSD0: 0n,
+    expectedLPVolumeUSD1: 0n,
+    totalVolumeUSDWhitelisted: 0n,
+  };
 
-  let eventData: EventFunctions_mockEventData;
+  const eventData = {
+    sender: "0x4444444444444444444444444444444444444444",
+    to: "0x5555555555555555555555555555555555555555",
+    amount0In: 0n,
+    amount1In: 0n,
+    amount0Out: 0n,
+    amount1Out: 0n,
+    mockEventData: {
+      block: {
+        timestamp: 1000000,
+        number: 123456,
+        hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+      },
+      chainId: 10,
+      logIndex: 1,
+      srcAddress: "0x3333333333333333333333333333333333333333",
+    },
+  };
+
   let mockPriceOracle: sinon.SinonStub;
-  let mockDb: TestHelpers_MockDb;
+  let mockDb: ReturnType<typeof MockDb.createMockDb>;
 
   beforeEach(() => {
     const setupData = setupCommon();
@@ -70,25 +94,8 @@ describe("Pool Swap Event", () => {
       });
 
     mockDb = MockDb.createMockDb();
-
-    eventData = {
-      sender: "0x4444444444444444444444444444444444444444",
-      to: "0x5555555555555555555555555555555555555555",
-      amount0In: expectations.swapAmount0In,
-      amount1In: 0n,
-      amount0Out: 0n,
-      amount1Out: expectations.swapAmount1Out,
-      mockEventData: {
-        block: {
-          timestamp: 1000000,
-          number: 123456,
-          hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
-        },
-        chainId: 10,
-        logIndex: 1,
-        srcAddress: "0x3333333333333333333333333333333333333333",
-      },
-    };
+    eventData.amount0In = expectations.swapAmount0In;
+    eventData.amount1Out = expectations.swapAmount1Out;
   });
 
   afterEach(() => {
@@ -97,7 +104,7 @@ describe("Pool Swap Event", () => {
 
   describe("when both tokens exist", () => {
     let postEventDB: ReturnType<typeof MockDb.createMockDb>;
-    let updatedPool: LiquidityPoolAggregator;
+    let updatedPool: LiquidityPoolAggregator | undefined;
 
     beforeEach(async () => {
       const updatedDB1 = mockDb.entities.LiquidityPoolAggregator.set(

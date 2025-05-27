@@ -1,10 +1,11 @@
 import { expect } from "chai";
 import sinon from "sinon";
 import type {
-  GaugeFees,
   LiquidityPoolAggregator,
+  LiquidityPoolAggregatorSnapshot,
 } from "../../generated/src/Types.gen";
 import {
+  type GaugeFees,
   getCurrentAccumulatedFeeCL,
   setLiquidityPoolAggregatorSnapshot,
   updateDynamicFeePools,
@@ -13,8 +14,10 @@ import {
 import { CHAIN_CONSTANTS } from "../../src/Constants";
 
 describe("LiquidityPoolAggregator Functions", () => {
-  let contextStub: sinon.SinonStub;
-  let liquidityPoolAggregator: LiquidityPoolAggregator;
+  // TODO: Fix the types
+  // biome-ignore lint/suspicious/noExplicitAny:
+  let contextStub: any;
+  let liquidityPoolAggregator: Partial<LiquidityPoolAggregator>;
   let timestamp: Date;
   let mockContract: sinon.SinonStub;
   const blockNumber = 131536921;
@@ -43,11 +46,16 @@ describe("LiquidityPoolAggregator Functions", () => {
         .onCall(0)
         .returns({
           result: [400, 2000, 10000000n],
-        });
+          // biome-ignore lint/suspicious/noExplicitAny:
+        } as any);
       mockContract.onCall(1).returns({
         result: 1900,
-      });
-      liquidityPoolAggregator.id = "0x478946BcD4a5a22b316470F5486fAfb928C0bA25";
+        // biome-ignore lint/suspicious/noExplicitAny:
+      } as any);
+      liquidityPoolAggregator = {
+        ...liquidityPoolAggregator,
+        id: "0x478946BcD4a5a22b316470F5486fAfb928C0bA25",
+      };
       await updateDynamicFeePools(
         liquidityPoolAggregator as LiquidityPoolAggregator,
         contextStub,
@@ -81,16 +89,20 @@ describe("LiquidityPoolAggregator Functions", () => {
   describe("getCurrentAccumulatedFeeCL", () => {
     let gaugeFees: GaugeFees;
     beforeEach(async () => {
-      liquidityPoolAggregator.id = "0x478946BcD4a5a22b316470F5486fAfb928C0bA25";
+      liquidityPoolAggregator = {
+        ...liquidityPoolAggregator,
+        id: "0x478946BcD4a5a22b316470F5486fAfb928C0bA25",
+      };
       mockContract = sinon
         .stub(CHAIN_CONSTANTS[10].eth_client, "simulateContract")
         .onCall(0)
         .returns({
           result: [55255516292n, 18613785323003103999n],
-        });
+          // biome-ignore lint/suspicious/noExplicitAny:
+        } as any);
       gaugeFees = await getCurrentAccumulatedFeeCL(
-        liquidityPoolAggregator.id,
-        liquidityPoolAggregator.chainId,
+        liquidityPoolAggregator.id as string,
+        liquidityPoolAggregator.chainId as number,
         blockNumber,
       );
     });
@@ -127,7 +139,14 @@ describe("LiquidityPoolAggregator Functions", () => {
   });
 
   describe("Updating the Liquidity Pool Aggregator", () => {
-    let diff = {};
+    let diff = {
+      totalVolume0: 0n,
+      totalVolume1: 0n,
+      totalVolumeUSD: 0n,
+      numberOfSwaps: 0n,
+      totalVolumeUSDWhitelisted: 0n,
+      totalFeesUSDWhitelisted: 0n,
+    };
     beforeEach(() => {
       diff = {
         totalVolume0: 5000n,

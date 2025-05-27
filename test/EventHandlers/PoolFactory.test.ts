@@ -1,7 +1,10 @@
 import { expect } from "chai";
 import sinon from "sinon";
 import { MockDb, PoolFactory } from "../../generated/src/TestHelpers.gen";
-import type { Token } from "../../generated/src/Types.gen";
+import type {
+  LiquidityPoolAggregator,
+  Token,
+} from "../../generated/src/Types.gen";
 import { toChecksumAddress } from "../../src/Constants";
 import * as PriceOracle from "../../src/PriceOracle";
 import { setupCommon } from "./Pool/common";
@@ -17,7 +20,7 @@ describe("PoolFactory Events", () => {
   let mockPriceOracle: sinon.SinonStub;
 
   describe("PoolCreated event", () => {
-    let createdPool: LiquidityPoolAggregator;
+    let createdPool: LiquidityPoolAggregator | undefined;
 
     beforeEach(async () => {
       mockPriceOracle = sinon

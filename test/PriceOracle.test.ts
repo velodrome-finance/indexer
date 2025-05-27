@@ -5,13 +5,22 @@ import * as Erc20 from "../src/Erc20";
 import * as PriceOracle from "../src/PriceOracle";
 import { Cache } from "../src/cache";
 
+import type { Token, handlerContext } from "../generated/src/Types.gen";
+
 import { setupCommon } from "./EventHandlers/Pool/common";
 
 describe("PriceOracle", () => {
-  let mockContext: sinon.SinonStub;
   let mockContract: sinon.SinonStub;
 
+  // TODO: fix types
+  const mockContext = {
+    Token: { set: sinon.stub(), get: sinon.stub() },
+    TokenPriceSnapshot: { set: sinon.stub(), get: sinon.stub() },
+    // biome-ignore lint/suspicious/noExplicitAny:
+  } as any;
+
   const chainId = 10; // Optimism
+  const eth_client = CHAIN_CONSTANTS[chainId].eth_client;
   const startBlock = CHAIN_CONSTANTS[chainId].oracle.startBlock;
   const blockNumber = startBlock + 1;
   const blockDatetime = new Date("2023-01-01T00:00:00Z");
@@ -28,12 +37,7 @@ describe("PriceOracle", () => {
     const stubCache = sinon.stub(Cache, "init").returns({
       add: addStub,
       read: readStub,
-    });
-
-    mockContext = {
-      Token: { set: sinon.stub(), get: sinon.stub() },
-      TokenPriceSnapshot: { set: sinon.stub(), get: sinon.stub() },
-    };
+    } as ReturnType<typeof Cache.init>);
   });
 
   afterEach(() => {
@@ -51,11 +55,15 @@ describe("PriceOracle", () => {
           chainId: 252,
         };
         beforeEach(() => {
-          mockERC20Details = sinon.stub(Erc20, "getErc20TokenDetails").returns({
-            decimals: 18n,
-            name: "FRAX",
-            symbol: "FRAX",
-          });
+          mockERC20Details = sinon.stub(Erc20, "getErc20TokenDetails").returns(
+            new Promise((resolve, reject) =>
+              resolve({
+                decimals: 18,
+                name: "FRAX",
+                symbol: "FRAX",
+              }),
+            ),
+          );
         });
 
         it("should return the correct hardcoded $1 price data for chain USDC", async () => {
@@ -75,27 +83,29 @@ describe("PriceOracle", () => {
     let mockERC20Details: sinon.SinonStub;
     let testLastUpdated: Date;
 
-    const mockTokenPriceData: sinon.SinonStub = {
+    const mockTokenPriceData = {
       pricePerUSDNew: 2n * 10n ** 18n,
       decimals: mockToken0Data.decimals,
     };
 
     beforeEach(() => {
-      mockContract = sinon
-        .stub(CHAIN_CONSTANTS[chainId].eth_client, "simulateContract")
-        .returns({
-          result: [
-            mockTokenPriceData.pricePerUSDNew.toString(),
-            "2000000000000000000",
-          ],
-        });
-      mockERC20Details = sinon.stub(Erc20, "getErc20TokenDetails").returns({
-        decimals: mockTokenPriceData.decimals,
-      });
+      mockContract = sinon.stub(eth_client, "simulateContract").returns({
+        result: [
+          mockTokenPriceData.pricePerUSDNew.toString(),
+          "2000000000000000000",
+        ],
+      } as unknown as ReturnType<typeof eth_client.simulateContract>);
+      mockERC20Details = sinon.stub(Erc20, "getErc20TokenDetails").returns(
+        new Promise((resolve, reject) =>
+          resolve({
+            ...mockToken0Data,
+            decimals: Number(mockTokenPriceData.decimals),
+          }),
+        ),
+      );
     });
 
     describe("if the update interval hasn't passed", () => {
-      let updatedToken: Date;
       beforeEach(async () => {
         testLastUpdated = new Date(blockDatetime.getTime());
         const fetchedToken = {
@@ -118,7 +128,7 @@ describe("PriceOracle", () => {
       });
     });
     describe("if the update interval has passed", () => {
-      let updatedToken: Date;
+      let updatedToken: Token;
       let testLastUpdated: Date;
       beforeEach(async () => {
         testLastUpdated = new Date(blockDatetime.getTime() - 61 * 60 * 1000);
@@ -168,17 +178,25 @@ describe("PriceOracle", () => {
             mockERC20Details = sinon
               .stub(Erc20, "getErc20TokenDetails")
               .onCall(0)
-              .returns({
-                decimals: 6n,
-                name: "USDC",
-                symbol: "USDC",
-              })
+              .returns(
+                new Promise((resolve, reject) =>
+                  resolve({
+                    decimals: 6,
+                    name: "USDC",
+                    symbol: "USDC",
+                  }),
+                ),
+              )
               .onCall(1)
-              .returns({
-                decimals: 18n,
-                name: "FRAX",
-                symbol: "FRAX",
-              });
+              .returns(
+                new Promise((resolve, reject) =>
+                  resolve({
+                    decimals: 18,
+                    name: "FRAX",
+                    symbol: "FRAX",
+                  }),
+                ),
+              );
           });
 
           afterEach(() => {
@@ -203,17 +221,25 @@ describe("PriceOracle", () => {
             mockERC20Details = sinon
               .stub(Erc20, "getErc20TokenDetails")
               .onCall(0)
-              .returns({
-                decimals: 18n,
-                name: "WETH",
-                symbol: "WETH",
-              })
+              .returns(
+                new Promise((resolve, reject) =>
+                  resolve({
+                    decimals: 18,
+                    name: "WETH",
+                    symbol: "WETH",
+                  }),
+                ),
+              )
               .onCall(1)
-              .returns({
-                decimals: 18n,
-                name: "FRAX",
-                symbol: "FRAX",
-              });
+              .returns(
+                new Promise((resolve, reject) =>
+                  resolve({
+                    decimals: 18,
+                    name: "FRAX",
+                    symbol: "FRAX",
+                  }),
+                ),
+              );
           });
 
           afterEach(() => {
@@ -246,17 +272,25 @@ describe("PriceOracle", () => {
             mockERC20Details = sinon
               .stub(Erc20, "getErc20TokenDetails")
               .onCall(0)
-              .returns({
-                decimals: 18n,
-                name: "WETH",
-                symbol: "WETH",
-              })
+              .returns(
+                new Promise((resolve, reject) =>
+                  resolve({
+                    decimals: 18,
+                    name: "WETH",
+                    symbol: "WETH",
+                  }),
+                ),
+              )
               .onCall(1)
-              .returns({
-                decimals: 6n,
-                name: "USDC",
-                symbol: "USDC",
-              });
+              .returns(
+                new Promise((resolve, reject) =>
+                  resolve({
+                    decimals: 6,
+                    name: "USDC",
+                    symbol: "USDC",
+                  }),
+                ),
+              );
           });
 
           afterEach(() => {

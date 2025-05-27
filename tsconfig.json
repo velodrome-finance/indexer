@@ -2,7 +2,7 @@
   "compilerOptions": {
     "target": "es2020", //required for use with BigInt types
     "module": "commonjs",
-    "lib": ["es6"],
+    "lib": ["es6", "es2022.error"], //adds support for Error.cause
     "allowJs": true,
     "checkJs": false,
     "outDir": "build",

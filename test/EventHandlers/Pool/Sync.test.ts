@@ -1,10 +1,6 @@
 import { expect } from "chai";
 import { MockDb, Pool } from "../../../generated/src/TestHelpers.gen";
 import type {
-  EventFunctions_mockEventData,
-  TestHelpers_MockDb,
-} from "../../../generated/src/TestHelpers.gen";
-import type {
   LiquidityPoolAggregator,
   Token,
 } from "../../../generated/src/Types.gen";
@@ -21,10 +17,33 @@ describe("Pool Sync Event", () => {
   let mockToken1Data: Token;
   let mockLiquidityPoolData: LiquidityPoolAggregator;
 
-  const expectations = {};
+  const expectations = {
+    reserveAmount0In: 0n,
+    reserveAmount1In: 0n,
+    expectedReserve0: 0n,
+    expectedReserve1: 0n,
+    expectedReserve0InMissing: 0n,
+    expectedReserve1InMissing: 0n,
+    expectedLiquidity0USD: 0n,
+    expectedLiquidity1USD: 0n,
+  };
 
-  let eventData: EventFunctions_mockEventData;
-  let mockDb: TestHelpers_MockDb;
+  const eventData = {
+    reserve0: 0n,
+    reserve1: 0n,
+    mockEventData: {
+      block: {
+        timestamp: 1000000,
+        number: 123456,
+        hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+      },
+      chainId: 10,
+      logIndex: 1,
+      srcAddress: "0x3333333333333333333333333333333333333333",
+    },
+  };
+
+  let mockDb: ReturnType<typeof MockDb.createMockDb>;
 
   beforeEach(() => {
     const setupData = setupCommon();
@@ -52,20 +71,8 @@ describe("Pool Sync Event", () => {
         mockToken1Data.pricePerUSDNew) /
       TEN_TO_THE_18_BI;
 
-    eventData = {
-      reserve0: expectations.reserveAmount0In,
-      reserve1: expectations.reserveAmount1In,
-      mockEventData: {
-        block: {
-          timestamp: 1000000,
-          number: 123456,
-          hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
-        },
-        chainId: 10,
-        logIndex: 1,
-        srcAddress: "0x3333333333333333333333333333333333333333",
-      },
-    };
+    eventData.reserve0 = expectations.reserveAmount0In;
+    eventData.reserve1 = expectations.reserveAmount1In;
 
     mockDb = MockDb.createMockDb();
   });
