@@ -1,1 +1,77 @@
-{"0x4200000000000000000000000000000000000006":{"decimals":18,"name":"Wrapped Ether","symbol":"WETH"},"0x7c98e0779eb5924b3ba8ce3b17648539ed5b0ecc":{"decimals":18,"name":"Wrapped liquid staked Ether 2.0","symbol":"wstETH"},"0x2826d136f5630ada89c1678b64a61620aab77aea":{"decimals":18,"name":"Swell Governance Token","symbol":"SWELL"},"0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34":{"decimals":18,"name":"USDe","symbol":"USDe"},"0x7f9adfbd38b669f03d1d11000bc76b9aaea28a81":{"decimals":18,"name":"Superchain Velodrome","symbol":"XVELO"},"0xa6cb988942610f6731e664379d15ffcfbf282b44":{"decimals":18,"name":"Wrapped eETH","symbol":"weETH"},"0x2416092f143378750bb29b79ed961ab195cceea5":{"decimals":18,"name":"Renzo Restaked ETH","symbol":"ezETH"},"0x18d33689ae5d02649a859a1cf16c9f0563975258":{"decimals":18,"name":"rswETH","symbol":"rswETH"},"0xc3eacf0612346366db554c991d7858716db09f58":{"decimals":18,"name":"KelpDao Restaked ETH","symbol":"rsETH"},"0xc2606aade4bdd978a4fa5a6edb3b66657acee6f8":{"decimals":18,"name":"King Protocol","symbol":"KING"},"0xafcc6ae807187a31e84138f3860d4ce27973e01b":{"decimals":18,"name":"Superchain OP","symbol":"XOP"},"0x9ab96a4668456896d45c301bc3a15cee76aa7b8d":{"decimals":6,"name":"Relend Network USDC","symbol":"rUSDC"},"0x027a9d301fb747cd972cfb29a63f3bda551dfc5c":{"decimals":18,"name":"Bridged MSWETH","symbol":"BridgedMSWETH"},"0x102d758f688a4c1c5a80b116bd945d4455460282":{"decimals":6,"name":"Stargate USD₮0 (Bridged)","symbol":"USD₮0"},"0xbbb08bba6fc4f5c17ef001e508fb72912916820e":{"decimals":18,"name":"Loop rswETH","symbol":"loop-erswETH-1"}}
+{
+  "0x4200000000000000000000000000000000000006": {
+    "decimals": 18,
+    "name": "Wrapped Ether",
+    "symbol": "WETH"
+  },
+  "0x7c98e0779eb5924b3ba8ce3b17648539ed5b0ecc": {
+    "decimals": 18,
+    "name": "Wrapped liquid staked Ether 2.0",
+    "symbol": "wstETH"
+  },
+  "0x2826d136f5630ada89c1678b64a61620aab77aea": {
+    "decimals": 18,
+    "name": "Swell Governance Token",
+    "symbol": "SWELL"
+  },
+  "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34": {
+    "decimals": 18,
+    "name": "USDe",
+    "symbol": "USDe"
+  },
+  "0x7f9adfbd38b669f03d1d11000bc76b9aaea28a81": {
+    "decimals": 18,
+    "name": "Superchain Velodrome",
+    "symbol": "XVELO"
+  },
+  "0xa6cb988942610f6731e664379d15ffcfbf282b44": {
+    "decimals": 18,
+    "name": "Wrapped eETH",
+    "symbol": "weETH"
+  },
+  "0x2416092f143378750bb29b79ed961ab195cceea5": {
+    "decimals": 18,
+    "name": "Renzo Restaked ETH",
+    "symbol": "ezETH"
+  },
+  "0x18d33689ae5d02649a859a1cf16c9f0563975258": {
+    "decimals": 18,
+    "name": "rswETH",
+    "symbol": "rswETH"
+  },
+  "0xc3eacf0612346366db554c991d7858716db09f58": {
+    "decimals": 18,
+    "name": "KelpDao Restaked ETH",
+    "symbol": "rsETH"
+  },
+  "0xc2606aade4bdd978a4fa5a6edb3b66657acee6f8": {
+    "decimals": 18,
+    "name": "King Protocol",
+    "symbol": "KING"
+  },
+  "0xafcc6ae807187a31e84138f3860d4ce27973e01b": {
+    "decimals": 18,
+    "name": "Superchain OP",
+    "symbol": "XOP"
+  },
+  "0x9ab96a4668456896d45c301bc3a15cee76aa7b8d": {
+    "decimals": 6,
+    "name": "Relend Network USDC",
+    "symbol": "rUSDC"
+  },
+  "0x027a9d301fb747cd972cfb29a63f3bda551dfc5c": {
+    "decimals": 18,
+    "name": "Bridged MSWETH",
+    "symbol": "BridgedMSWETH"
+  },
+  "0x102d758f688a4c1c5a80b116bd945d4455460282": {
+    "decimals": 6,
+    "name": "Stargate USD₮0 (Bridged)",
+    "symbol": "USD₮0"
+  },
+  "0xbbb08bba6fc4f5c17ef001e508fb72912916820e": {
+    "decimals": 18,
+    "name": "Loop rswETH",
+    "symbol": "loop-erswETH-1"
+  }
+}

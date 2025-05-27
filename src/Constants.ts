@@ -1,6 +1,6 @@
 import dotenv from "dotenv";
 import { http, createPublicClient } from "viem";
-import type { PublicClient, Chain } from "viem";
+import type { Chain, PublicClient } from "viem";
 import {
   base,
   celo,
@@ -11,8 +11,8 @@ import {
   mode,
   optimism,
   soneium,
-  unichain,
   swellchain,
+  unichain,
 } from "viem/chains";
 import { Web3 } from "web3";
 

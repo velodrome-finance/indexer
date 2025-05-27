@@ -1,21 +1,21 @@
 import { CLPool } from "generated";
 import type {
-  CLPool_Swap_event,
-  handlerContext,
   CLPool_Burn,
   CLPool_Collect,
   CLPool_CollectFees,
+  CLPool_CollectFees_event,
+  CLPool_Collect_event,
   CLPool_Flash,
   CLPool_IncreaseObservationCardinalityNext,
   CLPool_Initialize,
   CLPool_Mint,
+  CLPool_Mint_event,
   CLPool_SetFeeProtocol,
   CLPool_Swap,
+  CLPool_Swap_event,
   LiquidityPoolAggregator,
   Token,
-  CLPool_Collect_event,
-  CLPool_CollectFees_event,
-  CLPool_Mint_event,
+  handlerContext,
 } from "generated";
 import { updateLiquidityPoolAggregator } from "../Aggregators/LiquidityPoolAggregator";
 import { normalizeTokenAmountTo1e18 } from "../Helpers";

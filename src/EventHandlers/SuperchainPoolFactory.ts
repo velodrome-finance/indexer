@@ -1,10 +1,10 @@
+import { S, experimental_createEffect } from "envio";
 import {
   SuperchainPoolFactory,
   type SuperchainPoolFactory_RootPoolCreated,
 } from "generated";
 import SuperchainPoolABI from "../../abis/SuperchainPoolABI.json";
 import { CHAIN_CONSTANTS } from "../Constants";
-import { experimental_createEffect, S } from "envio";
 
 const getPoolChainId = experimental_createEffect(
   {
