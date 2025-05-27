@@ -1,10 +1,12 @@
-import { MockDb } from "../../../generated/src/TestHelpers.gen";
+import type {
+  LiquidityPoolAggregator,
+  Token,
+} from "../../../generated/src/Types.gen";
 import {
   TEN_TO_THE_6_BI,
   TEN_TO_THE_18_BI,
   TokenIdByChain,
 } from "../../../src/Constants";
-import type { LiquidityPoolAggregator, Token } from "../../../src/Types.gen";
 
 export function setupCommon() {
   const mockToken0Data: Token = {
@@ -16,6 +18,7 @@ export function setupCommon() {
     pricePerUSDNew: 1n * TEN_TO_THE_18_BI, // 1 USD
     chainId: 10,
     isWhitelisted: true,
+    lastUpdatedTimestamp: new Date(),
   };
 
   const mockToken1Data: Token = {
@@ -27,6 +30,7 @@ export function setupCommon() {
     pricePerUSDNew: 1n * TEN_TO_THE_18_BI, // 1 USD
     chainId: 10,
     isWhitelisted: true,
+    lastUpdatedTimestamp: new Date(),
   };
 
   const mockLiquidityPoolData: LiquidityPoolAggregator = {
@@ -59,6 +63,12 @@ export function setupCommon() {
     totalEmissionsUSD: 1n * TEN_TO_THE_18_BI,
     totalBribesUSD: 1n * TEN_TO_THE_18_BI,
     gaugeIsAlive: true,
+    isCL: false,
+    lastUpdatedTimestamp: new Date(),
+    lastSnapshotTimestamp: new Date(),
+    token0IsWhitelisted: true,
+    token1IsWhitelisted: true,
+    name: "",
   };
 
   return {

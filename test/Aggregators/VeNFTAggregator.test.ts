@@ -14,7 +14,9 @@ import {
 } from "../../src/Aggregators/VeNFTAggregator";
 
 describe("VeNFTAggregator", () => {
-  let contextStub: sinon.SinonStub;
+  // TODO: Fix the types
+  // biome-ignore lint/suspicious/noExplicitAny:
+  let contextStub: any;
   const mockVeNFTAggregator: VeNFTAggregator = {
     id: "10_1",
     chainId: 10,
@@ -32,6 +34,7 @@ describe("VeNFTAggregator", () => {
       VeNFTAggregator: { set: sinon.stub() },
     };
   });
+
   describe("depositVeNFT", () => {
     const mockDeposit: VeNFT_Deposit = {
       id: "10_1_1",

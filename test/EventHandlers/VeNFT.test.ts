@@ -1,12 +1,13 @@
 import { expect } from "chai";
 import sinon from "sinon";
 import { MockDb, VeNFT } from "../../generated/src/TestHelpers.gen";
+import type { VeNFTAggregator as VeNFTAggregatorType } from "../../generated/src/Types.gen";
 import * as VeNFTAggregator from "../../src/Aggregators/VeNFTAggregator";
 
 const VeNFTId = (chainId: number, tokenId: bigint) => `${chainId}_${tokenId}`;
 
 describe("VeNFT Events", () => {
-  let mockDb: sinon.SinonStub;
+  let mockDb: ReturnType<typeof MockDb.createMockDb>;
   const chainId = 10;
   const tokenId = 1n;
 
@@ -14,11 +15,34 @@ describe("VeNFT Events", () => {
     id: VeNFTId(chainId, tokenId),
     chainId: 10,
     tokenId: tokenId,
+    isAlive: true,
+    lastUpdatedTimestamp: new Date(),
+    locktime: 1n,
+    owner: "0x2222222222222222222222222222222222222222",
+    totalValueLocked: 1n,
+  };
+
+  // TODO: Get rid of this
+  let expected: {
+    id: string;
+    chainId: number;
+    provider?: string;
+    value?: bigint;
+    tokenId: bigint;
+    from?: string;
+    to?: string;
+    blockNumber?: number;
+    logIndex?: number;
+    timestamp: Date;
+    transactionHash: string;
+    ts?: bigint;
+    locktime?: bigint;
+    depositType?: bigint;
   };
 
   beforeEach(() => {
     mockDb = MockDb.createMockDb();
-    mockDb = mockDb.entities.VeNFTAggregator.set(mockVeNFTAggregator);
+    mockDb = mockDb.entities.VeNFTAggregator.set({ ...mockVeNFTAggregator });
   });
 
   describe("Transfer Event", () => {
@@ -42,9 +66,8 @@ describe("VeNFT Events", () => {
     };
 
     let stubVeNFTAggregator: sinon.SinonStub;
-    let postEventDB: sinon.SinonStub;
-    const expected: sinon.SinonStub = {};
-    let mockEvent: sinon.SinonStub;
+    let postEventDB: ReturnType<typeof MockDb.createMockDb>;
+    let mockEvent: ReturnType<typeof VeNFT.Transfer.createMockEvent>;
 
     beforeEach(async () => {
       stubVeNFTAggregator = sinon.stub(VeNFTAggregator, "transferVeNFT");
@@ -54,15 +77,17 @@ describe("VeNFT Events", () => {
         mockDb: mockDb,
       });
 
-      expected.id = `${chainId}_${mockEvent.block.number}_${mockEvent.logIndex}`;
-      expected.chainId = chainId;
-      expected.tokenId = eventData.tokenId;
-      expected.from = eventData.from;
-      expected.to = eventData.to;
-      expected.blockNumber = mockEvent.block.number;
-      expected.logIndex = mockEvent.logIndex;
-      expected.timestamp = new Date(mockEvent.block.timestamp * 1000);
-      expected.transactionHash = mockEvent.transaction.hash;
+      expected = {
+        id: `${chainId}_${mockEvent.block.number}_${mockEvent.logIndex}`,
+        chainId: chainId,
+        tokenId: eventData.tokenId,
+        from: eventData.from,
+        to: eventData.to,
+        blockNumber: mockEvent.block.number,
+        logIndex: mockEvent.logIndex,
+        timestamp: new Date(mockEvent.block.timestamp * 1000),
+        transactionHash: mockEvent.transaction.hash,
+      };
     });
     afterEach(() => {
       stubVeNFTAggregator.restore();
@@ -104,9 +129,8 @@ describe("VeNFT Events", () => {
     };
 
     let stubVeNFTAggregator: sinon.SinonStub;
-    let postEventDB: sinon.SinonStub;
-    const expected: sinon.SinonStub = {};
-    let mockEvent: sinon.SinonStub;
+    let postEventDB: ReturnType<typeof MockDb.createMockDb>;
+    let mockEvent: ReturnType<typeof VeNFT.Withdraw.createMockEvent>;
 
     beforeEach(async () => {
       stubVeNFTAggregator = sinon.stub(VeNFTAggregator, "withdrawVeNFT");
@@ -116,16 +140,18 @@ describe("VeNFT Events", () => {
         mockDb: mockDb,
       });
 
-      expected.id = `${chainId}_${mockEvent.block.number}_${mockEvent.logIndex}`;
-      expected.chainId = chainId;
-      expected.provider = eventData.provider;
-      expected.tokenId = eventData.tokenId;
-      expected.value = eventData.value;
-      expected.ts = eventData.ts;
-      expected.timestamp = new Date(mockEvent.block.timestamp * 1000);
-      expected.blockNumber = mockEvent.block.number;
-      expected.logIndex = mockEvent.logIndex;
-      expected.transactionHash = mockEvent.transaction.hash;
+      expected = {
+        id: `${chainId}_${mockEvent.block.number}_${mockEvent.logIndex}`,
+        chainId: chainId,
+        provider: eventData.provider,
+        tokenId: eventData.tokenId,
+        value: eventData.value,
+        ts: eventData.ts,
+        timestamp: new Date(mockEvent.block.timestamp * 1000),
+        blockNumber: mockEvent.block.number,
+        logIndex: mockEvent.logIndex,
+        transactionHash: mockEvent.transaction.hash,
+      };
     });
     afterEach(() => {
       stubVeNFTAggregator.restore();
@@ -171,9 +197,8 @@ describe("VeNFT Events", () => {
     };
 
     let stubVeNFTAggregator: sinon.SinonStub;
-    let postEventDB: sinon.SinonStub;
-    const expected = {};
-    let mockEvent: sinon.SinonStub;
+    let postEventDB: ReturnType<typeof MockDb.createMockDb>;
+    let mockEvent: ReturnType<typeof VeNFT.Deposit.createMockEvent>;
 
     beforeEach(async () => {
       stubVeNFTAggregator = sinon.stub(VeNFTAggregator, "depositVeNFT");
@@ -183,18 +208,20 @@ describe("VeNFT Events", () => {
         mockDb: mockDb,
       });
 
-      expected.id = `${chainId}_${mockEvent.block.number}_${mockEvent.logIndex}`;
-      expected.chainId = chainId;
-      expected.provider = eventData.provider;
-      expected.tokenId = eventData.tokenId;
-      expected.value = eventData.value;
-      expected.locktime = eventData.locktime;
-      expected.depositType = eventData.depositType;
-      expected.ts = eventData.ts;
-      expected.timestamp = new Date(mockEvent.block.timestamp * 1000);
-      expected.blockNumber = mockEvent.block.number;
-      expected.logIndex = mockEvent.logIndex;
-      expected.transactionHash = mockEvent.transaction.hash;
+      expected = {
+        id: `${chainId}_${mockEvent.block.number}_${mockEvent.logIndex}`,
+        chainId: chainId,
+        provider: eventData.provider,
+        tokenId: eventData.tokenId,
+        value: eventData.value,
+        locktime: eventData.locktime,
+        depositType: eventData.depositType,
+        ts: eventData.ts,
+        timestamp: new Date(mockEvent.block.timestamp * 1000),
+        blockNumber: mockEvent.block.number,
+        logIndex: mockEvent.logIndex,
+        transactionHash: mockEvent.transaction.hash,
+      };
     });
     afterEach(() => {
       stubVeNFTAggregator.restore();

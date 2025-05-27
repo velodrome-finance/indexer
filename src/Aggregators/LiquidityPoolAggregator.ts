@@ -12,13 +12,13 @@ const UPDATE_INTERVAL = 60 * 60 * 1000; // 1 hour
 const DYNAMIC_FEE_MODULE_ADDRESS = "0xd9eE4FBeE92970509ec795062cA759F8B52d6720"; // CA for dynamic fee module
 const DYNAMIC_FEE_START_BLOCK = 131341414; // Starting from this block to track dynamic fee pools
 
-type DynamicFeeConfig = {
+export type DynamicFeeConfig = {
   baseFee: bigint;
   feeCap: bigint;
   scalingFactor: bigint;
 };
 
-type GaugeFees = {
+export type GaugeFees = {
   token0Fees: bigint;
   token1Fees: bigint;
 };

@@ -12,10 +12,11 @@ import { setupCommon } from "./Pool/common";
 
 describe("Voter Events", () => {
   describe("WhitelistToken event", () => {
-    let resultDB: MockDb;
+    let resultDB: ReturnType<typeof MockDb.createMockDb>;
     let expectedId: string;
-    let mockDb: MockDb;
-    let mockEvent: EventFunctions_mockEventData;
+    let mockDb: ReturnType<typeof MockDb.createMockDb>;
+    let mockEvent: ReturnType<typeof Voter.WhitelistToken.createMockEvent>;
+
     beforeEach(async () => {
       mockDb = MockDb.createMockDb();
       mockEvent = Voter.WhitelistToken.createMockEvent({
@@ -171,7 +172,13 @@ describe("Voter Events", () => {
 
       const { mockLiquidityPoolData, mockToken0Data, mockToken1Data } =
         setupCommon();
-      let expectations = {};
+
+      let expectations: {
+        totalEmissions: bigint;
+        totalEmissionsUSD: bigint;
+        getTokensDeposited: bigint;
+        getTokensDepositedUSD: bigint;
+      };
 
       beforeEach(async () => {
         const liquidityPool: LiquidityPoolAggregator = {

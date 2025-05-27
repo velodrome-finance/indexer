@@ -23,6 +23,7 @@ describe("VotingReward Events", () => {
      * @constant {string} rewardTokenAddress - The address of the reward token being distributed.
      */
     const chainId = 10; // Optimism
+    const eth_client = CHAIN_CONSTANTS[chainId].eth_client;
 
     const poolAddress = "0x904f14F9ED81d0b0a40D8169B28592aac5687158";
     const bribeVotingRewardAddress =
@@ -70,19 +71,16 @@ describe("VotingReward Events", () => {
       let resultDB: ReturnType<typeof MockDb.createMockDb>;
 
       beforeEach(async () => {
-        mockContract = sinon
-          .stub(CHAIN_CONSTANTS[chainId].eth_client, "simulateContract")
-          .returns({
-            result: [1000n, 1000n],
-          });
+        mockContract = sinon.stub(eth_client, "simulateContract").returns({
+          result: [1000n, 1000n],
+        } as unknown as ReturnType<typeof eth_client.simulateContract>);
         // Setup mock liquidity pool
         const { mockLiquidityPoolData } = setupCommon();
 
-        mockLiquidityPoolData.id = poolAddress;
-
-        const updatedDB1 = mockDb.entities.LiquidityPoolAggregator.set(
-          mockLiquidityPoolData as LiquidityPoolAggregator,
-        );
+        const updatedDB1 = mockDb.entities.LiquidityPoolAggregator.set({
+          ...mockLiquidityPoolData,
+          id: poolAddress,
+        } as LiquidityPoolAggregator);
 
         // Process the event
         resultDB = await VotingReward.NotifyReward.processEvent({
@@ -125,14 +123,11 @@ describe("VotingReward Events", () => {
       let expectedBribesUSD = 0n;
 
       beforeEach(async () => {
-        mockContract = sinon
-          .stub(CHAIN_CONSTANTS[chainId].eth_client, "simulateContract")
-          .returns({
-            result: [1000n, 1000n],
-          });
+        mockContract = sinon.stub(eth_client, "simulateContract").returns({
+          result: [1000n, 1000n],
+        } as unknown as ReturnType<typeof eth_client.simulateContract>);
 
         const { mockLiquidityPoolData } = setupCommon();
-        mockLiquidityPoolData.id = poolAddress;
 
         // Setup mock reward token
         const rewardToken: Token = {
@@ -153,9 +148,10 @@ describe("VotingReward Events", () => {
 
         // Set entities in the mock database
         resultDB = mockDb.entities.Token.set(rewardToken);
-        resultDB = resultDB.entities.LiquidityPoolAggregator.set(
-          mockLiquidityPoolData as LiquidityPoolAggregator,
-        );
+        resultDB = resultDB.entities.LiquidityPoolAggregator.set({
+          ...mockLiquidityPoolData,
+          id: poolAddress,
+        } as LiquidityPoolAggregator);
 
         // Process the event
         resultDB = await VotingReward.NotifyReward.processEvent({
