@@ -1,29 +1,33 @@
 import { expect } from "chai";
+import sinon from "sinon";
 import { MockDb, Pool } from "../../../generated/src/TestHelpers.gen";
-import {
+import type {
+  EventFunctions_mockEventData,
+  TestHelpers_MockDb,
+} from "../../../generated/src/TestHelpers.gen";
+import type {
   LiquidityPoolAggregator,
   Token,
 } from "../../../generated/src/Types.gen";
-import { setupCommon } from "./common";
 import {
-  TEN_TO_THE_18_BI,
   TEN_TO_THE_6_BI,
-  toChecksumAddress,
+  TEN_TO_THE_18_BI,
   TokenIdByChain,
+  toChecksumAddress,
 } from "../../../src/Constants";
-import sinon from "sinon";
 import * as PriceOracle from "../../../src/PriceOracle";
+import { setupCommon } from "./common";
 
 describe("Pool Swap Event", () => {
-  let mockToken0Data: any;
-  let mockToken1Data: any;
-  let mockLiquidityPoolData: any;
+  let mockToken0Data: Token;
+  let mockToken1Data: Token;
+  let mockLiquidityPoolData: LiquidityPoolAggregator;
 
-  let expectations: any = {};
+  const expectations = {};
 
-  let eventData: any;
+  let eventData: EventFunctions_mockEventData;
   let mockPriceOracle: sinon.SinonStub;
-  let mockDb: any;
+  let mockDb: TestHelpers_MockDb;
 
   beforeEach(() => {
     const setupData = setupCommon();
@@ -47,16 +51,17 @@ describe("Pool Swap Event", () => {
     // The code expects pricePerUSDNew to be normalized to 1e18
     expectations.expectedLPVolumeUSD0 =
       mockLiquidityPoolData.totalVolumeUSD +
-      expectations.expectedNetAmount0 * (TEN_TO_THE_18_BI / 10n ** mockToken0Data.decimals) *
-      (mockToken0Data.pricePerUSDNew / TEN_TO_THE_18_BI);
+      expectations.expectedNetAmount0 *
+        (TEN_TO_THE_18_BI / 10n ** mockToken0Data.decimals) *
+        (mockToken0Data.pricePerUSDNew / TEN_TO_THE_18_BI);
 
     expectations.expectedLPVolumeUSD1 =
       mockLiquidityPoolData.totalVolumeUSD +
-      expectations.expectedNetAmount1 * (TEN_TO_THE_18_BI / 10n ** mockToken1Data.decimals) *
-      (mockToken1Data.pricePerUSDNew / TEN_TO_THE_18_BI);
+      expectations.expectedNetAmount1 *
+        (TEN_TO_THE_18_BI / 10n ** mockToken1Data.decimals) *
+        (mockToken1Data.pricePerUSDNew / TEN_TO_THE_18_BI);
 
-    expectations.totalVolumeUSDWhitelisted =
-      expectations.expectedLPVolumeUSD0;
+    expectations.totalVolumeUSDWhitelisted = expectations.expectedLPVolumeUSD0;
 
     mockPriceOracle = sinon
       .stub(PriceOracle, "refreshTokenPrice")
@@ -92,11 +97,11 @@ describe("Pool Swap Event", () => {
 
   describe("when both tokens exist", () => {
     let postEventDB: ReturnType<typeof MockDb.createMockDb>;
-    let updatedPool: any;
+    let updatedPool: LiquidityPoolAggregator;
 
     beforeEach(async () => {
       const updatedDB1 = mockDb.entities.LiquidityPoolAggregator.set(
-        mockLiquidityPoolData as LiquidityPoolAggregator
+        mockLiquidityPoolData as LiquidityPoolAggregator,
       );
       const updatedDB2 = updatedDB1.entities.Token.set(mockToken0Data as Token);
       const updatedDB3 = updatedDB2.entities.Token.set(mockToken1Data as Token);
@@ -108,7 +113,7 @@ describe("Pool Swap Event", () => {
         mockDb: updatedDB3,
       });
       updatedPool = postEventDB.entities.LiquidityPoolAggregator.get(
-        toChecksumAddress(eventData.mockEventData.srcAddress)
+        toChecksumAddress(eventData.mockEventData.srcAddress),
       );
     });
 
@@ -120,29 +125,25 @@ describe("Pool Swap Event", () => {
       expect(swapEvent?.amount0In).to.equal(eventData.amount0In);
       expect(swapEvent?.amount1Out).to.equal(eventData.amount1Out);
       expect(swapEvent?.timestamp).to.deep.equal(
-        new Date(eventData.mockEventData.block.timestamp * 1000)
+        new Date(eventData.mockEventData.block.timestamp * 1000),
       );
     });
 
     it("should update the Liquidity Pool aggregator", async () => {
       expect(updatedPool).to.not.be.undefined;
-      expect(updatedPool?.totalVolume0).to.equal(
-        expectations.totalVolume0
-      );
-      expect(updatedPool?.totalVolume1).to.equal(
-        expectations.totalVolume1
-      );
+      expect(updatedPool?.totalVolume0).to.equal(expectations.totalVolume0);
+      expect(updatedPool?.totalVolume1).to.equal(expectations.totalVolume1);
       expect(updatedPool?.totalVolumeUSD).to.equal(
-        expectations.expectedLPVolumeUSD0
+        expectations.expectedLPVolumeUSD0,
       );
       expect(updatedPool?.totalVolumeUSDWhitelisted).to.equal(
-        expectations.totalVolumeUSDWhitelisted
+        expectations.totalVolumeUSDWhitelisted,
       );
       expect(updatedPool?.numberOfSwaps).to.equal(
-        mockLiquidityPoolData.numberOfSwaps + 1n
+        mockLiquidityPoolData.numberOfSwaps + 1n,
       );
       expect(updatedPool?.lastUpdatedTimestamp).to.deep.equal(
-        new Date(eventData.mockEventData.block.timestamp * 1000)
+        new Date(eventData.mockEventData.block.timestamp * 1000),
       );
     });
     it("should call refreshTokenPrice on token0", () => {
@@ -154,10 +155,14 @@ describe("Pool Swap Event", () => {
       expect(calledToken.address).to.equal(mockToken1Data.address);
     });
     it("should update the liquidity pool with token0IsWhitelisted", () => {
-      expect(updatedPool?.token0IsWhitelisted).to.equal(mockToken0Data.isWhitelisted);
+      expect(updatedPool?.token0IsWhitelisted).to.equal(
+        mockToken0Data.isWhitelisted,
+      );
     });
     it("should update the liquidity pool with token1IsWhitelisted", () => {
-      expect(updatedPool?.token1IsWhitelisted).to.equal(mockToken1Data.isWhitelisted);
+      expect(updatedPool?.token1IsWhitelisted).to.equal(
+        mockToken1Data.isWhitelisted,
+      );
     });
   });
 });

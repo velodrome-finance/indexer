@@ -1,7 +1,7 @@
 import {
   ALMDeployFactory,
-  ALMDeployFactory_StrategyCreated,
-  ALMDeployFactory_StrategyCreated_AmmPosition,
+  type ALMDeployFactory_StrategyCreated,
+  type ALMDeployFactory_StrategyCreated_AmmPosition,
 } from "generated";
 
 ALMDeployFactory.StrategyCreated.contractRegister(({ event, context }) => {
@@ -73,7 +73,7 @@ ALMDeployFactory.StrategyCreated.handler(async ({ event, context }) => {
     };
 
     context.ALMDeployFactory_StrategyCreated_AmmPosition.set(
-      ammPosition_entity
+      ammPosition_entity,
     );
   }
 });

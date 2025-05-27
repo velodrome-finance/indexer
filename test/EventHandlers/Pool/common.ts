@@ -1,9 +1,13 @@
 import { MockDb } from "../../../generated/src/TestHelpers.gen";
-import { TEN_TO_THE_18_BI, TEN_TO_THE_6_BI, TokenIdByChain } from "../../../src/Constants";
+import {
+  TEN_TO_THE_6_BI,
+  TEN_TO_THE_18_BI,
+  TokenIdByChain,
+} from "../../../src/Constants";
+import type { LiquidityPoolAggregator, Token } from "../../../src/Types.gen";
 
 export function setupCommon() {
-
-  const mockToken0Data = {
+  const mockToken0Data: Token = {
     id: TokenIdByChain("0x1111111111111111111111111111111111111111", 10),
     address: "0x1111111111111111111111111111111111111111",
     symbol: "USDT",
@@ -14,7 +18,7 @@ export function setupCommon() {
     isWhitelisted: true,
   };
 
-  const mockToken1Data = {
+  const mockToken1Data: Token = {
     id: TokenIdByChain("0x2222222222222222222222222222222222222222", 10),
     address: "0x2222222222222222222222222222222222222222",
     symbol: "USDC",
@@ -25,14 +29,14 @@ export function setupCommon() {
     isWhitelisted: true,
   };
 
-  const mockLiquidityPoolData = {
+  const mockLiquidityPoolData: LiquidityPoolAggregator = {
     id: "0x3333333333333333333333333333333333333333",
     chainId: 10,
-    token0_id: mockToken0Data.id, 
+    token0_id: mockToken0Data.id,
     token1_id: mockToken1Data.id,
     token0_address: mockToken0Data.address,
     token1_address: mockToken1Data.address,
-    isStable:  false,
+    isStable: false,
     reserve0: 200n * TEN_TO_THE_18_BI,
     reserve1: 200n * TEN_TO_THE_6_BI,
     totalLiquidityUSD: 400n * TEN_TO_THE_18_BI,

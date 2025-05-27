@@ -1,18 +1,30 @@
 import { expect } from "chai";
-import { Pool, MockDb } from "../../../generated/src/TestHelpers.gen";
-import { LiquidityPoolAggregator } from "../../../generated/src/Types.gen";
+import { MockDb, Pool } from "../../../generated/src/TestHelpers.gen";
+import type {
+  EventFunctions_mockEventData,
+  TestHelpers_MockDb,
+} from "../../../generated/src/TestHelpers.gen";
+import type {
+  LiquidityPoolAggregator,
+  Token,
+} from "../../../generated/src/Types.gen";
+import {
+  TEN_TO_THE_6_BI,
+  TEN_TO_THE_18_BI,
+  TokenIdByChain,
+  toChecksumAddress,
+} from "../../../src/Constants";
 import { setupCommon } from "./common";
-import { TEN_TO_THE_18_BI, TEN_TO_THE_6_BI, toChecksumAddress, TokenIdByChain } from "../../../src/Constants";
 
 describe("Pool Sync Event", () => {
-  let mockToken0Data: any;
-  let mockToken1Data: any;
-  let mockLiquidityPoolData: any;
+  let mockToken0Data: Token;
+  let mockToken1Data: Token;
+  let mockLiquidityPoolData: LiquidityPoolAggregator;
 
-  let expectations: any = {};
+  const expectations = {};
 
-  let eventData: any;
-  let mockDb: any;
+  let eventData: EventFunctions_mockEventData;
+  let mockDb: TestHelpers_MockDb;
 
   beforeEach(() => {
     const setupData = setupCommon();
@@ -20,22 +32,25 @@ describe("Pool Sync Event", () => {
     mockToken1Data = setupData.mockToken1Data;
     mockLiquidityPoolData = setupData.mockLiquidityPoolData;
 
-    expectations.reserveAmount0In = 100n * (10n ** mockToken0Data.decimals);
-    expectations.reserveAmount1In = 200n * (10n ** mockToken1Data.decimals);
-
+    expectations.reserveAmount0In = 100n * 10n ** mockToken0Data.decimals;
+    expectations.reserveAmount1In = 200n * 10n ** mockToken1Data.decimals;
 
     expectations.expectedReserve0 = expectations.reserveAmount0In;
-    expectations.expectedReserve1 =expectations.reserveAmount1In;
+    expectations.expectedReserve1 = expectations.reserveAmount1In;
 
     expectations.expectedReserve0InMissing = expectations.reserveAmount0In;
-    expectations.expectedReserve1InMissing = expectations.reserveAmount1In; 
+    expectations.expectedReserve1InMissing = expectations.reserveAmount1In;
 
     expectations.expectedLiquidity0USD =
-      expectations.expectedReserve0 * (10n ** (18n - mockToken0Data.decimals)) *
-      mockToken0Data.pricePerUSDNew / TEN_TO_THE_18_BI;
+      (expectations.expectedReserve0 *
+        10n ** (18n - mockToken0Data.decimals) *
+        mockToken0Data.pricePerUSDNew) /
+      TEN_TO_THE_18_BI;
     expectations.expectedLiquidity1USD =
-      expectations.expectedReserve1 * (10n ** (18n - mockToken1Data.decimals)) *
-      mockToken1Data.pricePerUSDNew / TEN_TO_THE_18_BI;
+      (expectations.expectedReserve1 *
+        10n ** (18n - mockToken1Data.decimals) *
+        mockToken1Data.pricePerUSDNew) /
+      TEN_TO_THE_18_BI;
 
     eventData = {
       reserve0: expectations.reserveAmount0In,
@@ -60,7 +75,7 @@ describe("Pool Sync Event", () => {
 
     beforeEach(async () => {
       const updatedDB1 = mockDb.entities.LiquidityPoolAggregator.set(
-        mockLiquidityPoolData as LiquidityPoolAggregator
+        mockLiquidityPoolData as LiquidityPoolAggregator,
       );
       const updatedDB2 = updatedDB1.entities.Token.set(mockToken0Data);
       const updatedDB3 = updatedDB2.entities.Token.set(mockToken1Data);
@@ -71,17 +86,17 @@ describe("Pool Sync Event", () => {
         event: mockEvent,
         mockDb: updatedDB3,
       });
-
     });
     it("should update reserves and usd liquidity", async () => {
       const updatedPool = postEventDB.entities.LiquidityPoolAggregator.get(
-        toChecksumAddress(eventData.mockEventData.srcAddress)
+        toChecksumAddress(eventData.mockEventData.srcAddress),
       );
       expect(updatedPool).to.not.be.undefined;
       expect(updatedPool?.reserve0).to.equal(expectations.expectedReserve0);
       expect(updatedPool?.reserve1).to.equal(expectations.expectedReserve1);
-      expect(updatedPool?.totalLiquidityUSD).to
-        .equal(expectations.expectedLiquidity0USD + expectations.expectedLiquidity1USD);
+      expect(updatedPool?.totalLiquidityUSD).to.equal(
+        expectations.expectedLiquidity0USD + expectations.expectedLiquidity1USD,
+      );
     });
   });
 });

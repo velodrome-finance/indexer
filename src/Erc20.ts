@@ -1,7 +1,7 @@
 import { CHAIN_CONSTANTS } from "./Constants";
 
-import { Cache } from "./cache";
 import { CacheCategory } from "./Constants";
+import { Cache } from "./cache";
 
 // ERC20 Contract ABI
 const contractABI = require("../abis/ERC20.json");
@@ -9,7 +9,7 @@ const contractABI = require("../abis/ERC20.json");
 // Function to get ERC20 token details
 export async function getErc20TokenDetails(
   contractAddress: string,
-  chainId: number
+  chainId: number,
 ): Promise<{
   readonly name: string;
   readonly decimals: number;
@@ -34,43 +34,43 @@ export async function getErc20TokenDetails(
   }
 
   console.log(
-    `[getErc20TokenDetails] Cache miss for address: ${contractAddress}`
+    `[getErc20TokenDetails] Cache miss for address: ${contractAddress}`,
   );
 
   const ethClient = CHAIN_CONSTANTS[chainId].eth_client;
 
   try {
     console.log(
-      `[getErc20TokenDetails] Fetching token details for address: ${contractAddress}`
+      `[getErc20TokenDetails] Fetching token details for address: ${contractAddress}`,
     );
 
     const [nameResult, decimalsResult, symbolResult] = await Promise.all([
       ethClient.simulateContract({
         address: contractAddress as `0x${string}`,
         abi: contractABI,
-        functionName: 'name',
+        functionName: "name",
         args: [],
       }),
       ethClient.simulateContract({
         address: contractAddress as `0x${string}`,
         abi: contractABI,
-        functionName: 'decimals',
+        functionName: "decimals",
         args: [],
       }),
       ethClient.simulateContract({
         address: contractAddress as `0x${string}`,
         abi: contractABI,
-        functionName: 'symbol',
+        functionName: "symbol",
         args: [],
       }),
     ]);
-    
+
     const name = nameResult.result;
     const decimals = decimalsResult.result;
     const symbol = symbolResult.result;
 
     console.log(
-      `[getErc20TokenDetails] Token details fetched: name=${name}, decimals=${decimals}, symbol=${symbol}`
+      `[getErc20TokenDetails] Token details fetched: name=${name}, decimals=${decimals}, symbol=${symbol}`,
     );
 
     const entry = {
@@ -79,27 +79,27 @@ export async function getErc20TokenDetails(
       symbol: symbol?.toString() || "",
     } as const;
 
-    cache.add({ [contractAddress.toLowerCase()]: entry as any });
+    cache.add({ [contractAddress.toLowerCase()]: entry });
     console.log(
-      `[getErc20TokenDetails] Token details added to cache for address: ${contractAddress}`
+      `[getErc20TokenDetails] Token details added to cache for address: ${contractAddress}`,
     );
 
     return entry;
   } catch (err) {
     console.error(
       `[getErc20TokenDetails] Error fetching token details for address: ${contractAddress}`,
-      err
+      err,
     );
     if (err instanceof Error) {
-      console.error(`[getErc20TokenDetails] Error stack trace:`, err.stack);
+      console.error("[getErc20TokenDetails] Error stack trace:", err.stack);
     } else {
-      console.error(`[getErc20TokenDetails] Error:`, err);
+      console.error("[getErc20TokenDetails] Error:", err);
     }
     // Don't leak RPC URL
     // console.error(`[getErc20TokenDetails] RPC URL used:`, rpcURL);
     console.error(
-      `[getErc20TokenDetails] Contract ABI:`,
-      JSON.stringify(contractABI)
+      "[getErc20TokenDetails] Contract ABI:",
+      JSON.stringify(contractABI),
     );
     throw err;
   }

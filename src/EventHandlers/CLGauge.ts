@@ -1,9 +1,9 @@
 import {
   CLGauge,
-  CLGauge_NotifyReward,
-  CLGauge_Deposit,
-  CLGauge_Withdraw,
-  CLGauge_ClaimRewards
+  type CLGauge_ClaimRewards,
+  type CLGauge_Deposit,
+  type CLGauge_NotifyReward,
+  type CLGauge_Withdraw,
 } from "generated";
 
 CLGauge.NotifyReward.handler(async ({ event, context }) => {
@@ -16,14 +16,13 @@ CLGauge.NotifyReward.handler(async ({ event, context }) => {
     logIndex: event.logIndex,
     sourceAddress: event.srcAddress,
     chainId: event.chainId,
-    transactionHash: event.transaction.hash
+    transactionHash: event.transaction.hash,
   };
 
   context.Gauge_NotifyReward.set(entity);
 });
 
 CLGauge.Deposit.handler(async ({ event, context }) => {
-
   const entity: CLGauge_Deposit = {
     id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
     tokenId: event.params.tokenId,
@@ -34,7 +33,7 @@ CLGauge.Deposit.handler(async ({ event, context }) => {
     logIndex: event.logIndex,
     sourceAddress: event.srcAddress,
     chainId: event.chainId,
-    transactionHash: event.transaction.hash
+    transactionHash: event.transaction.hash,
   };
 
   context.CLGauge_Deposit.set(entity);
@@ -51,7 +50,7 @@ CLGauge.Withdraw.handler(async ({ event, context }) => {
     logIndex: event.logIndex,
     sourceAddress: event.srcAddress,
     chainId: event.chainId,
-    transactionHash: event.transaction.hash
+    transactionHash: event.transaction.hash,
   };
 
   context.CLGauge_Withdraw.set(entity);
@@ -67,7 +66,7 @@ CLGauge.ClaimRewards.handler(async ({ event, context }) => {
     logIndex: event.logIndex,
     sourceAddress: event.srcAddress,
     chainId: event.chainId,
-    transactionHash: event.transaction.hash
+    transactionHash: event.transaction.hash,
   };
 
   context.CLGauge_ClaimRewards.set(entity);

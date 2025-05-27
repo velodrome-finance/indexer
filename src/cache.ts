@@ -1,11 +1,11 @@
-import * as fs from "fs";
-import * as path from "path";
+import * as fs from "node:fs";
+import * as path from "node:path";
 
 import { CacheCategory } from "./Constants";
 
 type Address = string;
 
-type Shape = Record<string, Record<string, any>>;
+type Shape = Record<string, Record<string, unknown>>;
 
 type ShapeRoot = Shape & Record<Address, { hash: string }>;
 export type ShapeGuageToPool = Shape &
@@ -15,10 +15,11 @@ export type ShapeBribeToPool = Shape &
 export type ShapeToken = Shape &
   Record<Address, { decimals: number; name: string; symbol: string }>;
 
+// biome-ignore lint/complexity/noStaticOnlyClass:
 export class Cache {
   static init<C = CacheCategory>(
     category: C,
-    chainId: number | string | bigint
+    chainId: number | string | bigint,
   ) {
     if (!Object.values(CacheCategory).find((c) => c === category)) {
       throw new Error("Unsupported cache category");
@@ -27,10 +28,10 @@ export class Cache {
     type S = C extends "token"
       ? ShapeToken
       : C extends "guageToPool"
-      ? ShapeGuageToPool
-      : C extends "bribeToPool"
-      ? ShapeBribeToPool
-      : ShapeRoot;
+        ? ShapeGuageToPool
+        : C extends "bribeToPool"
+          ? ShapeBribeToPool
+          : ShapeRoot;
     const entry = new Entry<S>(`${category}-${chainId.toString()}`);
     return entry;
   }
@@ -72,14 +73,14 @@ export class Entry<T extends Shape> {
     if (!this.memory || Object.values(this.memory).length === 0) {
       this.memory = fields;
     } else {
-      Object.keys(fields).forEach((key) => {
+      for (const key of Object.keys(fields)) {
         if (!this.memory[key]) {
           this.memory[key] = {};
         }
-        Object.keys(fields[key]).forEach((nested) => {
+        for (const nested of Object.keys(fields[key])) {
           this.memory[key][nested] = fields[key][nested];
-        });
-      });
+        }
+      }
     }
 
     this.publish();
@@ -97,7 +98,7 @@ export class Entry<T extends Shape> {
 
   private publish() {
     const prepared = JSON.stringify(this.memory, (key, value) =>
-      typeof value === "bigint" ? value.toString() : value
+      typeof value === "bigint" ? value.toString() : value,
     );
     try {
       fs.writeFileSync(this.file, prepared);

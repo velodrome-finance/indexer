@@ -1,19 +1,20 @@
 import dotenv from "dotenv";
-import { Web3 } from "web3";
+import { http, createPublicClient } from "viem";
+import type { Chain, PublicClient } from "viem";
 import {
-  optimism,
   base,
-  lisk,
-  mode,
+  celo,
   fraxtal,
   ink,
-  soneium,
+  lisk,
   metalL2,
-  unichain,
-  celo,
+  mode,
+  optimism,
+  soneium,
   swellchain,
+  unichain,
 } from "viem/chains";
-import { createPublicClient, http, PublicClient } from "viem";
+import { Web3 } from "web3";
 
 import PriceConnectors from "./constants/price_connectors.json";
 
@@ -86,7 +87,7 @@ type chainConstants = {
     priceConnectors: PriceConnector[];
   };
   rewardToken: (blockNumber: number) => string;
-  eth_client: PublicClient<any, any>;
+  eth_client: PublicClient;
 };
 
 // Constants for Optimism
@@ -97,11 +98,11 @@ const OPTIMISM_CONSTANTS: chainConstants = {
     getType: (blockNumber: number) => {
       if (blockNumber > 125484892) {
         return PriceOracleType.V3;
-      } else if (blockNumber > 124076662) {
-        return PriceOracleType.V2;
-      } else {
-        return PriceOracleType.V1;
       }
+      if (blockNumber > 124076662) {
+        return PriceOracleType.V2;
+      }
+      return PriceOracleType.V1;
     },
     getAddress: (priceOracleType: PriceOracleType) => {
       switch (priceOracleType) {
@@ -124,14 +125,14 @@ const OPTIMISM_CONSTANTS: chainConstants = {
     return "0x9560e827aF36c94D2Ac33a39bCE1Fe78631088Db";
   },
   eth_client: createPublicClient({
-    chain: optimism,
+    chain: optimism satisfies Chain as Chain,
     transport: http(
       process.env.ENVIO_OPTIMISM_RPC_URL || "https://optimism.llamarpc.com",
       {
         retryCount: 10,
         retryDelay: 1000,
         batch: false,
-      }
+      },
     ),
   }),
 };
@@ -144,11 +145,11 @@ const BASE_CONSTANTS: chainConstants = {
     getType: (blockNumber: number) => {
       if (blockNumber > 19862773) {
         return PriceOracleType.V3;
-      } else if (blockNumber > 18480097) {
-        return PriceOracleType.V2;
-      } else {
-        return PriceOracleType.V1;
       }
+      if (blockNumber > 18480097) {
+        return PriceOracleType.V2;
+      }
+      return PriceOracleType.V1;
     },
     getAddress: (priceOracleType: PriceOracleType) => {
       switch (priceOracleType) {
@@ -164,16 +165,16 @@ const BASE_CONSTANTS: chainConstants = {
     updateDelta: 60 * 60, // 1 hour
     priceConnectors: BASE_PRICE_CONNECTORS,
   },
-  rewardToken: (blockNumber: Number) =>
+  rewardToken: (blockNumber: number) =>
     "0x940181a94A35A4569E4529A3CDfB74e38FD98631",
   eth_client: createPublicClient({
-    chain: base,
+    chain: base satisfies Chain as Chain,
     transport: http(
       process.env.ENVIO_BASE_RPC_URL || "https://base.llamarpc.com",
       {
         retryCount: 10,
         retryDelay: 1000,
-      }
+      },
     ),
   }),
 };
@@ -186,9 +187,8 @@ const LISK_CONSTANTS: chainConstants = {
     getType: (blockNumber: number) => {
       if (blockNumber > 8457278) {
         return PriceOracleType.V3;
-      } else {
-        return PriceOracleType.V2;
       }
+      return PriceOracleType.V2;
     },
     getAddress: (priceOracleType: PriceOracleType) => {
       switch (priceOracleType) {
@@ -207,7 +207,7 @@ const LISK_CONSTANTS: chainConstants = {
   rewardToken: (blockNumber: number) =>
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
   eth_client: createPublicClient({
-    chain: lisk,
+    chain: lisk satisfies Chain as Chain,
     transport: http(process.env.ENVIO_LISK_RPC_URL || "https://lisk.drpc.org", {
       retryCount: 10,
       retryDelay: 1000,
@@ -223,9 +223,8 @@ const MODE_CONSTANTS: chainConstants = {
     getType: (blockNumber: number) => {
       if (blockNumber > 15738649) {
         return PriceOracleType.V3;
-      } else {
-        return PriceOracleType.V2;
       }
+      return PriceOracleType.V2;
     },
     getAddress: (priceOracleType: PriceOracleType) => {
       switch (priceOracleType) {
@@ -244,13 +243,13 @@ const MODE_CONSTANTS: chainConstants = {
   rewardToken: (blockNumber: number) =>
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
   eth_client: createPublicClient({
-    chain: mode,
+    chain: mode satisfies Chain as Chain,
     transport: http(
       process.env.ENVIO_MODE_RPC_URL || "https://mainnet.mode.network",
       {
         retryCount: 10,
         retryDelay: 1000,
-      }
+      },
     ),
   }),
 };
@@ -273,13 +272,13 @@ const CELO_CONSTANTS: chainConstants = {
   rewardToken: (blockNumber: number) =>
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
   eth_client: createPublicClient({
-    chain: celo,
+    chain: celo satisfies Chain as Chain,
     transport: http(
       process.env.ENVIO_CELO_RPC_URL || "https://forno.celo.org",
       {
         retryCount: 10,
         retryDelay: 1000,
-      }
+      },
     ),
   }),
 };
@@ -302,13 +301,13 @@ const SONEIUM_CONSTANTS: chainConstants = {
   rewardToken: (blockNumber: number) =>
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
   eth_client: createPublicClient({
-    chain: soneium,
+    chain: soneium satisfies Chain as Chain,
     transport: http(
       process.env.ENVIO_SONEIUM_RPC_URL || "https://rpc.soneium.com",
       {
         retryCount: 10,
         retryDelay: 1000,
-      }
+      },
     ),
   }),
 };
@@ -331,13 +330,13 @@ const UNICHAIN_CONSTANTS: chainConstants = {
   rewardToken: (blockNumber: number) =>
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
   eth_client: createPublicClient({
-    chain: unichain,
+    chain: unichain satisfies Chain as Chain,
     transport: http(
       process.env.ENVIO_UNICHAIN_RPC_URL || "	https://mainnet.unichain.org",
       {
         retryCount: 10,
         retryDelay: 1000,
-      }
+      },
     ),
   }),
 };
@@ -350,9 +349,8 @@ const FRAXTAL_CONSTANTS: chainConstants = {
     getType: (blockNumber: number) => {
       if (blockNumber > 12710720) {
         return PriceOracleType.V3;
-      } else {
-        return PriceOracleType.V2;
       }
+      return PriceOracleType.V2;
     },
     getAddress: (priceOracleType: PriceOracleType) => {
       switch (priceOracleType) {
@@ -371,13 +369,13 @@ const FRAXTAL_CONSTANTS: chainConstants = {
   rewardToken: (blockNumber: number) =>
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
   eth_client: createPublicClient({
-    chain: fraxtal,
+    chain: fraxtal satisfies Chain as Chain,
     transport: http(
       process.env.ENVIO_FRAXTAL_RPC_URL || "https://fraxtal.drpc.org",
       {
         retryCount: 10,
         retryDelay: 1000,
-      }
+      },
     ),
   }),
 };
@@ -400,13 +398,13 @@ const INK_CONSTANTS: chainConstants = {
   rewardToken: (blockNumber: number) =>
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
   eth_client: createPublicClient({
-    chain: ink,
+    chain: ink satisfies Chain as Chain,
     transport: http(
       process.env.ENVIO_INK_RPC_URL || "https://rpc-gel.inkonchain.com",
       {
         retryCount: 10,
         retryDelay: 1000,
-      }
+      },
     ),
   }),
 };
@@ -429,13 +427,13 @@ const METAL_CONSTANTS: chainConstants = {
   rewardToken: (blockNumber: number) =>
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
   eth_client: createPublicClient({
-    chain: metalL2,
+    chain: metalL2 satisfies Chain as Chain,
     transport: http(
       process.env.ENVIO_METAL_RPC_URL || "https://rpc.metall2.com",
       {
         retryCount: 10,
         retryDelay: 1000,
-      }
+      },
     ),
   }),
 };
@@ -464,7 +462,7 @@ const SWELL_CONSTANTS: chainConstants = {
       {
         retryCount: 10,
         retryDelay: 1000,
-      }
+      },
     ),
   }) as PublicClient,
 };
@@ -489,7 +487,7 @@ export const TokenIdByChain = (address: string, chainId: number) =>
 export const TokenIdByBlock = (
   address: string,
   chainId: number,
-  blockNumber: number
+  blockNumber: number,
 ) => `${chainId}_${toChecksumAddress(address)}_${blockNumber}`;
 
 // Key is chain ID

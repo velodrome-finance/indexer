@@ -1,5 +1,8 @@
 import { expect } from "chai";
-import { MockDb, SuperchainPoolFactory } from "../../../generated/src/TestHelpers.gen";
+import {
+  MockDb,
+  SuperchainPoolFactory,
+} from "../../../generated/src/TestHelpers.gen";
 
 describe("SuperchainPoolFactory RootPoolCreated Event", () => {
   const token0Address = "0x1111111111111111111111111111111111111111";
@@ -7,7 +10,7 @@ describe("SuperchainPoolFactory RootPoolCreated Event", () => {
   const poolAddress = "0xb01234713d278d0ae3039d5930102956861d144b"; // Using real pool address.
   const chainId = 10;
   const mockPoolChainId = 252;
-  
+
   let mockDb: ReturnType<typeof MockDb.createMockDb>;
 
   beforeEach(() => {
@@ -25,19 +28,22 @@ describe("SuperchainPoolFactory RootPoolCreated Event", () => {
         block: {
           timestamp: 1000000,
           number: 123456,
-          hash: "0x1234567890123456789012345678901234567890123456789012345678901234"
+          hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
         },
         chainId,
         logIndex: 1,
-      }
+      },
     });
 
-    const result = await SuperchainPoolFactory.RootPoolCreated.processEvent({ 
-      event: mockEvent, 
-      mockDb 
+    const result = await SuperchainPoolFactory.RootPoolCreated.processEvent({
+      event: mockEvent,
+      mockDb,
     });
-    
-    const createdEvent = result.entities.SuperchainPoolFactory_RootPoolCreated.get(`${chainId}_123456_1`);
+
+    const createdEvent =
+      result.entities.SuperchainPoolFactory_RootPoolCreated.get(
+        `${chainId}_123456_1`,
+      );
     expect(createdEvent).to.not.be.undefined;
     expect(createdEvent?.token0).to.equal(token0Address);
     expect(createdEvent?.token1).to.equal(token1Address);
@@ -47,4 +53,4 @@ describe("SuperchainPoolFactory RootPoolCreated Event", () => {
     expect(createdEvent?.length).to.equal(2n);
     expect(createdEvent?.timestamp).to.deep.equal(new Date(1000000 * 1000));
   });
-}); 
+});

@@ -1,12 +1,21 @@
 import {
-    ALMCore,
-    ALMCore_Rebalance,
-    ALMCore_Rebalance_AmmPosition,
+  ALMCore,
+  type ALMCore_Rebalance,
+  type ALMCore_Rebalance_AmmPosition,
 } from "generated";
 
 ALMCore.Rebalance.handler(async ({ event, context }) => {
-  const [ pool, ammPositionInfo, sqrtPriceX96, amount0, amount1, ammPositionIdBefore, ammPositionIdAfter ] = event.params.rebalanceEventParams;
-  const [ token0, token1, property, tickLower, tickUpper, liquidity ] = ammPositionInfo;
+  const [
+    pool,
+    ammPositionInfo,
+    sqrtPriceX96,
+    amount0,
+    amount1,
+    ammPositionIdBefore,
+    ammPositionIdAfter,
+  ] = event.params.rebalanceEventParams;
+  const [token0, token1, property, tickLower, tickUpper, liquidity] =
+    ammPositionInfo;
   const entity: ALMCore_Rebalance = {
     id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
     pool,
@@ -21,7 +30,7 @@ ALMCore.Rebalance.handler(async ({ event, context }) => {
     timestamp: new Date(event.block.timestamp * 1000),
     chainId: event.chainId,
     blockNumber: event.block.number,
-    logIndex: event.logIndex
+    logIndex: event.logIndex,
   };
 
   context.ALMCore_Rebalance.set(entity);
@@ -39,8 +48,8 @@ ALMCore.Rebalance.handler(async ({ event, context }) => {
     timestamp: new Date(event.block.timestamp * 1000),
     chainId: event.chainId,
     blockNumber: event.block.number,
-    logIndex: event.logIndex
+    logIndex: event.logIndex,
   };
 
   context.ALMCore_Rebalance_AmmPosition.set(ammPosition_entity);
-}); 
+});

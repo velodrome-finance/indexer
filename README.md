@@ -47,11 +47,12 @@ To stop the indexer:
 pnpm envio stop
 ```
 
-## Testing
-
-To run tests:
+## Testing / QA
 
 ```bash
+# Runs any linters/formatters, use pnpm qa --write to apply changes
+pnpm qa
+# Runs tests
 pnpm test
 ```
 
