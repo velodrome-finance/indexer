@@ -4,14 +4,11 @@ import {
   type ALMDeployFactory_StrategyCreated_AmmPosition,
 } from "generated";
 
-ALMDeployFactory.StrategyCreated.contractRegister(
-  ({ event, context }) => {
-    const [pool, ammPosition, strategyParams, lpWrapper, caller] =
-      event.params.params;
-    context.addALMLPWrapper(lpWrapper);
-  },
-  { preRegisterDynamicContracts: true },
-);
+ALMDeployFactory.StrategyCreated.contractRegister(({ event, context }) => {
+  const [pool, ammPosition, strategyParams, lpWrapper, caller] =
+    event.params.params;
+  context.addALMLPWrapper(lpWrapper);
+});
 
 ALMDeployFactory.StrategyCreated.handler(async ({ event, context }) => {
   const [pool, ammPosition, strategyParams, lpWrapper, caller] =

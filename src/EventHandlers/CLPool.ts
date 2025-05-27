@@ -1,21 +1,22 @@
-import {
-  CLPool,
-  type CLPool_Burn,
-  type CLPool_Collect,
-  type CLPool_CollectFees,
-  type CLPool_Flash,
-  type CLPool_IncreaseObservationCardinalityNext,
-  type CLPool_Initialize,
-  type CLPool_Mint,
-  type CLPool_SetFeeProtocol,
-  type CLPool_Swap,
-  type LiquidityPoolAggregator,
-  type Token,
-} from "generated";
+import { CLPool } from "generated";
 import type {
   CLPool_Swap_event,
   handlerContext,
-} from "generated/src/Types.gen";
+  CLPool_Burn,
+  CLPool_Collect,
+  CLPool_CollectFees,
+  CLPool_Flash,
+  CLPool_IncreaseObservationCardinalityNext,
+  CLPool_Initialize,
+  CLPool_Mint,
+  CLPool_SetFeeProtocol,
+  CLPool_Swap,
+  LiquidityPoolAggregator,
+  Token,
+  CLPool_Collect_event,
+  CLPool_CollectFees_event,
+  CLPool_Mint_event,
+} from "generated";
 import { updateLiquidityPoolAggregator } from "../Aggregators/LiquidityPoolAggregator";
 import { normalizeTokenAmountTo1e18 } from "../Helpers";
 import { abs, multiplyBase1e18 } from "../Maths";
@@ -42,7 +43,7 @@ import { refreshTokenPrice } from "../PriceOracle";
  */
 function updateCLPoolFees(
   liquidityPoolAggregator: LiquidityPoolAggregator,
-  event: CLPool_Swap_event,
+  event: CLPool_Swap_event | CLPool_CollectFees_event,
   token0Instance: Token | undefined,
   token1Instance: Token | undefined,
 ) {
@@ -108,7 +109,11 @@ function updateCLPoolFees(
  */
 function updateCLPoolLiquidity(
   liquidityPoolAggregator: LiquidityPoolAggregator,
-  event: CLPool_Swap_event,
+  event:
+    | CLPool_Swap_event
+    | CLPool_Mint_event
+    | CLPool_Collect_event
+    | CLPool_CollectFees_event,
   token0Instance: Token | undefined,
   token1Instance: Token | undefined,
 ) {
@@ -620,7 +625,11 @@ const updateToken1SwapData = async (
 
 const updateLiquidityPoolAggregatorDiffSwap = (
   data: SwapEntityData,
-  reserveResult,
+  reserveResult: {
+    addTotalLiquidityUSD: bigint;
+    reserve0: bigint;
+    reserve1: bigint;
+  },
 ) => {
   data.liquidityPoolAggregatorDiff = {
     ...data.liquidityPoolAggregatorDiff,
