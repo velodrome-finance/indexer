@@ -40,6 +40,9 @@ jobs:
     - name: Install dependencies
       run: pnpm install
 
+    - name: QA
+      run: pnpm run qa
+
     - name: Build
       run: pnpm run codegen
 
