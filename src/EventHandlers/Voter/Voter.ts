@@ -269,6 +269,7 @@ Voter.WhitelistToken.handlerWithLoader({
       context.Token.set(updatedToken as Token);
       return;
     }
+
     try {
       const tokenDetails = await getErc20TokenDetails(
         event.params.token,
