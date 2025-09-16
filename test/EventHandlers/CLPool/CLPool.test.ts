@@ -18,6 +18,7 @@ import type {
   Token,
 } from "../../../generated/src/Types.gen";
 import * as LiquidityPoolAggregatorFunctions from "../../../src/Aggregators/LiquidityPoolAggregator";
+import { processCLPoolMint } from "../../../src/EventHandlers/CLPool/CLPoolMintLogic";
 import { abs } from "../../../src/Maths";
 import * as PriceOracle from "../../../src/PriceOracle";
 import { setupCommon } from "../Pool/common";
