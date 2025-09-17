@@ -64,7 +64,7 @@ export const CELO_PRICE_CONNECTORS: PriceConnector[] =
   PriceConnectors.celo as PriceConnector[];
 
 export const SWELL_PRICE_CONNECTORS: PriceConnector[] =
-  PriceConnectors.swell as PriceConnector[];
+  PriceConnectors.swellchain as PriceConnector[];
 
 export const toChecksumAddress = (address: string) =>
   Web3.utils.toChecksumAddress(address);
@@ -132,7 +132,7 @@ const OPTIMISM_CONSTANTS: chainConstants = {
         retryCount: 10,
         retryDelay: 1000,
         batch: false,
-      },
+      }
     ),
   }),
 };
@@ -174,7 +174,7 @@ const BASE_CONSTANTS: chainConstants = {
       {
         retryCount: 10,
         retryDelay: 1000,
-      },
+      }
     ),
   }),
 };
@@ -249,7 +249,7 @@ const MODE_CONSTANTS: chainConstants = {
       {
         retryCount: 10,
         retryDelay: 1000,
-      },
+      }
     ),
   }),
 };
@@ -278,7 +278,7 @@ const CELO_CONSTANTS: chainConstants = {
       {
         retryCount: 10,
         retryDelay: 1000,
-      },
+      }
     ),
   }),
 };
@@ -307,7 +307,7 @@ const SONEIUM_CONSTANTS: chainConstants = {
       {
         retryCount: 10,
         retryDelay: 1000,
-      },
+      }
     ),
   }),
 };
@@ -336,7 +336,7 @@ const UNICHAIN_CONSTANTS: chainConstants = {
       {
         retryCount: 10,
         retryDelay: 1000,
-      },
+      }
     ),
   }),
 };
@@ -375,7 +375,7 @@ const FRAXTAL_CONSTANTS: chainConstants = {
       {
         retryCount: 10,
         retryDelay: 1000,
-      },
+      }
     ),
   }),
 };
@@ -404,7 +404,7 @@ const INK_CONSTANTS: chainConstants = {
       {
         retryCount: 10,
         retryDelay: 1000,
-      },
+      }
     ),
   }),
 };
@@ -433,7 +433,7 @@ const METAL_CONSTANTS: chainConstants = {
       {
         retryCount: 10,
         retryDelay: 1000,
-      },
+      }
     ),
   }),
 };
@@ -462,7 +462,7 @@ const SWELL_CONSTANTS: chainConstants = {
       {
         retryCount: 10,
         retryDelay: 1000,
-      },
+      }
     ),
   }) as PublicClient,
 };
@@ -487,7 +487,7 @@ export const TokenIdByChain = (address: string, chainId: number) =>
 export const TokenIdByBlock = (
   address: string,
   chainId: number,
-  blockNumber: number,
+  blockNumber: number
 ) => `${chainId}_${toChecksumAddress(address)}_${blockNumber}`;
 
 // Key is chain ID
