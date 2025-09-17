@@ -70,6 +70,7 @@ VotingReward.NotifyReward.handlerWithLoader({
             event.params.reward,
             event.block.number,
             event.chainId,
+            1000000n,
           );
         } catch (error) {
           context.log.error(
