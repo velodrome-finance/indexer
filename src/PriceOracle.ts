@@ -25,7 +25,7 @@ export async function createTokenEntity(
   tokenAddress: string,
   chainId: number,
   blockNumber: number,
-  context: handlerContext
+  context: handlerContext,
 ) {
   const blockDatetime = new Date(blockNumber * 1000);
   const tokenDetails = await getErc20TokenDetails(tokenAddress, chainId);
@@ -67,7 +67,7 @@ export async function refreshTokenPrice(
   blockNumber: number,
   blockTimestamp: number,
   chainId: number,
-  context: handlerContext
+  context: handlerContext,
 ): Promise<Token> {
   const blockTimestampMs = blockTimestamp * 1000;
 
@@ -78,7 +78,7 @@ export async function refreshTokenPrice(
   const tokenPriceData = await getTokenPriceData(
     token.address,
     blockNumber,
-    chainId
+    chainId,
   );
   const currentPrice = tokenPriceData.pricePerUSDNew;
   const updatedToken: Token = {
@@ -120,7 +120,7 @@ export async function refreshTokenPrice(
 export async function getTokenPriceData(
   tokenAddress: string,
   blockNumber: number,
-  chainId: number
+  chainId: number,
 ): Promise<TokenPriceData> {
   const tokenDetails = await getErc20TokenDetails(tokenAddress, chainId);
 
@@ -161,7 +161,7 @@ export async function getTokenPriceData(
         WETH_ADDRESS,
         connectors,
         chainId,
-        blockNumber
+        blockNumber,
       );
 
       if (priceData.priceOracleType === PriceOracleType.V3) {
@@ -175,7 +175,7 @@ export async function getTokenPriceData(
     } catch (error) {
       console.error(
         `Error fetching price data for ${tokenAddress} on chain ${chainId} at block ${blockNumber}:`,
-        error
+        error,
       );
       return { pricePerUSDNew: 0n, decimals: BigInt(tokenDetails.decimals) };
     }
@@ -210,7 +210,7 @@ export async function read_prices(
   wethAddress: string,
   connectors: string[],
   chainId: number,
-  blockNumber: number
+  blockNumber: number,
 ): Promise<{ pricePerUSDNew: bigint; priceOracleType: PriceOracleType }> {
   const ethClient = CHAIN_CONSTANTS[chainId].eth_client;
   const priceOracleType = CHAIN_CONSTANTS[chainId].oracle.getType(blockNumber);
