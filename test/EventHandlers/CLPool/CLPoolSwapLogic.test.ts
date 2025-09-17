@@ -312,14 +312,16 @@ describe("CLPoolSwapLogic", () => {
 
       // Should only call refreshTokenPrice for token1
       expect(refreshTokenPriceStub.calledOnce).to.be.true;
-      expect(refreshTokenPriceStub.firstCall.calledWith(
-        mockToken1,
-        123456,
-        1000000,
-        10,
-        mockContext,
-        1000000n,
-      )).to.be.true;
+      expect(
+        refreshTokenPriceStub.firstCall.calledWith(
+          mockToken1,
+          123456,
+          1000000,
+          10,
+          mockContext,
+          1000000n,
+        ),
+      ).to.be.true;
     });
 
     it("should handle missing token1Instance", async () => {
@@ -343,14 +345,16 @@ describe("CLPoolSwapLogic", () => {
 
       // Should only call refreshTokenPrice for token0
       expect(refreshTokenPriceStub.calledOnce).to.be.true;
-      expect(refreshTokenPriceStub.firstCall.calledWith(
-        mockToken0,
-        123456,
-        1000000,
-        10,
-        mockContext,
-        1000000n,
-      )).to.be.true;
+      expect(
+        refreshTokenPriceStub.firstCall.calledWith(
+          mockToken0,
+          123456,
+          1000000,
+          10,
+          mockContext,
+          1000000n,
+        ),
+      ).to.be.true;
     });
 
     it("should not add to whitelisted volume when tokens are not whitelisted", async () => {
