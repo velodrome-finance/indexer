@@ -227,7 +227,7 @@ describe("CLPool Event Handlers", () => {
             timestamp: 1000000,
             hash: "0xblockhash",
           },
-          chainId: 1,
+          chainId: 10,
           logIndex: 0,
           srcAddress: poolId,
         },
@@ -330,7 +330,7 @@ describe("CLPool Event Handlers", () => {
             timestamp: 1000000,
             hash: "0xblockhash",
           },
-          chainId: 1,
+          chainId: 10,
           logIndex: 0,
           srcAddress: poolId,
         },
@@ -435,18 +435,15 @@ describe("CLPool Event Handlers", () => {
     const expectations = {
       amount0In: -10n * 10n ** 18n,
       amount1In: 10n * 10n ** 6n,
-      totalLiquidityUSD: 0n,
+      // Note because the swap is negative for token 0, we add it to the reserve
+      totalLiquidityUSD:
+        (BigInt(mockLiquidityPoolData.reserve0 + -10n * 10n ** 18n) *
+          mockToken0Data.pricePerUSDNew) /
+          10n ** mockToken0Data.decimals +
+        (BigInt(mockLiquidityPoolData.reserve1 + 10n * 10n ** 6n) *
+          mockToken1Data.pricePerUSDNew) /
+          10n ** mockToken1Data.decimals,
     };
-
-    // Note because the swap is negative for token 0, we add it to the reserve
-    // expectations.totalLiquidityUSD =
-    const te1: bigint =
-      (BigInt(mockLiquidityPoolData.reserve0 + expectations.amount0In) *
-        mockToken0Data.pricePerUSDNew) /
-        10n ** mockToken0Data.decimals +
-      (BigInt(mockLiquidityPoolData.reserve1 + expectations.amount1In) *
-        mockToken1Data.pricePerUSDNew) /
-        10n ** mockToken1Data.decimals;
 
     const mockEvent = CLPool.Swap.createMockEvent({
       sender: "0xsender",
@@ -462,7 +459,7 @@ describe("CLPool Event Handlers", () => {
           timestamp: 1000000,
           hash: "0xblockhash",
         },
-        chainId: 1,
+        chainId: 10,
         logIndex: 0,
         srcAddress: poolId,
       },
@@ -482,7 +479,7 @@ describe("CLPool Event Handlers", () => {
           event: mockEvent,
           mockDb: updatedDB,
         });
-        swapEntity = result.entities.CLPool_Swap.get("1_123456_0");
+        swapEntity = result.entities.CLPool_Swap.get("10_123456_0");
         const aggregatorCalls =
           updateLiquidityPoolAggregatorStub.firstCall.args;
         updatedLiquidityPool = aggregatorCalls[0];

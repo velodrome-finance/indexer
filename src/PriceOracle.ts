@@ -60,6 +60,7 @@ const ONE_HOUR_MS = 60 * 60 * 1000; // 1 hour in milliseconds
  * @param {number} blockTimestamp - The timestamp of the block in seconds
  * @param {number} chainId - The chain ID where the token exists
  * @param {any} context - The database context for updating entities
+ * @param {bigint} gasLimit - The gas limit to use for the simulateContract call
  * @returns {Promise<Token>} The updated token entity
  */
 export async function refreshTokenPrice(
@@ -68,6 +69,7 @@ export async function refreshTokenPrice(
   blockTimestamp: number,
   chainId: number,
   context: handlerContext,
+  gasLimit = 1000000n, // 1 million is the default if "gasLimit" is not specified in simulateContract
 ): Promise<Token> {
   const blockTimestampMs = blockTimestamp * 1000;
 
@@ -79,6 +81,7 @@ export async function refreshTokenPrice(
     token.address,
     blockNumber,
     chainId,
+    gasLimit,
   );
   const currentPrice = tokenPriceData.pricePerUSDNew;
   const updatedToken: Token = {
@@ -114,6 +117,7 @@ export async function refreshTokenPrice(
  * @param {string} tokenAddress - The token's contract address
  * @param {number} blockNumber - The block number to fetch price data from
  * @param {number} chainId - The chain ID where the token exists
+ * @param {bigint} gasLimit - The gas limit to use for the simulateContract call
  * @returns {Promise<TokenPriceData>} Object containing the token's price and decimals
  * @throws {Error} If there's an error fetching the token price
  */
@@ -121,6 +125,7 @@ export async function getTokenPriceData(
   tokenAddress: string,
   blockNumber: number,
   chainId: number,
+  gasLimit = 1000000n, // 1 million is the default if "gasLimit" is not specified in simulateContract
 ): Promise<TokenPriceData> {
   const tokenDetails = await getErc20TokenDetails(tokenAddress, chainId);
 
@@ -162,6 +167,7 @@ export async function getTokenPriceData(
         connectors,
         chainId,
         blockNumber,
+        gasLimit,
       );
 
       if (priceData.priceOracleType === PriceOracleType.V3) {
@@ -197,6 +203,7 @@ export async function getTokenPriceData(
  * @param {number} chainId - The ID of the blockchain network where the price oracle
  *                           contract is deployed.
  * @param {number} blockNumber - The block number to fetch prices for.
+ * @param {bigint} gasLimit - The gas limit to use for the simulateContract call
  * @returns {Promise<string[]>} A promise that resolves to an array of token prices
  *                              as strings.
  *
@@ -211,6 +218,7 @@ export async function read_prices(
   connectors: string[],
   chainId: number,
   blockNumber: number,
+  gasLimit = 1000000n, // 1 million is the default if "gas" is not specified in simulateContract
 ): Promise<{ pricePerUSDNew: bigint; priceOracleType: PriceOracleType }> {
   const ethClient = CHAIN_CONSTANTS[chainId].eth_client;
   const priceOracleType = CHAIN_CONSTANTS[chainId].oracle.getType(blockNumber);
@@ -231,6 +239,7 @@ export async function read_prices(
       functionName: "getManyRatesWithCustomConnectors",
       args,
       blockNumber: BigInt(blockNumber),
+      gas: gasLimit,
     });
     return { pricePerUSDNew: BigInt(result[0]), priceOracleType };
   }
@@ -248,6 +257,7 @@ export async function read_prices(
     functionName: "getManyRatesWithConnectors",
     args,
     blockNumber: BigInt(blockNumber),
+    gas: gasLimit,
   });
   return { pricePerUSDNew: BigInt(result[0]), priceOracleType };
 }

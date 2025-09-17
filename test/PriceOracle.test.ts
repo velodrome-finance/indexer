@@ -71,6 +71,7 @@ describe("PriceOracle", () => {
             callData.tokenAddress,
             callData.blockNumber,
             callData.chainId,
+            1000000n,
           );
           const diff = priceData.pricePerUSDNew - 10n ** 18n;
           expect(diff < expectedDiff).to.be.true;
@@ -119,6 +120,7 @@ describe("PriceOracle", () => {
           blockTimestamp,
           chainId,
           mockContext,
+          1000000n,
         );
       });
       it("should not update prices if the update interval hasn't passed", async () => {
@@ -143,6 +145,7 @@ describe("PriceOracle", () => {
           blockTimestamp,
           chainId,
           mockContext,
+          1000000n,
         );
         updatedToken = mockContext.Token.set.lastCall.args[0];
       });
@@ -212,6 +215,7 @@ describe("PriceOracle", () => {
               test.tokenAddress,
               test.blockNumber,
               test.chainId,
+              1000000n,
             );
             expect(price.pricePerUSDNew).to.equal(996633595813270431n); // Close to 10 ** 18
           });
@@ -255,6 +259,7 @@ describe("PriceOracle", () => {
               test.tokenAddress,
               test.blockNumber,
               test.chainId,
+              5000000n, // with 1 million the simulationContract reverts
             );
             expect(price.pricePerUSDNew).to.equal(2063950680307235736469n);
           });
@@ -303,6 +308,7 @@ describe("PriceOracle", () => {
               test.tokenAddress,
               blockNumber,
               chainId,
+              1000000n,
             );
             expect(price.pricePerUSDNew).to.equal(2294389397280012597629n);
           });
@@ -312,6 +318,7 @@ describe("PriceOracle", () => {
               test.tokenAddress,
               blockNumber,
               chainId,
+              5000000n, // with 1 million the simulationContract reverts
             );
             expect(price.pricePerUSDNew).to.equal(2067268302000000000000n);
           });
