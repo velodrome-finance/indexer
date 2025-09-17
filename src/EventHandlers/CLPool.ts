@@ -19,10 +19,10 @@ import type {
 } from "generated";
 import { updateLiquidityPoolAggregator } from "../Aggregators/LiquidityPoolAggregator";
 import { normalizeTokenAmountTo1e18 } from "../Helpers";
-import { abs, multiplyBase1e18 } from "../Maths";
+import { multiplyBase1e18 } from "../Maths";
 import { fetchPoolLoaderData } from "../Pools/common";
-import { refreshTokenPrice } from "../PriceOracle";
 import { processCLPoolMint } from "./CLPool/CLPoolMintLogic";
+import { processCLPoolSwap } from "./CLPool/CLPoolSwapLogic";
 import { updateCLPoolLiquidity } from "./CLPool/updateCLPoolLiquidity";
 
 /**
@@ -380,262 +380,32 @@ CLPool.SetFeeProtocol.handler(async ({ event, context }) => {
   context.CLPool_SetFeeProtocol.set(entity);
 });
 
-type SwapEntityData = {
-  liquidityPoolAggregator: LiquidityPoolAggregator;
-  token0Instance: Token | undefined;
-  token1Instance: Token | undefined;
-  tokenUpdateData: {
-    netAmount0: bigint;
-    netAmount1: bigint;
-    netVolumeToken0USD: bigint;
-    netVolumeToken1USD: bigint;
-    volumeInUSD: bigint;
-    volumeInUSDWhitelisted: bigint;
-  };
-  liquidityPoolAggregatorDiff: Partial<LiquidityPoolAggregator>;
-};
-
-const updateToken0SwapData = async (
-  data: SwapEntityData,
-  event: CLPool_Swap_event,
-  context: handlerContext,
-) => {
-  let {
-    liquidityPoolAggregator,
-    token0Instance,
-    tokenUpdateData,
-    liquidityPoolAggregatorDiff,
-  } = data;
-  liquidityPoolAggregatorDiff = {
-    ...liquidityPoolAggregatorDiff,
-    totalVolume0:
-      liquidityPoolAggregator.totalVolume0 + tokenUpdateData.netAmount0,
-  };
-  if (!token0Instance) return { ...data, liquidityPoolAggregatorDiff };
-
-  try {
-    token0Instance = await refreshTokenPrice(
-      token0Instance,
-      event.block.number,
-      event.block.timestamp,
-      event.chainId,
-      context,
-    );
-  } catch (error) {
-    context.log.error(
-      `Error refreshing token price for ${token0Instance?.address} on chain ${event.chainId}: ${error}`,
-    );
-  }
-  const normalizedAmount0 = normalizeTokenAmountTo1e18(
-    abs(event.params.amount0),
-    Number(token0Instance.decimals),
-  );
-
-  tokenUpdateData.netVolumeToken0USD = multiplyBase1e18(
-    normalizedAmount0,
-    token0Instance.pricePerUSDNew,
-  );
-  tokenUpdateData.volumeInUSD = tokenUpdateData.netVolumeToken0USD;
-
-  liquidityPoolAggregatorDiff = {
-    ...liquidityPoolAggregatorDiff,
-    token0Price:
-      token0Instance?.pricePerUSDNew ?? liquidityPoolAggregator.token0Price,
-    token0IsWhitelisted: token0Instance?.isWhitelisted ?? false,
-  };
-
-  return {
-    ...data,
-    liquidityPoolAggregatorDiff,
-    token0Instance,
-    tokenUpdateData,
-  };
-};
-const updateToken1SwapData = async (
-  data: SwapEntityData,
-  event: CLPool_Swap_event,
-  context: handlerContext,
-) => {
-  let {
-    liquidityPoolAggregator,
-    token1Instance,
-    tokenUpdateData,
-    liquidityPoolAggregatorDiff,
-  } = data;
-  liquidityPoolAggregatorDiff = {
-    ...liquidityPoolAggregatorDiff,
-    totalVolume1:
-      liquidityPoolAggregator.totalVolume1 + tokenUpdateData.netAmount1,
-  };
-  if (!token1Instance) return { ...data, liquidityPoolAggregatorDiff };
-
-  try {
-    token1Instance = await refreshTokenPrice(
-      token1Instance,
-      event.block.number,
-      event.block.timestamp,
-      event.chainId,
-      context,
-    );
-  } catch (error) {
-    context.log.error(
-      `Error refreshing token price for ${token1Instance?.address} on chain ${event.chainId}: ${error}`,
-    );
-  }
-  const normalizedAmount1 = normalizeTokenAmountTo1e18(
-    abs(event.params.amount1),
-    Number(token1Instance.decimals),
-  );
-  tokenUpdateData.netVolumeToken1USD = multiplyBase1e18(
-    normalizedAmount1,
-    token1Instance.pricePerUSDNew,
-  );
-
-  // Use volume from token 0 if it's priced, otherwise use token 1
-  tokenUpdateData.volumeInUSD =
-    tokenUpdateData.netVolumeToken0USD !== 0n
-      ? tokenUpdateData.netVolumeToken0USD
-      : tokenUpdateData.netVolumeToken1USD;
-
-  liquidityPoolAggregatorDiff = {
-    ...liquidityPoolAggregatorDiff,
-    totalVolume1:
-      liquidityPoolAggregator.totalVolume1 + tokenUpdateData.netAmount1,
-    token1Price:
-      token1Instance?.pricePerUSDNew ?? liquidityPoolAggregator.token1Price,
-    token1IsWhitelisted: token1Instance?.isWhitelisted ?? false,
-  };
-
-  return {
-    ...data,
-    liquidityPoolAggregatorDiff,
-    tokenUpdateData,
-    token1Instance,
-  };
-};
-
-const updateLiquidityPoolAggregatorDiffSwap = (
-  data: SwapEntityData,
-  reserveResult: {
-    addTotalLiquidityUSD: bigint;
-    reserve0: bigint;
-    reserve1: bigint;
-  },
-) => {
-  data.liquidityPoolAggregatorDiff = {
-    ...data.liquidityPoolAggregatorDiff,
-    numberOfSwaps: data.liquidityPoolAggregator.numberOfSwaps + 1n,
-    reserve0: data.liquidityPoolAggregator.reserve0 + reserveResult.reserve0,
-    reserve1: data.liquidityPoolAggregator.reserve1 + reserveResult.reserve1,
-    totalVolumeUSD:
-      data.liquidityPoolAggregator.totalVolumeUSD +
-      data.tokenUpdateData.volumeInUSD,
-    totalVolumeUSDWhitelisted:
-      data.liquidityPoolAggregator.totalVolumeUSDWhitelisted +
-      data.tokenUpdateData.volumeInUSDWhitelisted,
-    totalLiquidityUSD: reserveResult.addTotalLiquidityUSD,
-  };
-  return data;
-};
-
 CLPool.Swap.handlerWithLoader({
   loader: async ({ event, context }) => {
     return fetchPoolLoaderData(event.srcAddress, context, event.chainId);
   },
   handler: async ({ event, context, loaderReturn }) => {
-    const blockDatetime = new Date(event.block.timestamp * 1000);
-    const entity: CLPool_Swap = {
-      id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
-      sender: event.params.sender,
-      recipient: event.params.recipient,
-      amount0: event.params.amount0,
-      amount1: event.params.amount1,
-      sqrtPriceX96: event.params.sqrtPriceX96,
-      liquidity: event.params.liquidity,
-      tick: event.params.tick,
-      sourceAddress: event.srcAddress,
-      timestamp: blockDatetime,
-      blockNumber: event.block.number,
-      logIndex: event.logIndex,
-      chainId: event.chainId,
-      transactionHash: event.transaction.hash,
-    };
+    // Process the swap event
+    const result = await processCLPoolSwap(event, loaderReturn, context);
 
-    context.CLPool_Swap.set(entity);
+    // Apply the result to the database
+    context.CLPool_Swap.set(result.CLPoolSwapEntity);
 
-    // Delta that will be added to the liquidity pool aggregator
-    const tokenUpdateData = {
-      netAmount0: abs(event.params.amount0),
-      netAmount1: abs(event.params.amount1),
-      netVolumeToken0USD: 0n,
-      netVolumeToken1USD: 0n,
-      volumeInUSD: 0n,
-      volumeInUSDWhitelisted: 0n,
-    };
+    // Handle errors
+    if (result.error) {
+      context.log.error(result.error);
+      return;
+    }
 
-    const liquidityPoolAggregatorDiff: Partial<LiquidityPoolAggregator> = {};
-
-    switch (loaderReturn._type) {
-      case "success": {
-        let successSwapEntityData: SwapEntityData = {
-          liquidityPoolAggregator: loaderReturn.liquidityPoolAggregator,
-          token0Instance: loaderReturn.token0Instance,
-          token1Instance: loaderReturn.token1Instance,
-          tokenUpdateData,
-          liquidityPoolAggregatorDiff,
-        };
-
-        successSwapEntityData = await updateToken0SwapData(
-          successSwapEntityData,
-          event,
-          context,
-        );
-        successSwapEntityData = await updateToken1SwapData(
-          successSwapEntityData,
-          event,
-          context,
-        );
-
-        // If both tokens are whitelisted, add the volume of token0 to the whitelisted volume
-        successSwapEntityData.tokenUpdateData.volumeInUSDWhitelisted +=
-          successSwapEntityData.token0Instance?.isWhitelisted &&
-          successSwapEntityData.token1Instance?.isWhitelisted
-            ? successSwapEntityData.tokenUpdateData.netVolumeToken0USD
-            : 0n;
-
-        const successReserveResult = updateCLPoolLiquidity(
-          successSwapEntityData.liquidityPoolAggregator,
-          event,
-          successSwapEntityData.token0Instance,
-          successSwapEntityData.token1Instance,
-        );
-
-        // Merge with previous liquidity pool aggregator values.
-        successSwapEntityData = updateLiquidityPoolAggregatorDiffSwap(
-          successSwapEntityData,
-          successReserveResult,
-        );
-
-        updateLiquidityPoolAggregator(
-          successSwapEntityData.liquidityPoolAggregatorDiff,
-          successSwapEntityData.liquidityPoolAggregator,
-          blockDatetime,
-          context,
-          event.block.number,
-        );
-        return;
-      }
-      case "TokenNotFoundError":
-        context.log.error(loaderReturn.message);
-        return;
-      case "LiquidityPoolAggregatorNotFoundError":
-        context.log.error(loaderReturn.message);
-        return;
-
-      default: {
-        const _exhaustiveCheck: never = loaderReturn;
-        return _exhaustiveCheck;
-      }
+    // Apply liquidity pool updates
+    if (result.liquidityPoolDiff && result.liquidityPoolAggregator) {
+      updateLiquidityPoolAggregator(
+        result.liquidityPoolDiff,
+        result.liquidityPoolAggregator,
+        new Date(event.block.timestamp * 1000),
+        context,
+        event.block.number,
+      );
     }
   },
 });
