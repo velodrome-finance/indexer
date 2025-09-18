@@ -2,7 +2,7 @@ import { expect } from "chai";
 import sinon from "sinon";
 import type {
   LiquidityPoolAggregator,
-  LiquidityPoolAggregatorSnapshot,
+  handlerContext,
 } from "../../generated/src/Types.gen";
 import {
   type GaugeFees,
@@ -13,10 +13,12 @@ import {
 } from "../../src/Aggregators/LiquidityPoolAggregator";
 import { CHAIN_CONSTANTS } from "../../src/Constants";
 
+// Type for the simulateContract method
+type SimulateContractMethod =
+  (typeof CHAIN_CONSTANTS)[10]["eth_client"]["simulateContract"];
+
 describe("LiquidityPoolAggregator Functions", () => {
-  // TODO: Fix the types
-  // biome-ignore lint/suspicious/noExplicitAny:
-  let contextStub: any;
+  let contextStub: Partial<handlerContext>;
   let liquidityPoolAggregator: Partial<LiquidityPoolAggregator>;
   let timestamp: Date;
   let mockContract: sinon.SinonStub;
@@ -24,9 +26,33 @@ describe("LiquidityPoolAggregator Functions", () => {
 
   beforeEach(() => {
     contextStub = {
-      LiquidityPoolAggregatorSnapshot: { set: sinon.stub() },
-      LiquidityPoolAggregator: { set: sinon.stub() },
-      Dynamic_Fee_Swap_Module: { set: sinon.stub() },
+      LiquidityPoolAggregatorSnapshot: {
+        set: sinon.stub(),
+        get: sinon.stub(),
+        getOrThrow: sinon.stub(),
+        getOrCreate: sinon.stub(),
+        deleteUnsafe: sinon.stub(),
+      },
+      LiquidityPoolAggregator: {
+        set: sinon.stub(),
+        get: sinon.stub(),
+        getOrThrow: sinon.stub(),
+        getOrCreate: sinon.stub(),
+        deleteUnsafe: sinon.stub(),
+      },
+      Dynamic_Fee_Swap_Module: {
+        set: sinon.stub(),
+        get: sinon.stub(),
+        getOrThrow: sinon.stub(),
+        getOrCreate: sinon.stub(),
+        deleteUnsafe: sinon.stub(),
+      },
+      log: {
+        error: sinon.stub(),
+        info: sinon.stub(),
+        warn: sinon.stub(),
+        debug: sinon.stub(),
+      },
     };
     liquidityPoolAggregator = {
       id: "0x123",
@@ -44,45 +70,49 @@ describe("LiquidityPoolAggregator Functions", () => {
       mockContract = sinon
         .stub(CHAIN_CONSTANTS[10].eth_client, "simulateContract")
         .onCall(0)
-        .returns({
+        .resolves({
           result: [400, 2000, 10000000n],
-          // biome-ignore lint/suspicious/noExplicitAny:
-        } as any);
-      mockContract.onCall(1).returns({
+          request: {
+            address:
+              "0x0000000000000000000000000000000000000000" as `0x${string}`,
+            abi: [],
+            functionName: "mockFunction",
+            args: [],
+          },
+        } as unknown as Awaited<ReturnType<SimulateContractMethod>>);
+      mockContract.onCall(1).resolves({
         result: 1900,
-        // biome-ignore lint/suspicious/noExplicitAny:
-      } as any);
+        request: {
+          address:
+            "0x0000000000000000000000000000000000000000" as `0x${string}`,
+          abi: [],
+          functionName: "mockFunction",
+          args: [],
+        },
+      } as unknown as Awaited<ReturnType<SimulateContractMethod>>);
       liquidityPoolAggregator = {
         ...liquidityPoolAggregator,
         id: "0x478946BcD4a5a22b316470F5486fAfb928C0bA25",
       };
       await updateDynamicFeePools(
         liquidityPoolAggregator as LiquidityPoolAggregator,
-        contextStub,
+        contextStub as handlerContext,
         blockNumber,
       );
     });
     afterEach(() => {
       mockContract.reset();
-      contextStub.Dynamic_Fee_Swap_Module.set.reset();
+      (contextStub.Dynamic_Fee_Swap_Module?.set as sinon.SinonStub).reset();
     });
     it("should update the dynamic fee pools", async () => {
       const expected_id = `${liquidityPoolAggregator.chainId}-${liquidityPoolAggregator.id}-${blockNumber}`;
-      expect(
-        contextStub.Dynamic_Fee_Swap_Module.set.args[0][0].baseFee,
-      ).to.equal(400);
-      expect(
-        contextStub.Dynamic_Fee_Swap_Module.set.args[0][0].feeCap,
-      ).to.equal(2000);
-      expect(
-        contextStub.Dynamic_Fee_Swap_Module.set.args[0][0].scalingFactor,
-      ).to.equal(10000000n);
-      expect(
-        contextStub.Dynamic_Fee_Swap_Module.set.args[0][0].currentFee,
-      ).to.equal(1900);
-      expect(contextStub.Dynamic_Fee_Swap_Module.set.args[0][0].id).to.equal(
-        expected_id,
-      );
+      const setStub = contextStub.Dynamic_Fee_Swap_Module
+        ?.set as sinon.SinonStub;
+      expect(setStub.args[0][0].baseFee).to.equal(400);
+      expect(setStub.args[0][0].feeCap).to.equal(2000);
+      expect(setStub.args[0][0].scalingFactor).to.equal(10000000n);
+      expect(setStub.args[0][0].currentFee).to.equal(1900);
+      expect(setStub.args[0][0].id).to.equal(expected_id);
     });
   });
 
@@ -96,10 +126,16 @@ describe("LiquidityPoolAggregator Functions", () => {
       mockContract = sinon
         .stub(CHAIN_CONSTANTS[10].eth_client, "simulateContract")
         .onCall(0)
-        .returns({
+        .resolves({
           result: [55255516292n, 18613785323003103999n],
-          // biome-ignore lint/suspicious/noExplicitAny:
-        } as any);
+          request: {
+            address:
+              "0x0000000000000000000000000000000000000000" as `0x${string}`,
+            abi: [],
+            functionName: "mockFunction",
+            args: [],
+          },
+        } as unknown as Awaited<ReturnType<SimulateContractMethod>>);
       gaugeFees = await getCurrentAccumulatedFeeCL(
         liquidityPoolAggregator.id as string,
         liquidityPoolAggregator.chainId as number,
@@ -120,15 +156,15 @@ describe("LiquidityPoolAggregator Functions", () => {
       setLiquidityPoolAggregatorSnapshot(
         liquidityPoolAggregator as LiquidityPoolAggregator,
         timestamp,
-        contextStub,
+        contextStub as handlerContext,
       );
     });
 
     it("should create a snapshot of the liquidity pool aggregator", () => {
-      expect(contextStub.LiquidityPoolAggregatorSnapshot.set.calledOnce).to.be
-        .true;
-      const snapshot =
-        contextStub.LiquidityPoolAggregatorSnapshot.set.getCall(0).args[0];
+      const setStub = contextStub.LiquidityPoolAggregatorSnapshot
+        ?.set as sinon.SinonStub;
+      expect(setStub.calledOnce).to.be.true;
+      const snapshot = setStub.getCall(0).args[0];
       expect(snapshot.id).to.equal(
         `${liquidityPoolAggregator.chainId}-${
           liquidityPoolAggregator.id
@@ -160,14 +196,15 @@ describe("LiquidityPoolAggregator Functions", () => {
         diff,
         liquidityPoolAggregator as LiquidityPoolAggregator,
         timestamp,
-        contextStub,
+        contextStub as handlerContext,
         blockNumber,
       );
     });
 
     it("should update the liquidity pool aggregator", () => {
-      const updatedAggregator =
-        contextStub.LiquidityPoolAggregator.set.getCall(0).args[0];
+      const setStub = contextStub.LiquidityPoolAggregator
+        ?.set as sinon.SinonStub;
+      const updatedAggregator = setStub.getCall(0).args[0];
       expect(updatedAggregator.totalVolume0).to.equal(diff.totalVolume0);
       expect(updatedAggregator.totalVolume1).to.equal(diff.totalVolume1);
       expect(updatedAggregator.numberOfSwaps).to.equal(diff.numberOfSwaps);
@@ -180,8 +217,9 @@ describe("LiquidityPoolAggregator Functions", () => {
     });
 
     it("should create a snapshot if the last update was more than 1 hour ago", () => {
-      const snapshot =
-        contextStub.LiquidityPoolAggregatorSnapshot.set.getCall(0).args[0];
+      const setStub = contextStub.LiquidityPoolAggregatorSnapshot
+        ?.set as sinon.SinonStub;
+      const snapshot = setStub.getCall(0).args[0];
       expect(snapshot).to.not.be.undefined;
     });
   });
