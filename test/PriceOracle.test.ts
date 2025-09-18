@@ -12,12 +12,28 @@ import { setupCommon } from "./EventHandlers/Pool/common";
 describe("PriceOracle", () => {
   let mockContract: sinon.SinonStub;
 
-  // TODO: fix types
   const mockContext = {
-    Token: { set: sinon.stub(), get: sinon.stub() },
-    TokenPriceSnapshot: { set: sinon.stub(), get: sinon.stub() },
-    // biome-ignore lint/suspicious/noExplicitAny:
-  } as any;
+    Token: {
+      set: sinon.stub(),
+      get: sinon.stub(),
+      getOrThrow: sinon.stub(),
+      getOrCreate: sinon.stub(),
+      deleteUnsafe: sinon.stub(),
+    },
+    TokenPriceSnapshot: {
+      set: sinon.stub(),
+      get: sinon.stub(),
+      getOrThrow: sinon.stub(),
+      getOrCreate: sinon.stub(),
+      deleteUnsafe: sinon.stub(),
+    },
+    log: {
+      error: sinon.stub(),
+      info: sinon.stub(),
+      warn: sinon.stub(),
+      debug: sinon.stub(),
+    },
+  } as Partial<handlerContext>;
 
   const chainId = 10; // Optimism
   const eth_client = CHAIN_CONSTANTS[chainId].eth_client;
@@ -119,14 +135,15 @@ describe("PriceOracle", () => {
           blockNumber,
           blockTimestamp,
           chainId,
-          mockContext,
+          mockContext as handlerContext,
           1000000n,
         );
       });
       it("should not update prices if the update interval hasn't passed", async () => {
         expect(mockContract.called).to.be.false;
-        expect(mockContext.Token.set.called).to.be.false;
-        expect(mockContext.TokenPriceSnapshot.set.called).to.be.false;
+        expect((mockContext.Token?.set as sinon.SinonStub).called).to.be.false;
+        expect((mockContext.TokenPriceSnapshot?.set as sinon.SinonStub).called)
+          .to.be.false;
       });
     });
     describe("if the update interval has passed", () => {
@@ -144,10 +161,11 @@ describe("PriceOracle", () => {
           blockNumber,
           blockTimestamp,
           chainId,
-          mockContext,
+          mockContext as handlerContext,
           1000000n,
         );
-        updatedToken = mockContext.Token.set.lastCall.args[0];
+        updatedToken = (mockContext.Token?.set as sinon.SinonStub).lastCall
+          .args[0];
       });
       it("should update prices if the update interval has passed", async () => {
         expect(updatedToken.pricePerUSDNew).to.equal(
@@ -158,7 +176,9 @@ describe("PriceOracle", () => {
         );
       });
       it("should create a new TokenPriceSnapshot entity", async () => {
-        const tokenPrice = mockContext.TokenPriceSnapshot.set.lastCall.args[0];
+        const tokenPrice = (
+          mockContext.TokenPriceSnapshot?.set as sinon.SinonStub
+        ).lastCall.args[0];
         expect(tokenPrice.pricePerUSDNew).to.equal(
           mockTokenPriceData.pricePerUSDNew,
         );

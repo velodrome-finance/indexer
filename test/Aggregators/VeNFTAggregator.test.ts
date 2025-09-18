@@ -4,6 +4,7 @@ import type {
   VeNFT_Deposit,
   VeNFT_Transfer,
   VeNFT_Withdraw,
+  handlerContext,
 } from "generated";
 import sinon from "sinon";
 import {
@@ -14,9 +15,7 @@ import {
 } from "../../src/Aggregators/VeNFTAggregator";
 
 describe("VeNFTAggregator", () => {
-  // TODO: Fix the types
-  // biome-ignore lint/suspicious/noExplicitAny:
-  let contextStub: any;
+  let contextStub: Partial<handlerContext>;
   const mockVeNFTAggregator: VeNFTAggregator = {
     id: "10_1",
     chainId: 10,
@@ -31,7 +30,19 @@ describe("VeNFTAggregator", () => {
 
   beforeEach(() => {
     contextStub = {
-      VeNFTAggregator: { set: sinon.stub() },
+      VeNFTAggregator: {
+        set: sinon.stub(),
+        get: sinon.stub(),
+        getOrThrow: sinon.stub(),
+        getOrCreate: sinon.stub(),
+        deleteUnsafe: sinon.stub(),
+      },
+      log: {
+        error: sinon.stub(),
+        info: sinon.stub(),
+        warn: sinon.stub(),
+        debug: sinon.stub(),
+      },
     };
   });
 
@@ -53,8 +64,14 @@ describe("VeNFTAggregator", () => {
     describe("when the veNFT is not found", () => {
       let result: VeNFTAggregator;
       beforeEach(async () => {
-        depositVeNFT(mockDeposit, undefined, timestamp, contextStub);
-        result = contextStub.VeNFTAggregator.set.firstCall.args[0];
+        depositVeNFT(
+          mockDeposit,
+          undefined,
+          timestamp,
+          contextStub as handlerContext,
+        );
+        result = (contextStub.VeNFTAggregator?.set as sinon.SinonStub).firstCall
+          .args[0];
       });
       it("should create a new veNFTAggregator", () => {
         expect(result.id).to.equal(
@@ -70,8 +87,14 @@ describe("VeNFTAggregator", () => {
     describe("when the veNFT is found", () => {
       let result: VeNFTAggregator;
       beforeEach(async () => {
-        depositVeNFT(mockDeposit, mockVeNFTAggregator, timestamp, contextStub);
-        result = contextStub.VeNFTAggregator.set.firstCall.args[0];
+        depositVeNFT(
+          mockDeposit,
+          mockVeNFTAggregator,
+          timestamp,
+          contextStub as handlerContext,
+        );
+        result = (contextStub.VeNFTAggregator?.set as sinon.SinonStub).firstCall
+          .args[0];
       });
       it("should update the veNFTAggregator", () => {
         expect(result.id).to.equal(
@@ -103,8 +126,14 @@ describe("VeNFTAggregator", () => {
     describe("when the veNFT is not found", () => {
       let result: VeNFTAggregator;
       beforeEach(async () => {
-        withdrawVeNFT(mockWithdraw, undefined, timestamp, contextStub);
-        result = contextStub.VeNFTAggregator.set.firstCall.args[0];
+        withdrawVeNFT(
+          mockWithdraw,
+          undefined,
+          timestamp,
+          contextStub as handlerContext,
+        );
+        result = (contextStub.VeNFTAggregator?.set as sinon.SinonStub).firstCall
+          .args[0];
       });
       it("should create a new veNFTAggregator", () => {
         expect(result.id).to.equal(
@@ -124,9 +153,10 @@ describe("VeNFTAggregator", () => {
           mockWithdraw,
           mockVeNFTAggregator,
           timestamp,
-          contextStub,
+          contextStub as handlerContext,
         );
-        result = contextStub.VeNFTAggregator.set.firstCall.args[0];
+        result = (contextStub.VeNFTAggregator?.set as sinon.SinonStub).firstCall
+          .args[0];
       });
       it("should update the veNFTAggregator", () => {
         expect(result.id).to.equal(
@@ -157,8 +187,14 @@ describe("VeNFTAggregator", () => {
     describe("when the veNFT is not found", () => {
       let result: VeNFTAggregator;
       beforeEach(async () => {
-        transferVeNFT(mockTransfer, undefined, timestamp, contextStub);
-        result = contextStub.VeNFTAggregator.set.firstCall.args[0];
+        transferVeNFT(
+          mockTransfer,
+          undefined,
+          timestamp,
+          contextStub as handlerContext,
+        );
+        result = (contextStub.VeNFTAggregator?.set as sinon.SinonStub).firstCall
+          .args[0];
       });
       it("should create a new veNFTAggregator", () => {
         expect(result.id).to.equal(
@@ -183,9 +219,10 @@ describe("VeNFTAggregator", () => {
             zeroTransfer,
             mockVeNFTAggregator,
             timestamp,
-            contextStub,
+            contextStub as handlerContext,
           );
-          result = contextStub.VeNFTAggregator.set.firstCall.args[0];
+          result = (contextStub.VeNFTAggregator?.set as sinon.SinonStub)
+            .firstCall.args[0];
         });
         it("should set the veNFTAggregator to dead", () => {
           expect(result.isAlive).to.equal(false);
@@ -198,9 +235,10 @@ describe("VeNFTAggregator", () => {
             mockTransfer,
             mockVeNFTAggregator,
             timestamp,
-            contextStub,
+            contextStub as handlerContext,
           );
-          result = contextStub.VeNFTAggregator.set.firstCall.args[0];
+          result = (contextStub.VeNFTAggregator?.set as sinon.SinonStub)
+            .firstCall.args[0];
         });
         it("should update the veNFTAggregator", () => {
           expect(result.id).to.equal(

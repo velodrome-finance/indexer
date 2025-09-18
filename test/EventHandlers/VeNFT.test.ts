@@ -1,7 +1,11 @@
 import { expect } from "chai";
 import sinon from "sinon";
 import { MockDb, VeNFT } from "../../generated/src/TestHelpers.gen";
-import type { VeNFTAggregator as VeNFTAggregatorType } from "../../generated/src/Types.gen";
+import type {
+  VeNFT_Deposit,
+  VeNFT_Transfer,
+  VeNFT_Withdraw,
+} from "../../generated/src/Types.gen";
 import * as VeNFTAggregator from "../../src/Aggregators/VeNFTAggregator";
 
 const VeNFTId = (chainId: number, tokenId: bigint) => `${chainId}_${tokenId}`;
@@ -20,24 +24,6 @@ describe("VeNFT Events", () => {
     locktime: 1n,
     owner: "0x2222222222222222222222222222222222222222",
     totalValueLocked: 1n,
-  };
-
-  // TODO: Get rid of this
-  let expected: {
-    id: string;
-    chainId: number;
-    provider?: string;
-    value?: bigint;
-    tokenId: bigint;
-    from?: string;
-    to?: string;
-    blockNumber?: number;
-    logIndex?: number;
-    timestamp: Date;
-    transactionHash: string;
-    ts?: bigint;
-    locktime?: bigint;
-    depositType?: bigint;
   };
 
   beforeEach(() => {
@@ -68,6 +54,7 @@ describe("VeNFT Events", () => {
     let stubVeNFTAggregator: sinon.SinonStub;
     let postEventDB: ReturnType<typeof MockDb.createMockDb>;
     let mockEvent: ReturnType<typeof VeNFT.Transfer.createMockEvent>;
+    let expected: VeNFT_Transfer;
 
     beforeEach(async () => {
       stubVeNFTAggregator = sinon.stub(VeNFTAggregator, "transferVeNFT");
@@ -131,6 +118,7 @@ describe("VeNFT Events", () => {
     let stubVeNFTAggregator: sinon.SinonStub;
     let postEventDB: ReturnType<typeof MockDb.createMockDb>;
     let mockEvent: ReturnType<typeof VeNFT.Withdraw.createMockEvent>;
+    let expected: VeNFT_Withdraw;
 
     beforeEach(async () => {
       stubVeNFTAggregator = sinon.stub(VeNFTAggregator, "withdrawVeNFT");
@@ -199,6 +187,7 @@ describe("VeNFT Events", () => {
     let stubVeNFTAggregator: sinon.SinonStub;
     let postEventDB: ReturnType<typeof MockDb.createMockDb>;
     let mockEvent: ReturnType<typeof VeNFT.Deposit.createMockEvent>;
+    let expected: VeNFT_Deposit;
 
     beforeEach(async () => {
       stubVeNFTAggregator = sinon.stub(VeNFTAggregator, "depositVeNFT");
