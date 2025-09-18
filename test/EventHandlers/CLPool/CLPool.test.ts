@@ -22,6 +22,21 @@ import { abs } from "../../../src/Maths";
 import * as PriceOracle from "../../../src/PriceOracle";
 import { setupCommon } from "../Pool/common";
 
+// Helper function to create test database with common entities
+const createTestDB = (
+  mockToken0Data: Token,
+  mockToken1Data: Token,
+  mockLiquidityPoolData: LiquidityPoolAggregator,
+  baseDB: ReturnType<typeof MockDb.createMockDb>,
+) => {
+  let updatedDB = baseDB.entities.LiquidityPoolAggregator.set(
+    mockLiquidityPoolData,
+  );
+  updatedDB = updatedDB.entities.Token.set(mockToken0Data);
+  updatedDB = updatedDB.entities.Token.set(mockToken1Data);
+  return updatedDB;
+};
+
 describe("CLPool Event Handlers", () => {
   const mockDb = MockDb.createMockDb();
   let updateLiquidityPoolAggregatorStub: sinon.SinonStub;
@@ -67,12 +82,12 @@ describe("CLPool Event Handlers", () => {
     let collectedEntity: CLPool_Mint | undefined;
 
     beforeEach(async () => {
-      const updatedDB1 = mockDb.entities.LiquidityPoolAggregator.set(
+      const updatedDB3 = createTestDB(
+        mockToken0Data,
+        mockToken1Data,
         mockLiquidityPoolData,
+        mockDb,
       );
-
-      const updatedDB2 = updatedDB1.entities.Token.set(mockToken0Data);
-      const updatedDB3 = updatedDB2.entities.Token.set(mockToken1Data);
 
       const eventData = {
         sender: "0x4444444444444444444444444444444444444444",
@@ -154,12 +169,12 @@ describe("CLPool Event Handlers", () => {
     let collectedEntity: CLPool_Burn | undefined;
 
     beforeEach(async () => {
-      const updatedDB1 = mockDb.entities.LiquidityPoolAggregator.set(
+      const updatedDB3 = createTestDB(
+        mockToken0Data,
+        mockToken1Data,
         mockLiquidityPoolData,
+        mockDb,
       );
-
-      const updatedDB2 = updatedDB1.entities.Token.set(mockToken0Data);
-      const updatedDB3 = updatedDB2.entities.Token.set(mockToken1Data);
 
       const eventData = {
         sender: "0x4444444444444444444444444444444444444444",
@@ -238,10 +253,11 @@ describe("CLPool Event Handlers", () => {
 
     describe("when event is processed", () => {
       beforeEach(async () => {
-        let updatedDB = mockDb.entities.Token.set(mockToken0Data);
-        updatedDB = updatedDB.entities.Token.set(mockToken1Data);
-        updatedDB = updatedDB.entities.LiquidityPoolAggregator.set(
+        const updatedDB = createTestDB(
+          mockToken0Data,
+          mockToken1Data,
           mockLiquidityPoolData,
+          mockDb,
         );
 
         setupDB = await CLPool.Collect.processEvent({
@@ -349,10 +365,11 @@ describe("CLPool Event Handlers", () => {
       };
 
       beforeEach(async () => {
-        let updatedDB = mockDb.entities.Token.set(mockToken0Data as Token);
-        updatedDB = updatedDB.entities.Token.set(mockToken1Data as Token);
-        updatedDB = updatedDB.entities.LiquidityPoolAggregator.set(
-          mockLiquidityPoolData as LiquidityPoolAggregator,
+        const updatedDB = createTestDB(
+          mockToken0Data,
+          mockToken1Data,
+          mockLiquidityPoolData,
+          mockDb,
         );
 
         setupDB = await CLPool.CollectFees.processEvent({
@@ -469,11 +486,12 @@ describe("CLPool Event Handlers", () => {
       let updatedLiquidityPool: Partial<LiquidityPoolAggregator>;
 
       beforeEach(async () => {
-        let updatedDB = mockDb.entities.LiquidityPoolAggregator.set(
-          mockLiquidityPoolData as LiquidityPoolAggregator,
+        const updatedDB = createTestDB(
+          mockToken0Data,
+          mockToken1Data,
+          mockLiquidityPoolData,
+          mockDb,
         );
-        updatedDB = updatedDB.entities.Token.set(mockToken0Data as Token);
-        updatedDB = updatedDB.entities.Token.set(mockToken1Data as Token);
 
         const result = await CLPool.Swap.processEvent({
           event: mockEvent,
