@@ -21,6 +21,7 @@ import { updateLiquidityPoolAggregator } from "../Aggregators/LiquidityPoolAggre
 import { normalizeTokenAmountTo1e18 } from "../Helpers";
 import { multiplyBase1e18 } from "../Maths";
 import { fetchPoolLoaderData } from "../Pools/common";
+import { processCLPoolCollect } from "./CLPool/CLPoolCollectLogic";
 import { processCLPoolMint } from "./CLPool/CLPoolMintLogic";
 import { processCLPoolSwap } from "./CLPool/CLPoolSwapLogic";
 import { updateCLPoolLiquidity } from "./CLPool/updateCLPoolLiquidity";
@@ -140,60 +141,31 @@ CLPool.Collect.handlerWithLoader({
     return fetchPoolLoaderData(event.srcAddress, context, event.chainId);
   },
   handler: async ({ event, context, loaderReturn }) => {
-    const entity: CLPool_Collect = {
-      id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
-      owner: event.params.owner,
-      recipient: event.params.recipient,
-      tickLower: event.params.tickLower,
-      tickUpper: event.params.tickUpper,
-      amount0: event.params.amount0,
-      amount1: event.params.amount1,
-      sourceAddress: event.srcAddress,
-      timestamp: new Date(event.block.timestamp * 1000),
-      blockNumber: event.block.number,
-      logIndex: event.logIndex,
-      chainId: event.chainId,
-      transactionHash: event.transaction.hash,
-    };
+    // Process the collect event
+    const result = processCLPoolCollect(event, loaderReturn);
 
-    context.CLPool_Collect.set(entity);
+    // Apply the result to the database
+    context.CLPool_Collect.set(result.CLPoolCollectEntity);
 
-    switch (loaderReturn._type) {
-      case "success": {
-        const { liquidityPoolAggregator, token0Instance, token1Instance } =
-          loaderReturn;
-        const tokenUpdateData = updateCLPoolLiquidity(
-          liquidityPoolAggregator,
-          event,
-          token0Instance,
-          token1Instance,
-        );
+    // Handle errors
+    if (result.error) {
+      context.log.error(result.error);
+      return;
+    }
 
-        const liquidityPoolDiff = {
-          reserve0: liquidityPoolAggregator.reserve0 - tokenUpdateData.reserve0,
-          reserve1: liquidityPoolAggregator.reserve1 - tokenUpdateData.reserve1,
-          totalLiquidityUSD: tokenUpdateData.subTotalLiquidityUSD,
-          lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
-        };
+    // Apply liquidity pool updates
+    if (result.liquidityPoolDiff) {
+      // We need to get the original liquidityPoolAggregator from loaderReturn
+      if (loaderReturn._type === "success") {
+        const { liquidityPoolAggregator } = loaderReturn;
 
         updateLiquidityPoolAggregator(
-          liquidityPoolDiff,
+          result.liquidityPoolDiff,
           liquidityPoolAggregator,
-          liquidityPoolDiff.lastUpdatedTimestamp,
+          result.liquidityPoolDiff.lastUpdatedTimestamp,
           context,
           event.block.number,
         );
-        return;
-      }
-      case "TokenNotFoundError":
-        context.log.error(loaderReturn.message);
-        return;
-      case "LiquidityPoolAggregatorNotFoundError":
-        context.log.error(loaderReturn.message);
-        return;
-      default: {
-        const _exhaustiveCheck: never = loaderReturn;
-        return _exhaustiveCheck;
       }
     }
   },
