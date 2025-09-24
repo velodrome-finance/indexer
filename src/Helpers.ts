@@ -203,3 +203,56 @@ export async function updateFeeTokenData(
     totalFeesUSDWhitelisted,
   };
 }
+
+/**
+ * Updates tokens for reserve/liquidity operations (like Sync events)
+ */
+export async function updateReserveTokenData(
+  token0: Token | undefined,
+  token1: Token | undefined,
+  amount0: bigint,
+  amount1: bigint,
+  event: {
+    block: { number: number; timestamp: number };
+    chainId: number;
+  },
+  context: handlerContext,
+): Promise<{
+  token0?: Token;
+  token1?: Token;
+  token0UsdValue?: bigint;
+  token1UsdValue?: bigint;
+  totalLiquidityUSD: bigint;
+}> {
+  const results = await Promise.allSettled([
+    token0 ? updateTokenData(token0, amount0, event, context) : null,
+    token1 ? updateTokenData(token1, amount1, event, context) : null,
+  ]);
+
+  const token0Data =
+    results[0].status === "fulfilled" && results[0].value
+      ? results[0].value
+      : undefined;
+  const token1Data =
+    results[1].status === "fulfilled" && results[1].value
+      ? results[1].value
+      : undefined;
+
+  let totalLiquidityUSD = 0n;
+
+  if (token0Data) {
+    totalLiquidityUSD += token0Data.usdValue;
+  }
+
+  if (token1Data) {
+    totalLiquidityUSD += token1Data.usdValue;
+  }
+
+  return {
+    token0: token0Data?.token,
+    token1: token1Data?.token,
+    token0UsdValue: token0Data?.usdValue,
+    token1UsdValue: token1Data?.usdValue,
+    totalLiquidityUSD,
+  };
+}
