@@ -11,40 +11,62 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Use Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20.x'
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
 
-    - name: Install pnpm
-      uses: pnpm/action-setup@v2
-      with:
-        version: 8
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+          run_install: false
 
-    - name: Get pnpm store directory
-      id: pnpm-cache
-      shell: bash
-      run: |
-        echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path)" >> "$GITHUB_OUTPUT"
 
-    - uses: actions/cache@v3
-      name: Setup pnpm cache
-      with:
-        path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
-        key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-        restore-keys: |
-          ${{ runner.os }}-pnpm-store-
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
 
-    - name: Install dependencies
-      run: pnpm install
+      # Install base deps first (generated doesn't exist yet)
+      - name: Install dependencies (base)
+        run: pnpm install --no-frozen-lockfile --filter '!generated'
 
-    - name: QA
-      run: pnpm run qa
+      # Make sure codegen and any nested pnpm calls can update the lockfile
+      - name: Relax pnpm lockfile (project config)
+        run: |
+          pnpm config set frozen-lockfile false --location=project
+          pnpm config set prefer-frozen-lockfile false --location=project
 
-    - name: Build
-      run: pnpm run codegen
+      # Run codegen. Also unset CI for this step to avoid pnpm's CI default frozen mode.
+      - name: Generate types
+        env:
+          CI: ""                                  # disable pnpm's implicit frozen mode
+          PNPM_CONFIG_FROZEN_LOCKFILE: "false"    # belt-and-suspenders
+        run: |
+          pnpm run codegen
+          # Fail fast if codegen didn't produce expected files
+          test -f generated/src/Types.gen.ts || (echo "Types.gen.ts missing after codegen" && exit 1)
 
-    - name: Run tests
-      run: pnpm test
+      # Now that generated/package.json exists, install across all workspaces
+      - name: Install dependencies (after codegen)
+        run: pnpm -r install --no-frozen-lockfile
+
+      # Optional build (keep if your repo expects compiled output before QA/tests)
+      - name: Build
+        run: pnpm -r build
+
+      - name: QA
+        run: pnpm run qa
+
+      - name: Run tests
+        run: pnpm test
