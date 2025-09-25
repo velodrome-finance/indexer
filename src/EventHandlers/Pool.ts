@@ -8,12 +8,11 @@ import {
 } from "generated";
 
 import { updateLiquidityPoolAggregator } from "../Aggregators/LiquidityPoolAggregator";
-import { TokenIdByChain } from "../Constants";
 import { fetchPoolLoaderData } from "../Pools/common";
-import { refreshTokenPrice } from "../PriceOracle";
 import { normalizeTokenAmountTo1e18 } from "./../Helpers";
 import { multiplyBase1e18 } from "./../Maths";
 import { processPoolSwap } from "./Pool/PoolSwapLogic";
+import { processPoolSync } from "./Pool/PoolSyncLogic";
 
 Pool.Mint.handler(async ({ event, context }) => {
   const entity: Pool_Mint = {
@@ -192,93 +191,31 @@ Pool.Sync.handlerWithLoader({
     return fetchPoolLoaderData(event.srcAddress, context, event.chainId);
   },
   handler: async ({ event, context, loaderReturn }) => {
-    switch (loaderReturn._type) {
-      case "success": {
-        const { liquidityPoolAggregator, token0Instance, token1Instance } =
-          loaderReturn;
-        const blockDatetime = new Date(event.block.timestamp * 1000);
-        const entity: Pool_Sync = {
-          id: `${event.chainId}_${liquidityPoolAggregator.id}_${event.block.number}_${event.logIndex}`,
-          reserve0: event.params.reserve0,
-          reserve1: event.params.reserve1,
-          sourceAddress: event.srcAddress,
-          timestamp: blockDatetime,
-          blockNumber: event.block.number,
-          logIndex: event.logIndex,
-          chainId: event.chainId,
-          transactionHash: event.transaction.hash,
-        };
+    // Process the sync event
+    const result = await processPoolSync(event, loaderReturn, context);
 
-        context.Pool_Sync.set(entity);
+    // Apply the result to the database
+    context.Pool_Sync.set(result.PoolSyncEntity);
 
-        const tokenUpdateData = {
-          totalLiquidityUSD: 0n,
-          normalizedReserve0: 0n,
-          normalizedReserve1: 0n,
-          token0PricePerUSDNew:
-            token0Instance?.pricePerUSDNew ??
-            liquidityPoolAggregator.token0Price,
-          token1PricePerUSDNew:
-            token1Instance?.pricePerUSDNew ??
-            liquidityPoolAggregator.token1Price,
-        };
+    // Handle errors
+    if (result.error) {
+      context.log.error(result.error);
+      return;
+    }
 
-        // Update price and liquidity if the token is priced
-        if (token0Instance) {
-          tokenUpdateData.normalizedReserve0 += normalizeTokenAmountTo1e18(
-            event.params.reserve0,
-            Number(token0Instance.decimals),
-          );
-          tokenUpdateData.token0PricePerUSDNew = token0Instance.pricePerUSDNew;
-          tokenUpdateData.totalLiquidityUSD += multiplyBase1e18(
-            tokenUpdateData.normalizedReserve0,
-            tokenUpdateData.token0PricePerUSDNew,
-          );
-        }
-
-        if (token1Instance) {
-          tokenUpdateData.normalizedReserve1 += normalizeTokenAmountTo1e18(
-            event.params.reserve1,
-            Number(token1Instance.decimals),
-          );
-
-          tokenUpdateData.token1PricePerUSDNew = token1Instance.pricePerUSDNew;
-          tokenUpdateData.totalLiquidityUSD += multiplyBase1e18(
-            tokenUpdateData.normalizedReserve1,
-            tokenUpdateData.token1PricePerUSDNew,
-          );
-        }
-
-        const liquidityPoolDiff = {
-          reserve0: event.params.reserve0,
-          reserve1: event.params.reserve1,
-          totalLiquidityUSD:
-            tokenUpdateData.totalLiquidityUSD ||
-            liquidityPoolAggregator.totalLiquidityUSD,
-          token0Price: tokenUpdateData.token0PricePerUSDNew,
-          token1Price: tokenUpdateData.token1PricePerUSDNew,
-          lastUpdatedTimestamp: blockDatetime,
-        };
-
-        updateLiquidityPoolAggregator(
-          liquidityPoolDiff,
-          liquidityPoolAggregator,
-          liquidityPoolDiff.lastUpdatedTimestamp,
-          context,
-          event.block.number,
-        );
-        return;
-      }
-      case "TokenNotFoundError":
-        context.log.error(loaderReturn.message);
-        return;
-      case "LiquidityPoolAggregatorNotFoundError":
-        context.log.error(loaderReturn.message);
-        return;
-      default: {
-        const _exhaustiveCheck: never = loaderReturn;
-        return _exhaustiveCheck;
-      }
+    // Apply liquidity pool updates
+    if (
+      result.liquidityPoolDiff &&
+      loaderReturn._type === "success" &&
+      result.liquidityPoolDiff.lastUpdatedTimestamp
+    ) {
+      updateLiquidityPoolAggregator(
+        result.liquidityPoolDiff,
+        loaderReturn.liquidityPoolAggregator,
+        result.liquidityPoolDiff.lastUpdatedTimestamp,
+        context,
+        event.block.number,
+      );
     }
   },
 });
