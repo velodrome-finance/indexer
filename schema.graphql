@@ -79,8 +79,14 @@ type LiquidityPoolAggregatorSnapshot {
 # Other liquidity pools don't count as users
 type User {
   id: ID! # user address
+  chainId: Int!
   numberOfSwaps: BigInt! @config(precision: 76) # total number of swaps the user has made
+  totalSwapVolumeUSD: BigInt! @config(precision: 76) # total swap volume in USD
+  totalFeesContributedUSD: BigInt! @config(precision: 76) # total fees contributed in USD
+  totalFeesContributed0: BigInt! @config(precision: 76) # total fees contributed in token0
+  totalFeesContributed1: BigInt! @config(precision: 76) # total fees contributed in token1
   joined_at_timestamp: Timestamp! # timestamp of the user's first swap (or being swapped to), Not accurate if run in multihead unordered mode.
+  last_activity_timestamp: Timestamp! # timestamp of the user's last activity
 }
 
 # Entity that tracks the latest state of the token entity
@@ -276,19 +282,6 @@ type Pool_Sync {
   id: ID!
   reserve0: BigInt! @config(precision: 76)
   reserve1: BigInt! @config(precision: 76)
-  sourceAddress: String!
-  timestamp: Timestamp!
-  blockNumber: Int!
-  transactionHash: String!
-  logIndex: Int!
-  chainId: Int!
-}
-
-type Pool_Fees {
-  id: ID!
-  sender: String!
-  amount0: BigInt! @config(precision: 76)
-  amount1: BigInt! @config(precision: 76)
   sourceAddress: String!
   timestamp: Timestamp!
   blockNumber: Int!
