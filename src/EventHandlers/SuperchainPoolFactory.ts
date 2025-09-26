@@ -36,32 +36,32 @@ const getPoolChainId = experimental_createEffect(
   },
 );
 
-SuperchainPoolFactory.RootPoolCreated.handlerWithLoader({
-  loader: async ({ event, context }) => {
-    return {
-      poolChainId: await context.effect(getPoolChainId, {
-        poolAddress: event.params.pool,
-        eventChainId: event.chainId,
-      }),
-    };
-  },
-  handler: async ({ event, context, loaderReturn }) => {
-    const entity: SuperchainPoolFactory_RootPoolCreated = {
-      id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
-      token0: event.params.token0,
-      token1: event.params.token1,
-      pool: event.params.pool,
-      poolFactory: event.srcAddress,
-      timestamp: new Date(event.block.timestamp * 1000),
-      blockNumber: event.block.number,
-      logIndex: event.logIndex,
-      chainId: event.chainId,
-      stable: event.params.stable,
-      length: event.params.length,
-      transactionHash: event.transaction.hash,
-      poolChainId: loaderReturn.poolChainId,
-    };
+SuperchainPoolFactory.RootPoolCreated.handler(async ({ event, context }) => {
+  const poolChainId = await context.effect(getPoolChainId, {
+    poolAddress: event.params.pool,
+    eventChainId: event.chainId,
+  });
 
-    context.SuperchainPoolFactory_RootPoolCreated.set(entity);
-  },
+  // Early return during preload phase after loading data
+  if (context.isPreload) {
+    return;
+  }
+
+  const entity: SuperchainPoolFactory_RootPoolCreated = {
+    id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
+    token0: event.params.token0,
+    token1: event.params.token1,
+    pool: event.params.pool,
+    poolFactory: event.srcAddress,
+    timestamp: new Date(event.block.timestamp * 1000),
+    blockNumber: event.block.number,
+    logIndex: event.logIndex,
+    chainId: event.chainId,
+    stable: event.params.stable,
+    length: event.params.length,
+    transactionHash: event.transaction.hash,
+    poolChainId: poolChainId,
+  };
+
+  context.SuperchainPoolFactory_RootPoolCreated.set(entity);
 });

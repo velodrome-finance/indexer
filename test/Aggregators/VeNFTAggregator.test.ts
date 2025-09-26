@@ -36,6 +36,16 @@ describe("VeNFTAggregator", () => {
         getOrThrow: sinon.stub(),
         getOrCreate: sinon.stub(),
         deleteUnsafe: sinon.stub(),
+        getWhere: {
+          address: {
+            eq: sinon.stub(),
+            gt: sinon.stub(),
+          },
+          chainId: {
+            eq: sinon.stub(),
+            gt: sinon.stub(),
+          },
+        },
       },
       log: {
         error: sinon.stub(),

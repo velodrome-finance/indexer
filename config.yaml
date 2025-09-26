@@ -4,6 +4,7 @@ description: Multi-chain indexer for Velodrome V2 on Optimism and Aerodrome on B
 unordered_multichain_mode: true
 rollback_on_reorg: false
 event_decoder: hypersync-client
+preload_handlers: true
 field_selection:
   transaction_fields:
     - "hash"

@@ -42,118 +42,220 @@ Pool.Burn.handler(async ({ event, context }) => {
   context.Pool_Burn.set(entity);
 });
 
-Pool.Fees.handlerWithLoader({
-  loader: async ({ event, context }) => {
-    return fetchPoolLoaderData(event.srcAddress, context, event.chainId);
-  },
-  handler: async ({ event, context, loaderReturn }) => {
-    // Process the fees event
-    const result = await processPoolFees(event, loaderReturn, context);
+Pool.Fees.handler(async ({ event, context }) => {
+  // Load liquidity pool aggregator and token instances efficiently
+  const liquidityPoolAggregator = await context.LiquidityPoolAggregator.get(
+    event.srcAddress,
+  );
 
-    // Handle errors
-    if (result.error) {
-      context.log.error(result.error);
-      return;
-    }
+  // Load token instances concurrently using the pool's token IDs
+  const [token0Instance, token1Instance] = await Promise.all([
+    liquidityPoolAggregator
+      ? context.Token.get(liquidityPoolAggregator.token0_id)
+      : Promise.resolve(undefined),
+    liquidityPoolAggregator
+      ? context.Token.get(liquidityPoolAggregator.token1_id)
+      : Promise.resolve(undefined),
+  ]);
 
-    // Apply liquidity pool updates
-    if (
-      result.liquidityPoolDiff &&
-      loaderReturn._type === "success" &&
-      result.liquidityPoolDiff.lastUpdatedTimestamp
-    ) {
-      updateLiquidityPoolAggregator(
-        result.liquidityPoolDiff,
-        loaderReturn.liquidityPoolAggregator,
-        result.liquidityPoolDiff.lastUpdatedTimestamp,
-        context,
-        event.block.number,
-      );
-    }
+  // Early return during preload phase after loading data
+  if (context.isPreload) {
+    return;
+  }
 
-    // Apply user updates
-    if (result.userDiff) {
-      await updateUserFeeContribution(
-        result.userDiff.userAddress,
-        result.userDiff.chainId,
-        result.userDiff.feesContributedUSD,
-        result.userDiff.feesContributed0,
-        result.userDiff.feesContributed1,
-        result.userDiff.timestamp,
-        context,
-      );
-    }
-  },
+  // Handle missing data errors
+  if (!liquidityPoolAggregator) {
+    context.log.error(
+      `LiquidityPoolAggregator ${event.srcAddress} not found on chain ${event.chainId}`,
+    );
+    return;
+  }
+
+  if (!token0Instance || !token1Instance) {
+    context.log.error(
+      `Token not found for pool ${event.srcAddress} on chain ${event.chainId}`,
+    );
+    return;
+  }
+
+  // Create loader return object for compatibility with existing logic
+  const loaderReturn = {
+    _type: "success" as const,
+    liquidityPoolAggregator,
+    token0Instance,
+    token1Instance,
+  };
+
+  // Process the fees event
+  const result = await processPoolFees(event, loaderReturn, context);
+
+  // Handle errors
+  if (result.error) {
+    context.log.error(result.error);
+    return;
+  }
+
+  // Apply liquidity pool updates
+  if (result.liquidityPoolDiff?.lastUpdatedTimestamp) {
+    updateLiquidityPoolAggregator(
+      result.liquidityPoolDiff,
+      liquidityPoolAggregator,
+      result.liquidityPoolDiff.lastUpdatedTimestamp,
+      context,
+      event.block.number,
+    );
+  }
+
+  // Apply user updates
+  if (result.userDiff) {
+    await updateUserFeeContribution(
+      result.userDiff.userAddress,
+      result.userDiff.chainId,
+      result.userDiff.feesContributedUSD,
+      result.userDiff.feesContributed0,
+      result.userDiff.feesContributed1,
+      result.userDiff.timestamp,
+      context,
+    );
+  }
 });
 
-Pool.Swap.handlerWithLoader({
-  loader: async ({ event, context }) => {
-    return fetchPoolLoaderData(event.srcAddress, context, event.chainId);
-  },
-  handler: async ({ event, context, loaderReturn }) => {
-    // Process the swap event
-    const result = await processPoolSwap(event, loaderReturn, context);
+Pool.Swap.handler(async ({ event, context }) => {
+  // Load liquidity pool aggregator and token instances efficiently
+  const liquidityPoolAggregator = await context.LiquidityPoolAggregator.get(
+    event.srcAddress,
+  );
 
-    // Apply the result to the database
-    context.Pool_Swap.set(result.PoolSwapEntity);
+  // Load token instances concurrently using the pool's token IDs
+  const [token0Instance, token1Instance] = await Promise.all([
+    liquidityPoolAggregator
+      ? context.Token.get(liquidityPoolAggregator.token0_id)
+      : Promise.resolve(undefined),
+    liquidityPoolAggregator
+      ? context.Token.get(liquidityPoolAggregator.token1_id)
+      : Promise.resolve(undefined),
+  ]);
 
-    // Handle errors
-    if (result.error) {
-      context.log.error(result.error);
-      return;
-    }
+  // Early return during preload phase after loading data
+  if (context.isPreload) {
+    return;
+  }
 
-    // Apply liquidity pool updates
-    if (
-      result.liquidityPoolDiff &&
-      loaderReturn._type === "success" &&
-      result.liquidityPoolDiff.lastUpdatedTimestamp
-    ) {
-      updateLiquidityPoolAggregator(
-        result.liquidityPoolDiff,
-        loaderReturn.liquidityPoolAggregator,
-        result.liquidityPoolDiff.lastUpdatedTimestamp,
-        context,
-        event.block.number,
-      );
-    }
-  },
+  // Handle missing data errors
+  if (!liquidityPoolAggregator) {
+    context.log.error(
+      `LiquidityPoolAggregator ${event.srcAddress} not found on chain ${event.chainId}`,
+    );
+    return;
+  }
+
+  if (!token0Instance || !token1Instance) {
+    context.log.error(
+      `Token not found for pool ${event.srcAddress} on chain ${event.chainId}`,
+    );
+    return;
+  }
+
+  // Create loader return object for compatibility with existing logic
+  const loaderReturn = {
+    _type: "success" as const,
+    liquidityPoolAggregator,
+    token0Instance,
+    token1Instance,
+  };
+
+  // Process the swap event
+  const result = await processPoolSwap(event, loaderReturn, context);
+
+  // Apply the result to the database
+  context.Pool_Swap.set(result.PoolSwapEntity);
+
+  // Handle errors
+  if (result.error) {
+    context.log.error(result.error);
+    return;
+  }
+
+  // Apply liquidity pool updates
+  if (result.liquidityPoolDiff?.lastUpdatedTimestamp) {
+    updateLiquidityPoolAggregator(
+      result.liquidityPoolDiff,
+      liquidityPoolAggregator,
+      result.liquidityPoolDiff.lastUpdatedTimestamp,
+      context,
+      event.block.number,
+    );
+  }
 });
 
 /**
  * Sync event handler.
  * @notice This event is triggered by Uniswap V2 factory when a new LP position is created, and updates the reserves for the pool.
  */
-Pool.Sync.handlerWithLoader({
-  loader: async ({ event, context }) => {
-    return fetchPoolLoaderData(event.srcAddress, context, event.chainId);
-  },
-  handler: async ({ event, context, loaderReturn }) => {
-    // Process the sync event
-    const result = await processPoolSync(event, loaderReturn, context);
+Pool.Sync.handler(async ({ event, context }) => {
+  // Load liquidity pool aggregator and token instances efficiently
+  const liquidityPoolAggregator = await context.LiquidityPoolAggregator.get(
+    event.srcAddress,
+  );
 
-    // Apply the result to the database
-    context.Pool_Sync.set(result.PoolSyncEntity);
+  // Load token instances concurrently using the pool's token IDs
+  const [token0Instance, token1Instance] = await Promise.all([
+    liquidityPoolAggregator
+      ? context.Token.get(liquidityPoolAggregator.token0_id)
+      : Promise.resolve(undefined),
+    liquidityPoolAggregator
+      ? context.Token.get(liquidityPoolAggregator.token1_id)
+      : Promise.resolve(undefined),
+  ]);
 
-    // Handle errors
-    if (result.error) {
-      context.log.error(result.error);
-      return;
-    }
+  // Early return during preload phase after loading data
+  if (context.isPreload) {
+    return;
+  }
 
-    // Apply liquidity pool updates
-    if (
-      result.liquidityPoolDiff &&
-      loaderReturn._type === "success" &&
-      result.liquidityPoolDiff.lastUpdatedTimestamp
-    ) {
-      updateLiquidityPoolAggregator(
-        result.liquidityPoolDiff,
-        loaderReturn.liquidityPoolAggregator,
-        result.liquidityPoolDiff.lastUpdatedTimestamp,
-        context,
-        event.block.number,
-      );
-    }
-  },
+  // Handle missing data errors
+  if (!liquidityPoolAggregator) {
+    context.log.error(
+      `LiquidityPoolAggregator ${event.srcAddress} not found on chain ${event.chainId}`,
+    );
+    return;
+  }
+
+  if (!token0Instance || !token1Instance) {
+    context.log.error(
+      `Token not found for pool ${event.srcAddress} on chain ${event.chainId}`,
+    );
+    return;
+  }
+
+  // Create loader return object for compatibility with existing logic
+  const loaderReturn = {
+    _type: "success" as const,
+    liquidityPoolAggregator,
+    token0Instance,
+    token1Instance,
+  };
+
+  // Process the sync event
+  const result = await processPoolSync(event, loaderReturn, context);
+
+  // Apply the result to the database
+  context.Pool_Sync.set(result.PoolSyncEntity);
+
+  // Handle errors
+  if (result.error) {
+    context.log.error(result.error);
+    return;
+  }
+
+  // Apply liquidity pool updates
+  if (result.liquidityPoolDiff?.lastUpdatedTimestamp) {
+    updateLiquidityPoolAggregator(
+      result.liquidityPoolDiff,
+      liquidityPoolAggregator,
+      result.liquidityPoolDiff.lastUpdatedTimestamp,
+      context,
+      event.block.number,
+    );
+  }
 });

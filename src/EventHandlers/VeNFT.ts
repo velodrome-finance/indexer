@@ -11,136 +11,129 @@ import {
   withdrawVeNFT,
 } from "../Aggregators/VeNFTAggregator";
 
-VeNFT.Withdraw.handlerWithLoader({
-  loader: async ({ event, context }) => {
-    const tokenId = event.params.tokenId;
+VeNFT.Withdraw.handler(async ({ event, context }) => {
+  const tokenId = event.params.tokenId;
 
-    const veNFTAggregator = await context.VeNFTAggregator.get(
-      VeNFTId(event.chainId, tokenId),
+  const veNFTAggregator = await context.VeNFTAggregator.get(
+    VeNFTId(event.chainId, tokenId),
+  );
+
+  // Early return during preload phase after loading data
+  if (context.isPreload) {
+    return;
+  }
+
+  if (!veNFTAggregator) {
+    context.log.error(
+      `VeNFTAggregator ${tokenId} not found during VeNFT transfer on chain ${event.chainId}`,
     );
+    return;
+  }
 
-    if (!veNFTAggregator) {
-      context.log.error(
-        `VeNFTAggregator ${tokenId} not found during VeNFT transfer on chain ${event.chainId}`,
-      );
-      return {};
-    }
+  const entity_withdraw: VeNFT_Withdraw = {
+    id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
+    provider: event.params.provider,
+    tokenId: event.params.tokenId,
+    value: event.params.value,
+    ts: event.params.ts,
+    timestamp: new Date(event.block.timestamp * 1000),
+    blockNumber: event.block.number,
+    logIndex: event.logIndex,
+    chainId: event.chainId,
+    transactionHash: event.transaction.hash,
+  };
 
-    return { veNFTAggregator };
-  },
-  handler: async ({ event, context, loaderReturn }) => {
-    const { veNFTAggregator } = loaderReturn;
-    const tokenId = event.params.tokenId;
-    const entity_withdraw: VeNFT_Withdraw = {
-      id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
-      provider: event.params.provider,
-      tokenId: event.params.tokenId,
-      value: event.params.value,
-      ts: event.params.ts,
-      timestamp: new Date(event.block.timestamp * 1000),
-      blockNumber: event.block.number,
-      logIndex: event.logIndex,
-      chainId: event.chainId,
-      transactionHash: event.transaction.hash,
-    };
+  context.VeNFT_Withdraw.set(entity_withdraw);
 
-    context.VeNFT_Withdraw.set(entity_withdraw);
-
-    withdrawVeNFT(
-      entity_withdraw,
-      veNFTAggregator,
-      new Date(event.block.timestamp * 1000),
-      context,
-    );
-  },
+  withdrawVeNFT(
+    entity_withdraw,
+    veNFTAggregator,
+    new Date(event.block.timestamp * 1000),
+    context,
+  );
 });
 
-VeNFT.Transfer.handlerWithLoader({
-  loader: async ({ event, context }) => {
-    const tokenId = event.params.tokenId;
+VeNFT.Transfer.handler(async ({ event, context }) => {
+  const tokenId = event.params.tokenId;
 
-    const veNFTAggregator = await context.VeNFTAggregator.get(
-      VeNFTId(event.chainId, tokenId),
+  const veNFTAggregator = await context.VeNFTAggregator.get(
+    VeNFTId(event.chainId, tokenId),
+  );
+
+  // Early return during preload phase after loading data
+  if (context.isPreload) {
+    return;
+  }
+
+  if (!veNFTAggregator) {
+    context.log.error(
+      `VeNFTAggregator ${tokenId} not found during VeNFT transfer on chain ${event.chainId}`,
     );
+    return;
+  }
 
-    if (!veNFTAggregator) {
-      context.log.error(
-        `VeNFTAggregator ${tokenId} not found during VeNFT transfer on chain ${event.chainId}`,
-      );
-      return {};
-    }
+  const entity_transfer: VeNFT_Transfer = {
+    id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
+    from: event.params.from,
+    to: event.params.to,
+    tokenId: event.params.tokenId,
+    timestamp: new Date(event.block.timestamp * 1000),
+    blockNumber: event.block.number,
+    logIndex: event.logIndex,
+    chainId: event.chainId,
+    transactionHash: event.transaction.hash,
+  };
 
-    return { veNFTAggregator };
-  },
-  handler: async ({ event, context, loaderReturn }) => {
-    const { veNFTAggregator } = loaderReturn;
-    const tokenId = event.params.tokenId;
-    const entity_transfer: VeNFT_Transfer = {
-      id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
-      from: event.params.from,
-      to: event.params.to,
-      tokenId: event.params.tokenId,
-      timestamp: new Date(event.block.timestamp * 1000),
-      blockNumber: event.block.number,
-      logIndex: event.logIndex,
-      chainId: event.chainId,
-      transactionHash: event.transaction.hash,
-    };
+  context.VeNFT_Transfer.set(entity_transfer);
 
-    context.VeNFT_Transfer.set(entity_transfer);
-
-    transferVeNFT(
-      entity_transfer,
-      veNFTAggregator,
-      new Date(event.block.timestamp * 1000),
-      context,
-    );
-  },
+  transferVeNFT(
+    entity_transfer,
+    veNFTAggregator,
+    new Date(event.block.timestamp * 1000),
+    context,
+  );
 });
 
-VeNFT.Deposit.handlerWithLoader({
-  loader: async ({ event, context }) => {
-    const tokenId = event.params.tokenId;
+VeNFT.Deposit.handler(async ({ event, context }) => {
+  const tokenId = event.params.tokenId;
 
-    const veNFTAggregator = await context.VeNFTAggregator.get(
-      VeNFTId(event.chainId, tokenId),
+  const veNFTAggregator = await context.VeNFTAggregator.get(
+    VeNFTId(event.chainId, tokenId),
+  );
+
+  // Early return during preload phase after loading data
+  if (context.isPreload) {
+    return;
+  }
+
+  if (!veNFTAggregator) {
+    context.log.error(
+      `VeNFTAggregator ${tokenId} not found during VeNFT transfer on chain ${event.chainId}`,
     );
+    return;
+  }
 
-    if (!veNFTAggregator) {
-      context.log.error(
-        `VeNFTAggregator ${tokenId} not found during VeNFT transfer on chain ${event.chainId}`,
-      );
-      return {};
-    }
+  const entity_deposit: VeNFT_Deposit = {
+    id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
+    tokenId: event.params.tokenId,
+    value: event.params.value,
+    locktime: event.params.locktime,
+    depositType: event.params.depositType,
+    provider: event.params.provider,
+    ts: event.params.ts,
+    timestamp: new Date(event.block.timestamp * 1000),
+    blockNumber: event.block.number,
+    logIndex: event.logIndex,
+    chainId: event.chainId,
+    transactionHash: event.transaction.hash,
+  };
 
-    return { veNFTAggregator };
-  },
-  handler: async ({ event, context, loaderReturn }) => {
-    const { veNFTAggregator } = loaderReturn;
-    const tokenId = event.params.tokenId;
+  context.VeNFT_Deposit.set(entity_deposit);
 
-    const entity_deposit: VeNFT_Deposit = {
-      id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
-      tokenId: event.params.tokenId,
-      value: event.params.value,
-      locktime: event.params.locktime,
-      depositType: event.params.depositType,
-      provider: event.params.provider,
-      ts: event.params.ts,
-      timestamp: new Date(event.block.timestamp * 1000),
-      blockNumber: event.block.number,
-      logIndex: event.logIndex,
-      chainId: event.chainId,
-      transactionHash: event.transaction.hash,
-    };
-
-    context.VeNFT_Deposit.set(entity_deposit);
-
-    depositVeNFT(
-      entity_deposit,
-      veNFTAggregator,
-      new Date(event.block.timestamp * 1000),
-      context,
-    );
-  },
+  depositVeNFT(
+    entity_deposit,
+    veNFTAggregator,
+    new Date(event.block.timestamp * 1000),
+    context,
+  );
 });
