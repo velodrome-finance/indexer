@@ -1,5 +1,4 @@
-import type { LiquidityPoolAggregator, Token } from "generated";
-import type { loaderContext } from "generated/src/Types.gen";
+import type { LiquidityPoolAggregator, Token, handlerContext } from "generated";
 
 export type PoolLoaderSuccessType = "success";
 export type PoolLoaderErrorType =
@@ -55,7 +54,7 @@ export type PoolLoader<T extends PoolLoaderStatus> = T extends "success"
  */
 export async function fetchPoolLoaderData(
   liquidityPoolAddress: string,
-  context: loaderContext,
+  context: handlerContext,
   chainId: number,
 ): Promise<PoolLoader<PoolLoaderStatus>> {
   const liquidityPoolAggregator =
