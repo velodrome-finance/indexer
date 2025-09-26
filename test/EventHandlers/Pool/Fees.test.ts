@@ -3,13 +3,8 @@ import { MockDb, Pool } from "../../../generated/src/TestHelpers.gen";
 import type {
   LiquidityPoolAggregator,
   Token,
+  User,
 } from "../../../generated/src/Types.gen";
-import {
-  TEN_TO_THE_6_BI,
-  TEN_TO_THE_18_BI,
-  TokenIdByChain,
-  toChecksumAddress,
-} from "../../../src/Constants";
 import { setupCommon } from "./common";
 
 describe("Pool Fees Event", () => {
@@ -45,6 +40,7 @@ describe("Pool Fees Event", () => {
   expectations.totalFeesUSDWhitelisted = expectations.totalFeesUSD;
 
   let updatedPool: LiquidityPoolAggregator | undefined;
+  let createdUser: User | undefined;
 
   beforeEach(async () => {
     mockDb = MockDb.createMockDb();
@@ -57,6 +53,7 @@ describe("Pool Fees Event", () => {
     const mockEvent = Pool.Fees.createMockEvent({
       amount0: expectations.amount0In,
       amount1: expectations.amount1In,
+      sender: "0x1234567890123456789012345678901234567890",
       mockEventData: {
         block: {
           number: 123456,
@@ -74,6 +71,9 @@ describe("Pool Fees Event", () => {
     });
 
     updatedPool = result.entities.LiquidityPoolAggregator.get(poolId);
+    createdUser = result.entities.User.get(
+      "0x1234567890123456789012345678901234567890",
+    );
   });
 
   it("should update LiquidityPoolAggregator", async () => {
@@ -99,6 +99,97 @@ describe("Pool Fees Event", () => {
   it("should update LiquidityPoolAggregator total fees in USD whitelisted", async () => {
     expect(updatedPool?.totalFeesUSDWhitelisted).to.equal(
       expectations.totalFeesUSDWhitelisted,
+    );
+  });
+
+  it("should create a new User entity", async () => {
+    expect(createdUser).to.not.be.undefined;
+    expect(createdUser?.id).to.equal(
+      "0x1234567890123456789012345678901234567890",
+    );
+    expect(createdUser?.chainId).to.equal(10);
+    expect(createdUser?.numberOfSwaps).to.equal(0n);
+    expect(createdUser?.totalSwapVolumeUSD).to.equal(0n);
+  });
+
+  it("should update User entity with fee contributions", async () => {
+    expect(createdUser?.totalFeesContributed0).to.equal(expectations.amount0In);
+    expect(createdUser?.totalFeesContributed1).to.equal(expectations.amount1In);
+
+    const expectedUserFeesUSD =
+      (expectations.amount0In / 10n ** mockToken0Data.decimals) *
+        mockToken0Data.pricePerUSDNew +
+      (expectations.amount1In / 10n ** mockToken1Data.decimals) *
+        mockToken1Data.pricePerUSDNew;
+    expect(createdUser?.totalFeesContributedUSD).to.equal(expectedUserFeesUSD);
+  });
+
+  it("should set correct timestamps for User entity", async () => {
+    expect(createdUser?.joined_at_timestamp).to.deep.equal(
+      new Date(1000000 * 1000),
+    );
+    expect(createdUser?.last_activity_timestamp).to.deep.equal(
+      new Date(1000000 * 1000),
+    );
+  });
+
+  it("should handle existing user correctly", async () => {
+    // Create an existing user
+    const existingUser: User = {
+      id: "0x1234567890123456789012345678901234567890",
+      chainId: 10,
+      numberOfSwaps: 5n,
+      totalSwapVolumeUSD: 10000n,
+      totalFeesContributedUSD: 2000n,
+      totalFeesContributed0: 1000n,
+      totalFeesContributed1: 800n,
+      joined_at_timestamp: new Date(500000 * 1000),
+      last_activity_timestamp: new Date(800000 * 1000),
+    };
+
+    // Set up the existing user in the database
+    updatedDB = updatedDB.entities.User.set(existingUser);
+
+    const mockEvent = Pool.Fees.createMockEvent({
+      amount0: 500n,
+      amount1: 300n,
+      sender: "0x1234567890123456789012345678901234567890",
+      mockEventData: {
+        block: {
+          number: 123457,
+          timestamp: 2000000,
+          hash: "0x1234567890123456789012345678901234567890123456789012345678901235",
+        },
+        chainId: 10,
+        srcAddress: poolId,
+      },
+    });
+
+    const result = await Pool.Fees.processEvent({
+      event: mockEvent,
+      mockDb: updatedDB,
+    });
+
+    const updatedUser = result.entities.User.get(
+      "0x1234567890123456789012345678901234567890",
+    );
+
+    expect(updatedUser).to.not.be.undefined;
+    expect(updatedUser?.totalFeesContributed0).to.equal(
+      existingUser.totalFeesContributed0 + 500n,
+    );
+    expect(updatedUser?.totalFeesContributed1).to.equal(
+      existingUser.totalFeesContributed1 + 300n,
+    );
+    expect(updatedUser?.numberOfSwaps).to.equal(existingUser.numberOfSwaps);
+    expect(updatedUser?.totalSwapVolumeUSD).to.equal(
+      existingUser.totalSwapVolumeUSD,
+    );
+    expect(updatedUser?.joined_at_timestamp).to.deep.equal(
+      existingUser.joined_at_timestamp,
+    );
+    expect(updatedUser?.last_activity_timestamp).to.deep.equal(
+      new Date(2000000 * 1000),
     );
   });
 });
