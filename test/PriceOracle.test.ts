@@ -19,6 +19,16 @@ describe("PriceOracle", () => {
       getOrThrow: sinon.stub(),
       getOrCreate: sinon.stub(),
       deleteUnsafe: sinon.stub(),
+      getWhere: {
+        address: {
+          eq: sinon.stub(),
+          gt: sinon.stub(),
+        },
+        chainId: {
+          eq: sinon.stub(),
+          gt: sinon.stub(),
+        },
+      },
     },
     TokenPriceSnapshot: {
       set: sinon.stub(),
@@ -26,6 +36,20 @@ describe("PriceOracle", () => {
       getOrThrow: sinon.stub(),
       getOrCreate: sinon.stub(),
       deleteUnsafe: sinon.stub(),
+      getWhere: {
+        address: {
+          eq: sinon.stub(),
+          gt: sinon.stub(),
+        },
+        chainId: {
+          eq: sinon.stub(),
+          gt: sinon.stub(),
+        },
+        lastUpdatedTimestamp: {
+          eq: sinon.stub(),
+          gt: sinon.stub(),
+        },
+      },
     },
     log: {
       error: sinon.stub(),

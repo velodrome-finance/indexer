@@ -32,6 +32,16 @@ describe("LiquidityPoolAggregator Functions", () => {
         getOrThrow: sinon.stub(),
         getOrCreate: sinon.stub(),
         deleteUnsafe: sinon.stub(),
+        getWhere: {
+          address: {
+            eq: sinon.stub(),
+            gt: sinon.stub(),
+          },
+          chainId: {
+            eq: sinon.stub(),
+            gt: sinon.stub(),
+          },
+        },
       },
       LiquidityPoolAggregator: {
         set: sinon.stub(),
@@ -39,6 +49,16 @@ describe("LiquidityPoolAggregator Functions", () => {
         getOrThrow: sinon.stub(),
         getOrCreate: sinon.stub(),
         deleteUnsafe: sinon.stub(),
+        getWhere: {
+          address: {
+            eq: sinon.stub(),
+            gt: sinon.stub(),
+          },
+          chainId: {
+            eq: sinon.stub(),
+            gt: sinon.stub(),
+          },
+        },
       },
       Dynamic_Fee_Swap_Module: {
         set: sinon.stub(),
@@ -46,6 +66,16 @@ describe("LiquidityPoolAggregator Functions", () => {
         getOrThrow: sinon.stub(),
         getOrCreate: sinon.stub(),
         deleteUnsafe: sinon.stub(),
+        getWhere: {
+          address: {
+            eq: sinon.stub(),
+            gt: sinon.stub(),
+          },
+          chainId: {
+            eq: sinon.stub(),
+            gt: sinon.stub(),
+          },
+        },
       },
       log: {
         error: sinon.stub(),
