@@ -36,7 +36,7 @@ describe("Dynamic Fee Effects", () => {
           "0x0000000000000000000000000000000000000000000000000000000000989680",
         ],
       }),
-    };
+    } as unknown as PublicClient;
 
     // Mock CHAIN_CONSTANTS by directly setting the property
     (CHAIN_CONSTANTS as Record<number, { eth_client: PublicClient }>)[10] = {
@@ -56,7 +56,8 @@ describe("Dynamic Fee Effects", () => {
         info: sinon.stub(),
         error: sinon.stub(),
         warn: sinon.stub(),
-      },
+        debug: sinon.stub(),
+      } as unknown as Envio_logger,
     };
   });
 

@@ -31,19 +31,15 @@ describe("Token Effects", () => {
       simulateContract: sinon.stub().resolves({
         result: "Test Token",
       }),
-    };
+    } as unknown as PublicClient;
 
     // Mock CHAIN_CONSTANTS by directly setting the property
-    (
-      CHAIN_CONSTANTS as Record<
-        number,
-        { eth_client: PublicClient; oracle: { getPrice: sinon.SinonStub } }
-      >
-    )[10] = {
+    (CHAIN_CONSTANTS as Record<number, unknown>)[10] = {
       eth_client: mockEthClient,
       oracle: {
         getType: () => "V3",
         getAddress: () => "0x1234567890123456789012345678901234567890",
+        getPrice: sinon.stub(),
       },
     };
 
@@ -60,7 +56,8 @@ describe("Token Effects", () => {
         info: sinon.stub(),
         error: sinon.stub(),
         warn: sinon.stub(),
-      },
+        debug: sinon.stub(),
+      } as unknown as Envio_logger,
     };
   });
 
