@@ -14,11 +14,14 @@ import {
   TokenIdByChain,
   toChecksumAddress,
 } from "../../Constants";
-import { getErc20TokenDetails } from "../../Erc20";
+import {
+  getIsAlive,
+  getTokenDetails,
+  getTokensDeposited,
+} from "../../Effects/Index";
 import { normalizeTokenAmountTo1e18 } from "../../Helpers";
 import { multiplyBase1e18 } from "../../Maths";
 import { poolLookupStoreManager } from "../../Store";
-import { getIsAlive, getTokensDeposited } from "./common";
 
 const { getPoolAddressByGaugeAddress, addRewardAddressDetails } =
   poolLookupStoreManager();
@@ -132,18 +135,18 @@ Voter.DistributeReward.handler(async ({ event, context }) => {
   if (loaderReturn?.rewardToken) {
     const { currentLiquidityPool, rewardToken } = loaderReturn;
 
-    const isAlive = await getIsAlive(
-      event.srcAddress,
-      event.params.gauge,
-      event.block.number,
-      event.chainId,
-    );
-    const tokensDeposited = await getTokensDeposited(
-      rewardToken.address,
-      event.params.gauge,
-      event.block.number,
-      event.chainId,
-    );
+    const isAlive = await context.effect(getIsAlive, {
+      voterAddress: event.srcAddress,
+      gaugeAddress: event.params.gauge,
+      blockNumber: event.block.number,
+      eventChainId: event.chainId,
+    });
+    const tokensDeposited = await context.effect(getTokensDeposited, {
+      rewardTokenAddress: rewardToken.address,
+      gaugeAddress: event.params.gauge,
+      blockNumber: event.block.number,
+      eventChainId: event.chainId,
+    });
 
     // Dev note: Assumption here is that the GaugeCreated event has already been indexed and the Gauge entity has been created
     // Dev note: Assumption here is that the reward token (VELO for Optimism and AERO for Base) entity has already been created at this point
@@ -278,10 +281,10 @@ Voter.WhitelistToken.handler(async ({ event, context }) => {
   }
 
   try {
-    const tokenDetails = await getErc20TokenDetails(
-      event.params.token,
-      event.chainId,
-    );
+    const tokenDetails = await context.effect(getTokenDetails, {
+      contractAddress: event.params.token,
+      chainId: event.chainId,
+    });
     const updatedToken: Token = {
       id: TokenIdByChain(event.params.token, event.chainId),
       name: tokenDetails.name,

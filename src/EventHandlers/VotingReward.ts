@@ -8,11 +8,11 @@ import {
 
 import { updateLiquidityPoolAggregator } from "../Aggregators/LiquidityPoolAggregator";
 import { TokenIdByChain } from "../Constants";
-import { type TokenPriceData, getTokenPriceData } from "../PriceOracle";
+import { getTokenPriceData } from "../Effects/Index";
+import type { TokenPriceData } from "../PriceOracle";
 import { normalizeTokenAmountTo1e18 } from "./../Helpers";
 import { multiplyBase1e18 } from "./../Maths";
 import { poolLookupStoreManager } from "./../Store";
-import { LiquidityPoolAggregator, Token } from "./../src/Types.gen";
 
 //// global state!
 const { getPoolAddressByBribeVotingRewardAddress } = poolLookupStoreManager();
@@ -70,12 +70,12 @@ VotingReward.NotifyReward.handler(async ({ event, context }) => {
 
     if (!storedToken) {
       try {
-        rewardToken = await getTokenPriceData(
-          event.params.reward,
-          event.block.number,
-          event.chainId,
-          1000000n,
-        );
+        rewardToken = await context.effect(getTokenPriceData, {
+          tokenAddress: event.params.reward,
+          blockNumber: event.block.number,
+          chainId: event.chainId,
+          gasLimit: 1000000n,
+        });
       } catch (error) {
         context.log.error(
           `Error in voting reward notify reward event fetching token details for ${event.params.reward} on chain ${event.chainId}: ${error}`,

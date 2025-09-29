@@ -6,7 +6,6 @@ import type {
 } from "../../generated/src/Types.gen";
 import {
   type GaugeFees,
-  getCurrentAccumulatedFeeCL,
   setLiquidityPoolAggregatorSnapshot,
   updateDynamicFeePools,
   updateLiquidityPoolAggregator,
@@ -83,6 +82,20 @@ describe("LiquidityPoolAggregator Functions", () => {
         warn: sinon.stub(),
         debug: sinon.stub(),
       },
+      effect: sinon.stub().callsFake(async (effectFn, input) => {
+        // Mock the effect calls for testing
+        if (effectFn.name === "getDynamicFeeConfig") {
+          return {
+            baseFee: 400n,
+            feeCap: 2000n,
+            scalingFactor: 10000000n,
+          };
+        }
+        if (effectFn.name === "getCurrentFee") {
+          return 1900n;
+        }
+        return {};
+      }),
     };
     liquidityPoolAggregator = {
       id: "0x123",
@@ -138,46 +151,11 @@ describe("LiquidityPoolAggregator Functions", () => {
       const expected_id = `${liquidityPoolAggregator.chainId}-${liquidityPoolAggregator.id}-${blockNumber}`;
       const setStub = contextStub.Dynamic_Fee_Swap_Module
         ?.set as sinon.SinonStub;
-      expect(setStub.args[0][0].baseFee).to.equal(400);
-      expect(setStub.args[0][0].feeCap).to.equal(2000);
+      expect(setStub.args[0][0].baseFee).to.equal(400n);
+      expect(setStub.args[0][0].feeCap).to.equal(2000n);
       expect(setStub.args[0][0].scalingFactor).to.equal(10000000n);
-      expect(setStub.args[0][0].currentFee).to.equal(1900);
+      expect(setStub.args[0][0].currentFee).to.equal(1900n);
       expect(setStub.args[0][0].id).to.equal(expected_id);
-    });
-  });
-
-  describe("getCurrentAccumulatedFeeCL", () => {
-    let gaugeFees: GaugeFees;
-    beforeEach(async () => {
-      liquidityPoolAggregator = {
-        ...liquidityPoolAggregator,
-        id: "0x478946BcD4a5a22b316470F5486fAfb928C0bA25",
-      };
-      mockContract = sinon
-        .stub(CHAIN_CONSTANTS[10].eth_client, "simulateContract")
-        .onCall(0)
-        .resolves({
-          result: [55255516292n, 18613785323003103999n],
-          request: {
-            address:
-              "0x0000000000000000000000000000000000000000" as `0x${string}`,
-            abi: [],
-            functionName: "mockFunction",
-            args: [],
-          },
-        } as unknown as Awaited<ReturnType<SimulateContractMethod>>);
-      gaugeFees = await getCurrentAccumulatedFeeCL(
-        liquidityPoolAggregator.id as string,
-        liquidityPoolAggregator.chainId as number,
-        blockNumber,
-      );
-    });
-    afterEach(() => {
-      mockContract.reset();
-    });
-    it("should fetch accumulated gauge fees for the CL pool", async () => {
-      expect(gaugeFees.token0Fees).to.equal(55255516292n);
-      expect(gaugeFees.token1Fees).to.equal(18613785323003103999n);
     });
   });
 
