@@ -98,6 +98,17 @@ describe("Dynamic Fee Effects", () => {
       const chainId = 10;
       const blockNumber = 12345;
 
+      // Mock the contract response with specific values
+      const mockSimulateContract =
+        mockEthClient.simulateContract as sinon.SinonStub;
+      mockSimulateContract.resolves({
+        result: [
+          400n, // baseFee
+          2000n, // feeCap
+          10000000n, // scalingFactor
+        ],
+      });
+
       const result = await fetchDynamicFeeConfig(
         poolAddress,
         chainId,
@@ -107,9 +118,47 @@ describe("Dynamic Fee Effects", () => {
       );
 
       expect(result).to.be.an("object");
-      expect(result).to.have.property("baseFee");
-      expect(result).to.have.property("feeCap");
-      expect(result).to.have.property("scalingFactor");
+      expect(result).to.have.property("baseFee", 400n);
+      expect(result).to.have.property("feeCap", 2000n);
+      expect(result).to.have.property("scalingFactor", 10000000n);
+
+      // Verify correct contract call
+      expect(mockSimulateContract.calledOnce).to.be.true;
+      const callArgs = mockSimulateContract.firstCall.args[0];
+      expect(callArgs).to.deep.include({
+        address: "0xd9eE4FBeE92970509ec795062cA759F8B52d6720", // DYNAMIC_FEE_MODULE_ADDRESS
+        functionName: "dynamicFeeConfig",
+        blockNumber: BigInt(blockNumber),
+      });
+      expect(callArgs.args).to.deep.equal([poolAddress]);
+    });
+
+    it("should handle contract call errors", async () => {
+      const poolAddress = "0x1234567890123456789012345678901234567890";
+      const chainId = 10;
+      const blockNumber = 12345;
+
+      // Mock simulateContract to throw an error
+      const mockSimulateContract =
+        mockEthClient.simulateContract as sinon.SinonStub;
+      mockSimulateContract.rejects(new Error("Contract call failed"));
+
+      try {
+        await fetchDynamicFeeConfig(
+          poolAddress,
+          chainId,
+          blockNumber,
+          mockEthClient,
+          mockContext.log,
+        );
+        expect.fail("Should have thrown an error");
+      } catch (error) {
+        expect(error).to.be.instanceOf(Error);
+        expect((error as Error).message).to.equal("Contract call failed");
+      }
+
+      // Verify error was logged
+      expect(mockContext.log.error).to.be.a("function");
     });
   });
 
@@ -119,6 +168,13 @@ describe("Dynamic Fee Effects", () => {
       const chainId = 10;
       const blockNumber = 12345;
 
+      // Mock the contract response with a specific fee value
+      const mockSimulateContract =
+        mockEthClient.simulateContract as sinon.SinonStub;
+      mockSimulateContract.resolves({
+        result: 600n, // current fee
+      });
+
       const result = await fetchCurrentFee(
         poolAddress,
         chainId,
@@ -127,8 +183,46 @@ describe("Dynamic Fee Effects", () => {
         mockContext.log,
       );
 
-      expect(result).to.be.an("array");
-      expect(result).to.have.length(3);
+      expect(result).to.be.a("bigint");
+      expect(result).to.equal(600n);
+
+      // Verify correct contract call
+      expect(mockSimulateContract.calledOnce).to.be.true;
+      const callArgs = mockSimulateContract.firstCall.args[0];
+      expect(callArgs).to.deep.include({
+        address: "0xd9eE4FBeE92970509ec795062cA759F8B52d6720", // DYNAMIC_FEE_MODULE_ADDRESS
+        functionName: "getFee",
+        blockNumber: BigInt(blockNumber),
+      });
+      expect(callArgs.args).to.deep.equal([poolAddress]);
+    });
+
+    it("should handle contract call errors", async () => {
+      const poolAddress = "0x1234567890123456789012345678901234567890";
+      const chainId = 10;
+      const blockNumber = 12345;
+
+      // Mock simulateContract to throw an error
+      const mockSimulateContract =
+        mockEthClient.simulateContract as sinon.SinonStub;
+      mockSimulateContract.rejects(new Error("Contract call failed"));
+
+      try {
+        await fetchCurrentFee(
+          poolAddress,
+          chainId,
+          blockNumber,
+          mockEthClient,
+          mockContext.log,
+        );
+        expect.fail("Should have thrown an error");
+      } catch (error) {
+        expect(error).to.be.instanceOf(Error);
+        expect((error as Error).message).to.equal("Contract call failed");
+      }
+
+      // Verify error was logged
+      expect(mockContext.log.error).to.be.a("function");
     });
   });
 
@@ -137,6 +231,16 @@ describe("Dynamic Fee Effects", () => {
       const poolAddress = "0x1234567890123456789012345678901234567890";
       const chainId = 10;
       const blockNumber = 12345;
+
+      // Mock the contract response with specific fee values
+      const mockSimulateContract =
+        mockEthClient.simulateContract as sinon.SinonStub;
+      mockSimulateContract.resolves({
+        result: [
+          1000n, // token0Fees
+          2000n, // token1Fees
+        ],
+      });
 
       const result = await fetchCurrentAccumulatedFeeCL(
         poolAddress,
@@ -147,8 +251,46 @@ describe("Dynamic Fee Effects", () => {
       );
 
       expect(result).to.be.an("object");
-      expect(result).to.have.property("token0Fees");
-      expect(result).to.have.property("token1Fees");
+      expect(result).to.have.property("token0Fees", 1000n);
+      expect(result).to.have.property("token1Fees", 2000n);
+
+      // Verify correct contract call
+      expect(mockSimulateContract.calledOnce).to.be.true;
+      const callArgs = mockSimulateContract.firstCall.args[0];
+      expect(callArgs).to.deep.include({
+        address: poolAddress,
+        functionName: "gaugeFees",
+        blockNumber: BigInt(blockNumber),
+      });
+      expect(callArgs.args).to.deep.equal([]);
+    });
+
+    it("should handle contract call errors", async () => {
+      const poolAddress = "0x1234567890123456789012345678901234567890";
+      const chainId = 10;
+      const blockNumber = 12345;
+
+      // Mock simulateContract to throw an error
+      const mockSimulateContract =
+        mockEthClient.simulateContract as sinon.SinonStub;
+      mockSimulateContract.rejects(new Error("Contract call failed"));
+
+      try {
+        await fetchCurrentAccumulatedFeeCL(
+          poolAddress,
+          chainId,
+          blockNumber,
+          mockEthClient,
+          mockContext.log,
+        );
+        expect.fail("Should have thrown an error");
+      } catch (error) {
+        expect(error).to.be.instanceOf(Error);
+        expect((error as Error).message).to.equal("Contract call failed");
+      }
+
+      // Verify error was logged
+      expect(mockContext.log.error).to.be.a("function");
     });
   });
 });
