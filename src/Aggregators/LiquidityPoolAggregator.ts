@@ -1,6 +1,8 @@
-import CLPoolABI from "./../../abis/CLPool.json";
-import DynamicFeePoolABI from "./../../abis/DynamicFeeSwapModule.json";
-import { CHAIN_CONSTANTS } from "./../Constants";
+import {
+  getCurrentAccumulatedFeeCL,
+  getCurrentFee,
+  getDynamicFeeConfig,
+} from "../Effects/Index";
 import type {
   Dynamic_Fee_Swap_Module,
   LiquidityPoolAggregator,
@@ -9,7 +11,7 @@ import type {
 } from "./../src/Types.gen";
 
 const UPDATE_INTERVAL = 60 * 60 * 1000; // 1 hour
-const DYNAMIC_FEE_MODULE_ADDRESS = "0xd9eE4FBeE92970509ec795062cA759F8B52d6720"; // CA for dynamic fee module
+
 const DYNAMIC_FEE_START_BLOCK = 131341414; // Starting from this block to track dynamic fee pools
 
 export type DynamicFeeConfig = {
@@ -22,83 +24,6 @@ export type GaugeFees = {
   token0Fees: bigint;
   token1Fees: bigint;
 };
-
-/**
- * Get the dynamic fee config parameters for the dynamic fee pool.
- * @param poolAddress
- * @param chainId
- * @param blockNumber
- * @returns {DynamicFeeConfig}
- */
-async function getDynamicFeeConfig(
-  poolAddress: string,
-  chainId: number,
-  blockNumber: number,
-): Promise<DynamicFeeConfig> {
-  const ethClient = CHAIN_CONSTANTS[chainId].eth_client;
-  const { result } = await ethClient.simulateContract({
-    address: DYNAMIC_FEE_MODULE_ADDRESS as `0x${string}`,
-    abi: DynamicFeePoolABI,
-    functionName: "dynamicFeeConfig",
-    args: [poolAddress],
-    blockNumber: BigInt(blockNumber),
-  });
-  const dynamicFeeConfig: DynamicFeeConfig = {
-    baseFee: result[0],
-    feeCap: result[1],
-    scalingFactor: result[2],
-  };
-  return dynamicFeeConfig;
-}
-
-/**
- * Get the current fee for the dynamic fee pool.
- * @param poolAddress
- * @param chainId
- * @param blockNumber
- * @returns {bigint}
- */
-async function getCurrentFee(
-  poolAddress: string,
-  chainId: number,
-  blockNumber: number,
-) {
-  const ethClient = CHAIN_CONSTANTS[chainId].eth_client;
-  const { result } = await ethClient.simulateContract({
-    address: DYNAMIC_FEE_MODULE_ADDRESS as `0x${string}`,
-    abi: DynamicFeePoolABI,
-    functionName: "getFee",
-    args: [poolAddress],
-    blockNumber: BigInt(blockNumber),
-  });
-  return result;
-}
-
-/**
- * Get the current accumulated gauge fees for the CL pool. Resets to zero after epoch flip.
- * @param poolAddress
- * @param chainId
- * @param blockNumber
- * @returns {GaugeFees}
- */
-export async function getCurrentAccumulatedFeeCL(
-  poolAddress: string,
-  chainId: number,
-  blockNumber: number,
-) {
-  const ethClient = CHAIN_CONSTANTS[chainId].eth_client;
-  const { result } = await ethClient.simulateContract({
-    address: poolAddress as `0x${string}`,
-    abi: CLPoolABI,
-    functionName: "gaugeFees",
-    blockNumber: BigInt(blockNumber),
-  });
-  const gaugeFees: GaugeFees = {
-    token0Fees: result[0],
-    token1Fees: result[1],
-  };
-  return gaugeFees;
-}
 
 /**
  * Update the dynamic fee pools data from the swap module.
@@ -116,12 +41,16 @@ export async function updateDynamicFeePools(
 
   if (chainId === 10 && blockNumber >= DYNAMIC_FEE_START_BLOCK) {
     try {
-      const dynamicFeeConfigData = await getDynamicFeeConfig(
+      const dynamicFeeConfigData = await context.effect(getDynamicFeeConfig, {
         poolAddress,
         chainId,
         blockNumber,
-      );
-      const currentFee = await getCurrentFee(poolAddress, chainId, blockNumber);
+      });
+      const currentFee = await context.effect(getCurrentFee, {
+        poolAddress,
+        chainId,
+        blockNumber,
+      });
 
       const dynamicFeeConfig: Dynamic_Fee_Swap_Module = {
         ...dynamicFeeConfigData,
@@ -204,11 +133,11 @@ export async function updateLiquidityPoolAggregator(
   ) {
     if (current.isCL) {
       try {
-        const gaugeFees = await getCurrentAccumulatedFeeCL(
-          current.id,
-          current.chainId,
+        const gaugeFees = await context.effect(getCurrentAccumulatedFeeCL, {
+          poolAddress: current.id,
+          chainId: current.chainId,
           blockNumber,
-        );
+        });
         const gaugeFeeUpdated: LiquidityPoolAggregator = {
           ...updated,
           gaugeFees0CurrentEpoch: gaugeFees.token0Fees,

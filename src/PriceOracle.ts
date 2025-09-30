@@ -1,16 +1,8 @@
-import { createHash } from "node:crypto";
-import SpotPriceAggregatorABI from "../abis/SpotPriceAggregator.json";
-import PriceOracleABI from "../abis/VeloPriceOracleABI.json";
+import { TokenIdByBlock, TokenIdByChain, toChecksumAddress } from "./Constants";
 import {
-  CHAIN_CONSTANTS,
-  CacheCategory,
-  TokenIdByBlock,
-  TokenIdByChain,
-  toChecksumAddress,
-} from "./Constants";
-import { PriceOracleType, TEN_TO_THE_18_BI } from "./Constants";
-import { getErc20TokenDetails } from "./Erc20";
-import { Cache } from "./cache";
+  getTokenDetails,
+  getTokenPriceData as getTokenPriceDataEffect,
+} from "./Effects/Index";
 import type {
   Token,
   TokenPriceSnapshot,
@@ -28,13 +20,16 @@ export async function createTokenEntity(
   context: handlerContext,
 ) {
   const blockDatetime = new Date(blockNumber * 1000);
-  const tokenDetails = await getErc20TokenDetails(tokenAddress, chainId);
+  const tokenDetails = await context.effect(getTokenDetails, {
+    contractAddress: tokenAddress,
+    chainId,
+  });
 
   const tokenEntity: Token = {
     id: TokenIdByChain(tokenAddress, chainId),
     address: toChecksumAddress(tokenAddress),
     symbol: tokenDetails.symbol,
-    name: tokenDetails.symbol, // Using symbol as name, update if you have a separate name field
+    name: tokenDetails.name, // Now using the actual name from token details
     chainId: chainId,
     decimals: BigInt(tokenDetails.decimals),
     pricePerUSDNew: BigInt(0),
@@ -77,12 +72,12 @@ export async function refreshTokenPrice(
     return token;
   }
 
-  const tokenPriceData = await getTokenPriceData(
-    token.address,
+  const tokenPriceData = await context.effect(getTokenPriceDataEffect, {
+    tokenAddress: token.address,
     blockNumber,
     chainId,
     gasLimit,
-  );
+  });
   const currentPrice = tokenPriceData.pricePerUSDNew;
   const updatedToken: Token = {
     ...token,
@@ -104,160 +99,4 @@ export async function refreshTokenPrice(
 
   context.TokenPriceSnapshot.set(tokenPrice);
   return updatedToken;
-}
-
-/**
- * Fetches current price data for a specific token.
- *
- * Retrieves the token's price and decimals by:
- * 1. Getting token details from the contract
- * 2. Fetching price data from the price oracle
- * 3. Converting the price to the appropriate format
- *
- * @param {string} tokenAddress - The token's contract address
- * @param {number} blockNumber - The block number to fetch price data from
- * @param {number} chainId - The chain ID where the token exists
- * @param {bigint} gasLimit - The gas limit to use for the simulateContract call
- * @returns {Promise<TokenPriceData>} Object containing the token's price and decimals
- * @throws {Error} If there's an error fetching the token price
- */
-export async function getTokenPriceData(
-  tokenAddress: string,
-  blockNumber: number,
-  chainId: number,
-  gasLimit = 1000000n, // 1 million is the default if "gasLimit" is not specified in simulateContract
-): Promise<TokenPriceData> {
-  const tokenDetails = await getErc20TokenDetails(tokenAddress, chainId);
-
-  const WETH_ADDRESS = CHAIN_CONSTANTS[chainId].weth;
-  const USDC_ADDRESS = CHAIN_CONSTANTS[chainId].usdc;
-  const SYSTEM_TOKEN_ADDRESS =
-    CHAIN_CONSTANTS[chainId].rewardToken(blockNumber);
-
-  const USDTokenDetails = await getErc20TokenDetails(USDC_ADDRESS, chainId);
-
-  if (tokenAddress === USDC_ADDRESS) {
-    return {
-      pricePerUSDNew: TEN_TO_THE_18_BI,
-      decimals: BigInt(tokenDetails.decimals),
-    };
-  }
-
-  const connectors = CHAIN_CONSTANTS[chainId].oracle.priceConnectors
-    .filter((connector) => connector.createdBlock <= blockNumber)
-    .map((connector) => connector.address)
-    .filter((connector) => connector !== tokenAddress)
-    .filter((connector) => connector !== WETH_ADDRESS)
-    .filter((connector) => connector !== USDC_ADDRESS)
-    .filter((connector) => connector !== SYSTEM_TOKEN_ADDRESS);
-
-  let pricePerUSDNew = 0n;
-  const decimals: bigint = BigInt(tokenDetails.decimals);
-
-  const ORACLE_DEPLOYED =
-    CHAIN_CONSTANTS[chainId].oracle.startBlock <= blockNumber;
-
-  if (ORACLE_DEPLOYED) {
-    try {
-      const priceData = await read_prices(
-        tokenAddress,
-        USDC_ADDRESS,
-        SYSTEM_TOKEN_ADDRESS,
-        WETH_ADDRESS,
-        connectors,
-        chainId,
-        blockNumber,
-        gasLimit,
-      );
-
-      if (priceData.priceOracleType === PriceOracleType.V3) {
-        // Convert to 18 decimals.
-        pricePerUSDNew =
-          (priceData.pricePerUSDNew * 10n ** BigInt(tokenDetails.decimals)) /
-          10n ** BigInt(USDTokenDetails.decimals);
-      } else {
-        pricePerUSDNew = priceData.pricePerUSDNew;
-      }
-    } catch (error) {
-      console.error(
-        `Error fetching price data for ${tokenAddress} on chain ${chainId} at block ${blockNumber}:`,
-        error,
-      );
-      return { pricePerUSDNew: 0n, decimals: BigInt(tokenDetails.decimals) };
-    }
-  }
-
-  return { pricePerUSDNew, decimals };
-}
-
-/**
- * Reads the prices of specified tokens from a price oracle contract.
- *
- * This function interacts with a blockchain price oracle to fetch the current
- * prices of a list of token addresses. It returns them as an array of strings.
- *
- * @note: See https://github.com/ethzoomer/optimism-prices for underlying smart contract
- * implementation.
- *
- * @param {string[]} addrs - An array of token addresses for which to fetch prices.
- * @param {number} chainId - The ID of the blockchain network where the price oracle
- *                           contract is deployed.
- * @param {number} blockNumber - The block number to fetch prices for.
- * @param {bigint} gasLimit - The gas limit to use for the simulateContract call
- * @returns {Promise<string[]>} A promise that resolves to an array of token prices
- *                              as strings.
- *
- * @throws {Error} Throws an error if the price fetching process fails or if there
- *                 is an issue with the contract call.
- */
-export async function read_prices(
-  tokenAddress: string,
-  usdcAddress: string,
-  systemTokenAddress: string,
-  wethAddress: string,
-  connectors: string[],
-  chainId: number,
-  blockNumber: number,
-  gasLimit = 1000000n, // 1 million is the default if "gas" is not specified in simulateContract
-): Promise<{ pricePerUSDNew: bigint; priceOracleType: PriceOracleType }> {
-  const ethClient = CHAIN_CONSTANTS[chainId].eth_client;
-  const priceOracleType = CHAIN_CONSTANTS[chainId].oracle.getType(blockNumber);
-  const priceOracleAddress =
-    CHAIN_CONSTANTS[chainId].oracle.getAddress(priceOracleType);
-
-  if (priceOracleType === PriceOracleType.V3) {
-    const tokenAddressArray = [
-      ...connectors,
-      systemTokenAddress,
-      wethAddress,
-      usdcAddress,
-    ];
-    const args = [[tokenAddress], usdcAddress, false, tokenAddressArray, 10];
-    const { result } = await ethClient.simulateContract({
-      address: priceOracleAddress as `0x${string}`,
-      abi: SpotPriceAggregatorABI,
-      functionName: "getManyRatesWithCustomConnectors",
-      args,
-      blockNumber: BigInt(blockNumber),
-      gas: gasLimit,
-    });
-    return { pricePerUSDNew: BigInt(result[0]), priceOracleType };
-  }
-  const tokenAddressArray = [
-    tokenAddress,
-    ...connectors,
-    systemTokenAddress,
-    wethAddress,
-    usdcAddress,
-  ];
-  const args = [1, tokenAddressArray];
-  const { result } = await ethClient.simulateContract({
-    address: priceOracleAddress as `0x${string}`,
-    abi: PriceOracleABI,
-    functionName: "getManyRatesWithConnectors",
-    args,
-    blockNumber: BigInt(blockNumber),
-    gas: gasLimit,
-  });
-  return { pricePerUSDNew: BigInt(result[0]), priceOracleType };
 }
