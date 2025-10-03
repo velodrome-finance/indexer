@@ -323,10 +323,15 @@ describe("UserStatsPerPool Aggregator", () => {
 
       const swapVolumeUSD = 5000n;
 
-      const result = await updateUserPoolSwapActivity(
+      const mockUserData = createUserStatsPerPoolEntity(
         mockUserAddress,
         mockPoolAddress,
         mockChainId,
+        mockTimestamp,
+      );
+
+      const result = await updateUserPoolSwapActivity(
+        mockUserData,
         swapVolumeUSD,
         mockTimestamp,
         mockContext,
@@ -371,9 +376,7 @@ describe("UserStatsPerPool Aggregator", () => {
       const additionalSwapVolumeUSD = 3000n;
 
       const result = await updateUserPoolSwapActivity(
-        mockUserAddress,
-        mockPoolAddress,
-        mockChainId,
+        existingUserStats,
         additionalSwapVolumeUSD,
         mockTimestamp,
         mockContext,

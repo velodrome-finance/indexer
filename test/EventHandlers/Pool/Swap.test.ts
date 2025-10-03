@@ -124,14 +124,19 @@ describe("Pool Swap Event", () => {
       );
     });
 
-    it("should create a new Pool_Swap entity and update LiquidityPool", async () => {
-      const swapEvent = postEventDB.entities.Pool_Swap.get("10_123456_1");
-      expect(swapEvent).to.not.be.undefined;
-      expect(swapEvent?.sender).to.equal(eventData.sender);
-      expect(swapEvent?.to).to.equal(eventData.to);
-      expect(swapEvent?.amount0In).to.equal(eventData.amount0In);
-      expect(swapEvent?.amount1Out).to.equal(eventData.amount1Out);
-      expect(swapEvent?.timestamp).to.deep.equal(
+    it("should update UserStatsPerPool with swap activity", async () => {
+      const userStats = postEventDB.entities.UserStatsPerPool.get(
+        `${eventData.sender.toLowerCase()}_${eventData.mockEventData.srcAddress.toLowerCase()}_${eventData.mockEventData.chainId}`,
+      );
+      expect(userStats).to.not.be.undefined;
+      expect(userStats?.userAddress).to.equal(eventData.sender.toLowerCase());
+      expect(userStats?.poolAddress).to.equal(
+        eventData.mockEventData.srcAddress.toLowerCase(),
+      );
+      expect(userStats?.chainId).to.equal(eventData.mockEventData.chainId);
+      expect(userStats?.numberOfSwaps).to.equal(1n);
+      expect(userStats?.totalSwapVolumeUSD).to.equal(100000000000000000000n); // 100 tokens * 1 USD
+      expect(userStats?.lastActivityTimestamp).to.deep.equal(
         new Date(eventData.mockEventData.block.timestamp * 1000),
       );
     });

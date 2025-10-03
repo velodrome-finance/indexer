@@ -7,17 +7,6 @@ import type {
 import { updateReserveTokenData } from "../../Helpers";
 
 export interface PoolSyncResult {
-  PoolSyncEntity: {
-    id: string;
-    reserve0: bigint;
-    reserve1: bigint;
-    sourceAddress: string;
-    timestamp: Date;
-    blockNumber: number;
-    logIndex: number;
-    chainId: number;
-    transactionHash: string;
-  };
   liquidityPoolDiff?: Partial<LiquidityPoolAggregator>;
   error?: string;
 }
@@ -43,19 +32,6 @@ export async function processPoolSync(
   loaderReturn: PoolSyncLoaderReturn,
   context: handlerContext,
 ): Promise<PoolSyncResult> {
-  // Create the entity
-  const PoolSyncEntity = {
-    id: `${event.chainId}_${event.srcAddress}_${event.block.number}_${event.logIndex}`,
-    reserve0: event.params.reserve0,
-    reserve1: event.params.reserve1,
-    sourceAddress: event.srcAddress,
-    timestamp: new Date(event.block.timestamp * 1000),
-    blockNumber: event.block.number,
-    logIndex: event.logIndex,
-    chainId: event.chainId,
-    transactionHash: event.transaction.hash,
-  };
-
   // Handle different loader return types
   switch (loaderReturn._type) {
     case "success": {
@@ -87,24 +63,20 @@ export async function processPoolSync(
       };
 
       return {
-        PoolSyncEntity,
         liquidityPoolDiff,
       };
     }
     case "TokenNotFoundError":
       return {
-        PoolSyncEntity,
         error: loaderReturn.message,
       };
     case "LiquidityPoolAggregatorNotFoundError":
       return {
-        PoolSyncEntity,
         error: loaderReturn.message,
       };
     default: {
       // This should never happen due to TypeScript's exhaustive checking
       return {
-        PoolSyncEntity,
         error: "Unknown error type",
       };
     }

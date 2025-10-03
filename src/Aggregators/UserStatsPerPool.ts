@@ -130,32 +130,16 @@ export async function updateUserPoolFeeContribution(
  * Updates UserStatsPerPool with swap activity
  */
 export async function updateUserPoolSwapActivity(
-  userAddress: string,
-  poolAddress: string,
-  chainId: number,
+  userData: UserStatsPerPool,
   swapVolumeUSD: bigint,
   timestamp: Date,
   context: handlerContext,
 ): Promise<UserStatsPerPool> {
-  const id = `${userAddress.toLowerCase()}_${poolAddress.toLowerCase()}_${chainId}`;
-
-  // Get existing stats or create new one
-  let existingStats = await context.UserStatsPerPool.get(id);
-
-  if (!existingStats) {
-    existingStats = createUserStatsPerPoolEntity(
-      userAddress,
-      poolAddress,
-      chainId,
-      timestamp,
-    );
-  }
-
   // Update stats with swap activity
   const updatedStats: UserStatsPerPool = {
-    ...existingStats,
-    numberOfSwaps: existingStats.numberOfSwaps + 1n,
-    totalSwapVolumeUSD: existingStats.totalSwapVolumeUSD + swapVolumeUSD,
+    ...userData,
+    numberOfSwaps: userData.numberOfSwaps + 1n,
+    totalSwapVolumeUSD: userData.totalSwapVolumeUSD + swapVolumeUSD,
     lastActivityTimestamp: timestamp,
   };
 
