@@ -1,11 +1,5 @@
 import { expect } from "chai";
-import type {
-  LiquidityPoolAggregator,
-  Pool_Fees_event,
-  Token,
-  User,
-  handlerContext,
-} from "generated";
+import type { Pool_Fees_event, Token, handlerContext } from "generated";
 import { processPoolFees } from "../../../src/EventHandlers/Pool/PoolFeesLogic";
 import { setupCommon } from "./common";
 

@@ -7,6 +7,7 @@ import type {
   Dynamic_Fee_Swap_Module,
   LiquidityPoolAggregator,
   LiquidityPoolAggregatorSnapshot,
+  Token,
   handlerContext,
 } from "./../src/Types.gen";
 
@@ -152,4 +153,53 @@ export async function updateLiquidityPoolAggregator(
     }
     setLiquidityPoolAggregatorSnapshot(updated, timestamp, context);
   }
+}
+
+/**
+ * Common pool data loading and validation logic
+ * Loads liquidity pool aggregator and token instances, handles errors
+ */
+export async function loadPoolData(
+  srcAddress: string,
+  chainId: number,
+  context: handlerContext,
+): Promise<{
+  liquidityPoolAggregator: LiquidityPoolAggregator;
+  token0Instance: Token;
+  token1Instance: Token;
+} | null> {
+  // Load liquidity pool aggregator and token instances efficiently
+  const liquidityPoolAggregator =
+    await context.LiquidityPoolAggregator.get(srcAddress);
+
+  // Load token instances concurrently using the pool's token IDs
+  const [token0Instance, token1Instance] = await Promise.all([
+    liquidityPoolAggregator
+      ? context.Token.get(liquidityPoolAggregator.token0_id)
+      : Promise.resolve(undefined),
+    liquidityPoolAggregator
+      ? context.Token.get(liquidityPoolAggregator.token1_id)
+      : Promise.resolve(undefined),
+  ]);
+
+  // Handle missing data errors
+  if (!liquidityPoolAggregator) {
+    context.log.error(
+      `LiquidityPoolAggregator ${srcAddress} not found on chain ${chainId}`,
+    );
+    return null;
+  }
+
+  if (!token0Instance || !token1Instance) {
+    context.log.error(
+      `Token not found for pool ${srcAddress} on chain ${chainId}`,
+    );
+    return null;
+  }
+
+  return {
+    liquidityPoolAggregator,
+    token0Instance,
+    token1Instance,
+  };
 }

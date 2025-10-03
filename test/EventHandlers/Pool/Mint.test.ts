@@ -4,12 +4,21 @@ import { setupCommon } from "./common";
 
 describe("Pool Mint Event", () => {
   let mockDb: ReturnType<typeof MockDb.createMockDb>;
+  let commonData: ReturnType<typeof setupCommon>;
 
   beforeEach(() => {
     mockDb = MockDb.createMockDb();
+    commonData = setupCommon();
+
+    // Set up mock database with common data
+    const updatedDB1 = mockDb.entities.LiquidityPoolAggregator.set(
+      commonData.mockLiquidityPoolData,
+    );
+    const updatedDB2 = updatedDB1.entities.Token.set(commonData.mockToken0Data);
+    mockDb = updatedDB2.entities.Token.set(commonData.mockToken1Data);
   });
 
-  it("should create a new Pool_Mint entity", async () => {
+  it("should process mint event and update liquidity pool aggregator", async () => {
     const mockEvent = Pool.Mint.createMockEvent({
       sender: "0x1111111111111111111111111111111111111111",
       amount0: 1000n * 10n ** 18n,
@@ -22,19 +31,19 @@ describe("Pool Mint Event", () => {
         },
         chainId: 10,
         logIndex: 1,
-        srcAddress: "0x3333333333333333333333333333333333333333",
+        srcAddress: commonData.mockLiquidityPoolData.id,
       },
     });
 
     const result = await Pool.Mint.processEvent({ event: mockEvent, mockDb });
 
-    const mintEvent = result.entities.Pool_Mint.get("10_123456_1");
-    expect(mintEvent).to.not.be.undefined;
-    expect(mintEvent?.sender).to.equal(
-      "0x1111111111111111111111111111111111111111",
+    // Verify that the liquidity pool aggregator was updated
+    const updatedAggregator = result.entities.LiquidityPoolAggregator.get(
+      commonData.mockLiquidityPoolData.id,
     );
-    expect(mintEvent?.amount0).to.equal(1000n * 10n ** 18n);
-    expect(mintEvent?.amount1).to.equal(2000n * 10n ** 18n);
-    expect(mintEvent?.timestamp).to.deep.equal(new Date(1000000 * 1000));
+    expect(updatedAggregator).to.not.be.undefined;
+    expect(updatedAggregator?.lastUpdatedTimestamp).to.deep.equal(
+      new Date(1000000 * 1000),
+    );
   });
 });

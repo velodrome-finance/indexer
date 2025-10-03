@@ -75,18 +75,30 @@ type LiquidityPoolAggregatorSnapshot {
   timestamp: Timestamp! # timestamp of last update
 }
 
-# Entity for tracking a unique address in the `to` or `from` of a swap event
-# Other liquidity pools don't count as users
-type User {
-  id: ID! # user address
+# Entity for tracking user activity and positions in specific pools
+type UserStatsPerPool {
+  id: ID! # userAddress_poolAddress_chainId
+  userAddress: String! @index
+  poolAddress: String! @index
   chainId: Int!
-  numberOfSwaps: BigInt! @config(precision: 76) # total number of swaps the user has made
-  totalSwapVolumeUSD: BigInt! @config(precision: 76) # total swap volume in USD
+
+  # Liquidity metrics
+  currentLiquidityUSD: BigInt! @config(precision: 76) # current net liquidity position in USD
+  totalLiquidityAddedUSD: BigInt! @config(precision: 76) # total liquidity added in USD
+  totalLiquidityRemovedUSD: BigInt! @config(precision: 76) # total liquidity removed in USD
+
+  # Fee metrics
   totalFeesContributedUSD: BigInt! @config(precision: 76) # total fees contributed in USD
   totalFeesContributed0: BigInt! @config(precision: 76) # total fees contributed in token0
   totalFeesContributed1: BigInt! @config(precision: 76) # total fees contributed in token1
-  joined_at_timestamp: Timestamp! # timestamp of the user's first swap (or being swapped to), Not accurate if run in multihead unordered mode.
-  last_activity_timestamp: Timestamp! # timestamp of the user's last activity
+
+  # Swap metrics
+  numberOfSwaps: BigInt! @config(precision: 76) # number of swaps in this pool
+  totalSwapVolumeUSD: BigInt! @config(precision: 76) # swap volume in USD in this pool
+
+  # Timestamps
+  firstActivityTimestamp: Timestamp! # first activity in this pool
+  lastActivityTimestamp: Timestamp! # last activity in this pool
 }
 
 # Entity that tracks the latest state of the token entity
@@ -246,34 +258,6 @@ type Pool_Swap {
   timestamp: Timestamp!
   blockNumber: Int!
   transactionHash: String!
-  logIndex: Int!
-  chainId: Int!
-}
-
-# Event for when a burn occurs in a pool
-type Pool_Burn {
-  id: ID!
-  sourceAddress: String!
-  sender: String!
-  to: String!
-  amount0: BigInt! @config(precision: 76)
-  amount1: BigInt! @config(precision: 76)
-  timestamp: Timestamp!
-  blockNumber: Int!
-  transactionHash: String!
-  logIndex: Int!
-  chainId: Int!
-}
-
-type Pool_Mint {
-  id: ID!
-  sourceAddress: String!
-  transactionHash: String!
-  sender: String!
-  amount0: BigInt! @config(precision: 76)
-  amount1: BigInt! @config(precision: 76)
-  timestamp: Timestamp!
-  blockNumber: Int!
   logIndex: Int!
   chainId: Int!
 }
