@@ -245,35 +245,6 @@ type VotingReward_ClaimRewards {
   chainId: Int!
 }
 
-# Event for when a swap occurs in a pool
-type Pool_Swap {
-  id: ID!
-  sender: String!
-  to: String!
-  amount0In: BigInt! @config(precision: 76)
-  amount1In: BigInt! @config(precision: 76)
-  amount0Out: BigInt! @config(precision: 76)
-  amount1Out: BigInt! @config(precision: 76)
-  sourceAddress: String!
-  timestamp: Timestamp!
-  blockNumber: Int!
-  transactionHash: String!
-  logIndex: Int!
-  chainId: Int!
-}
-
-type Pool_Sync {
-  id: ID!
-  reserve0: BigInt! @config(precision: 76)
-  reserve1: BigInt! @config(precision: 76)
-  sourceAddress: String!
-  timestamp: Timestamp!
-  blockNumber: Int!
-  transactionHash: String!
-  logIndex: Int!
-  chainId: Int!
-}
-
 type NFPM_Transfer {
   id: ID!
   from: String!
