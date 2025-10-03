@@ -105,18 +105,6 @@ describe("PoolSyncLogic", () => {
         mockContext,
       );
 
-      expect(result.PoolSyncEntity).to.deep.include({
-        id: "10_0x3333333333333333333333333333333333333333_123456_1",
-        reserve0: 1000n,
-        reserve1: 2000n,
-        sourceAddress: "0x3333333333333333333333333333333333333333",
-        blockNumber: 123456,
-        logIndex: 1,
-        chainId: 10,
-        transactionHash:
-          "0x4444444444444444444444444444444444444444444444444444444444444444",
-      });
-
       expect(result.liquidityPoolDiff).to.exist;
       expect(result.error).to.be.undefined;
 
@@ -143,18 +131,6 @@ describe("PoolSyncLogic", () => {
         mockContext,
       );
 
-      expect(result.PoolSyncEntity).to.deep.include({
-        id: "10_0x3333333333333333333333333333333333333333_123456_1",
-        reserve0: 1000n,
-        reserve1: 2000n,
-        sourceAddress: "0x3333333333333333333333333333333333333333",
-        blockNumber: 123456,
-        logIndex: 1,
-        chainId: 10,
-        transactionHash:
-          "0x4444444444444444444444444444444444444444444444444444444444444444",
-      });
-
       expect(result.liquidityPoolDiff).to.be.undefined;
       expect(result.error).to.equal("Token not found");
     });
@@ -171,18 +147,6 @@ describe("PoolSyncLogic", () => {
         mockContext,
       );
 
-      expect(result.PoolSyncEntity).to.deep.include({
-        id: "10_0x3333333333333333333333333333333333333333_123456_1",
-        reserve0: 1000n,
-        reserve1: 2000n,
-        sourceAddress: "0x3333333333333333333333333333333333333333",
-        blockNumber: 123456,
-        logIndex: 1,
-        chainId: 10,
-        transactionHash:
-          "0x4444444444444444444444444444444444444444444444444444444444444444",
-      });
-
       expect(result.liquidityPoolDiff).to.be.undefined;
       expect(result.error).to.equal("Liquidity pool aggregator not found");
     });
@@ -198,18 +162,6 @@ describe("PoolSyncLogic", () => {
         mockLoaderReturn,
         mockContext,
       );
-
-      expect(result.PoolSyncEntity).to.deep.include({
-        id: "10_0x3333333333333333333333333333333333333333_123456_1",
-        reserve0: 1000n,
-        reserve1: 2000n,
-        sourceAddress: "0x3333333333333333333333333333333333333333",
-        blockNumber: 123456,
-        logIndex: 1,
-        chainId: 10,
-        transactionHash:
-          "0x4444444444444444444444444444444444444444444444444444444444444444",
-      });
 
       expect(result.liquidityPoolDiff).to.be.undefined;
       expect(result.error).to.equal("Unknown error type");
@@ -364,7 +316,6 @@ describe("PoolSyncLogic", () => {
         mockContext,
       );
 
-      expect(result.PoolSyncEntity).to.exist;
       expect(result.liquidityPoolDiff).to.exist;
       expect(result.error).to.be.undefined;
 

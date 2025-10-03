@@ -8,6 +8,7 @@ import {
   loadUserData,
   updateUserPoolFeeContribution,
   updateUserPoolLiquidityActivity,
+  updateUserPoolSwapActivity,
 } from "../Aggregators/UserStatsPerPool";
 import { processPoolLiquidityEvent } from "./Pool/PoolBurnAndMintLogic";
 import { processPoolFees } from "./Pool/PoolFeesLogic";
@@ -202,6 +203,15 @@ Pool.Swap.handler(async ({ event, context }) => {
     return;
   }
 
+  // Load user data with event timestamp for actual processing
+  const userData = await loadUserData(
+    event.params.sender,
+    event.srcAddress,
+    event.chainId,
+    context,
+    new Date(event.block.timestamp * 1000),
+  );
+
   // Early return during preload phase after loading data
   if (context.isPreload) {
     return;
@@ -220,9 +230,6 @@ Pool.Swap.handler(async ({ event, context }) => {
   // Process the swap event
   const result = await processPoolSwap(event, loaderReturn, context);
 
-  // Apply the result to the database
-  context.Pool_Swap.set(result.PoolSwapEntity);
-
   // Handle errors
   if (result.error) {
     context.log.error(result.error);
@@ -237,6 +244,16 @@ Pool.Swap.handler(async ({ event, context }) => {
       result.liquidityPoolDiff.lastUpdatedTimestamp,
       context,
       event.block.number,
+    );
+  }
+
+  // Update user swap activity
+  if (result.userSwapDiff) {
+    await updateUserPoolSwapActivity(
+      userData,
+      result.userSwapDiff.volumeUSD,
+      new Date(event.block.timestamp * 1000),
+      context,
     );
   }
 });
@@ -269,9 +286,6 @@ Pool.Sync.handler(async ({ event, context }) => {
 
   // Process the sync event
   const result = await processPoolSync(event, loaderReturn, context);
-
-  // Apply the result to the database
-  context.Pool_Sync.set(result.PoolSyncEntity);
 
   // Handle errors
   if (result.error) {
