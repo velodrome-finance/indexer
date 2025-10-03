@@ -1,14 +1,25 @@
 import { expect } from "chai";
 import { Pool } from "../../../generated/src/TestHelpers.gen";
 import { MockDb } from "../../../generated/src/TestHelpers.gen";
+import { setupCommon } from "./common";
 
 describe("Pool Burn Event", () => {
   let mockDb: ReturnType<typeof MockDb.createMockDb>;
+  let commonData: ReturnType<typeof setupCommon>;
+
   beforeEach(() => {
     mockDb = MockDb.createMockDb();
+    commonData = setupCommon();
+
+    // Set up mock database with common data
+    const updatedDB1 = mockDb.entities.LiquidityPoolAggregator.set(
+      commonData.mockLiquidityPoolData,
+    );
+    const updatedDB2 = updatedDB1.entities.Token.set(commonData.mockToken0Data);
+    mockDb = updatedDB2.entities.Token.set(commonData.mockToken1Data);
   });
 
-  it("should create a new Pool_Burn entity", async () => {
+  it("should process burn event and update liquidity pool aggregator", async () => {
     const mockEvent = Pool.Burn.createMockEvent({
       sender: "0x1111111111111111111111111111111111111111",
       to: "0x2222222222222222222222222222222222222222",
@@ -22,22 +33,19 @@ describe("Pool Burn Event", () => {
         },
         chainId: 10,
         logIndex: 1,
-        srcAddress: "0x3333333333333333333333333333333333333333",
+        srcAddress: commonData.mockLiquidityPoolData.id,
       },
     });
 
     const result = await Pool.Burn.processEvent({ event: mockEvent, mockDb });
 
-    const burnEvent = result.entities.Pool_Burn.get("10_123456_1");
-    expect(burnEvent).to.not.be.undefined;
-    expect(burnEvent?.sender).to.equal(
-      "0x1111111111111111111111111111111111111111",
+    // Verify that the liquidity pool aggregator was updated
+    const updatedAggregator = result.entities.LiquidityPoolAggregator.get(
+      commonData.mockLiquidityPoolData.id,
     );
-    expect(burnEvent?.to).to.equal(
-      "0x2222222222222222222222222222222222222222",
+    expect(updatedAggregator).to.not.be.undefined;
+    expect(updatedAggregator?.lastUpdatedTimestamp).to.deep.equal(
+      new Date(1000000 * 1000),
     );
-    expect(burnEvent?.amount0).to.equal(500n * 10n ** 18n);
-    expect(burnEvent?.amount1).to.equal(1000n * 10n ** 18n);
-    expect(burnEvent?.timestamp).to.deep.equal(new Date(1000000 * 1000));
   });
 });

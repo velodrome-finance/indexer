@@ -1,5 +1,5 @@
 import type { Token, handlerContext } from "generated";
-import { CHAIN_CONSTANTS, TEN_TO_THE_18_BI } from "./Constants";
+import { TEN_TO_THE_18_BI } from "./Constants";
 import { multiplyBase1e18 } from "./Maths";
 import { refreshTokenPrice } from "./PriceOracle";
 
