@@ -136,24 +136,17 @@ describe("PoolSwapLogic", () => {
       );
 
       // Assertions
-      expect(result.PoolSwapEntity).to.deep.include({
-        id: "10_123456_1",
-        sender: "0x1111111111111111111111111111111111111111",
-        to: "0x2222222222222222222222222222222222222222",
-        amount0In: 1000n,
-        amount1In: 0n,
-        amount0Out: 0n,
-        amount1Out: 500n,
-        sourceAddress: "0x3333333333333333333333333333333333333333",
-        blockNumber: 123456,
-        logIndex: 1,
-        chainId: 10,
-        transactionHash:
-          "0x4444444444444444444444444444444444444444444444444444444444444444",
-      });
-
       expect(result.liquidityPoolDiff).to.exist;
+      expect(result.userSwapDiff).to.exist;
       expect(result.error).to.be.undefined;
+
+      // Verify user swap diff content
+      expect(result.userSwapDiff).to.deep.include({
+        userAddress: "0x1111111111111111111111111111111111111111",
+        chainId: 10,
+        volumeUSD: 1000n, // from swapData.volumeInUSD (token0: 1000 * 1 USD)
+        timestamp: new Date(1000000 * 1000),
+      });
 
       // Verify liquidity pool diff content
       expect(result.liquidityPoolDiff).to.include({
@@ -207,9 +200,9 @@ describe("PoolSwapLogic", () => {
         mockContext,
       );
 
-      expect(result.PoolSwapEntity).to.exist;
       expect(result.error).to.equal("Token not found");
       expect(result.liquidityPoolDiff).to.be.undefined;
+      expect(result.userSwapDiff).to.be.undefined;
     });
 
     it("should handle LiquidityPoolAggregatorNotFoundError", async () => {
@@ -224,9 +217,9 @@ describe("PoolSwapLogic", () => {
         mockContext,
       );
 
-      expect(result.PoolSwapEntity).to.exist;
       expect(result.error).to.equal("Liquidity pool aggregator not found");
       expect(result.liquidityPoolDiff).to.be.undefined;
+      expect(result.userSwapDiff).to.be.undefined;
     });
 
     it("should handle unknown error type", async () => {
@@ -241,9 +234,9 @@ describe("PoolSwapLogic", () => {
         mockContext,
       );
 
-      expect(result.PoolSwapEntity).to.exist;
       expect(result.error).to.equal("Unknown error type");
       expect(result.liquidityPoolDiff).to.be.undefined;
+      expect(result.userSwapDiff).to.be.undefined;
     });
 
     it("should handle refreshTokenPrice errors gracefully", async () => {
@@ -267,9 +260,9 @@ describe("PoolSwapLogic", () => {
         mockContext,
       );
 
-      // Should still create the entity and continue processing
-      expect(result.PoolSwapEntity).to.exist;
+      // Should still process and continue processing
       expect(result.liquidityPoolDiff).to.exist;
+      expect(result.userSwapDiff).to.exist;
       expect(result.error).to.be.undefined;
 
       // Verify error was logged
@@ -327,8 +320,8 @@ describe("PoolSwapLogic", () => {
         mockContext,
       );
 
-      expect(result.PoolSwapEntity).to.exist;
       expect(result.liquidityPoolDiff).to.exist;
+      expect(result.userSwapDiff).to.exist;
       expect(result.error).to.be.undefined;
 
       // When tokens are not whitelisted, whitelisted volume should remain the same
@@ -354,8 +347,8 @@ describe("PoolSwapLogic", () => {
         mockContext,
       );
 
-      expect(result.PoolSwapEntity).to.exist;
       expect(result.liquidityPoolDiff).to.exist;
+      expect(result.userSwapDiff).to.exist;
       expect(result.error).to.be.undefined;
 
       // When both tokens are whitelisted, whitelisted volume should be added
@@ -380,8 +373,8 @@ describe("PoolSwapLogic", () => {
         mockContext,
       );
 
-      expect(result.PoolSwapEntity).to.exist;
       expect(result.liquidityPoolDiff).to.exist;
+      expect(result.userSwapDiff).to.exist;
       expect(result.error).to.be.undefined;
 
       // When only one token is whitelisted, whitelisted volume should remain the same

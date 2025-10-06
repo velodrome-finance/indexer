@@ -6,23 +6,16 @@ import type {
 } from "generated";
 import { updateSwapTokenData } from "../../Helpers";
 
+export interface UserSwapDiff {
+  userAddress: string;
+  chainId: number;
+  volumeUSD: bigint;
+  timestamp: Date;
+}
+
 export interface PoolSwapResult {
-  PoolSwapEntity: {
-    id: string;
-    sender: string;
-    to: string;
-    amount0In: bigint;
-    amount1In: bigint;
-    amount0Out: bigint;
-    amount1Out: bigint;
-    sourceAddress: string;
-    timestamp: Date;
-    blockNumber: number;
-    logIndex: number;
-    chainId: number;
-    transactionHash: string;
-  };
   liquidityPoolDiff?: Partial<LiquidityPoolAggregator>;
+  userSwapDiff?: UserSwapDiff;
   error?: string;
 }
 
@@ -47,23 +40,6 @@ export async function processPoolSwap(
   loaderReturn: PoolSwapLoaderReturn,
   context: handlerContext,
 ): Promise<PoolSwapResult> {
-  // Create the entity
-  const PoolSwapEntity = {
-    id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
-    sender: event.params.sender,
-    to: event.params.to,
-    amount0In: event.params.amount0In,
-    amount1In: event.params.amount1In,
-    amount0Out: event.params.amount0Out,
-    amount1Out: event.params.amount1Out,
-    sourceAddress: event.srcAddress,
-    timestamp: new Date(event.block.timestamp * 1000),
-    blockNumber: event.block.number,
-    logIndex: event.logIndex,
-    chainId: event.chainId,
-    transactionHash: event.transaction.hash,
-  };
-
   // Handle different loader return types
   switch (loaderReturn._type) {
     case "success": {
@@ -101,25 +77,30 @@ export async function processPoolSwap(
         lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
       };
 
+      // Create user swap diff
+      const userSwapDiff: UserSwapDiff = {
+        userAddress: event.params.sender,
+        chainId: event.chainId,
+        volumeUSD: swapData.volumeInUSD,
+        timestamp: new Date(event.block.timestamp * 1000),
+      };
+
       return {
-        PoolSwapEntity,
         liquidityPoolDiff,
+        userSwapDiff,
       };
     }
     case "TokenNotFoundError":
       return {
-        PoolSwapEntity,
         error: loaderReturn.message,
       };
     case "LiquidityPoolAggregatorNotFoundError":
       return {
-        PoolSwapEntity,
         error: loaderReturn.message,
       };
     default: {
       // This should never happen due to TypeScript's exhaustive checking
       return {
-        PoolSwapEntity,
         error: "Unknown error type",
       };
     }
