@@ -1,15 +1,16 @@
 import { CLPool } from "generated";
-import type {
-  CLPool_Burn,
-  CLPool_Flash,
-  CLPool_IncreaseObservationCardinalityNext,
-  CLPool_Initialize,
-  CLPool_SetFeeProtocol,
-} from "generated";
-import { updateLiquidityPoolAggregator } from "../Aggregators/LiquidityPoolAggregator";
-import { fetchPoolLoaderData } from "../Pools/common";
+import {
+  loadPoolData,
+  updateLiquidityPoolAggregator,
+} from "../Aggregators/LiquidityPoolAggregator";
+import {
+  loadUserData,
+  updateUserStatsPerPool,
+} from "../Aggregators/UserStatsPerPool";
+import { processCLPoolBurn } from "./CLPool/CLPoolBurnLogic";
 import { processCLPoolCollectFees } from "./CLPool/CLPoolCollectFeesLogic";
 import { processCLPoolCollect } from "./CLPool/CLPoolCollectLogic";
+import { processCLPoolFlash } from "./CLPool/CLPoolFlashLogic";
 import { processCLPoolMint } from "./CLPool/CLPoolMintLogic";
 import { processCLPoolSwap } from "./CLPool/CLPoolSwapLogic";
 
@@ -31,60 +32,27 @@ import { processCLPoolSwap } from "./CLPool/CLPoolSwapLogic";
  */
 
 CLPool.Burn.handler(async ({ event, context }) => {
-  const entity: CLPool_Burn = {
-    id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
-    owner: event.params.owner,
-    tickLower: event.params.tickLower,
-    tickUpper: event.params.tickUpper,
-    amount: event.params.amount,
-    amount0: event.params.amount0,
-    amount1: event.params.amount1,
-    sourceAddress: event.srcAddress,
-    timestamp: new Date(event.block.timestamp * 1000),
-    blockNumber: event.block.number,
-    logIndex: event.logIndex,
-    chainId: event.chainId,
-    transactionHash: event.transaction.hash,
-  };
+  // Load pool data and handle errors
+  const poolData = await loadPoolData(event.srcAddress, event.chainId, context);
+  if (!poolData) {
+    return;
+  }
 
-  context.CLPool_Burn.set(entity);
-});
-
-CLPool.Collect.handler(async ({ event, context }) => {
-  // Load liquidity pool aggregator and token instances efficiently
-  const liquidityPoolAggregator = await context.LiquidityPoolAggregator.get(
+  // Load user data
+  const userData = await loadUserData(
+    event.params.owner,
     event.srcAddress,
+    event.chainId,
+    context,
+    new Date(event.block.timestamp * 1000),
   );
-
-  // Load token instances concurrently using the pool's token IDs
-  const [token0Instance, token1Instance] = await Promise.all([
-    liquidityPoolAggregator
-      ? context.Token.get(liquidityPoolAggregator.token0_id)
-      : Promise.resolve(undefined),
-    liquidityPoolAggregator
-      ? context.Token.get(liquidityPoolAggregator.token1_id)
-      : Promise.resolve(undefined),
-  ]);
 
   // Early return during preload phase after loading data
   if (context.isPreload) {
     return;
   }
 
-  // Handle missing data errors
-  if (!liquidityPoolAggregator) {
-    context.log.error(
-      `LiquidityPoolAggregator ${event.srcAddress} not found on chain ${event.chainId}`,
-    );
-    return;
-  }
-
-  if (!token0Instance || !token1Instance) {
-    context.log.error(
-      `Token not found for pool ${event.srcAddress} on chain ${event.chainId}`,
-    );
-    return;
-  }
+  const { liquidityPoolAggregator, token0Instance, token1Instance } = poolData;
 
   // Create loader return object for compatibility with existing logic
   const loaderReturn = {
@@ -94,11 +62,8 @@ CLPool.Collect.handler(async ({ event, context }) => {
     token1Instance,
   };
 
-  // Process the collect event
-  const result = processCLPoolCollect(event, loaderReturn);
-
-  // Apply the result to the database
-  context.CLPool_Collect.set(result.CLPoolCollectEntity);
+  // Process the burn event
+  const result = await processCLPoolBurn(event, loaderReturn, context);
 
   // Handle errors
   if (result.error) {
@@ -116,43 +81,112 @@ CLPool.Collect.handler(async ({ event, context }) => {
       event.block.number,
     );
   }
+
+  // Update user pool liquidity activity
+  if (result.userLiquidityDiff) {
+    const updatedUserStatsfields = {
+      currentLiquidityUSD: result.userLiquidityDiff.netLiquidityAddedUSD,
+    };
+
+    await updateUserStatsPerPool(
+      updatedUserStatsfields,
+      userData,
+      result.userLiquidityDiff.timestamp,
+      context,
+    );
+  }
 });
 
-CLPool.CollectFees.handler(async ({ event, context }) => {
-  // Load liquidity pool aggregator and token instances efficiently
-  const liquidityPoolAggregator = await context.LiquidityPoolAggregator.get(
-    event.srcAddress,
-  );
+CLPool.Collect.handler(async ({ event, context }) => {
+  // Load pool data and handle errors
+  const poolData = await loadPoolData(event.srcAddress, event.chainId, context);
+  if (!poolData) {
+    return;
+  }
 
-  // Load token instances concurrently using the pool's token IDs
-  const [token0Instance, token1Instance] = await Promise.all([
-    liquidityPoolAggregator
-      ? context.Token.get(liquidityPoolAggregator.token0_id)
-      : Promise.resolve(undefined),
-    liquidityPoolAggregator
-      ? context.Token.get(liquidityPoolAggregator.token1_id)
-      : Promise.resolve(undefined),
-  ]);
+  // Load user data
+  const userData = await loadUserData(
+    event.params.recipient,
+    event.srcAddress,
+    event.chainId,
+    context,
+    new Date(event.block.timestamp * 1000),
+  );
 
   // Early return during preload phase after loading data
   if (context.isPreload) {
     return;
   }
 
-  // Handle missing data errors
-  if (!liquidityPoolAggregator) {
-    context.log.error(
-      `LiquidityPoolAggregator ${event.srcAddress} not found on chain ${event.chainId}`,
-    );
+  const { liquidityPoolAggregator, token0Instance, token1Instance } = poolData;
+
+  // Create loader return object for compatibility with existing logic
+  const loaderReturn = {
+    _type: "success" as const,
+    liquidityPoolAggregator,
+    token0Instance,
+    token1Instance,
+  };
+
+  // Process the collect event
+  const result = await processCLPoolCollect(event, loaderReturn, context);
+
+  // Handle errors
+  if (result.error) {
+    context.log.error(result.error);
     return;
   }
 
-  if (!token0Instance || !token1Instance) {
-    context.log.error(
-      `Token not found for pool ${event.srcAddress} on chain ${event.chainId}`,
+  // Apply liquidity pool updates
+  if (result.liquidityPoolDiff) {
+    updateLiquidityPoolAggregator(
+      result.liquidityPoolDiff,
+      liquidityPoolAggregator,
+      result.liquidityPoolDiff.lastUpdatedTimestamp,
+      context,
+      event.block.number,
     );
+  }
+
+  // Update user pool fee contribution
+  if (result.userLiquidityDiff) {
+    const updatedUserStatsfields = {
+      totalFeesContributed0: result.userLiquidityDiff.totalFeesContributed0,
+      totalFeesContributed1: result.userLiquidityDiff.totalFeesContributed1,
+      totalFeesContributedUSD: result.userLiquidityDiff.totalFeesContributedUSD,
+    };
+
+    await updateUserStatsPerPool(
+      updatedUserStatsfields,
+      userData,
+      result.userLiquidityDiff.timestamp,
+      context,
+    );
+  }
+});
+
+CLPool.CollectFees.handler(async ({ event, context }) => {
+  // Load pool data and handle errors
+  const poolData = await loadPoolData(event.srcAddress, event.chainId, context);
+  if (!poolData) {
     return;
   }
+
+  // Load user data
+  const userData = await loadUserData(
+    event.params.recipient,
+    event.srcAddress,
+    event.chainId,
+    context,
+    new Date(event.block.timestamp * 1000),
+  );
+
+  // Early return during preload phase after loading data
+  if (context.isPreload) {
+    return;
+  }
+
+  const { liquidityPoolAggregator, token0Instance, token1Instance } = poolData;
 
   // Create loader return object for compatibility with existing logic
   const loaderReturn = {
@@ -165,8 +199,81 @@ CLPool.CollectFees.handler(async ({ event, context }) => {
   // Process the collect fees event
   const result = processCLPoolCollectFees(event, loaderReturn);
 
-  // Apply the result to the database
-  context.CLPool_CollectFees.set(result.CLPoolCollectFeesEntity);
+  // Handle errors
+  if (result.error) {
+    context.log.error(result.error);
+    return;
+  }
+
+  // Apply liquidity pool updates
+  if (result.liquidityPoolDiff) {
+    updateLiquidityPoolAggregator(
+      result.liquidityPoolDiff,
+      liquidityPoolAggregator,
+      result.liquidityPoolDiff.lastUpdatedTimestamp,
+      context,
+      event.block.number,
+    );
+  }
+
+  // Update user pool fee contribution
+  if (
+    result.liquidityPoolDiff?.totalFees0 &&
+    result.liquidityPoolDiff?.totalFees1 &&
+    result.liquidityPoolDiff?.totalFeesUSD
+  ) {
+    const updatedUserStatsfields = {
+      totalFeesContributedUSD:
+        userData.totalFeesContributedUSD +
+        result.liquidityPoolDiff.totalFeesUSD,
+      totalFeesContributed0:
+        userData.totalFeesContributed0 + result.liquidityPoolDiff.totalFees0,
+      totalFeesContributed1:
+        userData.totalFeesContributed1 + result.liquidityPoolDiff.totalFees1,
+    };
+
+    await updateUserStatsPerPool(
+      updatedUserStatsfields,
+      userData,
+      new Date(event.block.timestamp * 1000),
+      context,
+    );
+  }
+});
+
+CLPool.Flash.handler(async ({ event, context }) => {
+  // Load pool data and handle errors
+  const poolData = await loadPoolData(event.srcAddress, event.chainId, context);
+  if (!poolData) {
+    return;
+  }
+
+  // Load user data
+  const userData = await loadUserData(
+    event.params.sender,
+    event.srcAddress,
+    event.chainId,
+    context,
+    new Date(event.block.timestamp * 1000),
+  );
+
+  // Early return during preload phase after loading data
+  if (context.isPreload) {
+    return;
+  }
+
+  const { liquidityPoolAggregator, token0Instance, token1Instance } = poolData;
+
+  // Create loader return object for compatibility with existing logic
+  const loaderReturn = {
+    _type: "success" as const,
+    liquidityPoolAggregator,
+    token0Instance,
+    token1Instance,
+  };
+
+  // Process the flash event
+  const result = await processCLPoolFlash(event, loaderReturn, context);
 
   // Handle errors
   if (result.error) {
@@ -184,97 +291,87 @@ CLPool.CollectFees.handler(async ({ event, context }) => {
       event.block.number,
     );
   }
-});
 
-CLPool.Flash.handler(async ({ event, context }) => {
-  const entity: CLPool_Flash = {
-    id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
-    sender: event.params.sender,
-    recipient: event.params.recipient,
-    amount0: event.params.amount0,
-    amount1: event.params.amount1,
-    paid0: event.params.paid0,
-    paid1: event.params.paid1,
-    sourceAddress: event.srcAddress,
-    timestamp: new Date(event.block.timestamp * 1000),
-    blockNumber: event.block.number,
-    logIndex: event.logIndex,
-    chainId: event.chainId,
-    transactionHash: event.transaction.hash,
-  };
+  // Update user pool flash loan activity
+  if (
+    result.userFlashLoanDiff &&
+    result.userFlashLoanDiff.totalFlashLoanVolumeUSD > 0n
+  ) {
+    const updatedUserStatsfields = {
+      numberOfFlashLoans:
+        userData.numberOfFlashLoans +
+        result.userFlashLoanDiff.numberOfFlashLoans,
+      totalFlashLoanVolumeUSD:
+        userData.totalFlashLoanVolumeUSD +
+        result.userFlashLoanDiff.totalFlashLoanVolumeUSD,
+    };
 
-  context.CLPool_Flash.set(entity);
+    await updateUserStatsPerPool(
+      updatedUserStatsfields,
+      userData,
+      result.userFlashLoanDiff.timestamp,
+      context,
+    );
+  }
 });
 
 CLPool.IncreaseObservationCardinalityNext.handler(
   async ({ event, context }) => {
-    const entity: CLPool_IncreaseObservationCardinalityNext = {
-      id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
-      observationCardinalityNextOld: event.params.observationCardinalityNextOld,
-      observationCardinalityNextNew: event.params.observationCardinalityNextNew,
-      sourceAddress: event.srcAddress,
-      timestamp: new Date(event.block.timestamp * 1000),
-      blockNumber: event.block.number,
-      logIndex: event.logIndex,
-      chainId: event.chainId,
-      transactionHash: event.transaction.hash,
+    // Load pool data and handle errors
+    const poolData = await loadPoolData(
+      event.srcAddress,
+      event.chainId,
+      context,
+    );
+    if (!poolData) {
+      return;
+    }
+
+    // Early return during preload phase after loading data
+    if (context.isPreload) {
+      return;
+    }
+
+    const { liquidityPoolAggregator } = poolData;
+
+    // Update pool aggregator with new observation cardinality
+    const cardinalityDiff = {
+      observationCardinalityNext: event.params.observationCardinalityNextNew,
+      lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
     };
 
-    context.CLPool_IncreaseObservationCardinalityNext.set(entity);
+    updateLiquidityPoolAggregator(
+      cardinalityDiff,
+      liquidityPoolAggregator,
+      new Date(event.block.timestamp * 1000),
+      context,
+      event.block.number,
+    );
   },
 );
 
-CLPool.Initialize.handler(async ({ event, context }) => {
-  const entity: CLPool_Initialize = {
-    id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
-    sqrtPriceX96: event.params.sqrtPriceX96,
-    tick: event.params.tick,
-    sourceAddress: event.srcAddress,
-    timestamp: new Date(event.block.timestamp * 1000),
-    blockNumber: event.block.number,
-    logIndex: event.logIndex,
-    chainId: event.chainId,
-    transactionHash: event.transaction.hash,
-  };
-
-  context.CLPool_Initialize.set(entity);
-});
-
 CLPool.Mint.handler(async ({ event, context }) => {
-  // Load liquidity pool aggregator and token instances efficiently
-  const liquidityPoolAggregator = await context.LiquidityPoolAggregator.get(
-    event.srcAddress,
-  );
+  // Load pool data and handle errors
+  const poolData = await loadPoolData(event.srcAddress, event.chainId, context);
+  if (!poolData) {
+    return;
+  }
 
-  // Load token instances concurrently using the pool's token IDs
-  const [token0Instance, token1Instance] = await Promise.all([
-    liquidityPoolAggregator
-      ? context.Token.get(liquidityPoolAggregator.token0_id)
-      : Promise.resolve(undefined),
-    liquidityPoolAggregator
-      ? context.Token.get(liquidityPoolAggregator.token1_id)
-      : Promise.resolve(undefined),
-  ]);
+  // Load user data
+  const userData = await loadUserData(
+    event.params.owner,
+    event.srcAddress,
+    event.chainId,
+    context,
+    new Date(event.block.timestamp * 1000),
+  );
 
   // Early return during preload phase after loading data
   if (context.isPreload) {
     return;
   }
 
-  // Handle missing data errors
-  if (!liquidityPoolAggregator) {
-    context.log.error(
-      `LiquidityPoolAggregator ${event.srcAddress} not found on chain ${event.chainId}`,
-    );
-    return;
-  }
-
-  if (!token0Instance || !token1Instance) {
-    context.log.error(
-      `Token not found for pool ${event.srcAddress} on chain ${event.chainId}`,
-    );
-    return;
-  }
+  const { liquidityPoolAggregator, token0Instance, token1Instance } = poolData;
 
   // Create loader return object for compatibility with existing logic
   const loaderReturn = {
@@ -285,10 +382,7 @@ CLPool.Mint.handler(async ({ event, context }) => {
   };
 
   // Process the mint event
-  const result = processCLPoolMint(event, loaderReturn);
-
-  // Apply the result to the database
-  context.CLPool_Mint.set(result.CLPoolMintEntity);
+  const result = await processCLPoolMint(event, loaderReturn, context);
 
   // Handle errors
   if (result.error) {
@@ -306,61 +400,74 @@ CLPool.Mint.handler(async ({ event, context }) => {
       event.block.number,
     );
   }
+
+  // Update user pool liquidity activity
+  if (result.userLiquidityDiff) {
+    const updatedUserStatsfields = {
+      currentLiquidityUSD: result.userLiquidityDiff.netLiquidityAddedUSD,
+    };
+
+    await updateUserStatsPerPool(
+      updatedUserStatsfields,
+      userData,
+      result.userLiquidityDiff.timestamp,
+      context,
+    );
+  }
 });
 
 CLPool.SetFeeProtocol.handler(async ({ event, context }) => {
-  const entity: CLPool_SetFeeProtocol = {
-    id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
-    feeProtocol0Old: event.params.feeProtocol0Old,
-    feeProtocol1Old: event.params.feeProtocol1Old,
-    feeProtocol0New: event.params.feeProtocol0New,
-    feeProtocol1New: event.params.feeProtocol1New,
-    sourceAddress: event.srcAddress,
-    timestamp: new Date(event.block.timestamp * 1000),
-    blockNumber: event.block.number,
-    logIndex: event.logIndex,
-    chainId: event.chainId,
-    transactionHash: event.transaction.hash,
-  };
-
-  context.CLPool_SetFeeProtocol.set(entity);
-});
-
-CLPool.Swap.handler(async ({ event, context }) => {
-  // Load liquidity pool aggregator and token instances efficiently
-  const liquidityPoolAggregator = await context.LiquidityPoolAggregator.get(
-    event.srcAddress,
-  );
-
-  // Load token instances concurrently using the pool's token IDs
-  const [token0Instance, token1Instance] = await Promise.all([
-    liquidityPoolAggregator
-      ? context.Token.get(liquidityPoolAggregator.token0_id)
-      : Promise.resolve(undefined),
-    liquidityPoolAggregator
-      ? context.Token.get(liquidityPoolAggregator.token1_id)
-      : Promise.resolve(undefined),
-  ]);
+  // Load pool data and handle errors
+  const poolData = await loadPoolData(event.srcAddress, event.chainId, context);
+  if (!poolData) {
+    return;
+  }
 
   // Early return during preload phase after loading data
   if (context.isPreload) {
     return;
   }
 
-  // Handle missing data errors
-  if (!liquidityPoolAggregator) {
-    context.log.error(
-      `LiquidityPoolAggregator ${event.srcAddress} not found on chain ${event.chainId}`,
-    );
+  const { liquidityPoolAggregator } = poolData;
+
+  // Update pool aggregator with new fee protocol settings
+  const feeProtocolDiff = {
+    feeProtocol0: event.params.feeProtocol0New,
+    feeProtocol1: event.params.feeProtocol1New,
+    lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
+  };
+
+  updateLiquidityPoolAggregator(
+    feeProtocolDiff,
+    liquidityPoolAggregator,
+    new Date(event.block.timestamp * 1000),
+    context,
+    event.block.number,
+  );
+});
+
+CLPool.Swap.handler(async ({ event, context }) => {
+  // Load pool data and handle errors
+  const poolData = await loadPoolData(event.srcAddress, event.chainId, context);
+  if (!poolData) {
     return;
   }
 
-  if (!token0Instance || !token1Instance) {
-    context.log.error(
-      `Token not found for pool ${event.srcAddress} on chain ${event.chainId}`,
-    );
+  // Load user data
+  const userData = await loadUserData(
+    event.params.sender,
+    event.srcAddress,
+    event.chainId,
+    context,
+    new Date(event.block.timestamp * 1000),
+  );
+
+  // Early return during preload phase after loading data
+  if (context.isPreload) {
     return;
   }
+
+  const { liquidityPoolAggregator, token0Instance, token1Instance } = poolData;
 
   // Create loader return object for compatibility with existing logic
   const loaderReturn = {
@@ -373,9 +480,6 @@ CLPool.Swap.handler(async ({ event, context }) => {
   // Process the swap event
   const result = await processCLPoolSwap(event, loaderReturn, context);
 
-  // Apply the result to the database
-  context.CLPool_Swap.set(result.CLPoolSwapEntity);
-
   // Handle errors
   if (result.error) {
     context.log.error(result.error);
@@ -383,13 +487,29 @@ CLPool.Swap.handler(async ({ event, context }) => {
   }
 
   // Apply liquidity pool updates
-  if (result.liquidityPoolDiff && result.liquidityPoolAggregator) {
+  if (result.liquidityPoolDiff) {
     updateLiquidityPoolAggregator(
       result.liquidityPoolDiff,
-      result.liquidityPoolAggregator,
+      liquidityPoolAggregator,
       new Date(event.block.timestamp * 1000),
       context,
       event.block.number,
+    );
+  }
+
+  // Update user swap activity
+  if (result.userSwapDiff) {
+    const updatedUserStatsfields = {
+      numberOfSwaps: userData.numberOfSwaps + result.userSwapDiff.numberOfSwaps,
+      totalSwapVolumeUSD:
+        userData.totalSwapVolumeUSD + result.userSwapDiff.totalSwapVolumeUSD,
+    };
+
+    await updateUserStatsPerPool(
+      updatedUserStatsfields,
+      userData,
+      result.userSwapDiff.timestamp,
+      context,
     );
   }
 });

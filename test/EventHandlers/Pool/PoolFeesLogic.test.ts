@@ -60,10 +60,10 @@ describe("PoolFeesLogic", () => {
         // Check liquidity pool diff
         expect(result.liquidityPoolDiff).to.not.be.undefined;
         expect(result.liquidityPoolDiff?.totalFees0).to.equal(
-          mockLiquidityPoolData.totalFees0 + mockEvent.params.amount0,
+          mockEvent.params.amount0,
         );
         expect(result.liquidityPoolDiff?.totalFees1).to.equal(
-          mockLiquidityPoolData.totalFees1 + mockEvent.params.amount1,
+          mockEvent.params.amount1,
         );
         expect(result.liquidityPoolDiff?.lastUpdatedTimestamp).to.deep.equal(
           new Date(mockEvent.block.timestamp * 1000),

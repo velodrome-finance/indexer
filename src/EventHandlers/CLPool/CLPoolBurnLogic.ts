@@ -1,12 +1,12 @@
 import type {
-  CLPool_Collect_event,
+  CLPool_Burn_event,
   LiquidityPoolAggregator,
   Token,
   handlerContext,
 } from "generated";
 import { updateReserveTokenData } from "../../Helpers";
 
-export interface CLPoolCollectResult {
+export interface CLPoolBurnResult {
   liquidityPoolDiff?: {
     reserve0: bigint;
     reserve1: bigint;
@@ -14,20 +14,20 @@ export interface CLPoolCollectResult {
     lastUpdatedTimestamp: Date;
   };
   userLiquidityDiff?: {
-    totalFeesContributed0: bigint;
-    totalFeesContributed1: bigint;
-    totalFeesContributedUSD: bigint;
+    netLiquidityAddedUSD: bigint;
+    currentLiquidityToken0: bigint;
+    currentLiquidityToken1: bigint;
     timestamp: Date;
   };
   error?: string;
 }
 
-export type CLPoolCollectLoaderReturn =
+export type CLPoolBurnLoaderReturn =
   | {
       _type: "success";
       liquidityPoolAggregator: LiquidityPoolAggregator;
-      token0Instance: Token | undefined;
-      token1Instance: Token | undefined;
+      token0Instance: Token;
+      token1Instance: Token;
     }
   | {
       _type: "TokenNotFoundError";
@@ -38,11 +38,11 @@ export type CLPoolCollectLoaderReturn =
       message: string;
     };
 
-export async function processCLPoolCollect(
-  event: CLPool_Collect_event,
-  loaderReturn: CLPoolCollectLoaderReturn,
+export async function processCLPoolBurn(
+  event: CLPool_Burn_event,
+  loaderReturn: CLPoolBurnLoaderReturn,
   context: handlerContext,
-): Promise<CLPoolCollectResult> {
+): Promise<CLPoolBurnResult> {
   // Handle different loader return types
   switch (loaderReturn._type) {
     case "success": {
@@ -67,9 +67,9 @@ export async function processCLPoolCollect(
       };
 
       const userLiquidityDiff = {
-        totalFeesContributed0: event.params.amount0, // The collected fees in token0
-        totalFeesContributed1: event.params.amount1, // The collected fees in token1
-        totalFeesContributedUSD: reserveData.totalLiquidityUSD, // The collected fees in USD
+        netLiquidityAddedUSD: -reserveData.totalLiquidityUSD, // Negative for burn (removal)
+        currentLiquidityToken0: -event.params.amount0, // Negative amount of token0 removed
+        currentLiquidityToken1: -event.params.amount1, // Negative amount of token1 removed
         timestamp: new Date(event.block.timestamp * 1000),
       };
 

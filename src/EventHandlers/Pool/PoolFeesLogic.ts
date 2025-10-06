@@ -60,13 +60,10 @@ export async function processPoolFees(
 
       // Create liquidity pool diff
       const liquidityPoolDiff: Partial<LiquidityPoolAggregator> = {
-        totalFees0: liquidityPoolAggregator.totalFees0 + event.params.amount0,
-        totalFees1: liquidityPoolAggregator.totalFees1 + event.params.amount1,
-        totalFeesUSD:
-          liquidityPoolAggregator.totalFeesUSD + feeData.totalFeesUSD,
-        totalFeesUSDWhitelisted:
-          liquidityPoolAggregator.totalFeesUSDWhitelisted +
-          feeData.totalFeesUSDWhitelisted,
+        totalFees0: event.params.amount0,
+        totalFees1: event.params.amount1,
+        totalFeesUSD: feeData.totalFeesUSD,
+        totalFeesUSDWhitelisted: feeData.totalFeesUSDWhitelisted,
         lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
       };
 

@@ -10,24 +10,12 @@ import { refreshTokenPrice } from "../../PriceOracle";
 import { updateCLPoolLiquidity } from "./updateCLPoolLiquidity";
 
 export interface CLPoolSwapResult {
-  CLPoolSwapEntity: {
-    id: string;
-    sender: string;
-    recipient: string;
-    amount0: bigint;
-    amount1: bigint;
-    sqrtPriceX96: bigint;
-    liquidity: bigint;
-    tick: bigint;
-    sourceAddress: string;
-    timestamp: Date;
-    blockNumber: number;
-    logIndex: number;
-    chainId: number;
-    transactionHash: string;
-  };
   liquidityPoolDiff?: Partial<LiquidityPoolAggregator>;
-  liquidityPoolAggregator?: LiquidityPoolAggregator;
+  userSwapDiff?: {
+    numberOfSwaps: bigint;
+    totalSwapVolumeUSD: bigint;
+    timestamp: Date;
+  };
   error?: string;
 }
 
@@ -75,8 +63,7 @@ const updateToken0SwapData = async (
   } = data;
   liquidityPoolAggregatorDiff = {
     ...liquidityPoolAggregatorDiff,
-    totalVolume0:
-      liquidityPoolAggregator.totalVolume0 + tokenUpdateData.netAmount0,
+    totalVolume0: tokenUpdateData.netAmount0,
   };
   if (!token0Instance) return { ...data, liquidityPoolAggregatorDiff };
 
@@ -133,8 +120,7 @@ const updateToken1SwapData = async (
   } = data;
   liquidityPoolAggregatorDiff = {
     ...liquidityPoolAggregatorDiff,
-    totalVolume1:
-      liquidityPoolAggregator.totalVolume1 + tokenUpdateData.netAmount1,
+    totalVolume1: tokenUpdateData.netAmount1,
   };
   if (!token1Instance) return { ...data, liquidityPoolAggregatorDiff };
 
@@ -169,8 +155,7 @@ const updateToken1SwapData = async (
 
   liquidityPoolAggregatorDiff = {
     ...liquidityPoolAggregatorDiff,
-    totalVolume1:
-      liquidityPoolAggregator.totalVolume1 + tokenUpdateData.netAmount1,
+    totalVolume1: tokenUpdateData.netAmount1, // Only the diff, not cumulative
     token1Price:
       token1Instance?.pricePerUSDNew ?? liquidityPoolAggregator.token1Price,
     token1IsWhitelisted: token1Instance?.isWhitelisted ?? false,
@@ -191,19 +176,17 @@ const updateLiquidityPoolAggregatorDiffSwap = (
     reserve0: bigint;
     reserve1: bigint;
   },
+  eventTimestamp: Date,
 ) => {
   data.liquidityPoolAggregatorDiff = {
     ...data.liquidityPoolAggregatorDiff,
-    numberOfSwaps: data.liquidityPoolAggregator.numberOfSwaps + 1n,
-    reserve0: data.liquidityPoolAggregator.reserve0 + reserveResult.reserve0,
-    reserve1: data.liquidityPoolAggregator.reserve1 + reserveResult.reserve1,
-    totalVolumeUSD:
-      data.liquidityPoolAggregator.totalVolumeUSD +
-      data.tokenUpdateData.volumeInUSD,
-    totalVolumeUSDWhitelisted:
-      data.liquidityPoolAggregator.totalVolumeUSDWhitelisted +
-      data.tokenUpdateData.volumeInUSDWhitelisted,
+    numberOfSwaps: 1n, // Only the diff, not cumulative
+    reserve0: reserveResult.reserve0, // Only the diff, not cumulative
+    reserve1: reserveResult.reserve1, // Only the diff, not cumulative
+    totalVolumeUSD: data.tokenUpdateData.volumeInUSD, // Only the diff, not cumulative
+    totalVolumeUSDWhitelisted: data.tokenUpdateData.volumeInUSDWhitelisted, // Only the diff, not cumulative
     totalLiquidityUSD: reserveResult.addTotalLiquidityUSD,
+    lastUpdatedTimestamp: eventTimestamp,
   };
   return data;
 };
@@ -213,24 +196,6 @@ export async function processCLPoolSwap(
   loaderReturn: CLPoolSwapLoaderReturn,
   context: handlerContext,
 ): Promise<CLPoolSwapResult> {
-  // Create the entity
-  const CLPoolSwapEntity = {
-    id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
-    sender: event.params.sender,
-    recipient: event.params.recipient,
-    amount0: event.params.amount0,
-    amount1: event.params.amount1,
-    sqrtPriceX96: event.params.sqrtPriceX96,
-    liquidity: event.params.liquidity,
-    tick: event.params.tick,
-    sourceAddress: event.srcAddress,
-    timestamp: new Date(event.block.timestamp * 1000),
-    blockNumber: event.block.number,
-    logIndex: event.logIndex,
-    chainId: event.chainId,
-    transactionHash: event.transaction.hash,
-  };
-
   // Handle different loader return types
   switch (loaderReturn._type) {
     case "success": {
@@ -283,28 +248,31 @@ export async function processCLPoolSwap(
       successSwapEntityData = updateLiquidityPoolAggregatorDiffSwap(
         successSwapEntityData,
         successReserveResult,
+        new Date(event.block.timestamp * 1000),
       );
 
+      const userSwapDiff = {
+        numberOfSwaps: 1n, // Each swap event represents 1 swap
+        totalSwapVolumeUSD: successSwapEntityData.tokenUpdateData.volumeInUSD,
+        timestamp: new Date(event.block.timestamp * 1000),
+      };
+
       return {
-        CLPoolSwapEntity,
         liquidityPoolDiff: successSwapEntityData.liquidityPoolAggregatorDiff,
-        liquidityPoolAggregator: successSwapEntityData.liquidityPoolAggregator,
+        userSwapDiff,
       };
     }
     case "TokenNotFoundError":
       return {
-        CLPoolSwapEntity,
         error: loaderReturn.message,
       };
     case "LiquidityPoolAggregatorNotFoundError":
       return {
-        CLPoolSwapEntity,
         error: loaderReturn.message,
       };
     default: {
       // This should never happen due to TypeScript's exhaustive checking
       return {
-        CLPoolSwapEntity,
         error: "Unknown error type",
       };
     }

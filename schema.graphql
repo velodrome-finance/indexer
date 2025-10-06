@@ -34,6 +34,16 @@ type LiquidityPoolAggregator {
   token1IsWhitelisted: Boolean! # whether the token1 is whitelisted
   lastUpdatedTimestamp: Timestamp! # timestamp of last update
   lastSnapshotTimestamp: Timestamp! # timestamp of last snapshot
+
+  # CL Pool specific fields
+  feeProtocol0: BigInt @config(precision: 76) # current fee protocol for token0
+  feeProtocol1: BigInt @config(precision: 76) # current fee protocol for token1
+  observationCardinalityNext: BigInt @config(precision: 76) # oracle observation cardinality
+  totalFlashLoanFees0: BigInt @config(precision: 76) # total flash loan fees collected in token0
+  totalFlashLoanFees1: BigInt @config(precision: 76) # total flash loan fees collected in token1
+  totalFlashLoanFeesUSD: BigInt @config(precision: 76) # total flash loan fees collected in USD
+  totalFlashLoanVolumeUSD: BigInt @config(precision: 76) # total flash loan volume in USD
+  numberOfFlashLoans: BigInt @config(precision: 76) # total number of flash loans
 }
 
 # Snapshot of the LiquidityPool entity
@@ -73,6 +83,16 @@ type LiquidityPoolAggregatorSnapshot {
   token0IsWhitelisted: Boolean! # whether the token0 is whitelisted
   token1IsWhitelisted: Boolean! # whether the token1 is whitelisted
   timestamp: Timestamp! # timestamp of last update
+
+  # CL Pool specific fields
+  feeProtocol0: BigInt @config(precision: 76) # current fee protocol for token0
+  feeProtocol1: BigInt @config(precision: 76) # current fee protocol for token1
+  observationCardinalityNext: BigInt @config(precision: 76) # oracle observation cardinality
+  totalFlashLoanFees0: BigInt @config(precision: 76) # total flash loan fees collected in token0
+  totalFlashLoanFees1: BigInt @config(precision: 76) # total flash loan fees collected in token1
+  totalFlashLoanFeesUSD: BigInt @config(precision: 76) # total flash loan fees collected in USD
+  totalFlashLoanVolumeUSD: BigInt @config(precision: 76) # total flash loan volume in USD
+  numberOfFlashLoans: BigInt @config(precision: 76) # total number of flash loans
 }
 
 # Entity for tracking user activity and positions in specific pools
@@ -84,6 +104,8 @@ type UserStatsPerPool {
 
   # Liquidity metrics
   currentLiquidityUSD: BigInt! @config(precision: 76) # current net liquidity position in USD
+  currentLiquidityToken0: BigInt! @config(precision: 76) # current net liquidity position in token0
+  currentLiquidityToken1: BigInt! @config(precision: 76) # current net liquidity position in token1
   totalLiquidityAddedUSD: BigInt! @config(precision: 76) # total liquidity added in USD
   totalLiquidityRemovedUSD: BigInt! @config(precision: 76) # total liquidity removed in USD
 
@@ -95,6 +117,10 @@ type UserStatsPerPool {
   # Swap metrics
   numberOfSwaps: BigInt! @config(precision: 76) # number of swaps in this pool
   totalSwapVolumeUSD: BigInt! @config(precision: 76) # swap volume in USD in this pool
+
+  # Flash swap metrics
+  numberOfFlashLoans: BigInt! @config(precision: 76) # number of flash loan swaps in this pool
+  totalFlashLoanVolumeUSD: BigInt! @config(precision: 76) # flash loan swap volume in USD in this pool
 
   # Timestamps
   firstActivityTimestamp: Timestamp! # first activity in this pool
@@ -390,139 +416,6 @@ type PoolFactory_PoolCreated {
   timestamp: Timestamp!
   blockNumber: Int!
   transactionHash: String!
-  logIndex: Int!
-  chainId: Int!
-}
-
-type CLPool_Burn {
-  id: ID!
-  owner: String!
-  tickLower: BigInt! @config(precision: 76)
-  tickUpper: BigInt! @config(precision: 76)
-  amount: BigInt! @config(precision: 76)
-  amount0: BigInt! @config(precision: 76)
-  amount1: BigInt! @config(precision: 76)
-  sourceAddress: String! @index
-  timestamp: Timestamp! @index
-  transactionHash: String!
-  blockNumber: Int!
-  logIndex: Int!
-  chainId: Int!
-}
-
-type CLPool_Collect {
-  id: ID!
-  owner: String!
-  recipient: String!
-  tickLower: BigInt! @config(precision: 76)
-  tickUpper: BigInt! @config(precision: 76)
-  amount0: BigInt! @config(precision: 76)
-  amount1: BigInt! @config(precision: 76)
-  sourceAddress: String! @index
-  timestamp: Timestamp! @index
-  transactionHash: String!
-  blockNumber: Int!
-  logIndex: Int!
-  chainId: Int!
-}
-
-type CLPool_CollectFees {
-  id: ID!
-  recipient: String!
-  amount0: BigInt! @config(precision: 76)
-  amount1: BigInt! @config(precision: 76)
-  sourceAddress: String! @index
-  timestamp: Timestamp! @index
-  transactionHash: String!
-  blockNumber: Int!
-  logIndex: Int!
-  chainId: Int!
-}
-
-type CLPool_Flash {
-  id: ID!
-  sender: String!
-  recipient: String!
-  amount0: BigInt! @config(precision: 76)
-  amount1: BigInt! @config(precision: 76)
-  paid0: BigInt! @config(precision: 76)
-  paid1: BigInt! @config(precision: 76)
-  sourceAddress: String! @index
-  timestamp: Timestamp! @index
-  transactionHash: String!
-  blockNumber: Int!
-  logIndex: Int!
-  chainId: Int!
-}
-
-type CLPool_IncreaseObservationCardinalityNext {
-  id: ID!
-  observationCardinalityNextOld: BigInt! @config(precision: 76)
-  observationCardinalityNextNew: BigInt! @config(precision: 76)
-  sourceAddress: String! @index
-  timestamp: Timestamp! @index
-  transactionHash: String!
-  blockNumber: Int!
-  logIndex: Int!
-  chainId: Int!
-}
-
-type CLPool_Initialize {
-  id: ID!
-  sqrtPriceX96: BigInt! @config(precision: 76)
-  tick: BigInt! @config(precision: 76)
-  sourceAddress: String! @index
-  timestamp: Timestamp! @index
-  transactionHash: String!
-  blockNumber: Int!
-  logIndex: Int!
-  chainId: Int!
-}
-
-type CLPool_Mint {
-  id: ID!
-  sender: String!
-  owner: String!
-  transactionHash: String!
-  tickLower: BigInt! @config(precision: 76)
-  tickUpper: BigInt! @config(precision: 76)
-  amount: BigInt! @config(precision: 76)
-  amount0: BigInt! @config(precision: 76)
-  amount1: BigInt! @config(precision: 76)
-  sourceAddress: String! @index
-  timestamp: Timestamp! @index
-  blockNumber: Int!
-  logIndex: Int!
-  chainId: Int!
-}
-
-type CLPool_SetFeeProtocol {
-  id: ID!
-  feeProtocol0Old: BigInt! @config(precision: 76)
-  feeProtocol1Old: BigInt! @config(precision: 76)
-  feeProtocol0New: BigInt! @config(precision: 76)
-  feeProtocol1New: BigInt! @config(precision: 76)
-  sourceAddress: String! @index
-  timestamp: Timestamp! @index
-  transactionHash: String!
-  blockNumber: Int!
-  logIndex: Int!
-  chainId: Int!
-}
-
-type CLPool_Swap {
-  id: ID!
-  sender: String!
-  recipient: String!
-  amount0: BigInt! @config(precision: 76)
-  amount1: BigInt! @config(precision: 76)
-  sqrtPriceX96: BigInt! @config(precision: 76)
-  liquidity: BigInt! @config(precision: 76)
-  tick: BigInt! @config(precision: 76)
-  sourceAddress: String! @index
-  timestamp: Timestamp! @index
-  transactionHash: String!
-  blockNumber: Int!
   logIndex: Int!
   chainId: Int!
 }

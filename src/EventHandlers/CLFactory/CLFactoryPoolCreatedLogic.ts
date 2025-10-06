@@ -123,6 +123,15 @@ export async function processCLFactoryPoolCreated(
       token1IsWhitelisted: poolToken1?.isWhitelisted ?? false,
       lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
       lastSnapshotTimestamp: new Date(event.block.timestamp * 1000),
+      // CL Pool specific fields
+      feeProtocol0: 0n,
+      feeProtocol1: 0n,
+      observationCardinalityNext: 0n,
+      totalFlashLoanFees0: 0n,
+      totalFlashLoanFees1: 0n,
+      totalFlashLoanFeesUSD: 0n,
+      totalFlashLoanVolumeUSD: 0n,
+      numberOfFlashLoans: 0n,
     };
 
     return {

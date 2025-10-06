@@ -153,6 +153,8 @@ describe("Pool Fees Event", () => {
       poolAddress: "0x3333333333333333333333333333333333333333",
       chainId: 10,
       currentLiquidityUSD: 2000n,
+      currentLiquidityToken0: 1000n,
+      currentLiquidityToken1: 1000n,
       totalLiquidityAddedUSD: 2000n,
       totalLiquidityRemovedUSD: 0n,
       totalFeesContributedUSD: 2000n,
@@ -160,6 +162,8 @@ describe("Pool Fees Event", () => {
       totalFeesContributed1: 800n,
       numberOfSwaps: 5n,
       totalSwapVolumeUSD: 10000n,
+      numberOfFlashLoans: 0n,
+      totalFlashLoanVolumeUSD: 0n,
       firstActivityTimestamp: new Date(500000 * 1000),
       lastActivityTimestamp: new Date(800000 * 1000),
     };

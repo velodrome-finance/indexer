@@ -2,9 +2,7 @@ import { expect } from "chai";
 import type { UserStatsPerPool, handlerContext } from "generated";
 import {
   createUserStatsPerPoolEntity,
-  updateUserPoolFeeContribution,
-  updateUserPoolLiquidityActivity,
-  updateUserPoolSwapActivity,
+  updateUserStatsPerPool,
 } from "../../src/Aggregators/UserStatsPerPool";
 
 describe("UserStatsPerPool Aggregator", () => {
@@ -29,6 +27,8 @@ describe("UserStatsPerPool Aggregator", () => {
       expect(userStats.poolAddress).to.equal(mockPoolAddress.toLowerCase());
       expect(userStats.chainId).to.equal(mockChainId);
       expect(userStats.currentLiquidityUSD).to.equal(0n);
+      expect(userStats.currentLiquidityToken0).to.equal(0n);
+      expect(userStats.currentLiquidityToken1).to.equal(0n);
       expect(userStats.totalLiquidityAddedUSD).to.equal(0n);
       expect(userStats.totalLiquidityRemovedUSD).to.equal(0n);
       expect(userStats.totalFeesContributedUSD).to.equal(0n);
@@ -36,6 +36,8 @@ describe("UserStatsPerPool Aggregator", () => {
       expect(userStats.totalFeesContributed1).to.equal(0n);
       expect(userStats.numberOfSwaps).to.equal(0n);
       expect(userStats.totalSwapVolumeUSD).to.equal(0n);
+      expect(userStats.numberOfFlashLoans).to.equal(0n);
+      expect(userStats.totalFlashLoanVolumeUSD).to.equal(0n);
       expect(userStats.firstActivityTimestamp).to.deep.equal(mockTimestamp);
       expect(userStats.lastActivityTimestamp).to.deep.equal(mockTimestamp);
     });
@@ -59,7 +61,7 @@ describe("UserStatsPerPool Aggregator", () => {
     });
   });
 
-  describe("updateUserPoolLiquidityActivity", () => {
+  describe("updateUserStatsPerPool", () => {
     let mockContext: handlerContext;
 
     beforeEach(() => {
@@ -76,15 +78,13 @@ describe("UserStatsPerPool Aggregator", () => {
       } as unknown as handlerContext;
     });
 
-    it("should create new user stats when user does not exist", async () => {
+    it("should handle liquidity addition correctly", async () => {
       let savedUserStats: UserStatsPerPool | undefined;
       Object.assign(mockContext.UserStatsPerPool, {
         set: async (userStats: UserStatsPerPool) => {
           savedUserStats = userStats;
         },
       });
-
-      const netLiquidityAddedUSD = 1000n;
 
       const mockUserData = createUserStatsPerPoolEntity(
         mockUserAddress,
@@ -93,17 +93,16 @@ describe("UserStatsPerPool Aggregator", () => {
         mockTimestamp,
       );
 
-      const result = await updateUserPoolLiquidityActivity(
+      const netLiquidityAddedUSD = 1000n;
+      const diff = { currentLiquidityUSD: netLiquidityAddedUSD };
+
+      const result = await updateUserStatsPerPool(
+        diff,
         mockUserData,
-        netLiquidityAddedUSD,
         mockTimestamp,
         mockContext,
       );
 
-      expect(result).to.not.be.undefined;
-      expect(result.userAddress).to.equal(mockUserAddress.toLowerCase());
-      expect(result.poolAddress).to.equal(mockPoolAddress.toLowerCase());
-      expect(result.chainId).to.equal(mockChainId);
       expect(result.currentLiquidityUSD).to.equal(netLiquidityAddedUSD);
       expect(result.totalLiquidityAddedUSD).to.equal(netLiquidityAddedUSD);
       expect(result.totalLiquidityRemovedUSD).to.equal(0n);
@@ -111,15 +110,13 @@ describe("UserStatsPerPool Aggregator", () => {
       expect(savedUserStats).to.deep.equal(result);
     });
 
-    it("should handle liquidity removal (negative netLiquidityAddedUSD)", async () => {
+    it("should handle liquidity removal correctly", async () => {
       let savedUserStats: UserStatsPerPool | undefined;
       Object.assign(mockContext.UserStatsPerPool, {
         set: async (userStats: UserStatsPerPool) => {
           savedUserStats = userStats;
         },
       });
-
-      const netLiquidityRemovedUSD = -500n;
 
       const mockUserData = createUserStatsPerPoolEntity(
         mockUserAddress,
@@ -128,9 +125,12 @@ describe("UserStatsPerPool Aggregator", () => {
         mockTimestamp,
       );
 
-      const result = await updateUserPoolLiquidityActivity(
+      const netLiquidityRemovedUSD = -500n;
+      const diff = { currentLiquidityUSD: netLiquidityRemovedUSD };
+
+      const result = await updateUserStatsPerPool(
+        diff,
         mockUserData,
-        netLiquidityRemovedUSD,
         mockTimestamp,
         mockContext,
       );
@@ -138,84 +138,50 @@ describe("UserStatsPerPool Aggregator", () => {
       expect(result.currentLiquidityUSD).to.equal(netLiquidityRemovedUSD);
       expect(result.totalLiquidityAddedUSD).to.equal(0n);
       expect(result.totalLiquidityRemovedUSD).to.equal(500n);
+      expect(result.lastActivityTimestamp).to.deep.equal(mockTimestamp);
     });
 
-    it("should update existing user stats with additional liquidity activity", async () => {
-      const existingUserStats: UserStatsPerPool = {
-        id: `${mockUserAddress.toLowerCase()}_${mockPoolAddress.toLowerCase()}_${mockChainId}`,
-        userAddress: mockUserAddress.toLowerCase(),
-        poolAddress: mockPoolAddress.toLowerCase(),
-        chainId: mockChainId,
-        currentLiquidityUSD: 2000n,
-        totalLiquidityAddedUSD: 2000n,
-        totalLiquidityRemovedUSD: 0n,
+    it("should handle fee contributions correctly", async () => {
+      let savedUserStats: UserStatsPerPool | undefined;
+      Object.assign(mockContext.UserStatsPerPool, {
+        set: async (userStats: UserStatsPerPool) => {
+          savedUserStats = userStats;
+        },
+      });
+
+      const mockUserData = createUserStatsPerPoolEntity(
+        mockUserAddress,
+        mockPoolAddress,
+        mockChainId,
+        mockTimestamp,
+      );
+
+      const diff = {
         totalFeesContributedUSD: 1000n,
         totalFeesContributed0: 500n,
         totalFeesContributed1: 300n,
-        numberOfSwaps: 5n,
-        totalSwapVolumeUSD: 10000n,
-        firstActivityTimestamp: new Date(500000 * 1000),
-        lastActivityTimestamp: new Date(800000 * 1000),
       };
 
-      let savedUserStats: UserStatsPerPool | undefined;
-      Object.assign(mockContext.UserStatsPerPool, {
-        get: async (id: string) => existingUserStats,
-        set: async (userStats: UserStatsPerPool) => {
-          savedUserStats = userStats;
-        },
-      });
-
-      const additionalLiquidityUSD = 1000n;
-
-      const result = await updateUserPoolLiquidityActivity(
-        existingUserStats,
-        additionalLiquidityUSD,
+      const result = await updateUserStatsPerPool(
+        diff,
+        mockUserData,
         mockTimestamp,
         mockContext,
       );
 
-      expect(result.currentLiquidityUSD).to.equal(
-        existingUserStats.currentLiquidityUSD + additionalLiquidityUSD,
-      );
-      expect(result.totalLiquidityAddedUSD).to.equal(
-        existingUserStats.totalLiquidityAddedUSD + additionalLiquidityUSD,
-      );
-      expect(result.totalLiquidityRemovedUSD).to.equal(
-        existingUserStats.totalLiquidityRemovedUSD,
-      );
+      expect(result.totalFeesContributedUSD).to.equal(1000n);
+      expect(result.totalFeesContributed0).to.equal(500n);
+      expect(result.totalFeesContributed1).to.equal(300n);
       expect(result.lastActivityTimestamp).to.deep.equal(mockTimestamp);
     });
-  });
 
-  describe("updateUserPoolFeeContribution", () => {
-    let mockContext: handlerContext;
-
-    beforeEach(() => {
-      mockContext = {
-        UserStatsPerPool: {
-          get: async (id: string) => undefined,
-          set: async (userStats: UserStatsPerPool) => {},
-        },
-        log: {
-          error: () => {},
-          warn: () => {},
-          info: () => {},
-        },
-      } as unknown as handlerContext;
-    });
-
-    it("should create new user stats when user does not exist", async () => {
+    it("should handle swap activity correctly", async () => {
       let savedUserStats: UserStatsPerPool | undefined;
       Object.assign(mockContext.UserStatsPerPool, {
         set: async (userStats: UserStatsPerPool) => {
           savedUserStats = userStats;
         },
       });
-
-      const feesContributedUSD = 1000n;
-      const feesContributed0 = 500n;
-      const feesContributed1 = 300n;
 
       const mockUserData = createUserStatsPerPoolEntity(
         mockUserAddress,
@@ -224,136 +190,106 @@ describe("UserStatsPerPool Aggregator", () => {
         mockTimestamp,
       );
 
-      const result = await updateUserPoolFeeContribution(
-        mockUserData,
-        feesContributedUSD,
-        feesContributed0,
-        feesContributed1,
-        mockTimestamp,
-        mockContext,
-      );
-
-      expect(result).to.not.be.undefined;
-      expect(result.userAddress).to.equal(mockUserAddress.toLowerCase());
-      expect(result.poolAddress).to.equal(mockPoolAddress.toLowerCase());
-      expect(result.chainId).to.equal(mockChainId);
-      expect(result.totalFeesContributedUSD).to.equal(feesContributedUSD);
-      expect(result.totalFeesContributed0).to.equal(feesContributed0);
-      expect(result.totalFeesContributed1).to.equal(feesContributed1);
-      expect(result.lastActivityTimestamp).to.deep.equal(mockTimestamp);
-      expect(savedUserStats).to.deep.equal(result);
-    });
-
-    it("should update existing user stats with additional fee contributions", async () => {
-      const existingUserStats: UserStatsPerPool = {
-        id: `${mockUserAddress.toLowerCase()}_${mockPoolAddress.toLowerCase()}_${mockChainId}`,
-        userAddress: mockUserAddress.toLowerCase(),
-        poolAddress: mockPoolAddress.toLowerCase(),
-        chainId: mockChainId,
-        currentLiquidityUSD: 2000n,
-        totalLiquidityAddedUSD: 2000n,
-        totalLiquidityRemovedUSD: 0n,
-        totalFeesContributedUSD: 2000n,
-        totalFeesContributed0: 1000n,
-        totalFeesContributed1: 800n,
-        numberOfSwaps: 5n,
-        totalSwapVolumeUSD: 10000n,
-        firstActivityTimestamp: new Date(500000 * 1000),
-        lastActivityTimestamp: new Date(800000 * 1000),
+      const diff = {
+        numberOfSwaps: 1n,
+        totalSwapVolumeUSD: 5000n,
       };
 
-      let savedUserStats: UserStatsPerPool | undefined;
-      Object.assign(mockContext.UserStatsPerPool, {
-        get: async (id: string) => existingUserStats,
-        set: async (userStats: UserStatsPerPool) => {
-          savedUserStats = userStats;
-        },
-      });
-
-      const additionalFeesUSD = 500n;
-      const additionalFees0 = 200n;
-      const additionalFees1 = 150n;
-
-      const result = await updateUserPoolFeeContribution(
-        existingUserStats,
-        additionalFeesUSD,
-        additionalFees0,
-        additionalFees1,
-        mockTimestamp,
-        mockContext,
-      );
-
-      expect(result.totalFeesContributedUSD).to.equal(
-        existingUserStats.totalFeesContributedUSD + additionalFeesUSD,
-      );
-      expect(result.totalFeesContributed0).to.equal(
-        existingUserStats.totalFeesContributed0 + additionalFees0,
-      );
-      expect(result.totalFeesContributed1).to.equal(
-        existingUserStats.totalFeesContributed1 + additionalFees1,
-      );
-      expect(result.lastActivityTimestamp).to.deep.equal(mockTimestamp);
-    });
-  });
-
-  describe("updateUserPoolSwapActivity", () => {
-    let mockContext: handlerContext;
-
-    beforeEach(() => {
-      mockContext = {
-        UserStatsPerPool: {
-          get: async (id: string) => undefined,
-          set: async (userStats: UserStatsPerPool) => {},
-        },
-        log: {
-          error: () => {},
-          warn: () => {},
-          info: () => {},
-        },
-      } as unknown as handlerContext;
-    });
-
-    it("should create new user stats when user does not exist", async () => {
-      let savedUserStats: UserStatsPerPool | undefined;
-      Object.assign(mockContext.UserStatsPerPool, {
-        set: async (userStats: UserStatsPerPool) => {
-          savedUserStats = userStats;
-        },
-      });
-
-      const swapVolumeUSD = 5000n;
-
-      const mockUserData = createUserStatsPerPoolEntity(
-        mockUserAddress,
-        mockPoolAddress,
-        mockChainId,
-        mockTimestamp,
-      );
-
-      const result = await updateUserPoolSwapActivity(
+      const result = await updateUserStatsPerPool(
+        diff,
         mockUserData,
-        swapVolumeUSD,
         mockTimestamp,
         mockContext,
       );
 
-      expect(result).to.not.be.undefined;
-      expect(result.userAddress).to.equal(mockUserAddress.toLowerCase());
-      expect(result.poolAddress).to.equal(mockPoolAddress.toLowerCase());
-      expect(result.chainId).to.equal(mockChainId);
       expect(result.numberOfSwaps).to.equal(1n);
-      expect(result.totalSwapVolumeUSD).to.equal(swapVolumeUSD);
+      expect(result.totalSwapVolumeUSD).to.equal(5000n);
       expect(result.lastActivityTimestamp).to.deep.equal(mockTimestamp);
-      expect(savedUserStats).to.deep.equal(result);
     });
 
-    it("should update existing user stats with additional swap activity", async () => {
+    it("should handle flash loan activity correctly", async () => {
+      let savedUserStats: UserStatsPerPool | undefined;
+      Object.assign(mockContext.UserStatsPerPool, {
+        set: async (userStats: UserStatsPerPool) => {
+          savedUserStats = userStats;
+        },
+      });
+
+      const mockUserData = createUserStatsPerPoolEntity(
+        mockUserAddress,
+        mockPoolAddress,
+        mockChainId,
+        mockTimestamp,
+      );
+
+      const diff = {
+        numberOfFlashLoans: 1n,
+        totalFlashLoanVolumeUSD: 10000n,
+      };
+
+      const result = await updateUserStatsPerPool(
+        diff,
+        mockUserData,
+        mockTimestamp,
+        mockContext,
+      );
+
+      expect(result.numberOfFlashLoans).to.equal(1n);
+      expect(result.totalFlashLoanVolumeUSD).to.equal(10000n);
+      expect(result.lastActivityTimestamp).to.deep.equal(mockTimestamp);
+    });
+
+    it("should handle multiple field updates in a single call", async () => {
+      let savedUserStats: UserStatsPerPool | undefined;
+      Object.assign(mockContext.UserStatsPerPool, {
+        set: async (userStats: UserStatsPerPool) => {
+          savedUserStats = userStats;
+        },
+      });
+
+      const mockUserData = createUserStatsPerPoolEntity(
+        mockUserAddress,
+        mockPoolAddress,
+        mockChainId,
+        mockTimestamp,
+      );
+
+      const diff = {
+        currentLiquidityUSD: 2000n,
+        totalFeesContributedUSD: 500n,
+        numberOfSwaps: 2n,
+        totalSwapVolumeUSD: 8000n,
+        numberOfFlashLoans: 1n,
+        totalFlashLoanVolumeUSD: 15000n,
+      };
+
+      const result = await updateUserStatsPerPool(
+        diff,
+        mockUserData,
+        mockTimestamp,
+        mockContext,
+      );
+
+      expect(result.currentLiquidityUSD).to.equal(2000n);
+      expect(result.totalLiquidityAddedUSD).to.equal(2000n);
+      expect(result.totalLiquidityRemovedUSD).to.equal(0n);
+      expect(result.totalFeesContributedUSD).to.equal(500n);
+      expect(result.numberOfSwaps).to.equal(2n);
+      expect(result.totalSwapVolumeUSD).to.equal(8000n);
+      expect(result.numberOfFlashLoans).to.equal(1n);
+      expect(result.totalFlashLoanVolumeUSD).to.equal(15000n);
+      expect(result.lastActivityTimestamp).to.deep.equal(mockTimestamp);
+    });
+
+    it("should update existing user stats correctly", async () => {
       const existingUserStats: UserStatsPerPool = {
         id: `${mockUserAddress.toLowerCase()}_${mockPoolAddress.toLowerCase()}_${mockChainId}`,
         userAddress: mockUserAddress.toLowerCase(),
         poolAddress: mockPoolAddress.toLowerCase(),
         chainId: mockChainId,
         currentLiquidityUSD: 2000n,
+        currentLiquidityToken0: 1000n,
+        currentLiquidityToken1: 1000n,
         totalLiquidityAddedUSD: 2000n,
         totalLiquidityRemovedUSD: 0n,
         totalFeesContributedUSD: 1000n,
@@ -361,6 +297,8 @@ describe("UserStatsPerPool Aggregator", () => {
         totalFeesContributed1: 300n,
         numberOfSwaps: 5n,
         totalSwapVolumeUSD: 10000n,
+        numberOfFlashLoans: 2n,
+        totalFlashLoanVolumeUSD: 20000n,
         firstActivityTimestamp: new Date(500000 * 1000),
         lastActivityTimestamp: new Date(800000 * 1000),
       };
@@ -373,21 +311,75 @@ describe("UserStatsPerPool Aggregator", () => {
         },
       });
 
-      const additionalSwapVolumeUSD = 3000n;
+      const diff = {
+        currentLiquidityUSD: 1000n, // Adding more liquidity
+        totalFeesContributedUSD: 500n,
+        numberOfSwaps: 1n,
+        totalSwapVolumeUSD: 3000n,
+      };
 
-      const result = await updateUserPoolSwapActivity(
+      const result = await updateUserStatsPerPool(
+        diff,
         existingUserStats,
-        additionalSwapVolumeUSD,
         mockTimestamp,
         mockContext,
       );
 
-      expect(result.numberOfSwaps).to.equal(
-        existingUserStats.numberOfSwaps + 1n,
+      expect(result.currentLiquidityUSD).to.equal(3000n); // 2000 + 1000
+      expect(result.totalLiquidityAddedUSD).to.equal(3000n); // 2000 + 1000
+      expect(result.totalLiquidityRemovedUSD).to.equal(0n); // No removal
+      expect(result.totalFeesContributedUSD).to.equal(1500n); // 1000 + 500
+      expect(result.numberOfSwaps).to.equal(6n); // 5 + 1
+      expect(result.totalSwapVolumeUSD).to.equal(13000n); // 10000 + 3000
+      expect(result.numberOfFlashLoans).to.equal(2n); // Unchanged
+      expect(result.totalFlashLoanVolumeUSD).to.equal(20000n); // Unchanged
+      expect(result.lastActivityTimestamp).to.deep.equal(mockTimestamp);
+    });
+
+    it("should handle liquidity removal from existing stats", async () => {
+      const existingUserStats: UserStatsPerPool = {
+        id: `${mockUserAddress.toLowerCase()}_${mockPoolAddress.toLowerCase()}_${mockChainId}`,
+        userAddress: mockUserAddress.toLowerCase(),
+        poolAddress: mockPoolAddress.toLowerCase(),
+        chainId: mockChainId,
+        currentLiquidityUSD: 2000n,
+        currentLiquidityToken0: 1000n,
+        currentLiquidityToken1: 1000n,
+        totalLiquidityAddedUSD: 2000n,
+        totalLiquidityRemovedUSD: 0n,
+        totalFeesContributedUSD: 1000n,
+        totalFeesContributed0: 500n,
+        totalFeesContributed1: 300n,
+        numberOfSwaps: 5n,
+        totalSwapVolumeUSD: 10000n,
+        numberOfFlashLoans: 2n,
+        totalFlashLoanVolumeUSD: 20000n,
+        firstActivityTimestamp: new Date(500000 * 1000),
+        lastActivityTimestamp: new Date(800000 * 1000),
+      };
+
+      let savedUserStats: UserStatsPerPool | undefined;
+      Object.assign(mockContext.UserStatsPerPool, {
+        get: async (id: string) => existingUserStats,
+        set: async (userStats: UserStatsPerPool) => {
+          savedUserStats = userStats;
+        },
+      });
+
+      const diff = {
+        currentLiquidityUSD: -500n, // Removing liquidity
+      };
+
+      const result = await updateUserStatsPerPool(
+        diff,
+        existingUserStats,
+        mockTimestamp,
+        mockContext,
       );
-      expect(result.totalSwapVolumeUSD).to.equal(
-        existingUserStats.totalSwapVolumeUSD + additionalSwapVolumeUSD,
-      );
+
+      expect(result.currentLiquidityUSD).to.equal(1500n); // 2000 - 500
+      expect(result.totalLiquidityAddedUSD).to.equal(2000n); // Unchanged
+      expect(result.totalLiquidityRemovedUSD).to.equal(500n); // 0 + 500
       expect(result.lastActivityTimestamp).to.deep.equal(mockTimestamp);
     });
   });

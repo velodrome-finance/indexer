@@ -2,31 +2,22 @@ import type {
   CLPool_Mint_event,
   LiquidityPoolAggregator,
   Token,
+  handlerContext,
 } from "generated";
-import { updateCLPoolLiquidity } from "./updateCLPoolLiquidity";
+import { updateReserveTokenData } from "../../Helpers";
 
 export interface CLPoolMintResult {
-  CLPoolMintEntity: {
-    id: string;
-    sender: string;
-    transactionHash: string;
-    owner: string;
-    tickLower: bigint;
-    tickUpper: bigint;
-    amount: bigint;
-    amount0: bigint;
-    amount1: bigint;
-    sourceAddress: string;
-    timestamp: Date;
-    blockNumber: number;
-    logIndex: number;
-    chainId: number;
-  };
   liquidityPoolDiff?: {
     reserve0: bigint;
     reserve1: bigint;
     totalLiquidityUSD: bigint;
     lastUpdatedTimestamp: Date;
+  };
+  userLiquidityDiff?: {
+    netLiquidityAddedUSD: bigint;
+    currentLiquidityToken0: bigint;
+    currentLiquidityToken1: bigint;
+    timestamp: Date;
   };
   error?: string;
 }
@@ -47,67 +38,57 @@ export type CLPoolMintLoaderReturn =
       message: string;
     };
 
-export function processCLPoolMint(
+export async function processCLPoolMint(
   event: CLPool_Mint_event,
   loaderReturn: CLPoolMintLoaderReturn,
-): CLPoolMintResult {
-  // Create the entity
-  const CLPoolMintEntity = {
-    id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
-    sender: event.params.sender,
-    transactionHash: event.transaction.hash,
-    owner: event.params.owner,
-    tickLower: event.params.tickLower,
-    tickUpper: event.params.tickUpper,
-    amount: event.params.amount,
-    amount0: event.params.amount0,
-    amount1: event.params.amount1,
-    sourceAddress: event.srcAddress,
-    timestamp: new Date(event.block.timestamp * 1000),
-    blockNumber: event.block.number,
-    logIndex: event.logIndex,
-    chainId: event.chainId,
-  };
-
+  context: handlerContext,
+): Promise<CLPoolMintResult> {
   // Handle different loader return types
   switch (loaderReturn._type) {
     case "success": {
       const { liquidityPoolAggregator, token0Instance, token1Instance } =
         loaderReturn;
 
-      const tokenUpdateData = updateCLPoolLiquidity(
-        liquidityPoolAggregator,
-        event,
+      // Update reserve data using the same approach as Pool events
+      const reserveData = await updateReserveTokenData(
         token0Instance,
         token1Instance,
+        event.params.amount0,
+        event.params.amount1,
+        event,
+        context,
       );
 
       const liquidityPoolDiff = {
-        reserve0: liquidityPoolAggregator.reserve0 + tokenUpdateData.reserve0,
-        reserve1: liquidityPoolAggregator.reserve1 + tokenUpdateData.reserve1,
-        totalLiquidityUSD: tokenUpdateData.addTotalLiquidityUSD,
+        reserve0: event.params.amount0,
+        reserve1: event.params.amount1,
+        totalLiquidityUSD: reserveData.totalLiquidityUSD,
         lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
       };
 
+      const userLiquidityDiff = {
+        netLiquidityAddedUSD: reserveData.totalLiquidityUSD, // For mint, we're adding liquidity
+        currentLiquidityToken0: event.params.amount0, // Amount of token0 added
+        currentLiquidityToken1: event.params.amount1, // Amount of token1 added
+        timestamp: new Date(event.block.timestamp * 1000),
+      };
+
       return {
-        CLPoolMintEntity,
         liquidityPoolDiff,
+        userLiquidityDiff,
       };
     }
     case "TokenNotFoundError":
       return {
-        CLPoolMintEntity,
         error: loaderReturn.message,
       };
     case "LiquidityPoolAggregatorNotFoundError":
       return {
-        CLPoolMintEntity,
         error: loaderReturn.message,
       };
     default: {
       // This should never happen due to TypeScript's exhaustive checking
       return {
-        CLPoolMintEntity,
         error: "Unknown error type",
       };
     }

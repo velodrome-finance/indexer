@@ -78,6 +78,15 @@ describe("PoolSwapLogic", () => {
     token0IsWhitelisted: true,
     token1IsWhitelisted: true,
     name: "Test Pool",
+    // CL Pool specific fields (set to 0 for regular pools)
+    feeProtocol0: 0n,
+    feeProtocol1: 0n,
+    observationCardinalityNext: 0n,
+    totalFlashLoanFees0: 0n,
+    totalFlashLoanFees1: 0n,
+    totalFlashLoanFeesUSD: 0n,
+    totalFlashLoanVolumeUSD: 0n,
+    numberOfFlashLoans: 0n,
   };
 
   // Mock token instances
@@ -150,9 +159,9 @@ describe("PoolSwapLogic", () => {
 
       // Verify liquidity pool diff content
       expect(result.liquidityPoolDiff).to.include({
-        totalVolume0: 1001n, // liquidityPoolAggregator.totalVolume0 + netAmount0
-        totalVolume1: 501n, // liquidityPoolAggregator.totalVolume1 + netAmount1
-        numberOfSwaps: 1n, // liquidityPoolAggregator.numberOfSwaps + 1n
+        totalVolume0: 1000n, // netAmount0 (diff) - amount0In + amount0Out = 1000 + 0
+        totalVolume1: 500n, // netAmount1 (diff) - amount1In + amount1Out = 0 + 500
+        numberOfSwaps: 1n, // diff
         token0Price: 1000000000000000000n, // from mockToken0.pricePerUSDNew
         token1Price: 1000000000000000000n, // from mockToken1.pricePerUSDNew
         token0IsWhitelisted: true, // from mockToken0.isWhitelisted
@@ -300,10 +309,8 @@ describe("PoolSwapLogic", () => {
       // Token0 has amount0In + amount0Out = 2n + 100n = 102n
       // Token1 has amount1In + amount1Out = 2000n + 5n = 2005n
       // The logic uses the smaller volume for calculation (102n from token0)
-      // Expected: 1200n (existing) + 102n (token0 volume) = 1302n
-      expect(result.liquidityPoolDiff?.totalVolumeUSD).to.equal(
-        mockLiquidityPoolAggregator.totalVolumeUSD + 102n,
-      );
+      // Expected: 102n (token0 volume diff)
+      expect(result.liquidityPoolDiff?.totalVolumeUSD).to.equal(102n);
     });
 
     it("should not add to whitelisted volume when tokens are not whitelisted", async () => {
@@ -324,13 +331,10 @@ describe("PoolSwapLogic", () => {
       expect(result.userSwapDiff).to.exist;
       expect(result.error).to.be.undefined;
 
-      // When tokens are not whitelisted, whitelisted volume should remain the same
-      expect(result.liquidityPoolDiff?.totalVolumeUSDWhitelisted).to.equal(
-        mockLiquidityPoolAggregator.totalVolumeUSDWhitelisted,
-      );
-      expect(
-        Number(result.liquidityPoolDiff?.totalVolumeUSD),
-      ).to.be.greaterThan(Number(mockLiquidityPoolAggregator.totalVolumeUSD)); // But total volume should still be calculated
+      // When tokens are not whitelisted, whitelisted volume diff should be 0
+      expect(result.liquidityPoolDiff?.totalVolumeUSDWhitelisted).to.equal(0n);
+      // But total volume should still be calculated: 1000n USD (1000 USDT * 1 USD, uses token0 value)
+      expect(result.liquidityPoolDiff?.totalVolumeUSD).to.equal(1000n);
     });
 
     it("should add to whitelisted volume when both tokens are whitelisted", async () => {
@@ -352,10 +356,9 @@ describe("PoolSwapLogic", () => {
       expect(result.error).to.be.undefined;
 
       // When both tokens are whitelisted, whitelisted volume should be added
-      expect(
-        Number(result.liquidityPoolDiff?.totalVolumeUSDWhitelisted),
-      ).to.be.greaterThan(
-        Number(mockLiquidityPoolAggregator.totalVolumeUSDWhitelisted),
+      // Expected: 1000n USD (1000 USDT * 1 USD, uses token0 value)
+      expect(result.liquidityPoolDiff?.totalVolumeUSDWhitelisted).to.equal(
+        1000n,
       );
     });
 
@@ -377,10 +380,8 @@ describe("PoolSwapLogic", () => {
       expect(result.userSwapDiff).to.exist;
       expect(result.error).to.be.undefined;
 
-      // When only one token is whitelisted, whitelisted volume should remain the same
-      expect(result.liquidityPoolDiff?.totalVolumeUSDWhitelisted).to.equal(
-        mockLiquidityPoolAggregator.totalVolumeUSDWhitelisted,
-      );
+      // When only one token is whitelisted, whitelisted volume diff should be 0
+      expect(result.liquidityPoolDiff?.totalVolumeUSDWhitelisted).to.equal(0n);
     });
 
     it("should update token prices correctly", async () => {

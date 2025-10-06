@@ -51,6 +51,8 @@ export function createUserStatsPerPoolEntity(
 
     // Liquidity metrics
     currentLiquidityUSD: 0n,
+    currentLiquidityToken0: 0n,
+    currentLiquidityToken1: 0n,
     totalLiquidityAddedUSD: 0n,
     totalLiquidityRemovedUSD: 0n,
 
@@ -63,6 +65,10 @@ export function createUserStatsPerPoolEntity(
     numberOfSwaps: 0n,
     totalSwapVolumeUSD: 0n,
 
+    // Flash swap metrics
+    numberOfFlashLoans: 0n,
+    totalFlashLoanVolumeUSD: 0n,
+
     // Timestamps
     firstActivityTimestamp: timestamp,
     lastActivityTimestamp: timestamp,
@@ -70,79 +76,61 @@ export function createUserStatsPerPoolEntity(
 }
 
 /**
- * Updates UserPoolStats with liquidity activity
+ * Generic function to update UserStatsPerPool with any combination of fields
+ * Similar to updateLiquidityPoolAggregator pattern
  */
-export async function updateUserPoolLiquidityActivity(
-  userData: UserStatsPerPool,
-  netLiquidityAddedUSD: bigint, // Positive for added, negative for removed
+export async function updateUserStatsPerPool(
+  diff: Partial<UserStatsPerPool>,
+  current: UserStatsPerPool,
   timestamp: Date,
   context: handlerContext,
 ): Promise<UserStatsPerPool> {
-  // Calculate new liquidity values
-  const isAddingLiquidity = netLiquidityAddedUSD > 0n;
-  const liquidityAmount = isAddingLiquidity
-    ? netLiquidityAddedUSD
-    : -netLiquidityAddedUSD;
+  const { currentLiquidityUSD: netLiquidityChange, ...otherUpdates } = diff;
 
-  // Update stats with liquidity activity
-  const updatedStats: UserStatsPerPool = {
-    ...userData,
-    currentLiquidityUSD: userData.currentLiquidityUSD + netLiquidityAddedUSD,
-    totalLiquidityAddedUSD: isAddingLiquidity
-      ? userData.totalLiquidityAddedUSD + liquidityAmount
-      : userData.totalLiquidityAddedUSD,
-    totalLiquidityRemovedUSD: !isAddingLiquidity
-      ? userData.totalLiquidityRemovedUSD + liquidityAmount
-      : userData.totalLiquidityRemovedUSD,
-    lastActivityTimestamp: timestamp,
-  };
+  const updated: UserStatsPerPool = {
+    ...current,
+    currentLiquidityUSD:
+      netLiquidityChange !== undefined
+        ? current.currentLiquidityUSD + netLiquidityChange
+        : current.currentLiquidityUSD,
+    totalLiquidityAddedUSD:
+      netLiquidityChange !== undefined && netLiquidityChange > 0n
+        ? current.totalLiquidityAddedUSD + netLiquidityChange
+        : current.totalLiquidityAddedUSD,
+    totalLiquidityRemovedUSD:
+      netLiquidityChange !== undefined && netLiquidityChange < 0n
+        ? current.totalLiquidityRemovedUSD + -netLiquidityChange
+        : current.totalLiquidityRemovedUSD,
 
-  context.UserStatsPerPool.set(updatedStats);
-  return updatedStats;
-}
+    currentLiquidityToken0:
+      (otherUpdates.currentLiquidityToken0 || 0n) +
+      current.currentLiquidityToken0,
+    currentLiquidityToken1:
+      (otherUpdates.currentLiquidityToken1 || 0n) +
+      current.currentLiquidityToken1,
 
-/**
- * Updates UserStatsPerPool with fee contribution
- */
-export async function updateUserPoolFeeContribution(
-  userData: UserStatsPerPool,
-  feesContributedUSD: bigint,
-  feesContributed0: bigint,
-  feesContributed1: bigint,
-  timestamp: Date,
-  context: handlerContext,
-): Promise<UserStatsPerPool> {
-  // Update stats with fee contribution
-  const updatedStats: UserStatsPerPool = {
-    ...userData,
+    totalFeesContributed0:
+      (otherUpdates.totalFeesContributed0 || 0n) +
+      current.totalFeesContributed0,
+    totalFeesContributed1:
+      (otherUpdates.totalFeesContributed1 || 0n) +
+      current.totalFeesContributed1,
     totalFeesContributedUSD:
-      userData.totalFeesContributedUSD + feesContributedUSD,
-    totalFeesContributed0: userData.totalFeesContributed0 + feesContributed0,
-    totalFeesContributed1: userData.totalFeesContributed1 + feesContributed1,
+      (otherUpdates.totalFeesContributedUSD || 0n) +
+      current.totalFeesContributedUSD,
+
+    numberOfSwaps: (otherUpdates.numberOfSwaps || 0n) + current.numberOfSwaps,
+    totalSwapVolumeUSD:
+      (otherUpdates.totalSwapVolumeUSD || 0n) + current.totalSwapVolumeUSD,
+
+    numberOfFlashLoans:
+      (otherUpdates.numberOfFlashLoans || 0n) + current.numberOfFlashLoans,
+    totalFlashLoanVolumeUSD:
+      (otherUpdates.totalFlashLoanVolumeUSD || 0n) +
+      current.totalFlashLoanVolumeUSD,
     lastActivityTimestamp: timestamp,
   };
 
-  context.UserStatsPerPool.set(updatedStats);
-  return updatedStats;
-}
-
-/**
- * Updates UserStatsPerPool with swap activity
- */
-export async function updateUserPoolSwapActivity(
-  userData: UserStatsPerPool,
-  swapVolumeUSD: bigint,
-  timestamp: Date,
-  context: handlerContext,
-): Promise<UserStatsPerPool> {
-  // Update stats with swap activity
-  const updatedStats: UserStatsPerPool = {
-    ...userData,
-    numberOfSwaps: userData.numberOfSwaps + 1n,
-    totalSwapVolumeUSD: userData.totalSwapVolumeUSD + swapVolumeUSD,
-    lastActivityTimestamp: timestamp,
-  };
-
-  context.UserStatsPerPool.set(updatedStats);
-  return updatedStats;
+  context.UserStatsPerPool.set(updated);
+  return updated;
 }

@@ -109,8 +109,7 @@ VotingReward.NotifyReward.handler(async ({ event, context }) => {
 
       // Create a new instance of LiquidityPoolEntity to be updated in the DB
       const lpDiff = {
-        totalBribesUSD:
-          currentLiquidityPool.totalBribesUSD + normalizedBribesAmountUsd,
+        totalBribesUSD: normalizedBribesAmountUsd,
         lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
       };
 
