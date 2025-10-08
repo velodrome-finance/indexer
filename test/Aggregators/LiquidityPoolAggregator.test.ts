@@ -100,6 +100,47 @@ describe("LiquidityPoolAggregator Functions", () => {
     liquidityPoolAggregator = {
       id: "0x123",
       chainId: 10,
+      name: "Test Pool",
+      token0_id: "token0",
+      token1_id: "token1",
+      token0_address: "0x1111111111111111111111111111111111111111",
+      token1_address: "0x2222222222222222222222222222222222222222",
+      isStable: false,
+      isCL: false,
+      reserve0: 0n,
+      reserve1: 0n,
+      totalLiquidityUSD: 0n,
+      totalVolume0: 0n,
+      totalVolume1: 0n,
+      totalVolumeUSD: 0n,
+      totalVolumeUSDWhitelisted: 0n,
+      gaugeFees0CurrentEpoch: 0n,
+      gaugeFees1CurrentEpoch: 0n,
+      totalFees0: 0n,
+      totalFees1: 0n,
+      totalFeesUSD: 0n,
+      totalFeesUSDWhitelisted: 0n,
+      numberOfSwaps: 0n,
+      token0Price: 0n,
+      token1Price: 0n,
+      totalVotesDeposited: 0n,
+      totalVotesDepositedUSD: 0n,
+      totalEmissions: 0n,
+      totalEmissionsUSD: 0n,
+      totalBribesUSD: 0n,
+      gaugeIsAlive: false,
+      token0IsWhitelisted: false,
+      token1IsWhitelisted: false,
+      lastUpdatedTimestamp: new Date(),
+      lastSnapshotTimestamp: new Date(),
+      feeProtocol0: 0n,
+      feeProtocol1: 0n,
+      observationCardinalityNext: 0n,
+      totalFlashLoanFees0: 0n,
+      totalFlashLoanFees1: 0n,
+      totalFlashLoanFeesUSD: 0n,
+      totalFlashLoanVolumeUSD: 0n,
+      numberOfFlashLoans: 0n,
     };
     timestamp = new Date();
   });
@@ -191,7 +232,7 @@ describe("LiquidityPoolAggregator Functions", () => {
       totalVolumeUSDWhitelisted: 0n,
       totalFeesUSDWhitelisted: 0n,
     };
-    beforeEach(() => {
+    beforeEach(async () => {
       diff = {
         totalVolume0: 5000n,
         totalVolume1: 6000n,
@@ -200,7 +241,7 @@ describe("LiquidityPoolAggregator Functions", () => {
         totalVolumeUSDWhitelisted: 8000n,
         totalFeesUSDWhitelisted: 9000n,
       };
-      updateLiquidityPoolAggregator(
+      await updateLiquidityPoolAggregator(
         diff,
         liquidityPoolAggregator as LiquidityPoolAggregator,
         timestamp,
@@ -224,7 +265,24 @@ describe("LiquidityPoolAggregator Functions", () => {
       );
     });
 
-    it("should create a snapshot if the last update was more than 1 hour ago", () => {
+    it("should create a snapshot if the last update was more than 1 hour ago", async () => {
+      // Set up a scenario where the last snapshot was more than 1 hour ago
+      const oldTimestamp = new Date(Date.now() - 2 * 60 * 60 * 1000); // 2 hours ago
+      const currentTimestamp = new Date();
+
+      const liquidityPoolWithOldSnapshot = {
+        ...liquidityPoolAggregator,
+        lastSnapshotTimestamp: oldTimestamp,
+      };
+
+      await updateLiquidityPoolAggregator(
+        diff,
+        liquidityPoolWithOldSnapshot as LiquidityPoolAggregator,
+        currentTimestamp,
+        contextStub as handlerContext,
+        blockNumber,
+      );
+
       const setStub = contextStub.LiquidityPoolAggregatorSnapshot
         ?.set as sinon.SinonStub;
       const snapshot = setStub.getCall(0).args[0];

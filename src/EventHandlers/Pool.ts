@@ -6,9 +6,7 @@ import {
 } from "../Aggregators/LiquidityPoolAggregator";
 import {
   loadUserData,
-  updateUserPoolFeeContribution,
-  updateUserPoolLiquidityActivity,
-  updateUserPoolSwapActivity,
+  updateUserStatsPerPool,
 } from "../Aggregators/UserStatsPerPool";
 import { processPoolLiquidityEvent } from "./Pool/PoolBurnAndMintLogic";
 import { processPoolFees } from "./Pool/PoolFeesLogic";
@@ -65,9 +63,13 @@ Pool.Mint.handler(async ({ event, context }) => {
 
   // Update user pool liquidity activity
   if (userLiquidityDiff) {
-    await updateUserPoolLiquidityActivity(
+    const updatedUserStatsfields = {
+      currentLiquidityUSD: userLiquidityDiff.netLiquidityAddedUSD,
+    };
+
+    await updateUserStatsPerPool(
+      updatedUserStatsfields,
       userData,
-      userLiquidityDiff.netLiquidityAddedUSD,
       userLiquidityDiff.timestamp,
       context,
     );
@@ -123,9 +125,12 @@ Pool.Burn.handler(async ({ event, context }) => {
 
   // Update user pool liquidity activity
   if (userLiquidityDiff) {
-    await updateUserPoolLiquidityActivity(
+    const updatedUserStatsfields = {
+      currentLiquidityUSD: userLiquidityDiff.netLiquidityAddedUSD,
+    };
+    await updateUserStatsPerPool(
+      updatedUserStatsfields,
       userData,
-      userLiquidityDiff.netLiquidityAddedUSD,
       userLiquidityDiff.timestamp,
       context,
     );
@@ -185,11 +190,14 @@ Pool.Fees.handler(async ({ event, context }) => {
 
   // Update user pool fee contribution
   if (result.userDiff) {
-    await updateUserPoolFeeContribution(
+    const updatedUserStatsfields = {
+      totalFeesContributedUSD: result.userDiff.feesContributedUSD,
+      totalFeesContributed0: result.userDiff.feesContributed0,
+      totalFeesContributed1: result.userDiff.feesContributed1,
+    };
+    await updateUserStatsPerPool(
+      updatedUserStatsfields,
       userData,
-      result.userDiff.feesContributedUSD,
-      result.userDiff.feesContributed0,
-      result.userDiff.feesContributed1,
       result.userDiff.timestamp,
       context,
     );
@@ -249,9 +257,13 @@ Pool.Swap.handler(async ({ event, context }) => {
 
   // Update user swap activity
   if (result.userSwapDiff) {
-    await updateUserPoolSwapActivity(
+    const updatedUserStatsfields = {
+      numberOfSwaps: 1n,
+      totalSwapVolumeUSD: result.userSwapDiff.volumeUSD,
+    };
+    await updateUserStatsPerPool(
+      updatedUserStatsfields,
       userData,
-      result.userSwapDiff.volumeUSD,
       new Date(event.block.timestamp * 1000),
       context,
     );

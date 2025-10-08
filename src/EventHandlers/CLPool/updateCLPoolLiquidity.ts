@@ -1,4 +1,5 @@
 import type {
+  CLPool_Burn_event,
   CLPool_CollectFees_event,
   CLPool_Collect_event,
   CLPool_Mint_event,
@@ -28,7 +29,8 @@ export function updateCLPoolLiquidity(
     | CLPool_Swap_event
     | CLPool_Mint_event
     | CLPool_Collect_event
-    | CLPool_CollectFees_event,
+    | CLPool_CollectFees_event
+    | CLPool_Burn_event,
   token0Instance: Token | undefined,
   token1Instance: Token | undefined,
 ): TokenUpdateData {

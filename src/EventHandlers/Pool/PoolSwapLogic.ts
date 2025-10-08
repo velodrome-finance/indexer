@@ -58,20 +58,15 @@ export async function processPoolSwap(
 
       // Create liquidity pool diff
       const liquidityPoolDiff: Partial<LiquidityPoolAggregator> = {
-        totalVolume0:
-          liquidityPoolAggregator.totalVolume0 + swapData.token0NetAmount,
-        totalVolume1:
-          liquidityPoolAggregator.totalVolume1 + swapData.token1NetAmount,
-        totalVolumeUSD:
-          liquidityPoolAggregator.totalVolumeUSD + swapData.volumeInUSD,
-        totalVolumeUSDWhitelisted:
-          liquidityPoolAggregator.totalVolumeUSDWhitelisted +
-          swapData.volumeInUSDWhitelisted,
+        totalVolume0: swapData.token0NetAmount,
+        totalVolume1: swapData.token1NetAmount,
+        totalVolumeUSD: swapData.volumeInUSD,
+        totalVolumeUSDWhitelisted: swapData.volumeInUSDWhitelisted,
         token0Price:
           swapData.token0.pricePerUSDNew ?? liquidityPoolAggregator.token0Price,
         token1Price:
           swapData.token1.pricePerUSDNew ?? liquidityPoolAggregator.token1Price,
-        numberOfSwaps: liquidityPoolAggregator.numberOfSwaps + 1n,
+        numberOfSwaps: 1n,
         token0IsWhitelisted: swapData.token0.isWhitelisted,
         token1IsWhitelisted: swapData.token1.isWhitelisted,
         lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),

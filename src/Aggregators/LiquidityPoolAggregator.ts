@@ -120,7 +120,60 @@ export async function updateLiquidityPoolAggregator(
 ) {
   const updated: LiquidityPoolAggregator = {
     ...current,
-    ...diff,
+    // Handle cumulative fields by adding diff values to current values
+    reserve0: (diff.reserve0 || 0n) + current.reserve0,
+    reserve1: (diff.reserve1 || 0n) + current.reserve1,
+    totalLiquidityUSD:
+      (diff.totalLiquidityUSD || 0n) + current.totalLiquidityUSD,
+    totalVolume0: (diff.totalVolume0 || 0n) + current.totalVolume0,
+    totalVolume1: (diff.totalVolume1 || 0n) + current.totalVolume1,
+    totalVolumeUSD: (diff.totalVolumeUSD || 0n) + current.totalVolumeUSD,
+    totalVolumeUSDWhitelisted:
+      (diff.totalVolumeUSDWhitelisted || 0n) +
+      current.totalVolumeUSDWhitelisted,
+    gaugeFees0CurrentEpoch:
+      (diff.gaugeFees0CurrentEpoch || 0n) + current.gaugeFees0CurrentEpoch,
+    gaugeFees1CurrentEpoch:
+      (diff.gaugeFees1CurrentEpoch || 0n) + current.gaugeFees1CurrentEpoch,
+    totalFees0: (diff.totalFees0 || 0n) + current.totalFees0,
+    totalFees1: (diff.totalFees1 || 0n) + current.totalFees1,
+    totalFeesUSD: (diff.totalFeesUSD || 0n) + current.totalFeesUSD,
+    totalFeesUSDWhitelisted:
+      (diff.totalFeesUSDWhitelisted || 0n) + current.totalFeesUSDWhitelisted,
+    numberOfSwaps: (diff.numberOfSwaps || 0n) + current.numberOfSwaps,
+    totalVotesDeposited:
+      (diff.totalVotesDeposited || 0n) + current.totalVotesDeposited,
+    totalVotesDepositedUSD:
+      (diff.totalVotesDepositedUSD || 0n) + current.totalVotesDepositedUSD,
+    totalEmissions: (diff.totalEmissions || 0n) + current.totalEmissions,
+    totalEmissionsUSD:
+      (diff.totalEmissionsUSD || 0n) + current.totalEmissionsUSD,
+    totalBribesUSD: (diff.totalBribesUSD || 0n) + current.totalBribesUSD,
+    totalFlashLoanFees0:
+      (diff.totalFlashLoanFees0 || 0n) + (current.totalFlashLoanFees0 || 0n),
+    totalFlashLoanFees1:
+      (diff.totalFlashLoanFees1 || 0n) + (current.totalFlashLoanFees1 || 0n),
+    totalFlashLoanFeesUSD:
+      (diff.totalFlashLoanFeesUSD || 0n) +
+      (current.totalFlashLoanFeesUSD || 0n),
+    totalFlashLoanVolumeUSD:
+      (diff.totalFlashLoanVolumeUSD || 0n) +
+      (current.totalFlashLoanVolumeUSD || 0n),
+    numberOfFlashLoans:
+      (diff.numberOfFlashLoans || 0n) + (current.numberOfFlashLoans || 0n),
+
+    // Handle non-cumulative fields (prices, timestamps, etc.) - use diff values directly
+    token0Price: diff.token0Price ?? current.token0Price,
+    token1Price: diff.token1Price ?? current.token1Price,
+    token0IsWhitelisted:
+      diff.token0IsWhitelisted ?? current.token0IsWhitelisted,
+    token1IsWhitelisted:
+      diff.token1IsWhitelisted ?? current.token1IsWhitelisted,
+    gaugeIsAlive: diff.gaugeIsAlive ?? current.gaugeIsAlive,
+    feeProtocol0: diff.feeProtocol0 ?? current.feeProtocol0,
+    feeProtocol1: diff.feeProtocol1 ?? current.feeProtocol1,
+    observationCardinalityNext:
+      diff.observationCardinalityNext ?? current.observationCardinalityNext,
     lastUpdatedTimestamp: timestamp,
   };
 

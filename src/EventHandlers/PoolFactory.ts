@@ -108,6 +108,15 @@ PoolFactory.PoolCreated.handler(async ({ event, context }) => {
     token1IsWhitelisted: poolToken1?.isWhitelisted ?? false,
     lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
     lastSnapshotTimestamp: new Date(event.block.timestamp * 1000),
+    // CL Pool specific fields (set to 0 for regular pools)
+    feeProtocol0: 0n,
+    feeProtocol1: 0n,
+    observationCardinalityNext: 0n,
+    totalFlashLoanFees0: 0n,
+    totalFlashLoanFees1: 0n,
+    totalFlashLoanFeesUSD: 0n,
+    totalFlashLoanVolumeUSD: 0n,
+    numberOfFlashLoans: 0n,
   };
 
   updateLiquidityPoolAggregator(

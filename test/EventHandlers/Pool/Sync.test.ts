@@ -54,8 +54,10 @@ describe("Pool Sync Event", () => {
     expectations.reserveAmount0In = 100n * 10n ** mockToken0Data.decimals;
     expectations.reserveAmount1In = 200n * 10n ** mockToken1Data.decimals;
 
-    expectations.expectedReserve0 = expectations.reserveAmount0In;
-    expectations.expectedReserve1 = expectations.reserveAmount1In;
+    expectations.expectedReserve0 =
+      mockLiquidityPoolData.reserve0 + expectations.reserveAmount0In;
+    expectations.expectedReserve1 =
+      mockLiquidityPoolData.reserve1 + expectations.reserveAmount1In;
 
     expectations.expectedReserve0InMissing = expectations.reserveAmount0In;
     expectations.expectedReserve1InMissing = expectations.reserveAmount1In;

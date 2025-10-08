@@ -69,6 +69,15 @@ export function setupCommon() {
     token0IsWhitelisted: true,
     token1IsWhitelisted: true,
     name: "",
+    // CL Pool specific fields (set to 0 for regular pools)
+    feeProtocol0: 0n,
+    feeProtocol1: 0n,
+    observationCardinalityNext: 0n,
+    totalFlashLoanFees0: 0n,
+    totalFlashLoanFees1: 0n,
+    totalFlashLoanFeesUSD: 0n,
+    totalFlashLoanVolumeUSD: 0n,
+    numberOfFlashLoans: 0n,
   };
 
   return {
