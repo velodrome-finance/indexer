@@ -74,6 +74,12 @@ describe("CLPoolMintLogic", () => {
     totalFlashLoanFeesUSD: 0n,
     totalFlashLoanVolumeUSD: 0n,
     numberOfFlashLoans: 0n,
+    // Gauge fields
+    numberOfGaugeDeposits: 0n,
+    numberOfGaugeWithdrawals: 0n,
+    numberOfGaugeRewardClaims: 0n,
+    totalGaugeRewardsClaimedUSD: 0n,
+    currentLiquidityStakedUSD: 0n,
   };
 
   const mockToken0: Token = {

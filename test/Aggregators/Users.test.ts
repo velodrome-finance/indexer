@@ -299,6 +299,11 @@ describe("UserStatsPerPool Aggregator", () => {
         totalSwapVolumeUSD: 10000n,
         numberOfFlashLoans: 2n,
         totalFlashLoanVolumeUSD: 20000n,
+        numberOfGaugeDeposits: 0n,
+        numberOfGaugeWithdrawals: 0n,
+        numberOfGaugeRewardClaims: 0n,
+        totalGaugeRewardsClaimedUSD: 0n,
+        currentLiquidityStakedUSD: 0n,
         firstActivityTimestamp: new Date(500000 * 1000),
         lastActivityTimestamp: new Date(800000 * 1000),
       };
@@ -354,6 +359,11 @@ describe("UserStatsPerPool Aggregator", () => {
         totalSwapVolumeUSD: 10000n,
         numberOfFlashLoans: 2n,
         totalFlashLoanVolumeUSD: 20000n,
+        numberOfGaugeDeposits: 0n,
+        numberOfGaugeWithdrawals: 0n,
+        numberOfGaugeRewardClaims: 0n,
+        totalGaugeRewardsClaimedUSD: 0n,
+        currentLiquidityStakedUSD: 0n,
         firstActivityTimestamp: new Date(500000 * 1000),
         lastActivityTimestamp: new Date(800000 * 1000),
       };

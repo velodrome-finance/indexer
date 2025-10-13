@@ -69,6 +69,13 @@ export function createUserStatsPerPoolEntity(
     numberOfFlashLoans: 0n,
     totalFlashLoanVolumeUSD: 0n,
 
+    // Gauge metrics
+    numberOfGaugeDeposits: 0n,
+    numberOfGaugeWithdrawals: 0n,
+    numberOfGaugeRewardClaims: 0n,
+    totalGaugeRewardsClaimedUSD: 0n,
+    currentLiquidityStakedUSD: 0n,
+
     // Timestamps
     firstActivityTimestamp: timestamp,
     lastActivityTimestamp: timestamp,
@@ -128,6 +135,24 @@ export async function updateUserStatsPerPool(
     totalFlashLoanVolumeUSD:
       (otherUpdates.totalFlashLoanVolumeUSD || 0n) +
       current.totalFlashLoanVolumeUSD,
+
+    // Gauge metrics - all cumulative fields
+    numberOfGaugeDeposits:
+      (otherUpdates.numberOfGaugeDeposits || 0n) +
+      current.numberOfGaugeDeposits,
+    numberOfGaugeWithdrawals:
+      (otherUpdates.numberOfGaugeWithdrawals || 0n) +
+      current.numberOfGaugeWithdrawals,
+    numberOfGaugeRewardClaims:
+      (otherUpdates.numberOfGaugeRewardClaims || 0n) +
+      current.numberOfGaugeRewardClaims,
+    totalGaugeRewardsClaimedUSD:
+      (otherUpdates.totalGaugeRewardsClaimedUSD || 0n) +
+      current.totalGaugeRewardsClaimedUSD,
+    currentLiquidityStakedUSD:
+      (otherUpdates.currentLiquidityStakedUSD || 0n) +
+      current.currentLiquidityStakedUSD,
+
     lastActivityTimestamp: timestamp,
   };
 

@@ -10,19 +10,6 @@ import { generatePoolName } from "../../Helpers";
 import { createTokenEntity } from "../../PriceOracle";
 
 export interface CLFactoryPoolCreatedResult {
-  CLFactoryPoolCreatedEntity: {
-    id: string;
-    poolFactory: string;
-    token0: string;
-    token1: string;
-    tickSpacing: bigint;
-    pool: string;
-    timestamp: Date;
-    blockNumber: number;
-    logIndex: number;
-    chainId: number;
-    transactionHash: string;
-  };
   liquidityPoolAggregator?: LiquidityPoolAggregator;
   error?: string;
 }
@@ -37,21 +24,6 @@ export async function processCLFactoryPoolCreated(
   loaderReturn: CLFactoryPoolCreatedLoaderReturn,
   context: handlerContext,
 ): Promise<CLFactoryPoolCreatedResult> {
-  // Create the entity
-  const CLFactoryPoolCreatedEntity = {
-    id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
-    poolFactory: event.srcAddress,
-    token0: TokenIdByChain(event.params.token0, event.chainId),
-    token1: TokenIdByChain(event.params.token1, event.chainId),
-    tickSpacing: event.params.tickSpacing,
-    pool: event.params.pool,
-    timestamp: new Date(event.block.timestamp * 1000),
-    blockNumber: event.block.number,
-    logIndex: event.logIndex,
-    chainId: event.chainId,
-    transactionHash: event.transaction.hash,
-  };
-
   try {
     const { poolToken0, poolToken1 } = loaderReturn;
     const poolTokenSymbols: string[] = [];
@@ -132,15 +104,19 @@ export async function processCLFactoryPoolCreated(
       totalFlashLoanFeesUSD: 0n,
       totalFlashLoanVolumeUSD: 0n,
       numberOfFlashLoans: 0n,
+      // Gauge fields
+      numberOfGaugeDeposits: 0n,
+      numberOfGaugeWithdrawals: 0n,
+      numberOfGaugeRewardClaims: 0n,
+      totalGaugeRewardsClaimedUSD: 0n,
+      currentLiquidityStakedUSD: 0n,
     };
 
     return {
-      CLFactoryPoolCreatedEntity,
       liquidityPoolAggregator,
     };
   } catch (error) {
     return {
-      CLFactoryPoolCreatedEntity,
       error: `Error processing CLFactory PoolCreated: ${error}`,
     };
   }

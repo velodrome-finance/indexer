@@ -80,20 +80,6 @@ describe("CLFactoryPoolCreatedLogic", () => {
       );
 
       // Assertions
-      expect(result.CLFactoryPoolCreatedEntity).to.deep.include({
-        id: "10_123456_1",
-        poolFactory: "0x1111111111111111111111111111111111111111",
-        token0: "0x2222222222222222222222222222222222222222-10",
-        token1: "0x3333333333333333333333333333333333333333-10",
-        tickSpacing: 60n,
-        pool: "0x4444444444444444444444444444444444444444",
-        blockNumber: 123456,
-        logIndex: 1,
-        chainId: 10,
-        transactionHash:
-          "0x5555555555555555555555555555555555555555555555555555555555555555",
-      });
-
       expect(result.liquidityPoolAggregator).to.deep.include({
         id: "0x4444444444444444444444444444444444444444",
         chainId: 10,
@@ -126,19 +112,6 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockContext,
       );
 
-      expect(result.CLFactoryPoolCreatedEntity).to.deep.include({
-        id: "10_123456_1",
-        poolFactory: "0x1111111111111111111111111111111111111111",
-        token0: "0x2222222222222222222222222222222222222222-10",
-        token1: "0x3333333333333333333333333333333333333333-10",
-        tickSpacing: 60n,
-        pool: "0x4444444444444444444444444444444444444444",
-        blockNumber: 123456,
-        logIndex: 1,
-        chainId: 10,
-        transactionHash:
-          "0x5555555555555555555555555555555555555555555555555555555555555555",
-      });
       expect(result.liquidityPoolAggregator).to.deep.include({
         id: "0x4444444444444444444444444444444444444444",
         chainId: 10,
@@ -171,19 +144,6 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockContext,
       );
 
-      expect(result.CLFactoryPoolCreatedEntity).to.deep.include({
-        id: "10_123456_1",
-        poolFactory: "0x1111111111111111111111111111111111111111",
-        token0: "0x2222222222222222222222222222222222222222-10",
-        token1: "0x3333333333333333333333333333333333333333-10",
-        tickSpacing: 60n,
-        pool: "0x4444444444444444444444444444444444444444",
-        blockNumber: 123456,
-        logIndex: 1,
-        chainId: 10,
-        transactionHash:
-          "0x5555555555555555555555555555555555555555555555555555555555555555",
-      });
       expect(result.liquidityPoolAggregator).to.deep.include({
         id: "0x4444444444444444444444444444444444444444",
         chainId: 10,
@@ -216,19 +176,6 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockContext,
       );
 
-      expect(result.CLFactoryPoolCreatedEntity).to.deep.include({
-        id: "10_123456_1",
-        poolFactory: "0x1111111111111111111111111111111111111111",
-        token0: "0x2222222222222222222222222222222222222222-10",
-        token1: "0x3333333333333333333333333333333333333333-10",
-        tickSpacing: 60n,
-        pool: "0x4444444444444444444444444444444444444444",
-        blockNumber: 123456,
-        logIndex: 1,
-        chainId: 10,
-        transactionHash:
-          "0x5555555555555555555555555555555555555555555555555555555555555555",
-      });
       expect(result.liquidityPoolAggregator).to.deep.include({
         id: "0x4444444444444444444444444444444444444444",
         chainId: 10,
@@ -264,7 +211,6 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockContext,
       );
 
-      expect(result.CLFactoryPoolCreatedEntity.tickSpacing).to.equal(200n);
       expect(result.liquidityPoolAggregator?.name).to.equal(
         "CL-200 AMM - USDT/USDC",
       );
@@ -292,19 +238,6 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockContext,
       );
 
-      expect(result.CLFactoryPoolCreatedEntity).to.deep.include({
-        id: "10_123456_1",
-        poolFactory: "0x1111111111111111111111111111111111111111",
-        token0: "0x2222222222222222222222222222222222222222-10",
-        token1: "0x3333333333333333333333333333333333333333-10",
-        tickSpacing: 60n,
-        pool: "0x4444444444444444444444444444444444444444",
-        blockNumber: 123456,
-        logIndex: 1,
-        chainId: 10,
-        transactionHash:
-          "0x5555555555555555555555555555555555555555555555555555555555555555",
-      });
       expect(result.liquidityPoolAggregator).to.deep.include({
         id: "0x4444444444444444444444444444444444444444",
         chainId: 10,
@@ -347,19 +280,6 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockContext,
       );
 
-      expect(result.CLFactoryPoolCreatedEntity).to.deep.include({
-        id: "10_123456_1",
-        poolFactory: "0x1111111111111111111111111111111111111111",
-        token0: "0x2222222222222222222222222222222222222222-10",
-        token1: "0x3333333333333333333333333333333333333333-10",
-        tickSpacing: 60n,
-        pool: "0x4444444444444444444444444444444444444444",
-        blockNumber: 123456,
-        logIndex: 1,
-        chainId: 10,
-        transactionHash:
-          "0x5555555555555555555555555555555555555555555555555555555555555555",
-      });
       expect(result.liquidityPoolAggregator).to.deep.include({
         id: "0x4444444444444444444444444444444444444444",
         chainId: 10,
@@ -392,13 +312,6 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockContext,
       );
 
-      expect(result.CLFactoryPoolCreatedEntity.chainId).to.equal(8453);
-      expect(result.CLFactoryPoolCreatedEntity.token0).to.equal(
-        "0x2222222222222222222222222222222222222222-8453",
-      );
-      expect(result.CLFactoryPoolCreatedEntity.token1).to.equal(
-        "0x3333333333333333333333333333333333333333-8453",
-      );
       expect(result.liquidityPoolAggregator?.chainId).to.equal(8453);
       expect(result.liquidityPoolAggregator?.token0_id).to.equal(
         "0x2222222222222222222222222222222222222222-8453",
@@ -458,20 +371,6 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockContext,
       );
 
-      // The function should complete successfully even with token creation errors
-      expect(result.CLFactoryPoolCreatedEntity).to.deep.include({
-        id: "10_123456_1",
-        poolFactory: "0x1111111111111111111111111111111111111111",
-        token0: "0x2222222222222222222222222222222222222222-10",
-        token1: "0x3333333333333333333333333333333333333333-10",
-        tickSpacing: 60n,
-        pool: "0x4444444444444444444444444444444444444444",
-        blockNumber: 123456,
-        logIndex: 1,
-        chainId: 10,
-        transactionHash:
-          "0x5555555555555555555555555555555555555555555555555555555555555555",
-      });
       // The function should complete successfully (errors are logged but don't propagate)
       expect(result.error).to.be.undefined;
     });

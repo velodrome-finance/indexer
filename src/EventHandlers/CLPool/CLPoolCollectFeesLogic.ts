@@ -77,18 +77,6 @@ function updateCLPoolFees(
 }
 
 export interface CLPoolCollectFeesResult {
-  CLPoolCollectFeesEntity: {
-    id: string;
-    recipient: string;
-    amount0: bigint;
-    amount1: bigint;
-    sourceAddress: string;
-    timestamp: Date;
-    blockNumber: number;
-    logIndex: number;
-    chainId: number;
-    transactionHash: string;
-  };
   liquidityPoolDiff?: {
     reserve0: bigint;
     reserve1: bigint;
@@ -122,20 +110,6 @@ export function processCLPoolCollectFees(
   event: CLPool_CollectFees_event,
   loaderReturn: CLPoolCollectFeesLoaderReturn,
 ): CLPoolCollectFeesResult {
-  // Create the entity
-  const CLPoolCollectFeesEntity = {
-    id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
-    recipient: event.params.recipient,
-    amount0: event.params.amount0,
-    amount1: event.params.amount1,
-    sourceAddress: event.srcAddress,
-    timestamp: new Date(event.block.timestamp * 1000),
-    blockNumber: event.block.number,
-    logIndex: event.logIndex,
-    chainId: event.chainId,
-    transactionHash: event.transaction.hash,
-  };
-
   // Handle different loader return types
   switch (loaderReturn._type) {
     case "success": {
@@ -168,24 +142,20 @@ export function processCLPoolCollectFees(
       };
 
       return {
-        CLPoolCollectFeesEntity,
         liquidityPoolDiff,
       };
     }
     case "TokenNotFoundError":
       return {
-        CLPoolCollectFeesEntity,
         error: loaderReturn.message,
       };
     case "LiquidityPoolAggregatorNotFoundError":
       return {
-        CLPoolCollectFeesEntity,
         error: loaderReturn.message,
       };
     default: {
       // This should never happen due to TypeScript's exhaustive checking
       return {
-        CLPoolCollectFeesEntity,
         error: "Unknown error type",
       };
     }

@@ -33,9 +33,6 @@ CLFactory.PoolCreated.handler(async ({ event, context }) => {
     context,
   );
 
-  // Apply the result to the database
-  context.CLFactory_PoolCreated.set(result.CLFactoryPoolCreatedEntity);
-
   // Handle errors
   if (result.error) {
     context.log.error(result.error);

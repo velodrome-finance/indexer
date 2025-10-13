@@ -44,6 +44,13 @@ type LiquidityPoolAggregator {
   totalFlashLoanFeesUSD: BigInt @config(precision: 76) # total flash loan fees collected in USD
   totalFlashLoanVolumeUSD: BigInt @config(precision: 76) # total flash loan volume in USD
   numberOfFlashLoans: BigInt @config(precision: 76) # total number of flash loans
+
+  # Gauge fields
+  numberOfGaugeDeposits: BigInt! @config(precision: 76) # number of gauge deposits (staking)
+  numberOfGaugeWithdrawals: BigInt! @config(precision: 76) # number of gauge withdrawals (unstaking)
+  numberOfGaugeRewardClaims: BigInt! @config(precision: 76) # number of gauge reward claims
+  totalGaugeRewardsClaimedUSD: BigInt! @config(precision: 76) # total gauge rewards claimed in USD
+  currentLiquidityStakedUSD: BigInt! @config(precision: 76) # current liquidity staked in gauge in USD
 }
 
 # Snapshot of the LiquidityPool entity
@@ -122,6 +129,13 @@ type UserStatsPerPool {
   numberOfFlashLoans: BigInt! @config(precision: 76) # number of flash loan swaps in this pool
   totalFlashLoanVolumeUSD: BigInt! @config(precision: 76) # flash loan swap volume in USD in this pool
 
+  # Gauge metrics
+  numberOfGaugeDeposits: BigInt! @config(precision: 76) # number of gauge deposits (staking)
+  numberOfGaugeWithdrawals: BigInt! @config(precision: 76) # number of gauge withdrawals (unstaking)
+  numberOfGaugeRewardClaims: BigInt! @config(precision: 76) # number of gauge reward claims
+  totalGaugeRewardsClaimedUSD: BigInt! @config(precision: 76) # total gauge rewards claimed in USD
+  currentLiquidityStakedUSD: BigInt! @config(precision: 76) # current liquidity staked in gauge in USD
+
   # Timestamps
   firstActivityTimestamp: Timestamp! # first activity in this pool
   lastActivityTimestamp: Timestamp! # last activity in this pool
@@ -149,60 +163,6 @@ type TokenPriceSnapshot {
   chainId: Int!
   isWhitelisted: Boolean! # whether the token is whitelisted
   lastUpdatedTimestamp: Timestamp! @index # Timestamp of the last update
-}
-
-# Event for when a a concentrated liquidity pool is created
-type CLFactory_PoolCreated {
-  id: ID!
-  token0: String!
-  token1: String!
-  tickSpacing: BigInt! @config(precision: 76)
-  pool: String! @index
-  poolFactory: String!
-  timestamp: Timestamp!
-  blockNumber: Int!
-  transactionHash: String!
-  logIndex: Int!
-  chainId: Int!
-}
-
-# Event for when a gauge is notified of a reward
-type CLGauge_NotifyReward {
-  id: ID!
-  from: String!
-  amount: BigInt! @config(precision: 76)
-  sourceAddress: String!
-  timestamp: Timestamp!
-  blockNumber: Int!
-  transactionHash: String!
-  logIndex: Int!
-  chainId: Int!
-}
-
-type CLGauge_Deposit {
-  id: ID!
-  tokenId: BigInt! @config(precision: 76)
-  user: String!
-  liquidityToStake: BigInt! @config(precision: 76)
-  sourceAddress: String!
-  timestamp: Timestamp!
-  blockNumber: Int!
-  transactionHash: String!
-  logIndex: Int!
-  chainId: Int!
-}
-
-type CLGauge_Withdraw {
-  id: ID!
-  tokenId: BigInt! @config(precision: 76)
-  user: String!
-  liquidityToStake: BigInt! @config(precision: 76)
-  sourceAddress: String!
-  timestamp: Timestamp!
-  blockNumber: Int!
-  transactionHash: String!
-  logIndex: Int!
-  chainId: Int!
 }
 
 # Event for when a gauge is notified of a reward
@@ -725,16 +685,4 @@ type DynamicFeeSwapModule_FeeCapSet {
   transactionHash: String!
   blockNumber: Int!
   logIndex: Int!
-}
-
-type CLGauge_ClaimRewards {
-  id: ID!
-  from: String!
-  amount: BigInt! @config(precision: 76)
-  sourceAddress: String!
-  timestamp: Timestamp!
-  blockNumber: Int!
-  transactionHash: String!
-  logIndex: Int!
-  chainId: Int!
 }
