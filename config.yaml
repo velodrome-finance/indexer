@@ -92,7 +92,6 @@ contracts:
     abi_file_path: abis/CLGauge.json
     handler: src/EventHandlers/CLGauge.ts
     events:
-      - event: NotifyReward
       - event: Deposit
       - event: Withdraw
       - event: ClaimRewards

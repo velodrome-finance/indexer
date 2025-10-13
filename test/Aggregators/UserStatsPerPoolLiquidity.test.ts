@@ -25,6 +25,11 @@ describe("UserStatsPerPool Liquidity Logic", () => {
     totalSwapVolumeUSD: 0n,
     numberOfFlashLoans: 0n,
     totalFlashLoanVolumeUSD: 0n,
+    numberOfGaugeDeposits: 0n,
+    numberOfGaugeWithdrawals: 0n,
+    numberOfGaugeRewardClaims: 0n,
+    totalGaugeRewardsClaimedUSD: 0n,
+    currentLiquidityStakedUSD: 0n,
     firstActivityTimestamp: mockTimestamp,
     lastActivityTimestamp: mockTimestamp,
   });

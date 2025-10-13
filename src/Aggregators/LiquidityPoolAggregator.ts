@@ -162,6 +162,21 @@ export async function updateLiquidityPoolAggregator(
     numberOfFlashLoans:
       (diff.numberOfFlashLoans || 0n) + (current.numberOfFlashLoans || 0n),
 
+    // Gauge fields - all cumulative
+    numberOfGaugeDeposits:
+      (diff.numberOfGaugeDeposits || 0n) + current.numberOfGaugeDeposits,
+    numberOfGaugeWithdrawals:
+      (diff.numberOfGaugeWithdrawals || 0n) + current.numberOfGaugeWithdrawals,
+    numberOfGaugeRewardClaims:
+      (diff.numberOfGaugeRewardClaims || 0n) +
+      current.numberOfGaugeRewardClaims,
+    totalGaugeRewardsClaimedUSD:
+      (diff.totalGaugeRewardsClaimedUSD || 0n) +
+      current.totalGaugeRewardsClaimedUSD,
+    currentLiquidityStakedUSD:
+      (diff.currentLiquidityStakedUSD || 0n) +
+      current.currentLiquidityStakedUSD,
+
     // Handle non-cumulative fields (prices, timestamps, etc.) - use diff values directly
     token0Price: diff.token0Price ?? current.token0Price,
     token1Price: diff.token1Price ?? current.token1Price,

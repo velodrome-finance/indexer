@@ -164,6 +164,11 @@ describe("Pool Fees Event", () => {
       totalSwapVolumeUSD: 10000n,
       numberOfFlashLoans: 0n,
       totalFlashLoanVolumeUSD: 0n,
+      numberOfGaugeDeposits: 0n,
+      numberOfGaugeWithdrawals: 0n,
+      numberOfGaugeRewardClaims: 0n,
+      totalGaugeRewardsClaimedUSD: 0n,
+      currentLiquidityStakedUSD: 0n,
       firstActivityTimestamp: new Date(500000 * 1000),
       lastActivityTimestamp: new Date(800000 * 1000),
     };
