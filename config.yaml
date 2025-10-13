@@ -133,6 +133,30 @@ contracts:
       - event: SecondsAgoSet
       - event: ScalingFactorSet
       - event: FeeCapSet
+  - name: CLPoolLauncher
+    handler: src/EventHandlers/PoolLauncher/CLPoolLauncher.ts
+    abi_file_path: abis/CLPoolLauncher.json
+    events:
+      - event: Launch
+      - event: Migrate
+      - event: EmergingFlagged
+      - event: EmergingUnflagged
+      - event: PairableTokenAdded
+      - event: PairableTokenRemoved
+      - event: NewPoolLauncherSet
+      - event: CreationTimestampSet
+  #- name: V2PoolLauncher
+  #  handler: src/EventHandlers/V2PoolLauncher.ts
+  #  abi_file_path: abis/V2PoolLauncher.json
+  #  events:
+  #    - event: Launch
+  #    - event: Migrate
+  #    - event: EmergingFlagged
+  #    - event: EmergingUnflagged
+  #    - event: PairableTokenAdded
+  #    - event: PairableTokenRemoved
+  #    - event: NewPoolLauncherSet
+  #    - event: CreationTimestampSet
 networks:
   - id: 10 # Optimism
     start_block: 0
@@ -186,6 +210,12 @@ networks:
         address:
       - name: Gauge
         address:
+      - name: CLPoolLauncher
+        address:
+          - 0x122FD2369b86C7d6C848c842a70c0d04A7c6fb84
+  #    - name: V2PoolLauncher
+  #      address:
+  #        - 0x8B8025D4cD620BB89e196D32851d4c6E5B74AA60
   - id: 8453 # Base
     start_block: 0
     contracts:
@@ -222,6 +252,12 @@ networks:
       - name: ALMCore
         address:
           - 0x0000000cE42D4981513060aB7E50B9e5e2D19AF1
+      - name: CLPoolLauncher
+        address:
+          - 0x122FD2369b86C7d6C848c842a70c0d04A7c6fb84
+  #    - name: V2PoolLauncher
+  #      address:
+  #        - 0x8B8025D4cD620BB89e196D32851d4c6E5B74AA60
       - name: ALMLPWrapper
         address:
       - name: CLGauge
@@ -330,6 +366,12 @@ networks:
           - 0x0000000cE42D4981513060aB7E50B9e5e2D19AF1
       - name: ALMLPWrapper
         address:
+      - name: CLPoolLauncher
+        address:
+          - 0x122FD2369b86C7d6C848c842a70c0d04A7c6fb84
+  #    - name: V2PoolLauncher
+  #      address:
+  #        - 0x8B8025D4cD620BB89e196D32851d4c6E5B74AA60
   - id: 34443 # Mode
     start_block: 0
     contracts:

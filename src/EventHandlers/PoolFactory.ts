@@ -123,6 +123,8 @@ PoolFactory.PoolCreated.handler(async ({ event, context }) => {
     numberOfGaugeRewardClaims: 0n,
     totalGaugeRewardsClaimedUSD: 0n,
     currentLiquidityStakedUSD: 0n,
+    // Pool Launcher relationship (undefined for pools not launched via PoolLauncher)
+    poolLauncherPoolId: undefined,
   };
 
   updateLiquidityPoolAggregator(

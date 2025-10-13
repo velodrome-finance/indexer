@@ -49,11 +49,7 @@ describe("LiquidityPoolAggregator Functions", () => {
         getOrCreate: sinon.stub(),
         deleteUnsafe: sinon.stub(),
         getWhere: {
-          address: {
-            eq: sinon.stub(),
-            gt: sinon.stub(),
-          },
-          chainId: {
+          poolLauncherPoolId: {
             eq: sinon.stub(),
             gt: sinon.stub(),
           },

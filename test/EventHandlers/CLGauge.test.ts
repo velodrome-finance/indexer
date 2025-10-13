@@ -86,6 +86,8 @@ describe("CLGauge Events", () => {
     numberOfGaugeRewardClaims: 0n,
     totalGaugeRewardsClaimedUSD: 0n,
     currentLiquidityStakedUSD: 0n,
+    // Pool Launcher relationship
+    poolLauncherPoolId: undefined,
   };
 
   let mockUserStatsPerPool: UserStatsPerPool;

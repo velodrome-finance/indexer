@@ -51,6 +51,9 @@ type LiquidityPoolAggregator {
   numberOfGaugeRewardClaims: BigInt! @config(precision: 76) # number of gauge reward claims
   totalGaugeRewardsClaimedUSD: BigInt! @config(precision: 76) # total gauge rewards claimed in USD
   currentLiquidityStakedUSD: BigInt! @config(precision: 76) # current liquidity staked in gauge in USD
+
+  # Pool Launcher relationship
+  poolLauncherPoolId: String # ID of the PoolLauncherPool entity if this pool was launched via Pool Launcher
 }
 
 # Snapshot of the LiquidityPool entity
@@ -685,4 +688,33 @@ type DynamicFeeSwapModule_FeeCapSet {
   transactionHash: String!
   blockNumber: Int!
   logIndex: Int!
+}
+
+# One per underlying pool (per chain) launched or migrated via Pool Launcher
+type PoolLauncherPool {
+  id: ID! # `${chainId}-${underlyingPool}`
+  chainId: Int!
+  underlyingPool: Bytes! # pool address
+  launcher: String! # PoolLauncher contract address (the one that created or currently manages)
+  creator: String! # msg.sender at Launch
+  poolLauncherToken: Bytes! # the "project" token
+  pairToken: Bytes! # whitelisted pair (e.g., WETH, USDC)
+  createdAt: Timestamp!
+  isEmerging: Boolean! # current flag
+  lastFlagUpdateAt: Timestamp! # timestamp of last flag change
+
+  # Migration lineage
+  migratedFrom: String! # previous underlying pool (if this was target in Migrate)
+  migratedTo: String! # next underlying pool (if later migrated away)
+  oldLocker: String! # source locker in migration
+  newLocker: String! # target locker from migration
+  lastMigratedAt: Timestamp!
+
+  poolStats: [LiquidityPoolAggregator!]!
+    @derivedFrom(field: "poolLauncherPoolId")
+}
+
+type CLPoolLauncherConfig {
+  id: ID!
+  pairableTokens: [String!]
 }

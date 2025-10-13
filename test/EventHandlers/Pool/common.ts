@@ -84,6 +84,8 @@ export function setupCommon() {
     numberOfGaugeRewardClaims: 0n,
     totalGaugeRewardsClaimedUSD: 0n,
     currentLiquidityStakedUSD: 0n,
+    // Pool Launcher relationship
+    poolLauncherPoolId: undefined,
   };
 
   return {
