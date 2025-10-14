@@ -8,9 +8,9 @@ import { MockDb } from "../../../generated/src/TestHelpers.gen";
 import {
   linkLiquidityPoolAggregatorToPoolLauncher,
   processPoolLauncherPool,
-} from "../../../src/EventHandlers/PoolLauncher/CLPoolLauncherLogic";
+} from "../../../src/EventHandlers/PoolLauncher/PoolLauncherLogic";
 
-describe("CLPoolLauncherLogic", () => {
+describe("PoolLauncherLogic", () => {
   let mockContext: handlerContext;
   let mockDb: ReturnType<typeof MockDb.createMockDb>;
 
@@ -222,131 +222,264 @@ describe("CLPoolLauncherLogic", () => {
   });
 
   describe("linkLiquidityPoolAggregatorToPoolLauncher", () => {
-    it("should successfully link existing LiquidityPoolAggregator to PoolLauncherPool", async () => {
-      const poolAddress = "0x1234567890123456789012345678901234567890";
-      const chainId = 8453;
+    describe("with CL factory", () => {
+      it("should successfully link existing LiquidityPoolAggregator to PoolLauncherPool", async () => {
+        const poolAddress = "0x1234567890123456789012345678901234567890";
+        const chainId = 8453;
 
-      // Create an existing LiquidityPoolAggregator (as if created by CLFactory)
-      const existingLiquidityPoolAggregator = {
-        id: "0x1234567890123456789012345678901234567890",
-        chainId: 8453,
-        name: "TEST/USDC",
-        token0_id: "0x2222222222222222222222222222222222222222_8453",
-        token1_id: "0x3333333333333333333333333333333333333333_8453",
-        token0_address: "0x2222222222222222222222222222222222222222",
-        token1_address: "0x3333333333333333333333333333333333333333",
-        isStable: false,
-        isCL: true,
-        reserve0: 1000000n,
-        reserve1: 2000000n,
-        totalLiquidityUSD: 3000000n,
-        totalVolume0: 500000n,
-        totalVolume1: 1000000n,
-        totalVolumeUSD: 1500000n,
-        totalVolumeUSDWhitelisted: 1500000n,
-        gaugeFees0CurrentEpoch: 1000n,
-        gaugeFees1CurrentEpoch: 2000n,
-        totalFees0: 5000n,
-        totalFees1: 10000n,
-        totalFeesUSD: 15000n,
-        totalFeesUSDWhitelisted: 15000n,
-        numberOfSwaps: 25n,
-        token0Price: 2000000000000000000n,
-        token1Price: 500000000000000000n,
-        totalVotesDeposited: 100000n,
-        totalVotesDepositedUSD: 200000n,
-        totalEmissions: 50000n,
-        totalEmissionsUSD: 100000n,
-        totalBribesUSD: 25000n,
-        gaugeIsAlive: true,
-        token0IsWhitelisted: true,
-        token1IsWhitelisted: true,
-        lastUpdatedTimestamp: new Date("2024-01-01T00:00:00Z"),
-        lastSnapshotTimestamp: new Date("2024-01-01T00:00:00Z"),
-        feeProtocol0: 100n,
-        feeProtocol1: 200n,
-        observationCardinalityNext: 1000n,
-        totalFlashLoanFees0: 100n,
-        totalFlashLoanFees1: 200n,
-        totalFlashLoanFeesUSD: 300n,
-        totalFlashLoanVolumeUSD: 10000n,
-        numberOfFlashLoans: 5n,
-        numberOfGaugeDeposits: 10n,
-        numberOfGaugeWithdrawals: 5n,
-        numberOfGaugeRewardClaims: 3n,
-        totalGaugeRewardsClaimedUSD: 5000n,
-        currentLiquidityStakedUSD: 100000n,
-        poolLauncherPoolId: undefined, // Initially no link
-      };
+        // Create an existing LiquidityPoolAggregator (as if created by CLFactory)
+        const existingLiquidityPoolAggregator = {
+          id: "0x1234567890123456789012345678901234567890",
+          chainId: 8453,
+          name: "TEST/USDC",
+          token0_id: "0x2222222222222222222222222222222222222222_8453",
+          token1_id: "0x3333333333333333333333333333333333333333_8453",
+          token0_address: "0x2222222222222222222222222222222222222222",
+          token1_address: "0x3333333333333333333333333333333333333333",
+          isStable: false,
+          isCL: true,
+          reserve0: 1000000n,
+          reserve1: 2000000n,
+          totalLiquidityUSD: 3000000n,
+          totalVolume0: 500000n,
+          totalVolume1: 1000000n,
+          totalVolumeUSD: 1500000n,
+          totalVolumeUSDWhitelisted: 1500000n,
+          gaugeFees0CurrentEpoch: 1000n,
+          gaugeFees1CurrentEpoch: 2000n,
+          totalFees0: 5000n,
+          totalFees1: 10000n,
+          totalFeesUSD: 15000n,
+          totalFeesUSDWhitelisted: 15000n,
+          numberOfSwaps: 25n,
+          token0Price: 2000000000000000000n,
+          token1Price: 500000000000000000n,
+          totalVotesDeposited: 100000n,
+          totalVotesDepositedUSD: 200000n,
+          totalEmissions: 50000n,
+          totalEmissionsUSD: 100000n,
+          totalBribesUSD: 25000n,
+          gaugeIsAlive: true,
+          token0IsWhitelisted: true,
+          token1IsWhitelisted: true,
+          lastUpdatedTimestamp: new Date("2024-01-01T00:00:00Z"),
+          lastSnapshotTimestamp: new Date("2024-01-01T00:00:00Z"),
+          feeProtocol0: 100n,
+          feeProtocol1: 200n,
+          observationCardinalityNext: 1000n,
+          totalFlashLoanFees0: 100n,
+          totalFlashLoanFees1: 200n,
+          totalFlashLoanFeesUSD: 300n,
+          totalFlashLoanVolumeUSD: 10000n,
+          numberOfFlashLoans: 5n,
+          numberOfGaugeDeposits: 10n,
+          numberOfGaugeWithdrawals: 5n,
+          numberOfGaugeRewardClaims: 3n,
+          totalGaugeRewardsClaimedUSD: 5000n,
+          currentLiquidityStakedUSD: 100000n,
+          poolLauncherPoolId: undefined, // Initially no link
+        };
 
-      mockDb = mockDb.entities.LiquidityPoolAggregator.set(
-        existingLiquidityPoolAggregator,
-      );
+        mockDb = mockDb.entities.LiquidityPoolAggregator.set(
+          existingLiquidityPoolAggregator,
+        );
 
-      await linkLiquidityPoolAggregatorToPoolLauncher(
-        poolAddress,
-        chainId,
-        mockContext,
-      );
+        await linkLiquidityPoolAggregatorToPoolLauncher(
+          poolAddress,
+          chainId,
+          mockContext,
+          "CL",
+        );
 
-      // Assert
-      const updatedEntity = mockDb.entities.LiquidityPoolAggregator.get(
-        "0x1234567890123456789012345678901234567890",
-      );
-      expect(updatedEntity).to.not.be.undefined;
-      expect(updatedEntity?.poolLauncherPoolId).to.equal(
-        "8453-0x1234567890123456789012345678901234567890",
-      );
-      expect(updatedEntity?.lastUpdatedTimestamp).to.be.instanceOf(Date);
+        // Assert
+        const updatedEntity = mockDb.entities.LiquidityPoolAggregator.get(
+          "0x1234567890123456789012345678901234567890",
+        );
+        expect(updatedEntity).to.not.be.undefined;
+        expect(updatedEntity?.poolLauncherPoolId).to.equal(
+          "8453-0x1234567890123456789012345678901234567890",
+        );
+        expect(updatedEntity?.lastUpdatedTimestamp).to.be.instanceOf(Date);
 
-      // Verify all other fields remain unchanged
-      expect(updatedEntity?.id).to.equal(
-        "0x1234567890123456789012345678901234567890",
-      );
-      expect(updatedEntity?.chainId).to.equal(8453);
-      expect(updatedEntity?.name).to.equal("TEST/USDC");
-      expect(updatedEntity?.reserve0).to.equal(1000000n);
-      expect(updatedEntity?.reserve1).to.equal(2000000n);
-      expect(updatedEntity?.totalLiquidityUSD).to.equal(3000000n);
-      expect(updatedEntity?.isCL).to.be.true;
-      expect(updatedEntity?.gaugeIsAlive).to.be.true;
+        // Verify all other fields remain unchanged
+        expect(updatedEntity?.id).to.equal(
+          "0x1234567890123456789012345678901234567890",
+        );
+        expect(updatedEntity?.chainId).to.equal(8453);
+        expect(updatedEntity?.name).to.equal("TEST/USDC");
+        expect(updatedEntity?.reserve0).to.equal(1000000n);
+        expect(updatedEntity?.reserve1).to.equal(2000000n);
+        expect(updatedEntity?.totalLiquidityUSD).to.equal(3000000n);
+        expect(updatedEntity?.isCL).to.be.true;
+        expect(updatedEntity?.gaugeIsAlive).to.be.true;
+      });
+
+      it("should handle case where LiquidityPoolAggregator does not exist", async () => {
+        const poolAddress = "0x1234567890123456789012345678901234567890";
+        const chainId = 8453;
+
+        let warnCalled = false;
+        const mockContextWithWarn = {
+          ...mockContext,
+          log: {
+            ...mockContext.log,
+            warn: (message: string) => {
+              warnCalled = true;
+              expect(message).to.include(
+                "LiquidityPoolAggregator not found for pool",
+              );
+              expect(message).to.include(
+                "it should have been created by CLFactory",
+              );
+            },
+          },
+        };
+
+        await linkLiquidityPoolAggregatorToPoolLauncher(
+          poolAddress,
+          chainId,
+          mockContextWithWarn,
+          "CL",
+        );
+
+        // Assert
+        expect(warnCalled).to.be.true;
+
+        // Verify no entity was created or updated
+        const entity = mockDb.entities.LiquidityPoolAggregator.get(
+          "0x1234567890123456789012345678901234567890",
+        );
+        expect(entity).to.be.undefined;
+      });
     });
 
-    it("should handle case where LiquidityPoolAggregator does not exist", async () => {
-      const poolAddress = "0x1234567890123456789012345678901234567890";
-      const chainId = 8453;
+    describe("with V2 factory", () => {
+      it("should successfully link existing LiquidityPoolAggregator to PoolLauncherPool", async () => {
+        const poolAddress = "0x1234567890123456789012345678901234567890";
+        const chainId = 8453;
 
-      let warnCalled = false;
-      const mockContextWithWarn = {
-        ...mockContext,
-        log: {
-          ...mockContext.log,
-          warn: (message: string) => {
-            warnCalled = true;
-            expect(message).to.include(
-              "LiquidityPoolAggregator not found for pool",
-            );
-            expect(message).to.include(
-              "it should have been created by CLFactory",
-            );
+        // Create an existing LiquidityPoolAggregator (as if created by V2Factory)
+        const existingLiquidityPoolAggregator = {
+          id: "0x1234567890123456789012345678901234567890",
+          chainId: 8453,
+          name: "TEST/USDC",
+          token0_id: "0x2222222222222222222222222222222222222222_8453",
+          token1_id: "0x3333333333333333333333333333333333333333_8453",
+          token0_address: "0x2222222222222222222222222222222222222222",
+          token1_address: "0x3333333333333333333333333333333333333333",
+          isStable: false,
+          isCL: false, // V2 pools are not CL
+          reserve0: 1000000n,
+          reserve1: 2000000n,
+          totalLiquidityUSD: 3000000n,
+          totalVolume0: 500000n,
+          totalVolume1: 1000000n,
+          totalVolumeUSD: 1500000n,
+          totalVolumeUSDWhitelisted: 1500000n,
+          gaugeFees0CurrentEpoch: 1000n,
+          gaugeFees1CurrentEpoch: 2000n,
+          totalFees0: 5000n,
+          totalFees1: 10000n,
+          totalFeesUSD: 15000n,
+          totalFeesUSDWhitelisted: 15000n,
+          numberOfSwaps: 25n,
+          token0Price: 2000000000000000000n,
+          token1Price: 500000000000000000n,
+          totalVotesDeposited: 100000n,
+          totalVotesDepositedUSD: 200000n,
+          totalEmissions: 50000n,
+          totalEmissionsUSD: 100000n,
+          totalBribesUSD: 25000n,
+          gaugeIsAlive: true,
+          token0IsWhitelisted: true,
+          token1IsWhitelisted: true,
+          lastUpdatedTimestamp: new Date("2024-01-01T00:00:00Z"),
+          lastSnapshotTimestamp: new Date("2024-01-01T00:00:00Z"),
+          feeProtocol0: 100n,
+          feeProtocol1: 200n,
+          observationCardinalityNext: 1000n,
+          totalFlashLoanFees0: 100n,
+          totalFlashLoanFees1: 200n,
+          totalFlashLoanFeesUSD: 300n,
+          totalFlashLoanVolumeUSD: 10000n,
+          numberOfFlashLoans: 5n,
+          numberOfGaugeDeposits: 10n,
+          numberOfGaugeWithdrawals: 5n,
+          numberOfGaugeRewardClaims: 3n,
+          totalGaugeRewardsClaimedUSD: 5000n,
+          currentLiquidityStakedUSD: 100000n,
+          poolLauncherPoolId: undefined, // Initially no link
+        };
+
+        mockDb = mockDb.entities.LiquidityPoolAggregator.set(
+          existingLiquidityPoolAggregator,
+        );
+
+        await linkLiquidityPoolAggregatorToPoolLauncher(
+          poolAddress,
+          chainId,
+          mockContext,
+          "V2",
+        );
+
+        // Assert
+        const updatedEntity = mockDb.entities.LiquidityPoolAggregator.get(
+          "0x1234567890123456789012345678901234567890",
+        );
+        expect(updatedEntity).to.not.be.undefined;
+        expect(updatedEntity?.poolLauncherPoolId).to.equal(
+          "8453-0x1234567890123456789012345678901234567890",
+        );
+        expect(updatedEntity?.lastUpdatedTimestamp).to.be.instanceOf(Date);
+
+        // Verify all other fields remain unchanged
+        expect(updatedEntity?.id).to.equal(
+          "0x1234567890123456789012345678901234567890",
+        );
+        expect(updatedEntity?.chainId).to.equal(8453);
+        expect(updatedEntity?.name).to.equal("TEST/USDC");
+        expect(updatedEntity?.reserve0).to.equal(1000000n);
+        expect(updatedEntity?.reserve1).to.equal(2000000n);
+        expect(updatedEntity?.totalLiquidityUSD).to.equal(3000000n);
+        expect(updatedEntity?.isCL).to.be.false; // V2 pools are not CL
+        expect(updatedEntity?.gaugeIsAlive).to.be.true;
+      });
+
+      it("should handle case where LiquidityPoolAggregator does not exist", async () => {
+        const poolAddress = "0x1234567890123456789012345678901234567890";
+        const chainId = 8453;
+
+        let warnCalled = false;
+        const mockContextWithWarn = {
+          ...mockContext,
+          log: {
+            ...mockContext.log,
+            warn: (message: string) => {
+              warnCalled = true;
+              expect(message).to.include(
+                "LiquidityPoolAggregator not found for pool",
+              );
+              expect(message).to.include("V2Factory");
+            },
           },
-        },
-      };
+        };
 
-      await linkLiquidityPoolAggregatorToPoolLauncher(
-        poolAddress,
-        chainId,
-        mockContextWithWarn,
-      );
+        await linkLiquidityPoolAggregatorToPoolLauncher(
+          poolAddress,
+          chainId,
+          mockContextWithWarn,
+          "V2",
+        );
 
-      // Assert
-      expect(warnCalled).to.be.true;
+        // Assert
+        expect(warnCalled).to.be.true;
 
-      // Verify no entity was created or updated
-      const entity = mockDb.entities.LiquidityPoolAggregator.get(
-        "0x1234567890123456789012345678901234567890",
-      );
-      expect(entity).to.be.undefined;
+        // Verify no entity was created or updated
+        const entity = mockDb.entities.LiquidityPoolAggregator.get(
+          "0x1234567890123456789012345678901234567890",
+        );
+        expect(entity).to.be.undefined;
+      });
     });
 
     it("should handle different chain IDs correctly", async () => {
@@ -413,6 +546,7 @@ describe("CLPoolLauncherLogic", () => {
         poolAddress,
         chainId,
         mockContext,
+        "CL",
       );
 
       // Assert
@@ -489,6 +623,7 @@ describe("CLPoolLauncherLogic", () => {
         poolAddress,
         chainId,
         mockContext,
+        "CL",
       );
 
       // Assert

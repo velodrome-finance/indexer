@@ -1,4 +1,4 @@
-import { CLPoolLauncher } from "generated";
+import { V2PoolLauncher } from "generated";
 import type { handlerContext } from "generated";
 import type { PoolLauncherPool } from "generated";
 import {
@@ -6,7 +6,7 @@ import {
   processPoolLauncherPool,
 } from "./PoolLauncherLogic";
 
-CLPoolLauncher.Launch.handler(async ({ event, context }) => {
+V2PoolLauncher.Launch.handler(async ({ event, context }) => {
   const poolAddress = event.params.pool.toLowerCase();
   const launcherAddress = event.srcAddress;
   const creator = event.params.sender.toLowerCase();
@@ -37,13 +37,13 @@ CLPoolLauncher.Launch.handler(async ({ event, context }) => {
     poolAddress,
     event.chainId,
     context,
-    "CL",
+    "V2",
   );
 
   context.log.info(`Pool launched: ${poolAddress} by ${creator}`);
 });
 
-CLPoolLauncher.Migrate.handler(async ({ event, context }) => {
+V2PoolLauncher.Migrate.handler(async ({ event, context }) => {
   const underlyingPool = event.params.underlyingPool.toLowerCase();
   const oldLocker = event.params.locker.toLowerCase();
   const newLocker = event.params.newLocker.toLowerCase();
@@ -90,7 +90,7 @@ CLPoolLauncher.Migrate.handler(async ({ event, context }) => {
       newPoolAddress,
       event.chainId,
       context,
-      "CL",
+      "V2",
     );
 
     context.log.info(`Pool migrated: ${underlyingPool} -> ${newPoolAddress}`);
@@ -101,7 +101,7 @@ CLPoolLauncher.Migrate.handler(async ({ event, context }) => {
   }
 });
 
-CLPoolLauncher.EmergingFlagged.handler(async ({ event, context }) => {
+V2PoolLauncher.EmergingFlagged.handler(async ({ event, context }) => {
   const poolAddress = event.params.pool.toLowerCase();
   const timestamp = new Date(event.block.timestamp * 1000);
 
@@ -127,7 +127,7 @@ CLPoolLauncher.EmergingFlagged.handler(async ({ event, context }) => {
   }
 });
 
-CLPoolLauncher.EmergingUnflagged.handler(async ({ event, context }) => {
+V2PoolLauncher.EmergingUnflagged.handler(async ({ event, context }) => {
   const poolAddress = event.params.pool.toLowerCase();
   const timestamp = new Date(event.block.timestamp * 1000);
 
@@ -155,7 +155,7 @@ CLPoolLauncher.EmergingUnflagged.handler(async ({ event, context }) => {
   }
 });
 
-CLPoolLauncher.CreationTimestampSet.handler(async ({ event, context }) => {
+V2PoolLauncher.CreationTimestampSet.handler(async ({ event, context }) => {
   const poolAddress = event.params.pool.toLowerCase();
   const createdAt = new Date(Number(event.params.createdAt) * 1000);
 
@@ -182,7 +182,7 @@ CLPoolLauncher.CreationTimestampSet.handler(async ({ event, context }) => {
   }
 });
 
-CLPoolLauncher.PairableTokenAdded.handler(async ({ event, context }) => {
+V2PoolLauncher.PairableTokenAdded.handler(async ({ event, context }) => {
   const tokenAddress = event.params.token.toLowerCase();
   const configId = `${event.chainId}-${event.srcAddress}`;
 
@@ -198,7 +198,7 @@ CLPoolLauncher.PairableTokenAdded.handler(async ({ event, context }) => {
     // Create new config
     config = {
       id: configId,
-      version: "CL",
+      version: "V2",
       pairableTokens: [tokenAddress],
     };
   } else {
@@ -215,7 +215,7 @@ CLPoolLauncher.PairableTokenAdded.handler(async ({ event, context }) => {
   context.log.info(`Pairable token added: ${tokenAddress}`);
 });
 
-CLPoolLauncher.PairableTokenRemoved.handler(async ({ event, context }) => {
+V2PoolLauncher.PairableTokenRemoved.handler(async ({ event, context }) => {
   const tokenAddress = event.params.token.toLowerCase();
   const configId = `${event.chainId}-${event.srcAddress}`;
 
@@ -245,7 +245,7 @@ CLPoolLauncher.PairableTokenRemoved.handler(async ({ event, context }) => {
   }
 });
 
-CLPoolLauncher.NewPoolLauncherSet.handler(async ({ event, context }) => {
+V2PoolLauncher.NewPoolLauncherSet.handler(async ({ event, context }) => {
   const newPoolLauncher = event.params.newPoolLauncher.toLowerCase();
   const oldConfigId = `${event.chainId}-${event.srcAddress}`;
   const newConfigId = `${event.chainId}-${newPoolLauncher}`;
