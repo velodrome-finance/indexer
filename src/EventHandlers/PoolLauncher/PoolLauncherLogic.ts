@@ -56,14 +56,15 @@ export async function linkLiquidityPoolAggregatorToPoolLauncher(
   poolAddress: string,
   chainId: number,
   context: handlerContext,
+  factoryType: "CL" | "V2",
 ): Promise<void> {
-  // Load the existing LiquidityPoolAggregator (created by CLFactory)
+  // Load the existing LiquidityPoolAggregator (created by CLFactory or V2Factory)
   const existingLiquidityPoolAggregator =
     await context.LiquidityPoolAggregator.get(poolAddress.toLowerCase());
 
   if (!existingLiquidityPoolAggregator) {
     context.log.warn(
-      `LiquidityPoolAggregator not found for pool ${poolAddress} - it should have been created by CLFactory`,
+      `LiquidityPoolAggregator not found for pool ${poolAddress} - it should have been created by ${factoryType}Factory`,
     );
     return;
   }

@@ -714,7 +714,8 @@ type PoolLauncherPool {
     @derivedFrom(field: "poolLauncherPoolId")
 }
 
-type CLPoolLauncherConfig {
+type PoolLauncherConfig {
   id: ID!
+  version: String! # "CL" for concentrated liquidity, "V2" for V2 pools
   pairableTokens: [String!]
 }

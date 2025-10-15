@@ -1,12 +1,12 @@
 import { expect } from "chai";
-import { CLPoolLauncher, MockDb } from "generated/src/TestHelpers.gen";
+import { MockDb, V2PoolLauncher } from "generated/src/TestHelpers.gen";
 import type {
   LiquidityPoolAggregator,
   PoolLauncherPool,
   Token,
 } from "generated/src/Types.gen";
 
-describe("CLPoolLauncher Events", () => {
+describe("V2PoolLauncher Events", () => {
   const mockChainId = 10;
   const mockPoolAddress = "0x1111111111111111111111111111111111111111";
   const mockLauncherAddress = "0x2222222222222222222222222222222222222222";
@@ -52,7 +52,7 @@ describe("CLPoolLauncher Events", () => {
       token0_address: mockToken0.address,
       token1_address: mockToken1.address,
       isStable: true,
-      isCL: true,
+      isCL: false, // V2 pools are not CL
       reserve0: 1000000n,
       reserve1: 1000000n,
       totalLiquidityUSD: 2000000000000000000000n, // $2000 in 18 decimals
@@ -104,9 +104,9 @@ describe("CLPoolLauncher Events", () => {
     );
   });
 
-  describe("CLPoolLauncher.Launch", () => {
+  describe("V2PoolLauncher.Launch", () => {
     it("should create a new PoolLauncherPool and link to LiquidityPoolAggregator", async () => {
-      const mockEvent = CLPoolLauncher.Launch.createMockEvent({
+      const mockEvent = V2PoolLauncher.Launch.createMockEvent({
         pool: mockPoolAddress,
         sender: mockCreator,
         poolLauncherToken: mockPoolLauncherToken,
@@ -125,7 +125,7 @@ describe("CLPoolLauncher Events", () => {
         },
       });
 
-      const result = await CLPoolLauncher.Launch.processEvent({
+      const result = await V2PoolLauncher.Launch.processEvent({
         event: mockEvent,
         mockDb,
       });
@@ -156,7 +156,7 @@ describe("CLPoolLauncher Events", () => {
     });
   });
 
-  describe("CLPoolLauncher.Migrate", () => {
+  describe("V2PoolLauncher.Migrate", () => {
     it("should update existing PoolLauncherPool with migration info and create new one", async () => {
       const underlyingPool = "0x1111111111111111111111111111111111111111";
       const newPoolAddress = "0x2222222222222222222222222222222222222222";
@@ -184,7 +184,7 @@ describe("CLPoolLauncher Events", () => {
 
       mockDb = mockDb.entities.PoolLauncherPool.set(existingPoolLauncherPool);
 
-      const mockEvent = CLPoolLauncher.Migrate.createMockEvent({
+      const mockEvent = V2PoolLauncher.Migrate.createMockEvent({
         underlyingPool,
         locker: oldLocker,
         newLocker,
@@ -203,7 +203,7 @@ describe("CLPoolLauncher Events", () => {
         },
       });
 
-      const result = await CLPoolLauncher.Migrate.processEvent({
+      const result = await V2PoolLauncher.Migrate.processEvent({
         event: mockEvent,
         mockDb,
       });
@@ -245,7 +245,7 @@ describe("CLPoolLauncher Events", () => {
       const oldLocker = "0x3333333333333333333333333333333333333333";
       const newLocker = "0x4444444444444444444444444444444444444444";
 
-      const mockEvent = CLPoolLauncher.Migrate.createMockEvent({
+      const mockEvent = V2PoolLauncher.Migrate.createMockEvent({
         underlyingPool,
         locker: oldLocker,
         newLocker,
@@ -264,7 +264,7 @@ describe("CLPoolLauncher Events", () => {
         },
       });
 
-      const result = await CLPoolLauncher.Migrate.processEvent({
+      const result = await V2PoolLauncher.Migrate.processEvent({
         event: mockEvent,
         mockDb,
       });
@@ -282,7 +282,7 @@ describe("CLPoolLauncher Events", () => {
     });
   });
 
-  describe("CLPoolLauncher.EmergingFlagged", () => {
+  describe("V2PoolLauncher.EmergingFlagged", () => {
     it("should flag existing PoolLauncherPool as emerging", async () => {
       const existingPoolLauncherPool: PoolLauncherPool = {
         id: `${mockChainId}-${mockPoolAddress}`,
@@ -304,7 +304,7 @@ describe("CLPoolLauncher Events", () => {
 
       mockDb = mockDb.entities.PoolLauncherPool.set(existingPoolLauncherPool);
 
-      const mockEvent = CLPoolLauncher.EmergingFlagged.createMockEvent({
+      const mockEvent = V2PoolLauncher.EmergingFlagged.createMockEvent({
         pool: mockPoolAddress,
         mockEventData: {
           block: {
@@ -315,7 +315,7 @@ describe("CLPoolLauncher Events", () => {
         },
       });
 
-      const result = await CLPoolLauncher.EmergingFlagged.processEvent({
+      const result = await V2PoolLauncher.EmergingFlagged.processEvent({
         event: mockEvent,
         mockDb,
       });
@@ -329,7 +329,7 @@ describe("CLPoolLauncher Events", () => {
     });
 
     it("should handle flagging when PoolLauncherPool doesn't exist", async () => {
-      const mockEvent = CLPoolLauncher.EmergingFlagged.createMockEvent({
+      const mockEvent = V2PoolLauncher.EmergingFlagged.createMockEvent({
         pool: mockPoolAddress,
         mockEventData: {
           block: {
@@ -340,7 +340,7 @@ describe("CLPoolLauncher Events", () => {
         },
       });
 
-      const result = await CLPoolLauncher.EmergingFlagged.processEvent({
+      const result = await V2PoolLauncher.EmergingFlagged.processEvent({
         event: mockEvent,
         mockDb,
       });
@@ -353,7 +353,7 @@ describe("CLPoolLauncher Events", () => {
     });
   });
 
-  describe("CLPoolLauncher.EmergingUnflagged", () => {
+  describe("V2PoolLauncher.EmergingUnflagged", () => {
     it("should unflag existing PoolLauncherPool as emerging", async () => {
       const existingPoolLauncherPool: PoolLauncherPool = {
         id: `${mockChainId}-${mockPoolAddress}`,
@@ -375,7 +375,7 @@ describe("CLPoolLauncher Events", () => {
 
       mockDb = mockDb.entities.PoolLauncherPool.set(existingPoolLauncherPool);
 
-      const mockEvent = CLPoolLauncher.EmergingUnflagged.createMockEvent({
+      const mockEvent = V2PoolLauncher.EmergingUnflagged.createMockEvent({
         pool: mockPoolAddress,
         mockEventData: {
           block: {
@@ -386,7 +386,7 @@ describe("CLPoolLauncher Events", () => {
         },
       });
 
-      const result = await CLPoolLauncher.EmergingUnflagged.processEvent({
+      const result = await V2PoolLauncher.EmergingUnflagged.processEvent({
         event: mockEvent,
         mockDb,
       });
@@ -400,7 +400,7 @@ describe("CLPoolLauncher Events", () => {
     });
 
     it("should handle unflagging when PoolLauncherPool doesn't exist", async () => {
-      const mockEvent = CLPoolLauncher.EmergingUnflagged.createMockEvent({
+      const mockEvent = V2PoolLauncher.EmergingUnflagged.createMockEvent({
         pool: mockPoolAddress,
         mockEventData: {
           block: {
@@ -411,7 +411,7 @@ describe("CLPoolLauncher Events", () => {
         },
       });
 
-      const result = await CLPoolLauncher.EmergingUnflagged.processEvent({
+      const result = await V2PoolLauncher.EmergingUnflagged.processEvent({
         event: mockEvent,
         mockDb,
       });
@@ -424,7 +424,7 @@ describe("CLPoolLauncher Events", () => {
     });
   });
 
-  describe("CLPoolLauncher.CreationTimestampSet", () => {
+  describe("V2PoolLauncher.CreationTimestampSet", () => {
     it("should update creation timestamp for existing PoolLauncherPool", async () => {
       const existingPoolLauncherPool: PoolLauncherPool = {
         id: `${mockChainId}-${mockPoolAddress}`,
@@ -447,7 +447,7 @@ describe("CLPoolLauncher Events", () => {
       mockDb = mockDb.entities.PoolLauncherPool.set(existingPoolLauncherPool);
 
       const newTimestamp = 1000000n;
-      const mockEvent = CLPoolLauncher.CreationTimestampSet.createMockEvent({
+      const mockEvent = V2PoolLauncher.CreationTimestampSet.createMockEvent({
         pool: mockPoolAddress,
         createdAt: newTimestamp,
         mockEventData: {
@@ -459,7 +459,7 @@ describe("CLPoolLauncher Events", () => {
         },
       });
 
-      const result = await CLPoolLauncher.CreationTimestampSet.processEvent({
+      const result = await V2PoolLauncher.CreationTimestampSet.processEvent({
         event: mockEvent,
         mockDb,
       });
@@ -475,7 +475,7 @@ describe("CLPoolLauncher Events", () => {
 
     it("should handle timestamp update when PoolLauncherPool doesn't exist", async () => {
       const newTimestamp = 1000000n;
-      const mockEvent = CLPoolLauncher.CreationTimestampSet.createMockEvent({
+      const mockEvent = V2PoolLauncher.CreationTimestampSet.createMockEvent({
         pool: mockPoolAddress,
         createdAt: newTimestamp,
         mockEventData: {
@@ -487,7 +487,7 @@ describe("CLPoolLauncher Events", () => {
         },
       });
 
-      const result = await CLPoolLauncher.CreationTimestampSet.processEvent({
+      const result = await V2PoolLauncher.CreationTimestampSet.processEvent({
         event: mockEvent,
         mockDb,
       });
@@ -500,12 +500,12 @@ describe("CLPoolLauncher Events", () => {
     });
   });
 
-  describe("CLPoolLauncher.PairableTokenAdded", () => {
+  describe("V2PoolLauncher.PairableTokenAdded", () => {
     it("should create new PoolLauncherConfig when adding first token", async () => {
       const tokenAddress = "0x8888888888888888888888888888888888888888";
       const configId = `${mockChainId}-${mockLauncherAddress}`;
 
-      const mockEvent = CLPoolLauncher.PairableTokenAdded.createMockEvent({
+      const mockEvent = V2PoolLauncher.PairableTokenAdded.createMockEvent({
         token: tokenAddress,
         mockEventData: {
           block: {
@@ -516,7 +516,7 @@ describe("CLPoolLauncher Events", () => {
         },
       });
 
-      const result = await CLPoolLauncher.PairableTokenAdded.processEvent({
+      const result = await V2PoolLauncher.PairableTokenAdded.processEvent({
         event: mockEvent,
         mockDb,
       });
@@ -525,7 +525,7 @@ describe("CLPoolLauncher Events", () => {
       const config = result.entities.PoolLauncherConfig.get(configId);
       expect(config).to.not.be.undefined;
       expect(config?.id).to.equal(configId);
-      expect(config?.version).to.equal("CL");
+      expect(config?.version).to.equal("V2");
       expect(config?.pairableTokens).to.deep.equal([tokenAddress]);
     });
 
@@ -537,12 +537,12 @@ describe("CLPoolLauncher Events", () => {
       // Set up existing config
       const existingConfig = {
         id: configId,
-        version: "CL",
+        version: "V2",
         pairableTokens: [existingToken],
       };
       mockDb = mockDb.entities.PoolLauncherConfig.set(existingConfig);
 
-      const mockEvent = CLPoolLauncher.PairableTokenAdded.createMockEvent({
+      const mockEvent = V2PoolLauncher.PairableTokenAdded.createMockEvent({
         token: newToken,
         mockEventData: {
           block: {
@@ -553,7 +553,7 @@ describe("CLPoolLauncher Events", () => {
         },
       });
 
-      const result = await CLPoolLauncher.PairableTokenAdded.processEvent({
+      const result = await V2PoolLauncher.PairableTokenAdded.processEvent({
         event: mockEvent,
         mockDb,
       });
@@ -562,7 +562,7 @@ describe("CLPoolLauncher Events", () => {
       const config = result.entities.PoolLauncherConfig.get(configId);
       expect(config).to.not.be.undefined;
       expect(config?.id).to.equal(configId);
-      expect(config?.version).to.equal("CL");
+      expect(config?.version).to.equal("V2");
       expect(config?.pairableTokens).to.deep.equal([existingToken, newToken]);
     });
 
@@ -573,12 +573,12 @@ describe("CLPoolLauncher Events", () => {
       // Set up existing config with the same token
       const existingConfig = {
         id: configId,
-        version: "CL",
+        version: "V2",
         pairableTokens: [tokenAddress],
       };
       mockDb = mockDb.entities.PoolLauncherConfig.set(existingConfig);
 
-      const mockEvent = CLPoolLauncher.PairableTokenAdded.createMockEvent({
+      const mockEvent = V2PoolLauncher.PairableTokenAdded.createMockEvent({
         token: tokenAddress,
         mockEventData: {
           block: {
@@ -589,7 +589,7 @@ describe("CLPoolLauncher Events", () => {
         },
       });
 
-      const result = await CLPoolLauncher.PairableTokenAdded.processEvent({
+      const result = await V2PoolLauncher.PairableTokenAdded.processEvent({
         event: mockEvent,
         mockDb,
       });
@@ -601,7 +601,7 @@ describe("CLPoolLauncher Events", () => {
     });
   });
 
-  describe("CLPoolLauncher.PairableTokenRemoved", () => {
+  describe("V2PoolLauncher.PairableTokenRemoved", () => {
     it("should remove token from existing PoolLauncherConfig", async () => {
       const tokenToRemove = "0x8888888888888888888888888888888888888888";
       const remainingToken = "0x1111111111111111111111111111111111111111";
@@ -610,12 +610,12 @@ describe("CLPoolLauncher Events", () => {
       // Set up existing config with multiple tokens
       const existingConfig = {
         id: configId,
-        version: "CL",
+        version: "V2",
         pairableTokens: [tokenToRemove, remainingToken],
       };
       mockDb = mockDb.entities.PoolLauncherConfig.set(existingConfig);
 
-      const mockEvent = CLPoolLauncher.PairableTokenRemoved.createMockEvent({
+      const mockEvent = V2PoolLauncher.PairableTokenRemoved.createMockEvent({
         token: tokenToRemove,
         mockEventData: {
           block: {
@@ -626,7 +626,7 @@ describe("CLPoolLauncher Events", () => {
         },
       });
 
-      const result = await CLPoolLauncher.PairableTokenRemoved.processEvent({
+      const result = await V2PoolLauncher.PairableTokenRemoved.processEvent({
         event: mockEvent,
         mockDb,
       });
@@ -635,7 +635,7 @@ describe("CLPoolLauncher Events", () => {
       const config = result.entities.PoolLauncherConfig.get(configId);
       expect(config).to.not.be.undefined;
       expect(config?.id).to.equal(configId);
-      expect(config?.version).to.equal("CL");
+      expect(config?.version).to.equal("V2");
       expect(config?.pairableTokens).to.deep.equal([remainingToken]);
     });
 
@@ -643,7 +643,7 @@ describe("CLPoolLauncher Events", () => {
       const tokenAddress = "0x8888888888888888888888888888888888888888";
       const configId = `${mockChainId}-${mockLauncherAddress}`;
 
-      const mockEvent = CLPoolLauncher.PairableTokenRemoved.createMockEvent({
+      const mockEvent = V2PoolLauncher.PairableTokenRemoved.createMockEvent({
         token: tokenAddress,
         mockEventData: {
           block: {
@@ -654,7 +654,7 @@ describe("CLPoolLauncher Events", () => {
         },
       });
 
-      const result = await CLPoolLauncher.PairableTokenRemoved.processEvent({
+      const result = await V2PoolLauncher.PairableTokenRemoved.processEvent({
         event: mockEvent,
         mockDb,
       });
@@ -672,12 +672,12 @@ describe("CLPoolLauncher Events", () => {
       // Set up existing config
       const existingConfig = {
         id: configId,
-        version: "CL",
+        version: "V2",
         pairableTokens: [existingToken],
       };
       mockDb = mockDb.entities.PoolLauncherConfig.set(existingConfig);
 
-      const mockEvent = CLPoolLauncher.PairableTokenRemoved.createMockEvent({
+      const mockEvent = V2PoolLauncher.PairableTokenRemoved.createMockEvent({
         token: nonExistentToken,
         mockEventData: {
           block: {
@@ -688,7 +688,7 @@ describe("CLPoolLauncher Events", () => {
         },
       });
 
-      const result = await CLPoolLauncher.PairableTokenRemoved.processEvent({
+      const result = await V2PoolLauncher.PairableTokenRemoved.processEvent({
         event: mockEvent,
         mockDb,
       });
@@ -700,7 +700,7 @@ describe("CLPoolLauncher Events", () => {
     });
   });
 
-  describe("CLPoolLauncher.NewPoolLauncherSet", () => {
+  describe("V2PoolLauncher.NewPoolLauncherSet", () => {
     it("should update PoolLauncherConfig ID when pool launcher changes", async () => {
       const newPoolLauncher = "0x8888888888888888888888888888888888888888";
       const oldConfigId = `${mockChainId}-${mockLauncherAddress}`;
@@ -709,7 +709,7 @@ describe("CLPoolLauncher Events", () => {
       // Set up existing config
       const existingConfig = {
         id: oldConfigId,
-        version: "CL",
+        version: "V2",
         pairableTokens: [
           "0x1111111111111111111111111111111111111111",
           "0x2222222222222222222222222222222222222222",
@@ -717,7 +717,7 @@ describe("CLPoolLauncher Events", () => {
       };
       mockDb = mockDb.entities.PoolLauncherConfig.set(existingConfig);
 
-      const mockEvent = CLPoolLauncher.NewPoolLauncherSet.createMockEvent({
+      const mockEvent = V2PoolLauncher.NewPoolLauncherSet.createMockEvent({
         newPoolLauncher,
         mockEventData: {
           block: {
@@ -728,7 +728,7 @@ describe("CLPoolLauncher Events", () => {
         },
       });
 
-      const result = await CLPoolLauncher.NewPoolLauncherSet.processEvent({
+      const result = await V2PoolLauncher.NewPoolLauncherSet.processEvent({
         event: mockEvent,
         mockDb,
       });
@@ -737,7 +737,7 @@ describe("CLPoolLauncher Events", () => {
       const newConfig = result.entities.PoolLauncherConfig.get(newConfigId);
       expect(newConfig).to.not.be.undefined;
       expect(newConfig?.id).to.equal(newConfigId);
-      expect(newConfig?.version).to.equal("CL");
+      expect(newConfig?.version).to.equal("V2");
       expect(newConfig?.pairableTokens).to.deep.equal(
         existingConfig.pairableTokens,
       );
@@ -752,7 +752,7 @@ describe("CLPoolLauncher Events", () => {
       const oldConfigId = `${mockChainId}-${mockLauncherAddress}`;
       const newConfigId = `${mockChainId}-${newPoolLauncher}`;
 
-      const mockEvent = CLPoolLauncher.NewPoolLauncherSet.createMockEvent({
+      const mockEvent = V2PoolLauncher.NewPoolLauncherSet.createMockEvent({
         newPoolLauncher,
         mockEventData: {
           block: {
@@ -763,7 +763,7 @@ describe("CLPoolLauncher Events", () => {
         },
       });
 
-      const result = await CLPoolLauncher.NewPoolLauncherSet.processEvent({
+      const result = await V2PoolLauncher.NewPoolLauncherSet.processEvent({
         event: mockEvent,
         mockDb,
       });
