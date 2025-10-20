@@ -5,7 +5,6 @@ import type {
   handlerContext,
 } from "../../generated/src/Types.gen";
 import {
-  type GaugeFees,
   setLiquidityPoolAggregatorSnapshot,
   updateDynamicFeePools,
   updateLiquidityPoolAggregator,
@@ -32,11 +31,7 @@ describe("LiquidityPoolAggregator Functions", () => {
         getOrCreate: sinon.stub(),
         deleteUnsafe: sinon.stub(),
         getWhere: {
-          address: {
-            eq: sinon.stub(),
-            gt: sinon.stub(),
-          },
-          chainId: {
+          gaugeAddress: {
             eq: sinon.stub(),
             gt: sinon.stub(),
           },
@@ -49,6 +44,10 @@ describe("LiquidityPoolAggregator Functions", () => {
         getOrCreate: sinon.stub(),
         deleteUnsafe: sinon.stub(),
         getWhere: {
+          gaugeAddress: {
+            eq: sinon.stub(),
+            gt: sinon.stub(),
+          },
           poolLauncherPoolId: {
             eq: sinon.stub(),
             gt: sinon.stub(),
@@ -123,6 +122,8 @@ describe("LiquidityPoolAggregator Functions", () => {
       totalVotesDepositedUSD: 0n,
       totalEmissions: 0n,
       totalEmissionsUSD: 0n,
+      numberOfVotes: 0n,
+      currentVotingPower: 0n,
       totalBribesUSD: 0n,
       gaugeIsAlive: false,
       token0IsWhitelisted: false,
@@ -233,6 +234,11 @@ describe("LiquidityPoolAggregator Functions", () => {
       numberOfSwaps: 0n,
       totalVolumeUSDWhitelisted: 0n,
       totalFeesUSDWhitelisted: 0n,
+      numberOfVotes: 0n,
+      currentVotingPower: 0n,
+      totalVotesDeposited: 0n,
+      totalVotesDepositedUSD: 0n,
+      totalEmissions: 0n,
     };
     beforeEach(async () => {
       diff = {
@@ -242,6 +248,11 @@ describe("LiquidityPoolAggregator Functions", () => {
         numberOfSwaps: 11n,
         totalVolumeUSDWhitelisted: 8000n,
         totalFeesUSDWhitelisted: 9000n,
+        numberOfVotes: 5n,
+        currentVotingPower: 500n,
+        totalVotesDeposited: 2000n,
+        totalVotesDepositedUSD: 3000n,
+        totalEmissions: 4000n,
       };
       await updateLiquidityPoolAggregator(
         diff,

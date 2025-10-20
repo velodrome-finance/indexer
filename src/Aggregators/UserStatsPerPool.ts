@@ -1,4 +1,5 @@
 import type { UserStatsPerPool, handlerContext } from "generated";
+import { toChecksumAddress } from "../Constants";
 
 /**
  * Loads user data for a specific user-pool combination, creating it if it doesn't exist
@@ -16,15 +17,15 @@ export async function loadUserData(
   context: handlerContext,
   timestamp: Date,
 ): Promise<UserStatsPerPool> {
-  const id = `${userAddress.toLowerCase()}_${poolAddress.toLowerCase()}_${chainId}`;
+  const id = `${toChecksumAddress(userAddress)}_${toChecksumAddress(poolAddress)}_${chainId}`;
 
   // Get existing stats or create new one
   let existingStats = await context.UserStatsPerPool.get(id);
 
   if (!existingStats) {
     existingStats = createUserStatsPerPoolEntity(
-      userAddress,
-      poolAddress,
+      toChecksumAddress(userAddress),
+      toChecksumAddress(poolAddress),
       chainId,
       timestamp,
     );
@@ -44,9 +45,9 @@ export function createUserStatsPerPoolEntity(
   timestamp: Date,
 ): UserStatsPerPool {
   return {
-    id: `${userAddress.toLowerCase()}_${poolAddress.toLowerCase()}_${chainId}`,
-    userAddress: userAddress.toLowerCase(),
-    poolAddress: poolAddress.toLowerCase(),
+    id: `${toChecksumAddress(userAddress)}_${toChecksumAddress(poolAddress)}_${chainId}`,
+    userAddress: toChecksumAddress(userAddress),
+    poolAddress: toChecksumAddress(poolAddress),
     chainId,
 
     // Liquidity metrics
@@ -75,6 +76,10 @@ export function createUserStatsPerPoolEntity(
     numberOfGaugeRewardClaims: 0n,
     totalGaugeRewardsClaimedUSD: 0n,
     currentLiquidityStakedUSD: 0n,
+
+    // Voting metrics
+    numberOfVotes: 0n,
+    currentVotingPower: 0n,
 
     // Timestamps
     firstActivityTimestamp: timestamp,
@@ -152,6 +157,11 @@ export async function updateUserStatsPerPool(
     currentLiquidityStakedUSD:
       (otherUpdates.currentLiquidityStakedUSD || 0n) +
       current.currentLiquidityStakedUSD,
+
+    // Voting metrics
+    numberOfVotes: (otherUpdates.numberOfVotes || 0n) + current.numberOfVotes,
+    currentVotingPower:
+      otherUpdates.currentVotingPower ?? current.currentVotingPower, // current state
 
     lastActivityTimestamp: timestamp,
   };

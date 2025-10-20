@@ -95,6 +95,10 @@ describe("PoolSwapLogic", () => {
     currentLiquidityStakedUSD: 0n,
     // Pool Launcher relationship
     poolLauncherPoolId: undefined,
+    // Voting fields
+    gaugeAddress: "",
+    numberOfVotes: 0n,
+    currentVotingPower: 0n,
   };
 
   // Mock token instances

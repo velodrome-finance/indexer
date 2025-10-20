@@ -125,6 +125,10 @@ PoolFactory.PoolCreated.handler(async ({ event, context }) => {
     currentLiquidityStakedUSD: 0n,
     // Pool Launcher relationship (undefined for pools not launched via PoolLauncher)
     poolLauncherPoolId: undefined,
+    // Voting fields
+    gaugeAddress: "",
+    numberOfVotes: 0n,
+    currentVotingPower: 0n,
   };
 
   updateLiquidityPoolAggregator(

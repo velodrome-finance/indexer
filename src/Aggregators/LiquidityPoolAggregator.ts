@@ -141,10 +141,7 @@ export async function updateLiquidityPoolAggregator(
     totalFeesUSDWhitelisted:
       (diff.totalFeesUSDWhitelisted || 0n) + current.totalFeesUSDWhitelisted,
     numberOfSwaps: (diff.numberOfSwaps || 0n) + current.numberOfSwaps,
-    totalVotesDeposited:
-      (diff.totalVotesDeposited || 0n) + current.totalVotesDeposited,
-    totalVotesDepositedUSD:
-      (diff.totalVotesDepositedUSD || 0n) + current.totalVotesDepositedUSD,
+    numberOfVotes: (diff.numberOfVotes || 0n) + current.numberOfVotes,
     totalEmissions: (diff.totalEmissions || 0n) + current.totalEmissions,
     totalEmissionsUSD:
       (diff.totalEmissionsUSD || 0n) + current.totalEmissionsUSD,
@@ -185,10 +182,16 @@ export async function updateLiquidityPoolAggregator(
     token1IsWhitelisted:
       diff.token1IsWhitelisted ?? current.token1IsWhitelisted,
     gaugeIsAlive: diff.gaugeIsAlive ?? current.gaugeIsAlive,
+    gaugeAddress: diff.gaugeAddress ?? current.gaugeAddress,
     feeProtocol0: diff.feeProtocol0 ?? current.feeProtocol0,
     feeProtocol1: diff.feeProtocol1 ?? current.feeProtocol1,
     observationCardinalityNext:
       diff.observationCardinalityNext ?? current.observationCardinalityNext,
+    currentVotingPower: diff.currentVotingPower ?? current.currentVotingPower,
+    totalVotesDeposited:
+      diff.totalVotesDeposited ?? current.totalVotesDeposited,
+    totalVotesDepositedUSD:
+      diff.totalVotesDepositedUSD ?? current.totalVotesDepositedUSD,
     lastUpdatedTimestamp: timestamp,
   };
 
@@ -270,4 +273,27 @@ export async function loadPoolData(
     token0Instance,
     token1Instance,
   };
+}
+
+/**
+ * Find a pool by its gauge address using direct database query
+ * @param gaugeAddress - The gauge address to search for
+ * @param chainId - The chain ID
+ * @param context - The handler context
+ * @returns The pool entity if found, null otherwise
+ */
+export async function findPoolByGaugeAddress(
+  gaugeAddress: string,
+  chainId: number,
+  context: handlerContext,
+): Promise<LiquidityPoolAggregator | null> {
+  // Query pools by gaugeAddress using the indexed field
+  const pools =
+    await context.LiquidityPoolAggregator.getWhere.gaugeAddress.eq(
+      gaugeAddress,
+    );
+
+  // Filter by chainId and return the first match (should be unique)
+  const matchingPool = pools.find((pool) => pool.chainId === chainId);
+  return matchingPool || null;
 }
