@@ -73,8 +73,8 @@ describe("Pool Sync Event", () => {
         mockToken1Data.pricePerUSDNew) /
       TEN_TO_THE_18_BI;
 
-    eventData.reserve0 = expectations.reserveAmount0In;
-    eventData.reserve1 = expectations.reserveAmount1In;
+    eventData.reserve0 = expectations.expectedReserve0;
+    eventData.reserve1 = expectations.expectedReserve1;
 
     mockDb = MockDb.createMockDb();
   });

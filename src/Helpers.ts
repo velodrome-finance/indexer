@@ -205,6 +205,42 @@ export async function updateFeeTokenData(
 }
 
 /**
+ * Calculates total liquidity USD from current reserves and token prices
+ */
+export function calculateTotalLiquidityUSD(
+  reserve0: bigint,
+  reserve1: bigint,
+  token0: Token | undefined,
+  token1: Token | undefined,
+): bigint {
+  let totalLiquidityUSD = 0n;
+
+  if (token0) {
+    const normalizedReserve0 = normalizeTokenAmountTo1e18(
+      reserve0,
+      Number(token0.decimals),
+    );
+    totalLiquidityUSD += multiplyBase1e18(
+      normalizedReserve0,
+      token0.pricePerUSDNew,
+    );
+  }
+
+  if (token1) {
+    const normalizedReserve1 = normalizeTokenAmountTo1e18(
+      reserve1,
+      Number(token1.decimals),
+    );
+    totalLiquidityUSD += multiplyBase1e18(
+      normalizedReserve1,
+      token1.pricePerUSDNew,
+    );
+  }
+
+  return totalLiquidityUSD;
+}
+
+/**
  * Updates tokens for reserve/liquidity operations (like Sync events)
  */
 export async function updateReserveTokenData(

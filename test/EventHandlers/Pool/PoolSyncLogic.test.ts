@@ -92,25 +92,19 @@ describe("PoolSyncLogic", () => {
 
   describe("processPoolSync", () => {
     it("should create entity and calculate sync updates for successful sync", async () => {
-      const mockLoaderReturn = {
-        _type: "success" as const,
-        liquidityPoolAggregator: mockLiquidityPoolAggregator,
-        token0Instance: mockToken0,
-        token1Instance: mockToken1,
-      };
-
       const result = await processPoolSync(
         mockEvent,
-        mockLoaderReturn,
+        mockLiquidityPoolAggregator,
+        mockToken0,
+        mockToken1,
         mockContext,
       );
 
       expect(result.liquidityPoolDiff).to.exist;
-      expect(result.error).to.be.undefined;
 
       expect(result.liquidityPoolDiff).to.include({
-        reserve0: 1000n,
-        reserve1: 2000n,
+        reserve0: 500n, // 1000n - 500n (incremental change)
+        reserve1: 1000n, // 2000n - 1000n (incremental change)
         token0Price: 1000000000000000000n,
         token1Price: 2000000000000000000n,
       });
@@ -119,129 +113,61 @@ describe("PoolSyncLogic", () => {
       );
     });
 
-    it("should handle TokenNotFoundError", async () => {
-      const mockLoaderReturn = {
-        _type: "TokenNotFoundError" as const,
-        message: "Token not found",
-      };
-
-      const result = await processPoolSync(
-        mockEvent,
-        mockLoaderReturn,
-        mockContext,
-      );
-
-      expect(result.liquidityPoolDiff).to.be.undefined;
-      expect(result.error).to.equal("Token not found");
-    });
-
-    it("should handle LiquidityPoolAggregatorNotFoundError", async () => {
-      const mockLoaderReturn = {
-        _type: "LiquidityPoolAggregatorNotFoundError" as const,
-        message: "Liquidity pool aggregator not found",
-      };
-
-      const result = await processPoolSync(
-        mockEvent,
-        mockLoaderReturn,
-        mockContext,
-      );
-
-      expect(result.liquidityPoolDiff).to.be.undefined;
-      expect(result.error).to.equal("Liquidity pool aggregator not found");
-    });
-
-    it("should handle unknown error type", async () => {
-      const mockLoaderReturn = {
-        _type: "unknown" as never,
-        message: "Unknown error",
-      };
-
-      const result = await processPoolSync(
-        mockEvent,
-        mockLoaderReturn,
-        mockContext,
-      );
-
-      expect(result.liquidityPoolDiff).to.be.undefined;
-      expect(result.error).to.equal("Unknown error type");
-    });
-
     it("should calculate total liquidity USD correctly with both tokens", async () => {
-      const mockLoaderReturn = {
-        _type: "success" as const,
-        liquidityPoolAggregator: mockLiquidityPoolAggregator,
-        token0Instance: mockToken0,
-        token1Instance: mockToken1,
-      };
-
       const result = await processPoolSync(
         mockEvent,
-        mockLoaderReturn,
+        mockLiquidityPoolAggregator,
+        mockToken0,
+        mockToken1,
         mockContext,
       );
 
-      // Token0: 1000 * 10^12 (normalized) * price = 1000000000000000n
-      // Token1: 2000 * 10^0 (already 18 decimals) * price = 4000n
-      // Total: 1000000000004000n
+      // Current total: 2000n, New total: 1000000000004000n, Incremental change: 1000000000002000n
       expect(result.liquidityPoolDiff?.totalLiquidityUSD).to.equal(
-        1000000000004000n,
+        1000000000002000n,
       );
     });
 
     it("should calculate total liquidity USD correctly with only token0", async () => {
-      const mockLoaderReturn = {
-        _type: "success" as const,
-        liquidityPoolAggregator: mockLiquidityPoolAggregator,
-        token0Instance: mockToken0,
-        token1Instance: undefined,
-      };
-
       const result = await processPoolSync(
         mockEvent,
-        mockLoaderReturn,
+        mockLiquidityPoolAggregator,
+        mockToken0,
+        undefined,
         mockContext,
       );
 
-      // Token0: 1000 * 10^12 (normalized) * price = 1000000000000000n
+      // Current: 2000n, New: 1000000000000000n, Incremental change: 999999999998000n
       expect(result.liquidityPoolDiff?.totalLiquidityUSD).to.equal(
-        1000000000000000n,
+        999999999998000n,
       );
     });
 
     it("should calculate total liquidity USD correctly with only token1", async () => {
-      const mockLoaderReturn = {
-        _type: "success" as const,
-        liquidityPoolAggregator: mockLiquidityPoolAggregator,
-        token0Instance: undefined,
-        token1Instance: mockToken1,
-      };
-
       const result = await processPoolSync(
         mockEvent,
-        mockLoaderReturn,
+        mockLiquidityPoolAggregator,
+        undefined,
+        mockToken1,
         mockContext,
       );
 
-      // Token1: 2000 * 10^0 (already 18 decimals) * price = 4000n
-      expect(result.liquidityPoolDiff?.totalLiquidityUSD).to.equal(4000n);
+      // Current: 1000 * 10^0 * 2 USD = 2000n
+      // New: 2000 * 10^0 * 2 USD = 4000n
+      // Incremental change: 4000n - 2000n = 2000n
+      expect(result.liquidityPoolDiff?.totalLiquidityUSD).to.equal(2000n);
     });
 
     it("should use existing totalLiquidityUSD when no tokens are available", async () => {
-      const mockLoaderReturn = {
-        _type: "success" as const,
-        liquidityPoolAggregator: mockLiquidityPoolAggregator,
-        token0Instance: undefined,
-        token1Instance: undefined,
-      };
-
       const result = await processPoolSync(
         mockEvent,
-        mockLoaderReturn,
+        mockLiquidityPoolAggregator,
+        undefined,
+        undefined,
         mockContext,
       );
 
-      // It's 0 because no tokens are available and no update is made
+      // No tokens available: keep existing values (no change)
       expect(result.liquidityPoolDiff?.totalLiquidityUSD).to.equal(0n);
     });
 
@@ -251,24 +177,17 @@ describe("PoolSyncLogic", () => {
         decimals: 8n, // Different decimals
       };
 
-      const mockLoaderReturn = {
-        _type: "success" as const,
-        liquidityPoolAggregator: mockLiquidityPoolAggregator,
-        token0Instance: mockToken0WithDifferentDecimals,
-        token1Instance: mockToken1,
-      };
-
       const result = await processPoolSync(
         mockEvent,
-        mockLoaderReturn,
+        mockLiquidityPoolAggregator,
+        mockToken0WithDifferentDecimals,
+        mockToken1,
         mockContext,
       );
 
-      // Token0: 1000 * 10^10 (normalized) * price = 10000000000000n
-      // Token1: 2000 * 10^0 (already 18 decimals) * price = 4000n
-      // Total: 10000000004000n
+      // Current: 2000n, New: 10000000004000n, Incremental change: 10000000002000n
       expect(result.liquidityPoolDiff?.totalLiquidityUSD).to.equal(
-        10000000004000n,
+        10000000002000n,
       );
     });
 
@@ -281,43 +200,33 @@ describe("PoolSyncLogic", () => {
         },
       };
 
-      const mockLoaderReturn = {
-        _type: "success" as const,
-        liquidityPoolAggregator: mockLiquidityPoolAggregator,
-        token0Instance: mockToken0,
-        token1Instance: mockToken1,
-      };
-
       const result = await processPoolSync(
         mockEventWithZeroAmounts,
-        mockLoaderReturn,
+        mockLiquidityPoolAggregator,
+        mockToken0,
+        mockToken1,
         mockContext,
       );
 
       expect(result.liquidityPoolDiff).to.include({
-        reserve0: 0n,
-        reserve1: 0n,
+        reserve0: -500n, // Set to zero: subtract current reserves
+        reserve1: -1000n, // Set to zero: subtract current reserves
       });
-      // When amounts are zero, it should be 0
-      expect(result.liquidityPoolDiff?.totalLiquidityUSD).to.equal(0n);
+      // Zero amounts: set reserves to zero (snapshot behavior)
+      // This means subtracting current reserves to get to zero
+      expect(result.liquidityPoolDiff?.totalLiquidityUSD).to.equal(-2000n);
     });
 
     it("should handle missing token instances gracefully", async () => {
-      const mockLoaderReturn = {
-        _type: "success" as const,
-        liquidityPoolAggregator: mockLiquidityPoolAggregator,
-        token0Instance: undefined,
-        token1Instance: undefined,
-      };
-
       const result = await processPoolSync(
         mockEvent,
-        mockLoaderReturn,
+        mockLiquidityPoolAggregator,
+        undefined,
+        undefined,
         mockContext,
       );
 
       expect(result.liquidityPoolDiff).to.exist;
-      expect(result.error).to.be.undefined;
 
       // Should use existing prices from aggregator
       expect(result.liquidityPoolDiff).to.include({
@@ -337,16 +246,11 @@ describe("PoolSyncLogic", () => {
         pricePerUSDNew: 2500000000000000000n, // 2.5 USD
       };
 
-      const mockLoaderReturn = {
-        _type: "success" as const,
-        liquidityPoolAggregator: mockLiquidityPoolAggregator,
-        token0Instance: mockToken0WithNewPrice,
-        token1Instance: mockToken1WithNewPrice,
-      };
-
       const result = await processPoolSync(
         mockEvent,
-        mockLoaderReturn,
+        mockLiquidityPoolAggregator,
+        mockToken0WithNewPrice,
+        mockToken1WithNewPrice,
         mockContext,
       );
 

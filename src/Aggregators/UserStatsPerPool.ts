@@ -97,71 +97,88 @@ export async function updateUserStatsPerPool(
   timestamp: Date,
   context: handlerContext,
 ): Promise<UserStatsPerPool> {
-  const { currentLiquidityUSD: netLiquidityChange, ...otherUpdates } = diff;
-
   const updated: UserStatsPerPool = {
     ...current,
     currentLiquidityUSD:
-      netLiquidityChange !== undefined
-        ? current.currentLiquidityUSD + netLiquidityChange
+      diff.currentLiquidityUSD !== undefined
+        ? current.currentLiquidityUSD + diff.currentLiquidityUSD
         : current.currentLiquidityUSD,
     totalLiquidityAddedUSD:
-      netLiquidityChange !== undefined && netLiquidityChange > 0n
-        ? current.totalLiquidityAddedUSD + netLiquidityChange
+      diff.currentLiquidityUSD !== undefined && diff.currentLiquidityUSD > 0n
+        ? current.totalLiquidityAddedUSD + diff.currentLiquidityUSD
         : current.totalLiquidityAddedUSD,
     totalLiquidityRemovedUSD:
-      netLiquidityChange !== undefined && netLiquidityChange < 0n
-        ? current.totalLiquidityRemovedUSD + -netLiquidityChange
+      diff.currentLiquidityUSD !== undefined && diff.currentLiquidityUSD < 0n
+        ? current.totalLiquidityRemovedUSD + -diff.currentLiquidityUSD
         : current.totalLiquidityRemovedUSD,
-
     currentLiquidityToken0:
-      (otherUpdates.currentLiquidityToken0 || 0n) +
-      current.currentLiquidityToken0,
+      diff.currentLiquidityToken0 !== undefined
+        ? current.currentLiquidityToken0 + diff.currentLiquidityToken0
+        : current.currentLiquidityToken0,
     currentLiquidityToken1:
-      (otherUpdates.currentLiquidityToken1 || 0n) +
-      current.currentLiquidityToken1,
+      diff.currentLiquidityToken1 !== undefined
+        ? current.currentLiquidityToken1 + diff.currentLiquidityToken1
+        : current.currentLiquidityToken1,
 
     totalFeesContributed0:
-      (otherUpdates.totalFeesContributed0 || 0n) +
-      current.totalFeesContributed0,
+      diff.totalFeesContributed0 !== undefined
+        ? current.totalFeesContributed0 + diff.totalFeesContributed0
+        : current.totalFeesContributed0,
     totalFeesContributed1:
-      (otherUpdates.totalFeesContributed1 || 0n) +
-      current.totalFeesContributed1,
+      diff.totalFeesContributed1 !== undefined
+        ? current.totalFeesContributed1 + diff.totalFeesContributed1
+        : current.totalFeesContributed1,
     totalFeesContributedUSD:
-      (otherUpdates.totalFeesContributedUSD || 0n) +
-      current.totalFeesContributedUSD,
+      diff.totalFeesContributedUSD !== undefined
+        ? current.totalFeesContributedUSD + diff.totalFeesContributedUSD
+        : current.totalFeesContributedUSD,
 
-    numberOfSwaps: (otherUpdates.numberOfSwaps || 0n) + current.numberOfSwaps,
+    numberOfSwaps:
+      diff.numberOfSwaps !== undefined
+        ? current.numberOfSwaps + diff.numberOfSwaps
+        : current.numberOfSwaps,
     totalSwapVolumeUSD:
-      (otherUpdates.totalSwapVolumeUSD || 0n) + current.totalSwapVolumeUSD,
+      diff.totalSwapVolumeUSD !== undefined
+        ? current.totalSwapVolumeUSD + diff.totalSwapVolumeUSD
+        : current.totalSwapVolumeUSD,
 
     numberOfFlashLoans:
-      (otherUpdates.numberOfFlashLoans || 0n) + current.numberOfFlashLoans,
+      diff.numberOfFlashLoans !== undefined
+        ? current.numberOfFlashLoans + diff.numberOfFlashLoans
+        : current.numberOfFlashLoans,
     totalFlashLoanVolumeUSD:
-      (otherUpdates.totalFlashLoanVolumeUSD || 0n) +
-      current.totalFlashLoanVolumeUSD,
+      diff.totalFlashLoanVolumeUSD !== undefined
+        ? current.totalFlashLoanVolumeUSD + diff.totalFlashLoanVolumeUSD
+        : current.totalFlashLoanVolumeUSD,
 
     // Gauge metrics - all cumulative fields
     numberOfGaugeDeposits:
-      (otherUpdates.numberOfGaugeDeposits || 0n) +
-      current.numberOfGaugeDeposits,
+      diff.numberOfGaugeDeposits !== undefined
+        ? current.numberOfGaugeDeposits + diff.numberOfGaugeDeposits
+        : current.numberOfGaugeDeposits,
     numberOfGaugeWithdrawals:
-      (otherUpdates.numberOfGaugeWithdrawals || 0n) +
-      current.numberOfGaugeWithdrawals,
+      diff.numberOfGaugeWithdrawals !== undefined
+        ? current.numberOfGaugeWithdrawals + diff.numberOfGaugeWithdrawals
+        : current.numberOfGaugeWithdrawals,
     numberOfGaugeRewardClaims:
-      (otherUpdates.numberOfGaugeRewardClaims || 0n) +
-      current.numberOfGaugeRewardClaims,
+      diff.numberOfGaugeRewardClaims !== undefined
+        ? current.numberOfGaugeRewardClaims + diff.numberOfGaugeRewardClaims
+        : current.numberOfGaugeRewardClaims,
     totalGaugeRewardsClaimedUSD:
-      (otherUpdates.totalGaugeRewardsClaimedUSD || 0n) +
-      current.totalGaugeRewardsClaimedUSD,
+      diff.totalGaugeRewardsClaimedUSD !== undefined
+        ? current.totalGaugeRewardsClaimedUSD + diff.totalGaugeRewardsClaimedUSD
+        : current.totalGaugeRewardsClaimedUSD,
     currentLiquidityStakedUSD:
-      (otherUpdates.currentLiquidityStakedUSD || 0n) +
-      current.currentLiquidityStakedUSD,
+      diff.currentLiquidityStakedUSD !== undefined
+        ? current.currentLiquidityStakedUSD + diff.currentLiquidityStakedUSD
+        : current.currentLiquidityStakedUSD,
 
     // Voting metrics
-    numberOfVotes: (otherUpdates.numberOfVotes || 0n) + current.numberOfVotes,
-    currentVotingPower:
-      otherUpdates.currentVotingPower ?? current.currentVotingPower, // current state
+    numberOfVotes:
+      diff.numberOfVotes !== undefined
+        ? current.numberOfVotes + diff.numberOfVotes
+        : current.numberOfVotes,
+    currentVotingPower: diff.currentVotingPower ?? current.currentVotingPower, // current state
 
     lastActivityTimestamp: timestamp,
   };
