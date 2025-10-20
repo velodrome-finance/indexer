@@ -32,6 +32,8 @@ describe("UserStatsPerPool Liquidity Logic", () => {
     currentLiquidityStakedUSD: 0n,
     firstActivityTimestamp: mockTimestamp,
     lastActivityTimestamp: mockTimestamp,
+    currentVotingPower: 0n,
+    numberOfVotes: 0n,
   });
 
   describe("Liquidity Addition Logic", () => {

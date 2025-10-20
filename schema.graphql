@@ -24,12 +24,15 @@ type LiquidityPoolAggregator {
   numberOfSwaps: BigInt! @config(precision: 76) # total number of swaps in the pool
   token0Price: BigInt! @config(precision: 76) # price of token0 relative to token1
   token1Price: BigInt! @config(precision: 76) # price of token1 relative to token0
-  totalVotesDeposited: BigInt! @config(precision: 76) # total votes for the pool
-  totalVotesDepositedUSD: BigInt! @config(precision: 76) # total votes for the pool in USD
+  numberOfVotes: BigInt! @config(precision: 76) # total number of vote transactions
+  currentVotingPower: BigInt! @config(precision: 76) # current total voting power for the pool
+  totalVotesDeposited: BigInt! @config(precision: 76) # total votes deposited in veToken units
+  totalVotesDepositedUSD: BigInt! @config(precision: 76) # total votes deposited in USD
   totalEmissions: BigInt! @config(precision: 76) # total emissions for the pool in reward token units (VELO form Optimism and AERO for Base)
   totalEmissionsUSD: BigInt! @config(precision: 76) # total emissions for the pool in USD
   totalBribesUSD: BigInt! @config(precision: 76) # total bribes for the pool in USD
   gaugeIsAlive: Boolean! # whether the gauge is alive
+  gaugeAddress: String @index # address of the gauge for this pool
   token0IsWhitelisted: Boolean! # whether the token0 is whitelisted
   token1IsWhitelisted: Boolean! # whether the token1 is whitelisted
   lastUpdatedTimestamp: Timestamp! # timestamp of last update
@@ -84,12 +87,15 @@ type LiquidityPoolAggregatorSnapshot {
   numberOfSwaps: BigInt! @config(precision: 76) # total number of swaps in the pool
   token0Price: BigInt! @config(precision: 76) # price of token0 relative to token1
   token1Price: BigInt! @config(precision: 76) # price of token1 relative to token0
-  totalVotesDeposited: BigInt! @config(precision: 76) # total votes for the pool
-  totalVotesDepositedUSD: BigInt! @config(precision: 76) # total votes for the pool in USD
+  numberOfVotes: BigInt! @config(precision: 76) # total number of vote transactions
+  currentVotingPower: BigInt! @config(precision: 76) # current total voting power for the pool
+  totalVotesDeposited: BigInt! @config(precision: 76) # total votes deposited in veToken units
+  totalVotesDepositedUSD: BigInt! @config(precision: 76) # total votes deposited in USD
   totalEmissions: BigInt! @config(precision: 76) # total emissions for the pool in reward token units (VELO form Optimism and AERO for Base)
   totalEmissionsUSD: BigInt! @config(precision: 76) # total emissions for the pool in USD
   totalBribesUSD: BigInt! @config(precision: 76) # total bribes for the pool in USD
   gaugeIsAlive: Boolean! # whether the gauge is alive
+  gaugeAddress: String @index # address of the gauge for this pool
   token0IsWhitelisted: Boolean! # whether the token0 is whitelisted
   token1IsWhitelisted: Boolean! # whether the token1 is whitelisted
   timestamp: Timestamp! # timestamp of last update
@@ -138,6 +144,10 @@ type UserStatsPerPool {
   numberOfGaugeRewardClaims: BigInt! @config(precision: 76) # number of gauge reward claims
   totalGaugeRewardsClaimedUSD: BigInt! @config(precision: 76) # total gauge rewards claimed in USD
   currentLiquidityStakedUSD: BigInt! @config(precision: 76) # current liquidity staked in gauge in USD
+
+  # Voting metrics
+  numberOfVotes: BigInt! @config(precision: 76) # number of vote transactions for this pool
+  currentVotingPower: BigInt! @config(precision: 76) # current voting power allocated to this pool by this user
 
   # Timestamps
   firstActivityTimestamp: Timestamp! # first activity in this pool
@@ -272,10 +282,6 @@ type NFPM_DecreaseLiquidity {
   chainId: Int!
 }
 
-type Voter {
-  id: ID!
-}
-
 type VotingReward_Deposit {
   id: ID!
   from: String!
@@ -295,62 +301,6 @@ type VotingReward_Withdraw {
   tokenId: BigInt! @config(precision: 76)
   amount: BigInt! @config(precision: 76)
   sourceAddress: String!
-  timestamp: Timestamp!
-  transactionHash: String!
-  blockNumber: Int!
-  logIndex: Int!
-  chainId: Int!
-}
-
-type Voter_Voted {
-  id: ID!
-  sender: String!
-  pool: String!
-  tokenId: BigInt! @config(precision: 76)
-  weight: BigInt! @config(precision: 76)
-  totalWeight: BigInt! @config(precision: 76)
-  timestamp: Timestamp!
-  transactionHash: String!
-  blockNumber: Int!
-  logIndex: Int!
-  chainId: Int!
-}
-
-type Voter_DistributeReward {
-  id: ID!
-  sender: String!
-  pool: String!
-  gauge: String!
-  amount: BigInt! @config(precision: 76)
-  tokensDeposited: BigInt! @config(precision: 76)
-  timestamp: Timestamp!
-  transactionHash: String!
-  blockNumber: Int!
-  logIndex: Int!
-  chainId: Int!
-}
-
-type Voter_GaugeCreated {
-  id: ID!
-  poolFactory: String!
-  votingRewardsFactory: String!
-  gaugeFactory: String!
-  pool: String!
-  bribeVotingReward: String!
-  feeVotingReward: String!
-  gauge: String!
-  creator: String!
-  timestamp: Timestamp!
-  transactionHash: String!
-  blockNumber: Int!
-  logIndex: Int!
-  chainId: Int!
-}
-
-type Voter_GaugeKilled {
-  id: ID!
-  sender: String!
-  gauge: String!
   timestamp: Timestamp!
   transactionHash: String!
   blockNumber: Int!
@@ -379,18 +329,6 @@ type PoolFactory_PoolCreated {
   timestamp: Timestamp!
   blockNumber: Int!
   transactionHash: String!
-  logIndex: Int!
-  chainId: Int!
-}
-
-type Voter_WhitelistToken {
-  id: ID!
-  whitelister: String!
-  token: String!
-  isWhitelisted: Boolean!
-  timestamp: Timestamp!
-  transactionHash: String!
-  blockNumber: Int!
   logIndex: Int!
   chainId: Int!
 }

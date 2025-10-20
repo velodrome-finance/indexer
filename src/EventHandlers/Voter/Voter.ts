@@ -1,65 +1,93 @@
-import {
-  Voter,
-  type Voter_DistributeReward,
-  type Voter_GaugeCreated,
-  type Voter_GaugeKilled,
-  type Voter_Voted,
-  type Voter_WhitelistToken,
-} from "generated";
+import { Voter } from "generated";
 
 import type { Token } from "generated/src/Types.gen";
-import { updateLiquidityPoolAggregator } from "../../Aggregators/LiquidityPoolAggregator";
+import {
+  findPoolByGaugeAddress,
+  loadPoolData,
+  updateLiquidityPoolAggregator,
+} from "../../Aggregators/LiquidityPoolAggregator";
+import {
+  loadUserData,
+  updateUserStatsPerPool,
+} from "../../Aggregators/UserStatsPerPool";
 import {
   CHAIN_CONSTANTS,
   TokenIdByChain,
   toChecksumAddress,
 } from "../../Constants";
+import { getTokenDetails } from "../../Effects/Index";
 import {
-  getIsAlive,
-  getTokenDetails,
-  getTokensDeposited,
-} from "../../Effects/Index";
-import { normalizeTokenAmountTo1e18 } from "../../Helpers";
-import { multiplyBase1e18 } from "../../Maths";
-import { poolLookupStoreManager } from "../../Store";
-
-const { getPoolAddressByGaugeAddress, addRewardAddressDetails } =
-  poolLookupStoreManager();
+  applyLpDiff,
+  buildLpDiffFromDistribute,
+  computeVoteDiffsFromVoted,
+  computeVoterDistributeValues,
+} from "./VoterCommonLogic";
 
 Voter.Voted.handler(async ({ event, context }) => {
-  const entity: Voter_Voted = {
-    id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
-    sender: event.params.voter,
-    pool: event.params.pool,
-    tokenId: event.params.tokenId,
-    weight: event.params.weight,
-    totalWeight: event.params.totalWeight,
-    timestamp: new Date(event.block.timestamp * 1000),
-    blockNumber: event.block.number,
-    logIndex: event.logIndex,
-    chainId: event.chainId,
-    transactionHash: event.transaction.hash,
-  };
+  // Load pool data
+  const poolAddress = toChecksumAddress(event.params.pool);
+  const poolData = await loadPoolData(poolAddress, event.chainId, context);
+  if (!poolData) {
+    return;
+  }
 
-  context.Voter_Voted.set(entity);
+  // Load user data
+  const userData = await loadUserData(
+    toChecksumAddress(event.params.voter),
+    poolAddress,
+    event.chainId,
+    context,
+    new Date(event.block.timestamp * 1000),
+  );
+
+  // Early return during preload phase after loading data
+  if (context.isPreload) {
+    return;
+  }
+
+  const { liquidityPoolAggregator } = poolData;
+
+  const { poolVoteDiff, userVoteDiff } = computeVoteDiffsFromVoted({
+    userVotingPowerToPool: event.params.weight,
+    totalPoolVotingPower: event.params.totalWeight,
+    timestampMs: event.block.timestamp * 1000,
+  });
+
+  updateLiquidityPoolAggregator(
+    poolVoteDiff,
+    liquidityPoolAggregator,
+    new Date(event.block.timestamp * 1000),
+    context,
+    event.block.number,
+  );
+
+  await updateUserStatsPerPool(
+    userVoteDiff,
+    userData,
+    new Date(event.block.timestamp * 1000),
+    context,
+  );
 });
 
 // Note:
-// These pools are hardcoded since we can't check the pool type from the Voter contract
-const CLPOOLS_LIST: string[] = [
+// These pools factories addresses are hardcoded since we can't check the pool type from the Voter contract
+const CLPOOLS_FACTORY_LIST: string[] = [
   "0x5e7BB104d84c7CB9B682AaC2F3d509f5F406809A", // base
   "0xCc0bDDB707055e04e497aB22a59c2aF4391cd12F", // optimism
-].map((x) => x.toLowerCase());
+  // TODO: Add CL Pool Factory addresses for other chains
+].map((x) => toChecksumAddress(x));
 
-const VAMM_POOLS_LIST: string[] = [
+const VAMM_POOL_FACTORY_LIST: string[] = [
   "0x420DD381b31aEf6683db6B902084cB0FFECe40Da", // base
   "0xF1046053aa5682b4F9a81b5481394DA16BE5FF5a", // optimism
-].map((x) => x.toLowerCase());
+  // TODO: Add VAMM Pool Factory addresses for other chains
+].map((x) => toChecksumAddress(x));
 
 Voter.GaugeCreated.contractRegister(({ event, context }) => {
-  if (CLPOOLS_LIST.includes(event.params.poolFactory.toLowerCase())) {
+  const pf = toChecksumAddress(event.params.poolFactory);
+  if (CLPOOLS_FACTORY_LIST.includes(pf)) {
     context.addCLGauge(event.params.gauge);
-  } else if (VAMM_POOLS_LIST.includes(event.params.poolFactory.toLowerCase())) {
+  } else if (VAMM_POOL_FACTORY_LIST.includes(pf)) {
     context.addGauge(event.params.gauge);
   }
 
@@ -68,59 +96,53 @@ Voter.GaugeCreated.contractRegister(({ event, context }) => {
 });
 
 Voter.GaugeCreated.handler(async ({ event, context }) => {
-  const entity: Voter_GaugeCreated = {
-    id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
-    poolFactory: event.params.poolFactory,
-    votingRewardsFactory: event.params.votingRewardsFactory,
-    gaugeFactory: event.params.gaugeFactory,
-    pool: event.params.pool,
-    bribeVotingReward: event.params.bribeVotingReward,
-    feeVotingReward: event.params.feeVotingReward,
-    gauge: event.params.gauge,
-    creator: event.params.creator,
-    timestamp: new Date(event.block.timestamp * 1000),
-    blockNumber: event.block.number,
-    logIndex: event.logIndex,
-    chainId: event.chainId,
-    transactionHash: event.transaction.hash,
-  };
+  // Update the pool entity with the gauge address
+  const poolAddress = toChecksumAddress(event.params.pool);
+  const gaugeAddress = toChecksumAddress(event.params.gauge);
 
-  context.Voter_GaugeCreated.set(entity);
+  const poolEntity = await context.LiquidityPoolAggregator.get(poolAddress);
 
-  // The pool entity should be created via PoolCreated event from the PoolFactory contract
-  // Store pool details in poolRewardAddressStore
-  const currentPoolRewardAddressMapping = {
-    poolAddress: toChecksumAddress(event.params.pool),
-    gaugeAddress: toChecksumAddress(event.params.gauge),
-    bribeVotingRewardAddress: toChecksumAddress(event.params.bribeVotingReward),
-    // feeVotingRewardAddress: event.params.feeVotingReward, // currently not used
-  };
+  // Early return during preload phase after loading data
+  if (context.isPreload) {
+    return;
+  }
 
-  addRewardAddressDetails(event.chainId, currentPoolRewardAddressMapping);
+  if (poolEntity) {
+    const poolUpdateDiff = {
+      gaugeAddress: gaugeAddress,
+      lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
+    };
+
+    updateLiquidityPoolAggregator(
+      poolUpdateDiff,
+      poolEntity,
+      new Date(event.block.timestamp * 1000),
+      context,
+      event.block.number,
+    );
+  }
 });
 
 Voter.DistributeReward.handler(async ({ event, context }) => {
-  const poolAddress = getPoolAddressByGaugeAddress(
-    event.chainId,
+  const poolEntity = await findPoolByGaugeAddress(
     event.params.gauge,
+    event.chainId,
+    context,
   );
+
+  if (!poolEntity) {
+    context.log.warn(
+      `No pool address found for the gauge address ${event.params.gauge.toString()} on chain ${event.chainId}`,
+    );
+    return;
+  }
 
   const rewardTokenAddress = CHAIN_CONSTANTS[event.chainId].rewardToken(
     event.block.number,
   );
 
-  const promisePool = poolAddress
-    ? context.LiquidityPoolAggregator.get(poolAddress)
-    : null;
-
-  if (!poolAddress) {
-    context.log.warn(
-      `No pool address found for the gauge address ${event.params.gauge.toString()} on chain ${event.chainId}`,
-    );
-  }
-
   const [currentLiquidityPool, rewardToken] = await Promise.all([
-    promisePool,
+    context.LiquidityPoolAggregator.get(poolEntity.id),
     context.Token.get(TokenIdByChain(rewardTokenAddress, event.chainId)),
   ]);
 
@@ -129,99 +151,36 @@ Voter.DistributeReward.handler(async ({ event, context }) => {
     return;
   }
 
-  // Create loader return object for compatibility with existing logic
-  const loaderReturn = { currentLiquidityPool, rewardToken };
-
-  if (loaderReturn?.rewardToken) {
-    const { currentLiquidityPool, rewardToken } = loaderReturn;
-
-    const isAlive = await context.effect(getIsAlive, {
-      voterAddress: event.srcAddress,
-      gaugeAddress: event.params.gauge,
-      blockNumber: event.block.number,
-      eventChainId: event.chainId,
-    });
-    const tokensDeposited = await context.effect(getTokensDeposited, {
-      rewardTokenAddress: rewardToken.address,
-      gaugeAddress: event.params.gauge,
-      blockNumber: event.block.number,
-      eventChainId: event.chainId,
-    });
-
-    // Dev note: Assumption here is that the GaugeCreated event has already been indexed and the Gauge entity has been created
-    // Dev note: Assumption here is that the reward token (VELO for Optimism and AERO for Base) entity has already been created at this point
-    if (currentLiquidityPool && rewardToken) {
-      const normalizedEmissionsAmount = normalizeTokenAmountTo1e18(
-        event.params.amount,
-        Number(rewardToken.decimals),
-      );
-
-      const normalizedVotesDepositedAmount = normalizeTokenAmountTo1e18(
-        BigInt(tokensDeposited.toString()),
-        Number(rewardToken.decimals),
-      );
-
-      // If the reward token does not have a price in USD, log
-      if (rewardToken.pricePerUSDNew === 0n) {
-        context.log.warn(
-          `Reward token with ID ${rewardToken.id.toString()} does not have a USD price yet on chain ${event.chainId}`,
-        );
-      }
-
-      const normalizedEmissionsAmountUsd = multiplyBase1e18(
-        normalizedEmissionsAmount,
-        rewardToken.pricePerUSDNew,
-      );
-
-      const normalizedVotesDepositedAmountUsd = multiplyBase1e18(
-        normalizedVotesDepositedAmount,
-        rewardToken.pricePerUSDNew,
-      );
-
-      // Create a new instance of LiquidityPoolEntity to be updated in the DB
-      const lpDiff = {
-        totalVotesDeposited: tokensDeposited,
-        totalVotesDepositedUSD: normalizedVotesDepositedAmountUsd,
-        totalEmissions:
-          currentLiquidityPool.totalEmissions + normalizedEmissionsAmount,
-        totalEmissionsUSD:
-          currentLiquidityPool.totalEmissionsUSD + normalizedEmissionsAmountUsd,
-        lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
-        gaugeAddress: event.params.gauge,
-        gaugeIsAlive: isAlive,
-      };
-
-      // Update the LiquidityPoolEntity in the DB
-      updateLiquidityPoolAggregator(
-        lpDiff,
-        currentLiquidityPool,
-        new Date(event.block.timestamp * 1000),
-        context,
-        event.block.number,
-      );
-    } else {
-      // If there is no pool entity with the particular gauge address, log the error
-      context.log.warn(
-        `No pool entity or reward token found for the gauge address ${event.params.gauge.toString()} on chain ${event.chainId}`,
-      );
-    }
-
-    const entity: Voter_DistributeReward = {
-      id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
-      sender: event.params.sender,
-      gauge: event.params.gauge,
-      amount: BigInt(event.params.amount),
-      pool: currentLiquidityPool?.id || "",
-      tokensDeposited: BigInt(tokensDeposited.toString()),
-      timestamp: new Date(event.block.timestamp * 1000),
-      blockNumber: event.block.number,
-      logIndex: event.logIndex,
-      chainId: event.chainId,
-      transactionHash: event.transaction.hash,
-    };
-
-    context.Voter_DistributeReward.set(entity);
+  if (!currentLiquidityPool || !rewardToken) {
+    context.log.warn(
+      `Missing pool or reward token for gauge ${event.params.gauge.toString()} on chain ${event.chainId}`,
+    );
+    return;
   }
+
+  const result = await computeVoterDistributeValues({
+    rewardToken,
+    gaugeAddress: event.params.gauge,
+    voterAddress: event.srcAddress,
+    amountEmittedRaw: event.params.amount,
+    blockNumber: event.block.number,
+    chainId: event.chainId,
+    context,
+  });
+
+  const lpDiff = buildLpDiffFromDistribute(
+    result,
+    event.params.gauge,
+    event.block.timestamp * 1000,
+  );
+
+  await applyLpDiff(
+    context,
+    currentLiquidityPool,
+    lpDiff,
+    event.block.timestamp * 1000,
+    event.block.number,
+  );
 });
 
 /**
@@ -251,26 +210,8 @@ Voter.WhitelistToken.handler(async ({ event, context }) => {
     return;
   }
 
-  // Create loader return object for compatibility with existing logic
-  const loaderReturn = { token };
-
-  const entity: Voter_WhitelistToken = {
-    id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
-    whitelister: event.params.whitelister,
-    token: event.params.token,
-    isWhitelisted: event.params._bool,
-    timestamp: new Date(event.block.timestamp * 1000),
-    blockNumber: event.block.number,
-    logIndex: event.logIndex,
-    chainId: event.chainId,
-    transactionHash: event.transaction.hash,
-  };
-
-  context.Voter_WhitelistToken.set(entity);
-
   // Update the Token entity in the DB, either by updating the existing one or creating a new one
-  if (loaderReturn?.token) {
-    const { token } = loaderReturn;
+  if (token) {
     const updatedToken: Token = {
       ...token,
       isWhitelisted: event.params._bool,
@@ -305,16 +246,31 @@ Voter.WhitelistToken.handler(async ({ event, context }) => {
 });
 
 Voter.GaugeKilled.handler(async ({ event, context }) => {
-  const entity: Voter_GaugeKilled = {
-    id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
-    sender: event.srcAddress,
-    gauge: event.params.gauge,
-    timestamp: new Date(event.block.timestamp * 1000),
-    blockNumber: event.block.number,
-    logIndex: event.logIndex,
-    chainId: event.chainId,
-    transactionHash: event.transaction.hash,
-  };
+  // Update the pool entity - Empty string because it was killed
+  const poolEntity = await findPoolByGaugeAddress(
+    event.params.gauge,
+    event.chainId,
+    context,
+  );
+  const poolAddress = poolEntity?.id;
 
-  context.Voter_GaugeKilled.set(entity);
+  // Early return during preload phase after loading data
+  if (context.isPreload) {
+    return;
+  }
+
+  if (poolAddress) {
+    const poolUpdateDiff = {
+      gaugeAddress: "",
+      lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
+    };
+
+    updateLiquidityPoolAggregator(
+      poolUpdateDiff,
+      poolEntity,
+      new Date(event.block.timestamp * 1000),
+      context,
+      event.block.number,
+    );
+  }
 });

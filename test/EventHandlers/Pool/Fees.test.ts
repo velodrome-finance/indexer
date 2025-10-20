@@ -171,6 +171,8 @@ describe("Pool Fees Event", () => {
       currentLiquidityStakedUSD: 0n,
       firstActivityTimestamp: new Date(500000 * 1000),
       lastActivityTimestamp: new Date(800000 * 1000),
+      currentVotingPower: 0n,
+      numberOfVotes: 0n,
     };
 
     // Set up the existing user stats in the database

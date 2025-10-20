@@ -4,6 +4,7 @@ import {
   createUserStatsPerPoolEntity,
   updateUserStatsPerPool,
 } from "../../src/Aggregators/UserStatsPerPool";
+import { toChecksumAddress } from "../../src/Constants";
 
 describe("UserStatsPerPool Aggregator", () => {
   const mockUserAddress = "0x1234567890123456789012345678901234567890";
@@ -21,10 +22,14 @@ describe("UserStatsPerPool Aggregator", () => {
       );
 
       expect(userStats.id).to.equal(
-        `${mockUserAddress.toLowerCase()}_${mockPoolAddress.toLowerCase()}_${mockChainId}`,
+        `${toChecksumAddress(mockUserAddress)}_${toChecksumAddress(mockPoolAddress)}_${mockChainId}`,
       );
-      expect(userStats.userAddress).to.equal(mockUserAddress.toLowerCase());
-      expect(userStats.poolAddress).to.equal(mockPoolAddress.toLowerCase());
+      expect(userStats.userAddress).to.equal(
+        toChecksumAddress(mockUserAddress),
+      );
+      expect(userStats.poolAddress).to.equal(
+        toChecksumAddress(mockPoolAddress),
+      );
       expect(userStats.chainId).to.equal(mockChainId);
       expect(userStats.currentLiquidityUSD).to.equal(0n);
       expect(userStats.currentLiquidityToken0).to.equal(0n);
@@ -53,10 +58,10 @@ describe("UserStatsPerPool Aggregator", () => {
       );
 
       expect(userStats.userAddress).to.equal(
-        upperCaseUserAddress.toLowerCase(),
+        toChecksumAddress(upperCaseUserAddress),
       );
       expect(userStats.poolAddress).to.equal(
-        upperCasePoolAddress.toLowerCase(),
+        toChecksumAddress(upperCasePoolAddress),
       );
     });
   });
@@ -306,6 +311,8 @@ describe("UserStatsPerPool Aggregator", () => {
         currentLiquidityStakedUSD: 0n,
         firstActivityTimestamp: new Date(500000 * 1000),
         lastActivityTimestamp: new Date(800000 * 1000),
+        currentVotingPower: 0n,
+        numberOfVotes: 0n,
       };
 
       let savedUserStats: UserStatsPerPool | undefined;
@@ -366,6 +373,8 @@ describe("UserStatsPerPool Aggregator", () => {
         currentLiquidityStakedUSD: 0n,
         firstActivityTimestamp: new Date(500000 * 1000),
         lastActivityTimestamp: new Date(800000 * 1000),
+        currentVotingPower: 0n,
+        numberOfVotes: 0n,
       };
 
       let savedUserStats: UserStatsPerPool | undefined;

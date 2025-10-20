@@ -277,7 +277,11 @@ describe("PoolLauncherLogic", () => {
           numberOfGaugeRewardClaims: 3n,
           totalGaugeRewardsClaimedUSD: 5000n,
           currentLiquidityStakedUSD: 100000n,
-          poolLauncherPoolId: undefined, // Initially no link
+          poolLauncherPoolId: undefined,
+          // Voting fields
+          gaugeAddress: "",
+          numberOfVotes: 0n,
+          currentVotingPower: 0n, // Initially no link
         };
 
         mockDb = mockDb.entities.LiquidityPoolAggregator.set(
@@ -408,7 +412,11 @@ describe("PoolLauncherLogic", () => {
           numberOfGaugeRewardClaims: 3n,
           totalGaugeRewardsClaimedUSD: 5000n,
           currentLiquidityStakedUSD: 100000n,
-          poolLauncherPoolId: undefined, // Initially no link
+          poolLauncherPoolId: undefined,
+          // Voting fields
+          gaugeAddress: "",
+          numberOfVotes: 0n,
+          currentVotingPower: 0n, // Initially no link
         };
 
         mockDb = mockDb.entities.LiquidityPoolAggregator.set(
@@ -536,6 +544,10 @@ describe("PoolLauncherLogic", () => {
         totalGaugeRewardsClaimedUSD: 5000n,
         currentLiquidityStakedUSD: 100000n,
         poolLauncherPoolId: undefined,
+        // Voting fields
+        gaugeAddress: "",
+        numberOfVotes: 0n,
+        currentVotingPower: 0n,
       };
 
       mockDb = mockDb.entities.LiquidityPoolAggregator.set(
@@ -613,6 +625,10 @@ describe("PoolLauncherLogic", () => {
         totalGaugeRewardsClaimedUSD: 5000n,
         currentLiquidityStakedUSD: 100000n,
         poolLauncherPoolId: undefined,
+        // Voting fields
+        gaugeAddress: "",
+        numberOfVotes: 0n,
+        currentVotingPower: 0n,
       };
 
       mockDb = mockDb.entities.LiquidityPoolAggregator.set(

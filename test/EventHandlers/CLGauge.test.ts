@@ -88,6 +88,10 @@ describe("CLGauge Events", () => {
     currentLiquidityStakedUSD: 0n,
     // Pool Launcher relationship
     poolLauncherPoolId: undefined,
+    // Voting fields
+    gaugeAddress: "",
+    numberOfVotes: 0n,
+    currentVotingPower: 0n,
   };
 
   let mockUserStatsPerPool: UserStatsPerPool;
@@ -119,6 +123,8 @@ describe("CLGauge Events", () => {
       currentLiquidityStakedUSD: 0n,
       firstActivityTimestamp: mockTimestamp,
       lastActivityTimestamp: mockTimestamp,
+      currentVotingPower: 0n,
+      numberOfVotes: 0n,
     };
 
     mockDb = MockDb.createMockDb();

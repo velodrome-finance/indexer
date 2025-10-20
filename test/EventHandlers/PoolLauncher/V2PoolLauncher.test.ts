@@ -94,6 +94,10 @@ describe("V2PoolLauncher Events", () => {
       totalGaugeRewardsClaimedUSD: 0n,
       currentLiquidityStakedUSD: 0n,
       poolLauncherPoolId: undefined,
+      // Voting fields
+      gaugeAddress: "",
+      numberOfVotes: 0n,
+      currentVotingPower: 0n,
     };
 
     mockDb = MockDb.createMockDb();
