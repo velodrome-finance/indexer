@@ -75,6 +75,7 @@ export function createUserStatsPerPoolEntity(
     numberOfGaugeWithdrawals: 0n,
     numberOfGaugeRewardClaims: 0n,
     totalGaugeRewardsClaimedUSD: 0n,
+    totalGaugeRewardsClaimed: 0n,
     currentLiquidityStakedUSD: 0n,
 
     // Voting metrics
@@ -168,6 +169,10 @@ export async function updateUserStatsPerPool(
       diff.totalGaugeRewardsClaimedUSD !== undefined
         ? current.totalGaugeRewardsClaimedUSD + diff.totalGaugeRewardsClaimedUSD
         : current.totalGaugeRewardsClaimedUSD,
+    totalGaugeRewardsClaimed:
+      diff.totalGaugeRewardsClaimed !== undefined
+        ? current.totalGaugeRewardsClaimed + diff.totalGaugeRewardsClaimed
+        : current.totalGaugeRewardsClaimed,
     currentLiquidityStakedUSD:
       diff.currentLiquidityStakedUSD !== undefined
         ? current.currentLiquidityStakedUSD + diff.currentLiquidityStakedUSD

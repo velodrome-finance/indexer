@@ -170,6 +170,8 @@ export async function updateLiquidityPoolAggregator(
     totalGaugeRewardsClaimedUSD:
       (diff.totalGaugeRewardsClaimedUSD || 0n) +
       current.totalGaugeRewardsClaimedUSD,
+    totalGaugeRewardsClaimed:
+      (diff.totalGaugeRewardsClaimed || 0n) + current.totalGaugeRewardsClaimed,
     currentLiquidityStakedUSD:
       (diff.currentLiquidityStakedUSD || 0n) +
       current.currentLiquidityStakedUSD,

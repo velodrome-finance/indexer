@@ -80,6 +80,7 @@ describe("CLPoolSwapLogic", () => {
     numberOfGaugeWithdrawals: 0n,
     numberOfGaugeRewardClaims: 0n,
     totalGaugeRewardsClaimedUSD: 0n,
+    totalGaugeRewardsClaimed: 0n,
     currentLiquidityStakedUSD: 0n,
     // Pool Launcher relationship
     poolLauncherPoolId: undefined,

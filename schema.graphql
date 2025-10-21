@@ -53,6 +53,7 @@ type LiquidityPoolAggregator {
   numberOfGaugeWithdrawals: BigInt! @config(precision: 76) # number of gauge withdrawals (unstaking)
   numberOfGaugeRewardClaims: BigInt! @config(precision: 76) # number of gauge reward claims
   totalGaugeRewardsClaimedUSD: BigInt! @config(precision: 76) # total gauge rewards claimed in USD
+  totalGaugeRewardsClaimed: BigInt! @config(precision: 76) # total gauge rewards claimed in token units
   currentLiquidityStakedUSD: BigInt! @config(precision: 76) # current liquidity staked in gauge in USD
 
   # Pool Launcher relationship
@@ -143,6 +144,7 @@ type UserStatsPerPool {
   numberOfGaugeWithdrawals: BigInt! @config(precision: 76) # number of gauge withdrawals (unstaking)
   numberOfGaugeRewardClaims: BigInt! @config(precision: 76) # number of gauge reward claims
   totalGaugeRewardsClaimedUSD: BigInt! @config(precision: 76) # total gauge rewards claimed in USD
+  totalGaugeRewardsClaimed: BigInt! @config(precision: 76) # total gauge rewards claimed in token units
   currentLiquidityStakedUSD: BigInt! @config(precision: 76) # current liquidity staked in gauge in USD
 
   # Voting metrics
@@ -176,43 +178,6 @@ type TokenPriceSnapshot {
   chainId: Int!
   isWhitelisted: Boolean! # whether the token is whitelisted
   lastUpdatedTimestamp: Timestamp! @index # Timestamp of the last update
-}
-
-# Event for when a gauge is notified of a reward
-type Gauge_NotifyReward {
-  id: ID!
-  from: String!
-  amount: BigInt! @config(precision: 76)
-  sourceAddress: String!
-  timestamp: Timestamp!
-  blockNumber: Int!
-  transactionHash: String!
-  logIndex: Int!
-  chainId: Int!
-}
-
-type Gauge_Deposit {
-  id: ID!
-  from: String!
-  amount: BigInt! @config(precision: 76)
-  sourceAddress: String!
-  timestamp: Timestamp!
-  blockNumber: Int!
-  logIndex: Int!
-  chainId: Int!
-  transactionHash: String!
-}
-
-type Gauge_Withdraw {
-  id: ID!
-  from: String!
-  amount: BigInt! @config(precision: 76)
-  sourceAddress: String!
-  timestamp: Timestamp!
-  blockNumber: Int!
-  transactionHash: String!
-  logIndex: Int!
-  chainId: Int!
 }
 
 # Event for when a voting reward is notified of a reward
