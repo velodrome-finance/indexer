@@ -141,32 +141,24 @@ describe("PoolSwapLogic", () => {
 
   describe("processPoolSwap", () => {
     it("should create entity and calculate swap updates for successful swap", async () => {
-      // Mock loader return
-      const mockLoaderReturn = {
-        _type: "success" as const,
-        liquidityPoolAggregator: mockLiquidityPoolAggregator,
-        token0Instance: mockToken0,
-        token1Instance: mockToken1,
-      };
-
       // Process the swap event
       const result = await processPoolSwap(
         mockEvent,
-        mockLoaderReturn,
+        mockLiquidityPoolAggregator,
+        mockToken0,
+        mockToken1,
         mockContext,
       );
 
       // Assertions
       expect(result.liquidityPoolDiff).to.exist;
       expect(result.userSwapDiff).to.exist;
-      expect(result.error).to.be.undefined;
 
       // Verify user swap diff content
       expect(result.userSwapDiff).to.deep.include({
-        userAddress: "0x1111111111111111111111111111111111111111",
-        chainId: 10,
-        volumeUSD: 1000n, // from swapData.volumeInUSD (token0: 1000 * 1 USD)
-        timestamp: new Date(1000000 * 1000),
+        numberOfSwaps: 1n,
+        totalSwapVolumeUSD: 1000n, // from swapData.volumeInUSD (token0: 1000 * 1 USD)
+        lastActivityTimestamp: new Date(1000000 * 1000),
       });
 
       // Verify liquidity pool diff content
@@ -209,57 +201,6 @@ describe("PoolSwapLogic", () => {
       ).to.be.true;
     });
 
-    it("should handle TokenNotFoundError", async () => {
-      const mockLoaderReturn = {
-        _type: "TokenNotFoundError" as const,
-        message: "Token not found",
-      };
-
-      const result = await processPoolSwap(
-        mockEvent,
-        mockLoaderReturn,
-        mockContext,
-      );
-
-      expect(result.error).to.equal("Token not found");
-      expect(result.liquidityPoolDiff).to.be.undefined;
-      expect(result.userSwapDiff).to.be.undefined;
-    });
-
-    it("should handle LiquidityPoolAggregatorNotFoundError", async () => {
-      const mockLoaderReturn = {
-        _type: "LiquidityPoolAggregatorNotFoundError" as const,
-        message: "Liquidity pool aggregator not found",
-      };
-
-      const result = await processPoolSwap(
-        mockEvent,
-        mockLoaderReturn,
-        mockContext,
-      );
-
-      expect(result.error).to.equal("Liquidity pool aggregator not found");
-      expect(result.liquidityPoolDiff).to.be.undefined;
-      expect(result.userSwapDiff).to.be.undefined;
-    });
-
-    it("should handle unknown error type", async () => {
-      const mockLoaderReturn = {
-        _type: "UnknownError" as never,
-        message: "Some unknown error",
-      };
-
-      const result = await processPoolSwap(
-        mockEvent,
-        mockLoaderReturn,
-        mockContext,
-      );
-
-      expect(result.error).to.equal("Unknown error type");
-      expect(result.liquidityPoolDiff).to.be.undefined;
-      expect(result.userSwapDiff).to.be.undefined;
-    });
-
     it("should handle refreshTokenPrice errors gracefully", async () => {
       // Mock refreshTokenPrice to throw an error for token0
       refreshTokenPriceStub
@@ -268,23 +209,17 @@ describe("PoolSwapLogic", () => {
         .onSecondCall()
         .callsFake(async (token) => token);
 
-      const mockLoaderReturn = {
-        _type: "success" as const,
-        liquidityPoolAggregator: mockLiquidityPoolAggregator,
-        token0Instance: mockToken0,
-        token1Instance: mockToken1,
-      };
-
       const result = await processPoolSwap(
         mockEvent,
-        mockLoaderReturn,
+        mockLiquidityPoolAggregator,
+        mockToken0,
+        mockToken1,
         mockContext,
       );
 
       // Should still process and continue processing
       expect(result.liquidityPoolDiff).to.exist;
       expect(result.userSwapDiff).to.exist;
-      expect(result.error).to.be.undefined;
 
       // Verify error was logged
       expect(mockLogError.calledOnce).to.be.true;
@@ -305,16 +240,11 @@ describe("PoolSwapLogic", () => {
         },
       };
 
-      const mockLoaderReturn = {
-        _type: "success" as const,
-        liquidityPoolAggregator: mockLiquidityPoolAggregator,
-        token0Instance: mockToken0,
-        token1Instance: mockToken1,
-      };
-
       const result = await processPoolSwap(
         modifiedEvent,
-        mockLoaderReturn,
+        mockLiquidityPoolAggregator,
+        mockToken0,
+        mockToken1,
         mockContext,
       );
 
@@ -326,22 +256,16 @@ describe("PoolSwapLogic", () => {
     });
 
     it("should not add to whitelisted volume when tokens are not whitelisted", async () => {
-      const mockLoaderReturn = {
-        _type: "success" as const,
-        liquidityPoolAggregator: mockLiquidityPoolAggregator,
-        token0Instance: { ...mockToken0, isWhitelisted: false },
-        token1Instance: { ...mockToken1, isWhitelisted: false },
-      };
-
       const result = await processPoolSwap(
         mockEvent,
-        mockLoaderReturn,
+        mockLiquidityPoolAggregator,
+        { ...mockToken0, isWhitelisted: false },
+        { ...mockToken1, isWhitelisted: false },
         mockContext,
       );
 
       expect(result.liquidityPoolDiff).to.exist;
       expect(result.userSwapDiff).to.exist;
-      expect(result.error).to.be.undefined;
 
       // When tokens are not whitelisted, whitelisted volume diff should be 0
       expect(result.liquidityPoolDiff?.totalVolumeUSDWhitelisted).to.equal(0n);
@@ -350,22 +274,16 @@ describe("PoolSwapLogic", () => {
     });
 
     it("should add to whitelisted volume when both tokens are whitelisted", async () => {
-      const mockLoaderReturn = {
-        _type: "success" as const,
-        liquidityPoolAggregator: mockLiquidityPoolAggregator,
-        token0Instance: { ...mockToken0, isWhitelisted: true },
-        token1Instance: { ...mockToken1, isWhitelisted: true },
-      };
-
       const result = await processPoolSwap(
         mockEvent,
-        mockLoaderReturn,
+        mockLiquidityPoolAggregator,
+        { ...mockToken0, isWhitelisted: true },
+        { ...mockToken1, isWhitelisted: true },
         mockContext,
       );
 
       expect(result.liquidityPoolDiff).to.exist;
       expect(result.userSwapDiff).to.exist;
-      expect(result.error).to.be.undefined;
 
       // When both tokens are whitelisted, whitelisted volume should be added
       // Expected: 1000n USD (1000 USDT * 1 USD, uses token0 value)
@@ -375,22 +293,16 @@ describe("PoolSwapLogic", () => {
     });
 
     it("should handle mixed whitelist status correctly", async () => {
-      const mockLoaderReturn = {
-        _type: "success" as const,
-        liquidityPoolAggregator: mockLiquidityPoolAggregator,
-        token0Instance: { ...mockToken0, isWhitelisted: true },
-        token1Instance: { ...mockToken1, isWhitelisted: false },
-      };
-
       const result = await processPoolSwap(
         mockEvent,
-        mockLoaderReturn,
+        mockLiquidityPoolAggregator,
+        { ...mockToken0, isWhitelisted: true },
+        { ...mockToken1, isWhitelisted: false },
         mockContext,
       );
 
       expect(result.liquidityPoolDiff).to.exist;
       expect(result.userSwapDiff).to.exist;
-      expect(result.error).to.be.undefined;
 
       // When only one token is whitelisted, whitelisted volume diff should be 0
       expect(result.liquidityPoolDiff?.totalVolumeUSDWhitelisted).to.equal(0n);
@@ -412,16 +324,11 @@ describe("PoolSwapLogic", () => {
         .onSecondCall()
         .resolves(updatedToken1);
 
-      const mockLoaderReturn = {
-        _type: "success" as const,
-        liquidityPoolAggregator: mockLiquidityPoolAggregator,
-        token0Instance: mockToken0,
-        token1Instance: mockToken1,
-      };
-
       const result = await processPoolSwap(
         mockEvent,
-        mockLoaderReturn,
+        mockLiquidityPoolAggregator,
+        mockToken0,
+        mockToken1,
         mockContext,
       );
 

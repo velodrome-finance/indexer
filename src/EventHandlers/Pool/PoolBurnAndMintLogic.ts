@@ -8,12 +8,10 @@ import type {
 import { updateReserveTokenData } from "../../Helpers";
 
 export interface UserLiquidityDiff {
-  userAddress: string;
-  chainId: number;
-  netLiquidityAddedUSD: bigint; // Positive for added, negative for removed
-  amount0: bigint;
-  amount1: bigint;
-  timestamp: Date;
+  currentLiquidityUSD: bigint; // Positive for added, negative for removed
+  currentLiquidityToken0: bigint;
+  currentLiquidityToken1: bigint;
+  lastActivityTimestamp: Date;
 }
 
 export interface PoolLiquidityResult {
@@ -46,6 +44,9 @@ export async function processPoolLiquidityEvent(
 
   // Create liquidity pool diff
   const liquidityPoolDiff: Partial<LiquidityPoolAggregator> = {
+    // Update reserves cumulatively
+    reserve0: amount0,
+    reserve1: amount1,
     // Update token prices
     token0Price:
       reserveData.token0?.pricePerUSDNew ?? liquidityPoolAggregator.token0Price,
@@ -69,14 +70,12 @@ export async function processPoolLiquidityEvent(
   // Check if this is a mint event by looking for 'to' parameter (burn events have 'to', mint events don't)
   const isMintEvent = !("to" in event.params);
   const userLiquidityDiff: UserLiquidityDiff = {
-    userAddress: event.params.sender,
-    chainId: event.chainId,
-    netLiquidityAddedUSD: isMintEvent
+    currentLiquidityUSD: isMintEvent
       ? reserveData.totalLiquidityUSD
       : -reserveData.totalLiquidityUSD,
-    amount0,
-    amount1,
-    timestamp: new Date(event.block.timestamp * 1000),
+    currentLiquidityToken0: amount0,
+    currentLiquidityToken1: amount1,
+    lastActivityTimestamp: new Date(event.block.timestamp * 1000),
   };
 
   return {

@@ -8,14 +8,23 @@ import {
   loadUserData,
   updateUserStatsPerPool,
 } from "../Aggregators/UserStatsPerPool";
+import { toChecksumAddress } from "../Constants";
 import { processPoolLiquidityEvent } from "./Pool/PoolBurnAndMintLogic";
 import { processPoolFees } from "./Pool/PoolFeesLogic";
 import { processPoolSwap } from "./Pool/PoolSwapLogic";
 import { processPoolSync } from "./Pool/PoolSyncLogic";
 
 Pool.Mint.handler(async ({ event, context }) => {
+  // Convert addresses to checksum format once
+  const senderChecksummedAddress = toChecksumAddress(event.params.sender);
+  const srcAddressChecksummed = toChecksumAddress(event.srcAddress);
+
   // Load pool data and handle errors
-  const poolData = await loadPoolData(event.srcAddress, event.chainId, context);
+  const poolData = await loadPoolData(
+    srcAddressChecksummed,
+    event.chainId,
+    context,
+  );
 
   if (!poolData) {
     return;
@@ -23,8 +32,8 @@ Pool.Mint.handler(async ({ event, context }) => {
 
   // Load user data with event timestamp for actual processing
   const userData = await loadUserData(
-    event.params.sender,
-    event.srcAddress,
+    senderChecksummedAddress,
+    srcAddressChecksummed,
     event.chainId,
     context,
     new Date(event.block.timestamp * 1000),
@@ -63,30 +72,34 @@ Pool.Mint.handler(async ({ event, context }) => {
 
   // Update user pool liquidity activity
   if (userLiquidityDiff) {
-    const updatedUserStatsfields = {
-      currentLiquidityUSD: userLiquidityDiff.netLiquidityAddedUSD,
-    };
-
     await updateUserStatsPerPool(
-      updatedUserStatsfields,
+      userLiquidityDiff,
       userData,
-      userLiquidityDiff.timestamp,
+      userLiquidityDiff.lastActivityTimestamp,
       context,
     );
   }
 });
 
 Pool.Burn.handler(async ({ event, context }) => {
+  // Convert addresses to checksum format once
+  const senderChecksummedAddress = toChecksumAddress(event.params.sender);
+  const srcAddressChecksummed = toChecksumAddress(event.srcAddress);
+
   // Load pool data and handle errors
-  const poolData = await loadPoolData(event.srcAddress, event.chainId, context);
+  const poolData = await loadPoolData(
+    srcAddressChecksummed,
+    event.chainId,
+    context,
+  );
   if (!poolData) {
     return;
   }
 
   // Load user data
   const userData = await loadUserData(
-    event.params.sender,
-    event.srcAddress,
+    senderChecksummedAddress,
+    srcAddressChecksummed,
     event.chainId,
     context,
     new Date(event.block.timestamp * 1000),
@@ -99,18 +112,16 @@ Pool.Burn.handler(async ({ event, context }) => {
 
   const { liquidityPoolAggregator, token0Instance, token1Instance } = poolData;
 
-  // Process burn event using shared logic
-  const result = await processPoolLiquidityEvent(
-    event,
-    liquidityPoolAggregator,
-    token0Instance,
-    token1Instance,
-    event.params.amount0,
-    event.params.amount1,
-    context,
-  );
-
-  const { liquidityPoolDiff, userLiquidityDiff } = result;
+  const { liquidityPoolDiff, userLiquidityDiff } =
+    await processPoolLiquidityEvent(
+      event,
+      liquidityPoolAggregator,
+      token0Instance,
+      token1Instance,
+      event.params.amount0,
+      event.params.amount1,
+      context,
+    );
 
   // Apply liquidity pool updates
   if (liquidityPoolDiff) {
@@ -125,29 +136,34 @@ Pool.Burn.handler(async ({ event, context }) => {
 
   // Update user pool liquidity activity
   if (userLiquidityDiff) {
-    const updatedUserStatsfields = {
-      currentLiquidityUSD: userLiquidityDiff.netLiquidityAddedUSD,
-    };
     await updateUserStatsPerPool(
-      updatedUserStatsfields,
+      userLiquidityDiff,
       userData,
-      userLiquidityDiff.timestamp,
+      userLiquidityDiff.lastActivityTimestamp,
       context,
     );
   }
 });
 
 Pool.Fees.handler(async ({ event, context }) => {
+  // Convert addresses to checksum format once
+  const senderChecksummedAddress = toChecksumAddress(event.params.sender);
+  const srcAddressChecksummed = toChecksumAddress(event.srcAddress);
+
   // Load pool data and handle errors
-  const poolData = await loadPoolData(event.srcAddress, event.chainId, context);
+  const poolData = await loadPoolData(
+    srcAddressChecksummed,
+    event.chainId,
+    context,
+  );
   if (!poolData) {
     return;
   }
 
   // Load user data
   const userData = await loadUserData(
-    event.params.sender,
-    event.srcAddress,
+    senderChecksummedAddress,
+    srcAddressChecksummed,
     event.chainId,
     context,
     new Date(event.block.timestamp * 1000),
@@ -160,61 +176,52 @@ Pool.Fees.handler(async ({ event, context }) => {
 
   const { liquidityPoolAggregator, token0Instance, token1Instance } = poolData;
 
-  // Create loader return object for compatibility with existing logic
-  const loaderReturn = {
-    _type: "success" as const,
-    liquidityPoolAggregator,
+  const { liquidityPoolDiff, userDiff } = await processPoolFees(
+    event,
     token0Instance,
     token1Instance,
-  };
+    context,
+  );
 
-  // Process the fees event
-  const result = await processPoolFees(event, loaderReturn, context);
-
-  // Handle errors
-  if (result.error) {
-    context.log.error(result.error);
-    return;
-  }
-
-  // Apply liquidity pool updates
-  if (result.liquidityPoolDiff?.lastUpdatedTimestamp) {
+  if (liquidityPoolDiff) {
     updateLiquidityPoolAggregator(
-      result.liquidityPoolDiff,
+      liquidityPoolDiff,
       liquidityPoolAggregator,
-      result.liquidityPoolDiff.lastUpdatedTimestamp,
+      liquidityPoolDiff.lastUpdatedTimestamp as Date,
       context,
       event.block.number,
     );
   }
 
-  // Update user pool fee contribution
-  if (result.userDiff) {
-    const updatedUserStatsfields = {
-      totalFeesContributedUSD: result.userDiff.feesContributedUSD,
-      totalFeesContributed0: result.userDiff.feesContributed0,
-      totalFeesContributed1: result.userDiff.feesContributed1,
-    };
+  if (userDiff) {
     await updateUserStatsPerPool(
-      updatedUserStatsfields,
+      userDiff,
       userData,
-      result.userDiff.timestamp,
+      userDiff.lastActivityTimestamp,
       context,
     );
   }
 });
 
 Pool.Swap.handler(async ({ event, context }) => {
+  // Convert addresses to checksum format once
+  const senderChecksummedAddress = toChecksumAddress(event.params.sender);
+  const srcAddressChecksummed = toChecksumAddress(event.srcAddress);
+
   // Load pool data and handle errors
-  const poolData = await loadPoolData(event.srcAddress, event.chainId, context);
+  const poolData = await loadPoolData(
+    srcAddressChecksummed,
+    event.chainId,
+    context,
+  );
   if (!poolData) {
     return;
   }
 
   // Load user data with event timestamp for actual processing
   const userData = await loadUserData(
-    event.params.sender,
-    event.srcAddress,
+    senderChecksummedAddress,
+    srcAddressChecksummed,
     event.chainId,
     context,
     new Date(event.block.timestamp * 1000),
@@ -227,44 +234,29 @@ Pool.Swap.handler(async ({ event, context }) => {
 
   const { liquidityPoolAggregator, token0Instance, token1Instance } = poolData;
 
-  // Create loader return object for compatibility with existing logic
-  const loaderReturn = {
-    _type: "success" as const,
+  const { liquidityPoolDiff, userSwapDiff } = await processPoolSwap(
+    event,
     liquidityPoolAggregator,
     token0Instance,
     token1Instance,
-  };
+    context,
+  );
 
-  // Process the swap event
-  const result = await processPoolSwap(event, loaderReturn, context);
-
-  // Handle errors
-  if (result.error) {
-    context.log.error(result.error);
-    return;
-  }
-
-  // Apply liquidity pool updates
-  if (result.liquidityPoolDiff?.lastUpdatedTimestamp) {
+  if (liquidityPoolDiff) {
     updateLiquidityPoolAggregator(
-      result.liquidityPoolDiff,
+      liquidityPoolDiff,
       liquidityPoolAggregator,
-      result.liquidityPoolDiff.lastUpdatedTimestamp,
+      liquidityPoolDiff.lastUpdatedTimestamp as Date,
       context,
       event.block.number,
     );
   }
 
-  // Update user swap activity
-  if (result.userSwapDiff) {
-    const updatedUserStatsfields = {
-      numberOfSwaps: 1n,
-      totalSwapVolumeUSD: result.userSwapDiff.volumeUSD,
-    };
+  if (userSwapDiff) {
     await updateUserStatsPerPool(
-      updatedUserStatsfields,
+      userSwapDiff,
       userData,
-      new Date(event.block.timestamp * 1000),
+      userSwapDiff.lastActivityTimestamp,
       context,
     );
   }
@@ -275,8 +267,15 @@ Pool.Swap.handler(async ({ event, context }) => {
  * @notice This event is triggered by Uniswap V2 factory when a new LP position is created, and updates the reserves for the pool.
  */
 Pool.Sync.handler(async ({ event, context }) => {
+  // Convert addresses to checksum format once
+  const srcAddressChecksummed = toChecksumAddress(event.srcAddress);
+
   // Load pool data and handle errors
-  const poolData = await loadPoolData(event.srcAddress, event.chainId, context);
+  const poolData = await loadPoolData(
+    srcAddressChecksummed,
+    event.chainId,
+    context,
+  );
   if (!poolData) {
     return;
   }
@@ -288,29 +287,20 @@ Pool.Sync.handler(async ({ event, context }) => {
 
   const { liquidityPoolAggregator, token0Instance, token1Instance } = poolData;
 
-  // Create loader return object for compatibility with existing logic
-  const loaderReturn = {
-    _type: "success" as const,
+  const { liquidityPoolDiff } = await processPoolSync(
+    event,
     liquidityPoolAggregator,
     token0Instance,
     token1Instance,
-  };
-
-  // Process the sync event
-  const result = await processPoolSync(event, loaderReturn, context);
-
-  // Handle errors
-  if (result.error) {
-    context.log.error(result.error);
-    return;
-  }
+    context,
+  );
 
   // Apply liquidity pool updates
-  if (result.liquidityPoolDiff?.lastUpdatedTimestamp) {
+  if (liquidityPoolDiff) {
     updateLiquidityPoolAggregator(
-      result.liquidityPoolDiff,
+      liquidityPoolDiff,
       liquidityPoolAggregator,
-      result.liquidityPoolDiff.lastUpdatedTimestamp,
+      liquidityPoolDiff.lastUpdatedTimestamp as Date,
       context,
       event.block.number,
     );
