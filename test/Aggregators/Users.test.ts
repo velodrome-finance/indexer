@@ -310,10 +310,18 @@ describe("UserStatsPerPool Aggregator", () => {
         totalGaugeRewardsClaimedUSD: 0n,
         totalGaugeRewardsClaimed: 0n,
         currentLiquidityStakedUSD: 0n,
+        numberOfVotes: 0n,
+        currentVotingPower: 0n,
+
+        // Voting Reward Claims
+        totalBribeClaimed: 0n,
+        totalBribeClaimedUSD: 0n,
+        totalFeeRewardClaimed: 0n,
+        totalFeeRewardClaimedUSD: 0n,
+        veNFTamountStaked: 0n,
+
         firstActivityTimestamp: new Date(500000 * 1000),
         lastActivityTimestamp: new Date(800000 * 1000),
-        currentVotingPower: 0n,
-        numberOfVotes: 0n,
       };
 
       let savedUserStats: UserStatsPerPool | undefined;
@@ -373,10 +381,18 @@ describe("UserStatsPerPool Aggregator", () => {
         totalGaugeRewardsClaimedUSD: 0n,
         totalGaugeRewardsClaimed: 0n,
         currentLiquidityStakedUSD: 0n,
+        numberOfVotes: 0n,
+        currentVotingPower: 0n,
+
+        // Voting Reward Claims
+        totalBribeClaimed: 0n,
+        totalBribeClaimedUSD: 0n,
+        totalFeeRewardClaimed: 0n,
+        totalFeeRewardClaimedUSD: 0n,
+        veNFTamountStaked: 0n,
+
         firstActivityTimestamp: new Date(500000 * 1000),
         lastActivityTimestamp: new Date(800000 * 1000),
-        currentVotingPower: 0n,
-        numberOfVotes: 0n,
       };
 
       let savedUserStats: UserStatsPerPool | undefined;

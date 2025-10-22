@@ -106,6 +106,14 @@ describe("GaugeSharedLogic", () => {
       totalGaugeRewardsClaimedUSD: 0n,
       totalGaugeRewardsClaimed: 0n,
       currentLiquidityStakedUSD: 0n,
+      // Voting Reward fields
+      bribeVotingRewardAddress: "",
+      totalBribeClaimed: 0n,
+      totalBribeClaimedUSD: 0n,
+      feeVotingRewardAddress: "",
+      totalFeeRewardClaimed: 0n,
+      totalFeeRewardClaimedUSD: 0n,
+      veNFTamountStaked: 0n,
       // Pool Launcher relationship
       poolLauncherPoolId: undefined,
       // Voting fields
@@ -137,10 +145,18 @@ describe("GaugeSharedLogic", () => {
       totalGaugeRewardsClaimedUSD: 0n,
       totalGaugeRewardsClaimed: 0n,
       currentLiquidityStakedUSD: 0n,
+      numberOfVotes: 0n,
+      currentVotingPower: 0n,
+
+      // Voting Reward Claims
+      totalBribeClaimed: 0n,
+      totalBribeClaimedUSD: 0n,
+      totalFeeRewardClaimed: 0n,
+      totalFeeRewardClaimedUSD: 0n,
+      veNFTamountStaked: 0n,
+
       firstActivityTimestamp: mockTimestamp,
       lastActivityTimestamp: mockTimestamp,
-      currentVotingPower: 0n,
-      numberOfVotes: 0n,
     };
 
     mockDb = MockDb.createMockDb();

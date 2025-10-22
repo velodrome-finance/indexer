@@ -82,6 +82,13 @@ export function createUserStatsPerPoolEntity(
     numberOfVotes: 0n,
     currentVotingPower: 0n,
 
+    // Voting Reward Claims
+    totalBribeClaimed: 0n,
+    totalBribeClaimedUSD: 0n,
+    totalFeeRewardClaimed: 0n,
+    totalFeeRewardClaimedUSD: 0n,
+    veNFTamountStaked: 0n,
+
     // Timestamps
     firstActivityTimestamp: timestamp,
     lastActivityTimestamp: timestamp,
@@ -184,6 +191,28 @@ export async function updateUserStatsPerPool(
         ? current.numberOfVotes + diff.numberOfVotes
         : current.numberOfVotes,
     currentVotingPower: diff.currentVotingPower ?? current.currentVotingPower, // current state
+
+    // Voting Reward Claims - cumulative fields
+    totalBribeClaimed:
+      diff.totalBribeClaimed !== undefined
+        ? current.totalBribeClaimed + diff.totalBribeClaimed
+        : current.totalBribeClaimed,
+    totalBribeClaimedUSD:
+      diff.totalBribeClaimedUSD !== undefined
+        ? current.totalBribeClaimedUSD + diff.totalBribeClaimedUSD
+        : current.totalBribeClaimedUSD,
+    totalFeeRewardClaimed:
+      diff.totalFeeRewardClaimed !== undefined
+        ? current.totalFeeRewardClaimed + diff.totalFeeRewardClaimed
+        : current.totalFeeRewardClaimed,
+    totalFeeRewardClaimedUSD:
+      diff.totalFeeRewardClaimedUSD !== undefined
+        ? current.totalFeeRewardClaimedUSD + diff.totalFeeRewardClaimedUSD
+        : current.totalFeeRewardClaimedUSD,
+    veNFTamountStaked:
+      diff.veNFTamountStaked !== undefined
+        ? current.veNFTamountStaked + diff.veNFTamountStaked
+        : current.veNFTamountStaked,
 
     lastActivityTimestamp: timestamp,
   };

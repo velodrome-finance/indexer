@@ -121,59 +121,59 @@ export async function updateLiquidityPoolAggregator(
   const updated: LiquidityPoolAggregator = {
     ...current,
     // Handle cumulative fields by adding diff values to current values
-    reserve0: (diff.reserve0 || 0n) + current.reserve0,
-    reserve1: (diff.reserve1 || 0n) + current.reserve1,
+    reserve0: (diff.reserve0 ?? 0n) + current.reserve0,
+    reserve1: (diff.reserve1 ?? 0n) + current.reserve1,
     totalLiquidityUSD:
-      (diff.totalLiquidityUSD || 0n) + current.totalLiquidityUSD,
-    totalVolume0: (diff.totalVolume0 || 0n) + current.totalVolume0,
-    totalVolume1: (diff.totalVolume1 || 0n) + current.totalVolume1,
-    totalVolumeUSD: (diff.totalVolumeUSD || 0n) + current.totalVolumeUSD,
+      (diff.totalLiquidityUSD ?? 0n) + current.totalLiquidityUSD,
+    totalVolume0: (diff.totalVolume0 ?? 0n) + current.totalVolume0,
+    totalVolume1: (diff.totalVolume1 ?? 0n) + current.totalVolume1,
+    totalVolumeUSD: (diff.totalVolumeUSD ?? 0n) + current.totalVolumeUSD,
     totalVolumeUSDWhitelisted:
-      (diff.totalVolumeUSDWhitelisted || 0n) +
+      (diff.totalVolumeUSDWhitelisted ?? 0n) +
       current.totalVolumeUSDWhitelisted,
     gaugeFees0CurrentEpoch:
-      (diff.gaugeFees0CurrentEpoch || 0n) + current.gaugeFees0CurrentEpoch,
+      (diff.gaugeFees0CurrentEpoch ?? 0n) + current.gaugeFees0CurrentEpoch,
     gaugeFees1CurrentEpoch:
-      (diff.gaugeFees1CurrentEpoch || 0n) + current.gaugeFees1CurrentEpoch,
-    totalFees0: (diff.totalFees0 || 0n) + current.totalFees0,
-    totalFees1: (diff.totalFees1 || 0n) + current.totalFees1,
-    totalFeesUSD: (diff.totalFeesUSD || 0n) + current.totalFeesUSD,
+      (diff.gaugeFees1CurrentEpoch ?? 0n) + current.gaugeFees1CurrentEpoch,
+    totalFees0: (diff.totalFees0 ?? 0n) + current.totalFees0,
+    totalFees1: (diff.totalFees1 ?? 0n) + current.totalFees1,
+    totalFeesUSD: (diff.totalFeesUSD ?? 0n) + current.totalFeesUSD,
     totalFeesUSDWhitelisted:
-      (diff.totalFeesUSDWhitelisted || 0n) + current.totalFeesUSDWhitelisted,
-    numberOfSwaps: (diff.numberOfSwaps || 0n) + current.numberOfSwaps,
-    numberOfVotes: (diff.numberOfVotes || 0n) + current.numberOfVotes,
-    totalEmissions: (diff.totalEmissions || 0n) + current.totalEmissions,
+      (diff.totalFeesUSDWhitelisted ?? 0n) + current.totalFeesUSDWhitelisted,
+    numberOfSwaps: (diff.numberOfSwaps ?? 0n) + current.numberOfSwaps,
+    numberOfVotes: (diff.numberOfVotes ?? 0n) + current.numberOfVotes,
+    totalEmissions: (diff.totalEmissions ?? 0n) + current.totalEmissions,
     totalEmissionsUSD:
-      (diff.totalEmissionsUSD || 0n) + current.totalEmissionsUSD,
-    totalBribesUSD: (diff.totalBribesUSD || 0n) + current.totalBribesUSD,
+      (diff.totalEmissionsUSD ?? 0n) + current.totalEmissionsUSD,
+    totalBribesUSD: (diff.totalBribesUSD ?? 0n) + current.totalBribesUSD,
     totalFlashLoanFees0:
-      (diff.totalFlashLoanFees0 || 0n) + (current.totalFlashLoanFees0 || 0n),
+      (diff.totalFlashLoanFees0 ?? 0n) + (current.totalFlashLoanFees0 ?? 0n),
     totalFlashLoanFees1:
-      (diff.totalFlashLoanFees1 || 0n) + (current.totalFlashLoanFees1 || 0n),
+      (diff.totalFlashLoanFees1 ?? 0n) + (current.totalFlashLoanFees1 ?? 0n),
     totalFlashLoanFeesUSD:
-      (diff.totalFlashLoanFeesUSD || 0n) +
-      (current.totalFlashLoanFeesUSD || 0n),
+      (diff.totalFlashLoanFeesUSD ?? 0n) +
+      (current.totalFlashLoanFeesUSD ?? 0n),
     totalFlashLoanVolumeUSD:
-      (diff.totalFlashLoanVolumeUSD || 0n) +
-      (current.totalFlashLoanVolumeUSD || 0n),
+      (diff.totalFlashLoanVolumeUSD ?? 0n) +
+      (current.totalFlashLoanVolumeUSD ?? 0n),
     numberOfFlashLoans:
-      (diff.numberOfFlashLoans || 0n) + (current.numberOfFlashLoans || 0n),
+      (diff.numberOfFlashLoans ?? 0n) + (current.numberOfFlashLoans ?? 0n),
 
     // Gauge fields - all cumulative
     numberOfGaugeDeposits:
-      (diff.numberOfGaugeDeposits || 0n) + current.numberOfGaugeDeposits,
+      (diff.numberOfGaugeDeposits ?? 0n) + current.numberOfGaugeDeposits,
     numberOfGaugeWithdrawals:
-      (diff.numberOfGaugeWithdrawals || 0n) + current.numberOfGaugeWithdrawals,
+      (diff.numberOfGaugeWithdrawals ?? 0n) + current.numberOfGaugeWithdrawals,
     numberOfGaugeRewardClaims:
-      (diff.numberOfGaugeRewardClaims || 0n) +
+      (diff.numberOfGaugeRewardClaims ?? 0n) +
       current.numberOfGaugeRewardClaims,
     totalGaugeRewardsClaimedUSD:
-      (diff.totalGaugeRewardsClaimedUSD || 0n) +
+      (diff.totalGaugeRewardsClaimedUSD ?? 0n) +
       current.totalGaugeRewardsClaimedUSD,
     totalGaugeRewardsClaimed:
-      (diff.totalGaugeRewardsClaimed || 0n) + current.totalGaugeRewardsClaimed,
+      (diff.totalGaugeRewardsClaimed ?? 0n) + current.totalGaugeRewardsClaimed,
     currentLiquidityStakedUSD:
-      (diff.currentLiquidityStakedUSD || 0n) +
+      (diff.currentLiquidityStakedUSD ?? 0n) +
       current.currentLiquidityStakedUSD,
 
     // Handle non-cumulative fields (prices, timestamps, etc.) - use diff values directly
@@ -194,6 +194,19 @@ export async function updateLiquidityPoolAggregator(
       diff.totalVotesDeposited ?? current.totalVotesDeposited,
     totalVotesDepositedUSD:
       diff.totalVotesDepositedUSD ?? current.totalVotesDepositedUSD,
+
+    // Voting Reward Claims - cumulative fields
+    totalBribeClaimed:
+      (diff.totalBribeClaimed ?? 0n) + current.totalBribeClaimed,
+    totalBribeClaimedUSD:
+      (diff.totalBribeClaimedUSD ?? 0n) + current.totalBribeClaimedUSD,
+    totalFeeRewardClaimed:
+      (diff.totalFeeRewardClaimed ?? 0n) + current.totalFeeRewardClaimed,
+    totalFeeRewardClaimedUSD:
+      (diff.totalFeeRewardClaimedUSD ?? 0n) + current.totalFeeRewardClaimedUSD,
+    veNFTamountStaked:
+      (diff.veNFTamountStaked ?? 0n) + current.veNFTamountStaked,
+
     lastUpdatedTimestamp: timestamp,
   };
 
@@ -278,6 +291,38 @@ export async function loadPoolData(
 }
 
 /**
+ * Enum for pool address field types
+ */
+export enum PoolAddressField {
+  GAUGE_ADDRESS = "gaugeAddress",
+  BRIBE_VOTING_REWARD_ADDRESS = "bribeVotingRewardAddress",
+  FEE_VOTING_REWARD_ADDRESS = "feeVotingRewardAddress",
+}
+
+/**
+ * Generic function to find a pool by any indexed address field
+ * @param address - The address to search for
+ * @param chainId - The chain ID
+ * @param context - The handler context
+ * @param field - The field to search by
+ * @returns The pool entity if found, null otherwise
+ */
+export async function findPoolByField(
+  address: string,
+  chainId: number,
+  context: handlerContext,
+  field: PoolAddressField,
+): Promise<LiquidityPoolAggregator | null> {
+  // Query pools by the specified field using the indexed field
+  const pools =
+    await context.LiquidityPoolAggregator.getWhere[field].eq(address);
+
+  // Filter by chainId and return the first match (should be unique)
+  const matchingPool = pools.find((pool) => pool.chainId === chainId);
+  return matchingPool || null;
+}
+
+/**
  * Find a pool by its gauge address using direct database query
  * @param gaugeAddress - The gauge address to search for
  * @param chainId - The chain ID
@@ -289,13 +334,10 @@ export async function findPoolByGaugeAddress(
   chainId: number,
   context: handlerContext,
 ): Promise<LiquidityPoolAggregator | null> {
-  // Query pools by gaugeAddress using the indexed field
-  const pools =
-    await context.LiquidityPoolAggregator.getWhere.gaugeAddress.eq(
-      gaugeAddress,
-    );
-
-  // Filter by chainId and return the first match (should be unique)
-  const matchingPool = pools.find((pool) => pool.chainId === chainId);
-  return matchingPool || null;
+  return findPoolByField(
+    gaugeAddress,
+    chainId,
+    context,
+    PoolAddressField.GAUGE_ADDRESS,
+  );
 }

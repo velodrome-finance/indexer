@@ -56,6 +56,14 @@ describe("PoolSyncLogic", () => {
     gaugeAddress: "0x4444444444444444444444444444444444444444",
     gaugeIsAlive: true,
     lastUpdatedTimestamp: new Date(1000000 * 1000),
+    // Voting Reward fields
+    bribeVotingRewardAddress: "",
+    totalBribeClaimed: 0n,
+    totalBribeClaimedUSD: 0n,
+    feeVotingRewardAddress: "",
+    totalFeeRewardClaimed: 0n,
+    totalFeeRewardClaimedUSD: 0n,
+    veNFTamountStaked: 0n,
   } as unknown as LiquidityPoolAggregator;
 
   const mockToken0 = {

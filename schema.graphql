@@ -56,6 +56,15 @@ type LiquidityPoolAggregator {
   totalGaugeRewardsClaimed: BigInt! @config(precision: 76) # total gauge rewards claimed in token units
   currentLiquidityStakedUSD: BigInt! @config(precision: 76) # current liquidity staked in gauge in USD
 
+  # Voting Reward fields
+  bribeVotingRewardAddress: String @index # address of the bribe voting reward contract for this pool
+  totalBribeClaimed: BigInt! @config(precision: 76) # total bribes claimed by users in token units
+  totalBribeClaimedUSD: BigInt! @config(precision: 76) # total bribes claimed by users in USD
+  feeVotingRewardAddress: String @index # address of the fee voting reward contract for this pool
+  totalFeeRewardClaimed: BigInt! @config(precision: 76) # total fee rewards claimed by users in token units
+  totalFeeRewardClaimedUSD: BigInt! @config(precision: 76) # total fee rewards claimed by users in USD
+  veNFTamountStaked: BigInt! @config(precision: 76) # total amount of veNFT staked for this pool
+
   # Pool Launcher relationship
   poolLauncherPoolId: String # ID of the PoolLauncherPool entity if this pool was launched via Pool Launcher
 }
@@ -94,7 +103,7 @@ type LiquidityPoolAggregatorSnapshot {
   totalVotesDepositedUSD: BigInt! @config(precision: 76) # total votes deposited in USD
   totalEmissions: BigInt! @config(precision: 76) # total emissions for the pool in reward token units (VELO form Optimism and AERO for Base)
   totalEmissionsUSD: BigInt! @config(precision: 76) # total emissions for the pool in USD
-  totalBribesUSD: BigInt! @config(precision: 76) # total bribes for the pool in USD
+
   gaugeIsAlive: Boolean! # whether the gauge is alive
   gaugeAddress: String @index # address of the gauge for this pool
   token0IsWhitelisted: Boolean! # whether the token0 is whitelisted
@@ -110,6 +119,15 @@ type LiquidityPoolAggregatorSnapshot {
   totalFlashLoanFeesUSD: BigInt @config(precision: 76) # total flash loan fees collected in USD
   totalFlashLoanVolumeUSD: BigInt @config(precision: 76) # total flash loan volume in USD
   numberOfFlashLoans: BigInt @config(precision: 76) # total number of flash loans
+
+  # Voting Reward fields
+  bribeVotingRewardAddress: String @index # address of the bribe voting reward contract for this pool
+  totalBribeClaimed: BigInt! @config(precision: 76) # total bribes claimed by users in token units
+  totalBribeClaimedUSD: BigInt! @config(precision: 76) # total bribes claimed by users in USD
+  feeVotingRewardAddress: String @index # address of the fee voting reward contract for this pool
+  totalFeeRewardClaimed: BigInt! @config(precision: 76) # total fee rewards claimed by users in token units
+  totalFeeRewardClaimedUSD: BigInt! @config(precision: 76) # total fee rewards claimed by users in USD
+  veNFTamountStaked: BigInt! @config(precision: 76) # total amount of veNFT staked for this pool
 }
 
 # Entity for tracking user activity and positions in specific pools
@@ -150,6 +168,11 @@ type UserStatsPerPool {
   # Voting metrics
   numberOfVotes: BigInt! @config(precision: 76) # number of vote transactions for this pool
   currentVotingPower: BigInt! @config(precision: 76) # current voting power allocated to this pool by this user
+  totalBribeClaimed: BigInt! @config(precision: 76) # total amount of bribe rewards claimed by this user for this pool
+  totalBribeClaimedUSD: BigInt! @config(precision: 76) # total USD value of bribe rewards claimed by this user for this pool
+  totalFeeRewardClaimed: BigInt! @config(precision: 76) # total amount of fee rewards claimed by this user for this pool
+  totalFeeRewardClaimedUSD: BigInt! @config(precision: 76) # total USD value of fee rewards claimed by this user for this pool
+  veNFTamountStaked: BigInt! @config(precision: 76) # amount of veNFT staked by this user for this pool
 
   # Timestamps
   firstActivityTimestamp: Timestamp! # first activity in this pool
@@ -178,35 +201,6 @@ type TokenPriceSnapshot {
   chainId: Int!
   isWhitelisted: Boolean! # whether the token is whitelisted
   lastUpdatedTimestamp: Timestamp! @index # Timestamp of the last update
-}
-
-# Event for when a voting reward is notified of a reward
-type VotingReward_NotifyReward {
-  id: ID!
-  from: String!
-  reward: String!
-  epoch: BigInt! @config(precision: 76)
-  pool: String!
-  amount: BigInt! @config(precision: 76)
-  sourceAddress: String!
-  timestamp: Timestamp!
-  blockNumber: Int!
-  transactionHash: String!
-  logIndex: Int!
-  chainId: Int!
-}
-
-type VotingReward_ClaimRewards {
-  id: ID!
-  from: String!
-  reward: String!
-  amount: BigInt! @config(precision: 76)
-  sourceAddress: String!
-  timestamp: Timestamp!
-  blockNumber: Int!
-  transactionHash: String!
-  logIndex: Int!
-  chainId: Int!
 }
 
 type NFPM_Transfer {
@@ -240,32 +234,6 @@ type NFPM_DecreaseLiquidity {
   liquidity: BigInt! @config(precision: 76)
   amount0: BigInt! @config(precision: 76)
   amount1: BigInt! @config(precision: 76)
-  timestamp: Timestamp!
-  transactionHash: String!
-  blockNumber: Int!
-  logIndex: Int!
-  chainId: Int!
-}
-
-type VotingReward_Deposit {
-  id: ID!
-  from: String!
-  tokenId: BigInt! @config(precision: 76)
-  amount: BigInt! @config(precision: 76)
-  sourceAddress: String!
-  timestamp: Timestamp!
-  transactionHash: String!
-  blockNumber: Int!
-  logIndex: Int!
-  chainId: Int!
-}
-
-type VotingReward_Withdraw {
-  id: ID!
-  from: String!
-  tokenId: BigInt! @config(precision: 76)
-  amount: BigInt! @config(precision: 76)
-  sourceAddress: String!
   timestamp: Timestamp!
   transactionHash: String!
   blockNumber: Int!
