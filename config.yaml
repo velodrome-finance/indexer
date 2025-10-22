@@ -90,18 +90,18 @@ contracts:
       - event: ClaimRewards
   - name: CLGauge
     abi_file_path: abis/CLGauge.json
-    handler: src/EventHandlers/CLGauge.ts
+    handler: src/EventHandlers/Gauges/CLGauge.ts
     events:
       - event: Deposit
       - event: Withdraw
       - event: ClaimRewards
   - name: Gauge
     abi_file_path: abis/Gauge.json
-    handler: src/EventHandlers/Gauge.ts
+    handler: src/EventHandlers/Gauges/Gauge.ts
     events:
-      - event: NotifyReward
       - event: Deposit
       - event: Withdraw
+      - event: ClaimRewards
   - name: ALMDeployFactory
     abi_file_path: abis/ALM/DeployFactory.json
     handler: src/EventHandlers/ALM/DeployFactory.ts

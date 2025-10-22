@@ -168,6 +168,7 @@ describe("Pool Fees Event", () => {
       numberOfGaugeWithdrawals: 0n,
       numberOfGaugeRewardClaims: 0n,
       totalGaugeRewardsClaimedUSD: 0n,
+      totalGaugeRewardsClaimed: 0n,
       currentLiquidityStakedUSD: 0n,
       firstActivityTimestamp: new Date(500000 * 1000),
       lastActivityTimestamp: new Date(800000 * 1000),

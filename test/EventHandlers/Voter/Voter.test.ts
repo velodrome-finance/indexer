@@ -99,6 +99,7 @@ describe("Voter Events", () => {
           totalFeesContributedUSD: 0n,
           totalFlashLoanVolumeUSD: 0n,
           totalGaugeRewardsClaimedUSD: 0n,
+          totalGaugeRewardsClaimed: 0n,
           totalLiquidityAddedUSD: 0n,
           totalLiquidityRemovedUSD: 0n,
           totalSwapVolumeUSD: 0n,

@@ -276,6 +276,7 @@ describe("PoolLauncherLogic", () => {
           numberOfGaugeWithdrawals: 5n,
           numberOfGaugeRewardClaims: 3n,
           totalGaugeRewardsClaimedUSD: 5000n,
+          totalGaugeRewardsClaimed: 5000n,
           currentLiquidityStakedUSD: 100000n,
           poolLauncherPoolId: undefined,
           // Voting fields
@@ -411,6 +412,7 @@ describe("PoolLauncherLogic", () => {
           numberOfGaugeWithdrawals: 5n,
           numberOfGaugeRewardClaims: 3n,
           totalGaugeRewardsClaimedUSD: 5000n,
+          totalGaugeRewardsClaimed: 5000n,
           currentLiquidityStakedUSD: 100000n,
           poolLauncherPoolId: undefined,
           // Voting fields
@@ -542,6 +544,7 @@ describe("PoolLauncherLogic", () => {
         numberOfGaugeWithdrawals: 5n,
         numberOfGaugeRewardClaims: 3n,
         totalGaugeRewardsClaimedUSD: 5000n,
+        totalGaugeRewardsClaimed: 5000n,
         currentLiquidityStakedUSD: 100000n,
         poolLauncherPoolId: undefined,
         // Voting fields
@@ -623,6 +626,7 @@ describe("PoolLauncherLogic", () => {
         numberOfGaugeWithdrawals: 5n,
         numberOfGaugeRewardClaims: 3n,
         totalGaugeRewardsClaimedUSD: 5000n,
+        totalGaugeRewardsClaimed: 5000n,
         currentLiquidityStakedUSD: 100000n,
         poolLauncherPoolId: undefined,
         // Voting fields
