@@ -31,10 +31,18 @@ describe("UserStatsPerPool Liquidity Logic", () => {
     totalGaugeRewardsClaimedUSD: 0n,
     totalGaugeRewardsClaimed: 0n,
     currentLiquidityStakedUSD: 0n,
+    numberOfVotes: 0n,
+    currentVotingPower: 0n,
+
+    // Voting Reward Claims
+    totalBribeClaimed: 0n,
+    totalBribeClaimedUSD: 0n,
+    totalFeeRewardClaimed: 0n,
+    totalFeeRewardClaimedUSD: 0n,
+    veNFTamountStaked: 0n,
+
     firstActivityTimestamp: mockTimestamp,
     lastActivityTimestamp: mockTimestamp,
-    currentVotingPower: 0n,
-    numberOfVotes: 0n,
   });
 
   describe("Liquidity Addition Logic", () => {

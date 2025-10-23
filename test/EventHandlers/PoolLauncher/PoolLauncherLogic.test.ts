@@ -278,6 +278,15 @@ describe("PoolLauncherLogic", () => {
           totalGaugeRewardsClaimedUSD: 5000n,
           totalGaugeRewardsClaimed: 5000n,
           currentLiquidityStakedUSD: 100000n,
+
+          // Voting Reward fields
+          bribeVotingRewardAddress: "",
+          totalBribeClaimed: 0n,
+          totalBribeClaimedUSD: 0n,
+          feeVotingRewardAddress: "",
+          totalFeeRewardClaimed: 0n,
+          totalFeeRewardClaimedUSD: 0n,
+          veNFTamountStaked: 0n,
           poolLauncherPoolId: undefined,
           // Voting fields
           gaugeAddress: "",
@@ -414,6 +423,15 @@ describe("PoolLauncherLogic", () => {
           totalGaugeRewardsClaimedUSD: 5000n,
           totalGaugeRewardsClaimed: 5000n,
           currentLiquidityStakedUSD: 100000n,
+
+          // Voting Reward fields
+          bribeVotingRewardAddress: "",
+          totalBribeClaimed: 0n,
+          totalBribeClaimedUSD: 0n,
+          feeVotingRewardAddress: "",
+          totalFeeRewardClaimed: 0n,
+          totalFeeRewardClaimedUSD: 0n,
+          veNFTamountStaked: 0n,
           poolLauncherPoolId: undefined,
           // Voting fields
           gaugeAddress: "",
@@ -546,6 +564,15 @@ describe("PoolLauncherLogic", () => {
         totalGaugeRewardsClaimedUSD: 5000n,
         totalGaugeRewardsClaimed: 5000n,
         currentLiquidityStakedUSD: 100000n,
+
+        // Voting Reward fields
+        bribeVotingRewardAddress: "",
+        totalBribeClaimed: 0n,
+        totalBribeClaimedUSD: 0n,
+        feeVotingRewardAddress: "",
+        totalFeeRewardClaimed: 0n,
+        totalFeeRewardClaimedUSD: 0n,
+        veNFTamountStaked: 0n,
         poolLauncherPoolId: undefined,
         // Voting fields
         gaugeAddress: "",
@@ -628,6 +655,15 @@ describe("PoolLauncherLogic", () => {
         totalGaugeRewardsClaimedUSD: 5000n,
         totalGaugeRewardsClaimed: 5000n,
         currentLiquidityStakedUSD: 100000n,
+
+        // Voting Reward fields
+        bribeVotingRewardAddress: "",
+        totalBribeClaimed: 0n,
+        totalBribeClaimedUSD: 0n,
+        feeVotingRewardAddress: "",
+        totalFeeRewardClaimed: 0n,
+        totalFeeRewardClaimedUSD: 0n,
+        veNFTamountStaked: 0n,
         poolLauncherPoolId: undefined,
         // Voting fields
         gaugeAddress: "",

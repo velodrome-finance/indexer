@@ -90,8 +90,8 @@ SuperchainLeafVoter.GaugeCreated.contractRegister(({ event, context }) => {
     context.addGauge(event.params.gauge);
   }
 
-  context.addVotingReward(event.params.incentiveVotingReward);
-  context.addVotingReward(event.params.feeVotingReward);
+  context.addFeesVotingReward(event.params.feeVotingReward);
+  context.addBribesVotingReward(event.params.incentiveVotingReward);
 });
 
 SuperchainLeafVoter.GaugeCreated.handler(async ({ event, context }) => {

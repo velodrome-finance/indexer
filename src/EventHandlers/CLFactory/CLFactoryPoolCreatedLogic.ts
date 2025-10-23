@@ -111,6 +111,15 @@ export async function processCLFactoryPoolCreated(
       totalGaugeRewardsClaimedUSD: 0n,
       totalGaugeRewardsClaimed: 0n,
       currentLiquidityStakedUSD: 0n,
+
+      // Voting Reward fields
+      bribeVotingRewardAddress: "",
+      totalBribeClaimed: 0n,
+      totalBribeClaimedUSD: 0n,
+      feeVotingRewardAddress: "",
+      totalFeeRewardClaimed: 0n,
+      totalFeeRewardClaimedUSD: 0n,
+      veNFTamountStaked: 0n,
       // Pool Launcher relationship (undefined for pools not launched via PoolLauncher)
       poolLauncherPoolId: undefined,
       // Voting fields

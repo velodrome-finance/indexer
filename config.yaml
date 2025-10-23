@@ -80,12 +80,18 @@ contracts:
       - event: DistributeReward(address indexed sender, address indexed gauge, uint256 amount)
       - event: GaugeCreated(address indexed poolFactory, address indexed votingRewardsFactory, address indexed gaugeFactory, address pool, address incentiveVotingReward, address feeVotingReward, address gauge)
       - event: WhitelistToken(address indexed whitelister, address indexed token, bool indexed _bool)
-  - name: VotingReward
-    abi_file_path: abis/VotingReward.json
-    handler: src/EventHandlers/VotingReward.ts
+  - name: FeesVotingReward
+    abi_file_path: abis/FeesVotingReward.json
+    handler: src/EventHandlers/VotingReward/FeesVotingReward.ts
     events:
       - event: Deposit
-      - event: NotifyReward
+      - event: Withdraw
+      - event: ClaimRewards
+  - name: BribesVotingReward
+    abi_file_path: abis/BribesVotingReward.json
+    handler: src/EventHandlers/VotingReward/BribesVotingReward.ts
+    events:
+      - event: Deposit
       - event: Withdraw
       - event: ClaimRewards
   - name: CLGauge
@@ -194,7 +200,9 @@ networks:
       - name: Voter
         address:
           - 0x41C914ee0c7E1A5edCD0295623e6dC557B5aBf3C
-      - name: VotingReward
+      - name: FeesVotingReward
+        address:
+      - name: BribesVotingReward
         address:
       - name: CLPool
         address:
@@ -242,7 +250,9 @@ networks:
       - name: Voter
         address:
           - 0x16613524e02ad97eDfeF371bC883F2F5d6C480A5
-      - name: VotingReward
+      - name: FeesVotingReward
+        address:
+      - name: BribesVotingReward
         address:
       - name: CLPool
         address:
@@ -284,7 +294,9 @@ networks:
       - name: SuperchainLeafVoter
         address:
           - 0x97cDBCe21B6fd0585d29E539B1B99dAd328a1123
-      - name: VotingReward
+      - name: FeesVotingReward
+        address:
+      - name: BribesVotingReward
         address:
       - name: CLPool
         address:
@@ -318,7 +330,9 @@ networks:
       - name: SuperchainLeafVoter
         address:
           - 0x97cDBCe21B6fd0585d29E539B1B99dAd328a1123
-      - name: VotingReward
+      - name: FeesVotingReward
+        address:
+      - name: BribesVotingReward
         address:
       - name: CLPool
         address:
@@ -352,7 +366,9 @@ networks:
       - name: SuperchainLeafVoter
         address:
           - 0x97cDBCe21B6fd0585d29E539B1B99dAd328a1123
-      - name: VotingReward
+      - name: FeesVotingReward
+        address:
+      - name: BribesVotingReward
         address:
       - name: CLPool
         address:
@@ -390,7 +406,9 @@ networks:
       - name: SuperchainLeafVoter
         address:
           - 0x97cDBCe21B6fd0585d29E539B1B99dAd328a1123
-      - name: VotingReward
+      - name: FeesVotingReward
+        address:
+      - name: BribesVotingReward
         address:
       - name: CLPool
         address:
@@ -422,7 +440,9 @@ networks:
       - name: SuperchainLeafVoter
         address:
           - 0x97cDBCe21B6fd0585d29E539B1B99dAd328a1123
-      - name: VotingReward
+      - name: FeesVotingReward
+        address:
+      - name: BribesVotingReward
         address:
       - name: CLPool
         address:
@@ -448,7 +468,9 @@ networks:
       - name: SuperchainLeafVoter
         address:
           - 0x97cDBCe21B6fd0585d29E539B1B99dAd328a1123
-      - name: VotingReward
+      - name: FeesVotingReward
+        address:
+      - name: BribesVotingReward
         address:
       - name: CLPool
         address:
@@ -474,7 +496,9 @@ networks:
       - name: SuperchainLeafVoter
         address:
           - 0x97cDBCe21B6fd0585d29E539B1B99dAd328a1123
-      - name: VotingReward
+      - name: FeesVotingReward
+        address:
+      - name: BribesVotingReward
         address:
       - name: CLPool
         address:
@@ -497,7 +521,9 @@ networks:
       - name: SuperchainLeafVoter
         address:
           - 0x97cDBCe21B6fd0585d29E539B1B99dAd328a1123
-      - name: VotingReward
+      - name: FeesVotingReward
+        address:
+      - name: BribesVotingReward
         address:
       - name: CLPool
         address:
@@ -523,7 +549,9 @@ networks:
       - name: SuperchainLeafVoter
         address:
           - 0x97cDBCe21B6fd0585d29E539B1B99dAd328a1123
-      - name: VotingReward
+      - name: FeesVotingReward
+        address:
+      - name: BribesVotingReward
         address:
       - name: CLPool
         address:
