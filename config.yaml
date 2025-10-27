@@ -45,7 +45,7 @@ contracts:
       - event: Swap(address indexed sender, address indexed recipient, int256 amount0, int256 amount1, uint160 sqrtPriceX96, uint128 liquidity, int24 tick)
   - name: NFPM
     abi_file_path: abis/NFPM.json
-    handler: src/EventHandlers/NFPM.ts
+    handler: src/EventHandlers/NFPM/NFPM.ts
     events:
       - event: Transfer
       - event: IncreaseLiquidity
