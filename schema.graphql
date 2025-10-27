@@ -308,46 +308,6 @@ type VeNFTAggregator {
   isAlive: Boolean!
 }
 
-type VeNFT_Deposit {
-  id: ID!
-  provider: String!
-  tokenId: BigInt! @config(precision: 76)
-  depositType: BigInt! @config(precision: 76)
-  value: BigInt! @config(precision: 76)
-  locktime: BigInt! @config(precision: 76)
-  ts: BigInt! @config(precision: 76)
-  timestamp: Timestamp!
-  transactionHash: String!
-  blockNumber: Int!
-  logIndex: Int!
-  chainId: Int!
-}
-
-type VeNFT_Withdraw {
-  id: ID!
-  provider: String!
-  tokenId: BigInt! @config(precision: 76)
-  value: BigInt! @config(precision: 76)
-  ts: BigInt! @config(precision: 76)
-  timestamp: Timestamp!
-  transactionHash: String!
-  blockNumber: Int!
-  logIndex: Int!
-  chainId: Int!
-}
-
-type VeNFT_Transfer {
-  id: ID!
-  from: String!
-  to: String!
-  tokenId: BigInt! @config(precision: 76)
-  timestamp: Timestamp!
-  transactionHash: String!
-  blockNumber: Int!
-  logIndex: Int!
-  chainId: Int!
-}
-
 type ALMCore_Rebalance {
   id: ID!
   pool: String!

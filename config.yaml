@@ -51,7 +51,7 @@ contracts:
       - event: IncreaseLiquidity
       - event: DecreaseLiquidity
   - name: VeNFT
-    handler: src/EventHandlers/VeNFT.ts
+    handler: src/EventHandlers/VeNFT/VeNFT.ts
     events:
       - event: Deposit(address indexed provider, uint256 indexed tokenId, uint8 indexed depositType, uint256 value, uint256 locktime, uint256 ts)
       - event: Withdraw(address indexed provider, uint256 indexed tokenId, uint256 value, uint256 ts)
