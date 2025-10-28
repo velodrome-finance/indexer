@@ -133,7 +133,7 @@ contracts:
       - event: Transfer(address indexed from, address indexed to, uint256 value)
   - name: DynamicFeeSwapModule
     abi_file_path: abis/DynamicFeeSwapModule.json
-    handler: src/EventHandlers/DynamicFeeSwapModule.ts
+    handler: src/EventHandlers/SwapFeeModule/DynamicFeeSwapModule.ts
     events:
       - event: CustomFeeSet
       - event: SecondsAgoSet
@@ -141,7 +141,7 @@ contracts:
       - event: FeeCapSet
   - name: CustomFeeSwapModule
     abi_file_path: abis/CustomFeeSwapModule.json
-    handler: src/EventHandlers/CustomFeeSwapModule.ts
+    handler: src/EventHandlers/SwapFeeModule/CustomFeeSwapModule.ts
     events:
       - event: SetCustomFee
   - name: CLPoolLauncher

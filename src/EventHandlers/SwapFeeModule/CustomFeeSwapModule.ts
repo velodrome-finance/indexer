@@ -1,7 +1,7 @@
 import { CustomFeeSwapModule } from "generated";
 import type { LiquidityPoolAggregator } from "generated";
-import { updateLiquidityPoolAggregator } from "../Aggregators/LiquidityPoolAggregator";
-import { toChecksumAddress } from "../Constants";
+import { updateLiquidityPoolAggregator } from "../../Aggregators/LiquidityPoolAggregator";
+import { toChecksumAddress } from "../../Constants";
 
 CustomFeeSwapModule.SetCustomFee.handler(async ({ event, context }) => {
   const pool = await context.LiquidityPoolAggregator.get(
