@@ -1,17 +1,9 @@
 import { expect } from "chai";
-import type {
-  VeNFTAggregator,
-  VeNFT_Deposit,
-  VeNFT_Transfer,
-  VeNFT_Withdraw,
-  handlerContext,
-} from "generated";
+import type { VeNFTAggregator, handlerContext } from "generated";
 import sinon from "sinon";
 import {
   VeNFTId,
-  depositVeNFT,
-  transferVeNFT,
-  withdrawVeNFT,
+  updateVeNFTAggregator,
 } from "../../src/Aggregators/VeNFTAggregator";
 
 describe("VeNFTAggregator", () => {
@@ -56,49 +48,22 @@ describe("VeNFTAggregator", () => {
     };
   });
 
-  describe("depositVeNFT", () => {
-    const mockDeposit: VeNFT_Deposit = {
-      id: "10_1_1",
-      provider: "0x1111111111111111111111111111111111111111",
-      value: 100n,
-      locktime: 100n,
-      ts: 100n,
-      transactionHash: "0x1111111111111111111111111111111111111111",
-      timestamp: new Date(),
-      chainId: 10,
-      tokenId: 1n,
-      blockNumber: 100,
-      logIndex: 1,
-      depositType: 1n,
-    };
-    describe("when the veNFT is not found", () => {
+  describe("updateVeNFTAggregator", () => {
+    describe("when updating with deposit diff", () => {
       let result: VeNFTAggregator;
       beforeEach(async () => {
-        depositVeNFT(
-          mockDeposit,
-          undefined,
-          timestamp,
-          contextStub as handlerContext,
-        );
-        result = (contextStub.VeNFTAggregator?.set as sinon.SinonStub).firstCall
-          .args[0];
-      });
-      it("should create a new veNFTAggregator", () => {
-        expect(result.id).to.equal(
-          VeNFTId(mockDeposit.chainId, mockDeposit.tokenId),
-        );
-        expect(result.owner).to.equal("");
-        expect(result.locktime).to.equal(mockDeposit.locktime);
-        expect(result.lastUpdatedTimestamp).to.equal(timestamp);
-        expect(result.totalValueLocked).to.equal(mockDeposit.value);
-        expect(result.isAlive).to.equal(true);
-      });
-    });
-    describe("when the veNFT is found", () => {
-      let result: VeNFTAggregator;
-      beforeEach(async () => {
-        depositVeNFT(
-          mockDeposit,
+        const depositDiff = {
+          id: VeNFTId(10, 1n),
+          chainId: 10,
+          tokenId: 1n,
+          owner: "0x1111111111111111111111111111111111111111",
+          locktime: 100n,
+          totalValueLocked: 50n,
+          isAlive: true,
+        };
+
+        updateVeNFTAggregator(
+          depositDiff,
           mockVeNFTAggregator,
           timestamp,
           contextStub as handlerContext,
@@ -106,61 +71,34 @@ describe("VeNFTAggregator", () => {
         result = (contextStub.VeNFTAggregator?.set as sinon.SinonStub).firstCall
           .args[0];
       });
-      it("should update the veNFTAggregator", () => {
-        expect(result.id).to.equal(
-          VeNFTId(mockDeposit.chainId, mockDeposit.tokenId),
+
+      it("should update the veNFTAggregator with new values", () => {
+        expect(result.id).to.equal(VeNFTId(10, 1n));
+        expect(result.owner).to.equal(
+          "0x1111111111111111111111111111111111111111",
         );
-        expect(result.owner).to.equal(mockVeNFTAggregator.owner);
-        expect(result.locktime).to.equal(mockDeposit.locktime);
+        expect(result.locktime).to.equal(100n); // diff.locktime replaces current.locktime
         expect(result.lastUpdatedTimestamp).to.equal(timestamp);
-        expect(result.totalValueLocked).to.equal(
-          mockVeNFTAggregator.totalValueLocked + mockDeposit.value,
-        );
+        expect(result.totalValueLocked).to.equal(150n); // 100n (current) + 50n (diff) = 150n
         expect(result.isAlive).to.equal(true);
       });
     });
-  });
-  describe("withdrawVeNFT", () => {
-    const mockWithdraw: VeNFT_Withdraw = {
-      id: "10_1_1",
-      provider: "0x1111111111111111111111111111111111111111",
-      value: 100n,
-      ts: 100n,
-      transactionHash: "0x1111111111111111111111111111111111111111",
-      timestamp: new Date(),
-      blockNumber: 100,
-      logIndex: 1,
-      chainId: 10,
-      tokenId: 1n,
-    };
-    describe("when the veNFT is not found", () => {
+
+    describe("when updating with withdraw diff", () => {
       let result: VeNFTAggregator;
       beforeEach(async () => {
-        withdrawVeNFT(
-          mockWithdraw,
-          undefined,
-          timestamp,
-          contextStub as handlerContext,
-        );
-        result = (contextStub.VeNFTAggregator?.set as sinon.SinonStub).firstCall
-          .args[0];
-      });
-      it("should create a new veNFTAggregator", () => {
-        expect(result.id).to.equal(
-          VeNFTId(mockWithdraw.chainId, mockWithdraw.tokenId),
-        );
-        expect(result.owner).to.equal("");
-        expect(result.locktime).to.equal(0n);
-        expect(result.lastUpdatedTimestamp).to.equal(timestamp);
-        expect(result.totalValueLocked).to.equal(0n);
-        expect(result.isAlive).to.equal(true);
-      });
-    });
-    describe("when the veNFT is found", () => {
-      let result: VeNFTAggregator;
-      beforeEach(async () => {
-        withdrawVeNFT(
-          mockWithdraw,
+        const withdrawDiff = {
+          id: VeNFTId(10, 1n),
+          chainId: 10,
+          tokenId: 1n,
+          owner: "0x1111111111111111111111111111111111111111",
+          locktime: 100n,
+          totalValueLocked: -25n,
+          isAlive: true,
+        };
+
+        updateVeNFTAggregator(
+          withdrawDiff,
           mockVeNFTAggregator,
           timestamp,
           contextStub as handlerContext,
@@ -168,100 +106,133 @@ describe("VeNFTAggregator", () => {
         result = (contextStub.VeNFTAggregator?.set as sinon.SinonStub).firstCall
           .args[0];
       });
-      it("should update the veNFTAggregator", () => {
-        expect(result.id).to.equal(
-          VeNFTId(mockWithdraw.chainId, mockWithdraw.tokenId),
+
+      it("should update the veNFTAggregator with withdrawn amount", () => {
+        expect(result.id).to.equal(VeNFTId(10, 1n));
+        expect(result.owner).to.equal(
+          "0x1111111111111111111111111111111111111111",
         );
-        expect(result.owner).to.equal(mockVeNFTAggregator.owner);
-        expect(result.locktime).to.equal(mockVeNFTAggregator.locktime);
+        expect(result.locktime).to.equal(100n); // current.locktime (no diff override)
         expect(result.lastUpdatedTimestamp).to.equal(timestamp);
-        expect(result.totalValueLocked).to.equal(
-          mockVeNFTAggregator.totalValueLocked - mockWithdraw.value,
-        );
+        expect(result.totalValueLocked).to.equal(75n); // 100n (current) + -25n (diff) = 75n
         expect(result.isAlive).to.equal(true);
       });
     });
-  });
-  describe("transferVeNFT", () => {
-    const mockTransfer: VeNFT_Transfer = {
-      id: "10_1_1",
-      from: "0x1111111111111111111111111111111111111111",
-      to: "0x2222222222222222222222222222222222222222",
-      tokenId: 1n,
-      timestamp: new Date(),
-      chainId: 10,
-      blockNumber: 100,
-      logIndex: 1,
-      transactionHash: "0x1111111111111111111111111111111111111111",
-    };
-    describe("when the veNFT is not found", () => {
+
+    describe("when updating with transfer diff", () => {
       let result: VeNFTAggregator;
       beforeEach(async () => {
-        transferVeNFT(
-          mockTransfer,
-          undefined,
+        const transferDiff = {
+          id: VeNFTId(10, 1n),
+          chainId: 10,
+          tokenId: 1n,
+          owner: "0x2222222222222222222222222222222222222222",
+          locktime: 100n,
+          totalValueLocked: 100n,
+          isAlive: true,
+        };
+
+        updateVeNFTAggregator(
+          transferDiff,
+          mockVeNFTAggregator,
           timestamp,
           contextStub as handlerContext,
         );
         result = (contextStub.VeNFTAggregator?.set as sinon.SinonStub).firstCall
           .args[0];
       });
-      it("should create a new veNFTAggregator", () => {
-        expect(result.id).to.equal(
-          VeNFTId(mockTransfer.chainId, mockTransfer.tokenId),
+
+      it("should update the veNFTAggregator with new owner", () => {
+        expect(result.id).to.equal(VeNFTId(10, 1n));
+        expect(result.owner).to.equal(
+          "0x2222222222222222222222222222222222222222",
         );
-        expect(result.owner).to.equal(mockTransfer.to);
-        expect(result.locktime).to.equal(0n);
+        expect(result.locktime).to.equal(100n); // current.locktime (no diff override)
         expect(result.lastUpdatedTimestamp).to.equal(timestamp);
-        expect(result.totalValueLocked).to.equal(0n);
+        expect(result.totalValueLocked).to.equal(200n); // 100n (current) + 100n (diff) = 200n
         expect(result.isAlive).to.equal(true);
       });
     });
-    describe("when the veNFT is found", () => {
-      describe("when the transfer is to the zero address", () => {
-        let result: VeNFTAggregator;
-        beforeEach(async () => {
-          const zeroTransfer = {
-            ...mockTransfer,
-            to: "0x0000000000000000000000000000000000000000",
-          };
-          transferVeNFT(
-            zeroTransfer,
-            mockVeNFTAggregator,
-            timestamp,
-            contextStub as handlerContext,
-          );
-          result = (contextStub.VeNFTAggregator?.set as sinon.SinonStub)
-            .firstCall.args[0];
-        });
-        it("should set the veNFTAggregator to dead", () => {
-          expect(result.isAlive).to.equal(false);
-        });
+
+    describe("when updating with burn diff (zero address)", () => {
+      let result: VeNFTAggregator;
+      beforeEach(async () => {
+        const burnDiff = {
+          id: VeNFTId(10, 1n),
+          chainId: 10,
+          tokenId: 1n,
+          owner: "0x0000000000000000000000000000000000000000",
+          locktime: 100n,
+          totalValueLocked: 100n,
+          isAlive: false,
+        };
+
+        updateVeNFTAggregator(
+          burnDiff,
+          mockVeNFTAggregator,
+          timestamp,
+          contextStub as handlerContext,
+        );
+        result = (contextStub.VeNFTAggregator?.set as sinon.SinonStub).firstCall
+          .args[0];
       });
-      describe("when the transfer is not the zero address", () => {
-        let result: VeNFTAggregator;
-        beforeEach(async () => {
-          transferVeNFT(
-            mockTransfer,
-            mockVeNFTAggregator,
-            timestamp,
-            contextStub as handlerContext,
-          );
-          result = (contextStub.VeNFTAggregator?.set as sinon.SinonStub)
-            .firstCall.args[0];
-        });
-        it("should update the veNFTAggregator", () => {
-          expect(result.id).to.equal(
-            VeNFTId(mockTransfer.chainId, mockTransfer.tokenId),
-          );
-          expect(result.owner).to.equal(mockTransfer.to);
-          expect(result.locktime).to.equal(mockVeNFTAggregator.locktime);
-          expect(result.lastUpdatedTimestamp).to.equal(timestamp);
-          expect(result.totalValueLocked).to.equal(
-            mockVeNFTAggregator.totalValueLocked,
-          );
-          expect(result.isAlive).to.equal(true);
-        });
+
+      it("should set the veNFTAggregator to dead", () => {
+        expect(result.id).to.equal(VeNFTId(10, 1n));
+        expect(result.owner).to.equal(
+          "0x0000000000000000000000000000000000000000",
+        );
+        expect(result.locktime).to.equal(100n); // current.locktime (no diff override)
+        expect(result.lastUpdatedTimestamp).to.equal(timestamp);
+        expect(result.totalValueLocked).to.equal(200n); // 100n (current) + 100n (diff) = 200n
+        expect(result.isAlive).to.equal(false);
+      });
+    });
+
+    describe("when creating new VeNFT (no current)", () => {
+      let result: VeNFTAggregator;
+      beforeEach(async () => {
+        const newVeNFTDiff = {
+          id: VeNFTId(10, 2n),
+          chainId: 10,
+          tokenId: 2n,
+          owner: "0x3333333333333333333333333333333333333333",
+          locktime: 200n,
+          totalValueLocked: 75n,
+          isAlive: true,
+        };
+
+        // Create a dummy empty VeNFTAggregator to add to
+        const emptyVeNFT: VeNFTAggregator = {
+          id: VeNFTId(10, 2n),
+          chainId: 10,
+          tokenId: 2n,
+          owner: "",
+          locktime: 0n,
+          lastUpdatedTimestamp: new Date(0),
+          totalValueLocked: 0n,
+          isAlive: true,
+        };
+
+        updateVeNFTAggregator(
+          newVeNFTDiff,
+          emptyVeNFT,
+          timestamp,
+          contextStub as handlerContext,
+        );
+        result = (contextStub.VeNFTAggregator?.set as sinon.SinonStub).firstCall
+          .args[0];
+      });
+
+      it("should create a new veNFTAggregator", () => {
+        expect(result.id).to.equal(VeNFTId(10, 2n));
+        expect(result.owner).to.equal(
+          "0x3333333333333333333333333333333333333333",
+        );
+        expect(result.locktime).to.equal(200n);
+        expect(result.lastUpdatedTimestamp).to.equal(timestamp);
+        expect(result.totalValueLocked).to.equal(75n);
+        expect(result.isAlive).to.equal(true);
       });
     });
   });
