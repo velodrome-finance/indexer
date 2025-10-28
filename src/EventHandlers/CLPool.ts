@@ -31,6 +31,10 @@ import { processCLPoolSwap } from "./CLPool/CLPoolSwapLogic";
  * @returns {Object} Updated liquidity metrics
  */
 
+// TODO: Remove loaderReturn logic from CLPool related modules
+// AND
+// Add logic to handle NonFungiblePosition entity creation for example (when minting a new position)
+
 CLPool.Burn.handler(async ({ event, context }) => {
   // Load pool data and handle errors
   const poolData = await loadPoolData(event.srcAddress, event.chainId, context);

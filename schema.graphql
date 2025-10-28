@@ -203,42 +203,21 @@ type TokenPriceSnapshot {
   lastUpdatedTimestamp: Timestamp! @index # Timestamp of the last update
 }
 
-type NFPM_Transfer {
-  id: ID!
-  from: String!
-  to: String!
-  tokenId: BigInt! @config(precision: 76)
-  timestamp: Timestamp!
-  transactionHash: String!
-  blockNumber: Int!
-  logIndex: Int!
-  chainId: Int!
-}
-
-type NFPM_IncreaseLiquidity {
-  id: ID!
-  tokenId: BigInt! @config(precision: 76)
-  liquidity: BigInt! @config(precision: 76)
-  amount0: BigInt! @config(precision: 76)
-  amount1: BigInt! @config(precision: 76)
-  timestamp: Timestamp!
-  transactionHash: String!
-  blockNumber: Int!
-  logIndex: Int!
-  chainId: Int!
-}
-
-type NFPM_DecreaseLiquidity {
-  id: ID!
-  tokenId: BigInt! @config(precision: 76)
-  liquidity: BigInt! @config(precision: 76)
-  amount0: BigInt! @config(precision: 76)
-  amount1: BigInt! @config(precision: 76)
-  timestamp: Timestamp!
-  transactionHash: String!
-  blockNumber: Int!
-  logIndex: Int!
-  chainId: Int!
+# Tracks relevant data for each NFT minted: each NFT represents a concentrated position in a pool
+type NonFungiblePosition {
+  id: ID! # Unique identifier: `${chainId}_${tokenId}`
+  chainId: Int! # Chain ID where the NFT exists
+  tokenId: BigInt! # Token ID of the NFT (from Transfer event)
+  owner: String! @index # Checksum address of the current owner (from Transfer event)
+  pool: String! # Address of the CL pool this position belongs to
+  tickUpper: Int! # Upper tick of the position range
+  tickLower: Int! # Lower tick of the position range
+  token0: String! # Address of token0 in the position
+  token1: String! # Address of token1 in the position
+  amount0: BigInt! @config(precision: 76) # Current amount of token0 in position
+  amount1: BigInt! @config(precision: 76) # Current amount of token1 in position
+  amountUSD: BigInt! @config(precision: 76) # Current USD value of position (amount0 + amount1 in USD)
+  lastUpdatedTimestamp: Timestamp! # Timestamp of last update
 }
 
 type PoolFactory_SetCustomFee {
