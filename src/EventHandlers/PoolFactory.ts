@@ -143,6 +143,7 @@ PoolFactory.PoolCreated.handler(async ({ event, context }) => {
     baseFee: undefined,
     feeCap: undefined,
     scalingFactor: undefined,
+    currentFee: undefined,
   };
 
   updateLiquidityPoolAggregator(

@@ -139,6 +139,11 @@ contracts:
       - event: SecondsAgoSet
       - event: ScalingFactorSet
       - event: FeeCapSet
+  - name: CustomFeeSwapModule
+    abi_file_path: abis/CustomFeeSwapModule.json
+    handler: src/EventHandlers/CustomFeeSwapModule.ts
+    events:
+      - event: SetCustomFee
   - name: CLPoolLauncher
     handler: src/EventHandlers/PoolLauncher/CLPoolLauncher.ts
     abi_file_path: abis/CLPoolLauncher.json
@@ -280,6 +285,9 @@ networks:
       url: https://celo.hypersync.xyz
     start_block: 0
     contracts:
+      - name: CustomFeeSwapModule
+        address:
+          - 0xbcAE2d4b4E8E34a4100e69E9C73af8214a89572e
       - name: ERC20
         address:
           - 0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81 # xVELO
@@ -316,6 +324,9 @@ networks:
       url: https://soneium.hypersync.xyz
     start_block: 0
     contracts:
+      - name: CustomFeeSwapModule
+        address:
+          - 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F
       - name: ERC20
         address:
           - 0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81 # xVELO
@@ -352,6 +363,9 @@ networks:
       url: https://ink.hypersync.xyz
     start_block: 0
     contracts:
+      - name: CustomFeeSwapModule
+        address:
+          - 0x6812eefC19deB79D5191b52f4B763260d9F3C238
       - name: ERC20
         address:
           - 0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81 # xVELO
@@ -392,6 +406,9 @@ networks:
   - id: 34443 # Mode
     start_block: 0
     contracts:
+      - name: CustomFeeSwapModule
+        address:
+          - 0x479Bec910d4025b4aC440ec27aCf28eac522242B
       - name: ERC20
         address:
           - 0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81 # xVELO
@@ -426,6 +443,9 @@ networks:
   - id: 1135 # Lisk
     start_block: 0
     contracts:
+      - name: CustomFeeSwapModule
+        address:
+          - 0xCB885Aa008031cBDb72447Bed78AF4f87a197126
       - name: ERC20
         address:
           - 0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81 # xVELO
@@ -454,6 +474,9 @@ networks:
       url: https://unichain.hypersync.xyz
     start_block: 0
     contracts:
+      - name: CustomFeeSwapModule
+        address:
+          - 0x6812eefC19deB79D5191b52f4B763260d9F3C238
       - name: ERC20
         address:
           - 0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81 # xVELO
@@ -482,6 +505,9 @@ networks:
       url: https://fraxtal.hypersync.xyz
     start_block: 0
     contracts:
+      - name: DynamicFeeSwapModule
+        address:
+          - 0xB0922e747e906B963dBdA37647DE1Aa709B35B2d
       - name: ERC20
         address:
           - 0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81 # xVELO
@@ -510,6 +536,9 @@ networks:
       url: https://1750.hypersync.xyz # Metal L2 hypersync address
     start_block: 0
     contracts:
+      - name: CustomFeeSwapModule
+        address:
+          - 0x6812eefC19deB79D5191b52f4B763260d9F3C238
       - name: NFPM
         address:
           - 0x991d5546C4B442B4c5fdc4c8B8b8d131DEB24702
@@ -530,11 +559,14 @@ networks:
         address:
       - name: CLPool
         address:
-  - id: 1923 # Swell
+  - id: 1923 # Swell2
     hypersync_config:
       url: https://swell.hypersync.xyz
     start_block: 3717939
     contracts:
+      - name: CustomFeeSwapModule
+        address:
+          - 0x6812eefC19deB79D5191b52f4B763260d9F3C238
       - name: ERC20
         address:
           - 0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81 # xVELO

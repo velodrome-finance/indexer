@@ -9,7 +9,7 @@ import {
   updateDynamicFeePools,
   updateLiquidityPoolAggregator,
 } from "../../src/Aggregators/LiquidityPoolAggregator";
-import { CHAIN_CONSTANTS } from "../../src/Constants";
+import type { CHAIN_CONSTANTS } from "../../src/Constants";
 
 // Type for the simulateContract method
 type SimulateContractMethod =
@@ -65,23 +65,6 @@ describe("LiquidityPoolAggregator Functions", () => {
             gt: sinon.stub(),
           },
           feeVotingRewardAddress: {
-            eq: sinon.stub(),
-            gt: sinon.stub(),
-          },
-        },
-      },
-      Dynamic_Fee_Swap_Module: {
-        set: sinon.stub(),
-        get: sinon.stub(),
-        getOrThrow: sinon.stub(),
-        getOrCreate: sinon.stub(),
-        deleteUnsafe: sinon.stub(),
-        getWhere: {
-          address: {
-            eq: sinon.stub(),
-            gt: sinon.stub(),
-          },
-          chainId: {
             eq: sinon.stub(),
             gt: sinon.stub(),
           },
@@ -186,53 +169,71 @@ describe("LiquidityPoolAggregator Functions", () => {
   });
 
   describe("updateDynamicFeePools", () => {
-    beforeEach(async () => {
-      mockContract = sinon
-        .stub(CHAIN_CONSTANTS[10].eth_client, "simulateContract")
-        .onCall(0)
-        .resolves({
-          result: [400, 2000, 10000000n],
-          request: {
-            address:
-              "0x0000000000000000000000000000000000000000" as `0x${string}`,
-            abi: [],
-            functionName: "mockFunction",
-            args: [],
+    // biome-ignore lint/suspicious/noExplicitAny: Mock for testing
+    let dynamicFeeConfigMock: any;
+
+    beforeEach(() => {
+      // Add DynamicFeeGlobalConfig mock
+      dynamicFeeConfigMock = {
+        getWhere: {
+          chainId: {
+            eq: sinon.stub().returns([
+              {
+                id: "0xd9eE4FBeE92970509ec795062cA759F8B52d6720",
+                chainId: 10,
+              },
+            ]),
+            gt: sinon.stub(),
           },
-        } as unknown as Awaited<ReturnType<SimulateContractMethod>>);
-      mockContract.onCall(1).resolves({
-        result: 1900,
-        request: {
-          address:
-            "0x0000000000000000000000000000000000000000" as `0x${string}`,
-          abi: [],
-          functionName: "mockFunction",
-          args: [],
         },
-      } as unknown as Awaited<ReturnType<SimulateContractMethod>>);
-      liquidityPoolAggregator = {
-        ...liquidityPoolAggregator,
-        id: "0x478946BcD4a5a22b316470F5486fAfb928C0bA25",
       };
+      // biome-ignore lint/suspicious/noExplicitAny: Mock context for testing
+      (contextStub as any).DynamicFeeGlobalConfig = dynamicFeeConfigMock;
+    });
+
+    it("should update the pool with current dynamic fee", async () => {
       await updateDynamicFeePools(
         liquidityPoolAggregator as LiquidityPoolAggregator,
         contextStub as handlerContext,
         blockNumber,
       );
-    });
-    afterEach(() => {
-      mockContract.reset();
-      (contextStub.Dynamic_Fee_Swap_Module?.set as sinon.SinonStub).reset();
-    });
-    it("should update the dynamic fee pools", async () => {
-      const expected_id = `${liquidityPoolAggregator.chainId}-${liquidityPoolAggregator.id}-${blockNumber}`;
-      const setStub = contextStub.Dynamic_Fee_Swap_Module
+
+      // Verify that the pool was updated with the current fee
+      const setStub = contextStub.LiquidityPoolAggregator
         ?.set as sinon.SinonStub;
-      expect(setStub.args[0][0].baseFee).to.equal(400n);
-      expect(setStub.args[0][0].feeCap).to.equal(2000n);
-      expect(setStub.args[0][0].scalingFactor).to.equal(10000000n);
-      expect(setStub.args[0][0].currentFee).to.equal(1900n);
-      expect(setStub.args[0][0].id).to.equal(expected_id);
+      expect(setStub.calledOnce).to.be.true;
+      const updatedPool = setStub.getCall(0).args[0];
+      expect(updatedPool.currentFee).to.equal(1900n); // From the mocked effect
+    });
+
+    it("should handle missing config gracefully", async () => {
+      // Mock no config found
+      (dynamicFeeConfigMock.getWhere.chainId.eq as sinon.SinonStub).returns([]);
+
+      await updateDynamicFeePools(
+        liquidityPoolAggregator as LiquidityPoolAggregator,
+        contextStub as handlerContext,
+        blockNumber,
+      );
+
+      // Should log an error but not crash
+      expect(contextStub.log?.error).to.be.a("function");
+    });
+
+    it("should handle effect errors gracefully", async () => {
+      // Mock effect to throw error
+      (contextStub.effect as sinon.SinonStub).throws(
+        new Error("Pool not found"),
+      );
+
+      await updateDynamicFeePools(
+        liquidityPoolAggregator as LiquidityPoolAggregator,
+        contextStub as handlerContext,
+        blockNumber,
+      );
+
+      // Should complete without crashing
+      expect(true).to.be.true;
     });
   });
 

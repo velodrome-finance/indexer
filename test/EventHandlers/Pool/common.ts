@@ -104,6 +104,7 @@ export function setupCommon() {
     baseFee: undefined,
     feeCap: undefined,
     scalingFactor: undefined,
+    currentFee: undefined,
   };
 
   return {

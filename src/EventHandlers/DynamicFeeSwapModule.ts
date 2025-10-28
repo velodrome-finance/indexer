@@ -38,6 +38,7 @@ DynamicFeeSwapModule.SecondsAgoSet.handler(async ({ event, context }) => {
 
   const config: DynamicFeeGlobalConfig = {
     id: configId,
+    chainId: event.chainId,
     secondsAgo: BigInt(event.params.secondsAgo),
   };
 

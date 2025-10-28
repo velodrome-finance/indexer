@@ -7,7 +7,6 @@ export {
 
 // Dynamic fee-related effects
 export {
-  getDynamicFeeConfig,
   getCurrentFee,
   getCurrentAccumulatedFeeCL,
 } from "./DynamicFee";

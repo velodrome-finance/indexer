@@ -4,57 +4,12 @@ import type { PublicClient } from "viem";
 import { CHAIN_CONSTANTS } from "../Constants";
 
 /**
- * Core logic for fetching dynamic fee configuration
- * This can be tested independently of the Effect API
- */
-export async function fetchDynamicFeeConfig(
-  poolAddress: string,
-  chainId: number,
-  blockNumber: number,
-  ethClient: PublicClient,
-  logger: Envio_logger,
-): Promise<{ baseFee: bigint; feeCap: bigint; scalingFactor: bigint }> {
-  try {
-    logger.info(
-      `[fetchDynamicFeeConfig] Fetching dynamic fee config for pool ${poolAddress} on chain ${chainId} at block ${blockNumber}`,
-    );
-    const DynamicFeePoolABI = require("../../abis/DynamicFeeSwapModule.json");
-    const DYNAMIC_FEE_MODULE_ADDRESS =
-      "0xd9eE4FBeE92970509ec795062cA759F8B52d6720"; // CA for dynamic fee module
-
-    const { result } = await ethClient.simulateContract({
-      address: DYNAMIC_FEE_MODULE_ADDRESS as `0x${string}`,
-      abi: DynamicFeePoolABI,
-      functionName: "dynamicFeeConfig",
-      args: [poolAddress],
-      blockNumber: BigInt(blockNumber),
-    });
-
-    const dynamicFeeConfig = {
-      baseFee: result[0],
-      feeCap: result[1],
-      scalingFactor: result[2],
-    };
-
-    logger.info(
-      `[fetchDynamicFeeConfig] Dynamic fee config fetched: baseFee=${dynamicFeeConfig.baseFee}, feeCap=${dynamicFeeConfig.feeCap}, scalingFactor=${dynamicFeeConfig.scalingFactor}`,
-    );
-    return dynamicFeeConfig;
-  } catch (error) {
-    logger.error(
-      `[fetchDynamicFeeConfig] Error fetching dynamic fee config for pool ${poolAddress} on chain ${chainId} at block ${blockNumber}:`,
-      error instanceof Error ? error : new Error(String(error)),
-    );
-    throw error;
-  }
-}
-
-/**
  * Core logic for fetching current fee
  * This can be tested independently of the Effect API
  */
 export async function fetchCurrentFee(
   poolAddress: string,
+  dynamicFeeModuleAddress: string,
   chainId: number,
   blockNumber: number,
   ethClient: PublicClient,
@@ -65,12 +20,11 @@ export async function fetchCurrentFee(
       `[fetchCurrentFee] Fetching current fee for pool ${poolAddress} on chain ${chainId} at block ${blockNumber}`,
     );
     const DynamicFeePoolABI = require("../../abis/DynamicFeeSwapModule.json");
-    const DYNAMIC_FEE_MODULE_ADDRESS =
-      "0xd9eE4FBeE92970509ec795062cA759F8B52d6720"; // CA for dynamic fee module
+    const CustomFeeSwapModuleABI = require("../../abis/CustomFeeSwapModule.json");
 
     const { result } = await ethClient.simulateContract({
-      address: DYNAMIC_FEE_MODULE_ADDRESS as `0x${string}`,
-      abi: DynamicFeePoolABI,
+      address: dynamicFeeModuleAddress as `0x${string}`,
+      abi: CustomFeeSwapModuleABI,
       functionName: "getFee",
       args: [poolAddress],
       blockNumber: BigInt(blockNumber),
@@ -130,40 +84,12 @@ export async function fetchCurrentAccumulatedFeeCL(
   }
 }
 
-// Dynamic Fee Module Effects
-export const getDynamicFeeConfig = experimental_createEffect(
-  {
-    name: "getDynamicFeeConfig",
-    input: {
-      poolAddress: S.string,
-      chainId: S.number,
-      blockNumber: S.number,
-    },
-    output: {
-      baseFee: S.bigint,
-      feeCap: S.bigint,
-      scalingFactor: S.bigint,
-    },
-    cache: true,
-  },
-  async ({ input, context }) => {
-    const { poolAddress, chainId, blockNumber } = input;
-    const ethClient = CHAIN_CONSTANTS[chainId].eth_client;
-    return await fetchDynamicFeeConfig(
-      poolAddress,
-      chainId,
-      blockNumber,
-      ethClient,
-      context.log,
-    );
-  },
-);
-
 export const getCurrentFee = experimental_createEffect(
   {
     name: "getCurrentFee",
     input: {
       poolAddress: S.string,
+      dynamicFeeModuleAddress: S.string,
       chainId: S.number,
       blockNumber: S.number,
     },
@@ -171,10 +97,12 @@ export const getCurrentFee = experimental_createEffect(
     cache: true,
   },
   async ({ input, context }) => {
-    const { poolAddress, chainId, blockNumber } = input;
+    const { poolAddress, dynamicFeeModuleAddress, chainId, blockNumber } =
+      input;
     const ethClient = CHAIN_CONSTANTS[chainId].eth_client;
     return await fetchCurrentFee(
       poolAddress,
+      dynamicFeeModuleAddress,
       chainId,
       blockNumber,
       ethClient,
