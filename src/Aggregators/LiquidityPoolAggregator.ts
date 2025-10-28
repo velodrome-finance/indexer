@@ -207,6 +207,11 @@ export async function updateLiquidityPoolAggregator(
     veNFTamountStaked:
       (diff.veNFTamountStaked ?? 0n) + current.veNFTamountStaked,
 
+    // Dynamic Fee fields - non-cumulative
+    baseFee: diff.baseFee ?? current.baseFee,
+    feeCap: diff.feeCap ?? current.feeCap,
+    scalingFactor: diff.scalingFactor ?? current.scalingFactor,
+
     lastUpdatedTimestamp: timestamp,
   };
 

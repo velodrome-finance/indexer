@@ -1,66 +1,93 @@
-import {
-  DynamicFeeSwapModule,
-  type DynamicFeeSwapModule_CustomFeeSet,
-  type DynamicFeeSwapModule_FeeCapSet,
-  type DynamicFeeSwapModule_ScalingFactorSet,
-  type DynamicFeeSwapModule_SecondsAgoSet,
+import { DynamicFeeSwapModule } from "generated";
+import type {
+  DynamicFeeGlobalConfig,
+  LiquidityPoolAggregator,
 } from "generated";
+import { updateLiquidityPoolAggregator } from "../Aggregators/LiquidityPoolAggregator";
+import { toChecksumAddress } from "../Constants";
 
 DynamicFeeSwapModule.CustomFeeSet.handler(async ({ event, context }) => {
-  const entity: DynamicFeeSwapModule_CustomFeeSet = {
-    id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
-    pool: event.params.pool,
-    fee: event.params.fee,
-    timestamp: new Date(event.block.timestamp * 1000),
-    transactionHash: event.transaction.hash,
-    blockNumber: event.block.number,
-    logIndex: event.logIndex,
-    chainId: event.chainId,
+  const pool = await context.LiquidityPoolAggregator.get(
+    toChecksumAddress(event.params.pool),
+  );
+
+  if (!pool) {
+    context.log.warn(
+      `Pool ${event.params.pool} not found for CustomFeeSet event`,
+    );
+    return;
+  }
+
+  const diff: Partial<LiquidityPoolAggregator> = {
+    baseFee: BigInt(event.params.fee),
   };
 
-  context.DynamicFeeSwapModule_CustomFeeSet.set(entity);
+  await updateLiquidityPoolAggregator(
+    diff,
+    pool,
+    new Date(event.block.timestamp * 1000),
+    context,
+    event.block.number,
+  );
 });
 
 DynamicFeeSwapModule.SecondsAgoSet.handler(async ({ event, context }) => {
-  const entity: DynamicFeeSwapModule_SecondsAgoSet = {
-    id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
-    secondsAgo: event.params.secondsAgo,
-    timestamp: new Date(event.block.timestamp * 1000),
-    transactionHash: event.transaction.hash,
-    blockNumber: event.block.number,
-    logIndex: event.logIndex,
-    chainId: event.chainId,
+  // secondsAgo is a global setting for the DynamicFeeSwapModule
+  // Store it in the DynamicFeeGlobalConfig entity
+  const configId = toChecksumAddress(event.srcAddress);
+
+  const config: DynamicFeeGlobalConfig = {
+    id: configId,
+    secondsAgo: BigInt(event.params.secondsAgo),
   };
 
-  context.DynamicFeeSwapModule_SecondsAgoSet.set(entity);
+  context.DynamicFeeGlobalConfig.set(config);
 });
 
 DynamicFeeSwapModule.ScalingFactorSet.handler(async ({ event, context }) => {
-  const entity: DynamicFeeSwapModule_ScalingFactorSet = {
-    id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
-    pool: event.params.pool,
-    scalingFactor: event.params.scalingFactor,
-    timestamp: new Date(event.block.timestamp * 1000),
-    transactionHash: event.transaction.hash,
-    blockNumber: event.block.number,
-    logIndex: event.logIndex,
-    chainId: event.chainId,
+  const pool = await context.LiquidityPoolAggregator.get(
+    toChecksumAddress(event.params.pool),
+  );
+
+  if (!pool) {
+    context.log.warn(
+      `Pool ${event.params.pool} not found for ScalingFactorSet event`,
+    );
+    return;
+  }
+
+  const diff: Partial<LiquidityPoolAggregator> = {
+    scalingFactor: BigInt(event.params.scalingFactor),
   };
 
-  context.DynamicFeeSwapModule_ScalingFactorSet.set(entity);
+  await updateLiquidityPoolAggregator(
+    diff,
+    pool,
+    new Date(event.block.timestamp * 1000),
+    context,
+    event.block.number,
+  );
 });
 
 DynamicFeeSwapModule.FeeCapSet.handler(async ({ event, context }) => {
-  const entity: DynamicFeeSwapModule_FeeCapSet = {
-    id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
-    pool: event.params.pool,
-    feeCap: event.params.feeCap,
-    timestamp: new Date(event.block.timestamp * 1000),
-    transactionHash: event.transaction.hash,
-    blockNumber: event.block.number,
-    logIndex: event.logIndex,
-    chainId: event.chainId,
+  const pool = await context.LiquidityPoolAggregator.get(
+    toChecksumAddress(event.params.pool),
+  );
+
+  if (!pool) {
+    context.log.warn(`Pool ${event.params.pool} not found for FeeCapSet event`);
+    return;
+  }
+
+  const diff: Partial<LiquidityPoolAggregator> = {
+    feeCap: BigInt(event.params.feeCap),
   };
 
-  context.DynamicFeeSwapModule_FeeCapSet.set(entity);
+  await updateLiquidityPoolAggregator(
+    diff,
+    pool,
+    new Date(event.block.timestamp * 1000),
+    context,
+    event.block.number,
+  );
 });

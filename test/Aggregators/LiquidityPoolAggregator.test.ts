@@ -173,6 +173,10 @@ describe("LiquidityPoolAggregator Functions", () => {
       poolLauncherPoolId: undefined,
       // Voting fields
       gaugeAddress: "",
+      // Dynamic Fee fields
+      baseFee: undefined,
+      feeCap: undefined,
+      scalingFactor: undefined,
     };
     timestamp = new Date();
   });

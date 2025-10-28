@@ -15,8 +15,11 @@ import {
   processGaugeDeposit,
   processGaugeWithdraw,
 } from "../../../src/EventHandlers/Gauges/GaugeSharedLogic";
+import { setupCommon } from "../Pool/common";
 
 describe("GaugeSharedLogic", () => {
+  const { mockLiquidityPoolData, mockToken0Data, mockToken1Data } =
+    setupCommon();
   const mockChainId = 8453;
   const mockPoolAddress = "0x1111111111111111111111111111111111111111";
   const mockGaugeAddress = "0x5555555555555555555555555555555555555555";
@@ -24,6 +27,7 @@ describe("GaugeSharedLogic", () => {
   const mockTimestamp = new Date(1000000 * 1000);
 
   const mockToken0: Token = {
+    ...mockToken0Data,
     id: "0x3333333333333333333333333333333333333333-8453",
     address: "0x3333333333333333333333333333333333333333",
     symbol: "USDC",
@@ -36,6 +40,7 @@ describe("GaugeSharedLogic", () => {
   };
 
   const mockToken1: Token = {
+    ...mockToken1Data,
     id: "0x4444444444444444444444444444444444444444-8453",
     address: "0x4444444444444444444444444444444444444444",
     symbol: "USDT",
@@ -56,6 +61,7 @@ describe("GaugeSharedLogic", () => {
 
   beforeEach(() => {
     mockLiquidityPoolAggregator = {
+      ...mockLiquidityPoolData,
       id: mockPoolAddress,
       chainId: mockChainId,
       name: "USDC/USDT",
@@ -64,62 +70,17 @@ describe("GaugeSharedLogic", () => {
       token0_address: mockToken0.address,
       token1_address: mockToken1.address,
       isStable: true,
-      isCL: false,
       reserve0: 1000000n,
       reserve1: 1000000n,
       totalLiquidityUSD: 2000000000000000000000000n, // 2M USD in 18 decimals
-      totalVolume0: 0n,
-      totalVolume1: 0n,
-      totalVolumeUSD: 0n,
-      totalVolumeUSDWhitelisted: 0n,
-      gaugeFees0CurrentEpoch: 0n,
-      gaugeFees1CurrentEpoch: 0n,
-      totalFees0: 0n,
-      totalFees1: 0n,
-      totalFeesUSD: 0n,
-      totalFeesUSDWhitelisted: 0n,
-      numberOfSwaps: 0n,
       token0Price: 1000000000000000000n,
       token1Price: 1000000000000000000n,
-      totalVotesDeposited: 0n,
-      totalVotesDepositedUSD: 0n,
-      totalEmissions: 0n,
-      totalEmissionsUSD: 0n,
-      totalBribesUSD: 0n,
+      gaugeAddress: mockGaugeAddress,
       gaugeIsAlive: true,
       token0IsWhitelisted: true,
       token1IsWhitelisted: true,
       lastUpdatedTimestamp: mockTimestamp,
       lastSnapshotTimestamp: mockTimestamp,
-      feeProtocol0: 0n,
-      feeProtocol1: 0n,
-      observationCardinalityNext: 0n,
-      totalFlashLoanFees0: 0n,
-      totalFlashLoanFees1: 0n,
-      totalFlashLoanFeesUSD: 0n,
-      totalFlashLoanVolumeUSD: 0n,
-      numberOfFlashLoans: 0n,
-      // Gauge fields
-      numberOfGaugeDeposits: 0n,
-      numberOfGaugeWithdrawals: 0n,
-      numberOfGaugeRewardClaims: 0n,
-      totalGaugeRewardsClaimedUSD: 0n,
-      totalGaugeRewardsClaimed: 0n,
-      currentLiquidityStakedUSD: 0n,
-      // Voting Reward fields
-      bribeVotingRewardAddress: "",
-      totalBribeClaimed: 0n,
-      totalBribeClaimedUSD: 0n,
-      feeVotingRewardAddress: "",
-      totalFeeRewardClaimed: 0n,
-      totalFeeRewardClaimedUSD: 0n,
-      veNFTamountStaked: 0n,
-      // Pool Launcher relationship
-      poolLauncherPoolId: undefined,
-      // Voting fields
-      gaugeAddress: mockGaugeAddress,
-      numberOfVotes: 0n,
-      currentVotingPower: 0n,
     };
 
     mockUserStatsPerPool = {

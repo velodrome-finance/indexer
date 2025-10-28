@@ -100,6 +100,10 @@ export function setupCommon() {
     gaugeAddress: "",
     numberOfVotes: 0n,
     currentVotingPower: 0n,
+    // Dynamic Fee fields
+    baseFee: undefined,
+    feeCap: undefined,
+    scalingFactor: undefined,
   };
 
   return {

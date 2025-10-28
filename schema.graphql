@@ -65,6 +65,11 @@ type LiquidityPoolAggregator {
   totalFeeRewardClaimedUSD: BigInt! @config(precision: 76) # total fee rewards claimed by users in USD
   veNFTamountStaked: BigInt! @config(precision: 76) # total amount of veNFT staked for this pool
 
+  # Dynamic Fee fields
+  baseFee: BigInt @config(precision: 24) # Current base fee set for pool
+  feeCap: BigInt @config(precision: 76) # Current fee cap for pool
+  scalingFactor: BigInt @config(precision: 76) # Current scaling factor for pool
+
   # Pool Launcher relationship
   poolLauncherPoolId: String # ID of the PoolLauncherPool entity if this pool was launched via Pool Launcher
 }
@@ -128,6 +133,11 @@ type LiquidityPoolAggregatorSnapshot {
   totalFeeRewardClaimed: BigInt! @config(precision: 76) # total fee rewards claimed by users in token units
   totalFeeRewardClaimedUSD: BigInt! @config(precision: 76) # total fee rewards claimed by users in USD
   veNFTamountStaked: BigInt! @config(precision: 76) # total amount of veNFT staked for this pool
+
+  # Dynamic Fee fields
+  baseFee: BigInt @config(precision: 24) # Current base fee set for pool
+  feeCap: BigInt @config(precision: 76) # Current fee cap for pool
+  scalingFactor: BigInt @config(precision: 76) # Current scaling factor for pool
 }
 
 # Entity for tracking user activity and positions in specific pools
@@ -457,47 +467,9 @@ type FactoryRegistry_Unapprove {
   chainId: Int!
 }
 
-type DynamicFeeSwapModule_CustomFeeSet {
-  id: ID!
-  chainId: Int!
-  pool: String!
-  fee: BigInt! @config(precision: 76)
-  timestamp: Timestamp!
-  transactionHash: String!
-  blockNumber: Int!
-  logIndex: Int!
-}
-
-type DynamicFeeSwapModule_SecondsAgoSet {
-  id: ID!
-  chainId: Int!
-  secondsAgo: BigInt! @config(precision: 76)
-  timestamp: Timestamp!
-  transactionHash: String!
-  blockNumber: Int!
-  logIndex: Int!
-}
-
-type DynamicFeeSwapModule_ScalingFactorSet {
-  id: ID!
-  chainId: Int!
-  pool: String!
-  scalingFactor: BigInt! @config(precision: 76)
-  timestamp: Timestamp!
-  transactionHash: String!
-  blockNumber: Int!
-  logIndex: Int!
-}
-
-type DynamicFeeSwapModule_FeeCapSet {
-  id: ID!
-  chainId: Int!
-  pool: String!
-  feeCap: BigInt! @config(precision: 76)
-  timestamp: Timestamp!
-  transactionHash: String!
-  blockNumber: Int!
-  logIndex: Int!
+type DynamicFeeGlobalConfig {
+  id: ID! # address of DynamicFeeSwapModule
+  secondsAgo: BigInt @config(precision: 32) # The amount of time used to calculate price change
 }
 
 # One per underlying pool (per chain) launched or migrated via Pool Launcher
