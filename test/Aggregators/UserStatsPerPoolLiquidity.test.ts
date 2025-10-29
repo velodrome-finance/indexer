@@ -41,6 +41,12 @@ describe("UserStatsPerPool Liquidity Logic", () => {
     totalFeeRewardClaimedUSD: 0n,
     veNFTamountStaked: 0n,
 
+    // ALM fields
+    almAddress: "",
+    almAmount0: 0n,
+    almAmount1: 0n,
+    almLpAmount: 0n,
+
     firstActivityTimestamp: mockTimestamp,
     lastActivityTimestamp: mockTimestamp,
   });

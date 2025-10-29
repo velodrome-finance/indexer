@@ -1,11 +1,14 @@
 import type {
+  ALM_LP_Wrapper,
   LiquidityPoolAggregator,
   Token,
+  UserStatsPerPool,
 } from "../../../generated/src/Types.gen";
 import {
   TEN_TO_THE_6_BI,
   TEN_TO_THE_18_BI,
   TokenIdByChain,
+  toChecksumAddress,
 } from "../../../src/Constants";
 
 export function setupCommon() {
@@ -107,9 +110,76 @@ export function setupCommon() {
     currentFee: undefined,
   };
 
+  const mockALMLPWrapperData: ALM_LP_Wrapper = {
+    id: `${toChecksumAddress("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")}_${mockLiquidityPoolData.chainId}`,
+    chainId: mockLiquidityPoolData.chainId,
+    pool: toChecksumAddress(mockLiquidityPoolData.id),
+    amount0: 1000n * TEN_TO_THE_18_BI,
+    amount1: 500n * TEN_TO_THE_6_BI,
+    lpAmount: 2000n * TEN_TO_THE_18_BI,
+    lastUpdatedTimestamp: new Date(900000 * 1000),
+  };
+
+  const defaultUserAddress = "0xAbCccccccccccccccccccccccccccccccccccccc";
+  const mockUserStatsPerPoolData: UserStatsPerPool = {
+    id: `${toChecksumAddress(defaultUserAddress)}_${toChecksumAddress(mockLiquidityPoolData.id)}_${mockLiquidityPoolData.chainId}`,
+    userAddress: toChecksumAddress(defaultUserAddress),
+    poolAddress: toChecksumAddress(mockLiquidityPoolData.id),
+    chainId: mockLiquidityPoolData.chainId,
+
+    // Liquidity metrics
+    currentLiquidityUSD: 0n,
+    currentLiquidityToken0: 0n,
+    currentLiquidityToken1: 0n,
+    totalLiquidityAddedUSD: 0n,
+    totalLiquidityRemovedUSD: 0n,
+
+    // Fee metrics
+    totalFeesContributedUSD: 0n,
+    totalFeesContributed0: 0n,
+    totalFeesContributed1: 0n,
+
+    // Swap metrics
+    numberOfSwaps: 0n,
+    totalSwapVolumeUSD: 0n,
+
+    // Flash swap metrics
+    numberOfFlashLoans: 0n,
+    totalFlashLoanVolumeUSD: 0n,
+
+    // Gauge metrics
+    numberOfGaugeDeposits: 0n,
+    numberOfGaugeWithdrawals: 0n,
+    numberOfGaugeRewardClaims: 0n,
+    totalGaugeRewardsClaimedUSD: 0n,
+    totalGaugeRewardsClaimed: 0n,
+    currentLiquidityStakedUSD: 0n,
+
+    // Voting metrics
+    numberOfVotes: 0n,
+    currentVotingPower: 0n,
+    totalBribeClaimed: 0n,
+    totalBribeClaimedUSD: 0n,
+    totalFeeRewardClaimed: 0n,
+    totalFeeRewardClaimedUSD: 0n,
+    veNFTamountStaked: 0n,
+
+    // ALM metrics - initialized to empty/zero values
+    almAddress: "",
+    almAmount0: 0n,
+    almAmount1: 0n,
+    almLpAmount: 0n,
+
+    // Timestamps
+    firstActivityTimestamp: new Date(900000 * 1000),
+    lastActivityTimestamp: new Date(900000 * 1000),
+  };
+
   return {
     mockToken0Data,
     mockToken1Data,
     mockLiquidityPoolData,
+    mockALMLPWrapperData,
+    mockUserStatsPerPoolData,
   };
 }

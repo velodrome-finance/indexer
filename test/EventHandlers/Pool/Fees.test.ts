@@ -180,6 +180,12 @@ describe("Pool Fees Event", () => {
       totalFeeRewardClaimedUSD: 0n,
       veNFTamountStaked: 0n,
 
+      // ALM fields
+      almAddress: "",
+      almAmount0: 0n,
+      almAmount1: 0n,
+      almLpAmount: 0n,
+
       firstActivityTimestamp: new Date(500000 * 1000),
       lastActivityTimestamp: new Date(800000 * 1000),
     };
