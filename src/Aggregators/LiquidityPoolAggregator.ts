@@ -38,7 +38,7 @@ export async function updateDynamicFeePools(
 
   if (!dynamicFeeGlobalConfigs || dynamicFeeGlobalConfigs.length === 0) {
     context.log.error(
-      `No dynamic fee global config found for chain ${chainId}`,
+      `No dynamic fee global config found for chain ${chainId}. No update to currentFee will be performed.`,
     );
     return;
   }

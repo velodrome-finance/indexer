@@ -20,11 +20,10 @@ export async function fetchCurrentFee(
       `[fetchCurrentFee] Fetching current fee for pool ${poolAddress} on chain ${chainId} at block ${blockNumber}`,
     );
     const DynamicFeePoolABI = require("../../abis/DynamicFeeSwapModule.json");
-    const CustomFeeSwapModuleABI = require("../../abis/CustomFeeSwapModule.json");
 
     const { result } = await ethClient.simulateContract({
       address: dynamicFeeModuleAddress as `0x${string}`,
-      abi: CustomFeeSwapModuleABI,
+      abi: DynamicFeePoolABI,
       functionName: "getFee",
       args: [poolAddress],
       blockNumber: BigInt(blockNumber),
