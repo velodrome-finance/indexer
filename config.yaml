@@ -126,7 +126,6 @@ contracts:
       - event: Deposit
       - event: Withdraw
       - event: Transfer
-      - event: TotalSupplyLimitUpdated
   - name: ERC20
     abi_file_path: abis/ERC20.json
     handler: src/EventHandlers/ERC20.ts

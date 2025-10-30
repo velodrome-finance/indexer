@@ -320,6 +320,12 @@ describe("UserStatsPerPool Aggregator", () => {
         totalFeeRewardClaimedUSD: 0n,
         veNFTamountStaked: 0n,
 
+        // ALM fields
+        almAddress: "",
+        almAmount0: 0n,
+        almAmount1: 0n,
+        almLpAmount: 0n,
+
         firstActivityTimestamp: new Date(500000 * 1000),
         lastActivityTimestamp: new Date(800000 * 1000),
       };
@@ -390,6 +396,12 @@ describe("UserStatsPerPool Aggregator", () => {
         totalFeeRewardClaimed: 0n,
         totalFeeRewardClaimedUSD: 0n,
         veNFTamountStaked: 0n,
+
+        // ALM fields
+        almAddress: "",
+        almAmount0: 0n,
+        almAmount1: 0n,
+        almLpAmount: 0n,
 
         firstActivityTimestamp: new Date(500000 * 1000),
         lastActivityTimestamp: new Date(800000 * 1000),

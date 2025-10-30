@@ -186,6 +186,12 @@ type UserStatsPerPool {
   totalFeeRewardClaimedUSD: BigInt! @config(precision: 76) # total USD value of fee rewards claimed by this user for this pool
   veNFTamountStaked: BigInt! @config(precision: 76) # amount of veNFT staked by this user for this pool
 
+  # ALM metrics
+  almAddress: String!
+  almAmount0: BigInt! @config(precision: 76) # Underlying amount of token0 associated with LP tokens owned
+  almAmount1: BigInt! @config(precision: 76) # Underlying amount of token1 associated with LP tokens owned
+  almLpAmount: BigInt! @config(precision: 76) # Number of LP tokens
+
   # Timestamps
   firstActivityTimestamp: Timestamp! # first activity in this pool
   lastActivityTimestamp: Timestamp! # last activity in this pool
@@ -365,60 +371,15 @@ type ALMDeployFactory_StrategyCreated_AmmPosition {
   logIndex: Int!
 }
 
-type ALMLPWrapper_Deposit {
-  id: ID!
-  sender: String!
-  recipient: String!
+# ALM entity on a pool basis
+type ALM_LP_Wrapper {
+  id: ID! # {ALMaddress}_{chainId}
+  chainId: Int!
   pool: String!
   amount0: BigInt! @config(precision: 76)
   amount1: BigInt! @config(precision: 76)
-  lpAmount: BigInt! @config(precision: 76)
-  totalSupply: BigInt! @config(precision: 76)
-  timestamp: Timestamp!
-  transactionHash: String!
-  chainId: Int!
-  blockNumber: Int!
-  logIndex: Int!
-}
-
-type ALMLPWrapper_Withdraw {
-  id: ID!
-  sender: String!
-  recipient: String!
-  pool: String!
-  amount0: BigInt! @config(precision: 76)
-  amount1: BigInt! @config(precision: 76)
-  lpAmount: BigInt! @config(precision: 76)
-  totalSupply: BigInt! @config(precision: 76)
-  timestamp: Timestamp!
-  transactionHash: String!
-  chainId: Int!
-  blockNumber: Int!
-  logIndex: Int!
-}
-
-type ALMLPWrapper_Transfer {
-  id: ID!
-  from: String!
-  to: String!
-  value: BigInt! @config(precision: 76)
-  timestamp: Timestamp!
-  transactionHash: String!
-  chainId: Int!
-  blockNumber: Int!
-  logIndex: Int!
-}
-
-type ALMLPWrapper_TotalSupplyLimitUpdated {
-  id: ID!
-  newTotalSupplyLimit: BigInt! @config(precision: 76)
-  totalSupplyLimitOld: BigInt! @config(precision: 76)
-  totalSupplyCurrent: BigInt! @config(precision: 76)
-  timestamp: Timestamp!
-  transactionHash: String!
-  chainId: Int!
-  blockNumber: Int!
-  logIndex: Int!
+  lpAmount: BigInt! @config(precision: 76) # Number of LP tokens
+  lastUpdatedTimestamp: Timestamp!
 }
 
 type ERC20_Transfer {

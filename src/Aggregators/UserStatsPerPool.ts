@@ -89,6 +89,12 @@ export function createUserStatsPerPoolEntity(
     totalFeeRewardClaimedUSD: 0n,
     veNFTamountStaked: 0n,
 
+    // ALM metrics - initialized to empty/zero values
+    almAddress: "",
+    almAmount0: 0n,
+    almAmount1: 0n,
+    almLpAmount: 0n,
+
     // Timestamps
     firstActivityTimestamp: timestamp,
     lastActivityTimestamp: timestamp,
@@ -213,6 +219,20 @@ export async function updateUserStatsPerPool(
       diff.veNFTamountStaked !== undefined
         ? current.veNFTamountStaked + diff.veNFTamountStaked
         : current.veNFTamountStaked,
+
+    // ALM metrics
+    almAmount0:
+      diff.almAmount0 !== undefined
+        ? current.almAmount0 + diff.almAmount0
+        : current.almAmount0,
+    almAmount1:
+      diff.almAmount1 !== undefined
+        ? current.almAmount1 + diff.almAmount1
+        : current.almAmount1,
+    almLpAmount:
+      diff.almLpAmount !== undefined
+        ? current.almLpAmount + diff.almLpAmount
+        : current.almLpAmount,
 
     lastActivityTimestamp: timestamp,
   };
