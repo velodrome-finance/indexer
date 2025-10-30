@@ -8,8 +8,11 @@ import type {
 import sinon from "sinon";
 import { processPoolSwap } from "../../../src/EventHandlers/Pool/PoolSwapLogic";
 import * as PriceOracle from "../../../src/PriceOracle";
+import { setupCommon } from "./common";
 
 describe("PoolSwapLogic", () => {
+  const { mockLiquidityPoolData, mockToken0Data, mockToken1Data } =
+    setupCommon();
   // Shared mock event for all tests
   const mockEvent: Pool_Swap_event = {
     params: {
@@ -43,13 +46,12 @@ describe("PoolSwapLogic", () => {
 
   // Mock liquidity pool aggregator
   const mockLiquidityPoolAggregator: LiquidityPoolAggregator = {
+    ...mockLiquidityPoolData,
     id: "0x3333333333333333333333333333333333333333",
-    chainId: 10,
-    token0_id: "token0_id",
-    token1_id: "token1_id",
-    token0_address: "0x1111111111111111111111111111111111111111",
-    token1_address: "0x2222222222222222222222222222222222222222",
-    isStable: false,
+    token0_id: mockToken0Data.id,
+    token1_id: mockToken1Data.id,
+    token0_address: mockToken0Data.address,
+    token1_address: mockToken1Data.address,
     reserve0: 1000n,
     reserve1: 1000n,
     totalLiquidityUSD: 2000n,
@@ -57,82 +59,27 @@ describe("PoolSwapLogic", () => {
     totalVolume1: 1n,
     totalVolumeUSD: 1200n,
     totalVolumeUSDWhitelisted: 1200n,
-    gaugeFees0CurrentEpoch: 0n,
-    gaugeFees1CurrentEpoch: 0n,
-    totalFees0: 0n,
-    totalFees1: 0n,
-    totalFeesUSD: 0n,
-    totalFeesUSDWhitelisted: 0n,
-    numberOfSwaps: 0n,
-    token0Price: 1000000000000000000n, // 1 USD in 1e18
-    token1Price: 5000000000000000000n, // 5 USD in 1e18
-    totalVotesDeposited: 0n,
-    totalVotesDepositedUSD: 0n,
-    totalEmissions: 0n,
-    totalEmissionsUSD: 0n,
-    totalBribesUSD: 0n,
+    token0Price: 1000000000000000000n,
+    token1Price: 5000000000000000000n,
     gaugeIsAlive: true,
-    isCL: false,
-    lastUpdatedTimestamp: new Date(),
-    lastSnapshotTimestamp: new Date(),
-    token0IsWhitelisted: true,
-    token1IsWhitelisted: true,
     name: "Test Pool",
-    // CL Pool specific fields (set to 0 for regular pools)
-    feeProtocol0: 0n,
-    feeProtocol1: 0n,
-    observationCardinalityNext: 0n,
-    totalFlashLoanFees0: 0n,
-    totalFlashLoanFees1: 0n,
-    totalFlashLoanFeesUSD: 0n,
-    totalFlashLoanVolumeUSD: 0n,
-    numberOfFlashLoans: 0n,
-    // Gauge fields
-    numberOfGaugeDeposits: 0n,
-    numberOfGaugeWithdrawals: 0n,
-    numberOfGaugeRewardClaims: 0n,
-    totalGaugeRewardsClaimedUSD: 0n,
-    totalGaugeRewardsClaimed: 0n,
-    currentLiquidityStakedUSD: 0n,
-    // Voting Reward fields
-    bribeVotingRewardAddress: "",
-    totalBribeClaimed: 0n,
-    totalBribeClaimedUSD: 0n,
-    feeVotingRewardAddress: "",
-    totalFeeRewardClaimed: 0n,
-    totalFeeRewardClaimedUSD: 0n,
-    veNFTamountStaked: 0n,
-    // Pool Launcher relationship
-    poolLauncherPoolId: undefined,
-    // Voting fields
-    gaugeAddress: "",
-    numberOfVotes: 0n,
-    currentVotingPower: 0n,
   };
 
   // Mock token instances
   const mockToken0: Token = {
+    ...mockToken0Data,
     id: "token0_id",
     address: "0x1111111111111111111111111111111111111111",
     symbol: "USDT",
-    name: "Tether USD",
-    decimals: 18n,
-    pricePerUSDNew: 1000000000000000000n, // 1 USD
-    chainId: 10,
-    isWhitelisted: true,
-    lastUpdatedTimestamp: new Date(),
   };
 
   const mockToken1: Token = {
+    ...mockToken1Data,
     id: "token1_id",
     address: "0x2222222222222222222222222222222222222222",
     symbol: "USDC",
     name: "USD Coin",
     decimals: 6n,
-    pricePerUSDNew: 1000000000000000000n, // 1 USD
-    chainId: 10,
-    isWhitelisted: true,
-    lastUpdatedTimestamp: new Date(),
   };
 
   let refreshTokenPriceStub: sinon.SinonStub;

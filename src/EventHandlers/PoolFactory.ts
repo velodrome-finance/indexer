@@ -139,6 +139,10 @@ PoolFactory.PoolCreated.handler(async ({ event, context }) => {
     gaugeAddress: "",
     numberOfVotes: 0n,
     currentVotingPower: 0n,
+    // Dynamic Fee fields (undefined initially)
+    baseFee: undefined,
+    feeCap: undefined,
+    scalingFactor: undefined,
   };
 
   updateLiquidityPoolAggregator(

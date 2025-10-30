@@ -9,8 +9,11 @@ import {
   linkLiquidityPoolAggregatorToPoolLauncher,
   processPoolLauncherPool,
 } from "../../../src/EventHandlers/PoolLauncher/PoolLauncherLogic";
+import { setupCommon } from "../Pool/common";
 
 describe("PoolLauncherLogic", () => {
+  const { mockLiquidityPoolData } = setupCommon();
+
   let mockContext: handlerContext;
   let mockDb: ReturnType<typeof MockDb.createMockDb>;
 
@@ -228,7 +231,8 @@ describe("PoolLauncherLogic", () => {
         const chainId = 8453;
 
         // Create an existing LiquidityPoolAggregator (as if created by CLFactory)
-        const existingLiquidityPoolAggregator = {
+        const existingLiquidityPoolAggregator: LiquidityPoolAggregator = {
+          ...mockLiquidityPoolData,
           id: "0x1234567890123456789012345678901234567890",
           chainId: 8453,
           name: "TEST/USDC",
@@ -278,20 +282,6 @@ describe("PoolLauncherLogic", () => {
           totalGaugeRewardsClaimedUSD: 5000n,
           totalGaugeRewardsClaimed: 5000n,
           currentLiquidityStakedUSD: 100000n,
-
-          // Voting Reward fields
-          bribeVotingRewardAddress: "",
-          totalBribeClaimed: 0n,
-          totalBribeClaimedUSD: 0n,
-          feeVotingRewardAddress: "",
-          totalFeeRewardClaimed: 0n,
-          totalFeeRewardClaimedUSD: 0n,
-          veNFTamountStaked: 0n,
-          poolLauncherPoolId: undefined,
-          // Voting fields
-          gaugeAddress: "",
-          numberOfVotes: 0n,
-          currentVotingPower: 0n, // Initially no link
         };
 
         mockDb = mockDb.entities.LiquidityPoolAggregator.set(
@@ -373,7 +363,8 @@ describe("PoolLauncherLogic", () => {
         const chainId = 8453;
 
         // Create an existing LiquidityPoolAggregator (as if created by V2Factory)
-        const existingLiquidityPoolAggregator = {
+        const existingLiquidityPoolAggregator: LiquidityPoolAggregator = {
+          ...mockLiquidityPoolData,
           id: "0x1234567890123456789012345678901234567890",
           chainId: 8453,
           name: "TEST/USDC",
@@ -423,20 +414,6 @@ describe("PoolLauncherLogic", () => {
           totalGaugeRewardsClaimedUSD: 5000n,
           totalGaugeRewardsClaimed: 5000n,
           currentLiquidityStakedUSD: 100000n,
-
-          // Voting Reward fields
-          bribeVotingRewardAddress: "",
-          totalBribeClaimed: 0n,
-          totalBribeClaimedUSD: 0n,
-          feeVotingRewardAddress: "",
-          totalFeeRewardClaimed: 0n,
-          totalFeeRewardClaimedUSD: 0n,
-          veNFTamountStaked: 0n,
-          poolLauncherPoolId: undefined,
-          // Voting fields
-          gaugeAddress: "",
-          numberOfVotes: 0n,
-          currentVotingPower: 0n, // Initially no link
         };
 
         mockDb = mockDb.entities.LiquidityPoolAggregator.set(
@@ -514,7 +491,8 @@ describe("PoolLauncherLogic", () => {
       const poolAddress = "0x1234567890123456789012345678901234567890";
       const chainId = 10; // Optimism
 
-      const existingLiquidityPoolAggregator = {
+      const existingLiquidityPoolAggregator: LiquidityPoolAggregator = {
+        ...mockLiquidityPoolData,
         id: "0x1234567890123456789012345678901234567890",
         chainId: 10,
         name: "TEST/USDC",
@@ -564,20 +542,6 @@ describe("PoolLauncherLogic", () => {
         totalGaugeRewardsClaimedUSD: 5000n,
         totalGaugeRewardsClaimed: 5000n,
         currentLiquidityStakedUSD: 100000n,
-
-        // Voting Reward fields
-        bribeVotingRewardAddress: "",
-        totalBribeClaimed: 0n,
-        totalBribeClaimedUSD: 0n,
-        feeVotingRewardAddress: "",
-        totalFeeRewardClaimed: 0n,
-        totalFeeRewardClaimedUSD: 0n,
-        veNFTamountStaked: 0n,
-        poolLauncherPoolId: undefined,
-        // Voting fields
-        gaugeAddress: "",
-        numberOfVotes: 0n,
-        currentVotingPower: 0n,
       };
 
       mockDb = mockDb.entities.LiquidityPoolAggregator.set(
@@ -605,7 +569,8 @@ describe("PoolLauncherLogic", () => {
       const poolAddress = "0x1234567890123456789012345678901234567890";
       const chainId = 8453;
 
-      const existingLiquidityPoolAggregator = {
+      const existingLiquidityPoolAggregator: LiquidityPoolAggregator = {
+        ...mockLiquidityPoolData,
         id: "0x1234567890123456789012345678901234567890",
         chainId: 8453,
         name: "TEST/USDC",
@@ -655,20 +620,6 @@ describe("PoolLauncherLogic", () => {
         totalGaugeRewardsClaimedUSD: 5000n,
         totalGaugeRewardsClaimed: 5000n,
         currentLiquidityStakedUSD: 100000n,
-
-        // Voting Reward fields
-        bribeVotingRewardAddress: "",
-        totalBribeClaimed: 0n,
-        totalBribeClaimedUSD: 0n,
-        feeVotingRewardAddress: "",
-        totalFeeRewardClaimed: 0n,
-        totalFeeRewardClaimedUSD: 0n,
-        veNFTamountStaked: 0n,
-        poolLauncherPoolId: undefined,
-        // Voting fields
-        gaugeAddress: "",
-        numberOfVotes: 0n,
-        currentVotingPower: 0n,
       };
 
       mockDb = mockDb.entities.LiquidityPoolAggregator.set(

@@ -227,6 +227,9 @@ networks:
   - id: 8453 # Base
     start_block: 0
     contracts:
+      - name: DynamicFeeSwapModule
+        address:
+          - 0xDB45818A6db280ecfeB33cbeBd445423d0216b5D
       - name: ERC20
         address:
           - 0x940181a94A35A4569E4529A3CDfB74e38FD98631 # AERO

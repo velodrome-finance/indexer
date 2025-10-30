@@ -6,8 +6,11 @@ import type {
   handlerContext,
 } from "generated";
 import { processCLPoolBurn } from "../../../src/EventHandlers/CLPool/CLPoolBurnLogic";
+import { setupCommon } from "../Pool/common";
 
 describe("CLPoolBurnLogic", () => {
+  const { mockLiquidityPoolData, mockToken0Data, mockToken1Data } =
+    setupCommon();
   const mockEvent: CLPool_Burn_event = {
     chainId: 10,
     block: {
@@ -30,93 +33,43 @@ describe("CLPoolBurnLogic", () => {
   } as CLPool_Burn_event;
 
   const mockLiquidityPoolAggregator: LiquidityPoolAggregator = {
+    ...mockLiquidityPoolData,
     id: "0x1234567890123456789012345678901234567890",
-    chainId: 10,
-    name: "Test Pool",
-    token0_id: "token0_id",
-    token1_id: "token1_id",
-    token0_address: "0xtoken0",
-    token1_address: "0xtoken1",
-    isStable: false,
+    token0_id: mockToken0Data.id,
+    token1_id: mockToken1Data.id,
+    token0_address: mockToken0Data.address,
+    token1_address: mockToken1Data.address,
     isCL: true,
     reserve0: 10000000n,
     reserve1: 6000000n,
     totalLiquidityUSD: 10000000n,
-    totalVolume0: 0n,
-    totalVolume1: 0n,
-    totalVolumeUSD: 0n,
-    totalVolumeUSDWhitelisted: 0n,
-    totalFees0: 0n,
-    totalFees1: 0n,
-    gaugeFees0CurrentEpoch: 0n,
-    gaugeFees1CurrentEpoch: 0n,
-    totalFeesUSD: 0n,
-    totalFeesUSDWhitelisted: 0n,
-    numberOfSwaps: 0n,
-    token0Price: 1000000000000000000n, // 1 USD
-    token1Price: 2000000000000000000n, // 2 USD
-    totalVotesDeposited: 0n,
-    totalVotesDepositedUSD: 0n,
-    totalEmissions: 0n,
-    totalEmissionsUSD: 0n,
-    totalBribesUSD: 0n,
+    token0Price: 1000000000000000000n,
+    token1Price: 2000000000000000000n,
     gaugeIsAlive: false,
     token0IsWhitelisted: false,
     token1IsWhitelisted: false,
     lastUpdatedTimestamp: new Date(1000000 * 1000),
     lastSnapshotTimestamp: new Date(1000000 * 1000),
-    feeProtocol0: 0n,
-    feeProtocol1: 0n,
-    observationCardinalityNext: 0n,
-    totalFlashLoanFees0: 0n,
-    totalFlashLoanFees1: 0n,
-    totalFlashLoanFeesUSD: 0n,
-    totalFlashLoanVolumeUSD: 0n,
-    numberOfFlashLoans: 0n,
-    // Gauge fields
-    numberOfGaugeDeposits: 0n,
-    numberOfGaugeWithdrawals: 0n,
-    numberOfGaugeRewardClaims: 0n,
-    totalGaugeRewardsClaimedUSD: 0n,
-    totalGaugeRewardsClaimed: 0n,
-    currentLiquidityStakedUSD: 0n,
-
-    // Voting Reward fields
-    bribeVotingRewardAddress: "",
-    totalBribeClaimed: 0n,
-    totalBribeClaimedUSD: 0n,
-    feeVotingRewardAddress: "",
-    totalFeeRewardClaimed: 0n,
-    totalFeeRewardClaimedUSD: 0n,
-    veNFTamountStaked: 0n,
-    // Pool Launcher relationship
-    poolLauncherPoolId: undefined,
-    // Voting fields
-    gaugeAddress: "",
-    numberOfVotes: 0n,
-    currentVotingPower: 0n,
   };
 
   const mockToken0: Token = {
+    ...mockToken0Data,
     id: "token0_id",
     address: "0xtoken0",
     symbol: "TOKEN0",
     name: "Token 0",
-    decimals: 18n,
-    pricePerUSDNew: 1000000000000000000n, // 1 USD
-    chainId: 10,
     isWhitelisted: false,
     lastUpdatedTimestamp: new Date(1000000 * 1000),
   };
 
   const mockToken1: Token = {
+    ...mockToken1Data,
     id: "token1_id",
     address: "0xtoken1",
     symbol: "TOKEN1",
     name: "Token 1",
     decimals: 18n,
-    pricePerUSDNew: 2000000000000000000n, // 2 USD
-    chainId: 10,
+    pricePerUSDNew: 2000000000000000000n,
     isWhitelisted: false,
     lastUpdatedTimestamp: new Date(1000000 * 1000),
   };
