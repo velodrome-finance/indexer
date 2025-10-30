@@ -1,10 +1,5 @@
-import {
-  getCurrentAccumulatedFeeCL,
-  getCurrentFee,
-  getDynamicFeeConfig,
-} from "../Effects/Index";
+import { getCurrentAccumulatedFeeCL, getCurrentFee } from "../Effects/Index";
 import type {
-  Dynamic_Fee_Swap_Module,
   LiquidityPoolAggregator,
   LiquidityPoolAggregatorSnapshot,
   Token,
@@ -12,8 +7,6 @@ import type {
 } from "./../src/Types.gen";
 
 const UPDATE_INTERVAL = 60 * 60 * 1000; // 1 hour
-
-const DYNAMIC_FEE_START_BLOCK = 131341414; // Starting from this block to track dynamic fee pools
 
 export type DynamicFeeConfig = {
   baseFee: bigint;
@@ -40,34 +33,37 @@ export async function updateDynamicFeePools(
   const poolAddress = liquidityPoolAggregator.id;
   const chainId = liquidityPoolAggregator.chainId;
 
-  if (chainId === 10 && blockNumber >= DYNAMIC_FEE_START_BLOCK) {
-    try {
-      const dynamicFeeConfigData = await context.effect(getDynamicFeeConfig, {
-        poolAddress,
-        chainId,
-        blockNumber,
-      });
-      const currentFee = await context.effect(getCurrentFee, {
-        poolAddress,
-        chainId,
-        blockNumber,
-      });
+  const dynamicFeeGlobalConfigs =
+    await context.DynamicFeeGlobalConfig.getWhere.chainId.eq(chainId);
 
-      const dynamicFeeConfig: Dynamic_Fee_Swap_Module = {
-        ...dynamicFeeConfigData,
-        currentFee,
-        pool: poolAddress,
-        timestamp: liquidityPoolAggregator.lastUpdatedTimestamp,
-        chainId,
-        blockNumber,
-        id: `${chainId}-${poolAddress}-${blockNumber}`,
-      };
+  if (!dynamicFeeGlobalConfigs || dynamicFeeGlobalConfigs.length === 0) {
+    context.log.error(
+      `No dynamic fee global config found for chain ${chainId}. No update to currentFee will be performed.`,
+    );
+    return;
+  }
 
-      context.Dynamic_Fee_Swap_Module.set(dynamicFeeConfig);
-    } catch (error) {
-      // No error if the pool is not a dynamic fee pool
-      return;
-    }
+  const dynamicFeeModuleAddress = dynamicFeeGlobalConfigs[0].id;
+
+  try {
+    // base fee + dynamic fee
+    const currentFee = await context.effect(getCurrentFee, {
+      poolAddress,
+      dynamicFeeModuleAddress,
+      chainId,
+      blockNumber,
+    });
+
+    // Update the current fee in the pool entity
+    const updated: LiquidityPoolAggregator = {
+      ...liquidityPoolAggregator,
+      currentFee,
+    };
+
+    context.LiquidityPoolAggregator.set(updated);
+  } catch (error) {
+    // No error if the pool is not a dynamic fee pool
+    return;
   }
 }
 

@@ -130,6 +130,7 @@ export async function processCLFactoryPoolCreated(
       baseFee: undefined,
       feeCap: undefined,
       scalingFactor: undefined,
+      currentFee: undefined,
     };
 
     return {

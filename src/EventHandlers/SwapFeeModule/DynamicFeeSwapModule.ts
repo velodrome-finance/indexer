@@ -3,8 +3,8 @@ import type {
   DynamicFeeGlobalConfig,
   LiquidityPoolAggregator,
 } from "generated";
-import { updateLiquidityPoolAggregator } from "../Aggregators/LiquidityPoolAggregator";
-import { toChecksumAddress } from "../Constants";
+import { updateLiquidityPoolAggregator } from "../../Aggregators/LiquidityPoolAggregator";
+import { toChecksumAddress } from "../../Constants";
 
 DynamicFeeSwapModule.CustomFeeSet.handler(async ({ event, context }) => {
   const pool = await context.LiquidityPoolAggregator.get(
@@ -38,6 +38,7 @@ DynamicFeeSwapModule.SecondsAgoSet.handler(async ({ event, context }) => {
 
   const config: DynamicFeeGlobalConfig = {
     id: configId,
+    chainId: event.chainId,
     secondsAgo: BigInt(event.params.secondsAgo),
   };
 

@@ -2,9 +2,9 @@ import { expect } from "chai";
 import {
   DynamicFeeSwapModule,
   MockDb,
-} from "../../generated/src/TestHelpers.gen";
-import { toChecksumAddress } from "../../src/Constants";
-import { setupCommon } from "./Pool/common";
+} from "../../../generated/src/TestHelpers.gen";
+import { toChecksumAddress } from "../../../src/Constants";
+import { setupCommon } from "../Pool/common";
 
 describe("DynamicFeeSwapModule Events", () => {
   const { mockLiquidityPoolData, mockToken0Data, mockToken1Data } =

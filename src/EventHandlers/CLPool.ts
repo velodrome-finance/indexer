@@ -227,13 +227,9 @@ CLPool.CollectFees.handler(async ({ event, context }) => {
     result.liquidityPoolDiff?.totalFeesUSD
   ) {
     const updatedUserStatsfields = {
-      totalFeesContributedUSD:
-        userData.totalFeesContributedUSD +
-        result.liquidityPoolDiff.totalFeesUSD,
-      totalFeesContributed0:
-        userData.totalFeesContributed0 + result.liquidityPoolDiff.totalFees0,
-      totalFeesContributed1:
-        userData.totalFeesContributed1 + result.liquidityPoolDiff.totalFees1,
+      totalFeesContributedUSD: result.liquidityPoolDiff.totalFeesUSD,
+      totalFeesContributed0: result.liquidityPoolDiff.totalFees0,
+      totalFeesContributed1: result.liquidityPoolDiff.totalFees1,
     };
 
     await updateUserStatsPerPool(
@@ -302,12 +298,8 @@ CLPool.Flash.handler(async ({ event, context }) => {
     result.userFlashLoanDiff.totalFlashLoanVolumeUSD > 0n
   ) {
     const updatedUserStatsfields = {
-      numberOfFlashLoans:
-        userData.numberOfFlashLoans +
-        result.userFlashLoanDiff.numberOfFlashLoans,
-      totalFlashLoanVolumeUSD:
-        userData.totalFlashLoanVolumeUSD +
-        result.userFlashLoanDiff.totalFlashLoanVolumeUSD,
+      numberOfFlashLoans: result.userFlashLoanDiff.numberOfFlashLoans,
+      totalFlashLoanVolumeUSD: result.userFlashLoanDiff.totalFlashLoanVolumeUSD,
     };
 
     await updateUserStatsPerPool(
@@ -504,9 +496,8 @@ CLPool.Swap.handler(async ({ event, context }) => {
   // Update user swap activity
   if (result.userSwapDiff) {
     const updatedUserStatsfields = {
-      numberOfSwaps: userData.numberOfSwaps + result.userSwapDiff.numberOfSwaps,
-      totalSwapVolumeUSD:
-        userData.totalSwapVolumeUSD + result.userSwapDiff.totalSwapVolumeUSD,
+      numberOfSwaps: result.userSwapDiff.numberOfSwaps,
+      totalSwapVolumeUSD: result.userSwapDiff.totalSwapVolumeUSD,
     };
 
     await updateUserStatsPerPool(

@@ -4,9 +4,8 @@ import type {
   LiquidityPoolAggregator,
   Token,
   UserStatsPerPool,
-  handlerContext,
 } from "../../../generated/src/Types.gen";
-import { toChecksumAddress } from "../../../src/Constants";
+import { CHAIN_CONSTANTS, toChecksumAddress } from "../../../src/Constants";
 import {
   type GaugeClaimRewardsData,
   type GaugeDepositData,
@@ -60,6 +59,12 @@ describe("GaugeSharedLogic", () => {
   let mockContext: any;
 
   beforeEach(() => {
+    // Mock CHAIN_CONSTANTS for the test
+    // biome-ignore lint/suspicious/noExplicitAny: Mock constants for testing
+    (CHAIN_CONSTANTS as any)[mockChainId] = {
+      rewardToken: () => "0x940181a94A35A4569E4529A3CDfB74e38FD98631", // AERO on Base
+    };
+
     mockLiquidityPoolAggregator = {
       ...mockLiquidityPoolData,
       id: mockPoolAddress,

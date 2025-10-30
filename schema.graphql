@@ -69,6 +69,7 @@ type LiquidityPoolAggregator {
   baseFee: BigInt @config(precision: 24) # Current base fee set for pool
   feeCap: BigInt @config(precision: 76) # Current fee cap for pool
   scalingFactor: BigInt @config(precision: 76) # Current scaling factor for pool
+  currentFee: BigInt @config(precision: 76) # Current fee for pool (base + dynamic)
 
   # Pool Launcher relationship
   poolLauncherPoolId: String # ID of the PoolLauncherPool entity if this pool was launched via Pool Launcher
@@ -138,6 +139,7 @@ type LiquidityPoolAggregatorSnapshot {
   baseFee: BigInt @config(precision: 24) # Current base fee set for pool
   feeCap: BigInt @config(precision: 76) # Current fee cap for pool
   scalingFactor: BigInt @config(precision: 76) # Current scaling factor for pool
+  currentFee: BigInt @config(precision: 76) # Current fee for pool (base + dynamic)
 }
 
 # Entity for tracking user activity and positions in specific pools
@@ -431,18 +433,6 @@ type ERC20_Transfer {
   transactionHash: String!
 }
 
-type Dynamic_Fee_Swap_Module {
-  id: ID!
-  pool: String!
-  baseFee: BigInt! @config(precision: 76)
-  feeCap: BigInt! @config(precision: 76)
-  scalingFactor: BigInt! @config(precision: 76)
-  currentFee: BigInt! @config(precision: 76)
-  timestamp: Timestamp!
-  chainId: Int!
-  blockNumber: Int!
-}
-
 type FactoryRegistry_Approve {
   id: ID!
   poolFactory: String!
@@ -469,6 +459,7 @@ type FactoryRegistry_Unapprove {
 
 type DynamicFeeGlobalConfig {
   id: ID! # address of DynamicFeeSwapModule
+  chainId: Int! @index
   secondsAgo: BigInt @config(precision: 32) # The amount of time used to calculate price change
 }
 
