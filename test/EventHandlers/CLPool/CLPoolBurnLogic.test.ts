@@ -84,114 +84,60 @@ describe("CLPoolBurnLogic", () => {
 
   describe("processCLPoolBurn", () => {
     it("should process burn event successfully with valid data", async () => {
-      const loaderReturn = {
-        _type: "success" as const,
-        liquidityPoolAggregator: mockLiquidityPoolAggregator,
-        token0Instance: mockToken0,
-        token1Instance: mockToken1,
-      };
-
       const result = await processCLPoolBurn(
         mockEvent,
-        loaderReturn,
+        mockToken0,
+        mockToken1,
         mockContext,
       );
 
-      expect(result.error).to.be.undefined;
-      expect(result.liquidityPoolDiff).to.not.be.undefined;
-      expect(result.userLiquidityDiff).to.not.be.undefined;
-
       // Check liquidity pool diff with exact values
-      expect(result.liquidityPoolDiff?.reserve0).to.equal(500000n); // New reserve0 value
-      expect(result.liquidityPoolDiff?.reserve1).to.equal(300000n); // New reserve1 value
+      expect(result.liquidityPoolDiff.reserve0).to.equal(500000n); // New reserve0 value
+      expect(result.liquidityPoolDiff.reserve1).to.equal(300000n); // New reserve1 value
 
       // Calculate exact totalLiquidityUSD: (500000 * 1 USD) + (300000 * 2 USD) = 500000 + 600000 = 1100000 USD
-      expect(result.liquidityPoolDiff?.totalLiquidityUSD).to.equal(1100000n); // 1.1M USD in 18 decimals
+      expect(result.liquidityPoolDiff.totalLiquidityUSD).to.equal(1100000n); // 1.1M USD in 18 decimals
 
       // Exact timestamp: 1000000 * 1000 = 1000000000ms
-      expect(result.liquidityPoolDiff?.lastUpdatedTimestamp).to.deep.equal(
+      expect(result.liquidityPoolDiff.lastUpdatedTimestamp).to.deep.equal(
         new Date(1000000000),
       );
 
       // Check user liquidity diff with exact values
       // netLiquidityAddedUSD should be negative for burn (removal): -1100000n
-      expect(result.userLiquidityDiff?.netLiquidityAddedUSD).to.equal(
-        -1100000n,
-      );
-      expect(result.userLiquidityDiff?.currentLiquidityToken0).to.equal(
+      expect(result.userLiquidityDiff.netLiquidityAddedUSD).to.equal(-1100000n);
+      expect(result.userLiquidityDiff.currentLiquidityToken0).to.equal(
         -500000n,
       ); // Negative amount of token0 removed
-      expect(result.userLiquidityDiff?.currentLiquidityToken1).to.equal(
+      expect(result.userLiquidityDiff.currentLiquidityToken1).to.equal(
         -300000n,
       ); // Negative amount of token1 removed
-      expect(result.userLiquidityDiff?.timestamp).to.deep.equal(
+      expect(result.userLiquidityDiff.timestamp).to.deep.equal(
         new Date(1000000000),
       );
     });
 
-    it("should handle TokenNotFoundError", async () => {
-      const loaderReturn = {
-        _type: "TokenNotFoundError" as const,
-        message: "Token not found",
-      };
-
-      const result = await processCLPoolBurn(
-        mockEvent,
-        loaderReturn,
-        mockContext,
-      );
-
-      expect(result.error).to.equal("Token not found");
-      expect(result.liquidityPoolDiff).to.be.undefined;
-      expect(result.userLiquidityDiff).to.be.undefined;
-    });
-
-    it("should handle LiquidityPoolAggregatorNotFoundError", async () => {
-      const loaderReturn = {
-        _type: "LiquidityPoolAggregatorNotFoundError" as const,
-        message: "Pool not found",
-      };
-
-      const result = await processCLPoolBurn(
-        mockEvent,
-        loaderReturn,
-        mockContext,
-      );
-
-      expect(result.error).to.equal("Pool not found");
-      expect(result.liquidityPoolDiff).to.be.undefined;
-      expect(result.userLiquidityDiff).to.be.undefined;
-    });
-
     it("should calculate correct liquidity values for burn event", async () => {
-      const loaderReturn = {
-        _type: "success" as const,
-        liquidityPoolAggregator: mockLiquidityPoolAggregator,
-        token0Instance: mockToken0,
-        token1Instance: mockToken1,
-      };
-
       const result = await processCLPoolBurn(
         mockEvent,
-        loaderReturn,
+        mockToken0,
+        mockToken1,
         mockContext,
       );
 
       // For burn events, we expect negative liquidity change with exact values
-      expect(result.userLiquidityDiff?.netLiquidityAddedUSD).to.equal(
-        -1100000n,
-      );
-      expect(result.userLiquidityDiff?.currentLiquidityToken0).to.equal(
+      expect(result.userLiquidityDiff.netLiquidityAddedUSD).to.equal(-1100000n);
+      expect(result.userLiquidityDiff.currentLiquidityToken0).to.equal(
         -500000n,
       );
-      expect(result.userLiquidityDiff?.currentLiquidityToken1).to.equal(
+      expect(result.userLiquidityDiff.currentLiquidityToken1).to.equal(
         -300000n,
       );
 
       // The liquidity pool diff should reflect the new reserve values
-      expect(result.liquidityPoolDiff?.reserve0).to.equal(500000n); // New reserve0 value
-      expect(result.liquidityPoolDiff?.reserve1).to.equal(300000n); // New reserve1 value
-      expect(result.liquidityPoolDiff?.totalLiquidityUSD).to.equal(1100000n);
+      expect(result.liquidityPoolDiff.reserve0).to.equal(500000n); // New reserve0 value
+      expect(result.liquidityPoolDiff.reserve1).to.equal(300000n); // New reserve1 value
+      expect(result.liquidityPoolDiff.totalLiquidityUSD).to.equal(1100000n);
     });
 
     it("should handle different token decimals correctly", async () => {
@@ -200,20 +146,13 @@ describe("CLPoolBurnLogic", () => {
         decimals: 6n, // USDC-like token
       };
 
-      const loaderReturn = {
-        _type: "success" as const,
-        liquidityPoolAggregator: mockLiquidityPoolAggregator,
-        token0Instance: tokenWithDifferentDecimals,
-        token1Instance: mockToken1,
-      };
-
       const result = await processCLPoolBurn(
         mockEvent,
-        loaderReturn,
+        tokenWithDifferentDecimals,
+        mockToken1,
         mockContext,
       );
 
-      expect(result.error).to.be.undefined;
       expect(result.liquidityPoolDiff).to.not.be.undefined;
       expect(result.userLiquidityDiff).to.not.be.undefined;
     });

@@ -84,114 +84,64 @@ describe("CLPoolSwapLogic", () => {
 
   describe("processCLPoolSwap", () => {
     it("should process swap event successfully with valid data", async () => {
-      const loaderReturn = {
-        _type: "success" as const,
-        liquidityPoolAggregator: mockLiquidityPoolAggregator,
-        token0Instance: mockToken0,
-        token1Instance: mockToken1,
-      };
-
       const result = await processCLPoolSwap(
         mockEvent,
-        loaderReturn,
+        mockLiquidityPoolAggregator,
+        mockToken0,
+        mockToken1,
         mockContext,
       );
 
-      expect(result.error).to.be.undefined;
-      expect(result.liquidityPoolDiff).to.not.be.undefined;
-      expect(result.userSwapDiff).to.not.be.undefined;
-
       // Check liquidity pool diff with exact values
-      expect(result.liquidityPoolDiff?.totalVolume0).to.equal(
+      expect(result.liquidityPoolDiff.totalVolume0).to.equal(
         1000000000000000000n,
       ); // amount0 (1 token)
-      expect(result.liquidityPoolDiff?.totalVolume1).to.equal(
+      expect(result.liquidityPoolDiff.totalVolume1).to.equal(
         2000000000000000000n,
       ); // |amount1| (2 tokens, absolute value)
-      expect(result.liquidityPoolDiff?.numberOfSwaps).to.equal(1n);
+      expect(result.liquidityPoolDiff.numberOfSwaps).to.equal(1n);
 
-      expect(result.liquidityPoolDiff?.totalVolumeUSD).to.equal(
+      expect(result.liquidityPoolDiff.totalVolumeUSD).to.equal(
         1000000000000000000n,
       );
 
       // Exact timestamp: 1000000 * 1000 = 1000000000ms
-      expect(result.liquidityPoolDiff?.lastUpdatedTimestamp).to.deep.equal(
+      expect(result.liquidityPoolDiff.lastUpdatedTimestamp).to.deep.equal(
         new Date(1000000000),
       );
 
       // Check user swap diff with exact values
-      expect(result.userSwapDiff?.numberOfSwaps).to.equal(1n);
-      expect(result.userSwapDiff?.totalSwapVolumeUSD).to.equal(
+      expect(result.userSwapDiff.numberOfSwaps).to.equal(1n);
+      expect(result.userSwapDiff.totalSwapVolumeUSD).to.equal(
         1000000000000000000n,
       ); // 5 USD in 18 decimals
-      expect(result.userSwapDiff?.timestamp).to.deep.equal(
-        new Date(1000000000),
-      );
-    });
-
-    it("should handle TokenNotFoundError", async () => {
-      const loaderReturn = {
-        _type: "TokenNotFoundError" as const,
-        message: "Token not found",
-      };
-
-      const result = await processCLPoolSwap(
-        mockEvent,
-        loaderReturn,
-        mockContext,
-      );
-
-      expect(result.error).to.equal("Token not found");
-      expect(result.liquidityPoolDiff).to.be.undefined;
-      expect(result.userSwapDiff).to.be.undefined;
-    });
-
-    it("should handle LiquidityPoolAggregatorNotFoundError", async () => {
-      const loaderReturn = {
-        _type: "LiquidityPoolAggregatorNotFoundError" as const,
-        message: "Pool not found",
-      };
-
-      const result = await processCLPoolSwap(
-        mockEvent,
-        loaderReturn,
-        mockContext,
-      );
-
-      expect(result.error).to.equal("Pool not found");
-      expect(result.liquidityPoolDiff).to.be.undefined;
-      expect(result.userSwapDiff).to.be.undefined;
+      expect(result.userSwapDiff.timestamp).to.deep.equal(new Date(1000000000));
     });
 
     it("should calculate correct volume values for swap event", async () => {
-      const loaderReturn = {
-        _type: "success" as const,
-        liquidityPoolAggregator: mockLiquidityPoolAggregator,
-        token0Instance: mockToken0,
-        token1Instance: mockToken1,
-      };
-
       const result = await processCLPoolSwap(
         mockEvent,
-        loaderReturn,
+        mockLiquidityPoolAggregator,
+        mockToken0,
+        mockToken1,
         mockContext,
       );
 
       // The liquidity pool diff should reflect the swap volumes with exact values
-      expect(result.liquidityPoolDiff?.totalVolume0).to.equal(
+      expect(result.liquidityPoolDiff.totalVolume0).to.equal(
         1000000000000000000n,
       ); // amount0
-      expect(result.liquidityPoolDiff?.totalVolume1).to.equal(
+      expect(result.liquidityPoolDiff.totalVolume1).to.equal(
         2000000000000000000n,
       ); // |amount1|
-      expect(result.liquidityPoolDiff?.totalVolumeUSD).to.equal(
+      expect(result.liquidityPoolDiff.totalVolumeUSD).to.equal(
         1000000000000000000n,
       );
-      expect(result.liquidityPoolDiff?.numberOfSwaps).to.equal(1n);
+      expect(result.liquidityPoolDiff.numberOfSwaps).to.equal(1n);
 
       // User swap diff should track individual user activity with exact values
-      expect(result.userSwapDiff?.numberOfSwaps).to.equal(1n);
-      expect(result.userSwapDiff?.totalSwapVolumeUSD).to.equal(
+      expect(result.userSwapDiff.numberOfSwaps).to.equal(1n);
+      expect(result.userSwapDiff.totalSwapVolumeUSD).to.equal(
         1000000000000000000n,
       );
     });
@@ -202,20 +152,14 @@ describe("CLPoolSwapLogic", () => {
         decimals: 6n, // USDC-like token
       };
 
-      const loaderReturn = {
-        _type: "success" as const,
-        liquidityPoolAggregator: mockLiquidityPoolAggregator,
-        token0Instance: tokenWithDifferentDecimals,
-        token1Instance: mockToken1,
-      };
-
       const result = await processCLPoolSwap(
         mockEvent,
-        loaderReturn,
+        mockLiquidityPoolAggregator,
+        tokenWithDifferentDecimals,
+        mockToken1,
         mockContext,
       );
 
-      expect(result.error).to.be.undefined;
       expect(result.liquidityPoolDiff).to.not.be.undefined;
       expect(result.userSwapDiff).to.not.be.undefined;
     });
@@ -230,24 +174,18 @@ describe("CLPoolSwapLogic", () => {
         },
       };
 
-      const loaderReturn = {
-        _type: "success" as const,
-        liquidityPoolAggregator: mockLiquidityPoolAggregator,
-        token0Instance: mockToken0,
-        token1Instance: mockToken1,
-      };
-
       const result = await processCLPoolSwap(
         eventWithZeroAmounts,
-        loaderReturn,
+        mockLiquidityPoolAggregator,
+        mockToken0,
+        mockToken1,
         mockContext,
       );
 
-      expect(result.error).to.be.undefined;
-      expect(result.liquidityPoolDiff?.totalVolume0).to.equal(0n);
-      expect(result.liquidityPoolDiff?.totalVolume1).to.equal(0n);
-      expect(result.liquidityPoolDiff?.totalVolumeUSD).to.equal(0n);
-      expect(result.userSwapDiff?.totalSwapVolumeUSD).to.equal(0n);
+      expect(result.liquidityPoolDiff.totalVolume0).to.equal(0n);
+      expect(result.liquidityPoolDiff.totalVolume1).to.equal(0n);
+      expect(result.liquidityPoolDiff.totalVolumeUSD).to.equal(0n);
+      expect(result.userSwapDiff.totalSwapVolumeUSD).to.equal(0n);
     });
 
     it("should handle existing swap data correctly", async () => {
@@ -259,27 +197,22 @@ describe("CLPoolSwapLogic", () => {
         numberOfSwaps: 5n,
       };
 
-      const loaderReturn = {
-        _type: "success" as const,
-        liquidityPoolAggregator: poolWithExistingSwaps,
-        token0Instance: mockToken0,
-        token1Instance: mockToken1,
-      };
-
       const result = await processCLPoolSwap(
         mockEvent,
-        loaderReturn,
+        poolWithExistingSwaps,
+        mockToken0,
+        mockToken1,
         mockContext,
       );
 
-      expect(result.liquidityPoolDiff?.numberOfSwaps).to.equal(1n); // Only the diff, not cumulative
-      expect(result.liquidityPoolDiff?.totalVolume0).to.equal(
+      expect(result.liquidityPoolDiff.numberOfSwaps).to.equal(1n); // Only the diff, not cumulative
+      expect(result.liquidityPoolDiff.totalVolume0).to.equal(
         1000000000000000000n,
       ); // amount0
-      expect(result.liquidityPoolDiff?.totalVolume1).to.equal(
+      expect(result.liquidityPoolDiff.totalVolume1).to.equal(
         2000000000000000000n,
       ); // |amount1|
-      expect(result.liquidityPoolDiff?.totalVolumeUSD).to.equal(
+      expect(result.liquidityPoolDiff.totalVolumeUSD).to.equal(
         1000000000000000000n,
       ); // Only the diff, not cumulative
     });

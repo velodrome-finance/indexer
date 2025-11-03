@@ -85,115 +85,65 @@ describe("CLPoolMintLogic", () => {
 
   describe("processCLPoolMint", () => {
     it("should process mint event successfully with valid data", async () => {
-      const loaderReturn = {
-        _type: "success" as const,
-        liquidityPoolAggregator: mockLiquidityPoolAggregator,
-        token0Instance: mockToken0,
-        token1Instance: mockToken1,
-      };
-
       const result = await processCLPoolMint(
         mockEvent,
-        loaderReturn,
+        mockToken0,
+        mockToken1,
         mockContext,
       );
 
-      expect(result.error).to.be.undefined;
-      expect(result.liquidityPoolDiff).to.not.be.undefined;
-      expect(result.userLiquidityDiff).to.not.be.undefined;
-
       // Check liquidity pool diff with exact values
-      expect(result.liquidityPoolDiff?.reserve0).to.equal(500000000000000000n); // amount0 (0.5 token)
-      expect(result.liquidityPoolDiff?.reserve1).to.equal(300000000000000000n); // amount1 (0.3 token)
+      expect(result.liquidityPoolDiff.reserve0).to.equal(500000000000000000n); // amount0 (0.5 token)
+      expect(result.liquidityPoolDiff.reserve1).to.equal(300000000000000000n); // amount1 (0.3 token)
 
       // Calculate exact totalLiquidityUSD: (0.5 * 1 USD) + (0.3 * 2 USD) = 0.5 + 0.6 = 1.1 USD
-      expect(result.liquidityPoolDiff?.totalLiquidityUSD).to.equal(
+      expect(result.liquidityPoolDiff.totalLiquidityUSD).to.equal(
         1100000000000000000n,
       ); // 1.1 USD in 18 decimals
 
       // Exact timestamp: 1000000 * 1000 = 1000000000ms
-      expect(result.liquidityPoolDiff?.lastUpdatedTimestamp).to.deep.equal(
+      expect(result.liquidityPoolDiff.lastUpdatedTimestamp).to.deep.equal(
         new Date(1000000000),
       );
 
       // Check user liquidity diff with exact values
-      expect(result.userLiquidityDiff?.netLiquidityAddedUSD).to.equal(
+      expect(result.userLiquidityDiff.netLiquidityAddedUSD).to.equal(
         1100000000000000000n,
       ); // 1.1 USD in 18 decimals (positive for addition)
-      expect(result.userLiquidityDiff?.currentLiquidityToken0).to.equal(
+      expect(result.userLiquidityDiff.currentLiquidityToken0).to.equal(
         500000000000000000n,
       ); // amount0
-      expect(result.userLiquidityDiff?.currentLiquidityToken1).to.equal(
+      expect(result.userLiquidityDiff.currentLiquidityToken1).to.equal(
         300000000000000000n,
       ); // amount1
-      expect(result.userLiquidityDiff?.timestamp).to.deep.equal(
+      expect(result.userLiquidityDiff.timestamp).to.deep.equal(
         new Date(1000000000),
       );
     });
 
-    it("should handle TokenNotFoundError", async () => {
-      const loaderReturn = {
-        _type: "TokenNotFoundError" as const,
-        message: "Token not found",
-      };
-
-      const result = await processCLPoolMint(
-        mockEvent,
-        loaderReturn,
-        mockContext,
-      );
-
-      expect(result.error).to.equal("Token not found");
-      expect(result.liquidityPoolDiff).to.be.undefined;
-      expect(result.userLiquidityDiff).to.be.undefined;
-    });
-
-    it("should handle LiquidityPoolAggregatorNotFoundError", async () => {
-      const loaderReturn = {
-        _type: "LiquidityPoolAggregatorNotFoundError" as const,
-        message: "Pool not found",
-      };
-
-      const result = await processCLPoolMint(
-        mockEvent,
-        loaderReturn,
-        mockContext,
-      );
-
-      expect(result.error).to.equal("Pool not found");
-      expect(result.liquidityPoolDiff).to.be.undefined;
-      expect(result.userLiquidityDiff).to.be.undefined;
-    });
-
     it("should calculate correct liquidity values for mint event", async () => {
-      const loaderReturn = {
-        _type: "success" as const,
-        liquidityPoolAggregator: mockLiquidityPoolAggregator,
-        token0Instance: mockToken0,
-        token1Instance: mockToken1,
-      };
-
       const result = await processCLPoolMint(
         mockEvent,
-        loaderReturn,
+        mockToken0,
+        mockToken1,
         mockContext,
       );
 
       // For mint events, we expect positive liquidity change with exact values
-      expect(result.userLiquidityDiff?.netLiquidityAddedUSD).to.equal(
+      expect(result.userLiquidityDiff.netLiquidityAddedUSD).to.equal(
         1100000000000000000n,
       ); // 1.1 USD in 18 decimals
-      expect(result.userLiquidityDiff?.currentLiquidityToken0).to.equal(
+      expect(result.userLiquidityDiff.currentLiquidityToken0).to.equal(
         500000000000000000n,
       ); // amount0
-      expect(result.userLiquidityDiff?.currentLiquidityToken1).to.equal(
+      expect(result.userLiquidityDiff.currentLiquidityToken1).to.equal(
         300000000000000000n,
       ); // amount1
 
       // The liquidity pool diff should reflect the amounts being added with exact values
-      expect(result.liquidityPoolDiff?.reserve0).to.equal(500000000000000000n); // amount0
-      expect(result.liquidityPoolDiff?.reserve1).to.equal(300000000000000000n); // amount1
-      expect(result.liquidityPoolDiff?.totalLiquidityUSD).to.equal(
+      expect(result.liquidityPoolDiff.reserve0).to.equal(500000000000000000n); // amount0
+      expect(result.liquidityPoolDiff.reserve1).to.equal(300000000000000000n); // amount1
+      expect(result.liquidityPoolDiff.totalLiquidityUSD).to.equal(
         1100000000000000000n,
       ); // 1.1 USD in 18 decimals
     });
@@ -204,20 +154,13 @@ describe("CLPoolMintLogic", () => {
         decimals: 6n, // USDC-like token
       };
 
-      const loaderReturn = {
-        _type: "success" as const,
-        liquidityPoolAggregator: mockLiquidityPoolAggregator,
-        token0Instance: tokenWithDifferentDecimals,
-        token1Instance: mockToken1,
-      };
-
       const result = await processCLPoolMint(
         mockEvent,
-        loaderReturn,
+        tokenWithDifferentDecimals,
+        mockToken1,
         mockContext,
       );
 
-      expect(result.error).to.be.undefined;
       expect(result.liquidityPoolDiff).to.not.be.undefined;
       expect(result.userLiquidityDiff).to.not.be.undefined;
     });
@@ -232,23 +175,16 @@ describe("CLPoolMintLogic", () => {
         },
       };
 
-      const loaderReturn = {
-        _type: "success" as const,
-        liquidityPoolAggregator: mockLiquidityPoolAggregator,
-        token0Instance: mockToken0,
-        token1Instance: mockToken1,
-      };
-
       const result = await processCLPoolMint(
         eventWithZeroAmounts,
-        loaderReturn,
+        mockToken0,
+        mockToken1,
         mockContext,
       );
 
-      expect(result.error).to.be.undefined;
-      expect(result.liquidityPoolDiff?.reserve0).to.equal(0n);
-      expect(result.liquidityPoolDiff?.reserve1).to.equal(0n);
-      expect(result.userLiquidityDiff?.netLiquidityAddedUSD).to.equal(0n);
+      expect(result.liquidityPoolDiff.reserve0).to.equal(0n);
+      expect(result.liquidityPoolDiff.reserve1).to.equal(0n);
+      expect(result.userLiquidityDiff.netLiquidityAddedUSD).to.equal(0n);
     });
   });
 });

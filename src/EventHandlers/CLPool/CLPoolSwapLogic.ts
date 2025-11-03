@@ -10,13 +10,12 @@ import { refreshTokenPrice } from "../../PriceOracle";
 import { updateCLPoolLiquidity } from "./updateCLPoolLiquidity";
 
 export interface CLPoolSwapResult {
-  liquidityPoolDiff?: Partial<LiquidityPoolAggregator>;
-  userSwapDiff?: {
+  liquidityPoolDiff: Partial<LiquidityPoolAggregator>;
+  userSwapDiff: {
     numberOfSwaps: bigint;
     totalSwapVolumeUSD: bigint;
     timestamp: Date;
   };
-  error?: string;
 }
 
 type SwapEntityData = {
@@ -33,22 +32,6 @@ type SwapEntityData = {
   };
   liquidityPoolAggregatorDiff: Partial<LiquidityPoolAggregator>;
 };
-
-export type CLPoolSwapLoaderReturn =
-  | {
-      _type: "success";
-      liquidityPoolAggregator: LiquidityPoolAggregator;
-      token0Instance: Token | undefined;
-      token1Instance: Token | undefined;
-    }
-  | {
-      _type: "TokenNotFoundError";
-      message: string;
-    }
-  | {
-      _type: "LiquidityPoolAggregatorNotFoundError";
-      message: string;
-    };
 
 const updateToken0SwapData = async (
   data: SwapEntityData,
@@ -193,88 +176,63 @@ const updateLiquidityPoolAggregatorDiffSwap = (
 
 export async function processCLPoolSwap(
   event: CLPool_Swap_event,
-  loaderReturn: CLPoolSwapLoaderReturn,
+  liquidityPoolAggregator: LiquidityPoolAggregator,
+  token0Instance: Token | undefined,
+  token1Instance: Token | undefined,
   context: handlerContext,
 ): Promise<CLPoolSwapResult> {
-  // Handle different loader return types
-  switch (loaderReturn._type) {
-    case "success": {
-      // Delta that will be added to the liquidity pool aggregator
-      const tokenUpdateData = {
-        netAmount0: abs(event.params.amount0),
-        netAmount1: abs(event.params.amount1),
-        netVolumeToken0USD: 0n,
-        netVolumeToken1USD: 0n,
-        volumeInUSD: 0n,
-        volumeInUSDWhitelisted: 0n,
-      };
+  // Delta that will be added to the liquidity pool aggregator
+  const tokenUpdateData = {
+    netAmount0: abs(event.params.amount0),
+    netAmount1: abs(event.params.amount1),
+    netVolumeToken0USD: 0n,
+    netVolumeToken1USD: 0n,
+    volumeInUSD: 0n,
+    volumeInUSDWhitelisted: 0n,
+  };
 
-      const liquidityPoolAggregatorDiff: Partial<LiquidityPoolAggregator> = {};
+  const liquidityPoolAggregatorDiff: Partial<LiquidityPoolAggregator> = {};
 
-      let successSwapEntityData: SwapEntityData = {
-        liquidityPoolAggregator: loaderReturn.liquidityPoolAggregator,
-        token0Instance: loaderReturn.token0Instance,
-        token1Instance: loaderReturn.token1Instance,
-        tokenUpdateData,
-        liquidityPoolAggregatorDiff,
-      };
+  let swapEntityData: SwapEntityData = {
+    liquidityPoolAggregator,
+    token0Instance,
+    token1Instance,
+    tokenUpdateData,
+    liquidityPoolAggregatorDiff,
+  };
 
-      successSwapEntityData = await updateToken0SwapData(
-        successSwapEntityData,
-        event,
-        context,
-      );
-      successSwapEntityData = await updateToken1SwapData(
-        successSwapEntityData,
-        event,
-        context,
-      );
+  swapEntityData = await updateToken0SwapData(swapEntityData, event, context);
+  swapEntityData = await updateToken1SwapData(swapEntityData, event, context);
 
-      // If both tokens are whitelisted, add the volume of token0 to the whitelisted volume
-      successSwapEntityData.tokenUpdateData.volumeInUSDWhitelisted +=
-        successSwapEntityData.token0Instance?.isWhitelisted &&
-        successSwapEntityData.token1Instance?.isWhitelisted
-          ? successSwapEntityData.tokenUpdateData.netVolumeToken0USD
-          : 0n;
+  // If both tokens are whitelisted, add the volume of token0 to the whitelisted volume
+  swapEntityData.tokenUpdateData.volumeInUSDWhitelisted +=
+    swapEntityData.token0Instance?.isWhitelisted &&
+    swapEntityData.token1Instance?.isWhitelisted
+      ? swapEntityData.tokenUpdateData.netVolumeToken0USD
+      : 0n;
 
-      const successReserveResult = updateCLPoolLiquidity(
-        successSwapEntityData.liquidityPoolAggregator,
-        event,
-        successSwapEntityData.token0Instance,
-        successSwapEntityData.token1Instance,
-      );
+  const reserveResult = updateCLPoolLiquidity(
+    swapEntityData.liquidityPoolAggregator,
+    event,
+    swapEntityData.token0Instance,
+    swapEntityData.token1Instance,
+  );
 
-      // Merge with previous liquidity pool aggregator values.
-      successSwapEntityData = updateLiquidityPoolAggregatorDiffSwap(
-        successSwapEntityData,
-        successReserveResult,
-        new Date(event.block.timestamp * 1000),
-      );
+  // Merge with previous liquidity pool aggregator values.
+  swapEntityData = updateLiquidityPoolAggregatorDiffSwap(
+    swapEntityData,
+    reserveResult,
+    new Date(event.block.timestamp * 1000),
+  );
 
-      const userSwapDiff = {
-        numberOfSwaps: 1n, // Each swap event represents 1 swap
-        totalSwapVolumeUSD: successSwapEntityData.tokenUpdateData.volumeInUSD,
-        timestamp: new Date(event.block.timestamp * 1000),
-      };
+  const userSwapDiff = {
+    numberOfSwaps: 1n, // Each swap event represents 1 swap
+    totalSwapVolumeUSD: swapEntityData.tokenUpdateData.volumeInUSD,
+    timestamp: new Date(event.block.timestamp * 1000),
+  };
 
-      return {
-        liquidityPoolDiff: successSwapEntityData.liquidityPoolAggregatorDiff,
-        userSwapDiff,
-      };
-    }
-    case "TokenNotFoundError":
-      return {
-        error: loaderReturn.message,
-      };
-    case "LiquidityPoolAggregatorNotFoundError":
-      return {
-        error: loaderReturn.message,
-      };
-    default: {
-      // This should never happen due to TypeScript's exhaustive checking
-      return {
-        error: "Unknown error type",
-      };
-    }
-  }
+  return {
+    liquidityPoolDiff: swapEntityData.liquidityPoolAggregatorDiff,
+    userSwapDiff,
+  };
 }
