@@ -66,14 +66,35 @@ NFPM.Transfer.handler(async ({ event, context }) => {
 NFPM.IncreaseLiquidity.handler(async ({ event, context }) => {
   const positionId = NonFungiblePositionId(event.chainId, event.params.tokenId);
 
-  const position = await context.NonFungiblePosition.get(positionId);
+  // Start filtering by fetching NonFungiblePosition entity created in the same transaction hash
+  const positions =
+    await context.NonFungiblePosition.getWhere.transactionHash.eq(
+      event.transaction.hash,
+    );
 
-  if (!position) {
+  if (!positions || positions.length === 0) {
     context.log.error(
       `NonFungiblePosition ${positionId} not found during increase liquidity on chain ${event.chainId} or event is from a mint action.`,
     );
     return;
   }
+
+  // Filter by amount0 and amount1 to find the matching position
+  // More robust filtering if, for example, there's more than 1 Mint event for the same transaction hash
+  const matchingPosition = positions.find(
+    (pos) =>
+      pos.amount0 === event.params.amount0 &&
+      pos.amount1 === event.params.amount1,
+  );
+
+  if (!matchingPosition) {
+    context.log.error(
+      `NonFungiblePosition with matching amounts (${event.params.amount0}, ${event.params.amount1}) not found during increase liquidity on chain ${event.chainId}.`,
+    );
+    return;
+  }
+
+  const position = matchingPosition;
 
   // Get token entities to calculate USD value
   const token0 = await context.Token.get(`${event.chainId}_${position.token0}`);
