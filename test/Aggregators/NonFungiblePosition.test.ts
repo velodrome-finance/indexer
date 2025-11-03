@@ -8,6 +8,8 @@ import {
 
 describe("NonFungiblePosition", () => {
   let contextStub: Partial<handlerContext>;
+  const transactionHash =
+    "0x1234567890123456789012345678901234567890123456789012345678901234";
   const mockNonFungiblePosition: NonFungiblePosition = {
     id: "10_1",
     chainId: 10,
@@ -21,6 +23,7 @@ describe("NonFungiblePosition", () => {
     amount0: 1000000000000000000n,
     amount1: 2000000000000000000n,
     amountUSD: 3000000000000000000n,
+    transactionHash: transactionHash,
     lastUpdatedTimestamp: new Date(10000 * 1000),
   };
   const timestamp = new Date(10001 * 1000);
@@ -35,6 +38,10 @@ describe("NonFungiblePosition", () => {
         deleteUnsafe: sinon.stub(),
         getWhere: {
           owner: {
+            eq: sinon.stub(),
+            gt: sinon.stub(),
+          },
+          transactionHash: {
             eq: sinon.stub(),
             gt: sinon.stub(),
           },

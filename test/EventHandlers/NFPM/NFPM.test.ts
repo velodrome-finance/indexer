@@ -15,6 +15,8 @@ describe("NFPM Events", () => {
   const token0Address = "0xToken0Address0000000000000000000000";
   const token1Address = "0xToken1Address0000000000000000000000";
 
+  const transactionHash =
+    "0x1234567890123456789012345678901234567890123456789012345678901234";
   const mockNonFungiblePosition = {
     id: NonFungiblePositionId(chainId, tokenId),
     chainId: 10,
@@ -28,6 +30,7 @@ describe("NFPM Events", () => {
     amount0: 1000000000000000000n,
     amount1: 2000000000000000000n,
     amountUSD: 3000000000000000000n,
+    transactionHash: transactionHash,
     lastUpdatedTimestamp: new Date(),
   };
 

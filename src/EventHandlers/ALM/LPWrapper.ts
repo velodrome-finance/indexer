@@ -1,13 +1,9 @@
 import { ALMLPWrapper } from "generated";
-import {
-  loadOrCreateALMLPWrapper,
-  updateALMLPWrapper,
-} from "../../Aggregators/ALMLPWrapper";
+import { updateALMLPWrapper } from "../../Aggregators/ALMLPWrapper";
 import {
   loadUserData,
   updateUserStatsPerPool,
 } from "../../Aggregators/UserStatsPerPool";
-import { toChecksumAddress } from "../../Constants";
 
 /**
  * Handler for ALM LP Wrapper Deposit events
@@ -21,13 +17,17 @@ ALMLPWrapper.Deposit.handler(async ({ event, context }) => {
   const { recipient, pool, amount0, amount1, lpAmount } = event.params;
   const timestamp = new Date(event.block.timestamp * 1000);
 
-  const ALMLPWrapperEntity = await loadOrCreateALMLPWrapper(
-    event.srcAddress,
-    pool,
-    event.chainId,
-    context,
-    timestamp,
-  );
+  // Should be created already by StrategyCreated event
+  // Note: event.srcAddress should already be checksummed if tests use checksummed addresses
+  const lpWrapperId = `${event.srcAddress}_${event.chainId}`;
+  const ALMLPWrapperEntity = await context.ALM_LP_Wrapper.get(lpWrapperId);
+
+  if (!ALMLPWrapperEntity) {
+    context.log.error(
+      `ALM_LP_Wrapper entity not found for ${lpWrapperId}. It should have been created by StrategyCreated event.`,
+    );
+    return;
+  }
 
   const userStats = await loadUserData(
     recipient,
@@ -78,13 +78,17 @@ ALMLPWrapper.Withdraw.handler(async ({ event, context }) => {
   const { recipient, pool, amount0, amount1, lpAmount } = event.params;
   const timestamp = new Date(event.block.timestamp * 1000);
 
-  const ALMLPWrapperEntity = await loadOrCreateALMLPWrapper(
-    event.srcAddress,
-    pool,
-    event.chainId,
-    context,
-    timestamp,
-  );
+  // Should be created already by StrategyCreated event
+  // Note: event.srcAddress should already be checksummed if tests use checksummed addresses
+  const lpWrapperId = `${event.srcAddress}_${event.chainId}`;
+  const ALMLPWrapperEntity = await context.ALM_LP_Wrapper.get(lpWrapperId);
+
+  if (!ALMLPWrapperEntity) {
+    context.log.error(
+      `ALM_LP_Wrapper entity not found for ${lpWrapperId}. It should have been created by StrategyCreated event.`,
+    );
+    return;
+  }
 
   const userStats = await loadUserData(
     recipient,
@@ -143,15 +147,17 @@ ALMLPWrapper.Transfer.handler(async ({ event, context }) => {
   const { from, to, value } = event.params;
   const timestamp = new Date(event.block.timestamp * 1000);
 
-  // Load wrapper - poolAddress is optional since Transfer events don't include pool info
-  // The wrapper should already exist from previous Deposit/Withdraw events
-  const ALMLPWrapperEntity = await loadOrCreateALMLPWrapper(
-    event.srcAddress,
-    undefined, // poolAddress not available in Transfer events
-    event.chainId,
-    context,
-    timestamp,
-  );
+  // Load wrapper - poolAddress is not available in Transfer events
+  // The wrapper should already exist from previous Deposit/Withdraw or StrategyCreated events
+  const lpWrapperId = `${event.srcAddress}_${event.chainId}`;
+  const ALMLPWrapperEntity = await context.ALM_LP_Wrapper.get(lpWrapperId);
+
+  if (!ALMLPWrapperEntity) {
+    context.log.error(
+      `ALM_LP_Wrapper entity not found for ${lpWrapperId}. It should have been created by StrategyCreated event.`,
+    );
+    return;
+  }
 
   const [userStatsFrom, userStatsTo] = await Promise.all([
     loadUserData(

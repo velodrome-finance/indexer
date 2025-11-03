@@ -114,10 +114,29 @@ export function setupCommon() {
     id: `${toChecksumAddress("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")}_${mockLiquidityPoolData.chainId}`,
     chainId: mockLiquidityPoolData.chainId,
     pool: toChecksumAddress(mockLiquidityPoolData.id),
+    token0: mockToken0Data.address,
+    token1: mockToken1Data.address,
+    // Wrapper-level aggregations
     amount0: 1000n * TEN_TO_THE_18_BI,
     amount1: 500n * TEN_TO_THE_6_BI,
     lpAmount: 2000n * TEN_TO_THE_18_BI,
     lastUpdatedTimestamp: new Date(900000 * 1000),
+    // Strategy/Position-level state
+    tokenId: 1n,
+    tickLower: -1000n,
+    tickUpper: 1000n,
+    property: 3000n, // uint24 tick spacing
+    positionAmount0: 500n * TEN_TO_THE_18_BI,
+    positionAmount1: 250n * TEN_TO_THE_6_BI,
+    liquidity: 1000000n,
+    strategyType: 1n,
+    tickNeighborhood: 100n,
+    tickSpacing: 60n,
+    positionWidth: 2000n,
+    maxLiquidityRatioDeviationX96: 79228162514264337593543950336n, // 1 * 2^96
+    creationTimestamp: new Date(900000 * 1000),
+    strategyTransactionHash:
+      "0x0000000000000000000000000000000000000000000000000000000000000001",
   };
 
   const defaultUserAddress = "0xAbCccccccccccccccccccccccccccccccccccccc";

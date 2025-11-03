@@ -292,6 +292,8 @@ networks:
       - name: VelodromeUniversalRouter
         address:
           - 0x01D40099fCD87C018969B0e8D4aB1633Fb34763C
+      - name: ALMLPWrapper
+        address:
   - id: 42220 # Celo
     hypersync_config:
       url: https://celo.hypersync.xyz
