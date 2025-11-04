@@ -137,6 +137,7 @@ PoolFactory.PoolCreated.handler(async ({ event, context }) => {
     poolLauncherPoolId: undefined,
     // Voting fields
     gaugeAddress: "",
+    gaugeEmissionsCap: 0n,
     numberOfVotes: 0n,
     currentVotingPower: 0n,
     // Dynamic Fee fields (undefined initially)
