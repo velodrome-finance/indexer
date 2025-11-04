@@ -246,14 +246,11 @@ const MODE_CONSTANTS: chainConstants = {
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
   eth_client: createPublicClient({
     chain: mode satisfies Chain as Chain,
-    transport: http(
-      process.env.ENVIO_MODE_RPC_URL || "https://1rpc.io/mode",
-      {
-        retryCount: 10,
-        retryDelay: 1000,
-        batch: true,
-      },
-    ),
+    transport: http(process.env.ENVIO_MODE_RPC_URL || "https://1rpc.io/mode", {
+      retryCount: 10,
+      retryDelay: 1000,
+      batch: true,
+    }),
   }),
 };
 
@@ -276,14 +273,11 @@ const CELO_CONSTANTS: chainConstants = {
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
   eth_client: createPublicClient({
     chain: celo satisfies Chain as Chain,
-    transport: http(
-      process.env.ENVIO_CELO_RPC_URL || "https://celo.drpc.org",
-      {
-        retryCount: 10,
-        retryDelay: 1000,
-        batch: true,
-      },
-    ),
+    transport: http(process.env.ENVIO_CELO_RPC_URL || "https://celo.drpc.org", {
+      retryCount: 10,
+      retryDelay: 1000,
+      batch: true,
+    }),
   }),
 };
 
@@ -406,14 +400,11 @@ const INK_CONSTANTS: chainConstants = {
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
   eth_client: createPublicClient({
     chain: ink satisfies Chain as Chain,
-    transport: http(
-      process.env.ENVIO_INK_RPC_URL || "https://ink.drpc.org",
-      {
-        retryCount: 10,
-        retryDelay: 1000,
-        batch: true,
-      },
-    ),
+    transport: http(process.env.ENVIO_INK_RPC_URL || "https://ink.drpc.org", {
+      retryCount: 10,
+      retryDelay: 1000,
+      batch: true,
+    }),
   }),
 };
 
