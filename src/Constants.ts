@@ -127,11 +127,11 @@ const OPTIMISM_CONSTANTS: chainConstants = {
   eth_client: createPublicClient({
     chain: optimism satisfies Chain as Chain,
     transport: http(
-      process.env.ENVIO_OPTIMISM_RPC_URL || "https://optimism.llamarpc.com",
+      process.env.ENVIO_OPTIMISM_RPC_URL || "https://mainnet.optimism.io",
       {
         retryCount: 10,
         retryDelay: 1000,
-        batch: false,
+        batch: true,
       },
     ),
   }),
@@ -170,10 +170,11 @@ const BASE_CONSTANTS: chainConstants = {
   eth_client: createPublicClient({
     chain: base satisfies Chain as Chain,
     transport: http(
-      process.env.ENVIO_BASE_RPC_URL || "https://base.llamarpc.com",
+      process.env.ENVIO_BASE_RPC_URL || "https://base-rpc.publicnode.com",
       {
         retryCount: 10,
         retryDelay: 1000,
+        batch: true,
       },
     ),
   }),
@@ -211,6 +212,7 @@ const LISK_CONSTANTS: chainConstants = {
     transport: http(process.env.ENVIO_LISK_RPC_URL || "https://lisk.drpc.org", {
       retryCount: 10,
       retryDelay: 1000,
+      batch: true,
     }),
   }),
 };
@@ -244,13 +246,11 @@ const MODE_CONSTANTS: chainConstants = {
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
   eth_client: createPublicClient({
     chain: mode satisfies Chain as Chain,
-    transport: http(
-      process.env.ENVIO_MODE_RPC_URL || "https://mainnet.mode.network",
-      {
-        retryCount: 10,
-        retryDelay: 1000,
-      },
-    ),
+    transport: http(process.env.ENVIO_MODE_RPC_URL || "https://1rpc.io/mode", {
+      retryCount: 10,
+      retryDelay: 1000,
+      batch: true,
+    }),
   }),
 };
 
@@ -273,13 +273,11 @@ const CELO_CONSTANTS: chainConstants = {
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
   eth_client: createPublicClient({
     chain: celo satisfies Chain as Chain,
-    transport: http(
-      process.env.ENVIO_CELO_RPC_URL || "https://forno.celo.org",
-      {
-        retryCount: 10,
-        retryDelay: 1000,
-      },
-    ),
+    transport: http(process.env.ENVIO_CELO_RPC_URL || "https://celo.drpc.org", {
+      retryCount: 10,
+      retryDelay: 1000,
+      batch: true,
+    }),
   }),
 };
 
@@ -303,10 +301,11 @@ const SONEIUM_CONSTANTS: chainConstants = {
   eth_client: createPublicClient({
     chain: soneium satisfies Chain as Chain,
     transport: http(
-      process.env.ENVIO_SONEIUM_RPC_URL || "https://rpc.soneium.com",
+      process.env.ENVIO_SONEIUM_RPC_URL || "https://soneium.drpc.org",
       {
         retryCount: 10,
         retryDelay: 1000,
+        batch: true,
       },
     ),
   }),
@@ -332,10 +331,11 @@ const UNICHAIN_CONSTANTS: chainConstants = {
   eth_client: createPublicClient({
     chain: unichain satisfies Chain as Chain,
     transport: http(
-      process.env.ENVIO_UNICHAIN_RPC_URL || "	https://mainnet.unichain.org",
+      process.env.ENVIO_UNICHAIN_RPC_URL || "https://0xrpc.io/uni",
       {
         retryCount: 10,
         retryDelay: 1000,
+        batch: true,
       },
     ),
   }),
@@ -375,6 +375,7 @@ const FRAXTAL_CONSTANTS: chainConstants = {
       {
         retryCount: 10,
         retryDelay: 1000,
+        batch: true,
       },
     ),
   }),
@@ -399,13 +400,11 @@ const INK_CONSTANTS: chainConstants = {
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
   eth_client: createPublicClient({
     chain: ink satisfies Chain as Chain,
-    transport: http(
-      process.env.ENVIO_INK_RPC_URL || "https://rpc-gel.inkonchain.com",
-      {
-        retryCount: 10,
-        retryDelay: 1000,
-      },
-    ),
+    transport: http(process.env.ENVIO_INK_RPC_URL || "https://ink.drpc.org", {
+      retryCount: 10,
+      retryDelay: 1000,
+      batch: true,
+    }),
   }),
 };
 
@@ -429,10 +428,11 @@ const METAL_CONSTANTS: chainConstants = {
   eth_client: createPublicClient({
     chain: metalL2 satisfies Chain as Chain,
     transport: http(
-      process.env.ENVIO_METAL_RPC_URL || "https://rpc.metall2.com",
+      process.env.ENVIO_METAL_RPC_URL || "https://metall2.drpc.org",
       {
         retryCount: 10,
         retryDelay: 1000,
+        batch: true,
       },
     ),
   }),
@@ -462,6 +462,7 @@ const SWELL_CONSTANTS: chainConstants = {
       {
         retryCount: 10,
         retryDelay: 1000,
+        batch: true,
       },
     ),
   }) as PublicClient,

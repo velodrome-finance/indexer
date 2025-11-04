@@ -2,7 +2,6 @@ import { expect } from "chai";
 import sinon from "sinon";
 import { CHAIN_CONSTANTS } from "../src/Constants";
 import * as PriceOracle from "../src/PriceOracle";
-import { Cache } from "../src/cache";
 
 import type { Token, handlerContext } from "../generated/src/Types.gen";
 
@@ -88,10 +87,6 @@ describe("PriceOracle", () => {
     readStub = sinon.stub().returns({
       prices: null,
     });
-    const stubCache = sinon.stub(Cache, "init").returns({
-      add: addStub,
-      read: readStub,
-    } as ReturnType<typeof Cache.init>);
   });
 
   afterEach(() => {
