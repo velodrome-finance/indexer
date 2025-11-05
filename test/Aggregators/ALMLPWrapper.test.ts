@@ -1,10 +1,7 @@
 import { expect } from "chai";
 import type { ALM_LP_Wrapper, handlerContext } from "generated";
 import sinon from "sinon";
-import {
-  loadOrCreateALMLPWrapper,
-  updateALMLPWrapper,
-} from "../../src/Aggregators/ALMLPWrapper";
+import { updateALMLPWrapper } from "../../src/Aggregators/ALMLPWrapper";
 import {
   TEN_TO_THE_6_BI,
   TEN_TO_THE_18_BI,
@@ -29,9 +26,22 @@ describe("ALMLPWrapper Aggregator", () => {
         set: sinon.stub(),
         get: sinon.stub(),
         getOrThrow: sinon.stub(),
+        getWhere: {
+          pool: {
+            eq: sinon.stub(),
+            gt: sinon.stub(),
+          },
+          strategyTransactionHash: {
+            eq: sinon.stub(),
+            gt: sinon.stub(),
+          },
+          tokenId: {
+            eq: sinon.stub(),
+            gt: sinon.stub(),
+          },
+        },
         getOrCreate: sinon.stub(),
         deleteUnsafe: sinon.stub(),
-        getWhere: {},
       },
       log: {
         error: sinon.stub(),
@@ -40,88 +50,6 @@ describe("ALMLPWrapper Aggregator", () => {
         debug: sinon.stub(),
       },
     };
-  });
-
-  describe("loadOrCreateALMLPWrapper", () => {
-    describe("when entity does not exist", () => {
-      it("should create a new ALM_LP_Wrapper entity with zero values", async () => {
-        (contextStub.ALM_LP_Wrapper?.get as sinon.SinonStub).resolves(
-          undefined,
-        );
-
-        const result = await loadOrCreateALMLPWrapper(
-          lpWrapperAddress,
-          poolAddress,
-          chainId,
-          contextStub as handlerContext,
-          timestamp,
-        );
-
-        expect((contextStub.ALM_LP_Wrapper?.get as sinon.SinonStub).calledOnce)
-          .to.be.true;
-        expect((contextStub.ALM_LP_Wrapper?.set as sinon.SinonStub).calledOnce)
-          .to.be.true;
-
-        const setCallArgs = (contextStub.ALM_LP_Wrapper?.set as sinon.SinonStub)
-          .firstCall.args[0];
-
-        expect(setCallArgs.id).to.equal(
-          `${toChecksumAddress(lpWrapperAddress)}_${chainId}`,
-        );
-        expect(setCallArgs.chainId).to.equal(chainId);
-        expect(setCallArgs.pool).to.equal(toChecksumAddress(poolAddress));
-        expect(setCallArgs.amount0).to.equal(0n);
-        expect(setCallArgs.amount1).to.equal(0n);
-        expect(setCallArgs.lpAmount).to.equal(0n);
-        expect(setCallArgs.lastUpdatedTimestamp).to.equal(timestamp);
-
-        expect(result).to.deep.equal(setCallArgs);
-      });
-
-      it("should handle lowercase addresses correctly", async () => {
-        (contextStub.ALM_LP_Wrapper?.get as sinon.SinonStub).resolves(
-          undefined,
-        );
-
-        const lowerCaseAddress = lpWrapperAddress.toLowerCase();
-        const result = await loadOrCreateALMLPWrapper(
-          lowerCaseAddress,
-          poolAddress.toLowerCase(),
-          chainId,
-          contextStub as handlerContext,
-          timestamp,
-        );
-
-        expect(result.id).to.equal(
-          `${toChecksumAddress(lpWrapperAddress)}_${chainId}`,
-        );
-        expect(result.pool).to.equal(toChecksumAddress(poolAddress));
-      });
-    });
-
-    describe("when entity already exists", () => {
-      it("should return existing entity without creating a new one", async () => {
-        (contextStub.ALM_LP_Wrapper?.get as sinon.SinonStub).resolves(
-          mockALMLPWrapperData,
-        );
-
-        const result = await loadOrCreateALMLPWrapper(
-          lpWrapperAddress,
-          poolAddress,
-          chainId,
-          contextStub as handlerContext,
-          timestamp,
-        );
-
-        expect((contextStub.ALM_LP_Wrapper?.get as sinon.SinonStub).calledOnce)
-          .to.be.true;
-        expect((contextStub.ALM_LP_Wrapper?.set as sinon.SinonStub).called).to
-          .be.false;
-        expect(result).to.equal(mockALMLPWrapperData);
-        expect(result.id).to.equal(mockALMLPWrapperData.id);
-        expect(result.amount0).to.equal(mockALMLPWrapperData.amount0);
-      });
-    });
   });
 
   describe("updateALMLPWrapper", () => {
@@ -395,6 +323,91 @@ describe("ALMLPWrapper Aggregator", () => {
         expect(result.lastUpdatedTimestamp).to.not.equal(
           mockALMLPWrapperData.lastUpdatedTimestamp,
         );
+      });
+    });
+
+    describe("when updating with rebalance diff (position fields)", () => {
+      let result: ALM_LP_Wrapper;
+
+      beforeEach(async () => {
+        const rebalanceDiff = {
+          tokenId: 2n,
+          positionAmount0: 600n * TEN_TO_THE_18_BI,
+          positionAmount1: 300n * TEN_TO_THE_6_BI,
+          liquidity: 1500000n,
+          tickLower: -1200n,
+          tickUpper: 1200n,
+          property: 3000n,
+        };
+
+        await updateALMLPWrapper(
+          rebalanceDiff,
+          mockALMLPWrapperData,
+          timestamp,
+          contextStub as handlerContext,
+        );
+
+        result = (contextStub.ALM_LP_Wrapper?.set as sinon.SinonStub).firstCall
+          .args[0];
+      });
+
+      it("should set position fields directly (not increment)", () => {
+        expect(result.positionAmount0).to.equal(600n * TEN_TO_THE_18_BI); // Set directly, not 500 + 600
+        expect(result.positionAmount1).to.equal(300n * TEN_TO_THE_6_BI); // Set directly, not 250 + 300
+        expect(result.liquidity).to.equal(1500000n); // Set directly, not 1000000 + 1500000
+        expect(result.tokenId).to.equal(2n); // Set directly
+        expect(result.tickLower).to.equal(-1200n); // Set directly
+        expect(result.tickUpper).to.equal(1200n); // Set directly
+        expect(result.property).to.equal(3000n); // Set directly
+      });
+
+      it("should preserve wrapper-level aggregations", () => {
+        expect(result.amount0).to.equal(mockALMLPWrapperData.amount0);
+        expect(result.amount1).to.equal(mockALMLPWrapperData.amount1);
+        expect(result.lpAmount).to.equal(mockALMLPWrapperData.lpAmount);
+      });
+
+      it("should preserve other position fields", () => {
+        expect(result.strategyType).to.equal(mockALMLPWrapperData.strategyType);
+        expect(result.tickNeighborhood).to.equal(
+          mockALMLPWrapperData.tickNeighborhood,
+        );
+        expect(result.tickSpacing).to.equal(mockALMLPWrapperData.tickSpacing);
+        expect(result.positionWidth).to.equal(
+          mockALMLPWrapperData.positionWidth,
+        );
+      });
+
+      it("should update timestamp", () => {
+        expect(result.lastUpdatedTimestamp).to.equal(timestamp);
+      });
+    });
+
+    describe("when updating with partial rebalance diff", () => {
+      it("should only update provided position fields", async () => {
+        const partialRebalanceDiff = {
+          positionAmount0: 700n * TEN_TO_THE_18_BI,
+          liquidity: 2000000n,
+          // Other position fields not provided
+        };
+
+        await updateALMLPWrapper(
+          partialRebalanceDiff,
+          mockALMLPWrapperData,
+          timestamp,
+          contextStub as handlerContext,
+        );
+
+        const result = (contextStub.ALM_LP_Wrapper?.set as sinon.SinonStub)
+          .firstCall.args[0];
+
+        expect(result.positionAmount0).to.equal(700n * TEN_TO_THE_18_BI); // Updated
+        expect(result.liquidity).to.equal(2000000n); // Updated
+        expect(result.positionAmount1).to.equal(
+          mockALMLPWrapperData.positionAmount1,
+        ); // Unchanged
+        expect(result.tokenId).to.equal(mockALMLPWrapperData.tokenId); // Unchanged
+        expect(result.tickLower).to.equal(mockALMLPWrapperData.tickLower); // Unchanged
       });
     });
   });

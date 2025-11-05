@@ -235,6 +235,7 @@ type NonFungiblePosition {
   amount0: BigInt! @config(precision: 76) # Current amount of token0 in position
   amount1: BigInt! @config(precision: 76) # Current amount of token1 in position
   amountUSD: BigInt! @config(precision: 76) # Current USD value of position (amount0 + amount1 in USD)
+  transactionHash: String! @index # Transaction hash of the NFT mint transaction
   lastUpdatedTimestamp: Timestamp! # Timestamp of last update
 }
 
@@ -305,81 +306,39 @@ type VeNFTAggregator {
   isAlive: Boolean!
 }
 
-type ALMCore_Rebalance {
-  id: ID!
-  pool: String!
-  tickLower: BigInt! @config(precision: 76)
-  tickUpper: BigInt! @config(precision: 76)
-  sqrtPriceX96: BigInt! @config(precision: 76)
-  amount0: BigInt! @config(precision: 76)
-  amount1: BigInt! @config(precision: 76)
-  ammPositionIdBefore: BigInt! @config(precision: 76)
-  ammPositionIdAfter: BigInt! @config(precision: 76)
-  timestamp: Timestamp!
-  transactionHash: String!
-  chainId: Int!
-  blockNumber: Int!
-  logIndex: Int!
-}
-
-type ALMCore_Rebalance_AmmPosition {
-  id: ID!
-  pool: String!
-  token0: String!
-  token1: String!
-  property: BigInt! @config(precision: 24)
-  tickLower: BigInt! @config(precision: 24)
-  tickUpper: BigInt! @config(precision: 24)
-  liquidity: BigInt! @config(precision: 76)
-  timestamp: Timestamp!
-  transactionHash: String!
-  chainId: Int!
-  blockNumber: Int!
-  logIndex: Int!
-}
-
-type ALMDeployFactory_StrategyCreated {
-  id: ID!
-  pool: String!
-  lpWrapper: String!
-  strategyType: BigInt! @config(precision: 8)
-  tickNeighborhood: BigInt! @config(precision: 24)
-  tickSpacing: BigInt! @config(precision: 24)
-  width: BigInt! @config(precision: 24)
-  maxLiquidityRatioDeviationX96: BigInt! @config(precision: 76)
-  timestamp: Timestamp!
-  transactionHash: String!
-  chainId: Int!
-  blockNumber: Int!
-  logIndex: Int!
-}
-
-type ALMDeployFactory_StrategyCreated_AmmPosition {
-  id: ID!
-  pool: String!
-  lpWrapper: String!
-  token0: String!
-  token1: String!
-  property: BigInt! @config(precision: 24)
-  tickLower: BigInt! @config(precision: 24)
-  tickUpper: BigInt! @config(precision: 24)
-  liquidity: BigInt! @config(precision: 76)
-  timestamp: Timestamp!
-  transactionHash: String!
-  chainId: Int!
-  blockNumber: Int!
-  logIndex: Int!
-}
-
-# ALM entity on a pool basis
+# ALM LP Wrapper entity
+# Tracks both the LP wrapper state (aggregated deposits/withdrawals) and the strategy position state
+# Relationship: 1 LP wrapper per pool, 1 strategy per LP wrapper, 1 tokenId per strategy, 1 AMM position per tokenId (1:1:1:1 relationship)
+# Therefore this single entity tracks everything for the wrapper and its strategy
 type ALM_LP_Wrapper {
-  id: ID! # {ALMaddress}_{chainId}
-  chainId: Int!
-  pool: String!
-  amount0: BigInt! @config(precision: 76)
-  amount1: BigInt! @config(precision: 76)
-  lpAmount: BigInt! @config(precision: 76) # Number of LP tokens
-  lastUpdatedTimestamp: Timestamp!
+  id: ID! # Unique identifier: {ALM_LP_Wrapper_address}_{chainId}
+  chainId: Int! # The blockchain network ID where this wrapper exists
+  pool: String! @index # Address of the pool this ALM wrapper is associated with
+  token0: String! # Address of token 0
+  token1: String! # Address of token 1
+
+  # Wrapper-level aggregations (updated by Deposit/Withdraw events)
+  amount0: BigInt! @config(precision: 76) # Total underlying amount of token0 in the wrapper (aggregated across all users)
+  amount1: BigInt! @config(precision: 76) # Total underlying amount of token1 in the wrapper (aggregated across all users)
+  lpAmount: BigInt! @config(precision: 76) # Total number of LP tokens wrapped (aggregated across all users)
+  lastUpdatedTimestamp: Timestamp! # Timestamp of the last update to this entity
+
+  # Strategy/Position-level state (updated by StrategyCreated and Rebalance events)
+  # Since there's exactly 1 strategy per wrapper, we store it here
+  tokenId: BigInt! @config(precision: 24) @index # Equal to tokenId. Unique identifier for the strategy/position
+  tickLower: BigInt! @config(precision: 24) # Lower tick bound of the position's price range (in tick units)
+  tickUpper: BigInt! @config(precision: 24) # Upper tick bound of the position's price range (in tick units)
+  property: BigInt! @config(precision: 24) # Pool property parameter from the AMM position struct
+  positionAmount0: BigInt! @config(precision: 76) # Current amount of token0 in the AMM position (updated by Rebalance events)
+  positionAmount1: BigInt! @config(precision: 76) # Current amount of token1 in the AMM position (updated by Rebalance events)
+  liquidity: BigInt! @config(precision: 76) # Amount of liquidity currently in the AMM position
+  strategyType: BigInt! @config(precision: 24) # Type/kind of ALM strategy being used (defines the strategy behavior)
+  tickNeighborhood: BigInt! @config(precision: 24) # Tick neighborhood parameter for the strategy (defines rebalancing range around current price)
+  tickSpacing: BigInt! @config(precision: 24) # Tick spacing for the strategy (minimum tick movement allowed)
+  positionWidth: BigInt! @config(precision: 24) # Width parameter for the strategy (defines the position size in ticks)
+  maxLiquidityRatioDeviationX96: BigInt! @config(precision: 76) # Maximum allowed liquidity ratio deviation in X96 fixed-point format (controls rebalancing thresholds)
+  creationTimestamp: Timestamp! # Timestamp when this strategy was created (from StrategyCreated event)
+  strategyTransactionHash: String! @index # Transaction hash of the StrategyCreated event
 }
 
 type ERC20_Transfer {
