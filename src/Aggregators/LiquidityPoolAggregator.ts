@@ -181,6 +181,10 @@ export async function updateLiquidityPoolAggregator(
       diff.token1IsWhitelisted ?? current.token1IsWhitelisted,
     gaugeIsAlive: diff.gaugeIsAlive ?? current.gaugeIsAlive,
     gaugeAddress: diff.gaugeAddress ?? current.gaugeAddress,
+    bribeVotingRewardAddress:
+      diff.bribeVotingRewardAddress ?? current.bribeVotingRewardAddress,
+    feeVotingRewardAddress:
+      diff.feeVotingRewardAddress ?? current.feeVotingRewardAddress,
     feeProtocol0: diff.feeProtocol0 ?? current.feeProtocol0,
     feeProtocol1: diff.feeProtocol1 ?? current.feeProtocol1,
     observationCardinalityNext:

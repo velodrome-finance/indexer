@@ -109,6 +109,8 @@ SuperchainLeafVoter.GaugeCreated.handler(async ({ event, context }) => {
   if (poolEntity) {
     const poolUpdateDiff = {
       gaugeAddress: gaugeAddress,
+      feeVotingRewardAddress: event.params.feeVotingReward,
+      bribeVotingRewardAddress: event.params.incentiveVotingReward,
       lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
     };
 

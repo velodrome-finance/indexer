@@ -110,6 +110,8 @@ Voter.GaugeCreated.handler(async ({ event, context }) => {
   if (poolEntity) {
     const poolUpdateDiff = {
       gaugeAddress: gaugeAddress,
+      feeVotingRewardAddress: event.params.feeVotingReward,
+      bribeVotingRewardAddress: event.params.bribeVotingReward,
       lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
     };
 
@@ -262,6 +264,8 @@ Voter.GaugeKilled.handler(async ({ event, context }) => {
   if (poolAddress) {
     const poolUpdateDiff = {
       gaugeAddress: "",
+      feeVotingRewardAddress: "",
+      bribeVotingRewardAddress: "",
       lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
     };
 
