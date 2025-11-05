@@ -168,6 +168,12 @@ contracts:
       - event: PairableTokenRemoved
       - event: NewPoolLauncherSet
       - event: CreationTimestampSet
+  - name: VelodromeUniversalRouter
+    handler: src/EventHandlers/SuperswapsHyperlane/VelodromeUniversalRouter.ts
+    abi_file_path: abis/VelodromeUniversalRouter.json
+    events:
+      - event: UniversalRouterBridge
+      - event: CrossChainSwap
 networks:
   - id: 10 # Optimism
     start_block: 0
@@ -229,6 +235,9 @@ networks:
       - name: V2PoolLauncher
         address:
           - 0x8B8025D4cD620BB89e196D32851d4c6E5B74AA60
+      - name: VelodromeUniversalRouter
+        address:
+          - 0x01D40099fCD87C018969B0e8D4aB1633Fb34763C
   - id: 8453 # Base
     start_block: 0
     contracts:
@@ -280,6 +289,9 @@ networks:
         address:
       - name: Gauge
         address:
+      - name: VelodromeUniversalRouter
+        address:
+          - 0x01D40099fCD87C018969B0e8D4aB1633Fb34763C
   - id: 42220 # Celo
     hypersync_config:
       url: https://celo.hypersync.xyz
@@ -319,6 +331,9 @@ networks:
           - 0x0000000cE42D4981513060aB7E50B9e5e2D19AF1
       - name: ALMLPWrapper
         address:
+      - name: VelodromeUniversalRouter
+        address:
+          - 0x01D40099fCD87C018969B0e8D4aB1633Fb34763C
   - id: 1868 # Soneium
     hypersync_config:
       url: https://soneium.hypersync.xyz
@@ -358,6 +373,9 @@ networks:
           - 0x0000000cE42D4981513060aB7E50B9e5e2D19AF1
       - name: ALMLPWrapper
         address:
+      - name: VelodromeUniversalRouter
+        address:
+          - 0x01D40099fCD87C018969B0e8D4aB1633Fb34763C
   - id: 57073 # Ink
     hypersync_config:
       url: https://ink.hypersync.xyz
@@ -403,6 +421,9 @@ networks:
       - name: V2PoolLauncher
         address:
           - 0x8B8025D4cD620BB89e196D32851d4c6E5B74AA60
+      - name: VelodromeUniversalRouter
+        address:
+          - 0x01D40099fCD87C018969B0e8D4aB1633Fb34763C
   - id: 34443 # Mode
     start_block: 0
     contracts:
@@ -440,6 +461,9 @@ networks:
           - 0x0000000cE42D4981513060aB7E50B9e5e2D19AF1
       - name: ALMLPWrapper
         address:
+      - name: VelodromeUniversalRouter
+        address:
+          - 0x01D40099fCD87C018969B0e8D4aB1633Fb34763C
   - id: 1135 # Lisk
     start_block: 0
     contracts:
@@ -469,6 +493,9 @@ networks:
         address:
       - name: CLPool
         address:
+      - name: VelodromeUniversalRouter
+        address:
+          - 0x01D40099fCD87C018969B0e8D4aB1633Fb34763C
   - id: 130 # Unichain
     hypersync_config:
       url: https://unichain.hypersync.xyz
@@ -500,6 +527,9 @@ networks:
         address:
       - name: CLPool
         address:
+      - name: VelodromeUniversalRouter
+        address:
+          - 0x01D40099fCD87C018969B0e8D4aB1633Fb34763C
   - id: 252 # Fraxtal
     hypersync_config:
       url: https://fraxtal.hypersync.xyz
@@ -531,6 +561,9 @@ networks:
         address:
       - name: CLPool
         address:
+      - name: VelodromeUniversalRouter
+        address:
+          - 0x01D40099fCD87C018969B0e8D4aB1633Fb34763C
   - id: 1750 # Metal
     hypersync_config:
       url: https://1750.hypersync.xyz # Metal L2 hypersync address
@@ -559,7 +592,10 @@ networks:
         address:
       - name: CLPool
         address:
-  - id: 1923 # Swell2
+      - name: VelodromeUniversalRouter
+        address:
+          - 0x01D40099fCD87C018969B0e8D4aB1633Fb34763C
+  - id: 1923 # Swell
     hypersync_config:
       url: https://swell.hypersync.xyz
     start_block: 3717939
@@ -598,3 +634,6 @@ networks:
           - 0x0000000cE42D4981513060aB7E50B9e5e2D19AF1
       - name: ALMLPWrapper
         address:
+      - name: VelodromeUniversalRouter
+        address:
+          - 0x01D40099fCD87C018969B0e8D4aB1633Fb34763C

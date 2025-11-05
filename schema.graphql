@@ -453,3 +453,23 @@ type PoolLauncherConfig {
   version: String! # "CL" for concentrated liquidity, "V2" for V2 pools
   pairableTokens: [String!]
 }
+
+type SuperSwap {
+  id: ID! # The transaction hash (unique identifier)
+  originChainId: Int! # Chain ID where the swap originated
+  destinationChainId: Int! # Chain ID of the swap target/recipient
+  sender: String! # Original sender address initiating the swap
+  recipient: String! # The recipient address on the destination chain
+  amount: Float! # Amount of oUSDT swapped (already normalized to token decimals)
+  timestamp: Timestamp! # Block timestamp of the swap event
+}
+
+type oUSDTBridgedTransaction {
+  id: ID! # Transaction hash
+  transaction_hash: String! @index # Transaction hash
+  originChainId: Int! # Chain ID where the bridge transaction originated
+  destinationChainId: Int! # Chain ID where the bridge transaction is destined
+  sender: String! # Address that initiated the bridge transaction
+  recipient: String! # Address that will receive the bridged tokens
+  amount: Float! # Amount of oUSDT tokens being bridged
+}
