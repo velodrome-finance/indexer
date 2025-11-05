@@ -35,3 +35,6 @@ build
 .env
 .pnpm-store
 .DS_*
+
+# Coverage
+.nyc_output/

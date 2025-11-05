@@ -213,13 +213,19 @@ describe("SuperchainLeafVoter Events", () => {
         });
       });
 
-      it("should update pool entity with gauge address", () => {
+      it("should update pool entity with gauge address and voting reward addresses", () => {
         const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
           toChecksumAddress(poolAddress),
         );
         expect(updatedPool).to.not.be.undefined;
         expect(updatedPool?.gaugeAddress).to.equal(
           toChecksumAddress(gaugeAddress),
+        );
+        expect(updatedPool?.feeVotingRewardAddress).to.equal(
+          "0x6666666666666666666666666666666666666666",
+        );
+        expect(updatedPool?.bribeVotingRewardAddress).to.equal(
+          "0x5555555555555555555555555555555555555555",
         );
         expect(updatedPool?.lastUpdatedTimestamp).to.deep.equal(
           new Date(1000000 * 1000),
