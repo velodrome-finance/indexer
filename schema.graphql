@@ -228,8 +228,8 @@ type NonFungiblePosition {
   tokenId: BigInt! # Token ID of the NFT (from Transfer event)
   owner: String! @index # Checksum address of the current owner (from Transfer event)
   pool: String! # Address of the CL pool this position belongs to
-  tickUpper: Int! # Upper tick of the position range
-  tickLower: Int! # Lower tick of the position range
+  tickUpper: BigInt! @config(precision: 24) # Upper tick of the position range
+  tickLower: BigInt! @config(precision: 24) # Lower tick of the position range
   token0: String! # Address of token0 in the position
   token1: String! # Address of token1 in the position
   amount0: BigInt! @config(precision: 76) # Current amount of token0 in position

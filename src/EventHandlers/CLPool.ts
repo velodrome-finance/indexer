@@ -3,6 +3,7 @@ import {
   loadPoolData,
   updateLiquidityPoolAggregator,
 } from "../Aggregators/LiquidityPoolAggregator";
+import { NonFungiblePositionId } from "../Aggregators/NonFungiblePosition";
 import {
   loadUserData,
   updateUserStatsPerPool,
@@ -30,8 +31,6 @@ import { processCLPoolSwap } from "./CLPool/CLPoolSwapLogic";
  *
  * @returns {Object} Updated liquidity metrics
  */
-
-// TODO: Add logic to handle NonFungiblePosition entity creation for example (when minting a new position)
 
 CLPool.Burn.handler(async ({ event, context }) => {
   // Load pool data and handle errors
@@ -338,6 +337,24 @@ CLPool.Mint.handler(async ({ event, context }) => {
     result.userLiquidityDiff.timestamp,
     context,
   );
+
+  // Create NonFungiblePosition entity
+  context.NonFungiblePosition.set({
+    id: "0_0", // To be edited in NFPM.ts module
+    chainId: event.chainId,
+    tokenId: 0n, // To be edited in NFPM.ts module
+    owner: event.params.owner,
+    pool: event.srcAddress,
+    tickUpper: event.params.tickUpper,
+    tickLower: event.params.tickLower,
+    token0: token0Instance.address,
+    token1: token1Instance.address,
+    amount0: event.params.amount0,
+    amount1: event.params.amount1,
+    amountUSD: result.userLiquidityDiff.netLiquidityAddedUSD,
+    transactionHash: event.transaction.hash,
+    lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
+  });
 });
 
 CLPool.SetFeeProtocol.handler(async ({ event, context }) => {

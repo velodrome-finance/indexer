@@ -16,8 +16,8 @@ describe("NonFungiblePosition", () => {
     tokenId: 1n,
     owner: "0x1111111111111111111111111111111111111111",
     pool: "0xPoolAddress0000000000000000000000",
-    tickUpper: 100,
-    tickLower: -100,
+    tickUpper: 100n,
+    tickLower: -100n,
     token0: "0xToken0Address0000000000000000000000",
     token1: "0xToken1Address0000000000000000000000",
     amount0: 1000000000000000000n,
@@ -82,8 +82,8 @@ describe("NonFungiblePosition", () => {
         expect(result.owner).to.equal(
           "0x2222222222222222222222222222222222222222",
         );
-        expect(result.tickUpper).to.equal(100); // unchanged
-        expect(result.tickLower).to.equal(-100); // unchanged
+        expect(result.tickUpper).to.equal(100n); // unchanged
+        expect(result.tickLower).to.equal(-100n); // unchanged
         expect(result.amount0).to.equal(1000000000000000000n); // unchanged
         expect(result.amount1).to.equal(2000000000000000000n); // unchanged
         expect(result.amountUSD).to.equal(3000000000000000000n); // unchanged
@@ -118,8 +118,8 @@ describe("NonFungiblePosition", () => {
         expect(result.owner).to.equal(
           "0x1111111111111111111111111111111111111111",
         ); // unchanged
-        expect(result.tickUpper).to.equal(100); // unchanged
-        expect(result.tickLower).to.equal(-100); // unchanged
+        expect(result.tickUpper).to.equal(100n); // unchanged
+        expect(result.tickLower).to.equal(-100n); // unchanged
         expect(result.lastUpdatedTimestamp).to.equal(timestamp);
       });
     });
@@ -151,8 +151,8 @@ describe("NonFungiblePosition", () => {
         expect(result.owner).to.equal(
           "0x1111111111111111111111111111111111111111",
         ); // unchanged
-        expect(result.tickUpper).to.equal(100); // unchanged
-        expect(result.tickLower).to.equal(-100); // unchanged
+        expect(result.tickUpper).to.equal(100n); // unchanged
+        expect(result.tickLower).to.equal(-100n); // unchanged
         expect(result.lastUpdatedTimestamp).to.equal(timestamp);
       });
     });

@@ -17,19 +17,22 @@ describe("NFPM Events", () => {
 
   const transactionHash =
     "0x1234567890123456789012345678901234567890123456789012345678901234";
+  // Mock position with amounts matching the IncreaseLiquidity event amounts
+  // This represents a newly minted position before the IncreaseLiquidity event
   const mockNonFungiblePosition = {
     id: NonFungiblePositionId(chainId, tokenId),
     chainId: 10,
     tokenId: tokenId,
     owner: "0x1111111111111111111111111111111111111111",
     pool: "0xPoolAddress0000000000000000000000",
-    tickUpper: 100,
-    tickLower: -100,
+    tickUpper: 100n,
+    tickLower: -100n,
     token0: token0Address,
     token1: token1Address,
-    amount0: 1000000000000000000n,
-    amount1: 2000000000000000000n,
-    amountUSD: 3000000000000000000n,
+    // Initial amounts match what will be in the IncreaseLiquidity event for a newly minted position
+    amount0: 500000000000000000n, // Matches IncreaseLiquidity event amount0
+    amount1: 1000000000000000000n, // Matches IncreaseLiquidity event amount1
+    amountUSD: 2500000000000000000n, // (0.5 * 1) + (1 * 2) = 2.5
     transactionHash: transactionHash,
     lastUpdatedTimestamp: new Date(),
   };
@@ -111,8 +114,8 @@ describe("NFPM Events", () => {
       expect(updatedEntity.amount0).to.equal(mockNonFungiblePosition.amount0);
       expect(updatedEntity.amount1).to.equal(mockNonFungiblePosition.amount1);
       // amountUSD should be recalculated: (amount0 * pricePerUSD) + (amount1 * pricePerUSD)
-      // (1e18 * 1) + (2e18 * 2) = 1e18 + 4e18 = 5e18
-      expect(updatedEntity.amountUSD).to.equal(5000000000000000000n);
+      // (0.5e18 * 1) + (1e18 * 2) = 0.5e18 + 2e18 = 2.5e18
+      expect(updatedEntity.amountUSD).to.equal(2500000000000000000n);
     });
   });
 
@@ -131,17 +134,43 @@ describe("NFPM Events", () => {
         chainId: 10,
         logIndex: 1,
         srcAddress: "0x3333333333333333333333333333333333333333",
+        transaction: {
+          hash: transactionHash,
+        },
       },
     };
 
     let postEventDB: ReturnType<typeof MockDb.createMockDb>;
     let mockEvent: ReturnType<typeof NFPM.IncreaseLiquidity.createMockEvent>;
+    let mockDbWithGetWhere: ReturnType<typeof MockDb.createMockDb>;
 
     beforeEach(async () => {
+      // Setup mockDb with getWhere support for transactionHash filtering
+      const storedPositions = [mockNonFungiblePosition];
+      mockDbWithGetWhere = {
+        ...mockDb,
+        entities: {
+          ...mockDb.entities,
+          NonFungiblePosition: {
+            ...mockDb.entities.NonFungiblePosition,
+            getWhere: {
+              transactionHash: {
+                eq: async (txHash: string) => {
+                  // Find all entities with matching transactionHash
+                  return storedPositions.filter(
+                    (entity) => entity.transactionHash === txHash,
+                  );
+                },
+              },
+            },
+          },
+        },
+      } as typeof mockDb;
+
       mockEvent = NFPM.IncreaseLiquidity.createMockEvent(eventData);
       postEventDB = await NFPM.IncreaseLiquidity.processEvent({
         event: mockEvent,
-        mockDb: mockDb,
+        mockDb: mockDbWithGetWhere,
       });
     });
 
@@ -151,8 +180,8 @@ describe("NFPM Events", () => {
       );
       expect(updatedEntity).to.exist;
       if (!updatedEntity) return; // Type guard
-      expect(updatedEntity.amount0).to.equal(1500000000000000000n); // 1000n + 500n
-      expect(updatedEntity.amount1).to.equal(3000000000000000000n); // 2000n + 1000n
+      expect(updatedEntity.amount0).to.equal(1000000000000000000n); // 0.5e18 + 0.5e18
+      expect(updatedEntity.amount1).to.equal(2000000000000000000n); // 1e18 + 1e18
       expect(updatedEntity.owner).to.equal(mockNonFungiblePosition.owner);
       expect(updatedEntity.tickUpper).to.equal(
         mockNonFungiblePosition.tickUpper,
@@ -160,8 +189,53 @@ describe("NFPM Events", () => {
       expect(updatedEntity.tickLower).to.equal(
         mockNonFungiblePosition.tickLower,
       );
-      // amountUSD: (1.5e18 * 1) + (3e18 * 2) = 1.5e18 + 6e18 = 7.5e18
-      expect(updatedEntity.amountUSD).to.equal(7500000000000000000n);
+      // amountUSD: (1e18 * 1) + (2e18 * 2) = 1e18 + 4e18 = 5e18
+      expect(updatedEntity.amountUSD).to.equal(5000000000000000000n);
+    });
+
+    it("should filter by transactionHash and then by amount0 and amount1 when multiple positions exist", async () => {
+      // Create a second position with different amounts but same transaction hash
+      const position2 = {
+        ...mockNonFungiblePosition,
+        id: NonFungiblePositionId(chainId, 2n),
+        tokenId: 2n,
+        amount0: 2000000000000000000n, // Different amounts - won't match IncreaseLiquidity event
+        amount1: 4000000000000000000n,
+      };
+
+      const storedPositions = [mockNonFungiblePosition, position2];
+      const mockDbMultiplePositions = {
+        ...mockDb,
+        entities: {
+          ...mockDb.entities,
+          NonFungiblePosition: {
+            ...mockDb.entities.NonFungiblePosition,
+            getWhere: {
+              transactionHash: {
+                eq: async (txHash: string) => {
+                  return storedPositions.filter(
+                    (entity) => entity.transactionHash === txHash,
+                  );
+                },
+              },
+            },
+          },
+        },
+      } as typeof mockDb;
+
+      const result = await NFPM.IncreaseLiquidity.processEvent({
+        event: mockEvent,
+        mockDb: mockDbMultiplePositions,
+      });
+
+      // Should match the first position (amount0: 0.5e18, amount1: 1e18) not the second
+      const updatedEntity = result.entities.NonFungiblePosition.get(
+        NonFungiblePositionId(chainId, tokenId),
+      );
+      expect(updatedEntity).to.exist;
+      if (!updatedEntity) return;
+      // Should be updated: 0.5e18 + 0.5e18 = 1e18
+      expect(updatedEntity.amount0).to.equal(1000000000000000000n);
     });
   });
 
@@ -200,8 +274,8 @@ describe("NFPM Events", () => {
       );
       expect(updatedEntity).to.exist;
       if (!updatedEntity) return; // Type guard
-      expect(updatedEntity.amount0).to.equal(700000000000000000n); // 1000n - 300n
-      expect(updatedEntity.amount1).to.equal(1500000000000000000n); // 2000n - 500n
+      expect(updatedEntity.amount0).to.equal(200000000000000000n); // 0.5e18 - 0.3e18
+      expect(updatedEntity.amount1).to.equal(500000000000000000n); // 1e18 - 0.5e18
       expect(updatedEntity.owner).to.equal(mockNonFungiblePosition.owner);
       expect(updatedEntity.tickUpper).to.equal(
         mockNonFungiblePosition.tickUpper,
@@ -209,8 +283,8 @@ describe("NFPM Events", () => {
       expect(updatedEntity.tickLower).to.equal(
         mockNonFungiblePosition.tickLower,
       );
-      // amountUSD: (0.7e18 * 1) + (1.5e18 * 2) = 0.7e18 + 3e18 = 3.7e18
-      expect(updatedEntity.amountUSD).to.equal(3700000000000000000n);
+      // amountUSD: (0.2e18 * 1) + (0.5e18 * 2) = 0.2e18 + 1e18 = 1.2e18
+      expect(updatedEntity.amountUSD).to.equal(1200000000000000000n);
     });
   });
 });
