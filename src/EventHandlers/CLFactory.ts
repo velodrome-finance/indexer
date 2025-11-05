@@ -19,34 +19,20 @@ CLFactory.PoolCreated.handler(async ({ event, context }) => {
     return;
   }
 
-  // Create loader return object for compatibility with existing logic
-  const loaderReturn = {
-    _type: "success" as const,
-    poolToken0,
-    poolToken1,
-  };
-
   // Process the pool created event
   const result = await processCLFactoryPoolCreated(
     event,
-    loaderReturn,
+    poolToken0,
+    poolToken1,
     context,
   );
 
-  // Handle errors
-  if (result.error) {
-    context.log.error(result.error);
-    return;
-  }
-
   // Apply liquidity pool aggregator updates
-  if (result.liquidityPoolAggregator) {
-    updateLiquidityPoolAggregator(
-      result.liquidityPoolAggregator,
-      result.liquidityPoolAggregator,
-      new Date(event.block.timestamp * 1000),
-      context,
-      event.block.number,
-    );
-  }
+  updateLiquidityPoolAggregator(
+    result.liquidityPoolAggregator,
+    result.liquidityPoolAggregator,
+    new Date(event.block.timestamp * 1000),
+    context,
+    event.block.number,
+  );
 });

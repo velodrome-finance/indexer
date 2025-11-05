@@ -77,79 +77,48 @@ describe("CLPoolCollectFeesLogic", () => {
 
   describe("processCLPoolCollectFees", () => {
     it("should process collect fees event successfully with valid data", () => {
-      const loaderReturn = {
-        _type: "success" as const,
-        liquidityPoolAggregator: mockLiquidityPoolAggregator,
-        token0Instance: mockToken0,
-        token1Instance: mockToken1,
-      };
-
-      const result = processCLPoolCollectFees(mockEvent, loaderReturn);
-
-      expect(result.error).to.be.undefined;
-      expect(result.liquidityPoolDiff).to.not.be.undefined;
+      const result = processCLPoolCollectFees(
+        mockEvent,
+        mockLiquidityPoolAggregator,
+        mockToken0,
+        mockToken1,
+      );
 
       // Check liquidity pool diff with exact values
-      expect(result.liquidityPoolDiff?.totalFees0).to.equal(
+      expect(result.liquidityPoolDiff.totalFees0).to.equal(
         1000000000000000000n,
       );
-      expect(result.liquidityPoolDiff?.totalFees1).to.equal(
+      expect(result.liquidityPoolDiff.totalFees1).to.equal(
         2000000000000000000n,
       );
 
       // Exact USD calculation: 1 USD + 4 USD = 5 USD
-      expect(result.liquidityPoolDiff?.totalFeesUSD).to.equal(
+      expect(result.liquidityPoolDiff.totalFeesUSD).to.equal(
         5000000000000000000n,
       );
 
       // Exact timestamp: 1000000 * 1000 = 1000000000ms
-      expect(result.liquidityPoolDiff?.lastUpdatedTimestamp).to.deep.equal(
+      expect(result.liquidityPoolDiff.lastUpdatedTimestamp).to.deep.equal(
         new Date(1000000000),
       );
     });
 
-    it("should handle TokenNotFoundError", () => {
-      const loaderReturn = {
-        _type: "TokenNotFoundError" as const,
-        message: "Token not found",
-      };
-
-      const result = processCLPoolCollectFees(mockEvent, loaderReturn);
-
-      expect(result.error).to.equal("Token not found");
-      expect(result.liquidityPoolDiff).to.be.undefined;
-    });
-
-    it("should handle LiquidityPoolAggregatorNotFoundError", () => {
-      const loaderReturn = {
-        _type: "LiquidityPoolAggregatorNotFoundError" as const,
-        message: "Pool not found",
-      };
-
-      const result = processCLPoolCollectFees(mockEvent, loaderReturn);
-
-      expect(result.error).to.equal("Pool not found");
-      expect(result.liquidityPoolDiff).to.be.undefined;
-    });
-
     it("should calculate correct fee values for collect fees event", () => {
-      const loaderReturn = {
-        _type: "success" as const,
-        liquidityPoolAggregator: mockLiquidityPoolAggregator,
-        token0Instance: mockToken0,
-        token1Instance: mockToken1,
-      };
-
-      const result = processCLPoolCollectFees(mockEvent, loaderReturn);
+      const result = processCLPoolCollectFees(
+        mockEvent,
+        mockLiquidityPoolAggregator,
+        mockToken0,
+        mockToken1,
+      );
 
       // The liquidity pool diff should reflect the fees being collected with exact values
-      expect(result.liquidityPoolDiff?.totalFees0).to.equal(
+      expect(result.liquidityPoolDiff.totalFees0).to.equal(
         1000000000000000000n,
       );
-      expect(result.liquidityPoolDiff?.totalFees1).to.equal(
+      expect(result.liquidityPoolDiff.totalFees1).to.equal(
         2000000000000000000n,
       );
-      expect(result.liquidityPoolDiff?.totalFeesUSD).to.equal(
+      expect(result.liquidityPoolDiff.totalFeesUSD).to.equal(
         5000000000000000000n,
       );
     });
@@ -160,16 +129,13 @@ describe("CLPoolCollectFeesLogic", () => {
         decimals: 6n, // USDC-like token
       };
 
-      const loaderReturn = {
-        _type: "success" as const,
-        liquidityPoolAggregator: mockLiquidityPoolAggregator,
-        token0Instance: tokenWithDifferentDecimals,
-        token1Instance: mockToken1,
-      };
+      const result = processCLPoolCollectFees(
+        mockEvent,
+        mockLiquidityPoolAggregator,
+        tokenWithDifferentDecimals,
+        mockToken1,
+      );
 
-      const result = processCLPoolCollectFees(mockEvent, loaderReturn);
-
-      expect(result.error).to.be.undefined;
       expect(result.liquidityPoolDiff).to.not.be.undefined;
     });
 
@@ -183,22 +149,16 @@ describe("CLPoolCollectFeesLogic", () => {
         },
       };
 
-      const loaderReturn = {
-        _type: "success" as const,
-        liquidityPoolAggregator: mockLiquidityPoolAggregator,
-        token0Instance: mockToken0,
-        token1Instance: mockToken1,
-      };
-
       const result = processCLPoolCollectFees(
         eventWithZeroAmounts,
-        loaderReturn,
+        mockLiquidityPoolAggregator,
+        mockToken0,
+        mockToken1,
       );
 
-      expect(result.error).to.be.undefined;
-      expect(result.liquidityPoolDiff?.totalFees0).to.equal(0n);
-      expect(result.liquidityPoolDiff?.totalFees1).to.equal(0n);
-      expect(result.liquidityPoolDiff?.totalFeesUSD).to.equal(0n);
+      expect(result.liquidityPoolDiff.totalFees0).to.equal(0n);
+      expect(result.liquidityPoolDiff.totalFees1).to.equal(0n);
+      expect(result.liquidityPoolDiff.totalFeesUSD).to.equal(0n);
     });
   });
 });

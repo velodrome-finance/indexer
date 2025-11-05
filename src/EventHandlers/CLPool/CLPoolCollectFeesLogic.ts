@@ -77,7 +77,7 @@ function updateCLPoolFees(
 }
 
 export interface CLPoolCollectFeesResult {
-  liquidityPoolDiff?: {
+  liquidityPoolDiff: {
     reserve0: bigint;
     reserve1: bigint;
     totalLiquidityUSD: bigint;
@@ -87,77 +87,40 @@ export interface CLPoolCollectFeesResult {
     totalFeesUSDWhitelisted: bigint;
     lastUpdatedTimestamp: Date;
   };
-  error?: string;
 }
-
-export type CLPoolCollectFeesLoaderReturn =
-  | {
-      _type: "success";
-      liquidityPoolAggregator: LiquidityPoolAggregator;
-      token0Instance: Token | undefined;
-      token1Instance: Token | undefined;
-    }
-  | {
-      _type: "TokenNotFoundError";
-      message: string;
-    }
-  | {
-      _type: "LiquidityPoolAggregatorNotFoundError";
-      message: string;
-    };
 
 export function processCLPoolCollectFees(
   event: CLPool_CollectFees_event,
-  loaderReturn: CLPoolCollectFeesLoaderReturn,
+  liquidityPoolAggregator: LiquidityPoolAggregator,
+  token0Instance: Token | undefined,
+  token1Instance: Token | undefined,
 ): CLPoolCollectFeesResult {
-  // Handle different loader return types
-  switch (loaderReturn._type) {
-    case "success": {
-      const { liquidityPoolAggregator, token0Instance, token1Instance } =
-        loaderReturn;
+  const tokenUpdateData = updateCLPoolLiquidity(
+    liquidityPoolAggregator,
+    event,
+    token0Instance,
+    token1Instance,
+  );
 
-      const tokenUpdateData = updateCLPoolLiquidity(
-        liquidityPoolAggregator,
-        event,
-        token0Instance,
-        token1Instance,
-      );
+  const tokenUpdateFeesData = updateCLPoolFees(
+    liquidityPoolAggregator,
+    event,
+    token0Instance,
+    token1Instance,
+  );
 
-      const tokenUpdateFeesData = updateCLPoolFees(
-        liquidityPoolAggregator,
-        event,
-        token0Instance,
-        token1Instance,
-      );
+  const liquidityPoolDiff = {
+    reserve0: liquidityPoolAggregator.reserve0 - tokenUpdateData.reserve0,
+    reserve1: liquidityPoolAggregator.reserve1 - tokenUpdateData.reserve1,
+    totalLiquidityUSD: tokenUpdateData.subTotalLiquidityUSD,
+    totalFees0: tokenUpdateFeesData.totalFees0,
+    totalFees1: tokenUpdateFeesData.totalFees1,
+    totalFeesUSD: tokenUpdateFeesData.totalFeesUSD,
+    totalFeesUSDWhitelisted: tokenUpdateFeesData.totalFeesUSDWhitelisted,
+    lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
+  };
 
-      const liquidityPoolDiff = {
-        reserve0: liquidityPoolAggregator.reserve0 - tokenUpdateData.reserve0,
-        reserve1: liquidityPoolAggregator.reserve1 - tokenUpdateData.reserve1,
-        totalLiquidityUSD: tokenUpdateData.subTotalLiquidityUSD,
-        totalFees0: tokenUpdateFeesData.totalFees0,
-        totalFees1: tokenUpdateFeesData.totalFees1,
-        totalFeesUSD: tokenUpdateFeesData.totalFeesUSD,
-        totalFeesUSDWhitelisted: tokenUpdateFeesData.totalFeesUSDWhitelisted,
-        lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
-      };
-
-      return {
-        liquidityPoolDiff,
-      };
-    }
-    case "TokenNotFoundError":
-      return {
-        error: loaderReturn.message,
-      };
-    case "LiquidityPoolAggregatorNotFoundError":
-      return {
-        error: loaderReturn.message,
-      };
-    default: {
-      // This should never happen due to TypeScript's exhaustive checking
-      return {
-        error: "Unknown error type",
-      };
-    }
-  }
+  return {
+    liquidityPoolDiff,
+  };
 }

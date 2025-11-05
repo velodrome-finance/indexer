@@ -64,18 +64,13 @@ describe("CLFactoryPoolCreatedLogic", () => {
     },
   } as unknown as handlerContext;
 
-  // Shared mock loader return for success case
-  const mockSuccessLoaderReturn = {
-    poolToken0: mockToken0Data,
-    poolToken1: mockToken1Data,
-  };
-
   describe("processCLFactoryPoolCreated", () => {
     it("should create entity and liquidity pool aggregator for successful pool creation", async () => {
       // Process the pool created event
       const result = await processCLFactoryPoolCreated(
         mockEvent,
-        mockSuccessLoaderReturn,
+        mockToken0Data,
+        mockToken1Data,
         mockContext,
       );
 
@@ -97,18 +92,13 @@ describe("CLFactoryPoolCreatedLogic", () => {
         token1IsWhitelisted: true,
         gaugeIsAlive: false,
       });
-      expect(result.error).to.be.undefined;
     });
 
     it("should handle missing token0 gracefully", async () => {
-      const mockLoaderReturn = {
-        poolToken0: undefined as Token | undefined,
-        poolToken1: mockToken1Data,
-      };
-
       const result = await processCLFactoryPoolCreated(
         mockEvent,
-        mockLoaderReturn,
+        undefined,
+        mockToken1Data,
         mockContext,
       );
 
@@ -129,18 +119,13 @@ describe("CLFactoryPoolCreatedLogic", () => {
         token1IsWhitelisted: true,
         gaugeIsAlive: false,
       });
-      expect(result.error).to.be.undefined;
     });
 
     it("should handle missing token1 gracefully", async () => {
-      const mockLoaderReturn = {
-        poolToken0: mockToken0Data,
-        poolToken1: undefined as Token | undefined,
-      };
-
       const result = await processCLFactoryPoolCreated(
         mockEvent,
-        mockLoaderReturn,
+        mockToken0Data,
+        undefined,
         mockContext,
       );
 
@@ -161,18 +146,13 @@ describe("CLFactoryPoolCreatedLogic", () => {
         token1IsWhitelisted: false,
         gaugeIsAlive: false,
       });
-      expect(result.error).to.be.undefined;
     });
 
     it("should handle both tokens missing gracefully", async () => {
-      const mockLoaderReturn = {
-        poolToken0: undefined as Token | undefined,
-        poolToken1: undefined as Token | undefined,
-      };
-
       const result = await processCLFactoryPoolCreated(
         mockEvent,
-        mockLoaderReturn,
+        undefined,
+        undefined,
         mockContext,
       );
 
@@ -193,7 +173,6 @@ describe("CLFactoryPoolCreatedLogic", () => {
         token1IsWhitelisted: false,
         gaugeIsAlive: false,
       });
-      expect(result.error).to.be.undefined;
     });
 
     it("should handle different tick spacing values", async () => {
@@ -207,7 +186,8 @@ describe("CLFactoryPoolCreatedLogic", () => {
 
       const result = await processCLFactoryPoolCreated(
         mockEventWithDifferentTickSpacing,
-        mockSuccessLoaderReturn,
+        mockToken0Data,
+        mockToken1Data,
         mockContext,
       );
 
@@ -227,14 +207,10 @@ describe("CLFactoryPoolCreatedLogic", () => {
         isWhitelisted: false,
       };
 
-      const mockLoaderReturn = {
-        poolToken0: mockToken0NonWhitelisted,
-        poolToken1: mockToken1NonWhitelisted,
-      };
-
       const result = await processCLFactoryPoolCreated(
         mockEvent,
-        mockLoaderReturn,
+        mockToken0NonWhitelisted,
+        mockToken1NonWhitelisted,
         mockContext,
       );
 
@@ -255,7 +231,6 @@ describe("CLFactoryPoolCreatedLogic", () => {
         token1IsWhitelisted: false,
         gaugeIsAlive: false,
       });
-      expect(result.error).to.be.undefined;
     });
 
     it("should handle mixed whitelist status correctly", async () => {
@@ -269,14 +244,10 @@ describe("CLFactoryPoolCreatedLogic", () => {
         isWhitelisted: false,
       };
 
-      const mockLoaderReturn = {
-        poolToken0: mockToken0Whitelisted,
-        poolToken1: mockToken1NonWhitelisted,
-      };
-
       const result = await processCLFactoryPoolCreated(
         mockEvent,
-        mockLoaderReturn,
+        mockToken0Whitelisted,
+        mockToken1NonWhitelisted,
         mockContext,
       );
 
@@ -297,7 +268,6 @@ describe("CLFactoryPoolCreatedLogic", () => {
         token1IsWhitelisted: false,
         gaugeIsAlive: false,
       });
-      expect(result.error).to.be.undefined;
     });
 
     it("should handle different chain IDs correctly", async () => {
@@ -308,7 +278,8 @@ describe("CLFactoryPoolCreatedLogic", () => {
 
       const result = await processCLFactoryPoolCreated(
         mockEventWithDifferentChainId,
-        mockSuccessLoaderReturn,
+        mockToken0Data,
+        mockToken1Data,
         mockContext,
       );
 
@@ -334,14 +305,10 @@ describe("CLFactoryPoolCreatedLogic", () => {
         name: "USD Coin",
       };
 
-      const mockLoaderReturn = {
-        poolToken0: mockToken0WithSymbol,
-        poolToken1: mockToken1WithSymbol,
-      };
-
       const result = await processCLFactoryPoolCreated(
         mockEvent,
-        mockLoaderReturn,
+        mockToken0WithSymbol,
+        mockToken1WithSymbol,
         mockContext,
       );
 
@@ -359,26 +326,28 @@ describe("CLFactoryPoolCreatedLogic", () => {
           throw new Error("Token creation failed");
         });
 
-      // Use a loader return with undefined tokens to trigger createTokenEntity
-      const loaderReturnWithMissingTokens = {
-        poolToken0: undefined,
-        poolToken1: undefined,
-      };
-
+      // Use undefined tokens to trigger createTokenEntity
+      // The function catches errors and continues, so it should complete successfully
       const result = await processCLFactoryPoolCreated(
         mockEvent,
-        loaderReturnWithMissingTokens,
+        undefined,
+        undefined,
         mockContext,
       );
 
-      // The function should complete successfully (errors are logged but don't propagate)
-      expect(result.error).to.be.undefined;
+      // The function should complete successfully (errors are logged but don't stop processing)
+      // When token creation fails, symbols will be undefined
+      expect(result.liquidityPoolAggregator).to.exist;
+      expect(result.liquidityPoolAggregator.name).to.equal(
+        "CL-60 AMM - undefined/undefined",
+      );
     });
 
     it("should set all initial values correctly for new pool", async () => {
       const result = await processCLFactoryPoolCreated(
         mockEvent,
-        mockSuccessLoaderReturn,
+        mockToken0Data,
+        mockToken1Data,
         mockContext,
       );
 

@@ -10,22 +10,16 @@ import { generatePoolName } from "../../Helpers";
 import { createTokenEntity } from "../../PriceOracle";
 
 export interface CLFactoryPoolCreatedResult {
-  liquidityPoolAggregator?: LiquidityPoolAggregator;
-  error?: string;
-}
-
-export interface CLFactoryPoolCreatedLoaderReturn {
-  poolToken0: Token | undefined;
-  poolToken1: Token | undefined;
+  liquidityPoolAggregator: LiquidityPoolAggregator;
 }
 
 export async function processCLFactoryPoolCreated(
   event: CLFactory_PoolCreated_event,
-  loaderReturn: CLFactoryPoolCreatedLoaderReturn,
+  poolToken0: Token | undefined,
+  poolToken1: Token | undefined,
   context: handlerContext,
 ): Promise<CLFactoryPoolCreatedResult> {
   try {
-    const { poolToken0, poolToken1 } = loaderReturn;
     const poolTokenSymbols: string[] = [];
     const poolTokenAddressMappings: TokenEntityMapping[] = [
       { address: event.params.token0, tokenInstance: poolToken0 },
@@ -137,8 +131,8 @@ export async function processCLFactoryPoolCreated(
       liquidityPoolAggregator,
     };
   } catch (error) {
-    return {
-      error: `Error processing CLFactory PoolCreated: ${error}`,
-    };
+    context.log.error(`Error processing CLFactory PoolCreated: ${error}`);
+    // Re-throw to let the caller handle it
+    throw error;
   }
 }

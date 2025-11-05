@@ -31,9 +31,7 @@ import { processCLPoolSwap } from "./CLPool/CLPoolSwapLogic";
  * @returns {Object} Updated liquidity metrics
  */
 
-// TODO: Remove loaderReturn logic from CLPool related modules
-// AND
-// Add logic to handle NonFungiblePosition entity creation for example (when minting a new position)
+// TODO: Add logic to handle NonFungiblePosition entity creation for example (when minting a new position)
 
 CLPool.Burn.handler(async ({ event, context }) => {
   // Load pool data and handle errors
@@ -58,47 +56,34 @@ CLPool.Burn.handler(async ({ event, context }) => {
 
   const { liquidityPoolAggregator, token0Instance, token1Instance } = poolData;
 
-  // Create loader return object for compatibility with existing logic
-  const loaderReturn = {
-    _type: "success" as const,
-    liquidityPoolAggregator,
+  // Process the burn event
+  const result = await processCLPoolBurn(
+    event,
     token0Instance,
     token1Instance,
-  };
-
-  // Process the burn event
-  const result = await processCLPoolBurn(event, loaderReturn, context);
-
-  // Handle errors
-  if (result.error) {
-    context.log.error(result.error);
-    return;
-  }
+    context,
+  );
 
   // Apply liquidity pool updates
-  if (result.liquidityPoolDiff) {
-    updateLiquidityPoolAggregator(
-      result.liquidityPoolDiff,
-      liquidityPoolAggregator,
-      result.liquidityPoolDiff.lastUpdatedTimestamp,
-      context,
-      event.block.number,
-    );
-  }
+  updateLiquidityPoolAggregator(
+    result.liquidityPoolDiff,
+    liquidityPoolAggregator,
+    result.liquidityPoolDiff.lastUpdatedTimestamp,
+    context,
+    event.block.number,
+  );
 
   // Update user pool liquidity activity
-  if (result.userLiquidityDiff) {
-    const updatedUserStatsfields = {
-      currentLiquidityUSD: result.userLiquidityDiff.netLiquidityAddedUSD,
-    };
+  const updatedUserStatsfields = {
+    currentLiquidityUSD: result.userLiquidityDiff.netLiquidityAddedUSD,
+  };
 
-    await updateUserStatsPerPool(
-      updatedUserStatsfields,
-      userData,
-      result.userLiquidityDiff.timestamp,
-      context,
-    );
-  }
+  await updateUserStatsPerPool(
+    updatedUserStatsfields,
+    userData,
+    result.userLiquidityDiff.timestamp,
+    context,
+  );
 });
 
 CLPool.Collect.handler(async ({ event, context }) => {
@@ -124,49 +109,36 @@ CLPool.Collect.handler(async ({ event, context }) => {
 
   const { liquidityPoolAggregator, token0Instance, token1Instance } = poolData;
 
-  // Create loader return object for compatibility with existing logic
-  const loaderReturn = {
-    _type: "success" as const,
-    liquidityPoolAggregator,
+  // Process the collect event
+  const result = await processCLPoolCollect(
+    event,
     token0Instance,
     token1Instance,
-  };
-
-  // Process the collect event
-  const result = await processCLPoolCollect(event, loaderReturn, context);
-
-  // Handle errors
-  if (result.error) {
-    context.log.error(result.error);
-    return;
-  }
+    context,
+  );
 
   // Apply liquidity pool updates
-  if (result.liquidityPoolDiff) {
-    updateLiquidityPoolAggregator(
-      result.liquidityPoolDiff,
-      liquidityPoolAggregator,
-      result.liquidityPoolDiff.lastUpdatedTimestamp,
-      context,
-      event.block.number,
-    );
-  }
+  updateLiquidityPoolAggregator(
+    result.liquidityPoolDiff,
+    liquidityPoolAggregator,
+    result.liquidityPoolDiff.lastUpdatedTimestamp,
+    context,
+    event.block.number,
+  );
 
   // Update user pool fee contribution
-  if (result.userLiquidityDiff) {
-    const updatedUserStatsfields = {
-      totalFeesContributed0: result.userLiquidityDiff.totalFeesContributed0,
-      totalFeesContributed1: result.userLiquidityDiff.totalFeesContributed1,
-      totalFeesContributedUSD: result.userLiquidityDiff.totalFeesContributedUSD,
-    };
+  const updatedUserStatsfields = {
+    totalFeesContributed0: result.userLiquidityDiff.totalFeesContributed0,
+    totalFeesContributed1: result.userLiquidityDiff.totalFeesContributed1,
+    totalFeesContributedUSD: result.userLiquidityDiff.totalFeesContributedUSD,
+  };
 
-    await updateUserStatsPerPool(
-      updatedUserStatsfields,
-      userData,
-      result.userLiquidityDiff.timestamp,
-      context,
-    );
-  }
+  await updateUserStatsPerPool(
+    updatedUserStatsfields,
+    userData,
+    result.userLiquidityDiff.timestamp,
+    context,
+  );
 });
 
 CLPool.CollectFees.handler(async ({ event, context }) => {
@@ -192,53 +164,36 @@ CLPool.CollectFees.handler(async ({ event, context }) => {
 
   const { liquidityPoolAggregator, token0Instance, token1Instance } = poolData;
 
-  // Create loader return object for compatibility with existing logic
-  const loaderReturn = {
-    _type: "success" as const,
+  // Process the collect fees event
+  const result = processCLPoolCollectFees(
+    event,
     liquidityPoolAggregator,
     token0Instance,
     token1Instance,
-  };
-
-  // Process the collect fees event
-  const result = processCLPoolCollectFees(event, loaderReturn);
-
-  // Handle errors
-  if (result.error) {
-    context.log.error(result.error);
-    return;
-  }
+  );
 
   // Apply liquidity pool updates
-  if (result.liquidityPoolDiff) {
-    updateLiquidityPoolAggregator(
-      result.liquidityPoolDiff,
-      liquidityPoolAggregator,
-      result.liquidityPoolDiff.lastUpdatedTimestamp,
-      context,
-      event.block.number,
-    );
-  }
+  updateLiquidityPoolAggregator(
+    result.liquidityPoolDiff,
+    liquidityPoolAggregator,
+    result.liquidityPoolDiff.lastUpdatedTimestamp,
+    context,
+    event.block.number,
+  );
 
   // Update user pool fee contribution
-  if (
-    result.liquidityPoolDiff?.totalFees0 &&
-    result.liquidityPoolDiff?.totalFees1 &&
-    result.liquidityPoolDiff?.totalFeesUSD
-  ) {
-    const updatedUserStatsfields = {
-      totalFeesContributedUSD: result.liquidityPoolDiff.totalFeesUSD,
-      totalFeesContributed0: result.liquidityPoolDiff.totalFees0,
-      totalFeesContributed1: result.liquidityPoolDiff.totalFees1,
-    };
+  const updatedUserStatsfields = {
+    totalFeesContributedUSD: result.liquidityPoolDiff.totalFeesUSD,
+    totalFeesContributed0: result.liquidityPoolDiff.totalFees0,
+    totalFeesContributed1: result.liquidityPoolDiff.totalFees1,
+  };
 
-    await updateUserStatsPerPool(
-      updatedUserStatsfields,
-      userData,
-      new Date(event.block.timestamp * 1000),
-      context,
-    );
-  }
+  await updateUserStatsPerPool(
+    updatedUserStatsfields,
+    userData,
+    new Date(event.block.timestamp * 1000),
+    context,
+  );
 });
 
 CLPool.Flash.handler(async ({ event, context }) => {
@@ -264,39 +219,25 @@ CLPool.Flash.handler(async ({ event, context }) => {
 
   const { liquidityPoolAggregator, token0Instance, token1Instance } = poolData;
 
-  // Create loader return object for compatibility with existing logic
-  const loaderReturn = {
-    _type: "success" as const,
-    liquidityPoolAggregator,
+  // Process the flash event
+  const result = await processCLPoolFlash(
+    event,
     token0Instance,
     token1Instance,
-  };
-
-  // Process the flash event
-  const result = await processCLPoolFlash(event, loaderReturn, context);
-
-  // Handle errors
-  if (result.error) {
-    context.log.error(result.error);
-    return;
-  }
+    context,
+  );
 
   // Apply liquidity pool updates
-  if (result.liquidityPoolDiff) {
-    updateLiquidityPoolAggregator(
-      result.liquidityPoolDiff,
-      liquidityPoolAggregator,
-      result.liquidityPoolDiff.lastUpdatedTimestamp,
-      context,
-      event.block.number,
-    );
-  }
+  updateLiquidityPoolAggregator(
+    result.liquidityPoolDiff,
+    liquidityPoolAggregator,
+    result.liquidityPoolDiff.lastUpdatedTimestamp,
+    context,
+    event.block.number,
+  );
 
   // Update user pool flash loan activity
-  if (
-    result.userFlashLoanDiff &&
-    result.userFlashLoanDiff.totalFlashLoanVolumeUSD > 0n
-  ) {
+  if (result.userFlashLoanDiff.totalFlashLoanVolumeUSD > 0n) {
     const updatedUserStatsfields = {
       numberOfFlashLoans: result.userFlashLoanDiff.numberOfFlashLoans,
       totalFlashLoanVolumeUSD: result.userFlashLoanDiff.totalFlashLoanVolumeUSD,
@@ -369,47 +310,34 @@ CLPool.Mint.handler(async ({ event, context }) => {
 
   const { liquidityPoolAggregator, token0Instance, token1Instance } = poolData;
 
-  // Create loader return object for compatibility with existing logic
-  const loaderReturn = {
-    _type: "success" as const,
-    liquidityPoolAggregator,
+  // Process the mint event
+  const result = await processCLPoolMint(
+    event,
     token0Instance,
     token1Instance,
-  };
-
-  // Process the mint event
-  const result = await processCLPoolMint(event, loaderReturn, context);
-
-  // Handle errors
-  if (result.error) {
-    context.log.error(result.error);
-    return;
-  }
+    context,
+  );
 
   // Apply liquidity pool updates
-  if (result.liquidityPoolDiff) {
-    updateLiquidityPoolAggregator(
-      result.liquidityPoolDiff,
-      liquidityPoolAggregator,
-      result.liquidityPoolDiff.lastUpdatedTimestamp,
-      context,
-      event.block.number,
-    );
-  }
+  updateLiquidityPoolAggregator(
+    result.liquidityPoolDiff,
+    liquidityPoolAggregator,
+    result.liquidityPoolDiff.lastUpdatedTimestamp,
+    context,
+    event.block.number,
+  );
 
   // Update user pool liquidity activity
-  if (result.userLiquidityDiff) {
-    const updatedUserStatsfields = {
-      currentLiquidityUSD: result.userLiquidityDiff.netLiquidityAddedUSD,
-    };
+  const updatedUserStatsfields = {
+    currentLiquidityUSD: result.userLiquidityDiff.netLiquidityAddedUSD,
+  };
 
-    await updateUserStatsPerPool(
-      updatedUserStatsfields,
-      userData,
-      result.userLiquidityDiff.timestamp,
-      context,
-    );
-  }
+  await updateUserStatsPerPool(
+    updatedUserStatsfields,
+    userData,
+    result.userLiquidityDiff.timestamp,
+    context,
+  );
 });
 
 CLPool.SetFeeProtocol.handler(async ({ event, context }) => {
@@ -465,46 +393,34 @@ CLPool.Swap.handler(async ({ event, context }) => {
 
   const { liquidityPoolAggregator, token0Instance, token1Instance } = poolData;
 
-  // Create loader return object for compatibility with existing logic
-  const loaderReturn = {
-    _type: "success" as const,
+  // Process the swap event
+  const result = await processCLPoolSwap(
+    event,
     liquidityPoolAggregator,
     token0Instance,
     token1Instance,
-  };
-
-  // Process the swap event
-  const result = await processCLPoolSwap(event, loaderReturn, context);
-
-  // Handle errors
-  if (result.error) {
-    context.log.error(result.error);
-    return;
-  }
+    context,
+  );
 
   // Apply liquidity pool updates
-  if (result.liquidityPoolDiff) {
-    updateLiquidityPoolAggregator(
-      result.liquidityPoolDiff,
-      liquidityPoolAggregator,
-      new Date(event.block.timestamp * 1000),
-      context,
-      event.block.number,
-    );
-  }
+  updateLiquidityPoolAggregator(
+    result.liquidityPoolDiff,
+    liquidityPoolAggregator,
+    new Date(event.block.timestamp * 1000),
+    context,
+    event.block.number,
+  );
 
   // Update user swap activity
-  if (result.userSwapDiff) {
-    const updatedUserStatsfields = {
-      numberOfSwaps: result.userSwapDiff.numberOfSwaps,
-      totalSwapVolumeUSD: result.userSwapDiff.totalSwapVolumeUSD,
-    };
+  const updatedUserStatsfields = {
+    numberOfSwaps: result.userSwapDiff.numberOfSwaps,
+    totalSwapVolumeUSD: result.userSwapDiff.totalSwapVolumeUSD,
+  };
 
-    await updateUserStatsPerPool(
-      updatedUserStatsfields,
-      userData,
-      result.userSwapDiff.timestamp,
-      context,
-    );
-  }
+  await updateUserStatsPerPool(
+    updatedUserStatsfields,
+    userData,
+    result.userSwapDiff.timestamp,
+    context,
+  );
 });
