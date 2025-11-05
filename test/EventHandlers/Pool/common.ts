@@ -101,6 +101,7 @@ export function setupCommon() {
     poolLauncherPoolId: undefined,
     // Voting fields
     gaugeAddress: "",
+    gaugeEmissionsCap: 0n,
     numberOfVotes: 0n,
     currentVotingPower: 0n,
     // Dynamic Fee fields

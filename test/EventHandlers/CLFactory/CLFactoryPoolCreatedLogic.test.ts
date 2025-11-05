@@ -1,6 +1,7 @@
 import { expect } from "chai";
 import type {
   CLFactory_PoolCreated_event,
+  CLGaugeConfig,
   Token,
   handlerContext,
 } from "generated";
@@ -71,6 +72,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockEvent,
         mockToken0Data,
         mockToken1Data,
+        undefined, // CLGaugeConfig
         mockContext,
       );
 
@@ -99,6 +101,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockEvent,
         undefined,
         mockToken1Data,
+        undefined, // CLGaugeConfig
         mockContext,
       );
 
@@ -126,6 +129,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockEvent,
         mockToken0Data,
         undefined,
+        undefined, // CLGaugeConfig
         mockContext,
       );
 
@@ -153,6 +157,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockEvent,
         undefined,
         undefined,
+        undefined, // CLGaugeConfig
         mockContext,
       );
 
@@ -188,6 +193,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockEventWithDifferentTickSpacing,
         mockToken0Data,
         mockToken1Data,
+        undefined, // CLGaugeConfig
         mockContext,
       );
 
@@ -211,6 +217,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockEvent,
         mockToken0NonWhitelisted,
         mockToken1NonWhitelisted,
+        undefined, // CLGaugeConfig
         mockContext,
       );
 
@@ -248,6 +255,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockEvent,
         mockToken0Whitelisted,
         mockToken1NonWhitelisted,
+        undefined, // CLGaugeConfig
         mockContext,
       );
 
@@ -280,6 +288,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockEventWithDifferentChainId,
         mockToken0Data,
         mockToken1Data,
+        undefined, // CLGaugeConfig
         mockContext,
       );
 
@@ -309,6 +318,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockEvent,
         mockToken0WithSymbol,
         mockToken1WithSymbol,
+        undefined, // CLGaugeConfig
         mockContext,
       );
 
@@ -332,6 +342,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockEvent,
         undefined,
         undefined,
+        undefined, // CLGaugeConfig
         mockContext,
       );
 
@@ -348,6 +359,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockEvent,
         mockToken0Data,
         mockToken1Data,
+        undefined, // CLGaugeConfig
         mockContext,
       );
 
@@ -386,6 +398,39 @@ describe("CLFactoryPoolCreatedLogic", () => {
         lastUpdatedTimestamp: new Date(1000000 * 1000),
         lastSnapshotTimestamp: new Date(1000000 * 1000),
       });
+    });
+
+    it("should set gaugeEmissionsCap to undefined when CLGaugeConfig does not exist", async () => {
+      const result = await processCLFactoryPoolCreated(
+        mockEvent,
+        mockToken0Data,
+        mockToken1Data,
+        undefined, // CLGaugeConfig does not exist
+        mockContext,
+      );
+
+      expect(result.liquidityPoolAggregator.gaugeEmissionsCap).to.be.undefined;
+    });
+
+    it("should set gaugeEmissionsCap to defaultEmissionsCap when CLGaugeConfig exists", async () => {
+      const mockDefaultEmissionsCap = 1000000000000000000000n; // 1000 tokens in 18 decimals
+      const mockCLGaugeConfig: CLGaugeConfig = {
+        id: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        defaultEmissionsCap: mockDefaultEmissionsCap,
+        lastUpdatedTimestamp: new Date(1000000 * 1000),
+      };
+
+      const result = await processCLFactoryPoolCreated(
+        mockEvent,
+        mockToken0Data,
+        mockToken1Data,
+        mockCLGaugeConfig,
+        mockContext,
+      );
+
+      expect(result.liquidityPoolAggregator.gaugeEmissionsCap).to.equal(
+        mockDefaultEmissionsCap,
+      );
     });
   });
 });

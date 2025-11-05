@@ -15,8 +15,6 @@ type LiquidityPoolAggregator {
   totalVolume1: BigInt! @config(precision: 76) # total swap volume of token1 in token units
   totalVolumeUSD: BigInt! @config(precision: 76) # total swap volume of the pool in USD
   totalVolumeUSDWhitelisted: BigInt! @config(precision: 76) # total swap volume of the pool in USD
-  gaugeFees0CurrentEpoch: BigInt! @config(precision: 76) # fees collected for current epoch in token0 units
-  gaugeFees1CurrentEpoch: BigInt! @config(precision: 76) # fees collected for current epoch in token1 units
   totalFees0: BigInt! @config(precision: 76) # total fees collected in token0 units
   totalFees1: BigInt! @config(precision: 76) # total fees collected in token1 units
   totalFeesUSD: BigInt! @config(precision: 76) # total fees collected in USD
@@ -31,8 +29,7 @@ type LiquidityPoolAggregator {
   totalEmissions: BigInt! @config(precision: 76) # total emissions for the pool in reward token units (VELO form Optimism and AERO for Base)
   totalEmissionsUSD: BigInt! @config(precision: 76) # total emissions for the pool in USD
   totalBribesUSD: BigInt! @config(precision: 76) # total bribes for the pool in USD
-  gaugeIsAlive: Boolean! # whether the gauge is alive
-  gaugeAddress: String @index # address of the gauge for this pool
+
   token0IsWhitelisted: Boolean! # whether the token0 is whitelisted
   token1IsWhitelisted: Boolean! # whether the token1 is whitelisted
   lastUpdatedTimestamp: Timestamp! # timestamp of last update
@@ -49,6 +46,11 @@ type LiquidityPoolAggregator {
   numberOfFlashLoans: BigInt @config(precision: 76) # total number of flash loans
 
   # Gauge fields
+  gaugeIsAlive: Boolean! # whether the gauge is alive
+  gaugeAddress: String @index # address of the gauge for this pool
+  gaugeFees0CurrentEpoch: BigInt! @config(precision: 76) # fees collected for current epoch in token0 units
+  gaugeFees1CurrentEpoch: BigInt! @config(precision: 76) # fees collected for current epoch in token1 units
+  gaugeEmissionsCap: BigInt @config(precision: 76) # Emissions cap for gauge. If not specified in an SetEmissionsCap event, set to defaultEmissionsCap as per CLGaugeConfig. If CLGaugeConfig doesn't exist, there's no emissions cap
   numberOfGaugeDeposits: BigInt! @config(precision: 76) # number of gauge deposits (staking)
   numberOfGaugeWithdrawals: BigInt! @config(precision: 76) # number of gauge withdrawals (unstaking)
   numberOfGaugeRewardClaims: BigInt! @config(precision: 76) # number of gauge reward claims
@@ -431,4 +433,13 @@ type oUSDTBridgedTransaction {
   sender: String! # Address that initiated the bridge transaction
   recipient: String! # Address that will receive the bridged tokens
   amount: Float! # Amount of oUSDT tokens being bridged
+}
+
+# Stores relevant CLGauge config data such as default emissions cap and emissions cap per gauge
+# Specially relevant after the deployment of the new CLGaugeFactory that features emissions cap per gauge
+# Gauges that do no that associated SetEmissionCap events will have their emissions cap defaulted to defaultEmissionsCap
+type CLGaugeConfig {
+  id: ID! # Contract address
+  defaultEmissionsCap: BigInt! @config(precision: 24)
+  lastUpdatedTimestamp: Timestamp! # Timestamp of the last CLGaugeConfig update
 }

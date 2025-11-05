@@ -1,5 +1,6 @@
 import type {
   CLFactory_PoolCreated_event,
+  CLGaugeConfig,
   LiquidityPoolAggregator,
   Token,
   handlerContext,
@@ -17,6 +18,7 @@ export async function processCLFactoryPoolCreated(
   event: CLFactory_PoolCreated_event,
   poolToken0: Token | undefined,
   poolToken1: Token | undefined,
+  CLGaugeConfig: CLGaugeConfig | undefined,
   context: handlerContext,
 ): Promise<CLFactoryPoolCreatedResult> {
   try {
@@ -118,6 +120,11 @@ export async function processCLFactoryPoolCreated(
       poolLauncherPoolId: undefined,
       // Voting fields
       gaugeAddress: "",
+      // Set to undefined if CLGaugeConfig does not exist (i.e before the deployment of NewCLGaugeFactory which introduces emissions caps per gauge)
+      // Otherwise, set to defaultEmissionCap
+      gaugeEmissionsCap: CLGaugeConfig
+        ? CLGaugeConfig.defaultEmissionsCap
+        : undefined,
       numberOfVotes: 0n,
       currentVotingPower: 0n,
       // Dynamic Fee fields (undefined initially)

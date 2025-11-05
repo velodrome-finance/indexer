@@ -90,6 +90,7 @@ type chainConstants = {
     priceConnectors: PriceConnector[];
   };
   rewardToken: (blockNumber: number) => string;
+  newCLGaugeFactoryAddress: string;
   eth_client: PublicClient;
 };
 
@@ -127,6 +128,7 @@ const OPTIMISM_CONSTANTS: chainConstants = {
     }
     return "0x9560e827aF36c94D2Ac33a39bCE1Fe78631088Db";
   },
+  newCLGaugeFactoryAddress: "", // TODO: Update with a real address
   eth_client: createPublicClient({
     chain: optimism satisfies Chain as Chain,
     transport: http(
@@ -170,6 +172,7 @@ const BASE_CONSTANTS: chainConstants = {
   },
   rewardToken: (blockNumber: number) =>
     "0x940181a94A35A4569E4529A3CDfB74e38FD98631",
+  newCLGaugeFactoryAddress: "0xaDe65c38CD4849aDBA595a4323a8C7DdfE89716a",
   eth_client: createPublicClient({
     chain: base satisfies Chain as Chain,
     transport: http(
@@ -210,6 +213,7 @@ const LISK_CONSTANTS: chainConstants = {
   },
   rewardToken: (blockNumber: number) =>
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
+  newCLGaugeFactoryAddress: "", // TODO: Update with a real address
   eth_client: createPublicClient({
     chain: lisk satisfies Chain as Chain,
     transport: http(process.env.ENVIO_LISK_RPC_URL || "https://lisk.drpc.org", {
@@ -247,6 +251,7 @@ const MODE_CONSTANTS: chainConstants = {
   },
   rewardToken: (blockNumber: number) =>
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
+  newCLGaugeFactoryAddress: "", // TODO: Update with a real address
   eth_client: createPublicClient({
     chain: mode satisfies Chain as Chain,
     transport: http(process.env.ENVIO_MODE_RPC_URL || "https://1rpc.io/mode", {
@@ -274,6 +279,7 @@ const CELO_CONSTANTS: chainConstants = {
   },
   rewardToken: (blockNumber: number) =>
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
+  newCLGaugeFactoryAddress: "", // TODO: Update with a real address
   eth_client: createPublicClient({
     chain: celo satisfies Chain as Chain,
     transport: http(process.env.ENVIO_CELO_RPC_URL || "https://celo.drpc.org", {
@@ -301,6 +307,7 @@ const SONEIUM_CONSTANTS: chainConstants = {
   },
   rewardToken: (blockNumber: number) =>
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
+  newCLGaugeFactoryAddress: "", // TODO: Update with a real address
   eth_client: createPublicClient({
     chain: soneium satisfies Chain as Chain,
     transport: http(
@@ -331,6 +338,7 @@ const UNICHAIN_CONSTANTS: chainConstants = {
   },
   rewardToken: (blockNumber: number) =>
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
+  newCLGaugeFactoryAddress: "", // TODO: Update with a real address
   eth_client: createPublicClient({
     chain: unichain satisfies Chain as Chain,
     transport: http(
@@ -371,6 +379,7 @@ const FRAXTAL_CONSTANTS: chainConstants = {
   },
   rewardToken: (blockNumber: number) =>
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
+  newCLGaugeFactoryAddress: "", // TODO: Update with a real address
   eth_client: createPublicClient({
     chain: fraxtal satisfies Chain as Chain,
     transport: http(
@@ -401,6 +410,7 @@ const INK_CONSTANTS: chainConstants = {
   },
   rewardToken: (blockNumber: number) =>
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
+  newCLGaugeFactoryAddress: "", // TODO: Update with a real address
   eth_client: createPublicClient({
     chain: ink satisfies Chain as Chain,
     transport: http(process.env.ENVIO_INK_RPC_URL || "https://ink.drpc.org", {
@@ -428,6 +438,7 @@ const METAL_CONSTANTS: chainConstants = {
   },
   rewardToken: (blockNumber: number) =>
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
+  newCLGaugeFactoryAddress: "", // TODO: Update with a real address
   eth_client: createPublicClient({
     chain: metalL2 satisfies Chain as Chain,
     transport: http(
@@ -458,6 +469,7 @@ const SWELL_CONSTANTS: chainConstants = {
   },
   rewardToken: (blockNumber: number) =>
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
+  newCLGaugeFactoryAddress: "", // TODO: Update with a real address
   eth_client: createPublicClient({
     chain: swellchain,
     transport: http(
