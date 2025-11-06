@@ -10,14 +10,6 @@ field_selection:
   transaction_fields:
     - "hash"
 contracts:
-  - name: SuperchainPoolFactory
-    handler: src/EventHandlers/SuperchainPoolFactory.ts
-    events:
-      - event: RootPoolCreated(address indexed token0, address indexed token1, bool indexed stable, address pool, uint256 length)
-  - name: SuperchainCLFactory
-    handler: src/EventHandlers/SuperchainCLFactory.ts
-    events:
-      - event: RootPoolCreated(address indexed token0, address indexed token1, int24 indexed tickSpacing, uint256 chainid, address pool)
   - name: FactoryRegistry
     handler: src/EventHandlers/FactoryRegistry.ts
     abi_file_path: abis/FactoryRegistry.json
@@ -200,12 +192,6 @@ networks:
       - name: FactoryRegistry
         address:
           - 0xF4c67CdEAaB8360370F41514d06e32CcD8aA1d7B
-      - name: SuperchainPoolFactory
-        address:
-          - 0x31832f2a97Fd20664D76Cc421207669b55CE4BC0
-      - name: SuperchainCLFactory
-        address:
-          - 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F
       - name: PoolFactory
         address:
           - 0xF1046053aa5682b4F9a81b5481394DA16BE5FF5a

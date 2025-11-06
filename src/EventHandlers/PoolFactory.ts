@@ -1,13 +1,10 @@
-import { PoolFactory, type PoolFactory_SetCustomFee } from "generated";
+import { PoolFactory } from "generated";
 import { updateLiquidityPoolAggregator } from "../Aggregators/LiquidityPoolAggregator";
 import { TokenIdByChain } from "../Constants";
 import { createTokenEntity } from "../PriceOracle";
 import type { TokenEntityMapping } from "./../CustomTypes";
 import { generatePoolName } from "./../Helpers";
-import type {
-  LiquidityPoolAggregator,
-  PoolFactory_PoolCreated,
-} from "./../src/Types.gen";
+import type { LiquidityPoolAggregator } from "./../src/Types.gen";
 
 PoolFactory.PoolCreated.contractRegister(({ event, context }) => {
   context.addPool(event.params.pool);
@@ -24,22 +21,6 @@ PoolFactory.PoolCreated.handler(async ({ event, context }) => {
   if (context.isPreload) {
     return;
   }
-
-  const entity: PoolFactory_PoolCreated = {
-    id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
-    poolFactory: event.srcAddress,
-    token0: TokenIdByChain(event.params.token0, event.chainId),
-    token1: TokenIdByChain(event.params.token1, event.chainId),
-    stable: event.params.stable,
-    pool: event.params.pool,
-    timestamp: new Date(event.block.timestamp * 1000),
-    blockNumber: event.block.number,
-    logIndex: event.logIndex,
-    chainId: event.chainId,
-    transactionHash: event.transaction.hash,
-  };
-
-  context.PoolFactory_PoolCreated.set(entity);
 
   const poolTokenSymbols: string[] = [];
   const poolTokenAddressMappings: TokenEntityMapping[] = [
@@ -157,16 +138,21 @@ PoolFactory.PoolCreated.handler(async ({ event, context }) => {
 });
 
 PoolFactory.SetCustomFee.handler(async ({ event, context }) => {
-  const entity: PoolFactory_SetCustomFee = {
-    id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
-    pool: event.params.pool,
-    fee: event.params.fee,
-    timestamp: new Date(event.block.timestamp * 1000),
-    blockNumber: event.block.number,
-    logIndex: event.logIndex,
-    chainId: event.chainId,
-    transactionHash: event.transaction.hash,
-  };
+  const poolEntity = await context.LiquidityPoolAggregator.get(
+    event.params.pool,
+  );
 
-  context.PoolFactory_SetCustomFee.set(entity);
+  if (!poolEntity) {
+    context.log.warn(
+      `Pool ${event.params.pool} not found for SetCustomFee event`,
+    );
+    return;
+  }
+
+  context.LiquidityPoolAggregator.set({
+    ...poolEntity,
+    baseFee: BigInt(event.params.fee),
+    currentFee: BigInt(event.params.fee),
+    lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
+  });
 });
