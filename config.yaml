@@ -172,6 +172,12 @@ contracts:
     events:
       - event: UniversalRouterBridge
       - event: CrossChainSwap
+  - name: Mailbox
+    handler: src/EventHandlers/SuperswapsHyperlane/Mailbox.ts
+    abi_file_path: abis/Mailbox.json
+    events:
+      - event: DispatchId
+      - event: ProcessId
 networks:
   - id: 10 # Optimism
     start_block: 0
@@ -230,6 +236,9 @@ networks:
       - name: VelodromeUniversalRouter
         address:
           - 0x01D40099fCD87C018969B0e8D4aB1633Fb34763C
+      - name: Mailbox
+        address:
+          - 0xd4C1905BB1D26BC93DAC913e13CaCC278CdCC80D
   - id: 8453 # Base
     start_block: 36953918
     contracts:
@@ -287,6 +296,9 @@ networks:
           - 0x01D40099fCD87C018969B0e8D4aB1633Fb34763C
       - name: ALMLPWrapper
         address:
+      - name: Mailbox
+        address:
+          - 0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D
   - id: 42220 # Celo
     hypersync_config:
       url: https://celo.hypersync.xyz
@@ -329,6 +341,9 @@ networks:
       - name: VelodromeUniversalRouter
         address:
           - 0x01D40099fCD87C018969B0e8D4aB1633Fb34763C
+      - name: Mailbox
+        address:
+          - 0x50da3B3907A08a24fe4999F4Dcf337E8dC7954bb
   - id: 1868 # Soneium
     hypersync_config:
       url: https://soneium.hypersync.xyz
@@ -371,6 +386,9 @@ networks:
       - name: VelodromeUniversalRouter
         address:
           - 0x01D40099fCD87C018969B0e8D4aB1633Fb34763C
+      - name: Mailbox
+        address:
+          - 0x3a464f746D23Ab22155710f44dB16dcA53e0775E
   - id: 57073 # Ink
     hypersync_config:
       url: https://ink.hypersync.xyz
@@ -419,6 +437,9 @@ networks:
       - name: VelodromeUniversalRouter
         address:
           - 0x01D40099fCD87C018969B0e8D4aB1633Fb34763C
+      - name: Mailbox
+        address:
+          - 0x7f50C5776722630a0024fAE05fDe8b47571D7B39
   - id: 34443 # Mode
     start_block: 0
     contracts:
@@ -459,6 +480,9 @@ networks:
       - name: VelodromeUniversalRouter
         address:
           - 0x01D40099fCD87C018969B0e8D4aB1633Fb34763C
+      - name: Mailbox
+        address:
+          - 0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7
   - id: 1135 # Lisk
     start_block: 0
     contracts:
@@ -491,6 +515,9 @@ networks:
       - name: VelodromeUniversalRouter
         address:
           - 0x01D40099fCD87C018969B0e8D4aB1633Fb34763C
+      - name: Mailbox
+        address:
+          - 0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7
   - id: 130 # Unichain
     hypersync_config:
       url: https://unichain.hypersync.xyz
@@ -525,6 +552,9 @@ networks:
       - name: VelodromeUniversalRouter
         address:
           - 0x01D40099fCD87C018969B0e8D4aB1633Fb34763C
+      - name: Mailbox
+        address:
+          - 0x3a464f746D23Ab22155710f44dB16dcA53e0775E
   - id: 252 # Fraxtal
     hypersync_config:
       url: https://fraxtal.hypersync.xyz
@@ -559,6 +589,9 @@ networks:
       - name: VelodromeUniversalRouter
         address:
           - 0x01D40099fCD87C018969B0e8D4aB1633Fb34763C
+      - name: Mailbox
+        address:
+          - 0x2f9DB5616fa3fAd1aB06cB2C906830BA63d135e3
   - id: 1750 # Metal
     hypersync_config:
       url: https://1750.hypersync.xyz # Metal L2 hypersync address
@@ -590,6 +623,9 @@ networks:
       - name: VelodromeUniversalRouter
         address:
           - 0x01D40099fCD87C018969B0e8D4aB1633Fb34763C
+      - name: Mailbox
+        address:
+          - 0x730f8a4128Fa8c53C777B62Baa1abeF94cAd34a9
   - id: 1923 # Swell
     hypersync_config:
       url: https://swell.hypersync.xyz
@@ -632,3 +668,6 @@ networks:
       - name: VelodromeUniversalRouter
         address:
           - 0x01D40099fCD87C018969B0e8D4aB1633Fb34763C
+      - name: Mailbox
+        address:
+          - 0x3a464f746D23Ab22155710f44dB16dcA53e0775E
