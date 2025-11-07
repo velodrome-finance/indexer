@@ -37,7 +37,7 @@ export function setupCommon() {
   };
 
   const mockLiquidityPoolData: LiquidityPoolAggregator = {
-    id: "0x3333333333333333333333333333333333333333",
+    id: toChecksumAddress("0x3333333333333333333333333333333333333333"),
     chainId: 10,
     token0_id: mockToken0Data.id,
     token1_id: mockToken1Data.id,

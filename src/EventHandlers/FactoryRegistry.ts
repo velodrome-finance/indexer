@@ -1,37 +1,43 @@
-import {
-  FactoryRegistry,
-  type FactoryRegistry_Approve,
-  type FactoryRegistry_Unapprove,
-} from "generated";
+import { FactoryRegistry } from "generated";
 
 FactoryRegistry.Approve.handler(async ({ event, context }) => {
-  const entity: FactoryRegistry_Approve = {
-    id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
-    poolFactory: event.params.poolFactory,
-    votingRewardsFactory: event.params.votingRewardsFactory,
-    gaugeFactory: event.params.gaugeFactory,
-    timestamp: new Date(event.block.timestamp * 1000),
-    transactionHash: event.transaction.hash,
-    blockNumber: event.block.number,
-    logIndex: event.logIndex,
-    chainId: event.chainId,
-  };
+  // Update FactoryRegistryConfig with the newly approved factories
+  const configId = `${event.srcAddress}_${event.chainId}`;
+  const existingConfig = await context.FactoryRegistryConfig.getOrCreate({
+    id: configId,
+    currentActivePoolFactory: event.params.poolFactory,
+    currentActiveVotingRewardsFactory: event.params.votingRewardsFactory,
+    currentActiveGaugeFactory: event.params.gaugeFactory,
+    lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
+  });
 
-  context.FactoryRegistry_Approve.set(entity);
+  // Update the config with new values (getOrCreate may return existing unchanged)
+  context.FactoryRegistryConfig.set({
+    ...existingConfig,
+    currentActivePoolFactory: event.params.poolFactory,
+    currentActiveVotingRewardsFactory: event.params.votingRewardsFactory,
+    currentActiveGaugeFactory: event.params.gaugeFactory,
+    lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
+  });
 });
 
 FactoryRegistry.Unapprove.handler(async ({ event, context }) => {
-  const entity: FactoryRegistry_Unapprove = {
-    id: `${event.chainId}_${event.block.number}_${event.logIndex}`,
-    poolFactory: event.params.poolFactory,
-    votingRewardsFactory: event.params.votingRewardsFactory,
-    gaugeFactory: event.params.gaugeFactory,
-    timestamp: new Date(event.block.timestamp * 1000),
-    transactionHash: event.transaction.hash,
-    blockNumber: event.block.number,
-    logIndex: event.logIndex,
-    chainId: event.chainId,
-  };
+  // Update FactoryRegistryConfig if the unapproved factories match the current active ones
+  const configId = `${event.srcAddress}_${event.chainId}`;
+  const existingConfig = await context.FactoryRegistryConfig.get(configId);
 
-  context.FactoryRegistry_Unapprove.set(entity);
+  if (!existingConfig) {
+    context.log.warn(
+      `FactoryRegistryConfig ${configId} not found for Unapprove event. Should have been created by Approve event.`,
+    );
+    return;
+  }
+
+  context.FactoryRegistryConfig.set({
+    ...existingConfig,
+    currentActivePoolFactory: "",
+    currentActiveVotingRewardsFactory: "",
+    currentActiveGaugeFactory: "",
+    lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
+  });
 });

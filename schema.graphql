@@ -241,62 +241,6 @@ type NonFungiblePosition {
   lastUpdatedTimestamp: Timestamp! # Timestamp of last update
 }
 
-type PoolFactory_SetCustomFee {
-  id: ID!
-  pool: String!
-  fee: BigInt! @config(precision: 76)
-  timestamp: Timestamp!
-  transactionHash: String!
-  blockNumber: Int!
-  logIndex: Int!
-  chainId: Int!
-}
-
-type PoolFactory_PoolCreated {
-  id: ID!
-  poolFactory: String!
-  token0: String!
-  token1: String!
-  stable: Boolean!
-  pool: String! @index
-  timestamp: Timestamp!
-  blockNumber: Int!
-  transactionHash: String!
-  logIndex: Int!
-  chainId: Int!
-}
-
-type SuperchainCLFactory_RootPoolCreated {
-  id: ID!
-  token0: String!
-  token1: String!
-  tickSpacing: BigInt! @config(precision: 76)
-  pool: String! @index
-  poolFactory: String!
-  timestamp: Timestamp!
-  transactionHash: String!
-  blockNumber: Int!
-  logIndex: Int!
-  poolChainId: Int!
-  chainId: Int!
-}
-
-type SuperchainPoolFactory_RootPoolCreated {
-  id: ID!
-  token0: String!
-  token1: String!
-  stable: Boolean!
-  pool: String! @index
-  poolFactory: String!
-  timestamp: Timestamp!
-  transactionHash: String!
-  blockNumber: Int!
-  logIndex: Int!
-  poolChainId: Int!
-  chainId: Int!
-  length: BigInt! @config(precision: 76)
-}
-
 type VeNFTAggregator {
   id: ID!
   chainId: Int!
@@ -355,28 +299,12 @@ type ERC20_Transfer {
   transactionHash: String!
 }
 
-type FactoryRegistry_Approve {
-  id: ID!
-  poolFactory: String!
-  votingRewardsFactory: String!
-  gaugeFactory: String!
-  timestamp: Timestamp!
-  transactionHash: String!
-  blockNumber: Int!
-  logIndex: Int!
-  chainId: Int!
-}
-
-type FactoryRegistry_Unapprove {
-  id: ID!
-  poolFactory: String!
-  votingRewardsFactory: String!
-  gaugeFactory: String!
-  timestamp: Timestamp!
-  transactionHash: String!
-  blockNumber: Int!
-  logIndex: Int!
-  chainId: Int!
+type FactoryRegistryConfig {
+  id: ID! # {event.srcAddress}_${event.chainId}
+  currentActivePoolFactory: String! # Address of the currently active pool factory (creates vAMM/sAMM or CL pools)
+  currentActiveVotingRewardsFactory: String! # Address of the currently active voting rewards factory (creates fee and bribe voting reward contracts)
+  currentActiveGaugeFactory: String! # Address of the currently active gauge factory (creates gauge contracts for emissions)
+  lastUpdatedTimestamp: Timestamp! # Timestamp when the factory registry configuration was last updated
 }
 
 type DynamicFeeGlobalConfig {
