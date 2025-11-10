@@ -343,24 +343,43 @@ type PoolLauncherConfig {
   pairableTokens: [String!]
 }
 
+# A superswap is characterized by 3 steps:
+# 1. Original asset is swapped for oUSDT on the source chain.
+# 2. The oUSDT is then bridged through Hyperlane to the destination chain.
+# 3. Bridged oUSDT is then swapped into the preferred asset on the destination chain.
 type SuperSwap {
-  id: ID! # The transaction hash (unique identifier)
-  originChainId: Int! # Chain ID where the swap originated
-  destinationChainId: Int! # Chain ID of the swap target/recipient
+  id: ID! # {transactionHash}_{originChainId}_{destinationId}_{oUSDTamount}
+  originChainId: BigInt! @config(precision: 24) # Chain ID where the swap originated
+  destinationChainId: BigInt! @config(precision: 24) # Chain ID of the swap target/recipient
   sender: String! # Original sender address initiating the swap
   recipient: String! # The recipient address on the destination chain
-  amount: Float! # Amount of oUSDT swapped (already normalized to token decimals)
+  oUSDTamount: BigInt! @config(precision: 76) # Amount of oUSDT swapped (already normalized to token decimals)
+  sourceChainToken: String! # Token that gets swapped by oUSDT on source chain, i.e., Token A -> oUSDT on source chain
+  sourceChainTokenAmountSwapped: BigInt! @config(precision: 76) # Amount of sourceChainToken that was swapped for oUSDT on the source chain
+  destinationChainToken: String! # Token that gets swapped by oUSDT on destination chain, i.e., oUSDT -> Token B on destination chain
+  destinationChainTokenAmountSwapped: BigInt! @config(precision: 76) # Amount of destinationChainToken that was received from swapping oUSDT on the destination chain
   timestamp: Timestamp! # Block timestamp of the swap event
 }
 
 type oUSDTBridgedTransaction {
   id: ID! # Transaction hash
-  transaction_hash: String! @index # Transaction hash
-  originChainId: Int! # Chain ID where the bridge transaction originated
-  destinationChainId: Int! # Chain ID where the bridge transaction is destined
+  transactionHash: String! @index # Transaction hash
+  originChainId: BigInt! @config(precision: 24) # Chain ID where the bridge transaction originated
+  destinationChainId: BigInt! @config(precision: 24) # Chain ID where the bridge transaction is destined
   sender: String! # Address that initiated the bridge transaction
   recipient: String! # Address that will receive the bridged tokens
-  amount: Float! # Amount of oUSDT tokens being bridged
+  amount: BigInt! @config(precision: 76) # Amount of oUSDT tokens being bridged
+}
+
+# Registering each event related from/to oUSDT. Needed for filtering and eventual registration of source/destination token
+# and corresponding amounts during superswaps execution
+type oUSDTSwaps {
+  id: ID! # {transactionHash}_{chainId}_{tokenInPool}_{amountIn}_{tokenOutPool}_{amountOut}
+  transactionHash: String! @index # Transaction hash of the swap transaction
+  tokenInPool: String! # Token that goes into the pool after swap
+  tokenOutPool: String! # Token that goes out of the pool after swap
+  amountIn: BigInt! @config(precision: 76) # Amount of tokenInPool being swapped into the pool
+  amountOut: BigInt! @config(precision: 76) # Amount of tokenOutPool being swapped out of the pool
 }
 
 # Stores relevant CLGauge config data such as default emissions cap and emissions cap per gauge
@@ -373,15 +392,15 @@ type CLGaugeConfig {
 }
 
 type DispatchId_event {
-  id: ID! # Unique identifier: {transaction_hash}_{chainId}_{messageId}
+  id: ID! # Unique identifier: {transactionHash}_{chainId}_{messageId}
   chainId: Int! # Chain ID where the message was dispatched (origin chain)
-  transactionHash: String! # Transaction hash of the dispatch transaction
-  messageId: String! # Unique message ID identifying the cross-chain message in Hyperlane
+  transactionHash: String! @index # Transaction hash of the dispatch transaction
+  messageId: String! @index # Unique message ID identifying the cross-chain message in Hyperlane
 }
 
 type ProcessId_event {
-  id: ID! # Unique identifier: {transaction_hash}_{chainId}_{messageId}
+  id: ID! # Unique identifier: {transactionHash}_{chainId}_{messageId}
   chainId: Int! # Chain ID where the message was processed (destination chain)
-  transactionHash: String! # Transaction hash of the process transaction
-  messageId: String! # Unique message ID identifying the cross-chain message in Hyperlane (matches DispatchId messageId)
+  transactionHash: String! @index # Transaction hash of the process transaction
+  messageId: String! @index # Unique message ID identifying the cross-chain message in Hyperlane (matches DispatchId messageId)
 }

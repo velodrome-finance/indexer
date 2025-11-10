@@ -4,6 +4,7 @@ import {
   updateLiquidityPoolAggregator,
 } from "../Aggregators/LiquidityPoolAggregator";
 import { NonFungiblePositionId } from "../Aggregators/NonFungiblePosition";
+import { createOUSDTSwapEntity } from "../Aggregators/OUSDTSwaps";
 import {
   loadUserData,
   updateUserStatsPerPool,
@@ -438,6 +439,25 @@ CLPool.Swap.handler(async ({ event, context }) => {
     updatedUserStatsfields,
     userData,
     result.userSwapDiff.timestamp,
+    context,
+  );
+
+  // Create oUSDTSwaps entity
+  // Convert CLPool int256 amounts to In/Out format
+  const amount0In = event.params.amount0 > 0n ? event.params.amount0 : 0n;
+  const amount0Out = event.params.amount0 < 0n ? -event.params.amount0 : 0n;
+  const amount1In = event.params.amount1 > 0n ? event.params.amount1 : 0n;
+  const amount1Out = event.params.amount1 < 0n ? -event.params.amount1 : 0n;
+
+  createOUSDTSwapEntity(
+    event.transaction.hash,
+    event.chainId,
+    poolData.token0Instance,
+    poolData.token1Instance,
+    amount0In,
+    amount0Out,
+    amount1In,
+    amount1Out,
     context,
   );
 });

@@ -4,6 +4,7 @@ import {
   loadPoolData,
   updateLiquidityPoolAggregator,
 } from "../Aggregators/LiquidityPoolAggregator";
+import { createOUSDTSwapEntity } from "../Aggregators/OUSDTSwaps";
 import {
   loadUserData,
   updateUserStatsPerPool,
@@ -260,6 +261,19 @@ Pool.Swap.handler(async ({ event, context }) => {
       context,
     );
   }
+
+  // Create oUSDTSwaps entity
+  createOUSDTSwapEntity(
+    event.transaction.hash,
+    event.chainId,
+    token0Instance,
+    token1Instance,
+    event.params.amount0In,
+    event.params.amount0Out,
+    event.params.amount1In,
+    event.params.amount1Out,
+    context,
+  );
 });
 
 /**

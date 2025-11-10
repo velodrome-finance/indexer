@@ -1,9 +1,9 @@
 import {
-  type SuperSwap,
   VelodromeUniversalRouter,
   type oUSDTBridgedTransaction,
 } from "generated";
-import { OUSDT_ADDRESS, OUSDT_DECIMALS } from "../../Constants";
+import { OUSDT_ADDRESS } from "../../Constants";
+import { processCrossChainSwap } from "./CrossChainSwapLogic";
 
 VelodromeUniversalRouter.UniversalRouterBridge.handler(
   async ({ event, context }) => {
@@ -14,12 +14,12 @@ VelodromeUniversalRouter.UniversalRouterBridge.handler(
 
     const entity: oUSDTBridgedTransaction = {
       id: event.transaction.hash,
-      transaction_hash: event.transaction.hash,
-      originChainId: event.chainId,
-      destinationChainId: Number(event.params.domain),
+      transactionHash: event.transaction.hash,
+      originChainId: BigInt(event.chainId),
+      destinationChainId: event.params.domain,
       sender: event.params.sender,
       recipient: event.params.recipient,
-      amount: Number(event.params.amount) / 10 ** OUSDT_DECIMALS,
+      amount: event.params.amount,
     };
 
     context.oUSDTBridgedTransaction.set(entity);
@@ -27,11 +27,16 @@ VelodromeUniversalRouter.UniversalRouterBridge.handler(
 );
 
 VelodromeUniversalRouter.CrossChainSwap.handler(async ({ event, context }) => {
-  // If in the same transaction oUSDT was bridged, then it is a SuperSwap
-  const oUSDTBridgedTransactions =
-    await context.oUSDTBridgedTransaction.getWhere.transaction_hash.eq(
-      event.transaction.hash,
-    );
+  // Load all independent data in parallel
+  const [oUSDTBridgedTransactions, sourceChainMessageIdEntities] =
+    await Promise.all([
+      context.oUSDTBridgedTransaction.getWhere.transactionHash.eq(
+        event.transaction.hash,
+      ),
+      context.DispatchId_event.getWhere.transactionHash.eq(
+        event.transaction.hash,
+      ),
+    ]);
 
   if (oUSDTBridgedTransactions.length === 0) {
     context.log.warn(
@@ -40,15 +45,33 @@ VelodromeUniversalRouter.CrossChainSwap.handler(async ({ event, context }) => {
     return;
   }
 
-  const entity: SuperSwap = {
-    id: event.transaction.hash,
-    originChainId: oUSDTBridgedTransactions[0].originChainId,
-    destinationChainId: oUSDTBridgedTransactions[0].destinationChainId,
-    sender: oUSDTBridgedTransactions[0].sender,
-    recipient: oUSDTBridgedTransactions[0].recipient,
-    amount: oUSDTBridgedTransactions[0].amount,
-    timestamp: new Date(event.block.timestamp * 1000),
-  };
+  // Use the first bridged transaction (all should have the same transaction hash)
+  const bridgedTransaction = oUSDTBridgedTransactions[0];
 
-  context.SuperSwap.set(entity);
+  if (sourceChainMessageIdEntities.length === 0) {
+    return;
+  }
+
+  // Load all ProcessId events in parallel for all message IDs
+  // Note: Each messageId maps to exactly 1 ProcessId (1:1 relationship)
+  const processIdPromises = sourceChainMessageIdEntities.map((entity) =>
+    context.ProcessId_event.getWhere.messageId.eq(entity.messageId),
+  );
+  const processIdResults = await Promise.all(processIdPromises);
+
+  // Early return during preload phase after loading data
+  if (context.isPreload) {
+    return;
+  }
+
+  await processCrossChainSwap(
+    sourceChainMessageIdEntities,
+    processIdResults,
+    bridgedTransaction,
+    event.transaction.hash,
+    event.chainId,
+    event.params.destinationDomain,
+    event.block.timestamp,
+    context,
+  );
 });
