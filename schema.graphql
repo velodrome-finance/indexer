@@ -371,3 +371,17 @@ type CLGaugeConfig {
   defaultEmissionsCap: BigInt! @config(precision: 24)
   lastUpdatedTimestamp: Timestamp! # Timestamp of the last CLGaugeConfig update
 }
+
+type DispatchId_event {
+  id: ID! # Unique identifier: {transaction_hash}_{chainId}_{messageId}
+  chainId: Int! # Chain ID where the message was dispatched (origin chain)
+  transactionHash: String! # Transaction hash of the dispatch transaction
+  messageId: String! # Unique message ID identifying the cross-chain message in Hyperlane
+}
+
+type ProcessId_event {
+  id: ID! # Unique identifier: {transaction_hash}_{chainId}_{messageId}
+  chainId: Int! # Chain ID where the message was processed (destination chain)
+  transactionHash: String! # Transaction hash of the process transaction
+  messageId: String! # Unique message ID identifying the cross-chain message in Hyperlane (matches DispatchId messageId)
+}
