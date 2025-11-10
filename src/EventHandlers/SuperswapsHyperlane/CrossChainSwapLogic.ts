@@ -64,14 +64,24 @@ export async function findSourceSwapWithOUSDT(
   const sourceChainSwaps =
     await context.oUSDTSwaps.getWhere.transactionHash.eq(transactionHash);
 
-  const sourceSwap = sourceChainSwaps.find(
-    (swap) =>
-      swap.tokenInPool === OUSDT_ADDRESS || swap.tokenOutPool === OUSDT_ADDRESS,
-  );
-
-  if (!sourceSwap) {
+  // Since we only store swaps involving oUSDT, take the first swap
+  // (all stored swaps should involve oUSDT, but verify for safety)
+  if (sourceChainSwaps.length === 0) {
     context.log.warn(
       `No source chain swap with oUSDT found for transaction ${transactionHash}`,
+    );
+    return null;
+  }
+
+  const sourceSwap = sourceChainSwaps[0];
+
+  // Safety check: verify the swap involves oUSDT
+  if (
+    sourceSwap.tokenInPool !== OUSDT_ADDRESS &&
+    sourceSwap.tokenOutPool !== OUSDT_ADDRESS
+  ) {
+    context.log.warn(
+      `Source swap does not involve oUSDT for transaction ${transactionHash}`,
     );
     return null;
   }
@@ -164,34 +174,44 @@ export function findDestinationSwapWithOUSDT(
       continue;
     }
 
-    // Find swap where oUSDT is involved (tokenInPool or tokenOutPool is oUSDT)
-    const destinationChainSwapWithOUSDT = destinationSwaps.find(
-      (swap) =>
-        swap.tokenInPool === OUSDT_ADDRESS ||
-        swap.tokenOutPool === OUSDT_ADDRESS,
-    );
-
-    if (destinationChainSwapWithOUSDT) {
-      // Determine destination chain token (the non-oUSDT token)
-      const destinationChainToken =
-        destinationChainSwapWithOUSDT.tokenInPool === OUSDT_ADDRESS
-          ? destinationChainSwapWithOUSDT.tokenOutPool
-          : destinationChainSwapWithOUSDT.tokenInPool;
-      const destinationChainTokenAmountSwapped =
-        destinationChainSwapWithOUSDT.tokenInPool === OUSDT_ADDRESS
-          ? destinationChainSwapWithOUSDT.amountOut
-          : destinationChainSwapWithOUSDT.amountIn;
-
-      return {
-        destinationSwap: destinationChainSwapWithOUSDT,
-        matchingMessageId: sourceChainMessageIdEntity.messageId,
-        destinationChainToken,
-        destinationChainTokenAmountSwapped,
-      };
+    // Since we only store swaps involving oUSDT, take the first swap
+    // (all stored swaps should involve oUSDT, but verify for safety)
+    if (destinationSwaps.length === 0) {
+      context.log.warn(
+        `No destination chain swap with oUSDT found for transaction hash ${processIdEvent.transactionHash}`,
+      );
+      continue;
     }
-    context.log.warn(
-      `No destination chain swap with oUSDT found for transaction hash ${processIdEvent.transactionHash}`,
-    );
+
+    const destinationChainSwapWithOUSDT = destinationSwaps[0];
+
+    // Safety check: verify the swap involves oUSDT
+    if (
+      destinationChainSwapWithOUSDT.tokenInPool !== OUSDT_ADDRESS &&
+      destinationChainSwapWithOUSDT.tokenOutPool !== OUSDT_ADDRESS
+    ) {
+      context.log.warn(
+        `Destination swap does not involve oUSDT for transaction hash ${processIdEvent.transactionHash}`,
+      );
+      continue;
+    }
+
+    // Determine destination chain token (the non-oUSDT token)
+    const destinationChainToken =
+      destinationChainSwapWithOUSDT.tokenInPool === OUSDT_ADDRESS
+        ? destinationChainSwapWithOUSDT.tokenOutPool
+        : destinationChainSwapWithOUSDT.tokenInPool;
+    const destinationChainTokenAmountSwapped =
+      destinationChainSwapWithOUSDT.tokenInPool === OUSDT_ADDRESS
+        ? destinationChainSwapWithOUSDT.amountOut
+        : destinationChainSwapWithOUSDT.amountIn;
+
+    return {
+      destinationSwap: destinationChainSwapWithOUSDT,
+      matchingMessageId: sourceChainMessageIdEntity.messageId,
+      destinationChainToken,
+      destinationChainTokenAmountSwapped,
+    };
   }
 
   context.log.warn(

@@ -888,6 +888,8 @@ describe("CrossChainSwapLogic", () => {
     });
 
     it("should return null and warn when no source swap with oUSDT exists", async () => {
+      // Since we only store oUSDT swaps, this test checks the safety verification
+      // when a non-oUSDT swap somehow exists in the database
       const swapWithoutOUSDT: oUSDTSwaps = {
         id: `${transactionHash}_${chainId}_${tokenInAddress}_1000_${tokenOutAddress}_950`,
         transactionHash: transactionHash,
@@ -904,7 +906,7 @@ describe("CrossChainSwapLogic", () => {
       expect(result).to.be.null;
       const warnings = context.getWarnings();
       expect(warnings.length).to.be.greaterThan(0);
-      expect(warnings[0]).to.include("No source chain swap with oUSDT found");
+      expect(warnings[0]).to.include("Source swap does not involve oUSDT");
       expect(warnings[0]).to.include(transactionHash);
     });
 
@@ -1088,7 +1090,7 @@ describe("CrossChainSwapLogic", () => {
       expect(result?.destinationChainTokenAmountSwapped).to.equal(1000n);
     });
 
-    it("should find first swap with oUSDT when multiple swaps exist", () => {
+    it("should find first swap with oUSDT when multiple oUSDT swaps exist", () => {
       const sourceChainMessageIdEntities: DispatchId_event[] = [
         {
           id: `${transactionHash}_${chainId}_${messageId1}`,
@@ -1108,16 +1110,8 @@ describe("CrossChainSwapLogic", () => {
       const messageIdToProcessId = new Map<string, ProcessId_event>();
       messageIdToProcessId.set(messageId1, processIdEvent);
 
-      const swapWithoutOUSDT: oUSDTSwaps = {
-        id: `${destinationTxHash}_${destinationDomain}_TOKEN_A_100_TOKEN_B_200`,
-        transactionHash: destinationTxHash,
-        tokenInPool: "0xTOKEN_A",
-        tokenOutPool: "0xTOKEN_B",
-        amountIn: 100n,
-        amountOut: 200n,
-      };
-
-      const swapWithOUSDT: oUSDTSwaps = {
+      // Since we only store oUSDT swaps, all swaps in the array should be oUSDT swaps
+      const swapWithOUSDT1: oUSDTSwaps = {
         id: `${destinationTxHash}_${destinationDomain}_${oUSDTAddress}_${oUSDTAmount}_${tokenOutAddress}_950`,
         transactionHash: destinationTxHash,
         tokenInPool: oUSDTAddress,
@@ -1126,10 +1120,19 @@ describe("CrossChainSwapLogic", () => {
         amountOut: 950n,
       };
 
+      const swapWithOUSDT2: oUSDTSwaps = {
+        id: `${destinationTxHash}_${destinationDomain}_${tokenOutAddress}_500_${oUSDTAddress}_${oUSDTAmount}`,
+        transactionHash: destinationTxHash,
+        tokenInPool: tokenOutAddress,
+        tokenOutPool: oUSDTAddress,
+        amountIn: 500n,
+        amountOut: oUSDTAmount,
+      };
+
       const transactionHashToSwaps = new Map<string, oUSDTSwaps[]>();
       transactionHashToSwaps.set(destinationTxHash, [
-        swapWithoutOUSDT,
-        swapWithOUSDT,
+        swapWithOUSDT1,
+        swapWithOUSDT2,
       ]);
 
       const context = createMockContext([], []);
@@ -1141,8 +1144,9 @@ describe("CrossChainSwapLogic", () => {
         context,
       );
 
+      // Should return the first swap (swapWithOUSDT1)
       expect(result).to.not.be.null;
-      expect(result?.destinationSwap).to.deep.equal(swapWithOUSDT);
+      expect(result?.destinationSwap).to.deep.equal(swapWithOUSDT1);
       expect(result?.matchingMessageId).to.equal(messageId1);
     });
 
@@ -1166,6 +1170,8 @@ describe("CrossChainSwapLogic", () => {
       const messageIdToProcessId = new Map<string, ProcessId_event>();
       messageIdToProcessId.set(messageId1, processIdEvent);
 
+      // Since we only store oUSDT swaps, this test checks the safety verification
+      // when a non-oUSDT swap somehow exists in the database
       const swapWithoutOUSDT: oUSDTSwaps = {
         id: `${destinationTxHash}_${destinationDomain}_TOKEN_A_100_TOKEN_B_200`,
         transactionHash: destinationTxHash,
@@ -1190,9 +1196,7 @@ describe("CrossChainSwapLogic", () => {
       expect(result).to.be.null;
       const warnings = context.getWarnings();
       expect(warnings.length).to.be.greaterThan(0);
-      expect(warnings[0]).to.include(
-        "No destination chain swap with oUSDT found",
-      );
+      expect(warnings[0]).to.include("Destination swap does not involve oUSDT");
     });
 
     it("should find swap from correct messageId when multiple messageIds exist", () => {

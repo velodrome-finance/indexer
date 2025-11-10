@@ -9,7 +9,7 @@ import {
   loadUserData,
   updateUserStatsPerPool,
 } from "../Aggregators/UserStatsPerPool";
-import { toChecksumAddress } from "../Constants";
+import { OUSDT_ADDRESS, toChecksumAddress } from "../Constants";
 import { processPoolLiquidityEvent } from "./Pool/PoolBurnAndMintLogic";
 import { processPoolFees } from "./Pool/PoolFeesLogic";
 import { processPoolSwap } from "./Pool/PoolSwapLogic";
@@ -262,18 +262,23 @@ Pool.Swap.handler(async ({ event, context }) => {
     );
   }
 
-  // Create oUSDTSwaps entity
-  createOUSDTSwapEntity(
-    event.transaction.hash,
-    event.chainId,
-    token0Instance,
-    token1Instance,
-    event.params.amount0In,
-    event.params.amount0Out,
-    event.params.amount1In,
-    event.params.amount1Out,
-    context,
-  );
+  // Create oUSDTSwaps entity only if oUSDT is involved
+  if (
+    token0Instance.address === OUSDT_ADDRESS ||
+    token1Instance.address === OUSDT_ADDRESS
+  ) {
+    createOUSDTSwapEntity(
+      event.transaction.hash,
+      event.chainId,
+      token0Instance,
+      token1Instance,
+      event.params.amount0In,
+      event.params.amount0Out,
+      event.params.amount1In,
+      event.params.amount1Out,
+      context,
+    );
+  }
 });
 
 /**
