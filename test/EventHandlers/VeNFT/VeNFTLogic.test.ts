@@ -45,27 +45,12 @@ describe("VeNFTLogic", () => {
       } as VeNFT_Deposit_event;
 
       it("should process deposit event with existing VeNFT", async () => {
+        // Note: Deposit events should always have an existing VeNFT
+        // (created during Transfer/mint event)
         const result = await processVeNFTEvent(
           mockDepositEvent,
           mockVeNFTAggregator,
         );
-
-        expect(result.veNFTAggregatorDiff).to.deep.equal({
-          id: "10_1",
-          chainId: 10,
-          tokenId: 1n,
-          owner: toChecksumAddress(
-            "0x2222222222222222222222222222222222222222",
-          ),
-          locktime: 200n,
-          lastUpdatedTimestamp: new Date(1000000 * 1000),
-          totalValueLocked: 50n,
-          isAlive: true,
-        });
-      });
-
-      it("should process deposit event without existing VeNFT", async () => {
-        const result = await processVeNFTEvent(mockDepositEvent, undefined);
 
         expect(result.veNFTAggregatorDiff).to.deep.equal({
           id: "10_1",
@@ -168,6 +153,7 @@ describe("VeNFTLogic", () => {
       } as VeNFT_Withdraw_event;
 
       it("should process withdraw event with existing VeNFT", async () => {
+        // Withdraw event is a burn operation, so isAlive should be false
         const result = await processVeNFTEvent(
           mockWithdrawEvent,
           mockVeNFTAggregator,
@@ -182,7 +168,7 @@ describe("VeNFTLogic", () => {
           ),
           lastUpdatedTimestamp: new Date(1000000 * 1000),
           totalValueLocked: -25n,
-          isAlive: true,
+          isAlive: false,
         });
       });
     });
