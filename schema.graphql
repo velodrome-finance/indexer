@@ -287,18 +287,6 @@ type ALM_LP_Wrapper {
   strategyTransactionHash: String! @index # Transaction hash of the StrategyCreated event
 }
 
-type ERC20_Transfer {
-  id: ID!
-  from: String!
-  to: String!
-  value: BigInt! @config(precision: 76)
-  timestamp: Timestamp!
-  chainId: Int!
-  blockNumber: Int!
-  logIndex: Int!
-  transactionHash: String!
-}
-
 type FactoryRegistryConfig {
   id: ID! # {event.srcAddress}_${event.chainId}
   currentActivePoolFactory: String! # Address of the currently active pool factory (creates vAMM/sAMM or CL pools)
