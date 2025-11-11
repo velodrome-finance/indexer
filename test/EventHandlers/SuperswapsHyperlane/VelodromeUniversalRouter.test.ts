@@ -4,8 +4,10 @@ import {
   VelodromeUniversalRouter,
 } from "../../../generated/src/TestHelpers.gen";
 import type {
-  SuperSwap,
+  DispatchId_event,
+  ProcessId_event,
   oUSDTBridgedTransaction,
+  oUSDTSwaps,
 } from "../../../generated/src/Types.gen";
 import { OUSDT_ADDRESS } from "../../../src/Constants";
 
@@ -55,16 +57,16 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
 
       expect(bridgedTransaction).to.not.be.undefined;
       expect(bridgedTransaction?.id).to.equal(transactionHash);
-      expect(bridgedTransaction?.transaction_hash).to.equal(transactionHash);
-      expect(bridgedTransaction?.originChainId).to.equal(chainId);
+      expect(bridgedTransaction?.transactionHash).to.equal(transactionHash);
+      expect(bridgedTransaction?.originChainId).to.equal(BigInt(chainId));
       expect(bridgedTransaction?.destinationChainId).to.equal(
-        destinationDomain,
+        BigInt(destinationDomain),
       );
       expect(bridgedTransaction?.sender).to.equal(senderAddress.toLowerCase());
       expect(bridgedTransaction?.recipient).to.equal(
         recipientAddress.toLowerCase(),
       );
-      expect(bridgedTransaction?.amount).to.equal(1000); // Normalized: 1000 * 10^6 / 10^6 = 1000
+      expect(bridgedTransaction?.amount).to.equal(1000n * 10n ** 6n); // Raw amount: 1000 tokens with 6 decimals
     });
 
     it("should not create entity when token is not oUSDT", async () => {
@@ -139,33 +141,83 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
         result.entities.oUSDTBridgedTransaction.get(transactionHash);
 
       expect(bridgedTransaction).to.not.be.undefined;
-      expect(bridgedTransaction?.amount).to.equal(500); // Normalized: 500 * 10^6 / 10^6 = 500
+      expect(bridgedTransaction?.amount).to.equal(500n * 10n ** 6n); // Raw amount: 500 tokens with 6 decimals
     });
   });
 
   describe("CrossChainSwap event", () => {
-    it("should create SuperSwap entity when oUSDTBridgedTransaction exists", async () => {
+    const messageId =
+      "0xCCE7BDDCBF46218439FDAF78B99904EDCDF012B927E95EB053B8D01461C9DF9B";
+    const destinationTxHash =
+      "0xdc34c918860806a2dafebad41e539cfe42f20253c0585358b91d31a11de41806";
+    const tokenInAddress = "0x3333333333333333333333333333333333333333";
+    const tokenOutAddress = "0x4444444444444444444444444444444444444444";
+
+    it("should create SuperSwap entity when all required entities exist", async () => {
       let mockDb = MockDb.createMockDb();
 
-      // First, create a bridged transaction entity
+      // Create bridged transaction entity
       const existingBridgedTransaction: oUSDTBridgedTransaction = {
         id: transactionHash,
-        transaction_hash: transactionHash,
-        originChainId: chainId,
-        destinationChainId: destinationDomain,
+        transactionHash: transactionHash,
+        originChainId: BigInt(chainId),
+        destinationChainId: BigInt(destinationDomain),
         sender: senderAddress.toLowerCase(),
         recipient: recipientAddress.toLowerCase(),
-        amount: 1000,
+        amount: 18116811000000000000n, // 18.116811 oUSDT
+      };
+
+      // Create DispatchId event
+      const dispatchIdEvent: DispatchId_event = {
+        id: `${transactionHash}_${chainId}_${messageId}`,
+        chainId: chainId,
+        transactionHash: transactionHash,
+        messageId: messageId,
+      };
+
+      // Create ProcessId event
+      const processIdEvent: ProcessId_event = {
+        id: `${destinationTxHash}_${destinationDomain}_${messageId}`,
+        chainId: Number(destinationDomain),
+        transactionHash: destinationTxHash,
+        messageId: messageId,
+      };
+
+      // Create source chain oUSDTSwap entity (for transactionHash)
+      const sourceSwapEvent: oUSDTSwaps = {
+        id: `${transactionHash}_${chainId}_${tokenInAddress}_1000_${OUSDT_ADDRESS}_${existingBridgedTransaction.amount}`,
+        transactionHash: transactionHash,
+        tokenInPool: tokenInAddress,
+        tokenOutPool: OUSDT_ADDRESS,
+        amountIn: 1000n,
+        amountOut: existingBridgedTransaction.amount,
+      };
+
+      // Create destination chain oUSDTSwap entity (for destinationTxHash)
+      const destinationSwapEvent: oUSDTSwaps = {
+        id: `${destinationTxHash}_${destinationDomain}_${OUSDT_ADDRESS}_${existingBridgedTransaction.amount}_${tokenOutAddress}_950`,
+        transactionHash: destinationTxHash,
+        tokenInPool: OUSDT_ADDRESS,
+        tokenOutPool: tokenOutAddress,
+        amountIn: existingBridgedTransaction.amount,
+        amountOut: 950n,
       };
 
       mockDb = mockDb.entities.oUSDTBridgedTransaction.set(
         existingBridgedTransaction,
       );
+      mockDb = mockDb.entities.DispatchId_event.set(dispatchIdEvent);
+      mockDb = mockDb.entities.ProcessId_event.set(processIdEvent);
+      mockDb = mockDb.entities.oUSDTSwaps.set(sourceSwapEvent);
+      mockDb = mockDb.entities.oUSDTSwaps.set(destinationSwapEvent);
 
-      // Track entities for getWhere query
-      const storedEntities = [existingBridgedTransaction];
+      // Track entities for getWhere queries
+      const bridgedTransactions = [existingBridgedTransaction];
+      const dispatchIdEvents = [dispatchIdEvent];
+      const processIdEvents = [processIdEvent];
+      const swapEvents = [sourceSwapEvent, destinationSwapEvent];
 
-      // Extend mockDb to include getWhere for oUSDTBridgedTransaction
+      // Extend mockDb to include getWhere for all entities
       const mockDbWithGetWhere = {
         ...mockDb,
         entities: {
@@ -173,11 +225,46 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
           oUSDTBridgedTransaction: {
             ...mockDb.entities.oUSDTBridgedTransaction,
             getWhere: {
-              transaction_hash: {
+              transactionHash: {
                 eq: async (txHash: string) => {
-                  // Find all entities with matching transaction_hash
-                  return storedEntities.filter(
-                    (entity) => entity.transaction_hash === txHash,
+                  return bridgedTransactions.filter(
+                    (entity) => entity.transactionHash === txHash,
+                  );
+                },
+              },
+            },
+          },
+          DispatchId_event: {
+            ...mockDb.entities.DispatchId_event,
+            getWhere: {
+              transactionHash: {
+                eq: async (txHash: string) => {
+                  return dispatchIdEvents.filter(
+                    (entity) => entity.transactionHash === txHash,
+                  );
+                },
+              },
+            },
+          },
+          ProcessId_event: {
+            ...mockDb.entities.ProcessId_event,
+            getWhere: {
+              messageId: {
+                eq: async (msgId: string) => {
+                  return processIdEvents.filter(
+                    (entity) => entity.messageId === msgId,
+                  );
+                },
+              },
+            },
+          },
+          oUSDTSwaps: {
+            ...mockDb.entities.oUSDTSwaps,
+            getWhere: {
+              transactionHash: {
+                eq: async (txHash: string) => {
+                  return swapEvents.filter(
+                    (entity) => entity.transactionHash === txHash,
                   );
                 },
               },
@@ -188,6 +275,7 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
 
       const mockEvent = VelodromeUniversalRouter.CrossChainSwap.createMockEvent(
         {
+          destinationDomain: BigInt(destinationDomain),
           mockEventData: {
             block: {
               timestamp: blockTimestamp,
@@ -210,15 +298,23 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
         },
       );
 
-      const superSwap = result.entities.SuperSwap.get(transactionHash);
+      // New ID format includes messageId and source swap-specific data
+      const expectedSuperSwapId = `${transactionHash}_${BigInt(chainId)}_${destinationDomain}_${existingBridgedTransaction.amount}_${messageId}_${sourceSwapEvent.tokenInPool}_${sourceSwapEvent.amountIn}_${sourceSwapEvent.tokenOutPool}_${sourceSwapEvent.amountOut}`;
+      const superSwap = result.entities.SuperSwap.get(expectedSuperSwapId);
 
       expect(superSwap).to.not.be.undefined;
-      expect(superSwap?.id).to.equal(transactionHash);
-      expect(superSwap?.originChainId).to.equal(chainId);
-      expect(superSwap?.destinationChainId).to.equal(destinationDomain);
+      expect(superSwap?.id).to.equal(expectedSuperSwapId);
+      expect(superSwap?.originChainId).to.equal(BigInt(chainId));
+      expect(superSwap?.destinationChainId).to.equal(BigInt(destinationDomain));
       expect(superSwap?.sender).to.equal(senderAddress.toLowerCase());
       expect(superSwap?.recipient).to.equal(recipientAddress.toLowerCase());
-      expect(superSwap?.amount).to.equal(1000);
+      expect(superSwap?.oUSDTamount).to.equal(
+        existingBridgedTransaction.amount,
+      );
+      expect(superSwap?.sourceChainToken).to.equal(tokenInAddress);
+      expect(superSwap?.sourceChainTokenAmountSwapped).to.equal(1000n);
+      expect(superSwap?.destinationChainToken).to.equal(tokenOutAddress);
+      expect(superSwap?.destinationChainTokenAmountSwapped).to.equal(950n);
       expect(superSwap?.timestamp).to.deep.equal(
         new Date(blockTimestamp * 1000),
       );
@@ -227,7 +323,7 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
     it("should not create SuperSwap when no oUSDTBridgedTransaction exists", async () => {
       const mockDb = MockDb.createMockDb();
 
-      // Extend mockDb to include getWhere (returning empty array)
+      // Extend mockDb to include getWhere (returning empty arrays)
       const mockDbWithGetWhere = {
         ...mockDb,
         entities: {
@@ -235,9 +331,19 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
           oUSDTBridgedTransaction: {
             ...mockDb.entities.oUSDTBridgedTransaction,
             getWhere: {
-              transaction_hash: {
+              transactionHash: {
                 eq: async (_txHash: string) => {
                   return []; // No entities found
+                },
+              },
+            },
+          },
+          DispatchId_event: {
+            ...mockDb.entities.DispatchId_event,
+            getWhere: {
+              transactionHash: {
+                eq: async (_txHash: string) => {
+                  return [];
                 },
               },
             },
@@ -247,6 +353,7 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
 
       const mockEvent = VelodromeUniversalRouter.CrossChainSwap.createMockEvent(
         {
+          destinationDomain: BigInt(destinationDomain),
           mockEventData: {
             block: {
               timestamp: blockTimestamp,
@@ -269,9 +376,89 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
         },
       );
 
-      const superSwap = result.entities.SuperSwap.get(transactionHash);
+      const expectedSuperSwapId = `${transactionHash}_${chainId}_${destinationDomain}_1000`;
+      const superSwap = result.entities.SuperSwap.get(expectedSuperSwapId);
 
       // Verify that no SuperSwap was created when no bridged transaction exists
+      expect(superSwap).to.be.undefined;
+    });
+
+    it("should not create SuperSwap when no DispatchId events exist", async () => {
+      let mockDb = MockDb.createMockDb();
+
+      const existingBridgedTransaction: oUSDTBridgedTransaction = {
+        id: transactionHash,
+        transactionHash: transactionHash,
+        originChainId: BigInt(chainId),
+        destinationChainId: BigInt(destinationDomain),
+        sender: senderAddress.toLowerCase(),
+        recipient: recipientAddress.toLowerCase(),
+        amount: 18116811000000000000n,
+      };
+
+      mockDb = mockDb.entities.oUSDTBridgedTransaction.set(
+        existingBridgedTransaction,
+      );
+
+      const bridgedTransactions = [existingBridgedTransaction];
+
+      const mockDbWithGetWhere = {
+        ...mockDb,
+        entities: {
+          ...mockDb.entities,
+          oUSDTBridgedTransaction: {
+            ...mockDb.entities.oUSDTBridgedTransaction,
+            getWhere: {
+              transactionHash: {
+                eq: async (txHash: string) => {
+                  return bridgedTransactions.filter(
+                    (entity) => entity.transactionHash === txHash,
+                  );
+                },
+              },
+            },
+          },
+          DispatchId_event: {
+            ...mockDb.entities.DispatchId_event,
+            getWhere: {
+              transactionHash: {
+                eq: async (_txHash: string) => {
+                  return []; // No DispatchId events
+                },
+              },
+            },
+          },
+        },
+      };
+
+      const mockEvent = VelodromeUniversalRouter.CrossChainSwap.createMockEvent(
+        {
+          destinationDomain: BigInt(destinationDomain),
+          mockEventData: {
+            block: {
+              timestamp: blockTimestamp,
+              number: 123457,
+              hash: transactionHash,
+            },
+            chainId,
+            logIndex: 2,
+            transaction: {
+              hash: transactionHash,
+            },
+          },
+        },
+      );
+
+      const result = await VelodromeUniversalRouter.CrossChainSwap.processEvent(
+        {
+          event: mockEvent,
+          mockDb: mockDbWithGetWhere as typeof mockDb,
+        },
+      );
+
+      const expectedSuperSwapId = `${transactionHash}_${chainId}_${destinationDomain}_${existingBridgedTransaction.amount}`;
+      const superSwap = result.entities.SuperSwap.get(expectedSuperSwapId);
+
       expect(superSwap).to.be.undefined;
     });
 
@@ -281,34 +468,75 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
         "0xabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdef";
 
       // Create multiple bridged transactions with the same transaction hash
-      // (This shouldn't happen in practice, but we test the code handles it)
       const bridgedTransaction1: oUSDTBridgedTransaction = {
         id: transactionHash,
-        transaction_hash: transactionHash,
-        originChainId: chainId,
-        destinationChainId: destinationDomain,
+        transactionHash: transactionHash,
+        originChainId: BigInt(chainId),
+        destinationChainId: BigInt(destinationDomain),
         sender: senderAddress.toLowerCase(),
         recipient: recipientAddress.toLowerCase(),
-        amount: 1000,
+        amount: 1000n,
       };
 
       const bridgedTransaction2: oUSDTBridgedTransaction = {
         id: anotherHash,
-        transaction_hash: transactionHash, // Same transaction hash
-        originChainId: chainId,
-        destinationChainId: destinationDomain,
+        transactionHash: transactionHash, // Same transaction hash
+        originChainId: BigInt(chainId),
+        destinationChainId: BigInt(destinationDomain),
         sender: senderAddress.toLowerCase(),
         recipient: recipientAddress.toLowerCase(),
-        amount: 2000,
+        amount: 2000n,
+      };
+
+      const dispatchIdEvent: DispatchId_event = {
+        id: `${transactionHash}_${chainId}_${messageId}`,
+        chainId: chainId,
+        transactionHash: transactionHash,
+        messageId: messageId,
+      };
+
+      const processIdEvent: ProcessId_event = {
+        id: `${destinationTxHash}_${destinationDomain}_${messageId}`,
+        chainId: Number(destinationDomain),
+        transactionHash: destinationTxHash,
+        messageId: messageId,
+      };
+
+      // Create source chain oUSDTSwap entity (for transactionHash)
+      const sourceSwapEvent: oUSDTSwaps = {
+        id: `${transactionHash}_${chainId}_${tokenInAddress}_1000_${OUSDT_ADDRESS}_${bridgedTransaction1.amount}`,
+        transactionHash: transactionHash,
+        tokenInPool: tokenInAddress,
+        tokenOutPool: OUSDT_ADDRESS,
+        amountIn: 1000n,
+        amountOut: bridgedTransaction1.amount,
+      };
+
+      // Create destination chain oUSDTSwap entity (for destinationTxHash)
+      const destinationSwapEvent: oUSDTSwaps = {
+        id: `${destinationTxHash}_${destinationDomain}_${OUSDT_ADDRESS}_${bridgedTransaction1.amount}_${tokenOutAddress}_950`,
+        transactionHash: destinationTxHash,
+        tokenInPool: OUSDT_ADDRESS,
+        tokenOutPool: tokenOutAddress,
+        amountIn: bridgedTransaction1.amount,
+        amountOut: 950n,
       };
 
       mockDb = mockDb.entities.oUSDTBridgedTransaction.set(bridgedTransaction1);
       mockDb = mockDb.entities.oUSDTBridgedTransaction.set(bridgedTransaction2);
+      mockDb = mockDb.entities.DispatchId_event.set(dispatchIdEvent);
+      mockDb = mockDb.entities.ProcessId_event.set(processIdEvent);
+      mockDb = mockDb.entities.oUSDTSwaps.set(sourceSwapEvent);
+      mockDb = mockDb.entities.oUSDTSwaps.set(destinationSwapEvent);
 
-      // Track entities for getWhere query
-      const storedEntities = [bridgedTransaction1, bridgedTransaction2];
+      const storedBridgedTransactions = [
+        bridgedTransaction1,
+        bridgedTransaction2,
+      ];
+      const dispatchIdEvents = [dispatchIdEvent];
+      const processIdEvents = [processIdEvent];
+      const swapEvents = [sourceSwapEvent, destinationSwapEvent];
 
-      // Extend mockDb to include getWhere for oUSDTBridgedTransaction
       const mockDbWithGetWhere = {
         ...mockDb,
         entities: {
@@ -316,11 +544,46 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
           oUSDTBridgedTransaction: {
             ...mockDb.entities.oUSDTBridgedTransaction,
             getWhere: {
-              transaction_hash: {
+              transactionHash: {
                 eq: async (txHash: string) => {
-                  // Find all entities with matching transaction_hash
-                  return storedEntities.filter(
-                    (entity) => entity.transaction_hash === txHash,
+                  return storedBridgedTransactions.filter(
+                    (entity) => entity.transactionHash === txHash,
+                  );
+                },
+              },
+            },
+          },
+          DispatchId_event: {
+            ...mockDb.entities.DispatchId_event,
+            getWhere: {
+              transactionHash: {
+                eq: async (txHash: string) => {
+                  return dispatchIdEvents.filter(
+                    (entity) => entity.transactionHash === txHash,
+                  );
+                },
+              },
+            },
+          },
+          ProcessId_event: {
+            ...mockDb.entities.ProcessId_event,
+            getWhere: {
+              messageId: {
+                eq: async (msgId: string) => {
+                  return processIdEvents.filter(
+                    (entity) => entity.messageId === msgId,
+                  );
+                },
+              },
+            },
+          },
+          oUSDTSwaps: {
+            ...mockDb.entities.oUSDTSwaps,
+            getWhere: {
+              transactionHash: {
+                eq: async (txHash: string) => {
+                  return swapEvents.filter(
+                    (entity) => entity.transactionHash === txHash,
                   );
                 },
               },
@@ -331,6 +594,7 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
 
       const mockEvent = VelodromeUniversalRouter.CrossChainSwap.createMockEvent(
         {
+          destinationDomain: BigInt(destinationDomain),
           mockEventData: {
             block: {
               timestamp: blockTimestamp,
@@ -353,11 +617,13 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
         },
       );
 
-      const superSwap = result.entities.SuperSwap.get(transactionHash);
+      // New ID format includes messageId and source swap-specific data
+      const expectedSuperSwapId = `${transactionHash}_${BigInt(chainId)}_${destinationDomain}_${bridgedTransaction1.amount}_${messageId}_${sourceSwapEvent.tokenInPool}_${sourceSwapEvent.amountIn}_${sourceSwapEvent.tokenOutPool}_${sourceSwapEvent.amountOut}`;
+      const superSwap = result.entities.SuperSwap.get(expectedSuperSwapId);
 
       expect(superSwap).to.not.be.undefined;
       // Should use the first transaction (amount 1000)
-      expect(superSwap?.amount).to.equal(1000);
+      expect(superSwap?.oUSDTamount).to.equal(bridgedTransaction1.amount);
     });
   });
 });
