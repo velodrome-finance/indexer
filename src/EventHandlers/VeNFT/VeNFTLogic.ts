@@ -48,28 +48,18 @@ export async function processVeNFTEvent(
   // Handle different event types using type guards
   if (isDepositEvent(event)) {
     // Deposit event
+    // Note: VeNFT entity should already exist (created during Transfer/mint event)
 
     const ownerChecksummedAddress = toChecksumAddress(event.params.provider);
 
-    if (currentVeNFT) {
-      // If VeNFT already exists, add to existing value
-      veNFTAggregatorDiff = {
-        ...veNFTAggregatorDiff,
-        owner: ownerChecksummedAddress,
-        locktime: event.params.locktime,
-        totalValueLocked: event.params.value,
-        isAlive: true,
-      };
-    } else {
-      // Create new VeNFT
-      veNFTAggregatorDiff = {
-        ...veNFTAggregatorDiff,
-        owner: ownerChecksummedAddress,
-        locktime: event.params.locktime,
-        totalValueLocked: event.params.value,
-        isAlive: true,
-      };
-    }
+    // Update existing VeNFT with deposit values
+    veNFTAggregatorDiff = {
+      ...veNFTAggregatorDiff,
+      owner: ownerChecksummedAddress,
+      locktime: event.params.locktime,
+      totalValueLocked: event.params.value,
+      isAlive: true,
+    };
   } else if (isTransferEvent(event)) {
     // Transfer event
 
@@ -90,7 +80,7 @@ export async function processVeNFTEvent(
       ...veNFTAggregatorDiff,
       owner: currentVeNFT?.owner ?? "",
       totalValueLocked: -event.params.value,
-      isAlive: true,
+      isAlive: false,
     };
   }
 

@@ -36,8 +36,26 @@ VeNFT.Withdraw.handler(async ({ event, context }) => {
   );
 });
 
+// This event normally appears before Deposit event, therefore it is the one actually responsible
+// For creating the VeNFTAggregator entity
 VeNFT.Transfer.handler(async ({ event, context }) => {
   const tokenId = event.params.tokenId;
+
+  // VeNFT minting operation
+  if (event.params.from === "0x0000000000000000000000000000000000000000") {
+    context.VeNFTAggregator.set({
+      id: VeNFTId(event.chainId, tokenId),
+      chainId: event.chainId,
+      tokenId: tokenId,
+      owner: event.params.to,
+      locktime: 0n, // This is going to be updated in the Deposit event
+      lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
+      totalValueLocked: 0n, // This is going to be updated in the Deposit event
+      isAlive: true,
+    });
+
+    return;
+  }
 
   const veNFTAggregator = await context.VeNFTAggregator.get(
     VeNFTId(event.chainId, tokenId),
@@ -70,7 +88,7 @@ VeNFT.Transfer.handler(async ({ event, context }) => {
 VeNFT.Deposit.handler(async ({ event, context }) => {
   const tokenId = event.params.tokenId;
 
-  let veNFTAggregator = await context.VeNFTAggregator.get(
+  const veNFTAggregator = await context.VeNFTAggregator.get(
     VeNFTId(event.chainId, tokenId),
   );
 
@@ -79,18 +97,12 @@ VeNFT.Deposit.handler(async ({ event, context }) => {
     return;
   }
 
-  // If no existing VeNFT, create a new one for the diff
+  // Should exist because Transfer event typically come before Deposit event
   if (!veNFTAggregator) {
-    veNFTAggregator = {
-      id: VeNFTId(event.chainId, tokenId),
-      chainId: event.chainId,
-      tokenId: tokenId,
-      owner: "",
-      locktime: 0n,
-      lastUpdatedTimestamp: new Date(0),
-      totalValueLocked: 0n,
-      isAlive: true,
-    };
+    context.log.error(
+      `VeNFTAggregator ${tokenId} not found during VeNFT deposit on chain ${event.chainId}`,
+    );
+    return;
   }
 
   // Process deposit event using business logic

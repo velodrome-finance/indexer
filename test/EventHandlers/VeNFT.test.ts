@@ -107,6 +107,60 @@ describe("VeNFT Events", () => {
     });
   });
 
+  describe("Transfer Event - Minting", () => {
+    const mintEventData = {
+      provider: "0x1111111111111111111111111111111111111111",
+      from: "0x0000000000000000000000000000000000000000",
+      to: "0x2222222222222222222222222222222222222222",
+      tokenId: 2n,
+      timestamp: 1n,
+      chainId: 10,
+      mockEventData: {
+        block: {
+          timestamp: 1000000,
+          number: 123456,
+          hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+        },
+        chainId: 10,
+        logIndex: 1,
+        srcAddress: "0x3333333333333333333333333333333333333333",
+      },
+    };
+
+    let postEventDB: ReturnType<typeof MockDb.createMockDb>;
+    let mockEvent: ReturnType<typeof VeNFT.Transfer.createMockEvent>;
+
+    beforeEach(async () => {
+      // Create a fresh mockDb without the VeNFT for this tokenId
+      const freshMockDb = MockDb.createMockDb();
+      mockEvent = VeNFT.Transfer.createMockEvent(mintEventData);
+      postEventDB = await VeNFT.Transfer.processEvent({
+        event: mockEvent,
+        mockDb: freshMockDb,
+      });
+    });
+
+    it("should create VeNFTAggregator entity when minting (from zero address)", async () => {
+      const createdVeNFT = postEventDB.entities.VeNFTAggregator.get(
+        VeNFTId(chainId, mintEventData.tokenId),
+      );
+
+      expect(createdVeNFT).to.not.be.undefined;
+      expect(createdVeNFT?.id).to.equal(
+        VeNFTId(chainId, mintEventData.tokenId),
+      );
+      expect(createdVeNFT?.chainId).to.equal(chainId);
+      expect(createdVeNFT?.tokenId).to.equal(mintEventData.tokenId);
+      expect(createdVeNFT?.owner).to.equal(mintEventData.to);
+      expect(createdVeNFT?.locktime).to.equal(0n);
+      expect(createdVeNFT?.totalValueLocked).to.equal(0n);
+      expect(createdVeNFT?.isAlive).to.be.true;
+      expect(createdVeNFT?.lastUpdatedTimestamp).to.deep.equal(
+        new Date(mintEventData.mockEventData.block.timestamp * 1000),
+      );
+    });
+  });
+
   describe("Withdraw Event", () => {
     const eventData = {
       provider: "0x1111111111111111111111111111111111111111",
@@ -144,7 +198,7 @@ describe("VeNFT Events", () => {
           owner: mockVeNFTAggregator.owner,
           locktime: mockVeNFTAggregator.locktime,
           totalValueLocked: -eventData.value,
-          isAlive: true,
+          isAlive: false, // Withdraw is a burn operation
         },
       });
 
@@ -177,7 +231,7 @@ describe("VeNFT Events", () => {
         owner: mockVeNFTAggregator.owner,
         locktime: mockVeNFTAggregator.locktime,
         totalValueLocked: -eventData.value,
-        isAlive: true,
+        isAlive: false, // Withdraw is a burn operation
       });
       expect(calledWith[1]).to.deep.equal(mockVeNFTAggregator);
       expect(calledWith[2]).to.deep.equal(
