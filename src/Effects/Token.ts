@@ -4,6 +4,7 @@ import type { PublicClient } from "viem";
 import SpotPriceAggregatorABI from "../../abis/SpotPriceAggregator.json";
 import PriceOracleABI from "../../abis/VeloPriceOracleABI.json";
 import { CHAIN_CONSTANTS, PriceOracleType } from "../Constants";
+import { isRateLimitError, sleep } from "./Helpers";
 
 // ERC20 Contract ABI
 const contractABI = require("../../abis/ERC20.json");
@@ -72,6 +73,7 @@ export async function fetchTokenDetails(
 /**
  * Core logic for fetching token prices from price oracle contracts
  * This can be tested independently of the Effect API
+ * Includes retry logic with exponential backoff for rate limit errors
  */
 export async function fetchTokenPrice(
   tokenAddress: string,
@@ -84,71 +86,97 @@ export async function fetchTokenPrice(
   ethClient: PublicClient,
   logger: Envio_logger,
   gasLimit = 1000000n,
+  maxRetries = 5,
 ): Promise<{ pricePerUSDNew: bigint; priceOracleType: string }> {
-  try {
-    const priceOracleType =
-      CHAIN_CONSTANTS[chainId].oracle.getType(blockNumber);
-    const priceOracleAddress =
-      CHAIN_CONSTANTS[chainId].oracle.getAddress(priceOracleType);
+  const priceOracleType = CHAIN_CONSTANTS[chainId].oracle.getType(blockNumber);
+  const priceOracleAddress =
+    CHAIN_CONSTANTS[chainId].oracle.getAddress(priceOracleType);
 
-    logger.info(
-      `[fetchTokenPrice] Fetching price for token ${tokenAddress} on chain ${chainId} at block ${blockNumber}`,
-    );
+  logger.info(
+    `[fetchTokenPrice] Fetching price for token ${tokenAddress} on chain ${chainId} at block ${blockNumber}`,
+  );
 
-    if (priceOracleType === PriceOracleType.V3) {
+  let attempt = 0;
+
+  while (attempt <= maxRetries) {
+    try {
+      if (priceOracleType === PriceOracleType.V3) {
+        const tokenAddressArray = [
+          ...connectors,
+          systemTokenAddress,
+          wethAddress,
+          usdcAddress,
+        ];
+        const args = [
+          [tokenAddress],
+          usdcAddress,
+          false,
+          tokenAddressArray,
+          10,
+        ];
+        const { result } = await ethClient.simulateContract({
+          address: priceOracleAddress as `0x${string}`,
+          abi: SpotPriceAggregatorABI,
+          functionName: "getManyRatesWithCustomConnectors",
+          args,
+          blockNumber: BigInt(blockNumber),
+          gas: gasLimit,
+        });
+        return {
+          pricePerUSDNew: BigInt(result[0]),
+          priceOracleType: PriceOracleType.V3,
+        };
+      }
+
       const tokenAddressArray = [
+        tokenAddress,
         ...connectors,
         systemTokenAddress,
         wethAddress,
         usdcAddress,
       ];
-      const args = [[tokenAddress], usdcAddress, false, tokenAddressArray, 10];
+      const args = [1, tokenAddressArray];
       const { result } = await ethClient.simulateContract({
         address: priceOracleAddress as `0x${string}`,
-        abi: SpotPriceAggregatorABI,
-        functionName: "getManyRatesWithCustomConnectors",
+        abi: PriceOracleABI,
+        functionName: "getManyRatesWithConnectors",
         args,
         blockNumber: BigInt(blockNumber),
         gas: gasLimit,
       });
+
       return {
         pricePerUSDNew: BigInt(result[0]),
-        priceOracleType: PriceOracleType.V3,
+        priceOracleType: PriceOracleType.V2,
       };
+    } catch (error) {
+      // Check if it's a rate limit error and we have retries left
+      if (isRateLimitError(error) && attempt < maxRetries) {
+        const delayMs = Math.min(1000 * 2 ** attempt, 10000); // Exponential backoff: 1s, 2s, 4s, max 10s
+        attempt++;
+
+        logger.warn(
+          `[fetchTokenPrice] Rate limit error (attempt ${attempt}/${maxRetries + 1}) for token ${tokenAddress} on chain ${chainId} at block ${blockNumber}. Retrying in ${delayMs}ms...`,
+        );
+
+        await sleep(delayMs);
+        continue;
+      }
+
+      // If not a rate limit error or no retries left, log and break
+      logger.error(
+        `[fetchTokenPrice] Error fetching price for token ${tokenAddress} on chain ${chainId} at block ${blockNumber}${attempt > 0 ? ` (after ${attempt} retries)` : ""}:`,
+        error instanceof Error ? error : new Error(String(error)),
+      );
+      break;
     }
-
-    const tokenAddressArray = [
-      tokenAddress,
-      ...connectors,
-      systemTokenAddress,
-      wethAddress,
-      usdcAddress,
-    ];
-    const args = [1, tokenAddressArray];
-    const { result } = await ethClient.simulateContract({
-      address: priceOracleAddress as `0x${string}`,
-      abi: PriceOracleABI,
-      functionName: "getManyRatesWithConnectors",
-      args,
-      blockNumber: BigInt(blockNumber),
-      gas: gasLimit,
-    });
-
-    return {
-      pricePerUSDNew: BigInt(result[0]),
-      priceOracleType: PriceOracleType.V2,
-    };
-  } catch (error) {
-    logger.error(
-      `[fetchTokenPrice] Error fetching price for token ${tokenAddress} on chain ${chainId} at block ${blockNumber}:`,
-      error instanceof Error ? error : new Error(String(error)),
-    );
-    // Return zero price on error to prevent processing failures
-    return {
-      pricePerUSDNew: 0n,
-      priceOracleType: PriceOracleType.V2,
-    };
   }
+
+  // Return zero price on error to prevent processing failures
+  return {
+    pricePerUSDNew: 0n,
+    priceOracleType: PriceOracleType.V2,
+  };
 }
 
 /**
