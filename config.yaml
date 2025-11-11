@@ -124,11 +124,6 @@ contracts:
       - event: Deposit
       - event: Withdraw
       - event: Transfer
-  - name: ERC20
-    abi_file_path: abis/ERC20.json
-    handler: src/EventHandlers/ERC20.ts
-    events:
-      - event: Transfer(address indexed from, address indexed to, uint256 value)
   - name: DynamicFeeSwapModule
     abi_file_path: abis/DynamicFeeSwapModule.json
     handler: src/EventHandlers/SwapFeeModule/DynamicFeeSwapModule.ts
@@ -185,10 +180,6 @@ networks:
       - name: DynamicFeeSwapModule
         address:
           - 0xd9eE4FBeE92970509ec795062cA759F8B52d6720
-      - name: ERC20
-        address:
-          - 0x3c8B650257cFb5f272f799F5e2b4e65093a11a05 # VELO
-          - 0x9560e827aF36c94D2Ac33a39bCE1Fe78631088Db # VELO v2
       - name: VeNFT
         address:
           - 0xFAf8FD17D9840595845582fCB047DF13f006787d
@@ -245,9 +236,6 @@ networks:
       - name: DynamicFeeSwapModule
         address:
           - 0xDB45818A6db280ecfeB33cbeBd445423d0216b5D
-      - name: ERC20
-        address:
-          - 0x940181a94A35A4569E4529A3CDfB74e38FD98631 # AERO
       - name: VeNFT
         address:
           - 0xeBf418Fe2512e7E6bd9b87a8F0f294aCDC67e6B4
@@ -307,9 +295,6 @@ networks:
       - name: CustomFeeSwapModule
         address:
           - 0xbcAE2d4b4E8E34a4100e69E9C73af8214a89572e
-      - name: ERC20
-        address:
-          - 0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81 # xVELO
       - name: NFPM
         address:
           - 0x991d5546c4b442b4c5fdc4c8b8b8d131deb24702
@@ -352,9 +337,6 @@ networks:
       - name: CustomFeeSwapModule
         address:
           - 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F
-      - name: ERC20
-        address:
-          - 0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81 # xVELO
       - name: NFPM
         address:
           - 0x991d5546c4b442b4c5fdc4c8b8b8d131deb24702
@@ -397,9 +379,6 @@ networks:
       - name: CustomFeeSwapModule
         address:
           - 0x6812eefC19deB79D5191b52f4B763260d9F3C238
-      - name: ERC20
-        address:
-          - 0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81 # xVELO
       - name: NFPM
         address:
           - 0x991d5546c4b442b4c5fdc4c8b8b8d131deb24702
@@ -446,9 +425,6 @@ networks:
       - name: CustomFeeSwapModule
         address:
           - 0x479Bec910d4025b4aC440ec27aCf28eac522242B
-      - name: ERC20
-        address:
-          - 0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81 # xVELO
       - name: NFPM
         address:
           - 0x991d5546c4b442b4c5fdc4c8b8b8d131deb24702
@@ -489,9 +465,6 @@ networks:
       - name: CustomFeeSwapModule
         address:
           - 0xCB885Aa008031cBDb72447Bed78AF4f87a197126
-      - name: ERC20
-        address:
-          - 0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81 # xVELO
       - name: NFPM
         address:
           - 0x991d5546C4B442B4c5fdc4c8B8b8d131DEB24702
@@ -526,9 +499,6 @@ networks:
       - name: CustomFeeSwapModule
         address:
           - 0x6812eefC19deB79D5191b52f4B763260d9F3C238
-      - name: ERC20
-        address:
-          - 0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81 # xVELO
       - name: NFPM
         address:
           - 0x991d5546C4B442B4c5fdc4c8B8b8d131DEB24702
@@ -563,9 +533,6 @@ networks:
       - name: DynamicFeeSwapModule
         address:
           - 0xB0922e747e906B963dBdA37647DE1Aa709B35B2d
-      - name: ERC20
-        address:
-          - 0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81 # xVELO
       - name: NFPM
         address:
           - 0x991d5546C4B442B4c5fdc4c8B8b8d131DEB24702
@@ -634,9 +601,6 @@ networks:
       - name: CustomFeeSwapModule
         address:
           - 0x6812eefC19deB79D5191b52f4B763260d9F3C238
-      - name: ERC20
-        address:
-          - 0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81 # xVELO
       - name: NFPM
         address:
           - 0x991d5546c4b442b4c5fdc4c8b8b8d131deb24702

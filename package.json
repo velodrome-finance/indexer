@@ -51,7 +51,9 @@
       "generated/**",
       "**/generated/**",
       "node_modules/**",
-      "**/*.d.ts"
+      "**/*.d.ts",
+      "src/Constants.ts",
+      "src/CustomTypes.ts"
     ],
     "extension": [".ts"],
     "require": ["ts-node/register"]
