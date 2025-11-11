@@ -315,6 +315,7 @@ describe("SuperchainLeafVoter Events", () => {
           decimals: 18n,
           pricePerUSDNew: 2n * 10n ** 18n, // $2 per token
           isWhitelisted: true,
+          lastUpdatedTimestamp: new Date(1000000 * 1000), // Set timestamp to prevent refresh
         } as Token;
 
         expectations = {

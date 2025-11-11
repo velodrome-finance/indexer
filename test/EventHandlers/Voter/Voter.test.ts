@@ -272,6 +272,10 @@ describe("Voter Events", () => {
     describe("when pool entity exists", () => {
       let resultDB: ReturnType<typeof MockDb.createMockDb>;
       let mockLiquidityPool: LiquidityPoolAggregator;
+      const feeVotingRewardAddress =
+        "0x6572b2b30f63B960608f3aA5205711C558998398";
+      const bribeVotingRewardAddress =
+        "0xc9eEBCD281d9A4c0839Eb643216caa80a68b88B1";
 
       beforeEach(async () => {
         const { mockLiquidityPoolData } = setupCommon();
@@ -281,6 +285,9 @@ describe("Voter Events", () => {
           id: toChecksumAddress(poolAddress),
           chainId: chainId,
           gaugeAddress: gaugeAddress, // Initially has gauge address
+          gaugeIsAlive: true, // Initially alive
+          feeVotingRewardAddress: feeVotingRewardAddress, // Has voting reward addresses
+          bribeVotingRewardAddress: bribeVotingRewardAddress,
         } as LiquidityPoolAggregator;
 
         // Mock findPoolByGaugeAddress to return the pool
@@ -298,12 +305,21 @@ describe("Voter Events", () => {
 
       afterEach(() => {});
 
-      it("should clear gauge address from pool entity", () => {
+      it("should set gaugeIsAlive to false but preserve gauge address and voting reward addresses as historical data", () => {
         const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
           toChecksumAddress(poolAddress),
         );
         expect(updatedPool).to.not.be.undefined;
-        expect(updatedPool?.gaugeAddress).to.equal(""); // Should be cleared
+        expect(updatedPool?.gaugeIsAlive).to.equal(false); // Should be set to false
+        // Gauge address should be preserved as historical data
+        expect(updatedPool?.gaugeAddress).to.equal(gaugeAddress);
+        // Voting reward addresses should be preserved as historical data
+        expect(updatedPool?.feeVotingRewardAddress).to.equal(
+          feeVotingRewardAddress,
+        );
+        expect(updatedPool?.bribeVotingRewardAddress).to.equal(
+          bribeVotingRewardAddress,
+        );
         expect(updatedPool?.lastUpdatedTimestamp).to.deep.equal(
           new Date(1000000 * 1000),
         );
@@ -486,6 +502,7 @@ describe("Voter Events", () => {
           decimals: 18n,
           pricePerUSDNew: 2n * 10n ** 18n, // $2 per token
           isWhitelisted: true,
+          lastUpdatedTimestamp: new Date(1000000 * 1000), // Set timestamp to prevent refresh
         } as Token;
 
         expectations = {

@@ -25,8 +25,10 @@ describe("Token Effects", () => {
   };
   let mockEthClient: PublicClient;
   let chainConstantsStub: sinon.SinonStub;
+  let sandbox: sinon.SinonSandbox;
 
   beforeEach(() => {
+    sandbox = sinon.createSandbox();
     mockEthClient = {
       simulateContract: sinon.stub().resolves({
         result: "Test Token",
@@ -349,6 +351,155 @@ describe("Token Effects", () => {
 
       // Verify error was logged
       expect(mockContext.log.error).to.be.a("function");
+    });
+
+    it("should retry on out of gas errors with increased gas limit", async () => {
+      const tokenAddress = "0x1234567890123456789012345678901234567890";
+      const usdcAddress = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+      const systemTokenAddress = "0x4200000000000000000000000000000000000006";
+      const wethAddress = "0x4200000000000000000000000000000000000006";
+      const connectors: string[] = [];
+      const chainId = 10;
+      const blockNumber = 12345;
+      const gasLimit = 1000000n;
+
+      (CHAIN_CONSTANTS as Record<number, unknown>)[10] = {
+        eth_client: mockEthClient,
+        oracle: {
+          getType: () => "V2",
+          getAddress: () => "0x1234567890123456789012345678901234567890",
+          getPrice: sinon.stub(),
+        },
+      };
+
+      const mockSimulateContract =
+        mockEthClient.simulateContract as sinon.SinonStub;
+      // First call fails with out of gas, second succeeds
+      mockSimulateContract
+        .onFirstCall()
+        .rejects(new Error("out of gas: gas required exceeds: 1000000"))
+        .onSecondCall()
+        .resolves({
+          result: [
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+          ],
+        });
+
+      const result = await fetchTokenPrice(
+        tokenAddress,
+        usdcAddress,
+        systemTokenAddress,
+        wethAddress,
+        connectors,
+        chainId,
+        blockNumber,
+        mockEthClient,
+        mockContext.log,
+        gasLimit,
+        7, // maxRetries
+      );
+
+      expect(result.pricePerUSDNew).to.equal(1n);
+      expect(mockSimulateContract.callCount).to.equal(2);
+      // Verify second call used increased gas limit
+      const secondCall = mockSimulateContract.secondCall.args[0];
+      expect(secondCall.gas).to.equal(2000000n); // Doubled from 1M
+    });
+
+    it("should retry on rate limit errors with exponential backoff", async () => {
+      const tokenAddress = "0x1234567890123456789012345678901234567890";
+      const usdcAddress = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+      const systemTokenAddress = "0x4200000000000000000000000000000000000006";
+      const wethAddress = "0x4200000000000000000000000000000000000006";
+      const connectors: string[] = [];
+      const chainId = 10;
+      const blockNumber = 12345;
+      const gasLimit = 1000000n;
+
+      (CHAIN_CONSTANTS as Record<number, unknown>)[10] = {
+        eth_client: mockEthClient,
+        oracle: {
+          getType: () => "V2",
+          getAddress: () => "0x1234567890123456789012345678901234567890",
+          getPrice: sinon.stub(),
+        },
+      };
+
+      const mockSimulateContract =
+        mockEthClient.simulateContract as sinon.SinonStub;
+      // First call fails with rate limit, second succeeds
+      mockSimulateContract
+        .onFirstCall()
+        .rejects(new Error("rate limit exceeded"))
+        .onSecondCall()
+        .resolves({
+          result: [
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+          ],
+        });
+
+      const startTime = Date.now();
+      const result = await fetchTokenPrice(
+        tokenAddress,
+        usdcAddress,
+        systemTokenAddress,
+        wethAddress,
+        connectors,
+        chainId,
+        blockNumber,
+        mockEthClient,
+        mockContext.log,
+        gasLimit,
+        7, // maxRetries
+      );
+      const endTime = Date.now();
+
+      expect(result.pricePerUSDNew).to.equal(1n);
+      expect(mockSimulateContract.callCount).to.equal(2);
+      // Verify there was a delay (at least 900ms for first retry with 1s delay)
+      expect(endTime - startTime).to.be.at.least(900);
+    });
+
+    it("should handle contract revert errors without retries", async () => {
+      const tokenAddress = "0x1234567890123456789012345678901234567890";
+      const usdcAddress = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+      const systemTokenAddress = "0x4200000000000000000000000000000000000006";
+      const wethAddress = "0x4200000000000000000000000000000000000006";
+      const connectors: string[] = [];
+      const chainId = 10;
+      const blockNumber = 12345;
+      const gasLimit = 1000000n;
+
+      (CHAIN_CONSTANTS as Record<number, unknown>)[10] = {
+        eth_client: mockEthClient,
+        oracle: {
+          getType: () => "V2",
+          getAddress: () => "0x1234567890123456789012345678901234567890",
+          getPrice: sinon.stub(),
+        },
+      };
+
+      const mockSimulateContract =
+        mockEthClient.simulateContract as sinon.SinonStub;
+      mockSimulateContract.rejects(new Error("execution reverted"));
+
+      const result = await fetchTokenPrice(
+        tokenAddress,
+        usdcAddress,
+        systemTokenAddress,
+        wethAddress,
+        connectors,
+        chainId,
+        blockNumber,
+        mockEthClient,
+        mockContext.log,
+        gasLimit,
+        7, // maxRetries
+      );
+
+      // Should return zero price without retries
+      expect(result.pricePerUSDNew).to.equal(0n);
+      expect(mockSimulateContract.callCount).to.equal(1); // No retries
     });
   });
 });
