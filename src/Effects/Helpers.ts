@@ -10,17 +10,24 @@ export enum ErrorType {
 
 /**
  * Error keyword mappings for each error type
+p * Note: Order matters - more specific errors should be checked first
  */
 const ERROR_KEYWORDS: Record<ErrorType, string[]> = {
+  [ErrorType.OUT_OF_GAS]: [
+    "out of gas",
+    "gas exhausted",
+    "gas required exceeds",
+    "gas limit exceeded",
+    "gas limit",
+  ],
+  [ErrorType.CONTRACT_REVERT]: ["reverted", "revert", "execution reverted"],
   [ErrorType.RATE_LIMIT]: [
     "rate limit",
-    "exceeded",
+    "rate limit exceeded",
     "requests per second",
     "429",
     "too many requests",
   ],
-  [ErrorType.OUT_OF_GAS]: ["out of gas", "gas exhausted", "gas limit"],
-  [ErrorType.CONTRACT_REVERT]: ["reverted", "revert", "execution reverted"],
   [ErrorType.UNKNOWN]: [],
 };
 
