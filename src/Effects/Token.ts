@@ -4,7 +4,12 @@ import type { PublicClient } from "viem";
 import SpotPriceAggregatorABI from "../../abis/SpotPriceAggregator.json";
 import PriceOracleABI from "../../abis/VeloPriceOracleABI.json";
 import { CHAIN_CONSTANTS, PriceOracleType } from "../Constants";
-import { isRateLimitError, sleep } from "./Helpers";
+import {
+  isContractRevertError,
+  isOutOfGasError,
+  isRateLimitError,
+  sleep,
+} from "./Helpers";
 
 // ERC20 Contract ABI
 const contractABI = require("../../abis/ERC20.json");
@@ -97,6 +102,7 @@ export async function fetchTokenPrice(
   );
 
   let attempt = 0;
+  let currentGasLimit = gasLimit;
 
   while (attempt <= maxRetries) {
     try {
@@ -120,7 +126,7 @@ export async function fetchTokenPrice(
           functionName: "getManyRatesWithCustomConnectors",
           args,
           blockNumber: BigInt(blockNumber),
-          gas: gasLimit,
+          gas: currentGasLimit,
         });
         return {
           pricePerUSDNew: BigInt(result[0]),
@@ -142,7 +148,7 @@ export async function fetchTokenPrice(
         functionName: "getManyRatesWithConnectors",
         args,
         blockNumber: BigInt(blockNumber),
-        gas: gasLimit,
+        gas: currentGasLimit,
       });
 
       return {
@@ -150,6 +156,21 @@ export async function fetchTokenPrice(
         priceOracleType: PriceOracleType.V2,
       };
     } catch (error) {
+      // Check if it's an out of gas error and we have retries left
+      if (isOutOfGasError(error) && attempt < maxRetries) {
+        // Increase gas limit exponentially: 1M -> 2M -> 4M -> 8M -> 16M (max)
+        currentGasLimit = BigInt(
+          Math.min(Number(currentGasLimit) * 2, 16000000),
+        );
+        attempt++;
+
+        logger.warn(
+          `[fetchTokenPrice] Out of gas error (attempt ${attempt}/${maxRetries + 1}) for token ${tokenAddress} on chain ${chainId} at block ${blockNumber}. Retrying with gas limit ${currentGasLimit}...`,
+        );
+
+        continue;
+      }
+
       // Check if it's a rate limit error and we have retries left
       if (isRateLimitError(error) && attempt < maxRetries) {
         const delayMs = Math.min(1000 * 2 ** attempt, 10000); // Exponential backoff: 1s, 2s, 4s, max 10s
@@ -163,7 +184,15 @@ export async function fetchTokenPrice(
         continue;
       }
 
-      // If not a rate limit error or no retries left, log and break
+      // If it's a contract revert, log it specifically (no retries needed)
+      if (isContractRevertError(error)) {
+        logger.warn(
+          `[fetchTokenPrice] Contract reverted for token ${tokenAddress} on chain ${chainId} at block ${blockNumber}. This usually means no price path exists. Returning zero price.`,
+        );
+        break;
+      }
+
+      // If not a retryable error or no retries left, log and break
       logger.error(
         `[fetchTokenPrice] Error fetching price for token ${tokenAddress} on chain ${chainId} at block ${blockNumber}${attempt > 0 ? ` (after ${attempt} retries)` : ""}:`,
         error instanceof Error ? error : new Error(String(error)),
