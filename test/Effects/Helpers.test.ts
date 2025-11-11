@@ -23,6 +23,12 @@ describe("Helpers", () => {
         ErrorType.OUT_OF_GAS,
       );
       expect(getErrorType("gas limit reached")).to.equal(ErrorType.OUT_OF_GAS);
+      expect(
+        getErrorType(new Error("out of gas: gas required exceeds: 1000000")),
+      ).to.equal(ErrorType.OUT_OF_GAS);
+      expect(getErrorType(new Error("gas limit exceeded"))).to.equal(
+        ErrorType.OUT_OF_GAS,
+      );
     });
 
     it("should return CONTRACT_REVERT for revert errors", () => {
@@ -51,9 +57,17 @@ describe("Helpers", () => {
 
     it("should prioritize first matching error type", () => {
       // If an error matches multiple types, it should return the first one checked
-      // The order is: RATE_LIMIT, OUT_OF_GAS, CONTRACT_REVERT
-      const error = new Error("rate limit out of gas");
-      expect(getErrorType(error)).to.equal(ErrorType.RATE_LIMIT);
+      // The order is: OUT_OF_GAS, CONTRACT_REVERT, RATE_LIMIT (most specific first)
+      const error1 = new Error("out of gas: gas required exceeds: 1000000");
+      expect(getErrorType(error1)).to.equal(ErrorType.OUT_OF_GAS);
+
+      // Even if it contains "exceeds", OUT_OF_GAS should match first
+      const error2 = new Error("out of gas: gas required exceeds");
+      expect(getErrorType(error2)).to.equal(ErrorType.OUT_OF_GAS);
+
+      // If it's ambiguous, OUT_OF_GAS takes priority
+      const error3 = new Error("rate limit out of gas");
+      expect(getErrorType(error3)).to.equal(ErrorType.OUT_OF_GAS);
     });
   });
 
