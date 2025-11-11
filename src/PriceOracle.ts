@@ -68,35 +68,50 @@ export async function refreshTokenPrice(
 ): Promise<Token> {
   const blockTimestampMs = blockTimestamp * 1000;
 
-  if (blockTimestampMs - token.lastUpdatedTimestamp.getTime() < ONE_HOUR_MS) {
+  // Always fetch price if it's 0 (token was just created or price fetch failed previously)
+  // Also refresh if lastUpdatedTimestamp is missing or if more than 1h has passed
+  const shouldRefresh =
+    token.pricePerUSDNew === 0n ||
+    !token.lastUpdatedTimestamp ||
+    blockTimestampMs - token.lastUpdatedTimestamp.getTime() >= ONE_HOUR_MS;
+
+  if (!shouldRefresh) {
     return token;
   }
 
-  const tokenPriceData = await context.effect(getTokenPriceDataEffect, {
-    tokenAddress: token.address,
-    blockNumber,
-    chainId,
-    gasLimit,
-  });
-  const currentPrice = tokenPriceData.pricePerUSDNew;
-  const updatedToken: Token = {
-    ...token,
-    pricePerUSDNew: currentPrice,
-    decimals: tokenPriceData.decimals,
-    lastUpdatedTimestamp: new Date(blockTimestampMs),
-  };
-  context.Token.set(updatedToken);
+  try {
+    const tokenPriceData = await context.effect(getTokenPriceDataEffect, {
+      tokenAddress: token.address,
+      blockNumber,
+      chainId,
+      gasLimit,
+    });
+    const currentPrice = tokenPriceData.pricePerUSDNew;
+    const updatedToken: Token = {
+      ...token,
+      pricePerUSDNew: currentPrice,
+      decimals: tokenPriceData.decimals,
+      lastUpdatedTimestamp: new Date(blockTimestampMs),
+    };
+    context.Token.set(updatedToken);
 
-  // Create new TokenPrice entity
-  const tokenPrice: TokenPriceSnapshot = {
-    id: TokenIdByBlock(token.address, chainId, blockNumber),
-    address: toChecksumAddress(token.address),
-    pricePerUSDNew: currentPrice,
-    chainId: chainId,
-    isWhitelisted: token.isWhitelisted,
-    lastUpdatedTimestamp: new Date(blockTimestampMs),
-  };
+    // Create new TokenPrice entity
+    const tokenPrice: TokenPriceSnapshot = {
+      id: TokenIdByBlock(token.address, chainId, blockNumber),
+      address: toChecksumAddress(token.address),
+      pricePerUSDNew: currentPrice,
+      chainId: chainId,
+      isWhitelisted: token.isWhitelisted,
+      lastUpdatedTimestamp: new Date(blockTimestampMs),
+    };
 
-  context.TokenPriceSnapshot.set(tokenPrice);
-  return updatedToken;
+    context.TokenPriceSnapshot.set(tokenPrice);
+    return updatedToken;
+  } catch (error) {
+    context.log.error(
+      `Error refreshing token price for ${token.address} on chain ${chainId}: ${error}`,
+    );
+    // Return original token if refresh fails
+    return token;
+  }
 }

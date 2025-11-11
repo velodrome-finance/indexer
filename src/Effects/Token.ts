@@ -86,7 +86,7 @@ export async function fetchTokenPrice(
   ethClient: PublicClient,
   logger: Envio_logger,
   gasLimit = 1000000n,
-  maxRetries = 5,
+  maxRetries = 7,
 ): Promise<{ pricePerUSDNew: bigint; priceOracleType: string }> {
   const priceOracleType = CHAIN_CONSTANTS[chainId].oracle.getType(blockNumber);
   const priceOracleAddress =
@@ -170,7 +170,15 @@ export async function fetchTokenPrice(
 
       // Check if it's a rate limit error and we have retries left
       if (errorType === ErrorType.RATE_LIMIT && attempt < maxRetries) {
-        const delayMs = Math.min(1000 * 2 ** attempt, 10000); // Exponential backoff: 1s, 2s, 4s, max 10s
+        // Exponential backoff: 1s, 2s, 4s, 8s, 10s, 30s, 60s
+        let delayMs: number;
+        if (attempt === 5) {
+          delayMs = 30000; // 30 seconds for 6th retry
+        } else if (attempt === 6) {
+          delayMs = 60000; // 60 seconds (1 minute) for 7th retry
+        } else {
+          delayMs = Math.min(1000 * 2 ** attempt, 10000); // Exponential backoff up to 10s
+        }
         attempt++;
 
         logger.warn(

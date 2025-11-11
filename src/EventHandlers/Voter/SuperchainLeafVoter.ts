@@ -16,7 +16,7 @@ import {
   toChecksumAddress,
 } from "../../Constants";
 import { getTokenDetails } from "../../Effects/Index";
-
+import { refreshTokenPrice } from "../../PriceOracle";
 import {
   applyLpDiff,
   buildLpDiffFromDistribute,
@@ -161,8 +161,19 @@ SuperchainLeafVoter.DistributeReward.handler(async ({ event, context }) => {
     return;
   }
 
-  const result = await computeVoterDistributeValues({
+  // Refresh reward token price if it's zero (token was just created or price fetch failed previously)
+  // Or if more than 1h has passed since last update
+  const updatedRewardToken = await refreshTokenPrice(
     rewardToken,
+    event.block.number,
+    event.block.timestamp,
+    event.chainId,
+    context,
+    1000000n,
+  );
+
+  const result = await computeVoterDistributeValues({
+    rewardToken: updatedRewardToken,
     gaugeAddress: event.params.gauge,
     voterAddress: event.srcAddress,
     amountEmittedRaw: event.params.amount,
