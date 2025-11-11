@@ -1,165 +1,59 @@
 import { expect } from "chai";
-import {
-  isContractRevertError,
-  isOutOfGasError,
-  isRateLimitError,
-  sleep,
-} from "../../src/Effects/Helpers";
+import { ErrorType, getErrorType, sleep } from "../../src/Effects/Helpers";
 
 describe("Helpers", () => {
-  describe("isRateLimitError", () => {
-    it("should return true for rate limit error in message", () => {
-      const error = new Error("Rate limit exceeded");
-      expect(isRateLimitError(error)).to.be.true;
+  describe("getErrorType", () => {
+    it("should return RATE_LIMIT for rate limit errors", () => {
+      expect(getErrorType(new Error("Rate limit exceeded"))).to.equal(
+        ErrorType.RATE_LIMIT,
+      );
+      expect(getErrorType(new Error("HTTP 429 Too Many Requests"))).to.equal(
+        ErrorType.RATE_LIMIT,
+      );
+      expect(getErrorType("Too many requests per second")).to.equal(
+        ErrorType.RATE_LIMIT,
+      );
     });
 
-    it("should return true for '429' status code in message", () => {
-      const error = new Error("HTTP 429 Too Many Requests");
-      expect(isRateLimitError(error)).to.be.true;
+    it("should return OUT_OF_GAS for gas errors", () => {
+      expect(getErrorType(new Error("Transaction out of gas"))).to.equal(
+        ErrorType.OUT_OF_GAS,
+      );
+      expect(getErrorType(new Error("Gas exhausted"))).to.equal(
+        ErrorType.OUT_OF_GAS,
+      );
+      expect(getErrorType("gas limit reached")).to.equal(ErrorType.OUT_OF_GAS);
     });
 
-    it("should return true for 'requests per second' in message", () => {
-      const error = new Error("Too many requests per second");
-      expect(isRateLimitError(error)).to.be.true;
+    it("should return CONTRACT_REVERT for revert errors", () => {
+      expect(getErrorType(new Error("Transaction reverted"))).to.equal(
+        ErrorType.CONTRACT_REVERT,
+      );
+      expect(getErrorType(new Error("execution reverted"))).to.equal(
+        ErrorType.CONTRACT_REVERT,
+      );
+      expect(getErrorType("Contract revert")).to.equal(
+        ErrorType.CONTRACT_REVERT,
+      );
     });
 
-    it("should return true for rate limit in stack trace", () => {
-      const error = new Error("Some error");
-      error.stack = "Error: Some error\n  at rate limit handler";
-      expect(isRateLimitError(error)).to.be.true;
+    it("should return UNKNOWN for unrecognized errors", () => {
+      expect(getErrorType(new Error("Network error"))).to.equal(
+        ErrorType.UNKNOWN,
+      );
+      expect(getErrorType("Some random error")).to.equal(ErrorType.UNKNOWN);
     });
 
-    it("should return true for case-insensitive matches", () => {
-      const error = new Error("RATE LIMIT EXCEEDED");
-      expect(isRateLimitError(error)).to.be.true;
+    it("should return UNKNOWN for null or undefined", () => {
+      expect(getErrorType(null)).to.equal(ErrorType.UNKNOWN);
+      expect(getErrorType(undefined)).to.equal(ErrorType.UNKNOWN);
     });
 
-    it("should return false for non-rate-limit errors", () => {
-      const error = new Error("Network error");
-      expect(isRateLimitError(error)).to.be.false;
-    });
-
-    it("should return false for null", () => {
-      expect(isRateLimitError(null)).to.be.false;
-    });
-
-    it("should return false for undefined", () => {
-      expect(isRateLimitError(undefined)).to.be.false;
-    });
-
-    it("should handle string errors", () => {
-      expect(isRateLimitError("Rate limit exceeded")).to.be.true;
-      expect(isRateLimitError("Some other error")).to.be.false;
-    });
-
-    it("should handle non-Error objects", () => {
-      // Non-Error objects are stringified to "[object Object]" which doesn't contain keywords
-      const errorObj = { message: "Rate limit exceeded" };
-      expect(isRateLimitError(errorObj)).to.be.false;
-    });
-  });
-
-  describe("isOutOfGasError", () => {
-    it("should return true for 'out of gas' in message", () => {
-      const error = new Error("Transaction out of gas");
-      expect(isOutOfGasError(error)).to.be.true;
-    });
-
-    it("should return true for 'gas exhausted' in message", () => {
-      const error = new Error("Gas exhausted during execution");
-      expect(isOutOfGasError(error)).to.be.true;
-    });
-
-    it("should return true for 'gas limit' in message", () => {
-      const error = new Error("Gas limit reached");
-      expect(isOutOfGasError(error)).to.be.true;
-    });
-
-    it("should return true for out of gas in stack trace", () => {
-      const error = new Error("Some error");
-      error.stack = "Error: Some error\n  at out of gas handler";
-      expect(isOutOfGasError(error)).to.be.true;
-    });
-
-    it("should return true for case-insensitive matches", () => {
-      const error = new Error("OUT OF GAS");
-      expect(isOutOfGasError(error)).to.be.true;
-    });
-
-    it("should return false for non-gas errors", () => {
-      const error = new Error("Network error");
-      expect(isOutOfGasError(error)).to.be.false;
-    });
-
-    it("should return false for null", () => {
-      expect(isOutOfGasError(null)).to.be.false;
-    });
-
-    it("should return false for undefined", () => {
-      expect(isOutOfGasError(undefined)).to.be.false;
-    });
-
-    it("should handle string errors", () => {
-      expect(isOutOfGasError("out of gas")).to.be.true;
-      expect(isOutOfGasError("Some other error")).to.be.false;
-    });
-
-    it("should handle non-Error objects", () => {
-      // Non-Error objects are stringified to "[object Object]" which doesn't contain keywords
-      const errorObj = { message: "gas exhausted" };
-      expect(isOutOfGasError(errorObj)).to.be.false;
-    });
-  });
-
-  describe("isContractRevertError", () => {
-    it("should return true for 'reverted' in message", () => {
-      const error = new Error("Transaction reverted");
-      expect(isContractRevertError(error)).to.be.true;
-    });
-
-    it("should return true for 'revert' in message", () => {
-      const error = new Error("Contract revert");
-      expect(isContractRevertError(error)).to.be.true;
-    });
-
-    it("should return true for 'execution reverted' in message", () => {
-      const error = new Error("Execution reverted");
-      expect(isContractRevertError(error)).to.be.true;
-    });
-
-    it("should return true for revert in stack trace", () => {
-      const error = new Error("Some error");
-      error.stack = "Error: Some error\n  at execution reverted";
-      expect(isContractRevertError(error)).to.be.true;
-    });
-
-    it("should return true for case-insensitive matches", () => {
-      const error = new Error("EXECUTION REVERTED");
-      expect(isContractRevertError(error)).to.be.true;
-    });
-
-    it("should return false for non-revert errors", () => {
-      const error = new Error("Network error");
-      expect(isContractRevertError(error)).to.be.false;
-    });
-
-    it("should return false for null", () => {
-      expect(isContractRevertError(null)).to.be.false;
-    });
-
-    it("should return false for undefined", () => {
-      expect(isContractRevertError(undefined)).to.be.false;
-    });
-
-    it("should handle string errors", () => {
-      expect(isContractRevertError("execution reverted")).to.be.true;
-      expect(isContractRevertError("Some other error")).to.be.false;
-    });
-
-    it("should handle non-Error objects", () => {
-      // Non-Error objects are stringified to "[object Object]" which doesn't contain keywords
-      const errorObj = { message: "reverted" };
-      expect(isContractRevertError(errorObj)).to.be.false;
+    it("should prioritize first matching error type", () => {
+      // If an error matches multiple types, it should return the first one checked
+      // The order is: RATE_LIMIT, OUT_OF_GAS, CONTRACT_REVERT
+      const error = new Error("rate limit out of gas");
+      expect(getErrorType(error)).to.equal(ErrorType.RATE_LIMIT);
     });
   });
 

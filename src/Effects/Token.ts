@@ -4,12 +4,7 @@ import type { PublicClient } from "viem";
 import SpotPriceAggregatorABI from "../../abis/SpotPriceAggregator.json";
 import PriceOracleABI from "../../abis/VeloPriceOracleABI.json";
 import { CHAIN_CONSTANTS, PriceOracleType } from "../Constants";
-import {
-  isContractRevertError,
-  isOutOfGasError,
-  isRateLimitError,
-  sleep,
-} from "./Helpers";
+import { ErrorType, getErrorType, sleep } from "./Helpers";
 
 // ERC20 Contract ABI
 const contractABI = require("../../abis/ERC20.json");
@@ -156,8 +151,10 @@ export async function fetchTokenPrice(
         priceOracleType: PriceOracleType.V2,
       };
     } catch (error) {
+      const errorType = getErrorType(error);
+
       // Check if it's an out of gas error and we have retries left
-      if (isOutOfGasError(error) && attempt < maxRetries) {
+      if (errorType === ErrorType.OUT_OF_GAS && attempt < maxRetries) {
         // Increase gas limit exponentially: 1M -> 2M -> 4M -> 8M -> 16M (max)
         currentGasLimit = BigInt(
           Math.min(Number(currentGasLimit) * 2, 16000000),
@@ -172,7 +169,7 @@ export async function fetchTokenPrice(
       }
 
       // Check if it's a rate limit error and we have retries left
-      if (isRateLimitError(error) && attempt < maxRetries) {
+      if (errorType === ErrorType.RATE_LIMIT && attempt < maxRetries) {
         const delayMs = Math.min(1000 * 2 ** attempt, 10000); // Exponential backoff: 1s, 2s, 4s, max 10s
         attempt++;
 
@@ -185,7 +182,7 @@ export async function fetchTokenPrice(
       }
 
       // If it's a contract revert, log it specifically (no retries needed)
-      if (isContractRevertError(error)) {
+      if (errorType === ErrorType.CONTRACT_REVERT) {
         logger.warn(
           `[fetchTokenPrice] Contract reverted for token ${tokenAddress} on chain ${chainId} at block ${blockNumber}. This usually means no price path exists. Returning zero price.`,
         );
