@@ -128,13 +128,8 @@ PoolFactory.PoolCreated.handler(async ({ event, context }) => {
     currentFee: undefined,
   };
 
-  updateLiquidityPoolAggregator(
-    pool,
-    pool,
-    pool.lastUpdatedTimestamp,
-    context,
-    event.block.number,
-  );
+  // For new pool creation, set the entity directly (updateLiquidityPoolAggregator is for updates, not creation)
+  context.LiquidityPoolAggregator.set(pool);
 });
 
 PoolFactory.SetCustomFee.handler(async ({ event, context }) => {

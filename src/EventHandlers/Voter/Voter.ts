@@ -16,6 +16,7 @@ import {
   toChecksumAddress,
 } from "../../Constants";
 import { getTokenDetails } from "../../Effects/Index";
+import { refreshTokenPrice } from "../../PriceOracle";
 import {
   applyLpDiff,
   buildLpDiffFromDistribute,
@@ -160,8 +161,24 @@ Voter.DistributeReward.handler(async ({ event, context }) => {
     return;
   }
 
-  const result = await computeVoterDistributeValues({
+  // Refresh reward token price if it's zero (token was just created or price fetch failed previously)
+  // Or if more than 1h has passed since last update
+  const updatedRewardToken = await refreshTokenPrice(
     rewardToken,
+    event.block.number,
+    event.block.timestamp,
+    event.chainId,
+    context,
+    1000000n,
+  );
+
+  context.log.info(`Reward token address: ${rewardToken.address}`);
+  context.log.info(
+    `Updated reward token price: ${updatedRewardToken.pricePerUSDNew.toString()}`,
+  );
+
+  const result = await computeVoterDistributeValues({
+    rewardToken: updatedRewardToken,
     gaugeAddress: event.params.gauge,
     voterAddress: event.srcAddress,
     amountEmittedRaw: event.params.amount,
@@ -248,7 +265,8 @@ Voter.WhitelistToken.handler(async ({ event, context }) => {
 });
 
 Voter.GaugeKilled.handler(async ({ event, context }) => {
-  // Update the pool entity - Empty string because it was killed
+  // Update the pool entity - mark gauge as not alive and clear gauge address
+  // Keep voting reward addresses as historical data
   const poolEntity = await findPoolByGaugeAddress(
     event.params.gauge,
     event.chainId,
@@ -263,9 +281,8 @@ Voter.GaugeKilled.handler(async ({ event, context }) => {
 
   if (poolAddress) {
     const poolUpdateDiff = {
-      gaugeAddress: "",
-      feeVotingRewardAddress: "",
-      bribeVotingRewardAddress: "",
+      gaugeIsAlive: false,
+      // Keep gaugeAddress, feeVotingRewardAddress and bribeVotingRewardAddress as historical data
       lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
     };
 

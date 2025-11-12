@@ -231,7 +231,7 @@ networks:
         address:
           - 0xd4C1905BB1D26BC93DAC913e13CaCC278CdCC80D
   - id: 8453 # Base
-    start_block: 36953918
+    start_block: 0
     contracts:
       - name: DynamicFeeSwapModule
         address:

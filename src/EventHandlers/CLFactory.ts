@@ -1,5 +1,4 @@
 import { CLFactory } from "generated";
-import { updateLiquidityPoolAggregator } from "../Aggregators/LiquidityPoolAggregator";
 import { CHAIN_CONSTANTS, TokenIdByChain } from "../Constants";
 import { processCLFactoryPoolCreated } from "./CLFactory/CLFactoryPoolCreatedLogic";
 
@@ -31,12 +30,6 @@ CLFactory.PoolCreated.handler(async ({ event, context }) => {
     context,
   );
 
-  // Apply liquidity pool aggregator updates
-  updateLiquidityPoolAggregator(
-    result.liquidityPoolAggregator,
-    result.liquidityPoolAggregator,
-    new Date(event.block.timestamp * 1000),
-    context,
-    event.block.number,
-  );
+  // For new pool creation, set the entity directly (updateLiquidityPoolAggregator is for updates, not creation)
+  context.LiquidityPoolAggregator.set(result.liquidityPoolAggregator);
 });
