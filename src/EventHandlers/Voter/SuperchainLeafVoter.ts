@@ -73,13 +73,11 @@ SuperchainLeafVoter.Voted.handler(async ({ event, context }) => {
 // Note:
 // These pools factories addresses are hardcoded since we can't check the pool type from the Voter contract
 const CLPOOLS_FACTORY_LIST: string[] = [
-  "0xeAD23f606643E387a073D0EE8718602291ffaAeB", // soneuim
-  // TODO: Add CL Pool Factory addresses for other chains (superchain chains)
+  "0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F", // All superchain chains have this address
 ].map((x) => toChecksumAddress(x));
 
 const VAMM_POOL_FACTORY_LIST: string[] = [
-  "0x42e403b73898320f23109708b0ba1Ae85838C445", // soneuim
-  // TODO: Add VAMM Pool Factory addresses for other chains (superchain chains)
+  "0x31832f2a97Fd20664D76Cc421207669b55CE4BC0", // All superchain chains have this address
 ].map((x) => toChecksumAddress(x));
 
 SuperchainLeafVoter.GaugeCreated.contractRegister(({ event, context }) => {

@@ -75,13 +75,11 @@ Voter.Voted.handler(async ({ event, context }) => {
 const CLPOOLS_FACTORY_LIST: string[] = [
   "0x5e7BB104d84c7CB9B682AaC2F3d509f5F406809A", // base
   "0xCc0bDDB707055e04e497aB22a59c2aF4391cd12F", // optimism
-  // TODO: Add CL Pool Factory addresses for other chains
 ].map((x) => toChecksumAddress(x));
 
 const VAMM_POOL_FACTORY_LIST: string[] = [
   "0x420DD381b31aEf6683db6B902084cB0FFECe40Da", // base
   "0xF1046053aa5682b4F9a81b5481394DA16BE5FF5a", // optimism
-  // TODO: Add VAMM Pool Factory addresses for other chains
 ].map((x) => toChecksumAddress(x));
 
 Voter.GaugeCreated.contractRegister(({ event, context }) => {
