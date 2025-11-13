@@ -1,4 +1,4 @@
-import { S, experimental_createEffect } from "envio";
+import { S, createEffect } from "envio";
 import type { logger as Envio_logger } from "envio/src/Envio.gen";
 import type { PublicClient } from "viem";
 import SpotPriceAggregatorABI from "../../abis/SpotPriceAggregator.json";
@@ -217,7 +217,7 @@ export async function fetchTokenPrice(
  * Effect to get ERC20 token details (name, decimals, symbol)
  * This replaces the direct RPC calls in getErc20TokenDetails
  */
-export const getTokenDetails = experimental_createEffect(
+export const getTokenDetails = createEffect(
   {
     name: "getTokenDetails",
     input: {
@@ -229,17 +229,36 @@ export const getTokenDetails = experimental_createEffect(
       decimals: S.number,
       symbol: S.string,
     },
+    rateLimit: {
+      calls: 20,
+      per: "second",
+    },
     cache: true, // Token details rarely change, perfect for caching
   },
   async ({ input, context }) => {
     const { contractAddress, chainId } = input;
     const ethClient = CHAIN_CONSTANTS[chainId].eth_client;
-    return await fetchTokenDetails(
-      contractAddress,
-      chainId,
-      ethClient,
-      context.log,
-    );
+    try {
+      return await fetchTokenDetails(
+        contractAddress,
+        chainId,
+        ethClient,
+        context.log,
+      );
+    } catch (error) {
+      // Don't cache failed response
+      context.cache = false;
+      context.log.error(
+        `[getTokenDetails] Error in effect for ${contractAddress} on chain ${chainId}:`,
+        error instanceof Error ? error : new Error(String(error)),
+      );
+      // Return default values on error to prevent processing failures
+      return {
+        name: "",
+        decimals: 0,
+        symbol: "",
+      };
+    }
   },
 );
 
@@ -247,7 +266,7 @@ export const getTokenDetails = experimental_createEffect(
  * Effect to read prices from price oracle contracts
  * This replaces the direct RPC calls in read_prices
  */
-export const getTokenPrice = experimental_createEffect(
+export const getTokenPrice = createEffect(
   {
     name: "getTokenPrice",
     input: {
@@ -264,6 +283,10 @@ export const getTokenPrice = experimental_createEffect(
       pricePerUSDNew: S.bigint,
       priceOracleType: S.string,
     },
+    rateLimit: {
+      calls: 10,
+      per: "second",
+    },
     cache: true, // Price data can be cached for the update interval
   },
   async ({ input, context }) => {
@@ -279,18 +302,32 @@ export const getTokenPrice = experimental_createEffect(
     } = input;
 
     const ethClient = CHAIN_CONSTANTS[chainId].eth_client;
-    return await fetchTokenPrice(
-      tokenAddress,
-      usdcAddress,
-      systemTokenAddress,
-      wethAddress,
-      connectors,
-      chainId,
-      blockNumber,
-      ethClient,
-      context.log,
-      gasLimit,
-    );
+    try {
+      return await fetchTokenPrice(
+        tokenAddress,
+        usdcAddress,
+        systemTokenAddress,
+        wethAddress,
+        connectors,
+        chainId,
+        blockNumber,
+        ethClient,
+        context.log,
+        gasLimit,
+      );
+    } catch (error) {
+      // Don't cache failed response
+      context.cache = false;
+      context.log.error(
+        `[getTokenPrice] Error in effect for ${tokenAddress} on chain ${chainId} at block ${blockNumber}:`,
+        error instanceof Error ? error : new Error(String(error)),
+      );
+      // Return zero price on error to prevent processing failures
+      return {
+        pricePerUSDNew: 0n,
+        priceOracleType: PriceOracleType.V2,
+      };
+    }
   },
 );
 
@@ -298,7 +335,7 @@ export const getTokenPrice = experimental_createEffect(
  * Effect to get complete token price data including token details and price
  * This combines token details fetching with price fetching for efficiency
  */
-export const getTokenPriceData = experimental_createEffect(
+export const getTokenPriceData = createEffect(
   {
     name: "getTokenPriceData",
     input: {
@@ -310,6 +347,10 @@ export const getTokenPriceData = experimental_createEffect(
     output: {
       pricePerUSDNew: S.bigint,
       decimals: S.bigint,
+    },
+    rateLimit: {
+      calls: 10,
+      per: "second",
     },
     cache: true, // Combined price data can be cached
   },
@@ -386,6 +427,8 @@ export const getTokenPriceData = experimental_createEffect(
         decimals: BigInt(tokenDetails.decimals),
       };
     } catch (error) {
+      // Don't cache failed response
+      context.cache = false;
       context.log.error(
         `[getTokenPriceData] Error fetching token price data for ${tokenAddress} on chain ${chainId} at block ${blockNumber}:`,
         error instanceof Error ? error : new Error(String(error)),

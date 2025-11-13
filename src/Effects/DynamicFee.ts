@@ -1,4 +1,4 @@
-import { S, experimental_createEffect } from "envio";
+import { S, createEffect } from "envio";
 import type { logger as Envio_logger } from "envio/src/Envio.gen";
 import type { PublicClient } from "viem";
 import { CHAIN_CONSTANTS } from "../Constants";
@@ -83,7 +83,7 @@ export async function fetchCurrentAccumulatedFeeCL(
   }
 }
 
-export const getCurrentFee = experimental_createEffect(
+export const getCurrentFee = createEffect(
   {
     name: "getCurrentFee",
     input: {
@@ -93,24 +93,38 @@ export const getCurrentFee = experimental_createEffect(
       blockNumber: S.number,
     },
     output: S.bigint,
+    rateLimit: {
+      calls: 15,
+      per: "second",
+    },
     cache: true,
   },
   async ({ input, context }) => {
     const { poolAddress, dynamicFeeModuleAddress, chainId, blockNumber } =
       input;
     const ethClient = CHAIN_CONSTANTS[chainId].eth_client;
-    return await fetchCurrentFee(
-      poolAddress,
-      dynamicFeeModuleAddress,
-      chainId,
-      blockNumber,
-      ethClient,
-      context.log,
-    );
+    try {
+      return await fetchCurrentFee(
+        poolAddress,
+        dynamicFeeModuleAddress,
+        chainId,
+        blockNumber,
+        ethClient,
+        context.log,
+      );
+    } catch (error) {
+      // Don't cache failed response
+      context.cache = false;
+      context.log.error(
+        `[getCurrentFee] Error in effect for pool ${poolAddress} on chain ${chainId} at block ${blockNumber}:`,
+        error instanceof Error ? error : new Error(String(error)),
+      );
+      throw error;
+    }
   },
 );
 
-export const getCurrentAccumulatedFeeCL = experimental_createEffect(
+export const getCurrentAccumulatedFeeCL = createEffect(
   {
     name: "getCurrentAccumulatedFeeCL",
     input: {
@@ -122,17 +136,31 @@ export const getCurrentAccumulatedFeeCL = experimental_createEffect(
       token0Fees: S.bigint,
       token1Fees: S.bigint,
     },
+    rateLimit: {
+      calls: 15,
+      per: "second",
+    },
     cache: true,
   },
   async ({ input, context }) => {
     const { poolAddress, chainId, blockNumber } = input;
     const ethClient = CHAIN_CONSTANTS[chainId].eth_client;
-    return await fetchCurrentAccumulatedFeeCL(
-      poolAddress,
-      chainId,
-      blockNumber,
-      ethClient,
-      context.log,
-    );
+    try {
+      return await fetchCurrentAccumulatedFeeCL(
+        poolAddress,
+        chainId,
+        blockNumber,
+        ethClient,
+        context.log,
+      );
+    } catch (error) {
+      // Don't cache failed response
+      context.cache = false;
+      context.log.error(
+        `[getCurrentAccumulatedFeeCL] Error in effect for pool ${poolAddress} on chain ${chainId} at block ${blockNumber}:`,
+        error instanceof Error ? error : new Error(String(error)),
+      );
+      throw error;
+    }
   },
 );
