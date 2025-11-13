@@ -29,7 +29,7 @@
   "dependencies": {
     "@types/mocha": "^10.0.10",
     "chai": "4.3.10",
-    "envio": "2.31.1",
+    "envio": "2.32.2",
     "mocha": "^10.8.2",
     "prettier": "^2.8.8",
     "ts-node": "^10.9.2",
@@ -42,8 +42,13 @@
   "nyc": {
     "all": true,
     "check-coverage": false,
-    "reporter": ["text", "text-summary"],
-    "include": ["src/**/*.ts"],
+    "reporter": [
+      "text",
+      "text-summary"
+    ],
+    "include": [
+      "src/**/*.ts"
+    ],
     "exclude": [
       "src/**/*.test.ts",
       "src/**/*.spec.ts",
@@ -55,7 +60,11 @@
       "src/Constants.ts",
       "src/CustomTypes.ts"
     ],
-    "extension": [".ts"],
-    "require": ["ts-node/register"]
+    "extension": [
+      ".ts"
+    ],
+    "require": [
+      "ts-node/register"
+    ]
   }
 }
