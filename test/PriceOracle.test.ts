@@ -42,10 +42,12 @@ describe("PriceOracle", () => {
         address: {
           eq: sinon.stub(),
           gt: sinon.stub(),
+          lt: sinon.stub(),
         },
         chainId: {
           eq: sinon.stub(),
           gt: sinon.stub(),
+          lt: sinon.stub(),
         },
       },
     },
@@ -59,14 +61,17 @@ describe("PriceOracle", () => {
         address: {
           eq: sinon.stub(),
           gt: sinon.stub(),
+          lt: sinon.stub(),
         },
         chainId: {
           eq: sinon.stub(),
           gt: sinon.stub(),
+          lt: sinon.stub(),
         },
         lastUpdatedTimestamp: {
           eq: sinon.stub(),
           gt: sinon.stub(),
+          lt: sinon.stub(),
         },
       },
     },

@@ -34,14 +34,17 @@ describe("LiquidityPoolAggregator Functions", () => {
           gaugeAddress: {
             eq: sinon.stub(),
             gt: sinon.stub(),
+            lt: sinon.stub(),
           },
           bribeVotingRewardAddress: {
             eq: sinon.stub(),
             gt: sinon.stub(),
+            lt: sinon.stub(),
           },
           feeVotingRewardAddress: {
             eq: sinon.stub(),
             gt: sinon.stub(),
+            lt: sinon.stub(),
           },
         },
       },
@@ -55,18 +58,22 @@ describe("LiquidityPoolAggregator Functions", () => {
           gaugeAddress: {
             eq: sinon.stub(),
             gt: sinon.stub(),
+            lt: sinon.stub(),
           },
           poolLauncherPoolId: {
             eq: sinon.stub(),
             gt: sinon.stub(),
+            lt: sinon.stub(),
           },
           bribeVotingRewardAddress: {
             eq: sinon.stub(),
             gt: sinon.stub(),
+            lt: sinon.stub(),
           },
           feeVotingRewardAddress: {
             eq: sinon.stub(),
             gt: sinon.stub(),
+            lt: sinon.stub(),
           },
         },
       },
@@ -184,6 +191,7 @@ describe("LiquidityPoolAggregator Functions", () => {
               },
             ]),
             gt: sinon.stub(),
+            lt: sinon.stub(),
           },
         },
       };

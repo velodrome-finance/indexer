@@ -40,10 +40,12 @@ describe("NonFungiblePosition", () => {
           owner: {
             eq: sinon.stub(),
             gt: sinon.stub(),
+            lt: sinon.stub(),
           },
           transactionHash: {
             eq: sinon.stub(),
             gt: sinon.stub(),
+            lt: sinon.stub(),
           },
         },
       },
