@@ -89,7 +89,7 @@ export async function processGaugeDeposit(
     lastUpdatedTimestamp: new Date(data.timestamp * 1000),
   };
 
-  updateLiquidityPoolAggregator(
+  await updateLiquidityPoolAggregator(
     poolGaugeDepositDiff,
     liquidityPoolAggregator,
     new Date(data.timestamp * 1000),
@@ -167,7 +167,7 @@ export async function processGaugeWithdraw(
     lastUpdatedTimestamp: new Date(data.timestamp * 1000),
   };
 
-  updateLiquidityPoolAggregator(
+  await updateLiquidityPoolAggregator(
     poolGaugeWithdrawalDiff,
     liquidityPoolAggregator,
     new Date(data.timestamp * 1000),
@@ -266,7 +266,7 @@ export async function processGaugeClaimRewards(
     lastUpdatedTimestamp: new Date(data.timestamp * 1000),
   };
 
-  updateLiquidityPoolAggregator(
+  await updateLiquidityPoolAggregator(
     poolGaugeRewardClaimDiff,
     liquidityPoolAggregator,
     new Date(data.timestamp * 1000),

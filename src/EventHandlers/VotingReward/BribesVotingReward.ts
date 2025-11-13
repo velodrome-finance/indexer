@@ -40,7 +40,7 @@ BribesVotingReward.Deposit.handler(async ({ event, context }) => {
   const result = await processVotingRewardDeposit(data);
 
   if (result.poolDiff) {
-    updateLiquidityPoolAggregator(
+    await updateLiquidityPoolAggregator(
       result.poolDiff,
       loadedData.poolData.liquidityPoolAggregator,
       new Date(data.timestamp * 1000),
@@ -92,7 +92,7 @@ BribesVotingReward.ClaimRewards.handler(async ({ event, context }) => {
   );
 
   if (result.poolDiff) {
-    updateLiquidityPoolAggregator(
+    await updateLiquidityPoolAggregator(
       result.poolDiff,
       loadedData.poolData.liquidityPoolAggregator,
       new Date(data.timestamp * 1000),
@@ -140,7 +140,7 @@ BribesVotingReward.Withdraw.handler(async ({ event, context }) => {
   const result = await processVotingRewardWithdraw(data);
 
   if (result.poolDiff) {
-    updateLiquidityPoolAggregator(
+    await updateLiquidityPoolAggregator(
       result.poolDiff,
       loadedData.poolData.liquidityPoolAggregator,
       new Date(data.timestamp * 1000),

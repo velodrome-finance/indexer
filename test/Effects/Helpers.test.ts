@@ -43,11 +43,20 @@ describe("Helpers", () => {
       );
     });
 
-    it("should return UNKNOWN for unrecognized errors", () => {
+    it("should return NETWORK_ERROR for network errors", () => {
       expect(getErrorType(new Error("Network error"))).to.equal(
+        ErrorType.NETWORK_ERROR,
+      );
+
+      expect(getErrorType(new Error("Connection error"))).to.equal(
+        ErrorType.NETWORK_ERROR,
+      );
+    });
+
+    it("should return UNKNOWN for unrecognized errors", () => {
+      expect(getErrorType(new Error("Some random error"))).to.equal(
         ErrorType.UNKNOWN,
       );
-      expect(getErrorType("Some random error")).to.equal(ErrorType.UNKNOWN);
     });
 
     it("should return UNKNOWN for null or undefined", () => {

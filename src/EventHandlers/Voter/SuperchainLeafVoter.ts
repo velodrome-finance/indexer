@@ -54,7 +54,7 @@ SuperchainLeafVoter.Voted.handler(async ({ event, context }) => {
     timestampMs: event.block.timestamp * 1000,
   });
 
-  updateLiquidityPoolAggregator(
+  await updateLiquidityPoolAggregator(
     poolVoteDiff,
     liquidityPoolAggregator,
     new Date(event.block.timestamp * 1000),
@@ -112,7 +112,7 @@ SuperchainLeafVoter.GaugeCreated.handler(async ({ event, context }) => {
       lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
     };
 
-    updateLiquidityPoolAggregator(
+    await updateLiquidityPoolAggregator(
       poolUpdateDiff,
       poolEntity,
       new Date(event.block.timestamp * 1000),
