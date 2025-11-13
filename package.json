@@ -42,13 +42,8 @@
   "nyc": {
     "all": true,
     "check-coverage": false,
-    "reporter": [
-      "text",
-      "text-summary"
-    ],
-    "include": [
-      "src/**/*.ts"
-    ],
+    "reporter": ["text", "text-summary"],
+    "include": ["src/**/*.ts"],
     "exclude": [
       "src/**/*.test.ts",
       "src/**/*.spec.ts",
@@ -60,11 +55,7 @@
       "src/Constants.ts",
       "src/CustomTypes.ts"
     ],
-    "extension": [
-      ".ts"
-    ],
-    "require": [
-      "ts-node/register"
-    ]
+    "extension": [".ts"],
+    "require": ["ts-node/register"]
   }
 }
