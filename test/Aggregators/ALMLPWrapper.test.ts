@@ -30,14 +30,17 @@ describe("ALMLPWrapper Aggregator", () => {
           pool: {
             eq: sinon.stub(),
             gt: sinon.stub(),
+            lt: sinon.stub(),
           },
           strategyTransactionHash: {
             eq: sinon.stub(),
             gt: sinon.stub(),
+            lt: sinon.stub(),
           },
           tokenId: {
             eq: sinon.stub(),
             gt: sinon.stub(),
+            lt: sinon.stub(),
           },
         },
         getOrCreate: sinon.stub(),

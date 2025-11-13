@@ -32,10 +32,12 @@ describe("VeNFTAggregator", () => {
           address: {
             eq: sinon.stub(),
             gt: sinon.stub(),
+            lt: sinon.stub(),
           },
           chainId: {
             eq: sinon.stub(),
             gt: sinon.stub(),
+            lt: sinon.stub(),
           },
         },
       },

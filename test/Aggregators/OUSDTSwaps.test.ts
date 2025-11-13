@@ -26,6 +26,7 @@ describe("OUSDTSwaps", () => {
           transactionHash: {
             eq: sinon.stub(),
             gt: sinon.stub(),
+            lt: sinon.stub(),
           },
         },
       },
