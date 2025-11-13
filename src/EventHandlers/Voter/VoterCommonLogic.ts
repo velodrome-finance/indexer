@@ -126,14 +126,14 @@ export function buildLpDiffFromDistribute(
   };
 }
 
-export function applyLpDiff(
+export async function applyLpDiff(
   context: handlerContext,
   currentLiquidityPool: LiquidityPoolAggregator,
   lpDiff: Partial<LiquidityPoolAggregator>,
   timestampMs: number,
   blockNumber: number,
 ) {
-  return updateLiquidityPoolAggregator(
+  return await updateLiquidityPoolAggregator(
     lpDiff,
     currentLiquidityPool,
     new Date(timestampMs),

@@ -3,7 +3,6 @@ import {
   loadPoolData,
   updateLiquidityPoolAggregator,
 } from "../Aggregators/LiquidityPoolAggregator";
-import { NonFungiblePositionId } from "../Aggregators/NonFungiblePosition";
 import { createOUSDTSwapEntity } from "../Aggregators/OUSDTSwaps";
 import {
   loadUserData,
@@ -66,7 +65,7 @@ CLPool.Burn.handler(async ({ event, context }) => {
   );
 
   // Apply liquidity pool updates
-  updateLiquidityPoolAggregator(
+  await updateLiquidityPoolAggregator(
     result.liquidityPoolDiff,
     liquidityPoolAggregator,
     result.liquidityPoolDiff.lastUpdatedTimestamp,
@@ -119,7 +118,7 @@ CLPool.Collect.handler(async ({ event, context }) => {
   );
 
   // Apply liquidity pool updates
-  updateLiquidityPoolAggregator(
+  await updateLiquidityPoolAggregator(
     result.liquidityPoolDiff,
     liquidityPoolAggregator,
     result.liquidityPoolDiff.lastUpdatedTimestamp,
@@ -174,7 +173,7 @@ CLPool.CollectFees.handler(async ({ event, context }) => {
   );
 
   // Apply liquidity pool updates
-  updateLiquidityPoolAggregator(
+  await updateLiquidityPoolAggregator(
     result.liquidityPoolDiff,
     liquidityPoolAggregator,
     result.liquidityPoolDiff.lastUpdatedTimestamp,
@@ -229,7 +228,7 @@ CLPool.Flash.handler(async ({ event, context }) => {
   );
 
   // Apply liquidity pool updates
-  updateLiquidityPoolAggregator(
+  await updateLiquidityPoolAggregator(
     result.liquidityPoolDiff,
     liquidityPoolAggregator,
     result.liquidityPoolDiff.lastUpdatedTimestamp,
@@ -278,7 +277,7 @@ CLPool.IncreaseObservationCardinalityNext.handler(
       lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
     };
 
-    updateLiquidityPoolAggregator(
+    await updateLiquidityPoolAggregator(
       cardinalityDiff,
       liquidityPoolAggregator,
       new Date(event.block.timestamp * 1000),
@@ -320,7 +319,7 @@ CLPool.Mint.handler(async ({ event, context }) => {
   );
 
   // Apply liquidity pool updates
-  updateLiquidityPoolAggregator(
+  await updateLiquidityPoolAggregator(
     result.liquidityPoolDiff,
     liquidityPoolAggregator,
     result.liquidityPoolDiff.lastUpdatedTimestamp,
@@ -380,7 +379,7 @@ CLPool.SetFeeProtocol.handler(async ({ event, context }) => {
     lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
   };
 
-  updateLiquidityPoolAggregator(
+  await updateLiquidityPoolAggregator(
     feeProtocolDiff,
     liquidityPoolAggregator,
     new Date(event.block.timestamp * 1000),
@@ -422,7 +421,7 @@ CLPool.Swap.handler(async ({ event, context }) => {
   );
 
   // Apply liquidity pool updates
-  updateLiquidityPoolAggregator(
+  await updateLiquidityPoolAggregator(
     result.liquidityPoolDiff,
     liquidityPoolAggregator,
     new Date(event.block.timestamp * 1000),

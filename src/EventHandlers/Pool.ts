@@ -62,7 +62,7 @@ Pool.Mint.handler(async ({ event, context }) => {
 
   if (liquidityPoolDiff) {
     // Apply liquidity pool updates
-    updateLiquidityPoolAggregator(
+    await updateLiquidityPoolAggregator(
       liquidityPoolDiff,
       liquidityPoolAggregator,
       liquidityPoolDiff.lastUpdatedTimestamp as Date,
@@ -126,7 +126,7 @@ Pool.Burn.handler(async ({ event, context }) => {
 
   // Apply liquidity pool updates
   if (liquidityPoolDiff) {
-    updateLiquidityPoolAggregator(
+    await updateLiquidityPoolAggregator(
       liquidityPoolDiff,
       liquidityPoolAggregator,
       liquidityPoolDiff.lastUpdatedTimestamp as Date,
@@ -185,7 +185,7 @@ Pool.Fees.handler(async ({ event, context }) => {
   );
 
   if (liquidityPoolDiff) {
-    updateLiquidityPoolAggregator(
+    await updateLiquidityPoolAggregator(
       liquidityPoolDiff,
       liquidityPoolAggregator,
       liquidityPoolDiff.lastUpdatedTimestamp as Date,
@@ -244,7 +244,7 @@ Pool.Swap.handler(async ({ event, context }) => {
   );
 
   if (liquidityPoolDiff) {
-    updateLiquidityPoolAggregator(
+    await updateLiquidityPoolAggregator(
       liquidityPoolDiff,
       liquidityPoolAggregator,
       liquidityPoolDiff.lastUpdatedTimestamp as Date,
@@ -316,7 +316,7 @@ Pool.Sync.handler(async ({ event, context }) => {
 
   // Apply liquidity pool updates
   if (liquidityPoolDiff) {
-    updateLiquidityPoolAggregator(
+    await updateLiquidityPoolAggregator(
       liquidityPoolDiff,
       liquidityPoolAggregator,
       liquidityPoolDiff.lastUpdatedTimestamp as Date,

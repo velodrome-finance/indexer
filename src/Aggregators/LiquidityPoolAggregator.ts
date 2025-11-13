@@ -37,7 +37,7 @@ export async function updateDynamicFeePools(
     await context.DynamicFeeGlobalConfig.getWhere.chainId.eq(chainId);
 
   if (!dynamicFeeGlobalConfigs || dynamicFeeGlobalConfigs.length === 0) {
-    context.log.error(
+    context.log.warn(
       `No dynamic fee global config found for chain ${chainId}. No update to currentFee will be performed.`,
     );
     return;
@@ -236,7 +236,7 @@ export async function updateLiquidityPoolAggregator(
           gaugeFees1CurrentEpoch: gaugeFees.token1Fees,
         };
         setLiquidityPoolAggregatorSnapshot(gaugeFeeUpdated, timestamp, context);
-        updateDynamicFeePools(gaugeFeeUpdated, context, blockNumber);
+        await updateDynamicFeePools(gaugeFeeUpdated, context, blockNumber);
         return;
       } catch (error) {
         // No error if the pool is not a CL pool
