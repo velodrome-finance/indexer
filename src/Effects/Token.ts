@@ -358,30 +358,35 @@ export const getTokenPriceData = createEffect(
     const { tokenAddress, blockNumber, chainId, gasLimit = 1000000n } = input;
 
     try {
-      // Get token details first
-      const tokenDetails = await context.effect(getTokenDetails, {
-        contractAddress: tokenAddress,
-        chainId,
-      });
-
+      // Get chain constants first (synchronous)
       const WETH_ADDRESS = CHAIN_CONSTANTS[chainId].weth;
       const USDC_ADDRESS = CHAIN_CONSTANTS[chainId].usdc;
       const SYSTEM_TOKEN_ADDRESS =
         CHAIN_CONSTANTS[chainId].rewardToken(blockNumber);
 
-      // Get USDC token details
-      const USDTokenDetails = await context.effect(getTokenDetails, {
-        contractAddress: USDC_ADDRESS,
-        chainId,
-      });
-
-      // If it's USDC, return 1:1 price
+      // If it's USDC, only fetch token details and return early
       if (tokenAddress === USDC_ADDRESS) {
+        const tokenDetails = await context.effect(getTokenDetails, {
+          contractAddress: tokenAddress,
+          chainId,
+        });
         return {
           pricePerUSDNew: 10n ** 18n, // TEN_TO_THE_18_BI
           decimals: BigInt(tokenDetails.decimals),
         };
       }
+
+      // For non-USDC tokens, fetch both token details in parallel for better performance
+      const [tokenDetails, USDTokenDetails] = await Promise.all([
+        context.effect(getTokenDetails, {
+          contractAddress: tokenAddress,
+          chainId,
+        }),
+        context.effect(getTokenDetails, {
+          contractAddress: USDC_ADDRESS,
+          chainId,
+        }),
+      ]);
 
       const connectors = CHAIN_CONSTANTS[chainId].oracle.priceConnectors
         .filter((connector) => connector.createdBlock <= blockNumber)
@@ -421,6 +426,10 @@ export const getTokenPriceData = createEffect(
           decimals: BigInt(tokenDetails.decimals),
         };
       }
+
+      context.log.error(
+        `[getTokenPriceData] ORACLE_NOT_DEPLOYED for ${tokenAddress} on chain ${chainId} at block ${blockNumber}`,
+      );
 
       return {
         pricePerUSDNew: 0n,

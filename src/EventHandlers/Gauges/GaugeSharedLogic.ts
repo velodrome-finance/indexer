@@ -57,26 +57,22 @@ export async function processGaugeDeposit(
     return;
   }
 
-  // Load pool data and handle errors
-  const poolData = await loadPoolData(pool.id, data.chainId, context);
+  // Load pool data and user data concurrently for better performance
+  const [poolData, userData] = await Promise.all([
+    loadPoolData(pool.id, data.chainId, context),
+    loadUserData(
+      userChecksumAddress,
+      pool.id,
+      data.chainId,
+      context,
+      new Date(data.timestamp * 1000),
+    ),
+  ]);
+
   if (!poolData) {
     context.log.error(
       `${handlerName}: Pool data not found for pool ${pool.id} on chain ${data.chainId}`,
     );
-    return;
-  }
-
-  // Load user data
-  const userData = await loadUserData(
-    userChecksumAddress,
-    pool.id,
-    data.chainId,
-    context,
-    new Date(data.timestamp * 1000),
-  );
-
-  // Early return during preload phase after loading data
-  if (context.isPreload) {
     return;
   }
 
@@ -135,26 +131,22 @@ export async function processGaugeWithdraw(
     return;
   }
 
-  // Load pool data and handle errors
-  const poolData = await loadPoolData(pool.id, data.chainId, context);
+  // Load pool data and user data concurrently for better performance
+  const [poolData, userData] = await Promise.all([
+    loadPoolData(pool.id, data.chainId, context),
+    loadUserData(
+      userChecksumAddress,
+      pool.id,
+      data.chainId,
+      context,
+      new Date(data.timestamp * 1000),
+    ),
+  ]);
+
   if (!poolData) {
     context.log.error(
       `${handlerName}: Pool data not found for pool ${pool.id} on chain ${data.chainId}`,
     );
-    return;
-  }
-
-  // Load user data
-  const userData = await loadUserData(
-    userChecksumAddress,
-    pool.id,
-    data.chainId,
-    context,
-    new Date(data.timestamp * 1000),
-  );
-
-  // Early return during preload phase after loading data
-  if (context.isPreload) {
     return;
   }
 
@@ -213,8 +205,29 @@ export async function processGaugeClaimRewards(
     return;
   }
 
-  // Load pool data and handle errors
-  const poolData = await loadPoolData(pool.id, data.chainId, context);
+  // Get reward token address (needed for external call)
+  const rewardTokenAddress = CHAIN_CONSTANTS[data.chainId].rewardToken(
+    data.blockNumber,
+  );
+
+  // Load pool data, user data, and reward token data concurrently for better performance
+  // External calls should be at the beginning to maximize preload optimization
+  const [poolData, userData, rewardTokenData] = await Promise.all([
+    loadPoolData(pool.id, data.chainId, context),
+    loadUserData(
+      userChecksumAddress,
+      pool.id,
+      data.chainId,
+      context,
+      new Date(data.timestamp * 1000),
+    ),
+    context.effect(getTokenPriceData, {
+      tokenAddress: rewardTokenAddress,
+      blockNumber: data.blockNumber,
+      chainId: data.chainId,
+    }),
+  ]);
+
   if (!poolData) {
     context.log.error(
       `${handlerName}: Pool data not found for pool ${pool.id} on chain ${data.chainId}`,
@@ -222,31 +235,7 @@ export async function processGaugeClaimRewards(
     return;
   }
 
-  // Load user data
-  const userData = await loadUserData(
-    userChecksumAddress,
-    pool.id,
-    data.chainId,
-    context,
-    new Date(data.timestamp * 1000),
-  );
-
-  // Early return during preload phase after loading data
-  if (context.isPreload) {
-    return;
-  }
-
   const { liquidityPoolAggregator } = poolData;
-
-  // Get reward token data and convert amount to USD
-  const rewardTokenAddress = CHAIN_CONSTANTS[data.chainId].rewardToken(
-    data.blockNumber,
-  );
-  const rewardTokenData = await context.effect(getTokenPriceData, {
-    tokenAddress: rewardTokenAddress,
-    blockNumber: data.blockNumber,
-    chainId: data.chainId,
-  });
 
   // Convert reward amount to USD
   const normalizedRewardAmount = normalizeTokenAmountTo1e18(

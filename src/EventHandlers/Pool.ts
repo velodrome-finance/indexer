@@ -20,28 +20,19 @@ Pool.Mint.handler(async ({ event, context }) => {
   const senderChecksummedAddress = toChecksumAddress(event.params.sender);
   const srcAddressChecksummed = toChecksumAddress(event.srcAddress);
 
-  // Load pool data and handle errors
-  const poolData = await loadPoolData(
-    srcAddressChecksummed,
-    event.chainId,
-    context,
-  );
+  // Load pool data and user data concurrently for better performance
+  const [poolData, userData] = await Promise.all([
+    loadPoolData(srcAddressChecksummed, event.chainId, context),
+    loadUserData(
+      senderChecksummedAddress,
+      srcAddressChecksummed,
+      event.chainId,
+      context,
+      new Date(event.block.timestamp * 1000),
+    ),
+  ]);
 
   if (!poolData) {
-    return;
-  }
-
-  // Load user data with event timestamp for actual processing
-  const userData = await loadUserData(
-    senderChecksummedAddress,
-    srcAddressChecksummed,
-    event.chainId,
-    context,
-    new Date(event.block.timestamp * 1000),
-  );
-
-  // Early return during preload phase after loading data
-  if (context.isPreload) {
     return;
   }
 
@@ -87,27 +78,19 @@ Pool.Burn.handler(async ({ event, context }) => {
   const senderChecksummedAddress = toChecksumAddress(event.params.sender);
   const srcAddressChecksummed = toChecksumAddress(event.srcAddress);
 
-  // Load pool data and handle errors
-  const poolData = await loadPoolData(
-    srcAddressChecksummed,
-    event.chainId,
-    context,
-  );
+  // Load pool data and user data concurrently for better performance
+  const [poolData, userData] = await Promise.all([
+    loadPoolData(srcAddressChecksummed, event.chainId, context),
+    loadUserData(
+      senderChecksummedAddress,
+      srcAddressChecksummed,
+      event.chainId,
+      context,
+      new Date(event.block.timestamp * 1000),
+    ),
+  ]);
+
   if (!poolData) {
-    return;
-  }
-
-  // Load user data
-  const userData = await loadUserData(
-    senderChecksummedAddress,
-    srcAddressChecksummed,
-    event.chainId,
-    context,
-    new Date(event.block.timestamp * 1000),
-  );
-
-  // Early return during preload phase after loading data
-  if (context.isPreload) {
     return;
   }
 
@@ -151,27 +134,19 @@ Pool.Fees.handler(async ({ event, context }) => {
   const senderChecksummedAddress = toChecksumAddress(event.params.sender);
   const srcAddressChecksummed = toChecksumAddress(event.srcAddress);
 
-  // Load pool data and handle errors
-  const poolData = await loadPoolData(
-    srcAddressChecksummed,
-    event.chainId,
-    context,
-  );
+  // Load pool data and user data concurrently for better performance
+  const [poolData, userData] = await Promise.all([
+    loadPoolData(srcAddressChecksummed, event.chainId, context),
+    loadUserData(
+      senderChecksummedAddress,
+      srcAddressChecksummed,
+      event.chainId,
+      context,
+      new Date(event.block.timestamp * 1000),
+    ),
+  ]);
+
   if (!poolData) {
-    return;
-  }
-
-  // Load user data
-  const userData = await loadUserData(
-    senderChecksummedAddress,
-    srcAddressChecksummed,
-    event.chainId,
-    context,
-    new Date(event.block.timestamp * 1000),
-  );
-
-  // Early return during preload phase after loading data
-  if (context.isPreload) {
     return;
   }
 
@@ -209,27 +184,19 @@ Pool.Swap.handler(async ({ event, context }) => {
   const senderChecksummedAddress = toChecksumAddress(event.params.sender);
   const srcAddressChecksummed = toChecksumAddress(event.srcAddress);
 
-  // Load pool data and handle errors
-  const poolData = await loadPoolData(
-    srcAddressChecksummed,
-    event.chainId,
-    context,
-  );
+  // Load pool data and user data concurrently for better performance
+  const [poolData, userData] = await Promise.all([
+    loadPoolData(srcAddressChecksummed, event.chainId, context),
+    loadUserData(
+      senderChecksummedAddress,
+      srcAddressChecksummed,
+      event.chainId,
+      context,
+      new Date(event.block.timestamp * 1000),
+    ),
+  ]);
+
   if (!poolData) {
-    return;
-  }
-
-  // Load user data with event timestamp for actual processing
-  const userData = await loadUserData(
-    senderChecksummedAddress,
-    srcAddressChecksummed,
-    event.chainId,
-    context,
-    new Date(event.block.timestamp * 1000),
-  );
-
-  // Early return during preload phase after loading data
-  if (context.isPreload) {
     return;
   }
 
@@ -296,11 +263,6 @@ Pool.Sync.handler(async ({ event, context }) => {
     context,
   );
   if (!poolData) {
-    return;
-  }
-
-  // Early return during preload phase after loading data
-  if (context.isPreload) {
     return;
   }
 

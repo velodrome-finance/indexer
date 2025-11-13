@@ -25,24 +25,20 @@ import {
 } from "./VoterCommonLogic";
 
 Voter.Voted.handler(async ({ event, context }) => {
-  // Load pool data
+  // Load pool data and user data concurrently for better performance
   const poolAddress = toChecksumAddress(event.params.pool);
-  const poolData = await loadPoolData(poolAddress, event.chainId, context);
+  const [poolData, userData] = await Promise.all([
+    loadPoolData(poolAddress, event.chainId, context),
+    loadUserData(
+      toChecksumAddress(event.params.voter),
+      poolAddress,
+      event.chainId,
+      context,
+      new Date(event.block.timestamp * 1000),
+    ),
+  ]);
+
   if (!poolData) {
-    return;
-  }
-
-  // Load user data
-  const userData = await loadUserData(
-    toChecksumAddress(event.params.voter),
-    poolAddress,
-    event.chainId,
-    context,
-    new Date(event.block.timestamp * 1000),
-  );
-
-  // Early return during preload phase after loading data
-  if (context.isPreload) {
     return;
   }
 
@@ -101,11 +97,6 @@ Voter.GaugeCreated.handler(async ({ event, context }) => {
 
   const poolEntity = await context.LiquidityPoolAggregator.get(poolAddress);
 
-  // Early return during preload phase after loading data
-  if (context.isPreload) {
-    return;
-  }
-
   if (poolEntity) {
     const poolUpdateDiff = {
       gaugeAddress: gaugeAddress,
@@ -146,11 +137,6 @@ Voter.DistributeReward.handler(async ({ event, context }) => {
     context.LiquidityPoolAggregator.get(poolEntity.id),
     context.Token.get(TokenIdByChain(rewardTokenAddress, event.chainId)),
   ]);
-
-  // Early return during preload phase after loading data
-  if (context.isPreload) {
-    return;
-  }
 
   if (!currentLiquidityPool || !rewardToken) {
     context.log.warn(
@@ -222,11 +208,6 @@ Voter.WhitelistToken.handler(async ({ event, context }) => {
     TokenIdByChain(event.params.token, event.chainId),
   );
 
-  // Early return during preload phase after loading data
-  if (context.isPreload) {
-    return;
-  }
-
   // Update the Token entity in the DB, either by updating the existing one or creating a new one
   if (token) {
     const updatedToken: Token = {
@@ -271,11 +252,6 @@ Voter.GaugeKilled.handler(async ({ event, context }) => {
     context,
   );
   const poolAddress = poolEntity?.id;
-
-  // Early return during preload phase after loading data
-  if (context.isPreload) {
-    return;
-  }
 
   if (poolAddress) {
     const poolUpdateDiff = {
