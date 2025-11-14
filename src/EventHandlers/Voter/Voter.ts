@@ -213,6 +213,7 @@ Voter.WhitelistToken.handler(async ({ event, context }) => {
     const updatedToken: Token = {
       ...token,
       isWhitelisted: event.params._bool,
+      lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
     };
 
     context.Token.set(updatedToken as Token);

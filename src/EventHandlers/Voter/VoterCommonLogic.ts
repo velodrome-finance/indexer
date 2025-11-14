@@ -152,7 +152,11 @@ export async function updateTokenWhitelist(
 ) {
   const token = await context.Token.get(tokenId);
   if (token) {
-    const updated = { ...token, isWhitelisted } as Token;
+    const updated: Token = {
+      ...token,
+      isWhitelisted,
+      lastUpdatedTimestamp: new Date(timestampMs),
+    };
     context.Token.set(updated);
     return;
   }

@@ -8,10 +8,14 @@ import {
   loadUserData,
   updateUserStatsPerPool,
 } from "../../Aggregators/UserStatsPerPool";
-import { CHAIN_CONSTANTS, toChecksumAddress } from "../../Constants";
-import { getTokenPriceData } from "../../Effects/Index";
+import {
+  CHAIN_CONSTANTS,
+  TokenIdByChain,
+  toChecksumAddress,
+} from "../../Constants";
 import { normalizeTokenAmountTo1e18 } from "../../Helpers";
 import { multiplyBase1e18 } from "../../Maths";
+import { refreshTokenPrice } from "../../PriceOracle";
 
 export interface GaugeEventData {
   gaugeAddress: string;
@@ -205,14 +209,13 @@ export async function processGaugeClaimRewards(
     return;
   }
 
-  // Get reward token address (needed for external call)
+  // Get reward token address
   const rewardTokenAddress = CHAIN_CONSTANTS[data.chainId].rewardToken(
     data.blockNumber,
   );
 
-  // Load pool data, user data, and reward token data concurrently for better performance
-  // External calls should be at the beginning to maximize preload optimization
-  const [poolData, userData, rewardTokenData] = await Promise.all([
+  // Load pool data, user data, and reward token concurrently
+  const [poolData, userData, rewardToken] = await Promise.all([
     loadPoolData(pool.id, data.chainId, context),
     loadUserData(
       userChecksumAddress,
@@ -221,11 +224,7 @@ export async function processGaugeClaimRewards(
       context,
       new Date(data.timestamp * 1000),
     ),
-    context.effect(getTokenPriceData, {
-      tokenAddress: rewardTokenAddress,
-      blockNumber: data.blockNumber,
-      chainId: data.chainId,
-    }),
+    context.Token.get(TokenIdByChain(rewardTokenAddress, data.chainId)),
   ]);
 
   if (!poolData) {
@@ -235,16 +234,33 @@ export async function processGaugeClaimRewards(
     return;
   }
 
+  if (!rewardToken) {
+    context.log.error(
+      `${handlerName}: Reward token not found for ${rewardTokenAddress} on chain ${data.chainId}`,
+    );
+    return;
+  }
+
   const { liquidityPoolAggregator } = poolData;
+
+  // Refresh reward token price (refreshTokenPrice handles the update internally)
+  const updatedRewardToken = await refreshTokenPrice(
+    rewardToken,
+    data.blockNumber,
+    data.timestamp,
+    data.chainId,
+    context,
+    1000000n,
+  );
 
   // Convert reward amount to USD
   const normalizedRewardAmount = normalizeTokenAmountTo1e18(
     data.amount,
-    Number(rewardTokenData.decimals),
+    Number(updatedRewardToken.decimals),
   );
   const rewardAmountUSD = multiplyBase1e18(
     normalizedRewardAmount,
-    rewardTokenData.pricePerUSDNew,
+    updatedRewardToken.pricePerUSDNew,
   );
 
   // Update pool aggregator with gauge reward claim

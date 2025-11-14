@@ -94,7 +94,7 @@ export const getCurrentFee = createEffect(
     },
     output: S.bigint,
     rateLimit: {
-      calls: 15,
+      calls: 1,
       per: "second",
     },
     cache: true,
@@ -104,7 +104,7 @@ export const getCurrentFee = createEffect(
       input;
     const ethClient = CHAIN_CONSTANTS[chainId].eth_client;
     try {
-      return await fetchCurrentFee(
+      const result = await fetchCurrentFee(
         poolAddress,
         dynamicFeeModuleAddress,
         chainId,
@@ -112,6 +112,7 @@ export const getCurrentFee = createEffect(
         ethClient,
         context.log,
       );
+      return result;
     } catch (error) {
       // Don't cache failed response
       context.cache = false;
@@ -137,7 +138,7 @@ export const getCurrentAccumulatedFeeCL = createEffect(
       token1Fees: S.bigint,
     },
     rateLimit: {
-      calls: 15,
+      calls: 1,
       per: "second",
     },
     cache: true,
@@ -146,13 +147,15 @@ export const getCurrentAccumulatedFeeCL = createEffect(
     const { poolAddress, chainId, blockNumber } = input;
     const ethClient = CHAIN_CONSTANTS[chainId].eth_client;
     try {
-      return await fetchCurrentAccumulatedFeeCL(
+      const result = await fetchCurrentAccumulatedFeeCL(
         poolAddress,
         chainId,
         blockNumber,
         ethClient,
         context.log,
       );
+
+      return result;
     } catch (error) {
       // Don't cache failed response
       context.cache = false;

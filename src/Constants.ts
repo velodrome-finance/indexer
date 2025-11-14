@@ -520,11 +520,3 @@ export const CHAIN_CONSTANTS: Record<number, chainConstants> = {
   42220: CELO_CONSTANTS,
   1923: SWELL_CONSTANTS,
 };
-
-export const CacheCategory = {
-  Token: "token",
-  GuageToPool: "guageToPool",
-  BribeToPool: "bribeToPool",
-} as const;
-
-export type CacheCategory = (typeof CacheCategory)[keyof typeof CacheCategory];

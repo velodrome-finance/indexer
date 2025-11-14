@@ -135,8 +135,15 @@ CLPool.Collect.handler(async ({ event, context }) => {
 
 CLPool.CollectFees.handler(async ({ event, context }) => {
   // Load pool data and user data concurrently for better performance
+  // Token prices will be refreshed automatically if needed
   const [poolData, userData] = await Promise.all([
-    loadPoolData(event.srcAddress, event.chainId, context),
+    loadPoolData(
+      event.srcAddress,
+      event.chainId,
+      context,
+      event.block.number,
+      event.block.timestamp,
+    ),
     loadUserData(
       event.params.recipient,
       event.srcAddress,

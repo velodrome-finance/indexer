@@ -403,8 +403,18 @@ describe("Voter Events", () => {
         expect(token?.isWhitelisted).to.be.true;
         expect(token?.pricePerUSDNew).to.equal(expectedPricePerUSDNew);
       });
+
+      it("should update lastUpdatedTimestamp when updating existing token", async () => {
+        const token = resultDB.entities.Token.get(
+          TokenIdByChain("0x2222222222222222222222222222222222222222", 10),
+        );
+        expect(token?.lastUpdatedTimestamp).to.be.instanceOf(Date);
+        expect(token?.lastUpdatedTimestamp?.getTime()).to.equal(
+          mockEvent.block.timestamp * 1000,
+        );
+      });
     });
-    describe.skip("if token is not in the db", () => {
+    describe("if token is not in the db", () => {
       let resultDB: ReturnType<typeof MockDb.createMockDb>;
       let expectedId: string;
       beforeEach(async () => {
@@ -422,6 +432,21 @@ describe("Voter Events", () => {
         );
         expect(token?.isWhitelisted).to.be.true;
         expect(token?.pricePerUSDNew).to.equal(0n);
+        expect(token?.name).to.be.a("string");
+        expect(token?.symbol).to.be.a("string");
+        expect(token?.address).to.equal(
+          "0x2222222222222222222222222222222222222222",
+        );
+      });
+
+      it("should set lastUpdatedTimestamp when creating new token", async () => {
+        const token = resultDB.entities.Token.get(
+          TokenIdByChain("0x2222222222222222222222222222222222222222", 10),
+        );
+        expect(token?.lastUpdatedTimestamp).to.be.instanceOf(Date);
+        expect(token?.lastUpdatedTimestamp?.getTime()).to.equal(
+          mockEvent.block.timestamp * 1000,
+        );
       });
     });
   });

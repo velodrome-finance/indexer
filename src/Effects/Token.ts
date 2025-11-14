@@ -230,7 +230,7 @@ export const getTokenDetails = createEffect(
       symbol: S.string,
     },
     rateLimit: {
-      calls: 20,
+      calls: 500,
       per: "second",
     },
     cache: true, // Token details rarely change, perfect for caching
@@ -284,7 +284,7 @@ export const getTokenPrice = createEffect(
       priceOracleType: S.string,
     },
     rateLimit: {
-      calls: 10,
+      calls: 500,
       per: "second",
     },
     cache: true, // Price data can be cached for the update interval
@@ -303,7 +303,12 @@ export const getTokenPrice = createEffect(
 
     const ethClient = CHAIN_CONSTANTS[chainId].eth_client;
     try {
-      return await fetchTokenPrice(
+      // Log during execution (before actual fetch)
+      context.log.info(
+        `[getTokenPrice] DURING EXECUTION: Calling fetchTokenPrice for ${tokenAddress} on chain ${chainId} at block ${blockNumber}`,
+      );
+
+      const result = await fetchTokenPrice(
         tokenAddress,
         usdcAddress,
         systemTokenAddress,
@@ -315,6 +320,8 @@ export const getTokenPrice = createEffect(
         context.log,
         gasLimit,
       );
+
+      return result;
     } catch (error) {
       // Don't cache failed response
       context.cache = false;
@@ -349,7 +356,7 @@ export const getTokenPriceData = createEffect(
       decimals: S.bigint,
     },
     rateLimit: {
-      calls: 10,
+      calls: 500,
       per: "second",
     },
     cache: true, // Combined price data can be cached
@@ -370,7 +377,7 @@ export const getTokenPriceData = createEffect(
           contractAddress: tokenAddress,
           chainId,
         });
-        return {
+        const result = {
           pricePerUSDNew: 10n ** 18n, // TEN_TO_THE_18_BI
           decimals: BigInt(tokenDetails.decimals),
         };
@@ -421,20 +428,32 @@ export const getTokenPriceData = createEffect(
           pricePerUSDNew = priceData.pricePerUSDNew;
         }
 
-        return {
+        const result = {
           pricePerUSDNew,
           decimals: BigInt(tokenDetails.decimals),
         };
+
+        context.log.info(
+          `[getTokenPriceData] Successfully fetched price data for ${tokenAddress} on chain ${chainId} at block ${blockNumber}. Price: ${result.pricePerUSDNew}, Decimals: ${result.decimals}. Oracle type: ${priceData.priceOracleType}`,
+        );
+
+        return result;
       }
 
       context.log.error(
         `[getTokenPriceData] ORACLE_NOT_DEPLOYED for ${tokenAddress} on chain ${chainId} at block ${blockNumber}`,
       );
 
-      return {
+      const result = {
         pricePerUSDNew: 0n,
         decimals: BigInt(tokenDetails.decimals),
       };
+
+      context.log.info(
+        `[getTokenPriceData] Oracle not deployed, returning zero price for ${tokenAddress} on chain ${chainId} at block ${blockNumber}`,
+      );
+
+      return result;
     } catch (error) {
       // Don't cache failed response
       context.cache = false;
