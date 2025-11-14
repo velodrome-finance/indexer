@@ -35,21 +35,21 @@ export async function computeVoterDistributeValues(params: {
     context,
   } = params;
 
-  // Gauge liveness
-  const isAlive = await context.effect(getIsAlive, {
-    voterAddress,
-    gaugeAddress,
-    blockNumber,
-    eventChainId: chainId,
-  });
-
-  // Snapshot of total votes deposited (gauge balance of reward token)
-  const tokensDeposited = await context.effect(getTokensDeposited, {
-    rewardTokenAddress: rewardToken.address,
-    gaugeAddress,
-    blockNumber,
-    eventChainId: chainId,
-  });
+  // Load gauge liveness and tokens deposited in parallel for better performance
+  const [isAlive, tokensDeposited] = await Promise.all([
+    context.effect(getIsAlive, {
+      voterAddress,
+      gaugeAddress,
+      blockNumber,
+      eventChainId: chainId,
+    }),
+    context.effect(getTokensDeposited, {
+      rewardTokenAddress: rewardToken.address,
+      gaugeAddress,
+      blockNumber,
+      eventChainId: chainId,
+    }),
+  ]);
 
   // Normalize amounts to 1e18
   const normalizedEmissionsAmount = normalizeTokenAmountTo1e18(
@@ -152,7 +152,11 @@ export async function updateTokenWhitelist(
 ) {
   const token = await context.Token.get(tokenId);
   if (token) {
-    const updated = { ...token, isWhitelisted } as Token;
+    const updated: Token = {
+      ...token,
+      isWhitelisted,
+      lastUpdatedTimestamp: new Date(timestampMs),
+    };
     context.Token.set(updated);
     return;
   }

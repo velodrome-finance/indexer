@@ -33,10 +33,6 @@ BribesVotingReward.Deposit.handler(async ({ event, context }) => {
     return;
   }
 
-  if (context.isPreload) {
-    return;
-  }
-
   const result = await processVotingRewardDeposit(data);
 
   if (result.poolDiff) {
@@ -78,10 +74,6 @@ BribesVotingReward.ClaimRewards.handler(async ({ event, context }) => {
   );
 
   if (!loadedData?.poolData?.liquidityPoolAggregator || !loadedData?.userData) {
-    return;
-  }
-
-  if (context.isPreload) {
     return;
   }
 
@@ -130,10 +122,6 @@ BribesVotingReward.Withdraw.handler(async ({ event, context }) => {
   );
 
   if (!loadedData?.poolData?.liquidityPoolAggregator || !loadedData?.userData) {
-    return;
-  }
-
-  if (context.isPreload) {
     return;
   }
 

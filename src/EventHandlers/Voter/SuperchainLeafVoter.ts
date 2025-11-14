@@ -41,11 +41,6 @@ SuperchainLeafVoter.Voted.handler(async ({ event, context }) => {
     new Date(event.block.timestamp * 1000),
   );
 
-  // Early return during preload phase after loading data
-  if (context.isPreload) {
-    return;
-  }
-
   const { liquidityPoolAggregator } = poolData;
 
   const { poolVoteDiff, userVoteDiff } = computeVoteDiffsFromVoted({
@@ -99,11 +94,6 @@ SuperchainLeafVoter.GaugeCreated.handler(async ({ event, context }) => {
 
   const poolEntity = await context.LiquidityPoolAggregator.get(poolAddress);
 
-  // Early return during preload phase after loading data
-  if (context.isPreload) {
-    return;
-  }
-
   if (poolEntity) {
     const poolUpdateDiff = {
       gaugeAddress: gaugeAddress,
@@ -146,11 +136,6 @@ SuperchainLeafVoter.DistributeReward.handler(async ({ event, context }) => {
     context.LiquidityPoolAggregator.get(poolEntity.id),
     context.Token.get(TokenIdByChain(rewardTokenAddress, event.chainId)),
   ]);
-
-  // Early return during preload phase after loading data
-  if (context.isPreload) {
-    return;
-  }
 
   if (!currentLiquidityPool || !rewardToken) {
     context.log.warn(
@@ -217,16 +202,12 @@ SuperchainLeafVoter.WhitelistToken.handler(async ({ event, context }) => {
     TokenIdByChain(event.params.token, event.chainId),
   );
 
-  // Early return during preload phase after loading data
-  if (context.isPreload) {
-    return;
-  }
-
   // Update the Token entity in the DB, either by updating the existing one or creating a new one
   if (token) {
     const updatedToken: Token = {
       ...token,
       isWhitelisted: event.params._bool,
+      lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
     };
 
     context.Token.set(updatedToken as Token);

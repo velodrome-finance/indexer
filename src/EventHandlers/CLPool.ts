@@ -34,23 +34,19 @@ import { processCLPoolSwap } from "./CLPool/CLPoolSwapLogic";
  */
 
 CLPool.Burn.handler(async ({ event, context }) => {
-  // Load pool data and handle errors
-  const poolData = await loadPoolData(event.srcAddress, event.chainId, context);
+  // Load pool data and user data concurrently for better performance
+  const [poolData, userData] = await Promise.all([
+    loadPoolData(event.srcAddress, event.chainId, context),
+    loadUserData(
+      event.params.owner,
+      event.srcAddress,
+      event.chainId,
+      context,
+      new Date(event.block.timestamp * 1000),
+    ),
+  ]);
+
   if (!poolData) {
-    return;
-  }
-
-  // Load user data
-  const userData = await loadUserData(
-    event.params.owner,
-    event.srcAddress,
-    event.chainId,
-    context,
-    new Date(event.block.timestamp * 1000),
-  );
-
-  // Early return during preload phase after loading data
-  if (context.isPreload) {
     return;
   }
 
@@ -87,23 +83,19 @@ CLPool.Burn.handler(async ({ event, context }) => {
 });
 
 CLPool.Collect.handler(async ({ event, context }) => {
-  // Load pool data and handle errors
-  const poolData = await loadPoolData(event.srcAddress, event.chainId, context);
+  // Load pool data and user data concurrently for better performance
+  const [poolData, userData] = await Promise.all([
+    loadPoolData(event.srcAddress, event.chainId, context),
+    loadUserData(
+      event.params.recipient,
+      event.srcAddress,
+      event.chainId,
+      context,
+      new Date(event.block.timestamp * 1000),
+    ),
+  ]);
+
   if (!poolData) {
-    return;
-  }
-
-  // Load user data
-  const userData = await loadUserData(
-    event.params.recipient,
-    event.srcAddress,
-    event.chainId,
-    context,
-    new Date(event.block.timestamp * 1000),
-  );
-
-  // Early return during preload phase after loading data
-  if (context.isPreload) {
     return;
   }
 
@@ -142,23 +134,26 @@ CLPool.Collect.handler(async ({ event, context }) => {
 });
 
 CLPool.CollectFees.handler(async ({ event, context }) => {
-  // Load pool data and handle errors
-  const poolData = await loadPoolData(event.srcAddress, event.chainId, context);
+  // Load pool data and user data concurrently for better performance
+  // Token prices will be refreshed automatically if needed
+  const [poolData, userData] = await Promise.all([
+    loadPoolData(
+      event.srcAddress,
+      event.chainId,
+      context,
+      event.block.number,
+      event.block.timestamp,
+    ),
+    loadUserData(
+      event.params.recipient,
+      event.srcAddress,
+      event.chainId,
+      context,
+      new Date(event.block.timestamp * 1000),
+    ),
+  ]);
+
   if (!poolData) {
-    return;
-  }
-
-  // Load user data
-  const userData = await loadUserData(
-    event.params.recipient,
-    event.srcAddress,
-    event.chainId,
-    context,
-    new Date(event.block.timestamp * 1000),
-  );
-
-  // Early return during preload phase after loading data
-  if (context.isPreload) {
     return;
   }
 
@@ -197,23 +192,19 @@ CLPool.CollectFees.handler(async ({ event, context }) => {
 });
 
 CLPool.Flash.handler(async ({ event, context }) => {
-  // Load pool data and handle errors
-  const poolData = await loadPoolData(event.srcAddress, event.chainId, context);
+  // Load pool data and user data concurrently for better performance
+  const [poolData, userData] = await Promise.all([
+    loadPoolData(event.srcAddress, event.chainId, context),
+    loadUserData(
+      event.params.sender,
+      event.srcAddress,
+      event.chainId,
+      context,
+      new Date(event.block.timestamp * 1000),
+    ),
+  ]);
+
   if (!poolData) {
-    return;
-  }
-
-  // Load user data
-  const userData = await loadUserData(
-    event.params.sender,
-    event.srcAddress,
-    event.chainId,
-    context,
-    new Date(event.block.timestamp * 1000),
-  );
-
-  // Early return during preload phase after loading data
-  if (context.isPreload) {
     return;
   }
 
@@ -264,11 +255,6 @@ CLPool.IncreaseObservationCardinalityNext.handler(
       return;
     }
 
-    // Early return during preload phase after loading data
-    if (context.isPreload) {
-      return;
-    }
-
     const { liquidityPoolAggregator } = poolData;
 
     // Update pool aggregator with new observation cardinality
@@ -288,23 +274,19 @@ CLPool.IncreaseObservationCardinalityNext.handler(
 );
 
 CLPool.Mint.handler(async ({ event, context }) => {
-  // Load pool data and handle errors
-  const poolData = await loadPoolData(event.srcAddress, event.chainId, context);
+  // Load pool data and user data concurrently for better performance
+  const [poolData, userData] = await Promise.all([
+    loadPoolData(event.srcAddress, event.chainId, context),
+    loadUserData(
+      event.params.owner,
+      event.srcAddress,
+      event.chainId,
+      context,
+      new Date(event.block.timestamp * 1000),
+    ),
+  ]);
+
   if (!poolData) {
-    return;
-  }
-
-  // Load user data
-  const userData = await loadUserData(
-    event.params.owner,
-    event.srcAddress,
-    event.chainId,
-    context,
-    new Date(event.block.timestamp * 1000),
-  );
-
-  // Early return during preload phase after loading data
-  if (context.isPreload) {
     return;
   }
 
@@ -365,11 +347,6 @@ CLPool.SetFeeProtocol.handler(async ({ event, context }) => {
     return;
   }
 
-  // Early return during preload phase after loading data
-  if (context.isPreload) {
-    return;
-  }
-
   const { liquidityPoolAggregator } = poolData;
 
   // Update pool aggregator with new fee protocol settings
@@ -389,23 +366,19 @@ CLPool.SetFeeProtocol.handler(async ({ event, context }) => {
 });
 
 CLPool.Swap.handler(async ({ event, context }) => {
-  // Load pool data and handle errors
-  const poolData = await loadPoolData(event.srcAddress, event.chainId, context);
+  // Load pool data and user data concurrently for better performance
+  const [poolData, userData] = await Promise.all([
+    loadPoolData(event.srcAddress, event.chainId, context),
+    loadUserData(
+      event.params.sender,
+      event.srcAddress,
+      event.chainId,
+      context,
+      new Date(event.block.timestamp * 1000),
+    ),
+  ]);
+
   if (!poolData) {
-    return;
-  }
-
-  // Load user data
-  const userData = await loadUserData(
-    event.params.sender,
-    event.srcAddress,
-    event.chainId,
-    context,
-    new Date(event.block.timestamp * 1000),
-  );
-
-  // Early return during preload phase after loading data
-  if (context.isPreload) {
     return;
   }
 

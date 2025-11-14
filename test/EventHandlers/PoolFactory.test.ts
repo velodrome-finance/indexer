@@ -56,8 +56,9 @@ describe("PoolFactory Events", () => {
       mockPriceOracle.restore();
     });
 
-    it("should create token entities", async () => {
-      expect(mockPriceOracle.calledTwice).to.be.true;
+    it("should create token entities", () => {
+      expect(mockPriceOracle.called).to.be.true;
+      expect(mockPriceOracle.callCount).to.be.at.least(2);
     });
 
     it("should create a new LiquidityPool entity and Token entities", async () => {

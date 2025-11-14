@@ -15,11 +15,6 @@ CLPoolLauncher.Launch.handler(async ({ event, context }) => {
   const pairToken = event.params.poolLauncherPool[1].toLowerCase();
   const createdAt = new Date(event.block.timestamp * 1000);
 
-  // Early return during preload phase
-  if (context.isPreload) {
-    return;
-  }
-
   // Create or update PoolLauncherPool entity
   await processPoolLauncherPool(
     poolAddress,
@@ -55,11 +50,6 @@ CLPoolLauncher.Migrate.handler(async ({ event, context }) => {
 
   const poolId = `${event.chainId}-${underlyingPool}`;
   const poolLauncherPool = await context.PoolLauncherPool.get(poolId);
-
-  // Early return during preload phase
-  if (context.isPreload) {
-    return;
-  }
 
   if (poolLauncherPool) {
     // Update existing PoolLauncherPool with migration info
@@ -108,11 +98,6 @@ CLPoolLauncher.EmergingFlagged.handler(async ({ event, context }) => {
   const poolId = `${event.chainId}-${poolAddress}`;
   const poolLauncherPool = await context.PoolLauncherPool.get(poolId);
 
-  // Early return during preload phase
-  if (context.isPreload) {
-    return;
-  }
-
   if (poolLauncherPool) {
     const updatedPoolLauncherPool: PoolLauncherPool = {
       ...poolLauncherPool,
@@ -133,11 +118,6 @@ CLPoolLauncher.EmergingUnflagged.handler(async ({ event, context }) => {
 
   const poolId = `${event.chainId}-${poolAddress}`;
   const poolLauncherPool = await context.PoolLauncherPool.get(poolId);
-
-  // Early return during preload phase
-  if (context.isPreload) {
-    return;
-  }
 
   if (poolLauncherPool) {
     const updatedPoolLauncherPool: PoolLauncherPool = {
@@ -162,11 +142,6 @@ CLPoolLauncher.CreationTimestampSet.handler(async ({ event, context }) => {
   const poolId = `${event.chainId}-${poolAddress}`;
   const poolLauncherPool = await context.PoolLauncherPool.get(poolId);
 
-  // Early return during preload phase
-  if (context.isPreload) {
-    return;
-  }
-
   if (poolLauncherPool) {
     const updatedPoolLauncherPool: PoolLauncherPool = {
       ...poolLauncherPool,
@@ -188,11 +163,6 @@ CLPoolLauncher.PairableTokenAdded.handler(async ({ event, context }) => {
 
   // Get or create PoolLauncherConfig
   let config = await context.PoolLauncherConfig.get(configId);
-
-  // Early return during preload phase
-  if (context.isPreload) {
-    return;
-  }
 
   if (!config) {
     // Create new config
@@ -222,11 +192,6 @@ CLPoolLauncher.PairableTokenRemoved.handler(async ({ event, context }) => {
   // Get existing PoolLauncherConfig
   const config = await context.PoolLauncherConfig.get(configId);
 
-  // Early return during preload phase
-  if (context.isPreload) {
-    return;
-  }
-
   if (config) {
     // Remove token from pairableTokens array
     const updatedConfig = {
@@ -252,11 +217,6 @@ CLPoolLauncher.NewPoolLauncherSet.handler(async ({ event, context }) => {
 
   // Get the existing config
   const existingConfig = await context.PoolLauncherConfig.get(oldConfigId);
-
-  // Early return during preload phase
-  if (context.isPreload) {
-    return;
-  }
 
   if (existingConfig) {
     // Create new config with the new pool launcher address

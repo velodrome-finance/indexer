@@ -5,7 +5,11 @@ import type {
   Token,
   UserStatsPerPool,
 } from "../../../generated/src/Types.gen";
-import { CHAIN_CONSTANTS, toChecksumAddress } from "../../../src/Constants";
+import {
+  CHAIN_CONSTANTS,
+  TokenIdByChain,
+  toChecksumAddress,
+} from "../../../src/Constants";
 import {
   type GaugeClaimRewardsData,
   type GaugeDepositData,
@@ -131,12 +135,27 @@ describe("GaugeSharedLogic", () => {
       lastActivityTimestamp: mockTimestamp,
     };
 
+    // Create reward token (AERO on Base)
+    const rewardTokenAddress = "0x940181a94A35A4569E4529A3CDfB74e38FD98631";
+    const mockRewardToken: Token = {
+      id: TokenIdByChain(rewardTokenAddress, mockChainId),
+      address: toChecksumAddress(rewardTokenAddress),
+      name: "AERO",
+      symbol: "AERO",
+      chainId: mockChainId,
+      decimals: 18n,
+      pricePerUSDNew: 1000000000000000000n, // 1 USD in 18 decimals
+      lastUpdatedTimestamp: mockTimestamp,
+      isWhitelisted: true,
+    };
+
     mockDb = MockDb.createMockDb();
     updatedDB = mockDb.entities.LiquidityPoolAggregator.set(
       mockLiquidityPoolAggregator,
     );
     updatedDB = updatedDB.entities.Token.set(mockToken0);
     updatedDB = updatedDB.entities.Token.set(mockToken1);
+    updatedDB = updatedDB.entities.Token.set(mockRewardToken);
     updatedDB = updatedDB.entities.UserStatsPerPool.set(mockUserStatsPerPool);
 
     // Create a proper mock context
@@ -198,7 +217,18 @@ describe("GaugeSharedLogic", () => {
             pricePerUSDNew: 1000000000000000000n, // 1 USD
           };
         }
+        // Mock getTokenDetails effect for refreshTokenPrice
+        if (fn.name === "getTokenDetails") {
+          return {
+            name: "AERO",
+            symbol: "AERO",
+            decimals: 18,
+          };
+        }
         return {};
+      },
+      TokenPriceSnapshot: {
+        set: () => {},
       },
       isPreload: false,
     };
