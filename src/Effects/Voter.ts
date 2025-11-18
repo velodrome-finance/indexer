@@ -1,7 +1,7 @@
 import { S, createEffect } from "envio";
 import type { logger as Envio_logger } from "envio/src/Envio.gen";
 import type { PublicClient } from "viem";
-import { CHAIN_CONSTANTS } from "../Constants";
+import { CHAIN_CONSTANTS, EFFECT_RATE_LIMITS } from "../Constants";
 
 /**
  * Core logic for fetching tokens deposited in a gauge
@@ -91,7 +91,7 @@ export const getTokensDeposited = createEffect(
     },
     output: S.bigint,
     rateLimit: {
-      calls: 15,
+      calls: EFFECT_RATE_LIMITS.VOTER_EFFECTS,
       per: "second",
     },
     cache: true,
@@ -133,7 +133,7 @@ export const getIsAlive = createEffect(
     },
     output: S.boolean,
     rateLimit: {
-      calls: 15,
+      calls: EFFECT_RATE_LIMITS.VOTER_EFFECTS,
       per: "second",
     },
     cache: true,

@@ -3,7 +3,11 @@ import type { logger as Envio_logger } from "envio/src/Envio.gen";
 import type { PublicClient } from "viem";
 import SpotPriceAggregatorABI from "../../abis/SpotPriceAggregator.json";
 import PriceOracleABI from "../../abis/VeloPriceOracleABI.json";
-import { CHAIN_CONSTANTS, PriceOracleType } from "../Constants";
+import {
+  CHAIN_CONSTANTS,
+  EFFECT_RATE_LIMITS,
+  PriceOracleType,
+} from "../Constants";
 import { ErrorType, getErrorType, sleep } from "./Helpers";
 
 // ERC20 Contract ABI
@@ -230,7 +234,7 @@ export const getTokenDetails = createEffect(
       symbol: S.string,
     },
     rateLimit: {
-      calls: 500,
+      calls: EFFECT_RATE_LIMITS.TOKEN_EFFECTS,
       per: "second",
     },
     cache: true, // Token details rarely change, perfect for caching
@@ -284,7 +288,7 @@ export const getTokenPrice = createEffect(
       priceOracleType: S.string,
     },
     rateLimit: {
-      calls: 500,
+      calls: EFFECT_RATE_LIMITS.TOKEN_EFFECTS,
       per: "second",
     },
     cache: true, // Price data can be cached for the update interval
@@ -356,7 +360,7 @@ export const getTokenPriceData = createEffect(
       decimals: S.bigint,
     },
     rateLimit: {
-      calls: 500,
+      calls: EFFECT_RATE_LIMITS.TOKEN_EFFECTS,
       per: "second",
     },
     cache: true, // Combined price data can be cached

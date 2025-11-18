@@ -1,7 +1,7 @@
 import { S, createEffect } from "envio";
 import type { logger as Envio_logger } from "envio/src/Envio.gen";
 import type { PublicClient } from "viem";
-import { CHAIN_CONSTANTS } from "../Constants";
+import { CHAIN_CONSTANTS, EFFECT_RATE_LIMITS } from "../Constants";
 
 /**
  * Core logic for fetching current fee
@@ -94,7 +94,7 @@ export const getCurrentFee = createEffect(
     },
     output: S.bigint,
     rateLimit: {
-      calls: 1,
+      calls: EFFECT_RATE_LIMITS.DYNAMIC_FEE_EFFECTS,
       per: "second",
     },
     cache: true,
@@ -138,7 +138,7 @@ export const getCurrentAccumulatedFeeCL = createEffect(
       token1Fees: S.bigint,
     },
     rateLimit: {
-      calls: 1,
+      calls: EFFECT_RATE_LIMITS.DYNAMIC_FEE_EFFECTS,
       per: "second",
     },
     cache: true,
