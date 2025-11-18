@@ -16,9 +16,6 @@ export async function fetchTokensDeposited(
   logger: Envio_logger,
 ): Promise<bigint> {
   try {
-    logger.info(
-      `[fetchTokensDeposited] Fetching tokens deposited for gauge ${gaugeAddress} on chain ${eventChainId} at block ${blockNumber}`,
-    );
     const ERC20GaugeABI = require("../../abis/ERC20.json");
 
     const { result } = await ethClient.simulateContract({
@@ -30,7 +27,9 @@ export async function fetchTokensDeposited(
     });
 
     const balance = BigInt(String(result) || "0");
-    logger.info(`[fetchTokensDeposited] Tokens deposited fetched: ${balance}`);
+    logger.info(
+      `[fetchTokensDeposited] Tokens deposited fetched: ${balance}, rewardTokenAddress=${rewardTokenAddress}, gaugeAddress=${gaugeAddress}, blockNumber=${blockNumber}, chainID=${eventChainId}`,
+    );
     return balance;
   } catch (error) {
     logger.error(
@@ -54,9 +53,6 @@ export async function fetchIsAlive(
   logger: Envio_logger,
 ): Promise<boolean> {
   try {
-    logger.info(
-      `[fetchIsAlive] Checking if gauge ${gaugeAddress} is alive on chain ${eventChainId} at block ${blockNumber}`,
-    );
     const VoterABI = require("../../abis/Voter.json");
 
     const { result } = await ethClient.simulateContract({
@@ -68,7 +64,9 @@ export async function fetchIsAlive(
     });
 
     const isAlive = Boolean(result);
-    logger.info(`[fetchIsAlive] Gauge ${gaugeAddress} is alive: ${isAlive}`);
+    logger.info(
+      `[fetchIsAlive] Gauge ${gaugeAddress} is alive: ${isAlive}, voterAddress=${voterAddress}, gaugeAddress=${gaugeAddress}, blockNumber=${blockNumber}, chainID=${eventChainId}`,
+    );
     return isAlive;
   } catch (error) {
     logger.error(

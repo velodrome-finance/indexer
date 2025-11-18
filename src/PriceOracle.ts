@@ -87,6 +87,44 @@ export async function refreshTokenPrice(
       gasLimit,
     });
     const currentPrice = tokenPriceData.pricePerUSDNew;
+
+    // If price fetch returned 0, it could mean:
+    // 1. No price path exists in the oracle (token not configured)
+    // 2. Historical state unavailable (RPC limitation)
+    //
+    // If we have a previous non-zero price, use it as fallback.
+    // This works in harmony with Envio's effect caching - if the effect cache has a previous
+    // successful result, it will be used. But if it returns 0, we fall back to the token's stored price.
+    const shouldUseLastKnownPrice =
+      currentPrice === 0n &&
+      token.pricePerUSDNew > 0n &&
+      token.lastUpdatedTimestamp &&
+      // Only use last known price if it's relatively recent (within 7 days)
+      // This prevents using very stale prices but allows for temporary oracle issues
+      blockTimestampMs - token.lastUpdatedTimestamp.getTime() <
+        7 * 24 * 60 * 60 * 1000;
+
+    if (shouldUseLastKnownPrice) {
+      context.log.info(
+        `[refreshTokenPrice] Price fetch returned 0 for token ${token.address} on chain ${chainId} at block ${blockNumber}. Using last known price ${token.pricePerUSDNew} (last updated: ${token.lastUpdatedTimestamp.toISOString()}) as fallback. This may be due to RPC limitation or no price path in oracle.`,
+      );
+      // Return token with existing price, but update timestamp to current block
+      // This ensures we don't keep trying to refresh too frequently
+      const updatedToken: Token = {
+        ...token,
+        lastUpdatedTimestamp: new Date(blockTimestampMs),
+      };
+      context.Token.set(updatedToken);
+      return updatedToken;
+    }
+
+    if (currentPrice === 0n && token.pricePerUSDNew === 0n) {
+      // Both current and stored prices are 0 - this is a new token or token with no price path
+      context.log.warn(
+        `[refreshTokenPrice] Price fetch returned 0 for token ${token.address} on chain ${chainId} at block ${blockNumber}, and no previous price exists. This token may not have a price path configured in the oracle.`,
+      );
+    }
+
     const updatedToken: Token = {
       ...token,
       pricePerUSDNew: currentPrice,
@@ -111,7 +149,7 @@ export async function refreshTokenPrice(
     context.log.error(
       `Error refreshing token price for ${token.address} on chain ${chainId}: ${error}`,
     );
-    // Return original token if refresh fails
+    // Return original token if refresh fails - this preserves the last known price
     return token;
   }
 }
