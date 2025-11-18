@@ -33,14 +33,10 @@ FeesVotingReward.Deposit.handler(async ({ event, context }) => {
     return;
   }
 
-  if (context.isPreload) {
-    return;
-  }
-
   const result = await processVotingRewardDeposit(data);
 
   if (result.poolDiff) {
-    updateLiquidityPoolAggregator(
+    await updateLiquidityPoolAggregator(
       result.poolDiff,
       loadedData.poolData.liquidityPoolAggregator,
       new Date(data.timestamp * 1000),
@@ -81,10 +77,6 @@ FeesVotingReward.ClaimRewards.handler(async ({ event, context }) => {
     return;
   }
 
-  if (context.isPreload) {
-    return;
-  }
-
   const result = await processVotingRewardClaimRewards(
     data,
     context,
@@ -92,7 +84,7 @@ FeesVotingReward.ClaimRewards.handler(async ({ event, context }) => {
   );
 
   if (result.poolDiff) {
-    updateLiquidityPoolAggregator(
+    await updateLiquidityPoolAggregator(
       result.poolDiff,
       loadedData.poolData.liquidityPoolAggregator,
       new Date(data.timestamp * 1000),
@@ -133,14 +125,10 @@ FeesVotingReward.Withdraw.handler(async ({ event, context }) => {
     return;
   }
 
-  if (context.isPreload) {
-    return;
-  }
-
   const result = await processVotingRewardWithdraw(data);
 
   if (result.poolDiff) {
-    updateLiquidityPoolAggregator(
+    await updateLiquidityPoolAggregator(
       result.poolDiff,
       loadedData.poolData.liquidityPoolAggregator,
       new Date(data.timestamp * 1000),

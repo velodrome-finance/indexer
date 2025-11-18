@@ -12,11 +12,6 @@ VeNFT.Withdraw.handler(async ({ event, context }) => {
     VeNFTId(event.chainId, tokenId),
   );
 
-  // Early return during preload phase after loading data
-  if (context.isPreload) {
-    return;
-  }
-
   if (!veNFTAggregator) {
     context.log.error(
       `VeNFTAggregator ${tokenId} not found during VeNFT withdraw on chain ${event.chainId}`,
@@ -61,11 +56,6 @@ VeNFT.Transfer.handler(async ({ event, context }) => {
     VeNFTId(event.chainId, tokenId),
   );
 
-  // Early return during preload phase after loading data
-  if (context.isPreload) {
-    return;
-  }
-
   if (!veNFTAggregator) {
     context.log.error(
       `VeNFTAggregator ${tokenId} not found during VeNFT transfer on chain ${event.chainId}`,
@@ -91,11 +81,6 @@ VeNFT.Deposit.handler(async ({ event, context }) => {
   const veNFTAggregator = await context.VeNFTAggregator.get(
     VeNFTId(event.chainId, tokenId),
   );
-
-  // Early return during preload phase after loading data
-  if (context.isPreload) {
-    return;
-  }
 
   // Should exist because Transfer event typically come before Deposit event
   if (!veNFTAggregator) {

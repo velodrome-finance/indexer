@@ -1,9 +1,13 @@
-import { S, experimental_createEffect } from "envio";
+import { S, createEffect } from "envio";
 import type { logger as Envio_logger } from "envio/src/Envio.gen";
 import type { PublicClient } from "viem";
 import SpotPriceAggregatorABI from "../../abis/SpotPriceAggregator.json";
 import PriceOracleABI from "../../abis/VeloPriceOracleABI.json";
-import { CHAIN_CONSTANTS, PriceOracleType } from "../Constants";
+import {
+  CHAIN_CONSTANTS,
+  EFFECT_RATE_LIMITS,
+  PriceOracleType,
+} from "../Constants";
 import { ErrorType, getErrorType, sleep } from "./Helpers";
 
 // ERC20 Contract ABI
@@ -20,10 +24,6 @@ export async function fetchTokenDetails(
   logger: Envio_logger,
 ): Promise<{ name: string; decimals: number; symbol: string }> {
   try {
-    logger.info(
-      `[fetchTokenDetails] Fetching token details for address: ${contractAddress}`,
-    );
-
     const [nameResult, decimalsResult, symbolResult] = await Promise.all([
       ethClient.simulateContract({
         address: contractAddress as `0x${string}`,
@@ -85,16 +85,12 @@ export async function fetchTokenPrice(
   blockNumber: number,
   ethClient: PublicClient,
   logger: Envio_logger,
-  gasLimit = 1000000n,
+  gasLimit = 10000000n, // 10M default - updated to reduce out-of-gas retries
   maxRetries = 7,
 ): Promise<{ pricePerUSDNew: bigint; priceOracleType: string }> {
   const priceOracleType = CHAIN_CONSTANTS[chainId].oracle.getType(blockNumber);
   const priceOracleAddress =
     CHAIN_CONSTANTS[chainId].oracle.getAddress(priceOracleType);
-
-  logger.info(
-    `[fetchTokenPrice] Fetching price for token ${tokenAddress} on chain ${chainId} at block ${blockNumber}`,
-  );
 
   let attempt = 0;
   let currentGasLimit = gasLimit;
@@ -148,16 +144,17 @@ export async function fetchTokenPrice(
 
       return {
         pricePerUSDNew: BigInt(result[0]),
-        priceOracleType: PriceOracleType.V2,
+        priceOracleType: priceOracleType, // Use the determined oracle type, not hardcoded V2
       };
     } catch (error) {
       const errorType = getErrorType(error);
 
       // Check if it's an out of gas error and we have retries left
       if (errorType === ErrorType.OUT_OF_GAS && attempt < maxRetries) {
-        // Increase gas limit exponentially: 1M -> 2M -> 4M -> 8M -> 16M (max)
+        // Increase gas limit exponentially: 10M -> 20M -> 30M (max)
+        // Max set to 30M to avoid hitting RPC provider limits (typically 30-50M)
         currentGasLimit = BigInt(
-          Math.min(Number(currentGasLimit) * 2, 16000000),
+          Math.min(Number(currentGasLimit) * 2, 30000000),
         );
         attempt++;
 
@@ -189,11 +186,23 @@ export async function fetchTokenPrice(
         continue;
       }
 
-      // If it's a contract revert, log it specifically (no retries needed)
+      // If it's a contract revert, check if it's due to historical state unavailability
       if (errorType === ErrorType.CONTRACT_REVERT) {
-        logger.warn(
-          `[fetchTokenPrice] Contract reverted for token ${tokenAddress} on chain ${chainId} at block ${blockNumber}. This usually means no price path exists. Returning zero price.`,
-        );
+        // Check if error is due to historical state unavailability
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        const isHistoricalStateError =
+          errorMessage.includes("historical state");
+
+        if (isHistoricalStateError) {
+          logger.warn(
+            `[fetchTokenPrice] Historical state not available for token ${tokenAddress} on chain ${chainId} at block ${blockNumber}. This is an RPC limitation, not a contract revert. Returning zero price - caller should use last known price if available.`,
+          );
+        } else {
+          logger.warn(
+            `[fetchTokenPrice] Contract reverted for token ${tokenAddress} on chain ${chainId} at block ${blockNumber}. This usually means no price path exists. Returning zero price.`,
+          );
+        }
         break;
       }
 
@@ -209,7 +218,7 @@ export async function fetchTokenPrice(
   // Return zero price on error to prevent processing failures
   return {
     pricePerUSDNew: 0n,
-    priceOracleType: PriceOracleType.V2,
+    priceOracleType: priceOracleType,
   };
 }
 
@@ -217,7 +226,7 @@ export async function fetchTokenPrice(
  * Effect to get ERC20 token details (name, decimals, symbol)
  * This replaces the direct RPC calls in getErc20TokenDetails
  */
-export const getTokenDetails = experimental_createEffect(
+export const getTokenDetails = createEffect(
   {
     name: "getTokenDetails",
     input: {
@@ -229,17 +238,36 @@ export const getTokenDetails = experimental_createEffect(
       decimals: S.number,
       symbol: S.string,
     },
+    rateLimit: {
+      calls: EFFECT_RATE_LIMITS.TOKEN_EFFECTS,
+      per: "second",
+    },
     cache: true, // Token details rarely change, perfect for caching
   },
   async ({ input, context }) => {
     const { contractAddress, chainId } = input;
     const ethClient = CHAIN_CONSTANTS[chainId].eth_client;
-    return await fetchTokenDetails(
-      contractAddress,
-      chainId,
-      ethClient,
-      context.log,
-    );
+    try {
+      return await fetchTokenDetails(
+        contractAddress,
+        chainId,
+        ethClient,
+        context.log,
+      );
+    } catch (error) {
+      // Don't cache failed response
+      context.cache = false;
+      context.log.error(
+        `[getTokenDetails] Error in effect for ${contractAddress} on chain ${chainId}:`,
+        error instanceof Error ? error : new Error(String(error)),
+      );
+      // Return default values on error to prevent processing failures
+      return {
+        name: "",
+        decimals: 0,
+        symbol: "",
+      };
+    }
   },
 );
 
@@ -247,7 +275,7 @@ export const getTokenDetails = experimental_createEffect(
  * Effect to read prices from price oracle contracts
  * This replaces the direct RPC calls in read_prices
  */
-export const getTokenPrice = experimental_createEffect(
+export const getTokenPrice = createEffect(
   {
     name: "getTokenPrice",
     input: {
@@ -264,6 +292,10 @@ export const getTokenPrice = experimental_createEffect(
       pricePerUSDNew: S.bigint,
       priceOracleType: S.string,
     },
+    rateLimit: {
+      calls: EFFECT_RATE_LIMITS.TOKEN_EFFECTS,
+      per: "second",
+    },
     cache: true, // Price data can be cached for the update interval
   },
   async ({ input, context }) => {
@@ -275,22 +307,38 @@ export const getTokenPrice = experimental_createEffect(
       connectors,
       chainId,
       blockNumber,
-      gasLimit = 1000000n,
+      gasLimit = 10000000n,
     } = input;
 
     const ethClient = CHAIN_CONSTANTS[chainId].eth_client;
-    return await fetchTokenPrice(
-      tokenAddress,
-      usdcAddress,
-      systemTokenAddress,
-      wethAddress,
-      connectors,
-      chainId,
-      blockNumber,
-      ethClient,
-      context.log,
-      gasLimit,
-    );
+    try {
+      const result = await fetchTokenPrice(
+        tokenAddress,
+        usdcAddress,
+        systemTokenAddress,
+        wethAddress,
+        connectors,
+        chainId,
+        blockNumber,
+        ethClient,
+        context.log,
+        gasLimit,
+      );
+
+      return result;
+    } catch (error) {
+      // Don't cache failed response
+      context.cache = false;
+      context.log.error(
+        `[getTokenPrice] Error in effect for ${tokenAddress} on chain ${chainId} at block ${blockNumber}:`,
+        error instanceof Error ? error : new Error(String(error)),
+      );
+      // Return zero price on error to prevent processing failures
+      return {
+        pricePerUSDNew: 0n,
+        priceOracleType: PriceOracleType.V2,
+      };
+    }
   },
 );
 
@@ -298,7 +346,7 @@ export const getTokenPrice = experimental_createEffect(
  * Effect to get complete token price data including token details and price
  * This combines token details fetching with price fetching for efficiency
  */
-export const getTokenPriceData = experimental_createEffect(
+export const getTokenPriceData = createEffect(
   {
     name: "getTokenPriceData",
     input: {
@@ -311,36 +359,45 @@ export const getTokenPriceData = experimental_createEffect(
       pricePerUSDNew: S.bigint,
       decimals: S.bigint,
     },
+    rateLimit: {
+      calls: EFFECT_RATE_LIMITS.TOKEN_EFFECTS,
+      per: "second",
+    },
     cache: true, // Combined price data can be cached
   },
   async ({ input, context }) => {
-    const { tokenAddress, blockNumber, chainId, gasLimit = 1000000n } = input;
+    const { tokenAddress, blockNumber, chainId, gasLimit = 10000000n } = input;
 
     try {
-      // Get token details first
-      const tokenDetails = await context.effect(getTokenDetails, {
-        contractAddress: tokenAddress,
-        chainId,
-      });
-
+      // Get chain constants first (synchronous)
       const WETH_ADDRESS = CHAIN_CONSTANTS[chainId].weth;
       const USDC_ADDRESS = CHAIN_CONSTANTS[chainId].usdc;
       const SYSTEM_TOKEN_ADDRESS =
         CHAIN_CONSTANTS[chainId].rewardToken(blockNumber);
 
-      // Get USDC token details
-      const USDTokenDetails = await context.effect(getTokenDetails, {
-        contractAddress: USDC_ADDRESS,
-        chainId,
-      });
-
-      // If it's USDC, return 1:1 price
+      // If it's USDC, only fetch token details and return early
       if (tokenAddress === USDC_ADDRESS) {
-        return {
+        const tokenDetails = await context.effect(getTokenDetails, {
+          contractAddress: tokenAddress,
+          chainId,
+        });
+        const result = {
           pricePerUSDNew: 10n ** 18n, // TEN_TO_THE_18_BI
           decimals: BigInt(tokenDetails.decimals),
         };
       }
+
+      // For non-USDC tokens, fetch both token details in parallel for better performance
+      const [tokenDetails, USDTokenDetails] = await Promise.all([
+        context.effect(getTokenDetails, {
+          contractAddress: tokenAddress,
+          chainId,
+        }),
+        context.effect(getTokenDetails, {
+          contractAddress: USDC_ADDRESS,
+          chainId,
+        }),
+      ]);
 
       const connectors = CHAIN_CONSTANTS[chainId].oracle.priceConnectors
         .filter((connector) => connector.createdBlock <= blockNumber)
@@ -375,17 +432,39 @@ export const getTokenPriceData = experimental_createEffect(
           pricePerUSDNew = priceData.pricePerUSDNew;
         }
 
-        return {
+        // If price is 0, it means no price path exists in the oracle
+        // This is different from an error - the call succeeded but returned 0
+        if (pricePerUSDNew === 0n) {
+          context.log.warn(
+            `[getTokenPriceData] Oracle returned 0 price for ${tokenAddress} on chain ${chainId} at block ${blockNumber}. This means no price path exists. The caller should use last known price if available.`,
+          );
+        }
+
+        const result = {
           pricePerUSDNew,
           decimals: BigInt(tokenDetails.decimals),
         };
+
+        context.log.info(
+          `[getTokenPriceData] Successfully fetched price data for ${tokenAddress} on chain ${chainId} at block ${blockNumber}. Price: ${result.pricePerUSDNew}, Decimals: ${result.decimals}. Oracle type: ${priceData.priceOracleType}`,
+        );
+
+        return result;
       }
 
-      return {
+      const result = {
         pricePerUSDNew: 0n,
         decimals: BigInt(tokenDetails.decimals),
       };
+
+      context.log.info(
+        `[getTokenPriceData] Oracle not deployed, returning zero price for ${tokenAddress} on chain ${chainId} at block ${blockNumber}`,
+      );
+
+      return result;
     } catch (error) {
+      // Don't cache failed response
+      context.cache = false;
       context.log.error(
         `[getTokenPriceData] Error fetching token price data for ${tokenAddress} on chain ${chainId} at block ${blockNumber}:`,
         error instanceof Error ? error : new Error(String(error)),

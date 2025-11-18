@@ -36,10 +36,6 @@ NFPM.Transfer.handler(async ({ event, context }) => {
   const token0 = await context.Token.get(`${event.chainId}_${position.token0}`);
   const token1 = await context.Token.get(`${event.chainId}_${position.token1}`);
 
-  if (context.isPreload) {
-    return;
-  }
-
   const blockDatetime = new Date(event.block.timestamp * 1000);
 
   // Updating amountUSD given current prices of token0 and token1
@@ -100,10 +96,6 @@ NFPM.IncreaseLiquidity.handler(async ({ event, context }) => {
   const token0 = await context.Token.get(`${event.chainId}_${position.token0}`);
   const token1 = await context.Token.get(`${event.chainId}_${position.token1}`);
 
-  if (context.isPreload) {
-    return;
-  }
-
   const blockDatetime = new Date(event.block.timestamp * 1000);
 
   const newAmount0 = position.amount0 + event.params.amount0;
@@ -142,10 +134,6 @@ NFPM.DecreaseLiquidity.handler(async ({ event, context }) => {
   // Get token entities to calculate USD value
   const token0 = await context.Token.get(`${event.chainId}_${position.token0}`);
   const token1 = await context.Token.get(`${event.chainId}_${position.token1}`);
-
-  if (context.isPreload) {
-    return;
-  }
 
   const blockDatetime = new Date(event.block.timestamp * 1000);
 

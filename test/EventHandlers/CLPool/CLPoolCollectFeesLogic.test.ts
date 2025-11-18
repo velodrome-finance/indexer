@@ -160,5 +160,58 @@ describe("CLPoolCollectFeesLogic", () => {
       expect(result.liquidityPoolDiff.totalFees1).to.equal(0n);
       expect(result.liquidityPoolDiff.totalFeesUSD).to.equal(0n);
     });
+
+    it("should use refreshed token prices for USD calculations", () => {
+      // Test that when prices change, USD calculations reflect the new prices
+      const token0WithNewPrice: Token = {
+        ...mockToken0,
+        pricePerUSDNew: 1500000000000000000n, // $1.50 (was $1.00)
+      };
+
+      const token1WithNewPrice: Token = {
+        ...mockToken1,
+        pricePerUSDNew: 2500000000000000000n, // $2.50 (was $2.00)
+      };
+
+      const result = processCLPoolCollectFees(
+        mockEvent,
+        mockLiquidityPoolAggregator,
+        token0WithNewPrice,
+        token1WithNewPrice,
+      );
+
+      // USD calculation with new prices:
+      // amount0: 1 token * $1.50 = $1.50
+      // amount1: 2 tokens * $2.50 = $5.00
+      // Total: $6.50
+      const expectedUSD = 6500000000000000000n;
+      expect(result.liquidityPoolDiff.totalFeesUSD).to.equal(expectedUSD);
+
+      // Verify the calculation uses the new prices, not old ones
+      // If it used old prices ($1.00 and $2.00), it would be $5.00
+      expect(result.liquidityPoolDiff.totalFeesUSD).to.not.equal(
+        5000000000000000000n,
+      );
+    });
+
+    it("should correctly calculate USD when one token price is zero", () => {
+      const token0WithZeroPrice: Token = {
+        ...mockToken0,
+        pricePerUSDNew: 0n,
+      };
+
+      const result = processCLPoolCollectFees(
+        mockEvent,
+        mockLiquidityPoolAggregator,
+        token0WithZeroPrice,
+        mockToken1,
+      );
+
+      // Only token1 contributes to USD (token0 has 0 price)
+      // amount1: 2 tokens * $2.00 = $4.00
+      expect(result.liquidityPoolDiff.totalFeesUSD).to.equal(
+        4000000000000000000n,
+      );
+    });
   });
 });

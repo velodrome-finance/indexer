@@ -1,4 +1,5 @@
 import { getCurrentAccumulatedFeeCL, getCurrentFee } from "../Effects/Index";
+import { refreshTokenPrice } from "../PriceOracle";
 import type {
   LiquidityPoolAggregator,
   LiquidityPoolAggregatorSnapshot,
@@ -37,7 +38,7 @@ export async function updateDynamicFeePools(
     await context.DynamicFeeGlobalConfig.getWhere.chainId.eq(chainId);
 
   if (!dynamicFeeGlobalConfigs || dynamicFeeGlobalConfigs.length === 0) {
-    context.log.error(
+    context.log.warn(
       `No dynamic fee global config found for chain ${chainId}. No update to currentFee will be performed.`,
     );
     return;
@@ -89,7 +90,7 @@ export function setLiquidityPoolAggregatorSnapshot(
     ...liquidityPoolAggregator,
     pool: liquidityPoolAggregator.id,
     id: `${chainId}-${liquidityPoolAggregator.id}_${timestamp.getTime()}`,
-    timestamp: liquidityPoolAggregator.lastUpdatedTimestamp,
+    timestamp: timestamp,
   };
 
   context.LiquidityPoolAggregatorSnapshot.set(snapshot);
@@ -114,7 +115,7 @@ export async function updateLiquidityPoolAggregator(
   context: handlerContext,
   blockNumber: number,
 ) {
-  const updated: LiquidityPoolAggregator = {
+  let updated: LiquidityPoolAggregator = {
     ...current,
     // Handle cumulative fields by adding diff values to current values
     reserve0: (diff.reserve0 ?? 0n) + current.reserve0,
@@ -215,8 +216,6 @@ export async function updateLiquidityPoolAggregator(
     lastUpdatedTimestamp: timestamp,
   };
 
-  context.LiquidityPoolAggregator.set(updated);
-
   // Update the snapshot if the last update was more than 1 hour ago
   if (
     !current.lastSnapshotTimestamp ||
@@ -230,30 +229,45 @@ export async function updateLiquidityPoolAggregator(
           chainId: current.chainId,
           blockNumber,
         });
-        const gaugeFeeUpdated: LiquidityPoolAggregator = {
+        updated = {
           ...updated,
           gaugeFees0CurrentEpoch: gaugeFees.token0Fees,
           gaugeFees1CurrentEpoch: gaugeFees.token1Fees,
         };
-        setLiquidityPoolAggregatorSnapshot(gaugeFeeUpdated, timestamp, context);
-        updateDynamicFeePools(gaugeFeeUpdated, context, blockNumber);
-        return;
       } catch (error) {
         // No error if the pool is not a CL pool
       }
     }
     setLiquidityPoolAggregatorSnapshot(updated, timestamp, context);
   }
+
+  // Update lastSnapshotTimestamp
+  updated = {
+    ...updated,
+    lastSnapshotTimestamp: timestamp,
+  };
+
+  context.LiquidityPoolAggregator.set(updated);
 }
 
 /**
  * Common pool data loading and validation logic
  * Loads liquidity pool aggregator and token instances, handles errors
+ * If blockNumber and blockTimestamp are provided, token prices will be refreshed
+ * (refreshTokenPrice will decide internally if refresh is needed)
+ *
+ * @param srcAddress - The pool address
+ * @param chainId - The chain ID
+ * @param context - The handler context
+ * @param blockNumber - Optional block number for price refresh
+ * @param blockTimestamp - Optional block timestamp for price refresh
  */
 export async function loadPoolData(
   srcAddress: string,
   chainId: number,
   context: handlerContext,
+  blockNumber?: number,
+  blockTimestamp?: number,
 ): Promise<{
   liquidityPoolAggregator: LiquidityPoolAggregator;
   token0Instance: Token;
@@ -288,10 +302,46 @@ export async function loadPoolData(
     return null;
   }
 
+  // Refresh token prices if block data is provided
+  // refreshTokenPrice will decide internally if refresh is needed
+  let updatedToken0 = token0Instance;
+  let updatedToken1 = token1Instance;
+  if (blockNumber !== undefined && blockTimestamp !== undefined) {
+    try {
+      updatedToken0 = await refreshTokenPrice(
+        token0Instance,
+        blockNumber,
+        blockTimestamp,
+        chainId,
+        context,
+        1000000n,
+      );
+    } catch (error) {
+      context.log.error(
+        `Error refreshing token0 price for ${token0Instance.address} on chain ${chainId}: ${error}`,
+      );
+    }
+
+    try {
+      updatedToken1 = await refreshTokenPrice(
+        token1Instance,
+        blockNumber,
+        blockTimestamp,
+        chainId,
+        context,
+        1000000n,
+      );
+    } catch (error) {
+      context.log.error(
+        `Error refreshing token1 price for ${token1Instance.address} on chain ${chainId}: ${error}`,
+      );
+    }
+  }
+
   return {
     liquidityPoolAggregator,
-    token0Instance,
-    token1Instance,
+    token0Instance: updatedToken0,
+    token1Instance: updatedToken1,
   };
 }
 

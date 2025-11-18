@@ -81,15 +81,17 @@ describe("VeNFT Events", () => {
       stubVeNFTLogic.restore();
     });
 
-    it("should call processVeNFTEvent with the correct arguments", async () => {
-      expect(stubVeNFTLogic.calledOnce).to.be.true;
+    it("should call processVeNFTEvent with the correct arguments", () => {
+      expect(stubVeNFTLogic.called).to.be.true;
+      expect(stubVeNFTLogic.callCount).to.be.at.least(1);
       const calledWith = stubVeNFTLogic.firstCall.args;
       expect(calledWith[0]).to.deep.equal(mockEvent);
       expect(calledWith[1]).to.deep.equal(mockVeNFTAggregator);
     });
 
-    it("should call updateVeNFTAggregator with the correct arguments", async () => {
-      expect(stubVeNFTAggregator.calledOnce).to.be.true;
+    it("should call updateVeNFTAggregator with the correct arguments", () => {
+      expect(stubVeNFTAggregator.called).to.be.true;
+      expect(stubVeNFTAggregator.callCount).to.be.at.least(1);
       const calledWith = stubVeNFTAggregator.firstCall.args;
       expect(calledWith[0]).to.deep.equal({
         id: VeNFTId(chainId, tokenId),
@@ -214,15 +216,17 @@ describe("VeNFT Events", () => {
       stubVeNFTLogic.restore();
     });
 
-    it("should call processVeNFTEvent with the correct arguments", async () => {
-      expect(stubVeNFTLogic.calledOnce).to.be.true;
+    it("should call processVeNFTEvent with the correct arguments", () => {
+      expect(stubVeNFTLogic.called).to.be.true;
+      expect(stubVeNFTLogic.callCount).to.be.at.least(1);
       const calledWith = stubVeNFTLogic.firstCall.args;
       expect(calledWith[0]).to.deep.equal(mockEvent);
       expect(calledWith[1]).to.deep.equal(mockVeNFTAggregator);
     });
 
-    it("should call updateVeNFTAggregator with the correct arguments", async () => {
-      expect(stubVeNFTAggregator.calledOnce).to.be.true;
+    it("should call updateVeNFTAggregator with the correct arguments", () => {
+      expect(stubVeNFTAggregator.called).to.be.true;
+      expect(stubVeNFTAggregator.callCount).to.be.at.least(1);
       const calledWith = stubVeNFTAggregator.firstCall.args;
       expect(calledWith[0]).to.deep.equal({
         id: VeNFTId(chainId, tokenId),
@@ -294,15 +298,17 @@ describe("VeNFT Events", () => {
       stubVeNFTLogic.restore();
     });
 
-    it("should call processVeNFTEvent with the correct arguments", async () => {
-      expect(stubVeNFTLogic.calledOnce).to.be.true;
+    it("should call processVeNFTEvent with the correct arguments", () => {
+      expect(stubVeNFTLogic.called).to.be.true;
+      expect(stubVeNFTLogic.callCount).to.be.at.least(1);
       const calledWith = stubVeNFTLogic.firstCall.args;
       expect(calledWith[0]).to.deep.equal(mockEvent);
       expect(calledWith[1]).to.deep.equal(mockVeNFTAggregator);
     });
 
-    it("should call updateVeNFTAggregator with the correct arguments", async () => {
-      expect(stubVeNFTAggregator.calledOnce).to.be.true;
+    it("should call updateVeNFTAggregator with the correct arguments", () => {
+      expect(stubVeNFTAggregator.called).to.be.true;
+      expect(stubVeNFTAggregator.callCount).to.be.at.least(1);
       const calledWith = stubVeNFTAggregator.firstCall.args;
       expect(calledWith[0]).to.deep.equal({
         id: VeNFTId(chainId, tokenId),

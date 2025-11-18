@@ -1,7 +1,7 @@
-import { S, experimental_createEffect } from "envio";
+import { S, createEffect } from "envio";
 import type { logger as Envio_logger } from "envio/src/Envio.gen";
 import type { PublicClient } from "viem";
-import { CHAIN_CONSTANTS } from "../Constants";
+import { CHAIN_CONSTANTS, EFFECT_RATE_LIMITS } from "../Constants";
 
 /**
  * Core logic for fetching current fee
@@ -52,9 +52,6 @@ export async function fetchCurrentAccumulatedFeeCL(
   logger: Envio_logger,
 ): Promise<{ token0Fees: bigint; token1Fees: bigint }> {
   try {
-    logger.info(
-      `[fetchCurrentAccumulatedFeeCL] Fetching accumulated gauge fees for pool ${poolAddress} on chain ${chainId} at block ${blockNumber}`,
-    );
     const CLPoolABI = require("../../abis/CLPool.json");
 
     const { result } = await ethClient.simulateContract({
@@ -71,7 +68,7 @@ export async function fetchCurrentAccumulatedFeeCL(
     };
 
     logger.info(
-      `[fetchCurrentAccumulatedFeeCL] Accumulated gauge fees fetched: token0Fees=${gaugeFees.token0Fees}, token1Fees=${gaugeFees.token1Fees}`,
+      `[fetchCurrentAccumulatedFeeCL] Accumulated gauge fees fetched: token0Fees=${gaugeFees.token0Fees}, token1Fees=${gaugeFees.token1Fees}, pool=${poolAddress} on chain ${chainId} at block ${blockNumber}`,
     );
     return gaugeFees;
   } catch (error) {
@@ -83,7 +80,7 @@ export async function fetchCurrentAccumulatedFeeCL(
   }
 }
 
-export const getCurrentFee = experimental_createEffect(
+export const getCurrentFee = createEffect(
   {
     name: "getCurrentFee",
     input: {
@@ -93,24 +90,39 @@ export const getCurrentFee = experimental_createEffect(
       blockNumber: S.number,
     },
     output: S.bigint,
+    rateLimit: {
+      calls: EFFECT_RATE_LIMITS.DYNAMIC_FEE_EFFECTS,
+      per: "second",
+    },
     cache: true,
   },
   async ({ input, context }) => {
     const { poolAddress, dynamicFeeModuleAddress, chainId, blockNumber } =
       input;
     const ethClient = CHAIN_CONSTANTS[chainId].eth_client;
-    return await fetchCurrentFee(
-      poolAddress,
-      dynamicFeeModuleAddress,
-      chainId,
-      blockNumber,
-      ethClient,
-      context.log,
-    );
+    try {
+      const result = await fetchCurrentFee(
+        poolAddress,
+        dynamicFeeModuleAddress,
+        chainId,
+        blockNumber,
+        ethClient,
+        context.log,
+      );
+      return result;
+    } catch (error) {
+      // Don't cache failed response
+      context.cache = false;
+      context.log.error(
+        `[getCurrentFee] Error in effect for pool ${poolAddress} on chain ${chainId} at block ${blockNumber}:`,
+        error instanceof Error ? error : new Error(String(error)),
+      );
+      throw error;
+    }
   },
 );
 
-export const getCurrentAccumulatedFeeCL = experimental_createEffect(
+export const getCurrentAccumulatedFeeCL = createEffect(
   {
     name: "getCurrentAccumulatedFeeCL",
     input: {
@@ -122,17 +134,33 @@ export const getCurrentAccumulatedFeeCL = experimental_createEffect(
       token0Fees: S.bigint,
       token1Fees: S.bigint,
     },
+    rateLimit: {
+      calls: EFFECT_RATE_LIMITS.DYNAMIC_FEE_EFFECTS,
+      per: "second",
+    },
     cache: true,
   },
   async ({ input, context }) => {
     const { poolAddress, chainId, blockNumber } = input;
     const ethClient = CHAIN_CONSTANTS[chainId].eth_client;
-    return await fetchCurrentAccumulatedFeeCL(
-      poolAddress,
-      chainId,
-      blockNumber,
-      ethClient,
-      context.log,
-    );
+    try {
+      const result = await fetchCurrentAccumulatedFeeCL(
+        poolAddress,
+        chainId,
+        blockNumber,
+        ethClient,
+        context.log,
+      );
+
+      return result;
+    } catch (error) {
+      // Don't cache failed response
+      context.cache = false;
+      context.log.error(
+        `[getCurrentAccumulatedFeeCL] Error in effect for pool ${poolAddress} on chain ${chainId} at block ${blockNumber}:`,
+        error instanceof Error ? error : new Error(String(error)),
+      );
+      throw error;
+    }
   },
 );

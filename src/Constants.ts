@@ -28,6 +28,13 @@ export const SECONDS_IN_AN_HOUR = BigInt(3600);
 export const SECONDS_IN_A_DAY = BigInt(86400);
 export const SECONDS_IN_A_WEEK = BigInt(604800);
 
+// Effect rate limit constants (calls per second)
+export const EFFECT_RATE_LIMITS = {
+  TOKEN_EFFECTS: 4000, // Token details and price fetching effects
+  VOTER_EFFECTS: 4000, // Voter-related effects
+  DYNAMIC_FEE_EFFECTS: 4000, // Dynamic fee effects
+} as const;
+
 export const OUSDT_ADDRESS = "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189";
 export const OUSDT_DECIMALS = 6;
 
@@ -520,11 +527,3 @@ export const CHAIN_CONSTANTS: Record<number, chainConstants> = {
   42220: CELO_CONSTANTS,
   1923: SWELL_CONSTANTS,
 };
-
-export const CacheCategory = {
-  Token: "token",
-  GuageToPool: "guageToPool",
-  BribeToPool: "bribeToPool",
-} as const;
-
-export type CacheCategory = (typeof CacheCategory)[keyof typeof CacheCategory];

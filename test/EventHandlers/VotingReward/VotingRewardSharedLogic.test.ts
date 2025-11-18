@@ -1,10 +1,5 @@
 import { expect } from "chai";
-import type {
-  LiquidityPoolAggregator,
-  Token,
-  UserStatsPerPool,
-  handlerContext,
-} from "../../../generated/src/Types.gen";
+import type { Token } from "../../../generated/src/Types.gen";
 import { PoolAddressField } from "../../../src/Aggregators/LiquidityPoolAggregator";
 import {
   type VotingRewardClaimRewardsData,
@@ -26,11 +21,20 @@ describe("VotingRewardSharedLogic", () => {
   let mockContext: any;
 
   beforeEach(() => {
+    // Mock token storage
+    const tokenStorage = new Map<string, Token>();
+
     mockContext = {
       log: {
         error: () => {},
         warn: () => {},
         info: () => {},
+      },
+      Token: {
+        get: async (id: string) => tokenStorage.get(id),
+        set: (token: Token) => {
+          tokenStorage.set(token.id, token);
+        },
       },
       effect: async (fn: { name: string }, params: unknown) => {
         // Mock token price data effect
@@ -40,7 +44,18 @@ describe("VotingRewardSharedLogic", () => {
             pricePerUSDNew: 1000000000000000000n, // 1 USD
           };
         }
+        // Mock getTokenDetails effect for refreshTokenPrice
+        if (fn.name === "getTokenDetails") {
+          return {
+            name: "Test Token",
+            symbol: "TEST",
+            decimals: 6,
+          };
+        }
         return {};
+      },
+      TokenPriceSnapshot: {
+        set: () => {},
       },
       isPreload: false,
     };
@@ -210,6 +225,14 @@ describe("VotingRewardSharedLogic", () => {
           return {
             decimals: 18n,
             pricePerUSDNew: 1000000000000000000n, // 1 USD
+          };
+        }
+        // Mock getTokenDetails effect for token creation
+        if (fn.name === "getTokenDetails") {
+          return {
+            name: "Test Token",
+            symbol: "TEST",
+            decimals: 18,
           };
         }
         return {};

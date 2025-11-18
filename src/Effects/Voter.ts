@@ -1,7 +1,7 @@
-import { S, experimental_createEffect } from "envio";
+import { S, createEffect } from "envio";
 import type { logger as Envio_logger } from "envio/src/Envio.gen";
 import type { PublicClient } from "viem";
-import { CHAIN_CONSTANTS } from "../Constants";
+import { CHAIN_CONSTANTS, EFFECT_RATE_LIMITS } from "../Constants";
 
 /**
  * Core logic for fetching tokens deposited in a gauge
@@ -16,9 +16,6 @@ export async function fetchTokensDeposited(
   logger: Envio_logger,
 ): Promise<bigint> {
   try {
-    logger.info(
-      `[fetchTokensDeposited] Fetching tokens deposited for gauge ${gaugeAddress} on chain ${eventChainId} at block ${blockNumber}`,
-    );
     const ERC20GaugeABI = require("../../abis/ERC20.json");
 
     const { result } = await ethClient.simulateContract({
@@ -30,7 +27,9 @@ export async function fetchTokensDeposited(
     });
 
     const balance = BigInt(String(result) || "0");
-    logger.info(`[fetchTokensDeposited] Tokens deposited fetched: ${balance}`);
+    logger.info(
+      `[fetchTokensDeposited] Tokens deposited fetched: ${balance}, rewardTokenAddress=${rewardTokenAddress}, gaugeAddress=${gaugeAddress}, blockNumber=${blockNumber}, chainID=${eventChainId}`,
+    );
     return balance;
   } catch (error) {
     logger.error(
@@ -54,9 +53,6 @@ export async function fetchIsAlive(
   logger: Envio_logger,
 ): Promise<boolean> {
   try {
-    logger.info(
-      `[fetchIsAlive] Checking if gauge ${gaugeAddress} is alive on chain ${eventChainId} at block ${blockNumber}`,
-    );
     const VoterABI = require("../../abis/Voter.json");
 
     const { result } = await ethClient.simulateContract({
@@ -68,7 +64,9 @@ export async function fetchIsAlive(
     });
 
     const isAlive = Boolean(result);
-    logger.info(`[fetchIsAlive] Gauge ${gaugeAddress} is alive: ${isAlive}`);
+    logger.info(
+      `[fetchIsAlive] Gauge ${gaugeAddress} is alive: ${isAlive}, voterAddress=${voterAddress}, gaugeAddress=${gaugeAddress}, blockNumber=${blockNumber}, chainID=${eventChainId}`,
+    );
     return isAlive;
   } catch (error) {
     logger.error(
@@ -80,7 +78,7 @@ export async function fetchIsAlive(
 }
 
 // Voter Common Effects
-export const getTokensDeposited = experimental_createEffect(
+export const getTokensDeposited = createEffect(
   {
     name: "getTokensDeposited",
     input: {
@@ -90,24 +88,39 @@ export const getTokensDeposited = experimental_createEffect(
       eventChainId: S.number,
     },
     output: S.bigint,
+    rateLimit: {
+      calls: EFFECT_RATE_LIMITS.VOTER_EFFECTS,
+      per: "second",
+    },
     cache: true,
   },
   async ({ input, context }) => {
     const { rewardTokenAddress, gaugeAddress, blockNumber, eventChainId } =
       input;
     const ethClient = CHAIN_CONSTANTS[eventChainId].eth_client;
-    return await fetchTokensDeposited(
-      rewardTokenAddress,
-      gaugeAddress,
-      blockNumber,
-      eventChainId,
-      ethClient,
-      context.log,
-    );
+    try {
+      return await fetchTokensDeposited(
+        rewardTokenAddress,
+        gaugeAddress,
+        blockNumber,
+        eventChainId,
+        ethClient,
+        context.log,
+      );
+    } catch (error) {
+      // Don't cache failed response
+      context.cache = false;
+      context.log.error(
+        `[getTokensDeposited] Error in effect for gauge ${gaugeAddress} on chain ${eventChainId} at block ${blockNumber}:`,
+        error instanceof Error ? error : new Error(String(error)),
+      );
+      // Return zero on error to prevent processing failures
+      return 0n;
+    }
   },
 );
 
-export const getIsAlive = experimental_createEffect(
+export const getIsAlive = createEffect(
   {
     name: "getIsAlive",
     input: {
@@ -117,18 +130,33 @@ export const getIsAlive = experimental_createEffect(
       eventChainId: S.number,
     },
     output: S.boolean,
+    rateLimit: {
+      calls: EFFECT_RATE_LIMITS.VOTER_EFFECTS,
+      per: "second",
+    },
     cache: true,
   },
   async ({ input, context }) => {
     const { voterAddress, gaugeAddress, blockNumber, eventChainId } = input;
     const ethClient = CHAIN_CONSTANTS[eventChainId].eth_client;
-    return await fetchIsAlive(
-      voterAddress,
-      gaugeAddress,
-      blockNumber,
-      eventChainId,
-      ethClient,
-      context.log,
-    );
+    try {
+      return await fetchIsAlive(
+        voterAddress,
+        gaugeAddress,
+        blockNumber,
+        eventChainId,
+        ethClient,
+        context.log,
+      );
+    } catch (error) {
+      // Don't cache failed response
+      context.cache = false;
+      context.log.error(
+        `[getIsAlive] Error in effect for gauge ${gaugeAddress} on chain ${eventChainId} at block ${blockNumber}:`,
+        error instanceof Error ? error : new Error(String(error)),
+      );
+      // Return false on error to prevent processing failures
+      return false;
+    }
   },
 );

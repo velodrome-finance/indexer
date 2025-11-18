@@ -16,11 +16,6 @@ CLFactory.PoolCreated.handler(async ({ event, context }) => {
     ),
   ]);
 
-  // Early return during preload phase after loading data
-  if (context.isPreload) {
-    return;
-  }
-
   // Process the pool created event
   const result = await processCLFactoryPoolCreated(
     event,
