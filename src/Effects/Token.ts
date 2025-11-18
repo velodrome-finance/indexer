@@ -24,10 +24,6 @@ export async function fetchTokenDetails(
   logger: Envio_logger,
 ): Promise<{ name: string; decimals: number; symbol: string }> {
   try {
-    logger.info(
-      `[fetchTokenDetails] Fetching token details for address: ${contractAddress}`,
-    );
-
     const [nameResult, decimalsResult, symbolResult] = await Promise.all([
       ethClient.simulateContract({
         address: contractAddress as `0x${string}`,
@@ -89,16 +85,12 @@ export async function fetchTokenPrice(
   blockNumber: number,
   ethClient: PublicClient,
   logger: Envio_logger,
-  gasLimit = 1000000n,
+  gasLimit = 10000000n, // 10M default - updated to reduce out-of-gas retries
   maxRetries = 7,
 ): Promise<{ pricePerUSDNew: bigint; priceOracleType: string }> {
   const priceOracleType = CHAIN_CONSTANTS[chainId].oracle.getType(blockNumber);
   const priceOracleAddress =
     CHAIN_CONSTANTS[chainId].oracle.getAddress(priceOracleType);
-
-  logger.info(
-    `[fetchTokenPrice] Fetching price for token ${tokenAddress} on chain ${chainId} at block ${blockNumber}`,
-  );
 
   let attempt = 0;
   let currentGasLimit = gasLimit;
@@ -152,16 +144,17 @@ export async function fetchTokenPrice(
 
       return {
         pricePerUSDNew: BigInt(result[0]),
-        priceOracleType: PriceOracleType.V2,
+        priceOracleType: priceOracleType, // Use the determined oracle type, not hardcoded V2
       };
     } catch (error) {
       const errorType = getErrorType(error);
 
       // Check if it's an out of gas error and we have retries left
       if (errorType === ErrorType.OUT_OF_GAS && attempt < maxRetries) {
-        // Increase gas limit exponentially: 1M -> 2M -> 4M -> 8M -> 16M (max)
+        // Increase gas limit exponentially: 10M -> 20M -> 30M (max)
+        // Max set to 30M to avoid hitting RPC provider limits (typically 30-50M)
         currentGasLimit = BigInt(
-          Math.min(Number(currentGasLimit) * 2, 16000000),
+          Math.min(Number(currentGasLimit) * 2, 30000000),
         );
         attempt++;
 
@@ -193,11 +186,23 @@ export async function fetchTokenPrice(
         continue;
       }
 
-      // If it's a contract revert, log it specifically (no retries needed)
+      // If it's a contract revert, check if it's due to historical state unavailability
       if (errorType === ErrorType.CONTRACT_REVERT) {
-        logger.warn(
-          `[fetchTokenPrice] Contract reverted for token ${tokenAddress} on chain ${chainId} at block ${blockNumber}. This usually means no price path exists. Returning zero price.`,
-        );
+        // Check if error is due to historical state unavailability
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        const isHistoricalStateError =
+          errorMessage.includes("historical state");
+
+        if (isHistoricalStateError) {
+          logger.warn(
+            `[fetchTokenPrice] Historical state not available for token ${tokenAddress} on chain ${chainId} at block ${blockNumber}. This is an RPC limitation, not a contract revert. Returning zero price - caller should use last known price if available.`,
+          );
+        } else {
+          logger.warn(
+            `[fetchTokenPrice] Contract reverted for token ${tokenAddress} on chain ${chainId} at block ${blockNumber}. This usually means no price path exists. Returning zero price.`,
+          );
+        }
         break;
       }
 
@@ -213,7 +218,7 @@ export async function fetchTokenPrice(
   // Return zero price on error to prevent processing failures
   return {
     pricePerUSDNew: 0n,
-    priceOracleType: PriceOracleType.V2,
+    priceOracleType: priceOracleType,
   };
 }
 
@@ -302,16 +307,11 @@ export const getTokenPrice = createEffect(
       connectors,
       chainId,
       blockNumber,
-      gasLimit = 1000000n,
+      gasLimit = 10000000n,
     } = input;
 
     const ethClient = CHAIN_CONSTANTS[chainId].eth_client;
     try {
-      // Log during execution (before actual fetch)
-      context.log.info(
-        `[getTokenPrice] DURING EXECUTION: Calling fetchTokenPrice for ${tokenAddress} on chain ${chainId} at block ${blockNumber}`,
-      );
-
       const result = await fetchTokenPrice(
         tokenAddress,
         usdcAddress,
@@ -366,7 +366,7 @@ export const getTokenPriceData = createEffect(
     cache: true, // Combined price data can be cached
   },
   async ({ input, context }) => {
-    const { tokenAddress, blockNumber, chainId, gasLimit = 1000000n } = input;
+    const { tokenAddress, blockNumber, chainId, gasLimit = 10000000n } = input;
 
     try {
       // Get chain constants first (synchronous)
@@ -432,6 +432,14 @@ export const getTokenPriceData = createEffect(
           pricePerUSDNew = priceData.pricePerUSDNew;
         }
 
+        // If price is 0, it means no price path exists in the oracle
+        // This is different from an error - the call succeeded but returned 0
+        if (pricePerUSDNew === 0n) {
+          context.log.warn(
+            `[getTokenPriceData] Oracle returned 0 price for ${tokenAddress} on chain ${chainId} at block ${blockNumber}. This means no price path exists. The caller should use last known price if available.`,
+          );
+        }
+
         const result = {
           pricePerUSDNew,
           decimals: BigInt(tokenDetails.decimals),
@@ -443,10 +451,6 @@ export const getTokenPriceData = createEffect(
 
         return result;
       }
-
-      context.log.error(
-        `[getTokenPriceData] ORACLE_NOT_DEPLOYED for ${tokenAddress} on chain ${chainId} at block ${blockNumber}`,
-      );
 
       const result = {
         pricePerUSDNew: 0n,

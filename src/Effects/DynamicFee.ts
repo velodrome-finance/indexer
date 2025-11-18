@@ -52,9 +52,6 @@ export async function fetchCurrentAccumulatedFeeCL(
   logger: Envio_logger,
 ): Promise<{ token0Fees: bigint; token1Fees: bigint }> {
   try {
-    logger.info(
-      `[fetchCurrentAccumulatedFeeCL] Fetching accumulated gauge fees for pool ${poolAddress} on chain ${chainId} at block ${blockNumber}`,
-    );
     const CLPoolABI = require("../../abis/CLPool.json");
 
     const { result } = await ethClient.simulateContract({
@@ -71,7 +68,7 @@ export async function fetchCurrentAccumulatedFeeCL(
     };
 
     logger.info(
-      `[fetchCurrentAccumulatedFeeCL] Accumulated gauge fees fetched: token0Fees=${gaugeFees.token0Fees}, token1Fees=${gaugeFees.token1Fees}`,
+      `[fetchCurrentAccumulatedFeeCL] Accumulated gauge fees fetched: token0Fees=${gaugeFees.token0Fees}, token1Fees=${gaugeFees.token1Fees}, pool=${poolAddress} on chain ${chainId} at block ${blockNumber}`,
     );
     return gaugeFees;
   } catch (error) {

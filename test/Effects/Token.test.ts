@@ -2,7 +2,7 @@ import { expect } from "chai";
 import type { logger as Envio_logger } from "envio/src/Envio.gen";
 import sinon from "sinon";
 import type { PublicClient } from "viem";
-import { CHAIN_CONSTANTS } from "../../src/Constants";
+import { CHAIN_CONSTANTS, PriceOracleType } from "../../src/Constants";
 import {
   fetchTokenDetails,
   fetchTokenPrice,
@@ -39,7 +39,7 @@ describe("Token Effects", () => {
     (CHAIN_CONSTANTS as Record<number, unknown>)[10] = {
       eth_client: mockEthClient,
       oracle: {
-        getType: () => "V3",
+        getType: () => PriceOracleType.V3, // Returns "v3" (lowercase)
         getAddress: () => "0x1234567890123456789012345678901234567890",
         getPrice: sinon.stub(),
       },
@@ -265,7 +265,7 @@ describe("Token Effects", () => {
       (CHAIN_CONSTANTS as Record<number, unknown>)[10] = {
         eth_client: mockEthClient,
         oracle: {
-          getType: () => "V2",
+          getType: () => PriceOracleType.V2, // Returns "v2" (lowercase)
           getAddress: () => "0x1234567890123456789012345678901234567890",
           getPrice: sinon.stub(),
         },
@@ -326,6 +326,16 @@ describe("Token Effects", () => {
       const blockNumber = 12345;
       const gasLimit = 1000000n;
 
+      // Mock V2 oracle for this test
+      (CHAIN_CONSTANTS as Record<number, unknown>)[10] = {
+        eth_client: mockEthClient,
+        oracle: {
+          getType: () => PriceOracleType.V2, // Returns "v2" (lowercase)
+          getAddress: () => "0x1234567890123456789012345678901234567890",
+          getPrice: sinon.stub(),
+        },
+      };
+
       // Mock simulateContract to throw an error
       const mockSimulateContract =
         mockEthClient.simulateContract as sinon.SinonStub;
@@ -366,7 +376,7 @@ describe("Token Effects", () => {
       (CHAIN_CONSTANTS as Record<number, unknown>)[10] = {
         eth_client: mockEthClient,
         oracle: {
-          getType: () => "V2",
+          getType: () => PriceOracleType.V2, // Returns "v2" (lowercase)
           getAddress: () => "0x1234567890123456789012345678901234567890",
           getPrice: sinon.stub(),
         },
@@ -419,7 +429,7 @@ describe("Token Effects", () => {
       (CHAIN_CONSTANTS as Record<number, unknown>)[10] = {
         eth_client: mockEthClient,
         oracle: {
-          getType: () => "V2",
+          getType: () => PriceOracleType.V2, // Returns "v2" (lowercase)
           getAddress: () => "0x1234567890123456789012345678901234567890",
           getPrice: sinon.stub(),
         },
@@ -473,7 +483,7 @@ describe("Token Effects", () => {
       (CHAIN_CONSTANTS as Record<number, unknown>)[10] = {
         eth_client: mockEthClient,
         oracle: {
-          getType: () => "V2",
+          getType: () => PriceOracleType.V2, // Returns "v2" (lowercase)
           getAddress: () => "0x1234567890123456789012345678901234567890",
           getPrice: sinon.stub(),
         },
