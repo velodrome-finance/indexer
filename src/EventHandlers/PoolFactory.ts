@@ -17,33 +17,45 @@ PoolFactory.PoolCreated.handler(async ({ event, context }) => {
     context.Token.get(TokenIdByChain(event.params.token1, event.chainId)),
   ]);
 
-  // Early return during preload phase after loading data
-  if (context.isPreload) {
-    return;
-  }
-
   const poolTokenSymbols: string[] = [];
   const poolTokenAddressMappings: TokenEntityMapping[] = [
     { address: event.params.token0, tokenInstance: poolToken0 },
     { address: event.params.token1, tokenInstance: poolToken1 },
   ];
 
-  for (const poolTokenAddressMapping of poolTokenAddressMappings) {
-    if (poolTokenAddressMapping.tokenInstance === undefined) {
-      try {
-        poolTokenAddressMapping.tokenInstance = await createTokenEntity(
-          poolTokenAddressMapping.address,
-          event.chainId,
-          event.block.number,
-          context,
-        );
-        poolTokenSymbols.push(poolTokenAddressMapping.tokenInstance.symbol);
-      } catch (error) {
+  // Collect missing tokens and create them in parallel for better performance
+  const missingTokenMappings = poolTokenAddressMappings.filter(
+    (mapping) => mapping.tokenInstance === undefined,
+  );
+
+  if (missingTokenMappings.length > 0) {
+    const createTokenPromises = missingTokenMappings.map((mapping) =>
+      createTokenEntity(
+        mapping.address,
+        event.chainId,
+        event.block.number,
+        context,
+      ).catch((error) => {
         context.log.error(
-          `Error in pool factory fetching token details for ${poolTokenAddressMapping.address} on chain ${event.chainId}: ${error}`,
+          `Error in pool factory fetching token details for ${mapping.address} on chain ${event.chainId}: ${error}`,
         );
+        return null;
+      }),
+    );
+
+    const createdTokens = await Promise.all(createTokenPromises);
+
+    // Update mappings with created tokens
+    for (let i = 0; i < missingTokenMappings.length; i++) {
+      if (createdTokens[i]) {
+        missingTokenMappings[i].tokenInstance = createdTokens[i] ?? undefined;
       }
-    } else {
+    }
+  }
+
+  // Build symbol array
+  for (const poolTokenAddressMapping of poolTokenAddressMappings) {
+    if (poolTokenAddressMapping.tokenInstance) {
       poolTokenSymbols.push(poolTokenAddressMapping.tokenInstance.symbol);
     }
   }

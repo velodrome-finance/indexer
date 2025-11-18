@@ -119,7 +119,9 @@ describe("CLFactory Events", () => {
     });
 
     it("should call processCLFactoryPoolCreated with correct parameters", () => {
-      expect(processStub.calledOnce).to.be.true;
+      // The stub should have been called when the event was processed in beforeEach
+      expect(processStub.called).to.be.true;
+      expect(processStub.callCount).to.be.at.least(1);
       const callArgs = processStub.firstCall.args;
       expect(callArgs[0]).to.deep.equal(mockEvent);
       // Tokens should match (address and chainId)
@@ -143,7 +145,7 @@ describe("CLFactory Events", () => {
       expect(pool?.isCL).to.be.true;
     });
 
-    it("should return early during preload phase", async () => {
+    it("should process event even during preload phase", async () => {
       // Create a mock context that simulates preload
       const preloadMockDb = MockDb.createMockDb();
       const token0ForBase = {
@@ -171,22 +173,24 @@ describe("CLFactory Events", () => {
       // Reset stub to track calls
       processStub.resetHistory();
 
-      // Note: The actual preload check happens inside processCLFactoryPoolCreated
-      // This test verifies the handler structure
+      // Handlers now run during both preload and normal phases
       const result = await CLFactory.PoolCreated.processEvent({
         event: mockEvent,
         mockDb: preloadMockDb,
       });
 
-      // Should still call processCLFactoryPoolCreated (preload check is inside)
-      expect(processStub.calledOnce).to.be.true;
+      // Should call processCLFactoryPoolCreated (no preload check anymore)
+      // Handlers may run multiple times (preload + normal), so check if called at least once
+      expect(processStub.called).to.be.true;
+      expect(processStub.callCount).to.be.at.least(1);
     });
 
-    it("should load token0, token1, and CLGaugeConfig in parallel", async () => {
+    it("should load token0, token1, and CLGaugeConfig in parallel", () => {
       // Verify that the handler loads all three entities
       // This is tested implicitly by the fact that processCLFactoryPoolCreated is called
       // with the correct token instances
-      expect(processStub.calledOnce).to.be.true;
+      expect(processStub.called).to.be.true;
+      expect(processStub.callCount).to.be.at.least(1);
       const callArgs = processStub.firstCall.args;
       expect(callArgs[1]).to.not.be.undefined; // token0
       expect(callArgs[2]).to.not.be.undefined; // token1

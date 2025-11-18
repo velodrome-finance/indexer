@@ -9,10 +9,11 @@ import {
   loadPoolData,
 } from "../../Aggregators/LiquidityPoolAggregator";
 import { loadUserData } from "../../Aggregators/UserStatsPerPool";
-import { toChecksumAddress } from "../../Constants";
-import { getTokenPriceData } from "../../Effects/Index";
+import { TokenIdByChain, toChecksumAddress } from "../../Constants";
+import { getTokenDetails, getTokenPriceData } from "../../Effects/Token";
 import { normalizeTokenAmountTo1e18 } from "../../Helpers";
 import { multiplyBase1e18 } from "../../Maths";
+import { refreshTokenPrice } from "../../PriceOracle";
 
 export interface VotingRewardEventData {
   votingRewardAddress: string;
@@ -107,21 +108,64 @@ export async function processVotingRewardClaimRewards(
   context: handlerContext,
   field: PoolAddressField,
 ): Promise<VotingRewardClaimRewardsResult> {
-  // Get reward token data and convert amount to USD
-  const rewardTokenData = await context.effect(getTokenPriceData, {
-    tokenAddress: data.reward,
-    blockNumber: data.blockNumber,
-    chainId: data.chainId,
-  });
+  // Get reward token and refresh price (refreshTokenPrice handles the update internally)
+  const rewardTokenId = TokenIdByChain(data.reward, data.chainId);
+  let rewardToken = await context.Token.get(rewardTokenId);
+
+  if (!rewardToken) {
+    context.log.warn(
+      `[processVotingRewardClaimRewards] Reward token not found for ${data.reward} on chain ${data.chainId}`,
+    );
+
+    context.log.warn(
+      "[processVotingRewardClaimRewards] Using getTokenPriceData effect to get token data and then creating Token entity",
+    );
+
+    const [rewardTokenPriceData, rewardTokenDetails] = await Promise.all([
+      context.effect(getTokenPriceData, {
+        tokenAddress: data.reward,
+        blockNumber: data.blockNumber,
+        chainId: data.chainId,
+      }),
+      context.effect(getTokenDetails, {
+        contractAddress: data.reward,
+        chainId: data.chainId,
+      }),
+    ]);
+
+    const newToken = {
+      id: TokenIdByChain(data.reward, data.chainId),
+      address: data.reward,
+      name: rewardTokenDetails.name,
+      symbol: rewardTokenDetails.symbol,
+      chainId: data.chainId,
+      decimals: BigInt(rewardTokenDetails.decimals),
+      pricePerUSDNew: rewardTokenPriceData.pricePerUSDNew,
+      lastUpdatedTimestamp: new Date(data.timestamp * 1000),
+      isWhitelisted: true,
+    };
+
+    context.Token.set(newToken);
+    rewardToken = newToken;
+  }
+
+  const updatedRewardToken = await refreshTokenPrice(
+    rewardToken,
+    data.blockNumber,
+    data.timestamp,
+    data.chainId,
+    context,
+    1000000n,
+  );
 
   // Convert reward amount to USD
   const normalizedRewardAmount = normalizeTokenAmountTo1e18(
     data.amount,
-    Number(rewardTokenData.decimals),
+    Number(updatedRewardToken.decimals),
   );
   const rewardAmountUSD = multiplyBase1e18(
     normalizedRewardAmount,
-    rewardTokenData.pricePerUSDNew,
+    updatedRewardToken.pricePerUSDNew,
   );
 
   // Determine if this is a bribe or fee reward

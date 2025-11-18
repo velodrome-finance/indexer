@@ -37,10 +37,6 @@ ALMLPWrapper.Deposit.handler(async ({ event, context }) => {
     timestamp,
   );
 
-  if (context.isPreload) {
-    return;
-  }
-
   const ALMLPWrapperDiff = {
     amount0,
     amount1,
@@ -97,10 +93,6 @@ ALMLPWrapper.Withdraw.handler(async ({ event, context }) => {
     context,
     timestamp,
   );
-
-  if (context.isPreload) {
-    return;
-  }
 
   const ALMLPWrapperDiff = {
     amount0: -amount0,
@@ -175,10 +167,6 @@ ALMLPWrapper.Transfer.handler(async ({ event, context }) => {
       timestamp,
     ),
   ]);
-
-  if (context.isPreload) {
-    return;
-  }
 
   const UserStatsFromDiff = {
     almLpAmount: -value,

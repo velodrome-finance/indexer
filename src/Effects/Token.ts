@@ -3,7 +3,11 @@ import type { logger as Envio_logger } from "envio/src/Envio.gen";
 import type { PublicClient } from "viem";
 import SpotPriceAggregatorABI from "../../abis/SpotPriceAggregator.json";
 import PriceOracleABI from "../../abis/VeloPriceOracleABI.json";
-import { CHAIN_CONSTANTS, PriceOracleType } from "../Constants";
+import {
+  CHAIN_CONSTANTS,
+  EFFECT_RATE_LIMITS,
+  PriceOracleType,
+} from "../Constants";
 import { ErrorType, getErrorType, sleep } from "./Helpers";
 
 // ERC20 Contract ABI
@@ -230,7 +234,7 @@ export const getTokenDetails = createEffect(
       symbol: S.string,
     },
     rateLimit: {
-      calls: 20,
+      calls: EFFECT_RATE_LIMITS.TOKEN_EFFECTS,
       per: "second",
     },
     cache: true, // Token details rarely change, perfect for caching
@@ -284,7 +288,7 @@ export const getTokenPrice = createEffect(
       priceOracleType: S.string,
     },
     rateLimit: {
-      calls: 10,
+      calls: EFFECT_RATE_LIMITS.TOKEN_EFFECTS,
       per: "second",
     },
     cache: true, // Price data can be cached for the update interval
@@ -303,7 +307,12 @@ export const getTokenPrice = createEffect(
 
     const ethClient = CHAIN_CONSTANTS[chainId].eth_client;
     try {
-      return await fetchTokenPrice(
+      // Log during execution (before actual fetch)
+      context.log.info(
+        `[getTokenPrice] DURING EXECUTION: Calling fetchTokenPrice for ${tokenAddress} on chain ${chainId} at block ${blockNumber}`,
+      );
+
+      const result = await fetchTokenPrice(
         tokenAddress,
         usdcAddress,
         systemTokenAddress,
@@ -315,6 +324,8 @@ export const getTokenPrice = createEffect(
         context.log,
         gasLimit,
       );
+
+      return result;
     } catch (error) {
       // Don't cache failed response
       context.cache = false;
@@ -349,7 +360,7 @@ export const getTokenPriceData = createEffect(
       decimals: S.bigint,
     },
     rateLimit: {
-      calls: 10,
+      calls: EFFECT_RATE_LIMITS.TOKEN_EFFECTS,
       per: "second",
     },
     cache: true, // Combined price data can be cached
@@ -358,30 +369,35 @@ export const getTokenPriceData = createEffect(
     const { tokenAddress, blockNumber, chainId, gasLimit = 1000000n } = input;
 
     try {
-      // Get token details first
-      const tokenDetails = await context.effect(getTokenDetails, {
-        contractAddress: tokenAddress,
-        chainId,
-      });
-
+      // Get chain constants first (synchronous)
       const WETH_ADDRESS = CHAIN_CONSTANTS[chainId].weth;
       const USDC_ADDRESS = CHAIN_CONSTANTS[chainId].usdc;
       const SYSTEM_TOKEN_ADDRESS =
         CHAIN_CONSTANTS[chainId].rewardToken(blockNumber);
 
-      // Get USDC token details
-      const USDTokenDetails = await context.effect(getTokenDetails, {
-        contractAddress: USDC_ADDRESS,
-        chainId,
-      });
-
-      // If it's USDC, return 1:1 price
+      // If it's USDC, only fetch token details and return early
       if (tokenAddress === USDC_ADDRESS) {
-        return {
+        const tokenDetails = await context.effect(getTokenDetails, {
+          contractAddress: tokenAddress,
+          chainId,
+        });
+        const result = {
           pricePerUSDNew: 10n ** 18n, // TEN_TO_THE_18_BI
           decimals: BigInt(tokenDetails.decimals),
         };
       }
+
+      // For non-USDC tokens, fetch both token details in parallel for better performance
+      const [tokenDetails, USDTokenDetails] = await Promise.all([
+        context.effect(getTokenDetails, {
+          contractAddress: tokenAddress,
+          chainId,
+        }),
+        context.effect(getTokenDetails, {
+          contractAddress: USDC_ADDRESS,
+          chainId,
+        }),
+      ]);
 
       const connectors = CHAIN_CONSTANTS[chainId].oracle.priceConnectors
         .filter((connector) => connector.createdBlock <= blockNumber)
@@ -416,16 +432,32 @@ export const getTokenPriceData = createEffect(
           pricePerUSDNew = priceData.pricePerUSDNew;
         }
 
-        return {
+        const result = {
           pricePerUSDNew,
           decimals: BigInt(tokenDetails.decimals),
         };
+
+        context.log.info(
+          `[getTokenPriceData] Successfully fetched price data for ${tokenAddress} on chain ${chainId} at block ${blockNumber}. Price: ${result.pricePerUSDNew}, Decimals: ${result.decimals}. Oracle type: ${priceData.priceOracleType}`,
+        );
+
+        return result;
       }
 
-      return {
+      context.log.error(
+        `[getTokenPriceData] ORACLE_NOT_DEPLOYED for ${tokenAddress} on chain ${chainId} at block ${blockNumber}`,
+      );
+
+      const result = {
         pricePerUSDNew: 0n,
         decimals: BigInt(tokenDetails.decimals),
       };
+
+      context.log.info(
+        `[getTokenPriceData] Oracle not deployed, returning zero price for ${tokenAddress} on chain ${chainId} at block ${blockNumber}`,
+      );
+
+      return result;
     } catch (error) {
       // Don't cache failed response
       context.cache = false;

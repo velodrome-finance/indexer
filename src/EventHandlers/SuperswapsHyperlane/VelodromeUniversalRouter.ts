@@ -59,11 +59,6 @@ VelodromeUniversalRouter.CrossChainSwap.handler(async ({ event, context }) => {
   );
   const processIdResults = await Promise.all(processIdPromises);
 
-  // Early return during preload phase after loading data
-  if (context.isPreload) {
-    return;
-  }
-
   await processCrossChainSwap(
     sourceChainMessageIdEntities,
     processIdResults,
