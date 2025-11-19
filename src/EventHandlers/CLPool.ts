@@ -323,7 +323,7 @@ CLPool.Mint.handler(async ({ event, context }) => {
 
   // Create NonFungiblePosition entity
   context.NonFungiblePosition.set({
-    id: "0_0", // To be edited in NFPM.ts module
+    id: `${event.chainId}_0`, // Placeholder ID - to be updated by NFPM.Transfer with actual tokenId
     chainId: event.chainId,
     tokenId: 0n, // To be edited in NFPM.ts module
     owner: event.params.owner,

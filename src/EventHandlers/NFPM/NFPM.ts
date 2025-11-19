@@ -22,8 +22,33 @@ const NonFungiblePositionId = (chainId: number, tokenId: bigint) =>
 NFPM.Transfer.handler(async ({ event, context }) => {
   const positionId = NonFungiblePositionId(event.chainId, event.params.tokenId);
 
-  // Get current position
-  const position = await context.NonFungiblePosition.get(positionId);
+  // Get current position by actual tokenId
+  let position = await context.NonFungiblePosition.get(positionId);
+
+  // If not found, this might be a mint event - look for placeholder position in same transaction
+  if (
+    !position &&
+    event.params.from === "0x0000000000000000000000000000000000000000"
+  ) {
+    const positions =
+      await context.NonFungiblePosition.getWhere.transactionHash.eq(
+        event.transaction.hash,
+      );
+
+    // Find position with placeholder tokenId (0n) that hasn't been updated yet
+    const placeholderPosition = positions?.find(
+      (pos) => pos.tokenId === 0n && pos.id === `${event.chainId}_0`,
+    );
+
+    if (placeholderPosition) {
+      // Use placeholder position data but with correct ID and tokenId
+      position = {
+        ...placeholderPosition,
+        id: positionId,
+        tokenId: event.params.tokenId,
+      };
+    }
+  }
 
   if (!position) {
     context.log.error(
@@ -122,7 +147,32 @@ NFPM.IncreaseLiquidity.handler(async ({ event, context }) => {
 NFPM.DecreaseLiquidity.handler(async ({ event, context }) => {
   const positionId = NonFungiblePositionId(event.chainId, event.params.tokenId);
 
-  const position = await context.NonFungiblePosition.get(positionId);
+  // Try to get position by actual tokenId
+  let position = await context.NonFungiblePosition.get(positionId);
+
+  // If not found, try to find by transaction hash (in case Transfer hasn't updated it yet)
+  // This can happen if events are processed out of order or if Transfer event was missed
+  if (!position) {
+    const positions =
+      await context.NonFungiblePosition.getWhere.transactionHash.eq(
+        event.transaction.hash,
+      );
+
+    // Look for placeholder position that hasn't been updated by Transfer yet
+    const placeholderPosition = positions?.find(
+      (pos) => pos.tokenId === 0n && pos.id === `${event.chainId}_0`,
+    );
+
+    if (placeholderPosition) {
+      // This is a placeholder position that hasn't been updated by Transfer yet
+      // Create new position with correct ID (placeholder will remain but won't be queried)
+      position = {
+        ...placeholderPosition,
+        id: positionId,
+        tokenId: event.params.tokenId,
+      };
+    }
+  }
 
   if (!position) {
     context.log.error(

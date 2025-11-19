@@ -52,14 +52,16 @@ describe("CLPool Mint Event Handler", () => {
     });
 
     // Verify that NonFungiblePosition entity was created
-    const createdPosition = result.entities.NonFungiblePosition.get("0_0");
+    const placeholderId = `${chainId}_0`;
+    const createdPosition =
+      result.entities.NonFungiblePosition.get(placeholderId);
     expect(createdPosition).to.not.be.undefined;
     expect(createdPosition).to.exist;
 
     if (!createdPosition) return; // Type guard
 
     // Verify placeholder values (to be updated by NFPM.Transfer)
-    expect(createdPosition.id).to.equal("0_0");
+    expect(createdPosition.id).to.equal(placeholderId);
     expect(createdPosition.tokenId).to.equal(0n);
 
     // Verify correct fields from event
@@ -122,7 +124,9 @@ describe("CLPool Mint Event Handler", () => {
       mockDb,
     });
 
-    const createdPosition = result.entities.NonFungiblePosition.get("0_0");
+    const placeholderId = `${chainId}_0`;
+    const createdPosition =
+      result.entities.NonFungiblePosition.get(placeholderId);
     expect(createdPosition).to.exist;
     if (!createdPosition) return;
 
@@ -160,7 +164,9 @@ describe("CLPool Mint Event Handler", () => {
       mockDb,
     });
 
-    const createdPosition = result.entities.NonFungiblePosition.get("0_0");
+    const placeholderId = `${chainId}_0`;
+    const createdPosition =
+      result.entities.NonFungiblePosition.get(placeholderId);
     expect(createdPosition).to.exist;
     if (!createdPosition) return;
 
