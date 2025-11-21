@@ -322,10 +322,13 @@ CLPool.Mint.handler(async ({ event, context }) => {
   );
 
   // Create NonFungiblePosition entity
+  // Use transaction hash and logIndex to make placeholder ID unique per event
+  // Format: ${chainId}_${fullTxHash}_${logIndex} (without 0x prefix)
+  const placeholderId = `${event.chainId}_${event.transaction.hash.slice(2)}_${event.logIndex}`;
   context.NonFungiblePosition.set({
-    id: `${event.chainId}_0`, // Placeholder ID - to be updated by NFPM.Transfer with actual tokenId
+    id: placeholderId, // Placeholder ID - to be updated by NFPM.Transfer with actual tokenId
     chainId: event.chainId,
-    tokenId: 0n, // To be edited in NFPM.ts module
+    tokenId: BigInt(event.logIndex), // To be edited in NFPM.ts module
     owner: event.params.owner,
     pool: event.srcAddress,
     tickUpper: event.params.tickUpper,
@@ -335,7 +338,7 @@ CLPool.Mint.handler(async ({ event, context }) => {
     amount0: event.params.amount0,
     amount1: event.params.amount1,
     amountUSD: result.userLiquidityDiff.netLiquidityAddedUSD,
-    transactionHash: event.transaction.hash,
+    mintTransactionHash: event.transaction.hash,
     lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
   });
 });

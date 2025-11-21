@@ -51,7 +51,7 @@ describe("ALMDeployFactory StrategyCreated Event", () => {
         amount0: 500n * 10n ** 18n,
         amount1: 250n * 10n ** 6n,
         amountUSD: 750n * 10n ** 18n,
-        transactionHash,
+        mintTransactionHash: transactionHash,
         lastUpdatedTimestamp: new Date(blockTimestamp * 1000),
       };
 
@@ -68,10 +68,10 @@ describe("ALMDeployFactory StrategyCreated Event", () => {
           NonFungiblePosition: {
             ...mockDb.entities.NonFungiblePosition,
             getWhere: {
-              transactionHash: {
+              mintTransactionHash: {
                 eq: async (txHash: string) => {
                   return storedNFPMs.filter(
-                    (entity) => entity.transactionHash === txHash,
+                    (entity) => entity.mintTransactionHash === txHash,
                   );
                 },
               },
@@ -171,7 +171,7 @@ describe("ALMDeployFactory StrategyCreated Event", () => {
           NonFungiblePosition: {
             ...mockDb.entities.NonFungiblePosition,
             getWhere: {
-              transactionHash: {
+              mintTransactionHash: {
                 eq: async (_txHash: string) => {
                   return []; // No entities found
                 },

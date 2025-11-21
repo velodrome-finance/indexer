@@ -31,13 +31,31 @@ NFPM.Transfer.handler(async ({ event, context }) => {
     event.params.from === "0x0000000000000000000000000000000000000000"
   ) {
     const positions =
-      await context.NonFungiblePosition.getWhere.transactionHash.eq(
+      await context.NonFungiblePosition.getWhere.mintTransactionHash.eq(
         event.transaction.hash,
       );
 
-    // Find position with placeholder tokenId (0n) that hasn't been updated yet
-    const placeholderPosition = positions?.find(
-      (pos) => pos.tokenId === 0n && pos.id === `${event.chainId}_0`,
+    // Find position with placeholder tokenId that hasn't been updated yet
+    // Placeholder ID format: ${chainId}_${txHash}_${logIndex}
+    // Placeholder tokenId is set to CLPool.Mint logIndex (BigInt(event.logIndex))
+    // Transfer event always comes after mint event, so we match by comparing logIndex values
+    // Since placeholder.tokenId = CLPool.Mint logIndex, and CLPool.Mint comes before NFPM.Transfer,
+    // we look for the placeholder with the highest tokenId (logIndex) that is still < Transfer logIndex
+    const placeholderIdPrefix = `${event.chainId}_${event.transaction.hash.slice(2)}_`;
+    const matchingPlaceholders = positions?.filter(
+      (pos) =>
+        pos.id.startsWith(placeholderIdPrefix) &&
+        pos.tokenId < BigInt(event.logIndex), // CLPool.Mint must come before NFPM.Transfer
+    );
+
+    // If multiple placeholders match, take the one with the highest tokenId (closest to Transfer logIndex)
+    // This handles the case where there are multiple mints in the same transaction
+    const placeholderPosition = matchingPlaceholders?.reduce(
+      (prev, current) => {
+        if (!prev) return current;
+        return current.tokenId > prev.tokenId ? current : prev;
+      },
+      undefined as (typeof matchingPlaceholders)[0] | undefined,
     );
 
     if (placeholderPosition) {
@@ -89,7 +107,7 @@ NFPM.IncreaseLiquidity.handler(async ({ event, context }) => {
 
   // Start filtering by fetching NonFungiblePosition entity created in the same transaction hash
   const positions =
-    await context.NonFungiblePosition.getWhere.transactionHash.eq(
+    await context.NonFungiblePosition.getWhere.mintTransactionHash.eq(
       event.transaction.hash,
     );
 
@@ -147,33 +165,11 @@ NFPM.IncreaseLiquidity.handler(async ({ event, context }) => {
 NFPM.DecreaseLiquidity.handler(async ({ event, context }) => {
   const positionId = NonFungiblePositionId(event.chainId, event.params.tokenId);
 
-  // Try to get position by actual tokenId
-  let position = await context.NonFungiblePosition.get(positionId);
+  // Get position by actual tokenId
+  // Transfer should have already run and updated the placeholder, so position should exist when a DecreaseLiquidity event is processed
+  const position = await context.NonFungiblePosition.get(positionId);
 
-  // If not found, try to find by transaction hash (in case Transfer hasn't updated it yet)
-  // This can happen if events are processed out of order or if Transfer event was missed
-  if (!position) {
-    const positions =
-      await context.NonFungiblePosition.getWhere.transactionHash.eq(
-        event.transaction.hash,
-      );
-
-    // Look for placeholder position that hasn't been updated by Transfer yet
-    const placeholderPosition = positions?.find(
-      (pos) => pos.tokenId === 0n && pos.id === `${event.chainId}_0`,
-    );
-
-    if (placeholderPosition) {
-      // This is a placeholder position that hasn't been updated by Transfer yet
-      // Create new position with correct ID (placeholder will remain but won't be queried)
-      position = {
-        ...placeholderPosition,
-        id: positionId,
-        tokenId: event.params.tokenId,
-      };
-    }
-  }
-
+  // This should never happen
   if (!position) {
     context.log.error(
       `NonFungiblePosition ${positionId} not found during decrease liquidity on chain ${event.chainId}`,

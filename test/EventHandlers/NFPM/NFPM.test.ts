@@ -33,7 +33,7 @@ describe("NFPM Events", () => {
     amount0: 500000000000000000n, // Matches IncreaseLiquidity event amount0
     amount1: 1000000000000000000n, // Matches IncreaseLiquidity event amount1
     amountUSD: 2500000000000000000n, // (0.5 * 1) + (1 * 2) = 2.5
-    transactionHash: transactionHash,
+    mintTransactionHash: transactionHash,
     lastUpdatedTimestamp: new Date(),
   };
 
@@ -120,10 +120,16 @@ describe("NFPM Events", () => {
 
     it("should find and update placeholder position created by CLPool.Mint (integration test)", async () => {
       // Simulate the real flow: CLPool.Mint creates a placeholder position
+      // Placeholder ID format: ${chainId}_${txHash}_${logIndex} (without 0x prefix)
+      // Placeholder tokenId is set to CLPool.Mint logIndex
+      // In this test, CLPool.Mint has logIndex 0, Transfer has logIndex 2
+      const mintLogIndex = 0;
+      const transferLogIndex = 2;
+      const placeholderId = `${chainId}_${transactionHash.slice(2)}_${mintLogIndex}`;
       const placeholderPosition = {
-        id: `${chainId}_0`, // Placeholder ID from CLPool.Mint (format: ${chainId}_0)
+        id: placeholderId,
         chainId: chainId,
-        tokenId: 0n, // Placeholder tokenId
+        tokenId: BigInt(mintLogIndex), // Placeholder tokenId = CLPool.Mint logIndex
         owner: "0x1111111111111111111111111111111111111111",
         pool: "0xPoolAddress0000000000000000000000",
         tickUpper: 100n,
@@ -133,7 +139,7 @@ describe("NFPM Events", () => {
         amount0: 500000000000000000n,
         amount1: 1000000000000000000n,
         amountUSD: 2500000000000000000n,
-        transactionHash: transactionHash,
+        mintTransactionHash: transactionHash,
         lastUpdatedTimestamp: new Date(),
       };
 
@@ -146,7 +152,7 @@ describe("NFPM Events", () => {
       const dbWithTokens = dbWithPosition.entities.Token.set(mockToken0);
       const finalDb = dbWithTokens.entities.Token.set(mockToken1);
 
-      // Setup getWhere for transactionHash lookup
+      // Setup getWhere for mintTransactionHash lookup
       const storedPositions = [placeholderPosition];
       const mockDbWithGetWhere = {
         ...finalDb,
@@ -155,10 +161,10 @@ describe("NFPM Events", () => {
           NonFungiblePosition: {
             ...finalDb.entities.NonFungiblePosition,
             getWhere: {
-              transactionHash: {
+              mintTransactionHash: {
                 eq: async (txHash: string) => {
                   return storedPositions.filter(
-                    (entity) => entity.transactionHash === txHash,
+                    (entity) => entity.mintTransactionHash === txHash,
                   );
                 },
               },
@@ -168,6 +174,7 @@ describe("NFPM Events", () => {
       } as typeof finalDb;
 
       // Create Transfer event for mint (from = zero address)
+      // Transfer logIndex must be > mint logIndex for matching logic
       const mintTransferEvent = NFPM.Transfer.createMockEvent({
         from: "0x0000000000000000000000000000000000000000", // Mint event
         to: "0x2222222222222222222222222222222222222222",
@@ -179,7 +186,7 @@ describe("NFPM Events", () => {
             hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
           },
           chainId: 10,
-          logIndex: 1,
+          logIndex: transferLogIndex,
           srcAddress: "0x3333333333333333333333333333333333333333",
           transaction: {
             hash: transactionHash,
@@ -247,11 +254,11 @@ describe("NFPM Events", () => {
           NonFungiblePosition: {
             ...mockDb.entities.NonFungiblePosition,
             getWhere: {
-              transactionHash: {
+              mintTransactionHash: {
                 eq: async (txHash: string) => {
-                  // Find all entities with matching transactionHash
+                  // Find all entities with matching mintTransactionHash
                   return storedPositions.filter(
-                    (entity) => entity.transactionHash === txHash,
+                    (entity) => entity.mintTransactionHash === txHash,
                   );
                 },
               },
@@ -304,10 +311,10 @@ describe("NFPM Events", () => {
           NonFungiblePosition: {
             ...mockDb.entities.NonFungiblePosition,
             getWhere: {
-              transactionHash: {
+              mintTransactionHash: {
                 eq: async (txHash: string) => {
                   return storedPositions.filter(
-                    (entity) => entity.transactionHash === txHash,
+                    (entity) => entity.mintTransactionHash === txHash,
                   );
                 },
               },
@@ -344,7 +351,7 @@ describe("NFPM Events", () => {
           NonFungiblePosition: {
             ...finalDb.entities.NonFungiblePosition,
             getWhere: {
-              transactionHash: {
+              mintTransactionHash: {
                 eq: async () => [], // No positions found
               },
             },
@@ -389,10 +396,10 @@ describe("NFPM Events", () => {
           NonFungiblePosition: {
             ...finalDb.entities.NonFungiblePosition,
             getWhere: {
-              transactionHash: {
+              mintTransactionHash: {
                 eq: async (txHash: string) => {
                   return storedPositions.filter(
-                    (entity) => entity.transactionHash === txHash,
+                    (entity) => entity.mintTransactionHash === txHash,
                   );
                 },
               },
@@ -467,56 +474,14 @@ describe("NFPM Events", () => {
       expect(updatedEntity.amountUSD).to.equal(1200000000000000000n);
     });
 
-    it("should find placeholder position if Transfer hasn't run yet (integration test)", async () => {
-      // Simulate scenario where DecreaseLiquidity runs before Transfer
-      const placeholderPosition = {
-        id: `${chainId}_0`, // Placeholder ID from CLPool.Mint (format: ${chainId}_0)
-        chainId: chainId,
-        tokenId: 0n, // Placeholder tokenId
-        owner: "0x1111111111111111111111111111111111111111",
-        pool: "0xPoolAddress0000000000000000000000",
-        tickUpper: 100n,
-        tickLower: -100n,
-        token0: token0Address,
-        token1: token1Address,
-        amount0: 500000000000000000n,
-        amount1: 1000000000000000000n,
-        amountUSD: 2500000000000000000n,
-        transactionHash: transactionHash,
-        lastUpdatedTimestamp: new Date(),
-      };
-
-      // Setup mockDb with placeholder position
-      const mockDbWithPlaceholder = MockDb.createMockDb();
-      const dbWithPosition =
-        mockDbWithPlaceholder.entities.NonFungiblePosition.set(
-          placeholderPosition,
-        );
-      const dbWithTokens = dbWithPosition.entities.Token.set(mockToken0);
+    it("should log error and return when position not found (Transfer should have run first)", async () => {
+      // Simulate scenario where position doesn't exist
+      // This should never happen in normal flow since Transfer should have already updated the placeholder
+      const mockDb = MockDb.createMockDb();
+      const dbWithTokens = mockDb.entities.Token.set(mockToken0);
       const finalDb = dbWithTokens.entities.Token.set(mockToken1);
 
-      // Setup getWhere for transactionHash lookup
-      const storedPositions = [placeholderPosition];
-      const mockDbWithGetWhere = {
-        ...finalDb,
-        entities: {
-          ...finalDb.entities,
-          NonFungiblePosition: {
-            ...finalDb.entities.NonFungiblePosition,
-            getWhere: {
-              transactionHash: {
-                eq: async (txHash: string) => {
-                  return storedPositions.filter(
-                    (entity) => entity.transactionHash === txHash,
-                  );
-                },
-              },
-            },
-          },
-        },
-      } as typeof finalDb;
-
-      // Create DecreaseLiquidity event
+      // Create DecreaseLiquidity event for non-existent position
       const decreaseEvent = NFPM.DecreaseLiquidity.createMockEvent({
         tokenId: tokenId,
         liquidity: 1000n,
@@ -539,23 +504,14 @@ describe("NFPM Events", () => {
 
       const result = await NFPM.DecreaseLiquidity.processEvent({
         event: decreaseEvent,
-        mockDb: mockDbWithGetWhere,
+        mockDb: finalDb,
       });
 
-      // Should create new position with correct ID and decreased amounts
+      // Should not create any position
       const updatedEntity = result.entities.NonFungiblePosition.get(
         NonFungiblePositionId(chainId, tokenId),
       );
-      expect(updatedEntity).to.exist;
-      if (!updatedEntity) return;
-
-      // Verify it was migrated from placeholder and amounts decreased
-      expect(updatedEntity.id).to.equal(
-        NonFungiblePositionId(chainId, tokenId),
-      );
-      expect(updatedEntity.tokenId).to.equal(tokenId);
-      expect(updatedEntity.amount0).to.equal(200000000000000000n); // 0.5e18 - 0.3e18
-      expect(updatedEntity.amount1).to.equal(500000000000000000n); // 1e18 - 0.5e18
+      expect(updatedEntity).to.be.undefined;
     });
 
     it("should log error and return when position is not found", async () => {
@@ -573,7 +529,7 @@ describe("NFPM Events", () => {
             ...finalDb.entities.NonFungiblePosition,
             get: async () => undefined,
             getWhere: {
-              transactionHash: {
+              mintTransactionHash: {
                 eq: async () => [], // No positions found
               },
             },

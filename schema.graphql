@@ -237,7 +237,7 @@ type NonFungiblePosition {
   amount0: BigInt! @config(precision: 76) # Current amount of token0 in position
   amount1: BigInt! @config(precision: 76) # Current amount of token1 in position
   amountUSD: BigInt! @config(precision: 76) # Current USD value of position (amount0 + amount1 in USD)
-  transactionHash: String! @index # Transaction hash of the NFT mint transaction
+  mintTransactionHash: String! @index # Transaction hash of the NFT mint transaction
   lastUpdatedTimestamp: Timestamp! # Timestamp of last update
 }
 
