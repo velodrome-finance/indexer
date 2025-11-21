@@ -28,7 +28,7 @@ ALMDeployFactory.StrategyCreated.handler(async ({ event, context }) => {
 
   // Fetching tokenId from NonFungiblePosition entity created by CL Pool event handlers
   const nonFungiblePositions =
-    await context.NonFungiblePosition.getWhere.transactionHash.eq(
+    await context.NonFungiblePosition.getWhere.mintTransactionHash.eq(
       event.transaction.hash,
     );
   if (!nonFungiblePositions || nonFungiblePositions.length === 0) {

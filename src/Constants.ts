@@ -30,9 +30,9 @@ export const SECONDS_IN_A_WEEK = BigInt(604800);
 
 // Effect rate limit constants (calls per second)
 export const EFFECT_RATE_LIMITS = {
-  TOKEN_EFFECTS: 4000, // Token details and price fetching effects
-  VOTER_EFFECTS: 4000, // Voter-related effects
-  DYNAMIC_FEE_EFFECTS: 4000, // Dynamic fee effects
+  TOKEN_EFFECTS: 5000, // Token details and price fetching effects
+  VOTER_EFFECTS: 5000, // Voter-related effects
+  DYNAMIC_FEE_EFFECTS: 5000, // Dynamic fee effects
 } as const;
 
 export const OUSDT_ADDRESS = "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189";
@@ -141,8 +141,6 @@ const OPTIMISM_CONSTANTS: chainConstants = {
     transport: http(
       process.env.ENVIO_OPTIMISM_RPC_URL || "https://mainnet.optimism.io",
       {
-        retryCount: 10,
-        retryDelay: 1000,
         batch: true,
       },
     ),
@@ -185,8 +183,6 @@ const BASE_CONSTANTS: chainConstants = {
     transport: http(
       process.env.ENVIO_BASE_RPC_URL || "https://base-rpc.publicnode.com",
       {
-        retryCount: 10,
-        retryDelay: 1000,
         batch: true,
       },
     ),
@@ -224,8 +220,6 @@ const LISK_CONSTANTS: chainConstants = {
   eth_client: createPublicClient({
     chain: lisk satisfies Chain as Chain,
     transport: http(process.env.ENVIO_LISK_RPC_URL || "https://lisk.drpc.org", {
-      retryCount: 10,
-      retryDelay: 1000,
       batch: true,
     }),
   }),
@@ -262,8 +256,6 @@ const MODE_CONSTANTS: chainConstants = {
   eth_client: createPublicClient({
     chain: mode satisfies Chain as Chain,
     transport: http(process.env.ENVIO_MODE_RPC_URL || "https://1rpc.io/mode", {
-      retryCount: 10,
-      retryDelay: 1000,
       batch: true,
     }),
   }),
@@ -290,8 +282,6 @@ const CELO_CONSTANTS: chainConstants = {
   eth_client: createPublicClient({
     chain: celo satisfies Chain as Chain,
     transport: http(process.env.ENVIO_CELO_RPC_URL || "https://celo.drpc.org", {
-      retryCount: 10,
-      retryDelay: 1000,
       batch: true,
     }),
   }),
@@ -320,8 +310,6 @@ const SONEIUM_CONSTANTS: chainConstants = {
     transport: http(
       process.env.ENVIO_SONEIUM_RPC_URL || "https://soneium.drpc.org",
       {
-        retryCount: 10,
-        retryDelay: 1000,
         batch: true,
       },
     ),
@@ -351,8 +339,6 @@ const UNICHAIN_CONSTANTS: chainConstants = {
     transport: http(
       process.env.ENVIO_UNICHAIN_RPC_URL || "https://0xrpc.io/uni",
       {
-        retryCount: 10,
-        retryDelay: 1000,
         batch: true,
       },
     ),
@@ -392,8 +378,6 @@ const FRAXTAL_CONSTANTS: chainConstants = {
     transport: http(
       process.env.ENVIO_FRAXTAL_RPC_URL || "https://fraxtal.drpc.org",
       {
-        retryCount: 10,
-        retryDelay: 1000,
         batch: true,
       },
     ),
@@ -421,8 +405,6 @@ const INK_CONSTANTS: chainConstants = {
   eth_client: createPublicClient({
     chain: ink satisfies Chain as Chain,
     transport: http(process.env.ENVIO_INK_RPC_URL || "https://ink.drpc.org", {
-      retryCount: 10,
-      retryDelay: 1000,
       batch: true,
     }),
   }),
@@ -451,8 +433,6 @@ const METAL_CONSTANTS: chainConstants = {
     transport: http(
       process.env.ENVIO_METAL_RPC_URL || "https://metall2.drpc.org",
       {
-        retryCount: 10,
-        retryDelay: 1000,
         batch: true,
       },
     ),
@@ -482,8 +462,6 @@ const SWELL_CONSTANTS: chainConstants = {
     transport: http(
       process.env.ENVIO_SWELL_RPC_URL || "https://rpc.ankr.com/swell",
       {
-        retryCount: 10,
-        retryDelay: 1000,
         batch: true,
       },
     ),

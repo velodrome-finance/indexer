@@ -33,7 +33,7 @@ describe("NFPM Events", () => {
     amount0: 500000000000000000n, // Matches IncreaseLiquidity event amount0
     amount1: 1000000000000000000n, // Matches IncreaseLiquidity event amount1
     amountUSD: 2500000000000000000n, // (0.5 * 1) + (1 * 2) = 2.5
-    transactionHash: transactionHash,
+    mintTransactionHash: transactionHash,
     lastUpdatedTimestamp: new Date(),
   };
 
@@ -117,6 +117,106 @@ describe("NFPM Events", () => {
       // (0.5e18 * 1) + (1e18 * 2) = 0.5e18 + 2e18 = 2.5e18
       expect(updatedEntity.amountUSD).to.equal(2500000000000000000n);
     });
+
+    it("should find and update placeholder position created by CLPool.Mint (integration test)", async () => {
+      // Simulate the real flow: CLPool.Mint creates a placeholder position
+      // Placeholder ID format: ${chainId}_${txHash}_${logIndex} (without 0x prefix)
+      // Placeholder tokenId is set to CLPool.Mint logIndex
+      // In this test, CLPool.Mint has logIndex 0, Transfer has logIndex 2
+      const mintLogIndex = 0;
+      const transferLogIndex = 2;
+      const placeholderId = `${chainId}_${transactionHash.slice(2)}_${mintLogIndex}`;
+      const placeholderPosition = {
+        id: placeholderId,
+        chainId: chainId,
+        tokenId: BigInt(mintLogIndex), // Placeholder tokenId = CLPool.Mint logIndex
+        owner: "0x1111111111111111111111111111111111111111",
+        pool: "0xPoolAddress0000000000000000000000",
+        tickUpper: 100n,
+        tickLower: -100n,
+        token0: token0Address,
+        token1: token1Address,
+        amount0: 500000000000000000n,
+        amount1: 1000000000000000000n,
+        amountUSD: 2500000000000000000n,
+        mintTransactionHash: transactionHash,
+        lastUpdatedTimestamp: new Date(),
+      };
+
+      // Setup mockDb with placeholder position
+      const mockDbWithPlaceholder = MockDb.createMockDb();
+      const dbWithPosition =
+        mockDbWithPlaceholder.entities.NonFungiblePosition.set(
+          placeholderPosition,
+        );
+      const dbWithTokens = dbWithPosition.entities.Token.set(mockToken0);
+      const finalDb = dbWithTokens.entities.Token.set(mockToken1);
+
+      // Setup getWhere for mintTransactionHash lookup
+      const storedPositions = [placeholderPosition];
+      const mockDbWithGetWhere = {
+        ...finalDb,
+        entities: {
+          ...finalDb.entities,
+          NonFungiblePosition: {
+            ...finalDb.entities.NonFungiblePosition,
+            getWhere: {
+              mintTransactionHash: {
+                eq: async (txHash: string) => {
+                  return storedPositions.filter(
+                    (entity) => entity.mintTransactionHash === txHash,
+                  );
+                },
+              },
+            },
+          },
+        },
+      } as typeof finalDb;
+
+      // Create Transfer event for mint (from = zero address)
+      // Transfer logIndex must be > mint logIndex for matching logic
+      const mintTransferEvent = NFPM.Transfer.createMockEvent({
+        from: "0x0000000000000000000000000000000000000000", // Mint event
+        to: "0x2222222222222222222222222222222222222222",
+        tokenId: tokenId,
+        mockEventData: {
+          block: {
+            timestamp: 1000000,
+            number: 123456,
+            hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+          },
+          chainId: 10,
+          logIndex: transferLogIndex,
+          srcAddress: "0x3333333333333333333333333333333333333333",
+          transaction: {
+            hash: transactionHash,
+          },
+        },
+      });
+
+      const result = await NFPM.Transfer.processEvent({
+        event: mintTransferEvent,
+        mockDb: mockDbWithGetWhere,
+      });
+
+      // Should create new position with correct ID
+      const updatedEntity = result.entities.NonFungiblePosition.get(
+        NonFungiblePositionId(chainId, tokenId),
+      );
+      expect(updatedEntity).to.exist;
+      if (!updatedEntity) return;
+
+      // Verify it was migrated from placeholder
+      expect(updatedEntity.id).to.equal(
+        NonFungiblePositionId(chainId, tokenId),
+      );
+      expect(updatedEntity.tokenId).to.equal(tokenId);
+      expect(updatedEntity.owner.toLowerCase()).to.equal(
+        "0x2222222222222222222222222222222222222222".toLowerCase(),
+      );
+      expect(updatedEntity.amount0).to.equal(placeholderPosition.amount0);
+      expect(updatedEntity.amount1).to.equal(placeholderPosition.amount1);
+    });
   });
 
   describe("IncreaseLiquidity Event", () => {
@@ -154,11 +254,11 @@ describe("NFPM Events", () => {
           NonFungiblePosition: {
             ...mockDb.entities.NonFungiblePosition,
             getWhere: {
-              transactionHash: {
+              mintTransactionHash: {
                 eq: async (txHash: string) => {
-                  // Find all entities with matching transactionHash
+                  // Find all entities with matching mintTransactionHash
                   return storedPositions.filter(
-                    (entity) => entity.transactionHash === txHash,
+                    (entity) => entity.mintTransactionHash === txHash,
                   );
                 },
               },
@@ -211,10 +311,10 @@ describe("NFPM Events", () => {
           NonFungiblePosition: {
             ...mockDb.entities.NonFungiblePosition,
             getWhere: {
-              transactionHash: {
+              mintTransactionHash: {
                 eq: async (txHash: string) => {
                   return storedPositions.filter(
-                    (entity) => entity.transactionHash === txHash,
+                    (entity) => entity.mintTransactionHash === txHash,
                   );
                 },
               },
@@ -236,6 +336,93 @@ describe("NFPM Events", () => {
       if (!updatedEntity) return;
       // Should be updated: 0.5e18 + 0.5e18 = 1e18
       expect(updatedEntity.amount0).to.equal(1000000000000000000n);
+    });
+
+    it("should log error and return when no positions found by transaction hash", async () => {
+      // Test error case (lines 97-100): no positions found by transaction hash
+      const mockDbEmpty = MockDb.createMockDb();
+      const dbWithTokens = mockDbEmpty.entities.Token.set(mockToken0);
+      const finalDb = dbWithTokens.entities.Token.set(mockToken1);
+
+      const mockDbNoPositions = {
+        ...finalDb,
+        entities: {
+          ...finalDb.entities,
+          NonFungiblePosition: {
+            ...finalDb.entities.NonFungiblePosition,
+            getWhere: {
+              mintTransactionHash: {
+                eq: async () => [], // No positions found
+              },
+            },
+          },
+        },
+      } as typeof finalDb;
+
+      const increaseEvent = NFPM.IncreaseLiquidity.createMockEvent(eventData);
+      const result = await NFPM.IncreaseLiquidity.processEvent({
+        event: increaseEvent,
+        mockDb: mockDbNoPositions,
+      });
+
+      // Should not create or update any position
+      const updatedEntity = result.entities.NonFungiblePosition.get(
+        NonFungiblePositionId(chainId, tokenId),
+      );
+      expect(updatedEntity).to.be.undefined;
+    });
+
+    it("should log error and return when no matching position found by amounts", async () => {
+      // Test error case (lines 112-115): positions found but none match by amounts
+      const positionWithDifferentAmounts = {
+        ...mockNonFungiblePosition,
+        amount0: 999999999999999999n, // Different from event amounts (event has 0.5e18, 1e18)
+        amount1: 999999999999999999n,
+      };
+
+      // Use fresh mockDb to avoid interference from beforeEach
+      const mockDbBase = MockDb.createMockDb();
+      const dbWithPosition = mockDbBase.entities.NonFungiblePosition.set(
+        positionWithDifferentAmounts,
+      );
+      const dbWithTokens = dbWithPosition.entities.Token.set(mockToken0);
+      const finalDb = dbWithTokens.entities.Token.set(mockToken1);
+
+      const storedPositions = [positionWithDifferentAmounts];
+      const mockDbWrongAmounts = {
+        ...finalDb,
+        entities: {
+          ...finalDb.entities,
+          NonFungiblePosition: {
+            ...finalDb.entities.NonFungiblePosition,
+            getWhere: {
+              mintTransactionHash: {
+                eq: async (txHash: string) => {
+                  return storedPositions.filter(
+                    (entity) => entity.mintTransactionHash === txHash,
+                  );
+                },
+              },
+            },
+          },
+        },
+      } as typeof finalDb;
+
+      const increaseEvent = NFPM.IncreaseLiquidity.createMockEvent(eventData);
+      const result = await NFPM.IncreaseLiquidity.processEvent({
+        event: increaseEvent,
+        mockDb: mockDbWrongAmounts,
+      });
+
+      // Should not update the position (amounts don't match, handler returns early)
+      const updatedEntity = result.entities.NonFungiblePosition.get(
+        NonFungiblePositionId(chainId, tokenId),
+      );
+      // Position exists but wasn't updated (still has original amounts)
+      expect(updatedEntity).to.exist;
+      if (!updatedEntity) return;
+      expect(updatedEntity.amount0).to.equal(999999999999999999n);
+      expect(updatedEntity.amount1).to.equal(999999999999999999n);
     });
   });
 
@@ -285,6 +472,101 @@ describe("NFPM Events", () => {
       );
       // amountUSD: (0.2e18 * 1) + (0.5e18 * 2) = 0.2e18 + 1e18 = 1.2e18
       expect(updatedEntity.amountUSD).to.equal(1200000000000000000n);
+    });
+
+    it("should log error and return when position not found (Transfer should have run first)", async () => {
+      // Simulate scenario where position doesn't exist
+      // This should never happen in normal flow since Transfer should have already updated the placeholder
+      const mockDb = MockDb.createMockDb();
+      const dbWithTokens = mockDb.entities.Token.set(mockToken0);
+      const finalDb = dbWithTokens.entities.Token.set(mockToken1);
+
+      // Create DecreaseLiquidity event for non-existent position
+      const decreaseEvent = NFPM.DecreaseLiquidity.createMockEvent({
+        tokenId: tokenId,
+        liquidity: 1000n,
+        amount0: 300000000000000000n,
+        amount1: 500000000000000000n,
+        mockEventData: {
+          block: {
+            timestamp: 1000000,
+            number: 123456,
+            hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+          },
+          chainId: 10,
+          logIndex: 1,
+          srcAddress: "0x3333333333333333333333333333333333333333",
+          transaction: {
+            hash: transactionHash,
+          },
+        },
+      });
+
+      const result = await NFPM.DecreaseLiquidity.processEvent({
+        event: decreaseEvent,
+        mockDb: finalDb,
+      });
+
+      // Should not create any position
+      const updatedEntity = result.entities.NonFungiblePosition.get(
+        NonFungiblePositionId(chainId, tokenId),
+      );
+      expect(updatedEntity).to.be.undefined;
+    });
+
+    it("should log error and return when position is not found", async () => {
+      // Test the error case (lines 184-187)
+      const mockDbEmpty = MockDb.createMockDb();
+      const dbWithTokens = mockDbEmpty.entities.Token.set(mockToken0);
+      const finalDb = dbWithTokens.entities.Token.set(mockToken1);
+
+      // Setup getWhere to return empty array
+      const mockDbNoPosition = {
+        ...finalDb,
+        entities: {
+          ...finalDb.entities,
+          NonFungiblePosition: {
+            ...finalDb.entities.NonFungiblePosition,
+            get: async () => undefined,
+            getWhere: {
+              mintTransactionHash: {
+                eq: async () => [], // No positions found
+              },
+            },
+          },
+        },
+      } as unknown as typeof finalDb;
+
+      const decreaseEvent = NFPM.DecreaseLiquidity.createMockEvent({
+        tokenId: tokenId,
+        liquidity: 1000n,
+        amount0: 300000000000000000n,
+        amount1: 500000000000000000n,
+        mockEventData: {
+          block: {
+            timestamp: 1000000,
+            number: 123456,
+            hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+          },
+          chainId: 10,
+          logIndex: 1,
+          srcAddress: "0x3333333333333333333333333333333333333333",
+          transaction: {
+            hash: transactionHash,
+          },
+        },
+      });
+
+      const result = await NFPM.DecreaseLiquidity.processEvent({
+        event: decreaseEvent,
+        mockDb: mockDbNoPosition,
+      });
+
+      // Should not create any position
+      const updatedEntity = result.entities.NonFungiblePosition.get(
+        NonFungiblePositionId(chainId, tokenId),
+      );
+      expect(updatedEntity).to.be.undefined;
     });
   });
 });
