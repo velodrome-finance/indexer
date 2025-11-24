@@ -256,26 +256,6 @@ export async function fetchTokenPrice(
         continue;
       }
 
-      // If it's a contract revert, check if it's due to historical state unavailability
-      if (errorType === ErrorType.CONTRACT_REVERT) {
-        // Check if error is due to historical state unavailability
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        const isHistoricalStateError =
-          errorMessage.includes("historical state");
-
-        if (isHistoricalStateError) {
-          logger.warn(
-            `[fetchTokenPrice] Historical state not available for token ${tokenAddress} on chain ${chainId} at block ${blockNumber}. This is an RPC limitation, not a contract revert. Returning zero price - caller should use last known price if available.`,
-          );
-        } else {
-          logger.warn(
-            `[fetchTokenPrice] Contract reverted for token ${tokenAddress} on chain ${chainId} at block ${blockNumber}. This usually means no price path exists. Returning zero price.`,
-          );
-        }
-        break;
-      }
-
       // If not a retryable error or no retries left, log and break
       logger.error(
         `[fetchTokenPrice] Error fetching price for token ${tokenAddress} on chain ${chainId} at block ${blockNumber}${attempt > 0 ? ` (after ${attempt} retries)` : ""} (error type: ${errorType}):`,
@@ -620,6 +600,7 @@ export const getTokenPriceData = createEffect(
           pricePerUSDNew: 10n ** 18n, // TEN_TO_THE_18_BI
           decimals: BigInt(tokenDetails.decimals),
         };
+        return result;
       }
 
       // For non-USDC tokens, fetch both token details in parallel for better performance
@@ -679,10 +660,6 @@ export const getTokenPriceData = createEffect(
           pricePerUSDNew,
           decimals: BigInt(tokenDetails.decimals),
         };
-
-        context.log.info(
-          `[getTokenPriceData] Successfully fetched price data for ${tokenAddress} on chain ${chainId} at block ${blockNumber}. Price: ${result.pricePerUSDNew}, Decimals: ${result.decimals}. Oracle type: ${priceData.priceOracleType}`,
-        );
 
         return result;
       }
