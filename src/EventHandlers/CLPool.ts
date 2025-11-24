@@ -326,7 +326,7 @@ CLPool.Mint.handler(async ({ event, context }) => {
   // Format: ${chainId}_${fullTxHash}_${logIndex} (without 0x prefix)
   const id = `${event.chainId}_${event.transaction.hash.slice(2)}_${event.logIndex}`;
   context.NonFungiblePosition.set({
-    id: placeholderId, // Placeholder ID - permanent, never changes
+    id: id, // permanent, never changes
     chainId: event.chainId,
     tokenId: 0n, // Placeholder marker (0n) - actual tokenId will be set by NFPM.Transfer or NFPM.IncreaseLiquidity
     owner: event.params.owner,
