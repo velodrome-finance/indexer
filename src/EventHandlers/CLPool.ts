@@ -324,7 +324,7 @@ CLPool.Mint.handler(async ({ event, context }) => {
   // Create NonFungiblePosition entity
   // Use transaction hash and logIndex to make placeholder ID unique per event
   // Format: ${chainId}_${fullTxHash}_${logIndex} (without 0x prefix)
-  const placeholderId = `${event.chainId}_${event.transaction.hash.slice(2)}_${event.logIndex}`;
+  const id = `${event.chainId}_${event.transaction.hash.slice(2)}_${event.logIndex}`;
   context.NonFungiblePosition.set({
     id: placeholderId, // Placeholder ID - permanent, never changes
     chainId: event.chainId,
