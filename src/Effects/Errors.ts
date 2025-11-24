@@ -12,7 +12,7 @@ import {
   swellchain,
   unichain,
 } from "viem/chains";
-import { getDefaultRPCByChainId } from "../Constants";
+import { RPC_TIMEOUT_MS, getDefaultRPCByChainId } from "../Constants";
 
 // Map chain IDs to their corresponding viem chain objects
 const chainIdToChain: Record<number, Chain> = {
@@ -45,7 +45,10 @@ export function createFallbackClient(chainId: number): PublicClient | null {
 
   return createPublicClient({
     chain: chain satisfies Chain as Chain,
-    transport: http(publicRpcUrl, { batch: true }),
+    transport: http(publicRpcUrl, {
+      batch: true,
+      timeout: RPC_TIMEOUT_MS,
+    }),
   });
 }
 

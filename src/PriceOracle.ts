@@ -1,4 +1,9 @@
-import { TokenIdByBlock, TokenIdByChain, toChecksumAddress } from "./Constants";
+import {
+  SECONDS_IN_AN_HOUR,
+  TokenIdByBlock,
+  TokenIdByChain,
+  toChecksumAddress,
+} from "./Constants";
 import {
   getTokenDetails,
   getTokenPriceData as getTokenPriceDataEffect,
@@ -41,8 +46,6 @@ export async function createTokenEntity(
   return tokenEntity;
 }
 
-const ONE_HOUR_MS = 60 * 60 * 1000; // 1 hour in milliseconds
-
 /**
  * Refreshes a token's price data if the update interval has passed.
  *
@@ -73,7 +76,8 @@ export async function refreshTokenPrice(
   const shouldRefresh =
     token.pricePerUSDNew === 0n ||
     !token.lastUpdatedTimestamp ||
-    blockTimestampMs - token.lastUpdatedTimestamp.getTime() >= ONE_HOUR_MS;
+    blockTimestampMs - token.lastUpdatedTimestamp.getTime() >=
+      SECONDS_IN_AN_HOUR;
 
   if (!shouldRefresh) {
     return token;
