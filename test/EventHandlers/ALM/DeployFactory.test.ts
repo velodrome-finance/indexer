@@ -48,6 +48,7 @@ describe("ALMDeployFactory StrategyCreated Event", () => {
         tickLower: -1000n,
         token0: mockToken0Data.address,
         token1: mockToken1Data.address,
+        liquidity: 1000000n,
         amount0: 500n * 10n ** 18n,
         amount1: 250n * 10n ** 6n,
         amountUSD: 750n * 10n ** 18n,
@@ -68,6 +69,9 @@ describe("ALMDeployFactory StrategyCreated Event", () => {
           NonFungiblePosition: {
             ...mockDb.entities.NonFungiblePosition,
             getWhere: {
+              tokenId: {
+                eq: async () => [],
+              },
               mintTransactionHash: {
                 eq: async (txHash: string) => {
                   return storedNFPMs.filter(
@@ -171,6 +175,9 @@ describe("ALMDeployFactory StrategyCreated Event", () => {
           NonFungiblePosition: {
             ...mockDb.entities.NonFungiblePosition,
             getWhere: {
+              tokenId: {
+                eq: async () => [],
+              },
               mintTransactionHash: {
                 eq: async (_txHash: string) => {
                   return []; // No entities found

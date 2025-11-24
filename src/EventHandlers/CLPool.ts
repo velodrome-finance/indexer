@@ -324,17 +324,18 @@ CLPool.Mint.handler(async ({ event, context }) => {
   // Create NonFungiblePosition entity
   // Use transaction hash and logIndex to make placeholder ID unique per event
   // Format: ${chainId}_${fullTxHash}_${logIndex} (without 0x prefix)
-  const placeholderId = `${event.chainId}_${event.transaction.hash.slice(2)}_${event.logIndex}`;
+  const id = `${event.chainId}_${event.transaction.hash.slice(2)}_${event.logIndex}`;
   context.NonFungiblePosition.set({
-    id: placeholderId, // Placeholder ID - to be updated by NFPM.Transfer with actual tokenId
+    id: id, // permanent, never changes
     chainId: event.chainId,
-    tokenId: BigInt(event.logIndex), // To be edited in NFPM.ts module
+    tokenId: 0n, // Placeholder marker (0n) - actual tokenId will be set by NFPM.Transfer or NFPM.IncreaseLiquidity
     owner: event.params.owner,
     pool: event.srcAddress,
     tickUpper: event.params.tickUpper,
     tickLower: event.params.tickLower,
     token0: token0Instance.address,
     token1: token1Instance.address,
+    liquidity: event.params.amount, // Store liquidity value from CLPool.Mint
     amount0: event.params.amount0,
     amount1: event.params.amount1,
     amountUSD: result.userLiquidityDiff.netLiquidityAddedUSD,

@@ -20,6 +20,7 @@ describe("NonFungiblePosition", () => {
     tickLower: -100n,
     token0: "0xToken0Address0000000000000000000000",
     token1: "0xToken1Address0000000000000000000000",
+    liquidity: 1000000000000000000n,
     amount0: 1000000000000000000n,
     amount1: 2000000000000000000n,
     amountUSD: 3000000000000000000n,
@@ -38,6 +39,11 @@ describe("NonFungiblePosition", () => {
         deleteUnsafe: sinon.stub(),
         getWhere: {
           owner: {
+            eq: sinon.stub(),
+            gt: sinon.stub(),
+            lt: sinon.stub(),
+          },
+          tokenId: {
             eq: sinon.stub(),
             gt: sinon.stub(),
             lt: sinon.stub(),
