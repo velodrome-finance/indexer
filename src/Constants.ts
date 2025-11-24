@@ -86,6 +86,12 @@ export enum PriceOracleType {
 }
 
 /**
+ * RPC timeout in milliseconds (60 seconds)
+ * Prevents indefinite hangs on slow or unresponsive RPC providers
+ */
+export const RPC_TIMEOUT_MS = 60000;
+
+/**
  * Default/fallback public RPC URLs for each chain
  * Used as fallback when private RPC fails or doesn't have historical state
  */
@@ -181,6 +187,7 @@ const OPTIMISM_CONSTANTS: chainConstants = {
     chain: optimism satisfies Chain as Chain,
     transport: http(process.env.ENVIO_OPTIMISM_RPC_URL || DefaultRPC.optimism, {
       batch: true,
+      timeout: RPC_TIMEOUT_MS,
     }),
   }),
 };
@@ -220,6 +227,7 @@ const BASE_CONSTANTS: chainConstants = {
     chain: base satisfies Chain as Chain,
     transport: http(process.env.ENVIO_BASE_RPC_URL || DefaultRPC.base, {
       batch: true,
+      timeout: RPC_TIMEOUT_MS,
     }),
   }),
 };
@@ -256,6 +264,7 @@ const LISK_CONSTANTS: chainConstants = {
     chain: lisk satisfies Chain as Chain,
     transport: http(process.env.ENVIO_LISK_RPC_URL || DefaultRPC.lisk, {
       batch: true,
+      timeout: RPC_TIMEOUT_MS,
     }),
   }),
 };
@@ -292,6 +301,7 @@ const MODE_CONSTANTS: chainConstants = {
     chain: mode satisfies Chain as Chain,
     transport: http(process.env.ENVIO_MODE_RPC_URL || DefaultRPC.mode, {
       batch: true,
+      timeout: RPC_TIMEOUT_MS,
     }),
   }),
 };
@@ -318,6 +328,7 @@ const CELO_CONSTANTS: chainConstants = {
     chain: celo satisfies Chain as Chain,
     transport: http(process.env.ENVIO_CELO_RPC_URL || DefaultRPC.celo, {
       batch: true,
+      timeout: RPC_TIMEOUT_MS,
     }),
   }),
 };
@@ -344,6 +355,7 @@ const SONEIUM_CONSTANTS: chainConstants = {
     chain: soneium satisfies Chain as Chain,
     transport: http(process.env.ENVIO_SONEIUM_RPC_URL || DefaultRPC.soneium, {
       batch: true,
+      timeout: RPC_TIMEOUT_MS,
     }),
   }),
 };
@@ -370,6 +382,7 @@ const UNICHAIN_CONSTANTS: chainConstants = {
     chain: unichain satisfies Chain as Chain,
     transport: http(process.env.ENVIO_UNICHAIN_RPC_URL || DefaultRPC.unichain, {
       batch: true,
+      timeout: RPC_TIMEOUT_MS,
     }),
   }),
 };
@@ -406,6 +419,7 @@ const FRAXTAL_CONSTANTS: chainConstants = {
     chain: fraxtal satisfies Chain as Chain,
     transport: http(process.env.ENVIO_FRAXTAL_RPC_URL || DefaultRPC.fraxtal, {
       batch: true,
+      timeout: RPC_TIMEOUT_MS,
     }),
   }),
 };
@@ -432,6 +446,7 @@ const INK_CONSTANTS: chainConstants = {
     chain: ink satisfies Chain as Chain,
     transport: http(process.env.ENVIO_INK_RPC_URL || DefaultRPC.ink, {
       batch: true,
+      timeout: RPC_TIMEOUT_MS,
     }),
   }),
 };
@@ -458,6 +473,7 @@ const METAL_CONSTANTS: chainConstants = {
     chain: metalL2 satisfies Chain as Chain,
     transport: http(process.env.ENVIO_METAL_RPC_URL || DefaultRPC.metal, {
       batch: true,
+      timeout: RPC_TIMEOUT_MS,
     }),
   }),
 };
@@ -484,6 +500,7 @@ const SWELL_CONSTANTS: chainConstants = {
     chain: swellchain,
     transport: http(process.env.ENVIO_SWELL_RPC_URL || DefaultRPC.swell, {
       batch: true,
+      timeout: RPC_TIMEOUT_MS,
     }),
   }) as PublicClient,
 };

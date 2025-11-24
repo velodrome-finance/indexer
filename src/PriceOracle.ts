@@ -1,4 +1,11 @@
-import { TokenIdByBlock, TokenIdByChain, toChecksumAddress } from "./Constants";
+import {
+  CHAIN_CONSTANTS,
+  PriceOracleType,
+  SECONDS_IN_AN_HOUR,
+  TokenIdByBlock,
+  TokenIdByChain,
+  toChecksumAddress,
+} from "./Constants";
 import {
   getTokenDetails,
   getTokenPriceData as getTokenPriceDataEffect,
@@ -41,8 +48,6 @@ export async function createTokenEntity(
   return tokenEntity;
 }
 
-const ONE_HOUR_MS = 60 * 60 * 1000; // 1 hour in milliseconds
-
 /**
  * Refreshes a token's price data if the update interval has passed.
  *
@@ -73,7 +78,8 @@ export async function refreshTokenPrice(
   const shouldRefresh =
     token.pricePerUSDNew === 0n ||
     !token.lastUpdatedTimestamp ||
-    blockTimestampMs - token.lastUpdatedTimestamp.getTime() >= ONE_HOUR_MS;
+    blockTimestampMs - token.lastUpdatedTimestamp.getTime() >=
+      SECONDS_IN_AN_HOUR;
 
   if (!shouldRefresh) {
     return token;
@@ -104,7 +110,15 @@ export async function refreshTokenPrice(
       blockTimestampMs - token.lastUpdatedTimestamp.getTime() <
         7 * 24 * 60 * 60 * 1000;
 
-    if (shouldUseLastKnownPrice) {
+    // We already know that Oracle V1 is a bit unreliable (we tested for WETH on Optimism and it kept failing)
+    // Oracle V2 is also a bit unreliable and either way it is just used for a few blocks
+    // So the main errors that we should be concerned about (and that impact most recent data) is those involving Oracle V3
+    // This also reduces the initial spam when deploying the indexer
+    if (
+      shouldUseLastKnownPrice &&
+      CHAIN_CONSTANTS[chainId].oracle.getType(blockNumber) ===
+        PriceOracleType.V3
+    ) {
       context.log.info(
         `[refreshTokenPrice] Price fetch returned 0 for token ${token.address} on chain ${chainId} at block ${blockNumber}. Using last known price ${token.pricePerUSDNew} (last updated: ${token.lastUpdatedTimestamp.toISOString()}) as fallback. This may be due to RPC limitation or no price path in oracle.`,
       );
@@ -118,7 +132,12 @@ export async function refreshTokenPrice(
       return updatedToken;
     }
 
-    if (currentPrice === 0n && token.pricePerUSDNew === 0n) {
+    if (
+      currentPrice === 0n &&
+      token.pricePerUSDNew === 0n &&
+      CHAIN_CONSTANTS[chainId].oracle.getType(blockNumber) ===
+        PriceOracleType.V3
+    ) {
       // Both current and stored prices are 0 - this is a new token or token with no price path
       context.log.warn(
         `[refreshTokenPrice] Price fetch returned 0 for token ${token.address} on chain ${chainId} at block ${blockNumber}, and no previous price exists. This token may not have a price path configured in the oracle.`,

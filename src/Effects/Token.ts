@@ -75,6 +75,7 @@ export async function fetchTokenDetails(
  * Core logic for fetching token prices from price oracle contracts
  * This can be tested independently of the Effect API
  * Includes retry logic with exponential backoff for rate limit errors
+ * Includes fallback RPC support for network and historical state errors
  */
 export async function fetchTokenPrice(
   tokenAddress: string,
@@ -89,6 +90,7 @@ export async function fetchTokenPrice(
   gasLimit = 10000000n, // 10M default - updated to reduce out-of-gas retries
   maxRetries = 7,
 ): Promise<{ pricePerUSDNew: bigint; priceOracleType: string }> {
+  const overallStartTime = Date.now();
   const priceOracleType = CHAIN_CONSTANTS[chainId].oracle.getType(blockNumber);
   const priceOracleAddress =
     CHAIN_CONSTANTS[chainId].oracle.getAddress(priceOracleType);
@@ -97,6 +99,7 @@ export async function fetchTokenPrice(
   let currentGasLimit = gasLimit;
 
   while (attempt <= maxRetries) {
+    const attemptStartTime = Date.now();
     try {
       if (priceOracleType === PriceOracleType.V3) {
         const tokenAddressArray = [
@@ -120,6 +123,21 @@ export async function fetchTokenPrice(
           blockNumber: BigInt(blockNumber),
           gas: currentGasLimit,
         });
+        const attemptDuration = Date.now() - attemptStartTime;
+        const overallDuration = Date.now() - overallStartTime;
+
+        if (attemptDuration > 5000) {
+          logger.warn(
+            `[fetchTokenPrice] Slow request detected: ${attemptDuration}ms for token ${tokenAddress} on chain ${chainId} at block ${blockNumber} (attempt ${attempt + 1}, total duration: ${overallDuration}ms)`,
+          );
+        }
+
+        if (overallDuration > 30000) {
+          logger.error(
+            `[fetchTokenPrice] Very slow request: ${overallDuration}ms total for token ${tokenAddress} on chain ${chainId} at block ${blockNumber} (attempt ${attempt + 1})`,
+          );
+        }
+
         return {
           pricePerUSDNew: BigInt(result[0]),
           priceOracleType: PriceOracleType.V3,
@@ -142,13 +160,42 @@ export async function fetchTokenPrice(
         blockNumber: BigInt(blockNumber),
         gas: currentGasLimit,
       });
+      const attemptDuration = Date.now() - attemptStartTime;
+      const overallDuration = Date.now() - overallStartTime;
+
+      if (attemptDuration > 5000) {
+        logger.warn(
+          `[fetchTokenPrice] Slow request detected: ${attemptDuration}ms for token ${tokenAddress} on chain ${chainId} at block ${blockNumber} (attempt ${attempt + 1}, total duration: ${overallDuration}ms)`,
+        );
+      }
+
+      if (overallDuration > 30000) {
+        logger.error(
+          `[fetchTokenPrice] Very slow request: ${overallDuration}ms total for token ${tokenAddress} on chain ${chainId} at block ${blockNumber} (attempt ${attempt + 1})`,
+        );
+      }
 
       return {
         pricePerUSDNew: BigInt(result[0]),
         priceOracleType: priceOracleType, // Use the determined oracle type, not hardcoded V2
       };
     } catch (error) {
+      const attemptDuration = Date.now() - attemptStartTime;
+      const overallDuration = Date.now() - overallStartTime;
       const errorType = getErrorType(error);
+
+      // Log slow failed attempts
+      if (attemptDuration > 5000) {
+        logger.warn(
+          `[fetchTokenPrice] Slow failed request: ${attemptDuration}ms for token ${tokenAddress} on chain ${chainId} at block ${blockNumber} (attempt ${attempt + 1}, error type: ${errorType}, total duration: ${overallDuration}ms)`,
+        );
+      }
+
+      if (overallDuration > 30000) {
+        logger.error(
+          `[fetchTokenPrice] Very slow failed request: ${overallDuration}ms total for token ${tokenAddress} on chain ${chainId} at block ${blockNumber} (attempt ${attempt + 1}, error type: ${errorType})`,
+        );
+      }
 
       // Check if it's an out of gas error and we have retries left
       if (errorType === ErrorType.OUT_OF_GAS && attempt < maxRetries) {
@@ -187,33 +234,42 @@ export async function fetchTokenPrice(
         continue;
       }
 
-      // If it's a contract revert, check if it's due to historical state unavailability
-      if (errorType === ErrorType.CONTRACT_REVERT) {
-        // Check if error is due to historical state unavailability
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        const isHistoricalStateError =
-          errorMessage.includes("historical state");
-
-        if (isHistoricalStateError) {
-          logger.warn(
-            `[fetchTokenPrice] Historical state not available for token ${tokenAddress} on chain ${chainId} at block ${blockNumber}. This is an RPC limitation, not a contract revert. Returning zero price - caller should use last known price if available.`,
-          );
+      // Check if it's a network error and we have retries left
+      // Network errors use shorter backoff than rate limits since they're often transient
+      if (errorType === ErrorType.NETWORK_ERROR && attempt < maxRetries) {
+        // Shorter exponential backoff for network errors: 500ms, 1s, 2s, 4s, 8s, 15s, 30s
+        let delayMs: number;
+        if (attempt === 5) {
+          delayMs = 15000; // 15 seconds for 6th retry
+        } else if (attempt === 6) {
+          delayMs = 30000; // 30 seconds for 7th retry
         } else {
-          logger.warn(
-            `[fetchTokenPrice] Contract reverted for token ${tokenAddress} on chain ${chainId} at block ${blockNumber}. This usually means no price path exists. Returning zero price.`,
-          );
+          delayMs = Math.min(500 * 2 ** attempt, 8000); // Exponential backoff up to 8s
         }
-        break;
+        attempt++;
+
+        logger.warn(
+          `[fetchTokenPrice] Network error (attempt ${attempt}/${maxRetries + 1}) for token ${tokenAddress} on chain ${chainId} at block ${blockNumber}. Retrying in ${delayMs}ms...`,
+        );
+
+        await sleep(delayMs);
+        continue;
       }
 
       // If not a retryable error or no retries left, log and break
       logger.error(
-        `[fetchTokenPrice] Error fetching price for token ${tokenAddress} on chain ${chainId} at block ${blockNumber}${attempt > 0 ? ` (after ${attempt} retries)` : ""}:`,
+        `[fetchTokenPrice] Error fetching price for token ${tokenAddress} on chain ${chainId} at block ${blockNumber}${attempt > 0 ? ` (after ${attempt} retries)` : ""} (error type: ${errorType}):`,
         error instanceof Error ? error : new Error(String(error)),
       );
       break;
     }
+  }
+
+  const finalDuration = Date.now() - overallStartTime;
+  if (finalDuration > 30000) {
+    logger.error(
+      `[fetchTokenPrice] Request failed after ${finalDuration}ms total for token ${tokenAddress} on chain ${chainId} at block ${blockNumber} (${attempt} attempts). Returning zero price.`,
+    );
   }
 
   // Return zero price on error to prevent processing failures
@@ -444,7 +500,7 @@ export const getTokenPrice = createEffect(
       calls: EFFECT_RATE_LIMITS.TOKEN_EFFECTS,
       per: "second",
     },
-    cache: true, // Price data can be cached for the update interval
+    cache: true, // Price data is not cached for the update interval
   },
   async ({ input, context }) => {
     const {
@@ -459,6 +515,7 @@ export const getTokenPrice = createEffect(
     } = input;
 
     const ethClient = CHAIN_CONSTANTS[chainId].eth_client;
+    const effectStartTime = Date.now();
     try {
       const result = await fetchTokenPrice(
         tokenAddress,
@@ -473,18 +530,28 @@ export const getTokenPrice = createEffect(
         gasLimit,
       );
 
+      const effectDuration = Date.now() - effectStartTime;
+      if (effectDuration > 5000) {
+        context.log.warn(
+          `[getTokenPrice] Effect took ${effectDuration}ms for token ${tokenAddress} on chain ${chainId} at block ${blockNumber}`,
+        );
+      }
+
       return result;
     } catch (error) {
+      const effectDuration = Date.now() - effectStartTime;
       // Don't cache failed response
       context.cache = false;
       context.log.error(
-        `[getTokenPrice] Error in effect for ${tokenAddress} on chain ${chainId} at block ${blockNumber}:`,
+        `[getTokenPrice] Error in effect for ${tokenAddress} on chain ${chainId} at block ${blockNumber} (duration: ${effectDuration}ms):`,
         error instanceof Error ? error : new Error(String(error)),
       );
       // Return zero price on error to prevent processing failures
       return {
         pricePerUSDNew: 0n,
-        priceOracleType: PriceOracleType.V2,
+        priceOracleType: CHAIN_CONSTANTS[chainId].oracle
+          .getType(blockNumber)
+          .toString(),
       };
     }
   },
@@ -511,7 +578,7 @@ export const getTokenPriceData = createEffect(
       calls: EFFECT_RATE_LIMITS.TOKEN_EFFECTS,
       per: "second",
     },
-    cache: true, // Combined price data can be cached
+    cache: false, // The underlying effects that are called inside this effect are already cached
   },
   async ({ input, context }) => {
     const { tokenAddress, blockNumber, chainId, gasLimit = 10000000n } = input;
@@ -533,6 +600,7 @@ export const getTokenPriceData = createEffect(
           pricePerUSDNew: 10n ** 18n, // TEN_TO_THE_18_BI
           decimals: BigInt(tokenDetails.decimals),
         };
+        return result;
       }
 
       // For non-USDC tokens, fetch both token details in parallel for better performance
@@ -592,10 +660,6 @@ export const getTokenPriceData = createEffect(
           pricePerUSDNew,
           decimals: BigInt(tokenDetails.decimals),
         };
-
-        context.log.info(
-          `[getTokenPriceData] Successfully fetched price data for ${tokenAddress} on chain ${chainId} at block ${blockNumber}. Price: ${result.pricePerUSDNew}, Decimals: ${result.decimals}. Oracle type: ${priceData.priceOracleType}`,
-        );
 
         return result;
       }
