@@ -23,7 +23,7 @@ describe("NonFungiblePosition", () => {
     amount0: 1000000000000000000n,
     amount1: 2000000000000000000n,
     amountUSD: 3000000000000000000n,
-    transactionHash: transactionHash,
+    mintTransactionHash: transactionHash,
     lastUpdatedTimestamp: new Date(10000 * 1000),
   };
   const timestamp = new Date(10001 * 1000);
@@ -42,7 +42,7 @@ describe("NonFungiblePosition", () => {
             gt: sinon.stub(),
             lt: sinon.stub(),
           },
-          transactionHash: {
+          mintTransactionHash: {
             eq: sinon.stub(),
             gt: sinon.stub(),
             lt: sinon.stub(),
