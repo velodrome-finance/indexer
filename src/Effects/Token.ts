@@ -8,6 +8,7 @@ import {
   EFFECT_RATE_LIMITS,
   PriceOracleType,
 } from "../Constants";
+import { createFallbackClient, shouldUseFallbackRPC } from "./Errors";
 import { ErrorType, getErrorType, sleep } from "./Helpers";
 
 // ERC20 Contract ABI
@@ -74,6 +75,7 @@ export async function fetchTokenDetails(
  * Core logic for fetching token prices from price oracle contracts
  * This can be tested independently of the Effect API
  * Includes retry logic with exponential backoff for rate limit errors
+ * Includes fallback RPC support for network and historical state errors
  */
 export async function fetchTokenPrice(
   tokenAddress: string,
@@ -88,6 +90,7 @@ export async function fetchTokenPrice(
   gasLimit = 10000000n, // 10M default - updated to reduce out-of-gas retries
   maxRetries = 7,
 ): Promise<{ pricePerUSDNew: bigint; priceOracleType: string }> {
+  const overallStartTime = Date.now();
   const priceOracleType = CHAIN_CONSTANTS[chainId].oracle.getType(blockNumber);
   const priceOracleAddress =
     CHAIN_CONSTANTS[chainId].oracle.getAddress(priceOracleType);
@@ -96,6 +99,7 @@ export async function fetchTokenPrice(
   let currentGasLimit = gasLimit;
 
   while (attempt <= maxRetries) {
+    const attemptStartTime = Date.now();
     try {
       if (priceOracleType === PriceOracleType.V3) {
         const tokenAddressArray = [
@@ -119,6 +123,21 @@ export async function fetchTokenPrice(
           blockNumber: BigInt(blockNumber),
           gas: currentGasLimit,
         });
+        const attemptDuration = Date.now() - attemptStartTime;
+        const overallDuration = Date.now() - overallStartTime;
+
+        if (attemptDuration > 5000) {
+          logger.warn(
+            `[fetchTokenPrice] Slow request detected: ${attemptDuration}ms for token ${tokenAddress} on chain ${chainId} at block ${blockNumber} (attempt ${attempt + 1}, total duration: ${overallDuration}ms)`,
+          );
+        }
+
+        if (overallDuration > 30000) {
+          logger.error(
+            `[fetchTokenPrice] Very slow request: ${overallDuration}ms total for token ${tokenAddress} on chain ${chainId} at block ${blockNumber} (attempt ${attempt + 1})`,
+          );
+        }
+
         return {
           pricePerUSDNew: BigInt(result[0]),
           priceOracleType: PriceOracleType.V3,
@@ -141,13 +160,42 @@ export async function fetchTokenPrice(
         blockNumber: BigInt(blockNumber),
         gas: currentGasLimit,
       });
+      const attemptDuration = Date.now() - attemptStartTime;
+      const overallDuration = Date.now() - overallStartTime;
+
+      if (attemptDuration > 5000) {
+        logger.warn(
+          `[fetchTokenPrice] Slow request detected: ${attemptDuration}ms for token ${tokenAddress} on chain ${chainId} at block ${blockNumber} (attempt ${attempt + 1}, total duration: ${overallDuration}ms)`,
+        );
+      }
+
+      if (overallDuration > 30000) {
+        logger.error(
+          `[fetchTokenPrice] Very slow request: ${overallDuration}ms total for token ${tokenAddress} on chain ${chainId} at block ${blockNumber} (attempt ${attempt + 1})`,
+        );
+      }
 
       return {
         pricePerUSDNew: BigInt(result[0]),
         priceOracleType: priceOracleType, // Use the determined oracle type, not hardcoded V2
       };
     } catch (error) {
+      const attemptDuration = Date.now() - attemptStartTime;
+      const overallDuration = Date.now() - overallStartTime;
       const errorType = getErrorType(error);
+
+      // Log slow failed attempts
+      if (attemptDuration > 5000) {
+        logger.warn(
+          `[fetchTokenPrice] Slow failed request: ${attemptDuration}ms for token ${tokenAddress} on chain ${chainId} at block ${blockNumber} (attempt ${attempt + 1}, error type: ${errorType}, total duration: ${overallDuration}ms)`,
+        );
+      }
+
+      if (overallDuration > 30000) {
+        logger.error(
+          `[fetchTokenPrice] Very slow failed request: ${overallDuration}ms total for token ${tokenAddress} on chain ${chainId} at block ${blockNumber} (attempt ${attempt + 1}, error type: ${errorType})`,
+        );
+      }
 
       // Check if it's an out of gas error and we have retries left
       if (errorType === ErrorType.OUT_OF_GAS && attempt < maxRetries) {
@@ -186,33 +234,42 @@ export async function fetchTokenPrice(
         continue;
       }
 
-      // If it's a contract revert, check if it's due to historical state unavailability
-      if (errorType === ErrorType.CONTRACT_REVERT) {
-        // Check if error is due to historical state unavailability
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        const isHistoricalStateError =
-          errorMessage.includes("historical state");
-
-        if (isHistoricalStateError) {
-          logger.warn(
-            `[fetchTokenPrice] Historical state not available for token ${tokenAddress} on chain ${chainId} at block ${blockNumber}. This is an RPC limitation, not a contract revert. Returning zero price - caller should use last known price if available.`,
-          );
+      // Check if it's a network error and we have retries left
+      // Network errors use shorter backoff than rate limits since they're often transient
+      if (errorType === ErrorType.NETWORK_ERROR && attempt < maxRetries) {
+        // Shorter exponential backoff for network errors: 500ms, 1s, 2s, 4s, 8s, 15s, 30s
+        let delayMs: number;
+        if (attempt === 5) {
+          delayMs = 15000; // 15 seconds for 6th retry
+        } else if (attempt === 6) {
+          delayMs = 30000; // 30 seconds for 7th retry
         } else {
-          logger.warn(
-            `[fetchTokenPrice] Contract reverted for token ${tokenAddress} on chain ${chainId} at block ${blockNumber}. This usually means no price path exists. Returning zero price.`,
-          );
+          delayMs = Math.min(500 * 2 ** attempt, 8000); // Exponential backoff up to 8s
         }
-        break;
+        attempt++;
+
+        logger.warn(
+          `[fetchTokenPrice] Network error (attempt ${attempt}/${maxRetries + 1}) for token ${tokenAddress} on chain ${chainId} at block ${blockNumber}. Retrying in ${delayMs}ms...`,
+        );
+
+        await sleep(delayMs);
+        continue;
       }
 
       // If not a retryable error or no retries left, log and break
       logger.error(
-        `[fetchTokenPrice] Error fetching price for token ${tokenAddress} on chain ${chainId} at block ${blockNumber}${attempt > 0 ? ` (after ${attempt} retries)` : ""}:`,
+        `[fetchTokenPrice] Error fetching price for token ${tokenAddress} on chain ${chainId} at block ${blockNumber}${attempt > 0 ? ` (after ${attempt} retries)` : ""} (error type: ${errorType}):`,
         error instanceof Error ? error : new Error(String(error)),
       );
       break;
     }
+  }
+
+  const finalDuration = Date.now() - overallStartTime;
+  if (finalDuration > 30000) {
+    logger.error(
+      `[fetchTokenPrice] Request failed after ${finalDuration}ms total for token ${tokenAddress} on chain ${chainId} at block ${blockNumber} (${attempt} attempts). Returning zero price.`,
+    );
   }
 
   // Return zero price on error to prevent processing failures
@@ -220,6 +277,153 @@ export async function fetchTokenPrice(
     pricePerUSDNew: 0n,
     priceOracleType: priceOracleType,
   };
+}
+
+/**
+ * Core logic for fetching sqrtPriceX96 from pool's slot0 function
+ * Includes fallback to public RPC when private RPC fails with historical state errors
+ */
+export async function fetchSqrtPriceX96(
+  poolAddress: string,
+  chainId: number,
+  blockNumber: number,
+  ethClient: PublicClient,
+  logger: Envio_logger,
+): Promise<bigint> {
+  const CLPoolABI = require("../../abis/CLPool.json");
+
+  const attemptFetch = async (client: PublicClient, isFallback = false) => {
+    const { result } = await client.simulateContract({
+      address: poolAddress as `0x${string}`,
+      abi: CLPoolABI,
+      functionName: "slot0",
+      args: [],
+      blockNumber: BigInt(blockNumber),
+    });
+    return result;
+  };
+
+  try {
+    const result = await attemptFetch(ethClient);
+
+    // Handle both array and tuple object returns from viem
+    // When ABI has named fields, viem returns an object; otherwise it returns an array
+    let sqrtPriceX96: bigint;
+    if (Array.isArray(result)) {
+      sqrtPriceX96 = result[0] as bigint;
+    } else if (result && typeof result === "object") {
+      // Try accessing as object with named property
+      if ("sqrtPriceX96" in result) {
+        sqrtPriceX96 = (result as { sqrtPriceX96: bigint }).sqrtPriceX96;
+      } else if (result[0] !== undefined) {
+        // Sometimes viem returns object-like array
+        sqrtPriceX96 = result[0] as bigint;
+      } else {
+        // Helper to stringify with BigInt support
+        const stringifyResult = (obj: unknown): string => {
+          if (Array.isArray(obj)) {
+            return `[${obj
+              .map((item) =>
+                typeof item === "bigint" ? item.toString() : String(item),
+              )
+              .join(", ")}]`;
+          }
+          if (obj && typeof obj === "object") {
+            const entries = Object.entries(obj).map(
+              ([key, value]) =>
+                `${key}: ${typeof value === "bigint" ? value.toString() : String(value)}`,
+            );
+            return `{${entries.join(", ")}}`;
+          }
+          return String(obj);
+        };
+
+        logger.error(
+          `[fetchSqrtPriceX96] Unexpected result format. Result type: ${typeof result}, keys: ${result && typeof result === "object" ? Object.keys(result).join(", ") : "N/A"}, result: ${stringifyResult(result)}`,
+        );
+        throw new Error(
+          `Unexpected result format from slot0. Expected array or object with sqrtPriceX96 property, got: ${stringifyResult(result)}`,
+        );
+      }
+    } else {
+      logger.error(
+        `[fetchSqrtPriceX96] Result is not array or object. Type: ${typeof result}, value: ${String(result)}`,
+      );
+      throw new Error(
+        `Unexpected result type from slot0: ${typeof result}, value: ${String(result)}`,
+      );
+    }
+    return sqrtPriceX96;
+  } catch (error) {
+    // If error should trigger fallback (historical state, temporary errors, etc.), try fallback public RPC
+    const shouldFallback = shouldUseFallbackRPC(error);
+    if (shouldFallback) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      const errorType =
+        errorMessage.includes("state histories") ||
+        errorMessage.includes("historical state")
+          ? "historical state not available"
+          : errorMessage.includes("Temporary internal error")
+            ? "temporary RPC error"
+            : "RPC error";
+
+      logger.warn(
+        `[fetchSqrtPriceX96] ${errorType} on primary RPC for pool ${poolAddress} on chain ${chainId} at block ${blockNumber}. Attempting fallback to public RPC...`,
+      );
+
+      const fallbackClient = createFallbackClient(chainId);
+      if (fallbackClient) {
+        try {
+          const result = await attemptFetch(fallbackClient, true);
+
+          // Handle both array and tuple object returns from viem
+          let sqrtPriceX96: bigint;
+          if (Array.isArray(result)) {
+            sqrtPriceX96 = result[0] as bigint;
+          } else if (result && typeof result === "object") {
+            if ("sqrtPriceX96" in result) {
+              sqrtPriceX96 = (result as { sqrtPriceX96: bigint }).sqrtPriceX96;
+            } else if (result[0] !== undefined) {
+              sqrtPriceX96 = result[0] as bigint;
+            } else {
+              throw new Error("Unexpected result format from fallback RPC");
+            }
+          } else {
+            throw new Error("Unexpected result type from fallback RPC");
+          }
+
+          return sqrtPriceX96;
+        } catch (fallbackError) {
+          logger.error(
+            `[fetchSqrtPriceX96] Fallback RPC also failed for pool ${poolAddress} on chain ${chainId} at block ${blockNumber}`,
+            fallbackError instanceof Error
+              ? fallbackError
+              : new Error(String(fallbackError)),
+          );
+          // Fall through to throw the original error
+        }
+      } else {
+        logger.warn(
+          `[fetchSqrtPriceX96] No fallback RPC available for chain ${chainId}`,
+        );
+      }
+    }
+
+    // Create a more readable error message
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const readableError = new Error(
+      `Failed to fetch sqrtPriceX96 from pool ${poolAddress} on chain ${chainId} at block ${blockNumber}: ${errorMessage}`,
+    );
+
+    // Preserve stack trace if available
+    if (error instanceof Error && error.stack) {
+      readableError.stack = error.stack;
+    }
+
+    logger.error(`[fetchSqrtPriceX96] ${readableError.message}`, readableError);
+    throw readableError;
+  }
 }
 
 /**
@@ -296,7 +500,7 @@ export const getTokenPrice = createEffect(
       calls: EFFECT_RATE_LIMITS.TOKEN_EFFECTS,
       per: "second",
     },
-    cache: true, // Price data can be cached for the update interval
+    cache: true, // Price data is not cached for the update interval
   },
   async ({ input, context }) => {
     const {
@@ -311,6 +515,7 @@ export const getTokenPrice = createEffect(
     } = input;
 
     const ethClient = CHAIN_CONSTANTS[chainId].eth_client;
+    const effectStartTime = Date.now();
     try {
       const result = await fetchTokenPrice(
         tokenAddress,
@@ -325,18 +530,28 @@ export const getTokenPrice = createEffect(
         gasLimit,
       );
 
+      const effectDuration = Date.now() - effectStartTime;
+      if (effectDuration > 5000) {
+        context.log.warn(
+          `[getTokenPrice] Effect took ${effectDuration}ms for token ${tokenAddress} on chain ${chainId} at block ${blockNumber}`,
+        );
+      }
+
       return result;
     } catch (error) {
+      const effectDuration = Date.now() - effectStartTime;
       // Don't cache failed response
       context.cache = false;
       context.log.error(
-        `[getTokenPrice] Error in effect for ${tokenAddress} on chain ${chainId} at block ${blockNumber}:`,
+        `[getTokenPrice] Error in effect for ${tokenAddress} on chain ${chainId} at block ${blockNumber} (duration: ${effectDuration}ms):`,
         error instanceof Error ? error : new Error(String(error)),
       );
       // Return zero price on error to prevent processing failures
       return {
         pricePerUSDNew: 0n,
-        priceOracleType: PriceOracleType.V2,
+        priceOracleType: CHAIN_CONSTANTS[chainId].oracle
+          .getType(blockNumber)
+          .toString(),
       };
     }
   },
@@ -363,7 +578,7 @@ export const getTokenPriceData = createEffect(
       calls: EFFECT_RATE_LIMITS.TOKEN_EFFECTS,
       per: "second",
     },
-    cache: true, // Combined price data can be cached
+    cache: false, // The underlying effects that are called inside this effect are already cached
   },
   async ({ input, context }) => {
     const { tokenAddress, blockNumber, chainId, gasLimit = 10000000n } = input;
@@ -385,6 +600,7 @@ export const getTokenPriceData = createEffect(
           pricePerUSDNew: 10n ** 18n, // TEN_TO_THE_18_BI
           decimals: BigInt(tokenDetails.decimals),
         };
+        return result;
       }
 
       // For non-USDC tokens, fetch both token details in parallel for better performance
@@ -445,10 +661,6 @@ export const getTokenPriceData = createEffect(
           decimals: BigInt(tokenDetails.decimals),
         };
 
-        context.log.info(
-          `[getTokenPriceData] Successfully fetched price data for ${tokenAddress} on chain ${chainId} at block ${blockNumber}. Price: ${result.pricePerUSDNew}, Decimals: ${result.decimals}. Oracle type: ${priceData.priceOracleType}`,
-        );
-
         return result;
       }
 
@@ -473,6 +685,62 @@ export const getTokenPriceData = createEffect(
         pricePerUSDNew: 0n,
         decimals: 0n,
       };
+    }
+  },
+);
+
+/**
+ * Effect to get sqrtPriceX96 from CLPool's slot0 function
+ * This replaces direct RPC calls for fetching current pool price
+ * Used for calculating position amounts from liquidity in concentrated liquidity pools
+ */
+export const getSqrtPriceX96 = createEffect(
+  {
+    name: "getSqrtPriceX96",
+    input: {
+      poolAddress: S.string,
+      chainId: S.number,
+      blockNumber: S.number,
+    },
+    output: S.bigint,
+    rateLimit: {
+      calls: EFFECT_RATE_LIMITS.DYNAMIC_FEE_EFFECTS,
+      per: "second",
+    },
+    cache: true,
+  },
+  async ({ input, context }) => {
+    const { poolAddress, chainId, blockNumber } = input;
+    const ethClient = CHAIN_CONSTANTS[chainId].eth_client;
+    try {
+      const result = await fetchSqrtPriceX96(
+        poolAddress,
+        chainId,
+        blockNumber,
+        ethClient,
+        context.log,
+      );
+      return result;
+    } catch (error) {
+      context.cache = false;
+
+      // Create a more readable error message
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      const readableError = new Error(
+        `getSqrtPriceX96 effect failed for pool ${poolAddress} on chain ${chainId} at block ${blockNumber}: ${errorMessage}`,
+      );
+
+      // Preserve stack trace if available
+      if (error instanceof Error && error.stack) {
+        readableError.stack = error.stack;
+      }
+
+      context.log.error(
+        `[getSqrtPriceX96] ${readableError.message}`,
+        readableError,
+      );
+      throw readableError;
     }
   },
 );

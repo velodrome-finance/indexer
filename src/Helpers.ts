@@ -1,4 +1,6 @@
+import { SqrtPriceMath, TickMath } from "@uniswap/v3-sdk";
 import type { Token, handlerContext } from "generated";
+import JSBI from "jsbi";
 import { TEN_TO_THE_18_BI } from "./Constants";
 import { multiplyBase1e18 } from "./Maths";
 import { refreshTokenPrice } from "./PriceOracle";
@@ -238,6 +240,79 @@ export function calculateTotalLiquidityUSD(
   }
 
   return totalLiquidityUSD;
+}
+
+/**
+ * Calculates token0 and token1 amounts from a Uniswap V3 liquidity position.
+ *
+ * Uses @uniswap/v3-sdk packages (TickMath and SqrtPriceMath).
+ * TickMath converts tick indices into sqrt ratios in Q96 format,
+ * and SqrtPriceMath.getAmount0Delta/getAmount1Delta calculate the token amounts.
+ *
+ * @param liquidity   The liquidity of the position as a bigint.
+ * @param sqrtPriceX96 Current sqrt(price) for the pool, encoded as Q64.96 (uint160) and passed as bigint.
+ * @param tickLower   Lower tick of the position as a bigint.
+ * @param tickUpper   Upper tick of the position as a bigint.
+ * @returns           An object containing amount0 and amount1 as bigint.
+ */
+export function calculatePositionAmountsFromLiquidity(
+  liquidity: bigint,
+  sqrtPriceX96: bigint,
+  tickLower: bigint,
+  tickUpper: bigint,
+): { amount0: bigint; amount1: bigint } {
+  // Convert tick boundaries into sqrt ratios in Q96 format
+  // TickMath expects number, so convert bigint to number
+  const sqrtPriceLower = TickMath.getSqrtRatioAtTick(Number(tickLower)); // returns JSBI
+  const sqrtPriceUpper = TickMath.getSqrtRatioAtTick(Number(tickUpper));
+
+  // Convert bigint inputs to JSBI for SDK functions
+  const liquidityJSBI = JSBI.BigInt(liquidity.toString());
+  const sqrtPriceCurrentJSBI = JSBI.BigInt(sqrtPriceX96.toString());
+
+  // Determine which amounts to calculate based on price position
+  let amount0JSBI: JSBI;
+  let amount1JSBI: JSBI;
+
+  if (JSBI.lessThan(sqrtPriceCurrentJSBI, sqrtPriceLower)) {
+    // Price is below range: all token0
+    amount0JSBI = SqrtPriceMath.getAmount0Delta(
+      sqrtPriceLower,
+      sqrtPriceUpper,
+      liquidityJSBI,
+      false,
+    );
+    amount1JSBI = JSBI.BigInt(0);
+  } else if (JSBI.greaterThan(sqrtPriceCurrentJSBI, sqrtPriceUpper)) {
+    // Price is above range: all token1
+    amount0JSBI = JSBI.BigInt(0);
+    amount1JSBI = SqrtPriceMath.getAmount1Delta(
+      sqrtPriceLower,
+      sqrtPriceUpper,
+      liquidityJSBI,
+      false,
+    );
+  } else {
+    // Price is within range: both tokens
+    amount0JSBI = SqrtPriceMath.getAmount0Delta(
+      sqrtPriceCurrentJSBI,
+      sqrtPriceUpper,
+      liquidityJSBI,
+      false,
+    );
+    amount1JSBI = SqrtPriceMath.getAmount1Delta(
+      sqrtPriceLower,
+      sqrtPriceCurrentJSBI,
+      liquidityJSBI,
+      false,
+    );
+  }
+
+  // Convert JSBI results back to bigint for caller
+  return {
+    amount0: BigInt(amount0JSBI.toString()),
+    amount1: BigInt(amount1JSBI.toString()),
+  };
 }
 
 /**

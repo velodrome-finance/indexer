@@ -1,6 +1,14 @@
 import { NFPM } from "generated";
 import { toChecksumAddress } from "../../Constants";
-import { calculateTotalLiquidityUSD } from "../../Helpers";
+import {
+  cleanupOrphanedPlaceholders,
+  findNonFungiblePositionByTXHashAndAmounts,
+  getSqrtPriceX96AndTokens,
+  getTokensForPosition,
+  processDecreaseLiquidity,
+  processIncreaseLiquidity,
+  processTransfer,
+} from "./NFPMLogic";
 
 /**
  * @title NonfungiblePositionManager
@@ -8,9 +16,6 @@ import { calculateTotalLiquidityUSD } from "../../Helpers";
  * It extends the ERC721 standard, allowing these positions to be transferred and managed as NFTs.
  * The contract provides functionalities for minting, increasing, and decreasing liquidity, as well as collecting fees.
  */
-
-const NonFungiblePositionId = (chainId: number, tokenId: bigint) =>
-  `${chainId}_${tokenId}`;
 
 /**
  * @event Transfer
@@ -20,140 +25,179 @@ const NonFungiblePositionId = (chainId: number, tokenId: bigint) =>
  * @param {uint256} tokenId - The ID of the token being transferred.
  */
 NFPM.Transfer.handler(async ({ event, context }) => {
-  const positionId = NonFungiblePositionId(event.chainId, event.params.tokenId);
+  const isMint =
+    event.params.from === "0x0000000000000000000000000000000000000000";
 
-  // Get current position
-  const position = await context.NonFungiblePosition.get(positionId);
+  // Try to find position by tokenId first (in case it already exists)
+  let position = await context.NonFungiblePosition.getWhere.tokenId.eq(
+    event.params.tokenId,
+  );
 
-  if (!position) {
+  // If not found and this is a mint, look for placeholder by transaction hash
+  if ((!position || position.length === 0) && isMint) {
+    const positions =
+      await context.NonFungiblePosition.getWhere.mintTransactionHash.eq(
+        event.transaction.hash,
+      );
+
+    if (positions && positions.length > 0) {
+      // Find placeholder with matching ID pattern and tokenId = 0n (placeholder marker)
+      // Placeholder ID format: ${chainId}_${txHash}_${logIndex}
+      // Placeholder tokenId is set to 0n to mark it as a placeholder
+      const placeholderIdPrefix = `${event.chainId}_${event.transaction.hash.slice(2)}_`;
+      const matchingPlaceholders = positions.filter(
+        (pos) => pos.id.startsWith(placeholderIdPrefix) && pos.tokenId === 0n, // Placeholder marker
+      );
+
+      // If multiple placeholders match (multiple mints in same transaction),
+      // we need another way to match. Since we can't use logIndex comparison anymore,
+      // we'll take the first one found. In practice, there should only be one placeholder per mint.
+      // If there are multiple, they should be matched by amounts in IncreaseLiquidity.
+      const placeholderPosition = matchingPlaceholders[0];
+
+      if (placeholderPosition) {
+        position = [placeholderPosition];
+      }
+    }
+  }
+
+  if (!position || position.length === 0) {
     context.log.error(
-      `NonFungiblePosition ${positionId} not found during transfer on chain ${event.chainId}`,
+      `NonFungiblePosition with tokenId ${event.params.tokenId} not found during transfer on chain ${event.chainId}`,
     );
     return;
   }
 
+  // Use the first matching position (should be unique)
+  const currentPosition = position[0];
+
   // Get token entities to calculate USD value
-  const token0 = await context.Token.get(`${event.chainId}_${position.token0}`);
-  const token1 = await context.Token.get(`${event.chainId}_${position.token1}`);
-
-  const blockDatetime = new Date(event.block.timestamp * 1000);
-
-  // Updating amountUSD given current prices of token0 and token1
-  const NonFungiblePositionAmountUSD = calculateTotalLiquidityUSD(
-    position.amount0,
-    position.amount1,
-    token0,
-    token1,
+  const [token0, token1] = await getTokensForPosition(
+    event.chainId,
+    currentPosition,
+    context,
   );
 
-  // Update owner on transfer
+  // Process transfer logic
+  const result = processTransfer(
+    toChecksumAddress(event.params.to),
+    currentPosition,
+    token0,
+    token1,
+    event.block.timestamp,
+  );
+
+  // Update position in place - keep the same ID (placeholder ID), just update tokenId and other fields
   const updatedPosition = {
-    ...position,
-    owner: toChecksumAddress(event.params.to),
-    amountUSD: NonFungiblePositionAmountUSD,
-    lastUpdatedTimestamp: blockDatetime,
+    ...currentPosition,
+    ...result.updatedPosition,
+    tokenId: event.params.tokenId, // Update to final tokenId
   };
 
   context.NonFungiblePosition.set(updatedPosition);
+
+  // Clean up orphaned placeholders from the same transaction
+  await cleanupOrphanedPlaceholders(event.transaction.hash, context);
 });
 
 // This event is emitted when mints and liquidity increases
 // However, mint-related entity creation of NonFungiblePosition is handled CLPool module
 NFPM.IncreaseLiquidity.handler(async ({ event, context }) => {
-  const positionId = NonFungiblePositionId(event.chainId, event.params.tokenId);
+  // Try to find position by tokenId first
+  let positions = await context.NonFungiblePosition.getWhere.tokenId.eq(
+    event.params.tokenId,
+  );
 
-  // Start filtering by fetching NonFungiblePosition entity created in the same transaction hash
-  const positions =
-    await context.NonFungiblePosition.getWhere.transactionHash.eq(
+  // If not found, try to find by transaction hash and matching amounts (for mint case)
+  if (!positions || positions.length === 0) {
+    const position = await findNonFungiblePositionByTXHashAndAmounts(
       event.transaction.hash,
+      event.params.amount0,
+      event.params.amount1,
+      context,
     );
+    if (position) {
+      positions = [position];
+    }
+  }
 
   if (!positions || positions.length === 0) {
     context.log.error(
-      `NonFungiblePosition ${positionId} not found during increase liquidity on chain ${event.chainId} or event is from a mint action.`,
+      `NonFungiblePosition with tokenId ${event.params.tokenId} not found during increase liquidity on chain ${event.chainId} or event is from a mint action.`,
     );
     return;
   }
 
-  // Filter by amount0 and amount1 to find the matching position
-  // More robust filtering if, for example, there's more than 1 Mint event for the same transaction hash
-  const matchingPosition = positions.find(
-    (pos) =>
-      pos.amount0 === event.params.amount0 &&
-      pos.amount1 === event.params.amount1,
+  const position = positions[0];
+
+  // Get sqrtPriceX96 and tokens in parallel
+  const [sqrtPriceX96, token0, token1] = await getSqrtPriceX96AndTokens(
+    event.chainId,
+    position,
+    event.block.number,
+    context,
   );
 
-  if (!matchingPosition) {
-    context.log.error(
-      `NonFungiblePosition with matching amounts (${event.params.amount0}, ${event.params.amount1}) not found during increase liquidity on chain ${event.chainId}.`,
-    );
-    return;
-  }
-
-  const position = matchingPosition;
-
-  // Get token entities to calculate USD value
-  const token0 = await context.Token.get(`${event.chainId}_${position.token0}`);
-  const token1 = await context.Token.get(`${event.chainId}_${position.token1}`);
-
-  const blockDatetime = new Date(event.block.timestamp * 1000);
-
-  const newAmount0 = position.amount0 + event.params.amount0;
-  const newAmount1 = position.amount1 + event.params.amount1;
-
-  const NonFungiblePositionAmountUSD = calculateTotalLiquidityUSD(
-    newAmount0,
-    newAmount1,
+  // Process increase liquidity logic
+  const result = processIncreaseLiquidity(
+    event,
+    position,
+    sqrtPriceX96,
     token0,
     token1,
   );
 
-  // Update position with increased liquidity amounts
+  // Update position with result
   const updatedPosition = {
     ...position,
-    amount0: newAmount0,
-    amount1: newAmount1,
-    amountUSD: NonFungiblePositionAmountUSD,
-    lastUpdatedTimestamp: blockDatetime,
+    ...result.updatedPosition,
+    tokenId: event.params.tokenId, // Update to actual tokenId if this was a placeholder
   };
   context.NonFungiblePosition.set(updatedPosition);
+
+  // Clean up orphaned placeholders
+  await cleanupOrphanedPlaceholders(event.transaction.hash, context);
 });
 
 NFPM.DecreaseLiquidity.handler(async ({ event, context }) => {
-  const positionId = NonFungiblePositionId(event.chainId, event.params.tokenId);
+  // Get position by tokenId
+  // Transfer should have already run and updated the placeholder, so position should exist when a DecreaseLiquidity event is processed
+  const positions = await context.NonFungiblePosition.getWhere.tokenId.eq(
+    event.params.tokenId,
+  );
 
-  const position = await context.NonFungiblePosition.get(positionId);
-
-  if (!position) {
+  // This should never happen
+  if (!positions || positions.length === 0) {
     context.log.error(
-      `NonFungiblePosition ${positionId} not found during decrease liquidity on chain ${event.chainId}`,
+      `NonFungiblePosition with tokenId ${event.params.tokenId} not found during decrease liquidity on chain ${event.chainId}`,
     );
     return;
   }
 
-  // Get token entities to calculate USD value
-  const token0 = await context.Token.get(`${event.chainId}_${position.token0}`);
-  const token1 = await context.Token.get(`${event.chainId}_${position.token1}`);
+  const position = positions[0];
 
-  const blockDatetime = new Date(event.block.timestamp * 1000);
+  // Get sqrtPriceX96 and tokens in parallel
+  const [sqrtPriceX96, token0, token1] = await getSqrtPriceX96AndTokens(
+    event.chainId,
+    position,
+    event.block.number,
+    context,
+  );
 
-  // Update position with decreased liquidity amounts
-  const newAmount0 = position.amount0 - event.params.amount0;
-  const newAmount1 = position.amount1 - event.params.amount1;
-
-  const NonFungiblePositionAmountUSD = calculateTotalLiquidityUSD(
-    newAmount0,
-    newAmount1,
+  // Process decrease liquidity logic
+  const result = processDecreaseLiquidity(
+    event,
+    position,
+    sqrtPriceX96,
     token0,
     token1,
   );
 
   const updatedPosition = {
     ...position,
-    amount0: newAmount0,
-    amount1: newAmount1,
-    amountUSD: NonFungiblePositionAmountUSD,
-    lastUpdatedTimestamp: blockDatetime,
+    ...result.updatedPosition,
   };
   context.NonFungiblePosition.set(updatedPosition);
+
+  await cleanupOrphanedPlaceholders(event.transaction.hash, context);
 });
