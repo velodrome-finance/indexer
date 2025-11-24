@@ -569,7 +569,9 @@ export const getTokenPrice = createEffect(
       // Return zero price on error to prevent processing failures
       return {
         pricePerUSDNew: 0n,
-        priceOracleType: CHAIN_CONSTANTS[chainId].oracle.getType(blockNumber).toString(),
+        priceOracleType: CHAIN_CONSTANTS[chainId].oracle
+          .getType(blockNumber)
+          .toString(),
       };
     }
   },
