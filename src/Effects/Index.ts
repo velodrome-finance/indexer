@@ -3,6 +3,7 @@ export {
   getTokenDetails,
   getTokenPrice,
   getTokenPriceData,
+  getSqrtPriceX96,
 } from "./Token";
 
 // Dynamic fee-related effects

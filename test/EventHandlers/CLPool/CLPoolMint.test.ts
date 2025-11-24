@@ -63,7 +63,7 @@ describe("CLPool Mint Event Handler", () => {
 
     // Verify placeholder values (to be updated by NFPM.Transfer)
     expect(createdPosition.id).to.equal(placeholderId);
-    expect(createdPosition.tokenId).to.equal(BigInt(mockEvent.logIndex));
+    expect(createdPosition.tokenId).to.equal(0n); // Placeholder marker
 
     // Verify correct fields from event
     expect(createdPosition.chainId).to.equal(chainId);

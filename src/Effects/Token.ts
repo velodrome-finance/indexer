@@ -8,6 +8,7 @@ import {
   EFFECT_RATE_LIMITS,
   PriceOracleType,
 } from "../Constants";
+import { createFallbackClient, shouldUseFallbackRPC } from "./Errors";
 import { ErrorType, getErrorType, sleep } from "./Helpers";
 
 // ERC20 Contract ABI
@@ -220,6 +221,153 @@ export async function fetchTokenPrice(
     pricePerUSDNew: 0n,
     priceOracleType: priceOracleType,
   };
+}
+
+/**
+ * Core logic for fetching sqrtPriceX96 from pool's slot0 function
+ * Includes fallback to public RPC when private RPC fails with historical state errors
+ */
+export async function fetchSqrtPriceX96(
+  poolAddress: string,
+  chainId: number,
+  blockNumber: number,
+  ethClient: PublicClient,
+  logger: Envio_logger,
+): Promise<bigint> {
+  const CLPoolABI = require("../../abis/CLPool.json");
+
+  const attemptFetch = async (client: PublicClient, isFallback = false) => {
+    const { result } = await client.simulateContract({
+      address: poolAddress as `0x${string}`,
+      abi: CLPoolABI,
+      functionName: "slot0",
+      args: [],
+      blockNumber: BigInt(blockNumber),
+    });
+    return result;
+  };
+
+  try {
+    const result = await attemptFetch(ethClient);
+
+    // Handle both array and tuple object returns from viem
+    // When ABI has named fields, viem returns an object; otherwise it returns an array
+    let sqrtPriceX96: bigint;
+    if (Array.isArray(result)) {
+      sqrtPriceX96 = result[0] as bigint;
+    } else if (result && typeof result === "object") {
+      // Try accessing as object with named property
+      if ("sqrtPriceX96" in result) {
+        sqrtPriceX96 = (result as { sqrtPriceX96: bigint }).sqrtPriceX96;
+      } else if (result[0] !== undefined) {
+        // Sometimes viem returns object-like array
+        sqrtPriceX96 = result[0] as bigint;
+      } else {
+        // Helper to stringify with BigInt support
+        const stringifyResult = (obj: unknown): string => {
+          if (Array.isArray(obj)) {
+            return `[${obj
+              .map((item) =>
+                typeof item === "bigint" ? item.toString() : String(item),
+              )
+              .join(", ")}]`;
+          }
+          if (obj && typeof obj === "object") {
+            const entries = Object.entries(obj).map(
+              ([key, value]) =>
+                `${key}: ${typeof value === "bigint" ? value.toString() : String(value)}`,
+            );
+            return `{${entries.join(", ")}}`;
+          }
+          return String(obj);
+        };
+
+        logger.error(
+          `[fetchSqrtPriceX96] Unexpected result format. Result type: ${typeof result}, keys: ${result && typeof result === "object" ? Object.keys(result).join(", ") : "N/A"}, result: ${stringifyResult(result)}`,
+        );
+        throw new Error(
+          `Unexpected result format from slot0. Expected array or object with sqrtPriceX96 property, got: ${stringifyResult(result)}`,
+        );
+      }
+    } else {
+      logger.error(
+        `[fetchSqrtPriceX96] Result is not array or object. Type: ${typeof result}, value: ${String(result)}`,
+      );
+      throw new Error(
+        `Unexpected result type from slot0: ${typeof result}, value: ${String(result)}`,
+      );
+    }
+    return sqrtPriceX96;
+  } catch (error) {
+    // If error should trigger fallback (historical state, temporary errors, etc.), try fallback public RPC
+    const shouldFallback = shouldUseFallbackRPC(error);
+    if (shouldFallback) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      const errorType =
+        errorMessage.includes("state histories") ||
+        errorMessage.includes("historical state")
+          ? "historical state not available"
+          : errorMessage.includes("Temporary internal error")
+            ? "temporary RPC error"
+            : "RPC error";
+
+      logger.warn(
+        `[fetchSqrtPriceX96] ${errorType} on primary RPC for pool ${poolAddress} on chain ${chainId} at block ${blockNumber}. Attempting fallback to public RPC...`,
+      );
+
+      const fallbackClient = createFallbackClient(chainId);
+      if (fallbackClient) {
+        try {
+          const result = await attemptFetch(fallbackClient, true);
+
+          // Handle both array and tuple object returns from viem
+          let sqrtPriceX96: bigint;
+          if (Array.isArray(result)) {
+            sqrtPriceX96 = result[0] as bigint;
+          } else if (result && typeof result === "object") {
+            if ("sqrtPriceX96" in result) {
+              sqrtPriceX96 = (result as { sqrtPriceX96: bigint }).sqrtPriceX96;
+            } else if (result[0] !== undefined) {
+              sqrtPriceX96 = result[0] as bigint;
+            } else {
+              throw new Error("Unexpected result format from fallback RPC");
+            }
+          } else {
+            throw new Error("Unexpected result type from fallback RPC");
+          }
+
+          return sqrtPriceX96;
+        } catch (fallbackError) {
+          logger.error(
+            `[fetchSqrtPriceX96] Fallback RPC also failed for pool ${poolAddress} on chain ${chainId} at block ${blockNumber}`,
+            fallbackError instanceof Error
+              ? fallbackError
+              : new Error(String(fallbackError)),
+          );
+          // Fall through to throw the original error
+        }
+      } else {
+        logger.warn(
+          `[fetchSqrtPriceX96] No fallback RPC available for chain ${chainId}`,
+        );
+      }
+    }
+
+    // Create a more readable error message
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const readableError = new Error(
+      `Failed to fetch sqrtPriceX96 from pool ${poolAddress} on chain ${chainId} at block ${blockNumber}: ${errorMessage}`,
+    );
+
+    // Preserve stack trace if available
+    if (error instanceof Error && error.stack) {
+      readableError.stack = error.stack;
+    }
+
+    logger.error(`[fetchSqrtPriceX96] ${readableError.message}`, readableError);
+    throw readableError;
+  }
 }
 
 /**
@@ -473,6 +621,62 @@ export const getTokenPriceData = createEffect(
         pricePerUSDNew: 0n,
         decimals: 0n,
       };
+    }
+  },
+);
+
+/**
+ * Effect to get sqrtPriceX96 from CLPool's slot0 function
+ * This replaces direct RPC calls for fetching current pool price
+ * Used for calculating position amounts from liquidity in concentrated liquidity pools
+ */
+export const getSqrtPriceX96 = createEffect(
+  {
+    name: "getSqrtPriceX96",
+    input: {
+      poolAddress: S.string,
+      chainId: S.number,
+      blockNumber: S.number,
+    },
+    output: S.bigint,
+    rateLimit: {
+      calls: EFFECT_RATE_LIMITS.DYNAMIC_FEE_EFFECTS,
+      per: "second",
+    },
+    cache: true,
+  },
+  async ({ input, context }) => {
+    const { poolAddress, chainId, blockNumber } = input;
+    const ethClient = CHAIN_CONSTANTS[chainId].eth_client;
+    try {
+      const result = await fetchSqrtPriceX96(
+        poolAddress,
+        chainId,
+        blockNumber,
+        ethClient,
+        context.log,
+      );
+      return result;
+    } catch (error) {
+      context.cache = false;
+
+      // Create a more readable error message
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      const readableError = new Error(
+        `getSqrtPriceX96 effect failed for pool ${poolAddress} on chain ${chainId} at block ${blockNumber}: ${errorMessage}`,
+      );
+
+      // Preserve stack trace if available
+      if (error instanceof Error && error.stack) {
+        readableError.stack = error.stack;
+      }
+
+      context.log.error(
+        `[getSqrtPriceX96] ${readableError.message}`,
+        readableError,
+      );
+      throw readableError;
     }
   },
 );

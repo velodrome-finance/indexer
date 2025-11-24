@@ -28,8 +28,11 @@
   },
   "dependencies": {
     "@types/mocha": "^10.0.10",
+    "@uniswap/sdk-core": "^7.9.0",
+    "@uniswap/v3-sdk": "^3.26.0",
     "chai": "4.3.10",
     "envio": "2.32.2",
+    "jsbi": "^4.3.2",
     "mocha": "^10.8.2",
     "prettier": "^2.8.8",
     "ts-node": "^10.9.2",
