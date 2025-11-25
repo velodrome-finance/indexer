@@ -8,7 +8,6 @@ import {
   fetchTokenPrice,
   getTokenDetails,
   getTokenPrice,
-  getTokenPriceData,
 } from "../../src/Effects/Token";
 
 describe("Token Effects", () => {
@@ -78,13 +77,6 @@ describe("Token Effects", () => {
     it("should be a valid effect object", () => {
       expect(getTokenPrice).to.be.an("object");
       expect(getTokenPrice).to.have.property("name", "getTokenPrice");
-    });
-  });
-
-  describe("getTokenPriceData", () => {
-    it("should be a valid effect object", () => {
-      expect(getTokenPriceData).to.be.an("object");
-      expect(getTokenPriceData).to.have.property("name", "getTokenPriceData");
     });
   });
 
