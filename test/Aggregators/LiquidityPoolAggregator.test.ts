@@ -479,7 +479,8 @@ describe("LiquidityPoolAggregator Functions", () => {
           }
           if (effectFn.name === "getTokenDetails") {
             if (
-              input.contractAddress.toLowerCase() === token0.address.toLowerCase()
+              input.contractAddress.toLowerCase() ===
+              token0.address.toLowerCase()
             ) {
               return {
                 name: token0.name,
@@ -488,7 +489,8 @@ describe("LiquidityPoolAggregator Functions", () => {
               };
             }
             if (
-              input.contractAddress.toLowerCase() === token1.address.toLowerCase()
+              input.contractAddress.toLowerCase() ===
+              token1.address.toLowerCase()
             ) {
               return {
                 name: token1.name,
@@ -613,7 +615,8 @@ describe("LiquidityPoolAggregator Functions", () => {
           }
           if (effectFn.name === "getTokenDetails") {
             if (
-              input.contractAddress.toLowerCase() === token0.address.toLowerCase()
+              input.contractAddress.toLowerCase() ===
+              token0.address.toLowerCase()
             ) {
               return {
                 name: token0.name,
@@ -622,7 +625,8 @@ describe("LiquidityPoolAggregator Functions", () => {
               };
             }
             if (
-              input.contractAddress.toLowerCase() === token1.address.toLowerCase()
+              input.contractAddress.toLowerCase() ===
+              token1.address.toLowerCase()
             ) {
               return {
                 name: token1.name,
@@ -679,7 +683,8 @@ describe("LiquidityPoolAggregator Functions", () => {
           }
           if (effectFn.name === "getTokenDetails") {
             if (
-              input.contractAddress.toLowerCase() === token0.address.toLowerCase()
+              input.contractAddress.toLowerCase() ===
+              token0.address.toLowerCase()
             ) {
               return {
                 name: token0.name,
@@ -688,7 +693,8 @@ describe("LiquidityPoolAggregator Functions", () => {
               };
             }
             if (
-              input.contractAddress.toLowerCase() === token1.address.toLowerCase()
+              input.contractAddress.toLowerCase() ===
+              token1.address.toLowerCase()
             ) {
               return {
                 name: token1.name,
