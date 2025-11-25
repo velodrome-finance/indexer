@@ -210,14 +210,13 @@ describe("GaugeSharedLogic", () => {
       },
       // biome-ignore lint/suspicious/noExplicitAny: Mock effect function for testing
       effect: async (fn: any, params: any) => {
-        // Mock the getTokenPriceData effect
-        if (fn.name === "getTokenPriceData") {
+        // Mock token effects
+        if (fn.name === "getTokenPrice") {
           return {
-            decimals: 18n,
             pricePerUSDNew: 1000000000000000000n, // 1 USD
           };
         }
-        // Mock getTokenDetails effect for refreshTokenPrice
+        // Mock getTokenDetails effect
         if (fn.name === "getTokenDetails") {
           return {
             name: "AERO",
