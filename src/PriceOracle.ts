@@ -8,7 +8,8 @@ import {
 } from "./Constants";
 import {
   getTokenDetails,
-  getTokenPriceData as getTokenPriceDataEffect,
+  getTokenPrice,
+  roundBlockToInterval,
 } from "./Effects/Index";
 import type {
   Token,
@@ -86,13 +87,24 @@ export async function refreshTokenPrice(
   }
 
   try {
-    const tokenPriceData = await context.effect(getTokenPriceDataEffect, {
-      tokenAddress: token.address,
-      blockNumber,
-      chainId,
-      gasLimit,
-    });
-    const currentPrice = tokenPriceData.pricePerUSDNew;
+    // Round block number to nearest hour interval for better cache hits
+    // Cache key is based on input parameters, so rounding must happen before effect call
+    const roundedBlockNumber = roundBlockToInterval(blockNumber, chainId);
+
+    // Fetch token details and price in parallel
+    const [tokenDetails, priceData] = await Promise.all([
+      context.effect(getTokenDetails, {
+        contractAddress: token.address,
+        chainId,
+      }),
+      context.effect(getTokenPrice, {
+        tokenAddress: token.address,
+        chainId,
+        blockNumber: roundedBlockNumber, // Use rounded block for cache key
+        gasLimit,
+      }),
+    ]);
+    const currentPrice = priceData.pricePerUSDNew;
 
     // If price fetch returned 0, it could mean:
     // 1. No price path exists in the oracle (token not configured)
@@ -147,7 +159,7 @@ export async function refreshTokenPrice(
     const updatedToken: Token = {
       ...token,
       pricePerUSDNew: currentPrice,
-      decimals: tokenPriceData.decimals,
+      decimals: BigInt(tokenDetails.decimals),
       lastUpdatedTimestamp: new Date(blockTimestampMs),
     };
     context.Token.set(updatedToken);

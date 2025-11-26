@@ -37,14 +37,14 @@ describe("VotingRewardSharedLogic", () => {
         },
       },
       effect: async (fn: { name: string }, params: unknown) => {
-        // Mock token price data effect
-        if (fn.name === "getTokenPriceData") {
+        // Mock token effects
+        if (fn.name === "getTokenPrice") {
           return {
-            decimals: 6n,
             pricePerUSDNew: 1000000000000000000n, // 1 USD
+            priceOracleType: "v3",
           };
         }
-        // Mock getTokenDetails effect for refreshTokenPrice
+        // Mock getTokenDetails effect
         if (fn.name === "getTokenDetails") {
           return {
             name: "Test Token",
@@ -221,10 +221,10 @@ describe("VotingRewardSharedLogic", () => {
     it("should handle different token decimals correctly", async () => {
       // Mock a token with 18 decimals
       mockContext.effect = async (fn: { name: string }, params: unknown) => {
-        if (fn.name === "getTokenPriceData") {
+        if (fn.name === "getTokenPrice") {
           return {
-            decimals: 18n,
             pricePerUSDNew: 1000000000000000000n, // 1 USD
+            priceOracleType: "v3",
           };
         }
         // Mock getTokenDetails effect for token creation

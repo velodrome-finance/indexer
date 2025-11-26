@@ -2,8 +2,8 @@
 export {
   getTokenDetails,
   getTokenPrice,
-  getTokenPriceData,
   getSqrtPriceX96,
+  roundBlockToInterval,
 } from "./Token";
 
 // Dynamic fee-related effects

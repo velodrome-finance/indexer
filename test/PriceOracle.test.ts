@@ -11,10 +11,9 @@ describe("PriceOracle", () => {
   const mockContext = {
     effect: sinon.stub().callsFake(async (effectFn, input) => {
       // Mock the effect calls for testing
-      if (effectFn.name === "getTokenPriceData") {
+      if (effectFn.name === "getTokenPrice") {
         return {
           pricePerUSDNew: 2n * 10n ** 18n,
-          decimals: 18n,
         };
       }
       if (effectFn.name === "getTokenDetails") {
@@ -237,7 +236,7 @@ describe("PriceOracle", () => {
 
         // Mock effect to throw an error
         (mockContext.effect as sinon.SinonStub).callsFake(async (effectFn) => {
-          if (effectFn.name === "getTokenPriceData") {
+          if (effectFn.name === "getTokenPrice") {
             throw new Error("Price fetch failed");
           }
           if (effectFn.name === "getTokenDetails") {
@@ -271,10 +270,9 @@ describe("PriceOracle", () => {
         // Restore original effect stub behavior
         (mockContext.effect as sinon.SinonStub).callsFake(
           async (effectFn, input) => {
-            if (effectFn.name === "getTokenPriceData") {
+            if (effectFn.name === "getTokenPrice") {
               return {
                 pricePerUSDNew: 2n * 10n ** 18n,
-                decimals: 18n,
               };
             }
             if (effectFn.name === "getTokenDetails") {

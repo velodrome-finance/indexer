@@ -458,16 +458,15 @@ describe("LiquidityPoolAggregator Functions", () => {
       const newPrice0 = 1500000n; // $1.50
       const newPrice1 = 2500000n; // $2.50
 
-      // Mock effect to return new prices
+      // Mock effect to return new prices and token details
       (contextStub.effect as sinon.SinonStub).callsFake(
         async (effectFn, input) => {
-          if (effectFn.name === "getTokenPriceData") {
+          if (effectFn.name === "getTokenPrice") {
             if (
               input.tokenAddress.toLowerCase() === token0.address.toLowerCase()
             ) {
               return {
                 pricePerUSDNew: newPrice0,
-                decimals: 18,
               };
             }
             if (
@@ -475,7 +474,28 @@ describe("LiquidityPoolAggregator Functions", () => {
             ) {
               return {
                 pricePerUSDNew: newPrice1,
-                decimals: 18,
+              };
+            }
+          }
+          if (effectFn.name === "getTokenDetails") {
+            if (
+              input.contractAddress.toLowerCase() ===
+              token0.address.toLowerCase()
+            ) {
+              return {
+                name: token0.name,
+                symbol: token0.symbol,
+                decimals: Number(token0.decimals),
+              };
+            }
+            if (
+              input.contractAddress.toLowerCase() ===
+              token1.address.toLowerCase()
+            ) {
+              return {
+                name: token1.name,
+                symbol: token1.symbol,
+                decimals: Number(token1.decimals),
               };
             }
           }
@@ -574,16 +594,15 @@ describe("LiquidityPoolAggregator Functions", () => {
       const blockTimestamp = Math.floor(Date.now() / 1000);
       const newPrice0 = 1000000n; // $1.00
 
-      // Mock effect to return new price
+      // Mock effect to return new price and token details
       (contextStub.effect as sinon.SinonStub).callsFake(
         async (effectFn, input) => {
-          if (effectFn.name === "getTokenPriceData") {
+          if (effectFn.name === "getTokenPrice") {
             if (
               input.tokenAddress.toLowerCase() === token0.address.toLowerCase()
             ) {
               return {
                 pricePerUSDNew: newPrice0,
-                decimals: 18,
               };
             }
             if (
@@ -591,7 +610,28 @@ describe("LiquidityPoolAggregator Functions", () => {
             ) {
               return {
                 pricePerUSDNew: token1.pricePerUSDNew,
-                decimals: 18,
+              };
+            }
+          }
+          if (effectFn.name === "getTokenDetails") {
+            if (
+              input.contractAddress.toLowerCase() ===
+              token0.address.toLowerCase()
+            ) {
+              return {
+                name: token0.name,
+                symbol: token0.symbol,
+                decimals: Number(token0.decimals),
+              };
+            }
+            if (
+              input.contractAddress.toLowerCase() ===
+              token1.address.toLowerCase()
+            ) {
+              return {
+                name: token1.name,
+                symbol: token1.symbol,
+                decimals: Number(token1.decimals),
               };
             }
           }
@@ -624,10 +664,10 @@ describe("LiquidityPoolAggregator Functions", () => {
       const blockNumber = 1000000;
       const blockTimestamp = Math.floor(Date.now() / 1000);
 
-      // Mock effect to throw error for token0
+      // Mock effect to throw error for token0, return price for token1
       (contextStub.effect as sinon.SinonStub).callsFake(
         async (effectFn, input) => {
-          if (effectFn.name === "getTokenPriceData") {
+          if (effectFn.name === "getTokenPrice") {
             if (
               input.tokenAddress.toLowerCase() === token0.address.toLowerCase()
             ) {
@@ -638,7 +678,28 @@ describe("LiquidityPoolAggregator Functions", () => {
             ) {
               return {
                 pricePerUSDNew: 3000000n,
-                decimals: 18,
+              };
+            }
+          }
+          if (effectFn.name === "getTokenDetails") {
+            if (
+              input.contractAddress.toLowerCase() ===
+              token0.address.toLowerCase()
+            ) {
+              return {
+                name: token0.name,
+                symbol: token0.symbol,
+                decimals: Number(token0.decimals),
+              };
+            }
+            if (
+              input.contractAddress.toLowerCase() ===
+              token1.address.toLowerCase()
+            ) {
+              return {
+                name: token1.name,
+                symbol: token1.symbol,
+                decimals: Number(token1.decimals),
               };
             }
           }

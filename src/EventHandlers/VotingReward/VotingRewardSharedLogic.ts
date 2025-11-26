@@ -10,7 +10,11 @@ import {
 } from "../../Aggregators/LiquidityPoolAggregator";
 import { loadUserData } from "../../Aggregators/UserStatsPerPool";
 import { TokenIdByChain, toChecksumAddress } from "../../Constants";
-import { getTokenDetails, getTokenPriceData } from "../../Effects/Token";
+import {
+  getTokenDetails,
+  getTokenPrice,
+  roundBlockToInterval,
+} from "../../Effects/Token";
 import { normalizeTokenAmountTo1e18 } from "../../Helpers";
 import { multiplyBase1e18 } from "../../Maths";
 import { refreshTokenPrice } from "../../PriceOracle";
@@ -118,18 +122,26 @@ export async function processVotingRewardClaimRewards(
     );
 
     context.log.warn(
-      "[processVotingRewardClaimRewards] Using getTokenPriceData effect to get token data and then creating Token entity",
+      "[processVotingRewardClaimRewards] Using separate effects to get token data and then creating Token entity",
     );
 
-    const [rewardTokenPriceData, rewardTokenDetails] = await Promise.all([
-      context.effect(getTokenPriceData, {
-        tokenAddress: data.reward,
-        blockNumber: data.blockNumber,
-        chainId: data.chainId,
-      }),
+    // Round block number to nearest hour interval for better cache hits
+    // Cache key is based on input parameters, so rounding must happen before effect call
+    const roundedBlockNumber = roundBlockToInterval(
+      data.blockNumber,
+      data.chainId,
+    );
+
+    // Fetch token details and price in parallel
+    const [rewardTokenDetails, priceData] = await Promise.all([
       context.effect(getTokenDetails, {
         contractAddress: data.reward,
         chainId: data.chainId,
+      }),
+      context.effect(getTokenPrice, {
+        tokenAddress: data.reward,
+        chainId: data.chainId,
+        blockNumber: roundedBlockNumber, // Use rounded block for cache key
       }),
     ]);
 
@@ -140,7 +152,7 @@ export async function processVotingRewardClaimRewards(
       symbol: rewardTokenDetails.symbol,
       chainId: data.chainId,
       decimals: BigInt(rewardTokenDetails.decimals),
-      pricePerUSDNew: rewardTokenPriceData.pricePerUSDNew,
+      pricePerUSDNew: priceData.pricePerUSDNew,
       lastUpdatedTimestamp: new Date(data.timestamp * 1000),
       isWhitelisted: true,
     };

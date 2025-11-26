@@ -43,11 +43,12 @@ export async function getPositionWithPlaceholderFallback(
   logIndex?: number,
 ): Promise<NonFungiblePosition | null> {
   // Try to get position by tokenId
-  const positions =
+  let positions =
     await context.NonFungiblePosition.getWhere.tokenId.eq(tokenId);
 
-  // Use position if found (should be unique)
+  // Filter by chainId to avoid cross-chain collisions (same tokenId can exist on different chains)
   if (positions && positions.length > 0) {
+    positions = positions.filter((pos) => pos.chainId === chainId);
     return positions[0];
   }
 

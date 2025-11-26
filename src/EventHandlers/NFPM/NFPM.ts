@@ -32,6 +32,10 @@ NFPM.Transfer.handler(async ({ event, context }) => {
   let position = await context.NonFungiblePosition.getWhere.tokenId.eq(
     event.params.tokenId,
   );
+  // Filter by chainId to ensure we get the position from the correct chain
+  if (position && position.length > 0) {
+    position = position.filter((pos) => pos.chainId === event.chainId);
+  }
 
   // If not found and this is a mint, look for placeholder by transaction hash
   if ((!position || position.length === 0) && isMint) {
@@ -107,6 +111,10 @@ NFPM.IncreaseLiquidity.handler(async ({ event, context }) => {
   let positions = await context.NonFungiblePosition.getWhere.tokenId.eq(
     event.params.tokenId,
   );
+  // Filter by chainId to ensure we get the position from the correct chain
+  if (positions && positions.length > 0) {
+    positions = positions.filter((pos) => pos.chainId === event.chainId);
+  }
 
   // If not found, try to find by transaction hash and matching amounts (for mint case)
   if (!positions || positions.length === 0) {
@@ -162,9 +170,14 @@ NFPM.IncreaseLiquidity.handler(async ({ event, context }) => {
 NFPM.DecreaseLiquidity.handler(async ({ event, context }) => {
   // Get position by tokenId
   // Transfer should have already run and updated the placeholder, so position should exist when a DecreaseLiquidity event is processed
-  const positions = await context.NonFungiblePosition.getWhere.tokenId.eq(
+  // Filter by chainId to avoid cross-chain collisions (same tokenId can exist on different chains)
+  let positions = await context.NonFungiblePosition.getWhere.tokenId.eq(
     event.params.tokenId,
   );
+  // Filter by chainId to ensure we get the position from the correct chain
+  if (positions && positions.length > 0) {
+    positions = positions.filter((pos) => pos.chainId === event.chainId);
+  }
 
   // This should never happen
   if (!positions || positions.length === 0) {

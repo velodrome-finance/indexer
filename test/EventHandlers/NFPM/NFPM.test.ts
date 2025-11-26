@@ -615,4 +615,506 @@ describe("NFPM Events", () => {
       expect(updatedEntity).to.be.undefined;
     });
   });
+
+  describe("Cross-chain tokenId collision prevention", () => {
+    // Test the fix for cross-chain tokenId collisions
+    // Same tokenId can exist on different chains, so we must filter by chainId
+    const chainIdBase = 8453; // Base
+    const chainIdLisk = 1135; // Lisk
+    const sameTokenId = 42n; // Same tokenId on both chains
+    const poolAddressBase = "0xBasePoolAddress0000000000000000000";
+    const poolAddressLisk = "0xc2026f3fb6fc51F4EcAE40a88b4509cB6C143ed4"; // The pool from the error
+
+    // Position on Base (chain 8453)
+    const positionBase = {
+      id: NonFungiblePositionId(chainIdBase, sameTokenId),
+      chainId: chainIdBase,
+      tokenId: sameTokenId,
+      owner: "0x1111111111111111111111111111111111111111",
+      pool: poolAddressBase,
+      tickUpper: 100n,
+      tickLower: -100n,
+      token0: token0Address,
+      token1: token1Address,
+      liquidity: 1000000000000000000n,
+      amount0: 500000000000000000n,
+      amount1: 1000000000000000000n,
+      amountUSD: 2500000000000000000n,
+      mintTransactionHash: transactionHash,
+      lastUpdatedTimestamp: new Date(),
+    };
+
+    // Position on Lisk (chain 1135) with same tokenId
+    const positionLisk = {
+      id: NonFungiblePositionId(chainIdLisk, sameTokenId),
+      chainId: chainIdLisk,
+      tokenId: sameTokenId,
+      owner: "0x2222222222222222222222222222222222222222",
+      pool: poolAddressLisk,
+      tickUpper: 200n,
+      tickLower: -200n,
+      token0: token0Address,
+      token1: token1Address,
+      liquidity: 2000000000000000000n,
+      amount0: 1000000000000000000n,
+      amount1: 2000000000000000000n,
+      amountUSD: 5000000000000000000n,
+      mintTransactionHash: transactionHash,
+      lastUpdatedTimestamp: new Date(),
+    };
+
+    // Variables to hold stubs for verification
+    let mockSimulateContractBase: sinon.SinonStub;
+    let mockSimulateContractLisk: sinon.SinonStub;
+
+    beforeEach(() => {
+      // Mock ethClient for Base chain - create fresh stubs for each test
+      const Q96 = 2n ** 96n;
+      const mockSqrtPriceX96 = Q96;
+      // Use callsFake to ensure the stub properly returns a promise
+      mockSimulateContractBase = sinon.stub().callsFake(async () => {
+        return { result: [mockSqrtPriceX96] };
+      });
+      const mockEthClientBase = {
+        simulateContract: mockSimulateContractBase,
+      } as unknown as PublicClient;
+
+      // Mock ethClient for Lisk chain - create fresh stubs for each test
+      mockSimulateContractLisk = sinon.stub().callsFake(async () => {
+        return { result: [mockSqrtPriceX96] };
+      });
+      const mockEthClientLisk = {
+        simulateContract: mockSimulateContractLisk,
+      } as unknown as PublicClient;
+
+      // Setup CHAIN_CONSTANTS for both chains - ensure it's set before any effects are called
+      (CHAIN_CONSTANTS as Record<number, { eth_client: PublicClient }>)[
+        chainIdBase
+      ] = {
+        eth_client: mockEthClientBase,
+      };
+      (CHAIN_CONSTANTS as Record<number, { eth_client: PublicClient }>)[
+        chainIdLisk
+      ] = {
+        eth_client: mockEthClientLisk,
+      };
+    });
+
+    afterEach(() => {
+      sinon.restore();
+    });
+
+    it("should filter by chainId when querying by tokenId in Transfer event", async () => {
+      // Setup mockDb with both positions (same tokenId, different chains)
+      const mockDbCrossChain = MockDb.createMockDb();
+      const dbWithBasePosition =
+        mockDbCrossChain.entities.NonFungiblePosition.set(positionBase);
+      const dbWithBothPositions =
+        dbWithBasePosition.entities.NonFungiblePosition.set(positionLisk);
+      const dbWithTokens = dbWithBothPositions.entities.Token.set(mockToken0);
+      const finalDb = dbWithTokens.entities.Token.set(mockToken1);
+
+      // Setup getWhere to return both positions when querying by tokenId
+      const storedPositions = [positionBase, positionLisk];
+      const mockDbWithGetWhere = {
+        ...finalDb,
+        entities: {
+          ...finalDb.entities,
+          NonFungiblePosition: {
+            ...finalDb.entities.NonFungiblePosition,
+            getWhere: {
+              tokenId: {
+                eq: async (tokenId: bigint) => {
+                  // Return both positions with same tokenId
+                  return storedPositions.filter(
+                    (pos) => pos.tokenId === tokenId,
+                  );
+                },
+              },
+              mintTransactionHash: {
+                eq: async () => [],
+              },
+            },
+          },
+        },
+      } as typeof finalDb;
+
+      // Create Transfer event on Base chain
+      const transferEventBase = NFPM.Transfer.createMockEvent({
+        from: "0x1111111111111111111111111111111111111111",
+        to: "0x3333333333333333333333333333333333333333",
+        tokenId: sameTokenId,
+        mockEventData: {
+          block: {
+            timestamp: 1000000,
+            number: 123456,
+            hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+          },
+          chainId: chainIdBase, // Event is on Base chain
+          logIndex: 1,
+          srcAddress: "0x3333333333333333333333333333333333333333",
+        },
+      });
+
+      const result = await NFPM.Transfer.processEvent({
+        event: transferEventBase,
+        mockDb: mockDbWithGetWhere,
+      });
+
+      // Should only update the Base position, not the Lisk position
+      const updatedBasePosition = result.entities.NonFungiblePosition.get(
+        NonFungiblePositionId(chainIdBase, sameTokenId),
+      );
+      const liskPosition = result.entities.NonFungiblePosition.get(
+        NonFungiblePositionId(chainIdLisk, sameTokenId),
+      );
+
+      expect(updatedBasePosition).to.exist;
+      if (!updatedBasePosition) return;
+      // Should update owner to the new owner
+      expect(updatedBasePosition.owner.toLowerCase()).to.equal(
+        "0x3333333333333333333333333333333333333333".toLowerCase(),
+      );
+      // Should still have Base chain pool address
+      expect(updatedBasePosition.pool).to.equal(poolAddressBase);
+      expect(updatedBasePosition.chainId).to.equal(chainIdBase);
+
+      // Lisk position should remain unchanged
+      expect(liskPosition).to.exist;
+      if (!liskPosition) return;
+      expect(liskPosition.owner.toLowerCase()).to.equal(
+        positionLisk.owner.toLowerCase(),
+      );
+      expect(liskPosition.pool).to.equal(poolAddressLisk);
+      expect(liskPosition.chainId).to.equal(chainIdLisk);
+    });
+
+    it("should filter by chainId when querying by tokenId in IncreaseLiquidity event", async () => {
+      // Verify CHAIN_CONSTANTS is set up correctly before test
+      expect(CHAIN_CONSTANTS[chainIdBase]).to.exist;
+      expect(CHAIN_CONSTANTS[chainIdBase].eth_client).to.exist;
+      expect(mockSimulateContractBase).to.exist;
+
+      // Create tokens for Base chain
+      const mockToken0Base = {
+        ...mockToken0,
+        id: TokenId(chainIdBase, token0Address),
+        chainId: chainIdBase,
+      };
+      const mockToken1Base = {
+        ...mockToken1,
+        id: TokenId(chainIdBase, token1Address),
+        chainId: chainIdBase,
+      };
+
+      // Setup mockDb with both positions
+      const mockDbCrossChain = MockDb.createMockDb();
+      const dbWithBasePosition =
+        mockDbCrossChain.entities.NonFungiblePosition.set(positionBase);
+      const dbWithBothPositions =
+        dbWithBasePosition.entities.NonFungiblePosition.set(positionLisk);
+      const dbWithTokens =
+        dbWithBothPositions.entities.Token.set(mockToken0Base);
+      const finalDb = dbWithTokens.entities.Token.set(mockToken1Base);
+
+      // Setup getWhere to return both positions when querying by tokenId
+      const storedPositions = [positionBase, positionLisk];
+      const mockDbWithGetWhere = {
+        ...finalDb,
+        entities: {
+          ...finalDb.entities,
+          NonFungiblePosition: {
+            ...finalDb.entities.NonFungiblePosition,
+            getWhere: {
+              tokenId: {
+                eq: async (tokenId: bigint) => {
+                  return storedPositions.filter(
+                    (pos) => pos.tokenId === tokenId,
+                  );
+                },
+              },
+              mintTransactionHash: {
+                eq: async () => [],
+              },
+            },
+          },
+        },
+      } as typeof finalDb;
+
+      // Create IncreaseLiquidity event on Base chain
+      const increaseEventBase = NFPM.IncreaseLiquidity.createMockEvent({
+        tokenId: sameTokenId,
+        liquidity: 1000n,
+        amount0: 500000000000000000n,
+        amount1: 1000000000000000000n,
+        mockEventData: {
+          block: {
+            timestamp: 1000000,
+            number: 123456,
+            hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+          },
+          chainId: chainIdBase, // Event is on Base chain
+          logIndex: 1,
+          srcAddress: "0x3333333333333333333333333333333333333333",
+          transaction: {
+            hash: transactionHash,
+          },
+        },
+      });
+
+      const result = await NFPM.IncreaseLiquidity.processEvent({
+        event: increaseEventBase,
+        mockDb: mockDbWithGetWhere,
+      });
+
+      // Should only update the Base position
+      const updatedBasePosition = result.entities.NonFungiblePosition.get(
+        NonFungiblePositionId(chainIdBase, sameTokenId),
+      );
+      const liskPosition = result.entities.NonFungiblePosition.get(
+        NonFungiblePositionId(chainIdLisk, sameTokenId),
+      );
+
+      expect(updatedBasePosition).to.exist;
+      if (!updatedBasePosition) return;
+      // Should have updated liquidity (increased)
+      expect(Number(updatedBasePosition.liquidity)).to.be.greaterThan(
+        Number(positionBase.liquidity),
+      );
+      // Should query pool from Base chain (verify ethClient was called with Base chainId)
+      expect(mockSimulateContractBase.called).to.be.true;
+      const simulateCall = mockSimulateContractBase.getCall(0);
+      expect(simulateCall.args[0].address.toLowerCase()).to.equal(
+        poolAddressBase.toLowerCase(),
+      );
+
+      // Lisk position should remain unchanged
+      expect(liskPosition).to.exist;
+      if (!liskPosition) return;
+      expect(liskPosition.liquidity).to.equal(positionLisk.liquidity);
+      // Should NOT have called Lisk ethClient
+      expect(mockSimulateContractLisk.called).to.be.false;
+    });
+
+    it("should filter by chainId when querying by tokenId in DecreaseLiquidity event", async () => {
+      // Verify CHAIN_CONSTANTS is set up correctly before test
+      expect(CHAIN_CONSTANTS[chainIdLisk]).to.exist;
+      expect(CHAIN_CONSTANTS[chainIdLisk].eth_client).to.exist;
+      expect(mockSimulateContractLisk).to.exist;
+
+      // Create tokens for Lisk chain
+      const mockToken0Lisk = {
+        ...mockToken0,
+        id: TokenId(chainIdLisk, token0Address),
+        chainId: chainIdLisk,
+      };
+      const mockToken1Lisk = {
+        ...mockToken1,
+        id: TokenId(chainIdLisk, token1Address),
+        chainId: chainIdLisk,
+      };
+
+      // Setup mockDb with both positions
+      const mockDbCrossChain = MockDb.createMockDb();
+      const dbWithBasePosition =
+        mockDbCrossChain.entities.NonFungiblePosition.set(positionBase);
+      const dbWithBothPositions =
+        dbWithBasePosition.entities.NonFungiblePosition.set(positionLisk);
+      const dbWithTokens =
+        dbWithBothPositions.entities.Token.set(mockToken0Lisk);
+      const finalDb = dbWithTokens.entities.Token.set(mockToken1Lisk);
+
+      // Setup getWhere to return both positions when querying by tokenId
+      const storedPositions = [positionBase, positionLisk];
+      const mockDbWithGetWhere = {
+        ...finalDb,
+        entities: {
+          ...finalDb.entities,
+          NonFungiblePosition: {
+            ...finalDb.entities.NonFungiblePosition,
+            getWhere: {
+              tokenId: {
+                eq: async (tokenId: bigint) => {
+                  return storedPositions.filter(
+                    (pos) => pos.tokenId === tokenId,
+                  );
+                },
+              },
+              mintTransactionHash: {
+                eq: async () => [],
+              },
+            },
+          },
+        },
+      } as typeof finalDb;
+
+      // Create DecreaseLiquidity event on Lisk chain
+      const decreaseEventLisk = NFPM.DecreaseLiquidity.createMockEvent({
+        tokenId: sameTokenId,
+        liquidity: 1000n,
+        amount0: 300000000000000000n,
+        amount1: 500000000000000000n,
+        mockEventData: {
+          block: {
+            timestamp: 1000000,
+            number: 123456,
+            hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+          },
+          chainId: chainIdLisk, // Event is on Lisk chain
+          logIndex: 1,
+          srcAddress: "0x3333333333333333333333333333333333333333",
+          transaction: {
+            hash: transactionHash,
+          },
+        },
+      });
+
+      const result = await NFPM.DecreaseLiquidity.processEvent({
+        event: decreaseEventLisk,
+        mockDb: mockDbWithGetWhere,
+      });
+
+      // Should only update the Lisk position
+      const basePosition = result.entities.NonFungiblePosition.get(
+        NonFungiblePositionId(chainIdBase, sameTokenId),
+      );
+      const updatedLiskPosition = result.entities.NonFungiblePosition.get(
+        NonFungiblePositionId(chainIdLisk, sameTokenId),
+      );
+
+      expect(updatedLiskPosition).to.exist;
+      if (!updatedLiskPosition) return;
+      // Should have updated liquidity (decreased)
+      expect(Number(updatedLiskPosition.liquidity)).to.be.lessThan(
+        Number(positionLisk.liquidity),
+      );
+      // Should query pool from Lisk chain (verify ethClient was called with Lisk chainId)
+      expect(mockSimulateContractLisk.called).to.be.true;
+      const simulateCall = mockSimulateContractLisk.getCall(0);
+      expect(simulateCall.args[0].address.toLowerCase()).to.equal(
+        poolAddressLisk.toLowerCase(),
+      );
+
+      // Base position should remain unchanged
+      expect(basePosition).to.exist;
+      if (!basePosition) return;
+      expect(basePosition.liquidity).to.equal(positionBase.liquidity);
+      // Should NOT have called Base ethClient
+      expect(mockSimulateContractBase.called).to.be.false;
+    });
+
+    it("should prevent querying pool from wrong chain (the original bug)", async () => {
+      // Setup mockDb with BOTH positions (Base and Lisk with same tokenId)
+      const mockDbCrossChain = MockDb.createMockDb();
+      const dbWithBasePosition =
+        mockDbCrossChain.entities.NonFungiblePosition.set(positionBase);
+      const dbWithBothPositions =
+        dbWithBasePosition.entities.NonFungiblePosition.set(positionLisk);
+
+      // Create tokens for Base chain
+      const mockToken0Base = {
+        ...mockToken0,
+        id: TokenId(chainIdBase, token0Address),
+        chainId: chainIdBase,
+      };
+      const mockToken1Base = {
+        ...mockToken1,
+        id: TokenId(chainIdBase, token1Address),
+        chainId: chainIdBase,
+      };
+      const dbWithTokens =
+        dbWithBothPositions.entities.Token.set(mockToken0Base);
+      const finalDb = dbWithTokens.entities.Token.set(mockToken1Base);
+
+      // Setup getWhere - return BOTH positions when querying by tokenId
+      // This simulates the bug: querying by tokenId without chainId filter returns positions from both chains
+      const storedPositions = [positionBase, positionLisk]; // Both positions with same tokenId
+      const mockDbWithGetWhere = {
+        ...finalDb,
+        entities: {
+          ...finalDb.entities,
+          NonFungiblePosition: {
+            ...finalDb.entities.NonFungiblePosition,
+            getWhere: {
+              tokenId: {
+                eq: async (tokenId: bigint) => {
+                  // Simulate the bug: return positions from both chains when querying by tokenId
+                  // (without chainId filtering, this would return both Base and Lisk positions)
+                  return storedPositions.filter(
+                    (pos) => pos.tokenId === tokenId,
+                  );
+                },
+              },
+              mintTransactionHash: {
+                eq: async () => [],
+              },
+            },
+          },
+        },
+      } as typeof finalDb;
+
+      // Create IncreaseLiquidity event on Base chain (8453) for same tokenId
+      // This simulates the scenario where:
+      // - Event is processed on Base chain (8453)
+      // - A position exists on Base chain (8453) with this tokenId
+      // - A position also exists on Lisk chain (1135) with the same tokenId
+      // - We need to ensure the Base position is used, not the Lisk one
+      const increaseEventBase = NFPM.IncreaseLiquidity.createMockEvent({
+        tokenId: sameTokenId,
+        liquidity: 1000n,
+        amount0: 500000000000000000n,
+        amount1: 1000000000000000000n,
+        mockEventData: {
+          block: {
+            timestamp: 1000000,
+            number: 123456,
+            hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+          },
+          chainId: chainIdBase, // Event is on Base chain (8453)
+          logIndex: 1,
+          srcAddress: "0x3333333333333333333333333333333333333333",
+          transaction: {
+            hash: transactionHash,
+          },
+        },
+      });
+
+      const result = await NFPM.IncreaseLiquidity.processEvent({
+        event: increaseEventBase,
+        mockDb: mockDbWithGetWhere,
+      });
+
+      // Verify: Base position should be updated (correct position was found and used)
+      const updatedBasePosition = result.entities.NonFungiblePosition.get(
+        NonFungiblePositionId(chainIdBase, sameTokenId),
+      );
+      expect(updatedBasePosition).to.exist;
+      if (!updatedBasePosition) return;
+      // Should have updated liquidity (increased)
+      expect(Number(updatedBasePosition.liquidity)).to.be.greaterThan(
+        Number(positionBase.liquidity),
+      );
+
+      // Verify: Lisk position should remain unchanged (wrong position was NOT used)
+      const liskPosition = result.entities.NonFungiblePosition.get(
+        NonFungiblePositionId(chainIdLisk, sameTokenId),
+      );
+      expect(liskPosition).to.exist;
+      if (!liskPosition) return;
+      expect(liskPosition.liquidity).to.equal(positionLisk.liquidity);
+
+      // Most importantly: should have called Base ethClient with Base pool address
+      // This verifies the correct pool was queried from the correct chain
+      expect(mockSimulateContractBase.called).to.be.true;
+      const simulateCall = mockSimulateContractBase.getCall(0);
+      expect(simulateCall.args[0].address.toLowerCase()).to.equal(
+        poolAddressBase.toLowerCase(),
+      );
+
+      // Most importantly: should NOT have called Lisk ethClient
+      // This is the key fix - we should never query a pool from the wrong chain
+      // Before the fix, this might have been called with the Lisk pool address on Base chainId -> ERROR
+      expect(mockSimulateContractLisk.called).to.be.false;
+    });
+  });
 });
