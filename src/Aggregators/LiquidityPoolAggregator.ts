@@ -231,8 +231,14 @@ export async function updateLiquidityPoolAggregator(
         });
         updated = {
           ...updated,
-          gaugeFees0CurrentEpoch: gaugeFees.token0Fees,
-          gaugeFees1CurrentEpoch: gaugeFees.token1Fees,
+          gaugeFees0CurrentEpoch:
+            gaugeFees.token0Fees !== 0n
+              ? gaugeFees.token0Fees
+              : current.gaugeFees0CurrentEpoch,
+          gaugeFees1CurrentEpoch:
+            gaugeFees.token1Fees !== 0n
+              ? gaugeFees.token1Fees
+              : current.gaugeFees1CurrentEpoch,
         };
       } catch (error) {
         // No error if the pool is not a CL pool
