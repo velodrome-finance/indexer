@@ -439,7 +439,7 @@ export async function fetchSqrtPriceX96(
     if (error instanceof Error && error.stack) {
       readableError.stack = error.stack;
     }
-    
+
     // Handle historical state not available - log simple message
     if (errorType === ErrorType.HISTORICAL_STATE_NOT_AVAILABLE) {
       logger.warn(
@@ -447,9 +447,12 @@ export async function fetchSqrtPriceX96(
       );
     } else {
       // For other errors, log with full details
-      logger.error(`[fetchSqrtPriceX96] ${readableError.message}`, readableError);
+      logger.error(
+        `[fetchSqrtPriceX96] ${readableError.message}`,
+        readableError,
+      );
     }
-    
+
     // Always throw the error
     throw readableError;
   }

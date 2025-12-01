@@ -277,7 +277,7 @@ export function processIncreaseLiquidity(
       position.tickLower,
       position.tickUpper,
     );
-  } 
+  }
 
   const blockDatetime = new Date(event.block.timestamp * 1000);
 
