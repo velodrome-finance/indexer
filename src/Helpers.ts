@@ -75,7 +75,6 @@ export async function updateTokenData(
       event.block.timestamp,
       event.chainId,
       context,
-      1000000n,
     );
   } catch (error) {
     context.log.error(

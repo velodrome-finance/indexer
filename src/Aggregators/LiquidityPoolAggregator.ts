@@ -314,7 +314,6 @@ export async function loadPoolData(
         blockTimestamp,
         chainId,
         context,
-        1000000n,
       );
     } catch (error) {
       context.log.error(
@@ -329,7 +328,6 @@ export async function loadPoolData(
         blockTimestamp,
         chainId,
         context,
-        1000000n,
       );
     } catch (error) {
       context.log.error(

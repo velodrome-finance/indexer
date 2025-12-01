@@ -142,7 +142,6 @@ describe("PoolSwapLogic", () => {
           1000000,
           10,
           mockContext,
-          1000000n,
         ),
       ).to.be.true;
       expect(
@@ -152,7 +151,6 @@ describe("PoolSwapLogic", () => {
           1000000,
           10,
           mockContext,
-          1000000n,
         ),
       ).to.be.true;
     });

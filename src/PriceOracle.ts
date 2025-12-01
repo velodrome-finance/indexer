@@ -1,7 +1,9 @@
+import dotenv from "dotenv";
 import {
   CHAIN_CONSTANTS,
+  MILLISECONDS_IN_AN_HOUR,
+  MoralisChainNameMap,
   PriceOracleType,
-  SECONDS_IN_AN_HOUR,
   TokenIdByBlock,
   TokenIdByChain,
   toChecksumAddress,
@@ -20,6 +22,8 @@ export interface TokenPriceData {
   pricePerUSDNew: bigint;
   decimals: bigint;
 }
+
+dotenv.config();
 
 export async function createTokenEntity(
   tokenAddress: string,
@@ -70,7 +74,7 @@ export async function refreshTokenPrice(
   blockTimestamp: number,
   chainId: number,
   context: handlerContext,
-  gasLimit = 1000000n, // 1 million is the default if "gasLimit" is not specified in simulateContract
+  gasLimit = 10000000n, // 10 million is the default if "gasLimit" is not specified in simulateContract
 ): Promise<Token> {
   const blockTimestampMs = blockTimestamp * 1000;
 
@@ -80,7 +84,7 @@ export async function refreshTokenPrice(
     token.pricePerUSDNew === 0n ||
     !token.lastUpdatedTimestamp ||
     blockTimestampMs - token.lastUpdatedTimestamp.getTime() >=
-      SECONDS_IN_AN_HOUR;
+      MILLISECONDS_IN_AN_HOUR;
 
   if (!shouldRefresh) {
     return token;
@@ -104,7 +108,66 @@ export async function refreshTokenPrice(
         gasLimit,
       }),
     ]);
-    const currentPrice = priceData.pricePerUSDNew;
+    let currentPrice = priceData.pricePerUSDNew;
+
+    // Try fetching price from Moralis API as fallback when oracle returns 0
+    if (
+      currentPrice === 0n &&
+      MoralisChainNameMap[chainId] &&
+      process.env.MORALIS_API_KEY
+    ) {
+      const chainName = MoralisChainNameMap[chainId];
+
+      const options: RequestInit = {
+        method: "GET",
+        headers: {
+          accept: "application/json",
+          "X-API-Key": process.env.MORALIS_API_KEY,
+        },
+      };
+
+      try {
+        const response = await fetch(
+          `https://deep-index.moralis.io/api/v2.2/erc20/${token.address}/price?chain=${chainName}&to_block=${blockNumber}`,
+          options,
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            `Moralis API returned ${response.status}: ${response.statusText}`,
+          );
+        }
+
+        const data = (await response.json()) as {
+          usdPrice?: number;
+          usdPriceFormatted?: string;
+          tokenName?: string;
+          tokenSymbol?: string;
+        };
+
+        // Parse the price from Moralis response (price is in USD, convert to 18 decimals)
+        if (data.usdPrice && data.usdPrice > 0) {
+          const priceUsd = data.usdPrice;
+          // Convert to 18 decimals (multiply by 10^18)
+          const pricePerUSDNew = BigInt(Math.round(priceUsd * 1e18));
+
+          context.log.info(
+            `[refreshTokenPrice] Price fetched from Moralis API for token ${token.address} (${data.tokenSymbol || "unknown"}) on chain ${chainId} at block ${blockNumber}: ${priceUsd} USD (${pricePerUSDNew})`,
+          );
+
+          // Use Moralis price as fallback
+          currentPrice = pricePerUSDNew;
+        } else {
+          context.log.warn(
+            `[refreshTokenPrice] Moralis API returned invalid or zero price for token ${token.address} on chain ${chainId} at block ${blockNumber}. Response: ${JSON.stringify(data)}`,
+          );
+        }
+      } catch (err) {
+        context.log.warn(
+          `[refreshTokenPrice] Error fetching price from Moralis API for token ${token.address} on chain ${chainId} at block ${blockNumber}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
 
     // If price fetch returned 0, it could mean:
     // 1. No price path exists in the oracle (token not configured)
@@ -164,17 +227,27 @@ export async function refreshTokenPrice(
     };
     context.Token.set(updatedToken);
 
-    // Create new TokenPrice entity
-    const tokenPrice: TokenPriceSnapshot = {
-      id: TokenIdByBlock(token.address, chainId, blockNumber),
-      address: toChecksumAddress(token.address),
-      pricePerUSDNew: currentPrice,
-      chainId: chainId,
-      isWhitelisted: token.isWhitelisted,
-      lastUpdatedTimestamp: new Date(blockTimestampMs),
-    };
+    if (
+      !(await checkIfTokenPriceSnapshotExists(
+        token.address,
+        chainId,
+        blockNumber,
+        context,
+      ))
+    ) {
+      // Create new TokenPrice entity if it doesn't exist already for the same block number
+      const tokenPrice: TokenPriceSnapshot = {
+        id: TokenIdByBlock(token.address, chainId, blockNumber),
+        address: toChecksumAddress(token.address),
+        pricePerUSDNew: currentPrice,
+        chainId: chainId,
+        isWhitelisted: token.isWhitelisted,
+        lastUpdatedTimestamp: new Date(blockTimestampMs),
+      };
 
-    context.TokenPriceSnapshot.set(tokenPrice);
+      context.TokenPriceSnapshot.set(tokenPrice);
+    }
+
     return updatedToken;
   } catch (error) {
     context.log.error(
@@ -183,4 +256,16 @@ export async function refreshTokenPrice(
     // Return original token if refresh fails - this preserves the last known price
     return token;
   }
+}
+
+async function checkIfTokenPriceSnapshotExists(
+  tokenAddress: string,
+  chainId: number,
+  blockNumber: number,
+  context: handlerContext,
+) {
+  const tokenPriceSnapshot = await context.TokenPriceSnapshot.get(
+    TokenIdByBlock(tokenAddress, chainId, blockNumber),
+  );
+  return tokenPriceSnapshot !== undefined;
 }

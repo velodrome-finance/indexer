@@ -5,6 +5,7 @@ export enum ErrorType {
   RATE_LIMIT = "RATE_LIMIT",
   OUT_OF_GAS = "OUT_OF_GAS",
   CONTRACT_REVERT = "CONTRACT_REVERT",
+  HISTORICAL_STATE_NOT_AVAILABLE = "HISTORICAL_STATE_NOT_AVAILABLE",
   NETWORK_ERROR = "NETWORK_ERROR",
   UNKNOWN = "UNKNOWN",
 }
@@ -21,12 +22,23 @@ const ERROR_KEYWORDS: Record<ErrorType, string[]> = {
     "gas limit exceeded",
     "gas limit",
   ],
+  [ErrorType.HISTORICAL_STATE_NOT_AVAILABLE]: [
+    "historical state",
+    "is not available",
+    "historical state not available",
+    "historical state is not available",
+  ],
   [ErrorType.CONTRACT_REVERT]: [
     "reverted",
     "revert",
     "execution reverted",
-    "historical state",
-    "is not available",
+    "the contract function",
+    "contract function",
+    "getManyRatesWithConnectors",
+    "getRate",
+    "getRateToEth",
+    "contractfunctionexecutionerror",
+    "contractfunctionrevertederror",
   ],
   [ErrorType.RATE_LIMIT]: [
     "rate limit",
@@ -64,6 +76,9 @@ const ERROR_KEYWORDS: Record<ErrorType, string[]> = {
  * Determines the type of error from the error message and stack trace
  * @param error - The error to analyze
  * @returns The ErrorType enum value
+ *
+ * Note: Order matters - more specific errors (like HISTORICAL_STATE_NOT_AVAILABLE)
+ * should be checked before more general ones (like CONTRACT_REVERT)
  */
 export function getErrorType(error: unknown): ErrorType {
   if (!error) return ErrorType.UNKNOWN;
@@ -72,8 +87,18 @@ export function getErrorType(error: unknown): ErrorType {
   const errorStack = error instanceof Error ? error.stack : String(error);
   const combinedText = `${errorString} ${errorStack}`.toLowerCase();
 
-  for (const errorType of Object.keys(ERROR_KEYWORDS)) {
-    const keywords = ERROR_KEYWORDS[errorType as ErrorType];
+  // Check error types in order of specificity (most specific first)
+  const errorTypeOrder: ErrorType[] = [
+    ErrorType.HISTORICAL_STATE_NOT_AVAILABLE,
+    ErrorType.OUT_OF_GAS,
+    ErrorType.RATE_LIMIT,
+    ErrorType.NETWORK_ERROR,
+    ErrorType.CONTRACT_REVERT,
+    ErrorType.UNKNOWN,
+  ];
+
+  for (const errorType of errorTypeOrder) {
+    const keywords = ERROR_KEYWORDS[errorType];
     if (
       keywords.some((keyword) => combinedText.includes(keyword.toLowerCase()))
     )

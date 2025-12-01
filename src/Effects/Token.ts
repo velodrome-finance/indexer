@@ -257,7 +257,24 @@ export async function fetchTokenPrice(
         continue;
       }
 
-      // If not a retryable error or no retries left, log and break
+      // Handle historical state not available - log simple message, no retry
+      if (errorType === ErrorType.HISTORICAL_STATE_NOT_AVAILABLE) {
+        logger.warn(
+          `[fetchTokenPrice] Historical state not available for token ${tokenAddress} on chain ${chainId} at block ${blockNumber}. This is expected for very old blocks.`,
+        );
+        break;
+      }
+
+      // If contract revert and no retries left, log and break
+      if (errorType === ErrorType.CONTRACT_REVERT) {
+        logger.error(
+          `[fetchTokenPrice] Contract revert error (after ${attempt} retries) for token ${tokenAddress} on chain ${chainId} at block ${blockNumber}. Full error details:`,
+          error instanceof Error ? error : new Error(String(error)),
+        );
+        break;
+      }
+
+      // For other error types, log with full details
       logger.error(
         `[fetchTokenPrice] Error fetching price for token ${tokenAddress} on chain ${chainId} at block ${blockNumber}${attempt > 0 ? ` (after ${attempt} retries)` : ""} (error type: ${errorType}):`,
         error instanceof Error ? error : new Error(String(error)),
