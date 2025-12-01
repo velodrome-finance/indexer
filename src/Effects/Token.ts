@@ -411,7 +411,8 @@ export async function fetchSqrtPriceX96(
       }
     }
 
-    // Create a more readable error message
+    // Classify error type for better logging
+    const errorType = getErrorType(error);
     const errorMessage = error instanceof Error ? error.message : String(error);
     const readableError = new Error(
       `Failed to fetch sqrtPriceX96 from pool ${poolAddress} on chain ${chainId} at block ${blockNumber}: ${errorMessage}`,
@@ -422,7 +423,20 @@ export async function fetchSqrtPriceX96(
       readableError.stack = error.stack;
     }
 
-    logger.error(`[fetchSqrtPriceX96] ${readableError.message}`, readableError);
+    // Handle historical state not available - log simple message
+    if (errorType === ErrorType.HISTORICAL_STATE_NOT_AVAILABLE) {
+      logger.warn(
+        `[fetchSqrtPriceX96] Historical state not available for pool ${poolAddress} on chain ${chainId} at block ${blockNumber}. This is expected for very old blocks.`,
+      );
+    } else {
+      // For other errors, log with full details
+      logger.error(
+        `[fetchSqrtPriceX96] ${readableError.message}`,
+        readableError,
+      );
+    }
+
+    // Always throw the error
     throw readableError;
   }
 }
