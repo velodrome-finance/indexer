@@ -3,6 +3,7 @@ import {
   Mailbox,
   type ProcessId_event,
 } from "generated";
+import { attemptSuperSwapCreationFromProcessId } from "./CrossChainSwapLogic";
 
 Mailbox.DispatchId.handler(async ({ event, context }) => {
   const messageId = event.params.messageId;
@@ -26,4 +27,12 @@ Mailbox.ProcessId.handler(async ({ event, context }) => {
   };
 
   context.ProcessId_event.set(entity);
+
+  // Attempt to create SuperSwap entity when ProcessId is available
+  // This handles the case where ProcessId is processed after CrossChainSwap
+  await attemptSuperSwapCreationFromProcessId(
+    messageId,
+    event.block.timestamp,
+    context,
+  );
 });

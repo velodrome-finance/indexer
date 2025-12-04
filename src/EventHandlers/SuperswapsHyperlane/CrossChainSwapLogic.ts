@@ -235,7 +235,7 @@ export function findDestinationSwapWithOUSDT(
  * @param blockTimestamp - The block timestamp in seconds
  * @param context - Handler context for queries and entity operations
  */
-export function createSuperSwapEntity(
+export async function createSuperSwapEntity(
   transactionHash: string,
   chainId: number,
   destinationDomain: bigint,
@@ -248,9 +248,20 @@ export function createSuperSwapEntity(
   destinationChainTokenAmountSwapped: bigint,
   blockTimestamp: number,
   context: handlerContext,
-): void {
+): Promise<void> {
+  const superSwapId = `${transactionHash}_${BigInt(chainId)}_${destinationDomain}_${bridgedTransaction.amount}_${messageId}_${sourceSwap.tokenInPool}_${sourceSwap.amountIn}_${sourceSwap.tokenOutPool}_${sourceSwap.amountOut}`;
+
+  // Check if SuperSwap already exists (idempotency check)
+  const existingSuperSwap = await context.SuperSwap.get(superSwapId);
+  if (existingSuperSwap) {
+    context.log.info(
+      `SuperSwap entity already exists for transaction ${transactionHash} with messageId ${messageId}, skipping creation`,
+    );
+    return;
+  }
+
   const superSwapEntity: SuperSwap = {
-    id: `${transactionHash}_${BigInt(chainId)}_${destinationDomain}_${bridgedTransaction.amount}_${messageId}_${sourceSwap.tokenInPool}_${sourceSwap.amountIn}_${sourceSwap.tokenOutPool}_${sourceSwap.amountOut}`,
+    id: superSwapId,
     originChainId: BigInt(chainId),
     destinationChainId: destinationDomain,
     sender: bridgedTransaction.sender,
@@ -329,7 +340,7 @@ export async function processCrossChainSwap(
   }
 
   // Create SuperSwap entity
-  createSuperSwapEntity(
+  await createSuperSwapEntity(
     transactionHash,
     chainId,
     destinationDomain,
@@ -343,4 +354,93 @@ export async function processCrossChainSwap(
     blockTimestamp,
     context,
   );
+}
+
+/**
+ * Attempts to create a SuperSwap entity when ProcessId is available.
+ * This handles the case where ProcessId is processed after CrossChainSwap.
+ * Since we are running Unordered Multichain Mode, there's no deterministic
+ * order in which the indexer processes events, so we account for superswap
+ * creation in both scenarios.
+ *
+ * @param messageId - The message ID from the ProcessId event
+ * @param blockTimestamp - Block timestamp in seconds
+ * @param context - Handler context for queries and entity operations
+ */
+export async function attemptSuperSwapCreationFromProcessId(
+  messageId: string,
+  blockTimestamp: number,
+  context: handlerContext,
+): Promise<void> {
+  try {
+    // Find matching DispatchId_event by messageId
+    const dispatchIdEvents =
+      await context.DispatchId_event.getWhere.messageId.eq(messageId);
+
+    if (dispatchIdEvents.length === 0) {
+      // No matching DispatchId found - this is expected if source chain hasn't synced yet
+      context.log.info(
+        `No matching DispatchId found for messageId ${messageId} when processing ProcessId ${messageId}. This is expected if source chain hasn't synced yet.`,
+      );
+      return;
+    }
+
+    // Use the first matching DispatchId (should be unique per messageId)
+    const dispatchIdEvent = dispatchIdEvents[0];
+    const sourceTransactionHash = dispatchIdEvent.transactionHash;
+    const sourceChainId = dispatchIdEvent.chainId;
+
+    // Load oUSDTBridgedTransaction and DispatchId_event entities in parallel
+    const [oUSDTBridgedTransactions, sourceChainMessageIdEntities] =
+      await Promise.all([
+        context.oUSDTBridgedTransaction.getWhere.transactionHash.eq(
+          sourceTransactionHash,
+        ),
+        context.DispatchId_event.getWhere.transactionHash.eq(
+          sourceTransactionHash,
+        ),
+      ]);
+
+    if (oUSDTBridgedTransactions.length === 0) {
+      context.log.warn(
+        `No oUSDTBridgedTransaction found for transaction ${sourceTransactionHash} when processing ProcessId ${messageId}`,
+      );
+      return;
+    }
+
+    if (sourceChainMessageIdEntities.length === 0) {
+      context.log.warn(
+        `No DispatchId_event entities found for transaction ${sourceTransactionHash}`,
+      );
+      return;
+    }
+
+    const bridgedTransaction = oUSDTBridgedTransactions[0];
+
+    // Load all ProcessId_event entities for all messageIds from the DispatchId events
+    const processIdPromises = sourceChainMessageIdEntities.map((entity) =>
+      context.ProcessId_event.getWhere.messageId.eq(entity.messageId),
+    );
+    const processIdResults = await Promise.all(processIdPromises);
+
+    // Get destination domain from the bridged transaction
+    const destinationDomain = bridgedTransaction.destinationChainId;
+
+    // Attempt to create SuperSwap entity
+    await processCrossChainSwap(
+      sourceChainMessageIdEntities,
+      processIdResults,
+      bridgedTransaction,
+      sourceTransactionHash,
+      sourceChainId,
+      destinationDomain,
+      blockTimestamp,
+      context,
+    );
+  } catch (error) {
+    // Log error but don't throw - retry is best-effort
+    context.log.warn(
+      `Error attempting to create SuperSwap from ProcessId handler for messageId ${messageId}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
 }

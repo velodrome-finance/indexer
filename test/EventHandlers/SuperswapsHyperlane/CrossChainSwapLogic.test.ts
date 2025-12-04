@@ -7,6 +7,7 @@ import type {
   oUSDTSwaps,
 } from "../../../generated/src/Types.gen";
 import {
+  attemptSuperSwapCreationFromProcessId,
   buildMessageIdToProcessIdMap,
   createSuperSwapEntity,
   findDestinationSwapWithOUSDT,
@@ -1277,7 +1278,7 @@ describe("CrossChainSwapLogic", () => {
   });
 
   describe("createSuperSwapEntity", () => {
-    it("should create SuperSwap entity with correct fields", () => {
+    it("should create SuperSwap entity with correct fields", async () => {
       const context = createMockContext([], []);
 
       const sourceSwap: oUSDTSwaps = {
@@ -1289,7 +1290,7 @@ describe("CrossChainSwapLogic", () => {
         amountOut: oUSDTAmount,
       };
 
-      createSuperSwapEntity(
+      await createSuperSwapEntity(
         transactionHash,
         chainId,
         destinationDomain,
@@ -1324,6 +1325,369 @@ describe("CrossChainSwapLogic", () => {
       expect(superSwap?.timestamp).to.deep.equal(
         new Date(blockTimestamp * 1000),
       );
+    });
+
+    it("should skip creation if SuperSwap already exists", async () => {
+      const context = createMockContext([], []);
+
+      const sourceSwap: oUSDTSwaps = {
+        id: `${transactionHash}_${chainId}_${tokenInAddress}_1000_${oUSDTAddress}_${oUSDTAmount}`,
+        transactionHash: transactionHash,
+        tokenInPool: tokenInAddress,
+        tokenOutPool: oUSDTAddress,
+        amountIn: 1000n,
+        amountOut: oUSDTAmount,
+      };
+
+      // Create SuperSwap first time
+      await createSuperSwapEntity(
+        transactionHash,
+        chainId,
+        destinationDomain,
+        mockBridgedTransaction,
+        messageId1,
+        sourceSwap,
+        tokenInAddress,
+        1000n,
+        tokenOutAddress,
+        950n,
+        blockTimestamp,
+        context,
+      );
+
+      const superSwapsAfterFirst = context.getSuperSwaps();
+      expect(superSwapsAfterFirst.size).to.equal(1);
+
+      // Try to create again - should skip
+      await createSuperSwapEntity(
+        transactionHash,
+        chainId,
+        destinationDomain,
+        mockBridgedTransaction,
+        messageId1,
+        sourceSwap,
+        tokenInAddress,
+        1000n,
+        tokenOutAddress,
+        950n,
+        blockTimestamp,
+        context,
+      );
+
+      // Should still be only 1 entity (not duplicated)
+      const superSwapsAfterSecond = context.getSuperSwaps();
+      expect(superSwapsAfterSecond.size).to.equal(1);
+    });
+  });
+
+  describe("attemptSuperSwapCreationFromProcessId", () => {
+    const createExtendedMockContext = (
+      dispatchIdEvents: DispatchId_event[],
+      processIdEvents: ProcessId_event[],
+      bridgedTransactions: oUSDTBridgedTransaction[],
+      swapEvents: oUSDTSwaps[],
+    ) => {
+      const dispatchIdByMessageId = new Map<string, DispatchId_event[]>();
+      const dispatchIdByTxHash = new Map<string, DispatchId_event[]>();
+      const processIdMap = new Map<string, ProcessId_event[]>();
+      const bridgedTxMap = new Map<string, oUSDTBridgedTransaction[]>();
+      const swapMap = new Map<string, oUSDTSwaps[]>();
+      const logWarnings: string[] = [];
+      const logInfos: string[] = [];
+      const superSwaps = new Map<string, SuperSwap>();
+
+      // Group DispatchId events by messageId and transactionHash
+      for (const event of dispatchIdEvents) {
+        const existingByMsgId =
+          dispatchIdByMessageId.get(event.messageId) || [];
+        dispatchIdByMessageId.set(event.messageId, [...existingByMsgId, event]);
+
+        const existingByTxHash =
+          dispatchIdByTxHash.get(event.transactionHash) || [];
+        dispatchIdByTxHash.set(event.transactionHash, [
+          ...existingByTxHash,
+          event,
+        ]);
+      }
+
+      // Group ProcessId events by messageId
+      for (const event of processIdEvents) {
+        const existing = processIdMap.get(event.messageId) || [];
+        processIdMap.set(event.messageId, [...existing, event]);
+      }
+
+      // Group bridged transactions by transactionHash
+      for (const tx of bridgedTransactions) {
+        const existing = bridgedTxMap.get(tx.transactionHash) || [];
+        bridgedTxMap.set(tx.transactionHash, [...existing, tx]);
+      }
+
+      // Group swap events by transactionHash
+      for (const event of swapEvents) {
+        const existing = swapMap.get(event.transactionHash) || [];
+        swapMap.set(event.transactionHash, [...existing, event]);
+      }
+
+      return {
+        DispatchId_event: {
+          getWhere: {
+            messageId: {
+              eq: async (msgId: string) =>
+                dispatchIdByMessageId.get(msgId) || [],
+            },
+            transactionHash: {
+              eq: async (txHash: string) =>
+                dispatchIdByTxHash.get(txHash) || [],
+            },
+          },
+        },
+        ProcessId_event: {
+          getWhere: {
+            messageId: {
+              eq: async (msgId: string) => processIdMap.get(msgId) || [],
+            },
+          },
+        },
+        oUSDTBridgedTransaction: {
+          getWhere: {
+            transactionHash: {
+              eq: async (txHash: string) => bridgedTxMap.get(txHash) || [],
+            },
+          },
+        },
+        oUSDTSwaps: {
+          getWhere: {
+            transactionHash: {
+              eq: async (txHash: string) => swapMap.get(txHash) || [],
+            },
+          },
+        },
+        SuperSwap: {
+          set: (entity: SuperSwap) => {
+            superSwaps.set(entity.id, entity);
+          },
+          get: (id: string) => {
+            return superSwaps.get(id);
+          },
+        },
+        log: {
+          warn: (message: string) => {
+            logWarnings.push(message);
+          },
+          info: (message: string) => {
+            logInfos.push(message);
+          },
+          error: () => {},
+          debug: () => {},
+        },
+        getWarnings: () => logWarnings,
+        getInfos: () => logInfos,
+        getSuperSwaps: () => superSwaps,
+        // biome-ignore lint/suspicious/noExplicitAny: test mock context needs flexibility
+      } as any;
+    };
+
+    it("should create SuperSwap when all data is present", async () => {
+      const dispatchIdEvent: DispatchId_event = {
+        id: `${transactionHash}_${chainId}_${messageId1}`,
+        chainId: chainId,
+        transactionHash: transactionHash,
+        messageId: messageId1,
+      };
+
+      const processIdEvent: ProcessId_event = {
+        id: `${destinationTxHash}_${destinationDomain}_${messageId1}`,
+        chainId: Number(destinationDomain),
+        transactionHash: destinationTxHash,
+        messageId: messageId1,
+      };
+
+      // Source chain swap: tokenIn -> oUSDT
+      const sourceSwap: oUSDTSwaps = {
+        id: `${transactionHash}_${chainId}_${tokenInAddress}_1000_${oUSDTAddress}_${oUSDTAmount}`,
+        transactionHash: transactionHash,
+        tokenInPool: tokenInAddress,
+        tokenOutPool: oUSDTAddress,
+        amountIn: 1000n,
+        amountOut: oUSDTAmount,
+      };
+
+      // Destination chain swap: oUSDT -> tokenOut
+      const destinationSwap: oUSDTSwaps = {
+        id: `${destinationTxHash}_${destinationDomain}_${oUSDTAddress}_${oUSDTAmount}_${tokenOutAddress}_950`,
+        transactionHash: destinationTxHash,
+        tokenInPool: oUSDTAddress,
+        tokenOutPool: tokenOutAddress,
+        amountIn: oUSDTAmount,
+        amountOut: 950n,
+      };
+
+      const context = createExtendedMockContext(
+        [dispatchIdEvent],
+        [processIdEvent],
+        [mockBridgedTransaction],
+        [sourceSwap, destinationSwap],
+      );
+
+      await attemptSuperSwapCreationFromProcessId(
+        messageId1,
+        blockTimestamp,
+        context,
+      );
+
+      const superSwaps = context.getSuperSwaps();
+      expect(superSwaps.size).to.equal(1);
+
+      const superSwap = Array.from(superSwaps.values())[0] as SuperSwap;
+      expect(superSwap).to.not.be.undefined;
+      expect(superSwap.originChainId).to.equal(BigInt(chainId));
+      expect(superSwap.destinationChainId).to.equal(destinationDomain);
+      expect(superSwap.oUSDTamount).to.equal(oUSDTAmount);
+      expect(superSwap.sourceChainToken).to.equal(tokenInAddress);
+      expect(superSwap.destinationChainToken).to.equal(tokenOutAddress);
+    });
+
+    it("should return early and log info when no DispatchId_event is found", async () => {
+      const context = createExtendedMockContext(
+        [], // No DispatchId events
+        [],
+        [],
+        [],
+      );
+
+      await attemptSuperSwapCreationFromProcessId(
+        messageId1,
+        blockTimestamp,
+        context,
+      );
+
+      const superSwaps = context.getSuperSwaps();
+      expect(superSwaps.size).to.equal(0);
+
+      const infos = context.getInfos();
+      expect(infos.length).to.equal(1);
+      expect(infos[0]).to.include("No matching DispatchId found for messageId");
+      expect(infos[0]).to.include(
+        "This is expected if source chain hasn't synced yet",
+      );
+    });
+
+    it("should return early and log warn when no oUSDTBridgedTransaction is found", async () => {
+      const dispatchIdEvent: DispatchId_event = {
+        id: `${transactionHash}_${chainId}_${messageId1}`,
+        chainId: chainId,
+        transactionHash: transactionHash,
+        messageId: messageId1,
+      };
+
+      const context = createExtendedMockContext(
+        [dispatchIdEvent],
+        [],
+        [], // No bridged transactions
+        [],
+      );
+
+      await attemptSuperSwapCreationFromProcessId(
+        messageId1,
+        blockTimestamp,
+        context,
+      );
+
+      const superSwaps = context.getSuperSwaps();
+      expect(superSwaps.size).to.equal(0);
+
+      const warnings = context.getWarnings();
+      expect(warnings.length).to.equal(1);
+      expect(warnings[0]).to.include(
+        "No oUSDTBridgedTransaction found for transaction",
+      );
+    });
+
+    it("should return early and log warn when no DispatchId_event entities found for transaction", async () => {
+      const dispatchIdEvent: DispatchId_event = {
+        id: `${transactionHash}_${chainId}_${messageId1}`,
+        chainId: chainId,
+        transactionHash: transactionHash,
+        messageId: messageId1,
+      };
+
+      const context = createExtendedMockContext(
+        [dispatchIdEvent], // Only the one found by messageId
+        [],
+        [mockBridgedTransaction],
+        [],
+      );
+
+      // Mock the transactionHash query to return empty (simulating no other DispatchId events for this transaction)
+      const originalEq = context.DispatchId_event.getWhere.transactionHash.eq;
+      context.DispatchId_event.getWhere.transactionHash.eq = async () => [];
+
+      await attemptSuperSwapCreationFromProcessId(
+        messageId1,
+        blockTimestamp,
+        context,
+      );
+
+      const superSwaps = context.getSuperSwaps();
+      expect(superSwaps.size).to.equal(0);
+
+      const warnings = context.getWarnings();
+      expect(warnings.length).to.equal(1);
+      expect(warnings[0]).to.include(
+        "No DispatchId_event entities found for transaction",
+      );
+
+      // Restore original
+      context.DispatchId_event.getWhere.transactionHash.eq = originalEq;
+    });
+
+    it("should handle errors gracefully and log warning", async () => {
+      const dispatchIdEvent: DispatchId_event = {
+        id: `${transactionHash}_${chainId}_${messageId1}`,
+        chainId: chainId,
+        transactionHash: transactionHash,
+        messageId: messageId1,
+      };
+
+      const processIdEvent: ProcessId_event = {
+        id: `${destinationTxHash}_${destinationDomain}_${messageId1}`,
+        chainId: Number(destinationDomain),
+        transactionHash: destinationTxHash,
+        messageId: messageId1,
+      };
+
+      // Create a context that will throw an error when querying oUSDTSwaps
+      const context = createExtendedMockContext(
+        [dispatchIdEvent],
+        [processIdEvent],
+        [mockBridgedTransaction],
+        [],
+      );
+
+      // Override oUSDTSwaps query to throw an error
+      const originalEq = context.oUSDTSwaps.getWhere.transactionHash.eq;
+      context.oUSDTSwaps.getWhere.transactionHash.eq = async () => {
+        throw new Error("Database connection failed");
+      };
+
+      await attemptSuperSwapCreationFromProcessId(
+        messageId1,
+        blockTimestamp,
+        context,
+      );
+
+      const warnings = context.getWarnings();
+      expect(warnings.length).to.be.greaterThan(0);
+      expect(
+        warnings.some((w: string) =>
+          w.includes(
+            "Error attempting to create SuperSwap from ProcessId handler",
+          ),
+        ),
+      ).to.be.true;
+
+      // Restore original
+      context.oUSDTSwaps.getWhere.transactionHash.eq = originalEq;
     });
   });
 });

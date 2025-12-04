@@ -1,6 +1,13 @@
 import { expect } from "chai";
 import { Mailbox, MockDb } from "../../../generated/src/TestHelpers.gen";
-import { toChecksumAddress } from "../../../src/Constants";
+import type {
+  DispatchId_event,
+  ProcessId_event,
+  SuperSwap,
+  oUSDTBridgedTransaction,
+  oUSDTSwaps,
+} from "../../../generated/src/Types.gen";
+import { OUSDT_ADDRESS, toChecksumAddress } from "../../../src/Constants";
 
 describe("Mailbox Events", () => {
   const mailboxAddress = toChecksumAddress(
@@ -434,6 +441,271 @@ describe("Mailbox Events", () => {
       expect(entity2).to.not.be.undefined;
       expect(entity1?.chainId).to.equal(chainId1);
       expect(entity2?.chainId).to.equal(chainId2);
+    });
+  });
+
+  describe("ProcessId event - SuperSwap creation integration", () => {
+    const sourceChainId = 10; // Optimism
+    const destinationChainId = 252; // Lisk
+    const sourceTransactionHash =
+      "0x1234567890123456789012345678901234567890123456789012345678901234";
+    const destinationTransactionHash =
+      "0xdc34c918860806a2dafebad41e539cfe42f20253c0585358b91d31a11de41806";
+    const testMessageId =
+      "0xCCE7BDDCBF46218439FDAF78B99904EDCDF012B927E95EB053B8D01461C9DF9B";
+    const tokenInAddress = "0x3333333333333333333333333333333333333333";
+    const tokenOutAddress = "0x4444444444444444444444444444444444444444";
+    const oUSDTAmount = 18116811000000000000n; // 18.116811 oUSDT
+
+    it("should create SuperSwap when ProcessId is processed and all required data exists", async () => {
+      // Setup: Create all required entities
+      let mockDb = MockDb.createMockDb();
+
+      // 1. Create DispatchId_event (source chain)
+      const dispatchIdEvent: DispatchId_event = {
+        id: `${sourceTransactionHash}_${sourceChainId}_${testMessageId}`,
+        chainId: sourceChainId,
+        transactionHash: sourceTransactionHash,
+        messageId: testMessageId,
+      };
+      mockDb = mockDb.entities.DispatchId_event.set(dispatchIdEvent);
+
+      // 2. Create oUSDTBridgedTransaction
+      const bridgedTransaction: oUSDTBridgedTransaction = {
+        id: sourceTransactionHash,
+        transactionHash: sourceTransactionHash,
+        originChainId: BigInt(sourceChainId),
+        destinationChainId: BigInt(destinationChainId),
+        sender: "0x1111111111111111111111111111111111111111",
+        recipient: "0x2222222222222222222222222222222222222222",
+        amount: oUSDTAmount,
+      };
+      mockDb = mockDb.entities.oUSDTBridgedTransaction.set(bridgedTransaction);
+
+      // 3. Create ProcessId_event (destination chain) - this will be created by the handler
+      // But we also need it for the lookup
+      const processIdEvent: ProcessId_event = {
+        id: `${destinationTransactionHash}_${destinationChainId}_${testMessageId}`,
+        chainId: destinationChainId,
+        transactionHash: destinationTransactionHash,
+        messageId: testMessageId,
+      };
+      mockDb = mockDb.entities.ProcessId_event.set(processIdEvent);
+
+      // 4. Create source chain swap (tokenIn -> oUSDT)
+      const sourceSwap: oUSDTSwaps = {
+        id: `${sourceTransactionHash}_${sourceChainId}_${tokenInAddress}_1000_${OUSDT_ADDRESS}_${oUSDTAmount}`,
+        transactionHash: sourceTransactionHash,
+        tokenInPool: tokenInAddress,
+        tokenOutPool: OUSDT_ADDRESS,
+        amountIn: 1000n,
+        amountOut: oUSDTAmount,
+      };
+      mockDb = mockDb.entities.oUSDTSwaps.set(sourceSwap);
+
+      // 5. Create destination chain swap (oUSDT -> tokenOut)
+      const destinationSwap: oUSDTSwaps = {
+        id: `${destinationTransactionHash}_${destinationChainId}_${OUSDT_ADDRESS}_${oUSDTAmount}_${tokenOutAddress}_950`,
+        transactionHash: destinationTransactionHash,
+        tokenInPool: OUSDT_ADDRESS,
+        tokenOutPool: tokenOutAddress,
+        amountIn: oUSDTAmount,
+        amountOut: 950n,
+      };
+      mockDb = mockDb.entities.oUSDTSwaps.set(destinationSwap);
+
+      // Execute: Process ProcessId event
+      const processIdMockEvent = Mailbox.ProcessId.createMockEvent({
+        messageId: testMessageId,
+        mockEventData: {
+          block: {
+            timestamp: blockTimestamp,
+            number: blockNumber,
+            hash: blockHash,
+          },
+          chainId: destinationChainId,
+          logIndex: 1,
+          srcAddress: mailboxAddress,
+          transaction: {
+            hash: destinationTransactionHash,
+          },
+        },
+      });
+
+      const result = await Mailbox.ProcessId.processEvent({
+        event: processIdMockEvent,
+        mockDb,
+      });
+
+      // Assert: ProcessId_event was created
+      const processIdEntityId = `${destinationTransactionHash}_${destinationChainId}_${testMessageId}`;
+      const processIdEntity =
+        result.entities.ProcessId_event.get(processIdEntityId);
+      expect(processIdEntity).to.not.be.undefined;
+      expect(processIdEntity?.messageId).to.equal(testMessageId);
+
+      // Assert: SuperSwap was created
+      const superSwaps = Array.from(
+        result.entities.SuperSwap.getAll(),
+      ) as SuperSwap[];
+      expect(superSwaps.length).to.equal(1);
+
+      const superSwap = superSwaps[0];
+      expect(superSwap.originChainId).to.equal(BigInt(sourceChainId));
+      expect(superSwap.destinationChainId).to.equal(BigInt(destinationChainId));
+      expect(superSwap.oUSDTamount).to.equal(oUSDTAmount);
+      expect(superSwap.sourceChainToken).to.equal(tokenInAddress);
+      expect(superSwap.destinationChainToken).to.equal(tokenOutAddress);
+      expect(superSwap.sourceChainTokenAmountSwapped).to.equal(1000n);
+      expect(superSwap.destinationChainTokenAmountSwapped).to.equal(950n);
+    });
+
+    it("should create ProcessId_event but not SuperSwap when DispatchId is missing", async () => {
+      // Setup: Create ProcessId event without DispatchId
+      const mockDb = MockDb.createMockDb();
+
+      const processIdMockEvent = Mailbox.ProcessId.createMockEvent({
+        messageId: testMessageId,
+        mockEventData: {
+          block: {
+            timestamp: blockTimestamp,
+            number: blockNumber,
+            hash: blockHash,
+          },
+          chainId: destinationChainId,
+          logIndex: 1,
+          srcAddress: mailboxAddress,
+          transaction: {
+            hash: destinationTransactionHash,
+          },
+        },
+      });
+
+      const result = await Mailbox.ProcessId.processEvent({
+        event: processIdMockEvent,
+        mockDb,
+      });
+
+      // Assert: ProcessId_event was created
+      const processIdEntityId = `${destinationTransactionHash}_${destinationChainId}_${testMessageId}`;
+      const processIdEntity =
+        result.entities.ProcessId_event.get(processIdEntityId);
+      expect(processIdEntity).to.not.be.undefined;
+
+      // Assert: No SuperSwap was created (DispatchId missing)
+      const superSwaps = Array.from(result.entities.SuperSwap.getAll());
+      expect(superSwaps.length).to.equal(0);
+    });
+
+    it("should create ProcessId_event but not SuperSwap when oUSDTBridgedTransaction is missing", async () => {
+      // Setup: Create DispatchId but no bridged transaction
+      let mockDb = MockDb.createMockDb();
+
+      const dispatchIdEvent: DispatchId_event = {
+        id: `${sourceTransactionHash}_${sourceChainId}_${testMessageId}`,
+        chainId: sourceChainId,
+        transactionHash: sourceTransactionHash,
+        messageId: testMessageId,
+      };
+      mockDb = mockDb.entities.DispatchId_event.set(dispatchIdEvent);
+
+      const processIdMockEvent = Mailbox.ProcessId.createMockEvent({
+        messageId: testMessageId,
+        mockEventData: {
+          block: {
+            timestamp: blockTimestamp,
+            number: blockNumber,
+            hash: blockHash,
+          },
+          chainId: destinationChainId,
+          logIndex: 1,
+          srcAddress: mailboxAddress,
+          transaction: {
+            hash: destinationTransactionHash,
+          },
+        },
+      });
+
+      const result = await Mailbox.ProcessId.processEvent({
+        event: processIdMockEvent,
+        mockDb,
+      });
+
+      // Assert: ProcessId_event was created
+      const processIdEntityId = `${destinationTransactionHash}_${destinationChainId}_${testMessageId}`;
+      const processIdEntity =
+        result.entities.ProcessId_event.get(processIdEntityId);
+      expect(processIdEntity).to.not.be.undefined;
+
+      // Assert: No SuperSwap was created (bridged transaction missing)
+      const superSwaps = Array.from(result.entities.SuperSwap.getAll());
+      expect(superSwaps.length).to.equal(0);
+    });
+
+    it("should handle ProcessId event gracefully when source chain swaps are missing", async () => {
+      // Setup: Create all entities except source swap
+      let mockDb = MockDb.createMockDb();
+
+      const dispatchIdEvent: DispatchId_event = {
+        id: `${sourceTransactionHash}_${sourceChainId}_${testMessageId}`,
+        chainId: sourceChainId,
+        transactionHash: sourceTransactionHash,
+        messageId: testMessageId,
+      };
+      mockDb = mockDb.entities.DispatchId_event.set(dispatchIdEvent);
+
+      const bridgedTransaction: oUSDTBridgedTransaction = {
+        id: sourceTransactionHash,
+        transactionHash: sourceTransactionHash,
+        originChainId: BigInt(sourceChainId),
+        destinationChainId: BigInt(destinationChainId),
+        sender: "0x1111111111111111111111111111111111111111",
+        recipient: "0x2222222222222222222222222222222222222222",
+        amount: oUSDTAmount,
+      };
+      mockDb = mockDb.entities.oUSDTBridgedTransaction.set(bridgedTransaction);
+
+      const processIdEvent: ProcessId_event = {
+        id: `${destinationTransactionHash}_${destinationChainId}_${testMessageId}`,
+        chainId: destinationChainId,
+        transactionHash: destinationTransactionHash,
+        messageId: testMessageId,
+      };
+      mockDb = mockDb.entities.ProcessId_event.set(processIdEvent);
+
+      // Note: No source swap created
+
+      const processIdMockEvent = Mailbox.ProcessId.createMockEvent({
+        messageId: testMessageId,
+        mockEventData: {
+          block: {
+            timestamp: blockTimestamp,
+            number: blockNumber,
+            hash: blockHash,
+          },
+          chainId: destinationChainId,
+          logIndex: 1,
+          srcAddress: mailboxAddress,
+          transaction: {
+            hash: destinationTransactionHash,
+          },
+        },
+      });
+
+      const result = await Mailbox.ProcessId.processEvent({
+        event: processIdMockEvent,
+        mockDb,
+      });
+
+      // Assert: ProcessId_event was created
+      const processIdEntityId = `${destinationTransactionHash}_${destinationChainId}_${testMessageId}`;
+      const processIdEntity =
+        result.entities.ProcessId_event.get(processIdEntityId);
+      expect(processIdEntity).to.not.be.undefined;
+
+      // Assert: No SuperSwap was created (source swap missing)
+      const superSwaps = Array.from(result.entities.SuperSwap.getAll());
+      expect(superSwaps.length).to.equal(0);
     });
   });
 });
