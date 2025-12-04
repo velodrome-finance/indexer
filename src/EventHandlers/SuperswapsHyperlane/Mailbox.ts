@@ -3,7 +3,7 @@ import {
   Mailbox,
   type ProcessId_event,
 } from "generated";
-import { attemptSuperSwapCreationFromProcessId } from "./CrossChainSwapLogic";
+import { attemptSuperSwapCreationFromProcessId } from "./SuperSwapLogic";
 
 Mailbox.DispatchId.handler(async ({ event, context }) => {
   const messageId = event.params.messageId;

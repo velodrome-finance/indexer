@@ -14,9 +14,9 @@ import {
   findSourceSwapWithOUSDT,
   loadDestinationSwaps,
   processCrossChainSwap,
-} from "../../../src/EventHandlers/SuperswapsHyperlane/CrossChainSwapLogic";
+} from "../../../src/EventHandlers/SuperswapsHyperlane/SuperSwapLogic";
 
-describe("CrossChainSwapLogic", () => {
+describe("SuperSwapLogic", () => {
   const chainId = 10; // Optimism
   const destinationDomain = 3444334443n; // Mode Network
   const transactionHash =

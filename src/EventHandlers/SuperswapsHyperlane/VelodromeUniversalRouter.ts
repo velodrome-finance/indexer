@@ -3,7 +3,7 @@ import {
   type oUSDTBridgedTransaction,
 } from "generated";
 import { OUSDT_ADDRESS } from "../../Constants";
-import { processCrossChainSwap } from "./CrossChainSwapLogic";
+import { processCrossChainSwap } from "./SuperSwapLogic";
 
 VelodromeUniversalRouter.UniversalRouterBridge.handler(
   async ({ event, context }) => {
