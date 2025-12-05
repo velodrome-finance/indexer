@@ -188,19 +188,51 @@ export async function getSqrtPriceX96AndTokens(
   position: NonFungiblePosition,
   blockNumber: number,
   context: handlerContext,
-): Promise<[bigint, Token | undefined, Token | undefined]> {
+): Promise<[bigint | undefined, Token | undefined, Token | undefined]> {
   // Round block number to nearest hour interval for better cache hits
   // Cache key is based on input parameters, so rounding must happen before effect call
   const roundedBlockNumber = roundBlockToInterval(blockNumber, chainId);
-  return await Promise.all([
-    context.effect(getSqrtPriceX96, {
-      poolAddress: position.pool,
-      chainId: chainId,
-      blockNumber: roundedBlockNumber,
-    }),
+
+  // Fetch tokens
+  const [token0, token1] = await Promise.all([
     context.Token.get(`${position.token0}-${chainId}`),
     context.Token.get(`${position.token1}-${chainId}`),
   ]);
+
+  // Try to fetch sqrtPriceX96 with rounded block number first (for better caching)
+  let sqrtPriceX96: bigint | undefined;
+  try {
+    sqrtPriceX96 = await context.effect(getSqrtPriceX96, {
+      poolAddress: position.pool,
+      chainId: chainId,
+      blockNumber: roundedBlockNumber,
+    });
+  } catch (error) {
+    // Pool likely doesn't exist at rounded block (likely because it was created after the rounded block)
+    // Retry with actual block number
+    context.log.warn(
+      `[getSqrtPriceX96AndTokens] Pool ${position.pool} does not exist at rounded block ${roundedBlockNumber} (original: ${blockNumber}) on chain ${chainId}. Retrying with actual block number. This is expected when the pool was created after the rounded block interval.`,
+    );
+
+    try {
+      sqrtPriceX96 = await context.effect(getSqrtPriceX96, {
+        poolAddress: position.pool,
+        chainId: chainId,
+        blockNumber: blockNumber,
+      });
+    } catch (retryError) {
+      // If retry also fails, set to undefined (return type allows this)
+      context.log.error(
+        `[getSqrtPriceX96AndTokens] Failed to fetch sqrtPriceX96 for pool ${position.pool} on chain ${chainId} at both rounded block ${roundedBlockNumber} and actual block ${blockNumber}`,
+        retryError instanceof Error
+          ? retryError
+          : new Error(String(retryError)),
+      );
+      sqrtPriceX96 = undefined;
+    }
+  }
+
+  return [sqrtPriceX96, token0, token1];
 }
 
 /**
@@ -255,7 +287,7 @@ export function processTransfer(
 export function processIncreaseLiquidity(
   event: NFPM_IncreaseLiquidity_event,
   position: NonFungiblePosition,
-  sqrtPriceX96: bigint,
+  sqrtPriceX96: bigint | undefined,
   token0: Token | undefined,
   token1: Token | undefined,
 ): ProcessIncreaseLiquidityResult {
@@ -315,7 +347,7 @@ export function processIncreaseLiquidity(
 export function processDecreaseLiquidity(
   event: NFPM_DecreaseLiquidity_event,
   position: NonFungiblePosition,
-  sqrtPriceX96: bigint,
+  sqrtPriceX96: bigint | undefined,
   token0: Token | undefined,
   token1: Token | undefined,
 ): ProcessDecreaseLiquidityResult {
@@ -329,26 +361,31 @@ export function processDecreaseLiquidity(
 
   // Recalculate ALL amounts from the new total liquidity + current price
   // This ensures amounts are always accurate based on current price, not stale deltas
-  const newAmounts = calculatePositionAmountsFromLiquidity(
-    newLiquidity,
-    sqrtPriceX96,
-    position.tickLower,
-    position.tickUpper,
-  );
+  // Only calculates if sqrtPriceX96 is available. Due to some "historical state not available" errors
+  // We need to do this "if" condition check, otherwise the indexer just crashes.
+  let newAmounts: { amount0: bigint; amount1: bigint } | undefined;
+  if (sqrtPriceX96) {
+    newAmounts = calculatePositionAmountsFromLiquidity(
+      newLiquidity,
+      sqrtPriceX96,
+      position.tickLower,
+      position.tickUpper,
+    );
+  }
 
   const blockDatetime = new Date(event.block.timestamp * 1000);
 
   const NonFungiblePositionAmountUSD = calculateTotalLiquidityUSD(
-    newAmounts.amount0,
-    newAmounts.amount1,
+    newAmounts ? newAmounts.amount0 : position.amount0,
+    newAmounts ? newAmounts.amount1 : position.amount1,
     token0,
     token1,
   );
 
   const updatedPosition: Partial<NonFungiblePosition> = {
     liquidity: newLiquidity,
-    amount0: newAmounts.amount0,
-    amount1: newAmounts.amount1,
+    amount0: newAmounts ? newAmounts.amount0 : position.amount0,
+    amount1: newAmounts ? newAmounts.amount1 : position.amount1,
     amountUSD: NonFungiblePositionAmountUSD,
     lastUpdatedTimestamp: blockDatetime,
   };

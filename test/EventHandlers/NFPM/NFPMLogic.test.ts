@@ -357,6 +357,10 @@ describe("NFPMLogic", () => {
           get: sinon.stub(),
         },
         effect: sinon.stub(),
+        log: {
+          warn: sinon.stub(),
+          error: sinon.stub(),
+        },
       } as unknown as handlerContext;
     });
 
@@ -380,6 +384,8 @@ describe("NFPMLogic", () => {
       expect(token1).to.deep.equal(mockToken1);
       expect((mockContext.effect as sinon.SinonStub).callCount).to.equal(1);
       expect((mockContext.Token.get as sinon.SinonStub).callCount).to.equal(2);
+      expect((mockContext.log.warn as sinon.SinonStub).callCount).to.equal(0);
+      expect((mockContext.log.error as sinon.SinonStub).callCount).to.equal(0);
     });
 
     it("should handle undefined tokens", async () => {
@@ -400,6 +406,100 @@ describe("NFPMLogic", () => {
       expect(sqrtPriceX96).to.equal(expectedSqrtPriceX96);
       expect(token0).to.be.undefined;
       expect(token1).to.be.undefined;
+    });
+
+    it("should retry with actual block number when rounded block fails with contract not exists error", async () => {
+      const contractNotExistsError = new Error(
+        'The contract function "slot0" returned no data ("0x").',
+      );
+      // First call (rounded block) fails, second call (actual block) succeeds
+      (mockContext.effect as sinon.SinonStub)
+        .onFirstCall()
+        .rejects(contractNotExistsError)
+        .onSecondCall()
+        .resolves(expectedSqrtPriceX96);
+      (mockContext.Token.get as sinon.SinonStub)
+        .onFirstCall()
+        .resolves(mockToken0)
+        .onSecondCall()
+        .resolves(mockToken1);
+
+      // Use a block number that will round down (e.g., 1801 for chain 10 rounds to 1800)
+      // For chain 10 (Optimism), blocksPerHour = 1800, so 1801 rounds to 1800
+      const blockNumber = 1801;
+      const [sqrtPriceX96, token0, token1] = await getSqrtPriceX96AndTokens(
+        chainId,
+        mockPosition,
+        blockNumber,
+        mockContext,
+      );
+
+      expect(sqrtPriceX96).to.equal(expectedSqrtPriceX96);
+      expect(token0).to.deep.equal(mockToken0);
+      expect(token1).to.deep.equal(mockToken1);
+      expect((mockContext.effect as sinon.SinonStub).callCount).to.equal(2);
+      expect((mockContext.log.warn as sinon.SinonStub).callCount).to.equal(1);
+      expect(
+        (mockContext.log.warn as sinon.SinonStub).firstCall.args[0],
+      ).to.include("does not exist at rounded block");
+      expect((mockContext.log.error as sinon.SinonStub).callCount).to.equal(0);
+    });
+
+    it("should return undefined when both rounded and actual block fail", async () => {
+      const contractNotExistsError = new Error(
+        'The contract function "slot0" returned no data ("0x").',
+      );
+      // Both calls fail
+      (mockContext.effect as sinon.SinonStub).rejects(contractNotExistsError);
+      (mockContext.Token.get as sinon.SinonStub)
+        .onFirstCall()
+        .resolves(mockToken0)
+        .onSecondCall()
+        .resolves(mockToken1);
+
+      const blockNumber = 1801;
+      const [sqrtPriceX96, token0, token1] = await getSqrtPriceX96AndTokens(
+        chainId,
+        mockPosition,
+        blockNumber,
+        mockContext,
+      );
+
+      expect(sqrtPriceX96).to.be.undefined;
+      expect(token0).to.deep.equal(mockToken0);
+      expect(token1).to.deep.equal(mockToken1);
+      expect((mockContext.effect as sinon.SinonStub).callCount).to.equal(2);
+      expect((mockContext.log.warn as sinon.SinonStub).callCount).to.equal(1);
+      expect((mockContext.log.error as sinon.SinonStub).callCount).to.equal(1);
+      expect(
+        (mockContext.log.error as sinon.SinonStub).firstCall.args[0],
+      ).to.include("Failed to fetch sqrtPriceX96");
+    });
+
+    it("should retry with actual block even for non-contract-not-exists errors and return undefined if both fail", async () => {
+      const networkError = new Error("Network error: connection timeout");
+      // Both calls fail with network error
+      (mockContext.effect as sinon.SinonStub).rejects(networkError);
+      (mockContext.Token.get as sinon.SinonStub)
+        .onFirstCall()
+        .resolves(mockToken0)
+        .onSecondCall()
+        .resolves(mockToken1);
+
+      const blockNumber = 1801;
+      const [sqrtPriceX96, token0, token1] = await getSqrtPriceX96AndTokens(
+        chainId,
+        mockPosition,
+        blockNumber,
+        mockContext,
+      );
+
+      expect(sqrtPriceX96).to.be.undefined;
+      expect(token0).to.deep.equal(mockToken0);
+      expect(token1).to.deep.equal(mockToken1);
+      expect((mockContext.effect as sinon.SinonStub).callCount).to.equal(2);
+      expect((mockContext.log.warn as sinon.SinonStub).callCount).to.equal(1);
+      expect((mockContext.log.error as sinon.SinonStub).callCount).to.equal(1);
     });
   });
 
