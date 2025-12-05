@@ -254,32 +254,72 @@ describe("Dynamic Fee Effects", () => {
       expect(callArgs.args).to.deep.equal([]);
     });
 
-    it("should handle contract call errors", async () => {
+    it("should return zero fees when contract call fails with historical state error", async () => {
       const poolAddress = "0x1234567890123456789012345678901234567890";
       const chainId = 10;
       const blockNumber = 12345;
 
-      // Mock simulateContract to throw an error
+      // Mock simulateContract to throw a historical state error
+      const mockSimulateContract =
+        mockEthClient.simulateContract as sinon.SinonStub;
+      const historicalStateError = new Error(
+        "historical state e85f412cca57d1e4ebfa965ffef03b061ab3bcf07771c22c2c7b2756b9a0fd2a is not available",
+      );
+      mockSimulateContract.rejects(historicalStateError);
+
+      const result = await fetchCurrentAccumulatedFeeCL(
+        poolAddress,
+        chainId,
+        blockNumber,
+        mockEthClient,
+        mockContext.log,
+      );
+
+      // Should return zero fees instead of throwing
+      expect(result).to.be.an("object");
+      expect(result).to.have.property("token0Fees", 0n);
+      expect(result).to.have.property("token1Fees", 0n);
+
+      // Verify warning was logged (not error) for historical state
+      const warnStub = mockContext.log.warn as sinon.SinonStub;
+      expect(warnStub.calledOnce).to.be.true;
+      expect(warnStub.firstCall.args[0]).to.include(
+        "Historical state not available",
+      );
+      // Should not log error for historical state
+      const errorStub = mockContext.log.error as sinon.SinonStub;
+      expect(errorStub.called).to.be.false;
+    });
+
+    it("should return zero fees when contract call fails with other errors", async () => {
+      const poolAddress = "0x1234567890123456789012345678901234567890";
+      const chainId = 10;
+      const blockNumber = 12345;
+
+      // Mock simulateContract to throw a non-historical state error
       const mockSimulateContract =
         mockEthClient.simulateContract as sinon.SinonStub;
       mockSimulateContract.rejects(new Error("Contract call failed"));
 
-      try {
-        await fetchCurrentAccumulatedFeeCL(
-          poolAddress,
-          chainId,
-          blockNumber,
-          mockEthClient,
-          mockContext.log,
-        );
-        expect.fail("Should have thrown an error");
-      } catch (error) {
-        expect(error).to.be.instanceOf(Error);
-        expect((error as Error).message).to.equal("Contract call failed");
-      }
+      const result = await fetchCurrentAccumulatedFeeCL(
+        poolAddress,
+        chainId,
+        blockNumber,
+        mockEthClient,
+        mockContext.log,
+      );
 
-      // Verify error was logged
-      expect(mockContext.log.error).to.be.a("function");
+      // Should return zero fees instead of throwing
+      expect(result).to.be.an("object");
+      expect(result).to.have.property("token0Fees", 0n);
+      expect(result).to.have.property("token1Fees", 0n);
+
+      // Verify error was logged for non-historical state errors
+      const errorStub = mockContext.log.error as sinon.SinonStub;
+      expect(errorStub.calledOnce).to.be.true;
+      expect(errorStub.firstCall.args[0]).to.include(
+        "Error fetching accumulated gauge fees",
+      );
     });
   });
 });

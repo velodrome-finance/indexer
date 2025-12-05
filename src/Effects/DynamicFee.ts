@@ -2,6 +2,7 @@ import { S, createEffect } from "envio";
 import type { logger as Envio_logger } from "envio/src/Envio.gen";
 import type { PublicClient } from "viem";
 import { CHAIN_CONSTANTS, EFFECT_RATE_LIMITS } from "../Constants";
+import { ErrorType, getErrorType } from "./Helpers";
 
 /**
  * Core logic for fetching current fee
@@ -72,11 +73,37 @@ export async function fetchCurrentAccumulatedFeeCL(
     );
     return gaugeFees;
   } catch (error) {
-    logger.error(
-      `[fetchCurrentAccumulatedFeeCL] Error fetching accumulated gauge fees for pool ${poolAddress} on chain ${chainId} at block ${blockNumber}:`,
-      error instanceof Error ? error : new Error(String(error)),
+    // Classify error type for better logging
+    const errorType = getErrorType(error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const readableError = new Error(
+      `Failed to fetch accumulated gauge fees for pool ${poolAddress} on chain ${chainId} at block ${blockNumber}: ${errorMessage}`,
     );
-    throw error;
+
+    // Preserve stack trace if available
+    if (error instanceof Error && error.stack) {
+      readableError.stack = error.stack;
+    }
+
+    // Handle historical state not available - log simple message
+    if (errorType === ErrorType.HISTORICAL_STATE_NOT_AVAILABLE) {
+      logger.warn(
+        `[fetchCurrentAccumulatedFeeCL] Historical state not available for pool ${poolAddress} on chain ${chainId} at block ${blockNumber}. This is expected for very old blocks.`,
+      );
+    } else {
+      // For other errors, log with full details
+      logger.error(
+        `[fetchCurrentAccumulatedFeeCL] Error fetching accumulated gauge fees for pool ${poolAddress} on chain ${chainId} at block ${blockNumber}:`,
+        readableError,
+      );
+    }
+
+    // Return zero to prevent crashes
+    const gaugeFees = {
+      token0Fees: 0n,
+      token1Fees: 0n,
+    };
+    return gaugeFees;
   }
 }
 
@@ -143,24 +170,15 @@ export const getCurrentAccumulatedFeeCL = createEffect(
   async ({ input, context }) => {
     const { poolAddress, chainId, blockNumber } = input;
     const ethClient = CHAIN_CONSTANTS[chainId].eth_client;
-    try {
-      const result = await fetchCurrentAccumulatedFeeCL(
-        poolAddress,
-        chainId,
-        blockNumber,
-        ethClient,
-        context.log,
-      );
+    // fetchCurrentAccumulatedFeeCL now returns zero fees on error instead of throwing
+    const result = await fetchCurrentAccumulatedFeeCL(
+      poolAddress,
+      chainId,
+      blockNumber,
+      ethClient,
+      context.log,
+    );
 
-      return result;
-    } catch (error) {
-      // Don't cache failed response
-      context.cache = false;
-      context.log.error(
-        `[getCurrentAccumulatedFeeCL] Error in effect for pool ${poolAddress} on chain ${chainId} at block ${blockNumber}:`,
-        error instanceof Error ? error : new Error(String(error)),
-      );
-      throw error;
-    }
+    return result;
   },
 );
