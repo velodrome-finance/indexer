@@ -333,9 +333,9 @@ const CELO_CONSTANTS: chainConstants = {
       return PriceOracleType.V3;
     },
     getAddress: (priceOracleType: PriceOracleType) => {
-      return "0xe58920a8c684CD3d6dCaC2a41b12998e4CB17EfE";
+      return "0xbf6d753FC4a10Ec5191c56BB3DC1e414b7572327";
     },
-    startBlock: 31278773,
+    startBlock: 31690441,
     updateDelta: 60 * 60, // 1 hour
     priceConnectors: CELO_PRICE_CONNECTORS,
   },
