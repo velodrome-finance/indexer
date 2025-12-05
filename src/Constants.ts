@@ -80,6 +80,7 @@ export const toChecksumAddress = (address: string) =>
   Web3.utils.toChecksumAddress(address);
 
 export enum PriceOracleType {
+  V4 = "v4",
   V3 = "v3",
   V2 = "v2",
   V1 = "v1",
@@ -170,6 +171,10 @@ const OPTIMISM_CONSTANTS: chainConstants = {
           return "0x6a3af44e23395d2470f7c81331add6ede8597306";
         case PriceOracleType.V1:
           return "0x395942C2049604a314d39F370Dfb8D87AAC89e16";
+        case PriceOracleType.V4:
+          throw new Error("V4 oracle not supported on Optimism");
+        default:
+          throw new Error(`Unsupported oracle type: ${priceOracleType}`);
       }
     },
     startBlock: 107676013,
@@ -198,6 +203,9 @@ const BASE_CONSTANTS: chainConstants = {
   usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
   oracle: {
     getType: (blockNumber: number) => {
+      if (blockNumber > 37381618) {
+        return PriceOracleType.V4;
+      }
       if (blockNumber > 19862773) {
         return PriceOracleType.V3;
       }
@@ -208,6 +216,8 @@ const BASE_CONSTANTS: chainConstants = {
     },
     getAddress: (priceOracleType: PriceOracleType) => {
       switch (priceOracleType) {
+        case PriceOracleType.V4:
+          return "0x8456038bdae8672f552182B0FC39b1917dE9a41A";
         case PriceOracleType.V3:
           return "0x3B06c787711ecb5624cE65AC8F26cde10831eb0C";
         case PriceOracleType.V2:
@@ -251,6 +261,10 @@ const LISK_CONSTANTS: chainConstants = {
           return "0xE50621a0527A43534D565B67D64be7C79807F269";
         case PriceOracleType.V1:
           return "0xE50621a0527A43534D565B67D64be7C79807F269";
+        case PriceOracleType.V4:
+          throw new Error("V4 oracle not supported on Lisk");
+        default:
+          throw new Error(`Unsupported oracle type: ${priceOracleType}`);
       }
     },
     startBlock: 8380726,
@@ -288,6 +302,10 @@ const MODE_CONSTANTS: chainConstants = {
           return "0xE50621a0527A43534D565B67D64be7C79807F269";
         case PriceOracleType.V1:
           return "0xE50621a0527A43534D565B67D64be7C79807F269";
+        case PriceOracleType.V4:
+          throw new Error("V4 oracle not supported on Mode");
+        default:
+          throw new Error(`Unsupported oracle type: ${priceOracleType}`);
       }
     },
     startBlock: 15591759,
@@ -315,9 +333,9 @@ const CELO_CONSTANTS: chainConstants = {
       return PriceOracleType.V3;
     },
     getAddress: (priceOracleType: PriceOracleType) => {
-      return "0xe58920a8c684CD3d6dCaC2a41b12998e4CB17EfE";
+      return "0xbf6d753FC4a10Ec5191c56BB3DC1e414b7572327";
     },
-    startBlock: 31278773,
+    startBlock: 31690441,
     updateDelta: 60 * 60, // 1 hour
     priceConnectors: CELO_PRICE_CONNECTORS,
   },
@@ -406,6 +424,10 @@ const FRAXTAL_CONSTANTS: chainConstants = {
           return "0xE50621a0527A43534D565B67D64be7C79807F269";
         case PriceOracleType.V1:
           return "0xE50621a0527A43534D565B67D64be7C79807F269";
+        case PriceOracleType.V4:
+          throw new Error("V4 oracle not supported on Fraxtal");
+        default:
+          throw new Error(`Unsupported oracle type: ${priceOracleType}`);
       }
     },
     startBlock: 12640176,

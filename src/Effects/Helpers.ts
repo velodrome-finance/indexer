@@ -6,6 +6,7 @@ export enum ErrorType {
   OUT_OF_GAS = "OUT_OF_GAS",
   CONTRACT_REVERT = "CONTRACT_REVERT",
   NETWORK_ERROR = "NETWORK_ERROR",
+  HISTORICAL_STATE_NOT_AVAILABLE = "HISTORICAL_STATE_NOT_AVAILABLE",
   UNKNOWN = "UNKNOWN",
 }
 
@@ -21,13 +22,15 @@ const ERROR_KEYWORDS: Record<ErrorType, string[]> = {
     "gas limit exceeded",
     "gas limit",
   ],
-  [ErrorType.CONTRACT_REVERT]: [
-    "reverted",
-    "revert",
-    "execution reverted",
+  [ErrorType.HISTORICAL_STATE_NOT_AVAILABLE]: [
     "historical state",
     "is not available",
+    "historical state not available",
+    "state histories haven't been fully indexed",
+    "state histories",
+    "haven't been fully indexed",
   ],
+  [ErrorType.CONTRACT_REVERT]: ["reverted", "revert", "execution reverted"],
   [ErrorType.RATE_LIMIT]: [
     "rate limit",
     "rate limit exceeded",
