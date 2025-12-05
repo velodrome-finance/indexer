@@ -153,7 +153,6 @@ Voter.DistributeReward.handler(async ({ event, context }) => {
     event.block.timestamp,
     event.chainId,
     context,
-    1000000n,
   );
 
   context.log.info(`Reward token address: ${rewardToken.address}`);

@@ -43,9 +43,41 @@
     {
       "address": "0x0b2c639c533813f4aa9d7837caf62653d097ff85",
       "createdBlock": 10
+    },
+    {
+      "address": "0x4200000000000000000000000000000000000006",
+      "createdBlock": 10
+    },
+    {
+      "address": "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",
+      "createdBlock": 1
+    },
+    {
+      "address": "0x7F5c764cBc14f9669B88837ca1490cCa17c31607",
+      "createdBlock": 1
+    },
+    {
+      "address": "0x68f180fcCe6836688e9084f035309E29Bf0A2095",
+      "createdBlock": 1
     }
   ],
   "base": [
+    {
+      "address": "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",
+      "createdBlock": 1
+    },
+    {
+      "address": "0x4200000000000000000000000000000000000006",
+      "createdBlock": 1
+    },
+    {
+      "address": "0xEB466342C4d449BC9f53A865D5Cb90586f405215",
+      "createdBlock": 1
+    },
+    {
+      "address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "createdBlock": 1
+    },
     {
       "address": "0x940181a94A35A4569E4529A3CDfB74e38FD98631",
       "createdBlock": 3200550
@@ -114,6 +146,22 @@
     }
   ],
   "unichain": [
+    {
+      "address": "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",
+      "createdBlock": 1
+    },
+    {
+      "address": "0x4200000000000000000000000000000000000006",
+      "createdBlock": 1
+    },
+    {
+      "address": "0xfAf8d8b49D9e121816268CabE24ceF1B9B635908",
+      "createdBlock": 1
+    },
+    {
+      "address": "0x7d809B3b23b62D8a455831f38b312C7c8F965D2e",
+      "createdBlock": 1
+    },
     {
       "address": "0x8f187aA05619a017077f5308904739877ce9eA21",
       "createdBlock": 1

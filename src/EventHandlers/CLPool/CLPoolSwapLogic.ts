@@ -57,7 +57,6 @@ const updateToken0SwapData = async (
       event.block.timestamp,
       event.chainId,
       context,
-      1000000n,
     );
   } catch (error) {
     context.log.error(
@@ -114,7 +113,6 @@ const updateToken1SwapData = async (
       event.block.timestamp,
       event.chainId,
       context,
-      1000000n,
     );
   } catch (error) {
     context.log.error(

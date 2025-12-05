@@ -24,6 +24,8 @@ export const TEN_TO_THE_3_BI = BigInt(10 ** 3);
 export const TEN_TO_THE_6_BI = BigInt(10 ** 6);
 export const TEN_TO_THE_18_BI = BigInt(10 ** 18);
 
+export const MILLISECONDS_IN_AN_HOUR = BigInt(3600000);
+
 export const SECONDS_IN_AN_HOUR = BigInt(3600);
 export const SECONDS_IN_A_DAY = BigInt(86400);
 export const SECONDS_IN_A_WEEK = BigInt(604800);
@@ -108,6 +110,13 @@ export const DefaultRPC = {
   metal: "https://metall2.drpc.org",
   swell: "https://rpc.ankr.com/swell",
 } as const;
+
+// Map chainId to Moralis chain name -- The useful available chains are: optimism, base, lisk
+export const MoralisChainNameMap: Record<number, string> = {
+  10: "optimism",
+  8453: "base",
+  175: "lisk",
+};
 
 /**
  * Get default RPC URL by chain ID
