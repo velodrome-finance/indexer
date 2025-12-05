@@ -5,7 +5,7 @@ import type {
   Token,
   handlerContext,
 } from "generated";
-import { getSqrtPriceX96 } from "../../Effects/Index";
+import { getSqrtPriceX96, roundBlockToInterval } from "../../Effects/Index";
 import {
   calculatePositionAmountsFromLiquidity,
   calculateTotalLiquidityUSD,
@@ -189,11 +189,14 @@ export async function getSqrtPriceX96AndTokens(
   blockNumber: number,
   context: handlerContext,
 ): Promise<[bigint, Token | undefined, Token | undefined]> {
+  // Round block number to nearest hour interval for better cache hits
+  // Cache key is based on input parameters, so rounding must happen before effect call
+  const roundedBlockNumber = roundBlockToInterval(blockNumber, chainId);
   return await Promise.all([
     context.effect(getSqrtPriceX96, {
       poolAddress: position.pool,
       chainId: chainId,
-      blockNumber: blockNumber,
+      blockNumber: roundedBlockNumber,
     }),
     context.Token.get(`${position.token0}-${chainId}`),
     context.Token.get(`${position.token1}-${chainId}`),
@@ -264,18 +267,23 @@ export function processIncreaseLiquidity(
 
   // Recalculate ALL amounts from the new total liquidity + current price
   // This ensures amounts are always accurate based on current price, not stale deltas
-  const newAmounts = calculatePositionAmountsFromLiquidity(
-    newLiquidity,
-    sqrtPriceX96,
-    position.tickLower,
-    position.tickUpper,
-  );
+  // Only calculates if sqrtPriceX96 is available. Due to some "historical state not available" errors
+  // We need to do this "if" condition check, otherwise the indexer just crashes.
+  let newAmounts: { amount0: bigint; amount1: bigint } | undefined;
+  if (sqrtPriceX96) {
+    newAmounts = calculatePositionAmountsFromLiquidity(
+      newLiquidity,
+      sqrtPriceX96,
+      position.tickLower,
+      position.tickUpper,
+    );
+  }
 
   const blockDatetime = new Date(event.block.timestamp * 1000);
 
   const NonFungiblePositionAmountUSD = calculateTotalLiquidityUSD(
-    newAmounts.amount0,
-    newAmounts.amount1,
+    newAmounts ? newAmounts.amount0 : position.amount0,
+    newAmounts ? newAmounts.amount1 : position.amount1,
     token0,
     token1,
   );
@@ -283,8 +291,8 @@ export function processIncreaseLiquidity(
   // Update position with increased liquidity amounts
   const updatedPosition: Partial<NonFungiblePosition> = {
     liquidity: newLiquidity,
-    amount0: newAmounts.amount0,
-    amount1: newAmounts.amount1,
+    amount0: newAmounts ? newAmounts.amount0 : position.amount0,
+    amount1: newAmounts ? newAmounts.amount1 : position.amount1,
     amountUSD: NonFungiblePositionAmountUSD,
     lastUpdatedTimestamp: blockDatetime,
   };
