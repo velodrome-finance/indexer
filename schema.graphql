@@ -337,7 +337,7 @@ type PoolLauncherConfig {
 # 2. The oUSDT is then bridged through Hyperlane to the destination chain.
 # 3. Bridged oUSDT is then swapped into the preferred asset on the destination chain.
 type SuperSwap {
-  id: ID! # {transactionHash}_{originChainId}_{destinationId}_{oUSDTamount}
+  id: ID! # {transactionHash}_{originChainId}_{destinationChainId}_{oUSDTamount}_{messageId}_{sourceChainToken}_{sourceChainTokenAmountSwapped}_{destinationChainToken}_{destinationChainTokenAmountSwapped}
   originChainId: BigInt! @config(precision: 24) # Chain ID where the swap originated
   destinationChainId: BigInt! @config(precision: 24) # Chain ID of the swap target/recipient
   sender: String! # Original sender address initiating the swap
