@@ -2,6 +2,7 @@ import { expect } from "chai";
 import { ALMCore, MockDb } from "../../../generated/src/TestHelpers.gen";
 import type { ALM_LP_Wrapper } from "../../../generated/src/Types.gen";
 import { toChecksumAddress } from "../../../src/Constants";
+import { calculatePositionAmountsFromLiquidity } from "../../../src/Helpers";
 import { setupCommon } from "../Pool/common";
 
 describe("ALMCore Rebalance Event", () => {
@@ -64,6 +65,15 @@ describe("ALMCore Rebalance Event", () => {
       const newTickLower = -1500n;
       const newTickUpper = 1500n;
       const newProperty = 3000n;
+      const sqrtPriceX96 = 79228162514264337593543950336n; // sqrt(1) * 2^96
+
+      // Calculate expected recalculated amounts from liquidity and price
+      const expectedRecalculatedAmounts = calculatePositionAmountsFromLiquidity(
+        newLiquidity,
+        sqrtPriceX96,
+        newTickLower,
+        newTickUpper,
+      );
 
       const mockEvent = ALMCore.Rebalance.createMockEvent({
         rebalanceEventParams: [
@@ -76,7 +86,7 @@ describe("ALMCore Rebalance Event", () => {
             newTickUpper,
             newLiquidity,
           ],
-          79228162514264337593543950336n, // sqrtPriceX96
+          sqrtPriceX96,
           newAmount0,
           newAmount1,
           1n, // ammPositionIdBefore
@@ -93,8 +103,13 @@ describe("ALMCore Rebalance Event", () => {
       const updatedWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
 
       expect(updatedWrapper).to.not.be.undefined;
-      expect(updatedWrapper?.positionAmount0).to.equal(newAmount0);
-      expect(updatedWrapper?.positionAmount1).to.equal(newAmount1);
+      // amount0 and amount1 are recalculated from liquidity and price, not from event amounts
+      expect(updatedWrapper?.amount0).to.equal(
+        expectedRecalculatedAmounts.amount0,
+      );
+      expect(updatedWrapper?.amount1).to.equal(
+        expectedRecalculatedAmounts.amount1,
+      );
       expect(updatedWrapper?.liquidity).to.equal(newLiquidity);
       expect(updatedWrapper?.tokenId).to.equal(newTokenId);
       expect(updatedWrapper?.tickLower).to.equal(newTickLower);
@@ -104,9 +119,7 @@ describe("ALMCore Rebalance Event", () => {
         new Date(blockTimestamp * 1000),
       );
 
-      // Verify wrapper-level aggregations are preserved
-      expect(updatedWrapper?.amount0).to.equal(mockALMLPWrapperData.amount0);
-      expect(updatedWrapper?.amount1).to.equal(mockALMLPWrapperData.amount1);
+      // Verify wrapper-level lpAmount aggregation is preserved
       expect(updatedWrapper?.lpAmount).to.equal(mockALMLPWrapperData.lpAmount);
     });
 

@@ -146,8 +146,8 @@ describe("ALMDeployFactory StrategyCreated Event", () => {
       expect(createdWrapper?.tickUpper).to.equal(tickUpper);
       expect(createdWrapper?.property).to.equal(property);
       expect(createdWrapper?.liquidity).to.equal(liquidity);
-      expect(createdWrapper?.positionAmount0).to.equal(0n); // Initialize to 0
-      expect(createdWrapper?.positionAmount1).to.equal(0n); // Initialize to 0
+      expect(createdWrapper?.amount0).to.equal(0n); // Initialize to 0
+      expect(createdWrapper?.amount1).to.equal(0n); // Initialize to 0
       expect(createdWrapper?.strategyType).to.equal(strategyType);
       expect(createdWrapper?.tickNeighborhood).to.equal(tickNeighborhood);
       expect(createdWrapper?.tickSpacing).to.equal(tickSpacing);

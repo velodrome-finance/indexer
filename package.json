@@ -56,7 +56,8 @@
       "node_modules/**",
       "**/*.d.ts",
       "src/Constants.ts",
-      "src/CustomTypes.ts"
+      "src/CustomTypes.ts",
+      "src/Pools/common.ts"
     ],
     "extension": [".ts"],
     "require": ["ts-node/register"]

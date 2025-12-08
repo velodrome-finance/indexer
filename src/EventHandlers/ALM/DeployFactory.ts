@@ -58,8 +58,6 @@ ALMDeployFactory.StrategyCreated.handler(async ({ event, context }) => {
     tickLower: tickLower,
     tickUpper: tickUpper,
     property: property,
-    positionAmount0: 0n, // Initialize to 0 - will be updated by Rebalance events
-    positionAmount1: 0n, // Initialize to 0 - will be updated by Rebalance events
     liquidity: liquidity,
     strategyType: strategyType,
     tickNeighborhood: tickNeighborhood,
