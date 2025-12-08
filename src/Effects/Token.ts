@@ -88,7 +88,7 @@ export async function fetchTokenPrice(
   blockNumber: number,
   ethClient: PublicClient,
   logger: Envio_logger,
-  gasLimit = 10000000n, // 10M default - updated to reduce out-of-gas retries
+  gasLimit: bigint,
   maxRetries = 7,
 ): Promise<{ pricePerUSDNew: bigint; priceOracleType: string }> {
   const overallStartTime = Date.now();
@@ -533,7 +533,12 @@ export const getTokenPrice = createEffect(
     cache: true, // Cache enabled, block interval rounding improves hit rate
   },
   async ({ input, context }) => {
-    const { tokenAddress, chainId, blockNumber, gasLimit = 10000000n } = input;
+    const {
+      tokenAddress,
+      chainId,
+      blockNumber,
+      gasLimit = 10_000_000n,
+    } = input;
     // Note: blockNumber should already be rounded by the caller for proper caching
     // Cache key is based on input parameters, so rounding must happen before effect call
 

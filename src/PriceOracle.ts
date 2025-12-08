@@ -61,7 +61,6 @@ export async function createTokenEntity(
  * @param {number} blockTimestamp - The timestamp of the block in seconds
  * @param {number} chainId - The chain ID where the token exists
  * @param {any} context - The database context for updating entities
- * @param {bigint} gasLimit - The gas limit to use for the simulateContract call
  * @returns {Promise<Token>} The updated token entity
  */
 export async function refreshTokenPrice(
@@ -70,7 +69,6 @@ export async function refreshTokenPrice(
   blockTimestamp: number,
   chainId: number,
   context: handlerContext,
-  gasLimit = 1000000n, // 1 million is the default if "gasLimit" is not specified in simulateContract
 ): Promise<Token> {
   const blockTimestampMs = blockTimestamp * 1000;
 
@@ -101,7 +99,6 @@ export async function refreshTokenPrice(
         tokenAddress: token.address,
         chainId,
         blockNumber: roundedBlockNumber, // Use rounded block for cache key
-        gasLimit,
       }),
     ]);
     const currentPrice = priceData.pricePerUSDNew;

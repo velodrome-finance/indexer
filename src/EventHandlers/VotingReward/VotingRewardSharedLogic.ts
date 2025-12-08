@@ -167,7 +167,6 @@ export async function processVotingRewardClaimRewards(
     data.timestamp,
     data.chainId,
     context,
-    1000000n,
   );
 
   // Convert reward amount to USD

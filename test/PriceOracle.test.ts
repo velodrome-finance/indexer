@@ -119,7 +119,6 @@ describe("PriceOracle", () => {
           blockTimestamp,
           chainId,
           mockContext as handlerContext,
-          1000000n,
         );
       });
       it("should not update prices if the update interval hasn't passed", async () => {
@@ -144,7 +143,6 @@ describe("PriceOracle", () => {
           blockTimestamp,
           chainId,
           mockContext as handlerContext,
-          1000000n,
         );
         updatedToken = (mockContext.Token?.set as sinon.SinonStub).lastCall
           .args[0];
@@ -186,7 +184,6 @@ describe("PriceOracle", () => {
           blockTimestamp,
           chainId,
           mockContext as handlerContext,
-          1000000n,
         );
         updatedToken = (mockContext.Token?.set as sinon.SinonStub).lastCall
           .args[0];
@@ -213,7 +210,6 @@ describe("PriceOracle", () => {
           blockTimestamp,
           chainId,
           mockContext as handlerContext,
-          1000000n,
         );
         updatedToken = (mockContext.Token?.set as sinon.SinonStub).lastCall
           .args[0];
@@ -263,7 +259,6 @@ describe("PriceOracle", () => {
           blockTimestamp,
           chainId,
           mockContext as handlerContext,
-          1000000n,
         );
       });
       afterEach(() => {
