@@ -264,9 +264,9 @@ type ALM_LP_Wrapper {
   token0: String! # Address of token 0
   token1: String! # Address of token 1
 
-  # Wrapper-level aggregations (updated by Deposit/Withdraw events)
-  amount0: BigInt! @config(precision: 76) # Total underlying amount of token0 in the wrapper (aggregated across all users)
-  amount1: BigInt! @config(precision: 76) # Total underlying amount of token1 in the wrapper (aggregated across all users)
+  # Wrapper-level amounts (recalculated from liquidity and current price)
+  amount0: BigInt! @config(precision: 76) # Current amount of token0 in the AMM position (recalculated from liquidity and current price)
+  amount1: BigInt! @config(precision: 76) # Current amount of token1 in the AMM position (recalculated from liquidity and current price)
   lpAmount: BigInt! @config(precision: 76) # Total number of LP tokens wrapped (aggregated across all users)
   lastUpdatedTimestamp: Timestamp! # Timestamp of the last update to this entity
 
@@ -276,8 +276,6 @@ type ALM_LP_Wrapper {
   tickLower: BigInt! @config(precision: 24) # Lower tick bound of the position's price range (in tick units)
   tickUpper: BigInt! @config(precision: 24) # Upper tick bound of the position's price range (in tick units)
   property: BigInt! @config(precision: 24) # Pool property parameter from the AMM position struct
-  positionAmount0: BigInt! @config(precision: 76) # Current amount of token0 in the AMM position (updated by Rebalance events)
-  positionAmount1: BigInt! @config(precision: 76) # Current amount of token1 in the AMM position (updated by Rebalance events)
   liquidity: BigInt! @config(precision: 76) # Amount of liquidity currently in the AMM position
   strategyType: BigInt! @config(precision: 24) # Type/kind of ALM strategy being used (defines the strategy behavior)
   tickNeighborhood: BigInt! @config(precision: 24) # Tick neighborhood parameter for the strategy (defines rebalancing range around current price)

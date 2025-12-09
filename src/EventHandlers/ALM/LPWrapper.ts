@@ -4,6 +4,7 @@ import {
   loadUserData,
   updateUserStatsPerPool,
 } from "../../Aggregators/UserStatsPerPool";
+import { recalculateLPWrapperAmountsFromLiquidity } from "./LPWrapperLogic";
 
 /**
  * Handler for ALM LP Wrapper Deposit events
@@ -37,19 +38,27 @@ ALMLPWrapper.Deposit.handler(async ({ event, context }) => {
     timestamp,
   );
 
-  const ALMLPWrapperDiff = {
-    amount0,
-    amount1,
-    lpAmount,
-  };
+  // Recalculate amount0 and amount1 from current liquidity and current price
+  // Note: The deposit event's amount0/amount1 represent what the user deposited,
+  // but the wrapper's amount0/amount1 represent the current value of the entire AMM position.
+  // The AMM position's liquidity only changes on Rebalance events, not on deposits.
+  // So we recalculate from the current liquidity and price to reflect price changes.
+  // The deposit amounts are used for user-level tracking (UserStatsPerPool) only.
+  const { amount0: recalculatedAmount0, amount1: recalculatedAmount1 } =
+    await recalculateLPWrapperAmountsFromLiquidity(
+      ALMLPWrapperEntity,
+      pool,
+      event.chainId,
+      event.block.number,
+      context,
+      "Deposit",
+    );
 
-  // Update pool-level ALM_LP_Wrapper entity (aggregates total across all users)
-  await updateALMLPWrapper(
-    ALMLPWrapperDiff,
-    ALMLPWrapperEntity,
-    timestamp,
-    context,
-  );
+  const ALMLPWrapperDiff = {
+    amount0: recalculatedAmount0,
+    amount1: recalculatedAmount1,
+    lpAmount: lpAmount,
+  };
 
   const userStatsDiff = {
     almAmount0: amount0,
@@ -57,9 +66,18 @@ ALMLPWrapper.Deposit.handler(async ({ event, context }) => {
     almLpAmount: lpAmount,
   };
 
-  // Update user-level UserStatsPerPool entity for the recipient
-  // The recipient receives the LP tokens, so they are the one with the ALM position
-  await updateUserStatsPerPool(userStatsDiff, userStats, timestamp, context);
+  // Update pool-level ALM_LP_Wrapper entity and user-level UserStatsPerPool entity in parallel
+  await Promise.all([
+    updateALMLPWrapper(
+      ALMLPWrapperDiff,
+      ALMLPWrapperEntity,
+      timestamp,
+      context,
+    ),
+    // Update user-level UserStatsPerPool entity for the recipient
+    // The recipient receives the LP tokens, so they are the one with the ALM position
+    updateUserStatsPerPool(userStatsDiff, userStats, timestamp, context),
+  ]);
 });
 
 /**
@@ -94,19 +112,23 @@ ALMLPWrapper.Withdraw.handler(async ({ event, context }) => {
     timestamp,
   );
 
+  // Recalculate amount0 and amount1 from current liquidity and current price
+  // This ensures amounts reflect the current pool price, not stale values from events
+  const { amount0: recalculatedAmount0, amount1: recalculatedAmount1 } =
+    await recalculateLPWrapperAmountsFromLiquidity(
+      ALMLPWrapperEntity,
+      pool,
+      event.chainId,
+      event.block.number,
+      context,
+      "Withdraw",
+    );
+
   const ALMLPWrapperDiff = {
-    amount0: -amount0,
-    amount1: -amount1,
+    amount0: recalculatedAmount0,
+    amount1: recalculatedAmount1,
     lpAmount: -lpAmount,
   };
-
-  // Update pool-level ALM_LP_Wrapper entity (subtract amounts)
-  await updateALMLPWrapper(
-    ALMLPWrapperDiff,
-    ALMLPWrapperEntity,
-    timestamp,
-    context,
-  );
 
   const userStatsDiff = {
     almAmount0: -amount0,
@@ -114,9 +136,18 @@ ALMLPWrapper.Withdraw.handler(async ({ event, context }) => {
     almLpAmount: -lpAmount,
   };
 
-  // Update user-level UserStatsPerPool entity for the sender
-  // The sender withdraws and receives tokens, so their position decreases
-  await updateUserStatsPerPool(userStatsDiff, userStats, timestamp, context);
+  // Update pool-level ALM_LP_Wrapper entity and user-level UserStatsPerPool entity in parallel
+  await Promise.all([
+    updateALMLPWrapper(
+      ALMLPWrapperDiff,
+      ALMLPWrapperEntity,
+      timestamp,
+      context,
+    ),
+    // Update user-level UserStatsPerPool entity for the sender
+    // The sender withdraws and receives tokens, so their position decreases
+    updateUserStatsPerPool(userStatsDiff, userStats, timestamp, context),
+  ]);
 });
 
 /**

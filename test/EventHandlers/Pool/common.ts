@@ -127,8 +127,6 @@ export function setupCommon() {
     tickLower: -1000n,
     tickUpper: 1000n,
     property: 3000n, // uint24 tick spacing
-    positionAmount0: 500n * TEN_TO_THE_18_BI,
-    positionAmount1: 250n * TEN_TO_THE_6_BI,
     liquidity: 1000000n,
     strategyType: 1n,
     tickNeighborhood: 100n,

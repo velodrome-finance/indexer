@@ -13,11 +13,6 @@ describe("ALMLPWrapper Aggregator", () => {
   const { mockALMLPWrapperData, mockLiquidityPoolData } = setupCommon();
   const timestamp = new Date(1000000 * 1000);
 
-  // Extract addresses from common entities
-  const lpWrapperAddress = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-  const poolAddress = mockLiquidityPoolData.id;
-  const chainId = mockLiquidityPoolData.chainId;
-
   let contextStub: Partial<handlerContext>;
 
   beforeEach(() => {
@@ -77,10 +72,10 @@ describe("ALMLPWrapper Aggregator", () => {
           .args[0];
       });
 
-      it("should add amounts to existing values", () => {
-        expect(result.amount0).to.equal(1250n * TEN_TO_THE_18_BI); // 1000 + 250
-        expect(result.amount1).to.equal(625n * TEN_TO_THE_6_BI); // 500 + 125
-        expect(result.lpAmount).to.equal(2500n * TEN_TO_THE_18_BI); // 2000 + 500
+      it("should set amount0 and amount1 directly (recalculated from liquidity), and increment lpAmount", () => {
+        expect(result.amount0).to.equal(250n * TEN_TO_THE_18_BI); // Set directly, not incremented
+        expect(result.amount1).to.equal(125n * TEN_TO_THE_6_BI); // Set directly, not incremented
+        expect(result.lpAmount).to.equal(2500n * TEN_TO_THE_18_BI); // 2000 + 500 (incremented)
       });
 
       it("should preserve other fields", () => {
@@ -115,10 +110,10 @@ describe("ALMLPWrapper Aggregator", () => {
           .args[0];
       });
 
-      it("should subtract amounts from existing values", () => {
-        expect(result.amount0).to.equal(750n * TEN_TO_THE_18_BI); // 1000 - 250
-        expect(result.amount1).to.equal(375n * TEN_TO_THE_6_BI); // 500 - 125
-        expect(result.lpAmount).to.equal(1500n * TEN_TO_THE_18_BI); // 2000 - 500
+      it("should set amount0 and amount1 directly (recalculated from liquidity), and decrement lpAmount", () => {
+        expect(result.amount0).to.equal(-250n * TEN_TO_THE_18_BI); // Set directly (negative value), not decremented
+        expect(result.amount1).to.equal(-125n * TEN_TO_THE_6_BI); // Set directly (negative value), not decremented
+        expect(result.lpAmount).to.equal(1500n * TEN_TO_THE_18_BI); // 2000 - 500 (decremented)
       });
 
       it("should update timestamp", () => {
@@ -143,7 +138,7 @@ describe("ALMLPWrapper Aggregator", () => {
         const result = (contextStub.ALM_LP_Wrapper?.set as sinon.SinonStub)
           .firstCall.args[0];
 
-        expect(result.amount0).to.equal(1100n * TEN_TO_THE_18_BI); // 1000 + 100
+        expect(result.amount0).to.equal(100n * TEN_TO_THE_18_BI); // Set directly, not incremented
         expect(result.amount1).to.equal(500n * TEN_TO_THE_6_BI); // unchanged
         expect(result.lpAmount).to.equal(2000n * TEN_TO_THE_18_BI); // unchanged
       });
@@ -165,9 +160,9 @@ describe("ALMLPWrapper Aggregator", () => {
         const result = (contextStub.ALM_LP_Wrapper?.set as sinon.SinonStub)
           .firstCall.args[0];
 
-        expect(result.amount0).to.equal(1000n * TEN_TO_THE_18_BI); // 1000 + 0
-        expect(result.amount1).to.equal(500n * TEN_TO_THE_6_BI); // 500 + 0
-        expect(result.lpAmount).to.equal(2000n * TEN_TO_THE_18_BI); // 2000 + 0
+        expect(result.amount0).to.equal(0n); // Set to 0 directly
+        expect(result.amount1).to.equal(0n); // Set to 0 directly
+        expect(result.lpAmount).to.equal(2000n * TEN_TO_THE_18_BI); // 2000 + 0 (unchanged)
       });
     });
 
@@ -249,9 +244,31 @@ describe("ALMLPWrapper Aggregator", () => {
         const result = (contextStub.ALM_LP_Wrapper?.set as sinon.SinonStub)
           .firstCall.args[0];
 
-        expect(result.amount0).to.equal(1100n * TEN_TO_THE_18_BI); // 1000 + 100
-        expect(result.amount1).to.equal(500n * TEN_TO_THE_6_BI); // unchanged (0n added)
-        expect(result.lpAmount).to.equal(2000n * TEN_TO_THE_18_BI); // unchanged (0n added)
+        expect(result.amount0).to.equal(100n * TEN_TO_THE_18_BI); // Set directly, not incremented
+        expect(result.amount1).to.equal(500n * TEN_TO_THE_6_BI); // unchanged (undefined means keep current)
+        expect(result.lpAmount).to.equal(2000n * TEN_TO_THE_18_BI); // unchanged (undefined means keep current)
+      });
+
+      it("should keep current amount0 when amount0 is undefined (covers false branch on line 19)", async () => {
+        const diffWithUndefinedAmount0 = {
+          amount0: undefined,
+          amount1: 200n * TEN_TO_THE_6_BI,
+          lpAmount: 300n * TEN_TO_THE_18_BI,
+        };
+
+        await updateALMLPWrapper(
+          diffWithUndefinedAmount0,
+          mockALMLPWrapperData,
+          timestamp,
+          contextStub as handlerContext,
+        );
+
+        const result = (contextStub.ALM_LP_Wrapper?.set as sinon.SinonStub)
+          .firstCall.args[0];
+
+        expect(result.amount0).to.equal(mockALMLPWrapperData.amount0); // unchanged (undefined means keep current)
+        expect(result.amount1).to.equal(200n * TEN_TO_THE_6_BI); // Set directly
+        expect(result.lpAmount).to.equal(2300n * TEN_TO_THE_18_BI); // 2000 + 300 (incremented)
       });
     });
 
@@ -274,13 +291,13 @@ describe("ALMLPWrapper Aggregator", () => {
           .firstCall.args[0];
 
         expect(result.amount0).to.equal(
-          1000n * TEN_TO_THE_18_BI + BigInt("1000000000000000000000000"),
+          BigInt("1000000000000000000000000"), // Set directly, not incremented
         );
         expect(result.amount1).to.equal(
-          500n * TEN_TO_THE_6_BI + BigInt("500000000000"),
+          BigInt("500000000000"), // Set directly, not incremented
         );
         expect(result.lpAmount).to.equal(
-          2000n * TEN_TO_THE_18_BI + BigInt("2000000000000000000000000"),
+          2000n * TEN_TO_THE_18_BI + BigInt("2000000000000000000000000"), // Incremented
         );
       });
     });
@@ -335,8 +352,8 @@ describe("ALMLPWrapper Aggregator", () => {
       beforeEach(async () => {
         const rebalanceDiff = {
           tokenId: 2n,
-          positionAmount0: 600n * TEN_TO_THE_18_BI,
-          positionAmount1: 300n * TEN_TO_THE_6_BI,
+          amount0: 600n * TEN_TO_THE_18_BI,
+          amount1: 300n * TEN_TO_THE_6_BI,
           liquidity: 1500000n,
           tickLower: -1200n,
           tickUpper: 1200n,
@@ -355,8 +372,8 @@ describe("ALMLPWrapper Aggregator", () => {
       });
 
       it("should set position fields directly (not increment)", () => {
-        expect(result.positionAmount0).to.equal(600n * TEN_TO_THE_18_BI); // Set directly, not 500 + 600
-        expect(result.positionAmount1).to.equal(300n * TEN_TO_THE_6_BI); // Set directly, not 250 + 300
+        expect(result.amount0).to.equal(600n * TEN_TO_THE_18_BI); // Set directly, not 500 + 600
+        expect(result.amount1).to.equal(300n * TEN_TO_THE_6_BI); // Set directly, not 250 + 300
         expect(result.liquidity).to.equal(1500000n); // Set directly, not 1000000 + 1500000
         expect(result.tokenId).to.equal(2n); // Set directly
         expect(result.tickLower).to.equal(-1200n); // Set directly
@@ -364,9 +381,7 @@ describe("ALMLPWrapper Aggregator", () => {
         expect(result.property).to.equal(3000n); // Set directly
       });
 
-      it("should preserve wrapper-level aggregations", () => {
-        expect(result.amount0).to.equal(mockALMLPWrapperData.amount0);
-        expect(result.amount1).to.equal(mockALMLPWrapperData.amount1);
+      it("should preserve lpAmount aggregation", () => {
         expect(result.lpAmount).to.equal(mockALMLPWrapperData.lpAmount);
       });
 
@@ -389,7 +404,7 @@ describe("ALMLPWrapper Aggregator", () => {
     describe("when updating with partial rebalance diff", () => {
       it("should only update provided position fields", async () => {
         const partialRebalanceDiff = {
-          positionAmount0: 700n * TEN_TO_THE_18_BI,
+          amount0: 700n * TEN_TO_THE_18_BI,
           liquidity: 2000000n,
           // Other position fields not provided
         };
@@ -404,11 +419,9 @@ describe("ALMLPWrapper Aggregator", () => {
         const result = (contextStub.ALM_LP_Wrapper?.set as sinon.SinonStub)
           .firstCall.args[0];
 
-        expect(result.positionAmount0).to.equal(700n * TEN_TO_THE_18_BI); // Updated
+        expect(result.amount0).to.equal(700n * TEN_TO_THE_18_BI); // Updated
         expect(result.liquidity).to.equal(2000000n); // Updated
-        expect(result.positionAmount1).to.equal(
-          mockALMLPWrapperData.positionAmount1,
-        ); // Unchanged
+        expect(result.amount1).to.equal(mockALMLPWrapperData.amount1); // Unchanged
         expect(result.tokenId).to.equal(mockALMLPWrapperData.tokenId); // Unchanged
         expect(result.tickLower).to.equal(mockALMLPWrapperData.tickLower); // Unchanged
       });
