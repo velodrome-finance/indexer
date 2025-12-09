@@ -124,6 +124,7 @@ contracts:
       - event: Deposit
       - event: Withdraw
       - event: Transfer
+      - event: TotalSupplyLimitUpdated
   - name: DynamicFeeSwapModule
     abi_file_path: abis/DynamicFeeSwapModule.json
     handler: src/EventHandlers/SwapFeeModule/DynamicFeeSwapModule.ts

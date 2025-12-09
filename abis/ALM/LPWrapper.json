@@ -2,43 +2,8 @@
   {
     "inputs": [
       {
-        "internalType": "contract ICore",
+        "internalType": "address",
         "name": "core_",
-        "type": "address"
-      },
-      {
-        "internalType": "contract IAmmDepositWithdrawModule",
-        "name": "ammDepositWithdrawModule_",
-        "type": "address"
-      },
-      {
-        "internalType": "string",
-        "name": "name_",
-        "type": "string"
-      },
-      {
-        "internalType": "string",
-        "name": "symbol_",
-        "type": "string"
-      },
-      {
-        "internalType": "address",
-        "name": "admin",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "weth_",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "factory_",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "pool_",
         "type": "address"
       }
     ],
@@ -47,12 +12,28 @@
   },
   {
     "inputs": [],
-    "name": "AddressZero",
+    "name": "AccessControlBadConfirmation",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "neededRole",
+        "type": "bytes32"
+      }
+    ],
+    "name": "AccessControlUnauthorizedAccount",
     "type": "error"
   },
   {
     "inputs": [],
-    "name": "AlreadyInitialized",
+    "name": "AddressZero",
     "type": "error"
   },
   {
@@ -61,8 +42,89 @@
     "type": "error"
   },
   {
-    "inputs": [],
-    "name": "DepositCallFailed",
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "spender",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "allowance",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "needed",
+        "type": "uint256"
+      }
+    ],
+    "name": "ERC20InsufficientAllowance",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "sender",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "balance",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "needed",
+        "type": "uint256"
+      }
+    ],
+    "name": "ERC20InsufficientBalance",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "approver",
+        "type": "address"
+      }
+    ],
+    "name": "ERC20InvalidApprover",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "receiver",
+        "type": "address"
+      }
+    ],
+    "name": "ERC20InvalidReceiver",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "sender",
+        "type": "address"
+      }
+    ],
+    "name": "ERC20InvalidSender",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "spender",
+        "type": "address"
+      }
+    ],
+    "name": "ERC20InvalidSpender",
     "type": "error"
   },
   {
@@ -82,12 +144,53 @@
   },
   {
     "inputs": [],
-    "name": "InvalidPositionsCount",
+    "name": "InvalidDistributor",
     "type": "error"
   },
   {
     "inputs": [],
-    "name": "WithdrawCallFailed",
+    "name": "InvalidInitialization",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidState",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "LiquidityOverflow",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotInitializing",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ReentrancyGuardReentrantCall",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      }
+    ],
+    "name": "SafeERC20FailedOperation",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "T",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TotalSupplyLimitReached",
     "type": "error"
   },
   {
@@ -139,12 +242,6 @@
       {
         "indexed": false,
         "internalType": "uint256",
-        "name": "lpAmount",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
         "name": "amount0",
         "type": "uint256"
       },
@@ -153,9 +250,34 @@
         "internalType": "uint256",
         "name": "amount1",
         "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "lpAmount",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "totalSupply",
+        "type": "uint256"
       }
     ],
     "name": "Deposit",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint64",
+        "name": "version",
+        "type": "uint64"
+      }
+    ],
+    "name": "Initialized",
     "type": "event"
   },
   {
@@ -177,11 +299,6 @@
           {
             "internalType": "address",
             "name": "gauge",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "counter",
             "type": "address"
           }
         ],
@@ -211,6 +328,11 @@
             "internalType": "int24",
             "name": "width",
             "type": "int24"
+          },
+          {
+            "internalType": "uint256",
+            "name": "maxLiquidityRatioDeviationX96",
+            "type": "uint256"
           }
         ],
         "indexed": false,
@@ -324,6 +446,31 @@
     "anonymous": false,
     "inputs": [
       {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "newTotalSupplyLimit",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "totalSupplyLimitOld",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "totalSupplyCurrent",
+        "type": "uint256"
+      }
+    ],
+    "name": "TotalSupplyLimitUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
         "indexed": true,
         "internalType": "address",
         "name": "from",
@@ -369,12 +516,6 @@
       {
         "indexed": false,
         "internalType": "uint256",
-        "name": "lpAmount",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
         "name": "amount0",
         "type": "uint256"
       },
@@ -382,6 +523,18 @@
         "indexed": false,
         "internalType": "uint256",
         "name": "amount1",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "lpAmount",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "totalSupply",
         "type": "uint256"
       }
     ],
@@ -416,6 +569,19 @@
   },
   {
     "inputs": [],
+    "name": "D9",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "DEFAULT_ADMIN_ROLE",
     "outputs": [
       {
@@ -435,6 +601,19 @@
         "internalType": "bytes32",
         "name": "",
         "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "Q96",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -466,23 +645,10 @@
   },
   {
     "inputs": [],
-    "name": "ammDepositWithdrawModule",
-    "outputs": [
-      {
-        "internalType": "contract IAmmDepositWithdrawModule",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "ammModule",
     "outputs": [
       {
-        "internalType": "contract IAmmModule",
+        "internalType": "contract IVeloAmmModule",
         "name": "",
         "type": "address"
       }
@@ -499,7 +665,7 @@
       },
       {
         "internalType": "uint256",
-        "name": "amount",
+        "name": "value",
         "type": "uint256"
       }
     ],
@@ -534,6 +700,122 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "lpAmount",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "totalSupply_",
+        "type": "uint256"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "token0",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "token1",
+            "type": "address"
+          },
+          {
+            "internalType": "uint24",
+            "name": "property",
+            "type": "uint24"
+          },
+          {
+            "internalType": "int24",
+            "name": "tickLower",
+            "type": "int24"
+          },
+          {
+            "internalType": "int24",
+            "name": "tickUpper",
+            "type": "int24"
+          },
+          {
+            "internalType": "uint128",
+            "name": "liquidity",
+            "type": "uint128"
+          }
+        ],
+        "internalType": "struct IAmmModule.AmmPosition",
+        "name": "position",
+        "type": "tuple"
+      },
+      {
+        "internalType": "uint160",
+        "name": "sqrtRatioX96",
+        "type": "uint160"
+      }
+    ],
+    "name": "calculateAmountsForLp",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "amount0",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amount1",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      }
+    ],
+    "name": "calculateEarnedRewards",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "rewardsEarned",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      }
+    ],
+    "name": "claimable",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "collectRewards",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "core",
     "outputs": [
@@ -562,122 +844,18 @@
   {
     "inputs": [
       {
-        "internalType": "address",
-        "name": "spender",
-        "type": "address"
-      },
-      {
         "internalType": "uint256",
-        "name": "subtractedValue",
-        "type": "uint256"
-      }
-    ],
-    "name": "decreaseAllowance",
-    "outputs": [
-      {
-        "internalType": "bool",
-        "name": "",
-        "type": "bool"
-      }
-    ],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "amount0",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "amount1",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "minLpAmount",
+        "name": "amount",
         "type": "uint256"
       },
       {
         "internalType": "address",
-        "name": "to",
+        "name": "rewardToken_",
         "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "deadline",
-        "type": "uint256"
       }
     ],
-    "name": "deposit",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "actualAmount0",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "actualAmount1",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "lpAmount",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "amount0",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "amount1",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "minLpAmount",
-        "type": "uint256"
-      },
-      {
-        "internalType": "address",
-        "name": "to",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "deadline",
-        "type": "uint256"
-      }
-    ],
-    "name": "depositAndStake",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "actualAmount0",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "actualAmount1",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "lpAmount",
-        "type": "uint256"
-      }
-    ],
+    "name": "distribute",
+    "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -685,7 +863,7 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "user",
+        "name": "account",
         "type": "address"
       }
     ],
@@ -693,7 +871,7 @@
     "outputs": [
       {
         "internalType": "uint256",
-        "name": "amount",
+        "name": "earned_",
         "type": "uint256"
       }
     ],
@@ -709,26 +887,8 @@
   },
   {
     "inputs": [],
-    "name": "getFarm",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "getInfo",
     "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "tokenId",
-        "type": "uint256"
-      },
       {
         "components": [
           {
@@ -790,20 +950,37 @@
             "internalType": "uint128",
             "name": "tokensOwed1",
             "type": "uint128"
+          },
+          {
+            "internalType": "uint256",
+            "name": "tokenId",
+            "type": "uint256"
           }
         ],
-        "internalType": "struct ILpWrapper.PositionData",
+        "internalType": "struct PositionLibrary.Position[]",
         "name": "data",
-        "type": "tuple"
+        "type": "tuple[]"
       }
     ],
     "stateMutability": "view",
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "getReward",
-    "outputs": [],
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "recipient",
+        "type": "address"
+      }
+    ],
+    "name": "getRewards",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -875,6 +1052,25 @@
         "internalType": "bytes32",
         "name": "role",
         "type": "bytes32"
+      }
+    ],
+    "name": "getRoleMembers",
+    "outputs": [
+      {
+        "internalType": "address[]",
+        "name": "",
+        "type": "address[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "role",
+        "type": "bytes32"
       },
       {
         "internalType": "address",
@@ -912,27 +1108,16 @@
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "spender",
-        "type": "address"
-      },
+    "inputs": [],
+    "name": "initializationTimestamp",
+    "outputs": [
       {
         "internalType": "uint256",
-        "name": "addedValue",
+        "name": "",
         "type": "uint256"
       }
     ],
-    "name": "increaseAllowance",
-    "outputs": [
-      {
-        "internalType": "bool",
-        "name": "",
-        "type": "bool"
-      }
-    ],
-    "stateMutability": "nonpayable",
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -946,6 +1131,31 @@
         "internalType": "uint256",
         "name": "initialTotalSupply",
         "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "totalSupplyLimit_",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "admin_",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "manager_",
+        "type": "address"
+      },
+      {
+        "internalType": "string",
+        "name": "name_",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "symbol_",
+        "type": "string"
       }
     ],
     "name": "initialize",
@@ -992,6 +1202,81 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      }
+    ],
+    "name": "lastBalancesUpdate",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "timestamp",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "lpAmount",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount0Max",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount1Max",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "recipient",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "deadline",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct ILpWrapper.MintParams",
+        "name": "mintParams",
+        "type": "tuple"
+      }
+    ],
+    "name": "mint",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "actualAmount0",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "actualAmount1",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "actualLpAmount",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "name",
     "outputs": [
@@ -1010,6 +1295,19 @@
     "outputs": [
       {
         "internalType": "contract IOracle",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "pool",
+    "outputs": [
+      {
+        "internalType": "address",
         "name": "",
         "type": "address"
       }
@@ -1038,6 +1336,30 @@
         "internalType": "address",
         "name": "",
         "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "lpAmount",
+        "type": "uint256"
+      }
+    ],
+    "name": "previewMint",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "amount0",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amount1",
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -1082,7 +1404,7 @@
       },
       {
         "internalType": "address",
-        "name": "account",
+        "name": "callerConfirmation",
         "type": "address"
       }
     ],
@@ -1105,6 +1427,165 @@
       }
     ],
     "name": "revokeRole",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "rewardDistributor",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "rewardRates",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "timestamp",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "rewardRateX96",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "rewardToken",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "farm",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "gauge",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct IVeloAmmModule.CallbackParams",
+        "name": "callbackParams",
+        "type": "tuple"
+      }
+    ],
+    "name": "setCallbackParams",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint32",
+        "name": "slippageD9",
+        "type": "uint32"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "farm",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "gauge",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct IVeloAmmModule.CallbackParams",
+        "name": "callbackParams",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "internalType": "enum IPulseStrategyModule.StrategyType",
+            "name": "strategyType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "int24",
+            "name": "tickNeighborhood",
+            "type": "int24"
+          },
+          {
+            "internalType": "int24",
+            "name": "tickSpacing",
+            "type": "int24"
+          },
+          {
+            "internalType": "int24",
+            "name": "width",
+            "type": "int24"
+          },
+          {
+            "internalType": "uint256",
+            "name": "maxLiquidityRatioDeviationX96",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct IPulseStrategyModule.StrategyParams",
+        "name": "strategyParams",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint16",
+            "name": "lookback",
+            "type": "uint16"
+          },
+          {
+            "internalType": "uint32",
+            "name": "maxAge",
+            "type": "uint32"
+          },
+          {
+            "internalType": "int24",
+            "name": "maxAllowedDelta",
+            "type": "int24"
+          }
+        ],
+        "internalType": "struct IVeloOracle.SecurityParams",
+        "name": "securityParams",
+        "type": "tuple"
+      }
+    ],
+    "name": "setPositionParams",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -1133,6 +1614,102 @@
       }
     ],
     "name": "setPositionParams",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint16",
+            "name": "lookback",
+            "type": "uint16"
+          },
+          {
+            "internalType": "uint32",
+            "name": "maxAge",
+            "type": "uint32"
+          },
+          {
+            "internalType": "int24",
+            "name": "maxAllowedDelta",
+            "type": "int24"
+          }
+        ],
+        "internalType": "struct IVeloOracle.SecurityParams",
+        "name": "securityParams",
+        "type": "tuple"
+      }
+    ],
+    "name": "setSecurityParams",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint32",
+        "name": "slippageD9",
+        "type": "uint32"
+      }
+    ],
+    "name": "setSlippageD9",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "enum IPulseStrategyModule.StrategyType",
+            "name": "strategyType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "int24",
+            "name": "tickNeighborhood",
+            "type": "int24"
+          },
+          {
+            "internalType": "int24",
+            "name": "tickSpacing",
+            "type": "int24"
+          },
+          {
+            "internalType": "int24",
+            "name": "width",
+            "type": "int24"
+          },
+          {
+            "internalType": "uint256",
+            "name": "maxLiquidityRatioDeviationX96",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct IPulseStrategyModule.StrategyParams",
+        "name": "strategyParams",
+        "type": "tuple"
+      }
+    ],
+    "name": "setStrategyParams",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "newTotalSupplyLimit",
+        "type": "uint256"
+      }
+    ],
+    "name": "setTotalSupplyLimit",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -1170,8 +1747,66 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "timestamp",
+        "type": "uint256"
+      }
+    ],
+    "name": "timestampToRewardRatesIndex",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "index",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "token0",
+    "outputs": [
+      {
+        "internalType": "contract IERC20",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "token1",
+    "outputs": [
+      {
+        "internalType": "contract IERC20",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "totalSupply",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "totalSupplyLimit",
     "outputs": [
       {
         "internalType": "uint256",
@@ -1191,7 +1826,7 @@
       },
       {
         "internalType": "uint256",
-        "name": "amount",
+        "name": "value",
         "type": "uint256"
       }
     ],
@@ -1220,7 +1855,7 @@
       },
       {
         "internalType": "uint256",
-        "name": "amount",
+        "name": "value",
         "type": "uint256"
       }
     ],
@@ -1230,55 +1865,6 @@
         "internalType": "bool",
         "name": "",
         "type": "bool"
-      }
-    ],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "lpAmount",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "minAmount0",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "minAmount1",
-        "type": "uint256"
-      },
-      {
-        "internalType": "address",
-        "name": "to",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "deadline",
-        "type": "uint256"
-      }
-    ],
-    "name": "unstakeAndWithdraw",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "amount0",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "amount1",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "actualLpAmount",
-        "type": "uint256"
       }
     ],
     "stateMutability": "nonpayable",
@@ -1332,9 +1918,5 @@
     ],
     "stateMutability": "nonpayable",
     "type": "function"
-  },
-  {
-    "stateMutability": "payable",
-    "type": "receive"
   }
 ]
