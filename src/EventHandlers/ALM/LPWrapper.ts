@@ -39,11 +39,7 @@ ALMLPWrapper.Deposit.handler(async ({ event, context }) => {
   );
 
   // Recalculate amount0 and amount1 from current liquidity and current price
-  // Note: The deposit event's amount0/amount1 represent what the user deposited,
-  // but the wrapper's amount0/amount1 represent the current value of the entire AMM position.
-  // The AMM position's liquidity only changes on Rebalance events, not on deposits.
-  // So we recalculate from the current liquidity and price to reflect price changes.
-  // The deposit amounts are used for user-level tracking (UserStatsPerPool) only.
+  // Then add the deposited amounts to reflect the new tokens added to the position
   const { amount0: recalculatedAmount0, amount1: recalculatedAmount1 } =
     await recalculateLPWrapperAmountsFromLiquidity(
       ALMLPWrapperEntity,
@@ -55,8 +51,8 @@ ALMLPWrapper.Deposit.handler(async ({ event, context }) => {
     );
 
   const ALMLPWrapperDiff = {
-    amount0: recalculatedAmount0,
-    amount1: recalculatedAmount1,
+    amount0: recalculatedAmount0 + amount0,
+    amount1: recalculatedAmount1 + amount1,
     lpAmount: lpAmount,
   };
 
@@ -113,7 +109,7 @@ ALMLPWrapper.Withdraw.handler(async ({ event, context }) => {
   );
 
   // Recalculate amount0 and amount1 from current liquidity and current price
-  // This ensures amounts reflect the current pool price, not stale values from events
+  // Then subtract the withdrawn amounts to reflect the tokens removed from the position
   const { amount0: recalculatedAmount0, amount1: recalculatedAmount1 } =
     await recalculateLPWrapperAmountsFromLiquidity(
       ALMLPWrapperEntity,
@@ -125,8 +121,8 @@ ALMLPWrapper.Withdraw.handler(async ({ event, context }) => {
     );
 
   const ALMLPWrapperDiff = {
-    amount0: recalculatedAmount0,
-    amount1: recalculatedAmount1,
+    amount0: recalculatedAmount0 - amount0,
+    amount1: recalculatedAmount1 - amount1,
     lpAmount: -lpAmount,
   };
 
@@ -216,4 +212,26 @@ ALMLPWrapper.Transfer.handler(async ({ event, context }) => {
     ),
     updateUserStatsPerPool(UserStatsToDiff, userStatsTo, timestamp, context),
   ]);
+});
+
+/**
+ * Handler for ALM LP Wrapper TotalSupplyLimitUpdated events
+ *
+ * Persists the current LP token supply for a wrapper so other handlers
+ * (e.g., StrategyCreated) can seed `lpAmount` from the latest supply.
+ */
+ALMLPWrapper.TotalSupplyLimitUpdated.handler(async ({ event, context }) => {
+  const { newTotalSupplyLimit, totalSupplyLimitOld, totalSupplyCurrent } =
+    event.params;
+
+  const ALM_TotalSupplyLimitUpdated_event = {
+    id: `${event.srcAddress}_${event.chainId}`,
+    lpWrapperAddress: event.srcAddress,
+    currentTotalSupplyLPTokens: totalSupplyCurrent,
+    transactionHash: event.transaction.hash,
+  };
+
+  context.ALM_TotalSupplyLimitUpdated_event.set(
+    ALM_TotalSupplyLimitUpdated_event,
+  );
 });

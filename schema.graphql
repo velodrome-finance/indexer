@@ -391,3 +391,10 @@ type ProcessId_event {
   transactionHash: String! @index # Transaction hash of the process transaction
   messageId: String! @index # Unique message ID identifying the cross-chain message in Hyperlane (matches DispatchId messageId)
 }
+
+type ALM_TotalSupplyLimitUpdated_event {
+  id: ID! # {LPWrapper_address}_{chainId}
+  lpWrapperAddress: String! # LP Wrapper associated to the event
+  currentTotalSupplyLPTokens: BigInt! @config(precision: 76) # Current supply of LP tokens for the pool, emitted by the event
+  transactionHash: String! # Transaction hash of the event
+}

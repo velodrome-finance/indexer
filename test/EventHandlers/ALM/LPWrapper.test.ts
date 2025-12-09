@@ -28,6 +28,9 @@ describe("ALMLPWrapper Events", () => {
     chainId,
     logIndex: 1,
     srcAddress: toChecksumAddress(lpWrapperAddress),
+    transaction: {
+      hash: "0x1111111111111111111111111111111111111111111111111111111111111111",
+    },
   };
 
   describe("Deposit Event", () => {
@@ -62,10 +65,15 @@ describe("ALMLPWrapper Events", () => {
       expect(wrapper?.id).to.equal(wrapperId);
       expect(wrapper?.chainId).to.equal(chainId);
       expect(wrapper?.pool).to.equal(toChecksumAddress(poolAddress));
-      // amount0 and amount1 are recalculated from liquidity and price
+      // amount0 and amount1 are recalculated from liquidity and price, then deposited amounts are added
       // In test environment without mocked effects, recalculation fails and falls back to current wrapper values
-      expect(wrapper?.amount0).to.equal(mockALMLPWrapperData.amount0); // Falls back to current: 1000n * TEN_TO_THE_18_BI
-      expect(wrapper?.amount1).to.equal(mockALMLPWrapperData.amount1); // Falls back to current: 500n * TEN_TO_THE_6_BI
+      // Then deposited amounts are added: current + deposited
+      expect(wrapper?.amount0).to.equal(
+        mockALMLPWrapperData.amount0 + 500n * TEN_TO_THE_18_BI,
+      ); // 1000 + 500 = 1500
+      expect(wrapper?.amount1).to.equal(
+        mockALMLPWrapperData.amount1 + 250n * TEN_TO_THE_6_BI,
+      ); // 500 + 250 = 750
       // lpAmount is incremented (aggregation from events)
       expect(wrapper?.lpAmount).to.equal(
         mockALMLPWrapperData.lpAmount + 1000n * TEN_TO_THE_18_BI,
@@ -220,10 +228,15 @@ describe("ALMLPWrapper Events", () => {
 
       expect(wrapper).to.not.be.undefined;
       expect(userStats).to.not.be.undefined;
-      // amount0 and amount1 are recalculated from liquidity and price
+      // amount0 and amount1 are recalculated from liquidity and price, then deposited amounts are added
       // In test environment without mocked effects, recalculation fails and falls back to current wrapper values
-      expect(wrapper?.amount0).to.equal(mockALMLPWrapperData.amount0); // Falls back to current: 1000n * TEN_TO_THE_18_BI
-      expect(wrapper?.amount1).to.equal(mockALMLPWrapperData.amount1); // Falls back to current: 500n * TEN_TO_THE_6_BI
+      // Then deposited amounts are added: current + deposited
+      expect(wrapper?.amount0).to.equal(
+        mockALMLPWrapperData.amount0 + 500n * TEN_TO_THE_18_BI,
+      ); // 1000 + 500 = 1500
+      expect(wrapper?.amount1).to.equal(
+        mockALMLPWrapperData.amount1 + 250n * TEN_TO_THE_6_BI,
+      ); // 500 + 250 = 750
       // lpAmount is incremented (aggregation from events)
       expect(wrapper?.lpAmount).to.equal(
         mockALMLPWrapperData.lpAmount + 1000n * TEN_TO_THE_18_BI,
@@ -263,10 +276,15 @@ describe("ALMLPWrapper Events", () => {
       const wrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
 
       expect(wrapper).to.not.be.undefined;
-      // amount0 and amount1 are recalculated from liquidity and price
+      // amount0 and amount1 are recalculated from liquidity and price, then withdrawn amounts are subtracted
       // In test environment without mocked effects, recalculation fails and falls back to current wrapper values
-      expect(wrapper?.amount0).to.equal(mockALMLPWrapperData.amount0); // Falls back to current: 1000n * TEN_TO_THE_18_BI
-      expect(wrapper?.amount1).to.equal(mockALMLPWrapperData.amount1); // Falls back to current: 500n * TEN_TO_THE_6_BI
+      // Then withdrawn amounts are subtracted: current - withdrawn
+      expect(wrapper?.amount0).to.equal(
+        mockALMLPWrapperData.amount0 - 250n * TEN_TO_THE_18_BI,
+      ); // 1000 - 250 = 750
+      expect(wrapper?.amount1).to.equal(
+        mockALMLPWrapperData.amount1 - 125n * TEN_TO_THE_6_BI,
+      ); // 500 - 125 = 375
       // lpAmount is decremented (aggregation from events)
       expect(wrapper?.lpAmount).to.equal(1500n * TEN_TO_THE_18_BI); // 2000 - 500
       expect(wrapper?.lastUpdatedTimestamp).to.deep.equal(
@@ -516,9 +534,10 @@ describe("ALMLPWrapper Events", () => {
       const wrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
 
       expect(wrapper).to.not.be.undefined;
-      // Zero amounts should add zero (no change)
-      expect(wrapper?.amount0).to.equal(mockALMLPWrapperData.amount0);
-      expect(wrapper?.amount1).to.equal(mockALMLPWrapperData.amount1);
+      // Zero amounts should add zero (no change to recalculated amounts)
+      // Recalculation falls back to current, then adds 0
+      expect(wrapper?.amount0).to.equal(mockALMLPWrapperData.amount0 + 0n);
+      expect(wrapper?.amount1).to.equal(mockALMLPWrapperData.amount1 + 0n);
       expect(wrapper?.lpAmount).to.equal(mockALMLPWrapperData.lpAmount);
     });
 
@@ -578,11 +597,21 @@ describe("ALMLPWrapper Events", () => {
       const wrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
 
       expect(wrapper).to.not.be.undefined;
-      // amount0 and amount1 are recalculated from liquidity and price
+      // amount0 and amount1 are recalculated from liquidity and price, then deposited amounts are added
       // In test environment without mocked effects, recalculation fails and falls back to current wrapper values
-      // After first deposit, wrapper still has initial values, so second deposit also falls back to same values
-      expect(wrapper?.amount0).to.equal(mockALMLPWrapperData.amount0); // Falls back to current: 1000n * TEN_TO_THE_18_BI
-      expect(wrapper?.amount1).to.equal(mockALMLPWrapperData.amount1); // Falls back to current: 500n * TEN_TO_THE_6_BI
+      // After first deposit: current + first deposit amounts
+      // After second deposit: (current + first deposit) + second deposit amounts
+      // Since recalculation always falls back to initial current, we get: current + first + second
+      expect(wrapper?.amount0).to.equal(
+        mockALMLPWrapperData.amount0 +
+          500n * TEN_TO_THE_18_BI +
+          1000n * TEN_TO_THE_18_BI,
+      ); // 1000 + 500 + 1000 = 2500
+      expect(wrapper?.amount1).to.equal(
+        mockALMLPWrapperData.amount1 +
+          250n * TEN_TO_THE_6_BI +
+          500n * TEN_TO_THE_6_BI,
+      ); // 500 + 250 + 500 = 1250
       // lpAmount aggregates both deposits (incremented)
       expect(wrapper?.lpAmount).to.equal(
         mockALMLPWrapperData.lpAmount +
@@ -601,6 +630,148 @@ describe("ALMLPWrapper Events", () => {
       expect(userStats1?.almAmount0).to.equal(500n * TEN_TO_THE_18_BI);
       expect(userStats2).to.not.be.undefined;
       expect(userStats2?.almAmount0).to.equal(1000n * TEN_TO_THE_18_BI);
+    });
+
+    it("should handle deposit and withdrawal sequence correctly", async () => {
+      let mockDb = MockDb.createMockDb();
+
+      // Pre-populate with existing wrapper
+      const wrapperId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
+      const initialAmount0 = 1000n * TEN_TO_THE_18_BI;
+      const initialAmount1 = 500n * TEN_TO_THE_6_BI;
+      mockDb = mockDb.entities.ALM_LP_Wrapper.set({
+        ...mockALMLPWrapperData,
+        id: wrapperId,
+        amount0: initialAmount0,
+        amount1: initialAmount1,
+      });
+
+      // First deposit
+      let mockEvent = ALMLPWrapper.Deposit.createMockEvent({
+        sender: senderAddress,
+        recipient: recipientAddress,
+        pool: poolAddress,
+        lpAmount: 1000n * TEN_TO_THE_18_BI,
+        amount0: 500n * TEN_TO_THE_18_BI,
+        amount1: 250n * TEN_TO_THE_6_BI,
+        mockEventData,
+      });
+
+      let result = await ALMLPWrapper.Deposit.processEvent({
+        event: mockEvent,
+        mockDb,
+      });
+
+      mockDb = result;
+
+      // Then withdraw
+      mockEvent = ALMLPWrapper.Withdraw.createMockEvent({
+        sender: senderAddress,
+        recipient: recipientAddress,
+        pool: poolAddress,
+        lpAmount: 500n * TEN_TO_THE_18_BI,
+        amount0: 250n * TEN_TO_THE_18_BI,
+        amount1: 125n * TEN_TO_THE_6_BI,
+        mockEventData: {
+          ...mockEventData,
+          block: {
+            ...mockEventData.block,
+            timestamp: 1000001,
+          },
+        },
+      });
+
+      result = await ALMLPWrapper.Withdraw.processEvent({
+        event: mockEvent,
+        mockDb,
+      });
+
+      const wrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
+
+      expect(wrapper).to.not.be.undefined;
+      // Initial + deposit - withdrawal
+      // Since recalculation falls back to initial, we get: initial + deposit - withdrawal
+      expect(wrapper?.amount0).to.equal(
+        initialAmount0 + 500n * TEN_TO_THE_18_BI - 250n * TEN_TO_THE_18_BI,
+      ); // 1000 + 500 - 250 = 1250
+      expect(wrapper?.amount1).to.equal(
+        initialAmount1 + 250n * TEN_TO_THE_6_BI - 125n * TEN_TO_THE_6_BI,
+      ); // 500 + 250 - 125 = 625
+    });
+  });
+
+  describe("TotalSupplyLimitUpdated Event", () => {
+    it("should create ALM_TotalSupplyLimitUpdated_event entity", async () => {
+      const mockDb = MockDb.createMockDb();
+
+      const mockEvent = ALMLPWrapper.TotalSupplyLimitUpdated.createMockEvent({
+        newTotalSupplyLimit: 10000n * TEN_TO_THE_18_BI,
+        totalSupplyLimitOld: 5000n * TEN_TO_THE_18_BI,
+        totalSupplyCurrent: 7500n * TEN_TO_THE_18_BI,
+        mockEventData,
+      });
+
+      const result = await ALMLPWrapper.TotalSupplyLimitUpdated.processEvent({
+        event: mockEvent,
+        mockDb,
+      });
+
+      const eventId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
+      const createdEvent =
+        result.entities.ALM_TotalSupplyLimitUpdated_event.get(eventId);
+
+      expect(createdEvent).to.not.be.undefined;
+      expect(createdEvent?.id).to.equal(eventId);
+      expect(createdEvent?.lpWrapperAddress).to.equal(
+        toChecksumAddress(lpWrapperAddress),
+      );
+      expect(createdEvent?.currentTotalSupplyLPTokens).to.equal(
+        7500n * TEN_TO_THE_18_BI,
+      );
+      // Handler uses event.transaction.hash
+      expect(createdEvent?.transactionHash).to.equal(
+        mockEventData.transaction.hash,
+      );
+    });
+
+    it("should update existing ALM_TotalSupplyLimitUpdated_event entity", async () => {
+      let mockDb = MockDb.createMockDb();
+
+      const eventId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
+      mockDb = mockDb.entities.ALM_TotalSupplyLimitUpdated_event.set({
+        id: eventId,
+        lpWrapperAddress: toChecksumAddress(lpWrapperAddress),
+        currentTotalSupplyLPTokens: 5000n * TEN_TO_THE_18_BI,
+        transactionHash: "0xoldhash",
+      });
+
+      const newTransactionHash =
+        "0x2222222222222222222222222222222222222222222222222222222222222222";
+      const mockEvent = ALMLPWrapper.TotalSupplyLimitUpdated.createMockEvent({
+        newTotalSupplyLimit: 10000n * TEN_TO_THE_18_BI,
+        totalSupplyLimitOld: 5000n * TEN_TO_THE_18_BI,
+        totalSupplyCurrent: 8000n * TEN_TO_THE_18_BI,
+        mockEventData: {
+          ...mockEventData,
+          transaction: {
+            hash: newTransactionHash,
+          },
+        },
+      });
+
+      const result = await ALMLPWrapper.TotalSupplyLimitUpdated.processEvent({
+        event: mockEvent,
+        mockDb,
+      });
+
+      const updatedEvent =
+        result.entities.ALM_TotalSupplyLimitUpdated_event.get(eventId);
+
+      expect(updatedEvent).to.not.be.undefined;
+      expect(updatedEvent?.currentTotalSupplyLPTokens).to.equal(
+        8000n * TEN_TO_THE_18_BI,
+      );
+      expect(updatedEvent?.transactionHash).to.equal(newTransactionHash);
     });
   });
 });
