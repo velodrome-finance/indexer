@@ -1,4 +1,5 @@
 import { ALMDeployFactory } from "generated";
+import { ALM_TotalSupplyLimitUpdated_event } from "generated/src/db/Entities.res";
 import { toChecksumAddress } from "../../Constants";
 
 ALMDeployFactory.StrategyCreated.contractRegister(({ event, context }) => {
@@ -31,14 +32,53 @@ ALMDeployFactory.StrategyCreated.handler(async ({ event, context }) => {
     await context.NonFungiblePosition.getWhere.mintTransactionHash.eq(
       event.transaction.hash,
     );
-  if (!nonFungiblePositions || nonFungiblePositions.length === 0) {
+  const matchingNonFungiblePositions =
+    nonFungiblePositions?.filter(
+      (pos) =>
+        pos.tickLower === tickLower &&
+        pos.tickUpper === tickUpper &&
+        pos.liquidity === liquidity &&
+        pos.token0 === token0 &&
+        pos.token1 === token1,
+    ) ?? [];
+
+  if (matchingNonFungiblePositions.length === 0) {
     context.log.error(
-      `NonFungiblePosition not found for transaction hash ${event.transaction.hash}. It should have been created by CLPool event handlers.`,
+      `NonFungiblePosition not found for transaction hash ${event.transaction.hash} matching tickLower ${tickLower}, tickUpper ${tickUpper}, liquidity ${liquidity}. It should have been created by CLPool event handlers.`,
     );
     return;
   }
 
-  const tokenId = nonFungiblePositions[0].tokenId;
+  if (matchingNonFungiblePositions.length > 1) {
+    context.log.warn(
+      `Multiple NonFungiblePositions found for transaction hash ${event.transaction.hash} with the same tick lower ${tickLower}, tick upper ${tickUpper}, liquidity ${liquidity}, token0 ${token0} and token1 ${token1}. Using the first match.`,
+    );
+  }
+
+  // there should, in principle, one unique non fungible position that has
+  // simultaneously the same transaction hash,tickLower, tickUpper, liquidity and token0 and token1
+  const tokenId = matchingNonFungiblePositions[0].tokenId;
+  const amount0 = matchingNonFungiblePositions[0].amount0;
+  const amount1 = matchingNonFungiblePositions[0].amount1;
+
+  // Fetching LP tokens supply from TotalSupplyLimitUpdated event
+  const ALM_TotalSupplyLimitUpdated_event =
+    await context.ALM_TotalSupplyLimitUpdated_event.get(
+      `${lpWrapper}_${event.chainId}`,
+    );
+
+  if (
+    !ALM_TotalSupplyLimitUpdated_event ||
+    ALM_TotalSupplyLimitUpdated_event.transactionHash !== event.transaction.hash
+  ) {
+    context.log.error(
+      `ALM_TotalSupplyLimitUpdated_event not found for lpWrapper ${toChecksumAddress(lpWrapper)} and chainId ${event.chainId} or transaction hash ${event.transaction.hash} does not match. It should have been created by ALMLPWrapper event handlers.`,
+    );
+    return;
+  }
+
+  const currentTotalSupplyLPTokens =
+    ALM_TotalSupplyLimitUpdated_event.currentTotalSupplyLPTokens;
 
   // Create ALM_LP_Wrapper (single entity tracks both wrapper and strategy)
   // This single entity contains both wrapper-level aggregations and strategy/position state
@@ -48,12 +88,12 @@ ALMDeployFactory.StrategyCreated.handler(async ({ event, context }) => {
     pool: toChecksumAddress(pool),
     token0: toChecksumAddress(token0),
     token1: toChecksumAddress(token1),
-    // Wrapper-level aggregations (updated by Deposit/Withdraw events)
-    amount0: 0n,
-    amount1: 0n,
-    lpAmount: 0n,
+
+    amount0: amount0,
+    amount1: amount1,
+    lpAmount: currentTotalSupplyLPTokens,
     lastUpdatedTimestamp: timestamp,
-    // Strategy/Position-level state (from StrategyCreated event)
+
     tokenId: tokenId,
     tickLower: tickLower,
     tickUpper: tickUpper,
