@@ -36,7 +36,13 @@ import { processCLPoolSwap } from "./CLPool/CLPoolSwapLogic";
 CLPool.Burn.handler(async ({ event, context }) => {
   // Load pool data and user data concurrently for better performance
   const [poolData, userData] = await Promise.all([
-    loadPoolData(event.srcAddress, event.chainId, context),
+    loadPoolData(
+      event.srcAddress,
+      event.chainId,
+      context,
+      event.block.number,
+      event.block.timestamp,
+    ),
     loadUserData(
       event.params.owner,
       event.srcAddress,
@@ -53,39 +59,40 @@ CLPool.Burn.handler(async ({ event, context }) => {
   const { liquidityPoolAggregator, token0Instance, token1Instance } = poolData;
 
   // Process the burn event
-  const result = await processCLPoolBurn(
-    event,
-    token0Instance,
-    token1Instance,
-    context,
-  );
+  const result = processCLPoolBurn(event, token0Instance, token1Instance);
 
-  // Apply liquidity pool updates
-  await updateLiquidityPoolAggregator(
-    result.liquidityPoolDiff,
-    liquidityPoolAggregator,
-    result.liquidityPoolDiff.lastUpdatedTimestamp,
-    context,
-    event.block.number,
-  );
+  const poolDiff = result.liquidityPoolDiff;
+  const userDiff = result.userLiquidityDiff;
 
-  // Update user pool liquidity activity
-  const updatedUserStatsfields = {
-    currentLiquidityUSD: result.userLiquidityDiff.netLiquidityAddedUSD,
-  };
+  const timestamp = new Date(event.block.timestamp * 1000);
 
-  await updateUserStatsPerPool(
-    updatedUserStatsfields,
-    userData,
-    result.userLiquidityDiff.timestamp,
-    context,
-  );
+  // Update pool and user entities
+  await Promise.all([
+    updateLiquidityPoolAggregator(
+      poolDiff,
+      liquidityPoolAggregator,
+      timestamp,
+      context,
+      event.block.number,
+    ),
+    updateUserStatsPerPool(userDiff, userData, timestamp, context),
+  ]);
 });
 
+/**
+ * Handles Collect events for LPs that did NOT stake their LP tokens in the pool's gauge.
+ * These LPs collect their fees directly from their positions without going through the gauge system.
+ * These events do not impact the pool's reserves in the perspective of actual liquidity available for swaps.
+ */
 CLPool.Collect.handler(async ({ event, context }) => {
-  // Load pool data and user data concurrently for better performance
   const [poolData, userData] = await Promise.all([
-    loadPoolData(event.srcAddress, event.chainId, context),
+    loadPoolData(
+      event.srcAddress,
+      event.chainId,
+      context,
+      event.block.number,
+      event.block.timestamp,
+    ),
     loadUserData(
       event.params.recipient,
       event.srcAddress,
@@ -102,37 +109,31 @@ CLPool.Collect.handler(async ({ event, context }) => {
   const { liquidityPoolAggregator, token0Instance, token1Instance } = poolData;
 
   // Process the collect event
-  const result = await processCLPoolCollect(
-    event,
-    token0Instance,
-    token1Instance,
-    context,
-  );
+  const result = processCLPoolCollect(event, token0Instance, token1Instance);
 
-  // Apply liquidity pool updates
-  await updateLiquidityPoolAggregator(
-    result.liquidityPoolDiff,
-    liquidityPoolAggregator,
-    result.liquidityPoolDiff.lastUpdatedTimestamp,
-    context,
-    event.block.number,
-  );
+  const poolDiff = result.liquidityPoolDiff;
+  const userDiff = result.userLiquidityDiff;
 
-  // Update user pool fee contribution
-  const updatedUserStatsfields = {
-    totalFeesContributed0: result.userLiquidityDiff.totalFeesContributed0,
-    totalFeesContributed1: result.userLiquidityDiff.totalFeesContributed1,
-    totalFeesContributedUSD: result.userLiquidityDiff.totalFeesContributedUSD,
-  };
+  const timestamp = new Date(event.block.timestamp * 1000);
 
-  await updateUserStatsPerPool(
-    updatedUserStatsfields,
-    userData,
-    result.userLiquidityDiff.timestamp,
-    context,
-  );
+  // Update pool and user entities
+  await Promise.all([
+    updateLiquidityPoolAggregator(
+      poolDiff,
+      liquidityPoolAggregator,
+      timestamp,
+      context,
+      event.block.number,
+    ),
+    updateUserStatsPerPool(userDiff, userData, timestamp, context),
+  ]);
 });
 
+/**
+ * Handles CollectFees events for LPs that staked their LP tokens in the pool's gauge.
+ * These fees are collected from the gauge system, not directly from positions.
+ * These events do not impact the pool's reserves in the perspective of actual liquidity available for swaps.
+ */
 CLPool.CollectFees.handler(async ({ event, context }) => {
   // Load pool data and user data concurrently for better performance
   // Token prices will be refreshed automatically if needed
@@ -167,34 +168,34 @@ CLPool.CollectFees.handler(async ({ event, context }) => {
     token1Instance,
   );
 
-  // Apply liquidity pool updates
-  await updateLiquidityPoolAggregator(
-    result.liquidityPoolDiff,
-    liquidityPoolAggregator,
-    result.liquidityPoolDiff.lastUpdatedTimestamp,
-    context,
-    event.block.number,
-  );
+  const poolDiff = result.liquidityPoolDiff;
+  const userDiff = result.userDiff;
 
-  // Update user pool fee contribution
-  const updatedUserStatsfields = {
-    totalFeesContributedUSD: result.liquidityPoolDiff.totalFeesUSD,
-    totalFeesContributed0: result.liquidityPoolDiff.totalFees0,
-    totalFeesContributed1: result.liquidityPoolDiff.totalFees1,
-  };
+  const timestamp = new Date(event.block.timestamp * 1000);
 
-  await updateUserStatsPerPool(
-    updatedUserStatsfields,
-    userData,
-    new Date(event.block.timestamp * 1000),
-    context,
-  );
+  // Update pool and user entities
+  await Promise.all([
+    updateLiquidityPoolAggregator(
+      poolDiff,
+      liquidityPoolAggregator,
+      timestamp,
+      context,
+      event.block.number,
+    ),
+    updateUserStatsPerPool(userDiff, userData, timestamp, context),
+  ]);
 });
 
 CLPool.Flash.handler(async ({ event, context }) => {
   // Load pool data and user data concurrently for better performance
   const [poolData, userData] = await Promise.all([
-    loadPoolData(event.srcAddress, event.chainId, context),
+    loadPoolData(
+      event.srcAddress,
+      event.chainId,
+      context,
+      event.block.number,
+      event.block.timestamp,
+    ),
     loadUserData(
       event.params.sender,
       event.srcAddress,
@@ -211,36 +212,30 @@ CLPool.Flash.handler(async ({ event, context }) => {
   const { liquidityPoolAggregator, token0Instance, token1Instance } = poolData;
 
   // Process the flash event
-  const result = await processCLPoolFlash(
-    event,
-    token0Instance,
-    token1Instance,
-    context,
-  );
+  const result = processCLPoolFlash(event, token0Instance, token1Instance);
 
-  // Apply liquidity pool updates
-  await updateLiquidityPoolAggregator(
-    result.liquidityPoolDiff,
-    liquidityPoolAggregator,
-    result.liquidityPoolDiff.lastUpdatedTimestamp,
-    context,
-    event.block.number,
-  );
+  const poolDiff = result.liquidityPoolDiff;
+  const userDiff = result.userFlashLoanDiff;
 
-  // Update user pool flash loan activity
-  if (result.userFlashLoanDiff.totalFlashLoanVolumeUSD > 0n) {
-    const updatedUserStatsfields = {
-      numberOfFlashLoans: result.userFlashLoanDiff.numberOfFlashLoans,
-      totalFlashLoanVolumeUSD: result.userFlashLoanDiff.totalFlashLoanVolumeUSD,
-    };
+  const timestamp = new Date(event.block.timestamp * 1000);
 
-    await updateUserStatsPerPool(
-      updatedUserStatsfields,
-      userData,
-      result.userFlashLoanDiff.timestamp,
+  // Update pool and user entities (only update user if there's volume)
+  await Promise.all([
+    updateLiquidityPoolAggregator(
+      poolDiff,
+      liquidityPoolAggregator,
+      timestamp,
       context,
-    );
-  }
+      event.block.number,
+    ),
+    ...(userDiff.totalFlashLoanVolumeUSD > 0n
+      ? [
+          updateUserStatsPerPool(userDiff, userData, timestamp, context).then(
+            () => {},
+          ),
+        ]
+      : []),
+  ]);
 });
 
 CLPool.IncreaseObservationCardinalityNext.handler(
@@ -276,7 +271,13 @@ CLPool.IncreaseObservationCardinalityNext.handler(
 CLPool.Mint.handler(async ({ event, context }) => {
   // Load pool data and user data concurrently for better performance
   const [poolData, userData] = await Promise.all([
-    loadPoolData(event.srcAddress, event.chainId, context),
+    loadPoolData(
+      event.srcAddress,
+      event.chainId,
+      context,
+      event.block.number,
+      event.block.timestamp,
+    ),
     loadUserData(
       event.params.owner,
       event.srcAddress,
@@ -293,33 +294,24 @@ CLPool.Mint.handler(async ({ event, context }) => {
   const { liquidityPoolAggregator, token0Instance, token1Instance } = poolData;
 
   // Process the mint event
-  const result = await processCLPoolMint(
-    event,
-    token0Instance,
-    token1Instance,
-    context,
-  );
+  const result = processCLPoolMint(event, token0Instance, token1Instance);
 
-  // Apply liquidity pool updates
-  await updateLiquidityPoolAggregator(
-    result.liquidityPoolDiff,
-    liquidityPoolAggregator,
-    result.liquidityPoolDiff.lastUpdatedTimestamp,
-    context,
-    event.block.number,
-  );
+  const poolDiff = result.liquidityPoolDiff;
+  const userDiff = result.userLiquidityDiff;
 
-  // Update user pool liquidity activity
-  const updatedUserStatsfields = {
-    currentLiquidityUSD: result.userLiquidityDiff.netLiquidityAddedUSD,
-  };
+  const timestamp = new Date(event.block.timestamp * 1000);
 
-  await updateUserStatsPerPool(
-    updatedUserStatsfields,
-    userData,
-    result.userLiquidityDiff.timestamp,
-    context,
-  );
+  // Update pool and user entities
+  await Promise.all([
+    updateLiquidityPoolAggregator(
+      poolDiff,
+      liquidityPoolAggregator,
+      timestamp,
+      context,
+      event.block.number,
+    ),
+    updateUserStatsPerPool(userDiff, userData, timestamp, context),
+  ]);
 
   // Create NonFungiblePosition entity
   // Use transaction hash and logIndex to make placeholder ID unique per event
@@ -338,9 +330,9 @@ CLPool.Mint.handler(async ({ event, context }) => {
     liquidity: event.params.amount, // Store liquidity value from CLPool.Mint
     amount0: event.params.amount0,
     amount1: event.params.amount1,
-    amountUSD: result.userLiquidityDiff.netLiquidityAddedUSD,
+    amountUSD: userDiff.currentLiquidityUSD,
     mintTransactionHash: event.transaction.hash,
-    lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
+    lastUpdatedTimestamp: timestamp,
   });
 });
 
@@ -372,7 +364,13 @@ CLPool.SetFeeProtocol.handler(async ({ event, context }) => {
 CLPool.Swap.handler(async ({ event, context }) => {
   // Load pool data and user data concurrently for better performance
   const [poolData, userData] = await Promise.all([
-    loadPoolData(event.srcAddress, event.chainId, context),
+    loadPoolData(
+      event.srcAddress,
+      event.chainId,
+      context,
+      event.block.number,
+      event.block.timestamp,
+    ),
     loadUserData(
       event.params.sender,
       event.srcAddress,
@@ -397,27 +395,22 @@ CLPool.Swap.handler(async ({ event, context }) => {
     context,
   );
 
-  // Apply liquidity pool updates
-  await updateLiquidityPoolAggregator(
-    result.liquidityPoolDiff,
-    liquidityPoolAggregator,
-    new Date(event.block.timestamp * 1000),
-    context,
-    event.block.number,
-  );
+  const poolDiff = result.liquidityPoolDiff;
+  const userDiff = result.userSwapDiff;
 
-  // Update user swap activity
-  const updatedUserStatsfields = {
-    numberOfSwaps: result.userSwapDiff.numberOfSwaps,
-    totalSwapVolumeUSD: result.userSwapDiff.totalSwapVolumeUSD,
-  };
+  const timestamp = new Date(event.block.timestamp * 1000);
 
-  await updateUserStatsPerPool(
-    updatedUserStatsfields,
-    userData,
-    result.userSwapDiff.timestamp,
-    context,
-  );
+  // Update pool and user entities
+  await Promise.all([
+    updateLiquidityPoolAggregator(
+      poolDiff,
+      liquidityPoolAggregator,
+      timestamp,
+      context,
+      event.block.number,
+    ),
+    updateUserStatsPerPool(userDiff, userData, timestamp, context),
+  ]);
 
   // Create oUSDTSwaps entity
 
