@@ -19,7 +19,7 @@ describe("Pool Fees Event", () => {
     amount1In: 2n * 10n ** 6n,
     totalLiquidityUSD: 0n,
     totalFeesUSDWhitelisted: 0n,
-    totalFeesUSD: 0n,
+    totalUnstakedFeesCollectedUSD: 0n,
   };
 
   expectations.totalLiquidityUSD =
@@ -30,14 +30,15 @@ describe("Pool Fees Event", () => {
       mockToken1Data.pricePerUSDNew) /
       10n ** mockToken1Data.decimals;
 
-  expectations.totalFeesUSD =
-    mockLiquidityPoolData.totalFeesUSD +
+  expectations.totalUnstakedFeesCollectedUSD =
+    mockLiquidityPoolData.totalUnstakedFeesCollectedUSD +
     (expectations.amount0In / 10n ** mockToken0Data.decimals) *
       mockToken0Data.pricePerUSDNew +
     (expectations.amount1In / 10n ** mockToken1Data.decimals) *
       mockToken1Data.pricePerUSDNew;
 
-  expectations.totalFeesUSDWhitelisted = expectations.totalFeesUSD;
+  expectations.totalFeesUSDWhitelisted =
+    expectations.totalUnstakedFeesCollectedUSD;
 
   let updatedPool: LiquidityPoolAggregator | undefined;
   let createdUserStats: UserStatsPerPool | undefined;
@@ -84,16 +85,21 @@ describe("Pool Fees Event", () => {
   });
 
   it("should update LiquidityPoolAggregator nominal fees", async () => {
-    expect(updatedPool?.totalFees0).to.equal(
-      mockLiquidityPoolData.totalFees0 + expectations.amount0In,
+    // For regular pools, fees are tracked as unstaked fees
+    expect(updatedPool?.totalUnstakedFeesCollected0).to.equal(
+      mockLiquidityPoolData.totalUnstakedFeesCollected0 +
+        expectations.amount0In,
     );
-    expect(updatedPool?.totalFees1).to.equal(
-      mockLiquidityPoolData.totalFees1 + expectations.amount1In,
+    expect(updatedPool?.totalUnstakedFeesCollected1).to.equal(
+      mockLiquidityPoolData.totalUnstakedFeesCollected1 +
+        expectations.amount1In,
     );
   });
 
   it("should update LiquidityPoolAggregator total fees in USD", async () => {
-    expect(updatedPool?.totalFeesUSD).to.equal(expectations.totalFeesUSD);
+    expect(updatedPool?.totalUnstakedFeesCollectedUSD).to.equal(
+      expectations.totalUnstakedFeesCollectedUSD,
+    );
   });
 
   it("should update LiquidityPoolAggregator total fees in USD whitelisted", async () => {

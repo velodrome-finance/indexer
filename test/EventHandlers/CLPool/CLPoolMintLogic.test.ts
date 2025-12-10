@@ -3,7 +3,6 @@ import type {
   CLPool_Mint_event,
   LiquidityPoolAggregator,
   Token,
-  handlerContext,
 } from "generated";
 import { processCLPoolMint } from "../../../src/EventHandlers/CLPool/CLPoolMintLogic";
 import { setupCommon } from "../Pool/common";
@@ -75,22 +74,9 @@ describe("CLPoolMintLogic", () => {
     lastUpdatedTimestamp: new Date(1000000 * 1000),
   };
 
-  const mockContext: handlerContext = {
-    log: {
-      error: () => {},
-      warn: () => {},
-      info: () => {},
-    },
-  } as unknown as handlerContext;
-
   describe("processCLPoolMint", () => {
-    it("should process mint event successfully with valid data", async () => {
-      const result = await processCLPoolMint(
-        mockEvent,
-        mockToken0,
-        mockToken1,
-        mockContext,
-      );
+    it("should process mint event successfully with valid data", () => {
+      const result = processCLPoolMint(mockEvent, mockToken0, mockToken1);
 
       // Check liquidity pool diff with exact values
       expect(result.liquidityPoolDiff.reserve0).to.equal(500000000000000000n); // amount0 (0.5 token)
@@ -101,13 +87,8 @@ describe("CLPoolMintLogic", () => {
         1100000000000000000n,
       ); // 1.1 USD in 18 decimals
 
-      // Exact timestamp: 1000000 * 1000 = 1000000000ms
-      expect(result.liquidityPoolDiff.lastUpdatedTimestamp).to.deep.equal(
-        new Date(1000000000),
-      );
-
       // Check user liquidity diff with exact values
-      expect(result.userLiquidityDiff.netLiquidityAddedUSD).to.equal(
+      expect(result.userLiquidityDiff.currentLiquidityUSD).to.equal(
         1100000000000000000n,
       ); // 1.1 USD in 18 decimals (positive for addition)
       expect(result.userLiquidityDiff.currentLiquidityToken0).to.equal(
@@ -116,21 +97,13 @@ describe("CLPoolMintLogic", () => {
       expect(result.userLiquidityDiff.currentLiquidityToken1).to.equal(
         300000000000000000n,
       ); // amount1
-      expect(result.userLiquidityDiff.timestamp).to.deep.equal(
-        new Date(1000000000),
-      );
     });
 
-    it("should calculate correct liquidity values for mint event", async () => {
-      const result = await processCLPoolMint(
-        mockEvent,
-        mockToken0,
-        mockToken1,
-        mockContext,
-      );
+    it("should calculate correct liquidity values for mint event", () => {
+      const result = processCLPoolMint(mockEvent, mockToken0, mockToken1);
 
       // For mint events, we expect positive liquidity change with exact values
-      expect(result.userLiquidityDiff.netLiquidityAddedUSD).to.equal(
+      expect(result.userLiquidityDiff.currentLiquidityUSD).to.equal(
         1100000000000000000n,
       ); // 1.1 USD in 18 decimals
       expect(result.userLiquidityDiff.currentLiquidityToken0).to.equal(
@@ -148,24 +121,23 @@ describe("CLPoolMintLogic", () => {
       ); // 1.1 USD in 18 decimals
     });
 
-    it("should handle different token decimals correctly", async () => {
+    it("should handle different token decimals correctly", () => {
       const tokenWithDifferentDecimals: Token = {
         ...mockToken0,
         decimals: 6n, // USDC-like token
       };
 
-      const result = await processCLPoolMint(
+      const result = processCLPoolMint(
         mockEvent,
         tokenWithDifferentDecimals,
         mockToken1,
-        mockContext,
       );
 
       expect(result.liquidityPoolDiff).to.not.be.undefined;
       expect(result.userLiquidityDiff).to.not.be.undefined;
     });
 
-    it("should handle zero amounts correctly", async () => {
+    it("should handle zero amounts correctly", () => {
       const eventWithZeroAmounts: CLPool_Mint_event = {
         ...mockEvent,
         params: {
@@ -175,16 +147,15 @@ describe("CLPoolMintLogic", () => {
         },
       };
 
-      const result = await processCLPoolMint(
+      const result = processCLPoolMint(
         eventWithZeroAmounts,
         mockToken0,
         mockToken1,
-        mockContext,
       );
 
       expect(result.liquidityPoolDiff.reserve0).to.equal(0n);
       expect(result.liquidityPoolDiff.reserve1).to.equal(0n);
-      expect(result.userLiquidityDiff.netLiquidityAddedUSD).to.equal(0n);
+      expect(result.userLiquidityDiff.currentLiquidityUSD).to.equal(0n);
     });
   });
 });

@@ -3,7 +3,6 @@ import type {
   CLPool_Flash_event,
   LiquidityPoolAggregator,
   Token,
-  handlerContext,
 } from "generated";
 import { processCLPoolFlash } from "../../../src/EventHandlers/CLPool/CLPoolFlashLogic";
 import { setupCommon } from "../Pool/common";
@@ -74,23 +73,9 @@ describe("CLPoolFlashLogic", () => {
     lastUpdatedTimestamp: new Date(1000000 * 1000),
   };
 
-  const mockContext = {
-    log: {
-      error: () => {},
-      warn: () => {},
-      info: () => {},
-    },
-    isPreload: false,
-  } as unknown as handlerContext;
-
   describe("processCLPoolFlash", () => {
-    it("should process flash event successfully with valid data", async () => {
-      const result = await processCLPoolFlash(
-        mockEvent,
-        mockToken0,
-        mockToken1,
-        mockContext,
-      );
+    it("should process flash event successfully with valid data", () => {
+      const result = processCLPoolFlash(mockEvent, mockToken0, mockToken1);
 
       // Check liquidity pool diff with exact values
       expect(result.liquidityPoolDiff.totalFlashLoanFees0).to.equal(1000n); // paid0
@@ -105,28 +90,15 @@ describe("CLPoolFlashLogic", () => {
         2000000n,
       );
 
-      // Exact timestamp: 1000000 * 1000 = 1000000000ms
-      expect(result.liquidityPoolDiff.lastUpdatedTimestamp).to.deep.equal(
-        new Date(1000000000),
-      );
-
       // Check user flash loan diff with exact values
       expect(result.userFlashLoanDiff.numberOfFlashLoans).to.equal(1n);
       expect(result.userFlashLoanDiff.totalFlashLoanVolumeUSD).to.equal(
         2000000n,
       );
-      expect(result.userFlashLoanDiff.timestamp).to.deep.equal(
-        new Date(1000000000),
-      );
     });
 
-    it("should calculate flash loan fees correctly", async () => {
-      const result = await processCLPoolFlash(
-        mockEvent,
-        mockToken0,
-        mockToken1,
-        mockContext,
-      );
+    it("should calculate flash loan fees correctly", () => {
+      const result = processCLPoolFlash(mockEvent, mockToken0, mockToken1);
 
       // Fees should be calculated based on paid amounts and token prices
       expect(result.liquidityPoolDiff.totalFlashLoanFees0).to.equal(
@@ -138,13 +110,8 @@ describe("CLPoolFlashLogic", () => {
       expect(result.liquidityPoolDiff.totalFlashLoanFeesUSD).to.equal(2000n); // 2000 USD in 18 decimals
     });
 
-    it("should calculate flash loan volume correctly", async () => {
-      const result = await processCLPoolFlash(
-        mockEvent,
-        mockToken0,
-        mockToken1,
-        mockContext,
-      );
+    it("should calculate flash loan volume correctly", () => {
+      const result = processCLPoolFlash(mockEvent, mockToken0, mockToken1);
 
       // Volume should be calculated based on borrowed amounts (not fees)
       expect(result.userFlashLoanDiff.totalFlashLoanVolumeUSD).to.equal(
@@ -153,7 +120,7 @@ describe("CLPoolFlashLogic", () => {
       expect(result.userFlashLoanDiff.numberOfFlashLoans).to.equal(1n);
     });
 
-    it("should handle zero amounts correctly", async () => {
+    it("should handle zero amounts correctly", () => {
       const eventWithZeroAmounts: CLPool_Flash_event = {
         ...mockEvent,
         params: {
@@ -165,11 +132,10 @@ describe("CLPoolFlashLogic", () => {
         },
       };
 
-      const result = await processCLPoolFlash(
+      const result = processCLPoolFlash(
         eventWithZeroAmounts,
         mockToken0,
         mockToken1,
-        mockContext,
       );
 
       expect(result.liquidityPoolDiff.totalFlashLoanFees0).to.equal(0n);
@@ -178,30 +144,24 @@ describe("CLPoolFlashLogic", () => {
       expect(result.userFlashLoanDiff.totalFlashLoanVolumeUSD).to.equal(0n);
     });
 
-    it("should handle different token decimals correctly", async () => {
+    it("should handle different token decimals correctly", () => {
       const tokenWithDifferentDecimals: Token = {
         ...mockToken0,
         decimals: 6n, // USDC-like token
       };
 
-      const result = await processCLPoolFlash(
+      const result = processCLPoolFlash(
         mockEvent,
         tokenWithDifferentDecimals,
         mockToken1,
-        mockContext,
       );
 
       expect(result.liquidityPoolDiff).to.not.be.undefined;
       expect(result.userFlashLoanDiff).to.not.be.undefined;
     });
 
-    it("should handle existing flash loan data correctly", async () => {
-      const result = await processCLPoolFlash(
-        mockEvent,
-        mockToken0,
-        mockToken1,
-        mockContext,
-      );
+    it("should handle existing flash loan data correctly", () => {
+      const result = processCLPoolFlash(mockEvent, mockToken0, mockToken1);
 
       expect(result.liquidityPoolDiff.totalFlashLoanFees0).to.equal(
         mockEvent.params.paid0,
