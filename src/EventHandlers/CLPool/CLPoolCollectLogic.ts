@@ -1,49 +1,45 @@
 import type { CLPool_Collect_event, Token, handlerContext } from "generated";
-import { updateReserveTokenData } from "../../Helpers";
+import { calculateTotalLiquidityUSD } from "../../Helpers";
 
 export interface CLPoolCollectResult {
   liquidityPoolDiff: {
-    reserve0: bigint;
-    reserve1: bigint;
-    totalLiquidityUSD: bigint;
-    lastUpdatedTimestamp: Date;
+    totalUnstakedFeesCollected0: bigint;
+    totalUnstakedFeesCollected1: bigint;
+    totalUnstakedFeesCollectedUSD: bigint;
   };
   userLiquidityDiff: {
     totalFeesContributed0: bigint;
     totalFeesContributed1: bigint;
     totalFeesContributedUSD: bigint;
-    timestamp: Date;
   };
 }
 
-export async function processCLPoolCollect(
+export function processCLPoolCollect(
   event: CLPool_Collect_event,
   token0Instance: Token | undefined,
   token1Instance: Token | undefined,
-  context: handlerContext,
-): Promise<CLPoolCollectResult> {
-  // Update reserve data using the same approach as Pool events
-  const reserveData = await updateReserveTokenData(
-    token0Instance,
-    token1Instance,
+): CLPoolCollectResult {
+  // Calculate USD values using already-refreshed token prices from loadPoolData
+  // In CL pools, fees accumulate in positions (tokensOwed0/tokensOwed1) and are NOT part of base reserves.
+  // When collected, they're transferred out but were never in the tracked reserves.
+  // Therefore, Collect events should NOT affect reserves - only track fees collected.
+  const totalFeesContributedUSD = calculateTotalLiquidityUSD(
     event.params.amount0,
     event.params.amount1,
-    event,
-    context,
+    token0Instance,
+    token1Instance,
   );
 
   const liquidityPoolDiff = {
-    reserve0: event.params.amount0,
-    reserve1: event.params.amount1,
-    totalLiquidityUSD: reserveData.totalLiquidityUSD,
-    lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
+    // Track unstaked fees (from Collect events - LPs that didn't stake)
+    totalUnstakedFeesCollected0: event.params.amount0,
+    totalUnstakedFeesCollected1: event.params.amount1,
+    totalUnstakedFeesCollectedUSD: totalFeesContributedUSD,
   };
-
   const userLiquidityDiff = {
     totalFeesContributed0: event.params.amount0, // The collected fees in token0
     totalFeesContributed1: event.params.amount1, // The collected fees in token1
-    totalFeesContributedUSD: reserveData.totalLiquidityUSD, // The collected fees in USD
-    timestamp: new Date(event.block.timestamp * 1000),
+    totalFeesContributedUSD, // The collected fees in USD
   };
 
   return {
