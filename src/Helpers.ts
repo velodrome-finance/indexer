@@ -37,14 +37,14 @@ export function generatePoolName(
 
 // Token utility interfaces
 export interface TokenSwapData {
-  token0: Token;
-  token1: Token;
-  token0NormalizedAmount: bigint;
-  token1NormalizedAmount: bigint;
-  token0UsdValue: bigint;
-  token1UsdValue: bigint;
-  token0NetAmount: bigint;
-  token1NetAmount: bigint;
+  token0?: Token;
+  token1?: Token;
+  token0NormalizedAmount?: bigint;
+  token1NormalizedAmount?: bigint;
+  token0UsdValue?: bigint;
+  token1UsdValue?: bigint;
+  token0NetAmount?: bigint;
+  token1NetAmount?: bigint;
   volumeInUSD: bigint;
   volumeInUSDWhitelisted: bigint;
 }
@@ -104,8 +104,8 @@ export async function updateTokenData(
  * Updates both tokens for swap operations
  */
 export async function updateSwapTokenData(
-  token0: Token,
-  token1: Token,
+  token0: Token | undefined,
+  token1: Token | undefined,
   amount0: bigint,
   amount1: bigint,
   event: {
@@ -115,29 +115,31 @@ export async function updateSwapTokenData(
   context: handlerContext,
 ): Promise<TokenSwapData> {
   const [token0Data, token1Data] = await Promise.all([
-    updateTokenData(token0, amount0, event, context),
-    updateTokenData(token1, amount1, event, context),
+    token0 ? updateTokenData(token0, amount0, event, context) : null,
+    token1 ? updateTokenData(token1, amount1, event, context) : null,
   ]);
 
-  // Calculate volume in USD (use the higher of the two)
+  // Calculate volume in USD (use token0 if available and non-zero, otherwise token1)
   const volumeInUSD =
-    token0Data.usdValue !== 0n ? token0Data.usdValue : token1Data.usdValue;
+    token0Data?.usdValue !== undefined && token0Data.usdValue !== 0n
+      ? token0Data.usdValue
+      : (token1Data?.usdValue ?? 0n);
 
   // Calculate whitelisted volume (both tokens must be whitelisted)
   const volumeInUSDWhitelisted =
-    token0Data.token.isWhitelisted && token1Data.token.isWhitelisted
+    token0Data?.token.isWhitelisted && token1Data?.token.isWhitelisted
       ? token0Data.usdValue
       : 0n;
 
   return {
-    token0: token0Data.token,
-    token1: token1Data.token,
-    token0NormalizedAmount: token0Data.normalizedAmount,
-    token1NormalizedAmount: token1Data.normalizedAmount,
-    token0UsdValue: token0Data.usdValue,
-    token1UsdValue: token1Data.usdValue,
-    token0NetAmount: token0Data.netAmount,
-    token1NetAmount: token1Data.netAmount,
+    token0: token0Data?.token,
+    token1: token1Data?.token,
+    token0NormalizedAmount: token0Data?.normalizedAmount,
+    token1NormalizedAmount: token1Data?.normalizedAmount,
+    token0UsdValue: token0Data?.usdValue,
+    token1UsdValue: token1Data?.usdValue,
+    token0NetAmount: token0Data?.netAmount,
+    token1NetAmount: token1Data?.netAmount,
     volumeInUSD,
     volumeInUSDWhitelisted,
   };
@@ -206,34 +208,34 @@ export async function updateFeeTokenData(
 }
 
 /**
- * Calculates total liquidity USD from current reserves and token prices
+ * Calculates total liquidity USD from amounts and token prices
  */
 export function calculateTotalLiquidityUSD(
-  reserve0: bigint,
-  reserve1: bigint,
+  amount0: bigint,
+  amount1: bigint,
   token0: Token | undefined,
   token1: Token | undefined,
 ): bigint {
   let totalLiquidityUSD = 0n;
 
   if (token0) {
-    const normalizedReserve0 = normalizeTokenAmountTo1e18(
-      reserve0,
+    const normalizedAmount0 = normalizeTokenAmountTo1e18(
+      amount0,
       Number(token0.decimals),
     );
     totalLiquidityUSD += multiplyBase1e18(
-      normalizedReserve0,
+      normalizedAmount0,
       token0.pricePerUSDNew,
     );
   }
 
   if (token1) {
-    const normalizedReserve1 = normalizeTokenAmountTo1e18(
-      reserve1,
+    const normalizedAmount1 = normalizeTokenAmountTo1e18(
+      amount1,
       Number(token1.decimals),
     );
     totalLiquidityUSD += multiplyBase1e18(
-      normalizedReserve1,
+      normalizedAmount1,
       token1.pricePerUSDNew,
     );
   }
@@ -316,6 +318,8 @@ export function calculatePositionAmountsFromLiquidity(
 
 /**
  * Updates tokens for reserve/liquidity operations (like Sync events)
+ * NOTE: This function refreshes token prices. If prices are already refreshed
+ * in loadPoolData, use calculateTotalLiquidityUSD instead.
  */
 export async function updateReserveTokenData(
   token0: Token | undefined,

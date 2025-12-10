@@ -132,11 +132,28 @@ export async function updateLiquidityPoolAggregator(
       (diff.gaugeFees0CurrentEpoch ?? 0n) + current.gaugeFees0CurrentEpoch,
     gaugeFees1CurrentEpoch:
       (diff.gaugeFees1CurrentEpoch ?? 0n) + current.gaugeFees1CurrentEpoch,
-    totalFees0: (diff.totalFees0 ?? 0n) + current.totalFees0,
-    totalFees1: (diff.totalFees1 ?? 0n) + current.totalFees1,
-    totalFeesUSD: (diff.totalFeesUSD ?? 0n) + current.totalFeesUSD,
     totalFeesUSDWhitelisted:
       (diff.totalFeesUSDWhitelisted ?? 0n) + current.totalFeesUSDWhitelisted,
+    // Unstaked fees (from Collect events - LPs that didn't stake)
+    totalUnstakedFeesCollected0:
+      (diff.totalUnstakedFeesCollected0 ?? 0n) +
+      current.totalUnstakedFeesCollected0,
+    totalUnstakedFeesCollected1:
+      (diff.totalUnstakedFeesCollected1 ?? 0n) +
+      current.totalUnstakedFeesCollected1,
+    totalUnstakedFeesCollectedUSD:
+      (diff.totalUnstakedFeesCollectedUSD ?? 0n) +
+      current.totalUnstakedFeesCollectedUSD,
+    // Staked fees (from CollectFees events - LPs that staked in gauge)
+    totalStakedFeesCollected0:
+      (diff.totalStakedFeesCollected0 ?? 0n) +
+      current.totalStakedFeesCollected0,
+    totalStakedFeesCollected1:
+      (diff.totalStakedFeesCollected1 ?? 0n) +
+      current.totalStakedFeesCollected1,
+    totalStakedFeesCollectedUSD:
+      (diff.totalStakedFeesCollectedUSD ?? 0n) +
+      current.totalStakedFeesCollectedUSD,
     numberOfSwaps: (diff.numberOfSwaps ?? 0n) + current.numberOfSwaps,
     numberOfVotes: (diff.numberOfVotes ?? 0n) + current.numberOfVotes,
     totalEmissions: (diff.totalEmissions ?? 0n) + current.totalEmissions,
@@ -313,33 +330,37 @@ export async function loadPoolData(
   let updatedToken0 = token0Instance;
   let updatedToken1 = token1Instance;
   if (blockNumber !== undefined && blockTimestamp !== undefined) {
-    try {
-      updatedToken0 = await refreshTokenPrice(
-        token0Instance,
-        blockNumber,
-        blockTimestamp,
-        chainId,
-        context,
-      );
-    } catch (error) {
+    // Wrap each refresh in a promise that catches errors individually
+    const token0Refresh = refreshTokenPrice(
+      token0Instance,
+      blockNumber,
+      blockTimestamp,
+      chainId,
+      context,
+    ).catch((error) => {
       context.log.error(
         `Error refreshing token0 price for ${token0Instance.address} on chain ${chainId}: ${error}`,
       );
-    }
+      return token0Instance; // Return original on error
+    });
 
-    try {
-      updatedToken1 = await refreshTokenPrice(
-        token1Instance,
-        blockNumber,
-        blockTimestamp,
-        chainId,
-        context,
-      );
-    } catch (error) {
+    const token1Refresh = refreshTokenPrice(
+      token1Instance,
+      blockNumber,
+      blockTimestamp,
+      chainId,
+      context,
+    ).catch((error) => {
       context.log.error(
         `Error refreshing token1 price for ${token1Instance.address} on chain ${chainId}: ${error}`,
       );
-    }
+      return token1Instance; // Return original on error
+    });
+
+    [updatedToken0, updatedToken1] = await Promise.all([
+      token0Refresh,
+      token1Refresh,
+    ]);
   }
 
   return {
