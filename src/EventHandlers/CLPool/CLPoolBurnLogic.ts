@@ -33,6 +33,8 @@ export function processCLPoolBurn(
     totalLiquidityUSD: -totalLiquidityUSD,
   };
 
+  // Note: These fields represent the change/delta in liquidity (not absolute values)
+  // The field names match the schema (currentLiquidityUSD, etc.) but contain diff values, hinted by the variable name
   const userLiquidityDiff = {
     currentLiquidityUSD: -totalLiquidityUSD, // Negative for burn (removal)
     currentLiquidityToken0: -event.params.amount0, // Negative amount of token0 removed
