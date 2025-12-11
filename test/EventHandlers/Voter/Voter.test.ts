@@ -102,6 +102,8 @@ describe("Voter Events", () => {
           totalGaugeRewardsClaimed: 0n,
           totalLiquidityAddedUSD: 0n,
           totalLiquidityRemovedUSD: 0n,
+          totalSwapVolumeAmount0: 0n,
+          totalSwapVolumeAmount1: 0n,
           totalSwapVolumeUSD: 0n,
         } as UserStatsPerPool;
 

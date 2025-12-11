@@ -327,7 +327,7 @@ const MODE_CONSTANTS: chainConstants = {
 // Constants for Celo
 const CELO_CONSTANTS: chainConstants = {
   weth: "0x4200000000000000000000000000000000000006",
-  usdc: "0x37f750B7cC259A2f741AF45294f6a16572CF5cAd",
+  usdc: "0xef4229c8c3250C675F21BCefa42f58EfbfF6002a",
   oracle: {
     getType: (blockNumber: number) => {
       return PriceOracleType.V3;
@@ -408,7 +408,7 @@ const UNICHAIN_CONSTANTS: chainConstants = {
 // Constants for Fraxtal
 const FRAXTAL_CONSTANTS: chainConstants = {
   weth: "0xFC00000000000000000000000000000000000006",
-  usdc: "0xFc00000000000000000000000000000000000001",
+  usdc: "0xDcc0F2D8F90FDe85b10aC1c8Ab57dc0AE946A543",
   oracle: {
     getType: (blockNumber: number) => {
       if (blockNumber > 12710720) {
@@ -503,7 +503,7 @@ const METAL_CONSTANTS: chainConstants = {
 // Constants for Swell
 const SWELL_CONSTANTS: chainConstants = {
   weth: "0x4200000000000000000000000000000000000006",
-  usdc: "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34", // USDe since usdc is not available
+  usdc: "0x99a38322cAF878Ef55AE4d0Eda535535eF8C7960",
   oracle: {
     getType: (blockNumber: number) => {
       return PriceOracleType.V3;

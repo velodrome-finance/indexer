@@ -61,6 +61,8 @@ describe("CLPool Events", () => {
       totalFeesContributed1: 0n,
       // Swap metrics
       numberOfSwaps: 0n,
+      totalSwapVolumeAmount0: 0n,
+      totalSwapVolumeAmount1: 0n,
       totalSwapVolumeUSD: 0n,
       // Flash swap metrics
       numberOfFlashLoans: 0n,
@@ -117,6 +119,8 @@ describe("CLPool Events", () => {
           },
           userSwapDiff: {
             numberOfSwaps: 1n,
+            totalSwapVolumeAmount0: 1000n,
+            totalSwapVolumeAmount1: 500n,
             totalSwapVolumeUSD: 1500n,
           },
         });
@@ -157,6 +161,16 @@ describe("CLPool Events", () => {
       const updatedPool =
         resultDB.entities.LiquidityPoolAggregator.get(poolAddress);
       expect(updatedPool).to.not.be.undefined;
+
+      // Verify UserStatsPerPool is updated with swap volume amounts
+      const updatedUserStats = resultDB.entities.UserStatsPerPool.get(
+        `${userAddress.toLowerCase()}_${poolAddress.toLowerCase()}_${chainId}`,
+      );
+      expect(updatedUserStats).to.not.be.undefined;
+      expect(updatedUserStats?.numberOfSwaps).to.equal(1n);
+      expect(updatedUserStats?.totalSwapVolumeAmount0).to.equal(1000n); // abs(amount0)
+      expect(updatedUserStats?.totalSwapVolumeAmount1).to.equal(500n); // abs(amount1)
+      expect(updatedUserStats?.totalSwapVolumeUSD).to.equal(1500n);
     });
 
     it("should return early if pool data not found", async () => {

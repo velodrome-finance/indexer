@@ -167,6 +167,8 @@ describe("Pool Fees Event", () => {
       totalFeesContributed0: 1000n,
       totalFeesContributed1: 800n,
       numberOfSwaps: 5n,
+      totalSwapVolumeAmount0: 0n,
+      totalSwapVolumeAmount1: 0n,
       totalSwapVolumeUSD: 10000n,
       numberOfFlashLoans: 0n,
       totalFlashLoanVolumeUSD: 0n,

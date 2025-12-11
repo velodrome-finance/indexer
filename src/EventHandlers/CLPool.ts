@@ -94,7 +94,7 @@ CLPool.Collect.handler(async ({ event, context }) => {
       event.block.timestamp,
     ),
     loadUserData(
-      event.params.recipient,
+      event.params.owner, // Fees should be attributed to the owner, not the recipient
       event.srcAddress,
       event.chainId,
       context,
