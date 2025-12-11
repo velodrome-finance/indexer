@@ -107,9 +107,15 @@ describe("CLPoolSwapLogic", () => {
 
       // Check user swap diff with exact values
       expect(result.userSwapDiff.numberOfSwaps).to.equal(1n);
+      expect(result.userSwapDiff.totalSwapVolumeAmount0).to.equal(
+        1000000000000000000n,
+      ); // abs(amount0) = abs(1 token) = 1 token
+      expect(result.userSwapDiff.totalSwapVolumeAmount1).to.equal(
+        2000000000000000000n,
+      ); // abs(amount1) = abs(-2 tokens) = 2 tokens
       expect(result.userSwapDiff.totalSwapVolumeUSD).to.equal(
         1000000000000000000n,
-      ); // 5 USD in 18 decimals
+      ); // 1 USD in 18 decimals
     });
 
     it("should calculate correct volume values for swap event", async () => {
@@ -135,6 +141,12 @@ describe("CLPoolSwapLogic", () => {
 
       // User swap diff should track individual user activity with exact values
       expect(result.userSwapDiff.numberOfSwaps).to.equal(1n);
+      expect(result.userSwapDiff.totalSwapVolumeAmount0).to.equal(
+        1000000000000000000n,
+      ); // abs(amount0) = abs(1 token) = 1 token
+      expect(result.userSwapDiff.totalSwapVolumeAmount1).to.equal(
+        2000000000000000000n,
+      ); // abs(amount1) = abs(-2 tokens) = 2 tokens
       expect(result.userSwapDiff.totalSwapVolumeUSD).to.equal(
         1000000000000000000n,
       );
@@ -179,6 +191,8 @@ describe("CLPoolSwapLogic", () => {
       expect(result.liquidityPoolDiff.totalVolume0).to.equal(0n);
       expect(result.liquidityPoolDiff.totalVolume1).to.equal(0n);
       expect(result.liquidityPoolDiff.totalVolumeUSD).to.equal(0n);
+      expect(result.userSwapDiff.totalSwapVolumeAmount0).to.equal(0n); // abs(0) = 0
+      expect(result.userSwapDiff.totalSwapVolumeAmount1).to.equal(0n); // abs(0) = 0
       expect(result.userSwapDiff.totalSwapVolumeUSD).to.equal(0n);
     });
 
@@ -295,6 +309,13 @@ describe("CLPoolSwapLogic", () => {
       // Reserves should be added (delta is positive)
       expect(result.liquidityPoolDiff.reserve0).to.equal(5000000000000000000n);
       expect(result.liquidityPoolDiff.reserve1).to.equal(3000000000000000000n);
+      // User swap diff should use absolute values
+      expect(result.userSwapDiff.totalSwapVolumeAmount0).to.equal(
+        5000000000000000000n,
+      ); // abs(5 tokens) = 5 tokens
+      expect(result.userSwapDiff.totalSwapVolumeAmount1).to.equal(
+        3000000000000000000n,
+      ); // abs(3 tokens) = 3 tokens
     });
 
     it("should calculate reserves correctly with negative amounts", async () => {
@@ -325,6 +346,13 @@ describe("CLPoolSwapLogic", () => {
       expect(result.liquidityPoolDiff.totalVolume1).to.equal(
         3000000000000000000n,
       );
+      // User swap diff should also use absolute values
+      expect(result.userSwapDiff.totalSwapVolumeAmount0).to.equal(
+        5000000000000000000n,
+      ); // abs(-5 tokens) = 5 tokens
+      expect(result.userSwapDiff.totalSwapVolumeAmount1).to.equal(
+        3000000000000000000n,
+      ); // abs(-3 tokens) = 3 tokens
     });
 
     it("should calculate liquidity delta correctly when liquidity increases", async () => {

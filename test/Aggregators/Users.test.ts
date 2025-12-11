@@ -198,6 +198,8 @@ describe("UserStatsPerPool Aggregator", () => {
       const diff = {
         numberOfSwaps: 1n,
         totalSwapVolumeUSD: 5000n,
+        totalSwapVolumeAmount0: 1000n,
+        totalSwapVolumeAmount1: 2000n,
       };
 
       const result = await updateUserStatsPerPool(
@@ -209,7 +211,79 @@ describe("UserStatsPerPool Aggregator", () => {
 
       expect(result.numberOfSwaps).to.equal(1n);
       expect(result.totalSwapVolumeUSD).to.equal(5000n);
+      expect(result.totalSwapVolumeAmount0).to.equal(1000n);
+      expect(result.totalSwapVolumeAmount1).to.equal(2000n);
       expect(result.lastActivityTimestamp).to.deep.equal(mockTimestamp);
+    });
+
+    it("should aggregate multiple swaps correctly", async () => {
+      let savedUserStats: UserStatsPerPool | undefined;
+      Object.assign(mockContext.UserStatsPerPool, {
+        set: async (userStats: UserStatsPerPool) => {
+          savedUserStats = userStats;
+        },
+      });
+
+      let userStats = createUserStatsPerPoolEntity(
+        mockUserAddress,
+        mockPoolAddress,
+        mockChainId,
+        mockTimestamp,
+      );
+
+      // First swap: amount0 = 1000, amount1 = -2000
+      userStats = await updateUserStatsPerPool(
+        {
+          numberOfSwaps: 1n,
+          totalSwapVolumeUSD: 5000n,
+          totalSwapVolumeAmount0: 1000n, // abs(1000)
+          totalSwapVolumeAmount1: 2000n, // abs(-2000)
+        },
+        userStats,
+        mockTimestamp,
+        mockContext,
+      );
+
+      expect(userStats.numberOfSwaps).to.equal(1n);
+      expect(userStats.totalSwapVolumeAmount0).to.equal(1000n);
+      expect(userStats.totalSwapVolumeAmount1).to.equal(2000n);
+      expect(userStats.totalSwapVolumeUSD).to.equal(5000n);
+
+      // Second swap: amount0 = -500, amount1 = 3000
+      userStats = await updateUserStatsPerPool(
+        {
+          numberOfSwaps: 1n,
+          totalSwapVolumeUSD: 8000n,
+          totalSwapVolumeAmount0: 500n, // abs(-500)
+          totalSwapVolumeAmount1: 3000n, // abs(3000)
+        },
+        userStats,
+        mockTimestamp,
+        mockContext,
+      );
+
+      expect(userStats.numberOfSwaps).to.equal(2n);
+      expect(userStats.totalSwapVolumeAmount0).to.equal(1500n); // 1000 + 500
+      expect(userStats.totalSwapVolumeAmount1).to.equal(5000n); // 2000 + 3000
+      expect(userStats.totalSwapVolumeUSD).to.equal(13000n); // 5000 + 8000
+
+      // Third swap: amount0 = -2500, amount1 = -1500
+      userStats = await updateUserStatsPerPool(
+        {
+          numberOfSwaps: 1n,
+          totalSwapVolumeUSD: 12000n,
+          totalSwapVolumeAmount0: 2500n, // abs(-2500)
+          totalSwapVolumeAmount1: 1500n, // abs(-1500)
+        },
+        userStats,
+        mockTimestamp,
+        mockContext,
+      );
+
+      expect(userStats.numberOfSwaps).to.equal(3n);
+      expect(userStats.totalSwapVolumeAmount0).to.equal(4000n); // 1000 + 500 + 2500
+      expect(userStats.totalSwapVolumeAmount1).to.equal(6500n); // 2000 + 3000 + 1500
+      expect(userStats.totalSwapVolumeUSD).to.equal(25000n); // 5000 + 8000 + 12000
     });
 
     it("should handle flash loan activity correctly", async () => {
@@ -301,6 +375,8 @@ describe("UserStatsPerPool Aggregator", () => {
         totalFeesContributed0: 500n,
         totalFeesContributed1: 300n,
         numberOfSwaps: 5n,
+        totalSwapVolumeAmount0: 0n,
+        totalSwapVolumeAmount1: 0n,
         totalSwapVolumeUSD: 10000n,
         numberOfFlashLoans: 2n,
         totalFlashLoanVolumeUSD: 20000n,
@@ -378,6 +454,8 @@ describe("UserStatsPerPool Aggregator", () => {
         totalFeesContributed0: 500n,
         totalFeesContributed1: 300n,
         numberOfSwaps: 5n,
+        totalSwapVolumeAmount0: 0n,
+        totalSwapVolumeAmount1: 0n,
         totalSwapVolumeUSD: 10000n,
         numberOfFlashLoans: 2n,
         totalFlashLoanVolumeUSD: 20000n,

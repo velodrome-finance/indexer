@@ -12,6 +12,8 @@ export interface CLPoolSwapResult {
   userSwapDiff: {
     numberOfSwaps: bigint;
     totalSwapVolumeUSD: bigint;
+    totalSwapVolumeAmount0: bigint;
+    totalSwapVolumeAmount1: bigint;
   };
 }
 
@@ -76,6 +78,8 @@ export async function processCLPoolSwap(
   const userSwapDiff = {
     numberOfSwaps: 1n, // Each swap event represents 1 swap
     totalSwapVolumeUSD: swapData.volumeInUSD,
+    totalSwapVolumeAmount0: abs(event.params.amount0),
+    totalSwapVolumeAmount1: abs(event.params.amount1),
   };
 
   return {

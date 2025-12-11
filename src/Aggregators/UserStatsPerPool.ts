@@ -65,6 +65,8 @@ export function createUserStatsPerPoolEntity(
     // Swap metrics
     numberOfSwaps: 0n,
     totalSwapVolumeUSD: 0n,
+    totalSwapVolumeAmount0: 0n,
+    totalSwapVolumeAmount1: 0n,
 
     // Flash swap metrics
     numberOfFlashLoans: 0n,
@@ -151,6 +153,14 @@ export async function updateUserStatsPerPool(
       diff.numberOfSwaps !== undefined
         ? current.numberOfSwaps + diff.numberOfSwaps
         : current.numberOfSwaps,
+    totalSwapVolumeAmount0:
+      diff.totalSwapVolumeAmount0 !== undefined
+        ? current.totalSwapVolumeAmount0 + diff.totalSwapVolumeAmount0
+        : current.totalSwapVolumeAmount0,
+    totalSwapVolumeAmount1:
+      diff.totalSwapVolumeAmount1 !== undefined
+        ? current.totalSwapVolumeAmount1 + diff.totalSwapVolumeAmount1
+        : current.totalSwapVolumeAmount1,
     totalSwapVolumeUSD:
       diff.totalSwapVolumeUSD !== undefined
         ? current.totalSwapVolumeUSD + diff.totalSwapVolumeUSD

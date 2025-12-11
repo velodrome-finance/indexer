@@ -162,6 +162,8 @@ export function setupCommon() {
 
     // Swap metrics
     numberOfSwaps: 0n,
+    totalSwapVolumeAmount0: 0n,
+    totalSwapVolumeAmount1: 0n,
     totalSwapVolumeUSD: 0n,
 
     // Flash swap metrics

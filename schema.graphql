@@ -171,6 +171,8 @@ type UserStatsPerPool {
 
   # Swap metrics
   numberOfSwaps: BigInt! @config(precision: 76) # number of swaps in this pool
+  totalSwapVolumeAmount0: BigInt! @config(precision: 76) # swap volume denominated in token0 in this pool
+  totalSwapVolumeAmount1: BigInt! @config(precision: 76) # swap volume denominated in token1 in this pool
   totalSwapVolumeUSD: BigInt! @config(precision: 76) # swap volume in USD in this pool
 
   # Flash swap metrics

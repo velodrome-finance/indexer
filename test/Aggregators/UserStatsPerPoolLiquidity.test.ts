@@ -22,6 +22,8 @@ describe("UserStatsPerPool Liquidity Logic", () => {
     totalFeesContributed0: 0n,
     totalFeesContributed1: 0n,
     numberOfSwaps: 0n,
+    totalSwapVolumeAmount0: 0n,
+    totalSwapVolumeAmount1: 0n,
     totalSwapVolumeUSD: 0n,
     numberOfFlashLoans: 0n,
     totalFlashLoanVolumeUSD: 0n,
