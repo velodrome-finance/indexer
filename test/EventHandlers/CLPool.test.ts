@@ -6,7 +6,11 @@ import type {
   Token,
   UserStatsPerPool,
 } from "../../generated/src/Types.gen";
-import { toChecksumAddress } from "../../src/Constants";
+import {
+  OUSDT_ADDRESS,
+  TokenIdByChain,
+  toChecksumAddress,
+} from "../../src/Constants";
 import * as CLPoolBurnLogic from "../../src/EventHandlers/CLPool/CLPoolBurnLogic";
 import * as CLPoolCollectFeesLogic from "../../src/EventHandlers/CLPool/CLPoolCollectFeesLogic";
 import * as CLPoolCollectLogic from "../../src/EventHandlers/CLPool/CLPoolCollectLogic";
@@ -110,12 +114,10 @@ describe("CLPool Events", () => {
             totalVolume0: 1000n,
             totalVolume1: 500n,
             totalVolumeUSD: 1500n,
-            lastUpdatedTimestamp: new Date(1000000 * 1000),
           },
           userSwapDiff: {
             numberOfSwaps: 1n,
             totalSwapVolumeUSD: 1500n,
-            timestamp: new Date(1000000 * 1000),
           },
         });
 
@@ -167,6 +169,179 @@ describe("CLPool Events", () => {
       // Should not throw, but processStub shouldn't be called
       expect(processStub.called).to.be.false;
     });
+
+    it("should create oUSDTSwap entity when OUSDT token is involved", async () => {
+      // Create a pool with OUSDT as token0
+      const ousdtToken: Token = {
+        ...mockToken0Data,
+        address: OUSDT_ADDRESS,
+        id: TokenIdByChain(OUSDT_ADDRESS, chainId),
+      };
+
+      const ousdtPool: LiquidityPoolAggregator = {
+        ...liquidityPool,
+        token0_address: OUSDT_ADDRESS,
+        token0_id: ousdtToken.id,
+      };
+
+      let ousdtDb = MockDb.createMockDb();
+      ousdtDb = ousdtDb.entities.LiquidityPoolAggregator.set(ousdtPool);
+      ousdtDb = ousdtDb.entities.Token.set(ousdtToken);
+      ousdtDb = ousdtDb.entities.Token.set(mockToken1Data as Token);
+      ousdtDb = ousdtDb.entities.UserStatsPerPool.set(userStats);
+
+      processStub.resetHistory();
+      const resultDB = await CLPool.Swap.processEvent({
+        event: mockEvent,
+        mockDb: ousdtDb,
+      });
+
+      // Verify oUSDTSwap entity was created with OUSDT as token0
+      const ousdtSwaps = resultDB.entities.oUSDTSwaps.getAll();
+      expect(ousdtSwaps.length).to.be.greaterThan(0);
+      const swapEntity1 = ousdtSwaps[0];
+      expect(swapEntity1.transactionHash).to.equal(mockEvent.transaction.hash);
+      // With amount0 > 0, token0 (OUSDT) goes in, token1 goes out
+      expect(swapEntity1.tokenInPool).to.equal(OUSDT_ADDRESS);
+      expect(swapEntity1.tokenOutPool).to.equal(mockToken1Data.address);
+      expect(swapEntity1.amountIn).to.equal(1000n); // amount0 = 1000n
+      expect(swapEntity1.amountOut).to.equal(500n); // amount1 = -500n, so amount1Out = 500n
+
+      // Test with OUSDT as token1 as well
+      const ousdtToken1Pool: LiquidityPoolAggregator = {
+        ...liquidityPool,
+        token1_address: OUSDT_ADDRESS,
+        token1_id: ousdtToken.id,
+      };
+
+      let ousdtDb2 = MockDb.createMockDb();
+      ousdtDb2 = ousdtDb2.entities.LiquidityPoolAggregator.set(ousdtToken1Pool);
+      ousdtDb2 = ousdtDb2.entities.Token.set(mockToken0Data as Token);
+      ousdtDb2 = ousdtDb2.entities.Token.set(ousdtToken);
+      ousdtDb2 = ousdtDb2.entities.UserStatsPerPool.set(userStats);
+
+      const resultDB2 = await CLPool.Swap.processEvent({
+        event: mockEvent,
+        mockDb: ousdtDb2,
+      });
+
+      // Verify oUSDTSwap entity was created with OUSDT as token1
+      const ousdtSwaps2 = resultDB2.entities.oUSDTSwaps.getAll();
+      expect(ousdtSwaps2.length).to.be.greaterThan(0);
+      const swapEntity2 = ousdtSwaps2[0];
+      expect(swapEntity2.transactionHash).to.equal(mockEvent.transaction.hash);
+      // With amount0 > 0, token0 goes in, token1 (OUSDT) goes out
+      expect(swapEntity2.tokenInPool).to.equal(mockToken0Data.address);
+      expect(swapEntity2.tokenOutPool).to.equal(OUSDT_ADDRESS);
+      expect(swapEntity2.amountIn).to.equal(1000n); // amount0 = 1000n
+      expect(swapEntity2.amountOut).to.equal(500n); // amount1 = -500n, so amount1Out = 500n
+    });
+
+    it("should handle all amount conversion branches for oUSDTSwap", async () => {
+      // Test with positive amount0 (amount0In path)
+      const positiveAmount0Event = CLPool.Swap.createMockEvent({
+        sender: userAddress,
+        recipient: "0x3333333333333333333333333333333333333333",
+        amount0: 1000n, // Positive
+        amount1: -500n, // Negative
+        sqrtPriceX96: 1000000n,
+        liquidity: 2000000n,
+        tick: 100n,
+        mockEventData: {
+          srcAddress: poolAddress,
+          chainId: chainId,
+          block: {
+            number: 1000000,
+            timestamp: 1000000,
+            hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+          },
+          transaction: {
+            hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+          },
+          logIndex: 1,
+        },
+      });
+
+      // Create pool with OUSDT as token0
+      const ousdtToken: Token = {
+        ...mockToken0Data,
+        address: OUSDT_ADDRESS,
+        id: TokenIdByChain(OUSDT_ADDRESS, chainId),
+      };
+
+      const ousdtPool: LiquidityPoolAggregator = {
+        ...liquidityPool,
+        token0_address: OUSDT_ADDRESS,
+        token0_id: ousdtToken.id,
+      };
+
+      let ousdtDb = MockDb.createMockDb();
+      ousdtDb = ousdtDb.entities.LiquidityPoolAggregator.set(ousdtPool);
+      ousdtDb = ousdtDb.entities.Token.set(ousdtToken);
+      ousdtDb = ousdtDb.entities.Token.set(mockToken1Data as Token);
+      ousdtDb = ousdtDb.entities.UserStatsPerPool.set(userStats);
+
+      processStub.resetHistory();
+      const resultDB = await CLPool.Swap.processEvent({
+        event: positiveAmount0Event,
+        mockDb: ousdtDb,
+      });
+
+      const ousdtSwaps = resultDB.entities.oUSDTSwaps.getAll();
+      expect(ousdtSwaps.length).to.be.greaterThan(0);
+      // Verify entity was created with correct conversion (amount0 > 0 means token0 in, token1 out)
+      const swapEntity = ousdtSwaps[0];
+      expect(swapEntity).to.not.be.undefined;
+      expect(swapEntity.transactionHash).to.equal(
+        positiveAmount0Event.transaction.hash,
+      );
+      expect(swapEntity.tokenInPool).to.equal(OUSDT_ADDRESS); // token0 (OUSDT) is going in
+      expect(swapEntity.tokenOutPool).to.equal(mockToken1Data.address); // token1 is going out
+      expect(swapEntity.amountIn).to.equal(1000n); // amount0In = 1000n
+      expect(swapEntity.amountOut).to.equal(500n); // amount1Out = 500n
+
+      // Test with negative amount0 (amount0Out path)
+      const negativeAmount0Event = CLPool.Swap.createMockEvent({
+        sender: userAddress,
+        recipient: "0x3333333333333333333333333333333333333333",
+        amount0: -1000n, // Negative
+        amount1: 500n, // Positive
+        sqrtPriceX96: 1000000n,
+        liquidity: 2000000n,
+        tick: 100n,
+        mockEventData: {
+          srcAddress: poolAddress,
+          chainId: chainId,
+          block: {
+            number: 1000000,
+            timestamp: 1000000,
+            hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+          },
+          transaction: {
+            hash: "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+          },
+          logIndex: 1,
+        },
+      });
+
+      const resultDB2 = await CLPool.Swap.processEvent({
+        event: negativeAmount0Event,
+        mockDb: ousdtDb,
+      });
+
+      const ousdtSwaps2 = resultDB2.entities.oUSDTSwaps.getAll();
+      expect(ousdtSwaps2.length).to.be.greaterThan(0);
+      // Verify entity was created with correct conversion (amount1 > 0 means token1 in, token0 out)
+      const swapEntity2 = ousdtSwaps2[0];
+      expect(swapEntity2).to.not.be.undefined;
+      expect(swapEntity2.transactionHash).to.equal(
+        negativeAmount0Event.transaction.hash,
+      );
+      expect(swapEntity2.tokenInPool).to.equal(mockToken1Data.address); // token1 is going in
+      expect(swapEntity2.tokenOutPool).to.equal(OUSDT_ADDRESS); // token0 (OUSDT) is going out
+      expect(swapEntity2.amountIn).to.equal(500n); // amount1In = 500n
+      expect(swapEntity2.amountOut).to.equal(1000n); // amount0Out = 1000n
+    });
   });
 
   describe("Mint Event", () => {
@@ -174,22 +349,18 @@ describe("CLPool Events", () => {
     let processStub: sinon.SinonStub;
 
     beforeEach(() => {
-      processStub = sandbox
-        .stub(CLPoolMintLogic, "processCLPoolMint")
-        .resolves({
-          liquidityPoolDiff: {
-            reserve0: 1000n,
-            reserve1: 1000n,
-            totalLiquidityUSD: 2000n,
-            lastUpdatedTimestamp: new Date(1000000 * 1000),
-          },
-          userLiquidityDiff: {
-            netLiquidityAddedUSD: 1000n,
-            currentLiquidityToken0: 500n,
-            currentLiquidityToken1: 500n,
-            timestamp: new Date(1000000 * 1000),
-          },
-        });
+      processStub = sandbox.stub(CLPoolMintLogic, "processCLPoolMint").returns({
+        liquidityPoolDiff: {
+          reserve0: 1000n,
+          reserve1: 1000n,
+          totalLiquidityUSD: 2000n,
+        },
+        userLiquidityDiff: {
+          currentLiquidityUSD: 1000n,
+          currentLiquidityToken0: 500n,
+          currentLiquidityToken1: 500n,
+        },
+      });
 
       mockEvent = CLPool.Mint.createMockEvent({
         owner: userAddress,
@@ -229,6 +400,20 @@ describe("CLPool Events", () => {
       );
       expect(positions.length).to.be.greaterThan(0);
     });
+
+    it("should return early if pool data not found", async () => {
+      const emptyDb = MockDb.createMockDb();
+      await CLPool.Mint.processEvent({
+        event: mockEvent,
+        mockDb: emptyDb,
+      });
+
+      // Should not throw, handler should return early
+      expect(processStub.called).to.be.false;
+      const updatedPool =
+        emptyDb.entities.LiquidityPoolAggregator.get(poolAddress);
+      expect(updatedPool).to.be.undefined;
+    });
   });
 
   describe("Burn Event", () => {
@@ -236,22 +421,18 @@ describe("CLPool Events", () => {
     let processStub: sinon.SinonStub;
 
     beforeEach(() => {
-      processStub = sandbox
-        .stub(CLPoolBurnLogic, "processCLPoolBurn")
-        .resolves({
-          liquidityPoolDiff: {
-            reserve0: 500n,
-            reserve1: 500n,
-            totalLiquidityUSD: 1000n,
-            lastUpdatedTimestamp: new Date(1000000 * 1000),
-          },
-          userLiquidityDiff: {
-            netLiquidityAddedUSD: -500n,
-            currentLiquidityToken0: 250n,
-            currentLiquidityToken1: 250n,
-            timestamp: new Date(1000000 * 1000),
-          },
-        });
+      processStub = sandbox.stub(CLPoolBurnLogic, "processCLPoolBurn").returns({
+        liquidityPoolDiff: {
+          reserve0: -500n, // Negative because burning decreases reserves
+          reserve1: -500n, // Negative because burning decreases reserves
+          totalLiquidityUSD: -1000n, // Negative because reserves decrease
+        },
+        userLiquidityDiff: {
+          currentLiquidityUSD: -500n,
+          currentLiquidityToken0: -250n, // Negative amount of token0 removed
+          currentLiquidityToken1: -250n, // Negative amount of token1 removed
+        },
+      });
 
       mockEvent = CLPool.Burn.createMockEvent({
         owner: userAddress,
@@ -286,6 +467,20 @@ describe("CLPool Events", () => {
         resultDB.entities.LiquidityPoolAggregator.get(poolAddress);
       expect(updatedPool).to.not.be.undefined;
     });
+
+    it("should return early if pool data not found", async () => {
+      const emptyDb = MockDb.createMockDb();
+      await CLPool.Burn.processEvent({
+        event: mockEvent,
+        mockDb: emptyDb,
+      });
+
+      // Should not throw, handler should return early
+      expect(processStub.called).to.be.false;
+      const updatedPool =
+        emptyDb.entities.LiquidityPoolAggregator.get(poolAddress);
+      expect(updatedPool).to.be.undefined;
+    });
   });
 
   describe("Collect Event", () => {
@@ -295,18 +490,18 @@ describe("CLPool Events", () => {
     beforeEach(() => {
       processStub = sandbox
         .stub(CLPoolCollectLogic, "processCLPoolCollect")
-        .resolves({
+        .returns({
           liquidityPoolDiff: {
-            reserve0: 1000n,
-            reserve1: 1000n,
-            totalLiquidityUSD: 2000n,
-            lastUpdatedTimestamp: new Date(1000000 * 1000),
+            // In CL pools, Collect events do NOT affect reserves - fees were never part of reserves
+            // Track unstaked fees (from Collect events - LPs that didn't stake)
+            totalUnstakedFeesCollected0: 100n,
+            totalUnstakedFeesCollected1: 200n,
+            totalUnstakedFeesCollectedUSD: 300n,
           },
           userLiquidityDiff: {
             totalFeesContributed0: 100n,
             totalFeesContributed1: 200n,
             totalFeesContributedUSD: 300n,
-            timestamp: new Date(1000000 * 1000),
           },
         });
 
@@ -343,6 +538,20 @@ describe("CLPool Events", () => {
         resultDB.entities.LiquidityPoolAggregator.get(poolAddress);
       expect(updatedPool).to.not.be.undefined;
     });
+
+    it("should return early if pool data not found", async () => {
+      const emptyDb = MockDb.createMockDb();
+      await CLPool.Collect.processEvent({
+        event: mockEvent,
+        mockDb: emptyDb,
+      });
+
+      // Should not throw, handler should return early
+      expect(processStub.called).to.be.false;
+      const updatedPool =
+        emptyDb.entities.LiquidityPoolAggregator.get(poolAddress);
+      expect(updatedPool).to.be.undefined;
+    });
   });
 
   describe("CollectFees Event", () => {
@@ -354,14 +563,17 @@ describe("CLPool Events", () => {
         .stub(CLPoolCollectFeesLogic, "processCLPoolCollectFees")
         .returns({
           liquidityPoolDiff: {
-            reserve0: 1000n,
-            reserve1: 1000n,
-            totalLiquidityUSD: 2000n,
-            totalFees0: 50n,
-            totalFees1: 75n,
-            totalFeesUSD: 125n,
+            // In CL pools, CollectFees events do NOT affect reserves - fees were never part of reserves
+            // Track staked fees (from CollectFees events - LPs that staked in gauge)
+            totalStakedFeesCollected0: 50n,
+            totalStakedFeesCollected1: 75n,
+            totalStakedFeesCollectedUSD: 125n,
             totalFeesUSDWhitelisted: 125n,
-            lastUpdatedTimestamp: new Date(1000000 * 1000),
+          },
+          userDiff: {
+            totalFeesContributedUSD: 125n,
+            totalFeesContributed0: 50n,
+            totalFeesContributed1: 75n,
           },
         });
 
@@ -394,6 +606,20 @@ describe("CLPool Events", () => {
       const updatedPool =
         resultDB.entities.LiquidityPoolAggregator.get(poolAddress);
       expect(updatedPool).to.not.be.undefined;
+    });
+
+    it("should return early if pool data not found", async () => {
+      const emptyDb = MockDb.createMockDb();
+      await CLPool.CollectFees.processEvent({
+        event: mockEvent,
+        mockDb: emptyDb,
+      });
+
+      // Should not throw, handler should return early
+      expect(processStub.called).to.be.false;
+      const updatedPool =
+        emptyDb.entities.LiquidityPoolAggregator.get(poolAddress);
+      expect(updatedPool).to.be.undefined;
     });
 
     it("should refresh token prices when processing collect fees event", async () => {
@@ -456,9 +682,14 @@ describe("CLPool Events", () => {
         const updatedPool =
           resultDB.entities.LiquidityPoolAggregator.get(poolAddress);
         expect(updatedPool).to.not.be.undefined;
-        expect(updatedPool?.totalFeesUSD).to.not.be.undefined;
-        if (updatedPool?.totalFeesUSD !== undefined) {
-          expect(updatedPool.totalFeesUSD >= 0n).to.be.true;
+        // Verify staked and unstaked fees are tracked separately
+        expect(updatedPool?.totalStakedFeesCollectedUSD).to.not.be.undefined;
+        expect(updatedPool?.totalUnstakedFeesCollectedUSD).to.not.be.undefined;
+        if (updatedPool?.totalStakedFeesCollectedUSD !== undefined) {
+          expect(updatedPool.totalStakedFeesCollectedUSD >= 0n).to.be.true;
+        }
+        if (updatedPool?.totalUnstakedFeesCollectedUSD !== undefined) {
+          expect(updatedPool.totalUnstakedFeesCollectedUSD >= 0n).to.be.true;
         }
       }
     });
@@ -471,19 +702,17 @@ describe("CLPool Events", () => {
     beforeEach(() => {
       processStub = sandbox
         .stub(CLPoolFlashLogic, "processCLPoolFlash")
-        .resolves({
+        .returns({
           liquidityPoolDiff: {
             totalFlashLoanFees0: 5n,
             totalFlashLoanFees1: 0n,
             totalFlashLoanFeesUSD: 5n,
             totalFlashLoanVolumeUSD: 1000n,
             numberOfFlashLoans: 1n,
-            lastUpdatedTimestamp: new Date(1000000 * 1000),
           },
           userFlashLoanDiff: {
             numberOfFlashLoans: 1n,
             totalFlashLoanVolumeUSD: 1000n,
-            timestamp: new Date(1000000 * 1000),
           },
         });
 
@@ -521,21 +750,33 @@ describe("CLPool Events", () => {
       expect(updatedPool).to.not.be.undefined;
     });
 
+    it("should return early if pool data not found", async () => {
+      const emptyDb = MockDb.createMockDb();
+      await CLPool.Flash.processEvent({
+        event: mockEvent,
+        mockDb: emptyDb,
+      });
+
+      // Should not throw, handler should return early
+      expect(processStub.called).to.be.false;
+      const updatedPool =
+        emptyDb.entities.LiquidityPoolAggregator.get(poolAddress);
+      expect(updatedPool).to.be.undefined;
+    });
+
     it("should not update user stats if flash loan volume is 0", async () => {
       processStub.resetHistory();
-      processStub.resolves({
+      processStub.returns({
         liquidityPoolDiff: {
           totalFlashLoanFees0: 0n,
           totalFlashLoanFees1: 0n,
           totalFlashLoanFeesUSD: 0n,
           numberOfFlashLoans: 1n,
           totalFlashLoanVolumeUSD: 0n,
-          lastUpdatedTimestamp: new Date(1000000 * 1000),
         },
         userFlashLoanDiff: {
           numberOfFlashLoans: 1n,
           totalFlashLoanVolumeUSD: 0n,
-          timestamp: new Date(1000000 * 1000),
         },
       });
 
@@ -584,6 +825,19 @@ describe("CLPool Events", () => {
       expect(updatedPool).to.not.be.undefined;
       expect(updatedPool?.observationCardinalityNext).to.equal(100n);
     });
+
+    it("should return early if pool data not found", async () => {
+      const emptyDb = MockDb.createMockDb();
+      await CLPool.IncreaseObservationCardinalityNext.processEvent({
+        event: mockEvent,
+        mockDb: emptyDb,
+      });
+
+      // Should not throw, handler should return early
+      const updatedPool =
+        emptyDb.entities.LiquidityPoolAggregator.get(poolAddress);
+      expect(updatedPool).to.be.undefined;
+    });
   });
 
   describe("SetFeeProtocol Event", () => {
@@ -619,6 +873,19 @@ describe("CLPool Events", () => {
       expect(updatedPool).to.not.be.undefined;
       expect(updatedPool?.feeProtocol0).to.equal(10n);
       expect(updatedPool?.feeProtocol1).to.equal(20n);
+    });
+
+    it("should return early if pool data not found", async () => {
+      const emptyDb = MockDb.createMockDb();
+      await CLPool.SetFeeProtocol.processEvent({
+        event: mockEvent,
+        mockDb: emptyDb,
+      });
+
+      // Should not throw, handler should return early
+      const updatedPool =
+        emptyDb.entities.LiquidityPoolAggregator.get(poolAddress);
+      expect(updatedPool).to.be.undefined;
     });
   });
 });

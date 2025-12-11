@@ -3,7 +3,6 @@ import type {
   CLPool_Collect_event,
   LiquidityPoolAggregator,
   Token,
-  handlerContext,
 } from "generated";
 import { processCLPoolCollect } from "../../../src/EventHandlers/CLPool/CLPoolCollectLogic";
 import { setupCommon } from "../Pool/common";
@@ -49,6 +48,12 @@ describe("CLPoolCollectLogic", () => {
     gaugeIsAlive: false,
     token0IsWhitelisted: false,
     token1IsWhitelisted: false,
+    totalUnstakedFeesCollected0: 0n,
+    totalUnstakedFeesCollected1: 0n,
+    totalUnstakedFeesCollectedUSD: 0n,
+    totalStakedFeesCollected0: 0n,
+    totalStakedFeesCollected1: 0n,
+    totalStakedFeesCollectedUSD: 0n,
     lastUpdatedTimestamp: new Date(1000000 * 1000),
     lastSnapshotTimestamp: new Date(1000000 * 1000),
   };
@@ -75,36 +80,20 @@ describe("CLPoolCollectLogic", () => {
     lastUpdatedTimestamp: new Date(1000000 * 1000),
   };
 
-  const mockContext: handlerContext = {
-    log: {
-      error: () => {},
-      warn: () => {},
-      info: () => {},
-    },
-  } as unknown as handlerContext;
-
   describe("processCLPoolCollect", () => {
-    it("should process collect event successfully with valid data", async () => {
-      const result = await processCLPoolCollect(
-        mockEvent,
-        mockToken0,
-        mockToken1,
-        mockContext,
-      );
+    it("should process collect event successfully with valid data", () => {
+      const result = processCLPoolCollect(mockEvent, mockToken0, mockToken1);
 
-      // Check liquidity pool diff with exact values
-      expect(result.liquidityPoolDiff.reserve0).to.equal(1000000000000000000n); // amount0
-      expect(result.liquidityPoolDiff.reserve1).to.equal(2000000000000000000n); // amount1
-
-      // Calculate exact totalLiquidityUSD: (1 * 1 USD) + (2 * 2 USD) = 1 + 4 = 5 USD
-      expect(result.liquidityPoolDiff.totalLiquidityUSD).to.equal(
+      // Check unstaked fees in liquidity pool diff
+      expect(result.liquidityPoolDiff.totalUnstakedFeesCollected0).to.equal(
+        1000000000000000000n,
+      ); // amount0
+      expect(result.liquidityPoolDiff.totalUnstakedFeesCollected1).to.equal(
+        2000000000000000000n,
+      ); // amount1
+      expect(result.liquidityPoolDiff.totalUnstakedFeesCollectedUSD).to.equal(
         5000000000000000000n,
       ); // 5 USD in 18 decimals
-
-      // Exact timestamp: 1000000 * 1000 = 1000000000ms
-      expect(result.liquidityPoolDiff.lastUpdatedTimestamp).to.deep.equal(
-        new Date(1000000000),
-      );
 
       // Check user fee contribution diff with exact values
       expect(result.userLiquidityDiff.totalFeesContributed0).to.equal(
@@ -116,23 +105,19 @@ describe("CLPoolCollectLogic", () => {
       expect(result.userLiquidityDiff.totalFeesContributedUSD).to.equal(
         5000000000000000000n,
       ); // 5 USD in 18 decimals
-      expect(result.userLiquidityDiff.timestamp).to.deep.equal(
-        new Date(1000000000),
-      );
     });
 
-    it("should calculate correct liquidity values for collect event", async () => {
-      const result = await processCLPoolCollect(
-        mockEvent,
-        mockToken0,
-        mockToken1,
-        mockContext,
-      );
+    it("should calculate correct liquidity values for collect event", () => {
+      const result = processCLPoolCollect(mockEvent, mockToken0, mockToken1);
 
-      // The liquidity pool diff should reflect the amounts being collected with exact values
-      expect(result.liquidityPoolDiff.reserve0).to.equal(1000000000000000000n); // amount0
-      expect(result.liquidityPoolDiff.reserve1).to.equal(2000000000000000000n); // amount1
-      expect(result.liquidityPoolDiff.totalLiquidityUSD).to.equal(
+      // Check unstaked fees tracking
+      expect(result.liquidityPoolDiff.totalUnstakedFeesCollected0).to.equal(
+        1000000000000000000n,
+      ); // amount0
+      expect(result.liquidityPoolDiff.totalUnstakedFeesCollected1).to.equal(
+        2000000000000000000n,
+      ); // amount1
+      expect(result.liquidityPoolDiff.totalUnstakedFeesCollectedUSD).to.equal(
         5000000000000000000n,
       ); // 5 USD in 18 decimals
 
@@ -148,24 +133,23 @@ describe("CLPoolCollectLogic", () => {
       ); // 5 USD in 18 decimals
     });
 
-    it("should handle different token decimals correctly", async () => {
+    it("should handle different token decimals correctly", () => {
       const tokenWithDifferentDecimals: Token = {
         ...mockToken0,
         decimals: 6n, // USDC-like token
       };
 
-      const result = await processCLPoolCollect(
+      const result = processCLPoolCollect(
         mockEvent,
         tokenWithDifferentDecimals,
         mockToken1,
-        mockContext,
       );
 
       expect(result.liquidityPoolDiff).to.not.be.undefined;
       expect(result.userLiquidityDiff).to.not.be.undefined;
     });
 
-    it("should handle zero amounts correctly", async () => {
+    it("should handle zero amounts correctly", () => {
       const eventWithZeroAmounts: CLPool_Collect_event = {
         ...mockEvent,
         params: {
@@ -175,18 +159,47 @@ describe("CLPoolCollectLogic", () => {
         },
       };
 
-      const result = await processCLPoolCollect(
+      const result = processCLPoolCollect(
         eventWithZeroAmounts,
         mockToken0,
         mockToken1,
-        mockContext,
       );
 
-      expect(result.liquidityPoolDiff.reserve0).to.equal(0n);
-      expect(result.liquidityPoolDiff.reserve1).to.equal(0n);
+      expect(result.liquidityPoolDiff.totalUnstakedFeesCollected0).to.equal(0n);
+      expect(result.liquidityPoolDiff.totalUnstakedFeesCollected1).to.equal(0n);
+      expect(result.liquidityPoolDiff.totalUnstakedFeesCollectedUSD).to.equal(
+        0n,
+      );
       expect(result.userLiquidityDiff.totalFeesContributed0).to.equal(0n);
       expect(result.userLiquidityDiff.totalFeesContributed1).to.equal(0n);
       expect(result.userLiquidityDiff.totalFeesContributedUSD).to.equal(0n);
+    });
+
+    it("should only track unstaked fees, not staked fees", () => {
+      const result = processCLPoolCollect(mockEvent, mockToken0, mockToken1);
+
+      // Collect events should only update unstaked fees
+      expect(result.liquidityPoolDiff.totalUnstakedFeesCollected0).to.equal(
+        1000000000000000000n,
+      );
+      expect(result.liquidityPoolDiff.totalUnstakedFeesCollected1).to.equal(
+        2000000000000000000n,
+      );
+      expect(result.liquidityPoolDiff.totalUnstakedFeesCollectedUSD).to.equal(
+        5000000000000000000n,
+      );
+
+      // Staked fees should not be present in the diff (they're undefined, not 0)
+      // The aggregator will handle the addition, but the diff only contains unstaked fees
+      expect(result.liquidityPoolDiff).to.not.have.property(
+        "totalStakedFeesCollected0",
+      );
+      expect(result.liquidityPoolDiff).to.not.have.property(
+        "totalStakedFeesCollected1",
+      );
+      expect(result.liquidityPoolDiff).to.not.have.property(
+        "totalStakedFeesCollectedUSD",
+      );
     });
   });
 });

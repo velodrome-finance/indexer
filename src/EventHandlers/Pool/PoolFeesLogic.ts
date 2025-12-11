@@ -35,10 +35,12 @@ export async function processPoolFees(
   );
 
   // Create liquidity pool diff
+  // For regular pools (non-CL), fees are tracked as unstaked fees
+  // since regular pools don't have the staked/unstaked distinction that CL pools have
   const liquidityPoolDiff: Partial<LiquidityPoolAggregator> = {
-    totalFees0: event.params.amount0,
-    totalFees1: event.params.amount1,
-    totalFeesUSD: feeData.totalFeesUSD,
+    totalUnstakedFeesCollected0: event.params.amount0,
+    totalUnstakedFeesCollected1: event.params.amount1,
+    totalUnstakedFeesCollectedUSD: feeData.totalFeesUSD,
     totalFeesUSDWhitelisted: feeData.totalFeesUSDWhitelisted,
     lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
   };

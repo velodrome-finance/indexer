@@ -2,15 +2,30 @@ import type {
   CLPool_CollectFees_event,
   LiquidityPoolAggregator,
   Token,
+  handlerContext,
 } from "generated";
-import { normalizeTokenAmountTo1e18 } from "../../Helpers";
-import { multiplyBase1e18 } from "../../Maths";
-import { updateCLPoolLiquidity } from "./updateCLPoolLiquidity";
+import { calculateTotalLiquidityUSD } from "../../Helpers";
+
+interface StakedFeesTotals {
+  totalStakedFeesCollected0: bigint;
+  totalStakedFeesCollected1: bigint;
+  totalStakedFeesCollectedUSD: bigint;
+  totalFeesUSDWhitelisted: bigint;
+}
+
+export interface CLPoolCollectFeesResult {
+  liquidityPoolDiff: StakedFeesTotals;
+  userDiff: {
+    totalFeesContributedUSD: bigint;
+    totalFeesContributed0: bigint;
+    totalFeesContributed1: bigint;
+  };
+}
 
 /**
- * Updates the fee-related metrics for a Concentrated Liquidity Pool.
+ * Calculates the staked fees collected from the gauge system.
  *
- * This function calculates the total fees collected in both tokens and USD value.
+ * This function calculates the fees collected in both tokens and USD value for staked LPs.
  * The USD values are computed by:
  * 1. Normalizing token amounts to 18 decimals
  * 2. Multiplying by the token's USD price
@@ -20,72 +35,63 @@ import { updateCLPoolLiquidity } from "./updateCLPoolLiquidity";
  * @param token0Instance - Token instance for token0, containing decimals and price data
  * @param token1Instance - Token instance for token1, containing decimals and price data
  *
- * @returns {Object} Updated fee metrics
- * @returns {bigint} .totalFees0 - Cumulative fees collected in token0
- * @returns {bigint} .totalFees1 - Cumulative fees collected in token1
- * @returns {bigint} .totalFeesUSD - Cumulative fees collected in USD
- * @returns {bigint} .totalFeesUSDWhitelisted - Cumulative fees collected in USD for whitelisted tokens
+ * @returns Staked fee totals across token0, token1, USD, and whitelisted USD
  */
-function updateCLPoolFees(
+function calculateStakedFees(
   liquidityPoolAggregator: LiquidityPoolAggregator,
   event: CLPool_CollectFees_event,
   token0Instance: Token | undefined,
   token1Instance: Token | undefined,
-) {
-  const tokenUpdateData = {
-    totalFees0: liquidityPoolAggregator.totalFees0,
-    totalFees1: liquidityPoolAggregator.totalFees1,
-    totalFeesUSD: liquidityPoolAggregator.totalFeesUSD,
-    totalFeesUSDWhitelisted: liquidityPoolAggregator.totalFeesUSDWhitelisted,
-  };
+): StakedFeesTotals {
+  // Calculate staked fees (from CollectFees events - LPs that staked in gauge)
+  const totalStakedFeesCollected0 =
+    liquidityPoolAggregator.totalStakedFeesCollected0 + event.params.amount0;
+  const totalStakedFeesCollected1 =
+    liquidityPoolAggregator.totalStakedFeesCollected1 + event.params.amount1;
 
-  tokenUpdateData.totalFees0 += event.params.amount0;
-  tokenUpdateData.totalFees1 += event.params.amount1;
+  // Calculate total staked fees in USD
+  const totalStakedFeesCollectedUSD =
+    liquidityPoolAggregator.totalStakedFeesCollectedUSD +
+    calculateTotalLiquidityUSD(
+      event.params.amount0,
+      event.params.amount1,
+      token0Instance,
+      token1Instance,
+    );
+
+  // Calculate whitelisted fees: add each token's fees individually if whitelisted
+  // Note: totalFeesUSDWhitelisted includes both staked and unstaked fees
+  let totalFeesUSDWhitelisted = liquidityPoolAggregator.totalFeesUSDWhitelisted;
 
   if (token0Instance) {
-    const normalizedFees0 = normalizeTokenAmountTo1e18(
+    const token0FeesUSD = calculateTotalLiquidityUSD(
       event.params.amount0,
-      Number(token0Instance.decimals),
+      0n,
+      token0Instance,
+      undefined,
     );
-
-    const token0fees = multiplyBase1e18(
-      normalizedFees0,
-      token0Instance.pricePerUSDNew,
-    );
-    tokenUpdateData.totalFeesUSD += token0fees;
-    tokenUpdateData.totalFeesUSDWhitelisted += token0Instance.isWhitelisted
-      ? token0fees
-      : 0n;
+    if (token0Instance.isWhitelisted) {
+      totalFeesUSDWhitelisted += token0FeesUSD;
+    }
   }
 
   if (token1Instance) {
-    const normalizedFees1 = normalizeTokenAmountTo1e18(
+    const token1FeesUSD = calculateTotalLiquidityUSD(
+      0n,
       event.params.amount1,
-      Number(token1Instance.decimals),
+      undefined,
+      token1Instance,
     );
-    const token1fees = multiplyBase1e18(
-      normalizedFees1,
-      token1Instance.pricePerUSDNew,
-    );
-    tokenUpdateData.totalFeesUSD += token1fees;
-    tokenUpdateData.totalFeesUSDWhitelisted += token1Instance.isWhitelisted
-      ? token1fees
-      : 0n;
+    if (token1Instance.isWhitelisted) {
+      totalFeesUSDWhitelisted += token1FeesUSD;
+    }
   }
 
-  return tokenUpdateData;
-}
-
-export interface CLPoolCollectFeesResult {
-  liquidityPoolDiff: {
-    reserve0: bigint;
-    reserve1: bigint;
-    totalLiquidityUSD: bigint;
-    totalFees0: bigint;
-    totalFees1: bigint;
-    totalFeesUSD: bigint;
-    totalFeesUSDWhitelisted: bigint;
-    lastUpdatedTimestamp: Date;
+  return {
+    totalStakedFeesCollected0,
+    totalStakedFeesCollected1,
+    totalStakedFeesCollectedUSD,
+    totalFeesUSDWhitelisted,
   };
 }
 
@@ -95,32 +101,31 @@ export function processCLPoolCollectFees(
   token0Instance: Token | undefined,
   token1Instance: Token | undefined,
 ): CLPoolCollectFeesResult {
-  const tokenUpdateData = updateCLPoolLiquidity(
+  const stakedFeesData = calculateStakedFees(
     liquidityPoolAggregator,
     event,
     token0Instance,
     token1Instance,
   );
 
-  const tokenUpdateFeesData = updateCLPoolFees(
-    liquidityPoolAggregator,
-    event,
-    token0Instance,
-    token1Instance,
-  );
-
+  // In CL pools, gauge fees accumulate in gaugeFees.token0/token1 and are NOT part of base reserves.
+  // When collected, they're transferred out but were never in the tracked reserves.
+  // Therefore, CollectFees events should NOT affect reserves - only track fees collected.
   const liquidityPoolDiff = {
-    reserve0: liquidityPoolAggregator.reserve0 - tokenUpdateData.reserve0,
-    reserve1: liquidityPoolAggregator.reserve1 - tokenUpdateData.reserve1,
-    totalLiquidityUSD: tokenUpdateData.subTotalLiquidityUSD,
-    totalFees0: tokenUpdateFeesData.totalFees0,
-    totalFees1: tokenUpdateFeesData.totalFees1,
-    totalFeesUSD: tokenUpdateFeesData.totalFeesUSD,
-    totalFeesUSDWhitelisted: tokenUpdateFeesData.totalFeesUSDWhitelisted,
-    lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
+    totalStakedFeesCollected0: stakedFeesData.totalStakedFeesCollected0,
+    totalStakedFeesCollected1: stakedFeesData.totalStakedFeesCollected1,
+    totalStakedFeesCollectedUSD: stakedFeesData.totalStakedFeesCollectedUSD,
+    totalFeesUSDWhitelisted: stakedFeesData.totalFeesUSDWhitelisted,
+  };
+
+  const userDiff = {
+    totalFeesContributedUSD: stakedFeesData.totalStakedFeesCollectedUSD,
+    totalFeesContributed0: event.params.amount0,
+    totalFeesContributed1: event.params.amount1,
   };
 
   return {
     liquidityPoolDiff,
+    userDiff,
   };
 }

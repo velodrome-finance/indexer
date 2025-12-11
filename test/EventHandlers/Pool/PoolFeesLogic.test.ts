@@ -49,10 +49,11 @@ describe("PoolFeesLogic", () => {
 
         // Check liquidity pool diff
         expect(result.liquidityPoolDiff).to.not.be.undefined;
-        expect(result.liquidityPoolDiff?.totalFees0).to.equal(
+        // For regular pools, fees are tracked as unstaked fees
+        expect(result.liquidityPoolDiff?.totalUnstakedFeesCollected0).to.equal(
           mockEvent.params.amount0,
         );
-        expect(result.liquidityPoolDiff?.totalFees1).to.equal(
+        expect(result.liquidityPoolDiff?.totalUnstakedFeesCollected1).to.equal(
           mockEvent.params.amount1,
         );
         expect(result.liquidityPoolDiff?.lastUpdatedTimestamp).to.deep.equal(
@@ -106,7 +107,9 @@ describe("PoolFeesLogic", () => {
         // The USD calculation is handled by updateFeeTokenData
         // We just verify that the result contains the expected structure
         expect(result.liquidityPoolDiff).to.not.be.undefined;
-        expect(result.liquidityPoolDiff?.totalFeesUSD).to.be.a("bigint");
+        expect(result.liquidityPoolDiff?.totalUnstakedFeesCollectedUSD).to.be.a(
+          "bigint",
+        );
         expect(result.liquidityPoolDiff?.totalFeesUSDWhitelisted).to.be.a(
           "bigint",
         );
