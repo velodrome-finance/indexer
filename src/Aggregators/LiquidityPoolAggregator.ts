@@ -1,6 +1,9 @@
+import { TokenIdByChain } from "../Constants";
 import { getCurrentAccumulatedFeeCL, getCurrentFee } from "../Effects/Index";
+import { generatePoolName } from "../Helpers";
 import { refreshTokenPrice } from "../PriceOracle";
 import type {
+  CLGaugeConfig,
   LiquidityPoolAggregator,
   LiquidityPoolAggregatorSnapshot,
   Token,
@@ -422,4 +425,130 @@ export async function findPoolByGaugeAddress(
     context,
     PoolAddressField.GAUGE_ADDRESS,
   );
+}
+
+/**
+ * Creates a new LiquidityPoolAggregator entity with default values
+ * @param params - Parameters for creating the pool entity
+ * @returns A new LiquidityPoolAggregator entity
+ */
+export function createLiquidityPoolAggregatorEntity(params: {
+  poolAddress: string;
+  chainId: number;
+  isCL: boolean;
+  isStable: boolean;
+  token0Address: string;
+  token1Address: string;
+  token0Symbol: string;
+  token1Symbol: string;
+  token0IsWhitelisted: boolean;
+  token1IsWhitelisted: boolean;
+  timestamp: Date;
+  tickSpacing?: number; // For CL pools
+  CLGaugeConfig?: CLGaugeConfig | null; // For CL pools
+}): LiquidityPoolAggregator {
+  const {
+    poolAddress,
+    chainId,
+    isCL,
+    isStable,
+    token0Address,
+    token1Address,
+    token0Symbol,
+    token1Symbol,
+    token0IsWhitelisted,
+    token1IsWhitelisted,
+    timestamp,
+    tickSpacing,
+    CLGaugeConfig,
+  } = params;
+
+  return {
+    id: poolAddress,
+    chainId,
+    isCL,
+    name: generatePoolName(
+      token0Symbol,
+      token1Symbol,
+      isStable,
+      isCL ? (tickSpacing ?? 0) : 0,
+    ),
+    token0_id: TokenIdByChain(token0Address, chainId),
+    token1_id: TokenIdByChain(token1Address, chainId),
+    token0_address: token0Address,
+    token1_address: token1Address,
+    isStable,
+    reserve0: 0n,
+    reserve1: 0n,
+    totalLiquidityUSD: 0n,
+    totalVolume0: 0n,
+    totalVolume1: 0n,
+    totalVolumeUSD: 0n,
+    totalVolumeUSDWhitelisted: 0n,
+    gaugeFees0CurrentEpoch: 0n,
+    gaugeFees1CurrentEpoch: 0n,
+    totalUnstakedFeesCollected0: 0n,
+    totalUnstakedFeesCollected1: 0n,
+    totalStakedFeesCollected0: 0n,
+    totalStakedFeesCollected1: 0n,
+    totalUnstakedFeesCollectedUSD: 0n,
+    totalStakedFeesCollectedUSD: 0n,
+    totalFeesUSDWhitelisted: 0n,
+    numberOfSwaps: 0n,
+    token0Price: 0n,
+    token1Price: 0n,
+    totalEmissions: 0n,
+    totalEmissionsUSD: 0n,
+    totalBribesUSD: 0n,
+    totalVotesDeposited: 0n,
+    totalVotesDepositedUSD: 0n,
+    gaugeIsAlive: false,
+    token0IsWhitelisted: token0IsWhitelisted,
+    token1IsWhitelisted: token1IsWhitelisted,
+    lastUpdatedTimestamp: timestamp,
+    lastSnapshotTimestamp: timestamp,
+    // CL Pool specific fields (set to 0 for regular pools)
+    feeProtocol0: 0n,
+    feeProtocol1: 0n,
+    observationCardinalityNext: 0n,
+    totalFlashLoanFees0: 0n,
+    totalFlashLoanFees1: 0n,
+    totalFlashLoanFeesUSD: 0n,
+    totalFlashLoanVolumeUSD: 0n,
+    numberOfFlashLoans: 0n,
+    // Gauge fields
+    numberOfGaugeDeposits: 0n,
+    numberOfGaugeWithdrawals: 0n,
+    numberOfGaugeRewardClaims: 0n,
+    totalGaugeRewardsClaimedUSD: 0n,
+    totalGaugeRewardsClaimed: 0n,
+    currentLiquidityStaked: 0n,
+    currentLiquidityStakedUSD: 0n,
+    // Voting Reward fields
+    bribeVotingRewardAddress: "",
+    totalBribeClaimed: 0n,
+    totalBribeClaimedUSD: 0n,
+    feeVotingRewardAddress: "",
+    totalFeeRewardClaimed: 0n,
+    totalFeeRewardClaimedUSD: 0n,
+    numberOfVotes: 0n,
+    currentVotingPower: 0n,
+    veNFTamountStaked: 0n,
+    // Pool Launcher relationship (undefined for pools not launched via PoolLauncher)
+    poolLauncherPoolId: undefined,
+    // Voting fields
+    gaugeAddress: "",
+    // Set to undefined if CLGaugeConfig does not exist (i.e before the deployment of NewCLGaugeFactory which introduces emissions caps per gauge)
+    // Otherwise, set to defaultEmissionCap
+    gaugeEmissionsCap: CLGaugeConfig
+      ? CLGaugeConfig.defaultEmissionsCap
+      : isCL
+        ? undefined
+        : 0n,
+    // Dynamic Fee fields (undefined initially)
+    baseFee: undefined,
+    feeCap: undefined,
+    scalingFactor: undefined,
+    currentFee: undefined,
+  };
 }
