@@ -153,8 +153,8 @@ describe("Pool Fees Event", () => {
 
   it("should handle existing user correctly", async () => {
     // Create an existing user stats
-    const existingUserStats: UserStatsPerPool = {
-      id: "0x1234567890123456789012345678901234567890_0x3333333333333333333333333333333333333333_10",
+    const { createMockUserStatsPerPool } = setupCommon();
+    const existingUserStats = createMockUserStatsPerPool({
       userAddress: "0x1234567890123456789012345678901234567890",
       poolAddress: "0x3333333333333333333333333333333333333333",
       chainId: 10,
@@ -162,42 +162,14 @@ describe("Pool Fees Event", () => {
       currentLiquidityToken0: 1000n,
       currentLiquidityToken1: 1000n,
       totalLiquidityAddedUSD: 2000n,
-      totalLiquidityRemovedUSD: 0n,
       totalFeesContributedUSD: 2000n,
       totalFeesContributed0: 1000n,
       totalFeesContributed1: 800n,
       numberOfSwaps: 5n,
-      totalSwapVolumeAmount0: 0n,
-      totalSwapVolumeAmount1: 0n,
       totalSwapVolumeUSD: 10000n,
-      numberOfFlashLoans: 0n,
-      totalFlashLoanVolumeUSD: 0n,
-      numberOfGaugeDeposits: 0n,
-      numberOfGaugeWithdrawals: 0n,
-      numberOfGaugeRewardClaims: 0n,
-      totalGaugeRewardsClaimedUSD: 0n,
-      totalGaugeRewardsClaimed: 0n,
-      currentLiquidityStaked: 0n,
-      currentLiquidityStakedUSD: 0n,
-      numberOfVotes: 0n,
-      currentVotingPower: 0n,
-
-      // Voting Reward Claims
-      totalBribeClaimed: 0n,
-      totalBribeClaimedUSD: 0n,
-      totalFeeRewardClaimed: 0n,
-      totalFeeRewardClaimedUSD: 0n,
-      veNFTamountStaked: 0n,
-
-      // ALM fields
-      almAddress: "",
-      almAmount0: 0n,
-      almAmount1: 0n,
-      almLpAmount: 0n,
-
       firstActivityTimestamp: new Date(500000 * 1000),
       lastActivityTimestamp: new Date(800000 * 1000),
-    };
+    });
 
     // Set up the existing user stats in the database
     updatedDB = updatedDB.entities.UserStatsPerPool.set(existingUserStats);

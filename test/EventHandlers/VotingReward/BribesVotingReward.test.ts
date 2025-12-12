@@ -42,20 +42,13 @@ describe("BribesVotingReward Events", () => {
     } as LiquidityPoolAggregator;
 
     // Set up user stats
-    userStats = {
-      id: `${toChecksumAddress(userAddress)}_${poolAddress}_${chainId}`,
-      userAddress: toChecksumAddress(userAddress),
+    const { createMockUserStatsPerPool } = setupCommon();
+    userStats = createMockUserStatsPerPool({
+      userAddress: userAddress,
       poolAddress: poolAddress,
       chainId: chainId,
-      currentLiquidityUSD: 0n,
-      totalFeesContributedUSD: 0n,
-      totalBribeClaimed: 0n,
-      totalBribeClaimedUSD: 0n,
-      totalFeeRewardClaimed: 0n,
-      totalFeeRewardClaimedUSD: 0n,
-      veNFTamountStaked: 0n,
       lastActivityTimestamp: new Date(1000000 * 1000),
-    } as UserStatsPerPool;
+    });
 
     // Set up reward token
     rewardToken = {

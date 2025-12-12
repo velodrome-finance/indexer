@@ -12,6 +12,7 @@ import {
   updateLiquidityPoolAggregator,
 } from "../../src/Aggregators/LiquidityPoolAggregator";
 import type { CHAIN_CONSTANTS } from "../../src/Constants";
+import { setupCommon } from "../EventHandlers/Pool/common";
 
 // Type for the simulateContract method
 type SimulateContractMethod =
@@ -23,6 +24,7 @@ describe("LiquidityPoolAggregator Functions", () => {
   let timestamp: Date;
   let mockContract: sinon.SinonStub;
   const blockNumber = 131536921;
+  const { createMockLiquidityPoolAggregator } = setupCommon();
 
   beforeEach(() => {
     contextStub = {
@@ -138,9 +140,8 @@ describe("LiquidityPoolAggregator Functions", () => {
         return {};
       }),
     };
-    liquidityPoolAggregator = {
-      id: "0x123",
-      chainId: 10,
+    liquidityPoolAggregator = createMockLiquidityPoolAggregator({
+      id: "0x1234567890123456789012345678901234567890",
       name: "Test Pool",
       token0_id: "token0",
       token1_id: "token1",
@@ -179,39 +180,7 @@ describe("LiquidityPoolAggregator Functions", () => {
       token1IsWhitelisted: false,
       lastUpdatedTimestamp: new Date(),
       lastSnapshotTimestamp: new Date(),
-      feeProtocol0: 0n,
-      feeProtocol1: 0n,
-      observationCardinalityNext: 0n,
-      totalFlashLoanFees0: 0n,
-      totalFlashLoanFees1: 0n,
-      totalFlashLoanFeesUSD: 0n,
-      totalFlashLoanVolumeUSD: 0n,
-      numberOfFlashLoans: 0n,
-      // Gauge fields
-      numberOfGaugeDeposits: 0n,
-      numberOfGaugeWithdrawals: 0n,
-      numberOfGaugeRewardClaims: 0n,
-      totalGaugeRewardsClaimedUSD: 0n,
-      totalGaugeRewardsClaimed: 0n,
-      currentLiquidityStaked: 0n,
-      currentLiquidityStakedUSD: 0n,
-      // Voting Reward fields
-      bribeVotingRewardAddress: "",
-      totalBribeClaimed: 0n,
-      totalBribeClaimedUSD: 0n,
-      feeVotingRewardAddress: "",
-      totalFeeRewardClaimed: 0n,
-      totalFeeRewardClaimedUSD: 0n,
-      veNFTamountStaked: 0n,
-      // Pool Launcher relationship
-      poolLauncherPoolId: undefined,
-      // Voting fields
-      gaugeAddress: "",
-      // Dynamic Fee fields
-      baseFee: undefined,
-      feeCap: undefined,
-      scalingFactor: undefined,
-    };
+    });
     timestamp = new Date();
   });
 
@@ -392,7 +361,7 @@ describe("LiquidityPoolAggregator Functions", () => {
   describe("loadPoolData", () => {
     let token0: Token;
     let token1: Token;
-    const poolAddress = "0x123";
+    const poolAddress = "0x1234567890123456789012345678901234567890";
     const chainId = 10;
 
     beforeEach(() => {

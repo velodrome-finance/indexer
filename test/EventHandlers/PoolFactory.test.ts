@@ -10,8 +10,12 @@ import * as PriceOracle from "../../src/PriceOracle";
 import { setupCommon } from "./Pool/common";
 
 describe("PoolFactory Events", () => {
-  const { mockToken0Data, mockToken1Data, mockLiquidityPoolData } =
-    setupCommon();
+  const {
+    mockToken0Data,
+    mockToken1Data,
+    mockLiquidityPoolData,
+    createMockLiquidityPoolAggregator,
+  } = setupCommon();
   const token0Address = mockToken0Data.address;
   const token1Address = mockToken1Data.address;
   const poolAddress = mockLiquidityPoolData.id;
@@ -81,12 +85,11 @@ describe("PoolFactory Events", () => {
     it("should update the LiquidityPoolAggregator", async () => {
       // Setup - create a pool entity first
       let mockDb = MockDb.createMockDb();
-      const existingPool: LiquidityPoolAggregator = {
-        ...mockLiquidityPoolData,
+      const existingPool = createMockLiquidityPoolAggregator({
         baseFee: undefined,
         currentFee: undefined,
         lastUpdatedTimestamp: new Date(900000 * 1000),
-      };
+      });
       mockDb = mockDb.entities.LiquidityPoolAggregator.set(existingPool);
 
       const customFee = 500n; // 0.05% fee (500 basis points)
@@ -131,12 +134,11 @@ describe("PoolFactory Events", () => {
       // Setup - create a pool entity with existing fees
       let mockDb = MockDb.createMockDb();
       const existingFee = 300n;
-      const existingPool: LiquidityPoolAggregator = {
-        ...mockLiquidityPoolData,
+      const existingPool = createMockLiquidityPoolAggregator({
         baseFee: existingFee,
         currentFee: existingFee,
         lastUpdatedTimestamp: new Date(900000 * 1000),
-      };
+      });
       mockDb = mockDb.entities.LiquidityPoolAggregator.set(existingPool);
 
       const newFee = 750n;

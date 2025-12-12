@@ -20,8 +20,12 @@ import {
 import { setupCommon } from "../Pool/common";
 
 describe("GaugeSharedLogic", () => {
-  const { mockLiquidityPoolData, mockToken0Data, mockToken1Data } =
-    setupCommon();
+  const {
+    mockLiquidityPoolData,
+    mockToken0Data,
+    mockToken1Data,
+    createMockLiquidityPoolAggregator,
+  } = setupCommon();
   const mockChainId = 8453;
   const mockPoolAddress = "0x1111111111111111111111111111111111111111";
   const mockGaugeAddress = "0x5555555555555555555555555555555555555555";
@@ -74,8 +78,7 @@ describe("GaugeSharedLogic", () => {
       },
     };
 
-    mockLiquidityPoolAggregator = {
-      ...mockLiquidityPoolData,
+    mockLiquidityPoolAggregator = createMockLiquidityPoolAggregator({
       id: mockPoolAddress,
       chainId: mockChainId,
       name: "USDC/USDT",
@@ -98,53 +101,20 @@ describe("GaugeSharedLogic", () => {
       lastUpdatedTimestamp: mockTimestamp,
       lastSnapshotTimestamp: mockTimestamp,
       isCL: false, // V2 pool
-    };
+    });
 
-    mockUserStatsPerPool = {
-      id: `${toChecksumAddress(mockUserAddress)}_${toChecksumAddress(mockPoolAddress)}_${mockChainId}`,
-      userAddress: toChecksumAddress(mockUserAddress),
-      poolAddress: toChecksumAddress(mockPoolAddress),
+    const { createMockUserStatsPerPool } = setupCommon();
+    mockUserStatsPerPool = createMockUserStatsPerPool({
+      userAddress: mockUserAddress,
+      poolAddress: mockPoolAddress,
       chainId: mockChainId,
       currentLiquidityUSD: 1000000000000000000000n, // 1K USD in 18 decimals
       currentLiquidityToken0: 500000000n, // 500 USDC (6 decimals)
       currentLiquidityToken1: 500000000n, // 500 USDT (6 decimals)
       totalLiquidityAddedUSD: 1000000000000000000000n,
-      totalLiquidityRemovedUSD: 0n,
-      totalFeesContributedUSD: 0n,
-      totalFeesContributed0: 0n,
-      totalFeesContributed1: 0n,
-      numberOfSwaps: 0n,
-      totalSwapVolumeAmount0: 0n,
-      totalSwapVolumeAmount1: 0n,
-      totalSwapVolumeUSD: 0n,
-      numberOfFlashLoans: 0n,
-      totalFlashLoanVolumeUSD: 0n,
-      numberOfGaugeDeposits: 0n,
-      numberOfGaugeWithdrawals: 0n,
-      numberOfGaugeRewardClaims: 0n,
-      totalGaugeRewardsClaimedUSD: 0n,
-      totalGaugeRewardsClaimed: 0n,
-      currentLiquidityStaked: 0n,
-      currentLiquidityStakedUSD: 0n,
-      numberOfVotes: 0n,
-      currentVotingPower: 0n,
-
-      // Voting Reward Claims
-      totalBribeClaimed: 0n,
-      totalBribeClaimedUSD: 0n,
-      totalFeeRewardClaimed: 0n,
-      totalFeeRewardClaimedUSD: 0n,
-      veNFTamountStaked: 0n,
-
-      // ALM fields
-      almAddress: "",
-      almAmount0: 0n,
-      almAmount1: 0n,
-      almLpAmount: 0n,
-
       firstActivityTimestamp: mockTimestamp,
       lastActivityTimestamp: mockTimestamp,
-    };
+    });
 
     // Create reward token (AERO on Base)
     const rewardTokenAddress = "0x940181a94A35A4569E4529A3CDfB74e38FD98631";
