@@ -15,8 +15,7 @@ import {
   getTokenPrice,
   roundBlockToInterval,
 } from "../../Effects/Token";
-import { normalizeTokenAmountTo1e18 } from "../../Helpers";
-import { multiplyBase1e18 } from "../../Maths";
+import { calculateTokenAmountUSD } from "../../Helpers";
 import { refreshTokenPrice } from "../../PriceOracle";
 
 export interface VotingRewardEventData {
@@ -27,80 +26,14 @@ export interface VotingRewardEventData {
   timestamp: number;
 }
 
-export interface VotingRewardDepositData extends VotingRewardEventData {
-  tokenId: bigint;
-  amount: bigint;
-}
-
-export interface VotingRewardWithdrawData extends VotingRewardEventData {
-  tokenId: bigint;
-  amount: bigint;
-}
-
 export interface VotingRewardClaimRewardsData extends VotingRewardEventData {
   reward: string;
   amount: bigint;
 }
 
-export interface VotingRewardDepositResult {
-  poolDiff?: Partial<LiquidityPoolAggregator>;
-  userDiff?: Partial<UserStatsPerPool>;
-}
-
-export interface VotingRewardWithdrawResult {
-  poolDiff?: Partial<LiquidityPoolAggregator>;
-  userDiff?: Partial<UserStatsPerPool>;
-}
-
 export interface VotingRewardClaimRewardsResult {
   poolDiff?: Partial<LiquidityPoolAggregator>;
   userDiff?: Partial<UserStatsPerPool>;
-}
-
-/**
- * Business logic for processing voting reward deposit events
- * Returns data structures for database updates - does not perform DB operations
- */
-export async function processVotingRewardDeposit(
-  data: VotingRewardDepositData,
-): Promise<VotingRewardDepositResult> {
-  const poolDiff: Partial<LiquidityPoolAggregator> = {
-    veNFTamountStaked: data.amount,
-    lastUpdatedTimestamp: new Date(data.timestamp * 1000),
-  };
-
-  const userDiff: Partial<UserStatsPerPool> = {
-    veNFTamountStaked: data.amount,
-    lastActivityTimestamp: new Date(data.timestamp * 1000),
-  };
-
-  return {
-    poolDiff,
-    userDiff,
-  };
-}
-
-/**
- * Business logic for processing voting reward withdrawal events
- * Returns data structures for database updates - does not perform DB operations
- */
-export async function processVotingRewardWithdraw(
-  data: VotingRewardWithdrawData,
-): Promise<VotingRewardWithdrawResult> {
-  const poolDiff: Partial<LiquidityPoolAggregator> = {
-    veNFTamountStaked: -data.amount,
-    lastUpdatedTimestamp: new Date(data.timestamp * 1000),
-  };
-
-  const userDiff: Partial<UserStatsPerPool> = {
-    veNFTamountStaked: -data.amount,
-    lastActivityTimestamp: new Date(data.timestamp * 1000),
-  };
-
-  return {
-    poolDiff,
-    userDiff,
-  };
 }
 
 /**
@@ -170,12 +103,9 @@ export async function processVotingRewardClaimRewards(
   );
 
   // Convert reward amount to USD
-  const normalizedRewardAmount = normalizeTokenAmountTo1e18(
+  const rewardAmountUSD = calculateTokenAmountUSD(
     data.amount,
     Number(updatedRewardToken.decimals),
-  );
-  const rewardAmountUSD = multiplyBase1e18(
-    normalizedRewardAmount,
     updatedRewardToken.pricePerUSDNew,
   );
 

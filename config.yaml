@@ -62,6 +62,7 @@ contracts:
     handler: src/EventHandlers/Voter/Voter.ts
     events:
       - event: Voted
+      - event: Abstained
       - event: DistributeReward
       - event: GaugeCreated
       - event: GaugeKilled
@@ -77,15 +78,11 @@ contracts:
     abi_file_path: abis/FeesVotingReward.json
     handler: src/EventHandlers/VotingReward/FeesVotingReward.ts
     events:
-      - event: Deposit
-      - event: Withdraw
       - event: ClaimRewards
   - name: BribesVotingReward
     abi_file_path: abis/BribesVotingReward.json
     handler: src/EventHandlers/VotingReward/BribesVotingReward.ts
     events:
-      - event: Deposit
-      - event: Withdraw
       - event: ClaimRewards
   - name: NewCLGaugeFactory
     abi_file_path: abis/NewCLGaugeFactory.json

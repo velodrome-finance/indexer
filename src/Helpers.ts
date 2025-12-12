@@ -21,6 +21,16 @@ export const normalizeTokenAmountTo1e18 = (
   return amount;
 };
 
+// Helper function to calculate USD value from token amount, decimals, and price
+export function calculateTokenAmountUSD(
+  amount: bigint,
+  tokenDecimals: number,
+  pricePerUSDNew: bigint,
+): bigint {
+  const normalizedAmount = normalizeTokenAmountTo1e18(amount, tokenDecimals);
+  return multiplyBase1e18(normalizedAmount, pricePerUSDNew);
+}
+
 // Helper function to get generate the pool name given token0 and token1 symbols and isStable boolean
 export function generatePoolName(
   token0Symbol: string,
@@ -224,23 +234,17 @@ export function calculateTotalLiquidityUSD(
   let totalLiquidityUSD = 0n;
 
   if (token0) {
-    const normalizedAmount0 = normalizeTokenAmountTo1e18(
+    totalLiquidityUSD += calculateTokenAmountUSD(
       amount0,
       Number(token0.decimals),
-    );
-    totalLiquidityUSD += multiplyBase1e18(
-      normalizedAmount0,
       token0.pricePerUSDNew,
     );
   }
 
   if (token1) {
-    const normalizedAmount1 = normalizeTokenAmountTo1e18(
+    totalLiquidityUSD += calculateTokenAmountUSD(
       amount1,
       Number(token1.decimals),
-    );
-    totalLiquidityUSD += multiplyBase1e18(
-      normalizedAmount1,
       token1.pricePerUSDNew,
     );
   }
