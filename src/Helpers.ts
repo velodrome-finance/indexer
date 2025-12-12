@@ -1,7 +1,12 @@
 import { SqrtPriceMath, TickMath } from "@uniswap/v3-sdk";
-import type { Token, handlerContext } from "generated";
+import type { LiquidityPoolAggregator, Token, handlerContext } from "generated";
 import JSBI from "jsbi";
 import { TEN_TO_THE_18_BI } from "./Constants";
+import {
+  getSqrtPriceX96,
+  getTotalSupply,
+  roundBlockToInterval,
+} from "./Effects/Token";
 import { multiplyBase1e18 } from "./Maths";
 import { refreshTokenPrice } from "./PriceOracle";
 
@@ -314,6 +319,119 @@ export function calculatePositionAmountsFromLiquidity(
     amount0: BigInt(amount0JSBI.toString()),
     amount1: BigInt(amount1JSBI.toString()),
   };
+}
+
+/**
+ * Calculate USD value of staked liquidity/LP tokens
+ * For CL pools: Uses tokenId to get position tick ranges, then calculates from liquidity
+ * For V2 pools: Converts LP tokens to amount0/amount1 using pool reserves and totalSupply
+ */
+export async function calculateStakedLiquidityUSD(
+  amount: bigint,
+  poolAddress: string,
+  chainId: number,
+  blockNumber: number,
+  tokenId: bigint | undefined,
+  poolData: {
+    liquidityPoolAggregator: LiquidityPoolAggregator;
+    token0Instance?: Token;
+    token1Instance?: Token;
+  },
+  context: handlerContext,
+): Promise<bigint> {
+  const { liquidityPoolAggregator, token0Instance, token1Instance } = poolData;
+
+  const roundedBlockNumber = roundBlockToInterval(blockNumber, chainId);
+
+  // CL Pool: Use tokenId to get position and calculate from liquidity
+  if (tokenId !== undefined && liquidityPoolAggregator.isCL) {
+    try {
+      // Load position to get tick ranges
+      const position =
+        await context.NonFungiblePosition.getWhere.tokenId.eq(tokenId);
+      const matchingPosition = position.find((p) => p.chainId === chainId);
+
+      if (!matchingPosition) {
+        context.log.warn(
+          `[calculateStakedLiquidityUSD] Position not found for tokenId ${tokenId} on chain ${chainId}, using 0 USD`,
+        );
+        return 0n;
+      }
+
+      // Get sqrtPriceX96
+      const sqrtPriceX96 = await context.effect(getSqrtPriceX96, {
+        poolAddress,
+        chainId,
+        blockNumber: roundedBlockNumber,
+      });
+
+      // Calculate amount0 and amount1 from liquidity
+      const { amount0, amount1 } = calculatePositionAmountsFromLiquidity(
+        amount,
+        sqrtPriceX96,
+        matchingPosition.tickLower,
+        matchingPosition.tickUpper,
+      );
+
+      // Calculate USD value
+      return calculateTotalLiquidityUSD(
+        amount0,
+        amount1,
+        token0Instance,
+        token1Instance,
+      );
+    } catch (error) {
+      context.log.warn(
+        `[calculateStakedLiquidityUSD] Error calculating CL pool USD value for tokenId ${tokenId}: ${error instanceof Error ? error.message : String(error)}, using 0 USD`,
+      );
+      return 0n;
+    }
+  }
+
+  // V2 Pool: Convert LP tokens to amount0/amount1 using reserves and totalSupply
+  if (!liquidityPoolAggregator.isCL) {
+    try {
+      const reserve0 = liquidityPoolAggregator.reserve0;
+      const reserve1 = liquidityPoolAggregator.reserve1;
+
+      // Get totalSupply of LP token (pool address is the LP token for V2)
+      const totalSupply = await context.effect(getTotalSupply, {
+        tokenAddress: poolAddress,
+        chainId,
+        blockNumber: roundedBlockNumber,
+      });
+
+      if (totalSupply === 0n) {
+        context.log.warn(
+          `[calculateStakedLiquidityUSD] TotalSupply is 0 for pool ${poolAddress} on chain ${chainId}, using 0 USD`,
+        );
+        return 0n;
+      }
+
+      // Calculate proportional amounts
+      const amount0 = (amount * reserve0) / totalSupply;
+      const amount1 = (amount * reserve1) / totalSupply;
+
+      // Calculate USD value
+      return calculateTotalLiquidityUSD(
+        amount0,
+        amount1,
+        token0Instance,
+        token1Instance,
+      );
+    } catch (error) {
+      context.log.warn(
+        `[calculateStakedLiquidityUSD] Error calculating V2 pool USD value: ${error instanceof Error ? error.message : String(error)}, using 0 USD`,
+      );
+      return 0n;
+    }
+  }
+
+  // Fallback
+  context.log.warn(
+    `[calculateStakedLiquidityUSD] Unsupported pool type: ${poolAddress} on chain ${chainId}. Fallback to 0 USD`,
+  );
+  return 0n;
 }
 
 /**

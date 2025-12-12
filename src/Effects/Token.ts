@@ -660,6 +660,77 @@ export const getTokenPrice = createEffect(
 );
 
 /**
+ * Core logic for fetching ERC20 token totalSupply
+ */
+export async function fetchTotalSupply(
+  tokenAddress: string,
+  chainId: number,
+  blockNumber: number,
+  ethClient: PublicClient,
+  logger: Envio_logger,
+  context?: { cache?: boolean },
+): Promise<bigint> {
+  try {
+    const { result } = await ethClient.simulateContract({
+      address: tokenAddress as `0x${string}`,
+      abi: contractABI,
+      functionName: "totalSupply",
+      args: [],
+      blockNumber: BigInt(blockNumber),
+    });
+    // viem returns bigint for uint256 (totalSupply returns a single value)
+    const totalSupply = Array.isArray(result) ? result[0] : result;
+    return BigInt(totalSupply.toString());
+  } catch (error) {
+    if (context) {
+      context.cache = false;
+    }
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const readableError = new Error(
+      `getTotalSupply effect failed for token ${tokenAddress} on chain ${chainId} at block ${blockNumber}: ${errorMessage}`,
+    );
+    if (error instanceof Error && error.stack) {
+      readableError.stack = error.stack;
+    }
+    logger.error(`[getTotalSupply] ${readableError.message}`, readableError);
+    throw readableError;
+  }
+}
+
+/**
+ * Effect to get totalSupply of an ERC20 token (e.g., V2 pool LP token)
+ * Currently used for calculating proportional amounts from LP tokens
+ */
+export const getTotalSupply = createEffect(
+  {
+    name: "getTotalSupply",
+    input: {
+      tokenAddress: S.string,
+      chainId: S.number,
+      blockNumber: S.number,
+    },
+    output: S.bigint,
+    rateLimit: {
+      calls: EFFECT_RATE_LIMITS.DYNAMIC_FEE_EFFECTS,
+      per: "second",
+    },
+    cache: true,
+  },
+  async ({ input, context }) => {
+    const { tokenAddress, chainId, blockNumber } = input;
+    const ethClient = CHAIN_CONSTANTS[chainId].eth_client;
+    return fetchTotalSupply(
+      tokenAddress,
+      chainId,
+      blockNumber,
+      ethClient,
+      context.log,
+      context,
+    );
+  },
+);
+
+/**
  * Effect to get sqrtPriceX96 from CLPool's slot0 function
  * This replaces direct RPC calls for fetching current pool price
  * Used for calculating position amounts from liquidity in concentrated liquidity pools

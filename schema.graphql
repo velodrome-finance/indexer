@@ -59,6 +59,7 @@ type LiquidityPoolAggregator {
   numberOfGaugeRewardClaims: BigInt! @config(precision: 76) # number of gauge reward claims
   totalGaugeRewardsClaimedUSD: BigInt! @config(precision: 76) # total gauge rewards claimed in USD
   totalGaugeRewardsClaimed: BigInt! @config(precision: 76) # total gauge rewards claimed in token units
+  currentLiquidityStaked: BigInt! @config(precision: 76) # current liquidity staked in gauge in token units
   currentLiquidityStakedUSD: BigInt! @config(precision: 76) # current liquidity staked in gauge in USD
 
   # Voting Reward fields
@@ -122,6 +123,8 @@ type LiquidityPoolAggregatorSnapshot {
   gaugeAddress: String @index # address of the gauge for this pool
   token0IsWhitelisted: Boolean! # whether the token0 is whitelisted
   token1IsWhitelisted: Boolean! # whether the token1 is whitelisted
+  currentLiquidityStaked: BigInt! @config(precision: 76) # current liquidity staked in gauge in token units
+  currentLiquidityStakedUSD: BigInt! @config(precision: 76) # current liquidity staked in gauge in USD
   timestamp: Timestamp! # timestamp of last update
 
   # CL Pool specific fields
@@ -185,6 +188,7 @@ type UserStatsPerPool {
   numberOfGaugeRewardClaims: BigInt! @config(precision: 76) # number of gauge reward claims
   totalGaugeRewardsClaimedUSD: BigInt! @config(precision: 76) # total gauge rewards claimed in USD
   totalGaugeRewardsClaimed: BigInt! @config(precision: 76) # total gauge rewards claimed in token units
+  currentLiquidityStaked: BigInt! @config(precision: 76) # current liquidity staked in gauge in token units
   currentLiquidityStakedUSD: BigInt! @config(precision: 76) # current liquidity staked in gauge in USD
 
   # Voting metrics

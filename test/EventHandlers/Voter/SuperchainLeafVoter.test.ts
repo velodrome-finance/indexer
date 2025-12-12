@@ -85,6 +85,7 @@ describe("SuperchainLeafVoter Events", () => {
           currentVotingPower: 0n,
           firstActivityTimestamp: new Date(0),
           lastActivityTimestamp: new Date(0),
+          currentLiquidityStaked: 0n,
           currentLiquidityStakedUSD: 0n,
           currentLiquidityToken0: 0n,
           currentLiquidityToken1: 0n,

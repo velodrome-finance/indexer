@@ -284,7 +284,7 @@ describe("PoolLauncherLogic", () => {
           numberOfGaugeRewardClaims: 3n,
           totalGaugeRewardsClaimedUSD: 5000n,
           totalGaugeRewardsClaimed: 5000n,
-          currentLiquidityStakedUSD: 100000n,
+          currentLiquidityStaked: 100000n,
         };
 
         mockDb = mockDb.entities.LiquidityPoolAggregator.set(
@@ -419,7 +419,7 @@ describe("PoolLauncherLogic", () => {
           numberOfGaugeRewardClaims: 3n,
           totalGaugeRewardsClaimedUSD: 5000n,
           totalGaugeRewardsClaimed: 5000n,
-          currentLiquidityStakedUSD: 100000n,
+          currentLiquidityStaked: 100000n,
         };
 
         mockDb = mockDb.entities.LiquidityPoolAggregator.set(
@@ -550,7 +550,7 @@ describe("PoolLauncherLogic", () => {
         numberOfGaugeRewardClaims: 3n,
         totalGaugeRewardsClaimedUSD: 5000n,
         totalGaugeRewardsClaimed: 5000n,
-        currentLiquidityStakedUSD: 100000n,
+        currentLiquidityStaked: 100000n,
       };
 
       mockDb = mockDb.entities.LiquidityPoolAggregator.set(
@@ -631,7 +631,7 @@ describe("PoolLauncherLogic", () => {
         numberOfGaugeRewardClaims: 3n,
         totalGaugeRewardsClaimedUSD: 5000n,
         totalGaugeRewardsClaimed: 5000n,
-        currentLiquidityStakedUSD: 100000n,
+        currentLiquidityStaked: 100000n,
       };
 
       mockDb = mockDb.entities.LiquidityPoolAggregator.set(

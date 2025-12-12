@@ -6,8 +6,10 @@ import { CHAIN_CONSTANTS, PriceOracleType } from "../../src/Constants";
 import {
   fetchTokenDetails,
   fetchTokenPrice,
+  fetchTotalSupply,
   getTokenDetails,
   getTokenPrice,
+  getTotalSupply,
 } from "../../src/Effects/Token";
 
 describe("Token Effects", () => {
@@ -21,6 +23,7 @@ describe("Token Effects", () => {
     ) => unknown;
     ethClient: PublicClient;
     log: Envio_logger;
+    cache?: boolean;
   };
   let mockEthClient: PublicClient;
   let chainConstantsStub: sinon.SinonStub;
@@ -77,6 +80,132 @@ describe("Token Effects", () => {
     it("should be a valid effect object", () => {
       expect(getTokenPrice).to.be.an("object");
       expect(getTokenPrice).to.have.property("name", "getTokenPrice");
+    });
+  });
+
+  describe("getTotalSupply", () => {
+    it("should be a valid effect object", () => {
+      expect(getTotalSupply).to.be.an("object");
+      expect(getTotalSupply).to.have.property("name", "getTotalSupply");
+    });
+  });
+
+  describe("fetchTotalSupply", () => {
+    it("should fetch totalSupply from contract and return bigint", async () => {
+      const tokenAddress = "0x1234567890123456789012345678901234567890";
+      const chainId = 10;
+      const blockNumber = 100;
+
+      // Mock simulateContract to return a single bigint value
+      const mockSimulateContract =
+        mockEthClient.simulateContract as sinon.SinonStub;
+      mockSimulateContract.resolves({
+        result: 1000000000000000000000n, // 1000 tokens (18 decimals)
+      });
+
+      const result = await fetchTotalSupply(
+        tokenAddress,
+        chainId,
+        blockNumber,
+        mockEthClient,
+        mockContext.log,
+      );
+
+      expect(result).to.equal(1000000000000000000000n);
+
+      // Verify that simulateContract was called with correct parameters
+      expect(mockSimulateContract.calledOnce).to.be.true;
+      const callArgs = mockSimulateContract.firstCall.args[0];
+      expect(callArgs).to.deep.include({
+        address: tokenAddress,
+        functionName: "totalSupply",
+        blockNumber: BigInt(blockNumber),
+      });
+      expect(callArgs.args).to.deep.equal([]);
+    });
+
+    it("should handle array result from simulateContract", async () => {
+      const tokenAddress = "0x1234567890123456789012345678901234567890";
+      const chainId = 10;
+      const blockNumber = 100;
+
+      // Mock simulateContract to return an array (some viem versions return arrays)
+      const mockSimulateContract =
+        mockEthClient.simulateContract as sinon.SinonStub;
+      mockSimulateContract.resolves({
+        result: [500000000000000000000n], // Array with single value
+      });
+
+      const result = await fetchTotalSupply(
+        tokenAddress,
+        chainId,
+        blockNumber,
+        mockEthClient,
+        mockContext.log,
+      );
+
+      expect(result).to.equal(500000000000000000000n);
+    });
+
+    it("should handle string result and convert to bigint", async () => {
+      const tokenAddress = "0x1234567890123456789012345678901234567890";
+      const chainId = 10;
+      const blockNumber = 100;
+
+      // Mock simulateContract to return a string (some viem versions return strings)
+      const mockSimulateContract =
+        mockEthClient.simulateContract as sinon.SinonStub;
+      mockSimulateContract.resolves({
+        result: "2000000000000000000000", // String representation
+      });
+
+      const result = await fetchTotalSupply(
+        tokenAddress,
+        chainId,
+        blockNumber,
+        mockEthClient,
+        mockContext.log,
+      );
+
+      expect(result).to.equal(2000000000000000000000n);
+    });
+
+    it("should handle contract call errors and throw with context", async () => {
+      const tokenAddress = "0x1234567890123456789012345678901234567890";
+      const chainId = 10;
+      const blockNumber = 100;
+
+      // Mock simulateContract to throw an error
+      const mockSimulateContract =
+        mockEthClient.simulateContract as sinon.SinonStub;
+      mockSimulateContract.rejects(new Error("Contract call failed"));
+
+      // Set cache to true initially (should be set to false on error)
+      const contextWithCache = { cache: true };
+
+      try {
+        await fetchTotalSupply(
+          tokenAddress,
+          chainId,
+          blockNumber,
+          mockEthClient,
+          mockContext.log,
+          contextWithCache,
+        );
+        expect.fail("Should have thrown an error");
+      } catch (thrownError) {
+        expect(thrownError).to.be.instanceOf(Error);
+        const errorMessage = (thrownError as Error).message;
+        expect(errorMessage).to.include("getTotalSupply effect failed");
+        expect(errorMessage).to.include(tokenAddress);
+        expect(errorMessage).to.include("Contract call failed");
+      }
+
+      // Verify cache was disabled on error
+      expect(contextWithCache.cache).to.be.false;
+
+      // Verify error was logged
+      expect((mockContext.log.error as sinon.SinonStub).calledOnce).to.be.true;
     });
   });
 

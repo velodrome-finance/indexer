@@ -94,7 +94,7 @@ describe("CLGauge Event Handlers", () => {
   });
 
   describe("Handler Integration", () => {
-    it("should call shared logic functions without errors", async () => {
+    it("should call shared logic functions without errors for Deposit", async () => {
       const mockEvent = CLGauge.Deposit.createMockEvent({
         tokenId: 1n,
         user: mockUserAddress,
@@ -112,6 +112,51 @@ describe("CLGauge Event Handlers", () => {
 
       // Should not throw - the actual business logic is tested in GaugeSharedLogic.test.ts
       await CLGauge.Deposit.processEvent({
+        event: mockEvent,
+        mockDb: mockDb,
+      });
+    });
+
+    it("should call shared logic functions without errors for Withdraw", async () => {
+      const mockEvent = CLGauge.Withdraw.createMockEvent({
+        tokenId: 1n,
+        user: mockUserAddress,
+        liquidityToStake: 50000000000000000000n,
+        mockEventData: {
+          srcAddress: mockGaugeAddress,
+          chainId: mockChainId,
+          block: {
+            number: 101,
+            timestamp: 1000001,
+            hash: "0x5555555555555555555555555555555555555555555555555555555555555555",
+          },
+        },
+      });
+
+      // Should not throw - the actual business logic is tested in GaugeSharedLogic.test.ts
+      await CLGauge.Withdraw.processEvent({
+        event: mockEvent,
+        mockDb: mockDb,
+      });
+    });
+
+    it("should call shared logic functions without errors for ClaimRewards", async () => {
+      const mockEvent = CLGauge.ClaimRewards.createMockEvent({
+        from: mockUserAddress,
+        amount: 1000000000000000000000n,
+        mockEventData: {
+          srcAddress: mockGaugeAddress,
+          chainId: mockChainId,
+          block: {
+            number: 102,
+            timestamp: 1000002,
+            hash: "0x5555555555555555555555555555555555555555555555555555555555555555",
+          },
+        },
+      });
+
+      // Should not throw - the actual business logic is tested in GaugeSharedLogic.test.ts
+      await CLGauge.ClaimRewards.processEvent({
         event: mockEvent,
         mockDb: mockDb,
       });

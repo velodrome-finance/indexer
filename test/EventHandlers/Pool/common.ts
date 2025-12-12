@@ -90,6 +90,7 @@ export function setupCommon() {
     numberOfGaugeRewardClaims: 0n,
     totalGaugeRewardsClaimedUSD: 0n,
     totalGaugeRewardsClaimed: 0n,
+    currentLiquidityStaked: 0n,
     currentLiquidityStakedUSD: 0n,
 
     // Voting Reward fields
@@ -176,6 +177,7 @@ export function setupCommon() {
     numberOfGaugeRewardClaims: 0n,
     totalGaugeRewardsClaimedUSD: 0n,
     totalGaugeRewardsClaimed: 0n,
+    currentLiquidityStaked: 0n,
     currentLiquidityStakedUSD: 0n,
 
     // Voting metrics

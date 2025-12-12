@@ -4,6 +4,7 @@ import type {
   LiquidityPoolAggregator,
   Token,
   UserStatsPerPool,
+  handlerContext,
 } from "../../../generated/src/Types.gen";
 import {
   CHAIN_CONSTANTS,
@@ -11,9 +12,7 @@ import {
   toChecksumAddress,
 } from "../../../src/Constants";
 import {
-  type GaugeClaimRewardsData,
-  type GaugeDepositData,
-  type GaugeWithdrawData,
+  type GaugeEventData,
   processGaugeClaimRewards,
   processGaugeDeposit,
   processGaugeWithdraw,
@@ -57,6 +56,7 @@ describe("GaugeSharedLogic", () => {
 
   let mockLiquidityPoolAggregator: LiquidityPoolAggregator;
   let mockUserStatsPerPool: UserStatsPerPool;
+  let mockRewardToken: Token;
   let mockDb: ReturnType<typeof MockDb.createMockDb>;
   let updatedDB: ReturnType<typeof MockDb.createMockDb>;
   // biome-ignore lint/suspicious/noExplicitAny: Mock context for testing - complex type intersection would be overly verbose
@@ -67,6 +67,11 @@ describe("GaugeSharedLogic", () => {
     // biome-ignore lint/suspicious/noExplicitAny: Mock constants for testing
     (CHAIN_CONSTANTS as any)[mockChainId] = {
       rewardToken: () => "0x940181a94A35A4569E4529A3CDfB74e38FD98631", // AERO on Base
+      oracle: {
+        getType: () => "v3", // Mock oracle type
+        startBlock: 0, // Mock start block
+        priceConnectors: [], // Mock connectors
+      },
     };
 
     mockLiquidityPoolAggregator = {
@@ -79,8 +84,8 @@ describe("GaugeSharedLogic", () => {
       token0_address: mockToken0.address,
       token1_address: mockToken1.address,
       isStable: true,
-      reserve0: 1000000n,
-      reserve1: 1000000n,
+      reserve0: 1000000000n, // 1000 tokens (6 decimals) - enough for 100 LP tokens to represent 100 tokens each
+      reserve1: 1000000000n, // 1000 tokens (6 decimals)
       totalLiquidityUSD: 2000000000000000000000000n, // 2M USD in 18 decimals
       token0Price: 1000000000000000000n,
       token1Price: 1000000000000000000n,
@@ -88,8 +93,11 @@ describe("GaugeSharedLogic", () => {
       gaugeIsAlive: true,
       token0IsWhitelisted: true,
       token1IsWhitelisted: true,
+      currentLiquidityStaked: 0n,
+      currentLiquidityStakedUSD: 0n,
       lastUpdatedTimestamp: mockTimestamp,
       lastSnapshotTimestamp: mockTimestamp,
+      isCL: false, // V2 pool
     };
 
     mockUserStatsPerPool = {
@@ -116,6 +124,7 @@ describe("GaugeSharedLogic", () => {
       numberOfGaugeRewardClaims: 0n,
       totalGaugeRewardsClaimedUSD: 0n,
       totalGaugeRewardsClaimed: 0n,
+      currentLiquidityStaked: 0n,
       currentLiquidityStakedUSD: 0n,
       numberOfVotes: 0n,
       currentVotingPower: 0n,
@@ -139,7 +148,7 @@ describe("GaugeSharedLogic", () => {
 
     // Create reward token (AERO on Base)
     const rewardTokenAddress = "0x940181a94A35A4569E4529A3CDfB74e38FD98631";
-    const mockRewardToken: Token = {
+    mockRewardToken = {
       id: TokenIdByChain(rewardTokenAddress, mockChainId),
       address: toChecksumAddress(rewardTokenAddress),
       name: "AERO",
@@ -203,12 +212,16 @@ describe("GaugeSharedLogic", () => {
       Token: {
         get: (id: string) => updatedDB.entities.Token.get(id),
         // biome-ignore lint/suspicious/noExplicitAny: Mock entity for testing
-        set: (entity: any) => updatedDB.entities.Token.set(entity),
+        set: (entity: any) => {
+          updatedDB = updatedDB.entities.Token.set(entity);
+          return updatedDB;
+        },
       },
       log: {
         error: () => {},
         debug: () => {},
         info: () => {},
+        warn: () => {},
       },
       // biome-ignore lint/suspicious/noExplicitAny: Mock effect function for testing
       effect: async (fn: any, params: any) => {
@@ -226,7 +239,27 @@ describe("GaugeSharedLogic", () => {
             decimals: 18,
           };
         }
+        // Mock getTotalSupply for V2 pools
+        if (fn.name === "getTotalSupply") {
+          // Return a mock totalSupply (e.g., 1000 LP tokens)
+          return 1000000000000000000000n; // 1000 LP tokens (18 decimals)
+        }
+        // Mock getSqrtPriceX96 for CL pools
+        if (fn.name === "getSqrtPriceX96") {
+          // Return a mock sqrtPriceX96 value
+          return 79228162514264337593543950336n; // Example value
+        }
         return {};
+      },
+      NonFungiblePosition: {
+        getWhere: {
+          tokenId: {
+            eq: async (tokenId: bigint) => {
+              // Return empty array for V2 pools (no positions)
+              return [];
+            },
+          },
+        },
       },
       TokenPriceSnapshot: {
         set: () => {},
@@ -237,13 +270,13 @@ describe("GaugeSharedLogic", () => {
 
   describe("processGaugeDeposit", () => {
     it("should process gauge deposit correctly", async () => {
-      const depositData: GaugeDepositData = {
+      const depositData: GaugeEventData = {
         gaugeAddress: mockGaugeAddress,
         userAddress: mockUserAddress,
         chainId: mockChainId,
         blockNumber: 100,
         timestamp: 1000000,
-        amount: 100000000000000000000n, // 100 USD
+        amount: 100000000000000000000n, // 100 LP tokens (18 decimals)
       };
 
       await processGaugeDeposit(depositData, mockContext, "TestGaugeDeposit");
@@ -255,25 +288,37 @@ describe("GaugeSharedLogic", () => {
       );
 
       expect(updatedPool?.numberOfGaugeDeposits).to.equal(1n);
-      expect(updatedPool?.currentLiquidityStakedUSD).to.equal(
+      expect(updatedPool?.currentLiquidityStaked).to.equal(
         100000000000000000000n,
       );
+      // For V2 pools: amount0 = (100 LP * 1000000000 reserve0) / 1000 totalSupply = 100000000 (6 decimals = 100 tokens)
+      // amount1 = (100 LP * 1000000000 reserve1) / 1000 totalSupply = 100000000 (6 decimals = 100 tokens)
+      // Normalized to 18 decimals: 100000000 * 10^12 = 100000000000000000000n
+      // USD for token0: (100000000000000000000n * 1000000000000000000n) / 10^18 = 100000000000000000000n
+      // USD for token1: (100000000000000000000n * 1000000000000000000n) / 10^18 = 100000000000000000000n
+      // Total: 200000000000000000000n (200 USD in 18 decimals)
+      expect(updatedPool?.currentLiquidityStakedUSD).to.equal(
+        200000000000000000000n,
+      );
       expect(updatedUser?.numberOfGaugeDeposits).to.equal(1n);
-      expect(updatedUser?.currentLiquidityStakedUSD).to.equal(
+      expect(updatedUser?.currentLiquidityStaked).to.equal(
         100000000000000000000n,
+      );
+      expect(updatedUser?.currentLiquidityStakedUSD).to.equal(
+        200000000000000000000n,
       );
     });
   });
 
   describe("processGaugeWithdraw", () => {
     it("should process gauge withdrawal correctly", async () => {
-      const withdrawData: GaugeWithdrawData = {
+      const withdrawData: GaugeEventData = {
         gaugeAddress: mockGaugeAddress,
         userAddress: mockUserAddress,
         chainId: mockChainId,
         blockNumber: 100,
         timestamp: 1000000,
-        amount: 50000000000000000000n, // 50 USD
+        amount: 50000000000000000000n, // 50 LP tokens (18 decimals)
       };
 
       await processGaugeWithdraw(
@@ -289,25 +334,37 @@ describe("GaugeSharedLogic", () => {
       );
 
       expect(updatedPool?.numberOfGaugeWithdrawals).to.equal(1n);
-      expect(updatedPool?.currentLiquidityStakedUSD).to.equal(
+      expect(updatedPool?.currentLiquidityStaked).to.equal(
         -50000000000000000000n,
       );
+      // For V2 pools: amount0 = (50 LP * 1000000000 reserve0) / 1000 totalSupply = 50000000 (6 decimals = 50 tokens)
+      // amount1 = (50 LP * 1000000000 reserve1) / 1000 totalSupply = 50000000 (6 decimals = 50 tokens)
+      // Normalized to 18 decimals: 50000000 * 10^12 = 50000000000000000000n
+      // USD for token0: (50000000000000000000n * 1000000000000000000n) / 10^18 = 50000000000000000000n
+      // USD for token1: (50000000000000000000n * 1000000000000000000n) / 10^18 = 50000000000000000000n
+      // Total: 100000000000000000000n (100 USD in 18 decimals), negative for withdrawal
+      expect(updatedPool?.currentLiquidityStakedUSD).to.equal(
+        -100000000000000000000n,
+      );
       expect(updatedUser?.numberOfGaugeWithdrawals).to.equal(1n);
-      expect(updatedUser?.currentLiquidityStakedUSD).to.equal(
+      expect(updatedUser?.currentLiquidityStaked).to.equal(
         -50000000000000000000n,
+      );
+      expect(updatedUser?.currentLiquidityStakedUSD).to.equal(
+        -100000000000000000000n,
       );
     });
   });
 
   describe("processGaugeClaimRewards", () => {
     it("should process gauge reward claim correctly", async () => {
-      const claimData: GaugeClaimRewardsData = {
+      const claimData: GaugeEventData = {
         gaugeAddress: mockGaugeAddress,
         userAddress: mockUserAddress,
         chainId: mockChainId,
         blockNumber: 100,
         timestamp: 1000000,
-        amount: 1000000000000000000000n, // 1000 reward tokens
+        amount: 1000000000000000000000n, // 1000 reward tokens (18 decimals)
       };
 
       await processGaugeClaimRewards(
@@ -326,8 +383,18 @@ describe("GaugeSharedLogic", () => {
       expect(updatedPool?.totalGaugeRewardsClaimed).to.equal(
         1000000000000000000000n,
       );
+      // calculateTotalLiquidityUSD(amount, 0n, rewardToken, undefined)
+      // amount = 1000 tokens (18 decimals), price = 1 USD
+      // normalized = 1000 * 10^18 / 10^18 = 1000
+      // USD = 1000 * 1 USD = 1000000000000000000000 (1000 USD in 18 decimals)
+      expect(updatedPool?.totalGaugeRewardsClaimedUSD).to.equal(
+        1000000000000000000000n,
+      );
       expect(updatedUser?.numberOfGaugeRewardClaims).to.equal(1n);
       expect(updatedUser?.totalGaugeRewardsClaimed).to.equal(
+        1000000000000000000000n,
+      );
+      expect(updatedUser?.totalGaugeRewardsClaimedUSD).to.equal(
         1000000000000000000000n,
       );
     });
@@ -335,7 +402,7 @@ describe("GaugeSharedLogic", () => {
 
   describe("Error Handling", () => {
     it("should handle missing pool gracefully", async () => {
-      const depositData: GaugeDepositData = {
+      const depositData: GaugeEventData = {
         gaugeAddress: "0x9999999999999999999999999999999999999999", // Non-existent gauge
         userAddress: mockUserAddress,
         chainId: mockChainId,
@@ -356,6 +423,160 @@ describe("GaugeSharedLogic", () => {
 
       expect(updatedPool?.numberOfGaugeDeposits).to.equal(0n);
       expect(updatedUser?.numberOfGaugeDeposits).to.equal(0n);
+    });
+
+    it("should handle missing pool data gracefully in deposit", async () => {
+      // Create a context that returns null for pool data
+      const mockContextWithNullPool = {
+        ...mockContext,
+        LiquidityPoolAggregator: {
+          ...mockContext.LiquidityPoolAggregator,
+          get: () => Promise.resolve(undefined), // Return null to simulate missing pool
+        },
+      };
+
+      const depositData: GaugeEventData = {
+        gaugeAddress: mockGaugeAddress,
+        userAddress: mockUserAddress,
+        chainId: mockChainId,
+        blockNumber: 100,
+        timestamp: 1000000,
+        amount: 100000000000000000000n,
+      };
+
+      // Should not throw, but should log error and return early
+      await processGaugeDeposit(
+        depositData,
+        mockContextWithNullPool as unknown as handlerContext,
+        "TestGaugeDeposit",
+      );
+
+      // Pool and user should remain unchanged
+      const updatedPool =
+        updatedDB.entities.LiquidityPoolAggregator.get(mockPoolAddress);
+      const updatedUser = updatedDB.entities.UserStatsPerPool.get(
+        mockUserStatsPerPool.id,
+      );
+
+      expect(updatedPool?.numberOfGaugeDeposits).to.equal(0n);
+      expect(updatedUser?.numberOfGaugeDeposits).to.equal(0n);
+    });
+
+    it("should handle missing pool data gracefully in withdraw", async () => {
+      // Create a context that returns null for pool data
+      const mockContextWithNullPool = {
+        ...mockContext,
+        LiquidityPoolAggregator: {
+          ...mockContext.LiquidityPoolAggregator,
+          get: () => Promise.resolve(undefined), // Return null to simulate missing pool
+        },
+      };
+
+      const withdrawData: GaugeEventData = {
+        gaugeAddress: mockGaugeAddress,
+        userAddress: mockUserAddress,
+        chainId: mockChainId,
+        blockNumber: 100,
+        timestamp: 1000000,
+        amount: 50000000000000000000n,
+      };
+
+      // Should not throw, but should log error and return early
+      await processGaugeWithdraw(
+        withdrawData,
+        mockContextWithNullPool as unknown as handlerContext,
+        "TestGaugeWithdraw",
+      );
+
+      // Pool and user should remain unchanged
+      const updatedPool =
+        updatedDB.entities.LiquidityPoolAggregator.get(mockPoolAddress);
+      const updatedUser = updatedDB.entities.UserStatsPerPool.get(
+        mockUserStatsPerPool.id,
+      );
+
+      expect(updatedPool?.numberOfGaugeWithdrawals).to.equal(0n);
+      expect(updatedUser?.numberOfGaugeWithdrawals).to.equal(0n);
+    });
+
+    it("should handle missing pool data gracefully in claim rewards", async () => {
+      // Create a context that returns null for pool data
+      const mockContextWithNullPool = {
+        ...mockContext,
+        LiquidityPoolAggregator: {
+          ...mockContext.LiquidityPoolAggregator,
+          get: () => Promise.resolve(undefined), // Return null to simulate missing pool
+        },
+      };
+
+      const claimData: GaugeEventData = {
+        gaugeAddress: mockGaugeAddress,
+        userAddress: mockUserAddress,
+        chainId: mockChainId,
+        blockNumber: 100,
+        timestamp: 1000000,
+        amount: 1000000000000000000000n,
+      };
+
+      // Should not throw, but should log error and return early
+      await processGaugeClaimRewards(
+        claimData,
+        mockContextWithNullPool as unknown as handlerContext,
+        "TestGaugeClaimRewards",
+      );
+
+      // Pool and user should remain unchanged
+      const updatedPool =
+        updatedDB.entities.LiquidityPoolAggregator.get(mockPoolAddress);
+      const updatedUser = updatedDB.entities.UserStatsPerPool.get(
+        mockUserStatsPerPool.id,
+      );
+
+      expect(updatedPool?.numberOfGaugeRewardClaims).to.equal(0n);
+      expect(updatedUser?.numberOfGaugeRewardClaims).to.equal(0n);
+    });
+
+    it("should handle missing reward token gracefully in claim rewards", async () => {
+      // Create a context that returns null for reward token
+      const mockContextWithNullRewardToken = {
+        ...mockContext,
+        Token: {
+          ...mockContext.Token,
+          get: (id: string) => {
+            // Return null for reward token, but return other tokens
+            if (id === TokenIdByChain(mockRewardToken.address, mockChainId)) {
+              return Promise.resolve(undefined);
+            }
+            return updatedDB.entities.Token.get(id);
+          },
+        },
+      };
+
+      const claimData: GaugeEventData = {
+        gaugeAddress: mockGaugeAddress,
+        userAddress: mockUserAddress,
+        chainId: mockChainId,
+        blockNumber: 100,
+        timestamp: 1000000,
+        amount: 1000000000000000000000n,
+      };
+
+      // Should not throw, but should log error and return early
+      await processGaugeClaimRewards(
+        claimData,
+        mockContextWithNullRewardToken as unknown as handlerContext,
+        "TestGaugeClaimRewards",
+      );
+
+      // Pool and user should remain unchanged
+      const updatedPool =
+        updatedDB.entities.LiquidityPoolAggregator.get(mockPoolAddress);
+      const updatedUser = updatedDB.entities.UserStatsPerPool.get(
+        mockUserStatsPerPool.id,
+      );
+
+      expect(updatedPool?.numberOfGaugeRewardClaims).to.equal(0n);
+      expect(updatedUser?.numberOfGaugeRewardClaims).to.equal(0n);
     });
   });
 });
