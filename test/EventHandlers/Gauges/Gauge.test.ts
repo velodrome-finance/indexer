@@ -88,7 +88,7 @@ describe("Gauge Event Handlers", () => {
   });
 
   describe("Handler Integration", () => {
-    it("should call shared logic functions without errors", async () => {
+    it("should call shared logic functions without errors for Deposit", async () => {
       const mockEvent = Gauge.Deposit.createMockEvent({
         from: mockUserAddress,
         amount: 100000000000000000000n,
@@ -105,6 +105,50 @@ describe("Gauge Event Handlers", () => {
 
       // Should not throw - the actual business logic is tested in GaugeSharedLogic.test.ts
       await Gauge.Deposit.processEvent({
+        event: mockEvent,
+        mockDb: mockDb,
+      });
+    });
+
+    it("should call shared logic functions without errors for Withdraw", async () => {
+      const mockEvent = Gauge.Withdraw.createMockEvent({
+        from: mockUserAddress,
+        amount: 50000000000000000000n,
+        mockEventData: {
+          srcAddress: mockGaugeAddress,
+          chainId: mockChainId,
+          block: {
+            number: 101,
+            timestamp: 1000001,
+            hash: "0x5555555555555555555555555555555555555555555555555555555555555555",
+          },
+        },
+      });
+
+      // Should not throw - the actual business logic is tested in GaugeSharedLogic.test.ts
+      await Gauge.Withdraw.processEvent({
+        event: mockEvent,
+        mockDb: mockDb,
+      });
+    });
+
+    it("should call shared logic functions without errors for ClaimRewards", async () => {
+      const mockEvent = Gauge.ClaimRewards.createMockEvent({
+        from: mockUserAddress,
+        amount: 1000000000000000000000n,
+        mockEventData: {
+          srcAddress: mockGaugeAddress,
+          chainId: mockChainId,
+          block: {
+            number: 102,
+            timestamp: 1000002,
+            hash: "0x5555555555555555555555555555555555555555555555555555555555555555",
+          },
+        },
+      });
+
+      // Should not throw - the actual business logic is tested in GaugeSharedLogic.test.ts
+      await Gauge.ClaimRewards.processEvent({
         event: mockEvent,
         mockDb: mockDb,
       });

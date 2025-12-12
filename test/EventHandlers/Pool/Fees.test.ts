@@ -177,6 +177,7 @@ describe("Pool Fees Event", () => {
       numberOfGaugeRewardClaims: 0n,
       totalGaugeRewardsClaimedUSD: 0n,
       totalGaugeRewardsClaimed: 0n,
+      currentLiquidityStaked: 0n,
       currentLiquidityStakedUSD: 0n,
       numberOfVotes: 0n,
       currentVotingPower: 0n,
