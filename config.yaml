@@ -11,31 +11,34 @@ field_selection:
     - "hash"
 contracts:
   - name: FactoryRegistry
-    handler: src/EventHandlers/FactoryRegistry.ts
     abi_file_path: abis/FactoryRegistry.json
+    handler: src/EventHandlers/FactoryRegistry.ts
     events:
-      - event: Approve(address indexed poolFactory, address indexed votingRewardsFactory, address indexed gaugeFactory)
-      - event: Unapprove(address indexed poolFactory, address indexed votingRewardsFactory, address indexed gaugeFactory)
+      - event: Approve
+      - event: Unapprove
   - name: PoolFactory
+    abi_file_path: abis/PoolFactory.json
     handler: src/EventHandlers/PoolFactory.ts
     events:
-      - event: PoolCreated(address indexed token0, address indexed token1, bool indexed stable, address pool, uint256 unnamed)
-      - event: SetCustomFee(address indexed pool, uint256 fee)
+      - event: PoolCreated
+      - event: SetCustomFee
   - name: CLFactory
+    abi_file_path: abis/CLFactory.json
     handler: src/EventHandlers/CLFactory.ts
     events:
-      - event: PoolCreated(address indexed token0, address indexed token1, int24 indexed tickSpacing, address pool)
+      - event: PoolCreated
   - name: CLPool
+    abi_file_path: abis/CLPool.json
     handler: src/EventHandlers/CLPool.ts
     events:
-      - event: Burn(address indexed owner, int24 indexed tickLower, int24 indexed tickUpper, uint128 amount, uint256 amount0, uint256 amount1)
-      - event: Collect(address indexed owner, address recipient, int24 indexed tickLower, int24 indexed tickUpper, uint128 amount0, uint128 amount1)
-      - event: CollectFees(address indexed recipient, uint128 amount0, uint128 amount1)
-      - event: Flash(address indexed sender, address indexed recipient, uint256 amount0, uint256 amount1, uint256 paid0, uint256 paid1)
-      - event: IncreaseObservationCardinalityNext(uint16 observationCardinalityNextOld, uint16 observationCardinalityNextNew)
-      - event: Mint(address sender, address indexed owner, int24 indexed tickLower, int24 indexed tickUpper, uint128 amount, uint256 amount0, uint256 amount1)
-      - event: SetFeeProtocol(uint8 feeProtocol0Old, uint8 feeProtocol1Old, uint8 feeProtocol0New, uint8 feeProtocol1New)
-      - event: Swap(address indexed sender, address indexed recipient, int256 amount0, int256 amount1, uint160 sqrtPriceX96, uint128 liquidity, int24 tick)
+      - event: Burn
+      - event: Collect
+      - event: CollectFees
+      - event: Flash
+      - event: IncreaseObservationCardinalityNext
+      - event: Mint
+      - event: SetFeeProtocol
+      - event: Swap
   - name: NFPM
     abi_file_path: abis/NFPM.json
     handler: src/EventHandlers/NFPM/NFPM.ts
@@ -44,19 +47,21 @@ contracts:
       - event: IncreaseLiquidity
       - event: DecreaseLiquidity
   - name: VeNFT
+    abi_file_path: abis/VeNFT.json
     handler: src/EventHandlers/VeNFT/VeNFT.ts
     events:
-      - event: Deposit(address indexed provider, uint256 indexed tokenId, uint8 indexed depositType, uint256 value, uint256 locktime, uint256 ts)
-      - event: Withdraw(address indexed provider, uint256 indexed tokenId, uint256 value, uint256 ts)
-      - event: Transfer(address indexed from, address indexed to, uint256 indexed tokenId)
+      - event: Deposit
+      - event: Withdraw
+      - event: Transfer
   - name: Pool
+    abi_file_path: abis/Pool.json
     handler: src/EventHandlers/Pool.ts
     events:
-      - event: Mint(address indexed sender, uint256 amount0, uint256 amount1)
-      - event: Burn(address indexed sender, address indexed to, uint256 amount0, uint256 amount1)
-      - event: Fees(address indexed sender, uint256 amount0, uint256 amount1)
-      - event: Swap(address indexed sender, address indexed to, uint256 amount0In, uint256 amount1In, uint256 amount0Out, uint256 amount1Out)
-      - event: Sync(uint256 reserve0, uint256 reserve1)
+      - event: Mint
+      - event: Burn
+      - event: Fees
+      - event: Swap
+      - event: Sync
   - name: Voter
     abi_file_path: abis/VoterV2.json
     handler: src/EventHandlers/Voter/Voter.ts
@@ -68,12 +73,11 @@ contracts:
       - event: GaugeKilled
       - event: WhitelistToken
   - name: SuperchainLeafVoter
+    abi_file_path: abis/SuperchainLeafVoter.json
     handler: src/EventHandlers/Voter/SuperchainLeafVoter.ts
     events:
-      - event: Voted(address indexed sender, address indexed pool, uint256 indexed tokenId, uint256 weight, uint256 totalWeight, uint256 timestamp)
-      - event: DistributeReward(address indexed sender, address indexed gauge, uint256 amount)
-      - event: GaugeCreated(address indexed poolFactory, address indexed votingRewardsFactory, address indexed gaugeFactory, address pool, address incentiveVotingReward, address feeVotingReward, address gauge)
-      - event: WhitelistToken(address indexed whitelister, address indexed token, bool indexed _bool)
+      - event: GaugeCreated
+      - event: WhitelistToken
   - name: FeesVotingReward
     abi_file_path: abis/FeesVotingReward.json
     handler: src/EventHandlers/VotingReward/FeesVotingReward.ts
