@@ -23,49 +23,6 @@ import {
   computeVoterDistributeValues,
 } from "./VoterCommonLogic";
 
-SuperchainLeafVoter.Voted.handler(async ({ event, context }) => {
-  // Load pool data
-  const poolAddress = toChecksumAddress(event.params.pool);
-  const poolData = await loadPoolData(poolAddress, event.chainId, context);
-  if (!poolData) {
-    return;
-  }
-
-  // Load user data
-  const userData = await loadUserData(
-    toChecksumAddress(event.params.sender),
-    poolAddress,
-    event.chainId,
-    context,
-    new Date(event.block.timestamp * 1000),
-  );
-
-  const { liquidityPoolAggregator } = poolData;
-
-  const poolVoteDiff = {
-    veNFTamountStaked: event.params.totalWeight, // it's veNFT token amount!! This is absolute total veNFT staked in pool, substituting directly the previous value
-  };
-  const userVoteDiff = {
-    veNFTamountStaked: event.params.weight, // it's veNFT token amount!! Positive because it's a deposit
-  };
-
-  await Promise.all([
-    updateLiquidityPoolAggregator(
-      poolVoteDiff,
-      liquidityPoolAggregator,
-      new Date(event.block.timestamp * 1000),
-      context,
-      event.block.number,
-    ),
-    updateUserStatsPerPool(
-      userVoteDiff,
-      userData,
-      new Date(event.block.timestamp * 1000),
-      context,
-    ),
-  ]);
-});
-
 // Note:
 // These pools factories addresses are hardcoded since we can't check the pool type from the Voter contract
 const CLPOOLS_FACTORY_LIST: string[] = [
@@ -111,73 +68,6 @@ SuperchainLeafVoter.GaugeCreated.handler(async ({ event, context }) => {
       event.block.number,
     );
   }
-});
-
-SuperchainLeafVoter.DistributeReward.handler(async ({ event, context }) => {
-  const poolEntity = await findPoolByGaugeAddress(
-    event.params.gauge,
-    event.chainId,
-    context,
-  );
-
-  if (!poolEntity) {
-    context.log.warn(
-      `No pool address found for the gauge address ${event.params.gauge.toString()} on chain ${
-        event.chainId
-      }`,
-    );
-    return;
-  }
-
-  const rewardTokenAddress = CHAIN_CONSTANTS[event.chainId].rewardToken(
-    event.block.number,
-  );
-
-  const [currentLiquidityPool, rewardToken] = await Promise.all([
-    context.LiquidityPoolAggregator.get(poolEntity.id),
-    context.Token.get(TokenIdByChain(rewardTokenAddress, event.chainId)),
-  ]);
-
-  if (!currentLiquidityPool || !rewardToken) {
-    context.log.warn(
-      `Missing pool or reward token for gauge ${event.params.gauge.toString()} on chain ${event.chainId}`,
-    );
-    return;
-  }
-
-  // Refresh reward token price if it's zero (token was just created or price fetch failed previously)
-  // Or if more than 1h has passed since last update
-  const updatedRewardToken = await refreshTokenPrice(
-    rewardToken,
-    event.block.number,
-    event.block.timestamp,
-    event.chainId,
-    context,
-  );
-
-  const result = await computeVoterDistributeValues({
-    rewardToken: updatedRewardToken,
-    gaugeAddress: event.params.gauge,
-    voterAddress: event.srcAddress,
-    amountEmittedRaw: event.params.amount,
-    blockNumber: event.block.number,
-    chainId: event.chainId,
-    context,
-  });
-
-  const lpDiff = buildLpDiffFromDistribute(
-    result,
-    event.params.gauge,
-    event.block.timestamp * 1000,
-  );
-
-  await applyLpDiff(
-    context,
-    currentLiquidityPool,
-    lpDiff,
-    event.block.timestamp * 1000,
-    event.block.number,
-  );
 });
 
 /**
