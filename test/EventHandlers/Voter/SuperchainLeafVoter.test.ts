@@ -1,37 +1,10 @@
 import { expect } from "chai";
 import { MockDb, SuperchainLeafVoter } from "generated/src/TestHelpers.gen";
-import type {
-  LiquidityPoolAggregator,
-  Token,
-  UserStatsPerPool,
-} from "generated/src/Types.gen";
-import sinon from "sinon";
-import * as LiquidityPoolAggregatorModule from "../../../src/Aggregators/LiquidityPoolAggregator";
-import {
-  CHAIN_CONSTANTS,
-  TokenIdByChain,
-  toChecksumAddress,
-} from "../../../src/Constants";
-import { getIsAlive, getTokensDeposited } from "../../../src/Effects/Voter";
+import type { LiquidityPoolAggregator, Token } from "generated/src/Types.gen";
+import { TokenIdByChain, toChecksumAddress } from "../../../src/Constants";
 import { setupCommon } from "../Pool/common";
 
-// Type interface for Effect with handler property (for testing purposes)
-interface EffectWithHandler<I, O> {
-  name: string;
-  handler: (args: { input: I; context: unknown }) => Promise<O>;
-}
-
 describe("SuperchainLeafVoter Events", () => {
-  let sandbox: sinon.SinonSandbox;
-
-  beforeEach(() => {
-    sandbox = sinon.createSandbox();
-  });
-
-  afterEach(() => {
-    sandbox.restore();
-  });
-
   describe("GaugeCreated Event", () => {
     let mockDb: ReturnType<typeof MockDb.createMockDb>;
     let mockEvent: ReturnType<
@@ -206,6 +179,89 @@ describe("SuperchainLeafVoter Events", () => {
         expect(token?.lastUpdatedTimestamp?.getTime()).to.equal(
           mockEvent.block.timestamp * 1000,
         );
+      });
+    });
+
+    describe("when _bool is false (de-whitelisting)", () => {
+      beforeEach(() => {
+        mockEvent = SuperchainLeafVoter.WhitelistToken.createMockEvent({
+          token: tokenAddress,
+          _bool: false,
+          mockEventData: {
+            block: {
+              number: 123456,
+              timestamp: 1000000,
+              hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+            },
+            chainId,
+            logIndex: 1,
+          },
+        });
+      });
+
+      describe("when token already exists and is whitelisted", () => {
+        const expectedPricePerUSDNew = BigInt(10000000);
+        let resultDB: ReturnType<typeof MockDb.createMockDb>;
+
+        beforeEach(async () => {
+          const token: Token = {
+            id: TokenIdByChain(tokenAddress, chainId),
+            address: tokenAddress,
+            symbol: "TEST",
+            name: "TEST",
+            chainId,
+            decimals: BigInt(18),
+            pricePerUSDNew: expectedPricePerUSDNew,
+            isWhitelisted: true, // Initially whitelisted
+          } as Token;
+
+          const updatedDb = mockDb.entities.Token.set(token);
+
+          resultDB = await SuperchainLeafVoter.WhitelistToken.processEvent({
+            event: mockEvent,
+            mockDb: updatedDb,
+          });
+        });
+
+        it("should update the existing token entity to de-whitelist it", () => {
+          const token = resultDB.entities.Token.get(
+            TokenIdByChain(tokenAddress, chainId),
+          );
+          expect(token).to.not.be.undefined;
+          expect(token?.isWhitelisted).to.be.false;
+          expect(token?.pricePerUSDNew).to.equal(expectedPricePerUSDNew);
+          expect(token?.lastUpdatedTimestamp).to.be.instanceOf(Date);
+          expect(token?.lastUpdatedTimestamp?.getTime()).to.equal(
+            mockEvent.block.timestamp * 1000,
+          );
+        });
+      });
+
+      describe("when token does not exist yet", () => {
+        let resultDB: ReturnType<typeof MockDb.createMockDb>;
+
+        beforeEach(async () => {
+          resultDB = await SuperchainLeafVoter.WhitelistToken.processEvent({
+            event: mockEvent,
+            mockDb,
+          });
+        });
+
+        it("should create a new Token entity with isWhitelisted set to false", () => {
+          const token = resultDB.entities.Token.get(
+            TokenIdByChain(tokenAddress, chainId),
+          );
+          expect(token).to.not.be.undefined;
+          expect(token?.isWhitelisted).to.be.false;
+          expect(token?.pricePerUSDNew).to.equal(0n);
+          expect(token?.name).to.be.a("string");
+          expect(token?.symbol).to.be.a("string");
+          expect(token?.address).to.equal(tokenAddress);
+          expect(token?.lastUpdatedTimestamp).to.be.instanceOf(Date);
+          expect(token?.lastUpdatedTimestamp?.getTime()).to.equal(
+            mockEvent.block.timestamp * 1000,
+          );
+        });
       });
     });
   });
