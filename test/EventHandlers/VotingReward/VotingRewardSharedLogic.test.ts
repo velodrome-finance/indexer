@@ -3,11 +3,7 @@ import type { Token } from "../../../generated/src/Types.gen";
 import { PoolAddressField } from "../../../src/Aggregators/LiquidityPoolAggregator";
 import {
   type VotingRewardClaimRewardsData,
-  type VotingRewardDepositData,
-  type VotingRewardWithdrawData,
   processVotingRewardClaimRewards,
-  processVotingRewardDeposit,
-  processVotingRewardWithdraw,
 } from "../../../src/EventHandlers/VotingReward/VotingRewardSharedLogic";
 
 describe("VotingRewardSharedLogic", () => {
@@ -59,92 +55,6 @@ describe("VotingRewardSharedLogic", () => {
       },
       isPreload: false,
     };
-  });
-
-  describe("processVotingRewardDeposit", () => {
-    it("should return correct pool and user diffs for deposit", async () => {
-      const data: VotingRewardDepositData = {
-        votingRewardAddress: mockVotingRewardAddress,
-        userAddress: mockUserAddress,
-        chainId: mockChainId,
-        blockNumber: 12345,
-        timestamp: Math.floor(mockTimestamp.getTime() / 1000),
-        tokenId: 1n,
-        amount: 1000000n, // 1 USDC (6 decimals)
-      };
-
-      const result = await processVotingRewardDeposit(data);
-
-      expect(result.poolDiff).to.deep.include({
-        veNFTamountStaked: 1000000n,
-        lastUpdatedTimestamp: mockTimestamp,
-      });
-
-      expect(result.userDiff).to.deep.include({
-        veNFTamountStaked: 1000000n,
-        lastActivityTimestamp: mockTimestamp,
-      });
-    });
-
-    it("should handle different amounts correctly", async () => {
-      const data: VotingRewardDepositData = {
-        votingRewardAddress: mockVotingRewardAddress,
-        userAddress: mockUserAddress,
-        chainId: mockChainId,
-        blockNumber: 12345,
-        timestamp: Math.floor(mockTimestamp.getTime() / 1000),
-        tokenId: 1n,
-        amount: 5000000n, // 5 USDC
-      };
-
-      const result = await processVotingRewardDeposit(data);
-
-      expect(result.poolDiff?.veNFTamountStaked).to.equal(5000000n);
-      expect(result.userDiff?.veNFTamountStaked).to.equal(5000000n);
-    });
-  });
-
-  describe("processVotingRewardWithdraw", () => {
-    it("should return negative amounts for withdrawal", async () => {
-      const data: VotingRewardWithdrawData = {
-        votingRewardAddress: mockVotingRewardAddress,
-        userAddress: mockUserAddress,
-        chainId: mockChainId,
-        blockNumber: 12345,
-        timestamp: Math.floor(mockTimestamp.getTime() / 1000),
-        tokenId: 1n,
-        amount: 1000000n, // 1 USDC
-      };
-
-      const result = await processVotingRewardWithdraw(data);
-
-      expect(result.poolDiff).to.deep.include({
-        veNFTamountStaked: -1000000n,
-        lastUpdatedTimestamp: mockTimestamp,
-      });
-
-      expect(result.userDiff).to.deep.include({
-        veNFTamountStaked: -1000000n,
-        lastActivityTimestamp: mockTimestamp,
-      });
-    });
-
-    it("should handle different withdrawal amounts correctly", async () => {
-      const data: VotingRewardWithdrawData = {
-        votingRewardAddress: mockVotingRewardAddress,
-        userAddress: mockUserAddress,
-        chainId: mockChainId,
-        blockNumber: 12345,
-        timestamp: Math.floor(mockTimestamp.getTime() / 1000),
-        tokenId: 1n,
-        amount: 2500000n, // 2.5 USDC
-      };
-
-      const result = await processVotingRewardWithdraw(data);
-
-      expect(result.poolDiff?.veNFTamountStaked).to.equal(-2500000n);
-      expect(result.userDiff?.veNFTamountStaked).to.equal(-2500000n);
-    });
   });
 
   describe("processVotingRewardClaimRewards", () => {
