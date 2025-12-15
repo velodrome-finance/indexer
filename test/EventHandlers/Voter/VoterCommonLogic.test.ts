@@ -8,7 +8,6 @@ import {
 import type { VoterCommonResult } from "../../../src/EventHandlers/Voter/VoterCommonLogic";
 import {
   buildLpDiffFromDistribute,
-  computeVoteDiffsFromVoted,
   computeVoterDistributeValues,
   updateTokenWhitelist,
 } from "../../../src/EventHandlers/Voter/VoterCommonLogic";
@@ -150,23 +149,6 @@ describe("computeVoterDistributeValues", () => {
     expect(result.normalizedEmissionsAmountUsd).to.equal(0n);
     expect(result.normalizedVotesDepositedAmountUsd).to.equal(0n);
     expect(logs.warns.length).to.be.greaterThan(0);
-  });
-});
-
-describe("computeVoteDiffsFromVoted", () => {
-  it("builds pool and user diffs with expected fields", () => {
-    const now = 1_700_000_000_000;
-    const { poolVoteDiff, userVoteDiff } = computeVoteDiffsFromVoted({
-      userVotingPowerToPool: 123n,
-      totalPoolVotingPower: 456n,
-      timestampMs: now,
-    });
-    expect(poolVoteDiff.numberOfVotes).to.equal(1n);
-    expect(poolVoteDiff.currentVotingPower).to.equal(456n);
-    expect(+poolVoteDiff.lastUpdatedTimestamp).to.equal(now);
-
-    expect(userVoteDiff.numberOfVotes).to.equal(1n);
-    expect(userVoteDiff.currentVotingPower).to.equal(123n);
   });
 });
 

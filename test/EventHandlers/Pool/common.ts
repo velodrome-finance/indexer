@@ -106,8 +106,6 @@ export function setupCommon() {
     // Voting fields
     gaugeAddress: "",
     gaugeEmissionsCap: 0n,
-    numberOfVotes: 0n,
-    currentVotingPower: 0n,
     // Dynamic Fee fields
     baseFee: undefined,
     feeCap: undefined,
@@ -181,8 +179,6 @@ export function setupCommon() {
     currentLiquidityStakedUSD: 0n,
 
     // Voting metrics
-    numberOfVotes: 0n,
-    currentVotingPower: 0n,
     totalBribeClaimed: 0n,
     totalBribeClaimedUSD: 0n,
     totalFeeRewardClaimed: 0n,

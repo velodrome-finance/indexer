@@ -20,10 +20,10 @@ import { refreshTokenPrice } from "../../PriceOracle";
 import {
   applyLpDiff,
   buildLpDiffFromDistribute,
-  computeVoteDiffsFromVoted,
   computeVoterDistributeValues,
 } from "./VoterCommonLogic";
 
+// Leads to a deposit of veNFT
 Voter.Voted.handler(async ({ event, context }) => {
   // Load pool data and user data concurrently for better performance
   const poolAddress = toChecksumAddress(event.params.pool);
@@ -44,26 +44,75 @@ Voter.Voted.handler(async ({ event, context }) => {
 
   const { liquidityPoolAggregator } = poolData;
 
-  const { poolVoteDiff, userVoteDiff } = computeVoteDiffsFromVoted({
-    userVotingPowerToPool: event.params.weight,
-    totalPoolVotingPower: event.params.totalWeight,
-    timestampMs: event.block.timestamp * 1000,
-  });
+  const poolVoteDiff = {
+    veNFTamountStaked: event.params.totalWeight, // it's veNFT token amount!! This is absolute total veNFT staked in pool, substituting directly the previous value
+  };
 
-  await updateLiquidityPoolAggregator(
-    poolVoteDiff,
-    liquidityPoolAggregator,
-    new Date(event.block.timestamp * 1000),
-    context,
-    event.block.number,
-  );
+  const userVoteDiff = {
+    veNFTamountStaked: event.params.weight, // it's veNFT token amount!! Positive because it's a deposit
+  };
 
-  await updateUserStatsPerPool(
-    userVoteDiff,
-    userData,
-    new Date(event.block.timestamp * 1000),
-    context,
-  );
+  await Promise.all([
+    updateLiquidityPoolAggregator(
+      poolVoteDiff,
+      liquidityPoolAggregator,
+      new Date(event.block.timestamp * 1000),
+      context,
+      event.block.number,
+    ),
+    updateUserStatsPerPool(
+      userVoteDiff,
+      userData,
+      new Date(event.block.timestamp * 1000),
+      context,
+    ),
+  ]);
+});
+
+// The opposite of the Voted event: effectively withdraws veNFT
+Voter.Abstained.handler(async ({ event, context }) => {
+  // Load pool data and user data concurrently for better performance
+  const poolAddress = toChecksumAddress(event.params.pool);
+  const [poolData, userData] = await Promise.all([
+    loadPoolData(poolAddress, event.chainId, context),
+    loadUserData(
+      toChecksumAddress(event.params.voter),
+      poolAddress,
+      event.chainId,
+      context,
+      new Date(event.block.timestamp * 1000),
+    ),
+  ]);
+
+  if (!poolData) {
+    return;
+  }
+
+  const { liquidityPoolAggregator } = poolData;
+
+  const poolVoteDiff = {
+    veNFTamountStaked: event.params.totalWeight, // it's veNFT token amount!! This is absolute total veNFT staked in pool, substituting directly the previous value
+  };
+
+  const userVoteDiff = {
+    veNFTamountStaked: -event.params.weight, // it's veNFT token amount!! Negative because it's a withdrawal
+  };
+
+  await Promise.all([
+    updateLiquidityPoolAggregator(
+      poolVoteDiff,
+      liquidityPoolAggregator,
+      new Date(event.block.timestamp * 1000),
+      context,
+      event.block.number,
+    ),
+    updateUserStatsPerPool(
+      userVoteDiff,
+      userData,
+      new Date(event.block.timestamp * 1000),
+      context,
+    ),
+  ]);
 });
 
 // Note:

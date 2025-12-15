@@ -105,8 +105,7 @@ describe("Voter Events", () => {
           toChecksumAddress(poolAddress),
         );
         expect(updatedPool).to.not.be.undefined;
-        expect(updatedPool?.numberOfVotes).to.equal(1n);
-        expect(updatedPool?.currentVotingPower).to.equal(1000n); // totalPoolVotingPower
+        expect(updatedPool?.veNFTamountStaked).to.equal(1000n);
         expect(updatedPool?.lastUpdatedTimestamp).to.deep.equal(
           new Date(1000000 * 1000),
         );
@@ -117,8 +116,7 @@ describe("Voter Events", () => {
         const updatedUserStats =
           resultDB.entities.UserStatsPerPool.get(userStatsId);
         expect(updatedUserStats).to.not.be.undefined;
-        expect(updatedUserStats?.numberOfVotes).to.equal(1n);
-        expect(updatedUserStats?.currentVotingPower).to.equal(100n); // userVotingPowerToPool
+        expect(updatedUserStats?.veNFTamountStaked).to.equal(100n);
         expect(updatedUserStats?.lastActivityTimestamp).to.deep.equal(
           new Date(1000000 * 1000),
         );
@@ -128,6 +126,119 @@ describe("Voter Events", () => {
     describe("when pool data does not exist", () => {
       it("should return early without creating pool entities", async () => {
         const resultDB = await Voter.Voted.processEvent({
+          event: mockEvent,
+          mockDb,
+        });
+
+        // Should not create LiquidityPoolAggregator entity
+        expect(
+          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()).length,
+        ).to.equal(0);
+        // loadUserData is called in parallel and creates UserStatsPerPool even if pool doesn't exist
+        // This is expected behavior - the entity is created but not updated
+        expect(
+          Array.from(resultDB.entities.UserStatsPerPool.getAll()).length,
+        ).to.equal(1);
+      });
+    });
+  });
+
+  describe("Abstained Event", () => {
+    let mockDb: ReturnType<typeof MockDb.createMockDb>;
+    let mockEvent: ReturnType<typeof Voter.Abstained.createMockEvent>;
+    const chainId = 10; // Optimism
+    const poolAddress = "0x478946BcD4a5a22b316470F5486fAfb928C0bA25";
+    const voterAddress = "0x1111111111111111111111111111111111111111";
+
+    beforeEach(() => {
+      mockDb = MockDb.createMockDb();
+      mockEvent = Voter.Abstained.createMockEvent({
+        voter: voterAddress,
+        pool: poolAddress,
+        tokenId: 1n,
+        weight: 100n,
+        totalWeight: 1000n,
+        mockEventData: {
+          block: {
+            number: 123456,
+            timestamp: 1000000,
+            hash: "0xhash",
+          },
+          chainId: chainId,
+          logIndex: 1,
+        },
+      });
+    });
+
+    describe("when pool data exists", () => {
+      let resultDB: ReturnType<typeof MockDb.createMockDb>;
+      let mockLiquidityPool: LiquidityPoolAggregator;
+      let mockUserStats: UserStatsPerPool;
+
+      beforeEach(async () => {
+        const {
+          mockLiquidityPoolData,
+          mockToken0Data,
+          mockToken1Data,
+          createMockUserStatsPerPool,
+        } = setupCommon();
+
+        mockLiquidityPool = {
+          ...mockLiquidityPoolData,
+          id: toChecksumAddress(poolAddress),
+          chainId: chainId,
+          veNFTamountStaked: 2000n, // Initial staked amount
+        } as LiquidityPoolAggregator;
+
+        mockUserStats = createMockUserStatsPerPool({
+          userAddress: voterAddress,
+          poolAddress: poolAddress,
+          chainId: chainId,
+          veNFTamountStaked: 200n, // Initial user staked amount
+          firstActivityTimestamp: new Date(0),
+          lastActivityTimestamp: new Date(0),
+        });
+
+        // Setup mock database with required entities
+        mockDb = mockDb.entities.LiquidityPoolAggregator.set(mockLiquidityPool);
+        mockDb = mockDb.entities.UserStatsPerPool.set(mockUserStats);
+        mockDb = mockDb.entities.Token.set(mockToken0Data);
+        mockDb = mockDb.entities.Token.set(mockToken1Data);
+
+        resultDB = await Voter.Abstained.processEvent({
+          event: mockEvent,
+          mockDb,
+        });
+      });
+
+      it("should update liquidity pool aggregator with total weight (absolute value)", () => {
+        const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
+          toChecksumAddress(poolAddress),
+        );
+        expect(updatedPool).to.not.be.undefined;
+        // totalWeight is the absolute total veNFT staked in pool, replacing previous value
+        expect(updatedPool?.veNFTamountStaked).to.equal(1000n); // event.params.totalWeight
+        expect(updatedPool?.lastUpdatedTimestamp).to.deep.equal(
+          new Date(1000000 * 1000),
+        );
+      });
+
+      it("should decrease user stats veNFT amount staked (negative weight)", () => {
+        const userStatsId = `${toChecksumAddress(voterAddress)}_${toChecksumAddress(poolAddress)}_${chainId}`;
+        const updatedUserStats =
+          resultDB.entities.UserStatsPerPool.get(userStatsId);
+        expect(updatedUserStats).to.not.be.undefined;
+        // weight is subtracted (negative because it's a withdrawal)
+        expect(updatedUserStats?.veNFTamountStaked).to.equal(100n); // 200n - 100n
+        expect(updatedUserStats?.lastActivityTimestamp).to.deep.equal(
+          new Date(1000000 * 1000),
+        );
+      });
+    });
+
+    describe("when pool data does not exist", () => {
+      it("should return early without creating pool entities", async () => {
+        const resultDB = await Voter.Abstained.processEvent({
           event: mockEvent,
           mockDb,
         });
@@ -227,6 +338,67 @@ describe("Voter Events", () => {
         expect(
           Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()).length,
         ).to.equal(0);
+      });
+    });
+
+    describe("when pool factory is CL factory", () => {
+      let resultDB: ReturnType<typeof MockDb.createMockDb>;
+      let mockLiquidityPool: LiquidityPoolAggregator;
+      let clFactoryEvent: ReturnType<typeof Voter.GaugeCreated.createMockEvent>;
+
+      beforeEach(async () => {
+        const { mockLiquidityPoolData } = setupCommon();
+
+        mockLiquidityPool = {
+          ...mockLiquidityPoolData,
+          id: toChecksumAddress(poolAddress),
+          chainId: chainId,
+          gaugeAddress: "", // Initially empty
+        } as LiquidityPoolAggregator;
+
+        // Create event with CL factory address (from CLPOOLS_FACTORY_LIST)
+        clFactoryEvent = Voter.GaugeCreated.createMockEvent({
+          poolFactory: "0xCc0bDDB707055e04e497aB22a59c2aF4391cd12F", // CL factory (optimism)
+          votingRewardsFactory: "0x2222222222222222222222222222222222222222",
+          gaugeFactory: "0x3333333333333333333333333333333333333333",
+          pool: poolAddress,
+          bribeVotingReward: "0x5555555555555555555555555555555555555555",
+          feeVotingReward: "0x6666666666666666666666666666666666666666",
+          gauge: gaugeAddress,
+          creator: "0x7777777777777777777777777777777777777777",
+          mockEventData: {
+            block: {
+              number: 123456,
+              timestamp: 1000000,
+              hash: "0xhash",
+            },
+            chainId: chainId,
+            logIndex: 1,
+          },
+        });
+
+        mockDb = mockDb.entities.LiquidityPoolAggregator.set(mockLiquidityPool);
+
+        resultDB = await Voter.GaugeCreated.processEvent({
+          event: clFactoryEvent,
+          mockDb,
+        });
+      });
+
+      it("should update pool entity with gauge address (CL factory path)", () => {
+        const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
+          toChecksumAddress(poolAddress),
+        );
+        expect(updatedPool).to.not.be.undefined;
+        expect(updatedPool?.gaugeAddress).to.equal(
+          toChecksumAddress(gaugeAddress),
+        );
+        expect(updatedPool?.feeVotingRewardAddress).to.equal(
+          "0x6666666666666666666666666666666666666666",
+        );
+        expect(updatedPool?.bribeVotingRewardAddress).to.equal(
+          "0x5555555555555555555555555555555555555555",
+        );
       });
     });
   });

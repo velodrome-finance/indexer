@@ -25,8 +25,6 @@ type LiquidityPoolAggregator {
   numberOfSwaps: BigInt! @config(precision: 76) # total number of swaps in the pool
   token0Price: BigInt! @config(precision: 76) # price of token0 relative to token1
   token1Price: BigInt! @config(precision: 76) # price of token1 relative to token0
-  numberOfVotes: BigInt! @config(precision: 76) # total number of vote transactions
-  currentVotingPower: BigInt! @config(precision: 76) # current total voting power for the pool
   totalVotesDeposited: BigInt! @config(precision: 76) # total votes deposited in veToken units
   totalVotesDepositedUSD: BigInt! @config(precision: 76) # total votes deposited in USD
   totalEmissions: BigInt! @config(precision: 76) # total emissions for the pool in reward token units (VELO form Optimism and AERO for Base)
@@ -112,8 +110,6 @@ type LiquidityPoolAggregatorSnapshot {
   numberOfSwaps: BigInt! @config(precision: 76) # total number of swaps in the pool
   token0Price: BigInt! @config(precision: 76) # price of token0 relative to token1
   token1Price: BigInt! @config(precision: 76) # price of token1 relative to token0
-  numberOfVotes: BigInt! @config(precision: 76) # total number of vote transactions
-  currentVotingPower: BigInt! @config(precision: 76) # current total voting power for the pool
   totalVotesDeposited: BigInt! @config(precision: 76) # total votes deposited in veToken units
   totalVotesDepositedUSD: BigInt! @config(precision: 76) # total votes deposited in USD
   totalEmissions: BigInt! @config(precision: 76) # total emissions for the pool in reward token units (VELO form Optimism and AERO for Base)
@@ -192,8 +188,6 @@ type UserStatsPerPool {
   currentLiquidityStakedUSD: BigInt! @config(precision: 76) # current liquidity staked in gauge in USD
 
   # Voting metrics
-  numberOfVotes: BigInt! @config(precision: 76) # number of vote transactions for this pool
-  currentVotingPower: BigInt! @config(precision: 76) # current voting power allocated to this pool by this user
   totalBribeClaimed: BigInt! @config(precision: 76) # total amount of bribe rewards claimed by this user for this pool
   totalBribeClaimedUSD: BigInt! @config(precision: 76) # total USD value of bribe rewards claimed by this user for this pool
   totalFeeRewardClaimed: BigInt! @config(precision: 76) # total amount of fee rewards claimed by this user for this pool

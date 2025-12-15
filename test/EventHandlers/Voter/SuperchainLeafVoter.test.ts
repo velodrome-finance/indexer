@@ -103,8 +103,7 @@ describe("SuperchainLeafVoter Events", () => {
           toChecksumAddress(poolAddress),
         );
         expect(updatedPool).to.not.be.undefined;
-        expect(updatedPool?.numberOfVotes).to.equal(1n);
-        expect(updatedPool?.currentVotingPower).to.equal(1000n); // totalPoolVotingPower
+        expect(updatedPool?.veNFTamountStaked).to.equal(1000n);
         expect(updatedPool?.lastUpdatedTimestamp).to.deep.equal(
           new Date(1000000 * 1000),
         );
@@ -115,8 +114,7 @@ describe("SuperchainLeafVoter Events", () => {
         const updatedUserStats =
           resultDB.entities.UserStatsPerPool.get(userStatsId);
         expect(updatedUserStats).to.not.be.undefined;
-        expect(updatedUserStats?.numberOfVotes).to.equal(1n);
-        expect(updatedUserStats?.currentVotingPower).to.equal(100n); // userVotingPowerToPool
+        expect(updatedUserStats?.veNFTamountStaked).to.equal(100n);
         expect(updatedUserStats?.lastActivityTimestamp).to.deep.equal(
           new Date(1000000 * 1000),
         );

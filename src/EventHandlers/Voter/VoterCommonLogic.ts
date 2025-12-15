@@ -1,4 +1,9 @@
-import type { LiquidityPoolAggregator, Token, handlerContext } from "generated";
+import type {
+  LiquidityPoolAggregator,
+  Token,
+  UserStatsPerPool,
+  handlerContext,
+} from "generated";
 import { updateLiquidityPoolAggregator } from "../../Aggregators/LiquidityPoolAggregator";
 import {
   getIsAlive,
