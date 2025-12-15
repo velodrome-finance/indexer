@@ -5,6 +5,7 @@ import {
   updateUserStatsPerPool,
 } from "../../src/Aggregators/UserStatsPerPool";
 import { toChecksumAddress } from "../../src/Constants";
+import { setupCommon } from "../EventHandlers/Pool/common";
 
 describe("UserStatsPerPool Aggregator", () => {
   const mockUserAddress = "0x1234567890123456789012345678901234567890";
@@ -361,51 +362,25 @@ describe("UserStatsPerPool Aggregator", () => {
     });
 
     it("should update existing user stats correctly", async () => {
-      const existingUserStats: UserStatsPerPool = {
-        id: `${mockUserAddress.toLowerCase()}_${mockPoolAddress.toLowerCase()}_${mockChainId}`,
-        userAddress: mockUserAddress.toLowerCase(),
-        poolAddress: mockPoolAddress.toLowerCase(),
+      const { createMockUserStatsPerPool } = setupCommon();
+      const existingUserStats = createMockUserStatsPerPool({
+        userAddress: mockUserAddress,
+        poolAddress: mockPoolAddress,
         chainId: mockChainId,
         currentLiquidityUSD: 2000n,
         currentLiquidityToken0: 1000n,
         currentLiquidityToken1: 1000n,
         totalLiquidityAddedUSD: 2000n,
-        totalLiquidityRemovedUSD: 0n,
         totalFeesContributedUSD: 1000n,
         totalFeesContributed0: 500n,
         totalFeesContributed1: 300n,
         numberOfSwaps: 5n,
-        totalSwapVolumeAmount0: 0n,
-        totalSwapVolumeAmount1: 0n,
         totalSwapVolumeUSD: 10000n,
         numberOfFlashLoans: 2n,
         totalFlashLoanVolumeUSD: 20000n,
-        numberOfGaugeDeposits: 0n,
-        numberOfGaugeWithdrawals: 0n,
-        numberOfGaugeRewardClaims: 0n,
-        totalGaugeRewardsClaimedUSD: 0n,
-        totalGaugeRewardsClaimed: 0n,
-        currentLiquidityStaked: 0n,
-        currentLiquidityStakedUSD: 0n,
-        numberOfVotes: 0n,
-        currentVotingPower: 0n,
-
-        // Voting Reward Claims
-        totalBribeClaimed: 0n,
-        totalBribeClaimedUSD: 0n,
-        totalFeeRewardClaimed: 0n,
-        totalFeeRewardClaimedUSD: 0n,
-        veNFTamountStaked: 0n,
-
-        // ALM fields
-        almAddress: "",
-        almAmount0: 0n,
-        almAmount1: 0n,
-        almLpAmount: 0n,
-
         firstActivityTimestamp: new Date(500000 * 1000),
         lastActivityTimestamp: new Date(800000 * 1000),
-      };
+      });
 
       let savedUserStats: UserStatsPerPool | undefined;
       Object.assign(mockContext.UserStatsPerPool, {
@@ -441,51 +416,25 @@ describe("UserStatsPerPool Aggregator", () => {
     });
 
     it("should handle liquidity removal from existing stats", async () => {
-      const existingUserStats: UserStatsPerPool = {
-        id: `${mockUserAddress.toLowerCase()}_${mockPoolAddress.toLowerCase()}_${mockChainId}`,
-        userAddress: mockUserAddress.toLowerCase(),
-        poolAddress: mockPoolAddress.toLowerCase(),
+      const { createMockUserStatsPerPool } = setupCommon();
+      const existingUserStats = createMockUserStatsPerPool({
+        userAddress: mockUserAddress,
+        poolAddress: mockPoolAddress,
         chainId: mockChainId,
         currentLiquidityUSD: 2000n,
         currentLiquidityToken0: 1000n,
         currentLiquidityToken1: 1000n,
         totalLiquidityAddedUSD: 2000n,
-        totalLiquidityRemovedUSD: 0n,
         totalFeesContributedUSD: 1000n,
         totalFeesContributed0: 500n,
         totalFeesContributed1: 300n,
         numberOfSwaps: 5n,
-        totalSwapVolumeAmount0: 0n,
-        totalSwapVolumeAmount1: 0n,
         totalSwapVolumeUSD: 10000n,
         numberOfFlashLoans: 2n,
         totalFlashLoanVolumeUSD: 20000n,
-        numberOfGaugeDeposits: 0n,
-        numberOfGaugeWithdrawals: 0n,
-        numberOfGaugeRewardClaims: 0n,
-        totalGaugeRewardsClaimedUSD: 0n,
-        totalGaugeRewardsClaimed: 0n,
-        currentLiquidityStaked: 0n,
-        currentLiquidityStakedUSD: 0n,
-        numberOfVotes: 0n,
-        currentVotingPower: 0n,
-
-        // Voting Reward Claims
-        totalBribeClaimed: 0n,
-        totalBribeClaimedUSD: 0n,
-        totalFeeRewardClaimed: 0n,
-        totalFeeRewardClaimedUSD: 0n,
-        veNFTamountStaked: 0n,
-
-        // ALM fields
-        almAddress: "",
-        almAmount0: 0n,
-        almAmount1: 0n,
-        almLpAmount: 0n,
-
         firstActivityTimestamp: new Date(500000 * 1000),
         lastActivityTimestamp: new Date(800000 * 1000),
-      };
+      });
 
       let savedUserStats: UserStatsPerPool | undefined;
       Object.assign(mockContext.UserStatsPerPool, {

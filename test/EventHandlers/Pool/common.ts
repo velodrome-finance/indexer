@@ -200,11 +200,67 @@ export function setupCommon() {
     lastActivityTimestamp: new Date(900000 * 1000),
   };
 
+  /**
+   * Creates a mock UserStatsPerPool entity with customizable fields.
+   * All fields default to zero/empty values, allowing tests to override only what they need.
+   *
+   * @param overrides - Partial UserStatsPerPool to override default values
+   * @returns A complete UserStatsPerPool entity
+   */
+  function createMockUserStatsPerPool(
+    overrides: Partial<UserStatsPerPool> = {},
+  ): UserStatsPerPool {
+    // Calculate id if userAddress, poolAddress, or chainId are provided
+    const userAddress = toChecksumAddress(
+      overrides.userAddress ?? defaultUserAddress,
+    );
+    const poolAddress = toChecksumAddress(
+      overrides.poolAddress ?? mockLiquidityPoolData.id,
+    );
+    const chainId = overrides.chainId ?? mockLiquidityPoolData.chainId;
+    const id = `${userAddress}_${poolAddress}_${chainId}`;
+
+    return {
+      ...mockUserStatsPerPoolData,
+      id,
+      userAddress,
+      poolAddress,
+      chainId,
+      ...overrides,
+    };
+  }
+
+  /**
+   * Creates a mock LiquidityPoolAggregator entity with customizable fields.
+   * All fields default to values from mockLiquidityPoolData, allowing tests to override only what they need.
+   *
+   * @param overrides - Partial LiquidityPoolAggregator to override default values
+   * @returns A complete LiquidityPoolAggregator entity
+   */
+  function createMockLiquidityPoolAggregator(
+    overrides: Partial<LiquidityPoolAggregator> = {},
+  ): LiquidityPoolAggregator {
+    // Calculate id if poolAddress or chainId are provided
+    const poolAddress = toChecksumAddress(
+      overrides.id ?? mockLiquidityPoolData.id,
+    );
+    const chainId = overrides.chainId ?? mockLiquidityPoolData.chainId;
+
+    return {
+      ...mockLiquidityPoolData,
+      id: poolAddress,
+      chainId,
+      ...overrides,
+    };
+  }
+
   return {
     mockToken0Data,
     mockToken1Data,
     mockLiquidityPoolData,
     mockALMLPWrapperData,
     mockUserStatsPerPoolData,
+    createMockUserStatsPerPool,
+    createMockLiquidityPoolAggregator,
   };
 }

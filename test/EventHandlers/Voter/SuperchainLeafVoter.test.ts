@@ -65,48 +65,26 @@ describe("SuperchainLeafVoter Events", () => {
       let mockUserStats: UserStatsPerPool;
 
       beforeEach(async () => {
-        const { mockLiquidityPoolData, mockToken0Data, mockToken1Data } =
-          setupCommon();
+        const {
+          mockLiquidityPoolData,
+          mockToken0Data,
+          mockToken1Data,
+          createMockUserStatsPerPool,
+        } = setupCommon();
 
         mockLiquidityPool = {
           ...mockLiquidityPoolData,
           id: toChecksumAddress(poolAddress),
           chainId: chainId,
-          numberOfVotes: 0n,
-          currentVotingPower: 0n,
         } as LiquidityPoolAggregator;
 
-        mockUserStats = {
-          id: `${toChecksumAddress(senderAddress)}_${toChecksumAddress(poolAddress)}_${chainId}`,
-          userAddress: toChecksumAddress(senderAddress),
-          poolAddress: toChecksumAddress(poolAddress),
+        mockUserStats = createMockUserStatsPerPool({
+          userAddress: senderAddress,
+          poolAddress: poolAddress,
           chainId: chainId,
-          numberOfVotes: 0n,
-          currentVotingPower: 0n,
           firstActivityTimestamp: new Date(0),
           lastActivityTimestamp: new Date(0),
-          currentLiquidityStaked: 0n,
-          currentLiquidityStakedUSD: 0n,
-          currentLiquidityToken0: 0n,
-          currentLiquidityToken1: 0n,
-          currentLiquidityUSD: 0n,
-          numberOfFlashLoans: 0n,
-          numberOfGaugeDeposits: 0n,
-          numberOfGaugeRewardClaims: 0n,
-          numberOfGaugeWithdrawals: 0n,
-          numberOfSwaps: 0n,
-          totalFeesContributed0: 0n,
-          totalFeesContributed1: 0n,
-          totalFeesContributedUSD: 0n,
-          totalFlashLoanVolumeUSD: 0n,
-          totalGaugeRewardsClaimedUSD: 0n,
-          totalGaugeRewardsClaimed: 0n,
-          totalLiquidityAddedUSD: 0n,
-          totalLiquidityRemovedUSD: 0n,
-          totalSwapVolumeAmount0: 0n,
-          totalSwapVolumeAmount1: 0n,
-          totalSwapVolumeUSD: 0n,
-        } as UserStatsPerPool;
+        });
 
         // Setup mock database with required entities
         mockDb = mockDb.entities.LiquidityPoolAggregator.set(mockLiquidityPool);

@@ -20,8 +20,13 @@ import * as CLPoolSwapLogic from "../../src/EventHandlers/CLPool/CLPoolSwapLogic
 import { setupCommon } from "./Pool/common";
 
 describe("CLPool Events", () => {
-  const { mockToken0Data, mockToken1Data, mockLiquidityPoolData } =
-    setupCommon();
+  const {
+    mockToken0Data,
+    mockToken1Data,
+    mockLiquidityPoolData,
+    createMockLiquidityPoolAggregator,
+    createMockUserStatsPerPool,
+  } = setupCommon();
   const chainId = 10;
   const poolAddress = toChecksumAddress(mockLiquidityPoolData.id);
   const userAddress = "0x2222222222222222222222222222222222222222";
@@ -36,63 +41,21 @@ describe("CLPool Events", () => {
     mockDb = MockDb.createMockDb();
 
     // Set up liquidity pool
-    liquidityPool = {
-      ...mockLiquidityPoolData,
+    liquidityPool = createMockLiquidityPoolAggregator({
       id: poolAddress,
       chainId: chainId,
       isCL: true,
-    } as LiquidityPoolAggregator;
+    });
 
     // Set up user stats with all required fields
-    userStats = {
-      id: `${toChecksumAddress(userAddress)}_${poolAddress}_${chainId}`,
-      userAddress: toChecksumAddress(userAddress),
+    const { createMockUserStatsPerPool } = setupCommon();
+    userStats = createMockUserStatsPerPool({
+      userAddress: userAddress,
       poolAddress: poolAddress,
       chainId: chainId,
-      // Liquidity metrics
-      currentLiquidityUSD: 0n,
-      currentLiquidityToken0: 0n,
-      currentLiquidityToken1: 0n,
-      totalLiquidityAddedUSD: 0n,
-      totalLiquidityRemovedUSD: 0n,
-      // Fee metrics
-      totalFeesContributedUSD: 0n,
-      totalFeesContributed0: 0n,
-      totalFeesContributed1: 0n,
-      // Swap metrics
-      numberOfSwaps: 0n,
-      totalSwapVolumeAmount0: 0n,
-      totalSwapVolumeAmount1: 0n,
-      totalSwapVolumeUSD: 0n,
-      // Flash swap metrics
-      numberOfFlashLoans: 0n,
-      totalFlashLoanVolumeUSD: 0n,
-      // Gauge metrics
-      numberOfGaugeDeposits: 0n,
-      numberOfGaugeWithdrawals: 0n,
-      numberOfGaugeRewardClaims: 0n,
-      totalGaugeRewardsClaimedUSD: 0n,
-      totalGaugeRewardsClaimed: 0n,
-      currentLiquidityStaked: 0n,
-      currentLiquidityStakedUSD: 0n,
-      // Voting metrics
-      numberOfVotes: 0n,
-      currentVotingPower: 0n,
-      // Voting Reward Claims
-      totalBribeClaimed: 0n,
-      totalBribeClaimedUSD: 0n,
-      totalFeeRewardClaimed: 0n,
-      totalFeeRewardClaimedUSD: 0n,
-      veNFTamountStaked: 0n,
-      // ALM metrics
-      almAddress: "",
-      almAmount0: 0n,
-      almAmount1: 0n,
-      almLpAmount: 0n,
-      // Timestamps
       firstActivityTimestamp: new Date(1000000 * 1000),
       lastActivityTimestamp: new Date(1000000 * 1000),
-    } as UserStatsPerPool;
+    });
 
     // Set up entities in mock DB
     mockDb = mockDb.entities.LiquidityPoolAggregator.set(liquidityPool);

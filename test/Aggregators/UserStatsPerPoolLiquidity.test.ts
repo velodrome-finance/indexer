@@ -1,6 +1,7 @@
 import { expect } from "chai";
 import type { UserStatsPerPool, handlerContext } from "generated";
 import { updateUserStatsPerPool } from "../../src/Aggregators/UserStatsPerPool";
+import { setupCommon } from "../EventHandlers/Pool/common";
 
 describe("UserStatsPerPool Liquidity Logic", () => {
   const mockUserAddress = "0x1234567890123456789012345678901234567890";
@@ -8,51 +9,16 @@ describe("UserStatsPerPool Liquidity Logic", () => {
   const mockChainId = 10;
   const mockTimestamp = new Date(1000000 * 1000);
 
-  const createMockUserStats = (): UserStatsPerPool => ({
-    id: `${mockUserAddress.toLowerCase()}_${mockPoolAddress.toLowerCase()}_${mockChainId}`,
-    userAddress: mockUserAddress.toLowerCase(),
-    poolAddress: mockPoolAddress.toLowerCase(),
-    chainId: mockChainId,
-    currentLiquidityUSD: 0n,
-    currentLiquidityToken0: 0n,
-    currentLiquidityToken1: 0n,
-    totalLiquidityAddedUSD: 0n,
-    totalLiquidityRemovedUSD: 0n,
-    totalFeesContributedUSD: 0n,
-    totalFeesContributed0: 0n,
-    totalFeesContributed1: 0n,
-    numberOfSwaps: 0n,
-    totalSwapVolumeAmount0: 0n,
-    totalSwapVolumeAmount1: 0n,
-    totalSwapVolumeUSD: 0n,
-    numberOfFlashLoans: 0n,
-    totalFlashLoanVolumeUSD: 0n,
-    numberOfGaugeDeposits: 0n,
-    numberOfGaugeWithdrawals: 0n,
-    numberOfGaugeRewardClaims: 0n,
-    totalGaugeRewardsClaimedUSD: 0n,
-    totalGaugeRewardsClaimed: 0n,
-    currentLiquidityStaked: 0n,
-    currentLiquidityStakedUSD: 0n,
-    numberOfVotes: 0n,
-    currentVotingPower: 0n,
+  const { createMockUserStatsPerPool } = setupCommon();
 
-    // Voting Reward Claims
-    totalBribeClaimed: 0n,
-    totalBribeClaimedUSD: 0n,
-    totalFeeRewardClaimed: 0n,
-    totalFeeRewardClaimedUSD: 0n,
-    veNFTamountStaked: 0n,
-
-    // ALM fields
-    almAddress: "",
-    almAmount0: 0n,
-    almAmount1: 0n,
-    almLpAmount: 0n,
-
-    firstActivityTimestamp: mockTimestamp,
-    lastActivityTimestamp: mockTimestamp,
-  });
+  const createMockUserStats = (): UserStatsPerPool =>
+    createMockUserStatsPerPool({
+      userAddress: mockUserAddress,
+      poolAddress: mockPoolAddress,
+      chainId: mockChainId,
+      firstActivityTimestamp: mockTimestamp,
+      lastActivityTimestamp: mockTimestamp,
+    });
 
   describe("Liquidity Addition Logic", () => {
     it("should handle positive liquidity addition correctly", async () => {
