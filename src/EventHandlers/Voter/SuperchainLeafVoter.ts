@@ -20,7 +20,6 @@ import { refreshTokenPrice } from "../../PriceOracle";
 import {
   applyLpDiff,
   buildLpDiffFromDistribute,
-  computeVoteDiffsFromVoted,
   computeVoterDistributeValues,
 } from "./VoterCommonLogic";
 
@@ -43,26 +42,28 @@ SuperchainLeafVoter.Voted.handler(async ({ event, context }) => {
 
   const { liquidityPoolAggregator } = poolData;
 
-  const { poolVoteDiff, userVoteDiff } = computeVoteDiffsFromVoted({
-    userVotingPowerToPool: event.params.weight,
-    totalPoolVotingPower: event.params.totalWeight,
-    timestampMs: event.block.timestamp * 1000,
-  });
+  const poolVoteDiff = {
+    veNFTamountStaked: event.params.totalWeight, // it's veNFT token amount!! This is absolute total veNFT staked in pool, substituting directly the previous value
+  };
+  const userVoteDiff = {
+    veNFTamountStaked: event.params.weight, // it's veNFT token amount!! Positive because it's a deposit
+  };
 
-  await updateLiquidityPoolAggregator(
-    poolVoteDiff,
-    liquidityPoolAggregator,
-    new Date(event.block.timestamp * 1000),
-    context,
-    event.block.number,
-  );
-
-  await updateUserStatsPerPool(
-    userVoteDiff,
-    userData,
-    new Date(event.block.timestamp * 1000),
-    context,
-  );
+  await Promise.all([
+    updateLiquidityPoolAggregator(
+      poolVoteDiff,
+      liquidityPoolAggregator,
+      new Date(event.block.timestamp * 1000),
+      context,
+      event.block.number,
+    ),
+    updateUserStatsPerPool(
+      userVoteDiff,
+      userData,
+      new Date(event.block.timestamp * 1000),
+      context,
+    ),
+  ]);
 });
 
 // Note:

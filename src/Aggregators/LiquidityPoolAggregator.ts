@@ -158,7 +158,6 @@ export async function updateLiquidityPoolAggregator(
       (diff.totalStakedFeesCollectedUSD ?? 0n) +
       current.totalStakedFeesCollectedUSD,
     numberOfSwaps: (diff.numberOfSwaps ?? 0n) + current.numberOfSwaps,
-    numberOfVotes: (diff.numberOfVotes ?? 0n) + current.numberOfVotes,
     totalEmissions: (diff.totalEmissions ?? 0n) + current.totalEmissions,
     totalEmissionsUSD:
       (diff.totalEmissionsUSD ?? 0n) + current.totalEmissionsUSD,
@@ -212,7 +211,6 @@ export async function updateLiquidityPoolAggregator(
     feeProtocol1: diff.feeProtocol1 ?? current.feeProtocol1,
     observationCardinalityNext:
       diff.observationCardinalityNext ?? current.observationCardinalityNext,
-    currentVotingPower: diff.currentVotingPower ?? current.currentVotingPower,
     totalVotesDeposited:
       diff.totalVotesDeposited ?? current.totalVotesDeposited,
     totalVotesDepositedUSD:
@@ -228,7 +226,9 @@ export async function updateLiquidityPoolAggregator(
     totalFeeRewardClaimedUSD:
       (diff.totalFeeRewardClaimedUSD ?? 0n) + current.totalFeeRewardClaimedUSD,
     veNFTamountStaked:
-      (diff.veNFTamountStaked ?? 0n) + current.veNFTamountStaked,
+      diff.veNFTamountStaked !== undefined
+        ? diff.veNFTamountStaked
+        : current.veNFTamountStaked, // Direct replacement (absolute value from event)
 
     // Dynamic Fee fields - non-cumulative
     baseFee: diff.baseFee ?? current.baseFee,
@@ -531,8 +531,6 @@ export function createLiquidityPoolAggregatorEntity(params: {
     feeVotingRewardAddress: "",
     totalFeeRewardClaimed: 0n,
     totalFeeRewardClaimedUSD: 0n,
-    numberOfVotes: 0n,
-    currentVotingPower: 0n,
     veNFTamountStaked: 0n,
     // Pool Launcher relationship (undefined for pools not launched via PoolLauncher)
     poolLauncherPoolId: undefined,

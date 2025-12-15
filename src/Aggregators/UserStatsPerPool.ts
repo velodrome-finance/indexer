@@ -82,15 +82,13 @@ export function createUserStatsPerPoolEntity(
     currentLiquidityStakedUSD: 0n,
 
     // Voting metrics
-    numberOfVotes: 0n,
-    currentVotingPower: 0n,
+    veNFTamountStaked: 0n,
 
     // Voting Reward Claims
     totalBribeClaimed: 0n,
     totalBribeClaimedUSD: 0n,
     totalFeeRewardClaimed: 0n,
     totalFeeRewardClaimedUSD: 0n,
-    veNFTamountStaked: 0n,
 
     // ALM metrics - initialized to empty/zero values
     almAddress: "",
@@ -207,11 +205,10 @@ export async function updateUserStatsPerPool(
         : current.currentLiquidityStakedUSD,
 
     // Voting metrics
-    numberOfVotes:
-      diff.numberOfVotes !== undefined
-        ? current.numberOfVotes + diff.numberOfVotes
-        : current.numberOfVotes,
-    currentVotingPower: diff.currentVotingPower ?? current.currentVotingPower, // current state
+    veNFTamountStaked:
+      diff.veNFTamountStaked !== undefined
+        ? current.veNFTamountStaked + diff.veNFTamountStaked
+        : current.veNFTamountStaked,
 
     // Voting Reward Claims - cumulative fields
     totalBribeClaimed:
@@ -230,10 +227,6 @@ export async function updateUserStatsPerPool(
       diff.totalFeeRewardClaimedUSD !== undefined
         ? current.totalFeeRewardClaimedUSD + diff.totalFeeRewardClaimedUSD
         : current.totalFeeRewardClaimedUSD,
-    veNFTamountStaked:
-      diff.veNFTamountStaked !== undefined
-        ? current.veNFTamountStaked + diff.veNFTamountStaked
-        : current.veNFTamountStaked,
 
     // ALM metrics
     almAmount0:
