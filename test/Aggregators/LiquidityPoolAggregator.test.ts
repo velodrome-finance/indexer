@@ -79,6 +79,11 @@ describe("LiquidityPoolAggregator Functions", () => {
             gt: sinon.stub(),
             lt: sinon.stub(),
           },
+          rootPoolMatchingHash: {
+            eq: sinon.stub(),
+            gt: sinon.stub(),
+            lt: sinon.stub(),
+          },
         },
       },
       Token: {

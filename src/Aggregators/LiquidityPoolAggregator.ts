@@ -478,6 +478,7 @@ export function createLiquidityPoolAggregatorEntity(params: {
     token0_address: token0Address,
     token1_address: token1Address,
     isStable,
+    tickSpacing: tickSpacing ? BigInt(tickSpacing) : 0n, // 0 for non-CL pools
     reserve0: 0n,
     reserve1: 0n,
     totalLiquidityUSD: 0n,
@@ -548,5 +549,6 @@ export function createLiquidityPoolAggregatorEntity(params: {
     feeCap: undefined,
     scalingFactor: undefined,
     currentFee: undefined,
+    rootPoolMatchingHash: `${chainId}_${token0Address}_${token1Address}_${tickSpacing}`,
   };
 }
