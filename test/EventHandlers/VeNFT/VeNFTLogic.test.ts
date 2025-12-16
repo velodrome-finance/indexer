@@ -28,7 +28,8 @@ describe("VeNFTLogic", () => {
           tokenId: 1n,
           value: 50n,
           locktime: 200n,
-          depositType: 1n,
+          // Field name follows the on-chain ABI / generated type
+          deposit_type: 1n,
           ts: 100n,
         },
         block: {

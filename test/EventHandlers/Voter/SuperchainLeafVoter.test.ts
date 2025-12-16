@@ -1,144 +1,10 @@
 import { expect } from "chai";
 import { MockDb, SuperchainLeafVoter } from "generated/src/TestHelpers.gen";
-import type {
-  LiquidityPoolAggregator,
-  Token,
-  UserStatsPerPool,
-} from "generated/src/Types.gen";
-import sinon from "sinon";
-import * as LiquidityPoolAggregatorModule from "../../../src/Aggregators/LiquidityPoolAggregator";
-import {
-  CHAIN_CONSTANTS,
-  TokenIdByChain,
-  toChecksumAddress,
-} from "../../../src/Constants";
-import { getIsAlive, getTokensDeposited } from "../../../src/Effects/Voter";
+import type { LiquidityPoolAggregator, Token } from "generated/src/Types.gen";
+import { TokenIdByChain, toChecksumAddress } from "../../../src/Constants";
 import { setupCommon } from "../Pool/common";
 
-// Type interface for Effect with handler property (for testing purposes)
-interface EffectWithHandler<I, O> {
-  name: string;
-  handler: (args: { input: I; context: unknown }) => Promise<O>;
-}
-
 describe("SuperchainLeafVoter Events", () => {
-  let sandbox: sinon.SinonSandbox;
-
-  beforeEach(() => {
-    sandbox = sinon.createSandbox();
-  });
-
-  afterEach(() => {
-    sandbox.restore();
-  });
-
-  describe("Voted Event", () => {
-    let mockDb: ReturnType<typeof MockDb.createMockDb>;
-    let mockEvent: ReturnType<typeof SuperchainLeafVoter.Voted.createMockEvent>;
-    const chainId = 10; // Optimism
-    const poolAddress = "0x478946BcD4a5a22b316470F5486fAfb928C0bA25";
-    const senderAddress = "0x1111111111111111111111111111111111111111";
-
-    beforeEach(() => {
-      mockDb = MockDb.createMockDb();
-      mockEvent = SuperchainLeafVoter.Voted.createMockEvent({
-        sender: senderAddress,
-        pool: poolAddress,
-        tokenId: 1n,
-        weight: 100n,
-        totalWeight: 1000n,
-        mockEventData: {
-          block: {
-            timestamp: 1000000,
-            number: 123456,
-            hash: "0xhash",
-          },
-          chainId: chainId,
-          logIndex: 1,
-        },
-      });
-    });
-
-    describe("when pool data exists", () => {
-      let resultDB: ReturnType<typeof MockDb.createMockDb>;
-      let mockLiquidityPool: LiquidityPoolAggregator;
-      let mockUserStats: UserStatsPerPool;
-
-      beforeEach(async () => {
-        const {
-          mockLiquidityPoolData,
-          mockToken0Data,
-          mockToken1Data,
-          createMockUserStatsPerPool,
-        } = setupCommon();
-
-        mockLiquidityPool = {
-          ...mockLiquidityPoolData,
-          id: toChecksumAddress(poolAddress),
-          chainId: chainId,
-        } as LiquidityPoolAggregator;
-
-        mockUserStats = createMockUserStatsPerPool({
-          userAddress: senderAddress,
-          poolAddress: poolAddress,
-          chainId: chainId,
-          firstActivityTimestamp: new Date(0),
-          lastActivityTimestamp: new Date(0),
-        });
-
-        // Setup mock database with required entities
-        mockDb = mockDb.entities.LiquidityPoolAggregator.set(mockLiquidityPool);
-        mockDb = mockDb.entities.UserStatsPerPool.set(mockUserStats);
-        mockDb = mockDb.entities.Token.set(mockToken0Data);
-        mockDb = mockDb.entities.Token.set(mockToken1Data);
-
-        resultDB = await SuperchainLeafVoter.Voted.processEvent({
-          event: mockEvent,
-          mockDb,
-        });
-      });
-
-      it("should update liquidity pool aggregator with voting data", () => {
-        const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
-          toChecksumAddress(poolAddress),
-        );
-        expect(updatedPool).to.not.be.undefined;
-        expect(updatedPool?.veNFTamountStaked).to.equal(1000n);
-        expect(updatedPool?.lastUpdatedTimestamp).to.deep.equal(
-          new Date(1000000 * 1000),
-        );
-      });
-
-      it("should update user stats per pool with voting data", () => {
-        const userStatsId = `${toChecksumAddress(senderAddress)}_${toChecksumAddress(poolAddress)}_${chainId}`;
-        const updatedUserStats =
-          resultDB.entities.UserStatsPerPool.get(userStatsId);
-        expect(updatedUserStats).to.not.be.undefined;
-        expect(updatedUserStats?.veNFTamountStaked).to.equal(100n);
-        expect(updatedUserStats?.lastActivityTimestamp).to.deep.equal(
-          new Date(1000000 * 1000),
-        );
-      });
-    });
-
-    describe("when pool data does not exist", () => {
-      it("should return early without creating entities", async () => {
-        const resultDB = await SuperchainLeafVoter.Voted.processEvent({
-          event: mockEvent,
-          mockDb,
-        });
-
-        // Should not create any new entities
-        expect(
-          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()).length,
-        ).to.equal(0);
-        expect(
-          Array.from(resultDB.entities.UserStatsPerPool.getAll()).length,
-        ).to.equal(0);
-      });
-    });
-  });
-
   describe("GaugeCreated Event", () => {
     let mockDb: ReturnType<typeof MockDb.createMockDb>;
     let mockEvent: ReturnType<
@@ -226,294 +92,176 @@ describe("SuperchainLeafVoter Events", () => {
     });
   });
 
-  describe("DistributeReward Event", () => {
+  describe("WhitelistToken Event", () => {
     let mockDb: ReturnType<typeof MockDb.createMockDb>;
     let mockEvent: ReturnType<
-      typeof SuperchainLeafVoter.DistributeReward.createMockEvent
+      typeof SuperchainLeafVoter.WhitelistToken.createMockEvent
     >;
-    const chainId = 10; // Optimism
-    const voterAddress = "0x41C914ee0c7E1A5edCD0295623e6dC557B5aBf3C";
-    const poolAddress = "0x478946BcD4a5a22b316470F5486fAfb928C0bA25";
-    const gaugeAddress = "0xa75127121d28a9bf848f3b70e7eea26570aa7700";
-    const blockNumber = 128357873;
+    const chainId = 10;
+    const tokenAddress = "0x2222222222222222222222222222222222222222";
 
-    const rewardTokenAddress =
-      CHAIN_CONSTANTS[chainId].rewardToken(blockNumber);
-
-    beforeEach(() => {
+    beforeEach(async () => {
       mockDb = MockDb.createMockDb();
-
-      mockEvent = SuperchainLeafVoter.DistributeReward.createMockEvent({
-        gauge: gaugeAddress,
-        amount: 1000n * 10n ** 18n,
+      mockEvent = SuperchainLeafVoter.WhitelistToken.createMockEvent({
+        token: tokenAddress,
+        _bool: true,
         mockEventData: {
           block: {
-            number: blockNumber,
+            number: 123456,
             timestamp: 1000000,
-            hash: "0xhash",
+            hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
           },
           chainId,
           logIndex: 1,
-          srcAddress: voterAddress,
         },
       });
     });
 
-    describe("when reward token and liquidity pool exist", () => {
+    describe("when token already exists", () => {
+      const expectedPricePerUSDNew = BigInt(10000000);
       let resultDB: ReturnType<typeof MockDb.createMockDb>;
-      let updatedDB: ReturnType<typeof MockDb.createMockDb>;
-      let originalGetIsAlive: unknown;
-      let originalGetTokensDeposited: unknown;
-
-      const { mockLiquidityPoolData } = setupCommon();
-
-      let expectations: {
-        totalEmissions: bigint;
-        totalEmissionsUSD: bigint;
-        getTokensDeposited: bigint;
-        getTokensDepositedUSD: bigint;
-      };
 
       beforeEach(async () => {
-        const liquidityPool: LiquidityPoolAggregator = {
-          ...mockLiquidityPoolData,
-          id: toChecksumAddress(poolAddress),
-          chainId: chainId,
-          totalEmissions: 0n,
-          totalEmissionsUSD: 0n,
-          totalVotesDeposited: 0n,
-          totalVotesDepositedUSD: 0n,
-        } as LiquidityPoolAggregator;
-
-        const rewardToken: Token = {
-          id: TokenIdByChain(rewardTokenAddress, chainId),
-          address: rewardTokenAddress,
-          symbol: "VELO",
-          name: "VELO",
-          chainId: chainId,
-          decimals: 18n,
-          pricePerUSDNew: 2n * 10n ** 18n, // $2 per token
-          isWhitelisted: true,
-          lastUpdatedTimestamp: new Date(1000000 * 1000), // Set timestamp to prevent refresh
+        const token: Token = {
+          id: TokenIdByChain(tokenAddress, chainId),
+          address: tokenAddress,
+          symbol: "TEST",
+          name: "TEST",
+          chainId,
+          decimals: BigInt(18),
+          pricePerUSDNew: expectedPricePerUSDNew,
+          isWhitelisted: false,
         } as Token;
 
-        expectations = {
-          totalEmissions: 1000n * 10n ** 18n, // normalizedEmissionsAmount
-          totalEmissionsUSD: 2000n * 10n ** 18n, // normalizedEmissionsAmountUsd
-          getTokensDeposited: 500n * 10n ** 18n,
-          getTokensDepositedUSD: 1000n * 10n ** 18n,
-        };
+        const updatedDb = mockDb.entities.Token.set(token);
 
-        // Mock findPoolByGaugeAddress to return the pool
-        sandbox
-          .stub(LiquidityPoolAggregatorModule, "findPoolByGaugeAddress")
-          .resolves(liquidityPool);
-
-        // Mock the effect functions at module level
-        originalGetIsAlive = getIsAlive;
-        originalGetTokensDeposited = getTokensDeposited;
-
-        sandbox
-          .stub(
-            getIsAlive as unknown as EffectWithHandler<
-              {
-                voterAddress: string;
-                gaugeAddress: string;
-                blockNumber: number;
-                eventChainId: number;
-              },
-              boolean
-            >,
-            "handler",
-          )
-          .callsFake(async () => true);
-        sandbox
-          .stub(
-            getTokensDeposited as unknown as EffectWithHandler<
-              {
-                rewardTokenAddress: string;
-                gaugeAddress: string;
-                blockNumber: number;
-                eventChainId: number;
-              },
-              bigint
-            >,
-            "handler",
-          )
-          .callsFake(async () => expectations.getTokensDeposited);
-
-        // Set entities in the mock database
-        updatedDB = mockDb.entities.Token.set(rewardToken);
-        updatedDB =
-          updatedDB.entities.LiquidityPoolAggregator.set(liquidityPool);
-
-        // Mock CHAIN_CONSTANTS rewardToken function
-        const originalChainConstants = CHAIN_CONSTANTS[chainId];
-        CHAIN_CONSTANTS[chainId] = {
-          ...originalChainConstants,
-          rewardToken: sandbox.stub().returns(rewardTokenAddress),
-        };
-
-        // Process the event
-        resultDB = await SuperchainLeafVoter.DistributeReward.processEvent({
+        resultDB = await SuperchainLeafVoter.WhitelistToken.processEvent({
           event: mockEvent,
-          mockDb: updatedDB,
+          mockDb: updatedDb,
         });
       });
 
-      afterEach(() => {
-        // Restore original functions
-        (
-          getIsAlive as unknown as EffectWithHandler<
-            {
-              voterAddress: string;
-              gaugeAddress: string;
-              blockNumber: number;
-              eventChainId: number;
-            },
-            boolean
-          >
-        ).handler = (
-          originalGetIsAlive as EffectWithHandler<
-            {
-              voterAddress: string;
-              gaugeAddress: string;
-              blockNumber: number;
-              eventChainId: number;
-            },
-            boolean
-          >
-        ).handler;
-        (
-          getTokensDeposited as unknown as EffectWithHandler<
-            {
-              rewardTokenAddress: string;
-              gaugeAddress: string;
-              blockNumber: number;
-              eventChainId: number;
-            },
-            bigint
-          >
-        ).handler = (
-          originalGetTokensDeposited as EffectWithHandler<
-            {
-              rewardTokenAddress: string;
-              gaugeAddress: string;
-              blockNumber: number;
-              eventChainId: number;
-            },
-            bigint
-          >
-        ).handler;
-      });
-
-      it("should update the liquidity pool aggregator with emissions data", () => {
-        const updatedPool =
-          resultDB.entities.LiquidityPoolAggregator.get(poolAddress);
-        expect(updatedPool).to.not.be.undefined;
-        expect(updatedPool?.totalEmissions).to.equal(
-          expectations.totalEmissions,
+      it("should update the existing token entity", () => {
+        const token = resultDB.entities.Token.get(
+          TokenIdByChain(tokenAddress, chainId),
         );
-        expect(updatedPool?.totalEmissionsUSD).to.equal(
-          expectations.totalEmissionsUSD,
+        expect(token).to.not.be.undefined;
+        expect(token?.isWhitelisted).to.be.true;
+        expect(token?.pricePerUSDNew).to.equal(expectedPricePerUSDNew);
+        expect(token?.lastUpdatedTimestamp).to.be.instanceOf(Date);
+        expect(token?.lastUpdatedTimestamp?.getTime()).to.equal(
+          mockEvent.block.timestamp * 1000,
         );
-        expect(updatedPool?.gaugeIsAlive).to.be.true;
-        expect(updatedPool?.lastUpdatedTimestamp).to.deep.equal(
-          new Date(1000000 * 1000),
-        );
-      });
-
-      it("should update the liquidity pool aggregator with votes deposited data", () => {
-        const updatedPool =
-          resultDB.entities.LiquidityPoolAggregator.get(poolAddress);
-        expect(updatedPool).to.not.be.undefined;
-        expect(updatedPool?.totalVotesDeposited).to.equal(
-          expectations.getTokensDeposited,
-          "Should have votes deposited",
-        );
-        expect(updatedPool?.totalVotesDepositedUSD).to.equal(
-          expectations.getTokensDepositedUSD,
-          "Should have USD value for votes deposited",
-        );
-        expect(updatedPool?.gaugeAddress).to.equal(gaugeAddress);
-      });
-
-      it("should update the liquidity pool aggregator with gauge is alive data", () => {
-        const updatedPool =
-          resultDB.entities.LiquidityPoolAggregator.get(poolAddress);
-        expect(updatedPool).to.not.be.undefined;
-        expect(updatedPool?.gaugeIsAlive).to.be.true;
       });
     });
 
-    describe("when pool entity does not exist", () => {
-      it("should return early when pool does not exist", async () => {
-        // Mock CHAIN_CONSTANTS rewardToken function
-        const originalChainConstants = CHAIN_CONSTANTS[chainId];
-        CHAIN_CONSTANTS[chainId] = {
-          ...originalChainConstants,
-          rewardToken: sandbox.stub().returns(rewardTokenAddress),
-        };
+    describe("when token does not exist yet", () => {
+      let resultDB: ReturnType<typeof MockDb.createMockDb>;
 
-        // Mock findPoolByGaugeAddress to return null
-        sandbox
-          .stub(LiquidityPoolAggregatorModule, "findPoolByGaugeAddress")
-          .resolves(null);
+      beforeEach(async () => {
+        resultDB = await SuperchainLeafVoter.WhitelistToken.processEvent({
+          event: mockEvent,
+          mockDb,
+        });
+      });
 
-        const resultDB =
-          await SuperchainLeafVoter.DistributeReward.processEvent({
-            event: mockEvent,
-            mockDb: mockDb,
-          });
-
-        // Should not create any entities when pool doesn't exist
-        expect(
-          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()).length,
-        ).to.equal(0);
+      it("should create a new Token entity with whitelisted flag", () => {
+        const token = resultDB.entities.Token.get(
+          TokenIdByChain(tokenAddress, chainId),
+        );
+        expect(token).to.not.be.undefined;
+        expect(token?.isWhitelisted).to.be.true;
+        expect(token?.pricePerUSDNew).to.equal(0n);
+        expect(token?.name).to.be.a("string");
+        expect(token?.symbol).to.be.a("string");
+        expect(token?.address).to.equal(tokenAddress);
+        expect(token?.lastUpdatedTimestamp).to.be.instanceOf(Date);
+        expect(token?.lastUpdatedTimestamp?.getTime()).to.equal(
+          mockEvent.block.timestamp * 1000,
+        );
       });
     });
 
-    describe("when reward token or liquidity pool is missing", () => {
-      it("should log warning and return early when reward token is missing", async () => {
-        const { mockLiquidityPoolData } = setupCommon();
-        const liquidityPool: LiquidityPoolAggregator = {
-          ...mockLiquidityPoolData,
-          id: toChecksumAddress(poolAddress),
-          chainId: chainId,
-          totalEmissions: 0n, // Start with 0 to test that it remains unchanged
-        } as LiquidityPoolAggregator;
+    describe("when _bool is false (de-whitelisting)", () => {
+      beforeEach(() => {
+        mockEvent = SuperchainLeafVoter.WhitelistToken.createMockEvent({
+          token: tokenAddress,
+          _bool: false,
+          mockEventData: {
+            block: {
+              number: 123456,
+              timestamp: 1000000,
+              hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+            },
+            chainId,
+            logIndex: 1,
+          },
+        });
+      });
 
-        // Mock CHAIN_CONSTANTS rewardToken function
-        const originalChainConstants = CHAIN_CONSTANTS[chainId];
-        CHAIN_CONSTANTS[chainId] = {
-          ...originalChainConstants,
-          rewardToken: sandbox.stub().returns(rewardTokenAddress),
-        };
+      describe("when token already exists and is whitelisted", () => {
+        const expectedPricePerUSDNew = BigInt(10000000);
+        let resultDB: ReturnType<typeof MockDb.createMockDb>;
 
-        // Mock findPoolByGaugeAddress to return the pool
-        sandbox
-          .stub(LiquidityPoolAggregatorModule, "findPoolByGaugeAddress")
-          .resolves(liquidityPool);
+        beforeEach(async () => {
+          const token: Token = {
+            id: TokenIdByChain(tokenAddress, chainId),
+            address: tokenAddress,
+            symbol: "TEST",
+            name: "TEST",
+            chainId,
+            decimals: BigInt(18),
+            pricePerUSDNew: expectedPricePerUSDNew,
+            isWhitelisted: true, // Initially whitelisted
+          } as Token;
 
-        // Create a fresh database with only the liquidity pool, no reward token
-        const freshDb = MockDb.createMockDb();
-        const testDb =
-          freshDb.entities.LiquidityPoolAggregator.set(liquidityPool);
+          const updatedDb = mockDb.entities.Token.set(token);
 
-        const resultDB =
-          await SuperchainLeafVoter.DistributeReward.processEvent({
+          resultDB = await SuperchainLeafVoter.WhitelistToken.processEvent({
             event: mockEvent,
-            mockDb: testDb,
+            mockDb: updatedDb,
           });
+        });
 
-        // Should not update any entities when reward token is missing
-        expect(
-          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()).length,
-        ).to.equal(1);
-        const pool = resultDB.entities.LiquidityPoolAggregator.get(
-          toChecksumAddress(poolAddress),
-        );
-        expect(pool?.totalEmissions).to.equal(0n); // Should remain unchanged
+        it("should update the existing token entity to de-whitelist it", () => {
+          const token = resultDB.entities.Token.get(
+            TokenIdByChain(tokenAddress, chainId),
+          );
+          expect(token).to.not.be.undefined;
+          expect(token?.isWhitelisted).to.be.false;
+          expect(token?.pricePerUSDNew).to.equal(expectedPricePerUSDNew);
+          expect(token?.lastUpdatedTimestamp).to.be.instanceOf(Date);
+          expect(token?.lastUpdatedTimestamp?.getTime()).to.equal(
+            mockEvent.block.timestamp * 1000,
+          );
+        });
+      });
+
+      describe("when token does not exist yet", () => {
+        let resultDB: ReturnType<typeof MockDb.createMockDb>;
+
+        beforeEach(async () => {
+          resultDB = await SuperchainLeafVoter.WhitelistToken.processEvent({
+            event: mockEvent,
+            mockDb,
+          });
+        });
+
+        it("should create a new Token entity with isWhitelisted set to false", () => {
+          const token = resultDB.entities.Token.get(
+            TokenIdByChain(tokenAddress, chainId),
+          );
+          expect(token).to.not.be.undefined;
+          expect(token?.isWhitelisted).to.be.false;
+          expect(token?.pricePerUSDNew).to.equal(0n);
+          expect(token?.name).to.be.a("string");
+          expect(token?.symbol).to.be.a("string");
+          expect(token?.address).to.equal(tokenAddress);
+          expect(token?.lastUpdatedTimestamp).to.be.instanceOf(Date);
+          expect(token?.lastUpdatedTimestamp?.getTime()).to.equal(
+            mockEvent.block.timestamp * 1000,
+          );
+        });
       });
     });
   });
