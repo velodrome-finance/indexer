@@ -1,27 +1,9 @@
 import { SuperchainLeafVoter } from "generated";
 
 import type { Token } from "generated/src/Types.gen";
-import {
-  findPoolByGaugeAddress,
-  loadPoolData,
-  updateLiquidityPoolAggregator,
-} from "../../Aggregators/LiquidityPoolAggregator";
-import {
-  loadUserData,
-  updateUserStatsPerPool,
-} from "../../Aggregators/UserStatsPerPool";
-import {
-  CHAIN_CONSTANTS,
-  TokenIdByChain,
-  toChecksumAddress,
-} from "../../Constants";
+import { updateLiquidityPoolAggregator } from "../../Aggregators/LiquidityPoolAggregator";
+import { TokenIdByChain, toChecksumAddress } from "../../Constants";
 import { getTokenDetails } from "../../Effects/Index";
-import { refreshTokenPrice } from "../../PriceOracle";
-import {
-  applyLpDiff,
-  buildLpDiffFromDistribute,
-  computeVoterDistributeValues,
-} from "./VoterCommonLogic";
 
 // Note:
 // These pools factories addresses are hardcoded since we can't check the pool type from the Voter contract
@@ -42,7 +24,9 @@ SuperchainLeafVoter.GaugeCreated.contractRegister(({ event, context }) => {
   }
 
   context.addFeesVotingReward(event.params.feeVotingReward);
-  context.addBribesVotingReward(event.params.incentiveVotingReward);
+  context.addSuperchainIncentiveVotingReward(
+    event.params.incentiveVotingReward,
+  );
 });
 
 SuperchainLeafVoter.GaugeCreated.handler(async ({ event, context }) => {
