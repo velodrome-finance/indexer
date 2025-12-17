@@ -141,6 +141,124 @@ describe("Voter Events", () => {
         ).to.equal(1);
       });
     });
+
+    describe("when pool is a RootCLPool", () => {
+      let resultDB: ReturnType<typeof MockDb.createMockDb>;
+      // Real data from actual event
+      // Event available here: https://optimistic.etherscan.io/tx/0x133260f0f7bf0a06d262f09b064a35d3c63178c6b5fd8e4798ba780f357dc7bd#eventlog#94
+      const rootPoolAddress = "0xC4Cbb0ba3c902Fb4b49B3844230354d45C779F74";
+      const leafPoolAddress = "0x3BBdBAD64b383885031c4d9C8Afe0C3327d79888";
+      const realVoterAddress = "0x0B7a0dE062EC95f815E9Aaa31C0AcBAdC7717171";
+      const realTokenId = 961n;
+      const realWeight = 6887909874294904273927n;
+      const realTotalWeight = 8343366589203809137097720n;
+      const realTimestamp = 1734595305;
+      const rootChainId = 10; // Optimism
+      const leafChainId = 252; // Fraxtal
+      let mockLeafPool: LiquidityPoolAggregator;
+      let mockUserStats: UserStatsPerPool;
+
+      beforeEach(async () => {
+        const {
+          mockToken0Data,
+          mockToken1Data,
+          createMockUserStatsPerPool,
+          createMockLiquidityPoolAggregator,
+        } = setupCommon();
+
+        // Create tokens for the leaf chain (chain 252)
+        const leafToken0Data: Token = {
+          ...mockToken0Data,
+          id: TokenIdByChain(mockToken0Data.address, leafChainId),
+          chainId: leafChainId,
+        };
+        const leafToken1Data: Token = {
+          ...mockToken1Data,
+          id: TokenIdByChain(mockToken1Data.address, leafChainId),
+          chainId: leafChainId,
+        };
+
+        // Create leaf pool using helper function
+        mockLeafPool = createMockLiquidityPoolAggregator({
+          id: leafPoolAddress,
+          chainId: leafChainId,
+          token0_id: leafToken0Data.id,
+          token1_id: leafToken1Data.id,
+          veNFTamountStaked: 0n,
+        });
+
+        // Create user stats using helper function
+        mockUserStats = createMockUserStatsPerPool({
+          userAddress: realVoterAddress,
+          poolAddress: rootPoolAddress,
+          chainId: rootChainId,
+          veNFTamountStaked: 0n,
+          firstActivityTimestamp: new Date(0),
+          lastActivityTimestamp: new Date(0),
+        });
+
+        // Create RootPool_LeafPool mapping
+        const rootPoolLeafPool = {
+          id: `${rootPoolAddress}_${rootChainId}_${leafPoolAddress}_${leafChainId}`,
+          rootChainId: rootChainId,
+          rootPoolAddress: toChecksumAddress(rootPoolAddress),
+          leafChainId: leafChainId,
+          leafPoolAddress: toChecksumAddress(leafPoolAddress),
+        };
+
+        // Setup mock database with leaf pool and RootPool_LeafPool mapping
+        mockDb = mockDb.entities.LiquidityPoolAggregator.set(mockLeafPool);
+        mockDb = mockDb.entities.RootPool_LeafPool.set(rootPoolLeafPool);
+        mockDb = mockDb.entities.UserStatsPerPool.set(mockUserStats);
+        mockDb = mockDb.entities.Token.set(leafToken0Data);
+        mockDb = mockDb.entities.Token.set(leafToken1Data);
+
+        // Update event to use real data
+        mockEvent = Voter.Voted.createMockEvent({
+          voter: realVoterAddress,
+          pool: rootPoolAddress,
+          tokenId: realTokenId,
+          weight: realWeight,
+          totalWeight: realTotalWeight,
+          mockEventData: {
+            block: {
+              number: 123456,
+              timestamp: realTimestamp,
+              hash: "0xhash",
+            },
+            chainId: rootChainId,
+            logIndex: 1,
+          },
+        });
+
+        resultDB = await Voter.Voted.processEvent({
+          event: mockEvent,
+          mockDb,
+        });
+      });
+
+      it("should update leaf pool aggregator with voting data", () => {
+        const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
+          toChecksumAddress(leafPoolAddress),
+        );
+        expect(updatedPool).to.not.be.undefined;
+        expect(updatedPool?.veNFTamountStaked).to.equal(realTotalWeight);
+        expect(updatedPool?.lastUpdatedTimestamp).to.deep.equal(
+          new Date(realTimestamp * 1000),
+        );
+      });
+
+      it("should update user stats per pool with voting data", () => {
+        const userStatsId = `${toChecksumAddress(realVoterAddress)}_${toChecksumAddress(rootPoolAddress)}_${rootChainId}`;
+        const updatedUserStats =
+          resultDB.entities.UserStatsPerPool.get(userStatsId);
+        expect(updatedUserStats).to.not.be.undefined;
+        expect(updatedUserStats?.veNFTamountStaked).to.equal(realWeight);
+        expect(updatedUserStats?.lastActivityTimestamp).to.deep.equal(
+          new Date(realTimestamp * 1000),
+        );
+      });
+    });
   });
 
   describe("Abstained Event", () => {
@@ -252,6 +370,143 @@ describe("Voter Events", () => {
         expect(
           Array.from(resultDB.entities.UserStatsPerPool.getAll()).length,
         ).to.equal(1);
+      });
+    });
+
+    describe("when pool is a RootCLPool", () => {
+      let resultDB: ReturnType<typeof MockDb.createMockDb>;
+      // Real data from actual Abstained event
+      // Event available here: https://optimistic.etherscan.io/tx/0x133260f0f7bf0a06d262f09b064a35d3c63178c6b5fd8e4798ba780f357dc7bd#eventlog#61
+      const rootPoolAddress = "0x4f2eD04AA2E052090144B0a6f72fbf5b340ED20c";
+      const leafPoolAddress = "0xd335C616C8aa60CaB2345052f9D7D62Eb722f320";
+      const realVoterAddress = "0x0B7a0dE062EC95f815E9Aaa31C0AcBAdC7717171";
+      const realTokenId = 961n;
+      const realWeight = 22328957523870653419264n;
+      const realTotalWeight = 2586327170227043887618593n;
+      const realTimestamp = 1734595305;
+      const rootChainId = 10; // Optimism
+      const leafChainId = 252; // Fraxtal
+      const initialUserStaked = 50000000000000000000000n; // 50k tokens (18 decimals) - initial amount before withdrawal
+      let mockLeafPool: LiquidityPoolAggregator;
+      let mockUserStats: UserStatsPerPool;
+
+      beforeEach(async () => {
+        const {
+          mockToken0Data,
+          mockToken1Data,
+          createMockUserStatsPerPool,
+          createMockLiquidityPoolAggregator,
+        } = setupCommon();
+
+        // Create tokens for the leaf chain (chain 252)
+        const leafToken0Data: Token = {
+          ...mockToken0Data,
+          id: TokenIdByChain(mockToken0Data.address, leafChainId),
+          chainId: leafChainId,
+        };
+        const leafToken1Data: Token = {
+          ...mockToken1Data,
+          id: TokenIdByChain(mockToken1Data.address, leafChainId),
+          chainId: leafChainId,
+        };
+
+        // Create leaf pool using helper function with initial staked amount
+        mockLeafPool = createMockLiquidityPoolAggregator({
+          id: leafPoolAddress,
+          chainId: leafChainId,
+          token0_id: leafToken0Data.id,
+          token1_id: leafToken1Data.id,
+          veNFTamountStaked: 3000000000000000000000000n, // Initial staked amount (3M tokens)
+        });
+
+        // Create user stats using helper function with initial staked amount
+        mockUserStats = createMockUserStatsPerPool({
+          userAddress: realVoterAddress,
+          poolAddress: rootPoolAddress,
+          chainId: rootChainId,
+          veNFTamountStaked: initialUserStaked,
+          firstActivityTimestamp: new Date(0),
+          lastActivityTimestamp: new Date(0),
+        });
+
+        // Create RootPool_LeafPool mapping
+        const rootPoolLeafPool = {
+          id: `${rootPoolAddress}_${rootChainId}_${leafPoolAddress}_${leafChainId}`,
+          rootChainId: rootChainId,
+          rootPoolAddress: toChecksumAddress(rootPoolAddress),
+          leafChainId: leafChainId,
+          leafPoolAddress: toChecksumAddress(leafPoolAddress),
+        };
+
+        // Setup mock database with leaf pool and RootPool_LeafPool mapping
+        mockDb = mockDb.entities.LiquidityPoolAggregator.set(mockLeafPool);
+        mockDb = mockDb.entities.RootPool_LeafPool.set(rootPoolLeafPool);
+        mockDb = mockDb.entities.UserStatsPerPool.set(mockUserStats);
+        mockDb = mockDb.entities.Token.set(leafToken0Data);
+        mockDb = mockDb.entities.Token.set(leafToken1Data);
+
+        // Update event to use real data
+        mockEvent = Voter.Abstained.createMockEvent({
+          voter: realVoterAddress,
+          pool: rootPoolAddress,
+          tokenId: realTokenId,
+          weight: realWeight,
+          totalWeight: realTotalWeight,
+          mockEventData: {
+            block: {
+              number: 123456,
+              timestamp: realTimestamp,
+              hash: "0xhash",
+            },
+            chainId: rootChainId,
+            logIndex: 1,
+          },
+        });
+
+        resultDB = await Voter.Abstained.processEvent({
+          event: mockEvent,
+          mockDb,
+        });
+      });
+
+      it("should update leaf pool aggregator with total weight (absolute value)", () => {
+        // Verify the pool exists in the result DB (it should be updated, not created)
+        const allPools = Array.from(
+          resultDB.entities.LiquidityPoolAggregator.getAll(),
+        );
+        const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
+          toChecksumAddress(leafPoolAddress),
+        );
+
+        // Debug: log all pool IDs if pool is not found
+        if (!updatedPool) {
+          console.log(
+            "All pools in resultDB:",
+            allPools.map((p) => ({ id: p.id, chainId: p.chainId })),
+          );
+          console.log("Looking for:", toChecksumAddress(leafPoolAddress));
+          console.log("Original leafPoolAddress:", leafPoolAddress);
+        }
+
+        expect(updatedPool).to.not.be.undefined;
+        // totalWeight is the absolute total veNFT staked in pool, replacing previous value
+        expect(updatedPool?.veNFTamountStaked).to.equal(realTotalWeight);
+        expect(updatedPool?.lastUpdatedTimestamp).to.deep.equal(
+          new Date(realTimestamp * 1000),
+        );
+      });
+
+      it("should decrease user stats veNFT amount staked (negative weight)", () => {
+        const userStatsId = `${toChecksumAddress(realVoterAddress)}_${toChecksumAddress(rootPoolAddress)}_${rootChainId}`;
+        const updatedUserStats =
+          resultDB.entities.UserStatsPerPool.get(userStatsId);
+        expect(updatedUserStats).to.not.be.undefined;
+        // weight is subtracted (negative because it's a withdrawal)
+        const expectedStaked = initialUserStaked - realWeight;
+        expect(updatedUserStats?.veNFTamountStaked).to.equal(expectedStaked);
+        expect(updatedUserStats?.lastActivityTimestamp).to.deep.equal(
+          new Date(realTimestamp * 1000),
+        );
       });
     });
   });

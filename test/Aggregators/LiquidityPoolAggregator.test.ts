@@ -7,6 +7,7 @@ import type {
 } from "../../generated/src/Types.gen";
 import {
   loadPoolData,
+  loadPoolDataOrRootCLPool,
   setLiquidityPoolAggregatorSnapshot,
   updateDynamicFeePools,
   updateLiquidityPoolAggregator,
@@ -118,6 +119,20 @@ describe("LiquidityPoolAggregator Functions", () => {
             lt: sinon.stub(),
           },
           lastUpdatedTimestamp: {
+            eq: sinon.stub(),
+            gt: sinon.stub(),
+            lt: sinon.stub(),
+          },
+        },
+      },
+      RootPool_LeafPool: {
+        set: sinon.stub(),
+        get: sinon.stub(),
+        getOrThrow: sinon.stub(),
+        getOrCreate: sinon.stub(),
+        deleteUnsafe: sinon.stub(),
+        getWhere: {
+          rootPoolAddress: {
             eq: sinon.stub(),
             gt: sinon.stub(),
             lt: sinon.stub(),
@@ -729,6 +744,244 @@ describe("LiquidityPoolAggregator Functions", () => {
       expect(result).to.be.null;
       const errorLogStub = contextStub.log?.error as sinon.SinonStub;
       expect(errorLogStub.called).to.be.true;
+    });
+  });
+
+  describe("loadPoolDataOrRootCLPool", () => {
+    let token0: Token;
+    let token1: Token;
+    const rootPoolAddress = "0x1111111111111111111111111111111111111111";
+    const leafPoolAddress = "0x2222222222222222222222222222222222222222";
+    const chainId = 10;
+
+    beforeEach(() => {
+      token0 = {
+        id: "token0",
+        address: "0x3333333333333333333333333333333333333333",
+        symbol: "TOKEN0",
+        name: "Token 0",
+        chainId: 10,
+        decimals: 18n,
+        pricePerUSDNew: 1000000n,
+        lastUpdatedTimestamp: new Date(),
+        isWhitelisted: false,
+      } as Token;
+
+      token1 = {
+        id: "token1",
+        address: "0x4444444444444444444444444444444444444444",
+        symbol: "TOKEN1",
+        name: "Token 1",
+        chainId: 10,
+        decimals: 18n,
+        pricePerUSDNew: 2000000n,
+        lastUpdatedTimestamp: new Date(),
+        isWhitelisted: false,
+      } as Token;
+    });
+
+    it("should return pool data directly when pool exists", async () => {
+      const rootPool = createMockLiquidityPoolAggregator({
+        id: rootPoolAddress,
+        chainId: chainId,
+        token0_id: "token0",
+        token1_id: "token1",
+        token0_address: token0.address,
+        token1_address: token1.address,
+      });
+
+      const liquidityPoolGetStub = contextStub.LiquidityPoolAggregator
+        ?.get as sinon.SinonStub;
+      liquidityPoolGetStub.callsFake((address: string) => {
+        if (address === rootPoolAddress) return Promise.resolve(rootPool);
+        return Promise.resolve(undefined);
+      });
+
+      const tokenGetStub = contextStub.Token?.get as sinon.SinonStub;
+      tokenGetStub.callsFake((id: string) => {
+        if (id === "token0") return Promise.resolve(token0);
+        if (id === "token1") return Promise.resolve(token1);
+        return Promise.resolve(undefined);
+      });
+
+      const result = await loadPoolDataOrRootCLPool(
+        rootPoolAddress,
+        chainId,
+        contextStub as handlerContext,
+      );
+
+      expect(result).to.not.be.null;
+      expect(result?.liquidityPoolAggregator.id).to.equal(rootPoolAddress);
+      expect(result?.token0Instance).to.equal(token0);
+      expect(result?.token1Instance).to.equal(token1);
+
+      // Should not query RootPool_LeafPool when pool exists directly
+      const rootPoolLeafPoolGetWhereStub = contextStub.RootPool_LeafPool
+        ?.getWhere?.rootPoolAddress?.eq as sinon.SinonStub;
+      expect(rootPoolLeafPoolGetWhereStub.called).to.be.false;
+    });
+
+    it("should load leaf pool data when root pool is not found but RootPool_LeafPool exists", async () => {
+      const leafChainId = 252;
+      const leafPool = createMockLiquidityPoolAggregator({
+        id: leafPoolAddress,
+        chainId: leafChainId,
+        token0_id: "token0",
+        token1_id: "token1",
+        token0_address: token0.address,
+        token1_address: token1.address,
+      });
+
+      const rootPoolLeafPool = {
+        id: `${rootPoolAddress}_${chainId}_${leafPoolAddress}_${leafChainId}`,
+        rootChainId: chainId,
+        rootPoolAddress: rootPoolAddress,
+        leafChainId: leafChainId,
+        leafPoolAddress: leafPoolAddress,
+      };
+
+      const liquidityPoolGetStub = contextStub.LiquidityPoolAggregator
+        ?.get as sinon.SinonStub;
+      liquidityPoolGetStub.callsFake((address: string) => {
+        if (address === rootPoolAddress) return Promise.resolve(undefined);
+        if (address === leafPoolAddress) return Promise.resolve(leafPool);
+        return Promise.resolve(undefined);
+      });
+
+      const tokenGetStub = contextStub.Token?.get as sinon.SinonStub;
+      tokenGetStub.callsFake((id: string) => {
+        if (id === "token0") return Promise.resolve(token0);
+        if (id === "token1") return Promise.resolve(token1);
+        return Promise.resolve(undefined);
+      });
+
+      const rootPoolLeafPoolGetWhereStub = contextStub.RootPool_LeafPool
+        ?.getWhere?.rootPoolAddress?.eq as sinon.SinonStub;
+      rootPoolLeafPoolGetWhereStub.resolves([rootPoolLeafPool]);
+
+      const warnLogStub = contextStub.log?.warn as sinon.SinonStub;
+
+      const result = await loadPoolDataOrRootCLPool(
+        rootPoolAddress,
+        chainId,
+        contextStub as handlerContext,
+      );
+
+      expect(result).to.not.be.null;
+      expect(result?.liquidityPoolAggregator.id).to.equal(leafPoolAddress);
+      expect(result?.liquidityPoolAggregator.chainId).to.equal(leafChainId);
+      expect(result?.token0Instance).to.equal(token0);
+      expect(result?.token1Instance).to.equal(token1);
+      expect(warnLogStub.called).to.be.true;
+      expect(rootPoolLeafPoolGetWhereStub.called).to.be.true;
+    });
+
+    it("should return null when root pool not found and no RootPool_LeafPool exists", async () => {
+      const liquidityPoolGetStub = contextStub.LiquidityPoolAggregator
+        ?.get as sinon.SinonStub;
+      liquidityPoolGetStub.resolves(undefined);
+
+      const rootPoolLeafPoolGetWhereStub = contextStub.RootPool_LeafPool
+        ?.getWhere?.rootPoolAddress?.eq as sinon.SinonStub;
+      rootPoolLeafPoolGetWhereStub.resolves([]);
+
+      const errorLogStub = contextStub.log?.error as sinon.SinonStub;
+
+      const result = await loadPoolDataOrRootCLPool(
+        rootPoolAddress,
+        chainId,
+        contextStub as handlerContext,
+      );
+
+      expect(result).to.be.null;
+      expect(errorLogStub.called).to.be.true;
+    });
+
+    it("should return null when multiple RootPool_LeafPool entries exist", async () => {
+      const rootPoolLeafPool1 = {
+        id: `${rootPoolAddress}_${chainId}_${leafPoolAddress}_${chainId}`,
+        rootChainId: chainId,
+        rootPoolAddress: rootPoolAddress,
+        leafChainId: chainId,
+        leafPoolAddress: leafPoolAddress,
+      };
+
+      const rootPoolLeafPool2 = {
+        id: `${rootPoolAddress}_${chainId}_0x5555555555555555555555555555555555555555_${chainId}`,
+        rootChainId: chainId,
+        rootPoolAddress: rootPoolAddress,
+        leafChainId: chainId,
+        leafPoolAddress: "0x5555555555555555555555555555555555555555",
+      };
+
+      const liquidityPoolGetStub = contextStub.LiquidityPoolAggregator
+        ?.get as sinon.SinonStub;
+      liquidityPoolGetStub.resolves(undefined);
+
+      const rootPoolLeafPoolGetWhereStub = contextStub.RootPool_LeafPool
+        ?.getWhere?.rootPoolAddress?.eq as sinon.SinonStub;
+      rootPoolLeafPoolGetWhereStub.resolves([
+        rootPoolLeafPool1,
+        rootPoolLeafPool2,
+      ]);
+
+      const errorLogStub = contextStub.log?.error as sinon.SinonStub;
+
+      const result = await loadPoolDataOrRootCLPool(
+        rootPoolAddress,
+        chainId,
+        contextStub as handlerContext,
+      );
+
+      expect(result).to.be.null;
+      expect(errorLogStub.called).to.be.true;
+      // Check if any error call contains the expected message
+      const errorMessages = errorLogStub.getCalls().map((call) => call.args[0]);
+      expect(
+        errorMessages.some(
+          (msg) =>
+            typeof msg === "string" &&
+            msg.includes("Expected exactly one RootPool_LeafPool"),
+        ),
+      ).to.be.true;
+    });
+
+    it("should return null when leaf pool is not found", async () => {
+      const leafChainId = 252;
+      const rootPoolLeafPool = {
+        id: `${rootPoolAddress}_${chainId}_${leafPoolAddress}_${leafChainId}`,
+        rootChainId: chainId,
+        rootPoolAddress: rootPoolAddress,
+        leafChainId: leafChainId,
+        leafPoolAddress: leafPoolAddress,
+      };
+
+      const liquidityPoolGetStub = contextStub.LiquidityPoolAggregator
+        ?.get as sinon.SinonStub;
+      liquidityPoolGetStub.resolves(undefined);
+
+      const rootPoolLeafPoolGetWhereStub = contextStub.RootPool_LeafPool
+        ?.getWhere?.rootPoolAddress?.eq as sinon.SinonStub;
+      rootPoolLeafPoolGetWhereStub.resolves([rootPoolLeafPool]);
+
+      const errorLogStub = contextStub.log?.error as sinon.SinonStub;
+
+      const result = await loadPoolDataOrRootCLPool(
+        rootPoolAddress,
+        chainId,
+        contextStub as handlerContext,
+      );
+
+      expect(result).to.be.null;
+      expect(errorLogStub.called).to.be.true;
+      // Check if any error call contains the expected message
+      const errorMessages = errorLogStub.getCalls().map((call) => call.args[0]);
+      expect(
+        errorMessages.some(
+          (msg) =>
+            typeof msg === "string" && msg.includes("Leaf pool data not found"),
+        ),
+      ).to.be.true;
     });
   });
 });

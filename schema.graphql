@@ -414,7 +414,7 @@ type ALM_TotalSupplyLimitUpdated_event {
 type RootPool_LeafPool {
   id: ID! #{RootPool}_{OptimismChainId}_{LeafPool}_{LeafChainId}
   rootChainId: Int! # Optimism chain ID
-  rootPoolAddress: String! # Placeholder contract that isn't a real pool (i.e., doesn't allow for LP, swap, etc). Mainly just for registring purposes
+  rootPoolAddress: String! @index # Placeholder contract that isn't a real pool (i.e., doesn't allow for LP, swap, etc). Mainly just for registring purposes
   leafChainId: Int! # Chain ID where the actual real pool (i.e. pool where it is possible to LP, swap, etc) is deployed
   leafPoolAddress: String! # Actual real pool that is deployed on leaf chain
 }
