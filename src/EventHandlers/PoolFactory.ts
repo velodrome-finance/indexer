@@ -12,6 +12,9 @@ import { getRootPoolAddress } from "../Effects/RootPool";
 import { createTokenEntity } from "../PriceOracle";
 import type { TokenEntityMapping } from "./../CustomTypes";
 
+const ROOT_POOL_FACTORY_ADDRESS_OPTIMISM =
+  "0x31832f2a97Fd20664D76Cc421207669b55CE4BC0";
+
 PoolFactory.PoolCreated.contractRegister(({ event, context }) => {
   context.addPool(event.params.pool);
 });
