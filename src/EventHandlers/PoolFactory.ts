@@ -1,8 +1,16 @@
 import { PoolFactory } from "generated";
-import { createLiquidityPoolAggregatorEntity } from "../Aggregators/LiquidityPoolAggregator";
-import { TokenIdByChain } from "../Constants";
+import type { LiquidityPoolAggregator } from "generated";
+import {
+  createLiquidityPoolAggregatorEntity,
+  updateLiquidityPoolAggregator,
+} from "../Aggregators/LiquidityPoolAggregator";
+import { TokenIdByChain, toChecksumAddress } from "../Constants";
+import { getRootPoolAddress } from "../Effects/RootPool";
 import { createTokenEntity } from "../PriceOracle";
 import type { TokenEntityMapping } from "./../CustomTypes";
+
+const ROOT_POOL_FACTORY_ADDRESS_OPTIMISM =
+  "0x31832f2a97Fd20664D76Cc421207669b55CE4BC0";
 
 PoolFactory.PoolCreated.contractRegister(({ event, context }) => {
   context.addPool(event.params.pool);
@@ -74,6 +82,46 @@ PoolFactory.PoolCreated.handler(async ({ event, context }) => {
 
   // For new pool creation, set the entity directly (updateLiquidityPoolAggregator is for updates, not creation)
   context.LiquidityPoolAggregator.set(pool);
+
+  // For non-Optimism and non-Base pools, set the RootPool_LeafPool entity
+  // Mapping RootPool (on optimism) to Pool (on superchain)
+  // This is only need for non-CL pools
+  // The mapping between RootCLPool and CLPool is made in RootCLPoolFactory.ts without the need of a RPC call
+  // RPC call is needed here because RootPoolCreated event for non-CL pools doesn't have leafChainId
+  const chainId = Number(event.chainId);
+  if (chainId !== 10 && chainId !== 8453) {
+    let rootPoolAddress: string | null = null;
+    try {
+      rootPoolAddress = await context.effect(getRootPoolAddress, {
+        chainId: chainId,
+        factory: ROOT_POOL_FACTORY_ADDRESS_OPTIMISM,
+        token0: event.params.token0,
+        token1: event.params.token1,
+        type: 0, // 0 for non-CL pools
+      });
+    } catch (error) {
+      context.log.error(
+        `Error fetching root pool address for pool ${event.params.pool} on chain ${chainId}: ${error}`,
+      );
+      // Continue execution - pool is already created, just skip RootPool_LeafPool creation
+      return;
+    }
+
+    if (rootPoolAddress) {
+      context.RootPool_LeafPool.set({
+        id: `${rootPoolAddress}_10_${event.params.pool}_${chainId}`,
+        rootChainId: 10,
+        rootPoolAddress: rootPoolAddress,
+        leafChainId: chainId,
+        leafPoolAddress: event.params.pool,
+      });
+    } else {
+      context.log.error(
+        `Failed to get root pool address for pool ${event.params.pool} on chain ${chainId}`,
+      );
+      return;
+    }
+  }
 });
 
 PoolFactory.SetCustomFee.handler(async ({ event, context }) => {
@@ -88,10 +136,16 @@ PoolFactory.SetCustomFee.handler(async ({ event, context }) => {
     return;
   }
 
-  context.LiquidityPoolAggregator.set({
-    ...poolEntity,
+  const diff: Partial<LiquidityPoolAggregator> = {
     baseFee: BigInt(event.params.fee),
-    currentFee: BigInt(event.params.fee),
-    lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
-  });
+    currentFee: BigInt(event.params.fee), // When custom fee is set, both baseFee and currentFee are updated
+  };
+
+  await updateLiquidityPoolAggregator(
+    diff,
+    poolEntity,
+    new Date(event.block.timestamp * 1000),
+    context,
+    event.block.number,
+  );
 });

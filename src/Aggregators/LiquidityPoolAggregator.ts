@@ -232,6 +232,7 @@ export async function updateLiquidityPoolAggregator(
 
     // Dynamic Fee fields - non-cumulative
     baseFee: diff.baseFee ?? current.baseFee,
+    currentFee: diff.currentFee ?? current.currentFee,
     feeCap: diff.feeCap ?? current.feeCap,
     scalingFactor: diff.scalingFactor ?? current.scalingFactor,
 
