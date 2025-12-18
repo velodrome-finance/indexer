@@ -1,13 +1,13 @@
 import { expect } from "chai";
 import {
-  ALMDeployFactory,
+  ALMDeployFactoryV2,
   MockDb,
 } from "../../../generated/src/TestHelpers.gen";
 import type { NonFungiblePosition } from "../../../generated/src/Types.gen";
 import { toChecksumAddress } from "../../../src/Constants";
 import { setupCommon } from "../Pool/common";
 
-describe("ALMDeployFactory StrategyCreated Event", () => {
+describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
   const { mockLiquidityPoolData, mockToken0Data, mockToken1Data } =
     setupCommon();
   const chainId = mockLiquidityPoolData.chainId;
@@ -103,9 +103,12 @@ describe("ALMDeployFactory StrategyCreated Event", () => {
       const tickUpper = 1000n;
       const liquidity = 1000000n;
 
-      const mockEvent = ALMDeployFactory.StrategyCreated.createMockEvent({
+      // V2: params tuple has 5 elements: [pool, ammPosition (array), strategyParams (5 fields), lpWrapper, caller]
+      // No synthetixFarm in V2
+      const mockEvent = ALMDeployFactoryV2.StrategyCreated.createMockEvent({
         params: [
           toChecksumAddress(poolAddress),
+          // ammPosition is an array with one element
           [
             [
               toChecksumAddress(mockToken0Data.address),
@@ -116,6 +119,7 @@ describe("ALMDeployFactory StrategyCreated Event", () => {
               liquidity,
             ],
           ],
+          // strategyParams has 5 fields (includes maxLiquidityRatioDeviationX96)
           [
             strategyType,
             tickNeighborhood,
@@ -129,7 +133,7 @@ describe("ALMDeployFactory StrategyCreated Event", () => {
         mockEventData,
       });
 
-      const result = await ALMDeployFactory.StrategyCreated.processEvent({
+      const result = await ALMDeployFactoryV2.StrategyCreated.processEvent({
         event: mockEvent,
         mockDb: mockDbWithGetWhere as typeof mockDb,
       });
@@ -198,7 +202,7 @@ describe("ALMDeployFactory StrategyCreated Event", () => {
         },
       };
 
-      const mockEvent = ALMDeployFactory.StrategyCreated.createMockEvent({
+      const mockEvent = ALMDeployFactoryV2.StrategyCreated.createMockEvent({
         params: [
           poolAddress,
           [
@@ -218,7 +222,7 @@ describe("ALMDeployFactory StrategyCreated Event", () => {
         mockEventData,
       });
 
-      const result = await ALMDeployFactory.StrategyCreated.processEvent({
+      const result = await ALMDeployFactoryV2.StrategyCreated.processEvent({
         event: mockEvent,
         mockDb: mockDbWithGetWhere as typeof mockDb,
       });
@@ -253,7 +257,7 @@ describe("ALMDeployFactory StrategyCreated Event", () => {
         },
       };
 
-      const mockEvent = ALMDeployFactory.StrategyCreated.createMockEvent({
+      const mockEvent = ALMDeployFactoryV2.StrategyCreated.createMockEvent({
         params: [
           poolAddress,
           [
@@ -273,7 +277,7 @@ describe("ALMDeployFactory StrategyCreated Event", () => {
         mockEventData,
       });
 
-      const result = await ALMDeployFactory.StrategyCreated.processEvent({
+      const result = await ALMDeployFactoryV2.StrategyCreated.processEvent({
         event: mockEvent,
         mockDb: mockDbWithGetWhere as typeof mockDb,
       });
@@ -308,7 +312,7 @@ describe("ALMDeployFactory StrategyCreated Event", () => {
         },
       };
 
-      const mockEvent = ALMDeployFactory.StrategyCreated.createMockEvent({
+      const mockEvent = ALMDeployFactoryV2.StrategyCreated.createMockEvent({
         params: [
           poolAddress,
           [
@@ -328,7 +332,7 @@ describe("ALMDeployFactory StrategyCreated Event", () => {
         mockEventData,
       });
 
-      const result = await ALMDeployFactory.StrategyCreated.processEvent({
+      const result = await ALMDeployFactoryV2.StrategyCreated.processEvent({
         event: mockEvent,
         mockDb: mockDbWithGetWhere as typeof mockDb,
       });
@@ -425,9 +429,12 @@ describe("ALMDeployFactory StrategyCreated Event", () => {
       const tickUpper = 1000n;
       const liquidity = 1000000n;
 
-      const mockEvent = ALMDeployFactory.StrategyCreated.createMockEvent({
+      // V2: params tuple has 5 elements: [pool, ammPosition (array), strategyParams (5 fields), lpWrapper, caller]
+      // No synthetixFarm in V2
+      const mockEvent = ALMDeployFactoryV2.StrategyCreated.createMockEvent({
         params: [
           toChecksumAddress(poolAddress),
+          // ammPosition is an array with one element
           [
             [
               toChecksumAddress(mockToken0Data.address),
@@ -438,6 +445,7 @@ describe("ALMDeployFactory StrategyCreated Event", () => {
               liquidity,
             ],
           ],
+          // strategyParams has 5 fields (includes maxLiquidityRatioDeviationX96)
           [
             strategyType,
             tickNeighborhood,
@@ -451,7 +459,7 @@ describe("ALMDeployFactory StrategyCreated Event", () => {
         mockEventData,
       });
 
-      const result = await ALMDeployFactory.StrategyCreated.processEvent({
+      const result = await ALMDeployFactoryV2.StrategyCreated.processEvent({
         event: mockEvent,
         mockDb: mockDbWithGetWhere as typeof mockDb,
       });
@@ -515,7 +523,7 @@ describe("ALMDeployFactory StrategyCreated Event", () => {
         },
       };
 
-      const mockEvent = ALMDeployFactory.StrategyCreated.createMockEvent({
+      const mockEvent = ALMDeployFactoryV2.StrategyCreated.createMockEvent({
         params: [
           toChecksumAddress(poolAddress),
           [
@@ -535,7 +543,7 @@ describe("ALMDeployFactory StrategyCreated Event", () => {
         mockEventData,
       });
 
-      const result = await ALMDeployFactory.StrategyCreated.processEvent({
+      const result = await ALMDeployFactoryV2.StrategyCreated.processEvent({
         event: mockEvent,
         mockDb: mockDbWithGetWhere as typeof mockDb,
       });
@@ -595,7 +603,7 @@ describe("ALMDeployFactory StrategyCreated Event", () => {
         },
       };
 
-      const mockEvent = ALMDeployFactory.StrategyCreated.createMockEvent({
+      const mockEvent = ALMDeployFactoryV2.StrategyCreated.createMockEvent({
         params: [
           toChecksumAddress(poolAddress),
           [
@@ -615,7 +623,7 @@ describe("ALMDeployFactory StrategyCreated Event", () => {
         mockEventData,
       });
 
-      const result = await ALMDeployFactory.StrategyCreated.processEvent({
+      const result = await ALMDeployFactoryV2.StrategyCreated.processEvent({
         event: mockEvent,
         mockDb: mockDbWithGetWhere as typeof mockDb,
       });
@@ -675,7 +683,7 @@ describe("ALMDeployFactory StrategyCreated Event", () => {
         },
       };
 
-      const mockEvent = ALMDeployFactory.StrategyCreated.createMockEvent({
+      const mockEvent = ALMDeployFactoryV2.StrategyCreated.createMockEvent({
         params: [
           toChecksumAddress(poolAddress),
           [
@@ -695,7 +703,7 @@ describe("ALMDeployFactory StrategyCreated Event", () => {
         mockEventData,
       });
 
-      const result = await ALMDeployFactory.StrategyCreated.processEvent({
+      const result = await ALMDeployFactoryV2.StrategyCreated.processEvent({
         event: mockEvent,
         mockDb: mockDbWithGetWhere as typeof mockDb,
       });
@@ -755,7 +763,7 @@ describe("ALMDeployFactory StrategyCreated Event", () => {
         },
       };
 
-      const mockEvent = ALMDeployFactory.StrategyCreated.createMockEvent({
+      const mockEvent = ALMDeployFactoryV2.StrategyCreated.createMockEvent({
         params: [
           toChecksumAddress(poolAddress),
           [
@@ -775,7 +783,7 @@ describe("ALMDeployFactory StrategyCreated Event", () => {
         mockEventData,
       });
 
-      const result = await ALMDeployFactory.StrategyCreated.processEvent({
+      const result = await ALMDeployFactoryV2.StrategyCreated.processEvent({
         event: mockEvent,
         mockDb: mockDbWithGetWhere as typeof mockDb,
       });
@@ -845,7 +853,7 @@ describe("ALMDeployFactory StrategyCreated Event", () => {
         },
       };
 
-      const mockEvent = ALMDeployFactory.StrategyCreated.createMockEvent({
+      const mockEvent = ALMDeployFactoryV2.StrategyCreated.createMockEvent({
         params: [
           toChecksumAddress(poolAddress),
           [
@@ -865,7 +873,7 @@ describe("ALMDeployFactory StrategyCreated Event", () => {
         mockEventData,
       });
 
-      const result = await ALMDeployFactory.StrategyCreated.processEvent({
+      const result = await ALMDeployFactoryV2.StrategyCreated.processEvent({
         event: mockEvent,
         mockDb: mockDbWithGetWhere as typeof mockDb,
       });
@@ -943,7 +951,7 @@ describe("ALMDeployFactory StrategyCreated Event", () => {
         },
       };
 
-      const mockEvent = ALMDeployFactory.StrategyCreated.createMockEvent({
+      const mockEvent = ALMDeployFactoryV2.StrategyCreated.createMockEvent({
         params: [
           toChecksumAddress(poolAddress),
           [
@@ -963,7 +971,7 @@ describe("ALMDeployFactory StrategyCreated Event", () => {
         mockEventData,
       });
 
-      const result = await ALMDeployFactory.StrategyCreated.processEvent({
+      const result = await ALMDeployFactoryV2.StrategyCreated.processEvent({
         event: mockEvent,
         mockDb: mockDbWithGetWhere as typeof mockDb,
       });

@@ -118,9 +118,14 @@ contracts:
       - event: Deposit
       - event: Withdraw
       - event: ClaimRewards
-  - name: ALMDeployFactory
-    abi_file_path: abis/ALM/DeployFactory.json
-    handler: src/EventHandlers/ALM/DeployFactory.ts
+  - name: ALMDeployFactoryV2
+    abi_file_path: abis/ALM/DeployFactoryV2.json
+    handler: src/EventHandlers/ALM/DeployFactoryV2.ts
+    events:
+      - event: StrategyCreated
+  - name: ALMDeployFactoryV1
+    abi_file_path: abis/ALM/DeployFactoryV1.json
+    handler: src/EventHandlers/ALM/DeployFactoryV1.ts
     events:
       - event: StrategyCreated
   - name: ALMCore
@@ -128,14 +133,21 @@ contracts:
     handler: src/EventHandlers/ALM/Core.ts
     events:
       - event: Rebalance
-  - name: ALMLPWrapper
-    abi_file_path: abis/ALM/LPWrapper.json
-    handler: src/EventHandlers/ALM/LPWrapper.ts
+  - name: ALMLPWrapperV2
+    abi_file_path: abis/ALM/LPWrapperV2.json
+    handler: src/EventHandlers/ALM/LPWrapperV2.ts
     events:
       - event: Deposit
       - event: Withdraw
       - event: Transfer
       - event: TotalSupplyLimitUpdated
+  - name: ALMLPWrapperV1
+    abi_file_path: abis/ALM/LPWrapperV1.json
+    handler: src/EventHandlers/ALM/LPWrapperV1.ts
+    events:
+      - event: Deposit
+      - event: Withdraw
+      - event: Transfer
   - name: DynamicFeeSwapModule
     abi_file_path: abis/DynamicFeeSwapModule.json
     handler: src/EventHandlers/SwapFeeModule/DynamicFeeSwapModule.ts
@@ -221,14 +233,20 @@ networks:
         address:
       - name: CLPool
         address:
-      - name: ALMDeployFactory
+      - name: ALMDeployFactoryV1
+        address:
+          - 0xeD8b81E3fF6c54951621715F5992CA52007D88bA
+      - name: ALMDeployFactoryV2
         address:
           - 0xE46EC96906fc6dEC53De25F013639969Fe10180d
+      - name: ALMLPWrapperV1
+        address:
+      - name: ALMLPWrapperV2
+        address:
       - name: ALMCore
         address:
           - 0x0000000cE42D4981513060aB7E50B9e5e2D19AF1
-      - name: ALMLPWrapper
-        address:
+          - 0x71D022eBA6F2607Ab8EC32Cb894075D94e10CEb8
       - name: CLGauge
         address:
       - name: Gauge
@@ -281,18 +299,20 @@ networks:
         address:
       - name: CLPool
         address:
-      - name: ALMDeployFactory
+      - name: ALMDeployFactoryV1
+        address:
+          - 0x5B1b1aaC71bDca9Ed1dCb2AA357f678584db4029
+      - name: ALMDeployFactoryV2
         address:
           - 0xE46EC96906fc6dEC53De25F013639969Fe10180d
       - name: ALMCore
         address:
           - 0x0000000cE42D4981513060aB7E50B9e5e2D19AF1
-      - name: CLPoolLauncher
+          - 0xd17613D91150a2345eCe9598D055C7197A1f5A71
+      - name: ALMLPWrapperV1
         address:
-          - 0x122FD2369b86C7d6C848c842a70c0d04A7c6fb84
-      - name: V2PoolLauncher
-        address: 
-          - 0x8B8025D4cD620BB89e196D32851d4c6E5B74AA60
+      - name: ALMLPWrapperV2
+        address:
       - name: CLGauge
         address:
       - name: Gauge
@@ -300,8 +320,6 @@ networks:
       - name: VelodromeUniversalRouter
         address:
           - 0x01D40099fCD87C018969B0e8D4aB1633Fb34763C
-      - name: ALMLPWrapper
-        address:
       - name: Mailbox
         address:
           - 0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D
@@ -333,13 +351,13 @@ networks:
         address:
       - name: CLPool
         address:
-      - name: ALMDeployFactory
+      - name: ALMDeployFactoryV2
         address:
           - 0xE46EC96906fc6dEC53De25F013639969Fe10180d
       - name: ALMCore
         address:
           - 0x0000000cE42D4981513060aB7E50B9e5e2D19AF1
-      - name: ALMLPWrapper
+      - name: ALMLPWrapperV2
         address:
       - name: CLGauge
         address:
@@ -379,13 +397,13 @@ networks:
         address:
       - name: CLPool
         address:
-      - name: ALMDeployFactory
+      - name: ALMDeployFactoryV2
         address:
           - 0xE46EC96906fc6dEC53De25F013639969Fe10180d
       - name: ALMCore
         address:
           - 0x0000000cE42D4981513060aB7E50B9e5e2D19AF1
-      - name: ALMLPWrapper
+      - name: ALMLPWrapperV2
         address:
       - name: CLGauge
         address:
@@ -425,13 +443,13 @@ networks:
         address:
       - name: CLPool
         address:
-      - name: ALMDeployFactory
+      - name: ALMDeployFactoryV2
         address:
           - 0xE46EC96906fc6dEC53De25F013639969Fe10180d
       - name: ALMCore
         address:
           - 0x0000000cE42D4981513060aB7E50B9e5e2D19AF1
-      - name: ALMLPWrapper
+      - name: ALMLPWrapperV2
         address:
       - name: CLPoolLauncher
         address:
@@ -475,13 +493,13 @@ networks:
         address:
       - name: CLPool
         address:
-      - name: ALMDeployFactory
+      - name: ALMDeployFactoryV2
         address:
           - 0xE46EC96906fc6dEC53De25F013639969Fe10180d
       - name: ALMCore
         address:
           - 0x0000000cE42D4981513060aB7E50B9e5e2D19AF1
-      - name: ALMLPWrapper
+      - name: ALMLPWrapperV2
         address:
       - name: CLGauge
         address:
@@ -510,13 +528,13 @@ networks:
           - 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F
       - name: Pool
         address:
-      - name: ALMDeployFactory
+      - name: ALMDeployFactoryV2
         address:
           - 0xE46EC96906fc6dEC53De25F013639969Fe10180d
       - name: ALMCore
         address:
           - 0x0000000cE42D4981513060aB7E50B9e5e2D19AF1
-      - name: ALMLPWrapper
+      - name: ALMLPWrapperV2
         address:
       - name: SuperchainLeafVoter
         address:
@@ -556,13 +574,13 @@ networks:
           - 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F
       - name: Pool
         address:
-      - name: ALMDeployFactory
+      - name: ALMDeployFactoryV2
         address:
           - 0xE46EC96906fc6dEC53De25F013639969Fe10180d
       - name: ALMCore
         address:
           - 0x0000000cE42D4981513060aB7E50B9e5e2D19AF1
-      - name: ALMLPWrapper
+      - name: ALMLPWrapperV2
         address:
       - name: SuperchainLeafVoter
         address:
@@ -687,13 +705,13 @@ networks:
         address:
       - name: CLPool
         address:
-      - name: ALMDeployFactory
+      - name: ALMDeployFactoryV2
         address:
           - 0xE46EC96906fc6dEC53De25F013639969Fe10180d
       - name: ALMCore
         address:
           - 0x0000000cE42D4981513060aB7E50B9e5e2D19AF1
-      - name: ALMLPWrapper
+      - name: ALMLPWrapperV2
         address:
       - name: CLGauge
         address:

@@ -1,29 +1,22 @@
-import { ALMDeployFactoryV2 } from "generated";
-import { ALM_TotalSupplyLimitUpdated_event } from "generated/src/db/Entities.res";
+import { ALMDeployFactoryV1 } from "generated";
 import { toChecksumAddress } from "../../Constants";
 
-ALMDeployFactoryV2.StrategyCreated.contractRegister(({ event, context }) => {
-  const [pool, ammPosition, strategyParams, lpWrapper, caller] =
+ALMDeployFactoryV1.StrategyCreated.contractRegister(({ event, context }) => {
+  const [pool, ammPosition, strategyParams, lpWrapper, synthetixFarm, caller] =
     event.params.params;
-  context.addALMLPWrapperV2(lpWrapper);
+  context.addALMLPWrapperV1(lpWrapper);
 });
 
-ALMDeployFactoryV2.StrategyCreated.handler(async ({ event, context }) => {
-  const [pool, ammPosition, strategyParams, lpWrapper, caller] =
+ALMDeployFactoryV1.StrategyCreated.handler(async ({ event, context }) => {
+  const [pool, ammPosition, strategyParams, lpWrapper, synthetixFarm, caller] =
     event.params.params;
 
-  const [
-    strategyType,
-    tickNeighborhood,
-    tickSpacing,
-    width,
-    maxLiquidityRatioDeviationX96,
-  ] = strategyParams;
+  const [strategyType, tickNeighborhood, tickSpacing, width] = strategyParams;
 
+  // In DeployFactory2, ammPosition is a single tuple, not an array
   // Contract relationship: 1 LP wrapper per pool, 1 strategy per LP wrapper, 1 tokenId per strategy, 1 AMM position per tokenId
-  // Therefore ammPosition array should have exactly 1 element (not a loop)
   const [token0, token1, property, tickLower, tickUpper, liquidity] =
-    ammPosition[0];
+    ammPosition;
 
   const timestamp = new Date(event.block.timestamp * 1000);
 
@@ -61,27 +54,15 @@ ALMDeployFactoryV2.StrategyCreated.handler(async ({ event, context }) => {
   const amount0 = matchingNonFungiblePositions[0].amount0;
   const amount1 = matchingNonFungiblePositions[0].amount1;
 
-  // Fetching LP tokens supply from TotalSupplyLimitUpdated event
-  const ALM_TotalSupplyLimitUpdated_event =
-    await context.ALM_TotalSupplyLimitUpdated_event.get(
-      `${lpWrapper}_${event.chainId}`,
-    );
-
-  if (
-    !ALM_TotalSupplyLimitUpdated_event ||
-    ALM_TotalSupplyLimitUpdated_event.transactionHash !== event.transaction.hash
-  ) {
-    context.log.error(
-      `ALM_TotalSupplyLimitUpdated_event not found for lpWrapper ${toChecksumAddress(lpWrapper)} and chainId ${event.chainId} or transaction hash ${event.transaction.hash} does not match. It should have been created by ALMLPWrapper event handlers.`,
-    );
-    return;
-  }
-
-  const currentTotalSupplyLPTokens =
-    ALM_TotalSupplyLimitUpdated_event.currentTotalSupplyLPTokens;
+  // In DeployFactoryV1, lpWrapper.initialize() receives position.liquidity as initialTotalSupply
+  // and mints that amount as LP tokens. So the initial LP token supply equals the liquidity value.
+  // Note: Unlike V2, V1 doesn't emit TotalSupplyLimitUpdated event, so we use liquidity directly.
+  const initialTotalSupplyLPTokens = liquidity;
 
   // Create ALM_LP_Wrapper (single entity tracks both wrapper and strategy)
   // This single entity contains both wrapper-level aggregations and strategy/position state
+  // Note: DeployFactoryV1 doesn't have maxLiquidityRatioDeviationX96 in strategyParams,
+  // so we set it to 0n as a default value (required by schema)
   context.ALM_LP_Wrapper.set({
     id: `${toChecksumAddress(lpWrapper)}_${event.chainId}`,
     chainId: event.chainId,
@@ -91,7 +72,7 @@ ALMDeployFactoryV2.StrategyCreated.handler(async ({ event, context }) => {
 
     amount0: amount0,
     amount1: amount1,
-    lpAmount: currentTotalSupplyLPTokens,
+    lpAmount: initialTotalSupplyLPTokens,
     lastUpdatedTimestamp: timestamp,
 
     tokenId: tokenId,
@@ -103,7 +84,7 @@ ALMDeployFactoryV2.StrategyCreated.handler(async ({ event, context }) => {
     tickNeighborhood: tickNeighborhood,
     tickSpacing: tickSpacing,
     positionWidth: width,
-    maxLiquidityRatioDeviationX96: maxLiquidityRatioDeviationX96,
+    maxLiquidityRatioDeviationX96: 0n, // Not present in DeployFactoryV1 strategyParams, defaulting to 0
     creationTimestamp: timestamp,
     strategyTransactionHash: event.transaction.hash,
   });

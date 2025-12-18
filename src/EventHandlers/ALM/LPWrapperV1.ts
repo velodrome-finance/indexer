@@ -1,4 +1,4 @@
-import { ALMLPWrapperV2 } from "generated";
+import { ALMLPWrapperV1 } from "generated";
 import { updateALMLPWrapper } from "../../Aggregators/ALMLPWrapper";
 import {
   loadUserData,
@@ -13,9 +13,12 @@ import { recalculateLPWrapperAmountsFromLiquidity } from "./LPWrapperLogic";
  * 1. Updates the pool-level ALM_LP_Wrapper entity with increased amounts
  * 2. Updates the user-level UserStatsPerPool entity for the recipient
  *    (who receives the LP tokens) with their ALM position
+ *
+ * Note: In V1, Deposit event has both `sender` and `recipient` fields.
+ * The `recipient` is the one who receives the LP tokens and should have their stats updated.
  */
-ALMLPWrapperV2.Deposit.handler(async ({ event, context }) => {
-  const { recipient, pool, amount0, amount1, lpAmount } = event.params;
+ALMLPWrapperV1.Deposit.handler(async ({ event, context }) => {
+  const { sender, recipient, pool, lpAmount, amount0, amount1 } = event.params;
   const timestamp = new Date(event.block.timestamp * 1000);
 
   // Should be created already by StrategyCreated event
@@ -82,11 +85,14 @@ ALMLPWrapperV2.Deposit.handler(async ({ event, context }) => {
  *
  * When a user withdraws from an ALM LP Wrapper:
  * 1. Updates the pool-level ALM_LP_Wrapper entity with decreased amounts
- * 2. Updates the user-level UserStatsPerPool entity for the sender
+ * 2. Updates the user-level UserStatsPerPool entity for the recipient
  *    (who withdraws and receives tokens) with their reduced ALM position
+ *
+ * Note: In V1, Withdraw event has both `sender` and `recipient` fields.
+ * The `recipient` is the one who receives the tokens and should have their stats updated.
  */
-ALMLPWrapperV2.Withdraw.handler(async ({ event, context }) => {
-  const { recipient, pool, amount0, amount1, lpAmount } = event.params;
+ALMLPWrapperV1.Withdraw.handler(async ({ event, context }) => {
+  const { sender, recipient, pool, lpAmount, amount0, amount1 } = event.params;
   const timestamp = new Date(event.block.timestamp * 1000);
 
   // Should be created already by StrategyCreated event
@@ -141,8 +147,8 @@ ALMLPWrapperV2.Withdraw.handler(async ({ event, context }) => {
       timestamp,
       context,
     ),
-    // Update user-level UserStatsPerPool entity for the sender
-    // The sender withdraws and receives tokens, so their position decreases
+    // Update user-level UserStatsPerPool entity for the recipient
+    // The recipient withdraws and receives tokens, so their position decreases
     updateUserStatsPerPool(userStatsDiff, userStats, timestamp, context),
   ]);
 });
@@ -163,7 +169,7 @@ ALMLPWrapperV2.Withdraw.handler(async ({ event, context }) => {
  * Note: If the wrapper doesn't exist, this will fail since Transfer events don't include pool info.
  * This is expected behavior - wrappers should be created via Deposit/Withdraw events first.
  */
-ALMLPWrapperV2.Transfer.handler(async ({ event, context }) => {
+ALMLPWrapperV1.Transfer.handler(async ({ event, context }) => {
   const { from, to, value } = event.params;
   const timestamp = new Date(event.block.timestamp * 1000);
 
@@ -213,26 +219,4 @@ ALMLPWrapperV2.Transfer.handler(async ({ event, context }) => {
     ),
     updateUserStatsPerPool(UserStatsToDiff, userStatsTo, timestamp, context),
   ]);
-});
-
-/**
- * Handler for ALM LP Wrapper TotalSupplyLimitUpdated events
- *
- * Persists the current LP token supply for a wrapper so other handlers
- * (e.g., StrategyCreated) can seed `lpAmount` from the latest supply.
- */
-ALMLPWrapperV2.TotalSupplyLimitUpdated.handler(async ({ event, context }) => {
-  const { newTotalSupplyLimit, totalSupplyLimitOld, totalSupplyCurrent } =
-    event.params;
-
-  const ALM_TotalSupplyLimitUpdated_event = {
-    id: `${event.srcAddress}_${event.chainId}`,
-    lpWrapperAddress: event.srcAddress,
-    currentTotalSupplyLPTokens: totalSupplyCurrent,
-    transactionHash: event.transaction.hash,
-  };
-
-  context.ALM_TotalSupplyLimitUpdated_event.set(
-    ALM_TotalSupplyLimitUpdated_event,
-  );
 });
