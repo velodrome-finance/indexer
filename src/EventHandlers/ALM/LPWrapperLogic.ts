@@ -1,6 +1,11 @@
 import { TickMath, maxLiquidityForAmounts } from "@uniswap/v3-sdk";
 import type { ALM_LP_Wrapper, handlerContext } from "generated";
 import JSBI from "jsbi";
+import { updateALMLPWrapper } from "../../Aggregators/ALMLPWrapper";
+import {
+  loadUserData,
+  updateUserStatsPerPool,
+} from "../../Aggregators/UserStatsPerPool";
 import { getSqrtPriceX96, roundBlockToInterval } from "../../Effects/Token";
 
 /**
@@ -108,4 +113,283 @@ export function deriveUserAmounts(
     amount0: (wrapperAmount0 * userLp) / totalLp,
     amount1: (wrapperAmount1 * userLp) / totalLp,
   };
+}
+
+/**
+ * Loads an ALM_LP_Wrapper entity by its ID
+ * @param srcAddress - The wrapper contract address
+ * @param chainId - The chain ID
+ * @param context - The handler context
+ * @returns The ALM_LP_Wrapper entity or null if not found
+ */
+export async function loadALMLPWrapper(
+  srcAddress: string,
+  chainId: number,
+  context: handlerContext,
+): Promise<ALM_LP_Wrapper | null> {
+  const lpWrapperId = `${srcAddress}_${chainId}`;
+  const ALMLPWrapperEntity = await context.ALM_LP_Wrapper.get(lpWrapperId);
+
+  if (!ALMLPWrapperEntity) {
+    context.log.error(
+      `ALM_LP_Wrapper entity not found for ${lpWrapperId}. It should have been created by StrategyCreated event.`,
+    );
+    return null;
+  }
+
+  return ALMLPWrapperEntity;
+}
+
+/**
+ * Processes a Deposit event for ALM LP Wrapper
+ * @param recipient - The recipient address who receives LP tokens
+ * @param pool - The pool address
+ * @param amount0 - Amount of token0 deposited
+ * @param amount1 - Amount of token1 deposited
+ * @param lpAmount - Amount of LP tokens minted
+ * @param srcAddress - The wrapper contract address
+ * @param chainId - The chain ID
+ * @param blockNumber - The block number
+ * @param timestamp - The event timestamp
+ * @param context - The handler context
+ */
+export async function processDepositEvent(
+  recipient: string,
+  pool: string,
+  amount0: bigint,
+  amount1: bigint,
+  lpAmount: bigint,
+  srcAddress: string,
+  chainId: number,
+  blockNumber: number,
+  timestamp: Date,
+  context: handlerContext,
+): Promise<void> {
+  // Load wrapper and user stats in parallel since pool address is available from event params
+  const [ALMLPWrapperEntity, userStats] = await Promise.all([
+    loadALMLPWrapper(srcAddress, chainId, context),
+    loadUserData(recipient, pool, chainId, context, timestamp),
+  ]);
+
+  if (!ALMLPWrapperEntity) {
+    return;
+  }
+
+  const updatedAmount0 = ALMLPWrapperEntity.amount0 + amount0;
+  const updatedAmount1 = ALMLPWrapperEntity.amount1 + amount1;
+
+  const updatedLiquidity = await calculateLiquidityFromAmounts(
+    ALMLPWrapperEntity,
+    updatedAmount0,
+    updatedAmount1,
+    pool,
+    chainId,
+    blockNumber,
+    context,
+    "Deposit",
+  );
+
+  const ALMLPWrapperDiff = {
+    amount0: updatedAmount0,
+    amount1: updatedAmount1,
+    lpAmount: lpAmount,
+    liquidity: updatedLiquidity,
+    ammStateIsDerived: true, // Derived from amount0 and amount1 at a specific price; not derived from on-chain AMM position (i.e. Rebalance event)
+  };
+
+  // Derive user's current balance from their LP share after deposit
+  // Use updatedAmount0/amount1 (wrapper amounts AFTER deposit) to calculate user's position
+  const derivedUserAmounts = deriveUserAmounts(
+    userStats.almLpAmount + lpAmount, // User's LP after deposit
+    ALMLPWrapperEntity.lpAmount + lpAmount, // Total LP after deposit
+    updatedAmount0, // Wrapper amount0 AFTER deposit
+    updatedAmount1, // Wrapper amount1 AFTER deposit
+  );
+
+  const userStatsDiff = {
+    almAddress: srcAddress,
+    almAmount0: derivedUserAmounts.amount0,
+    almAmount1: derivedUserAmounts.amount1,
+    almLpAmount: lpAmount,
+  };
+
+  // Update pool-level ALM_LP_Wrapper entity and user-level UserStatsPerPool entity in parallel
+  await Promise.all([
+    updateALMLPWrapper(
+      ALMLPWrapperDiff,
+      ALMLPWrapperEntity,
+      timestamp,
+      context,
+    ),
+    updateUserStatsPerPool(userStatsDiff, userStats, timestamp, context),
+  ]);
+}
+
+/**
+ * Processes a Withdraw event for ALM LP Wrapper
+ * @param recipient - The recipient address who receives tokens
+ * @param pool - The pool address
+ * @param amount0 - Amount of token0 withdrawn
+ * @param amount1 - Amount of token1 withdrawn
+ * @param lpAmount - Amount of LP tokens burned
+ * @param srcAddress - The wrapper contract address
+ * @param chainId - The chain ID
+ * @param blockNumber - The block number
+ * @param timestamp - The event timestamp
+ * @param context - The handler context
+ */
+export async function processWithdrawEvent(
+  recipient: string,
+  pool: string,
+  amount0: bigint,
+  amount1: bigint,
+  lpAmount: bigint,
+  srcAddress: string,
+  chainId: number,
+  blockNumber: number,
+  timestamp: Date,
+  context: handlerContext,
+): Promise<void> {
+  // Load wrapper and user stats in parallel since pool address is available from event params
+  const [ALMLPWrapperEntity, userStats] = await Promise.all([
+    loadALMLPWrapper(srcAddress, chainId, context),
+    loadUserData(recipient, pool, chainId, context, timestamp),
+  ]);
+
+  if (!ALMLPWrapperEntity) {
+    return;
+  }
+
+  const updatedAmount0 = ALMLPWrapperEntity.amount0 - amount0;
+  const updatedAmount1 = ALMLPWrapperEntity.amount1 - amount1;
+
+  const updatedLiquidity = await calculateLiquidityFromAmounts(
+    ALMLPWrapperEntity,
+    updatedAmount0,
+    updatedAmount1,
+    pool,
+    chainId,
+    blockNumber,
+    context,
+    "Withdraw",
+  );
+
+  const ALMLPWrapperDiff = {
+    amount0: updatedAmount0,
+    amount1: updatedAmount1,
+    lpAmount: -lpAmount,
+    liquidity: updatedLiquidity,
+    ammStateIsDerived: true, // Derived from amount0 and amount1 at a specific price; not derived from on-chain AMM position (i.e. Rebalance event)
+  };
+
+  // Derive user's current balance from their LP share after withdrawal
+  // Use updatedAmount0/amount1 (wrapper amounts AFTER withdrawal) to calculate user's remaining position
+  const derivedUserAmounts = deriveUserAmounts(
+    userStats.almLpAmount - lpAmount, // User's LP after withdrawal
+    ALMLPWrapperEntity.lpAmount - lpAmount, // Total LP after withdrawal
+    updatedAmount0, // Wrapper amount0 AFTER withdrawal
+    updatedAmount1, // Wrapper amount1 AFTER withdrawal
+  );
+
+  const userStatsDiff = {
+    almAmount0: derivedUserAmounts.amount0,
+    almAmount1: derivedUserAmounts.amount1,
+    almLpAmount: -lpAmount,
+  };
+
+  // Update pool-level ALM_LP_Wrapper entity and user-level UserStatsPerPool entity in parallel
+  await Promise.all([
+    updateALMLPWrapper(
+      ALMLPWrapperDiff,
+      ALMLPWrapperEntity,
+      timestamp,
+      context,
+    ),
+    updateUserStatsPerPool(userStatsDiff, userStats, timestamp, context),
+  ]);
+}
+
+/**
+ * Processes a Transfer event for ALM LP Wrapper
+ * Excludes burns/mints (zero address transfers) since Deposit/Withdraw events handle those.
+ * @param from - The sender address
+ * @param to - The recipient address
+ * @param value - The transfer amount
+ * @param srcAddress - The wrapper contract address
+ * @param chainId - The chain ID
+ * @param timestamp - The event timestamp
+ * @param context - The handler context
+ */
+export async function processTransferEvent(
+  from: string,
+  to: string,
+  value: bigint,
+  srcAddress: string,
+  chainId: number,
+  timestamp: Date,
+  context: handlerContext,
+): Promise<void> {
+  // Excluding burns/mints since that would double count ALM position
+  // Deposit/Withdraw events already handle burns/mints correctly.
+  if (
+    from === "0x0000000000000000000000000000000000000000" ||
+    to === "0x0000000000000000000000000000000000000000"
+  ) {
+    return;
+  }
+
+  const ALMLPWrapperEntity = await loadALMLPWrapper(
+    srcAddress,
+    chainId,
+    context,
+  );
+  if (!ALMLPWrapperEntity) {
+    return;
+  }
+
+  const [userStatsFrom, userStatsTo] = await Promise.all([
+    loadUserData(from, ALMLPWrapperEntity.pool, chainId, context, timestamp),
+    loadUserData(to, ALMLPWrapperEntity.pool, chainId, context, timestamp),
+  ]);
+
+  // Derive user amounts from LP share after transfer
+  // Sender's LP decreases, recipient's LP increases
+  const senderLpAfter = userStatsFrom.almLpAmount - value;
+  const recipientLpAfter = userStatsTo.almLpAmount + value;
+
+  const senderAmounts = deriveUserAmounts(
+    senderLpAfter,
+    ALMLPWrapperEntity.lpAmount, // Total LP unchanged in transfers
+    ALMLPWrapperEntity.amount0,
+    ALMLPWrapperEntity.amount1,
+  );
+
+  const recipientAmounts = deriveUserAmounts(
+    recipientLpAfter,
+    ALMLPWrapperEntity.lpAmount, // Total LP unchanged in transfers
+    ALMLPWrapperEntity.amount0,
+    ALMLPWrapperEntity.amount1,
+  );
+
+  const UserStatsFromDiff = {
+    almAmount0: senderAmounts.amount0,
+    almAmount1: senderAmounts.amount1,
+    almLpAmount: -value,
+  };
+
+  const UserStatsToDiff = {
+    almAmount0: recipientAmounts.amount0,
+    almAmount1: recipientAmounts.amount1,
+    almLpAmount: value,
+  };
+
+  await Promise.all([
+    updateUserStatsPerPool(
+      UserStatsFromDiff,
+      userStatsFrom,
+      timestamp,
+      context,
+    ),
+    updateUserStatsPerPool(UserStatsToDiff, userStatsTo, timestamp, context),
+  ]);
 }

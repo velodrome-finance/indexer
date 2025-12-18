@@ -1,10 +1,19 @@
 import { expect } from "chai";
 import type { ALM_LP_Wrapper, handlerContext } from "generated";
 import sinon from "sinon";
+import {
+  TEN_TO_THE_6_BI,
+  TEN_TO_THE_18_BI,
+  toChecksumAddress,
+} from "../../../src/Constants";
 import * as TokenEffects from "../../../src/Effects/Token";
 import {
   calculateLiquidityFromAmounts,
   deriveUserAmounts,
+  loadALMLPWrapper,
+  processDepositEvent,
+  processTransferEvent,
+  processWithdrawEvent,
 } from "../../../src/EventHandlers/ALM/LPWrapperLogic";
 import { setupCommon } from "../Pool/common";
 
@@ -375,6 +384,503 @@ describe("LPWrapperLogic", () => {
       expect(
         (mockContext.log.error as sinon.SinonStub).getCall(0).args[0],
       ).to.include("ALMLPWrapper.CustomEvent");
+    });
+  });
+
+  describe("loadALMLPWrapper", () => {
+    let mockContext: handlerContext;
+    const srcAddress = "0x000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    const chainId = 10;
+
+    beforeEach(() => {
+      mockContext = {
+        ALM_LP_Wrapper: {
+          get: sinon.stub(),
+        },
+        log: {
+          error: sinon.stub(),
+        },
+      } as unknown as handlerContext;
+    });
+
+    it("should return wrapper entity when found", async () => {
+      const wrapperId = `${srcAddress}_${chainId}`;
+      const mockWrapper = {
+        ...mockALMLPWrapperData,
+        id: wrapperId,
+      };
+
+      (mockContext.ALM_LP_Wrapper?.get as sinon.SinonStub).resolves(
+        mockWrapper,
+      );
+
+      const result = await loadALMLPWrapper(srcAddress, chainId, mockContext);
+
+      expect(result).to.deep.equal(mockWrapper);
+      expect(
+        (mockContext.ALM_LP_Wrapper?.get as sinon.SinonStub).callCount,
+      ).to.equal(1);
+      expect(
+        (mockContext.ALM_LP_Wrapper?.get as sinon.SinonStub).getCall(0).args[0],
+      ).to.equal(wrapperId);
+      expect((mockContext.log.error as sinon.SinonStub).callCount).to.equal(0);
+    });
+
+    it("should return null and log error when wrapper not found", async () => {
+      const wrapperId = `${srcAddress}_${chainId}`;
+
+      (mockContext.ALM_LP_Wrapper?.get as sinon.SinonStub).resolves(undefined);
+
+      const result = await loadALMLPWrapper(srcAddress, chainId, mockContext);
+
+      expect(result).to.be.null;
+      expect(
+        (mockContext.ALM_LP_Wrapper?.get as sinon.SinonStub).callCount,
+      ).to.equal(1);
+      expect(
+        (mockContext.ALM_LP_Wrapper?.get as sinon.SinonStub).getCall(0).args[0],
+      ).to.equal(wrapperId);
+      expect((mockContext.log.error as sinon.SinonStub).callCount).to.equal(1);
+      expect(
+        (mockContext.log.error as sinon.SinonStub).getCall(0).args[0],
+      ).to.include(wrapperId);
+    });
+  });
+
+  describe("processDepositEvent", () => {
+    let mockContext: handlerContext;
+    const recipient = "0xcccccccccccccccccccccccccccccccccccccccc";
+    const pool = "0x3333333333333333333333333333333333333333";
+    const srcAddress = "0x000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    const chainId = 10;
+    const blockNumber = 123456;
+    const timestamp = new Date(1000000 * 1000);
+    const amount0 = 500n * TEN_TO_THE_18_BI;
+    const amount1 = 250n * TEN_TO_THE_6_BI;
+    const lpAmount = 1000n * TEN_TO_THE_18_BI;
+
+    beforeEach(() => {
+      getSqrtPriceX96Stub = sinon.stub().resolves(mockSqrtPriceX96);
+
+      mockContext = {
+        ALM_LP_Wrapper: {
+          get: sinon.stub(),
+          set: sinon.stub(),
+        },
+        UserStatsPerPool: {
+          get: sinon.stub(),
+          set: sinon.stub(),
+        },
+        effect: getSqrtPriceX96Stub,
+        log: {
+          warn: sinon.stub(),
+          error: sinon.stub(),
+        },
+      } as unknown as handlerContext;
+    });
+
+    it("should process deposit event successfully", async () => {
+      const wrapperId = `${srcAddress}_${chainId}`;
+      const mockWrapper = {
+        ...mockALMLPWrapperData,
+        id: wrapperId,
+        amount0: 1000n * TEN_TO_THE_18_BI,
+        amount1: 500n * TEN_TO_THE_6_BI,
+        lpAmount: 2000n * TEN_TO_THE_18_BI,
+      };
+
+      const userStatsId = `${toChecksumAddress(recipient)}_${toChecksumAddress(pool)}_${chainId}`;
+      const mockUserStats = {
+        id: userStatsId,
+        userAddress: toChecksumAddress(recipient),
+        poolAddress: toChecksumAddress(pool),
+        chainId: chainId,
+        almLpAmount: 0n,
+        almAmount0: 0n,
+        almAmount1: 0n,
+      };
+
+      (mockContext.ALM_LP_Wrapper?.get as sinon.SinonStub)
+        .withArgs(wrapperId)
+        .resolves(mockWrapper);
+      // Pre-create user stats so loadUserData doesn't call set
+      // (loadUserData calls set when creating a new entity)
+      (mockContext.UserStatsPerPool?.get as sinon.SinonStub)
+        .withArgs(userStatsId)
+        .resolves(mockUserStats);
+
+      await processDepositEvent(
+        recipient,
+        pool,
+        amount0,
+        amount1,
+        lpAmount,
+        srcAddress,
+        chainId,
+        blockNumber,
+        timestamp,
+        mockContext,
+      );
+
+      // Verify wrapper was updated
+      expect(
+        (mockContext.ALM_LP_Wrapper?.set as sinon.SinonStub).callCount,
+      ).to.equal(1);
+      const wrapperUpdate = (
+        mockContext.ALM_LP_Wrapper?.set as sinon.SinonStub
+      ).getCall(0).args[0];
+      expect(wrapperUpdate.amount0).to.equal(mockWrapper.amount0 + amount0);
+      expect(wrapperUpdate.amount1).to.equal(mockWrapper.amount1 + amount1);
+      // lpAmount is aggregated: diff.lpAmount + current.lpAmount
+      // Deposit: lpAmount (1000) + current (2000) = 3000
+      expect(wrapperUpdate.lpAmount).to.equal(mockWrapper.lpAmount + lpAmount);
+      expect(wrapperUpdate.ammStateIsDerived).to.equal(true);
+
+      // Verify user stats were updated
+      expect(
+        (mockContext.UserStatsPerPool?.set as sinon.SinonStub).callCount,
+      ).to.equal(1);
+    });
+
+    it("should return early if wrapper not found", async () => {
+      const wrapperId = `${srcAddress}_${chainId}`;
+      const userStatsId = `${toChecksumAddress(recipient)}_${toChecksumAddress(pool)}_${chainId}`;
+
+      (mockContext.ALM_LP_Wrapper?.get as sinon.SinonStub)
+        .withArgs(wrapperId)
+        .resolves(undefined);
+      // Pre-create user stats so loadUserData doesn't call set
+      // (loadUserData is called in parallel and may call set before we return early)
+      (mockContext.UserStatsPerPool?.get as sinon.SinonStub)
+        .withArgs(userStatsId)
+        .resolves({
+          id: userStatsId,
+          userAddress: toChecksumAddress(recipient),
+          poolAddress: toChecksumAddress(pool),
+          chainId: chainId,
+          almLpAmount: 0n,
+          almAmount0: 0n,
+          almAmount1: 0n,
+        });
+
+      await processDepositEvent(
+        recipient,
+        pool,
+        amount0,
+        amount1,
+        lpAmount,
+        srcAddress,
+        chainId,
+        blockNumber,
+        timestamp,
+        mockContext,
+      );
+
+      // Should not update anything
+      expect(
+        (mockContext.ALM_LP_Wrapper?.set as sinon.SinonStub).callCount,
+      ).to.equal(0);
+      expect(
+        (mockContext.UserStatsPerPool?.set as sinon.SinonStub).callCount,
+      ).to.equal(0);
+    });
+  });
+
+  describe("processWithdrawEvent", () => {
+    let mockContext: handlerContext;
+    const recipient = "0xcccccccccccccccccccccccccccccccccccccccc";
+    const pool = "0x3333333333333333333333333333333333333333";
+    const srcAddress = "0x000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    const chainId = 10;
+    const blockNumber = 123456;
+    const timestamp = new Date(1000000 * 1000);
+    const amount0 = 250n * TEN_TO_THE_18_BI;
+    const amount1 = 125n * TEN_TO_THE_6_BI;
+    const lpAmount = 500n * TEN_TO_THE_18_BI;
+
+    beforeEach(() => {
+      getSqrtPriceX96Stub = sinon.stub().resolves(mockSqrtPriceX96);
+
+      mockContext = {
+        ALM_LP_Wrapper: {
+          get: sinon.stub(),
+          set: sinon.stub(),
+        },
+        UserStatsPerPool: {
+          get: sinon.stub(),
+          set: sinon.stub(),
+        },
+        effect: getSqrtPriceX96Stub,
+        log: {
+          warn: sinon.stub(),
+          error: sinon.stub(),
+        },
+      } as unknown as handlerContext;
+    });
+
+    it("should process withdraw event successfully", async () => {
+      const wrapperId = `${srcAddress}_${chainId}`;
+      const mockWrapper = {
+        ...mockALMLPWrapperData,
+        id: wrapperId,
+        amount0: 1000n * TEN_TO_THE_18_BI,
+        amount1: 500n * TEN_TO_THE_6_BI,
+        lpAmount: 2000n * TEN_TO_THE_18_BI,
+      };
+
+      const userStatsId = `${toChecksumAddress(recipient)}_${toChecksumAddress(pool)}_${chainId}`;
+      const mockUserStats = {
+        id: userStatsId,
+        userAddress: toChecksumAddress(recipient),
+        poolAddress: toChecksumAddress(pool),
+        chainId: chainId,
+        almLpAmount: 1000n * TEN_TO_THE_18_BI,
+        almAmount0: 500n * TEN_TO_THE_18_BI,
+        almAmount1: 250n * TEN_TO_THE_6_BI,
+      };
+
+      (mockContext.ALM_LP_Wrapper?.get as sinon.SinonStub)
+        .withArgs(wrapperId)
+        .resolves(mockWrapper);
+      (mockContext.UserStatsPerPool?.get as sinon.SinonStub)
+        .withArgs(userStatsId)
+        .resolves(mockUserStats);
+
+      await processWithdrawEvent(
+        recipient,
+        pool,
+        amount0,
+        amount1,
+        lpAmount,
+        srcAddress,
+        chainId,
+        blockNumber,
+        timestamp,
+        mockContext,
+      );
+
+      // Verify wrapper was updated
+      expect(
+        (mockContext.ALM_LP_Wrapper?.set as sinon.SinonStub).callCount,
+      ).to.equal(1);
+      const wrapperUpdate = (
+        mockContext.ALM_LP_Wrapper?.set as sinon.SinonStub
+      ).getCall(0).args[0];
+      expect(wrapperUpdate.amount0).to.equal(mockWrapper.amount0 - amount0);
+      expect(wrapperUpdate.amount1).to.equal(mockWrapper.amount1 - amount1);
+      // lpAmount is aggregated: diff.lpAmount + current.lpAmount
+      // Withdraw: -lpAmount (-500) + current (2000) = 1500
+      expect(wrapperUpdate.lpAmount).to.equal(mockWrapper.lpAmount - lpAmount);
+      expect(wrapperUpdate.ammStateIsDerived).to.equal(true);
+
+      // Verify user stats were updated
+      expect(
+        (mockContext.UserStatsPerPool?.set as sinon.SinonStub).callCount,
+      ).to.equal(1);
+    });
+
+    it("should return early if wrapper not found", async () => {
+      const wrapperId = `${srcAddress}_${chainId}`;
+      const userStatsId = `${toChecksumAddress(recipient)}_${toChecksumAddress(pool)}_${chainId}`;
+
+      (mockContext.ALM_LP_Wrapper?.get as sinon.SinonStub)
+        .withArgs(wrapperId)
+        .resolves(undefined);
+      // Pre-create user stats so loadUserData doesn't call set
+      // (loadUserData is called in parallel and may call set before we return early)
+      (mockContext.UserStatsPerPool?.get as sinon.SinonStub)
+        .withArgs(userStatsId)
+        .resolves({
+          id: userStatsId,
+          userAddress: toChecksumAddress(recipient),
+          poolAddress: toChecksumAddress(pool),
+          chainId: chainId,
+          almLpAmount: 0n,
+          almAmount0: 0n,
+          almAmount1: 0n,
+        });
+
+      await processWithdrawEvent(
+        recipient,
+        pool,
+        amount0,
+        amount1,
+        lpAmount,
+        srcAddress,
+        chainId,
+        blockNumber,
+        timestamp,
+        mockContext,
+      );
+
+      // Should not update anything
+      expect(
+        (mockContext.ALM_LP_Wrapper?.set as sinon.SinonStub).callCount,
+      ).to.equal(0);
+      expect(
+        (mockContext.UserStatsPerPool?.set as sinon.SinonStub).callCount,
+      ).to.equal(0);
+    });
+  });
+
+  describe("processTransferEvent", () => {
+    let mockContext: handlerContext;
+    const from = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+    const to = "0xffffffffffffffffffffffffffffffffffffffff";
+    const value = 500n * TEN_TO_THE_18_BI;
+    const srcAddress = "0x000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    const chainId = 10;
+    const timestamp = new Date(1000000 * 1000);
+    const pool = "0x3333333333333333333333333333333333333333";
+
+    beforeEach(() => {
+      mockContext = {
+        ALM_LP_Wrapper: {
+          get: sinon.stub(),
+        },
+        UserStatsPerPool: {
+          get: sinon.stub(),
+          set: sinon.stub(),
+        },
+        log: {
+          error: sinon.stub(),
+        },
+      } as unknown as handlerContext;
+    });
+
+    it("should process transfer event successfully", async () => {
+      const wrapperId = `${srcAddress}_${chainId}`;
+      const mockWrapper = {
+        ...mockALMLPWrapperData,
+        id: wrapperId,
+        pool: toChecksumAddress(pool),
+        amount0: 1000n * TEN_TO_THE_18_BI,
+        amount1: 500n * TEN_TO_THE_6_BI,
+        lpAmount: 2000n * TEN_TO_THE_18_BI,
+      };
+
+      const fromUserStatsId = `${toChecksumAddress(from)}_${toChecksumAddress(pool)}_${chainId}`;
+      const toUserStatsId = `${toChecksumAddress(to)}_${toChecksumAddress(pool)}_${chainId}`;
+
+      const mockFromUserStats = {
+        id: fromUserStatsId,
+        userAddress: toChecksumAddress(from),
+        poolAddress: toChecksumAddress(pool),
+        chainId: chainId,
+        almLpAmount: 1000n * TEN_TO_THE_18_BI,
+        almAmount0: 500n * TEN_TO_THE_18_BI,
+        almAmount1: 250n * TEN_TO_THE_6_BI,
+      };
+
+      const mockToUserStats = {
+        id: toUserStatsId,
+        userAddress: toChecksumAddress(to),
+        poolAddress: toChecksumAddress(pool),
+        chainId: chainId,
+        almLpAmount: 0n,
+        almAmount0: 0n,
+        almAmount1: 0n,
+      };
+
+      (mockContext.ALM_LP_Wrapper?.get as sinon.SinonStub)
+        .withArgs(wrapperId)
+        .resolves(mockWrapper);
+      (mockContext.UserStatsPerPool?.get as sinon.SinonStub)
+        .withArgs(fromUserStatsId)
+        .resolves(mockFromUserStats);
+      // Pre-create recipient's stats so loadUserData doesn't call set
+      // (loadUserData calls set when creating a new entity)
+      (mockContext.UserStatsPerPool?.get as sinon.SinonStub)
+        .withArgs(toUserStatsId)
+        .resolves(mockToUserStats);
+
+      await processTransferEvent(
+        from,
+        to,
+        value,
+        srcAddress,
+        chainId,
+        timestamp,
+        mockContext,
+      );
+
+      // Verify both user stats were updated
+      // loadUserData doesn't call set since both entities exist
+      // updateUserStatsPerPool is called twice (once for sender, once for recipient)
+      expect(
+        (mockContext.UserStatsPerPool?.set as sinon.SinonStub).callCount,
+      ).to.equal(2);
+
+      // Verify sender's stats were updated (decreased)
+      const fromUpdate = (
+        mockContext.UserStatsPerPool?.set as sinon.SinonStub
+      ).getCall(0).args[0];
+      expect(fromUpdate.almLpAmount).to.equal(
+        mockFromUserStats.almLpAmount - value,
+      );
+
+      // Verify recipient's stats were updated (increased)
+      const toUpdate = (
+        mockContext.UserStatsPerPool?.set as sinon.SinonStub
+      ).getCall(1).args[0];
+      expect(toUpdate.almLpAmount).to.equal(value);
+    });
+
+    it("should skip zero address transfers (mint/burn)", async () => {
+      const zeroAddress = "0x0000000000000000000000000000000000000000";
+
+      // Mint: from zero address
+      await processTransferEvent(
+        zeroAddress,
+        to,
+        value,
+        srcAddress,
+        chainId,
+        timestamp,
+        mockContext,
+      );
+
+      // Burn: to zero address
+      await processTransferEvent(
+        from,
+        zeroAddress,
+        value,
+        srcAddress,
+        chainId,
+        timestamp,
+        mockContext,
+      );
+
+      // Should not load wrapper or update any stats
+      expect(
+        (mockContext.ALM_LP_Wrapper?.get as sinon.SinonStub).callCount,
+      ).to.equal(0);
+      expect(
+        (mockContext.UserStatsPerPool?.set as sinon.SinonStub).callCount,
+      ).to.equal(0);
+    });
+
+    it("should return early if wrapper not found", async () => {
+      const wrapperId = `${srcAddress}_${chainId}`;
+
+      (mockContext.ALM_LP_Wrapper?.get as sinon.SinonStub)
+        .withArgs(wrapperId)
+        .resolves(undefined);
+
+      await processTransferEvent(
+        from,
+        to,
+        value,
+        srcAddress,
+        chainId,
+        timestamp,
+        mockContext,
+      );
+
+      // Should not update any stats
+      expect(
+        (mockContext.UserStatsPerPool?.set as sinon.SinonStub).callCount,
+      ).to.equal(0);
     });
   });
 });
