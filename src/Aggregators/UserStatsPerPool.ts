@@ -230,13 +230,9 @@ export async function updateUserStatsPerPool(
 
     // ALM metrics
     almAmount0:
-      diff.almAmount0 !== undefined
-        ? current.almAmount0 + diff.almAmount0
-        : current.almAmount0,
+      diff.almAmount0 !== undefined ? diff.almAmount0 : current.almAmount0,
     almAmount1:
-      diff.almAmount1 !== undefined
-        ? current.almAmount1 + diff.almAmount1
-        : current.almAmount1,
+      diff.almAmount1 !== undefined ? diff.almAmount1 : current.almAmount1,
     almLpAmount:
       diff.almLpAmount !== undefined
         ? current.almLpAmount + diff.almLpAmount

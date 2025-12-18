@@ -85,6 +85,7 @@ ALMDeployFactoryV1.StrategyCreated.handler(async ({ event, context }) => {
     tickSpacing: tickSpacing,
     positionWidth: width,
     maxLiquidityRatioDeviationX96: 0n, // Not present in DeployFactoryV1 strategyParams, defaulting to 0
+    ammStateIsDerived: false, // State comes from on-chain AMM position (StrategyCreated event), not derived from amounts
     creationTimestamp: timestamp,
     strategyTransactionHash: event.transaction.hash,
   });

@@ -289,6 +289,18 @@ type ALM_LP_Wrapper {
   tickUpper: BigInt! @config(precision: 24) # Upper tick bound of the position's price range (in tick units)
   property: BigInt! @config(precision: 24) # Pool property parameter from the AMM position struct
   liquidity: BigInt! @config(precision: 76) # Amount of liquidity currently in the AMM position
+
+  # Indicates whether `liquidity`, `amount0`, and `amount1` are currently derived
+  # using an external price (e.g. oracle or pool price) rather than being a
+  # direct snapshot of the on-chain AMM position.
+  #
+  # - true: State was derived from (`amount0`, `amount1`) at a specific price
+  #   without a recent Rebalance event (price-relative valuation), typically
+  #   updated during ALMLPWrapper Deposit / Withdraw events.
+  # - false: State was last synced from an on-chain AMM snapshot (e.g. via
+  #   Rebalance) and reflects protocol-level liquidity exactly.
+  ammStateIsDerived: Boolean!
+
   strategyType: BigInt! @config(precision: 24) # Type/kind of ALM strategy being used (defines the strategy behavior)
   tickNeighborhood: BigInt! @config(precision: 24) # Tick neighborhood parameter for the strategy (defines rebalancing range around current price)
   tickSpacing: BigInt! @config(precision: 24) # Tick spacing for the strategy (minimum tick movement allowed)

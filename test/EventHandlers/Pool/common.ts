@@ -140,6 +140,7 @@ export function setupCommon() {
     creationTimestamp: new Date(900000 * 1000),
     strategyTransactionHash:
       "0x0000000000000000000000000000000000000000000000000000000000000001",
+    ammStateIsDerived: false, // Default to false (from on-chain AMM position), tests can override
   };
 
   const defaultUserAddress = "0xAbCccccccccccccccccccccccccccccccccccccc";
