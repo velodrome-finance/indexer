@@ -4,6 +4,7 @@ import type { Token } from "generated/src/Types.gen";
 import {
   findPoolByGaugeAddress,
   loadPoolData,
+  loadPoolDataOrRootCLPool,
   updateLiquidityPoolAggregator,
 } from "../../Aggregators/LiquidityPoolAggregator";
 import {
@@ -67,7 +68,13 @@ Voter.Voted.handler(async ({ event, context }) => {
   // Load pool data and user data concurrently for better performance
   const poolAddress = toChecksumAddress(event.params.pool);
   const [poolData, userData] = await Promise.all([
-    loadPoolData(poolAddress, event.chainId, context),
+    loadPoolDataOrRootCLPool(
+      poolAddress,
+      event.chainId,
+      context,
+      event.block.number,
+      event.block.timestamp,
+    ),
     loadUserData(
       toChecksumAddress(event.params.voter),
       poolAddress,
@@ -113,7 +120,13 @@ Voter.Abstained.handler(async ({ event, context }) => {
   // Load pool data and user data concurrently for better performance
   const poolAddress = toChecksumAddress(event.params.pool);
   const [poolData, userData] = await Promise.all([
-    loadPoolData(poolAddress, event.chainId, context),
+    loadPoolDataOrRootCLPool(
+      poolAddress,
+      event.chainId,
+      context,
+      event.block.number,
+      event.block.timestamp,
+    ),
     loadUserData(
       toChecksumAddress(event.params.voter),
       poolAddress,

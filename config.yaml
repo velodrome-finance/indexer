@@ -22,6 +22,11 @@ contracts:
     events:
       - event: PoolCreated
       - event: SetCustomFee
+  - name: RootCLPoolFactory
+    abi_file_path: abis/RootCLPoolFactory.json
+    handler: src/EventHandlers/RootCLPoolFactory.ts
+    events:
+      - event: RootPoolCreated
   - name: CLFactory
     abi_file_path: abis/CLFactory.json
     handler: src/EventHandlers/CLFactory.ts
@@ -202,6 +207,9 @@ networks:
       - name: CLFactory
         address:
           - 0xCc0bDDB707055e04e497aB22a59c2aF4391cd12F
+      - name: RootCLPoolFactory
+        address:
+          - 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F
       - name: Pool
         address:
       - name: Voter

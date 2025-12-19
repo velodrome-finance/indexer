@@ -232,6 +232,7 @@ export async function updateLiquidityPoolAggregator(
 
     // Dynamic Fee fields - non-cumulative
     baseFee: diff.baseFee ?? current.baseFee,
+    currentFee: diff.currentFee ?? current.currentFee,
     feeCap: diff.feeCap ?? current.feeCap,
     scalingFactor: diff.scalingFactor ?? current.scalingFactor,
 
@@ -376,6 +377,75 @@ export async function loadPoolData(
 }
 
 /**
+ * Attempts to load pool data, and if not found, checks if it's a RootCLPool
+ * and loads the corresponding leaf pool data instead.
+ *
+ * @param poolAddress - The pool address to load
+ * @param chainId - The chain ID
+ * @param context - The handler context
+ * @param blockNumber - Optional block number for price refresh
+ * @param blockTimestamp - Optional block timestamp for price refresh
+ * @returns Pool data (either direct or from leaf pool) or null if not found
+ */
+export async function loadPoolDataOrRootCLPool(
+  poolAddress: string,
+  chainId: number,
+  context: handlerContext,
+  blockNumber?: number,
+  blockTimestamp?: number,
+): Promise<{
+  liquidityPoolAggregator: LiquidityPoolAggregator;
+  token0Instance: Token;
+  token1Instance: Token;
+} | null> {
+  const poolData = await loadPoolData(
+    poolAddress,
+    chainId,
+    context,
+    blockNumber,
+    blockTimestamp,
+  );
+
+  if (poolData) {
+    return poolData;
+  }
+
+  context.log.warn(
+    `Pool data not found for pool ${poolAddress} on chain ${chainId}. Might be a RootCLPool therefore we must get the actual Pool (on leaf chain) through the RootPool_LeafPool mapping`,
+  );
+
+  const rootPoolLeafPools =
+    await context.RootPool_LeafPool.getWhere.rootPoolAddress.eq(poolAddress);
+
+  if (rootPoolLeafPools.length !== 1) {
+    context.log.error(
+      `Expected exactly one RootPool_LeafPool for pool ${poolAddress} on chain ${chainId}`,
+    );
+    return null;
+  }
+
+  const rootPoolLeafPool = rootPoolLeafPools[0];
+  const leafPoolAddress = rootPoolLeafPool.leafPoolAddress;
+  const leafChainId = rootPoolLeafPool.leafChainId;
+  const leafPoolData = await loadPoolData(
+    leafPoolAddress,
+    leafChainId,
+    context,
+    blockNumber,
+    blockTimestamp,
+  );
+
+  if (!leafPoolData) {
+    context.log.error(
+      `Leaf pool data not found for pool ${leafPoolAddress} on chain ${leafChainId}`,
+    );
+    return null;
+  }
+
+  return leafPoolData;
+}
+
+/**
  * Enum for pool address field types
  */
 export enum PoolAddressField {
@@ -478,6 +548,7 @@ export function createLiquidityPoolAggregatorEntity(params: {
     token0_address: token0Address,
     token1_address: token1Address,
     isStable,
+    tickSpacing: tickSpacing ? BigInt(tickSpacing) : 0n, // 0 for non-CL pools
     reserve0: 0n,
     reserve1: 0n,
     totalLiquidityUSD: 0n,
@@ -548,5 +619,6 @@ export function createLiquidityPoolAggregatorEntity(params: {
     feeCap: undefined,
     scalingFactor: undefined,
     currentFee: undefined,
+    rootPoolMatchingHash: `${chainId}_${token0Address}_${token1Address}_${(tickSpacing ? BigInt(tickSpacing) : 0n).toString()}`,
   };
 }

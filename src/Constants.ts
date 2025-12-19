@@ -53,11 +53,16 @@ export const SUPERCHAIN_LEAF_VOTER_VAMM_POOLS_FACTORY_LIST: string[] = [
   "0x31832f2a97Fd20664D76Cc421207669b55CE4BC0", // All superchain chains have this address
 ].map((x) => toChecksumAddress(x));
 
+export const ROOT_POOL_FACTORY_ADDRESS_OPTIMISM = toChecksumAddress(
+  "0x31832f2a97Fd20664D76Cc421207669b55CE4BC0",
+);
+
 // Effect rate limit constants (calls per second)
 export const EFFECT_RATE_LIMITS = {
   TOKEN_EFFECTS: 5000, // Token details and price fetching effects
   VOTER_EFFECTS: 5000, // Voter-related effects
   DYNAMIC_FEE_EFFECTS: 5000, // Dynamic fee effects
+  ROOT_POOL_EFFECTS: 5000, // Root pool effects
 } as const;
 
 export const OUSDT_ADDRESS = "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189";
@@ -169,6 +174,7 @@ type chainConstants = {
   rewardToken: (blockNumber: number) => string;
   newCLGaugeFactoryAddress: string;
   eth_client: PublicClient;
+  lpHelperAddress: string;
 };
 
 // Constants for Optimism
@@ -217,6 +223,7 @@ const OPTIMISM_CONSTANTS: chainConstants = {
       timeout: RPC_TIMEOUT_MS,
     }),
   }),
+  lpHelperAddress: "0xF313D54f514A810387D77b7Cc20a98ADd5f891f7",
 };
 
 // Constants for Base
@@ -262,6 +269,7 @@ const BASE_CONSTANTS: chainConstants = {
       timeout: RPC_TIMEOUT_MS,
     }),
   }),
+  lpHelperAddress: "0xd48bed8AFaF8A1d0909fe823F6b48a4A96f58224",
 };
 
 // Constants for Lisk
@@ -303,6 +311,7 @@ const LISK_CONSTANTS: chainConstants = {
       timeout: RPC_TIMEOUT_MS,
     }),
   }),
+  lpHelperAddress: "0xa2e319aBE4bBEadeD6FcE67F7D0CDDc5d23F8a8A",
 };
 
 // Constants for Mode
@@ -344,6 +353,7 @@ const MODE_CONSTANTS: chainConstants = {
       timeout: RPC_TIMEOUT_MS,
     }),
   }),
+  lpHelperAddress: "0xD4738416444ce276289A884fDA4FDAc31f8eC694",
 };
 
 // Constants for Celo
@@ -371,6 +381,7 @@ const CELO_CONSTANTS: chainConstants = {
       timeout: RPC_TIMEOUT_MS,
     }),
   }),
+  lpHelperAddress: "0xa916A76b052AcD3b0FF6Cc76b55602fba456a85C",
 };
 
 // Constants for Soneium
@@ -398,6 +409,7 @@ const SONEIUM_CONSTANTS: chainConstants = {
       timeout: RPC_TIMEOUT_MS,
     }),
   }),
+  lpHelperAddress: "0x600089ab611E4Cc9942163e68870806Db66e2B08",
 };
 
 // Constants for Unichain
@@ -425,6 +437,7 @@ const UNICHAIN_CONSTANTS: chainConstants = {
       timeout: RPC_TIMEOUT_MS,
     }),
   }),
+  lpHelperAddress: "0x2DCD9B33F0721000Dc1F8f84B804d4CFA23d7713",
 };
 
 // Constants for Fraxtal
@@ -466,6 +479,7 @@ const FRAXTAL_CONSTANTS: chainConstants = {
       timeout: RPC_TIMEOUT_MS,
     }),
   }),
+  lpHelperAddress: "0x2F44BD0Aff1826aec123cE3eA9Ce44445b64BB34",
 };
 
 // Constants for Ink
@@ -493,6 +507,7 @@ const INK_CONSTANTS: chainConstants = {
       timeout: RPC_TIMEOUT_MS,
     }),
   }),
+  lpHelperAddress: "0x2DCD9B33F0721000Dc1F8f84B804d4CFA23d7713",
 };
 
 // Constants for Metal
@@ -520,6 +535,7 @@ const METAL_CONSTANTS: chainConstants = {
       timeout: RPC_TIMEOUT_MS,
     }),
   }),
+  lpHelperAddress: "0xcaa7d54453964773FE04B5aD32D06322Fc9d9fE4",
 };
 
 // Constants for Swell
@@ -547,6 +563,7 @@ const SWELL_CONSTANTS: chainConstants = {
       timeout: RPC_TIMEOUT_MS,
     }),
   }) as PublicClient,
+  lpHelperAddress: "0x2002618dd63228670698200069E42f4422e82497",
 };
 
 /**

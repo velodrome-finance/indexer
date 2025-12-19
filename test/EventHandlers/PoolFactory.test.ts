@@ -1,11 +1,12 @@
 import { expect } from "chai";
 import sinon from "sinon";
+import type { PublicClient } from "viem";
 import { MockDb, PoolFactory } from "../../generated/src/TestHelpers.gen";
 import type {
   LiquidityPoolAggregator,
   Token,
 } from "../../generated/src/Types.gen";
-import { toChecksumAddress } from "../../src/Constants";
+import { CHAIN_CONSTANTS, toChecksumAddress } from "../../src/Constants";
 import * as PriceOracle from "../../src/PriceOracle";
 import { setupCommon } from "./Pool/common";
 
@@ -23,16 +24,24 @@ describe("PoolFactory Events", () => {
 
   let mockPriceOracle: sinon.SinonStub;
 
+  /**
+   * Helper function to reset and reconfigure the mockPriceOracle stub
+   * This avoids repetition across multiple test cases
+   */
+  function resetMockPriceOracle(): void {
+    mockPriceOracle.reset();
+    mockPriceOracle.callsFake(async (...args) => {
+      if (args[0] === token0Address) return mockToken0Data as Token;
+      return mockToken1Data as Token;
+    });
+  }
+
   describe("PoolCreated event", () => {
     let createdPool: LiquidityPoolAggregator | undefined;
 
     beforeEach(async () => {
-      mockPriceOracle = sinon
-        .stub(PriceOracle, "createTokenEntity")
-        .callsFake(async (...args) => {
-          if (args[0] === token0Address) return mockToken0Data as Token;
-          return mockToken1Data as Token;
-        });
+      mockPriceOracle = sinon.stub(PriceOracle, "createTokenEntity");
+      resetMockPriceOracle();
 
       const mockDb = MockDb.createMockDb();
       const mockEvent = PoolFactory.PoolCreated.createMockEvent({
@@ -78,6 +87,291 @@ describe("PoolFactory Events", () => {
       expect(createdPool?.token1_id).to.equal(`${token1Address}-${chainId}`);
       expect(createdPool?.token0_address).to.equal(token0Address);
       expect(createdPool?.token1_address).to.equal(token1Address);
+    });
+
+    it("should NOT create RootPool_LeafPool for Optimism (chainId 10)", async () => {
+      resetMockPriceOracle();
+
+      const mockDb = MockDb.createMockDb();
+      const mockEvent = PoolFactory.PoolCreated.createMockEvent({
+        token0: token0Address,
+        token1: token1Address,
+        pool: poolAddress,
+        stable: false,
+        mockEventData: {
+          block: {
+            timestamp: 1000000,
+            hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+          },
+          chainId: 10, // Optimism
+          logIndex: 1,
+        },
+      });
+
+      const result = await PoolFactory.PoolCreated.processEvent({
+        event: mockEvent,
+        mockDb,
+      });
+
+      // Should not create RootPool_LeafPool for Optimism
+      const rootPoolLeafPools = Array.from(
+        result.entities.RootPool_LeafPool.getAll(),
+      );
+      expect(rootPoolLeafPools.length).to.equal(0);
+    });
+
+    it("should NOT create RootPool_LeafPool for Base (chainId 8453)", async () => {
+      resetMockPriceOracle();
+
+      const mockDb = MockDb.createMockDb();
+      const mockEvent = PoolFactory.PoolCreated.createMockEvent({
+        token0: token0Address,
+        token1: token1Address,
+        pool: poolAddress,
+        stable: false,
+        mockEventData: {
+          block: {
+            timestamp: 1000000,
+            hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+          },
+          chainId: 8453, // Base
+          logIndex: 1,
+        },
+      });
+
+      const result = await PoolFactory.PoolCreated.processEvent({
+        event: mockEvent,
+        mockDb,
+      });
+
+      // Should not create RootPool_LeafPool for Base
+      const rootPoolLeafPools = Array.from(
+        result.entities.RootPool_LeafPool.getAll(),
+      );
+      expect(rootPoolLeafPools.length).to.equal(0);
+    });
+
+    it("should create RootPool_LeafPool for non-Optimism/Base chains (e.g., Fraxtal)", async () => {
+      const fraxtalChainId = 252;
+      const mockRootPoolAddressLowercase =
+        "0x98dcff98d17f21e35211c923934924af65fbdd66";
+      const mockLpHelperAddress = "0x2F44BD0Aff1826aec123cE3eA9Ce44445b64BB34";
+
+      // Store original for cleanup
+      const originalFraxtalConstants = CHAIN_CONSTANTS[fraxtalChainId];
+
+      // Setup mock ethClient for Fraxtal
+      const mockEthClient = {
+        simulateContract: sinon.stub().resolves({
+          result: mockRootPoolAddressLowercase,
+        }),
+      } as unknown as PublicClient;
+
+      // Mock CHAIN_CONSTANTS for Fraxtal
+      (
+        CHAIN_CONSTANTS as Record<
+          number,
+          { eth_client: PublicClient; lpHelperAddress: string }
+        >
+      )[fraxtalChainId] = {
+        eth_client: mockEthClient,
+        lpHelperAddress: mockLpHelperAddress,
+      };
+
+      try {
+        resetMockPriceOracle();
+
+        const mockDb = MockDb.createMockDb();
+        const mockEvent = PoolFactory.PoolCreated.createMockEvent({
+          token0: token0Address,
+          token1: token1Address,
+          pool: poolAddress,
+          stable: false,
+          mockEventData: {
+            block: {
+              timestamp: 1000000,
+              hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+            },
+            chainId: fraxtalChainId,
+            logIndex: 1,
+          },
+        });
+
+        const result = await PoolFactory.PoolCreated.processEvent({
+          event: mockEvent,
+          mockDb,
+        });
+
+        // Should create RootPool_LeafPool for Fraxtal
+        // The rootPoolAddress will be checksummed by the effect
+        // ID format: rootPoolAddress_10_leafPoolAddress_leafChainId
+        const expectedRootPoolAddress = toChecksumAddress(
+          mockRootPoolAddressLowercase,
+        );
+        const rootPoolLeafPoolId = `${expectedRootPoolAddress}_10_${poolAddress}_${fraxtalChainId}`;
+        const rootPoolLeafPool =
+          result.entities.RootPool_LeafPool.get(rootPoolLeafPoolId);
+
+        expect(rootPoolLeafPool).to.not.be.undefined;
+        expect(rootPoolLeafPool?.rootChainId).to.equal(10); // Always 10 (Optimism)
+        expect(rootPoolLeafPool?.rootPoolAddress).to.equal(
+          expectedRootPoolAddress,
+        );
+        expect(rootPoolLeafPool?.leafChainId).to.equal(fraxtalChainId);
+        expect(rootPoolLeafPool?.leafPoolAddress).to.equal(poolAddress);
+
+        // Verify the effect was called
+        const mockSimulateContract =
+          mockEthClient.simulateContract as sinon.SinonStub;
+        expect(mockSimulateContract.calledOnce).to.be.true;
+      } finally {
+        // Restore original
+        (CHAIN_CONSTANTS as Record<number, unknown>)[fraxtalChainId] =
+          originalFraxtalConstants;
+      }
+    });
+
+    it("should handle error when getRootPoolAddress fails for non-Optimism/Base chains", async () => {
+      const fraxtalChainId = 252;
+      const mockLpHelperAddress = "0x2F44BD0Aff1826aec123cE3eA9Ce44445b64BB34";
+
+      // Store original for cleanup
+      const originalFraxtalConstants = CHAIN_CONSTANTS[fraxtalChainId];
+
+      // Setup mock ethClient that throws an error
+      const mockEthClient = {
+        simulateContract: sinon.stub().rejects(new Error("RPC call failed")),
+      } as unknown as PublicClient;
+
+      // Mock CHAIN_CONSTANTS for Fraxtal
+      (
+        CHAIN_CONSTANTS as Record<
+          number,
+          { eth_client: PublicClient; lpHelperAddress: string }
+        >
+      )[fraxtalChainId] = {
+        eth_client: mockEthClient,
+        lpHelperAddress: mockLpHelperAddress,
+      };
+
+      try {
+        resetMockPriceOracle();
+
+        const mockDb = MockDb.createMockDb();
+        const mockEvent = PoolFactory.PoolCreated.createMockEvent({
+          token0: token0Address,
+          token1: token1Address,
+          pool: poolAddress,
+          stable: false,
+          mockEventData: {
+            block: {
+              timestamp: 1000000,
+              hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+            },
+            chainId: fraxtalChainId,
+            logIndex: 1,
+          },
+        });
+
+        // The effect will throw an error, which should be caught by the handler
+        // The handler checks if rootPoolAddress is falsy and returns early
+        const result = await PoolFactory.PoolCreated.processEvent({
+          event: mockEvent,
+          mockDb,
+        });
+
+        // Should still create the pool even if root pool address fetch fails
+        const createdPool =
+          result.entities.LiquidityPoolAggregator.get(poolAddress);
+        expect(createdPool).to.not.be.undefined;
+
+        // Should not create RootPool_LeafPool when effect fails (returns null/undefined)
+        const rootPoolLeafPools = Array.from(
+          result.entities.RootPool_LeafPool.getAll(),
+        );
+        // Note: The current implementation returns early if rootPoolAddress is falsy,
+        // so we expect no RootPool_LeafPool to be created
+        expect(rootPoolLeafPools.length).to.equal(0);
+      } finally {
+        // Restore original
+        if (originalFraxtalConstants !== undefined) {
+          (CHAIN_CONSTANTS as Record<number, unknown>)[fraxtalChainId] =
+            originalFraxtalConstants;
+        } else {
+          delete (CHAIN_CONSTANTS as Record<number, unknown>)[fraxtalChainId];
+        }
+      }
+    });
+
+    it("should handle null/undefined rootPoolAddress from effect", async () => {
+      const fraxtalChainId = 252;
+      const mockLpHelperAddress = "0x2F44BD0Aff1826aec123cE3eA9Ce44445b64BB34";
+
+      // Capture original value for cleanup
+      const orig = CHAIN_CONSTANTS[fraxtalChainId];
+
+      // Setup mock ethClient that returns null
+      // This will cause fetchRootPoolAddress to return empty string, which the handler should handle
+      const mockEthClient = {
+        simulateContract: sinon.stub().resolves({
+          result: null,
+        }),
+      } as unknown as PublicClient;
+
+      // Mock CHAIN_CONSTANTS for Fraxtal
+      (
+        CHAIN_CONSTANTS as Record<
+          number,
+          { eth_client: PublicClient; lpHelperAddress: string }
+        >
+      )[fraxtalChainId] = {
+        eth_client: mockEthClient,
+        lpHelperAddress: mockLpHelperAddress,
+      };
+
+      try {
+        resetMockPriceOracle();
+
+        const mockDb = MockDb.createMockDb();
+        const mockEvent = PoolFactory.PoolCreated.createMockEvent({
+          token0: token0Address,
+          token1: token1Address,
+          pool: poolAddress,
+          stable: false,
+          mockEventData: {
+            block: {
+              timestamp: 1000000,
+              hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+            },
+            chainId: fraxtalChainId,
+            logIndex: 1,
+          },
+        });
+
+        const result = await PoolFactory.PoolCreated.processEvent({
+          event: mockEvent,
+          mockDb,
+        });
+
+        // Should still create the pool
+        const createdPool =
+          result.entities.LiquidityPoolAggregator.get(poolAddress);
+        expect(createdPool).to.not.be.undefined;
+
+        // Should not create RootPool_LeafPool when rootPoolAddress is null/undefined
+        const rootPoolLeafPools = Array.from(
+          result.entities.RootPool_LeafPool.getAll(),
+        );
+        expect(rootPoolLeafPools.length).to.equal(0);
+      } finally {
+        // Restore original value or delete if it didn't exist
+        if (orig === undefined) {
+          delete (CHAIN_CONSTANTS as Record<number, unknown>)[fraxtalChainId];
+        } else {
+          (CHAIN_CONSTANTS as Record<number, unknown>)[fraxtalChainId] = orig;
+        }
+        // resetMockPriceOracle() doesn't need cleanup - it just resets a stub
+      }
     });
   });
 

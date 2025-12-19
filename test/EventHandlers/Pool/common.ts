@@ -111,6 +111,8 @@ export function setupCommon() {
     feeCap: undefined,
     scalingFactor: undefined,
     currentFee: undefined,
+    rootPoolMatchingHash: "",
+    tickSpacing: 0n,
   };
 
   const mockALMLPWrapperData: ALM_LP_Wrapper = {

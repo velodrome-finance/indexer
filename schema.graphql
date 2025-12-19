@@ -8,6 +8,7 @@ type LiquidityPoolAggregator {
   token1_address: String! # token1 address
   isStable: Boolean! # whether the pool is a stable AMM or a volatile AMM
   isCL: Boolean! # whether the pool is a CL pool
+  tickSpacing: BigInt! @config(precision: 24) # Tick spacing of the pool; 0 for non-CL pools
   reserve0: BigInt! @config(precision: 76) # reserve of token0 in token units
   reserve1: BigInt! @config(precision: 76) # reserve of token1 in token units
   totalLiquidityUSD: BigInt! @config(precision: 76) # total liquidity of the swap pool in USD
@@ -77,6 +78,11 @@ type LiquidityPoolAggregator {
 
   # Pool Launcher relationship
   poolLauncherPoolId: String # ID of the PoolLauncherPool entity if this pool was launched via Pool Launcher
+
+  # RootPool matching - only relevant for non-OP and non-Base pools
+  # For each superChain pool there's a unique rootPool
+  # This is because the rootPool is created through a hash of these 4 quantities and they are a unique combination (enforced by smart contract)
+  rootPoolMatchingHash: String! @index # {chainId}_{token0_address}_{token1_address}_{tickSpacing}
 }
 
 # Snapshot of the LiquidityPool entity
@@ -403,4 +409,12 @@ type ALM_TotalSupplyLimitUpdated_event {
   lpWrapperAddress: String! # LP Wrapper associated to the event
   currentTotalSupplyLPTokens: BigInt! @config(precision: 76) # Current supply of LP tokens for the pool, emitted by the event
   transactionHash: String! # Transaction hash of the event
+}
+
+type RootPool_LeafPool {
+  id: ID! #{RootPool}_{OptimismChainId}_{LeafPool}_{LeafChainId}
+  rootChainId: Int! # Optimism chain ID
+  rootPoolAddress: String! @index # Placeholder contract that isn't a real pool (i.e., doesn't allow for LP, swap, etc). Mainly just for registring purposes
+  leafChainId: Int! # Chain ID where the actual real pool (i.e. pool where it is possible to LP, swap, etc) is deployed
+  leafPoolAddress: String! # Actual real pool that is deployed on leaf chain
 }
