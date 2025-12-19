@@ -28,6 +28,31 @@ export const SECONDS_IN_AN_HOUR = BigInt(3600);
 export const SECONDS_IN_A_DAY = BigInt(86400);
 export const SECONDS_IN_A_WEEK = BigInt(604800);
 
+export const toChecksumAddress = (address: string) =>
+  Web3.utils.toChecksumAddress(address);
+
+// Note:
+// These pools factories addresses are hardcoded since we can't check the pool type from the Voter contract
+export const VOTER_CLPOOLS_FACTORY_LIST: string[] = [
+  "0x5e7BB104d84c7CB9B682AaC2F3d509f5F406809A", // base
+  "0xCc0bDDB707055e04e497aB22a59c2aF4391cd12F", // optimism
+].map((x) => toChecksumAddress(x));
+
+export const VOTER_VAMM_POOLS_FACTORY_LIST: string[] = [
+  "0x420DD381b31aEf6683db6B902084cB0FFECe40Da", // base
+  "0xF1046053aa5682b4F9a81b5481394DA16BE5FF5a", // optimism
+].map((x) => toChecksumAddress(x));
+
+// Note:
+// These pools factories addresses are hardcoded since we can't check the pool type from the Voter contract
+export const SUPERCHAIN_LEAF_VOTER_CLPOOLS_FACTORY_LIST: string[] = [
+  "0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F", // All superchain chains have this address
+].map((x) => toChecksumAddress(x));
+
+export const SUPERCHAIN_LEAF_VOTER_VAMM_POOLS_FACTORY_LIST: string[] = [
+  "0x31832f2a97Fd20664D76Cc421207669b55CE4BC0", // All superchain chains have this address
+].map((x) => toChecksumAddress(x));
+
 // Effect rate limit constants (calls per second)
 export const EFFECT_RATE_LIMITS = {
   TOKEN_EFFECTS: 5000, // Token details and price fetching effects
@@ -75,9 +100,6 @@ export const CELO_PRICE_CONNECTORS: PriceConnector[] =
 
 export const SWELL_PRICE_CONNECTORS: PriceConnector[] =
   PriceConnectors.swellchain as PriceConnector[];
-
-export const toChecksumAddress = (address: string) =>
-  Web3.utils.toChecksumAddress(address);
 
 export enum PriceOracleType {
   V4 = "v4",

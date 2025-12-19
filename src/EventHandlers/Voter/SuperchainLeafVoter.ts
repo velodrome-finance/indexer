@@ -2,24 +2,19 @@ import { SuperchainLeafVoter } from "generated";
 
 import type { Token } from "generated/src/Types.gen";
 import { updateLiquidityPoolAggregator } from "../../Aggregators/LiquidityPoolAggregator";
-import { TokenIdByChain, toChecksumAddress } from "../../Constants";
+import {
+  SUPERCHAIN_LEAF_VOTER_CLPOOLS_FACTORY_LIST,
+  SUPERCHAIN_LEAF_VOTER_VAMM_POOLS_FACTORY_LIST,
+  TokenIdByChain,
+  toChecksumAddress,
+} from "../../Constants";
 import { getTokenDetails } from "../../Effects/Index";
-
-// Note:
-// These pools factories addresses are hardcoded since we can't check the pool type from the Voter contract
-const CLPOOLS_FACTORY_LIST: string[] = [
-  "0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F", // All superchain chains have this address
-].map((x) => toChecksumAddress(x));
-
-const VAMM_POOL_FACTORY_LIST: string[] = [
-  "0x31832f2a97Fd20664D76Cc421207669b55CE4BC0", // All superchain chains have this address
-].map((x) => toChecksumAddress(x));
 
 SuperchainLeafVoter.GaugeCreated.contractRegister(({ event, context }) => {
   const pf = toChecksumAddress(event.params.poolFactory);
-  if (CLPOOLS_FACTORY_LIST.includes(pf)) {
+  if (SUPERCHAIN_LEAF_VOTER_CLPOOLS_FACTORY_LIST.includes(pf)) {
     context.addCLGauge(event.params.gauge);
-  } else if (VAMM_POOL_FACTORY_LIST.includes(pf)) {
+  } else if (SUPERCHAIN_LEAF_VOTER_VAMM_POOLS_FACTORY_LIST.includes(pf)) {
     context.addGauge(event.params.gauge);
   }
 
