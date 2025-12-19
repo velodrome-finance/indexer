@@ -6,7 +6,7 @@ import {
 } from "../Aggregators/LiquidityPoolAggregator";
 import { createOUSDTSwapEntity } from "../Aggregators/OUSDTSwaps";
 import {
-  loadUserData,
+  loadOrCreateUserData,
   updateUserStatsPerPool,
 } from "../Aggregators/UserStatsPerPool";
 import { OUSDT_ADDRESS, toChecksumAddress } from "../Constants";
@@ -23,7 +23,7 @@ Pool.Mint.handler(async ({ event, context }) => {
   // Load pool data and user data concurrently for better performance
   const [poolData, userData] = await Promise.all([
     loadPoolData(srcAddressChecksummed, event.chainId, context),
-    loadUserData(
+    loadOrCreateUserData(
       senderChecksummedAddress,
       srcAddressChecksummed,
       event.chainId,
@@ -64,12 +64,7 @@ Pool.Mint.handler(async ({ event, context }) => {
 
   // Update user pool liquidity activity
   if (userLiquidityDiff) {
-    await updateUserStatsPerPool(
-      userLiquidityDiff,
-      userData,
-      userLiquidityDiff.lastActivityTimestamp,
-      context,
-    );
+    await updateUserStatsPerPool(userLiquidityDiff, userData, context);
   }
 });
 
@@ -81,7 +76,7 @@ Pool.Burn.handler(async ({ event, context }) => {
   // Load pool data and user data concurrently for better performance
   const [poolData, userData] = await Promise.all([
     loadPoolData(srcAddressChecksummed, event.chainId, context),
-    loadUserData(
+    loadOrCreateUserData(
       senderChecksummedAddress,
       srcAddressChecksummed,
       event.chainId,
@@ -120,12 +115,7 @@ Pool.Burn.handler(async ({ event, context }) => {
 
   // Update user pool liquidity activity
   if (userLiquidityDiff) {
-    await updateUserStatsPerPool(
-      userLiquidityDiff,
-      userData,
-      userLiquidityDiff.lastActivityTimestamp,
-      context,
-    );
+    await updateUserStatsPerPool(userLiquidityDiff, userData, context);
   }
 });
 
@@ -137,7 +127,7 @@ Pool.Fees.handler(async ({ event, context }) => {
   // Load pool data and user data concurrently for better performance
   const [poolData, userData] = await Promise.all([
     loadPoolData(srcAddressChecksummed, event.chainId, context),
-    loadUserData(
+    loadOrCreateUserData(
       senderChecksummedAddress,
       srcAddressChecksummed,
       event.chainId,
@@ -170,12 +160,7 @@ Pool.Fees.handler(async ({ event, context }) => {
   }
 
   if (userDiff) {
-    await updateUserStatsPerPool(
-      userDiff,
-      userData,
-      userDiff.lastActivityTimestamp,
-      context,
-    );
+    await updateUserStatsPerPool(userDiff, userData, context);
   }
 });
 
@@ -187,7 +172,7 @@ Pool.Swap.handler(async ({ event, context }) => {
   // Load pool data and user data concurrently for better performance
   const [poolData, userData] = await Promise.all([
     loadPoolData(srcAddressChecksummed, event.chainId, context),
-    loadUserData(
+    loadOrCreateUserData(
       senderChecksummedAddress,
       srcAddressChecksummed,
       event.chainId,
@@ -221,12 +206,7 @@ Pool.Swap.handler(async ({ event, context }) => {
   }
 
   if (userSwapDiff) {
-    await updateUserStatsPerPool(
-      userSwapDiff,
-      userData,
-      userSwapDiff.lastActivityTimestamp,
-      context,
-    );
+    await updateUserStatsPerPool(userSwapDiff, userData, context);
   }
 
   // Create oUSDTSwaps entity only if oUSDT is involved

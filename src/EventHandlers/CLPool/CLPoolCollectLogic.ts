@@ -35,11 +35,13 @@ export function processCLPoolCollect(
     totalUnstakedFeesCollected0: event.params.amount0,
     totalUnstakedFeesCollected1: event.params.amount1,
     totalUnstakedFeesCollectedUSD: totalFeesContributedUSD,
+    lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
   };
   const userLiquidityDiff = {
     totalFeesContributed0: event.params.amount0, // The collected fees in token0
     totalFeesContributed1: event.params.amount1, // The collected fees in token1
     totalFeesContributedUSD, // The collected fees in USD
+    lastActivityTimestamp: new Date(event.block.timestamp * 1000),
   };
 
   return {

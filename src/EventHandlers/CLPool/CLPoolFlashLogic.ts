@@ -42,11 +42,13 @@ export function processCLPoolFlash(
     totalFlashLoanFeesUSD: flashLoanFeesUSD,
     totalFlashLoanVolumeUSD: flashLoanVolumeUSD,
     numberOfFlashLoans: 1n,
+    lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
   };
 
   const userFlashLoanDiff = {
     numberOfFlashLoans: 1n, // Each flash event represents 1 flash loan
     totalFlashLoanVolumeUSD: flashLoanVolumeUSD,
+    lastActivityTimestamp: new Date(event.block.timestamp * 1000),
   };
 
   return {

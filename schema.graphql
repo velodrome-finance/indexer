@@ -205,6 +205,7 @@ type UserStatsPerPool {
   almAmount0: BigInt! @config(precision: 76) # Underlying amount of token0 associated with LP tokens owned
   almAmount1: BigInt! @config(precision: 76) # Underlying amount of token1 associated with LP tokens owned
   almLpAmount: BigInt! @config(precision: 76) # Number of LP tokens
+  lastAlmActivityTimestamp: Timestamp! # last ALM related activity that changed ALM related fields on user entity
 
   # Timestamps
   firstActivityTimestamp: Timestamp! # first activity in this pool

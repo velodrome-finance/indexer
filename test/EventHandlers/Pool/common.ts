@@ -197,6 +197,7 @@ export function setupCommon() {
     // Timestamps
     firstActivityTimestamp: new Date(900000 * 1000),
     lastActivityTimestamp: new Date(900000 * 1000),
+    lastAlmActivityTimestamp: new Date(900000 * 1000),
   };
 
   /**

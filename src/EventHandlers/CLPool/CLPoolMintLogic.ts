@@ -31,12 +31,14 @@ export function processCLPoolMint(
     reserve0: event.params.amount0,
     reserve1: event.params.amount1,
     totalLiquidityUSD,
+    lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
   };
 
   const userLiquidityDiff = {
     currentLiquidityUSD: totalLiquidityUSD, // For mint, we're adding liquidity
     currentLiquidityToken0: event.params.amount0, // Amount of token0 added
     currentLiquidityToken1: event.params.amount1, // Amount of token1 added
+    lastActivityTimestamp: new Date(event.block.timestamp * 1000),
   };
 
   return {

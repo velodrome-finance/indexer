@@ -2,25 +2,61 @@ import type { UserStatsPerPool, handlerContext } from "generated";
 import { toChecksumAddress } from "../Constants";
 
 /**
- * Loads user data for a specific user-pool combination, creating it if it doesn't exist
+ * Generates the ID for a UserStatsPerPool entity
+ * @param userAddress - The user's address
+ * @param poolAddress - The pool's address
+ * @param chainId - The chain ID
+ * @returns The entity ID string
+ */
+export function getUserStatsPerPoolId(
+  userAddress: string,
+  poolAddress: string,
+  chainId: number,
+): string {
+  return `${toChecksumAddress(userAddress)}_${toChecksumAddress(poolAddress)}_${chainId}`;
+}
+
+/**
+ * Loads a UserStatsPerPool entity by its ID
+ * @param userAddress - The user's address
+ * @param poolAddress - The pool's address
+ * @param chainId - The chain ID
+ * @param context - The handler context
+ * @returns Promise<UserStatsPerPool | undefined> - The UserStatsPerPool entity or undefined if not found
+ */
+export async function loadUserStatsPerPool(
+  userAddress: string,
+  poolAddress: string,
+  chainId: number,
+  context: handlerContext,
+): Promise<UserStatsPerPool | undefined> {
+  const id = getUserStatsPerPoolId(userAddress, poolAddress, chainId);
+  return context.UserStatsPerPool.get(id);
+}
+
+/**
+ * Loads or creates user stats for a specific user-pool combination.
+ * If the entity does not exist, it is created with initial values.
  * @param userAddress - The user's address
  * @param poolAddress - The pool's address
  * @param chainId - The chain ID
  * @param context - The handler context
  * @param timestamp - Event timestamp
- * @returns Promise<UserStatsPerPool> - The user stats (created if it didn't exist)
+ * @returns Promise<UserStatsPerPool> - The UserStatsPerPool entity (new or existing)
  */
-export async function loadUserData(
+export async function loadOrCreateUserData(
   userAddress: string,
   poolAddress: string,
   chainId: number,
   context: handlerContext,
   timestamp: Date,
 ): Promise<UserStatsPerPool> {
-  const id = `${toChecksumAddress(userAddress)}_${toChecksumAddress(poolAddress)}_${chainId}`;
-
-  // Get existing stats or create new one
-  let existingStats = await context.UserStatsPerPool.get(id);
+  let existingStats = await loadUserStatsPerPool(
+    userAddress,
+    poolAddress,
+    chainId,
+    context,
+  );
 
   if (!existingStats) {
     existingStats = createUserStatsPerPoolEntity(
@@ -45,7 +81,7 @@ export function createUserStatsPerPoolEntity(
   timestamp: Date,
 ): UserStatsPerPool {
   return {
-    id: `${toChecksumAddress(userAddress)}_${toChecksumAddress(poolAddress)}_${chainId}`,
+    id: getUserStatsPerPoolId(userAddress, poolAddress, chainId),
     userAddress: toChecksumAddress(userAddress),
     poolAddress: toChecksumAddress(poolAddress),
     chainId,
@@ -95,6 +131,7 @@ export function createUserStatsPerPoolEntity(
     almAmount0: 0n,
     almAmount1: 0n,
     almLpAmount: 0n,
+    lastAlmActivityTimestamp: timestamp,
 
     // Timestamps
     firstActivityTimestamp: timestamp,
@@ -109,7 +146,6 @@ export function createUserStatsPerPoolEntity(
 export async function updateUserStatsPerPool(
   diff: Partial<UserStatsPerPool>,
   current: UserStatsPerPool,
-  timestamp: Date,
   context: handlerContext,
 ): Promise<UserStatsPerPool> {
   const updated: UserStatsPerPool = {
@@ -240,7 +276,15 @@ export async function updateUserStatsPerPool(
     almAddress:
       diff.almAddress !== undefined ? diff.almAddress : current.almAddress,
 
-    lastActivityTimestamp: timestamp,
+    lastAlmActivityTimestamp:
+      diff.lastAlmActivityTimestamp !== undefined
+        ? diff.lastAlmActivityTimestamp
+        : current.lastAlmActivityTimestamp,
+
+    lastActivityTimestamp:
+      diff.lastActivityTimestamp !== undefined
+        ? diff.lastActivityTimestamp
+        : current.lastActivityTimestamp,
   };
 
   context.UserStatsPerPool.set(updated);

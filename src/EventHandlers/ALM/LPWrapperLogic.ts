@@ -3,9 +3,11 @@ import type { ALM_LP_Wrapper, handlerContext } from "generated";
 import JSBI from "jsbi";
 import { updateALMLPWrapper } from "../../Aggregators/ALMLPWrapper";
 import {
-  loadUserData,
+  loadOrCreateUserData,
+  loadUserStatsPerPool,
   updateUserStatsPerPool,
 } from "../../Aggregators/UserStatsPerPool";
+import { ZERO_ADDRESS, toChecksumAddress } from "../../Constants";
 import { getSqrtPriceX96, roundBlockToInterval } from "../../Effects/Token";
 
 /**
@@ -168,7 +170,7 @@ export async function processDepositEvent(
   // Load wrapper and user stats in parallel since pool address is available from event params
   const [ALMLPWrapperEntity, userStats] = await Promise.all([
     loadALMLPWrapper(srcAddress, chainId, context),
-    loadUserData(recipient, pool, chainId, context, timestamp),
+    loadOrCreateUserData(recipient, pool, chainId, context, timestamp),
   ]);
 
   if (!ALMLPWrapperEntity) {
@@ -211,6 +213,8 @@ export async function processDepositEvent(
     almAmount0: derivedUserAmounts.amount0,
     almAmount1: derivedUserAmounts.amount1,
     almLpAmount: lpAmount,
+    lastActivityTimestamp: timestamp,
+    lastAlmActivityTimestamp: timestamp,
   };
 
   // Update pool-level ALM_LP_Wrapper entity and user-level UserStatsPerPool entity in parallel
@@ -221,7 +225,7 @@ export async function processDepositEvent(
       timestamp,
       context,
     ),
-    updateUserStatsPerPool(userStatsDiff, userStats, timestamp, context),
+    updateUserStatsPerPool(userStatsDiff, userStats, context),
   ]);
 }
 
@@ -253,7 +257,7 @@ export async function processWithdrawEvent(
   // Load wrapper and user stats in parallel since pool address is available from event params
   const [ALMLPWrapperEntity, userStats] = await Promise.all([
     loadALMLPWrapper(srcAddress, chainId, context),
-    loadUserData(recipient, pool, chainId, context, timestamp),
+    loadOrCreateUserData(recipient, pool, chainId, context, timestamp),
   ]);
 
   if (!ALMLPWrapperEntity) {
@@ -295,6 +299,8 @@ export async function processWithdrawEvent(
     almAmount0: derivedUserAmounts.amount0,
     almAmount1: derivedUserAmounts.amount1,
     almLpAmount: -lpAmount,
+    lastActivityTimestamp: timestamp,
+    lastAlmActivityTimestamp: timestamp,
   };
 
   // Update pool-level ALM_LP_Wrapper entity and user-level UserStatsPerPool entity in parallel
@@ -305,7 +311,7 @@ export async function processWithdrawEvent(
       timestamp,
       context,
     ),
-    updateUserStatsPerPool(userStatsDiff, userStats, timestamp, context),
+    updateUserStatsPerPool(userStatsDiff, userStats, context),
   ]);
 }
 
@@ -329,12 +335,11 @@ export async function processTransferEvent(
   timestamp: Date,
   context: handlerContext,
 ): Promise<void> {
-  // Excluding burns/mints since that would double count ALM position
-  // Deposit/Withdraw events already handle burns/mints correctly.
-  if (
-    from === "0x0000000000000000000000000000000000000000" ||
-    to === "0x0000000000000000000000000000000000000000"
-  ) {
+  // Excluding burns/mints since Deposit/Withdraw events already handle those, and we don't want double counting.
+  // Excluding transfers from/to wrapper contract itself
+  const excludedAddresses = [ZERO_ADDRESS, srcAddress];
+
+  if (excludedAddresses.includes(from) || excludedAddresses.includes(to)) {
     return;
   }
 
@@ -347,10 +352,22 @@ export async function processTransferEvent(
     return;
   }
 
+  // Sender must exist and be a valid user entity (i.e. not 0 address or StakingReward contract address or the wrapper contract itself)
+  // Recipient can be created if they don't exist (receiving LP tokens automatically makes the address an user entity)
   const [userStatsFrom, userStatsTo] = await Promise.all([
-    loadUserData(from, ALMLPWrapperEntity.pool, chainId, context, timestamp),
-    loadUserData(to, ALMLPWrapperEntity.pool, chainId, context, timestamp),
+    loadUserStatsPerPool(from, ALMLPWrapperEntity.pool, chainId, context),
+    loadOrCreateUserData(
+      to,
+      ALMLPWrapperEntity.pool,
+      chainId,
+      context,
+      timestamp,
+    ),
   ]);
+
+  if (!userStatsFrom) {
+    return;
+  }
 
   // Derive user amounts from LP share after transfer
   // Sender's LP decreases, recipient's LP increases
@@ -375,21 +392,20 @@ export async function processTransferEvent(
     almAmount0: senderAmounts.amount0,
     almAmount1: senderAmounts.amount1,
     almLpAmount: -value,
+    lastActivityTimestamp: timestamp,
+    lastAlmActivityTimestamp: timestamp,
   };
 
   const UserStatsToDiff = {
     almAmount0: recipientAmounts.amount0,
     almAmount1: recipientAmounts.amount1,
     almLpAmount: value,
+    lastActivityTimestamp: timestamp,
+    lastAlmActivityTimestamp: timestamp,
   };
 
   await Promise.all([
-    updateUserStatsPerPool(
-      UserStatsFromDiff,
-      userStatsFrom,
-      timestamp,
-      context,
-    ),
-    updateUserStatsPerPool(UserStatsToDiff, userStatsTo, timestamp, context),
+    updateUserStatsPerPool(UserStatsFromDiff, userStatsFrom, context),
+    updateUserStatsPerPool(UserStatsToDiff, userStatsTo, context),
   ]);
 }

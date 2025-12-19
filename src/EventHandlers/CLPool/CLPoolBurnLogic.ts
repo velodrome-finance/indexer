@@ -31,6 +31,7 @@ export function processCLPoolBurn(
     reserve0: -event.params.amount0,
     reserve1: -event.params.amount1,
     totalLiquidityUSD: -totalLiquidityUSD,
+    lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
   };
 
   // Note: These fields represent the change/delta in liquidity (not absolute values)
@@ -39,6 +40,7 @@ export function processCLPoolBurn(
     currentLiquidityUSD: -totalLiquidityUSD, // Negative for burn (removal)
     currentLiquidityToken0: -event.params.amount0, // Negative amount of token0 removed
     currentLiquidityToken1: -event.params.amount1, // Negative amount of token1 removed
+    lastActivityTimestamp: new Date(event.block.timestamp * 1000),
   };
 
   return {

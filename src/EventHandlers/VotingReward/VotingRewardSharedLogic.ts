@@ -8,7 +8,7 @@ import {
   findPoolByField,
   loadPoolData,
 } from "../../Aggregators/LiquidityPoolAggregator";
-import { loadUserData } from "../../Aggregators/UserStatsPerPool";
+import { loadOrCreateUserData } from "../../Aggregators/UserStatsPerPool";
 import { TokenIdByChain, toChecksumAddress } from "../../Constants";
 import {
   getTokenDetails,
@@ -180,7 +180,7 @@ export async function loadVotingRewardData(
   }
 
   // Load user data
-  const userData = await loadUserData(
+  const userData = await loadOrCreateUserData(
     userChecksumAddress,
     pool.id,
     data.chainId,

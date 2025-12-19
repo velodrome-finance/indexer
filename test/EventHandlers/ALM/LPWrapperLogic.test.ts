@@ -503,8 +503,8 @@ describe("LPWrapperLogic", () => {
       (mockContext.ALM_LP_Wrapper?.get as sinon.SinonStub)
         .withArgs(wrapperId)
         .resolves(mockWrapper);
-      // Pre-create user stats so loadUserData doesn't call set
-      // (loadUserData calls set when creating a new entity)
+      // Pre-create user stats so loadOrCreateUserData doesn't call set
+      // (loadOrCreateUserData calls set when creating a new entity)
       (mockContext.UserStatsPerPool?.get as sinon.SinonStub)
         .withArgs(userStatsId)
         .resolves(mockUserStats);
@@ -549,8 +549,8 @@ describe("LPWrapperLogic", () => {
       (mockContext.ALM_LP_Wrapper?.get as sinon.SinonStub)
         .withArgs(wrapperId)
         .resolves(undefined);
-      // Pre-create user stats so loadUserData doesn't call set
-      // (loadUserData is called in parallel and may call set before we return early)
+      // Pre-create user stats so loadOrCreateUserData doesn't call set
+      // (loadOrCreateUserData is called in parallel and may call set before we return early)
       (mockContext.UserStatsPerPool?.get as sinon.SinonStub)
         .withArgs(userStatsId)
         .resolves({
@@ -686,8 +686,8 @@ describe("LPWrapperLogic", () => {
       (mockContext.ALM_LP_Wrapper?.get as sinon.SinonStub)
         .withArgs(wrapperId)
         .resolves(undefined);
-      // Pre-create user stats so loadUserData doesn't call set
-      // (loadUserData is called in parallel and may call set before we return early)
+      // Pre-create user stats so loadOrCreateUserData doesn't call set
+      // (loadOrCreateUserData is called in parallel and may call set before we return early)
       (mockContext.UserStatsPerPool?.get as sinon.SinonStub)
         .withArgs(userStatsId)
         .resolves({
@@ -788,8 +788,8 @@ describe("LPWrapperLogic", () => {
       (mockContext.UserStatsPerPool?.get as sinon.SinonStub)
         .withArgs(fromUserStatsId)
         .resolves(mockFromUserStats);
-      // Pre-create recipient's stats so loadUserData doesn't call set
-      // (loadUserData calls set when creating a new entity)
+      // Pre-create recipient's stats so loadOrCreateUserData doesn't call set
+      // (loadOrCreateUserData calls set when creating a new entity)
       (mockContext.UserStatsPerPool?.get as sinon.SinonStub)
         .withArgs(toUserStatsId)
         .resolves(mockToUserStats);
@@ -805,7 +805,7 @@ describe("LPWrapperLogic", () => {
       );
 
       // Verify both user stats were updated
-      // loadUserData doesn't call set since both entities exist
+      // loadOrCreateUserData doesn't call set since both entities exist
       // updateUserStatsPerPool is called twice (once for sender, once for recipient)
       expect(
         (mockContext.UserStatsPerPool?.set as sinon.SinonStub).callCount,
