@@ -29,12 +29,7 @@ describe("VeNFTAggregator", () => {
         getOrCreate: sinon.stub(),
         deleteUnsafe: sinon.stub(),
         getWhere: {
-          address: {
-            eq: sinon.stub(),
-            gt: sinon.stub(),
-            lt: sinon.stub(),
-          },
-          chainId: {
+          tokenId: {
             eq: sinon.stub(),
             gt: sinon.stub(),
             lt: sinon.stub(),

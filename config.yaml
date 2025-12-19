@@ -88,6 +88,11 @@ contracts:
     handler: src/EventHandlers/VotingReward/BribesVotingReward.ts
     events:
       - event: ClaimRewards
+  - name: SuperchainIncentiveVotingReward
+    abi_file_path: abis/SuperchainIncentiveVotingReward.json
+    handler: src/EventHandlers/VotingReward/SuperchainIncentiveVotingReward.ts
+    events:
+      - event: ClaimRewards
   - name: NewCLGaugeFactory
     abi_file_path: abis/NewCLGaugeFactory.json
     handler: src/EventHandlers/CLGaugeFactory/NewCLGaugeFactory.ts
@@ -316,7 +321,7 @@ networks:
           - 0x97cDBCe21B6fd0585d29E539B1B99dAd328a1123
       - name: FeesVotingReward
         address:
-      - name: BribesVotingReward
+      - name: SuperchainIncentiveVotingReward
         address:
       - name: CLPool
         address:
@@ -362,7 +367,7 @@ networks:
           - 0x97cDBCe21B6fd0585d29E539B1B99dAd328a1123
       - name: FeesVotingReward
         address:
-      - name: BribesVotingReward
+      - name: SuperchainIncentiveVotingReward
         address:
       - name: CLPool
         address:
@@ -408,7 +413,7 @@ networks:
           - 0x97cDBCe21B6fd0585d29E539B1B99dAd328a1123
       - name: FeesVotingReward
         address:
-      - name: BribesVotingReward
+      - name: SuperchainIncentiveVotingReward
         address:
       - name: CLPool
         address:
@@ -458,7 +463,7 @@ networks:
           - 0x97cDBCe21B6fd0585d29E539B1B99dAd328a1123
       - name: FeesVotingReward
         address:
-      - name: BribesVotingReward
+      - name: SuperchainIncentiveVotingReward
         address:
       - name: CLPool
         address:
@@ -510,7 +515,7 @@ networks:
           - 0x97cDBCe21B6fd0585d29E539B1B99dAd328a1123
       - name: FeesVotingReward
         address:
-      - name: BribesVotingReward
+      - name: SuperchainIncentiveVotingReward
         address:
       - name: CLPool
         address:
@@ -556,7 +561,7 @@ networks:
           - 0x97cDBCe21B6fd0585d29E539B1B99dAd328a1123
       - name: FeesVotingReward
         address:
-      - name: BribesVotingReward
+      - name: SuperchainIncentiveVotingReward
         address:
       - name: CLPool
         address:
@@ -594,7 +599,7 @@ networks:
           - 0x97cDBCe21B6fd0585d29E539B1B99dAd328a1123
       - name: FeesVotingReward
         address:
-      - name: BribesVotingReward
+      - name: SuperchainIncentiveVotingReward
         address:
       - name: CLPool
         address:
@@ -632,7 +637,7 @@ networks:
           - 0x97cDBCe21B6fd0585d29E539B1B99dAd328a1123
       - name: FeesVotingReward
         address:
-      - name: BribesVotingReward
+      - name: SuperchainIncentiveVotingReward
         address:
       - name: CLPool
         address:
@@ -670,7 +675,7 @@ networks:
           - 0x97cDBCe21B6fd0585d29E539B1B99dAd328a1123
       - name: FeesVotingReward
         address:
-      - name: BribesVotingReward
+      - name: SuperchainIncentiveVotingReward
         address:
       - name: CLPool
         address:

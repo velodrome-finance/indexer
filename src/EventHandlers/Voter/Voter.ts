@@ -13,6 +13,8 @@ import {
 import {
   CHAIN_CONSTANTS,
   TokenIdByChain,
+  VOTER_CLPOOLS_FACTORY_LIST,
+  VOTER_VAMM_POOLS_FACTORY_LIST,
   toChecksumAddress,
 } from "../../Constants";
 import { getTokenDetails } from "../../Effects/Index";
@@ -22,6 +24,43 @@ import {
   buildLpDiffFromDistribute,
   computeVoterDistributeValues,
 } from "./VoterCommonLogic";
+
+Voter.GaugeCreated.contractRegister(({ event, context }) => {
+  const pf = toChecksumAddress(event.params.poolFactory);
+  if (VOTER_CLPOOLS_FACTORY_LIST.includes(pf)) {
+    context.addCLGauge(event.params.gauge);
+  } else if (VOTER_VAMM_POOLS_FACTORY_LIST.includes(pf)) {
+    context.addGauge(event.params.gauge);
+  }
+
+  context.addFeesVotingReward(event.params.feeVotingReward);
+  context.addBribesVotingReward(event.params.bribeVotingReward);
+});
+
+Voter.GaugeCreated.handler(async ({ event, context }) => {
+  // Update the pool entity with the gauge address
+  const poolAddress = toChecksumAddress(event.params.pool);
+  const gaugeAddress = toChecksumAddress(event.params.gauge);
+
+  const poolEntity = await context.LiquidityPoolAggregator.get(poolAddress);
+
+  if (poolEntity) {
+    const poolUpdateDiff = {
+      gaugeAddress: gaugeAddress,
+      feeVotingRewardAddress: event.params.feeVotingReward,
+      bribeVotingRewardAddress: event.params.bribeVotingReward,
+      lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
+    };
+
+    await updateLiquidityPoolAggregator(
+      poolUpdateDiff,
+      poolEntity,
+      new Date(event.block.timestamp * 1000),
+      context,
+      event.block.number,
+    );
+  }
+});
 
 // Leads to a deposit of veNFT
 Voter.Voted.handler(async ({ event, context }) => {
@@ -113,55 +152,6 @@ Voter.Abstained.handler(async ({ event, context }) => {
       context,
     ),
   ]);
-});
-
-// Note:
-// These pools factories addresses are hardcoded since we can't check the pool type from the Voter contract
-const CLPOOLS_FACTORY_LIST: string[] = [
-  "0x5e7BB104d84c7CB9B682AaC2F3d509f5F406809A", // base
-  "0xCc0bDDB707055e04e497aB22a59c2aF4391cd12F", // optimism
-].map((x) => toChecksumAddress(x));
-
-const VAMM_POOL_FACTORY_LIST: string[] = [
-  "0x420DD381b31aEf6683db6B902084cB0FFECe40Da", // base
-  "0xF1046053aa5682b4F9a81b5481394DA16BE5FF5a", // optimism
-].map((x) => toChecksumAddress(x));
-
-Voter.GaugeCreated.contractRegister(({ event, context }) => {
-  const pf = toChecksumAddress(event.params.poolFactory);
-  if (CLPOOLS_FACTORY_LIST.includes(pf)) {
-    context.addCLGauge(event.params.gauge);
-  } else if (VAMM_POOL_FACTORY_LIST.includes(pf)) {
-    context.addGauge(event.params.gauge);
-  }
-
-  context.addFeesVotingReward(event.params.feeVotingReward);
-  context.addBribesVotingReward(event.params.bribeVotingReward);
-});
-
-Voter.GaugeCreated.handler(async ({ event, context }) => {
-  // Update the pool entity with the gauge address
-  const poolAddress = toChecksumAddress(event.params.pool);
-  const gaugeAddress = toChecksumAddress(event.params.gauge);
-
-  const poolEntity = await context.LiquidityPoolAggregator.get(poolAddress);
-
-  if (poolEntity) {
-    const poolUpdateDiff = {
-      gaugeAddress: gaugeAddress,
-      feeVotingRewardAddress: event.params.feeVotingReward,
-      bribeVotingRewardAddress: event.params.bribeVotingReward,
-      lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
-    };
-
-    await updateLiquidityPoolAggregator(
-      poolUpdateDiff,
-      poolEntity,
-      new Date(event.block.timestamp * 1000),
-      context,
-      event.block.number,
-    );
-  }
 });
 
 Voter.DistributeReward.handler(async ({ event, context }) => {
