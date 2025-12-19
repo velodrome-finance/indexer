@@ -53,6 +53,10 @@ export const SUPERCHAIN_LEAF_VOTER_VAMM_POOLS_FACTORY_LIST: string[] = [
   "0x31832f2a97Fd20664D76Cc421207669b55CE4BC0", // All superchain chains have this address
 ].map((x) => toChecksumAddress(x));
 
+export const ROOT_POOL_FACTORY_ADDRESS_OPTIMISM = toChecksumAddress(
+  "0x31832f2a97Fd20664D76Cc421207669b55CE4BC0",
+);
+
 // Effect rate limit constants (calls per second)
 export const EFFECT_RATE_LIMITS = {
   TOKEN_EFFECTS: 5000, // Token details and price fetching effects

@@ -619,6 +619,6 @@ export function createLiquidityPoolAggregatorEntity(params: {
     feeCap: undefined,
     scalingFactor: undefined,
     currentFee: undefined,
-    rootPoolMatchingHash: `${chainId}_${token0Address}_${token1Address}_${tickSpacing}`,
+    rootPoolMatchingHash: `${chainId}_${token0Address}_${token1Address}_${(tickSpacing ? BigInt(tickSpacing) : 0n).toString()}`,
   };
 }

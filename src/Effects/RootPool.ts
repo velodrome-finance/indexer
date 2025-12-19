@@ -2,6 +2,7 @@ import { createEffect } from "envio";
 import { S } from "envio";
 import type { logger as Envio_logger } from "envio/src/Envio.gen";
 import type { PublicClient } from "viem";
+import lpHelperABI from "../../abis/LpHelper.json";
 import {
   CHAIN_CONSTANTS,
   EFFECT_RATE_LIMITS,
@@ -17,8 +18,6 @@ export async function fetchRootPoolAddress(
   type: number,
   logger: Envio_logger,
 ): Promise<string> {
-  const lpHelperABI = require("../../abis/LpHelper.json");
-
   const { result } = await ethClient.simulateContract({
     address: lpHelperAddress as `0x${string}`,
     abi: lpHelperABI,
@@ -38,7 +37,8 @@ export async function fetchRootPoolAddress(
   }
 
   // Normalize to checksum format
-  return toChecksumAddress(address.toString());
+  // Type assertion: after null check, address is guaranteed to be a value that can be converted to string
+  return toChecksumAddress(String(address));
 }
 
 /**

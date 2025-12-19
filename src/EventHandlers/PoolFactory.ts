@@ -4,13 +4,13 @@ import {
   createLiquidityPoolAggregatorEntity,
   updateLiquidityPoolAggregator,
 } from "../Aggregators/LiquidityPoolAggregator";
-import { TokenIdByChain, toChecksumAddress } from "../Constants";
+import {
+  ROOT_POOL_FACTORY_ADDRESS_OPTIMISM,
+  TokenIdByChain,
+} from "../Constants";
 import { getRootPoolAddress } from "../Effects/RootPool";
 import { createTokenEntity } from "../PriceOracle";
 import type { TokenEntityMapping } from "./../CustomTypes";
-
-const ROOT_POOL_FACTORY_ADDRESS_OPTIMISM =
-  "0x31832f2a97Fd20664D76Cc421207669b55CE4BC0";
 
 PoolFactory.PoolCreated.contractRegister(({ event, context }) => {
   context.addPool(event.params.pool);
@@ -88,7 +88,7 @@ PoolFactory.PoolCreated.handler(async ({ event, context }) => {
   // This is only need for non-CL pools
   // The mapping between RootCLPool and CLPool is made in RootCLPoolFactory.ts without the need of a RPC call
   // RPC call is needed here because RootPoolCreated event for non-CL pools doesn't have leafChainId
-  const chainId = Number(event.chainId);
+  const chainId = event.chainId;
   if (chainId !== 10 && chainId !== 8453) {
     let rootPoolAddress: string | null = null;
     try {
