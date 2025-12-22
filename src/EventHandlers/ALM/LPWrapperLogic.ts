@@ -397,6 +397,7 @@ export async function processTransferEvent(
   };
 
   const UserStatsToDiff = {
+    almAddress: srcAddress,
     almAmount0: recipientAmounts.amount0,
     almAmount1: recipientAmounts.amount1,
     almLpAmount: value,

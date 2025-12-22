@@ -501,6 +501,9 @@ describe("ALMLPWrapperV1 Events", () => {
       // Recipient LP=500, so recipient gets: amount0=(1000*500)/2000=250, amount1=(500*500)/2000=125
       expect(toUserStats?.almAmount0).to.equal(250n * TEN_TO_THE_18_BI);
       expect(toUserStats?.almAmount1).to.equal(125n * TEN_TO_THE_6_BI);
+      expect(toUserStats?.almAddress).to.equal(
+        toChecksumAddress(lpWrapperAddress),
+      );
       expect(toUserStats?.userAddress).to.equal(toChecksumAddress(toAddress));
       expect(toUserStats?.poolAddress).to.equal(toChecksumAddress(poolAddress));
       expect(toUserStats?.chainId).to.equal(chainId);
@@ -574,6 +577,9 @@ describe("ALMLPWrapperV1 Events", () => {
       expect(toUserStats?.poolAddress).to.equal(toChecksumAddress(poolAddress));
       expect(toUserStats?.chainId).to.equal(chainId);
       expect(toUserStats?.almLpAmount).to.equal(500n * TEN_TO_THE_18_BI);
+      expect(toUserStats?.almAddress).to.equal(
+        toChecksumAddress(lpWrapperAddress),
+      );
       // Recipient's amounts are derived from LP share after transfer
       // Wrapper: amount0=1000, amount1=500, lpAmount=2000 (unchanged in transfers)
       // Recipient LP=500, so recipient gets: amount0=(1000*500)/2000=250, amount1=(500*500)/2000=125

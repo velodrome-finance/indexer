@@ -461,6 +461,9 @@ describe("ALMLPWrapperV2 Events", () => {
       // Recipient LP=3000, so recipient gets: amount0=(1000*3000)/2000=1500, amount1=(500*3000)/2000=750
       expect(userStatsTo?.almAmount0).to.equal(1500n * TEN_TO_THE_18_BI);
       expect(userStatsTo?.almAmount1).to.equal(750n * TEN_TO_THE_6_BI);
+      expect(userStatsTo?.almAddress).to.equal(
+        toChecksumAddress(lpWrapperAddress),
+      );
     });
 
     it("should handle transfer when recipient has no existing ALM position", async () => {
@@ -512,6 +515,9 @@ describe("ALMLPWrapperV2 Events", () => {
       // Recipient LP=500, so recipient gets: amount0=(1000*500)/2000=250, amount1=(500*500)/2000=125
       expect(userStatsTo?.almAmount0).to.equal(250n * TEN_TO_THE_18_BI);
       expect(userStatsTo?.almAmount1).to.equal(125n * TEN_TO_THE_6_BI);
+      expect(userStatsTo?.almAddress).to.equal(
+        toChecksumAddress(lpWrapperAddress),
+      );
     });
 
     it("should not update when ALM_LP_Wrapper entity not found", async () => {

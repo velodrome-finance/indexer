@@ -824,6 +824,7 @@ describe("LPWrapperLogic", () => {
         mockContext.UserStatsPerPool?.set as sinon.SinonStub
       ).getCall(1).args[0];
       expect(toUpdate.almLpAmount).to.equal(value);
+      expect(toUpdate.almAddress).to.equal(srcAddress);
     });
 
     it("should skip zero address transfers (mint/burn)", async () => {

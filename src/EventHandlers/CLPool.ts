@@ -229,7 +229,7 @@ CLPool.Flash.handler(async ({ event, context }) => {
       event.block.number,
     ),
     ...(userDiff.totalFlashLoanVolumeUSD > 0n
-      ? [updateUserStatsPerPool(userDiff, userData, context).then(() => {})]
+      ? [updateUserStatsPerPool(userDiff, userData, context)]
       : []),
   ]);
 });
