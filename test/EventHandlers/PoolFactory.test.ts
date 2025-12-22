@@ -7,9 +7,9 @@ import type {
   RootPool_LeafPool,
   Token,
 } from "../../generated/src/Types.gen";
-import { CHAIN_CONSTANTS, toChecksumAddress } from "../../src/Constants";
-import { getRootPoolAddress } from "../../src/Effects/RootPool";
+import { toChecksumAddress } from "../../src/Constants";
 import * as PriceOracle from "../../src/PriceOracle";
+import { mutateChainConstants } from "../testHelpers";
 import { setupCommon } from "./Pool/common";
 
 describe("PoolFactory Events", () => {
@@ -40,6 +40,7 @@ describe("PoolFactory Events", () => {
 
   describe("PoolCreated event", () => {
     let createdPool: LiquidityPoolAggregator | undefined;
+    let chainConstantsCleanup: (() => void) | undefined;
 
     beforeEach(async () => {
       mockPriceOracle = sinon.stub(PriceOracle, "createTokenEntity");
@@ -69,6 +70,11 @@ describe("PoolFactory Events", () => {
 
     afterEach(() => {
       mockPriceOracle.restore();
+      // Restore CHAIN_CONSTANTS if it was mutated
+      if (chainConstantsCleanup) {
+        chainConstantsCleanup();
+        chainConstantsCleanup = undefined;
+      }
     });
 
     it("should create token entities", () => {
@@ -167,15 +173,11 @@ describe("PoolFactory Events", () => {
       } as unknown as PublicClient;
 
       // Mock CHAIN_CONSTANTS for Fraxtal
-      (
-        CHAIN_CONSTANTS as Record<
-          number,
-          { eth_client: PublicClient; lpHelperAddress: string }
-        >
-      )[fraxtalChainId] = {
+      const { cleanup } = mutateChainConstants(fraxtalChainId, {
         eth_client: mockEthClient,
         lpHelperAddress: mockLpHelperAddress,
-      };
+      });
+      chainConstantsCleanup = cleanup;
 
       resetMockPriceOracle();
 
@@ -234,15 +236,11 @@ describe("PoolFactory Events", () => {
       } as unknown as PublicClient;
 
       // Mock CHAIN_CONSTANTS for Fraxtal
-      (
-        CHAIN_CONSTANTS as Record<
-          number,
-          { eth_client: PublicClient; lpHelperAddress: string }
-        >
-      )[fraxtalChainId] = {
+      const { cleanup } = mutateChainConstants(fraxtalChainId, {
         eth_client: mockEthClient,
         lpHelperAddress: mockLpHelperAddress,
-      };
+      });
+      chainConstantsCleanup = cleanup;
 
       resetMockPriceOracle();
 
@@ -296,15 +294,11 @@ describe("PoolFactory Events", () => {
       } as unknown as PublicClient;
 
       // Mock CHAIN_CONSTANTS for Fraxtal
-      (
-        CHAIN_CONSTANTS as Record<
-          number,
-          { eth_client: PublicClient; lpHelperAddress: string }
-        >
-      )[fraxtalChainId] = {
+      const { cleanup } = mutateChainConstants(fraxtalChainId, {
         eth_client: mockEthClient,
         lpHelperAddress: mockLpHelperAddress,
-      };
+      });
+      chainConstantsCleanup = cleanup;
 
       resetMockPriceOracle();
 

@@ -43,7 +43,7 @@ ALMDeployFactoryV2.StrategyCreated.handler(async ({ event, context }) => {
 
   if (matchingNonFungiblePositions.length === 0) {
     context.log.error(
-      `NonFungiblePosition not found for transaction hash ${event.transaction.hash} matching tickLower ${tickLower}, tickUpper ${tickUpper}, liquidity ${liquidity}. It should have been created by CLPool event handlers.`,
+      `NonFungiblePosition not found for transaction hash ${event.transaction.hash} (chainId: ${event.chainId}, pool: ${toChecksumAddress(pool)}) matching tickLower ${tickLower}, tickUpper ${tickUpper}, liquidity ${liquidity}. It should have been created by CLPool event handlers.`,
     );
     return;
   }

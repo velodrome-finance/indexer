@@ -222,8 +222,7 @@ ALMLPWrapperV2.Transfer.handler(async ({ event, context }) => {
  * (e.g., StrategyCreated) can seed `lpAmount` from the latest supply.
  */
 ALMLPWrapperV2.TotalSupplyLimitUpdated.handler(async ({ event, context }) => {
-  const { newTotalSupplyLimit, totalSupplyLimitOld, totalSupplyCurrent } =
-    event.params;
+  const { totalSupplyCurrent } = event.params;
 
   const ALM_TotalSupplyLimitUpdated_event = {
     id: `${event.srcAddress}_${event.chainId}`,

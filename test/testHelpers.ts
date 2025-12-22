@@ -1,5 +1,7 @@
+import type { PublicClient } from "viem";
 import type { MockDb } from "../generated/src/TestHelpers.gen";
 import type { NonFungiblePosition } from "../generated/src/Types.gen";
+import { CHAIN_CONSTANTS } from "../src/Constants";
 
 /**
  * Extends mockDb with getWhere functionality for NonFungiblePosition queries
@@ -37,6 +39,42 @@ export function extendMockDbWithGetWhere(
           },
         },
       },
+    },
+  };
+}
+
+/**
+ * Mutates CHAIN_CONSTANTS for a specific chainId and returns the original value
+ * along with a cleanup function to restore it.
+ *
+ * @param chainId - The chain ID to mutate
+ * @param value - The new value to set
+ * @returns An object containing the original value and a cleanup function
+ */
+export function mutateChainConstants(
+  chainId: number,
+  value: { eth_client: PublicClient; lpHelperAddress: string },
+): {
+  originalValue:
+    | { eth_client: PublicClient; lpHelperAddress: string }
+    | undefined;
+  cleanup: () => void;
+} {
+  const chainConstants = CHAIN_CONSTANTS as Record<
+    number,
+    { eth_client: PublicClient; lpHelperAddress: string } | undefined
+  >;
+  const originalValue = chainConstants[chainId];
+  chainConstants[chainId] = value;
+
+  return {
+    originalValue,
+    cleanup: () => {
+      if (originalValue !== undefined) {
+        chainConstants[chainId] = originalValue;
+      } else {
+        delete chainConstants[chainId];
+      }
     },
   };
 }
