@@ -101,6 +101,26 @@ export async function calculateLiquidityFromAmounts(
   return updatedLiquidity;
 }
 
+/**
+ * Calculates user's token amounts from their LP share using integer division.
+ *
+ * This function computes the proportional share of tokens a user owns based on their
+ * LP token balance relative to the total LP supply. The calculation uses integer
+ * division which may result in minor precision loss (at most 1 wei per token).
+ *
+ * Precision considerations:
+ * - LP tokens typically have 18 decimals, providing high precision
+ * - Precision loss is negligible for large amounts
+ * - This matches how smart contracts handle proportional calculations
+ * - The maximum precision loss is at most 1 wei per token due to integer division
+ *   truncation, which is acceptable for typical LP amounts in the millions or billions
+ *
+ * @param userLp - User's LP token balance
+ * @param totalLp - Total LP token supply in the wrapper
+ * @param wrapperAmount0 - Total amount of token0 in the wrapper
+ * @param wrapperAmount1 - Total amount of token1 in the wrapper
+ * @returns User's proportional amounts of token0 and token1
+ */
 export function deriveUserAmounts(
   userLp: bigint,
   totalLp: bigint,

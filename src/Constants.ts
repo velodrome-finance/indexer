@@ -119,7 +119,7 @@ export enum PriceOracleType {
  */
 export const RPC_TIMEOUT_MS = 60000;
 
-export const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+export { zeroAddress as ZERO_ADDRESS } from "viem";
 
 /**
  * Default/fallback public RPC URLs for each chain

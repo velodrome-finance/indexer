@@ -146,7 +146,7 @@ export async function loadVotingRewardData(
 ): Promise<{
   pool?: LiquidityPoolAggregator;
   poolData?: { liquidityPoolAggregator: LiquidityPoolAggregator };
-  userData?: UserStatsPerPool;
+  userData: UserStatsPerPool;
 } | null> {
   const votingRewardChecksumAddress = toChecksumAddress(
     data.votingRewardAddress,
