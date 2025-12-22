@@ -209,7 +209,7 @@ Pool.Swap.handler(async ({ event, context }) => {
     await updateUserStatsPerPool(userSwapDiff, userData, context);
   }
 
-  // Create oUSDTSwaps entity only if oUSDT is involved
+  // Create OUSDTSwaps entity only if oUSDT is involved
   if (
     token0Instance.address === OUSDT_ADDRESS ||
     token1Instance.address === OUSDT_ADDRESS

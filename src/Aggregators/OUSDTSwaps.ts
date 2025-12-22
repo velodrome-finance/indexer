@@ -1,7 +1,7 @@
 import type { Token, handlerContext } from "generated";
 
 /**
- * Creates an oUSDTSwaps entity for swap events.
+ * Creates an OUSDTSwaps entity for swap events.
  * Accepts In/Out amounts for both tokens and determines swap direction.
  */
 export function createOUSDTSwapEntity(
@@ -22,7 +22,7 @@ export function createOUSDTSwapEntity(
   // Determine which token is going in and which is going out
   if (amount0In > 0n) {
     // Token0 is going in, token1 is going out
-    context.oUSDTSwaps.set({
+    context.OUSDTSwaps.set({
       id: `${transactionHash}_${chainId}_${token0Instance.address}_${amount0In}_${token1Instance.address}_${amount1Out}`,
       transactionHash,
       tokenInPool: token0Instance.address,
@@ -32,7 +32,7 @@ export function createOUSDTSwapEntity(
     });
   } else if (amount1In > 0n) {
     // Token1 is going in, token0 is going out
-    context.oUSDTSwaps.set({
+    context.OUSDTSwaps.set({
       id: `${transactionHash}_${chainId}_${token1Instance.address}_${amount1In}_${token0Instance.address}_${amount0Out}`,
       transactionHash,
       tokenInPool: token1Instance.address,

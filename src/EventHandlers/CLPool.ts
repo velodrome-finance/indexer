@@ -411,7 +411,7 @@ CLPool.Swap.handler(async ({ event, context }) => {
     updateUserStatsPerPool(userDiff, userData, context),
   ]);
 
-  // Create oUSDTSwaps entity
+  // Create OUSDTSwaps entity
 
   if (
     poolData.token0Instance.address === OUSDT_ADDRESS ||

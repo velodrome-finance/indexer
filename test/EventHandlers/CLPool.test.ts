@@ -177,7 +177,7 @@ describe("CLPool Events", () => {
       });
 
       // Verify oUSDTSwap entity was created with OUSDT as token0
-      const ousdtSwaps = resultDB.entities.oUSDTSwaps.getAll();
+      const ousdtSwaps = resultDB.entities.OUSDTSwaps.getAll();
       expect(ousdtSwaps.length).to.be.greaterThan(0);
       const swapEntity1 = ousdtSwaps[0];
       expect(swapEntity1.transactionHash).to.equal(mockEvent.transaction.hash);
@@ -206,7 +206,7 @@ describe("CLPool Events", () => {
       });
 
       // Verify oUSDTSwap entity was created with OUSDT as token1
-      const ousdtSwaps2 = resultDB2.entities.oUSDTSwaps.getAll();
+      const ousdtSwaps2 = resultDB2.entities.OUSDTSwaps.getAll();
       expect(ousdtSwaps2.length).to.be.greaterThan(0);
       const swapEntity2 = ousdtSwaps2[0];
       expect(swapEntity2.transactionHash).to.equal(mockEvent.transaction.hash);
@@ -267,7 +267,7 @@ describe("CLPool Events", () => {
         mockDb: ousdtDb,
       });
 
-      const ousdtSwaps = resultDB.entities.oUSDTSwaps.getAll();
+      const ousdtSwaps = resultDB.entities.OUSDTSwaps.getAll();
       expect(ousdtSwaps.length).to.be.greaterThan(0);
       // Verify entity was created with correct conversion (amount0 > 0 means token0 in, token1 out)
       const swapEntity = ousdtSwaps[0];
@@ -309,7 +309,7 @@ describe("CLPool Events", () => {
         mockDb: ousdtDb,
       });
 
-      const ousdtSwaps2 = resultDB2.entities.oUSDTSwaps.getAll();
+      const ousdtSwaps2 = resultDB2.entities.OUSDTSwaps.getAll();
       expect(ousdtSwaps2.length).to.be.greaterThan(0);
       // Verify entity was created with correct conversion (amount1 > 0 means token1 in, token0 out)
       const swapEntity2 = ousdtSwaps2[0];

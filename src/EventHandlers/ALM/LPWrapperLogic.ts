@@ -7,7 +7,7 @@ import {
   loadUserStatsPerPool,
   updateUserStatsPerPool,
 } from "../../Aggregators/UserStatsPerPool";
-import { ZERO_ADDRESS, toChecksumAddress } from "../../Constants";
+import { ZERO_ADDRESS } from "../../Constants";
 import { getSqrtPriceX96, roundBlockToInterval } from "../../Effects/Token";
 
 /**

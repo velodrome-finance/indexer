@@ -16,7 +16,7 @@ describe("OUSDTSwaps", () => {
   beforeEach(() => {
     oUSDTSwapsSetStub = sinon.stub();
     mockContext = {
-      oUSDTSwaps: {
+      OUSDTSwaps: {
         set: oUSDTSwapsSetStub,
         get: sinon.stub(),
         getOrThrow: sinon.stub(),

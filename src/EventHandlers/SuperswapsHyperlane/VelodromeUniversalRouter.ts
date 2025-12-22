@@ -1,6 +1,6 @@
 import {
+  type OUSDTBridgedTransaction,
   VelodromeUniversalRouter,
-  type oUSDTBridgedTransaction,
 } from "generated";
 import { OUSDT_ADDRESS } from "../../Constants";
 import { processCrossChainSwap } from "./SuperSwapLogic";
@@ -12,7 +12,7 @@ VelodromeUniversalRouter.UniversalRouterBridge.handler(
       return;
     }
 
-    const entity: oUSDTBridgedTransaction = {
+    const entity: OUSDTBridgedTransaction = {
       id: event.transaction.hash,
       transactionHash: event.transaction.hash,
       originChainId: BigInt(event.chainId),
@@ -22,7 +22,7 @@ VelodromeUniversalRouter.UniversalRouterBridge.handler(
       amount: event.params.amount,
     };
 
-    context.oUSDTBridgedTransaction.set(entity);
+    context.OUSDTBridgedTransaction.set(entity);
   },
 );
 
@@ -30,7 +30,7 @@ VelodromeUniversalRouter.CrossChainSwap.handler(async ({ event, context }) => {
   // Load all independent data in parallel
   const [oUSDTBridgedTransactions, sourceChainMessageIdEntities] =
     await Promise.all([
-      context.oUSDTBridgedTransaction.getWhere.transactionHash.eq(
+      context.OUSDTBridgedTransaction.getWhere.transactionHash.eq(
         event.transaction.hash,
       ),
       context.DispatchId_event.getWhere.transactionHash.eq(
@@ -40,7 +40,7 @@ VelodromeUniversalRouter.CrossChainSwap.handler(async ({ event, context }) => {
 
   if (oUSDTBridgedTransactions.length === 0) {
     context.log.warn(
-      `No oUSDTBridgedTransaction found for transaction ${event.transaction.hash}`,
+      `No OUSDTBridgedTransaction found for transaction ${event.transaction.hash}`,
     );
     return;
   }

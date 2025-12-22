@@ -2,10 +2,10 @@ import { expect } from "chai";
 import { Mailbox, MockDb } from "../../../generated/src/TestHelpers.gen";
 import type {
   DispatchId_event,
+  OUSDTBridgedTransaction,
+  OUSDTSwaps,
   ProcessId_event,
   SuperSwap,
-  oUSDTBridgedTransaction,
-  oUSDTSwaps,
 } from "../../../generated/src/Types.gen";
 import { OUSDT_ADDRESS, toChecksumAddress } from "../../../src/Constants";
 
@@ -470,8 +470,8 @@ describe("Mailbox Events", () => {
       };
       mockDb = mockDb.entities.DispatchId_event.set(dispatchIdEvent);
 
-      // 2. Create oUSDTBridgedTransaction
-      const bridgedTransaction: oUSDTBridgedTransaction = {
+      // 2. Create OUSDTBridgedTransaction
+      const bridgedTransaction: OUSDTBridgedTransaction = {
         id: sourceTransactionHash,
         transactionHash: sourceTransactionHash,
         originChainId: BigInt(sourceChainId),
@@ -480,7 +480,7 @@ describe("Mailbox Events", () => {
         recipient: "0x2222222222222222222222222222222222222222",
         amount: oUSDTAmount,
       };
-      mockDb = mockDb.entities.oUSDTBridgedTransaction.set(bridgedTransaction);
+      mockDb = mockDb.entities.OUSDTBridgedTransaction.set(bridgedTransaction);
 
       // 3. Create ProcessId_event (destination chain) - this will be created by the handler
       // But we also need it for the lookup
@@ -493,7 +493,7 @@ describe("Mailbox Events", () => {
       mockDb = mockDb.entities.ProcessId_event.set(processIdEvent);
 
       // 4. Create source chain swap (tokenIn -> oUSDT)
-      const sourceSwap: oUSDTSwaps = {
+      const sourceSwap: OUSDTSwaps = {
         id: `${sourceTransactionHash}_${sourceChainId}_${tokenInAddress}_1000_${OUSDT_ADDRESS}_${oUSDTAmount}`,
         transactionHash: sourceTransactionHash,
         tokenInPool: tokenInAddress,
@@ -501,10 +501,10 @@ describe("Mailbox Events", () => {
         amountIn: 1000n,
         amountOut: oUSDTAmount,
       };
-      mockDb = mockDb.entities.oUSDTSwaps.set(sourceSwap);
+      mockDb = mockDb.entities.OUSDTSwaps.set(sourceSwap);
 
       // 5. Create destination chain swap (oUSDT -> tokenOut)
-      const destinationSwap: oUSDTSwaps = {
+      const destinationSwap: OUSDTSwaps = {
         id: `${destinationTransactionHash}_${destinationChainId}_${OUSDT_ADDRESS}_${oUSDTAmount}_${tokenOutAddress}_950`,
         transactionHash: destinationTransactionHash,
         tokenInPool: OUSDT_ADDRESS,
@@ -512,7 +512,7 @@ describe("Mailbox Events", () => {
         amountIn: oUSDTAmount,
         amountOut: 950n,
       };
-      mockDb = mockDb.entities.oUSDTSwaps.set(destinationSwap);
+      mockDb = mockDb.entities.OUSDTSwaps.set(destinationSwap);
 
       // Execute: Process ProcessId event
       const processIdMockEvent = Mailbox.ProcessId.createMockEvent({
@@ -597,7 +597,7 @@ describe("Mailbox Events", () => {
       expect(superSwaps.length).to.equal(0);
     });
 
-    it("should create ProcessId_event but not SuperSwap when oUSDTBridgedTransaction is missing", async () => {
+    it("should create ProcessId_event but not SuperSwap when OUSDTBridgedTransaction is missing", async () => {
       // Setup: Create DispatchId but no bridged transaction
       let mockDb = MockDb.createMockDb();
 
@@ -654,7 +654,7 @@ describe("Mailbox Events", () => {
       };
       mockDb = mockDb.entities.DispatchId_event.set(dispatchIdEvent);
 
-      const bridgedTransaction: oUSDTBridgedTransaction = {
+      const bridgedTransaction: OUSDTBridgedTransaction = {
         id: sourceTransactionHash,
         transactionHash: sourceTransactionHash,
         originChainId: BigInt(sourceChainId),
@@ -663,7 +663,7 @@ describe("Mailbox Events", () => {
         recipient: "0x2222222222222222222222222222222222222222",
         amount: oUSDTAmount,
       };
-      mockDb = mockDb.entities.oUSDTBridgedTransaction.set(bridgedTransaction);
+      mockDb = mockDb.entities.OUSDTBridgedTransaction.set(bridgedTransaction);
 
       const processIdEvent: ProcessId_event = {
         id: `${destinationTransactionHash}_${destinationChainId}_${testMessageId}`,
