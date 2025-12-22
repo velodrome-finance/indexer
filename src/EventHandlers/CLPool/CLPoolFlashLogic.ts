@@ -8,10 +8,12 @@ export interface CLPoolFlashResult {
     totalFlashLoanFeesUSD: bigint;
     totalFlashLoanVolumeUSD: bigint;
     numberOfFlashLoans: bigint;
+    lastUpdatedTimestamp: Date;
   };
   userFlashLoanDiff: {
     numberOfFlashLoans: bigint;
     totalFlashLoanVolumeUSD: bigint;
+    lastActivityTimestamp: Date;
   };
 }
 

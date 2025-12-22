@@ -6,11 +6,13 @@ export interface CLPoolBurnResult {
     reserve0: bigint;
     reserve1: bigint;
     totalLiquidityUSD: bigint;
+    lastUpdatedTimestamp: Date;
   };
   userLiquidityDiff: {
     currentLiquidityUSD: bigint;
     currentLiquidityToken0: bigint;
     currentLiquidityToken1: bigint;
+    lastActivityTimestamp: Date;
   };
 }
 

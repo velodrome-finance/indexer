@@ -6,11 +6,15 @@ import type {
 } from "generated";
 import { calculateTotalLiquidityUSD } from "../../Helpers";
 
-interface StakedFeesTotals {
+interface StakedFeesTotalsBase {
   totalStakedFeesCollected0: bigint;
   totalStakedFeesCollected1: bigint;
   totalStakedFeesCollectedUSD: bigint;
   totalFeesUSDWhitelisted: bigint;
+}
+
+interface StakedFeesTotals extends StakedFeesTotalsBase {
+  lastUpdatedTimestamp: Date;
 }
 
 export interface CLPoolCollectFeesResult {
@@ -19,6 +23,7 @@ export interface CLPoolCollectFeesResult {
     totalFeesContributedUSD: bigint;
     totalFeesContributed0: bigint;
     totalFeesContributed1: bigint;
+    lastActivityTimestamp: Date;
   };
 }
 
@@ -42,7 +47,7 @@ function calculateStakedFees(
   event: CLPool_CollectFees_event,
   token0Instance: Token | undefined,
   token1Instance: Token | undefined,
-): StakedFeesTotals {
+): StakedFeesTotalsBase {
   // Calculate staked fees (from CollectFees events - LPs that staked in gauge)
   const totalStakedFeesCollected0 =
     liquidityPoolAggregator.totalStakedFeesCollected0 + event.params.amount0;

@@ -6,11 +6,13 @@ export interface CLPoolCollectResult {
     totalUnstakedFeesCollected0: bigint;
     totalUnstakedFeesCollected1: bigint;
     totalUnstakedFeesCollectedUSD: bigint;
+    lastUpdatedTimestamp: Date;
   };
   userLiquidityDiff: {
     totalFeesContributed0: bigint;
     totalFeesContributed1: bigint;
     totalFeesContributedUSD: bigint;
+    lastActivityTimestamp: Date;
   };
 }
 

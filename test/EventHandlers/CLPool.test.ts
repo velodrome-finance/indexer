@@ -80,12 +80,14 @@ describe("CLPool Events", () => {
             totalVolume0: 1000n,
             totalVolume1: 500n,
             totalVolumeUSD: 1500n,
+            lastUpdatedTimestamp: new Date(1000000 * 1000),
           },
           userSwapDiff: {
             numberOfSwaps: 1n,
             totalSwapVolumeAmount0: 1000n,
             totalSwapVolumeAmount1: 500n,
             totalSwapVolumeUSD: 1500n,
+            lastActivityTimestamp: new Date(1000000 * 1000),
           },
         });
 
@@ -332,11 +334,13 @@ describe("CLPool Events", () => {
           reserve0: 1000n,
           reserve1: 1000n,
           totalLiquidityUSD: 2000n,
+          lastUpdatedTimestamp: new Date(1000000 * 1000),
         },
         userLiquidityDiff: {
           currentLiquidityUSD: 1000n,
           currentLiquidityToken0: 500n,
           currentLiquidityToken1: 500n,
+          lastActivityTimestamp: new Date(1000000 * 1000),
         },
       });
 
@@ -404,11 +408,13 @@ describe("CLPool Events", () => {
           reserve0: -500n, // Negative because burning decreases reserves
           reserve1: -500n, // Negative because burning decreases reserves
           totalLiquidityUSD: -1000n, // Negative because reserves decrease
+          lastUpdatedTimestamp: new Date(1000000 * 1000),
         },
         userLiquidityDiff: {
           currentLiquidityUSD: -500n,
           currentLiquidityToken0: -250n, // Negative amount of token0 removed
           currentLiquidityToken1: -250n, // Negative amount of token1 removed
+          lastActivityTimestamp: new Date(1000000 * 1000),
         },
       });
 
@@ -475,11 +481,13 @@ describe("CLPool Events", () => {
             totalUnstakedFeesCollected0: 100n,
             totalUnstakedFeesCollected1: 200n,
             totalUnstakedFeesCollectedUSD: 300n,
+            lastUpdatedTimestamp: new Date(1000000 * 1000),
           },
           userLiquidityDiff: {
             totalFeesContributed0: 100n,
             totalFeesContributed1: 200n,
             totalFeesContributedUSD: 300n,
+            lastActivityTimestamp: new Date(1000000 * 1000),
           },
         });
 
@@ -547,11 +555,13 @@ describe("CLPool Events", () => {
             totalStakedFeesCollected1: 75n,
             totalStakedFeesCollectedUSD: 125n,
             totalFeesUSDWhitelisted: 125n,
+            lastUpdatedTimestamp: new Date(1000000 * 1000),
           },
           userDiff: {
             totalFeesContributedUSD: 125n,
             totalFeesContributed0: 50n,
             totalFeesContributed1: 75n,
+            lastActivityTimestamp: new Date(1000000 * 1000),
           },
         });
 
@@ -687,10 +697,12 @@ describe("CLPool Events", () => {
             totalFlashLoanFeesUSD: 5n,
             totalFlashLoanVolumeUSD: 1000n,
             numberOfFlashLoans: 1n,
+            lastUpdatedTimestamp: new Date(1000000 * 1000),
           },
           userFlashLoanDiff: {
             numberOfFlashLoans: 1n,
             totalFlashLoanVolumeUSD: 1000n,
+            lastActivityTimestamp: new Date(1000000 * 1000),
           },
         });
 
@@ -751,10 +763,12 @@ describe("CLPool Events", () => {
           totalFlashLoanFeesUSD: 0n,
           numberOfFlashLoans: 1n,
           totalFlashLoanVolumeUSD: 0n,
+          lastUpdatedTimestamp: new Date(1000000 * 1000),
         },
         userFlashLoanDiff: {
           numberOfFlashLoans: 1n,
           totalFlashLoanVolumeUSD: 0n,
+          lastActivityTimestamp: new Date(1000000 * 1000),
         },
       });
 
