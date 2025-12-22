@@ -5,6 +5,7 @@ import {
 } from "../../../generated/src/TestHelpers.gen";
 import type { NonFungiblePosition } from "../../../generated/src/Types.gen";
 import { toChecksumAddress } from "../../../src/Constants";
+import { extendMockDbWithGetWhere } from "../../testHelpers";
 import { setupCommon } from "../Pool/common";
 
 describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
@@ -71,27 +72,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
       const storedNFPMs = [mockNFPM];
 
       // Extend mockDb to include getWhere for NonFungiblePosition
-      const mockDbWithGetWhere = {
-        ...mockDb,
-        entities: {
-          ...mockDb.entities,
-          NonFungiblePosition: {
-            ...mockDb.entities.NonFungiblePosition,
-            getWhere: {
-              tokenId: {
-                eq: async () => [],
-              },
-              mintTransactionHash: {
-                eq: async (txHash: string) => {
-                  return storedNFPMs.filter(
-                    (entity) => entity.mintTransactionHash === txHash,
-                  );
-                },
-              },
-            },
-          },
-        },
-      };
+      const mockDbWithGetWhere = extendMockDbWithGetWhere(mockDb, storedNFPMs);
 
       const strategyType = 1n;
       const tickNeighborhood = 100n;
@@ -182,25 +163,11 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
       // Extend mockDb to include getWhere (returning empty array)
       // This tests the branch where nonFungiblePositions?.filter() is called (not short-circuited)
       // and returns [] (empty array), so ?? [] is NOT triggered
-      const mockDbWithGetWhere = {
-        ...mockDb,
-        entities: {
-          ...mockDb.entities,
-          NonFungiblePosition: {
-            ...mockDb.entities.NonFungiblePosition,
-            getWhere: {
-              tokenId: {
-                eq: async () => [],
-              },
-              mintTransactionHash: {
-                eq: async (_txHash: string) => {
-                  return []; // Empty array - tests ?.filter() branch (not null/undefined)
-                },
-              },
-            },
-          },
-        },
-      };
+      const mockDbWithGetWhere = extendMockDbWithGetWhere(
+        mockDb,
+        [],
+        async () => [],
+      );
 
       const mockEvent = ALMDeployFactoryV2.StrategyCreated.createMockEvent({
         params: [
@@ -237,25 +204,11 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
       const mockDb = MockDb.createMockDb();
 
       // Extend mockDb to include getWhere (returning null to cover ?? [] branch)
-      const mockDbWithGetWhere = {
-        ...mockDb,
-        entities: {
-          ...mockDb.entities,
-          NonFungiblePosition: {
-            ...mockDb.entities.NonFungiblePosition,
-            getWhere: {
-              tokenId: {
-                eq: async () => [],
-              },
-              mintTransactionHash: {
-                eq: async (_txHash: string) => {
-                  return null as NonFungiblePosition[] | null; // Return null to trigger ?? [] fallback
-                },
-              },
-            },
-          },
-        },
-      };
+      const mockDbWithGetWhere = extendMockDbWithGetWhere(
+        mockDb,
+        [],
+        async () => null as NonFungiblePosition[] | null,
+      );
 
       const mockEvent = ALMDeployFactoryV2.StrategyCreated.createMockEvent({
         params: [
@@ -292,25 +245,12 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
       const mockDb = MockDb.createMockDb();
 
       // Extend mockDb to include getWhere (returning undefined to cover ?? [] branch)
-      const mockDbWithGetWhere = {
-        ...mockDb,
-        entities: {
-          ...mockDb.entities,
-          NonFungiblePosition: {
-            ...mockDb.entities.NonFungiblePosition,
-            getWhere: {
-              tokenId: {
-                eq: async () => [],
-              },
-              mintTransactionHash: {
-                eq: async (_txHash: string) => {
-                  return undefined as NonFungiblePosition[] | undefined; // Return undefined to trigger ?? [] fallback
-                },
-              },
-            },
-          },
-        },
-      };
+      const mockDbWithGetWhere = extendMockDbWithGetWhere(
+        mockDb,
+        [],
+        async (_txHash: string) =>
+          undefined as NonFungiblePosition[] | undefined,
+      );
 
       const mockEvent = ALMDeployFactoryV2.StrategyCreated.createMockEvent({
         params: [
@@ -397,27 +337,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
       // Track entities for getWhere query
       const storedNFPMs = [matchingNFPM, nonMatchingNFPM1, nonMatchingNFPM2];
 
-      const mockDbWithGetWhere = {
-        ...mockDb,
-        entities: {
-          ...mockDb.entities,
-          NonFungiblePosition: {
-            ...mockDb.entities.NonFungiblePosition,
-            getWhere: {
-              tokenId: {
-                eq: async () => [],
-              },
-              mintTransactionHash: {
-                eq: async (txHash: string) => {
-                  return storedNFPMs.filter(
-                    (entity) => entity.mintTransactionHash === txHash,
-                  );
-                },
-              },
-            },
-          },
-        },
-      };
+      const mockDbWithGetWhere = extendMockDbWithGetWhere(mockDb, storedNFPMs);
 
       const strategyType = 1n;
       const tickNeighborhood = 100n;
@@ -501,27 +421,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
       // Track entities for getWhere query
       const storedNFPMs = [nonMatchingNFPM];
 
-      const mockDbWithGetWhere = {
-        ...mockDb,
-        entities: {
-          ...mockDb.entities,
-          NonFungiblePosition: {
-            ...mockDb.entities.NonFungiblePosition,
-            getWhere: {
-              tokenId: {
-                eq: async () => [],
-              },
-              mintTransactionHash: {
-                eq: async (txHash: string) => {
-                  return storedNFPMs.filter(
-                    (entity) => entity.mintTransactionHash === txHash,
-                  );
-                },
-              },
-            },
-          },
-        },
-      };
+      const mockDbWithGetWhere = extendMockDbWithGetWhere(mockDb, storedNFPMs);
 
       const mockEvent = ALMDeployFactoryV2.StrategyCreated.createMockEvent({
         params: [
@@ -581,27 +481,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
       // Track entities for getWhere query
       const storedNFPMs = [nonMatchingNFPM];
 
-      const mockDbWithGetWhere = {
-        ...mockDb,
-        entities: {
-          ...mockDb.entities,
-          NonFungiblePosition: {
-            ...mockDb.entities.NonFungiblePosition,
-            getWhere: {
-              tokenId: {
-                eq: async () => [],
-              },
-              mintTransactionHash: {
-                eq: async (txHash: string) => {
-                  return storedNFPMs.filter(
-                    (entity) => entity.mintTransactionHash === txHash,
-                  );
-                },
-              },
-            },
-          },
-        },
-      };
+      const mockDbWithGetWhere = extendMockDbWithGetWhere(mockDb, storedNFPMs);
 
       const mockEvent = ALMDeployFactoryV2.StrategyCreated.createMockEvent({
         params: [
@@ -661,27 +541,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
       // Track entities for getWhere query
       const storedNFPMs = [nonMatchingNFPM];
 
-      const mockDbWithGetWhere = {
-        ...mockDb,
-        entities: {
-          ...mockDb.entities,
-          NonFungiblePosition: {
-            ...mockDb.entities.NonFungiblePosition,
-            getWhere: {
-              tokenId: {
-                eq: async () => [],
-              },
-              mintTransactionHash: {
-                eq: async (txHash: string) => {
-                  return storedNFPMs.filter(
-                    (entity) => entity.mintTransactionHash === txHash,
-                  );
-                },
-              },
-            },
-          },
-        },
-      };
+      const mockDbWithGetWhere = extendMockDbWithGetWhere(mockDb, storedNFPMs);
 
       const mockEvent = ALMDeployFactoryV2.StrategyCreated.createMockEvent({
         params: [
@@ -741,27 +601,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
       // Track entities for getWhere query
       const storedNFPMs = [mockNFPM];
 
-      const mockDbWithGetWhere = {
-        ...mockDb,
-        entities: {
-          ...mockDb.entities,
-          NonFungiblePosition: {
-            ...mockDb.entities.NonFungiblePosition,
-            getWhere: {
-              tokenId: {
-                eq: async () => [],
-              },
-              mintTransactionHash: {
-                eq: async (txHash: string) => {
-                  return storedNFPMs.filter(
-                    (entity) => entity.mintTransactionHash === txHash,
-                  );
-                },
-              },
-            },
-          },
-        },
-      };
+      const mockDbWithGetWhere = extendMockDbWithGetWhere(mockDb, storedNFPMs);
 
       const mockEvent = ALMDeployFactoryV2.StrategyCreated.createMockEvent({
         params: [
@@ -831,27 +671,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
       // Track entities for getWhere query
       const storedNFPMs = [mockNFPM];
 
-      const mockDbWithGetWhere = {
-        ...mockDb,
-        entities: {
-          ...mockDb.entities,
-          NonFungiblePosition: {
-            ...mockDb.entities.NonFungiblePosition,
-            getWhere: {
-              tokenId: {
-                eq: async () => [],
-              },
-              mintTransactionHash: {
-                eq: async (txHash: string) => {
-                  return storedNFPMs.filter(
-                    (entity) => entity.mintTransactionHash === txHash,
-                  );
-                },
-              },
-            },
-          },
-        },
-      };
+      const mockDbWithGetWhere = extendMockDbWithGetWhere(mockDb, storedNFPMs);
 
       const mockEvent = ALMDeployFactoryV2.StrategyCreated.createMockEvent({
         params: [
@@ -929,27 +749,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
       // Track entities for getWhere query
       const storedNFPMs = [matchingNFPM1, matchingNFPM2];
 
-      const mockDbWithGetWhere = {
-        ...mockDb,
-        entities: {
-          ...mockDb.entities,
-          NonFungiblePosition: {
-            ...mockDb.entities.NonFungiblePosition,
-            getWhere: {
-              tokenId: {
-                eq: async () => [],
-              },
-              mintTransactionHash: {
-                eq: async (txHash: string) => {
-                  return storedNFPMs.filter(
-                    (entity) => entity.mintTransactionHash === txHash,
-                  );
-                },
-              },
-            },
-          },
-        },
-      };
+      const mockDbWithGetWhere = extendMockDbWithGetWhere(mockDb, storedNFPMs);
 
       const mockEvent = ALMDeployFactoryV2.StrategyCreated.createMockEvent({
         params: [

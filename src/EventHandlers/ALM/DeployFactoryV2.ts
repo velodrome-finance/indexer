@@ -1,5 +1,4 @@
 import { ALMDeployFactoryV2 } from "generated";
-import { ALM_TotalSupplyLimitUpdated_event } from "generated/src/db/Entities.res";
 import { toChecksumAddress } from "../../Constants";
 
 ALMDeployFactoryV2.StrategyCreated.contractRegister(({ event, context }) => {
@@ -62,14 +61,13 @@ ALMDeployFactoryV2.StrategyCreated.handler(async ({ event, context }) => {
   const amount1 = matchingNonFungiblePositions[0].amount1;
 
   // Fetching LP tokens supply from TotalSupplyLimitUpdated event
-  const ALM_TotalSupplyLimitUpdated_event =
-    await context.ALM_TotalSupplyLimitUpdated_event.get(
-      `${lpWrapper}_${event.chainId}`,
-    );
+  const totalSupplyEvent = await context.ALM_TotalSupplyLimitUpdated_event.get(
+    `${lpWrapper}_${event.chainId}`,
+  );
 
   if (
-    !ALM_TotalSupplyLimitUpdated_event ||
-    ALM_TotalSupplyLimitUpdated_event.transactionHash !== event.transaction.hash
+    !totalSupplyEvent ||
+    totalSupplyEvent.transactionHash !== event.transaction.hash
   ) {
     context.log.error(
       `ALM_TotalSupplyLimitUpdated_event not found for lpWrapper ${toChecksumAddress(lpWrapper)} and chainId ${event.chainId} or transaction hash ${event.transaction.hash} does not match. It should have been created by ALMLPWrapper event handlers.`,
@@ -78,7 +76,7 @@ ALMDeployFactoryV2.StrategyCreated.handler(async ({ event, context }) => {
   }
 
   const currentTotalSupplyLPTokens =
-    ALM_TotalSupplyLimitUpdated_event.currentTotalSupplyLPTokens;
+    totalSupplyEvent.currentTotalSupplyLPTokens;
 
   // Create ALM_LP_Wrapper (single entity tracks both wrapper and strategy)
   // This single entity contains both wrapper-level aggregations and strategy/position state

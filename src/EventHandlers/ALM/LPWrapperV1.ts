@@ -18,7 +18,7 @@ import { recalculateLPWrapperAmountsFromLiquidity } from "./LPWrapperLogic";
  * The `recipient` is the one who receives the LP tokens and should have their stats updated.
  */
 ALMLPWrapperV1.Deposit.handler(async ({ event, context }) => {
-  const { sender, recipient, pool, lpAmount, amount0, amount1 } = event.params;
+  const { recipient, pool, lpAmount, amount0, amount1 } = event.params;
   const timestamp = new Date(event.block.timestamp * 1000);
 
   // Should be created already by StrategyCreated event
@@ -92,7 +92,7 @@ ALMLPWrapperV1.Deposit.handler(async ({ event, context }) => {
  * The `recipient` is the one who receives the tokens and should have their stats updated.
  */
 ALMLPWrapperV1.Withdraw.handler(async ({ event, context }) => {
-  const { sender, recipient, pool, lpAmount, amount0, amount1 } = event.params;
+  const { recipient, pool, lpAmount, amount0, amount1 } = event.params;
   const timestamp = new Date(event.block.timestamp * 1000);
 
   // Should be created already by StrategyCreated event

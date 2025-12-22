@@ -13,7 +13,7 @@ ALMDeployFactoryV1.StrategyCreated.handler(async ({ event, context }) => {
 
   const [strategyType, tickNeighborhood, tickSpacing, width] = strategyParams;
 
-  // In DeployFactory2, ammPosition is a single tuple, not an array
+  // In DeployFactoryV1, ammPosition is a single tuple (V2 uses an array)
   // Contract relationship: 1 LP wrapper per pool, 1 strategy per LP wrapper, 1 tokenId per strategy, 1 AMM position per tokenId
   const [token0, token1, property, tickLower, tickUpper, liquidity] =
     ammPosition;
