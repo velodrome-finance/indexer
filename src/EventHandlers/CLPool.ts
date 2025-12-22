@@ -5,7 +5,7 @@ import {
 } from "../Aggregators/LiquidityPoolAggregator";
 import { createOUSDTSwapEntity } from "../Aggregators/OUSDTSwaps";
 import {
-  loadUserData,
+  loadOrCreateUserData,
   updateUserStatsPerPool,
 } from "../Aggregators/UserStatsPerPool";
 import { OUSDT_ADDRESS } from "../Constants";
@@ -43,7 +43,7 @@ CLPool.Burn.handler(async ({ event, context }) => {
       event.block.number,
       event.block.timestamp,
     ),
-    loadUserData(
+    loadOrCreateUserData(
       event.params.owner,
       event.srcAddress,
       event.chainId,
@@ -75,7 +75,7 @@ CLPool.Burn.handler(async ({ event, context }) => {
       context,
       event.block.number,
     ),
-    updateUserStatsPerPool(userDiff, userData, timestamp, context),
+    updateUserStatsPerPool(userDiff, userData, context),
   ]);
 });
 
@@ -93,7 +93,7 @@ CLPool.Collect.handler(async ({ event, context }) => {
       event.block.number,
       event.block.timestamp,
     ),
-    loadUserData(
+    loadOrCreateUserData(
       event.params.owner, // Fees should be attributed to the owner, not the recipient
       event.srcAddress,
       event.chainId,
@@ -125,7 +125,7 @@ CLPool.Collect.handler(async ({ event, context }) => {
       context,
       event.block.number,
     ),
-    updateUserStatsPerPool(userDiff, userData, timestamp, context),
+    updateUserStatsPerPool(userDiff, userData, context),
   ]);
 });
 
@@ -145,7 +145,7 @@ CLPool.CollectFees.handler(async ({ event, context }) => {
       event.block.number,
       event.block.timestamp,
     ),
-    loadUserData(
+    loadOrCreateUserData(
       event.params.recipient,
       event.srcAddress,
       event.chainId,
@@ -182,7 +182,7 @@ CLPool.CollectFees.handler(async ({ event, context }) => {
       context,
       event.block.number,
     ),
-    updateUserStatsPerPool(userDiff, userData, timestamp, context),
+    updateUserStatsPerPool(userDiff, userData, context),
   ]);
 });
 
@@ -196,7 +196,7 @@ CLPool.Flash.handler(async ({ event, context }) => {
       event.block.number,
       event.block.timestamp,
     ),
-    loadUserData(
+    loadOrCreateUserData(
       event.params.sender,
       event.srcAddress,
       event.chainId,
@@ -229,11 +229,7 @@ CLPool.Flash.handler(async ({ event, context }) => {
       event.block.number,
     ),
     ...(userDiff.totalFlashLoanVolumeUSD > 0n
-      ? [
-          updateUserStatsPerPool(userDiff, userData, timestamp, context).then(
-            () => {},
-          ),
-        ]
+      ? [updateUserStatsPerPool(userDiff, userData, context)]
       : []),
   ]);
 });
@@ -278,7 +274,7 @@ CLPool.Mint.handler(async ({ event, context }) => {
       event.block.number,
       event.block.timestamp,
     ),
-    loadUserData(
+    loadOrCreateUserData(
       event.params.owner,
       event.srcAddress,
       event.chainId,
@@ -297,7 +293,10 @@ CLPool.Mint.handler(async ({ event, context }) => {
   const result = processCLPoolMint(event, token0Instance, token1Instance);
 
   const poolDiff = result.liquidityPoolDiff;
-  const userDiff = result.userLiquidityDiff;
+  const userDiff = {
+    ...result.userLiquidityDiff,
+    lastActivityTimestamp: new Date(event.block.timestamp * 1000),
+  };
 
   const timestamp = new Date(event.block.timestamp * 1000);
 
@@ -310,7 +309,7 @@ CLPool.Mint.handler(async ({ event, context }) => {
       context,
       event.block.number,
     ),
-    updateUserStatsPerPool(userDiff, userData, timestamp, context),
+    updateUserStatsPerPool(userDiff, userData, context),
   ]);
 
   // Create NonFungiblePosition entity
@@ -371,7 +370,7 @@ CLPool.Swap.handler(async ({ event, context }) => {
       event.block.number,
       event.block.timestamp,
     ),
-    loadUserData(
+    loadOrCreateUserData(
       event.params.sender,
       event.srcAddress,
       event.chainId,
@@ -409,7 +408,7 @@ CLPool.Swap.handler(async ({ event, context }) => {
       context,
       event.block.number,
     ),
-    updateUserStatsPerPool(userDiff, userData, timestamp, context),
+    updateUserStatsPerPool(userDiff, userData, context),
   ]);
 
   // Create oUSDTSwaps entity

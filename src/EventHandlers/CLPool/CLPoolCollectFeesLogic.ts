@@ -116,12 +116,14 @@ export function processCLPoolCollectFees(
     totalStakedFeesCollected1: stakedFeesData.totalStakedFeesCollected1,
     totalStakedFeesCollectedUSD: stakedFeesData.totalStakedFeesCollectedUSD,
     totalFeesUSDWhitelisted: stakedFeesData.totalFeesUSDWhitelisted,
+    lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
   };
 
   const userDiff = {
     totalFeesContributedUSD: stakedFeesData.totalStakedFeesCollectedUSD,
     totalFeesContributed0: event.params.amount0,
     totalFeesContributed1: event.params.amount1,
+    lastActivityTimestamp: new Date(event.block.timestamp * 1000),
   };
 
   return {

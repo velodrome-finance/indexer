@@ -1,10 +1,9 @@
 import { ALMLPWrapperV2 } from "generated";
-import { updateALMLPWrapper } from "../../Aggregators/ALMLPWrapper";
 import {
-  loadUserData,
-  updateUserStatsPerPool,
-} from "../../Aggregators/UserStatsPerPool";
-import { recalculateLPWrapperAmountsFromLiquidity } from "./LPWrapperLogic";
+  processDepositEvent,
+  processTransferEvent,
+  processWithdrawEvent,
+} from "./LPWrapperLogic";
 
 /**
  * Handler for ALM LP Wrapper Deposit events
@@ -18,63 +17,18 @@ ALMLPWrapperV2.Deposit.handler(async ({ event, context }) => {
   const { recipient, pool, amount0, amount1, lpAmount } = event.params;
   const timestamp = new Date(event.block.timestamp * 1000);
 
-  // Should be created already by StrategyCreated event
-  // Note: event.srcAddress should already be checksummed if tests use checksummed addresses
-  const lpWrapperId = `${event.srcAddress}_${event.chainId}`;
-  const ALMLPWrapperEntity = await context.ALM_LP_Wrapper.get(lpWrapperId);
-
-  if (!ALMLPWrapperEntity) {
-    context.log.error(
-      `ALM_LP_Wrapper entity not found for ${lpWrapperId}. It should have been created by StrategyCreated event.`,
-    );
-    return;
-  }
-
-  const userStats = await loadUserData(
+  await processDepositEvent(
     recipient,
     pool,
+    amount0,
+    amount1,
+    lpAmount,
+    event.srcAddress,
     event.chainId,
-    context,
+    event.block.number,
     timestamp,
+    context,
   );
-
-  // Recalculate amount0 and amount1 from current liquidity and current price
-  // Then add the deposited amounts to reflect the new tokens added to the position
-  const { amount0: recalculatedAmount0, amount1: recalculatedAmount1 } =
-    await recalculateLPWrapperAmountsFromLiquidity(
-      ALMLPWrapperEntity,
-      pool,
-      event.chainId,
-      event.block.number,
-      context,
-      "Deposit",
-    );
-
-  const ALMLPWrapperDiff = {
-    amount0: recalculatedAmount0 + amount0,
-    amount1: recalculatedAmount1 + amount1,
-    lpAmount: lpAmount,
-  };
-
-  const userStatsDiff = {
-    almAddress: event.srcAddress,
-    almAmount0: amount0,
-    almAmount1: amount1,
-    almLpAmount: lpAmount,
-  };
-
-  // Update pool-level ALM_LP_Wrapper entity and user-level UserStatsPerPool entity in parallel
-  await Promise.all([
-    updateALMLPWrapper(
-      ALMLPWrapperDiff,
-      ALMLPWrapperEntity,
-      timestamp,
-      context,
-    ),
-    // Update user-level UserStatsPerPool entity for the recipient
-    // The recipient receives the LP tokens, so they are the one with the ALM position
-    updateUserStatsPerPool(userStatsDiff, userStats, timestamp, context),
-  ]);
 });
 
 /**
@@ -82,69 +36,25 @@ ALMLPWrapperV2.Deposit.handler(async ({ event, context }) => {
  *
  * When a user withdraws from an ALM LP Wrapper:
  * 1. Updates the pool-level ALM_LP_Wrapper entity with decreased amounts
- * 2. Updates the user-level UserStatsPerPool entity for the sender
+ * 2. Updates the user-level UserStatsPerPool entity for the recipient
  *    (who withdraws and receives tokens) with their reduced ALM position
  */
 ALMLPWrapperV2.Withdraw.handler(async ({ event, context }) => {
   const { recipient, pool, amount0, amount1, lpAmount } = event.params;
   const timestamp = new Date(event.block.timestamp * 1000);
 
-  // Should be created already by StrategyCreated event
-  // Note: event.srcAddress should already be checksummed if tests use checksummed addresses
-  const lpWrapperId = `${event.srcAddress}_${event.chainId}`;
-  const ALMLPWrapperEntity = await context.ALM_LP_Wrapper.get(lpWrapperId);
-
-  if (!ALMLPWrapperEntity) {
-    context.log.error(
-      `ALM_LP_Wrapper entity not found for ${lpWrapperId}. It should have been created by StrategyCreated event.`,
-    );
-    return;
-  }
-
-  const userStats = await loadUserData(
+  await processWithdrawEvent(
     recipient,
     pool,
+    amount0,
+    amount1,
+    lpAmount,
+    event.srcAddress,
     event.chainId,
-    context,
+    event.block.number,
     timestamp,
+    context,
   );
-
-  // Recalculate amount0 and amount1 from current liquidity and current price
-  // Then subtract the withdrawn amounts to reflect the tokens removed from the position
-  const { amount0: recalculatedAmount0, amount1: recalculatedAmount1 } =
-    await recalculateLPWrapperAmountsFromLiquidity(
-      ALMLPWrapperEntity,
-      pool,
-      event.chainId,
-      event.block.number,
-      context,
-      "Withdraw",
-    );
-
-  const ALMLPWrapperDiff = {
-    amount0: recalculatedAmount0 - amount0,
-    amount1: recalculatedAmount1 - amount1,
-    lpAmount: -lpAmount,
-  };
-
-  const userStatsDiff = {
-    almAmount0: -amount0,
-    almAmount1: -amount1,
-    almLpAmount: -lpAmount,
-  };
-
-  // Update pool-level ALM_LP_Wrapper entity and user-level UserStatsPerPool entity in parallel
-  await Promise.all([
-    updateALMLPWrapper(
-      ALMLPWrapperDiff,
-      ALMLPWrapperEntity,
-      timestamp,
-      context,
-    ),
-    // Update user-level UserStatsPerPool entity for the sender
-    // The sender withdraws and receives tokens, so their position decreases
-    updateUserStatsPerPool(userStatsDiff, userStats, timestamp, context),
-  ]);
 });
 
 /**
@@ -167,52 +77,15 @@ ALMLPWrapperV2.Transfer.handler(async ({ event, context }) => {
   const { from, to, value } = event.params;
   const timestamp = new Date(event.block.timestamp * 1000);
 
-  // Load wrapper - poolAddress is not available in Transfer events
-  // The wrapper should already exist from previous Deposit/Withdraw or StrategyCreated events
-  const lpWrapperId = `${event.srcAddress}_${event.chainId}`;
-  const ALMLPWrapperEntity = await context.ALM_LP_Wrapper.get(lpWrapperId);
-
-  if (!ALMLPWrapperEntity) {
-    context.log.error(
-      `ALM_LP_Wrapper entity not found for ${lpWrapperId}. It should have been created by StrategyCreated event.`,
-    );
-    return;
-  }
-
-  const [userStatsFrom, userStatsTo] = await Promise.all([
-    loadUserData(
-      from,
-      ALMLPWrapperEntity.pool,
-      event.chainId,
-      context,
-      timestamp,
-    ),
-    loadUserData(
-      to,
-      ALMLPWrapperEntity.pool,
-      event.chainId,
-      context,
-      timestamp,
-    ),
-  ]);
-
-  const UserStatsFromDiff = {
-    almLpAmount: -value,
-  };
-
-  const UserStatsToDiff = {
-    almLpAmount: value,
-  };
-
-  await Promise.all([
-    updateUserStatsPerPool(
-      UserStatsFromDiff,
-      userStatsFrom,
-      timestamp,
-      context,
-    ),
-    updateUserStatsPerPool(UserStatsToDiff, userStatsTo, timestamp, context),
-  ]);
+  await processTransferEvent(
+    from,
+    to,
+    value,
+    event.srcAddress,
+    event.chainId,
+    timestamp,
+    context,
+  );
 });
 
 /**

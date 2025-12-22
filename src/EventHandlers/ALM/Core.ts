@@ -47,6 +47,7 @@ ALMCore.Rebalance.handler(async ({ event, context }) => {
     tickUpper: tickUpper,
     property: property,
     liquidity: liquidity,
+    ammStateIsDerived: false,
     // Recalculate wrapper-level amounts from current liquidity and price
     amount0: recalculatedAmounts.amount0,
     amount1: recalculatedAmounts.amount1,

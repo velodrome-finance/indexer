@@ -30,6 +30,10 @@ export async function updateALMLPWrapper(
     tickUpper:
       diff.tickUpper !== undefined ? diff.tickUpper : current.tickUpper,
     property: diff.property !== undefined ? diff.property : current.property,
+    ammStateIsDerived:
+      diff.ammStateIsDerived !== undefined
+        ? diff.ammStateIsDerived
+        : current.ammStateIsDerived,
     lastUpdatedTimestamp: timestamp,
   };
 

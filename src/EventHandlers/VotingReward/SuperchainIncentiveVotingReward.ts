@@ -5,7 +5,7 @@ import {
   updateLiquidityPoolAggregator,
 } from "../../Aggregators/LiquidityPoolAggregator";
 import {
-  loadUserData,
+  loadOrCreateUserData,
   updateUserStatsPerPool,
 } from "../../Aggregators/UserStatsPerPool";
 import {
@@ -56,12 +56,7 @@ SuperchainIncentiveVotingReward.ClaimRewards.handler(
           )
         : Promise.resolve(),
       result.userDiff
-        ? updateUserStatsPerPool(
-            result.userDiff,
-            loadedData.userData,
-            new Date(data.timestamp * 1000),
-            context,
-          )
+        ? updateUserStatsPerPool(result.userDiff, loadedData.userData, context)
         : Promise.resolve(),
     ]);
   },

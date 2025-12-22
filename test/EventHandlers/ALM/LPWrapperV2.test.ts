@@ -79,6 +79,7 @@ describe("ALMLPWrapperV2 Events", () => {
       expect(wrapper?.lpAmount).to.equal(
         mockALMLPWrapperData.lpAmount + 1000n * TEN_TO_THE_18_BI,
       ); // 2000 + 1000 = 3000
+      expect(wrapper?.ammStateIsDerived).to.equal(true);
       expect(wrapper?.lastUpdatedTimestamp).to.deep.equal(
         new Date(1000000 * 1000),
       );
@@ -145,6 +146,9 @@ describe("ALMLPWrapperV2 Events", () => {
       );
       expect(userStats?.poolAddress).to.equal(toChecksumAddress(poolAddress));
       expect(userStats?.chainId).to.equal(chainId);
+      // User amounts are derived from LP share, not directly from event amounts
+      // After deposit: wrapper amount0=1500, amount1=750, lpAmount=3000
+      // User LP=1000, so user gets: amount0=(1500*1000)/3000=500, amount1=(750*1000)/3000=250
       expect(userStats?.almAmount0).to.equal(500n * TEN_TO_THE_18_BI);
       expect(userStats?.almAmount1).to.equal(250n * TEN_TO_THE_6_BI);
       expect(userStats?.almLpAmount).to.equal(1000n * TEN_TO_THE_18_BI);
@@ -192,9 +196,11 @@ describe("ALMLPWrapperV2 Events", () => {
       const userStats = result.entities.UserStatsPerPool.get(userStatsId);
 
       expect(userStats).to.not.be.undefined;
-      // ALM amounts should be cumulative (added to existing values)
-      expect(userStats?.almAmount0).to.equal(800n * TEN_TO_THE_18_BI); // 300 + 500
-      expect(userStats?.almAmount1).to.equal(400n * TEN_TO_THE_6_BI); // 150 + 250
+      // ALM amounts are derived from LP share after deposit
+      // After deposit: wrapper amount0=1500, amount1=750, lpAmount=3000
+      // User LP=1600 (600 existing + 1000 new), so user gets: amount0=(1500*1600)/3000=800, amount1=(750*1600)/3000=400
+      expect(userStats?.almAmount0).to.equal(800n * TEN_TO_THE_18_BI);
+      expect(userStats?.almAmount1).to.equal(400n * TEN_TO_THE_6_BI);
       expect(userStats?.almLpAmount).to.equal(1600n * TEN_TO_THE_18_BI); // 600 + 1000
       expect(userStats?.lastActivityTimestamp).to.deep.equal(
         new Date(1000000 * 1000),
@@ -247,6 +253,9 @@ describe("ALMLPWrapperV2 Events", () => {
       expect(wrapper?.lpAmount).to.equal(
         mockALMLPWrapperData.lpAmount + 1000n * TEN_TO_THE_18_BI,
       );
+      // User amounts are derived from LP share after deposit
+      // After deposit: wrapper amount0=1500, amount1=750, lpAmount=3000
+      // User LP=1000, so user gets: amount0=(1500*1000)/3000=500, amount1=(750*1000)/3000=250
       expect(userStats?.almAmount0).to.equal(500n * TEN_TO_THE_18_BI);
       expect(userStats?.almAmount1).to.equal(250n * TEN_TO_THE_6_BI);
       expect(userStats?.almLpAmount).to.equal(1000n * TEN_TO_THE_18_BI);
@@ -294,6 +303,7 @@ describe("ALMLPWrapperV2 Events", () => {
       ); // 500 - 125 = 375
       // lpAmount is decremented (aggregation from events)
       expect(wrapper?.lpAmount).to.equal(1500n * TEN_TO_THE_18_BI); // 2000 - 500
+      expect(wrapper?.ammStateIsDerived).to.equal(true);
       expect(wrapper?.lastUpdatedTimestamp).to.deep.equal(
         new Date(1000000 * 1000),
       );
@@ -366,9 +376,11 @@ describe("ALMLPWrapperV2 Events", () => {
       const userStats = result.entities.UserStatsPerPool.get(userStatsId);
 
       expect(userStats).to.not.be.undefined;
-      // ALM amounts should be cumulative (subtracted from existing values)
-      expect(userStats?.almAmount0).to.equal(750n * TEN_TO_THE_18_BI); // 1000 - 250
-      expect(userStats?.almAmount1).to.equal(375n * TEN_TO_THE_6_BI); // 500 - 125
+      // ALM amounts are derived from LP share after withdrawal
+      // After withdrawal: wrapper amount0=750, amount1=375, lpAmount=1500
+      // User LP=1500 (2000 - 500), so user gets: amount0=(750*1500)/1500=750, amount1=(375*1500)/1500=375
+      expect(userStats?.almAmount0).to.equal(750n * TEN_TO_THE_18_BI);
+      expect(userStats?.almAmount1).to.equal(375n * TEN_TO_THE_6_BI);
       expect(userStats?.almLpAmount).to.equal(1500n * TEN_TO_THE_18_BI); // 2000 - 500
       expect(userStats?.lastActivityTimestamp).to.deep.equal(
         new Date(1000000 * 1000),
@@ -434,11 +446,24 @@ describe("ALMLPWrapperV2 Events", () => {
         result.entities.UserStatsPerPool.get(userStatsFromId);
       expect(userStatsFrom).to.not.be.undefined;
       expect(userStatsFrom?.almLpAmount).to.equal(4000n * TEN_TO_THE_18_BI); // 5000 - 1000
+      // Sender's amounts are derived from LP share after transfer
+      // Wrapper: amount0=1000, amount1=500, lpAmount=2000 (unchanged in transfers)
+      // Sender LP=4000, so sender gets: amount0=(1000*4000)/2000=2000, amount1=(500*4000)/2000=1000
+      expect(userStatsFrom?.almAmount0).to.equal(2000n * TEN_TO_THE_18_BI);
+      expect(userStatsFrom?.almAmount1).to.equal(1000n * TEN_TO_THE_6_BI);
 
       // Verify recipient's almLpAmount increased
       const userStatsTo = result.entities.UserStatsPerPool.get(userStatsToId);
       expect(userStatsTo).to.not.be.undefined;
       expect(userStatsTo?.almLpAmount).to.equal(3000n * TEN_TO_THE_18_BI); // 2000 + 1000
+      // Recipient's amounts are derived from LP share after transfer
+      // Wrapper: amount0=1000, amount1=500, lpAmount=2000 (unchanged in transfers)
+      // Recipient LP=3000, so recipient gets: amount0=(1000*3000)/2000=1500, amount1=(500*3000)/2000=750
+      expect(userStatsTo?.almAmount0).to.equal(1500n * TEN_TO_THE_18_BI);
+      expect(userStatsTo?.almAmount1).to.equal(750n * TEN_TO_THE_6_BI);
+      expect(userStatsTo?.almAddress).to.equal(
+        toChecksumAddress(lpWrapperAddress),
+      );
     });
 
     it("should handle transfer when recipient has no existing ALM position", async () => {
@@ -485,6 +510,14 @@ describe("ALMLPWrapperV2 Events", () => {
       const userStatsTo = result.entities.UserStatsPerPool.get(userStatsToId);
       expect(userStatsTo).to.not.be.undefined;
       expect(userStatsTo?.almLpAmount).to.equal(500n * TEN_TO_THE_18_BI); // 0 + 500
+      // Recipient's amounts are derived from LP share after transfer
+      // Wrapper: amount0=1000, amount1=500, lpAmount=2000 (unchanged in transfers)
+      // Recipient LP=500, so recipient gets: amount0=(1000*500)/2000=250, amount1=(500*500)/2000=125
+      expect(userStatsTo?.almAmount0).to.equal(250n * TEN_TO_THE_18_BI);
+      expect(userStatsTo?.almAmount1).to.equal(125n * TEN_TO_THE_6_BI);
+      expect(userStatsTo?.almAddress).to.equal(
+        toChecksumAddress(lpWrapperAddress),
+      );
     });
 
     it("should not update when ALM_LP_Wrapper entity not found", async () => {
@@ -515,6 +548,75 @@ describe("ALMLPWrapperV2 Events", () => {
       const userStatsTo = result.entities.UserStatsPerPool.get(userStatsToId);
       expect(userStatsFrom).to.be.undefined;
       expect(userStatsTo).to.be.undefined;
+    });
+
+    it("should skip zero address transfers (mint/burn) to avoid double counting", async () => {
+      let mockDb = MockDb.createMockDb();
+
+      // Pre-populate with existing wrapper
+      const wrapperId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
+      mockDb = mockDb.entities.ALM_LP_Wrapper.set({
+        ...mockALMLPWrapperData,
+        id: wrapperId,
+      });
+
+      const zeroAddress = "0x0000000000000000000000000000000000000000";
+      const transferAmount = 1000n * TEN_TO_THE_18_BI;
+
+      // Mint: from zero address - handler should return early without updating UserStatsPerPool
+      // Deposit/Withdraw events already handle mints/burns correctly
+      const mintEvent = ALMLPWrapperV2.Transfer.createMockEvent({
+        from: zeroAddress,
+        to: recipientAddress,
+        value: transferAmount,
+        mockEventData,
+      });
+
+      const mintResult = await ALMLPWrapperV2.Transfer.processEvent({
+        event: mintEvent,
+        mockDb,
+      });
+
+      const toUserStatsId = `${toChecksumAddress(recipientAddress)}_${toChecksumAddress(poolAddress)}_${chainId}`;
+      const toUserStats =
+        mintResult.entities.UserStatsPerPool.get(toUserStatsId);
+
+      // Handler returns early for mints, so no UserStatsPerPool should be created/updated
+      expect(toUserStats).to.be.undefined;
+
+      // Burn: to zero address - handler should return early without updating UserStatsPerPool
+      // Pre-populate with user stats for the burner
+      const burnerAddress = senderAddress;
+      const burnerUserStatsId = `${toChecksumAddress(burnerAddress)}_${toChecksumAddress(poolAddress)}_${chainId}`;
+      mockDb = mockDb.entities.UserStatsPerPool.set(
+        createMockUserStatsPerPool({
+          userAddress: burnerAddress,
+          poolAddress: poolAddress,
+          chainId: chainId,
+          almLpAmount: transferAmount,
+        }),
+      );
+
+      const burnEvent = ALMLPWrapperV2.Transfer.createMockEvent({
+        from: burnerAddress,
+        to: zeroAddress,
+        value: transferAmount,
+        mockEventData,
+      });
+
+      const burnResult = await ALMLPWrapperV2.Transfer.processEvent({
+        event: burnEvent,
+        mockDb,
+      });
+
+      const burnerUserStats =
+        burnResult.entities.UserStatsPerPool.get(burnerUserStatsId);
+
+      // Handler returns early for burns, so UserStatsPerPool should remain unchanged
+      expect(burnerUserStats).to.not.be.undefined;
+      expect(burnerUserStats?.almLpAmount).to.equal(transferAmount); // Unchanged
+      expect(burnerUserStats?.almAmount0).to.equal(0n); // Unchanged
+      expect(burnerUserStats?.almAmount1).to.equal(0n); // Unchanged
     });
   });
 
@@ -641,8 +743,14 @@ describe("ALMLPWrapperV2 Events", () => {
       const userStats2 = result.entities.UserStatsPerPool.get(userStats2Id);
 
       expect(userStats1).to.not.be.undefined;
+      // User1 amounts are derived from LP share after both deposits
+      // After both deposits: wrapper amount0=2500, amount1=1250, lpAmount=5000
+      // User1 LP=1000, so user1 gets: amount0=(2500*1000)/5000=500, amount1=(1250*1000)/5000=250
       expect(userStats1?.almAmount0).to.equal(500n * TEN_TO_THE_18_BI);
       expect(userStats2).to.not.be.undefined;
+      // User2 amounts are derived from LP share after both deposits
+      // After both deposits: wrapper amount0=2500, amount1=1250, lpAmount=5000
+      // User2 LP=2000, so user2 gets: amount0=(2500*2000)/5000=1000, amount1=(1250*2000)/5000=500
       expect(userStats2?.almAmount0).to.equal(1000n * TEN_TO_THE_18_BI);
     });
 

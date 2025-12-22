@@ -134,7 +134,7 @@ describe("Voter Events", () => {
         expect(
           Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()).length,
         ).to.equal(0);
-        // loadUserData is called in parallel and creates UserStatsPerPool even if pool doesn't exist
+        // loadOrCreateUserData is called in parallel and creates UserStatsPerPool even if pool doesn't exist
         // This is expected behavior - the entity is created but not updated
         expect(
           Array.from(resultDB.entities.UserStatsPerPool.getAll()).length,
@@ -365,7 +365,7 @@ describe("Voter Events", () => {
         expect(
           Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()).length,
         ).to.equal(0);
-        // loadUserData is called in parallel and creates UserStatsPerPool even if pool doesn't exist
+        // loadOrCreateUserData is called in parallel and creates UserStatsPerPool even if pool doesn't exist
         // This is expected behavior - the entity is created but not updated
         expect(
           Array.from(resultDB.entities.UserStatsPerPool.getAll()).length,

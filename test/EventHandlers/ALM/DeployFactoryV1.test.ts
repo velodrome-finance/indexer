@@ -138,6 +138,8 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
       expect(createdWrapper?.lastUpdatedTimestamp).to.deep.equal(
         new Date(blockTimestamp * 1000),
       );
+      // Initial state from StrategyCreated is from on-chain AMM position, not derived
+      expect(createdWrapper?.ammStateIsDerived).to.equal(false);
     });
 
     it("should not create entity when NonFungiblePosition not found", async () => {

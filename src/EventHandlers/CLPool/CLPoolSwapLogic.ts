@@ -73,6 +73,7 @@ export async function processCLPoolSwap(
     reserve0: event.params.amount0, // Delta: can be positive or negative (signed int256)
     reserve1: event.params.amount1, // Delta: can be positive or negative (signed int256)
     totalLiquidityUSD: deltaTotalLiquidityUSD,
+    lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
   };
 
   const userSwapDiff = {
@@ -80,6 +81,7 @@ export async function processCLPoolSwap(
     totalSwapVolumeUSD: swapData.volumeInUSD,
     totalSwapVolumeAmount0: abs(event.params.amount0),
     totalSwapVolumeAmount1: abs(event.params.amount1),
+    lastActivityTimestamp: new Date(event.block.timestamp * 1000),
   };
 
   return {

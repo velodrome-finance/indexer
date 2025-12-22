@@ -119,6 +119,8 @@ export enum PriceOracleType {
  */
 export const RPC_TIMEOUT_MS = 60000;
 
+export const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+
 /**
  * Default/fallback public RPC URLs for each chain
  * Used as fallback when private RPC fails or doesn't have historical state

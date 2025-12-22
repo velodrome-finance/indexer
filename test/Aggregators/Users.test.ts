@@ -100,12 +100,14 @@ describe("UserStatsPerPool Aggregator", () => {
       );
 
       const netLiquidityAddedUSD = 1000n;
-      const diff = { currentLiquidityUSD: netLiquidityAddedUSD };
+      const diff = {
+        currentLiquidityUSD: netLiquidityAddedUSD,
+        lastActivityTimestamp: mockTimestamp,
+      };
 
       const result = await updateUserStatsPerPool(
         diff,
         mockUserData,
-        mockTimestamp,
         mockContext,
       );
 
@@ -132,12 +134,14 @@ describe("UserStatsPerPool Aggregator", () => {
       );
 
       const netLiquidityRemovedUSD = -500n;
-      const diff = { currentLiquidityUSD: netLiquidityRemovedUSD };
+      const diff = {
+        currentLiquidityUSD: netLiquidityRemovedUSD,
+        lastActivityTimestamp: mockTimestamp,
+      };
 
       const result = await updateUserStatsPerPool(
         diff,
         mockUserData,
-        mockTimestamp,
         mockContext,
       );
 
@@ -166,12 +170,12 @@ describe("UserStatsPerPool Aggregator", () => {
         totalFeesContributedUSD: 1000n,
         totalFeesContributed0: 500n,
         totalFeesContributed1: 300n,
+        lastActivityTimestamp: mockTimestamp,
       };
 
       const result = await updateUserStatsPerPool(
         diff,
         mockUserData,
-        mockTimestamp,
         mockContext,
       );
 
@@ -201,12 +205,12 @@ describe("UserStatsPerPool Aggregator", () => {
         totalSwapVolumeUSD: 5000n,
         totalSwapVolumeAmount0: 1000n,
         totalSwapVolumeAmount1: 2000n,
+        lastActivityTimestamp: mockTimestamp,
       };
 
       const result = await updateUserStatsPerPool(
         diff,
         mockUserData,
-        mockTimestamp,
         mockContext,
       );
 
@@ -239,9 +243,9 @@ describe("UserStatsPerPool Aggregator", () => {
           totalSwapVolumeUSD: 5000n,
           totalSwapVolumeAmount0: 1000n, // abs(1000)
           totalSwapVolumeAmount1: 2000n, // abs(-2000)
+          lastActivityTimestamp: mockTimestamp,
         },
         userStats,
-        mockTimestamp,
         mockContext,
       );
 
@@ -257,9 +261,9 @@ describe("UserStatsPerPool Aggregator", () => {
           totalSwapVolumeUSD: 8000n,
           totalSwapVolumeAmount0: 500n, // abs(-500)
           totalSwapVolumeAmount1: 3000n, // abs(3000)
+          lastActivityTimestamp: mockTimestamp,
         },
         userStats,
-        mockTimestamp,
         mockContext,
       );
 
@@ -275,9 +279,9 @@ describe("UserStatsPerPool Aggregator", () => {
           totalSwapVolumeUSD: 12000n,
           totalSwapVolumeAmount0: 2500n, // abs(-2500)
           totalSwapVolumeAmount1: 1500n, // abs(-1500)
+          lastActivityTimestamp: mockTimestamp,
         },
         userStats,
-        mockTimestamp,
         mockContext,
       );
 
@@ -305,12 +309,12 @@ describe("UserStatsPerPool Aggregator", () => {
       const diff = {
         numberOfFlashLoans: 1n,
         totalFlashLoanVolumeUSD: 10000n,
+        lastActivityTimestamp: mockTimestamp,
       };
 
       const result = await updateUserStatsPerPool(
         diff,
         mockUserData,
-        mockTimestamp,
         mockContext,
       );
 
@@ -341,12 +345,12 @@ describe("UserStatsPerPool Aggregator", () => {
         totalSwapVolumeUSD: 8000n,
         numberOfFlashLoans: 1n,
         totalFlashLoanVolumeUSD: 15000n,
+        lastActivityTimestamp: mockTimestamp,
       };
 
       const result = await updateUserStatsPerPool(
         diff,
         mockUserData,
-        mockTimestamp,
         mockContext,
       );
 
@@ -395,12 +399,12 @@ describe("UserStatsPerPool Aggregator", () => {
         totalFeesContributedUSD: 500n,
         numberOfSwaps: 1n,
         totalSwapVolumeUSD: 3000n,
+        lastActivityTimestamp: mockTimestamp,
       };
 
       const result = await updateUserStatsPerPool(
         diff,
         existingUserStats,
-        mockTimestamp,
         mockContext,
       );
 
@@ -446,12 +450,12 @@ describe("UserStatsPerPool Aggregator", () => {
 
       const diff = {
         currentLiquidityUSD: -500n, // Removing liquidity
+        lastActivityTimestamp: mockTimestamp,
       };
 
       const result = await updateUserStatsPerPool(
         diff,
         existingUserStats,
-        mockTimestamp,
         mockContext,
       );
 

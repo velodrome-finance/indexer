@@ -5,7 +5,7 @@ import {
   updateLiquidityPoolAggregator,
 } from "../../Aggregators/LiquidityPoolAggregator";
 import {
-  loadUserData,
+  loadOrCreateUserData,
   updateUserStatsPerPool,
 } from "../../Aggregators/UserStatsPerPool";
 import {
@@ -57,7 +57,7 @@ export async function processGaugeDeposit(
   // Load pool data and user data concurrently
   const [poolData, userData] = await Promise.all([
     loadPoolData(pool.id, data.chainId, context),
-    loadUserData(
+    loadOrCreateUserData(
       userChecksumAddress,
       pool.id,
       data.chainId,
@@ -99,6 +99,7 @@ export async function processGaugeDeposit(
     numberOfGaugeDeposits: 1n,
     currentLiquidityStaked: data.amount, // Add to staked amount
     currentLiquidityStakedUSD,
+    lastActivityTimestamp: timestamp,
   };
 
   // Update pool and user entities in parallel
@@ -110,7 +111,7 @@ export async function processGaugeDeposit(
       context,
       data.blockNumber,
     ),
-    updateUserStatsPerPool(userDiff, userData, timestamp, context),
+    updateUserStatsPerPool(userDiff, userData, context),
   ]);
 }
 
@@ -143,7 +144,7 @@ export async function processGaugeWithdraw(
   // Load pool data and user data concurrently
   const [poolData, userData] = await Promise.all([
     loadPoolData(pool.id, data.chainId, context),
-    loadUserData(
+    loadOrCreateUserData(
       userChecksumAddress,
       pool.id,
       data.chainId,
@@ -185,6 +186,7 @@ export async function processGaugeWithdraw(
     numberOfGaugeWithdrawals: 1n,
     currentLiquidityStaked: -data.amount, // Subtract from staked amount
     currentLiquidityStakedUSD: -currentLiquidityStakedUSD,
+    lastActivityTimestamp: timestamp,
   };
 
   // Update pool and user entities in parallel
@@ -196,7 +198,7 @@ export async function processGaugeWithdraw(
       context,
       data.blockNumber,
     ),
-    updateUserStatsPerPool(userDiff, userData, timestamp, context),
+    updateUserStatsPerPool(userDiff, userData, context),
   ]);
 }
 
@@ -240,7 +242,7 @@ export async function processGaugeClaimRewards(
       data.blockNumber,
       data.timestamp,
     ),
-    loadUserData(
+    loadOrCreateUserData(
       userChecksumAddress,
       pool.id,
       data.chainId,
@@ -286,6 +288,7 @@ export async function processGaugeClaimRewards(
     numberOfGaugeRewardClaims: 1n,
     totalGaugeRewardsClaimedUSD: rewardAmountUSD,
     totalGaugeRewardsClaimed: data.amount, // in token units
+    lastActivityTimestamp: timestamp,
   };
 
   // Update pool and user entities in parallel
@@ -297,6 +300,6 @@ export async function processGaugeClaimRewards(
       context,
       data.blockNumber,
     ),
-    updateUserStatsPerPool(userDiff, userData, timestamp, context),
+    updateUserStatsPerPool(userDiff, userData, context),
   ]);
 }
