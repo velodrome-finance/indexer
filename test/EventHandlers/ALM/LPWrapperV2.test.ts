@@ -1,5 +1,5 @@
 import { expect } from "chai";
-import { ALMLPWrapper, MockDb } from "../../../generated/src/TestHelpers.gen";
+import { ALMLPWrapperV2, MockDb } from "../../../generated/src/TestHelpers.gen";
 import {
   TEN_TO_THE_6_BI,
   TEN_TO_THE_18_BI,
@@ -7,7 +7,7 @@ import {
 } from "../../../src/Constants";
 import { setupCommon } from "../Pool/common";
 
-describe("ALMLPWrapper Events", () => {
+describe("ALMLPWrapperV2 Events", () => {
   const {
     mockALMLPWrapperData,
     mockLiquidityPoolData,
@@ -44,8 +44,9 @@ describe("ALMLPWrapper Events", () => {
         id: wrapperId,
       });
 
-      const mockEvent = ALMLPWrapper.Deposit.createMockEvent({
-        sender: senderAddress,
+      // V2: Deposit event has sender, recipient, pool, amount0, amount1, lpAmount, totalSupply
+      // The handler only uses recipient (not sender), so we only need to provide recipient in the mock
+      const mockEvent = ALMLPWrapperV2.Deposit.createMockEvent({
         recipient: recipientAddress,
         pool: poolAddress,
         lpAmount: 1000n * TEN_TO_THE_18_BI,
@@ -54,7 +55,7 @@ describe("ALMLPWrapper Events", () => {
         mockEventData,
       });
 
-      const result = await ALMLPWrapper.Deposit.processEvent({
+      const result = await ALMLPWrapperV2.Deposit.processEvent({
         event: mockEvent,
         mockDb,
       });
@@ -86,8 +87,9 @@ describe("ALMLPWrapper Events", () => {
     it("should not update when ALM_LP_Wrapper entity not found", async () => {
       const mockDb = MockDb.createMockDb();
 
-      const mockEvent = ALMLPWrapper.Deposit.createMockEvent({
-        sender: senderAddress,
+      // V2: Deposit event has sender, recipient, pool, amount0, amount1, lpAmount, totalSupply
+      // The handler only uses recipient (not sender), so we only need to provide recipient in the mock
+      const mockEvent = ALMLPWrapperV2.Deposit.createMockEvent({
         recipient: recipientAddress,
         pool: poolAddress,
         lpAmount: 1000n * TEN_TO_THE_18_BI,
@@ -96,7 +98,7 @@ describe("ALMLPWrapper Events", () => {
         mockEventData,
       });
 
-      const result = await ALMLPWrapper.Deposit.processEvent({
+      const result = await ALMLPWrapperV2.Deposit.processEvent({
         event: mockEvent,
         mockDb,
       });
@@ -117,8 +119,9 @@ describe("ALMLPWrapper Events", () => {
         id: wrapperId,
       });
 
-      const mockEvent = ALMLPWrapper.Deposit.createMockEvent({
-        sender: senderAddress,
+      // V2: Deposit event has sender, recipient, pool, amount0, amount1, lpAmount, totalSupply
+      // The handler only uses recipient (not sender), so we only need to provide recipient in the mock
+      const mockEvent = ALMLPWrapperV2.Deposit.createMockEvent({
         recipient: recipientAddress,
         pool: poolAddress,
         lpAmount: 1000n * TEN_TO_THE_18_BI,
@@ -127,7 +130,7 @@ describe("ALMLPWrapper Events", () => {
         mockEventData,
       });
 
-      const result = await ALMLPWrapper.Deposit.processEvent({
+      const result = await ALMLPWrapperV2.Deposit.processEvent({
         event: mockEvent,
         mockDb,
       });
@@ -170,8 +173,9 @@ describe("ALMLPWrapper Events", () => {
         }),
       );
 
-      const mockEvent = ALMLPWrapper.Deposit.createMockEvent({
-        sender: senderAddress,
+      // V2: Deposit event has sender, recipient, pool, amount0, amount1, lpAmount, totalSupply
+      // The handler only uses recipient (not sender), so we only need to provide recipient in the mock
+      const mockEvent = ALMLPWrapperV2.Deposit.createMockEvent({
         recipient: recipientAddress,
         pool: poolAddress,
         lpAmount: 1000n * TEN_TO_THE_18_BI,
@@ -180,7 +184,7 @@ describe("ALMLPWrapper Events", () => {
         mockEventData,
       });
 
-      const result = await ALMLPWrapper.Deposit.processEvent({
+      const result = await ALMLPWrapperV2.Deposit.processEvent({
         event: mockEvent,
         mockDb,
       });
@@ -207,8 +211,9 @@ describe("ALMLPWrapper Events", () => {
         id: wrapperId,
       });
 
-      const mockEvent = ALMLPWrapper.Deposit.createMockEvent({
-        sender: senderAddress,
+      // V2: Deposit event has sender, recipient, pool, amount0, amount1, lpAmount, totalSupply
+      // The handler only uses recipient (not sender), so we only need to provide recipient in the mock
+      const mockEvent = ALMLPWrapperV2.Deposit.createMockEvent({
         recipient: recipientAddress,
         pool: poolAddress,
         lpAmount: 1000n * TEN_TO_THE_18_BI,
@@ -217,7 +222,7 @@ describe("ALMLPWrapper Events", () => {
         mockEventData,
       });
 
-      const result = await ALMLPWrapper.Deposit.processEvent({
+      const result = await ALMLPWrapperV2.Deposit.processEvent({
         event: mockEvent,
         mockDb,
       });
@@ -259,8 +264,9 @@ describe("ALMLPWrapper Events", () => {
         id: wrapperId,
       });
 
-      const mockEvent = ALMLPWrapper.Withdraw.createMockEvent({
-        sender: senderAddress,
+      // V2: Withdraw event has sender, recipient, pool, amount0, amount1, lpAmount
+      // The handler only uses recipient (not sender), so we only need to provide recipient in the mock
+      const mockEvent = ALMLPWrapperV2.Withdraw.createMockEvent({
         recipient: recipientAddress,
         pool: poolAddress,
         lpAmount: 500n * TEN_TO_THE_18_BI,
@@ -269,7 +275,7 @@ describe("ALMLPWrapper Events", () => {
         mockEventData,
       });
 
-      const result = await ALMLPWrapper.Withdraw.processEvent({
+      const result = await ALMLPWrapperV2.Withdraw.processEvent({
         event: mockEvent,
         mockDb,
       });
@@ -296,8 +302,9 @@ describe("ALMLPWrapper Events", () => {
     it("should not update when ALM_LP_Wrapper entity not found", async () => {
       const mockDb = MockDb.createMockDb();
 
-      const mockEvent = ALMLPWrapper.Withdraw.createMockEvent({
-        sender: senderAddress,
+      // V2: Withdraw event has sender, recipient, pool, amount0, amount1, lpAmount
+      // The handler only uses recipient (not sender), so we only need to provide recipient in the mock
+      const mockEvent = ALMLPWrapperV2.Withdraw.createMockEvent({
         recipient: recipientAddress,
         pool: poolAddress,
         lpAmount: 500n * TEN_TO_THE_18_BI,
@@ -306,7 +313,7 @@ describe("ALMLPWrapper Events", () => {
         mockEventData,
       });
 
-      const result = await ALMLPWrapper.Withdraw.processEvent({
+      const result = await ALMLPWrapperV2.Withdraw.processEvent({
         event: mockEvent,
         mockDb,
       });
@@ -340,8 +347,9 @@ describe("ALMLPWrapper Events", () => {
         }),
       );
 
-      const mockEvent = ALMLPWrapper.Withdraw.createMockEvent({
-        sender: senderAddress,
+      // V2: Withdraw event has sender, recipient, pool, amount0, amount1, lpAmount
+      // The handler only uses recipient (not sender), so we only need to provide recipient in the mock
+      const mockEvent = ALMLPWrapperV2.Withdraw.createMockEvent({
         recipient: recipientAddress,
         pool: poolAddress,
         lpAmount: 500n * TEN_TO_THE_18_BI,
@@ -350,7 +358,7 @@ describe("ALMLPWrapper Events", () => {
         mockEventData,
       });
 
-      const result = await ALMLPWrapper.Withdraw.processEvent({
+      const result = await ALMLPWrapperV2.Withdraw.processEvent({
         event: mockEvent,
         mockDb,
       });
@@ -402,14 +410,14 @@ describe("ALMLPWrapper Events", () => {
       );
 
       const transferAmount = 1000n * TEN_TO_THE_18_BI;
-      const mockEvent = ALMLPWrapper.Transfer.createMockEvent({
+      const mockEvent = ALMLPWrapperV2.Transfer.createMockEvent({
         from: senderAddress,
         to: recipientAddress,
         value: transferAmount,
         mockEventData,
       });
 
-      const result = await ALMLPWrapper.Transfer.processEvent({
+      const result = await ALMLPWrapperV2.Transfer.processEvent({
         event: mockEvent,
         mockDb,
       });
@@ -455,14 +463,14 @@ describe("ALMLPWrapper Events", () => {
       );
 
       const transferAmount = 500n * TEN_TO_THE_18_BI;
-      const mockEvent = ALMLPWrapper.Transfer.createMockEvent({
+      const mockEvent = ALMLPWrapperV2.Transfer.createMockEvent({
         from: senderAddress,
         to: recipientAddress,
         value: transferAmount,
         mockEventData,
       });
 
-      const result = await ALMLPWrapper.Transfer.processEvent({
+      const result = await ALMLPWrapperV2.Transfer.processEvent({
         event: mockEvent,
         mockDb,
       });
@@ -482,14 +490,14 @@ describe("ALMLPWrapper Events", () => {
     it("should not update when ALM_LP_Wrapper entity not found", async () => {
       const mockDb = MockDb.createMockDb();
 
-      const mockEvent = ALMLPWrapper.Transfer.createMockEvent({
+      const mockEvent = ALMLPWrapperV2.Transfer.createMockEvent({
         from: senderAddress,
         to: recipientAddress,
         value: 1000n * TEN_TO_THE_18_BI,
         mockEventData,
       });
 
-      const result = await ALMLPWrapper.Transfer.processEvent({
+      const result = await ALMLPWrapperV2.Transfer.processEvent({
         event: mockEvent,
         mockDb,
       });
@@ -521,8 +529,9 @@ describe("ALMLPWrapper Events", () => {
         id: wrapperId,
       });
 
-      const mockEvent = ALMLPWrapper.Deposit.createMockEvent({
-        sender: senderAddress,
+      // V2: Deposit event has sender, recipient, pool, amount0, amount1, lpAmount, totalSupply
+      // The handler only uses recipient (not sender), so we only need to provide recipient in the mock
+      const mockEvent = ALMLPWrapperV2.Deposit.createMockEvent({
         recipient: recipientAddress,
         pool: poolAddress,
         lpAmount: 0n,
@@ -531,7 +540,7 @@ describe("ALMLPWrapper Events", () => {
         mockEventData,
       });
 
-      const result = await ALMLPWrapper.Deposit.processEvent({
+      const result = await ALMLPWrapperV2.Deposit.processEvent({
         event: mockEvent,
         mockDb,
       });
@@ -559,8 +568,9 @@ describe("ALMLPWrapper Events", () => {
       const recipient2 = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
 
       // First deposit
-      let mockEvent = ALMLPWrapper.Deposit.createMockEvent({
-        sender: senderAddress,
+      // V2: Deposit event has sender, recipient, pool, amount0, amount1, lpAmount, totalSupply
+      // The handler only uses recipient (not sender), so we only need to provide recipient in the mock
+      let mockEvent = ALMLPWrapperV2.Deposit.createMockEvent({
         recipient: recipientAddress,
         pool: poolAddress,
         lpAmount: 1000n * TEN_TO_THE_18_BI,
@@ -569,7 +579,7 @@ describe("ALMLPWrapper Events", () => {
         mockEventData,
       });
 
-      let result = await ALMLPWrapper.Deposit.processEvent({
+      let result = await ALMLPWrapperV2.Deposit.processEvent({
         event: mockEvent,
         mockDb,
       });
@@ -578,8 +588,7 @@ describe("ALMLPWrapper Events", () => {
       mockDb = result;
 
       // Second deposit from different user
-      mockEvent = ALMLPWrapper.Deposit.createMockEvent({
-        sender: senderAddress,
+      mockEvent = ALMLPWrapperV2.Deposit.createMockEvent({
         recipient: recipient2,
         pool: poolAddress,
         lpAmount: 2000n * TEN_TO_THE_18_BI,
@@ -594,7 +603,7 @@ describe("ALMLPWrapper Events", () => {
         },
       });
 
-      result = await ALMLPWrapper.Deposit.processEvent({
+      result = await ALMLPWrapperV2.Deposit.processEvent({
         event: mockEvent,
         mockDb: result,
       });
@@ -652,8 +661,9 @@ describe("ALMLPWrapper Events", () => {
       });
 
       // First deposit
-      let mockEvent = ALMLPWrapper.Deposit.createMockEvent({
-        sender: senderAddress,
+      // V2: Deposit event has sender, recipient, pool, amount0, amount1, lpAmount, totalSupply
+      // The handler only uses recipient (not sender), so we only need to provide recipient in the mock
+      let mockEvent = ALMLPWrapperV2.Deposit.createMockEvent({
         recipient: recipientAddress,
         pool: poolAddress,
         lpAmount: 1000n * TEN_TO_THE_18_BI,
@@ -662,7 +672,7 @@ describe("ALMLPWrapper Events", () => {
         mockEventData,
       });
 
-      let result = await ALMLPWrapper.Deposit.processEvent({
+      let result = await ALMLPWrapperV2.Deposit.processEvent({
         event: mockEvent,
         mockDb,
       });
@@ -670,8 +680,9 @@ describe("ALMLPWrapper Events", () => {
       mockDb = result;
 
       // Then withdraw
-      mockEvent = ALMLPWrapper.Withdraw.createMockEvent({
-        sender: senderAddress,
+      // V2: Withdraw event has sender, recipient, pool, amount0, amount1, lpAmount
+      // The handler only uses recipient (not sender), so we only need to provide recipient in the mock
+      mockEvent = ALMLPWrapperV2.Withdraw.createMockEvent({
         recipient: recipientAddress,
         pool: poolAddress,
         lpAmount: 500n * TEN_TO_THE_18_BI,
@@ -686,7 +697,7 @@ describe("ALMLPWrapper Events", () => {
         },
       });
 
-      result = await ALMLPWrapper.Withdraw.processEvent({
+      result = await ALMLPWrapperV2.Withdraw.processEvent({
         event: mockEvent,
         mockDb,
       });
@@ -709,14 +720,14 @@ describe("ALMLPWrapper Events", () => {
     it("should create ALM_TotalSupplyLimitUpdated_event entity", async () => {
       const mockDb = MockDb.createMockDb();
 
-      const mockEvent = ALMLPWrapper.TotalSupplyLimitUpdated.createMockEvent({
+      const mockEvent = ALMLPWrapperV2.TotalSupplyLimitUpdated.createMockEvent({
         newTotalSupplyLimit: 10000n * TEN_TO_THE_18_BI,
         totalSupplyLimitOld: 5000n * TEN_TO_THE_18_BI,
         totalSupplyCurrent: 7500n * TEN_TO_THE_18_BI,
         mockEventData,
       });
 
-      const result = await ALMLPWrapper.TotalSupplyLimitUpdated.processEvent({
+      const result = await ALMLPWrapperV2.TotalSupplyLimitUpdated.processEvent({
         event: mockEvent,
         mockDb,
       });
@@ -752,7 +763,7 @@ describe("ALMLPWrapper Events", () => {
 
       const newTransactionHash =
         "0x2222222222222222222222222222222222222222222222222222222222222222";
-      const mockEvent = ALMLPWrapper.TotalSupplyLimitUpdated.createMockEvent({
+      const mockEvent = ALMLPWrapperV2.TotalSupplyLimitUpdated.createMockEvent({
         newTotalSupplyLimit: 10000n * TEN_TO_THE_18_BI,
         totalSupplyLimitOld: 5000n * TEN_TO_THE_18_BI,
         totalSupplyCurrent: 8000n * TEN_TO_THE_18_BI,
@@ -764,7 +775,7 @@ describe("ALMLPWrapper Events", () => {
         },
       });
 
-      const result = await ALMLPWrapper.TotalSupplyLimitUpdated.processEvent({
+      const result = await ALMLPWrapperV2.TotalSupplyLimitUpdated.processEvent({
         event: mockEvent,
         mockDb,
       });

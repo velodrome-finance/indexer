@@ -241,6 +241,8 @@ export async function updateUserStatsPerPool(
       diff.almLpAmount !== undefined
         ? current.almLpAmount + diff.almLpAmount
         : current.almLpAmount,
+    almAddress:
+      diff.almAddress !== undefined ? diff.almAddress : current.almAddress,
 
     lastActivityTimestamp: timestamp,
   };

@@ -1,4 +1,4 @@
-import { ALMLPWrapper } from "generated";
+import { ALMLPWrapperV2 } from "generated";
 import { updateALMLPWrapper } from "../../Aggregators/ALMLPWrapper";
 import {
   loadUserData,
@@ -14,7 +14,7 @@ import { recalculateLPWrapperAmountsFromLiquidity } from "./LPWrapperLogic";
  * 2. Updates the user-level UserStatsPerPool entity for the recipient
  *    (who receives the LP tokens) with their ALM position
  */
-ALMLPWrapper.Deposit.handler(async ({ event, context }) => {
+ALMLPWrapperV2.Deposit.handler(async ({ event, context }) => {
   const { recipient, pool, amount0, amount1, lpAmount } = event.params;
   const timestamp = new Date(event.block.timestamp * 1000);
 
@@ -57,6 +57,7 @@ ALMLPWrapper.Deposit.handler(async ({ event, context }) => {
   };
 
   const userStatsDiff = {
+    almAddress: event.srcAddress,
     almAmount0: amount0,
     almAmount1: amount1,
     almLpAmount: lpAmount,
@@ -84,7 +85,7 @@ ALMLPWrapper.Deposit.handler(async ({ event, context }) => {
  * 2. Updates the user-level UserStatsPerPool entity for the sender
  *    (who withdraws and receives tokens) with their reduced ALM position
  */
-ALMLPWrapper.Withdraw.handler(async ({ event, context }) => {
+ALMLPWrapperV2.Withdraw.handler(async ({ event, context }) => {
   const { recipient, pool, amount0, amount1, lpAmount } = event.params;
   const timestamp = new Date(event.block.timestamp * 1000);
 
@@ -162,7 +163,7 @@ ALMLPWrapper.Withdraw.handler(async ({ event, context }) => {
  * Note: If the wrapper doesn't exist, this will fail since Transfer events don't include pool info.
  * This is expected behavior - wrappers should be created via Deposit/Withdraw events first.
  */
-ALMLPWrapper.Transfer.handler(async ({ event, context }) => {
+ALMLPWrapperV2.Transfer.handler(async ({ event, context }) => {
   const { from, to, value } = event.params;
   const timestamp = new Date(event.block.timestamp * 1000);
 
@@ -220,9 +221,8 @@ ALMLPWrapper.Transfer.handler(async ({ event, context }) => {
  * Persists the current LP token supply for a wrapper so other handlers
  * (e.g., StrategyCreated) can seed `lpAmount` from the latest supply.
  */
-ALMLPWrapper.TotalSupplyLimitUpdated.handler(async ({ event, context }) => {
-  const { newTotalSupplyLimit, totalSupplyLimitOld, totalSupplyCurrent } =
-    event.params;
+ALMLPWrapperV2.TotalSupplyLimitUpdated.handler(async ({ event, context }) => {
+  const { totalSupplyCurrent } = event.params;
 
   const ALM_TotalSupplyLimitUpdated_event = {
     id: `${event.srcAddress}_${event.chainId}`,
