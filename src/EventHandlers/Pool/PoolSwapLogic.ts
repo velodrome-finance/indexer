@@ -9,6 +9,8 @@ import { updateSwapTokenData } from "../../Helpers";
 export interface UserSwapDiff {
   numberOfSwaps: bigint;
   totalSwapVolumeUSD: bigint;
+  totalSwapVolumeAmount0: bigint;
+  totalSwapVolumeAmount1: bigint;
   lastActivityTimestamp: Date;
 }
 
@@ -54,6 +56,8 @@ export async function processPoolSwap(
   const userSwapDiff: UserSwapDiff = {
     numberOfSwaps: 1n,
     totalSwapVolumeUSD: swapData.volumeInUSD,
+    totalSwapVolumeAmount0: event.params.amount0In + event.params.amount0Out,
+    totalSwapVolumeAmount1: event.params.amount1In + event.params.amount1Out,
     lastActivityTimestamp: new Date(event.block.timestamp * 1000),
   };
 

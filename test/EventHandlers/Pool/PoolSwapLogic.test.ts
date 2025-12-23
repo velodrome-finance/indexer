@@ -5,6 +5,7 @@ import type {
   handlerContext,
 } from "generated";
 import { processPoolSwap } from "../../../src/EventHandlers/Pool/PoolSwapLogic";
+import * as Helpers from "../../../src/Helpers";
 import * as PriceOracle from "../../../src/PriceOracle";
 import { setupCommon } from "./common";
 
@@ -112,6 +113,8 @@ describe("PoolSwapLogic", () => {
       expect(result.userSwapDiff).toMatchObject({
         numberOfSwaps: 1n,
         totalSwapVolumeUSD: 1000n, // from swapData.volumeInUSD (token0: 1000 * 1 USD)
+        totalSwapVolumeAmount0: 1000n, // amount0In + amount0Out = 1000 + 0
+        totalSwapVolumeAmount1: 500n, // amount1In + amount1Out = 0 + 500
         lastActivityTimestamp: new Date(1000000 * 1000),
       });
 
@@ -276,6 +279,256 @@ describe("PoolSwapLogic", () => {
 
       expect(result.liquidityPoolDiff?.token0Price).toBe(2000000000000000000n);
       expect(result.liquidityPoolDiff?.token1Price).toBe(3000000000000000000n);
+    });
+
+    it("should correctly calculate totalSwapVolumeAmount0 and totalSwapVolumeAmount1", async () => {
+      const swapEvent: Pool_Swap_event = {
+        ...mockEvent,
+        params: {
+          ...mockEvent.params,
+          amount0In: 500n,
+          amount0Out: 300n,
+          amount1In: 200n,
+          amount1Out: 400n,
+        },
+      };
+
+      const result = await processPoolSwap(
+        swapEvent,
+        mockLiquidityPoolAggregator,
+        mockToken0,
+        mockToken1,
+        mockContext,
+      );
+
+      // totalSwapVolumeAmount0 should be amount0In + amount0Out = 500 + 300 = 800
+      expect(result.userSwapDiff?.totalSwapVolumeAmount0).toBe(800n);
+      // totalSwapVolumeAmount1 should be amount1In + amount1Out = 200 + 400 = 600
+      expect(result.userSwapDiff?.totalSwapVolumeAmount1).toBe(600n);
+    });
+  });
+
+  describe("Fallback branches (nullish coalescing)", () => {
+    let updateSwapTokenDataSpy: jest.SpyInstance;
+
+    beforeEach(() => {
+      updateSwapTokenDataSpy = jest.spyOn(Helpers, "updateSwapTokenData");
+    });
+
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    const createMockSwapData = (
+      overrides: Partial<
+        Awaited<ReturnType<typeof Helpers.updateSwapTokenData>>
+      > = {},
+    ) => ({
+      token0: mockToken0,
+      token1: mockToken1,
+      token0NetAmount: 1000n,
+      token1NetAmount: 500n,
+      volumeInUSD: 1000n,
+      volumeInUSDWhitelisted: 1000n,
+      ...overrides,
+    });
+
+    it("should use fallback when token0NetAmount is undefined", async () => {
+      updateSwapTokenDataSpy.mockResolvedValue(
+        createMockSwapData({ token0NetAmount: undefined }),
+      );
+
+      const result = await processPoolSwap(
+        mockEvent,
+        mockLiquidityPoolAggregator,
+        mockToken0,
+        mockToken1,
+        mockContext,
+      );
+
+      expect(result.liquidityPoolDiff?.totalVolume0).toBe(0n);
+      expect(result.liquidityPoolDiff?.totalVolume1).toBe(500n);
+    });
+
+    it("should use fallback when token1NetAmount is undefined", async () => {
+      updateSwapTokenDataSpy.mockResolvedValue(
+        createMockSwapData({ token1NetAmount: undefined }),
+      );
+
+      const result = await processPoolSwap(
+        mockEvent,
+        mockLiquidityPoolAggregator,
+        mockToken0,
+        mockToken1,
+        mockContext,
+      );
+
+      expect(result.liquidityPoolDiff?.totalVolume0).toBe(1000n);
+      expect(result.liquidityPoolDiff?.totalVolume1).toBe(0n);
+    });
+
+    it("should use fallback when token0 is undefined", async () => {
+      updateSwapTokenDataSpy.mockResolvedValue(
+        createMockSwapData({ token0: undefined }),
+      );
+
+      const result = await processPoolSwap(
+        mockEvent,
+        mockLiquidityPoolAggregator,
+        mockToken0,
+        mockToken1,
+        mockContext,
+      );
+
+      expect(result.liquidityPoolDiff?.token0Price).toBe(
+        mockLiquidityPoolAggregator.token0Price,
+      );
+      expect(result.liquidityPoolDiff?.token0IsWhitelisted).toBe(false);
+      expect(result.liquidityPoolDiff?.token1Price).toBe(
+        mockToken1.pricePerUSDNew,
+      );
+    });
+
+    it("should use fallback when token1 is undefined", async () => {
+      updateSwapTokenDataSpy.mockResolvedValue(
+        createMockSwapData({ token1: undefined }),
+      );
+
+      const result = await processPoolSwap(
+        mockEvent,
+        mockLiquidityPoolAggregator,
+        mockToken0,
+        mockToken1,
+        mockContext,
+      );
+
+      expect(result.liquidityPoolDiff?.token0Price).toBe(
+        mockToken0.pricePerUSDNew,
+      );
+      expect(result.liquidityPoolDiff?.token1Price).toBe(
+        mockLiquidityPoolAggregator.token1Price,
+      );
+      expect(result.liquidityPoolDiff?.token1IsWhitelisted).toBe(false);
+    });
+
+    it("should use fallback when token0.pricePerUSDNew is undefined", async () => {
+      const token0WithoutPrice = {
+        ...mockToken0,
+        pricePerUSDNew: undefined,
+      } as unknown as Token;
+
+      updateSwapTokenDataSpy.mockResolvedValue(
+        createMockSwapData({ token0: token0WithoutPrice }),
+      );
+
+      const result = await processPoolSwap(
+        mockEvent,
+        mockLiquidityPoolAggregator,
+        mockToken0,
+        mockToken1,
+        mockContext,
+      );
+
+      expect(result.liquidityPoolDiff?.token0Price).toBe(
+        mockLiquidityPoolAggregator.token0Price,
+      );
+    });
+
+    it("should use fallback when token1.pricePerUSDNew is undefined", async () => {
+      const token1WithoutPrice = {
+        ...mockToken1,
+        pricePerUSDNew: undefined,
+      } as unknown as Token;
+
+      updateSwapTokenDataSpy.mockResolvedValue(
+        createMockSwapData({ token1: token1WithoutPrice }),
+      );
+
+      const result = await processPoolSwap(
+        mockEvent,
+        mockLiquidityPoolAggregator,
+        mockToken0,
+        mockToken1,
+        mockContext,
+      );
+
+      expect(result.liquidityPoolDiff?.token1Price).toBe(
+        mockLiquidityPoolAggregator.token1Price,
+      );
+    });
+
+    it("should use fallback when token0.isWhitelisted is undefined", async () => {
+      const token0WithoutWhitelist = {
+        ...mockToken0,
+        isWhitelisted: undefined,
+      } as unknown as Token;
+
+      updateSwapTokenDataSpy.mockResolvedValue(
+        createMockSwapData({ token0: token0WithoutWhitelist }),
+      );
+
+      const result = await processPoolSwap(
+        mockEvent,
+        mockLiquidityPoolAggregator,
+        mockToken0,
+        mockToken1,
+        mockContext,
+      );
+
+      expect(result.liquidityPoolDiff?.token0IsWhitelisted).toBe(false);
+    });
+
+    it("should use fallback when token1.isWhitelisted is undefined", async () => {
+      const token1WithoutWhitelist = {
+        ...mockToken1,
+        isWhitelisted: undefined,
+      } as unknown as Token;
+
+      updateSwapTokenDataSpy.mockResolvedValue(
+        createMockSwapData({ token1: token1WithoutWhitelist }),
+      );
+
+      const result = await processPoolSwap(
+        mockEvent,
+        mockLiquidityPoolAggregator,
+        mockToken0,
+        mockToken1,
+        mockContext,
+      );
+
+      expect(result.liquidityPoolDiff?.token1IsWhitelisted).toBe(false);
+    });
+
+    it("should use fallback values when both tokens are undefined", async () => {
+      updateSwapTokenDataSpy.mockResolvedValue(
+        createMockSwapData({
+          token0: undefined,
+          token1: undefined,
+          token0NetAmount: undefined,
+          token1NetAmount: undefined,
+          volumeInUSD: 0n,
+          volumeInUSDWhitelisted: 0n,
+        }),
+      );
+
+      const result = await processPoolSwap(
+        mockEvent,
+        mockLiquidityPoolAggregator,
+        mockToken0,
+        mockToken1,
+        mockContext,
+      );
+
+      expect(result.liquidityPoolDiff?.token0Price).toBe(
+        mockLiquidityPoolAggregator.token0Price,
+      );
+      expect(result.liquidityPoolDiff?.token1Price).toBe(
+        mockLiquidityPoolAggregator.token1Price,
+      );
+      expect(result.liquidityPoolDiff?.token0IsWhitelisted).toBe(false);
+      expect(result.liquidityPoolDiff?.token1IsWhitelisted).toBe(false);
+      expect(result.liquidityPoolDiff?.totalVolume0).toBe(0n);
+      expect(result.liquidityPoolDiff?.totalVolume1).toBe(0n);
     });
   });
 });
