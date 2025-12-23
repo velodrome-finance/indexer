@@ -373,7 +373,7 @@ type SuperSwap {
   timestamp: Timestamp! # Block timestamp of the swap event
 }
 
-type oUSDTBridgedTransaction {
+type OUSDTBridgedTransaction {
   id: ID! # Transaction hash
   transactionHash: String! @index # Transaction hash
   originChainId: BigInt! @config(precision: 24) # Chain ID where the bridge transaction originated
@@ -385,7 +385,7 @@ type oUSDTBridgedTransaction {
 
 # Registering each event related from/to oUSDT. Needed for filtering and eventual registration of source/destination token
 # and corresponding amounts during superswaps execution
-type oUSDTSwaps {
+type OUSDTSwaps {
   id: ID! # {transactionHash}_{chainId}_{tokenInPool}_{amountIn}_{tokenOutPool}_{amountOut}
   transactionHash: String! @index # Transaction hash of the swap transaction
   tokenInPool: String! # Token that goes into the pool after swap

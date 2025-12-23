@@ -1,10 +1,10 @@
 import type {
   DispatchId_event,
+  OUSDTBridgedTransaction,
+  OUSDTSwaps,
   ProcessId_event,
   SuperSwap,
   handlerContext,
-  oUSDTBridgedTransaction,
-  oUSDTSwaps,
 } from "generated";
 import { OUSDT_ADDRESS } from "../../Constants";
 
@@ -57,12 +57,12 @@ export async function findSourceSwapWithOUSDT(
   transactionHash: string,
   context: handlerContext,
 ): Promise<{
-  swap: oUSDTSwaps;
+  swap: OUSDTSwaps;
   sourceChainToken: string;
   sourceChainTokenAmountSwapped: bigint;
 } | null> {
   const sourceChainSwaps =
-    await context.oUSDTSwaps.getWhere.transactionHash.eq(transactionHash);
+    await context.OUSDTSwaps.getWhere.transactionHash.eq(transactionHash);
 
   // Since we only store swaps involving oUSDT, take the first swap
   // (all stored swaps should involve oUSDT, but verify for safety)
@@ -113,15 +113,15 @@ export async function findSourceSwapWithOUSDT(
 export async function loadDestinationSwaps(
   destinationTransactionHashes: Set<string>,
   context: handlerContext,
-): Promise<Map<string, oUSDTSwaps[]>> {
+): Promise<Map<string, OUSDTSwaps[]>> {
   const transactionHashesArray = Array.from(destinationTransactionHashes);
   const swapPromises = transactionHashesArray.map((txHash) =>
-    context.oUSDTSwaps.getWhere.transactionHash.eq(txHash),
+    context.OUSDTSwaps.getWhere.transactionHash.eq(txHash),
   );
   const swapResults = await Promise.all(swapPromises);
 
   // Build map in single pass: O(T) instead of O(2T) from Array.from + forEach
-  const transactionHashToSwaps = new Map<string, oUSDTSwaps[]>();
+  const transactionHashToSwaps = new Map<string, OUSDTSwaps[]>();
   for (let i = 0; i < transactionHashesArray.length; i++) {
     transactionHashToSwaps.set(transactionHashesArray[i], swapResults[i]);
   }
@@ -142,10 +142,10 @@ export async function loadDestinationSwaps(
 export function findDestinationSwapWithOUSDT(
   sourceChainMessageIdEntities: DispatchId_event[],
   messageIdToProcessId: Map<string, ProcessId_event>,
-  transactionHashToSwaps: Map<string, oUSDTSwaps[]>,
+  transactionHashToSwaps: Map<string, OUSDTSwaps[]>,
   context: handlerContext,
 ): {
-  destinationSwap: oUSDTSwaps;
+  destinationSwap: OUSDTSwaps;
   matchingMessageId: string;
   destinationChainToken: string;
   destinationChainTokenAmountSwapped: bigint;
@@ -239,9 +239,9 @@ export async function createSuperSwapEntity(
   transactionHash: string,
   chainId: number,
   destinationDomain: bigint,
-  bridgedTransaction: oUSDTBridgedTransaction,
+  bridgedTransaction: OUSDTBridgedTransaction,
   messageId: string,
-  sourceSwap: oUSDTSwaps,
+  sourceSwap: OUSDTSwaps,
   sourceChainToken: string,
   sourceChainTokenAmountSwapped: bigint,
   destinationChainToken: string,
@@ -295,7 +295,7 @@ export async function createSuperSwapEntity(
 export async function processCrossChainSwap(
   sourceChainMessageIdEntities: DispatchId_event[],
   processIdResults: ProcessId_event[][],
-  bridgedTransaction: oUSDTBridgedTransaction,
+  bridgedTransaction: OUSDTBridgedTransaction,
   transactionHash: string,
   chainId: number,
   destinationDomain: bigint,
@@ -390,10 +390,10 @@ export async function attemptSuperSwapCreationFromProcessId(
     const sourceTransactionHash = dispatchIdEvent.transactionHash;
     const sourceChainId = dispatchIdEvent.chainId;
 
-    // Load oUSDTBridgedTransaction and DispatchId_event entities in parallel
+    // Load OUSDTBridgedTransaction and DispatchId_event entities in parallel
     const [oUSDTBridgedTransactions, sourceChainMessageIdEntities] =
       await Promise.all([
-        context.oUSDTBridgedTransaction.getWhere.transactionHash.eq(
+        context.OUSDTBridgedTransaction.getWhere.transactionHash.eq(
           sourceTransactionHash,
         ),
         context.DispatchId_event.getWhere.transactionHash.eq(
@@ -403,7 +403,7 @@ export async function attemptSuperSwapCreationFromProcessId(
 
     if (oUSDTBridgedTransactions.length === 0) {
       context.log.warn(
-        `No oUSDTBridgedTransaction found for transaction ${sourceTransactionHash} when processing ProcessId ${messageId}`,
+        `No OUSDTBridgedTransaction found for transaction ${sourceTransactionHash} when processing ProcessId ${messageId}`,
       );
       return;
     }

@@ -14,6 +14,7 @@ export interface CLPoolSwapResult {
     totalSwapVolumeUSD: bigint;
     totalSwapVolumeAmount0: bigint;
     totalSwapVolumeAmount1: bigint;
+    lastActivityTimestamp: Date;
   };
 }
 

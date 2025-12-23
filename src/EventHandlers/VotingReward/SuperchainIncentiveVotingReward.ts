@@ -1,13 +1,9 @@
 import { SuperchainIncentiveVotingReward } from "generated";
 import {
   PoolAddressField,
-  loadPoolData,
   updateLiquidityPoolAggregator,
 } from "../../Aggregators/LiquidityPoolAggregator";
-import {
-  loadOrCreateUserData,
-  updateUserStatsPerPool,
-} from "../../Aggregators/UserStatsPerPool";
+import { updateUserStatsPerPool } from "../../Aggregators/UserStatsPerPool";
 import {
   loadVotingRewardData,
   processVotingRewardClaimRewards,

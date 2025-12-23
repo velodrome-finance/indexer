@@ -1,10 +1,10 @@
 import { expect } from "chai";
 import type {
   DispatchId_event,
+  OUSDTBridgedTransaction,
+  OUSDTSwaps,
   ProcessId_event,
   SuperSwap,
-  oUSDTBridgedTransaction,
-  oUSDTSwaps,
 } from "../../../generated/src/Types.gen";
 import {
   attemptSuperSwapCreationFromProcessId,
@@ -35,7 +35,7 @@ describe("SuperSwapLogic", () => {
   const oUSDTAddress = "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189"; // oUSDT
   const oUSDTAmount = 18116811000000000000n; // 18.116811 oUSDT
 
-  const mockBridgedTransaction: oUSDTBridgedTransaction = {
+  const mockBridgedTransaction: OUSDTBridgedTransaction = {
     id: transactionHash,
     transactionHash: transactionHash,
     originChainId: BigInt(chainId),
@@ -47,10 +47,10 @@ describe("SuperSwapLogic", () => {
 
   const createMockContext = (
     processIdEvents: ProcessId_event[],
-    swapEvents: oUSDTSwaps[],
+    swapEvents: OUSDTSwaps[],
   ) => {
     const processIdMap = new Map<string, ProcessId_event[]>();
-    const swapMap = new Map<string, oUSDTSwaps[]>();
+    const swapMap = new Map<string, OUSDTSwaps[]>();
     const logWarnings: string[] = [];
     const superSwaps = new Map<string, SuperSwap>();
 
@@ -74,7 +74,7 @@ describe("SuperSwapLogic", () => {
           },
         },
       },
-      oUSDTSwaps: {
+      OUSDTSwaps: {
         getWhere: {
           transactionHash: {
             eq: async (txHash: string) => swapMap.get(txHash) || [],
@@ -126,7 +126,7 @@ describe("SuperSwapLogic", () => {
       ];
 
       // Source chain swap: tokenIn -> oUSDT (on Optimism transaction)
-      const sourceSwap: oUSDTSwaps = {
+      const sourceSwap: OUSDTSwaps = {
         id: `${transactionHash}_${chainId}_${tokenInAddress}_1000_${oUSDTAddress}_${oUSDTAmount}`,
         transactionHash: transactionHash,
         tokenInPool: tokenInAddress,
@@ -136,7 +136,7 @@ describe("SuperSwapLogic", () => {
       };
 
       // Destination chain swap: oUSDT -> tokenOut (on Mode transaction)
-      const destinationSwap: oUSDTSwaps = {
+      const destinationSwap: OUSDTSwaps = {
         id: `${destinationTxHash}_${destinationDomain}_${oUSDTAddress}_${oUSDTAmount}_${tokenOutAddress}_950`,
         transactionHash: destinationTxHash,
         tokenInPool: oUSDTAddress,
@@ -205,7 +205,7 @@ describe("SuperSwapLogic", () => {
       ];
 
       // Source chain swap: tokenIn -> oUSDT (on Optimism transaction)
-      const sourceSwap: oUSDTSwaps = {
+      const sourceSwap: OUSDTSwaps = {
         id: `${transactionHash}_${chainId}_${tokenInAddress}_1000_${oUSDTAddress}_${oUSDTAmount}`,
         transactionHash: transactionHash,
         tokenInPool: tokenInAddress,
@@ -215,7 +215,7 @@ describe("SuperSwapLogic", () => {
       };
 
       // Destination chain swaps: one with oUSDT, one without
-      const destinationSwaps: oUSDTSwaps[] = [
+      const destinationSwaps: OUSDTSwaps[] = [
         {
           id: `${destinationTxHash}_${destinationDomain}_${oUSDTAddress}_${oUSDTAmount}_${tokenOutAddress}_950`,
           transactionHash: destinationTxHash,
@@ -294,7 +294,7 @@ describe("SuperSwapLogic", () => {
       ];
 
       // Source chain swap: tokenIn -> oUSDT (on Optimism transaction)
-      const sourceSwap: oUSDTSwaps = {
+      const sourceSwap: OUSDTSwaps = {
         id: `${transactionHash}_${chainId}_${tokenInAddress}_1000_${oUSDTAddress}_${oUSDTAmount}`,
         transactionHash: transactionHash,
         tokenInPool: tokenInAddress,
@@ -304,7 +304,7 @@ describe("SuperSwapLogic", () => {
       };
 
       // Destination chain swaps: only first transaction has oUSDT swap
-      const swapEvents: oUSDTSwaps[] = [
+      const swapEvents: OUSDTSwaps[] = [
         {
           id: `${destinationTxHash}_${destinationDomain}_${oUSDTAddress}_${oUSDTAmount}_${tokenOutAddress}_950`,
           transactionHash: destinationTxHash,
@@ -378,7 +378,7 @@ describe("SuperSwapLogic", () => {
       expect(superSwaps.size).to.equal(0);
     });
 
-    it("should warn when oUSDTSwaps are missing for a transaction", async () => {
+    it("should warn when OUSDTSwaps are missing for a transaction", async () => {
       const sourceChainMessageIdEntities: DispatchId_event[] = [
         {
           id: `${transactionHash}_${chainId}_${messageId1}`,
@@ -400,7 +400,7 @@ describe("SuperSwapLogic", () => {
       ];
 
       // Source chain swap: tokenIn -> oUSDT (on Optimism transaction)
-      const sourceSwap: oUSDTSwaps = {
+      const sourceSwap: OUSDTSwaps = {
         id: `${transactionHash}_${chainId}_${tokenInAddress}_1000_${oUSDTAddress}_${oUSDTAmount}`,
         transactionHash: transactionHash,
         tokenInPool: tokenInAddress,
@@ -470,7 +470,7 @@ describe("SuperSwapLogic", () => {
       ];
 
       // Source chain swap: tokenIn -> oUSDT (on Optimism transaction)
-      const sourceSwap: oUSDTSwaps = {
+      const sourceSwap: OUSDTSwaps = {
         id: `${transactionHash}_${chainId}_${tokenInAddress}_1000_${oUSDTAddress}_${oUSDTAmount}`,
         transactionHash: transactionHash,
         tokenInPool: tokenInAddress,
@@ -481,7 +481,7 @@ describe("SuperSwapLogic", () => {
 
       // Destination chain swap: oUSDT -> tokenOut (on Mode transaction)
       // Both messageIds point to same transaction, but only one swap with oUSDT
-      const destinationSwap: oUSDTSwaps = {
+      const destinationSwap: OUSDTSwaps = {
         id: `${destinationTxHash}_${destinationDomain}_${oUSDTAddress}_${oUSDTAmount}_${tokenOutAddress}_950`,
         transactionHash: destinationTxHash,
         tokenInPool: oUSDTAddress,
@@ -579,7 +579,7 @@ describe("SuperSwapLogic", () => {
       ];
 
       // Source chain swap: OP -> oUSDT (on Optimism transaction)
-      const sourceSwap: oUSDTSwaps = {
+      const sourceSwap: OUSDTSwaps = {
         id: `${transactionHash}_${chainId}_${opTokenAddress}_1000000000000000000_${oUSDTAddress}_18116811000000000000`,
         transactionHash: transactionHash,
         tokenInPool: opTokenAddress,
@@ -590,7 +590,7 @@ describe("SuperSwapLogic", () => {
 
       // Destination chain swaps
       // Transaction 1: Has swaps but NO oUSDT swaps
-      const destinationSwapsTx1: oUSDTSwaps[] = [
+      const destinationSwapsTx1: OUSDTSwaps[] = [
         {
           id: `${destinationTxHash1}_${destinationDomain}_TOKEN_A_500_TOKEN_B_600`,
           transactionHash: destinationTxHash1,
@@ -602,7 +602,7 @@ describe("SuperSwapLogic", () => {
       ];
 
       // Transaction 2: Has oUSDT -> WETH swap
-      const destinationSwapsTx2: oUSDTSwaps[] = [
+      const destinationSwapsTx2: OUSDTSwaps[] = [
         {
           id: `${destinationTxHash2}_${destinationDomain}_${oUSDTAddress}_18116811000000000000_${wethTokenAddress}_950000000000000000`,
           transactionHash: destinationTxHash2,
@@ -849,7 +849,7 @@ describe("SuperSwapLogic", () => {
 
   describe("findSourceSwapWithOUSDT", () => {
     it("should find source swap when oUSDT is tokenOutPool", async () => {
-      const sourceSwap: oUSDTSwaps = {
+      const sourceSwap: OUSDTSwaps = {
         id: `${transactionHash}_${chainId}_${tokenInAddress}_1000_${oUSDTAddress}_${oUSDTAmount}`,
         transactionHash: transactionHash,
         tokenInPool: tokenInAddress,
@@ -869,7 +869,7 @@ describe("SuperSwapLogic", () => {
     });
 
     it("should find source swap when oUSDT is tokenInPool", async () => {
-      const sourceSwap: oUSDTSwaps = {
+      const sourceSwap: OUSDTSwaps = {
         id: `${transactionHash}_${chainId}_${oUSDTAddress}_${oUSDTAmount}_${tokenOutAddress}_950`,
         transactionHash: transactionHash,
         tokenInPool: oUSDTAddress,
@@ -891,7 +891,7 @@ describe("SuperSwapLogic", () => {
     it("should return null and warn when no source swap with oUSDT exists", async () => {
       // Since we only store oUSDT swaps, this test checks the safety verification
       // when a non-oUSDT swap somehow exists in the database
-      const swapWithoutOUSDT: oUSDTSwaps = {
+      const swapWithoutOUSDT: OUSDTSwaps = {
         id: `${transactionHash}_${chainId}_${tokenInAddress}_1000_${tokenOutAddress}_950`,
         transactionHash: transactionHash,
         tokenInPool: tokenInAddress,
@@ -930,7 +930,7 @@ describe("SuperSwapLogic", () => {
       const destinationTxHash2 =
         "0x2222222222222222222222222222222222222222222222222222222222222222";
 
-      const swap1: oUSDTSwaps = {
+      const swap1: OUSDTSwaps = {
         id: `${destinationTxHash1}_${destinationDomain}_TOKEN_A_100_TOKEN_B_200`,
         transactionHash: destinationTxHash1,
         tokenInPool: "0xTOKEN_A",
@@ -939,7 +939,7 @@ describe("SuperSwapLogic", () => {
         amountOut: 200n,
       };
 
-      const swap2: oUSDTSwaps = {
+      const swap2: OUSDTSwaps = {
         id: `${destinationTxHash2}_${destinationDomain}_TOKEN_C_300_TOKEN_D_400`,
         transactionHash: destinationTxHash2,
         tokenInPool: "0xTOKEN_C",
@@ -1015,7 +1015,7 @@ describe("SuperSwapLogic", () => {
       const messageIdToProcessId = new Map<string, ProcessId_event>();
       messageIdToProcessId.set(messageId1, processIdEvent);
 
-      const destinationSwap: oUSDTSwaps = {
+      const destinationSwap: OUSDTSwaps = {
         id: `${destinationTxHash}_${destinationDomain}_${oUSDTAddress}_${oUSDTAmount}_${tokenOutAddress}_950`,
         transactionHash: destinationTxHash,
         tokenInPool: oUSDTAddress,
@@ -1024,7 +1024,7 @@ describe("SuperSwapLogic", () => {
         amountOut: 950n,
       };
 
-      const transactionHashToSwaps = new Map<string, oUSDTSwaps[]>();
+      const transactionHashToSwaps = new Map<string, OUSDTSwaps[]>();
       transactionHashToSwaps.set(destinationTxHash, [destinationSwap]);
 
       const context = createMockContext([], []);
@@ -1063,7 +1063,7 @@ describe("SuperSwapLogic", () => {
       const messageIdToProcessId = new Map<string, ProcessId_event>();
       messageIdToProcessId.set(messageId1, processIdEvent);
 
-      const destinationSwap: oUSDTSwaps = {
+      const destinationSwap: OUSDTSwaps = {
         id: `${destinationTxHash}_${destinationDomain}_${tokenInAddress}_1000_${oUSDTAddress}_${oUSDTAmount}`,
         transactionHash: destinationTxHash,
         tokenInPool: tokenInAddress,
@@ -1072,7 +1072,7 @@ describe("SuperSwapLogic", () => {
         amountOut: oUSDTAmount,
       };
 
-      const transactionHashToSwaps = new Map<string, oUSDTSwaps[]>();
+      const transactionHashToSwaps = new Map<string, OUSDTSwaps[]>();
       transactionHashToSwaps.set(destinationTxHash, [destinationSwap]);
 
       const context = createMockContext([], []);
@@ -1112,7 +1112,7 @@ describe("SuperSwapLogic", () => {
       messageIdToProcessId.set(messageId1, processIdEvent);
 
       // Since we only store oUSDT swaps, all swaps in the array should be oUSDT swaps
-      const swapWithOUSDT1: oUSDTSwaps = {
+      const swapWithOUSDT1: OUSDTSwaps = {
         id: `${destinationTxHash}_${destinationDomain}_${oUSDTAddress}_${oUSDTAmount}_${tokenOutAddress}_950`,
         transactionHash: destinationTxHash,
         tokenInPool: oUSDTAddress,
@@ -1121,7 +1121,7 @@ describe("SuperSwapLogic", () => {
         amountOut: 950n,
       };
 
-      const swapWithOUSDT2: oUSDTSwaps = {
+      const swapWithOUSDT2: OUSDTSwaps = {
         id: `${destinationTxHash}_${destinationDomain}_${tokenOutAddress}_500_${oUSDTAddress}_${oUSDTAmount}`,
         transactionHash: destinationTxHash,
         tokenInPool: tokenOutAddress,
@@ -1130,7 +1130,7 @@ describe("SuperSwapLogic", () => {
         amountOut: oUSDTAmount,
       };
 
-      const transactionHashToSwaps = new Map<string, oUSDTSwaps[]>();
+      const transactionHashToSwaps = new Map<string, OUSDTSwaps[]>();
       transactionHashToSwaps.set(destinationTxHash, [
         swapWithOUSDT1,
         swapWithOUSDT2,
@@ -1173,7 +1173,7 @@ describe("SuperSwapLogic", () => {
 
       // Since we only store oUSDT swaps, this test checks the safety verification
       // when a non-oUSDT swap somehow exists in the database
-      const swapWithoutOUSDT: oUSDTSwaps = {
+      const swapWithoutOUSDT: OUSDTSwaps = {
         id: `${destinationTxHash}_${destinationDomain}_TOKEN_A_100_TOKEN_B_200`,
         transactionHash: destinationTxHash,
         tokenInPool: "0xTOKEN_A",
@@ -1182,7 +1182,7 @@ describe("SuperSwapLogic", () => {
         amountOut: 200n,
       };
 
-      const transactionHashToSwaps = new Map<string, oUSDTSwaps[]>();
+      const transactionHashToSwaps = new Map<string, OUSDTSwaps[]>();
       transactionHashToSwaps.set(destinationTxHash, [swapWithoutOUSDT]);
 
       const context = createMockContext([], []);
@@ -1240,7 +1240,7 @@ describe("SuperSwapLogic", () => {
       messageIdToProcessId.set(messageId2, processIdEvent2);
 
       // Only second transaction has oUSDT swap
-      const swapWithoutOUSDT: oUSDTSwaps = {
+      const swapWithoutOUSDT: OUSDTSwaps = {
         id: `${destinationTxHash1}_${destinationDomain}_TOKEN_A_100_TOKEN_B_200`,
         transactionHash: destinationTxHash1,
         tokenInPool: "0xTOKEN_A",
@@ -1249,7 +1249,7 @@ describe("SuperSwapLogic", () => {
         amountOut: 200n,
       };
 
-      const swapWithOUSDT: oUSDTSwaps = {
+      const swapWithOUSDT: OUSDTSwaps = {
         id: `${destinationTxHash2}_${destinationDomain}_${oUSDTAddress}_${oUSDTAmount}_${tokenOutAddress}_950`,
         transactionHash: destinationTxHash2,
         tokenInPool: oUSDTAddress,
@@ -1258,7 +1258,7 @@ describe("SuperSwapLogic", () => {
         amountOut: 950n,
       };
 
-      const transactionHashToSwaps = new Map<string, oUSDTSwaps[]>();
+      const transactionHashToSwaps = new Map<string, OUSDTSwaps[]>();
       transactionHashToSwaps.set(destinationTxHash1, [swapWithoutOUSDT]);
       transactionHashToSwaps.set(destinationTxHash2, [swapWithOUSDT]);
 
@@ -1281,7 +1281,7 @@ describe("SuperSwapLogic", () => {
     it("should create SuperSwap entity with correct fields", async () => {
       const context = createMockContext([], []);
 
-      const sourceSwap: oUSDTSwaps = {
+      const sourceSwap: OUSDTSwaps = {
         id: `${transactionHash}_${chainId}_${tokenInAddress}_1000_${oUSDTAddress}_${oUSDTAmount}`,
         transactionHash: transactionHash,
         tokenInPool: tokenInAddress,
@@ -1330,7 +1330,7 @@ describe("SuperSwapLogic", () => {
     it("should skip creation if SuperSwap already exists", async () => {
       const context = createMockContext([], []);
 
-      const sourceSwap: oUSDTSwaps = {
+      const sourceSwap: OUSDTSwaps = {
         id: `${transactionHash}_${chainId}_${tokenInAddress}_1000_${oUSDTAddress}_${oUSDTAmount}`,
         transactionHash: transactionHash,
         tokenInPool: tokenInAddress,
@@ -1384,14 +1384,14 @@ describe("SuperSwapLogic", () => {
     const createExtendedMockContext = (
       dispatchIdEvents: DispatchId_event[],
       processIdEvents: ProcessId_event[],
-      bridgedTransactions: oUSDTBridgedTransaction[],
-      swapEvents: oUSDTSwaps[],
+      bridgedTransactions: OUSDTBridgedTransaction[],
+      swapEvents: OUSDTSwaps[],
     ) => {
       const dispatchIdByMessageId = new Map<string, DispatchId_event[]>();
       const dispatchIdByTxHash = new Map<string, DispatchId_event[]>();
       const processIdMap = new Map<string, ProcessId_event[]>();
-      const bridgedTxMap = new Map<string, oUSDTBridgedTransaction[]>();
-      const swapMap = new Map<string, oUSDTSwaps[]>();
+      const bridgedTxMap = new Map<string, OUSDTBridgedTransaction[]>();
+      const swapMap = new Map<string, OUSDTSwaps[]>();
       const logWarnings: string[] = [];
       const logInfos: string[] = [];
       const superSwaps = new Map<string, SuperSwap>();
@@ -1448,14 +1448,14 @@ describe("SuperSwapLogic", () => {
             },
           },
         },
-        oUSDTBridgedTransaction: {
+        OUSDTBridgedTransaction: {
           getWhere: {
             transactionHash: {
               eq: async (txHash: string) => bridgedTxMap.get(txHash) || [],
             },
           },
         },
-        oUSDTSwaps: {
+        OUSDTSwaps: {
           getWhere: {
             transactionHash: {
               eq: async (txHash: string) => swapMap.get(txHash) || [],
@@ -1503,7 +1503,7 @@ describe("SuperSwapLogic", () => {
       };
 
       // Source chain swap: tokenIn -> oUSDT
-      const sourceSwap: oUSDTSwaps = {
+      const sourceSwap: OUSDTSwaps = {
         id: `${transactionHash}_${chainId}_${tokenInAddress}_1000_${oUSDTAddress}_${oUSDTAmount}`,
         transactionHash: transactionHash,
         tokenInPool: tokenInAddress,
@@ -1513,7 +1513,7 @@ describe("SuperSwapLogic", () => {
       };
 
       // Destination chain swap: oUSDT -> tokenOut
-      const destinationSwap: oUSDTSwaps = {
+      const destinationSwap: OUSDTSwaps = {
         id: `${destinationTxHash}_${destinationDomain}_${oUSDTAddress}_${oUSDTAmount}_${tokenOutAddress}_950`,
         transactionHash: destinationTxHash,
         tokenInPool: oUSDTAddress,
@@ -1572,7 +1572,7 @@ describe("SuperSwapLogic", () => {
       );
     });
 
-    it("should return early and log warn when no oUSDTBridgedTransaction is found", async () => {
+    it("should return early and log warn when no OUSDTBridgedTransaction is found", async () => {
       const dispatchIdEvent: DispatchId_event = {
         id: `${transactionHash}_${chainId}_${messageId1}`,
         chainId: chainId,
@@ -1599,7 +1599,7 @@ describe("SuperSwapLogic", () => {
       const warnings = context.getWarnings();
       expect(warnings.length).to.equal(1);
       expect(warnings[0]).to.include(
-        "No oUSDTBridgedTransaction found for transaction",
+        "No OUSDTBridgedTransaction found for transaction",
       );
     });
 
@@ -1656,7 +1656,7 @@ describe("SuperSwapLogic", () => {
         messageId: messageId1,
       };
 
-      // Create a context that will throw an error when querying oUSDTSwaps
+      // Create a context that will throw an error when querying OUSDTSwaps
       const context = createExtendedMockContext(
         [dispatchIdEvent],
         [processIdEvent],
@@ -1664,9 +1664,9 @@ describe("SuperSwapLogic", () => {
         [],
       );
 
-      // Override oUSDTSwaps query to throw an error
-      const originalEq = context.oUSDTSwaps.getWhere.transactionHash.eq;
-      context.oUSDTSwaps.getWhere.transactionHash.eq = async () => {
+      // Override OUSDTSwaps query to throw an error
+      const originalEq = context.OUSDTSwaps.getWhere.transactionHash.eq;
+      context.OUSDTSwaps.getWhere.transactionHash.eq = async () => {
         throw new Error("Database connection failed");
       };
 
@@ -1687,7 +1687,7 @@ describe("SuperSwapLogic", () => {
       ).to.be.true;
 
       // Restore original
-      context.oUSDTSwaps.getWhere.transactionHash.eq = originalEq;
+      context.OUSDTSwaps.getWhere.transactionHash.eq = originalEq;
     });
   });
 });
