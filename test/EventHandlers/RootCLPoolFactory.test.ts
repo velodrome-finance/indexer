@@ -1,4 +1,3 @@
-import { expect } from "chai";
 import { MockDb, RootCLPoolFactory } from "generated/src/TestHelpers.gen";
 import type { LiquidityPoolAggregator } from "generated/src/Types.gen";
 import { TokenIdByChain } from "../../src/Constants";
@@ -71,11 +70,11 @@ describe("RootCLPoolFactory Events", () => {
         const rootPoolLeafPool = resultDB.entities.RootPool_LeafPool.get(
           `${rootPoolAddress}_${rootChainId}_${leafPoolAddress}_${leafChainId}`,
         );
-        expect(rootPoolLeafPool).to.not.be.undefined;
-        expect(rootPoolLeafPool?.rootChainId).to.equal(rootChainId);
-        expect(rootPoolLeafPool?.rootPoolAddress).to.equal(rootPoolAddress);
-        expect(rootPoolLeafPool?.leafChainId).to.equal(leafChainId);
-        expect(rootPoolLeafPool?.leafPoolAddress).to.equal(leafPoolAddress);
+        expect(rootPoolLeafPool).toBeDefined();
+        expect(rootPoolLeafPool?.rootChainId).toBe(rootChainId);
+        expect(rootPoolLeafPool?.rootPoolAddress).toBe(rootPoolAddress);
+        expect(rootPoolLeafPool?.leafChainId).toBe(leafChainId);
+        expect(rootPoolLeafPool?.leafPoolAddress).toBe(leafPoolAddress);
       });
     });
 
@@ -87,8 +86,8 @@ describe("RootCLPoolFactory Events", () => {
         });
 
         expect(
-          Array.from(resultDB.entities.RootPool_LeafPool.getAll()).length,
-        ).to.equal(0);
+          Array.from(resultDB.entities.RootPool_LeafPool.getAll()),
+        ).toHaveLength(0);
       });
     });
 
@@ -139,8 +138,8 @@ describe("RootCLPoolFactory Events", () => {
 
       it("should not create RootPool_LeafPool entity", () => {
         expect(
-          Array.from(resultDB.entities.RootPool_LeafPool.getAll()).length,
-        ).to.equal(0);
+          Array.from(resultDB.entities.RootPool_LeafPool.getAll()),
+        ).toHaveLength(0);
       });
     });
   });

@@ -1,5 +1,3 @@
-import { expect } from "chai";
-import sinon from "sinon";
 import {
   FeesVotingReward,
   MockDb,
@@ -22,14 +20,13 @@ describe("FeesVotingReward Events", () => {
   const userAddress = "0x2222222222222222222222222222222222222222";
   const rewardTokenAddress = "0x4444444444444444444444444444444444444444";
 
-  let sandbox: sinon.SinonSandbox;
   let mockDb: ReturnType<typeof MockDb.createMockDb>;
   let liquidityPool: LiquidityPoolAggregator;
   let userStats: UserStatsPerPool;
   let rewardToken: Token;
 
   beforeEach(() => {
-    sandbox = sinon.createSandbox();
+    jest.clearAllMocks();
     mockDb = MockDb.createMockDb();
 
     // Set up liquidity pool with fee voting reward address
@@ -72,7 +69,7 @@ describe("FeesVotingReward Events", () => {
   });
 
   afterEach(() => {
-    sandbox.restore();
+    jest.restoreAllMocks();
   });
 
   describe("ClaimRewards Event", () => {
@@ -83,13 +80,15 @@ describe("FeesVotingReward Events", () => {
 
     beforeEach(async () => {
       // Mock the getTokenPriceData effect
-      sandbox.stub(VotingRewardSharedLogic, "loadVotingRewardData").resolves({
-        pool: liquidityPool,
-        poolData: {
-          liquidityPoolAggregator: liquidityPool,
-        },
-        userData: userStats,
-      });
+      jest
+        .spyOn(VotingRewardSharedLogic, "loadVotingRewardData")
+        .mockResolvedValue({
+          pool: liquidityPool,
+          poolData: {
+            liquidityPoolAggregator: liquidityPool,
+          },
+          userData: userStats,
+        });
 
       mockEvent = FeesVotingReward.ClaimRewards.createMockEvent({
         from: userAddress,
@@ -116,17 +115,15 @@ describe("FeesVotingReward Events", () => {
     it("should update pool aggregator with fee reward claimed", () => {
       const updatedPool =
         resultDB.entities.LiquidityPoolAggregator.get(poolAddress);
-      expect(updatedPool).to.not.be.undefined;
+      expect(updatedPool).toBeDefined();
       // The actual values depend on the price calculation, but should be updated
-      expect(updatedPool?.totalFeeRewardClaimed).to.not.equal(0n);
-      expect(Number(updatedPool?.totalFeeRewardClaimed)).to.be.greaterThan(0);
+      expect(updatedPool?.totalFeeRewardClaimed).toBeGreaterThan(0n);
     });
 
     it("should update user stats with fee reward claimed", () => {
       const updatedUser = resultDB.entities.UserStatsPerPool.get(userStats.id);
-      expect(updatedUser).to.not.be.undefined;
-      expect(updatedUser?.totalFeeRewardClaimed).to.not.equal(0n);
-      expect(Number(updatedUser?.totalFeeRewardClaimed)).to.be.greaterThan(0);
+      expect(updatedUser).toBeDefined();
+      expect(updatedUser?.totalFeeRewardClaimed).toBeGreaterThan(0n);
     });
   });
 });

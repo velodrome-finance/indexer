@@ -1,4 +1,3 @@
-import { expect } from "chai";
 import { MockDb, V2PoolLauncher } from "generated/src/TestHelpers.gen";
 import type {
   LiquidityPoolAggregator,
@@ -109,23 +108,23 @@ describe("V2PoolLauncher Events", () => {
       const poolLauncherPool = result.entities.PoolLauncherPool.get(
         `${mockChainId}-${mockPoolAddress}`,
       );
-      expect(poolLauncherPool).to.not.be.undefined;
-      expect(poolLauncherPool?.underlyingPool).to.equal(mockPoolAddress);
-      expect(poolLauncherPool?.launcher).to.equal(
+      expect(poolLauncherPool).toBeDefined();
+      expect(poolLauncherPool?.underlyingPool).toBe(mockPoolAddress);
+      expect(poolLauncherPool?.launcher).toBe(
         mockLauncherAddress.toLowerCase(),
       );
-      expect(poolLauncherPool?.creator).to.equal(mockCreator.toLowerCase());
-      expect(poolLauncherPool?.poolLauncherToken).to.equal(
+      expect(poolLauncherPool?.creator).toBe(mockCreator.toLowerCase());
+      expect(poolLauncherPool?.poolLauncherToken).toBe(
         mockPoolLauncherToken.toLowerCase(),
       );
-      expect(poolLauncherPool?.pairToken).to.equal(mockPairToken.toLowerCase());
-      expect(poolLauncherPool?.isEmerging).to.be.false;
+      expect(poolLauncherPool?.pairToken).toBe(mockPairToken.toLowerCase());
+      expect(poolLauncherPool?.isEmerging).toBe(false);
 
       // Check that LiquidityPoolAggregator was linked
       const liquidityPoolAggregator =
         result.entities.LiquidityPoolAggregator.get(mockPoolAddress);
-      expect(liquidityPoolAggregator).to.not.be.undefined;
-      expect(liquidityPoolAggregator?.poolLauncherPoolId).to.equal(
+      expect(liquidityPoolAggregator).toBeDefined();
+      expect(liquidityPoolAggregator?.poolLauncherPoolId).toBe(
         `${mockChainId}-${mockPoolAddress}`,
       );
     });
@@ -187,31 +186,23 @@ describe("V2PoolLauncher Events", () => {
       const originalPoolLauncherPool = result.entities.PoolLauncherPool.get(
         `${mockChainId}-${underlyingPool}`,
       );
-      expect(originalPoolLauncherPool).to.not.be.undefined;
-      expect(originalPoolLauncherPool?.migratedTo).to.equal(newPoolAddress);
-      expect(originalPoolLauncherPool?.oldLocker).to.equal(
-        oldLocker.toLowerCase(),
-      );
-      expect(originalPoolLauncherPool?.newLocker).to.equal(
-        newLocker.toLowerCase(),
-      );
-      expect(originalPoolLauncherPool?.lastMigratedAt).to.deep.equal(
-        mockTimestamp,
-      );
+      expect(originalPoolLauncherPool).toBeDefined();
+      expect(originalPoolLauncherPool?.migratedTo).toBe(newPoolAddress);
+      expect(originalPoolLauncherPool?.oldLocker).toBe(oldLocker.toLowerCase());
+      expect(originalPoolLauncherPool?.newLocker).toBe(newLocker.toLowerCase());
+      expect(originalPoolLauncherPool?.lastMigratedAt).toEqual(mockTimestamp);
 
       // Check that new PoolLauncherPool was created
       const newPoolLauncherPool = result.entities.PoolLauncherPool.get(
         `${mockChainId}-${newPoolAddress}`,
       );
-      expect(newPoolLauncherPool).to.not.be.undefined;
-      expect(newPoolLauncherPool?.underlyingPool).to.equal(newPoolAddress);
-      expect(newPoolLauncherPool?.creator).to.equal(mockCreator); // Should keep original creator
-      expect(newPoolLauncherPool?.poolLauncherToken).to.equal(
+      expect(newPoolLauncherPool).toBeDefined();
+      expect(newPoolLauncherPool?.underlyingPool).toBe(newPoolAddress);
+      expect(newPoolLauncherPool?.creator).toBe(mockCreator); // Should keep original creator
+      expect(newPoolLauncherPool?.poolLauncherToken).toBe(
         mockPoolLauncherToken.toLowerCase(),
       );
-      expect(newPoolLauncherPool?.pairToken).to.equal(
-        mockPairToken.toLowerCase(),
-      );
+      expect(newPoolLauncherPool?.pairToken).toBe(mockPairToken.toLowerCase());
     });
 
     it("should handle migration when PoolLauncherPool doesn't exist", async () => {
@@ -248,12 +239,12 @@ describe("V2PoolLauncher Events", () => {
       const originalPoolLauncherPool = result.entities.PoolLauncherPool.get(
         `${mockChainId}-${underlyingPool}`,
       );
-      expect(originalPoolLauncherPool).to.be.undefined;
+      expect(originalPoolLauncherPool).toBeUndefined();
 
       const newPoolLauncherPool = result.entities.PoolLauncherPool.get(
         `${mockChainId}-${newPoolAddress}`,
       );
-      expect(newPoolLauncherPool).to.be.undefined;
+      expect(newPoolLauncherPool).toBeUndefined();
     });
   });
 
@@ -298,9 +289,9 @@ describe("V2PoolLauncher Events", () => {
       const poolLauncherPool = result.entities.PoolLauncherPool.get(
         `${mockChainId}-${mockPoolAddress}`,
       );
-      expect(poolLauncherPool).to.not.be.undefined;
-      expect(poolLauncherPool?.isEmerging).to.be.true;
-      expect(poolLauncherPool?.lastFlagUpdateAt).to.deep.equal(mockTimestamp);
+      expect(poolLauncherPool).toBeDefined();
+      expect(poolLauncherPool?.isEmerging).toBe(true);
+      expect(poolLauncherPool?.lastFlagUpdateAt).toEqual(mockTimestamp);
     });
 
     it("should handle flagging when PoolLauncherPool doesn't exist", async () => {
@@ -324,7 +315,7 @@ describe("V2PoolLauncher Events", () => {
       const poolLauncherPool = result.entities.PoolLauncherPool.get(
         `${mockChainId}-${mockPoolAddress}`,
       );
-      expect(poolLauncherPool).to.be.undefined;
+      expect(poolLauncherPool).toBeUndefined();
     });
   });
 
@@ -369,9 +360,9 @@ describe("V2PoolLauncher Events", () => {
       const poolLauncherPool = result.entities.PoolLauncherPool.get(
         `${mockChainId}-${mockPoolAddress}`,
       );
-      expect(poolLauncherPool).to.not.be.undefined;
-      expect(poolLauncherPool?.isEmerging).to.be.false;
-      expect(poolLauncherPool?.lastFlagUpdateAt).to.deep.equal(mockTimestamp);
+      expect(poolLauncherPool).toBeDefined();
+      expect(poolLauncherPool?.isEmerging).toBe(false);
+      expect(poolLauncherPool?.lastFlagUpdateAt).toEqual(mockTimestamp);
     });
 
     it("should handle unflagging when PoolLauncherPool doesn't exist", async () => {
@@ -395,7 +386,7 @@ describe("V2PoolLauncher Events", () => {
       const poolLauncherPool = result.entities.PoolLauncherPool.get(
         `${mockChainId}-${mockPoolAddress}`,
       );
-      expect(poolLauncherPool).to.be.undefined;
+      expect(poolLauncherPool).toBeUndefined();
     });
   });
 
@@ -442,8 +433,8 @@ describe("V2PoolLauncher Events", () => {
       const poolLauncherPool = result.entities.PoolLauncherPool.get(
         `${mockChainId}-${mockPoolAddress}`,
       );
-      expect(poolLauncherPool).to.not.be.undefined;
-      expect(poolLauncherPool?.createdAt).to.deep.equal(
+      expect(poolLauncherPool).toBeDefined();
+      expect(poolLauncherPool?.createdAt).toEqual(
         new Date(Number(newTimestamp) * 1000),
       );
     });
@@ -471,7 +462,7 @@ describe("V2PoolLauncher Events", () => {
       const poolLauncherPool = result.entities.PoolLauncherPool.get(
         `${mockChainId}-${mockPoolAddress}`,
       );
-      expect(poolLauncherPool).to.be.undefined;
+      expect(poolLauncherPool).toBeUndefined();
     });
   });
 
@@ -498,10 +489,10 @@ describe("V2PoolLauncher Events", () => {
 
       // Should create new PoolLauncherConfig
       const config = result.entities.PoolLauncherConfig.get(configId);
-      expect(config).to.not.be.undefined;
-      expect(config?.id).to.equal(configId);
-      expect(config?.version).to.equal("V2");
-      expect(config?.pairableTokens).to.deep.equal([tokenAddress]);
+      expect(config).toBeDefined();
+      expect(config?.id).toBe(configId);
+      expect(config?.version).toBe("V2");
+      expect(config?.pairableTokens).toEqual([tokenAddress]);
     });
 
     it("should add token to existing PoolLauncherConfig", async () => {
@@ -535,10 +526,10 @@ describe("V2PoolLauncher Events", () => {
 
       // Should update existing PoolLauncherConfig
       const config = result.entities.PoolLauncherConfig.get(configId);
-      expect(config).to.not.be.undefined;
-      expect(config?.id).to.equal(configId);
-      expect(config?.version).to.equal("V2");
-      expect(config?.pairableTokens).to.deep.equal([existingToken, newToken]);
+      expect(config).toBeDefined();
+      expect(config?.id).toBe(configId);
+      expect(config?.version).toBe("V2");
+      expect(config?.pairableTokens).toEqual([existingToken, newToken]);
     });
 
     it("should not add duplicate token to PoolLauncherConfig", async () => {
@@ -571,8 +562,8 @@ describe("V2PoolLauncher Events", () => {
 
       // Should not add duplicate token
       const config = result.entities.PoolLauncherConfig.get(configId);
-      expect(config).to.not.be.undefined;
-      expect(config?.pairableTokens).to.deep.equal([tokenAddress]);
+      expect(config).toBeDefined();
+      expect(config?.pairableTokens).toEqual([tokenAddress]);
     });
   });
 
@@ -608,10 +599,10 @@ describe("V2PoolLauncher Events", () => {
 
       // Should update PoolLauncherConfig by removing the token
       const config = result.entities.PoolLauncherConfig.get(configId);
-      expect(config).to.not.be.undefined;
-      expect(config?.id).to.equal(configId);
-      expect(config?.version).to.equal("V2");
-      expect(config?.pairableTokens).to.deep.equal([remainingToken]);
+      expect(config).toBeDefined();
+      expect(config?.id).toBe(configId);
+      expect(config?.version).toBe("V2");
+      expect(config?.pairableTokens).toEqual([remainingToken]);
     });
 
     it("should handle removal when config doesn't exist", async () => {
@@ -636,7 +627,7 @@ describe("V2PoolLauncher Events", () => {
 
       // Should not create any config when trying to remove from non-existent config
       const config = result.entities.PoolLauncherConfig.get(configId);
-      expect(config).to.be.undefined;
+      expect(config).toBeUndefined();
     });
 
     it("should handle removal of non-existent token gracefully", async () => {
@@ -670,8 +661,8 @@ describe("V2PoolLauncher Events", () => {
 
       // Should keep existing tokens unchanged
       const config = result.entities.PoolLauncherConfig.get(configId);
-      expect(config).to.not.be.undefined;
-      expect(config?.pairableTokens).to.deep.equal([existingToken]);
+      expect(config).toBeDefined();
+      expect(config?.pairableTokens).toEqual([existingToken]);
     });
   });
 
@@ -710,16 +701,14 @@ describe("V2PoolLauncher Events", () => {
 
       // Should create new config with updated ID
       const newConfig = result.entities.PoolLauncherConfig.get(newConfigId);
-      expect(newConfig).to.not.be.undefined;
-      expect(newConfig?.id).to.equal(newConfigId);
-      expect(newConfig?.version).to.equal("V2");
-      expect(newConfig?.pairableTokens).to.deep.equal(
-        existingConfig.pairableTokens,
-      );
+      expect(newConfig).toBeDefined();
+      expect(newConfig?.id).toBe(newConfigId);
+      expect(newConfig?.version).toBe("V2");
+      expect(newConfig?.pairableTokens).toEqual(existingConfig.pairableTokens);
 
       // Old config should still exist (we're not deleting it)
       const oldConfig = result.entities.PoolLauncherConfig.get(oldConfigId);
-      expect(oldConfig).to.not.be.undefined;
+      expect(oldConfig).toBeDefined();
     });
 
     it("should handle pool launcher change when no existing config", async () => {
@@ -745,10 +734,10 @@ describe("V2PoolLauncher Events", () => {
 
       // Should not create any config when no existing config exists
       const newConfig = result.entities.PoolLauncherConfig.get(newConfigId);
-      expect(newConfig).to.be.undefined;
+      expect(newConfig).toBeUndefined();
 
       const oldConfig = result.entities.PoolLauncherConfig.get(oldConfigId);
-      expect(oldConfig).to.be.undefined;
+      expect(oldConfig).toBeUndefined();
     });
   });
 });

@@ -1,4 +1,3 @@
-import { expect } from "chai";
 import { MockDb, SuperchainLeafVoter } from "generated/src/TestHelpers.gen";
 import type { LiquidityPoolAggregator, Token } from "generated/src/Types.gen";
 import { TokenIdByChain, toChecksumAddress } from "../../../src/Constants";
@@ -62,17 +61,15 @@ describe("SuperchainLeafVoter Events", () => {
         const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
           toChecksumAddress(poolAddress),
         );
-        expect(updatedPool).to.not.be.undefined;
-        expect(updatedPool?.gaugeAddress).to.equal(
-          toChecksumAddress(gaugeAddress),
-        );
-        expect(updatedPool?.feeVotingRewardAddress).to.equal(
+        expect(updatedPool).toBeDefined();
+        expect(updatedPool?.gaugeAddress).toBe(toChecksumAddress(gaugeAddress));
+        expect(updatedPool?.feeVotingRewardAddress).toBe(
           "0x6666666666666666666666666666666666666666",
         );
-        expect(updatedPool?.bribeVotingRewardAddress).to.equal(
+        expect(updatedPool?.bribeVotingRewardAddress).toBe(
           "0x5555555555555555555555555555555555555555",
         );
-        expect(updatedPool?.lastUpdatedTimestamp).to.deep.equal(
+        expect(updatedPool?.lastUpdatedTimestamp).toEqual(
           new Date(1000000 * 1000),
         );
       });
@@ -86,8 +83,8 @@ describe("SuperchainLeafVoter Events", () => {
         });
 
         expect(
-          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()).length,
-        ).to.equal(0);
+          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
+        ).toHaveLength(0);
       });
     });
   });
@@ -145,11 +142,11 @@ describe("SuperchainLeafVoter Events", () => {
         const token = resultDB.entities.Token.get(
           TokenIdByChain(tokenAddress, chainId),
         );
-        expect(token).to.not.be.undefined;
-        expect(token?.isWhitelisted).to.be.true;
-        expect(token?.pricePerUSDNew).to.equal(expectedPricePerUSDNew);
-        expect(token?.lastUpdatedTimestamp).to.be.instanceOf(Date);
-        expect(token?.lastUpdatedTimestamp?.getTime()).to.equal(
+        expect(token).toBeDefined();
+        expect(token?.isWhitelisted).toBe(true);
+        expect(token?.pricePerUSDNew).toBe(expectedPricePerUSDNew);
+        expect(token?.lastUpdatedTimestamp).toBeInstanceOf(Date);
+        expect(token?.lastUpdatedTimestamp?.getTime()).toBe(
           mockEvent.block.timestamp * 1000,
         );
       });
@@ -169,14 +166,14 @@ describe("SuperchainLeafVoter Events", () => {
         const token = resultDB.entities.Token.get(
           TokenIdByChain(tokenAddress, chainId),
         );
-        expect(token).to.not.be.undefined;
-        expect(token?.isWhitelisted).to.be.true;
-        expect(token?.pricePerUSDNew).to.equal(0n);
-        expect(token?.name).to.be.a("string");
-        expect(token?.symbol).to.be.a("string");
-        expect(token?.address).to.equal(tokenAddress);
-        expect(token?.lastUpdatedTimestamp).to.be.instanceOf(Date);
-        expect(token?.lastUpdatedTimestamp?.getTime()).to.equal(
+        expect(token).toBeDefined();
+        expect(token?.isWhitelisted).toBe(true);
+        expect(token?.pricePerUSDNew).toBe(0n);
+        expect(typeof token?.name).toBe("string");
+        expect(typeof token?.symbol).toBe("string");
+        expect(token?.address).toBe(tokenAddress);
+        expect(token?.lastUpdatedTimestamp).toBeInstanceOf(Date);
+        expect(token?.lastUpdatedTimestamp?.getTime()).toBe(
           mockEvent.block.timestamp * 1000,
         );
       });
@@ -227,11 +224,11 @@ describe("SuperchainLeafVoter Events", () => {
           const token = resultDB.entities.Token.get(
             TokenIdByChain(tokenAddress, chainId),
           );
-          expect(token).to.not.be.undefined;
-          expect(token?.isWhitelisted).to.be.false;
-          expect(token?.pricePerUSDNew).to.equal(expectedPricePerUSDNew);
-          expect(token?.lastUpdatedTimestamp).to.be.instanceOf(Date);
-          expect(token?.lastUpdatedTimestamp?.getTime()).to.equal(
+          expect(token).toBeDefined();
+          expect(token?.isWhitelisted).toBe(false);
+          expect(token?.pricePerUSDNew).toBe(expectedPricePerUSDNew);
+          expect(token?.lastUpdatedTimestamp).toBeInstanceOf(Date);
+          expect(token?.lastUpdatedTimestamp?.getTime()).toBe(
             mockEvent.block.timestamp * 1000,
           );
         });
@@ -251,14 +248,14 @@ describe("SuperchainLeafVoter Events", () => {
           const token = resultDB.entities.Token.get(
             TokenIdByChain(tokenAddress, chainId),
           );
-          expect(token).to.not.be.undefined;
-          expect(token?.isWhitelisted).to.be.false;
-          expect(token?.pricePerUSDNew).to.equal(0n);
-          expect(token?.name).to.be.a("string");
-          expect(token?.symbol).to.be.a("string");
-          expect(token?.address).to.equal(tokenAddress);
-          expect(token?.lastUpdatedTimestamp).to.be.instanceOf(Date);
-          expect(token?.lastUpdatedTimestamp?.getTime()).to.equal(
+          expect(token).toBeDefined();
+          expect(token?.isWhitelisted).toBe(false);
+          expect(token?.pricePerUSDNew).toBe(0n);
+          expect(typeof token?.name).toBe("string");
+          expect(typeof token?.symbol).toBe("string");
+          expect(token?.address).toBe(tokenAddress);
+          expect(token?.lastUpdatedTimestamp).toBeInstanceOf(Date);
+          expect(token?.lastUpdatedTimestamp?.getTime()).toBe(
             mockEvent.block.timestamp * 1000,
           );
         });

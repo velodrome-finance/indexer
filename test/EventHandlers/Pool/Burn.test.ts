@@ -1,4 +1,3 @@
-import { expect } from "chai";
 import { Pool } from "../../../generated/src/TestHelpers.gen";
 import { MockDb } from "../../../generated/src/TestHelpers.gen";
 import { setupCommon } from "./common";
@@ -43,8 +42,8 @@ describe("Pool Burn Event", () => {
     const updatedAggregator = result.entities.LiquidityPoolAggregator.get(
       commonData.mockLiquidityPoolData.id,
     );
-    expect(updatedAggregator).to.not.be.undefined;
-    expect(updatedAggregator?.lastUpdatedTimestamp).to.deep.equal(
+    expect(updatedAggregator).toBeDefined();
+    expect(updatedAggregator?.lastUpdatedTimestamp).toEqual(
       new Date(1000000 * 1000),
     );
   });

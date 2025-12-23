@@ -1,4 +1,4 @@
-import { expect } from "chai";
+import type { PublicClient } from "viem";
 import { MockDb } from "../../../generated/src/TestHelpers.gen";
 import type {
   LiquidityPoolAggregator,
@@ -65,14 +65,31 @@ describe("GaugeSharedLogic", () => {
   let updatedDB: ReturnType<typeof MockDb.createMockDb>;
   // biome-ignore lint/suspicious/noExplicitAny: Mock context for testing - complex type intersection would be overly verbose
   let mockContext: any;
+  let originalChainConstants: (typeof CHAIN_CONSTANTS)[typeof mockChainId];
 
   beforeEach(() => {
+    // Store original CHAIN_CONSTANTS before mutation to restore in afterEach
+    originalChainConstants = CHAIN_CONSTANTS[mockChainId];
     // Mock CHAIN_CONSTANTS for the test
-    // biome-ignore lint/suspicious/noExplicitAny: Mock constants for testing
-    (CHAIN_CONSTANTS as any)[mockChainId] = {
+    (
+      CHAIN_CONSTANTS as unknown as Record<
+        number,
+        {
+          eth_client?: PublicClient;
+          rewardToken?: (blockNumber: number) => string;
+          oracle?: {
+            getType: (blockNumber: number) => string;
+            getAddress: (priceOracleType: string) => string;
+            startBlock: number;
+            priceConnectors: unknown[];
+          };
+        }
+      >
+    )[mockChainId] = {
       rewardToken: () => "0x940181a94A35A4569E4529A3CDfB74e38FD98631", // AERO on Base
       oracle: {
         getType: () => "v3", // Mock oracle type
+        getAddress: () => "0x1234567890123456789012345678901234567890", // Mock oracle address
         startBlock: 0, // Mock start block
         priceConnectors: [], // Mock connectors
       },
@@ -238,6 +255,12 @@ describe("GaugeSharedLogic", () => {
     };
   });
 
+  afterEach(() => {
+    // Restore original CHAIN_CONSTANTS to prevent test pollution
+    (CHAIN_CONSTANTS as Record<number, unknown>)[mockChainId] =
+      originalChainConstants;
+  });
+
   describe("processGaugeDeposit", () => {
     it("should process gauge deposit correctly", async () => {
       const depositData: GaugeEventData = {
@@ -257,24 +280,20 @@ describe("GaugeSharedLogic", () => {
         mockUserStatsPerPool.id,
       );
 
-      expect(updatedPool?.numberOfGaugeDeposits).to.equal(1n);
-      expect(updatedPool?.currentLiquidityStaked).to.equal(
-        100000000000000000000n,
-      );
+      expect(updatedPool?.numberOfGaugeDeposits).toBe(1n);
+      expect(updatedPool?.currentLiquidityStaked).toBe(100000000000000000000n);
       // For V2 pools: amount0 = (100 LP * 1000000000 reserve0) / 1000 totalSupply = 100000000 (6 decimals = 100 tokens)
       // amount1 = (100 LP * 1000000000 reserve1) / 1000 totalSupply = 100000000 (6 decimals = 100 tokens)
       // Normalized to 18 decimals: 100000000 * 10^12 = 100000000000000000000n
       // USD for token0: (100000000000000000000n * 1000000000000000000n) / 10^18 = 100000000000000000000n
       // USD for token1: (100000000000000000000n * 1000000000000000000n) / 10^18 = 100000000000000000000n
       // Total: 200000000000000000000n (200 USD in 18 decimals)
-      expect(updatedPool?.currentLiquidityStakedUSD).to.equal(
+      expect(updatedPool?.currentLiquidityStakedUSD).toBe(
         200000000000000000000n,
       );
-      expect(updatedUser?.numberOfGaugeDeposits).to.equal(1n);
-      expect(updatedUser?.currentLiquidityStaked).to.equal(
-        100000000000000000000n,
-      );
-      expect(updatedUser?.currentLiquidityStakedUSD).to.equal(
+      expect(updatedUser?.numberOfGaugeDeposits).toBe(1n);
+      expect(updatedUser?.currentLiquidityStaked).toBe(100000000000000000000n);
+      expect(updatedUser?.currentLiquidityStakedUSD).toBe(
         200000000000000000000n,
       );
     });
@@ -303,24 +322,20 @@ describe("GaugeSharedLogic", () => {
         mockUserStatsPerPool.id,
       );
 
-      expect(updatedPool?.numberOfGaugeWithdrawals).to.equal(1n);
-      expect(updatedPool?.currentLiquidityStaked).to.equal(
-        -50000000000000000000n,
-      );
+      expect(updatedPool?.numberOfGaugeWithdrawals).toBe(1n);
+      expect(updatedPool?.currentLiquidityStaked).toBe(-50000000000000000000n);
       // For V2 pools: amount0 = (50 LP * 1000000000 reserve0) / 1000 totalSupply = 50000000 (6 decimals = 50 tokens)
       // amount1 = (50 LP * 1000000000 reserve1) / 1000 totalSupply = 50000000 (6 decimals = 50 tokens)
       // Normalized to 18 decimals: 50000000 * 10^12 = 50000000000000000000n
       // USD for token0: (50000000000000000000n * 1000000000000000000n) / 10^18 = 50000000000000000000n
       // USD for token1: (50000000000000000000n * 1000000000000000000n) / 10^18 = 50000000000000000000n
       // Total: 100000000000000000000n (100 USD in 18 decimals), negative for withdrawal
-      expect(updatedPool?.currentLiquidityStakedUSD).to.equal(
+      expect(updatedPool?.currentLiquidityStakedUSD).toBe(
         -100000000000000000000n,
       );
-      expect(updatedUser?.numberOfGaugeWithdrawals).to.equal(1n);
-      expect(updatedUser?.currentLiquidityStaked).to.equal(
-        -50000000000000000000n,
-      );
-      expect(updatedUser?.currentLiquidityStakedUSD).to.equal(
+      expect(updatedUser?.numberOfGaugeWithdrawals).toBe(1n);
+      expect(updatedUser?.currentLiquidityStaked).toBe(-50000000000000000000n);
+      expect(updatedUser?.currentLiquidityStakedUSD).toBe(
         -100000000000000000000n,
       );
     });
@@ -349,22 +364,22 @@ describe("GaugeSharedLogic", () => {
         mockUserStatsPerPool.id,
       );
 
-      expect(updatedPool?.numberOfGaugeRewardClaims).to.equal(1n);
-      expect(updatedPool?.totalGaugeRewardsClaimed).to.equal(
+      expect(updatedPool?.numberOfGaugeRewardClaims).toBe(1n);
+      expect(updatedPool?.totalGaugeRewardsClaimed).toBe(
         1000000000000000000000n,
       );
       // calculateTotalLiquidityUSD(amount, 0n, rewardToken, undefined)
       // amount = 1000 tokens (18 decimals), price = 1 USD
       // normalized = 1000 * 10^18 / 10^18 = 1000
       // USD = 1000 * 1 USD = 1000000000000000000000 (1000 USD in 18 decimals)
-      expect(updatedPool?.totalGaugeRewardsClaimedUSD).to.equal(
+      expect(updatedPool?.totalGaugeRewardsClaimedUSD).toBe(
         1000000000000000000000n,
       );
-      expect(updatedUser?.numberOfGaugeRewardClaims).to.equal(1n);
-      expect(updatedUser?.totalGaugeRewardsClaimed).to.equal(
+      expect(updatedUser?.numberOfGaugeRewardClaims).toBe(1n);
+      expect(updatedUser?.totalGaugeRewardsClaimed).toBe(
         1000000000000000000000n,
       );
-      expect(updatedUser?.totalGaugeRewardsClaimedUSD).to.equal(
+      expect(updatedUser?.totalGaugeRewardsClaimedUSD).toBe(
         1000000000000000000000n,
       );
     });
@@ -391,8 +406,8 @@ describe("GaugeSharedLogic", () => {
         mockUserStatsPerPool.id,
       );
 
-      expect(updatedPool?.numberOfGaugeDeposits).to.equal(0n);
-      expect(updatedUser?.numberOfGaugeDeposits).to.equal(0n);
+      expect(updatedPool?.numberOfGaugeDeposits).toBe(0n);
+      expect(updatedUser?.numberOfGaugeDeposits).toBe(0n);
     });
 
     it("should handle missing pool data gracefully in deposit", async () => {
@@ -428,8 +443,8 @@ describe("GaugeSharedLogic", () => {
         mockUserStatsPerPool.id,
       );
 
-      expect(updatedPool?.numberOfGaugeDeposits).to.equal(0n);
-      expect(updatedUser?.numberOfGaugeDeposits).to.equal(0n);
+      expect(updatedPool?.numberOfGaugeDeposits).toBe(0n);
+      expect(updatedUser?.numberOfGaugeDeposits).toBe(0n);
     });
 
     it("should handle missing pool data gracefully in withdraw", async () => {
@@ -465,8 +480,8 @@ describe("GaugeSharedLogic", () => {
         mockUserStatsPerPool.id,
       );
 
-      expect(updatedPool?.numberOfGaugeWithdrawals).to.equal(0n);
-      expect(updatedUser?.numberOfGaugeWithdrawals).to.equal(0n);
+      expect(updatedPool?.numberOfGaugeWithdrawals).toBe(0n);
+      expect(updatedUser?.numberOfGaugeWithdrawals).toBe(0n);
     });
 
     it("should handle missing pool data gracefully in claim rewards", async () => {
@@ -502,8 +517,8 @@ describe("GaugeSharedLogic", () => {
         mockUserStatsPerPool.id,
       );
 
-      expect(updatedPool?.numberOfGaugeRewardClaims).to.equal(0n);
-      expect(updatedUser?.numberOfGaugeRewardClaims).to.equal(0n);
+      expect(updatedPool?.numberOfGaugeRewardClaims).toBe(0n);
+      expect(updatedUser?.numberOfGaugeRewardClaims).toBe(0n);
     });
 
     it("should handle missing reward token gracefully in claim rewards", async () => {
@@ -545,8 +560,8 @@ describe("GaugeSharedLogic", () => {
         mockUserStatsPerPool.id,
       );
 
-      expect(updatedPool?.numberOfGaugeRewardClaims).to.equal(0n);
-      expect(updatedUser?.numberOfGaugeRewardClaims).to.equal(0n);
+      expect(updatedPool?.numberOfGaugeRewardClaims).toBe(0n);
+      expect(updatedUser?.numberOfGaugeRewardClaims).toBe(0n);
     });
   });
 });

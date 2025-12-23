@@ -1,4 +1,3 @@
-import { expect } from "chai";
 import type {
   NFPM_DecreaseLiquidity_event,
   NFPM_IncreaseLiquidity_event,
@@ -6,7 +5,6 @@ import type {
   Token,
   handlerContext,
 } from "generated";
-import sinon from "sinon";
 import {
   findNonFungiblePositionByTXHashAndAmounts,
   getPositionWithPlaceholderFallback,
@@ -88,32 +86,32 @@ describe("NFPMLogic", () => {
     beforeEach(() => {
       mockContext = {
         NonFungiblePosition: {
-          get: sinon.stub(),
+          get: jest.fn(),
           getWhere: {
             tokenId: {
-              eq: sinon.stub(),
+              eq: jest.fn(),
             },
             mintTransactionHash: {
-              eq: sinon.stub(),
+              eq: jest.fn(),
             },
           },
         },
         Token: {
-          get: sinon.stub(),
+          get: jest.fn(),
         },
-        effect: sinon.stub(),
+        effect: jest.fn(),
         log: {
-          error: sinon.stub(),
-          info: sinon.stub(),
-          warn: sinon.stub(),
+          error: jest.fn(),
+          info: jest.fn(),
+          warn: jest.fn(),
         },
       } as unknown as handlerContext;
     });
 
     it("should return position when found directly", async () => {
       (
-        mockContext.NonFungiblePosition.getWhere.tokenId.eq as sinon.SinonStub
-      ).resolves([mockPosition]);
+        mockContext.NonFungiblePosition.getWhere.tokenId.eq as jest.Mock
+      ).mockResolvedValue([mockPosition]);
 
       const result = await getPositionWithPlaceholderFallback(
         chainId,
@@ -123,22 +121,20 @@ describe("NFPMLogic", () => {
         true,
       );
 
-      expect(result).to.deep.equal(mockPosition);
+      expect(result).toEqual(mockPosition);
       expect(
-        (
-          mockContext.NonFungiblePosition.getWhere.tokenId.eq as sinon.SinonStub
-        ).calledWith(tokenId),
-      ).to.be.true;
+        mockContext.NonFungiblePosition.getWhere.tokenId.eq as jest.Mock,
+      ).toHaveBeenCalledWith(tokenId);
     });
 
     it("should return placeholder position when direct get fails", async () => {
       (
-        mockContext.NonFungiblePosition.getWhere.tokenId.eq as sinon.SinonStub
-      ).resolves([]);
+        mockContext.NonFungiblePosition.getWhere.tokenId.eq as jest.Mock
+      ).mockResolvedValue([]);
       (
         mockContext.NonFungiblePosition.getWhere.mintTransactionHash
-          .eq as sinon.SinonStub
-      ).resolves([mockPlaceholderPosition]);
+          .eq as jest.Mock
+      ).mockResolvedValue([mockPlaceholderPosition]);
 
       const result = await getPositionWithPlaceholderFallback(
         chainId,
@@ -149,19 +145,19 @@ describe("NFPMLogic", () => {
         transferLogIndex, // Pass logIndex for matching logic
       );
 
-      expect(result).to.not.be.null;
-      expect(result?.id).to.equal(mockPlaceholderPosition.id);
-      expect(result?.tokenId).to.equal(mockPlaceholderPosition.tokenId);
+      expect(result).not.toBeNull();
+      expect(result?.id).toBe(mockPlaceholderPosition.id);
+      expect(result?.tokenId).toBe(mockPlaceholderPosition.tokenId);
     });
 
     it("should return null when position not found and no placeholder", async () => {
       (
-        mockContext.NonFungiblePosition.getWhere.tokenId.eq as sinon.SinonStub
-      ).resolves([]);
+        mockContext.NonFungiblePosition.getWhere.tokenId.eq as jest.Mock
+      ).mockResolvedValue([]);
       (
         mockContext.NonFungiblePosition.getWhere.mintTransactionHash
-          .eq as sinon.SinonStub
-      ).resolves([]);
+          .eq as jest.Mock
+      ).mockResolvedValue([]);
 
       const result = await getPositionWithPlaceholderFallback(
         chainId,
@@ -171,13 +167,13 @@ describe("NFPMLogic", () => {
         true,
       );
 
-      expect(result).to.be.null;
+      expect(result).toBeNull();
     });
 
     it("should not check placeholder when shouldCheckPlaceholder is false", async () => {
       (
-        mockContext.NonFungiblePosition.getWhere.tokenId.eq as sinon.SinonStub
-      ).resolves([]);
+        mockContext.NonFungiblePosition.getWhere.tokenId.eq as jest.Mock
+      ).mockResolvedValue([]);
 
       const result = await getPositionWithPlaceholderFallback(
         chainId,
@@ -187,13 +183,12 @@ describe("NFPMLogic", () => {
         false,
       );
 
-      expect(result).to.be.null;
+      expect(result).toBeNull();
       expect(
-        (
-          mockContext.NonFungiblePosition.getWhere.mintTransactionHash
-            .eq as sinon.SinonStub
-        ).called,
-      ).to.be.false;
+        jest.mocked(
+          mockContext.NonFungiblePosition.getWhere.mintTransactionHash.eq,
+        ),
+      ).not.toHaveBeenCalled();
     });
   });
 
@@ -203,21 +198,21 @@ describe("NFPMLogic", () => {
     beforeEach(() => {
       mockContext = {
         NonFungiblePosition: {
-          get: sinon.stub(),
+          get: jest.fn(),
           getWhere: {
             mintTransactionHash: {
-              eq: sinon.stub(),
+              eq: jest.fn(),
             },
           },
         },
         Token: {
-          get: sinon.stub(),
+          get: jest.fn(),
         },
-        effect: sinon.stub(),
+        effect: jest.fn(),
         log: {
-          error: sinon.stub(),
-          info: sinon.stub(),
-          warn: sinon.stub(),
+          error: jest.fn(),
+          info: jest.fn(),
+          warn: jest.fn(),
         },
       } as unknown as handlerContext;
     });
@@ -238,8 +233,8 @@ describe("NFPMLogic", () => {
 
       (
         mockContext.NonFungiblePosition.getWhere.mintTransactionHash
-          .eq as sinon.SinonStub
-      ).resolves([matchingPosition, otherPosition]);
+          .eq as jest.Mock
+      ).mockResolvedValue([matchingPosition, otherPosition]);
 
       const result = await findNonFungiblePositionByTXHashAndAmounts(
         transactionHash,
@@ -248,14 +243,14 @@ describe("NFPMLogic", () => {
         mockContext,
       );
 
-      expect(result).to.deep.equal(matchingPosition);
+      expect(result).toEqual(matchingPosition);
     });
 
     it("should return null when no positions found", async () => {
       (
         mockContext.NonFungiblePosition.getWhere.mintTransactionHash
-          .eq as sinon.SinonStub
-      ).resolves([]);
+          .eq as jest.Mock
+      ).mockResolvedValue([]);
 
       const result = await findNonFungiblePositionByTXHashAndAmounts(
         transactionHash,
@@ -264,14 +259,14 @@ describe("NFPMLogic", () => {
         mockContext,
       );
 
-      expect(result).to.be.null;
+      expect(result).toBeNull();
     });
 
     it("should return null when no matching amounts found", async () => {
       (
         mockContext.NonFungiblePosition.getWhere.mintTransactionHash
-          .eq as sinon.SinonStub
-      ).resolves([mockPosition]);
+          .eq as jest.Mock
+      ).mockResolvedValue([mockPosition]);
 
       const result = await findNonFungiblePositionByTXHashAndAmounts(
         transactionHash,
@@ -280,14 +275,14 @@ describe("NFPMLogic", () => {
         mockContext,
       );
 
-      expect(result).to.be.null;
+      expect(result).toBeNull();
     });
 
     it("should return null when positions is undefined", async () => {
       (
         mockContext.NonFungiblePosition.getWhere.mintTransactionHash
-          .eq as sinon.SinonStub
-      ).resolves(undefined);
+          .eq as jest.Mock
+      ).mockResolvedValue(undefined);
 
       const result = await findNonFungiblePositionByTXHashAndAmounts(
         transactionHash,
@@ -296,7 +291,7 @@ describe("NFPMLogic", () => {
         mockContext,
       );
 
-      expect(result).to.be.null;
+      expect(result).toBeNull();
     });
   });
 
@@ -306,17 +301,15 @@ describe("NFPMLogic", () => {
     beforeEach(() => {
       mockContext = {
         Token: {
-          get: sinon.stub(),
+          get: jest.fn(),
         },
       } as unknown as handlerContext;
     });
 
     it("should return both tokens in parallel", async () => {
-      (mockContext.Token.get as sinon.SinonStub)
-        .onFirstCall()
-        .resolves(mockToken0)
-        .onSecondCall()
-        .resolves(mockToken1);
+      (mockContext.Token.get as jest.Mock)
+        .mockResolvedValueOnce(mockToken0)
+        .mockResolvedValueOnce(mockToken1);
 
       const [token0, token1] = await getTokensForPosition(
         chainId,
@@ -324,17 +317,15 @@ describe("NFPMLogic", () => {
         mockContext,
       );
 
-      expect(token0).to.deep.equal(mockToken0);
-      expect(token1).to.deep.equal(mockToken1);
-      expect((mockContext.Token.get as sinon.SinonStub).callCount).to.equal(2);
+      expect(token0).toEqual(mockToken0);
+      expect(token1).toEqual(mockToken1);
+      expect(mockContext.Token.get as jest.Mock).toHaveBeenCalledTimes(2);
     });
 
     it("should handle undefined tokens", async () => {
-      (mockContext.Token.get as sinon.SinonStub)
-        .onFirstCall()
-        .resolves(undefined)
-        .onSecondCall()
-        .resolves(mockToken1);
+      (mockContext.Token.get as jest.Mock)
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce(mockToken1);
 
       const [token0, token1] = await getTokensForPosition(
         chainId,
@@ -342,8 +333,8 @@ describe("NFPMLogic", () => {
         mockContext,
       );
 
-      expect(token0).to.be.undefined;
-      expect(token1).to.deep.equal(mockToken1);
+      expect(token0).toBeUndefined();
+      expect(token1).toEqual(mockToken1);
     });
   });
 
@@ -354,23 +345,21 @@ describe("NFPMLogic", () => {
     beforeEach(() => {
       mockContext = {
         Token: {
-          get: sinon.stub(),
+          get: jest.fn(),
         },
-        effect: sinon.stub(),
+        effect: jest.fn(),
         log: {
-          warn: sinon.stub(),
-          error: sinon.stub(),
+          warn: jest.fn(),
+          error: jest.fn(),
         },
       } as unknown as handlerContext;
     });
 
     it("should return sqrtPriceX96 and tokens in parallel", async () => {
-      (mockContext.effect as sinon.SinonStub).resolves(expectedSqrtPriceX96);
-      (mockContext.Token.get as sinon.SinonStub)
-        .onFirstCall()
-        .resolves(mockToken0)
-        .onSecondCall()
-        .resolves(mockToken1);
+      (mockContext.effect as jest.Mock).mockResolvedValue(expectedSqrtPriceX96);
+      (mockContext.Token.get as jest.Mock)
+        .mockResolvedValueOnce(mockToken0)
+        .mockResolvedValueOnce(mockToken1);
 
       const [sqrtPriceX96, token0, token1] = await getSqrtPriceX96AndTokens(
         chainId,
@@ -379,22 +368,20 @@ describe("NFPMLogic", () => {
         mockContext,
       );
 
-      expect(sqrtPriceX96).to.equal(expectedSqrtPriceX96);
-      expect(token0).to.deep.equal(mockToken0);
-      expect(token1).to.deep.equal(mockToken1);
-      expect((mockContext.effect as sinon.SinonStub).callCount).to.equal(1);
-      expect((mockContext.Token.get as sinon.SinonStub).callCount).to.equal(2);
-      expect((mockContext.log.warn as sinon.SinonStub).callCount).to.equal(0);
-      expect((mockContext.log.error as sinon.SinonStub).callCount).to.equal(0);
+      expect(sqrtPriceX96).toBe(expectedSqrtPriceX96);
+      expect(token0).toEqual(mockToken0);
+      expect(token1).toEqual(mockToken1);
+      expect(mockContext.effect as jest.Mock).toHaveBeenCalledTimes(1);
+      expect(mockContext.Token.get as jest.Mock).toHaveBeenCalledTimes(2);
+      expect(mockContext.log.warn as jest.Mock).toHaveBeenCalledTimes(0);
+      expect(mockContext.log.error as jest.Mock).toHaveBeenCalledTimes(0);
     });
 
     it("should handle undefined tokens", async () => {
-      (mockContext.effect as sinon.SinonStub).resolves(expectedSqrtPriceX96);
-      (mockContext.Token.get as sinon.SinonStub)
-        .onFirstCall()
-        .resolves(undefined)
-        .onSecondCall()
-        .resolves(undefined);
+      (mockContext.effect as jest.Mock).mockResolvedValue(expectedSqrtPriceX96);
+      (mockContext.Token.get as jest.Mock)
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce(undefined);
 
       const [sqrtPriceX96, token0, token1] = await getSqrtPriceX96AndTokens(
         chainId,
@@ -403,9 +390,9 @@ describe("NFPMLogic", () => {
         mockContext,
       );
 
-      expect(sqrtPriceX96).to.equal(expectedSqrtPriceX96);
-      expect(token0).to.be.undefined;
-      expect(token1).to.be.undefined;
+      expect(sqrtPriceX96).toBe(expectedSqrtPriceX96);
+      expect(token0).toBeUndefined();
+      expect(token1).toBeUndefined();
     });
 
     it("should retry with actual block number when rounded block fails with contract not exists error", async () => {
@@ -413,16 +400,12 @@ describe("NFPMLogic", () => {
         'The contract function "slot0" returned no data ("0x").',
       );
       // First call (rounded block) fails, second call (actual block) succeeds
-      (mockContext.effect as sinon.SinonStub)
-        .onFirstCall()
-        .rejects(contractNotExistsError)
-        .onSecondCall()
-        .resolves(expectedSqrtPriceX96);
-      (mockContext.Token.get as sinon.SinonStub)
-        .onFirstCall()
-        .resolves(mockToken0)
-        .onSecondCall()
-        .resolves(mockToken1);
+      (mockContext.effect as jest.Mock)
+        .mockRejectedValueOnce(contractNotExistsError)
+        .mockResolvedValueOnce(expectedSqrtPriceX96);
+      (mockContext.Token.get as jest.Mock)
+        .mockResolvedValueOnce(mockToken0)
+        .mockResolvedValueOnce(mockToken1);
 
       // Use a block number that will round down (e.g., 1801 for chain 10 rounds to 1800)
       // For chain 10 (Optimism), blocksPerHour = 1800, so 1801 rounds to 1800
@@ -434,15 +417,15 @@ describe("NFPMLogic", () => {
         mockContext,
       );
 
-      expect(sqrtPriceX96).to.equal(expectedSqrtPriceX96);
-      expect(token0).to.deep.equal(mockToken0);
-      expect(token1).to.deep.equal(mockToken1);
-      expect((mockContext.effect as sinon.SinonStub).callCount).to.equal(2);
-      expect((mockContext.log.warn as sinon.SinonStub).callCount).to.equal(1);
-      expect(
-        (mockContext.log.warn as sinon.SinonStub).firstCall.args[0],
-      ).to.include("does not exist at rounded block");
-      expect((mockContext.log.error as sinon.SinonStub).callCount).to.equal(0);
+      expect(sqrtPriceX96).toBe(expectedSqrtPriceX96);
+      expect(token0).toEqual(mockToken0);
+      expect(token1).toEqual(mockToken1);
+      expect(mockContext.effect as jest.Mock).toHaveBeenCalledTimes(2);
+      expect(mockContext.log.warn as jest.Mock).toHaveBeenCalledTimes(1);
+      expect((mockContext.log.warn as jest.Mock).mock.calls[0][0]).toContain(
+        "does not exist at rounded block",
+      );
+      expect(mockContext.log.error as jest.Mock).toHaveBeenCalledTimes(0);
     });
 
     it("should return undefined when both rounded and actual block fail", async () => {
@@ -450,12 +433,12 @@ describe("NFPMLogic", () => {
         'The contract function "slot0" returned no data ("0x").',
       );
       // Both calls fail
-      (mockContext.effect as sinon.SinonStub).rejects(contractNotExistsError);
-      (mockContext.Token.get as sinon.SinonStub)
-        .onFirstCall()
-        .resolves(mockToken0)
-        .onSecondCall()
-        .resolves(mockToken1);
+      (mockContext.effect as jest.Mock).mockRejectedValue(
+        contractNotExistsError,
+      );
+      (mockContext.Token.get as jest.Mock)
+        .mockResolvedValueOnce(mockToken0)
+        .mockResolvedValueOnce(mockToken1);
 
       const blockNumber = 1801;
       const [sqrtPriceX96, token0, token1] = await getSqrtPriceX96AndTokens(
@@ -465,26 +448,24 @@ describe("NFPMLogic", () => {
         mockContext,
       );
 
-      expect(sqrtPriceX96).to.be.undefined;
-      expect(token0).to.deep.equal(mockToken0);
-      expect(token1).to.deep.equal(mockToken1);
-      expect((mockContext.effect as sinon.SinonStub).callCount).to.equal(2);
-      expect((mockContext.log.warn as sinon.SinonStub).callCount).to.equal(1);
-      expect((mockContext.log.error as sinon.SinonStub).callCount).to.equal(1);
-      expect(
-        (mockContext.log.error as sinon.SinonStub).firstCall.args[0],
-      ).to.include("Failed to fetch sqrtPriceX96");
+      expect(sqrtPriceX96).toBeUndefined();
+      expect(token0).toEqual(mockToken0);
+      expect(token1).toEqual(mockToken1);
+      expect(mockContext.effect as jest.Mock).toHaveBeenCalledTimes(2);
+      expect(mockContext.log.warn as jest.Mock).toHaveBeenCalledTimes(1);
+      expect(mockContext.log.error as jest.Mock).toHaveBeenCalledTimes(1);
+      expect((mockContext.log.error as jest.Mock).mock.calls[0][0]).toContain(
+        "Failed to fetch sqrtPriceX96",
+      );
     });
 
     it("should retry with actual block even for non-contract-not-exists errors and return undefined if both fail", async () => {
       const networkError = new Error("Network error: connection timeout");
       // Both calls fail with network error
-      (mockContext.effect as sinon.SinonStub).rejects(networkError);
-      (mockContext.Token.get as sinon.SinonStub)
-        .onFirstCall()
-        .resolves(mockToken0)
-        .onSecondCall()
-        .resolves(mockToken1);
+      (mockContext.effect as jest.Mock).mockRejectedValue(networkError);
+      (mockContext.Token.get as jest.Mock)
+        .mockResolvedValueOnce(mockToken0)
+        .mockResolvedValueOnce(mockToken1);
 
       const blockNumber = 1801;
       const [sqrtPriceX96, token0, token1] = await getSqrtPriceX96AndTokens(
@@ -494,12 +475,12 @@ describe("NFPMLogic", () => {
         mockContext,
       );
 
-      expect(sqrtPriceX96).to.be.undefined;
-      expect(token0).to.deep.equal(mockToken0);
-      expect(token1).to.deep.equal(mockToken1);
-      expect((mockContext.effect as sinon.SinonStub).callCount).to.equal(2);
-      expect((mockContext.log.warn as sinon.SinonStub).callCount).to.equal(1);
-      expect((mockContext.log.error as sinon.SinonStub).callCount).to.equal(1);
+      expect(sqrtPriceX96).toBeUndefined();
+      expect(token0).toEqual(mockToken0);
+      expect(token1).toEqual(mockToken1);
+      expect(mockContext.effect as jest.Mock).toHaveBeenCalledTimes(2);
+      expect(mockContext.log.warn as jest.Mock).toHaveBeenCalledTimes(1);
+      expect(mockContext.log.error as jest.Mock).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -516,14 +497,12 @@ describe("NFPMLogic", () => {
         blockTimestamp,
       );
 
-      expect(result.updatedPosition.owner).to.equal(newOwner);
-      expect(result.updatedPosition.amountUSD).to.be.a("bigint");
-      expect(result.updatedPosition.lastUpdatedTimestamp).to.be.instanceOf(
-        Date,
-      );
+      expect(result.updatedPosition.owner).toBe(newOwner);
+      expect(typeof result.updatedPosition.amountUSD).toBe("bigint");
+      expect(result.updatedPosition.lastUpdatedTimestamp).toBeInstanceOf(Date);
       // amountUSD should be calculated: amount0 * price0 + amount1 * price1
       // 0.5 * 1 + 1 * 2 = 2.5 (in 18 decimals)
-      expect(result.updatedPosition.amountUSD).to.equal(2500000000000000000n);
+      expect(result.updatedPosition.amountUSD).toBe(2500000000000000000n);
     });
 
     it("should handle undefined tokens", () => {
@@ -538,9 +517,9 @@ describe("NFPMLogic", () => {
         blockTimestamp,
       );
 
-      expect(result.updatedPosition.owner).to.equal(newOwner);
+      expect(result.updatedPosition.owner).toBe(newOwner);
       // When tokens are undefined, amountUSD should be 0
-      expect(result.updatedPosition.amountUSD).to.equal(0n);
+      expect(result.updatedPosition.amountUSD).toBe(0n);
     });
   });
 
@@ -597,13 +576,11 @@ describe("NFPMLogic", () => {
       );
 
       // Verify exact equality
-      expect(result.updatedPosition.liquidity).to.equal(expectedLiquidity);
-      expect(result.updatedPosition.amount0).to.equal(expectedAmounts.amount0);
-      expect(result.updatedPosition.amount1).to.equal(expectedAmounts.amount1);
-      expect(result.updatedPosition.amountUSD).to.equal(expectedAmountUSD);
-      expect(result.updatedPosition.lastUpdatedTimestamp).to.be.instanceOf(
-        Date,
-      );
+      expect(result.updatedPosition.liquidity).toBe(expectedLiquidity);
+      expect(result.updatedPosition.amount0).toBe(expectedAmounts.amount0);
+      expect(result.updatedPosition.amount1).toBe(expectedAmounts.amount1);
+      expect(result.updatedPosition.amountUSD).toBe(expectedAmountUSD);
+      expect(result.updatedPosition.lastUpdatedTimestamp).toBeInstanceOf(Date);
     });
 
     it("should handle position with no existing liquidity", () => {
@@ -622,9 +599,7 @@ describe("NFPMLogic", () => {
       );
 
       // Should default to 0n for liquidity
-      expect(result.updatedPosition.liquidity).to.equal(
-        mockEvent.params.liquidity,
-      );
+      expect(result.updatedPosition.liquidity).toBe(mockEvent.params.liquidity);
     });
 
     it("should handle undefined tokens", () => {
@@ -638,11 +613,11 @@ describe("NFPMLogic", () => {
         undefined,
       );
 
-      expect(result.updatedPosition.liquidity).to.be.a("bigint");
-      expect(result.updatedPosition.amount0).to.be.a("bigint");
-      expect(result.updatedPosition.amount1).to.be.a("bigint");
+      expect(typeof result.updatedPosition.liquidity).toBe("bigint");
+      expect(typeof result.updatedPosition.amount0).toBe("bigint");
+      expect(typeof result.updatedPosition.amount1).toBe("bigint");
       // amountUSD should be 0 when tokens are undefined
-      expect(result.updatedPosition.amountUSD).to.equal(0n);
+      expect(result.updatedPosition.amountUSD).toBe(0n);
     });
 
     it("should calculate amountUSD correctly when tokens have valid prices", () => {
@@ -666,8 +641,8 @@ describe("NFPMLogic", () => {
         (result.updatedPosition.amount0 ?? 0n) +
         (result.updatedPosition.amount1 ?? 0n) * 2n;
 
-      expect(result.updatedPosition.amountUSD).to.equal(expectedAmountUSD);
-      expect((result.updatedPosition.amountUSD ?? 0n) > 0n).to.be.true;
+      expect(result.updatedPosition.amountUSD).toBe(expectedAmountUSD);
+      expect((result.updatedPosition.amountUSD ?? 0n) > 0n).toBe(true);
     });
 
     it("should return 0 amountUSD when tokens have 0 price", () => {
@@ -690,7 +665,7 @@ describe("NFPMLogic", () => {
       );
 
       // amountUSD should be 0 when token prices are 0
-      expect(result.updatedPosition.amountUSD).to.equal(0n);
+      expect(result.updatedPosition.amountUSD).toBe(0n);
     });
   });
 
@@ -750,13 +725,11 @@ describe("NFPMLogic", () => {
       );
 
       // Verify exact equality
-      expect(result.updatedPosition.liquidity).to.equal(expectedLiquidity);
-      expect(result.updatedPosition.amount0).to.equal(expectedAmounts.amount0);
-      expect(result.updatedPosition.amount1).to.equal(expectedAmounts.amount1);
-      expect(result.updatedPosition.amountUSD).to.equal(expectedAmountUSD);
-      expect(result.updatedPosition.lastUpdatedTimestamp).to.be.instanceOf(
-        Date,
-      );
+      expect(result.updatedPosition.liquidity).toBe(expectedLiquidity);
+      expect(result.updatedPosition.amount0).toBe(expectedAmounts.amount0);
+      expect(result.updatedPosition.amount1).toBe(expectedAmounts.amount1);
+      expect(result.updatedPosition.amountUSD).toBe(expectedAmountUSD);
+      expect(result.updatedPosition.lastUpdatedTimestamp).toBeInstanceOf(Date);
     });
 
     it("should handle position with no existing liquidity", () => {
@@ -775,7 +748,7 @@ describe("NFPMLogic", () => {
       );
 
       // Should default to 0n for liquidity, so result should be 0n
-      expect(result.updatedPosition.liquidity).to.equal(0n);
+      expect(result.updatedPosition.liquidity).toBe(0n);
     });
 
     it("should handle undefined tokens", () => {
@@ -789,11 +762,11 @@ describe("NFPMLogic", () => {
         undefined,
       );
 
-      expect(result.updatedPosition.liquidity).to.be.a("bigint");
-      expect(result.updatedPosition.amount0).to.be.a("bigint");
-      expect(result.updatedPosition.amount1).to.be.a("bigint");
+      expect(typeof result.updatedPosition.liquidity).toBe("bigint");
+      expect(typeof result.updatedPosition.amount0).toBe("bigint");
+      expect(typeof result.updatedPosition.amount1).toBe("bigint");
       // amountUSD should be 0 when tokens are undefined
-      expect(result.updatedPosition.amountUSD).to.equal(0n);
+      expect(result.updatedPosition.amountUSD).toBe(0n);
     });
 
     it("should calculate amountUSD correctly when tokens have valid prices", () => {
@@ -817,10 +790,10 @@ describe("NFPMLogic", () => {
         (result.updatedPosition.amount0 ?? 0n) +
         (result.updatedPosition.amount1 ?? 0n) * 2n;
 
-      expect(result.updatedPosition.amountUSD).to.equal(expectedAmountUSD);
+      expect(result.updatedPosition.amountUSD).toBe(expectedAmountUSD);
       // After decreasing liquidity, amountUSD should still be > 0 (unless liquidity went to 0)
       if ((result.updatedPosition.liquidity ?? 0n) > 0n) {
-        expect((result.updatedPosition.amountUSD ?? 0n) > 0n).to.be.true;
+        expect((result.updatedPosition.amountUSD ?? 0n) > 0n).toBe(true);
       }
     });
 
@@ -844,7 +817,7 @@ describe("NFPMLogic", () => {
       );
 
       // amountUSD should be 0 when token prices are 0
-      expect(result.updatedPosition.amountUSD).to.equal(0n);
+      expect(result.updatedPosition.amountUSD).toBe(0n);
     });
   });
 });

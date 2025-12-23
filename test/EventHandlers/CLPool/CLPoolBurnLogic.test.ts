@@ -1,4 +1,3 @@
-import { expect } from "chai";
 import type {
   CLPool_Burn_event,
   LiquidityPoolAggregator,
@@ -58,39 +57,31 @@ describe("CLPoolBurnLogic", () => {
       const result = processCLPoolBurn(mockEvent, mockToken0, mockToken1);
 
       // Check liquidity pool diff with exact values (negative because burning decreases reserves)
-      expect(result.liquidityPoolDiff.reserve0).to.equal(-500000n); // -amount0 (delta)
-      expect(result.liquidityPoolDiff.reserve1).to.equal(-300000n); // -amount1 (delta)
+      expect(result.liquidityPoolDiff.reserve0).toBe(-500000n); // -amount0 (delta)
+      expect(result.liquidityPoolDiff.reserve1).toBe(-300000n); // -amount1 (delta)
 
       // Calculate exact totalLiquidityUSD: (500000 * 1 USD) + (300000 * 2 USD) = 500000 + 600000 = 1100000 USD (negative because reserves decrease)
-      expect(result.liquidityPoolDiff.totalLiquidityUSD).to.equal(-1100000n); // -1.1M USD in 18 decimals
+      expect(result.liquidityPoolDiff.totalLiquidityUSD).toBe(-1100000n); // -1.1M USD in 18 decimals
 
       // Check user liquidity diff with exact values
       // totalLiquidityUSD should be negative for burn (removal): -1100000n
-      expect(result.userLiquidityDiff.currentLiquidityUSD).to.equal(-1100000n);
-      expect(result.userLiquidityDiff.currentLiquidityToken0).to.equal(
-        -500000n,
-      ); // Negative amount of token0 removed
-      expect(result.userLiquidityDiff.currentLiquidityToken1).to.equal(
-        -300000n,
-      ); // Negative amount of token1 removed
+      expect(result.userLiquidityDiff.currentLiquidityUSD).toBe(-1100000n);
+      expect(result.userLiquidityDiff.currentLiquidityToken0).toBe(-500000n); // Negative amount of token0 removed
+      expect(result.userLiquidityDiff.currentLiquidityToken1).toBe(-300000n); // Negative amount of token1 removed
     });
 
     it("should calculate correct liquidity values for burn event", () => {
       const result = processCLPoolBurn(mockEvent, mockToken0, mockToken1);
 
       // For burn events, we expect negative liquidity change with exact values
-      expect(result.userLiquidityDiff.currentLiquidityUSD).to.equal(-1100000n);
-      expect(result.userLiquidityDiff.currentLiquidityToken0).to.equal(
-        -500000n,
-      );
-      expect(result.userLiquidityDiff.currentLiquidityToken1).to.equal(
-        -300000n,
-      );
+      expect(result.userLiquidityDiff.currentLiquidityUSD).toBe(-1100000n);
+      expect(result.userLiquidityDiff.currentLiquidityToken0).toBe(-500000n);
+      expect(result.userLiquidityDiff.currentLiquidityToken1).toBe(-300000n);
 
       // The liquidity pool diff should reflect the reserve deltas (negative because burning decreases reserves)
-      expect(result.liquidityPoolDiff.reserve0).to.equal(-500000n); // -amount0 (delta)
-      expect(result.liquidityPoolDiff.reserve1).to.equal(-300000n); // -amount1 (delta)
-      expect(result.liquidityPoolDiff.totalLiquidityUSD).to.equal(-1100000n); // Negative because reserves decrease
+      expect(result.liquidityPoolDiff.reserve0).toBe(-500000n); // -amount0 (delta)
+      expect(result.liquidityPoolDiff.reserve1).toBe(-300000n); // -amount1 (delta)
+      expect(result.liquidityPoolDiff.totalLiquidityUSD).toBe(-1100000n); // Negative because reserves decrease
     });
 
     it("should handle different token decimals correctly", () => {
@@ -105,8 +96,8 @@ describe("CLPoolBurnLogic", () => {
         mockToken1,
       );
 
-      expect(result.liquidityPoolDiff).to.not.be.undefined;
-      expect(result.userLiquidityDiff).to.not.be.undefined;
+      expect(result.liquidityPoolDiff).toBeDefined();
+      expect(result.userLiquidityDiff).toBeDefined();
     });
   });
 });

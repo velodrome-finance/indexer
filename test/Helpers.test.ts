@@ -1,5 +1,4 @@
 import { SqrtPriceMath, TickMath } from "@uniswap/v3-sdk";
-import { expect } from "chai";
 import JSBI from "jsbi";
 import type {
   LiquidityPoolAggregator,
@@ -61,8 +60,8 @@ describe("Helpers", () => {
         );
 
         // Verify exact equality
-        expect(result.amount0).to.equal(expectedAmount0);
-        expect(result.amount1).to.equal(expectedAmount1);
+        expect(result.amount0).toBe(expectedAmount0);
+        expect(result.amount1).toBe(expectedAmount1);
       });
 
       it("should handle price closer to lower tick", () => {
@@ -114,10 +113,10 @@ describe("Helpers", () => {
         );
 
         // Verify exact equality
-        expect(result.amount0).to.equal(expectedAmount0);
-        expect(result.amount1).to.equal(expectedAmount1);
+        expect(result.amount0).toBe(expectedAmount0);
+        expect(result.amount1).toBe(expectedAmount1);
         // Should have more amount0 (token0) than amount1 when price is lower
-        expect(result.amount0 > result.amount1).to.be.true;
+        expect(result.amount0 > result.amount1).toBe(true);
       });
 
       it("should handle price closer to upper tick", () => {
@@ -168,10 +167,10 @@ describe("Helpers", () => {
         );
 
         // Verify exact equality
-        expect(result.amount0).to.equal(expectedAmount0);
-        expect(result.amount1).to.equal(expectedAmount1);
+        expect(result.amount0).toBe(expectedAmount0);
+        expect(result.amount1).toBe(expectedAmount1);
         // Should have more amount1 (token1) than amount0 when price is higher
-        expect(result.amount1 > result.amount0).to.be.true;
+        expect(result.amount1 > result.amount0).toBe(true);
       });
     });
 
@@ -210,8 +209,8 @@ describe("Helpers", () => {
         );
 
         // Verify exact equality
-        expect(result.amount0).to.equal(expectedAmount0);
-        expect(result.amount1).to.equal(expectedAmount1);
+        expect(result.amount0).toBe(expectedAmount0);
+        expect(result.amount1).toBe(expectedAmount1);
       });
 
       it("should handle price exactly at tickLower", () => {
@@ -256,8 +255,8 @@ describe("Helpers", () => {
         );
 
         // Verify exact equality
-        expect(result.amount0).to.equal(expectedAmount0);
-        expect(result.amount1).to.equal(expectedAmount1);
+        expect(result.amount0).toBe(expectedAmount0);
+        expect(result.amount1).toBe(expectedAmount1);
       });
     });
 
@@ -296,8 +295,8 @@ describe("Helpers", () => {
         );
 
         // Verify exact equality
-        expect(result.amount0).to.equal(expectedAmount0);
-        expect(result.amount1).to.equal(expectedAmount1);
+        expect(result.amount0).toBe(expectedAmount0);
+        expect(result.amount1).toBe(expectedAmount1);
       });
 
       it("should handle price exactly at tickUpper", () => {
@@ -342,8 +341,8 @@ describe("Helpers", () => {
         );
 
         // Verify exact equality
-        expect(result.amount0).to.equal(expectedAmount0);
-        expect(result.amount1).to.equal(expectedAmount1);
+        expect(result.amount0).toBe(expectedAmount0);
+        expect(result.amount1).toBe(expectedAmount1);
       });
     });
 
@@ -362,8 +361,8 @@ describe("Helpers", () => {
           tickUpper,
         );
 
-        expect(result.amount0).to.equal(0n);
-        expect(result.amount1).to.equal(0n);
+        expect(result.amount0).toBe(0n);
+        expect(result.amount1).toBe(0n);
       });
 
       it("should handle equal ticks", () => {
@@ -381,8 +380,8 @@ describe("Helpers", () => {
         );
 
         // When ticks are equal, both amounts should be 0
-        expect(result.amount0).to.equal(0n);
-        expect(result.amount1).to.equal(0n);
+        expect(result.amount0).toBe(0n);
+        expect(result.amount1).toBe(0n);
       });
 
       it("should handle very large liquidity values", () => {
@@ -425,8 +424,8 @@ describe("Helpers", () => {
         );
 
         // Verify exact equality
-        expect(result.amount0).to.equal(expectedAmount0);
-        expect(result.amount1).to.equal(expectedAmount1);
+        expect(result.amount0).toBe(expectedAmount0);
+        expect(result.amount1).toBe(expectedAmount1);
       });
 
       it("should handle negative ticks", () => {
@@ -461,8 +460,8 @@ describe("Helpers", () => {
         );
 
         // Verify exact equality
-        expect(result.amount0).to.equal(expectedAmount0);
-        expect(result.amount1).to.equal(expectedAmount1);
+        expect(result.amount0).toBe(expectedAmount0);
+        expect(result.amount1).toBe(expectedAmount1);
       });
 
       it("should handle positive ticks", () => {
@@ -497,8 +496,8 @@ describe("Helpers", () => {
         );
 
         // Verify exact equality
-        expect(result.amount0).to.equal(expectedAmount0);
-        expect(result.amount1).to.equal(expectedAmount1);
+        expect(result.amount0).toBe(expectedAmount0);
+        expect(result.amount1).toBe(expectedAmount1);
       });
     });
 
@@ -549,8 +548,8 @@ describe("Helpers", () => {
         const expectedAmount1 = BigInt(expectedAmount1JSBI.toString());
 
         // Verify the calculated amounts match expected values exactly
-        expect(result.amount0).to.equal(expectedAmount0);
-        expect(result.amount1).to.equal(expectedAmount1);
+        expect(result.amount0).toBe(expectedAmount0);
+        expect(result.amount1).toBe(expectedAmount1);
       });
     });
   });
@@ -660,8 +659,8 @@ describe("Helpers", () => {
           mockContext,
         );
 
-        expect(result).to.equal(expectedUSD);
-        expect(result > 0n).to.be.true;
+        expect(result).toBe(expectedUSD);
+        expect(result > 0n).toBe(true);
       });
 
       it("should return 0 when position is not found for CL pool", async () => {
@@ -707,7 +706,7 @@ describe("Helpers", () => {
           mockContext,
         );
 
-        expect(result).to.equal(0n);
+        expect(result).toBe(0n);
       });
 
       it("should handle errors in CL pool calculation gracefully", async () => {
@@ -755,7 +754,7 @@ describe("Helpers", () => {
           mockContext,
         );
 
-        expect(result).to.equal(0n);
+        expect(result).toBe(0n);
       });
     });
 
@@ -825,7 +824,7 @@ describe("Helpers", () => {
           mockContext,
         );
 
-        expect(result).to.equal(expectedUSD);
+        expect(result).toBe(expectedUSD);
       });
 
       it("should return 0 when totalSupply is 0 for V2 pool", async () => {
@@ -878,7 +877,7 @@ describe("Helpers", () => {
           mockContext,
         );
 
-        expect(result).to.equal(0n);
+        expect(result).toBe(0n);
       });
 
       it("should handle errors in V2 pool calculation gracefully", async () => {
@@ -928,7 +927,7 @@ describe("Helpers", () => {
           mockContext,
         );
 
-        expect(result).to.equal(0n);
+        expect(result).toBe(0n);
       });
     });
 
@@ -977,7 +976,7 @@ describe("Helpers", () => {
         );
 
         // Should return 0 due to zero totalSupply
-        expect(result).to.equal(0n);
+        expect(result).toBe(0n);
       });
 
       it("should handle CL pool without tokenId", async () => {
@@ -1024,7 +1023,7 @@ describe("Helpers", () => {
         );
 
         // Should return 0 (fallback case)
-        expect(result).to.equal(0n);
+        expect(result).toBe(0n);
       });
     });
   });

@@ -1,4 +1,3 @@
-import { expect } from "chai";
 import type {
   LiquidityPoolAggregator,
   Pool_Sync_event,
@@ -111,15 +110,15 @@ describe("PoolSyncLogic", () => {
         mockContext,
       );
 
-      expect(result.liquidityPoolDiff).to.exist;
+      expect(result.liquidityPoolDiff).toBeDefined();
 
-      expect(result.liquidityPoolDiff).to.include({
+      expect(result.liquidityPoolDiff).toMatchObject({
         reserve0: 500n, // 1000n - 500n (incremental change)
         reserve1: 1000n, // 2000n - 1000n (incremental change)
         token0Price: 1000000000000000000n,
         token1Price: 2000000000000000000n,
       });
-      expect(result.liquidityPoolDiff?.lastUpdatedTimestamp).to.deep.equal(
+      expect(result.liquidityPoolDiff?.lastUpdatedTimestamp).toEqual(
         new Date(1000000 * 1000),
       );
     });
@@ -134,7 +133,7 @@ describe("PoolSyncLogic", () => {
       );
 
       // Current total: 2000n, New total: 1000000000004000n, Incremental change: 1000000000002000n
-      expect(result.liquidityPoolDiff?.totalLiquidityUSD).to.equal(
+      expect(result.liquidityPoolDiff?.totalLiquidityUSD).toBe(
         1000000000002000n,
       );
     });
@@ -149,7 +148,7 @@ describe("PoolSyncLogic", () => {
       );
 
       // Current: 2000n, New: 1000000000000000n, Incremental change: 999999999998000n
-      expect(result.liquidityPoolDiff?.totalLiquidityUSD).to.equal(
+      expect(result.liquidityPoolDiff?.totalLiquidityUSD).toBe(
         999999999998000n,
       );
     });
@@ -166,7 +165,7 @@ describe("PoolSyncLogic", () => {
       // Current: 1000 * 10^0 * 2 USD = 2000n
       // New: 2000 * 10^0 * 2 USD = 4000n
       // Incremental change: 4000n - 2000n = 2000n
-      expect(result.liquidityPoolDiff?.totalLiquidityUSD).to.equal(2000n);
+      expect(result.liquidityPoolDiff?.totalLiquidityUSD).toBe(2000n);
     });
 
     it("should use existing totalLiquidityUSD when no tokens are available", async () => {
@@ -179,7 +178,7 @@ describe("PoolSyncLogic", () => {
       );
 
       // No tokens available: keep existing values (no change)
-      expect(result.liquidityPoolDiff?.totalLiquidityUSD).to.equal(0n);
+      expect(result.liquidityPoolDiff?.totalLiquidityUSD).toBe(0n);
     });
 
     it("should handle different token decimals correctly", async () => {
@@ -197,9 +196,7 @@ describe("PoolSyncLogic", () => {
       );
 
       // Current: 2000n, New: 10000000004000n, Incremental change: 10000000002000n
-      expect(result.liquidityPoolDiff?.totalLiquidityUSD).to.equal(
-        10000000002000n,
-      );
+      expect(result.liquidityPoolDiff?.totalLiquidityUSD).toBe(10000000002000n);
     });
 
     it("should handle zero amounts correctly", async () => {
@@ -219,13 +216,13 @@ describe("PoolSyncLogic", () => {
         mockContext,
       );
 
-      expect(result.liquidityPoolDiff).to.include({
+      expect(result.liquidityPoolDiff).toMatchObject({
         reserve0: -500n, // Set to zero: subtract current reserves
         reserve1: -1000n, // Set to zero: subtract current reserves
       });
       // Zero amounts: set reserves to zero (snapshot behavior)
       // This means subtracting current reserves to get to zero
-      expect(result.liquidityPoolDiff?.totalLiquidityUSD).to.equal(-2000n);
+      expect(result.liquidityPoolDiff?.totalLiquidityUSD).toBe(-2000n);
     });
 
     it("should handle missing token instances gracefully", async () => {
@@ -237,10 +234,10 @@ describe("PoolSyncLogic", () => {
         mockContext,
       );
 
-      expect(result.liquidityPoolDiff).to.exist;
+      expect(result.liquidityPoolDiff).toBeDefined();
 
       // Should use existing prices from aggregator
-      expect(result.liquidityPoolDiff).to.include({
+      expect(result.liquidityPoolDiff).toMatchObject({
         token0Price: mockLiquidityPoolAggregator.token0Price,
         token1Price: mockLiquidityPoolAggregator.token1Price,
       });
@@ -265,7 +262,7 @@ describe("PoolSyncLogic", () => {
         mockContext,
       );
 
-      expect(result.liquidityPoolDiff).to.include({
+      expect(result.liquidityPoolDiff).toMatchObject({
         token0Price: 1500000000000000000n,
         token1Price: 2500000000000000000n,
       });

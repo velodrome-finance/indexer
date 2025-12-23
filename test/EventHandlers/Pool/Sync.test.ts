@@ -1,4 +1,3 @@
-import { expect } from "chai";
 import { MockDb, Pool } from "../../../generated/src/TestHelpers.gen";
 import type {
   LiquidityPoolAggregator,
@@ -100,10 +99,10 @@ describe("Pool Sync Event", () => {
       const updatedPool = postEventDB.entities.LiquidityPoolAggregator.get(
         toChecksumAddress(eventData.mockEventData.srcAddress),
       );
-      expect(updatedPool).to.not.be.undefined;
-      expect(updatedPool?.reserve0).to.equal(expectations.expectedReserve0);
-      expect(updatedPool?.reserve1).to.equal(expectations.expectedReserve1);
-      expect(updatedPool?.totalLiquidityUSD).to.equal(
+      expect(updatedPool).toBeDefined();
+      expect(updatedPool?.reserve0).toBe(expectations.expectedReserve0);
+      expect(updatedPool?.reserve1).toBe(expectations.expectedReserve1);
+      expect(updatedPool?.totalLiquidityUSD).toBe(
         expectations.expectedLiquidity0USD + expectations.expectedLiquidity1USD,
       );
     });

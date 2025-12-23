@@ -1,4 +1,3 @@
-import { expect } from "chai";
 import type { Pool_Fees_event, Token, handlerContext } from "generated";
 import { processPoolFees } from "../../../src/EventHandlers/Pool/PoolFeesLogic";
 import { setupCommon } from "./common";
@@ -48,27 +47,27 @@ describe("PoolFeesLogic", () => {
         );
 
         // Check liquidity pool diff
-        expect(result.liquidityPoolDiff).to.not.be.undefined;
+        expect(result.liquidityPoolDiff).toBeDefined();
         // For regular pools, fees are tracked as unstaked fees
-        expect(result.liquidityPoolDiff?.totalUnstakedFeesCollected0).to.equal(
+        expect(result.liquidityPoolDiff?.totalUnstakedFeesCollected0).toBe(
           mockEvent.params.amount0,
         );
-        expect(result.liquidityPoolDiff?.totalUnstakedFeesCollected1).to.equal(
+        expect(result.liquidityPoolDiff?.totalUnstakedFeesCollected1).toBe(
           mockEvent.params.amount1,
         );
-        expect(result.liquidityPoolDiff?.lastUpdatedTimestamp).to.deep.equal(
+        expect(result.liquidityPoolDiff?.lastUpdatedTimestamp).toEqual(
           new Date(mockEvent.block.timestamp * 1000),
         );
 
         // Check user diff data
-        expect(result.userDiff).to.not.be.undefined;
-        expect(result.userDiff?.totalFeesContributed0).to.equal(
+        expect(result.userDiff).toBeDefined();
+        expect(result.userDiff?.totalFeesContributed0).toBe(
           mockEvent.params.amount0,
         );
-        expect(result.userDiff?.totalFeesContributed1).to.equal(
+        expect(result.userDiff?.totalFeesContributed1).toBe(
           mockEvent.params.amount1,
         );
-        expect(result.userDiff?.lastActivityTimestamp).to.deep.equal(
+        expect(result.userDiff?.lastActivityTimestamp).toEqual(
           new Date(mockEvent.block.timestamp * 1000),
         );
       });
@@ -82,14 +81,14 @@ describe("PoolFeesLogic", () => {
         );
 
         // Check that user diff data is prepared correctly
-        expect(result.userDiff).to.not.be.undefined;
-        expect(result.userDiff?.totalFeesContributed0).to.equal(
+        expect(result.userDiff).toBeDefined();
+        expect(result.userDiff?.totalFeesContributed0).toBe(
           mockEvent.params.amount0,
         );
-        expect(result.userDiff?.totalFeesContributed1).to.equal(
+        expect(result.userDiff?.totalFeesContributed1).toBe(
           mockEvent.params.amount1,
         );
-        expect(result.userDiff?.lastActivityTimestamp).to.deep.equal(
+        expect(result.userDiff?.lastActivityTimestamp).toEqual(
           new Date(mockEvent.block.timestamp * 1000),
         );
       });
@@ -106,11 +105,11 @@ describe("PoolFeesLogic", () => {
 
         // The USD calculation is handled by updateFeeTokenData
         // We just verify that the result contains the expected structure
-        expect(result.liquidityPoolDiff).to.not.be.undefined;
-        expect(result.liquidityPoolDiff?.totalUnstakedFeesCollectedUSD).to.be.a(
-          "bigint",
-        );
-        expect(result.liquidityPoolDiff?.totalFeesUSDWhitelisted).to.be.a(
+        expect(result.liquidityPoolDiff).toBeDefined();
+        expect(
+          typeof result.liquidityPoolDiff?.totalUnstakedFeesCollectedUSD,
+        ).toBe("bigint");
+        expect(typeof result.liquidityPoolDiff?.totalFeesUSDWhitelisted).toBe(
           "bigint",
         );
       });
@@ -136,8 +135,8 @@ describe("PoolFeesLogic", () => {
           mockContext,
         );
 
-        expect(result.liquidityPoolDiff).to.not.be.undefined;
-        expect(result.userDiff).to.not.be.undefined;
+        expect(result.liquidityPoolDiff).toBeDefined();
+        expect(result.userDiff).toBeDefined();
       });
 
       it("should handle undefined tokens", async () => {
@@ -148,8 +147,8 @@ describe("PoolFeesLogic", () => {
           mockContext,
         );
 
-        expect(result.liquidityPoolDiff).to.not.be.undefined;
-        expect(result.userDiff).to.not.be.undefined;
+        expect(result.liquidityPoolDiff).toBeDefined();
+        expect(result.userDiff).toBeDefined();
       });
     });
   });

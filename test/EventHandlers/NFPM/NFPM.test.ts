@@ -1,5 +1,3 @@
-import { expect } from "chai";
-import sinon from "sinon";
 import type { PublicClient } from "viem";
 import { MockDb, NFPM } from "../../../generated/src/TestHelpers.gen";
 import { CHAIN_CONSTANTS, TokenIdByChain } from "../../../src/Constants";
@@ -14,6 +12,7 @@ describe("NFPM Events", () => {
   let mockDb: ReturnType<typeof MockDb.createMockDb>;
   const chainId = 10;
   const tokenId = 1n;
+  let originalChainConstant: (typeof CHAIN_CONSTANTS)[typeof chainId];
   // Use valid Ethereum addresses for tests (TokenIdByChain validates addresses)
   const token0Address = "0x2222222222222222222222222222222222222222";
   const token1Address = "0x3333333333333333333333333333333333333333";
@@ -70,11 +69,14 @@ describe("NFPM Events", () => {
   };
 
   beforeEach(() => {
+    // Store original before mutation to restore in afterEach
+    originalChainConstant = CHAIN_CONSTANTS[chainId];
+
     // Mock ethClient to return proper slot0 structure for getSqrtPriceX96 effect
     const Q96 = 2n ** 96n;
     const mockSqrtPriceX96 = Q96; // Price at tick 0
     const mockEthClient = {
-      simulateContract: sinon.stub().resolves({
+      simulateContract: jest.fn().mockResolvedValue({
         result: [mockSqrtPriceX96], // slot0 returns array with sqrtPriceX96 as first element
       }),
     } as unknown as PublicClient;
@@ -94,7 +96,13 @@ describe("NFPM Events", () => {
   });
 
   afterEach(() => {
-    sinon.restore();
+    // Restore original CHAIN_CONSTANTS to prevent test pollution
+    if (originalChainConstant !== undefined) {
+      CHAIN_CONSTANTS[chainId] = originalChainConstant;
+    } else {
+      (CHAIN_CONSTANTS as Record<number, unknown>)[chainId] = undefined;
+    }
+    jest.restoreAllMocks();
   });
 
   describe("Transfer Event", () => {
@@ -129,16 +137,16 @@ describe("NFPM Events", () => {
       const updatedEntity = postEventDB.entities.NonFungiblePosition.get(
         NonFungiblePositionId(chainId, tokenId),
       );
-      expect(updatedEntity).to.exist;
+      expect(updatedEntity).toBeDefined();
       if (!updatedEntity) return; // Type guard
-      expect(updatedEntity.owner.toLowerCase()).to.equal(
+      expect(updatedEntity.owner.toLowerCase()).toBe(
         eventData.to.toLowerCase(),
       );
-      expect(updatedEntity.amount0).to.equal(mockNonFungiblePosition.amount0);
-      expect(updatedEntity.amount1).to.equal(mockNonFungiblePosition.amount1);
+      expect(updatedEntity.amount0).toBe(mockNonFungiblePosition.amount0);
+      expect(updatedEntity.amount1).toBe(mockNonFungiblePosition.amount1);
       // amountUSD should be recalculated: (amount0 * pricePerUSD) + (amount1 * pricePerUSD)
       // (0.5e18 * 1) + (1e18 * 2) = 0.5e18 + 2e18 = 2.5e18
-      expect(updatedEntity.amountUSD).to.equal(2500000000000000000n);
+      expect(updatedEntity.amountUSD).toBe(2500000000000000000n);
     });
 
     it("should find and update placeholder position created by CLPool.Mint (integration test)", async () => {
@@ -230,17 +238,17 @@ describe("NFPM Events", () => {
       const updatedEntity = result.entities.NonFungiblePosition.get(
         placeholderId, // Placeholder ID is kept, not changed
       );
-      expect(updatedEntity).to.exist;
+      expect(updatedEntity).toBeDefined();
       if (!updatedEntity) return;
 
       // Verify it was updated from placeholder
-      expect(updatedEntity.id).to.equal(placeholderId); // ID stays as placeholder ID
-      expect(updatedEntity.tokenId).to.equal(tokenId); // tokenId updated from 0n to actual tokenId
-      expect(updatedEntity.owner.toLowerCase()).to.equal(
+      expect(updatedEntity.id).toBe(placeholderId); // ID stays as placeholder ID
+      expect(updatedEntity.tokenId).toBe(tokenId); // tokenId updated from 0n to actual tokenId
+      expect(updatedEntity.owner.toLowerCase()).toBe(
         "0x2222222222222222222222222222222222222222".toLowerCase(),
       );
-      expect(updatedEntity.amount0).to.equal(placeholderPosition.amount0);
-      expect(updatedEntity.amount1).to.equal(placeholderPosition.amount1);
+      expect(updatedEntity.amount0).toBe(placeholderPosition.amount0);
+      expect(updatedEntity.amount1).toBe(placeholderPosition.amount1);
     });
   });
 
@@ -303,21 +311,17 @@ describe("NFPM Events", () => {
       const updatedEntity = postEventDB.entities.NonFungiblePosition.get(
         NonFungiblePositionId(chainId, tokenId),
       );
-      expect(updatedEntity).to.exist;
+      expect(updatedEntity).toBeDefined();
       if (!updatedEntity) return; // Type guard
       // Amounts are recalculated from liquidity, not added directly
       // With liquidity = 1e18 + 1000, price at tick 0, ticks -100 to 100
-      expect(updatedEntity.amount0).to.equal(4987272070749101n);
-      expect(updatedEntity.amount1).to.equal(4987272070749101n);
-      expect(updatedEntity.owner).to.equal(mockNonFungiblePosition.owner);
-      expect(updatedEntity.tickUpper).to.equal(
-        mockNonFungiblePosition.tickUpper,
-      );
-      expect(updatedEntity.tickLower).to.equal(
-        mockNonFungiblePosition.tickLower,
-      );
+      expect(updatedEntity.amount0).toBe(4987272070749101n);
+      expect(updatedEntity.amount1).toBe(4987272070749101n);
+      expect(updatedEntity.owner).toBe(mockNonFungiblePosition.owner);
+      expect(updatedEntity.tickUpper).toBe(mockNonFungiblePosition.tickUpper);
+      expect(updatedEntity.tickLower).toBe(mockNonFungiblePosition.tickLower);
       // amountUSD: (4987272070749101n * 1) + (5000000000000004n * 2) = 14987272070749109n
-      expect(updatedEntity.amountUSD).to.equal(14961816212247303n);
+      expect(updatedEntity.amountUSD).toBe(14961816212247303n);
     });
 
     it("should filter by transactionHash and then by amount0 and amount1 when multiple positions exist", async () => {
@@ -362,10 +366,10 @@ describe("NFPM Events", () => {
       const updatedEntity = result.entities.NonFungiblePosition.get(
         NonFungiblePositionId(chainId, tokenId),
       );
-      expect(updatedEntity).to.exist;
+      expect(updatedEntity).toBeDefined();
       if (!updatedEntity) return;
       // Amounts are recalculated from liquidity, not added directly
-      expect(updatedEntity.amount0).to.equal(4987272070749101n);
+      expect(updatedEntity.amount0).toBe(4987272070749101n);
     });
 
     it("should log error and return when no positions found by transaction hash", async () => {
@@ -402,7 +406,7 @@ describe("NFPM Events", () => {
       const updatedEntity = result.entities.NonFungiblePosition.get(
         NonFungiblePositionId(chainId, tokenId),
       );
-      expect(updatedEntity).to.be.undefined;
+      expect(updatedEntity).toBeUndefined();
     });
 
     it("should log error and return when no matching position found by amounts", async () => {
@@ -460,10 +464,10 @@ describe("NFPM Events", () => {
         NonFungiblePositionId(chainId, differentTokenId),
       );
       // Position exists but wasn't updated (still has original amounts)
-      expect(updatedEntity).to.exist;
+      expect(updatedEntity).toBeDefined();
       if (!updatedEntity) return;
-      expect(updatedEntity.amount0).to.equal(999999999999999999n);
-      expect(updatedEntity.amount1).to.equal(999999999999999999n);
+      expect(updatedEntity.amount0).toBe(999999999999999999n);
+      expect(updatedEntity.amount1).toBe(999999999999999999n);
     });
   });
 
@@ -500,21 +504,17 @@ describe("NFPM Events", () => {
       const updatedEntity = postEventDB.entities.NonFungiblePosition.get(
         NonFungiblePositionId(chainId, tokenId),
       );
-      expect(updatedEntity).to.exist;
+      expect(updatedEntity).toBeDefined();
       if (!updatedEntity) return; // Type guard
       // Amounts are recalculated from liquidity, not subtracted directly
       // With liquidity = 1e18 - 1000, price at tick 0, ticks -100 to 100
-      expect(updatedEntity.amount0).to.equal(4987272070749091n);
-      expect(updatedEntity.amount1).to.equal(4987272070749091n);
-      expect(updatedEntity.owner).to.equal(mockNonFungiblePosition.owner);
-      expect(updatedEntity.tickUpper).to.equal(
-        mockNonFungiblePosition.tickUpper,
-      );
-      expect(updatedEntity.tickLower).to.equal(
-        mockNonFungiblePosition.tickLower,
-      );
+      expect(updatedEntity.amount0).toBe(4987272070749091n);
+      expect(updatedEntity.amount1).toBe(4987272070749091n);
+      expect(updatedEntity.owner).toBe(mockNonFungiblePosition.owner);
+      expect(updatedEntity.tickUpper).toBe(mockNonFungiblePosition.tickUpper);
+      expect(updatedEntity.tickLower).toBe(mockNonFungiblePosition.tickLower);
       // amountUSD: (4987272070749091n * 1) + (4999999999999994n * 2) = 14987272070749079n
-      expect(updatedEntity.amountUSD).to.equal(14961816212247273n);
+      expect(updatedEntity.amountUSD).toBe(14961816212247273n);
     });
 
     it("should log error and return when position not found (Transfer should have run first)", async () => {
@@ -554,7 +554,7 @@ describe("NFPM Events", () => {
       const updatedEntity = result.entities.NonFungiblePosition.get(
         NonFungiblePositionId(chainId, tokenId),
       );
-      expect(updatedEntity).to.be.undefined;
+      expect(updatedEntity).toBeUndefined();
     });
 
     it("should log error and return when position is not found", async () => {
@@ -612,7 +612,7 @@ describe("NFPM Events", () => {
       const updatedEntity = result.entities.NonFungiblePosition.get(
         NonFungiblePositionId(chainId, tokenId),
       );
-      expect(updatedEntity).to.be.undefined;
+      expect(updatedEntity).toBeUndefined();
     });
   });
 
@@ -663,24 +663,24 @@ describe("NFPM Events", () => {
       lastUpdatedTimestamp: new Date(),
     };
 
-    // Variables to hold stubs for verification
-    let mockSimulateContractBase: sinon.SinonStub;
-    let mockSimulateContractLisk: sinon.SinonStub;
+    // Variables to hold mocks for verification
+    let mockSimulateContractBase: jest.Mock;
+    let mockSimulateContractLisk: jest.Mock;
 
     beforeEach(() => {
-      // Mock ethClient for Base chain - create fresh stubs for each test
+      // Mock ethClient for Base chain - create fresh mocks for each test
       const Q96 = 2n ** 96n;
       const mockSqrtPriceX96 = Q96;
-      // Use callsFake to ensure the stub properly returns a promise
-      mockSimulateContractBase = sinon.stub().callsFake(async () => {
+      // Use callsFake to ensure the mock properly returns a promise
+      mockSimulateContractBase = jest.fn().mockImplementation(async () => {
         return { result: [mockSqrtPriceX96] };
       });
       const mockEthClientBase = {
         simulateContract: mockSimulateContractBase,
       } as unknown as PublicClient;
 
-      // Mock ethClient for Lisk chain - create fresh stubs for each test
-      mockSimulateContractLisk = sinon.stub().callsFake(async () => {
+      // Mock ethClient for Lisk chain - create fresh mocks for each test
+      mockSimulateContractLisk = jest.fn().mockImplementation(async () => {
         return { result: [mockSqrtPriceX96] };
       });
       const mockEthClientLisk = {
@@ -701,7 +701,7 @@ describe("NFPM Events", () => {
     });
 
     afterEach(() => {
-      sinon.restore();
+      jest.restoreAllMocks();
     });
 
     it("should filter by chainId when querying by tokenId in Transfer event", async () => {
@@ -769,31 +769,31 @@ describe("NFPM Events", () => {
         NonFungiblePositionId(chainIdLisk, sameTokenId),
       );
 
-      expect(updatedBasePosition).to.exist;
+      expect(updatedBasePosition).toBeDefined();
       if (!updatedBasePosition) return;
       // Should update owner to the new owner
-      expect(updatedBasePosition.owner.toLowerCase()).to.equal(
+      expect(updatedBasePosition.owner.toLowerCase()).toBe(
         "0x3333333333333333333333333333333333333333".toLowerCase(),
       );
       // Should still have Base chain pool address
-      expect(updatedBasePosition.pool).to.equal(poolAddressBase);
-      expect(updatedBasePosition.chainId).to.equal(chainIdBase);
+      expect(updatedBasePosition.pool).toBe(poolAddressBase);
+      expect(updatedBasePosition.chainId).toBe(chainIdBase);
 
       // Lisk position should remain unchanged
-      expect(liskPosition).to.exist;
+      expect(liskPosition).toBeDefined();
       if (!liskPosition) return;
-      expect(liskPosition.owner.toLowerCase()).to.equal(
+      expect(liskPosition.owner.toLowerCase()).toBe(
         positionLisk.owner.toLowerCase(),
       );
-      expect(liskPosition.pool).to.equal(poolAddressLisk);
-      expect(liskPosition.chainId).to.equal(chainIdLisk);
+      expect(liskPosition.pool).toBe(poolAddressLisk);
+      expect(liskPosition.chainId).toBe(chainIdLisk);
     });
 
     it("should filter by chainId when querying by tokenId in IncreaseLiquidity event", async () => {
       // Verify CHAIN_CONSTANTS is set up correctly before test
-      expect(CHAIN_CONSTANTS[chainIdBase]).to.exist;
-      expect(CHAIN_CONSTANTS[chainIdBase].eth_client).to.exist;
-      expect(mockSimulateContractBase).to.exist;
+      expect(CHAIN_CONSTANTS[chainIdBase]).toBeDefined();
+      expect(CHAIN_CONSTANTS[chainIdBase].eth_client).toBeDefined();
+      expect(mockSimulateContractBase).toBeDefined();
 
       // Create tokens for Base chain
       const mockToken0Base = {
@@ -875,32 +875,32 @@ describe("NFPM Events", () => {
         NonFungiblePositionId(chainIdLisk, sameTokenId),
       );
 
-      expect(updatedBasePosition).to.exist;
+      expect(updatedBasePosition).toBeDefined();
       if (!updatedBasePosition) return;
       // Should have updated liquidity (increased)
-      expect(Number(updatedBasePosition.liquidity)).to.be.greaterThan(
+      expect(Number(updatedBasePosition.liquidity)).toBeGreaterThan(
         Number(positionBase.liquidity),
       );
       // Should query pool from Base chain (verify ethClient was called with Base chainId)
-      expect(mockSimulateContractBase.called).to.be.true;
-      const simulateCall = mockSimulateContractBase.getCall(0);
-      expect(simulateCall.args[0].address.toLowerCase()).to.equal(
+      expect(mockSimulateContractBase).toHaveBeenCalled();
+      const simulateCall = jest.mocked(mockSimulateContractBase).mock.calls[0];
+      expect(simulateCall[0].address.toLowerCase()).toBe(
         poolAddressBase.toLowerCase(),
       );
 
       // Lisk position should remain unchanged
-      expect(liskPosition).to.exist;
+      expect(liskPosition).toBeDefined();
       if (!liskPosition) return;
-      expect(liskPosition.liquidity).to.equal(positionLisk.liquidity);
+      expect(liskPosition.liquidity).toBe(positionLisk.liquidity);
       // Should NOT have called Lisk ethClient
-      expect(mockSimulateContractLisk.called).to.be.false;
+      expect(mockSimulateContractLisk).not.toHaveBeenCalled();
     });
 
     it("should filter by chainId when querying by tokenId in DecreaseLiquidity event", async () => {
       // Verify CHAIN_CONSTANTS is set up correctly before test
-      expect(CHAIN_CONSTANTS[chainIdLisk]).to.exist;
-      expect(CHAIN_CONSTANTS[chainIdLisk].eth_client).to.exist;
-      expect(mockSimulateContractLisk).to.exist;
+      expect(CHAIN_CONSTANTS[chainIdLisk]).toBeDefined();
+      expect(CHAIN_CONSTANTS[chainIdLisk].eth_client).toBeDefined();
+      expect(mockSimulateContractLisk).toBeDefined();
 
       // Create tokens for Lisk chain
       const mockToken0Lisk = {
@@ -982,25 +982,25 @@ describe("NFPM Events", () => {
         NonFungiblePositionId(chainIdLisk, sameTokenId),
       );
 
-      expect(updatedLiskPosition).to.exist;
+      expect(updatedLiskPosition).toBeDefined();
       if (!updatedLiskPosition) return;
       // Should have updated liquidity (decreased)
-      expect(Number(updatedLiskPosition.liquidity)).to.be.lessThan(
+      expect(Number(updatedLiskPosition.liquidity)).toBeLessThan(
         Number(positionLisk.liquidity),
       );
       // Should query pool from Lisk chain (verify ethClient was called with Lisk chainId)
-      expect(mockSimulateContractLisk.called).to.be.true;
-      const simulateCall = mockSimulateContractLisk.getCall(0);
-      expect(simulateCall.args[0].address.toLowerCase()).to.equal(
+      expect(mockSimulateContractLisk).toHaveBeenCalled();
+      const simulateCall = jest.mocked(mockSimulateContractLisk).mock.calls[0];
+      expect(simulateCall[0].address.toLowerCase()).toBe(
         poolAddressLisk.toLowerCase(),
       );
 
       // Base position should remain unchanged
-      expect(basePosition).to.exist;
+      expect(basePosition).toBeDefined();
       if (!basePosition) return;
-      expect(basePosition.liquidity).to.equal(positionBase.liquidity);
+      expect(basePosition.liquidity).toBe(positionBase.liquidity);
       // Should NOT have called Base ethClient
-      expect(mockSimulateContractBase.called).to.be.false;
+      expect(mockSimulateContractBase).not.toHaveBeenCalled();
     });
 
     it("should prevent querying pool from wrong chain (the original bug)", async () => {
@@ -1088,10 +1088,10 @@ describe("NFPM Events", () => {
       const updatedBasePosition = result.entities.NonFungiblePosition.get(
         NonFungiblePositionId(chainIdBase, sameTokenId),
       );
-      expect(updatedBasePosition).to.exist;
+      expect(updatedBasePosition).toBeDefined();
       if (!updatedBasePosition) return;
       // Should have updated liquidity (increased)
-      expect(Number(updatedBasePosition.liquidity)).to.be.greaterThan(
+      expect(Number(updatedBasePosition.liquidity)).toBeGreaterThan(
         Number(positionBase.liquidity),
       );
 
@@ -1099,22 +1099,22 @@ describe("NFPM Events", () => {
       const liskPosition = result.entities.NonFungiblePosition.get(
         NonFungiblePositionId(chainIdLisk, sameTokenId),
       );
-      expect(liskPosition).to.exist;
+      expect(liskPosition).toBeDefined();
       if (!liskPosition) return;
-      expect(liskPosition.liquidity).to.equal(positionLisk.liquidity);
+      expect(liskPosition.liquidity).toBe(positionLisk.liquidity);
 
       // Most importantly: should have called Base ethClient with Base pool address
       // This verifies the correct pool was queried from the correct chain
-      expect(mockSimulateContractBase.called).to.be.true;
-      const simulateCall = mockSimulateContractBase.getCall(0);
-      expect(simulateCall.args[0].address.toLowerCase()).to.equal(
+      expect(mockSimulateContractBase).toHaveBeenCalled();
+      const simulateCall = jest.mocked(mockSimulateContractBase).mock.calls[0];
+      expect(simulateCall[0].address.toLowerCase()).toBe(
         poolAddressBase.toLowerCase(),
       );
 
       // Most importantly: should NOT have called Lisk ethClient
       // This is the key fix - we should never query a pool from the wrong chain
       // Before the fix, this might have been called with the Lisk pool address on Base chainId -> ERROR
-      expect(mockSimulateContractLisk.called).to.be.false;
+      expect(mockSimulateContractLisk).not.toHaveBeenCalled();
     });
   });
 });

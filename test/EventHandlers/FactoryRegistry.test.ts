@@ -1,4 +1,3 @@
-import { expect } from "chai";
 import { FactoryRegistry, MockDb } from "../../generated/src/TestHelpers.gen";
 import { toChecksumAddress } from "../../src/Constants";
 
@@ -47,14 +46,14 @@ describe("FactoryRegistry Events", () => {
       // Assert - check FactoryRegistryConfig was created
       const configId = `${factoryRegistryAddress}_${chainId}`;
       const config = result.entities.FactoryRegistryConfig.get(configId);
-      expect(config).to.not.be.undefined;
-      expect(config?.id).to.equal(configId);
-      expect(config?.currentActivePoolFactory).to.equal(poolFactoryAddress);
-      expect(config?.currentActiveVotingRewardsFactory).to.equal(
+      expect(config).toBeDefined();
+      expect(config?.id).toBe(configId);
+      expect(config?.currentActivePoolFactory).toBe(poolFactoryAddress);
+      expect(config?.currentActiveVotingRewardsFactory).toBe(
         votingRewardsFactoryAddress,
       );
-      expect(config?.currentActiveGaugeFactory).to.equal(gaugeFactoryAddress);
-      expect(config?.lastUpdatedTimestamp).to.deep.equal(
+      expect(config?.currentActiveGaugeFactory).toBe(gaugeFactoryAddress);
+      expect(config?.lastUpdatedTimestamp).toEqual(
         new Date(blockTimestamp * 1000),
       );
     });
@@ -103,17 +102,17 @@ describe("FactoryRegistry Events", () => {
 
       // Assert - check FactoryRegistryConfig was updated
       const config = result.entities.FactoryRegistryConfig.get(configId);
-      expect(config).to.not.be.undefined;
-      expect(config?.currentActivePoolFactory).to.equal(poolFactoryAddress);
-      expect(config?.currentActiveVotingRewardsFactory).to.equal(
+      expect(config).toBeDefined();
+      expect(config?.currentActivePoolFactory).toBe(poolFactoryAddress);
+      expect(config?.currentActiveVotingRewardsFactory).toBe(
         votingRewardsFactoryAddress,
       );
-      expect(config?.currentActiveGaugeFactory).to.equal(gaugeFactoryAddress);
-      expect(config?.lastUpdatedTimestamp).to.deep.equal(
+      expect(config?.currentActiveGaugeFactory).toBe(gaugeFactoryAddress);
+      expect(config?.lastUpdatedTimestamp).toEqual(
         new Date(blockTimestamp * 1000),
       );
       // Verify ID is preserved
-      expect(config?.id).to.equal(configId);
+      expect(config?.id).toBe(configId);
     });
   });
 
@@ -156,15 +155,15 @@ describe("FactoryRegistry Events", () => {
 
       // Assert - check FactoryRegistryConfig was updated with empty addresses
       const config = result.entities.FactoryRegistryConfig.get(configId);
-      expect(config).to.not.be.undefined;
-      expect(config?.currentActivePoolFactory).to.equal("");
-      expect(config?.currentActiveVotingRewardsFactory).to.equal("");
-      expect(config?.currentActiveGaugeFactory).to.equal("");
-      expect(config?.lastUpdatedTimestamp).to.deep.equal(
+      expect(config).toBeDefined();
+      expect(config?.currentActivePoolFactory).toBe("");
+      expect(config?.currentActiveVotingRewardsFactory).toBe("");
+      expect(config?.currentActiveGaugeFactory).toBe("");
+      expect(config?.lastUpdatedTimestamp).toEqual(
         new Date(blockTimestamp * 1000),
       );
       // Verify ID is preserved
-      expect(config?.id).to.equal(configId);
+      expect(config?.id).toBe(configId);
     });
 
     it("should log warning and return early if FactoryRegistryConfig does not exist", async () => {
@@ -196,7 +195,7 @@ describe("FactoryRegistry Events", () => {
 
       // Assert - config should not be created
       const config = result.entities.FactoryRegistryConfig.get(configId);
-      expect(config).to.be.undefined;
+      expect(config).toBeUndefined();
     });
   });
 });

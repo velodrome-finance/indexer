@@ -1,4 +1,3 @@
-import { expect } from "chai";
 import type { UserStatsPerPool, handlerContext } from "generated";
 import {
   createUserStatsPerPoolEntity,
@@ -22,30 +21,26 @@ describe("UserStatsPerPool Aggregator", () => {
         mockTimestamp,
       );
 
-      expect(userStats.id).to.equal(
+      expect(userStats.id).toBe(
         `${toChecksumAddress(mockUserAddress)}_${toChecksumAddress(mockPoolAddress)}_${mockChainId}`,
       );
-      expect(userStats.userAddress).to.equal(
-        toChecksumAddress(mockUserAddress),
-      );
-      expect(userStats.poolAddress).to.equal(
-        toChecksumAddress(mockPoolAddress),
-      );
-      expect(userStats.chainId).to.equal(mockChainId);
-      expect(userStats.currentLiquidityUSD).to.equal(0n);
-      expect(userStats.currentLiquidityToken0).to.equal(0n);
-      expect(userStats.currentLiquidityToken1).to.equal(0n);
-      expect(userStats.totalLiquidityAddedUSD).to.equal(0n);
-      expect(userStats.totalLiquidityRemovedUSD).to.equal(0n);
-      expect(userStats.totalFeesContributedUSD).to.equal(0n);
-      expect(userStats.totalFeesContributed0).to.equal(0n);
-      expect(userStats.totalFeesContributed1).to.equal(0n);
-      expect(userStats.numberOfSwaps).to.equal(0n);
-      expect(userStats.totalSwapVolumeUSD).to.equal(0n);
-      expect(userStats.numberOfFlashLoans).to.equal(0n);
-      expect(userStats.totalFlashLoanVolumeUSD).to.equal(0n);
-      expect(userStats.firstActivityTimestamp).to.deep.equal(mockTimestamp);
-      expect(userStats.lastActivityTimestamp).to.deep.equal(mockTimestamp);
+      expect(userStats.userAddress).toBe(toChecksumAddress(mockUserAddress));
+      expect(userStats.poolAddress).toBe(toChecksumAddress(mockPoolAddress));
+      expect(userStats.chainId).toBe(mockChainId);
+      expect(userStats.currentLiquidityUSD).toBe(0n);
+      expect(userStats.currentLiquidityToken0).toBe(0n);
+      expect(userStats.currentLiquidityToken1).toBe(0n);
+      expect(userStats.totalLiquidityAddedUSD).toBe(0n);
+      expect(userStats.totalLiquidityRemovedUSD).toBe(0n);
+      expect(userStats.totalFeesContributedUSD).toBe(0n);
+      expect(userStats.totalFeesContributed0).toBe(0n);
+      expect(userStats.totalFeesContributed1).toBe(0n);
+      expect(userStats.numberOfSwaps).toBe(0n);
+      expect(userStats.totalSwapVolumeUSD).toBe(0n);
+      expect(userStats.numberOfFlashLoans).toBe(0n);
+      expect(userStats.totalFlashLoanVolumeUSD).toBe(0n);
+      expect(userStats.firstActivityTimestamp).toEqual(mockTimestamp);
+      expect(userStats.lastActivityTimestamp).toEqual(mockTimestamp);
     });
 
     it("should normalize addresses to lowercase", () => {
@@ -58,10 +53,10 @@ describe("UserStatsPerPool Aggregator", () => {
         mockTimestamp,
       );
 
-      expect(userStats.userAddress).to.equal(
+      expect(userStats.userAddress).toBe(
         toChecksumAddress(upperCaseUserAddress),
       );
-      expect(userStats.poolAddress).to.equal(
+      expect(userStats.poolAddress).toBe(
         toChecksumAddress(upperCasePoolAddress),
       );
     });
@@ -111,11 +106,11 @@ describe("UserStatsPerPool Aggregator", () => {
         mockContext,
       );
 
-      expect(result.currentLiquidityUSD).to.equal(netLiquidityAddedUSD);
-      expect(result.totalLiquidityAddedUSD).to.equal(netLiquidityAddedUSD);
-      expect(result.totalLiquidityRemovedUSD).to.equal(0n);
-      expect(result.lastActivityTimestamp).to.deep.equal(mockTimestamp);
-      expect(savedUserStats).to.deep.equal(result);
+      expect(result.currentLiquidityUSD).toBe(netLiquidityAddedUSD);
+      expect(result.totalLiquidityAddedUSD).toBe(netLiquidityAddedUSD);
+      expect(result.totalLiquidityRemovedUSD).toBe(0n);
+      expect(result.lastActivityTimestamp).toEqual(mockTimestamp);
+      expect(savedUserStats).toEqual(result);
     });
 
     it("should handle liquidity removal correctly", async () => {
@@ -145,10 +140,10 @@ describe("UserStatsPerPool Aggregator", () => {
         mockContext,
       );
 
-      expect(result.currentLiquidityUSD).to.equal(netLiquidityRemovedUSD);
-      expect(result.totalLiquidityAddedUSD).to.equal(0n);
-      expect(result.totalLiquidityRemovedUSD).to.equal(500n);
-      expect(result.lastActivityTimestamp).to.deep.equal(mockTimestamp);
+      expect(result.currentLiquidityUSD).toBe(netLiquidityRemovedUSD);
+      expect(result.totalLiquidityAddedUSD).toBe(0n);
+      expect(result.totalLiquidityRemovedUSD).toBe(500n);
+      expect(result.lastActivityTimestamp).toEqual(mockTimestamp);
     });
 
     it("should handle fee contributions correctly", async () => {
@@ -179,10 +174,10 @@ describe("UserStatsPerPool Aggregator", () => {
         mockContext,
       );
 
-      expect(result.totalFeesContributedUSD).to.equal(1000n);
-      expect(result.totalFeesContributed0).to.equal(500n);
-      expect(result.totalFeesContributed1).to.equal(300n);
-      expect(result.lastActivityTimestamp).to.deep.equal(mockTimestamp);
+      expect(result.totalFeesContributedUSD).toBe(1000n);
+      expect(result.totalFeesContributed0).toBe(500n);
+      expect(result.totalFeesContributed1).toBe(300n);
+      expect(result.lastActivityTimestamp).toEqual(mockTimestamp);
     });
 
     it("should handle swap activity correctly", async () => {
@@ -214,11 +209,11 @@ describe("UserStatsPerPool Aggregator", () => {
         mockContext,
       );
 
-      expect(result.numberOfSwaps).to.equal(1n);
-      expect(result.totalSwapVolumeUSD).to.equal(5000n);
-      expect(result.totalSwapVolumeAmount0).to.equal(1000n);
-      expect(result.totalSwapVolumeAmount1).to.equal(2000n);
-      expect(result.lastActivityTimestamp).to.deep.equal(mockTimestamp);
+      expect(result.numberOfSwaps).toBe(1n);
+      expect(result.totalSwapVolumeUSD).toBe(5000n);
+      expect(result.totalSwapVolumeAmount0).toBe(1000n);
+      expect(result.totalSwapVolumeAmount1).toBe(2000n);
+      expect(result.lastActivityTimestamp).toEqual(mockTimestamp);
     });
 
     it("should aggregate multiple swaps correctly", async () => {
@@ -249,10 +244,10 @@ describe("UserStatsPerPool Aggregator", () => {
         mockContext,
       );
 
-      expect(userStats.numberOfSwaps).to.equal(1n);
-      expect(userStats.totalSwapVolumeAmount0).to.equal(1000n);
-      expect(userStats.totalSwapVolumeAmount1).to.equal(2000n);
-      expect(userStats.totalSwapVolumeUSD).to.equal(5000n);
+      expect(userStats.numberOfSwaps).toBe(1n);
+      expect(userStats.totalSwapVolumeAmount0).toBe(1000n);
+      expect(userStats.totalSwapVolumeAmount1).toBe(2000n);
+      expect(userStats.totalSwapVolumeUSD).toBe(5000n);
 
       // Second swap: amount0 = -500, amount1 = 3000
       userStats = await updateUserStatsPerPool(
@@ -267,10 +262,10 @@ describe("UserStatsPerPool Aggregator", () => {
         mockContext,
       );
 
-      expect(userStats.numberOfSwaps).to.equal(2n);
-      expect(userStats.totalSwapVolumeAmount0).to.equal(1500n); // 1000 + 500
-      expect(userStats.totalSwapVolumeAmount1).to.equal(5000n); // 2000 + 3000
-      expect(userStats.totalSwapVolumeUSD).to.equal(13000n); // 5000 + 8000
+      expect(userStats.numberOfSwaps).toBe(2n);
+      expect(userStats.totalSwapVolumeAmount0).toBe(1500n); // 1000 + 500
+      expect(userStats.totalSwapVolumeAmount1).toBe(5000n); // 2000 + 3000
+      expect(userStats.totalSwapVolumeUSD).toBe(13000n); // 5000 + 8000
 
       // Third swap: amount0 = -2500, amount1 = -1500
       userStats = await updateUserStatsPerPool(
@@ -285,10 +280,10 @@ describe("UserStatsPerPool Aggregator", () => {
         mockContext,
       );
 
-      expect(userStats.numberOfSwaps).to.equal(3n);
-      expect(userStats.totalSwapVolumeAmount0).to.equal(4000n); // 1000 + 500 + 2500
-      expect(userStats.totalSwapVolumeAmount1).to.equal(6500n); // 2000 + 3000 + 1500
-      expect(userStats.totalSwapVolumeUSD).to.equal(25000n); // 5000 + 8000 + 12000
+      expect(userStats.numberOfSwaps).toBe(3n);
+      expect(userStats.totalSwapVolumeAmount0).toBe(4000n); // 1000 + 500 + 2500
+      expect(userStats.totalSwapVolumeAmount1).toBe(6500n); // 2000 + 3000 + 1500
+      expect(userStats.totalSwapVolumeUSD).toBe(25000n); // 5000 + 8000 + 12000
     });
 
     it("should handle flash loan activity correctly", async () => {
@@ -318,9 +313,9 @@ describe("UserStatsPerPool Aggregator", () => {
         mockContext,
       );
 
-      expect(result.numberOfFlashLoans).to.equal(1n);
-      expect(result.totalFlashLoanVolumeUSD).to.equal(10000n);
-      expect(result.lastActivityTimestamp).to.deep.equal(mockTimestamp);
+      expect(result.numberOfFlashLoans).toBe(1n);
+      expect(result.totalFlashLoanVolumeUSD).toBe(10000n);
+      expect(result.lastActivityTimestamp).toEqual(mockTimestamp);
     });
 
     it("should handle multiple field updates in a single call", async () => {
@@ -354,15 +349,15 @@ describe("UserStatsPerPool Aggregator", () => {
         mockContext,
       );
 
-      expect(result.currentLiquidityUSD).to.equal(2000n);
-      expect(result.totalLiquidityAddedUSD).to.equal(2000n);
-      expect(result.totalLiquidityRemovedUSD).to.equal(0n);
-      expect(result.totalFeesContributedUSD).to.equal(500n);
-      expect(result.numberOfSwaps).to.equal(2n);
-      expect(result.totalSwapVolumeUSD).to.equal(8000n);
-      expect(result.numberOfFlashLoans).to.equal(1n);
-      expect(result.totalFlashLoanVolumeUSD).to.equal(15000n);
-      expect(result.lastActivityTimestamp).to.deep.equal(mockTimestamp);
+      expect(result.currentLiquidityUSD).toBe(2000n);
+      expect(result.totalLiquidityAddedUSD).toBe(2000n);
+      expect(result.totalLiquidityRemovedUSD).toBe(0n);
+      expect(result.totalFeesContributedUSD).toBe(500n);
+      expect(result.numberOfSwaps).toBe(2n);
+      expect(result.totalSwapVolumeUSD).toBe(8000n);
+      expect(result.numberOfFlashLoans).toBe(1n);
+      expect(result.totalFlashLoanVolumeUSD).toBe(15000n);
+      expect(result.lastActivityTimestamp).toEqual(mockTimestamp);
     });
 
     it("should update existing user stats correctly", async () => {
@@ -408,15 +403,15 @@ describe("UserStatsPerPool Aggregator", () => {
         mockContext,
       );
 
-      expect(result.currentLiquidityUSD).to.equal(3000n); // 2000 + 1000
-      expect(result.totalLiquidityAddedUSD).to.equal(3000n); // 2000 + 1000
-      expect(result.totalLiquidityRemovedUSD).to.equal(0n); // No removal
-      expect(result.totalFeesContributedUSD).to.equal(1500n); // 1000 + 500
-      expect(result.numberOfSwaps).to.equal(6n); // 5 + 1
-      expect(result.totalSwapVolumeUSD).to.equal(13000n); // 10000 + 3000
-      expect(result.numberOfFlashLoans).to.equal(2n); // Unchanged
-      expect(result.totalFlashLoanVolumeUSD).to.equal(20000n); // Unchanged
-      expect(result.lastActivityTimestamp).to.deep.equal(mockTimestamp);
+      expect(result.currentLiquidityUSD).toBe(3000n); // 2000 + 1000
+      expect(result.totalLiquidityAddedUSD).toBe(3000n); // 2000 + 1000
+      expect(result.totalLiquidityRemovedUSD).toBe(0n); // No removal
+      expect(result.totalFeesContributedUSD).toBe(1500n); // 1000 + 500
+      expect(result.numberOfSwaps).toBe(6n); // 5 + 1
+      expect(result.totalSwapVolumeUSD).toBe(13000n); // 10000 + 3000
+      expect(result.numberOfFlashLoans).toBe(2n); // Unchanged
+      expect(result.totalFlashLoanVolumeUSD).toBe(20000n); // Unchanged
+      expect(result.lastActivityTimestamp).toEqual(mockTimestamp);
     });
 
     it("should handle liquidity removal from existing stats", async () => {
@@ -459,10 +454,10 @@ describe("UserStatsPerPool Aggregator", () => {
         mockContext,
       );
 
-      expect(result.currentLiquidityUSD).to.equal(1500n); // 2000 - 500
-      expect(result.totalLiquidityAddedUSD).to.equal(2000n); // Unchanged
-      expect(result.totalLiquidityRemovedUSD).to.equal(500n); // 0 + 500
-      expect(result.lastActivityTimestamp).to.deep.equal(mockTimestamp);
+      expect(result.currentLiquidityUSD).toBe(1500n); // 2000 - 500
+      expect(result.totalLiquidityAddedUSD).toBe(2000n); // Unchanged
+      expect(result.totalLiquidityRemovedUSD).toBe(500n); // 0 + 500
+      expect(result.lastActivityTimestamp).toEqual(mockTimestamp);
     });
   });
 });

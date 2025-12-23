@@ -1,4 +1,3 @@
-import { expect } from "chai";
 import { Pool } from "../../../generated/src/TestHelpers.gen";
 import { processPoolLiquidityEvent } from "../../../src/EventHandlers/Pool/PoolBurnAndMintLogic";
 import { setupCommon } from "./common";
@@ -36,22 +35,18 @@ describe("processPoolLiquidityEvent", () => {
     );
 
     // Verify the function returns the expected structure
-    expect(result).to.have.property("liquidityPoolDiff");
-    expect(result.liquidityPoolDiff).to.be.an("object");
+    expect(result).toHaveProperty("liquidityPoolDiff");
+    expect(result.liquidityPoolDiff).toBeDefined();
 
-    expect(result.liquidityPoolDiff?.lastUpdatedTimestamp).to.deep.equal(
+    expect(result.liquidityPoolDiff?.lastUpdatedTimestamp).toEqual(
       new Date(1000000 * 1000),
     );
     // These values should match what updateReserveTokenData returns
-    expect(result.liquidityPoolDiff?.token0Price).to.equal(
-      1000000000000000000n,
-    );
-    expect(result.liquidityPoolDiff?.token1Price).to.equal(
-      1000000000000000000n,
-    );
-    expect(result.liquidityPoolDiff?.token0IsWhitelisted).to.equal(true);
-    expect(result.liquidityPoolDiff?.token1IsWhitelisted).to.equal(true);
-    expect(result.liquidityPoolDiff?.totalLiquidityUSD).to.equal(
+    expect(result.liquidityPoolDiff?.token0Price).toBe(1000000000000000000n);
+    expect(result.liquidityPoolDiff?.token1Price).toBe(1000000000000000000n);
+    expect(result.liquidityPoolDiff?.token0IsWhitelisted).toBe(true);
+    expect(result.liquidityPoolDiff?.token1IsWhitelisted).toBe(true);
+    expect(result.liquidityPoolDiff?.totalLiquidityUSD).toBe(
       2000000000001000000000000000000000n,
     );
   });

@@ -1,4 +1,3 @@
-import { expect } from "chai";
 import {
   MockDb,
   NewCLGaugeFactory,
@@ -49,14 +48,13 @@ describe("NewCLGaugeFactory Event Handlers", () => {
         mockGaugeFactoryAddress,
       );
 
-      expect(createdConfig).to.not.be.undefined;
-      expect(createdConfig).to.exist;
+      expect(createdConfig).toBeDefined();
 
       if (!createdConfig) return; // Type guard
 
-      expect(createdConfig.id).to.equal(mockGaugeFactoryAddress);
-      expect(createdConfig.defaultEmissionsCap).to.equal(mockDefaultCap);
-      expect(createdConfig.lastUpdatedTimestamp).to.deep.equal(
+      expect(createdConfig.id).toBe(mockGaugeFactoryAddress);
+      expect(createdConfig.defaultEmissionsCap).toBe(mockDefaultCap);
+      expect(createdConfig.lastUpdatedTimestamp).toEqual(
         new Date(1000000 * 1000),
       );
     });
@@ -116,12 +114,12 @@ describe("NewCLGaugeFactory Event Handlers", () => {
         mockGaugeFactoryAddress,
       );
 
-      expect(updatedConfig).to.not.be.undefined;
+      expect(updatedConfig).toBeDefined();
       if (!updatedConfig) return;
 
-      expect(updatedConfig.id).to.equal(mockGaugeFactoryAddress);
-      expect(updatedConfig.defaultEmissionsCap).to.equal(newDefaultCap);
-      expect(updatedConfig.lastUpdatedTimestamp).to.deep.equal(
+      expect(updatedConfig.id).toBe(mockGaugeFactoryAddress);
+      expect(updatedConfig.defaultEmissionsCap).toBe(newDefaultCap);
+      expect(updatedConfig.lastUpdatedTimestamp).toEqual(
         new Date(2000000 * 1000),
       );
     });
@@ -183,15 +181,15 @@ describe("NewCLGaugeFactory Event Handlers", () => {
       );
       const config2 = result2.entities.CLGaugeConfig.get(anotherFactoryAddress);
 
-      expect(config1).to.not.be.undefined;
-      expect(config2).to.not.be.undefined;
+      expect(config1).toBeDefined();
+      expect(config2).toBeDefined();
 
       if (!config1 || !config2) return;
 
-      expect(config1.id).to.equal(mockGaugeFactoryAddress);
-      expect(config2.id).to.equal(anotherFactoryAddress);
-      expect(config1.defaultEmissionsCap).to.equal(mockDefaultCap);
-      expect(config2.defaultEmissionsCap).to.equal(anotherDefaultCap);
+      expect(config1.id).toBe(mockGaugeFactoryAddress);
+      expect(config2.id).toBe(anotherFactoryAddress);
+      expect(config1.defaultEmissionsCap).toBe(mockDefaultCap);
+      expect(config2.defaultEmissionsCap).toBe(anotherDefaultCap);
     });
   });
 
@@ -260,18 +258,17 @@ describe("NewCLGaugeFactory Event Handlers", () => {
         mockLiquidityPoolData.id,
       );
 
-      expect(updatedPool).to.not.be.undefined;
-      expect(updatedPool).to.exist;
+      expect(updatedPool).toBeDefined();
 
       if (!updatedPool) return; // Type guard
 
-      expect(updatedPool.gaugeEmissionsCap).to.equal(mockEmissionCap);
-      expect(updatedPool.lastUpdatedTimestamp).to.deep.equal(
+      expect(updatedPool.gaugeEmissionsCap).toBe(mockEmissionCap);
+      expect(updatedPool.lastUpdatedTimestamp).toEqual(
         new Date(1000000 * 1000),
       );
       // Verify other fields are preserved
-      expect(updatedPool.id).to.equal(mockLiquidityPoolData.id);
-      expect(updatedPool.gaugeAddress).to.equal(mockGaugeAddress);
+      expect(updatedPool.id).toBe(mockLiquidityPoolData.id);
+      expect(updatedPool.gaugeAddress).toBe(mockGaugeAddress);
     });
 
     it("should update existing emission cap when called multiple times", async () => {
@@ -331,11 +328,11 @@ describe("NewCLGaugeFactory Event Handlers", () => {
         mockLiquidityPoolData.id,
       );
 
-      expect(updatedPool).to.not.be.undefined;
+      expect(updatedPool).toBeDefined();
       if (!updatedPool) return;
 
-      expect(updatedPool.gaugeEmissionsCap).to.equal(newEmissionCap);
-      expect(updatedPool.lastUpdatedTimestamp).to.deep.equal(
+      expect(updatedPool.gaugeEmissionsCap).toBe(newEmissionCap);
+      expect(updatedPool.lastUpdatedTimestamp).toEqual(
         new Date(2000000 * 1000),
       );
     });
@@ -387,11 +384,11 @@ describe("NewCLGaugeFactory Event Handlers", () => {
         mockLiquidityPoolData.id,
       );
 
-      expect(pool).to.not.be.undefined;
+      expect(pool).toBeDefined();
       if (!pool) return;
 
       // Should remain unchanged (still 0n from initial setup)
-      expect(pool.gaugeEmissionsCap).to.equal(0n);
+      expect(pool.gaugeEmissionsCap).toBe(0n);
     });
 
     it("should preserve all other pool fields when updating emission cap", async () => {
@@ -419,20 +416,20 @@ describe("NewCLGaugeFactory Event Handlers", () => {
         mockLiquidityPoolData.id,
       );
 
-      expect(updatedPool).to.not.be.undefined;
+      expect(updatedPool).toBeDefined();
       if (!updatedPool) return;
 
       // Verify all original fields are preserved
-      expect(updatedPool.id).to.equal(mockLiquidityPoolData.id);
-      expect(updatedPool.chainId).to.equal(mockLiquidityPoolData.chainId);
-      expect(updatedPool.token0_id).to.equal(mockLiquidityPoolData.token0_id);
-      expect(updatedPool.token1_id).to.equal(mockLiquidityPoolData.token1_id);
-      expect(updatedPool.reserve0).to.equal(mockLiquidityPoolData.reserve0);
-      expect(updatedPool.reserve1).to.equal(mockLiquidityPoolData.reserve1);
-      expect(updatedPool.gaugeAddress).to.equal(mockGaugeAddress);
+      expect(updatedPool.id).toBe(mockLiquidityPoolData.id);
+      expect(updatedPool.chainId).toBe(mockLiquidityPoolData.chainId);
+      expect(updatedPool.token0_id).toBe(mockLiquidityPoolData.token0_id);
+      expect(updatedPool.token1_id).toBe(mockLiquidityPoolData.token1_id);
+      expect(updatedPool.reserve0).toBe(mockLiquidityPoolData.reserve0);
+      expect(updatedPool.reserve1).toBe(mockLiquidityPoolData.reserve1);
+      expect(updatedPool.gaugeAddress).toBe(mockGaugeAddress);
       // Only these fields should change
-      expect(updatedPool.gaugeEmissionsCap).to.equal(mockEmissionCap);
-      expect(updatedPool.lastUpdatedTimestamp).to.deep.equal(
+      expect(updatedPool.gaugeEmissionsCap).toBe(mockEmissionCap);
+      expect(updatedPool.lastUpdatedTimestamp).toEqual(
         new Date(1000000 * 1000),
       );
     });

@@ -1,4 +1,3 @@
-import { expect } from "chai";
 import { MockDb, Pool } from "../../../generated/src/TestHelpers.gen";
 import type {
   LiquidityPoolAggregator,
@@ -78,57 +77,55 @@ describe("Pool Fees Event", () => {
   });
 
   it("should update LiquidityPoolAggregator", async () => {
-    expect(updatedPool).to.not.be.undefined;
-    expect(updatedPool?.lastUpdatedTimestamp).to.deep.equal(
-      new Date(1000000 * 1000),
-    );
+    expect(updatedPool).toBeDefined();
+    expect(updatedPool?.lastUpdatedTimestamp).toEqual(new Date(1000000 * 1000));
   });
 
   it("should update LiquidityPoolAggregator nominal fees", async () => {
     // For regular pools, fees are tracked as unstaked fees
-    expect(updatedPool?.totalUnstakedFeesCollected0).to.equal(
+    expect(updatedPool?.totalUnstakedFeesCollected0).toBe(
       mockLiquidityPoolData.totalUnstakedFeesCollected0 +
         expectations.amount0In,
     );
-    expect(updatedPool?.totalUnstakedFeesCollected1).to.equal(
+    expect(updatedPool?.totalUnstakedFeesCollected1).toBe(
       mockLiquidityPoolData.totalUnstakedFeesCollected1 +
         expectations.amount1In,
     );
   });
 
   it("should update LiquidityPoolAggregator total fees in USD", async () => {
-    expect(updatedPool?.totalUnstakedFeesCollectedUSD).to.equal(
+    expect(updatedPool?.totalUnstakedFeesCollectedUSD).toBe(
       expectations.totalUnstakedFeesCollectedUSD,
     );
   });
 
   it("should update LiquidityPoolAggregator total fees in USD whitelisted", async () => {
-    expect(updatedPool?.totalFeesUSDWhitelisted).to.equal(
+    expect(updatedPool?.totalFeesUSDWhitelisted).toBe(
       expectations.totalFeesUSDWhitelisted,
     );
   });
 
   it("should create a new UserStatsPerPool entity", async () => {
-    expect(createdUserStats).to.not.be.undefined;
-    expect(createdUserStats?.id).to.equal(
+    expect(createdUserStats).toBeDefined();
+    expect(createdUserStats?.id).toBe(
       "0x1234567890123456789012345678901234567890_0x3333333333333333333333333333333333333333_10",
     );
-    expect(createdUserStats?.userAddress).to.equal(
+    expect(createdUserStats?.userAddress).toBe(
       "0x1234567890123456789012345678901234567890",
     );
-    expect(createdUserStats?.poolAddress).to.equal(
+    expect(createdUserStats?.poolAddress).toBe(
       "0x3333333333333333333333333333333333333333",
     );
-    expect(createdUserStats?.chainId).to.equal(10);
-    expect(createdUserStats?.numberOfSwaps).to.equal(0n);
-    expect(createdUserStats?.totalSwapVolumeUSD).to.equal(0n);
+    expect(createdUserStats?.chainId).toBe(10);
+    expect(createdUserStats?.numberOfSwaps).toBe(0n);
+    expect(createdUserStats?.totalSwapVolumeUSD).toBe(0n);
   });
 
   it("should update UserStatsPerPool entity with fee contributions", async () => {
-    expect(createdUserStats?.totalFeesContributed0).to.equal(
+    expect(createdUserStats?.totalFeesContributed0).toBe(
       expectations.amount0In,
     );
-    expect(createdUserStats?.totalFeesContributed1).to.equal(
+    expect(createdUserStats?.totalFeesContributed1).toBe(
       expectations.amount1In,
     );
 
@@ -137,16 +134,14 @@ describe("Pool Fees Event", () => {
         mockToken0Data.pricePerUSDNew +
       (expectations.amount1In / 10n ** mockToken1Data.decimals) *
         mockToken1Data.pricePerUSDNew;
-    expect(createdUserStats?.totalFeesContributedUSD).to.equal(
-      expectedUserFeesUSD,
-    );
+    expect(createdUserStats?.totalFeesContributedUSD).toBe(expectedUserFeesUSD);
   });
 
   it("should set correct timestamps for UserStatsPerPool entity", async () => {
-    expect(createdUserStats?.firstActivityTimestamp).to.deep.equal(
+    expect(createdUserStats?.firstActivityTimestamp).toEqual(
       new Date(1000000 * 1000),
     );
-    expect(createdUserStats?.lastActivityTimestamp).to.deep.equal(
+    expect(createdUserStats?.lastActivityTimestamp).toEqual(
       new Date(1000000 * 1000),
     );
   });
@@ -198,23 +193,23 @@ describe("Pool Fees Event", () => {
       "0x1234567890123456789012345678901234567890_0x3333333333333333333333333333333333333333_10",
     );
 
-    expect(updatedUserStats).to.not.be.undefined;
-    expect(updatedUserStats?.totalFeesContributed0).to.equal(
+    expect(updatedUserStats).toBeDefined();
+    expect(updatedUserStats?.totalFeesContributed0).toBe(
       existingUserStats.totalFeesContributed0 + 500n,
     );
-    expect(updatedUserStats?.totalFeesContributed1).to.equal(
+    expect(updatedUserStats?.totalFeesContributed1).toBe(
       existingUserStats.totalFeesContributed1 + 300n,
     );
-    expect(updatedUserStats?.numberOfSwaps).to.equal(
+    expect(updatedUserStats?.numberOfSwaps).toBe(
       existingUserStats.numberOfSwaps,
     );
-    expect(updatedUserStats?.totalSwapVolumeUSD).to.equal(
+    expect(updatedUserStats?.totalSwapVolumeUSD).toBe(
       existingUserStats.totalSwapVolumeUSD,
     );
-    expect(updatedUserStats?.firstActivityTimestamp).to.deep.equal(
+    expect(updatedUserStats?.firstActivityTimestamp).toEqual(
       existingUserStats.firstActivityTimestamp,
     );
-    expect(updatedUserStats?.lastActivityTimestamp).to.deep.equal(
+    expect(updatedUserStats?.lastActivityTimestamp).toEqual(
       new Date(2000000 * 1000),
     );
   });

@@ -1,13 +1,11 @@
-import { expect } from "chai";
 import type { VeNFTAggregator, handlerContext } from "generated";
-import sinon from "sinon";
 import {
   VeNFTId,
   updateVeNFTAggregator,
 } from "../../src/Aggregators/VeNFTAggregator";
 
 describe("VeNFTAggregator", () => {
-  let contextStub: Partial<handlerContext>;
+  let mockContext: Partial<handlerContext>;
   const mockVeNFTAggregator: VeNFTAggregator = {
     id: "10_1",
     chainId: 10,
@@ -21,28 +19,32 @@ describe("VeNFTAggregator", () => {
   const timestamp = new Date(10001 * 1000);
 
   beforeEach(() => {
-    contextStub = {
+    mockContext = {
       VeNFTAggregator: {
-        set: sinon.stub(),
-        get: sinon.stub(),
-        getOrThrow: sinon.stub(),
-        getOrCreate: sinon.stub(),
-        deleteUnsafe: sinon.stub(),
+        set: jest.fn(),
+        get: jest.fn(),
+        getOrThrow: jest.fn(),
+        getOrCreate: jest.fn(),
+        deleteUnsafe: jest.fn(),
         getWhere: {
           tokenId: {
-            eq: sinon.stub(),
-            gt: sinon.stub(),
-            lt: sinon.stub(),
+            eq: jest.fn(),
+            gt: jest.fn(),
+            lt: jest.fn(),
           },
         },
       },
       log: {
-        error: sinon.stub(),
-        info: sinon.stub(),
-        warn: sinon.stub(),
-        debug: sinon.stub(),
+        error: jest.fn(),
+        info: jest.fn(),
+        warn: jest.fn(),
+        debug: jest.fn(),
       },
     };
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   describe("updateVeNFTAggregator", () => {
@@ -63,21 +65,20 @@ describe("VeNFTAggregator", () => {
           depositDiff,
           mockVeNFTAggregator,
           timestamp,
-          contextStub as handlerContext,
+          mockContext as handlerContext,
         );
-        result = (contextStub.VeNFTAggregator?.set as sinon.SinonStub).firstCall
-          .args[0];
+        const mockSet = jest.mocked(mockContext.VeNFTAggregator?.set);
+        expect(mockSet).toBeDefined();
+        result = mockSet?.mock.calls[0]?.[0] as VeNFTAggregator;
       });
 
       it("should update the veNFTAggregator with new values", () => {
-        expect(result.id).to.equal(VeNFTId(10, 1n));
-        expect(result.owner).to.equal(
-          "0x1111111111111111111111111111111111111111",
-        );
-        expect(result.locktime).to.equal(100n); // diff.locktime replaces current.locktime
-        expect(result.lastUpdatedTimestamp).to.equal(timestamp);
-        expect(result.totalValueLocked).to.equal(150n); // 100n (current) + 50n (diff) = 150n
-        expect(result.isAlive).to.equal(true);
+        expect(result.id).toBe(VeNFTId(10, 1n));
+        expect(result.owner).toBe("0x1111111111111111111111111111111111111111");
+        expect(result.locktime).toBe(100n); // diff.locktime replaces current.locktime
+        expect(result.lastUpdatedTimestamp).toBe(timestamp);
+        expect(result.totalValueLocked).toBe(150n); // 100n (current) + 50n (diff) = 150n
+        expect(result.isAlive).toBe(true);
       });
     });
 
@@ -98,21 +99,20 @@ describe("VeNFTAggregator", () => {
           withdrawDiff,
           mockVeNFTAggregator,
           timestamp,
-          contextStub as handlerContext,
+          mockContext as handlerContext,
         );
-        result = (contextStub.VeNFTAggregator?.set as sinon.SinonStub).firstCall
-          .args[0];
+        const mockSet = jest.mocked(mockContext.VeNFTAggregator?.set);
+        expect(mockSet).toBeDefined();
+        result = mockSet?.mock.calls[0]?.[0] as VeNFTAggregator;
       });
 
       it("should update the veNFTAggregator with withdrawn amount", () => {
-        expect(result.id).to.equal(VeNFTId(10, 1n));
-        expect(result.owner).to.equal(
-          "0x1111111111111111111111111111111111111111",
-        );
-        expect(result.locktime).to.equal(100n); // current.locktime (no diff override)
-        expect(result.lastUpdatedTimestamp).to.equal(timestamp);
-        expect(result.totalValueLocked).to.equal(75n); // 100n (current) + -25n (diff) = 75n
-        expect(result.isAlive).to.equal(true);
+        expect(result.id).toBe(VeNFTId(10, 1n));
+        expect(result.owner).toBe("0x1111111111111111111111111111111111111111");
+        expect(result.locktime).toBe(100n); // current.locktime (no diff override)
+        expect(result.lastUpdatedTimestamp).toBe(timestamp);
+        expect(result.totalValueLocked).toBe(75n); // 100n (current) + -25n (diff) = 75n
+        expect(result.isAlive).toBe(true);
       });
     });
 
@@ -133,21 +133,20 @@ describe("VeNFTAggregator", () => {
           transferDiff,
           mockVeNFTAggregator,
           timestamp,
-          contextStub as handlerContext,
+          mockContext as handlerContext,
         );
-        result = (contextStub.VeNFTAggregator?.set as sinon.SinonStub).firstCall
-          .args[0];
+        const mockSet = jest.mocked(mockContext.VeNFTAggregator?.set);
+        expect(mockSet).toBeDefined();
+        result = mockSet?.mock.calls[0]?.[0] as VeNFTAggregator;
       });
 
       it("should update the veNFTAggregator with new owner", () => {
-        expect(result.id).to.equal(VeNFTId(10, 1n));
-        expect(result.owner).to.equal(
-          "0x2222222222222222222222222222222222222222",
-        );
-        expect(result.locktime).to.equal(100n); // current.locktime (no diff override)
-        expect(result.lastUpdatedTimestamp).to.equal(timestamp);
-        expect(result.totalValueLocked).to.equal(200n); // 100n (current) + 100n (diff) = 200n
-        expect(result.isAlive).to.equal(true);
+        expect(result.id).toBe(VeNFTId(10, 1n));
+        expect(result.owner).toBe("0x2222222222222222222222222222222222222222");
+        expect(result.locktime).toBe(100n); // current.locktime (no diff override)
+        expect(result.lastUpdatedTimestamp).toBe(timestamp);
+        expect(result.totalValueLocked).toBe(200n); // 100n (current) + 100n (diff) = 200n
+        expect(result.isAlive).toBe(true);
       });
     });
 
@@ -168,21 +167,20 @@ describe("VeNFTAggregator", () => {
           burnDiff,
           mockVeNFTAggregator,
           timestamp,
-          contextStub as handlerContext,
+          mockContext as handlerContext,
         );
-        result = (contextStub.VeNFTAggregator?.set as sinon.SinonStub).firstCall
-          .args[0];
+        const mockSet = jest.mocked(mockContext.VeNFTAggregator?.set);
+        expect(mockSet).toBeDefined();
+        result = mockSet?.mock.calls[0]?.[0] as VeNFTAggregator;
       });
 
       it("should set the veNFTAggregator to dead", () => {
-        expect(result.id).to.equal(VeNFTId(10, 1n));
-        expect(result.owner).to.equal(
-          "0x0000000000000000000000000000000000000000",
-        );
-        expect(result.locktime).to.equal(100n); // current.locktime (no diff override)
-        expect(result.lastUpdatedTimestamp).to.equal(timestamp);
-        expect(result.totalValueLocked).to.equal(200n); // 100n (current) + 100n (diff) = 200n
-        expect(result.isAlive).to.equal(false);
+        expect(result.id).toBe(VeNFTId(10, 1n));
+        expect(result.owner).toBe("0x0000000000000000000000000000000000000000");
+        expect(result.locktime).toBe(100n); // current.locktime (no diff override)
+        expect(result.lastUpdatedTimestamp).toBe(timestamp);
+        expect(result.totalValueLocked).toBe(200n); // 100n (current) + 100n (diff) = 200n
+        expect(result.isAlive).toBe(false);
       });
     });
 
@@ -215,21 +213,20 @@ describe("VeNFTAggregator", () => {
           newVeNFTDiff,
           emptyVeNFT,
           timestamp,
-          contextStub as handlerContext,
+          mockContext as handlerContext,
         );
-        result = (contextStub.VeNFTAggregator?.set as sinon.SinonStub).firstCall
-          .args[0];
+        const mockSet = jest.mocked(mockContext.VeNFTAggregator?.set);
+        expect(mockSet).toBeDefined();
+        result = mockSet?.mock.calls[0]?.[0] as VeNFTAggregator;
       });
 
       it("should create a new veNFTAggregator", () => {
-        expect(result.id).to.equal(VeNFTId(10, 2n));
-        expect(result.owner).to.equal(
-          "0x3333333333333333333333333333333333333333",
-        );
-        expect(result.locktime).to.equal(200n);
-        expect(result.lastUpdatedTimestamp).to.equal(timestamp);
-        expect(result.totalValueLocked).to.equal(75n);
-        expect(result.isAlive).to.equal(true);
+        expect(result.id).toBe(VeNFTId(10, 2n));
+        expect(result.owner).toBe("0x3333333333333333333333333333333333333333");
+        expect(result.locktime).toBe(200n);
+        expect(result.lastUpdatedTimestamp).toBe(timestamp);
+        expect(result.totalValueLocked).toBe(75n);
+        expect(result.isAlive).toBe(true);
       });
     });
   });

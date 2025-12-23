@@ -1,4 +1,3 @@
-import { expect } from "chai";
 import { ALMCore, MockDb } from "../../../generated/src/TestHelpers.gen";
 import type { ALM_LP_Wrapper } from "../../../generated/src/Types.gen";
 import { toChecksumAddress } from "../../../src/Constants";
@@ -102,25 +101,21 @@ describe("ALMCore Rebalance Event", () => {
 
       const updatedWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
 
-      expect(updatedWrapper).to.not.be.undefined;
+      expect(updatedWrapper).toBeDefined();
       // amount0 and amount1 are recalculated from liquidity and price, not from event amounts
-      expect(updatedWrapper?.amount0).to.equal(
-        expectedRecalculatedAmounts.amount0,
-      );
-      expect(updatedWrapper?.amount1).to.equal(
-        expectedRecalculatedAmounts.amount1,
-      );
-      expect(updatedWrapper?.liquidity).to.equal(newLiquidity);
-      expect(updatedWrapper?.tokenId).to.equal(newTokenId);
-      expect(updatedWrapper?.tickLower).to.equal(newTickLower);
-      expect(updatedWrapper?.tickUpper).to.equal(newTickUpper);
-      expect(updatedWrapper?.property).to.equal(newProperty);
-      expect(updatedWrapper?.lastUpdatedTimestamp).to.deep.equal(
+      expect(updatedWrapper?.amount0).toBe(expectedRecalculatedAmounts.amount0);
+      expect(updatedWrapper?.amount1).toBe(expectedRecalculatedAmounts.amount1);
+      expect(updatedWrapper?.liquidity).toBe(newLiquidity);
+      expect(updatedWrapper?.tokenId).toBe(newTokenId);
+      expect(updatedWrapper?.tickLower).toBe(newTickLower);
+      expect(updatedWrapper?.tickUpper).toBe(newTickUpper);
+      expect(updatedWrapper?.property).toBe(newProperty);
+      expect(updatedWrapper?.lastUpdatedTimestamp).toEqual(
         new Date(blockTimestamp * 1000),
       );
 
       // Verify wrapper-level lpAmount aggregation is preserved
-      expect(updatedWrapper?.lpAmount).to.equal(mockALMLPWrapperData.lpAmount);
+      expect(updatedWrapper?.lpAmount).toBe(mockALMLPWrapperData.lpAmount);
     });
 
     it("should not update when ALM_LP_Wrapper entity not found", async () => {
@@ -170,9 +165,9 @@ describe("ALMCore Rebalance Event", () => {
       });
 
       // Verify that no wrapper was created or updated
-      expect(
-        Array.from(result.entities.ALM_LP_Wrapper.getAll()).length,
-      ).to.equal(0);
+      expect(Array.from(result.entities.ALM_LP_Wrapper.getAll())).toHaveLength(
+        0,
+      );
     });
 
     it("should handle multiple wrappers and update the first one", async () => {
@@ -243,11 +238,11 @@ describe("ALMCore Rebalance Event", () => {
 
       // Should update the first wrapper (wrapper1)
       const updatedWrapper1 = result.entities.ALM_LP_Wrapper.get(wrapper1.id);
-      expect(updatedWrapper1?.tokenId).to.equal(newTokenId);
+      expect(updatedWrapper1?.tokenId).toBe(newTokenId);
 
       // Second wrapper should remain unchanged
       const unchangedWrapper2 = result.entities.ALM_LP_Wrapper.get(wrapper2.id);
-      expect(unchangedWrapper2?.tokenId).to.equal(wrapper2.tokenId);
+      expect(unchangedWrapper2?.tokenId).toBe(wrapper2.tokenId);
     });
   });
 });
