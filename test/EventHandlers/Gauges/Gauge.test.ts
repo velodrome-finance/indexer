@@ -1,4 +1,3 @@
-import { expect } from "chai";
 import { Gauge } from "../../../generated/src/TestHelpers.gen";
 import { MockDb } from "../../../generated/src/TestHelpers.gen";
 
@@ -30,12 +29,12 @@ describe("Gauge Event Handlers", () => {
       });
 
       // Test that the event data is correctly structured
-      expect(mockEvent.params.from).to.equal(mockUserAddress);
-      expect(mockEvent.params.amount).to.equal(100000000000000000000n);
-      expect(mockEvent.srcAddress).to.equal(mockGaugeAddress);
-      expect(mockEvent.chainId).to.equal(mockChainId);
-      expect(mockEvent.block.number).to.equal(100);
-      expect(mockEvent.block.timestamp).to.equal(1000000);
+      expect(mockEvent.params.from).toBe(mockUserAddress);
+      expect(mockEvent.params.amount).toBe(100000000000000000000n);
+      expect(mockEvent.srcAddress).toBe(mockGaugeAddress);
+      expect(mockEvent.chainId).toBe(mockChainId);
+      expect(mockEvent.block.number).toBe(100);
+      expect(mockEvent.block.timestamp).toBe(1000000);
     });
 
     it("should map Gauge.Withdraw event data correctly", async () => {
@@ -54,12 +53,12 @@ describe("Gauge Event Handlers", () => {
       });
 
       // Test that the event data is correctly structured
-      expect(mockEvent.params.from).to.equal(mockUserAddress);
-      expect(mockEvent.params.amount).to.equal(50000000000000000000n);
-      expect(mockEvent.srcAddress).to.equal(mockGaugeAddress);
-      expect(mockEvent.chainId).to.equal(mockChainId);
-      expect(mockEvent.block.number).to.equal(101);
-      expect(mockEvent.block.timestamp).to.equal(1000001);
+      expect(mockEvent.params.from).toBe(mockUserAddress);
+      expect(mockEvent.params.amount).toBe(50000000000000000000n);
+      expect(mockEvent.srcAddress).toBe(mockGaugeAddress);
+      expect(mockEvent.chainId).toBe(mockChainId);
+      expect(mockEvent.block.number).toBe(101);
+      expect(mockEvent.block.timestamp).toBe(1000001);
     });
 
     it("should map Gauge.ClaimRewards event data correctly", async () => {
@@ -78,12 +77,12 @@ describe("Gauge Event Handlers", () => {
       });
 
       // Test that the event data is correctly structured
-      expect(mockEvent.params.from).to.equal(mockUserAddress);
-      expect(mockEvent.params.amount).to.equal(1000000000000000000000n);
-      expect(mockEvent.srcAddress).to.equal(mockGaugeAddress);
-      expect(mockEvent.chainId).to.equal(mockChainId);
-      expect(mockEvent.block.number).to.equal(102);
-      expect(mockEvent.block.timestamp).to.equal(1000002);
+      expect(mockEvent.params.from).toBe(mockUserAddress);
+      expect(mockEvent.params.amount).toBe(1000000000000000000000n);
+      expect(mockEvent.srcAddress).toBe(mockGaugeAddress);
+      expect(mockEvent.chainId).toBe(mockChainId);
+      expect(mockEvent.block.number).toBe(102);
+      expect(mockEvent.block.timestamp).toBe(1000002);
     });
   });
 

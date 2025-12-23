@@ -8,32 +8,28 @@
     "dev": "envio dev",
     "codegen": "envio codegen",
     "start": "ts-node generated/src/Index.bs.js",
-    "dottest": "mocha -w --recursive -R dot --require ts-node/register \"test/**/*.ts\" --timeout 50000",
-    "test": "nyc mocha --recursive --R spec --require ts-node/register \"test/**/*.ts\" --timeout 120000",
-    "test-watch": "mocha -w --recursive --R dot --require ts-node/register \"test/**/*.ts\" --timeout 30000",
-    "test:file": "nyc mocha --require ts-node/register --timeout 120000",
-    "test:grep": "nyc mocha --require ts-node/register \"test/**/*.ts\" --timeout 120000 --grep",
-    "qa": "biome check"
+    "dottest": "jest --watch --verbose=false",
+    "test": "jest --coverage",
+    "test-watch": "jest --watch",
+    "test:file": "jest",
+    "test:grep": "jest --testNamePattern",
+    "qa": "biome check",
+    "qa-fix-unsafe": "biome check --fix --unsafe"
   },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",
-    "@types/chai": "^4.3.20",
+    "@types/jest": "^29.5.12",
     "@types/node": "^18.19.70",
-    "@types/sinon": "^17.0.3",
-    "chai": "4.3.10",
+    "jest": "^29.7.0",
     "js-yaml": "4.1.1",
-    "nyc": "^15.1.0",
-    "sinon": "^19.0.2",
+    "ts-jest": "^29.1.2",
     "typescript": "^5.7.3"
   },
   "dependencies": {
-    "@types/mocha": "^10.0.10",
     "@uniswap/sdk-core": "^7.9.0",
     "@uniswap/v3-sdk": "^3.26.0",
-    "chai": "4.3.10",
     "envio": "2.32.2",
     "jsbi": "^4.3.2",
-    "mocha": "^10.8.2",
     "prettier": "^2.8.8",
     "ts-node": "^10.9.2",
     "viem": "2.24.3",
@@ -41,25 +37,5 @@
   },
   "optionalDependencies": {
     "generated": "link:generated"
-  },
-  "nyc": {
-    "all": true,
-    "check-coverage": false,
-    "reporter": ["text", "text-summary"],
-    "include": ["src/**/*.ts"],
-    "exclude": [
-      "src/**/*.test.ts",
-      "src/**/*.spec.ts",
-      "test/**",
-      "generated/**",
-      "**/generated/**",
-      "node_modules/**",
-      "**/*.d.ts",
-      "src/Constants.ts",
-      "src/CustomTypes.ts",
-      "src/Pools/common.ts"
-    ],
-    "extension": [".ts"],
-    "require": ["ts-node/register"]
   }
 }

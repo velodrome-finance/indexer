@@ -1,11 +1,9 @@
-import { expect } from "chai";
 import { MockDb, Voter } from "generated/src/TestHelpers.gen";
 import type {
   LiquidityPoolAggregator,
   Token,
   UserStatsPerPool,
 } from "generated/src/Types.gen";
-import sinon from "sinon";
 import * as LiquidityPoolAggregatorModule from "../../../src/Aggregators/LiquidityPoolAggregator";
 import {
   CHAIN_CONSTANTS,
@@ -22,14 +20,12 @@ interface EffectWithHandler<I, O> {
 }
 
 describe("Voter Events", () => {
-  let sandbox: sinon.SinonSandbox;
-
   beforeEach(() => {
-    sandbox = sinon.createSandbox();
+    jest.clearAllMocks();
   });
 
   afterEach(() => {
-    sandbox.restore();
+    jest.restoreAllMocks();
   });
 
   describe("Voted Event", () => {
@@ -104,9 +100,9 @@ describe("Voter Events", () => {
         const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
           toChecksumAddress(poolAddress),
         );
-        expect(updatedPool).to.not.be.undefined;
-        expect(updatedPool?.veNFTamountStaked).to.equal(1000n);
-        expect(updatedPool?.lastUpdatedTimestamp).to.deep.equal(
+        expect(updatedPool).not.toBeUndefined();
+        expect(updatedPool?.veNFTamountStaked).toBe(1000n);
+        expect(updatedPool?.lastUpdatedTimestamp).toEqual(
           new Date(1000000 * 1000),
         );
       });
@@ -115,9 +111,9 @@ describe("Voter Events", () => {
         const userStatsId = `${toChecksumAddress(voterAddress)}_${toChecksumAddress(poolAddress)}_${chainId}`;
         const updatedUserStats =
           resultDB.entities.UserStatsPerPool.get(userStatsId);
-        expect(updatedUserStats).to.not.be.undefined;
-        expect(updatedUserStats?.veNFTamountStaked).to.equal(100n);
-        expect(updatedUserStats?.lastActivityTimestamp).to.deep.equal(
+        expect(updatedUserStats).not.toBeUndefined();
+        expect(updatedUserStats?.veNFTamountStaked).toBe(100n);
+        expect(updatedUserStats?.lastActivityTimestamp).toEqual(
           new Date(1000000 * 1000),
         );
       });
@@ -133,12 +129,12 @@ describe("Voter Events", () => {
         // Should not create LiquidityPoolAggregator entity
         expect(
           Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()).length,
-        ).to.equal(0);
+        ).toBe(0);
         // loadOrCreateUserData is called in parallel and creates UserStatsPerPool even if pool doesn't exist
         // This is expected behavior - the entity is created but not updated
         expect(
           Array.from(resultDB.entities.UserStatsPerPool.getAll()).length,
-        ).to.equal(1);
+        ).toBe(1);
       });
     });
 
@@ -241,9 +237,9 @@ describe("Voter Events", () => {
         const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
           toChecksumAddress(leafPoolAddress),
         );
-        expect(updatedPool).to.not.be.undefined;
-        expect(updatedPool?.veNFTamountStaked).to.equal(realTotalWeight);
-        expect(updatedPool?.lastUpdatedTimestamp).to.deep.equal(
+        expect(updatedPool).not.toBeUndefined();
+        expect(updatedPool?.veNFTamountStaked).toBe(realTotalWeight);
+        expect(updatedPool?.lastUpdatedTimestamp).toEqual(
           new Date(realTimestamp * 1000),
         );
       });
@@ -252,9 +248,9 @@ describe("Voter Events", () => {
         const userStatsId = `${toChecksumAddress(realVoterAddress)}_${toChecksumAddress(rootPoolAddress)}_${rootChainId}`;
         const updatedUserStats =
           resultDB.entities.UserStatsPerPool.get(userStatsId);
-        expect(updatedUserStats).to.not.be.undefined;
-        expect(updatedUserStats?.veNFTamountStaked).to.equal(realWeight);
-        expect(updatedUserStats?.lastActivityTimestamp).to.deep.equal(
+        expect(updatedUserStats).not.toBeUndefined();
+        expect(updatedUserStats?.veNFTamountStaked).toBe(realWeight);
+        expect(updatedUserStats?.lastActivityTimestamp).toEqual(
           new Date(realTimestamp * 1000),
         );
       });
@@ -333,10 +329,10 @@ describe("Voter Events", () => {
         const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
           toChecksumAddress(poolAddress),
         );
-        expect(updatedPool).to.not.be.undefined;
+        expect(updatedPool).not.toBeUndefined();
         // totalWeight is the absolute total veNFT staked in pool, replacing previous value
-        expect(updatedPool?.veNFTamountStaked).to.equal(1000n); // event.params.totalWeight
-        expect(updatedPool?.lastUpdatedTimestamp).to.deep.equal(
+        expect(updatedPool?.veNFTamountStaked).toBe(1000n); // event.params.totalWeight
+        expect(updatedPool?.lastUpdatedTimestamp).toEqual(
           new Date(1000000 * 1000),
         );
       });
@@ -345,10 +341,10 @@ describe("Voter Events", () => {
         const userStatsId = `${toChecksumAddress(voterAddress)}_${toChecksumAddress(poolAddress)}_${chainId}`;
         const updatedUserStats =
           resultDB.entities.UserStatsPerPool.get(userStatsId);
-        expect(updatedUserStats).to.not.be.undefined;
+        expect(updatedUserStats).not.toBeUndefined();
         // weight is subtracted (negative because it's a withdrawal)
-        expect(updatedUserStats?.veNFTamountStaked).to.equal(100n); // 200n - 100n
-        expect(updatedUserStats?.lastActivityTimestamp).to.deep.equal(
+        expect(updatedUserStats?.veNFTamountStaked).toBe(100n); // 200n - 100n
+        expect(updatedUserStats?.lastActivityTimestamp).toEqual(
           new Date(1000000 * 1000),
         );
       });
@@ -364,12 +360,12 @@ describe("Voter Events", () => {
         // Should not create LiquidityPoolAggregator entity
         expect(
           Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()).length,
-        ).to.equal(0);
+        ).toBe(0);
         // loadOrCreateUserData is called in parallel and creates UserStatsPerPool even if pool doesn't exist
         // This is expected behavior - the entity is created but not updated
         expect(
           Array.from(resultDB.entities.UserStatsPerPool.getAll()).length,
-        ).to.equal(1);
+        ).toBe(1);
       });
     });
 
@@ -488,10 +484,10 @@ describe("Voter Events", () => {
           console.log("Original leafPoolAddress:", leafPoolAddress);
         }
 
-        expect(updatedPool).to.not.be.undefined;
+        expect(updatedPool).not.toBeUndefined();
         // totalWeight is the absolute total veNFT staked in pool, replacing previous value
-        expect(updatedPool?.veNFTamountStaked).to.equal(realTotalWeight);
-        expect(updatedPool?.lastUpdatedTimestamp).to.deep.equal(
+        expect(updatedPool?.veNFTamountStaked).toBe(realTotalWeight);
+        expect(updatedPool?.lastUpdatedTimestamp).toEqual(
           new Date(realTimestamp * 1000),
         );
       });
@@ -500,11 +496,11 @@ describe("Voter Events", () => {
         const userStatsId = `${toChecksumAddress(realVoterAddress)}_${toChecksumAddress(rootPoolAddress)}_${rootChainId}`;
         const updatedUserStats =
           resultDB.entities.UserStatsPerPool.get(userStatsId);
-        expect(updatedUserStats).to.not.be.undefined;
+        expect(updatedUserStats).not.toBeUndefined();
         // weight is subtracted (negative because it's a withdrawal)
         const expectedStaked = initialUserStaked - realWeight;
-        expect(updatedUserStats?.veNFTamountStaked).to.equal(expectedStaked);
-        expect(updatedUserStats?.lastActivityTimestamp).to.deep.equal(
+        expect(updatedUserStats?.veNFTamountStaked).toBe(expectedStaked);
+        expect(updatedUserStats?.lastActivityTimestamp).toEqual(
           new Date(realTimestamp * 1000),
         );
       });
@@ -567,17 +563,15 @@ describe("Voter Events", () => {
         const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
           toChecksumAddress(poolAddress),
         );
-        expect(updatedPool).to.not.be.undefined;
-        expect(updatedPool?.gaugeAddress).to.equal(
-          toChecksumAddress(gaugeAddress),
-        );
-        expect(updatedPool?.feeVotingRewardAddress).to.equal(
+        expect(updatedPool).not.toBeUndefined();
+        expect(updatedPool?.gaugeAddress).toBe(toChecksumAddress(gaugeAddress));
+        expect(updatedPool?.feeVotingRewardAddress).toBe(
           "0x6666666666666666666666666666666666666666",
         );
-        expect(updatedPool?.bribeVotingRewardAddress).to.equal(
+        expect(updatedPool?.bribeVotingRewardAddress).toBe(
           "0x5555555555555555555555555555555555555555",
         );
-        expect(updatedPool?.lastUpdatedTimestamp).to.deep.equal(
+        expect(updatedPool?.lastUpdatedTimestamp).toEqual(
           new Date(1000000 * 1000),
         );
       });
@@ -592,7 +586,7 @@ describe("Voter Events", () => {
 
         expect(
           Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()).length,
-        ).to.equal(0);
+        ).toBe(0);
       });
     });
 
@@ -644,14 +638,12 @@ describe("Voter Events", () => {
         const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
           toChecksumAddress(poolAddress),
         );
-        expect(updatedPool).to.not.be.undefined;
-        expect(updatedPool?.gaugeAddress).to.equal(
-          toChecksumAddress(gaugeAddress),
-        );
-        expect(updatedPool?.feeVotingRewardAddress).to.equal(
+        expect(updatedPool).not.toBeUndefined();
+        expect(updatedPool?.gaugeAddress).toBe(toChecksumAddress(gaugeAddress));
+        expect(updatedPool?.feeVotingRewardAddress).toBe(
           "0x6666666666666666666666666666666666666666",
         );
-        expect(updatedPool?.bribeVotingRewardAddress).to.equal(
+        expect(updatedPool?.bribeVotingRewardAddress).toBe(
           "0x5555555555555555555555555555555555555555",
         );
       });
@@ -703,9 +695,9 @@ describe("Voter Events", () => {
         } as LiquidityPoolAggregator;
 
         // Mock findPoolByGaugeAddress to return the pool
-        sandbox
-          .stub(LiquidityPoolAggregatorModule, "findPoolByGaugeAddress")
-          .resolves(mockLiquidityPool);
+        jest
+          .spyOn(LiquidityPoolAggregatorModule, "findPoolByGaugeAddress")
+          .mockResolvedValue(mockLiquidityPool);
 
         mockDb = mockDb.entities.LiquidityPoolAggregator.set(mockLiquidityPool);
 
@@ -721,18 +713,18 @@ describe("Voter Events", () => {
         const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
           toChecksumAddress(poolAddress),
         );
-        expect(updatedPool).to.not.be.undefined;
-        expect(updatedPool?.gaugeIsAlive).to.equal(false); // Should be set to false
+        expect(updatedPool).not.toBeUndefined();
+        expect(updatedPool?.gaugeIsAlive).toBe(false); // Should be set to false
         // Gauge address should be preserved as historical data
-        expect(updatedPool?.gaugeAddress).to.equal(gaugeAddress);
+        expect(updatedPool?.gaugeAddress).toBe(gaugeAddress);
         // Voting reward addresses should be preserved as historical data
-        expect(updatedPool?.feeVotingRewardAddress).to.equal(
+        expect(updatedPool?.feeVotingRewardAddress).toBe(
           feeVotingRewardAddress,
         );
-        expect(updatedPool?.bribeVotingRewardAddress).to.equal(
+        expect(updatedPool?.bribeVotingRewardAddress).toBe(
           bribeVotingRewardAddress,
         );
-        expect(updatedPool?.lastUpdatedTimestamp).to.deep.equal(
+        expect(updatedPool?.lastUpdatedTimestamp).toEqual(
           new Date(1000000 * 1000),
         );
       });
@@ -741,9 +733,9 @@ describe("Voter Events", () => {
     describe("when pool entity does not exist", () => {
       it("should not create any entities", async () => {
         // Mock findPoolByGaugeAddress to return null
-        sandbox
-          .stub(LiquidityPoolAggregatorModule, "findPoolByGaugeAddress")
-          .resolves(null);
+        jest
+          .spyOn(LiquidityPoolAggregatorModule, "findPoolByGaugeAddress")
+          .mockResolvedValue(null);
 
         const resultDB = await Voter.GaugeKilled.processEvent({
           event: mockEvent,
@@ -752,7 +744,7 @@ describe("Voter Events", () => {
 
         expect(
           Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()).length,
-        ).to.equal(0);
+        ).toBe(0);
       });
     });
   });
@@ -810,16 +802,16 @@ describe("Voter Events", () => {
         const token = resultDB.entities.Token.get(
           TokenIdByChain("0x2222222222222222222222222222222222222222", 10),
         );
-        expect(token?.isWhitelisted).to.be.true;
-        expect(token?.pricePerUSDNew).to.equal(expectedPricePerUSDNew);
+        expect(token?.isWhitelisted).toBe(true);
+        expect(token?.pricePerUSDNew).toBe(expectedPricePerUSDNew);
       });
 
       it("should update lastUpdatedTimestamp when updating existing token", async () => {
         const token = resultDB.entities.Token.get(
           TokenIdByChain("0x2222222222222222222222222222222222222222", 10),
         );
-        expect(token?.lastUpdatedTimestamp).to.be.instanceOf(Date);
-        expect(token?.lastUpdatedTimestamp?.getTime()).to.equal(
+        expect(token?.lastUpdatedTimestamp).toBeInstanceOf(Date);
+        expect(token?.lastUpdatedTimestamp?.getTime()).toBe(
           mockEvent.block.timestamp * 1000,
         );
       });
@@ -840,11 +832,11 @@ describe("Voter Events", () => {
         const token = resultDB.entities.Token.get(
           TokenIdByChain("0x2222222222222222222222222222222222222222", 10),
         );
-        expect(token?.isWhitelisted).to.be.true;
-        expect(token?.pricePerUSDNew).to.equal(0n);
-        expect(token?.name).to.be.a("string");
-        expect(token?.symbol).to.be.a("string");
-        expect(token?.address).to.equal(
+        expect(token?.isWhitelisted).toBe(true);
+        expect(token?.pricePerUSDNew).toBe(0n);
+        expect(typeof token?.name).toBe("string");
+        expect(typeof token?.symbol).toBe("string");
+        expect(token?.address).toBe(
           "0x2222222222222222222222222222222222222222",
         );
       });
@@ -853,8 +845,8 @@ describe("Voter Events", () => {
         const token = resultDB.entities.Token.get(
           TokenIdByChain("0x2222222222222222222222222222222222222222", 10),
         );
-        expect(token?.lastUpdatedTimestamp).to.be.instanceOf(Date);
-        expect(token?.lastUpdatedTimestamp?.getTime()).to.equal(
+        expect(token?.lastUpdatedTimestamp).toBeInstanceOf(Date);
+        expect(token?.lastUpdatedTimestamp?.getTime()).toBe(
           mockEvent.block.timestamp * 1000,
         );
       });
@@ -950,16 +942,16 @@ describe("Voter Events", () => {
         };
 
         // Mock findPoolByGaugeAddress to return the pool
-        sandbox
-          .stub(LiquidityPoolAggregatorModule, "findPoolByGaugeAddress")
-          .resolves(liquidityPool);
+        jest
+          .spyOn(LiquidityPoolAggregatorModule, "findPoolByGaugeAddress")
+          .mockResolvedValue(liquidityPool);
 
         // Mock the effect functions at module level
         originalGetIsAlive = getIsAlive;
         originalGetTokensDeposited = getTokensDeposited;
 
-        sandbox
-          .stub(
+        jest
+          .spyOn(
             getIsAlive as unknown as EffectWithHandler<
               {
                 voterAddress: string;
@@ -971,9 +963,9 @@ describe("Voter Events", () => {
             >,
             "handler",
           )
-          .callsFake(async () => true);
-        sandbox
-          .stub(
+          .mockImplementation(async () => true);
+        jest
+          .spyOn(
             getTokensDeposited as unknown as EffectWithHandler<
               {
                 rewardTokenAddress: string;
@@ -985,7 +977,7 @@ describe("Voter Events", () => {
             >,
             "handler",
           )
-          .callsFake(async () => expectations.getTokensDeposited);
+          .mockImplementation(async () => expectations.getTokensDeposited);
 
         // Set entities in the mock database
         updatedDB = mockDb.entities.Token.set(rewardToken);
@@ -996,7 +988,7 @@ describe("Voter Events", () => {
         const originalChainConstants = CHAIN_CONSTANTS[chainId];
         CHAIN_CONSTANTS[chainId] = {
           ...originalChainConstants,
-          rewardToken: sandbox.stub().returns(rewardTokenAddress),
+          rewardToken: jest.fn().mockReturnValue(rewardTokenAddress),
         };
 
         // Process the event
@@ -1055,43 +1047,39 @@ describe("Voter Events", () => {
       it("should update the liquidity pool aggregator with emissions data", () => {
         const updatedPool =
           resultDB.entities.LiquidityPoolAggregator.get(poolAddress);
-        expect(updatedPool).to.not.be.undefined;
-        expect(updatedPool?.totalEmissions).to.equal(
-          expectations.totalEmissions,
-        );
-        expect(updatedPool?.totalEmissionsUSD).to.equal(
+        expect(updatedPool).not.toBeUndefined();
+        expect(updatedPool?.totalEmissions).toBe(expectations.totalEmissions);
+        expect(updatedPool?.totalEmissionsUSD).toBe(
           expectations.totalEmissionsUSD,
         );
-        expect(updatedPool?.gaugeIsAlive).to.be.true;
-        expect(updatedPool?.totalVotesDeposited).to.equal(
+        expect(updatedPool?.gaugeIsAlive).toBe(true);
+        expect(updatedPool?.totalVotesDeposited).toBe(
           expectations.getTokensDeposited,
         );
-        expect(updatedPool?.lastUpdatedTimestamp).to.deep.equal(
+        expect(updatedPool?.lastUpdatedTimestamp).toEqual(
           new Date(1000000 * 1000),
         );
       });
       it("should update the liquidity pool aggregator with votes deposited data", () => {
         const updatedPool =
           resultDB.entities.LiquidityPoolAggregator.get(poolAddress);
-        expect(updatedPool).to.not.be.undefined;
-        expect(updatedPool?.totalVotesDeposited).to.equal(
+        expect(updatedPool).not.toBeUndefined();
+        expect(updatedPool?.totalVotesDeposited).toBe(
           expectations.getTokensDeposited,
-          "Should have votes deposited",
         );
-        expect(updatedPool?.totalVotesDepositedUSD).to.equal(
+        expect(updatedPool?.totalVotesDepositedUSD).toBe(
           expectations.getTokensDepositedUSD,
-          "Should have USD value for votes deposited",
         );
-        expect(updatedPool?.lastUpdatedTimestamp).to.deep.equal(
+        expect(updatedPool?.lastUpdatedTimestamp).toEqual(
           new Date(1000000 * 1000),
         );
-        expect(updatedPool?.gaugeAddress).to.equal(gaugeAddress);
+        expect(updatedPool?.gaugeAddress).toBe(gaugeAddress);
       });
       it("should update the liquidity pool aggregator with gauge is alive data", () => {
         const updatedPool =
           resultDB.entities.LiquidityPoolAggregator.get(poolAddress);
-        expect(updatedPool).to.not.be.undefined;
-        expect(updatedPool?.gaugeIsAlive).to.be.true;
+        expect(updatedPool).not.toBeUndefined();
+        expect(updatedPool?.gaugeIsAlive).toBe(true);
       });
     });
 
@@ -1101,13 +1089,13 @@ describe("Voter Events", () => {
         const originalChainConstants = CHAIN_CONSTANTS[chainId];
         CHAIN_CONSTANTS[chainId] = {
           ...originalChainConstants,
-          rewardToken: sandbox.stub().returns(rewardTokenAddress),
+          rewardToken: jest.fn().mockReturnValue(rewardTokenAddress),
         };
 
         // Mock findPoolByGaugeAddress to return null
-        sandbox
-          .stub(LiquidityPoolAggregatorModule, "findPoolByGaugeAddress")
-          .resolves(null);
+        jest
+          .spyOn(LiquidityPoolAggregatorModule, "findPoolByGaugeAddress")
+          .mockResolvedValue(null);
 
         const resultDB = await Voter.DistributeReward.processEvent({
           event: mockEvent,
@@ -1117,7 +1105,7 @@ describe("Voter Events", () => {
         // Should not create any entities when pool doesn't exist
         expect(
           Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()).length,
-        ).to.equal(0);
+        ).toBe(0);
       });
     });
 
@@ -1135,13 +1123,13 @@ describe("Voter Events", () => {
         const originalChainConstants = CHAIN_CONSTANTS[chainId];
         CHAIN_CONSTANTS[chainId] = {
           ...originalChainConstants,
-          rewardToken: sandbox.stub().returns(rewardTokenAddress),
+          rewardToken: jest.fn().mockReturnValue(rewardTokenAddress),
         };
 
         // Mock findPoolByGaugeAddress to return the pool
-        sandbox
-          .stub(LiquidityPoolAggregatorModule, "findPoolByGaugeAddress")
-          .resolves(liquidityPool);
+        jest
+          .spyOn(LiquidityPoolAggregatorModule, "findPoolByGaugeAddress")
+          .mockResolvedValue(liquidityPool);
 
         // Create a fresh database with only the liquidity pool, no reward token
         const freshDb = MockDb.createMockDb();
@@ -1156,11 +1144,11 @@ describe("Voter Events", () => {
         // Should not update any entities when reward token is missing
         expect(
           Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()).length,
-        ).to.equal(1);
+        ).toBe(1);
         const pool = resultDB.entities.LiquidityPoolAggregator.get(
           toChecksumAddress(poolAddress),
         );
-        expect(pool?.totalEmissions).to.equal(0n); // Should remain unchanged
+        expect(pool?.totalEmissions).toBe(0n); // Should remain unchanged
       });
     });
   });

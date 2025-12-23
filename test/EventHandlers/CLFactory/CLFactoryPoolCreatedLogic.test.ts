@@ -1,11 +1,9 @@
-import { expect } from "chai";
 import type {
   CLFactory_PoolCreated_event,
   CLGaugeConfig,
   Token,
   handlerContext,
 } from "generated";
-import sinon from "sinon";
 import { processCLFactoryPoolCreated } from "../../../src/EventHandlers/CLFactory/CLFactoryPoolCreatedLogic";
 import * as PriceOracle from "../../../src/PriceOracle";
 import { setupCommon } from "../Pool/common";
@@ -13,13 +11,12 @@ import { setupCommon } from "../Pool/common";
 describe("CLFactoryPoolCreatedLogic", () => {
   const { mockToken0Data, mockToken1Data } = setupCommon();
 
-  let mockCreateTokenEntity: sinon.SinonStub;
-
   beforeEach(() => {
-    // Mock the createTokenEntity function using sinon
-    mockCreateTokenEntity = sinon
-      .stub(PriceOracle, "createTokenEntity")
-      .callsFake(async (address: string) => ({
+    jest.clearAllMocks();
+    // Mock the createTokenEntity function using Jest
+    jest
+      .spyOn(PriceOracle, "createTokenEntity")
+      .mockImplementation(async (address: string) => ({
         id: "mock_token_id",
         address: address,
         symbol: "", // Empty symbol for missing tokens
@@ -33,8 +30,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
   });
 
   afterEach(() => {
-    // Restore the original function
-    mockCreateTokenEntity.restore();
+    jest.restoreAllMocks();
   });
 
   // Shared mock event for all tests
@@ -77,7 +73,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
       );
 
       // Assertions
-      expect(result.liquidityPoolAggregator).to.deep.include({
+      expect(result.liquidityPoolAggregator).toMatchObject({
         id: "0x4444444444444444444444444444444444444444",
         chainId: 10,
         name: "CL-60 AMM - USDT/USDC",
@@ -105,7 +101,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockContext,
       );
 
-      expect(result.liquidityPoolAggregator).to.deep.include({
+      expect(result.liquidityPoolAggregator).toMatchObject({
         id: "0x4444444444444444444444444444444444444444",
         chainId: 10,
         name: "CL-60 AMM - /USDC", // Empty symbol for token0
@@ -133,7 +129,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockContext,
       );
 
-      expect(result.liquidityPoolAggregator).to.deep.include({
+      expect(result.liquidityPoolAggregator).toMatchObject({
         id: "0x4444444444444444444444444444444444444444",
         chainId: 10,
         name: "CL-60 AMM - USDT/", // Empty symbol for token1
@@ -161,7 +157,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockContext,
       );
 
-      expect(result.liquidityPoolAggregator).to.deep.include({
+      expect(result.liquidityPoolAggregator).toMatchObject({
         id: "0x4444444444444444444444444444444444444444",
         chainId: 10,
         name: "CL-60 AMM - /", // Empty symbols for both tokens
@@ -197,7 +193,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockContext,
       );
 
-      expect(result.liquidityPoolAggregator?.name).to.equal(
+      expect(result.liquidityPoolAggregator?.name).toBe(
         "CL-200 AMM - USDT/USDC",
       );
     });
@@ -221,7 +217,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockContext,
       );
 
-      expect(result.liquidityPoolAggregator).to.deep.include({
+      expect(result.liquidityPoolAggregator).toMatchObject({
         id: "0x4444444444444444444444444444444444444444",
         chainId: 10,
         name: "CL-60 AMM - USDT/USDC",
@@ -259,7 +255,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockContext,
       );
 
-      expect(result.liquidityPoolAggregator).to.deep.include({
+      expect(result.liquidityPoolAggregator).toMatchObject({
         id: "0x4444444444444444444444444444444444444444",
         chainId: 10,
         name: "CL-60 AMM - USDT/USDC",
@@ -292,11 +288,11 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockContext,
       );
 
-      expect(result.liquidityPoolAggregator?.chainId).to.equal(8453);
-      expect(result.liquidityPoolAggregator?.token0_id).to.equal(
+      expect(result.liquidityPoolAggregator?.chainId).toBe(8453);
+      expect(result.liquidityPoolAggregator?.token0_id).toBe(
         "0x2222222222222222222222222222222222222222-8453",
       );
-      expect(result.liquidityPoolAggregator?.token1_id).to.equal(
+      expect(result.liquidityPoolAggregator?.token1_id).toBe(
         "0x3333333333333333333333333333333333333333-8453",
       );
     });
@@ -322,17 +318,17 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockContext,
       );
 
-      expect(result.liquidityPoolAggregator?.name).to.equal(
+      expect(result.liquidityPoolAggregator?.name).toBe(
         "CL-60 AMM - WETH/USDC",
       );
     });
 
     it("should handle error during processing gracefully", async () => {
-      // Restore the current stub and create a new one that throws
-      mockCreateTokenEntity.restore();
-      mockCreateTokenEntity = sinon
-        .stub(PriceOracle, "createTokenEntity")
-        .callsFake(async () => {
+      // Restore the current mock and create a new one that throws
+      jest.restoreAllMocks();
+      jest
+        .spyOn(PriceOracle, "createTokenEntity")
+        .mockImplementation(async () => {
           throw new Error("Token creation failed");
         });
 
@@ -348,8 +344,8 @@ describe("CLFactoryPoolCreatedLogic", () => {
 
       // The function should complete successfully (errors are logged but don't stop processing)
       // When token creation fails, symbols will be undefined
-      expect(result.liquidityPoolAggregator).to.exist;
-      expect(result.liquidityPoolAggregator.name).to.equal(
+      expect(result.liquidityPoolAggregator).toBeDefined();
+      expect(result.liquidityPoolAggregator.name).toBe(
         "CL-60 AMM - undefined/undefined",
       );
     });
@@ -364,10 +360,10 @@ describe("CLFactoryPoolCreatedLogic", () => {
       );
 
       const aggregator = result.liquidityPoolAggregator;
-      expect(aggregator).to.exist;
+      expect(aggregator).toBeDefined();
 
       // All initial values should be set correctly for a new pool
-      expect(aggregator).to.deep.include({
+      expect(aggregator).toMatchObject({
         // All numeric values should be 0 for a new pool
         reserve0: 0n,
         reserve1: 0n,
@@ -412,7 +408,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockContext,
       );
 
-      expect(result.liquidityPoolAggregator.gaugeEmissionsCap).to.be.undefined;
+      expect(result.liquidityPoolAggregator.gaugeEmissionsCap).toBeUndefined();
     });
 
     it("should set gaugeEmissionsCap to defaultEmissionsCap when CLGaugeConfig exists", async () => {
@@ -431,7 +427,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockContext,
       );
 
-      expect(result.liquidityPoolAggregator.gaugeEmissionsCap).to.equal(
+      expect(result.liquidityPoolAggregator.gaugeEmissionsCap).toBe(
         mockDefaultEmissionsCap,
       );
     });

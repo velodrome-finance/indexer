@@ -1,4 +1,3 @@
-import { expect } from "chai";
 import {
   ALMDeployFactoryV1,
   MockDb,
@@ -106,40 +105,40 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
       const wrapperId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
       const createdWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
 
-      expect(createdWrapper).to.not.be.undefined;
-      expect(createdWrapper?.id).to.equal(wrapperId);
-      expect(createdWrapper?.chainId).to.equal(chainId);
-      expect(createdWrapper?.pool).to.equal(toChecksumAddress(poolAddress));
-      expect(createdWrapper?.token0).to.equal(mockToken0Data.address);
-      expect(createdWrapper?.token1).to.equal(mockToken1Data.address);
+      expect(createdWrapper).not.toBeUndefined();
+      expect(createdWrapper?.id).toBe(wrapperId);
+      expect(createdWrapper?.chainId).toBe(chainId);
+      expect(createdWrapper?.pool).toBe(toChecksumAddress(poolAddress));
+      expect(createdWrapper?.token0).toBe(mockToken0Data.address);
+      expect(createdWrapper?.token1).toBe(mockToken1Data.address);
 
       // Wrapper-level aggregations should be initialized from NonFungiblePosition
-      expect(createdWrapper?.amount0).to.equal(500n * 10n ** 18n);
-      expect(createdWrapper?.amount1).to.equal(250n * 10n ** 6n);
+      expect(createdWrapper?.amount0).toBe(500n * 10n ** 18n);
+      expect(createdWrapper?.amount1).toBe(250n * 10n ** 6n);
       // lpAmount should equal liquidity (initialTotalSupply = position.liquidity in V1)
-      expect(createdWrapper?.lpAmount).to.equal(liquidity);
+      expect(createdWrapper?.lpAmount).toBe(liquidity);
 
       // Strategy/Position-level state should be set from event
-      expect(createdWrapper?.tokenId).to.equal(tokenId);
-      expect(createdWrapper?.tickLower).to.equal(tickLower);
-      expect(createdWrapper?.tickUpper).to.equal(tickUpper);
-      expect(createdWrapper?.property).to.equal(property);
-      expect(createdWrapper?.liquidity).to.equal(liquidity);
-      expect(createdWrapper?.strategyType).to.equal(strategyType);
-      expect(createdWrapper?.tickNeighborhood).to.equal(tickNeighborhood);
-      expect(createdWrapper?.tickSpacing).to.equal(tickSpacing);
-      expect(createdWrapper?.positionWidth).to.equal(width);
+      expect(createdWrapper?.tokenId).toBe(tokenId);
+      expect(createdWrapper?.tickLower).toBe(tickLower);
+      expect(createdWrapper?.tickUpper).toBe(tickUpper);
+      expect(createdWrapper?.property).toBe(property);
+      expect(createdWrapper?.liquidity).toBe(liquidity);
+      expect(createdWrapper?.strategyType).toBe(strategyType);
+      expect(createdWrapper?.tickNeighborhood).toBe(tickNeighborhood);
+      expect(createdWrapper?.tickSpacing).toBe(tickSpacing);
+      expect(createdWrapper?.positionWidth).toBe(width);
       // V1 doesn't have maxLiquidityRatioDeviationX96 in strategyParams, defaults to 0n
-      expect(createdWrapper?.maxLiquidityRatioDeviationX96).to.equal(0n);
-      expect(createdWrapper?.creationTimestamp).to.deep.equal(
+      expect(createdWrapper?.maxLiquidityRatioDeviationX96).toBe(0n);
+      expect(createdWrapper?.creationTimestamp).toEqual(
         new Date(blockTimestamp * 1000),
       );
-      expect(createdWrapper?.strategyTransactionHash).to.equal(transactionHash);
-      expect(createdWrapper?.lastUpdatedTimestamp).to.deep.equal(
+      expect(createdWrapper?.strategyTransactionHash).toBe(transactionHash);
+      expect(createdWrapper?.lastUpdatedTimestamp).toEqual(
         new Date(blockTimestamp * 1000),
       );
       // Initial state from StrategyCreated is from on-chain AMM position, not derived
-      expect(createdWrapper?.ammStateIsDerived).to.equal(false);
+      expect(createdWrapper?.ammStateIsDerived).toBe(false);
     });
 
     it("should not create entity when NonFungiblePosition not found", async () => {
@@ -188,7 +187,7 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
       // Verify that no wrapper was created
       const wrapperId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
       const createdWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
-      expect(createdWrapper).to.be.undefined;
+      expect(createdWrapper).toBeUndefined();
     });
 
     it("should not create entity when NonFungiblePosition getWhere returns null", async () => {
@@ -237,7 +236,7 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
       // Verify that no wrapper was created
       const wrapperId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
       const createdWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
-      expect(createdWrapper).to.be.undefined;
+      expect(createdWrapper).toBeUndefined();
     });
 
     it("should filter NonFungiblePosition by tickLower, tickUpper, liquidity, token0, and token1", async () => {
@@ -323,11 +322,11 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
       const wrapperId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
       const createdWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
 
-      expect(createdWrapper).to.not.be.undefined;
+      expect(createdWrapper).not.toBeUndefined();
       // Should use the matching NonFungiblePosition (tokenId = 42n)
-      expect(createdWrapper?.tokenId).to.equal(tokenId);
-      expect(createdWrapper?.amount0).to.equal(500n * 10n ** 18n);
-      expect(createdWrapper?.amount1).to.equal(250n * 10n ** 6n);
+      expect(createdWrapper?.tokenId).toBe(tokenId);
+      expect(createdWrapper?.amount0).toBe(500n * 10n ** 18n);
+      expect(createdWrapper?.amount1).toBe(250n * 10n ** 6n);
     });
 
     it("should warn when multiple matching NonFungiblePositions found", async () => {
@@ -413,11 +412,11 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
       const wrapperId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
       const createdWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
 
-      expect(createdWrapper).to.not.be.undefined;
+      expect(createdWrapper).not.toBeUndefined();
       // Should use the first matching NonFungiblePosition
-      expect(createdWrapper?.tokenId).to.equal(tokenId);
-      expect(createdWrapper?.amount0).to.equal(500n * 10n ** 18n);
-      expect(createdWrapper?.amount1).to.equal(250n * 10n ** 6n);
+      expect(createdWrapper?.tokenId).toBe(tokenId);
+      expect(createdWrapper?.amount0).toBe(500n * 10n ** 18n);
+      expect(createdWrapper?.amount1).toBe(250n * 10n ** 6n);
     });
   });
 });

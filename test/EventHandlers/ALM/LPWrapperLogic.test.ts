@@ -1,9 +1,8 @@
-import { expect } from "chai";
 import type { ALM_LP_Wrapper, handlerContext } from "generated";
-import sinon from "sinon";
 import {
   TEN_TO_THE_6_BI,
   TEN_TO_THE_18_BI,
+  ZERO_ADDRESS,
   toChecksumAddress,
 } from "../../../src/Constants";
 import * as TokenEffects from "../../../src/Effects/Token";
@@ -28,28 +27,28 @@ describe("LPWrapperLogic", () => {
   const mockSqrtPriceX96 = 79228162514264337593543950336n; // sqrt(1) * 2^96
 
   let mockContext: handlerContext;
-  let getSqrtPriceX96Stub: sinon.SinonStub;
-  let roundBlockToIntervalStub: sinon.SinonStub;
+  let mockGetSqrtPriceX96: jest.Mock;
+  let roundBlockToIntervalSpy: jest.SpyInstance;
 
   beforeEach(() => {
-    // Stub roundBlockToInterval
-    roundBlockToIntervalStub = sinon
-      .stub(TokenEffects, "roundBlockToInterval")
-      .returns(roundedBlockNumber);
+    // Spy on roundBlockToInterval
+    roundBlockToIntervalSpy = jest
+      .spyOn(TokenEffects, "roundBlockToInterval")
+      .mockReturnValue(roundedBlockNumber);
 
-    // Create mock context with effect stub
-    getSqrtPriceX96Stub = sinon.stub();
+    // Create mock context with effect mock
+    mockGetSqrtPriceX96 = jest.fn();
     mockContext = {
-      effect: getSqrtPriceX96Stub,
+      effect: mockGetSqrtPriceX96,
       log: {
-        warn: sinon.stub(),
-        error: sinon.stub(),
+        warn: jest.fn(),
+        error: jest.fn(),
       },
     } as unknown as handlerContext;
   });
 
   afterEach(() => {
-    sinon.restore();
+    jest.restoreAllMocks();
   });
 
   describe("deriveUserAmounts", () => {
@@ -67,8 +66,8 @@ describe("LPWrapperLogic", () => {
       );
 
       // User has 1000/5000 = 20% of LP, so gets 20% of amounts
-      expect(result.amount0).to.equal(200n * 10n ** 18n); // 1000 * 1000 / 5000 = 200
-      expect(result.amount1).to.equal(100n * 10n ** 6n); // 500 * 1000 / 5000 = 100
+      expect(result.amount0).toBe(200n * 10n ** 18n); // 1000 * 1000 / 5000 = 200
+      expect(result.amount1).toBe(100n * 10n ** 6n); // 500 * 1000 / 5000 = 100
     });
 
     it("should return zero amounts when user LP is zero", () => {
@@ -79,8 +78,8 @@ describe("LPWrapperLogic", () => {
         500n * 10n ** 6n,
       );
 
-      expect(result.amount0).to.equal(0n);
-      expect(result.amount1).to.equal(0n);
+      expect(result.amount0).toBe(0n);
+      expect(result.amount1).toBe(0n);
     });
 
     it("should return zero amounts when total LP is zero", () => {
@@ -91,8 +90,8 @@ describe("LPWrapperLogic", () => {
         500n * 10n ** 6n,
       );
 
-      expect(result.amount0).to.equal(0n);
-      expect(result.amount1).to.equal(0n);
+      expect(result.amount0).toBe(0n);
+      expect(result.amount1).toBe(0n);
     });
 
     it("should handle fractional results correctly", () => {
@@ -109,8 +108,8 @@ describe("LPWrapperLogic", () => {
       );
 
       // 10 * 1 / 3 = 3 (integer division)
-      expect(result.amount0).to.equal(3n);
-      expect(result.amount1).to.equal(3n);
+      expect(result.amount0).toBe(3n);
+      expect(result.amount1).toBe(3n);
     });
 
     it("should handle user with partial LP share correctly", () => {
@@ -130,8 +129,8 @@ describe("LPWrapperLogic", () => {
       // User has 30% share, so gets 30% of amounts
       // amount0: (1000 * 300) / 1000 = 300
       // amount1: (500 * 300) / 1000 = 150
-      expect(result.amount0).to.equal(300n * 10n ** 18n);
-      expect(result.amount1).to.equal(150n * 10n ** 6n);
+      expect(result.amount0).toBe(300n * 10n ** 18n);
+      expect(result.amount1).toBe(150n * 10n ** 6n);
     });
   });
 
@@ -150,7 +149,7 @@ describe("LPWrapperLogic", () => {
       const updatedAmount1 = 300n * 10n ** 6n;
 
       // Mock successful sqrtPriceX96 fetch
-      getSqrtPriceX96Stub.resolves(mockSqrtPriceX96);
+      mockGetSqrtPriceX96.mockResolvedValue(mockSqrtPriceX96);
 
       const result = await calculateLiquidityFromAmounts(
         wrapper,
@@ -164,12 +163,14 @@ describe("LPWrapperLogic", () => {
       );
 
       // Result should be a calculated liquidity value (not the original)
-      expect(result).to.not.equal(wrapper.liquidity);
-      expect(result).to.be.a("bigint");
-      expect(getSqrtPriceX96Stub.callCount).to.equal(1);
-      expect(roundBlockToIntervalStub.callCount).to.equal(1);
-      expect(roundBlockToIntervalStub.calledWith(blockNumber, chainId)).to.be
-        .true;
+      expect(result).not.toBe(wrapper.liquidity);
+      expect(typeof result).toBe("bigint");
+      expect(mockGetSqrtPriceX96.mock.calls.length).toBe(1);
+      expect(roundBlockToIntervalSpy.mock.calls.length).toBe(1);
+      expect(roundBlockToIntervalSpy).toHaveBeenCalledWith(
+        blockNumber,
+        chainId,
+      );
     });
 
     it("should retry with actual block number if rounded block fails", async () => {
@@ -186,10 +187,11 @@ describe("LPWrapperLogic", () => {
       const updatedAmount1 = 300n * 10n ** 6n;
 
       // First call (rounded block) fails, second call (actual block) succeeds
-      getSqrtPriceX96Stub
-        .onCall(0)
-        .rejects(new Error("Pool does not exist at rounded block"));
-      getSqrtPriceX96Stub.onCall(1).resolves(mockSqrtPriceX96);
+      mockGetSqrtPriceX96
+        .mockRejectedValueOnce(
+          new Error("Pool does not exist at rounded block"),
+        )
+        .mockResolvedValueOnce(mockSqrtPriceX96);
 
       const result = await calculateLiquidityFromAmounts(
         wrapper,
@@ -203,22 +205,22 @@ describe("LPWrapperLogic", () => {
       );
 
       // Verify retry happened (both calls were made)
-      expect(getSqrtPriceX96Stub.callCount).to.equal(2);
+      expect(mockGetSqrtPriceX96.mock.calls.length).toBe(2);
       // Verify first call was with rounded block
       // args[0] is the effect function (getSqrtPriceX96), args[1] is the input object
-      expect(getSqrtPriceX96Stub.getCall(0).args[1].blockNumber).to.equal(
+      expect(mockGetSqrtPriceX96.mock.calls[0][1].blockNumber).toBe(
         roundedBlockNumber,
       );
       // Verify second call was with actual block
-      expect(getSqrtPriceX96Stub.getCall(1).args[1].blockNumber).to.equal(
+      expect(mockGetSqrtPriceX96.mock.calls[1][1].blockNumber).toBe(
         blockNumber,
       );
       // Verify warning was logged
       expect(
-        (mockContext.log.warn as sinon.SinonStub).callCount,
-      ).to.be.greaterThan(0);
+        (mockContext.log.warn as jest.Mock).mock.calls.length,
+      ).toBeGreaterThan(0);
       // Result should be a calculated value (may or may not equal wrapper.liquidity depending on calculation)
-      expect(result).to.be.a("bigint");
+      expect(typeof result).toBe("bigint");
     });
 
     it("should return current liquidity if both rounded and actual block fail", async () => {
@@ -235,7 +237,7 @@ describe("LPWrapperLogic", () => {
       const updatedAmount1 = 300n * 10n ** 6n;
 
       // Both calls fail
-      getSqrtPriceX96Stub.rejects(new Error("Failed to fetch"));
+      mockGetSqrtPriceX96.mockRejectedValue(new Error("Failed to fetch"));
 
       const result = await calculateLiquidityFromAmounts(
         wrapper,
@@ -249,10 +251,10 @@ describe("LPWrapperLogic", () => {
       );
 
       // Should return current liquidity
-      expect(result).to.equal(wrapper.liquidity);
+      expect(result).toBe(wrapper.liquidity);
       expect(
-        (mockContext.log.error as sinon.SinonStub).callCount,
-      ).to.be.greaterThan(0);
+        (mockContext.log.error as jest.Mock).mock.calls.length,
+      ).toBeGreaterThan(0);
     });
 
     it("should return current liquidity if sqrtPriceX96 is undefined", async () => {
@@ -268,7 +270,7 @@ describe("LPWrapperLogic", () => {
       const updatedAmount0 = 600n * 10n ** 18n;
       const updatedAmount1 = 300n * 10n ** 6n;
 
-      getSqrtPriceX96Stub.resolves(undefined);
+      mockGetSqrtPriceX96.mockResolvedValue(undefined);
 
       const result = await calculateLiquidityFromAmounts(
         wrapper,
@@ -282,11 +284,11 @@ describe("LPWrapperLogic", () => {
       );
 
       // Should return current liquidity
-      expect(result).to.equal(wrapper.liquidity);
-      expect((mockContext.log.warn as sinon.SinonStub).callCount).to.equal(1);
-      expect(
-        (mockContext.log.warn as sinon.SinonStub).getCall(0).args[0],
-      ).to.include("sqrtPriceX96 is undefined or 0");
+      expect(result).toBe(wrapper.liquidity);
+      expect((mockContext.log.warn as jest.Mock).mock.calls.length).toBe(1);
+      expect((mockContext.log.warn as jest.Mock).mock.calls[0][0]).toContain(
+        "sqrtPriceX96 is undefined or 0",
+      );
     });
 
     it("should return current liquidity if sqrtPriceX96 is zero", async () => {
@@ -302,7 +304,7 @@ describe("LPWrapperLogic", () => {
       const updatedAmount0 = 600n * 10n ** 18n;
       const updatedAmount1 = 300n * 10n ** 6n;
 
-      getSqrtPriceX96Stub.resolves(0n);
+      mockGetSqrtPriceX96.mockResolvedValue(0n);
 
       const result = await calculateLiquidityFromAmounts(
         wrapper,
@@ -316,8 +318,8 @@ describe("LPWrapperLogic", () => {
       );
 
       // Should return current liquidity
-      expect(result).to.equal(wrapper.liquidity);
-      expect((mockContext.log.warn as sinon.SinonStub).callCount).to.equal(1);
+      expect(result).toBe(wrapper.liquidity);
+      expect((mockContext.log.warn as jest.Mock).mock.calls.length).toBe(1);
     });
 
     it("should handle unexpected errors gracefully", async () => {
@@ -334,7 +336,9 @@ describe("LPWrapperLogic", () => {
       const updatedAmount1 = 300n * 10n ** 6n;
 
       // Throw unexpected error
-      roundBlockToIntervalStub.throws(new Error("Unexpected error"));
+      roundBlockToIntervalSpy.mockImplementation(() => {
+        throw new Error("Unexpected error");
+      });
 
       const result = await calculateLiquidityFromAmounts(
         wrapper,
@@ -348,11 +352,11 @@ describe("LPWrapperLogic", () => {
       );
 
       // Should return current liquidity on error
-      expect(result).to.equal(wrapper.liquidity);
-      expect((mockContext.log.error as sinon.SinonStub).callCount).to.equal(1);
-      expect(
-        (mockContext.log.error as sinon.SinonStub).getCall(0).args[0],
-      ).to.include("Error calculating liquidity from amounts");
+      expect(result).toBe(wrapper.liquidity);
+      expect((mockContext.log.error as jest.Mock).mock.calls.length).toBe(1);
+      expect((mockContext.log.error as jest.Mock).mock.calls[0][0]).toContain(
+        "Error calculating liquidity from amounts",
+      );
     });
 
     it("should use correct event type in log messages", async () => {
@@ -368,7 +372,7 @@ describe("LPWrapperLogic", () => {
       const updatedAmount0 = 600n * 10n ** 18n;
       const updatedAmount1 = 300n * 10n ** 6n;
 
-      getSqrtPriceX96Stub.rejects(new Error("Failed"));
+      mockGetSqrtPriceX96.mockRejectedValue(new Error("Failed"));
 
       await calculateLiquidityFromAmounts(
         wrapper,
@@ -381,9 +385,9 @@ describe("LPWrapperLogic", () => {
         "CustomEvent",
       );
 
-      expect(
-        (mockContext.log.error as sinon.SinonStub).getCall(0).args[0],
-      ).to.include("ALMLPWrapper.CustomEvent");
+      expect((mockContext.log.error as jest.Mock).mock.calls[0][0]).toContain(
+        "ALMLPWrapper.CustomEvent",
+      );
     });
   });
 
@@ -395,10 +399,10 @@ describe("LPWrapperLogic", () => {
     beforeEach(() => {
       mockContext = {
         ALM_LP_Wrapper: {
-          get: sinon.stub(),
+          get: jest.fn(),
         },
         log: {
-          error: sinon.stub(),
+          error: jest.fn(),
         },
       } as unknown as handlerContext;
     });
@@ -410,40 +414,42 @@ describe("LPWrapperLogic", () => {
         id: wrapperId,
       };
 
-      (mockContext.ALM_LP_Wrapper?.get as sinon.SinonStub).resolves(
+      (mockContext.ALM_LP_Wrapper?.get as jest.Mock).mockResolvedValue(
         mockWrapper,
       );
 
       const result = await loadALMLPWrapper(srcAddress, chainId, mockContext);
 
-      expect(result).to.deep.equal(mockWrapper);
+      expect(result).toEqual(mockWrapper);
       expect(
-        (mockContext.ALM_LP_Wrapper?.get as sinon.SinonStub).callCount,
-      ).to.equal(1);
+        (mockContext.ALM_LP_Wrapper?.get as jest.Mock).mock.calls.length,
+      ).toBe(1);
       expect(
-        (mockContext.ALM_LP_Wrapper?.get as sinon.SinonStub).getCall(0).args[0],
-      ).to.equal(wrapperId);
-      expect((mockContext.log.error as sinon.SinonStub).callCount).to.equal(0);
+        (mockContext.ALM_LP_Wrapper?.get as jest.Mock).mock.calls[0][0],
+      ).toBe(wrapperId);
+      expect((mockContext.log.error as jest.Mock).mock.calls.length).toBe(0);
     });
 
     it("should return null and log error when wrapper not found", async () => {
       const wrapperId = `${srcAddress}_${chainId}`;
 
-      (mockContext.ALM_LP_Wrapper?.get as sinon.SinonStub).resolves(undefined);
+      (mockContext.ALM_LP_Wrapper?.get as jest.Mock).mockResolvedValue(
+        undefined,
+      );
 
       const result = await loadALMLPWrapper(srcAddress, chainId, mockContext);
 
-      expect(result).to.be.null;
+      expect(result).toBeNull();
       expect(
-        (mockContext.ALM_LP_Wrapper?.get as sinon.SinonStub).callCount,
-      ).to.equal(1);
+        (mockContext.ALM_LP_Wrapper?.get as jest.Mock).mock.calls.length,
+      ).toBe(1);
       expect(
-        (mockContext.ALM_LP_Wrapper?.get as sinon.SinonStub).getCall(0).args[0],
-      ).to.equal(wrapperId);
-      expect((mockContext.log.error as sinon.SinonStub).callCount).to.equal(1);
-      expect(
-        (mockContext.log.error as sinon.SinonStub).getCall(0).args[0],
-      ).to.include(wrapperId);
+        (mockContext.ALM_LP_Wrapper?.get as jest.Mock).mock.calls[0][0],
+      ).toBe(wrapperId);
+      expect((mockContext.log.error as jest.Mock).mock.calls.length).toBe(1);
+      expect((mockContext.log.error as jest.Mock).mock.calls[0][0]).toContain(
+        wrapperId,
+      );
     });
   });
 
@@ -460,21 +466,21 @@ describe("LPWrapperLogic", () => {
     const lpAmount = 1000n * TEN_TO_THE_18_BI;
 
     beforeEach(() => {
-      getSqrtPriceX96Stub = sinon.stub().resolves(mockSqrtPriceX96);
+      mockGetSqrtPriceX96 = jest.fn().mockResolvedValue(mockSqrtPriceX96);
 
       mockContext = {
         ALM_LP_Wrapper: {
-          get: sinon.stub(),
-          set: sinon.stub(),
+          get: jest.fn(),
+          set: jest.fn(),
         },
         UserStatsPerPool: {
-          get: sinon.stub(),
-          set: sinon.stub(),
+          get: jest.fn(),
+          set: jest.fn(),
         },
-        effect: getSqrtPriceX96Stub,
+        effect: mockGetSqrtPriceX96,
         log: {
-          warn: sinon.stub(),
-          error: sinon.stub(),
+          warn: jest.fn(),
+          error: jest.fn(),
         },
       } as unknown as handlerContext;
     });
@@ -500,14 +506,14 @@ describe("LPWrapperLogic", () => {
         almAmount1: 0n,
       };
 
-      (mockContext.ALM_LP_Wrapper?.get as sinon.SinonStub)
-        .withArgs(wrapperId)
-        .resolves(mockWrapper);
+      (mockContext.ALM_LP_Wrapper?.get as jest.Mock).mockResolvedValueOnce(
+        mockWrapper,
+      );
       // Pre-create user stats so loadOrCreateUserData doesn't call set
       // (loadOrCreateUserData calls set when creating a new entity)
-      (mockContext.UserStatsPerPool?.get as sinon.SinonStub)
-        .withArgs(userStatsId)
-        .resolves(mockUserStats);
+      (mockContext.UserStatsPerPool?.get as jest.Mock).mockResolvedValueOnce(
+        mockUserStats,
+      );
 
       await processDepositEvent(
         recipient,
@@ -524,44 +530,41 @@ describe("LPWrapperLogic", () => {
 
       // Verify wrapper was updated
       expect(
-        (mockContext.ALM_LP_Wrapper?.set as sinon.SinonStub).callCount,
-      ).to.equal(1);
-      const wrapperUpdate = (
-        mockContext.ALM_LP_Wrapper?.set as sinon.SinonStub
-      ).getCall(0).args[0];
-      expect(wrapperUpdate.amount0).to.equal(mockWrapper.amount0 + amount0);
-      expect(wrapperUpdate.amount1).to.equal(mockWrapper.amount1 + amount1);
+        (mockContext.ALM_LP_Wrapper?.set as jest.Mock).mock.calls.length,
+      ).toBe(1);
+      const wrapperUpdate = (mockContext.ALM_LP_Wrapper?.set as jest.Mock).mock
+        .calls[0][0];
+      expect(wrapperUpdate.amount0).toBe(mockWrapper.amount0 + amount0);
+      expect(wrapperUpdate.amount1).toBe(mockWrapper.amount1 + amount1);
       // lpAmount is aggregated: diff.lpAmount + current.lpAmount
       // Deposit: lpAmount (1000) + current (2000) = 3000
-      expect(wrapperUpdate.lpAmount).to.equal(mockWrapper.lpAmount + lpAmount);
-      expect(wrapperUpdate.ammStateIsDerived).to.equal(true);
+      expect(wrapperUpdate.lpAmount).toBe(mockWrapper.lpAmount + lpAmount);
+      expect(wrapperUpdate.ammStateIsDerived).toBe(true);
 
       // Verify user stats were updated
       expect(
-        (mockContext.UserStatsPerPool?.set as sinon.SinonStub).callCount,
-      ).to.equal(1);
+        (mockContext.UserStatsPerPool?.set as jest.Mock).mock.calls.length,
+      ).toBe(1);
     });
 
     it("should return early if wrapper not found", async () => {
       const wrapperId = `${srcAddress}_${chainId}`;
       const userStatsId = `${toChecksumAddress(recipient)}_${toChecksumAddress(pool)}_${chainId}`;
 
-      (mockContext.ALM_LP_Wrapper?.get as sinon.SinonStub)
-        .withArgs(wrapperId)
-        .resolves(undefined);
+      (mockContext.ALM_LP_Wrapper?.get as jest.Mock).mockResolvedValueOnce(
+        undefined,
+      );
       // Pre-create user stats so loadOrCreateUserData doesn't call set
       // (loadOrCreateUserData is called in parallel and may call set before we return early)
-      (mockContext.UserStatsPerPool?.get as sinon.SinonStub)
-        .withArgs(userStatsId)
-        .resolves({
-          id: userStatsId,
-          userAddress: toChecksumAddress(recipient),
-          poolAddress: toChecksumAddress(pool),
-          chainId: chainId,
-          almLpAmount: 0n,
-          almAmount0: 0n,
-          almAmount1: 0n,
-        });
+      (mockContext.UserStatsPerPool?.get as jest.Mock).mockResolvedValueOnce({
+        id: userStatsId,
+        userAddress: toChecksumAddress(recipient),
+        poolAddress: toChecksumAddress(pool),
+        chainId: chainId,
+        almLpAmount: 0n,
+        almAmount0: 0n,
+        almAmount1: 0n,
+      });
 
       await processDepositEvent(
         recipient,
@@ -578,11 +581,11 @@ describe("LPWrapperLogic", () => {
 
       // Should not update anything
       expect(
-        (mockContext.ALM_LP_Wrapper?.set as sinon.SinonStub).callCount,
-      ).to.equal(0);
+        (mockContext.ALM_LP_Wrapper?.set as jest.Mock).mock.calls.length,
+      ).toBe(0);
       expect(
-        (mockContext.UserStatsPerPool?.set as sinon.SinonStub).callCount,
-      ).to.equal(0);
+        (mockContext.UserStatsPerPool?.set as jest.Mock).mock.calls.length,
+      ).toBe(0);
     });
   });
 
@@ -599,21 +602,21 @@ describe("LPWrapperLogic", () => {
     const lpAmount = 500n * TEN_TO_THE_18_BI;
 
     beforeEach(() => {
-      getSqrtPriceX96Stub = sinon.stub().resolves(mockSqrtPriceX96);
+      mockGetSqrtPriceX96 = jest.fn().mockResolvedValue(mockSqrtPriceX96);
 
       mockContext = {
         ALM_LP_Wrapper: {
-          get: sinon.stub(),
-          set: sinon.stub(),
+          get: jest.fn(),
+          set: jest.fn(),
         },
         UserStatsPerPool: {
-          get: sinon.stub(),
-          set: sinon.stub(),
+          get: jest.fn(),
+          set: jest.fn(),
         },
-        effect: getSqrtPriceX96Stub,
+        effect: mockGetSqrtPriceX96,
         log: {
-          warn: sinon.stub(),
-          error: sinon.stub(),
+          warn: jest.fn(),
+          error: jest.fn(),
         },
       } as unknown as handlerContext;
     });
@@ -639,12 +642,12 @@ describe("LPWrapperLogic", () => {
         almAmount1: 250n * TEN_TO_THE_6_BI,
       };
 
-      (mockContext.ALM_LP_Wrapper?.get as sinon.SinonStub)
-        .withArgs(wrapperId)
-        .resolves(mockWrapper);
-      (mockContext.UserStatsPerPool?.get as sinon.SinonStub)
-        .withArgs(userStatsId)
-        .resolves(mockUserStats);
+      (mockContext.ALM_LP_Wrapper?.get as jest.Mock).mockResolvedValueOnce(
+        mockWrapper,
+      );
+      (mockContext.UserStatsPerPool?.get as jest.Mock).mockResolvedValueOnce(
+        mockUserStats,
+      );
 
       await processWithdrawEvent(
         recipient,
@@ -661,44 +664,40 @@ describe("LPWrapperLogic", () => {
 
       // Verify wrapper was updated
       expect(
-        (mockContext.ALM_LP_Wrapper?.set as sinon.SinonStub).callCount,
-      ).to.equal(1);
-      const wrapperUpdate = (
-        mockContext.ALM_LP_Wrapper?.set as sinon.SinonStub
-      ).getCall(0).args[0];
-      expect(wrapperUpdate.amount0).to.equal(mockWrapper.amount0 - amount0);
-      expect(wrapperUpdate.amount1).to.equal(mockWrapper.amount1 - amount1);
+        (mockContext.ALM_LP_Wrapper?.set as jest.Mock).mock.calls.length,
+      ).toBe(1);
+      const wrapperUpdate = (mockContext.ALM_LP_Wrapper?.set as jest.Mock).mock
+        .calls[0][0];
+      expect(wrapperUpdate.amount0).toBe(mockWrapper.amount0 - amount0);
+      expect(wrapperUpdate.amount1).toBe(mockWrapper.amount1 - amount1);
       // lpAmount is aggregated: diff.lpAmount + current.lpAmount
       // Withdraw: -lpAmount (-500) + current (2000) = 1500
-      expect(wrapperUpdate.lpAmount).to.equal(mockWrapper.lpAmount - lpAmount);
-      expect(wrapperUpdate.ammStateIsDerived).to.equal(true);
+      expect(wrapperUpdate.lpAmount).toBe(mockWrapper.lpAmount - lpAmount);
+      expect(wrapperUpdate.ammStateIsDerived).toBe(true);
 
       // Verify user stats were updated
       expect(
-        (mockContext.UserStatsPerPool?.set as sinon.SinonStub).callCount,
-      ).to.equal(1);
+        (mockContext.UserStatsPerPool?.set as jest.Mock).mock.calls.length,
+      ).toBe(1);
     });
 
     it("should return early if wrapper not found", async () => {
-      const wrapperId = `${srcAddress}_${chainId}`;
       const userStatsId = `${toChecksumAddress(recipient)}_${toChecksumAddress(pool)}_${chainId}`;
 
-      (mockContext.ALM_LP_Wrapper?.get as sinon.SinonStub)
-        .withArgs(wrapperId)
-        .resolves(undefined);
+      (mockContext.ALM_LP_Wrapper?.get as jest.Mock).mockResolvedValueOnce(
+        undefined,
+      );
       // Pre-create user stats so loadOrCreateUserData doesn't call set
       // (loadOrCreateUserData is called in parallel and may call set before we return early)
-      (mockContext.UserStatsPerPool?.get as sinon.SinonStub)
-        .withArgs(userStatsId)
-        .resolves({
-          id: userStatsId,
-          userAddress: toChecksumAddress(recipient),
-          poolAddress: toChecksumAddress(pool),
-          chainId: chainId,
-          almLpAmount: 0n,
-          almAmount0: 0n,
-          almAmount1: 0n,
-        });
+      (mockContext.UserStatsPerPool?.get as jest.Mock).mockResolvedValueOnce({
+        id: userStatsId,
+        userAddress: toChecksumAddress(recipient),
+        poolAddress: toChecksumAddress(pool),
+        chainId: chainId,
+        almLpAmount: 0n,
+        almAmount0: 0n,
+        almAmount1: 0n,
+      });
 
       await processWithdrawEvent(
         recipient,
@@ -715,11 +714,11 @@ describe("LPWrapperLogic", () => {
 
       // Should not update anything
       expect(
-        (mockContext.ALM_LP_Wrapper?.set as sinon.SinonStub).callCount,
-      ).to.equal(0);
+        (mockContext.ALM_LP_Wrapper?.set as jest.Mock).mock.calls.length,
+      ).toBe(0);
       expect(
-        (mockContext.UserStatsPerPool?.set as sinon.SinonStub).callCount,
-      ).to.equal(0);
+        (mockContext.UserStatsPerPool?.set as jest.Mock).mock.calls.length,
+      ).toBe(0);
     });
   });
 
@@ -736,14 +735,14 @@ describe("LPWrapperLogic", () => {
     beforeEach(() => {
       mockContext = {
         ALM_LP_Wrapper: {
-          get: sinon.stub(),
+          get: jest.fn(),
         },
         UserStatsPerPool: {
-          get: sinon.stub(),
-          set: sinon.stub(),
+          get: jest.fn(),
+          set: jest.fn(),
         },
         log: {
-          error: sinon.stub(),
+          error: jest.fn(),
         },
       } as unknown as handlerContext;
     });
@@ -782,17 +781,12 @@ describe("LPWrapperLogic", () => {
         almAmount1: 0n,
       };
 
-      (mockContext.ALM_LP_Wrapper?.get as sinon.SinonStub)
-        .withArgs(wrapperId)
-        .resolves(mockWrapper);
-      (mockContext.UserStatsPerPool?.get as sinon.SinonStub)
-        .withArgs(fromUserStatsId)
-        .resolves(mockFromUserStats);
-      // Pre-create recipient's stats so loadOrCreateUserData doesn't call set
-      // (loadOrCreateUserData calls set when creating a new entity)
-      (mockContext.UserStatsPerPool?.get as sinon.SinonStub)
-        .withArgs(toUserStatsId)
-        .resolves(mockToUserStats);
+      (mockContext.ALM_LP_Wrapper?.get as jest.Mock).mockResolvedValueOnce(
+        mockWrapper,
+      );
+      (mockContext.UserStatsPerPool?.get as jest.Mock)
+        .mockResolvedValueOnce(mockFromUserStats)
+        .mockResolvedValueOnce(mockToUserStats);
 
       await processTransferEvent(
         from,
@@ -808,31 +802,27 @@ describe("LPWrapperLogic", () => {
       // loadOrCreateUserData doesn't call set since both entities exist
       // updateUserStatsPerPool is called twice (once for sender, once for recipient)
       expect(
-        (mockContext.UserStatsPerPool?.set as sinon.SinonStub).callCount,
-      ).to.equal(2);
+        (mockContext.UserStatsPerPool?.set as jest.Mock).mock.calls.length,
+      ).toBe(2);
 
       // Verify sender's stats were updated (decreased)
-      const fromUpdate = (
-        mockContext.UserStatsPerPool?.set as sinon.SinonStub
-      ).getCall(0).args[0];
-      expect(fromUpdate.almLpAmount).to.equal(
+      const fromUpdate = (mockContext.UserStatsPerPool?.set as jest.Mock).mock
+        .calls[0][0];
+      expect(fromUpdate.almLpAmount).toBe(
         mockFromUserStats.almLpAmount - value,
       );
 
       // Verify recipient's stats were updated (increased)
-      const toUpdate = (
-        mockContext.UserStatsPerPool?.set as sinon.SinonStub
-      ).getCall(1).args[0];
-      expect(toUpdate.almLpAmount).to.equal(value);
-      expect(toUpdate.almAddress).to.equal(srcAddress);
+      const toUpdate = (mockContext.UserStatsPerPool?.set as jest.Mock).mock
+        .calls[1][0];
+      expect(toUpdate.almLpAmount).toBe(value);
+      expect(toUpdate.almAddress).toBe(srcAddress);
     });
 
     it("should skip zero address transfers (mint/burn)", async () => {
-      const zeroAddress = "0x0000000000000000000000000000000000000000";
-
       // Mint: from zero address
       await processTransferEvent(
-        zeroAddress,
+        ZERO_ADDRESS,
         to,
         value,
         srcAddress,
@@ -844,7 +834,7 @@ describe("LPWrapperLogic", () => {
       // Burn: to zero address
       await processTransferEvent(
         from,
-        zeroAddress,
+        ZERO_ADDRESS,
         value,
         srcAddress,
         chainId,
@@ -854,19 +844,17 @@ describe("LPWrapperLogic", () => {
 
       // Should not load wrapper or update any stats
       expect(
-        (mockContext.ALM_LP_Wrapper?.get as sinon.SinonStub).callCount,
-      ).to.equal(0);
+        (mockContext.ALM_LP_Wrapper?.get as jest.Mock).mock.calls.length,
+      ).toBe(0);
       expect(
-        (mockContext.UserStatsPerPool?.set as sinon.SinonStub).callCount,
-      ).to.equal(0);
+        (mockContext.UserStatsPerPool?.set as jest.Mock).mock.calls.length,
+      ).toBe(0);
     });
 
     it("should return early if wrapper not found", async () => {
-      const wrapperId = `${srcAddress}_${chainId}`;
-
-      (mockContext.ALM_LP_Wrapper?.get as sinon.SinonStub)
-        .withArgs(wrapperId)
-        .resolves(undefined);
+      (mockContext.ALM_LP_Wrapper?.get as jest.Mock).mockResolvedValueOnce(
+        undefined,
+      );
 
       await processTransferEvent(
         from,
@@ -880,8 +868,8 @@ describe("LPWrapperLogic", () => {
 
       // Should not update any stats
       expect(
-        (mockContext.UserStatsPerPool?.set as sinon.SinonStub).callCount,
-      ).to.equal(0);
+        (mockContext.UserStatsPerPool?.set as jest.Mock).mock.calls.length,
+      ).toBe(0);
     });
   });
 });

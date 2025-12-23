@@ -1,4 +1,3 @@
-import { expect } from "chai";
 import { Mailbox, MockDb } from "../../../generated/src/TestHelpers.gen";
 import type {
   DispatchId_event,
@@ -48,11 +47,11 @@ describe("Mailbox Events", () => {
       // Assert - check DispatchId_event was created
       const expectedId = `${mockEvent.transaction.hash}_${chainId}_${messageId}`;
       const entity = result.entities.DispatchId_event.get(expectedId);
-      expect(entity).to.not.be.undefined;
-      expect(entity?.id).to.equal(expectedId);
-      expect(entity?.chainId).to.equal(chainId);
-      expect(entity?.transactionHash).to.equal(mockEvent.transaction.hash);
-      expect(entity?.messageId).to.equal(messageId);
+      expect(entity).not.toBeUndefined();
+      expect(entity?.id).toBe(expectedId);
+      expect(entity?.chainId).toBe(chainId);
+      expect(entity?.transactionHash).toBe(mockEvent.transaction.hash);
+      expect(entity?.messageId).toBe(messageId);
     });
 
     it("should create DispatchId_event with unique id per transaction", async () => {
@@ -124,11 +123,11 @@ describe("Mailbox Events", () => {
       const entity1 = result2.entities.DispatchId_event.get(expectedId1);
       const entity2 = result2.entities.DispatchId_event.get(expectedId2);
 
-      expect(entity1).to.not.be.undefined;
-      expect(entity2).to.not.be.undefined;
-      expect(entity1?.id).to.equal(expectedId1);
-      expect(entity2?.id).to.equal(expectedId2);
-      expect(entity1?.id).to.not.equal(entity2?.id);
+      expect(entity1).not.toBeUndefined();
+      expect(entity2).not.toBeUndefined();
+      expect(entity1?.id).toBe(expectedId1);
+      expect(entity2?.id).toBe(expectedId2);
+      expect(entity1?.id).not.toBe(entity2?.id);
     });
 
     it("should handle different messageIds correctly", async () => {
@@ -193,10 +192,10 @@ describe("Mailbox Events", () => {
       const entity1 = result2.entities.DispatchId_event.get(expectedId1);
       const entity2 = result2.entities.DispatchId_event.get(expectedId2);
 
-      expect(entity1).to.not.be.undefined;
-      expect(entity2).to.not.be.undefined;
-      expect(entity1?.messageId).to.equal(messageId1);
-      expect(entity2?.messageId).to.equal(messageId2);
+      expect(entity1).not.toBeUndefined();
+      expect(entity2).not.toBeUndefined();
+      expect(entity1?.messageId).toBe(messageId1);
+      expect(entity2?.messageId).toBe(messageId2);
     });
   });
 
@@ -227,11 +226,11 @@ describe("Mailbox Events", () => {
       // Assert - check ProcessId_event was created
       const expectedId = `${mockEvent.transaction.hash}_${chainId}_${messageId}`;
       const entity = result.entities.ProcessId_event.get(expectedId);
-      expect(entity).to.not.be.undefined;
-      expect(entity?.id).to.equal(expectedId);
-      expect(entity?.chainId).to.equal(chainId);
-      expect(entity?.transactionHash).to.equal(mockEvent.transaction.hash);
-      expect(entity?.messageId).to.equal(messageId);
+      expect(entity).not.toBeUndefined();
+      expect(entity?.id).toBe(expectedId);
+      expect(entity?.chainId).toBe(chainId);
+      expect(entity?.transactionHash).toBe(mockEvent.transaction.hash);
+      expect(entity?.messageId).toBe(messageId);
     });
 
     it("should create ProcessId_event with unique id per transaction", async () => {
@@ -302,11 +301,11 @@ describe("Mailbox Events", () => {
       const entity1 = result2.entities.ProcessId_event.get(expectedId1);
       const entity2 = result2.entities.ProcessId_event.get(expectedId2);
 
-      expect(entity1).to.not.be.undefined;
-      expect(entity2).to.not.be.undefined;
-      expect(entity1?.id).to.equal(expectedId1);
-      expect(entity2?.id).to.equal(expectedId2);
-      expect(entity1?.id).to.not.equal(entity2?.id);
+      expect(entity1).not.toBeUndefined();
+      expect(entity2).not.toBeUndefined();
+      expect(entity1?.id).toBe(expectedId1);
+      expect(entity2?.id).toBe(expectedId2);
+      expect(entity1?.id).not.toBe(entity2?.id);
     });
 
     it("should handle different messageIds correctly", async () => {
@@ -371,10 +370,10 @@ describe("Mailbox Events", () => {
       const entity1 = result2.entities.ProcessId_event.get(expectedId1);
       const entity2 = result2.entities.ProcessId_event.get(expectedId2);
 
-      expect(entity1).to.not.be.undefined;
-      expect(entity2).to.not.be.undefined;
-      expect(entity1?.messageId).to.equal(messageId1);
-      expect(entity2?.messageId).to.equal(messageId2);
+      expect(entity1).not.toBeUndefined();
+      expect(entity2).not.toBeUndefined();
+      expect(entity1?.messageId).toBe(messageId1);
+      expect(entity2?.messageId).toBe(messageId2);
     });
 
     it("should handle different chainIds correctly", async () => {
@@ -437,10 +436,10 @@ describe("Mailbox Events", () => {
       const entity1 = result2.entities.ProcessId_event.get(expectedId1);
       const entity2 = result2.entities.ProcessId_event.get(expectedId2);
 
-      expect(entity1).to.not.be.undefined;
-      expect(entity2).to.not.be.undefined;
-      expect(entity1?.chainId).to.equal(chainId1);
-      expect(entity2?.chainId).to.equal(chainId2);
+      expect(entity1).not.toBeUndefined();
+      expect(entity2).not.toBeUndefined();
+      expect(entity1?.chainId).toBe(chainId1);
+      expect(entity2?.chainId).toBe(chainId2);
     });
   });
 
@@ -541,23 +540,23 @@ describe("Mailbox Events", () => {
       const processIdEntityId = `${destinationTransactionHash}_${destinationChainId}_${testMessageId}`;
       const processIdEntity =
         result.entities.ProcessId_event.get(processIdEntityId);
-      expect(processIdEntity).to.not.be.undefined;
-      expect(processIdEntity?.messageId).to.equal(testMessageId);
+      expect(processIdEntity).not.toBeUndefined();
+      expect(processIdEntity?.messageId).toBe(testMessageId);
 
       // Assert: SuperSwap was created
       const superSwaps = Array.from(
         result.entities.SuperSwap.getAll(),
       ) as SuperSwap[];
-      expect(superSwaps.length).to.equal(1);
+      expect(superSwaps.length).toBe(1);
 
       const superSwap = superSwaps[0];
-      expect(superSwap.originChainId).to.equal(BigInt(sourceChainId));
-      expect(superSwap.destinationChainId).to.equal(BigInt(destinationChainId));
-      expect(superSwap.oUSDTamount).to.equal(oUSDTAmount);
-      expect(superSwap.sourceChainToken).to.equal(tokenInAddress);
-      expect(superSwap.destinationChainToken).to.equal(tokenOutAddress);
-      expect(superSwap.sourceChainTokenAmountSwapped).to.equal(1000n);
-      expect(superSwap.destinationChainTokenAmountSwapped).to.equal(950n);
+      expect(superSwap.originChainId).toBe(BigInt(sourceChainId));
+      expect(superSwap.destinationChainId).toBe(BigInt(destinationChainId));
+      expect(superSwap.oUSDTamount).toBe(oUSDTAmount);
+      expect(superSwap.sourceChainToken).toBe(tokenInAddress);
+      expect(superSwap.destinationChainToken).toBe(tokenOutAddress);
+      expect(superSwap.sourceChainTokenAmountSwapped).toBe(1000n);
+      expect(superSwap.destinationChainTokenAmountSwapped).toBe(950n);
     });
 
     it("should create ProcessId_event but not SuperSwap when DispatchId is missing", async () => {
@@ -590,11 +589,11 @@ describe("Mailbox Events", () => {
       const processIdEntityId = `${destinationTransactionHash}_${destinationChainId}_${testMessageId}`;
       const processIdEntity =
         result.entities.ProcessId_event.get(processIdEntityId);
-      expect(processIdEntity).to.not.be.undefined;
+      expect(processIdEntity).not.toBeUndefined();
 
       // Assert: No SuperSwap was created (DispatchId missing)
       const superSwaps = Array.from(result.entities.SuperSwap.getAll());
-      expect(superSwaps.length).to.equal(0);
+      expect(superSwaps.length).toBe(0);
     });
 
     it("should create ProcessId_event but not SuperSwap when OUSDTBridgedTransaction is missing", async () => {
@@ -635,11 +634,11 @@ describe("Mailbox Events", () => {
       const processIdEntityId = `${destinationTransactionHash}_${destinationChainId}_${testMessageId}`;
       const processIdEntity =
         result.entities.ProcessId_event.get(processIdEntityId);
-      expect(processIdEntity).to.not.be.undefined;
+      expect(processIdEntity).not.toBeUndefined();
 
       // Assert: No SuperSwap was created (bridged transaction missing)
       const superSwaps = Array.from(result.entities.SuperSwap.getAll());
-      expect(superSwaps.length).to.equal(0);
+      expect(superSwaps.length).toBe(0);
     });
 
     it("should handle ProcessId event gracefully when source chain swaps are missing", async () => {
@@ -701,11 +700,11 @@ describe("Mailbox Events", () => {
       const processIdEntityId = `${destinationTransactionHash}_${destinationChainId}_${testMessageId}`;
       const processIdEntity =
         result.entities.ProcessId_event.get(processIdEntityId);
-      expect(processIdEntity).to.not.be.undefined;
+      expect(processIdEntity).not.toBeUndefined();
 
       // Assert: No SuperSwap was created (source swap missing)
       const superSwaps = Array.from(result.entities.SuperSwap.getAll());
-      expect(superSwaps.length).to.equal(0);
+      expect(superSwaps.length).toBe(0);
     });
   });
 });

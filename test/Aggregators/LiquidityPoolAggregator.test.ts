@@ -1,5 +1,3 @@
-import { expect } from "chai";
-import sinon from "sinon";
 import type {
   LiquidityPoolAggregator,
   Token,
@@ -20,132 +18,132 @@ type SimulateContractMethod =
   (typeof CHAIN_CONSTANTS)[10]["eth_client"]["simulateContract"];
 
 describe("LiquidityPoolAggregator Functions", () => {
-  let contextStub: Partial<handlerContext>;
+  let mockContext: Partial<handlerContext>;
   let liquidityPoolAggregator: Partial<LiquidityPoolAggregator>;
   let timestamp: Date;
-  let mockContract: sinon.SinonStub;
+  let mockContract: jest.Mock;
   const blockNumber = 131536921;
   const { createMockLiquidityPoolAggregator } = setupCommon();
 
   beforeEach(() => {
-    contextStub = {
+    mockContext = {
       LiquidityPoolAggregatorSnapshot: {
-        set: sinon.stub(),
-        get: sinon.stub(),
-        getOrThrow: sinon.stub(),
-        getOrCreate: sinon.stub(),
-        deleteUnsafe: sinon.stub(),
+        set: jest.fn(),
+        get: jest.fn(),
+        getOrThrow: jest.fn(),
+        getOrCreate: jest.fn(),
+        deleteUnsafe: jest.fn(),
         getWhere: {
           gaugeAddress: {
-            eq: sinon.stub(),
-            gt: sinon.stub(),
-            lt: sinon.stub(),
+            eq: jest.fn(),
+            gt: jest.fn(),
+            lt: jest.fn(),
           },
           bribeVotingRewardAddress: {
-            eq: sinon.stub(),
-            gt: sinon.stub(),
-            lt: sinon.stub(),
+            eq: jest.fn(),
+            gt: jest.fn(),
+            lt: jest.fn(),
           },
           feeVotingRewardAddress: {
-            eq: sinon.stub(),
-            gt: sinon.stub(),
-            lt: sinon.stub(),
+            eq: jest.fn(),
+            gt: jest.fn(),
+            lt: jest.fn(),
           },
         },
       },
       LiquidityPoolAggregator: {
-        set: sinon.stub(),
-        get: sinon.stub(),
-        getOrThrow: sinon.stub(),
-        getOrCreate: sinon.stub(),
-        deleteUnsafe: sinon.stub(),
+        set: jest.fn(),
+        get: jest.fn(),
+        getOrThrow: jest.fn(),
+        getOrCreate: jest.fn(),
+        deleteUnsafe: jest.fn(),
         getWhere: {
           gaugeAddress: {
-            eq: sinon.stub(),
-            gt: sinon.stub(),
-            lt: sinon.stub(),
+            eq: jest.fn(),
+            gt: jest.fn(),
+            lt: jest.fn(),
           },
           poolLauncherPoolId: {
-            eq: sinon.stub(),
-            gt: sinon.stub(),
-            lt: sinon.stub(),
+            eq: jest.fn(),
+            gt: jest.fn(),
+            lt: jest.fn(),
           },
           bribeVotingRewardAddress: {
-            eq: sinon.stub(),
-            gt: sinon.stub(),
-            lt: sinon.stub(),
+            eq: jest.fn(),
+            gt: jest.fn(),
+            lt: jest.fn(),
           },
           feeVotingRewardAddress: {
-            eq: sinon.stub(),
-            gt: sinon.stub(),
-            lt: sinon.stub(),
+            eq: jest.fn(),
+            gt: jest.fn(),
+            lt: jest.fn(),
           },
           rootPoolMatchingHash: {
-            eq: sinon.stub(),
-            gt: sinon.stub(),
-            lt: sinon.stub(),
+            eq: jest.fn(),
+            gt: jest.fn(),
+            lt: jest.fn(),
           },
         },
       },
       Token: {
-        set: sinon.stub(),
-        get: sinon.stub(),
-        getOrThrow: sinon.stub(),
-        getOrCreate: sinon.stub(),
-        deleteUnsafe: sinon.stub(),
+        set: jest.fn(),
+        get: jest.fn(),
+        getOrThrow: jest.fn(),
+        getOrCreate: jest.fn(),
+        deleteUnsafe: jest.fn(),
         getWhere: {
           address: {
-            eq: sinon.stub(),
-            gt: sinon.stub(),
-            lt: sinon.stub(),
+            eq: jest.fn(),
+            gt: jest.fn(),
+            lt: jest.fn(),
           },
           chainId: {
-            eq: sinon.stub(),
-            gt: sinon.stub(),
-            lt: sinon.stub(),
+            eq: jest.fn(),
+            gt: jest.fn(),
+            lt: jest.fn(),
           },
         },
       },
       TokenPriceSnapshot: {
-        set: sinon.stub(),
-        get: sinon.stub(),
-        getOrThrow: sinon.stub(),
-        getOrCreate: sinon.stub(),
-        deleteUnsafe: sinon.stub(),
+        set: jest.fn(),
+        get: jest.fn(),
+        getOrThrow: jest.fn(),
+        getOrCreate: jest.fn(),
+        deleteUnsafe: jest.fn(),
         getWhere: {
           address: {
-            eq: sinon.stub(),
-            gt: sinon.stub(),
-            lt: sinon.stub(),
+            eq: jest.fn(),
+            gt: jest.fn(),
+            lt: jest.fn(),
           },
           lastUpdatedTimestamp: {
-            eq: sinon.stub(),
-            gt: sinon.stub(),
-            lt: sinon.stub(),
+            eq: jest.fn(),
+            gt: jest.fn(),
+            lt: jest.fn(),
           },
         },
       },
       RootPool_LeafPool: {
-        set: sinon.stub(),
-        get: sinon.stub(),
-        getOrThrow: sinon.stub(),
-        getOrCreate: sinon.stub(),
-        deleteUnsafe: sinon.stub(),
+        set: jest.fn(),
+        get: jest.fn(),
+        getOrThrow: jest.fn(),
+        getOrCreate: jest.fn(),
+        deleteUnsafe: jest.fn(),
         getWhere: {
           rootPoolAddress: {
-            eq: sinon.stub(),
-            gt: sinon.stub(),
-            lt: sinon.stub(),
+            eq: jest.fn(),
+            gt: jest.fn(),
+            lt: jest.fn(),
           },
         },
       },
       log: {
-        error: sinon.stub(),
-        info: sinon.stub(),
-        warn: sinon.stub(),
-        debug: sinon.stub(),
+        error: jest.fn(),
+        info: jest.fn(),
+        warn: jest.fn(),
+        debug: jest.fn(),
       },
-      effect: sinon.stub().callsFake(async (effectFn, input) => {
+      effect: jest.fn().mockImplementation(async (effectFn, input) => {
         // Mock the effect calls for testing
         if (effectFn.name === "getDynamicFeeConfig") {
           return {
@@ -203,7 +201,7 @@ describe("LiquidityPoolAggregator Functions", () => {
   });
 
   afterEach(() => {
-    sinon.restore();
+    jest.restoreAllMocks();
   });
 
   describe("updateDynamicFeePools", () => {
@@ -215,64 +213,69 @@ describe("LiquidityPoolAggregator Functions", () => {
       dynamicFeeConfigMock = {
         getWhere: {
           chainId: {
-            eq: sinon.stub().returns([
+            eq: jest.fn().mockReturnValue([
               {
                 id: "0xd9eE4FBeE92970509ec795062cA759F8B52d6720",
                 chainId: 10,
               },
             ]),
-            gt: sinon.stub(),
-            lt: sinon.stub(),
+            gt: jest.fn(),
+            lt: jest.fn(),
           },
         },
       };
-      // biome-ignore lint/suspicious/noExplicitAny: Mock context for testing
-      (contextStub as any).DynamicFeeGlobalConfig = dynamicFeeConfigMock;
+      (
+        mockContext as unknown as {
+          DynamicFeeGlobalConfig: typeof dynamicFeeConfigMock;
+        }
+      ).DynamicFeeGlobalConfig = dynamicFeeConfigMock;
     });
 
     it("should update the pool with current dynamic fee", async () => {
       await updateDynamicFeePools(
         liquidityPoolAggregator as LiquidityPoolAggregator,
-        contextStub as handlerContext,
+        mockContext as handlerContext,
         blockNumber,
       );
 
       // Verify that the pool was updated with the current fee
-      const setStub = contextStub.LiquidityPoolAggregator
-        ?.set as sinon.SinonStub;
-      expect(setStub.calledOnce).to.be.true;
-      const updatedPool = setStub.getCall(0).args[0];
-      expect(updatedPool.currentFee).to.equal(1900n); // From the mocked effect
+      const mockSet = jest.mocked(mockContext.LiquidityPoolAggregator?.set);
+      expect(mockSet).toHaveBeenCalledTimes(1);
+      const updatedPool = mockSet?.mock
+        .calls[0]?.[0] as LiquidityPoolAggregator;
+      expect(updatedPool.currentFee).toBe(1900n); // From the mocked effect
     });
 
     it("should handle missing config gracefully", async () => {
       // Mock no config found
-      (dynamicFeeConfigMock.getWhere.chainId.eq as sinon.SinonStub).returns([]);
+      jest.mocked(dynamicFeeConfigMock.getWhere.chainId.eq).mockReturnValue([]);
 
       await updateDynamicFeePools(
         liquidityPoolAggregator as LiquidityPoolAggregator,
-        contextStub as handlerContext,
+        mockContext as handlerContext,
         blockNumber,
       );
 
-      // Should log an error but not crash
-      expect(contextStub.log?.error).to.be.a("function");
+      // Should log a warning but not crash
+      expect(jest.mocked(mockContext.log?.warn)).toHaveBeenCalled();
     });
 
     it("should handle effect errors gracefully", async () => {
       // Mock effect to throw error
-      (contextStub.effect as sinon.SinonStub).throws(
-        new Error("Pool not found"),
-      );
+      expect(mockContext.effect).toBeDefined();
+      jest
+        // biome-ignore lint/style/noNonNullAssertion: effect is verified to be defined above
+        .mocked(mockContext.effect!)
+        .mockRejectedValue(new Error("Pool not found"));
 
       await updateDynamicFeePools(
         liquidityPoolAggregator as LiquidityPoolAggregator,
-        contextStub as handlerContext,
+        mockContext as handlerContext,
         blockNumber,
       );
 
       // Should complete without crashing
-      expect(true).to.be.true;
+      expect(true).toBe(true);
     });
   });
 
@@ -281,21 +284,23 @@ describe("LiquidityPoolAggregator Functions", () => {
       setLiquidityPoolAggregatorSnapshot(
         liquidityPoolAggregator as LiquidityPoolAggregator,
         timestamp,
-        contextStub as handlerContext,
+        mockContext as handlerContext,
       );
     });
 
     it("should create a snapshot of the liquidity pool aggregator", () => {
-      const setStub = contextStub.LiquidityPoolAggregatorSnapshot
-        ?.set as sinon.SinonStub;
-      expect(setStub.calledOnce).to.be.true;
-      const snapshot = setStub.getCall(0).args[0];
-      expect(snapshot.id).to.equal(
+      const mockSet = jest.mocked(
+        mockContext.LiquidityPoolAggregatorSnapshot?.set,
+      );
+      expect(mockSet).toHaveBeenCalledTimes(1);
+      const snapshot = mockSet?.mock.calls[0]?.[0];
+      expect(snapshot).toBeDefined();
+      expect(snapshot?.id).toBe(
         `${liquidityPoolAggregator.chainId}-${
           liquidityPoolAggregator.id
         }_${timestamp.getTime()}`,
       );
-      expect(snapshot.pool).to.equal(liquidityPoolAggregator.id);
+      expect(snapshot?.pool).toBe(liquidityPoolAggregator.id);
     });
   });
 
@@ -327,22 +332,22 @@ describe("LiquidityPoolAggregator Functions", () => {
         diff,
         liquidityPoolAggregator as LiquidityPoolAggregator,
         timestamp,
-        contextStub as handlerContext,
+        mockContext as handlerContext,
         blockNumber,
       );
     });
 
     it("should update the liquidity pool aggregator", () => {
-      const setStub = contextStub.LiquidityPoolAggregator
-        ?.set as sinon.SinonStub;
-      const updatedAggregator = setStub.getCall(0).args[0];
-      expect(updatedAggregator.totalVolume0).to.equal(diff.totalVolume0);
-      expect(updatedAggregator.totalVolume1).to.equal(diff.totalVolume1);
-      expect(updatedAggregator.numberOfSwaps).to.equal(diff.numberOfSwaps);
-      expect(updatedAggregator.totalVolumeUSDWhitelisted).to.equal(
+      const mockSet = jest.mocked(mockContext.LiquidityPoolAggregator?.set);
+      const updatedAggregator = mockSet?.mock
+        .calls[0]?.[0] as LiquidityPoolAggregator;
+      expect(updatedAggregator.totalVolume0).toBe(diff.totalVolume0);
+      expect(updatedAggregator.totalVolume1).toBe(diff.totalVolume1);
+      expect(updatedAggregator.numberOfSwaps).toBe(diff.numberOfSwaps);
+      expect(updatedAggregator.totalVolumeUSDWhitelisted).toBe(
         diff.totalVolumeUSDWhitelisted,
       );
-      expect(updatedAggregator.totalFeesUSDWhitelisted).to.equal(
+      expect(updatedAggregator.totalFeesUSDWhitelisted).toBe(
         diff.totalFeesUSDWhitelisted,
       );
     });
@@ -361,14 +366,15 @@ describe("LiquidityPoolAggregator Functions", () => {
         diff,
         liquidityPoolWithOldSnapshot as LiquidityPoolAggregator,
         currentTimestamp,
-        contextStub as handlerContext,
+        mockContext as handlerContext,
         blockNumber,
       );
 
-      const setStub = contextStub.LiquidityPoolAggregatorSnapshot
-        ?.set as sinon.SinonStub;
-      const snapshot = setStub.getCall(0).args[0];
-      expect(snapshot).to.not.be.undefined;
+      const mockSet = jest.mocked(
+        mockContext.LiquidityPoolAggregatorSnapshot?.set,
+      );
+      const snapshot = mockSet?.mock.calls[0]?.[0];
+      expect(snapshot).not.toBeUndefined();
     });
   });
 
@@ -403,40 +409,42 @@ describe("LiquidityPoolAggregator Functions", () => {
         isWhitelisted: false,
       } as Token;
 
-      const liquidityPoolGetStub = contextStub.LiquidityPoolAggregator
-        ?.get as sinon.SinonStub;
-      liquidityPoolGetStub.resolves(liquidityPoolAggregator);
+      const mockLiquidityPoolGet = jest.mocked(
+        mockContext.LiquidityPoolAggregator?.get,
+      );
+      mockLiquidityPoolGet?.mockResolvedValue(
+        liquidityPoolAggregator as unknown as LiquidityPoolAggregator,
+      );
 
-      const tokenGetStub = contextStub.Token?.get as sinon.SinonStub;
-      tokenGetStub.callsFake((id: string) => {
+      const mockTokenGet = jest.mocked(mockContext.Token?.get);
+      mockTokenGet?.mockImplementation((id: string) => {
         if (id === "token0") return Promise.resolve(token0);
         if (id === "token1") return Promise.resolve(token1);
         return Promise.resolve(undefined);
       });
 
-      const tokenSetStub = contextStub.Token?.set as sinon.SinonStub;
-      tokenSetStub.reset();
+      const mockTokenSet = jest.mocked(mockContext.Token?.set);
+      mockTokenSet?.mockClear();
 
-      const snapshotSetStub = contextStub.TokenPriceSnapshot
-        ?.set as sinon.SinonStub;
-      snapshotSetStub.reset();
+      const mockSnapshotSet = jest.mocked(mockContext.TokenPriceSnapshot?.set);
+      mockSnapshotSet?.mockClear();
     });
 
     it("should load pool data without refreshing prices when block data is not provided", async () => {
       const result = await loadPoolData(
         poolAddress,
         chainId,
-        contextStub as handlerContext,
+        mockContext as handlerContext,
       );
 
-      expect(result).to.not.be.null;
-      expect(result?.liquidityPoolAggregator).to.equal(liquidityPoolAggregator);
-      expect(result?.token0Instance).to.equal(token0);
-      expect(result?.token1Instance).to.equal(token1);
+      expect(result).not.toBeNull();
+      expect(result?.liquidityPoolAggregator).toBe(liquidityPoolAggregator);
+      expect(result?.token0Instance).toBe(token0);
+      expect(result?.token1Instance).toBe(token1);
 
       // Token.set should not be called (no price refresh)
-      const tokenSetStub = contextStub.Token?.set as sinon.SinonStub;
-      expect(tokenSetStub.called).to.be.false;
+      const mockTokenSet = jest.mocked(mockContext.Token?.set);
+      expect(mockTokenSet).not.toHaveBeenCalled();
     });
 
     it("should refresh token prices when block data is provided and prices are stale", async () => {
@@ -446,8 +454,12 @@ describe("LiquidityPoolAggregator Functions", () => {
       const newPrice1 = 2500000n; // $2.50
 
       // Mock effect to return new prices and token details
-      (contextStub.effect as sinon.SinonStub).callsFake(
-        async (effectFn, input) => {
+      expect(mockContext.effect).toBeDefined();
+      jest
+        // biome-ignore lint/style/noNonNullAssertion: effect is verified to be defined above
+        .mocked(mockContext.effect!)
+        // biome-ignore lint/suspicious/noExplicitAny: effect mock implementation needs flexible types
+        .mockImplementation(async (effectFn: any, input: any) => {
           if (effectFn.name === "getTokenPrice") {
             if (
               input.tokenAddress.toLowerCase() === token0.address.toLowerCase()
@@ -487,35 +499,29 @@ describe("LiquidityPoolAggregator Functions", () => {
             }
           }
           return {};
-        },
-      );
+        });
 
       const result = await loadPoolData(
         poolAddress,
         chainId,
-        contextStub as handlerContext,
+        mockContext as handlerContext,
         blockNumber,
         blockTimestamp,
       );
 
-      expect(result).to.not.be.null;
-      expect(result?.token0Instance.pricePerUSDNew).to.equal(newPrice0);
-      expect(result?.token1Instance.pricePerUSDNew).to.equal(newPrice1);
-      expect(result?.token0Instance.lastUpdatedTimestamp).to.be.instanceOf(
-        Date,
-      );
-      expect(result?.token1Instance.lastUpdatedTimestamp).to.be.instanceOf(
-        Date,
-      );
+      expect(result).not.toBeNull();
+      expect(result?.token0Instance.pricePerUSDNew).toBe(newPrice0);
+      expect(result?.token1Instance.pricePerUSDNew).toBe(newPrice1);
+      expect(result?.token0Instance.lastUpdatedTimestamp).toBeInstanceOf(Date);
+      expect(result?.token1Instance.lastUpdatedTimestamp).toBeInstanceOf(Date);
 
       // Token.set should be called for both tokens
-      const tokenSetStub = contextStub.Token?.set as sinon.SinonStub;
-      expect(tokenSetStub.callCount).to.equal(2);
+      const mockTokenSet = jest.mocked(mockContext.Token?.set);
+      expect(mockTokenSet).toHaveBeenCalledTimes(2);
 
       // TokenPriceSnapshot.set should be called for both tokens
-      const snapshotSetStub = contextStub.TokenPriceSnapshot
-        ?.set as sinon.SinonStub;
-      expect(snapshotSetStub.callCount).to.equal(2);
+      const mockSnapshotSet = jest.mocked(mockContext.TokenPriceSnapshot?.set);
+      expect(mockSnapshotSet).toHaveBeenCalledTimes(2);
     });
 
     it("should not refresh token prices when they are recent (less than 1 hour)", async () => {
@@ -523,9 +529,9 @@ describe("LiquidityPoolAggregator Functions", () => {
       token0 = { ...token0, lastUpdatedTimestamp: recentTimestamp };
       token1 = { ...token1, lastUpdatedTimestamp: recentTimestamp };
 
-      // Update the stub to return the updated tokens
-      const tokenGetStub = contextStub.Token?.get as sinon.SinonStub;
-      tokenGetStub.callsFake((id: string) => {
+      // Update the mock to return the updated tokens
+      const mockTokenGet = jest.mocked(mockContext.Token?.get);
+      mockTokenGet?.mockImplementation((id: string) => {
         if (id === "token0") return Promise.resolve(token0);
         if (id === "token1") return Promise.resolve(token1);
         return Promise.resolve(undefined);
@@ -537,23 +543,19 @@ describe("LiquidityPoolAggregator Functions", () => {
       const result = await loadPoolData(
         poolAddress,
         chainId,
-        contextStub as handlerContext,
+        mockContext as handlerContext,
         blockNumber,
         blockTimestamp,
       );
 
-      expect(result).to.not.be.null;
+      expect(result).not.toBeNull();
       // Prices should remain unchanged
-      expect(result?.token0Instance.pricePerUSDNew).to.equal(
-        token0.pricePerUSDNew,
-      );
-      expect(result?.token1Instance.pricePerUSDNew).to.equal(
-        token1.pricePerUSDNew,
-      );
+      expect(result?.token0Instance.pricePerUSDNew).toBe(token0.pricePerUSDNew);
+      expect(result?.token1Instance.pricePerUSDNew).toBe(token1.pricePerUSDNew);
 
       // Token.set should not be called (no refresh needed)
-      const tokenSetStub = contextStub.Token?.set as sinon.SinonStub;
-      expect(tokenSetStub.called).to.be.false;
+      const mockTokenSet = jest.mocked(mockContext.Token?.set);
+      expect(mockTokenSet).not.toHaveBeenCalled();
     });
 
     it("should always refresh token prices when pricePerUSDNew is 0", async () => {
@@ -569,9 +571,9 @@ describe("LiquidityPoolAggregator Functions", () => {
         lastUpdatedTimestamp: recentTimestamp,
       };
 
-      // Update the stub to return the updated tokens
-      const tokenGetStub = contextStub.Token?.get as sinon.SinonStub;
-      tokenGetStub.callsFake((id: string) => {
+      // Update the mock to return the updated tokens
+      const mockTokenGet = jest.mocked(mockContext.Token?.get);
+      mockTokenGet?.mockImplementation((id: string) => {
         if (id === "token0") return Promise.resolve(token0);
         if (id === "token1") return Promise.resolve(token1);
         return Promise.resolve(undefined);
@@ -582,8 +584,12 @@ describe("LiquidityPoolAggregator Functions", () => {
       const newPrice0 = 1000000n; // $1.00
 
       // Mock effect to return new price and token details
-      (contextStub.effect as sinon.SinonStub).callsFake(
-        async (effectFn, input) => {
+      expect(mockContext.effect).toBeDefined();
+      jest
+        // biome-ignore lint/style/noNonNullAssertion: effect is verified to be defined above
+        .mocked(mockContext.effect!)
+        // biome-ignore lint/suspicious/noExplicitAny: effect mock implementation needs flexible types
+        .mockImplementation(async (effectFn: any, input: any) => {
           if (effectFn.name === "getTokenPrice") {
             if (
               input.tokenAddress.toLowerCase() === token0.address.toLowerCase()
@@ -623,28 +629,25 @@ describe("LiquidityPoolAggregator Functions", () => {
             }
           }
           return {};
-        },
-      );
+        });
 
       const result = await loadPoolData(
         poolAddress,
         chainId,
-        contextStub as handlerContext,
+        mockContext as handlerContext,
         blockNumber,
         blockTimestamp,
       );
 
-      expect(result).to.not.be.null;
+      expect(result).not.toBeNull();
       // token0 should be refreshed even though timestamp is recent
-      expect(result?.token0Instance.pricePerUSDNew).to.equal(newPrice0);
+      expect(result?.token0Instance.pricePerUSDNew).toBe(newPrice0);
       // token1 should not be refreshed (recent timestamp and non-zero price)
-      expect(result?.token1Instance.pricePerUSDNew).to.equal(
-        token1.pricePerUSDNew,
-      );
+      expect(result?.token1Instance.pricePerUSDNew).toBe(token1.pricePerUSDNew);
 
       // Token.set should be called only for token0
-      const tokenSetStub = contextStub.Token?.set as sinon.SinonStub;
-      expect(tokenSetStub.callCount).to.equal(1);
+      const mockTokenSet = jest.mocked(mockContext.Token?.set);
+      expect(mockTokenSet).toHaveBeenCalledTimes(1);
     });
 
     it("should handle price refresh errors gracefully", async () => {
@@ -652,98 +655,97 @@ describe("LiquidityPoolAggregator Functions", () => {
       const blockTimestamp = Math.floor(Date.now() / 1000);
 
       // Mock effect to throw error for token0, return price for token1
-      (contextStub.effect as sinon.SinonStub).callsFake(
-        async (effectFn, input) => {
-          if (effectFn.name === "getTokenPrice") {
-            if (
-              input.tokenAddress.toLowerCase() === token0.address.toLowerCase()
-            ) {
-              throw new Error("Price fetch failed");
-            }
-            if (
-              input.tokenAddress.toLowerCase() === token1.address.toLowerCase()
-            ) {
-              return {
-                pricePerUSDNew: 3000000n,
-              };
-            }
+      expect(mockContext.effect).toBeDefined();
+      // biome-ignore lint/style/noNonNullAssertion: effect is verified to be defined above
+      const effectMock = jest.mocked(mockContext.effect!);
+      // biome-ignore lint/suspicious/noExplicitAny: effect mock implementation needs flexible types
+      effectMock.mockImplementation(async (effectFn: any, input: any) => {
+        if (effectFn.name === "getTokenPrice") {
+          if (
+            input.tokenAddress.toLowerCase() === token0.address.toLowerCase()
+          ) {
+            throw new Error("Price fetch failed");
           }
-          if (effectFn.name === "getTokenDetails") {
-            if (
-              input.contractAddress.toLowerCase() ===
-              token0.address.toLowerCase()
-            ) {
-              return {
-                name: token0.name,
-                symbol: token0.symbol,
-                decimals: Number(token0.decimals),
-              };
-            }
-            if (
-              input.contractAddress.toLowerCase() ===
-              token1.address.toLowerCase()
-            ) {
-              return {
-                name: token1.name,
-                symbol: token1.symbol,
-                decimals: Number(token1.decimals),
-              };
-            }
+          if (
+            input.tokenAddress.toLowerCase() === token1.address.toLowerCase()
+          ) {
+            return {
+              pricePerUSDNew: 3000000n,
+            };
           }
-          return {};
-        },
-      );
+        }
+        if (effectFn.name === "getTokenDetails") {
+          if (
+            input.contractAddress.toLowerCase() === token0.address.toLowerCase()
+          ) {
+            return {
+              name: token0.name,
+              symbol: token0.symbol,
+              decimals: Number(token0.decimals),
+            };
+          }
+          if (
+            input.contractAddress.toLowerCase() === token1.address.toLowerCase()
+          ) {
+            return {
+              name: token1.name,
+              symbol: token1.symbol,
+              decimals: Number(token1.decimals),
+            };
+          }
+        }
+        return {};
+      });
 
       const result = await loadPoolData(
         poolAddress,
         chainId,
-        contextStub as handlerContext,
+        mockContext as handlerContext,
         blockNumber,
         blockTimestamp,
       );
 
-      expect(result).to.not.be.null;
+      expect(result).not.toBeNull();
       // token0 should remain unchanged (error handled)
-      expect(result?.token0Instance.pricePerUSDNew).to.equal(
-        token0.pricePerUSDNew,
-      );
+      expect(result?.token0Instance.pricePerUSDNew).toBe(token0.pricePerUSDNew);
       // token1 should be refreshed successfully
-      expect(result?.token1Instance.pricePerUSDNew).to.equal(3000000n);
+      expect(result?.token1Instance.pricePerUSDNew).toBe(3000000n);
 
       // Error should be logged
-      const errorLogStub = contextStub.log?.error as sinon.SinonStub;
-      expect(errorLogStub.called).to.be.true;
+      const mockErrorLog = jest.mocked(mockContext.log?.error);
+      expect(mockErrorLog).toHaveBeenCalled();
     });
 
     it("should return null when pool is not found", async () => {
-      const liquidityPoolGetStub = contextStub.LiquidityPoolAggregator
-        ?.get as sinon.SinonStub;
-      liquidityPoolGetStub.resolves(undefined);
+      const mockLiquidityPoolGet = jest.mocked(
+        mockContext.LiquidityPoolAggregator?.get,
+      );
+      mockLiquidityPoolGet?.mockResolvedValue(undefined);
 
       const result = await loadPoolData(
         poolAddress,
         chainId,
-        contextStub as handlerContext,
+        mockContext as handlerContext,
       );
 
-      expect(result).to.be.null;
-      const errorLogStub = contextStub.log?.error as sinon.SinonStub;
-      expect(errorLogStub.called).to.be.true;
+      expect(result).toBeNull();
+      const mockErrorLog = jest.mocked(mockContext.log?.error);
+      expect(mockErrorLog).toHaveBeenCalled();
     });
 
     it("should return null when tokens are not found", async () => {
-      const tokenGetStub = contextStub.Token?.get as sinon.SinonStub;
-      tokenGetStub.resolves(undefined);
+      const mockTokenGet = jest.mocked(mockContext.Token?.get);
+      mockTokenGet?.mockResolvedValue(undefined);
 
       const result = await loadPoolData(
         poolAddress,
         chainId,
-        contextStub as handlerContext,
+        mockContext as handlerContext,
       );
 
-      expect(result).to.be.null;
-      const errorLogStub = contextStub.log?.error as sinon.SinonStub;
-      expect(errorLogStub.called).to.be.true;
+      expect(result).toBeNull();
+      const mockErrorLog = jest.mocked(mockContext.log?.error);
+      expect(mockErrorLog).toHaveBeenCalled();
     });
   });
 
@@ -790,15 +792,16 @@ describe("LiquidityPoolAggregator Functions", () => {
         token1_address: token1.address,
       });
 
-      const liquidityPoolGetStub = contextStub.LiquidityPoolAggregator
-        ?.get as sinon.SinonStub;
-      liquidityPoolGetStub.callsFake((address: string) => {
+      const mockLiquidityPoolGet = jest.mocked(
+        mockContext.LiquidityPoolAggregator?.get,
+      );
+      mockLiquidityPoolGet?.mockImplementation((address: string) => {
         if (address === rootPoolAddress) return Promise.resolve(rootPool);
         return Promise.resolve(undefined);
       });
 
-      const tokenGetStub = contextStub.Token?.get as sinon.SinonStub;
-      tokenGetStub.callsFake((id: string) => {
+      const mockTokenGet = jest.mocked(mockContext.Token?.get);
+      mockTokenGet?.mockImplementation((id: string) => {
         if (id === "token0") return Promise.resolve(token0);
         if (id === "token1") return Promise.resolve(token1);
         return Promise.resolve(undefined);
@@ -807,18 +810,19 @@ describe("LiquidityPoolAggregator Functions", () => {
       const result = await loadPoolDataOrRootCLPool(
         rootPoolAddress,
         chainId,
-        contextStub as handlerContext,
+        mockContext as handlerContext,
       );
 
-      expect(result).to.not.be.null;
-      expect(result?.liquidityPoolAggregator.id).to.equal(rootPoolAddress);
-      expect(result?.token0Instance).to.equal(token0);
-      expect(result?.token1Instance).to.equal(token1);
+      expect(result).not.toBeNull();
+      expect(result?.liquidityPoolAggregator.id).toBe(rootPoolAddress);
+      expect(result?.token0Instance).toBe(token0);
+      expect(result?.token1Instance).toBe(token1);
 
       // Should not query RootPool_LeafPool when pool exists directly
-      const rootPoolLeafPoolGetWhereStub = contextStub.RootPool_LeafPool
-        ?.getWhere?.rootPoolAddress?.eq as sinon.SinonStub;
-      expect(rootPoolLeafPoolGetWhereStub.called).to.be.false;
+      const mockRootPoolLeafPoolGetWhere = jest.mocked(
+        mockContext.RootPool_LeafPool?.getWhere?.rootPoolAddress?.eq,
+      );
+      expect(mockRootPoolLeafPoolGetWhere).not.toHaveBeenCalled();
     });
 
     it("should load leaf pool data when root pool is not found but RootPool_LeafPool exists", async () => {
@@ -840,61 +844,65 @@ describe("LiquidityPoolAggregator Functions", () => {
         leafPoolAddress: leafPoolAddress,
       };
 
-      const liquidityPoolGetStub = contextStub.LiquidityPoolAggregator
-        ?.get as sinon.SinonStub;
-      liquidityPoolGetStub.callsFake((address: string) => {
+      const mockLiquidityPoolGet = jest.mocked(
+        mockContext.LiquidityPoolAggregator?.get,
+      );
+      mockLiquidityPoolGet?.mockImplementation((address: string) => {
         if (address === rootPoolAddress) return Promise.resolve(undefined);
         if (address === leafPoolAddress) return Promise.resolve(leafPool);
         return Promise.resolve(undefined);
       });
 
-      const tokenGetStub = contextStub.Token?.get as sinon.SinonStub;
-      tokenGetStub.callsFake((id: string) => {
+      const mockTokenGet = jest.mocked(mockContext.Token?.get);
+      mockTokenGet?.mockImplementation((id: string) => {
         if (id === "token0") return Promise.resolve(token0);
         if (id === "token1") return Promise.resolve(token1);
         return Promise.resolve(undefined);
       });
 
-      const rootPoolLeafPoolGetWhereStub = contextStub.RootPool_LeafPool
-        ?.getWhere?.rootPoolAddress?.eq as sinon.SinonStub;
-      rootPoolLeafPoolGetWhereStub.resolves([rootPoolLeafPool]);
+      const mockRootPoolLeafPoolGetWhere = jest.mocked(
+        mockContext.RootPool_LeafPool?.getWhere?.rootPoolAddress?.eq,
+      );
+      mockRootPoolLeafPoolGetWhere?.mockResolvedValue([rootPoolLeafPool]);
 
-      const warnLogStub = contextStub.log?.warn as sinon.SinonStub;
+      const mockWarnLog = jest.mocked(mockContext.log?.warn);
 
       const result = await loadPoolDataOrRootCLPool(
         rootPoolAddress,
         chainId,
-        contextStub as handlerContext,
+        mockContext as handlerContext,
       );
 
-      expect(result).to.not.be.null;
-      expect(result?.liquidityPoolAggregator.id).to.equal(leafPoolAddress);
-      expect(result?.liquidityPoolAggregator.chainId).to.equal(leafChainId);
-      expect(result?.token0Instance).to.equal(token0);
-      expect(result?.token1Instance).to.equal(token1);
-      expect(warnLogStub.called).to.be.true;
-      expect(rootPoolLeafPoolGetWhereStub.called).to.be.true;
+      expect(result).not.toBeNull();
+      expect(result?.liquidityPoolAggregator.id).toBe(leafPoolAddress);
+      expect(result?.liquidityPoolAggregator.chainId).toBe(leafChainId);
+      expect(result?.token0Instance).toBe(token0);
+      expect(result?.token1Instance).toBe(token1);
+      expect(mockWarnLog).toHaveBeenCalled();
+      expect(mockRootPoolLeafPoolGetWhere).toHaveBeenCalled();
     });
 
     it("should return null when root pool not found and no RootPool_LeafPool exists", async () => {
-      const liquidityPoolGetStub = contextStub.LiquidityPoolAggregator
-        ?.get as sinon.SinonStub;
-      liquidityPoolGetStub.resolves(undefined);
+      const mockLiquidityPoolGet = jest.mocked(
+        mockContext.LiquidityPoolAggregator?.get,
+      );
+      mockLiquidityPoolGet?.mockResolvedValue(undefined);
 
-      const rootPoolLeafPoolGetWhereStub = contextStub.RootPool_LeafPool
-        ?.getWhere?.rootPoolAddress?.eq as sinon.SinonStub;
-      rootPoolLeafPoolGetWhereStub.resolves([]);
+      const mockRootPoolLeafPoolGetWhere = jest.mocked(
+        mockContext.RootPool_LeafPool?.getWhere?.rootPoolAddress?.eq,
+      );
+      mockRootPoolLeafPoolGetWhere?.mockResolvedValue([]);
 
-      const errorLogStub = contextStub.log?.error as sinon.SinonStub;
+      const mockErrorLog = jest.mocked(mockContext.log?.error);
 
       const result = await loadPoolDataOrRootCLPool(
         rootPoolAddress,
         chainId,
-        contextStub as handlerContext,
+        mockContext as handlerContext,
       );
 
-      expect(result).to.be.null;
-      expect(errorLogStub.called).to.be.true;
+      expect(result).toBeNull();
+      expect(mockErrorLog).toHaveBeenCalled();
     });
 
     it("should return null when multiple RootPool_LeafPool entries exist", async () => {
@@ -914,36 +922,38 @@ describe("LiquidityPoolAggregator Functions", () => {
         leafPoolAddress: "0x5555555555555555555555555555555555555555",
       };
 
-      const liquidityPoolGetStub = contextStub.LiquidityPoolAggregator
-        ?.get as sinon.SinonStub;
-      liquidityPoolGetStub.resolves(undefined);
+      const mockLiquidityPoolGet = jest.mocked(
+        mockContext.LiquidityPoolAggregator?.get,
+      );
+      mockLiquidityPoolGet?.mockResolvedValue(undefined);
 
-      const rootPoolLeafPoolGetWhereStub = contextStub.RootPool_LeafPool
-        ?.getWhere?.rootPoolAddress?.eq as sinon.SinonStub;
-      rootPoolLeafPoolGetWhereStub.resolves([
+      const mockRootPoolLeafPoolGetWhere = jest.mocked(
+        mockContext.RootPool_LeafPool?.getWhere?.rootPoolAddress?.eq,
+      );
+      mockRootPoolLeafPoolGetWhere?.mockResolvedValue([
         rootPoolLeafPool1,
         rootPoolLeafPool2,
       ]);
 
-      const errorLogStub = contextStub.log?.error as sinon.SinonStub;
+      const mockErrorLog = jest.mocked(mockContext.log?.error);
 
       const result = await loadPoolDataOrRootCLPool(
         rootPoolAddress,
         chainId,
-        contextStub as handlerContext,
+        mockContext as handlerContext,
       );
 
-      expect(result).to.be.null;
-      expect(errorLogStub.called).to.be.true;
+      expect(result).toBeNull();
+      expect(mockErrorLog).toHaveBeenCalled();
       // Check if any error call contains the expected message
-      const errorMessages = errorLogStub.getCalls().map((call) => call.args[0]);
+      const errorMessages = mockErrorLog?.mock.calls.map((call) => call[0]);
       expect(
-        errorMessages.some(
+        errorMessages?.some(
           (msg) =>
             typeof msg === "string" &&
             msg.includes("Expected exactly one RootPool_LeafPool"),
         ),
-      ).to.be.true;
+      ).toBe(true);
     });
 
     it("should return null when leaf pool is not found", async () => {
@@ -956,32 +966,34 @@ describe("LiquidityPoolAggregator Functions", () => {
         leafPoolAddress: leafPoolAddress,
       };
 
-      const liquidityPoolGetStub = contextStub.LiquidityPoolAggregator
-        ?.get as sinon.SinonStub;
-      liquidityPoolGetStub.resolves(undefined);
+      const mockLiquidityPoolGet = jest.mocked(
+        mockContext.LiquidityPoolAggregator?.get,
+      );
+      mockLiquidityPoolGet?.mockResolvedValue(undefined);
 
-      const rootPoolLeafPoolGetWhereStub = contextStub.RootPool_LeafPool
-        ?.getWhere?.rootPoolAddress?.eq as sinon.SinonStub;
-      rootPoolLeafPoolGetWhereStub.resolves([rootPoolLeafPool]);
+      const mockRootPoolLeafPoolGetWhere = jest.mocked(
+        mockContext.RootPool_LeafPool?.getWhere?.rootPoolAddress?.eq,
+      );
+      mockRootPoolLeafPoolGetWhere?.mockResolvedValue([rootPoolLeafPool]);
 
-      const errorLogStub = contextStub.log?.error as sinon.SinonStub;
+      const mockErrorLog = jest.mocked(mockContext.log?.error);
 
       const result = await loadPoolDataOrRootCLPool(
         rootPoolAddress,
         chainId,
-        contextStub as handlerContext,
+        mockContext as handlerContext,
       );
 
-      expect(result).to.be.null;
-      expect(errorLogStub.called).to.be.true;
+      expect(result).toBeNull();
+      expect(mockErrorLog).toHaveBeenCalled();
       // Check if any error call contains the expected message
-      const errorMessages = errorLogStub.getCalls().map((call) => call.args[0]);
+      const errorMessages = mockErrorLog?.mock.calls.map((call) => call[0]);
       expect(
-        errorMessages.some(
+        errorMessages?.some(
           (msg) =>
             typeof msg === "string" && msg.includes("Leaf pool data not found"),
         ),
-      ).to.be.true;
+      ).toBe(true);
     });
   });
 });

@@ -1,4 +1,3 @@
-import { expect } from "chai";
 import {
   MockDb,
   VelodromeUniversalRouter,
@@ -55,18 +54,18 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
       const bridgedTransaction =
         result.entities.OUSDTBridgedTransaction.get(transactionHash);
 
-      expect(bridgedTransaction).to.not.be.undefined;
-      expect(bridgedTransaction?.id).to.equal(transactionHash);
-      expect(bridgedTransaction?.transactionHash).to.equal(transactionHash);
-      expect(bridgedTransaction?.originChainId).to.equal(BigInt(chainId));
-      expect(bridgedTransaction?.destinationChainId).to.equal(
+      expect(bridgedTransaction).not.toBeUndefined();
+      expect(bridgedTransaction?.id).toBe(transactionHash);
+      expect(bridgedTransaction?.transactionHash).toBe(transactionHash);
+      expect(bridgedTransaction?.originChainId).toBe(BigInt(chainId));
+      expect(bridgedTransaction?.destinationChainId).toBe(
         BigInt(destinationDomain),
       );
-      expect(bridgedTransaction?.sender).to.equal(senderAddress.toLowerCase());
-      expect(bridgedTransaction?.recipient).to.equal(
+      expect(bridgedTransaction?.sender).toBe(senderAddress.toLowerCase());
+      expect(bridgedTransaction?.recipient).toBe(
         recipientAddress.toLowerCase(),
       );
-      expect(bridgedTransaction?.amount).to.equal(1000n * 10n ** 6n); // Raw amount: 1000 tokens with 6 decimals
+      expect(bridgedTransaction?.amount).toBe(1000n * 10n ** 6n); // Raw amount: 1000 tokens with 6 decimals
     });
 
     it("should not create entity when token is not oUSDT", async () => {
@@ -103,7 +102,7 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
       const bridgedTransaction =
         result.entities.OUSDTBridgedTransaction.get(transactionHash);
 
-      expect(bridgedTransaction).to.be.undefined;
+      expect(bridgedTransaction).toBeUndefined();
     });
 
     it("should normalize amount correctly using OUSDT_DECIMALS constant", async () => {
@@ -140,8 +139,8 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
       const bridgedTransaction =
         result.entities.OUSDTBridgedTransaction.get(transactionHash);
 
-      expect(bridgedTransaction).to.not.be.undefined;
-      expect(bridgedTransaction?.amount).to.equal(500n * 10n ** 6n); // Raw amount: 500 tokens with 6 decimals
+      expect(bridgedTransaction).not.toBeUndefined();
+      expect(bridgedTransaction?.amount).toBe(500n * 10n ** 6n); // Raw amount: 500 tokens with 6 decimals
     });
   });
 
@@ -302,22 +301,18 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
       const expectedSuperSwapId = `${transactionHash}_${BigInt(chainId)}_${destinationDomain}_${existingBridgedTransaction.amount}_${messageId}_${sourceSwapEvent.tokenInPool}_${sourceSwapEvent.amountIn}_${sourceSwapEvent.tokenOutPool}_${sourceSwapEvent.amountOut}`;
       const superSwap = result.entities.SuperSwap.get(expectedSuperSwapId);
 
-      expect(superSwap).to.not.be.undefined;
-      expect(superSwap?.id).to.equal(expectedSuperSwapId);
-      expect(superSwap?.originChainId).to.equal(BigInt(chainId));
-      expect(superSwap?.destinationChainId).to.equal(BigInt(destinationDomain));
-      expect(superSwap?.sender).to.equal(senderAddress.toLowerCase());
-      expect(superSwap?.recipient).to.equal(recipientAddress.toLowerCase());
-      expect(superSwap?.oUSDTamount).to.equal(
-        existingBridgedTransaction.amount,
-      );
-      expect(superSwap?.sourceChainToken).to.equal(tokenInAddress);
-      expect(superSwap?.sourceChainTokenAmountSwapped).to.equal(1000n);
-      expect(superSwap?.destinationChainToken).to.equal(tokenOutAddress);
-      expect(superSwap?.destinationChainTokenAmountSwapped).to.equal(950n);
-      expect(superSwap?.timestamp).to.deep.equal(
-        new Date(blockTimestamp * 1000),
-      );
+      expect(superSwap).not.toBeUndefined();
+      expect(superSwap?.id).toBe(expectedSuperSwapId);
+      expect(superSwap?.originChainId).toBe(BigInt(chainId));
+      expect(superSwap?.destinationChainId).toBe(BigInt(destinationDomain));
+      expect(superSwap?.sender).toBe(senderAddress.toLowerCase());
+      expect(superSwap?.recipient).toBe(recipientAddress.toLowerCase());
+      expect(superSwap?.oUSDTamount).toBe(existingBridgedTransaction.amount);
+      expect(superSwap?.sourceChainToken).toBe(tokenInAddress);
+      expect(superSwap?.sourceChainTokenAmountSwapped).toBe(1000n);
+      expect(superSwap?.destinationChainToken).toBe(tokenOutAddress);
+      expect(superSwap?.destinationChainTokenAmountSwapped).toBe(950n);
+      expect(superSwap?.timestamp).toEqual(new Date(blockTimestamp * 1000));
     });
 
     it("should not create SuperSwap when no OUSDTBridgedTransaction exists", async () => {
@@ -380,7 +375,7 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
       const superSwap = result.entities.SuperSwap.get(expectedSuperSwapId);
 
       // Verify that no SuperSwap was created when no bridged transaction exists
-      expect(superSwap).to.be.undefined;
+      expect(superSwap).toBeUndefined();
     });
 
     it("should not create SuperSwap when no DispatchId events exist", async () => {
@@ -459,7 +454,7 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
       const expectedSuperSwapId = `${transactionHash}_${chainId}_${destinationDomain}_${existingBridgedTransaction.amount}`;
       const superSwap = result.entities.SuperSwap.get(expectedSuperSwapId);
 
-      expect(superSwap).to.be.undefined;
+      expect(superSwap).toBeUndefined();
     });
 
     it("should use the first bridged transaction when multiple exist", async () => {
@@ -621,9 +616,9 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
       const expectedSuperSwapId = `${transactionHash}_${BigInt(chainId)}_${destinationDomain}_${bridgedTransaction1.amount}_${messageId}_${sourceSwapEvent.tokenInPool}_${sourceSwapEvent.amountIn}_${sourceSwapEvent.tokenOutPool}_${sourceSwapEvent.amountOut}`;
       const superSwap = result.entities.SuperSwap.get(expectedSuperSwapId);
 
-      expect(superSwap).to.not.be.undefined;
+      expect(superSwap).not.toBeUndefined();
       // Should use the first transaction (amount 1000)
-      expect(superSwap?.oUSDTamount).to.equal(bridgedTransaction1.amount);
+      expect(superSwap?.oUSDTamount).toBe(bridgedTransaction1.amount);
     });
   });
 });

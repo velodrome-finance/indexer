@@ -1,4 +1,3 @@
-import { expect } from "chai";
 import type {
   CLPool_Mint_event,
   LiquidityPoolAggregator,
@@ -79,22 +78,22 @@ describe("CLPoolMintLogic", () => {
       const result = processCLPoolMint(mockEvent, mockToken0, mockToken1);
 
       // Check liquidity pool diff with exact values
-      expect(result.liquidityPoolDiff.reserve0).to.equal(500000000000000000n); // amount0 (0.5 token)
-      expect(result.liquidityPoolDiff.reserve1).to.equal(300000000000000000n); // amount1 (0.3 token)
+      expect(result.liquidityPoolDiff.reserve0).toBe(500000000000000000n); // amount0 (0.5 token)
+      expect(result.liquidityPoolDiff.reserve1).toBe(300000000000000000n); // amount1 (0.3 token)
 
       // Calculate exact totalLiquidityUSD: (0.5 * 1 USD) + (0.3 * 2 USD) = 0.5 + 0.6 = 1.1 USD
-      expect(result.liquidityPoolDiff.totalLiquidityUSD).to.equal(
+      expect(result.liquidityPoolDiff.totalLiquidityUSD).toBe(
         1100000000000000000n,
       ); // 1.1 USD in 18 decimals
 
       // Check user liquidity diff with exact values
-      expect(result.userLiquidityDiff.currentLiquidityUSD).to.equal(
+      expect(result.userLiquidityDiff.currentLiquidityUSD).toBe(
         1100000000000000000n,
       ); // 1.1 USD in 18 decimals (positive for addition)
-      expect(result.userLiquidityDiff.currentLiquidityToken0).to.equal(
+      expect(result.userLiquidityDiff.currentLiquidityToken0).toBe(
         500000000000000000n,
       ); // amount0
-      expect(result.userLiquidityDiff.currentLiquidityToken1).to.equal(
+      expect(result.userLiquidityDiff.currentLiquidityToken1).toBe(
         300000000000000000n,
       ); // amount1
     });
@@ -103,20 +102,20 @@ describe("CLPoolMintLogic", () => {
       const result = processCLPoolMint(mockEvent, mockToken0, mockToken1);
 
       // For mint events, we expect positive liquidity change with exact values
-      expect(result.userLiquidityDiff.currentLiquidityUSD).to.equal(
+      expect(result.userLiquidityDiff.currentLiquidityUSD).toBe(
         1100000000000000000n,
       ); // 1.1 USD in 18 decimals
-      expect(result.userLiquidityDiff.currentLiquidityToken0).to.equal(
+      expect(result.userLiquidityDiff.currentLiquidityToken0).toBe(
         500000000000000000n,
       ); // amount0
-      expect(result.userLiquidityDiff.currentLiquidityToken1).to.equal(
+      expect(result.userLiquidityDiff.currentLiquidityToken1).toBe(
         300000000000000000n,
       ); // amount1
 
       // The liquidity pool diff should reflect the amounts being added with exact values
-      expect(result.liquidityPoolDiff.reserve0).to.equal(500000000000000000n); // amount0
-      expect(result.liquidityPoolDiff.reserve1).to.equal(300000000000000000n); // amount1
-      expect(result.liquidityPoolDiff.totalLiquidityUSD).to.equal(
+      expect(result.liquidityPoolDiff.reserve0).toBe(500000000000000000n); // amount0
+      expect(result.liquidityPoolDiff.reserve1).toBe(300000000000000000n); // amount1
+      expect(result.liquidityPoolDiff.totalLiquidityUSD).toBe(
         1100000000000000000n,
       ); // 1.1 USD in 18 decimals
     });
@@ -133,8 +132,8 @@ describe("CLPoolMintLogic", () => {
         mockToken1,
       );
 
-      expect(result.liquidityPoolDiff).to.not.be.undefined;
-      expect(result.userLiquidityDiff).to.not.be.undefined;
+      expect(result.liquidityPoolDiff).not.toBeUndefined();
+      expect(result.userLiquidityDiff).not.toBeUndefined();
     });
 
     it("should handle zero amounts correctly", () => {
@@ -153,9 +152,9 @@ describe("CLPoolMintLogic", () => {
         mockToken1,
       );
 
-      expect(result.liquidityPoolDiff.reserve0).to.equal(0n);
-      expect(result.liquidityPoolDiff.reserve1).to.equal(0n);
-      expect(result.userLiquidityDiff.currentLiquidityUSD).to.equal(0n);
+      expect(result.liquidityPoolDiff.reserve0).toBe(0n);
+      expect(result.liquidityPoolDiff.reserve1).toBe(0n);
+      expect(result.userLiquidityDiff.currentLiquidityUSD).toBe(0n);
     });
   });
 });

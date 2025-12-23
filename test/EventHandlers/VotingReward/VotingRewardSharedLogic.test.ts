@@ -1,4 +1,3 @@
-import { expect } from "chai";
 import type { Token } from "../../../generated/src/Types.gen";
 import { PoolAddressField } from "../../../src/Aggregators/LiquidityPoolAggregator";
 import {
@@ -76,7 +75,7 @@ describe("VotingRewardSharedLogic", () => {
       );
 
       // For bribe rewards, should populate bribe fields
-      expect(result.poolDiff).to.deep.include({
+      expect(result.poolDiff).toMatchObject({
         totalBribeClaimed: 1000000n,
         totalBribeClaimedUSD: 1000000000000000000n, // 1 USD in 18 decimals
         totalFeeRewardClaimed: 0n,
@@ -84,7 +83,7 @@ describe("VotingRewardSharedLogic", () => {
         lastUpdatedTimestamp: mockTimestamp,
       });
 
-      expect(result.userDiff).to.deep.include({
+      expect(result.userDiff).toMatchObject({
         totalBribeClaimed: 1000000n,
         totalBribeClaimedUSD: 1000000000000000000n,
         totalFeeRewardClaimed: 0n,
@@ -111,7 +110,7 @@ describe("VotingRewardSharedLogic", () => {
       );
 
       // For fee rewards, should populate fee fields
-      expect(result.poolDiff).to.deep.include({
+      expect(result.poolDiff).toMatchObject({
         totalBribeClaimed: 0n,
         totalBribeClaimedUSD: 0n,
         totalFeeRewardClaimed: 2000000n,
@@ -119,7 +118,7 @@ describe("VotingRewardSharedLogic", () => {
         lastUpdatedTimestamp: mockTimestamp,
       });
 
-      expect(result.userDiff).to.deep.include({
+      expect(result.userDiff).toMatchObject({
         totalBribeClaimed: 0n,
         totalBribeClaimedUSD: 0n,
         totalFeeRewardClaimed: 2000000n,
@@ -164,12 +163,8 @@ describe("VotingRewardSharedLogic", () => {
         PoolAddressField.BRIBE_VOTING_REWARD_ADDRESS,
       );
 
-      expect(result.poolDiff?.totalBribeClaimedUSD).to.equal(
-        1000000000000000000n,
-      );
-      expect(result.userDiff?.totalBribeClaimedUSD).to.equal(
-        1000000000000000000n,
-      );
+      expect(result.poolDiff?.totalBribeClaimedUSD).toBe(1000000000000000000n);
+      expect(result.userDiff?.totalBribeClaimedUSD).toBe(1000000000000000000n);
     });
   });
 });

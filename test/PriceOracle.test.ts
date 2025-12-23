@@ -1,5 +1,3 @@
-import { expect } from "chai";
-import sinon from "sinon";
 import { CHAIN_CONSTANTS } from "../src/Constants";
 import * as PriceOracle from "../src/PriceOracle";
 
@@ -9,7 +7,7 @@ import { setupCommon } from "./EventHandlers/Pool/common";
 
 describe("PriceOracle", () => {
   const mockContext = {
-    effect: sinon.stub().callsFake(async (effectFn, input) => {
+    effect: jest.fn().mockImplementation(async (effectFn, input) => {
       // Mock the effect calls for testing
       if (effectFn.name === "getTokenPrice") {
         return {
@@ -26,51 +24,51 @@ describe("PriceOracle", () => {
       return {};
     }),
     log: {
-      info: sinon.stub(),
-      error: sinon.stub(),
-      warn: sinon.stub(),
-      debug: sinon.stub(),
+      info: jest.fn(),
+      error: jest.fn(),
+      warn: jest.fn(),
+      debug: jest.fn(),
     },
     Token: {
-      set: sinon.stub(),
-      get: sinon.stub(),
-      getOrThrow: sinon.stub(),
-      getOrCreate: sinon.stub(),
-      deleteUnsafe: sinon.stub(),
+      set: jest.fn(),
+      get: jest.fn(),
+      getOrThrow: jest.fn(),
+      getOrCreate: jest.fn(),
+      deleteUnsafe: jest.fn(),
       getWhere: {
         address: {
-          eq: sinon.stub(),
-          gt: sinon.stub(),
-          lt: sinon.stub(),
+          eq: jest.fn(),
+          gt: jest.fn(),
+          lt: jest.fn(),
         },
         chainId: {
-          eq: sinon.stub(),
-          gt: sinon.stub(),
-          lt: sinon.stub(),
+          eq: jest.fn(),
+          gt: jest.fn(),
+          lt: jest.fn(),
         },
       },
     },
     TokenPriceSnapshot: {
-      set: sinon.stub(),
-      get: sinon.stub(),
-      getOrThrow: sinon.stub(),
-      getOrCreate: sinon.stub(),
-      deleteUnsafe: sinon.stub(),
+      set: jest.fn(),
+      get: jest.fn(),
+      getOrThrow: jest.fn(),
+      getOrCreate: jest.fn(),
+      deleteUnsafe: jest.fn(),
       getWhere: {
         address: {
-          eq: sinon.stub(),
-          gt: sinon.stub(),
-          lt: sinon.stub(),
+          eq: jest.fn(),
+          gt: jest.fn(),
+          lt: jest.fn(),
         },
         chainId: {
-          eq: sinon.stub(),
-          gt: sinon.stub(),
-          lt: sinon.stub(),
+          eq: jest.fn(),
+          gt: jest.fn(),
+          lt: jest.fn(),
         },
         lastUpdatedTimestamp: {
-          eq: sinon.stub(),
-          gt: sinon.stub(),
-          lt: sinon.stub(),
+          eq: jest.fn(),
+          gt: jest.fn(),
+          lt: jest.fn(),
         },
       },
     },
@@ -82,19 +80,19 @@ describe("PriceOracle", () => {
   const blockNumber = startBlock + 1;
   const blockDatetime = new Date("2023-01-01T00:00:00Z");
 
-  let addStub: sinon.SinonStub;
-  let readStub: sinon.SinonStub;
+  let addMock: jest.Mock;
+  let readMock: jest.Mock;
   const { mockToken0Data } = setupCommon();
 
   beforeEach(() => {
-    addStub = sinon.stub();
-    readStub = sinon.stub().returns({
+    addMock = jest.fn();
+    readMock = jest.fn().mockReturnValue({
       prices: null,
     });
   });
 
   afterEach(() => {
-    sinon.restore();
+    jest.restoreAllMocks();
   });
 
   describe("refreshTokenPrice", () => {
@@ -122,9 +120,10 @@ describe("PriceOracle", () => {
         );
       });
       it("should not update prices if the update interval hasn't passed", async () => {
-        expect((mockContext.Token?.set as sinon.SinonStub).called).to.be.false;
-        expect((mockContext.TokenPriceSnapshot?.set as sinon.SinonStub).called)
-          .to.be.false;
+        expect(mockContext.Token?.set as jest.Mock).not.toHaveBeenCalled();
+        expect(
+          mockContext.TokenPriceSnapshot?.set as jest.Mock,
+        ).not.toHaveBeenCalled();
       });
     });
     describe("if the update interval has passed", () => {
@@ -144,28 +143,31 @@ describe("PriceOracle", () => {
           chainId,
           mockContext as handlerContext,
         );
-        updatedToken = (mockContext.Token?.set as sinon.SinonStub).lastCall
-          .args[0];
+        updatedToken = (mockContext.Token?.set as jest.Mock).mock.calls[
+          (mockContext.Token?.set as jest.Mock).mock.calls.length - 1
+        ][0];
       });
       it("should update prices if the update interval has passed", async () => {
-        expect(updatedToken.pricePerUSDNew).to.equal(
+        expect(updatedToken.pricePerUSDNew).toBe(
           mockTokenPriceData.pricePerUSDNew,
         );
-        expect(updatedToken.lastUpdatedTimestamp.getTime()).greaterThan(
+        expect(updatedToken.lastUpdatedTimestamp.getTime()).toBeGreaterThan(
           testLastUpdated.getTime(),
         );
       });
       it("should create a new TokenPriceSnapshot entity", async () => {
-        const tokenPrice = (
-          mockContext.TokenPriceSnapshot?.set as sinon.SinonStub
-        ).lastCall.args[0];
-        expect(tokenPrice.pricePerUSDNew).to.equal(
+        const tokenPrice = (mockContext.TokenPriceSnapshot?.set as jest.Mock)
+          .mock.calls[
+          (mockContext.TokenPriceSnapshot?.set as jest.Mock).mock.calls.length -
+            1
+        ][0];
+        expect(tokenPrice.pricePerUSDNew).toBe(
           mockTokenPriceData.pricePerUSDNew,
         );
-        expect(tokenPrice.lastUpdatedTimestamp.getTime()).greaterThan(
+        expect(tokenPrice.lastUpdatedTimestamp.getTime()).toBeGreaterThan(
           testLastUpdated.getTime(),
         );
-        expect(tokenPrice.isWhitelisted).to.equal(mockToken0Data.isWhitelisted);
+        expect(tokenPrice.isWhitelisted).toBe(mockToken0Data.isWhitelisted);
       });
     });
 
@@ -185,12 +187,13 @@ describe("PriceOracle", () => {
           chainId,
           mockContext as handlerContext,
         );
-        updatedToken = (mockContext.Token?.set as sinon.SinonStub).lastCall
-          .args[0];
+        updatedToken = (mockContext.Token?.set as jest.Mock).mock.calls[
+          (mockContext.Token?.set as jest.Mock).mock.calls.length - 1
+        ][0];
       });
       it("should refresh price even if less than 1 hour has passed", async () => {
-        expect((mockContext.Token?.set as sinon.SinonStub).called).to.be.true;
-        expect(updatedToken.pricePerUSDNew).to.equal(
+        expect(mockContext.Token?.set as jest.Mock).toHaveBeenCalled();
+        expect(updatedToken.pricePerUSDNew).toBe(
           mockTokenPriceData.pricePerUSDNew,
         );
       });
@@ -211,39 +214,42 @@ describe("PriceOracle", () => {
           chainId,
           mockContext as handlerContext,
         );
-        updatedToken = (mockContext.Token?.set as sinon.SinonStub).lastCall
-          .args[0];
+        updatedToken = (mockContext.Token?.set as jest.Mock).mock.calls[
+          (mockContext.Token?.set as jest.Mock).mock.calls.length - 1
+        ][0];
       });
       it("should refresh price when lastUpdatedTimestamp is missing", async () => {
-        expect((mockContext.Token?.set as sinon.SinonStub).called).to.be.true;
-        expect(updatedToken.pricePerUSDNew).to.equal(
+        expect(mockContext.Token?.set as jest.Mock).toHaveBeenCalled();
+        expect(updatedToken.pricePerUSDNew).toBe(
           mockTokenPriceData.pricePerUSDNew,
         );
-        expect(updatedToken.lastUpdatedTimestamp).to.be.instanceOf(Date);
+        expect(updatedToken.lastUpdatedTimestamp).toBeInstanceOf(Date);
       });
     });
 
     describe("when price fetch fails", () => {
       let originalToken: Token;
       beforeEach(async () => {
-        // Reset stubs first
-        (mockContext.Token?.set as sinon.SinonStub).resetHistory();
-        (mockContext.log?.error as sinon.SinonStub).resetHistory();
+        // Reset mockContext first
+        (mockContext.Token?.set as jest.Mock).mockClear();
+        (mockContext.log?.error as jest.Mock).mockClear();
 
         // Mock effect to throw an error
-        (mockContext.effect as sinon.SinonStub).callsFake(async (effectFn) => {
-          if (effectFn.name === "getTokenPrice") {
-            throw new Error("Price fetch failed");
-          }
-          if (effectFn.name === "getTokenDetails") {
-            return {
-              name: "Test Token",
-              decimals: 18,
-              symbol: "TEST",
-            };
-          }
-          return {};
-        });
+        (mockContext.effect as jest.Mock).mockImplementation(
+          async (effectFn) => {
+            if (effectFn.name === "getTokenPrice") {
+              throw new Error("Price fetch failed");
+            }
+            if (effectFn.name === "getTokenDetails") {
+              return {
+                name: "Test Token",
+                decimals: 18,
+                symbol: "TEST",
+              };
+            }
+            return {};
+          },
+        );
 
         const testLastUpdated = new Date(
           blockDatetime.getTime() - 61 * 60 * 1000,
@@ -262,8 +268,8 @@ describe("PriceOracle", () => {
         );
       });
       afterEach(() => {
-        // Restore original effect stub behavior
-        (mockContext.effect as sinon.SinonStub).callsFake(
+        // Restore original effect mock behavior
+        (mockContext.effect as jest.Mock).mockImplementation(
           async (effectFn, input) => {
             if (effectFn.name === "getTokenPrice") {
               return {
@@ -283,19 +289,21 @@ describe("PriceOracle", () => {
       });
       it("should log error when price fetch fails", async () => {
         // Should log error
-        expect((mockContext.log?.error as sinon.SinonStub).called).to.be.true;
-        const errorCall = (mockContext.log?.error as sinon.SinonStub).lastCall;
-        expect(errorCall.args[0]).to.include("Error refreshing token price");
+        expect(mockContext.log?.error as jest.Mock).toHaveBeenCalled();
+        const errorCall = (mockContext.log?.error as jest.Mock).mock.calls[
+          (mockContext.log?.error as jest.Mock).mock.calls.length - 1
+        ];
+        expect(errorCall[0]).toContain("Error refreshing token price");
       });
       it("should not update token when price fetch fails", async () => {
         // Token.set should not be called when error occurs
         // The function catches the error and returns the original token
-        const setCalls = (mockContext.Token?.set as sinon.SinonStub).getCalls();
+        const setCalls = (mockContext.Token?.set as jest.Mock).mock.calls;
         // Filter out any calls from previous tests
         const errorRelatedCalls = setCalls.filter(
-          (call) => call.args[0]?.address === originalToken.address,
+          (call) => call[0]?.address === originalToken.address,
         );
-        expect(errorRelatedCalls.length).to.equal(0);
+        expect(errorRelatedCalls.length).toBe(0);
       });
     });
   });
@@ -305,9 +313,9 @@ describe("PriceOracle", () => {
     const blockNumber = 1000000;
 
     beforeEach(() => {
-      // Reset stubs
-      (mockContext.Token?.set as sinon.SinonStub).resetHistory();
-      (mockContext.effect as sinon.SinonStub).resetHistory();
+      // Reset mocks
+      (mockContext.Token?.set as jest.Mock).mockClear();
+      (mockContext.effect as jest.Mock).mockClear();
     });
 
     it("should create a token entity with correct fields", async () => {
@@ -318,15 +326,15 @@ describe("PriceOracle", () => {
         mockContext as handlerContext,
       );
 
-      expect(token).to.not.be.undefined;
-      expect(token.address).to.equal(tokenAddress);
-      expect(token.symbol).to.equal("TEST");
-      expect(token.name).to.equal("Test Token");
-      expect(token.decimals).to.equal(18n);
-      expect(token.pricePerUSDNew).to.equal(0n);
-      expect(token.chainId).to.equal(chainId);
-      expect(token.isWhitelisted).to.be.false;
-      expect(token.lastUpdatedTimestamp).to.be.instanceOf(Date);
+      expect(token).not.toBeUndefined();
+      expect(token.address).toBe(tokenAddress);
+      expect(token.symbol).toBe("TEST");
+      expect(token.name).toBe("Test Token");
+      expect(token.decimals).toBe(18n);
+      expect(token.pricePerUSDNew).toBe(0n);
+      expect(token.chainId).toBe(chainId);
+      expect(token.isWhitelisted).toBe(false);
+      expect(token.lastUpdatedTimestamp).toBeInstanceOf(Date);
     });
 
     it("should call Token.set with the created entity", async () => {
@@ -337,11 +345,12 @@ describe("PriceOracle", () => {
         mockContext as handlerContext,
       );
 
-      expect((mockContext.Token?.set as sinon.SinonStub).calledOnce).to.be.true;
-      const setToken = (mockContext.Token?.set as sinon.SinonStub).lastCall
-        .args[0];
-      expect(setToken.address).to.equal(tokenAddress);
-      expect(setToken.pricePerUSDNew).to.equal(0n);
+      expect(mockContext.Token?.set as jest.Mock).toHaveBeenCalledTimes(1);
+      const setToken = (mockContext.Token?.set as jest.Mock).mock.calls[
+        (mockContext.Token?.set as jest.Mock).mock.calls.length - 1
+      ][0];
+      expect(setToken.address).toBe(tokenAddress);
+      expect(setToken.pricePerUSDNew).toBe(0n);
     });
 
     it("should call getTokenDetails effect", async () => {
@@ -352,10 +361,12 @@ describe("PriceOracle", () => {
         mockContext as handlerContext,
       );
 
-      expect((mockContext.effect as sinon.SinonStub).calledOnce).to.be.true;
-      const effectCall = (mockContext.effect as sinon.SinonStub).lastCall;
-      expect(effectCall.args[1].contractAddress).to.equal(tokenAddress);
-      expect(effectCall.args[1].chainId).to.equal(chainId);
+      expect(mockContext.effect as jest.Mock).toHaveBeenCalledTimes(1);
+      const effectCall = (mockContext.effect as jest.Mock).mock.calls[
+        (mockContext.effect as jest.Mock).mock.calls.length - 1
+      ];
+      expect(effectCall[1].contractAddress).toBe(tokenAddress);
+      expect(effectCall[1].chainId).toBe(chainId);
     });
   });
 });

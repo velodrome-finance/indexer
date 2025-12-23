@@ -1,5 +1,3 @@
-import { expect } from "chai";
-import sinon from "sinon";
 import type { PublicClient } from "viem";
 import { MockDb, PoolFactory } from "../../generated/src/TestHelpers.gen";
 import type {
@@ -24,15 +22,15 @@ describe("PoolFactory Events", () => {
   const poolAddress = mockLiquidityPoolData.id;
   const chainId = 10;
 
-  let mockPriceOracle: sinon.SinonStub;
+  let mockPriceOracle: jest.SpyInstance;
 
   /**
-   * Helper function to reset and reconfigure the mockPriceOracle stub
+   * Helper function to reset and reconfigure the mockPriceOracle mock
    * This avoids repetition across multiple test cases
    */
   function resetMockPriceOracle(): void {
-    mockPriceOracle.reset();
-    mockPriceOracle.callsFake(async (...args) => {
+    mockPriceOracle.mockClear();
+    mockPriceOracle.mockImplementation(async (...args) => {
       if (args[0] === token0Address) return mockToken0Data as Token;
       return mockToken1Data as Token;
     });
@@ -43,7 +41,7 @@ describe("PoolFactory Events", () => {
     let chainConstantsCleanup: (() => void) | undefined;
 
     beforeEach(async () => {
-      mockPriceOracle = sinon.stub(PriceOracle, "createTokenEntity");
+      mockPriceOracle = jest.spyOn(PriceOracle, "createTokenEntity");
       resetMockPriceOracle();
 
       const mockDb = MockDb.createMockDb();
@@ -69,7 +67,7 @@ describe("PoolFactory Events", () => {
     });
 
     afterEach(() => {
-      mockPriceOracle.restore();
+      jest.restoreAllMocks();
       // Restore CHAIN_CONSTANTS if it was mutated
       if (chainConstantsCleanup) {
         chainConstantsCleanup();
@@ -78,23 +76,23 @@ describe("PoolFactory Events", () => {
     });
 
     it("should create token entities", () => {
-      expect(mockPriceOracle.called).to.be.true;
-      expect(mockPriceOracle.callCount).to.be.at.least(2);
+      expect(mockPriceOracle).toHaveBeenCalled();
+      expect(mockPriceOracle.mock.calls.length).toBeGreaterThanOrEqual(2);
     });
 
     it("should create a new LiquidityPool entity and Token entities", async () => {
-      expect(createdPool).to.not.be.undefined;
-      expect(createdPool?.isStable).to.be.false;
-      expect(createdPool?.lastUpdatedTimestamp).to.deep.equal(
+      expect(createdPool).not.toBeUndefined();
+      expect(createdPool?.isStable).toBe(false);
+      expect(createdPool?.lastUpdatedTimestamp).toEqual(
         new Date(1000000 * 1000),
       );
     });
 
     it("should appropriately set token data on the aggregator", () => {
-      expect(createdPool?.token0_id).to.equal(`${token0Address}-${chainId}`);
-      expect(createdPool?.token1_id).to.equal(`${token1Address}-${chainId}`);
-      expect(createdPool?.token0_address).to.equal(token0Address);
-      expect(createdPool?.token1_address).to.equal(token1Address);
+      expect(createdPool?.token0_id).toBe(`${token0Address}-${chainId}`);
+      expect(createdPool?.token1_id).toBe(`${token1Address}-${chainId}`);
+      expect(createdPool?.token0_address).toBe(token0Address);
+      expect(createdPool?.token1_address).toBe(token1Address);
     });
 
     it("should NOT create RootPool_LeafPool for Optimism (chainId 10)", async () => {
@@ -125,7 +123,7 @@ describe("PoolFactory Events", () => {
       const rootPoolLeafPools = Array.from(
         result.entities.RootPool_LeafPool.getAll(),
       );
-      expect(rootPoolLeafPools.length).to.equal(0);
+      expect(rootPoolLeafPools.length).toBe(0);
     });
 
     it("should NOT create RootPool_LeafPool for Base (chainId 8453)", async () => {
@@ -156,7 +154,7 @@ describe("PoolFactory Events", () => {
       const rootPoolLeafPools = Array.from(
         result.entities.RootPool_LeafPool.getAll(),
       );
-      expect(rootPoolLeafPools.length).to.equal(0);
+      expect(rootPoolLeafPools.length).toBe(0);
     });
 
     it("should create RootPool_LeafPool for non-Optimism/Base chains (e.g., Fraxtal)", async () => {
@@ -167,7 +165,7 @@ describe("PoolFactory Events", () => {
 
       // Setup mock ethClient for Fraxtal
       const mockEthClient = {
-        simulateContract: sinon.stub().resolves({
+        simulateContract: jest.fn().mockResolvedValue({
           result: mockRootPoolAddressLowercase,
         }),
       } as unknown as PublicClient;
@@ -212,18 +210,15 @@ describe("PoolFactory Events", () => {
       const rootPoolLeafPool =
         result.entities.RootPool_LeafPool.get(rootPoolLeafPoolId);
 
-      expect(rootPoolLeafPool).to.not.be.undefined;
-      expect(rootPoolLeafPool?.rootChainId).to.equal(10); // Always 10 (Optimism)
-      expect(rootPoolLeafPool?.rootPoolAddress).to.equal(
-        expectedRootPoolAddress,
-      );
-      expect(rootPoolLeafPool?.leafChainId).to.equal(fraxtalChainId);
-      expect(rootPoolLeafPool?.leafPoolAddress).to.equal(poolAddress);
+      expect(rootPoolLeafPool).not.toBeUndefined();
+      expect(rootPoolLeafPool?.rootChainId).toBe(10); // Always 10 (Optimism)
+      expect(rootPoolLeafPool?.rootPoolAddress).toBe(expectedRootPoolAddress);
+      expect(rootPoolLeafPool?.leafChainId).toBe(fraxtalChainId);
+      expect(rootPoolLeafPool?.leafPoolAddress).toBe(poolAddress);
 
       // Verify the effect was called
-      const mockSimulateContract =
-        mockEthClient.simulateContract as sinon.SinonStub;
-      expect(mockSimulateContract.calledOnce).to.be.true;
+      const mockSimulateContract = jest.mocked(mockEthClient.simulateContract);
+      expect(mockSimulateContract).toHaveBeenCalledTimes(1);
     });
 
     it("should handle error when getRootPoolAddress fails for non-Optimism/Base chains", async () => {
@@ -232,7 +227,9 @@ describe("PoolFactory Events", () => {
 
       // Setup mock ethClient that throws an error
       const mockEthClient = {
-        simulateContract: sinon.stub().rejects(new Error("RPC call failed")),
+        simulateContract: jest
+          .fn()
+          .mockRejectedValue(new Error("RPC call failed")),
       } as unknown as PublicClient;
 
       // Mock CHAIN_CONSTANTS for Fraxtal
@@ -270,7 +267,7 @@ describe("PoolFactory Events", () => {
       // Should still create the pool even if root pool address fetch fails
       const createdPool =
         result.entities.LiquidityPoolAggregator.get(poolAddress);
-      expect(createdPool).to.not.be.undefined;
+      expect(createdPool).not.toBeUndefined();
 
       // Should not create RootPool_LeafPool when effect fails (returns null/undefined)
       const rootPoolLeafPools = Array.from(
@@ -278,7 +275,7 @@ describe("PoolFactory Events", () => {
       );
       // Note: The current implementation returns early if rootPoolAddress is falsy,
       // so we expect no RootPool_LeafPool to be created
-      expect(rootPoolLeafPools.length).to.equal(0);
+      expect(rootPoolLeafPools.length).toBe(0);
     });
 
     it("should handle null/undefined rootPoolAddress from effect", async () => {
@@ -288,7 +285,7 @@ describe("PoolFactory Events", () => {
       // Setup mock ethClient that returns null
       // This will cause fetchRootPoolAddress to return empty string, which the handler should handle
       const mockEthClient = {
-        simulateContract: sinon.stub().resolves({
+        simulateContract: jest.fn().mockResolvedValue({
           result: null,
         }),
       } as unknown as PublicClient;
@@ -326,13 +323,13 @@ describe("PoolFactory Events", () => {
       // Should still create the pool
       const createdPool =
         result.entities.LiquidityPoolAggregator.get(poolAddress);
-      expect(createdPool).to.not.be.undefined;
+      expect(createdPool).not.toBeUndefined();
 
       // Should not create RootPool_LeafPool when rootPoolAddress is null/undefined
       const rootPoolLeafPools = Array.from(
         result.entities.RootPool_LeafPool.getAll(),
       );
-      expect(rootPoolLeafPools.length).to.equal(0);
+      expect(rootPoolLeafPools.length).toBe(0);
     });
   });
 
@@ -372,17 +369,17 @@ describe("PoolFactory Events", () => {
       // Assert - check LiquidityPoolAggregator was updated
       const updatedPool =
         result.entities.LiquidityPoolAggregator.get(poolAddress);
-      expect(updatedPool).to.not.be.undefined;
-      expect(updatedPool?.baseFee).to.equal(customFee);
-      expect(updatedPool?.currentFee).to.equal(customFee);
-      expect(updatedPool?.lastUpdatedTimestamp).to.deep.equal(
+      expect(updatedPool).not.toBeUndefined();
+      expect(updatedPool?.baseFee).toBe(customFee);
+      expect(updatedPool?.currentFee).toBe(customFee);
+      expect(updatedPool?.lastUpdatedTimestamp).toEqual(
         new Date(blockTimestamp * 1000),
       );
       // Verify other fields are preserved
-      expect(updatedPool?.id).to.equal(existingPool.id);
-      expect(updatedPool?.chainId).to.equal(existingPool.chainId);
-      expect(updatedPool?.token0_address).to.equal(existingPool.token0_address);
-      expect(updatedPool?.token1_address).to.equal(existingPool.token1_address);
+      expect(updatedPool?.id).toBe(existingPool.id);
+      expect(updatedPool?.chainId).toBe(existingPool.chainId);
+      expect(updatedPool?.token0_address).toBe(existingPool.token0_address);
+      expect(updatedPool?.token1_address).toBe(existingPool.token1_address);
     });
 
     it("should update existing fee values when pool already has fees set", async () => {
@@ -421,11 +418,11 @@ describe("PoolFactory Events", () => {
       // Assert - check fees were updated
       const updatedPool =
         result.entities.LiquidityPoolAggregator.get(poolAddress);
-      expect(updatedPool).to.not.be.undefined;
-      expect(updatedPool?.baseFee).to.equal(newFee);
-      expect(updatedPool?.currentFee).to.equal(newFee);
-      expect(updatedPool?.baseFee).to.not.equal(existingFee);
-      expect(updatedPool?.lastUpdatedTimestamp).to.deep.equal(
+      expect(updatedPool).not.toBeUndefined();
+      expect(updatedPool?.baseFee).toBe(newFee);
+      expect(updatedPool?.currentFee).toBe(newFee);
+      expect(updatedPool?.baseFee).not.toBe(existingFee);
+      expect(updatedPool?.lastUpdatedTimestamp).toEqual(
         new Date(blockTimestamp * 1000),
       );
     });
@@ -460,7 +457,7 @@ describe("PoolFactory Events", () => {
       const pool = result.entities.LiquidityPoolAggregator.get(
         nonExistentPoolAddress,
       );
-      expect(pool).to.be.undefined;
+      expect(pool).toBeUndefined();
     });
   });
 });

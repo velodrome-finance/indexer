@@ -1,5 +1,3 @@
-import { expect } from "chai";
-import sinon from "sinon";
 import { MockDb, Pool } from "../../../generated/src/TestHelpers.gen";
 import type {
   LiquidityPoolAggregator,
@@ -50,7 +48,7 @@ describe("Pool Swap Event", () => {
     },
   };
 
-  let mockPriceOracle: sinon.SinonStub;
+  let mockPriceOracle: jest.SpyInstance;
   let mockDb: ReturnType<typeof MockDb.createMockDb>;
 
   beforeEach(() => {
@@ -68,7 +66,6 @@ describe("Pool Swap Event", () => {
 
     expectations.totalVolume0 =
       mockLiquidityPoolData.totalVolume0 + expectations.swapAmount0In;
-
     expectations.totalVolume1 =
       mockLiquidityPoolData.totalVolume1 + expectations.swapAmount1Out;
 
@@ -87,9 +84,9 @@ describe("Pool Swap Event", () => {
 
     expectations.totalVolumeUSDWhitelisted = expectations.expectedLPVolumeUSD0;
 
-    mockPriceOracle = sinon
-      .stub(PriceOracle, "refreshTokenPrice")
-      .callsFake(async (...args) => {
+    mockPriceOracle = jest
+      .spyOn(PriceOracle, "refreshTokenPrice")
+      .mockImplementation(async (...args) => {
         return args[0]; // Return the token that was passed in
       });
 
@@ -99,7 +96,7 @@ describe("Pool Swap Event", () => {
   });
 
   afterEach(() => {
-    mockPriceOracle.restore();
+    jest.restoreAllMocks();
   });
 
   describe("when both tokens exist", () => {
@@ -128,51 +125,51 @@ describe("Pool Swap Event", () => {
       const userStats = postEventDB.entities.UserStatsPerPool.get(
         `${eventData.sender.toLowerCase()}_${eventData.mockEventData.srcAddress.toLowerCase()}_${eventData.mockEventData.chainId}`,
       );
-      expect(userStats).to.not.be.undefined;
-      expect(userStats?.userAddress).to.equal(eventData.sender.toLowerCase());
-      expect(userStats?.poolAddress).to.equal(
+      expect(userStats).not.toBeUndefined();
+      expect(userStats?.userAddress).toBe(eventData.sender.toLowerCase());
+      expect(userStats?.poolAddress).toBe(
         eventData.mockEventData.srcAddress.toLowerCase(),
       );
-      expect(userStats?.chainId).to.equal(eventData.mockEventData.chainId);
-      expect(userStats?.numberOfSwaps).to.equal(1n);
-      expect(userStats?.totalSwapVolumeUSD).to.equal(100000000000000000000n); // 100 tokens * 1 USD
-      expect(userStats?.lastActivityTimestamp).to.deep.equal(
+      expect(userStats?.chainId).toBe(eventData.mockEventData.chainId);
+      expect(userStats?.numberOfSwaps).toBe(1n);
+      expect(userStats?.totalSwapVolumeUSD).toBe(100000000000000000000n); // 100 tokens * 1 USD
+      expect(userStats?.lastActivityTimestamp).toEqual(
         new Date(eventData.mockEventData.block.timestamp * 1000),
       );
     });
 
     it("should update the Liquidity Pool aggregator", async () => {
-      expect(updatedPool).to.not.be.undefined;
-      expect(updatedPool?.totalVolume0).to.equal(expectations.totalVolume0);
-      expect(updatedPool?.totalVolume1).to.equal(expectations.totalVolume1);
-      expect(updatedPool?.totalVolumeUSD).to.equal(
+      expect(updatedPool).not.toBeUndefined();
+      expect(updatedPool?.totalVolume0).toBe(expectations.totalVolume0);
+      expect(updatedPool?.totalVolume1).toBe(expectations.totalVolume1);
+      expect(updatedPool?.totalVolumeUSD).toBe(
         expectations.expectedLPVolumeUSD0,
       );
-      expect(updatedPool?.totalVolumeUSDWhitelisted).to.equal(
+      expect(updatedPool?.totalVolumeUSDWhitelisted).toBe(
         expectations.totalVolumeUSDWhitelisted,
       );
-      expect(updatedPool?.numberOfSwaps).to.equal(
+      expect(updatedPool?.numberOfSwaps).toBe(
         mockLiquidityPoolData.numberOfSwaps + 1n,
       );
-      expect(updatedPool?.lastUpdatedTimestamp).to.deep.equal(
+      expect(updatedPool?.lastUpdatedTimestamp).toEqual(
         new Date(eventData.mockEventData.block.timestamp * 1000),
       );
     });
     it("should call refreshTokenPrice on token0", () => {
-      const calledToken = mockPriceOracle.firstCall.args[0];
-      expect(calledToken.address).to.equal(mockToken0Data.address);
+      const calledToken = mockPriceOracle.mock.calls[0][0];
+      expect(calledToken.address).toBe(mockToken0Data.address);
     });
     it("should call refreshTokenPrice on token1", () => {
-      const calledToken = mockPriceOracle.secondCall.args[0];
-      expect(calledToken.address).to.equal(mockToken1Data.address);
+      const calledToken = mockPriceOracle.mock.calls[1][0];
+      expect(calledToken.address).toBe(mockToken1Data.address);
     });
     it("should update the liquidity pool with token0IsWhitelisted", () => {
-      expect(updatedPool?.token0IsWhitelisted).to.equal(
+      expect(updatedPool?.token0IsWhitelisted).toBe(
         mockToken0Data.isWhitelisted,
       );
     });
     it("should update the liquidity pool with token1IsWhitelisted", () => {
-      expect(updatedPool?.token1IsWhitelisted).to.equal(
+      expect(updatedPool?.token1IsWhitelisted).toBe(
         mockToken1Data.isWhitelisted,
       );
     });

@@ -1,4 +1,3 @@
-import { expect } from "chai";
 import type {
   LiquidityPoolAggregator,
   PoolLauncherPool,
@@ -63,41 +62,37 @@ describe("PoolLauncherLogic", () => {
       );
 
       // Assert
-      expect(result).to.not.be.undefined;
-      expect(result.id).to.equal(
-        "8453-0x1234567890123456789012345678901234567890",
-      );
-      expect(result.chainId).to.equal(8453);
-      expect(result.underlyingPool).to.equal(
+      expect(result).not.toBeUndefined();
+      expect(result.id).toBe("8453-0x1234567890123456789012345678901234567890");
+      expect(result.chainId).toBe(8453);
+      expect(result.underlyingPool).toBe(
         "0x1234567890123456789012345678901234567890",
       );
-      expect(result.launcher).to.equal(
+      expect(result.launcher).toBe(
         "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
       );
-      expect(result.creator).to.equal(
-        "0x1111111111111111111111111111111111111111",
-      );
-      expect(result.poolLauncherToken).to.equal(
+      expect(result.creator).toBe("0x1111111111111111111111111111111111111111");
+      expect(result.poolLauncherToken).toBe(
         "0x2222222222222222222222222222222222222222",
       );
-      expect(result.pairToken).to.equal(
+      expect(result.pairToken).toBe(
         "0x3333333333333333333333333333333333333333",
       );
-      expect(result.createdAt).to.deep.equal(createdAt);
-      expect(result.isEmerging).to.be.false;
-      expect(result.lastFlagUpdateAt).to.deep.equal(createdAt);
-      expect(result.migratedFrom).to.equal("");
-      expect(result.migratedTo).to.equal("");
-      expect(result.oldLocker).to.equal("");
-      expect(result.newLocker).to.equal("");
-      expect(result.lastMigratedAt).to.deep.equal(createdAt);
+      expect(result.createdAt).toEqual(createdAt);
+      expect(result.isEmerging).toBe(false);
+      expect(result.lastFlagUpdateAt).toEqual(createdAt);
+      expect(result.migratedFrom).toBe("");
+      expect(result.migratedTo).toBe("");
+      expect(result.oldLocker).toBe("");
+      expect(result.newLocker).toBe("");
+      expect(result.lastMigratedAt).toEqual(createdAt);
 
       // Verify the entity was set in the context
       const savedEntity = mockDb.entities.PoolLauncherPool.get(
         "8453-0x1234567890123456789012345678901234567890",
       );
-      expect(savedEntity).to.not.be.undefined;
-      expect(savedEntity?.id).to.equal(
+      expect(savedEntity).not.toBeUndefined();
+      expect(savedEntity?.id).toBe(
         "8453-0x1234567890123456789012345678901234567890",
       );
     });
@@ -144,19 +139,15 @@ describe("PoolLauncherLogic", () => {
       );
 
       // Assert
-      expect(result).to.not.be.undefined;
-      expect(result.id).to.equal(
-        "8453-0x1234567890123456789012345678901234567890",
-      );
-      expect(result.launcher).to.equal(
+      expect(result).not.toBeUndefined();
+      expect(result.id).toBe("8453-0x1234567890123456789012345678901234567890");
+      expect(result.launcher).toBe(
         "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
       ); // Updated
-      expect(result.lastMigratedAt).to.deep.equal(createdAt); // Updated
-      expect(result.creator).to.equal(
-        "0x1111111111111111111111111111111111111111",
-      ); // Unchanged
-      expect(result.isEmerging).to.be.true; // Unchanged
-      expect(result.migratedFrom).to.equal(
+      expect(result.lastMigratedAt).toEqual(createdAt); // Updated
+      expect(result.creator).toBe("0x1111111111111111111111111111111111111111"); // Unchanged
+      expect(result.isEmerging).toBe(true); // Unchanged
+      expect(result.migratedFrom).toBe(
         "0xoldpool000000000000000000000000000000000000",
       ); // Unchanged
     });
@@ -182,10 +173,8 @@ describe("PoolLauncherLogic", () => {
       );
 
       // Assert
-      expect(result.id).to.equal(
-        "10-0x1234567890123456789012345678901234567890",
-      );
-      expect(result.chainId).to.equal(10);
+      expect(result.id).toBe("10-0x1234567890123456789012345678901234567890");
+      expect(result.chainId).toBe(10);
     });
 
     it("should normalize addresses to lowercase", async () => {
@@ -209,16 +198,14 @@ describe("PoolLauncherLogic", () => {
       );
 
       // Assert
-      expect(result.launcher).to.equal(
+      expect(result.launcher).toBe(
         "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
       );
-      expect(result.creator).to.equal(
-        "0x1111111111111111111111111111111111111111",
-      );
-      expect(result.poolLauncherToken).to.equal(
+      expect(result.creator).toBe("0x1111111111111111111111111111111111111111");
+      expect(result.poolLauncherToken).toBe(
         "0x2222222222222222222222222222222222222222",
       );
-      expect(result.pairToken).to.equal(
+      expect(result.pairToken).toBe(
         "0x3333333333333333333333333333333333333333",
       );
     });
@@ -302,23 +289,23 @@ describe("PoolLauncherLogic", () => {
         const updatedEntity = mockDb.entities.LiquidityPoolAggregator.get(
           "0x1234567890123456789012345678901234567890",
         );
-        expect(updatedEntity).to.not.be.undefined;
-        expect(updatedEntity?.poolLauncherPoolId).to.equal(
+        expect(updatedEntity).not.toBeUndefined();
+        expect(updatedEntity?.poolLauncherPoolId).toBe(
           "8453-0x1234567890123456789012345678901234567890",
         );
-        expect(updatedEntity?.lastUpdatedTimestamp).to.be.instanceOf(Date);
+        expect(updatedEntity?.lastUpdatedTimestamp).toBeInstanceOf(Date);
 
         // Verify all other fields remain unchanged
-        expect(updatedEntity?.id).to.equal(
+        expect(updatedEntity?.id).toBe(
           "0x1234567890123456789012345678901234567890",
         );
-        expect(updatedEntity?.chainId).to.equal(8453);
-        expect(updatedEntity?.name).to.equal("TEST/USDC");
-        expect(updatedEntity?.reserve0).to.equal(1000000n);
-        expect(updatedEntity?.reserve1).to.equal(2000000n);
-        expect(updatedEntity?.totalLiquidityUSD).to.equal(3000000n);
-        expect(updatedEntity?.isCL).to.be.true;
-        expect(updatedEntity?.gaugeIsAlive).to.be.true;
+        expect(updatedEntity?.chainId).toBe(8453);
+        expect(updatedEntity?.name).toBe("TEST/USDC");
+        expect(updatedEntity?.reserve0).toBe(1000000n);
+        expect(updatedEntity?.reserve1).toBe(2000000n);
+        expect(updatedEntity?.totalLiquidityUSD).toBe(3000000n);
+        expect(updatedEntity?.isCL).toBe(true);
+        expect(updatedEntity?.gaugeIsAlive).toBe(true);
       });
 
       it("should handle case where LiquidityPoolAggregator does not exist", async () => {
@@ -332,10 +319,10 @@ describe("PoolLauncherLogic", () => {
             ...mockContext.log,
             warn: (message: string) => {
               warnCalled = true;
-              expect(message).to.include(
+              expect(message).toContain(
                 "LiquidityPoolAggregator not found for pool",
               );
-              expect(message).to.include(
+              expect(message).toContain(
                 "it should have been created by CLFactory",
               );
             },
@@ -350,13 +337,13 @@ describe("PoolLauncherLogic", () => {
         );
 
         // Assert
-        expect(warnCalled).to.be.true;
+        expect(warnCalled).toBe(true);
 
         // Verify no entity was created or updated
         const entity = mockDb.entities.LiquidityPoolAggregator.get(
           "0x1234567890123456789012345678901234567890",
         );
-        expect(entity).to.be.undefined;
+        expect(entity).toBeUndefined();
       });
     });
 
@@ -437,23 +424,23 @@ describe("PoolLauncherLogic", () => {
         const updatedEntity = mockDb.entities.LiquidityPoolAggregator.get(
           "0x1234567890123456789012345678901234567890",
         );
-        expect(updatedEntity).to.not.be.undefined;
-        expect(updatedEntity?.poolLauncherPoolId).to.equal(
+        expect(updatedEntity).not.toBeUndefined();
+        expect(updatedEntity?.poolLauncherPoolId).toBe(
           "8453-0x1234567890123456789012345678901234567890",
         );
-        expect(updatedEntity?.lastUpdatedTimestamp).to.be.instanceOf(Date);
+        expect(updatedEntity?.lastUpdatedTimestamp).toBeInstanceOf(Date);
 
         // Verify all other fields remain unchanged
-        expect(updatedEntity?.id).to.equal(
+        expect(updatedEntity?.id).toBe(
           "0x1234567890123456789012345678901234567890",
         );
-        expect(updatedEntity?.chainId).to.equal(8453);
-        expect(updatedEntity?.name).to.equal("TEST/USDC");
-        expect(updatedEntity?.reserve0).to.equal(1000000n);
-        expect(updatedEntity?.reserve1).to.equal(2000000n);
-        expect(updatedEntity?.totalLiquidityUSD).to.equal(3000000n);
-        expect(updatedEntity?.isCL).to.be.false; // V2 pools are not CL
-        expect(updatedEntity?.gaugeIsAlive).to.be.true;
+        expect(updatedEntity?.chainId).toBe(8453);
+        expect(updatedEntity?.name).toBe("TEST/USDC");
+        expect(updatedEntity?.reserve0).toBe(1000000n);
+        expect(updatedEntity?.reserve1).toBe(2000000n);
+        expect(updatedEntity?.totalLiquidityUSD).toBe(3000000n);
+        expect(updatedEntity?.isCL).toBe(false); // V2 pools are not CL
+        expect(updatedEntity?.gaugeIsAlive).toBe(true);
       });
 
       it("should handle case where LiquidityPoolAggregator does not exist", async () => {
@@ -467,10 +454,10 @@ describe("PoolLauncherLogic", () => {
             ...mockContext.log,
             warn: (message: string) => {
               warnCalled = true;
-              expect(message).to.include(
+              expect(message).toContain(
                 "LiquidityPoolAggregator not found for pool",
               );
-              expect(message).to.include("V2Factory");
+              expect(message).toContain("V2Factory");
             },
           },
         };
@@ -483,13 +470,13 @@ describe("PoolLauncherLogic", () => {
         );
 
         // Assert
-        expect(warnCalled).to.be.true;
+        expect(warnCalled).toBe(true);
 
         // Verify no entity was created or updated
         const entity = mockDb.entities.LiquidityPoolAggregator.get(
           "0x1234567890123456789012345678901234567890",
         );
-        expect(entity).to.be.undefined;
+        expect(entity).toBeUndefined();
       });
     });
 
@@ -568,8 +555,8 @@ describe("PoolLauncherLogic", () => {
       const updatedEntity = mockDb.entities.LiquidityPoolAggregator.get(
         "0x1234567890123456789012345678901234567890",
       );
-      expect(updatedEntity).to.not.be.undefined;
-      expect(updatedEntity?.poolLauncherPoolId).to.equal(
+      expect(updatedEntity).not.toBeUndefined();
+      expect(updatedEntity?.poolLauncherPoolId).toBe(
         "10-0x1234567890123456789012345678901234567890",
       );
     });
@@ -649,8 +636,8 @@ describe("PoolLauncherLogic", () => {
       const updatedEntity = mockDb.entities.LiquidityPoolAggregator.get(
         "0x1234567890123456789012345678901234567890",
       );
-      expect(updatedEntity).to.not.be.undefined;
-      expect(updatedEntity?.poolLauncherPoolId).to.equal(
+      expect(updatedEntity).not.toBeUndefined();
+      expect(updatedEntity?.poolLauncherPoolId).toBe(
         "8453-0x1234567890123456789012345678901234567890",
       );
     });

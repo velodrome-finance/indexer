@@ -1,4 +1,3 @@
-import { expect } from "chai";
 import type {
   DispatchId_event,
   OUSDTBridgedTransaction,
@@ -162,25 +161,23 @@ describe("SuperSwapLogic", () => {
       );
 
       const superSwaps = context.getSuperSwaps();
-      expect(superSwaps.size).to.equal(1);
+      expect(superSwaps.size).toBe(1);
 
       // Find the SuperSwap by checking all entries (since ID includes swap-specific data)
       const superSwapEntries = Array.from(superSwaps.values()) as SuperSwap[];
-      expect(superSwapEntries.length).to.equal(1);
+      expect(superSwapEntries.length).toBe(1);
       const superSwap = superSwapEntries[0];
-      expect(superSwap).to.not.be.undefined;
-      expect(superSwap.originChainId).to.equal(BigInt(chainId));
-      expect(superSwap.destinationChainId).to.equal(destinationDomain);
-      expect(superSwap.sender).to.equal(senderAddress.toLowerCase());
-      expect(superSwap.recipient).to.equal(recipientAddress.toLowerCase());
-      expect(superSwap.oUSDTamount).to.equal(oUSDTAmount);
-      expect(superSwap.sourceChainToken).to.equal(tokenInAddress);
-      expect(superSwap.sourceChainTokenAmountSwapped).to.equal(1000n);
-      expect(superSwap.destinationChainToken).to.equal(tokenOutAddress);
-      expect(superSwap.destinationChainTokenAmountSwapped).to.equal(950n);
-      expect(superSwap.timestamp).to.deep.equal(
-        new Date(blockTimestamp * 1000),
-      );
+      expect(superSwap).not.toBeUndefined();
+      expect(superSwap.originChainId).toBe(BigInt(chainId));
+      expect(superSwap.destinationChainId).toBe(destinationDomain);
+      expect(superSwap.sender).toBe(senderAddress.toLowerCase());
+      expect(superSwap.recipient).toBe(recipientAddress.toLowerCase());
+      expect(superSwap.oUSDTamount).toBe(oUSDTAmount);
+      expect(superSwap.sourceChainToken).toBe(tokenInAddress);
+      expect(superSwap.sourceChainTokenAmountSwapped).toBe(1000n);
+      expect(superSwap.destinationChainToken).toBe(tokenOutAddress);
+      expect(superSwap.destinationChainTokenAmountSwapped).toBe(950n);
+      expect(superSwap.timestamp).toEqual(new Date(blockTimestamp * 1000));
     });
 
     it("should create single SuperSwap when multiple destination swaps exist but only one has oUSDT", async () => {
@@ -252,7 +249,7 @@ describe("SuperSwapLogic", () => {
 
       // Should create only 1 SuperSwap (the one with oUSDT)
       const superSwaps = context.getSuperSwaps();
-      expect(superSwaps.size).to.equal(1);
+      expect(superSwaps.size).toBe(1);
     });
 
     it("should handle multiple DispatchId events with different ProcessId transactions", async () => {
@@ -341,7 +338,7 @@ describe("SuperSwapLogic", () => {
 
       // Should create 1 SuperSwap (only for the messageId with oUSDT swap)
       const superSwaps = context.getSuperSwaps();
-      expect(superSwaps.size).to.equal(1);
+      expect(superSwaps.size).toBe(1);
     });
 
     it("should warn when ProcessId event is missing for a messageId", async () => {
@@ -370,12 +367,12 @@ describe("SuperSwapLogic", () => {
       );
 
       const warnings = context.getWarnings();
-      expect(warnings.length).to.be.greaterThan(0);
-      expect(warnings[0]).to.include(messageId1);
-      expect(warnings[0]).to.include("No ProcessId_event found");
+      expect(warnings.length).toBeGreaterThan(0);
+      expect(warnings[0]).toContain(messageId1);
+      expect(warnings[0]).toContain("No ProcessId_event found");
 
       const superSwaps = context.getSuperSwaps();
-      expect(superSwaps.size).to.equal(0);
+      expect(superSwaps.size).toBe(0);
     });
 
     it("should warn when OUSDTSwaps are missing for a transaction", async () => {
@@ -423,14 +420,14 @@ describe("SuperSwapLogic", () => {
       );
 
       const warnings = context.getWarnings();
-      expect(warnings.length).to.be.greaterThan(0);
+      expect(warnings.length).toBeGreaterThan(0);
       const swapWarning = warnings.find((w: string) =>
         w.includes("No destination chain swap with oUSDT found"),
       );
-      expect(swapWarning).to.not.be.undefined;
+      expect(swapWarning).not.toBeUndefined();
 
       const superSwaps = context.getSuperSwaps();
-      expect(superSwaps.size).to.equal(0);
+      expect(superSwaps.size).toBe(0);
     });
 
     it("should match ProcessId events by messageId field, not array index", async () => {
@@ -508,7 +505,7 @@ describe("SuperSwapLogic", () => {
 
       // Should create 1 SuperSwap entity (only one has oUSDT swap)
       const superSwaps = context.getSuperSwaps();
-      expect(superSwaps.size).to.equal(1);
+      expect(superSwaps.size).toBe(1);
     });
 
     it("should create single SuperSwap for real-world (inspired) scenario: 3 DispatchIds, 2 destination transactions, only one has oUSDT swap", async () => {
@@ -632,34 +629,32 @@ describe("SuperSwapLogic", () => {
 
       // Should create exactly 1 SuperSwap entity
       const superSwaps = context.getSuperSwaps();
-      expect(superSwaps.size).to.equal(1);
+      expect(superSwaps.size).toBe(1);
 
       const superSwapEntries = Array.from(superSwaps.values()) as SuperSwap[];
       const superSwap = superSwapEntries[0];
 
-      expect(superSwap).to.not.be.undefined;
-      expect(superSwap.originChainId).to.equal(BigInt(chainId));
-      expect(superSwap.destinationChainId).to.equal(destinationDomain);
-      expect(superSwap.sender).to.equal(senderAddress.toLowerCase());
-      expect(superSwap.recipient).to.equal(recipientAddress.toLowerCase());
-      expect(superSwap.oUSDTamount).to.equal(oUSDTAmount);
+      expect(superSwap).not.toBeUndefined();
+      expect(superSwap.originChainId).toBe(BigInt(chainId));
+      expect(superSwap.destinationChainId).toBe(destinationDomain);
+      expect(superSwap.sender).toBe(senderAddress.toLowerCase());
+      expect(superSwap.recipient).toBe(recipientAddress.toLowerCase());
+      expect(superSwap.oUSDTamount).toBe(oUSDTAmount);
       // Source chain token should be OP (the non-oUSDT token from source swap)
-      expect(superSwap.sourceChainToken.toLowerCase()).to.equal(
+      expect(superSwap.sourceChainToken.toLowerCase()).toBe(
         opTokenAddress.toLowerCase(),
       );
-      expect(superSwap.sourceChainTokenAmountSwapped).to.equal(
+      expect(superSwap.sourceChainTokenAmountSwapped).toBe(
         1000000000000000000n,
       );
       // Destination chain token should be WETH (the non-oUSDT token from destination swap)
-      expect(superSwap.destinationChainToken.toLowerCase()).to.equal(
+      expect(superSwap.destinationChainToken.toLowerCase()).toBe(
         wethTokenAddress.toLowerCase(),
       );
-      expect(superSwap.destinationChainTokenAmountSwapped).to.equal(
+      expect(superSwap.destinationChainTokenAmountSwapped).toBe(
         950000000000000000n,
       );
-      expect(superSwap.timestamp).to.deep.equal(
-        new Date(blockTimestamp * 1000),
-      );
+      expect(superSwap.timestamp).toEqual(new Date(blockTimestamp * 1000));
     });
   });
 
@@ -708,43 +703,46 @@ describe("SuperSwapLogic", () => {
       );
 
       // Verify map size
-      expect(result.messageIdToProcessId.size).to.equal(2);
+      expect(result.messageIdToProcessId.size).toBe(2);
 
       // Verify messageId1 maps to correct ProcessId_event
       const processId1 = result.messageIdToProcessId.get(messageId1);
-      expect(processId1).to.not.be.undefined;
-      expect(processId1?.messageId).to.equal(messageId1);
-      expect(processId1?.transactionHash).to.equal(destinationTxHash);
-      expect(processId1?.chainId).to.equal(Number(destinationDomain));
-      expect(processId1?.id).to.equal(
+      expect(processId1).not.toBeUndefined();
+      expect(processId1?.messageId).toBe(messageId1);
+      expect(processId1?.transactionHash).toBe(destinationTxHash);
+      expect(processId1?.chainId).toBe(Number(destinationDomain));
+      expect(processId1?.id).toBe(
         `${destinationTxHash}_${destinationDomain}_${messageId1}`,
       );
 
       // Verify messageId2 maps to correct ProcessId_event
       const processId2 = result.messageIdToProcessId.get(messageId2);
-      expect(processId2).to.not.be.undefined;
-      expect(processId2?.messageId).to.equal(messageId2);
-      expect(processId2?.transactionHash).to.equal(destinationTxHash);
-      expect(processId2?.chainId).to.equal(Number(destinationDomain));
-      expect(processId2?.id).to.equal(
+      expect(processId2).not.toBeUndefined();
+      expect(processId2?.messageId).toBe(messageId2);
+      expect(processId2?.transactionHash).toBe(destinationTxHash);
+      expect(processId2?.chainId).toBe(Number(destinationDomain));
+      expect(processId2?.id).toBe(
         `${destinationTxHash}_${destinationDomain}_${messageId2}`,
       );
 
       // Verify no unexpected messageIds in map
       const allMessageIds = Array.from(result.messageIdToProcessId.keys());
-      expect(allMessageIds).to.have.members([messageId1, messageId2]);
+      expect(allMessageIds).toEqual(
+        expect.arrayContaining([messageId1, messageId2]),
+      );
 
       // Verify destination transaction hashes
-      expect(result.destinationTransactionHashes.size).to.equal(1);
-      expect(result.destinationTransactionHashes.has(destinationTxHash)).to.be
-        .true;
+      expect(result.destinationTransactionHashes.size).toBe(1);
+      expect(result.destinationTransactionHashes.has(destinationTxHash)).toBe(
+        true,
+      );
       // Verify Set contains exactly the expected transaction hash
-      expect(Array.from(result.destinationTransactionHashes)).to.deep.equal([
+      expect(Array.from(result.destinationTransactionHashes)).toEqual([
         destinationTxHash,
       ]);
 
       // Verify no warnings were logged
-      expect(context.getWarnings().length).to.equal(0);
+      expect(context.getWarnings().length).toBe(0);
     });
 
     it("should warn when messageIds have no ProcessId events", () => {
@@ -783,14 +781,14 @@ describe("SuperSwapLogic", () => {
         context,
       );
 
-      expect(result.messageIdToProcessId.size).to.equal(1);
-      expect(result.messageIdToProcessId.has(messageId1)).to.be.true;
-      expect(result.messageIdToProcessId.has(messageId2)).to.be.false;
+      expect(result.messageIdToProcessId.size).toBe(1);
+      expect(result.messageIdToProcessId.has(messageId1)).toBe(true);
+      expect(result.messageIdToProcessId.has(messageId2)).toBe(false);
 
       const warnings = context.getWarnings();
-      expect(warnings.length).to.equal(1);
-      expect(warnings[0]).to.include(messageId2);
-      expect(warnings[0]).to.include("No ProcessId_event found");
+      expect(warnings.length).toBe(1);
+      expect(warnings[0]).toContain(messageId2);
+      expect(warnings[0]).toContain("No ProcessId_event found");
     });
 
     it("should collect unique destination transaction hashes", () => {
@@ -839,11 +837,13 @@ describe("SuperSwapLogic", () => {
         context,
       );
 
-      expect(result.destinationTransactionHashes.size).to.equal(2);
-      expect(result.destinationTransactionHashes.has(destinationTxHash)).to.be
-        .true;
-      expect(result.destinationTransactionHashes.has(destinationTxHash2)).to.be
-        .true;
+      expect(result.destinationTransactionHashes.size).toBe(2);
+      expect(result.destinationTransactionHashes.has(destinationTxHash)).toBe(
+        true,
+      );
+      expect(result.destinationTransactionHashes.has(destinationTxHash2)).toBe(
+        true,
+      );
     });
   });
 
@@ -862,10 +862,10 @@ describe("SuperSwapLogic", () => {
 
       const result = await findSourceSwapWithOUSDT(transactionHash, context);
 
-      expect(result).to.not.be.null;
-      expect(result?.sourceChainToken).to.equal(tokenInAddress);
-      expect(result?.sourceChainTokenAmountSwapped).to.equal(1000n);
-      expect(result?.swap).to.deep.equal(sourceSwap);
+      expect(result).not.toBeNull();
+      expect(result?.sourceChainToken).toBe(tokenInAddress);
+      expect(result?.sourceChainTokenAmountSwapped).toBe(1000n);
+      expect(result?.swap).toEqual(sourceSwap);
     });
 
     it("should find source swap when oUSDT is tokenInPool", async () => {
@@ -882,10 +882,10 @@ describe("SuperSwapLogic", () => {
 
       const result = await findSourceSwapWithOUSDT(transactionHash, context);
 
-      expect(result).to.not.be.null;
-      expect(result?.sourceChainToken).to.equal(tokenOutAddress);
-      expect(result?.sourceChainTokenAmountSwapped).to.equal(950n);
-      expect(result?.swap).to.deep.equal(sourceSwap);
+      expect(result).not.toBeNull();
+      expect(result?.sourceChainToken).toBe(tokenOutAddress);
+      expect(result?.sourceChainTokenAmountSwapped).toBe(950n);
+      expect(result?.swap).toEqual(sourceSwap);
     });
 
     it("should return null and warn when no source swap with oUSDT exists", async () => {
@@ -904,11 +904,11 @@ describe("SuperSwapLogic", () => {
 
       const result = await findSourceSwapWithOUSDT(transactionHash, context);
 
-      expect(result).to.be.null;
+      expect(result).toBeNull();
       const warnings = context.getWarnings();
-      expect(warnings.length).to.be.greaterThan(0);
-      expect(warnings[0]).to.include("Source swap does not involve oUSDT");
-      expect(warnings[0]).to.include(transactionHash);
+      expect(warnings.length).toBeGreaterThan(0);
+      expect(warnings[0]).toContain("Source swap does not involve oUSDT");
+      expect(warnings[0]).toContain(transactionHash);
     });
 
     it("should return null when no swaps exist for transaction", async () => {
@@ -916,10 +916,10 @@ describe("SuperSwapLogic", () => {
 
       const result = await findSourceSwapWithOUSDT(transactionHash, context);
 
-      expect(result).to.be.null;
+      expect(result).toBeNull();
       const warnings = context.getWarnings();
-      expect(warnings.length).to.be.greaterThan(0);
-      expect(warnings[0]).to.include("No source chain swap with oUSDT found");
+      expect(warnings.length).toBeGreaterThan(0);
+      expect(warnings[0]).toContain("No source chain swap with oUSDT found");
     });
   });
 
@@ -959,11 +959,11 @@ describe("SuperSwapLogic", () => {
         context,
       );
 
-      expect(result.size).to.equal(2);
-      expect(result.get(destinationTxHash1)?.length).to.equal(1);
-      expect(result.get(destinationTxHash1)?.[0]).to.deep.equal(swap1);
-      expect(result.get(destinationTxHash2)?.length).to.equal(1);
-      expect(result.get(destinationTxHash2)?.[0]).to.deep.equal(swap2);
+      expect(result.size).toBe(2);
+      expect(result.get(destinationTxHash1)?.length).toBe(1);
+      expect(result.get(destinationTxHash1)?.[0]).toEqual(swap1);
+      expect(result.get(destinationTxHash2)?.length).toBe(1);
+      expect(result.get(destinationTxHash2)?.[0]).toEqual(swap2);
     });
 
     it("should handle empty transaction hashes set", async () => {
@@ -975,7 +975,7 @@ describe("SuperSwapLogic", () => {
         context,
       );
 
-      expect(result.size).to.equal(0);
+      expect(result.size).toBe(0);
     });
 
     it("should handle transaction hashes with no swaps", async () => {
@@ -989,8 +989,8 @@ describe("SuperSwapLogic", () => {
         context,
       );
 
-      expect(result.size).to.equal(1);
-      expect(result.get(destinationTxHash)?.length).to.equal(0);
+      expect(result.size).toBe(1);
+      expect(result.get(destinationTxHash)?.length).toBe(0);
     });
   });
 
@@ -1036,11 +1036,11 @@ describe("SuperSwapLogic", () => {
         context,
       );
 
-      expect(result).to.not.be.null;
-      expect(result?.destinationSwap).to.deep.equal(destinationSwap);
-      expect(result?.matchingMessageId).to.equal(messageId1);
-      expect(result?.destinationChainToken).to.equal(tokenOutAddress);
-      expect(result?.destinationChainTokenAmountSwapped).to.equal(950n);
+      expect(result).not.toBeNull();
+      expect(result?.destinationSwap).toEqual(destinationSwap);
+      expect(result?.matchingMessageId).toBe(messageId1);
+      expect(result?.destinationChainToken).toBe(tokenOutAddress);
+      expect(result?.destinationChainTokenAmountSwapped).toBe(950n);
     });
 
     it("should find destination swap when oUSDT is tokenOutPool", () => {
@@ -1084,11 +1084,11 @@ describe("SuperSwapLogic", () => {
         context,
       );
 
-      expect(result).to.not.be.null;
-      expect(result?.destinationSwap).to.deep.equal(destinationSwap);
-      expect(result?.matchingMessageId).to.equal(messageId1);
-      expect(result?.destinationChainToken).to.equal(tokenInAddress);
-      expect(result?.destinationChainTokenAmountSwapped).to.equal(1000n);
+      expect(result).not.toBeNull();
+      expect(result?.destinationSwap).toEqual(destinationSwap);
+      expect(result?.matchingMessageId).toBe(messageId1);
+      expect(result?.destinationChainToken).toBe(tokenInAddress);
+      expect(result?.destinationChainTokenAmountSwapped).toBe(1000n);
     });
 
     it("should find first swap with oUSDT when multiple oUSDT swaps exist", () => {
@@ -1146,9 +1146,9 @@ describe("SuperSwapLogic", () => {
       );
 
       // Should return the first swap (swapWithOUSDT1)
-      expect(result).to.not.be.null;
-      expect(result?.destinationSwap).to.deep.equal(swapWithOUSDT1);
-      expect(result?.matchingMessageId).to.equal(messageId1);
+      expect(result).not.toBeNull();
+      expect(result?.destinationSwap).toEqual(swapWithOUSDT1);
+      expect(result?.matchingMessageId).toBe(messageId1);
     });
 
     it("should return null when no destination swap with oUSDT exists", () => {
@@ -1194,10 +1194,10 @@ describe("SuperSwapLogic", () => {
         context,
       );
 
-      expect(result).to.be.null;
+      expect(result).toBeNull();
       const warnings = context.getWarnings();
-      expect(warnings.length).to.be.greaterThan(0);
-      expect(warnings[0]).to.include("Destination swap does not involve oUSDT");
+      expect(warnings.length).toBeGreaterThan(0);
+      expect(warnings[0]).toContain("Destination swap does not involve oUSDT");
     });
 
     it("should find swap from correct messageId when multiple messageIds exist", () => {
@@ -1271,9 +1271,9 @@ describe("SuperSwapLogic", () => {
         context,
       );
 
-      expect(result).to.not.be.null;
-      expect(result?.destinationSwap).to.deep.equal(swapWithOUSDT);
-      expect(result?.matchingMessageId).to.equal(messageId2);
+      expect(result).not.toBeNull();
+      expect(result?.destinationSwap).toEqual(swapWithOUSDT);
+      expect(result?.matchingMessageId).toBe(messageId2);
     });
   });
 
@@ -1306,25 +1306,23 @@ describe("SuperSwapLogic", () => {
       );
 
       const superSwaps = context.getSuperSwaps();
-      expect(superSwaps.size).to.equal(1);
+      expect(superSwaps.size).toBe(1);
 
       const expectedId = `${transactionHash}_${BigInt(chainId)}_${destinationDomain}_${oUSDTAmount}_${messageId1}_${tokenInAddress}_1000_${oUSDTAddress}_${oUSDTAmount}`;
       const superSwap = superSwaps.get(expectedId);
 
-      expect(superSwap).to.not.be.undefined;
-      expect(superSwap?.id).to.equal(expectedId);
-      expect(superSwap?.originChainId).to.equal(BigInt(chainId));
-      expect(superSwap?.destinationChainId).to.equal(destinationDomain);
-      expect(superSwap?.sender).to.equal(senderAddress.toLowerCase());
-      expect(superSwap?.recipient).to.equal(recipientAddress.toLowerCase());
-      expect(superSwap?.oUSDTamount).to.equal(oUSDTAmount);
-      expect(superSwap?.sourceChainToken).to.equal(tokenInAddress);
-      expect(superSwap?.sourceChainTokenAmountSwapped).to.equal(1000n);
-      expect(superSwap?.destinationChainToken).to.equal(tokenOutAddress);
-      expect(superSwap?.destinationChainTokenAmountSwapped).to.equal(950n);
-      expect(superSwap?.timestamp).to.deep.equal(
-        new Date(blockTimestamp * 1000),
-      );
+      expect(superSwap).not.toBeUndefined();
+      expect(superSwap?.id).toBe(expectedId);
+      expect(superSwap?.originChainId).toBe(BigInt(chainId));
+      expect(superSwap?.destinationChainId).toBe(destinationDomain);
+      expect(superSwap?.sender).toBe(senderAddress.toLowerCase());
+      expect(superSwap?.recipient).toBe(recipientAddress.toLowerCase());
+      expect(superSwap?.oUSDTamount).toBe(oUSDTAmount);
+      expect(superSwap?.sourceChainToken).toBe(tokenInAddress);
+      expect(superSwap?.sourceChainTokenAmountSwapped).toBe(1000n);
+      expect(superSwap?.destinationChainToken).toBe(tokenOutAddress);
+      expect(superSwap?.destinationChainTokenAmountSwapped).toBe(950n);
+      expect(superSwap?.timestamp).toEqual(new Date(blockTimestamp * 1000));
     });
 
     it("should skip creation if SuperSwap already exists", async () => {
@@ -1356,7 +1354,7 @@ describe("SuperSwapLogic", () => {
       );
 
       const superSwapsAfterFirst = context.getSuperSwaps();
-      expect(superSwapsAfterFirst.size).to.equal(1);
+      expect(superSwapsAfterFirst.size).toBe(1);
 
       // Try to create again - should skip
       await createSuperSwapEntity(
@@ -1376,7 +1374,7 @@ describe("SuperSwapLogic", () => {
 
       // Should still be only 1 entity (not duplicated)
       const superSwapsAfterSecond = context.getSuperSwaps();
-      expect(superSwapsAfterSecond.size).to.equal(1);
+      expect(superSwapsAfterSecond.size).toBe(1);
     });
   });
 
@@ -1536,15 +1534,15 @@ describe("SuperSwapLogic", () => {
       );
 
       const superSwaps = context.getSuperSwaps();
-      expect(superSwaps.size).to.equal(1);
+      expect(superSwaps.size).toBe(1);
 
       const superSwap = Array.from(superSwaps.values())[0] as SuperSwap;
-      expect(superSwap).to.not.be.undefined;
-      expect(superSwap.originChainId).to.equal(BigInt(chainId));
-      expect(superSwap.destinationChainId).to.equal(destinationDomain);
-      expect(superSwap.oUSDTamount).to.equal(oUSDTAmount);
-      expect(superSwap.sourceChainToken).to.equal(tokenInAddress);
-      expect(superSwap.destinationChainToken).to.equal(tokenOutAddress);
+      expect(superSwap).not.toBeUndefined();
+      expect(superSwap.originChainId).toBe(BigInt(chainId));
+      expect(superSwap.destinationChainId).toBe(destinationDomain);
+      expect(superSwap.oUSDTamount).toBe(oUSDTAmount);
+      expect(superSwap.sourceChainToken).toBe(tokenInAddress);
+      expect(superSwap.destinationChainToken).toBe(tokenOutAddress);
     });
 
     it("should return early and log info when no DispatchId_event is found", async () => {
@@ -1562,12 +1560,12 @@ describe("SuperSwapLogic", () => {
       );
 
       const superSwaps = context.getSuperSwaps();
-      expect(superSwaps.size).to.equal(0);
+      expect(superSwaps.size).toBe(0);
 
       const infos = context.getInfos();
-      expect(infos.length).to.equal(1);
-      expect(infos[0]).to.include("No matching DispatchId found for messageId");
-      expect(infos[0]).to.include(
+      expect(infos.length).toBe(1);
+      expect(infos[0]).toContain("No matching DispatchId found for messageId");
+      expect(infos[0]).toContain(
         "This is expected if source chain hasn't synced yet",
       );
     });
@@ -1594,11 +1592,11 @@ describe("SuperSwapLogic", () => {
       );
 
       const superSwaps = context.getSuperSwaps();
-      expect(superSwaps.size).to.equal(0);
+      expect(superSwaps.size).toBe(0);
 
       const warnings = context.getWarnings();
-      expect(warnings.length).to.equal(1);
-      expect(warnings[0]).to.include(
+      expect(warnings.length).toBe(1);
+      expect(warnings[0]).toContain(
         "No OUSDTBridgedTransaction found for transaction",
       );
     });
@@ -1629,11 +1627,11 @@ describe("SuperSwapLogic", () => {
       );
 
       const superSwaps = context.getSuperSwaps();
-      expect(superSwaps.size).to.equal(0);
+      expect(superSwaps.size).toBe(0);
 
       const warnings = context.getWarnings();
-      expect(warnings.length).to.equal(1);
-      expect(warnings[0]).to.include(
+      expect(warnings.length).toBe(1);
+      expect(warnings[0]).toContain(
         "No DispatchId_event entities found for transaction",
       );
 
@@ -1677,14 +1675,14 @@ describe("SuperSwapLogic", () => {
       );
 
       const warnings = context.getWarnings();
-      expect(warnings.length).to.be.greaterThan(0);
+      expect(warnings.length).toBeGreaterThan(0);
       expect(
         warnings.some((w: string) =>
           w.includes(
             "Error attempting to create SuperSwap from ProcessId handler",
           ),
         ),
-      ).to.be.true;
+      ).toBe(true);
 
       // Restore original
       context.OUSDTSwaps.getWhere.transactionHash.eq = originalEq;

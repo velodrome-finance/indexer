@@ -1,6 +1,4 @@
-import { expect } from "chai";
 import type { logger as Envio_logger } from "envio/src/Envio.gen";
-import sinon from "sinon";
 import type { PublicClient } from "viem";
 import { CHAIN_CONSTANTS, PriceOracleType } from "../../src/Constants";
 import {
@@ -26,13 +24,10 @@ describe("Token Effects", () => {
     cache?: boolean;
   };
   let mockEthClient: PublicClient;
-  let chainConstantsStub: sinon.SinonStub;
-  let sandbox: sinon.SinonSandbox;
 
   beforeEach(() => {
-    sandbox = sinon.createSandbox();
     mockEthClient = {
-      simulateContract: sinon.stub().resolves({
+      simulateContract: jest.fn().mockResolvedValue({
         result: "Test Token",
       }),
     } as unknown as PublicClient;
@@ -43,7 +38,7 @@ describe("Token Effects", () => {
       oracle: {
         getType: () => PriceOracleType.V3, // Returns "v3" (lowercase)
         getAddress: () => "0x1234567890123456789012345678901234567890",
-        getPrice: sinon.stub(),
+        getPrice: jest.fn(),
       },
     };
 
@@ -57,36 +52,36 @@ describe("Token Effects", () => {
       ) => effect.handler({ input, context: mockContext }),
       ethClient: mockEthClient,
       log: {
-        info: sinon.stub(),
-        error: sinon.stub(),
-        warn: sinon.stub(),
-        debug: sinon.stub(),
+        info: jest.fn(),
+        error: jest.fn(),
+        warn: jest.fn(),
+        debug: jest.fn(),
       } as unknown as Envio_logger,
     };
   });
 
   afterEach(() => {
-    sinon.restore();
+    jest.restoreAllMocks();
   });
 
   describe("getTokenDetails", () => {
     it("should be a valid effect object", () => {
-      expect(getTokenDetails).to.be.an("object");
-      expect(getTokenDetails).to.have.property("name", "getTokenDetails");
+      expect(typeof getTokenDetails).toBe("object");
+      expect(getTokenDetails).toHaveProperty("name", "getTokenDetails");
     });
   });
 
   describe("getTokenPrice", () => {
     it("should be a valid effect object", () => {
-      expect(getTokenPrice).to.be.an("object");
-      expect(getTokenPrice).to.have.property("name", "getTokenPrice");
+      expect(typeof getTokenPrice).toBe("object");
+      expect(getTokenPrice).toHaveProperty("name", "getTokenPrice");
     });
   });
 
   describe("getTotalSupply", () => {
     it("should be a valid effect object", () => {
-      expect(getTotalSupply).to.be.an("object");
-      expect(getTotalSupply).to.have.property("name", "getTotalSupply");
+      expect(typeof getTotalSupply).toBe("object");
+      expect(getTotalSupply).toHaveProperty("name", "getTotalSupply");
     });
   });
 
@@ -97,11 +92,11 @@ describe("Token Effects", () => {
       const blockNumber = 100;
 
       // Mock simulateContract to return a single bigint value
-      const mockSimulateContract =
-        mockEthClient.simulateContract as sinon.SinonStub;
-      mockSimulateContract.resolves({
+      const mockSimulateContract = jest.mocked(mockEthClient.simulateContract);
+      mockSimulateContract.mockResolvedValue({
         result: 1000000000000000000000n, // 1000 tokens (18 decimals)
-      });
+        // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
+      } as any); // Type assertion needed: jest.mocked() infers strict viem types, but we only need { result } for testing
 
       const result = await fetchTotalSupply(
         tokenAddress,
@@ -111,17 +106,17 @@ describe("Token Effects", () => {
         mockContext.log,
       );
 
-      expect(result).to.equal(1000000000000000000000n);
+      expect(result).toBe(1000000000000000000000n);
 
       // Verify that simulateContract was called with correct parameters
-      expect(mockSimulateContract.calledOnce).to.be.true;
-      const callArgs = mockSimulateContract.firstCall.args[0];
-      expect(callArgs).to.deep.include({
+      expect(mockSimulateContract).toHaveBeenCalledTimes(1);
+      const callArgs = mockSimulateContract.mock.calls[0][0];
+      expect(callArgs).toMatchObject({
         address: tokenAddress,
         functionName: "totalSupply",
         blockNumber: BigInt(blockNumber),
       });
-      expect(callArgs.args).to.deep.equal([]);
+      expect(callArgs.args).toEqual([]);
     });
 
     it("should handle array result from simulateContract", async () => {
@@ -130,11 +125,11 @@ describe("Token Effects", () => {
       const blockNumber = 100;
 
       // Mock simulateContract to return an array (some viem versions return arrays)
-      const mockSimulateContract =
-        mockEthClient.simulateContract as sinon.SinonStub;
-      mockSimulateContract.resolves({
+      const mockSimulateContract = jest.mocked(mockEthClient.simulateContract);
+      mockSimulateContract.mockResolvedValue({
         result: [500000000000000000000n], // Array with single value
-      });
+        // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
+      } as any); // Type assertion needed: jest.mocked() infers strict viem types, but we only need { result } for testing
 
       const result = await fetchTotalSupply(
         tokenAddress,
@@ -144,7 +139,7 @@ describe("Token Effects", () => {
         mockContext.log,
       );
 
-      expect(result).to.equal(500000000000000000000n);
+      expect(result).toBe(500000000000000000000n);
     });
 
     it("should handle string result and convert to bigint", async () => {
@@ -153,11 +148,11 @@ describe("Token Effects", () => {
       const blockNumber = 100;
 
       // Mock simulateContract to return a string (some viem versions return strings)
-      const mockSimulateContract =
-        mockEthClient.simulateContract as sinon.SinonStub;
-      mockSimulateContract.resolves({
+      const mockSimulateContract = jest.mocked(mockEthClient.simulateContract);
+      mockSimulateContract.mockResolvedValue({
         result: "2000000000000000000000", // String representation
-      });
+        // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
+      } as any); // Type assertion needed: jest.mocked() infers strict viem types, but we only need { result } for testing
 
       const result = await fetchTotalSupply(
         tokenAddress,
@@ -167,7 +162,7 @@ describe("Token Effects", () => {
         mockContext.log,
       );
 
-      expect(result).to.equal(2000000000000000000000n);
+      expect(result).toBe(2000000000000000000000n);
     });
 
     it("should handle contract call errors and throw with context", async () => {
@@ -176,9 +171,8 @@ describe("Token Effects", () => {
       const blockNumber = 100;
 
       // Mock simulateContract to throw an error
-      const mockSimulateContract =
-        mockEthClient.simulateContract as sinon.SinonStub;
-      mockSimulateContract.rejects(new Error("Contract call failed"));
+      const mockSimulateContract = jest.mocked(mockEthClient.simulateContract);
+      mockSimulateContract.mockRejectedValue(new Error("Contract call failed"));
 
       // Set cache to true initially (should be set to false on error)
       const contextWithCache = { cache: true };
@@ -192,20 +186,20 @@ describe("Token Effects", () => {
           mockContext.log,
           contextWithCache,
         );
-        expect.fail("Should have thrown an error");
+        throw new Error("Should have thrown an error");
       } catch (thrownError) {
-        expect(thrownError).to.be.instanceOf(Error);
+        expect(thrownError).toBeInstanceOf(Error);
         const errorMessage = (thrownError as Error).message;
-        expect(errorMessage).to.include("getTotalSupply effect failed");
-        expect(errorMessage).to.include(tokenAddress);
-        expect(errorMessage).to.include("Contract call failed");
+        expect(errorMessage).toContain("getTotalSupply effect failed");
+        expect(errorMessage).toContain(tokenAddress);
+        expect(errorMessage).toContain("Contract call failed");
       }
 
       // Verify cache was disabled on error
-      expect(contextWithCache.cache).to.be.false;
+      expect(contextWithCache.cache).toBe(false);
 
       // Verify error was logged
-      expect((mockContext.log.error as sinon.SinonStub).calledOnce).to.be.true;
+      expect(jest.mocked(mockContext.log.error)).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -215,15 +209,14 @@ describe("Token Effects", () => {
       const chainId = 10;
 
       // Mock different responses for each contract call
-      const mockSimulateContract =
-        mockEthClient.simulateContract as sinon.SinonStub;
+      const mockSimulateContract = jest.mocked(mockEthClient.simulateContract);
       mockSimulateContract
-        .onFirstCall()
-        .resolves({ result: "Test Token" })
-        .onSecondCall()
-        .resolves({ result: 18 })
-        .onThirdCall()
-        .resolves({ result: "TEST" });
+        // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
+        .mockResolvedValueOnce({ result: "Test Token" } as any)
+        // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
+        .mockResolvedValueOnce({ result: 18 } as any)
+        // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
+        .mockResolvedValueOnce({ result: "TEST" } as any);
 
       const result = await fetchTokenDetails(
         tokenAddress,
@@ -232,22 +225,22 @@ describe("Token Effects", () => {
         mockContext.log,
       );
 
-      expect(result).to.be.an("object");
-      expect(result).to.have.property("name", "Test Token");
-      expect(result).to.have.property("symbol", "TEST");
-      expect(result).to.have.property("decimals", 18);
+      expect(typeof result).toBe("object");
+      expect(result).toHaveProperty("name", "Test Token");
+      expect(result).toHaveProperty("symbol", "TEST");
+      expect(result).toHaveProperty("decimals", 18);
 
       // Verify that simulateContract was called 3 times with correct parameters
-      expect(mockSimulateContract.callCount).to.equal(3);
-      expect(mockSimulateContract.firstCall.args[0]).to.deep.include({
+      expect(mockSimulateContract).toHaveBeenCalledTimes(3);
+      expect(mockSimulateContract.mock.calls[0][0]).toMatchObject({
         address: tokenAddress,
         functionName: "name",
       });
-      expect(mockSimulateContract.secondCall.args[0]).to.deep.include({
+      expect(mockSimulateContract.mock.calls[1][0]).toMatchObject({
         address: tokenAddress,
         functionName: "decimals",
       });
-      expect(mockSimulateContract.thirdCall.args[0]).to.deep.include({
+      expect(mockSimulateContract.mock.calls[2][0]).toMatchObject({
         address: tokenAddress,
         functionName: "symbol",
       });
@@ -258,9 +251,8 @@ describe("Token Effects", () => {
       const chainId = 10;
 
       // Mock simulateContract to throw an error
-      const mockSimulateContract =
-        mockEthClient.simulateContract as sinon.SinonStub;
-      mockSimulateContract.rejects(new Error("Contract call failed"));
+      const mockSimulateContract = jest.mocked(mockEthClient.simulateContract);
+      mockSimulateContract.mockRejectedValue(new Error("Contract call failed"));
 
       const result = await fetchTokenDetails(
         tokenAddress,
@@ -270,13 +262,13 @@ describe("Token Effects", () => {
       );
 
       // Should return default values on error
-      expect(result).to.be.an("object");
-      expect(result).to.have.property("name", "");
-      expect(result).to.have.property("symbol", "");
-      expect(result).to.have.property("decimals", 0);
+      expect(typeof result).toBe("object");
+      expect(result).toHaveProperty("name", "");
+      expect(result).toHaveProperty("symbol", "");
+      expect(result).toHaveProperty("decimals", 0);
 
       // Verify error was logged
-      expect(mockContext.log.error).to.be.a("function");
+      expect(jest.mocked(mockContext.log.error)).toHaveBeenCalled();
     });
 
     it("should handle undefined/null results", async () => {
@@ -284,15 +276,14 @@ describe("Token Effects", () => {
       const chainId = 10;
 
       // Mock simulateContract to return undefined results
-      const mockSimulateContract =
-        mockEthClient.simulateContract as sinon.SinonStub;
+      const mockSimulateContract = jest.mocked(mockEthClient.simulateContract);
       mockSimulateContract
-        .onFirstCall()
-        .resolves({ result: undefined })
-        .onSecondCall()
-        .resolves({ result: null })
-        .onThirdCall()
-        .resolves({ result: undefined });
+        // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
+        .mockResolvedValueOnce({ result: undefined } as any) // Type assertion needed: jest.mocked() infers strict viem types
+        // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
+        .mockResolvedValueOnce({ result: null } as any) // Type assertion needed: jest.mocked() infers strict viem types
+        // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
+        .mockResolvedValueOnce({ result: undefined } as any); // Type assertion needed: jest.mocked() infers strict viem types
 
       const result = await fetchTokenDetails(
         tokenAddress,
@@ -301,10 +292,10 @@ describe("Token Effects", () => {
         mockContext.log,
       );
 
-      expect(result).to.be.an("object");
-      expect(result).to.have.property("name", "");
-      expect(result).to.have.property("symbol", "");
-      expect(result).to.have.property("decimals", 0);
+      expect(typeof result).toBe("object");
+      expect(result).toHaveProperty("name", "");
+      expect(result).toHaveProperty("symbol", "");
+      expect(result).toHaveProperty("decimals", 0);
     });
   });
 
@@ -325,18 +316,18 @@ describe("Token Effects", () => {
         oracle: {
           getType: () => "v3",
           getAddress: () => "0x1234567890123456789012345678901234567890",
-          getPrice: sinon.stub(),
+          getPrice: jest.fn(),
         },
       };
 
       // Mock V3 oracle response
-      const mockSimulateContract =
-        mockEthClient.simulateContract as sinon.SinonStub;
-      mockSimulateContract.resolves({
+      const mockSimulateContract = jest.mocked(mockEthClient.simulateContract);
+      mockSimulateContract.mockResolvedValue({
         result: [
           "0x0000000000000000000000000000000000000000000000000000000000000001",
         ], // 1 in hex
-      });
+        // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
+      } as any); // Type assertion needed: jest.mocked() infers strict viem types, but we only need { result } for testing
 
       const result = await fetchTokenPrice(
         tokenAddress,
@@ -351,19 +342,19 @@ describe("Token Effects", () => {
         gasLimit,
       );
 
-      expect(result).to.be.an("object");
-      expect(result).to.have.property("pricePerUSDNew", 1n);
-      expect(result).to.have.property("priceOracleType", "v3");
+      expect(typeof result).toBe("object");
+      expect(result).toHaveProperty("pricePerUSDNew", 1n);
+      expect(result).toHaveProperty("priceOracleType", "v3");
 
       // Verify correct contract call
-      expect(mockSimulateContract.calledOnce).to.be.true;
-      const callArgs = mockSimulateContract.firstCall.args[0];
-      expect(callArgs).to.deep.include({
+      expect(mockSimulateContract).toHaveBeenCalledTimes(1);
+      const callArgs = mockSimulateContract.mock.calls[0][0];
+      expect(callArgs).toMatchObject({
         functionName: "getManyRatesWithCustomConnectors",
         gas: gasLimit,
         blockNumber: BigInt(blockNumber),
       });
-      expect(callArgs.args).to.deep.equal([
+      expect(callArgs.args).toEqual([
         [tokenAddress],
         usdcAddress,
         false,
@@ -388,17 +379,17 @@ describe("Token Effects", () => {
         oracle: {
           getType: () => PriceOracleType.V2, // Returns "v2" (lowercase)
           getAddress: () => "0x1234567890123456789012345678901234567890",
-          getPrice: sinon.stub(),
+          getPrice: jest.fn(),
         },
       };
 
-      const mockSimulateContract =
-        mockEthClient.simulateContract as sinon.SinonStub;
-      mockSimulateContract.resolves({
+      const mockSimulateContract = jest.mocked(mockEthClient.simulateContract);
+      mockSimulateContract.mockResolvedValue({
         result: [
           "0x0000000000000000000000000000000000000000000000000000000000000002",
         ], // 2 in hex
-      });
+        // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
+      } as any); // Type assertion needed: jest.mocked() infers strict viem types, but we only need { result } for testing
 
       const result = await fetchTokenPrice(
         tokenAddress,
@@ -413,19 +404,19 @@ describe("Token Effects", () => {
         gasLimit,
       );
 
-      expect(result).to.be.an("object");
-      expect(result).to.have.property("pricePerUSDNew", 2n);
-      expect(result).to.have.property("priceOracleType", "v2");
+      expect(typeof result).toBe("object");
+      expect(result).toHaveProperty("pricePerUSDNew", 2n);
+      expect(result).toHaveProperty("priceOracleType", "v2");
 
       // Verify correct contract call
-      expect(mockSimulateContract.calledOnce).to.be.true;
-      const callArgs = mockSimulateContract.firstCall.args[0];
-      expect(callArgs).to.deep.include({
+      expect(mockSimulateContract).toHaveBeenCalledTimes(1);
+      const callArgs = mockSimulateContract.mock.calls[0][0];
+      expect(callArgs).toMatchObject({
         functionName: "getManyRatesWithConnectors",
         gas: gasLimit,
         blockNumber: BigInt(blockNumber),
       });
-      expect(callArgs.args).to.deep.equal([
+      expect(callArgs.args).toEqual([
         1,
         [
           tokenAddress,
@@ -453,14 +444,13 @@ describe("Token Effects", () => {
         oracle: {
           getType: () => PriceOracleType.V2, // Returns "v2" (lowercase)
           getAddress: () => "0x1234567890123456789012345678901234567890",
-          getPrice: sinon.stub(),
+          getPrice: jest.fn(),
         },
       };
 
       // Mock simulateContract to throw an error
-      const mockSimulateContract =
-        mockEthClient.simulateContract as sinon.SinonStub;
-      mockSimulateContract.rejects(new Error("Oracle call failed"));
+      const mockSimulateContract = jest.mocked(mockEthClient.simulateContract);
+      mockSimulateContract.mockRejectedValue(new Error("Oracle call failed"));
 
       const result = await fetchTokenPrice(
         tokenAddress,
@@ -476,12 +466,12 @@ describe("Token Effects", () => {
       );
 
       // Should return zero price on error
-      expect(result).to.be.an("object");
-      expect(result).to.have.property("pricePerUSDNew", 0n);
-      expect(result).to.have.property("priceOracleType", "v2");
+      expect(typeof result).toBe("object");
+      expect(result).toHaveProperty("pricePerUSDNew", 0n);
+      expect(result).toHaveProperty("priceOracleType", "v2");
 
       // Verify error was logged
-      expect(mockContext.log.error).to.be.a("function");
+      expect(jest.mocked(mockContext.log.error)).toHaveBeenCalled();
     });
 
     it("should retry on out of gas errors with increased gas limit", async () => {
@@ -499,22 +489,22 @@ describe("Token Effects", () => {
         oracle: {
           getType: () => PriceOracleType.V2, // Returns "v2" (lowercase)
           getAddress: () => "0x1234567890123456789012345678901234567890",
-          getPrice: sinon.stub(),
+          getPrice: jest.fn(),
         },
       };
 
-      const mockSimulateContract =
-        mockEthClient.simulateContract as sinon.SinonStub;
+      const mockSimulateContract = jest.mocked(mockEthClient.simulateContract);
       // First call fails with out of gas, second succeeds
       mockSimulateContract
-        .onFirstCall()
-        .rejects(new Error("out of gas: gas required exceeds: 1000000"))
-        .onSecondCall()
-        .resolves({
+        .mockRejectedValueOnce(
+          new Error("out of gas: gas required exceeds: 1000000"),
+        )
+        .mockResolvedValueOnce({
           result: [
             "0x0000000000000000000000000000000000000000000000000000000000000001",
           ],
-        });
+          // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
+        } as any); // Type assertion needed: jest.mocked() infers strict viem types, but we only need { result } for testing
 
       const result = await fetchTokenPrice(
         tokenAddress,
@@ -530,11 +520,11 @@ describe("Token Effects", () => {
         7, // maxRetries
       );
 
-      expect(result.pricePerUSDNew).to.equal(1n);
-      expect(mockSimulateContract.callCount).to.equal(2);
+      expect(result.pricePerUSDNew).toBe(1n);
+      expect(mockSimulateContract).toHaveBeenCalledTimes(2);
       // Verify second call used increased gas limit
-      const secondCall = mockSimulateContract.secondCall.args[0];
-      expect(secondCall.gas).to.equal(2000000n); // Doubled from 1M
+      const secondCall = mockSimulateContract.mock.calls[1][0];
+      expect(secondCall.gas).toBe(2000000n); // Doubled from 1M
     });
 
     it("should retry on rate limit errors with exponential backoff", async () => {
@@ -552,22 +542,20 @@ describe("Token Effects", () => {
         oracle: {
           getType: () => PriceOracleType.V2, // Returns "v2" (lowercase)
           getAddress: () => "0x1234567890123456789012345678901234567890",
-          getPrice: sinon.stub(),
+          getPrice: jest.fn(),
         },
       };
 
-      const mockSimulateContract =
-        mockEthClient.simulateContract as sinon.SinonStub;
+      const mockSimulateContract = jest.mocked(mockEthClient.simulateContract);
       // First call fails with rate limit, second succeeds
       mockSimulateContract
-        .onFirstCall()
-        .rejects(new Error("rate limit exceeded"))
-        .onSecondCall()
-        .resolves({
+        .mockRejectedValueOnce(new Error("rate limit exceeded"))
+        .mockResolvedValueOnce({
           result: [
             "0x0000000000000000000000000000000000000000000000000000000000000001",
           ],
-        });
+          // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
+        } as any); // Type assertion needed: jest.mocked() infers strict viem types, but we only need { result } for testing
 
       const startTime = Date.now();
       const result = await fetchTokenPrice(
@@ -585,10 +573,10 @@ describe("Token Effects", () => {
       );
       const endTime = Date.now();
 
-      expect(result.pricePerUSDNew).to.equal(1n);
-      expect(mockSimulateContract.callCount).to.equal(2);
+      expect(result.pricePerUSDNew).toBe(1n);
+      expect(mockSimulateContract).toHaveBeenCalledTimes(2);
       // Verify there was a delay (at least 900ms for first retry with 1s delay)
-      expect(endTime - startTime).to.be.at.least(900);
+      expect(endTime - startTime).toBeGreaterThanOrEqual(900);
     });
 
     it("should handle contract revert errors without retries", async () => {
@@ -606,13 +594,12 @@ describe("Token Effects", () => {
         oracle: {
           getType: () => PriceOracleType.V2, // Returns "v2" (lowercase)
           getAddress: () => "0x1234567890123456789012345678901234567890",
-          getPrice: sinon.stub(),
+          getPrice: jest.fn(),
         },
       };
 
-      const mockSimulateContract =
-        mockEthClient.simulateContract as sinon.SinonStub;
-      mockSimulateContract.rejects(new Error("execution reverted"));
+      const mockSimulateContract = jest.mocked(mockEthClient.simulateContract);
+      mockSimulateContract.mockRejectedValue(new Error("execution reverted"));
 
       const result = await fetchTokenPrice(
         tokenAddress,
@@ -629,8 +616,8 @@ describe("Token Effects", () => {
       );
 
       // Should return zero price without retries
-      expect(result.pricePerUSDNew).to.equal(0n);
-      expect(mockSimulateContract.callCount).to.equal(1); // No retries
+      expect(result.pricePerUSDNew).toBe(0n);
+      expect(mockSimulateContract).toHaveBeenCalledTimes(1); // No retries
     });
   });
 });

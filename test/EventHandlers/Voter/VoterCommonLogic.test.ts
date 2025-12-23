@@ -1,4 +1,3 @@
-import { expect } from "chai";
 import type { Token, handlerContext } from "generated";
 import {
   getIsAlive,
@@ -99,21 +98,21 @@ describe("computeVoterDistributeValues", () => {
     });
 
     // tokensDeposited is a snapshot passthrough
-    expect(result.tokensDeposited).to.equal(5000000000000000000n);
+    expect(result.tokensDeposited).toBe(5000000000000000000n);
 
     // normalizedEmissionsAmount equals 3e18 (already 18 decimals) -> 3e18
-    expect(result.normalizedEmissionsAmount).to.equal(3000000000000000000n);
+    expect(result.normalizedEmissionsAmount).toBe(3000000000000000000n);
 
     // USD: 3e18 * $2 (1e18) / 1e18 = 6e18
-    expect(result.normalizedEmissionsAmountUsd).to.equal(6000000000000000000n);
+    expect(result.normalizedEmissionsAmountUsd).toBe(6000000000000000000n);
 
     // votes deposited USD: 5e18 * $2 = 10e18
-    expect(result.normalizedVotesDepositedAmountUsd).to.equal(
+    expect(result.normalizedVotesDepositedAmountUsd).toBe(
       10000000000000000000n,
     );
 
     // no warnings for price zero
-    expect(logs.warns.length).to.equal(0);
+    expect(logs.warns.length).toBe(0);
   });
 
   it("logs a warning when token price is zero, but still computes values", async () => {
@@ -146,9 +145,9 @@ describe("computeVoterDistributeValues", () => {
       context,
     });
 
-    expect(result.normalizedEmissionsAmountUsd).to.equal(0n);
-    expect(result.normalizedVotesDepositedAmountUsd).to.equal(0n);
-    expect(logs.warns.length).to.be.greaterThan(0);
+    expect(result.normalizedEmissionsAmountUsd).toBe(0n);
+    expect(result.normalizedVotesDepositedAmountUsd).toBe(0n);
+    expect(logs.warns.length).toBeGreaterThan(0);
   });
 });
 
@@ -163,13 +162,13 @@ describe("buildLpDiffFromDistribute", () => {
     };
     const ts = 1_700_000_000_000;
     const diff = buildLpDiffFromDistribute(res, "0xgauge", ts);
-    expect(diff.totalVotesDeposited).to.equal(10n);
-    expect(diff.totalVotesDepositedUSD).to.equal(20n);
-    expect(diff.totalEmissions).to.equal(3n);
-    expect(diff.totalEmissionsUSD).to.equal(6n);
-    expect(diff.gaugeIsAlive).to.equal(true);
-    expect(+diff.lastUpdatedTimestamp).to.equal(ts);
-    expect(diff.gaugeAddress).to.equal("0xgauge");
+    expect(diff.totalVotesDeposited).toBe(10n);
+    expect(diff.totalVotesDepositedUSD).toBe(20n);
+    expect(diff.totalEmissions).toBe(3n);
+    expect(diff.totalEmissionsUSD).toBe(6n);
+    expect(diff.gaugeIsAlive).toBe(true);
+    expect(+diff.lastUpdatedTimestamp).toBe(ts);
+    expect(diff.gaugeAddress).toBe("0xgauge");
   });
 });
 
@@ -189,8 +188,8 @@ describe("updateTokenWhitelist", () => {
     const captured: Token[] = [];
     const ctx = makeMockContext({ tokenGet: existing, capturedSets: captured });
     await updateTokenWhitelist(ctx, "t:1", "0x1", 1, true, 1_700_000_000_000);
-    expect(captured.length).to.equal(1);
-    expect(captured[0].isWhitelisted).to.equal(true);
+    expect(captured.length).toBe(1);
+    expect(captured[0].isWhitelisted).toBe(true);
   });
 
   it("creates token via effect when missing", async () => {
@@ -201,11 +200,11 @@ describe("updateTokenWhitelist", () => {
       capturedSets: captured,
     });
     await updateTokenWhitelist(ctx, "t:2", "0x2", 1, true, 1_700_000_000_000);
-    expect(captured.length).to.equal(1);
-    expect(captured[0].id).to.equal("t:2");
-    expect(captured[0].name).to.equal("N");
-    expect(captured[0].symbol).to.equal("S");
-    expect(captured[0].decimals).to.equal(6n);
-    expect(captured[0].isWhitelisted).to.equal(true);
+    expect(captured.length).toBe(1);
+    expect(captured[0].id).toBe("t:2");
+    expect(captured[0].name).toBe("N");
+    expect(captured[0].symbol).toBe("S");
+    expect(captured[0].decimals).toBe(6n);
+    expect(captured[0].isWhitelisted).toBe(true);
   });
 });

@@ -1,6 +1,4 @@
-import { expect } from "chai";
 import type { ALM_LP_Wrapper, handlerContext } from "generated";
-import sinon from "sinon";
 import { updateALMLPWrapper } from "../../src/Aggregators/ALMLPWrapper";
 import {
   TEN_TO_THE_6_BI,
@@ -13,41 +11,45 @@ describe("ALMLPWrapper Aggregator", () => {
   const { mockALMLPWrapperData, mockLiquidityPoolData } = setupCommon();
   const timestamp = new Date(1000000 * 1000);
 
-  let contextStub: Partial<handlerContext>;
+  let mockContext: Partial<handlerContext>;
 
   beforeEach(() => {
-    contextStub = {
+    mockContext = {
       ALM_LP_Wrapper: {
-        set: sinon.stub(),
-        get: sinon.stub(),
-        getOrThrow: sinon.stub(),
+        set: jest.fn(),
+        get: jest.fn(),
+        getOrThrow: jest.fn(),
         getWhere: {
           pool: {
-            eq: sinon.stub(),
-            gt: sinon.stub(),
-            lt: sinon.stub(),
+            eq: jest.fn(),
+            gt: jest.fn(),
+            lt: jest.fn(),
           },
           strategyTransactionHash: {
-            eq: sinon.stub(),
-            gt: sinon.stub(),
-            lt: sinon.stub(),
+            eq: jest.fn(),
+            gt: jest.fn(),
+            lt: jest.fn(),
           },
           tokenId: {
-            eq: sinon.stub(),
-            gt: sinon.stub(),
-            lt: sinon.stub(),
+            eq: jest.fn(),
+            gt: jest.fn(),
+            lt: jest.fn(),
           },
         },
-        getOrCreate: sinon.stub(),
-        deleteUnsafe: sinon.stub(),
+        getOrCreate: jest.fn(),
+        deleteUnsafe: jest.fn(),
       },
       log: {
-        error: sinon.stub(),
-        info: sinon.stub(),
-        warn: sinon.stub(),
-        debug: sinon.stub(),
+        error: jest.fn(),
+        info: jest.fn(),
+        warn: jest.fn(),
+        debug: jest.fn(),
       },
     };
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   describe("updateALMLPWrapper", () => {
@@ -65,27 +67,27 @@ describe("ALMLPWrapper Aggregator", () => {
           depositDiff,
           mockALMLPWrapperData,
           timestamp,
-          contextStub as handlerContext,
+          mockContext as handlerContext,
         );
 
-        result = (contextStub.ALM_LP_Wrapper?.set as sinon.SinonStub).firstCall
-          .args[0];
+        const mockSet = jest.mocked(mockContext.ALM_LP_Wrapper?.set);
+        result = mockSet?.mock.calls[0]?.[0] as ALM_LP_Wrapper;
       });
 
       it("should set amount0 and amount1 directly (recalculated from liquidity), and increment lpAmount", () => {
-        expect(result.amount0).to.equal(250n * TEN_TO_THE_18_BI); // Set directly, not incremented
-        expect(result.amount1).to.equal(125n * TEN_TO_THE_6_BI); // Set directly, not incremented
-        expect(result.lpAmount).to.equal(2500n * TEN_TO_THE_18_BI); // 2000 + 500 (incremented)
+        expect(result.amount0).toBe(250n * TEN_TO_THE_18_BI); // Set directly, not incremented
+        expect(result.amount1).toBe(125n * TEN_TO_THE_6_BI); // Set directly, not incremented
+        expect(result.lpAmount).toBe(2500n * TEN_TO_THE_18_BI); // 2000 + 500 (incremented)
       });
 
       it("should preserve other fields", () => {
-        expect(result.id).to.equal(mockALMLPWrapperData.id);
-        expect(result.chainId).to.equal(mockALMLPWrapperData.chainId);
-        expect(result.pool).to.equal(mockALMLPWrapperData.pool);
+        expect(result.id).toBe(mockALMLPWrapperData.id);
+        expect(result.chainId).toBe(mockALMLPWrapperData.chainId);
+        expect(result.pool).toBe(mockALMLPWrapperData.pool);
       });
 
       it("should update timestamp", () => {
-        expect(result.lastUpdatedTimestamp).to.equal(timestamp);
+        expect(result.lastUpdatedTimestamp).toBe(timestamp);
       });
     });
 
@@ -103,21 +105,21 @@ describe("ALMLPWrapper Aggregator", () => {
           withdrawDiff,
           mockALMLPWrapperData,
           timestamp,
-          contextStub as handlerContext,
+          mockContext as handlerContext,
         );
 
-        result = (contextStub.ALM_LP_Wrapper?.set as sinon.SinonStub).firstCall
-          .args[0];
+        const mockSet = jest.mocked(mockContext.ALM_LP_Wrapper?.set);
+        result = mockSet?.mock.calls[0]?.[0] as ALM_LP_Wrapper;
       });
 
       it("should set amount0 and amount1 directly (recalculated from liquidity), and decrement lpAmount", () => {
-        expect(result.amount0).to.equal(-250n * TEN_TO_THE_18_BI); // Set directly (negative value), not decremented
-        expect(result.amount1).to.equal(-125n * TEN_TO_THE_6_BI); // Set directly (negative value), not decremented
-        expect(result.lpAmount).to.equal(1500n * TEN_TO_THE_18_BI); // 2000 - 500 (decremented)
+        expect(result.amount0).toBe(-250n * TEN_TO_THE_18_BI); // Set directly (negative value), not decremented
+        expect(result.amount1).toBe(-125n * TEN_TO_THE_6_BI); // Set directly (negative value), not decremented
+        expect(result.lpAmount).toBe(1500n * TEN_TO_THE_18_BI); // 2000 - 500 (decremented)
       });
 
       it("should update timestamp", () => {
-        expect(result.lastUpdatedTimestamp).to.equal(timestamp);
+        expect(result.lastUpdatedTimestamp).toBe(timestamp);
       });
     });
 
@@ -132,15 +134,15 @@ describe("ALMLPWrapper Aggregator", () => {
           partialDiff,
           mockALMLPWrapperData,
           timestamp,
-          contextStub as handlerContext,
+          mockContext as handlerContext,
         );
 
-        const result = (contextStub.ALM_LP_Wrapper?.set as sinon.SinonStub)
-          .firstCall.args[0];
+        const mockSet = jest.mocked(mockContext.ALM_LP_Wrapper?.set);
+        const result = mockSet?.mock.calls[0]?.[0] as ALM_LP_Wrapper;
 
-        expect(result.amount0).to.equal(100n * TEN_TO_THE_18_BI); // Set directly, not incremented
-        expect(result.amount1).to.equal(500n * TEN_TO_THE_6_BI); // unchanged
-        expect(result.lpAmount).to.equal(2000n * TEN_TO_THE_18_BI); // unchanged
+        expect(result.amount0).toBe(100n * TEN_TO_THE_18_BI); // Set directly, not incremented
+        expect(result.amount1).toBe(500n * TEN_TO_THE_6_BI); // unchanged
+        expect(result.lpAmount).toBe(2000n * TEN_TO_THE_18_BI); // unchanged
       });
 
       it("should handle zero values correctly", async () => {
@@ -154,15 +156,15 @@ describe("ALMLPWrapper Aggregator", () => {
           zeroDiff,
           mockALMLPWrapperData,
           timestamp,
-          contextStub as handlerContext,
+          mockContext as handlerContext,
         );
 
-        const result = (contextStub.ALM_LP_Wrapper?.set as sinon.SinonStub)
-          .firstCall.args[0];
+        const mockSet = jest.mocked(mockContext.ALM_LP_Wrapper?.set);
+        const result = mockSet?.mock.calls[0]?.[0] as ALM_LP_Wrapper;
 
-        expect(result.amount0).to.equal(0n); // Set to 0 directly
-        expect(result.amount1).to.equal(0n); // Set to 0 directly
-        expect(result.lpAmount).to.equal(2000n * TEN_TO_THE_18_BI); // 2000 + 0 (unchanged)
+        expect(result.amount0).toBe(0n); // Set to 0 directly
+        expect(result.amount1).toBe(0n); // Set to 0 directly
+        expect(result.lpAmount).toBe(2000n * TEN_TO_THE_18_BI); // 2000 + 0 (unchanged)
       });
     });
 
@@ -185,15 +187,15 @@ describe("ALMLPWrapper Aggregator", () => {
           depositDiff,
           emptyWrapper,
           timestamp,
-          contextStub as handlerContext,
+          mockContext as handlerContext,
         );
 
-        const result = (contextStub.ALM_LP_Wrapper?.set as sinon.SinonStub)
-          .firstCall.args[0];
+        const mockSet = jest.mocked(mockContext.ALM_LP_Wrapper?.set);
+        const result = mockSet?.mock.calls[0]?.[0] as ALM_LP_Wrapper;
 
-        expect(result.amount0).to.equal(500n * TEN_TO_THE_18_BI);
-        expect(result.amount1).to.equal(250n * TEN_TO_THE_6_BI);
-        expect(result.lpAmount).to.equal(1000n * TEN_TO_THE_18_BI);
+        expect(result.amount0).toBe(500n * TEN_TO_THE_18_BI);
+        expect(result.amount1).toBe(250n * TEN_TO_THE_6_BI);
+        expect(result.lpAmount).toBe(1000n * TEN_TO_THE_18_BI);
       });
 
       it("should handle withdraw correctly (result in negative values)", async () => {
@@ -214,15 +216,15 @@ describe("ALMLPWrapper Aggregator", () => {
           withdrawDiff,
           emptyWrapper,
           timestamp,
-          contextStub as handlerContext,
+          mockContext as handlerContext,
         );
 
-        const result = (contextStub.ALM_LP_Wrapper?.set as sinon.SinonStub)
-          .firstCall.args[0];
+        const mockSet = jest.mocked(mockContext.ALM_LP_Wrapper?.set);
+        const result = mockSet?.mock.calls[0]?.[0] as ALM_LP_Wrapper;
 
-        expect(result.amount0).to.equal(-250n * TEN_TO_THE_18_BI); // 0 - 250
-        expect(result.amount1).to.equal(-125n * TEN_TO_THE_6_BI); // 0 - 125
-        expect(result.lpAmount).to.equal(-500n * TEN_TO_THE_18_BI); // 0 - 500
+        expect(result.amount0).toBe(-250n * TEN_TO_THE_18_BI); // 0 - 250
+        expect(result.amount1).toBe(-125n * TEN_TO_THE_6_BI); // 0 - 125
+        expect(result.lpAmount).toBe(-500n * TEN_TO_THE_18_BI); // 0 - 500
       });
     });
 
@@ -238,15 +240,15 @@ describe("ALMLPWrapper Aggregator", () => {
           diffWithUndefined,
           mockALMLPWrapperData,
           timestamp,
-          contextStub as handlerContext,
+          mockContext as handlerContext,
         );
 
-        const result = (contextStub.ALM_LP_Wrapper?.set as sinon.SinonStub)
-          .firstCall.args[0];
+        const mockSet = jest.mocked(mockContext.ALM_LP_Wrapper?.set);
+        const result = mockSet?.mock.calls[0]?.[0] as ALM_LP_Wrapper;
 
-        expect(result.amount0).to.equal(100n * TEN_TO_THE_18_BI); // Set directly, not incremented
-        expect(result.amount1).to.equal(500n * TEN_TO_THE_6_BI); // unchanged (undefined means keep current)
-        expect(result.lpAmount).to.equal(2000n * TEN_TO_THE_18_BI); // unchanged (undefined means keep current)
+        expect(result.amount0).toBe(100n * TEN_TO_THE_18_BI); // Set directly, not incremented
+        expect(result.amount1).toBe(500n * TEN_TO_THE_6_BI); // unchanged (undefined means keep current)
+        expect(result.lpAmount).toBe(2000n * TEN_TO_THE_18_BI); // unchanged (undefined means keep current)
       });
 
       it("should keep current amount0 when amount0 is undefined (covers false branch on line 19)", async () => {
@@ -260,15 +262,15 @@ describe("ALMLPWrapper Aggregator", () => {
           diffWithUndefinedAmount0,
           mockALMLPWrapperData,
           timestamp,
-          contextStub as handlerContext,
+          mockContext as handlerContext,
         );
 
-        const result = (contextStub.ALM_LP_Wrapper?.set as sinon.SinonStub)
-          .firstCall.args[0];
+        const mockSet = jest.mocked(mockContext.ALM_LP_Wrapper?.set);
+        const result = mockSet?.mock.calls[0]?.[0] as ALM_LP_Wrapper;
 
-        expect(result.amount0).to.equal(mockALMLPWrapperData.amount0); // unchanged (undefined means keep current)
-        expect(result.amount1).to.equal(200n * TEN_TO_THE_6_BI); // Set directly
-        expect(result.lpAmount).to.equal(2300n * TEN_TO_THE_18_BI); // 2000 + 300 (incremented)
+        expect(result.amount0).toBe(mockALMLPWrapperData.amount0); // unchanged (undefined means keep current)
+        expect(result.amount1).toBe(200n * TEN_TO_THE_6_BI); // Set directly
+        expect(result.lpAmount).toBe(2300n * TEN_TO_THE_18_BI); // 2000 + 300 (incremented)
       });
     });
 
@@ -284,19 +286,19 @@ describe("ALMLPWrapper Aggregator", () => {
           largeDiff,
           mockALMLPWrapperData,
           timestamp,
-          contextStub as handlerContext,
+          mockContext as handlerContext,
         );
 
-        const result = (contextStub.ALM_LP_Wrapper?.set as sinon.SinonStub)
-          .firstCall.args[0];
+        const mockSet = jest.mocked(mockContext.ALM_LP_Wrapper?.set);
+        const result = mockSet?.mock.calls[0]?.[0] as ALM_LP_Wrapper;
 
-        expect(result.amount0).to.equal(
+        expect(result.amount0).toBe(
           BigInt("1000000000000000000000000"), // Set directly, not incremented
         );
-        expect(result.amount1).to.equal(
+        expect(result.amount1).toBe(
           BigInt("500000000000"), // Set directly, not incremented
         );
-        expect(result.lpAmount).to.equal(
+        expect(result.lpAmount).toBe(
           2000n * TEN_TO_THE_18_BI + BigInt("2000000000000000000000000"), // Incremented
         );
       });
@@ -312,11 +314,12 @@ describe("ALMLPWrapper Aggregator", () => {
           depositDiff,
           mockALMLPWrapperData,
           timestamp,
-          contextStub as handlerContext,
+          mockContext as handlerContext,
         );
 
-        expect((contextStub.ALM_LP_Wrapper?.set as sinon.SinonStub).calledOnce)
-          .to.be.true;
+        expect(
+          jest.mocked(mockContext.ALM_LP_Wrapper?.set),
+        ).toHaveBeenCalledTimes(1);
       });
 
       it("should preserve immutability (use spread operator)", async () => {
@@ -328,19 +331,19 @@ describe("ALMLPWrapper Aggregator", () => {
           depositDiff,
           mockALMLPWrapperData,
           timestamp,
-          contextStub as handlerContext,
+          mockContext as handlerContext,
         );
 
-        const result = (contextStub.ALM_LP_Wrapper?.set as sinon.SinonStub)
-          .firstCall.args[0];
+        const mockSet = jest.mocked(mockContext.ALM_LP_Wrapper?.set);
+        const result = mockSet?.mock.calls[0]?.[0] as ALM_LP_Wrapper;
 
         // Verify all original fields are preserved
-        expect(result.id).to.equal(mockALMLPWrapperData.id);
-        expect(result.chainId).to.equal(mockALMLPWrapperData.chainId);
-        expect(result.pool).to.equal(mockALMLPWrapperData.pool);
+        expect(result.id).toBe(mockALMLPWrapperData.id);
+        expect(result.chainId).toBe(mockALMLPWrapperData.chainId);
+        expect(result.pool).toBe(mockALMLPWrapperData.pool);
         // Only amounts and timestamp should change
-        expect(result.amount0).to.not.equal(mockALMLPWrapperData.amount0);
-        expect(result.lastUpdatedTimestamp).to.not.equal(
+        expect(result.amount0).not.toBe(mockALMLPWrapperData.amount0);
+        expect(result.lastUpdatedTimestamp).not.toBe(
           mockALMLPWrapperData.lastUpdatedTimestamp,
         );
       });
@@ -364,40 +367,38 @@ describe("ALMLPWrapper Aggregator", () => {
           rebalanceDiff,
           mockALMLPWrapperData,
           timestamp,
-          contextStub as handlerContext,
+          mockContext as handlerContext,
         );
 
-        result = (contextStub.ALM_LP_Wrapper?.set as sinon.SinonStub).firstCall
-          .args[0];
+        const mockSet = jest.mocked(mockContext.ALM_LP_Wrapper?.set);
+        result = mockSet?.mock.calls[0]?.[0] as ALM_LP_Wrapper;
       });
 
       it("should set position fields directly (not increment)", () => {
-        expect(result.amount0).to.equal(600n * TEN_TO_THE_18_BI); // Set directly, not 500 + 600
-        expect(result.amount1).to.equal(300n * TEN_TO_THE_6_BI); // Set directly, not 250 + 300
-        expect(result.liquidity).to.equal(1500000n); // Set directly, not 1000000 + 1500000
-        expect(result.tokenId).to.equal(2n); // Set directly
-        expect(result.tickLower).to.equal(-1200n); // Set directly
-        expect(result.tickUpper).to.equal(1200n); // Set directly
-        expect(result.property).to.equal(3000n); // Set directly
+        expect(result.amount0).toBe(600n * TEN_TO_THE_18_BI); // Set directly, not 500 + 600
+        expect(result.amount1).toBe(300n * TEN_TO_THE_6_BI); // Set directly, not 250 + 300
+        expect(result.liquidity).toBe(1500000n); // Set directly, not 1000000 + 1500000
+        expect(result.tokenId).toBe(2n); // Set directly
+        expect(result.tickLower).toBe(-1200n); // Set directly
+        expect(result.tickUpper).toBe(1200n); // Set directly
+        expect(result.property).toBe(3000n); // Set directly
       });
 
       it("should preserve lpAmount aggregation", () => {
-        expect(result.lpAmount).to.equal(mockALMLPWrapperData.lpAmount);
+        expect(result.lpAmount).toBe(mockALMLPWrapperData.lpAmount);
       });
 
       it("should preserve other position fields", () => {
-        expect(result.strategyType).to.equal(mockALMLPWrapperData.strategyType);
-        expect(result.tickNeighborhood).to.equal(
+        expect(result.strategyType).toBe(mockALMLPWrapperData.strategyType);
+        expect(result.tickNeighborhood).toBe(
           mockALMLPWrapperData.tickNeighborhood,
         );
-        expect(result.tickSpacing).to.equal(mockALMLPWrapperData.tickSpacing);
-        expect(result.positionWidth).to.equal(
-          mockALMLPWrapperData.positionWidth,
-        );
+        expect(result.tickSpacing).toBe(mockALMLPWrapperData.tickSpacing);
+        expect(result.positionWidth).toBe(mockALMLPWrapperData.positionWidth);
       });
 
       it("should update timestamp", () => {
-        expect(result.lastUpdatedTimestamp).to.equal(timestamp);
+        expect(result.lastUpdatedTimestamp).toBe(timestamp);
       });
     });
 
@@ -413,17 +414,17 @@ describe("ALMLPWrapper Aggregator", () => {
           partialRebalanceDiff,
           mockALMLPWrapperData,
           timestamp,
-          contextStub as handlerContext,
+          mockContext as handlerContext,
         );
 
-        const result = (contextStub.ALM_LP_Wrapper?.set as sinon.SinonStub)
-          .firstCall.args[0];
+        const mockSet = jest.mocked(mockContext.ALM_LP_Wrapper?.set);
+        const result = mockSet?.mock.calls[0]?.[0] as ALM_LP_Wrapper;
 
-        expect(result.amount0).to.equal(700n * TEN_TO_THE_18_BI); // Updated
-        expect(result.liquidity).to.equal(2000000n); // Updated
-        expect(result.amount1).to.equal(mockALMLPWrapperData.amount1); // Unchanged
-        expect(result.tokenId).to.equal(mockALMLPWrapperData.tokenId); // Unchanged
-        expect(result.tickLower).to.equal(mockALMLPWrapperData.tickLower); // Unchanged
+        expect(result.amount0).toBe(700n * TEN_TO_THE_18_BI); // Updated
+        expect(result.liquidity).toBe(2000000n); // Updated
+        expect(result.amount1).toBe(mockALMLPWrapperData.amount1); // Unchanged
+        expect(result.tokenId).toBe(mockALMLPWrapperData.tokenId); // Unchanged
+        expect(result.tickLower).toBe(mockALMLPWrapperData.tickLower); // Unchanged
       });
     });
   });

@@ -1,11 +1,9 @@
-import { expect } from "chai";
 import type {
   LiquidityPoolAggregator,
   Pool_Swap_event,
   Token,
   handlerContext,
 } from "generated";
-import sinon from "sinon";
 import { processPoolSwap } from "../../../src/EventHandlers/Pool/PoolSwapLogic";
 import * as PriceOracle from "../../../src/PriceOracle";
 import { setupCommon } from "./common";
@@ -37,7 +35,7 @@ describe("PoolSwapLogic", () => {
   };
 
   // Mock context
-  const mockLogError = sinon.stub();
+  const mockLogError = jest.fn();
   const mockContext = {
     log: {
       error: mockLogError,
@@ -82,17 +80,17 @@ describe("PoolSwapLogic", () => {
     decimals: 6n,
   };
 
-  let refreshTokenPriceStub: sinon.SinonStub;
+  let refreshTokenPriceSpy: jest.SpyInstance;
 
   beforeEach(() => {
-    refreshTokenPriceStub = sinon
-      .stub(PriceOracle, "refreshTokenPrice")
-      .callsFake(async (token) => token); // Return the token as-is
-    mockLogError.reset();
+    refreshTokenPriceSpy = jest
+      .spyOn(PriceOracle, "refreshTokenPrice")
+      .mockImplementation(async (token) => token); // Return the token as-is
+    mockLogError.mockClear();
   });
 
   afterEach(() => {
-    sinon.restore();
+    jest.restoreAllMocks();
   });
 
   describe("processPoolSwap", () => {
@@ -107,18 +105,18 @@ describe("PoolSwapLogic", () => {
       );
 
       // Assertions
-      expect(result.liquidityPoolDiff).to.exist;
-      expect(result.userSwapDiff).to.exist;
+      expect(result.liquidityPoolDiff).toBeDefined();
+      expect(result.userSwapDiff).toBeDefined();
 
       // Verify user swap diff content
-      expect(result.userSwapDiff).to.deep.include({
+      expect(result.userSwapDiff).toMatchObject({
         numberOfSwaps: 1n,
         totalSwapVolumeUSD: 1000n, // from swapData.volumeInUSD (token0: 1000 * 1 USD)
         lastActivityTimestamp: new Date(1000000 * 1000),
       });
 
       // Verify liquidity pool diff content
-      expect(result.liquidityPoolDiff).to.include({
+      expect(result.liquidityPoolDiff).toMatchObject({
         totalVolume0: 1000n, // netAmount0 (diff) - amount0In + amount0Out = 1000 + 0
         totalVolume1: 500n, // netAmount1 (diff) - amount1In + amount1Out = 0 + 500
         numberOfSwaps: 1n, // diff
@@ -129,39 +127,33 @@ describe("PoolSwapLogic", () => {
       });
 
       // Check timestamp separately
-      expect(result.liquidityPoolDiff?.lastUpdatedTimestamp).to.deep.equal(
+      expect(result.liquidityPoolDiff?.lastUpdatedTimestamp).toEqual(
         new Date(1000000 * 1000),
       );
 
       // Verify that refreshTokenPrice was called for both tokens
-      expect(refreshTokenPriceStub.calledTwice).to.be.true;
-      expect(
-        refreshTokenPriceStub.firstCall.calledWith(
-          mockToken0,
-          123456,
-          1000000,
-          10,
-          mockContext,
-        ),
-      ).to.be.true;
-      expect(
-        refreshTokenPriceStub.secondCall.calledWith(
-          mockToken1,
-          123456,
-          1000000,
-          10,
-          mockContext,
-        ),
-      ).to.be.true;
+      expect(refreshTokenPriceSpy).toHaveBeenCalledTimes(2);
+      expect(refreshTokenPriceSpy.mock.calls[0]).toEqual([
+        mockToken0,
+        123456,
+        1000000,
+        10,
+        mockContext,
+      ]);
+      expect(refreshTokenPriceSpy.mock.calls[1]).toEqual([
+        mockToken1,
+        123456,
+        1000000,
+        10,
+        mockContext,
+      ]);
     });
 
     it("should handle refreshTokenPrice errors gracefully", async () => {
       // Mock refreshTokenPrice to throw an error for token0
-      refreshTokenPriceStub
-        .onFirstCall()
-        .rejects(new Error("Price refresh failed"))
-        .onSecondCall()
-        .callsFake(async (token) => token);
+      refreshTokenPriceSpy
+        .mockRejectedValueOnce(new Error("Price refresh failed"))
+        .mockImplementationOnce(async (token) => token);
 
       const result = await processPoolSwap(
         mockEvent,
@@ -172,12 +164,12 @@ describe("PoolSwapLogic", () => {
       );
 
       // Should still process and continue processing
-      expect(result.liquidityPoolDiff).to.exist;
-      expect(result.userSwapDiff).to.exist;
+      expect(result.liquidityPoolDiff).toBeDefined();
+      expect(result.userSwapDiff).toBeDefined();
 
       // Verify error was logged
-      expect(mockLogError.calledOnce).to.be.true;
-      expect(mockLogError.firstCall.args[0]).to.include(
+      expect(mockLogError).toHaveBeenCalledTimes(1);
+      expect(mockLogError.mock.calls[0][0]).toContain(
         "Error refreshing token price",
       );
     });
@@ -206,7 +198,7 @@ describe("PoolSwapLogic", () => {
       // Token1 has amount1In + amount1Out = 2000n + 5n = 2005n
       // The logic uses the smaller volume for calculation (102n from token0)
       // Expected: 102n (token0 volume diff)
-      expect(result.liquidityPoolDiff?.totalVolumeUSD).to.equal(102n);
+      expect(result.liquidityPoolDiff?.totalVolumeUSD).toBe(102n);
     });
 
     it("should not add to whitelisted volume when tokens are not whitelisted", async () => {
@@ -218,13 +210,13 @@ describe("PoolSwapLogic", () => {
         mockContext,
       );
 
-      expect(result.liquidityPoolDiff).to.exist;
-      expect(result.userSwapDiff).to.exist;
+      expect(result.liquidityPoolDiff).toBeDefined();
+      expect(result.userSwapDiff).toBeDefined();
 
       // When tokens are not whitelisted, whitelisted volume diff should be 0
-      expect(result.liquidityPoolDiff?.totalVolumeUSDWhitelisted).to.equal(0n);
+      expect(result.liquidityPoolDiff?.totalVolumeUSDWhitelisted).toBe(0n);
       // But total volume should still be calculated: 1000n USD (1000 USDT * 1 USD, uses token0 value)
-      expect(result.liquidityPoolDiff?.totalVolumeUSD).to.equal(1000n);
+      expect(result.liquidityPoolDiff?.totalVolumeUSD).toBe(1000n);
     });
 
     it("should add to whitelisted volume when both tokens are whitelisted", async () => {
@@ -236,14 +228,12 @@ describe("PoolSwapLogic", () => {
         mockContext,
       );
 
-      expect(result.liquidityPoolDiff).to.exist;
-      expect(result.userSwapDiff).to.exist;
+      expect(result.liquidityPoolDiff).toBeDefined();
+      expect(result.userSwapDiff).toBeDefined();
 
       // When both tokens are whitelisted, whitelisted volume should be added
       // Expected: 1000n USD (1000 USDT * 1 USD, uses token0 value)
-      expect(result.liquidityPoolDiff?.totalVolumeUSDWhitelisted).to.equal(
-        1000n,
-      );
+      expect(result.liquidityPoolDiff?.totalVolumeUSDWhitelisted).toBe(1000n);
     });
 
     it("should handle mixed whitelist status correctly", async () => {
@@ -255,11 +245,11 @@ describe("PoolSwapLogic", () => {
         mockContext,
       );
 
-      expect(result.liquidityPoolDiff).to.exist;
-      expect(result.userSwapDiff).to.exist;
+      expect(result.liquidityPoolDiff).toBeDefined();
+      expect(result.userSwapDiff).toBeDefined();
 
       // When only one token is whitelisted, whitelisted volume diff should be 0
-      expect(result.liquidityPoolDiff?.totalVolumeUSDWhitelisted).to.equal(0n);
+      expect(result.liquidityPoolDiff?.totalVolumeUSDWhitelisted).toBe(0n);
     });
 
     it("should update token prices correctly", async () => {
@@ -272,11 +262,9 @@ describe("PoolSwapLogic", () => {
         pricePerUSDNew: 3000000000000000000n,
       }; // 3 USD
 
-      refreshTokenPriceStub
-        .onFirstCall()
-        .resolves(updatedToken0)
-        .onSecondCall()
-        .resolves(updatedToken1);
+      refreshTokenPriceSpy
+        .mockResolvedValueOnce(updatedToken0)
+        .mockResolvedValueOnce(updatedToken1);
 
       const result = await processPoolSwap(
         mockEvent,
@@ -286,12 +274,8 @@ describe("PoolSwapLogic", () => {
         mockContext,
       );
 
-      expect(result.liquidityPoolDiff?.token0Price).to.equal(
-        2000000000000000000n,
-      );
-      expect(result.liquidityPoolDiff?.token1Price).to.equal(
-        3000000000000000000n,
-      );
+      expect(result.liquidityPoolDiff?.token0Price).toBe(2000000000000000000n);
+      expect(result.liquidityPoolDiff?.token1Price).toBe(3000000000000000000n);
     });
   });
 });

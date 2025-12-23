@@ -1,4 +1,3 @@
-import { expect } from "chai";
 import type {
   VeNFTAggregator,
   VeNFT_Deposit_event,
@@ -53,7 +52,7 @@ describe("VeNFTLogic", () => {
           mockVeNFTAggregator,
         );
 
-        expect(result.veNFTAggregatorDiff).to.deep.equal({
+        expect(result.veNFTAggregatorDiff).toEqual({
           id: "10_1",
           chainId: 10,
           tokenId: 1n,
@@ -94,7 +93,7 @@ describe("VeNFTLogic", () => {
           mockVeNFTAggregator,
         );
 
-        expect(result.veNFTAggregatorDiff).to.deep.equal({
+        expect(result.veNFTAggregatorDiff).toEqual({
           id: "10_1",
           chainId: 10,
           tokenId: 1n,
@@ -119,7 +118,7 @@ describe("VeNFTLogic", () => {
 
         const result = await processVeNFTEvent(burnEvent, mockVeNFTAggregator);
 
-        expect(result.veNFTAggregatorDiff).to.deep.equal({
+        expect(result.veNFTAggregatorDiff).toEqual({
           id: "10_1",
           chainId: 10,
           tokenId: 1n,
@@ -160,7 +159,7 @@ describe("VeNFTLogic", () => {
           mockVeNFTAggregator,
         );
 
-        expect(result.veNFTAggregatorDiff).to.deep.equal({
+        expect(result.veNFTAggregatorDiff).toEqual({
           id: "10_1",
           chainId: 10,
           tokenId: 1n,

@@ -1,4 +1,3 @@
-import { expect } from "chai";
 import {
   CustomFeeSwapModule,
   MockDb,
@@ -48,10 +47,10 @@ describe("CustomFeeSwapModule Events", () => {
 
       // Assert: Check that DynamicFeeGlobalConfig was created
       const config = result.entities.DynamicFeeGlobalConfig.get(moduleAddress);
-      expect(config).to.not.be.undefined;
-      expect(config?.id).to.equal(moduleAddress);
-      expect(config?.chainId).to.equal(chainId);
-      expect(config?.secondsAgo).to.be.undefined;
+      expect(config).not.toBeUndefined();
+      expect(config?.id).toBe(moduleAddress);
+      expect(config?.chainId).toBe(chainId);
+      expect(config?.secondsAgo).toBeUndefined();
     });
 
     it("should update the pool's baseFee", async () => {
@@ -89,8 +88,8 @@ describe("CustomFeeSwapModule Events", () => {
       // Assert: Check that pool's baseFee was updated
       const updatedPool =
         result.entities.LiquidityPoolAggregator.get(poolAddress);
-      expect(updatedPool).to.not.be.undefined;
-      expect(updatedPool?.baseFee).to.equal(fee);
+      expect(updatedPool).not.toBeUndefined();
+      expect(updatedPool?.baseFee).toBe(fee);
     });
   });
 });

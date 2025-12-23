@@ -1,4 +1,3 @@
-import { expect } from "chai";
 import {
   DynamicFeeSwapModule,
   MockDb,
@@ -43,9 +42,9 @@ describe("DynamicFeeSwapModule Events", () => {
       const config = result.entities.DynamicFeeGlobalConfig.get(
         toChecksumAddress(moduleAddress),
       );
-      expect(config).to.not.be.undefined;
-      expect(config?.id).to.equal(toChecksumAddress(moduleAddress));
-      expect(config?.secondsAgo).to.equal(secondsAgo);
+      expect(config).not.toBeUndefined();
+      expect(config?.id).toBe(toChecksumAddress(moduleAddress));
+      expect(config?.secondsAgo).toBe(secondsAgo);
     });
   });
 
@@ -88,10 +87,10 @@ describe("DynamicFeeSwapModule Events", () => {
         toChecksumAddress(poolAddress),
       );
 
-      expect(updatedPool).to.not.be.undefined;
-      expect(updatedPool?.baseFee).to.equal(baseFee);
-      expect(updatedPool?.scalingFactor).to.be.undefined;
-      expect(updatedPool?.feeCap).to.be.undefined;
+      expect(updatedPool).not.toBeUndefined();
+      expect(updatedPool?.baseFee).toBe(baseFee);
+      expect(updatedPool?.scalingFactor).toBeUndefined();
+      expect(updatedPool?.feeCap).toBeUndefined();
 
       // Execute - Update scalingFactor
       result = await DynamicFeeSwapModule.ScalingFactorSet.processEvent({
@@ -116,10 +115,10 @@ describe("DynamicFeeSwapModule Events", () => {
         toChecksumAddress(poolAddress),
       );
 
-      expect(updatedPool).to.not.be.undefined;
-      expect(updatedPool?.baseFee).to.be.undefined;
-      expect(updatedPool?.scalingFactor).to.equal(scalingFactor);
-      expect(updatedPool?.feeCap).to.be.undefined;
+      expect(updatedPool).not.toBeUndefined();
+      expect(updatedPool?.baseFee).toBeUndefined();
+      expect(updatedPool?.scalingFactor).toBe(scalingFactor);
+      expect(updatedPool?.feeCap).toBeUndefined();
 
       // Execute - Update feeCap
       result = await DynamicFeeSwapModule.FeeCapSet.processEvent({
@@ -143,10 +142,10 @@ describe("DynamicFeeSwapModule Events", () => {
       updatedPool = result.entities.LiquidityPoolAggregator.get(
         toChecksumAddress(poolAddress),
       );
-      expect(updatedPool).to.not.be.undefined;
-      expect(updatedPool?.baseFee).to.be.undefined;
-      expect(updatedPool?.scalingFactor).to.be.undefined;
-      expect(updatedPool?.feeCap).to.equal(feeCap);
+      expect(updatedPool).not.toBeUndefined();
+      expect(updatedPool?.baseFee).toBeUndefined();
+      expect(updatedPool?.scalingFactor).toBeUndefined();
+      expect(updatedPool?.feeCap).toBe(feeCap);
     });
   });
 });

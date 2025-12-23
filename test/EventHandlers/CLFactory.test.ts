@@ -1,5 +1,3 @@
-import { expect } from "chai";
-import sinon from "sinon";
 import { CLFactory, MockDb } from "../../generated/src/TestHelpers.gen";
 import type {
   CLGaugeConfig,
@@ -22,8 +20,7 @@ describe("CLFactory Events", () => {
   const token0Address = mockToken0Data.address;
   const token1Address = mockToken1Data.address;
 
-  let sandbox: sinon.SinonSandbox;
-  let processStub: sinon.SinonStub;
+  let processSpy: jest.SpyInstance;
   // Store the original newCLGaugeFactoryAddress from Constants (Base chain: 0xaDe65c38CD4849aDBA595a4323a8C7DdfE89716a)
   const originalNewCLGaugeFactoryAddress =
     "0xaDe65c38CD4849aDBA595a4323a8C7DdfE89716a";
@@ -38,10 +35,9 @@ describe("CLFactory Events", () => {
     }
     newCLGaugeFactoryAddress = originalNewCLGaugeFactoryAddress;
 
-    sandbox = sinon.createSandbox();
-    processStub = sandbox
-      .stub(CLFactoryPoolCreatedLogic, "processCLFactoryPoolCreated")
-      .resolves({
+    processSpy = jest
+      .spyOn(CLFactoryPoolCreatedLogic, "processCLFactoryPoolCreated")
+      .mockResolvedValue({
         liquidityPoolAggregator: {
           id: toChecksumAddress(poolAddress),
           chainId: chainId,
@@ -62,7 +58,7 @@ describe("CLFactory Events", () => {
       CHAIN_CONSTANTS[chainId].newCLGaugeFactoryAddress =
         originalNewCLGaugeFactoryAddress;
     }
-    sandbox.restore();
+    jest.restoreAllMocks();
   });
 
   describe("PoolCreated event", () => {
@@ -119,30 +115,30 @@ describe("CLFactory Events", () => {
     });
 
     it("should call processCLFactoryPoolCreated with correct parameters", () => {
-      // The stub should have been called when the event was processed in beforeEach
-      expect(processStub.called).to.be.true;
-      expect(processStub.callCount).to.be.at.least(1);
-      const callArgs = processStub.firstCall.args;
-      expect(callArgs[0]).to.deep.equal(mockEvent);
+      // The spy should have been called when the event was processed in beforeEach
+      expect(processSpy).toHaveBeenCalled();
+      expect(processSpy.mock.calls.length).toBeGreaterThanOrEqual(1);
+      const callArgs = processSpy.mock.calls[0];
+      expect(callArgs[0]).toEqual(mockEvent);
       // Tokens should match (address and chainId)
-      expect(callArgs[1]?.address).to.equal(mockToken0Data.address);
-      expect(callArgs[1]?.chainId).to.equal(chainId);
-      expect(callArgs[2]?.address).to.equal(mockToken1Data.address);
-      expect(callArgs[2]?.chainId).to.equal(chainId);
+      expect(callArgs[1]?.address).toBe(mockToken0Data.address);
+      expect(callArgs[1]?.chainId).toBe(chainId);
+      expect(callArgs[2]?.address).toBe(mockToken1Data.address);
+      expect(callArgs[2]?.chainId).toBe(chainId);
       // CLGaugeConfig should be the 4th argument
       const clGaugeConfig = callArgs[3];
-      expect(clGaugeConfig).to.not.be.undefined;
-      expect(clGaugeConfig?.id).to.equal(newCLGaugeFactoryAddress);
+      expect(clGaugeConfig).not.toBeUndefined();
+      expect(clGaugeConfig?.id).toBe(newCLGaugeFactoryAddress);
     });
 
     it("should set the liquidity pool aggregator entity", () => {
       const pool = resultDB.entities.LiquidityPoolAggregator.get(
         toChecksumAddress(poolAddress),
       );
-      expect(pool).to.not.be.undefined;
-      expect(pool?.id).to.equal(toChecksumAddress(poolAddress));
-      expect(pool?.chainId).to.equal(chainId);
-      expect(pool?.isCL).to.be.true;
+      expect(pool).not.toBeUndefined();
+      expect(pool?.id).toBe(toChecksumAddress(poolAddress));
+      expect(pool?.chainId).toBe(chainId);
+      expect(pool?.isCL).toBe(true);
     });
 
     it("should process event even during preload phase", async () => {
@@ -170,8 +166,8 @@ describe("CLFactory Events", () => {
       } as CLGaugeConfig;
       preloadMockDb.entities.CLGaugeConfig.set(clGaugeConfig);
 
-      // Reset stub to track calls
-      processStub.resetHistory();
+      // Reset spy to track calls
+      processSpy.mockClear();
 
       // Handlers now run during both preload and normal phases
       const result = await CLFactory.PoolCreated.processEvent({
@@ -181,22 +177,22 @@ describe("CLFactory Events", () => {
 
       // Should call processCLFactoryPoolCreated (no preload check anymore)
       // Handlers may run multiple times (preload + normal), so check if called at least once
-      expect(processStub.called).to.be.true;
-      expect(processStub.callCount).to.be.at.least(1);
+      expect(processSpy).toHaveBeenCalled();
+      expect(processSpy.mock.calls.length).toBeGreaterThanOrEqual(1);
     });
 
     it("should load token0, token1, and CLGaugeConfig in parallel", () => {
       // Verify that the handler loads all three entities
       // This is tested implicitly by the fact that processCLFactoryPoolCreated is called
       // with the correct token instances
-      expect(processStub.called).to.be.true;
-      expect(processStub.callCount).to.be.at.least(1);
-      const callArgs = processStub.firstCall.args;
-      expect(callArgs[1]).to.not.be.undefined; // token0
-      expect(callArgs[2]).to.not.be.undefined; // token1
+      expect(processSpy).toHaveBeenCalled();
+      expect(processSpy.mock.calls.length).toBeGreaterThanOrEqual(1);
+      const callArgs = processSpy.mock.calls[0];
+      expect(callArgs[1]).not.toBeUndefined(); // token0
+      expect(callArgs[2]).not.toBeUndefined(); // token1
       const clGaugeConfig = callArgs[3];
-      expect(clGaugeConfig).to.not.be.undefined; // CLGaugeConfig
-      expect(clGaugeConfig?.id).to.equal(newCLGaugeFactoryAddress);
+      expect(clGaugeConfig).not.toBeUndefined(); // CLGaugeConfig
+      expect(clGaugeConfig?.id).toBe(newCLGaugeFactoryAddress);
     });
   });
 });

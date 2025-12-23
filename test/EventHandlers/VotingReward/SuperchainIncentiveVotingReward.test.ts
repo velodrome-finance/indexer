@@ -1,5 +1,3 @@
-import { expect } from "chai";
-import sinon from "sinon";
 import {
   MockDb,
   SuperchainIncentiveVotingReward,
@@ -25,7 +23,6 @@ describe("SuperchainIncentiveVotingReward Events", () => {
   const rewardTokenAddress = "0x4444444444444444444444444444444444444444";
   const tokenId = 1n;
 
-  let sandbox: sinon.SinonSandbox;
   let mockDb: ReturnType<typeof MockDb.createMockDb>;
   let liquidityPool: LiquidityPoolAggregator;
   let userStats: UserStatsPerPool;
@@ -33,7 +30,7 @@ describe("SuperchainIncentiveVotingReward Events", () => {
   let veNFT: VeNFTAggregator;
 
   beforeEach(() => {
-    sandbox = sinon.createSandbox();
+    jest.clearAllMocks();
     mockDb = MockDb.createMockDb();
 
     // Set up liquidity pool with bribe voting reward address
@@ -91,7 +88,7 @@ describe("SuperchainIncentiveVotingReward Events", () => {
   });
 
   afterEach(() => {
-    sandbox.restore();
+    jest.restoreAllMocks();
   });
 
   describe("ClaimRewards Event", () => {
@@ -102,18 +99,20 @@ describe("SuperchainIncentiveVotingReward Events", () => {
 
     beforeEach(async () => {
       // Mock the loadVotingRewardData function
-      sandbox.stub(VotingRewardSharedLogic, "loadVotingRewardData").resolves({
-        pool: liquidityPool,
-        poolData: {
-          liquidityPoolAggregator: liquidityPool,
-        },
-        userData: userStats,
-      });
+      jest
+        .spyOn(VotingRewardSharedLogic, "loadVotingRewardData")
+        .mockResolvedValue({
+          pool: liquidityPool,
+          poolData: {
+            liquidityPoolAggregator: liquidityPool,
+          },
+          userData: userStats,
+        });
 
       // Mock the processVotingRewardClaimRewards function
-      sandbox
-        .stub(VotingRewardSharedLogic, "processVotingRewardClaimRewards")
-        .resolves({
+      jest
+        .spyOn(VotingRewardSharedLogic, "processVotingRewardClaimRewards")
+        .mockResolvedValue({
           poolDiff: {
             totalBribeClaimed: 1000000n,
             totalBribeClaimedUSD: 1000000n,
@@ -150,25 +149,24 @@ describe("SuperchainIncentiveVotingReward Events", () => {
     it("should update pool aggregator with bribe claimed", () => {
       const updatedPool =
         resultDB.entities.LiquidityPoolAggregator.get(poolAddress);
-      expect(updatedPool).to.not.be.undefined;
-      expect(updatedPool?.totalBribeClaimed).to.equal(1000000n);
-      expect(updatedPool?.totalBribeClaimedUSD).to.equal(1000000n);
+      expect(updatedPool).not.toBeUndefined();
+      expect(updatedPool?.totalBribeClaimed).toBe(1000000n);
+      expect(updatedPool?.totalBribeClaimedUSD).toBe(1000000n);
     });
 
     it("should update user stats with bribe claimed", () => {
       const updatedUser = resultDB.entities.UserStatsPerPool.get(userStats.id);
-      expect(updatedUser).to.not.be.undefined;
-      expect(updatedUser?.totalBribeClaimed).to.equal(1000000n);
-      expect(updatedUser?.totalBribeClaimedUSD).to.equal(1000000n);
+      expect(updatedUser).not.toBeUndefined();
+      expect(updatedUser?.totalBribeClaimed).toBe(1000000n);
+      expect(updatedUser?.totalBribeClaimedUSD).toBe(1000000n);
     });
 
     describe("when loadVotingRewardData returns null", () => {
       beforeEach(async () => {
-        sandbox.restore();
-        sandbox = sinon.createSandbox();
-        sandbox
-          .stub(VotingRewardSharedLogic, "loadVotingRewardData")
-          .resolves(null);
+        jest.restoreAllMocks();
+        jest
+          .spyOn(VotingRewardSharedLogic, "loadVotingRewardData")
+          .mockResolvedValue(null);
 
         resultDB =
           await SuperchainIncentiveVotingReward.ClaimRewards.processEvent({
@@ -180,14 +178,14 @@ describe("SuperchainIncentiveVotingReward Events", () => {
       it("should not update pool or user stats", () => {
         const updatedPool =
           resultDB.entities.LiquidityPoolAggregator.get(poolAddress);
-        expect(updatedPool?.totalBribeClaimed).to.equal(
+        expect(updatedPool?.totalBribeClaimed).toBe(
           liquidityPool.totalBribeClaimed,
         );
 
         const updatedUser = resultDB.entities.UserStatsPerPool.get(
           userStats.id,
         );
-        expect(updatedUser?.totalBribeClaimed).to.equal(
+        expect(updatedUser?.totalBribeClaimed).toBe(
           userStats.totalBribeClaimed,
         );
       });

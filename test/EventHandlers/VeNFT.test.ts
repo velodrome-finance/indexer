@@ -1,5 +1,3 @@
-import { expect } from "chai";
-import sinon from "sinon";
 import { MockDb, VeNFT } from "../../generated/src/TestHelpers.gen";
 import * as VeNFTAggregator from "../../src/Aggregators/VeNFTAggregator";
 import * as VeNFTLogic from "../../src/EventHandlers/VeNFT/VeNFTLogic";
@@ -47,17 +45,14 @@ describe("VeNFT Events", () => {
       },
     };
 
-    let stubVeNFTAggregator: sinon.SinonStub;
-    let stubVeNFTLogic: sinon.SinonStub;
     let postEventDB: ReturnType<typeof MockDb.createMockDb>;
     let mockEvent: ReturnType<typeof VeNFT.Transfer.createMockEvent>;
 
     beforeEach(async () => {
-      stubVeNFTAggregator = sinon.stub(
-        VeNFTAggregator,
-        "updateVeNFTAggregator",
-      );
-      stubVeNFTLogic = sinon.stub(VeNFTLogic, "processVeNFTEvent").resolves({
+      jest
+        .spyOn(VeNFTAggregator, "updateVeNFTAggregator")
+        .mockImplementation(() => {});
+      jest.spyOn(VeNFTLogic, "processVeNFTEvent").mockResolvedValue({
         veNFTAggregatorDiff: {
           id: VeNFTId(chainId, tokenId),
           chainId: chainId,
@@ -77,23 +72,30 @@ describe("VeNFT Events", () => {
     });
 
     afterEach(() => {
-      stubVeNFTAggregator.restore();
-      stubVeNFTLogic.restore();
+      jest.restoreAllMocks();
     });
 
     it("should call processVeNFTEvent with the correct arguments", () => {
-      expect(stubVeNFTLogic.called).to.be.true;
-      expect(stubVeNFTLogic.callCount).to.be.at.least(1);
-      const calledWith = stubVeNFTLogic.firstCall.args;
-      expect(calledWith[0]).to.deep.equal(mockEvent);
-      expect(calledWith[1]).to.deep.equal(mockVeNFTAggregator);
+      const processVeNFTEventMock = jest.mocked(VeNFTLogic.processVeNFTEvent);
+      expect(processVeNFTEventMock).toHaveBeenCalled();
+      // Handlers may run multiple times (preload + normal), so check if called at least once
+      expect(processVeNFTEventMock.mock.calls.length).toBeGreaterThanOrEqual(1);
+      const calledWith = processVeNFTEventMock.mock.calls[0];
+      expect(calledWith[0]).toEqual(mockEvent);
+      expect(calledWith[1]).toEqual(mockVeNFTAggregator);
     });
 
     it("should call updateVeNFTAggregator with the correct arguments", () => {
-      expect(stubVeNFTAggregator.called).to.be.true;
-      expect(stubVeNFTAggregator.callCount).to.be.at.least(1);
-      const calledWith = stubVeNFTAggregator.firstCall.args;
-      expect(calledWith[0]).to.deep.equal({
+      const updateVeNFTAggregatorMock = jest.mocked(
+        VeNFTAggregator.updateVeNFTAggregator,
+      );
+      expect(updateVeNFTAggregatorMock).toHaveBeenCalled();
+      // Handlers may run multiple times (preload + normal), so check if called at least once
+      expect(
+        updateVeNFTAggregatorMock.mock.calls.length,
+      ).toBeGreaterThanOrEqual(1);
+      const calledWith = updateVeNFTAggregatorMock.mock.calls[0];
+      expect(calledWith[0]).toEqual({
         id: VeNFTId(chainId, tokenId),
         chainId: chainId,
         tokenId: tokenId,
@@ -102,10 +104,8 @@ describe("VeNFT Events", () => {
         totalValueLocked: mockVeNFTAggregator.totalValueLocked,
         isAlive: true,
       });
-      expect(calledWith[1]).to.deep.equal(mockVeNFTAggregator);
-      expect(calledWith[2]).to.deep.equal(
-        new Date(mockEvent.block.timestamp * 1000),
-      );
+      expect(calledWith[1]).toEqual(mockVeNFTAggregator);
+      expect(calledWith[2]).toEqual(new Date(mockEvent.block.timestamp * 1000));
     });
   });
 
@@ -147,17 +147,15 @@ describe("VeNFT Events", () => {
         VeNFTId(chainId, mintEventData.tokenId),
       );
 
-      expect(createdVeNFT).to.not.be.undefined;
-      expect(createdVeNFT?.id).to.equal(
-        VeNFTId(chainId, mintEventData.tokenId),
-      );
-      expect(createdVeNFT?.chainId).to.equal(chainId);
-      expect(createdVeNFT?.tokenId).to.equal(mintEventData.tokenId);
-      expect(createdVeNFT?.owner).to.equal(mintEventData.to);
-      expect(createdVeNFT?.locktime).to.equal(0n);
-      expect(createdVeNFT?.totalValueLocked).to.equal(0n);
-      expect(createdVeNFT?.isAlive).to.be.true;
-      expect(createdVeNFT?.lastUpdatedTimestamp).to.deep.equal(
+      expect(createdVeNFT).not.toBeUndefined();
+      expect(createdVeNFT?.id).toBe(VeNFTId(chainId, mintEventData.tokenId));
+      expect(createdVeNFT?.chainId).toBe(chainId);
+      expect(createdVeNFT?.tokenId).toBe(mintEventData.tokenId);
+      expect(createdVeNFT?.owner).toBe(mintEventData.to);
+      expect(createdVeNFT?.locktime).toBe(0n);
+      expect(createdVeNFT?.totalValueLocked).toBe(0n);
+      expect(createdVeNFT?.isAlive).toBe(true);
+      expect(createdVeNFT?.lastUpdatedTimestamp).toEqual(
         new Date(mintEventData.mockEventData.block.timestamp * 1000),
       );
     });
@@ -182,17 +180,14 @@ describe("VeNFT Events", () => {
       },
     };
 
-    let stubVeNFTAggregator: sinon.SinonStub;
-    let stubVeNFTLogic: sinon.SinonStub;
     let postEventDB: ReturnType<typeof MockDb.createMockDb>;
     let mockEvent: ReturnType<typeof VeNFT.Withdraw.createMockEvent>;
 
     beforeEach(async () => {
-      stubVeNFTAggregator = sinon.stub(
-        VeNFTAggregator,
-        "updateVeNFTAggregator",
-      );
-      stubVeNFTLogic = sinon.stub(VeNFTLogic, "processVeNFTEvent").resolves({
+      jest
+        .spyOn(VeNFTAggregator, "updateVeNFTAggregator")
+        .mockImplementation(() => {});
+      jest.spyOn(VeNFTLogic, "processVeNFTEvent").mockResolvedValue({
         veNFTAggregatorDiff: {
           id: VeNFTId(chainId, tokenId),
           chainId: chainId,
@@ -212,23 +207,30 @@ describe("VeNFT Events", () => {
     });
 
     afterEach(() => {
-      stubVeNFTAggregator.restore();
-      stubVeNFTLogic.restore();
+      jest.restoreAllMocks();
     });
 
     it("should call processVeNFTEvent with the correct arguments", () => {
-      expect(stubVeNFTLogic.called).to.be.true;
-      expect(stubVeNFTLogic.callCount).to.be.at.least(1);
-      const calledWith = stubVeNFTLogic.firstCall.args;
-      expect(calledWith[0]).to.deep.equal(mockEvent);
-      expect(calledWith[1]).to.deep.equal(mockVeNFTAggregator);
+      const processVeNFTEventMock = jest.mocked(VeNFTLogic.processVeNFTEvent);
+      expect(processVeNFTEventMock).toHaveBeenCalled();
+      // Handlers may run multiple times (preload + normal), so check if called at least once
+      expect(processVeNFTEventMock.mock.calls.length).toBeGreaterThanOrEqual(1);
+      const calledWith = processVeNFTEventMock.mock.calls[0];
+      expect(calledWith[0]).toEqual(mockEvent);
+      expect(calledWith[1]).toEqual(mockVeNFTAggregator);
     });
 
     it("should call updateVeNFTAggregator with the correct arguments", () => {
-      expect(stubVeNFTAggregator.called).to.be.true;
-      expect(stubVeNFTAggregator.callCount).to.be.at.least(1);
-      const calledWith = stubVeNFTAggregator.firstCall.args;
-      expect(calledWith[0]).to.deep.equal({
+      const updateVeNFTAggregatorMock = jest.mocked(
+        VeNFTAggregator.updateVeNFTAggregator,
+      );
+      expect(updateVeNFTAggregatorMock).toHaveBeenCalled();
+      // Handlers may run multiple times (preload + normal), so check if called at least once
+      expect(
+        updateVeNFTAggregatorMock.mock.calls.length,
+      ).toBeGreaterThanOrEqual(1);
+      const calledWith = updateVeNFTAggregatorMock.mock.calls[0];
+      expect(calledWith[0]).toEqual({
         id: VeNFTId(chainId, tokenId),
         chainId: chainId,
         tokenId: tokenId,
@@ -237,10 +239,8 @@ describe("VeNFT Events", () => {
         totalValueLocked: -eventData.value,
         isAlive: false, // Withdraw is a burn operation
       });
-      expect(calledWith[1]).to.deep.equal(mockVeNFTAggregator);
-      expect(calledWith[2]).to.deep.equal(
-        new Date(mockEvent.block.timestamp * 1000),
-      );
+      expect(calledWith[1]).toEqual(mockVeNFTAggregator);
+      expect(calledWith[2]).toEqual(new Date(mockEvent.block.timestamp * 1000));
     });
   });
 
@@ -264,17 +264,14 @@ describe("VeNFT Events", () => {
       },
     };
 
-    let stubVeNFTAggregator: sinon.SinonStub;
-    let stubVeNFTLogic: sinon.SinonStub;
     let postEventDB: ReturnType<typeof MockDb.createMockDb>;
     let mockEvent: ReturnType<typeof VeNFT.Deposit.createMockEvent>;
 
     beforeEach(async () => {
-      stubVeNFTAggregator = sinon.stub(
-        VeNFTAggregator,
-        "updateVeNFTAggregator",
-      );
-      stubVeNFTLogic = sinon.stub(VeNFTLogic, "processVeNFTEvent").resolves({
+      jest
+        .spyOn(VeNFTAggregator, "updateVeNFTAggregator")
+        .mockImplementation(() => {});
+      jest.spyOn(VeNFTLogic, "processVeNFTEvent").mockResolvedValue({
         veNFTAggregatorDiff: {
           id: VeNFTId(chainId, tokenId),
           chainId: chainId,
@@ -294,23 +291,30 @@ describe("VeNFT Events", () => {
     });
 
     afterEach(() => {
-      stubVeNFTAggregator.restore();
-      stubVeNFTLogic.restore();
+      jest.restoreAllMocks();
     });
 
     it("should call processVeNFTEvent with the correct arguments", () => {
-      expect(stubVeNFTLogic.called).to.be.true;
-      expect(stubVeNFTLogic.callCount).to.be.at.least(1);
-      const calledWith = stubVeNFTLogic.firstCall.args;
-      expect(calledWith[0]).to.deep.equal(mockEvent);
-      expect(calledWith[1]).to.deep.equal(mockVeNFTAggregator);
+      const processVeNFTEventMock = jest.mocked(VeNFTLogic.processVeNFTEvent);
+      expect(processVeNFTEventMock).toHaveBeenCalled();
+      // Handlers may run multiple times (preload + normal), so check if called at least once
+      expect(processVeNFTEventMock.mock.calls.length).toBeGreaterThanOrEqual(1);
+      const calledWith = processVeNFTEventMock.mock.calls[0];
+      expect(calledWith[0]).toEqual(mockEvent);
+      expect(calledWith[1]).toEqual(mockVeNFTAggregator);
     });
 
     it("should call updateVeNFTAggregator with the correct arguments", () => {
-      expect(stubVeNFTAggregator.called).to.be.true;
-      expect(stubVeNFTAggregator.callCount).to.be.at.least(1);
-      const calledWith = stubVeNFTAggregator.firstCall.args;
-      expect(calledWith[0]).to.deep.equal({
+      const updateVeNFTAggregatorMock = jest.mocked(
+        VeNFTAggregator.updateVeNFTAggregator,
+      );
+      expect(updateVeNFTAggregatorMock).toHaveBeenCalled();
+      // Handlers may run multiple times (preload + normal), so check if called at least once
+      expect(
+        updateVeNFTAggregatorMock.mock.calls.length,
+      ).toBeGreaterThanOrEqual(1);
+      const calledWith = updateVeNFTAggregatorMock.mock.calls[0];
+      expect(calledWith[0]).toEqual({
         id: VeNFTId(chainId, tokenId),
         chainId: chainId,
         tokenId: tokenId,
@@ -319,10 +323,8 @@ describe("VeNFT Events", () => {
         totalValueLocked: eventData.value,
         isAlive: true,
       });
-      expect(calledWith[1]).to.deep.equal(mockVeNFTAggregator);
-      expect(calledWith[2]).to.deep.equal(
-        new Date(mockEvent.block.timestamp * 1000),
-      );
+      expect(calledWith[1]).toEqual(mockVeNFTAggregator);
+      expect(calledWith[2]).toEqual(new Date(mockEvent.block.timestamp * 1000));
     });
   });
 });
