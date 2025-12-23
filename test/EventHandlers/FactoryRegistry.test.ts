@@ -46,7 +46,7 @@ describe("FactoryRegistry Events", () => {
       // Assert - check FactoryRegistryConfig was created
       const configId = `${factoryRegistryAddress}_${chainId}`;
       const config = result.entities.FactoryRegistryConfig.get(configId);
-      expect(config).not.toBeUndefined();
+      expect(config).toBeDefined();
       expect(config?.id).toBe(configId);
       expect(config?.currentActivePoolFactory).toBe(poolFactoryAddress);
       expect(config?.currentActiveVotingRewardsFactory).toBe(
@@ -102,7 +102,7 @@ describe("FactoryRegistry Events", () => {
 
       // Assert - check FactoryRegistryConfig was updated
       const config = result.entities.FactoryRegistryConfig.get(configId);
-      expect(config).not.toBeUndefined();
+      expect(config).toBeDefined();
       expect(config?.currentActivePoolFactory).toBe(poolFactoryAddress);
       expect(config?.currentActiveVotingRewardsFactory).toBe(
         votingRewardsFactoryAddress,
@@ -155,7 +155,7 @@ describe("FactoryRegistry Events", () => {
 
       // Assert - check FactoryRegistryConfig was updated with empty addresses
       const config = result.entities.FactoryRegistryConfig.get(configId);
-      expect(config).not.toBeUndefined();
+      expect(config).toBeDefined();
       expect(config?.currentActivePoolFactory).toBe("");
       expect(config?.currentActiveVotingRewardsFactory).toBe("");
       expect(config?.currentActiveGaugeFactory).toBe("");

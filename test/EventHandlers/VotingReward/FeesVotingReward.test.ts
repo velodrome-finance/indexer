@@ -115,17 +115,15 @@ describe("FeesVotingReward Events", () => {
     it("should update pool aggregator with fee reward claimed", () => {
       const updatedPool =
         resultDB.entities.LiquidityPoolAggregator.get(poolAddress);
-      expect(updatedPool).not.toBeUndefined();
+      expect(updatedPool).toBeDefined();
       // The actual values depend on the price calculation, but should be updated
-      expect(updatedPool?.totalFeeRewardClaimed).not.toBe(0n);
-      expect(Number(updatedPool?.totalFeeRewardClaimed)).toBeGreaterThan(0);
+      expect(updatedPool?.totalFeeRewardClaimed).toBeGreaterThan(0n);
     });
 
     it("should update user stats with fee reward claimed", () => {
       const updatedUser = resultDB.entities.UserStatsPerPool.get(userStats.id);
-      expect(updatedUser).not.toBeUndefined();
-      expect(updatedUser?.totalFeeRewardClaimed).not.toBe(0n);
-      expect(Number(updatedUser?.totalFeeRewardClaimed)).toBeGreaterThan(0);
+      expect(updatedUser).toBeDefined();
+      expect(updatedUser?.totalFeeRewardClaimed).toBeGreaterThan(0n);
     });
   });
 });

@@ -36,7 +36,7 @@ describe("processPoolLiquidityEvent", () => {
 
     // Verify the function returns the expected structure
     expect(result).toHaveProperty("liquidityPoolDiff");
-    expect(typeof result.liquidityPoolDiff).toBe("object");
+    expect(result.liquidityPoolDiff).toBeDefined();
 
     expect(result.liquidityPoolDiff?.lastUpdatedTimestamp).toEqual(
       new Date(1000000 * 1000),

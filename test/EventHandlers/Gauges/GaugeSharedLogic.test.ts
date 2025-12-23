@@ -65,8 +65,11 @@ describe("GaugeSharedLogic", () => {
   let updatedDB: ReturnType<typeof MockDb.createMockDb>;
   // biome-ignore lint/suspicious/noExplicitAny: Mock context for testing - complex type intersection would be overly verbose
   let mockContext: any;
+  let originalChainConstants: (typeof CHAIN_CONSTANTS)[typeof mockChainId];
 
   beforeEach(() => {
+    // Store original CHAIN_CONSTANTS before mutation to restore in afterEach
+    originalChainConstants = CHAIN_CONSTANTS[mockChainId];
     // Mock CHAIN_CONSTANTS for the test
     (
       CHAIN_CONSTANTS as unknown as Record<
@@ -250,6 +253,12 @@ describe("GaugeSharedLogic", () => {
       },
       isPreload: false,
     };
+  });
+
+  afterEach(() => {
+    // Restore original CHAIN_CONSTANTS to prevent test pollution
+    (CHAIN_CONSTANTS as Record<number, unknown>)[mockChainId] =
+      originalChainConstants;
   });
 
   describe("processGaugeDeposit", () => {

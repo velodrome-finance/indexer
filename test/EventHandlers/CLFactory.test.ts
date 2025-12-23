@@ -25,11 +25,15 @@ describe("CLFactory Events", () => {
   const originalNewCLGaugeFactoryAddress =
     "0xaDe65c38CD4849aDBA595a4323a8C7DdfE89716a";
   let newCLGaugeFactoryAddress: string;
+  let originalNewCLGaugeFactoryAddressValue: string | undefined;
 
   beforeEach(() => {
-    // Always ensure CHAIN_CONSTANTS[chainId].newCLGaugeFactoryAddress is set correctly
-    // (in case another test modified it). This ensures the handler can find the CLGaugeConfig.
+    // Store the original value before mutation to restore in afterEach
     if (CHAIN_CONSTANTS[chainId]) {
+      originalNewCLGaugeFactoryAddressValue =
+        CHAIN_CONSTANTS[chainId].newCLGaugeFactoryAddress;
+      // Always ensure CHAIN_CONSTANTS[chainId].newCLGaugeFactoryAddress is set correctly
+      // (in case another test modified it). This ensures the handler can find the CLGaugeConfig.
       CHAIN_CONSTANTS[chainId].newCLGaugeFactoryAddress =
         originalNewCLGaugeFactoryAddress;
     }
@@ -54,9 +58,12 @@ describe("CLFactory Events", () => {
 
   afterEach(() => {
     // Restore original newCLGaugeFactoryAddress to prevent interference with other tests
-    if (CHAIN_CONSTANTS[chainId]) {
+    if (
+      CHAIN_CONSTANTS[chainId] &&
+      originalNewCLGaugeFactoryAddressValue !== undefined
+    ) {
       CHAIN_CONSTANTS[chainId].newCLGaugeFactoryAddress =
-        originalNewCLGaugeFactoryAddress;
+        originalNewCLGaugeFactoryAddressValue;
     }
     jest.restoreAllMocks();
   });
@@ -117,25 +124,34 @@ describe("CLFactory Events", () => {
     it("should call processCLFactoryPoolCreated with correct parameters", () => {
       // The spy should have been called when the event was processed in beforeEach
       expect(processSpy).toHaveBeenCalled();
-      expect(processSpy.mock.calls.length).toBeGreaterThanOrEqual(1);
       const callArgs = processSpy.mock.calls[0];
       expect(callArgs[0]).toEqual(mockEvent);
-      // Tokens should match (address and chainId)
-      expect(callArgs[1]?.address).toBe(mockToken0Data.address);
-      expect(callArgs[1]?.chainId).toBe(chainId);
-      expect(callArgs[2]?.address).toBe(mockToken1Data.address);
-      expect(callArgs[2]?.chainId).toBe(chainId);
-      // CLGaugeConfig should be the 4th argument
-      const clGaugeConfig = callArgs[3];
-      expect(clGaugeConfig).not.toBeUndefined();
-      expect(clGaugeConfig?.id).toBe(newCLGaugeFactoryAddress);
+      expect(callArgs[1]).toEqual(
+        expect.objectContaining({
+          address: mockToken0Data.address,
+          chainId: chainId,
+        }),
+      );
+      expect(callArgs[2]).toEqual(
+        expect.objectContaining({
+          address: mockToken1Data.address,
+          chainId: chainId,
+        }),
+      );
+      expect(callArgs[3]).toEqual(
+        expect.objectContaining({
+          id: newCLGaugeFactoryAddress,
+        }),
+      );
+      // Verify context was passed as 5th argument
+      expect(callArgs[4]).toBeDefined();
     });
 
     it("should set the liquidity pool aggregator entity", () => {
       const pool = resultDB.entities.LiquidityPoolAggregator.get(
         toChecksumAddress(poolAddress),
       );
-      expect(pool).not.toBeUndefined();
+      expect(pool).toBeDefined();
       expect(pool?.id).toBe(toChecksumAddress(poolAddress));
       expect(pool?.chainId).toBe(chainId);
       expect(pool?.isCL).toBe(true);
@@ -188,10 +204,10 @@ describe("CLFactory Events", () => {
       expect(processSpy).toHaveBeenCalled();
       expect(processSpy.mock.calls.length).toBeGreaterThanOrEqual(1);
       const callArgs = processSpy.mock.calls[0];
-      expect(callArgs[1]).not.toBeUndefined(); // token0
-      expect(callArgs[2]).not.toBeUndefined(); // token1
+      expect(callArgs[1]).toBeDefined(); // token0
+      expect(callArgs[2]).toBeDefined(); // token1
       const clGaugeConfig = callArgs[3];
-      expect(clGaugeConfig).not.toBeUndefined(); // CLGaugeConfig
+      expect(clGaugeConfig).toBeDefined(); // CLGaugeConfig
       expect(clGaugeConfig?.id).toBe(newCLGaugeFactoryAddress);
     });
   });

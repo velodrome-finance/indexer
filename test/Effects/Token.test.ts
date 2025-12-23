@@ -177,23 +177,20 @@ describe("Token Effects", () => {
       // Set cache to true initially (should be set to false on error)
       const contextWithCache = { cache: true };
 
-      try {
-        await fetchTotalSupply(
+      await expect(
+        fetchTotalSupply(
           tokenAddress,
           chainId,
           blockNumber,
           mockEthClient,
           mockContext.log,
           contextWithCache,
-        );
-        throw new Error("Should have thrown an error");
-      } catch (thrownError) {
-        expect(thrownError).toBeInstanceOf(Error);
-        const errorMessage = (thrownError as Error).message;
-        expect(errorMessage).toContain("getTotalSupply effect failed");
-        expect(errorMessage).toContain(tokenAddress);
-        expect(errorMessage).toContain("Contract call failed");
-      }
+        ),
+      ).rejects.toThrow(
+        new RegExp(
+          `(?=.*getTotalSupply effect failed)(?=.*${tokenAddress})(?=.*Contract call failed)`,
+        ),
+      );
 
       // Verify cache was disabled on error
       expect(contextWithCache.cache).toBe(false);

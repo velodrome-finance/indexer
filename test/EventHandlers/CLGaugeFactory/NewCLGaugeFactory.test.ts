@@ -48,7 +48,6 @@ describe("NewCLGaugeFactory Event Handlers", () => {
         mockGaugeFactoryAddress,
       );
 
-      expect(createdConfig).not.toBeUndefined();
       expect(createdConfig).toBeDefined();
 
       if (!createdConfig) return; // Type guard
@@ -115,7 +114,7 @@ describe("NewCLGaugeFactory Event Handlers", () => {
         mockGaugeFactoryAddress,
       );
 
-      expect(updatedConfig).not.toBeUndefined();
+      expect(updatedConfig).toBeDefined();
       if (!updatedConfig) return;
 
       expect(updatedConfig.id).toBe(mockGaugeFactoryAddress);
@@ -182,8 +181,8 @@ describe("NewCLGaugeFactory Event Handlers", () => {
       );
       const config2 = result2.entities.CLGaugeConfig.get(anotherFactoryAddress);
 
-      expect(config1).not.toBeUndefined();
-      expect(config2).not.toBeUndefined();
+      expect(config1).toBeDefined();
+      expect(config2).toBeDefined();
 
       if (!config1 || !config2) return;
 
@@ -259,7 +258,6 @@ describe("NewCLGaugeFactory Event Handlers", () => {
         mockLiquidityPoolData.id,
       );
 
-      expect(updatedPool).not.toBeUndefined();
       expect(updatedPool).toBeDefined();
 
       if (!updatedPool) return; // Type guard
@@ -330,7 +328,7 @@ describe("NewCLGaugeFactory Event Handlers", () => {
         mockLiquidityPoolData.id,
       );
 
-      expect(updatedPool).not.toBeUndefined();
+      expect(updatedPool).toBeDefined();
       if (!updatedPool) return;
 
       expect(updatedPool.gaugeEmissionsCap).toBe(newEmissionCap);
@@ -386,7 +384,7 @@ describe("NewCLGaugeFactory Event Handlers", () => {
         mockLiquidityPoolData.id,
       );
 
-      expect(pool).not.toBeUndefined();
+      expect(pool).toBeDefined();
       if (!pool) return;
 
       // Should remain unchanged (still 0n from initial setup)
@@ -418,7 +416,7 @@ describe("NewCLGaugeFactory Event Handlers", () => {
         mockLiquidityPoolData.id,
       );
 
-      expect(updatedPool).not.toBeUndefined();
+      expect(updatedPool).toBeDefined();
       if (!updatedPool) return;
 
       // Verify all original fields are preserved

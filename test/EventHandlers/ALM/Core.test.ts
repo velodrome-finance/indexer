@@ -101,7 +101,7 @@ describe("ALMCore Rebalance Event", () => {
 
       const updatedWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
 
-      expect(updatedWrapper).not.toBeUndefined();
+      expect(updatedWrapper).toBeDefined();
       // amount0 and amount1 are recalculated from liquidity and price, not from event amounts
       expect(updatedWrapper?.amount0).toBe(expectedRecalculatedAmounts.amount0);
       expect(updatedWrapper?.amount1).toBe(expectedRecalculatedAmounts.amount1);
@@ -165,7 +165,7 @@ describe("ALMCore Rebalance Event", () => {
       });
 
       // Verify that no wrapper was created or updated
-      expect(Array.from(result.entities.ALM_LP_Wrapper.getAll()).length).toBe(
+      expect(Array.from(result.entities.ALM_LP_Wrapper.getAll())).toHaveLength(
         0,
       );
     });

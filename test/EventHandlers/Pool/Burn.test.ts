@@ -42,7 +42,7 @@ describe("Pool Burn Event", () => {
     const updatedAggregator = result.entities.LiquidityPoolAggregator.get(
       commonData.mockLiquidityPoolData.id,
     );
-    expect(updatedAggregator).not.toBeUndefined();
+    expect(updatedAggregator).toBeDefined();
     expect(updatedAggregator?.lastUpdatedTimestamp).toEqual(
       new Date(1000000 * 1000),
     );

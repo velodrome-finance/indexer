@@ -70,7 +70,7 @@ describe("RootCLPoolFactory Events", () => {
         const rootPoolLeafPool = resultDB.entities.RootPool_LeafPool.get(
           `${rootPoolAddress}_${rootChainId}_${leafPoolAddress}_${leafChainId}`,
         );
-        expect(rootPoolLeafPool).not.toBeUndefined();
+        expect(rootPoolLeafPool).toBeDefined();
         expect(rootPoolLeafPool?.rootChainId).toBe(rootChainId);
         expect(rootPoolLeafPool?.rootPoolAddress).toBe(rootPoolAddress);
         expect(rootPoolLeafPool?.leafChainId).toBe(leafChainId);
@@ -86,8 +86,8 @@ describe("RootCLPoolFactory Events", () => {
         });
 
         expect(
-          Array.from(resultDB.entities.RootPool_LeafPool.getAll()).length,
-        ).toBe(0);
+          Array.from(resultDB.entities.RootPool_LeafPool.getAll()),
+        ).toHaveLength(0);
       });
     });
 
@@ -138,8 +138,8 @@ describe("RootCLPoolFactory Events", () => {
 
       it("should not create RootPool_LeafPool entity", () => {
         expect(
-          Array.from(resultDB.entities.RootPool_LeafPool.getAll()).length,
-        ).toBe(0);
+          Array.from(resultDB.entities.RootPool_LeafPool.getAll()),
+        ).toHaveLength(0);
       });
     });
   });

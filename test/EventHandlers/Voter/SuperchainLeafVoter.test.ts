@@ -61,7 +61,7 @@ describe("SuperchainLeafVoter Events", () => {
         const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
           toChecksumAddress(poolAddress),
         );
-        expect(updatedPool).not.toBeUndefined();
+        expect(updatedPool).toBeDefined();
         expect(updatedPool?.gaugeAddress).toBe(toChecksumAddress(gaugeAddress));
         expect(updatedPool?.feeVotingRewardAddress).toBe(
           "0x6666666666666666666666666666666666666666",
@@ -83,8 +83,8 @@ describe("SuperchainLeafVoter Events", () => {
         });
 
         expect(
-          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()).length,
-        ).toBe(0);
+          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
+        ).toHaveLength(0);
       });
     });
   });
@@ -142,7 +142,7 @@ describe("SuperchainLeafVoter Events", () => {
         const token = resultDB.entities.Token.get(
           TokenIdByChain(tokenAddress, chainId),
         );
-        expect(token).not.toBeUndefined();
+        expect(token).toBeDefined();
         expect(token?.isWhitelisted).toBe(true);
         expect(token?.pricePerUSDNew).toBe(expectedPricePerUSDNew);
         expect(token?.lastUpdatedTimestamp).toBeInstanceOf(Date);
@@ -166,7 +166,7 @@ describe("SuperchainLeafVoter Events", () => {
         const token = resultDB.entities.Token.get(
           TokenIdByChain(tokenAddress, chainId),
         );
-        expect(token).not.toBeUndefined();
+        expect(token).toBeDefined();
         expect(token?.isWhitelisted).toBe(true);
         expect(token?.pricePerUSDNew).toBe(0n);
         expect(typeof token?.name).toBe("string");
@@ -224,7 +224,7 @@ describe("SuperchainLeafVoter Events", () => {
           const token = resultDB.entities.Token.get(
             TokenIdByChain(tokenAddress, chainId),
           );
-          expect(token).not.toBeUndefined();
+          expect(token).toBeDefined();
           expect(token?.isWhitelisted).toBe(false);
           expect(token?.pricePerUSDNew).toBe(expectedPricePerUSDNew);
           expect(token?.lastUpdatedTimestamp).toBeInstanceOf(Date);
@@ -248,7 +248,7 @@ describe("SuperchainLeafVoter Events", () => {
           const token = resultDB.entities.Token.get(
             TokenIdByChain(tokenAddress, chainId),
           );
-          expect(token).not.toBeUndefined();
+          expect(token).toBeDefined();
           expect(token?.isWhitelisted).toBe(false);
           expect(token?.pricePerUSDNew).toBe(0n);
           expect(typeof token?.name).toBe("string");

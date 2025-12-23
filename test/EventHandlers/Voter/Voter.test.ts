@@ -100,7 +100,7 @@ describe("Voter Events", () => {
         const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
           toChecksumAddress(poolAddress),
         );
-        expect(updatedPool).not.toBeUndefined();
+        expect(updatedPool).toBeDefined();
         expect(updatedPool?.veNFTamountStaked).toBe(1000n);
         expect(updatedPool?.lastUpdatedTimestamp).toEqual(
           new Date(1000000 * 1000),
@@ -111,7 +111,7 @@ describe("Voter Events", () => {
         const userStatsId = `${toChecksumAddress(voterAddress)}_${toChecksumAddress(poolAddress)}_${chainId}`;
         const updatedUserStats =
           resultDB.entities.UserStatsPerPool.get(userStatsId);
-        expect(updatedUserStats).not.toBeUndefined();
+        expect(updatedUserStats).toBeDefined();
         expect(updatedUserStats?.veNFTamountStaked).toBe(100n);
         expect(updatedUserStats?.lastActivityTimestamp).toEqual(
           new Date(1000000 * 1000),
@@ -128,13 +128,13 @@ describe("Voter Events", () => {
 
         // Should not create LiquidityPoolAggregator entity
         expect(
-          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()).length,
-        ).toBe(0);
+          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
+        ).toHaveLength(0);
         // loadOrCreateUserData is called in parallel and creates UserStatsPerPool even if pool doesn't exist
         // This is expected behavior - the entity is created but not updated
         expect(
-          Array.from(resultDB.entities.UserStatsPerPool.getAll()).length,
-        ).toBe(1);
+          Array.from(resultDB.entities.UserStatsPerPool.getAll()),
+        ).toHaveLength(1);
       });
     });
 
@@ -237,7 +237,7 @@ describe("Voter Events", () => {
         const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
           toChecksumAddress(leafPoolAddress),
         );
-        expect(updatedPool).not.toBeUndefined();
+        expect(updatedPool).toBeDefined();
         expect(updatedPool?.veNFTamountStaked).toBe(realTotalWeight);
         expect(updatedPool?.lastUpdatedTimestamp).toEqual(
           new Date(realTimestamp * 1000),
@@ -248,7 +248,7 @@ describe("Voter Events", () => {
         const userStatsId = `${toChecksumAddress(realVoterAddress)}_${toChecksumAddress(rootPoolAddress)}_${rootChainId}`;
         const updatedUserStats =
           resultDB.entities.UserStatsPerPool.get(userStatsId);
-        expect(updatedUserStats).not.toBeUndefined();
+        expect(updatedUserStats).toBeDefined();
         expect(updatedUserStats?.veNFTamountStaked).toBe(realWeight);
         expect(updatedUserStats?.lastActivityTimestamp).toEqual(
           new Date(realTimestamp * 1000),
@@ -329,7 +329,7 @@ describe("Voter Events", () => {
         const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
           toChecksumAddress(poolAddress),
         );
-        expect(updatedPool).not.toBeUndefined();
+        expect(updatedPool).toBeDefined();
         // totalWeight is the absolute total veNFT staked in pool, replacing previous value
         expect(updatedPool?.veNFTamountStaked).toBe(1000n); // event.params.totalWeight
         expect(updatedPool?.lastUpdatedTimestamp).toEqual(
@@ -341,7 +341,7 @@ describe("Voter Events", () => {
         const userStatsId = `${toChecksumAddress(voterAddress)}_${toChecksumAddress(poolAddress)}_${chainId}`;
         const updatedUserStats =
           resultDB.entities.UserStatsPerPool.get(userStatsId);
-        expect(updatedUserStats).not.toBeUndefined();
+        expect(updatedUserStats).toBeDefined();
         // weight is subtracted (negative because it's a withdrawal)
         expect(updatedUserStats?.veNFTamountStaked).toBe(100n); // 200n - 100n
         expect(updatedUserStats?.lastActivityTimestamp).toEqual(
@@ -359,13 +359,13 @@ describe("Voter Events", () => {
 
         // Should not create LiquidityPoolAggregator entity
         expect(
-          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()).length,
-        ).toBe(0);
+          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
+        ).toHaveLength(0);
         // loadOrCreateUserData is called in parallel and creates UserStatsPerPool even if pool doesn't exist
         // This is expected behavior - the entity is created but not updated
         expect(
-          Array.from(resultDB.entities.UserStatsPerPool.getAll()).length,
-        ).toBe(1);
+          Array.from(resultDB.entities.UserStatsPerPool.getAll()),
+        ).toHaveLength(1);
       });
     });
 
@@ -474,17 +474,7 @@ describe("Voter Events", () => {
           toChecksumAddress(leafPoolAddress),
         );
 
-        // Debug: log all pool IDs if pool is not found
-        if (!updatedPool) {
-          console.log(
-            "All pools in resultDB:",
-            allPools.map((p) => ({ id: p.id, chainId: p.chainId })),
-          );
-          console.log("Looking for:", toChecksumAddress(leafPoolAddress));
-          console.log("Original leafPoolAddress:", leafPoolAddress);
-        }
-
-        expect(updatedPool).not.toBeUndefined();
+        expect(updatedPool).toBeDefined();
         // totalWeight is the absolute total veNFT staked in pool, replacing previous value
         expect(updatedPool?.veNFTamountStaked).toBe(realTotalWeight);
         expect(updatedPool?.lastUpdatedTimestamp).toEqual(
@@ -496,7 +486,7 @@ describe("Voter Events", () => {
         const userStatsId = `${toChecksumAddress(realVoterAddress)}_${toChecksumAddress(rootPoolAddress)}_${rootChainId}`;
         const updatedUserStats =
           resultDB.entities.UserStatsPerPool.get(userStatsId);
-        expect(updatedUserStats).not.toBeUndefined();
+        expect(updatedUserStats).toBeDefined();
         // weight is subtracted (negative because it's a withdrawal)
         const expectedStaked = initialUserStaked - realWeight;
         expect(updatedUserStats?.veNFTamountStaked).toBe(expectedStaked);
@@ -563,7 +553,7 @@ describe("Voter Events", () => {
         const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
           toChecksumAddress(poolAddress),
         );
-        expect(updatedPool).not.toBeUndefined();
+        expect(updatedPool).toBeDefined();
         expect(updatedPool?.gaugeAddress).toBe(toChecksumAddress(gaugeAddress));
         expect(updatedPool?.feeVotingRewardAddress).toBe(
           "0x6666666666666666666666666666666666666666",
@@ -585,8 +575,8 @@ describe("Voter Events", () => {
         });
 
         expect(
-          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()).length,
-        ).toBe(0);
+          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
+        ).toHaveLength(0);
       });
     });
 
@@ -638,7 +628,7 @@ describe("Voter Events", () => {
         const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
           toChecksumAddress(poolAddress),
         );
-        expect(updatedPool).not.toBeUndefined();
+        expect(updatedPool).toBeDefined();
         expect(updatedPool?.gaugeAddress).toBe(toChecksumAddress(gaugeAddress));
         expect(updatedPool?.feeVotingRewardAddress).toBe(
           "0x6666666666666666666666666666666666666666",
@@ -707,13 +697,11 @@ describe("Voter Events", () => {
         });
       });
 
-      afterEach(() => {});
-
       it("should set gaugeIsAlive to false but preserve gauge address and voting reward addresses as historical data", () => {
         const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
           toChecksumAddress(poolAddress),
         );
-        expect(updatedPool).not.toBeUndefined();
+        expect(updatedPool).toBeDefined();
         expect(updatedPool?.gaugeIsAlive).toBe(false); // Should be set to false
         // Gauge address should be preserved as historical data
         expect(updatedPool?.gaugeAddress).toBe(gaugeAddress);
@@ -743,15 +731,14 @@ describe("Voter Events", () => {
         });
 
         expect(
-          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()).length,
-        ).toBe(0);
+          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
+        ).toHaveLength(0);
       });
     });
   });
 
   describe("WhitelistToken event", () => {
     let resultDB: ReturnType<typeof MockDb.createMockDb>;
-    let expectedId: string;
     let mockDb: ReturnType<typeof MockDb.createMockDb>;
     let mockEvent: ReturnType<typeof Voter.WhitelistToken.createMockEvent>;
 
@@ -774,6 +761,7 @@ describe("Voter Events", () => {
     });
     describe("if token is in the db", () => {
       const expectedPricePerUSDNew = BigInt(10000000);
+      let expectedId: string;
       beforeEach(async () => {
         // Note token doesn't have lastUpdatedTimestamp due to bug in codegen.
         // Will cast during the set call.
@@ -795,13 +783,17 @@ describe("Voter Events", () => {
           mockDb: updatedDB1,
         });
 
-        expectedId = `${mockEvent.chainId}_${mockEvent.block.number}_${mockEvent.logIndex}`;
+        expectedId = TokenIdByChain(
+          "0x2222222222222222222222222222222222222222",
+          10,
+        );
       });
 
       it("should update the token entity", async () => {
         const token = resultDB.entities.Token.get(
           TokenIdByChain("0x2222222222222222222222222222222222222222", 10),
         );
+        expect(token?.id).toBe(expectedId);
         expect(token?.isWhitelisted).toBe(true);
         expect(token?.pricePerUSDNew).toBe(expectedPricePerUSDNew);
       });
@@ -825,13 +817,17 @@ describe("Voter Events", () => {
           mockDb: mockDb,
         });
 
-        expectedId = `${mockEvent.chainId}_${mockEvent.block.number}_${mockEvent.logIndex}`;
+        expectedId = TokenIdByChain(
+          "0x2222222222222222222222222222222222222222",
+          10,
+        );
       });
 
       it("should create a new Token entity", async () => {
         const token = resultDB.entities.Token.get(
           TokenIdByChain("0x2222222222222222222222222222222222222222", 10),
         );
+        expect(token?.id).toBe(expectedId);
         expect(token?.isWhitelisted).toBe(true);
         expect(token?.pricePerUSDNew).toBe(0n);
         expect(typeof token?.name).toBe("string");
@@ -899,8 +895,7 @@ describe("Voter Events", () => {
     describe("when reward token and liquidity pool exist", () => {
       let resultDB: ReturnType<typeof MockDb.createMockDb>;
       let updatedDB: ReturnType<typeof MockDb.createMockDb>;
-      let originalGetIsAlive: unknown;
-      let originalGetTokensDeposited: unknown;
+      let originalChainConstants: (typeof CHAIN_CONSTANTS)[typeof chainId];
 
       const { mockLiquidityPoolData } = setupCommon();
 
@@ -947,9 +942,6 @@ describe("Voter Events", () => {
           .mockResolvedValue(liquidityPool);
 
         // Mock the effect functions at module level
-        originalGetIsAlive = getIsAlive;
-        originalGetTokensDeposited = getTokensDeposited;
-
         jest
           .spyOn(
             getIsAlive as unknown as EffectWithHandler<
@@ -985,7 +977,8 @@ describe("Voter Events", () => {
           updatedDB.entities.LiquidityPoolAggregator.set(liquidityPool);
 
         // Mock CHAIN_CONSTANTS rewardToken function
-        const originalChainConstants = CHAIN_CONSTANTS[chainId];
+        // Store original before mutation to restore in afterEach
+        originalChainConstants = CHAIN_CONSTANTS[chainId];
         CHAIN_CONSTANTS[chainId] = {
           ...originalChainConstants,
           rewardToken: jest.fn().mockReturnValue(rewardTokenAddress),
@@ -999,55 +992,15 @@ describe("Voter Events", () => {
       });
 
       afterEach(() => {
-        // Restore original functions
-        (
-          getIsAlive as unknown as EffectWithHandler<
-            {
-              voterAddress: string;
-              gaugeAddress: string;
-              blockNumber: number;
-              eventChainId: number;
-            },
-            boolean
-          >
-        ).handler = (
-          originalGetIsAlive as EffectWithHandler<
-            {
-              voterAddress: string;
-              gaugeAddress: string;
-              blockNumber: number;
-              eventChainId: number;
-            },
-            boolean
-          >
-        ).handler;
-        (
-          getTokensDeposited as unknown as EffectWithHandler<
-            {
-              rewardTokenAddress: string;
-              gaugeAddress: string;
-              blockNumber: number;
-              eventChainId: number;
-            },
-            bigint
-          >
-        ).handler = (
-          originalGetTokensDeposited as EffectWithHandler<
-            {
-              rewardTokenAddress: string;
-              gaugeAddress: string;
-              blockNumber: number;
-              eventChainId: number;
-            },
-            bigint
-          >
-        ).handler;
+        // Restore original CHAIN_CONSTANTS to prevent test pollution
+        // Note: jest.restoreAllMocks() in outer afterEach handles spy restoration
+        CHAIN_CONSTANTS[chainId] = originalChainConstants;
       });
 
       it("should update the liquidity pool aggregator with emissions data", () => {
         const updatedPool =
           resultDB.entities.LiquidityPoolAggregator.get(poolAddress);
-        expect(updatedPool).not.toBeUndefined();
+        expect(updatedPool).toBeDefined();
         expect(updatedPool?.totalEmissions).toBe(expectations.totalEmissions);
         expect(updatedPool?.totalEmissionsUSD).toBe(
           expectations.totalEmissionsUSD,
@@ -1063,7 +1016,7 @@ describe("Voter Events", () => {
       it("should update the liquidity pool aggregator with votes deposited data", () => {
         const updatedPool =
           resultDB.entities.LiquidityPoolAggregator.get(poolAddress);
-        expect(updatedPool).not.toBeUndefined();
+        expect(updatedPool).toBeDefined();
         expect(updatedPool?.totalVotesDeposited).toBe(
           expectations.getTokensDeposited,
         );
@@ -1078,17 +1031,19 @@ describe("Voter Events", () => {
       it("should update the liquidity pool aggregator with gauge is alive data", () => {
         const updatedPool =
           resultDB.entities.LiquidityPoolAggregator.get(poolAddress);
-        expect(updatedPool).not.toBeUndefined();
+        expect(updatedPool).toBeDefined();
         expect(updatedPool?.gaugeIsAlive).toBe(true);
       });
     });
 
     describe("when pool entity does not exist", () => {
+      let originalChainConstantsForPoolTest: (typeof CHAIN_CONSTANTS)[typeof chainId];
+
       it("should return early when pool does not exist", async () => {
         // Mock CHAIN_CONSTANTS rewardToken function
-        const originalChainConstants = CHAIN_CONSTANTS[chainId];
+        originalChainConstantsForPoolTest = CHAIN_CONSTANTS[chainId];
         CHAIN_CONSTANTS[chainId] = {
-          ...originalChainConstants,
+          ...originalChainConstantsForPoolTest,
           rewardToken: jest.fn().mockReturnValue(rewardTokenAddress),
         };
 
@@ -1104,12 +1059,21 @@ describe("Voter Events", () => {
 
         // Should not create any entities when pool doesn't exist
         expect(
-          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()).length,
-        ).toBe(0);
+          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
+        ).toHaveLength(0);
+      });
+
+      afterEach(() => {
+        // Restore original CHAIN_CONSTANTS to prevent test pollution
+        if (originalChainConstantsForPoolTest !== undefined) {
+          CHAIN_CONSTANTS[chainId] = originalChainConstantsForPoolTest;
+        }
       });
     });
 
     describe("when reward token or liquidity pool is missing", () => {
+      let originalChainConstantsForRewardTest: (typeof CHAIN_CONSTANTS)[typeof chainId];
+
       it("should log warning and return early when reward token is missing", async () => {
         const { mockLiquidityPoolData } = setupCommon();
         const liquidityPool: LiquidityPoolAggregator = {
@@ -1120,9 +1084,9 @@ describe("Voter Events", () => {
         } as LiquidityPoolAggregator;
 
         // Mock CHAIN_CONSTANTS rewardToken function
-        const originalChainConstants = CHAIN_CONSTANTS[chainId];
+        originalChainConstantsForRewardTest = CHAIN_CONSTANTS[chainId];
         CHAIN_CONSTANTS[chainId] = {
-          ...originalChainConstants,
+          ...originalChainConstantsForRewardTest,
           rewardToken: jest.fn().mockReturnValue(rewardTokenAddress),
         };
 
@@ -1143,12 +1107,19 @@ describe("Voter Events", () => {
 
         // Should not update any entities when reward token is missing
         expect(
-          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()).length,
-        ).toBe(1);
+          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
+        ).toHaveLength(1);
         const pool = resultDB.entities.LiquidityPoolAggregator.get(
           toChecksumAddress(poolAddress),
         );
         expect(pool?.totalEmissions).toBe(0n); // Should remain unchanged
+      });
+
+      afterEach(() => {
+        // Restore original CHAIN_CONSTANTS to prevent test pollution
+        if (originalChainConstantsForRewardTest !== undefined) {
+          CHAIN_CONSTANTS[chainId] = originalChainConstantsForRewardTest;
+        }
       });
     });
   });

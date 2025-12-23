@@ -105,7 +105,7 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
       const wrapperId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
       const createdWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
 
-      expect(createdWrapper).not.toBeUndefined();
+      expect(createdWrapper).toBeDefined();
       expect(createdWrapper?.id).toBe(wrapperId);
       expect(createdWrapper?.chainId).toBe(chainId);
       expect(createdWrapper?.pool).toBe(toChecksumAddress(poolAddress));
@@ -322,7 +322,7 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
       const wrapperId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
       const createdWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
 
-      expect(createdWrapper).not.toBeUndefined();
+      expect(createdWrapper).toBeDefined();
       // Should use the matching NonFungiblePosition (tokenId = 42n)
       expect(createdWrapper?.tokenId).toBe(tokenId);
       expect(createdWrapper?.amount0).toBe(500n * 10n ** 18n);
@@ -412,7 +412,7 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
       const wrapperId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
       const createdWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
 
-      expect(createdWrapper).not.toBeUndefined();
+      expect(createdWrapper).toBeDefined();
       // Should use the first matching NonFungiblePosition
       expect(createdWrapper?.tokenId).toBe(tokenId);
       expect(createdWrapper?.amount0).toBe(500n * 10n ** 18n);

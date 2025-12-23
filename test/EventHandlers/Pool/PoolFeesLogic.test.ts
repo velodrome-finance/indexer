@@ -47,7 +47,7 @@ describe("PoolFeesLogic", () => {
         );
 
         // Check liquidity pool diff
-        expect(result.liquidityPoolDiff).not.toBeUndefined();
+        expect(result.liquidityPoolDiff).toBeDefined();
         // For regular pools, fees are tracked as unstaked fees
         expect(result.liquidityPoolDiff?.totalUnstakedFeesCollected0).toBe(
           mockEvent.params.amount0,
@@ -60,7 +60,7 @@ describe("PoolFeesLogic", () => {
         );
 
         // Check user diff data
-        expect(result.userDiff).not.toBeUndefined();
+        expect(result.userDiff).toBeDefined();
         expect(result.userDiff?.totalFeesContributed0).toBe(
           mockEvent.params.amount0,
         );
@@ -81,7 +81,7 @@ describe("PoolFeesLogic", () => {
         );
 
         // Check that user diff data is prepared correctly
-        expect(result.userDiff).not.toBeUndefined();
+        expect(result.userDiff).toBeDefined();
         expect(result.userDiff?.totalFeesContributed0).toBe(
           mockEvent.params.amount0,
         );
@@ -105,7 +105,7 @@ describe("PoolFeesLogic", () => {
 
         // The USD calculation is handled by updateFeeTokenData
         // We just verify that the result contains the expected structure
-        expect(result.liquidityPoolDiff).not.toBeUndefined();
+        expect(result.liquidityPoolDiff).toBeDefined();
         expect(
           typeof result.liquidityPoolDiff?.totalUnstakedFeesCollectedUSD,
         ).toBe("bigint");
@@ -135,8 +135,8 @@ describe("PoolFeesLogic", () => {
           mockContext,
         );
 
-        expect(result.liquidityPoolDiff).not.toBeUndefined();
-        expect(result.userDiff).not.toBeUndefined();
+        expect(result.liquidityPoolDiff).toBeDefined();
+        expect(result.userDiff).toBeDefined();
       });
 
       it("should handle undefined tokens", async () => {
@@ -147,8 +147,8 @@ describe("PoolFeesLogic", () => {
           mockContext,
         );
 
-        expect(result.liquidityPoolDiff).not.toBeUndefined();
-        expect(result.userDiff).not.toBeUndefined();
+        expect(result.liquidityPoolDiff).toBeDefined();
+        expect(result.userDiff).toBeDefined();
       });
     });
   });

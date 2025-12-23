@@ -125,7 +125,7 @@ describe("Pool Swap Event", () => {
       const userStats = postEventDB.entities.UserStatsPerPool.get(
         `${eventData.sender.toLowerCase()}_${eventData.mockEventData.srcAddress.toLowerCase()}_${eventData.mockEventData.chainId}`,
       );
-      expect(userStats).not.toBeUndefined();
+      expect(userStats).toBeDefined();
       expect(userStats?.userAddress).toBe(eventData.sender.toLowerCase());
       expect(userStats?.poolAddress).toBe(
         eventData.mockEventData.srcAddress.toLowerCase(),
@@ -139,7 +139,7 @@ describe("Pool Swap Event", () => {
     });
 
     it("should update the Liquidity Pool aggregator", async () => {
-      expect(updatedPool).not.toBeUndefined();
+      expect(updatedPool).toBeDefined();
       expect(updatedPool?.totalVolume0).toBe(expectations.totalVolume0);
       expect(updatedPool?.totalVolume1).toBe(expectations.totalVolume1);
       expect(updatedPool?.totalVolumeUSD).toBe(

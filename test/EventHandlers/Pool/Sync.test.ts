@@ -99,7 +99,7 @@ describe("Pool Sync Event", () => {
       const updatedPool = postEventDB.entities.LiquidityPoolAggregator.get(
         toChecksumAddress(eventData.mockEventData.srcAddress),
       );
-      expect(updatedPool).not.toBeUndefined();
+      expect(updatedPool).toBeDefined();
       expect(updatedPool?.reserve0).toBe(expectations.expectedReserve0);
       expect(updatedPool?.reserve1).toBe(expectations.expectedReserve1);
       expect(updatedPool?.totalLiquidityUSD).toBe(

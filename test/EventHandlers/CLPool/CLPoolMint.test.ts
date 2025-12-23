@@ -55,7 +55,6 @@ describe("CLPool Mint Event Handler", () => {
     const placeholderId = `${chainId}_${transactionHash.slice(2)}_${mockEvent.logIndex}`;
     const createdPosition =
       result.entities.NonFungiblePosition.get(placeholderId);
-    expect(createdPosition).not.toBeUndefined();
     expect(createdPosition).toBeDefined();
 
     if (!createdPosition) return; // Type guard

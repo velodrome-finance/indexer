@@ -77,11 +77,12 @@ describe("PoolFactory Events", () => {
 
     it("should create token entities", () => {
       expect(mockPriceOracle).toHaveBeenCalled();
+      // Handlers may run multiple times (preload + normal), so check if called at least twice (once per token)
       expect(mockPriceOracle.mock.calls.length).toBeGreaterThanOrEqual(2);
     });
 
     it("should create a new LiquidityPool entity and Token entities", async () => {
-      expect(createdPool).not.toBeUndefined();
+      expect(createdPool).toBeDefined();
       expect(createdPool?.isStable).toBe(false);
       expect(createdPool?.lastUpdatedTimestamp).toEqual(
         new Date(1000000 * 1000),
@@ -123,7 +124,7 @@ describe("PoolFactory Events", () => {
       const rootPoolLeafPools = Array.from(
         result.entities.RootPool_LeafPool.getAll(),
       );
-      expect(rootPoolLeafPools.length).toBe(0);
+      expect(rootPoolLeafPools).toHaveLength(0);
     });
 
     it("should NOT create RootPool_LeafPool for Base (chainId 8453)", async () => {
@@ -154,7 +155,7 @@ describe("PoolFactory Events", () => {
       const rootPoolLeafPools = Array.from(
         result.entities.RootPool_LeafPool.getAll(),
       );
-      expect(rootPoolLeafPools.length).toBe(0);
+      expect(rootPoolLeafPools).toHaveLength(0);
     });
 
     it("should create RootPool_LeafPool for non-Optimism/Base chains (e.g., Fraxtal)", async () => {
@@ -210,7 +211,7 @@ describe("PoolFactory Events", () => {
       const rootPoolLeafPool =
         result.entities.RootPool_LeafPool.get(rootPoolLeafPoolId);
 
-      expect(rootPoolLeafPool).not.toBeUndefined();
+      expect(rootPoolLeafPool).toBeDefined();
       expect(rootPoolLeafPool?.rootChainId).toBe(10); // Always 10 (Optimism)
       expect(rootPoolLeafPool?.rootPoolAddress).toBe(expectedRootPoolAddress);
       expect(rootPoolLeafPool?.leafChainId).toBe(fraxtalChainId);
@@ -267,7 +268,7 @@ describe("PoolFactory Events", () => {
       // Should still create the pool even if root pool address fetch fails
       const createdPool =
         result.entities.LiquidityPoolAggregator.get(poolAddress);
-      expect(createdPool).not.toBeUndefined();
+      expect(createdPool).toBeDefined();
 
       // Should not create RootPool_LeafPool when effect fails (returns null/undefined)
       const rootPoolLeafPools = Array.from(
@@ -275,7 +276,7 @@ describe("PoolFactory Events", () => {
       );
       // Note: The current implementation returns early if rootPoolAddress is falsy,
       // so we expect no RootPool_LeafPool to be created
-      expect(rootPoolLeafPools.length).toBe(0);
+      expect(rootPoolLeafPools).toHaveLength(0);
     });
 
     it("should handle null/undefined rootPoolAddress from effect", async () => {
@@ -323,13 +324,13 @@ describe("PoolFactory Events", () => {
       // Should still create the pool
       const createdPool =
         result.entities.LiquidityPoolAggregator.get(poolAddress);
-      expect(createdPool).not.toBeUndefined();
+      expect(createdPool).toBeDefined();
 
       // Should not create RootPool_LeafPool when rootPoolAddress is null/undefined
       const rootPoolLeafPools = Array.from(
         result.entities.RootPool_LeafPool.getAll(),
       );
-      expect(rootPoolLeafPools.length).toBe(0);
+      expect(rootPoolLeafPools).toHaveLength(0);
     });
   });
 
@@ -369,7 +370,7 @@ describe("PoolFactory Events", () => {
       // Assert - check LiquidityPoolAggregator was updated
       const updatedPool =
         result.entities.LiquidityPoolAggregator.get(poolAddress);
-      expect(updatedPool).not.toBeUndefined();
+      expect(updatedPool).toBeDefined();
       expect(updatedPool?.baseFee).toBe(customFee);
       expect(updatedPool?.currentFee).toBe(customFee);
       expect(updatedPool?.lastUpdatedTimestamp).toEqual(
@@ -418,7 +419,7 @@ describe("PoolFactory Events", () => {
       // Assert - check fees were updated
       const updatedPool =
         result.entities.LiquidityPoolAggregator.get(poolAddress);
-      expect(updatedPool).not.toBeUndefined();
+      expect(updatedPool).toBeDefined();
       expect(updatedPool?.baseFee).toBe(newFee);
       expect(updatedPool?.currentFee).toBe(newFee);
       expect(updatedPool?.baseFee).not.toBe(existingFee);

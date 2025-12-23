@@ -61,7 +61,7 @@ describe("ALMLPWrapperV2 Events", () => {
 
       const wrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
 
-      expect(wrapper).not.toBeUndefined();
+      expect(wrapper).toBeDefined();
       expect(wrapper?.id).toBe(wrapperId);
       expect(wrapper?.chainId).toBe(chainId);
       expect(wrapper?.pool).toBe(toChecksumAddress(poolAddress));
@@ -136,7 +136,7 @@ describe("ALMLPWrapperV2 Events", () => {
       const userStatsId = `${toChecksumAddress(recipientAddress)}_${toChecksumAddress(poolAddress)}_${chainId}`;
       const userStats = result.entities.UserStatsPerPool.get(userStatsId);
 
-      expect(userStats).not.toBeUndefined();
+      expect(userStats).toBeDefined();
       expect(userStats?.id).toBe(userStatsId);
       expect(userStats?.userAddress).toBe(toChecksumAddress(recipientAddress));
       expect(userStats?.poolAddress).toBe(toChecksumAddress(poolAddress));
@@ -190,7 +190,7 @@ describe("ALMLPWrapperV2 Events", () => {
 
       const userStats = result.entities.UserStatsPerPool.get(userStatsId);
 
-      expect(userStats).not.toBeUndefined();
+      expect(userStats).toBeDefined();
       // ALM amounts are derived from LP share after deposit
       // After deposit: wrapper amount0=1500, amount1=750, lpAmount=3000
       // User LP=1600 (600 existing + 1000 new), so user gets: amount0=(1500*1600)/3000=800, amount1=(750*1600)/3000=400
@@ -233,8 +233,8 @@ describe("ALMLPWrapperV2 Events", () => {
       const wrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
       const userStats = result.entities.UserStatsPerPool.get(userStatsId);
 
-      expect(wrapper).not.toBeUndefined();
-      expect(userStats).not.toBeUndefined();
+      expect(wrapper).toBeDefined();
+      expect(userStats).toBeDefined();
       // amount0 and amount1 are recalculated from liquidity and price, then deposited amounts are added
       // In test environment without mocked effects, recalculation fails and falls back to current wrapper values
       // Then deposited amounts are added: current + deposited
@@ -286,7 +286,7 @@ describe("ALMLPWrapperV2 Events", () => {
 
       const wrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
 
-      expect(wrapper).not.toBeUndefined();
+      expect(wrapper).toBeDefined();
       // amount0 and amount1 are recalculated from liquidity and price, then withdrawn amounts are subtracted
       // In test environment without mocked effects, recalculation fails and falls back to current wrapper values
       // Then withdrawn amounts are subtracted: current - withdrawn
@@ -368,7 +368,7 @@ describe("ALMLPWrapperV2 Events", () => {
 
       const userStats = result.entities.UserStatsPerPool.get(userStatsId);
 
-      expect(userStats).not.toBeUndefined();
+      expect(userStats).toBeDefined();
       // ALM amounts are derived from LP share after withdrawal
       // After withdrawal: wrapper amount0=750, amount1=375, lpAmount=1500
       // User LP=1500 (2000 - 500), so user gets: amount0=(750*1500)/1500=750, amount1=(375*1500)/1500=375
@@ -429,7 +429,7 @@ describe("ALMLPWrapperV2 Events", () => {
 
       // Verify ALM_LP_Wrapper is unchanged (transfers don't affect pool-level liquidity)
       const wrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
-      expect(wrapper).not.toBeUndefined();
+      expect(wrapper).toBeDefined();
       expect(wrapper?.amount0).toBe(mockALMLPWrapperData.amount0);
       expect(wrapper?.amount1).toBe(mockALMLPWrapperData.amount1);
       expect(wrapper?.lpAmount).toBe(mockALMLPWrapperData.lpAmount);
@@ -437,7 +437,7 @@ describe("ALMLPWrapperV2 Events", () => {
       // Verify sender's almLpAmount decreased
       const userStatsFrom =
         result.entities.UserStatsPerPool.get(userStatsFromId);
-      expect(userStatsFrom).not.toBeUndefined();
+      expect(userStatsFrom).toBeDefined();
       expect(userStatsFrom?.almLpAmount).toBe(4000n * TEN_TO_THE_18_BI); // 5000 - 1000
       // Sender's amounts are derived from LP share after transfer
       // Wrapper: amount0=1000, amount1=500, lpAmount=2000 (unchanged in transfers)
@@ -447,7 +447,7 @@ describe("ALMLPWrapperV2 Events", () => {
 
       // Verify recipient's almLpAmount increased
       const userStatsTo = result.entities.UserStatsPerPool.get(userStatsToId);
-      expect(userStatsTo).not.toBeUndefined();
+      expect(userStatsTo).toBeDefined();
       expect(userStatsTo?.almLpAmount).toBe(3000n * TEN_TO_THE_18_BI); // 2000 + 1000
       // Recipient's amounts are derived from LP share after transfer
       // Wrapper: amount0=1000, amount1=500, lpAmount=2000 (unchanged in transfers)
@@ -499,7 +499,7 @@ describe("ALMLPWrapperV2 Events", () => {
       // Verify recipient's almLpAmount was created and set to transfer amount
       const userStatsToId = `${toChecksumAddress(recipientAddress)}_${toChecksumAddress(poolAddress)}_${chainId}`;
       const userStatsTo = result.entities.UserStatsPerPool.get(userStatsToId);
-      expect(userStatsTo).not.toBeUndefined();
+      expect(userStatsTo).toBeDefined();
       expect(userStatsTo?.almLpAmount).toBe(500n * TEN_TO_THE_18_BI); // 0 + 500
       // Recipient's amounts are derived from LP share after transfer
       // Wrapper: amount0=1000, amount1=500, lpAmount=2000 (unchanged in transfers)
@@ -602,7 +602,7 @@ describe("ALMLPWrapperV2 Events", () => {
         burnResult.entities.UserStatsPerPool.get(burnerUserStatsId);
 
       // Handler returns early for burns, so UserStatsPerPool should remain unchanged
-      expect(burnerUserStats).not.toBeUndefined();
+      expect(burnerUserStats).toBeDefined();
       expect(burnerUserStats?.almLpAmount).toBe(transferAmount); // Unchanged
       expect(burnerUserStats?.almAmount0).toBe(0n); // Unchanged
       expect(burnerUserStats?.almAmount1).toBe(0n); // Unchanged
@@ -638,7 +638,7 @@ describe("ALMLPWrapperV2 Events", () => {
 
       const wrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
 
-      expect(wrapper).not.toBeUndefined();
+      expect(wrapper).toBeDefined();
       // Zero amounts should add zero (no change to recalculated amounts)
       // Recalculation falls back to current, then adds 0
       expect(wrapper?.amount0).toBe(mockALMLPWrapperData.amount0 + 0n);
@@ -701,7 +701,7 @@ describe("ALMLPWrapperV2 Events", () => {
 
       const wrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
 
-      expect(wrapper).not.toBeUndefined();
+      expect(wrapper).toBeDefined();
       // amount0 and amount1 are recalculated from liquidity and price, then deposited amounts are added
       // In test environment without mocked effects, recalculation fails and falls back to current wrapper values
       // After first deposit: current + first deposit amounts
@@ -731,12 +731,12 @@ describe("ALMLPWrapperV2 Events", () => {
       const userStats1 = result.entities.UserStatsPerPool.get(userStats1Id);
       const userStats2 = result.entities.UserStatsPerPool.get(userStats2Id);
 
-      expect(userStats1).not.toBeUndefined();
+      expect(userStats1).toBeDefined();
       // User1 amounts are derived from LP share after both deposits
       // After both deposits: wrapper amount0=2500, amount1=1250, lpAmount=5000
       // User1 LP=1000, so user1 gets: amount0=(2500*1000)/5000=500, amount1=(1250*1000)/5000=250
       expect(userStats1?.almAmount0).toBe(500n * TEN_TO_THE_18_BI);
-      expect(userStats2).not.toBeUndefined();
+      expect(userStats2).toBeDefined();
       // User2 amounts are derived from LP share after both deposits
       // After both deposits: wrapper amount0=2500, amount1=1250, lpAmount=5000
       // User2 LP=2000, so user2 gets: amount0=(2500*2000)/5000=1000, amount1=(1250*2000)/5000=500
@@ -801,7 +801,7 @@ describe("ALMLPWrapperV2 Events", () => {
 
       const wrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
 
-      expect(wrapper).not.toBeUndefined();
+      expect(wrapper).toBeDefined();
       // Initial + deposit - withdrawal
       // Since recalculation falls back to initial, we get: initial + deposit - withdrawal
       expect(wrapper?.amount0).toBe(
@@ -833,7 +833,7 @@ describe("ALMLPWrapperV2 Events", () => {
       const createdEvent =
         result.entities.ALM_TotalSupplyLimitUpdated_event.get(eventId);
 
-      expect(createdEvent).not.toBeUndefined();
+      expect(createdEvent).toBeDefined();
       expect(createdEvent?.id).toBe(eventId);
       expect(createdEvent?.lpWrapperAddress).toBe(
         toChecksumAddress(lpWrapperAddress),
@@ -880,7 +880,7 @@ describe("ALMLPWrapperV2 Events", () => {
       const updatedEvent =
         result.entities.ALM_TotalSupplyLimitUpdated_event.get(eventId);
 
-      expect(updatedEvent).not.toBeUndefined();
+      expect(updatedEvent).toBeDefined();
       expect(updatedEvent?.currentTotalSupplyLPTokens).toBe(
         8000n * TEN_TO_THE_18_BI,
       );

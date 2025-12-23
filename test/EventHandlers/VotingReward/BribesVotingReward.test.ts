@@ -115,17 +115,15 @@ describe("BribesVotingReward Events", () => {
     it("should update pool aggregator with bribe claimed", () => {
       const updatedPool =
         resultDB.entities.LiquidityPoolAggregator.get(poolAddress);
-      expect(updatedPool).not.toBeUndefined();
+      expect(updatedPool).toBeDefined();
       // The actual values depend on the price calculation, but should be updated
-      expect(updatedPool?.totalBribeClaimed).not.toBe(0n);
-      expect(Number(updatedPool?.totalBribeClaimed)).toBeGreaterThan(0);
+      expect(updatedPool?.totalBribeClaimed).toBeGreaterThan(0n);
     });
 
     it("should update user stats with bribe claimed", () => {
       const updatedUser = resultDB.entities.UserStatsPerPool.get(userStats.id);
-      expect(updatedUser).not.toBeUndefined();
-      expect(updatedUser?.totalBribeClaimed).not.toBe(0n);
-      expect(Number(updatedUser?.totalBribeClaimed)).toBeGreaterThan(0);
+      expect(updatedUser).toBeDefined();
+      expect(updatedUser?.totalBribeClaimed).toBeGreaterThan(0n);
     });
   });
 });

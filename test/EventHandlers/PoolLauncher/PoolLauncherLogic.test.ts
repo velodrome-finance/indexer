@@ -62,7 +62,7 @@ describe("PoolLauncherLogic", () => {
       );
 
       // Assert
-      expect(result).not.toBeUndefined();
+      expect(result).toBeDefined();
       expect(result.id).toBe("8453-0x1234567890123456789012345678901234567890");
       expect(result.chainId).toBe(8453);
       expect(result.underlyingPool).toBe(
@@ -91,7 +91,7 @@ describe("PoolLauncherLogic", () => {
       const savedEntity = mockDb.entities.PoolLauncherPool.get(
         "8453-0x1234567890123456789012345678901234567890",
       );
-      expect(savedEntity).not.toBeUndefined();
+      expect(savedEntity).toBeDefined();
       expect(savedEntity?.id).toBe(
         "8453-0x1234567890123456789012345678901234567890",
       );
@@ -139,7 +139,7 @@ describe("PoolLauncherLogic", () => {
       );
 
       // Assert
-      expect(result).not.toBeUndefined();
+      expect(result).toBeDefined();
       expect(result.id).toBe("8453-0x1234567890123456789012345678901234567890");
       expect(result.launcher).toBe(
         "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
@@ -289,7 +289,7 @@ describe("PoolLauncherLogic", () => {
         const updatedEntity = mockDb.entities.LiquidityPoolAggregator.get(
           "0x1234567890123456789012345678901234567890",
         );
-        expect(updatedEntity).not.toBeUndefined();
+        expect(updatedEntity).toBeDefined();
         expect(updatedEntity?.poolLauncherPoolId).toBe(
           "8453-0x1234567890123456789012345678901234567890",
         );
@@ -424,7 +424,7 @@ describe("PoolLauncherLogic", () => {
         const updatedEntity = mockDb.entities.LiquidityPoolAggregator.get(
           "0x1234567890123456789012345678901234567890",
         );
-        expect(updatedEntity).not.toBeUndefined();
+        expect(updatedEntity).toBeDefined();
         expect(updatedEntity?.poolLauncherPoolId).toBe(
           "8453-0x1234567890123456789012345678901234567890",
         );
@@ -555,7 +555,7 @@ describe("PoolLauncherLogic", () => {
       const updatedEntity = mockDb.entities.LiquidityPoolAggregator.get(
         "0x1234567890123456789012345678901234567890",
       );
-      expect(updatedEntity).not.toBeUndefined();
+      expect(updatedEntity).toBeDefined();
       expect(updatedEntity?.poolLauncherPoolId).toBe(
         "10-0x1234567890123456789012345678901234567890",
       );
@@ -636,7 +636,7 @@ describe("PoolLauncherLogic", () => {
       const updatedEntity = mockDb.entities.LiquidityPoolAggregator.get(
         "0x1234567890123456789012345678901234567890",
       );
-      expect(updatedEntity).not.toBeUndefined();
+      expect(updatedEntity).toBeDefined();
       expect(updatedEntity?.poolLauncherPoolId).toBe(
         "8453-0x1234567890123456789012345678901234567890",
       );

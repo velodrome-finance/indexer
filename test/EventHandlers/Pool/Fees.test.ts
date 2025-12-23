@@ -77,7 +77,7 @@ describe("Pool Fees Event", () => {
   });
 
   it("should update LiquidityPoolAggregator", async () => {
-    expect(updatedPool).not.toBeUndefined();
+    expect(updatedPool).toBeDefined();
     expect(updatedPool?.lastUpdatedTimestamp).toEqual(new Date(1000000 * 1000));
   });
 
@@ -106,7 +106,7 @@ describe("Pool Fees Event", () => {
   });
 
   it("should create a new UserStatsPerPool entity", async () => {
-    expect(createdUserStats).not.toBeUndefined();
+    expect(createdUserStats).toBeDefined();
     expect(createdUserStats?.id).toBe(
       "0x1234567890123456789012345678901234567890_0x3333333333333333333333333333333333333333_10",
     );
@@ -193,7 +193,7 @@ describe("Pool Fees Event", () => {
       "0x1234567890123456789012345678901234567890_0x3333333333333333333333333333333333333333_10",
     );
 
-    expect(updatedUserStats).not.toBeUndefined();
+    expect(updatedUserStats).toBeDefined();
     expect(updatedUserStats?.totalFeesContributed0).toBe(
       existingUserStats.totalFeesContributed0 + 500n,
     );

@@ -7,22 +7,7 @@ import { setupCommon } from "./EventHandlers/Pool/common";
 
 describe("PriceOracle", () => {
   const mockContext = {
-    effect: jest.fn().mockImplementation(async (effectFn, input) => {
-      // Mock the effect calls for testing
-      if (effectFn.name === "getTokenPrice") {
-        return {
-          pricePerUSDNew: 2n * 10n ** 18n,
-        };
-      }
-      if (effectFn.name === "getTokenDetails") {
-        return {
-          name: "Test Token",
-          decimals: 18,
-          symbol: "TEST",
-        };
-      }
-      return {};
-    }),
+    effect: jest.fn(),
     log: {
       info: jest.fn(),
       error: jest.fn(),
@@ -84,11 +69,35 @@ describe("PriceOracle", () => {
   let readMock: jest.Mock;
   const { mockToken0Data } = setupCommon();
 
+  const defaultEffectImplementation = async (
+    effectFn: { name: string },
+    input: unknown,
+  ) => {
+    // Mock the effect calls for testing
+    if (effectFn.name === "getTokenPrice") {
+      return {
+        pricePerUSDNew: 2n * 10n ** 18n,
+      };
+    }
+    if (effectFn.name === "getTokenDetails") {
+      return {
+        name: "Test Token",
+        decimals: 18,
+        symbol: "TEST",
+      };
+    }
+    return {};
+  };
+
   beforeEach(() => {
     addMock = jest.fn();
     readMock = jest.fn().mockReturnValue({
       prices: null,
     });
+    // Reset effect mock to default implementation before each test
+    (mockContext.effect as jest.Mock).mockImplementation(
+      defaultEffectImplementation,
+    );
   });
 
   afterEach(() => {
@@ -143,9 +152,7 @@ describe("PriceOracle", () => {
           chainId,
           mockContext as handlerContext,
         );
-        updatedToken = (mockContext.Token?.set as jest.Mock).mock.calls[
-          (mockContext.Token?.set as jest.Mock).mock.calls.length - 1
-        ][0];
+        updatedToken = (mockContext.Token?.set as jest.Mock).mock.lastCall[0];
       });
       it("should update prices if the update interval has passed", async () => {
         expect(updatedToken.pricePerUSDNew).toBe(
@@ -157,10 +164,7 @@ describe("PriceOracle", () => {
       });
       it("should create a new TokenPriceSnapshot entity", async () => {
         const tokenPrice = (mockContext.TokenPriceSnapshot?.set as jest.Mock)
-          .mock.calls[
-          (mockContext.TokenPriceSnapshot?.set as jest.Mock).mock.calls.length -
-            1
-        ][0];
+          .mock.lastCall[0];
         expect(tokenPrice.pricePerUSDNew).toBe(
           mockTokenPriceData.pricePerUSDNew,
         );
@@ -187,9 +191,7 @@ describe("PriceOracle", () => {
           chainId,
           mockContext as handlerContext,
         );
-        updatedToken = (mockContext.Token?.set as jest.Mock).mock.calls[
-          (mockContext.Token?.set as jest.Mock).mock.calls.length - 1
-        ][0];
+        updatedToken = (mockContext.Token?.set as jest.Mock).mock.lastCall[0];
       });
       it("should refresh price even if less than 1 hour has passed", async () => {
         expect(mockContext.Token?.set as jest.Mock).toHaveBeenCalled();
@@ -214,9 +216,7 @@ describe("PriceOracle", () => {
           chainId,
           mockContext as handlerContext,
         );
-        updatedToken = (mockContext.Token?.set as jest.Mock).mock.calls[
-          (mockContext.Token?.set as jest.Mock).mock.calls.length - 1
-        ][0];
+        updatedToken = (mockContext.Token?.set as jest.Mock).mock.lastCall[0];
       });
       it("should refresh price when lastUpdatedTimestamp is missing", async () => {
         expect(mockContext.Token?.set as jest.Mock).toHaveBeenCalled();
@@ -234,20 +234,16 @@ describe("PriceOracle", () => {
         (mockContext.Token?.set as jest.Mock).mockClear();
         (mockContext.log?.error as jest.Mock).mockClear();
 
-        // Mock effect to throw an error
+        // Override effect mock to throw only for getTokenPrice
+        // Since refreshTokenPrice calls both effects in parallel, we need to check
+        // the effect name and throw conditionally rather than using mockImplementationOnce
         (mockContext.effect as jest.Mock).mockImplementation(
-          async (effectFn) => {
+          async (effectFn: { name: string }, input: unknown) => {
             if (effectFn.name === "getTokenPrice") {
               throw new Error("Price fetch failed");
             }
-            if (effectFn.name === "getTokenDetails") {
-              return {
-                name: "Test Token",
-                decimals: 18,
-                symbol: "TEST",
-              };
-            }
-            return {};
+            // Use default implementation for other effects
+            return defaultEffectImplementation(effectFn, input);
           },
         );
 
@@ -267,32 +263,10 @@ describe("PriceOracle", () => {
           mockContext as handlerContext,
         );
       });
-      afterEach(() => {
-        // Restore original effect mock behavior
-        (mockContext.effect as jest.Mock).mockImplementation(
-          async (effectFn, input) => {
-            if (effectFn.name === "getTokenPrice") {
-              return {
-                pricePerUSDNew: 2n * 10n ** 18n,
-              };
-            }
-            if (effectFn.name === "getTokenDetails") {
-              return {
-                name: "Test Token",
-                decimals: 18,
-                symbol: "TEST",
-              };
-            }
-            return {};
-          },
-        );
-      });
       it("should log error when price fetch fails", async () => {
         // Should log error
         expect(mockContext.log?.error as jest.Mock).toHaveBeenCalled();
-        const errorCall = (mockContext.log?.error as jest.Mock).mock.calls[
-          (mockContext.log?.error as jest.Mock).mock.calls.length - 1
-        ];
+        const errorCall = (mockContext.log?.error as jest.Mock).mock.lastCall;
         expect(errorCall[0]).toContain("Error refreshing token price");
       });
       it("should not update token when price fetch fails", async () => {
@@ -303,7 +277,7 @@ describe("PriceOracle", () => {
         const errorRelatedCalls = setCalls.filter(
           (call) => call[0]?.address === originalToken.address,
         );
-        expect(errorRelatedCalls.length).toBe(0);
+        expect(errorRelatedCalls).toHaveLength(0);
       });
     });
   });
@@ -326,7 +300,7 @@ describe("PriceOracle", () => {
         mockContext as handlerContext,
       );
 
-      expect(token).not.toBeUndefined();
+      expect(token).toBeDefined();
       expect(token.address).toBe(tokenAddress);
       expect(token.symbol).toBe("TEST");
       expect(token.name).toBe("Test Token");
@@ -346,9 +320,7 @@ describe("PriceOracle", () => {
       );
 
       expect(mockContext.Token?.set as jest.Mock).toHaveBeenCalledTimes(1);
-      const setToken = (mockContext.Token?.set as jest.Mock).mock.calls[
-        (mockContext.Token?.set as jest.Mock).mock.calls.length - 1
-      ][0];
+      const setToken = (mockContext.Token?.set as jest.Mock).mock.lastCall[0];
       expect(setToken.address).toBe(tokenAddress);
       expect(setToken.pricePerUSDNew).toBe(0n);
     });
@@ -362,9 +334,7 @@ describe("PriceOracle", () => {
       );
 
       expect(mockContext.effect as jest.Mock).toHaveBeenCalledTimes(1);
-      const effectCall = (mockContext.effect as jest.Mock).mock.calls[
-        (mockContext.effect as jest.Mock).mock.calls.length - 1
-      ];
+      const effectCall = (mockContext.effect as jest.Mock).mock.lastCall;
       expect(effectCall[1].contractAddress).toBe(tokenAddress);
       expect(effectCall[1].chainId).toBe(chainId);
     });

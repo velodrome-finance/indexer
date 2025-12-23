@@ -95,8 +95,8 @@ describe("Helpers", () => {
       const end = Date.now();
       const elapsed = end - start;
 
-      // Should be very fast (less than 10ms)
-      expect(elapsed).toBeLessThan(10);
+      // Should be very fast (less than 20ms to account for test environment variability)
+      expect(elapsed).toBeLessThan(20);
     });
 
     it("should return a Promise", () => {

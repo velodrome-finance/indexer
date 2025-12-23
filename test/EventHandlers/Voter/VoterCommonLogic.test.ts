@@ -112,7 +112,7 @@ describe("computeVoterDistributeValues", () => {
     );
 
     // no warnings for price zero
-    expect(logs.warns.length).toBe(0);
+    expect(logs.warns).toHaveLength(0);
   });
 
   it("logs a warning when token price is zero, but still computes values", async () => {
@@ -147,7 +147,7 @@ describe("computeVoterDistributeValues", () => {
 
     expect(result.normalizedEmissionsAmountUsd).toBe(0n);
     expect(result.normalizedVotesDepositedAmountUsd).toBe(0n);
-    expect(logs.warns.length).toBeGreaterThan(0);
+    expect(logs.warns).toHaveLength(1);
   });
 });
 
@@ -188,7 +188,7 @@ describe("updateTokenWhitelist", () => {
     const captured: Token[] = [];
     const ctx = makeMockContext({ tokenGet: existing, capturedSets: captured });
     await updateTokenWhitelist(ctx, "t:1", "0x1", 1, true, 1_700_000_000_000);
-    expect(captured.length).toBe(1);
+    expect(captured).toHaveLength(1);
     expect(captured[0].isWhitelisted).toBe(true);
   });
 
@@ -200,7 +200,7 @@ describe("updateTokenWhitelist", () => {
       capturedSets: captured,
     });
     await updateTokenWhitelist(ctx, "t:2", "0x2", 1, true, 1_700_000_000_000);
-    expect(captured.length).toBe(1);
+    expect(captured).toHaveLength(1);
     expect(captured[0].id).toBe("t:2");
     expect(captured[0].name).toBe("N");
     expect(captured[0].symbol).toBe("S");

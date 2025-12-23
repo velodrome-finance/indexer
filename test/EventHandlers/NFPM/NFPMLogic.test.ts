@@ -319,7 +319,7 @@ describe("NFPMLogic", () => {
 
       expect(token0).toEqual(mockToken0);
       expect(token1).toEqual(mockToken1);
-      expect((mockContext.Token.get as jest.Mock).mock.calls.length).toBe(2);
+      expect(mockContext.Token.get as jest.Mock).toHaveBeenCalledTimes(2);
     });
 
     it("should handle undefined tokens", async () => {
@@ -371,10 +371,10 @@ describe("NFPMLogic", () => {
       expect(sqrtPriceX96).toBe(expectedSqrtPriceX96);
       expect(token0).toEqual(mockToken0);
       expect(token1).toEqual(mockToken1);
-      expect((mockContext.effect as jest.Mock).mock.calls.length).toBe(1);
-      expect((mockContext.Token.get as jest.Mock).mock.calls.length).toBe(2);
-      expect((mockContext.log.warn as jest.Mock).mock.calls.length).toBe(0);
-      expect((mockContext.log.error as jest.Mock).mock.calls.length).toBe(0);
+      expect(mockContext.effect as jest.Mock).toHaveBeenCalledTimes(1);
+      expect(mockContext.Token.get as jest.Mock).toHaveBeenCalledTimes(2);
+      expect(mockContext.log.warn as jest.Mock).toHaveBeenCalledTimes(0);
+      expect(mockContext.log.error as jest.Mock).toHaveBeenCalledTimes(0);
     });
 
     it("should handle undefined tokens", async () => {
@@ -420,12 +420,12 @@ describe("NFPMLogic", () => {
       expect(sqrtPriceX96).toBe(expectedSqrtPriceX96);
       expect(token0).toEqual(mockToken0);
       expect(token1).toEqual(mockToken1);
-      expect((mockContext.effect as jest.Mock).mock.calls.length).toBe(2);
-      expect((mockContext.log.warn as jest.Mock).mock.calls.length).toBe(1);
+      expect(mockContext.effect as jest.Mock).toHaveBeenCalledTimes(2);
+      expect(mockContext.log.warn as jest.Mock).toHaveBeenCalledTimes(1);
       expect((mockContext.log.warn as jest.Mock).mock.calls[0][0]).toContain(
         "does not exist at rounded block",
       );
-      expect((mockContext.log.error as jest.Mock).mock.calls.length).toBe(0);
+      expect(mockContext.log.error as jest.Mock).toHaveBeenCalledTimes(0);
     });
 
     it("should return undefined when both rounded and actual block fail", async () => {
@@ -451,9 +451,9 @@ describe("NFPMLogic", () => {
       expect(sqrtPriceX96).toBeUndefined();
       expect(token0).toEqual(mockToken0);
       expect(token1).toEqual(mockToken1);
-      expect((mockContext.effect as jest.Mock).mock.calls.length).toBe(2);
-      expect((mockContext.log.warn as jest.Mock).mock.calls.length).toBe(1);
-      expect((mockContext.log.error as jest.Mock).mock.calls.length).toBe(1);
+      expect(mockContext.effect as jest.Mock).toHaveBeenCalledTimes(2);
+      expect(mockContext.log.warn as jest.Mock).toHaveBeenCalledTimes(1);
+      expect(mockContext.log.error as jest.Mock).toHaveBeenCalledTimes(1);
       expect((mockContext.log.error as jest.Mock).mock.calls[0][0]).toContain(
         "Failed to fetch sqrtPriceX96",
       );
@@ -478,9 +478,9 @@ describe("NFPMLogic", () => {
       expect(sqrtPriceX96).toBeUndefined();
       expect(token0).toEqual(mockToken0);
       expect(token1).toEqual(mockToken1);
-      expect((mockContext.effect as jest.Mock).mock.calls.length).toBe(2);
-      expect((mockContext.log.warn as jest.Mock).mock.calls.length).toBe(1);
-      expect((mockContext.log.error as jest.Mock).mock.calls.length).toBe(1);
+      expect(mockContext.effect as jest.Mock).toHaveBeenCalledTimes(2);
+      expect(mockContext.log.warn as jest.Mock).toHaveBeenCalledTimes(1);
+      expect(mockContext.log.error as jest.Mock).toHaveBeenCalledTimes(1);
     });
   });
 

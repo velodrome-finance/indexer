@@ -30,7 +30,6 @@ describe("SuperchainIncentiveVotingReward Events", () => {
   let veNFT: VeNFTAggregator;
 
   beforeEach(() => {
-    jest.clearAllMocks();
     mockDb = MockDb.createMockDb();
 
     // Set up liquidity pool with bribe voting reward address
@@ -149,14 +148,14 @@ describe("SuperchainIncentiveVotingReward Events", () => {
     it("should update pool aggregator with bribe claimed", () => {
       const updatedPool =
         resultDB.entities.LiquidityPoolAggregator.get(poolAddress);
-      expect(updatedPool).not.toBeUndefined();
+      expect(updatedPool).toBeDefined();
       expect(updatedPool?.totalBribeClaimed).toBe(1000000n);
       expect(updatedPool?.totalBribeClaimedUSD).toBe(1000000n);
     });
 
     it("should update user stats with bribe claimed", () => {
       const updatedUser = resultDB.entities.UserStatsPerPool.get(userStats.id);
-      expect(updatedUser).not.toBeUndefined();
+      expect(updatedUser).toBeDefined();
       expect(updatedUser?.totalBribeClaimed).toBe(1000000n);
       expect(updatedUser?.totalBribeClaimedUSD).toBe(1000000n);
     });

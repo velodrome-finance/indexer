@@ -42,7 +42,7 @@ describe("DynamicFeeSwapModule Events", () => {
       const config = result.entities.DynamicFeeGlobalConfig.get(
         toChecksumAddress(moduleAddress),
       );
-      expect(config).not.toBeUndefined();
+      expect(config).toBeDefined();
       expect(config?.id).toBe(toChecksumAddress(moduleAddress));
       expect(config?.secondsAgo).toBe(secondsAgo);
     });
@@ -87,7 +87,7 @@ describe("DynamicFeeSwapModule Events", () => {
         toChecksumAddress(poolAddress),
       );
 
-      expect(updatedPool).not.toBeUndefined();
+      expect(updatedPool).toBeDefined();
       expect(updatedPool?.baseFee).toBe(baseFee);
       expect(updatedPool?.scalingFactor).toBeUndefined();
       expect(updatedPool?.feeCap).toBeUndefined();
@@ -115,7 +115,7 @@ describe("DynamicFeeSwapModule Events", () => {
         toChecksumAddress(poolAddress),
       );
 
-      expect(updatedPool).not.toBeUndefined();
+      expect(updatedPool).toBeDefined();
       expect(updatedPool?.baseFee).toBeUndefined();
       expect(updatedPool?.scalingFactor).toBe(scalingFactor);
       expect(updatedPool?.feeCap).toBeUndefined();
@@ -142,7 +142,7 @@ describe("DynamicFeeSwapModule Events", () => {
       updatedPool = result.entities.LiquidityPoolAggregator.get(
         toChecksumAddress(poolAddress),
       );
-      expect(updatedPool).not.toBeUndefined();
+      expect(updatedPool).toBeDefined();
       expect(updatedPool?.baseFee).toBeUndefined();
       expect(updatedPool?.scalingFactor).toBeUndefined();
       expect(updatedPool?.feeCap).toBe(feeCap);

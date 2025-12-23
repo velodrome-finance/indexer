@@ -141,7 +141,7 @@ describe("CLPoolCollectFeesLogic", () => {
         mockToken1,
       );
 
-      expect(result.liquidityPoolDiff).not.toBeUndefined();
+      expect(result.liquidityPoolDiff).toBeDefined();
     });
 
     it("should handle zero amounts correctly", () => {

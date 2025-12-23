@@ -47,7 +47,7 @@ describe("CustomFeeSwapModule Events", () => {
 
       // Assert: Check that DynamicFeeGlobalConfig was created
       const config = result.entities.DynamicFeeGlobalConfig.get(moduleAddress);
-      expect(config).not.toBeUndefined();
+      expect(config).toBeDefined();
       expect(config?.id).toBe(moduleAddress);
       expect(config?.chainId).toBe(chainId);
       expect(config?.secondsAgo).toBeUndefined();
@@ -88,7 +88,7 @@ describe("CustomFeeSwapModule Events", () => {
       // Assert: Check that pool's baseFee was updated
       const updatedPool =
         result.entities.LiquidityPoolAggregator.get(poolAddress);
-      expect(updatedPool).not.toBeUndefined();
+      expect(updatedPool).toBeDefined();
       expect(updatedPool?.baseFee).toBe(fee);
     });
   });

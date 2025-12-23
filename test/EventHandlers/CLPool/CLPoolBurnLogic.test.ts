@@ -96,8 +96,8 @@ describe("CLPoolBurnLogic", () => {
         mockToken1,
       );
 
-      expect(result.liquidityPoolDiff).not.toBeUndefined();
-      expect(result.userLiquidityDiff).not.toBeUndefined();
+      expect(result.liquidityPoolDiff).toBeDefined();
+      expect(result.userLiquidityDiff).toBeDefined();
     });
   });
 });

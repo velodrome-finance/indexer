@@ -153,8 +153,8 @@ describe("CLPoolSwapLogic", () => {
         mockContext,
       );
 
-      expect(result.liquidityPoolDiff).not.toBeUndefined();
-      expect(result.userSwapDiff).not.toBeUndefined();
+      expect(result.liquidityPoolDiff).toBeDefined();
+      expect(result.userSwapDiff).toBeDefined();
     });
 
     it("should handle zero amounts correctly", async () => {
@@ -218,7 +218,7 @@ describe("CLPoolSwapLogic", () => {
       );
 
       // Should still process the swap with token1
-      expect(result.liquidityPoolDiff).not.toBeUndefined();
+      expect(result.liquidityPoolDiff).toBeDefined();
       expect(result.liquidityPoolDiff.totalVolume1).toBe(2000000000000000000n);
       // Price should fallback to pool's existing price when token0 is undefined
       expect(result.liquidityPoolDiff.token0Price).toBe(
@@ -237,7 +237,7 @@ describe("CLPoolSwapLogic", () => {
       );
 
       // Should still process the swap with token0
-      expect(result.liquidityPoolDiff).not.toBeUndefined();
+      expect(result.liquidityPoolDiff).toBeDefined();
       expect(result.liquidityPoolDiff.totalVolume0).toBe(1000000000000000000n);
       // Price should fallback to pool's existing price when token1 is undefined
       expect(result.liquidityPoolDiff.token1Price).toBe(
@@ -256,7 +256,7 @@ describe("CLPoolSwapLogic", () => {
       );
 
       // Should still process but with fallback values
-      expect(result.liquidityPoolDiff).not.toBeUndefined();
+      expect(result.liquidityPoolDiff).toBeDefined();
       expect(result.liquidityPoolDiff.token0Price).toBe(
         mockLiquidityPoolAggregator.token0Price,
       );

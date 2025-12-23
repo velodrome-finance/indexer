@@ -148,8 +148,8 @@ describe("RootPool Effects", () => {
       const error = new Error("Contract call failed");
       mockSimulateContract.mockRejectedValue(error);
 
-      try {
-        await fetchRootPoolAddress(
+      await expect(
+        fetchRootPoolAddress(
           mockEthClient,
           mockLpHelperAddress,
           mockFactory,
@@ -157,12 +157,8 @@ describe("RootPool Effects", () => {
           mockToken1,
           mockType,
           mockContext.log,
-        );
-        throw new Error("Should have thrown an error");
-      } catch (err) {
-        expect(err).toBeInstanceOf(Error);
-        expect((err as Error).message).toContain("Contract call failed");
-      }
+        ),
+      ).rejects.toThrow("Contract call failed");
     });
 
     it("should normalize lowercase addresses to checksum format", async () => {

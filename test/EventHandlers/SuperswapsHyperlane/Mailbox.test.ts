@@ -47,7 +47,7 @@ describe("Mailbox Events", () => {
       // Assert - check DispatchId_event was created
       const expectedId = `${mockEvent.transaction.hash}_${chainId}_${messageId}`;
       const entity = result.entities.DispatchId_event.get(expectedId);
-      expect(entity).not.toBeUndefined();
+      expect(entity).toBeDefined();
       expect(entity?.id).toBe(expectedId);
       expect(entity?.chainId).toBe(chainId);
       expect(entity?.transactionHash).toBe(mockEvent.transaction.hash);
@@ -123,8 +123,8 @@ describe("Mailbox Events", () => {
       const entity1 = result2.entities.DispatchId_event.get(expectedId1);
       const entity2 = result2.entities.DispatchId_event.get(expectedId2);
 
-      expect(entity1).not.toBeUndefined();
-      expect(entity2).not.toBeUndefined();
+      expect(entity1).toBeDefined();
+      expect(entity2).toBeDefined();
       expect(entity1?.id).toBe(expectedId1);
       expect(entity2?.id).toBe(expectedId2);
       expect(entity1?.id).not.toBe(entity2?.id);
@@ -192,8 +192,8 @@ describe("Mailbox Events", () => {
       const entity1 = result2.entities.DispatchId_event.get(expectedId1);
       const entity2 = result2.entities.DispatchId_event.get(expectedId2);
 
-      expect(entity1).not.toBeUndefined();
-      expect(entity2).not.toBeUndefined();
+      expect(entity1).toBeDefined();
+      expect(entity2).toBeDefined();
       expect(entity1?.messageId).toBe(messageId1);
       expect(entity2?.messageId).toBe(messageId2);
     });
@@ -226,7 +226,7 @@ describe("Mailbox Events", () => {
       // Assert - check ProcessId_event was created
       const expectedId = `${mockEvent.transaction.hash}_${chainId}_${messageId}`;
       const entity = result.entities.ProcessId_event.get(expectedId);
-      expect(entity).not.toBeUndefined();
+      expect(entity).toBeDefined();
       expect(entity?.id).toBe(expectedId);
       expect(entity?.chainId).toBe(chainId);
       expect(entity?.transactionHash).toBe(mockEvent.transaction.hash);
@@ -301,8 +301,8 @@ describe("Mailbox Events", () => {
       const entity1 = result2.entities.ProcessId_event.get(expectedId1);
       const entity2 = result2.entities.ProcessId_event.get(expectedId2);
 
-      expect(entity1).not.toBeUndefined();
-      expect(entity2).not.toBeUndefined();
+      expect(entity1).toBeDefined();
+      expect(entity2).toBeDefined();
       expect(entity1?.id).toBe(expectedId1);
       expect(entity2?.id).toBe(expectedId2);
       expect(entity1?.id).not.toBe(entity2?.id);
@@ -370,8 +370,8 @@ describe("Mailbox Events", () => {
       const entity1 = result2.entities.ProcessId_event.get(expectedId1);
       const entity2 = result2.entities.ProcessId_event.get(expectedId2);
 
-      expect(entity1).not.toBeUndefined();
-      expect(entity2).not.toBeUndefined();
+      expect(entity1).toBeDefined();
+      expect(entity2).toBeDefined();
       expect(entity1?.messageId).toBe(messageId1);
       expect(entity2?.messageId).toBe(messageId2);
     });
@@ -436,8 +436,8 @@ describe("Mailbox Events", () => {
       const entity1 = result2.entities.ProcessId_event.get(expectedId1);
       const entity2 = result2.entities.ProcessId_event.get(expectedId2);
 
-      expect(entity1).not.toBeUndefined();
-      expect(entity2).not.toBeUndefined();
+      expect(entity1).toBeDefined();
+      expect(entity2).toBeDefined();
       expect(entity1?.chainId).toBe(chainId1);
       expect(entity2?.chainId).toBe(chainId2);
     });
@@ -540,14 +540,14 @@ describe("Mailbox Events", () => {
       const processIdEntityId = `${destinationTransactionHash}_${destinationChainId}_${testMessageId}`;
       const processIdEntity =
         result.entities.ProcessId_event.get(processIdEntityId);
-      expect(processIdEntity).not.toBeUndefined();
+      expect(processIdEntity).toBeDefined();
       expect(processIdEntity?.messageId).toBe(testMessageId);
 
       // Assert: SuperSwap was created
       const superSwaps = Array.from(
         result.entities.SuperSwap.getAll(),
       ) as SuperSwap[];
-      expect(superSwaps.length).toBe(1);
+      expect(superSwaps).toHaveLength(1);
 
       const superSwap = superSwaps[0];
       expect(superSwap.originChainId).toBe(BigInt(sourceChainId));
@@ -589,11 +589,11 @@ describe("Mailbox Events", () => {
       const processIdEntityId = `${destinationTransactionHash}_${destinationChainId}_${testMessageId}`;
       const processIdEntity =
         result.entities.ProcessId_event.get(processIdEntityId);
-      expect(processIdEntity).not.toBeUndefined();
+      expect(processIdEntity).toBeDefined();
 
       // Assert: No SuperSwap was created (DispatchId missing)
       const superSwaps = Array.from(result.entities.SuperSwap.getAll());
-      expect(superSwaps.length).toBe(0);
+      expect(superSwaps).toHaveLength(0);
     });
 
     it("should create ProcessId_event but not SuperSwap when OUSDTBridgedTransaction is missing", async () => {
@@ -634,11 +634,11 @@ describe("Mailbox Events", () => {
       const processIdEntityId = `${destinationTransactionHash}_${destinationChainId}_${testMessageId}`;
       const processIdEntity =
         result.entities.ProcessId_event.get(processIdEntityId);
-      expect(processIdEntity).not.toBeUndefined();
+      expect(processIdEntity).toBeDefined();
 
       // Assert: No SuperSwap was created (bridged transaction missing)
       const superSwaps = Array.from(result.entities.SuperSwap.getAll());
-      expect(superSwaps.length).toBe(0);
+      expect(superSwaps).toHaveLength(0);
     });
 
     it("should handle ProcessId event gracefully when source chain swaps are missing", async () => {
@@ -700,11 +700,11 @@ describe("Mailbox Events", () => {
       const processIdEntityId = `${destinationTransactionHash}_${destinationChainId}_${testMessageId}`;
       const processIdEntity =
         result.entities.ProcessId_event.get(processIdEntityId);
-      expect(processIdEntity).not.toBeUndefined();
+      expect(processIdEntity).toBeDefined();
 
       // Assert: No SuperSwap was created (source swap missing)
       const superSwaps = Array.from(result.entities.SuperSwap.getAll());
-      expect(superSwaps.length).toBe(0);
+      expect(superSwaps).toHaveLength(0);
     });
   });
 });

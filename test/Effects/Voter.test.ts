@@ -21,6 +21,7 @@ describe("Voter Effects", () => {
     log: Envio_logger;
   };
   let mockEthClient: PublicClient;
+  let originalChainConstants10: (typeof CHAIN_CONSTANTS)[10] | undefined;
 
   beforeEach(() => {
     mockEthClient = {
@@ -29,6 +30,9 @@ describe("Voter Effects", () => {
           "0x0000000000000000000000000000000000000000000000000000000000000000",
       } as unknown as { result: string }),
     } as unknown as PublicClient;
+
+    // Save the original value before mutating
+    originalChainConstants10 = CHAIN_CONSTANTS[10];
 
     // Mock CHAIN_CONSTANTS by directly setting the property
     (CHAIN_CONSTANTS as Record<number, { eth_client: PublicClient }>)[10] = {
@@ -54,6 +58,12 @@ describe("Voter Effects", () => {
   });
 
   afterEach(() => {
+    // Restore the original CHAIN_CONSTANTS[10] value
+    if (originalChainConstants10 !== undefined) {
+      CHAIN_CONSTANTS[10] = originalChainConstants10;
+    } else {
+      (CHAIN_CONSTANTS as Record<number, unknown>)[10] = undefined;
+    }
     jest.restoreAllMocks();
   });
 
@@ -73,14 +83,14 @@ describe("Voter Effects", () => {
 
   describe("fetchTokensDeposited", () => {
     it("should fetch tokens deposited from contract", async () => {
+      const mockSimulate = jest.mocked(mockEthClient.simulateContract);
       const rewardTokenAddress = "0x1234567890123456789012345678901234567890";
       const gaugeAddress = "0x0987654321098765432109876543210987654321";
       const blockNumber = 12345;
       const eventChainId = 10;
 
       // Mock the contract response with a specific balance
-      const mockSimulateContract = jest.mocked(mockEthClient.simulateContract);
-      mockSimulateContract.mockResolvedValue({
+      mockSimulate.mockResolvedValue({
         result:
           "0x00000000000000000000000000000000000000000000000000000000000003e8", // 1000 in hex
         // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
@@ -99,8 +109,8 @@ describe("Voter Effects", () => {
       expect(result).toBe(1000n);
 
       // Verify correct contract call
-      expect(mockSimulateContract).toHaveBeenCalledTimes(1);
-      const callArgs = mockSimulateContract.mock.calls[0][0];
+      expect(mockSimulate).toHaveBeenCalledTimes(1);
+      const callArgs = mockSimulate.mock.calls[0][0];
       expect(callArgs).toMatchObject({
         address: rewardTokenAddress,
         functionName: "balanceOf",
@@ -110,14 +120,14 @@ describe("Voter Effects", () => {
     });
 
     it("should handle contract call errors gracefully", async () => {
+      const mockSimulate = jest.mocked(mockEthClient.simulateContract);
       const rewardTokenAddress = "0x1234567890123456789012345678901234567890";
       const gaugeAddress = "0x0987654321098765432109876543210987654321";
       const blockNumber = 12345;
       const eventChainId = 10;
 
       // Mock simulateContract to throw an error
-      const mockSimulateContract = jest.mocked(mockEthClient.simulateContract);
-      mockSimulateContract.mockRejectedValue(new Error("Contract call failed"));
+      mockSimulate.mockRejectedValue(new Error("Contract call failed"));
 
       const result = await fetchTokensDeposited(
         rewardTokenAddress,
@@ -137,14 +147,14 @@ describe("Voter Effects", () => {
     });
 
     it("should handle undefined/null results", async () => {
+      const mockSimulate = jest.mocked(mockEthClient.simulateContract);
       const rewardTokenAddress = "0x1234567890123456789012345678901234567890";
       const gaugeAddress = "0x0987654321098765432109876543210987654321";
       const blockNumber = 12345;
       const eventChainId = 10;
 
       // Mock simulateContract to return undefined result
-      const mockSimulateContract = jest.mocked(mockEthClient.simulateContract);
-      mockSimulateContract.mockResolvedValue({
+      mockSimulate.mockResolvedValue({
         result: undefined,
         // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
       } as any);

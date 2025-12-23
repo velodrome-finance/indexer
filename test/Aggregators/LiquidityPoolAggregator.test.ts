@@ -11,6 +11,7 @@ import {
   updateLiquidityPoolAggregator,
 } from "../../src/Aggregators/LiquidityPoolAggregator";
 import type { CHAIN_CONSTANTS } from "../../src/Constants";
+import { getCurrentFee } from "../../src/Effects/DynamicFee";
 import { setupCommon } from "../EventHandlers/Pool/common";
 
 // Type for the simulateContract method
@@ -268,14 +269,22 @@ describe("LiquidityPoolAggregator Functions", () => {
         .mocked(mockContext.effect!)
         .mockRejectedValue(new Error("Pool not found"));
 
+      // Should complete without throwing
       await updateDynamicFeePools(
         liquidityPoolAggregator as LiquidityPoolAggregator,
         mockContext as handlerContext,
         blockNumber,
       );
 
-      // Should complete without crashing
-      expect(true).toBe(true);
+      // Verify that the effect was called with the expected arguments
+      // biome-ignore lint/style/noNonNullAssertion: effect is verified to be defined above
+      const effectMock = jest.mocked(mockContext.effect!);
+      expect(effectMock).toHaveBeenCalledWith(getCurrentFee, {
+        poolAddress: liquidityPoolAggregator.id,
+        dynamicFeeModuleAddress: "0xd9eE4FBeE92970509ec795062cA759F8B52d6720",
+        chainId: liquidityPoolAggregator.chainId,
+        blockNumber,
+      });
     });
   });
 
@@ -374,7 +383,7 @@ describe("LiquidityPoolAggregator Functions", () => {
         mockContext.LiquidityPoolAggregatorSnapshot?.set,
       );
       const snapshot = mockSet?.mock.calls[0]?.[0];
-      expect(snapshot).not.toBeUndefined();
+      expect(snapshot).toBeDefined();
     });
   });
 

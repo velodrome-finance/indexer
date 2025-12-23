@@ -193,20 +193,16 @@ describe("Dynamic Fee Effects", () => {
       const mockSimulateContract = jest.mocked(mockEthClient.simulateContract);
       mockSimulateContract.mockRejectedValue(new Error("Contract call failed"));
 
-      try {
-        await fetchCurrentFee(
+      await expect(
+        fetchCurrentFee(
           poolAddress,
           dynamicFeeModuleAddress,
           chainId,
           blockNumber,
           mockEthClient,
           mockContext.log,
-        );
-        throw new Error("Should have thrown an error");
-      } catch (error) {
-        expect(error).toBeInstanceOf(Error);
-        expect((error as Error).message).toBe("Contract call failed");
-      }
+        ),
+      ).rejects.toThrow("Contract call failed");
 
       // Verify error was logged
       expect(jest.mocked(mockContext.log.error)).toHaveBeenCalled();

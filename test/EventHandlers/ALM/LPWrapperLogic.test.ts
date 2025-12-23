@@ -165,8 +165,8 @@ describe("LPWrapperLogic", () => {
       // Result should be a calculated liquidity value (not the original)
       expect(result).not.toBe(wrapper.liquidity);
       expect(typeof result).toBe("bigint");
-      expect(mockGetSqrtPriceX96.mock.calls.length).toBe(1);
-      expect(roundBlockToIntervalSpy.mock.calls.length).toBe(1);
+      expect(mockGetSqrtPriceX96).toHaveBeenCalledTimes(1);
+      expect(roundBlockToIntervalSpy).toHaveBeenCalledTimes(1);
       expect(roundBlockToIntervalSpy).toHaveBeenCalledWith(
         blockNumber,
         chainId,
@@ -205,7 +205,7 @@ describe("LPWrapperLogic", () => {
       );
 
       // Verify retry happened (both calls were made)
-      expect(mockGetSqrtPriceX96.mock.calls.length).toBe(2);
+      expect(mockGetSqrtPriceX96).toHaveBeenCalledTimes(2);
       // Verify first call was with rounded block
       // args[0] is the effect function (getSqrtPriceX96), args[1] is the input object
       expect(mockGetSqrtPriceX96.mock.calls[0][1].blockNumber).toBe(
@@ -216,9 +216,7 @@ describe("LPWrapperLogic", () => {
         blockNumber,
       );
       // Verify warning was logged
-      expect(
-        (mockContext.log.warn as jest.Mock).mock.calls.length,
-      ).toBeGreaterThan(0);
+      expect(mockContext.log.warn as jest.Mock).toHaveBeenCalledTimes(1);
       // Result should be a calculated value (may or may not equal wrapper.liquidity depending on calculation)
       expect(typeof result).toBe("bigint");
     });
@@ -252,9 +250,7 @@ describe("LPWrapperLogic", () => {
 
       // Should return current liquidity
       expect(result).toBe(wrapper.liquidity);
-      expect(
-        (mockContext.log.error as jest.Mock).mock.calls.length,
-      ).toBeGreaterThan(0);
+      expect(mockContext.log.error as jest.Mock).toHaveBeenCalledTimes(1);
     });
 
     it("should return current liquidity if sqrtPriceX96 is undefined", async () => {
@@ -285,7 +281,7 @@ describe("LPWrapperLogic", () => {
 
       // Should return current liquidity
       expect(result).toBe(wrapper.liquidity);
-      expect((mockContext.log.warn as jest.Mock).mock.calls.length).toBe(1);
+      expect(mockContext.log.warn as jest.Mock).toHaveBeenCalledTimes(1);
       expect((mockContext.log.warn as jest.Mock).mock.calls[0][0]).toContain(
         "sqrtPriceX96 is undefined or 0",
       );
@@ -319,7 +315,7 @@ describe("LPWrapperLogic", () => {
 
       // Should return current liquidity
       expect(result).toBe(wrapper.liquidity);
-      expect((mockContext.log.warn as jest.Mock).mock.calls.length).toBe(1);
+      expect(mockContext.log.warn as jest.Mock).toHaveBeenCalledTimes(1);
     });
 
     it("should handle unexpected errors gracefully", async () => {
@@ -353,7 +349,7 @@ describe("LPWrapperLogic", () => {
 
       // Should return current liquidity on error
       expect(result).toBe(wrapper.liquidity);
-      expect((mockContext.log.error as jest.Mock).mock.calls.length).toBe(1);
+      expect(mockContext.log.error as jest.Mock).toHaveBeenCalledTimes(1);
       expect((mockContext.log.error as jest.Mock).mock.calls[0][0]).toContain(
         "Error calculating liquidity from amounts",
       );
@@ -422,12 +418,12 @@ describe("LPWrapperLogic", () => {
 
       expect(result).toEqual(mockWrapper);
       expect(
-        (mockContext.ALM_LP_Wrapper?.get as jest.Mock).mock.calls.length,
-      ).toBe(1);
+        mockContext.ALM_LP_Wrapper?.get as jest.Mock,
+      ).toHaveBeenCalledTimes(1);
       expect(
         (mockContext.ALM_LP_Wrapper?.get as jest.Mock).mock.calls[0][0],
       ).toBe(wrapperId);
-      expect((mockContext.log.error as jest.Mock).mock.calls.length).toBe(0);
+      expect(mockContext.log.error as jest.Mock).toHaveBeenCalledTimes(0);
     });
 
     it("should return null and log error when wrapper not found", async () => {
@@ -441,12 +437,12 @@ describe("LPWrapperLogic", () => {
 
       expect(result).toBeNull();
       expect(
-        (mockContext.ALM_LP_Wrapper?.get as jest.Mock).mock.calls.length,
-      ).toBe(1);
+        mockContext.ALM_LP_Wrapper?.get as jest.Mock,
+      ).toHaveBeenCalledTimes(1);
       expect(
         (mockContext.ALM_LP_Wrapper?.get as jest.Mock).mock.calls[0][0],
       ).toBe(wrapperId);
-      expect((mockContext.log.error as jest.Mock).mock.calls.length).toBe(1);
+      expect(mockContext.log.error as jest.Mock).toHaveBeenCalledTimes(1);
       expect((mockContext.log.error as jest.Mock).mock.calls[0][0]).toContain(
         wrapperId,
       );
@@ -530,8 +526,8 @@ describe("LPWrapperLogic", () => {
 
       // Verify wrapper was updated
       expect(
-        (mockContext.ALM_LP_Wrapper?.set as jest.Mock).mock.calls.length,
-      ).toBe(1);
+        mockContext.ALM_LP_Wrapper?.set as jest.Mock,
+      ).toHaveBeenCalledTimes(1);
       const wrapperUpdate = (mockContext.ALM_LP_Wrapper?.set as jest.Mock).mock
         .calls[0][0];
       expect(wrapperUpdate.amount0).toBe(mockWrapper.amount0 + amount0);
@@ -543,8 +539,8 @@ describe("LPWrapperLogic", () => {
 
       // Verify user stats were updated
       expect(
-        (mockContext.UserStatsPerPool?.set as jest.Mock).mock.calls.length,
-      ).toBe(1);
+        mockContext.UserStatsPerPool?.set as jest.Mock,
+      ).toHaveBeenCalledTimes(1);
     });
 
     it("should return early if wrapper not found", async () => {
@@ -581,11 +577,11 @@ describe("LPWrapperLogic", () => {
 
       // Should not update anything
       expect(
-        (mockContext.ALM_LP_Wrapper?.set as jest.Mock).mock.calls.length,
-      ).toBe(0);
+        mockContext.ALM_LP_Wrapper?.set as jest.Mock,
+      ).toHaveBeenCalledTimes(0);
       expect(
-        (mockContext.UserStatsPerPool?.set as jest.Mock).mock.calls.length,
-      ).toBe(0);
+        mockContext.UserStatsPerPool?.set as jest.Mock,
+      ).toHaveBeenCalledTimes(0);
     });
   });
 
@@ -664,8 +660,8 @@ describe("LPWrapperLogic", () => {
 
       // Verify wrapper was updated
       expect(
-        (mockContext.ALM_LP_Wrapper?.set as jest.Mock).mock.calls.length,
-      ).toBe(1);
+        mockContext.ALM_LP_Wrapper?.set as jest.Mock,
+      ).toHaveBeenCalledTimes(1);
       const wrapperUpdate = (mockContext.ALM_LP_Wrapper?.set as jest.Mock).mock
         .calls[0][0];
       expect(wrapperUpdate.amount0).toBe(mockWrapper.amount0 - amount0);
@@ -677,8 +673,8 @@ describe("LPWrapperLogic", () => {
 
       // Verify user stats were updated
       expect(
-        (mockContext.UserStatsPerPool?.set as jest.Mock).mock.calls.length,
-      ).toBe(1);
+        mockContext.UserStatsPerPool?.set as jest.Mock,
+      ).toHaveBeenCalledTimes(1);
     });
 
     it("should return early if wrapper not found", async () => {
@@ -714,11 +710,11 @@ describe("LPWrapperLogic", () => {
 
       // Should not update anything
       expect(
-        (mockContext.ALM_LP_Wrapper?.set as jest.Mock).mock.calls.length,
-      ).toBe(0);
+        mockContext.ALM_LP_Wrapper?.set as jest.Mock,
+      ).toHaveBeenCalledTimes(0);
       expect(
-        (mockContext.UserStatsPerPool?.set as jest.Mock).mock.calls.length,
-      ).toBe(0);
+        mockContext.UserStatsPerPool?.set as jest.Mock,
+      ).toHaveBeenCalledTimes(0);
     });
   });
 
@@ -802,8 +798,8 @@ describe("LPWrapperLogic", () => {
       // loadOrCreateUserData doesn't call set since both entities exist
       // updateUserStatsPerPool is called twice (once for sender, once for recipient)
       expect(
-        (mockContext.UserStatsPerPool?.set as jest.Mock).mock.calls.length,
-      ).toBe(2);
+        mockContext.UserStatsPerPool?.set as jest.Mock,
+      ).toHaveBeenCalledTimes(2);
 
       // Verify sender's stats were updated (decreased)
       const fromUpdate = (mockContext.UserStatsPerPool?.set as jest.Mock).mock
@@ -844,11 +840,11 @@ describe("LPWrapperLogic", () => {
 
       // Should not load wrapper or update any stats
       expect(
-        (mockContext.ALM_LP_Wrapper?.get as jest.Mock).mock.calls.length,
-      ).toBe(0);
+        mockContext.ALM_LP_Wrapper?.get as jest.Mock,
+      ).toHaveBeenCalledTimes(0);
       expect(
-        (mockContext.UserStatsPerPool?.set as jest.Mock).mock.calls.length,
-      ).toBe(0);
+        mockContext.UserStatsPerPool?.set as jest.Mock,
+      ).toHaveBeenCalledTimes(0);
     });
 
     it("should return early if wrapper not found", async () => {
@@ -868,8 +864,8 @@ describe("LPWrapperLogic", () => {
 
       // Should not update any stats
       expect(
-        (mockContext.UserStatsPerPool?.set as jest.Mock).mock.calls.length,
-      ).toBe(0);
+        mockContext.UserStatsPerPool?.set as jest.Mock,
+      ).toHaveBeenCalledTimes(0);
     });
   });
 });

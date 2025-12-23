@@ -121,7 +121,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
       const wrapperId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
       const createdWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
 
-      expect(createdWrapper).not.toBeUndefined();
+      expect(createdWrapper).toBeDefined();
       expect(createdWrapper?.id).toBe(wrapperId);
       expect(createdWrapper?.chainId).toBe(chainId);
       expect(createdWrapper?.pool).toBe(toChecksumAddress(poolAddress));
@@ -388,7 +388,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
       const wrapperId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
       const createdWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
 
-      expect(createdWrapper).not.toBeUndefined();
+      expect(createdWrapper).toBeDefined();
       // Should use the matching NFPM (matchingNFPM), not the others
       expect(createdWrapper?.tokenId).toBe(tokenId);
       expect(createdWrapper?.amount0).toBe(500n * 10n ** 18n);
@@ -780,7 +780,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
       const wrapperId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
       const createdWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
 
-      expect(createdWrapper).not.toBeUndefined();
+      expect(createdWrapper).toBeDefined();
       // Should use the first matching NFPM (matchingNFPM1)
       expect(createdWrapper?.tokenId).toBe(tokenId);
       expect(createdWrapper?.amount0).toBe(500n * 10n ** 18n);

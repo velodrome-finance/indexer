@@ -147,7 +147,7 @@ describe("VeNFT Events", () => {
         VeNFTId(chainId, mintEventData.tokenId),
       );
 
-      expect(createdVeNFT).not.toBeUndefined();
+      expect(createdVeNFT).toBeDefined();
       expect(createdVeNFT?.id).toBe(VeNFTId(chainId, mintEventData.tokenId));
       expect(createdVeNFT?.chainId).toBe(chainId);
       expect(createdVeNFT?.tokenId).toBe(mintEventData.tokenId);

@@ -149,8 +149,8 @@ describe("CLPoolFlashLogic", () => {
         mockToken1,
       );
 
-      expect(result.liquidityPoolDiff).not.toBeUndefined();
-      expect(result.userFlashLoanDiff).not.toBeUndefined();
+      expect(result.liquidityPoolDiff).toBeDefined();
+      expect(result.userFlashLoanDiff).toBeDefined();
     });
 
     it("should handle existing flash loan data correctly", () => {
