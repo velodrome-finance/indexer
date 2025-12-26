@@ -90,8 +90,6 @@ export function createUserStatsPerPoolEntity(
     currentLiquidityUSD: 0n,
     currentLiquidityToken0: 0n,
     currentLiquidityToken1: 0n,
-    totalLiquidityAddedUSD: 0n,
-    totalLiquidityRemovedUSD: 0n,
 
     // Fee metrics
     totalFeesContributedUSD: 0n,
@@ -154,14 +152,6 @@ export async function updateUserStatsPerPool(
       diff.currentLiquidityUSD !== undefined
         ? current.currentLiquidityUSD + diff.currentLiquidityUSD
         : current.currentLiquidityUSD,
-    totalLiquidityAddedUSD:
-      diff.currentLiquidityUSD !== undefined && diff.currentLiquidityUSD > 0n
-        ? current.totalLiquidityAddedUSD + diff.currentLiquidityUSD
-        : current.totalLiquidityAddedUSD,
-    totalLiquidityRemovedUSD:
-      diff.currentLiquidityUSD !== undefined && diff.currentLiquidityUSD < 0n
-        ? current.totalLiquidityRemovedUSD + -diff.currentLiquidityUSD
-        : current.totalLiquidityRemovedUSD,
     currentLiquidityToken0:
       diff.currentLiquidityToken0 !== undefined
         ? current.currentLiquidityToken0 + diff.currentLiquidityToken0

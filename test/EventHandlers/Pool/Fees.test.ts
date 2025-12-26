@@ -156,7 +156,6 @@ describe("Pool Fees Event", () => {
       currentLiquidityUSD: 2000n,
       currentLiquidityToken0: 1000n,
       currentLiquidityToken1: 1000n,
-      totalLiquidityAddedUSD: 2000n,
       totalFeesContributedUSD: 2000n,
       totalFeesContributed0: 1000n,
       totalFeesContributed1: 800n,
