@@ -84,11 +84,17 @@ describe("CLPoolFlashLogic", () => {
       // Calculate exact flash loan fees USD: (1000 * 1 USD) + (500 * 2 USD) = 1000 + 1000 = 2000 USD
       expect(result.liquidityPoolDiff.totalFlashLoanFeesUSD).toBe(2000n);
 
+      // Check flash loan volume in token units
+      expect(result.liquidityPoolDiff.totalFlashLoanVolume0).toBe(1000000n); // amount0
+      expect(result.liquidityPoolDiff.totalFlashLoanVolume1).toBe(500000n); // amount1
+
       // Calculate exact flash loan volume USD: (1000000 * 1 USD) + (500000 * 2 USD) = 1000000 + 1000000 = 2000000 USD
       expect(result.liquidityPoolDiff.totalFlashLoanVolumeUSD).toBe(2000000n);
 
       // Check user flash loan diff with exact values
       expect(result.userFlashLoanDiff.numberOfFlashLoans).toBe(1n);
+      expect(result.userFlashLoanDiff.totalFlashLoanVolume0).toBe(1000000n); // amount0
+      expect(result.userFlashLoanDiff.totalFlashLoanVolume1).toBe(500000n); // amount1
       expect(result.userFlashLoanDiff.totalFlashLoanVolumeUSD).toBe(2000000n);
     });
 
@@ -109,6 +115,10 @@ describe("CLPoolFlashLogic", () => {
       const result = processCLPoolFlash(mockEvent, mockToken0, mockToken1);
 
       // Volume should be calculated based on borrowed amounts (not fees)
+      expect(result.liquidityPoolDiff.totalFlashLoanVolume0).toBe(1000000n); // amount0
+      expect(result.liquidityPoolDiff.totalFlashLoanVolume1).toBe(500000n); // amount1
+      expect(result.userFlashLoanDiff.totalFlashLoanVolume0).toBe(1000000n); // amount0
+      expect(result.userFlashLoanDiff.totalFlashLoanVolume1).toBe(500000n); // amount1
       expect(result.userFlashLoanDiff.totalFlashLoanVolumeUSD).toBe(2000000n); // 2M USD in 18 decimals
       expect(result.userFlashLoanDiff.numberOfFlashLoans).toBe(1n);
     });
@@ -134,6 +144,10 @@ describe("CLPoolFlashLogic", () => {
       expect(result.liquidityPoolDiff.totalFlashLoanFees0).toBe(0n);
       expect(result.liquidityPoolDiff.totalFlashLoanFees1).toBe(0n);
       expect(result.liquidityPoolDiff.totalFlashLoanFeesUSD).toBe(0n);
+      expect(result.liquidityPoolDiff.totalFlashLoanVolume0).toBe(0n);
+      expect(result.liquidityPoolDiff.totalFlashLoanVolume1).toBe(0n);
+      expect(result.userFlashLoanDiff.totalFlashLoanVolume0).toBe(0n);
+      expect(result.userFlashLoanDiff.totalFlashLoanVolume1).toBe(0n);
       expect(result.userFlashLoanDiff.totalFlashLoanVolumeUSD).toBe(0n);
     });
 

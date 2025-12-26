@@ -44,6 +44,8 @@ type LiquidityPoolAggregator {
   totalFlashLoanFees0: BigInt @config(precision: 76) # total flash loan fees collected in token0
   totalFlashLoanFees1: BigInt @config(precision: 76) # total flash loan fees collected in token1
   totalFlashLoanFeesUSD: BigInt @config(precision: 76) # total flash loan fees collected in USD
+  totalFlashLoanVolume0: BigInt @config(precision: 76) # total flash loan volume in token0
+  totalFlashLoanVolume1: BigInt @config(precision: 76) # total flash loan volume in token1
   totalFlashLoanVolumeUSD: BigInt @config(precision: 76) # total flash loan volume in USD
   numberOfFlashLoans: BigInt @config(precision: 76) # total number of flash loans
 
@@ -136,6 +138,8 @@ type LiquidityPoolAggregatorSnapshot {
   totalFlashLoanFees0: BigInt @config(precision: 76) # total flash loan fees collected in token0
   totalFlashLoanFees1: BigInt @config(precision: 76) # total flash loan fees collected in token1
   totalFlashLoanFeesUSD: BigInt @config(precision: 76) # total flash loan fees collected in USD
+  totalFlashLoanVolume0: BigInt @config(precision: 76) # total flash loan volume in token0
+  totalFlashLoanVolume1: BigInt @config(precision: 76) # total flash loan volume in token1
   totalFlashLoanVolumeUSD: BigInt @config(precision: 76) # total flash loan volume in USD
   numberOfFlashLoans: BigInt @config(precision: 76) # total number of flash loans
 
@@ -180,6 +184,8 @@ type UserStatsPerPool {
 
   # Flash swap metrics
   numberOfFlashLoans: BigInt! @config(precision: 76) # number of flash loan swaps in this pool
+  totalFlashLoanVolume0: BigInt! @config(precision: 76) # flash loan volume in token0 in this pool
+  totalFlashLoanVolume1: BigInt! @config(precision: 76) # flash loan volume in token1 in this pool
   totalFlashLoanVolumeUSD: BigInt! @config(precision: 76) # flash loan swap volume in USD in this pool
 
   # Gauge metrics

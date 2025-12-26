@@ -104,6 +104,8 @@ export function createUserStatsPerPoolEntity(
 
     // Flash swap metrics
     numberOfFlashLoans: 0n,
+    totalFlashLoanVolume0: 0n,
+    totalFlashLoanVolume1: 0n,
     totalFlashLoanVolumeUSD: 0n,
 
     // Gauge metrics
@@ -195,6 +197,14 @@ export async function updateUserStatsPerPool(
       diff.numberOfFlashLoans !== undefined
         ? current.numberOfFlashLoans + diff.numberOfFlashLoans
         : current.numberOfFlashLoans,
+    totalFlashLoanVolume0:
+      diff.totalFlashLoanVolume0 !== undefined
+        ? current.totalFlashLoanVolume0 + diff.totalFlashLoanVolume0
+        : current.totalFlashLoanVolume0,
+    totalFlashLoanVolume1:
+      diff.totalFlashLoanVolume1 !== undefined
+        ? current.totalFlashLoanVolume1 + diff.totalFlashLoanVolume1
+        : current.totalFlashLoanVolume1,
     totalFlashLoanVolumeUSD:
       diff.totalFlashLoanVolumeUSD !== undefined
         ? current.totalFlashLoanVolumeUSD + diff.totalFlashLoanVolumeUSD

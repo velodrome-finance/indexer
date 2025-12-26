@@ -169,6 +169,12 @@ export async function updateLiquidityPoolAggregator(
     totalFlashLoanFeesUSD:
       (diff.totalFlashLoanFeesUSD ?? 0n) +
       (current.totalFlashLoanFeesUSD ?? 0n),
+    totalFlashLoanVolume0:
+      (diff.totalFlashLoanVolume0 ?? 0n) +
+      (current.totalFlashLoanVolume0 ?? 0n),
+    totalFlashLoanVolume1:
+      (diff.totalFlashLoanVolume1 ?? 0n) +
+      (current.totalFlashLoanVolume1 ?? 0n),
     totalFlashLoanVolumeUSD:
       (diff.totalFlashLoanVolumeUSD ?? 0n) +
       (current.totalFlashLoanVolumeUSD ?? 0n),
@@ -585,6 +591,8 @@ export function createLiquidityPoolAggregatorEntity(params: {
     totalFlashLoanFees0: 0n,
     totalFlashLoanFees1: 0n,
     totalFlashLoanFeesUSD: 0n,
+    totalFlashLoanVolume0: 0n,
+    totalFlashLoanVolume1: 0n,
     totalFlashLoanVolumeUSD: 0n,
     numberOfFlashLoans: 0n,
     // Gauge fields

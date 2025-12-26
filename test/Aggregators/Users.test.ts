@@ -297,6 +297,8 @@ describe("UserStatsPerPool Aggregator", () => {
 
       const diff = {
         numberOfFlashLoans: 1n,
+        totalFlashLoanVolume0: 5000000n,
+        totalFlashLoanVolume1: 3000000n,
         totalFlashLoanVolumeUSD: 10000n,
         lastActivityTimestamp: mockTimestamp,
       };
@@ -308,6 +310,8 @@ describe("UserStatsPerPool Aggregator", () => {
       );
 
       expect(result.numberOfFlashLoans).toBe(1n);
+      expect(result.totalFlashLoanVolume0).toBe(5000000n);
+      expect(result.totalFlashLoanVolume1).toBe(3000000n);
       expect(result.totalFlashLoanVolumeUSD).toBe(10000n);
       expect(result.lastActivityTimestamp).toEqual(mockTimestamp);
     });
