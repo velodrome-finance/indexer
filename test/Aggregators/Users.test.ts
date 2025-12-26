@@ -30,8 +30,6 @@ describe("UserStatsPerPool Aggregator", () => {
       expect(userStats.currentLiquidityUSD).toBe(0n);
       expect(userStats.currentLiquidityToken0).toBe(0n);
       expect(userStats.currentLiquidityToken1).toBe(0n);
-      expect(userStats.totalLiquidityAddedUSD).toBe(0n);
-      expect(userStats.totalLiquidityRemovedUSD).toBe(0n);
       expect(userStats.totalFeesContributedUSD).toBe(0n);
       expect(userStats.totalFeesContributed0).toBe(0n);
       expect(userStats.totalFeesContributed1).toBe(0n);
@@ -107,8 +105,6 @@ describe("UserStatsPerPool Aggregator", () => {
       );
 
       expect(result.currentLiquidityUSD).toBe(netLiquidityAddedUSD);
-      expect(result.totalLiquidityAddedUSD).toBe(netLiquidityAddedUSD);
-      expect(result.totalLiquidityRemovedUSD).toBe(0n);
       expect(result.lastActivityTimestamp).toEqual(mockTimestamp);
       expect(savedUserStats).toEqual(result);
     });
@@ -141,8 +137,6 @@ describe("UserStatsPerPool Aggregator", () => {
       );
 
       expect(result.currentLiquidityUSD).toBe(netLiquidityRemovedUSD);
-      expect(result.totalLiquidityAddedUSD).toBe(0n);
-      expect(result.totalLiquidityRemovedUSD).toBe(500n);
       expect(result.lastActivityTimestamp).toEqual(mockTimestamp);
     });
 
@@ -350,8 +344,6 @@ describe("UserStatsPerPool Aggregator", () => {
       );
 
       expect(result.currentLiquidityUSD).toBe(2000n);
-      expect(result.totalLiquidityAddedUSD).toBe(2000n);
-      expect(result.totalLiquidityRemovedUSD).toBe(0n);
       expect(result.totalFeesContributedUSD).toBe(500n);
       expect(result.numberOfSwaps).toBe(2n);
       expect(result.totalSwapVolumeUSD).toBe(8000n);
@@ -369,7 +361,6 @@ describe("UserStatsPerPool Aggregator", () => {
         currentLiquidityUSD: 2000n,
         currentLiquidityToken0: 1000n,
         currentLiquidityToken1: 1000n,
-        totalLiquidityAddedUSD: 2000n,
         totalFeesContributedUSD: 1000n,
         totalFeesContributed0: 500n,
         totalFeesContributed1: 300n,
@@ -404,8 +395,6 @@ describe("UserStatsPerPool Aggregator", () => {
       );
 
       expect(result.currentLiquidityUSD).toBe(3000n); // 2000 + 1000
-      expect(result.totalLiquidityAddedUSD).toBe(3000n); // 2000 + 1000
-      expect(result.totalLiquidityRemovedUSD).toBe(0n); // No removal
       expect(result.totalFeesContributedUSD).toBe(1500n); // 1000 + 500
       expect(result.numberOfSwaps).toBe(6n); // 5 + 1
       expect(result.totalSwapVolumeUSD).toBe(13000n); // 10000 + 3000
@@ -423,7 +412,6 @@ describe("UserStatsPerPool Aggregator", () => {
         currentLiquidityUSD: 2000n,
         currentLiquidityToken0: 1000n,
         currentLiquidityToken1: 1000n,
-        totalLiquidityAddedUSD: 2000n,
         totalFeesContributedUSD: 1000n,
         totalFeesContributed0: 500n,
         totalFeesContributed1: 300n,
@@ -455,8 +443,6 @@ describe("UserStatsPerPool Aggregator", () => {
       );
 
       expect(result.currentLiquidityUSD).toBe(1500n); // 2000 - 500
-      expect(result.totalLiquidityAddedUSD).toBe(2000n); // Unchanged
-      expect(result.totalLiquidityRemovedUSD).toBe(500n); // 0 + 500
       expect(result.lastActivityTimestamp).toEqual(mockTimestamp);
     });
   });

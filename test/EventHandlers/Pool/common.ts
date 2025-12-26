@@ -154,8 +154,6 @@ export function setupCommon() {
     currentLiquidityUSD: 0n,
     currentLiquidityToken0: 0n,
     currentLiquidityToken1: 0n,
-    totalLiquidityAddedUSD: 0n,
-    totalLiquidityRemovedUSD: 0n,
 
     // Fee metrics
     totalFeesContributedUSD: 0n,

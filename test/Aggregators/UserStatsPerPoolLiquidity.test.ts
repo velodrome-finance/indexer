@@ -45,8 +45,6 @@ describe("UserStatsPerPool Liquidity Logic", () => {
       );
 
       expect(result.currentLiquidityUSD).toBe(1000n);
-      expect(result.totalLiquidityAddedUSD).toBe(1000n);
-      expect(result.totalLiquidityRemovedUSD).toBe(0n);
     });
 
     it("should handle multiple liquidity additions correctly", async () => {
@@ -74,8 +72,6 @@ describe("UserStatsPerPool Liquidity Logic", () => {
       );
 
       expect(userStats.currentLiquidityUSD).toBe(1000n);
-      expect(userStats.totalLiquidityAddedUSD).toBe(1000n);
-      expect(userStats.totalLiquidityRemovedUSD).toBe(0n);
 
       // Second addition
       userStats = await updateUserStatsPerPool(
@@ -88,8 +84,6 @@ describe("UserStatsPerPool Liquidity Logic", () => {
       );
 
       expect(userStats.currentLiquidityUSD).toBe(1500n);
-      expect(userStats.totalLiquidityAddedUSD).toBe(1500n);
-      expect(userStats.totalLiquidityRemovedUSD).toBe(0n);
     });
   });
 
@@ -119,8 +113,6 @@ describe("UserStatsPerPool Liquidity Logic", () => {
       );
 
       expect(result.currentLiquidityUSD).toBe(-500n);
-      expect(result.totalLiquidityAddedUSD).toBe(0n);
-      expect(result.totalLiquidityRemovedUSD).toBe(500n);
     });
 
     it("should handle multiple liquidity removals correctly", async () => {
@@ -148,8 +140,6 @@ describe("UserStatsPerPool Liquidity Logic", () => {
       );
 
       expect(userStats.currentLiquidityUSD).toBe(-300n);
-      expect(userStats.totalLiquidityAddedUSD).toBe(0n);
-      expect(userStats.totalLiquidityRemovedUSD).toBe(300n);
 
       // Second removal
       userStats = await updateUserStatsPerPool(
@@ -162,8 +152,6 @@ describe("UserStatsPerPool Liquidity Logic", () => {
       );
 
       expect(userStats.currentLiquidityUSD).toBe(-500n);
-      expect(userStats.totalLiquidityAddedUSD).toBe(0n);
-      expect(userStats.totalLiquidityRemovedUSD).toBe(500n);
     });
   });
 
@@ -193,8 +181,6 @@ describe("UserStatsPerPool Liquidity Logic", () => {
       );
 
       expect(userStats.currentLiquidityUSD).toBe(1000n);
-      expect(userStats.totalLiquidityAddedUSD).toBe(1000n);
-      expect(userStats.totalLiquidityRemovedUSD).toBe(0n);
 
       // Remove some liquidity
       userStats = await updateUserStatsPerPool(
@@ -207,8 +193,6 @@ describe("UserStatsPerPool Liquidity Logic", () => {
       );
 
       expect(userStats.currentLiquidityUSD).toBe(700n);
-      expect(userStats.totalLiquidityAddedUSD).toBe(1000n);
-      expect(userStats.totalLiquidityRemovedUSD).toBe(300n);
     });
 
     it("should handle removing then adding liquidity correctly", async () => {
@@ -236,8 +220,6 @@ describe("UserStatsPerPool Liquidity Logic", () => {
       );
 
       expect(userStats.currentLiquidityUSD).toBe(-500n);
-      expect(userStats.totalLiquidityAddedUSD).toBe(0n);
-      expect(userStats.totalLiquidityRemovedUSD).toBe(500n);
 
       // Add liquidity
       userStats = await updateUserStatsPerPool(
@@ -250,8 +232,6 @@ describe("UserStatsPerPool Liquidity Logic", () => {
       );
 
       expect(userStats.currentLiquidityUSD).toBe(300n);
-      expect(userStats.totalLiquidityAddedUSD).toBe(800n);
-      expect(userStats.totalLiquidityRemovedUSD).toBe(500n);
     });
 
     it("should handle complex liquidity operations correctly", async () => {
@@ -309,8 +289,6 @@ describe("UserStatsPerPool Liquidity Logic", () => {
       );
 
       expect(userStats.currentLiquidityUSD).toBe(1200n); // 1000 - 200 + 500 - 100
-      expect(userStats.totalLiquidityAddedUSD).toBe(1500n); // 1000 + 500
-      expect(userStats.totalLiquidityRemovedUSD).toBe(300n); // 200 + 100
     });
   });
 
@@ -338,8 +316,6 @@ describe("UserStatsPerPool Liquidity Logic", () => {
       );
 
       expect(result.currentLiquidityUSD).toBe(0n);
-      expect(result.totalLiquidityAddedUSD).toBe(0n);
-      expect(result.totalLiquidityRemovedUSD).toBe(0n);
     });
 
     it("should handle very large liquidity amounts", async () => {
@@ -367,8 +343,6 @@ describe("UserStatsPerPool Liquidity Logic", () => {
       );
 
       expect(result.currentLiquidityUSD).toBe(largeAmount);
-      expect(result.totalLiquidityAddedUSD).toBe(largeAmount);
-      expect(result.totalLiquidityRemovedUSD).toBe(0n);
     });
   });
 });

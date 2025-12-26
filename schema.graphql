@@ -166,8 +166,6 @@ type UserStatsPerPool {
   currentLiquidityUSD: BigInt! @config(precision: 76) # current net liquidity position in USD
   currentLiquidityToken0: BigInt! @config(precision: 76) # current net liquidity position in token0
   currentLiquidityToken1: BigInt! @config(precision: 76) # current net liquidity position in token1
-  totalLiquidityAddedUSD: BigInt! @config(precision: 76) # total liquidity added in USD
-  totalLiquidityRemovedUSD: BigInt! @config(precision: 76) # total liquidity removed in USD
 
   # Fee metrics
   totalFeesContributedUSD: BigInt! @config(precision: 76) # total fees contributed in USD
