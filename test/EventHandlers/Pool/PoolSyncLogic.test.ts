@@ -49,8 +49,6 @@ describe("PoolSyncLogic", () => {
     totalUnstakedFeesCollectedUSD: 300n,
     totalStakedFeesCollectedUSD: 0n,
     totalFeesUSDWhitelisted: 250n,
-    gaugeFees0CurrentEpoch: 50n,
-    gaugeFees1CurrentEpoch: 100n,
     totalEmissions: 1000n,
     totalEmissionsUSD: 2000n,
     totalVotesDeposited: 5000n,

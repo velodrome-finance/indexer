@@ -372,8 +372,6 @@ describe("CLFactoryPoolCreatedLogic", () => {
         totalVolume1: 0n,
         totalVolumeUSD: 0n,
         totalVolumeUSDWhitelisted: 0n,
-        gaugeFees0CurrentEpoch: 0n,
-        gaugeFees1CurrentEpoch: 0n,
         totalUnstakedFeesCollected0: 0n,
         totalUnstakedFeesCollected1: 0n,
         totalStakedFeesCollected0: 0n,

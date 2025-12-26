@@ -51,8 +51,6 @@ export function setupCommon() {
     totalVolume1: 1n * TEN_TO_THE_6_BI,
     totalVolumeUSD: 10n * TEN_TO_THE_18_BI,
     totalVolumeUSDWhitelisted: 10n * TEN_TO_THE_18_BI,
-    gaugeFees0CurrentEpoch: 100n * TEN_TO_THE_18_BI,
-    gaugeFees1CurrentEpoch: 200n * TEN_TO_THE_6_BI,
     totalUnstakedFeesCollected0: 100n * TEN_TO_THE_18_BI,
     totalUnstakedFeesCollected1: 200n * TEN_TO_THE_6_BI,
     totalStakedFeesCollected0: 0n,
