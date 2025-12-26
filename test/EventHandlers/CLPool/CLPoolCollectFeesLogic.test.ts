@@ -449,15 +449,30 @@ describe("CLPoolCollectFeesLogic", () => {
         mockToken1,
       );
 
-      // Create aggregator with first event's fees
+      // Verify first event returns increments (not totals)
+      expect(result1.liquidityPoolDiff.totalStakedFeesCollected0).toBe(
+        1000000000000000000n, // Increment: 1 token
+      );
+      expect(result1.liquidityPoolDiff.totalStakedFeesCollected1).toBe(
+        2000000000000000000n, // Increment: 2 tokens
+      );
+      expect(result1.liquidityPoolDiff.totalStakedFeesCollectedUSD).toBe(
+        5000000000000000000n, // Increment: $5.00
+      );
+
+      // Simulate what updateLiquidityPoolAggregator does: add diff to current
+      // After first event: 0 + 1 = 1 token0, 0 + 2 = 2 token1, 0 + 5 = 5 USD
       const aggregatorAfterFirst: LiquidityPoolAggregator = {
         ...mockLiquidityPoolAggregator,
         totalStakedFeesCollected0:
-          result1.liquidityPoolDiff.totalStakedFeesCollected0,
+          mockLiquidityPoolAggregator.totalStakedFeesCollected0 +
+          result1.liquidityPoolDiff.totalStakedFeesCollected0, // 0 + 1 = 1
         totalStakedFeesCollected1:
-          result1.liquidityPoolDiff.totalStakedFeesCollected1,
+          mockLiquidityPoolAggregator.totalStakedFeesCollected1 +
+          result1.liquidityPoolDiff.totalStakedFeesCollected1, // 0 + 2 = 2
         totalStakedFeesCollectedUSD:
-          result1.liquidityPoolDiff.totalStakedFeesCollectedUSD,
+          mockLiquidityPoolAggregator.totalStakedFeesCollectedUSD +
+          result1.liquidityPoolDiff.totalStakedFeesCollectedUSD, // 0 + 5 = 5
       };
 
       // Second event with same amounts
@@ -468,17 +483,33 @@ describe("CLPoolCollectFeesLogic", () => {
         mockToken1,
       );
 
-      // Should accumulate: 1 + 1 = 2 tokens for token0, 2 + 2 = 4 tokens for token1
+      // Second event should return the same increments (not accumulated totals)
+      // The diff contains increments that updateLiquidityPoolAggregator will add
       expect(result2.liquidityPoolDiff.totalStakedFeesCollected0).toBe(
-        2000000000000000000n,
+        1000000000000000000n, // Increment: 1 token (same as first event)
       );
       expect(result2.liquidityPoolDiff.totalStakedFeesCollected1).toBe(
-        4000000000000000000n,
+        2000000000000000000n, // Increment: 2 tokens (same as first event)
       );
-      // USD: 5 + 5 = 10
       expect(result2.liquidityPoolDiff.totalStakedFeesCollectedUSD).toBe(
-        10000000000000000000n,
+        5000000000000000000n, // Increment: $5.00 (same as first event)
       );
+
+      // Verify that if we simulate updateLiquidityPoolAggregator adding the diff:
+      // After second event: 1 + 1 = 2 token0, 2 + 2 = 4 token1, 5 + 5 = 10 USD
+      const finalTotal0 =
+        aggregatorAfterFirst.totalStakedFeesCollected0 +
+        result2.liquidityPoolDiff.totalStakedFeesCollected0;
+      const finalTotal1 =
+        aggregatorAfterFirst.totalStakedFeesCollected1 +
+        result2.liquidityPoolDiff.totalStakedFeesCollected1;
+      const finalTotalUSD =
+        aggregatorAfterFirst.totalStakedFeesCollectedUSD +
+        result2.liquidityPoolDiff.totalStakedFeesCollectedUSD;
+
+      expect(finalTotal0).toBe(2000000000000000000n); // 1 + 1 = 2
+      expect(finalTotal1).toBe(4000000000000000000n); // 2 + 2 = 4
+      expect(finalTotalUSD).toBe(10000000000000000000n); // 5 + 5 = 10
     });
   });
 });
