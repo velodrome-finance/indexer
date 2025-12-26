@@ -73,8 +73,10 @@ export async function processPoolLiquidityEvent(
     currentLiquidityUSD: isMintEvent
       ? reserveData.totalLiquidityUSD
       : -reserveData.totalLiquidityUSD,
-    currentLiquidityToken0: amount0,
-    currentLiquidityToken1: amount1,
+    // For burn events, use negative amounts to subtract from user's liquidity
+    // For mint events, use positive amounts to add to user's liquidity
+    currentLiquidityToken0: isMintEvent ? amount0 : -amount0,
+    currentLiquidityToken1: isMintEvent ? amount1 : -amount1,
     lastActivityTimestamp: new Date(event.block.timestamp * 1000),
   };
 

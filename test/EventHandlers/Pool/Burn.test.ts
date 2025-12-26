@@ -46,5 +46,18 @@ describe("Pool Burn Event", () => {
     expect(updatedAggregator?.lastUpdatedTimestamp).toEqual(
       new Date(1000000 * 1000),
     );
+
+    // Verify that user stats were updated with negative liquidity (burn removes liquidity)
+    const userStats = result.entities.UserStatsPerPool.get(
+      `0x1111111111111111111111111111111111111111_${commonData.mockLiquidityPoolData.id}_10`,
+    );
+    expect(userStats).toBeDefined();
+    if (userStats) {
+      // For burn events, currentLiquidityToken0/1 should be negative (subtracted)
+      // The amounts are: amount0 = 500n * 10n ** 18n, amount1 = 1000n * 10n ** 18n
+      expect(userStats.currentLiquidityToken0).toBeLessThan(0n);
+      expect(userStats.currentLiquidityToken1).toBeLessThan(0n);
+      expect(userStats.currentLiquidityUSD).toBeLessThan(0n);
+    }
   });
 });

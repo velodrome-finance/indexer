@@ -44,5 +44,18 @@ describe("Pool Mint Event", () => {
     expect(updatedAggregator?.lastUpdatedTimestamp).toEqual(
       new Date(1000000 * 1000),
     );
+
+    // Verify that user stats were updated with positive liquidity (mint adds liquidity)
+    const userStats = result.entities.UserStatsPerPool.get(
+      `0x1111111111111111111111111111111111111111_${commonData.mockLiquidityPoolData.id}_10`,
+    );
+    expect(userStats).toBeDefined();
+    if (userStats) {
+      // For mint events, currentLiquidityToken0/1 should be positive (added)
+      // The amounts are: amount0 = 1000n * 10n ** 18n, amount1 = 2000n * 10n ** 18n
+      expect(userStats.currentLiquidityToken0).toBeGreaterThan(0n);
+      expect(userStats.currentLiquidityToken1).toBeGreaterThan(0n);
+      expect(userStats.currentLiquidityUSD).toBeGreaterThan(0n);
+    }
   });
 });

@@ -88,7 +88,7 @@ PoolFactory.PoolCreated.handler(async ({ event, context }) => {
   // This is only need for non-CL pools
   // The mapping between RootCLPool and CLPool is made in RootCLPoolFactory.ts without the need of a RPC call
   // RPC call is needed here because RootPoolCreated event for non-CL pools doesn't have leafChainId
-  const chainId = event.chainId;
+  const chainId: number = event.chainId;
   if (chainId !== 10 && chainId !== 8453) {
     let rootPoolAddress: string | null = null;
     try {
