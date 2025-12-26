@@ -82,6 +82,8 @@ export function setupCommon() {
     totalFlashLoanFees0: 0n,
     totalFlashLoanFees1: 0n,
     totalFlashLoanFeesUSD: 0n,
+    totalFlashLoanVolume0: 0n,
+    totalFlashLoanVolume1: 0n,
     totalFlashLoanVolumeUSD: 0n,
     numberOfFlashLoans: 0n,
     // Gauge fields
@@ -168,6 +170,8 @@ export function setupCommon() {
 
     // Flash swap metrics
     numberOfFlashLoans: 0n,
+    totalFlashLoanVolume0: 0n,
+    totalFlashLoanVolume1: 0n,
     totalFlashLoanVolumeUSD: 0n,
 
     // Gauge metrics
