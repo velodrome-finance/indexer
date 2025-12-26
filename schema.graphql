@@ -50,8 +50,6 @@ type LiquidityPoolAggregator {
   # Gauge fields
   gaugeIsAlive: Boolean! # whether the gauge is alive
   gaugeAddress: String @index # address of the gauge for this pool
-  gaugeFees0CurrentEpoch: BigInt! @config(precision: 76) # fees collected for current epoch in token0 units
-  gaugeFees1CurrentEpoch: BigInt! @config(precision: 76) # fees collected for current epoch in token1 units
   gaugeEmissionsCap: BigInt @config(precision: 76) # Emissions cap for gauge. If not specified in an SetEmissionsCap event, set to defaultEmissionsCap as per CLGaugeConfig. If CLGaugeConfig doesn't exist, there's no emissions cap
   numberOfGaugeDeposits: BigInt! @config(precision: 76) # number of gauge deposits (staking)
   numberOfGaugeWithdrawals: BigInt! @config(precision: 76) # number of gauge withdrawals (unstaking)
@@ -104,8 +102,6 @@ type LiquidityPoolAggregatorSnapshot {
   totalVolume1: BigInt! @config(precision: 76) # total swap volume of token1 in token units
   totalVolumeUSD: BigInt! @config(precision: 76) # total swap volume of the pool in USD
   totalVolumeUSDWhitelisted: BigInt! @config(precision: 76) # total swap volume of the pool in USD
-  gaugeFees0CurrentEpoch: BigInt! @config(precision: 76) # fees collected for current epoch in token0 units
-  gaugeFees1CurrentEpoch: BigInt! @config(precision: 76) # fees collected for current epoch in token1 units
   totalUnstakedFeesCollected0: BigInt! @config(precision: 76) # total fees collected from unstaked LPs (Collect events) in token0 units
   totalUnstakedFeesCollected1: BigInt! @config(precision: 76) # total fees collected from unstaked LPs (Collect events) in token1 units
   totalStakedFeesCollected0: BigInt! @config(precision: 76) # total fees collected from staked LPs (CollectFees events) in token0 units
