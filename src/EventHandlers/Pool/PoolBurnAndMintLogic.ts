@@ -11,6 +11,8 @@ export interface UserLiquidityDiff {
   currentLiquidityUSD: bigint; // Positive for added, negative for removed
   currentLiquidityToken0: bigint;
   currentLiquidityToken1: bigint;
+  totalLiquidityAddedUSD: bigint; // Amount added (positive value, 0n for burn events)
+  totalLiquidityRemovedUSD: bigint; // Amount removed (positive value, 0n for mint events)
   lastActivityTimestamp: Date;
 }
 
@@ -69,14 +71,17 @@ export async function processPoolLiquidityEvent(
   // Create user liquidity diff for tracking user activity
   // Check if this is a mint event by looking for 'to' parameter (burn events have 'to', mint events don't)
   const isMintEvent = !("to" in event.params);
+  const currentLiquidityUSD = isMintEvent
+    ? reserveData.totalLiquidityUSD
+    : -reserveData.totalLiquidityUSD;
   const userLiquidityDiff: UserLiquidityDiff = {
-    currentLiquidityUSD: isMintEvent
-      ? reserveData.totalLiquidityUSD
-      : -reserveData.totalLiquidityUSD,
+    currentLiquidityUSD,
     // For burn events, use negative amounts to subtract from user's liquidity
     // For mint events, use positive amounts to add to user's liquidity
     currentLiquidityToken0: isMintEvent ? amount0 : -amount0,
     currentLiquidityToken1: isMintEvent ? amount1 : -amount1,
+    totalLiquidityAddedUSD: isMintEvent ? reserveData.totalLiquidityUSD : 0n,
+    totalLiquidityRemovedUSD: !isMintEvent ? reserveData.totalLiquidityUSD : 0n,
     lastActivityTimestamp: new Date(event.block.timestamp * 1000),
   };
 

@@ -12,6 +12,7 @@ export interface CLPoolBurnResult {
     currentLiquidityUSD: bigint;
     currentLiquidityToken0: bigint;
     currentLiquidityToken1: bigint;
+    totalLiquidityRemovedUSD: bigint;
     lastActivityTimestamp: Date;
   };
 }
@@ -42,6 +43,7 @@ export function processCLPoolBurn(
     currentLiquidityUSD: -totalLiquidityUSD, // Negative for burn (removal)
     currentLiquidityToken0: -event.params.amount0, // Negative amount of token0 removed
     currentLiquidityToken1: -event.params.amount1, // Negative amount of token1 removed
+    totalLiquidityRemovedUSD: totalLiquidityUSD, // Track total liquidity removed (positive value)
     lastActivityTimestamp: new Date(event.block.timestamp * 1000),
   };
 
