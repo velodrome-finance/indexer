@@ -1,5 +1,5 @@
 import { TokenIdByChain } from "../Constants";
-import { getCurrentAccumulatedFeeCL, getCurrentFee } from "../Effects/Index";
+import { getCurrentFee } from "../Effects/Index";
 import { generatePoolName } from "../Helpers";
 import { refreshTokenPrice } from "../PriceOracle";
 import type {
@@ -16,11 +16,6 @@ export type DynamicFeeConfig = {
   baseFee: bigint;
   feeCap: bigint;
   scalingFactor: bigint;
-};
-
-export type GaugeFees = {
-  token0Fees: bigint;
-  token1Fees: bigint;
 };
 
 /**
@@ -131,10 +126,6 @@ export async function updateLiquidityPoolAggregator(
     totalVolumeUSDWhitelisted:
       (diff.totalVolumeUSDWhitelisted ?? 0n) +
       current.totalVolumeUSDWhitelisted,
-    gaugeFees0CurrentEpoch:
-      (diff.gaugeFees0CurrentEpoch ?? 0n) + current.gaugeFees0CurrentEpoch,
-    gaugeFees1CurrentEpoch:
-      (diff.gaugeFees1CurrentEpoch ?? 0n) + current.gaugeFees1CurrentEpoch,
     totalFeesUSDWhitelisted:
       (diff.totalFeesUSDWhitelisted ?? 0n) + current.totalFeesUSDWhitelisted,
     // Unstaked fees (from Collect events - LPs that didn't stake)
@@ -245,28 +236,6 @@ export async function updateLiquidityPoolAggregator(
     timestamp.getTime() - current.lastSnapshotTimestamp.getTime() >
       UPDATE_INTERVAL
   ) {
-    if (current.isCL) {
-      try {
-        const gaugeFees = await context.effect(getCurrentAccumulatedFeeCL, {
-          poolAddress: current.id,
-          chainId: current.chainId,
-          blockNumber,
-        });
-        updated = {
-          ...updated,
-          gaugeFees0CurrentEpoch:
-            gaugeFees.token0Fees !== 0n
-              ? gaugeFees.token0Fees
-              : current.gaugeFees0CurrentEpoch,
-          gaugeFees1CurrentEpoch:
-            gaugeFees.token1Fees !== 0n
-              ? gaugeFees.token1Fees
-              : current.gaugeFees1CurrentEpoch,
-        };
-      } catch (error) {
-        // No error if the pool is not a CL pool
-      }
-    }
     setLiquidityPoolAggregatorSnapshot(updated, timestamp, context);
   }
 
@@ -556,8 +525,6 @@ export function createLiquidityPoolAggregatorEntity(params: {
     totalVolume1: 0n,
     totalVolumeUSD: 0n,
     totalVolumeUSDWhitelisted: 0n,
-    gaugeFees0CurrentEpoch: 0n,
-    gaugeFees1CurrentEpoch: 0n,
     totalUnstakedFeesCollected0: 0n,
     totalUnstakedFeesCollected1: 0n,
     totalStakedFeesCollected0: 0n,

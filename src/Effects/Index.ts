@@ -8,10 +8,7 @@ export {
 } from "./Token";
 
 // Dynamic fee-related effects
-export {
-  getCurrentFee,
-  getCurrentAccumulatedFeeCL,
-} from "./DynamicFee";
+export { getCurrentFee } from "./DynamicFee";
 
 // Voter-related effects
 export {

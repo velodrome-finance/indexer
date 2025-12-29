@@ -1,12 +1,7 @@
 import type { logger as Envio_logger } from "envio/src/Envio.gen";
 import type { PublicClient } from "viem";
 import { CHAIN_CONSTANTS } from "../../src/Constants";
-import {
-  fetchCurrentAccumulatedFeeCL,
-  fetchCurrentFee,
-  getCurrentAccumulatedFeeCL,
-  getCurrentFee,
-} from "../../src/Effects/DynamicFee";
+import { fetchCurrentFee, getCurrentFee } from "../../src/Effects/DynamicFee";
 
 describe("Dynamic Fee Effects", () => {
   let mockContext: {
@@ -64,16 +59,6 @@ describe("Dynamic Fee Effects", () => {
     it("should be a valid effect object", () => {
       expect(typeof getCurrentFee).toBe("object");
       expect(getCurrentFee).toHaveProperty("name", "getCurrentFee");
-    });
-  });
-
-  describe("getCurrentAccumulatedFeeCL", () => {
-    it("should be a valid effect object", () => {
-      expect(typeof getCurrentAccumulatedFeeCL).toBe("object");
-      expect(getCurrentAccumulatedFeeCL).toHaveProperty(
-        "name",
-        "getCurrentAccumulatedFeeCL",
-      );
     });
   });
 
@@ -206,112 +191,6 @@ describe("Dynamic Fee Effects", () => {
 
       // Verify error was logged
       expect(jest.mocked(mockContext.log.error)).toHaveBeenCalled();
-    });
-  });
-
-  describe("fetchCurrentAccumulatedFeeCL", () => {
-    it("should fetch accumulated fee for CL pool from contract", async () => {
-      const poolAddress = "0x1234567890123456789012345678901234567890";
-      const chainId = 10;
-      const blockNumber = 12345;
-
-      // Mock the contract response with specific fee values
-      const mockSimulateContract = jest.mocked(mockEthClient.simulateContract);
-      mockSimulateContract.mockResolvedValue({
-        result: [
-          1000n, // token0Fees
-          2000n, // token1Fees
-        ],
-        // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
-      } as any);
-
-      const result = await fetchCurrentAccumulatedFeeCL(
-        poolAddress,
-        chainId,
-        blockNumber,
-        mockEthClient,
-        mockContext.log,
-      );
-
-      expect(typeof result).toBe("object");
-      expect(result).toHaveProperty("token0Fees", 1000n);
-      expect(result).toHaveProperty("token1Fees", 2000n);
-
-      // Verify correct contract call
-      expect(mockSimulateContract).toHaveBeenCalledTimes(1);
-      const callArgs = mockSimulateContract.mock.calls[0][0];
-      expect(callArgs).toMatchObject({
-        address: poolAddress,
-        functionName: "gaugeFees",
-        blockNumber: BigInt(blockNumber),
-      });
-      expect(callArgs.args).toEqual([]);
-    });
-
-    it("should return zero fees when contract call fails with historical state error", async () => {
-      const poolAddress = "0x1234567890123456789012345678901234567890";
-      const chainId = 10;
-      const blockNumber = 12345;
-
-      // Mock simulateContract to throw a historical state error
-      const mockSimulateContract = jest.mocked(mockEthClient.simulateContract);
-      const historicalStateError = new Error(
-        "historical state e85f412cca57d1e4ebfa965ffef03b061ab3bcf07771c22c2c7b2756b9a0fd2a is not available",
-      );
-      mockSimulateContract.mockRejectedValue(historicalStateError);
-
-      const result = await fetchCurrentAccumulatedFeeCL(
-        poolAddress,
-        chainId,
-        blockNumber,
-        mockEthClient,
-        mockContext.log,
-      );
-
-      // Should return zero fees instead of throwing
-      expect(typeof result).toBe("object");
-      expect(result).toHaveProperty("token0Fees", 0n);
-      expect(result).toHaveProperty("token1Fees", 0n);
-
-      // Verify warning was logged (not error) for historical state
-      const mockWarn = jest.mocked(mockContext.log.warn);
-      expect(mockWarn).toHaveBeenCalledTimes(1);
-      expect(mockWarn.mock.calls[0][0]).toContain(
-        "Historical state not available",
-      );
-      // Should not log error for historical state
-      const mockError = jest.mocked(mockContext.log.error);
-      expect(mockError).not.toHaveBeenCalled();
-    });
-
-    it("should return zero fees when contract call fails with other errors", async () => {
-      const poolAddress = "0x1234567890123456789012345678901234567890";
-      const chainId = 10;
-      const blockNumber = 12345;
-
-      // Mock simulateContract to throw a non-historical state error
-      const mockSimulateContract = jest.mocked(mockEthClient.simulateContract);
-      mockSimulateContract.mockRejectedValue(new Error("Contract call failed"));
-
-      const result = await fetchCurrentAccumulatedFeeCL(
-        poolAddress,
-        chainId,
-        blockNumber,
-        mockEthClient,
-        mockContext.log,
-      );
-
-      // Should return zero fees instead of throwing
-      expect(typeof result).toBe("object");
-      expect(result).toHaveProperty("token0Fees", 0n);
-      expect(result).toHaveProperty("token1Fees", 0n);
-
-      // Verify error was logged for non-historical state errors
-      const mockError = jest.mocked(mockContext.log.error);
-      expect(mockError).toHaveBeenCalledTimes(1);
-      expect(mockError.mock.calls[0][0]).toContain(
-        "Error fetching accumulated gauge fees",
-      );
     });
   });
 });
