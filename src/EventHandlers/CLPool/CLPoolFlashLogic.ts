@@ -6,12 +6,16 @@ export interface CLPoolFlashResult {
     totalFlashLoanFees0: bigint;
     totalFlashLoanFees1: bigint;
     totalFlashLoanFeesUSD: bigint;
+    totalFlashLoanVolume0: bigint;
+    totalFlashLoanVolume1: bigint;
     totalFlashLoanVolumeUSD: bigint;
     numberOfFlashLoans: bigint;
     lastUpdatedTimestamp: Date;
   };
   userFlashLoanDiff: {
     numberOfFlashLoans: bigint;
+    totalFlashLoanVolume0: bigint;
+    totalFlashLoanVolume1: bigint;
     totalFlashLoanVolumeUSD: bigint;
     lastActivityTimestamp: Date;
   };
@@ -42,6 +46,8 @@ export function processCLPoolFlash(
     totalFlashLoanFees0: event.params.paid0,
     totalFlashLoanFees1: event.params.paid1,
     totalFlashLoanFeesUSD: flashLoanFeesUSD,
+    totalFlashLoanVolume0: event.params.amount0,
+    totalFlashLoanVolume1: event.params.amount1,
     totalFlashLoanVolumeUSD: flashLoanVolumeUSD,
     numberOfFlashLoans: 1n,
     lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
@@ -49,6 +55,8 @@ export function processCLPoolFlash(
 
   const userFlashLoanDiff = {
     numberOfFlashLoans: 1n, // Each flash event represents 1 flash loan
+    totalFlashLoanVolume0: event.params.amount0,
+    totalFlashLoanVolume1: event.params.amount1,
     totalFlashLoanVolumeUSD: flashLoanVolumeUSD,
     lastActivityTimestamp: new Date(event.block.timestamp * 1000),
   };
