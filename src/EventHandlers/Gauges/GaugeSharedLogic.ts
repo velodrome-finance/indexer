@@ -88,17 +88,17 @@ export async function processGaugeDeposit(
 
   // Update pool aggregator with gauge deposit
   const poolDiff = {
-    numberOfGaugeDeposits: 1n,
-    currentLiquidityStaked: data.amount, // Add to staked amount
-    currentLiquidityStakedUSD,
+    incrementalNumberOfGaugeDeposits: 1n,
+    incrementalCurrentLiquidityStaked: data.amount, // Add to staked amount
+    incrementalCurrentLiquidityStakedUSD: currentLiquidityStakedUSD,
     lastUpdatedTimestamp: timestamp,
   };
 
   // Update user stats with gauge deposit
   const userDiff = {
-    numberOfGaugeDeposits: 1n,
-    currentLiquidityStaked: data.amount, // Add to staked amount
-    currentLiquidityStakedUSD,
+    incrementalNumberOfGaugeDeposits: 1n,
+    incrementalCurrentLiquidityStaked: data.amount, // Add to staked amount
+    incrementalCurrentLiquidityStakedUSD: currentLiquidityStakedUSD,
     lastActivityTimestamp: timestamp,
   };
 
@@ -175,17 +175,17 @@ export async function processGaugeWithdraw(
 
   // Update pool aggregator with gauge withdrawal
   const poolDiff = {
-    numberOfGaugeWithdrawals: 1n,
-    currentLiquidityStaked: -data.amount, // Subtract from staked amount
-    currentLiquidityStakedUSD: -currentLiquidityStakedUSD,
+    incrementalNumberOfGaugeWithdrawals: 1n,
+    incrementalCurrentLiquidityStaked: -data.amount, // Subtract from staked amount
+    incrementalCurrentLiquidityStakedUSD: -currentLiquidityStakedUSD,
     lastUpdatedTimestamp: timestamp,
   };
 
   // Update user stats with gauge withdrawal
   const userDiff = {
-    numberOfGaugeWithdrawals: 1n,
-    currentLiquidityStaked: -data.amount, // Subtract from staked amount
-    currentLiquidityStakedUSD: -currentLiquidityStakedUSD,
+    incrementalNumberOfGaugeWithdrawals: 1n,
+    incrementalCurrentLiquidityStaked: -data.amount, // Subtract from staked amount
+    incrementalCurrentLiquidityStakedUSD: -currentLiquidityStakedUSD,
     lastActivityTimestamp: timestamp,
   };
 
@@ -277,17 +277,17 @@ export async function processGaugeClaimRewards(
 
   // Update pool aggregator with gauge reward claim
   const poolDiff = {
-    numberOfGaugeRewardClaims: 1n,
-    totalGaugeRewardsClaimedUSD: rewardAmountUSD,
-    totalGaugeRewardsClaimed: data.amount, // in token units
+    incrementalNumberOfGaugeRewardClaims: 1n,
+    incrementalTotalGaugeRewardsClaimedUSD: rewardAmountUSD,
+    incrementalTotalGaugeRewardsClaimed: data.amount, // in token units
     lastUpdatedTimestamp: timestamp,
   };
 
   // Update user stats with gauge reward claim
   const userDiff = {
-    numberOfGaugeRewardClaims: 1n,
-    totalGaugeRewardsClaimedUSD: rewardAmountUSD,
-    totalGaugeRewardsClaimed: data.amount, // in token units
+    incrementalNumberOfGaugeRewardClaims: 1n,
+    incrementalTotalGaugeRewardsClaimedUSD: rewardAmountUSD,
+    incrementalTotalGaugeRewardsClaimed: data.amount, // in token units
     lastActivityTimestamp: timestamp,
   };
 

@@ -57,7 +57,7 @@ describe("VeNFTAggregator", () => {
           tokenId: 1n,
           owner: "0x1111111111111111111111111111111111111111",
           locktime: 100n,
-          totalValueLocked: 50n,
+          incrementalTotalValueLocked: 50n,
           isAlive: true,
         };
 
@@ -91,7 +91,7 @@ describe("VeNFTAggregator", () => {
           tokenId: 1n,
           owner: "0x1111111111111111111111111111111111111111",
           locktime: 100n,
-          totalValueLocked: -25n,
+          incrementalTotalValueLocked: -25n,
           isAlive: true,
         };
 
@@ -125,7 +125,7 @@ describe("VeNFTAggregator", () => {
           tokenId: 1n,
           owner: "0x2222222222222222222222222222222222222222",
           locktime: 100n,
-          totalValueLocked: 100n,
+          incrementalTotalValueLocked: 100n,
           isAlive: true,
         };
 
@@ -159,7 +159,7 @@ describe("VeNFTAggregator", () => {
           tokenId: 1n,
           owner: "0x0000000000000000000000000000000000000000",
           locktime: 100n,
-          totalValueLocked: 100n,
+          incrementalTotalValueLocked: 100n,
           isAlive: false,
         };
 
@@ -193,7 +193,7 @@ describe("VeNFTAggregator", () => {
           tokenId: 2n,
           owner: "0x3333333333333333333333333333333333333333",
           locktime: 200n,
-          totalValueLocked: 75n,
+          incrementalTotalValueLocked: 75n,
           isAlive: true,
         };
 

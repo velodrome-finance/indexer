@@ -1,19 +1,11 @@
-import type { CLPool_Collect_event, Token, handlerContext } from "generated";
+import type { CLPool_Collect_event, Token } from "generated";
+import type { LiquidityPoolAggregatorDiff } from "../../Aggregators/LiquidityPoolAggregator";
+import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import { calculateTotalLiquidityUSD } from "../../Helpers";
 
 export interface CLPoolCollectResult {
-  liquidityPoolDiff: {
-    totalUnstakedFeesCollected0: bigint;
-    totalUnstakedFeesCollected1: bigint;
-    totalUnstakedFeesCollectedUSD: bigint;
-    lastUpdatedTimestamp: Date;
-  };
-  userLiquidityDiff: {
-    totalFeesContributed0: bigint;
-    totalFeesContributed1: bigint;
-    totalFeesContributedUSD: bigint;
-    lastActivityTimestamp: Date;
-  };
+  liquidityPoolDiff: Partial<LiquidityPoolAggregatorDiff>;
+  userLiquidityDiff: Partial<UserStatsPerPoolDiff>;
 }
 
 export function processCLPoolCollect(
@@ -34,15 +26,15 @@ export function processCLPoolCollect(
 
   const liquidityPoolDiff = {
     // Track unstaked fees (from Collect events - LPs that didn't stake)
-    totalUnstakedFeesCollected0: event.params.amount0,
-    totalUnstakedFeesCollected1: event.params.amount1,
-    totalUnstakedFeesCollectedUSD: totalFeesContributedUSD,
+    incrementalTotalUnstakedFeesCollected0: event.params.amount0,
+    incrementalTotalUnstakedFeesCollected1: event.params.amount1,
+    incrementalTotalUnstakedFeesCollectedUSD: totalFeesContributedUSD,
     lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
   };
   const userLiquidityDiff = {
-    totalFeesContributed0: event.params.amount0, // The collected fees in token0
-    totalFeesContributed1: event.params.amount1, // The collected fees in token1
-    totalFeesContributedUSD, // The collected fees in USD
+    incrementalTotalFeesContributed0: event.params.amount0, // The collected fees in token0
+    incrementalTotalFeesContributed1: event.params.amount1, // The collected fees in token1
+    incrementalTotalFeesContributedUSD: totalFeesContributedUSD, // The collected fees in USD
     lastActivityTimestamp: new Date(event.block.timestamp * 1000),
   };
 
