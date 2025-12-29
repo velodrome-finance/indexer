@@ -337,6 +337,7 @@ describe("CLPool Events", () => {
             currentLiquidityUSD: 1000n,
             currentLiquidityToken0: 500n,
             currentLiquidityToken1: 500n,
+            totalLiquidityAddedUSD: 1000n,
             lastActivityTimestamp: new Date(1000000 * 1000),
           },
         });
@@ -413,6 +414,7 @@ describe("CLPool Events", () => {
             currentLiquidityUSD: -500n,
             currentLiquidityToken0: -250n, // Negative amount of token0 removed
             currentLiquidityToken1: -250n, // Negative amount of token1 removed
+            totalLiquidityRemovedUSD: 500n, // Positive value for tracking
             lastActivityTimestamp: new Date(1000000 * 1000),
           },
         });

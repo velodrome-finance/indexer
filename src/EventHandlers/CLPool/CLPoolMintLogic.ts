@@ -12,6 +12,7 @@ export interface CLPoolMintResult {
     currentLiquidityUSD: bigint;
     currentLiquidityToken0: bigint;
     currentLiquidityToken1: bigint;
+    totalLiquidityAddedUSD: bigint;
     lastActivityTimestamp: Date;
   };
 }
@@ -40,6 +41,7 @@ export function processCLPoolMint(
     currentLiquidityUSD: totalLiquidityUSD, // For mint, we're adding liquidity
     currentLiquidityToken0: event.params.amount0, // Amount of token0 added
     currentLiquidityToken1: event.params.amount1, // Amount of token1 added
+    totalLiquidityAddedUSD: totalLiquidityUSD, // Track total liquidity added
     lastActivityTimestamp: new Date(event.block.timestamp * 1000),
   };
 

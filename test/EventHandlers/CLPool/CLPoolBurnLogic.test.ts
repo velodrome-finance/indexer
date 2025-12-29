@@ -68,6 +68,8 @@ describe("CLPoolBurnLogic", () => {
       expect(result.userLiquidityDiff.currentLiquidityUSD).toBe(-1100000n);
       expect(result.userLiquidityDiff.currentLiquidityToken0).toBe(-500000n); // Negative amount of token0 removed
       expect(result.userLiquidityDiff.currentLiquidityToken1).toBe(-300000n); // Negative amount of token1 removed
+      // For burn events, totalLiquidityRemovedUSD should be set (positive value)
+      expect(result.userLiquidityDiff.totalLiquidityRemovedUSD).toBe(1100000n); // Positive value for tracking
     });
 
     it("should calculate correct liquidity values for burn event", () => {
@@ -77,6 +79,8 @@ describe("CLPoolBurnLogic", () => {
       expect(result.userLiquidityDiff.currentLiquidityUSD).toBe(-1100000n);
       expect(result.userLiquidityDiff.currentLiquidityToken0).toBe(-500000n);
       expect(result.userLiquidityDiff.currentLiquidityToken1).toBe(-300000n);
+      // For burn events, totalLiquidityRemovedUSD should be set (positive value)
+      expect(result.userLiquidityDiff.totalLiquidityRemovedUSD).toBe(1100000n); // Positive value for tracking
 
       // The liquidity pool diff should reflect the reserve deltas (negative because burning decreases reserves)
       expect(result.liquidityPoolDiff.reserve0).toBe(-500000n); // -amount0 (delta)

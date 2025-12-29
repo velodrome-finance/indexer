@@ -84,6 +84,13 @@ describe("processPoolLiquidityEvent", () => {
       expect(result.userLiquidityDiff?.currentLiquidityToken0).toBe(amount0);
       expect(result.userLiquidityDiff?.currentLiquidityToken1).toBe(amount1);
       expect(result.userLiquidityDiff?.currentLiquidityUSD).toBeGreaterThan(0n);
+      // For mint events, totalLiquidityAddedUSD should be set
+      expect(result.userLiquidityDiff?.totalLiquidityAddedUSD).toBeDefined();
+      expect(result.userLiquidityDiff?.totalLiquidityAddedUSD).toBeGreaterThan(
+        0n,
+      );
+      // For mint events, totalLiquidityRemovedUSD should be 0n
+      expect(result.userLiquidityDiff?.totalLiquidityRemovedUSD).toBe(0n);
       expect(result.userLiquidityDiff?.lastActivityTimestamp).toEqual(
         new Date(1000000 * 1000),
       );
@@ -123,6 +130,13 @@ describe("processPoolLiquidityEvent", () => {
       expect(result.userLiquidityDiff?.currentLiquidityToken0).toBe(-amount0);
       expect(result.userLiquidityDiff?.currentLiquidityToken1).toBe(-amount1);
       expect(result.userLiquidityDiff?.currentLiquidityUSD).toBeLessThan(0n);
+      // For burn events, totalLiquidityRemovedUSD should be set
+      expect(result.userLiquidityDiff?.totalLiquidityRemovedUSD).toBeDefined();
+      expect(
+        result.userLiquidityDiff?.totalLiquidityRemovedUSD,
+      ).toBeGreaterThan(0n);
+      // For burn events, totalLiquidityAddedUSD should be 0n
+      expect(result.userLiquidityDiff?.totalLiquidityAddedUSD).toBe(0n);
       expect(result.userLiquidityDiff?.lastActivityTimestamp).toEqual(
         new Date(1000000 * 1000),
       );

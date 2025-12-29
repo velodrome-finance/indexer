@@ -96,6 +96,10 @@ describe("CLPoolMintLogic", () => {
       expect(result.userLiquidityDiff.currentLiquidityToken1).toBe(
         300000000000000000n,
       ); // amount1
+      // For mint events, totalLiquidityAddedUSD should be set
+      expect(result.userLiquidityDiff.totalLiquidityAddedUSD).toBe(
+        1100000000000000000n,
+      ); // 1.1 USD in 18 decimals
     });
 
     it("should calculate correct liquidity values for mint event", () => {
@@ -111,6 +115,10 @@ describe("CLPoolMintLogic", () => {
       expect(result.userLiquidityDiff.currentLiquidityToken1).toBe(
         300000000000000000n,
       ); // amount1
+      // For mint events, totalLiquidityAddedUSD should be set
+      expect(result.userLiquidityDiff.totalLiquidityAddedUSD).toBe(
+        1100000000000000000n,
+      ); // 1.1 USD in 18 decimals
 
       // The liquidity pool diff should reflect the amounts being added with exact values
       expect(result.liquidityPoolDiff.reserve0).toBe(500000000000000000n); // amount0
@@ -155,6 +163,7 @@ describe("CLPoolMintLogic", () => {
       expect(result.liquidityPoolDiff.reserve0).toBe(0n);
       expect(result.liquidityPoolDiff.reserve1).toBe(0n);
       expect(result.userLiquidityDiff.currentLiquidityUSD).toBe(0n);
+      expect(result.userLiquidityDiff.totalLiquidityAddedUSD).toBe(0n);
     });
   });
 });
