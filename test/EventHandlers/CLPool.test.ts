@@ -552,16 +552,16 @@ describe("CLPool Events", () => {
           liquidityPoolDiff: {
             // In CL pools, CollectFees events do NOT affect reserves - fees were never part of reserves
             // Track staked fees (from CollectFees events - LPs that staked in gauge)
-            totalStakedFeesCollected0: 50n,
-            totalStakedFeesCollected1: 75n,
-            totalStakedFeesCollectedUSD: 125n,
-            totalFeesUSDWhitelisted: 125n,
+            incrementalStakedFeesCollected0: 50n,
+            incrementalStakedFeesCollected1: 75n,
+            incrementalStakedFeesCollectedUSD: 125n,
+            incrementalFeesUSDWhitelisted: 125n,
             lastUpdatedTimestamp: new Date(1000000 * 1000),
           },
           userDiff: {
-            totalFeesContributedUSD: 125n,
-            totalFeesContributed0: 50n,
-            totalFeesContributed1: 75n,
+            incrementalFeesContributedUSD: 125n,
+            incrementalFeesContributed0: 50n,
+            incrementalFeesContributed1: 75n,
             lastActivityTimestamp: new Date(1000000 * 1000),
           },
         });

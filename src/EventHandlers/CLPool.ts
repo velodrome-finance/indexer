@@ -163,7 +163,6 @@ CLPool.CollectFees.handler(async ({ event, context }) => {
   // Process the collect fees event
   const result = processCLPoolCollectFees(
     event,
-    liquidityPoolAggregator,
     token0Instance,
     token1Instance,
   );

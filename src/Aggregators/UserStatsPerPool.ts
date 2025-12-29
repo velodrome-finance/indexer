@@ -1,6 +1,41 @@
 import type { UserStatsPerPool, handlerContext } from "generated";
 import { toChecksumAddress } from "../Constants";
 
+interface UserStatsPerPoolDiff {
+  currentLiquidityUSD: bigint;
+  currentLiquidityToken0: bigint;
+  currentLiquidityToken1: bigint;
+  totalLiquidityAddedUSD: bigint;
+  totalLiquidityRemovedUSD: bigint;
+  incrementalFeesContributedUSD: bigint;
+  incrementalFeesContributed0: bigint;
+  incrementalFeesContributed1: bigint;
+  numberOfSwaps: bigint;
+  totalSwapVolumeAmount0: bigint;
+  totalSwapVolumeAmount1: bigint;
+  totalSwapVolumeUSD: bigint;
+  numberOfFlashLoans: bigint;
+  totalFlashLoanVolumeUSD: bigint;
+  numberOfGaugeDeposits: bigint;
+  numberOfGaugeWithdrawals: bigint;
+  numberOfGaugeRewardClaims: bigint;
+  totalGaugeRewardsClaimedUSD: bigint;
+  totalGaugeRewardsClaimed: bigint;
+  currentLiquidityStaked: bigint;
+  currentLiquidityStakedUSD: bigint;
+  veNFTamountStaked: bigint;
+  totalBribeClaimed: bigint;
+  totalBribeClaimedUSD: bigint;
+  totalFeeRewardClaimed: bigint;
+  totalFeeRewardClaimedUSD: bigint;
+  almAddress: string;
+  almAmount0: bigint;
+  almAmount1: bigint;
+  almLpAmount: bigint;
+  lastAlmActivityTimestamp: Date;
+  lastActivityTimestamp: Date;
+}
+
 /**
  * Generates the ID for a UserStatsPerPool entity
  * @param userAddress - The user's address
@@ -144,7 +179,7 @@ export function createUserStatsPerPoolEntity(
  * Similar to updateLiquidityPoolAggregator pattern
  */
 export async function updateUserStatsPerPool(
-  diff: Partial<UserStatsPerPool>,
+  diff: Partial<UserStatsPerPoolDiff>,
   current: UserStatsPerPool,
   context: handlerContext,
 ): Promise<UserStatsPerPool> {
@@ -155,12 +190,12 @@ export async function updateUserStatsPerPool(
         ? current.currentLiquidityUSD + diff.currentLiquidityUSD
         : current.currentLiquidityUSD,
     totalLiquidityAddedUSD:
-      diff.currentLiquidityUSD !== undefined && diff.currentLiquidityUSD > 0n
-        ? current.totalLiquidityAddedUSD + diff.currentLiquidityUSD
+      diff.totalLiquidityAddedUSD !== undefined
+        ? current.totalLiquidityAddedUSD + diff.totalLiquidityAddedUSD
         : current.totalLiquidityAddedUSD,
     totalLiquidityRemovedUSD:
-      diff.currentLiquidityUSD !== undefined && diff.currentLiquidityUSD < 0n
-        ? current.totalLiquidityRemovedUSD + -diff.currentLiquidityUSD
+      diff.totalLiquidityRemovedUSD !== undefined
+        ? current.totalLiquidityRemovedUSD + diff.totalLiquidityRemovedUSD
         : current.totalLiquidityRemovedUSD,
     currentLiquidityToken0:
       diff.currentLiquidityToken0 !== undefined
@@ -172,16 +207,16 @@ export async function updateUserStatsPerPool(
         : current.currentLiquidityToken1,
 
     totalFeesContributed0:
-      diff.totalFeesContributed0 !== undefined
-        ? current.totalFeesContributed0 + diff.totalFeesContributed0
+      diff.incrementalFeesContributed0 !== undefined
+        ? current.totalFeesContributed0 + diff.incrementalFeesContributed0
         : current.totalFeesContributed0,
     totalFeesContributed1:
-      diff.totalFeesContributed1 !== undefined
-        ? current.totalFeesContributed1 + diff.totalFeesContributed1
+      diff.incrementalFeesContributed1 !== undefined
+        ? current.totalFeesContributed1 + diff.incrementalFeesContributed1
         : current.totalFeesContributed1,
     totalFeesContributedUSD:
-      diff.totalFeesContributedUSD !== undefined
-        ? current.totalFeesContributedUSD + diff.totalFeesContributedUSD
+      diff.incrementalFeesContributedUSD !== undefined
+        ? current.totalFeesContributedUSD + diff.incrementalFeesContributedUSD
         : current.totalFeesContributedUSD,
 
     numberOfSwaps:

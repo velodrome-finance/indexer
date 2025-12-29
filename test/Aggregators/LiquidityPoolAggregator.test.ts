@@ -318,7 +318,7 @@ describe("LiquidityPoolAggregator Functions", () => {
       totalVolumeUSD: 0n,
       numberOfSwaps: 0n,
       totalVolumeUSDWhitelisted: 0n,
-      totalFeesUSDWhitelisted: 0n,
+      incrementalFeesUSDWhitelisted: 0n,
       totalVotesDeposited: 0n,
       totalVotesDepositedUSD: 0n,
       totalEmissions: 0n,
@@ -330,7 +330,7 @@ describe("LiquidityPoolAggregator Functions", () => {
         totalVolumeUSD: 7000n,
         numberOfSwaps: 11n,
         totalVolumeUSDWhitelisted: 8000n,
-        totalFeesUSDWhitelisted: 9000n,
+        incrementalFeesUSDWhitelisted: 9000n,
         totalVotesDeposited: 2000n,
         totalVotesDepositedUSD: 3000n,
         totalEmissions: 4000n,
@@ -355,7 +355,7 @@ describe("LiquidityPoolAggregator Functions", () => {
         diff.totalVolumeUSDWhitelisted,
       );
       expect(updatedAggregator.totalFeesUSDWhitelisted).toBe(
-        diff.totalFeesUSDWhitelisted,
+        diff.incrementalFeesUSDWhitelisted,
       );
     });
 
