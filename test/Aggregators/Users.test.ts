@@ -96,8 +96,8 @@ describe("UserStatsPerPool Aggregator", () => {
 
       const netLiquidityAddedUSD = 1000n;
       const diff = {
-        currentLiquidityUSD: netLiquidityAddedUSD,
-        totalLiquidityAddedUSD: netLiquidityAddedUSD,
+        incrementalCurrentLiquidityUSD: netLiquidityAddedUSD,
+        incrementalTotalLiquidityAddedUSD: netLiquidityAddedUSD,
         lastActivityTimestamp: mockTimestamp,
       };
 
@@ -131,8 +131,8 @@ describe("UserStatsPerPool Aggregator", () => {
 
       const netLiquidityRemovedUSD = -500n;
       const diff = {
-        currentLiquidityUSD: netLiquidityRemovedUSD,
-        totalLiquidityRemovedUSD: 500n,
+        incrementalCurrentLiquidityUSD: netLiquidityRemovedUSD,
+        incrementalTotalLiquidityRemovedUSD: 500n,
         lastActivityTimestamp: mockTimestamp,
       };
 
@@ -164,9 +164,9 @@ describe("UserStatsPerPool Aggregator", () => {
       );
 
       const diff = {
-        incrementalFeesContributedUSD: 1000n,
-        incrementalFeesContributed0: 500n,
-        incrementalFeesContributed1: 300n,
+        incrementalTotalFeesContributedUSD: 1000n,
+        incrementalTotalFeesContributed0: 500n,
+        incrementalTotalFeesContributed1: 300n,
         lastActivityTimestamp: mockTimestamp,
       };
 
@@ -198,10 +198,10 @@ describe("UserStatsPerPool Aggregator", () => {
       );
 
       const diff = {
-        numberOfSwaps: 1n,
-        totalSwapVolumeUSD: 5000n,
-        totalSwapVolumeAmount0: 1000n,
-        totalSwapVolumeAmount1: 2000n,
+        incrementalNumberOfSwaps: 1n,
+        incrementalTotalSwapVolumeUSD: 5000n,
+        incrementalTotalSwapVolumeAmount0: 1000n,
+        incrementalTotalSwapVolumeAmount1: 2000n,
         lastActivityTimestamp: mockTimestamp,
       };
 
@@ -236,10 +236,10 @@ describe("UserStatsPerPool Aggregator", () => {
       // First swap: amount0 = 1000, amount1 = -2000
       userStats = await updateUserStatsPerPool(
         {
-          numberOfSwaps: 1n,
-          totalSwapVolumeUSD: 5000n,
-          totalSwapVolumeAmount0: 1000n, // abs(1000)
-          totalSwapVolumeAmount1: 2000n, // abs(-2000)
+          incrementalNumberOfSwaps: 1n,
+          incrementalTotalSwapVolumeUSD: 5000n,
+          incrementalTotalSwapVolumeAmount0: 1000n, // abs(1000)
+          incrementalTotalSwapVolumeAmount1: 2000n, // abs(-2000)
           lastActivityTimestamp: mockTimestamp,
         },
         userStats,
@@ -254,10 +254,10 @@ describe("UserStatsPerPool Aggregator", () => {
       // Second swap: amount0 = -500, amount1 = 3000
       userStats = await updateUserStatsPerPool(
         {
-          numberOfSwaps: 1n,
-          totalSwapVolumeUSD: 8000n,
-          totalSwapVolumeAmount0: 500n, // abs(-500)
-          totalSwapVolumeAmount1: 3000n, // abs(3000)
+          incrementalNumberOfSwaps: 1n,
+          incrementalTotalSwapVolumeUSD: 8000n,
+          incrementalTotalSwapVolumeAmount0: 500n, // abs(-500)
+          incrementalTotalSwapVolumeAmount1: 3000n, // abs(3000)
           lastActivityTimestamp: mockTimestamp,
         },
         userStats,
@@ -272,10 +272,10 @@ describe("UserStatsPerPool Aggregator", () => {
       // Third swap: amount0 = -2500, amount1 = -1500
       userStats = await updateUserStatsPerPool(
         {
-          numberOfSwaps: 1n,
-          totalSwapVolumeUSD: 12000n,
-          totalSwapVolumeAmount0: 2500n, // abs(-2500)
-          totalSwapVolumeAmount1: 1500n, // abs(-1500)
+          incrementalNumberOfSwaps: 1n,
+          incrementalTotalSwapVolumeUSD: 12000n,
+          incrementalTotalSwapVolumeAmount0: 2500n, // abs(-2500)
+          incrementalTotalSwapVolumeAmount1: 1500n, // abs(-1500)
           lastActivityTimestamp: mockTimestamp,
         },
         userStats,
@@ -304,8 +304,8 @@ describe("UserStatsPerPool Aggregator", () => {
       );
 
       const diff = {
-        numberOfFlashLoans: 1n,
-        totalFlashLoanVolumeUSD: 10000n,
+        incrementalNumberOfFlashLoans: 1n,
+        incrementalTotalFlashLoanVolumeUSD: 10000n,
         lastActivityTimestamp: mockTimestamp,
       };
 
@@ -336,13 +336,13 @@ describe("UserStatsPerPool Aggregator", () => {
       );
 
       const diff = {
-        currentLiquidityUSD: 2000n,
-        totalLiquidityAddedUSD: 2000n,
-        incrementalFeesContributedUSD: 500n,
-        numberOfSwaps: 2n,
-        totalSwapVolumeUSD: 8000n,
-        numberOfFlashLoans: 1n,
-        totalFlashLoanVolumeUSD: 15000n,
+        incrementalCurrentLiquidityUSD: 2000n,
+        incrementalTotalLiquidityAddedUSD: 2000n,
+        incrementalTotalFeesContributedUSD: 500n,
+        incrementalNumberOfSwaps: 2n,
+        incrementalTotalSwapVolumeUSD: 8000n,
+        incrementalNumberOfFlashLoans: 1n,
+        incrementalTotalFlashLoanVolumeUSD: 15000n,
         lastActivityTimestamp: mockTimestamp,
       };
 
@@ -393,11 +393,11 @@ describe("UserStatsPerPool Aggregator", () => {
       });
 
       const diff = {
-        currentLiquidityUSD: 1000n, // Adding more liquidity
-        totalLiquidityAddedUSD: 1000n,
-        incrementalFeesContributedUSD: 500n,
-        numberOfSwaps: 1n,
-        totalSwapVolumeUSD: 3000n,
+        incrementalCurrentLiquidityUSD: 1000n, // Adding more liquidity
+        incrementalTotalLiquidityAddedUSD: 1000n,
+        incrementalTotalFeesContributedUSD: 500n,
+        incrementalNumberOfSwaps: 1n,
+        incrementalTotalSwapVolumeUSD: 3000n,
         lastActivityTimestamp: mockTimestamp,
       };
 
@@ -448,8 +448,8 @@ describe("UserStatsPerPool Aggregator", () => {
       });
 
       const diff = {
-        currentLiquidityUSD: -500n, // Removing liquidity
-        totalLiquidityRemovedUSD: 500n,
+        incrementalCurrentLiquidityUSD: -500n, // Removing liquidity
+        incrementalTotalLiquidityRemovedUSD: 500n,
         lastActivityTimestamp: mockTimestamp,
       };
 

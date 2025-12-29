@@ -53,15 +53,10 @@ describe("VeNFT Events", () => {
         .spyOn(VeNFTAggregator, "updateVeNFTAggregator")
         .mockImplementation(() => {});
       jest.spyOn(VeNFTLogic, "processVeNFTEvent").mockResolvedValue({
-        veNFTAggregatorDiff: {
-          id: VeNFTId(chainId, tokenId),
-          chainId: chainId,
-          tokenId: tokenId,
-          owner: eventData.to,
-          locktime: mockVeNFTAggregator.locktime,
-          totalValueLocked: mockVeNFTAggregator.totalValueLocked,
-          isAlive: true,
-        },
+        owner: eventData.to,
+        locktime: mockVeNFTAggregator.locktime,
+        incrementalTotalValueLocked: mockVeNFTAggregator.totalValueLocked,
+        isAlive: true,
       });
 
       mockEvent = VeNFT.Transfer.createMockEvent(eventData);
@@ -96,12 +91,9 @@ describe("VeNFT Events", () => {
       ).toBeGreaterThanOrEqual(1);
       const calledWith = updateVeNFTAggregatorMock.mock.calls[0];
       expect(calledWith[0]).toEqual({
-        id: VeNFTId(chainId, tokenId),
-        chainId: chainId,
-        tokenId: tokenId,
         owner: eventData.to,
         locktime: mockVeNFTAggregator.locktime,
-        totalValueLocked: mockVeNFTAggregator.totalValueLocked,
+        incrementalTotalValueLocked: mockVeNFTAggregator.totalValueLocked,
         isAlive: true,
       });
       expect(calledWith[1]).toEqual(mockVeNFTAggregator);
@@ -188,15 +180,10 @@ describe("VeNFT Events", () => {
         .spyOn(VeNFTAggregator, "updateVeNFTAggregator")
         .mockImplementation(() => {});
       jest.spyOn(VeNFTLogic, "processVeNFTEvent").mockResolvedValue({
-        veNFTAggregatorDiff: {
-          id: VeNFTId(chainId, tokenId),
-          chainId: chainId,
-          tokenId: tokenId,
-          owner: mockVeNFTAggregator.owner,
-          locktime: mockVeNFTAggregator.locktime,
-          totalValueLocked: -eventData.value,
-          isAlive: false, // Withdraw is a burn operation
-        },
+        owner: mockVeNFTAggregator.owner,
+        locktime: mockVeNFTAggregator.locktime,
+        incrementalTotalValueLocked: -eventData.value,
+        isAlive: false, // Withdraw is a burn operation
       });
 
       mockEvent = VeNFT.Withdraw.createMockEvent(eventData);
@@ -231,12 +218,9 @@ describe("VeNFT Events", () => {
       ).toBeGreaterThanOrEqual(1);
       const calledWith = updateVeNFTAggregatorMock.mock.calls[0];
       expect(calledWith[0]).toEqual({
-        id: VeNFTId(chainId, tokenId),
-        chainId: chainId,
-        tokenId: tokenId,
         owner: mockVeNFTAggregator.owner,
         locktime: mockVeNFTAggregator.locktime,
-        totalValueLocked: -eventData.value,
+        incrementalTotalValueLocked: -eventData.value,
         isAlive: false, // Withdraw is a burn operation
       });
       expect(calledWith[1]).toEqual(mockVeNFTAggregator);
@@ -272,15 +256,10 @@ describe("VeNFT Events", () => {
         .spyOn(VeNFTAggregator, "updateVeNFTAggregator")
         .mockImplementation(() => {});
       jest.spyOn(VeNFTLogic, "processVeNFTEvent").mockResolvedValue({
-        veNFTAggregatorDiff: {
-          id: VeNFTId(chainId, tokenId),
-          chainId: chainId,
-          tokenId: tokenId,
-          owner: eventData.provider,
-          locktime: eventData.locktime,
-          totalValueLocked: eventData.value,
-          isAlive: true,
-        },
+        owner: eventData.provider,
+        locktime: eventData.locktime,
+        incrementalTotalValueLocked: eventData.value,
+        isAlive: true,
       });
 
       mockEvent = VeNFT.Deposit.createMockEvent(eventData);
@@ -315,12 +294,9 @@ describe("VeNFT Events", () => {
       ).toBeGreaterThanOrEqual(1);
       const calledWith = updateVeNFTAggregatorMock.mock.calls[0];
       expect(calledWith[0]).toEqual({
-        id: VeNFTId(chainId, tokenId),
-        chainId: chainId,
-        tokenId: tokenId,
         owner: eventData.provider,
         locktime: eventData.locktime,
-        totalValueLocked: eventData.value,
+        incrementalTotalValueLocked: eventData.value,
         isAlive: true,
       });
       expect(calledWith[1]).toEqual(mockVeNFTAggregator);

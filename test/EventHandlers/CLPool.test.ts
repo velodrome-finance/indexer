@@ -72,16 +72,16 @@ describe("CLPool Events", () => {
         .spyOn(CLPoolSwapLogic, "processCLPoolSwap")
         .mockResolvedValue({
           liquidityPoolDiff: {
-            totalVolume0: 1000n,
-            totalVolume1: 500n,
-            totalVolumeUSD: 1500n,
+            incrementalTotalVolume0: 1000n,
+            incrementalTotalVolume1: 500n,
+            incrementalTotalVolumeUSD: 1500n,
             lastUpdatedTimestamp: new Date(1000000 * 1000),
           },
           userSwapDiff: {
-            numberOfSwaps: 1n,
-            totalSwapVolumeAmount0: 1000n,
-            totalSwapVolumeAmount1: 500n,
-            totalSwapVolumeUSD: 1500n,
+            incrementalNumberOfSwaps: 1n,
+            incrementalTotalSwapVolumeAmount0: 1000n,
+            incrementalTotalSwapVolumeAmount1: 500n,
+            incrementalTotalSwapVolumeUSD: 1500n,
             lastActivityTimestamp: new Date(1000000 * 1000),
           },
         });
@@ -328,16 +328,16 @@ describe("CLPool Events", () => {
         .spyOn(CLPoolMintLogic, "processCLPoolMint")
         .mockReturnValue({
           liquidityPoolDiff: {
-            reserve0: 1000n,
-            reserve1: 1000n,
-            totalLiquidityUSD: 2000n,
+            incrementalReserve0: 1000n,
+            incrementalReserve1: 1000n,
+            incrementalCurrentLiquidityUSD: 2000n,
             lastUpdatedTimestamp: new Date(1000000 * 1000),
           },
           userLiquidityDiff: {
-            currentLiquidityUSD: 1000n,
-            currentLiquidityToken0: 500n,
-            currentLiquidityToken1: 500n,
-            totalLiquidityAddedUSD: 1000n,
+            incrementalCurrentLiquidityUSD: 1000n,
+            incrementalCurrentLiquidityToken0: 500n,
+            incrementalCurrentLiquidityToken1: 500n,
+            incrementalTotalLiquidityAddedUSD: 1000n,
             lastActivityTimestamp: new Date(1000000 * 1000),
           },
         });
@@ -405,16 +405,16 @@ describe("CLPool Events", () => {
         .spyOn(CLPoolBurnLogic, "processCLPoolBurn")
         .mockReturnValue({
           liquidityPoolDiff: {
-            reserve0: -500n, // Negative because burning decreases reserves
-            reserve1: -500n, // Negative because burning decreases reserves
-            totalLiquidityUSD: -1000n, // Negative because reserves decrease
+            incrementalReserve0: -500n, // Negative because burning decreases reserves
+            incrementalReserve1: -500n, // Negative because burning decreases reserves
+            incrementalCurrentLiquidityUSD: -1000n, // Negative because reserves decrease
             lastUpdatedTimestamp: new Date(1000000 * 1000),
           },
           userLiquidityDiff: {
-            currentLiquidityUSD: -500n,
-            currentLiquidityToken0: -250n, // Negative amount of token0 removed
-            currentLiquidityToken1: -250n, // Negative amount of token1 removed
-            totalLiquidityRemovedUSD: 500n, // Positive value for tracking
+            incrementalCurrentLiquidityUSD: -500n,
+            incrementalCurrentLiquidityToken0: -250n, // Negative amount of token0 removed
+            incrementalCurrentLiquidityToken1: -250n, // Negative amount of token1 removed
+            incrementalTotalLiquidityRemovedUSD: 500n, // Positive value for tracking
             lastActivityTimestamp: new Date(1000000 * 1000),
           },
         });
@@ -479,15 +479,15 @@ describe("CLPool Events", () => {
           liquidityPoolDiff: {
             // In CL pools, Collect events do NOT affect reserves - fees were never part of reserves
             // Track unstaked fees (from Collect events - LPs that didn't stake)
-            totalUnstakedFeesCollected0: 100n,
-            totalUnstakedFeesCollected1: 200n,
-            totalUnstakedFeesCollectedUSD: 300n,
+            incrementalTotalUnstakedFeesCollected0: 100n,
+            incrementalTotalUnstakedFeesCollected1: 200n,
+            incrementalTotalUnstakedFeesCollectedUSD: 300n,
             lastUpdatedTimestamp: new Date(1000000 * 1000),
           },
           userLiquidityDiff: {
-            totalFeesContributed0: 100n,
-            totalFeesContributed1: 200n,
-            totalFeesContributedUSD: 300n,
+            incrementalTotalFeesContributed0: 100n,
+            incrementalTotalFeesContributed1: 200n,
+            incrementalTotalFeesContributedUSD: 300n,
             lastActivityTimestamp: new Date(1000000 * 1000),
           },
         });
@@ -552,16 +552,16 @@ describe("CLPool Events", () => {
           liquidityPoolDiff: {
             // In CL pools, CollectFees events do NOT affect reserves - fees were never part of reserves
             // Track staked fees (from CollectFees events - LPs that staked in gauge)
-            incrementalStakedFeesCollected0: 50n,
-            incrementalStakedFeesCollected1: 75n,
-            incrementalStakedFeesCollectedUSD: 125n,
-            incrementalFeesUSDWhitelisted: 125n,
+            incrementalTotalStakedFeesCollected0: 50n,
+            incrementalTotalStakedFeesCollected1: 75n,
+            incrementalTotalStakedFeesCollectedUSD: 125n,
+            incrementalTotalFeesUSDWhitelisted: 125n,
             lastUpdatedTimestamp: new Date(1000000 * 1000),
           },
           userDiff: {
-            incrementalFeesContributedUSD: 125n,
-            incrementalFeesContributed0: 50n,
-            incrementalFeesContributed1: 75n,
+            incrementalTotalFeesContributedUSD: 125n,
+            incrementalTotalFeesContributed0: 50n,
+            incrementalTotalFeesContributed1: 75n,
             lastActivityTimestamp: new Date(1000000 * 1000),
           },
         });
@@ -677,16 +677,16 @@ describe("CLPool Events", () => {
         .spyOn(CLPoolFlashLogic, "processCLPoolFlash")
         .mockReturnValue({
           liquidityPoolDiff: {
-            totalFlashLoanFees0: 5n,
-            totalFlashLoanFees1: 0n,
-            totalFlashLoanFeesUSD: 5n,
-            totalFlashLoanVolumeUSD: 1000n,
-            numberOfFlashLoans: 1n,
+            incrementalTotalFlashLoanFees0: 5n,
+            incrementalTotalFlashLoanFees1: 0n,
+            incrementalTotalFlashLoanFeesUSD: 5n,
+            incrementalTotalFlashLoanVolumeUSD: 1000n,
+            incrementalNumberOfFlashLoans: 1n,
             lastUpdatedTimestamp: new Date(1000000 * 1000),
           },
           userFlashLoanDiff: {
-            numberOfFlashLoans: 1n,
-            totalFlashLoanVolumeUSD: 1000n,
+            incrementalNumberOfFlashLoans: 1n,
+            incrementalTotalFlashLoanVolumeUSD: 1000n,
             lastActivityTimestamp: new Date(1000000 * 1000),
           },
         });

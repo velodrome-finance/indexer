@@ -3,7 +3,6 @@ import { Voter } from "generated";
 import type { Token } from "generated/src/Types.gen";
 import {
   findPoolByGaugeAddress,
-  loadPoolData,
   loadPoolDataOrRootCLPool,
   updateLiquidityPoolAggregator,
 } from "../../Aggregators/LiquidityPoolAggregator";
@@ -91,12 +90,12 @@ Voter.Voted.handler(async ({ event, context }) => {
   const { liquidityPoolAggregator } = poolData;
 
   const poolVoteDiff = {
-    veNFTamountStaked: event.params.totalWeight, // it's veNFT token amount!! This is absolute total veNFT staked in pool, substituting directly the previous value
+    incrementalVeNFTamountStaked: event.params.totalWeight, // it's veNFT token amount!! This is absolute total veNFT staked in pool, substituting directly the previous value
   };
 
   const timestamp = new Date(event.block.timestamp * 1000);
   const userVoteDiff = {
-    veNFTamountStaked: event.params.weight, // it's veNFT token amount!! Positive because it's a deposit
+    incrementalVeNFTamountStaked: event.params.weight, // it's veNFT token amount!! Positive because it's a deposit
     lastActivityTimestamp: timestamp,
   };
 
@@ -140,12 +139,12 @@ Voter.Abstained.handler(async ({ event, context }) => {
   const { liquidityPoolAggregator } = poolData;
 
   const poolVoteDiff = {
-    veNFTamountStaked: event.params.totalWeight, // it's veNFT token amount!! This is absolute total veNFT staked in pool, substituting directly the previous value
+    incrementalVeNFTamountStaked: event.params.totalWeight, // it's veNFT token amount!! This is absolute total veNFT staked in pool, substituting directly the previous value
   };
 
   const timestamp = new Date(event.block.timestamp * 1000);
   const userVoteDiff = {
-    veNFTamountStaked: -event.params.weight, // it's veNFT token amount!! Negative because it's a withdrawal
+    incrementalVeNFTamountStaked: -event.params.weight, // it's veNFT token amount!! Negative because it's a withdrawal
     lastActivityTimestamp: timestamp,
   };
 

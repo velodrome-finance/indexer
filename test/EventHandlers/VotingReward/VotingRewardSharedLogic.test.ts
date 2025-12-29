@@ -76,18 +76,18 @@ describe("VotingRewardSharedLogic", () => {
 
       // For bribe rewards, should populate bribe fields
       expect(result.poolDiff).toMatchObject({
-        totalBribeClaimed: 1000000n,
-        totalBribeClaimedUSD: 1000000000000000000n, // 1 USD in 18 decimals
-        totalFeeRewardClaimed: 0n,
-        totalFeeRewardClaimedUSD: 0n,
+        incrementalTotalBribeClaimed: 1000000n,
+        incrementalTotalBribeClaimedUSD: 1000000000000000000n, // 1 USD in 18 decimals
+        incrementalTotalFeeRewardClaimed: 0n,
+        incrementalTotalFeeRewardClaimedUSD: 0n,
         lastUpdatedTimestamp: mockTimestamp,
       });
 
       expect(result.userDiff).toMatchObject({
-        totalBribeClaimed: 1000000n,
-        totalBribeClaimedUSD: 1000000000000000000n,
-        totalFeeRewardClaimed: 0n,
-        totalFeeRewardClaimedUSD: 0n,
+        incrementalTotalBribeClaimed: 1000000n,
+        incrementalTotalBribeClaimedUSD: 1000000000000000000n,
+        incrementalTotalFeeRewardClaimed: 0n,
+        incrementalTotalFeeRewardClaimedUSD: 0n,
         lastActivityTimestamp: mockTimestamp,
       });
     });
@@ -111,18 +111,18 @@ describe("VotingRewardSharedLogic", () => {
 
       // For fee rewards, should populate fee fields
       expect(result.poolDiff).toMatchObject({
-        totalBribeClaimed: 0n,
-        totalBribeClaimedUSD: 0n,
-        totalFeeRewardClaimed: 2000000n,
-        totalFeeRewardClaimedUSD: 2000000000000000000n, // 2 USD in 18 decimals
+        incrementalTotalBribeClaimed: 0n,
+        incrementalTotalBribeClaimedUSD: 0n,
+        incrementalTotalFeeRewardClaimed: 2000000n,
+        incrementalTotalFeeRewardClaimedUSD: 2000000000000000000n, // 2 USD in 18 decimals
         lastUpdatedTimestamp: mockTimestamp,
       });
 
       expect(result.userDiff).toMatchObject({
-        totalBribeClaimed: 0n,
-        totalBribeClaimedUSD: 0n,
-        totalFeeRewardClaimed: 2000000n,
-        totalFeeRewardClaimedUSD: 2000000000000000000n,
+        incrementalTotalBribeClaimed: 0n,
+        incrementalTotalBribeClaimedUSD: 0n,
+        incrementalTotalFeeRewardClaimed: 2000000n,
+        incrementalTotalFeeRewardClaimedUSD: 2000000000000000000n,
         lastActivityTimestamp: mockTimestamp,
       });
     });
@@ -163,8 +163,12 @@ describe("VotingRewardSharedLogic", () => {
         PoolAddressField.BRIBE_VOTING_REWARD_ADDRESS,
       );
 
-      expect(result.poolDiff?.totalBribeClaimedUSD).toBe(1000000000000000000n);
-      expect(result.userDiff?.totalBribeClaimedUSD).toBe(1000000000000000000n);
+      expect(result.poolDiff?.incrementalTotalBribeClaimedUSD).toBe(
+        1000000000000000000n,
+      );
+      expect(result.userDiff?.incrementalTotalBribeClaimedUSD).toBe(
+        1000000000000000000n,
+      );
     });
   });
 });

@@ -1,37 +1,37 @@
 import type { UserStatsPerPool, handlerContext } from "generated";
 import { toChecksumAddress } from "../Constants";
 
-interface UserStatsPerPoolDiff {
-  currentLiquidityUSD: bigint;
-  currentLiquidityToken0: bigint;
-  currentLiquidityToken1: bigint;
-  totalLiquidityAddedUSD: bigint;
-  totalLiquidityRemovedUSD: bigint;
-  incrementalFeesContributedUSD: bigint;
-  incrementalFeesContributed0: bigint;
-  incrementalFeesContributed1: bigint;
-  numberOfSwaps: bigint;
-  totalSwapVolumeAmount0: bigint;
-  totalSwapVolumeAmount1: bigint;
-  totalSwapVolumeUSD: bigint;
-  numberOfFlashLoans: bigint;
-  totalFlashLoanVolumeUSD: bigint;
-  numberOfGaugeDeposits: bigint;
-  numberOfGaugeWithdrawals: bigint;
-  numberOfGaugeRewardClaims: bigint;
-  totalGaugeRewardsClaimedUSD: bigint;
-  totalGaugeRewardsClaimed: bigint;
-  currentLiquidityStaked: bigint;
-  currentLiquidityStakedUSD: bigint;
-  veNFTamountStaked: bigint;
-  totalBribeClaimed: bigint;
-  totalBribeClaimedUSD: bigint;
-  totalFeeRewardClaimed: bigint;
-  totalFeeRewardClaimedUSD: bigint;
+export interface UserStatsPerPoolDiff {
+  incrementalCurrentLiquidityUSD: bigint;
+  incrementalCurrentLiquidityToken0: bigint;
+  incrementalCurrentLiquidityToken1: bigint;
+  incrementalTotalLiquidityAddedUSD: bigint;
+  incrementalTotalLiquidityRemovedUSD: bigint;
+  incrementalTotalFeesContributedUSD: bigint;
+  incrementalTotalFeesContributed0: bigint;
+  incrementalTotalFeesContributed1: bigint;
+  incrementalNumberOfSwaps: bigint;
+  incrementalTotalSwapVolumeAmount0: bigint;
+  incrementalTotalSwapVolumeAmount1: bigint;
+  incrementalTotalSwapVolumeUSD: bigint;
+  incrementalNumberOfFlashLoans: bigint;
+  incrementalTotalFlashLoanVolumeUSD: bigint;
+  incrementalNumberOfGaugeDeposits: bigint;
+  incrementalNumberOfGaugeWithdrawals: bigint;
+  incrementalNumberOfGaugeRewardClaims: bigint;
+  incrementalTotalGaugeRewardsClaimedUSD: bigint;
+  incrementalTotalGaugeRewardsClaimed: bigint;
+  incrementalCurrentLiquidityStaked: bigint;
+  incrementalCurrentLiquidityStakedUSD: bigint;
+  incrementalVeNFTamountStaked: bigint;
+  incrementalTotalBribeClaimed: bigint;
+  incrementalTotalBribeClaimedUSD: bigint;
+  incrementalTotalFeeRewardClaimed: bigint;
+  incrementalTotalFeeRewardClaimedUSD: bigint;
   almAddress: string;
   almAmount0: bigint;
   almAmount1: bigint;
-  almLpAmount: bigint;
+  incrementalAlmLpAmount: bigint;
   lastAlmActivityTimestamp: Date;
   lastActivityTimestamp: Date;
 }
@@ -186,117 +186,132 @@ export async function updateUserStatsPerPool(
   const updated: UserStatsPerPool = {
     ...current,
     currentLiquidityUSD:
-      diff.currentLiquidityUSD !== undefined
-        ? current.currentLiquidityUSD + diff.currentLiquidityUSD
+      diff.incrementalCurrentLiquidityUSD !== undefined
+        ? current.currentLiquidityUSD + diff.incrementalCurrentLiquidityUSD
         : current.currentLiquidityUSD,
     totalLiquidityAddedUSD:
-      diff.totalLiquidityAddedUSD !== undefined
-        ? current.totalLiquidityAddedUSD + diff.totalLiquidityAddedUSD
+      diff.incrementalTotalLiquidityAddedUSD !== undefined
+        ? current.totalLiquidityAddedUSD +
+          diff.incrementalTotalLiquidityAddedUSD
         : current.totalLiquidityAddedUSD,
     totalLiquidityRemovedUSD:
-      diff.totalLiquidityRemovedUSD !== undefined
-        ? current.totalLiquidityRemovedUSD + diff.totalLiquidityRemovedUSD
+      diff.incrementalTotalLiquidityRemovedUSD !== undefined
+        ? current.totalLiquidityRemovedUSD +
+          diff.incrementalTotalLiquidityRemovedUSD
         : current.totalLiquidityRemovedUSD,
     currentLiquidityToken0:
-      diff.currentLiquidityToken0 !== undefined
-        ? current.currentLiquidityToken0 + diff.currentLiquidityToken0
+      diff.incrementalCurrentLiquidityToken0 !== undefined
+        ? current.currentLiquidityToken0 +
+          diff.incrementalCurrentLiquidityToken0
         : current.currentLiquidityToken0,
     currentLiquidityToken1:
-      diff.currentLiquidityToken1 !== undefined
-        ? current.currentLiquidityToken1 + diff.currentLiquidityToken1
+      diff.incrementalCurrentLiquidityToken1 !== undefined
+        ? current.currentLiquidityToken1 +
+          diff.incrementalCurrentLiquidityToken1
         : current.currentLiquidityToken1,
 
     totalFeesContributed0:
-      diff.incrementalFeesContributed0 !== undefined
-        ? current.totalFeesContributed0 + diff.incrementalFeesContributed0
+      diff.incrementalTotalFeesContributed0 !== undefined
+        ? current.totalFeesContributed0 + diff.incrementalTotalFeesContributed0
         : current.totalFeesContributed0,
     totalFeesContributed1:
-      diff.incrementalFeesContributed1 !== undefined
-        ? current.totalFeesContributed1 + diff.incrementalFeesContributed1
+      diff.incrementalTotalFeesContributed1 !== undefined
+        ? current.totalFeesContributed1 + diff.incrementalTotalFeesContributed1
         : current.totalFeesContributed1,
     totalFeesContributedUSD:
-      diff.incrementalFeesContributedUSD !== undefined
-        ? current.totalFeesContributedUSD + diff.incrementalFeesContributedUSD
+      diff.incrementalTotalFeesContributedUSD !== undefined
+        ? current.totalFeesContributedUSD +
+          diff.incrementalTotalFeesContributedUSD
         : current.totalFeesContributedUSD,
 
     numberOfSwaps:
-      diff.numberOfSwaps !== undefined
-        ? current.numberOfSwaps + diff.numberOfSwaps
+      diff.incrementalNumberOfSwaps !== undefined
+        ? current.numberOfSwaps + diff.incrementalNumberOfSwaps
         : current.numberOfSwaps,
     totalSwapVolumeAmount0:
-      diff.totalSwapVolumeAmount0 !== undefined
-        ? current.totalSwapVolumeAmount0 + diff.totalSwapVolumeAmount0
+      diff.incrementalTotalSwapVolumeAmount0 !== undefined
+        ? current.totalSwapVolumeAmount0 +
+          diff.incrementalTotalSwapVolumeAmount0
         : current.totalSwapVolumeAmount0,
     totalSwapVolumeAmount1:
-      diff.totalSwapVolumeAmount1 !== undefined
-        ? current.totalSwapVolumeAmount1 + diff.totalSwapVolumeAmount1
+      diff.incrementalTotalSwapVolumeAmount1 !== undefined
+        ? current.totalSwapVolumeAmount1 +
+          diff.incrementalTotalSwapVolumeAmount1
         : current.totalSwapVolumeAmount1,
     totalSwapVolumeUSD:
-      diff.totalSwapVolumeUSD !== undefined
-        ? current.totalSwapVolumeUSD + diff.totalSwapVolumeUSD
+      diff.incrementalTotalSwapVolumeUSD !== undefined
+        ? current.totalSwapVolumeUSD + diff.incrementalTotalSwapVolumeUSD
         : current.totalSwapVolumeUSD,
 
     numberOfFlashLoans:
-      diff.numberOfFlashLoans !== undefined
-        ? current.numberOfFlashLoans + diff.numberOfFlashLoans
+      diff.incrementalNumberOfFlashLoans !== undefined
+        ? current.numberOfFlashLoans + diff.incrementalNumberOfFlashLoans
         : current.numberOfFlashLoans,
     totalFlashLoanVolumeUSD:
-      diff.totalFlashLoanVolumeUSD !== undefined
-        ? current.totalFlashLoanVolumeUSD + diff.totalFlashLoanVolumeUSD
+      diff.incrementalTotalFlashLoanVolumeUSD !== undefined
+        ? current.totalFlashLoanVolumeUSD +
+          diff.incrementalTotalFlashLoanVolumeUSD
         : current.totalFlashLoanVolumeUSD,
 
     // Gauge metrics - all cumulative fields
     numberOfGaugeDeposits:
-      diff.numberOfGaugeDeposits !== undefined
-        ? current.numberOfGaugeDeposits + diff.numberOfGaugeDeposits
+      diff.incrementalNumberOfGaugeDeposits !== undefined
+        ? current.numberOfGaugeDeposits + diff.incrementalNumberOfGaugeDeposits
         : current.numberOfGaugeDeposits,
     numberOfGaugeWithdrawals:
-      diff.numberOfGaugeWithdrawals !== undefined
-        ? current.numberOfGaugeWithdrawals + diff.numberOfGaugeWithdrawals
+      diff.incrementalNumberOfGaugeWithdrawals !== undefined
+        ? current.numberOfGaugeWithdrawals +
+          diff.incrementalNumberOfGaugeWithdrawals
         : current.numberOfGaugeWithdrawals,
     numberOfGaugeRewardClaims:
-      diff.numberOfGaugeRewardClaims !== undefined
-        ? current.numberOfGaugeRewardClaims + diff.numberOfGaugeRewardClaims
+      diff.incrementalNumberOfGaugeRewardClaims !== undefined
+        ? current.numberOfGaugeRewardClaims +
+          diff.incrementalNumberOfGaugeRewardClaims
         : current.numberOfGaugeRewardClaims,
     totalGaugeRewardsClaimedUSD:
-      diff.totalGaugeRewardsClaimedUSD !== undefined
-        ? current.totalGaugeRewardsClaimedUSD + diff.totalGaugeRewardsClaimedUSD
+      diff.incrementalTotalGaugeRewardsClaimedUSD !== undefined
+        ? current.totalGaugeRewardsClaimedUSD +
+          diff.incrementalTotalGaugeRewardsClaimedUSD
         : current.totalGaugeRewardsClaimedUSD,
     totalGaugeRewardsClaimed:
-      diff.totalGaugeRewardsClaimed !== undefined
-        ? current.totalGaugeRewardsClaimed + diff.totalGaugeRewardsClaimed
+      diff.incrementalTotalGaugeRewardsClaimed !== undefined
+        ? current.totalGaugeRewardsClaimed +
+          diff.incrementalTotalGaugeRewardsClaimed
         : current.totalGaugeRewardsClaimed,
     currentLiquidityStaked:
-      diff.currentLiquidityStaked !== undefined
-        ? current.currentLiquidityStaked + diff.currentLiquidityStaked
+      diff.incrementalCurrentLiquidityStaked !== undefined
+        ? current.currentLiquidityStaked +
+          diff.incrementalCurrentLiquidityStaked
         : current.currentLiquidityStaked,
     currentLiquidityStakedUSD:
-      diff.currentLiquidityStakedUSD !== undefined
-        ? current.currentLiquidityStakedUSD + diff.currentLiquidityStakedUSD
+      diff.incrementalCurrentLiquidityStakedUSD !== undefined
+        ? current.currentLiquidityStakedUSD +
+          diff.incrementalCurrentLiquidityStakedUSD
         : current.currentLiquidityStakedUSD,
 
     // Voting metrics
     veNFTamountStaked:
-      diff.veNFTamountStaked !== undefined
-        ? current.veNFTamountStaked + diff.veNFTamountStaked
+      diff.incrementalVeNFTamountStaked !== undefined
+        ? current.veNFTamountStaked + diff.incrementalVeNFTamountStaked
         : current.veNFTamountStaked,
 
     // Voting Reward Claims - cumulative fields
     totalBribeClaimed:
-      diff.totalBribeClaimed !== undefined
-        ? current.totalBribeClaimed + diff.totalBribeClaimed
+      diff.incrementalTotalBribeClaimed !== undefined
+        ? current.totalBribeClaimed + diff.incrementalTotalBribeClaimed
         : current.totalBribeClaimed,
     totalBribeClaimedUSD:
-      diff.totalBribeClaimedUSD !== undefined
-        ? current.totalBribeClaimedUSD + diff.totalBribeClaimedUSD
+      diff.incrementalTotalBribeClaimedUSD !== undefined
+        ? current.totalBribeClaimedUSD + diff.incrementalTotalBribeClaimedUSD
         : current.totalBribeClaimedUSD,
     totalFeeRewardClaimed:
-      diff.totalFeeRewardClaimed !== undefined
-        ? current.totalFeeRewardClaimed + diff.totalFeeRewardClaimed
+      diff.incrementalTotalFeeRewardClaimed !== undefined
+        ? current.totalFeeRewardClaimed + diff.incrementalTotalFeeRewardClaimed
         : current.totalFeeRewardClaimed,
     totalFeeRewardClaimedUSD:
-      diff.totalFeeRewardClaimedUSD !== undefined
-        ? current.totalFeeRewardClaimedUSD + diff.totalFeeRewardClaimedUSD
+      diff.incrementalTotalFeeRewardClaimedUSD !== undefined
+        ? current.totalFeeRewardClaimedUSD +
+          diff.incrementalTotalFeeRewardClaimedUSD
         : current.totalFeeRewardClaimedUSD,
 
     // ALM metrics
@@ -305,8 +320,8 @@ export async function updateUserStatsPerPool(
     almAmount1:
       diff.almAmount1 !== undefined ? diff.almAmount1 : current.almAmount1,
     almLpAmount:
-      diff.almLpAmount !== undefined
-        ? current.almLpAmount + diff.almLpAmount
+      diff.incrementalAlmLpAmount !== undefined
+        ? current.almLpAmount + diff.incrementalAlmLpAmount
         : current.almLpAmount,
     almAddress:
       diff.almAddress !== undefined ? diff.almAddress : current.almAddress,

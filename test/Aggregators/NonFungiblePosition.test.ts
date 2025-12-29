@@ -75,16 +75,17 @@ describe("NonFungiblePosition", () => {
           chainId: 10,
           tokenId: 1n,
           owner: "0x2222222222222222222222222222222222222222",
+          lastUpdatedTimestamp: timestamp,
         };
 
         updateNonFungiblePosition(
           transferDiff,
           mockNonFungiblePosition,
-          timestamp,
           mockContext as handlerContext,
         );
         const mockSet = jest.mocked(mockContext.NonFungiblePosition?.set);
         result = mockSet?.mock.calls[0]?.[0] as NonFungiblePosition;
+        console.log("mockSet?.mock.results", mockSet?.arguments);
       });
 
       it("should update the nonFungiblePosition with new owner", () => {
@@ -108,12 +109,12 @@ describe("NonFungiblePosition", () => {
           tokenId: 1n,
           amount0: 500000000000000000n,
           amount1: 1000000000000000000n,
+          lastUpdatedTimestamp: timestamp,
         };
 
         updateNonFungiblePosition(
           increaseDiff,
           mockNonFungiblePosition,
-          timestamp,
           mockContext as handlerContext,
         );
         const mockSet = jest.mocked(mockContext.NonFungiblePosition?.set);
@@ -139,12 +140,12 @@ describe("NonFungiblePosition", () => {
           tokenId: 1n,
           amount0: -500000000000000000n,
           amount1: -1000000000000000000n,
+          lastUpdatedTimestamp: timestamp,
         };
 
         updateNonFungiblePosition(
           decreaseDiff,
           mockNonFungiblePosition,
-          timestamp,
           mockContext as handlerContext,
         );
         const mockSet = jest.mocked(mockContext.NonFungiblePosition?.set);
@@ -169,12 +170,12 @@ describe("NonFungiblePosition", () => {
           chainId: 10,
           tokenId: 1n,
           amount0: 500000000000000000n,
+          lastUpdatedTimestamp: timestamp,
         };
 
         updateNonFungiblePosition(
           partialDiff,
           mockNonFungiblePosition,
-          timestamp,
           mockContext as handlerContext,
         );
         const mockSet = jest.mocked(mockContext.NonFungiblePosition?.set);

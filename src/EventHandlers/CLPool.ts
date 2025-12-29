@@ -227,7 +227,7 @@ CLPool.Flash.handler(async ({ event, context }) => {
       context,
       event.block.number,
     ),
-    ...(userDiff.totalFlashLoanVolumeUSD > 0n
+    ...((userDiff.incrementalTotalFlashLoanVolumeUSD ?? 0n) > 0n
       ? [updateUserStatsPerPool(userDiff, userData, context)]
       : []),
   ]);
@@ -292,10 +292,7 @@ CLPool.Mint.handler(async ({ event, context }) => {
   const result = processCLPoolMint(event, token0Instance, token1Instance);
 
   const poolDiff = result.liquidityPoolDiff;
-  const userDiff = {
-    ...result.userLiquidityDiff,
-    lastActivityTimestamp: new Date(event.block.timestamp * 1000),
-  };
+  const userDiff = result.userLiquidityDiff;
 
   const timestamp = new Date(event.block.timestamp * 1000);
 
@@ -328,7 +325,7 @@ CLPool.Mint.handler(async ({ event, context }) => {
     liquidity: event.params.amount, // Store liquidity value from CLPool.Mint
     amount0: event.params.amount0,
     amount1: event.params.amount1,
-    amountUSD: userDiff.currentLiquidityUSD,
+    amountUSD: userDiff.incrementalCurrentLiquidityUSD ?? 0n,
     mintTransactionHash: event.transaction.hash,
     lastUpdatedTimestamp: timestamp,
   });
