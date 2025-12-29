@@ -1,30 +1,24 @@
-import type {
-  CLPool_CollectFees_event,
-  LiquidityPoolAggregator,
-  Token,
-  handlerContext,
-} from "generated";
+import type { CLPool_CollectFees_event, Token } from "generated";
 import { calculateTotalLiquidityUSD } from "../../Helpers";
 
 export interface CLPoolCollectFeesResult {
   liquidityPoolDiff: {
-    totalStakedFeesCollected0: bigint;
-    totalStakedFeesCollected1: bigint;
-    totalStakedFeesCollectedUSD: bigint;
-    totalFeesUSDWhitelisted: bigint;
+    incrementalStakedFeesCollected0: bigint;
+    incrementalStakedFeesCollected1: bigint;
+    incrementalStakedFeesCollectedUSD: bigint;
+    incrementalFeesUSDWhitelisted: bigint;
     lastUpdatedTimestamp: Date;
   };
   userDiff: {
-    totalFeesContributedUSD: bigint;
-    totalFeesContributed0: bigint;
-    totalFeesContributed1: bigint;
+    incrementalFeesContributedUSD: bigint;
+    incrementalFeesContributed0: bigint;
+    incrementalFeesContributed1: bigint;
     lastActivityTimestamp: Date;
   };
 }
 
 export function processCLPoolCollectFees(
   event: CLPool_CollectFees_event,
-  liquidityPoolAggregator: LiquidityPoolAggregator,
   token0Instance: Token | undefined,
   token1Instance: Token | undefined,
 ): CLPoolCollectFeesResult {
@@ -69,17 +63,17 @@ export function processCLPoolCollectFees(
   // Therefore, CollectFees events should NOT affect reserves - only track fees collected.
   // Return increments (not new totals) since updateLiquidityPoolAggregator will add them to current values
   const liquidityPoolDiff = {
-    totalStakedFeesCollected0: event.params.amount0,
-    totalStakedFeesCollected1: event.params.amount1,
-    totalStakedFeesCollectedUSD: stakedFeesIncrementUSD,
-    totalFeesUSDWhitelisted: totalFeesUSDWhitelistedIncrement,
+    incrementalStakedFeesCollected0: event.params.amount0,
+    incrementalStakedFeesCollected1: event.params.amount1,
+    incrementalStakedFeesCollectedUSD: stakedFeesIncrementUSD,
+    incrementalFeesUSDWhitelisted: totalFeesUSDWhitelistedIncrement,
     lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
   };
 
   const userDiff = {
-    totalFeesContributedUSD: stakedFeesIncrementUSD,
-    totalFeesContributed0: event.params.amount0,
-    totalFeesContributed1: event.params.amount1,
+    incrementalFeesContributedUSD: stakedFeesIncrementUSD,
+    incrementalFeesContributed0: event.params.amount0,
+    incrementalFeesContributed1: event.params.amount1,
     lastActivityTimestamp: new Date(event.block.timestamp * 1000),
   };
 

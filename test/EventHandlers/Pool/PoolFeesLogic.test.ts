@@ -49,22 +49,22 @@ describe("PoolFeesLogic", () => {
         // Check liquidity pool diff
         expect(result.liquidityPoolDiff).toBeDefined();
         // For regular pools, fees are tracked as unstaked fees
-        expect(result.liquidityPoolDiff?.totalUnstakedFeesCollected0).toBe(
-          mockEvent.params.amount0,
-        );
-        expect(result.liquidityPoolDiff?.totalUnstakedFeesCollected1).toBe(
-          mockEvent.params.amount1,
-        );
+        expect(
+          result.liquidityPoolDiff?.incrementalUnstakedFeesCollected0,
+        ).toBe(mockEvent.params.amount0);
+        expect(
+          result.liquidityPoolDiff?.incrementalUnstakedFeesCollected1,
+        ).toBe(mockEvent.params.amount1);
         expect(result.liquidityPoolDiff?.lastUpdatedTimestamp).toEqual(
           new Date(mockEvent.block.timestamp * 1000),
         );
 
         // Check user diff data
         expect(result.userDiff).toBeDefined();
-        expect(result.userDiff?.totalFeesContributed0).toBe(
+        expect(result.userDiff?.incrementalFeesContributed0).toBe(
           mockEvent.params.amount0,
         );
-        expect(result.userDiff?.totalFeesContributed1).toBe(
+        expect(result.userDiff?.incrementalFeesContributed1).toBe(
           mockEvent.params.amount1,
         );
         expect(result.userDiff?.lastActivityTimestamp).toEqual(
@@ -82,10 +82,10 @@ describe("PoolFeesLogic", () => {
 
         // Check that user diff data is prepared correctly
         expect(result.userDiff).toBeDefined();
-        expect(result.userDiff?.totalFeesContributed0).toBe(
+        expect(result.userDiff?.incrementalFeesContributed0).toBe(
           mockEvent.params.amount0,
         );
-        expect(result.userDiff?.totalFeesContributed1).toBe(
+        expect(result.userDiff?.incrementalFeesContributed1).toBe(
           mockEvent.params.amount1,
         );
         expect(result.userDiff?.lastActivityTimestamp).toEqual(
@@ -107,11 +107,11 @@ describe("PoolFeesLogic", () => {
         // We just verify that the result contains the expected structure
         expect(result.liquidityPoolDiff).toBeDefined();
         expect(
-          typeof result.liquidityPoolDiff?.totalUnstakedFeesCollectedUSD,
+          typeof result.liquidityPoolDiff?.incrementalUnstakedFeesCollectedUSD,
         ).toBe("bigint");
-        expect(typeof result.liquidityPoolDiff?.totalFeesUSDWhitelisted).toBe(
-          "bigint",
-        );
+        expect(
+          typeof result.liquidityPoolDiff?.incrementalFeesUSDWhitelisted,
+        ).toBe("bigint");
       });
 
       it("should handle different token decimals correctly", async () => {

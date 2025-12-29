@@ -18,6 +18,63 @@ export type DynamicFeeConfig = {
   scalingFactor: bigint;
 };
 
+interface LiquidityPoolAggregatorDiff {
+  reserve0: bigint;
+  reserve1: bigint;
+  totalLiquidityUSD: bigint;
+  totalVolume0: bigint;
+  totalVolume1: bigint;
+  totalVolumeUSD: bigint;
+  totalVolumeUSDWhitelisted: bigint;
+  incrementalFeesUSDWhitelisted: bigint;
+  incrementalUnstakedFeesCollected0: bigint;
+  incrementalUnstakedFeesCollected1: bigint;
+  incrementalUnstakedFeesCollectedUSD: bigint;
+  incrementalStakedFeesCollected0: bigint;
+  incrementalStakedFeesCollected1: bigint;
+  incrementalStakedFeesCollectedUSD: bigint;
+  numberOfSwaps: bigint;
+  totalEmissions: bigint;
+  totalEmissionsUSD: bigint;
+  totalBribesUSD: bigint;
+  totalFlashLoanFees0: bigint;
+  totalFlashLoanFees1: bigint;
+  totalFlashLoanFeesUSD: bigint;
+  totalFlashLoanVolumeUSD: bigint;
+  numberOfFlashLoans: bigint;
+  numberOfGaugeDeposits: bigint;
+  numberOfGaugeWithdrawals: bigint;
+  numberOfGaugeRewardClaims: bigint;
+  totalGaugeRewardsClaimedUSD: bigint;
+  totalGaugeRewardsClaimed: bigint;
+  currentLiquidityStaked: bigint;
+  currentLiquidityStakedUSD: bigint;
+  token0Price: bigint;
+  token1Price: bigint;
+  token0IsWhitelisted: boolean;
+  token1IsWhitelisted: boolean;
+  gaugeIsAlive: boolean;
+  gaugeAddress: string;
+  bribeVotingRewardAddress: string;
+  feeVotingRewardAddress: string;
+  feeProtocol0: bigint;
+  feeProtocol1: bigint;
+  observationCardinalityNext: bigint;
+  totalVotesDeposited: bigint;
+  totalVotesDepositedUSD: bigint;
+  totalBribeClaimed: bigint;
+  totalBribeClaimedUSD: bigint;
+  totalFeeRewardClaimed: bigint;
+  totalFeeRewardClaimedUSD: bigint;
+  veNFTamountStaked: bigint;
+  baseFee: bigint;
+  feeCap: bigint;
+  scalingFactor: bigint;
+  currentFee: bigint;
+  lastUpdatedTimestamp: Date;
+  lastSnapshotTimestamp: Date;
+}
+
 /**
  * Update the dynamic fee pools data from the swap module.
  * @param liquidityPoolAggregator
@@ -107,7 +164,7 @@ export function setLiquidityPoolAggregatorSnapshot(
  * @param context - The handler context used to store the updated state and snapshots.
  */
 export async function updateLiquidityPoolAggregator(
-  diff: Partial<LiquidityPoolAggregator>,
+  diff: Partial<LiquidityPoolAggregatorDiff>,
   current: LiquidityPoolAggregator,
   timestamp: Date,
   context: handlerContext,
@@ -127,26 +184,27 @@ export async function updateLiquidityPoolAggregator(
       (diff.totalVolumeUSDWhitelisted ?? 0n) +
       current.totalVolumeUSDWhitelisted,
     totalFeesUSDWhitelisted:
-      (diff.totalFeesUSDWhitelisted ?? 0n) + current.totalFeesUSDWhitelisted,
+      (diff.incrementalFeesUSDWhitelisted ?? 0n) +
+      current.totalFeesUSDWhitelisted,
     // Unstaked fees (from Collect events - LPs that didn't stake)
     totalUnstakedFeesCollected0:
-      (diff.totalUnstakedFeesCollected0 ?? 0n) +
+      (diff.incrementalUnstakedFeesCollected0 ?? 0n) +
       current.totalUnstakedFeesCollected0,
     totalUnstakedFeesCollected1:
-      (diff.totalUnstakedFeesCollected1 ?? 0n) +
+      (diff.incrementalUnstakedFeesCollected1 ?? 0n) +
       current.totalUnstakedFeesCollected1,
     totalUnstakedFeesCollectedUSD:
-      (diff.totalUnstakedFeesCollectedUSD ?? 0n) +
+      (diff.incrementalUnstakedFeesCollectedUSD ?? 0n) +
       current.totalUnstakedFeesCollectedUSD,
     // Staked fees (from CollectFees events - LPs that staked in gauge)
     totalStakedFeesCollected0:
-      (diff.totalStakedFeesCollected0 ?? 0n) +
+      (diff.incrementalStakedFeesCollected0 ?? 0n) +
       current.totalStakedFeesCollected0,
     totalStakedFeesCollected1:
-      (diff.totalStakedFeesCollected1 ?? 0n) +
+      (diff.incrementalStakedFeesCollected1 ?? 0n) +
       current.totalStakedFeesCollected1,
     totalStakedFeesCollectedUSD:
-      (diff.totalStakedFeesCollectedUSD ?? 0n) +
+      (diff.incrementalStakedFeesCollectedUSD ?? 0n) +
       current.totalStakedFeesCollectedUSD,
     numberOfSwaps: (diff.numberOfSwaps ?? 0n) + current.numberOfSwaps,
     totalEmissions: (diff.totalEmissions ?? 0n) + current.totalEmissions,
