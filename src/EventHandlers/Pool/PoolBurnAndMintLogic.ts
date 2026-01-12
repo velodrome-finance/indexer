@@ -39,11 +39,14 @@ export async function processPoolLiquidityEvent(
 
   const netLiquidityUSDChange = reserveData.totalLiquidityUSD ?? 0n;
 
+  // Check if this is a mint event by looking for 'to' parameter (burn events have 'to', mint events don't)
+  const isMintEvent = !("to" in event.params);
+
   // Create liquidity pool diff
   const liquidityPoolDiff = {
     // Update reserves cumulatively
-    incrementalReserve0: amount0,
-    incrementalReserve1: amount1,
+    incrementalReserve0: isMintEvent ? amount0 : -amount0,
+    incrementalReserve1: isMintEvent ? amount1 : -amount1,
     // Update token prices
     token0Price:
       reserveData.token0?.pricePerUSDNew ?? liquidityPoolAggregator.token0Price,
@@ -55,8 +58,6 @@ export async function processPoolLiquidityEvent(
   };
 
   // Create user liquidity diff for tracking user activity
-  // Check if this is a mint event by looking for 'to' parameter (burn events have 'to', mint events don't)
-  const isMintEvent = !("to" in event.params);
   const incrementalCurrentLiquidityUSD = isMintEvent
     ? netLiquidityUSDChange
     : -netLiquidityUSDChange;
