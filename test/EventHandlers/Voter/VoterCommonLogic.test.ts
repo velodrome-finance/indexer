@@ -166,7 +166,7 @@ describe("buildLpDiffFromDistribute", () => {
     expect(diff.incrementalTotalEmissions).toBe(3n);
     expect(diff.incrementalTotalEmissionsUSD).toBe(6n);
     expect(diff.gaugeIsAlive).toBe(true);
-    expect(+diff.lastUpdatedTimestamp).toBe(ts);
+    expect(diff.lastUpdatedTimestamp).toEqual(new Date(ts));
     expect(diff.gaugeAddress).toBe("0xgauge");
   });
 });
