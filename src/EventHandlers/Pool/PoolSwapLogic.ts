@@ -41,8 +41,6 @@ export async function processPoolSwap(
     token1Price:
       swapData.token1?.pricePerUSDNew ?? liquidityPoolAggregator.token1Price,
     incrementalNumberOfSwaps: 1n,
-    token0IsWhitelisted: swapData.token0?.isWhitelisted ?? false,
-    token1IsWhitelisted: swapData.token1?.isWhitelisted ?? false,
     lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
   };
 

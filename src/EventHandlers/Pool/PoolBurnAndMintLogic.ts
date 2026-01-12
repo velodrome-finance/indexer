@@ -49,13 +49,6 @@ export async function processPoolLiquidityEvent(
       reserveData.token0?.pricePerUSDNew ?? liquidityPoolAggregator.token0Price,
     token1Price:
       reserveData.token1?.pricePerUSDNew ?? liquidityPoolAggregator.token1Price,
-    // Update whitelist status
-    token0IsWhitelisted:
-      reserveData.token0?.isWhitelisted ??
-      liquidityPoolAggregator.token0IsWhitelisted,
-    token1IsWhitelisted:
-      reserveData.token1?.isWhitelisted ??
-      liquidityPoolAggregator.token1IsWhitelisted,
     // Update total liquidity USD if available
     incrementalCurrentLiquidityUSD: netLiquidityUSDChange,
     lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),

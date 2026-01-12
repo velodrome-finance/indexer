@@ -125,8 +125,6 @@ describe("PoolSwapLogic", () => {
         incrementalNumberOfSwaps: 1n, // diff
         token0Price: 1000000000000000000n, // from mockToken0.pricePerUSDNew
         token1Price: 1000000000000000000n, // from mockToken1.pricePerUSDNew
-        token0IsWhitelisted: true, // from mockToken0.isWhitelisted
-        token1IsWhitelisted: true, // from mockToken1.isWhitelisted
       });
 
       // Check timestamp separately
@@ -389,7 +387,6 @@ describe("PoolSwapLogic", () => {
       expect(result.liquidityPoolDiff?.token0Price).toBe(
         mockLiquidityPoolAggregator.token0Price,
       );
-      expect(result.liquidityPoolDiff?.token0IsWhitelisted).toBe(false);
       expect(result.liquidityPoolDiff?.token1Price).toBe(
         mockToken1.pricePerUSDNew,
       );
@@ -414,7 +411,6 @@ describe("PoolSwapLogic", () => {
       expect(result.liquidityPoolDiff?.token1Price).toBe(
         mockLiquidityPoolAggregator.token1Price,
       );
-      expect(result.liquidityPoolDiff?.token1IsWhitelisted).toBe(false);
     });
 
     it("should use fallback when token0.pricePerUSDNew is undefined", async () => {
@@ -463,48 +459,6 @@ describe("PoolSwapLogic", () => {
       );
     });
 
-    it("should use fallback when token0.isWhitelisted is undefined", async () => {
-      const token0WithoutWhitelist = {
-        ...mockToken0,
-        isWhitelisted: undefined,
-      } as unknown as Token;
-
-      updateSwapTokenDataSpy.mockResolvedValue(
-        createMockSwapData({ token0: token0WithoutWhitelist }),
-      );
-
-      const result = await processPoolSwap(
-        mockEvent,
-        mockLiquidityPoolAggregator,
-        mockToken0,
-        mockToken1,
-        mockContext,
-      );
-
-      expect(result.liquidityPoolDiff?.token0IsWhitelisted).toBe(false);
-    });
-
-    it("should use fallback when token1.isWhitelisted is undefined", async () => {
-      const token1WithoutWhitelist = {
-        ...mockToken1,
-        isWhitelisted: undefined,
-      } as unknown as Token;
-
-      updateSwapTokenDataSpy.mockResolvedValue(
-        createMockSwapData({ token1: token1WithoutWhitelist }),
-      );
-
-      const result = await processPoolSwap(
-        mockEvent,
-        mockLiquidityPoolAggregator,
-        mockToken0,
-        mockToken1,
-        mockContext,
-      );
-
-      expect(result.liquidityPoolDiff?.token1IsWhitelisted).toBe(false);
-    });
-
     it("should use fallback values when both tokens are undefined", async () => {
       updateSwapTokenDataSpy.mockResolvedValue(
         createMockSwapData({
@@ -531,8 +485,6 @@ describe("PoolSwapLogic", () => {
       expect(result.liquidityPoolDiff?.token1Price).toBe(
         mockLiquidityPoolAggregator.token1Price,
       );
-      expect(result.liquidityPoolDiff?.token0IsWhitelisted).toBe(false);
-      expect(result.liquidityPoolDiff?.token1IsWhitelisted).toBe(false);
       expect(result.liquidityPoolDiff?.incrementalTotalVolume0).toBe(0n);
       expect(result.liquidityPoolDiff?.incrementalTotalVolume1).toBe(0n);
     });

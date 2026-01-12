@@ -58,8 +58,6 @@ export async function processCLFactoryPoolCreated(
       token1Address: event.params.token1,
       token0Symbol: poolTokenSymbols[0],
       token1Symbol: poolTokenSymbols[1],
-      token0IsWhitelisted: poolToken0?.isWhitelisted ?? false,
-      token1IsWhitelisted: poolToken1?.isWhitelisted ?? false,
       timestamp: new Date(event.block.timestamp * 1000),
       tickSpacing: Number(event.params.tickSpacing),
       CLGaugeConfig: CLGaugeConfig,

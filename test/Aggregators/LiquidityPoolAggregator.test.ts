@@ -191,8 +191,6 @@ describe("LiquidityPoolAggregator Functions", () => {
       totalEmissionsUSD: 0n,
       totalBribesUSD: 0n,
       gaugeIsAlive: false,
-      token0IsWhitelisted: false,
-      token1IsWhitelisted: false,
       lastUpdatedTimestamp: new Date(),
       lastSnapshotTimestamp: new Date(),
     });
