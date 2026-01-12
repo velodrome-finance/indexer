@@ -64,8 +64,6 @@ export async function processCLPoolSwap(
       swapData.token0?.pricePerUSDNew ?? liquidityPoolAggregator.token0Price,
     token1Price:
       swapData.token1?.pricePerUSDNew ?? liquidityPoolAggregator.token1Price,
-    token0IsWhitelisted: swapData.token0?.isWhitelisted ?? false,
-    token1IsWhitelisted: swapData.token1?.isWhitelisted ?? false,
     incrementalNumberOfSwaps: 1n,
     incrementalReserve0: event.params.amount0, // Delta: can be positive or negative (signed int256)
     incrementalReserve1: event.params.amount1, // Delta: can be positive or negative (signed int256)

@@ -49,6 +49,7 @@ Voter.GaugeCreated.handler(async ({ event, context }) => {
       gaugeAddress: gaugeAddress,
       feeVotingRewardAddress: event.params.feeVotingReward,
       bribeVotingRewardAddress: event.params.bribeVotingReward,
+      gaugeIsAlive: true, // Newly created gauges are always alive
       lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
     };
 

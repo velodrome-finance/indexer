@@ -46,8 +46,6 @@ describe("processPoolLiquidityEvent", () => {
       // These values should match what updateReserveTokenData returns
       expect(result.liquidityPoolDiff?.token0Price).toBe(1000000000000000000n);
       expect(result.liquidityPoolDiff?.token1Price).toBe(1000000000000000000n);
-      expect(result.liquidityPoolDiff?.token0IsWhitelisted).toBe(true);
-      expect(result.liquidityPoolDiff?.token1IsWhitelisted).toBe(true);
       expect(result.liquidityPoolDiff?.incrementalCurrentLiquidityUSD).toBe(
         2000000000001000000000000000000000n,
       );
@@ -217,9 +215,6 @@ describe("processPoolLiquidityEvent", () => {
       expect(result.liquidityPoolDiff?.token0Price).toBe(
         commonData.mockLiquidityPoolData.token0Price,
       );
-      expect(result.liquidityPoolDiff?.token0IsWhitelisted).toBe(
-        commonData.mockLiquidityPoolData.token0IsWhitelisted,
-      );
       expect(result.liquidityPoolDiff?.token1Price).toBe(
         commonData.mockToken1Data.pricePerUSDNew,
       );
@@ -243,9 +238,6 @@ describe("processPoolLiquidityEvent", () => {
 
       expect(result.liquidityPoolDiff?.token1Price).toBe(
         commonData.mockLiquidityPoolData.token1Price,
-      );
-      expect(result.liquidityPoolDiff?.token1IsWhitelisted).toBe(
-        commonData.mockLiquidityPoolData.token1IsWhitelisted,
       );
       expect(result.liquidityPoolDiff?.token0Price).toBe(
         commonData.mockToken0Data.pricePerUSDNew,
@@ -312,12 +304,6 @@ describe("processPoolLiquidityEvent", () => {
       );
       expect(result.liquidityPoolDiff?.token1Price).toBe(
         commonData.mockLiquidityPoolData.token1Price,
-      );
-      expect(result.liquidityPoolDiff?.token0IsWhitelisted).toBe(
-        commonData.mockLiquidityPoolData.token0IsWhitelisted,
-      );
-      expect(result.liquidityPoolDiff?.token1IsWhitelisted).toBe(
-        commonData.mockLiquidityPoolData.token1IsWhitelisted,
       );
     });
   });

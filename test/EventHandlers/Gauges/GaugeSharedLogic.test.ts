@@ -111,8 +111,6 @@ describe("GaugeSharedLogic", () => {
       token1Price: 1000000000000000000n,
       gaugeAddress: mockGaugeAddress,
       gaugeIsAlive: true,
-      token0IsWhitelisted: true,
-      token1IsWhitelisted: true,
       currentLiquidityStaked: 0n,
       currentLiquidityStakedUSD: 0n,
       lastUpdatedTimestamp: mockTimestamp,

@@ -75,8 +75,6 @@ PoolFactory.PoolCreated.handler(async ({ event, context }) => {
     token1Address: event.params.token1,
     token0Symbol: poolTokenSymbols[0],
     token1Symbol: poolTokenSymbols[1],
-    token0IsWhitelisted: poolToken0?.isWhitelisted ?? false,
-    token1IsWhitelisted: poolToken1?.isWhitelisted ?? false,
     timestamp: new Date(event.block.timestamp * 1000),
   });
 
@@ -97,7 +95,7 @@ PoolFactory.PoolCreated.handler(async ({ event, context }) => {
         factory: ROOT_POOL_FACTORY_ADDRESS_OPTIMISM,
         token0: event.params.token0,
         token1: event.params.token1,
-        type: 0, // 0 for non-CL pools
+        type: event.params.stable ? 0 : -1, // -1 for vAMM pools, 0 for sAMM pools, or the tick spacing value for CL pools
       });
     } catch (error) {
       context.log.error(

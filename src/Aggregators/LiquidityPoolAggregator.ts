@@ -51,8 +51,6 @@ export interface LiquidityPoolAggregatorDiff {
   incrementalCurrentLiquidityStakedUSD: bigint;
   token0Price: bigint;
   token1Price: bigint;
-  token0IsWhitelisted: boolean;
-  token1IsWhitelisted: boolean;
   gaugeIsAlive: boolean;
   gaugeAddress: string;
   bribeVotingRewardAddress: string;
@@ -257,10 +255,6 @@ export async function updateLiquidityPoolAggregator(
     // Handle non-cumulative fields (prices, timestamps, etc.) - use diff values directly
     token0Price: diff.token0Price ?? current.token0Price,
     token1Price: diff.token1Price ?? current.token1Price,
-    token0IsWhitelisted:
-      diff.token0IsWhitelisted ?? current.token0IsWhitelisted,
-    token1IsWhitelisted:
-      diff.token1IsWhitelisted ?? current.token1IsWhitelisted,
     gaugeIsAlive: diff.gaugeIsAlive ?? current.gaugeIsAlive,
     gaugeAddress: diff.gaugeAddress ?? current.gaugeAddress,
     bribeVotingRewardAddress:
@@ -549,8 +543,6 @@ export function createLiquidityPoolAggregatorEntity(params: {
   token1Address: string;
   token0Symbol: string;
   token1Symbol: string;
-  token0IsWhitelisted: boolean;
-  token1IsWhitelisted: boolean;
   timestamp: Date;
   tickSpacing?: number; // For CL pools
   CLGaugeConfig?: CLGaugeConfig | null; // For CL pools
@@ -564,8 +556,6 @@ export function createLiquidityPoolAggregatorEntity(params: {
     token1Address,
     token0Symbol,
     token1Symbol,
-    token0IsWhitelisted,
-    token1IsWhitelisted,
     timestamp,
     tickSpacing,
     CLGaugeConfig,
@@ -610,8 +600,6 @@ export function createLiquidityPoolAggregatorEntity(params: {
     totalVotesDeposited: 0n,
     totalVotesDepositedUSD: 0n,
     gaugeIsAlive: false,
-    token0IsWhitelisted: token0IsWhitelisted,
-    token1IsWhitelisted: token1IsWhitelisted,
     lastUpdatedTimestamp: timestamp,
     lastSnapshotTimestamp: timestamp,
     // CL Pool specific fields (set to 0 for regular pools)
