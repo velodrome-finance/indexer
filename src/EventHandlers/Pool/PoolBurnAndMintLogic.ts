@@ -77,7 +77,7 @@ export async function processPoolLiquidityEvent(
       ? incrementalCurrentLiquidityUSD
       : 0n,
     incrementalTotalLiquidityRemovedUSD: !isMintEvent
-      ? incrementalCurrentLiquidityUSD
+      ? -incrementalCurrentLiquidityUSD // Negative for burn (removal), therefore we need to negate the value
       : 0n,
     lastActivityTimestamp: new Date(event.block.timestamp * 1000),
   };

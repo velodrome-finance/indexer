@@ -36,7 +36,7 @@ export interface LiquidityPoolAggregatorDiff {
   incrementalNumberOfSwaps: bigint;
   incrementalTotalEmissions: bigint;
   incrementalTotalEmissionsUSD: bigint;
-  totalBribesUSD: bigint;
+  incrementalTotalBribesUSD: bigint;
   incrementalTotalFlashLoanFees0: bigint;
   incrementalTotalFlashLoanFees1: bigint;
   incrementalTotalFlashLoanFeesUSD: bigint;
@@ -60,8 +60,8 @@ export interface LiquidityPoolAggregatorDiff {
   feeProtocol0: bigint;
   feeProtocol1: bigint;
   observationCardinalityNext: bigint;
-  incrementalTotalVotesDeposited: bigint;
-  incrementalTotalVotesDepositedUSD: bigint;
+  totalVotesDeposited: bigint;
+  totalVotesDepositedUSD: bigint;
   incrementalTotalBribeClaimed: bigint;
   incrementalTotalBribeClaimedUSD: bigint;
   incrementalTotalFeeRewardClaimed: bigint;
@@ -213,7 +213,8 @@ export async function updateLiquidityPoolAggregator(
       (diff.incrementalTotalEmissions ?? 0n) + current.totalEmissions,
     totalEmissionsUSD:
       (diff.incrementalTotalEmissionsUSD ?? 0n) + current.totalEmissionsUSD,
-    totalBribesUSD: (diff.totalBribesUSD ?? 0n) + current.totalBribesUSD,
+    totalBribesUSD:
+      (diff.incrementalTotalBribesUSD ?? 0n) + current.totalBribesUSD,
     totalFlashLoanFees0:
       (diff.incrementalTotalFlashLoanFees0 ?? 0n) +
       (current.totalFlashLoanFees0 ?? 0n),
@@ -271,10 +272,9 @@ export async function updateLiquidityPoolAggregator(
     observationCardinalityNext:
       diff.observationCardinalityNext ?? current.observationCardinalityNext,
     totalVotesDeposited:
-      (diff.incrementalTotalVotesDeposited ?? 0n) + current.totalVotesDeposited,
+      diff.totalVotesDeposited ?? current.totalVotesDeposited,
     totalVotesDepositedUSD:
-      (diff.incrementalTotalVotesDepositedUSD ?? 0n) +
-      current.totalVotesDepositedUSD,
+      diff.totalVotesDepositedUSD ?? current.totalVotesDepositedUSD,
 
     // Voting Reward Claims - cumulative fields
     totalBribeClaimed:

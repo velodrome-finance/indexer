@@ -743,16 +743,16 @@ describe("CLPool Events", () => {
       processSpy.mockClear();
       processSpy.mockReturnValue({
         liquidityPoolDiff: {
-          totalFlashLoanFees0: 0n,
-          totalFlashLoanFees1: 0n,
-          totalFlashLoanFeesUSD: 0n,
-          numberOfFlashLoans: 1n,
-          totalFlashLoanVolumeUSD: 0n,
+          incrementalTotalFlashLoanFees0: 0n,
+          incrementalTotalFlashLoanFees1: 0n,
+          incrementalTotalFlashLoanFeesUSD: 0n,
+          incrementalNumberOfFlashLoans: 1n,
+          incrementalTotalFlashLoanVolumeUSD: 0n,
           lastUpdatedTimestamp: new Date(1000000 * 1000),
         },
         userFlashLoanDiff: {
-          numberOfFlashLoans: 1n,
-          totalFlashLoanVolumeUSD: 0n,
+          incrementalNumberOfFlashLoans: 1n,
+          incrementalTotalFlashLoanVolumeUSD: 0n,
           lastActivityTimestamp: new Date(1000000 * 1000),
         },
       });

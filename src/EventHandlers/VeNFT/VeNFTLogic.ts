@@ -67,7 +67,6 @@ export async function processVeNFTEvent(
       ...veNFTAggregatorDiff,
       owner: toChecksummedAddress,
       locktime: currentVeNFT?.locktime ?? 0n,
-      incrementalTotalValueLocked: currentVeNFT?.totalValueLocked ?? 0n,
       isAlive: event.params.to !== "0x0000000000000000000000000000000000000000",
     };
   } else {

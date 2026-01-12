@@ -319,8 +319,8 @@ describe("LiquidityPoolAggregator Functions", () => {
       incrementalNumberOfSwaps: 0n,
       incrementalTotalVolumeUSDWhitelisted: 0n,
       incrementalTotalFeesUSDWhitelisted: 0n,
-      incrementalTotalVotesDeposited: 0n,
-      incrementalTotalVotesDepositedUSD: 0n,
+      totalVotesDeposited: 0n,
+      totalVotesDepositedUSD: 0n,
       incrementalTotalEmissions: 0n,
     };
     beforeEach(async () => {
@@ -331,8 +331,8 @@ describe("LiquidityPoolAggregator Functions", () => {
         incrementalNumberOfSwaps: 11n,
         incrementalTotalVolumeUSDWhitelisted: 8000n,
         incrementalTotalFeesUSDWhitelisted: 9000n,
-        incrementalTotalVotesDeposited: 2000n,
-        incrementalTotalVotesDepositedUSD: 3000n,
+        totalVotesDeposited: 2000n,
+        totalVotesDepositedUSD: 3000n,
         incrementalTotalEmissions: 4000n,
       };
       await updateLiquidityPoolAggregator(

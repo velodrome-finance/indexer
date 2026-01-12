@@ -424,13 +424,13 @@ describe("CLPoolCollectFeesLogic", () => {
       // Unstaked fees should not be present in the diff (they're undefined, not 0)
       // The aggregator will handle the addition, but the diff only contains staked fees
       expect(result.liquidityPoolDiff).not.toHaveProperty(
-        "totalUnstakedFeesCollected0",
+        "incrementalTotalUnstakedFeesCollected0",
       );
       expect(result.liquidityPoolDiff).not.toHaveProperty(
-        "totalUnstakedFeesCollected1",
+        "incrementalTotalUnstakedFeesCollected1",
       );
       expect(result.liquidityPoolDiff).not.toHaveProperty(
-        "totalUnstakedFeesCollectedUSD",
+        "incrementalTotalUnstakedFeesCollectedUSD",
       );
     });
 

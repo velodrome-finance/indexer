@@ -94,8 +94,8 @@ export function buildLpDiffFromDistribute(
   timestampMs: number,
 ) {
   return {
-    incrementalTotalVotesDeposited: result.tokensDeposited,
-    incrementalTotalVotesDepositedUSD: result.normalizedVotesDepositedAmountUsd,
+    totalVotesDeposited: result.tokensDeposited,
+    totalVotesDepositedUSD: result.normalizedVotesDepositedAmountUsd,
     incrementalTotalEmissions: result.normalizedEmissionsAmount,
     incrementalTotalEmissionsUSD: result.normalizedEmissionsAmountUsd,
     lastUpdatedTimestamp: new Date(timestampMs),

@@ -161,8 +161,8 @@ describe("buildLpDiffFromDistribute", () => {
     };
     const ts = 1_700_000_000_000;
     const diff = buildLpDiffFromDistribute(res, "0xgauge", ts);
-    expect(diff.incrementalTotalVotesDeposited).toBe(10n);
-    expect(diff.incrementalTotalVotesDepositedUSD).toBe(20n);
+    expect(diff.totalVotesDeposited).toBe(10n);
+    expect(diff.totalVotesDepositedUSD).toBe(20n);
     expect(diff.incrementalTotalEmissions).toBe(3n);
     expect(diff.incrementalTotalEmissionsUSD).toBe(6n);
     expect(diff.gaugeIsAlive).toBe(true);
