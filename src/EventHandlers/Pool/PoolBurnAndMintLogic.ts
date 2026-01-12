@@ -5,20 +5,13 @@ import type {
   Token,
   handlerContext,
 } from "generated";
+import type { LiquidityPoolAggregatorDiff } from "../../Aggregators/LiquidityPoolAggregator";
+import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import { updateReserveTokenData } from "../../Helpers";
 
-export interface UserLiquidityDiff {
-  currentLiquidityUSD: bigint; // Positive for added, negative for removed
-  currentLiquidityToken0: bigint;
-  currentLiquidityToken1: bigint;
-  totalLiquidityAddedUSD: bigint; // Amount added (positive value, 0n for burn events)
-  totalLiquidityRemovedUSD: bigint; // Amount removed (positive value, 0n for mint events)
-  lastActivityTimestamp: Date;
-}
-
 export interface PoolLiquidityResult {
-  liquidityPoolDiff: Partial<LiquidityPoolAggregator>;
-  userLiquidityDiff?: UserLiquidityDiff;
+  liquidityPoolDiff: Partial<LiquidityPoolAggregatorDiff>;
+  userLiquidityDiff?: Partial<UserStatsPerPoolDiff>;
 }
 
 /**
@@ -44,11 +37,13 @@ export async function processPoolLiquidityEvent(
     context,
   );
 
+  const netLiquidityUSDChange = reserveData.totalLiquidityUSD ?? 0n;
+
   // Create liquidity pool diff
-  const liquidityPoolDiff: Partial<LiquidityPoolAggregator> = {
+  const liquidityPoolDiff = {
     // Update reserves cumulatively
-    reserve0: amount0,
-    reserve1: amount1,
+    incrementalReserve0: amount0,
+    incrementalReserve1: amount1,
     // Update token prices
     token0Price:
       reserveData.token0?.pricePerUSDNew ?? liquidityPoolAggregator.token0Price,
@@ -62,26 +57,28 @@ export async function processPoolLiquidityEvent(
       reserveData.token1?.isWhitelisted ??
       liquidityPoolAggregator.token1IsWhitelisted,
     // Update total liquidity USD if available
-    totalLiquidityUSD:
-      reserveData.totalLiquidityUSD ??
-      liquidityPoolAggregator.totalLiquidityUSD,
+    incrementalCurrentLiquidityUSD: netLiquidityUSDChange,
     lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
   };
 
   // Create user liquidity diff for tracking user activity
   // Check if this is a mint event by looking for 'to' parameter (burn events have 'to', mint events don't)
   const isMintEvent = !("to" in event.params);
-  const currentLiquidityUSD = isMintEvent
-    ? reserveData.totalLiquidityUSD
-    : -reserveData.totalLiquidityUSD;
-  const userLiquidityDiff: UserLiquidityDiff = {
-    currentLiquidityUSD,
+  const incrementalCurrentLiquidityUSD = isMintEvent
+    ? netLiquidityUSDChange
+    : -netLiquidityUSDChange;
+  const userLiquidityDiff = {
+    incrementalCurrentLiquidityUSD: incrementalCurrentLiquidityUSD,
     // For burn events, use negative amounts to subtract from user's liquidity
     // For mint events, use positive amounts to add to user's liquidity
-    currentLiquidityToken0: isMintEvent ? amount0 : -amount0,
-    currentLiquidityToken1: isMintEvent ? amount1 : -amount1,
-    totalLiquidityAddedUSD: isMintEvent ? reserveData.totalLiquidityUSD : 0n,
-    totalLiquidityRemovedUSD: !isMintEvent ? reserveData.totalLiquidityUSD : 0n,
+    incrementalCurrentLiquidityToken0: isMintEvent ? amount0 : -amount0,
+    incrementalCurrentLiquidityToken1: isMintEvent ? amount1 : -amount1,
+    incrementalTotalLiquidityAddedUSD: isMintEvent
+      ? incrementalCurrentLiquidityUSD
+      : 0n,
+    incrementalTotalLiquidityRemovedUSD: !isMintEvent
+      ? incrementalCurrentLiquidityUSD
+      : 0n,
     lastActivityTimestamp: new Date(event.block.timestamp * 1000),
   };
 

@@ -4,13 +4,14 @@ import type {
   Token,
   handlerContext,
 } from "generated";
+import type { LiquidityPoolAggregatorDiff } from "../../Aggregators/LiquidityPoolAggregator";
 import {
   calculateTotalLiquidityUSD,
   updateReserveTokenData,
 } from "../../Helpers";
 
 export interface PoolSyncResult {
-  liquidityPoolDiff?: Partial<LiquidityPoolAggregator>;
+  liquidityPoolDiff: Partial<LiquidityPoolAggregatorDiff>;
 }
 
 export async function processPoolSync(
@@ -61,10 +62,10 @@ export async function processPoolSync(
       newTotalLiquidityUSD - liquidityPoolAggregator.totalLiquidityUSD;
   }
 
-  const liquidityPoolDiff: Partial<LiquidityPoolAggregator> = {
-    reserve0: reserve0Change,
-    reserve1: reserve1Change,
-    totalLiquidityUSD: totalLiquidityUSDChange,
+  const liquidityPoolDiff = {
+    incrementalReserve0: reserve0Change,
+    incrementalReserve1: reserve1Change,
+    incrementalCurrentLiquidityUSD: totalLiquidityUSDChange,
     token0Price:
       reserveData.token0?.pricePerUSDNew ?? liquidityPoolAggregator.token0Price,
     token1Price:

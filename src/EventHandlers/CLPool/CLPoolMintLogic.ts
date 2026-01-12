@@ -1,20 +1,11 @@
 import type { CLPool_Mint_event, Token } from "generated";
+import type { LiquidityPoolAggregatorDiff } from "../../Aggregators/LiquidityPoolAggregator";
+import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import { calculateTotalLiquidityUSD } from "../../Helpers";
 
 export interface CLPoolMintResult {
-  liquidityPoolDiff: {
-    reserve0: bigint;
-    reserve1: bigint;
-    totalLiquidityUSD: bigint;
-    lastUpdatedTimestamp: Date;
-  };
-  userLiquidityDiff: {
-    currentLiquidityUSD: bigint;
-    currentLiquidityToken0: bigint;
-    currentLiquidityToken1: bigint;
-    totalLiquidityAddedUSD: bigint;
-    lastActivityTimestamp: Date;
-  };
+  liquidityPoolDiff: Partial<LiquidityPoolAggregatorDiff>;
+  userLiquidityDiff: Partial<UserStatsPerPoolDiff>;
 }
 
 export function processCLPoolMint(
@@ -31,17 +22,17 @@ export function processCLPoolMint(
   );
 
   const liquidityPoolDiff = {
-    reserve0: event.params.amount0,
-    reserve1: event.params.amount1,
-    totalLiquidityUSD,
+    incrementalReserve0: event.params.amount0,
+    incrementalReserve1: event.params.amount1,
+    incrementalCurrentLiquidityUSD: totalLiquidityUSD,
     lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
   };
 
   const userLiquidityDiff = {
-    currentLiquidityUSD: totalLiquidityUSD, // For mint, we're adding liquidity
-    currentLiquidityToken0: event.params.amount0, // Amount of token0 added
-    currentLiquidityToken1: event.params.amount1, // Amount of token1 added
-    totalLiquidityAddedUSD: totalLiquidityUSD, // Track total liquidity added
+    incrementalCurrentLiquidityUSD: totalLiquidityUSD, // For mint, we're adding liquidity
+    incrementalCurrentLiquidityToken0: event.params.amount0, // Amount of token0 added
+    incrementalCurrentLiquidityToken1: event.params.amount1, // Amount of token1 added
+    incrementalTotalLiquidityAddedUSD: totalLiquidityUSD, // Track total liquidity added
     lastActivityTimestamp: new Date(event.block.timestamp * 1000),
   };
 

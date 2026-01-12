@@ -1,20 +1,11 @@
 import type { CLPool_Burn_event, Token } from "generated";
+import type { LiquidityPoolAggregatorDiff } from "../../Aggregators/LiquidityPoolAggregator";
+import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import { calculateTotalLiquidityUSD } from "../../Helpers";
 
 export interface CLPoolBurnResult {
-  liquidityPoolDiff: {
-    reserve0: bigint;
-    reserve1: bigint;
-    totalLiquidityUSD: bigint;
-    lastUpdatedTimestamp: Date;
-  };
-  userLiquidityDiff: {
-    currentLiquidityUSD: bigint;
-    currentLiquidityToken0: bigint;
-    currentLiquidityToken1: bigint;
-    totalLiquidityRemovedUSD: bigint;
-    lastActivityTimestamp: Date;
-  };
+  liquidityPoolDiff: Partial<LiquidityPoolAggregatorDiff>;
+  userLiquidityDiff: Partial<UserStatsPerPoolDiff>;
 }
 
 export function processCLPoolBurn(
@@ -31,19 +22,19 @@ export function processCLPoolBurn(
   );
 
   const liquidityPoolDiff = {
-    reserve0: -event.params.amount0,
-    reserve1: -event.params.amount1,
-    totalLiquidityUSD: -totalLiquidityUSD,
+    incrementalReserve0: -event.params.amount0,
+    incrementalReserve1: -event.params.amount1,
+    incrementalCurrentLiquidityUSD: -totalLiquidityUSD,
     lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
   };
 
   // Note: These fields represent the change/delta in liquidity (not absolute values)
   // The field names match the schema (currentLiquidityUSD, etc.) but contain diff values, hinted by the variable name
   const userLiquidityDiff = {
-    currentLiquidityUSD: -totalLiquidityUSD, // Negative for burn (removal)
-    currentLiquidityToken0: -event.params.amount0, // Negative amount of token0 removed
-    currentLiquidityToken1: -event.params.amount1, // Negative amount of token1 removed
-    totalLiquidityRemovedUSD: totalLiquidityUSD, // Track total liquidity removed (positive value)
+    incrementalCurrentLiquidityUSD: -totalLiquidityUSD, // Negative for burn (removal)
+    incrementalCurrentLiquidityToken0: -event.params.amount0, // Negative amount of token0 removed
+    incrementalCurrentLiquidityToken1: -event.params.amount1, // Negative amount of token1 removed
+    incrementalTotalLiquidityRemovedUSD: totalLiquidityUSD, // Track total liquidity removed (positive value)
     lastActivityTimestamp: new Date(event.block.timestamp * 1000),
   };
 

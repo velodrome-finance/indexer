@@ -214,7 +214,7 @@ export async function processDepositEvent(
   const ALMLPWrapperDiff = {
     amount0: updatedAmount0,
     amount1: updatedAmount1,
-    lpAmount: lpAmount,
+    incrementalLpAmount: lpAmount,
     liquidity: updatedLiquidity,
     ammStateIsDerived: true, // Derived from amount0 and amount1 at a specific price; not derived from on-chain AMM position (i.e. Rebalance event)
   };
@@ -232,7 +232,7 @@ export async function processDepositEvent(
     almAddress: srcAddress,
     almAmount0: derivedUserAmounts.amount0,
     almAmount1: derivedUserAmounts.amount1,
-    almLpAmount: lpAmount,
+    incrementalAlmLpAmount: lpAmount,
     lastActivityTimestamp: timestamp,
     lastAlmActivityTimestamp: timestamp,
   };
@@ -301,7 +301,7 @@ export async function processWithdrawEvent(
   const ALMLPWrapperDiff = {
     amount0: updatedAmount0,
     amount1: updatedAmount1,
-    lpAmount: -lpAmount,
+    incrementalLpAmount: -lpAmount,
     liquidity: updatedLiquidity,
     ammStateIsDerived: true, // Derived from amount0 and amount1 at a specific price; not derived from on-chain AMM position (i.e. Rebalance event)
   };
@@ -318,7 +318,7 @@ export async function processWithdrawEvent(
   const userStatsDiff = {
     almAmount0: derivedUserAmounts.amount0,
     almAmount1: derivedUserAmounts.amount1,
-    almLpAmount: -lpAmount,
+    incrementalAlmLpAmount: -lpAmount,
     lastActivityTimestamp: timestamp,
     lastAlmActivityTimestamp: timestamp,
   };
@@ -411,7 +411,7 @@ export async function processTransferEvent(
   const UserStatsFromDiff = {
     almAmount0: senderAmounts.amount0,
     almAmount1: senderAmounts.amount1,
-    almLpAmount: -value,
+    incrementalAlmLpAmount: -value,
     lastActivityTimestamp: timestamp,
     lastAlmActivityTimestamp: timestamp,
   };
@@ -420,7 +420,7 @@ export async function processTransferEvent(
     almAddress: srcAddress,
     almAmount0: recipientAmounts.amount0,
     almAmount1: recipientAmounts.amount1,
-    almLpAmount: value,
+    incrementalAlmLpAmount: value,
     lastActivityTimestamp: timestamp,
     lastAlmActivityTimestamp: timestamp,
   };

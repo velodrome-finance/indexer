@@ -84,24 +84,24 @@ describe("CLPoolCollectLogic", () => {
       const result = processCLPoolCollect(mockEvent, mockToken0, mockToken1);
 
       // Check unstaked fees in liquidity pool diff
-      expect(result.liquidityPoolDiff.totalUnstakedFeesCollected0).toBe(
-        1000000000000000000n,
-      ); // amount0
-      expect(result.liquidityPoolDiff.totalUnstakedFeesCollected1).toBe(
-        2000000000000000000n,
-      ); // amount1
-      expect(result.liquidityPoolDiff.totalUnstakedFeesCollectedUSD).toBe(
-        5000000000000000000n,
-      ); // 5 USD in 18 decimals
+      expect(
+        result.liquidityPoolDiff.incrementalTotalUnstakedFeesCollected0,
+      ).toBe(1000000000000000000n); // amount0
+      expect(
+        result.liquidityPoolDiff.incrementalTotalUnstakedFeesCollected1,
+      ).toBe(2000000000000000000n); // amount1
+      expect(
+        result.liquidityPoolDiff.incrementalTotalUnstakedFeesCollectedUSD,
+      ).toBe(5000000000000000000n); // 5 USD in 18 decimals
 
       // Check user fee contribution diff with exact values
-      expect(result.userLiquidityDiff.totalFeesContributed0).toBe(
+      expect(result.userLiquidityDiff.incrementalTotalFeesContributed0).toBe(
         1000000000000000000n,
       ); // amount0
-      expect(result.userLiquidityDiff.totalFeesContributed1).toBe(
+      expect(result.userLiquidityDiff.incrementalTotalFeesContributed1).toBe(
         2000000000000000000n,
       ); // amount1
-      expect(result.userLiquidityDiff.totalFeesContributedUSD).toBe(
+      expect(result.userLiquidityDiff.incrementalTotalFeesContributedUSD).toBe(
         5000000000000000000n,
       ); // 5 USD in 18 decimals
     });
@@ -110,24 +110,24 @@ describe("CLPoolCollectLogic", () => {
       const result = processCLPoolCollect(mockEvent, mockToken0, mockToken1);
 
       // Check unstaked fees tracking
-      expect(result.liquidityPoolDiff.totalUnstakedFeesCollected0).toBe(
-        1000000000000000000n,
-      ); // amount0
-      expect(result.liquidityPoolDiff.totalUnstakedFeesCollected1).toBe(
-        2000000000000000000n,
-      ); // amount1
-      expect(result.liquidityPoolDiff.totalUnstakedFeesCollectedUSD).toBe(
-        5000000000000000000n,
-      ); // 5 USD in 18 decimals
+      expect(
+        result.liquidityPoolDiff.incrementalTotalUnstakedFeesCollected0,
+      ).toBe(1000000000000000000n); // amount0
+      expect(
+        result.liquidityPoolDiff.incrementalTotalUnstakedFeesCollected1,
+      ).toBe(2000000000000000000n); // amount1
+      expect(
+        result.liquidityPoolDiff.incrementalTotalUnstakedFeesCollectedUSD,
+      ).toBe(5000000000000000000n); // 5 USD in 18 decimals
 
       // User fee contribution should be calculated based on the collected amounts with exact values
-      expect(result.userLiquidityDiff.totalFeesContributed0).toBe(
+      expect(result.userLiquidityDiff.incrementalTotalFeesContributed0).toBe(
         1000000000000000000n,
       ); // amount0
-      expect(result.userLiquidityDiff.totalFeesContributed1).toBe(
+      expect(result.userLiquidityDiff.incrementalTotalFeesContributed1).toBe(
         2000000000000000000n,
       ); // amount1
-      expect(result.userLiquidityDiff.totalFeesContributedUSD).toBe(
+      expect(result.userLiquidityDiff.incrementalTotalFeesContributedUSD).toBe(
         5000000000000000000n,
       ); // 5 USD in 18 decimals
     });
@@ -164,27 +164,39 @@ describe("CLPoolCollectLogic", () => {
         mockToken1,
       );
 
-      expect(result.liquidityPoolDiff.totalUnstakedFeesCollected0).toBe(0n);
-      expect(result.liquidityPoolDiff.totalUnstakedFeesCollected1).toBe(0n);
-      expect(result.liquidityPoolDiff.totalUnstakedFeesCollectedUSD).toBe(0n);
-      expect(result.userLiquidityDiff.totalFeesContributed0).toBe(0n);
-      expect(result.userLiquidityDiff.totalFeesContributed1).toBe(0n);
-      expect(result.userLiquidityDiff.totalFeesContributedUSD).toBe(0n);
+      expect(
+        result.liquidityPoolDiff.incrementalTotalUnstakedFeesCollected0,
+      ).toBe(0n);
+      expect(
+        result.liquidityPoolDiff.incrementalTotalUnstakedFeesCollected1,
+      ).toBe(0n);
+      expect(
+        result.liquidityPoolDiff.incrementalTotalUnstakedFeesCollectedUSD,
+      ).toBe(0n);
+      expect(result.userLiquidityDiff.incrementalTotalFeesContributed0).toBe(
+        0n,
+      );
+      expect(result.userLiquidityDiff.incrementalTotalFeesContributed1).toBe(
+        0n,
+      );
+      expect(result.userLiquidityDiff.incrementalTotalFeesContributedUSD).toBe(
+        0n,
+      );
     });
 
     it("should only track unstaked fees, not staked fees", () => {
       const result = processCLPoolCollect(mockEvent, mockToken0, mockToken1);
 
       // Collect events should only update unstaked fees
-      expect(result.liquidityPoolDiff.totalUnstakedFeesCollected0).toBe(
-        1000000000000000000n,
-      );
-      expect(result.liquidityPoolDiff.totalUnstakedFeesCollected1).toBe(
-        2000000000000000000n,
-      );
-      expect(result.liquidityPoolDiff.totalUnstakedFeesCollectedUSD).toBe(
-        5000000000000000000n,
-      );
+      expect(
+        result.liquidityPoolDiff.incrementalTotalUnstakedFeesCollected0,
+      ).toBe(1000000000000000000n);
+      expect(
+        result.liquidityPoolDiff.incrementalTotalUnstakedFeesCollected1,
+      ).toBe(2000000000000000000n);
+      expect(
+        result.liquidityPoolDiff.incrementalTotalUnstakedFeesCollectedUSD,
+      ).toBe(5000000000000000000n);
 
       // Staked fees should not be present in the diff (they're undefined, not 0)
       // The aggregator will handle the addition, but the diff only contains unstaked fees

@@ -1,15 +1,9 @@
-import type {
-  LiquidityPoolAggregator,
-  Token,
-  UserStatsPerPool,
-  handlerContext,
-} from "generated";
-import { updateLiquidityPoolAggregator } from "../../Aggregators/LiquidityPoolAggregator";
+import type { LiquidityPoolAggregator, Token, handlerContext } from "generated";
 import {
-  getIsAlive,
-  getTokenDetails,
-  getTokensDeposited,
-} from "../../Effects/Index";
+  type LiquidityPoolAggregatorDiff,
+  updateLiquidityPoolAggregator,
+} from "../../Aggregators/LiquidityPoolAggregator";
+import { getIsAlive, getTokensDeposited } from "../../Effects/Index";
 import { normalizeTokenAmountTo1e18 } from "../../Helpers";
 import { multiplyBase1e18 } from "../../Maths";
 
@@ -94,37 +88,16 @@ export async function computeVoterDistributeValues(params: {
   };
 }
 
-export function computeVoteDiffsFromVoted(params: {
-  userVotingPowerToPool: bigint; // event.params.weight
-  totalPoolVotingPower: bigint; // event.params.totalWeight
-  timestampMs: number;
-}) {
-  const { userVotingPowerToPool, totalPoolVotingPower, timestampMs } = params;
-
-  const poolVoteDiff = {
-    numberOfVotes: 1n,
-    currentVotingPower: totalPoolVotingPower,
-    lastUpdatedTimestamp: new Date(timestampMs),
-  };
-
-  const userVoteDiff = {
-    numberOfVotes: 1n,
-    currentVotingPower: userVotingPowerToPool,
-  };
-
-  return { poolVoteDiff, userVoteDiff } as const;
-}
-
 export function buildLpDiffFromDistribute(
   result: VoterCommonResult,
   gaugeAddress: string,
   timestampMs: number,
 ) {
   return {
-    totalVotesDeposited: result.tokensDeposited,
-    totalVotesDepositedUSD: result.normalizedVotesDepositedAmountUsd,
-    totalEmissions: result.normalizedEmissionsAmount,
-    totalEmissionsUSD: result.normalizedEmissionsAmountUsd,
+    incrementalTotalVotesDeposited: result.tokensDeposited,
+    incrementalTotalVotesDepositedUSD: result.normalizedVotesDepositedAmountUsd,
+    incrementalTotalEmissions: result.normalizedEmissionsAmount,
+    incrementalTotalEmissionsUSD: result.normalizedEmissionsAmountUsd,
     lastUpdatedTimestamp: new Date(timestampMs),
     gaugeAddress,
     gaugeIsAlive: result.isAlive,
@@ -134,7 +107,7 @@ export function buildLpDiffFromDistribute(
 export async function applyLpDiff(
   context: handlerContext,
   currentLiquidityPool: LiquidityPoolAggregator,
-  lpDiff: Partial<LiquidityPoolAggregator>,
+  lpDiff: Partial<LiquidityPoolAggregatorDiff>,
   timestampMs: number,
   blockNumber: number,
 ) {
@@ -145,48 +118,4 @@ export async function applyLpDiff(
     context,
     blockNumber,
   );
-}
-
-export async function updateTokenWhitelist(
-  context: handlerContext,
-  tokenId: string,
-  tokenAddress: string,
-  chainId: number,
-  isWhitelisted: boolean,
-  timestampMs: number,
-) {
-  const token = await context.Token.get(tokenId);
-  if (token) {
-    const updated: Token = {
-      ...token,
-      isWhitelisted,
-      lastUpdatedTimestamp: new Date(timestampMs),
-    };
-    context.Token.set(updated);
-    return;
-  }
-
-  try {
-    const details = await context.effect(getTokenDetails, {
-      contractAddress: tokenAddress,
-      chainId,
-    });
-
-    const created: Token = {
-      id: tokenId,
-      name: details.name,
-      symbol: details.symbol,
-      pricePerUSDNew: 0n,
-      address: tokenAddress,
-      chainId,
-      decimals: BigInt(details.decimals),
-      isWhitelisted,
-      lastUpdatedTimestamp: new Date(timestampMs),
-    } as unknown as Token;
-    context.Token.set(created);
-  } catch (error) {
-    context.log.error(
-      `Error updating token whitelist for ${tokenAddress} on chain ${chainId}: ${error}`,
-    );
-  }
 }

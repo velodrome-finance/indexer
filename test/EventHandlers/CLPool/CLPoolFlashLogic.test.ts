@@ -77,40 +77,54 @@ describe("CLPoolFlashLogic", () => {
       const result = processCLPoolFlash(mockEvent, mockToken0, mockToken1);
 
       // Check liquidity pool diff with exact values
-      expect(result.liquidityPoolDiff.totalFlashLoanFees0).toBe(1000n); // paid0
-      expect(result.liquidityPoolDiff.totalFlashLoanFees1).toBe(500n); // paid1
-      expect(result.liquidityPoolDiff.numberOfFlashLoans).toBe(1n);
+      expect(result.liquidityPoolDiff.incrementalTotalFlashLoanFees0).toBe(
+        1000n,
+      ); // paid0
+      expect(result.liquidityPoolDiff.incrementalTotalFlashLoanFees1).toBe(
+        500n,
+      ); // paid1
+      expect(result.liquidityPoolDiff.incrementalNumberOfFlashLoans).toBe(1n);
 
       // Calculate exact flash loan fees USD: (1000 * 1 USD) + (500 * 2 USD) = 1000 + 1000 = 2000 USD
-      expect(result.liquidityPoolDiff.totalFlashLoanFeesUSD).toBe(2000n);
+      expect(result.liquidityPoolDiff.incrementalTotalFlashLoanFeesUSD).toBe(
+        2000n,
+      );
 
       // Calculate exact flash loan volume USD: (1000000 * 1 USD) + (500000 * 2 USD) = 1000000 + 1000000 = 2000000 USD
-      expect(result.liquidityPoolDiff.totalFlashLoanVolumeUSD).toBe(2000000n);
+      expect(result.liquidityPoolDiff.incrementalTotalFlashLoanVolumeUSD).toBe(
+        2000000n,
+      );
 
       // Check user flash loan diff with exact values
-      expect(result.userFlashLoanDiff.numberOfFlashLoans).toBe(1n);
-      expect(result.userFlashLoanDiff.totalFlashLoanVolumeUSD).toBe(2000000n);
+      expect(result.userFlashLoanDiff.incrementalNumberOfFlashLoans).toBe(1n);
+      expect(result.userFlashLoanDiff.incrementalTotalFlashLoanVolumeUSD).toBe(
+        2000000n,
+      );
     });
 
     it("should calculate flash loan fees correctly", () => {
       const result = processCLPoolFlash(mockEvent, mockToken0, mockToken1);
 
       // Fees should be calculated based on paid amounts and token prices
-      expect(result.liquidityPoolDiff.totalFlashLoanFees0).toBe(
+      expect(result.liquidityPoolDiff.incrementalTotalFlashLoanFees0).toBe(
         mockEvent.params.paid0,
       );
-      expect(result.liquidityPoolDiff.totalFlashLoanFees1).toBe(
+      expect(result.liquidityPoolDiff.incrementalTotalFlashLoanFees1).toBe(
         mockEvent.params.paid1,
       );
-      expect(result.liquidityPoolDiff.totalFlashLoanFeesUSD).toBe(2000n); // 2000 USD in 18 decimals
+      expect(result.liquidityPoolDiff.incrementalTotalFlashLoanFeesUSD).toBe(
+        2000n,
+      ); // 2000 USD in 18 decimals
     });
 
     it("should calculate flash loan volume correctly", () => {
       const result = processCLPoolFlash(mockEvent, mockToken0, mockToken1);
 
       // Volume should be calculated based on borrowed amounts (not fees)
-      expect(result.userFlashLoanDiff.totalFlashLoanVolumeUSD).toBe(2000000n); // 2M USD in 18 decimals
-      expect(result.userFlashLoanDiff.numberOfFlashLoans).toBe(1n);
+      expect(result.userFlashLoanDiff.incrementalTotalFlashLoanVolumeUSD).toBe(
+        2000000n,
+      ); // 2M USD in 18 decimals
+      expect(result.userFlashLoanDiff.incrementalNumberOfFlashLoans).toBe(1n);
     });
 
     it("should handle zero amounts correctly", () => {
@@ -131,10 +145,14 @@ describe("CLPoolFlashLogic", () => {
         mockToken1,
       );
 
-      expect(result.liquidityPoolDiff.totalFlashLoanFees0).toBe(0n);
-      expect(result.liquidityPoolDiff.totalFlashLoanFees1).toBe(0n);
-      expect(result.liquidityPoolDiff.totalFlashLoanFeesUSD).toBe(0n);
-      expect(result.userFlashLoanDiff.totalFlashLoanVolumeUSD).toBe(0n);
+      expect(result.liquidityPoolDiff.incrementalTotalFlashLoanFees0).toBe(0n);
+      expect(result.liquidityPoolDiff.incrementalTotalFlashLoanFees1).toBe(0n);
+      expect(result.liquidityPoolDiff.incrementalTotalFlashLoanFeesUSD).toBe(
+        0n,
+      );
+      expect(result.userFlashLoanDiff.incrementalTotalFlashLoanVolumeUSD).toBe(
+        0n,
+      );
     });
 
     it("should handle different token decimals correctly", () => {
@@ -156,13 +174,13 @@ describe("CLPoolFlashLogic", () => {
     it("should handle existing flash loan data correctly", () => {
       const result = processCLPoolFlash(mockEvent, mockToken0, mockToken1);
 
-      expect(result.liquidityPoolDiff.totalFlashLoanFees0).toBe(
+      expect(result.liquidityPoolDiff.incrementalTotalFlashLoanFees0).toBe(
         mockEvent.params.paid0,
       );
-      expect(result.liquidityPoolDiff.totalFlashLoanFees1).toBe(
+      expect(result.liquidityPoolDiff.incrementalTotalFlashLoanFees1).toBe(
         mockEvent.params.paid1,
       );
-      expect(result.liquidityPoolDiff.numberOfFlashLoans).toBe(1n); // Just the diff
+      expect(result.liquidityPoolDiff.incrementalNumberOfFlashLoans).toBe(1n); // Just the diff
     });
   });
 });

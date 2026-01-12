@@ -18,37 +18,37 @@ export type DynamicFeeConfig = {
   scalingFactor: bigint;
 };
 
-interface LiquidityPoolAggregatorDiff {
-  reserve0: bigint;
-  reserve1: bigint;
-  totalLiquidityUSD: bigint;
-  totalVolume0: bigint;
-  totalVolume1: bigint;
-  totalVolumeUSD: bigint;
-  totalVolumeUSDWhitelisted: bigint;
-  incrementalFeesUSDWhitelisted: bigint;
-  incrementalUnstakedFeesCollected0: bigint;
-  incrementalUnstakedFeesCollected1: bigint;
-  incrementalUnstakedFeesCollectedUSD: bigint;
-  incrementalStakedFeesCollected0: bigint;
-  incrementalStakedFeesCollected1: bigint;
-  incrementalStakedFeesCollectedUSD: bigint;
-  numberOfSwaps: bigint;
-  totalEmissions: bigint;
-  totalEmissionsUSD: bigint;
+export interface LiquidityPoolAggregatorDiff {
+  incrementalReserve0: bigint;
+  incrementalReserve1: bigint;
+  incrementalCurrentLiquidityUSD: bigint;
+  incrementalTotalVolume0: bigint;
+  incrementalTotalVolume1: bigint;
+  incrementalTotalVolumeUSD: bigint;
+  incrementalTotalVolumeUSDWhitelisted: bigint;
+  incrementalTotalFeesUSDWhitelisted: bigint;
+  incrementalTotalUnstakedFeesCollected0: bigint;
+  incrementalTotalUnstakedFeesCollected1: bigint;
+  incrementalTotalUnstakedFeesCollectedUSD: bigint;
+  incrementalTotalStakedFeesCollected0: bigint;
+  incrementalTotalStakedFeesCollected1: bigint;
+  incrementalTotalStakedFeesCollectedUSD: bigint;
+  incrementalNumberOfSwaps: bigint;
+  incrementalTotalEmissions: bigint;
+  incrementalTotalEmissionsUSD: bigint;
   totalBribesUSD: bigint;
-  totalFlashLoanFees0: bigint;
-  totalFlashLoanFees1: bigint;
-  totalFlashLoanFeesUSD: bigint;
-  totalFlashLoanVolumeUSD: bigint;
-  numberOfFlashLoans: bigint;
-  numberOfGaugeDeposits: bigint;
-  numberOfGaugeWithdrawals: bigint;
-  numberOfGaugeRewardClaims: bigint;
-  totalGaugeRewardsClaimedUSD: bigint;
-  totalGaugeRewardsClaimed: bigint;
-  currentLiquidityStaked: bigint;
-  currentLiquidityStakedUSD: bigint;
+  incrementalTotalFlashLoanFees0: bigint;
+  incrementalTotalFlashLoanFees1: bigint;
+  incrementalTotalFlashLoanFeesUSD: bigint;
+  incrementalTotalFlashLoanVolumeUSD: bigint;
+  incrementalNumberOfFlashLoans: bigint;
+  incrementalNumberOfGaugeDeposits: bigint;
+  incrementalNumberOfGaugeWithdrawals: bigint;
+  incrementalNumberOfGaugeRewardClaims: bigint;
+  incrementalTotalGaugeRewardsClaimedUSD: bigint;
+  incrementalTotalGaugeRewardsClaimed: bigint;
+  incrementalCurrentLiquidityStaked: bigint;
+  incrementalCurrentLiquidityStakedUSD: bigint;
   token0Price: bigint;
   token1Price: bigint;
   token0IsWhitelisted: boolean;
@@ -60,12 +60,12 @@ interface LiquidityPoolAggregatorDiff {
   feeProtocol0: bigint;
   feeProtocol1: bigint;
   observationCardinalityNext: bigint;
-  totalVotesDeposited: bigint;
-  totalVotesDepositedUSD: bigint;
-  totalBribeClaimed: bigint;
-  totalBribeClaimedUSD: bigint;
-  totalFeeRewardClaimed: bigint;
-  totalFeeRewardClaimedUSD: bigint;
+  incrementalTotalVotesDeposited: bigint;
+  incrementalTotalVotesDepositedUSD: bigint;
+  incrementalTotalBribeClaimed: bigint;
+  incrementalTotalBribeClaimedUSD: bigint;
+  incrementalTotalFeeRewardClaimed: bigint;
+  incrementalTotalFeeRewardClaimedUSD: bigint;
   veNFTamountStaked: bigint;
   baseFee: bigint;
   feeCap: bigint;
@@ -173,74 +173,84 @@ export async function updateLiquidityPoolAggregator(
   let updated: LiquidityPoolAggregator = {
     ...current,
     // Handle cumulative fields by adding diff values to current values
-    reserve0: (diff.reserve0 ?? 0n) + current.reserve0,
-    reserve1: (diff.reserve1 ?? 0n) + current.reserve1,
+    reserve0: (diff.incrementalReserve0 ?? 0n) + current.reserve0,
+    reserve1: (diff.incrementalReserve1 ?? 0n) + current.reserve1,
     totalLiquidityUSD:
-      (diff.totalLiquidityUSD ?? 0n) + current.totalLiquidityUSD,
-    totalVolume0: (diff.totalVolume0 ?? 0n) + current.totalVolume0,
-    totalVolume1: (diff.totalVolume1 ?? 0n) + current.totalVolume1,
-    totalVolumeUSD: (diff.totalVolumeUSD ?? 0n) + current.totalVolumeUSD,
+      (diff.incrementalCurrentLiquidityUSD ?? 0n) + current.totalLiquidityUSD,
+    totalVolume0: (diff.incrementalTotalVolume0 ?? 0n) + current.totalVolume0,
+    totalVolume1: (diff.incrementalTotalVolume1 ?? 0n) + current.totalVolume1,
+    totalVolumeUSD:
+      (diff.incrementalTotalVolumeUSD ?? 0n) + current.totalVolumeUSD,
     totalVolumeUSDWhitelisted:
-      (diff.totalVolumeUSDWhitelisted ?? 0n) +
+      (diff.incrementalTotalVolumeUSDWhitelisted ?? 0n) +
       current.totalVolumeUSDWhitelisted,
     totalFeesUSDWhitelisted:
-      (diff.incrementalFeesUSDWhitelisted ?? 0n) +
+      (diff.incrementalTotalFeesUSDWhitelisted ?? 0n) +
       current.totalFeesUSDWhitelisted,
     // Unstaked fees (from Collect events - LPs that didn't stake)
     totalUnstakedFeesCollected0:
-      (diff.incrementalUnstakedFeesCollected0 ?? 0n) +
+      (diff.incrementalTotalUnstakedFeesCollected0 ?? 0n) +
       current.totalUnstakedFeesCollected0,
     totalUnstakedFeesCollected1:
-      (diff.incrementalUnstakedFeesCollected1 ?? 0n) +
+      (diff.incrementalTotalUnstakedFeesCollected1 ?? 0n) +
       current.totalUnstakedFeesCollected1,
     totalUnstakedFeesCollectedUSD:
-      (diff.incrementalUnstakedFeesCollectedUSD ?? 0n) +
+      (diff.incrementalTotalUnstakedFeesCollectedUSD ?? 0n) +
       current.totalUnstakedFeesCollectedUSD,
     // Staked fees (from CollectFees events - LPs that staked in gauge)
     totalStakedFeesCollected0:
-      (diff.incrementalStakedFeesCollected0 ?? 0n) +
+      (diff.incrementalTotalStakedFeesCollected0 ?? 0n) +
       current.totalStakedFeesCollected0,
     totalStakedFeesCollected1:
-      (diff.incrementalStakedFeesCollected1 ?? 0n) +
+      (diff.incrementalTotalStakedFeesCollected1 ?? 0n) +
       current.totalStakedFeesCollected1,
     totalStakedFeesCollectedUSD:
-      (diff.incrementalStakedFeesCollectedUSD ?? 0n) +
+      (diff.incrementalTotalStakedFeesCollectedUSD ?? 0n) +
       current.totalStakedFeesCollectedUSD,
-    numberOfSwaps: (diff.numberOfSwaps ?? 0n) + current.numberOfSwaps,
-    totalEmissions: (diff.totalEmissions ?? 0n) + current.totalEmissions,
+    numberOfSwaps:
+      (diff.incrementalNumberOfSwaps ?? 0n) + current.numberOfSwaps,
+    totalEmissions:
+      (diff.incrementalTotalEmissions ?? 0n) + current.totalEmissions,
     totalEmissionsUSD:
-      (diff.totalEmissionsUSD ?? 0n) + current.totalEmissionsUSD,
+      (diff.incrementalTotalEmissionsUSD ?? 0n) + current.totalEmissionsUSD,
     totalBribesUSD: (diff.totalBribesUSD ?? 0n) + current.totalBribesUSD,
     totalFlashLoanFees0:
-      (diff.totalFlashLoanFees0 ?? 0n) + (current.totalFlashLoanFees0 ?? 0n),
+      (diff.incrementalTotalFlashLoanFees0 ?? 0n) +
+      (current.totalFlashLoanFees0 ?? 0n),
     totalFlashLoanFees1:
-      (diff.totalFlashLoanFees1 ?? 0n) + (current.totalFlashLoanFees1 ?? 0n),
+      (diff.incrementalTotalFlashLoanFees1 ?? 0n) +
+      (current.totalFlashLoanFees1 ?? 0n),
     totalFlashLoanFeesUSD:
-      (diff.totalFlashLoanFeesUSD ?? 0n) +
+      (diff.incrementalTotalFlashLoanFeesUSD ?? 0n) +
       (current.totalFlashLoanFeesUSD ?? 0n),
     totalFlashLoanVolumeUSD:
-      (diff.totalFlashLoanVolumeUSD ?? 0n) +
+      (diff.incrementalTotalFlashLoanVolumeUSD ?? 0n) +
       (current.totalFlashLoanVolumeUSD ?? 0n),
     numberOfFlashLoans:
-      (diff.numberOfFlashLoans ?? 0n) + (current.numberOfFlashLoans ?? 0n),
+      (diff.incrementalNumberOfFlashLoans ?? 0n) +
+      (current.numberOfFlashLoans ?? 0n),
 
     // Gauge fields - all cumulative
     numberOfGaugeDeposits:
-      (diff.numberOfGaugeDeposits ?? 0n) + current.numberOfGaugeDeposits,
+      (diff.incrementalNumberOfGaugeDeposits ?? 0n) +
+      current.numberOfGaugeDeposits,
     numberOfGaugeWithdrawals:
-      (diff.numberOfGaugeWithdrawals ?? 0n) + current.numberOfGaugeWithdrawals,
+      (diff.incrementalNumberOfGaugeWithdrawals ?? 0n) +
+      current.numberOfGaugeWithdrawals,
     numberOfGaugeRewardClaims:
-      (diff.numberOfGaugeRewardClaims ?? 0n) +
+      (diff.incrementalNumberOfGaugeRewardClaims ?? 0n) +
       current.numberOfGaugeRewardClaims,
     totalGaugeRewardsClaimedUSD:
-      (diff.totalGaugeRewardsClaimedUSD ?? 0n) +
+      (diff.incrementalTotalGaugeRewardsClaimedUSD ?? 0n) +
       current.totalGaugeRewardsClaimedUSD,
     totalGaugeRewardsClaimed:
-      (diff.totalGaugeRewardsClaimed ?? 0n) + current.totalGaugeRewardsClaimed,
+      (diff.incrementalTotalGaugeRewardsClaimed ?? 0n) +
+      current.totalGaugeRewardsClaimed,
     currentLiquidityStaked:
-      (diff.currentLiquidityStaked ?? 0n) + current.currentLiquidityStaked,
+      (diff.incrementalCurrentLiquidityStaked ?? 0n) +
+      current.currentLiquidityStaked,
     currentLiquidityStakedUSD:
-      (diff.currentLiquidityStakedUSD ?? 0n) +
+      (diff.incrementalCurrentLiquidityStakedUSD ?? 0n) +
       current.currentLiquidityStakedUSD,
 
     // Handle non-cumulative fields (prices, timestamps, etc.) - use diff values directly
@@ -261,23 +271,24 @@ export async function updateLiquidityPoolAggregator(
     observationCardinalityNext:
       diff.observationCardinalityNext ?? current.observationCardinalityNext,
     totalVotesDeposited:
-      diff.totalVotesDeposited ?? current.totalVotesDeposited,
+      (diff.incrementalTotalVotesDeposited ?? 0n) + current.totalVotesDeposited,
     totalVotesDepositedUSD:
-      diff.totalVotesDepositedUSD ?? current.totalVotesDepositedUSD,
+      (diff.incrementalTotalVotesDepositedUSD ?? 0n) +
+      current.totalVotesDepositedUSD,
 
     // Voting Reward Claims - cumulative fields
     totalBribeClaimed:
-      (diff.totalBribeClaimed ?? 0n) + current.totalBribeClaimed,
+      (diff.incrementalTotalBribeClaimed ?? 0n) + current.totalBribeClaimed,
     totalBribeClaimedUSD:
-      (diff.totalBribeClaimedUSD ?? 0n) + current.totalBribeClaimedUSD,
+      (diff.incrementalTotalBribeClaimedUSD ?? 0n) +
+      current.totalBribeClaimedUSD,
     totalFeeRewardClaimed:
-      (diff.totalFeeRewardClaimed ?? 0n) + current.totalFeeRewardClaimed,
+      (diff.incrementalTotalFeeRewardClaimed ?? 0n) +
+      current.totalFeeRewardClaimed,
     totalFeeRewardClaimedUSD:
-      (diff.totalFeeRewardClaimedUSD ?? 0n) + current.totalFeeRewardClaimedUSD,
-    veNFTamountStaked:
-      diff.veNFTamountStaked !== undefined
-        ? diff.veNFTamountStaked
-        : current.veNFTamountStaked, // Direct replacement (absolute value from event)
+      (diff.incrementalTotalFeeRewardClaimedUSD ?? 0n) +
+      current.totalFeeRewardClaimedUSD,
+    veNFTamountStaked: diff.veNFTamountStaked ?? current.veNFTamountStaked,
 
     // Dynamic Fee fields - non-cumulative
     baseFee: diff.baseFee ?? current.baseFee,

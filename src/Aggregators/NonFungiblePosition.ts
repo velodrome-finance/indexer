@@ -7,21 +7,23 @@ export const NonFungiblePositionId = (chainId: number, tokenId: bigint) =>
 /**
  * Updates NonFungiblePosition with the provided diff
  * Uses spread operator to handle immutable entities
- * Handles both replacement (owner, tickUpper, tickLower) and delta (amount0, amount1, amountUSD) updates
+ * All fields are set to absolute values (therefore, they are directly substituted and not added/subtracted deltas)
  */
 export function updateNonFungiblePosition(
   diff: Partial<NonFungiblePosition>,
   current: NonFungiblePosition,
-  timestamp: Date,
   context: handlerContext,
 ): void {
   const nonFungiblePosition: NonFungiblePosition = {
     ...current,
+    tokenId: diff.tokenId ?? current.tokenId,
     owner: diff.owner ?? current.owner,
-    amount0: (diff.amount0 ?? 0n) + current.amount0,
-    amount1: (diff.amount1 ?? 0n) + current.amount1,
+    amount0: diff.amount0 ?? current.amount0,
+    amount1: diff.amount1 ?? current.amount1,
     amountUSD: diff.amountUSD ?? current.amountUSD,
-    lastUpdatedTimestamp: timestamp,
+    liquidity: diff.liquidity ?? current.liquidity,
+    lastUpdatedTimestamp:
+      diff.lastUpdatedTimestamp ?? current.lastUpdatedTimestamp,
   };
   context.NonFungiblePosition.set(nonFungiblePosition);
 }

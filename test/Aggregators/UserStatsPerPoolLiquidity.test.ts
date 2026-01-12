@@ -37,8 +37,8 @@ describe("UserStatsPerPool Liquidity Logic", () => {
 
       const result = await updateUserStatsPerPool(
         {
-          currentLiquidityUSD: netLiquidityAddedUSD,
-          totalLiquidityAddedUSD: netLiquidityAddedUSD,
+          incrementalCurrentLiquidityUSD: netLiquidityAddedUSD,
+          incrementalTotalLiquidityAddedUSD: netLiquidityAddedUSD,
           lastActivityTimestamp: mockTimestamp,
         },
         userStats,
@@ -67,8 +67,8 @@ describe("UserStatsPerPool Liquidity Logic", () => {
       // First addition
       userStats = await updateUserStatsPerPool(
         {
-          currentLiquidityUSD: 1000n,
-          totalLiquidityAddedUSD: 1000n,
+          incrementalCurrentLiquidityUSD: 1000n,
+          incrementalTotalLiquidityAddedUSD: 1000n,
           lastActivityTimestamp: mockTimestamp,
         },
         userStats,
@@ -82,8 +82,8 @@ describe("UserStatsPerPool Liquidity Logic", () => {
       // Second addition
       userStats = await updateUserStatsPerPool(
         {
-          currentLiquidityUSD: 500n,
-          totalLiquidityAddedUSD: 500n,
+          incrementalCurrentLiquidityUSD: 500n,
+          incrementalTotalLiquidityAddedUSD: 500n,
           lastActivityTimestamp: mockTimestamp,
         },
         userStats,
@@ -114,8 +114,8 @@ describe("UserStatsPerPool Liquidity Logic", () => {
 
       const result = await updateUserStatsPerPool(
         {
-          currentLiquidityUSD: netLiquidityRemovedUSD,
-          totalLiquidityRemovedUSD: 500n,
+          incrementalCurrentLiquidityUSD: netLiquidityRemovedUSD,
+          incrementalTotalLiquidityRemovedUSD: 500n,
           lastActivityTimestamp: mockTimestamp,
         },
         userStats,
@@ -144,8 +144,8 @@ describe("UserStatsPerPool Liquidity Logic", () => {
       // First removal
       userStats = await updateUserStatsPerPool(
         {
-          currentLiquidityUSD: -300n,
-          totalLiquidityRemovedUSD: 300n,
+          incrementalCurrentLiquidityUSD: -300n,
+          incrementalTotalLiquidityRemovedUSD: 300n,
           lastActivityTimestamp: mockTimestamp,
         },
         userStats,
@@ -159,8 +159,8 @@ describe("UserStatsPerPool Liquidity Logic", () => {
       // Second removal
       userStats = await updateUserStatsPerPool(
         {
-          currentLiquidityUSD: -200n,
-          totalLiquidityRemovedUSD: 200n,
+          incrementalCurrentLiquidityUSD: -200n,
+          incrementalTotalLiquidityRemovedUSD: 200n,
           lastActivityTimestamp: mockTimestamp,
         },
         userStats,
@@ -191,8 +191,8 @@ describe("UserStatsPerPool Liquidity Logic", () => {
       // Add liquidity
       userStats = await updateUserStatsPerPool(
         {
-          currentLiquidityUSD: 1000n,
-          totalLiquidityAddedUSD: 1000n,
+          incrementalCurrentLiquidityUSD: 1000n,
+          incrementalTotalLiquidityAddedUSD: 1000n,
           lastActivityTimestamp: mockTimestamp,
         },
         userStats,
@@ -206,8 +206,8 @@ describe("UserStatsPerPool Liquidity Logic", () => {
       // Remove some liquidity
       userStats = await updateUserStatsPerPool(
         {
-          currentLiquidityUSD: -300n,
-          totalLiquidityRemovedUSD: 300n,
+          incrementalCurrentLiquidityUSD: -300n,
+          incrementalTotalLiquidityRemovedUSD: 300n,
           lastActivityTimestamp: mockTimestamp,
         },
         userStats,
@@ -236,8 +236,8 @@ describe("UserStatsPerPool Liquidity Logic", () => {
       // Remove liquidity (should be 0 since we start with 0)
       userStats = await updateUserStatsPerPool(
         {
-          currentLiquidityUSD: -500n,
-          totalLiquidityRemovedUSD: 500n,
+          incrementalCurrentLiquidityUSD: -500n,
+          incrementalTotalLiquidityRemovedUSD: 500n,
           lastActivityTimestamp: mockTimestamp,
         },
         userStats,
@@ -251,8 +251,8 @@ describe("UserStatsPerPool Liquidity Logic", () => {
       // Add liquidity
       userStats = await updateUserStatsPerPool(
         {
-          currentLiquidityUSD: 800n,
-          totalLiquidityAddedUSD: 800n,
+          incrementalCurrentLiquidityUSD: 800n,
+          incrementalTotalLiquidityAddedUSD: 800n,
           lastActivityTimestamp: mockTimestamp,
         },
         userStats,
@@ -281,8 +281,8 @@ describe("UserStatsPerPool Liquidity Logic", () => {
       // Add 1000
       userStats = await updateUserStatsPerPool(
         {
-          currentLiquidityUSD: 1000n,
-          totalLiquidityAddedUSD: 1000n,
+          incrementalCurrentLiquidityUSD: 1000n,
+          incrementalTotalLiquidityAddedUSD: 1000n,
           lastActivityTimestamp: mockTimestamp,
         },
         userStats,
@@ -292,8 +292,8 @@ describe("UserStatsPerPool Liquidity Logic", () => {
       // Remove 200
       userStats = await updateUserStatsPerPool(
         {
-          currentLiquidityUSD: -200n,
-          totalLiquidityRemovedUSD: 200n,
+          incrementalCurrentLiquidityUSD: -200n,
+          incrementalTotalLiquidityRemovedUSD: 200n,
           lastActivityTimestamp: mockTimestamp,
         },
         userStats,
@@ -303,8 +303,8 @@ describe("UserStatsPerPool Liquidity Logic", () => {
       // Add 500
       userStats = await updateUserStatsPerPool(
         {
-          currentLiquidityUSD: 500n,
-          totalLiquidityAddedUSD: 500n,
+          incrementalCurrentLiquidityUSD: 500n,
+          incrementalTotalLiquidityAddedUSD: 500n,
           lastActivityTimestamp: mockTimestamp,
         },
         userStats,
@@ -314,8 +314,8 @@ describe("UserStatsPerPool Liquidity Logic", () => {
       // Remove 100
       userStats = await updateUserStatsPerPool(
         {
-          currentLiquidityUSD: -100n,
-          totalLiquidityRemovedUSD: 100n,
+          incrementalCurrentLiquidityUSD: -100n,
+          incrementalTotalLiquidityRemovedUSD: 100n,
           lastActivityTimestamp: mockTimestamp,
         },
         userStats,
@@ -344,7 +344,7 @@ describe("UserStatsPerPool Liquidity Logic", () => {
       const userStats = createMockUserStats();
       const result = await updateUserStatsPerPool(
         {
-          currentLiquidityUSD: 0n,
+          incrementalCurrentLiquidityUSD: 0n,
           lastActivityTimestamp: mockTimestamp,
         },
         userStats,
@@ -373,8 +373,8 @@ describe("UserStatsPerPool Liquidity Logic", () => {
 
       const result = await updateUserStatsPerPool(
         {
-          currentLiquidityUSD: largeAmount,
-          totalLiquidityAddedUSD: largeAmount,
+          incrementalCurrentLiquidityUSD: largeAmount,
+          incrementalTotalLiquidityAddedUSD: largeAmount,
           lastActivityTimestamp: mockTimestamp,
         },
         userStats,

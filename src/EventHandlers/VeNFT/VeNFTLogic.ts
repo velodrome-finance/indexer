@@ -4,11 +4,8 @@ import type {
   VeNFT_Transfer_event,
   VeNFT_Withdraw_event,
 } from "generated";
+import type { VeNFTAggregatorDiff } from "../../Aggregators/VeNFTAggregator";
 import { toChecksumAddress } from "../../Constants";
-
-export interface VeNFTResult {
-  veNFTAggregatorDiff: Partial<VeNFTAggregator>;
-}
 
 export type VeNFTEvent =
   | VeNFT_Deposit_event
@@ -33,12 +30,12 @@ function isTransferEvent(event: VeNFTEvent): event is VeNFT_Transfer_event {
 export async function processVeNFTEvent(
   event: VeNFTEvent,
   currentVeNFT: VeNFTAggregator | undefined,
-): Promise<VeNFTResult> {
+): Promise<Partial<VeNFTAggregatorDiff>> {
   const timestamp = new Date(event.block.timestamp * 1000);
   const tokenId = event.params.tokenId;
 
   // Create base VeNFT aggregator diff
-  let veNFTAggregatorDiff: Partial<VeNFTAggregator> = {
+  let veNFTAggregatorDiff: Partial<VeNFTAggregatorDiff> = {
     id: `${event.chainId}_${tokenId}`,
     chainId: event.chainId,
     tokenId: tokenId,
@@ -57,7 +54,7 @@ export async function processVeNFTEvent(
       ...veNFTAggregatorDiff,
       owner: ownerChecksummedAddress,
       locktime: event.params.locktime,
-      totalValueLocked: event.params.value,
+      incrementalTotalValueLocked: event.params.value,
       isAlive: true,
     };
   } else if (isTransferEvent(event)) {
@@ -70,7 +67,7 @@ export async function processVeNFTEvent(
       ...veNFTAggregatorDiff,
       owner: toChecksummedAddress,
       locktime: currentVeNFT?.locktime ?? 0n,
-      totalValueLocked: currentVeNFT?.totalValueLocked ?? 0n,
+      incrementalTotalValueLocked: currentVeNFT?.totalValueLocked ?? 0n,
       isAlive: event.params.to !== "0x0000000000000000000000000000000000000000",
     };
   } else {
@@ -79,12 +76,10 @@ export async function processVeNFTEvent(
     veNFTAggregatorDiff = {
       ...veNFTAggregatorDiff,
       owner: currentVeNFT?.owner ?? "",
-      totalValueLocked: -event.params.value,
+      incrementalTotalValueLocked: -event.params.value,
       isAlive: false,
     };
   }
 
-  return {
-    veNFTAggregatorDiff,
-  };
+  return veNFTAggregatorDiff;
 }

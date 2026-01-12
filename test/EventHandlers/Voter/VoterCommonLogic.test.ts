@@ -8,7 +8,6 @@ import type { VoterCommonResult } from "../../../src/EventHandlers/Voter/VoterCo
 import {
   buildLpDiffFromDistribute,
   computeVoterDistributeValues,
-  updateTokenWhitelist,
 } from "../../../src/EventHandlers/Voter/VoterCommonLogic";
 
 function makeMockContext(effects: {
@@ -162,49 +161,12 @@ describe("buildLpDiffFromDistribute", () => {
     };
     const ts = 1_700_000_000_000;
     const diff = buildLpDiffFromDistribute(res, "0xgauge", ts);
-    expect(diff.totalVotesDeposited).toBe(10n);
-    expect(diff.totalVotesDepositedUSD).toBe(20n);
-    expect(diff.totalEmissions).toBe(3n);
-    expect(diff.totalEmissionsUSD).toBe(6n);
+    expect(diff.incrementalTotalVotesDeposited).toBe(10n);
+    expect(diff.incrementalTotalVotesDepositedUSD).toBe(20n);
+    expect(diff.incrementalTotalEmissions).toBe(3n);
+    expect(diff.incrementalTotalEmissionsUSD).toBe(6n);
     expect(diff.gaugeIsAlive).toBe(true);
     expect(+diff.lastUpdatedTimestamp).toBe(ts);
     expect(diff.gaugeAddress).toBe("0xgauge");
-  });
-});
-
-describe("updateTokenWhitelist", () => {
-  it("updates existing token isWhitelisted", async () => {
-    const existing: Token = {
-      id: "t:1",
-      address: "0x1",
-      chainId: 1,
-      decimals: 18n,
-      pricePerUSDNew: 0n,
-      lastUpdatedTimestamp: new Date(0),
-      isWhitelisted: false,
-      name: "E",
-      symbol: "E",
-    } as unknown as Token;
-    const captured: Token[] = [];
-    const ctx = makeMockContext({ tokenGet: existing, capturedSets: captured });
-    await updateTokenWhitelist(ctx, "t:1", "0x1", 1, true, 1_700_000_000_000);
-    expect(captured).toHaveLength(1);
-    expect(captured[0].isWhitelisted).toBe(true);
-  });
-
-  it("creates token via effect when missing", async () => {
-    const captured: Token[] = [];
-    const ctx = makeMockContext({
-      tokenGet: undefined,
-      tokenDetails: { name: "N", symbol: "S", decimals: 6 },
-      capturedSets: captured,
-    });
-    await updateTokenWhitelist(ctx, "t:2", "0x2", 1, true, 1_700_000_000_000);
-    expect(captured).toHaveLength(1);
-    expect(captured[0].id).toBe("t:2");
-    expect(captured[0].name).toBe("N");
-    expect(captured[0].symbol).toBe("S");
-    expect(captured[0].decimals).toBe(6n);
-    expect(captured[0].isWhitelisted).toBe(true);
   });
 });

@@ -5,8 +5,11 @@ import type {
   handlerContext,
 } from "generated";
 import { processPoolSync } from "../../../src/EventHandlers/Pool/PoolSyncLogic";
+import { setupCommon } from "./common";
 
 describe("PoolSyncLogic", () => {
+  const { mockLiquidityPoolData } = setupCommon();
+
   const mockEvent: Pool_Sync_event = {
     chainId: 10,
     block: {
@@ -26,10 +29,7 @@ describe("PoolSyncLogic", () => {
   };
 
   const mockLiquidityPoolAggregator = {
-    id: "0x1111111111111111111111111111111111111111",
-    address: "0x1111111111111111111111111111111111111111",
-    token0: "0x2222222222222222222222222222222222222222",
-    token1: "0x3333333333333333333333333333333333333333",
+    ...mockLiquidityPoolData,
     reserve0: 500n,
     reserve1: 1000n,
     totalLiquidityUSD: 2000n,
@@ -40,14 +40,9 @@ describe("PoolSyncLogic", () => {
     totalVolume1: 10000n,
     totalVolumeUSD: 15000n,
     totalVolumeUSDWhitelisted: 12000n,
-    token0IsWhitelisted: true,
-    token1IsWhitelisted: true,
     totalUnstakedFeesCollected0: 100n,
     totalUnstakedFeesCollected1: 200n,
-    totalStakedFeesCollected0: 0n,
-    totalStakedFeesCollected1: 0n,
     totalUnstakedFeesCollectedUSD: 300n,
-    totalStakedFeesCollectedUSD: 0n,
     totalFeesUSDWhitelisted: 250n,
     totalEmissions: 1000n,
     totalEmissionsUSD: 2000n,
@@ -56,15 +51,7 @@ describe("PoolSyncLogic", () => {
     gaugeAddress: "0x4444444444444444444444444444444444444444",
     gaugeIsAlive: true,
     lastUpdatedTimestamp: new Date(1000000 * 1000),
-    // Voting Reward fields
-    bribeVotingRewardAddress: "",
-    totalBribeClaimed: 0n,
-    totalBribeClaimedUSD: 0n,
-    feeVotingRewardAddress: "",
-    totalFeeRewardClaimed: 0n,
-    totalFeeRewardClaimedUSD: 0n,
-    veNFTamountStaked: 0n,
-  } as unknown as LiquidityPoolAggregator;
+  } as LiquidityPoolAggregator;
 
   const mockToken0 = {
     id: "0x2222222222222222222222222222222222222222",
@@ -111,8 +98,8 @@ describe("PoolSyncLogic", () => {
       expect(result.liquidityPoolDiff).toBeDefined();
 
       expect(result.liquidityPoolDiff).toMatchObject({
-        reserve0: 500n, // 1000n - 500n (incremental change)
-        reserve1: 1000n, // 2000n - 1000n (incremental change)
+        incrementalReserve0: 500n, // 1000n - 500n (incremental change)
+        incrementalReserve1: 1000n, // 2000n - 1000n (incremental change)
         token0Price: 1000000000000000000n,
         token1Price: 2000000000000000000n,
       });
@@ -131,7 +118,7 @@ describe("PoolSyncLogic", () => {
       );
 
       // Current total: 2000n, New total: 1000000000004000n, Incremental change: 1000000000002000n
-      expect(result.liquidityPoolDiff?.totalLiquidityUSD).toBe(
+      expect(result.liquidityPoolDiff?.incrementalCurrentLiquidityUSD).toBe(
         1000000000002000n,
       );
     });
@@ -146,7 +133,7 @@ describe("PoolSyncLogic", () => {
       );
 
       // Current: 2000n, New: 1000000000000000n, Incremental change: 999999999998000n
-      expect(result.liquidityPoolDiff?.totalLiquidityUSD).toBe(
+      expect(result.liquidityPoolDiff?.incrementalCurrentLiquidityUSD).toBe(
         999999999998000n,
       );
     });
@@ -163,10 +150,12 @@ describe("PoolSyncLogic", () => {
       // Current: 1000 * 10^0 * 2 USD = 2000n
       // New: 2000 * 10^0 * 2 USD = 4000n
       // Incremental change: 4000n - 2000n = 2000n
-      expect(result.liquidityPoolDiff?.totalLiquidityUSD).toBe(2000n);
+      expect(result.liquidityPoolDiff?.incrementalCurrentLiquidityUSD).toBe(
+        2000n,
+      );
     });
 
-    it("should use existing totalLiquidityUSD when no tokens are available", async () => {
+    it("should use existing incrementalCurrentLiquidityUSD when no tokens are available", async () => {
       const result = await processPoolSync(
         mockEvent,
         mockLiquidityPoolAggregator,
@@ -176,7 +165,7 @@ describe("PoolSyncLogic", () => {
       );
 
       // No tokens available: keep existing values (no change)
-      expect(result.liquidityPoolDiff?.totalLiquidityUSD).toBe(0n);
+      expect(result.liquidityPoolDiff?.incrementalCurrentLiquidityUSD).toBe(0n);
     });
 
     it("should handle different token decimals correctly", async () => {
@@ -194,7 +183,9 @@ describe("PoolSyncLogic", () => {
       );
 
       // Current: 2000n, New: 10000000004000n, Incremental change: 10000000002000n
-      expect(result.liquidityPoolDiff?.totalLiquidityUSD).toBe(10000000002000n);
+      expect(result.liquidityPoolDiff?.incrementalCurrentLiquidityUSD).toBe(
+        10000000002000n,
+      );
     });
 
     it("should handle zero amounts correctly", async () => {
@@ -215,12 +206,14 @@ describe("PoolSyncLogic", () => {
       );
 
       expect(result.liquidityPoolDiff).toMatchObject({
-        reserve0: -500n, // Set to zero: subtract current reserves
-        reserve1: -1000n, // Set to zero: subtract current reserves
+        incrementalReserve0: -500n, // Set to zero: subtract current reserves
+        incrementalReserve1: -1000n, // Set to zero: subtract current reserves
       });
       // Zero amounts: set reserves to zero (snapshot behavior)
       // This means subtracting current reserves to get to zero
-      expect(result.liquidityPoolDiff?.totalLiquidityUSD).toBe(-2000n);
+      expect(result.liquidityPoolDiff?.incrementalCurrentLiquidityUSD).toBe(
+        -2000n,
+      );
     });
 
     it("should handle missing token instances gracefully", async () => {

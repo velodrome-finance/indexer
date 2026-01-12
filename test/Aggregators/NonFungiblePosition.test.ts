@@ -75,12 +75,12 @@ describe("NonFungiblePosition", () => {
           chainId: 10,
           tokenId: 1n,
           owner: "0x2222222222222222222222222222222222222222",
+          lastUpdatedTimestamp: timestamp,
         };
 
         updateNonFungiblePosition(
           transferDiff,
           mockNonFungiblePosition,
-          timestamp,
           mockContext as handlerContext,
         );
         const mockSet = jest.mocked(mockContext.NonFungiblePosition?.set);
@@ -106,23 +106,23 @@ describe("NonFungiblePosition", () => {
           id: NonFungiblePositionId(10, 1n),
           chainId: 10,
           tokenId: 1n,
-          amount0: 500000000000000000n,
-          amount1: 1000000000000000000n,
+          amount0: 1500000000000000000n, // new absolute value
+          amount1: 3000000000000000000n, // new absolute value
+          lastUpdatedTimestamp: timestamp,
         };
 
         updateNonFungiblePosition(
           increaseDiff,
           mockNonFungiblePosition,
-          timestamp,
           mockContext as handlerContext,
         );
         const mockSet = jest.mocked(mockContext.NonFungiblePosition?.set);
         result = mockSet?.mock.calls[0]?.[0] as NonFungiblePosition;
       });
 
-      it("should add to amount0 and amount1", () => {
-        expect(result.amount0).toBe(1500000000000000000n); // 1000n + 500n = 1500n
-        expect(result.amount1).toBe(3000000000000000000n); // 2000n + 1000n = 3000n
+      it("should update amount0 and amount1 with absolute values", () => {
+        expect(result.amount0).toBe(1500000000000000000n); // new absolute value
+        expect(result.amount1).toBe(3000000000000000000n); // new absolute value
         expect(result.owner).toBe("0x1111111111111111111111111111111111111111"); // unchanged
         expect(result.tickUpper).toBe(100n); // unchanged
         expect(result.tickLower).toBe(-100n); // unchanged
@@ -137,23 +137,23 @@ describe("NonFungiblePosition", () => {
           id: NonFungiblePositionId(10, 1n),
           chainId: 10,
           tokenId: 1n,
-          amount0: -500000000000000000n,
-          amount1: -1000000000000000000n,
+          amount0: 500000000000000000n, // new absolute value
+          amount1: 1000000000000000000n, // new absolute value
+          lastUpdatedTimestamp: timestamp,
         };
 
         updateNonFungiblePosition(
           decreaseDiff,
           mockNonFungiblePosition,
-          timestamp,
           mockContext as handlerContext,
         );
         const mockSet = jest.mocked(mockContext.NonFungiblePosition?.set);
         result = mockSet?.mock.calls[0]?.[0] as NonFungiblePosition;
       });
 
-      it("should subtract from amount0 and amount1", () => {
-        expect(result.amount0).toBe(500000000000000000n); // 1000n - 500n = 500n
-        expect(result.amount1).toBe(1000000000000000000n); // 2000n - 1000n = 1000n
+      it("should update amount0 and amount1 with absolute values", () => {
+        expect(result.amount0).toBe(500000000000000000n); // new absolute value
+        expect(result.amount1).toBe(1000000000000000000n); // new absolute value
         expect(result.owner).toBe("0x1111111111111111111111111111111111111111"); // unchanged
         expect(result.tickUpper).toBe(100n); // unchanged
         expect(result.tickLower).toBe(-100n); // unchanged
@@ -168,13 +168,13 @@ describe("NonFungiblePosition", () => {
           id: NonFungiblePositionId(10, 1n),
           chainId: 10,
           tokenId: 1n,
-          amount0: 500000000000000000n,
+          amount0: 1500000000000000000n, // new absolute value
+          lastUpdatedTimestamp: timestamp,
         };
 
         updateNonFungiblePosition(
           partialDiff,
           mockNonFungiblePosition,
-          timestamp,
           mockContext as handlerContext,
         );
         const mockSet = jest.mocked(mockContext.NonFungiblePosition?.set);
@@ -182,7 +182,7 @@ describe("NonFungiblePosition", () => {
       });
 
       it("should update only amount0, leave amount1 unchanged", () => {
-        expect(result.amount0).toBe(1500000000000000000n); // 1000n + 500n = 1500n
+        expect(result.amount0).toBe(1500000000000000000n); // new absolute value
         expect(result.amount1).toBe(2000000000000000000n); // unchanged
         expect(result.owner).toBe("0x1111111111111111111111111111111111111111"); // unchanged
         expect(result.lastUpdatedTimestamp).toBe(timestamp);
