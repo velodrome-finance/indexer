@@ -272,10 +272,9 @@ export async function updateLiquidityPoolAggregator(
     observationCardinalityNext:
       diff.observationCardinalityNext ?? current.observationCardinalityNext,
     totalVotesDeposited:
-      (diff.incrementalTotalVotesDeposited ?? 0n) + current.totalVotesDeposited,
+      diff.totalVotesDeposited ?? current.totalVotesDeposited,
     totalVotesDepositedUSD:
-      (diff.incrementalTotalVotesDepositedUSD ?? 0n) +
-      current.totalVotesDepositedUSD,
+      diff.totalVotesDepositedUSD ?? current.totalVotesDepositedUSD,
 
     // Voting Reward Claims - cumulative fields
     totalBribeClaimed:

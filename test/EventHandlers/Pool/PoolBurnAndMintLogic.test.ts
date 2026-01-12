@@ -152,7 +152,7 @@ describe("processPoolLiquidityEvent", () => {
       ).toBeDefined();
       expect(
         result.userLiquidityDiff?.incrementalTotalLiquidityRemovedUSD,
-      ).toBeLessThan(0n);
+      ).toBeGreaterThan(0n);
       // For burn events, incrementalTotalLiquidityAddedUSD should be 0n
       expect(result.userLiquidityDiff?.incrementalTotalLiquidityAddedUSD).toBe(
         0n,
@@ -194,7 +194,7 @@ describe("processPoolLiquidityEvent", () => {
     ) => ({
       token0: commonData.mockToken0Data,
       token1: commonData.mockToken1Data,
-      incrementalCurrentLiquidityUSD: 2000000000001000000000000000000000n,
+      totalLiquidityUSD: 2000000000001000000000000000000000n,
       ...overrides,
     });
 
