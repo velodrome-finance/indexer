@@ -106,6 +106,32 @@ describe("CLPoolCollectLogic", () => {
       ); // 5 USD in 18 decimals
     });
 
+    it("should calculate correct liquidity values for collect event", () => {
+      const result = processCLPoolCollect(mockEvent, mockToken0, mockToken1);
+
+      // Check unstaked fees tracking
+      expect(
+        result.liquidityPoolDiff.incrementalTotalUnstakedFeesCollected0,
+      ).toBe(1000000000000000000n); // amount0
+      expect(
+        result.liquidityPoolDiff.incrementalTotalUnstakedFeesCollected1,
+      ).toBe(2000000000000000000n); // amount1
+      expect(
+        result.liquidityPoolDiff.incrementalTotalUnstakedFeesCollectedUSD,
+      ).toBe(5000000000000000000n); // 5 USD in 18 decimals
+
+      // User fee contribution should be calculated based on the collected amounts with exact values
+      expect(result.userLiquidityDiff.incrementalTotalFeesContributed0).toBe(
+        1000000000000000000n,
+      ); // amount0
+      expect(result.userLiquidityDiff.incrementalTotalFeesContributed1).toBe(
+        2000000000000000000n,
+      ); // amount1
+      expect(result.userLiquidityDiff.incrementalTotalFeesContributedUSD).toBe(
+        5000000000000000000n,
+      ); // 5 USD in 18 decimals
+    });
+
     it("should handle different token decimals correctly", () => {
       const tokenWithDifferentDecimals: Token = {
         ...mockToken0,

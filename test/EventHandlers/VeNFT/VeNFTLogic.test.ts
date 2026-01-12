@@ -102,6 +102,7 @@ describe("VeNFTLogic", () => {
           ),
           locktime: 100n,
           lastUpdatedTimestamp: new Date(1000000 * 1000),
+          incrementalTotalValueLocked: 100n,
           isAlive: true,
         });
       });
@@ -124,6 +125,7 @@ describe("VeNFTLogic", () => {
           owner: "0x0000000000000000000000000000000000000000",
           locktime: 100n,
           lastUpdatedTimestamp: new Date(1000000 * 1000),
+          incrementalTotalValueLocked: 100n,
           isAlive: false,
         });
       });
