@@ -26,6 +26,9 @@ export interface LiquidityPoolAggregatorDiff {
   incrementalTotalVolume1: bigint;
   incrementalTotalVolumeUSD: bigint;
   incrementalTotalVolumeUSDWhitelisted: bigint;
+  incrementalTotalFeesGenerated0: bigint;
+  incrementalTotalFeesGenerated1: bigint;
+  incrementalTotalFeesGeneratedUSD: bigint;
   incrementalTotalFeesUSDWhitelisted: bigint;
   incrementalTotalUnstakedFeesCollected0: bigint;
   incrementalTotalUnstakedFeesCollected1: bigint;
@@ -185,6 +188,13 @@ export async function updateLiquidityPoolAggregator(
     totalFeesUSDWhitelisted:
       (diff.incrementalTotalFeesUSDWhitelisted ?? 0n) +
       current.totalFeesUSDWhitelisted,
+    totalFeesGenerated0:
+      (diff.incrementalTotalFeesGenerated0 ?? 0n) + current.totalFeesGenerated0,
+    totalFeesGenerated1:
+      (diff.incrementalTotalFeesGenerated1 ?? 0n) + current.totalFeesGenerated1,
+    totalFeesGeneratedUSD:
+      (diff.incrementalTotalFeesGeneratedUSD ?? 0n) +
+      current.totalFeesGeneratedUSD,
     // Unstaked fees (from Collect events - LPs that didn't stake)
     totalUnstakedFeesCollected0:
       (diff.incrementalTotalUnstakedFeesCollected0 ?? 0n) +
@@ -585,6 +595,9 @@ export function createLiquidityPoolAggregatorEntity(params: {
     totalVolume0: 0n,
     totalVolume1: 0n,
     totalVolumeUSD: 0n,
+    totalFeesGenerated0: 0n,
+    totalFeesGenerated1: 0n,
+    totalFeesGeneratedUSD: 0n,
     totalVolumeUSDWhitelisted: 0n,
     totalUnstakedFeesCollected0: 0n,
     totalUnstakedFeesCollected1: 0n,
