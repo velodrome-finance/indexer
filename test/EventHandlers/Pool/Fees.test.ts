@@ -19,7 +19,7 @@ describe("Pool Fees Event", () => {
     amount1In: 2n * 10n ** 6n,
     totalLiquidityUSD: 0n,
     totalFeesUSDWhitelisted: 0n,
-    totalUnstakedFeesCollectedUSD: 0n,
+    totalFeesGeneratedUSD: 0n,
   };
 
   expectations.totalLiquidityUSD =
@@ -30,15 +30,14 @@ describe("Pool Fees Event", () => {
       mockToken1Data.pricePerUSDNew) /
       10n ** mockToken1Data.decimals;
 
-  expectations.totalUnstakedFeesCollectedUSD =
-    mockLiquidityPoolData.totalUnstakedFeesCollectedUSD +
+  expectations.totalFeesGeneratedUSD =
+    mockLiquidityPoolData.totalFeesGeneratedUSD +
     (expectations.amount0In / 10n ** mockToken0Data.decimals) *
       mockToken0Data.pricePerUSDNew +
     (expectations.amount1In / 10n ** mockToken1Data.decimals) *
       mockToken1Data.pricePerUSDNew;
 
-  expectations.totalFeesUSDWhitelisted =
-    expectations.totalUnstakedFeesCollectedUSD;
+  expectations.totalFeesUSDWhitelisted = expectations.totalFeesGeneratedUSD;
 
   let updatedPool: LiquidityPoolAggregator | undefined;
   let createdUserStats: UserStatsPerPool | undefined;
@@ -84,19 +83,17 @@ describe("Pool Fees Event", () => {
 
   it("should update LiquidityPoolAggregator nominal fees", async () => {
     // For regular pools, fees are tracked as unstaked fees
-    expect(updatedPool?.totalUnstakedFeesCollected0).toBe(
-      mockLiquidityPoolData.totalUnstakedFeesCollected0 +
-        expectations.amount0In,
+    expect(updatedPool?.totalFeesGenerated0).toBe(
+      mockLiquidityPoolData.totalFeesGenerated0 + expectations.amount0In,
     );
-    expect(updatedPool?.totalUnstakedFeesCollected1).toBe(
-      mockLiquidityPoolData.totalUnstakedFeesCollected1 +
-        expectations.amount1In,
+    expect(updatedPool?.totalFeesGenerated1).toBe(
+      mockLiquidityPoolData.totalFeesGenerated1 + expectations.amount1In,
     );
   });
 
   it("should update LiquidityPoolAggregator total fees in USD", async () => {
-    expect(updatedPool?.totalUnstakedFeesCollectedUSD).toBe(
-      expectations.totalUnstakedFeesCollectedUSD,
+    expect(updatedPool?.totalFeesGeneratedUSD).toBe(
+      expectations.totalFeesGeneratedUSD,
     );
   });
 
