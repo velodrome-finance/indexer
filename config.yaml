@@ -65,6 +65,7 @@ contracts:
       - event: Mint
       - event: Burn
       - event: Fees
+      - event: Claim
       - event: Swap
       - event: Sync
   - name: Voter

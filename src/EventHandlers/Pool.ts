@@ -11,6 +11,7 @@ import {
 } from "../Aggregators/UserStatsPerPool";
 import { OUSDT_ADDRESS } from "../Constants";
 import { processPoolLiquidityEvent } from "./Pool/PoolBurnAndMintLogic";
+import { processPoolClaim } from "./Pool/PoolClaimLogic";
 import { processPoolFees } from "./Pool/PoolFeesLogic";
 import { processPoolSwap } from "./Pool/PoolSwapLogic";
 import { processPoolSync } from "./Pool/PoolSyncLogic";
@@ -42,9 +43,8 @@ Pool.Mint.handler(async ({ event, context }) => {
   const { liquidityPoolAggregator, token0Instance, token1Instance } = poolData;
 
   // Process mint event using shared logic
-  const result = await processPoolLiquidityEvent(
+  const result = processPoolLiquidityEvent(
     event,
-    liquidityPoolAggregator,
     token0Instance,
     token1Instance,
     event.params.amount0,
@@ -99,7 +99,6 @@ Pool.Burn.handler(async ({ event, context }) => {
   // Process burn event using shared logic
   const result = processPoolLiquidityEvent(
     event,
-    liquidityPoolAggregator,
     token0Instance,
     token1Instance,
     event.params.amount0,
@@ -266,6 +265,40 @@ Pool.Sync.handler(async ({ event, context }) => {
   );
 
   // Apply liquidity pool updates
+  if (liquidityPoolDiff) {
+    await updateLiquidityPoolAggregator(
+      liquidityPoolDiff,
+      liquidityPoolAggregator,
+      liquidityPoolDiff.lastUpdatedTimestamp as Date,
+      context,
+      event.block.number,
+    );
+  }
+});
+
+Pool.Claim.handler(async ({ event, context }) => {
+  const poolData = await loadPoolData(
+    event.srcAddress,
+    event.chainId,
+    context,
+    event.block.number,
+    event.block.timestamp,
+  );
+
+  if (!poolData) {
+    return;
+  }
+
+  const { liquidityPoolAggregator, token0Instance, token1Instance } = poolData;
+
+  const liquidityPoolDiff = processPoolClaim(
+    event,
+    event.params.sender,
+    liquidityPoolAggregator.gaugeAddress ?? "",
+    token0Instance,
+    token1Instance,
+  );
+
   if (liquidityPoolDiff) {
     await updateLiquidityPoolAggregator(
       liquidityPoolDiff,

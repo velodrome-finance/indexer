@@ -1,9 +1,4 @@
-import type {
-  LiquidityPoolAggregator,
-  Pool_Burn_event,
-  Pool_Mint_event,
-  Token,
-} from "generated";
+import type { Pool_Burn_event, Pool_Mint_event, Token } from "generated";
 import type { LiquidityPoolAggregatorDiff } from "../../Aggregators/LiquidityPoolAggregator";
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import { calculateTotalLiquidityUSD } from "../../Helpers";
@@ -20,7 +15,6 @@ export interface PoolLiquidityResult {
  */
 export function processPoolLiquidityEvent(
   event: Pool_Mint_event | Pool_Burn_event,
-  liquidityPoolAggregator: LiquidityPoolAggregator,
   token0Instance: Token,
   token1Instance: Token,
   amount0: bigint,

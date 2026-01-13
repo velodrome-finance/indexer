@@ -165,9 +165,9 @@ type UserStatsPerPool {
   totalLiquidityRemovedUSD: BigInt! @config(precision: 76) # total liquidity removed in USD
 
   # Fee metrics
-  totalFeesContributedUSD: BigInt! @config(precision: 76) # total fees contributed in USD (from swaps made by the user - essentialy fees paid by the user in swaps)
-  totalFeesContributed0: BigInt! @config(precision: 76) # total fees contributed in token0 (from swaps made by the user - essentialy fees paid by the user in swaps)
-  totalFeesContributed1: BigInt! @config(precision: 76) # total fees contributed in token1 (from swaps made by the user - essentialy fees paid by the user in swaps)
+  totalFeesContributedUSD: BigInt! @config(precision: 76) # total fees contributed in USD (from swaps made by the user - essentially fees paid by the user in swaps)
+  totalFeesContributed0: BigInt! @config(precision: 76) # total fees contributed in token0 (from swaps made by the user - essentially fees paid by the user in swaps)
+  totalFeesContributed1: BigInt! @config(precision: 76) # total fees contributed in token1 (from swaps made by the user - essentially fees paid by the user in swaps)
 
   # Swap metrics
   numberOfSwaps: BigInt! @config(precision: 76) # number of swaps in this pool
