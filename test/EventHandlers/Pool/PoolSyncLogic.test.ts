@@ -87,12 +87,11 @@ describe("PoolSyncLogic", () => {
 
   describe("processPoolSync", () => {
     it("should create entity and calculate sync updates for successful sync", async () => {
-      const result = await processPoolSync(
+      const result = processPoolSync(
         mockEvent,
         mockLiquidityPoolAggregator,
         mockToken0,
         mockToken1,
-        mockContext,
       );
 
       expect(result.liquidityPoolDiff).toBeDefined();
@@ -109,12 +108,11 @@ describe("PoolSyncLogic", () => {
     });
 
     it("should calculate total liquidity USD correctly with both tokens", async () => {
-      const result = await processPoolSync(
+      const result = processPoolSync(
         mockEvent,
         mockLiquidityPoolAggregator,
         mockToken0,
         mockToken1,
-        mockContext,
       );
 
       // Current total: 2000n, New total: 1000000000004000n, Incremental change: 1000000000002000n
@@ -124,12 +122,11 @@ describe("PoolSyncLogic", () => {
     });
 
     it("should calculate total liquidity USD correctly with only token0", async () => {
-      const result = await processPoolSync(
+      const result = processPoolSync(
         mockEvent,
         mockLiquidityPoolAggregator,
         mockToken0,
         undefined,
-        mockContext,
       );
 
       // Current: 2000n, New: 1000000000000000n, Incremental change: 999999999998000n
@@ -139,12 +136,11 @@ describe("PoolSyncLogic", () => {
     });
 
     it("should calculate total liquidity USD correctly with only token1", async () => {
-      const result = await processPoolSync(
+      const result = processPoolSync(
         mockEvent,
         mockLiquidityPoolAggregator,
         undefined,
         mockToken1,
-        mockContext,
       );
 
       // Current: 1000 * 10^0 * 2 USD = 2000n
@@ -156,12 +152,11 @@ describe("PoolSyncLogic", () => {
     });
 
     it("should use existing incrementalCurrentLiquidityUSD when no tokens are available", async () => {
-      const result = await processPoolSync(
+      const result = processPoolSync(
         mockEvent,
         mockLiquidityPoolAggregator,
         undefined,
         undefined,
-        mockContext,
       );
 
       // No tokens available: keep existing values (no change)
@@ -174,12 +169,11 @@ describe("PoolSyncLogic", () => {
         decimals: 8n, // Different decimals
       };
 
-      const result = await processPoolSync(
+      const result = processPoolSync(
         mockEvent,
         mockLiquidityPoolAggregator,
         mockToken0WithDifferentDecimals,
         mockToken1,
-        mockContext,
       );
 
       // Current: 2000n, New: 10000000004000n, Incremental change: 10000000002000n
@@ -197,12 +191,11 @@ describe("PoolSyncLogic", () => {
         },
       };
 
-      const result = await processPoolSync(
+      const result = processPoolSync(
         mockEventWithZeroAmounts,
         mockLiquidityPoolAggregator,
         mockToken0,
         mockToken1,
-        mockContext,
       );
 
       expect(result.liquidityPoolDiff).toMatchObject({
@@ -217,12 +210,11 @@ describe("PoolSyncLogic", () => {
     });
 
     it("should handle missing token instances gracefully", async () => {
-      const result = await processPoolSync(
+      const result = processPoolSync(
         mockEvent,
         mockLiquidityPoolAggregator,
         undefined,
         undefined,
-        mockContext,
       );
 
       expect(result.liquidityPoolDiff).toBeDefined();
@@ -245,12 +237,11 @@ describe("PoolSyncLogic", () => {
         pricePerUSDNew: 2500000000000000000n, // 2.5 USD
       };
 
-      const result = await processPoolSync(
+      const result = processPoolSync(
         mockEvent,
         mockLiquidityPoolAggregator,
         mockToken0WithNewPrice,
         mockToken1WithNewPrice,
-        mockContext,
       );
 
       expect(result.liquidityPoolDiff).toMatchObject({

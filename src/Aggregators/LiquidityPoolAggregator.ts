@@ -1,5 +1,5 @@
 import { TokenIdByChain } from "../Constants";
-import { getCurrentFee } from "../Effects/Index";
+import { getCurrentFee, roundBlockToInterval } from "../Effects/Index";
 import { generatePoolName } from "../Helpers";
 import { refreshTokenPrice } from "../PriceOracle";
 import type {
@@ -368,10 +368,12 @@ export async function loadPoolData(
   let updatedToken0 = token0Instance;
   let updatedToken1 = token1Instance;
   if (blockNumber !== undefined && blockTimestamp !== undefined) {
+    const roundedBlockNumber = roundBlockToInterval(blockNumber, chainId);
+
     // Wrap each refresh in a promise that catches errors individually
     const token0Refresh = refreshTokenPrice(
       token0Instance,
-      blockNumber,
+      roundedBlockNumber,
       blockTimestamp,
       chainId,
       context,
@@ -384,7 +386,7 @@ export async function loadPoolData(
 
     const token1Refresh = refreshTokenPrice(
       token1Instance,
-      blockNumber,
+      roundedBlockNumber,
       blockTimestamp,
       chainId,
       context,

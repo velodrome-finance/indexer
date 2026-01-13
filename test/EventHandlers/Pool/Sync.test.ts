@@ -107,4 +107,26 @@ describe("Pool Sync Event", () => {
       );
     });
   });
+
+  describe("when pool does not exist", () => {
+    it("should return early without processing", async () => {
+      // Create a mockDb without the pool
+      const updatedDB1 = mockDb.entities.Token.set(mockToken0Data);
+      const updatedDB2 = updatedDB1.entities.Token.set(mockToken1Data);
+      // Note: We intentionally don't set the LiquidityPoolAggregator
+
+      const mockEvent = Pool.Sync.createMockEvent(eventData);
+
+      const postEventDB = await Pool.Sync.processEvent({
+        event: mockEvent,
+        mockDb: updatedDB2,
+      });
+
+      // Pool should not exist
+      const pool = postEventDB.entities.LiquidityPoolAggregator.get(
+        toChecksumAddress(eventData.mockEventData.srcAddress),
+      );
+      expect(pool).toBeUndefined();
+    });
+  });
 });

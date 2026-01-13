@@ -39,11 +39,10 @@ describe("PoolFeesLogic", () => {
   describe("processPoolFees", () => {
     describe("successful processing", () => {
       it("should process fees and return both pool and user update data", async () => {
-        const result = await processPoolFees(
+        const result = processPoolFees(
           mockEvent,
           mockToken0Data,
           mockToken1Data,
-          mockContext,
         );
 
         // Check liquidity pool diff
@@ -73,11 +72,10 @@ describe("PoolFeesLogic", () => {
       });
 
       it("should prepare user update data correctly", async () => {
-        const result = await processPoolFees(
+        const result = processPoolFees(
           mockEvent,
           mockToken0Data,
           mockToken1Data,
-          mockContext,
         );
 
         // Check that user diff data is prepared correctly
@@ -96,11 +94,10 @@ describe("PoolFeesLogic", () => {
 
     describe("fee calculation", () => {
       it("should calculate USD fees correctly using updateFeeTokenData", async () => {
-        const result = await processPoolFees(
+        const result = processPoolFees(
           mockEvent,
           mockToken0Data,
           mockToken1Data,
-          mockContext,
         );
 
         // The USD calculation is handled by updateFeeTokenData
@@ -129,11 +126,10 @@ describe("PoolFeesLogic", () => {
           pricePerUSDNew: 2000000000000000000n, // 2 USD
         };
 
-        const result = await processPoolFees(
+        const result = processPoolFees(
           mockEvent,
           tokenWith6Decimals,
           tokenWith18Decimals,
-          mockContext,
         );
 
         expect(result.liquidityPoolDiff).toBeDefined();
@@ -141,12 +137,7 @@ describe("PoolFeesLogic", () => {
       });
 
       it("should handle undefined tokens", async () => {
-        const result = await processPoolFees(
-          mockEvent,
-          undefined,
-          undefined,
-          mockContext,
-        );
+        const result = processPoolFees(mockEvent, undefined, undefined);
 
         expect(result.liquidityPoolDiff).toBeDefined();
         expect(result.userDiff).toBeDefined();
