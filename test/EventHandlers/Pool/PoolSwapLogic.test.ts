@@ -4,6 +4,7 @@ import type {
   Token,
 } from "generated";
 import { processPoolSwap } from "../../../src/EventHandlers/Pool/PoolSwapLogic";
+import * as Helpers from "../../../src/Helpers";
 import { setupCommon } from "./common";
 
 describe("PoolSwapLogic", () => {
@@ -248,6 +249,68 @@ describe("PoolSwapLogic", () => {
       expect(result.liquidityPoolDiff?.incrementalTotalVolumeUSD).toBe(
         500000000000000n,
       );
+    });
+
+    it("should handle undefined token0UsdValue when both tokens are whitelisted", () => {
+      // Mock calculateTokenAmountUSD to return undefined for token0
+      const calculateTokenAmountUSDSpy = jest.spyOn(
+        Helpers,
+        "calculateTokenAmountUSD",
+      );
+      calculateTokenAmountUSDSpy
+        .mockReturnValueOnce(undefined as unknown as bigint) // token0UsdValue is undefined
+        .mockReturnValueOnce(500n); // token1UsdValue is defined
+
+      const result = processPoolSwap(
+        mockEvent,
+        { ...mockToken0, isWhitelisted: true },
+        { ...mockToken1, isWhitelisted: true },
+      );
+
+      // When token0UsdValue is undefined but token1UsdValue is available,
+      // volumeInUSDWhitelisted should fallback to token1UsdValue (500n) instead of undefined
+      expect(
+        result.liquidityPoolDiff?.incrementalTotalVolumeUSDWhitelisted,
+      ).toBe(500n);
+      expect(
+        result.liquidityPoolDiff?.incrementalTotalVolumeUSDWhitelisted,
+      ).not.toBeUndefined();
+
+      // Total volume should also use token1 value as fallback
+      expect(result.liquidityPoolDiff?.incrementalTotalVolumeUSD).toBe(500n);
+
+      calculateTokenAmountUSDSpy.mockRestore();
+    });
+
+    it("should fallback to 0n when both token0UsdValue and token1UsdValue are undefined", () => {
+      // Mock calculateTokenAmountUSD to return undefined for both tokens
+      const calculateTokenAmountUSDSpy = jest.spyOn(
+        Helpers,
+        "calculateTokenAmountUSD",
+      );
+      calculateTokenAmountUSDSpy
+        .mockReturnValueOnce(undefined as unknown as bigint) // token0UsdValue is undefined
+        .mockReturnValueOnce(undefined as unknown as bigint); // token1UsdValue is undefined
+
+      const result = processPoolSwap(
+        mockEvent,
+        { ...mockToken0, isWhitelisted: true },
+        { ...mockToken1, isWhitelisted: true },
+      );
+
+      // When both token0UsdValue and token1UsdValue are undefined,
+      // volumeInUSDWhitelisted should fallback to 0n
+      expect(
+        result.liquidityPoolDiff?.incrementalTotalVolumeUSDWhitelisted,
+      ).toBe(0n);
+      expect(
+        result.liquidityPoolDiff?.incrementalTotalVolumeUSDWhitelisted,
+      ).not.toBeUndefined();
+
+      // Total volume should also fallback to 0n
+      expect(result.liquidityPoolDiff?.incrementalTotalVolumeUSD).toBe(0n);
+
+      calculateTokenAmountUSDSpy.mockRestore();
     });
   });
 });
