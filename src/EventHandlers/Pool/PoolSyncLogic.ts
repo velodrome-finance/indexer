@@ -2,34 +2,24 @@ import type {
   LiquidityPoolAggregator,
   Pool_Sync_event,
   Token,
-  handlerContext,
 } from "generated";
 import type { LiquidityPoolAggregatorDiff } from "../../Aggregators/LiquidityPoolAggregator";
-import {
-  calculateTotalLiquidityUSD,
-  updateReserveTokenData,
-} from "../../Helpers";
+import { calculateTotalLiquidityUSD } from "../../Helpers";
 
 export interface PoolSyncResult {
   liquidityPoolDiff: Partial<LiquidityPoolAggregatorDiff>;
 }
 
-export async function processPoolSync(
+/**
+ * Process sync event using already-refreshed token prices from loadPoolData
+ * Sync events update reserves to absolute values, so we calculate deltas
+ */
+export function processPoolSync(
   event: Pool_Sync_event,
   liquidityPoolAggregator: LiquidityPoolAggregator,
   token0Instance: Token | undefined,
   token1Instance: Token | undefined,
-  context: handlerContext,
-): Promise<PoolSyncResult> {
-  const reserveData = await updateReserveTokenData(
-    token0Instance,
-    token1Instance,
-    event.params.reserve0,
-    event.params.reserve1,
-    event,
-    context,
-  );
-
+): PoolSyncResult {
   // Handle different scenarios based on token availability and amounts
   let reserve0Change: bigint;
   let reserve1Change: bigint;
@@ -50,12 +40,12 @@ export async function processPoolSync(
     reserve0Change = event.params.reserve0 - liquidityPoolAggregator.reserve0;
     reserve1Change = event.params.reserve1 - liquidityPoolAggregator.reserve1;
 
-    // Calculate total liquidity USD from the new total reserves
+    // Calculate total liquidity USD from the new total reserves using already-refreshed tokens
     const newTotalLiquidityUSD = calculateTotalLiquidityUSD(
       event.params.reserve0,
       event.params.reserve1,
-      reserveData.token0,
-      reserveData.token1,
+      token0Instance,
+      token1Instance,
     );
 
     totalLiquidityUSDChange =
@@ -67,9 +57,9 @@ export async function processPoolSync(
     incrementalReserve1: reserve1Change,
     incrementalCurrentLiquidityUSD: totalLiquidityUSDChange,
     token0Price:
-      reserveData.token0?.pricePerUSDNew ?? liquidityPoolAggregator.token0Price,
+      token0Instance?.pricePerUSDNew ?? liquidityPoolAggregator.token0Price,
     token1Price:
-      reserveData.token1?.pricePerUSDNew ?? liquidityPoolAggregator.token1Price,
+      token1Instance?.pricePerUSDNew ?? liquidityPoolAggregator.token1Price,
     lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
   };
 

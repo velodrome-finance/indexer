@@ -4,7 +4,7 @@ import type {
   Token,
 } from "../../../generated/src/Types.gen";
 import {
-  TEN_TO_THE_6_BI,
+  OUSDT_ADDRESS,
   TEN_TO_THE_18_BI,
   TokenIdByChain,
   toChecksumAddress,
