@@ -4,6 +4,7 @@ import type {
   Token,
   UserStatsPerPool,
 } from "../../../generated/src/Types.gen";
+import * as PoolFeesLogic from "../../../src/EventHandlers/Pool/PoolFeesLogic";
 import { setupCommon } from "./common";
 
 describe("Pool Fees Event", () => {
@@ -212,5 +213,172 @@ describe("Pool Fees Event", () => {
     expect(updatedUserStats?.lastActivityTimestamp).toEqual(
       new Date(2000000 * 1000),
     );
+  });
+
+  describe("when pool does not exist", () => {
+    it("should return early without processing", async () => {
+      // Create a fresh mockDb without the pool
+      const freshMockDb = MockDb.createMockDb();
+      const updatedDB1 = freshMockDb.entities.Token.set(
+        mockToken0Data as Token,
+      );
+      const updatedDB2 = updatedDB1.entities.Token.set(mockToken1Data as Token);
+      // Note: We intentionally don't set the LiquidityPoolAggregator
+
+      const mockEvent = Pool.Fees.createMockEvent({
+        amount0: 3n * 10n ** 18n,
+        amount1: 2n * 10n ** 6n,
+        sender: "0x1234567890123456789012345678901234567890",
+        mockEventData: {
+          block: {
+            number: 123456,
+            timestamp: 1000000,
+            hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+          },
+          chainId: 10,
+          srcAddress: poolId,
+        },
+      });
+
+      const postEventDB = await Pool.Fees.processEvent({
+        event: mockEvent,
+        mockDb: updatedDB2,
+      });
+
+      // Pool should not exist
+      const pool = postEventDB.entities.LiquidityPoolAggregator.get(poolId);
+      expect(pool).toBeUndefined();
+
+      // User stats will still be created because loadOrCreateUserData is called in parallel
+      // but they should have default/zero values since no fees processing occurred
+      const userStats = postEventDB.entities.UserStatsPerPool.get(
+        "0x1234567890123456789012345678901234567890_0x3333333333333333333333333333333333333333_10",
+      );
+      expect(userStats).toBeDefined();
+      // Verify no fee activity was recorded
+      expect(userStats?.totalFeesContributed0).toBe(0n);
+      expect(userStats?.totalFeesContributed1).toBe(0n);
+      expect(userStats?.totalFeesContributedUSD).toBe(0n);
+    });
+  });
+
+  describe("when optional diffs are undefined", () => {
+    it("should handle undefined liquidityPoolDiff gracefully", async () => {
+      // Set up fresh database
+      const freshMockDb = MockDb.createMockDb();
+      const testDB = freshMockDb.entities.Token.set(mockToken0Data as Token);
+      const testDB2 = testDB.entities.Token.set(mockToken1Data as Token);
+      const testDB3 = testDB2.entities.LiquidityPoolAggregator.set(
+        mockLiquidityPoolData,
+      );
+
+      // Mock processPoolFees to return undefined liquidityPoolDiff
+      const processSpy = jest
+        .spyOn(PoolFeesLogic, "processPoolFees")
+        .mockReturnValue({
+          liquidityPoolDiff: undefined, // Test the undefined branch
+          userDiff: {
+            incrementalTotalFeesContributedUSD: 500n,
+            incrementalTotalFeesContributed0: 3n * 10n ** 18n,
+            incrementalTotalFeesContributed1: 2n * 10n ** 6n,
+            lastActivityTimestamp: new Date(1000000 * 1000),
+          },
+        });
+
+      const mockEvent = Pool.Fees.createMockEvent({
+        amount0: 3n * 10n ** 18n,
+        amount1: 2n * 10n ** 6n,
+        sender: "0x1234567890123456789012345678901234567890",
+        mockEventData: {
+          block: {
+            number: 123456,
+            timestamp: 1000000,
+            hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+          },
+          chainId: 10,
+          srcAddress: poolId,
+        },
+      });
+
+      const result = await Pool.Fees.processEvent({
+        event: mockEvent,
+        mockDb: testDB3,
+      });
+
+      // Pool should not be updated since liquidityPoolDiff is undefined
+      const pool = result.entities.LiquidityPoolAggregator.get(poolId);
+      expect(pool?.totalUnstakedFeesCollected0).toBe(
+        mockLiquidityPoolData.totalUnstakedFeesCollected0,
+      );
+
+      // User stats should still be updated
+      const userStats = result.entities.UserStatsPerPool.get(
+        "0x1234567890123456789012345678901234567890_0x3333333333333333333333333333333333333333_10",
+      );
+      expect(userStats?.totalFeesContributed0).toBe(3n * 10n ** 18n);
+
+      processSpy.mockRestore();
+    });
+
+    it("should handle undefined userDiff gracefully", async () => {
+      // Set up fresh database
+      const freshMockDb = MockDb.createMockDb();
+      const testDB = freshMockDb.entities.Token.set(mockToken0Data as Token);
+      const testDB2 = testDB.entities.Token.set(mockToken1Data as Token);
+      const testDB3 = testDB2.entities.LiquidityPoolAggregator.set(
+        mockLiquidityPoolData,
+      );
+
+      // Mock processPoolFees to return undefined userDiff
+      const processSpy = jest
+        .spyOn(PoolFeesLogic, "processPoolFees")
+        .mockReturnValue({
+          liquidityPoolDiff: {
+            incrementalTotalUnstakedFeesCollected0: 3n * 10n ** 18n,
+            incrementalTotalUnstakedFeesCollected1: 2n * 10n ** 6n,
+            incrementalTotalUnstakedFeesCollectedUSD: 500n,
+            incrementalTotalFeesUSDWhitelisted: 500n,
+            lastUpdatedTimestamp: new Date(1000000 * 1000),
+          },
+          userDiff: undefined, // Test the undefined branch
+        });
+
+      const mockEvent = Pool.Fees.createMockEvent({
+        amount0: 3n * 10n ** 18n,
+        amount1: 2n * 10n ** 6n,
+        sender: "0x1234567890123456789012345678901234567890",
+        mockEventData: {
+          block: {
+            number: 123456,
+            timestamp: 1000000,
+            hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+          },
+          chainId: 10,
+          srcAddress: poolId,
+        },
+      });
+
+      const result = await Pool.Fees.processEvent({
+        event: mockEvent,
+        mockDb: testDB3,
+      });
+
+      // Pool should still be updated
+      const pool = result.entities.LiquidityPoolAggregator.get(poolId);
+      expect(pool?.totalUnstakedFeesCollected0).toBe(
+        mockLiquidityPoolData.totalUnstakedFeesCollected0 + 3n * 10n ** 18n,
+      );
+
+      // User stats should still be created (from loadOrCreateUserData) but not updated
+      const userStats = result.entities.UserStatsPerPool.get(
+        "0x1234567890123456789012345678901234567890_0x3333333333333333333333333333333333333333_10",
+      );
+      expect(userStats).toBeDefined();
+      // Should have default values since userDiff was undefined
+      expect(userStats?.totalFeesContributed0).toBe(0n);
+      expect(userStats?.totalFeesContributed1).toBe(0n);
+
+      processSpy.mockRestore();
+    });
   });
 });
