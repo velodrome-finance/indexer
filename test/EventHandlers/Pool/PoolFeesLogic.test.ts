@@ -38,7 +38,7 @@ describe("PoolFeesLogic", () => {
 
   describe("processPoolFees", () => {
     describe("successful processing", () => {
-      it("should process fees and return both pool and user update data", async () => {
+      it("should process fees and return both pool and user update data", () => {
         const result = processPoolFees(
           mockEvent,
           mockToken0Data,
@@ -71,7 +71,7 @@ describe("PoolFeesLogic", () => {
         );
       });
 
-      it("should prepare user update data correctly", async () => {
+      it("should prepare user update data correctly", () => {
         const result = processPoolFees(
           mockEvent,
           mockToken0Data,
@@ -93,7 +93,7 @@ describe("PoolFeesLogic", () => {
     });
 
     describe("fee calculation", () => {
-      it("should calculate USD fees correctly using updateFeeTokenData", async () => {
+      it("should calculate USD fees correctly using updateFeeTokenData", () => {
         const result = processPoolFees(
           mockEvent,
           mockToken0Data,
@@ -112,7 +112,7 @@ describe("PoolFeesLogic", () => {
         ).toBe("bigint");
       });
 
-      it("should handle different token decimals correctly", async () => {
+      it("should handle different token decimals correctly", () => {
         // Create tokens with different decimals
         const tokenWith6Decimals: Token = {
           ...mockToken0Data,
@@ -136,7 +136,7 @@ describe("PoolFeesLogic", () => {
         expect(result.userDiff).toBeDefined();
       });
 
-      it("should handle undefined tokens", async () => {
+      it("should handle undefined tokens", () => {
         const result = processPoolFees(mockEvent, undefined, undefined);
 
         expect(result.liquidityPoolDiff).toBeDefined();
