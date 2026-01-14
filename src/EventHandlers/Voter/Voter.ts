@@ -315,3 +315,27 @@ Voter.GaugeKilled.handler(async ({ event, context }) => {
     );
   }
 });
+
+Voter.GaugeRevived.handler(async ({ event, context }) => {
+  const poolEntity = await findPoolByGaugeAddress(
+    event.params.gauge,
+    event.chainId,
+    context,
+  );
+  const poolAddress = poolEntity?.id;
+
+  if (poolAddress) {
+    const poolUpdateDiff = {
+      gaugeIsAlive: true,
+      lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
+    };
+
+    await updateLiquidityPoolAggregator(
+      poolUpdateDiff,
+      poolEntity,
+      new Date(event.block.timestamp * 1000),
+      context,
+      event.block.number,
+    );
+  }
+});

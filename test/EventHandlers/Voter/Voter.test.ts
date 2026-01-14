@@ -737,6 +737,94 @@ describe("Voter Events", () => {
     });
   });
 
+  describe("GaugeRevived Event", () => {
+    let mockDb: ReturnType<typeof MockDb.createMockDb>;
+    let mockEvent: ReturnType<typeof Voter.GaugeRevived.createMockEvent>;
+    const chainId = 10;
+    const poolAddress = "0x478946BcD4a5a22b316470F5486fAfb928C0bA25";
+    const gaugeAddress = "0xa75127121d28a9bf848f3b70e7eea26570aa7700";
+
+    beforeEach(() => {
+      mockDb = MockDb.createMockDb();
+      mockEvent = Voter.GaugeRevived.createMockEvent({
+        gauge: gaugeAddress,
+        mockEventData: {
+          block: {
+            number: 123456,
+            timestamp: 1000000,
+            hash: "0xhash",
+          },
+          chainId: chainId,
+          logIndex: 1,
+        },
+      });
+    });
+
+    describe("when pool entity exists", () => {
+      let resultDB: ReturnType<typeof MockDb.createMockDb>;
+      let mockLiquidityPool: LiquidityPoolAggregator;
+      const feeVotingRewardAddress =
+        "0x6572b2b30f63B960608f3aA5205711C558998398";
+      const bribeVotingRewardAddress =
+        "0xc9eEBCD281d9A4c0839Eb643216caa80a68b88B1";
+
+      beforeEach(async () => {
+        const { mockLiquidityPoolData } = setupCommon();
+
+        mockLiquidityPool = {
+          ...mockLiquidityPoolData,
+          id: toChecksumAddress(poolAddress),
+          chainId: chainId,
+          gaugeAddress: gaugeAddress, // Has gauge address
+          gaugeIsAlive: false, // Initially killed
+          feeVotingRewardAddress: feeVotingRewardAddress, // Has voting reward addresses
+          bribeVotingRewardAddress: bribeVotingRewardAddress,
+        } as LiquidityPoolAggregator;
+
+        // Mock findPoolByGaugeAddress to return the pool
+        jest
+          .spyOn(LiquidityPoolAggregatorModule, "findPoolByGaugeAddress")
+          .mockResolvedValue(mockLiquidityPool);
+
+        mockDb = mockDb.entities.LiquidityPoolAggregator.set(mockLiquidityPool);
+
+        resultDB = await Voter.GaugeRevived.processEvent({
+          event: mockEvent,
+          mockDb,
+        });
+      });
+
+      it("should set gaugeIsAlive to true", () => {
+        const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
+          toChecksumAddress(poolAddress),
+        );
+        expect(updatedPool).toBeDefined();
+        expect(updatedPool?.gaugeIsAlive).toBe(true); // Should be set to true
+        expect(updatedPool?.lastUpdatedTimestamp).toEqual(
+          new Date(1000000 * 1000),
+        );
+      });
+    });
+
+    describe("when pool entity does not exist", () => {
+      it("should not create any entities", async () => {
+        // Mock findPoolByGaugeAddress to return null
+        jest
+          .spyOn(LiquidityPoolAggregatorModule, "findPoolByGaugeAddress")
+          .mockResolvedValue(null);
+
+        const resultDB = await Voter.GaugeRevived.processEvent({
+          event: mockEvent,
+          mockDb,
+        });
+
+        expect(
+          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
+        ).toHaveLength(0);
+      });
+    });
+  });
+
   describe("WhitelistToken event", () => {
     let resultDB: ReturnType<typeof MockDb.createMockDb>;
     let mockDb: ReturnType<typeof MockDb.createMockDb>;
