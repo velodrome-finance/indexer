@@ -86,7 +86,7 @@ describe("PoolSyncLogic", () => {
   } as unknown as handlerContext;
 
   describe("processPoolSync", () => {
-    it("should create entity and calculate sync updates for successful sync", async () => {
+    it("should create entity and calculate sync updates for successful sync", () => {
       const result = processPoolSync(
         mockEvent,
         mockLiquidityPoolAggregator,
@@ -107,7 +107,7 @@ describe("PoolSyncLogic", () => {
       );
     });
 
-    it("should calculate total liquidity USD correctly with both tokens", async () => {
+    it("should calculate total liquidity USD correctly with both tokens", () => {
       const result = processPoolSync(
         mockEvent,
         mockLiquidityPoolAggregator,
@@ -121,7 +121,7 @@ describe("PoolSyncLogic", () => {
       );
     });
 
-    it("should calculate total liquidity USD correctly with only token0", async () => {
+    it("should calculate total liquidity USD correctly with only token0", () => {
       const result = processPoolSync(
         mockEvent,
         mockLiquidityPoolAggregator,
@@ -135,7 +135,7 @@ describe("PoolSyncLogic", () => {
       );
     });
 
-    it("should calculate total liquidity USD correctly with only token1", async () => {
+    it("should calculate total liquidity USD correctly with only token1", () => {
       const result = processPoolSync(
         mockEvent,
         mockLiquidityPoolAggregator,
@@ -151,7 +151,7 @@ describe("PoolSyncLogic", () => {
       );
     });
 
-    it("should use existing incrementalCurrentLiquidityUSD when no tokens are available", async () => {
+    it("should use existing incrementalCurrentLiquidityUSD when no tokens are available", () => {
       const result = processPoolSync(
         mockEvent,
         mockLiquidityPoolAggregator,
@@ -163,7 +163,7 @@ describe("PoolSyncLogic", () => {
       expect(result.liquidityPoolDiff?.incrementalCurrentLiquidityUSD).toBe(0n);
     });
 
-    it("should handle different token decimals correctly", async () => {
+    it("should handle different token decimals correctly", () => {
       const mockToken0WithDifferentDecimals = {
         ...mockToken0,
         decimals: 8n, // Different decimals
@@ -182,7 +182,7 @@ describe("PoolSyncLogic", () => {
       );
     });
 
-    it("should handle zero amounts correctly", async () => {
+    it("should handle zero amounts correctly", () => {
       const mockEventWithZeroAmounts: Pool_Sync_event = {
         ...mockEvent,
         params: {
@@ -209,7 +209,7 @@ describe("PoolSyncLogic", () => {
       );
     });
 
-    it("should handle missing token instances gracefully", async () => {
+    it("should handle missing token instances gracefully", () => {
       const result = processPoolSync(
         mockEvent,
         mockLiquidityPoolAggregator,
@@ -226,7 +226,7 @@ describe("PoolSyncLogic", () => {
       });
     });
 
-    it("should update token prices correctly", async () => {
+    it("should update token prices correctly", () => {
       const mockToken0WithNewPrice = {
         ...mockToken0,
         pricePerUSDNew: 1500000000000000000n, // 1.5 USD

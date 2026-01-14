@@ -33,27 +33,6 @@ describe("PoolSwapLogic", () => {
     logIndex: 1,
   };
 
-  // Mock liquidity pool aggregator
-  const mockLiquidityPoolAggregator: LiquidityPoolAggregator = {
-    ...mockLiquidityPoolData,
-    id: "0x3333333333333333333333333333333333333333",
-    token0_id: mockToken0Data.id,
-    token1_id: mockToken1Data.id,
-    token0_address: mockToken0Data.address,
-    token1_address: mockToken1Data.address,
-    reserve0: 1000n,
-    reserve1: 1000n,
-    totalLiquidityUSD: 2000n,
-    totalVolume0: 1n,
-    totalVolume1: 1n,
-    totalVolumeUSD: 1200n,
-    totalVolumeUSDWhitelisted: 1200n,
-    token0Price: 1000000000000000000n,
-    token1Price: 5000000000000000000n,
-    gaugeIsAlive: true,
-    name: "Test Pool",
-  };
-
   // Mock token instances
   const mockToken0: Token = {
     ...mockToken0Data,
@@ -72,7 +51,7 @@ describe("PoolSwapLogic", () => {
   };
 
   describe("processPoolSwap", () => {
-    it("should create entity and calculate swap updates for successful swap", async () => {
+    it("should create entity and calculate swap updates for successful swap", () => {
       // Process the swap event
       const result = processPoolSwap(mockEvent, mockToken0, mockToken1);
 
@@ -104,7 +83,7 @@ describe("PoolSwapLogic", () => {
       );
     });
 
-    it("should calculate volume correctly when token1 has higher volume", async () => {
+    it("should calculate volume correctly when token1 has higher volume", () => {
       const modifiedEvent: Pool_Swap_event = {
         ...mockEvent,
         params: {
@@ -125,7 +104,7 @@ describe("PoolSwapLogic", () => {
       expect(result.liquidityPoolDiff?.incrementalTotalVolumeUSD).toBe(102n);
     });
 
-    it("should not add to whitelisted volume when tokens are not whitelisted", async () => {
+    it("should not add to whitelisted volume when tokens are not whitelisted", () => {
       const result = processPoolSwap(
         mockEvent,
         { ...mockToken0, isWhitelisted: false },
@@ -143,7 +122,7 @@ describe("PoolSwapLogic", () => {
       expect(result.liquidityPoolDiff?.incrementalTotalVolumeUSD).toBe(1000n);
     });
 
-    it("should add to whitelisted volume when both tokens are whitelisted", async () => {
+    it("should add to whitelisted volume when both tokens are whitelisted", () => {
       const result = processPoolSwap(
         mockEvent,
         { ...mockToken0, isWhitelisted: true },
@@ -160,7 +139,7 @@ describe("PoolSwapLogic", () => {
       ).toBe(1000n);
     });
 
-    it("should handle mixed whitelist status correctly", async () => {
+    it("should handle mixed whitelist status correctly", () => {
       const result = processPoolSwap(
         mockEvent,
         { ...mockToken0, isWhitelisted: true },

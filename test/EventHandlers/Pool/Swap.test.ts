@@ -232,7 +232,7 @@ describe("Pool Swap Event", () => {
 
       // Check that OUSDTSwap entity was created
       const ousdtSwaps = Array.from(postEventDB.entities.OUSDTSwaps.getAll());
-      expect(ousdtSwaps.length).toBeGreaterThan(0);
+      expect(ousdtSwaps.length).toBe(1);
       expect(ousdtSwaps[0]?.tokenInPool.toLowerCase()).toBe(
         ousdtAddress.toLowerCase(),
       );
