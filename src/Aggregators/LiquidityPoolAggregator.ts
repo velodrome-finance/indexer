@@ -102,26 +102,29 @@ export async function updateDynamicFeePools(
 
   const dynamicFeeModuleAddress = dynamicFeeGlobalConfigs[0].id;
 
-  try {
-    // base fee + dynamic fee
-    const currentFee = await context.effect(getCurrentFee, {
-      poolAddress,
-      dynamicFeeModuleAddress,
-      chainId,
-      blockNumber,
-    });
+  // base fee + dynamic fee
+  const currentFee = await context.effect(getCurrentFee, {
+    poolAddress,
+    dynamicFeeModuleAddress,
+    chainId,
+    blockNumber,
+  });
 
-    // Update the current fee in the pool entity
-    const updated: LiquidityPoolAggregator = {
-      ...liquidityPoolAggregator,
-      currentFee,
-    };
-
-    context.LiquidityPoolAggregator.set(updated);
-  } catch (error) {
-    // No error if the pool is not a dynamic fee pool
+  // If fee is undefined, it means the effect failed - skip update to preserve existing fee
+  if (currentFee === undefined) {
+    context.log.warn(
+      `[updateDynamicFeePools] Failed to fetch fee for pool ${poolAddress} on chain ${chainId}, skipping update`,
+    );
     return;
   }
+
+  // Update the current fee in the pool entity
+  const updated: LiquidityPoolAggregator = {
+    ...liquidityPoolAggregator,
+    currentFee,
+  };
+
+  context.LiquidityPoolAggregator.set(updated);
 }
 
 /**

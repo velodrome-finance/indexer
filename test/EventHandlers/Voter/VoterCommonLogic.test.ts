@@ -40,10 +40,14 @@ function makeMockContext(effects: {
   return {
     effect: async (effectDef: unknown, _input: unknown) => {
       if (effectDef === getIsAlive) {
-        return effects.isAlive ?? true;
+        // Return undefined if not provided (simulating effect error)
+        return effects.isAlive !== undefined ? effects.isAlive : undefined;
       }
       if (effectDef === getTokensDeposited) {
-        return effects.tokensDeposited ?? 0n;
+        // Return undefined if not provided (simulating effect error)
+        return effects.tokensDeposited !== undefined
+          ? effects.tokensDeposited
+          : undefined;
       }
       if (effectDef === getTokenDetails) {
         return tokenDetails;
@@ -147,6 +151,52 @@ describe("computeVoterDistributeValues", () => {
     expect(result.normalizedEmissionsAmountUsd).toBe(0n);
     expect(result.normalizedVotesDepositedAmountUsd).toBe(0n);
     expect(logs.warns).toHaveLength(1);
+  });
+
+  it("handles undefined effect returns by using defaults and logging errors", async () => {
+    const token: Token = {
+      id: "token-undefined",
+      address: "0x0000000000000000000000000000000000000003",
+      chainId: 1,
+      decimals: 18n,
+      pricePerUSDNew: 1_000000000000000000n, // $1 in 1e18
+      lastUpdatedTimestamp: new Date(0),
+      isWhitelisted: true,
+      name: "TKN",
+      symbol: "TKN",
+    } as unknown as Token;
+
+    const logs = {
+      warns: [] as string[],
+      infos: [] as string[],
+      errors: [] as string[],
+    };
+
+    // Don't provide isAlive or tokensDeposited - effects will return undefined
+    const context = makeMockContext({ logs });
+
+    const result = await computeVoterDistributeValues({
+      rewardToken: token,
+      gaugeAddress: "0x0000000000000000000000000000000000000abc",
+      voterAddress: "0x0000000000000000000000000000000000000def",
+      amountEmittedRaw: 1000000000000000000n, // 1 token emitted
+      blockNumber: 12345,
+      chainId: 1,
+      context,
+    });
+
+    // Should use defaults: false for isAlive, 0n for tokensDeposited
+    expect(result.isAlive).toBe(false);
+    expect(result.tokensDeposited).toBe(0n);
+
+    // Should log errors for both undefined values
+    expect(logs.errors).toHaveLength(2);
+    expect(logs.errors[0]).toContain("Failed to fetch isAlive");
+    expect(logs.errors[1]).toContain("Failed to fetch tokensDeposited");
+
+    // Calculations should still work with defaults
+    expect(result.normalizedEmissionsAmount).toBe(1000000000000000000n);
+    expect(result.normalizedVotesDepositedAmountUsd).toBe(0n);
   });
 });
 

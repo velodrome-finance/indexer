@@ -258,19 +258,22 @@ describe("LiquidityPoolAggregator Functions", () => {
     });
 
     it("should handle effect errors gracefully", async () => {
-      // Mock effect to throw error
+      // Mock effect to return undefined (error case)
       expect(mockContext.effect).toBeDefined();
       jest
         // biome-ignore lint/style/noNonNullAssertion: effect is verified to be defined above
         .mocked(mockContext.effect!)
-        .mockRejectedValue(new Error("Pool not found"));
+        .mockResolvedValue(undefined);
 
-      // Should complete without throwing
+      // Should complete without throwing and skip update
       await updateDynamicFeePools(
         liquidityPoolAggregator as LiquidityPoolAggregator,
         mockContext as handlerContext,
         blockNumber,
       );
+
+      // Should log a warning
+      expect(jest.mocked(mockContext.log?.warn)).toHaveBeenCalled();
 
       // Verify that the effect was called with the expected arguments
       // biome-ignore lint/style/noNonNullAssertion: effect is verified to be defined above

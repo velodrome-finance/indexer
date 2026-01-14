@@ -9,6 +9,7 @@ import { getSqrtPriceX96, roundBlockToInterval } from "../../Effects/Index";
 import {
   calculatePositionAmountsFromLiquidity,
   calculateTotalLiquidityUSD,
+  executeEffectWithRoundedBlockRetry,
 } from "../../Helpers";
 
 /**
@@ -169,7 +170,7 @@ export async function cleanupOrphanedPlaceholders(
  * @param position - The position to get data for
  * @param blockNumber - The block number to fetch sqrtPriceX96 at
  * @param context - The handler context for database operations and effects
- * @returns A tuple of [sqrtPriceX96, token0, token1], tokens may be undefined if not found
+ * @returns A tuple of [sqrtPriceX96, token0, token1], sqrtPriceX96 may be undefined if fetch fails, tokens may be undefined if not found
  */
 export async function getSqrtPriceX96AndTokens(
   chainId: number,
@@ -190,34 +191,32 @@ export async function getSqrtPriceX96AndTokens(
   // Try to fetch sqrtPriceX96 with rounded block number first (for better caching)
   let sqrtPriceX96: bigint | undefined;
   try {
-    sqrtPriceX96 = await context.effect(getSqrtPriceX96, {
-      poolAddress: position.pool,
-      chainId: chainId,
-      blockNumber: roundedBlockNumber,
-    });
-  } catch (error) {
-    // Pool likely doesn't exist at rounded block (likely because it was created after the rounded block)
-    // Retry with actual block number
-    context.log.warn(
-      `[getSqrtPriceX96AndTokens] Pool ${position.pool} does not exist at rounded block ${roundedBlockNumber} (original: ${blockNumber}) on chain ${chainId}. Retrying with actual block number. This is expected when the pool was created after the rounded block interval.`,
-    );
-
-    try {
-      sqrtPriceX96 = await context.effect(getSqrtPriceX96, {
+    sqrtPriceX96 = await executeEffectWithRoundedBlockRetry(
+      (input) => context.effect(getSqrtPriceX96, input),
+      {
+        poolAddress: position.pool,
+        chainId: chainId,
+        blockNumber: roundedBlockNumber,
+      },
+      {
         poolAddress: position.pool,
         chainId: chainId,
         blockNumber: blockNumber,
-      });
-    } catch (retryError) {
-      // If retry also fails, set to undefined (return type allows this)
-      context.log.error(
-        `[getSqrtPriceX96AndTokens] Failed to fetch sqrtPriceX96 for pool ${position.pool} on chain ${chainId} at both rounded block ${roundedBlockNumber} and actual block ${blockNumber}`,
-        retryError instanceof Error
-          ? retryError
-          : new Error(String(retryError)),
-      );
-      sqrtPriceX96 = undefined;
-    }
+      },
+      context,
+      "[getSqrtPriceX96AndTokens]",
+      {
+        retryOnZero: true,
+        zeroValue: 0n,
+      },
+    );
+  } catch (error) {
+    // If both rounded and original block fail, set to undefined (return type allows this)
+    context.log.error(
+      `[getSqrtPriceX96AndTokens] Failed to fetch sqrtPriceX96 for pool ${position.pool} on chain ${chainId} at both rounded block ${roundedBlockNumber} and actual block ${blockNumber}`,
+      error instanceof Error ? error : new Error(String(error)),
+    );
+    sqrtPriceX96 = undefined;
   }
 
   return [sqrtPriceX96, token0, token1];

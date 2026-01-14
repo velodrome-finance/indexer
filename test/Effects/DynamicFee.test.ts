@@ -3,6 +3,73 @@ import type { PublicClient } from "viem";
 import { CHAIN_CONSTANTS } from "../../src/Constants";
 import { fetchCurrentFee, getCurrentFee } from "../../src/Effects/DynamicFee";
 
+// Common test constants
+const TEST_CHAIN_ID = 10;
+const TEST_BLOCK_NUMBER = 12345;
+const TEST_POOL_ADDRESS = "0x1234567890123456789012345678901234567890";
+const TEST_DYNAMIC_FEE_MODULE = TEST_POOL_ADDRESS;
+const TEST_FEE_VALUE = 500n;
+const TEST_FEE_VALUE_ALT = 600n;
+
+// Chain configurations for dynamic fee module addresses
+const CHAIN_CONFIGS = [
+  {
+    chainId: 10,
+    address: "0xd9eE4FBeE92970509ec795062cA759F8B52d6720",
+    name: "Optimism",
+  },
+  {
+    chainId: 8453,
+    address: "0xDB45818A6db280ecfeB33cbeBd445423d0216b5D",
+    name: "Base",
+  },
+  {
+    chainId: 42220,
+    address: "0xbcAE2d4b4E8E34a4100e69E9C73af8214a89572e",
+    name: "Celo",
+  },
+  {
+    chainId: 1868,
+    address: "0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F",
+    name: "Soneium",
+  },
+  {
+    chainId: 34443,
+    address: "0x479Bec910d4025b4aC440ec27aCf28eac522242B",
+    name: "Mode",
+  },
+  {
+    chainId: 1135,
+    address: "0xCB885Aa008031cBDb72447Bed78AF4f87a197126",
+    name: "Lisk",
+  },
+  {
+    chainId: 130,
+    address: "0x6812eefC19deB79D5191b52f4B763260d9F3C238",
+    name: "Unichain",
+  },
+  {
+    chainId: 252,
+    address: "0xB0922e747e906B963dBdA37647DE1Aa709B35B2d",
+    name: "Fraxtal",
+  },
+  {
+    chainId: 1750,
+    address: "0x6812eefC19deB79D5191b52f4B763260d9F3C238",
+    name: "Metal",
+  },
+  {
+    chainId: 1923,
+    address: "0x6812eefC19deB79D5191b52f4B763260d9F3C238",
+    name: "Swell2",
+  },
+  {
+    chainId: 57073,
+    address: "0x6812eefC19deB79D5191b52f4B763260d9F3C238",
+    name: "Ink",
+  },
+];
+
 describe("Dynamic Fee Effects", () => {
   let mockContext: {
     effect: (
@@ -28,8 +95,9 @@ describe("Dynamic Fee Effects", () => {
       }),
     } as unknown as PublicClient;
 
-    // Mock CHAIN_CONSTANTS by directly setting the property
-    (CHAIN_CONSTANTS as Record<number, { eth_client: PublicClient }>)[10] = {
+    (CHAIN_CONSTANTS as Record<number, { eth_client: PublicClient }>)[
+      TEST_CHAIN_ID
+    ] = {
       eth_client: mockEthClient,
     };
 
@@ -60,137 +128,121 @@ describe("Dynamic Fee Effects", () => {
       expect(typeof getCurrentFee).toBe("object");
       expect(getCurrentFee).toHaveProperty("name", "getCurrentFee");
     });
+
+    it("should return undefined on error", async () => {
+      jest
+        .mocked(mockEthClient.simulateContract)
+        .mockRejectedValue(new Error("Contract call failed"));
+
+      const result = await mockContext.effect(
+        getCurrentFee as unknown as {
+          name: string;
+          handler: (args: { input: unknown; context: unknown }) => unknown;
+        },
+        {
+          poolAddress: TEST_POOL_ADDRESS,
+          dynamicFeeModuleAddress: TEST_DYNAMIC_FEE_MODULE,
+          chainId: TEST_CHAIN_ID,
+          blockNumber: TEST_BLOCK_NUMBER,
+        },
+      );
+
+      expect(result).toBeUndefined();
+      expect(mockContext.log.error).toHaveBeenCalled();
+    });
+
+    it("should return fee value on success", async () => {
+      jest.mocked(mockEthClient.simulateContract).mockResolvedValue({
+        result: TEST_FEE_VALUE,
+        // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
+      } as any);
+
+      const result = await mockContext.effect(
+        getCurrentFee as unknown as {
+          name: string;
+          handler: (args: { input: unknown; context: unknown }) => unknown;
+        },
+        {
+          poolAddress: TEST_POOL_ADDRESS,
+          dynamicFeeModuleAddress: TEST_DYNAMIC_FEE_MODULE,
+          chainId: TEST_CHAIN_ID,
+          blockNumber: TEST_BLOCK_NUMBER,
+        },
+      );
+
+      expect(result).toBe(TEST_FEE_VALUE);
+      expect(mockContext.log.error).not.toHaveBeenCalled();
+    });
   });
 
   describe("fetchCurrentFee", () => {
-    // Define chain IDs and their corresponding dynamic fee module addresses
-    const chainConfigs = [
-      {
-        chainId: 10,
-        address: "0xd9eE4FBeE92970509ec795062cA759F8B52d6720",
-        name: "Optimism",
-      },
-      {
-        chainId: 8453,
-        address: "0xDB45818A6db280ecfeB33cbeBd445423d0216b5D",
-        name: "Base",
-      },
-      {
-        chainId: 42220,
-        address: "0xbcAE2d4b4E8E34a4100e69E9C73af8214a89572e",
-        name: "Celo",
-      },
-      {
-        chainId: 1868,
-        address: "0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F",
-        name: "Soneium",
-      },
-      {
-        chainId: 34443,
-        address: "0x479Bec910d4025b4aC440ec27aCf28eac522242B",
-        name: "Mode",
-      },
-      {
-        chainId: 1135,
-        address: "0xCB885Aa008031cBDb72447Bed78AF4f87a197126",
-        name: "Lisk",
-      },
-      {
-        chainId: 130,
-        address: "0x6812eefC19deB79D5191b52f4B763260d9F3C238",
-        name: "Unichain",
-      },
-      {
-        chainId: 252,
-        address: "0xB0922e747e906B963dBdA37647DE1Aa709B35B2d",
-        name: "Fraxtal",
-      },
-      {
-        chainId: 1750,
-        address: "0x6812eefC19deB79D5191b52f4B763260d9F3C238",
-        name: "Metal",
-      },
-      {
-        chainId: 1923,
-        address: "0x6812eefC19deB79D5191b52f4B763260d9F3C238",
-        name: "Swell2",
-      },
-      {
-        chainId: 57073,
-        address: "0x6812eefC19deB79D5191b52f4B763260d9F3C238",
-        name: "Ink",
-      },
-    ];
-
-    for (const { chainId, address, name } of chainConfigs) {
-      it(`should fetch current fee for ${name} (chain ${chainId})`, async () => {
-        const poolAddress = "0x1234567890123456789012345678901234567890";
-        const blockNumber = 12345;
-
-        // Mock CHAIN_CONSTANTS for this chain
+    it("should fetch current fee for all supported chains", async () => {
+      for (const { chainId, address, name } of CHAIN_CONFIGS) {
         (CHAIN_CONSTANTS as Record<number, { eth_client: PublicClient }>)[
           chainId
         ] = {
           eth_client: mockEthClient,
         };
 
-        // Reset and mock the contract response with a specific fee value
-        const mockSimulateContract = jest.mocked(
-          mockEthClient.simulateContract,
-        );
-        mockSimulateContract.mockClear();
-        mockSimulateContract.mockResolvedValue({
-          result: 600n, // current fee
+        jest.mocked(mockEthClient.simulateContract).mockClear();
+        jest.mocked(mockEthClient.simulateContract).mockResolvedValue({
+          result: TEST_FEE_VALUE_ALT,
           // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
         } as any);
 
         const result = await fetchCurrentFee(
-          poolAddress,
-          address, // Use the correct address for this chain
+          TEST_POOL_ADDRESS,
+          address,
           chainId,
-          blockNumber,
+          TEST_BLOCK_NUMBER,
           mockEthClient,
           mockContext.log,
         );
 
-        expect(typeof result).toBe("bigint");
-        expect(result).toBe(600n);
-
-        // Verify correct contract call with chain-specific address
-        expect(mockSimulateContract).toHaveBeenCalledTimes(1);
-        const callArgs = mockSimulateContract.mock.calls[0][0];
-        // Note: viem normalizes addresses to lowercase
+        expect(result).toBe(TEST_FEE_VALUE_ALT);
+        expect(mockEthClient.simulateContract).toHaveBeenCalledTimes(1);
+        const callArgs = jest.mocked(mockEthClient.simulateContract).mock
+          .calls[0][0];
         expect(callArgs.address.toLowerCase()).toBe(address.toLowerCase());
         expect(callArgs.functionName).toBe("getFee");
-        expect(callArgs.blockNumber).toBe(BigInt(blockNumber));
-        expect(callArgs.args).toEqual([poolAddress]);
-      });
-    }
+        expect(callArgs.blockNumber).toBe(BigInt(TEST_BLOCK_NUMBER));
+        expect(callArgs.args).toEqual([TEST_POOL_ADDRESS]);
+      }
+    });
 
     it("should handle contract call errors", async () => {
-      const poolAddress = "0x1234567890123456789012345678901234567890";
-      const dynamicFeeModuleAddress =
-        "0x1234567890123456789012345678901234567890";
-      const chainId = 10;
-      const blockNumber = 12345;
-
-      // Mock simulateContract to throw an error
-      const mockSimulateContract = jest.mocked(mockEthClient.simulateContract);
-      mockSimulateContract.mockRejectedValue(new Error("Contract call failed"));
+      jest
+        .mocked(mockEthClient.simulateContract)
+        .mockRejectedValue(new Error("Contract call failed"));
 
       await expect(
         fetchCurrentFee(
-          poolAddress,
-          dynamicFeeModuleAddress,
-          chainId,
-          blockNumber,
+          TEST_POOL_ADDRESS,
+          TEST_DYNAMIC_FEE_MODULE,
+          TEST_CHAIN_ID,
+          TEST_BLOCK_NUMBER,
           mockEthClient,
           mockContext.log,
         ),
       ).rejects.toThrow("Contract call failed");
+    });
 
-      // Verify error was logged
-      expect(jest.mocked(mockContext.log.error)).toHaveBeenCalled();
+    it("should convert non-bigint result to bigint", async () => {
+      jest.mocked(mockEthClient.simulateContract).mockResolvedValue({
+        result: "500",
+        // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
+      } as any);
+
+      const result = await fetchCurrentFee(
+        TEST_POOL_ADDRESS,
+        TEST_DYNAMIC_FEE_MODULE,
+        TEST_CHAIN_ID,
+        TEST_BLOCK_NUMBER,
+        mockEthClient,
+        mockContext.log,
+      );
+
+      expect(result).toBe(500n);
     });
   });
 });

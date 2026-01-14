@@ -1,7 +1,9 @@
 import { S, createEffect } from "envio";
 import type { logger as Envio_logger } from "envio/src/Envio.gen";
 import type { PublicClient } from "viem";
+import DYNAMIC_FEE_ABI from "../../abis/DynamicFeeSwapModule.json";
 import { CHAIN_CONSTANTS, EFFECT_RATE_LIMITS } from "../Constants";
+import { handleEffectErrorReturn } from "./Helpers";
 
 /**
  * Core logic for fetching current fee
@@ -15,31 +17,29 @@ export async function fetchCurrentFee(
   ethClient: PublicClient,
   logger: Envio_logger,
 ): Promise<bigint> {
-  try {
-    logger.info(
-      `[fetchCurrentFee] Fetching current fee for pool ${poolAddress} on chain ${chainId} at block ${blockNumber}`,
-    );
-    const DynamicFeePoolABI = require("../../abis/DynamicFeeSwapModule.json");
+  logger.info(
+    `[fetchCurrentFee] Fetching current fee for pool ${poolAddress} on chain ${chainId} at block ${blockNumber}`,
+  );
 
-    const { result } = await ethClient.simulateContract({
-      address: dynamicFeeModuleAddress as `0x${string}`,
-      abi: DynamicFeePoolABI,
-      functionName: "getFee",
-      args: [poolAddress],
-      blockNumber: BigInt(blockNumber),
-    });
+  const { result } = await ethClient.simulateContract({
+    address: dynamicFeeModuleAddress as `0x${string}`,
+    abi: DYNAMIC_FEE_ABI,
+    functionName: "getFee",
+    args: [poolAddress],
+    blockNumber: BigInt(blockNumber),
+  });
 
-    logger.info(`[fetchCurrentFee] Current fee fetched: ${result}`);
-    return result as unknown as bigint;
-  } catch (error) {
-    logger.error(
-      `[fetchCurrentFee] Error fetching current fee for pool ${poolAddress} on chain ${chainId} at block ${blockNumber}:`,
-      error instanceof Error ? error : new Error(String(error)),
-    );
-    throw error;
-  }
+  logger.info(`[fetchCurrentFee] Current fee fetched: ${result}`);
+  // viem returns bigint for uint256, ensure it's a bigint
+  return typeof result === "bigint" ? result : BigInt(String(result));
 }
 
+/**
+ * Effect to get current fee from dynamic fee module
+ *
+ * Error handling: Returns undefined on failure. Callers should check for undefined
+ * and handle appropriately (e.g., skip update or use existing fee).
+ */
 export const getCurrentFee = createEffect(
   {
     name: "getCurrentFee",
@@ -49,7 +49,7 @@ export const getCurrentFee = createEffect(
       chainId: S.number,
       blockNumber: S.number,
     },
-    output: S.bigint,
+    output: S.nullable(S.bigint),
     rateLimit: {
       calls: EFFECT_RATE_LIMITS.DYNAMIC_FEE_EFFECTS,
       per: "second",
@@ -71,13 +71,18 @@ export const getCurrentFee = createEffect(
       );
       return result;
     } catch (error) {
-      // Don't cache failed response
-      context.cache = false;
-      context.log.error(
-        `[getCurrentFee] Error in effect for pool ${poolAddress} on chain ${chainId} at block ${blockNumber}:`,
-        error instanceof Error ? error : new Error(String(error)),
+      // Return undefined on error - callers should check and handle appropriately
+      return handleEffectErrorReturn(
+        error,
+        context,
+        "getCurrentFee",
+        {
+          poolAddress,
+          chainId,
+          blockNumber,
+        },
+        undefined,
       );
-      throw error;
     }
   },
 );

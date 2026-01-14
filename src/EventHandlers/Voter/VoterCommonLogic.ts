@@ -35,7 +35,7 @@ export async function computeVoterDistributeValues(params: {
   } = params;
 
   // Load gauge liveness and tokens deposited in parallel for better performance
-  const [isAlive, tokensDeposited] = await Promise.all([
+  const [isAliveResult, tokensDepositedResult] = await Promise.all([
     context.effect(getIsAlive, {
       voterAddress,
       gaugeAddress,
@@ -49,6 +49,22 @@ export async function computeVoterDistributeValues(params: {
       eventChainId: chainId,
     }),
   ]);
+
+  // Handle undefined return values - use defaults if effects failed
+  const isAlive = isAliveResult ?? false;
+  const tokensDeposited = tokensDepositedResult ?? 0n;
+
+  if (isAliveResult === undefined) {
+    context.log.error(
+      `Failed to fetch isAlive for gauge ${gaugeAddress} on chain ${chainId}, using default: false`,
+    );
+  }
+
+  if (tokensDepositedResult === undefined) {
+    context.log.error(
+      `Failed to fetch tokensDeposited for gauge ${gaugeAddress} on chain ${chainId}, using default: 0n`,
+    );
+  }
 
   // Normalize amounts to 1e18
   const normalizedEmissionsAmount = normalizeTokenAmountTo1e18(
