@@ -76,12 +76,15 @@ contracts:
       - event: DistributeReward
       - event: GaugeCreated
       - event: GaugeKilled
+      - event: GaugeRevived
       - event: WhitelistToken
   - name: SuperchainLeafVoter
     abi_file_path: abis/SuperchainLeafVoter.json
     handler: src/EventHandlers/Voter/SuperchainLeafVoter.ts
     events:
       - event: GaugeCreated
+      - event: GaugeKilled
+      - event: GaugeRevived
       - event: WhitelistToken
   - name: FeesVotingReward
     abi_file_path: abis/FeesVotingReward.json
