@@ -267,344 +267,344 @@ networks:
       - name: Mailbox
         address:
           - 0xd4C1905BB1D26BC93DAC913e13CaCC278CdCC80D
-  - id: 8453 # Base
-    start_block: 0
-    contracts:
-      - name: DynamicFeeSwapModule
-        address:
-          - 0xDB45818A6db280ecfeB33cbeBd445423d0216b5D
-      - name: VeNFT
-        address:
-          - 0xeBf418Fe2512e7E6bd9b87a8F0f294aCDC67e6B4
-      - name: NFPM
-        address:
-          - 0x827922686190790b37229fd06084350e74485b72
-      - name: FactoryRegistry
-        address:
-          - 0x5C3F18F06CC09CA1910767A34a20F771039E37C0
-      - name: PoolFactory
-        address:
-          - 0x420DD381b31aEf6683db6B902084cB0FFECe40Da
-      - name: CLFactory
-        address:
-          - 0x5e7BB104d84c7CB9B682AaC2F3d509f5F406809A
-          - 0xaDe65c38CD4849aDBA595a4323a8C7DdfE89716a # New CL Factory
-      - name: NewCLGaugeFactory
-        address:
-          - 0xB630227a79707D517320b6c0f885806389dFcbB3
-      - name: Pool
-        address:
-      - name: Voter
-        address:
-          - 0x16613524e02ad97eDfeF371bC883F2F5d6C480A5
-      - name: FeesVotingReward
-        address:
-      - name: BribesVotingReward
-        address:
-      - name: CLPool
-        address:
-      - name: ALMDeployFactoryV1
-        address:
-          - 0x5B1b1aaC71bDca9Ed1dCb2AA357f678584db4029
-      - name: ALMDeployFactoryV2
-        address:
-          - 0xE46EC96906fc6dEC53De25F013639969Fe10180d
-      - name: ALMCore
-        address:
-          - 0x0000000cE42D4981513060aB7E50B9e5e2D19AF1
-          - 0xd17613D91150a2345eCe9598D055C7197A1f5A71
-      - name: ALMLPWrapperV1
-        address:
-      - name: ALMLPWrapperV2
-        address:
-      - name: CLGauge
-        address:
-      - name: Gauge
-        address:
-      - name: VelodromeUniversalRouter
-        address:
-          - 0x01D40099fCD87C018969B0e8D4aB1633Fb34763C
-      - name: Mailbox
-        address:
-          - 0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D
-  - id: 42220 # Celo
-    hypersync_config:
-      url: https://celo.hypersync.xyz
-    start_block: 31597000 # Velodrome contracts were only deployed on Celo mainnet after this block
-    contracts:
-      - name: CustomFeeSwapModule
-        address:
-          - 0xbcAE2d4b4E8E34a4100e69E9C73af8214a89572e
-      - name: NFPM
-        address:
-          - 0x991d5546c4b442b4c5fdc4c8b8b8d131deb24702
-      - name: PoolFactory
-        address:
-          - 0x31832f2a97Fd20664D76Cc421207669b55CE4BC0
-      - name: CLFactory
-        address:
-          - 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F
-      - name: Pool
-        address:
-      - name: SuperchainLeafVoter
-        address:
-          - 0x97cDBCe21B6fd0585d29E539B1B99dAd328a1123
-      - name: FeesVotingReward
-        address:
-      - name: SuperchainIncentiveVotingReward
-        address:
-      - name: CLPool
-        address:
-      - name: ALMDeployFactoryV2
-        address:
-          - 0xE46EC96906fc6dEC53De25F013639969Fe10180d
-      - name: ALMCore
-        address:
-          - 0x0000000cE42D4981513060aB7E50B9e5e2D19AF1
-      - name: ALMLPWrapperV2
-        address:
-      - name: CLGauge
-        address:
-      - name: Gauge
-        address:
-      - name: VelodromeUniversalRouter
-        address:
-          - 0x01D40099fCD87C018969B0e8D4aB1633Fb34763C
-      - name: Mailbox
-        address:
-          - 0x50da3B3907A08a24fe4999F4Dcf337E8dC7954bb
-  - id: 1868 # Soneium
-    hypersync_config:
-      url: https://soneium.hypersync.xyz
-    start_block: 0
-    contracts:
-      - name: CustomFeeSwapModule
-        address:
-          - 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F
-      - name: NFPM
-        address:
-          - 0x991d5546c4b442b4c5fdc4c8b8b8d131deb24702
-      - name: PoolFactory
-        address:
-          - 0x31832f2a97Fd20664D76Cc421207669b55CE4BC0
-      - name: CLFactory
-        address:
-          - 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F
-      - name: Pool
-        address:
-      - name: SuperchainLeafVoter
-        address:
-          - 0x97cDBCe21B6fd0585d29E539B1B99dAd328a1123
-      - name: FeesVotingReward
-        address:
-      - name: SuperchainIncentiveVotingReward
-        address:
-      - name: CLPool
-        address:
-      - name: ALMDeployFactoryV2
-        address:
-          - 0xE46EC96906fc6dEC53De25F013639969Fe10180d
-      - name: ALMCore
-        address:
-          - 0x0000000cE42D4981513060aB7E50B9e5e2D19AF1
-      - name: ALMLPWrapperV2
-        address:
-      - name: CLGauge
-        address:
-      - name: Gauge
-        address:
-      - name: VelodromeUniversalRouter
-        address:
-          - 0x01D40099fCD87C018969B0e8D4aB1633Fb34763C
-      - name: Mailbox
-        address:
-          - 0x3a464f746D23Ab22155710f44dB16dcA53e0775E
-  - id: 57073 # Ink
-    hypersync_config:
-      url: https://ink.hypersync.xyz
-    start_block: 0
-    contracts:
-      - name: CustomFeeSwapModule
-        address:
-          - 0x6812eefC19deB79D5191b52f4B763260d9F3C238
-      - name: NFPM
-        address:
-          - 0x991d5546c4b442b4c5fdc4c8b8b8d131deb24702
-      - name: PoolFactory
-        address:
-          - 0x31832f2a97Fd20664D76Cc421207669b55CE4BC0
-      - name: CLFactory
-        address:
-          - 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F
-      - name: Pool
-        address:
-      - name: SuperchainLeafVoter
-        address:
-          - 0x97cDBCe21B6fd0585d29E539B1B99dAd328a1123
-      - name: FeesVotingReward
-        address:
-      - name: SuperchainIncentiveVotingReward
-        address:
-      - name: CLPool
-        address:
-      - name: ALMDeployFactoryV2
-        address:
-          - 0xE46EC96906fc6dEC53De25F013639969Fe10180d
-      - name: ALMCore
-        address:
-          - 0x0000000cE42D4981513060aB7E50B9e5e2D19AF1
-      - name: ALMLPWrapperV2
-        address:
-      - name: CLPoolLauncher
-        address:
-          - 0x122FD2369b86C7d6C848c842a70c0d04A7c6fb84
-      - name: V2PoolLauncher
-        address:
-          - 0x8B8025D4cD620BB89e196D32851d4c6E5B74AA60
-      - name: CLGauge
-        address:
-      - name: Gauge
-        address:
-      - name: VelodromeUniversalRouter
-        address:
-          - 0x01D40099fCD87C018969B0e8D4aB1633Fb34763C
-      - name: Mailbox
-        address:
-          - 0x7f50C5776722630a0024fAE05fDe8b47571D7B39
-  - id: 34443 # Mode
-    start_block: 0
-    contracts:
-      - name: CustomFeeSwapModule
-        address:
-          - 0x479Bec910d4025b4aC440ec27aCf28eac522242B
-      - name: NFPM
-        address:
-          - 0x991d5546c4b442b4c5fdc4c8b8b8d131deb24702
-      - name: PoolFactory
-        address:
-          - 0x31832f2a97Fd20664D76Cc421207669b55CE4BC0
-      - name: CLFactory
-        address:
-          - 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F
-      - name: Pool
-        address:
-      - name: SuperchainLeafVoter
-        address:
-          - 0x97cDBCe21B6fd0585d29E539B1B99dAd328a1123
-      - name: FeesVotingReward
-        address:
-      - name: SuperchainIncentiveVotingReward
-        address:
-      - name: CLPool
-        address:
-      - name: ALMDeployFactoryV2
-        address:
-          - 0xE46EC96906fc6dEC53De25F013639969Fe10180d
-      - name: ALMCore
-        address:
-          - 0x0000000cE42D4981513060aB7E50B9e5e2D19AF1
-      - name: ALMLPWrapperV2
-        address:
-      - name: CLGauge
-        address:
-      - name: Gauge
-        address:
-      - name: VelodromeUniversalRouter
-        address:
-          - 0x01D40099fCD87C018969B0e8D4aB1633Fb34763C
-      - name: Mailbox
-        address:
-          - 0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7
-  - id: 1135 # Lisk
-    start_block: 0
-    contracts:
-      - name: CustomFeeSwapModule
-        address:
-          - 0xCB885Aa008031cBDb72447Bed78AF4f87a197126
-      - name: NFPM
-        address:
-          - 0x991d5546C4B442B4c5fdc4c8B8b8d131DEB24702
-      - name: PoolFactory
-        address:
-          - 0x31832f2a97Fd20664D76Cc421207669b55CE4BC0
-      - name: CLFactory
-        address:
-          - 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F
-      - name: Pool
-        address:
-      - name: ALMDeployFactoryV2
-        address:
-          - 0xE46EC96906fc6dEC53De25F013639969Fe10180d
-      - name: ALMCore
-        address:
-          - 0x0000000cE42D4981513060aB7E50B9e5e2D19AF1
-      - name: ALMLPWrapperV2
-        address:
-      - name: SuperchainLeafVoter
-        address:
-          - 0x97cDBCe21B6fd0585d29E539B1B99dAd328a1123
-      - name: FeesVotingReward
-        address:
-      - name: SuperchainIncentiveVotingReward
-        address:
-      - name: CLPool
-        address:
-      - name: CLGauge
-        address:
-      - name: Gauge
-        address:
-      - name: VelodromeUniversalRouter
-        address:
-          - 0x01D40099fCD87C018969B0e8D4aB1633Fb34763C
-      - name: Mailbox
-        address:
-          - 0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7
-  - id: 130 # Unichain
-    hypersync_config:
-      url: https://unichain.hypersync.xyz
-    start_block: 0
-    contracts:
-      - name: CustomFeeSwapModule
-        address:
-          - 0x6812eefC19deB79D5191b52f4B763260d9F3C238
-      - name: NFPM
-        address:
-          - 0x991d5546C4B442B4c5fdc4c8B8b8d131DEB24702
-      - name: PoolFactory
-        address:
-          - 0x31832f2a97Fd20664D76Cc421207669b55CE4BC0
-      - name: CLFactory
-        address:
-          - 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F
-      - name: Pool
-        address:
-      - name: ALMDeployFactoryV2
-        address:
-          - 0xE46EC96906fc6dEC53De25F013639969Fe10180d
-      - name: ALMCore
-        address:
-          - 0x0000000cE42D4981513060aB7E50B9e5e2D19AF1
-      - name: ALMLPWrapperV2
-        address:
-      - name: SuperchainLeafVoter
-        address:
-          - 0x97cDBCe21B6fd0585d29E539B1B99dAd328a1123
-      - name: FeesVotingReward
-        address:
-      - name: SuperchainIncentiveVotingReward
-        address:
-      - name: CLPool
-        address:
-      - name: CLGauge
-        address:
-      - name: Gauge
-        address:
-      - name: VelodromeUniversalRouter
-        address:
-          - 0x01D40099fCD87C018969B0e8D4aB1633Fb34763C
-      - name: Mailbox
-        address:
-          - 0x3a464f746D23Ab22155710f44dB16dcA53e0775E
+  # - id: 8453 # Base
+  #   start_block: 0
+  #   contracts:
+  #     - name: DynamicFeeSwapModule
+  #       address:
+  #         - 0xDB45818A6db280ecfeB33cbeBd445423d0216b5D
+  #     - name: VeNFT
+  #       address:
+  #         - 0xeBf418Fe2512e7E6bd9b87a8F0f294aCDC67e6B4
+  #     - name: NFPM
+  #       address:
+  #         - 0x827922686190790b37229fd06084350e74485b72
+  #     - name: FactoryRegistry
+  #       address:
+  #         - 0x5C3F18F06CC09CA1910767A34a20F771039E37C0
+  #     - name: PoolFactory
+  #       address:
+  #         - 0x420DD381b31aEf6683db6B902084cB0FFECe40Da
+  #     - name: CLFactory
+  #       address:
+  #         - 0x5e7BB104d84c7CB9B682AaC2F3d509f5F406809A
+  #         - 0xaDe65c38CD4849aDBA595a4323a8C7DdfE89716a # New CL Factory
+  #     - name: NewCLGaugeFactory
+  #       address:
+  #         - 0xB630227a79707D517320b6c0f885806389dFcbB3
+  #     - name: Pool
+  #       address:
+  #     - name: Voter
+  #       address:
+  #         - 0x16613524e02ad97eDfeF371bC883F2F5d6C480A5
+  #     - name: FeesVotingReward
+  #       address:
+  #     - name: BribesVotingReward
+  #       address:
+  #     - name: CLPool
+  #       address:
+  #     - name: ALMDeployFactoryV1
+  #       address:
+  #         - 0x5B1b1aaC71bDca9Ed1dCb2AA357f678584db4029
+  #     - name: ALMDeployFactoryV2
+  #       address:
+  #         - 0xE46EC96906fc6dEC53De25F013639969Fe10180d
+  #     - name: ALMCore
+  #       address:
+  #         - 0x0000000cE42D4981513060aB7E50B9e5e2D19AF1
+  #         - 0xd17613D91150a2345eCe9598D055C7197A1f5A71
+  #     - name: ALMLPWrapperV1
+  #       address:
+  #     - name: ALMLPWrapperV2
+  #       address:
+  #     - name: CLGauge
+  #       address:
+  #     - name: Gauge
+  #       address:
+  #     - name: VelodromeUniversalRouter
+  #       address:
+  #         - 0x01D40099fCD87C018969B0e8D4aB1633Fb34763C
+  #     - name: Mailbox
+  #       address:
+  #         - 0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D
+  # - id: 42220 # Celo
+  #   hypersync_config:
+  #     url: https://celo.hypersync.xyz
+  #   start_block: 31597000 # Velodrome contracts were only deployed on Celo mainnet after this block
+  #   contracts:
+  #     - name: CustomFeeSwapModule
+  #       address:
+  #         - 0xbcAE2d4b4E8E34a4100e69E9C73af8214a89572e
+  #     - name: NFPM
+  #       address:
+  #         - 0x991d5546c4b442b4c5fdc4c8b8b8d131deb24702
+  #     - name: PoolFactory
+  #       address:
+  #         - 0x31832f2a97Fd20664D76Cc421207669b55CE4BC0
+  #     - name: CLFactory
+  #       address:
+  #         - 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F
+  #     - name: Pool
+  #       address:
+  #     - name: SuperchainLeafVoter
+  #       address:
+  #         - 0x97cDBCe21B6fd0585d29E539B1B99dAd328a1123
+  #     - name: FeesVotingReward
+  #       address:
+  #     - name: SuperchainIncentiveVotingReward
+  #       address:
+  #     - name: CLPool
+  #       address:
+  #     - name: ALMDeployFactoryV2
+  #       address:
+  #         - 0xE46EC96906fc6dEC53De25F013639969Fe10180d
+  #     - name: ALMCore
+  #       address:
+  #         - 0x0000000cE42D4981513060aB7E50B9e5e2D19AF1
+  #     - name: ALMLPWrapperV2
+  #       address:
+  #     - name: CLGauge
+  #       address:
+  #     - name: Gauge
+  #       address:
+  #     - name: VelodromeUniversalRouter
+  #       address:
+  #         - 0x01D40099fCD87C018969B0e8D4aB1633Fb34763C
+  #     - name: Mailbox
+  #       address:
+  #         - 0x50da3B3907A08a24fe4999F4Dcf337E8dC7954bb
+  # - id: 1868 # Soneium
+  #   hypersync_config:
+  #     url: https://soneium.hypersync.xyz
+  #   start_block: 0
+  #   contracts:
+  #     - name: CustomFeeSwapModule
+  #       address:
+  #         - 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F
+  #     - name: NFPM
+  #       address:
+  #         - 0x991d5546c4b442b4c5fdc4c8b8b8d131deb24702
+  #     - name: PoolFactory
+  #       address:
+  #         - 0x31832f2a97Fd20664D76Cc421207669b55CE4BC0
+  #     - name: CLFactory
+  #       address:
+  #         - 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F
+  #     - name: Pool
+  #       address:
+  #     - name: SuperchainLeafVoter
+  #       address:
+  #         - 0x97cDBCe21B6fd0585d29E539B1B99dAd328a1123
+  #     - name: FeesVotingReward
+  #       address:
+  #     - name: SuperchainIncentiveVotingReward
+  #       address:
+  #     - name: CLPool
+  #       address:
+  #     - name: ALMDeployFactoryV2
+  #       address:
+  #         - 0xE46EC96906fc6dEC53De25F013639969Fe10180d
+  #     - name: ALMCore
+  #       address:
+  #         - 0x0000000cE42D4981513060aB7E50B9e5e2D19AF1
+  #     - name: ALMLPWrapperV2
+  #       address:
+  #     - name: CLGauge
+  #       address:
+  #     - name: Gauge
+  #       address:
+  #     - name: VelodromeUniversalRouter
+  #       address:
+  #         - 0x01D40099fCD87C018969B0e8D4aB1633Fb34763C
+  #     - name: Mailbox
+  #       address:
+  #         - 0x3a464f746D23Ab22155710f44dB16dcA53e0775E
+  # - id: 57073 # Ink
+  #   hypersync_config:
+  #     url: https://ink.hypersync.xyz
+  #   start_block: 0
+  #   contracts:
+  #     - name: CustomFeeSwapModule
+  #       address:
+  #         - 0x6812eefC19deB79D5191b52f4B763260d9F3C238
+  #     - name: NFPM
+  #       address:
+  #         - 0x991d5546c4b442b4c5fdc4c8b8b8d131deb24702
+  #     - name: PoolFactory
+  #       address:
+  #         - 0x31832f2a97Fd20664D76Cc421207669b55CE4BC0
+  #     - name: CLFactory
+  #       address:
+  #         - 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F
+  #     - name: Pool
+  #       address:
+  #     - name: SuperchainLeafVoter
+  #       address:
+  #         - 0x97cDBCe21B6fd0585d29E539B1B99dAd328a1123
+  #     - name: FeesVotingReward
+  #       address:
+  #     - name: SuperchainIncentiveVotingReward
+  #       address:
+  #     - name: CLPool
+  #       address:
+  #     - name: ALMDeployFactoryV2
+  #       address:
+  #         - 0xE46EC96906fc6dEC53De25F013639969Fe10180d
+  #     - name: ALMCore
+  #       address:
+  #         - 0x0000000cE42D4981513060aB7E50B9e5e2D19AF1
+  #     - name: ALMLPWrapperV2
+  #       address:
+  #     - name: CLPoolLauncher
+  #       address:
+  #         - 0x122FD2369b86C7d6C848c842a70c0d04A7c6fb84
+  #     - name: V2PoolLauncher
+  #       address:
+  #         - 0x8B8025D4cD620BB89e196D32851d4c6E5B74AA60
+  #     - name: CLGauge
+  #       address:
+  #     - name: Gauge
+  #       address:
+  #     - name: VelodromeUniversalRouter
+  #       address:
+  #         - 0x01D40099fCD87C018969B0e8D4aB1633Fb34763C
+  #     - name: Mailbox
+  #       address:
+  #         - 0x7f50C5776722630a0024fAE05fDe8b47571D7B39
+  # - id: 34443 # Mode
+  #   start_block: 0
+  #   contracts:
+  #     - name: CustomFeeSwapModule
+  #       address:
+  #         - 0x479Bec910d4025b4aC440ec27aCf28eac522242B
+  #     - name: NFPM
+  #       address:
+  #         - 0x991d5546c4b442b4c5fdc4c8b8b8d131deb24702
+  #     - name: PoolFactory
+  #       address:
+  #         - 0x31832f2a97Fd20664D76Cc421207669b55CE4BC0
+  #     - name: CLFactory
+  #       address:
+  #         - 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F
+  #     - name: Pool
+  #       address:
+  #     - name: SuperchainLeafVoter
+  #       address:
+  #         - 0x97cDBCe21B6fd0585d29E539B1B99dAd328a1123
+  #     - name: FeesVotingReward
+  #       address:
+  #     - name: SuperchainIncentiveVotingReward
+  #       address:
+  #     - name: CLPool
+  #       address:
+  #     - name: ALMDeployFactoryV2
+  #       address:
+  #         - 0xE46EC96906fc6dEC53De25F013639969Fe10180d
+  #     - name: ALMCore
+  #       address:
+  #         - 0x0000000cE42D4981513060aB7E50B9e5e2D19AF1
+  #     - name: ALMLPWrapperV2
+  #       address:
+  #     - name: CLGauge
+  #       address:
+  #     - name: Gauge
+  #       address:
+  #     - name: VelodromeUniversalRouter
+  #       address:
+  #         - 0x01D40099fCD87C018969B0e8D4aB1633Fb34763C
+  #     - name: Mailbox
+  #       address:
+  #         - 0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7
+  # - id: 1135 # Lisk
+  #   start_block: 0
+  #   contracts:
+  #     - name: CustomFeeSwapModule
+  #       address:
+  #         - 0xCB885Aa008031cBDb72447Bed78AF4f87a197126
+  #     - name: NFPM
+  #       address:
+  #         - 0x991d5546C4B442B4c5fdc4c8B8b8d131DEB24702
+  #     - name: PoolFactory
+  #       address:
+  #         - 0x31832f2a97Fd20664D76Cc421207669b55CE4BC0
+  #     - name: CLFactory
+  #       address:
+  #         - 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F
+  #     - name: Pool
+  #       address:
+  #     - name: ALMDeployFactoryV2
+  #       address:
+  #         - 0xE46EC96906fc6dEC53De25F013639969Fe10180d
+  #     - name: ALMCore
+  #       address:
+  #         - 0x0000000cE42D4981513060aB7E50B9e5e2D19AF1
+  #     - name: ALMLPWrapperV2
+  #       address:
+  #     - name: SuperchainLeafVoter
+  #       address:
+  #         - 0x97cDBCe21B6fd0585d29E539B1B99dAd328a1123
+  #     - name: FeesVotingReward
+  #       address:
+  #     - name: SuperchainIncentiveVotingReward
+  #       address:
+  #     - name: CLPool
+  #       address:
+  #     - name: CLGauge
+  #       address:
+  #     - name: Gauge
+  #       address:
+  #     - name: VelodromeUniversalRouter
+  #       address:
+  #         - 0x01D40099fCD87C018969B0e8D4aB1633Fb34763C
+  #     - name: Mailbox
+  #       address:
+  #         - 0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7
+  # - id: 130 # Unichain
+  #   hypersync_config:
+  #     url: https://unichain.hypersync.xyz
+  #   start_block: 0
+  #   contracts:
+  #     - name: CustomFeeSwapModule
+  #       address:
+  #         - 0x6812eefC19deB79D5191b52f4B763260d9F3C238
+  #     - name: NFPM
+  #       address:
+  #         - 0x991d5546C4B442B4c5fdc4c8B8b8d131DEB24702
+  #     - name: PoolFactory
+  #       address:
+  #         - 0x31832f2a97Fd20664D76Cc421207669b55CE4BC0
+  #     - name: CLFactory
+  #       address:
+  #         - 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F
+  #     - name: Pool
+  #       address:
+  #     - name: ALMDeployFactoryV2
+  #       address:
+  #         - 0xE46EC96906fc6dEC53De25F013639969Fe10180d
+  #     - name: ALMCore
+  #       address:
+  #         - 0x0000000cE42D4981513060aB7E50B9e5e2D19AF1
+  #     - name: ALMLPWrapperV2
+  #       address:
+  #     - name: SuperchainLeafVoter
+  #       address:
+  #         - 0x97cDBCe21B6fd0585d29E539B1B99dAd328a1123
+  #     - name: FeesVotingReward
+  #       address:
+  #     - name: SuperchainIncentiveVotingReward
+  #       address:
+  #     - name: CLPool
+  #       address:
+  #     - name: CLGauge
+  #       address:
+  #     - name: Gauge
+  #       address:
+  #     - name: VelodromeUniversalRouter
+  #       address:
+  #         - 0x01D40099fCD87C018969B0e8D4aB1633Fb34763C
+  #     - name: Mailbox
+  #       address:
+  #         - 0x3a464f746D23Ab22155710f44dB16dcA53e0775E
   - id: 252 # Fraxtal
     hypersync_config:
       url: https://fraxtal.hypersync.xyz
@@ -643,87 +643,87 @@ networks:
       - name: Mailbox
         address:
           - 0x2f9DB5616fa3fAd1aB06cB2C906830BA63d135e3
-  - id: 1750 # Metal
-    hypersync_config:
-      url: https://1750.hypersync.xyz # Metal L2 hypersync address
-    start_block: 0
-    contracts:
-      - name: CustomFeeSwapModule
-        address:
-          - 0x6812eefC19deB79D5191b52f4B763260d9F3C238
-      - name: NFPM
-        address:
-          - 0x991d5546C4B442B4c5fdc4c8B8b8d131DEB24702
-      - name: PoolFactory
-        address:
-          - 0x31832f2a97Fd20664D76Cc421207669b55CE4BC0
-      - name: CLFactory
-        address:
-          - 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F
-      - name: Pool
-        address:
-      - name: SuperchainLeafVoter
-        address:
-          - 0x97cDBCe21B6fd0585d29E539B1B99dAd328a1123
-      - name: FeesVotingReward
-        address:
-      - name: SuperchainIncentiveVotingReward
-        address:
-      - name: CLPool
-        address:
-      - name: CLGauge
-        address:
-      - name: Gauge
-        address:
-      - name: VelodromeUniversalRouter
-        address:
-          - 0x01D40099fCD87C018969B0e8D4aB1633Fb34763C
-      - name: Mailbox
-        address:
-          - 0x730f8a4128Fa8c53C777B62Baa1abeF94cAd34a9
-  - id: 1923 # Swell
-    hypersync_config:
-      url: https://swell.hypersync.xyz
-    start_block: 3717939
-    contracts:
-      - name: CustomFeeSwapModule
-        address:
-          - 0x6812eefC19deB79D5191b52f4B763260d9F3C238
-      - name: NFPM
-        address:
-          - 0x991d5546c4b442b4c5fdc4c8b8b8d131deb24702
-      - name: PoolFactory
-        address:
-          - 0x31832f2a97Fd20664D76Cc421207669b55CE4BC0
-      - name: CLFactory
-        address:
-          - 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F
-      - name: Pool
-        address:
-      - name: SuperchainLeafVoter
-        address:
-          - 0x97cDBCe21B6fd0585d29E539B1B99dAd328a1123
-      - name: FeesVotingReward
-        address:
-      - name: SuperchainIncentiveVotingReward
-        address:
-      - name: CLPool
-        address:
-      - name: ALMDeployFactoryV2
-        address:
-          - 0xE46EC96906fc6dEC53De25F013639969Fe10180d
-      - name: ALMCore
-        address:
-          - 0x0000000cE42D4981513060aB7E50B9e5e2D19AF1
-      - name: ALMLPWrapperV2
-        address:
-      - name: CLGauge
-        address:
-      - name: Gauge
-        address:
-      - name: VelodromeUniversalRouter
-        address:
-          - 0x01D40099fCD87C018969B0e8D4aB1633Fb34763C
-      - name: Mailbox
-        address:
-          - 0x3a464f746D23Ab22155710f44dB16dcA53e0775E
+  # - id: 1750 # Metal
+  #   hypersync_config:
+  #     url: https://1750.hypersync.xyz # Metal L2 hypersync address
+  #   start_block: 0
+  #   contracts:
+  #     - name: CustomFeeSwapModule
+  #       address:
+  #         - 0x6812eefC19deB79D5191b52f4B763260d9F3C238
+  #     - name: NFPM
+  #       address:
+  #         - 0x991d5546C4B442B4c5fdc4c8B8b8d131DEB24702
+  #     - name: PoolFactory
+  #       address:
+  #         - 0x31832f2a97Fd20664D76Cc421207669b55CE4BC0
+  #     - name: CLFactory
+  #       address:
+  #         - 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F
+  #     - name: Pool
+  #       address:
+  #     - name: SuperchainLeafVoter
+  #       address:
+  #         - 0x97cDBCe21B6fd0585d29E539B1B99dAd328a1123
+  #     - name: FeesVotingReward
+  #       address:
+  #     - name: SuperchainIncentiveVotingReward
+  #       address:
+  #     - name: CLPool
+  #       address:
+  #     - name: CLGauge
+  #       address:
+  #     - name: Gauge
+  #       address:
+  #     - name: VelodromeUniversalRouter
+  #       address:
+  #         - 0x01D40099fCD87C018969B0e8D4aB1633Fb34763C
+  #     - name: Mailbox
+  #       address:
+  #         - 0x730f8a4128Fa8c53C777B62Baa1abeF94cAd34a9
+  # - id: 1923 # Swell
+  #   hypersync_config:
+  #     url: https://swell.hypersync.xyz
+  #   start_block: 3717939
+  #   contracts:
+  #     - name: CustomFeeSwapModule
+  #       address:
+  #         - 0x6812eefC19deB79D5191b52f4B763260d9F3C238
+  #     - name: NFPM
+  #       address:
+  #         - 0x991d5546c4b442b4c5fdc4c8b8b8d131deb24702
+  #     - name: PoolFactory
+  #       address:
+  #         - 0x31832f2a97Fd20664D76Cc421207669b55CE4BC0
+  #     - name: CLFactory
+  #       address:
+  #         - 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F
+  #     - name: Pool
+  #       address:
+  #     - name: SuperchainLeafVoter
+  #       address:
+  #         - 0x97cDBCe21B6fd0585d29E539B1B99dAd328a1123
+  #     - name: FeesVotingReward
+  #       address:
+  #     - name: SuperchainIncentiveVotingReward
+  #       address:
+  #     - name: CLPool
+  #       address:
+  #     - name: ALMDeployFactoryV2
+  #       address:
+  #         - 0xE46EC96906fc6dEC53De25F013639969Fe10180d
+  #     - name: ALMCore
+  #       address:
+  #         - 0x0000000cE42D4981513060aB7E50B9e5e2D19AF1
+  #     - name: ALMLPWrapperV2
+  #       address:
+  #     - name: CLGauge
+  #       address:
+  #     - name: Gauge
+  #       address:
+  #     - name: VelodromeUniversalRouter
+  #       address:
+  #         - 0x01D40099fCD87C018969B0e8D4aB1633Fb34763C
+  #     - name: Mailbox
+  #       address:
+  #         - 0x3a464f746D23Ab22155710f44dB16dcA53e0775E
