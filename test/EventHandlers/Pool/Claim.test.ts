@@ -147,8 +147,10 @@ describe("Pool Claim Event", () => {
 
     describe("unstaked fees collection (sender is not gauge)", () => {
       const eventData = {
-        sender: "0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB", // Regular user, not gauge
-        recipient: "0x5555555555555555555555555555555555555555",
+        sender: toChecksumAddress("0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"), // Regular user, not gauge
+        recipient: toChecksumAddress(
+          "0x5555555555555555555555555555555555555555",
+        ),
         amount0: 1000n,
         amount1: 2000n,
         mockEventData: {
@@ -159,7 +161,9 @@ describe("Pool Claim Event", () => {
           },
           chainId: 10,
           logIndex: 1,
-          srcAddress: "0x3333333333333333333333333333333333333333",
+          srcAddress: toChecksumAddress(
+            "0x3333333333333333333333333333333333333333",
+          ),
         },
       };
 
@@ -230,7 +234,9 @@ describe("Pool Claim Event", () => {
       it("should handle zero amounts", async () => {
         const eventData = {
           sender: gaugeAddress,
-          recipient: "0x5555555555555555555555555555555555555555",
+          recipient: toChecksumAddress(
+            "0x5555555555555555555555555555555555555555",
+          ),
           amount0: 0n,
           amount1: 0n,
           mockEventData: {
@@ -241,7 +247,9 @@ describe("Pool Claim Event", () => {
             },
             chainId: 10,
             logIndex: 1,
-            srcAddress: "0x3333333333333333333333333333333333333333",
+            srcAddress: toChecksumAddress(
+              "0x3333333333333333333333333333333333333333",
+            ),
           },
         };
 
@@ -274,6 +282,12 @@ describe("Pool Claim Event", () => {
         expect(updatedPool?.totalStakedFeesCollectedUSD).toBe(
           mockLiquidityPoolData.totalStakedFeesCollectedUSD,
         );
+        expect(updatedPool?.totalUnstakedFeesCollected0).toBe(
+          mockLiquidityPoolData.totalUnstakedFeesCollected0,
+        );
+        expect(updatedPool?.totalUnstakedFeesCollected1).toBe(
+          mockLiquidityPoolData.totalUnstakedFeesCollected1,
+        );
       });
 
       it("should handle case when gauge address is undefined", async () => {
@@ -284,7 +298,9 @@ describe("Pool Claim Event", () => {
 
         const eventData = {
           sender: gaugeAddress,
-          recipient: "0x5555555555555555555555555555555555555555",
+          recipient: toChecksumAddress(
+            "0x5555555555555555555555555555555555555555",
+          ),
           amount0: 1000n,
           amount1: 2000n,
           mockEventData: {
@@ -295,7 +311,9 @@ describe("Pool Claim Event", () => {
             },
             chainId: 10,
             logIndex: 1,
-            srcAddress: "0x3333333333333333333333333333333333333333",
+            srcAddress: toChecksumAddress(
+              "0x3333333333333333333333333333333333333333",
+            ),
           },
         };
 
@@ -334,7 +352,9 @@ describe("Pool Claim Event", () => {
     it("should return early without processing", async () => {
       const eventData = {
         sender: gaugeAddress,
-        recipient: "0x5555555555555555555555555555555555555555",
+        recipient: toChecksumAddress(
+          "0x5555555555555555555555555555555555555555",
+        ),
         amount0: 1000n,
         amount1: 2000n,
         mockEventData: {
@@ -345,7 +365,9 @@ describe("Pool Claim Event", () => {
           },
           chainId: 10,
           logIndex: 1,
-          srcAddress: "0x3333333333333333333333333333333333333333",
+          srcAddress: toChecksumAddress(
+            "0x3333333333333333333333333333333333333333",
+          ),
         },
       };
 

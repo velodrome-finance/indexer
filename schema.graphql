@@ -102,6 +102,9 @@ type LiquidityPoolAggregatorSnapshot {
   totalVolume0: BigInt! @config(precision: 76) # total swap volume of token0 in token units
   totalVolume1: BigInt! @config(precision: 76) # total swap volume of token1 in token units
   totalVolumeUSD: BigInt! @config(precision: 76) # total swap volume of the pool in USD
+  totalFeesGenerated0: BigInt! @config(precision: 76) # total swap fees generated of token0 in token units
+  totalFeesGenerated1: BigInt! @config(precision: 76) # total swap fees generated of token1 in token units
+  totalFeesGeneratedUSD: BigInt! @config(precision: 76) # total swap fees of the pool in USD
   totalVolumeUSDWhitelisted: BigInt! @config(precision: 76) # total swap volume of the pool in USD
   totalUnstakedFeesCollected0: BigInt! @config(precision: 76) # total fees collected from unstaked LPs (Collect events) in token0 units
   totalUnstakedFeesCollected1: BigInt! @config(precision: 76) # total fees collected from unstaked LPs (Collect events) in token1 units
