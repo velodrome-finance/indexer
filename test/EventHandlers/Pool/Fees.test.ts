@@ -304,8 +304,8 @@ describe("Pool Fees Event", () => {
 
       // Pool should not be updated since liquidityPoolDiff is undefined
       const pool = result.entities.LiquidityPoolAggregator.get(poolId);
-      expect(pool?.totalUnstakedFeesCollected0).toBe(
-        mockLiquidityPoolData.totalUnstakedFeesCollected0,
+      expect(pool?.totalFeesGenerated0).toBe(
+        mockLiquidityPoolData.totalFeesGenerated0,
       );
 
       // User stats should still be updated
@@ -331,9 +331,9 @@ describe("Pool Fees Event", () => {
         .spyOn(PoolFeesLogic, "processPoolFees")
         .mockReturnValue({
           liquidityPoolDiff: {
-            incrementalTotalUnstakedFeesCollected0: 3n * 10n ** 18n,
-            incrementalTotalUnstakedFeesCollected1: 2n * 10n ** 6n,
-            incrementalTotalUnstakedFeesCollectedUSD: 500n,
+            incrementalTotalFeesGenerated0: 3n * 10n ** 18n,
+            incrementalTotalFeesGenerated1: 2n * 10n ** 6n,
+            incrementalTotalFeesGeneratedUSD: 500n,
             incrementalTotalFeesUSDWhitelisted: 500n,
             lastUpdatedTimestamp: new Date(1000000 * 1000),
           },
@@ -362,8 +362,8 @@ describe("Pool Fees Event", () => {
 
       // Pool should still be updated
       const pool = result.entities.LiquidityPoolAggregator.get(poolId);
-      expect(pool?.totalUnstakedFeesCollected0).toBe(
-        mockLiquidityPoolData.totalUnstakedFeesCollected0 + 3n * 10n ** 18n,
+      expect(pool?.totalFeesGenerated0).toBe(
+        mockLiquidityPoolData.totalFeesGenerated0 + 3n * 10n ** 18n,
       );
 
       // User stats should still be created (from loadOrCreateUserData) but not updated
