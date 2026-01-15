@@ -32,6 +32,7 @@ contracts:
     handler: src/EventHandlers/CLFactory.ts
     events:
       - event: PoolCreated
+      - event: TickSpacingEnabled
   - name: CLPool
     abi_file_path: abis/CLPool.json
     handler: src/EventHandlers/CLPool.ts

@@ -1,6 +1,8 @@
 import { CLFactory } from "generated";
+import { updateFeeToTickSpacingMapping } from "../Aggregators/FeeToTickSpacingMapping";
 import { CHAIN_CONSTANTS, TokenIdByChain } from "../Constants";
 import { processCLFactoryPoolCreated } from "./CLFactory/CLFactoryPoolCreatedLogic";
+import { processCLFactoryTickSpacingEnabled } from "./CLFactory/CLFactoryTickSpacingEnabledLogic";
 
 CLFactory.PoolCreated.contractRegister(({ event, context }) => {
   context.addCLPool(event.params.pool);
@@ -8,13 +10,17 @@ CLFactory.PoolCreated.contractRegister(({ event, context }) => {
 
 CLFactory.PoolCreated.handler(async ({ event, context }) => {
   // Load token instances efficiently
-  const [poolToken0, poolToken1, CLGaugeConfig] = await Promise.all([
-    context.Token.get(TokenIdByChain(event.params.token0, event.chainId)),
-    context.Token.get(TokenIdByChain(event.params.token1, event.chainId)),
-    context.CLGaugeConfig.get(
-      CHAIN_CONSTANTS[event.chainId].newCLGaugeFactoryAddress,
-    ),
-  ]);
+  const [poolToken0, poolToken1, CLGaugeConfig, feeToTickSpacingMapping] =
+    await Promise.all([
+      context.Token.get(TokenIdByChain(event.params.token0, event.chainId)),
+      context.Token.get(TokenIdByChain(event.params.token1, event.chainId)),
+      context.CLGaugeConfig.get(
+        CHAIN_CONSTANTS[event.chainId].newCLGaugeFactoryAddress,
+      ),
+      context.FeeToTickSpacingMapping.get(
+        `${event.chainId}_${event.params.tickSpacing}`,
+      ),
+    ]);
 
   // Process the pool created event
   const result = await processCLFactoryPoolCreated(
@@ -22,9 +28,29 @@ CLFactory.PoolCreated.handler(async ({ event, context }) => {
     poolToken0,
     poolToken1,
     CLGaugeConfig,
+    feeToTickSpacingMapping,
     context,
   );
 
   // For new pool creation, set the entity directly (updateLiquidityPoolAggregator is for updates, not creation)
   context.LiquidityPoolAggregator.set(result.liquidityPoolAggregator);
+});
+
+CLFactory.TickSpacingEnabled.handler(async ({ event, context }) => {
+  const feeToTickSpacingMapping =
+    await context.FeeToTickSpacingMapping.getOrCreate({
+      id: `${event.chainId}_${event.params.tickSpacing}`,
+      chainId: event.chainId,
+      tickSpacing: event.params.tickSpacing,
+      fee: BigInt(event.params.fee),
+      lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
+    });
+
+  const feeToTickSpacingMappingDiff = processCLFactoryTickSpacingEnabled(event);
+
+  await updateFeeToTickSpacingMapping(
+    feeToTickSpacingMapping,
+    feeToTickSpacingMappingDiff,
+    context,
+  );
 });

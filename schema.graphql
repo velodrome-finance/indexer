@@ -429,3 +429,15 @@ type RootPool_LeafPool {
   leafChainId: Int! # Chain ID where the actual real pool (i.e. pool where it is possible to LP, swap, etc) is deployed
   leafPoolAddress: String! # Actual real pool that is deployed on leaf chain
 }
+
+# Should be updated by TickSpacingEnabled event emitted by CLFactory contract
+# It allows to initialise currentFee field for all CLPools
+# CLPool fees can then be modified by either CustomSwapFeeModule or DynamicSwapFeeModule
+# The same tick spacing can be enabled multiple times (to update the fee), so this entity is updated, not created new
+type FeeToTickSpacingMapping {
+  id: ID! # `${chainId}_${tickSpacing}`
+  chainId: Int! @index
+  tickSpacing: BigInt! @config(precision: 24) @index # Tick spacing value
+  fee: BigInt! @config(precision: 24) # Fee value for this tick spacing
+  lastUpdatedTimestamp: Timestamp! # Timestamp when this mapping was last updated
+}

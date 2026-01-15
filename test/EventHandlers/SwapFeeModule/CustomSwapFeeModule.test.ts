@@ -90,6 +90,7 @@ describe("CustomSwapFeeModule Events", () => {
         result.entities.LiquidityPoolAggregator.get(poolAddress);
       expect(updatedPool).toBeDefined();
       expect(updatedPool?.baseFee).toBe(fee);
+      expect(updatedPool?.currentFee).toBe(fee);
     });
   });
 });

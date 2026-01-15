@@ -20,6 +20,7 @@ CustomSwapFeeModule.SetCustomFee.handler(async ({ event, context }) => {
 
   const diff: Partial<LiquidityPoolAggregator> = {
     baseFee: BigInt(event.params.fee),
+    currentFee: BigInt(event.params.fee),
   };
 
   await updateLiquidityPoolAggregator(
