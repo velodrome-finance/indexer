@@ -35,9 +35,9 @@ export function processPoolLiquidityEvent(
   // Apply sign convention at pool level: positive for mint, negative for burn
   // This matches CLPoolBurnLogic and CLPoolMintLogic pattern
   const liquidityPoolDiff = {
-    // Update reserves cumulatively
-    incrementalReserve0: isMintEvent ? amount0 : -amount0,
-    incrementalReserve1: isMintEvent ? amount1 : -amount1,
+    // No updates to reserves are needed - Sync events handle reserve updates
+    // Mint and burn functions always call _update method on the contract which always emits Sync event
+    // incrementalReserve0 and incrementalReserve1 are intentionally omitted
     // Update token prices (from already-refreshed tokens)
     token0Price: token0Instance.pricePerUSDNew,
     token1Price: token1Instance.pricePerUSDNew,

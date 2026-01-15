@@ -48,13 +48,12 @@ describe("Pool Burn Event", () => {
       new Date(1000000 * 1000),
     );
 
-    // Verify that reserves decreased (burn removes liquidity)
+    // Verify that reserves are NOT updated by Burn events
+    // Only Sync events update reserves (they contain absolute values)
     const initialReserve0 = commonData.mockLiquidityPoolData.reserve0;
     const initialReserve1 = commonData.mockLiquidityPoolData.reserve1;
-    const burnAmount0 = 500n * 10n ** 18n;
-    const burnAmount1 = 1000n * 10n ** 18n;
-    expect(updatedAggregator?.reserve0).toBe(initialReserve0 - burnAmount0);
-    expect(updatedAggregator?.reserve1).toBe(initialReserve1 - burnAmount1);
+    expect(updatedAggregator?.reserve0).toBe(initialReserve0);
+    expect(updatedAggregator?.reserve1).toBe(initialReserve1);
 
     // Verify that user stats were updated with negative liquidity (burn removes liquidity)
     const userStats = result.entities.UserStatsPerPool.get(
@@ -130,8 +129,7 @@ describe("Pool Burn Event", () => {
         .spyOn(PoolBurnAndMintLogic, "processPoolLiquidityEvent")
         .mockReturnValue({
           liquidityPoolDiff: {
-            incrementalReserve0: -500n * 10n ** 18n,
-            incrementalReserve1: -1000n * 10n ** 18n,
+            // Mint/Burn events no longer update reserves - only Sync events do
             incrementalCurrentLiquidityUSD: -1500n * 10n ** 18n,
             token0Price: 1000000000000000000n,
             token1Price: 1000000000000000000n,
@@ -159,13 +157,13 @@ describe("Pool Burn Event", () => {
 
       const result = await Pool.Burn.processEvent({ event: mockEvent, mockDb });
 
-      // Pool should still be updated
+      // Pool should still be updated (but reserves are not changed by Burn events)
       const updatedAggregator = result.entities.LiquidityPoolAggregator.get(
         commonData.mockLiquidityPoolData.id,
       );
       expect(updatedAggregator).toBeDefined();
       expect(updatedAggregator?.reserve0).toBe(
-        commonData.mockLiquidityPoolData.reserve0 - 500n * 10n ** 18n,
+        commonData.mockLiquidityPoolData.reserve0,
       );
 
       // User stats should still be created (from loadOrCreateUserData) but not updated
