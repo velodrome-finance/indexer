@@ -318,7 +318,7 @@ type FactoryRegistryConfig {
 }
 
 type DynamicFeeGlobalConfig {
-  id: ID! # address of DynamicFeeSwapModule
+  id: ID! # address of DynamicSwapFeeModule
   chainId: Int! @index
   secondsAgo: BigInt @config(precision: 32) # The amount of time used to calculate price change
 }

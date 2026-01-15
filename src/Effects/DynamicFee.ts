@@ -1,7 +1,7 @@
 import { S, createEffect } from "envio";
 import type { logger as Envio_logger } from "envio/src/Envio.gen";
 import type { PublicClient } from "viem";
-import DYNAMIC_FEE_ABI from "../../abis/DynamicFeeSwapModule.json";
+import DYNAMIC_FEE_ABI from "../../abis/DynamicSwapFeeModule.json";
 import { CHAIN_CONSTANTS, EFFECT_RATE_LIMITS } from "../Constants";
 import { handleEffectErrorReturn } from "./Helpers";
 

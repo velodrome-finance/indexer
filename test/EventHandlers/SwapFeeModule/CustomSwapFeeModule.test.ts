@@ -1,11 +1,11 @@
 import {
-  CustomFeeSwapModule,
+  CustomSwapFeeModule,
   MockDb,
 } from "../../../generated/src/TestHelpers.gen";
 import { toChecksumAddress } from "../../../src/Constants";
 import { setupCommon } from "../Pool/common";
 
-describe("CustomFeeSwapModule Events", () => {
+describe("CustomSwapFeeModule Events", () => {
   const { mockLiquidityPoolData } = setupCommon();
   const moduleAddress = toChecksumAddress(
     "0xbcAE2d4b4E8E34a4100e69E9C73af8214a89572e",
@@ -24,7 +24,7 @@ describe("CustomFeeSwapModule Events", () => {
         mockLiquidityPoolData,
       );
 
-      const mockEvent = CustomFeeSwapModule.SetCustomFee.createMockEvent({
+      const mockEvent = CustomSwapFeeModule.SetCustomFee.createMockEvent({
         pool: poolAddress,
         fee: fee,
         mockEventData: {
@@ -40,7 +40,7 @@ describe("CustomFeeSwapModule Events", () => {
       });
 
       // Execute
-      const result = await CustomFeeSwapModule.SetCustomFee.processEvent({
+      const result = await CustomSwapFeeModule.SetCustomFee.processEvent({
         event: mockEvent,
         mockDb: populatedDb,
       });
@@ -64,7 +64,7 @@ describe("CustomFeeSwapModule Events", () => {
         mockLiquidityPoolData,
       );
 
-      const mockEvent = CustomFeeSwapModule.SetCustomFee.createMockEvent({
+      const mockEvent = CustomSwapFeeModule.SetCustomFee.createMockEvent({
         pool: poolAddress,
         fee: fee,
         mockEventData: {
@@ -80,7 +80,7 @@ describe("CustomFeeSwapModule Events", () => {
       });
 
       // Execute
-      const result = await CustomFeeSwapModule.SetCustomFee.processEvent({
+      const result = await CustomSwapFeeModule.SetCustomFee.processEvent({
         event: mockEvent,
         mockDb: populatedDb,
       });

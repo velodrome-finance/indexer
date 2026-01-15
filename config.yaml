@@ -152,17 +152,17 @@ contracts:
       - event: Deposit
       - event: Withdraw
       - event: Transfer
-  - name: DynamicFeeSwapModule
-    abi_file_path: abis/DynamicFeeSwapModule.json
-    handler: src/EventHandlers/SwapFeeModule/DynamicFeeSwapModule.ts
+  - name: DynamicSwapFeeModule
+    abi_file_path: abis/DynamicSwapFeeModule.json
+    handler: src/EventHandlers/SwapFeeModule/DynamicSwapFeeModule.ts
     events:
       - event: CustomFeeSet
       - event: SecondsAgoSet
       - event: ScalingFactorSet
       - event: FeeCapSet
-  - name: CustomFeeSwapModule
-    abi_file_path: abis/CustomFeeSwapModule.json
-    handler: src/EventHandlers/SwapFeeModule/CustomFeeSwapModule.ts
+  - name: CustomSwapFeeModule
+    abi_file_path: abis/CustomSwapFeeModule.json
+    handler: src/EventHandlers/SwapFeeModule/CustomSwapFeeModule.ts
     events:
       - event: SetCustomFee
   - name: CLPoolLauncher
@@ -205,9 +205,12 @@ networks:
   - id: 10 # Optimism
     start_block: 0
     contracts:
-      - name: DynamicFeeSwapModule
+      - name: DynamicSwapFeeModule
         address:
           - 0xd9eE4FBeE92970509ec795062cA759F8B52d6720
+      - name: CustomSwapFeeModule
+        address:
+          - 0x7361E9079920fb75496E9764A2665d8ee5049D5f
       - name: VeNFT
         address:
           - 0xFAf8FD17D9840595845582fCB047DF13f006787d
@@ -270,7 +273,7 @@ networks:
   - id: 8453 # Base
     start_block: 0
     contracts:
-      - name: DynamicFeeSwapModule
+      - name: DynamicSwapFeeModule
         address:
           - 0xDB45818A6db280ecfeB33cbeBd445423d0216b5D
       - name: VeNFT
@@ -332,7 +335,7 @@ networks:
       url: https://celo.hypersync.xyz
     start_block: 31597000 # Velodrome contracts were only deployed on Celo mainnet after this block
     contracts:
-      - name: CustomFeeSwapModule
+      - name: CustomSwapFeeModule
         address:
           - 0xbcAE2d4b4E8E34a4100e69E9C73af8214a89572e
       - name: NFPM
@@ -378,7 +381,7 @@ networks:
       url: https://soneium.hypersync.xyz
     start_block: 0
     contracts:
-      - name: CustomFeeSwapModule
+      - name: CustomSwapFeeModule
         address:
           - 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F
       - name: NFPM
@@ -424,7 +427,7 @@ networks:
       url: https://ink.hypersync.xyz
     start_block: 0
     contracts:
-      - name: CustomFeeSwapModule
+      - name: CustomSwapFeeModule
         address:
           - 0x6812eefC19deB79D5191b52f4B763260d9F3C238
       - name: NFPM
@@ -474,7 +477,7 @@ networks:
   - id: 34443 # Mode
     start_block: 0
     contracts:
-      - name: CustomFeeSwapModule
+      - name: CustomSwapFeeModule
         address:
           - 0x479Bec910d4025b4aC440ec27aCf28eac522242B
       - name: NFPM
@@ -518,7 +521,7 @@ networks:
   - id: 1135 # Lisk
     start_block: 0
     contracts:
-      - name: CustomFeeSwapModule
+      - name: CustomSwapFeeModule
         address:
           - 0xCB885Aa008031cBDb72447Bed78AF4f87a197126
       - name: NFPM
@@ -564,7 +567,7 @@ networks:
       url: https://unichain.hypersync.xyz
     start_block: 0
     contracts:
-      - name: CustomFeeSwapModule
+      - name: CustomSwapFeeModule
         address:
           - 0x6812eefC19deB79D5191b52f4B763260d9F3C238
       - name: NFPM
@@ -610,7 +613,7 @@ networks:
       url: https://fraxtal.hypersync.xyz
     start_block: 0
     contracts:
-      - name: DynamicFeeSwapModule
+      - name: DynamicSwapFeeModule
         address:
           - 0xB0922e747e906B963dBdA37647DE1Aa709B35B2d
       - name: NFPM
@@ -648,7 +651,7 @@ networks:
       url: https://1750.hypersync.xyz # Metal L2 hypersync address
     start_block: 0
     contracts:
-      - name: CustomFeeSwapModule
+      - name: CustomSwapFeeModule
         address:
           - 0x6812eefC19deB79D5191b52f4B763260d9F3C238
       - name: NFPM
@@ -686,7 +689,7 @@ networks:
       url: https://swell.hypersync.xyz
     start_block: 3717939
     contracts:
-      - name: CustomFeeSwapModule
+      - name: CustomSwapFeeModule
         address:
           - 0x6812eefC19deB79D5191b52f4B763260d9F3C238
       - name: NFPM

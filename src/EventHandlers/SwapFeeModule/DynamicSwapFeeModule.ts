@@ -1,4 +1,4 @@
-import { DynamicFeeSwapModule } from "generated";
+import { DynamicSwapFeeModule } from "generated";
 import type {
   DynamicFeeGlobalConfig,
   LiquidityPoolAggregator,
@@ -6,7 +6,7 @@ import type {
 import { updateLiquidityPoolAggregator } from "../../Aggregators/LiquidityPoolAggregator";
 import { toChecksumAddress } from "../../Constants";
 
-DynamicFeeSwapModule.CustomFeeSet.handler(async ({ event, context }) => {
+DynamicSwapFeeModule.CustomFeeSet.handler(async ({ event, context }) => {
   const pool = await context.LiquidityPoolAggregator.get(
     toChecksumAddress(event.params.pool),
   );
@@ -31,8 +31,8 @@ DynamicFeeSwapModule.CustomFeeSet.handler(async ({ event, context }) => {
   );
 });
 
-DynamicFeeSwapModule.SecondsAgoSet.handler(async ({ event, context }) => {
-  // secondsAgo is a global setting for the DynamicFeeSwapModule
+DynamicSwapFeeModule.SecondsAgoSet.handler(async ({ event, context }) => {
+  // secondsAgo is a global setting for the DynamicSwapFeeModule
   // Store it in the DynamicFeeGlobalConfig entity
   const configId = toChecksumAddress(event.srcAddress);
 
@@ -45,7 +45,7 @@ DynamicFeeSwapModule.SecondsAgoSet.handler(async ({ event, context }) => {
   context.DynamicFeeGlobalConfig.set(config);
 });
 
-DynamicFeeSwapModule.ScalingFactorSet.handler(async ({ event, context }) => {
+DynamicSwapFeeModule.ScalingFactorSet.handler(async ({ event, context }) => {
   const pool = await context.LiquidityPoolAggregator.get(
     toChecksumAddress(event.params.pool),
   );
@@ -70,7 +70,7 @@ DynamicFeeSwapModule.ScalingFactorSet.handler(async ({ event, context }) => {
   );
 });
 
-DynamicFeeSwapModule.FeeCapSet.handler(async ({ event, context }) => {
+DynamicSwapFeeModule.FeeCapSet.handler(async ({ event, context }) => {
   const pool = await context.LiquidityPoolAggregator.get(
     toChecksumAddress(event.params.pool),
   );

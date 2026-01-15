@@ -1,11 +1,11 @@
 import {
-  DynamicFeeSwapModule,
+  DynamicSwapFeeModule,
   MockDb,
 } from "../../../generated/src/TestHelpers.gen";
 import { toChecksumAddress } from "../../../src/Constants";
 import { setupCommon } from "../Pool/common";
 
-describe("DynamicFeeSwapModule Events", () => {
+describe("DynamicSwapFeeModule Events", () => {
   const { mockLiquidityPoolData, mockToken0Data, mockToken1Data } =
     setupCommon();
   const moduleAddress = toChecksumAddress(
@@ -18,7 +18,7 @@ describe("DynamicFeeSwapModule Events", () => {
       const mockDb = MockDb.createMockDb();
       const secondsAgo = 300n;
 
-      const mockEvent = DynamicFeeSwapModule.SecondsAgoSet.createMockEvent({
+      const mockEvent = DynamicSwapFeeModule.SecondsAgoSet.createMockEvent({
         secondsAgo: secondsAgo,
         mockEventData: {
           block: {
@@ -33,7 +33,7 @@ describe("DynamicFeeSwapModule Events", () => {
       });
 
       // Execute
-      const result = await DynamicFeeSwapModule.SecondsAgoSet.processEvent({
+      const result = await DynamicSwapFeeModule.SecondsAgoSet.processEvent({
         event: mockEvent,
         mockDb,
       });
@@ -65,8 +65,8 @@ describe("DynamicFeeSwapModule Events", () => {
       );
 
       // Execute - Update baseFee
-      let result = await DynamicFeeSwapModule.CustomFeeSet.processEvent({
-        event: DynamicFeeSwapModule.CustomFeeSet.createMockEvent({
+      let result = await DynamicSwapFeeModule.CustomFeeSet.processEvent({
+        event: DynamicSwapFeeModule.CustomFeeSet.createMockEvent({
           pool: poolAddress,
           fee: baseFee,
           mockEventData: {
@@ -93,8 +93,8 @@ describe("DynamicFeeSwapModule Events", () => {
       expect(updatedPool?.feeCap).toBeUndefined();
 
       // Execute - Update scalingFactor
-      result = await DynamicFeeSwapModule.ScalingFactorSet.processEvent({
-        event: DynamicFeeSwapModule.ScalingFactorSet.createMockEvent({
+      result = await DynamicSwapFeeModule.ScalingFactorSet.processEvent({
+        event: DynamicSwapFeeModule.ScalingFactorSet.createMockEvent({
           pool: poolAddress,
           scalingFactor: scalingFactor,
           mockEventData: {
@@ -121,8 +121,8 @@ describe("DynamicFeeSwapModule Events", () => {
       expect(updatedPool?.feeCap).toBeUndefined();
 
       // Execute - Update feeCap
-      result = await DynamicFeeSwapModule.FeeCapSet.processEvent({
-        event: DynamicFeeSwapModule.FeeCapSet.createMockEvent({
+      result = await DynamicSwapFeeModule.FeeCapSet.processEvent({
+        event: DynamicSwapFeeModule.FeeCapSet.createMockEvent({
           pool: poolAddress,
           feeCap: feeCap,
           mockEventData: {
