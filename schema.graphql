@@ -70,10 +70,10 @@ type LiquidityPoolAggregator {
   veNFTamountStaked: BigInt! @config(precision: 76) # total amount of veNFT staked for this pool
 
   # Dynamic Fee fields
-  baseFee: BigInt @config(precision: 24) # Current base fee set for pool
+  baseFee: BigInt! @config(precision: 24) # Current base fee set for pool
   feeCap: BigInt @config(precision: 76) # Current fee cap for pool
   scalingFactor: BigInt @config(precision: 76) # Current scaling factor for pool
-  currentFee: BigInt @config(precision: 76) # Current fee for pool (base + dynamic)
+  currentFee: BigInt! @config(precision: 76) # Current fee for pool (base + dynamic)
 
   # Pool Launcher relationship
   poolLauncherPoolId: String # ID of the PoolLauncherPool entity if this pool was launched via Pool Launcher
@@ -147,10 +147,10 @@ type LiquidityPoolAggregatorSnapshot {
   veNFTamountStaked: BigInt! @config(precision: 76) # total amount of veNFT staked for this pool
 
   # Dynamic Fee fields
-  baseFee: BigInt @config(precision: 24) # Current base fee set for pool
+  baseFee: BigInt! @config(precision: 24) # Current base fee set for pool
   feeCap: BigInt @config(precision: 76) # Current fee cap for pool
   scalingFactor: BigInt @config(precision: 76) # Current scaling factor for pool
-  currentFee: BigInt @config(precision: 76) # Current fee for pool (base + dynamic)
+  currentFee: BigInt! @config(precision: 76) # Current fee for pool (base + dynamic)
 }
 
 # Entity for tracking user activity and positions in specific pools

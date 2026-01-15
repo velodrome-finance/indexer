@@ -212,7 +212,7 @@ describe("CLFactory Events", () => {
 
     it("should process event even during preload phase", async () => {
       // Create a mock context that simulates preload
-      const preloadMockDb = MockDb.createMockDb();
+      let preloadMockDb = MockDb.createMockDb();
       const token0ForBase = {
         ...mockToken0Data,
         id: TokenIdByChain(mockToken0Data.address, chainId),
@@ -223,8 +223,8 @@ describe("CLFactory Events", () => {
         id: TokenIdByChain(mockToken1Data.address, chainId),
         chainId: chainId,
       } as Token;
-      preloadMockDb.entities.Token.set(token0ForBase);
-      preloadMockDb.entities.Token.set(token1ForBase);
+      preloadMockDb = preloadMockDb.entities.Token.set(token0ForBase);
+      preloadMockDb = preloadMockDb.entities.Token.set(token1ForBase);
 
       const clGaugeConfig: CLGaugeConfig = {
         id: newCLGaugeFactoryAddress, // Use the address as-is from CHAIN_CONSTANTS
@@ -233,16 +233,22 @@ describe("CLFactory Events", () => {
         defaultEmissionsCap: 0n,
         lastUpdatedTimestamp: new Date(1000000 * 1000),
       } as CLGaugeConfig;
-      preloadMockDb.entities.CLGaugeConfig.set(clGaugeConfig);
+      preloadMockDb = preloadMockDb.entities.CLGaugeConfig.set(clGaugeConfig);
 
       // Set up FeeToTickSpacingMapping
       const feeToTickSpacingMapping = createFeeToTickSpacingMapping();
-      preloadMockDb.entities.FeeToTickSpacingMapping.set(
+      preloadMockDb = preloadMockDb.entities.FeeToTickSpacingMapping.set(
         feeToTickSpacingMapping,
       );
 
       // Reset spy to track calls
       processSpy.mockClear();
+
+      // Verify the mapping exists before processing (using the same key format as the handler)
+      const mappingKey = `${chainId}_${TICK_SPACING}`;
+      const mappingBefore =
+        preloadMockDb.entities.FeeToTickSpacingMapping.get(mappingKey);
+      expect(mappingBefore).toBeDefined(); // Verify mapping exists before processing
 
       // Handlers now run during both preload and normal phases
       const result = await CLFactory.PoolCreated.processEvent({
@@ -250,10 +256,16 @@ describe("CLFactory Events", () => {
         mockDb: preloadMockDb,
       });
 
-      // Should call processCLFactoryPoolCreated (no preload check anymore)
-      // Handlers may run multiple times (preload + normal), so check if called at least once
+      // Verify that the handler ran (pool should be created if mapping exists)
+      const pool = result.entities.LiquidityPoolAggregator.get(
+        toChecksumAddress(poolAddress),
+      );
+
+      // Since we verified the mapping exists, the handler should have run and created the pool
+      expect(pool).toBeDefined();
+      // The handler should have called processCLFactoryPoolCreated
+      // Note: The spy may be called multiple times (preload + normal), so check at least once
       expect(processSpy).toHaveBeenCalled();
-      expect(processSpy.mock.calls.length).toBeGreaterThanOrEqual(1);
     });
 
     it("should load token0, token1, CLGaugeConfig, and FeeToTickSpacingMapping in parallel", () => {
@@ -314,10 +326,8 @@ describe("CLFactory Events", () => {
       const pool = result.entities.LiquidityPoolAggregator.get(
         toChecksumAddress(poolAddress),
       );
-      expect(pool).toBeDefined();
-      // When mapping doesn't exist, baseFee and currentFee should be undefined
-      expect(pool?.baseFee).toBeUndefined();
-      expect(pool?.currentFee).toBeUndefined();
+      // When mapping doesn't exist, handler returns early and no pool is created
+      expect(pool).toBeUndefined();
     });
   });
 

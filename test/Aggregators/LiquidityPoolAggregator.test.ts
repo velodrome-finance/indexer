@@ -138,6 +138,20 @@ describe("LiquidityPoolAggregator Functions", () => {
           },
         },
       },
+      DynamicFeeGlobalConfig: {
+        set: jest.fn(),
+        get: jest.fn(),
+        getOrThrow: jest.fn(),
+        getOrCreate: jest.fn(),
+        deleteUnsafe: jest.fn(),
+        getWhere: {
+          chainId: {
+            eq: jest.fn().mockReturnValue([]),
+            gt: jest.fn(),
+            lt: jest.fn(),
+          },
+        },
+      },
       log: {
         error: jest.fn(),
         info: jest.fn(),
@@ -229,17 +243,13 @@ describe("LiquidityPoolAggregator Functions", () => {
     });
 
     it("should update the pool with current dynamic fee", async () => {
-      await updateDynamicFeePools(
+      const updatedPool = await updateDynamicFeePools(
         liquidityPoolAggregator as LiquidityPoolAggregator,
         mockContext as handlerContext,
         blockNumber,
       );
 
       // Verify that the pool was updated with the current fee
-      const mockSet = jest.mocked(mockContext.LiquidityPoolAggregator?.set);
-      expect(mockSet).toHaveBeenCalledTimes(1);
-      const updatedPool = mockSet?.mock
-        .calls[0]?.[0] as LiquidityPoolAggregator;
       expect(updatedPool.currentFee).toBe(1900n); // From the mocked effect
     });
 

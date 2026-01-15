@@ -478,18 +478,20 @@ describe("CLFactoryPoolCreatedLogic", () => {
       expect(result.liquidityPoolAggregator.currentFee).toBe(FEE);
     });
 
-    it("should set baseFee and currentFee to undefined when FeeToTickSpacingMapping does not exist", async () => {
-      const result = await processCLFactoryPoolCreated(
-        mockEvent,
-        mockToken0Data,
-        mockToken1Data,
-        undefined, // CLGaugeConfig
-        undefined, // FeeToTickSpacingMapping does not exist
-        mockContext,
-      );
-
-      expect(result.liquidityPoolAggregator.baseFee).toBeUndefined();
-      expect(result.liquidityPoolAggregator.currentFee).toBeUndefined();
+    it("should throw error when FeeToTickSpacingMapping does not exist", async () => {
+      // This case is now handled by the handler which returns early
+      // The function signature requires FeeToTickSpacingMapping, so we can't test undefined here
+      // Instead, we test that the handler prevents pool creation when mapping is missing
+      await expect(
+        processCLFactoryPoolCreated(
+          mockEvent,
+          mockToken0Data,
+          mockToken1Data,
+          undefined, // CLGaugeConfig
+          undefined as unknown as FeeToTickSpacingMapping, // FeeToTickSpacingMapping does not exist
+          mockContext,
+        ),
+      ).rejects.toThrow();
     });
 
     it.each([

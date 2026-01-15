@@ -121,10 +121,10 @@ export function setupCommon() {
     gaugeAddress: "",
     gaugeEmissionsCap: 0n,
     // Dynamic Fee fields
-    baseFee: undefined,
+    baseFee: 0n,
     feeCap: undefined,
     scalingFactor: undefined,
-    currentFee: undefined,
+    currentFee: 0n,
     rootPoolMatchingHash: "",
     tickSpacing: 0n,
   };
