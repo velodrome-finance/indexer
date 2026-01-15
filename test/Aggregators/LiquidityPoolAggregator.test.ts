@@ -382,6 +382,13 @@ describe("LiquidityPoolAggregator Functions", () => {
         lastSnapshotTimestamp: oldTimestamp,
       };
 
+      // Mock the effect to track if it's called
+      if (!mockContext.effect) {
+        throw new Error("mockContext.effect is not defined");
+      }
+      const effectSpy = jest.mocked(mockContext.effect);
+      effectSpy.mockClear();
+
       await updateLiquidityPoolAggregator(
         diff,
         liquidityPoolWithOldSnapshot as LiquidityPoolAggregator,
@@ -395,6 +402,72 @@ describe("LiquidityPoolAggregator Functions", () => {
       );
       const snapshot = mockSet?.mock.calls[0]?.[0];
       expect(snapshot).toBeDefined();
+
+      // For non-CL pools, updateDynamicFeePools should NOT be called
+      const effectCalls = effectSpy.mock.calls.filter(
+        (call) => call[0] === getCurrentFee,
+      );
+      expect(effectCalls.length).toBe(0);
+    });
+
+    it("should call updateDynamicFeePools for CL pools when creating snapshot", async () => {
+      // Set up a CL pool
+      const oldTimestamp = new Date(Date.now() - 2 * 60 * 60 * 1000); // 2 hours ago
+      const currentTimestamp = new Date();
+
+      const clPoolWithOldSnapshot = {
+        ...liquidityPoolAggregator,
+        isCL: true,
+        lastSnapshotTimestamp: oldTimestamp,
+      };
+
+      // Add DynamicFeeGlobalConfig mock for this test
+      const dynamicFeeConfigMock = {
+        getWhere: {
+          chainId: {
+            eq: jest.fn().mockReturnValue([
+              {
+                id: "0xd9eE4FBeE92970509ec795062cA759F8B52d6720",
+                chainId: 10,
+              },
+            ]),
+            gt: jest.fn(),
+            lt: jest.fn(),
+          },
+        },
+      };
+      (
+        mockContext as unknown as {
+          DynamicFeeGlobalConfig: typeof dynamicFeeConfigMock;
+        }
+      ).DynamicFeeGlobalConfig = dynamicFeeConfigMock;
+
+      // Mock the effect to track if it's called
+      if (!mockContext.effect) {
+        throw new Error("mockContext.effect is not defined");
+      }
+      const effectSpy = jest.mocked(mockContext.effect);
+      effectSpy.mockClear();
+
+      await updateLiquidityPoolAggregator(
+        diff,
+        clPoolWithOldSnapshot as LiquidityPoolAggregator,
+        currentTimestamp,
+        mockContext as handlerContext,
+        blockNumber,
+      );
+
+      const mockSet = jest.mocked(
+        mockContext.LiquidityPoolAggregatorSnapshot?.set,
+      );
+      const snapshot = mockSet?.mock.calls[0]?.[0];
+      expect(snapshot).toBeDefined();
+
+      // For CL pools, updateDynamicFeePools should be called
+      const effectCalls = effectSpy.mock.calls.filter(
+        (call) => call[0] === getCurrentFee,
+      );
+      expect(effectCalls.length).toBe(1);
     });
   });
 

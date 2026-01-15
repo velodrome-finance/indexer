@@ -312,10 +312,15 @@ export async function updateLiquidityPoolAggregator(
     timestamp.getTime() - current.lastSnapshotTimestamp.getTime() >
       UPDATE_INTERVAL
   ) {
-    updated = {
-      ...updated,
-      ...(await updateDynamicFeePools(updated, context, blockNumber)),
-    };
+    // Only update dynamic fees for CL pools (they use dynamic fee modules)
+    // Non-CL pools have their fees fixed at a certain constant level. It can change over time, but we fetch that change
+    // through events.
+    if (updated.isCL) {
+      updated = {
+        ...updated,
+        ...(await updateDynamicFeePools(updated, context, blockNumber)),
+      };
+    }
 
     setLiquidityPoolAggregatorSnapshot(updated, timestamp, context);
   }
