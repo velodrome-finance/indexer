@@ -661,10 +661,10 @@ export function createLiquidityPoolAggregatorEntity(params: {
         ? undefined
         : 0n,
     // Dynamic Fee fields (undefined initially)
-    baseFee: baseFee ?? undefined,
+    baseFee: baseFee,
     feeCap: undefined,
     scalingFactor: undefined,
-    currentFee: currentFee ?? undefined,
+    currentFee: currentFee,
     rootPoolMatchingHash: `${chainId}_${token0Address}_${token1Address}_${(tickSpacing ? BigInt(tickSpacing) : 0n).toString()}`,
   };
 }
