@@ -47,6 +47,7 @@ export function setupCommon() {
     isStable: false,
     reserve0: 200n * TEN_TO_THE_18_BI,
     reserve1: 200n * TEN_TO_THE_6_BI,
+    totalLPTokenSupply: 0n,
     totalLiquidityUSD: 400n * TEN_TO_THE_18_BI,
     totalVolume0: 1n * TEN_TO_THE_18_BI,
     totalVolume1: 1n * TEN_TO_THE_6_BI,
@@ -170,6 +171,7 @@ export function setupCommon() {
     currentLiquidityToken1: 0n,
     totalLiquidityAddedUSD: 0n,
     totalLiquidityRemovedUSD: 0n,
+    lpBalance: 0n,
 
     // Fee metrics
     totalFeesContributedUSD: 0n,

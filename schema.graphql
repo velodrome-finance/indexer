@@ -11,6 +11,7 @@ type LiquidityPoolAggregator {
   tickSpacing: BigInt! @config(precision: 24) # Tick spacing of the pool; 0 for non-CL pools
   reserve0: BigInt! @config(precision: 76) # reserve of token0 in token units
   reserve1: BigInt! @config(precision: 76) # reserve of token1 in token units
+  totalLPTokenSupply: BigInt! @config(precision: 76) # total supply of LP tokens (tracked from Transfer events)
   totalLiquidityUSD: BigInt! @config(precision: 76) # total liquidity of the swap pool in USD
   totalVolume0: BigInt! @config(precision: 76) # total swap volume of token0 in token units
   totalVolume1: BigInt! @config(precision: 76) # total swap volume of token1 in token units
@@ -98,6 +99,7 @@ type LiquidityPoolAggregatorSnapshot {
   isCL: Boolean!
   reserve0: BigInt! @config(precision: 76) # reserve of token0 in token units
   reserve1: BigInt! @config(precision: 76) # reserve of token1 in token units
+  totalLPTokenSupply: BigInt! @config(precision: 76) # total supply of LP tokens (tracked from Transfer events)
   totalLiquidityUSD: BigInt! @config(precision: 76) # total liquidity of the swap pool in USD
   totalVolume0: BigInt! @config(precision: 76) # total swap volume of token0 in token units
   totalVolume1: BigInt! @config(precision: 76) # total swap volume of token1 in token units
@@ -164,6 +166,7 @@ type UserStatsPerPool {
   currentLiquidityUSD: BigInt! @config(precision: 76) # current net liquidity position in USD
   currentLiquidityToken0: BigInt! @config(precision: 76) # current net liquidity position in token0
   currentLiquidityToken1: BigInt! @config(precision: 76) # current net liquidity position in token1
+  lpBalance: BigInt! @config(precision: 76) # user's LP token balance (tracked from Transfer events)
   totalLiquidityAddedUSD: BigInt! @config(precision: 76) # total liquidity added in USD
   totalLiquidityRemovedUSD: BigInt! @config(precision: 76) # total liquidity removed in USD
 
@@ -440,4 +443,22 @@ type FeeToTickSpacingMapping {
   tickSpacing: BigInt! @config(precision: 24) @index # Tick spacing value
   fee: BigInt! @config(precision: 24) # Fee value for this tick spacing
   lastUpdatedTimestamp: Timestamp! # Timestamp when this mapping was last updated
+}
+
+# Temporary entity for matching Mint/Burn with Transfer events
+# Only stores mint/burn transfers (isMint || isBurn) to reduce storage
+type PoolTransferInTx {
+  id: ID! # ${chainId}-${txHash}-${poolAddress}-${logIndex}
+  chainId: Int! @index
+  txHash: String! @index
+  pool: String! @index
+  logIndex: Int!
+  blockNumber: BigInt!
+  from: String!
+  to: String!
+  value: BigInt! @config(precision: 76)
+  isMint: Boolean! # from == 0x0
+  isBurn: Boolean! # to == 0x0
+  consumedByLogIndex: Int # logIndex of the Mint/Burn event that consumed this transfer (undefined if unused)
+  timestamp: Timestamp!
 }
