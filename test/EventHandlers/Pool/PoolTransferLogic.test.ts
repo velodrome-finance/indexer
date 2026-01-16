@@ -250,6 +250,41 @@ describe("PoolTransferLogic", () => {
         mockContext,
       );
     });
+
+    it("should handle self-transfers (from === to) by updating only once with zero balance change", async () => {
+      await _updateUserLpBalances(
+        false, // isMint
+        false, // isBurn
+        USER_ADDRESS,
+        USER_ADDRESS, // Same address (self-transfer)
+        LP_VALUE,
+        POOL_ADDRESS,
+        CHAIN_ID,
+        mockContext,
+        TIMESTAMP_DATE,
+      );
+
+      // Should only call loadOrCreateUserData once for self-transfer
+      expect(loadOrCreateUserDataSpy).toHaveBeenCalledTimes(1);
+      expect(loadOrCreateUserDataSpy).toHaveBeenCalledWith(
+        USER_ADDRESS,
+        POOL_ADDRESS,
+        CHAIN_ID,
+        mockContext,
+        TIMESTAMP_DATE,
+      );
+
+      // Should only call updateUserStatsPerPool once with zero balance change
+      expect(updateUserStatsPerPoolSpy).toHaveBeenCalledTimes(1);
+      expect(updateUserStatsPerPoolSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          incrementalLpBalance: 0n,
+          lastActivityTimestamp: TIMESTAMP_DATE,
+        }),
+        expect.anything(),
+        mockContext,
+      );
+    });
   });
 
   describe("_storeTransferForMatching", () => {

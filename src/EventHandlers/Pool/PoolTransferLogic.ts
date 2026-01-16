@@ -111,24 +111,44 @@ export async function _updateUserLpBalances(
     await updateUserStatsPerPool(userDiff, senderData, context);
   } else {
     // Regular transfer: update both
-    const [senderData, recipientData] = await Promise.all([
-      loadOrCreateUserData(from, poolAddress, chainId, context, timestamp),
-      loadOrCreateUserData(to, poolAddress, chainId, context, timestamp),
-    ]);
+    // Handle self-transfer case (from === to) to avoid conflicting updates
+    if (from.toLowerCase() === to.toLowerCase()) {
+      // Self-transfer: only update lastActivityTimestamp, balance remains unchanged
+      const userData = await loadOrCreateUserData(
+        from,
+        poolAddress,
+        chainId,
+        context,
+        timestamp,
+      );
 
-    const userDiffFrom = {
-      incrementalLpBalance: -value,
-      lastActivityTimestamp: timestamp,
-    };
-    const userDiffTo = {
-      incrementalLpBalance: value,
-      lastActivityTimestamp: timestamp,
-    };
+      const userDiff = {
+        incrementalLpBalance: 0n,
+        lastActivityTimestamp: timestamp,
+      };
 
-    await Promise.all([
-      updateUserStatsPerPool(userDiffFrom, senderData, context),
-      updateUserStatsPerPool(userDiffTo, recipientData, context),
-    ]);
+      await updateUserStatsPerPool(userDiff, userData, context);
+    } else {
+      // Regular transfer between different addresses
+      const [senderData, recipientData] = await Promise.all([
+        loadOrCreateUserData(from, poolAddress, chainId, context, timestamp),
+        loadOrCreateUserData(to, poolAddress, chainId, context, timestamp),
+      ]);
+
+      const userDiffFrom = {
+        incrementalLpBalance: -value,
+        lastActivityTimestamp: timestamp,
+      };
+      const userDiffTo = {
+        incrementalLpBalance: value,
+        lastActivityTimestamp: timestamp,
+      };
+
+      await Promise.all([
+        updateUserStatsPerPool(userDiffFrom, senderData, context),
+        updateUserStatsPerPool(userDiffTo, recipientData, context),
+      ]);
+    }
   }
 }
 
