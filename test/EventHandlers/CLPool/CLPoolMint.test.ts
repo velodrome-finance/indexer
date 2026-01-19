@@ -50,46 +50,28 @@ describe("CLPool Mint Event Handler", () => {
       mockDb,
     });
 
-    // Verify that NonFungiblePosition entity was created
-    // Placeholder ID format: ${chainId}_${txHash}_${logIndex} (without 0x prefix)
-    const placeholderId = `${chainId}_${transactionHash.slice(2)}_${mockEvent.logIndex}`;
-    const createdPosition =
-      result.entities.NonFungiblePosition.get(placeholderId);
-    expect(createdPosition).toBeDefined();
+    // Verify that CLPoolMintEvent entity was created
+    // CLPoolMintEvent ID format: ${chainId}_${poolAddress}_${txHash}_${logIndex}
+    const mintEventId = `${chainId}_${poolAddress}_${transactionHash}_${mockEvent.logIndex}`;
+    const createdMintEvent = result.entities.CLPoolMintEvent.get(mintEventId);
+    expect(createdMintEvent).toBeDefined();
 
-    if (!createdPosition) return; // Type guard
-
-    // Verify placeholder values (to be updated by NFPM.Transfer)
-    expect(createdPosition.id).toBe(placeholderId);
-    expect(createdPosition.tokenId).toBe(0n); // Placeholder marker
+    if (!createdMintEvent) return; // Type guard
 
     // Verify correct fields from event
-    expect(createdPosition.chainId).toBe(chainId);
-    expect(createdPosition.owner.toLowerCase()).toBe(
+    expect(createdMintEvent.id).toBe(mintEventId);
+    expect(createdMintEvent.chainId).toBe(chainId);
+    expect(createdMintEvent.owner.toLowerCase()).toBe(
       ownerAddress.toLowerCase(),
     );
-    expect(createdPosition.pool).toBe(poolAddress);
-    expect(createdPosition.tickUpper).toBe(100000n);
-    expect(createdPosition.tickLower).toBe(-100000n);
-    expect(createdPosition.token0).toBe(mockToken0Data.address);
-    expect(createdPosition.token1).toBe(mockToken1Data.address);
-    expect(createdPosition.amount0).toBe(500000000000000000n);
-    expect(createdPosition.amount1).toBe(300000000000000000n);
-    expect(createdPosition.mintTransactionHash).toBe(transactionHash);
-    expect(createdPosition.lastUpdatedTimestamp).toEqual(
-      new Date(1000000 * 1000),
-    );
-
-    // Verify amountUSD is calculated (should match netLiquidityAddedUSD from the mint result)
-    // The amountUSD comes from result.userLiquidityDiff.netLiquidityAddedUSD
-    // Calculation:
-    // - amount0: 500000000000000000n (0.5 tokens, 18 decimals) * 1e18 = 500000000000000000n
-    // - amount1: 300000000000000000n (300M tokens, 6 decimals)
-    //   Normalized to 18 decimals: 300000000000000000n * 10^12 = 300000000000000000000000000n
-    //   USD: 300000000000000000000000000n * 1e18 / 1e18 = 300000000000000000000000000n
-    // Total: 300000000000500000000000000000n
-    expect(typeof createdPosition.amountUSD).toBe("bigint");
-    expect(createdPosition.amountUSD).toBe(300000000000500000000000000000n);
+    expect(createdMintEvent.pool).toBe(poolAddress);
+    expect(createdMintEvent.tickUpper).toBe(100000n);
+    expect(createdMintEvent.tickLower).toBe(-100000n);
+    expect(createdMintEvent.token0).toBe(mockToken0Data.address);
+    expect(createdMintEvent.token1).toBe(mockToken1Data.address);
+    expect(createdMintEvent.transactionHash).toBe(transactionHash);
+    expect(createdMintEvent.logIndex).toBe(mockEvent.logIndex);
+    expect(createdMintEvent.liquidity).toBe(1000000000000000000n);
   });
 
   it("should create NonFungiblePosition with correct transaction hash for filtering", async () => {
@@ -123,17 +105,15 @@ describe("CLPool Mint Event Handler", () => {
       mockDb,
     });
 
-    // Placeholder ID format: ${chainId}_${txHash}_${logIndex} (without 0x prefix)
-    const placeholderId = `${chainId}_${customTransactionHash.slice(2)}_${mockEvent.logIndex}`;
-    const createdPosition =
-      result.entities.NonFungiblePosition.get(placeholderId);
-    expect(createdPosition).toBeDefined();
-    if (!createdPosition) return;
+    // CLPoolMintEvent ID format: ${chainId}_${poolAddress}_${txHash}_${logIndex} (without 0x prefix)
+    const mintEventId = `${chainId}_${poolAddress}_${customTransactionHash}_${mockEvent.logIndex}`;
+    const createdMintEvent = result.entities.CLPoolMintEvent.get(mintEventId);
+    expect(createdMintEvent).toBeDefined();
+    if (!createdMintEvent) return;
 
-    // Verify transaction hash matches (important for NFPM.IncreaseLiquidity filtering)
-    expect(createdPosition.mintTransactionHash).toBe(customTransactionHash);
-    expect(createdPosition.amount0).toBe(250000000000000000n);
-    expect(createdPosition.amount1).toBe(150000000000000000n);
+    // Verify transaction hash matches (important for NFPM.Transfer matching)
+    expect(createdMintEvent.transactionHash).toBe(customTransactionHash);
+    expect(createdMintEvent.logIndex).toBe(mockEvent.logIndex);
   });
 
   it("should handle zero amounts correctly", async () => {
@@ -164,15 +144,12 @@ describe("CLPool Mint Event Handler", () => {
       mockDb,
     });
 
-    // Placeholder ID format: ${chainId}_${txHash}_${logIndex} (without 0x prefix)
-    const placeholderId = `${chainId}_${transactionHash.slice(2)}_${mockEvent.logIndex}`;
-    const createdPosition =
-      result.entities.NonFungiblePosition.get(placeholderId);
-    expect(createdPosition).toBeDefined();
-    if (!createdPosition) return;
+    // CLPoolMintEvent ID format: ${chainId}_${poolAddress}_${txHash}_${logIndex} (without 0x prefix)
+    const mintEventId = `${chainId}_${poolAddress}_${transactionHash}_${mockEvent.logIndex}`;
+    const createdMintEvent = result.entities.CLPoolMintEvent.get(mintEventId);
+    expect(createdMintEvent).toBeDefined();
+    if (!createdMintEvent) return;
 
-    expect(createdPosition.amount0).toBe(0n);
-    expect(createdPosition.amount1).toBe(0n);
-    expect(createdPosition.amountUSD).toBe(0n);
+    expect(createdMintEvent.liquidity).toBe(0n);
   });
 });

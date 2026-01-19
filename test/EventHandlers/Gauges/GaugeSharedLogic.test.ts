@@ -124,8 +124,6 @@ describe("GaugeSharedLogic", () => {
       poolAddress: mockPoolAddress,
       chainId: mockChainId,
       currentLiquidityUSD: 1000000000000000000000n, // 1K USD in 18 decimals
-      currentLiquidityToken0: 500000000n, // 500 USDC (6 decimals)
-      currentLiquidityToken1: 500000000n, // 500 USDT (6 decimals)
       totalLiquidityAddedUSD: 1000000000000000000000n,
       firstActivityTimestamp: mockTimestamp,
       lastActivityTimestamp: mockTimestamp,

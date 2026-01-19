@@ -7,7 +7,11 @@ export interface UserStatsPerPoolDiff {
   incrementalCurrentLiquidityToken1: bigint;
   incrementalLpBalance: bigint;
   incrementalTotalLiquidityAddedUSD: bigint;
+  incrementalTotalLiquidityAddedToken0: bigint;
+  incrementalTotalLiquidityAddedToken1: bigint;
   incrementalTotalLiquidityRemovedUSD: bigint;
+  incrementalTotalLiquidityRemovedToken0: bigint;
+  incrementalTotalLiquidityRemovedToken1: bigint;
   incrementalTotalFeesContributedUSD: bigint;
   incrementalTotalFeesContributed0: bigint;
   incrementalTotalFeesContributed1: bigint;
@@ -124,11 +128,13 @@ export function createUserStatsPerPoolEntity(
 
     // Liquidity metrics
     currentLiquidityUSD: 0n,
-    currentLiquidityToken0: 0n,
-    currentLiquidityToken1: 0n,
     lpBalance: 0n,
     totalLiquidityAddedUSD: 0n,
+    totalLiquidityAddedToken0: 0n,
+    totalLiquidityAddedToken1: 0n,
     totalLiquidityRemovedUSD: 0n,
+    totalLiquidityRemovedToken0: 0n,
+    totalLiquidityRemovedToken1: 0n,
 
     // Fee metrics
     totalFeesContributedUSD: 0n,
@@ -201,16 +207,26 @@ export async function updateUserStatsPerPool(
         ? current.totalLiquidityRemovedUSD +
           diff.incrementalTotalLiquidityRemovedUSD
         : current.totalLiquidityRemovedUSD,
-    currentLiquidityToken0:
-      diff.incrementalCurrentLiquidityToken0 !== undefined
-        ? current.currentLiquidityToken0 +
-          diff.incrementalCurrentLiquidityToken0
-        : current.currentLiquidityToken0,
-    currentLiquidityToken1:
-      diff.incrementalCurrentLiquidityToken1 !== undefined
-        ? current.currentLiquidityToken1 +
-          diff.incrementalCurrentLiquidityToken1
-        : current.currentLiquidityToken1,
+    totalLiquidityAddedToken0:
+      diff.incrementalTotalLiquidityAddedToken0 !== undefined
+        ? current.totalLiquidityAddedToken0 +
+          diff.incrementalTotalLiquidityAddedToken0
+        : current.totalLiquidityAddedToken0,
+    totalLiquidityAddedToken1:
+      diff.incrementalTotalLiquidityAddedToken1 !== undefined
+        ? current.totalLiquidityAddedToken1 +
+          diff.incrementalTotalLiquidityAddedToken1
+        : current.totalLiquidityAddedToken1,
+    totalLiquidityRemovedToken0:
+      diff.incrementalTotalLiquidityRemovedToken0 !== undefined
+        ? current.totalLiquidityRemovedToken0 +
+          diff.incrementalTotalLiquidityRemovedToken0
+        : current.totalLiquidityRemovedToken0,
+    totalLiquidityRemovedToken1:
+      diff.incrementalTotalLiquidityRemovedToken1 !== undefined
+        ? current.totalLiquidityRemovedToken1 +
+          diff.incrementalTotalLiquidityRemovedToken1
+        : current.totalLiquidityRemovedToken1,
     lpBalance:
       diff.incrementalLpBalance !== undefined
         ? current.lpBalance + diff.incrementalLpBalance

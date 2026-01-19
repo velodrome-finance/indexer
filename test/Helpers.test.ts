@@ -583,9 +583,7 @@ describe("Helpers", () => {
           token0: mockToken0.address,
           token1: mockToken1.address,
           liquidity: amount,
-          amount0: 0n,
-          amount1: 0n,
-          amountUSD: 0n,
+          mintLogIndex: 0,
           owner: "0x2222222222222222222222222222222222222222",
           mintTransactionHash:
             "0x0000000000000000000000000000000000000000000000000000000000000000",

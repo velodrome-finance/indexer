@@ -1,5 +1,7 @@
 import { ALMDeployFactoryV2 } from "generated";
 import { toChecksumAddress } from "../../Constants";
+import { getSqrtPriceX96 } from "../../Effects/Index";
+import { calculatePositionAmountsFromLiquidity } from "../../Helpers";
 
 ALMDeployFactoryV2.StrategyCreated.contractRegister(({ event, context }) => {
   const [pool, ammPosition, strategyParams, lpWrapper, caller] =
@@ -26,14 +28,17 @@ ALMDeployFactoryV2.StrategyCreated.handler(async ({ event, context }) => {
 
   const timestamp = new Date(event.block.timestamp * 1000);
 
-  // Fetching tokenId from NonFungiblePosition entity created by CL Pool event handlers
+  // Query NonFungiblePosition by mintTransactionHash (already stored in position)
   const nonFungiblePositions =
     await context.NonFungiblePosition.getWhere.mintTransactionHash.eq(
       event.transaction.hash,
     );
-  const matchingNonFungiblePositions =
+
+  // Filter by matching fields
+  const matchingPositions =
     nonFungiblePositions?.filter(
       (pos) =>
+        pos.chainId === event.chainId &&
         pos.tickLower === tickLower &&
         pos.tickUpper === tickUpper &&
         pos.liquidity === liquidity &&
@@ -41,14 +46,14 @@ ALMDeployFactoryV2.StrategyCreated.handler(async ({ event, context }) => {
         pos.token1 === token1,
     ) ?? [];
 
-  if (matchingNonFungiblePositions.length === 0) {
+  if (matchingPositions.length === 0) {
     context.log.error(
       `NonFungiblePosition not found for transaction hash ${event.transaction.hash} (chainId: ${event.chainId}, pool: ${toChecksumAddress(pool)}) matching tickLower ${tickLower}, tickUpper ${tickUpper}, liquidity ${liquidity}. It should have been created by CLPool event handlers.`,
     );
     return;
   }
 
-  if (matchingNonFungiblePositions.length > 1) {
+  if (matchingPositions.length > 1) {
     context.log.warn(
       `Multiple NonFungiblePositions found for transaction hash ${event.transaction.hash} with the same tick lower ${tickLower}, tick upper ${tickUpper}, liquidity ${liquidity}, token0 ${token0} and token1 ${token1}. Using the first match.`,
     );
@@ -56,9 +61,42 @@ ALMDeployFactoryV2.StrategyCreated.handler(async ({ event, context }) => {
 
   // there should, in principle, one unique non fungible position that has
   // simultaneously the same transaction hash,tickLower, tickUpper, liquidity and token0 and token1
-  const tokenId = matchingNonFungiblePositions[0].tokenId;
-  const amount0 = matchingNonFungiblePositions[0].amount0;
-  const amount1 = matchingNonFungiblePositions[0].amount1;
+  const position = matchingPositions[0];
+  const tokenId = position.tokenId;
+
+  // Compute amount0/amount1 from liquidity + sqrtPriceX96 + ticks (amount0/amount1 removed from schema)
+  // Fetch sqrtPriceX96 from pool aggregator or RPC
+  const liquidityPoolAggregator = await context.LiquidityPoolAggregator.get(
+    toChecksumAddress(pool),
+  );
+  let sqrtPriceX96: bigint | undefined =
+    liquidityPoolAggregator?.sqrtPriceX96 ?? undefined;
+
+  if (!sqrtPriceX96) {
+    // Fallback to RPC
+    sqrtPriceX96 = await context.effect(getSqrtPriceX96, {
+      poolAddress: toChecksumAddress(pool),
+      chainId: event.chainId,
+      blockNumber: event.block.number,
+    });
+  }
+
+  let amount0 = 0n;
+  let amount1 = 0n;
+  if (sqrtPriceX96) {
+    const amounts = calculatePositionAmountsFromLiquidity(
+      liquidity,
+      sqrtPriceX96,
+      tickLower,
+      tickUpper,
+    );
+    amount0 = amounts.amount0;
+    amount1 = amounts.amount1;
+  } else {
+    context.log.warn(
+      `Could not fetch sqrtPriceX96 for pool ${pool} to compute amount0/amount1, using 0`,
+    );
+  }
 
   // Fetching LP tokens supply from TotalSupplyLimitUpdated event
   const totalSupplyEvent = await context.ALM_TotalSupplyLimitUpdated_event.get(

@@ -382,11 +382,9 @@ describe("CLPool Events", () => {
 
       expect(processSpy).toHaveBeenCalled();
       expect(processSpy.mock.calls.length).toBeGreaterThanOrEqual(1);
-      // Check that NonFungiblePosition was created
-      const positions = Array.from(
-        resultDB.entities.NonFungiblePosition.getAll(),
-      );
-      expect(positions).toHaveLength(1);
+      // Check that CLPoolMintEvent was created
+      const mintEvents = Array.from(resultDB.entities.CLPoolMintEvent.getAll());
+      expect(mintEvents).toHaveLength(1);
     });
 
     it("should return early if pool data not found", async () => {

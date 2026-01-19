@@ -62,6 +62,8 @@ export interface LiquidityPoolAggregatorDiff {
   feeProtocol0: bigint;
   feeProtocol1: bigint;
   observationCardinalityNext: bigint;
+  sqrtPriceX96: bigint;
+  tick: bigint;
   totalVotesDeposited: bigint;
   totalVotesDepositedUSD: bigint;
   incrementalTotalBribeClaimed: bigint;
@@ -281,6 +283,8 @@ export async function updateLiquidityPoolAggregator(
     feeProtocol1: diff.feeProtocol1 ?? current.feeProtocol1,
     observationCardinalityNext:
       diff.observationCardinalityNext ?? current.observationCardinalityNext,
+    sqrtPriceX96: diff.sqrtPriceX96 ?? current.sqrtPriceX96,
+    tick: diff.tick ?? current.tick,
     totalVotesDeposited:
       diff.totalVotesDeposited ?? current.totalVotesDeposited,
     totalVotesDepositedUSD:
@@ -642,6 +646,8 @@ export function createLiquidityPoolAggregatorEntity(params: {
     feeProtocol0: 0n,
     feeProtocol1: 0n,
     observationCardinalityNext: 0n,
+    sqrtPriceX96: 0n,
+    tick: 0n,
     totalFlashLoanFees0: 0n,
     totalFlashLoanFees1: 0n,
     totalFlashLoanFeesUSD: 0n,

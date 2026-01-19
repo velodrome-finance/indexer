@@ -218,6 +218,7 @@ networks:
           - 0xFAf8FD17D9840595845582fCB047DF13f006787d
       - name: NFPM
         address:
+          - 0xbB5DFE1380333CEE4c2EeBd7202c80dE2256AdF4
           - 0x416b433906b1b72fa758e166e239c43d68dc6f29
       - name: FactoryRegistry
         address:
@@ -227,6 +228,7 @@ networks:
           - 0xF1046053aa5682b4F9a81b5481394DA16BE5FF5a
       - name: CLFactory
         address:
+          - 0x548118C7E0B865C2CfA94D15EC86B666468ac758
           - 0xCc0bDDB707055e04e497aB22a59c2aF4391cd12F
       - name: RootCLPoolFactory
         address:

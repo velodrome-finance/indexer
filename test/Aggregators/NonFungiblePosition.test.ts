@@ -19,10 +19,8 @@ describe("NonFungiblePosition", () => {
     token0: "0xToken0Address0000000000000000000000",
     token1: "0xToken1Address0000000000000000000000",
     liquidity: 1000000000000000000n,
-    amount0: 1000000000000000000n,
-    amount1: 2000000000000000000n,
-    amountUSD: 3000000000000000000n,
     mintTransactionHash: transactionHash,
+    mintLogIndex: 42,
     lastUpdatedTimestamp: new Date(10000 * 1000),
   };
   const timestamp = new Date(10001 * 1000);
@@ -42,6 +40,11 @@ describe("NonFungiblePosition", () => {
             lt: jest.fn(),
           },
           tokenId: {
+            eq: jest.fn(),
+            gt: jest.fn(),
+            lt: jest.fn(),
+          },
+          pool: {
             eq: jest.fn(),
             gt: jest.fn(),
             lt: jest.fn(),
@@ -92,9 +95,7 @@ describe("NonFungiblePosition", () => {
         expect(result.owner).toBe("0x2222222222222222222222222222222222222222");
         expect(result.tickUpper).toBe(100n); // unchanged
         expect(result.tickLower).toBe(-100n); // unchanged
-        expect(result.amount0).toBe(1000000000000000000n); // unchanged
-        expect(result.amount1).toBe(2000000000000000000n); // unchanged
-        expect(result.amountUSD).toBe(3000000000000000000n); // unchanged
+        expect(result.liquidity).toBe(1000000000000000000n); // unchanged
         expect(result.lastUpdatedTimestamp).toBe(timestamp);
       });
     });
@@ -103,11 +104,7 @@ describe("NonFungiblePosition", () => {
       let result: NonFungiblePosition;
       beforeEach(async () => {
         const increaseDiff = {
-          id: NonFungiblePositionId(10, 1n),
-          chainId: 10,
-          tokenId: 1n,
-          amount0: 1500000000000000000n, // new absolute value
-          amount1: 3000000000000000000n, // new absolute value
+          incrementalLiquidity: 500000000000000000n, // add liquidity
           lastUpdatedTimestamp: timestamp,
         };
 
@@ -120,9 +117,8 @@ describe("NonFungiblePosition", () => {
         result = mockSet?.mock.calls[0]?.[0] as NonFungiblePosition;
       });
 
-      it("should update amount0 and amount1 with absolute values", () => {
-        expect(result.amount0).toBe(1500000000000000000n); // new absolute value
-        expect(result.amount1).toBe(3000000000000000000n); // new absolute value
+      it("should update liquidity incrementally", () => {
+        expect(result.liquidity).toBe(1500000000000000000n); // 1000000000000000000n + 500000000000000000n
         expect(result.owner).toBe("0x1111111111111111111111111111111111111111"); // unchanged
         expect(result.tickUpper).toBe(100n); // unchanged
         expect(result.tickLower).toBe(-100n); // unchanged
@@ -134,11 +130,7 @@ describe("NonFungiblePosition", () => {
       let result: NonFungiblePosition;
       beforeEach(async () => {
         const decreaseDiff = {
-          id: NonFungiblePositionId(10, 1n),
-          chainId: 10,
-          tokenId: 1n,
-          amount0: 500000000000000000n, // new absolute value
-          amount1: 1000000000000000000n, // new absolute value
+          incrementalLiquidity: -300000000000000000n, // remove liquidity
           lastUpdatedTimestamp: timestamp,
         };
 
@@ -151,40 +143,11 @@ describe("NonFungiblePosition", () => {
         result = mockSet?.mock.calls[0]?.[0] as NonFungiblePosition;
       });
 
-      it("should update amount0 and amount1 with absolute values", () => {
-        expect(result.amount0).toBe(500000000000000000n); // new absolute value
-        expect(result.amount1).toBe(1000000000000000000n); // new absolute value
+      it("should update liquidity incrementally", () => {
+        expect(result.liquidity).toBe(700000000000000000n); // 1000000000000000000n - 300000000000000000n
         expect(result.owner).toBe("0x1111111111111111111111111111111111111111"); // unchanged
         expect(result.tickUpper).toBe(100n); // unchanged
         expect(result.tickLower).toBe(-100n); // unchanged
-        expect(result.lastUpdatedTimestamp).toBe(timestamp);
-      });
-    });
-
-    describe("when updating with partial diff (only amount0)", () => {
-      let result: NonFungiblePosition;
-      beforeEach(async () => {
-        const partialDiff = {
-          id: NonFungiblePositionId(10, 1n),
-          chainId: 10,
-          tokenId: 1n,
-          amount0: 1500000000000000000n, // new absolute value
-          lastUpdatedTimestamp: timestamp,
-        };
-
-        updateNonFungiblePosition(
-          partialDiff,
-          mockNonFungiblePosition,
-          mockContext as handlerContext,
-        );
-        const mockSet = jest.mocked(mockContext.NonFungiblePosition?.set);
-        result = mockSet?.mock.calls[0]?.[0] as NonFungiblePosition;
-      });
-
-      it("should update only amount0, leave amount1 unchanged", () => {
-        expect(result.amount0).toBe(1500000000000000000n); // new absolute value
-        expect(result.amount1).toBe(2000000000000000000n); // unchanged
-        expect(result.owner).toBe("0x1111111111111111111111111111111111111111"); // unchanged
         expect(result.lastUpdatedTimestamp).toBe(timestamp);
       });
     });

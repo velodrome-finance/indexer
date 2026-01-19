@@ -1,7 +1,10 @@
 import type { PublicClient } from "viem";
 import type { MockDb } from "../generated/src/TestHelpers.gen";
-import type { NonFungiblePosition } from "../generated/src/Types.gen";
-import { CHAIN_CONSTANTS } from "../src/Constants";
+import type {
+  LiquidityPoolAggregator,
+  NonFungiblePosition,
+} from "../generated/src/Types.gen";
+import { CHAIN_CONSTANTS, toChecksumAddress } from "../src/Constants";
 
 /**
  * Extends mockDb with getWhere functionality for NonFungiblePosition queries
@@ -77,4 +80,28 @@ export function mutateChainConstants(
       }
     },
   };
+}
+
+/**
+ * Helper function to set up LiquidityPoolAggregator on a mockDb.
+ * Returns the updated mockDb.
+ *
+ * @param mockDb - The mock database to update
+ * @param mockLiquidityPoolData - Base liquidity pool data
+ * @param poolAddress - The pool address
+ * @returns The updated mockDb with LiquidityPoolAggregator set
+ */
+export function setupLiquidityPoolAggregator(
+  mockDb: ReturnType<typeof MockDb.createMockDb>,
+  mockLiquidityPoolData: LiquidityPoolAggregator,
+  poolAddress: string,
+): ReturnType<typeof MockDb.createMockDb> {
+  const mockLiquidityPoolAggregator = {
+    ...mockLiquidityPoolData,
+    id: toChecksumAddress(poolAddress),
+    isCL: true, // CL pool
+  };
+  return mockDb.entities.LiquidityPoolAggregator.set(
+    mockLiquidityPoolAggregator,
+  );
 }
