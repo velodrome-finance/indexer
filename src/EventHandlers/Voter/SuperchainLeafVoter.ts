@@ -1,7 +1,10 @@
 import { SuperchainLeafVoter } from "generated";
 
 import type { Token } from "generated/src/Types.gen";
-import { updateLiquidityPoolAggregator } from "../../Aggregators/LiquidityPoolAggregator";
+import {
+  findPoolByGaugeAddress,
+  updateLiquidityPoolAggregator,
+} from "../../Aggregators/LiquidityPoolAggregator";
 import {
   SUPERCHAIN_LEAF_VOTER_CLPOOLS_FACTORY_LIST,
   SUPERCHAIN_LEAF_VOTER_VAMM_POOLS_FACTORY_LIST,
@@ -36,6 +39,56 @@ SuperchainLeafVoter.GaugeCreated.handler(async ({ event, context }) => {
       gaugeAddress: gaugeAddress,
       feeVotingRewardAddress: event.params.feeVotingReward,
       bribeVotingRewardAddress: event.params.incentiveVotingReward,
+      gaugeIsAlive: true, // Newly created gauges are always alive
+      lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
+    };
+
+    await updateLiquidityPoolAggregator(
+      poolUpdateDiff,
+      poolEntity,
+      new Date(event.block.timestamp * 1000),
+      context,
+      event.block.number,
+    );
+  }
+});
+
+SuperchainLeafVoter.GaugeKilled.handler(async ({ event, context }) => {
+  const poolEntity = await findPoolByGaugeAddress(
+    event.params.gauge,
+    event.chainId,
+    context,
+  );
+  const poolAddress = poolEntity?.id;
+
+  if (poolAddress) {
+    const poolUpdateDiff = {
+      gaugeIsAlive: false,
+      // Keep gaugeAddress, feeVotingRewardAddress and bribeVotingRewardAddress as historical data
+      lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
+    };
+
+    await updateLiquidityPoolAggregator(
+      poolUpdateDiff,
+      poolEntity,
+      new Date(event.block.timestamp * 1000),
+      context,
+      event.block.number,
+    );
+  }
+});
+
+SuperchainLeafVoter.GaugeRevived.handler(async ({ event, context }) => {
+  const poolEntity = await findPoolByGaugeAddress(
+    event.params.gauge,
+    event.chainId,
+    context,
+  );
+  const poolAddress = poolEntity?.id;
+
+  if (poolAddress) {
+    const poolUpdateDiff = {
+      gaugeIsAlive: true,
       lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
     };
 

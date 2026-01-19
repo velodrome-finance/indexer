@@ -49,6 +49,7 @@ Voter.GaugeCreated.handler(async ({ event, context }) => {
       gaugeAddress: gaugeAddress,
       feeVotingRewardAddress: event.params.feeVotingReward,
       bribeVotingRewardAddress: event.params.bribeVotingReward,
+      gaugeIsAlive: true, // Newly created gauges are always alive
       lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
     };
 
@@ -302,6 +303,30 @@ Voter.GaugeKilled.handler(async ({ event, context }) => {
     const poolUpdateDiff = {
       gaugeIsAlive: false,
       // Keep gaugeAddress, feeVotingRewardAddress and bribeVotingRewardAddress as historical data
+      lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
+    };
+
+    await updateLiquidityPoolAggregator(
+      poolUpdateDiff,
+      poolEntity,
+      new Date(event.block.timestamp * 1000),
+      context,
+      event.block.number,
+    );
+  }
+});
+
+Voter.GaugeRevived.handler(async ({ event, context }) => {
+  const poolEntity = await findPoolByGaugeAddress(
+    event.params.gauge,
+    event.chainId,
+    context,
+  );
+  const poolAddress = poolEntity?.id;
+
+  if (poolAddress) {
+    const poolUpdateDiff = {
+      gaugeIsAlive: true,
       lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
     };
 

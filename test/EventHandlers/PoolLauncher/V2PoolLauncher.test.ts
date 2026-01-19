@@ -63,8 +63,6 @@ describe("V2PoolLauncher Events", () => {
       token0Price: 1000000000000000000n,
       token1Price: 1000000000000000000n,
       gaugeIsAlive: false,
-      token0IsWhitelisted: true,
-      token1IsWhitelisted: true,
       lastUpdatedTimestamp: mockTimestamp,
       lastSnapshotTimestamp: mockTimestamp,
       poolLauncherPoolId: undefined,

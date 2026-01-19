@@ -86,8 +86,6 @@ describe("CLFactoryPoolCreatedLogic", () => {
         reserve0: 0n,
         reserve1: 0n,
         totalLiquidityUSD: 0n,
-        token0IsWhitelisted: true,
-        token1IsWhitelisted: true,
         gaugeIsAlive: false,
       });
     });
@@ -114,8 +112,6 @@ describe("CLFactoryPoolCreatedLogic", () => {
         reserve0: 0n,
         reserve1: 0n,
         totalLiquidityUSD: 0n,
-        token0IsWhitelisted: false,
-        token1IsWhitelisted: true,
         gaugeIsAlive: false,
       });
     });
@@ -142,8 +138,6 @@ describe("CLFactoryPoolCreatedLogic", () => {
         reserve0: 0n,
         reserve1: 0n,
         totalLiquidityUSD: 0n,
-        token0IsWhitelisted: true,
-        token1IsWhitelisted: false,
         gaugeIsAlive: false,
       });
     });
@@ -170,8 +164,6 @@ describe("CLFactoryPoolCreatedLogic", () => {
         reserve0: 0n,
         reserve1: 0n,
         totalLiquidityUSD: 0n,
-        token0IsWhitelisted: false,
-        token1IsWhitelisted: false,
         gaugeIsAlive: false,
       });
     });
@@ -230,8 +222,6 @@ describe("CLFactoryPoolCreatedLogic", () => {
         reserve0: 0n,
         reserve1: 0n,
         totalLiquidityUSD: 0n,
-        token0IsWhitelisted: false,
-        token1IsWhitelisted: false,
         gaugeIsAlive: false,
       });
     });
@@ -268,8 +258,6 @@ describe("CLFactoryPoolCreatedLogic", () => {
         reserve0: 0n,
         reserve1: 0n,
         totalLiquidityUSD: 0n,
-        token0IsWhitelisted: true,
-        token1IsWhitelisted: false,
         gaugeIsAlive: false,
       });
     });

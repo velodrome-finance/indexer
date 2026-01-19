@@ -45,8 +45,6 @@ describe("CLPoolMintLogic", () => {
     token0Price: 1000000000000000000n,
     token1Price: 2000000000000000000n,
     gaugeIsAlive: false,
-    token0IsWhitelisted: false,
-    token1IsWhitelisted: false,
     lastUpdatedTimestamp: new Date(1000000 * 1000),
     lastSnapshotTimestamp: new Date(1000000 * 1000),
   };

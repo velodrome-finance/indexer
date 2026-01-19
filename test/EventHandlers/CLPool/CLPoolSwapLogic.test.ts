@@ -208,7 +208,6 @@ describe("CLPoolSwapLogic", () => {
       expect(result.liquidityPoolDiff.token0Price).toBe(
         mockLiquidityPoolAggregator.token0Price,
       );
-      expect(result.liquidityPoolDiff.token0IsWhitelisted).toBe(false);
     });
 
     it("should handle undefined token1 by falling back to original instance", async () => {
@@ -229,7 +228,6 @@ describe("CLPoolSwapLogic", () => {
       expect(result.liquidityPoolDiff.token1Price).toBe(
         mockLiquidityPoolAggregator.token1Price,
       );
-      expect(result.liquidityPoolDiff.token1IsWhitelisted).toBe(false);
     });
 
     it("should handle both tokens undefined", async () => {
@@ -249,8 +247,6 @@ describe("CLPoolSwapLogic", () => {
       expect(result.liquidityPoolDiff.token1Price).toBe(
         mockLiquidityPoolAggregator.token1Price,
       );
-      expect(result.liquidityPoolDiff.token0IsWhitelisted).toBe(false);
-      expect(result.liquidityPoolDiff.token1IsWhitelisted).toBe(false);
     });
 
     it("should calculate reserves correctly with positive amounts", async () => {
@@ -463,28 +459,10 @@ describe("CLPoolSwapLogic", () => {
         mockContext,
       );
 
-      expect(result.liquidityPoolDiff.token0IsWhitelisted).toBe(true);
-      expect(result.liquidityPoolDiff.token1IsWhitelisted).toBe(true);
       // When both are whitelisted, whitelisted volume should equal total volume
       expect(
         result.liquidityPoolDiff.incrementalTotalVolumeUSDWhitelisted,
       ).toBe(result.liquidityPoolDiff.incrementalTotalVolumeUSD);
-    });
-
-    it("should fallback whitelisted status to false when tokens are undefined", async () => {
-      const result = await processCLPoolSwap(
-        mockEvent,
-        mockLiquidityPoolAggregator,
-        undefined,
-        undefined,
-        mockContext,
-      );
-
-      expect(result.liquidityPoolDiff.token0IsWhitelisted).toBe(false);
-      expect(result.liquidityPoolDiff.token1IsWhitelisted).toBe(false);
-      expect(
-        result.liquidityPoolDiff.incrementalTotalVolumeUSDWhitelisted,
-      ).toBe(0n);
     });
 
     it("should handle mixed whitelisted status correctly", async () => {
@@ -506,8 +484,6 @@ describe("CLPoolSwapLogic", () => {
         mockContext,
       );
 
-      expect(result.liquidityPoolDiff.token0IsWhitelisted).toBe(true);
-      expect(result.liquidityPoolDiff.token1IsWhitelisted).toBe(false);
       // When only one is whitelisted, whitelisted volume should be 0
       expect(
         result.liquidityPoolDiff.incrementalTotalVolumeUSDWhitelisted,

@@ -43,8 +43,6 @@ describe("CLPoolCollectFeesLogic", () => {
     token0Price: 1000000000000000000n,
     token1Price: 2000000000000000000n,
     gaugeIsAlive: false,
-    token0IsWhitelisted: false,
-    token1IsWhitelisted: false,
     totalUnstakedFeesCollected0: 0n,
     totalUnstakedFeesCollected1: 0n,
     totalUnstakedFeesCollectedUSD: 0n,

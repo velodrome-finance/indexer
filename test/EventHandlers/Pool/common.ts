@@ -70,8 +70,6 @@ export function setupCommon() {
     isCL: false,
     lastUpdatedTimestamp: new Date(),
     lastSnapshotTimestamp: new Date(),
-    token0IsWhitelisted: true,
-    token1IsWhitelisted: true,
     name: "",
     // CL Pool specific fields (set to 0 for regular pools)
     feeProtocol0: 0n,

@@ -163,15 +163,5 @@ describe("Pool Swap Event", () => {
       const calledToken = mockPriceOracle.mock.calls[1][0];
       expect(calledToken.address).toBe(mockToken1Data.address);
     });
-    it("should update the liquidity pool with token0IsWhitelisted", () => {
-      expect(updatedPool?.token0IsWhitelisted).toBe(
-        mockToken0Data.isWhitelisted,
-      );
-    });
-    it("should update the liquidity pool with token1IsWhitelisted", () => {
-      expect(updatedPool?.token1IsWhitelisted).toBe(
-        mockToken1Data.isWhitelisted,
-      );
-    });
   });
 });
