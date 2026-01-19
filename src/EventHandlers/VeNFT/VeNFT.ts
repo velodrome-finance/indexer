@@ -20,11 +20,11 @@ VeNFT.Withdraw.handler(async ({ event, context }) => {
   }
 
   // Process withdraw event using business logic
-  const result = await processVeNFTEvent(event, veNFTAggregator);
+  const veNFTAggregatorDiff = await processVeNFTEvent(event, veNFTAggregator);
 
   // Apply VeNFT aggregator updates
   updateVeNFTAggregator(
-    result.veNFTAggregatorDiff,
+    veNFTAggregatorDiff,
     veNFTAggregator,
     new Date(event.block.timestamp * 1000),
     context,
@@ -64,11 +64,11 @@ VeNFT.Transfer.handler(async ({ event, context }) => {
   }
 
   // Process transfer event using business logic
-  const result = await processVeNFTEvent(event, veNFTAggregator);
+  const veNFTAggregatorDiff = await processVeNFTEvent(event, veNFTAggregator);
 
   // Apply VeNFT aggregator updates
   updateVeNFTAggregator(
-    result.veNFTAggregatorDiff,
+    veNFTAggregatorDiff,
     veNFTAggregator,
     new Date(event.block.timestamp * 1000),
     context,
@@ -91,11 +91,11 @@ VeNFT.Deposit.handler(async ({ event, context }) => {
   }
 
   // Process deposit event using business logic
-  const result = await processVeNFTEvent(event, veNFTAggregator);
+  const veNFTAggregatorDiff = await processVeNFTEvent(event, veNFTAggregator);
 
   // Apply VeNFT aggregator updates
   updateVeNFTAggregator(
-    result.veNFTAggregatorDiff,
+    veNFTAggregatorDiff,
     veNFTAggregator,
     new Date(event.block.timestamp * 1000),
     context,

@@ -111,18 +111,18 @@ describe("PoolSwapLogic", () => {
 
       // Verify user swap diff content
       expect(result.userSwapDiff).toMatchObject({
-        numberOfSwaps: 1n,
-        totalSwapVolumeUSD: 1000n, // from swapData.volumeInUSD (token0: 1000 * 1 USD)
-        totalSwapVolumeAmount0: 1000n, // amount0In + amount0Out = 1000 + 0
-        totalSwapVolumeAmount1: 500n, // amount1In + amount1Out = 0 + 500
+        incrementalNumberOfSwaps: 1n,
+        incrementalTotalSwapVolumeUSD: 1000n, // from swapData.volumeInUSD (token0: 1000 * 1 USD)
+        incrementalTotalSwapVolumeAmount0: 1000n, // amount0In + amount0Out = 1000 + 0
+        incrementalTotalSwapVolumeAmount1: 500n, // amount1In + amount1Out = 0 + 500
         lastActivityTimestamp: new Date(1000000 * 1000),
       });
 
       // Verify liquidity pool diff content
       expect(result.liquidityPoolDiff).toMatchObject({
-        totalVolume0: 1000n, // netAmount0 (diff) - amount0In + amount0Out = 1000 + 0
-        totalVolume1: 500n, // netAmount1 (diff) - amount1In + amount1Out = 0 + 500
-        numberOfSwaps: 1n, // diff
+        incrementalTotalVolume0: 1000n, // netAmount0 (diff) - amount0In + amount0Out = 1000 + 0
+        incrementalTotalVolume1: 500n, // netAmount1 (diff) - amount1In + amount1Out = 0 + 500
+        incrementalNumberOfSwaps: 1n, // diff
         token0Price: 1000000000000000000n, // from mockToken0.pricePerUSDNew
         token1Price: 1000000000000000000n, // from mockToken1.pricePerUSDNew
         token0IsWhitelisted: true, // from mockToken0.isWhitelisted
@@ -201,7 +201,7 @@ describe("PoolSwapLogic", () => {
       // Token1 has amount1In + amount1Out = 2000n + 5n = 2005n
       // The logic uses the smaller volume for calculation (102n from token0)
       // Expected: 102n (token0 volume diff)
-      expect(result.liquidityPoolDiff?.totalVolumeUSD).toBe(102n);
+      expect(result.liquidityPoolDiff?.incrementalTotalVolumeUSD).toBe(102n);
     });
 
     it("should not add to whitelisted volume when tokens are not whitelisted", async () => {
@@ -217,9 +217,11 @@ describe("PoolSwapLogic", () => {
       expect(result.userSwapDiff).toBeDefined();
 
       // When tokens are not whitelisted, whitelisted volume diff should be 0
-      expect(result.liquidityPoolDiff?.totalVolumeUSDWhitelisted).toBe(0n);
+      expect(
+        result.liquidityPoolDiff?.incrementalTotalVolumeUSDWhitelisted,
+      ).toBe(0n);
       // But total volume should still be calculated: 1000n USD (1000 USDT * 1 USD, uses token0 value)
-      expect(result.liquidityPoolDiff?.totalVolumeUSD).toBe(1000n);
+      expect(result.liquidityPoolDiff?.incrementalTotalVolumeUSD).toBe(1000n);
     });
 
     it("should add to whitelisted volume when both tokens are whitelisted", async () => {
@@ -236,7 +238,9 @@ describe("PoolSwapLogic", () => {
 
       // When both tokens are whitelisted, whitelisted volume should be added
       // Expected: 1000n USD (1000 USDT * 1 USD, uses token0 value)
-      expect(result.liquidityPoolDiff?.totalVolumeUSDWhitelisted).toBe(1000n);
+      expect(
+        result.liquidityPoolDiff?.incrementalTotalVolumeUSDWhitelisted,
+      ).toBe(1000n);
     });
 
     it("should handle mixed whitelist status correctly", async () => {
@@ -252,7 +256,9 @@ describe("PoolSwapLogic", () => {
       expect(result.userSwapDiff).toBeDefined();
 
       // When only one token is whitelisted, whitelisted volume diff should be 0
-      expect(result.liquidityPoolDiff?.totalVolumeUSDWhitelisted).toBe(0n);
+      expect(
+        result.liquidityPoolDiff?.incrementalTotalVolumeUSDWhitelisted,
+      ).toBe(0n);
     });
 
     it("should update token prices correctly", async () => {
@@ -281,7 +287,7 @@ describe("PoolSwapLogic", () => {
       expect(result.liquidityPoolDiff?.token1Price).toBe(3000000000000000000n);
     });
 
-    it("should correctly calculate totalSwapVolumeAmount0 and totalSwapVolumeAmount1", async () => {
+    it("should correctly calculate incrementalTotalSwapVolumeAmount0 and incrementalTotalSwapVolumeAmount1", async () => {
       const swapEvent: Pool_Swap_event = {
         ...mockEvent,
         params: {
@@ -301,10 +307,10 @@ describe("PoolSwapLogic", () => {
         mockContext,
       );
 
-      // totalSwapVolumeAmount0 should be amount0In + amount0Out = 500 + 300 = 800
-      expect(result.userSwapDiff?.totalSwapVolumeAmount0).toBe(800n);
-      // totalSwapVolumeAmount1 should be amount1In + amount1Out = 200 + 400 = 600
-      expect(result.userSwapDiff?.totalSwapVolumeAmount1).toBe(600n);
+      // incrementalTotalSwapVolumeAmount0 should be amount0In + amount0Out = 500 + 300 = 800
+      expect(result.userSwapDiff?.incrementalTotalSwapVolumeAmount0).toBe(800n);
+      // incrementalTotalSwapVolumeAmount1 should be amount1In + amount1Out = 200 + 400 = 600
+      expect(result.userSwapDiff?.incrementalTotalSwapVolumeAmount1).toBe(600n);
     });
   });
 
@@ -346,8 +352,8 @@ describe("PoolSwapLogic", () => {
         mockContext,
       );
 
-      expect(result.liquidityPoolDiff?.totalVolume0).toBe(0n);
-      expect(result.liquidityPoolDiff?.totalVolume1).toBe(500n);
+      expect(result.liquidityPoolDiff?.incrementalTotalVolume0).toBe(0n);
+      expect(result.liquidityPoolDiff?.incrementalTotalVolume1).toBe(500n);
     });
 
     it("should use fallback when token1NetAmount is undefined", async () => {
@@ -363,8 +369,8 @@ describe("PoolSwapLogic", () => {
         mockContext,
       );
 
-      expect(result.liquidityPoolDiff?.totalVolume0).toBe(1000n);
-      expect(result.liquidityPoolDiff?.totalVolume1).toBe(0n);
+      expect(result.liquidityPoolDiff?.incrementalTotalVolume0).toBe(1000n);
+      expect(result.liquidityPoolDiff?.incrementalTotalVolume1).toBe(0n);
     });
 
     it("should use fallback when token0 is undefined", async () => {
@@ -527,8 +533,8 @@ describe("PoolSwapLogic", () => {
       );
       expect(result.liquidityPoolDiff?.token0IsWhitelisted).toBe(false);
       expect(result.liquidityPoolDiff?.token1IsWhitelisted).toBe(false);
-      expect(result.liquidityPoolDiff?.totalVolume0).toBe(0n);
-      expect(result.liquidityPoolDiff?.totalVolume1).toBe(0n);
+      expect(result.liquidityPoolDiff?.incrementalTotalVolume0).toBe(0n);
+      expect(result.liquidityPoolDiff?.incrementalTotalVolume1).toBe(0n);
     });
   });
 });

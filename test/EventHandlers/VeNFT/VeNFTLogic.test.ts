@@ -52,7 +52,7 @@ describe("VeNFTLogic", () => {
           mockVeNFTAggregator,
         );
 
-        expect(result.veNFTAggregatorDiff).toEqual({
+        expect(result).toEqual({
           id: "10_1",
           chainId: 10,
           tokenId: 1n,
@@ -61,7 +61,7 @@ describe("VeNFTLogic", () => {
           ),
           locktime: 200n,
           lastUpdatedTimestamp: new Date(1000000 * 1000),
-          totalValueLocked: 50n,
+          incrementalTotalValueLocked: 50n,
           isAlive: true,
         });
       });
@@ -93,7 +93,7 @@ describe("VeNFTLogic", () => {
           mockVeNFTAggregator,
         );
 
-        expect(result.veNFTAggregatorDiff).toEqual({
+        expect(result).toEqual({
           id: "10_1",
           chainId: 10,
           tokenId: 1n,
@@ -102,7 +102,6 @@ describe("VeNFTLogic", () => {
           ),
           locktime: 100n,
           lastUpdatedTimestamp: new Date(1000000 * 1000),
-          totalValueLocked: 100n,
           isAlive: true,
         });
       });
@@ -118,14 +117,13 @@ describe("VeNFTLogic", () => {
 
         const result = await processVeNFTEvent(burnEvent, mockVeNFTAggregator);
 
-        expect(result.veNFTAggregatorDiff).toEqual({
+        expect(result).toEqual({
           id: "10_1",
           chainId: 10,
           tokenId: 1n,
           owner: "0x0000000000000000000000000000000000000000",
           locktime: 100n,
           lastUpdatedTimestamp: new Date(1000000 * 1000),
-          totalValueLocked: 100n,
           isAlive: false,
         });
       });
@@ -159,7 +157,7 @@ describe("VeNFTLogic", () => {
           mockVeNFTAggregator,
         );
 
-        expect(result.veNFTAggregatorDiff).toEqual({
+        expect(result).toEqual({
           id: "10_1",
           chainId: 10,
           tokenId: 1n,
@@ -167,7 +165,7 @@ describe("VeNFTLogic", () => {
             "0x1111111111111111111111111111111111111111",
           ),
           lastUpdatedTimestamp: new Date(1000000 * 1000),
-          totalValueLocked: -25n,
+          incrementalTotalValueLocked: -25n,
           isAlive: false,
         });
       });

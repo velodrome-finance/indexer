@@ -48,7 +48,7 @@ describe("processPoolLiquidityEvent", () => {
       expect(result.liquidityPoolDiff?.token1Price).toBe(1000000000000000000n);
       expect(result.liquidityPoolDiff?.token0IsWhitelisted).toBe(true);
       expect(result.liquidityPoolDiff?.token1IsWhitelisted).toBe(true);
-      expect(result.liquidityPoolDiff?.totalLiquidityUSD).toBe(
+      expect(result.liquidityPoolDiff?.incrementalCurrentLiquidityUSD).toBe(
         2000000000001000000000000000000000n,
       );
     });
@@ -81,16 +81,26 @@ describe("processPoolLiquidityEvent", () => {
 
       // For mint events, user liquidity should be positive (adding liquidity)
       expect(result.userLiquidityDiff).toBeDefined();
-      expect(result.userLiquidityDiff?.currentLiquidityToken0).toBe(amount0);
-      expect(result.userLiquidityDiff?.currentLiquidityToken1).toBe(amount1);
-      expect(result.userLiquidityDiff?.currentLiquidityUSD).toBeGreaterThan(0n);
-      // For mint events, totalLiquidityAddedUSD should be set
-      expect(result.userLiquidityDiff?.totalLiquidityAddedUSD).toBeDefined();
-      expect(result.userLiquidityDiff?.totalLiquidityAddedUSD).toBeGreaterThan(
-        0n,
+      expect(result.userLiquidityDiff?.incrementalCurrentLiquidityToken0).toBe(
+        amount0,
       );
-      // For mint events, totalLiquidityRemovedUSD should be 0n
-      expect(result.userLiquidityDiff?.totalLiquidityRemovedUSD).toBe(0n);
+      expect(result.userLiquidityDiff?.incrementalCurrentLiquidityToken1).toBe(
+        amount1,
+      );
+      expect(
+        result.userLiquidityDiff?.incrementalCurrentLiquidityUSD,
+      ).toBeGreaterThan(0n);
+      // For mint events, incrementalTotalLiquidityAddedUSD should be set
+      expect(
+        result.userLiquidityDiff?.incrementalTotalLiquidityAddedUSD,
+      ).toBeDefined();
+      expect(
+        result.userLiquidityDiff?.incrementalTotalLiquidityAddedUSD,
+      ).toBeGreaterThan(0n);
+      // For mint events, incrementalTotalLiquidityRemovedUSD should be 0n
+      expect(
+        result.userLiquidityDiff?.incrementalTotalLiquidityRemovedUSD,
+      ).toBe(0n);
       expect(result.userLiquidityDiff?.lastActivityTimestamp).toEqual(
         new Date(1000000 * 1000),
       );
@@ -127,16 +137,26 @@ describe("processPoolLiquidityEvent", () => {
 
       // For burn events, user liquidity should be negative (removing liquidity)
       expect(result.userLiquidityDiff).toBeDefined();
-      expect(result.userLiquidityDiff?.currentLiquidityToken0).toBe(-amount0);
-      expect(result.userLiquidityDiff?.currentLiquidityToken1).toBe(-amount1);
-      expect(result.userLiquidityDiff?.currentLiquidityUSD).toBeLessThan(0n);
-      // For burn events, totalLiquidityRemovedUSD should be set
-      expect(result.userLiquidityDiff?.totalLiquidityRemovedUSD).toBeDefined();
+      expect(result.userLiquidityDiff?.incrementalCurrentLiquidityToken0).toBe(
+        -amount0,
+      );
+      expect(result.userLiquidityDiff?.incrementalCurrentLiquidityToken1).toBe(
+        -amount1,
+      );
       expect(
-        result.userLiquidityDiff?.totalLiquidityRemovedUSD,
+        result.userLiquidityDiff?.incrementalCurrentLiquidityUSD,
+      ).toBeLessThan(0n);
+      // For burn events, incrementalTotalLiquidityRemovedUSD should be set
+      expect(
+        result.userLiquidityDiff?.incrementalTotalLiquidityRemovedUSD,
+      ).toBeDefined();
+      expect(
+        result.userLiquidityDiff?.incrementalTotalLiquidityRemovedUSD,
       ).toBeGreaterThan(0n);
-      // For burn events, totalLiquidityAddedUSD should be 0n
-      expect(result.userLiquidityDiff?.totalLiquidityAddedUSD).toBe(0n);
+      // For burn events, incrementalTotalLiquidityAddedUSD should be 0n
+      expect(result.userLiquidityDiff?.incrementalTotalLiquidityAddedUSD).toBe(
+        0n,
+      );
       expect(result.userLiquidityDiff?.lastActivityTimestamp).toEqual(
         new Date(1000000 * 1000),
       );
@@ -252,9 +272,8 @@ describe("processPoolLiquidityEvent", () => {
         mockContext,
       );
 
-      expect(result.liquidityPoolDiff?.totalLiquidityUSD).toBe(
-        commonData.mockLiquidityPoolData.totalLiquidityUSD,
-      );
+      // When totalLiquidityUSD is undefined, the diff should not include it
+      expect(result.liquidityPoolDiff?.incrementalCurrentLiquidityUSD).toBe(0n);
     });
 
     it("should use fallback values when both tokens are undefined", async () => {

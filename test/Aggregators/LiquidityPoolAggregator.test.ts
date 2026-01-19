@@ -313,27 +313,27 @@ describe("LiquidityPoolAggregator Functions", () => {
 
   describe("Updating the Liquidity Pool Aggregator", () => {
     let diff = {
-      totalVolume0: 0n,
-      totalVolume1: 0n,
-      totalVolumeUSD: 0n,
-      numberOfSwaps: 0n,
-      totalVolumeUSDWhitelisted: 0n,
-      incrementalFeesUSDWhitelisted: 0n,
+      incrementalTotalVolume0: 0n,
+      incrementalTotalVolume1: 0n,
+      incrementalTotalVolumeUSD: 0n,
+      incrementalNumberOfSwaps: 0n,
+      incrementalTotalVolumeUSDWhitelisted: 0n,
+      incrementalTotalFeesUSDWhitelisted: 0n,
       totalVotesDeposited: 0n,
       totalVotesDepositedUSD: 0n,
-      totalEmissions: 0n,
+      incrementalTotalEmissions: 0n,
     };
     beforeEach(async () => {
       diff = {
-        totalVolume0: 5000n,
-        totalVolume1: 6000n,
-        totalVolumeUSD: 7000n,
-        numberOfSwaps: 11n,
-        totalVolumeUSDWhitelisted: 8000n,
-        incrementalFeesUSDWhitelisted: 9000n,
+        incrementalTotalVolume0: 5000n,
+        incrementalTotalVolume1: 6000n,
+        incrementalTotalVolumeUSD: 7000n,
+        incrementalNumberOfSwaps: 11n,
+        incrementalTotalVolumeUSDWhitelisted: 8000n,
+        incrementalTotalFeesUSDWhitelisted: 9000n,
         totalVotesDeposited: 2000n,
         totalVotesDepositedUSD: 3000n,
-        totalEmissions: 4000n,
+        incrementalTotalEmissions: 4000n,
       };
       await updateLiquidityPoolAggregator(
         diff,
@@ -348,14 +348,16 @@ describe("LiquidityPoolAggregator Functions", () => {
       const mockSet = jest.mocked(mockContext.LiquidityPoolAggregator?.set);
       const updatedAggregator = mockSet?.mock
         .calls[0]?.[0] as LiquidityPoolAggregator;
-      expect(updatedAggregator.totalVolume0).toBe(diff.totalVolume0);
-      expect(updatedAggregator.totalVolume1).toBe(diff.totalVolume1);
-      expect(updatedAggregator.numberOfSwaps).toBe(diff.numberOfSwaps);
+      expect(updatedAggregator.totalVolume0).toBe(diff.incrementalTotalVolume0);
+      expect(updatedAggregator.totalVolume1).toBe(diff.incrementalTotalVolume1);
+      expect(updatedAggregator.numberOfSwaps).toBe(
+        diff.incrementalNumberOfSwaps,
+      );
       expect(updatedAggregator.totalVolumeUSDWhitelisted).toBe(
-        diff.totalVolumeUSDWhitelisted,
+        diff.incrementalTotalVolumeUSDWhitelisted,
       );
       expect(updatedAggregator.totalFeesUSDWhitelisted).toBe(
-        diff.incrementalFeesUSDWhitelisted,
+        diff.incrementalTotalFeesUSDWhitelisted,
       );
     });
 

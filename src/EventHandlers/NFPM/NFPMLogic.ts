@@ -11,18 +11,6 @@ import {
   calculateTotalLiquidityUSD,
 } from "../../Helpers";
 
-export interface ProcessTransferResult {
-  updatedPosition: Partial<NonFungiblePosition>;
-}
-
-export interface ProcessIncreaseLiquidityResult {
-  updatedPosition: Partial<NonFungiblePosition>;
-}
-
-export interface ProcessDecreaseLiquidityResult {
-  updatedPosition: Partial<NonFungiblePosition>;
-}
-
 /**
  * Gets position by tokenId with fallback to placeholder lookup
  * Tries to get position by tokenId, and if not found, looks for placeholder in transaction
@@ -240,6 +228,7 @@ export async function getSqrtPriceX96AndTokens(
  * Updates owner and recalculates USD value based on current token prices
  * @param toAddress - The new owner address
  * @param position - The position being transferred
+ * @param newTokenId - The new token ID (to change tokenID from "0" placeholder to the actual tokenId in mint transfer events)
  * @param token0 - Token0 entity (may be undefined)
  * @param token1 - Token1 entity (may be undefined)
  * @param blockTimestamp - The block timestamp
@@ -248,10 +237,11 @@ export async function getSqrtPriceX96AndTokens(
 export function processTransfer(
   toAddress: string,
   position: NonFungiblePosition,
+  newTokenId: bigint,
   token0: Token | undefined,
   token1: Token | undefined,
   blockTimestamp: number,
-): ProcessTransferResult {
+): Partial<NonFungiblePosition> {
   const blockDatetime = new Date(blockTimestamp * 1000);
 
   // Updating amountUSD given current prices of token0 and token1
@@ -263,15 +253,14 @@ export function processTransfer(
   );
 
   // Update owner on transfer
-  const updatedPosition: Partial<NonFungiblePosition> = {
+  const nonFungiblePositionDiff = {
     owner: toAddress,
+    tokenId: newTokenId,
     amountUSD: NonFungiblePositionAmountUSD,
     lastUpdatedTimestamp: blockDatetime,
   };
 
-  return {
-    updatedPosition,
-  };
+  return nonFungiblePositionDiff;
 }
 
 /**
@@ -290,7 +279,7 @@ export function processIncreaseLiquidity(
   sqrtPriceX96: bigint | undefined,
   token0: Token | undefined,
   token1: Token | undefined,
-): ProcessIncreaseLiquidityResult {
+): Partial<NonFungiblePosition> {
   // Ensure liquidity exists (default to 0 for positions created before liquidity field was added)
   const currentLiquidity = position.liquidity ?? 0n;
 
@@ -321,7 +310,7 @@ export function processIncreaseLiquidity(
   );
 
   // Update position with increased liquidity amounts
-  const updatedPosition: Partial<NonFungiblePosition> = {
+  const nonFungiblePositionDiff = {
     liquidity: newLiquidity,
     amount0: newAmounts ? newAmounts.amount0 : position.amount0,
     amount1: newAmounts ? newAmounts.amount1 : position.amount1,
@@ -329,9 +318,7 @@ export function processIncreaseLiquidity(
     lastUpdatedTimestamp: blockDatetime,
   };
 
-  return {
-    updatedPosition,
-  };
+  return nonFungiblePositionDiff;
 }
 
 /**
@@ -350,7 +337,7 @@ export function processDecreaseLiquidity(
   sqrtPriceX96: bigint | undefined,
   token0: Token | undefined,
   token1: Token | undefined,
-): ProcessDecreaseLiquidityResult {
+): Partial<NonFungiblePosition> {
   const currentLiquidity = position.liquidity;
 
   // Subtract the liquidity from the event
@@ -382,7 +369,7 @@ export function processDecreaseLiquidity(
     token1,
   );
 
-  const updatedPosition: Partial<NonFungiblePosition> = {
+  const nonFungiblePositionDiff = {
     liquidity: newLiquidity,
     amount0: newAmounts ? newAmounts.amount0 : position.amount0,
     amount1: newAmounts ? newAmounts.amount1 : position.amount1,
@@ -390,7 +377,5 @@ export function processDecreaseLiquidity(
     lastUpdatedTimestamp: blockDatetime,
   };
 
-  return {
-    updatedPosition,
-  };
+  return nonFungiblePositionDiff;
 }

@@ -1,20 +1,11 @@
 import type { CLPool_CollectFees_event, Token } from "generated";
+import type { LiquidityPoolAggregatorDiff } from "../../Aggregators/LiquidityPoolAggregator";
+import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import { calculateTotalLiquidityUSD } from "../../Helpers";
 
 export interface CLPoolCollectFeesResult {
-  liquidityPoolDiff: {
-    incrementalStakedFeesCollected0: bigint;
-    incrementalStakedFeesCollected1: bigint;
-    incrementalStakedFeesCollectedUSD: bigint;
-    incrementalFeesUSDWhitelisted: bigint;
-    lastUpdatedTimestamp: Date;
-  };
-  userDiff: {
-    incrementalFeesContributedUSD: bigint;
-    incrementalFeesContributed0: bigint;
-    incrementalFeesContributed1: bigint;
-    lastActivityTimestamp: Date;
-  };
+  liquidityPoolDiff: Partial<LiquidityPoolAggregatorDiff>;
+  userDiff: Partial<UserStatsPerPoolDiff>;
 }
 
 export function processCLPoolCollectFees(
@@ -63,17 +54,17 @@ export function processCLPoolCollectFees(
   // Therefore, CollectFees events should NOT affect reserves - only track fees collected.
   // Return increments (not new totals) since updateLiquidityPoolAggregator will add them to current values
   const liquidityPoolDiff = {
-    incrementalStakedFeesCollected0: event.params.amount0,
-    incrementalStakedFeesCollected1: event.params.amount1,
-    incrementalStakedFeesCollectedUSD: stakedFeesIncrementUSD,
-    incrementalFeesUSDWhitelisted: totalFeesUSDWhitelistedIncrement,
+    incrementalTotalStakedFeesCollected0: event.params.amount0,
+    incrementalTotalStakedFeesCollected1: event.params.amount1,
+    incrementalTotalStakedFeesCollectedUSD: stakedFeesIncrementUSD,
+    incrementalTotalFeesUSDWhitelisted: totalFeesUSDWhitelistedIncrement,
     lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
   };
 
   const userDiff = {
-    incrementalFeesContributedUSD: stakedFeesIncrementUSD,
-    incrementalFeesContributed0: event.params.amount0,
-    incrementalFeesContributed1: event.params.amount1,
+    incrementalTotalFeesContributedUSD: stakedFeesIncrementUSD,
+    incrementalTotalFeesContributed0: event.params.amount0,
+    incrementalTotalFeesContributed1: event.params.amount1,
     lastActivityTimestamp: new Date(event.block.timestamp * 1000),
   };
 

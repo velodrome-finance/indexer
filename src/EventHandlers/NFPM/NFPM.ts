@@ -1,4 +1,5 @@
 import { NFPM } from "generated";
+import { updateNonFungiblePosition } from "../../Aggregators/NonFungiblePosition";
 import { toChecksumAddress } from "../../Constants";
 import {
   cleanupOrphanedPlaceholders,
@@ -83,22 +84,17 @@ NFPM.Transfer.handler(async ({ event, context }) => {
   );
 
   // Process transfer logic
-  const result = processTransfer(
+  const nonFungiblePositionDiff = processTransfer(
     toChecksumAddress(event.params.to),
     currentPosition,
+    event.params.tokenId,
     token0,
     token1,
     event.block.timestamp,
   );
 
   // Update position in place - keep the same ID (placeholder ID), just update tokenId and other fields
-  const updatedPosition = {
-    ...currentPosition,
-    ...result.updatedPosition,
-    tokenId: event.params.tokenId, // Update to final tokenId
-  };
-
-  context.NonFungiblePosition.set(updatedPosition);
+  updateNonFungiblePosition(nonFungiblePositionDiff, currentPosition, context);
 
   // Clean up orphaned placeholders from the same transaction
   await cleanupOrphanedPlaceholders(event.transaction.hash, context);
@@ -147,7 +143,7 @@ NFPM.IncreaseLiquidity.handler(async ({ event, context }) => {
   );
 
   // Process increase liquidity logic
-  const result = processIncreaseLiquidity(
+  const nonFungiblePositionDiff = processIncreaseLiquidity(
     event,
     position,
     sqrtPriceX96,
@@ -156,12 +152,7 @@ NFPM.IncreaseLiquidity.handler(async ({ event, context }) => {
   );
 
   // Update position with result
-  const updatedPosition = {
-    ...position,
-    ...result.updatedPosition,
-    tokenId: event.params.tokenId, // Update to actual tokenId if this was a placeholder
-  };
-  context.NonFungiblePosition.set(updatedPosition);
+  updateNonFungiblePosition(nonFungiblePositionDiff, position, context);
 
   // Clean up orphaned placeholders
   await cleanupOrphanedPlaceholders(event.transaction.hash, context);
@@ -198,7 +189,7 @@ NFPM.DecreaseLiquidity.handler(async ({ event, context }) => {
   );
 
   // Process decrease liquidity logic
-  const result = processDecreaseLiquidity(
+  const nonFungiblePositionDiff = processDecreaseLiquidity(
     event,
     position,
     sqrtPriceX96,
@@ -206,11 +197,7 @@ NFPM.DecreaseLiquidity.handler(async ({ event, context }) => {
     token1,
   );
 
-  const updatedPosition = {
-    ...position,
-    ...result.updatedPosition,
-  };
-  context.NonFungiblePosition.set(updatedPosition);
+  updateNonFungiblePosition(nonFungiblePositionDiff, position, context);
 
   await cleanupOrphanedPlaceholders(event.transaction.hash, context);
 });

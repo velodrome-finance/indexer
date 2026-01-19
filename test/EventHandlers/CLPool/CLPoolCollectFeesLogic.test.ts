@@ -87,26 +87,26 @@ describe("CLPoolCollectFeesLogic", () => {
       );
 
       // Check liquidity pool diff with exact values (staked fees)
-      expect(result.liquidityPoolDiff.incrementalStakedFeesCollected0).toBe(
-        1000000000000000000n,
-      );
-      expect(result.liquidityPoolDiff.incrementalStakedFeesCollected1).toBe(
-        2000000000000000000n,
-      );
+      expect(
+        result.liquidityPoolDiff.incrementalTotalStakedFeesCollected0,
+      ).toBe(1000000000000000000n);
+      expect(
+        result.liquidityPoolDiff.incrementalTotalStakedFeesCollected1,
+      ).toBe(2000000000000000000n);
 
       // Exact USD calculation: 1 USD + 4 USD = 5 USD
-      expect(result.liquidityPoolDiff.incrementalStakedFeesCollectedUSD).toBe(
-        5000000000000000000n,
-      );
+      expect(
+        result.liquidityPoolDiff.incrementalTotalStakedFeesCollectedUSD,
+      ).toBe(5000000000000000000n);
 
       // Check user diff
-      expect(result.userDiff.incrementalFeesContributedUSD).toBe(
+      expect(result.userDiff.incrementalTotalFeesContributedUSD).toBe(
         5000000000000000000n,
       );
-      expect(result.userDiff.incrementalFeesContributed0).toBe(
+      expect(result.userDiff.incrementalTotalFeesContributed0).toBe(
         1000000000000000000n,
       );
-      expect(result.userDiff.incrementalFeesContributed1).toBe(
+      expect(result.userDiff.incrementalTotalFeesContributed1).toBe(
         2000000000000000000n,
       );
     });
@@ -119,15 +119,15 @@ describe("CLPoolCollectFeesLogic", () => {
       );
 
       // The liquidity pool diff should reflect the staked fees being collected with exact values
-      expect(result.liquidityPoolDiff.incrementalStakedFeesCollected0).toBe(
-        1000000000000000000n,
-      );
-      expect(result.liquidityPoolDiff.incrementalStakedFeesCollected1).toBe(
-        2000000000000000000n,
-      );
-      expect(result.liquidityPoolDiff.incrementalStakedFeesCollectedUSD).toBe(
-        5000000000000000000n,
-      );
+      expect(
+        result.liquidityPoolDiff.incrementalTotalStakedFeesCollected0,
+      ).toBe(1000000000000000000n);
+      expect(
+        result.liquidityPoolDiff.incrementalTotalStakedFeesCollected1,
+      ).toBe(2000000000000000000n);
+      expect(
+        result.liquidityPoolDiff.incrementalTotalStakedFeesCollectedUSD,
+      ).toBe(5000000000000000000n);
     });
 
     it("should handle different token decimals correctly", () => {
@@ -161,11 +161,15 @@ describe("CLPoolCollectFeesLogic", () => {
         mockToken1,
       );
 
-      expect(result.liquidityPoolDiff.incrementalStakedFeesCollected0).toBe(0n);
-      expect(result.liquidityPoolDiff.incrementalStakedFeesCollected1).toBe(0n);
-      expect(result.liquidityPoolDiff.incrementalStakedFeesCollectedUSD).toBe(
-        0n,
-      );
+      expect(
+        result.liquidityPoolDiff.incrementalTotalStakedFeesCollected0,
+      ).toBe(0n);
+      expect(
+        result.liquidityPoolDiff.incrementalTotalStakedFeesCollected1,
+      ).toBe(0n);
+      expect(
+        result.liquidityPoolDiff.incrementalTotalStakedFeesCollectedUSD,
+      ).toBe(0n);
     });
 
     it("should use refreshed token prices for USD calculations", () => {
@@ -191,14 +195,14 @@ describe("CLPoolCollectFeesLogic", () => {
       // amount1: 2 tokens * $2.50 = $5.00
       // Total: $6.50
       const expectedUSD = 6500000000000000000n;
-      expect(result.liquidityPoolDiff.incrementalStakedFeesCollectedUSD).toBe(
-        expectedUSD,
-      );
+      expect(
+        result.liquidityPoolDiff.incrementalTotalStakedFeesCollectedUSD,
+      ).toBe(expectedUSD);
 
       // Verify the calculation uses the new prices, not old ones
       // If it used old prices ($1.00 and $2.00), it would be $5.00
       expect(
-        result.liquidityPoolDiff.incrementalStakedFeesCollectedUSD,
+        result.liquidityPoolDiff.incrementalTotalStakedFeesCollectedUSD,
       ).not.toBe(5000000000000000000n);
     });
 
@@ -216,67 +220,73 @@ describe("CLPoolCollectFeesLogic", () => {
 
       // Only token1 contributes to USD (token0 has 0 price)
       // amount1: 2 tokens * $2.00 = $4.00
-      expect(result.liquidityPoolDiff.incrementalStakedFeesCollectedUSD).toBe(
-        4000000000000000000n,
-      );
+      expect(
+        result.liquidityPoolDiff.incrementalTotalStakedFeesCollectedUSD,
+      ).toBe(4000000000000000000n);
     });
 
     it("should handle undefined token0Instance correctly", () => {
       const result = processCLPoolCollectFees(mockEvent, undefined, mockToken1);
 
       // Fees are still tracked even when token instance is undefined
-      expect(result.liquidityPoolDiff.incrementalStakedFeesCollected0).toBe(
-        1000000000000000000n,
-      );
-      expect(result.liquidityPoolDiff.incrementalStakedFeesCollected1).toBe(
-        2000000000000000000n,
-      );
+      expect(
+        result.liquidityPoolDiff.incrementalTotalStakedFeesCollected0,
+      ).toBe(1000000000000000000n);
+      expect(
+        result.liquidityPoolDiff.incrementalTotalStakedFeesCollected1,
+      ).toBe(2000000000000000000n);
       // USD should only include token1 (token0 has no instance to calculate price)
       // token1: 2 tokens * $2.00 = $4.00
-      expect(result.liquidityPoolDiff.incrementalStakedFeesCollectedUSD).toBe(
-        4000000000000000000n,
-      );
+      expect(
+        result.liquidityPoolDiff.incrementalTotalStakedFeesCollectedUSD,
+      ).toBe(4000000000000000000n);
       // Whitelisted fees should not include token0 (undefined), only token1 if whitelisted
       // Since mockToken1.isWhitelisted is false, whitelisted fees should be 0
-      expect(result.liquidityPoolDiff.incrementalFeesUSDWhitelisted).toBe(0n);
+      expect(result.liquidityPoolDiff.incrementalTotalFeesUSDWhitelisted).toBe(
+        0n,
+      );
     });
 
     it("should handle undefined token1Instance correctly", () => {
       const result = processCLPoolCollectFees(mockEvent, mockToken0, undefined);
 
       // Fees are still tracked even when token instance is undefined
-      expect(result.liquidityPoolDiff.incrementalStakedFeesCollected0).toBe(
-        1000000000000000000n,
-      );
-      expect(result.liquidityPoolDiff.incrementalStakedFeesCollected1).toBe(
-        2000000000000000000n,
-      );
+      expect(
+        result.liquidityPoolDiff.incrementalTotalStakedFeesCollected0,
+      ).toBe(1000000000000000000n);
+      expect(
+        result.liquidityPoolDiff.incrementalTotalStakedFeesCollected1,
+      ).toBe(2000000000000000000n);
       // USD should only include token0 (token1 has no instance to calculate price)
       // token0: 1 token * $1.00 = $1.00
-      expect(result.liquidityPoolDiff.incrementalStakedFeesCollectedUSD).toBe(
-        1000000000000000000n,
-      );
+      expect(
+        result.liquidityPoolDiff.incrementalTotalStakedFeesCollectedUSD,
+      ).toBe(1000000000000000000n);
       // Whitelisted fees should not include token1 (undefined), only token0 if whitelisted
       // Since mockToken0.isWhitelisted is false, whitelisted fees should be 0
-      expect(result.liquidityPoolDiff.incrementalFeesUSDWhitelisted).toBe(0n);
+      expect(result.liquidityPoolDiff.incrementalTotalFeesUSDWhitelisted).toBe(
+        0n,
+      );
     });
 
     it("should handle both tokens undefined", () => {
       const result = processCLPoolCollectFees(mockEvent, undefined, undefined);
 
       // Fees should still be tracked
-      expect(result.liquidityPoolDiff.incrementalStakedFeesCollected0).toBe(
-        1000000000000000000n,
-      );
-      expect(result.liquidityPoolDiff.incrementalStakedFeesCollected1).toBe(
-        2000000000000000000n,
-      );
+      expect(
+        result.liquidityPoolDiff.incrementalTotalStakedFeesCollected0,
+      ).toBe(1000000000000000000n);
+      expect(
+        result.liquidityPoolDiff.incrementalTotalStakedFeesCollected1,
+      ).toBe(2000000000000000000n);
       // USD should be 0 since no tokens to calculate price
-      expect(result.liquidityPoolDiff.incrementalStakedFeesCollectedUSD).toBe(
+      expect(
+        result.liquidityPoolDiff.incrementalTotalStakedFeesCollectedUSD,
+      ).toBe(0n);
+      // Whitelisted fees should be 0
+      expect(result.liquidityPoolDiff.incrementalTotalFeesUSDWhitelisted).toBe(
         0n,
       );
-      // Whitelisted fees should be 0
-      expect(result.liquidityPoolDiff.incrementalFeesUSDWhitelisted).toBe(0n);
     });
 
     it("should add to whitelisted fees when token0 is whitelisted", () => {
@@ -295,11 +305,11 @@ describe("CLPoolCollectFeesLogic", () => {
       // Total fees USD should include both tokens
       // token0: 1 token * $1.00 = $1.00, token1: 2 tokens * $2.00 = $4.00
       // Total: $5.00
-      expect(result.liquidityPoolDiff.incrementalStakedFeesCollectedUSD).toBe(
-        5000000000000000000n,
-      );
+      expect(
+        result.liquidityPoolDiff.incrementalTotalStakedFeesCollectedUSD,
+      ).toBe(5000000000000000000n);
       // Whitelisted fees should include token0 fees (1 token * $1.00 = $1.00)
-      expect(result.liquidityPoolDiff.incrementalFeesUSDWhitelisted).toBe(
+      expect(result.liquidityPoolDiff.incrementalTotalFeesUSDWhitelisted).toBe(
         1000000000000000000n,
       );
     });
@@ -320,11 +330,11 @@ describe("CLPoolCollectFeesLogic", () => {
       // Total fees USD should include both tokens
       // token0: 1 token * $1.00 = $1.00, token1: 2 tokens * $2.00 = $4.00
       // Total: $5.00
-      expect(result.liquidityPoolDiff.incrementalStakedFeesCollectedUSD).toBe(
-        5000000000000000000n,
-      );
+      expect(
+        result.liquidityPoolDiff.incrementalTotalStakedFeesCollectedUSD,
+      ).toBe(5000000000000000000n);
       // Whitelisted fees should include token1 fees (2 tokens * $2.00 = $4.00)
-      expect(result.liquidityPoolDiff.incrementalFeesUSDWhitelisted).toBe(
+      expect(result.liquidityPoolDiff.incrementalTotalFeesUSDWhitelisted).toBe(
         4000000000000000000n,
       );
     });
@@ -351,16 +361,16 @@ describe("CLPoolCollectFeesLogic", () => {
       // Total fees USD should include both tokens
       // token0: 1 token * $1.00 = $1.00, token1: 2 tokens * $2.00 = $4.00
       // Total: $5.00
-      expect(result.liquidityPoolDiff.incrementalStakedFeesCollectedUSD).toBe(
-        5000000000000000000n,
-      );
+      expect(
+        result.liquidityPoolDiff.incrementalTotalStakedFeesCollectedUSD,
+      ).toBe(5000000000000000000n);
       // Whitelisted fees should include both: token0 (1 * $1.00 = $1.00) + token1 (2 * $2.00 = $4.00) = $5.00
-      expect(result.liquidityPoolDiff.incrementalFeesUSDWhitelisted).toBe(
+      expect(result.liquidityPoolDiff.incrementalTotalFeesUSDWhitelisted).toBe(
         5000000000000000000n,
       );
       // Whitelisted fees should equal total fees when both are whitelisted
-      expect(result.liquidityPoolDiff.incrementalFeesUSDWhitelisted).toBe(
-        result.liquidityPoolDiff.incrementalStakedFeesCollectedUSD,
+      expect(result.liquidityPoolDiff.incrementalTotalFeesUSDWhitelisted).toBe(
+        result.liquidityPoolDiff.incrementalTotalStakedFeesCollectedUSD,
       );
     });
 
@@ -384,11 +394,13 @@ describe("CLPoolCollectFeesLogic", () => {
       // Total fees USD should still be calculated
       // token0: 1 token * $1.00 = $1.00, token1: 2 tokens * $2.00 = $4.00
       // Total: $5.00
-      expect(result.liquidityPoolDiff.incrementalStakedFeesCollectedUSD).toBe(
-        5000000000000000000n,
-      );
+      expect(
+        result.liquidityPoolDiff.incrementalTotalStakedFeesCollectedUSD,
+      ).toBe(5000000000000000000n);
       // Whitelisted fees should be 0 when neither token is whitelisted
-      expect(result.liquidityPoolDiff.incrementalFeesUSDWhitelisted).toBe(0n);
+      expect(result.liquidityPoolDiff.incrementalTotalFeesUSDWhitelisted).toBe(
+        0n,
+      );
     });
 
     it("should only track staked fees, not unstaked fees", () => {
@@ -399,26 +411,26 @@ describe("CLPoolCollectFeesLogic", () => {
       );
 
       // CollectFees events should only update staked fees
-      expect(result.liquidityPoolDiff.incrementalStakedFeesCollected0).toBe(
-        1000000000000000000n,
-      );
-      expect(result.liquidityPoolDiff.incrementalStakedFeesCollected1).toBe(
-        2000000000000000000n,
-      );
-      expect(result.liquidityPoolDiff.incrementalStakedFeesCollectedUSD).toBe(
-        5000000000000000000n,
-      );
+      expect(
+        result.liquidityPoolDiff.incrementalTotalStakedFeesCollected0,
+      ).toBe(1000000000000000000n);
+      expect(
+        result.liquidityPoolDiff.incrementalTotalStakedFeesCollected1,
+      ).toBe(2000000000000000000n);
+      expect(
+        result.liquidityPoolDiff.incrementalTotalStakedFeesCollectedUSD,
+      ).toBe(5000000000000000000n);
 
       // Unstaked fees should not be present in the diff (they're undefined, not 0)
       // The aggregator will handle the addition, but the diff only contains staked fees
       expect(result.liquidityPoolDiff).not.toHaveProperty(
-        "totalUnstakedFeesCollected0",
+        "incrementalTotalUnstakedFeesCollected0",
       );
       expect(result.liquidityPoolDiff).not.toHaveProperty(
-        "totalUnstakedFeesCollected1",
+        "incrementalTotalUnstakedFeesCollected1",
       );
       expect(result.liquidityPoolDiff).not.toHaveProperty(
-        "totalUnstakedFeesCollectedUSD",
+        "incrementalTotalUnstakedFeesCollectedUSD",
       );
     });
 
@@ -431,13 +443,19 @@ describe("CLPoolCollectFeesLogic", () => {
       );
 
       // Verify first event returns increments (not totals)
-      expect(result1.liquidityPoolDiff.incrementalStakedFeesCollected0).toBe(
+      expect(
+        result1.liquidityPoolDiff.incrementalTotalStakedFeesCollected0,
+      ).toBe(
         1000000000000000000n, // Increment: 1 token
       );
-      expect(result1.liquidityPoolDiff.incrementalStakedFeesCollected1).toBe(
+      expect(
+        result1.liquidityPoolDiff.incrementalTotalStakedFeesCollected1,
+      ).toBe(
         2000000000000000000n, // Increment: 2 tokens
       );
-      expect(result1.liquidityPoolDiff.incrementalStakedFeesCollectedUSD).toBe(
+      expect(
+        result1.liquidityPoolDiff.incrementalTotalStakedFeesCollectedUSD,
+      ).toBe(
         5000000000000000000n, // Increment: $5.00
       );
 
@@ -447,13 +465,16 @@ describe("CLPoolCollectFeesLogic", () => {
         ...mockLiquidityPoolAggregator,
         totalStakedFeesCollected0:
           mockLiquidityPoolAggregator.totalStakedFeesCollected0 +
-          result1.liquidityPoolDiff.incrementalStakedFeesCollected0, // 0 + 1 = 1
+          (result1.liquidityPoolDiff.incrementalTotalStakedFeesCollected0 ??
+            0n), // 0 + 1 = 1
         totalStakedFeesCollected1:
           mockLiquidityPoolAggregator.totalStakedFeesCollected1 +
-          result1.liquidityPoolDiff.incrementalStakedFeesCollected1, // 0 + 2 = 2
+          (result1.liquidityPoolDiff.incrementalTotalStakedFeesCollected1 ??
+            0n), // 0 + 2 = 2
         totalStakedFeesCollectedUSD:
           mockLiquidityPoolAggregator.totalStakedFeesCollectedUSD +
-          result1.liquidityPoolDiff.incrementalStakedFeesCollectedUSD, // 0 + 5 = 5
+          (result1.liquidityPoolDiff.incrementalTotalStakedFeesCollectedUSD ??
+            0n), // 0 + 5 = 5
       };
 
       // Second event with same amounts
@@ -465,13 +486,19 @@ describe("CLPoolCollectFeesLogic", () => {
 
       // Second event should return the same increments (not accumulated totals)
       // The diff contains increments that updateLiquidityPoolAggregator will add
-      expect(result2.liquidityPoolDiff.incrementalStakedFeesCollected0).toBe(
+      expect(
+        result2.liquidityPoolDiff.incrementalTotalStakedFeesCollected0,
+      ).toBe(
         1000000000000000000n, // Increment: 1 token (same as first event)
       );
-      expect(result2.liquidityPoolDiff.incrementalStakedFeesCollected1).toBe(
+      expect(
+        result2.liquidityPoolDiff.incrementalTotalStakedFeesCollected1,
+      ).toBe(
         2000000000000000000n, // Increment: 2 tokens (same as first event)
       );
-      expect(result2.liquidityPoolDiff.incrementalStakedFeesCollectedUSD).toBe(
+      expect(
+        result2.liquidityPoolDiff.incrementalTotalStakedFeesCollectedUSD,
+      ).toBe(
         5000000000000000000n, // Increment: $5.00 (same as first event)
       );
 
@@ -479,13 +506,14 @@ describe("CLPoolCollectFeesLogic", () => {
       // After second event: 1 + 1 = 2 token0, 2 + 2 = 4 token1, 5 + 5 = 10 USD
       const finalTotal0 =
         aggregatorAfterFirst.totalStakedFeesCollected0 +
-        result2.liquidityPoolDiff.incrementalStakedFeesCollected0;
+        (result2.liquidityPoolDiff.incrementalTotalStakedFeesCollected0 ?? 0n);
       const finalTotal1 =
         aggregatorAfterFirst.totalStakedFeesCollected1 +
-        result2.liquidityPoolDiff.incrementalStakedFeesCollected1;
+        (result2.liquidityPoolDiff.incrementalTotalStakedFeesCollected1 ?? 0n);
       const finalTotalUSD =
         aggregatorAfterFirst.totalStakedFeesCollectedUSD +
-        result2.liquidityPoolDiff.incrementalStakedFeesCollectedUSD;
+        (result2.liquidityPoolDiff.incrementalTotalStakedFeesCollectedUSD ??
+          0n);
 
       expect(finalTotal0).toBe(2000000000000000000n); // 1 + 1 = 2
       expect(finalTotal1).toBe(4000000000000000000n); // 2 + 2 = 4

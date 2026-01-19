@@ -8,7 +8,7 @@ import {
 import { setupCommon } from "../EventHandlers/Pool/common";
 
 describe("ALMLPWrapper Aggregator", () => {
-  const { mockALMLPWrapperData, mockLiquidityPoolData } = setupCommon();
+  const { mockALMLPWrapperData } = setupCommon();
   const timestamp = new Date(1000000 * 1000);
 
   let mockContext: Partial<handlerContext>;
@@ -60,7 +60,7 @@ describe("ALMLPWrapper Aggregator", () => {
         const depositDiff = {
           amount0: 250n * TEN_TO_THE_18_BI,
           amount1: 125n * TEN_TO_THE_6_BI,
-          lpAmount: 500n * TEN_TO_THE_18_BI,
+          incrementalLpAmount: 500n * TEN_TO_THE_18_BI,
         };
 
         await updateALMLPWrapper(
@@ -98,7 +98,7 @@ describe("ALMLPWrapper Aggregator", () => {
         const withdrawDiff = {
           amount0: -250n * TEN_TO_THE_18_BI,
           amount1: -125n * TEN_TO_THE_6_BI,
-          lpAmount: -500n * TEN_TO_THE_18_BI,
+          incrementalLpAmount: -500n * TEN_TO_THE_18_BI,
         };
 
         await updateALMLPWrapper(
@@ -149,7 +149,7 @@ describe("ALMLPWrapper Aggregator", () => {
         const zeroDiff = {
           amount0: 0n,
           amount1: 0n,
-          lpAmount: 0n,
+          incrementalLpAmount: 0n,
         };
 
         await updateALMLPWrapper(
@@ -180,7 +180,7 @@ describe("ALMLPWrapper Aggregator", () => {
         const depositDiff = {
           amount0: 500n * TEN_TO_THE_18_BI,
           amount1: 250n * TEN_TO_THE_6_BI,
-          lpAmount: 1000n * TEN_TO_THE_18_BI,
+          incrementalLpAmount: 1000n * TEN_TO_THE_18_BI,
         };
 
         await updateALMLPWrapper(
@@ -209,7 +209,7 @@ describe("ALMLPWrapper Aggregator", () => {
         const withdrawDiff = {
           amount0: -250n * TEN_TO_THE_18_BI,
           amount1: -125n * TEN_TO_THE_6_BI,
-          lpAmount: -500n * TEN_TO_THE_18_BI,
+          incrementalLpAmount: -500n * TEN_TO_THE_18_BI,
         };
 
         await updateALMLPWrapper(
@@ -233,7 +233,7 @@ describe("ALMLPWrapper Aggregator", () => {
         const diffWithUndefined = {
           amount0: 100n * TEN_TO_THE_18_BI,
           amount1: undefined,
-          lpAmount: undefined,
+          incrementalLpAmount: undefined,
         };
 
         await updateALMLPWrapper(
@@ -255,7 +255,7 @@ describe("ALMLPWrapper Aggregator", () => {
         const diffWithUndefinedAmount0 = {
           amount0: undefined,
           amount1: 200n * TEN_TO_THE_6_BI,
-          lpAmount: 300n * TEN_TO_THE_18_BI,
+          incrementalLpAmount: 300n * TEN_TO_THE_18_BI,
         };
 
         await updateALMLPWrapper(
@@ -279,7 +279,7 @@ describe("ALMLPWrapper Aggregator", () => {
         const largeDiff = {
           amount0: BigInt("1000000000000000000000000"), // 1M tokens with 18 decimals
           amount1: BigInt("500000000000"), // 500k tokens with 6 decimals
-          lpAmount: BigInt("2000000000000000000000000"), // 2M tokens with 18 decimals
+          incrementalLpAmount: BigInt("2000000000000000000000000"), // 2M tokens with 18 decimals
         };
 
         await updateALMLPWrapper(

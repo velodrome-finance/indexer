@@ -4,18 +4,14 @@ import type {
   Token,
   handlerContext,
 } from "generated";
+import type { LiquidityPoolAggregatorDiff } from "../../Aggregators/LiquidityPoolAggregator";
+import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import { calculateTotalLiquidityUSD, updateSwapTokenData } from "../../Helpers";
 import { abs } from "../../Maths";
 
 export interface CLPoolSwapResult {
-  liquidityPoolDiff: Partial<LiquidityPoolAggregator>;
-  userSwapDiff: {
-    numberOfSwaps: bigint;
-    totalSwapVolumeUSD: bigint;
-    totalSwapVolumeAmount0: bigint;
-    totalSwapVolumeAmount1: bigint;
-    lastActivityTimestamp: Date;
-  };
+  liquidityPoolDiff: Partial<LiquidityPoolAggregatorDiff>;
+  userSwapDiff: Partial<UserStatsPerPoolDiff>;
 }
 
 export async function processCLPoolSwap(
@@ -59,34 +55,34 @@ export async function processCLPoolSwap(
     newTotalLiquidityUSD - currentTotalLiquidityUSD;
 
   // Build complete liquidity pool aggregator diff
-  const liquidityPoolAggregatorDiff: Partial<LiquidityPoolAggregator> = {
-    totalVolume0: abs(event.params.amount0),
-    totalVolume1: abs(event.params.amount1),
-    totalVolumeUSD: swapData.volumeInUSD,
-    totalVolumeUSDWhitelisted: swapData.volumeInUSDWhitelisted,
+  const liquidityPoolDiff = {
+    incrementalTotalVolume0: abs(event.params.amount0),
+    incrementalTotalVolume1: abs(event.params.amount1),
+    incrementalTotalVolumeUSD: swapData.volumeInUSD,
+    incrementalTotalVolumeUSDWhitelisted: swapData.volumeInUSDWhitelisted,
     token0Price:
       swapData.token0?.pricePerUSDNew ?? liquidityPoolAggregator.token0Price,
     token1Price:
       swapData.token1?.pricePerUSDNew ?? liquidityPoolAggregator.token1Price,
     token0IsWhitelisted: swapData.token0?.isWhitelisted ?? false,
     token1IsWhitelisted: swapData.token1?.isWhitelisted ?? false,
-    numberOfSwaps: 1n,
-    reserve0: event.params.amount0, // Delta: can be positive or negative (signed int256)
-    reserve1: event.params.amount1, // Delta: can be positive or negative (signed int256)
-    totalLiquidityUSD: deltaTotalLiquidityUSD,
+    incrementalNumberOfSwaps: 1n,
+    incrementalReserve0: event.params.amount0, // Delta: can be positive or negative (signed int256)
+    incrementalReserve1: event.params.amount1, // Delta: can be positive or negative (signed int256)
+    incrementalCurrentLiquidityUSD: deltaTotalLiquidityUSD,
     lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
   };
 
   const userSwapDiff = {
-    numberOfSwaps: 1n, // Each swap event represents 1 swap
-    totalSwapVolumeUSD: swapData.volumeInUSD,
-    totalSwapVolumeAmount0: abs(event.params.amount0),
-    totalSwapVolumeAmount1: abs(event.params.amount1),
+    incrementalNumberOfSwaps: 1n, // Each swap event represents 1 swap
+    incrementalTotalSwapVolumeUSD: swapData.volumeInUSD,
+    incrementalTotalSwapVolumeAmount0: abs(event.params.amount0),
+    incrementalTotalSwapVolumeAmount1: abs(event.params.amount1),
     lastActivityTimestamp: new Date(event.block.timestamp * 1000),
   };
 
   return {
-    liquidityPoolDiff: liquidityPoolAggregatorDiff,
+    liquidityPoolDiff,
     userSwapDiff,
   };
 }

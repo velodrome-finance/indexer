@@ -82,7 +82,7 @@ describe("CLPoolSwapLogic", () => {
   } as unknown as handlerContext;
 
   describe("processCLPoolSwap", () => {
-    it("should process swap event successfully with valid data", async () => {
+    it("processes swap event and calculates correct volumes", async () => {
       const result = await processCLPoolSwap(
         mockEvent,
         mockLiquidityPoolAggregator,
@@ -92,51 +92,29 @@ describe("CLPoolSwapLogic", () => {
       );
 
       // Check liquidity pool diff with exact values
-      expect(result.liquidityPoolDiff.totalVolume0).toBe(1000000000000000000n); // amount0 (1 token)
-      expect(result.liquidityPoolDiff.totalVolume1).toBe(2000000000000000000n); // |amount1| (2 tokens, absolute value)
-      expect(result.liquidityPoolDiff.numberOfSwaps).toBe(1n);
+      expect(result.liquidityPoolDiff.incrementalTotalVolume0).toBe(
+        1000000000000000000n,
+      ); // amount0 (1 token)
+      expect(result.liquidityPoolDiff.incrementalTotalVolume1).toBe(
+        2000000000000000000n,
+      ); // |amount1| (2 tokens, absolute value)
+      expect(result.liquidityPoolDiff.incrementalNumberOfSwaps).toBe(1n);
 
-      expect(result.liquidityPoolDiff.totalVolumeUSD).toBe(
+      expect(result.liquidityPoolDiff.incrementalTotalVolumeUSD).toBe(
         1000000000000000000n,
       );
 
       // Check user swap diff with exact values
-      expect(result.userSwapDiff.numberOfSwaps).toBe(1n);
-      expect(result.userSwapDiff.totalSwapVolumeAmount0).toBe(
+      expect(result.userSwapDiff.incrementalNumberOfSwaps).toBe(1n);
+      expect(result.userSwapDiff.incrementalTotalSwapVolumeAmount0).toBe(
         1000000000000000000n,
       ); // abs(amount0) = abs(1 token) = 1 token
-      expect(result.userSwapDiff.totalSwapVolumeAmount1).toBe(
+      expect(result.userSwapDiff.incrementalTotalSwapVolumeAmount1).toBe(
         2000000000000000000n,
       ); // abs(amount1) = abs(-2 tokens) = 2 tokens
-      expect(result.userSwapDiff.totalSwapVolumeUSD).toBe(1000000000000000000n); // 1 USD in 18 decimals
-    });
-
-    it("should calculate correct volume values for swap event", async () => {
-      const result = await processCLPoolSwap(
-        mockEvent,
-        mockLiquidityPoolAggregator,
-        mockToken0,
-        mockToken1,
-        mockContext,
-      );
-
-      // The liquidity pool diff should reflect the swap volumes with exact values
-      expect(result.liquidityPoolDiff.totalVolume0).toBe(1000000000000000000n); // amount0
-      expect(result.liquidityPoolDiff.totalVolume1).toBe(2000000000000000000n); // |amount1|
-      expect(result.liquidityPoolDiff.totalVolumeUSD).toBe(
+      expect(result.userSwapDiff.incrementalTotalSwapVolumeUSD).toBe(
         1000000000000000000n,
-      );
-      expect(result.liquidityPoolDiff.numberOfSwaps).toBe(1n);
-
-      // User swap diff should track individual user activity with exact values
-      expect(result.userSwapDiff.numberOfSwaps).toBe(1n);
-      expect(result.userSwapDiff.totalSwapVolumeAmount0).toBe(
-        1000000000000000000n,
-      ); // abs(amount0) = abs(1 token) = 1 token
-      expect(result.userSwapDiff.totalSwapVolumeAmount1).toBe(
-        2000000000000000000n,
-      ); // abs(amount1) = abs(-2 tokens) = 2 tokens
-      expect(result.userSwapDiff.totalSwapVolumeUSD).toBe(1000000000000000000n);
+      ); // 1 USD in 18 decimals
     });
 
     it("should handle different token decimals correctly", async () => {
@@ -175,12 +153,12 @@ describe("CLPoolSwapLogic", () => {
         mockContext,
       );
 
-      expect(result.liquidityPoolDiff.totalVolume0).toBe(0n);
-      expect(result.liquidityPoolDiff.totalVolume1).toBe(0n);
-      expect(result.liquidityPoolDiff.totalVolumeUSD).toBe(0n);
-      expect(result.userSwapDiff.totalSwapVolumeAmount0).toBe(0n); // abs(0) = 0
-      expect(result.userSwapDiff.totalSwapVolumeAmount1).toBe(0n); // abs(0) = 0
-      expect(result.userSwapDiff.totalSwapVolumeUSD).toBe(0n);
+      expect(result.liquidityPoolDiff.incrementalTotalVolume0).toBe(0n);
+      expect(result.liquidityPoolDiff.incrementalTotalVolume1).toBe(0n);
+      expect(result.liquidityPoolDiff.incrementalTotalVolumeUSD).toBe(0n);
+      expect(result.userSwapDiff.incrementalTotalSwapVolumeAmount0).toBe(0n); // abs(0) = 0
+      expect(result.userSwapDiff.incrementalTotalSwapVolumeAmount1).toBe(0n); // abs(0) = 0
+      expect(result.userSwapDiff.incrementalTotalSwapVolumeUSD).toBe(0n);
     });
 
     it("should handle existing swap data correctly", async () => {
@@ -200,10 +178,14 @@ describe("CLPoolSwapLogic", () => {
         mockContext,
       );
 
-      expect(result.liquidityPoolDiff.numberOfSwaps).toBe(1n); // Only the diff, not cumulative
-      expect(result.liquidityPoolDiff.totalVolume0).toBe(1000000000000000000n); // amount0
-      expect(result.liquidityPoolDiff.totalVolume1).toBe(2000000000000000000n); // |amount1|
-      expect(result.liquidityPoolDiff.totalVolumeUSD).toBe(
+      expect(result.liquidityPoolDiff.incrementalNumberOfSwaps).toBe(1n); // Only the diff, not cumulative
+      expect(result.liquidityPoolDiff.incrementalTotalVolume0).toBe(
+        1000000000000000000n,
+      ); // amount0
+      expect(result.liquidityPoolDiff.incrementalTotalVolume1).toBe(
+        2000000000000000000n,
+      ); // |amount1|
+      expect(result.liquidityPoolDiff.incrementalTotalVolumeUSD).toBe(
         1000000000000000000n,
       ); // Only the diff, not cumulative
     });
@@ -219,7 +201,9 @@ describe("CLPoolSwapLogic", () => {
 
       // Should still process the swap with token1
       expect(result.liquidityPoolDiff).toBeDefined();
-      expect(result.liquidityPoolDiff.totalVolume1).toBe(2000000000000000000n);
+      expect(result.liquidityPoolDiff.incrementalTotalVolume1).toBe(
+        2000000000000000000n,
+      );
       // Price should fallback to pool's existing price when token0 is undefined
       expect(result.liquidityPoolDiff.token0Price).toBe(
         mockLiquidityPoolAggregator.token0Price,
@@ -238,7 +222,9 @@ describe("CLPoolSwapLogic", () => {
 
       // Should still process the swap with token0
       expect(result.liquidityPoolDiff).toBeDefined();
-      expect(result.liquidityPoolDiff.totalVolume0).toBe(1000000000000000000n);
+      expect(result.liquidityPoolDiff.incrementalTotalVolume0).toBe(
+        1000000000000000000n,
+      );
       // Price should fallback to pool's existing price when token1 is undefined
       expect(result.liquidityPoolDiff.token1Price).toBe(
         mockLiquidityPoolAggregator.token1Price,
@@ -286,13 +272,17 @@ describe("CLPoolSwapLogic", () => {
       );
 
       // Reserves should be added (delta is positive)
-      expect(result.liquidityPoolDiff.reserve0).toBe(5000000000000000000n);
-      expect(result.liquidityPoolDiff.reserve1).toBe(3000000000000000000n);
+      expect(result.liquidityPoolDiff.incrementalReserve0).toBe(
+        5000000000000000000n,
+      );
+      expect(result.liquidityPoolDiff.incrementalReserve1).toBe(
+        3000000000000000000n,
+      );
       // User swap diff should use absolute values
-      expect(result.userSwapDiff.totalSwapVolumeAmount0).toBe(
+      expect(result.userSwapDiff.incrementalTotalSwapVolumeAmount0).toBe(
         5000000000000000000n,
       ); // abs(5 tokens) = 5 tokens
-      expect(result.userSwapDiff.totalSwapVolumeAmount1).toBe(
+      expect(result.userSwapDiff.incrementalTotalSwapVolumeAmount1).toBe(
         3000000000000000000n,
       ); // abs(3 tokens) = 3 tokens
     });
@@ -316,16 +306,24 @@ describe("CLPoolSwapLogic", () => {
       );
 
       // Reserves should be subtracted (delta is negative)
-      expect(result.liquidityPoolDiff.reserve0).toBe(-5000000000000000000n);
-      expect(result.liquidityPoolDiff.reserve1).toBe(-3000000000000000000n);
+      expect(result.liquidityPoolDiff.incrementalReserve0).toBe(
+        -5000000000000000000n,
+      );
+      expect(result.liquidityPoolDiff.incrementalReserve1).toBe(
+        -3000000000000000000n,
+      );
       // Volumes should still be absolute values
-      expect(result.liquidityPoolDiff.totalVolume0).toBe(5000000000000000000n);
-      expect(result.liquidityPoolDiff.totalVolume1).toBe(3000000000000000000n);
+      expect(result.liquidityPoolDiff.incrementalTotalVolume0).toBe(
+        5000000000000000000n,
+      );
+      expect(result.liquidityPoolDiff.incrementalTotalVolume1).toBe(
+        3000000000000000000n,
+      );
       // User swap diff should also use absolute values
-      expect(result.userSwapDiff.totalSwapVolumeAmount0).toBe(
+      expect(result.userSwapDiff.incrementalTotalSwapVolumeAmount0).toBe(
         5000000000000000000n,
       ); // abs(-5 tokens) = 5 tokens
-      expect(result.userSwapDiff.totalSwapVolumeAmount1).toBe(
+      expect(result.userSwapDiff.incrementalTotalSwapVolumeAmount1).toBe(
         3000000000000000000n,
       ); // abs(-3 tokens) = 3 tokens
     });
@@ -358,7 +356,7 @@ describe("CLPoolSwapLogic", () => {
       // New reserves: 1 + 1 = 2 tokens0, 2 + 2 = 4 tokens1
       // New liquidity: 2 * $1 + 4 * $2 = $2 + $8 = $10
       // Delta: $10 - $5 = $5
-      expect(result.liquidityPoolDiff.totalLiquidityUSD).toBe(
+      expect(result.liquidityPoolDiff.incrementalCurrentLiquidityUSD).toBe(
         5000000000000000000n, // $5 in 18 decimals
       );
     });
@@ -391,7 +389,7 @@ describe("CLPoolSwapLogic", () => {
       // New reserves: 10 - 5 = 5 tokens0, 20 - 10 = 10 tokens1
       // New liquidity: 5 * $1 + 10 * $2 = $5 + $20 = $25
       // Delta: $25 - $50 = -$25
-      expect(result.liquidityPoolDiff.totalLiquidityUSD).toBe(
+      expect(result.liquidityPoolDiff.incrementalCurrentLiquidityUSD).toBe(
         -25000000000000000000n, // -$25 in 18 decimals
       );
     });
@@ -468,9 +466,9 @@ describe("CLPoolSwapLogic", () => {
       expect(result.liquidityPoolDiff.token0IsWhitelisted).toBe(true);
       expect(result.liquidityPoolDiff.token1IsWhitelisted).toBe(true);
       // When both are whitelisted, whitelisted volume should equal total volume
-      expect(result.liquidityPoolDiff.totalVolumeUSDWhitelisted).toBe(
-        result.liquidityPoolDiff.totalVolumeUSD,
-      );
+      expect(
+        result.liquidityPoolDiff.incrementalTotalVolumeUSDWhitelisted,
+      ).toBe(result.liquidityPoolDiff.incrementalTotalVolumeUSD);
     });
 
     it("should fallback whitelisted status to false when tokens are undefined", async () => {
@@ -484,7 +482,9 @@ describe("CLPoolSwapLogic", () => {
 
       expect(result.liquidityPoolDiff.token0IsWhitelisted).toBe(false);
       expect(result.liquidityPoolDiff.token1IsWhitelisted).toBe(false);
-      expect(result.liquidityPoolDiff.totalVolumeUSDWhitelisted).toBe(0n);
+      expect(
+        result.liquidityPoolDiff.incrementalTotalVolumeUSDWhitelisted,
+      ).toBe(0n);
     });
 
     it("should handle mixed whitelisted status correctly", async () => {
@@ -509,7 +509,9 @@ describe("CLPoolSwapLogic", () => {
       expect(result.liquidityPoolDiff.token0IsWhitelisted).toBe(true);
       expect(result.liquidityPoolDiff.token1IsWhitelisted).toBe(false);
       // When only one is whitelisted, whitelisted volume should be 0
-      expect(result.liquidityPoolDiff.totalVolumeUSDWhitelisted).toBe(0n);
+      expect(
+        result.liquidityPoolDiff.incrementalTotalVolumeUSDWhitelisted,
+      ).toBe(0n);
     });
   });
 });

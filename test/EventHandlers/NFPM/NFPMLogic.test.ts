@@ -492,17 +492,18 @@ describe("NFPMLogic", () => {
       const result = processTransfer(
         newOwner,
         mockPosition,
+        tokenId,
         mockToken0,
         mockToken1,
         blockTimestamp,
       );
 
-      expect(result.updatedPosition.owner).toBe(newOwner);
-      expect(typeof result.updatedPosition.amountUSD).toBe("bigint");
-      expect(result.updatedPosition.lastUpdatedTimestamp).toBeInstanceOf(Date);
+      expect(result.owner).toBe(newOwner);
+      expect(typeof result.amountUSD).toBe("bigint");
+      expect(result.lastUpdatedTimestamp).toBeInstanceOf(Date);
       // amountUSD should be calculated: amount0 * price0 + amount1 * price1
       // 0.5 * 1 + 1 * 2 = 2.5 (in 18 decimals)
-      expect(result.updatedPosition.amountUSD).toBe(2500000000000000000n);
+      expect(result.amountUSD).toBe(2500000000000000000n);
     });
 
     it("should handle undefined tokens", () => {
@@ -512,14 +513,15 @@ describe("NFPMLogic", () => {
       const result = processTransfer(
         newOwner,
         mockPosition,
+        tokenId,
         undefined,
         undefined,
         blockTimestamp,
       );
 
-      expect(result.updatedPosition.owner).toBe(newOwner);
+      expect(result.owner).toBe(newOwner);
       // When tokens are undefined, amountUSD should be 0
-      expect(result.updatedPosition.amountUSD).toBe(0n);
+      expect(result.amountUSD).toBe(0n);
     });
   });
 
@@ -576,11 +578,11 @@ describe("NFPMLogic", () => {
       );
 
       // Verify exact equality
-      expect(result.updatedPosition.liquidity).toBe(expectedLiquidity);
-      expect(result.updatedPosition.amount0).toBe(expectedAmounts.amount0);
-      expect(result.updatedPosition.amount1).toBe(expectedAmounts.amount1);
-      expect(result.updatedPosition.amountUSD).toBe(expectedAmountUSD);
-      expect(result.updatedPosition.lastUpdatedTimestamp).toBeInstanceOf(Date);
+      expect(result.liquidity).toBe(expectedLiquidity);
+      expect(result.amount0).toBe(expectedAmounts.amount0);
+      expect(result.amount1).toBe(expectedAmounts.amount1);
+      expect(result.amountUSD).toBe(expectedAmountUSD);
+      expect(result.lastUpdatedTimestamp).toBeInstanceOf(Date);
     });
 
     it("should handle position with no existing liquidity", () => {
@@ -599,7 +601,7 @@ describe("NFPMLogic", () => {
       );
 
       // Should default to 0n for liquidity
-      expect(result.updatedPosition.liquidity).toBe(mockEvent.params.liquidity);
+      expect(result.liquidity).toBe(mockEvent.params.liquidity);
     });
 
     it("should handle undefined tokens", () => {
@@ -613,11 +615,11 @@ describe("NFPMLogic", () => {
         undefined,
       );
 
-      expect(typeof result.updatedPosition.liquidity).toBe("bigint");
-      expect(typeof result.updatedPosition.amount0).toBe("bigint");
-      expect(typeof result.updatedPosition.amount1).toBe("bigint");
+      expect(result.liquidity).toBe(1500000000000000000n);
+      expect(result.amount0).toBe(0n);
+      expect(result.amount1).toBe(14999312540700449n);
       // amountUSD should be 0 when tokens are undefined
-      expect(result.updatedPosition.amountUSD).toBe(0n);
+      expect(result.amountUSD).toBe(0n);
     });
 
     it("should calculate amountUSD correctly when tokens have valid prices", () => {
@@ -638,11 +640,10 @@ describe("NFPMLogic", () => {
       // amountUSD = (amount0 * 1e18 / 1e18) + (amount1 * 2e18 / 1e18)
       // amountUSD = amount0 + (amount1 * 2)
       const expectedAmountUSD =
-        (result.updatedPosition.amount0 ?? 0n) +
-        (result.updatedPosition.amount1 ?? 0n) * 2n;
+        (result.amount0 ?? 0n) + (result.amount1 ?? 0n) * 2n;
 
-      expect(result.updatedPosition.amountUSD).toBe(expectedAmountUSD);
-      expect((result.updatedPosition.amountUSD ?? 0n) > 0n).toBe(true);
+      expect(result.amountUSD).toBe(expectedAmountUSD);
+      expect((result.amountUSD ?? 0n) > 0n).toBe(true);
     });
 
     it("should return 0 amountUSD when tokens have 0 price", () => {
@@ -665,7 +666,7 @@ describe("NFPMLogic", () => {
       );
 
       // amountUSD should be 0 when token prices are 0
-      expect(result.updatedPosition.amountUSD).toBe(0n);
+      expect(result.amountUSD).toBe(0n);
     });
   });
 
@@ -725,11 +726,11 @@ describe("NFPMLogic", () => {
       );
 
       // Verify exact equality
-      expect(result.updatedPosition.liquidity).toBe(expectedLiquidity);
-      expect(result.updatedPosition.amount0).toBe(expectedAmounts.amount0);
-      expect(result.updatedPosition.amount1).toBe(expectedAmounts.amount1);
-      expect(result.updatedPosition.amountUSD).toBe(expectedAmountUSD);
-      expect(result.updatedPosition.lastUpdatedTimestamp).toBeInstanceOf(Date);
+      expect(result.liquidity).toBe(expectedLiquidity);
+      expect(result.amount0).toBe(expectedAmounts.amount0);
+      expect(result.amount1).toBe(expectedAmounts.amount1);
+      expect(result.amountUSD).toBe(expectedAmountUSD);
+      expect(result.lastUpdatedTimestamp).toBeInstanceOf(Date);
     });
 
     it("should handle position with no existing liquidity", () => {
@@ -748,7 +749,7 @@ describe("NFPMLogic", () => {
       );
 
       // Should default to 0n for liquidity, so result should be 0n
-      expect(result.updatedPosition.liquidity).toBe(0n);
+      expect(result.liquidity).toBe(0n);
     });
 
     it("should handle undefined tokens", () => {
@@ -762,11 +763,11 @@ describe("NFPMLogic", () => {
         undefined,
       );
 
-      expect(typeof result.updatedPosition.liquidity).toBe("bigint");
-      expect(typeof result.updatedPosition.amount0).toBe("bigint");
-      expect(typeof result.updatedPosition.amount1).toBe("bigint");
+      expect(typeof result.liquidity).toBe("bigint");
+      expect(typeof result.amount0).toBe("bigint");
+      expect(typeof result.amount1).toBe("bigint");
       // amountUSD should be 0 when tokens are undefined
-      expect(result.updatedPosition.amountUSD).toBe(0n);
+      expect(result.amountUSD).toBe(0n);
     });
 
     it("should calculate amountUSD correctly when tokens have valid prices", () => {
@@ -787,13 +788,12 @@ describe("NFPMLogic", () => {
       // amountUSD = (amount0 * 1e18 / 1e18) + (amount1 * 2e18 / 1e18)
       // amountUSD = amount0 + (amount1 * 2)
       const expectedAmountUSD =
-        (result.updatedPosition.amount0 ?? 0n) +
-        (result.updatedPosition.amount1 ?? 0n) * 2n;
+        (result.amount0 ?? 0n) + (result.amount1 ?? 0n) * 2n;
 
-      expect(result.updatedPosition.amountUSD).toBe(expectedAmountUSD);
+      expect(result.amountUSD).toBe(expectedAmountUSD);
       // After decreasing liquidity, amountUSD should still be > 0 (unless liquidity went to 0)
-      if ((result.updatedPosition.liquidity ?? 0n) > 0n) {
-        expect((result.updatedPosition.amountUSD ?? 0n) > 0n).toBe(true);
+      if ((result.liquidity ?? 0n) > 0n) {
+        expect((result.amountUSD ?? 0n) > 0n).toBe(true);
       }
     });
 
@@ -817,7 +817,7 @@ describe("NFPMLogic", () => {
       );
 
       // amountUSD should be 0 when token prices are 0
-      expect(result.updatedPosition.amountUSD).toBe(0n);
+      expect(result.amountUSD).toBe(0n);
     });
   });
 });

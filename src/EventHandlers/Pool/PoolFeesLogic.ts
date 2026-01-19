@@ -1,23 +1,11 @@
 import type { Pool_Fees_event, Token, handlerContext } from "generated";
+import type { LiquidityPoolAggregatorDiff } from "../../Aggregators/LiquidityPoolAggregator";
+import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import { updateFeeTokenData } from "../../Helpers";
 
-export interface UserDiff {
-  incrementalFeesContributedUSD: bigint;
-  incrementalFeesContributed0: bigint;
-  incrementalFeesContributed1: bigint;
-  lastActivityTimestamp: Date;
-}
-
-export interface LiquidityPoolAggregatorDiff {
-  incrementalUnstakedFeesCollected0: bigint;
-  incrementalUnstakedFeesCollected1: bigint;
-  incrementalUnstakedFeesCollectedUSD: bigint;
-  incrementalFeesUSDWhitelisted: bigint;
-  lastUpdatedTimestamp: Date;
-}
 export interface PoolFeesResult {
-  liquidityPoolDiff?: LiquidityPoolAggregatorDiff;
-  userDiff?: UserDiff;
+  liquidityPoolDiff?: Partial<LiquidityPoolAggregatorDiff>;
+  userDiff?: Partial<UserStatsPerPoolDiff>;
 }
 
 export async function processPoolFees(
@@ -40,18 +28,18 @@ export async function processPoolFees(
   // For regular pools (non-CL), fees are tracked as unstaked fees
   // since regular pools don't have the staked/unstaked distinction that CL pools have
   const liquidityPoolDiff = {
-    incrementalUnstakedFeesCollected0: event.params.amount0,
-    incrementalUnstakedFeesCollected1: event.params.amount1,
-    incrementalUnstakedFeesCollectedUSD: feeData.totalFeesUSD,
-    incrementalFeesUSDWhitelisted: feeData.totalFeesUSDWhitelisted,
+    incrementalTotalUnstakedFeesCollected0: event.params.amount0,
+    incrementalTotalUnstakedFeesCollected1: event.params.amount1,
+    incrementalTotalUnstakedFeesCollectedUSD: feeData.totalFeesUSD,
+    incrementalTotalFeesUSDWhitelisted: feeData.totalFeesUSDWhitelisted,
     lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
   };
 
   // Prepare user diff data
-  const userDiff: UserDiff = {
-    incrementalFeesContributedUSD: feeData.totalFeesUSD,
-    incrementalFeesContributed0: event.params.amount0,
-    incrementalFeesContributed1: event.params.amount1,
+  const userDiff = {
+    incrementalTotalFeesContributedUSD: feeData.totalFeesUSD,
+    incrementalTotalFeesContributed0: event.params.amount0,
+    incrementalTotalFeesContributed1: event.params.amount1,
     lastActivityTimestamp: new Date(event.block.timestamp * 1000),
   };
 

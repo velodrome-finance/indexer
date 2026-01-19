@@ -113,12 +113,12 @@ describe("SuperchainIncentiveVotingReward Events", () => {
         .spyOn(VotingRewardSharedLogic, "processVotingRewardClaimRewards")
         .mockResolvedValue({
           poolDiff: {
-            totalBribeClaimed: 1000000n,
-            totalBribeClaimedUSD: 1000000n,
+            incrementalTotalBribeClaimed: 1000000n,
+            incrementalTotalBribeClaimedUSD: 1000000n,
           },
           userDiff: {
-            totalBribeClaimed: 1000000n,
-            totalBribeClaimedUSD: 1000000n,
+            incrementalTotalBribeClaimed: 1000000n,
+            incrementalTotalBribeClaimedUSD: 1000000n,
           },
         });
 
