@@ -15,6 +15,9 @@ type LiquidityPoolAggregator {
   totalVolume0: BigInt! @config(precision: 76) # total swap volume of token0 in token units
   totalVolume1: BigInt! @config(precision: 76) # total swap volume of token1 in token units
   totalVolumeUSD: BigInt! @config(precision: 76) # total swap volume of the pool in USD
+  totalFeesGenerated0: BigInt! @config(precision: 76) # total swap fees generated of token0 in token units
+  totalFeesGenerated1: BigInt! @config(precision: 76) # total swap fees generated of token1 in token units
+  totalFeesGeneratedUSD: BigInt! @config(precision: 76) # total swap fees of the pool in USD
   totalVolumeUSDWhitelisted: BigInt! @config(precision: 76) # total swap volume of the pool in USD
   totalUnstakedFeesCollected0: BigInt! @config(precision: 76) # total fees collected from unstaked LPs (Collect events) in token0 units
   totalUnstakedFeesCollected1: BigInt! @config(precision: 76) # total fees collected from unstaked LPs (Collect events) in token1 units
@@ -99,6 +102,9 @@ type LiquidityPoolAggregatorSnapshot {
   totalVolume0: BigInt! @config(precision: 76) # total swap volume of token0 in token units
   totalVolume1: BigInt! @config(precision: 76) # total swap volume of token1 in token units
   totalVolumeUSD: BigInt! @config(precision: 76) # total swap volume of the pool in USD
+  totalFeesGenerated0: BigInt! @config(precision: 76) # total swap fees generated of token0 in token units
+  totalFeesGenerated1: BigInt! @config(precision: 76) # total swap fees generated of token1 in token units
+  totalFeesGeneratedUSD: BigInt! @config(precision: 76) # total swap fees of the pool in USD
   totalVolumeUSDWhitelisted: BigInt! @config(precision: 76) # total swap volume of the pool in USD
   totalUnstakedFeesCollected0: BigInt! @config(precision: 76) # total fees collected from unstaked LPs (Collect events) in token0 units
   totalUnstakedFeesCollected1: BigInt! @config(precision: 76) # total fees collected from unstaked LPs (Collect events) in token1 units
@@ -162,9 +168,9 @@ type UserStatsPerPool {
   totalLiquidityRemovedUSD: BigInt! @config(precision: 76) # total liquidity removed in USD
 
   # Fee metrics
-  totalFeesContributedUSD: BigInt! @config(precision: 76) # total fees contributed in USD
-  totalFeesContributed0: BigInt! @config(precision: 76) # total fees contributed in token0
-  totalFeesContributed1: BigInt! @config(precision: 76) # total fees contributed in token1
+  totalFeesContributedUSD: BigInt! @config(precision: 76) # total fees contributed in USD (from swaps made by the user - essentially fees paid by the user in swaps)
+  totalFeesContributed0: BigInt! @config(precision: 76) # total fees contributed in token0 (from swaps made by the user - essentially fees paid by the user in swaps)
+  totalFeesContributed1: BigInt! @config(precision: 76) # total fees contributed in token1 (from swaps made by the user - essentially fees paid by the user in swaps)
 
   # Swap metrics
   numberOfSwaps: BigInt! @config(precision: 76) # number of swaps in this pool

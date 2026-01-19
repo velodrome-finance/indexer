@@ -57,9 +57,9 @@ export function processPoolFees(
 
   // Create liquidity pool diff
   const liquidityPoolDiff = {
-    incrementalTotalUnstakedFeesCollected0: event.params.amount0,
-    incrementalTotalUnstakedFeesCollected1: event.params.amount1,
-    incrementalTotalUnstakedFeesCollectedUSD: totalFeesUSD,
+    incrementalTotalFeesGenerated0: event.params.amount0,
+    incrementalTotalFeesGenerated1: event.params.amount1,
+    incrementalTotalFeesGeneratedUSD: totalFeesUSD,
     incrementalTotalFeesUSDWhitelisted: totalFeesUSDWhitelisted,
     lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
   };

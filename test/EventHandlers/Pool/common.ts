@@ -10,6 +10,7 @@ import {
   TokenIdByChain,
   toChecksumAddress,
 } from "../../../src/Constants";
+import { calculateTokenAmountUSD } from "../../../src/Helpers";
 
 export function setupCommon() {
   const mockToken0Data: Token = {
@@ -51,6 +52,23 @@ export function setupCommon() {
     totalVolume1: 1n * TEN_TO_THE_6_BI,
     totalVolumeUSD: 10n * TEN_TO_THE_18_BI,
     totalVolumeUSDWhitelisted: 10n * TEN_TO_THE_18_BI,
+    totalFeesGenerated0: 100n * TEN_TO_THE_18_BI,
+    totalFeesGenerated1: 200n * TEN_TO_THE_6_BI,
+    // Calculate totalFeesGeneratedUSD using the same logic as calculateTotalLiquidityUSD:
+    // token0: calculateTokenAmountUSD(100n * 10^18, 18, 1n * 10^18) = 100n * 10^18 USD
+    // token1: calculateTokenAmountUSD(200n * 10^6, 6, 1n * 10^18) = 200n * 10^18 USD
+    // total = 100n * 10^18 + 200n * 10^18 = 300n * 10^18 USD
+    totalFeesGeneratedUSD:
+      calculateTokenAmountUSD(
+        100n * TEN_TO_THE_18_BI,
+        18,
+        mockToken0Data.pricePerUSDNew,
+      ) +
+      calculateTokenAmountUSD(
+        200n * TEN_TO_THE_6_BI,
+        6,
+        mockToken1Data.pricePerUSDNew,
+      ),
     totalUnstakedFeesCollected0: 100n * TEN_TO_THE_18_BI,
     totalUnstakedFeesCollected1: 200n * TEN_TO_THE_6_BI,
     totalStakedFeesCollected0: 0n,

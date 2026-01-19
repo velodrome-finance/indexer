@@ -21,7 +21,6 @@ describe("processPoolLiquidityEvent", () => {
 
       const result = processPoolLiquidityEvent(
         mockEvent,
-        commonData.mockLiquidityPoolData,
         commonData.mockToken0Data,
         commonData.mockToken1Data,
         mockEvent.params.amount0,
@@ -61,7 +60,6 @@ describe("processPoolLiquidityEvent", () => {
 
       const result = processPoolLiquidityEvent(
         mockEvent,
-        commonData.mockLiquidityPoolData,
         commonData.mockToken0Data,
         commonData.mockToken1Data,
         mockEvent.params.amount0,
@@ -116,7 +114,6 @@ describe("processPoolLiquidityEvent", () => {
 
       const result = processPoolLiquidityEvent(
         mockEvent,
-        commonData.mockLiquidityPoolData,
         commonData.mockToken0Data,
         commonData.mockToken1Data,
         mockEvent.params.amount0,
@@ -180,7 +177,6 @@ describe("processPoolLiquidityEvent", () => {
 
       const result = processPoolLiquidityEvent(
         mockEvent,
-        commonData.mockLiquidityPoolData,
         token0WithPrice,
         token1WithPrice,
         mockEvent.params.amount0,
@@ -198,7 +194,6 @@ describe("processPoolLiquidityEvent", () => {
       // Test with zero amounts - should result in 0n liquidity USD
       const result = processPoolLiquidityEvent(
         mockEvent,
-        commonData.mockLiquidityPoolData,
         commonData.mockToken0Data,
         commonData.mockToken1Data,
         0n, // amount0 = 0

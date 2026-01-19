@@ -48,12 +48,12 @@ describe("PoolFeesLogic", () => {
         // Check liquidity pool diff
         expect(result.liquidityPoolDiff).toBeDefined();
         // For regular pools, fees are tracked as unstaked fees
-        expect(
-          result.liquidityPoolDiff?.incrementalTotalUnstakedFeesCollected0,
-        ).toBe(mockEvent.params.amount0);
-        expect(
-          result.liquidityPoolDiff?.incrementalTotalUnstakedFeesCollected1,
-        ).toBe(mockEvent.params.amount1);
+        expect(result.liquidityPoolDiff?.incrementalTotalFeesGenerated0).toBe(
+          mockEvent.params.amount0,
+        );
+        expect(result.liquidityPoolDiff?.incrementalTotalFeesGenerated1).toBe(
+          mockEvent.params.amount1,
+        );
         expect(result.liquidityPoolDiff?.lastUpdatedTimestamp).toEqual(
           new Date(mockEvent.block.timestamp * 1000),
         );
@@ -100,16 +100,24 @@ describe("PoolFeesLogic", () => {
           mockToken1Data,
         );
 
-        // The USD calculation is handled by updateFeeTokenData
-        // We just verify that the result contains the expected structure
+        // Calculate expected USD values
+        // token0: 1000n (18 decimals) * 1 USD = 1000n USD (normalized to 1e18)
+        // token1: 2000n (6 decimals) * 1 USD = 2000n * 10^12 = 2000000000000000n USD (normalized to 1e18)
+        // totalFeesUSD = 1000n + 2000000000000000n = 2000000000001000n
+        // totalFeesUSDWhitelisted = same (both tokens are whitelisted)
+        const expectedToken0FeesUSD = 1000n; // 1000n * 10^18 / 10^18 * 1e18 / 1e18 = 1000n
+        const expectedToken1FeesUSD = 2000000000000000n; // 2000n * 10^18 / 10^6 * 1e18 / 1e18 = 2000000000000000n
+        const expectedTotalFeesUSD =
+          expectedToken0FeesUSD + expectedToken1FeesUSD; // 2000000000001000n
+        const expectedTotalFeesUSDWhitelisted = expectedTotalFeesUSD; // Both tokens are whitelisted
+
         expect(result.liquidityPoolDiff).toBeDefined();
+        expect(result.liquidityPoolDiff?.incrementalTotalFeesGeneratedUSD).toBe(
+          expectedTotalFeesUSD,
+        );
         expect(
-          typeof result.liquidityPoolDiff
-            ?.incrementalTotalUnstakedFeesCollectedUSD,
-        ).toBe("bigint");
-        expect(
-          typeof result.liquidityPoolDiff?.incrementalTotalFeesUSDWhitelisted,
-        ).toBe("bigint");
+          result.liquidityPoolDiff?.incrementalTotalFeesUSDWhitelisted,
+        ).toBe(expectedTotalFeesUSDWhitelisted);
       });
 
       it("should handle different token decimals correctly", () => {
