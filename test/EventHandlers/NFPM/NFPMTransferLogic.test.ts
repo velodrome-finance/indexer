@@ -1,0 +1,638 @@
+import type {
+  CLPoolMintEvent,
+  NFPM_Transfer_event,
+  NonFungiblePosition,
+  handlerContext,
+} from "generated";
+import { MockDb, NFPM } from "../../../generated/src/TestHelpers.gen";
+import {
+  _createPositionFromCLPoolMint,
+  _handleMintTransfer,
+  _handleRegularTransfer,
+  processNFPMTransfer,
+} from "../../../src/EventHandlers/NFPM/NFPMTransferLogic";
+
+describe("NFPMTransferLogic", () => {
+  const chainId = 10;
+  const tokenId = 540n;
+  const poolAddress = "0x00cd0AbB6c2964F7Dfb5169dD94A9F004C35F458";
+  const transactionHash =
+    "0xaaa36689c538fcfee2e665f2c7b30bcf2f28ab898050252f50ec1f1d05a5392c";
+  const mintLogIndex = 42;
+  const transferLogIndex = 43;
+  const ownerAddress = "0x3096D872E1FCc96e5E55F43411971d49bB137B9B";
+  const originalOwnerAddress = "0x1DFAb7699121fEF702d07932a447868dCcCFb029";
+  const token0Address = "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85";
+  const token1Address = "0x7F5c764cBc14f9669B88837ca1490cCa17c31607";
+  const nfpmAddress = "0xbB5DFE1380333CEE4c2EeBd7202c80dE2256AdF4";
+  const zeroAddress = "0x0000000000000000000000000000000000000000";
+
+  // Stable ID calculation helper
+  const getStableId = () => `${chainId}_${poolAddress}_${tokenId}`;
+
+  // Default mock event data for mint transfers
+  const defaultMintTransferEventData = {
+    block: {
+      timestamp: 1711601595,
+      number: 118001409,
+      hash: transactionHash,
+    },
+    chainId: chainId,
+    logIndex: transferLogIndex,
+    srcAddress: nfpmAddress,
+    transaction: {
+      hash: transactionHash,
+    },
+  };
+
+  // Default mock event data for regular transfers
+  const defaultRegularTransferEventData = {
+    block: {
+      timestamp: 1711601643,
+      number: 118001433,
+      hash: "0xaae8d84e6bd723bd1782fa608dd7f0b9cdcdc04a5f6a497ba9046938e4c3e4ef",
+    },
+    chainId: chainId,
+    logIndex: 30,
+    srcAddress: nfpmAddress,
+  };
+
+  const mockCLPoolMintEvent: CLPoolMintEvent = {
+    id: `${chainId}_${poolAddress}_${transactionHash}_${mintLogIndex}`,
+    chainId: chainId,
+    pool: poolAddress,
+    owner: ownerAddress,
+    tickLower: -4n,
+    tickUpper: 0n,
+    liquidity: 26679636922854n,
+    token0: token0Address,
+    token1: token1Address,
+    transactionHash: transactionHash,
+    logIndex: mintLogIndex,
+    consumedByTokenId: undefined,
+    createdAt: new Date(1711601595000),
+  };
+
+  const mockPosition: NonFungiblePosition = {
+    id: getStableId(),
+    chainId: chainId,
+    tokenId: tokenId,
+    owner: originalOwnerAddress,
+    pool: poolAddress,
+    tickUpper: 0n,
+    tickLower: -4n,
+    token0: token0Address,
+    token1: token1Address,
+    liquidity: 0n,
+    mintTransactionHash: transactionHash,
+    mintLogIndex: mintLogIndex,
+    lastUpdatedTimestamp: new Date(1711601595000),
+  };
+
+  let mockDb: ReturnType<typeof MockDb.createMockDb>;
+  let mockContext: handlerContext;
+  let mockDbRef: { current: ReturnType<typeof MockDb.createMockDb> };
+  let storedPositions: NonFungiblePosition[] = [];
+  let storedMintEvents: CLPoolMintEvent[] = [];
+
+  /**
+   * Helper function to create a mock context with getWhere functionality
+   */
+  function createMockContext(
+    positions: NonFungiblePosition[] = [],
+    mintEvents: CLPoolMintEvent[] = [],
+  ): handlerContext {
+    const db = MockDb.createMockDb();
+    let currentDb = positions.reduce(
+      (acc, pos) => acc.entities.NonFungiblePosition.set(pos),
+      db,
+    );
+    currentDb = mintEvents.reduce(
+      (acc, event) => acc.entities.CLPoolMintEvent.set(event),
+      currentDb,
+    );
+
+    mockDbRef = { current: currentDb };
+
+    const originalSetPosition = currentDb.entities.NonFungiblePosition.set;
+    const originalSetMintEvent = currentDb.entities.CLPoolMintEvent.set;
+
+    const trackPosition = (entity: NonFungiblePosition) => {
+      const index = positions.findIndex((p) => p.id === entity.id);
+      if (index >= 0) {
+        positions[index] = entity;
+      } else {
+        positions.push(entity);
+      }
+    };
+
+    const trackMintEvent = (entity: CLPoolMintEvent) => {
+      const index = mintEvents.findIndex((e) => e.id === entity.id);
+      if (index >= 0) {
+        mintEvents[index] = entity;
+      } else {
+        mintEvents.push(entity);
+      }
+    };
+
+    // Wrap mockDb to track entities
+    currentDb = {
+      ...currentDb,
+      entities: {
+        ...currentDb.entities,
+        NonFungiblePosition: {
+          ...currentDb.entities.NonFungiblePosition,
+          set: (entity: NonFungiblePosition) => {
+            trackPosition(entity);
+            const updatedDb = originalSetPosition(entity);
+            mockDbRef.current = updatedDb;
+            return updatedDb;
+          },
+        },
+        CLPoolMintEvent: {
+          ...currentDb.entities.CLPoolMintEvent,
+          set: (entity: CLPoolMintEvent) => {
+            trackMintEvent(entity);
+            const updatedDb = originalSetMintEvent(entity);
+            mockDbRef.current = updatedDb;
+            return updatedDb;
+          },
+        },
+      },
+    } as typeof currentDb;
+    mockDbRef.current = currentDb;
+
+    return {
+      ...currentDb,
+      NonFungiblePosition: {
+        ...currentDb.entities.NonFungiblePosition,
+        getWhere: {
+          tokenId: {
+            eq: async (id: bigint) => {
+              return positions.filter((p) => p.tokenId === id);
+            },
+          },
+          pool: {
+            eq: jest.fn(),
+          },
+          owner: {
+            eq: jest.fn(),
+          },
+          mintTransactionHash: {
+            eq: jest.fn(),
+          },
+        },
+        set: (entity: NonFungiblePosition) => {
+          trackPosition(entity);
+          const updatedDb =
+            mockDbRef.current.entities.NonFungiblePosition.set(entity);
+          mockDbRef.current = updatedDb;
+          mockDb = updatedDb;
+          return updatedDb;
+        },
+        get: (id: string) => {
+          const stored = positions.find((p) => p.id === id);
+          if (stored) {
+            return stored;
+          }
+          return mockDbRef.current.entities.NonFungiblePosition.get(id);
+        },
+        deleteUnsafe: (id: string) => {
+          const index = positions.findIndex((p) => p.id === id);
+          if (index >= 0) {
+            positions.splice(index, 1);
+          }
+        },
+      },
+      CLPoolMintEvent: {
+        ...currentDb.entities.CLPoolMintEvent,
+        getWhere: {
+          transactionHash: {
+            eq: async (txHash: string) => {
+              return mintEvents.filter((e) => e.transactionHash === txHash);
+            },
+          },
+        },
+        set: (entity: CLPoolMintEvent) => {
+          trackMintEvent(entity);
+          const updatedDb =
+            mockDbRef.current.entities.CLPoolMintEvent.set(entity);
+          mockDbRef.current = updatedDb;
+          mockDb = updatedDb;
+          return updatedDb;
+        },
+        get: (id: string) => {
+          return mockDbRef.current.entities.CLPoolMintEvent.get(id);
+        },
+        deleteUnsafe: (id: string) => {
+          const index = mintEvents.findIndex((e) => e.id === id);
+          if (index >= 0) {
+            mintEvents.splice(index, 1);
+          }
+        },
+      },
+      log: {
+        info: jest.fn(),
+        warn: jest.fn(),
+        error: jest.fn(),
+      },
+    } as unknown as handlerContext;
+  }
+
+  /**
+   * Helper function to create a mock Transfer event
+   */
+  function createMockTransferEvent(
+    from: string,
+    to: string,
+    overrides: {
+      tokenId?: bigint;
+      mockEventData?: Partial<typeof defaultMintTransferEventData>;
+    } = {},
+  ) {
+    const isMint = from === zeroAddress;
+    const defaultEventData = isMint
+      ? defaultMintTransferEventData
+      : defaultRegularTransferEventData;
+
+    return NFPM.Transfer.createMockEvent({
+      from,
+      to,
+      tokenId: overrides.tokenId ?? tokenId,
+      mockEventData: {
+        ...defaultEventData,
+        ...overrides.mockEventData,
+      },
+    });
+  }
+
+  beforeEach(() => {
+    storedPositions = [];
+    storedMintEvents = [];
+    mockContext = createMockContext(storedPositions, storedMintEvents);
+    mockDb = MockDb.createMockDb();
+  });
+
+  // Helper functions to set entities
+  const setPosition = (entity: NonFungiblePosition) => {
+    // Add to storedPositions for getWhere queries
+    const index = storedPositions.findIndex((p) => p.id === entity.id);
+    if (index >= 0) {
+      storedPositions[index] = entity;
+    } else {
+      storedPositions.push(entity);
+    }
+    // Also add to mockDb
+    mockDb = mockDb.entities.NonFungiblePosition.set(entity);
+    if (mockDbRef) {
+      mockDbRef.current = mockDb;
+    }
+    return mockDb;
+  };
+
+  const setMintEvent = (entity: CLPoolMintEvent) => {
+    const index = storedMintEvents.findIndex((e) => e.id === entity.id);
+    if (index >= 0) {
+      storedMintEvents[index] = entity;
+    } else {
+      storedMintEvents.push(entity);
+    }
+    mockDb = mockDb.entities.CLPoolMintEvent.set(entity);
+    if (mockDbRef) {
+      mockDbRef.current = mockDb;
+    }
+    return mockDb;
+  };
+
+  describe("_createPositionFromCLPoolMint", () => {
+    it("should create position from CLPoolMintEvent with stable ID", async () => {
+      const owner = "0x3096D872E1FCc96e5E55F43411971d49bB137B9B";
+      const blockTimestamp = 1711601595;
+
+      setMintEvent(mockCLPoolMintEvent);
+
+      await _createPositionFromCLPoolMint(
+        mockCLPoolMintEvent,
+        tokenId,
+        owner,
+        chainId,
+        blockTimestamp,
+        mockContext,
+      );
+
+      const stableId = getStableId();
+      const position = storedPositions.find((p) => p.id === stableId);
+
+      expect(position).toBeDefined();
+      if (!position) return;
+      expect(position.id).toBe(stableId);
+      expect(position.tokenId).toBe(tokenId);
+      expect(position.owner.toLowerCase()).toBe(owner.toLowerCase());
+      expect(position.pool).toBe(poolAddress);
+      expect(position.tickUpper).toBe(mockCLPoolMintEvent.tickUpper);
+      expect(position.tickLower).toBe(mockCLPoolMintEvent.tickLower);
+      expect(position.token0).toBe(mockCLPoolMintEvent.token0);
+      expect(position.token1).toBe(mockCLPoolMintEvent.token1);
+      expect(position.liquidity).toBe(0n); // Should start at 0
+      expect(position.mintTransactionHash).toBe(transactionHash);
+      expect(position.mintLogIndex).toBe(mintLogIndex);
+
+      // CLPoolMintEvent should be deleted
+      const deletedEvent = storedMintEvents.find(
+        (e) => e.id === mockCLPoolMintEvent.id,
+      );
+      expect(deletedEvent).toBeUndefined();
+    });
+  });
+
+  describe("_handleMintTransfer", () => {
+    it("should create position from CLPoolMintEvent when matching mint found", async () => {
+      setMintEvent(mockCLPoolMintEvent);
+
+      const mockEvent = createMockTransferEvent(zeroAddress, ownerAddress);
+
+      await _handleMintTransfer(mockEvent, mockContext, []);
+
+      const stableId = getStableId();
+      const position = storedPositions.find((p) => p.id === stableId);
+
+      expect(position).toBeDefined();
+      if (!position) return;
+
+      expect(position.id).toBe(stableId);
+      expect(position.tokenId).toBe(tokenId);
+      expect(position.owner.toLowerCase()).toBe(ownerAddress.toLowerCase());
+    });
+
+    it("should not create new position if position already exists", async () => {
+      setPosition(mockPosition);
+
+      const mockEvent = createMockTransferEvent(zeroAddress, ownerAddress);
+
+      // Pass the position from storedPositions to match what processNFPMTransfer would do
+      const existingPositions = storedPositions.filter(
+        (p) => p.tokenId === tokenId,
+      );
+      await _handleMintTransfer(mockEvent, mockContext, existingPositions);
+
+      // Position should still exist with same ID
+      const position =
+        storedPositions.find((p) => p.id === mockPosition.id) ||
+        mockDbRef.current.entities.NonFungiblePosition.get(mockPosition.id);
+      expect(position).toBeDefined();
+      if (!position) return;
+      expect(position.id).toBe(mockPosition.id);
+    });
+
+    it("should log warning if no CLPoolMintEvent found", async () => {
+      const mockEvent = createMockTransferEvent(zeroAddress, ownerAddress);
+
+      await _handleMintTransfer(mockEvent, mockContext, []);
+
+      // No position should be created
+      const stableId = getStableId();
+      const position = storedPositions.find((p) => p.id === stableId);
+      expect(position).toBeUndefined();
+
+      expect(mockContext.log.warn).toHaveBeenCalledWith(
+        expect.stringContaining("No CLPoolMintEvent found"),
+      );
+    });
+
+    it("should select closest preceding mint by logIndex when multiple mints exist", async () => {
+      // Create multiple CLPoolMintEvents in the same transaction
+      const mintEvent1: CLPoolMintEvent = {
+        ...mockCLPoolMintEvent,
+        id: `${chainId}_${poolAddress}_${transactionHash}_40`,
+        logIndex: 40,
+      };
+      const mintEvent2: CLPoolMintEvent = {
+        ...mockCLPoolMintEvent,
+        id: `${chainId}_${poolAddress}_${transactionHash}_41`,
+        logIndex: 41,
+      };
+      const mintEvent3: CLPoolMintEvent = {
+        ...mockCLPoolMintEvent,
+        id: `${chainId}_${poolAddress}_${transactionHash}_42`,
+        logIndex: 42,
+      };
+
+      setMintEvent(mintEvent1);
+      setMintEvent(mintEvent2);
+      setMintEvent(mintEvent3);
+
+      const mockEvent = createMockTransferEvent(zeroAddress, ownerAddress);
+
+      await _handleMintTransfer(mockEvent, mockContext, []);
+
+      const stableId = getStableId();
+      const position = storedPositions.find((p) => p.id === stableId);
+
+      expect(position).toBeDefined();
+      if (!position) return;
+      expect(position.mintLogIndex).toBe(42); // Should select the closest preceding (42)
+    });
+
+    it("should filter out consumed CLPoolMintEvents", async () => {
+      const consumedMintEvent: CLPoolMintEvent = {
+        ...mockCLPoolMintEvent,
+        consumedByTokenId: 100n, // Already consumed
+      };
+      const unconsumedMintEvent: CLPoolMintEvent = {
+        ...mockCLPoolMintEvent,
+        id: `${chainId}_${poolAddress}_${transactionHash}_41`,
+        logIndex: 41,
+        consumedByTokenId: undefined,
+      };
+
+      setMintEvent(consumedMintEvent);
+      setMintEvent(unconsumedMintEvent);
+
+      const mockEvent = createMockTransferEvent(zeroAddress, ownerAddress);
+
+      await _handleMintTransfer(mockEvent, mockContext, []);
+
+      const stableId = getStableId();
+      const position = storedPositions.find((p) => p.id === stableId);
+
+      expect(position).toBeDefined();
+      if (!position) return;
+      expect(position.mintLogIndex).toBe(41); // Should use unconsumed event
+    });
+
+    it("should handle null/undefined mintEvents from getWhere query (covers ?? [] fallback)", async () => {
+      // Create a new mock context with getWhere that returns null to test ?? [] fallback on line 95
+      const nullMockContext = {
+        ...mockContext,
+        CLPoolMintEvent: {
+          ...mockContext.CLPoolMintEvent,
+          getWhere: {
+            ...mockContext.CLPoolMintEvent.getWhere,
+            transactionHash: {
+              // biome-ignore lint/suspicious/noExplicitAny: Mock for testing
+              eq: async () => null as any, // Return null to test ?? [] fallback
+            },
+          },
+        },
+      } as unknown as handlerContext;
+
+      const mockEvent = createMockTransferEvent(zeroAddress, ownerAddress);
+
+      await _handleMintTransfer(mockEvent, nullMockContext, []);
+
+      // Should log warning since no events found
+      expect(nullMockContext.log.warn).toHaveBeenCalledWith(
+        expect.stringContaining("No CLPoolMintEvent found"),
+      );
+    });
+
+    it("should keep prev when current.logIndex <= prev.logIndex in reduce", async () => {
+      // Create events where the reduce function keeps prev instead of current
+      // Order matters: first event (prev) has logIndex 42, second (current) has 41
+      // When current.logIndex (41) <= prev.logIndex (42), we keep prev
+      const mintEvent1: CLPoolMintEvent = {
+        ...mockCLPoolMintEvent,
+        id: `${chainId}_${poolAddress}_${transactionHash}_42`,
+        logIndex: 42, // This will be prev in reduce
+      };
+      const mintEvent2: CLPoolMintEvent = {
+        ...mockCLPoolMintEvent,
+        id: `${chainId}_${poolAddress}_${transactionHash}_41`,
+        logIndex: 41, // This will be current in reduce, and 41 <= 42, so we keep prev
+      };
+
+      // Add them in order so mintEvent1 is processed first (becomes prev)
+      setMintEvent(mintEvent1);
+      setMintEvent(mintEvent2);
+
+      const mockEvent = createMockTransferEvent(zeroAddress, ownerAddress);
+
+      await _handleMintTransfer(mockEvent, mockContext, []);
+
+      const stableId = getStableId();
+      const position = storedPositions.find((p) => p.id === stableId);
+
+      expect(position).toBeDefined();
+      if (!position) return;
+      // Should keep prev (42) when current (41) <= prev (42)
+      expect(position.mintLogIndex).toBe(42);
+    });
+
+    it("should handle reduce when all events have same logIndex", async () => {
+      // Create events with same logIndex to test the "prev" branch when current.logIndex === prev.logIndex
+      const mintEvent1: CLPoolMintEvent = {
+        ...mockCLPoolMintEvent,
+        id: `${chainId}_${poolAddress}_${transactionHash}_41`,
+        logIndex: 41,
+      };
+      const mintEvent2: CLPoolMintEvent = {
+        ...mockCLPoolMintEvent,
+        id: `${chainId}_${poolAddress}_${transactionHash}_41_alt`,
+        logIndex: 41, // Same logIndex - should keep prev
+      };
+
+      setMintEvent(mintEvent1);
+      setMintEvent(mintEvent2);
+
+      const mockEvent = createMockTransferEvent(zeroAddress, ownerAddress);
+
+      await _handleMintTransfer(mockEvent, mockContext, []);
+
+      const stableId = getStableId();
+      const position = storedPositions.find((p) => p.id === stableId);
+
+      expect(position).toBeDefined();
+      if (!position) return;
+      // Should use the first one (prev) when logIndexes are equal
+      expect(position.mintLogIndex).toBe(41);
+    });
+  });
+
+  describe("_handleRegularTransfer", () => {
+    it("should update owner of existing position", () => {
+      const newOwner = "0x2222222222222222222222222222222222222222";
+      const mockEvent = createMockTransferEvent(mockPosition.owner, newOwner);
+
+      setPosition(mockPosition);
+
+      _handleRegularTransfer(mockEvent, [mockPosition], mockContext);
+
+      const updatedPosition = mockDb.entities.NonFungiblePosition.get(
+        mockPosition.id,
+      );
+      expect(updatedPosition).toBeDefined();
+      if (!updatedPosition) return;
+
+      expect(updatedPosition.owner.toLowerCase()).toBe(newOwner.toLowerCase());
+      expect(updatedPosition.id).toBe(mockPosition.id);
+      expect(updatedPosition.lastUpdatedTimestamp).toEqual(
+        new Date(defaultRegularTransferEventData.block.timestamp * 1000),
+      );
+    });
+  });
+
+  describe("processNFPMTransfer", () => {
+    it("should handle mint transfer and create position", async () => {
+      setMintEvent(mockCLPoolMintEvent);
+
+      const mockEvent = createMockTransferEvent(zeroAddress, ownerAddress);
+
+      await processNFPMTransfer(mockEvent, mockContext);
+
+      const stableId = getStableId();
+      const createdPosition =
+        storedPositions.find((p) => p.id === stableId) ||
+        mockDbRef.current.entities.NonFungiblePosition.get(stableId);
+      expect(createdPosition).toBeDefined();
+      if (!createdPosition) return;
+      expect(createdPosition.tokenId).toBe(tokenId);
+      expect(createdPosition.owner.toLowerCase()).toBe(
+        ownerAddress.toLowerCase(),
+      );
+    });
+
+    it("should handle regular transfer and update owner", async () => {
+      setPosition(mockPosition);
+
+      const newOwner = "0x2222222222222222222222222222222222222222";
+      const mockEvent = createMockTransferEvent(mockPosition.owner, newOwner);
+
+      await processNFPMTransfer(mockEvent, mockContext);
+
+      // Check storedPositions first (updated by mock context), then mockDbRef
+      const updatedPosition =
+        storedPositions.find((p) => p.id === mockPosition.id) ||
+        mockDbRef.current.entities.NonFungiblePosition.get(mockPosition.id);
+      expect(updatedPosition).toBeDefined();
+      if (!updatedPosition) return;
+      expect(updatedPosition.owner.toLowerCase()).toBe(newOwner.toLowerCase());
+    });
+
+    it("should log error and return early if position not found for regular transfer", async () => {
+      const mockEvent = createMockTransferEvent(
+        "0x1111111111111111111111111111111111111111",
+        "0x2222222222222222222222222222222222222222",
+        { tokenId: 999n }, // Non-existent tokenId
+      );
+
+      await processNFPMTransfer(mockEvent, mockContext);
+
+      expect(mockContext.log.error).toHaveBeenCalledWith(
+        expect.stringContaining("not found during transfer"),
+      );
+    });
+
+    it("should return early if mint transfer fails to find CLPoolMintEvent", async () => {
+      const mockEvent = createMockTransferEvent(zeroAddress, ownerAddress);
+
+      await processNFPMTransfer(mockEvent, mockContext);
+
+      expect(mockContext.log.warn).toHaveBeenCalledWith(
+        expect.stringContaining("No CLPoolMintEvent found"),
+      );
+
+      const position = mockDb.entities.NonFungiblePosition.get(getStableId());
+      expect(position).toBeUndefined();
+    });
+  });
+});

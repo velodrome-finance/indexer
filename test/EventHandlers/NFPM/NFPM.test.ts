@@ -32,11 +32,8 @@ describe("NFPM Events", () => {
     token0: token0Address,
     token1: token1Address,
     liquidity: 1000000000000000000n,
-    // Initial amounts match what will be in the IncreaseLiquidity event for a newly minted position
-    amount0: 500000000000000000n, // Matches IncreaseLiquidity event amount0
-    amount1: 1000000000000000000n, // Matches IncreaseLiquidity event amount1
-    amountUSD: 2500000000000000000n, // (0.5 * 1) + (1 * 2) = 2.5
     mintTransactionHash: transactionHash,
+    mintLogIndex: 42,
     lastUpdatedTimestamp: new Date(),
   };
 
@@ -133,7 +130,7 @@ describe("NFPM Events", () => {
       });
     });
 
-    it("should update the owner and recalculate amountUSD", () => {
+    it("should update the owner", () => {
       const updatedEntity = postEventDB.entities.NonFungiblePosition.get(
         NonFungiblePositionId(chainId, tokenId),
       );
@@ -142,50 +139,41 @@ describe("NFPM Events", () => {
       expect(updatedEntity.owner.toLowerCase()).toBe(
         eventData.to.toLowerCase(),
       );
-      expect(updatedEntity.amount0).toBe(mockNonFungiblePosition.amount0);
-      expect(updatedEntity.amount1).toBe(mockNonFungiblePosition.amount1);
-      // amountUSD should be recalculated: (amount0 * pricePerUSD) + (amount1 * pricePerUSD)
-      // (0.5e18 * 1) + (1e18 * 2) = 0.5e18 + 2e18 = 2.5e18
-      expect(updatedEntity.amountUSD).toBe(2500000000000000000n);
     });
 
-    it("should find and update placeholder position created by CLPool.Mint (integration test)", async () => {
-      // Simulate the real flow: CLPool.Mint creates a placeholder position
-      // Placeholder ID format: ${chainId}_${txHash}_${logIndex} (without 0x prefix)
-      // Placeholder tokenId is set to 0n as a marker
+    it("should create position from CLPoolMintEvent (integration test)", async () => {
+      // Simulate the real flow: CLPool.Mint creates a CLPoolMintEvent, then NFPM.Transfer creates the position
       // In this test, CLPool.Mint has logIndex 0, Transfer has logIndex 2
       const mintLogIndex = 0;
       const transferLogIndex = 2;
-      const placeholderId = `${chainId}_${transactionHash.slice(2)}_${mintLogIndex}`;
-      const placeholderPosition = {
-        id: placeholderId,
+      const poolAddress = "0xPoolAddress0000000000000000000000";
+      const stableId = `${chainId}_${poolAddress}_${tokenId}`;
+
+      const mockCLPoolMintEvent = {
+        id: `${chainId}_${poolAddress}_${transactionHash}_${mintLogIndex}`,
         chainId: chainId,
-        tokenId: 0n, // Placeholder marker
+        pool: poolAddress,
         owner: "0x1111111111111111111111111111111111111111",
-        pool: "0xPoolAddress0000000000000000000000",
-        tickUpper: 100n,
         tickLower: -100n,
+        tickUpper: 100n,
+        liquidity: 1000000000000000000n,
         token0: token0Address,
         token1: token1Address,
-        liquidity: 1000000000000000000n,
-        amount0: 500000000000000000n,
-        amount1: 1000000000000000000n,
-        amountUSD: 2500000000000000000n,
-        mintTransactionHash: transactionHash,
-        lastUpdatedTimestamp: new Date(),
+        transactionHash: transactionHash,
+        logIndex: mintLogIndex,
+        consumedByTokenId: undefined,
+        createdAt: new Date(1000000 * 1000),
       };
 
-      // Setup mockDb with placeholder position
-      const mockDbWithPlaceholder = MockDb.createMockDb();
-      const dbWithPosition =
-        mockDbWithPlaceholder.entities.NonFungiblePosition.set(
-          placeholderPosition,
-        );
-      const dbWithTokens = dbWithPosition.entities.Token.set(mockToken0);
+      // Setup mockDb with CLPoolMintEvent
+      const mockDbWithMintEvent = MockDb.createMockDb();
+      const dbWithMintEvent =
+        mockDbWithMintEvent.entities.CLPoolMintEvent.set(mockCLPoolMintEvent);
+      const dbWithTokens = dbWithMintEvent.entities.Token.set(mockToken0);
       const finalDb = dbWithTokens.entities.Token.set(mockToken1);
 
-      // Setup getWhere for mintTransactionHash lookup
-      const storedPositions = [placeholderPosition];
+      // Setup getWhere for queries
+      const storedMintEvents = [mockCLPoolMintEvent];
       const mockDbWithGetWhere = {
         ...finalDb,
         entities: {
@@ -194,12 +182,17 @@ describe("NFPM Events", () => {
             ...finalDb.entities.NonFungiblePosition,
             getWhere: {
               tokenId: {
-                eq: async () => [],
+                eq: async () => [], // No existing position
               },
-              mintTransactionHash: {
+            },
+          },
+          CLPoolMintEvent: {
+            ...finalDb.entities.CLPoolMintEvent,
+            getWhere: {
+              transactionHash: {
                 eq: async (txHash: string) => {
-                  return storedPositions.filter(
-                    (entity) => entity.mintTransactionHash === txHash,
+                  return storedMintEvents.filter(
+                    (e) => e.transactionHash === txHash,
                   );
                 },
               },
@@ -234,21 +227,19 @@ describe("NFPM Events", () => {
         mockDb: mockDbWithGetWhere,
       });
 
-      // Should update placeholder position in place (keep placeholder ID)
-      const updatedEntity = result.entities.NonFungiblePosition.get(
-        placeholderId, // Placeholder ID is kept, not changed
-      );
-      expect(updatedEntity).toBeDefined();
-      if (!updatedEntity) return;
+      // Should create position with stable ID
+      const createdEntity = result.entities.NonFungiblePosition.get(stableId);
+      expect(createdEntity).toBeDefined();
+      if (!createdEntity) return;
 
-      // Verify it was updated from placeholder
-      expect(updatedEntity.id).toBe(placeholderId); // ID stays as placeholder ID
-      expect(updatedEntity.tokenId).toBe(tokenId); // tokenId updated from 0n to actual tokenId
-      expect(updatedEntity.owner.toLowerCase()).toBe(
+      // Verify it was created correctly
+      expect(createdEntity.id).toBe(stableId); // Stable ID format
+      expect(createdEntity.tokenId).toBe(tokenId);
+      expect(createdEntity.owner.toLowerCase()).toBe(
         "0x2222222222222222222222222222222222222222".toLowerCase(),
       );
-      expect(updatedEntity.amount0).toBe(placeholderPosition.amount0);
-      expect(updatedEntity.amount1).toBe(placeholderPosition.amount1);
+      expect(createdEntity.pool).toBe(poolAddress);
+      expect(createdEntity.mintLogIndex).toBe(mintLogIndex);
     });
   });
 
@@ -307,31 +298,26 @@ describe("NFPM Events", () => {
       });
     });
 
-    it("should increase amount0 and amount1 and recalculate amountUSD", () => {
+    it("should increase liquidity", () => {
       const updatedEntity = postEventDB.entities.NonFungiblePosition.get(
         NonFungiblePositionId(chainId, tokenId),
       );
       expect(updatedEntity).toBeDefined();
       if (!updatedEntity) return; // Type guard
-      // Amounts are recalculated from liquidity, not added directly
       // With liquidity = 1e18 + 1000, price at tick 0, ticks -100 to 100
-      expect(updatedEntity.amount0).toBe(4987272070749101n);
-      expect(updatedEntity.amount1).toBe(4987272070749101n);
       expect(updatedEntity.owner).toBe(mockNonFungiblePosition.owner);
       expect(updatedEntity.tickUpper).toBe(mockNonFungiblePosition.tickUpper);
       expect(updatedEntity.tickLower).toBe(mockNonFungiblePosition.tickLower);
-      // amountUSD: (4987272070749101n * 1) + (5000000000000004n * 2) = 14987272070749109n
-      expect(updatedEntity.amountUSD).toBe(14961816212247303n);
     });
 
-    it("should filter by transactionHash and then by amount0 and amount1 when multiple positions exist", async () => {
-      // Create a second position with different amounts but same transaction hash
+    it("should filter by transactionHash and then by tickLower/tickUpper/liquidity when multiple positions exist", async () => {
+      // Create a second position with different ticks but same transaction hash
       const position2 = {
         ...mockNonFungiblePosition,
         id: NonFungiblePositionId(chainId, 2n),
         tokenId: 2n,
-        amount0: 2000000000000000000n, // Different amounts - won't match IncreaseLiquidity event
-        amount1: 4000000000000000000n,
+        tickLower: -200n, // Different ticks - won't match IncreaseLiquidity event
+        tickUpper: 200n,
       };
 
       const storedPositions = [mockNonFungiblePosition, position2];
@@ -362,14 +348,12 @@ describe("NFPM Events", () => {
         mockDb: mockDbMultiplePositions,
       });
 
-      // Should match the first position (amount0: 0.5e18, amount1: 1e18) not the second
+      // Should match the first position, not the second
       const updatedEntity = result.entities.NonFungiblePosition.get(
         NonFungiblePositionId(chainId, tokenId),
       );
       expect(updatedEntity).toBeDefined();
       if (!updatedEntity) return;
-      // Amounts are recalculated from liquidity, not added directly
-      expect(updatedEntity.amount0).toBe(4987272070749101n);
     });
 
     it("should log error and return when no positions found by transaction hash", async () => {
@@ -417,8 +401,6 @@ describe("NFPM Events", () => {
         ...mockNonFungiblePosition,
         id: NonFungiblePositionId(chainId, differentTokenId), // Update ID to match new tokenId
         tokenId: differentTokenId, // Different tokenId so not found by tokenId query
-        amount0: 999999999999999999n, // Different from event amounts (event has 0.5e18, 1e18)
-        amount1: 999999999999999999n,
       };
 
       // Use fresh mockDb to avoid interference from beforeEach
@@ -466,8 +448,6 @@ describe("NFPM Events", () => {
       // Position exists but wasn't updated (still has original amounts)
       expect(updatedEntity).toBeDefined();
       if (!updatedEntity) return;
-      expect(updatedEntity.amount0).toBe(999999999999999999n);
-      expect(updatedEntity.amount1).toBe(999999999999999999n);
     });
   });
 
@@ -500,21 +480,16 @@ describe("NFPM Events", () => {
       });
     });
 
-    it("should decrease amount0 and amount1 and recalculate amountUSD", () => {
+    it("should decrease liquidity", () => {
       const updatedEntity = postEventDB.entities.NonFungiblePosition.get(
         NonFungiblePositionId(chainId, tokenId),
       );
       expect(updatedEntity).toBeDefined();
       if (!updatedEntity) return; // Type guard
-      // Amounts are recalculated from liquidity, not subtracted directly
       // With liquidity = 1e18 - 1000, price at tick 0, ticks -100 to 100
-      expect(updatedEntity.amount0).toBe(4987272070749091n);
-      expect(updatedEntity.amount1).toBe(4987272070749091n);
       expect(updatedEntity.owner).toBe(mockNonFungiblePosition.owner);
       expect(updatedEntity.tickUpper).toBe(mockNonFungiblePosition.tickUpper);
       expect(updatedEntity.tickLower).toBe(mockNonFungiblePosition.tickLower);
-      // amountUSD: (4987272070749091n * 1) + (4999999999999994n * 2) = 14987272070749079n
-      expect(updatedEntity.amountUSD).toBe(14961816212247273n);
     });
 
     it("should log error and return when position not found (Transfer should have run first)", async () => {
@@ -637,10 +612,8 @@ describe("NFPM Events", () => {
       token0: token0Address,
       token1: token1Address,
       liquidity: 1000000000000000000n,
-      amount0: 500000000000000000n,
-      amount1: 1000000000000000000n,
-      amountUSD: 2500000000000000000n,
       mintTransactionHash: transactionHash,
+      mintLogIndex: 42,
       lastUpdatedTimestamp: new Date(),
     };
 
@@ -656,10 +629,8 @@ describe("NFPM Events", () => {
       token0: token0Address,
       token1: token1Address,
       liquidity: 2000000000000000000n,
-      amount0: 1000000000000000000n,
-      amount1: 2000000000000000000n,
-      amountUSD: 5000000000000000000n,
       mintTransactionHash: transactionHash,
+      mintLogIndex: 42,
       lastUpdatedTimestamp: new Date(),
     };
 
@@ -881,12 +852,6 @@ describe("NFPM Events", () => {
       expect(Number(updatedBasePosition.liquidity)).toBeGreaterThan(
         Number(positionBase.liquidity),
       );
-      // Should query pool from Base chain (verify ethClient was called with Base chainId)
-      expect(mockSimulateContractBase).toHaveBeenCalled();
-      const simulateCall = jest.mocked(mockSimulateContractBase).mock.calls[0];
-      expect(simulateCall[0].address.toLowerCase()).toBe(
-        poolAddressBase.toLowerCase(),
-      );
 
       // Lisk position should remain unchanged
       expect(liskPosition).toBeDefined();
@@ -988,19 +953,11 @@ describe("NFPM Events", () => {
       expect(Number(updatedLiskPosition.liquidity)).toBeLessThan(
         Number(positionLisk.liquidity),
       );
-      // Should query pool from Lisk chain (verify ethClient was called with Lisk chainId)
-      expect(mockSimulateContractLisk).toHaveBeenCalled();
-      const simulateCall = jest.mocked(mockSimulateContractLisk).mock.calls[0];
-      expect(simulateCall[0].address.toLowerCase()).toBe(
-        poolAddressLisk.toLowerCase(),
-      );
 
       // Base position should remain unchanged
       expect(basePosition).toBeDefined();
       if (!basePosition) return;
       expect(basePosition.liquidity).toBe(positionBase.liquidity);
-      // Should NOT have called Base ethClient
-      expect(mockSimulateContractBase).not.toHaveBeenCalled();
     });
 
     it("should prevent querying pool from wrong chain (the original bug)", async () => {
@@ -1102,19 +1059,6 @@ describe("NFPM Events", () => {
       expect(liskPosition).toBeDefined();
       if (!liskPosition) return;
       expect(liskPosition.liquidity).toBe(positionLisk.liquidity);
-
-      // Most importantly: should have called Base ethClient with Base pool address
-      // This verifies the correct pool was queried from the correct chain
-      expect(mockSimulateContractBase).toHaveBeenCalled();
-      const simulateCall = jest.mocked(mockSimulateContractBase).mock.calls[0];
-      expect(simulateCall[0].address.toLowerCase()).toBe(
-        poolAddressBase.toLowerCase(),
-      );
-
-      // Most importantly: should NOT have called Lisk ethClient
-      // This is the key fix - we should never query a pool from the wrong chain
-      // Before the fix, this might have been called with the Lisk pool address on Base chainId -> ERROR
-      expect(mockSimulateContractLisk).not.toHaveBeenCalled();
     });
   });
 });
