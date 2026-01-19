@@ -14,8 +14,6 @@ import { findPositionByTokenId } from "./NFPMCommonLogic";
  * Calculates the liquidity diff for an IncreaseLiquidity event.
  * Computes new liquidity by adding the event's liquidity to the current liquidity.
  *
- * Note: amount0, amount1, amountUSD are removed from schema - compute on-demand from liquidity + sqrtPriceX96 + ticks.
- *
  * @param event - The IncreaseLiquidity event
  * @param position - The position to update
  * @returns Partial position object containing the updated liquidity and timestamp fields
@@ -27,7 +25,6 @@ export function _calculateIncreaseLiquidityDiff(
   const blockDatetime = new Date(event.block.timestamp * 1000);
 
   // Update position with increased liquidity
-  // Note: amount0, amount1, amountUSD removed from schema - compute on-demand from liquidity + sqrtPriceX96 + ticks
   const nonFungiblePositionDiff = {
     incrementalLiquidity: event.params.liquidity,
     lastUpdatedTimestamp: blockDatetime,

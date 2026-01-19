@@ -74,7 +74,7 @@ describe("CLPool Mint Event Handler", () => {
     expect(createdMintEvent.liquidity).toBe(1000000000000000000n);
   });
 
-  it("should create NonFungiblePosition with correct transaction hash for filtering", async () => {
+  it("should create CLPoolMintEvent with correct transaction hash for filtering", async () => {
     const customTransactionHash =
       "0x1111111111111111111111111111111111111111111111111111111111111111";
 
@@ -105,7 +105,7 @@ describe("CLPool Mint Event Handler", () => {
       mockDb,
     });
 
-    // CLPoolMintEvent ID format: ${chainId}_${poolAddress}_${txHash}_${logIndex} (without 0x prefix)
+    // CLPoolMintEvent ID format: ${chainId}_${poolAddress}_${txHash}_${logIndex}
     const mintEventId = `${chainId}_${poolAddress}_${customTransactionHash}_${mockEvent.logIndex}`;
     const createdMintEvent = result.entities.CLPoolMintEvent.get(mintEventId);
     expect(createdMintEvent).toBeDefined();
@@ -144,7 +144,7 @@ describe("CLPool Mint Event Handler", () => {
       mockDb,
     });
 
-    // CLPoolMintEvent ID format: ${chainId}_${poolAddress}_${txHash}_${logIndex} (without 0x prefix)
+    // CLPoolMintEvent ID format: ${chainId}_${poolAddress}_${txHash}_${logIndex}
     const mintEventId = `${chainId}_${poolAddress}_${transactionHash}_${mockEvent.logIndex}`;
     const createdMintEvent = result.entities.CLPoolMintEvent.get(mintEventId);
     expect(createdMintEvent).toBeDefined();

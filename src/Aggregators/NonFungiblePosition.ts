@@ -43,7 +43,6 @@ export function updateNonFungiblePosition(
     mintLogIndex: diff.mintLogIndex ?? current.mintLogIndex,
     lastUpdatedTimestamp:
       diff.lastUpdatedTimestamp ?? current.lastUpdatedTimestamp,
-    // Note: amount0, amount1, amountUSD removed from schema - compute on-demand
   };
   context.NonFungiblePosition.set(nonFungiblePosition);
 }

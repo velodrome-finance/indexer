@@ -42,14 +42,14 @@ ALMDeployFactoryV1.StrategyCreated.handler(async ({ event, context }) => {
 
   if (matchingPositions.length === 0) {
     context.log.error(
-      `NonFungiblePosition not found for transaction hash ${event.transaction.hash} matching tickLower ${tickLower}, tickUpper ${tickUpper}, liquidity ${liquidity}. It should have been created by CLPool event handlers.`,
+      `[ALMDeployFactoryV1] NonFungiblePosition not found for transaction hash ${event.transaction.hash} matching tickLower ${tickLower}, tickUpper ${tickUpper}, liquidity ${liquidity}. It should have been created by CLPool event handlers.`,
     );
     return;
   }
 
   if (matchingPositions.length > 1) {
     context.log.warn(
-      `Multiple NonFungiblePositions found for transaction hash ${event.transaction.hash} with the same tick lower ${tickLower}, tick upper ${tickUpper}, liquidity ${liquidity}, token0 ${token0} and token1 ${token1}. Using the first match.`,
+      `[ALMDeployFactoryV1] Multiple NonFungiblePositions found for transaction hash ${event.transaction.hash} with the same tick lower ${tickLower}, tick upper ${tickUpper}, liquidity ${liquidity}, token0 ${token0} and token1 ${token1}. Using the first match.`,
     );
   }
 
@@ -88,7 +88,7 @@ ALMDeployFactoryV1.StrategyCreated.handler(async ({ event, context }) => {
     amount1 = amounts.amount1;
   } else {
     context.log.warn(
-      `Could not fetch sqrtPriceX96 for pool ${pool} to compute amount0/amount1, using 0`,
+      `[ALMDeployFactoryV1] Could not fetch sqrtPriceX96 for pool ${pool} to compute amount0/amount1, using 0`,
     );
   }
 

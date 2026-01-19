@@ -5,7 +5,6 @@ import type {
   handlerContext,
 } from "generated";
 import { updateNonFungiblePosition } from "../../Aggregators/NonFungiblePosition";
-import { loadOrCreateUserData } from "../../Aggregators/UserStatsPerPool";
 import { toChecksumAddress } from "../../Constants";
 import { findPositionByTokenId } from "./NFPMCommonLogic";
 
