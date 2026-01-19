@@ -123,6 +123,14 @@ describe("CLPool Events", () => {
         resultDB.entities.LiquidityPoolAggregator.get(poolAddress);
       expect(updatedPool).toBeDefined();
 
+      // Verify pool cumulative totals are updated correctly from incremental values
+      const initialTotalVolume0 = liquidityPool.totalVolume0;
+      const initialTotalVolume1 = liquidityPool.totalVolume1;
+      const initialTotalVolumeUSD = liquidityPool.totalVolumeUSD;
+      expect(updatedPool?.totalVolume0).toBe(initialTotalVolume0 + 1000n);
+      expect(updatedPool?.totalVolume1).toBe(initialTotalVolume1 + 500n);
+      expect(updatedPool?.totalVolumeUSD).toBe(initialTotalVolumeUSD + 1500n);
+
       // Verify UserStatsPerPool is updated with swap volume amounts
       const updatedUserStats = resultDB.entities.UserStatsPerPool.get(
         `${userAddress.toLowerCase()}_${poolAddress.toLowerCase()}_${chainId}`,
@@ -757,6 +765,15 @@ describe("CLPool Events", () => {
         },
       });
 
+      // Capture initial user stats state
+      const initialUserStats = mockDb.entities.UserStatsPerPool.get(
+        `${userAddress.toLowerCase()}_${poolAddress.toLowerCase()}_${chainId}`,
+      );
+      const initialNumberOfFlashLoans =
+        initialUserStats?.numberOfFlashLoans ?? 0n;
+      const initialTotalFlashLoanVolumeUSD =
+        initialUserStats?.totalFlashLoanVolumeUSD ?? 0n;
+
       const resultDB = await CLPool.Flash.processEvent({
         event: mockEvent,
         mockDb,
@@ -765,6 +782,19 @@ describe("CLPool Events", () => {
       // Should still process, but user stats update is conditional
       expect(processSpy).toHaveBeenCalled();
       expect(processSpy.mock.calls.length).toBeGreaterThanOrEqual(1);
+
+      // Verify user stats are NOT updated when volume is 0 (no-op behavior)
+      const updatedUserStats = resultDB.entities.UserStatsPerPool.get(
+        `${userAddress.toLowerCase()}_${poolAddress.toLowerCase()}_${chainId}`,
+      );
+      expect(updatedUserStats).toBeDefined();
+      // User stats should remain unchanged since volume is 0
+      expect(updatedUserStats?.numberOfFlashLoans).toBe(
+        initialNumberOfFlashLoans,
+      );
+      expect(updatedUserStats?.totalFlashLoanVolumeUSD).toBe(
+        initialTotalFlashLoanVolumeUSD,
+      );
     });
   });
 

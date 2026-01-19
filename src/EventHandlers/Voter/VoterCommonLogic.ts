@@ -92,7 +92,7 @@ export function buildLpDiffFromDistribute(
   result: VoterCommonResult,
   gaugeAddress: string,
   timestampMs: number,
-) {
+): Partial<LiquidityPoolAggregatorDiff> {
   return {
     totalVotesDeposited: result.tokensDeposited,
     totalVotesDepositedUSD: result.normalizedVotesDepositedAmountUsd,

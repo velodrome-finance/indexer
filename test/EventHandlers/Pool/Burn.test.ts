@@ -47,6 +47,14 @@ describe("Pool Burn Event", () => {
       new Date(1000000 * 1000),
     );
 
+    // Verify that reserves decreased (burn removes liquidity)
+    const initialReserve0 = commonData.mockLiquidityPoolData.reserve0;
+    const initialReserve1 = commonData.mockLiquidityPoolData.reserve1;
+    const burnAmount0 = 500n * 10n ** 18n;
+    const burnAmount1 = 1000n * 10n ** 18n;
+    expect(updatedAggregator?.reserve0).toBe(initialReserve0 - burnAmount0);
+    expect(updatedAggregator?.reserve1).toBe(initialReserve1 - burnAmount1);
+
     // Verify that user stats were updated with negative liquidity (burn removes liquidity)
     const userStats = result.entities.UserStatsPerPool.get(
       `0x1111111111111111111111111111111111111111_${commonData.mockLiquidityPoolData.id}_10`,
