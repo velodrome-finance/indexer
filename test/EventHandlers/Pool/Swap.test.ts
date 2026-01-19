@@ -4,7 +4,7 @@ import type {
   Token,
 } from "../../../generated/src/Types.gen";
 import {
-  TEN_TO_THE_6_BI,
+  OUSDT_ADDRESS,
   TEN_TO_THE_18_BI,
   TokenIdByChain,
   toChecksumAddress,
@@ -162,6 +162,147 @@ describe("Pool Swap Event", () => {
     it("should call refreshTokenPrice on token1", () => {
       const calledToken = mockPriceOracle.mock.calls[1][0];
       expect(calledToken.address).toBe(mockToken1Data.address);
+    });
+  });
+
+  describe("when pool does not exist", () => {
+    it("should return early without processing", async () => {
+      // Create a mockDb without the pool
+      const updatedDB1 = mockDb.entities.Token.set(mockToken0Data as Token);
+      const updatedDB2 = updatedDB1.entities.Token.set(mockToken1Data as Token);
+      // Note: We intentionally don't set the LiquidityPoolAggregator
+
+      const mockEvent = Pool.Swap.createMockEvent(eventData);
+
+      const postEventDB = await Pool.Swap.processEvent({
+        event: mockEvent,
+        mockDb: updatedDB2,
+      });
+
+      // Pool should not exist
+      const pool = postEventDB.entities.LiquidityPoolAggregator.get(
+        toChecksumAddress(eventData.mockEventData.srcAddress),
+      );
+      expect(pool).toBeUndefined();
+
+      // User stats will still be created because loadOrCreateUserData is called in parallel
+      // but they should have default/zero values since no swap processing occurred
+      const userStats = postEventDB.entities.UserStatsPerPool.get(
+        `${eventData.sender.toLowerCase()}_${eventData.mockEventData.srcAddress.toLowerCase()}_${eventData.mockEventData.chainId}`,
+      );
+      expect(userStats).toBeDefined();
+      // Verify no swap activity was recorded
+      expect(userStats?.numberOfSwaps).toBe(0n);
+      expect(userStats?.totalSwapVolumeUSD).toBe(0n);
+    });
+  });
+
+  describe("when OUSDT is involved", () => {
+    it("should create OUSDTSwap entity when token0 is OUSDT", async () => {
+      const ousdtAddress = toChecksumAddress(OUSDT_ADDRESS);
+      const ousdtToken: Token = {
+        ...mockToken0Data,
+        address: ousdtAddress,
+        id: TokenIdByChain(ousdtAddress, 10),
+      };
+
+      // Update pool to reference OUSDT token
+      const poolWithOusdt: LiquidityPoolAggregator = {
+        ...mockLiquidityPoolData,
+        token0_id: ousdtToken.id,
+        token0_address: ousdtAddress,
+      };
+
+      const updatedDB1 = mockDb.entities.LiquidityPoolAggregator.set(
+        poolWithOusdt as LiquidityPoolAggregator,
+      );
+      const updatedDB2 = updatedDB1.entities.Token.set(ousdtToken as Token);
+      const updatedDB3 = updatedDB2.entities.Token.set(mockToken1Data as Token);
+
+      const mockEvent = Pool.Swap.createMockEvent({
+        ...eventData,
+        amount0In: 100n * 10n ** 18n,
+        amount1Out: 99n * 10n ** 18n,
+      });
+
+      const postEventDB = await Pool.Swap.processEvent({
+        event: mockEvent,
+        mockDb: updatedDB3,
+      });
+
+      // Check that OUSDTSwap entity was created
+      const ousdtSwaps = Array.from(postEventDB.entities.OUSDTSwaps.getAll());
+      expect(ousdtSwaps.length).toBe(1);
+      expect(ousdtSwaps[0]?.tokenInPool.toLowerCase()).toBe(
+        ousdtAddress.toLowerCase(),
+      );
+      expect(ousdtSwaps[0]?.amountIn).toBe(100n * 10n ** 18n);
+    });
+
+    it("should create OUSDTSwap entity when token1 is OUSDT", async () => {
+      const ousdtAddress = toChecksumAddress(OUSDT_ADDRESS);
+      const ousdtToken: Token = {
+        ...mockToken1Data,
+        address: ousdtAddress,
+        id: TokenIdByChain(ousdtAddress, 10),
+      };
+
+      // Update pool to reference OUSDT token
+      const poolWithOusdt: LiquidityPoolAggregator = {
+        ...mockLiquidityPoolData,
+        token1_id: ousdtToken.id,
+        token1_address: ousdtAddress,
+      };
+
+      const updatedDB1 = mockDb.entities.LiquidityPoolAggregator.set(
+        poolWithOusdt as LiquidityPoolAggregator,
+      );
+      const updatedDB2 = updatedDB1.entities.Token.set(mockToken0Data as Token);
+      const updatedDB3 = updatedDB2.entities.Token.set(ousdtToken as Token);
+
+      const mockEvent = Pool.Swap.createMockEvent({
+        ...eventData,
+        amount0In: 0n, // Explicitly set to 0 to ensure token1 is the input
+        amount1In: 100n * 10n ** 18n,
+        amount0Out: 99n * 10n ** 18n,
+        amount1Out: 0n, // Explicitly set to 0
+      });
+
+      const postEventDB = await Pool.Swap.processEvent({
+        event: mockEvent,
+        mockDb: updatedDB3,
+      });
+
+      // Check that OUSDTSwap entity was created
+      const ousdtSwaps = Array.from(postEventDB.entities.OUSDTSwaps.getAll());
+      expect(ousdtSwaps.length).toBe(1);
+      expect(ousdtSwaps[0]?.tokenInPool.toLowerCase()).toBe(
+        ousdtAddress.toLowerCase(),
+      );
+      expect(ousdtSwaps[0]?.tokenOutPool.toLowerCase()).toBe(
+        mockToken0Data.address.toLowerCase(),
+      );
+      expect(ousdtSwaps[0]?.amountIn).toBe(100n * 10n ** 18n);
+      expect(ousdtSwaps[0]?.amountOut).toBe(99n * 10n ** 18n);
+    });
+
+    it("should not create OUSDTSwap entity when neither token is OUSDT", async () => {
+      const updatedDB1 = mockDb.entities.LiquidityPoolAggregator.set(
+        mockLiquidityPoolData as LiquidityPoolAggregator,
+      );
+      const updatedDB2 = updatedDB1.entities.Token.set(mockToken0Data as Token);
+      const updatedDB3 = updatedDB2.entities.Token.set(mockToken1Data as Token);
+
+      const mockEvent = Pool.Swap.createMockEvent(eventData);
+
+      const postEventDB = await Pool.Swap.processEvent({
+        event: mockEvent,
+        mockDb: updatedDB3,
+      });
+
+      // Check that no OUSDTSwap entity was created
+      const ousdtSwaps = Array.from(postEventDB.entities.OUSDTSwaps.getAll());
+      expect(ousdtSwaps.length).toBe(0);
     });
   });
 });
