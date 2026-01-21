@@ -93,7 +93,7 @@ export async function processNFPMIncreaseLiquidity(
     );
 
   if (mintEventsInTx && mintEventsInTx.length > 0) {
-    const matchingMintEvent = mintEventsInTx.find(
+    const matchingMintEvents = mintEventsInTx.filter(
       (m: CLPoolMintEvent) =>
         m.chainId === event.chainId &&
         m.pool === position.pool &&
@@ -103,6 +103,14 @@ export async function processNFPMIncreaseLiquidity(
         !m.consumedByTokenId &&
         m.logIndex < event.logIndex,
     );
+
+    // Select closest preceding mint by logIndex (deterministic for multiple matches)
+    const matchingMintEvent =
+      matchingMintEvents.length > 0
+        ? matchingMintEvents.reduce((prev, curr) =>
+            curr.logIndex > prev.logIndex ? curr : prev,
+          )
+        : undefined;
 
     if (matchingMintEvent) {
       // This matches Case 2 (INCREASE) from the explanation above.

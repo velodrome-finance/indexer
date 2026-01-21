@@ -28,7 +28,9 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
   // sqrtPriceX96 is constant (calculated from tick 0 in setupCommon)
   const sqrtPriceX96 = mockLiquidityPoolData.sqrtPriceX96;
   if (sqrtPriceX96 === undefined) {
-    throw new Error("Test setup error: sqrtPriceX96 must be defined in mockLiquidityPoolData");
+    throw new Error(
+      "Test setup error: sqrtPriceX96 must be defined in mockLiquidityPoolData",
+    );
   }
 
   const mockEventData = {

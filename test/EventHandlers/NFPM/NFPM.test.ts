@@ -114,11 +114,7 @@ describe("NFPM Events", () => {
 
     it("should update the owner", () => {
       const updatedEntity = postEventDB.entities.NonFungiblePosition.get(
-        NonFungiblePositionId(
-          chainId,
-          mockNonFungiblePosition.pool,
-          tokenId,
-        ),
+        NonFungiblePositionId(chainId, mockNonFungiblePosition.pool, tokenId),
       );
       expect(updatedEntity).toBeDefined();
       if (!updatedEntity) return; // Type guard
@@ -219,7 +215,9 @@ describe("NFPM Events", () => {
       // Verify it was created correctly
       expect(createdEntity.id).toBe(stableId); // Stable ID format
       expect(createdEntity.tokenId).toBe(tokenId);
-      expect(createdEntity.owner).toBe("0x2222222222222222222222222222222222222222");
+      expect(createdEntity.owner).toBe(
+        "0x2222222222222222222222222222222222222222",
+      );
       expect(createdEntity.pool).toBe(poolAddress);
       expect(createdEntity.mintLogIndex).toBe(mintLogIndex);
     });
@@ -282,11 +280,7 @@ describe("NFPM Events", () => {
 
     it("should increase liquidity", () => {
       const updatedEntity = postEventDB.entities.NonFungiblePosition.get(
-        NonFungiblePositionId(
-          chainId,
-          mockNonFungiblePosition.pool,
-          tokenId,
-        ),
+        NonFungiblePositionId(chainId, mockNonFungiblePosition.pool, tokenId),
       );
       expect(updatedEntity).toBeDefined();
       if (!updatedEntity) return; // Type guard
@@ -336,11 +330,7 @@ describe("NFPM Events", () => {
 
       // Should match the first position, not the second
       const updatedEntity = result.entities.NonFungiblePosition.get(
-        NonFungiblePositionId(
-          chainId,
-          mockNonFungiblePosition.pool,
-          tokenId,
-        ),
+        NonFungiblePositionId(chainId, mockNonFungiblePosition.pool, tokenId),
       );
       expect(updatedEntity).toBeDefined();
       if (!updatedEntity) return;
@@ -378,11 +368,7 @@ describe("NFPM Events", () => {
 
       // Should not create or update any position
       const updatedEntity = result.entities.NonFungiblePosition.get(
-        NonFungiblePositionId(
-          chainId,
-          mockNonFungiblePosition.pool,
-          tokenId,
-        ),
+        NonFungiblePositionId(chainId, mockNonFungiblePosition.pool, tokenId),
       );
       expect(updatedEntity).toBeUndefined();
     });
@@ -484,11 +470,7 @@ describe("NFPM Events", () => {
 
     it("should decrease liquidity", () => {
       const updatedEntity = postEventDB.entities.NonFungiblePosition.get(
-        NonFungiblePositionId(
-          chainId,
-          mockNonFungiblePosition.pool,
-          tokenId,
-        ),
+        NonFungiblePositionId(chainId, mockNonFungiblePosition.pool, tokenId),
       );
       expect(updatedEntity).toBeDefined();
       if (!updatedEntity) return; // Type guard
@@ -533,11 +515,7 @@ describe("NFPM Events", () => {
 
       // Should not create any position
       const updatedEntity = result.entities.NonFungiblePosition.get(
-        NonFungiblePositionId(
-          chainId,
-          mockNonFungiblePosition.pool,
-          tokenId,
-        ),
+        NonFungiblePositionId(chainId, mockNonFungiblePosition.pool, tokenId),
       );
       expect(updatedEntity).toBeUndefined();
     });
@@ -595,11 +573,7 @@ describe("NFPM Events", () => {
 
       // Should not create any position
       const updatedEntity = result.entities.NonFungiblePosition.get(
-        NonFungiblePositionId(
-          chainId,
-          mockNonFungiblePosition.pool,
-          tokenId,
-        ),
+        NonFungiblePositionId(chainId, mockNonFungiblePosition.pool, tokenId),
       );
       expect(updatedEntity).toBeUndefined();
     });
@@ -757,7 +731,9 @@ describe("NFPM Events", () => {
       expect(updatedBasePosition).toBeDefined();
       if (!updatedBasePosition) return;
       // Should update owner to the new owner
-      expect(updatedBasePosition.owner).toBe("0x3333333333333333333333333333333333333333");
+      expect(updatedBasePosition.owner).toBe(
+        "0x3333333333333333333333333333333333333333",
+      );
       // Should still have Base chain pool address
       expect(updatedBasePosition.pool).toBe(poolAddressBase);
       expect(updatedBasePosition.chainId).toBe(chainIdBase);

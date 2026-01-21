@@ -65,7 +65,8 @@ ALMDeployFactoryV1.StrategyCreated.handler(async ({ event, context }) => {
 
   let amount0 = 0n;
   let amount1 = 0n;
-  if (sqrtPriceX96 && sqrtPriceX96 !== 0n) {
+  // Treat sqrtPriceX96 === 0n the same as undefined (missing/invalid)
+  if (sqrtPriceX96 !== undefined && sqrtPriceX96 !== 0n) {
     const amounts = calculatePositionAmountsFromLiquidity(
       liquidity,
       sqrtPriceX96,
@@ -76,7 +77,7 @@ ALMDeployFactoryV1.StrategyCreated.handler(async ({ event, context }) => {
     amount1 = amounts.amount1;
   } else {
     context.log.warn(
-      `[ALMDeployFactoryV1] sqrtPriceX96 is undefined or 0 for pool ${pool} on chain ${event.chainId}. Cannot compute amount0/amount1, using 0`,
+      `[ALMDeployFactoryV1] sqrtPriceX96 is missing or zero for pool ${pool} on chain ${event.chainId}. Cannot compute amount0/amount1, using 0`,
     );
   }
 
