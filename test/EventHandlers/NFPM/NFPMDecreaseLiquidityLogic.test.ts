@@ -5,7 +5,7 @@ import type {
 } from "generated";
 import { MockDb, NFPM } from "../../../generated/src/TestHelpers.gen";
 import {
-  _calculateDecreaseLiquidityDiff,
+  calculateDecreaseLiquidityDiff,
   processNFPMDecreaseLiquidity,
 } from "../../../src/EventHandlers/NFPM/NFPMDecreaseLiquidityLogic";
 
@@ -92,7 +92,7 @@ describe("NFPMDecreaseLiquidityLogic", () => {
     } as unknown as handlerContext;
   });
 
-  describe("_calculateDecreaseLiquidityDiff", () => {
+  describe("calculateDecreaseLiquidityDiff", () => {
     it("should calculate correct liquidity decrease", () => {
       const mockEvent = NFPM.DecreaseLiquidity.createMockEvent({
         tokenId: tokenId,
@@ -111,7 +111,7 @@ describe("NFPMDecreaseLiquidityLogic", () => {
         },
       });
 
-      const diff = _calculateDecreaseLiquidityDiff(mockEvent);
+      const diff = calculateDecreaseLiquidityDiff(mockEvent);
 
       expect(diff.incrementalLiquidity).toBe(-373020348524042n);
       expect(diff.lastUpdatedTimestamp).toEqual(new Date(1712065791 * 1000));
@@ -135,7 +135,7 @@ describe("NFPMDecreaseLiquidityLogic", () => {
         },
       });
 
-      const diff = _calculateDecreaseLiquidityDiff(mockEvent);
+      const diff = calculateDecreaseLiquidityDiff(mockEvent);
 
       expect(diff.incrementalLiquidity).toBe(0n);
     });

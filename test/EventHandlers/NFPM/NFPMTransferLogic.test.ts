@@ -6,9 +6,9 @@ import type {
 } from "generated";
 import { MockDb, NFPM } from "../../../generated/src/TestHelpers.gen";
 import {
-  _createPositionFromCLPoolMint,
-  _handleMintTransfer,
-  _handleRegularTransfer,
+  createPositionFromCLPoolMint,
+  handleMintTransfer,
+  handleRegularTransfer,
   processNFPMTransfer,
 } from "../../../src/EventHandlers/NFPM/NFPMTransferLogic";
 
@@ -304,14 +304,14 @@ describe("NFPMTransferLogic", () => {
     return mockDb;
   };
 
-  describe("_createPositionFromCLPoolMint", () => {
+  describe("createPositionFromCLPoolMint", () => {
     it("should create position from CLPoolMintEvent with stable ID", async () => {
       const owner = "0x3096D872E1FCc96e5E55F43411971d49bB137B9B";
       const blockTimestamp = 1711601595;
 
       setMintEvent(mockCLPoolMintEvent);
 
-      await _createPositionFromCLPoolMint(
+      await createPositionFromCLPoolMint(
         mockCLPoolMintEvent,
         tokenId,
         owner,
@@ -345,13 +345,13 @@ describe("NFPMTransferLogic", () => {
     });
   });
 
-  describe("_handleMintTransfer", () => {
+  describe("handleMintTransfer", () => {
     it("should create position from CLPoolMintEvent when matching mint found", async () => {
       setMintEvent(mockCLPoolMintEvent);
 
       const mockEvent = createMockTransferEvent(zeroAddress, ownerAddress);
 
-      await _handleMintTransfer(mockEvent, mockContext, []);
+      await handleMintTransfer(mockEvent, mockContext, []);
 
       const stableId = getStableId();
       const position = storedPositions.find((p) => p.id === stableId);
@@ -373,7 +373,7 @@ describe("NFPMTransferLogic", () => {
       const existingPositions = storedPositions.filter(
         (p) => p.tokenId === tokenId,
       );
-      await _handleMintTransfer(mockEvent, mockContext, existingPositions);
+      await handleMintTransfer(mockEvent, mockContext, existingPositions);
 
       // Position should still exist with same ID
       const position =
@@ -387,7 +387,7 @@ describe("NFPMTransferLogic", () => {
     it("should log warning if no CLPoolMintEvent found", async () => {
       const mockEvent = createMockTransferEvent(zeroAddress, ownerAddress);
 
-      await _handleMintTransfer(mockEvent, mockContext, []);
+      await handleMintTransfer(mockEvent, mockContext, []);
 
       // No position should be created
       const stableId = getStableId();
@@ -423,7 +423,7 @@ describe("NFPMTransferLogic", () => {
 
       const mockEvent = createMockTransferEvent(zeroAddress, ownerAddress);
 
-      await _handleMintTransfer(mockEvent, mockContext, []);
+      await handleMintTransfer(mockEvent, mockContext, []);
 
       const stableId = getStableId();
       const position = storedPositions.find((p) => p.id === stableId);
@@ -450,7 +450,7 @@ describe("NFPMTransferLogic", () => {
 
       const mockEvent = createMockTransferEvent(zeroAddress, ownerAddress);
 
-      await _handleMintTransfer(mockEvent, mockContext, []);
+      await handleMintTransfer(mockEvent, mockContext, []);
 
       const stableId = getStableId();
       const position = storedPositions.find((p) => p.id === stableId);
@@ -478,7 +478,7 @@ describe("NFPMTransferLogic", () => {
 
       const mockEvent = createMockTransferEvent(zeroAddress, ownerAddress);
 
-      await _handleMintTransfer(mockEvent, nullMockContext, []);
+      await handleMintTransfer(mockEvent, nullMockContext, []);
 
       // Should log warning since no events found
       expect(nullMockContext.log.warn).toHaveBeenCalledWith(
@@ -507,7 +507,7 @@ describe("NFPMTransferLogic", () => {
 
       const mockEvent = createMockTransferEvent(zeroAddress, ownerAddress);
 
-      await _handleMintTransfer(mockEvent, mockContext, []);
+      await handleMintTransfer(mockEvent, mockContext, []);
 
       const stableId = getStableId();
       const position = storedPositions.find((p) => p.id === stableId);
@@ -536,7 +536,7 @@ describe("NFPMTransferLogic", () => {
 
       const mockEvent = createMockTransferEvent(zeroAddress, ownerAddress);
 
-      await _handleMintTransfer(mockEvent, mockContext, []);
+      await handleMintTransfer(mockEvent, mockContext, []);
 
       const stableId = getStableId();
       const position = storedPositions.find((p) => p.id === stableId);
@@ -548,14 +548,14 @@ describe("NFPMTransferLogic", () => {
     });
   });
 
-  describe("_handleRegularTransfer", () => {
+  describe("handleRegularTransfer", () => {
     it("should update owner of existing position", () => {
       const newOwner = "0x2222222222222222222222222222222222222222";
       const mockEvent = createMockTransferEvent(mockPosition.owner, newOwner);
 
       setPosition(mockPosition);
 
-      _handleRegularTransfer(mockEvent, [mockPosition], mockContext);
+      handleRegularTransfer(mockEvent, [mockPosition], mockContext);
 
       const updatedPosition = mockDb.entities.NonFungiblePosition.get(
         mockPosition.id,

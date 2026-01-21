@@ -309,7 +309,7 @@ CLPool.Mint.handler(async ({ event, context }) => {
   ]);
 
   // Store CLPool.Mint data temporarily for NFPM.Transfer to consume
-  // This entity will be matched via NFPM.IncreaseLiquidity and deleted immediately after position creation
+  // This entity will be matched via NFPM.Transfer and deleted immediately after position creation
   // NFPM.Transfer will create the NonFungiblePosition entity from this CLPoolMintEvent
   const mintEventId = `${event.chainId}_${event.srcAddress}_${event.transaction.hash}_${event.logIndex}`;
   context.CLPoolMintEvent.set({

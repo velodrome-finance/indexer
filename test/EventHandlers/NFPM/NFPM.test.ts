@@ -2,8 +2,11 @@ import type { PublicClient } from "viem";
 import { MockDb, NFPM } from "../../../generated/src/TestHelpers.gen";
 import { CHAIN_CONSTANTS, TokenIdByChain } from "../../../src/Constants";
 
-const NonFungiblePositionId = (chainId: number, tokenId: bigint) =>
-  `${chainId}_${tokenId}`;
+const NonFungiblePositionId = (
+  chainId: number,
+  poolAddress: string,
+  tokenId: bigint,
+) => `${chainId}_${poolAddress}_${tokenId}`;
 
 const TokenId = (chainId: number, tokenAddress: string) =>
   TokenIdByChain(tokenAddress, chainId);
@@ -21,7 +24,11 @@ describe("NFPM Events", () => {
   // Mock position with amounts matching the IncreaseLiquidity event amounts
   // This represents a newly minted position before the IncreaseLiquidity event
   const mockNonFungiblePosition = {
-    id: NonFungiblePositionId(chainId, tokenId),
+    id: NonFungiblePositionId(
+      chainId,
+      "0xPoolAddress0000000000000000000000",
+      tokenId,
+    ),
     chainId: 10,
     tokenId: tokenId,
     owner: "0x1111111111111111111111111111111111111111",
@@ -107,13 +114,15 @@ describe("NFPM Events", () => {
 
     it("should update the owner", () => {
       const updatedEntity = postEventDB.entities.NonFungiblePosition.get(
-        NonFungiblePositionId(chainId, tokenId),
+        NonFungiblePositionId(
+          chainId,
+          mockNonFungiblePosition.pool,
+          tokenId,
+        ),
       );
       expect(updatedEntity).toBeDefined();
       if (!updatedEntity) return; // Type guard
-      expect(updatedEntity.owner.toLowerCase()).toBe(
-        eventData.to.toLowerCase(),
-      );
+      expect(updatedEntity.owner).toBe(eventData.to);
     });
 
     it("should create position from CLPoolMintEvent (integration test)", async () => {
@@ -210,9 +219,7 @@ describe("NFPM Events", () => {
       // Verify it was created correctly
       expect(createdEntity.id).toBe(stableId); // Stable ID format
       expect(createdEntity.tokenId).toBe(tokenId);
-      expect(createdEntity.owner.toLowerCase()).toBe(
-        "0x2222222222222222222222222222222222222222".toLowerCase(),
-      );
+      expect(createdEntity.owner).toBe("0x2222222222222222222222222222222222222222");
       expect(createdEntity.pool).toBe(poolAddress);
       expect(createdEntity.mintLogIndex).toBe(mintLogIndex);
     });
@@ -275,7 +282,11 @@ describe("NFPM Events", () => {
 
     it("should increase liquidity", () => {
       const updatedEntity = postEventDB.entities.NonFungiblePosition.get(
-        NonFungiblePositionId(chainId, tokenId),
+        NonFungiblePositionId(
+          chainId,
+          mockNonFungiblePosition.pool,
+          tokenId,
+        ),
       );
       expect(updatedEntity).toBeDefined();
       if (!updatedEntity) return; // Type guard
@@ -289,7 +300,7 @@ describe("NFPM Events", () => {
       // Create a second position with different ticks but same transaction hash
       const position2 = {
         ...mockNonFungiblePosition,
-        id: NonFungiblePositionId(chainId, 2n),
+        id: NonFungiblePositionId(chainId, mockNonFungiblePosition.pool, 2n),
         tokenId: 2n,
         tickLower: -200n, // Different ticks - won't match IncreaseLiquidity event
         tickUpper: 200n,
@@ -325,7 +336,11 @@ describe("NFPM Events", () => {
 
       // Should match the first position, not the second
       const updatedEntity = result.entities.NonFungiblePosition.get(
-        NonFungiblePositionId(chainId, tokenId),
+        NonFungiblePositionId(
+          chainId,
+          mockNonFungiblePosition.pool,
+          tokenId,
+        ),
       );
       expect(updatedEntity).toBeDefined();
       if (!updatedEntity) return;
@@ -363,7 +378,11 @@ describe("NFPM Events", () => {
 
       // Should not create or update any position
       const updatedEntity = result.entities.NonFungiblePosition.get(
-        NonFungiblePositionId(chainId, tokenId),
+        NonFungiblePositionId(
+          chainId,
+          mockNonFungiblePosition.pool,
+          tokenId,
+        ),
       );
       expect(updatedEntity).toBeUndefined();
     });
@@ -374,7 +393,11 @@ describe("NFPM Events", () => {
       const differentTokenId = 999n;
       const positionWithDifferentTokenId = {
         ...mockNonFungiblePosition,
-        id: NonFungiblePositionId(chainId, differentTokenId), // Update ID to match new tokenId
+        id: NonFungiblePositionId(
+          chainId,
+          mockNonFungiblePosition.pool,
+          differentTokenId,
+        ), // Update ID to match new tokenId
         tokenId: differentTokenId, // Different tokenId so not found by tokenId query
       };
 
@@ -418,7 +441,11 @@ describe("NFPM Events", () => {
       // Should not update the position (amounts don't match, handler returns early)
       // Position should still exist in the result with original values
       const updatedEntity = result.entities.NonFungiblePosition.get(
-        NonFungiblePositionId(chainId, differentTokenId),
+        NonFungiblePositionId(
+          chainId,
+          mockNonFungiblePosition.pool,
+          differentTokenId,
+        ),
       );
       // Position exists but wasn't updated (still has original amounts)
       expect(updatedEntity).toBeDefined();
@@ -457,7 +484,11 @@ describe("NFPM Events", () => {
 
     it("should decrease liquidity", () => {
       const updatedEntity = postEventDB.entities.NonFungiblePosition.get(
-        NonFungiblePositionId(chainId, tokenId),
+        NonFungiblePositionId(
+          chainId,
+          mockNonFungiblePosition.pool,
+          tokenId,
+        ),
       );
       expect(updatedEntity).toBeDefined();
       if (!updatedEntity) return; // Type guard
@@ -502,7 +533,11 @@ describe("NFPM Events", () => {
 
       // Should not create any position
       const updatedEntity = result.entities.NonFungiblePosition.get(
-        NonFungiblePositionId(chainId, tokenId),
+        NonFungiblePositionId(
+          chainId,
+          mockNonFungiblePosition.pool,
+          tokenId,
+        ),
       );
       expect(updatedEntity).toBeUndefined();
     });
@@ -560,7 +595,11 @@ describe("NFPM Events", () => {
 
       // Should not create any position
       const updatedEntity = result.entities.NonFungiblePosition.get(
-        NonFungiblePositionId(chainId, tokenId),
+        NonFungiblePositionId(
+          chainId,
+          mockNonFungiblePosition.pool,
+          tokenId,
+        ),
       );
       expect(updatedEntity).toBeUndefined();
     });
@@ -577,7 +616,7 @@ describe("NFPM Events", () => {
 
     // Position on Base (chain 8453)
     const positionBase = {
-      id: NonFungiblePositionId(chainIdBase, sameTokenId),
+      id: NonFungiblePositionId(chainIdBase, poolAddressBase, sameTokenId),
       chainId: chainIdBase,
       tokenId: sameTokenId,
       owner: "0x1111111111111111111111111111111111111111",
@@ -594,7 +633,7 @@ describe("NFPM Events", () => {
 
     // Position on Lisk (chain 1135) with same tokenId
     const positionLisk = {
-      id: NonFungiblePositionId(chainIdLisk, sameTokenId),
+      id: NonFungiblePositionId(chainIdLisk, poolAddressLisk, sameTokenId),
       chainId: chainIdLisk,
       tokenId: sameTokenId,
       owner: "0x2222222222222222222222222222222222222222",
@@ -709,18 +748,16 @@ describe("NFPM Events", () => {
 
       // Should only update the Base position, not the Lisk position
       const updatedBasePosition = result.entities.NonFungiblePosition.get(
-        NonFungiblePositionId(chainIdBase, sameTokenId),
+        NonFungiblePositionId(chainIdBase, poolAddressBase, sameTokenId),
       );
       const liskPosition = result.entities.NonFungiblePosition.get(
-        NonFungiblePositionId(chainIdLisk, sameTokenId),
+        NonFungiblePositionId(chainIdLisk, poolAddressLisk, sameTokenId),
       );
 
       expect(updatedBasePosition).toBeDefined();
       if (!updatedBasePosition) return;
       // Should update owner to the new owner
-      expect(updatedBasePosition.owner.toLowerCase()).toBe(
-        "0x3333333333333333333333333333333333333333".toLowerCase(),
-      );
+      expect(updatedBasePosition.owner).toBe("0x3333333333333333333333333333333333333333");
       // Should still have Base chain pool address
       expect(updatedBasePosition.pool).toBe(poolAddressBase);
       expect(updatedBasePosition.chainId).toBe(chainIdBase);
@@ -728,9 +765,7 @@ describe("NFPM Events", () => {
       // Lisk position should remain unchanged
       expect(liskPosition).toBeDefined();
       if (!liskPosition) return;
-      expect(liskPosition.owner.toLowerCase()).toBe(
-        positionLisk.owner.toLowerCase(),
-      );
+      expect(liskPosition.owner).toBe(positionLisk.owner);
       expect(liskPosition.pool).toBe(poolAddressLisk);
       expect(liskPosition.chainId).toBe(chainIdLisk);
     });
@@ -815,10 +850,10 @@ describe("NFPM Events", () => {
 
       // Should only update the Base position
       const updatedBasePosition = result.entities.NonFungiblePosition.get(
-        NonFungiblePositionId(chainIdBase, sameTokenId),
+        NonFungiblePositionId(chainIdBase, poolAddressBase, sameTokenId),
       );
       const liskPosition = result.entities.NonFungiblePosition.get(
-        NonFungiblePositionId(chainIdLisk, sameTokenId),
+        NonFungiblePositionId(chainIdLisk, poolAddressLisk, sameTokenId),
       );
 
       expect(updatedBasePosition).toBeDefined();
@@ -916,10 +951,10 @@ describe("NFPM Events", () => {
 
       // Should only update the Lisk position
       const basePosition = result.entities.NonFungiblePosition.get(
-        NonFungiblePositionId(chainIdBase, sameTokenId),
+        NonFungiblePositionId(chainIdBase, poolAddressBase, sameTokenId),
       );
       const updatedLiskPosition = result.entities.NonFungiblePosition.get(
-        NonFungiblePositionId(chainIdLisk, sameTokenId),
+        NonFungiblePositionId(chainIdLisk, poolAddressLisk, sameTokenId),
       );
 
       expect(updatedLiskPosition).toBeDefined();
@@ -1018,7 +1053,7 @@ describe("NFPM Events", () => {
 
       // Verify: Base position should be updated (correct position was found and used)
       const updatedBasePosition = result.entities.NonFungiblePosition.get(
-        NonFungiblePositionId(chainIdBase, sameTokenId),
+        NonFungiblePositionId(chainIdBase, poolAddressBase, sameTokenId),
       );
       expect(updatedBasePosition).toBeDefined();
       if (!updatedBasePosition) return;
@@ -1029,7 +1064,7 @@ describe("NFPM Events", () => {
 
       // Verify: Lisk position should remain unchanged (wrong position was NOT used)
       const liskPosition = result.entities.NonFungiblePosition.get(
-        NonFungiblePositionId(chainIdLisk, sameTokenId),
+        NonFungiblePositionId(chainIdLisk, poolAddressLisk, sameTokenId),
       );
       expect(liskPosition).toBeDefined();
       if (!liskPosition) return;

@@ -12,9 +12,8 @@ import { findPositionByTokenId } from "./NFPMCommonLogic";
  * @param event - The DecreaseLiquidity event
  * @param position - The position to update
  * @returns Partial position object containing the updated liquidity and timestamp fields
- * @internal
  */
-export function _calculateDecreaseLiquidityDiff(
+export function calculateDecreaseLiquidityDiff(
   event: NFPM_DecreaseLiquidity_event,
 ): Partial<NonFungiblePositionDiff> {
   const blockDatetime = new Date(event.block.timestamp * 1000);
@@ -65,7 +64,7 @@ export async function processNFPMDecreaseLiquidity(
   const position = positions[0];
 
   // Calculate decrease liquidity diff
-  const nonFungiblePositionDiff = _calculateDecreaseLiquidityDiff(event);
+  const nonFungiblePositionDiff = calculateDecreaseLiquidityDiff(event);
 
   updateNonFungiblePosition(nonFungiblePositionDiff, position, context);
 }

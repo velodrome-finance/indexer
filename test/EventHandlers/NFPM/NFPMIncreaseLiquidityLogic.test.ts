@@ -6,7 +6,7 @@ import type {
 } from "generated";
 import { MockDb, NFPM } from "../../../generated/src/TestHelpers.gen";
 import {
-  _calculateIncreaseLiquidityDiff,
+  calculateIncreaseLiquidityDiff,
   processNFPMIncreaseLiquidity,
 } from "../../../src/EventHandlers/NFPM/NFPMIncreaseLiquidityLogic";
 
@@ -171,11 +171,11 @@ describe("NFPMIncreaseLiquidityLogic", () => {
     mockDb = mockDb.entities.NonFungiblePosition.set(mockPosition);
   });
 
-  describe("_calculateIncreaseLiquidityDiff", () => {
+  describe("calculateIncreaseLiquidityDiff", () => {
     it("should calculate correct liquidity increase", () => {
       const mockEvent = createMockIncreaseLiquidityEvent(168374122051126n);
 
-      const diff = _calculateIncreaseLiquidityDiff(mockEvent);
+      const diff = calculateIncreaseLiquidityDiff(mockEvent);
 
       expect(diff.incrementalLiquidity).toBe(168374122051126n);
       expect(diff.lastUpdatedTimestamp).toEqual(
@@ -189,7 +189,7 @@ describe("NFPMIncreaseLiquidityLogic", () => {
         amount1: 0n,
       });
 
-      const diff = _calculateIncreaseLiquidityDiff(mockEvent);
+      const diff = calculateIncreaseLiquidityDiff(mockEvent);
 
       expect(diff.incrementalLiquidity).toBe(0n);
     });

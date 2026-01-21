@@ -8,7 +8,6 @@ import type { NonFungiblePosition, handlerContext } from "generated";
  * @param chainId - The chain ID to filter by
  * @param context - The handler context for database operations
  * @returns Array of matching positions (should be 0 or 1), filtered by chainId
- * @internal
  */
 export async function findPositionByTokenId(
   tokenId: bigint,

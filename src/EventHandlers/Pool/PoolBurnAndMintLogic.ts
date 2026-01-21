@@ -27,9 +27,8 @@ export interface AttributionResult {
  * @param isMint - Whether this is a Mint event (true) or Burn event (false)
  * @param context - Handler context
  * @returns Filtered transfers in the transaction
- * @internal
  */
-export async function _getTransfersInTx(
+export async function getTransfersInTx(
   txHash: string,
   chainId: number,
   poolAddress: string,
@@ -54,9 +53,8 @@ export async function _getTransfersInTx(
  * @param transfersInTx - Transfers in the transaction
  * @param eventLogIndex - Log index of the Mint/Burn event
  * @returns Eligible preceding transfers
- * @internal
  */
-export function _getPrecedingTransfers(
+export function getPrecedingTransfers(
   transfersInTx: PoolTransferInTx[],
   eventLogIndex: number,
 ): PoolTransferInTx[] {
@@ -72,9 +70,8 @@ export function _getPrecedingTransfers(
  * Find the closest preceding transfer (largest logIndex)
  * @param precedingTransfers - Eligible preceding transfers
  * @returns The closest preceding transfer
- * @internal
  */
-export function _findClosestPrecedingTransfer(
+export function findClosestPrecedingTransfer(
   precedingTransfers: PoolTransferInTx[],
 ): PoolTransferInTx {
   return precedingTransfers.reduce((prev, curr) =>
@@ -88,9 +85,8 @@ export function _findClosestPrecedingTransfer(
  * @param precedingTransfers - All preceding transfers (for address(1) fallback)
  * @param isMint - Whether this is a Mint event (true) or Burn event (false)
  * @returns The recipient address and potentially updated matched transfer
- * @internal
  */
-export function _extractRecipientAddress(
+export function extractRecipientAddress(
   matchedTransfer: PoolTransferInTx,
   precedingTransfers: PoolTransferInTx[],
   isMint: boolean,
@@ -134,9 +130,8 @@ export function _extractRecipientAddress(
  * @param token1Instance - Token1 instance
  * @param context - Handler context
  * @returns User address and total liquidity USD, or undefined if no match found
- * @internal
  */
-export async function _findTransferAndAttribute(
+export async function findTransferAndAttribute(
   event: Pool_Mint_event | Pool_Burn_event,
   poolAddress: string,
   chainId: number,
@@ -151,7 +146,7 @@ export async function _findTransferAndAttribute(
   // Rule: Find Transfer where isMint/isBurn matches, logIndex < eventLogIndex, same tx+pool+chainId
   // Stricter matching: value > 0, and prefer non-address(1) transfers for mints
   // Query by txHash (indexed, most selective) then filter by chainId, pool, and event type
-  const transfersInTx = await _getTransfersInTx(
+  const transfersInTx = await getTransfersInTx(
     txHash,
     chainId,
     poolAddress,
@@ -160,7 +155,7 @@ export async function _findTransferAndAttribute(
   );
 
   // Filter to transfers before this event with value > 0 and not already consumed
-  const precedingTransfers = _getPrecedingTransfers(
+  const precedingTransfers = getPrecedingTransfers(
     transfersInTx,
     eventLogIndex,
   );
@@ -176,11 +171,11 @@ export async function _findTransferAndAttribute(
   }
 
   // Get the closest preceding transfer (largest logIndex)
-  let matchedTransfer = _findClosestPrecedingTransfer(precedingTransfers);
+  let matchedTransfer = findClosestPrecedingTransfer(precedingTransfers);
 
   // Extract recipient address, handling address(1) edge case for mints
   const { recipient, matchedTransfer: finalMatchedTransfer } =
-    _extractRecipientAddress(matchedTransfer, precedingTransfers, isMint);
+    extractRecipientAddress(matchedTransfer, precedingTransfers, isMint);
   matchedTransfer = finalMatchedTransfer;
 
   // Mark the matched transfer as consumed by this event
@@ -232,7 +227,7 @@ export async function processPoolLiquidityEvent(
   const eventLogIndex = event.logIndex;
 
   // Find matching Transfer and get user address + USD value
-  const attributionResult = await _findTransferAndAttribute(
+  const attributionResult = await findTransferAndAttribute(
     event,
     poolAddress,
     chainId,

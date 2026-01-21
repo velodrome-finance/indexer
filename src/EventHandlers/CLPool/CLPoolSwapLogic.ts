@@ -45,9 +45,9 @@ interface SwapLiquidityChanges {
 
 /**
  * Calculates swap volume in USD
- * @internal Exported for testing purposes only
+ * Exported for testing purposes only
  */
-export function _calculateSwapVolume(
+export function calculateSwapVolume(
   event: CLPool_Swap_event,
   token0Instance: Token | undefined,
   token1Instance: Token | undefined,
@@ -87,9 +87,9 @@ export function _calculateSwapVolume(
 /**
  * Calculates swap fees
  * Fees are stored in 1e18 precision (like USD values) to preserve accuracy
- * @internal Exported for testing purposes only
+ * Exported for testing purposes only
  */
-export function _calculateSwapFees(
+export function calculateSwapFees(
   event: CLPool_Swap_event,
   liquidityPoolAggregator: LiquidityPoolAggregator,
   token0Instance: Token | undefined,
@@ -156,23 +156,22 @@ export function _calculateSwapFees(
 /**
  * Calculates swap volume and fees
  * Fees are stored in 1e18 precision (like USD values) to preserve accuracy
- * @internal
  */
-function _calculateSwapVolumeAndFees(
+function calculateSwapVolumeAndFees(
   event: CLPool_Swap_event,
   liquidityPoolAggregator: LiquidityPoolAggregator,
   token0Instance: Token | undefined,
   token1Instance: Token | undefined,
   context: handlerContext,
 ): SwapVolumeAndFees {
-  const { volumeInUSD, volumeInUSDWhitelisted } = _calculateSwapVolume(
+  const { volumeInUSD, volumeInUSDWhitelisted } = calculateSwapVolume(
     event,
     token0Instance,
     token1Instance,
   );
 
   const { swapFeesInToken0, swapFeesInToken1, swapFeesInUSD } =
-    _calculateSwapFees(
+    calculateSwapFees(
       event,
       liquidityPoolAggregator,
       token0Instance,
@@ -191,9 +190,9 @@ function _calculateSwapVolumeAndFees(
 
 /**
  * Calculates liquidity and reserve changes from a swap event
- * @internal Exported for testing purposes only
+ * Exported for testing purposes only
  */
-export function _calculateSwapLiquidityChanges(
+export function calculateSwapLiquidityChanges(
   event: CLPool_Swap_event,
   liquidityPoolAggregator: LiquidityPoolAggregator,
   token0Instance: Token | undefined,
@@ -238,7 +237,7 @@ export async function processCLPoolSwap(
     swapFeesInToken0,
     swapFeesInToken1,
     swapFeesInUSD,
-  } = _calculateSwapVolumeAndFees(
+  } = calculateSwapVolumeAndFees(
     event,
     liquidityPoolAggregator,
     token0Instance,
@@ -247,7 +246,7 @@ export async function processCLPoolSwap(
   );
 
   // Calculate liquidity and reserve changes
-  const { deltaTotalLiquidityUSD } = _calculateSwapLiquidityChanges(
+  const { deltaTotalLiquidityUSD } = calculateSwapLiquidityChanges(
     event,
     liquidityPoolAggregator,
     token0Instance,

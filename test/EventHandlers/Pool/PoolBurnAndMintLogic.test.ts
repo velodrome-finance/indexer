@@ -8,11 +8,11 @@ import type {
 } from "generated";
 import { ZERO_ADDRESS } from "../../../src/Constants";
 import {
-  _extractRecipientAddress,
-  _findClosestPrecedingTransfer,
-  _findTransferAndAttribute,
-  _getPrecedingTransfers,
-  _getTransfersInTx,
+  extractRecipientAddress,
+  findClosestPrecedingTransfer,
+  findTransferAndAttribute,
+  getPrecedingTransfers,
+  getTransfersInTx,
   processPoolLiquidityEvent,
 } from "../../../src/EventHandlers/Pool/PoolBurnAndMintLogic";
 import { setupCommon } from "./common";
@@ -131,7 +131,7 @@ describe("PoolBurnAndMintLogic", () => {
     },
   });
 
-  describe("_getTransfersInTx", () => {
+  describe("getTransfersInTx", () => {
     it("should filter transfers by txHash, chainId, pool, and event type", async () => {
       mockPoolTransferInTx = [
         createMockTransfer(
@@ -160,7 +160,7 @@ describe("PoolBurnAndMintLogic", () => {
         ),
       ];
 
-      const result = await _getTransfersInTx(
+      const result = await getTransfersInTx(
         TX_HASH,
         CHAIN_ID,
         POOL_ADDRESS,
@@ -195,7 +195,7 @@ describe("PoolBurnAndMintLogic", () => {
         ),
       ];
 
-      const result = await _getTransfersInTx(
+      const result = await getTransfersInTx(
         TX_HASH,
         CHAIN_ID,
         POOL_ADDRESS,
@@ -210,7 +210,7 @@ describe("PoolBurnAndMintLogic", () => {
     it("should return empty array when no transfers match", async () => {
       mockPoolTransferInTx = [];
 
-      const result = await _getTransfersInTx(
+      const result = await getTransfersInTx(
         TX_HASH,
         CHAIN_ID,
         POOL_ADDRESS,
@@ -246,7 +246,7 @@ describe("PoolBurnAndMintLogic", () => {
         },
       ];
 
-      const result = await _getTransfersInTx(
+      const result = await getTransfersInTx(
         TX_HASH,
         CHAIN_ID,
         POOL_ADDRESS,
@@ -259,7 +259,7 @@ describe("PoolBurnAndMintLogic", () => {
     });
   });
 
-  describe("_getPrecedingTransfers", () => {
+  describe("getPrecedingTransfers", () => {
     it("should filter transfers that precede the event logIndex", () => {
       const transfers = [
         createMockTransfer(
@@ -288,7 +288,7 @@ describe("PoolBurnAndMintLogic", () => {
         ),
       ];
 
-      const result = _getPrecedingTransfers(transfers, 3);
+      const result = getPrecedingTransfers(transfers, 3);
 
       expect(result).toHaveLength(2);
       expect(result.every((t) => t.logIndex < 3)).toBe(true);
@@ -317,7 +317,7 @@ describe("PoolBurnAndMintLogic", () => {
         ),
       ];
 
-      const result = _getPrecedingTransfers(transfers, 4);
+      const result = getPrecedingTransfers(transfers, 4);
 
       expect(result).toHaveLength(2);
       expect(result.every((t) => t.value > 0n)).toBe(true);
@@ -352,7 +352,7 @@ describe("PoolBurnAndMintLogic", () => {
         ),
       ];
 
-      const result = _getPrecedingTransfers(transfers, 4);
+      const result = getPrecedingTransfers(transfers, 4);
 
       expect(result).toHaveLength(2);
       expect(result.every((t) => !t.consumedByLogIndex)).toBe(true);
@@ -383,7 +383,7 @@ describe("PoolBurnAndMintLogic", () => {
         },
       ];
 
-      const result = _getPrecedingTransfers(transfers, 3);
+      const result = getPrecedingTransfers(transfers, 3);
 
       expect(result).toHaveLength(2);
     });
@@ -408,13 +408,13 @@ describe("PoolBurnAndMintLogic", () => {
         ),
       ];
 
-      const result = _getPrecedingTransfers(transfers, 3);
+      const result = getPrecedingTransfers(transfers, 3);
 
       expect(result).toHaveLength(0);
     });
   });
 
-  describe("_findClosestPrecedingTransfer", () => {
+  describe("findClosestPrecedingTransfer", () => {
     it("should return transfer with largest logIndex", () => {
       const transfers = [
         createMockTransfer(
@@ -443,7 +443,7 @@ describe("PoolBurnAndMintLogic", () => {
         ),
       ];
 
-      const result = _findClosestPrecedingTransfer(transfers);
+      const result = findClosestPrecedingTransfer(transfers);
 
       expect(result.logIndex).toBe(3);
     });
@@ -460,7 +460,7 @@ describe("PoolBurnAndMintLogic", () => {
         ),
       ];
 
-      const result = _findClosestPrecedingTransfer(transfers);
+      const result = findClosestPrecedingTransfer(transfers);
 
       expect(result.logIndex).toBe(1);
       expect(result.to).toBe(USER_ADDRESS);
@@ -494,7 +494,7 @@ describe("PoolBurnAndMintLogic", () => {
         ),
       ];
 
-      const result = _findClosestPrecedingTransfer(transfers);
+      const result = findClosestPrecedingTransfer(transfers);
 
       expect(result.logIndex).toBe(3);
     });
@@ -527,13 +527,13 @@ describe("PoolBurnAndMintLogic", () => {
         ),
       ];
 
-      const result = _findClosestPrecedingTransfer(transfers);
+      const result = findClosestPrecedingTransfer(transfers);
 
       expect(result.logIndex).toBe(3);
     });
   });
 
-  describe("_extractRecipientAddress", () => {
+  describe("extractRecipientAddress", () => {
     it("should extract 'to' address for mint events", () => {
       const transfer = createMockTransfer(
         1,
@@ -545,7 +545,7 @@ describe("PoolBurnAndMintLogic", () => {
       );
       const precedingTransfers = [transfer];
 
-      const result = _extractRecipientAddress(
+      const result = extractRecipientAddress(
         transfer,
         precedingTransfers,
         true,
@@ -566,7 +566,7 @@ describe("PoolBurnAndMintLogic", () => {
       );
       const precedingTransfers = [transfer];
 
-      const result = _extractRecipientAddress(
+      const result = extractRecipientAddress(
         transfer,
         precedingTransfers,
         false,
@@ -595,7 +595,7 @@ describe("PoolBurnAndMintLogic", () => {
       );
       const precedingTransfers = [addressOneTransfer, userTransfer];
 
-      const result = _extractRecipientAddress(
+      const result = extractRecipientAddress(
         addressOneTransfer,
         precedingTransfers,
         true,
@@ -617,7 +617,7 @@ describe("PoolBurnAndMintLogic", () => {
       );
       const precedingTransfers = [addressOneTransfer];
 
-      const result = _extractRecipientAddress(
+      const result = extractRecipientAddress(
         addressOneTransfer,
         precedingTransfers,
         true,
@@ -658,7 +658,7 @@ describe("PoolBurnAndMintLogic", () => {
         userTransfer,
       ];
 
-      const result = _extractRecipientAddress(
+      const result = extractRecipientAddress(
         addressOneTransfer2,
         precedingTransfers,
         true,
@@ -687,7 +687,7 @@ describe("PoolBurnAndMintLogic", () => {
       );
       const precedingTransfers = [addressOneTransfer1, addressOneTransfer2];
 
-      const result = _extractRecipientAddress(
+      const result = extractRecipientAddress(
         addressOneTransfer2,
         precedingTransfers,
         true,
@@ -731,7 +731,7 @@ describe("PoolBurnAndMintLogic", () => {
         userTransfer2,
       ];
 
-      const result = _extractRecipientAddress(
+      const result = extractRecipientAddress(
         addressOneTransfer,
         precedingTransfers,
         true,
@@ -744,7 +744,7 @@ describe("PoolBurnAndMintLogic", () => {
     });
   });
 
-  describe("_findTransferAndAttribute", () => {
+  describe("findTransferAndAttribute", () => {
     it("should find matching mint transfer and calculate USD", async () => {
       const mintTransfer = createMockTransfer(
         1,
@@ -757,7 +757,7 @@ describe("PoolBurnAndMintLogic", () => {
       mockPoolTransferInTx = [mintTransfer];
 
       const event = createMockMintEvent(2);
-      const result = await _findTransferAndAttribute(
+      const result = await findTransferAndAttribute(
         event,
         POOL_ADDRESS,
         CHAIN_ID,
@@ -791,7 +791,7 @@ describe("PoolBurnAndMintLogic", () => {
       mockPoolTransferInTx = [burnTransfer];
 
       const event = createMockBurnEvent(2);
-      const result = await _findTransferAndAttribute(
+      const result = await findTransferAndAttribute(
         event,
         POOL_ADDRESS,
         CHAIN_ID,
@@ -811,7 +811,7 @@ describe("PoolBurnAndMintLogic", () => {
       mockPoolTransferInTx = [];
 
       const event = createMockMintEvent(2);
-      const result = await _findTransferAndAttribute(
+      const result = await findTransferAndAttribute(
         event,
         POOL_ADDRESS,
         CHAIN_ID,
@@ -857,7 +857,7 @@ describe("PoolBurnAndMintLogic", () => {
       mockPoolTransferInTx = transfers;
 
       const event = createMockMintEvent(4);
-      const result = await _findTransferAndAttribute(
+      const result = await findTransferAndAttribute(
         event,
         POOL_ADDRESS,
         CHAIN_ID,
