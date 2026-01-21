@@ -14,6 +14,9 @@ importers:
       '@uniswap/v3-sdk':
         specifier: ^3.26.0
         version: 3.26.0(hardhat@2.27.0(ts-node@10.9.2(@types/node@18.19.70)(typescript@5.7.3))(typescript@5.7.3))
+      dotenv:
+        specifier: ^16.4.5
+        version: 16.4.5
       envio:
         specifier: 2.32.2
         version: 2.32.2(typescript@5.7.3)(zod@3.24.1)

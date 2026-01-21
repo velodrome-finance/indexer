@@ -28,6 +28,7 @@
   "dependencies": {
     "@uniswap/sdk-core": "^7.9.0",
     "@uniswap/v3-sdk": "^3.26.0",
+    "dotenv": "^16.4.5",
     "envio": "2.32.2",
     "jsbi": "^4.3.2",
     "prettier": "^2.8.8",
