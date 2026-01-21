@@ -8,8 +8,6 @@ import {
   updateUserStatsPerPool,
 } from "../../Aggregators/UserStatsPerPool";
 import { ZERO_ADDRESS } from "../../Constants";
-import { getSqrtPriceX96, roundBlockToInterval } from "../../Effects/Token";
-import { executeEffectWithRoundedBlockRetry } from "../../Helpers";
 
 /**
  * Calculates liquidity from updated amounts (amount0 and amount1) using current price
@@ -38,44 +36,19 @@ export async function calculateLiquidityFromAmounts(
   // Default to current liquidity if calculation fails
   let updatedLiquidity = wrapper.liquidity;
 
-  // Try with rounded block first, then retry with actual block if it fails
-  let sqrtPriceX96: bigint | undefined;
-  let usedBlockNumber: number | undefined;
-
   try {
-    const roundedBlockNumber = roundBlockToInterval(blockNumber, chainId);
+    // Load pool entity to get sqrtPriceX96
+    const liquidityPoolAggregator =
+      await context.LiquidityPoolAggregator.get(poolAddress);
 
-    try {
-      sqrtPriceX96 = await executeEffectWithRoundedBlockRetry(
-        (input) => context.effect(getSqrtPriceX96, input),
-        {
-          poolAddress: poolAddress,
-          chainId: chainId,
-          blockNumber: roundedBlockNumber,
-        },
-        {
-          poolAddress: poolAddress,
-          chainId: chainId,
-          blockNumber: blockNumber,
-        },
-        context,
-        `[ALMLPWrapper.${eventType}]`,
-        {
-          retryOnZero: true,
-          zeroValue: 0n,
-        },
-      );
-      // Track which block was actually used (helper will use original if rounded fails)
-      usedBlockNumber = blockNumber;
-    } catch (error) {
-      // If both rounded and original block fail, set to undefined
+    if (!liquidityPoolAggregator) {
       context.log.error(
-        `[ALMLPWrapper.${eventType}] Failed to get sqrtPriceX96 for pool ${poolAddress} at both rounded and actual block on chain ${chainId}`,
-        error instanceof Error ? error : new Error(String(error)),
+        `[ALMLPWrapper.${eventType}] LiquidityPoolAggregator not found for pool ${poolAddress} on chain ${chainId}. Skipping liquidity update.`,
       );
-      sqrtPriceX96 = undefined;
-      usedBlockNumber = blockNumber;
+      return updatedLiquidity;
     }
+
+    const sqrtPriceX96 = liquidityPoolAggregator.sqrtPriceX96;
 
     if (sqrtPriceX96 !== undefined && sqrtPriceX96 !== 0n) {
       // Convert ticks → sqrt ratios
@@ -100,7 +73,7 @@ export async function calculateLiquidityFromAmounts(
     } else {
       // Do not update liquidity if sqrtPriceX96 is undefined or 0
       context.log.warn(
-        `[ALMLPWrapper.${eventType}] sqrtPriceX96 is undefined or 0 for pool ${poolAddress} at block ${usedBlockNumber ?? blockNumber} on chain ${chainId}. Skipping liquidity update.`,
+        `[ALMLPWrapper.${eventType}] sqrtPriceX96 is undefined or 0 for pool ${poolAddress} at block ${blockNumber} on chain ${chainId}. Skipping liquidity update.`,
       );
     }
   } catch (error) {

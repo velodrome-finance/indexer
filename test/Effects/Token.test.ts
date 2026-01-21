@@ -4,7 +4,6 @@ import { CHAIN_CONSTANTS, PriceOracleType } from "../../src/Constants";
 import * as ErrorsEffects from "../../src/Effects/Errors";
 import * as HelpersEffects from "../../src/Effects/Helpers";
 import {
-  fetchSqrtPriceX96,
   fetchTokenDetails,
   fetchTokenPrice,
   fetchTotalSupply,
@@ -23,8 +22,6 @@ const TEST_TOKEN_ADDRESS = "0x1234567890123456789012345678901234567890";
 const TEST_USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 const TEST_SYSTEM_TOKEN = "0x4200000000000000000000000000000000000006";
 const TEST_ORACLE_ADDRESS = "0x1234567890123456789012345678901234567890";
-const TEST_POOL_ADDRESS = TEST_TOKEN_ADDRESS;
-const TEST_SQRT_PRICE = 1000000000000000000n;
 const TEST_PRICE_RESULT = ["1000000000000000000"];
 
 // Helper functions will be defined inside describe block to access mockEthClient and mockContext
@@ -803,169 +800,6 @@ describe("Token Effects", () => {
         expect(sleepSpy).toHaveBeenCalledWith(expectedDelay);
         sleepSpy.mockRestore();
       }
-    });
-  });
-
-  describe("fetchSqrtPriceX96", () => {
-    it("should handle different result formats from primary RPC", async () => {
-      const testCases = [
-        { result: [TEST_SQRT_PRICE], description: "array result" },
-        {
-          result: { sqrtPriceX96: TEST_SQRT_PRICE },
-          description: "object with sqrtPriceX96",
-        },
-        { result: { 0: TEST_SQRT_PRICE }, description: "object with [0]" },
-      ];
-
-      for (const { result } of testCases) {
-        jest.mocked(mockEthClient.simulateContract).mockResolvedValue({
-          result,
-        } as never);
-
-        const fetchResult = await fetchSqrtPriceX96(
-          TEST_POOL_ADDRESS,
-          TEST_CHAIN_ID,
-          TEST_BLOCK_NUMBER,
-          mockEthClient,
-          mockContext.log,
-        );
-
-        expect(fetchResult).toBe(TEST_SQRT_PRICE);
-        jest.mocked(mockEthClient.simulateContract).mockClear();
-      }
-    });
-
-    it("should throw error for unexpected result formats from primary RPC", async () => {
-      const testCases = [
-        {
-          result: { unexpectedKey: "value" },
-          expectedError: "Unexpected result format from slot0",
-          logMessage: "Unexpected result format",
-        },
-        {
-          result: "string result",
-          expectedError: "Unexpected result type from slot0",
-          logMessage: "Result is not array or object",
-        },
-      ];
-
-      for (const { result, expectedError, logMessage } of testCases) {
-        jest
-          .mocked(mockEthClient.simulateContract)
-          .mockResolvedValue({ result } as never);
-
-        await expect(
-          fetchSqrtPriceX96(
-            TEST_POOL_ADDRESS,
-            TEST_CHAIN_ID,
-            TEST_BLOCK_NUMBER,
-            mockEthClient,
-            mockContext.log,
-          ),
-        ).rejects.toThrow(expectedError);
-
-        expect(mockContext.log.error).toHaveBeenCalledWith(
-          expect.stringContaining(logMessage),
-        );
-        jest.mocked(mockContext.log.error).mockClear();
-      }
-    });
-
-    it("should handle fallback RPC with different result formats", async () => {
-      const testCases = [
-        { result: [TEST_SQRT_PRICE], description: "array" },
-        {
-          result: { sqrtPriceX96: TEST_SQRT_PRICE },
-          description: "object with sqrtPriceX96",
-        },
-        { result: { 0: TEST_SQRT_PRICE }, description: "object with [0]" },
-      ];
-
-      for (const { result } of testCases) {
-        jest
-          .mocked(mockEthClient.simulateContract)
-          .mockRejectedValue(new Error("state histories not available"));
-
-        const mockFallbackClient = {
-          simulateContract: jest.fn().mockResolvedValue({ result }),
-        } as unknown as PublicClient;
-
-        jest
-          .spyOn(ErrorsEffects, "createFallbackClient")
-          .mockReturnValue(mockFallbackClient);
-
-        const fetchResult = await fetchSqrtPriceX96(
-          TEST_POOL_ADDRESS,
-          TEST_CHAIN_ID,
-          TEST_BLOCK_NUMBER,
-          mockEthClient,
-          mockContext.log,
-        );
-
-        expect(fetchResult).toBe(TEST_SQRT_PRICE);
-        expect(mockFallbackClient.simulateContract).toHaveBeenCalled();
-        jest.restoreAllMocks();
-      }
-    });
-
-    it("should throw error for fallback RPC with unexpected result formats", async () => {
-      const testCases = [
-        { result: { unexpectedKey: "value" } },
-        { result: "string result" },
-      ];
-
-      for (const { result } of testCases) {
-        jest
-          .mocked(mockEthClient.simulateContract)
-          .mockRejectedValue(new Error("state histories not available"));
-
-        const mockFallbackClient = {
-          simulateContract: jest.fn().mockResolvedValue({ result }),
-        } as unknown as PublicClient;
-
-        jest
-          .spyOn(ErrorsEffects, "createFallbackClient")
-          .mockReturnValue(mockFallbackClient);
-
-        await expect(
-          fetchSqrtPriceX96(
-            TEST_POOL_ADDRESS,
-            TEST_CHAIN_ID,
-            TEST_BLOCK_NUMBER,
-            mockEthClient,
-            mockContext.log,
-          ),
-        ).rejects.toThrow("Failed to fetch sqrtPriceX96");
-
-        expect(mockFallbackClient.simulateContract).toHaveBeenCalled();
-        expect(mockContext.log.error).toHaveBeenCalledWith(
-          expect.stringContaining("Fallback RPC also failed"),
-          expect.any(Error),
-        );
-        jest.restoreAllMocks();
-      }
-    });
-
-    it("should log warning when no fallback RPC is available", async () => {
-      jest
-        .mocked(mockEthClient.simulateContract)
-        .mockRejectedValue(new Error("state histories not available"));
-
-      jest.spyOn(ErrorsEffects, "createFallbackClient").mockReturnValue(null);
-
-      await expect(
-        fetchSqrtPriceX96(
-          TEST_POOL_ADDRESS,
-          TEST_CHAIN_ID,
-          TEST_BLOCK_NUMBER,
-          mockEthClient,
-          mockContext.log,
-        ),
-      ).rejects.toThrow();
-
-      expect(mockContext.log.warn).toHaveBeenCalledWith(
-        expect.stringContaining("No fallback RPC available for chain"),
-      );
     });
   });
 });

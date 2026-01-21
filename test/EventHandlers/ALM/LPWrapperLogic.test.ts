@@ -27,23 +27,18 @@ describe("LPWrapperLogic", () => {
   const mockSqrtPriceX96 = 79228162514264337593543950336n; // sqrt(1) * 2^96
 
   let mockContext: handlerContext;
-  let mockGetSqrtPriceX96: jest.Mock;
-  let roundBlockToIntervalSpy: jest.SpyInstance;
+  let mockLiquidityPoolAggregator: jest.Mock;
 
   beforeEach(() => {
-    // Spy on roundBlockToInterval
-    roundBlockToIntervalSpy = jest
-      .spyOn(TokenEffects, "roundBlockToInterval")
-      .mockReturnValue(roundedBlockNumber);
-
-    // Create mock context with effect mock
-    // The effect mock receives (effectFn, input) and should return the result
-    mockGetSqrtPriceX96 = jest.fn((_effectFn, input) => {
-      // Default behavior - can be overridden in tests
-      return Promise.resolve(mockSqrtPriceX96);
+    mockLiquidityPoolAggregator = jest.fn().mockResolvedValue({
+      sqrtPriceX96: mockSqrtPriceX96,
+      isCL: true,
     });
+
     mockContext = {
-      effect: mockGetSqrtPriceX96,
+      LiquidityPoolAggregator: {
+        get: mockLiquidityPoolAggregator,
+      },
       log: {
         warn: jest.fn(),
         error: jest.fn(),
@@ -153,11 +148,6 @@ describe("LPWrapperLogic", () => {
       const updatedAmount0 = 600n * 10n ** 18n;
       const updatedAmount1 = 300n * 10n ** 6n;
 
-      // Mock successful sqrtPriceX96 fetch
-      mockGetSqrtPriceX96.mockImplementation((_effectFn, _input) =>
-        Promise.resolve(mockSqrtPriceX96),
-      );
-
       const result = await calculateLiquidityFromAmounts(
         wrapper,
         updatedAmount0,
@@ -172,15 +162,11 @@ describe("LPWrapperLogic", () => {
       // Result should be a calculated liquidity value (not the original)
       expect(result).not.toBe(wrapper.liquidity);
       expect(typeof result).toBe("bigint");
-      expect(mockGetSqrtPriceX96).toHaveBeenCalledTimes(1);
-      expect(roundBlockToIntervalSpy).toHaveBeenCalledTimes(1);
-      expect(roundBlockToIntervalSpy).toHaveBeenCalledWith(
-        blockNumber,
-        chainId,
-      );
+      expect(mockLiquidityPoolAggregator).toHaveBeenCalledTimes(1);
+      expect(mockLiquidityPoolAggregator).toHaveBeenCalledWith(poolAddress);
     });
 
-    it("should retry with actual block number if rounded block fails", async () => {
+    it("should return current liquidity if pool entity is not found", async () => {
       const wrapper: ALM_LP_Wrapper = {
         ...mockALMLPWrapperData,
         liquidity: 1000000n,
@@ -193,21 +179,8 @@ describe("LPWrapperLogic", () => {
       const updatedAmount0 = 600n * 10n ** 18n;
       const updatedAmount1 = 300n * 10n ** 6n;
 
-      // First call (rounded block) fails, second call (actual block) succeeds
-      let callCount = 0;
-      mockGetSqrtPriceX96.mockImplementation((_effectFn, input) => {
-        callCount++;
-        if (callCount === 1) {
-          // First call should be with rounded block
-          expect(input.blockNumber).toBe(roundedBlockNumber);
-          return Promise.reject(
-            new Error("Pool does not exist at rounded block"),
-          );
-        }
-        // Second call should be with original block
-        expect(input.blockNumber).toBe(blockNumber);
-        return Promise.resolve(mockSqrtPriceX96);
-      });
+      // Mock pool entity not found
+      mockLiquidityPoolAggregator.mockResolvedValue(null);
 
       const result = await calculateLiquidityFromAmounts(
         wrapper,
@@ -220,24 +193,13 @@ describe("LPWrapperLogic", () => {
         "Withdraw",
       );
 
-      // Verify retry happened (both calls were made)
-      expect(mockGetSqrtPriceX96).toHaveBeenCalledTimes(2);
-      // Verify first call was with rounded block
-      // args[0] is the effect function (getSqrtPriceX96), args[1] is the input object
-      expect(mockGetSqrtPriceX96.mock.calls[0][1].blockNumber).toBe(
-        roundedBlockNumber,
-      );
-      // Verify second call was with actual block
-      expect(mockGetSqrtPriceX96.mock.calls[1][1].blockNumber).toBe(
-        blockNumber,
-      );
-      // Verify info was logged (retry helper logs at info level)
-      expect(mockContext.log.info as jest.Mock).toHaveBeenCalledTimes(1);
-      // Result should be a calculated value (may or may not equal wrapper.liquidity depending on calculation)
-      expect(typeof result).toBe("bigint");
+      // Should return current liquidity
+      expect(result).toBe(wrapper.liquidity);
+      expect(mockContext.log.error as jest.Mock).toHaveBeenCalledTimes(1);
+      expect(mockLiquidityPoolAggregator).toHaveBeenCalledTimes(1);
     });
 
-    it("should return current liquidity if both rounded and actual block fail", async () => {
+    it("should return current liquidity if pool entity fetch throws error", async () => {
       const wrapper: ALM_LP_Wrapper = {
         ...mockALMLPWrapperData,
         liquidity: 1000000n,
@@ -250,9 +212,9 @@ describe("LPWrapperLogic", () => {
       const updatedAmount0 = 600n * 10n ** 18n;
       const updatedAmount1 = 300n * 10n ** 6n;
 
-      // Both calls fail
-      mockGetSqrtPriceX96.mockImplementation((_effectFn, _input) =>
-        Promise.reject(new Error("Failed to fetch")),
+      // Mock pool entity fetch throws error
+      mockLiquidityPoolAggregator.mockRejectedValue(
+        new Error("Failed to fetch"),
       );
 
       const result = await calculateLiquidityFromAmounts(
@@ -284,9 +246,11 @@ describe("LPWrapperLogic", () => {
       const updatedAmount0 = 600n * 10n ** 18n;
       const updatedAmount1 = 300n * 10n ** 6n;
 
-      mockGetSqrtPriceX96.mockImplementation((_effectFn, _input) =>
-        Promise.resolve(undefined),
-      );
+      // Mock pool with undefined sqrtPriceX96
+      mockLiquidityPoolAggregator.mockResolvedValue({
+        sqrtPriceX96: undefined,
+        isCL: true,
+      });
 
       const result = await calculateLiquidityFromAmounts(
         wrapper,
@@ -320,9 +284,11 @@ describe("LPWrapperLogic", () => {
       const updatedAmount0 = 600n * 10n ** 18n;
       const updatedAmount1 = 300n * 10n ** 6n;
 
-      mockGetSqrtPriceX96.mockImplementation((_effectFn, _input) =>
-        Promise.resolve(0n),
-      );
+      // Mock pool with sqrtPriceX96 = 0
+      mockLiquidityPoolAggregator.mockResolvedValue({
+        sqrtPriceX96: 0n,
+        isCL: true,
+      });
 
       const result = await calculateLiquidityFromAmounts(
         wrapper,
@@ -353,10 +319,10 @@ describe("LPWrapperLogic", () => {
       const updatedAmount0 = 600n * 10n ** 18n;
       const updatedAmount1 = 300n * 10n ** 6n;
 
-      // Throw unexpected error
-      roundBlockToIntervalSpy.mockImplementation(() => {
-        throw new Error("Unexpected error");
-      });
+      // Throw unexpected error when fetching pool entity
+      mockLiquidityPoolAggregator.mockRejectedValue(
+        new Error("Unexpected error"),
+      );
 
       const result = await calculateLiquidityFromAmounts(
         wrapper,
@@ -390,9 +356,8 @@ describe("LPWrapperLogic", () => {
       const updatedAmount0 = 600n * 10n ** 18n;
       const updatedAmount1 = 300n * 10n ** 6n;
 
-      mockGetSqrtPriceX96.mockImplementation((_effectFn, _input) =>
-        Promise.reject(new Error("Failed")),
-      );
+      // Mock pool entity fetch to throw error
+      mockLiquidityPoolAggregator.mockRejectedValue(new Error("Failed"));
 
       await calculateLiquidityFromAmounts(
         wrapper,
@@ -486,7 +451,10 @@ describe("LPWrapperLogic", () => {
     const lpAmount = 1000n * TEN_TO_THE_18_BI;
 
     beforeEach(() => {
-      mockGetSqrtPriceX96 = jest.fn().mockResolvedValue(mockSqrtPriceX96);
+      const mockPool = {
+        sqrtPriceX96: mockSqrtPriceX96,
+        isCL: true,
+      };
 
       mockContext = {
         ALM_LP_Wrapper: {
@@ -497,7 +465,14 @@ describe("LPWrapperLogic", () => {
           get: jest.fn(),
           set: jest.fn(),
         },
-        effect: mockGetSqrtPriceX96,
+        LiquidityPoolAggregator: {
+          get: jest.fn((poolAddr) => {
+            if (poolAddr === pool) {
+              return Promise.resolve(mockPool);
+            }
+            return Promise.resolve(null);
+          }),
+        },
         log: {
           warn: jest.fn(),
           error: jest.fn(),
@@ -622,7 +597,10 @@ describe("LPWrapperLogic", () => {
     const lpAmount = 500n * TEN_TO_THE_18_BI;
 
     beforeEach(() => {
-      mockGetSqrtPriceX96 = jest.fn().mockResolvedValue(mockSqrtPriceX96);
+      const mockPool = {
+        sqrtPriceX96: mockSqrtPriceX96,
+        isCL: true,
+      };
 
       mockContext = {
         ALM_LP_Wrapper: {
@@ -633,7 +611,14 @@ describe("LPWrapperLogic", () => {
           get: jest.fn(),
           set: jest.fn(),
         },
-        effect: mockGetSqrtPriceX96,
+        LiquidityPoolAggregator: {
+          get: jest.fn((poolAddr) => {
+            if (poolAddr === pool) {
+              return Promise.resolve(mockPool);
+            }
+            return Promise.resolve(null);
+          }),
+        },
         log: {
           warn: jest.fn(),
           error: jest.fn(),

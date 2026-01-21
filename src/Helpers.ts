@@ -2,11 +2,7 @@ import { SqrtPriceMath, TickMath } from "@uniswap/v3-sdk";
 import type { LiquidityPoolAggregator, Token, handlerContext } from "generated";
 import JSBI from "jsbi";
 import { TEN_TO_THE_18_BI } from "./Constants";
-import {
-  getSqrtPriceX96,
-  getTotalSupply,
-  roundBlockToInterval,
-} from "./Effects/Token";
+import { getTotalSupply, roundBlockToInterval } from "./Effects/Token";
 import { multiplyBase1e18 } from "./Maths";
 import { refreshTokenPrice } from "./PriceOracle";
 
@@ -360,31 +356,13 @@ export async function calculateStakedLiquidityUSD(
         return 0n;
       }
 
-      // Get sqrtPriceX96 with retry logic for rounded block numbers
-      const sqrtPriceX96 = await executeEffectWithRoundedBlockRetry(
-        (input) => context.effect(getSqrtPriceX96, input),
-        {
-          poolAddress,
-          chainId,
-          blockNumber: roundedBlockNumber,
-        },
-        {
-          poolAddress,
-          chainId,
-          blockNumber: blockNumber,
-        },
-        context,
-        "[calculateStakedLiquidityUSD]",
-        {
-          retryOnZero: true,
-          zeroValue: undefined,
-        },
-      );
+      // Get sqrtPriceX96 from pool entity
+      const sqrtPriceX96 = liquidityPoolAggregator.sqrtPriceX96;
 
-      // Check if sqrtPriceX96 is undefined (error case) - return 0 USD
-      if (sqrtPriceX96 === undefined) {
+      // Check if sqrtPriceX96 is undefined or 0 (error case) - return 0 USD
+      if (sqrtPriceX96 === undefined || sqrtPriceX96 === 0n) {
         context.log.warn(
-          `[calculateStakedLiquidityUSD] sqrtPriceX96 is null for pool ${poolAddress} on chain ${chainId}, using 0 USD`,
+          `[calculateStakedLiquidityUSD] sqrtPriceX96 is undefined or 0 for pool ${poolAddress} on chain ${chainId}, using 0 USD`,
         );
         return 0n;
       }

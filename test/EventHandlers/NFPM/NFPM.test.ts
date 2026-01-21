@@ -12,7 +12,6 @@ describe("NFPM Events", () => {
   let mockDb: ReturnType<typeof MockDb.createMockDb>;
   const chainId = 10;
   const tokenId = 1n;
-  let originalChainConstant: (typeof CHAIN_CONSTANTS)[typeof chainId];
   // Use valid Ethereum addresses for tests (TokenIdByChain validates addresses)
   const token0Address = "0x2222222222222222222222222222222222222222";
   const token1Address = "0x3333333333333333333333333333333333333333";
@@ -66,24 +65,6 @@ describe("NFPM Events", () => {
   };
 
   beforeEach(() => {
-    // Store original before mutation to restore in afterEach
-    originalChainConstant = CHAIN_CONSTANTS[chainId];
-
-    // Mock ethClient to return proper slot0 structure for getSqrtPriceX96 effect
-    const Q96 = 2n ** 96n;
-    const mockSqrtPriceX96 = Q96; // Price at tick 0
-    const mockEthClient = {
-      simulateContract: jest.fn().mockResolvedValue({
-        result: [mockSqrtPriceX96], // slot0 returns array with sqrtPriceX96 as first element
-      }),
-    } as unknown as PublicClient;
-
-    // Mock CHAIN_CONSTANTS to provide mock ethClient
-    (CHAIN_CONSTANTS as Record<number, { eth_client: PublicClient }>)[chainId] =
-      {
-        eth_client: mockEthClient,
-      };
-
     mockDb = MockDb.createMockDb();
     mockDb = mockDb.entities.NonFungiblePosition.set({
       ...mockNonFungiblePosition,
@@ -93,12 +74,6 @@ describe("NFPM Events", () => {
   });
 
   afterEach(() => {
-    // Restore original CHAIN_CONSTANTS to prevent test pollution
-    if (originalChainConstant !== undefined) {
-      CHAIN_CONSTANTS[chainId] = originalChainConstant;
-    } else {
-      (CHAIN_CONSTANTS as Record<number, unknown>)[chainId] = undefined;
-    }
     jest.restoreAllMocks();
   });
 
