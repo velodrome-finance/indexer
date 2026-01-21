@@ -8,6 +8,7 @@ import type {
 import {
   calculatePositionAmountsFromLiquidity,
   calculateStakedLiquidityUSD,
+  executeEffectWithRoundedBlockRetry,
 } from "../src/Helpers";
 import { setupCommon } from "./EventHandlers/Pool/common";
 
@@ -1024,6 +1025,409 @@ describe("Helpers", () => {
 
         // Should return 0 (fallback case)
         expect(result).toBe(0n);
+      });
+    });
+  });
+
+  describe("executeEffectWithRoundedBlockRetry", () => {
+    let mockContext: handlerContext;
+    let logInfoCalls: string[];
+    let logErrorCalls: string[];
+
+    beforeEach(() => {
+      logInfoCalls = [];
+      logErrorCalls = [];
+      mockContext = {
+        log: {
+          info: (msg: unknown) => logInfoCalls.push(String(msg)),
+          warn: () => {},
+          error: (msg: unknown) => logErrorCalls.push(String(msg)),
+          debug: () => {},
+        },
+      } as unknown as handlerContext;
+    });
+
+    afterEach(() => {
+      logInfoCalls = [];
+      logErrorCalls = [];
+    });
+
+    describe("when block numbers are the same", () => {
+      it("should call effect once with rounded block and return result", async () => {
+        const mockEffect = jest.fn().mockResolvedValue(100n);
+        const input = {
+          tokenAddress: "0x123",
+          chainId: 10,
+          blockNumber: 1000,
+        };
+
+        const result = await executeEffectWithRoundedBlockRetry(
+          mockEffect,
+          input,
+          input,
+          mockContext,
+          "[test]",
+        );
+
+        expect(result).toBe(100n);
+        expect(mockEffect).toHaveBeenCalledTimes(1);
+        expect(mockEffect).toHaveBeenCalledWith(input);
+        expect(logInfoCalls).toHaveLength(0);
+      });
+    });
+
+    describe("when rounded block succeeds", () => {
+      it("should return result without retry", async () => {
+        const mockEffect = jest.fn().mockResolvedValue(100n);
+        const roundedInput = {
+          tokenAddress: "0x123",
+          chainId: 10,
+          blockNumber: 1000,
+        };
+        const originalInput = {
+          tokenAddress: "0x123",
+          chainId: 10,
+          blockNumber: 1050,
+        };
+
+        const result = await executeEffectWithRoundedBlockRetry(
+          mockEffect,
+          roundedInput,
+          originalInput,
+          mockContext,
+          "[test]",
+        );
+
+        expect(result).toBe(100n);
+        expect(mockEffect).toHaveBeenCalledTimes(1);
+        expect(mockEffect).toHaveBeenCalledWith(roundedInput);
+        expect(logInfoCalls).toHaveLength(0);
+      });
+
+      it("should not retry on zero value when retryOnZero is false", async () => {
+        const mockEffect = jest.fn().mockResolvedValue(0n);
+        const roundedInput = {
+          tokenAddress: "0x123",
+          chainId: 10,
+          blockNumber: 1000,
+        };
+        const originalInput = {
+          tokenAddress: "0x123",
+          chainId: 10,
+          blockNumber: 1050,
+        };
+
+        const result = await executeEffectWithRoundedBlockRetry(
+          mockEffect,
+          roundedInput,
+          originalInput,
+          mockContext,
+          "[test]",
+          { retryOnZero: false },
+        );
+
+        expect(result).toBe(0n);
+        expect(mockEffect).toHaveBeenCalledTimes(1);
+        expect(mockEffect).toHaveBeenCalledWith(roundedInput);
+        expect(logInfoCalls).toHaveLength(0);
+      });
+    });
+
+    describe("when retryOnZero is enabled", () => {
+      it("should retry with original block when rounded block returns zero", async () => {
+        const mockEffect = jest
+          .fn()
+          .mockResolvedValueOnce(0n) // First call (rounded) returns 0
+          .mockResolvedValueOnce(100n); // Second call (original) returns non-zero
+
+        const roundedInput = {
+          tokenAddress: "0x123",
+          chainId: 10,
+          blockNumber: 1000,
+        };
+        const originalInput = {
+          tokenAddress: "0x123",
+          chainId: 10,
+          blockNumber: 1050,
+        };
+
+        const result = await executeEffectWithRoundedBlockRetry(
+          mockEffect,
+          roundedInput,
+          originalInput,
+          mockContext,
+          "[test]",
+          {
+            retryOnZero: true,
+            zeroValue: 0n,
+          },
+        );
+
+        expect(result).toBe(100n);
+        expect(mockEffect).toHaveBeenCalledTimes(2);
+        expect(mockEffect).toHaveBeenNthCalledWith(1, roundedInput);
+        expect(mockEffect).toHaveBeenNthCalledWith(2, originalInput);
+        expect(logInfoCalls).toHaveLength(1);
+        expect(logInfoCalls[0]).toContain("Effect returned zero value");
+        expect(logInfoCalls[0]).toContain("1000");
+        expect(logInfoCalls[0]).toContain("1050");
+      });
+
+      it("should return zero if both rounded and original blocks return zero", async () => {
+        const mockEffect = jest
+          .fn()
+          .mockResolvedValueOnce(0n) // First call (rounded) returns 0
+          .mockResolvedValueOnce(0n); // Second call (original) also returns 0
+
+        const roundedInput = {
+          tokenAddress: "0x123",
+          chainId: 10,
+          blockNumber: 1000,
+        };
+        const originalInput = {
+          tokenAddress: "0x123",
+          chainId: 10,
+          blockNumber: 1050,
+        };
+
+        const result = await executeEffectWithRoundedBlockRetry(
+          mockEffect,
+          roundedInput,
+          originalInput,
+          mockContext,
+          "[test]",
+          {
+            retryOnZero: true,
+            zeroValue: 0n,
+          },
+        );
+
+        expect(result).toBe(0n);
+        expect(mockEffect).toHaveBeenCalledTimes(2);
+        expect(logInfoCalls).toHaveLength(1);
+      });
+    });
+
+    describe("when rounded block throws an exception", () => {
+      it("should retry with original block and return result", async () => {
+        const error = new Error("Contract does not exist");
+        const mockEffect = jest
+          .fn()
+          .mockRejectedValueOnce(error) // First call (rounded) throws
+          .mockResolvedValueOnce(100n); // Second call (original) succeeds
+
+        const roundedInput = {
+          tokenAddress: "0x123",
+          chainId: 10,
+          blockNumber: 1000,
+        };
+        const originalInput = {
+          tokenAddress: "0x123",
+          chainId: 10,
+          blockNumber: 1050,
+        };
+
+        const result = await executeEffectWithRoundedBlockRetry(
+          mockEffect,
+          roundedInput,
+          originalInput,
+          mockContext,
+          "[test]",
+        );
+
+        expect(result).toBe(100n);
+        expect(mockEffect).toHaveBeenCalledTimes(2);
+        expect(mockEffect).toHaveBeenNthCalledWith(1, roundedInput);
+        expect(mockEffect).toHaveBeenNthCalledWith(2, originalInput);
+        expect(logInfoCalls).toHaveLength(1);
+        expect(logInfoCalls[0]).toContain("Effect failed at rounded block");
+        expect(logInfoCalls[0]).toContain("1000");
+        expect(logInfoCalls[0]).toContain("1050");
+      });
+
+      it("should throw if both rounded and original blocks fail", async () => {
+        const error = new Error("Contract does not exist");
+        const mockEffect = jest
+          .fn()
+          .mockRejectedValueOnce(error) // First call (rounded) throws
+          .mockRejectedValueOnce(error); // Second call (original) also throws
+
+        const roundedInput = {
+          tokenAddress: "0x123",
+          chainId: 10,
+          blockNumber: 1000,
+        };
+        const originalInput = {
+          tokenAddress: "0x123",
+          chainId: 10,
+          blockNumber: 1050,
+        };
+
+        await expect(
+          executeEffectWithRoundedBlockRetry(
+            mockEffect,
+            roundedInput,
+            originalInput,
+            mockContext,
+            "[test]",
+          ),
+        ).rejects.toThrow("Contract does not exist");
+
+        expect(mockEffect).toHaveBeenCalledTimes(2);
+        expect(logInfoCalls).toHaveLength(1);
+      });
+    });
+
+    describe("with different input types", () => {
+      it("should work with bigint return type", async () => {
+        const mockEffect = jest.fn().mockResolvedValue(1000n);
+        const roundedInput = {
+          poolAddress: "0x456",
+          chainId: 10,
+          blockNumber: 2000,
+        };
+        const originalInput = {
+          poolAddress: "0x456",
+          chainId: 10,
+          blockNumber: 2050,
+        };
+
+        const result = await executeEffectWithRoundedBlockRetry(
+          mockEffect,
+          roundedInput,
+          originalInput,
+          mockContext,
+          "[test]",
+        );
+
+        expect(result).toBe(1000n);
+        expect(mockEffect).toHaveBeenCalledTimes(1);
+      });
+
+      it("should work with string return type", async () => {
+        const mockEffect = jest.fn().mockResolvedValue("success");
+        const roundedInput = {
+          address: "0x789",
+          chainId: 10,
+          blockNumber: 3000,
+        };
+        const originalInput = {
+          address: "0x789",
+          chainId: 10,
+          blockNumber: 3050,
+        };
+
+        const result = await executeEffectWithRoundedBlockRetry(
+          mockEffect,
+          roundedInput,
+          originalInput,
+          mockContext,
+          "[test]",
+        );
+
+        expect(result).toBe("success");
+        expect(mockEffect).toHaveBeenCalledTimes(1);
+      });
+
+      it("should work with object return type and custom zero value", async () => {
+        const zeroValue = { value: 0n };
+        const mockEffect = jest
+          .fn()
+          .mockResolvedValueOnce(zeroValue) // First call returns zero
+          .mockResolvedValueOnce({ value: 100n }); // Second call returns non-zero
+
+        const roundedInput = {
+          tokenAddress: "0xabc",
+          chainId: 10,
+          blockNumber: 4000,
+        };
+        const originalInput = {
+          tokenAddress: "0xabc",
+          chainId: 10,
+          blockNumber: 4050,
+        };
+
+        const result = await executeEffectWithRoundedBlockRetry(
+          mockEffect,
+          roundedInput,
+          originalInput,
+          mockContext,
+          "[test]",
+          {
+            retryOnZero: true,
+            zeroValue,
+          },
+        );
+
+        expect(result).toEqual({ value: 100n });
+        expect(mockEffect).toHaveBeenCalledTimes(2);
+        expect(logInfoCalls).toHaveLength(1);
+      });
+    });
+
+    describe("edge cases", () => {
+      it("should handle when rounded block succeeds but original block is needed for zero retry", async () => {
+        const mockEffect = jest
+          .fn()
+          .mockResolvedValueOnce(0n) // Rounded block returns 0
+          .mockResolvedValueOnce(50n); // Original block returns non-zero
+
+        const roundedInput = {
+          tokenAddress: "0xdef",
+          chainId: 10,
+          blockNumber: 5000,
+        };
+        const originalInput = {
+          tokenAddress: "0xdef",
+          chainId: 10,
+          blockNumber: 5011, // Different block
+        };
+
+        const result = await executeEffectWithRoundedBlockRetry(
+          mockEffect,
+          roundedInput,
+          originalInput,
+          mockContext,
+          "[test]",
+          {
+            retryOnZero: true,
+            zeroValue: 0n,
+          },
+        );
+
+        expect(result).toBe(50n);
+        expect(mockEffect).toHaveBeenCalledTimes(2);
+      });
+
+      it("should preserve error stack trace when retrying", async () => {
+        const error = new Error("Original error");
+        error.stack = "Error: Original error\n    at test.js:1:1";
+        const mockEffect = jest
+          .fn()
+          .mockRejectedValueOnce(error)
+          .mockResolvedValueOnce(200n);
+
+        const roundedInput = {
+          tokenAddress: "0xghi",
+          chainId: 10,
+          blockNumber: 6000,
+        };
+        const originalInput = {
+          tokenAddress: "0xghi",
+          chainId: 10,
+          blockNumber: 6050,
+        };
+
+        const result = await executeEffectWithRoundedBlockRetry(
+          mockEffect,
+          roundedInput,
+          originalInput,
+          mockContext,
+          "[test]",
+        );
+
+        expect(result).toBe(200n);
+        expect(mockEffect).toHaveBeenCalledTimes(2);
       });
     });
   });

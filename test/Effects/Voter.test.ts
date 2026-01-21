@@ -8,6 +8,15 @@ import {
   getTokensDeposited,
 } from "../../src/Effects/Voter";
 
+// Common test constants
+const TEST_CHAIN_ID = 10;
+const TEST_BLOCK_NUMBER = 12345;
+const TEST_REWARD_TOKEN = "0x1234567890123456789012345678901234567890";
+const TEST_GAUGE = "0x0987654321098765432109876543210987654321";
+const TEST_VOTER = TEST_REWARD_TOKEN;
+const TEST_BALANCE_HEX =
+  "0x00000000000000000000000000000000000000000000000000000000000003e8"; // 1000
+
 describe("Voter Effects", () => {
   let mockContext: {
     effect: (
@@ -31,11 +40,10 @@ describe("Voter Effects", () => {
       } as unknown as { result: string }),
     } as unknown as PublicClient;
 
-    // Save the original value before mutating
     originalChainConstants10 = CHAIN_CONSTANTS[10];
-
-    // Mock CHAIN_CONSTANTS by directly setting the property
-    (CHAIN_CONSTANTS as Record<number, { eth_client: PublicClient }>)[10] = {
+    (CHAIN_CONSTANTS as Record<number, { eth_client: PublicClient }>)[
+      TEST_CHAIN_ID
+    ] = {
       eth_client: mockEthClient,
     };
 
@@ -58,11 +66,10 @@ describe("Voter Effects", () => {
   });
 
   afterEach(() => {
-    // Restore the original CHAIN_CONSTANTS[10] value
     if (originalChainConstants10 !== undefined) {
-      CHAIN_CONSTANTS[10] = originalChainConstants10;
+      CHAIN_CONSTANTS[TEST_CHAIN_ID] = originalChainConstants10;
     } else {
-      (CHAIN_CONSTANTS as Record<number, unknown>)[10] = undefined;
+      (CHAIN_CONSTANTS as Record<number, unknown>)[TEST_CHAIN_ID] = undefined;
     }
     jest.restoreAllMocks();
   });
@@ -83,210 +90,167 @@ describe("Voter Effects", () => {
 
   describe("fetchTokensDeposited", () => {
     it("should fetch tokens deposited from contract", async () => {
-      const mockSimulate = jest.mocked(mockEthClient.simulateContract);
-      const rewardTokenAddress = "0x1234567890123456789012345678901234567890";
-      const gaugeAddress = "0x0987654321098765432109876543210987654321";
-      const blockNumber = 12345;
-      const eventChainId = 10;
-
-      // Mock the contract response with a specific balance
-      mockSimulate.mockResolvedValue({
-        result:
-          "0x00000000000000000000000000000000000000000000000000000000000003e8", // 1000 in hex
+      jest.mocked(mockEthClient.simulateContract).mockResolvedValue({
+        result: TEST_BALANCE_HEX,
         // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
       } as any);
 
       const result = await fetchTokensDeposited(
-        rewardTokenAddress,
-        gaugeAddress,
-        blockNumber,
-        eventChainId,
+        TEST_REWARD_TOKEN,
+        TEST_GAUGE,
+        TEST_BLOCK_NUMBER,
+        TEST_CHAIN_ID,
         mockEthClient,
         mockContext.log,
       );
 
-      expect(typeof result).toBe("bigint");
       expect(result).toBe(1000n);
-
-      // Verify correct contract call
-      expect(mockSimulate).toHaveBeenCalledTimes(1);
-      const callArgs = mockSimulate.mock.calls[0][0];
+      expect(mockEthClient.simulateContract).toHaveBeenCalledTimes(1);
+      const callArgs = jest.mocked(mockEthClient.simulateContract).mock
+        .calls[0][0];
       expect(callArgs).toMatchObject({
-        address: rewardTokenAddress,
+        address: TEST_REWARD_TOKEN,
         functionName: "balanceOf",
-        blockNumber: BigInt(blockNumber),
+        blockNumber: BigInt(TEST_BLOCK_NUMBER),
       });
-      expect(callArgs.args).toEqual([gaugeAddress]);
+      expect(callArgs.args).toEqual([TEST_GAUGE]);
     });
 
-    it("should handle contract call errors gracefully", async () => {
-      const mockSimulate = jest.mocked(mockEthClient.simulateContract);
-      const rewardTokenAddress = "0x1234567890123456789012345678901234567890";
-      const gaugeAddress = "0x0987654321098765432109876543210987654321";
-      const blockNumber = 12345;
-      const eventChainId = 10;
+    it("should throw error on contract call failure", async () => {
+      jest
+        .mocked(mockEthClient.simulateContract)
+        .mockRejectedValue(new Error("Contract call failed"));
 
-      // Mock simulateContract to throw an error
-      mockSimulate.mockRejectedValue(new Error("Contract call failed"));
-
-      const result = await fetchTokensDeposited(
-        rewardTokenAddress,
-        gaugeAddress,
-        blockNumber,
-        eventChainId,
-        mockEthClient,
-        mockContext.log,
-      );
-
-      // Should return 0n on error
-      expect(typeof result).toBe("bigint");
-      expect(result).toBe(0n);
-
-      // Verify error was logged
-      expect(jest.mocked(mockContext.log.error)).toHaveBeenCalled();
+      await expect(
+        fetchTokensDeposited(
+          TEST_REWARD_TOKEN,
+          TEST_GAUGE,
+          TEST_BLOCK_NUMBER,
+          TEST_CHAIN_ID,
+          mockEthClient,
+          mockContext.log,
+        ),
+      ).rejects.toThrow("Contract call failed");
     });
 
     it("should handle undefined/null results", async () => {
-      const mockSimulate = jest.mocked(mockEthClient.simulateContract);
-      const rewardTokenAddress = "0x1234567890123456789012345678901234567890";
-      const gaugeAddress = "0x0987654321098765432109876543210987654321";
-      const blockNumber = 12345;
-      const eventChainId = 10;
-
-      // Mock simulateContract to return undefined result
-      mockSimulate.mockResolvedValue({
+      jest.mocked(mockEthClient.simulateContract).mockResolvedValue({
         result: undefined,
         // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
       } as any);
 
       const result = await fetchTokensDeposited(
-        rewardTokenAddress,
-        gaugeAddress,
-        blockNumber,
-        eventChainId,
+        TEST_REWARD_TOKEN,
+        TEST_GAUGE,
+        TEST_BLOCK_NUMBER,
+        TEST_CHAIN_ID,
         mockEthClient,
         mockContext.log,
       );
 
-      expect(typeof result).toBe("bigint");
       expect(result).toBe(0n);
     });
   });
 
   describe("fetchIsAlive", () => {
-    it("should fetch is alive status from contract when gauge is alive", async () => {
-      const voterAddress = "0x1234567890123456789012345678901234567890";
-      const gaugeAddress = "0x0987654321098765432109876543210987654321";
-      const blockNumber = 12345;
-      const eventChainId = 10;
+    it("should fetch is alive status from contract", async () => {
+      const testCases = [
+        { result: true, expected: true, description: "gauge is alive" },
+        { result: false, expected: false, description: "gauge is not alive" },
+        { result: 0, expected: false, description: "falsy value" },
+      ];
 
-      // Mock the contract response with true (gauge is alive)
-      const mockSimulateContract = jest.mocked(mockEthClient.simulateContract);
-      mockSimulateContract.mockResolvedValue({
-        result: true,
-        // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
-      } as any);
+      for (const { result, expected } of testCases) {
+        jest.mocked(mockEthClient.simulateContract).mockResolvedValue({
+          result,
+          // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
+        } as any);
 
-      const result = await fetchIsAlive(
-        voterAddress,
-        gaugeAddress,
-        blockNumber,
-        eventChainId,
-        mockEthClient,
-        mockContext.log,
-      );
+        const fetchResult = await fetchIsAlive(
+          TEST_VOTER,
+          TEST_GAUGE,
+          TEST_BLOCK_NUMBER,
+          TEST_CHAIN_ID,
+          mockEthClient,
+          mockContext.log,
+        );
 
-      expect(typeof result).toBe("boolean");
-      expect(result).toBe(true);
-
-      // Verify correct contract call
-      expect(mockSimulateContract).toHaveBeenCalledTimes(1);
-      const callArgs = mockSimulateContract.mock.calls[0][0];
-      expect(callArgs).toMatchObject({
-        address: voterAddress,
-        functionName: "isAlive",
-        blockNumber: BigInt(blockNumber),
-      });
-      expect(callArgs.args).toEqual([gaugeAddress]);
+        expect(fetchResult).toBe(expected);
+        const callArgs = jest.mocked(mockEthClient.simulateContract).mock
+          .calls[0][0];
+        expect(callArgs).toMatchObject({
+          address: TEST_VOTER,
+          functionName: "isAlive",
+          blockNumber: BigInt(TEST_BLOCK_NUMBER),
+        });
+        expect(callArgs.args).toEqual([TEST_GAUGE]);
+        jest.mocked(mockEthClient.simulateContract).mockClear();
+      }
     });
 
-    it("should fetch is alive status from contract when gauge is not alive", async () => {
-      const voterAddress = "0x1234567890123456789012345678901234567890";
-      const gaugeAddress = "0x0987654321098765432109876543210987654321";
-      const blockNumber = 12345;
-      const eventChainId = 10;
+    it("should throw error on contract call failure", async () => {
+      jest
+        .mocked(mockEthClient.simulateContract)
+        .mockRejectedValue(new Error("Contract call failed"));
 
-      // Mock the contract response with false (gauge is not alive)
-      const mockSimulateContract = jest.mocked(mockEthClient.simulateContract);
-      mockSimulateContract.mockResolvedValue({
-        result: false,
-        // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
-      } as any);
-
-      const result = await fetchIsAlive(
-        voterAddress,
-        gaugeAddress,
-        blockNumber,
-        eventChainId,
-        mockEthClient,
-        mockContext.log,
-      );
-
-      expect(typeof result).toBe("boolean");
-      expect(result).toBe(false);
+      await expect(
+        fetchIsAlive(
+          TEST_VOTER,
+          TEST_GAUGE,
+          TEST_BLOCK_NUMBER,
+          TEST_CHAIN_ID,
+          mockEthClient,
+          mockContext.log,
+        ),
+      ).rejects.toThrow("Contract call failed");
     });
+  });
 
-    it("should handle contract call errors gracefully", async () => {
-      const voterAddress = "0x1234567890123456789012345678901234567890";
-      const gaugeAddress = "0x0987654321098765432109876543210987654321";
-      const blockNumber = 12345;
-      const eventChainId = 10;
+  describe("getTokensDeposited", () => {
+    it("should return undefined on error", async () => {
+      jest
+        .mocked(mockEthClient.simulateContract)
+        .mockRejectedValue(new Error("Contract call failed"));
 
-      // Mock simulateContract to throw an error
-      const mockSimulateContract = jest.mocked(mockEthClient.simulateContract);
-      mockSimulateContract.mockRejectedValue(new Error("Contract call failed"));
-
-      const result = await fetchIsAlive(
-        voterAddress,
-        gaugeAddress,
-        blockNumber,
-        eventChainId,
-        mockEthClient,
-        mockContext.log,
+      const result = await mockContext.effect(
+        getTokensDeposited as unknown as {
+          name: string;
+          handler: (args: { input: unknown; context: unknown }) => unknown;
+        },
+        {
+          rewardTokenAddress: TEST_REWARD_TOKEN,
+          gaugeAddress: TEST_GAUGE,
+          blockNumber: TEST_BLOCK_NUMBER,
+          eventChainId: TEST_CHAIN_ID,
+        },
       );
 
-      // Should return false on error
-      expect(typeof result).toBe("boolean");
-      expect(result).toBe(false);
-
-      // Verify error was logged
-      expect(jest.mocked(mockContext.log.error)).toHaveBeenCalled();
+      expect(result).toBeUndefined();
+      expect(mockContext.log.error).toHaveBeenCalled();
     });
+  });
 
-    it("should handle falsy results correctly", async () => {
-      const voterAddress = "0x1234567890123456789012345678901234567890";
-      const gaugeAddress = "0x0987654321098765432109876543210987654321";
-      const blockNumber = 12345;
-      const eventChainId = 10;
+  describe("getIsAlive", () => {
+    it("should return undefined on error", async () => {
+      jest
+        .mocked(mockEthClient.simulateContract)
+        .mockRejectedValue(new Error("Contract call failed"));
 
-      // Mock simulateContract to return falsy values
-      const mockSimulateContract = jest.mocked(mockEthClient.simulateContract);
-      mockSimulateContract.mockResolvedValue({
-        result: 0, // falsy value
-        // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
-      } as any);
-
-      const result = await fetchIsAlive(
-        voterAddress,
-        gaugeAddress,
-        blockNumber,
-        eventChainId,
-        mockEthClient,
-        mockContext.log,
+      const result = await mockContext.effect(
+        getIsAlive as unknown as {
+          name: string;
+          handler: (args: { input: unknown; context: unknown }) => unknown;
+        },
+        {
+          voterAddress: TEST_VOTER,
+          gaugeAddress: TEST_GAUGE,
+          blockNumber: TEST_BLOCK_NUMBER,
+          eventChainId: TEST_CHAIN_ID,
+        },
       );
 
-      expect(typeof result).toBe("boolean");
-      expect(result).toBe(false);
+      expect(result).toBeUndefined();
+      expect(mockContext.log.error).toHaveBeenCalled();
     });
   });
 });

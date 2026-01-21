@@ -92,3 +92,56 @@ export function getErrorType(error: unknown): ErrorType {
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+/**
+ * Creates a readable error with preserved stack trace
+ * @param error - The original error
+ * @param context - Context string (e.g., "[getTokenDetails]")
+ * @param details - Key-value pairs to include in error message
+ * @returns A new Error with readable message and preserved stack trace
+ */
+export function createReadableError(
+  error: unknown,
+  context: string,
+  details: Record<string, string | number>,
+): Error {
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  const detailStr = Object.entries(details)
+    .map(([key, value]) => `${key}=${value}`)
+    .join(", ");
+  const readableError = new Error(`${context} ${detailStr} - ${errorMessage}`);
+
+  if (error instanceof Error && error.stack) {
+    readableError.stack = error.stack;
+  }
+
+  return readableError;
+}
+
+/**
+ * Standard error handler for effects that return fallback values
+ * All effects should return fallback values to prevent indexer crashes.
+ * Errors are always logged for debugging purposes.
+ *
+ * @param error - The original error
+ * @param context - Effect context with cache and log
+ * @param effectName - Name of the effect (e.g., "getTokenDetails")
+ * @param details - Key-value pairs for error message
+ * @param fallbackValue - Value to return on error
+ * @returns The fallback value
+ */
+export function handleEffectErrorReturn<T>(
+  error: unknown,
+  context: {
+    cache?: boolean;
+    log: { error: (msg: string, err: Error) => void };
+  },
+  effectName: string,
+  details: Record<string, string | number>,
+  fallbackValue: T,
+): T {
+  context.cache = false;
+  const readableError = createReadableError(error, `[${effectName}]`, details);
+  context.log.error(readableError.message, readableError);
+  return fallbackValue;
+}

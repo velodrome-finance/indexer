@@ -37,12 +37,17 @@ describe("LPWrapperLogic", () => {
       .mockReturnValue(roundedBlockNumber);
 
     // Create mock context with effect mock
-    mockGetSqrtPriceX96 = jest.fn();
+    // The effect mock receives (effectFn, input) and should return the result
+    mockGetSqrtPriceX96 = jest.fn((_effectFn, input) => {
+      // Default behavior - can be overridden in tests
+      return Promise.resolve(mockSqrtPriceX96);
+    });
     mockContext = {
       effect: mockGetSqrtPriceX96,
       log: {
         warn: jest.fn(),
         error: jest.fn(),
+        info: jest.fn(),
       },
     } as unknown as handlerContext;
   });
@@ -149,7 +154,9 @@ describe("LPWrapperLogic", () => {
       const updatedAmount1 = 300n * 10n ** 6n;
 
       // Mock successful sqrtPriceX96 fetch
-      mockGetSqrtPriceX96.mockResolvedValue(mockSqrtPriceX96);
+      mockGetSqrtPriceX96.mockImplementation((_effectFn, _input) =>
+        Promise.resolve(mockSqrtPriceX96),
+      );
 
       const result = await calculateLiquidityFromAmounts(
         wrapper,
@@ -187,11 +194,20 @@ describe("LPWrapperLogic", () => {
       const updatedAmount1 = 300n * 10n ** 6n;
 
       // First call (rounded block) fails, second call (actual block) succeeds
-      mockGetSqrtPriceX96
-        .mockRejectedValueOnce(
-          new Error("Pool does not exist at rounded block"),
-        )
-        .mockResolvedValueOnce(mockSqrtPriceX96);
+      let callCount = 0;
+      mockGetSqrtPriceX96.mockImplementation((_effectFn, input) => {
+        callCount++;
+        if (callCount === 1) {
+          // First call should be with rounded block
+          expect(input.blockNumber).toBe(roundedBlockNumber);
+          return Promise.reject(
+            new Error("Pool does not exist at rounded block"),
+          );
+        }
+        // Second call should be with original block
+        expect(input.blockNumber).toBe(blockNumber);
+        return Promise.resolve(mockSqrtPriceX96);
+      });
 
       const result = await calculateLiquidityFromAmounts(
         wrapper,
@@ -215,8 +231,8 @@ describe("LPWrapperLogic", () => {
       expect(mockGetSqrtPriceX96.mock.calls[1][1].blockNumber).toBe(
         blockNumber,
       );
-      // Verify warning was logged
-      expect(mockContext.log.warn as jest.Mock).toHaveBeenCalledTimes(1);
+      // Verify info was logged (retry helper logs at info level)
+      expect(mockContext.log.info as jest.Mock).toHaveBeenCalledTimes(1);
       // Result should be a calculated value (may or may not equal wrapper.liquidity depending on calculation)
       expect(typeof result).toBe("bigint");
     });
@@ -235,7 +251,9 @@ describe("LPWrapperLogic", () => {
       const updatedAmount1 = 300n * 10n ** 6n;
 
       // Both calls fail
-      mockGetSqrtPriceX96.mockRejectedValue(new Error("Failed to fetch"));
+      mockGetSqrtPriceX96.mockImplementation((_effectFn, _input) =>
+        Promise.reject(new Error("Failed to fetch")),
+      );
 
       const result = await calculateLiquidityFromAmounts(
         wrapper,
@@ -266,7 +284,9 @@ describe("LPWrapperLogic", () => {
       const updatedAmount0 = 600n * 10n ** 18n;
       const updatedAmount1 = 300n * 10n ** 6n;
 
-      mockGetSqrtPriceX96.mockResolvedValue(undefined);
+      mockGetSqrtPriceX96.mockImplementation((_effectFn, _input) =>
+        Promise.resolve(undefined),
+      );
 
       const result = await calculateLiquidityFromAmounts(
         wrapper,
@@ -300,7 +320,9 @@ describe("LPWrapperLogic", () => {
       const updatedAmount0 = 600n * 10n ** 18n;
       const updatedAmount1 = 300n * 10n ** 6n;
 
-      mockGetSqrtPriceX96.mockResolvedValue(0n);
+      mockGetSqrtPriceX96.mockImplementation((_effectFn, _input) =>
+        Promise.resolve(0n),
+      );
 
       const result = await calculateLiquidityFromAmounts(
         wrapper,
@@ -368,7 +390,9 @@ describe("LPWrapperLogic", () => {
       const updatedAmount0 = 600n * 10n ** 18n;
       const updatedAmount1 = 300n * 10n ** 6n;
 
-      mockGetSqrtPriceX96.mockRejectedValue(new Error("Failed"));
+      mockGetSqrtPriceX96.mockImplementation((_effectFn, _input) =>
+        Promise.reject(new Error("Failed")),
+      );
 
       await calculateLiquidityFromAmounts(
         wrapper,

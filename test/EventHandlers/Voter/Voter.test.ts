@@ -1039,7 +1039,7 @@ describe("Voter Events", () => {
                 blockNumber: number;
                 eventChainId: number;
               },
-              boolean
+              boolean | undefined
             >,
             "handler",
           )
@@ -1053,7 +1053,7 @@ describe("Voter Events", () => {
                 blockNumber: number;
                 eventChainId: number;
               },
-              bigint
+              bigint | undefined
             >,
             "handler",
           )

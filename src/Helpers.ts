@@ -326,6 +326,63 @@ export function calculatePositionAmountsFromLiquidity(
 }
 
 /**
+ * Executes an effect with retry logic for rounded block numbers.
+ * Tries with rounded block first (for caching), then retries with original block
+ * if the call fails or returns a zero value (for numeric effects).
+ *
+ * @param effect - The effect function to call
+ * @param inputWithRoundedBlock - Input parameters with rounded block number
+ * @param inputWithOriginalBlock - Input parameters with original block number
+ * @param context - Handler context for effect calls and logging
+ * @param logPrefix - Prefix for log messages (e.g., "[calculateStakedLiquidityUSD]")
+ * @param options - Optional configuration
+ * @returns The result from the effect call
+ */
+export async function executeEffectWithRoundedBlockRetry<
+  T,
+  I extends { blockNumber: number },
+>(
+  effect: (input: I) => Promise<T>,
+  inputWithRoundedBlock: I,
+  inputWithOriginalBlock: I,
+  context: handlerContext,
+  logPrefix: string,
+  options?: {
+    retryOnZero?: boolean; // For numeric effects that might return 0 at rounded block
+    zeroValue?: T; // What constitutes "zero" for this effect type
+  },
+): Promise<T> {
+  const { retryOnZero = false, zeroValue } = options || {};
+  const roundedBlock = inputWithRoundedBlock.blockNumber;
+  const originalBlock = inputWithOriginalBlock.blockNumber;
+
+  // If blocks are the same, no need for retry logic
+  if (roundedBlock === originalBlock) {
+    return await effect(inputWithRoundedBlock);
+  }
+
+  try {
+    let result = await effect(inputWithRoundedBlock);
+
+    // Check if we should retry on zero value
+    if (retryOnZero && result === zeroValue) {
+      context.log.info(
+        `${logPrefix} Effect returned zero value at rounded block ${roundedBlock} (original: ${originalBlock}). Retrying with actual block number. This is expected when the contract was created after the rounded block interval.`,
+      );
+      result = await effect(inputWithOriginalBlock);
+    }
+
+    return result;
+  } catch (error) {
+    // Retry with original block on exception
+    context.log.info(
+      `${logPrefix} Effect failed at rounded block ${roundedBlock} (original: ${originalBlock}). Retrying with actual block number. This is expected when the contract was created after the rounded block interval.`,
+    );
+    return await effect(inputWithOriginalBlock);
+  }
+}
+
+/**
  * Calculate USD value of staked liquidity/LP tokens
  * For CL pools: Uses tokenId to get position tick ranges, then calculates from liquidity
  * For V2 pools: Converts LP tokens to amount0/amount1 using pool reserves and totalSupply
@@ -362,12 +419,34 @@ export async function calculateStakedLiquidityUSD(
         return 0n;
       }
 
-      // Get sqrtPriceX96
-      const sqrtPriceX96 = await context.effect(getSqrtPriceX96, {
-        poolAddress,
-        chainId,
-        blockNumber: roundedBlockNumber,
-      });
+      // Get sqrtPriceX96 with retry logic for rounded block numbers
+      const sqrtPriceX96 = await executeEffectWithRoundedBlockRetry(
+        (input) => context.effect(getSqrtPriceX96, input),
+        {
+          poolAddress,
+          chainId,
+          blockNumber: roundedBlockNumber,
+        },
+        {
+          poolAddress,
+          chainId,
+          blockNumber: blockNumber,
+        },
+        context,
+        "[calculateStakedLiquidityUSD]",
+        {
+          retryOnZero: true,
+          zeroValue: undefined,
+        },
+      );
+
+      // Check if sqrtPriceX96 is undefined (error case) - return 0 USD
+      if (sqrtPriceX96 === undefined) {
+        context.log.warn(
+          `[calculateStakedLiquidityUSD] sqrtPriceX96 is null for pool ${poolAddress} on chain ${chainId}, using 0 USD`,
+        );
+        return 0n;
+      }
 
       // Calculate amount0 and amount1 from liquidity
       const { amount0, amount1 } = calculatePositionAmountsFromLiquidity(
@@ -398,12 +477,25 @@ export async function calculateStakedLiquidityUSD(
       const reserve0 = liquidityPoolAggregator.reserve0;
       const reserve1 = liquidityPoolAggregator.reserve1;
 
-      // Get totalSupply of LP token (pool address is the LP token for V2)
-      const totalSupply = await context.effect(getTotalSupply, {
-        tokenAddress: poolAddress,
-        chainId,
-        blockNumber: roundedBlockNumber,
-      });
+      const totalSupply = await executeEffectWithRoundedBlockRetry(
+        (input) => context.effect(getTotalSupply, input),
+        {
+          tokenAddress: poolAddress,
+          chainId,
+          blockNumber: roundedBlockNumber,
+        },
+        {
+          tokenAddress: poolAddress,
+          chainId,
+          blockNumber: blockNumber,
+        },
+        context,
+        "[calculateStakedLiquidityUSD]",
+        {
+          retryOnZero: true,
+          zeroValue: 0n,
+        },
+      );
 
       if (totalSupply === 0n) {
         context.log.warn(

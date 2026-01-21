@@ -1,19 +1,22 @@
 import { S, createEffect } from "envio";
 import type { logger as Envio_logger } from "envio/src/Envio.gen";
 import type { PublicClient } from "viem";
+import CLPOOL_ABI from "../../abis/CLPool.json";
+import ERC20_ABI from "../../abis/ERC20.json";
 import SpotPriceAggregatorABI from "../../abis/SpotPriceAggregator.json";
 import PriceOracleABI from "../../abis/VeloPriceOracleABI.json";
-import type { handlerContext } from "../../generated/src/Types.gen";
 import {
   CHAIN_CONSTANTS,
   EFFECT_RATE_LIMITS,
   PriceOracleType,
 } from "../Constants";
 import { createFallbackClient, shouldUseFallbackRPC } from "./Errors";
-import { ErrorType, getErrorType, sleep } from "./Helpers";
-
-// ERC20 Contract ABI
-const contractABI = require("../../abis/ERC20.json");
+import {
+  ErrorType,
+  getErrorType,
+  handleEffectErrorReturn,
+  sleep,
+} from "./Helpers";
 
 /**
  * Core logic for fetching ERC20 token details
@@ -21,7 +24,6 @@ const contractABI = require("../../abis/ERC20.json");
  */
 export async function fetchTokenDetails(
   contractAddress: string,
-  chainId: number,
   ethClient: PublicClient,
   logger: Envio_logger,
 ): Promise<{ name: string; decimals: number; symbol: string }> {
@@ -29,28 +31,28 @@ export async function fetchTokenDetails(
     const [nameResult, decimalsResult, symbolResult] = await Promise.all([
       ethClient.simulateContract({
         address: contractAddress as `0x${string}`,
-        abi: contractABI,
+        abi: ERC20_ABI,
         functionName: "name",
         args: [],
       }),
       ethClient.simulateContract({
         address: contractAddress as `0x${string}`,
-        abi: contractABI,
+        abi: ERC20_ABI,
         functionName: "decimals",
         args: [],
       }),
       ethClient.simulateContract({
         address: contractAddress as `0x${string}`,
-        abi: contractABI,
+        abi: ERC20_ABI,
         functionName: "symbol",
         args: [],
       }),
     ]);
 
     const result = {
-      name: nameResult.result?.toString() || "",
+      name: (nameResult.result as unknown)?.toString() || "",
       decimals: Number(decimalsResult.result) || 0,
-      symbol: symbolResult.result?.toString() || "",
+      symbol: (symbolResult.result as unknown)?.toString() || "",
     };
 
     logger.info(
@@ -59,10 +61,6 @@ export async function fetchTokenDetails(
 
     return result;
   } catch (error) {
-    logger.error(
-      `[fetchTokenDetails] Error fetching token details for address: ${contractAddress}`,
-      error instanceof Error ? error : new Error(String(error)),
-    );
     // Return default values on error to prevent processing failures
     return {
       name: "",
@@ -291,12 +289,10 @@ export async function fetchSqrtPriceX96(
   ethClient: PublicClient,
   logger: Envio_logger,
 ): Promise<bigint> {
-  const CLPoolABI = require("../../abis/CLPool.json");
-
   const attemptFetch = async (client: PublicClient, isFallback = false) => {
     const { result } = await client.simulateContract({
       address: poolAddress as `0x${string}`,
-      abi: CLPoolABI,
+      abi: CLPOOL_ABI,
       functionName: "slot0",
       args: [],
       blockNumber: BigInt(blockNumber),
@@ -320,27 +316,18 @@ export async function fetchSqrtPriceX96(
         // Sometimes viem returns object-like array
         sqrtPriceX96 = result[0] as bigint;
       } else {
-        // Helper to stringify with BigInt support
-        const stringifyResult = (obj: unknown): string => {
-          if (Array.isArray(obj)) {
-            return `[${obj
-              .map((item) =>
-                typeof item === "bigint" ? item.toString() : String(item),
-              )
-              .join(", ")}]`;
-          }
-          if (obj && typeof obj === "object") {
-            const entries = Object.entries(obj).map(
-              ([key, value]) =>
-                `${key}: ${typeof value === "bigint" ? value.toString() : String(value)}`,
-            );
-            return `{${entries.join(", ")}}`;
-          }
-          return String(obj);
+        // Helper to stringify object with BigInt support
+        // Note: result is guaranteed to be an object at this point (not an array, not a primitive)
+        const stringifyResult = (obj: Record<string, unknown>): string => {
+          const entries = Object.entries(obj).map(
+            ([key, value]) =>
+              `${key}: ${typeof value === "bigint" ? value.toString() : String(value)}`,
+          );
+          return `{${entries.join(", ")}}`;
         };
 
         logger.error(
-          `[fetchSqrtPriceX96] Unexpected result format. Result type: ${typeof result}, keys: ${result && typeof result === "object" ? Object.keys(result).join(", ") : "N/A"}, result: ${stringifyResult(result)}`,
+          `[fetchSqrtPriceX96] Unexpected result format. Result type: ${typeof result}, keys: ${Object.keys(result).join(", ")}, result: ${stringifyResult(result)}`,
         );
         throw new Error(
           `Unexpected result format from slot0. Expected array or object with sqrtPriceX96 property, got: ${stringifyResult(result)}`,
@@ -411,8 +398,6 @@ export async function fetchSqrtPriceX96(
       }
     }
 
-    // Classify error type for better logging
-    const errorType = getErrorType(error);
     const errorMessage = error instanceof Error ? error.message : String(error);
     const readableError = new Error(
       `Failed to fetch sqrtPriceX96 from pool ${poolAddress} on chain ${chainId} at block ${blockNumber}: ${errorMessage}`,
@@ -422,21 +407,6 @@ export async function fetchSqrtPriceX96(
     if (error instanceof Error && error.stack) {
       readableError.stack = error.stack;
     }
-
-    // Handle historical state not available - log simple message
-    if (errorType === ErrorType.HISTORICAL_STATE_NOT_AVAILABLE) {
-      logger.warn(
-        `[fetchSqrtPriceX96] Historical state not available for pool ${poolAddress} on chain ${chainId} at block ${blockNumber}. This is expected for very old blocks.`,
-      );
-    } else {
-      // For other errors, log with full details
-      logger.error(
-        `[fetchSqrtPriceX96] ${readableError.message}`,
-        readableError,
-      );
-    }
-
-    // Always throw the error
     throw readableError;
   }
 }
@@ -462,6 +432,9 @@ export function roundBlockToInterval(
 /**
  * Effect to get ERC20 token details (name, decimals, symbol)
  * This replaces the direct RPC calls in getErc20TokenDetails
+ *
+ * Error handling: Returns default values ({ name: "", decimals: 0, symbol: "" }) on error
+ * to allow the indexer to continue processing even if token details can't be fetched.
  */
 export const getTokenDetails = createEffect(
   {
@@ -485,25 +458,21 @@ export const getTokenDetails = createEffect(
     const { contractAddress, chainId } = input;
     const ethClient = CHAIN_CONSTANTS[chainId].eth_client;
     try {
-      return await fetchTokenDetails(
-        contractAddress,
-        chainId,
-        ethClient,
-        context.log,
-      );
+      return await fetchTokenDetails(contractAddress, ethClient, context.log);
     } catch (error) {
-      // Don't cache failed response
-      context.cache = false;
-      context.log.error(
-        `[getTokenDetails] Error in effect for ${contractAddress} on chain ${chainId}:`,
-        error instanceof Error ? error : new Error(String(error)),
-      );
       // Return default values on error to prevent processing failures
-      return {
-        name: "",
-        decimals: 0,
-        symbol: "",
-      };
+      // This allows the indexer to continue even if token details can't be fetched
+      return handleEffectErrorReturn(
+        error,
+        context,
+        "getTokenDetails",
+        { contractAddress, chainId },
+        {
+          name: "",
+          decimals: 0,
+          symbol: "",
+        },
+      );
     }
   },
 );
@@ -512,6 +481,9 @@ export const getTokenDetails = createEffect(
  * Effect to read prices from price oracle contracts
  * Handles block rounding, connector building, USDC special case, and V3 decimal conversion
  * This is the main entry point for fetching token prices - all other functions should call this
+ *
+ * Error handling: Returns zero price (0n) on error to allow the indexer to continue processing
+ * even if price can't be fetched. Callers should check for zero prices and handle appropriately.
  */
 export const getTokenPrice = createEffect(
   {
@@ -642,19 +614,20 @@ export const getTokenPrice = createEffect(
       };
     } catch (error) {
       const effectDuration = Date.now() - effectStartTime;
-      // Don't cache failed response
-      context.cache = false;
-      context.log.error(
-        `[getTokenPrice] Error in effect for ${tokenAddress} on chain ${chainId} at block ${blockNumber} (duration: ${effectDuration}ms):`,
-        error instanceof Error ? error : new Error(String(error)),
-      );
       // Return zero price on error to prevent processing failures
-      return {
-        pricePerUSDNew: 0n,
-        priceOracleType: CHAIN_CONSTANTS[chainId].oracle
-          .getType(blockNumber)
-          .toString(),
-      };
+      // This allows the indexer to continue even if price can't be fetched
+      return handleEffectErrorReturn(
+        error,
+        context,
+        "getTokenPrice",
+        { tokenAddress, chainId, blockNumber, duration: `${effectDuration}ms` },
+        {
+          pricePerUSDNew: 0n,
+          priceOracleType: CHAIN_CONSTANTS[chainId].oracle
+            .getType(blockNumber)
+            .toString(),
+        },
+      );
     }
   },
 );
@@ -673,14 +646,14 @@ export async function fetchTotalSupply(
   try {
     const { result } = await ethClient.simulateContract({
       address: tokenAddress as `0x${string}`,
-      abi: contractABI,
+      abi: ERC20_ABI,
       functionName: "totalSupply",
       args: [],
       blockNumber: BigInt(blockNumber),
     });
     // viem returns bigint for uint256 (totalSupply returns a single value)
     const totalSupply = Array.isArray(result) ? result[0] : result;
-    return BigInt(totalSupply.toString());
+    return BigInt(String(totalSupply));
   } catch (error) {
     if (context) {
       context.cache = false;
@@ -692,7 +665,6 @@ export async function fetchTotalSupply(
     if (error instanceof Error && error.stack) {
       readableError.stack = error.stack;
     }
-    logger.error(`[getTotalSupply] ${readableError.message}`, readableError);
     throw readableError;
   }
 }
@@ -734,6 +706,9 @@ export const getTotalSupply = createEffect(
  * Effect to get sqrtPriceX96 from CLPool's slot0 function
  * This replaces direct RPC calls for fetching current pool price
  * Used for calculating position amounts from liquidity in concentrated liquidity pools
+ *
+ * Error handling: Returns undefined on failure. Callers should check for undefined and handle appropriately.
+ * Callers should use executeEffectWithRoundedBlockRetry for automatic retry logic with rounded block numbers.
  */
 export const getSqrtPriceX96 = createEffect(
   {
@@ -743,7 +718,7 @@ export const getSqrtPriceX96 = createEffect(
       chainId: S.number,
       blockNumber: S.number,
     },
-    output: S.bigint,
+    output: S.nullable(S.bigint),
     rateLimit: {
       calls: EFFECT_RATE_LIMITS.DYNAMIC_FEE_EFFECTS,
       per: "second",
@@ -763,25 +738,18 @@ export const getSqrtPriceX96 = createEffect(
       );
       return result;
     } catch (error) {
-      context.cache = false;
-
-      // Create a more readable error message
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      const readableError = new Error(
-        `getSqrtPriceX96 effect failed for pool ${poolAddress} on chain ${chainId} at block ${blockNumber}: ${errorMessage}`,
+      // Return undefined on error - callers should check and handle appropriately
+      return handleEffectErrorReturn(
+        error,
+        context,
+        "getSqrtPriceX96",
+        {
+          poolAddress,
+          chainId,
+          blockNumber,
+        },
+        undefined,
       );
-
-      // Preserve stack trace if available
-      if (error instanceof Error && error.stack) {
-        readableError.stack = error.stack;
-      }
-
-      context.log.error(
-        `[getSqrtPriceX96] ${readableError.message}`,
-        readableError,
-      );
-      throw readableError;
     }
   },
 );

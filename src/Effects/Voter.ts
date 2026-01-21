@@ -1,7 +1,10 @@
 import { S, createEffect } from "envio";
 import type { logger as Envio_logger } from "envio/src/Envio.gen";
 import type { PublicClient } from "viem";
+import ERC20_ABI from "../../abis/ERC20.json";
+import VOTER_ABI from "../../abis/Voter.json";
 import { CHAIN_CONSTANTS, EFFECT_RATE_LIMITS } from "../Constants";
+import { handleEffectErrorReturn } from "./Helpers";
 
 /**
  * Core logic for fetching tokens deposited in a gauge
@@ -15,29 +18,24 @@ export async function fetchTokensDeposited(
   ethClient: PublicClient,
   logger: Envio_logger,
 ): Promise<bigint> {
-  try {
-    const ERC20GaugeABI = require("../../abis/ERC20.json");
+  const { result } = await ethClient.simulateContract({
+    address: rewardTokenAddress as `0x${string}`,
+    abi: ERC20_ABI,
+    functionName: "balanceOf",
+    args: [gaugeAddress],
+    blockNumber: BigInt(blockNumber),
+  });
 
-    const { result } = await ethClient.simulateContract({
-      address: rewardTokenAddress as `0x${string}`,
-      abi: ERC20GaugeABI,
-      functionName: "balanceOf",
-      args: [gaugeAddress],
-      blockNumber: BigInt(blockNumber),
-    });
-
-    const balance = BigInt(String(result) || "0");
-    logger.info(
-      `[fetchTokensDeposited] Tokens deposited fetched: ${balance}, rewardTokenAddress=${rewardTokenAddress}, gaugeAddress=${gaugeAddress}, blockNumber=${blockNumber}, chainID=${eventChainId}`,
-    );
-    return balance;
-  } catch (error) {
-    logger.error(
-      `[fetchTokensDeposited] Error fetching tokens deposited for gauge ${gaugeAddress} on chain ${eventChainId} at block ${blockNumber}:`,
-      error instanceof Error ? error : new Error(String(error)),
-    );
-    return 0n;
-  }
+  // viem should return a value for balanceOf, but to be defensive:
+  // treat null/undefined/empty as 0 to avoid throwing.
+  const balance =
+    result === null || result === undefined || String(result) === ""
+      ? 0n
+      : BigInt(String(result));
+  logger.info(
+    `[fetchTokensDeposited] Tokens deposited fetched: ${balance}, rewardTokenAddress=${rewardTokenAddress}, gaugeAddress=${gaugeAddress}, blockNumber=${blockNumber}, chainID=${eventChainId}`,
+  );
+  return balance;
 }
 
 /**
@@ -52,32 +50,31 @@ export async function fetchIsAlive(
   ethClient: PublicClient,
   logger: Envio_logger,
 ): Promise<boolean> {
-  try {
-    const VoterABI = require("../../abis/Voter.json");
+  const { result } = await ethClient.simulateContract({
+    address: voterAddress as `0x${string}`,
+    abi: VOTER_ABI,
+    functionName: "isAlive",
+    args: [gaugeAddress],
+    blockNumber: BigInt(blockNumber),
+  });
 
-    const { result } = await ethClient.simulateContract({
-      address: voterAddress as `0x${string}`,
-      abi: VoterABI,
-      functionName: "isAlive",
-      args: [gaugeAddress],
-      blockNumber: BigInt(blockNumber),
-    });
-
-    const isAlive = Boolean(result);
-    logger.info(
-      `[fetchIsAlive] Gauge ${gaugeAddress} is alive: ${isAlive}, voterAddress=${voterAddress}, gaugeAddress=${gaugeAddress}, blockNumber=${blockNumber}, chainID=${eventChainId}`,
-    );
-    return isAlive;
-  } catch (error) {
-    logger.error(
-      `[fetchIsAlive] Error checking if gauge ${gaugeAddress} is alive on chain ${eventChainId} at block ${blockNumber}:`,
-      error instanceof Error ? error : new Error(String(error)),
-    );
-    return false;
-  }
+  const isAlive = Boolean(result);
+  logger.info(
+    `[fetchIsAlive] Gauge ${gaugeAddress} is alive: ${isAlive}, voterAddress=${voterAddress}, gaugeAddress=${gaugeAddress}, blockNumber=${blockNumber}, chainID=${eventChainId}`,
+  );
+  return isAlive;
 }
 
-// Voter Common Effects
+/**
+ * Voter Common Effects
+ */
+
+/**
+ * Effect to get tokens deposited in a gauge
+ *
+ * Error handling: Returns undefined on error. Callers should check for undefined
+ * and handle appropriately.
+ */
 export const getTokensDeposited = createEffect(
   {
     name: "getTokensDeposited",
@@ -87,7 +84,7 @@ export const getTokensDeposited = createEffect(
       blockNumber: S.number,
       eventChainId: S.number,
     },
-    output: S.bigint,
+    output: S.nullable(S.bigint),
     rateLimit: {
       calls: EFFECT_RATE_LIMITS.VOTER_EFFECTS,
       per: "second",
@@ -108,18 +105,24 @@ export const getTokensDeposited = createEffect(
         context.log,
       );
     } catch (error) {
-      // Don't cache failed response
-      context.cache = false;
-      context.log.error(
-        `[getTokensDeposited] Error in effect for gauge ${gaugeAddress} on chain ${eventChainId} at block ${blockNumber}:`,
-        error instanceof Error ? error : new Error(String(error)),
+      // Return undefined on error - callers should check and handle appropriately
+      return handleEffectErrorReturn(
+        error,
+        context,
+        "getTokensDeposited",
+        { gaugeAddress, eventChainId, blockNumber },
+        undefined,
       );
-      // Return zero on error to prevent processing failures
-      return 0n;
     }
   },
 );
 
+/**
+ * Effect to check if a gauge is alive
+ *
+ * Error handling: Returns undefined on error. Callers should check for undefined
+ * and handle appropriately.
+ */
 export const getIsAlive = createEffect(
   {
     name: "getIsAlive",
@@ -129,7 +132,7 @@ export const getIsAlive = createEffect(
       blockNumber: S.number,
       eventChainId: S.number,
     },
-    output: S.boolean,
+    output: S.nullable(S.boolean),
     rateLimit: {
       calls: EFFECT_RATE_LIMITS.VOTER_EFFECTS,
       per: "second",
@@ -149,14 +152,14 @@ export const getIsAlive = createEffect(
         context.log,
       );
     } catch (error) {
-      // Don't cache failed response
-      context.cache = false;
-      context.log.error(
-        `[getIsAlive] Error in effect for gauge ${gaugeAddress} on chain ${eventChainId} at block ${blockNumber}:`,
-        error instanceof Error ? error : new Error(String(error)),
+      // Return undefined on error - callers should check and handle appropriately
+      return handleEffectErrorReturn(
+        error,
+        context,
+        "getIsAlive",
+        { gaugeAddress, eventChainId, blockNumber },
+        undefined,
       );
-      // Return false on error to prevent processing failures
-      return false;
     }
   },
 );
