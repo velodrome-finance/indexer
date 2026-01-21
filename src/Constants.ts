@@ -68,6 +68,13 @@ export const EFFECT_RATE_LIMITS = {
 export const OUSDT_ADDRESS = "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189";
 export const OUSDT_DECIMALS = 6;
 
+// Default fee values from PoolFactory contract constructor (non CL pools)
+// This is needed for pools that don't have associated SetCustomFee events or
+// have been created before the first SetCustomFee event was emitted.
+// VAMM -> volatile pools; SAMM -> stable pools;
+export const DEFAULT_VAMM_FEE_BPS = 30n;
+export const DEFAULT_SAMM_FEE_BPS = 5n;
+
 type PriceConnector = {
   address: string;
   createdBlock: number;

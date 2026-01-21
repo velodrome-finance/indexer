@@ -5,7 +5,11 @@ import type {
   RootPool_LeafPool,
   Token,
 } from "../../generated/src/Types.gen";
-import { toChecksumAddress } from "../../src/Constants";
+import {
+  DEFAULT_SAMM_FEE_BPS,
+  DEFAULT_VAMM_FEE_BPS,
+  toChecksumAddress,
+} from "../../src/Constants";
 import * as PriceOracle from "../../src/PriceOracle";
 import { mutateChainConstants } from "../testHelpers";
 import { setupCommon } from "./Pool/common";
@@ -94,6 +98,42 @@ describe("PoolFactory Events", () => {
       expect(createdPool?.token1_id).toBe(`${token1Address}-${chainId}`);
       expect(createdPool?.token0_address).toBe(token0Address);
       expect(createdPool?.token1_address).toBe(token1Address);
+    });
+
+    it("should set baseFee and currentFee for non-CL pools (vAMM)", () => {
+      // Non-CL pools should always have baseFee and currentFee set
+      expect(createdPool?.baseFee).toBe(DEFAULT_VAMM_FEE_BPS);
+      expect(createdPool?.currentFee).toBe(DEFAULT_VAMM_FEE_BPS);
+    });
+
+    it("should set baseFee and currentFee for stable pools (sAMM)", async () => {
+      resetMockPriceOracle();
+
+      const mockDb = MockDb.createMockDb();
+      const mockEvent = PoolFactory.PoolCreated.createMockEvent({
+        token0: token0Address,
+        token1: token1Address,
+        pool: poolAddress,
+        stable: true, // Stable pool
+        mockEventData: {
+          block: {
+            timestamp: 1000000,
+            hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+          },
+          chainId,
+          logIndex: 1,
+        },
+      });
+      const result = await PoolFactory.PoolCreated.processEvent({
+        event: mockEvent,
+        mockDb,
+      });
+      const stablePool =
+        result.entities.LiquidityPoolAggregator.get(poolAddress);
+
+      // Stable pools should use DEFAULT_SAMM_FEE_BPS
+      expect(stablePool?.baseFee).toBe(DEFAULT_SAMM_FEE_BPS);
+      expect(stablePool?.currentFee).toBe(DEFAULT_SAMM_FEE_BPS);
     });
 
     it("should NOT create RootPool_LeafPool for Optimism (chainId 10)", async () => {

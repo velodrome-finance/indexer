@@ -561,6 +561,8 @@ export function createLiquidityPoolAggregatorEntity(params: {
   timestamp: Date;
   tickSpacing?: number; // For CL pools
   CLGaugeConfig?: CLGaugeConfig | null; // For CL pools
+  baseFee?: bigint;
+  currentFee?: bigint;
 }): LiquidityPoolAggregator {
   const {
     poolAddress,
@@ -574,6 +576,8 @@ export function createLiquidityPoolAggregatorEntity(params: {
     timestamp,
     tickSpacing,
     CLGaugeConfig,
+    baseFee,
+    currentFee,
   } = params;
 
   return {
@@ -657,10 +661,10 @@ export function createLiquidityPoolAggregatorEntity(params: {
         ? undefined
         : 0n,
     // Dynamic Fee fields (undefined initially)
-    baseFee: undefined,
+    baseFee: baseFee,
     feeCap: undefined,
     scalingFactor: undefined,
-    currentFee: undefined,
+    currentFee: currentFee,
     rootPoolMatchingHash: `${chainId}_${token0Address}_${token1Address}_${(tickSpacing ? BigInt(tickSpacing) : 0n).toString()}`,
   };
 }

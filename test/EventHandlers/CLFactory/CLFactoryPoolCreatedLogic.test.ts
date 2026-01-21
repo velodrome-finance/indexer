@@ -1,6 +1,7 @@
 import type {
   CLFactory_PoolCreated_event,
   CLGaugeConfig,
+  FeeToTickSpacingMapping,
   Token,
   handlerContext,
 } from "generated";
@@ -54,6 +55,20 @@ describe("CLFactoryPoolCreatedLogic", () => {
     logIndex: 1,
   };
 
+  // Shared constants
+  const CHAIN_ID = 10;
+  const TICK_SPACING = 60n;
+  const FEE = 500n;
+
+  // Mock FeeToTickSpacingMapping
+  const mockFeeToTickSpacingMapping: FeeToTickSpacingMapping = {
+    id: `${CHAIN_ID}_${TICK_SPACING}`,
+    chainId: CHAIN_ID,
+    tickSpacing: TICK_SPACING,
+    fee: FEE,
+    lastUpdatedTimestamp: new Date(1000000 * 1000),
+  };
+
   // Mock context
   const mockContext = {
     log: {
@@ -69,6 +84,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockToken0Data,
         mockToken1Data,
         undefined, // CLGaugeConfig
+        mockFeeToTickSpacingMapping,
         mockContext,
       );
 
@@ -96,6 +112,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         undefined,
         mockToken1Data,
         undefined, // CLGaugeConfig
+        mockFeeToTickSpacingMapping,
         mockContext,
       );
 
@@ -122,6 +139,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockToken0Data,
         undefined,
         undefined, // CLGaugeConfig
+        mockFeeToTickSpacingMapping,
         mockContext,
       );
 
@@ -148,6 +166,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         undefined,
         undefined,
         undefined, // CLGaugeConfig
+        mockFeeToTickSpacingMapping,
         mockContext,
       );
 
@@ -177,11 +196,21 @@ describe("CLFactoryPoolCreatedLogic", () => {
         },
       };
 
+      // For different tick spacing, use a different mapping
+      const mappingForTickSpacing200: FeeToTickSpacingMapping = {
+        id: `${CHAIN_ID}_200`,
+        chainId: CHAIN_ID,
+        tickSpacing: 200n,
+        fee: 300n,
+        lastUpdatedTimestamp: new Date(1000000 * 1000),
+      };
+
       const result = await processCLFactoryPoolCreated(
         mockEventWithDifferentTickSpacing,
         mockToken0Data,
         mockToken1Data,
         undefined, // CLGaugeConfig
+        mappingForTickSpacing200,
         mockContext,
       );
 
@@ -206,6 +235,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockToken0NonWhitelisted,
         mockToken1NonWhitelisted,
         undefined, // CLGaugeConfig
+        mockFeeToTickSpacingMapping,
         mockContext,
       );
 
@@ -242,6 +272,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockToken0Whitelisted,
         mockToken1NonWhitelisted,
         undefined, // CLGaugeConfig
+        mockFeeToTickSpacingMapping,
         mockContext,
       );
 
@@ -268,11 +299,21 @@ describe("CLFactoryPoolCreatedLogic", () => {
         chainId: 8453, // Base
       };
 
+      // For different chain ID, use a different mapping
+      const mappingForBase: FeeToTickSpacingMapping = {
+        id: `8453_${TICK_SPACING}`,
+        chainId: 8453,
+        tickSpacing: TICK_SPACING,
+        fee: 400n,
+        lastUpdatedTimestamp: new Date(1000000 * 1000),
+      };
+
       const result = await processCLFactoryPoolCreated(
         mockEventWithDifferentChainId,
         mockToken0Data,
         mockToken1Data,
         undefined, // CLGaugeConfig
+        mappingForBase,
         mockContext,
       );
 
@@ -303,6 +344,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockToken0WithSymbol,
         mockToken1WithSymbol,
         undefined, // CLGaugeConfig
+        mockFeeToTickSpacingMapping,
         mockContext,
       );
 
@@ -327,6 +369,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         undefined,
         undefined,
         undefined, // CLGaugeConfig
+        mockFeeToTickSpacingMapping,
         mockContext,
       );
 
@@ -344,6 +387,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockToken0Data,
         mockToken1Data,
         undefined, // CLGaugeConfig
+        mockFeeToTickSpacingMapping,
         mockContext,
       );
 
@@ -391,6 +435,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockToken0Data,
         mockToken1Data,
         undefined, // CLGaugeConfig does not exist
+        mockFeeToTickSpacingMapping,
         mockContext,
       );
 
@@ -410,6 +455,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockToken0Data,
         mockToken1Data,
         mockCLGaugeConfig,
+        mockFeeToTickSpacingMapping,
         mockContext,
       );
 
@@ -417,5 +463,70 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockDefaultEmissionsCap,
       );
     });
+
+    it("should set baseFee and currentFee from FeeToTickSpacingMapping when mapping exists", async () => {
+      const result = await processCLFactoryPoolCreated(
+        mockEvent,
+        mockToken0Data,
+        mockToken1Data,
+        undefined, // CLGaugeConfig
+        mockFeeToTickSpacingMapping,
+        mockContext,
+      );
+
+      expect(result.liquidityPoolAggregator.baseFee).toBe(FEE);
+      expect(result.liquidityPoolAggregator.currentFee).toBe(FEE);
+    });
+
+    it("should set baseFee and currentFee to undefined when FeeToTickSpacingMapping does not exist", async () => {
+      const result = await processCLFactoryPoolCreated(
+        mockEvent,
+        mockToken0Data,
+        mockToken1Data,
+        undefined, // CLGaugeConfig
+        undefined, // FeeToTickSpacingMapping does not exist
+        mockContext,
+      );
+
+      expect(result.liquidityPoolAggregator.baseFee).toBeUndefined();
+      expect(result.liquidityPoolAggregator.currentFee).toBeUndefined();
+    });
+
+    it.each([
+      { tickSpacing: 60n, fee: 500n },
+      { tickSpacing: 100n, fee: 400n },
+      { tickSpacing: 200n, fee: 300n },
+    ])(
+      "should use correct fee for tick spacing $tickSpacing with fee $fee",
+      async ({ tickSpacing, fee }) => {
+        const eventWithTickSpacing: CLFactory_PoolCreated_event = {
+          ...mockEvent,
+          params: {
+            ...mockEvent.params,
+            tickSpacing,
+          },
+        };
+
+        const mapping: FeeToTickSpacingMapping = {
+          id: `${CHAIN_ID}_${tickSpacing}`,
+          chainId: CHAIN_ID,
+          tickSpacing,
+          fee,
+          lastUpdatedTimestamp: new Date(1000000 * 1000),
+        };
+
+        const result = await processCLFactoryPoolCreated(
+          eventWithTickSpacing,
+          mockToken0Data,
+          mockToken1Data,
+          undefined, // CLGaugeConfig
+          mapping,
+          mockContext,
+        );
+
+        expect(result.liquidityPoolAggregator.baseFee).toBe(fee);
+        expect(result.liquidityPoolAggregator.currentFee).toBe(fee);
+      },
+    );
   });
 });

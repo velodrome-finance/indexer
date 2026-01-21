@@ -5,6 +5,8 @@ import {
   updateLiquidityPoolAggregator,
 } from "../Aggregators/LiquidityPoolAggregator";
 import {
+  DEFAULT_SAMM_FEE_BPS,
+  DEFAULT_VAMM_FEE_BPS,
   ROOT_POOL_FACTORY_ADDRESS_OPTIMISM,
   TokenIdByChain,
 } from "../Constants";
@@ -66,6 +68,8 @@ PoolFactory.PoolCreated.handler(async ({ event, context }) => {
     }
   }
 
+  const fee = event.params.stable ? DEFAULT_SAMM_FEE_BPS : DEFAULT_VAMM_FEE_BPS;
+
   const pool = createLiquidityPoolAggregatorEntity({
     poolAddress: event.params.pool,
     chainId: event.chainId,
@@ -76,6 +80,8 @@ PoolFactory.PoolCreated.handler(async ({ event, context }) => {
     token0Symbol: poolTokenSymbols[0],
     token1Symbol: poolTokenSymbols[1],
     timestamp: new Date(event.block.timestamp * 1000),
+    baseFee: fee,
+    currentFee: fee,
   });
 
   // For new pool creation, set the entity directly (updateLiquidityPoolAggregator is for updates, not creation)

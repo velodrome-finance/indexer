@@ -1,4 +1,4 @@
-import { CustomFeeSwapModule } from "generated";
+import { CustomSwapFeeModule } from "generated";
 import type {
   DynamicFeeGlobalConfig,
   LiquidityPoolAggregator,
@@ -6,7 +6,7 @@ import type {
 import { updateLiquidityPoolAggregator } from "../../Aggregators/LiquidityPoolAggregator";
 import { toChecksumAddress } from "../../Constants";
 
-CustomFeeSwapModule.SetCustomFee.handler(async ({ event, context }) => {
+CustomSwapFeeModule.SetCustomFee.handler(async ({ event, context }) => {
   const pool = await context.LiquidityPoolAggregator.get(
     toChecksumAddress(event.params.pool),
   );
@@ -20,6 +20,7 @@ CustomFeeSwapModule.SetCustomFee.handler(async ({ event, context }) => {
 
   const diff: Partial<LiquidityPoolAggregator> = {
     baseFee: BigInt(event.params.fee),
+    currentFee: BigInt(event.params.fee),
   };
 
   await updateLiquidityPoolAggregator(
@@ -35,7 +36,7 @@ CustomFeeSwapModule.SetCustomFee.handler(async ({ event, context }) => {
   const config: DynamicFeeGlobalConfig = {
     id: configId,
     chainId: event.chainId,
-    secondsAgo: undefined, // This is only defined for DynamicFeeSwapModule.ts
+    secondsAgo: undefined, // This is only defined for DynamicSwapFeeModule.ts
   };
 
   context.DynamicFeeGlobalConfig.set(config);
