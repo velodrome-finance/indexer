@@ -4,29 +4,44 @@ import type {
   Token,
   handlerContext,
 } from "generated";
-import { processCLPoolSwap } from "../../../src/EventHandlers/CLPool/CLPoolSwapLogic";
+import { TEN_TO_THE_18_BI } from "../../../src/Constants";
+import {
+  _calculateSwapFees,
+  _calculateSwapLiquidityChanges,
+  _calculateSwapVolume,
+  processCLPoolSwap,
+} from "../../../src/EventHandlers/CLPool/CLPoolSwapLogic";
 import { setupCommon } from "../Pool/common";
 
 describe("CLPoolSwapLogic", () => {
   const { mockLiquidityPoolData, mockToken0Data, mockToken1Data } =
     setupCommon();
 
+  // Constants for reusable test values
+  const ONE_USD = 1n * TEN_TO_THE_18_BI;
+  const TWO_USD = 2n * TEN_TO_THE_18_BI;
+  const FEE_30_BPS = 30n; // 0.3% fee
+  const FEE_100_BPS = 100n; // 1% fee
+  const CHAIN_ID = 10;
+  const BLOCK_TIMESTAMP = 1000000;
+  const POOL_ID = "0x1234567890123456789012345678901234567890";
+
   const mockEvent: CLPool_Swap_event = {
     params: {
       sender: "0x1111111111111111111111111111111111111111",
       recipient: "0x2222222222222222222222222222222222222222",
-      amount0: 1000000000000000000n, // 1 token
-      amount1: -2000000000000000000n, // -2 tokens (negative means token1 out)
-      sqrtPriceX96: 2000000000000000000000000000000n, // sqrt price
+      amount0: 1n * TEN_TO_THE_18_BI,
+      amount1: -2n * TEN_TO_THE_18_BI,
+      sqrtPriceX96: 2000000000000000000000000000000n,
       liquidity: 1000000000000000000000n,
       tick: 1000n,
     },
     block: {
-      timestamp: 1000000,
+      timestamp: BLOCK_TIMESTAMP,
       number: 123456,
       hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
     },
-    chainId: 10,
+    chainId: CHAIN_ID,
     logIndex: 1,
     srcAddress: "0x3333333333333333333333333333333333333333",
     transaction: {
@@ -36,17 +51,19 @@ describe("CLPoolSwapLogic", () => {
 
   const mockLiquidityPoolAggregator: LiquidityPoolAggregator = {
     ...mockLiquidityPoolData,
-    id: "0x1234567890123456789012345678901234567890",
+    id: POOL_ID,
     token0_id: mockToken0Data.id,
     token1_id: mockToken1Data.id,
     token0_address: mockToken0Data.address,
     token1_address: mockToken1Data.address,
-    reserve0: 10000000n,
-    reserve1: 6000000n,
-    totalLiquidityUSD: 10000000n,
-    token0Price: 1000000000000000000n, // 1 USD
-    token1Price: 2000000000000000000n, // 2 USD
-    lastUpdatedTimestamp: new Date(1000000 * 1000),
+    reserve0: 10n * TEN_TO_THE_18_BI,
+    reserve1: 6n * TEN_TO_THE_18_BI,
+    totalLiquidityUSD: 10n * TEN_TO_THE_18_BI,
+    token0Price: ONE_USD,
+    token1Price: TWO_USD,
+    currentFee: FEE_30_BPS,
+    baseFee: FEE_30_BPS,
+    lastUpdatedTimestamp: new Date(BLOCK_TIMESTAMP * 1000),
   };
 
   const mockToken0: Token = {
@@ -56,9 +73,9 @@ describe("CLPoolSwapLogic", () => {
     symbol: "TOKEN0",
     name: "Token 0",
     decimals: 18n,
-    pricePerUSDNew: 1000000000000000000n, // 1 USD
+    pricePerUSDNew: ONE_USD,
     isWhitelisted: false,
-    lastUpdatedTimestamp: new Date(1000000 * 1000),
+    lastUpdatedTimestamp: new Date(BLOCK_TIMESTAMP * 1000),
   };
 
   const mockToken1: Token = {
@@ -68,21 +85,365 @@ describe("CLPoolSwapLogic", () => {
     symbol: "TOKEN1",
     name: "Token 1",
     decimals: 18n,
-    pricePerUSDNew: 2000000000000000000n, // 2 USD
+    pricePerUSDNew: TWO_USD,
     isWhitelisted: false,
-    lastUpdatedTimestamp: new Date(1000000 * 1000),
+    lastUpdatedTimestamp: new Date(BLOCK_TIMESTAMP * 1000),
   };
 
   const mockContext: handlerContext = {
     log: {
-      error: () => {},
-      warn: () => {},
-      info: () => {},
+      error: jest.fn(),
+      warn: jest.fn(),
+      info: jest.fn(),
     },
   } as unknown as handlerContext;
 
+  describe("_calculateSwapVolume", () => {
+    it("should calculate volume using token0 when available and non-zero", () => {
+      const result = _calculateSwapVolume(mockEvent, mockToken0, mockToken1);
+
+      expect(result.volumeInUSD).toBe(ONE_USD); // 1 token * $1 = $1
+      expect(result.volumeInUSDWhitelisted).toBe(0n); // Neither token is whitelisted
+    });
+
+    it("should calculate volume using token1 when token0 value is zero", () => {
+      const eventWithZeroToken0: CLPool_Swap_event = {
+        ...mockEvent,
+        params: { ...mockEvent.params, amount0: 0n },
+      };
+
+      const result = _calculateSwapVolume(
+        eventWithZeroToken0,
+        mockToken0,
+        mockToken1,
+      );
+
+      // token1: 2 tokens * $2 = $4
+      expect(result.volumeInUSD).toBe(4n * TEN_TO_THE_18_BI);
+    });
+
+    it("should return zero volume when both tokens are undefined", () => {
+      const result = _calculateSwapVolume(mockEvent, undefined, undefined);
+
+      expect(result.volumeInUSD).toBe(0n);
+      expect(result.volumeInUSDWhitelisted).toBe(0n);
+    });
+
+    it("should calculate whitelisted volume when both tokens are whitelisted", () => {
+      const whitelistedToken0: Token = { ...mockToken0, isWhitelisted: true };
+      const whitelistedToken1: Token = { ...mockToken1, isWhitelisted: true };
+
+      const result = _calculateSwapVolume(
+        mockEvent,
+        whitelistedToken0,
+        whitelistedToken1,
+      );
+
+      expect(result.volumeInUSDWhitelisted).toBe(result.volumeInUSD);
+    });
+
+    it("should return zero whitelisted volume when only one token is whitelisted", () => {
+      const whitelistedToken0: Token = { ...mockToken0, isWhitelisted: true };
+
+      const result = _calculateSwapVolume(
+        mockEvent,
+        whitelistedToken0,
+        mockToken1,
+      );
+
+      expect(result.volumeInUSDWhitelisted).toBe(0n);
+    });
+
+    it("should handle different token decimals correctly", () => {
+      const tokenWith6Decimals: Token = {
+        ...mockToken0,
+        decimals: 6n,
+        pricePerUSDNew: ONE_USD,
+      };
+      const eventWith6Decimals: CLPool_Swap_event = {
+        ...mockEvent,
+        params: {
+          ...mockEvent.params,
+          amount0: 1000000n, // 1 token in 6 decimals
+        },
+      };
+
+      const result = _calculateSwapVolume(
+        eventWith6Decimals,
+        tokenWith6Decimals,
+        mockToken1,
+      );
+
+      expect(result.volumeInUSD).toBe(ONE_USD);
+    });
+  });
+
+  describe("_calculateSwapFees", () => {
+    it("should calculate fees correctly with currentFee", () => {
+      const result = _calculateSwapFees(
+        mockEvent,
+        mockLiquidityPoolAggregator,
+        mockToken0,
+        mockToken1,
+        mockContext,
+      );
+
+      // Fee = 30 bps = 0.3%
+      // token0: (1e18 * 30) / 10000 = 3e15, normalized to 1e18: (3e15 * 1e18) / 1e18 = 3e15
+      // token1: (2e18 * 30) / 10000 = 6e15, normalized to 1e18: (6e15 * 1e18) / 1e18 = 6e15
+      // USD: calculateTokenAmountUSD(3e15, 18, 1e18) = multiplyBase1e18(3e15, 1e18) = 3e15
+      expect(result.swapFeesInToken0).toBe(3000000000000000n); // 3e15
+      expect(result.swapFeesInToken1).toBe(6000000000000000n); // 6e15
+      expect(result.swapFeesInUSD).toBe(3000000000000000n); // 3e15
+    });
+
+    it("should fallback to baseFee when currentFee is undefined", () => {
+      const poolWithBaseFee = {
+        ...mockLiquidityPoolAggregator,
+        currentFee: undefined,
+        baseFee: FEE_100_BPS,
+      } as unknown as LiquidityPoolAggregator;
+
+      const result = _calculateSwapFees(
+        mockEvent,
+        poolWithBaseFee,
+        mockToken0,
+        mockToken1,
+        mockContext,
+      );
+
+      // Fee = 100 bps = 1%
+      // token0: (1e18 * 100) / 10000 = 1e16, normalized to 1e18: 1e16
+      // token1: (2e18 * 100) / 10000 = 2e16, normalized to 1e18: 2e16
+      expect(result.swapFeesInToken0).toBe(10000000000000000n); // 1e16
+      expect(result.swapFeesInToken1).toBe(20000000000000000n); // 2e16
+    });
+
+    it("should return zero fees when both currentFee and baseFee are undefined", () => {
+      const poolWithoutFee = {
+        ...mockLiquidityPoolAggregator,
+        currentFee: undefined,
+        baseFee: undefined,
+      } as unknown as LiquidityPoolAggregator;
+
+      const result = _calculateSwapFees(
+        mockEvent,
+        poolWithoutFee,
+        mockToken0,
+        mockToken1,
+        mockContext,
+      );
+
+      expect(result.swapFeesInToken0).toBe(0n);
+      expect(result.swapFeesInToken1).toBe(0n);
+      expect(result.swapFeesInUSD).toBe(0n);
+      expect(mockContext.log.error).toHaveBeenCalled();
+    });
+
+    it("should handle different token decimals correctly", () => {
+      const tokenWith6Decimals: Token = {
+        ...mockToken0,
+        decimals: 6n,
+      };
+
+      const result = _calculateSwapFees(
+        mockEvent,
+        mockLiquidityPoolAggregator,
+        tokenWith6Decimals,
+        mockToken1,
+        mockContext,
+      );
+
+      // Fee = 30 bps
+      // token0: (1e18 * 30) / 10000 = 3e15, normalized to 1e18: (3e15 * 1e18) / 1e6 = 3e27
+      // token1: (2e18 * 30) / 10000 = 6e15, normalized to 1e18: (6e15 * 1e18) / 1e18 = 6e15
+      expect(result.swapFeesInToken0).toBe(3000000000000000000000000000n); // 3e27
+      expect(result.swapFeesInToken1).toBe(6000000000000000n); // 6e15
+    });
+
+    it("should calculate USD fees using token0 price when available", () => {
+      const result = _calculateSwapFees(
+        mockEvent,
+        mockLiquidityPoolAggregator,
+        mockToken0,
+        mockToken1,
+        mockContext,
+      );
+
+      // Same calculation as first test: 3e15
+      expect(result.swapFeesInUSD).toBe(3000000000000000n); // 3e15
+    });
+
+    it("should calculate USD fees using token1 price when token0 price is zero", () => {
+      const token0WithZeroPrice: Token = {
+        ...mockToken0,
+        pricePerUSDNew: 0n,
+      };
+
+      const result = _calculateSwapFees(
+        mockEvent,
+        mockLiquidityPoolAggregator,
+        token0WithZeroPrice,
+        mockToken1,
+        mockContext,
+      );
+
+      // Uses token1: calculateTokenAmountUSD(6e15, 18, 2e18) = multiplyBase1e18(6e15, 2e18) = 12e15
+      expect(result.swapFeesInUSD).toBe(12000000000000000n); // 12e15
+    });
+
+    it("should return zero USD fees when both token prices are unavailable", () => {
+      const token0WithZeroPrice: Token = {
+        ...mockToken0,
+        pricePerUSDNew: 0n,
+      };
+      const token1WithoutPrice = {
+        ...mockToken1,
+        pricePerUSDNew: undefined,
+      } as unknown as Token;
+
+      const result = _calculateSwapFees(
+        mockEvent,
+        mockLiquidityPoolAggregator,
+        token0WithZeroPrice,
+        token1WithoutPrice,
+        mockContext,
+      );
+
+      expect(result.swapFeesInUSD).toBe(0n);
+    });
+  });
+
+  describe("_calculateSwapLiquidityChanges", () => {
+    it("should calculate new reserves correctly with positive amounts", () => {
+      const eventWithPositiveAmounts: CLPool_Swap_event = {
+        ...mockEvent,
+        params: {
+          ...mockEvent.params,
+          amount0: 5n * TEN_TO_THE_18_BI,
+          amount1: 3n * TEN_TO_THE_18_BI,
+        },
+      };
+
+      const result = _calculateSwapLiquidityChanges(
+        eventWithPositiveAmounts,
+        mockLiquidityPoolAggregator,
+        mockToken0,
+        mockToken1,
+      );
+
+      expect(result.newReserve0).toBe(
+        mockLiquidityPoolAggregator.reserve0 + 5n * TEN_TO_THE_18_BI,
+      );
+      expect(result.newReserve1).toBe(
+        mockLiquidityPoolAggregator.reserve1 + 3n * TEN_TO_THE_18_BI,
+      );
+    });
+
+    it("should calculate new reserves correctly with negative amounts", () => {
+      const eventWithNegativeAmounts: CLPool_Swap_event = {
+        ...mockEvent,
+        params: {
+          ...mockEvent.params,
+          amount0: -5n * TEN_TO_THE_18_BI,
+          amount1: -3n * TEN_TO_THE_18_BI,
+        },
+      };
+
+      const result = _calculateSwapLiquidityChanges(
+        eventWithNegativeAmounts,
+        mockLiquidityPoolAggregator,
+        mockToken0,
+        mockToken1,
+      );
+
+      expect(result.newReserve0).toBe(
+        mockLiquidityPoolAggregator.reserve0 - 5n * TEN_TO_THE_18_BI,
+      );
+      expect(result.newReserve1).toBe(
+        mockLiquidityPoolAggregator.reserve1 - 3n * TEN_TO_THE_18_BI,
+      );
+    });
+
+    it("should calculate liquidity delta correctly when liquidity increases", () => {
+      const poolWithLowLiquidity: LiquidityPoolAggregator = {
+        ...mockLiquidityPoolAggregator,
+        reserve0: 1n * TEN_TO_THE_18_BI,
+        reserve1: 2n * TEN_TO_THE_18_BI,
+        totalLiquidityUSD: 5n * TEN_TO_THE_18_BI,
+      };
+
+      const eventAddingLiquidity: CLPool_Swap_event = {
+        ...mockEvent,
+        params: {
+          ...mockEvent.params,
+          amount0: 1n * TEN_TO_THE_18_BI,
+          amount1: 2n * TEN_TO_THE_18_BI,
+        },
+      };
+
+      const result = _calculateSwapLiquidityChanges(
+        eventAddingLiquidity,
+        poolWithLowLiquidity,
+        mockToken0,
+        mockToken1,
+      );
+
+      // New reserves: 1 + 1 = 2 tokens0, 2 + 2 = 4 tokens1
+      // New liquidity: 2 * $1 + 4 * $2 = $2 + $8 = $10
+      // Delta: $10 - $5 = $5
+      expect(result.deltaTotalLiquidityUSD).toBe(5n * TEN_TO_THE_18_BI);
+    });
+
+    it("should calculate liquidity delta correctly when liquidity decreases", () => {
+      const poolWithHighLiquidity: LiquidityPoolAggregator = {
+        ...mockLiquidityPoolAggregator,
+        reserve0: 10n * TEN_TO_THE_18_BI,
+        reserve1: 20n * TEN_TO_THE_18_BI,
+        totalLiquidityUSD: 50n * TEN_TO_THE_18_BI,
+      };
+
+      const eventRemovingLiquidity: CLPool_Swap_event = {
+        ...mockEvent,
+        params: {
+          ...mockEvent.params,
+          amount0: -5n * TEN_TO_THE_18_BI,
+          amount1: -10n * TEN_TO_THE_18_BI,
+        },
+      };
+
+      const result = _calculateSwapLiquidityChanges(
+        eventRemovingLiquidity,
+        poolWithHighLiquidity,
+        mockToken0,
+        mockToken1,
+      );
+
+      // New reserves: 10 - 5 = 5 tokens0, 20 - 10 = 10 tokens1
+      // New liquidity: 5 * $1 + 10 * $2 = $5 + $20 = $25
+      // Delta: $25 - $50 = -$25
+      expect(result.deltaTotalLiquidityUSD).toBe(-25n * TEN_TO_THE_18_BI);
+    });
+
+    it("should handle undefined tokens correctly", () => {
+      const result = _calculateSwapLiquidityChanges(
+        mockEvent,
+        mockLiquidityPoolAggregator,
+        undefined,
+        undefined,
+      );
+
+      expect(result.newReserve0).toBe(
+        mockLiquidityPoolAggregator.reserve0 + mockEvent.params.amount0,
+      );
+      expect(result.newReserve1).toBe(
+        mockLiquidityPoolAggregator.reserve1 + mockEvent.params.amount1,
+      );
+    });
+  });
+
   describe("processCLPoolSwap", () => {
-    it("processes swap event and calculates correct volumes", async () => {
+    it("should process swap event and calculate correct volumes and fees", async () => {
       const result = await processCLPoolSwap(
         mockEvent,
         mockLiquidityPoolAggregator,
@@ -91,58 +452,36 @@ describe("CLPoolSwapLogic", () => {
         mockContext,
       );
 
-      // Check liquidity pool diff with exact values
       expect(result.liquidityPoolDiff.incrementalTotalVolume0).toBe(
-        1000000000000000000n,
-      ); // amount0 (1 token)
-      expect(result.liquidityPoolDiff.incrementalTotalVolume1).toBe(
-        2000000000000000000n,
-      ); // |amount1| (2 tokens, absolute value)
-      expect(result.liquidityPoolDiff.incrementalNumberOfSwaps).toBe(1n);
-
-      expect(result.liquidityPoolDiff.incrementalTotalVolumeUSD).toBe(
-        1000000000000000000n,
+        1n * TEN_TO_THE_18_BI,
       );
+      expect(result.liquidityPoolDiff.incrementalTotalVolume1).toBe(
+        2n * TEN_TO_THE_18_BI,
+      );
+      expect(result.liquidityPoolDiff.incrementalNumberOfSwaps).toBe(1n);
+      expect(result.liquidityPoolDiff.incrementalTotalVolumeUSD).toBe(ONE_USD);
+      // Same fee calculation as first test: 3e15 for both
+      expect(result.liquidityPoolDiff.incrementalTotalFeesGenerated0).toBe(
+        3000000000000000n,
+      ); // 3e15
+      expect(result.liquidityPoolDiff.incrementalTotalFeesGeneratedUSD).toBe(
+        3000000000000000n,
+      ); // 3e15
 
-      // Check user swap diff with exact values
       expect(result.userSwapDiff.incrementalNumberOfSwaps).toBe(1n);
       expect(result.userSwapDiff.incrementalTotalSwapVolumeAmount0).toBe(
-        1000000000000000000n,
-      ); // abs(amount0) = abs(1 token) = 1 token
-      expect(result.userSwapDiff.incrementalTotalSwapVolumeAmount1).toBe(
-        2000000000000000000n,
-      ); // abs(amount1) = abs(-2 tokens) = 2 tokens
-      expect(result.userSwapDiff.incrementalTotalSwapVolumeUSD).toBe(
-        1000000000000000000n,
-      ); // 1 USD in 18 decimals
-    });
-
-    it("should handle different token decimals correctly", async () => {
-      const tokenWithDifferentDecimals: Token = {
-        ...mockToken0,
-        decimals: 6n, // USDC-like token
-      };
-
-      const result = await processCLPoolSwap(
-        mockEvent,
-        mockLiquidityPoolAggregator,
-        tokenWithDifferentDecimals,
-        mockToken1,
-        mockContext,
+        1n * TEN_TO_THE_18_BI,
       );
-
-      expect(result.liquidityPoolDiff).toBeDefined();
-      expect(result.userSwapDiff).toBeDefined();
+      expect(result.userSwapDiff.incrementalTotalSwapVolumeAmount1).toBe(
+        2n * TEN_TO_THE_18_BI,
+      );
+      expect(result.userSwapDiff.incrementalTotalSwapVolumeUSD).toBe(ONE_USD);
     });
 
     it("should handle zero amounts correctly", async () => {
       const eventWithZeroAmounts: CLPool_Swap_event = {
         ...mockEvent,
-        params: {
-          ...mockEvent.params,
-          amount0: 0n,
-          amount1: 0n,
-        },
+        params: { ...mockEvent.params, amount0: 0n, amount1: 0n },
       };
 
       const result = await processCLPoolSwap(
@@ -156,81 +495,9 @@ describe("CLPoolSwapLogic", () => {
       expect(result.liquidityPoolDiff.incrementalTotalVolume0).toBe(0n);
       expect(result.liquidityPoolDiff.incrementalTotalVolume1).toBe(0n);
       expect(result.liquidityPoolDiff.incrementalTotalVolumeUSD).toBe(0n);
-      expect(result.userSwapDiff.incrementalTotalSwapVolumeAmount0).toBe(0n); // abs(0) = 0
-      expect(result.userSwapDiff.incrementalTotalSwapVolumeAmount1).toBe(0n); // abs(0) = 0
-      expect(result.userSwapDiff.incrementalTotalSwapVolumeUSD).toBe(0n);
     });
 
-    it("should handle existing swap data correctly", async () => {
-      const poolWithExistingSwaps: LiquidityPoolAggregator = {
-        ...mockLiquidityPoolAggregator,
-        totalVolume0: 5000n,
-        totalVolume1: 3000n,
-        totalVolumeUSD: 8000n,
-        numberOfSwaps: 5n,
-      };
-
-      const result = await processCLPoolSwap(
-        mockEvent,
-        poolWithExistingSwaps,
-        mockToken0,
-        mockToken1,
-        mockContext,
-      );
-
-      expect(result.liquidityPoolDiff.incrementalNumberOfSwaps).toBe(1n); // Only the diff, not cumulative
-      expect(result.liquidityPoolDiff.incrementalTotalVolume0).toBe(
-        1000000000000000000n,
-      ); // amount0
-      expect(result.liquidityPoolDiff.incrementalTotalVolume1).toBe(
-        2000000000000000000n,
-      ); // |amount1|
-      expect(result.liquidityPoolDiff.incrementalTotalVolumeUSD).toBe(
-        1000000000000000000n,
-      ); // Only the diff, not cumulative
-    });
-
-    it("should handle undefined token0 by falling back to original instance", async () => {
-      const result = await processCLPoolSwap(
-        mockEvent,
-        mockLiquidityPoolAggregator,
-        undefined,
-        mockToken1,
-        mockContext,
-      );
-
-      // Should still process the swap with token1
-      expect(result.liquidityPoolDiff).toBeDefined();
-      expect(result.liquidityPoolDiff.incrementalTotalVolume1).toBe(
-        2000000000000000000n,
-      );
-      // Price should fallback to pool's existing price when token0 is undefined
-      expect(result.liquidityPoolDiff.token0Price).toBe(
-        mockLiquidityPoolAggregator.token0Price,
-      );
-    });
-
-    it("should handle undefined token1 by falling back to original instance", async () => {
-      const result = await processCLPoolSwap(
-        mockEvent,
-        mockLiquidityPoolAggregator,
-        mockToken0,
-        undefined,
-        mockContext,
-      );
-
-      // Should still process the swap with token0
-      expect(result.liquidityPoolDiff).toBeDefined();
-      expect(result.liquidityPoolDiff.incrementalTotalVolume0).toBe(
-        1000000000000000000n,
-      );
-      // Price should fallback to pool's existing price when token1 is undefined
-      expect(result.liquidityPoolDiff.token1Price).toBe(
-        mockLiquidityPoolAggregator.token1Price,
-      );
-    });
-
-    it("should handle both tokens undefined", async () => {
+    it("should handle undefined tokens with fallback to pool prices", async () => {
       const result = await processCLPoolSwap(
         mockEvent,
         mockLiquidityPoolAggregator,
@@ -239,8 +506,6 @@ describe("CLPoolSwapLogic", () => {
         mockContext,
       );
 
-      // Should still process but with fallback values
-      expect(result.liquidityPoolDiff).toBeDefined();
       expect(result.liquidityPoolDiff.token0Price).toBe(
         mockLiquidityPoolAggregator.token0Price,
       );
@@ -249,13 +514,13 @@ describe("CLPoolSwapLogic", () => {
       );
     });
 
-    it("should calculate reserves correctly with positive amounts", async () => {
+    it("should calculate reserves correctly with signed amounts", async () => {
       const eventWithPositiveAmounts: CLPool_Swap_event = {
         ...mockEvent,
         params: {
           ...mockEvent.params,
-          amount0: 5000000000000000000n, // +5 tokens
-          amount1: 3000000000000000000n, // +3 tokens
+          amount0: 5n * TEN_TO_THE_18_BI,
+          amount1: 3n * TEN_TO_THE_18_BI,
         },
       };
 
@@ -267,138 +532,39 @@ describe("CLPoolSwapLogic", () => {
         mockContext,
       );
 
-      // Reserves should be added (delta is positive)
       expect(result.liquidityPoolDiff.incrementalReserve0).toBe(
-        5000000000000000000n,
+        5n * TEN_TO_THE_18_BI,
       );
       expect(result.liquidityPoolDiff.incrementalReserve1).toBe(
-        3000000000000000000n,
+        3n * TEN_TO_THE_18_BI,
       );
-      // User swap diff should use absolute values
-      expect(result.userSwapDiff.incrementalTotalSwapVolumeAmount0).toBe(
-        5000000000000000000n,
-      ); // abs(5 tokens) = 5 tokens
-      expect(result.userSwapDiff.incrementalTotalSwapVolumeAmount1).toBe(
-        3000000000000000000n,
-      ); // abs(3 tokens) = 3 tokens
     });
 
-    it("should calculate reserves correctly with negative amounts", async () => {
-      const eventWithNegativeAmounts: CLPool_Swap_event = {
-        ...mockEvent,
-        params: {
-          ...mockEvent.params,
-          amount0: -5000000000000000000n, // -5 tokens (token0 out)
-          amount1: -3000000000000000000n, // -3 tokens (token1 out)
-        },
-      };
+    it("should calculate whitelisted volume correctly", async () => {
+      const whitelistedToken0: Token = { ...mockToken0, isWhitelisted: true };
+      const whitelistedToken1: Token = { ...mockToken1, isWhitelisted: true };
 
       const result = await processCLPoolSwap(
-        eventWithNegativeAmounts,
+        mockEvent,
         mockLiquidityPoolAggregator,
-        mockToken0,
-        mockToken1,
+        whitelistedToken0,
+        whitelistedToken1,
         mockContext,
       );
 
-      // Reserves should be subtracted (delta is negative)
-      expect(result.liquidityPoolDiff.incrementalReserve0).toBe(
-        -5000000000000000000n,
-      );
-      expect(result.liquidityPoolDiff.incrementalReserve1).toBe(
-        -3000000000000000000n,
-      );
-      // Volumes should still be absolute values
-      expect(result.liquidityPoolDiff.incrementalTotalVolume0).toBe(
-        5000000000000000000n,
-      );
-      expect(result.liquidityPoolDiff.incrementalTotalVolume1).toBe(
-        3000000000000000000n,
-      );
-      // User swap diff should also use absolute values
-      expect(result.userSwapDiff.incrementalTotalSwapVolumeAmount0).toBe(
-        5000000000000000000n,
-      ); // abs(-5 tokens) = 5 tokens
-      expect(result.userSwapDiff.incrementalTotalSwapVolumeAmount1).toBe(
-        3000000000000000000n,
-      ); // abs(-3 tokens) = 3 tokens
-    });
-
-    it("should calculate liquidity delta correctly when liquidity increases", async () => {
-      const poolWithLowLiquidity: LiquidityPoolAggregator = {
-        ...mockLiquidityPoolAggregator,
-        reserve0: 1000000000000000000n, // 1 token
-        reserve1: 2000000000000000000n, // 2 tokens
-        totalLiquidityUSD: 5000000000000000000n, // 5 USD
-      };
-
-      const eventAddingLiquidity: CLPool_Swap_event = {
-        ...mockEvent,
-        params: {
-          ...mockEvent.params,
-          amount0: 1000000000000000000n, // +1 token
-          amount1: 2000000000000000000n, // +2 tokens
-        },
-      };
-
-      const result = await processCLPoolSwap(
-        eventAddingLiquidity,
-        poolWithLowLiquidity,
-        mockToken0,
-        mockToken1,
-        mockContext,
-      );
-
-      // New reserves: 1 + 1 = 2 tokens0, 2 + 2 = 4 tokens1
-      // New liquidity: 2 * $1 + 4 * $2 = $2 + $8 = $10
-      // Delta: $10 - $5 = $5
-      expect(result.liquidityPoolDiff.incrementalCurrentLiquidityUSD).toBe(
-        5000000000000000000n, // $5 in 18 decimals
-      );
-    });
-
-    it("should calculate liquidity delta correctly when liquidity decreases", async () => {
-      const poolWithHighLiquidity: LiquidityPoolAggregator = {
-        ...mockLiquidityPoolAggregator,
-        reserve0: 10000000000000000000n, // 10 tokens
-        reserve1: 20000000000000000000n, // 20 tokens
-        totalLiquidityUSD: 50000000000000000000n, // 50 USD
-      };
-
-      const eventRemovingLiquidity: CLPool_Swap_event = {
-        ...mockEvent,
-        params: {
-          ...mockEvent.params,
-          amount0: -5000000000000000000n, // -5 tokens
-          amount1: -10000000000000000000n, // -10 tokens
-        },
-      };
-
-      const result = await processCLPoolSwap(
-        eventRemovingLiquidity,
-        poolWithHighLiquidity,
-        mockToken0,
-        mockToken1,
-        mockContext,
-      );
-
-      // New reserves: 10 - 5 = 5 tokens0, 20 - 10 = 10 tokens1
-      // New liquidity: 5 * $1 + 10 * $2 = $5 + $20 = $25
-      // Delta: $25 - $50 = -$25
-      expect(result.liquidityPoolDiff.incrementalCurrentLiquidityUSD).toBe(
-        -25000000000000000000n, // -$25 in 18 decimals
-      );
+      expect(
+        result.liquidityPoolDiff.incrementalTotalVolumeUSDWhitelisted,
+      ).toBe(result.liquidityPoolDiff.incrementalTotalVolumeUSD);
     });
 
     it("should use updated token prices when available", async () => {
       const token0WithNewPrice: Token = {
         ...mockToken0,
-        pricePerUSDNew: 1500000000000000000n, // $1.50 (was $1.00)
+        pricePerUSDNew: 1500000000000000000n,
       };
-
       const token1WithNewPrice: Token = {
         ...mockToken1,
-        pricePerUSDNew: 2500000000000000000n, // $2.50 (was $2.00)
+        pricePerUSDNew: 2500000000000000000n,
       };
 
       const result = await processCLPoolSwap(
@@ -409,85 +575,25 @@ describe("CLPoolSwapLogic", () => {
         mockContext,
       );
 
-      // Should use the new prices from the updated tokens
       expect(result.liquidityPoolDiff.token0Price).toBe(1500000000000000000n);
       expect(result.liquidityPoolDiff.token1Price).toBe(2500000000000000000n);
     });
 
-    it("should fallback to pool prices when swapData doesn't return updated prices", async () => {
-      // This tests the fallback logic when updateSwapTokenData returns undefined tokens
-      // In practice, this happens when tokens are undefined, but we can test the fallback
-      const poolWithPrices: LiquidityPoolAggregator = {
-        ...mockLiquidityPoolAggregator,
-        token0Price: 999000000000000000n, // $0.999
-        token1Price: 1999000000000000000n, // $1.999
-      };
-
-      const result = await processCLPoolSwap(
-        mockEvent,
-        poolWithPrices,
-        undefined,
-        undefined,
-        mockContext,
-      );
-
-      // Should fallback to pool's existing prices
-      expect(result.liquidityPoolDiff.token0Price).toBe(
-        poolWithPrices.token0Price,
-      );
-      expect(result.liquidityPoolDiff.token1Price).toBe(
-        poolWithPrices.token1Price,
-      );
-    });
-
-    it("should correctly set whitelisted status from updated tokens", async () => {
-      const whitelistedToken0: Token = {
-        ...mockToken0,
-        isWhitelisted: true,
-      };
-
-      const whitelistedToken1: Token = {
-        ...mockToken1,
-        isWhitelisted: true,
-      };
-
+    it("should set correct timestamps", async () => {
       const result = await processCLPoolSwap(
         mockEvent,
         mockLiquidityPoolAggregator,
-        whitelistedToken0,
-        whitelistedToken1,
+        mockToken0,
+        mockToken1,
         mockContext,
       );
 
-      // When both are whitelisted, whitelisted volume should equal total volume
-      expect(
-        result.liquidityPoolDiff.incrementalTotalVolumeUSDWhitelisted,
-      ).toBe(result.liquidityPoolDiff.incrementalTotalVolumeUSD);
-    });
-
-    it("should handle mixed whitelisted status correctly", async () => {
-      const whitelistedToken0: Token = {
-        ...mockToken0,
-        isWhitelisted: true,
-      };
-
-      const nonWhitelistedToken1: Token = {
-        ...mockToken1,
-        isWhitelisted: false,
-      };
-
-      const result = await processCLPoolSwap(
-        mockEvent,
-        mockLiquidityPoolAggregator,
-        whitelistedToken0,
-        nonWhitelistedToken1,
-        mockContext,
+      expect(result.liquidityPoolDiff.lastUpdatedTimestamp).toEqual(
+        new Date(BLOCK_TIMESTAMP * 1000),
       );
-
-      // When only one is whitelisted, whitelisted volume should be 0
-      expect(
-        result.liquidityPoolDiff.incrementalTotalVolumeUSDWhitelisted,
-      ).toBe(0n);
+      expect(result.userSwapDiff.lastActivityTimestamp).toEqual(
+        new Date(BLOCK_TIMESTAMP * 1000),
+      );
     });
   });
 });

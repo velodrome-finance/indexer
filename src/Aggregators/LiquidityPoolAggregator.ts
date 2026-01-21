@@ -86,7 +86,7 @@ export async function updateDynamicFeePools(
   liquidityPoolAggregator: LiquidityPoolAggregator,
   context: handlerContext,
   blockNumber: number,
-) {
+): Promise<LiquidityPoolAggregator> {
   const poolAddress = liquidityPoolAggregator.id;
   const chainId = liquidityPoolAggregator.chainId;
 
@@ -97,7 +97,7 @@ export async function updateDynamicFeePools(
     context.log.warn(
       `No dynamic fee global config found for chain ${chainId}. No update to currentFee will be performed.`,
     );
-    return;
+    return liquidityPoolAggregator;
   }
 
   const dynamicFeeModuleAddress = dynamicFeeGlobalConfigs[0].id;
@@ -115,16 +115,16 @@ export async function updateDynamicFeePools(
     context.log.warn(
       `[updateDynamicFeePools] Failed to fetch fee for pool ${poolAddress} on chain ${chainId}, skipping update`,
     );
-    return;
+    return liquidityPoolAggregator;
   }
 
   // Update the current fee in the pool entity
-  const updated: LiquidityPoolAggregator = {
+  const updatedLiquidityPoolAggregator = {
     ...liquidityPoolAggregator,
     currentFee,
   };
 
-  context.LiquidityPoolAggregator.set(updated);
+  return updatedLiquidityPoolAggregator;
 }
 
 /**
@@ -312,6 +312,16 @@ export async function updateLiquidityPoolAggregator(
     timestamp.getTime() - current.lastSnapshotTimestamp.getTime() >
       UPDATE_INTERVAL
   ) {
+    // Only update dynamic fees for CL pools (they use dynamic fee modules)
+    // Non-CL pools have their fees fixed at a certain constant level. It can change over time, but we fetch that change
+    // through events.
+    if (updated.isCL) {
+      updated = {
+        ...updated,
+        ...(await updateDynamicFeePools(updated, context, blockNumber)),
+      };
+    }
+
     setLiquidityPoolAggregatorSnapshot(updated, timestamp, context);
   }
 
@@ -561,8 +571,8 @@ export function createLiquidityPoolAggregatorEntity(params: {
   timestamp: Date;
   tickSpacing?: number; // For CL pools
   CLGaugeConfig?: CLGaugeConfig | null; // For CL pools
-  baseFee?: bigint;
-  currentFee?: bigint;
+  baseFee: bigint;
+  currentFee: bigint;
 }): LiquidityPoolAggregator {
   const {
     poolAddress,
@@ -660,7 +670,7 @@ export function createLiquidityPoolAggregatorEntity(params: {
       : isCL
         ? undefined
         : 0n,
-    // Dynamic Fee fields (undefined initially)
+    // Dynamic Fee fields
     baseFee: baseFee,
     feeCap: undefined,
     scalingFactor: undefined,

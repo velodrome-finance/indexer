@@ -92,6 +92,9 @@ describe("DynamicSwapFeeModule Events", () => {
       expect(updatedPool?.scalingFactor).toBeUndefined();
       expect(updatedPool?.feeCap).toBeUndefined();
 
+      // Update mockDb with the result from the first event
+      mockDb = result;
+
       // Execute - Update scalingFactor
       result = await DynamicSwapFeeModule.ScalingFactorSet.processEvent({
         event: DynamicSwapFeeModule.ScalingFactorSet.createMockEvent({
@@ -116,9 +119,13 @@ describe("DynamicSwapFeeModule Events", () => {
       );
 
       expect(updatedPool).toBeDefined();
-      expect(updatedPool?.baseFee).toBeUndefined();
+      // baseFee should be preserved from the previous event
+      expect(updatedPool?.baseFee).toBe(baseFee);
       expect(updatedPool?.scalingFactor).toBe(scalingFactor);
       expect(updatedPool?.feeCap).toBeUndefined();
+
+      // Update mockDb with the result from the second event
+      mockDb = result;
 
       // Execute - Update feeCap
       result = await DynamicSwapFeeModule.FeeCapSet.processEvent({
@@ -143,8 +150,9 @@ describe("DynamicSwapFeeModule Events", () => {
         toChecksumAddress(poolAddress),
       );
       expect(updatedPool).toBeDefined();
-      expect(updatedPool?.baseFee).toBeUndefined();
-      expect(updatedPool?.scalingFactor).toBeUndefined();
+      // baseFee and scalingFactor should be preserved from previous events
+      expect(updatedPool?.baseFee).toBe(baseFee);
+      expect(updatedPool?.scalingFactor).toBe(scalingFactor);
       expect(updatedPool?.feeCap).toBe(feeCap);
     });
   });

@@ -50,20 +50,6 @@ export function generatePoolName(
   return `${poolType} AMM - ${token0Symbol}/${token1Symbol}`;
 }
 
-// Token utility interfaces
-export interface TokenSwapData {
-  token0?: Token;
-  token1?: Token;
-  token0NormalizedAmount?: bigint;
-  token1NormalizedAmount?: bigint;
-  token0UsdValue?: bigint;
-  token1UsdValue?: bigint;
-  token0NetAmount?: bigint;
-  token1NetAmount?: bigint;
-  volumeInUSD: bigint;
-  volumeInUSDWhitelisted: bigint;
-}
-
 /**
  * Updates a single token with price refresh and calculations
  */
@@ -112,51 +98,6 @@ export async function updateTokenData(
     normalizedAmount,
     usdValue,
     netAmount: amount,
-  };
-}
-
-/**
- * Updates both tokens for swap operations
- */
-export async function updateSwapTokenData(
-  token0: Token | undefined,
-  token1: Token | undefined,
-  amount0: bigint,
-  amount1: bigint,
-  event: {
-    block: { number: number; timestamp: number };
-    chainId: number;
-  },
-  context: handlerContext,
-): Promise<TokenSwapData> {
-  const [token0Data, token1Data] = await Promise.all([
-    token0 ? updateTokenData(token0, amount0, event, context) : null,
-    token1 ? updateTokenData(token1, amount1, event, context) : null,
-  ]);
-
-  // Calculate volume in USD (use token0 if available and non-zero, otherwise token1)
-  const volumeInUSD =
-    token0Data?.usdValue !== undefined && token0Data.usdValue !== 0n
-      ? token0Data.usdValue
-      : (token1Data?.usdValue ?? 0n);
-
-  // Calculate whitelisted volume (both tokens must be whitelisted)
-  const volumeInUSDWhitelisted =
-    token0Data?.token.isWhitelisted && token1Data?.token.isWhitelisted
-      ? token0Data.usdValue
-      : 0n;
-
-  return {
-    token0: token0Data?.token,
-    token1: token1Data?.token,
-    token0NormalizedAmount: token0Data?.normalizedAmount,
-    token1NormalizedAmount: token1Data?.normalizedAmount,
-    token0UsdValue: token0Data?.usdValue,
-    token1UsdValue: token1Data?.usdValue,
-    token0NetAmount: token0Data?.netAmount,
-    token1NetAmount: token1Data?.netAmount,
-    volumeInUSD,
-    volumeInUSDWhitelisted,
   };
 }
 
