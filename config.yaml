@@ -69,6 +69,7 @@ contracts:
       - event: Claim
       - event: Swap
       - event: Sync
+      - event: Transfer
   - name: Voter
     abi_file_path: abis/VoterV2.json
     handler: src/EventHandlers/Voter/Voter.ts

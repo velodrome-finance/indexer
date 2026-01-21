@@ -5,6 +5,7 @@ export interface UserStatsPerPoolDiff {
   incrementalCurrentLiquidityUSD: bigint;
   incrementalCurrentLiquidityToken0: bigint;
   incrementalCurrentLiquidityToken1: bigint;
+  incrementalLpBalance: bigint;
   incrementalTotalLiquidityAddedUSD: bigint;
   incrementalTotalLiquidityRemovedUSD: bigint;
   incrementalTotalFeesContributedUSD: bigint;
@@ -125,6 +126,7 @@ export function createUserStatsPerPoolEntity(
     currentLiquidityUSD: 0n,
     currentLiquidityToken0: 0n,
     currentLiquidityToken1: 0n,
+    lpBalance: 0n,
     totalLiquidityAddedUSD: 0n,
     totalLiquidityRemovedUSD: 0n,
 
@@ -209,6 +211,10 @@ export async function updateUserStatsPerPool(
         ? current.currentLiquidityToken1 +
           diff.incrementalCurrentLiquidityToken1
         : current.currentLiquidityToken1,
+    lpBalance:
+      diff.incrementalLpBalance !== undefined
+        ? current.lpBalance + diff.incrementalLpBalance
+        : current.lpBalance,
 
     totalFeesContributed0:
       diff.incrementalTotalFeesContributed0 !== undefined

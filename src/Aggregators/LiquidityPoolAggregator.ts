@@ -21,6 +21,7 @@ export type DynamicFeeConfig = {
 export interface LiquidityPoolAggregatorDiff {
   incrementalReserve0: bigint;
   incrementalReserve1: bigint;
+  incrementalTotalLPSupply: bigint;
   incrementalCurrentLiquidityUSD: bigint;
   incrementalTotalVolume0: bigint;
   incrementalTotalVolume1: bigint;
@@ -179,6 +180,8 @@ export async function updateLiquidityPoolAggregator(
     // Handle cumulative fields by adding diff values to current values
     reserve0: (diff.incrementalReserve0 ?? 0n) + current.reserve0,
     reserve1: (diff.incrementalReserve1 ?? 0n) + current.reserve1,
+    totalLPTokenSupply:
+      (diff.incrementalTotalLPSupply ?? 0n) + current.totalLPTokenSupply,
     totalLiquidityUSD:
       (diff.incrementalCurrentLiquidityUSD ?? 0n) + current.totalLiquidityUSD,
     totalVolume0: (diff.incrementalTotalVolume0 ?? 0n) + current.totalVolume0,
@@ -608,6 +611,7 @@ export function createLiquidityPoolAggregatorEntity(params: {
     tickSpacing: tickSpacing ? BigInt(tickSpacing) : 0n, // 0 for non-CL pools
     reserve0: 0n,
     reserve1: 0n,
+    totalLPTokenSupply: 0n,
     totalLiquidityUSD: 0n,
     totalVolume0: 0n,
     totalVolume1: 0n,
