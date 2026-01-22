@@ -43,14 +43,16 @@ ALMLPWrapperV1.Deposit.handler(async ({ event, context }) => {
  *    (who withdraws and receives tokens) with their reduced ALM position
  *
  * Note: In V1, Withdraw event has both `sender` and `recipient` fields.
- * The `recipient` is the one who receives the tokens and should have their stats updated.
+ * The `sender` is the one who receives the tokens and should have their stats updated.
+ * The above can be observed by the _burn function execution within _withdraw:
+ * - msg.sender is the one whose tokens are being burned/withdrawn
  */
 ALMLPWrapperV1.Withdraw.handler(async ({ event, context }) => {
-  const { recipient, pool, lpAmount, amount0, amount1 } = event.params;
+  const { sender, pool, lpAmount, amount0, amount1 } = event.params;
   const timestamp = new Date(event.block.timestamp * 1000);
 
   await processWithdrawEvent(
-    recipient,
+    sender,
     pool,
     amount0,
     amount1,
@@ -60,6 +62,9 @@ ALMLPWrapperV1.Withdraw.handler(async ({ event, context }) => {
     event.block.number,
     timestamp,
     context,
+    event.transaction.hash,
+    event.logIndex,
+    true, // isV1 = true for V1 wrapper
   );
 });
 
@@ -89,7 +94,11 @@ ALMLPWrapperV1.Transfer.handler(async ({ event, context }) => {
     value,
     event.srcAddress,
     event.chainId,
+    event.transaction.hash,
+    event.logIndex,
+    event.block.number,
     timestamp,
     context,
+    true, // isV1 = true for V1 wrapper
   );
 });
