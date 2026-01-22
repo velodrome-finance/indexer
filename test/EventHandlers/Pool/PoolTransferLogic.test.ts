@@ -6,10 +6,10 @@ import type {
 } from "generated";
 import { ZERO_ADDRESS } from "../../../src/Constants";
 import {
-  _storeTransferForMatching,
-  _updatePoolTotalSupply,
-  _updateUserLpBalances,
   processPoolTransfer,
+  storeTransferForMatching,
+  updatePoolTotalSupply,
+  updateUserLpBalances,
 } from "../../../src/EventHandlers/Pool/PoolTransferLogic";
 import { setupCommon } from "./common";
 
@@ -116,9 +116,9 @@ describe("PoolTransferLogic", () => {
     },
   });
 
-  describe("_updatePoolTotalSupply", () => {
+  describe("updatePoolTotalSupply", () => {
     it("should increment totalLPTokenSupply for mint transfers", async () => {
-      await _updatePoolTotalSupply(
+      await updatePoolTotalSupply(
         true, // isMint
         false, // isBurn
         LP_VALUE,
@@ -140,7 +140,7 @@ describe("PoolTransferLogic", () => {
     });
 
     it("should decrement totalLPTokenSupply for burn transfers", async () => {
-      await _updatePoolTotalSupply(
+      await updatePoolTotalSupply(
         false, // isMint
         true, // isBurn
         LP_VALUE,
@@ -162,7 +162,7 @@ describe("PoolTransferLogic", () => {
     });
 
     it("should not update for regular transfers", async () => {
-      await _updatePoolTotalSupply(
+      await updatePoolTotalSupply(
         false, // isMint
         false, // isBurn
         LP_VALUE,
@@ -176,9 +176,9 @@ describe("PoolTransferLogic", () => {
     });
   });
 
-  describe("_updateUserLpBalances", () => {
+  describe("updateUserLpBalances", () => {
     it("should add LP balance to recipient for mint", async () => {
-      await _updateUserLpBalances(
+      await updateUserLpBalances(
         true, // isMint
         false, // isBurn
         ZERO_ADDRESS,
@@ -200,7 +200,7 @@ describe("PoolTransferLogic", () => {
     });
 
     it("should subtract LP balance from sender for burn", async () => {
-      await _updateUserLpBalances(
+      await updateUserLpBalances(
         false, // isMint
         true, // isBurn
         USER_ADDRESS,
@@ -222,7 +222,7 @@ describe("PoolTransferLogic", () => {
     });
 
     it("should update both sender and recipient for regular transfers", async () => {
-      await _updateUserLpBalances(
+      await updateUserLpBalances(
         false, // isMint
         false, // isBurn
         USER_ADDRESS,
@@ -252,7 +252,7 @@ describe("PoolTransferLogic", () => {
     });
 
     it("should handle self-transfers (from === to) by updating only once with zero balance change", async () => {
-      await _updateUserLpBalances(
+      await updateUserLpBalances(
         false, // isMint
         false, // isBurn
         USER_ADDRESS,
@@ -287,9 +287,9 @@ describe("PoolTransferLogic", () => {
     });
   });
 
-  describe("_storeTransferForMatching", () => {
+  describe("storeTransferForMatching", () => {
     it("should store mint transfers", () => {
-      _storeTransferForMatching(
+      storeTransferForMatching(
         true, // isMint
         false, // isBurn
         CHAIN_ID,
@@ -322,7 +322,7 @@ describe("PoolTransferLogic", () => {
     });
 
     it("should store burn transfers", () => {
-      _storeTransferForMatching(
+      storeTransferForMatching(
         false, // isMint
         true, // isBurn
         CHAIN_ID,
@@ -348,7 +348,7 @@ describe("PoolTransferLogic", () => {
     });
 
     it("should not store regular transfers", () => {
-      _storeTransferForMatching(
+      storeTransferForMatching(
         false, // isMint
         false, // isBurn
         CHAIN_ID,

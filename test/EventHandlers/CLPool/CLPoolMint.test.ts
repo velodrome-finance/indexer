@@ -22,7 +22,7 @@ describe("CLPool Mint Event Handler", () => {
     mockDb = updatedDB2.entities.Token.set(mockToken1Data);
   });
 
-  it("should create NonFungiblePosition entity when processing Mint event", async () => {
+  it("should create CLPoolMintEvent entity when processing Mint event", async () => {
     const mockEvent = CLPool.Mint.createMockEvent({
       owner: ownerAddress,
       tickLower: -100000n,

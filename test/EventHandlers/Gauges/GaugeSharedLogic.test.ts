@@ -227,11 +227,6 @@ describe("GaugeSharedLogic", () => {
           // Return a mock totalSupply (e.g., 1000 LP tokens)
           return 1000000000000000000000n; // 1000 LP tokens (18 decimals)
         }
-        // Mock getSqrtPriceX96 for CL pools
-        if (fn.name === "getSqrtPriceX96") {
-          // Return a mock sqrtPriceX96 value
-          return 79228162514264337593543950336n; // Example value
-        }
         return {};
       },
       NonFungiblePosition: {

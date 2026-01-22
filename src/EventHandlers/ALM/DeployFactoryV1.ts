@@ -1,6 +1,5 @@
 import { ALMDeployFactoryV1 } from "generated";
 import { toChecksumAddress } from "../../Constants";
-import { getSqrtPriceX96 } from "../../Effects/Index";
 import { calculatePositionAmountsFromLiquidity } from "../../Helpers";
 
 ALMDeployFactoryV1.StrategyCreated.contractRegister(({ event, context }) => {
@@ -59,25 +58,15 @@ ALMDeployFactoryV1.StrategyCreated.handler(async ({ event, context }) => {
   const tokenId = position.tokenId;
 
   // Compute amount0/amount1 from liquidity + sqrtPriceX96 + ticks (amount0/amount1 removed from schema)
-  // Fetch sqrtPriceX96 from pool aggregator or RPC
-  const liquidityPoolAggregator = await context.LiquidityPoolAggregator.get(
-    toChecksumAddress(pool),
-  );
-  let sqrtPriceX96: bigint | undefined =
-    liquidityPoolAggregator?.sqrtPriceX96 ?? undefined;
-
-  if (!sqrtPriceX96) {
-    // Fallback to RPC
-    sqrtPriceX96 = await context.effect(getSqrtPriceX96, {
-      poolAddress: toChecksumAddress(pool),
-      chainId: event.chainId,
-      blockNumber: event.block.number,
-    });
-  }
+  // Fetch sqrtPriceX96 from pool aggregator
+  const liquidityPoolAggregator =
+    await context.LiquidityPoolAggregator.get(pool);
+  const sqrtPriceX96 = liquidityPoolAggregator?.sqrtPriceX96;
 
   let amount0 = 0n;
   let amount1 = 0n;
-  if (sqrtPriceX96) {
+  // Treat sqrtPriceX96 === 0n the same as undefined (missing/invalid)
+  if (sqrtPriceX96 !== undefined && sqrtPriceX96 !== 0n) {
     const amounts = calculatePositionAmountsFromLiquidity(
       liquidity,
       sqrtPriceX96,
@@ -88,7 +77,7 @@ ALMDeployFactoryV1.StrategyCreated.handler(async ({ event, context }) => {
     amount1 = amounts.amount1;
   } else {
     context.log.warn(
-      `[ALMDeployFactoryV1] Could not fetch sqrtPriceX96 for pool ${pool} to compute amount0/amount1, using 0`,
+      `[ALMDeployFactoryV1] sqrtPriceX96 is missing or zero for pool ${pool} on chain ${event.chainId}. Cannot compute amount0/amount1, using 0`,
     );
   }
 

@@ -21,7 +21,8 @@ export interface NonFungiblePositionDiff {
 /**
  * Updates NonFungiblePosition with the provided diff
  * Uses spread operator to handle immutable entities
- * All fields are set to absolute values (therefore, they are directly substituted and not added/subtracted deltas)
+ * Most fields are set to absolute values (directly substituted), except liquidity which is incremental
+ * (current.liquidity + diff.incrementalLiquidity)
  */
 export function updateNonFungiblePosition(
   diff: Partial<NonFungiblePositionDiff>,

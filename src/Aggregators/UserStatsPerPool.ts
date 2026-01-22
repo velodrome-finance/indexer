@@ -3,8 +3,6 @@ import { toChecksumAddress } from "../Constants";
 
 export interface UserStatsPerPoolDiff {
   incrementalCurrentLiquidityUSD: bigint;
-  incrementalCurrentLiquidityToken0: bigint;
-  incrementalCurrentLiquidityToken1: bigint;
   incrementalLpBalance: bigint;
   incrementalTotalLiquidityAddedUSD: bigint;
   incrementalTotalLiquidityAddedToken0: bigint;

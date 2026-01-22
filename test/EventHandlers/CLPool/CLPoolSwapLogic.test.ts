@@ -6,9 +6,9 @@ import type {
 } from "generated";
 import { TEN_TO_THE_18_BI } from "../../../src/Constants";
 import {
-  _calculateSwapFees,
-  _calculateSwapLiquidityChanges,
-  _calculateSwapVolume,
+  calculateSwapFees,
+  calculateSwapLiquidityChanges,
+  calculateSwapVolume,
   processCLPoolSwap,
 } from "../../../src/EventHandlers/CLPool/CLPoolSwapLogic";
 import { setupCommon } from "../Pool/common";
@@ -98,9 +98,9 @@ describe("CLPoolSwapLogic", () => {
     },
   } as unknown as handlerContext;
 
-  describe("_calculateSwapVolume", () => {
+  describe("calculateSwapVolume", () => {
     it("should calculate volume using token0 when available and non-zero", () => {
-      const result = _calculateSwapVolume(mockEvent, mockToken0, mockToken1);
+      const result = calculateSwapVolume(mockEvent, mockToken0, mockToken1);
 
       expect(result.volumeInUSD).toBe(ONE_USD); // 1 token * $1 = $1
       expect(result.volumeInUSDWhitelisted).toBe(0n); // Neither token is whitelisted
@@ -112,7 +112,7 @@ describe("CLPoolSwapLogic", () => {
         params: { ...mockEvent.params, amount0: 0n },
       };
 
-      const result = _calculateSwapVolume(
+      const result = calculateSwapVolume(
         eventWithZeroToken0,
         mockToken0,
         mockToken1,
@@ -123,7 +123,7 @@ describe("CLPoolSwapLogic", () => {
     });
 
     it("should return zero volume when both tokens are undefined", () => {
-      const result = _calculateSwapVolume(mockEvent, undefined, undefined);
+      const result = calculateSwapVolume(mockEvent, undefined, undefined);
 
       expect(result.volumeInUSD).toBe(0n);
       expect(result.volumeInUSDWhitelisted).toBe(0n);
@@ -133,7 +133,7 @@ describe("CLPoolSwapLogic", () => {
       const whitelistedToken0: Token = { ...mockToken0, isWhitelisted: true };
       const whitelistedToken1: Token = { ...mockToken1, isWhitelisted: true };
 
-      const result = _calculateSwapVolume(
+      const result = calculateSwapVolume(
         mockEvent,
         whitelistedToken0,
         whitelistedToken1,
@@ -145,7 +145,7 @@ describe("CLPoolSwapLogic", () => {
     it("should return zero whitelisted volume when only one token is whitelisted", () => {
       const whitelistedToken0: Token = { ...mockToken0, isWhitelisted: true };
 
-      const result = _calculateSwapVolume(
+      const result = calculateSwapVolume(
         mockEvent,
         whitelistedToken0,
         mockToken1,
@@ -168,7 +168,7 @@ describe("CLPoolSwapLogic", () => {
         },
       };
 
-      const result = _calculateSwapVolume(
+      const result = calculateSwapVolume(
         eventWith6Decimals,
         tokenWith6Decimals,
         mockToken1,
@@ -178,9 +178,9 @@ describe("CLPoolSwapLogic", () => {
     });
   });
 
-  describe("_calculateSwapFees", () => {
+  describe("calculateSwapFees", () => {
     it("should calculate fees correctly with currentFee", () => {
-      const result = _calculateSwapFees(
+      const result = calculateSwapFees(
         mockEvent,
         mockLiquidityPoolAggregator,
         mockToken0,
@@ -204,7 +204,7 @@ describe("CLPoolSwapLogic", () => {
         baseFee: FEE_100_BPS,
       } as unknown as LiquidityPoolAggregator;
 
-      const result = _calculateSwapFees(
+      const result = calculateSwapFees(
         mockEvent,
         poolWithBaseFee,
         mockToken0,
@@ -226,7 +226,7 @@ describe("CLPoolSwapLogic", () => {
         baseFee: undefined,
       } as unknown as LiquidityPoolAggregator;
 
-      const result = _calculateSwapFees(
+      const result = calculateSwapFees(
         mockEvent,
         poolWithoutFee,
         mockToken0,
@@ -246,7 +246,7 @@ describe("CLPoolSwapLogic", () => {
         decimals: 6n,
       };
 
-      const result = _calculateSwapFees(
+      const result = calculateSwapFees(
         mockEvent,
         mockLiquidityPoolAggregator,
         tokenWith6Decimals,
@@ -262,7 +262,7 @@ describe("CLPoolSwapLogic", () => {
     });
 
     it("should calculate USD fees using token0 price when available", () => {
-      const result = _calculateSwapFees(
+      const result = calculateSwapFees(
         mockEvent,
         mockLiquidityPoolAggregator,
         mockToken0,
@@ -280,7 +280,7 @@ describe("CLPoolSwapLogic", () => {
         pricePerUSDNew: 0n,
       };
 
-      const result = _calculateSwapFees(
+      const result = calculateSwapFees(
         mockEvent,
         mockLiquidityPoolAggregator,
         token0WithZeroPrice,
@@ -302,7 +302,7 @@ describe("CLPoolSwapLogic", () => {
         pricePerUSDNew: undefined,
       } as unknown as Token;
 
-      const result = _calculateSwapFees(
+      const result = calculateSwapFees(
         mockEvent,
         mockLiquidityPoolAggregator,
         token0WithZeroPrice,
@@ -314,7 +314,7 @@ describe("CLPoolSwapLogic", () => {
     });
   });
 
-  describe("_calculateSwapLiquidityChanges", () => {
+  describe("calculateSwapLiquidityChanges", () => {
     it("should calculate new reserves correctly with positive amounts", () => {
       const eventWithPositiveAmounts: CLPool_Swap_event = {
         ...mockEvent,
@@ -325,7 +325,7 @@ describe("CLPoolSwapLogic", () => {
         },
       };
 
-      const result = _calculateSwapLiquidityChanges(
+      const result = calculateSwapLiquidityChanges(
         eventWithPositiveAmounts,
         mockLiquidityPoolAggregator,
         mockToken0,
@@ -350,7 +350,7 @@ describe("CLPoolSwapLogic", () => {
         },
       };
 
-      const result = _calculateSwapLiquidityChanges(
+      const result = calculateSwapLiquidityChanges(
         eventWithNegativeAmounts,
         mockLiquidityPoolAggregator,
         mockToken0,
@@ -382,7 +382,7 @@ describe("CLPoolSwapLogic", () => {
         },
       };
 
-      const result = _calculateSwapLiquidityChanges(
+      const result = calculateSwapLiquidityChanges(
         eventAddingLiquidity,
         poolWithLowLiquidity,
         mockToken0,
@@ -412,7 +412,7 @@ describe("CLPoolSwapLogic", () => {
         },
       };
 
-      const result = _calculateSwapLiquidityChanges(
+      const result = calculateSwapLiquidityChanges(
         eventRemovingLiquidity,
         poolWithHighLiquidity,
         mockToken0,
@@ -426,7 +426,7 @@ describe("CLPoolSwapLogic", () => {
     });
 
     it("should handle undefined tokens correctly", () => {
-      const result = _calculateSwapLiquidityChanges(
+      const result = calculateSwapLiquidityChanges(
         mockEvent,
         mockLiquidityPoolAggregator,
         undefined,

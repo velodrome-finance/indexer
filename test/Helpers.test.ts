@@ -596,6 +596,7 @@ describe("Helpers", () => {
           isCL: true,
           reserve0: 0n,
           reserve1: 0n,
+          sqrtPriceX96: sqrtPriceX96,
         } as LiquidityPoolAggregator;
 
         const mockContext = {
@@ -610,12 +611,6 @@ describe("Helpers", () => {
                 },
               },
             },
-          },
-          effect: async (fn: { name: string }, params: unknown) => {
-            if (fn.name === "getSqrtPriceX96") {
-              return sqrtPriceX96;
-            }
-            return {};
           },
           log: {
             warn: () => {},

@@ -6,7 +6,7 @@ import type {
 } from "generated";
 import { MockDb, NFPM } from "../../../generated/src/TestHelpers.gen";
 import {
-  _calculateIncreaseLiquidityDiff,
+  calculateIncreaseLiquidityDiff,
   processNFPMIncreaseLiquidity,
 } from "../../../src/EventHandlers/NFPM/NFPMIncreaseLiquidityLogic";
 
@@ -171,11 +171,11 @@ describe("NFPMIncreaseLiquidityLogic", () => {
     mockDb = mockDb.entities.NonFungiblePosition.set(mockPosition);
   });
 
-  describe("_calculateIncreaseLiquidityDiff", () => {
+  describe("calculateIncreaseLiquidityDiff", () => {
     it("should calculate correct liquidity increase", () => {
       const mockEvent = createMockIncreaseLiquidityEvent(168374122051126n);
 
-      const diff = _calculateIncreaseLiquidityDiff(mockEvent);
+      const diff = calculateIncreaseLiquidityDiff(mockEvent);
 
       expect(diff.incrementalLiquidity).toBe(168374122051126n);
       expect(diff.lastUpdatedTimestamp).toEqual(
@@ -189,7 +189,7 @@ describe("NFPMIncreaseLiquidityLogic", () => {
         amount1: 0n,
       });
 
-      const diff = _calculateIncreaseLiquidityDiff(mockEvent);
+      const diff = calculateIncreaseLiquidityDiff(mockEvent);
 
       expect(diff.incrementalLiquidity).toBe(0n);
     });
@@ -305,6 +305,102 @@ describe("NFPMIncreaseLiquidityLogic", () => {
 
       // CLPoolMintEvent should be deleted from storedMintEvents
       expect(storedMintEvents.length).toBe(0);
+    });
+
+    it("should deterministically select closest preceding mint when multiple CLPoolMintEvents match", async () => {
+      const increaseAmount = 168374122051126n;
+      const increaseLogIndex = 15;
+
+      // Create multiple CLPoolMintEvents that all match the criteria
+      // They have different logIndexes but all match pool, ticks, and liquidity
+      const mockMintEvent1: CLPoolMintEvent = {
+        id: `${chainId}_${poolAddress}_${transactionHash}_5`,
+        chainId: chainId,
+        pool: poolAddress,
+        owner: mockPosition.owner,
+        tickLower: mockPosition.tickLower,
+        tickUpper: mockPosition.tickUpper,
+        liquidity: increaseAmount,
+        token0: mockPosition.token0,
+        token1: mockPosition.token1,
+        transactionHash: transactionHash,
+        logIndex: 5, // Earlier logIndex
+        consumedByTokenId: undefined,
+        createdAt: new Date(),
+      };
+
+      const mockMintEvent2: CLPoolMintEvent = {
+        id: `${chainId}_${poolAddress}_${transactionHash}_10`,
+        chainId: chainId,
+        pool: poolAddress,
+        owner: mockPosition.owner,
+        tickLower: mockPosition.tickLower,
+        tickUpper: mockPosition.tickUpper,
+        liquidity: increaseAmount,
+        token0: mockPosition.token0,
+        token1: mockPosition.token1,
+        transactionHash: transactionHash,
+        logIndex: 10, // Higher logIndex - should be selected (closest preceding)
+        consumedByTokenId: undefined,
+        createdAt: new Date(),
+      };
+
+      const mockMintEvent3: CLPoolMintEvent = {
+        id: `${chainId}_${poolAddress}_${transactionHash}_8`,
+        chainId: chainId,
+        pool: poolAddress,
+        owner: mockPosition.owner,
+        tickLower: mockPosition.tickLower,
+        tickUpper: mockPosition.tickUpper,
+        liquidity: increaseAmount,
+        token0: mockPosition.token0,
+        token1: mockPosition.token1,
+        transactionHash: transactionHash,
+        logIndex: 8, // Middle logIndex
+        consumedByTokenId: undefined,
+        createdAt: new Date(),
+      };
+
+      // Recreate context with multiple mint events
+      storedMintEvents = [mockMintEvent1, mockMintEvent2, mockMintEvent3];
+      mockContext = createMockContext(storedPositions, storedMintEvents);
+      mockDb = MockDb.createMockDb();
+      mockDb = mockDb.entities.NonFungiblePosition.set(mockPosition);
+      mockDb = mockDb.entities.CLPoolMintEvent.set(mockMintEvent1);
+      mockDb = mockDb.entities.CLPoolMintEvent.set(mockMintEvent2);
+      mockDb = mockDb.entities.CLPoolMintEvent.set(mockMintEvent3);
+
+      const mockEvent = NFPM.IncreaseLiquidity.createMockEvent({
+        tokenId: tokenId,
+        liquidity: increaseAmount,
+        amount0: 18500000000n,
+        amount1: 15171806313n,
+        mockEventData: {
+          ...defaultMockEventData,
+          block: {
+            ...defaultMockEventData.block,
+            hash: transactionHash,
+          },
+          logIndex: increaseLogIndex,
+          transaction: {
+            hash: transactionHash,
+          },
+        },
+      });
+
+      await processNFPMIncreaseLiquidity(mockEvent, mockContext);
+
+      // Only the closest preceding mint (logIndex 10) should be deleted
+      expect(storedMintEvents.length).toBe(2);
+      expect(
+        storedMintEvents.find((e) => e.id === mockMintEvent2.id),
+      ).toBeUndefined(); // Should be deleted
+      expect(
+        storedMintEvents.find((e) => e.id === mockMintEvent1.id),
+      ).toBeDefined(); // Should remain
+      expect(
+        storedMintEvents.find((e) => e.id === mockMintEvent3.id),
+      ).toBeDefined(); // Should remain
     });
 
     it("should log error and return early if position not found", async () => {

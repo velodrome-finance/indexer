@@ -19,9 +19,8 @@ import { ZERO_ADDRESS } from "../../Constants";
  * @param timestamp - Event timestamp
  * @param context - Handler context
  * @param blockNumber - Block number
- * @internal
  */
-export async function _updatePoolTotalSupply(
+export async function updatePoolTotalSupply(
   isMint: boolean,
   isBurn: boolean,
   value: bigint,
@@ -64,9 +63,8 @@ export async function _updatePoolTotalSupply(
  * @param chainId - Chain ID
  * @param context - Handler context
  * @param timestamp - Event timestamp
- * @internal
  */
-export async function _updateUserLpBalances(
+export async function updateUserLpBalances(
   isMint: boolean,
   isBurn: boolean,
   from: string,
@@ -167,9 +165,8 @@ export async function _updateUserLpBalances(
  * @param value - The LP token amount transferred
  * @param timestamp - Event timestamp
  * @param context - Handler context
- * @internal
  */
-export function _storeTransferForMatching(
+export function storeTransferForMatching(
   isMint: boolean,
   isBurn: boolean,
   chainId: number,
@@ -224,7 +221,7 @@ export async function processPoolTransfer(
   const isBurn = to === ZERO_ADDRESS;
 
   // 1. Update pool totalLPTokenSupply
-  await _updatePoolTotalSupply(
+  await updatePoolTotalSupply(
     isMint,
     isBurn,
     value,
@@ -235,7 +232,7 @@ export async function processPoolTransfer(
   );
 
   // 2. Update user LP balances
-  await _updateUserLpBalances(
+  await updateUserLpBalances(
     isMint,
     isBurn,
     from,
@@ -248,7 +245,7 @@ export async function processPoolTransfer(
   );
 
   // 3. Store transfer in temporary entity for Mint/Burn matching
-  _storeTransferForMatching(
+  storeTransferForMatching(
     isMint,
     isBurn,
     chainId,

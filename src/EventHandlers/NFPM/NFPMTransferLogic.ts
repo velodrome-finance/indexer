@@ -19,9 +19,8 @@ import { findPositionByTokenId } from "./NFPMCommonLogic";
  * @param blockTimestamp - The block timestamp
  * @param context - The handler context for database operations
  * @returns The newly created stable position entity
- * @internal
  */
-export async function _createPositionFromCLPoolMint(
+export async function createPositionFromCLPoolMint(
   mintEvent: CLPoolMintEvent,
   tokenId: bigint,
   owner: string,
@@ -72,9 +71,8 @@ export async function _createPositionFromCLPoolMint(
  * @param event - The NFPM.Transfer event (mint case)
  * @param context - The handler context
  * @param existingPositions - Array of existing positions found by tokenId (pre-queried)
- * @internal
  */
-export async function _handleMintTransfer(
+export async function handleMintTransfer(
   event: NFPM_Transfer_event,
   context: handlerContext,
   existingPositions: NonFungiblePosition[],
@@ -121,7 +119,7 @@ export async function _handleMintTransfer(
     );
 
     // Create definitive position and delete CLPoolMintEvent entity
-    await _createPositionFromCLPoolMint(
+    await createPositionFromCLPoolMint(
       mintEvent,
       event.params.tokenId,
       event.params.to,
@@ -144,9 +142,8 @@ export async function _handleMintTransfer(
  * @param event - The NFPM.Transfer event (regular transfer case)
  * @param positions - The existing positions. Only one position should be found.
  * @param context - The handler context
- * @internal
  */
-export function _handleRegularTransfer(
+export function handleRegularTransfer(
   event: NFPM_Transfer_event,
   positions: NonFungiblePosition[],
   context: handlerContext,
@@ -195,7 +192,7 @@ export async function processNFPMTransfer(
   if (isMint) {
     // Handle mint transfer: find appropriate CLPoolMintEvent entity and
     // create NonFungiblePosition entity with stable ID
-    await _handleMintTransfer(event, context, positions);
+    await handleMintTransfer(event, context, positions);
     return;
   }
 
@@ -207,5 +204,5 @@ export async function processNFPMTransfer(
     return;
   }
 
-  _handleRegularTransfer(event, positions, context);
+  handleRegularTransfer(event, positions, context);
 }

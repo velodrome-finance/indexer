@@ -343,8 +343,8 @@ describe("CLPool Events", () => {
           },
           userLiquidityDiff: {
             incrementalCurrentLiquidityUSD: 1000n,
-            incrementalCurrentLiquidityToken0: 500n,
-            incrementalCurrentLiquidityToken1: 500n,
+            incrementalTotalLiquidityAddedToken0: 500n,
+            incrementalTotalLiquidityAddedToken1: 500n,
             incrementalTotalLiquidityAddedUSD: 1000n,
             lastActivityTimestamp: new Date(1000000 * 1000),
           },
@@ -418,8 +418,8 @@ describe("CLPool Events", () => {
           },
           userLiquidityDiff: {
             incrementalCurrentLiquidityUSD: -500n,
-            incrementalCurrentLiquidityToken0: -250n, // Negative amount of token0 removed
-            incrementalCurrentLiquidityToken1: -250n, // Negative amount of token1 removed
+            incrementalTotalLiquidityRemovedToken0: 250n, // Positive value for cumulative tracking
+            incrementalTotalLiquidityRemovedToken1: 250n, // Positive value for cumulative tracking
             incrementalTotalLiquidityRemovedUSD: 500n, // Positive value for tracking
             lastActivityTimestamp: new Date(1000000 * 1000),
           },

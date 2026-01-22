@@ -17,9 +17,8 @@ import { findPositionByTokenId } from "./NFPMCommonLogic";
  * @param event - The IncreaseLiquidity event
  * @param position - The position to update
  * @returns Partial position object containing the updated liquidity and timestamp fields
- * @internal
  */
-export function _calculateIncreaseLiquidityDiff(
+export function calculateIncreaseLiquidityDiff(
   event: NFPM_IncreaseLiquidity_event,
 ): Partial<NonFungiblePositionDiff> {
   const blockDatetime = new Date(event.block.timestamp * 1000);
@@ -94,7 +93,7 @@ export async function processNFPMIncreaseLiquidity(
     );
 
   if (mintEventsInTx && mintEventsInTx.length > 0) {
-    const matchingMintEvent = mintEventsInTx.find(
+    const matchingMintEvents = mintEventsInTx.filter(
       (m: CLPoolMintEvent) =>
         m.chainId === event.chainId &&
         m.pool === position.pool &&
@@ -105,6 +104,14 @@ export async function processNFPMIncreaseLiquidity(
         m.logIndex < event.logIndex,
     );
 
+    // Select closest preceding mint by logIndex (deterministic for multiple matches)
+    const matchingMintEvent =
+      matchingMintEvents.length > 0
+        ? matchingMintEvents.reduce((prev, curr) =>
+            curr.logIndex > prev.logIndex ? curr : prev,
+          )
+        : undefined;
+
     if (matchingMintEvent) {
       // This matches Case 2 (INCREASE) from the explanation above.
       // The CLPoolMintEvent is orphaned because no Transfer event consumed it.
@@ -114,7 +121,7 @@ export async function processNFPMIncreaseLiquidity(
   }
 
   // Calculate increase liquidity diff
-  const nonFungiblePositionDiff = _calculateIncreaseLiquidityDiff(event);
+  const nonFungiblePositionDiff = calculateIncreaseLiquidityDiff(event);
 
   // Update position with result
   updateNonFungiblePosition(nonFungiblePositionDiff, position, context);
