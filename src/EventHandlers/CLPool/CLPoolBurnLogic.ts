@@ -28,13 +28,10 @@ export function processCLPoolBurn(
     lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
   };
 
-  // Note: These fields represent the change/delta in liquidity (not absolute values)
-  // The field names match the schema (currentLiquidityUSD, etc.) but contain diff values, hinted by the variable name
   const userLiquidityDiff = {
-    incrementalCurrentLiquidityUSD: -totalLiquidityUSD, // Negative for burn (removal)
-    incrementalCurrentLiquidityToken0: -event.params.amount0, // Negative amount of token0 removed
-    incrementalCurrentLiquidityToken1: -event.params.amount1, // Negative amount of token1 removed
-    incrementalTotalLiquidityRemovedUSD: totalLiquidityUSD, // Track total liquidity removed (positive value)
+    incrementalTotalLiquidityRemovedUSD: totalLiquidityUSD, // Track total liquidity removed (cumulative, positive value)
+    incrementalTotalLiquidityRemovedToken0: event.params.amount0, // Track total liquidity removed in token0 (cumulative, positive value)
+    incrementalTotalLiquidityRemovedToken1: event.params.amount1, // Track total liquidity removed in token1 (cumulative, positive value)
     lastActivityTimestamp: new Date(event.block.timestamp * 1000),
   };
 

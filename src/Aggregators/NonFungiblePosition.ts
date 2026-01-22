@@ -4,13 +4,27 @@ import type { NonFungiblePosition } from "generated";
 export const NonFungiblePositionId = (chainId: number, tokenId: bigint) =>
   `${chainId}_${tokenId}`;
 
+export interface NonFungiblePositionDiff {
+  tokenId: bigint;
+  owner: string;
+  pool: string;
+  tickUpper: bigint;
+  tickLower: bigint;
+  token0: string;
+  token1: string;
+  incrementalLiquidity: bigint;
+  mintTransactionHash: string;
+  mintLogIndex: number;
+  lastUpdatedTimestamp: Date;
+}
+
 /**
  * Updates NonFungiblePosition with the provided diff
  * Uses spread operator to handle immutable entities
  * All fields are set to absolute values (therefore, they are directly substituted and not added/subtracted deltas)
  */
 export function updateNonFungiblePosition(
-  diff: Partial<NonFungiblePosition>,
+  diff: Partial<NonFungiblePositionDiff>,
   current: NonFungiblePosition,
   context: handlerContext,
 ): void {
@@ -18,10 +32,15 @@ export function updateNonFungiblePosition(
     ...current,
     tokenId: diff.tokenId ?? current.tokenId,
     owner: diff.owner ?? current.owner,
-    amount0: diff.amount0 ?? current.amount0,
-    amount1: diff.amount1 ?? current.amount1,
-    amountUSD: diff.amountUSD ?? current.amountUSD,
-    liquidity: diff.liquidity ?? current.liquidity,
+    pool: diff.pool ?? current.pool,
+    tickUpper: diff.tickUpper ?? current.tickUpper,
+    tickLower: diff.tickLower ?? current.tickLower,
+    token0: diff.token0 ?? current.token0,
+    token1: diff.token1 ?? current.token1,
+    liquidity: (diff.incrementalLiquidity ?? 0n) + current.liquidity,
+    mintTransactionHash:
+      diff.mintTransactionHash ?? current.mintTransactionHash,
+    mintLogIndex: diff.mintLogIndex ?? current.mintLogIndex,
     lastUpdatedTimestamp:
       diff.lastUpdatedTimestamp ?? current.lastUpdatedTimestamp,
   };

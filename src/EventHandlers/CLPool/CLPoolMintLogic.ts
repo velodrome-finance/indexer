@@ -29,10 +29,9 @@ export function processCLPoolMint(
   };
 
   const userLiquidityDiff = {
-    incrementalCurrentLiquidityUSD: totalLiquidityUSD, // For mint, we're adding liquidity
-    incrementalCurrentLiquidityToken0: event.params.amount0, // Amount of token0 added
-    incrementalCurrentLiquidityToken1: event.params.amount1, // Amount of token1 added
-    incrementalTotalLiquidityAddedUSD: totalLiquidityUSD, // Track total liquidity added
+    incrementalTotalLiquidityAddedUSD: totalLiquidityUSD, // Track total liquidity added (cumulative)
+    incrementalTotalLiquidityAddedToken0: event.params.amount0, // Track total liquidity added in token0 (cumulative)
+    incrementalTotalLiquidityAddedToken1: event.params.amount1, // Track total liquidity added in token1 (cumulative)
     lastActivityTimestamp: new Date(event.block.timestamp * 1000),
   };
 

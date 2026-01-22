@@ -308,26 +308,24 @@ CLPool.Mint.handler(async ({ event, context }) => {
     updateUserStatsPerPool(userDiff, userData, context),
   ]);
 
-  // Create NonFungiblePosition entity
-  // Use transaction hash and logIndex to make placeholder ID unique per event
-  // Format: ${chainId}_${fullTxHash}_${logIndex} (without 0x prefix)
-  const id = `${event.chainId}_${event.transaction.hash.slice(2)}_${event.logIndex}`;
-  context.NonFungiblePosition.set({
-    id: id, // permanent, never changes
+  // Store CLPool.Mint data temporarily for NFPM.Transfer to consume
+  // This entity will be matched via NFPM.IncreaseLiquidity and deleted immediately after position creation
+  // NFPM.Transfer will create the NonFungiblePosition entity from this CLPoolMintEvent
+  const mintEventId = `${event.chainId}_${event.srcAddress}_${event.transaction.hash}_${event.logIndex}`;
+  context.CLPoolMintEvent.set({
+    id: mintEventId,
     chainId: event.chainId,
-    tokenId: 0n, // Placeholder marker (0n) - actual tokenId will be set by NFPM.Transfer or NFPM.IncreaseLiquidity
-    owner: event.params.owner,
     pool: event.srcAddress,
-    tickUpper: event.params.tickUpper,
+    owner: event.params.owner,
     tickLower: event.params.tickLower,
+    tickUpper: event.params.tickUpper,
+    liquidity: event.params.amount,
     token0: token0Instance.address,
     token1: token1Instance.address,
-    liquidity: event.params.amount, // Store liquidity value from CLPool.Mint
-    amount0: event.params.amount0,
-    amount1: event.params.amount1,
-    amountUSD: userDiff.incrementalCurrentLiquidityUSD ?? 0n,
-    mintTransactionHash: event.transaction.hash,
-    lastUpdatedTimestamp: timestamp,
+    transactionHash: event.transaction.hash,
+    logIndex: event.logIndex,
+    consumedByTokenId: undefined,
+    createdAt: timestamp,
   });
 });
 

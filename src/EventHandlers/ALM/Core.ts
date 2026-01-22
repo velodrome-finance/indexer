@@ -23,7 +23,7 @@ ALMCore.Rebalance.handler(async ({ event, context }) => {
 
   if (!wrappers || wrappers.length === 0) {
     context.log.warn(
-      `ALM_LP_Wrapper entity not found for pool ${poolAddress}. Skipping Rebalance update.`,
+      `[ALMCore] ALM_LP_Wrapper entity not found for pool ${poolAddress}. Skipping Rebalance update.`,
     );
     return;
   }

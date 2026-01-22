@@ -1,3 +1,4 @@
+import { TickMath } from "@uniswap/v3-sdk";
 import type {
   ALM_LP_Wrapper,
   LiquidityPoolAggregator,
@@ -94,6 +95,9 @@ export function setupCommon() {
     feeProtocol0: 0n,
     feeProtocol1: 0n,
     observationCardinalityNext: 0n,
+    // Calculate sqrtPriceX96 from tick 0 (middle of range) to get both amount0 and amount1
+    sqrtPriceX96: BigInt(TickMath.getSqrtRatioAtTick(0).toString()),
+    tick: 0n,
     totalFlashLoanFees0: 0n,
     totalFlashLoanFees1: 0n,
     totalFlashLoanFeesUSD: 0n,
@@ -167,10 +171,12 @@ export function setupCommon() {
 
     // Liquidity metrics
     currentLiquidityUSD: 0n,
-    currentLiquidityToken0: 0n,
-    currentLiquidityToken1: 0n,
     totalLiquidityAddedUSD: 0n,
+    totalLiquidityAddedToken0: 0n,
+    totalLiquidityAddedToken1: 0n,
     totalLiquidityRemovedUSD: 0n,
+    totalLiquidityRemovedToken0: 0n,
+    totalLiquidityRemovedToken1: 0n,
     lpBalance: 0n,
 
     // Fee metrics

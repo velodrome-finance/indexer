@@ -271,6 +271,8 @@ export async function processCLPoolSwap(
     incrementalReserve0: event.params.amount0, // Delta: can be positive or negative (signed int256)
     incrementalReserve1: event.params.amount1, // Delta: can be positive or negative (signed int256)
     incrementalCurrentLiquidityUSD: deltaTotalLiquidityUSD,
+    sqrtPriceX96: event.params.sqrtPriceX96, // Store current sqrt price from Swap event
+    tick: event.params.tick, // Store current tick from Swap event
     lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
   };
 

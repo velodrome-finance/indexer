@@ -67,39 +67,29 @@ describe("CLPoolBurnLogic", () => {
       ); // -1.1M USD in 18 decimals
 
       // Check user liquidity diff with exact values
-      // totalLiquidityUSD should be negative for burn (removal): -1100000n
-      expect(result.userLiquidityDiff.incrementalCurrentLiquidityUSD).toBe(
-        -1100000n,
-      );
-      expect(result.userLiquidityDiff.incrementalCurrentLiquidityToken0).toBe(
-        -500000n,
-      ); // Negative amount of token0 removed
-      expect(result.userLiquidityDiff.incrementalCurrentLiquidityToken1).toBe(
-        -300000n,
-      ); // Negative amount of token1 removed
-      // For burn events, totalLiquidityRemovedUSD should be set (positive value)
       expect(result.userLiquidityDiff.incrementalTotalLiquidityRemovedUSD).toBe(
         1100000n,
-      ); // Positive value for tracking
+      ); // Positive value for cumulative tracking
+      expect(
+        result.userLiquidityDiff.incrementalTotalLiquidityRemovedToken0,
+      ).toBe(500000n); // amount0 (cumulative, positive)
+      expect(
+        result.userLiquidityDiff.incrementalTotalLiquidityRemovedToken1,
+      ).toBe(300000n); // amount1 (cumulative, positive)
     });
 
     it("should calculate correct liquidity values for burn event", () => {
       const result = processCLPoolBurn(mockEvent, mockToken0, mockToken1);
 
-      // For burn events, we expect negative liquidity change with exact values
-      expect(result.userLiquidityDiff.incrementalCurrentLiquidityUSD).toBe(
-        -1100000n,
-      );
-      expect(result.userLiquidityDiff.incrementalCurrentLiquidityToken0).toBe(
-        -500000n,
-      );
-      expect(result.userLiquidityDiff.incrementalCurrentLiquidityToken1).toBe(
-        -300000n,
-      );
-      // For burn events, totalLiquidityRemovedUSD should be set (positive value)
       expect(result.userLiquidityDiff.incrementalTotalLiquidityRemovedUSD).toBe(
         1100000n,
-      ); // Positive value for tracking
+      ); // Positive value for cumulative tracking
+      expect(
+        result.userLiquidityDiff.incrementalTotalLiquidityRemovedToken0,
+      ).toBe(500000n); // amount0 (cumulative, positive)
+      expect(
+        result.userLiquidityDiff.incrementalTotalLiquidityRemovedToken1,
+      ).toBe(300000n); // amount1 (cumulative, positive)
 
       // The liquidity pool diff should reflect the reserve deltas (negative because burning decreases reserves)
       expect(result.liquidityPoolDiff.incrementalReserve0).toBe(-500000n); // -amount0 (delta)
@@ -136,12 +126,10 @@ describe("CLPoolBurnLogic", () => {
         incrementalCurrentLiquidityUSD: -expectedTotalLiquidityUSD,
       };
 
-      // Expected user liquidity diff (negative for burn/removal)
       const expectedUserLiquidityDiff = {
-        incrementalCurrentLiquidityUSD: -expectedTotalLiquidityUSD,
-        incrementalCurrentLiquidityToken0: -mockEvent.params.amount0, // -500000n
-        incrementalCurrentLiquidityToken1: -mockEvent.params.amount1, // -300000n
-        incrementalTotalLiquidityRemovedUSD: expectedTotalLiquidityUSD, // Positive value for tracking
+        incrementalTotalLiquidityRemovedUSD: expectedTotalLiquidityUSD, // Positive value for cumulative tracking
+        incrementalTotalLiquidityRemovedToken0: mockEvent.params.amount0, // 500000n (cumulative, positive)
+        incrementalTotalLiquidityRemovedToken1: mockEvent.params.amount1, // 300000n (cumulative, positive)
       };
 
       // Assert liquidity pool diff with precise values
@@ -156,18 +144,19 @@ describe("CLPoolBurnLogic", () => {
       );
 
       // Assert user liquidity diff with precise values
-      expect(result.userLiquidityDiff.incrementalCurrentLiquidityUSD).toEqual(
-        expectedUserLiquidityDiff.incrementalCurrentLiquidityUSD,
-      );
-      expect(
-        result.userLiquidityDiff.incrementalCurrentLiquidityToken0,
-      ).toEqual(expectedUserLiquidityDiff.incrementalCurrentLiquidityToken0);
-      expect(
-        result.userLiquidityDiff.incrementalCurrentLiquidityToken1,
-      ).toEqual(expectedUserLiquidityDiff.incrementalCurrentLiquidityToken1);
       expect(
         result.userLiquidityDiff.incrementalTotalLiquidityRemovedUSD,
       ).toEqual(expectedUserLiquidityDiff.incrementalTotalLiquidityRemovedUSD);
+      expect(
+        result.userLiquidityDiff.incrementalTotalLiquidityRemovedToken0,
+      ).toEqual(
+        expectedUserLiquidityDiff.incrementalTotalLiquidityRemovedToken0,
+      );
+      expect(
+        result.userLiquidityDiff.incrementalTotalLiquidityRemovedToken1,
+      ).toEqual(
+        expectedUserLiquidityDiff.incrementalTotalLiquidityRemovedToken1,
+      );
     });
   });
 });

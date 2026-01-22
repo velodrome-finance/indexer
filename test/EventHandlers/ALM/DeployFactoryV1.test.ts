@@ -4,7 +4,11 @@ import {
 } from "../../../generated/src/TestHelpers.gen";
 import type { NonFungiblePosition } from "../../../generated/src/Types.gen";
 import { toChecksumAddress } from "../../../src/Constants";
-import { extendMockDbWithGetWhere } from "../../testHelpers";
+import { calculatePositionAmountsFromLiquidity } from "../../../src/Helpers";
+import {
+  extendMockDbWithGetWhere,
+  setupLiquidityPoolAggregator,
+} from "../../testHelpers";
 import { setupCommon } from "../Pool/common";
 
 describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
@@ -20,6 +24,9 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
   const blockTimestamp = 1000000;
   const blockNumber = 123456;
   const tokenId = 42n;
+
+  // sqrtPriceX96 is constant (calculated from tick 0 in setupCommon)
+  const sqrtPriceX96 = mockLiquidityPoolData.sqrtPriceX96 ?? 0n;
 
   const mockEventData = {
     block: {
@@ -50,14 +57,17 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
         token0: mockToken0Data.address,
         token1: mockToken1Data.address,
         liquidity: 1000000n,
-        amount0: 500n * 10n ** 18n,
-        amount1: 250n * 10n ** 6n,
-        amountUSD: 750n * 10n ** 18n,
         mintTransactionHash: transactionHash,
+        mintLogIndex: 1,
         lastUpdatedTimestamp: new Date(blockTimestamp * 1000),
       };
 
       mockDb = mockDb.entities.NonFungiblePosition.set(mockNFPM);
+      mockDb = setupLiquidityPoolAggregator(
+        mockDb,
+        mockLiquidityPoolData,
+        poolAddress,
+      );
 
       // Track entities for getWhere query
       const storedNFPMs = [mockNFPM];
@@ -113,8 +123,15 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
       expect(createdWrapper?.token1).toBe(mockToken1Data.address);
 
       // Wrapper-level aggregations should be initialized from NonFungiblePosition
-      expect(createdWrapper?.amount0).toBe(500n * 10n ** 18n);
-      expect(createdWrapper?.amount1).toBe(250n * 10n ** 6n);
+      // Calculate expected amounts from liquidity and sqrtPriceX96
+      const expectedAmounts = calculatePositionAmountsFromLiquidity(
+        liquidity,
+        sqrtPriceX96,
+        tickLower,
+        tickUpper,
+      );
+      expect(createdWrapper?.amount0).toBe(expectedAmounts.amount0);
+      expect(createdWrapper?.amount1).toBe(expectedAmounts.amount1);
       // lpAmount should equal liquidity (initialTotalSupply = position.liquidity in V1)
       expect(createdWrapper?.lpAmount).toBe(liquidity);
 
@@ -254,10 +271,8 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
         token0: mockToken0Data.address,
         token1: mockToken1Data.address,
         liquidity: 1000000n,
-        amount0: 500n * 10n ** 18n,
-        amount1: 250n * 10n ** 6n,
-        amountUSD: 750n * 10n ** 18n,
         mintTransactionHash: transactionHash,
+        mintLogIndex: 1,
         lastUpdatedTimestamp: new Date(blockTimestamp * 1000),
       };
 
@@ -272,15 +287,18 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
         token0: mockToken0Data.address,
         token1: mockToken1Data.address,
         liquidity: 2000000n, // Different liquidity
-        amount0: 1000n * 10n ** 18n,
-        amount1: 500n * 10n ** 6n,
-        amountUSD: 1500n * 10n ** 18n,
+        mintLogIndex: 1,
         mintTransactionHash: transactionHash,
         lastUpdatedTimestamp: new Date(blockTimestamp * 1000),
       };
 
       mockDb = mockDb.entities.NonFungiblePosition.set(matchingNFPM);
       mockDb = mockDb.entities.NonFungiblePosition.set(nonMatchingNFPM);
+      mockDb = setupLiquidityPoolAggregator(
+        mockDb,
+        mockLiquidityPoolData,
+        poolAddress,
+      );
 
       const storedNFPMs = [matchingNFPM, nonMatchingNFPM];
 
@@ -325,8 +343,15 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
       expect(createdWrapper).toBeDefined();
       // Should use the matching NonFungiblePosition (tokenId = 42n)
       expect(createdWrapper?.tokenId).toBe(tokenId);
-      expect(createdWrapper?.amount0).toBe(500n * 10n ** 18n);
-      expect(createdWrapper?.amount1).toBe(250n * 10n ** 6n);
+      // Calculate expected amounts from liquidity and sqrtPriceX96
+      const expectedAmounts = calculatePositionAmountsFromLiquidity(
+        liquidity,
+        sqrtPriceX96,
+        tickLower,
+        tickUpper,
+      );
+      expect(createdWrapper?.amount0).toBe(expectedAmounts.amount0);
+      expect(createdWrapper?.amount1).toBe(expectedAmounts.amount1);
     });
 
     it("should warn when multiple matching NonFungiblePositions found", async () => {
@@ -344,10 +369,8 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
         token0: mockToken0Data.address,
         token1: mockToken1Data.address,
         liquidity: 1000000n,
-        amount0: 500n * 10n ** 18n,
-        amount1: 250n * 10n ** 6n,
-        amountUSD: 750n * 10n ** 18n,
         mintTransactionHash: transactionHash,
+        mintLogIndex: 1,
         lastUpdatedTimestamp: new Date(blockTimestamp * 1000),
       };
 
@@ -362,15 +385,18 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
         token0: mockToken0Data.address,
         token1: mockToken1Data.address,
         liquidity: 1000000n,
-        amount0: 600n * 10n ** 18n, // Different amounts
-        amount1: 300n * 10n ** 6n,
-        amountUSD: 900n * 10n ** 18n,
+        mintLogIndex: 1,
         mintTransactionHash: transactionHash,
         lastUpdatedTimestamp: new Date(blockTimestamp * 1000),
       };
 
       mockDb = mockDb.entities.NonFungiblePosition.set(matchingNFPM1);
       mockDb = mockDb.entities.NonFungiblePosition.set(matchingNFPM2);
+      mockDb = setupLiquidityPoolAggregator(
+        mockDb,
+        mockLiquidityPoolData,
+        poolAddress,
+      );
 
       const storedNFPMs = [matchingNFPM1, matchingNFPM2];
 
@@ -415,8 +441,15 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
       expect(createdWrapper).toBeDefined();
       // Should use the first matching NonFungiblePosition
       expect(createdWrapper?.tokenId).toBe(tokenId);
-      expect(createdWrapper?.amount0).toBe(500n * 10n ** 18n);
-      expect(createdWrapper?.amount1).toBe(250n * 10n ** 6n);
+      // Calculate expected amounts from liquidity and sqrtPriceX96
+      const expectedAmounts = calculatePositionAmountsFromLiquidity(
+        liquidity,
+        sqrtPriceX96,
+        tickLower,
+        tickUpper,
+      );
+      expect(createdWrapper?.amount0).toBe(expectedAmounts.amount0);
+      expect(createdWrapper?.amount1).toBe(expectedAmounts.amount1);
     });
   });
 });

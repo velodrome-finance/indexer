@@ -28,8 +28,6 @@ describe("UserStatsPerPool Aggregator", () => {
       expect(userStats.poolAddress).toBe(toChecksumAddress(mockPoolAddress));
       expect(userStats.chainId).toBe(mockChainId);
       expect(userStats.currentLiquidityUSD).toBe(0n);
-      expect(userStats.currentLiquidityToken0).toBe(0n);
-      expect(userStats.currentLiquidityToken1).toBe(0n);
       expect(userStats.totalLiquidityAddedUSD).toBe(0n);
       expect(userStats.totalLiquidityRemovedUSD).toBe(0n);
       expect(userStats.totalFeesContributedUSD).toBe(0n);
@@ -370,8 +368,6 @@ describe("UserStatsPerPool Aggregator", () => {
         poolAddress: mockPoolAddress,
         chainId: mockChainId,
         currentLiquidityUSD: 2000n,
-        currentLiquidityToken0: 1000n,
-        currentLiquidityToken1: 1000n,
         totalLiquidityAddedUSD: 2000n,
         totalFeesContributedUSD: 1000n,
         totalFeesContributed0: 500n,
@@ -425,8 +421,6 @@ describe("UserStatsPerPool Aggregator", () => {
         poolAddress: mockPoolAddress,
         chainId: mockChainId,
         currentLiquidityUSD: 2000n,
-        currentLiquidityToken0: 1000n,
-        currentLiquidityToken1: 1000n,
         totalLiquidityAddedUSD: 2000n,
         totalFeesContributedUSD: 1000n,
         totalFeesContributed0: 500n,
