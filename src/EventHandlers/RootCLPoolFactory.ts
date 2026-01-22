@@ -4,6 +4,11 @@ import type { RootPool_LeafPool } from "generated";
 RootCLPoolFactory.RootPoolCreated.handler(async ({ event, context }) => {
   const rootChainId = event.chainId;
   const leafChainId = Number(event.params.chainid);
+
+  if (leafChainId !== 252) {
+    return;
+  }
+
   const rootPoolAddress = event.params.pool;
   const token0 = event.params.token0;
   const token1 = event.params.token1;
