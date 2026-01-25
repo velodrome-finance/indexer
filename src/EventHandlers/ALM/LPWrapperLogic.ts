@@ -1,5 +1,9 @@
 import { TickMath, maxLiquidityForAmounts } from "@uniswap/v3-sdk";
-import type { ALM_LP_Wrapper, handlerContext } from "generated";
+import type {
+  ALMLPWrapperTransferInTx,
+  ALM_LP_Wrapper,
+  handlerContext,
+} from "generated";
 import JSBI from "jsbi";
 import { updateALMLPWrapper } from "../../Aggregators/ALMLPWrapper";
 import {
@@ -8,6 +12,12 @@ import {
   updateUserStatsPerPool,
 } from "../../Aggregators/UserStatsPerPool";
 import { ZERO_ADDRESS } from "../../Constants";
+
+interface MatchingBurnTransfer {
+  id: string;
+  value: bigint;
+  logIndex: number;
+}
 
 /**
  * Calculates liquidity from updated amounts (amount0 and amount1) using current price
@@ -149,6 +159,109 @@ export async function loadALMLPWrapper(
 }
 
 /**
+ * Finds the matching burn Transfer event for a Withdraw event
+ * The burn Transfer event always comes before the Withdraw event in the transaction
+ * @param txHash - The transaction hash
+ * @param sender - The sender address
+ * @param chainId - The chain ID
+ * @param wrapperAddress - The wrapper contract address
+ * @param withdrawLogIndex - The log index of the Withdraw event
+ * @param context - The handler context
+ * @returns The matching burn Transfer event, or undefined if not found
+ */
+export async function getMatchingBurnTransferInTx(
+  txHash: string,
+  sender: string,
+  chainId: number,
+  wrapperAddress: string,
+  withdrawLogIndex: number,
+  context: handlerContext,
+): Promise<MatchingBurnTransfer | undefined> {
+  const transfersInTxHash =
+    await context.ALMLPWrapperTransferInTx.getWhere.txHash.eq(txHash);
+
+  const matchingBurns = transfersInTxHash.filter(
+    (t: ALMLPWrapperTransferInTx) =>
+      t.chainId === chainId &&
+      t.wrapperAddress === wrapperAddress &&
+      t.from === sender &&
+      t.isBurn === true &&
+      t.logIndex < withdrawLogIndex &&
+      (t.consumedByLogIndex === null || t.consumedByLogIndex === undefined),
+  );
+
+  if (matchingBurns.length === 0) {
+    return undefined;
+  }
+
+  // Select the closest preceding burn (highest logIndex) for deterministic matching
+  const closestBurn = matchingBurns.reduce(
+    (prev: ALMLPWrapperTransferInTx, curr: ALMLPWrapperTransferInTx) =>
+      curr.logIndex > prev.logIndex ? curr : prev,
+  );
+
+  return {
+    id: closestBurn.id,
+    value: closestBurn.value,
+    logIndex: closestBurn.logIndex,
+  };
+}
+
+/**
+ * Gets the actual LP amount withdrawn for V1 wrappers by matching with burn Transfer event
+ * V1 Withdraw events emit the input parameter, not the actual burned amount
+ * @param lpAmount - The lpAmount from the Withdraw event (may be input parameter for V1)
+ * @param txHash - The transaction hash
+ * @param chainId - The chain ID
+ * @param sender - The sender address whose tokens are being burned
+ * @param srcAddress - The wrapper contract address
+ * @param logIndex - The log index of the Withdraw event
+ * @param context - The handler context
+ * @returns The actual LP amount withdrawn (from Transfer event if found, otherwise 0n)
+ */
+async function getActualLpAmountForV1(
+  lpAmount: bigint,
+  txHash: string,
+  chainId: number,
+  sender: string,
+  srcAddress: string,
+  logIndex: number,
+  context: handlerContext,
+): Promise<bigint> {
+  const matchingBurn = await getMatchingBurnTransferInTx(
+    txHash,
+    sender,
+    chainId,
+    srcAddress,
+    logIndex,
+    context,
+  );
+
+  if (matchingBurn) {
+    // Use the actual burned amount from Transfer event
+    const actualLpAmount = matchingBurn.value;
+
+    // Mark the transfer as consumed
+    const transferEntity = await (
+      context as handlerContext
+    ).ALMLPWrapperTransferInTx.get(matchingBurn.id);
+    if (transferEntity) {
+      (context as handlerContext).ALMLPWrapperTransferInTx.set({
+        ...transferEntity,
+        consumedByLogIndex: logIndex,
+      });
+    }
+
+    return actualLpAmount;
+  }
+  // No matching Transfer found - log warning
+  context.log.warn(
+    `[ALMLPWrapper.Withdraw] V1 wrapper ${srcAddress} on chain ${chainId}, but no matching burn Transfer event found. Using event parameter ${lpAmount} as fallback.`,
+  );
+  return 0n;
+}
+
+/**
  * Processes a Deposit event for ALM LP Wrapper
  * @param recipient - The recipient address who receives LP tokens
  * @param pool - The pool address
@@ -237,19 +350,22 @@ export async function processDepositEvent(
 
 /**
  * Processes a Withdraw event for ALM LP Wrapper
- * @param recipient - The recipient address who receives tokens
+ * @param sender - The sender address whose tokens are being burned
  * @param pool - The pool address
  * @param amount0 - Amount of token0 withdrawn
  * @param amount1 - Amount of token1 withdrawn
- * @param lpAmount - Amount of LP tokens burned
+ * @param lpAmount - Amount of LP tokens burned (from event parameter - may be input parameter for V1)
  * @param srcAddress - The wrapper contract address
  * @param chainId - The chain ID
  * @param blockNumber - The block number
  * @param timestamp - The event timestamp
  * @param context - The handler context
+ * @param txHash - The transaction hash (for matching with Transfer events)
+ * @param logIndex - The log index of the Withdraw event (for matching with Transfer events)
+ * @param isV1 - Whether this is a V1 wrapper (V1 emits input parameter, V2 emits actualLpAmount)
  */
 export async function processWithdrawEvent(
-  recipient: string,
+  sender: string,
   pool: string,
   amount0: bigint,
   amount1: bigint,
@@ -259,16 +375,35 @@ export async function processWithdrawEvent(
   blockNumber: number,
   timestamp: Date,
   context: handlerContext,
+  txHash: string,
+  logIndex: number,
+  isV1: boolean,
 ): Promise<void> {
   // Load wrapper and user stats in parallel since pool address is available from event params
   const [ALMLPWrapperEntity, userStats] = await Promise.all([
     loadALMLPWrapper(srcAddress, chainId, context),
-    loadOrCreateUserData(recipient, pool, chainId, context, timestamp),
+    loadOrCreateUserData(sender, pool, chainId, context, timestamp),
   ]);
 
   if (!ALMLPWrapperEntity) {
     return;
   }
+
+  // For LPWrapper V1, try to match with burn Transfer event to get actual burned amount
+  // This is needed because V1 Withdraw event emits the input parameter which is not
+  // the actual amount burned (see contract code)
+  // V2 corrects this by emitting actualLpAmount in the Withdraw event
+  const actualLpAmountWithdrawn = isV1
+    ? await getActualLpAmountForV1(
+        lpAmount,
+        txHash,
+        chainId,
+        sender,
+        srcAddress,
+        logIndex,
+        context,
+      )
+    : lpAmount;
 
   const updatedAmount0 = ALMLPWrapperEntity.amount0 - amount0;
   const updatedAmount1 = ALMLPWrapperEntity.amount1 - amount1;
@@ -287,7 +422,7 @@ export async function processWithdrawEvent(
   const ALMLPWrapperDiff = {
     amount0: updatedAmount0,
     amount1: updatedAmount1,
-    incrementalLpAmount: -lpAmount,
+    incrementalLpAmount: -actualLpAmountWithdrawn,
     liquidity: updatedLiquidity,
     ammStateIsDerived: true, // Derived from amount0 and amount1 at a specific price; not derived from on-chain AMM position (i.e. Rebalance event)
   };
@@ -295,8 +430,8 @@ export async function processWithdrawEvent(
   // Derive user's current balance from their LP share after withdrawal
   // Use updatedAmount0/amount1 (wrapper amounts AFTER withdrawal) to calculate user's remaining position
   const derivedUserAmounts = deriveUserAmounts(
-    userStats.almLpAmount - lpAmount, // User's LP after withdrawal
-    ALMLPWrapperEntity.lpAmount - lpAmount, // Total LP after withdrawal
+    userStats.almLpAmount - actualLpAmountWithdrawn, // User's LP after withdrawal
+    ALMLPWrapperEntity.lpAmount - actualLpAmountWithdrawn, // Total LP after withdrawal
     updatedAmount0, // Wrapper amount0 AFTER withdrawal
     updatedAmount1, // Wrapper amount1 AFTER withdrawal
   );
@@ -304,7 +439,7 @@ export async function processWithdrawEvent(
   const userStatsDiff = {
     almAmount0: derivedUserAmounts.amount0,
     almAmount1: derivedUserAmounts.amount1,
-    incrementalAlmLpAmount: -lpAmount,
+    incrementalAlmLpAmount: -actualLpAmountWithdrawn,
     lastActivityTimestamp: timestamp,
     lastAlmActivityTimestamp: timestamp,
   };
@@ -322,6 +457,48 @@ export async function processWithdrawEvent(
 }
 
 /**
+ * Stores a burn Transfer event in the temporary entity for matching with Withdraw events
+ * @param chainId - The chain ID
+ * @param txHash - The transaction hash
+ * @param wrapperAddress - The wrapper contract address
+ * @param logIndex - The log index of the Transfer event
+ * @param blockNumber - The block number
+ * @param from - The sender address
+ * @param to - The recipient address (should be 0x0 for burns)
+ * @param value - The transfer amount
+ * @param timestamp - The event timestamp
+ * @param context - The handler context
+ */
+function storeBurnTransferForMatching(
+  chainId: number,
+  txHash: string,
+  wrapperAddress: string,
+  logIndex: number,
+  blockNumber: number,
+  from: string,
+  to: string,
+  value: bigint,
+  timestamp: Date,
+  context: handlerContext,
+): void {
+  const transferId = `${chainId}-${txHash}-${wrapperAddress}-${logIndex}`;
+  (context as handlerContext).ALMLPWrapperTransferInTx.set({
+    id: transferId,
+    chainId: chainId,
+    txHash: txHash,
+    wrapperAddress: wrapperAddress,
+    logIndex: logIndex,
+    blockNumber: BigInt(blockNumber),
+    from: from,
+    to: to,
+    value: value,
+    isBurn: true, // Only storing burns
+    consumedByLogIndex: undefined, // Initially unused
+    timestamp: timestamp,
+  });
+}
+
+/**
  * Processes a Transfer event for ALM LP Wrapper
  * Excludes burns/mints (zero address transfers) since Deposit/Withdraw events handle those.
  * @param from - The sender address
@@ -329,8 +506,12 @@ export async function processWithdrawEvent(
  * @param value - The transfer amount
  * @param srcAddress - The wrapper contract address
  * @param chainId - The chain ID
+ * @param txHash - The transaction hash
+ * @param logIndex - The log index of the Transfer event
+ * @param blockNumber - The block number
  * @param timestamp - The event timestamp
  * @param context - The handler context
+ * @param isV1 - Whether this is a V1 wrapper (only V1 needs burn Transfer events stored for matching)
  */
 export async function processTransferEvent(
   from: string,
@@ -338,9 +519,31 @@ export async function processTransferEvent(
   value: bigint,
   srcAddress: string,
   chainId: number,
+  txHash: string,
+  logIndex: number,
+  blockNumber: number,
   timestamp: Date,
   context: handlerContext,
+  isV1: boolean,
 ): Promise<void> {
+  // Store burn events (to == 0x0) for matching with Withdraw events (V1 only needs this)
+  // The burn Transfer event always comes before the Withdraw event in the transaction
+  // V2 doesn't need this because it emits actualLpAmount in the Withdraw event
+  if (isV1 && to === ZERO_ADDRESS) {
+    storeBurnTransferForMatching(
+      chainId,
+      txHash,
+      srcAddress,
+      logIndex,
+      blockNumber,
+      from,
+      to,
+      value,
+      timestamp,
+      context,
+    );
+  }
+
   // Excluding burns/mints since Deposit/Withdraw events already handle those, and we don't want double counting.
   // Excluding transfers from/to wrapper contract itself
   const excludedAddresses = [ZERO_ADDRESS, srcAddress];
