@@ -488,3 +488,22 @@ type PoolTransferInTx {
   consumedByLogIndex: Int # logIndex of the Mint/Burn event that consumed this transfer (undefined if unused)
   timestamp: Timestamp!
 }
+
+# Temporary entity for matching Withdraw events with Transfer events (burns)
+# Similar to PoolTransferInTx but for ALM LP Wrapper
+# Only needed for burns (to = 0x0) since Deposit events emit the correct minted amount
+# Needed for LPWrapper V1 Withdraw event handler fix
+type ALMLPWrapperTransferInTx {
+  id: ID! # ${chainId}-${txHash}-${wrapperAddress}-${logIndex}
+  chainId: Int! @index
+  txHash: String! @index
+  wrapperAddress: String! @index
+  logIndex: Int!
+  blockNumber: BigInt!
+  from: String!
+  to: String!
+  value: BigInt! @config(precision: 76)
+  isBurn: Boolean! # to == 0x0
+  consumedByLogIndex: Int # logIndex of the Withdraw event that consumed this transfer (undefined if unused)
+  timestamp: Timestamp!
+}

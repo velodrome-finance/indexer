@@ -13,10 +13,16 @@ describe("ALMLPWrapperV1 Events", () => {
     createMockUserStatsPerPool,
   } = setupCommon();
   const chainId = mockLiquidityPoolData.chainId;
-  const lpWrapperAddress = "0x000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  const lpWrapperAddress = toChecksumAddress(
+    "0x000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  );
   const poolAddress = mockLiquidityPoolData.id;
-  const recipientAddress = "0xcccccccccccccccccccccccccccccccccccccccc";
-  const senderAddress = "0xdddddddddddddddddddddddddddddddddddddddd";
+  const recipientAddress = toChecksumAddress(
+    "0xcccccccccccccccccccccccccccccccccccccccc",
+  );
+  const senderAddress = toChecksumAddress(
+    "0xdddddddddddddddddddddddddddddddddddddddd",
+  );
 
   const mockEventData = {
     block: {
@@ -31,6 +37,73 @@ describe("ALMLPWrapperV1 Events", () => {
       hash: "0x1111111111111111111111111111111111111111111111111111111111111111",
     },
   };
+
+  /**
+   * Helper function to set up a burn Transfer event and extend mockDb with getWhere support
+   * @param mockDb - The mock database to extend
+   * @param actualBurnedAmount - The actual LP amount burned
+   * @param logIndex - The log index of the burn Transfer event (default: 0)
+   * @returns The extended mockDb with burn Transfer event set up
+   */
+  function setupBurnTransferAndExtendMockDb(
+    mockDb: ReturnType<typeof MockDb.createMockDb>,
+    actualBurnedAmount: bigint,
+    logIndex = 0,
+  ): ReturnType<typeof MockDb.createMockDb> {
+    const burnTransferId = `${chainId}-${mockEventData.transaction.hash}-${toChecksumAddress(lpWrapperAddress)}-${logIndex}`;
+    const zeroAddress = "0x0000000000000000000000000000000000000000";
+    const burnTransfer = {
+      id: burnTransferId,
+      chainId: chainId,
+      txHash: mockEventData.transaction.hash,
+      wrapperAddress: toChecksumAddress(lpWrapperAddress),
+      logIndex: logIndex,
+      blockNumber: BigInt(mockEventData.block.number),
+      from: toChecksumAddress(senderAddress),
+      to: zeroAddress,
+      value: actualBurnedAmount,
+      isBurn: true,
+      consumedByLogIndex: undefined,
+      timestamp: new Date(mockEventData.block.timestamp * 1000),
+    };
+    let updatedMockDb =
+      mockDb.entities.ALMLPWrapperTransferInTx.set(burnTransfer);
+
+    // Extend mockDb to support getWhere queries for ALMLPWrapperTransferInTx
+    const storedTransfers = [burnTransfer];
+    updatedMockDb = {
+      ...updatedMockDb,
+      entities: {
+        ...updatedMockDb.entities,
+        ALMLPWrapperTransferInTx: {
+          ...updatedMockDb.entities.ALMLPWrapperTransferInTx,
+          getWhere: {
+            txHash: {
+              eq: async (txHash: string) => {
+                return storedTransfers.filter((t) => t.txHash === txHash);
+              },
+            },
+          },
+          get: (id: string) => {
+            return storedTransfers.find((t) => t.id === id);
+          },
+          // biome-ignore lint/suspicious/noExplicitAny: Mock entity type not available
+          set: (entity: any) => {
+            const index = storedTransfers.findIndex((t) => t.id === entity.id);
+            if (index >= 0) {
+              storedTransfers[index] = entity;
+            } else {
+              storedTransfers.push(entity);
+            }
+            return updatedMockDb;
+          },
+        },
+      },
+      // biome-ignore lint/suspicious/noExplicitAny: MockDb type extension needed for test setup
+    } as any;
+
+    return updatedMockDb;
+  }
 
   describe("Deposit Event", () => {
     it("should update existing ALM_LP_Wrapper entity when it exists", async () => {
@@ -266,6 +339,13 @@ describe("ALMLPWrapperV1 Events", () => {
         id: wrapperId,
       });
 
+      // Pre-populate with matching burn Transfer event (V1 needs this to get actual burned amount)
+      mockDb = setupBurnTransferAndExtendMockDb(
+        mockDb,
+        500n * TEN_TO_THE_18_BI,
+        0, // Before Withdraw event (logIndex: 1)
+      );
+
       // V1: Withdraw event has both sender and recipient fields
       const mockEvent = ALMLPWrapperV1.Withdraw.createMockEvent({
         sender: senderAddress,
@@ -335,14 +415,22 @@ describe("ALMLPWrapperV1 Events", () => {
       });
 
       // Pre-populate with existing user stats (user has LP before withdrawing)
-      const userStatsId = `${toChecksumAddress(recipientAddress)}_${toChecksumAddress(poolAddress)}_${chainId}`;
+      // V1 withdraws use sender, not recipient
+      const userStatsId = `${toChecksumAddress(senderAddress)}_${toChecksumAddress(poolAddress)}_${chainId}`;
       mockDb = mockDb.entities.UserStatsPerPool.set(
         createMockUserStatsPerPool({
-          userAddress: toChecksumAddress(recipientAddress),
+          userAddress: toChecksumAddress(senderAddress),
           poolAddress: toChecksumAddress(poolAddress),
           chainId: chainId,
           almLpAmount: 500n * TEN_TO_THE_18_BI, // User has 500 LP
         }),
+      );
+
+      // Pre-populate with matching burn Transfer event (V1 needs this to get actual burned amount)
+      mockDb = setupBurnTransferAndExtendMockDb(
+        mockDb,
+        500n * TEN_TO_THE_18_BI,
+        0, // Before Withdraw event (logIndex: 1)
       );
 
       const mockEvent = ALMLPWrapperV1.Withdraw.createMockEvent({
@@ -364,7 +452,7 @@ describe("ALMLPWrapperV1 Events", () => {
 
       expect(userStats).toBeDefined();
       expect(userStats?.id).toBe(userStatsId);
-      expect(userStats?.userAddress).toBe(toChecksumAddress(recipientAddress));
+      expect(userStats?.userAddress).toBe(toChecksumAddress(senderAddress));
       expect(userStats?.poolAddress).toBe(toChecksumAddress(poolAddress));
       expect(userStats?.chainId).toBe(chainId);
       // User amounts are derived from LP share after withdrawal
@@ -386,16 +474,24 @@ describe("ALMLPWrapperV1 Events", () => {
       });
 
       // Pre-populate with existing user stats
-      const userStatsId = `${toChecksumAddress(recipientAddress)}_${toChecksumAddress(poolAddress)}_${chainId}`;
+      // V1 withdraws use sender, not recipient
+      const userStatsId = `${toChecksumAddress(senderAddress)}_${toChecksumAddress(poolAddress)}_${chainId}`;
       mockDb = mockDb.entities.UserStatsPerPool.set(
         createMockUserStatsPerPool({
-          userAddress: recipientAddress,
+          userAddress: senderAddress,
           poolAddress: poolAddress,
           chainId: chainId,
           almAmount0: 800n * TEN_TO_THE_18_BI,
           almAmount1: 400n * TEN_TO_THE_6_BI,
           almLpAmount: 1600n * TEN_TO_THE_18_BI,
         }),
+      );
+
+      // Pre-populate with matching burn Transfer event (V1 needs this to get actual burned amount)
+      mockDb = setupBurnTransferAndExtendMockDb(
+        mockDb,
+        500n * TEN_TO_THE_18_BI,
+        0, // Before Withdraw event (logIndex: 1)
       );
 
       const mockEvent = ALMLPWrapperV1.Withdraw.createMockEvent({

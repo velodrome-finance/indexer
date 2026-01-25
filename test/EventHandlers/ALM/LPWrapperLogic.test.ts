@@ -9,6 +9,7 @@ import * as TokenEffects from "../../../src/Effects/Token";
 import {
   calculateLiquidityFromAmounts,
   deriveUserAmounts,
+  getMatchingBurnTransferInTx,
   loadALMLPWrapper,
   processDepositEvent,
   processTransferEvent,
@@ -21,7 +22,25 @@ describe("LPWrapperLogic", () => {
   const chainId = 10;
   const poolAddress = "0x3333333333333333333333333333333333333333";
   const blockNumber = 123456;
-  const roundedBlockNumber = 123000; // Example rounded block
+  const timestamp = new Date(1000000 * 1000);
+  const txHash = "0xtesttxhash";
+
+  // Shared addresses
+  const srcAddress = "0x000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  const sender = "0xcccccccccccccccccccccccccccccccccccccccc";
+  const from = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+  const to = "0xffffffffffffffffffffffffffffffffffffffff";
+
+  // Shared amounts
+  const amount0 = 250n * TEN_TO_THE_18_BI;
+  const amount1 = 125n * TEN_TO_THE_6_BI;
+  const value = 500n * TEN_TO_THE_18_BI;
+  const actualBurnedAmount = 500n * TEN_TO_THE_18_BI;
+  const suspiciousLpAmount = 2n ** 256n - 1n; // Input parameter for V1 (not actual burned amount)
+
+  // Shared log indices
+  const withdrawLogIndex = 100;
+  const transferLogIndex = 50;
 
   // Mock sqrtPriceX96 value (Q64.96 format)
   const mockSqrtPriceX96 = 79228162514264337593543950336n; // sqrt(1) * 2^96
@@ -441,14 +460,9 @@ describe("LPWrapperLogic", () => {
   describe("processDepositEvent", () => {
     let mockContext: handlerContext;
     const recipient = "0xcccccccccccccccccccccccccccccccccccccccc";
-    const pool = "0x3333333333333333333333333333333333333333";
-    const srcAddress = "0x000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-    const chainId = 10;
-    const blockNumber = 123456;
-    const timestamp = new Date(1000000 * 1000);
-    const amount0 = 500n * TEN_TO_THE_18_BI;
-    const amount1 = 250n * TEN_TO_THE_6_BI;
-    const lpAmount = 1000n * TEN_TO_THE_18_BI;
+    const depositAmount0 = 500n * TEN_TO_THE_18_BI;
+    const depositAmount1 = 250n * TEN_TO_THE_6_BI;
+    const depositLpAmount = 1000n * TEN_TO_THE_18_BI;
 
     beforeEach(() => {
       const mockPool = {
@@ -467,7 +481,7 @@ describe("LPWrapperLogic", () => {
         },
         LiquidityPoolAggregator: {
           get: jest.fn((poolAddr) => {
-            if (poolAddr === pool) {
+            if (poolAddr === poolAddress) {
               return Promise.resolve(mockPool);
             }
             return Promise.resolve(null);
@@ -490,11 +504,11 @@ describe("LPWrapperLogic", () => {
         lpAmount: 2000n * TEN_TO_THE_18_BI,
       };
 
-      const userStatsId = `${toChecksumAddress(recipient)}_${toChecksumAddress(pool)}_${chainId}`;
+      const userStatsId = `${toChecksumAddress(recipient)}_${toChecksumAddress(poolAddress)}_${chainId}`;
       const mockUserStats = {
         id: userStatsId,
         userAddress: toChecksumAddress(recipient),
-        poolAddress: toChecksumAddress(pool),
+        poolAddress: toChecksumAddress(poolAddress),
         chainId: chainId,
         almLpAmount: 0n,
         almAmount0: 0n,
@@ -512,10 +526,10 @@ describe("LPWrapperLogic", () => {
 
       await processDepositEvent(
         recipient,
-        pool,
-        amount0,
-        amount1,
-        lpAmount,
+        poolAddress,
+        depositAmount0,
+        depositAmount1,
+        depositLpAmount,
         srcAddress,
         chainId,
         blockNumber,
@@ -529,11 +543,13 @@ describe("LPWrapperLogic", () => {
       ).toHaveBeenCalledTimes(1);
       const wrapperUpdate = (mockContext.ALM_LP_Wrapper?.set as jest.Mock).mock
         .calls[0][0];
-      expect(wrapperUpdate.amount0).toBe(mockWrapper.amount0 + amount0);
-      expect(wrapperUpdate.amount1).toBe(mockWrapper.amount1 + amount1);
+      expect(wrapperUpdate.amount0).toBe(mockWrapper.amount0 + depositAmount0);
+      expect(wrapperUpdate.amount1).toBe(mockWrapper.amount1 + depositAmount1);
       // lpAmount is aggregated: diff.lpAmount + current.lpAmount
       // Deposit: lpAmount (1000) + current (2000) = 3000
-      expect(wrapperUpdate.lpAmount).toBe(mockWrapper.lpAmount + lpAmount);
+      expect(wrapperUpdate.lpAmount).toBe(
+        mockWrapper.lpAmount + depositLpAmount,
+      );
       expect(wrapperUpdate.ammStateIsDerived).toBe(true);
 
       // Verify user stats were updated
@@ -544,7 +560,7 @@ describe("LPWrapperLogic", () => {
 
     it("should return early if wrapper not found", async () => {
       const wrapperId = `${srcAddress}_${chainId}`;
-      const userStatsId = `${toChecksumAddress(recipient)}_${toChecksumAddress(pool)}_${chainId}`;
+      const userStatsId = `${toChecksumAddress(recipient)}_${toChecksumAddress(poolAddress)}_${chainId}`;
 
       (mockContext.ALM_LP_Wrapper?.get as jest.Mock).mockResolvedValueOnce(
         undefined,
@@ -554,7 +570,7 @@ describe("LPWrapperLogic", () => {
       (mockContext.UserStatsPerPool?.get as jest.Mock).mockResolvedValueOnce({
         id: userStatsId,
         userAddress: toChecksumAddress(recipient),
-        poolAddress: toChecksumAddress(pool),
+        poolAddress: toChecksumAddress(poolAddress),
         chainId: chainId,
         almLpAmount: 0n,
         almAmount0: 0n,
@@ -563,10 +579,10 @@ describe("LPWrapperLogic", () => {
 
       await processDepositEvent(
         recipient,
-        pool,
-        amount0,
-        amount1,
-        lpAmount,
+        poolAddress,
+        depositAmount0,
+        depositAmount1,
+        depositLpAmount,
         srcAddress,
         chainId,
         blockNumber,
@@ -586,15 +602,7 @@ describe("LPWrapperLogic", () => {
 
   describe("processWithdrawEvent", () => {
     let mockContext: handlerContext;
-    const recipient = "0xcccccccccccccccccccccccccccccccccccccccc";
-    const pool = "0x3333333333333333333333333333333333333333";
-    const srcAddress = "0x000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-    const chainId = 10;
-    const blockNumber = 123456;
-    const timestamp = new Date(1000000 * 1000);
-    const amount0 = 250n * TEN_TO_THE_18_BI;
-    const amount1 = 125n * TEN_TO_THE_6_BI;
-    const lpAmount = 500n * TEN_TO_THE_18_BI;
+    const withdrawLpAmount = 500n * TEN_TO_THE_18_BI;
 
     beforeEach(() => {
       const mockPool = {
@@ -613,7 +621,7 @@ describe("LPWrapperLogic", () => {
         },
         LiquidityPoolAggregator: {
           get: jest.fn((poolAddr) => {
-            if (poolAddr === pool) {
+            if (poolAddr === poolAddress) {
               return Promise.resolve(mockPool);
             }
             return Promise.resolve(null);
@@ -636,11 +644,11 @@ describe("LPWrapperLogic", () => {
         lpAmount: 2000n * TEN_TO_THE_18_BI,
       };
 
-      const userStatsId = `${toChecksumAddress(recipient)}_${toChecksumAddress(pool)}_${chainId}`;
+      const userStatsId = `${toChecksumAddress(sender)}_${toChecksumAddress(poolAddress)}_${chainId}`;
       const mockUserStats = {
         id: userStatsId,
-        userAddress: toChecksumAddress(recipient),
-        poolAddress: toChecksumAddress(pool),
+        userAddress: toChecksumAddress(sender),
+        poolAddress: toChecksumAddress(poolAddress),
         chainId: chainId,
         almLpAmount: 1000n * TEN_TO_THE_18_BI,
         almAmount0: 500n * TEN_TO_THE_18_BI,
@@ -655,16 +663,19 @@ describe("LPWrapperLogic", () => {
       );
 
       await processWithdrawEvent(
-        recipient,
-        pool,
+        sender,
+        poolAddress,
         amount0,
         amount1,
-        lpAmount,
+        withdrawLpAmount,
         srcAddress,
         chainId,
         blockNumber,
         timestamp,
         mockContext,
+        txHash,
+        withdrawLogIndex,
+        false, // isV1 = false for test (V2 behavior)
       );
 
       // Verify wrapper was updated
@@ -677,7 +688,9 @@ describe("LPWrapperLogic", () => {
       expect(wrapperUpdate.amount1).toBe(mockWrapper.amount1 - amount1);
       // lpAmount is aggregated: diff.lpAmount + current.lpAmount
       // Withdraw: -lpAmount (-500) + current (2000) = 1500
-      expect(wrapperUpdate.lpAmount).toBe(mockWrapper.lpAmount - lpAmount);
+      expect(wrapperUpdate.lpAmount).toBe(
+        mockWrapper.lpAmount - withdrawLpAmount,
+      );
       expect(wrapperUpdate.ammStateIsDerived).toBe(true);
 
       // Verify user stats were updated
@@ -687,7 +700,7 @@ describe("LPWrapperLogic", () => {
     });
 
     it("should return early if wrapper not found", async () => {
-      const userStatsId = `${toChecksumAddress(recipient)}_${toChecksumAddress(pool)}_${chainId}`;
+      const userStatsId = `${toChecksumAddress(sender)}_${toChecksumAddress(poolAddress)}_${chainId}`;
 
       (mockContext.ALM_LP_Wrapper?.get as jest.Mock).mockResolvedValueOnce(
         undefined,
@@ -696,8 +709,8 @@ describe("LPWrapperLogic", () => {
       // (loadOrCreateUserData is called in parallel and may call set before we return early)
       (mockContext.UserStatsPerPool?.get as jest.Mock).mockResolvedValueOnce({
         id: userStatsId,
-        userAddress: toChecksumAddress(recipient),
-        poolAddress: toChecksumAddress(pool),
+        userAddress: toChecksumAddress(sender),
+        poolAddress: toChecksumAddress(poolAddress),
         chainId: chainId,
         almLpAmount: 0n,
         almAmount0: 0n,
@@ -705,16 +718,19 @@ describe("LPWrapperLogic", () => {
       });
 
       await processWithdrawEvent(
-        recipient,
-        pool,
+        sender,
+        poolAddress,
         amount0,
         amount1,
-        lpAmount,
+        withdrawLpAmount,
         srcAddress,
         chainId,
         blockNumber,
         timestamp,
         mockContext,
+        txHash,
+        withdrawLogIndex,
+        false, // isV1 = false for test (V2 behavior)
       );
 
       // Should not update anything
@@ -729,13 +745,6 @@ describe("LPWrapperLogic", () => {
 
   describe("processTransferEvent", () => {
     let mockContext: handlerContext;
-    const from = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
-    const to = "0xffffffffffffffffffffffffffffffffffffffff";
-    const value = 500n * TEN_TO_THE_18_BI;
-    const srcAddress = "0x000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-    const chainId = 10;
-    const timestamp = new Date(1000000 * 1000);
-    const pool = "0x3333333333333333333333333333333333333333";
 
     beforeEach(() => {
       mockContext = {
@@ -757,19 +766,19 @@ describe("LPWrapperLogic", () => {
       const mockWrapper = {
         ...mockALMLPWrapperData,
         id: wrapperId,
-        pool: toChecksumAddress(pool),
+        pool: toChecksumAddress(poolAddress),
         amount0: 1000n * TEN_TO_THE_18_BI,
         amount1: 500n * TEN_TO_THE_6_BI,
         lpAmount: 2000n * TEN_TO_THE_18_BI,
       };
 
-      const fromUserStatsId = `${toChecksumAddress(from)}_${toChecksumAddress(pool)}_${chainId}`;
-      const toUserStatsId = `${toChecksumAddress(to)}_${toChecksumAddress(pool)}_${chainId}`;
+      const fromUserStatsId = `${toChecksumAddress(from)}_${toChecksumAddress(poolAddress)}_${chainId}`;
+      const toUserStatsId = `${toChecksumAddress(to)}_${toChecksumAddress(poolAddress)}_${chainId}`;
 
       const mockFromUserStats = {
         id: fromUserStatsId,
         userAddress: toChecksumAddress(from),
-        poolAddress: toChecksumAddress(pool),
+        poolAddress: toChecksumAddress(poolAddress),
         chainId: chainId,
         almLpAmount: 1000n * TEN_TO_THE_18_BI,
         almAmount0: 500n * TEN_TO_THE_18_BI,
@@ -779,7 +788,7 @@ describe("LPWrapperLogic", () => {
       const mockToUserStats = {
         id: toUserStatsId,
         userAddress: toChecksumAddress(to),
-        poolAddress: toChecksumAddress(pool),
+        poolAddress: toChecksumAddress(poolAddress),
         chainId: chainId,
         almLpAmount: 0n,
         almAmount0: 0n,
@@ -799,8 +808,12 @@ describe("LPWrapperLogic", () => {
         value,
         srcAddress,
         chainId,
+        txHash,
+        withdrawLogIndex,
+        blockNumber,
         timestamp,
         mockContext,
+        false, // isV1 = false for test
       );
 
       // Verify both user stats were updated
@@ -832,8 +845,12 @@ describe("LPWrapperLogic", () => {
         value,
         srcAddress,
         chainId,
+        "0xtesttxhash",
+        100,
+        123456,
         timestamp,
         mockContext,
+        false, // isV1 = false for test
       );
 
       // Burn: to zero address
@@ -843,8 +860,12 @@ describe("LPWrapperLogic", () => {
         value,
         srcAddress,
         chainId,
+        "0xtesttxhash",
+        100,
+        123456,
         timestamp,
         mockContext,
+        false, // isV1 = false for test
       );
 
       // Should not load wrapper or update any stats
@@ -867,13 +888,586 @@ describe("LPWrapperLogic", () => {
         value,
         srcAddress,
         chainId,
+        txHash,
+        withdrawLogIndex,
+        blockNumber,
         timestamp,
         mockContext,
+        false, // isV1 = false for test
       );
 
       // Should not update any stats
       expect(
         mockContext.UserStatsPerPool?.set as jest.Mock,
+      ).toHaveBeenCalledTimes(0);
+    });
+
+    it("should store burn Transfer event for V1 wrapper", async () => {
+      const burnValue = 1000n * TEN_TO_THE_18_BI;
+
+      mockContext = {
+        ...mockContext,
+        ALMLPWrapperTransferInTx: {
+          set: jest.fn(),
+        },
+        // biome-ignore lint/suspicious/noExplicitAny: Mock context type extension needed for test
+      } as any;
+
+      await processTransferEvent(
+        from,
+        ZERO_ADDRESS, // Burn: to zero address
+        burnValue,
+        srcAddress,
+        chainId,
+        txHash,
+        transferLogIndex,
+        blockNumber,
+        timestamp,
+        mockContext,
+        true, // isV1 = true - should store burn event
+      );
+
+      // Verify burn Transfer event was stored
+      expect(
+        // biome-ignore lint/suspicious/noExplicitAny: Mock context type extension needed for test
+        (mockContext as any).ALMLPWrapperTransferInTx?.set as jest.Mock,
+      ).toHaveBeenCalledTimes(1);
+      const storedTransfer =
+        // biome-ignore lint/suspicious/noExplicitAny: Mock context type extension needed for test
+        ((mockContext as any).ALMLPWrapperTransferInTx?.set as jest.Mock).mock
+          .calls[0][0];
+      expect(storedTransfer.id).toBe(
+        `${chainId}-${txHash}-${srcAddress}-${transferLogIndex}`,
+      );
+      expect(storedTransfer.chainId).toBe(chainId);
+      expect(storedTransfer.txHash).toBe(txHash);
+      expect(storedTransfer.wrapperAddress).toBe(srcAddress);
+      expect(storedTransfer.logIndex).toBe(transferLogIndex);
+      expect(storedTransfer.from).toBe(from);
+      expect(storedTransfer.to).toBe(ZERO_ADDRESS);
+      expect(storedTransfer.value).toBe(burnValue);
+      expect(storedTransfer.isBurn).toBe(true);
+      expect(storedTransfer.consumedByLogIndex).toBeUndefined();
+    });
+
+    it("should not store burn Transfer event for V2 wrapper", async () => {
+      mockContext = {
+        ...mockContext,
+        ALMLPWrapperTransferInTx: {
+          set: jest.fn(),
+        },
+        // biome-ignore lint/suspicious/noExplicitAny: Mock context type extension needed for test
+      } as any;
+
+      await processTransferEvent(
+        from,
+        ZERO_ADDRESS, // Burn: to zero address
+        value,
+        srcAddress,
+        chainId,
+        txHash,
+        withdrawLogIndex,
+        blockNumber,
+        timestamp,
+        mockContext,
+        false, // isV1 = false - should NOT store burn event
+      );
+
+      // Verify burn Transfer event was NOT stored
+      expect(
+        // biome-ignore lint/suspicious/noExplicitAny: Mock context type extension needed for test
+        (mockContext as any).ALMLPWrapperTransferInTx?.set as jest.Mock,
+      ).toHaveBeenCalledTimes(0);
+    });
+  });
+
+  describe("getMatchingBurnTransferInTx", () => {
+    let mockContext: handlerContext;
+
+    beforeEach(() => {
+      mockContext = {
+        ALMLPWrapperTransferInTx: {
+          getWhere: {
+            txHash: {
+              eq: jest.fn(),
+            },
+          },
+        },
+        log: {
+          warn: jest.fn(),
+          error: jest.fn(),
+        },
+        // biome-ignore lint/suspicious/noExplicitAny: Mock context type extension needed for test
+      } as any;
+    });
+
+    it("should find matching burn Transfer event", async () => {
+      const matchingBurn = {
+        id: `${chainId}-${txHash}-${srcAddress}-50`,
+        chainId: chainId,
+        wrapperAddress: srcAddress,
+        from: sender,
+        isBurn: true,
+        logIndex: 50,
+        value: 1000n * TEN_TO_THE_18_BI,
+        consumedByLogIndex: undefined,
+      };
+
+      const otherBurn = {
+        id: `${chainId}-${txHash}-${srcAddress}-60`,
+        chainId: chainId,
+        wrapperAddress: srcAddress,
+        from: sender,
+        isBurn: true,
+        logIndex: 60,
+        value: 2000n * TEN_TO_THE_18_BI,
+        consumedByLogIndex: undefined,
+      };
+
+      const nonMatchingBurn = {
+        id: `${chainId}-${txHash}-${srcAddress}-80`,
+        chainId: chainId,
+        wrapperAddress: "0xdifferentwrapper",
+        from: sender,
+        isBurn: true,
+        logIndex: 80,
+        value: 3000n * TEN_TO_THE_18_BI,
+        consumedByLogIndex: undefined,
+      };
+
+      (
+        mockContext.ALMLPWrapperTransferInTx?.getWhere?.txHash?.eq as jest.Mock
+      ).mockResolvedValue([matchingBurn, otherBurn, nonMatchingBurn]);
+
+      const result = await getMatchingBurnTransferInTx(
+        txHash,
+        sender,
+        chainId,
+        srcAddress,
+        withdrawLogIndex,
+        mockContext,
+      );
+
+      expect(result).toBeDefined();
+      expect(result?.id).toBe(otherBurn.id); // Should return the closest (highest logIndex)
+      expect(result?.value).toBe(otherBurn.value);
+      expect(result?.logIndex).toBe(60);
+    });
+
+    it("should return undefined if no matching burn found", async () => {
+      (
+        mockContext.ALMLPWrapperTransferInTx?.getWhere?.txHash?.eq as jest.Mock
+      ).mockResolvedValue([]);
+
+      const result = await getMatchingBurnTransferInTx(
+        txHash,
+        sender,
+        chainId,
+        srcAddress,
+        withdrawLogIndex,
+        mockContext,
+      );
+
+      expect(result).toBeUndefined();
+    });
+
+    it("should filter out consumed transfers", async () => {
+      const consumedBurn = {
+        id: `${chainId}-${txHash}-${srcAddress}-50`,
+        chainId: chainId,
+        wrapperAddress: srcAddress,
+        from: sender,
+        isBurn: true,
+        logIndex: 50,
+        value: 1000n * TEN_TO_THE_18_BI,
+        consumedByLogIndex: 90, // Already consumed
+      };
+
+      (
+        mockContext.ALMLPWrapperTransferInTx?.getWhere?.txHash?.eq as jest.Mock
+      ).mockResolvedValue([consumedBurn]);
+
+      const result = await getMatchingBurnTransferInTx(
+        txHash,
+        sender,
+        chainId,
+        srcAddress,
+        withdrawLogIndex,
+        mockContext,
+      );
+
+      expect(result).toBeUndefined();
+    });
+
+    it("should filter out transfers with logIndex >= withdrawLogIndex", async () => {
+      const futureBurn = {
+        id: `${chainId}-${txHash}-${srcAddress}-150`,
+        chainId: chainId,
+        wrapperAddress: srcAddress,
+        from: sender,
+        isBurn: true,
+        logIndex: 150, // After withdraw event
+        value: 1000n * TEN_TO_THE_18_BI,
+        consumedByLogIndex: undefined,
+      };
+
+      (
+        mockContext.ALMLPWrapperTransferInTx?.getWhere?.txHash?.eq as jest.Mock
+      ).mockResolvedValue([futureBurn]);
+
+      const result = await getMatchingBurnTransferInTx(
+        txHash,
+        sender,
+        chainId,
+        srcAddress,
+        withdrawLogIndex,
+        mockContext,
+      );
+
+      expect(result).toBeUndefined();
+    });
+
+    it("should select closest preceding burn when multiple matches exist", async () => {
+      const burn1 = {
+        id: `${chainId}-${txHash}-${srcAddress}-30`,
+        chainId: chainId,
+        wrapperAddress: srcAddress,
+        from: sender,
+        isBurn: true,
+        logIndex: 30,
+        value: 1000n * TEN_TO_THE_18_BI,
+        consumedByLogIndex: undefined,
+      };
+
+      const burn2 = {
+        id: `${chainId}-${txHash}-${srcAddress}-70`,
+        chainId: chainId,
+        wrapperAddress: srcAddress,
+        from: sender,
+        isBurn: true,
+        logIndex: 70,
+        value: 2000n * TEN_TO_THE_18_BI,
+        consumedByLogIndex: undefined,
+      };
+
+      const burn3 = {
+        id: `${chainId}-${txHash}-${srcAddress}-90`,
+        chainId: chainId,
+        wrapperAddress: srcAddress,
+        from: sender,
+        isBurn: true,
+        logIndex: 90,
+        value: 3000n * TEN_TO_THE_18_BI,
+        consumedByLogIndex: undefined,
+      };
+
+      (
+        mockContext.ALMLPWrapperTransferInTx?.getWhere?.txHash?.eq as jest.Mock
+      ).mockResolvedValue([burn1, burn2, burn3]);
+
+      const result = await getMatchingBurnTransferInTx(
+        txHash,
+        sender,
+        chainId,
+        srcAddress,
+        withdrawLogIndex,
+        mockContext,
+      );
+
+      expect(result).toBeDefined();
+      expect(result?.id).toBe(burn3.id); // Should return the closest (highest logIndex)
+      expect(result?.value).toBe(burn3.value);
+      expect(result?.logIndex).toBe(90);
+    });
+
+    it("should filter out burns from different senders", async () => {
+      const differentSender = "0xdddddddddddddddddddddddddddddddddddddddd";
+      const burnFromDifferentSender = {
+        id: `${chainId}-${txHash}-${srcAddress}-50`,
+        chainId: chainId,
+        wrapperAddress: srcAddress,
+        from: differentSender, // Different sender
+        isBurn: true,
+        logIndex: 50,
+        value: 1000n * TEN_TO_THE_18_BI,
+        consumedByLogIndex: undefined,
+      };
+
+      (
+        mockContext.ALMLPWrapperTransferInTx?.getWhere?.txHash?.eq as jest.Mock
+      ).mockResolvedValue([burnFromDifferentSender]);
+
+      const result = await getMatchingBurnTransferInTx(
+        txHash,
+        sender,
+        chainId,
+        srcAddress,
+        withdrawLogIndex,
+        mockContext,
+      );
+
+      expect(result).toBeUndefined();
+    });
+  });
+
+  describe("processWithdrawEvent - V1 with Transfer matching", () => {
+    let mockContext: handlerContext;
+
+    beforeEach(() => {
+      const mockPool = {
+        sqrtPriceX96: mockSqrtPriceX96,
+        isCL: true,
+      };
+
+      mockContext = {
+        ALM_LP_Wrapper: {
+          get: jest.fn(),
+          set: jest.fn(),
+        },
+        UserStatsPerPool: {
+          get: jest.fn(),
+          set: jest.fn(),
+        },
+        LiquidityPoolAggregator: {
+          get: jest.fn((poolAddr) => {
+            if (poolAddr === poolAddress) {
+              return Promise.resolve(mockPool);
+            }
+            return Promise.resolve(null);
+          }),
+        },
+        ALMLPWrapperTransferInTx: {
+          getWhere: {
+            txHash: {
+              eq: jest.fn(),
+            },
+          },
+          get: jest.fn(),
+          set: jest.fn(),
+        },
+        log: {
+          warn: jest.fn(),
+          error: jest.fn(),
+          info: jest.fn(),
+        },
+        // biome-ignore lint/suspicious/noExplicitAny: Mock context type extension needed for test
+      } as any;
+    });
+
+    it("should use Transfer event value for V1 withdraw when matching burn found", async () => {
+      const wrapperId = `${srcAddress}_${chainId}`;
+      const mockWrapper = {
+        ...mockALMLPWrapperData,
+        id: wrapperId,
+        amount0: 1000n * TEN_TO_THE_18_BI,
+        amount1: 500n * TEN_TO_THE_6_BI,
+        lpAmount: 2000n * TEN_TO_THE_18_BI,
+      };
+
+      const userStatsId = `${toChecksumAddress(sender)}_${toChecksumAddress(poolAddress)}_${chainId}`;
+      const mockUserStats = {
+        id: userStatsId,
+        userAddress: toChecksumAddress(sender),
+        poolAddress: toChecksumAddress(poolAddress),
+        chainId: chainId,
+        almLpAmount: 1000n * TEN_TO_THE_18_BI,
+        almAmount0: 500n * TEN_TO_THE_18_BI,
+        almAmount1: 250n * TEN_TO_THE_6_BI,
+      };
+
+      // Mock matching burn Transfer event
+      const matchingBurn = {
+        id: `${chainId}-${txHash}-${srcAddress}-${transferLogIndex}`,
+        chainId: chainId,
+        wrapperAddress: srcAddress,
+        from: sender,
+        isBurn: true,
+        logIndex: transferLogIndex,
+        value: actualBurnedAmount,
+        consumedByLogIndex: undefined,
+      };
+
+      const transferEntity = {
+        ...matchingBurn,
+        blockNumber: BigInt(blockNumber),
+        to: ZERO_ADDRESS,
+        timestamp: timestamp,
+      };
+
+      (mockContext.ALM_LP_Wrapper?.get as jest.Mock).mockResolvedValueOnce(
+        mockWrapper,
+      );
+      (mockContext.UserStatsPerPool?.get as jest.Mock).mockResolvedValueOnce(
+        mockUserStats,
+      );
+      (
+        mockContext.ALMLPWrapperTransferInTx?.getWhere?.txHash?.eq as jest.Mock
+      ).mockResolvedValue([matchingBurn]);
+      (
+        mockContext.ALMLPWrapperTransferInTx?.get as jest.Mock
+      ).mockResolvedValue(transferEntity);
+
+      await processWithdrawEvent(
+        sender,
+        poolAddress,
+        amount0,
+        amount1,
+        suspiciousLpAmount, // Suspicious value (input parameter)
+        srcAddress,
+        chainId,
+        blockNumber,
+        timestamp,
+        mockContext,
+        txHash,
+        withdrawLogIndex,
+        true, // isV1 = true
+      );
+
+      // Verify wrapper was updated with actual burned amount (not the suspicious input parameter)
+      expect(
+        mockContext.ALM_LP_Wrapper?.set as jest.Mock,
+      ).toHaveBeenCalledTimes(1);
+      const wrapperUpdate = (mockContext.ALM_LP_Wrapper?.set as jest.Mock).mock
+        .calls[0][0];
+      expect(wrapperUpdate.amount0).toBe(mockWrapper.amount0 - amount0);
+      expect(wrapperUpdate.amount1).toBe(mockWrapper.amount1 - amount1);
+      // Should use actualBurnedAmount, not lpAmount
+      expect(wrapperUpdate.lpAmount).toBe(
+        mockWrapper.lpAmount - actualBurnedAmount,
+      );
+
+      // Verify Transfer event was marked as consumed
+      expect(
+        mockContext.ALMLPWrapperTransferInTx?.set as jest.Mock,
+      ).toHaveBeenCalledTimes(1);
+      const consumedTransfer = (
+        mockContext.ALMLPWrapperTransferInTx?.set as jest.Mock
+      ).mock.calls[0][0];
+      expect(consumedTransfer.consumedByLogIndex).toBe(withdrawLogIndex);
+    });
+
+    it("should use 0n for V1 withdraw when no matching burn found", async () => {
+      const wrapperId = `${srcAddress}_${chainId}`;
+      const mockWrapper = {
+        ...mockALMLPWrapperData,
+        id: wrapperId,
+        amount0: 1000n * TEN_TO_THE_18_BI,
+        amount1: 500n * TEN_TO_THE_6_BI,
+        lpAmount: 2000n * TEN_TO_THE_18_BI,
+      };
+
+      const userStatsId = `${toChecksumAddress(sender)}_${toChecksumAddress(poolAddress)}_${chainId}`;
+      const mockUserStats = {
+        id: userStatsId,
+        userAddress: toChecksumAddress(sender),
+        poolAddress: toChecksumAddress(poolAddress),
+        chainId: chainId,
+        almLpAmount: 1000n * TEN_TO_THE_18_BI,
+        almAmount0: 500n * TEN_TO_THE_18_BI,
+        almAmount1: 250n * TEN_TO_THE_6_BI,
+      };
+
+      (mockContext.ALM_LP_Wrapper?.get as jest.Mock).mockResolvedValueOnce(
+        mockWrapper,
+      );
+      (mockContext.UserStatsPerPool?.get as jest.Mock).mockResolvedValueOnce(
+        mockUserStats,
+      );
+      // No matching burn Transfer event found
+      (
+        mockContext.ALMLPWrapperTransferInTx?.getWhere?.txHash?.eq as jest.Mock
+      ).mockResolvedValue([]);
+
+      await processWithdrawEvent(
+        sender,
+        poolAddress,
+        amount0,
+        amount1,
+        suspiciousLpAmount, // Suspicious value (input parameter)
+        srcAddress,
+        chainId,
+        blockNumber,
+        timestamp,
+        mockContext,
+        txHash,
+        withdrawLogIndex,
+        true, // isV1 = true
+      );
+
+      // Verify wrapper was updated with 0n (fallback when no Transfer found)
+      expect(
+        mockContext.ALM_LP_Wrapper?.set as jest.Mock,
+      ).toHaveBeenCalledTimes(1);
+      const wrapperUpdate = (mockContext.ALM_LP_Wrapper?.set as jest.Mock).mock
+        .calls[0][0];
+      expect(wrapperUpdate.lpAmount).toBe(mockWrapper.lpAmount - 0n);
+
+      // Verify warning was logged
+      expect(mockContext.log.warn as jest.Mock).toHaveBeenCalledTimes(1);
+      expect((mockContext.log.warn as jest.Mock).mock.calls[0][0]).toContain(
+        "no matching burn Transfer event found",
+      );
+    });
+
+    it("should use event parameter directly for V2 withdraw", async () => {
+      const wrapperId = `${srcAddress}_${chainId}`;
+      const mockWrapper = {
+        ...mockALMLPWrapperData,
+        id: wrapperId,
+        amount0: 1000n * TEN_TO_THE_18_BI,
+        amount1: 500n * TEN_TO_THE_6_BI,
+        lpAmount: 2000n * TEN_TO_THE_18_BI,
+      };
+
+      const userStatsId = `${toChecksumAddress(sender)}_${toChecksumAddress(poolAddress)}_${chainId}`;
+      const mockUserStats = {
+        id: userStatsId,
+        userAddress: toChecksumAddress(sender),
+        poolAddress: toChecksumAddress(poolAddress),
+        chainId: chainId,
+        almLpAmount: 1000n * TEN_TO_THE_18_BI,
+        almAmount0: 500n * TEN_TO_THE_18_BI,
+        almAmount1: 250n * TEN_TO_THE_6_BI,
+      };
+
+      const normalLpAmount = 500n * TEN_TO_THE_18_BI; // Normal value for V2
+
+      (mockContext.ALM_LP_Wrapper?.get as jest.Mock).mockResolvedValueOnce(
+        mockWrapper,
+      );
+      (mockContext.UserStatsPerPool?.get as jest.Mock).mockResolvedValueOnce(
+        mockUserStats,
+      );
+
+      await processWithdrawEvent(
+        sender,
+        poolAddress,
+        amount0,
+        amount1,
+        normalLpAmount, // V2 emits actualLpAmount correctly
+        srcAddress,
+        chainId,
+        blockNumber,
+        timestamp,
+        mockContext,
+        txHash,
+        withdrawLogIndex,
+        false, // isV1 = false (V2)
+      );
+
+      // Verify wrapper was updated with event parameter (V2 is correct)
+      expect(
+        mockContext.ALM_LP_Wrapper?.set as jest.Mock,
+      ).toHaveBeenCalledTimes(1);
+      const wrapperUpdate = (mockContext.ALM_LP_Wrapper?.set as jest.Mock).mock
+        .calls[0][0];
+      expect(wrapperUpdate.lpAmount).toBe(
+        mockWrapper.lpAmount - normalLpAmount,
+      );
+
+      // Verify Transfer matching was NOT attempted (V2 doesn't need it)
+      expect(
+        mockContext.ALMLPWrapperTransferInTx?.getWhere?.txHash?.eq as jest.Mock,
       ).toHaveBeenCalledTimes(0);
     });
   });

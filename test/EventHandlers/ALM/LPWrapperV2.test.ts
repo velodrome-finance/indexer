@@ -15,8 +15,8 @@ describe("ALMLPWrapperV2 Events", () => {
   const chainId = mockLiquidityPoolData.chainId;
   const lpWrapperAddress = "0x000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
   const poolAddress = mockLiquidityPoolData.id;
-  const recipientAddress = "0xcccccccccccccccccccccccccccccccccccccccc";
-  const senderAddress = "0xdddddddddddddddddddddddddddddddddddddddd";
+  const userA = "0xcccccccccccccccccccccccccccccccccccccccc";
+  const userB = "0xdddddddddddddddddddddddddddddddddddddddd";
 
   const mockEventData = {
     block: {
@@ -46,7 +46,7 @@ describe("ALMLPWrapperV2 Events", () => {
       // V2: Deposit event has sender, recipient, pool, amount0, amount1, lpAmount, totalSupply
       // The handler only uses recipient (not sender), so we only need to provide recipient in the mock
       const mockEvent = ALMLPWrapperV2.Deposit.createMockEvent({
-        recipient: recipientAddress,
+        recipient: userA,
         pool: poolAddress,
         lpAmount: 1000n * TEN_TO_THE_18_BI,
         amount0: 500n * TEN_TO_THE_18_BI,
@@ -88,7 +88,7 @@ describe("ALMLPWrapperV2 Events", () => {
       // V2: Deposit event has sender, recipient, pool, amount0, amount1, lpAmount, totalSupply
       // The handler only uses recipient (not sender), so we only need to provide recipient in the mock
       const mockEvent = ALMLPWrapperV2.Deposit.createMockEvent({
-        recipient: recipientAddress,
+        recipient: userA,
         pool: poolAddress,
         lpAmount: 1000n * TEN_TO_THE_18_BI,
         amount0: 500n * TEN_TO_THE_18_BI,
@@ -120,7 +120,7 @@ describe("ALMLPWrapperV2 Events", () => {
       // V2: Deposit event has sender, recipient, pool, amount0, amount1, lpAmount, totalSupply
       // The handler only uses recipient (not sender), so we only need to provide recipient in the mock
       const mockEvent = ALMLPWrapperV2.Deposit.createMockEvent({
-        recipient: recipientAddress,
+        recipient: userA,
         pool: poolAddress,
         lpAmount: 1000n * TEN_TO_THE_18_BI,
         amount0: 500n * TEN_TO_THE_18_BI,
@@ -133,12 +133,12 @@ describe("ALMLPWrapperV2 Events", () => {
         mockDb,
       });
 
-      const userStatsId = `${toChecksumAddress(recipientAddress)}_${toChecksumAddress(poolAddress)}_${chainId}`;
+      const userStatsId = `${toChecksumAddress(userA)}_${toChecksumAddress(poolAddress)}_${chainId}`;
       const userStats = result.entities.UserStatsPerPool.get(userStatsId);
 
       expect(userStats).toBeDefined();
       expect(userStats?.id).toBe(userStatsId);
-      expect(userStats?.userAddress).toBe(toChecksumAddress(recipientAddress));
+      expect(userStats?.userAddress).toBe(toChecksumAddress(userA));
       expect(userStats?.poolAddress).toBe(toChecksumAddress(poolAddress));
       expect(userStats?.chainId).toBe(chainId);
       // User amounts are derived from LP share, not directly from event amounts
@@ -160,10 +160,10 @@ describe("ALMLPWrapperV2 Events", () => {
       });
 
       // Pre-populate with existing user stats
-      const userStatsId = `${toChecksumAddress(recipientAddress)}_${toChecksumAddress(poolAddress)}_${chainId}`;
+      const userStatsId = `${toChecksumAddress(userA)}_${toChecksumAddress(poolAddress)}_${chainId}`;
       mockDb = mockDb.entities.UserStatsPerPool.set(
         createMockUserStatsPerPool({
-          userAddress: recipientAddress,
+          userAddress: userA,
           poolAddress: poolAddress,
           chainId: chainId,
           almAmount0: 300n * TEN_TO_THE_18_BI,
@@ -175,7 +175,7 @@ describe("ALMLPWrapperV2 Events", () => {
       // V2: Deposit event has sender, recipient, pool, amount0, amount1, lpAmount, totalSupply
       // The handler only uses recipient (not sender), so we only need to provide recipient in the mock
       const mockEvent = ALMLPWrapperV2.Deposit.createMockEvent({
-        recipient: recipientAddress,
+        recipient: userA,
         pool: poolAddress,
         lpAmount: 1000n * TEN_TO_THE_18_BI,
         amount0: 500n * TEN_TO_THE_18_BI,
@@ -215,7 +215,7 @@ describe("ALMLPWrapperV2 Events", () => {
       // V2: Deposit event has sender, recipient, pool, amount0, amount1, lpAmount, totalSupply
       // The handler only uses recipient (not sender), so we only need to provide recipient in the mock
       const mockEvent = ALMLPWrapperV2.Deposit.createMockEvent({
-        recipient: recipientAddress,
+        recipient: userA,
         pool: poolAddress,
         lpAmount: 1000n * TEN_TO_THE_18_BI,
         amount0: 500n * TEN_TO_THE_18_BI,
@@ -228,7 +228,7 @@ describe("ALMLPWrapperV2 Events", () => {
         mockDb,
       });
 
-      const userStatsId = `${toChecksumAddress(recipientAddress)}_${toChecksumAddress(poolAddress)}_${chainId}`;
+      const userStatsId = `${toChecksumAddress(userA)}_${toChecksumAddress(poolAddress)}_${chainId}`;
 
       const wrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
       const userStats = result.entities.UserStatsPerPool.get(userStatsId);
@@ -269,9 +269,9 @@ describe("ALMLPWrapperV2 Events", () => {
       });
 
       // V2: Withdraw event has sender, recipient, pool, amount0, amount1, lpAmount
-      // The handler only uses recipient (not sender), so we only need to provide recipient in the mock
+      // The handler uses sender (not recipient), so we need to provide sender in the mock
       const mockEvent = ALMLPWrapperV2.Withdraw.createMockEvent({
-        recipient: recipientAddress,
+        sender: userA,
         pool: poolAddress,
         lpAmount: 500n * TEN_TO_THE_18_BI,
         amount0: 250n * TEN_TO_THE_18_BI,
@@ -306,9 +306,9 @@ describe("ALMLPWrapperV2 Events", () => {
       const mockDb = MockDb.createMockDb();
 
       // V2: Withdraw event has sender, recipient, pool, amount0, amount1, lpAmount
-      // The handler only uses recipient (not sender), so we only need to provide recipient in the mock
+      // The handler uses sender (not recipient), so we need to provide sender in the mock
       const mockEvent = ALMLPWrapperV2.Withdraw.createMockEvent({
-        recipient: recipientAddress,
+        sender: userA,
         pool: poolAddress,
         lpAmount: 500n * TEN_TO_THE_18_BI,
         amount0: 250n * TEN_TO_THE_18_BI,
@@ -338,10 +338,10 @@ describe("ALMLPWrapperV2 Events", () => {
       });
 
       // Pre-populate with existing user stats
-      const userStatsId = `${toChecksumAddress(recipientAddress)}_${toChecksumAddress(poolAddress)}_${chainId}`;
+      const userStatsId = `${toChecksumAddress(userA)}_${toChecksumAddress(poolAddress)}_${chainId}`;
       mockDb = mockDb.entities.UserStatsPerPool.set(
         createMockUserStatsPerPool({
-          userAddress: recipientAddress,
+          userAddress: userA,
           poolAddress: poolAddress,
           chainId: chainId,
           almAmount0: 1000n * TEN_TO_THE_18_BI,
@@ -351,9 +351,9 @@ describe("ALMLPWrapperV2 Events", () => {
       );
 
       // V2: Withdraw event has sender, recipient, pool, amount0, amount1, lpAmount
-      // The handler only uses recipient (not sender), so we only need to provide recipient in the mock
+      // The handler uses sender (not recipient), so we need to provide sender in the mock
       const mockEvent = ALMLPWrapperV2.Withdraw.createMockEvent({
-        recipient: recipientAddress,
+        sender: userA,
         pool: poolAddress,
         lpAmount: 500n * TEN_TO_THE_18_BI,
         amount0: 250n * TEN_TO_THE_18_BI,
@@ -393,12 +393,12 @@ describe("ALMLPWrapperV2 Events", () => {
       });
 
       // Pre-populate with existing user stats for both sender and recipient
-      const userStatsFromId = `${toChecksumAddress(senderAddress)}_${toChecksumAddress(poolAddress)}_${chainId}`;
-      const userStatsToId = `${toChecksumAddress(recipientAddress)}_${toChecksumAddress(poolAddress)}_${chainId}`;
+      const userStatsFromId = `${toChecksumAddress(userB)}_${toChecksumAddress(poolAddress)}_${chainId}`;
+      const userStatsToId = `${toChecksumAddress(userA)}_${toChecksumAddress(poolAddress)}_${chainId}`;
 
       mockDb = mockDb.entities.UserStatsPerPool.set(
         createMockUserStatsPerPool({
-          userAddress: senderAddress,
+          userAddress: userB,
           poolAddress: poolAddress,
           chainId: chainId,
           almLpAmount: 5000n * TEN_TO_THE_18_BI, // Sender has 5000 tokens
@@ -407,7 +407,7 @@ describe("ALMLPWrapperV2 Events", () => {
 
       mockDb = mockDb.entities.UserStatsPerPool.set(
         createMockUserStatsPerPool({
-          userAddress: recipientAddress,
+          userAddress: userA,
           poolAddress: poolAddress,
           chainId: chainId,
           almLpAmount: 2000n * TEN_TO_THE_18_BI, // Recipient has 2000 tokens
@@ -416,8 +416,8 @@ describe("ALMLPWrapperV2 Events", () => {
 
       const transferAmount = 1000n * TEN_TO_THE_18_BI;
       const mockEvent = ALMLPWrapperV2.Transfer.createMockEvent({
-        from: senderAddress,
-        to: recipientAddress,
+        from: userB,
+        to: userA,
         value: transferAmount,
         mockEventData,
       });
@@ -468,10 +468,10 @@ describe("ALMLPWrapperV2 Events", () => {
       });
 
       // Pre-populate only sender's user stats
-      const userStatsFromId = `${toChecksumAddress(senderAddress)}_${toChecksumAddress(poolAddress)}_${chainId}`;
+      const userStatsFromId = `${toChecksumAddress(userB)}_${toChecksumAddress(poolAddress)}_${chainId}`;
       mockDb = mockDb.entities.UserStatsPerPool.set(
         createMockUserStatsPerPool({
-          userAddress: senderAddress,
+          userAddress: userB,
           poolAddress: poolAddress,
           chainId: chainId,
           almLpAmount: 3000n * TEN_TO_THE_18_BI,
@@ -480,8 +480,8 @@ describe("ALMLPWrapperV2 Events", () => {
 
       const transferAmount = 500n * TEN_TO_THE_18_BI;
       const mockEvent = ALMLPWrapperV2.Transfer.createMockEvent({
-        from: senderAddress,
-        to: recipientAddress,
+        from: userB,
+        to: userA,
         value: transferAmount,
         mockEventData,
       });
@@ -497,7 +497,7 @@ describe("ALMLPWrapperV2 Events", () => {
       expect(userStatsFrom?.almLpAmount).toBe(2500n * TEN_TO_THE_18_BI); // 3000 - 500
 
       // Verify recipient's almLpAmount was created and set to transfer amount
-      const userStatsToId = `${toChecksumAddress(recipientAddress)}_${toChecksumAddress(poolAddress)}_${chainId}`;
+      const userStatsToId = `${toChecksumAddress(userA)}_${toChecksumAddress(poolAddress)}_${chainId}`;
       const userStatsTo = result.entities.UserStatsPerPool.get(userStatsToId);
       expect(userStatsTo).toBeDefined();
       expect(userStatsTo?.almLpAmount).toBe(500n * TEN_TO_THE_18_BI); // 0 + 500
@@ -513,8 +513,8 @@ describe("ALMLPWrapperV2 Events", () => {
       const mockDb = MockDb.createMockDb();
 
       const mockEvent = ALMLPWrapperV2.Transfer.createMockEvent({
-        from: senderAddress,
-        to: recipientAddress,
+        from: userB,
+        to: userA,
         value: 1000n * TEN_TO_THE_18_BI,
         mockEventData,
       });
@@ -530,8 +530,8 @@ describe("ALMLPWrapperV2 Events", () => {
       expect(wrapper).toBeUndefined();
 
       // Verify that no user stats were created or updated
-      const userStatsFromId = `${toChecksumAddress(senderAddress)}_${toChecksumAddress(poolAddress)}_${chainId}`;
-      const userStatsToId = `${toChecksumAddress(recipientAddress)}_${toChecksumAddress(poolAddress)}_${chainId}`;
+      const userStatsFromId = `${toChecksumAddress(userB)}_${toChecksumAddress(poolAddress)}_${chainId}`;
+      const userStatsToId = `${toChecksumAddress(userA)}_${toChecksumAddress(poolAddress)}_${chainId}`;
       const userStatsFrom =
         result.entities.UserStatsPerPool.get(userStatsFromId);
       const userStatsTo = result.entities.UserStatsPerPool.get(userStatsToId);
@@ -556,7 +556,7 @@ describe("ALMLPWrapperV2 Events", () => {
       // Deposit/Withdraw events already handle mints/burns correctly
       const mintEvent = ALMLPWrapperV2.Transfer.createMockEvent({
         from: zeroAddress,
-        to: recipientAddress,
+        to: userA,
         value: transferAmount,
         mockEventData,
       });
@@ -566,7 +566,7 @@ describe("ALMLPWrapperV2 Events", () => {
         mockDb,
       });
 
-      const toUserStatsId = `${toChecksumAddress(recipientAddress)}_${toChecksumAddress(poolAddress)}_${chainId}`;
+      const toUserStatsId = `${toChecksumAddress(userA)}_${toChecksumAddress(poolAddress)}_${chainId}`;
       const toUserStats =
         mintResult.entities.UserStatsPerPool.get(toUserStatsId);
 
@@ -575,7 +575,7 @@ describe("ALMLPWrapperV2 Events", () => {
 
       // Burn: to zero address - handler should return early without updating UserStatsPerPool
       // Pre-populate with user stats for the burner
-      const burnerAddress = senderAddress;
+      const burnerAddress = userB;
       const burnerUserStatsId = `${toChecksumAddress(burnerAddress)}_${toChecksumAddress(poolAddress)}_${chainId}`;
       mockDb = mockDb.entities.UserStatsPerPool.set(
         createMockUserStatsPerPool({
@@ -623,7 +623,7 @@ describe("ALMLPWrapperV2 Events", () => {
       // V2: Deposit event has sender, recipient, pool, amount0, amount1, lpAmount, totalSupply
       // The handler only uses recipient (not sender), so we only need to provide recipient in the mock
       const mockEvent = ALMLPWrapperV2.Deposit.createMockEvent({
-        recipient: recipientAddress,
+        recipient: userA,
         pool: poolAddress,
         lpAmount: 0n,
         amount0: 0n,
@@ -662,7 +662,7 @@ describe("ALMLPWrapperV2 Events", () => {
       // V2: Deposit event has sender, recipient, pool, amount0, amount1, lpAmount, totalSupply
       // The handler only uses recipient (not sender), so we only need to provide recipient in the mock
       let mockEvent = ALMLPWrapperV2.Deposit.createMockEvent({
-        recipient: recipientAddress,
+        recipient: userA,
         pool: poolAddress,
         lpAmount: 1000n * TEN_TO_THE_18_BI,
         amount0: 500n * TEN_TO_THE_18_BI,
@@ -725,7 +725,7 @@ describe("ALMLPWrapperV2 Events", () => {
       ); // 2000 + 1000 + 2000 = 5000
 
       // Both users should have their individual stats
-      const userStats1Id = `${toChecksumAddress(recipientAddress)}_${toChecksumAddress(poolAddress)}_${chainId}`;
+      const userStats1Id = `${toChecksumAddress(userA)}_${toChecksumAddress(poolAddress)}_${chainId}`;
       const userStats2Id = `${toChecksumAddress(recipient2)}_${toChecksumAddress(poolAddress)}_${chainId}`;
 
       const userStats1 = result.entities.UserStatsPerPool.get(userStats1Id);
@@ -761,7 +761,7 @@ describe("ALMLPWrapperV2 Events", () => {
       // V2: Deposit event has sender, recipient, pool, amount0, amount1, lpAmount, totalSupply
       // The handler only uses recipient (not sender), so we only need to provide recipient in the mock
       let mockEvent = ALMLPWrapperV2.Deposit.createMockEvent({
-        recipient: recipientAddress,
+        recipient: userA,
         pool: poolAddress,
         lpAmount: 1000n * TEN_TO_THE_18_BI,
         amount0: 500n * TEN_TO_THE_18_BI,
@@ -778,9 +778,9 @@ describe("ALMLPWrapperV2 Events", () => {
 
       // Then withdraw
       // V2: Withdraw event has sender, recipient, pool, amount0, amount1, lpAmount
-      // The handler only uses recipient (not sender), so we only need to provide recipient in the mock
+      // The handler uses sender (not recipient), so we need to provide sender in the mock
       mockEvent = ALMLPWrapperV2.Withdraw.createMockEvent({
-        recipient: recipientAddress,
+        sender: userA,
         pool: poolAddress,
         lpAmount: 500n * TEN_TO_THE_18_BI,
         amount0: 250n * TEN_TO_THE_18_BI,
