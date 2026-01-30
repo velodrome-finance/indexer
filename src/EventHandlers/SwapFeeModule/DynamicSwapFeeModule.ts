@@ -24,6 +24,7 @@ DynamicSwapFeeModule.CustomFeeSet.handler(async ({ event, context }) => {
     pool,
     new Date(event.block.timestamp * 1000),
     context,
+    event.chainId,
     event.block.number,
   );
 });
@@ -60,6 +61,7 @@ DynamicSwapFeeModule.ScalingFactorSet.handler(async ({ event, context }) => {
     pool,
     new Date(event.block.timestamp * 1000),
     context,
+    event.chainId,
     event.block.number,
   );
 });
@@ -82,6 +84,7 @@ DynamicSwapFeeModule.FeeCapSet.handler(async ({ event, context }) => {
     pool,
     new Date(event.block.timestamp * 1000),
     context,
+    event.chainId,
     event.block.number,
   );
 });

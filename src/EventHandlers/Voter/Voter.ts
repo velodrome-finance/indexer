@@ -58,6 +58,7 @@ Voter.GaugeCreated.handler(async ({ event, context }) => {
       poolEntity,
       new Date(event.block.timestamp * 1000),
       context,
+      event.chainId,
       event.block.number,
     );
   }
@@ -105,6 +106,7 @@ Voter.Voted.handler(async ({ event, context }) => {
       liquidityPoolAggregator,
       timestamp,
       context,
+      event.chainId,
       event.block.number,
     ),
     updateUserStatsPerPool(userVoteDiff, userData, context),
@@ -153,6 +155,7 @@ Voter.Abstained.handler(async ({ event, context }) => {
       liquidityPoolAggregator,
       timestamp,
       context,
+      event.chainId,
       event.block.number,
     ),
     updateUserStatsPerPool(userVoteDiff, userData, context),
@@ -225,6 +228,7 @@ Voter.DistributeReward.handler(async ({ event, context }) => {
     currentLiquidityPool,
     lpDiff,
     event.block.timestamp * 1000,
+    event.chainId,
     event.block.number,
   );
 });
@@ -309,6 +313,7 @@ Voter.GaugeKilled.handler(async ({ event, context }) => {
       poolEntity,
       new Date(event.block.timestamp * 1000),
       context,
+      event.chainId,
       event.block.number,
     );
   }
@@ -333,6 +338,7 @@ Voter.GaugeRevived.handler(async ({ event, context }) => {
       poolEntity,
       new Date(event.block.timestamp * 1000),
       context,
+      event.chainId,
       event.block.number,
     );
   }

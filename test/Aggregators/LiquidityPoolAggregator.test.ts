@@ -247,6 +247,7 @@ describe("LiquidityPoolAggregator Functions", () => {
       const updatedPool = await updateDynamicFeePools(
         liquidityPoolAggregator as LiquidityPoolAggregator,
         mockContext as handlerContext,
+        10,
         blockNumber,
       );
 
@@ -261,6 +262,7 @@ describe("LiquidityPoolAggregator Functions", () => {
       await updateDynamicFeePools(
         liquidityPoolAggregator as LiquidityPoolAggregator,
         mockContext as handlerContext,
+        10,
         blockNumber,
       );
 
@@ -280,6 +282,7 @@ describe("LiquidityPoolAggregator Functions", () => {
       await updateDynamicFeePools(
         liquidityPoolAggregator as LiquidityPoolAggregator,
         mockContext as handlerContext,
+        10,
         blockNumber,
       );
 
@@ -295,6 +298,27 @@ describe("LiquidityPoolAggregator Functions", () => {
         chainId: liquidityPoolAggregator.chainId,
         blockNumber,
       });
+    });
+
+    it("should skip dynamic fee updates when event chain doesn’t match pool chain", async () => {
+      const warnMock = jest.mocked(mockContext.log?.warn);
+      expect(mockContext.effect).toBeDefined();
+      const fallbackEffect = (async () =>
+        undefined) as unknown as typeof mockContext.effect;
+      const effectMock = jest.mocked(mockContext.effect ?? fallbackEffect);
+
+      const updatedPool = await updateDynamicFeePools(
+        liquidityPoolAggregator as LiquidityPoolAggregator,
+        mockContext as handlerContext,
+        8453,
+        blockNumber,
+      );
+
+      expect(updatedPool).toBe(liquidityPoolAggregator);
+      expect(warnMock).toHaveBeenCalledWith(
+        expect.stringContaining("Chain ID mismatch"),
+      );
+      expect(effectMock).not.toHaveBeenCalled();
     });
   });
 
@@ -352,6 +376,7 @@ describe("LiquidityPoolAggregator Functions", () => {
         liquidityPoolAggregator as LiquidityPoolAggregator,
         timestamp,
         mockContext as handlerContext,
+        10,
         blockNumber,
       );
     });
@@ -395,6 +420,7 @@ describe("LiquidityPoolAggregator Functions", () => {
         liquidityPoolWithOldSnapshot as LiquidityPoolAggregator,
         currentTimestamp,
         mockContext as handlerContext,
+        10,
         blockNumber,
       );
 
@@ -455,6 +481,7 @@ describe("LiquidityPoolAggregator Functions", () => {
         clPoolWithOldSnapshot as LiquidityPoolAggregator,
         currentTimestamp,
         mockContext as handlerContext,
+        10,
         blockNumber,
       );
 

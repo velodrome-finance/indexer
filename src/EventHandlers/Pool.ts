@@ -128,6 +128,7 @@ Pool.Fees.handler(async ({ event, context }) => {
           liquidityPoolAggregator,
           timestamp,
           context,
+          event.chainId,
           event.block.number,
         )
       : Promise.resolve(),
@@ -177,6 +178,7 @@ Pool.Swap.handler(async ({ event, context }) => {
       liquidityPoolAggregator,
       timestamp,
       context,
+      event.chainId,
       event.block.number,
     ),
     updateUserStatsPerPool(userSwapDiff, userData, context),
@@ -234,6 +236,7 @@ Pool.Sync.handler(async ({ event, context }) => {
       liquidityPoolAggregator,
       liquidityPoolDiff.lastUpdatedTimestamp as Date,
       context,
+      event.chainId,
       event.block.number,
     );
   }
@@ -299,6 +302,7 @@ Pool.Claim.handler(async ({ event, context }) => {
       liquidityPoolAggregator,
       liquidityPoolDiff.lastUpdatedTimestamp as Date,
       context,
+      event.chainId,
       event.block.number,
     );
   }

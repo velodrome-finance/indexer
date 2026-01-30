@@ -48,6 +48,7 @@ SuperchainIncentiveVotingReward.ClaimRewards.handler(
             loadedData.poolData.liquidityPoolAggregator,
             new Date(data.timestamp * 1000),
             context,
+            event.chainId,
             data.blockNumber,
           )
         : Promise.resolve(),
