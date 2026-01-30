@@ -13,5 +13,32 @@ reviews:
     drafts: false
     base_branches:
       - ".*"  # This matches all branches
+  finishing_touches:
+    unit_tests:
+      enabled: true
 chat:
   auto_reply: true
+code_generation:
+  docstrings:
+    path_instructions:
+      - path: "src/EventHandlers/**/*.ts"
+        instructions: |
+          Use TSDoc with @param, @returns, and @example.
+          Describe event handling behavior, side effects (entity writes), and early-return conditions.
+          Note ID formats and any assumptions about addresses or chain IDs.
+      - path: "src/Effects/**/*.ts"
+        instructions: |
+          Use TSDoc with @param, @returns, and @example.
+          Describe external calls, caching/rate-limit behavior, and failure/undefined return paths.
+      - path: "src/Aggregators/**/*.ts"
+        instructions: |
+          Use TSDoc with @param, @returns, and @example.
+          Explain diff semantics (incremental fields), snapshot logic, and entity ID conventions.
+      - path: "src/**/*.ts"
+        instructions: |
+          Use TSDoc format with @param, @returns, and @example tags.
+          Focus on behavior and edge cases; document BigInt/precision caveats where relevant.
+      - path: "**/*.test.ts"
+        instructions: |
+          Describe test purpose and expected behavior.
+          Keep docstrings concise - focus on what is being tested.
