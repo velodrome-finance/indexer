@@ -301,13 +301,6 @@ describe("LiquidityPoolAggregator Functions", () => {
     });
 
     it("should skip dynamic fee updates when event chain doesn’t match pool chain", async () => {
-      jest.mocked(dynamicFeeConfigMock.getWhere.chainId.eq).mockReturnValue([
-        {
-          id: "0xd9eE4FBeE92970509ec795062cA759F8B52d6720",
-          chainId: 8453,
-        },
-      ]);
-
       const warnMock = jest.mocked(mockContext.log?.warn);
       expect(mockContext.effect).toBeDefined();
       const fallbackEffect = (async () =>

@@ -94,8 +94,7 @@ export interface LiquidityPoolAggregatorDiff {
  * @param context
  * @param blockNumber
  * @param eventChainId
- * @returns The updated liquidity pool aggregator
- * @throws If the chain ID mismatch is detected
+ * @returns The updated liquidity pool aggregator, or the original if chain mismatch occurs
  */
 export async function updateDynamicFeePools(
   liquidityPoolAggregator: LiquidityPoolAggregator,

@@ -18,6 +18,7 @@ import { ZERO_ADDRESS } from "../../Constants";
  * @param liquidityPoolAggregator - The pool aggregator entity
  * @param timestamp - Event timestamp
  * @param context - Handler context
+ * @param eventChainId - The chain ID of the event that triggered the update
  * @param blockNumber - Block number
  */
 export async function updatePoolTotalSupply(
