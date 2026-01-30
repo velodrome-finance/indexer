@@ -93,14 +93,27 @@ export interface LiquidityPoolAggregatorDiff {
  * @param liquidityPoolAggregator
  * @param context
  * @param blockNumber
+ * @param eventChainId
+ * @returns The updated liquidity pool aggregator
+ * @throws If the chain ID mismatch is detected
  */
 export async function updateDynamicFeePools(
   liquidityPoolAggregator: LiquidityPoolAggregator,
   context: handlerContext,
+  eventChainId: number,
   blockNumber: number,
 ): Promise<LiquidityPoolAggregator> {
   const poolAddress = liquidityPoolAggregator.poolAddress;
   const chainId = liquidityPoolAggregator.chainId;
+
+  if (chainId !== eventChainId) {
+    context.log.warn(
+      `[updateDynamicFeePools] Chain ID mismatch for pool entity ${liquidityPoolAggregator.id}. Expected ${eventChainId}, got ${chainId}. No update to currentFee will be performed.
+      This is expected if the event is coming from Voter.ts since this contract is only available on Optimism but makes association with
+      cross-chain pool entities.`,
+    );
+    return liquidityPoolAggregator;
+  }
 
   const dynamicFeeGlobalConfigs =
     await context.DynamicFeeGlobalConfig.getWhere.chainId.eq(chainId);
@@ -178,12 +191,15 @@ export function setLiquidityPoolAggregatorSnapshot(
  * @param current - The current state of the liquidity pool aggregator.
  * @param timestamp - The current timestamp when the update is applied.
  * @param context - The handler context used to store the updated state and snapshots.
+ * @param eventChainId - The chain ID of the event that triggered the update.
+ * @param blockNumber - The block number of the event that triggered the update.
  */
 export async function updateLiquidityPoolAggregator(
   diff: Partial<LiquidityPoolAggregatorDiff>,
   current: LiquidityPoolAggregator,
   timestamp: Date,
   context: handlerContext,
+  eventChainId: number,
   blockNumber: number,
 ) {
   let updated: LiquidityPoolAggregator = {
@@ -334,7 +350,12 @@ export async function updateLiquidityPoolAggregator(
     if (updated.isCL) {
       updated = {
         ...updated,
-        ...(await updateDynamicFeePools(updated, context, blockNumber)),
+        ...(await updateDynamicFeePools(
+          updated,
+          context,
+          eventChainId,
+          blockNumber,
+        )),
       };
     }
 

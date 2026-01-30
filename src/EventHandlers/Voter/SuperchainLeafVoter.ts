@@ -47,6 +47,7 @@ SuperchainLeafVoter.GaugeCreated.handler(async ({ event, context }) => {
       poolEntity,
       new Date(event.block.timestamp * 1000),
       context,
+      event.chainId,
       event.block.number,
     );
   }
@@ -72,6 +73,7 @@ SuperchainLeafVoter.GaugeKilled.handler(async ({ event, context }) => {
       poolEntity,
       new Date(event.block.timestamp * 1000),
       context,
+      event.chainId,
       event.block.number,
     );
   }
@@ -96,6 +98,7 @@ SuperchainLeafVoter.GaugeRevived.handler(async ({ event, context }) => {
       poolEntity,
       new Date(event.block.timestamp * 1000),
       context,
+      event.chainId,
       event.block.number,
     );
   }

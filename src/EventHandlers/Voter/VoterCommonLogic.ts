@@ -125,6 +125,7 @@ export async function applyLpDiff(
   currentLiquidityPool: LiquidityPoolAggregator,
   lpDiff: Partial<LiquidityPoolAggregatorDiff>,
   timestampMs: number,
+  eventChainId: number,
   blockNumber: number,
 ) {
   return await updateLiquidityPoolAggregator(
@@ -132,6 +133,7 @@ export async function applyLpDiff(
     currentLiquidityPool,
     new Date(timestampMs),
     context,
+    eventChainId,
     blockNumber,
   );
 }

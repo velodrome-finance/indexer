@@ -27,6 +27,7 @@ export async function updatePoolTotalSupply(
   liquidityPoolAggregator: LiquidityPoolAggregator,
   timestamp: Date,
   context: handlerContext,
+  eventChainId: number,
   blockNumber: number,
 ): Promise<void> {
   let incrementalTotalLPSupply = 0n;
@@ -47,6 +48,7 @@ export async function updatePoolTotalSupply(
       liquidityPoolAggregator,
       timestamp,
       context,
+      eventChainId,
       blockNumber,
     );
   }
@@ -228,6 +230,7 @@ export async function processPoolTransfer(
     liquidityPoolAggregator,
     timestamp,
     context,
+    chainId,
     event.block.number,
   );
 

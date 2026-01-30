@@ -125,6 +125,7 @@ describe("PoolTransferLogic", () => {
         mockLiquidityPoolAggregator,
         TIMESTAMP_DATE,
         mockContext,
+        CHAIN_ID,
         BLOCK_NUMBER,
       );
 
@@ -135,6 +136,7 @@ describe("PoolTransferLogic", () => {
         mockLiquidityPoolAggregator,
         TIMESTAMP_DATE,
         mockContext,
+        CHAIN_ID,
         BLOCK_NUMBER,
       );
     });
@@ -147,6 +149,7 @@ describe("PoolTransferLogic", () => {
         mockLiquidityPoolAggregator,
         TIMESTAMP_DATE,
         mockContext,
+        CHAIN_ID,
         BLOCK_NUMBER,
       );
 
@@ -157,6 +160,7 @@ describe("PoolTransferLogic", () => {
         mockLiquidityPoolAggregator,
         TIMESTAMP_DATE,
         mockContext,
+        CHAIN_ID,
         BLOCK_NUMBER,
       );
     });
@@ -169,6 +173,7 @@ describe("PoolTransferLogic", () => {
         mockLiquidityPoolAggregator,
         TIMESTAMP_DATE,
         mockContext,
+        CHAIN_ID,
         BLOCK_NUMBER,
       );
 

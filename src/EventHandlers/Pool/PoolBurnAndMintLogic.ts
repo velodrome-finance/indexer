@@ -254,6 +254,7 @@ export async function processPoolLiquidityEvent(
     liquidityPoolAggregator,
     timestamp,
     context,
+    chainId,
     blockNumber,
   );
 
