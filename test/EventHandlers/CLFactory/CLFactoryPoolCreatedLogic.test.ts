@@ -5,6 +5,7 @@ import type {
   Token,
   handlerContext,
 } from "generated";
+import { PoolId, toChecksumAddress } from "../../../src/Constants";
 import { processCLFactoryPoolCreated } from "../../../src/EventHandlers/CLFactory/CLFactoryPoolCreatedLogic";
 import * as PriceOracle from "../../../src/PriceOracle";
 import { setupCommon } from "../Pool/common";
@@ -37,12 +38,12 @@ describe("CLFactoryPoolCreatedLogic", () => {
   // Shared mock event for all tests
   const mockEvent: CLFactory_PoolCreated_event = {
     params: {
-      token0: "0x2222222222222222222222222222222222222222",
-      token1: "0x3333333333333333333333333333333333333333",
+      token0: toChecksumAddress("0x2222222222222222222222222222222222222222"),
+      token1: toChecksumAddress("0x3333333333333333333333333333333333333333"),
       tickSpacing: 60n,
-      pool: "0x4444444444444444444444444444444444444444",
+      pool: toChecksumAddress("0x4444444444444444444444444444444444444444"),
     },
-    srcAddress: "0x1111111111111111111111111111111111111111",
+    srcAddress: toChecksumAddress("0x1111111111111111111111111111111111111111"),
     transaction: {
       hash: "0x5555555555555555555555555555555555555555555555555555555555555555",
     },
@@ -59,6 +60,8 @@ describe("CLFactoryPoolCreatedLogic", () => {
   const CHAIN_ID = 10;
   const TICK_SPACING = 60n;
   const FEE = 500n;
+  const LEAF_POOL_ADDRESS = mockEvent.params.pool;
+  const LEAF_POOL_ID = PoolId(CHAIN_ID, LEAF_POOL_ADDRESS);
 
   // Mock FeeToTickSpacingMapping
   const mockFeeToTickSpacingMapping: FeeToTickSpacingMapping = {
@@ -90,7 +93,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
 
       // Assertions
       expect(result.liquidityPoolAggregator).toMatchObject({
-        id: "0x4444444444444444444444444444444444444444",
+        id: LEAF_POOL_ID,
         chainId: 10,
         name: "CL-60 AMM - USDT/USDC",
         token0_id: "0x2222222222222222222222222222222222222222-10",
@@ -117,7 +120,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
       );
 
       expect(result.liquidityPoolAggregator).toMatchObject({
-        id: "0x4444444444444444444444444444444444444444",
+        id: LEAF_POOL_ID,
         chainId: 10,
         name: "CL-60 AMM - /USDC", // Empty symbol for token0
         token0_id: "0x2222222222222222222222222222222222222222-10",
@@ -144,7 +147,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
       );
 
       expect(result.liquidityPoolAggregator).toMatchObject({
-        id: "0x4444444444444444444444444444444444444444",
+        id: LEAF_POOL_ID,
         chainId: 10,
         name: "CL-60 AMM - USDT/", // Empty symbol for token1
         token0_id: "0x2222222222222222222222222222222222222222-10",
@@ -171,7 +174,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
       );
 
       expect(result.liquidityPoolAggregator).toMatchObject({
-        id: "0x4444444444444444444444444444444444444444",
+        id: LEAF_POOL_ID,
         chainId: 10,
         name: "CL-60 AMM - /", // Empty symbols for both tokens
         token0_id: "0x2222222222222222222222222222222222222222-10",
@@ -240,7 +243,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
       );
 
       expect(result.liquidityPoolAggregator).toMatchObject({
-        id: "0x4444444444444444444444444444444444444444",
+        id: LEAF_POOL_ID,
         chainId: 10,
         name: "CL-60 AMM - USDT/USDC",
         token0_id: "0x2222222222222222222222222222222222222222-10",
@@ -277,7 +280,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
       );
 
       expect(result.liquidityPoolAggregator).toMatchObject({
-        id: "0x4444444444444444444444444444444444444444",
+        id: LEAF_POOL_ID,
         chainId: 10,
         name: "CL-60 AMM - USDT/USDC",
         token0_id: "0x2222222222222222222222222222222222222222-10",

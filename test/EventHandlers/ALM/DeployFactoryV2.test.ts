@@ -15,7 +15,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
   const { mockLiquidityPoolData, mockToken0Data, mockToken1Data } =
     setupCommon();
   const chainId = mockLiquidityPoolData.chainId;
-  const poolAddress = mockLiquidityPoolData.id;
+  const poolAddress = mockLiquidityPoolData.poolAddress;
   const lpWrapperAddress = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
   const callerAddress = "0xcccccccccccccccccccccccccccccccccccccccc";
   const transactionHash =

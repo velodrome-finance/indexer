@@ -6,6 +6,7 @@ import type {
   UserStatsPerPool,
 } from "../../../generated/src/Types.gen";
 import {
+  PoolId,
   TEN_TO_THE_6_BI,
   TEN_TO_THE_18_BI,
   TokenIdByChain,
@@ -14,33 +15,40 @@ import {
 import { calculateTokenAmountUSD } from "../../../src/Helpers";
 
 export function setupCommon() {
+  const CHAIN_ID = 10;
+  const POOL_ADDRESS = toChecksumAddress(
+    "0x3333333333333333333333333333333333333333",
+  );
+  const POOL_ID = PoolId(CHAIN_ID, POOL_ADDRESS);
+
   const mockToken0Data: Token = {
-    id: TokenIdByChain("0x1111111111111111111111111111111111111111", 10),
-    address: "0x1111111111111111111111111111111111111111",
+    id: TokenIdByChain("0x1111111111111111111111111111111111111111", CHAIN_ID),
+    address: toChecksumAddress("0x1111111111111111111111111111111111111111"),
     symbol: "USDT",
     name: "Tether USD",
     decimals: 18n,
     pricePerUSDNew: 1n * TEN_TO_THE_18_BI, // 1 USD
-    chainId: 10,
+    chainId: CHAIN_ID,
     isWhitelisted: true,
     lastUpdatedTimestamp: new Date(),
   };
 
   const mockToken1Data: Token = {
-    id: TokenIdByChain("0x2222222222222222222222222222222222222222", 10),
-    address: "0x2222222222222222222222222222222222222222",
+    id: TokenIdByChain("0x2222222222222222222222222222222222222222", CHAIN_ID),
+    address: toChecksumAddress("0x2222222222222222222222222222222222222222"),
     symbol: "USDC",
     name: "USD Coin",
     decimals: 6n,
     pricePerUSDNew: 1n * TEN_TO_THE_18_BI, // 1 USD
-    chainId: 10,
+    chainId: CHAIN_ID,
     isWhitelisted: true,
     lastUpdatedTimestamp: new Date(),
   };
 
   const mockLiquidityPoolData: LiquidityPoolAggregator = {
-    id: toChecksumAddress("0x3333333333333333333333333333333333333333"),
-    chainId: 10,
+    id: POOL_ID,
+    poolAddress: POOL_ADDRESS,
+    chainId: CHAIN_ID,
     token0_id: mockToken0Data.id,
     token1_id: mockToken1Data.id,
     token0_address: mockToken0Data.address,
@@ -135,9 +143,9 @@ export function setupCommon() {
   };
 
   const mockALMLPWrapperData: ALM_LP_Wrapper = {
-    id: `${toChecksumAddress("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")}_${mockLiquidityPoolData.chainId}`,
-    chainId: mockLiquidityPoolData.chainId,
-    pool: toChecksumAddress(mockLiquidityPoolData.id),
+    id: `${toChecksumAddress("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")}_${CHAIN_ID}`,
+    chainId: CHAIN_ID,
+    pool: POOL_ADDRESS,
     token0: mockToken0Data.address,
     token1: mockToken1Data.address,
     // Wrapper-level aggregations
@@ -163,11 +171,12 @@ export function setupCommon() {
   };
 
   const defaultUserAddress = "0xAbCccccccccccccccccccccccccccccccccccccc";
+  const normalizedDefaultUserAddress = toChecksumAddress(defaultUserAddress);
   const mockUserStatsPerPoolData: UserStatsPerPool = {
-    id: `${toChecksumAddress(defaultUserAddress)}_${toChecksumAddress(mockLiquidityPoolData.id)}_${mockLiquidityPoolData.chainId}`,
-    userAddress: toChecksumAddress(defaultUserAddress),
-    poolAddress: toChecksumAddress(mockLiquidityPoolData.id),
-    chainId: mockLiquidityPoolData.chainId,
+    id: `${normalizedDefaultUserAddress}_${POOL_ADDRESS}_${CHAIN_ID}`,
+    userAddress: normalizedDefaultUserAddress,
+    poolAddress: POOL_ADDRESS,
+    chainId: CHAIN_ID,
 
     // Liquidity metrics
     currentLiquidityUSD: 0n,
@@ -237,9 +246,9 @@ export function setupCommon() {
       overrides.userAddress ?? defaultUserAddress,
     );
     const poolAddress = toChecksumAddress(
-      overrides.poolAddress ?? mockLiquidityPoolData.id,
+      overrides.poolAddress ?? POOL_ADDRESS,
     );
-    const chainId = overrides.chainId ?? mockLiquidityPoolData.chainId;
+    const chainId = overrides.chainId ?? CHAIN_ID;
     const id = `${userAddress}_${poolAddress}_${chainId}`;
 
     return {
@@ -263,16 +272,18 @@ export function setupCommon() {
     overrides: Partial<LiquidityPoolAggregator> = {},
   ): LiquidityPoolAggregator {
     // Calculate id if poolAddress or chainId are provided
+    const chainId = overrides.chainId ?? CHAIN_ID;
     const poolAddress = toChecksumAddress(
-      overrides.id ?? mockLiquidityPoolData.id,
+      overrides.poolAddress ?? POOL_ADDRESS,
     );
-    const chainId = overrides.chainId ?? mockLiquidityPoolData.chainId;
+    const id = overrides.id ?? PoolId(chainId, poolAddress);
 
     return {
       ...mockLiquidityPoolData,
-      id: poolAddress,
-      chainId,
       ...overrides,
+      poolAddress,
+      chainId,
+      id,
     };
   }
 

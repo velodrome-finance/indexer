@@ -7,6 +7,7 @@ import type {
 import * as LiquidityPoolAggregatorModule from "../../../src/Aggregators/LiquidityPoolAggregator";
 import {
   CHAIN_CONSTANTS,
+  PoolId,
   TokenIdByChain,
   toChecksumAddress,
 } from "../../../src/Constants";
@@ -32,8 +33,12 @@ describe("Voter Events", () => {
     let mockDb: ReturnType<typeof MockDb.createMockDb>;
     let mockEvent: ReturnType<typeof Voter.Voted.createMockEvent>;
     const chainId = 10; // Optimism
-    const poolAddress = "0x478946BcD4a5a22b316470F5486fAfb928C0bA25";
-    const voterAddress = "0x1111111111111111111111111111111111111111";
+    const poolAddress = toChecksumAddress(
+      "0x478946BcD4a5a22b316470F5486fAfb928C0bA25",
+    );
+    const voterAddress = toChecksumAddress(
+      "0x1111111111111111111111111111111111111111",
+    );
 
     beforeEach(() => {
       mockDb = MockDb.createMockDb();
@@ -70,7 +75,7 @@ describe("Voter Events", () => {
 
         mockLiquidityPool = {
           ...mockLiquidityPoolData,
-          id: toChecksumAddress(poolAddress),
+          id: PoolId(chainId, poolAddress),
           chainId: chainId,
           veNFTamountStaked: 0n,
         } as LiquidityPoolAggregator;
@@ -98,7 +103,7 @@ describe("Voter Events", () => {
 
       it("should update liquidity pool aggregator with voting data", () => {
         const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
-          toChecksumAddress(poolAddress),
+          PoolId(chainId, poolAddress),
         );
         expect(updatedPool).toBeDefined();
         expect(updatedPool?.veNFTamountStaked).toBe(1000n);
@@ -108,7 +113,7 @@ describe("Voter Events", () => {
       });
 
       it("should update user stats per pool with voting data", () => {
-        const userStatsId = `${toChecksumAddress(voterAddress)}_${toChecksumAddress(poolAddress)}_${chainId}`;
+        const userStatsId = `${voterAddress}_${poolAddress}_${chainId}`;
         const updatedUserStats =
           resultDB.entities.UserStatsPerPool.get(userStatsId);
         expect(updatedUserStats).toBeDefined();
@@ -142,9 +147,15 @@ describe("Voter Events", () => {
       let resultDB: ReturnType<typeof MockDb.createMockDb>;
       // Real data from actual event
       // Event available here: https://optimistic.etherscan.io/tx/0x133260f0f7bf0a06d262f09b064a35d3c63178c6b5fd8e4798ba780f357dc7bd#eventlog#94
-      const rootPoolAddress = "0xC4Cbb0ba3c902Fb4b49B3844230354d45C779F74";
-      const leafPoolAddress = "0x3BBdBAD64b383885031c4d9C8Afe0C3327d79888";
-      const realVoterAddress = "0x0B7a0dE062EC95f815E9Aaa31C0AcBAdC7717171";
+      const rootPoolAddress = toChecksumAddress(
+        "0xC4Cbb0ba3c902Fb4b49B3844230354d45C779F74",
+      );
+      const leafPoolAddress = toChecksumAddress(
+        "0x3BBdBAD64b383885031c4d9C8Afe0C3327d79888",
+      );
+      const realVoterAddress = toChecksumAddress(
+        "0x0B7a0dE062EC95f815E9Aaa31C0AcBAdC7717171",
+      );
       const realTokenId = 961n;
       const realWeight = 6887909874294904273927n;
       const realTotalWeight = 8343366589203809137097720n;
@@ -176,7 +187,7 @@ describe("Voter Events", () => {
 
         // Create leaf pool using helper function
         mockLeafPool = createMockLiquidityPoolAggregator({
-          id: leafPoolAddress,
+          id: PoolId(leafChainId, leafPoolAddress),
           chainId: leafChainId,
           token0_id: leafToken0Data.id,
           token1_id: leafToken1Data.id,
@@ -197,9 +208,9 @@ describe("Voter Events", () => {
         const rootPoolLeafPool = {
           id: `${rootPoolAddress}_${rootChainId}_${leafPoolAddress}_${leafChainId}`,
           rootChainId: rootChainId,
-          rootPoolAddress: toChecksumAddress(rootPoolAddress),
+          rootPoolAddress: rootPoolAddress,
           leafChainId: leafChainId,
-          leafPoolAddress: toChecksumAddress(leafPoolAddress),
+          leafPoolAddress: leafPoolAddress,
         };
 
         // Setup mock database with leaf pool and RootPool_LeafPool mapping
@@ -235,7 +246,7 @@ describe("Voter Events", () => {
 
       it("should update leaf pool aggregator with voting data", () => {
         const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
-          toChecksumAddress(leafPoolAddress),
+          PoolId(leafChainId, leafPoolAddress),
         );
         expect(updatedPool).toBeDefined();
         expect(updatedPool?.veNFTamountStaked).toBe(realTotalWeight);
@@ -245,7 +256,7 @@ describe("Voter Events", () => {
       });
 
       it("should update user stats per pool with voting data", () => {
-        const userStatsId = `${toChecksumAddress(realVoterAddress)}_${toChecksumAddress(rootPoolAddress)}_${rootChainId}`;
+        const userStatsId = `${realVoterAddress}_${rootPoolAddress}_${rootChainId}`;
         const updatedUserStats =
           resultDB.entities.UserStatsPerPool.get(userStatsId);
         expect(updatedUserStats).toBeDefined();
@@ -261,8 +272,12 @@ describe("Voter Events", () => {
     let mockDb: ReturnType<typeof MockDb.createMockDb>;
     let mockEvent: ReturnType<typeof Voter.Abstained.createMockEvent>;
     const chainId = 10; // Optimism
-    const poolAddress = "0x478946BcD4a5a22b316470F5486fAfb928C0bA25";
-    const voterAddress = "0x1111111111111111111111111111111111111111";
+    const poolAddress = toChecksumAddress(
+      "0x478946BcD4a5a22b316470F5486fAfb928C0bA25",
+    );
+    const voterAddress = toChecksumAddress(
+      "0x1111111111111111111111111111111111111111",
+    );
 
     beforeEach(() => {
       mockDb = MockDb.createMockDb();
@@ -299,7 +314,7 @@ describe("Voter Events", () => {
 
         mockLiquidityPool = {
           ...mockLiquidityPoolData,
-          id: toChecksumAddress(poolAddress),
+          id: PoolId(chainId, poolAddress),
           chainId: chainId,
           veNFTamountStaked: 2000n, // Initial staked amount
         } as LiquidityPoolAggregator;
@@ -327,7 +342,7 @@ describe("Voter Events", () => {
 
       it("should update liquidity pool aggregator with total weight (absolute value)", () => {
         const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
-          toChecksumAddress(poolAddress),
+          PoolId(chainId, poolAddress),
         );
         expect(updatedPool).toBeDefined();
         // totalWeight is the absolute total veNFT staked in pool, replacing previous value
@@ -338,7 +353,7 @@ describe("Voter Events", () => {
       });
 
       it("should decrease user stats veNFT amount staked (negative weight)", () => {
-        const userStatsId = `${toChecksumAddress(voterAddress)}_${toChecksumAddress(poolAddress)}_${chainId}`;
+        const userStatsId = `${voterAddress}_${poolAddress}_${chainId}`;
         const updatedUserStats =
           resultDB.entities.UserStatsPerPool.get(userStatsId);
         expect(updatedUserStats).toBeDefined();
@@ -408,7 +423,7 @@ describe("Voter Events", () => {
 
         // Create leaf pool using helper function with initial staked amount
         mockLeafPool = createMockLiquidityPoolAggregator({
-          id: leafPoolAddress,
+          id: PoolId(leafChainId, leafPoolAddress),
           chainId: leafChainId,
           token0_id: leafToken0Data.id,
           token1_id: leafToken1Data.id,
@@ -429,9 +444,9 @@ describe("Voter Events", () => {
         const rootPoolLeafPool = {
           id: `${rootPoolAddress}_${rootChainId}_${leafPoolAddress}_${leafChainId}`,
           rootChainId: rootChainId,
-          rootPoolAddress: toChecksumAddress(rootPoolAddress),
+          rootPoolAddress: rootPoolAddress,
           leafChainId: leafChainId,
-          leafPoolAddress: toChecksumAddress(leafPoolAddress),
+          leafPoolAddress: leafPoolAddress,
         };
 
         // Setup mock database with leaf pool and RootPool_LeafPool mapping
@@ -466,12 +481,8 @@ describe("Voter Events", () => {
       });
 
       it("should update leaf pool aggregator with total weight (absolute value)", () => {
-        // Verify the pool exists in the result DB (it should be updated, not created)
-        const allPools = Array.from(
-          resultDB.entities.LiquidityPoolAggregator.getAll(),
-        );
         const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
-          toChecksumAddress(leafPoolAddress),
+          PoolId(leafChainId, leafPoolAddress),
         );
 
         expect(updatedPool).toBeDefined();
@@ -483,7 +494,7 @@ describe("Voter Events", () => {
       });
 
       it("should decrease user stats veNFT amount staked (negative weight)", () => {
-        const userStatsId = `${toChecksumAddress(realVoterAddress)}_${toChecksumAddress(rootPoolAddress)}_${rootChainId}`;
+        const userStatsId = `${realVoterAddress}_${rootPoolAddress}_${rootChainId}`;
         const updatedUserStats =
           resultDB.entities.UserStatsPerPool.get(userStatsId);
         expect(updatedUserStats).toBeDefined();
@@ -536,7 +547,7 @@ describe("Voter Events", () => {
 
         mockLiquidityPool = {
           ...mockLiquidityPoolData,
-          id: toChecksumAddress(poolAddress),
+          id: PoolId(chainId, poolAddress),
           chainId: chainId,
           gaugeAddress: "", // Initially empty
         } as LiquidityPoolAggregator;
@@ -551,10 +562,10 @@ describe("Voter Events", () => {
 
       it("should update pool entity with gauge address and voting reward addresses", () => {
         const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
-          toChecksumAddress(poolAddress),
+          PoolId(chainId, poolAddress),
         );
         expect(updatedPool).toBeDefined();
-        expect(updatedPool?.gaugeAddress).toBe(toChecksumAddress(gaugeAddress));
+        expect(updatedPool?.gaugeAddress).toBe(gaugeAddress);
         expect(updatedPool?.feeVotingRewardAddress).toBe(
           "0x6666666666666666666666666666666666666666",
         );
@@ -590,7 +601,7 @@ describe("Voter Events", () => {
 
         mockLiquidityPool = {
           ...mockLiquidityPoolData,
-          id: toChecksumAddress(poolAddress),
+          id: PoolId(chainId, poolAddress),
           chainId: chainId,
           gaugeAddress: "", // Initially empty
         } as LiquidityPoolAggregator;
@@ -626,10 +637,10 @@ describe("Voter Events", () => {
 
       it("should update pool entity with gauge address (CL factory path)", () => {
         const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
-          toChecksumAddress(poolAddress),
+          PoolId(chainId, poolAddress),
         );
         expect(updatedPool).toBeDefined();
-        expect(updatedPool?.gaugeAddress).toBe(toChecksumAddress(gaugeAddress));
+        expect(updatedPool?.gaugeAddress).toBe(gaugeAddress);
         expect(updatedPool?.feeVotingRewardAddress).toBe(
           "0x6666666666666666666666666666666666666666",
         );
@@ -676,7 +687,7 @@ describe("Voter Events", () => {
 
         mockLiquidityPool = {
           ...mockLiquidityPoolData,
-          id: toChecksumAddress(poolAddress),
+          id: PoolId(chainId, poolAddress),
           chainId: chainId,
           gaugeAddress: gaugeAddress, // Initially has gauge address
           gaugeIsAlive: true, // Initially alive
@@ -699,7 +710,7 @@ describe("Voter Events", () => {
 
       it("should set gaugeIsAlive to false but preserve gauge address and voting reward addresses as historical data", () => {
         const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
-          toChecksumAddress(poolAddress),
+          PoolId(chainId, poolAddress),
         );
         expect(updatedPool).toBeDefined();
         expect(updatedPool?.gaugeIsAlive).toBe(false); // Should be set to false
@@ -773,7 +784,7 @@ describe("Voter Events", () => {
 
         mockLiquidityPool = {
           ...mockLiquidityPoolData,
-          id: toChecksumAddress(poolAddress),
+          id: PoolId(chainId, poolAddress),
           chainId: chainId,
           gaugeAddress: gaugeAddress, // Has gauge address
           gaugeIsAlive: false, // Initially killed
@@ -796,7 +807,7 @@ describe("Voter Events", () => {
 
       it("should set gaugeIsAlive to true", () => {
         const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
-          toChecksumAddress(poolAddress),
+          PoolId(chainId, poolAddress),
         );
         expect(updatedPool).toBeDefined();
         expect(updatedPool?.gaugeIsAlive).toBe(true); // Should be set to true
@@ -954,6 +965,7 @@ describe("Voter Events", () => {
     const chainId = 10; // Optimism
     const voterAddress = "0x41C914ee0c7E1A5edCD0295623e6dC557B5aBf3C";
     const poolAddress = "0x478946BcD4a5a22b316470F5486fAfb928C0bA25";
+    const poolId = PoolId(chainId, poolAddress);
     const gaugeAddress = "0xa75127121d28a9bf848f3b70e7eea26570aa7700";
     const blockNumber = 128357873;
 
@@ -997,7 +1009,7 @@ describe("Voter Events", () => {
       beforeEach(async () => {
         const liquidityPool: LiquidityPoolAggregator = {
           ...mockLiquidityPoolData,
-          id: toChecksumAddress(poolAddress),
+          id: PoolId(chainId, poolAddress),
           chainId: chainId,
           totalEmissions: 0n,
           totalEmissionsUSD: 0n,
@@ -1087,7 +1099,7 @@ describe("Voter Events", () => {
 
       it("should update the liquidity pool aggregator with emissions data", () => {
         const updatedPool =
-          resultDB.entities.LiquidityPoolAggregator.get(poolAddress);
+          resultDB.entities.LiquidityPoolAggregator.get(poolId);
         expect(updatedPool).toBeDefined();
         expect(updatedPool?.totalEmissions).toBe(expectations.totalEmissions);
         expect(updatedPool?.totalEmissionsUSD).toBe(
@@ -1103,7 +1115,7 @@ describe("Voter Events", () => {
       });
       it("should update the liquidity pool aggregator with votes deposited data", () => {
         const updatedPool =
-          resultDB.entities.LiquidityPoolAggregator.get(poolAddress);
+          resultDB.entities.LiquidityPoolAggregator.get(poolId);
         expect(updatedPool).toBeDefined();
         expect(updatedPool?.totalVotesDeposited).toBe(
           expectations.getTokensDeposited,
@@ -1118,7 +1130,7 @@ describe("Voter Events", () => {
       });
       it("should update the liquidity pool aggregator with gauge is alive data", () => {
         const updatedPool =
-          resultDB.entities.LiquidityPoolAggregator.get(poolAddress);
+          resultDB.entities.LiquidityPoolAggregator.get(poolId);
         expect(updatedPool).toBeDefined();
         expect(updatedPool?.gaugeIsAlive).toBe(true);
       });
@@ -1166,7 +1178,7 @@ describe("Voter Events", () => {
         const { mockLiquidityPoolData } = setupCommon();
         const liquidityPool: LiquidityPoolAggregator = {
           ...mockLiquidityPoolData,
-          id: toChecksumAddress(poolAddress),
+          id: PoolId(chainId, poolAddress),
           chainId: chainId,
           totalEmissions: 0n, // Start with 0 to test that it remains unchanged
         } as LiquidityPoolAggregator;
@@ -1198,7 +1210,7 @@ describe("Voter Events", () => {
           Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
         ).toHaveLength(1);
         const pool = resultDB.entities.LiquidityPoolAggregator.get(
-          toChecksumAddress(poolAddress),
+          PoolId(chainId, poolAddress),
         );
         expect(pool?.totalEmissions).toBe(0n); // Should remain unchanged
       });

@@ -1,5 +1,5 @@
 import { ALMDeployFactoryV2 } from "generated";
-import { toChecksumAddress } from "../../Constants";
+import { PoolId } from "../../Constants";
 import { calculatePositionAmountsFromLiquidity } from "../../Helpers";
 
 ALMDeployFactoryV2.StrategyCreated.contractRegister(({ event, context }) => {
@@ -47,7 +47,7 @@ ALMDeployFactoryV2.StrategyCreated.handler(async ({ event, context }) => {
 
   if (matchingPositions.length === 0) {
     context.log.error(
-      `[ALMDeployFactoryV2] NonFungiblePosition not found for transaction hash ${event.transaction.hash} (chainId: ${event.chainId}, pool: ${toChecksumAddress(pool)}) matching tickLower ${tickLower}, tickUpper ${tickUpper}, liquidity ${liquidity}. It should have been created by CLPool event handlers.`,
+      `[ALMDeployFactoryV2] NonFungiblePosition not found for transaction hash ${event.transaction.hash} (chainId: ${event.chainId}, pool: ${pool}) matching tickLower ${tickLower}, tickUpper ${tickUpper}, liquidity ${liquidity}. It should have been created by CLPool event handlers.`,
     );
     return;
   }
@@ -65,8 +65,9 @@ ALMDeployFactoryV2.StrategyCreated.handler(async ({ event, context }) => {
 
   // Compute amount0/amount1 from liquidity + sqrtPriceX96 + ticks (amount0/amount1 removed from schema)
   // Fetch sqrtPriceX96 from pool aggregator
+  const poolId = PoolId(event.chainId, pool);
   const liquidityPoolAggregator =
-    await context.LiquidityPoolAggregator.get(pool);
+    await context.LiquidityPoolAggregator.get(poolId);
   const sqrtPriceX96 = liquidityPoolAggregator?.sqrtPriceX96;
 
   let amount0 = 0n;
@@ -82,7 +83,7 @@ ALMDeployFactoryV2.StrategyCreated.handler(async ({ event, context }) => {
     amount1 = amounts.amount1;
   } else {
     context.log.warn(
-      `[ALMDeployFactoryV2] sqrtPriceX96 is undefined or 0 for pool ${pool} on chain ${event.chainId}. Cannot compute amount0/amount1, using 0`,
+      `[ALMDeployFactoryV2] sqrtPriceX96 is undefined or 0 for pool ${poolId} on chain ${event.chainId}. Cannot compute amount0/amount1, using 0`,
     );
   }
 
@@ -96,7 +97,7 @@ ALMDeployFactoryV2.StrategyCreated.handler(async ({ event, context }) => {
     totalSupplyEvent.transactionHash !== event.transaction.hash
   ) {
     context.log.error(
-      `[ALMDeployFactoryV2] ALM_TotalSupplyLimitUpdated_event not found for lpWrapper ${toChecksumAddress(lpWrapper)} and chainId ${event.chainId} or transaction hash ${event.transaction.hash} does not match. It should have been created by ALMLPWrapper event handlers.`,
+      `[ALMDeployFactoryV2] ALM_TotalSupplyLimitUpdated_event not found for lpWrapper ${lpWrapper} and chainId ${event.chainId} or transaction hash ${event.transaction.hash} does not match. It should have been created by ALMLPWrapper event handlers.`,
     );
     return;
   }
@@ -107,11 +108,11 @@ ALMDeployFactoryV2.StrategyCreated.handler(async ({ event, context }) => {
   // Create ALM_LP_Wrapper (single entity tracks both wrapper and strategy)
   // This single entity contains both wrapper-level aggregations and strategy/position state
   context.ALM_LP_Wrapper.set({
-    id: `${toChecksumAddress(lpWrapper)}_${event.chainId}`,
+    id: `${lpWrapper}_${event.chainId}`,
     chainId: event.chainId,
-    pool: toChecksumAddress(pool),
-    token0: toChecksumAddress(token0),
-    token1: toChecksumAddress(token1),
+    pool: pool,
+    token0: token0,
+    token1: token1,
 
     amount0: amount0,
     amount1: amount1,

@@ -7,7 +7,7 @@ import { setupCommon } from "../Pool/common";
 describe("ALMCore Rebalance Event", () => {
   const { mockALMLPWrapperData, mockLiquidityPoolData } = setupCommon();
   const chainId = mockLiquidityPoolData.chainId;
-  const poolAddress = mockLiquidityPoolData.id;
+  const poolAddress = mockLiquidityPoolData.poolAddress;
   const transactionHash =
     "0x1234567890123456789012345678901234567890123456789012345678901234";
   const blockTimestamp = 1000000;

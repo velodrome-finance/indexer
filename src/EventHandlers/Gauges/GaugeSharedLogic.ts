@@ -8,11 +8,7 @@ import {
   loadOrCreateUserData,
   updateUserStatsPerPool,
 } from "../../Aggregators/UserStatsPerPool";
-import {
-  CHAIN_CONSTANTS,
-  TokenIdByChain,
-  toChecksumAddress,
-} from "../../Constants";
+import { CHAIN_CONSTANTS, TokenIdByChain } from "../../Constants";
 import {
   calculateStakedLiquidityUSD,
   calculateTotalLiquidityUSD,
@@ -36,18 +32,15 @@ export async function processGaugeDeposit(
   context: handlerContext,
   handlerName: string,
 ): Promise<void> {
-  const gaugeChecksumAddress = toChecksumAddress(data.gaugeAddress);
-  const userChecksumAddress = toChecksumAddress(data.userAddress);
-
   // Find the pool by gauge address
   const pool = await findPoolByGaugeAddress(
-    gaugeChecksumAddress,
+    data.gaugeAddress,
     data.chainId,
     context,
   );
   if (!pool) {
     context.log.error(
-      `${handlerName}: Pool not found for gauge address ${gaugeChecksumAddress} on chain ${data.chainId}`,
+      `${handlerName}: Pool not found for gauge address ${data.gaugeAddress} on chain ${data.chainId}`,
     );
     return;
   }
@@ -56,10 +49,10 @@ export async function processGaugeDeposit(
 
   // Load pool data and user data concurrently
   const [poolData, userData] = await Promise.all([
-    loadPoolData(pool.id, data.chainId, context),
+    loadPoolData(pool.poolAddress, data.chainId, context),
     loadOrCreateUserData(
-      userChecksumAddress,
-      pool.id,
+      data.userAddress,
+      pool.poolAddress,
       data.chainId,
       context,
       timestamp,
@@ -68,7 +61,7 @@ export async function processGaugeDeposit(
 
   if (!poolData) {
     context.log.error(
-      `${handlerName}: Pool data not found for pool ${pool.id} on chain ${data.chainId}`,
+      `${handlerName}: Pool data not found for pool ${pool.poolAddress} on chain ${data.chainId}`,
     );
     return;
   }
@@ -78,7 +71,7 @@ export async function processGaugeDeposit(
   // Calculate USD value of staked liquidity
   const currentLiquidityStakedUSD = await calculateStakedLiquidityUSD(
     data.amount,
-    pool.id,
+    pool.poolAddress,
     data.chainId,
     data.blockNumber,
     data.tokenId,
@@ -123,18 +116,15 @@ export async function processGaugeWithdraw(
   context: handlerContext,
   handlerName: string,
 ): Promise<void> {
-  const gaugeChecksumAddress = toChecksumAddress(data.gaugeAddress);
-  const userChecksumAddress = toChecksumAddress(data.userAddress);
-
   // Find the pool by gauge address
   const pool = await findPoolByGaugeAddress(
-    gaugeChecksumAddress,
+    data.gaugeAddress,
     data.chainId,
     context,
   );
   if (!pool) {
     context.log.error(
-      `${handlerName}: Pool not found for gauge address ${gaugeChecksumAddress} on chain ${data.chainId}`,
+      `${handlerName}: Pool not found for gauge address ${data.gaugeAddress} on chain ${data.chainId}`,
     );
     return;
   }
@@ -143,10 +133,10 @@ export async function processGaugeWithdraw(
 
   // Load pool data and user data concurrently
   const [poolData, userData] = await Promise.all([
-    loadPoolData(pool.id, data.chainId, context),
+    loadPoolData(pool.poolAddress, data.chainId, context),
     loadOrCreateUserData(
-      userChecksumAddress,
-      pool.id,
+      data.userAddress,
+      pool.poolAddress,
       data.chainId,
       context,
       timestamp,
@@ -155,7 +145,7 @@ export async function processGaugeWithdraw(
 
   if (!poolData) {
     context.log.error(
-      `${handlerName}: Pool data not found for pool ${pool.id} on chain ${data.chainId}`,
+      `${handlerName}: Pool data not found for pool ${pool.poolAddress} on chain ${data.chainId}`,
     );
     return;
   }
@@ -165,7 +155,7 @@ export async function processGaugeWithdraw(
   // Calculate USD value of withdrawn liquidity (negative amount)
   const currentLiquidityStakedUSD = await calculateStakedLiquidityUSD(
     data.amount,
-    pool.id,
+    pool.poolAddress,
     data.chainId,
     data.blockNumber,
     data.tokenId,
@@ -210,18 +200,15 @@ export async function processGaugeClaimRewards(
   context: handlerContext,
   handlerName: string,
 ): Promise<void> {
-  const gaugeChecksumAddress = toChecksumAddress(data.gaugeAddress);
-  const userChecksumAddress = toChecksumAddress(data.userAddress);
-
   // Find the pool by gauge address
   const pool = await findPoolByGaugeAddress(
-    gaugeChecksumAddress,
+    data.gaugeAddress,
     data.chainId,
     context,
   );
   if (!pool) {
     context.log.error(
-      `${handlerName}: Pool not found for gauge address ${gaugeChecksumAddress} on chain ${data.chainId}`,
+      `${handlerName}: Pool not found for gauge address ${data.gaugeAddress} on chain ${data.chainId}`,
     );
     return;
   }
@@ -236,15 +223,15 @@ export async function processGaugeClaimRewards(
   // Load pool data, user data, and reward token concurrently
   const [poolData, userData, rewardToken] = await Promise.all([
     loadPoolData(
-      pool.id,
+      pool.poolAddress,
       data.chainId,
       context,
       data.blockNumber,
       data.timestamp,
     ),
     loadOrCreateUserData(
-      userChecksumAddress,
-      pool.id,
+      data.userAddress,
+      pool.poolAddress,
       data.chainId,
       context,
       timestamp,
@@ -254,7 +241,7 @@ export async function processGaugeClaimRewards(
 
   if (!poolData) {
     context.log.error(
-      `${handlerName}: Pool data not found for pool ${pool.id} on chain ${data.chainId}`,
+      `${handlerName}: Pool data not found for pool ${pool.poolAddress} on chain ${data.chainId}`,
     );
     return;
   }

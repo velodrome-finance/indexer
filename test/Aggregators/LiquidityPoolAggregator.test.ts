@@ -11,6 +11,7 @@ import {
   updateLiquidityPoolAggregator,
 } from "../../src/Aggregators/LiquidityPoolAggregator";
 import type { CHAIN_CONSTANTS } from "../../src/Constants";
+import { PoolId } from "../../src/Constants";
 import { getCurrentFee } from "../../src/Effects/DynamicFee";
 import { setupCommon } from "../EventHandlers/Pool/common";
 
@@ -289,7 +290,7 @@ describe("LiquidityPoolAggregator Functions", () => {
       // biome-ignore lint/style/noNonNullAssertion: effect is verified to be defined above
       const effectMock = jest.mocked(mockContext.effect!);
       expect(effectMock).toHaveBeenCalledWith(getCurrentFee, {
-        poolAddress: liquidityPoolAggregator.id,
+        poolAddress: liquidityPoolAggregator.poolAddress,
         dynamicFeeModuleAddress: "0xd9eE4FBeE92970509ec795062cA759F8B52d6720",
         chainId: liquidityPoolAggregator.chainId,
         blockNumber,
@@ -315,10 +316,10 @@ describe("LiquidityPoolAggregator Functions", () => {
       expect(snapshot).toBeDefined();
       expect(snapshot?.id).toBe(
         `${liquidityPoolAggregator.chainId}-${
-          liquidityPoolAggregator.id
-        }_${timestamp.getTime()}`,
+          liquidityPoolAggregator.poolAddress
+        }-${timestamp.getTime()}`,
       );
-      expect(snapshot?.pool).toBe(liquidityPoolAggregator.id);
+      expect(snapshot?.pool).toBe(liquidityPoolAggregator.poolAddress);
     });
   });
 
@@ -848,6 +849,7 @@ describe("LiquidityPoolAggregator Functions", () => {
     const rootPoolAddress = "0x1111111111111111111111111111111111111111";
     const leafPoolAddress = "0x2222222222222222222222222222222222222222";
     const chainId = 10;
+    const rootPoolId = PoolId(chainId, rootPoolAddress);
 
     beforeEach(() => {
       token0 = {
@@ -877,7 +879,7 @@ describe("LiquidityPoolAggregator Functions", () => {
 
     it("should return pool data directly when pool exists", async () => {
       const rootPool = createMockLiquidityPoolAggregator({
-        id: rootPoolAddress,
+        id: rootPoolId,
         chainId: chainId,
         token0_id: "token0",
         token1_id: "token1",
@@ -889,7 +891,7 @@ describe("LiquidityPoolAggregator Functions", () => {
         mockContext.LiquidityPoolAggregator?.get,
       );
       mockLiquidityPoolGet?.mockImplementation((address: string) => {
-        if (address === rootPoolAddress) return Promise.resolve(rootPool);
+        if (address === rootPoolId) return Promise.resolve(rootPool);
         return Promise.resolve(undefined);
       });
 
@@ -907,7 +909,7 @@ describe("LiquidityPoolAggregator Functions", () => {
       );
 
       expect(result).not.toBeNull();
-      expect(result?.liquidityPoolAggregator.id).toBe(rootPoolAddress);
+      expect(result?.liquidityPoolAggregator.id).toBe(rootPoolId);
       expect(result?.token0Instance).toBe(token0);
       expect(result?.token1Instance).toBe(token1);
 
@@ -920,8 +922,9 @@ describe("LiquidityPoolAggregator Functions", () => {
 
     it("should load leaf pool data when root pool is not found but RootPool_LeafPool exists", async () => {
       const leafChainId = 252;
+      const leafPoolId = PoolId(leafChainId, leafPoolAddress);
       const leafPool = createMockLiquidityPoolAggregator({
-        id: leafPoolAddress,
+        id: leafPoolId,
         chainId: leafChainId,
         token0_id: "token0",
         token1_id: "token1",
@@ -941,8 +944,8 @@ describe("LiquidityPoolAggregator Functions", () => {
         mockContext.LiquidityPoolAggregator?.get,
       );
       mockLiquidityPoolGet?.mockImplementation((address: string) => {
-        if (address === rootPoolAddress) return Promise.resolve(undefined);
-        if (address === leafPoolAddress) return Promise.resolve(leafPool);
+        if (address === rootPoolId) return Promise.resolve(undefined);
+        if (address === leafPoolId) return Promise.resolve(leafPool);
         return Promise.resolve(undefined);
       });
 
@@ -967,7 +970,7 @@ describe("LiquidityPoolAggregator Functions", () => {
       );
 
       expect(result).not.toBeNull();
-      expect(result?.liquidityPoolAggregator.id).toBe(leafPoolAddress);
+      expect(result?.liquidityPoolAggregator.id).toBe(leafPoolId);
       expect(result?.liquidityPoolAggregator.chainId).toBe(leafChainId);
       expect(result?.token0Instance).toBe(token0);
       expect(result?.token1Instance).toBe(token1);

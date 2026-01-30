@@ -5,7 +5,6 @@ import type {
   handlerContext,
 } from "generated";
 import { updateNonFungiblePosition } from "../../Aggregators/NonFungiblePosition";
-import { toChecksumAddress } from "../../Constants";
 import { findPositionByTokenId } from "./NFPMCommonLogic";
 
 /**
@@ -36,7 +35,7 @@ export async function createPositionFromCLPoolMint(
     id: stableId,
     chainId: mintEvent.chainId,
     tokenId: tokenId,
-    owner: toChecksumAddress(owner),
+    owner: owner,
     pool: mintEvent.pool,
     tickUpper: mintEvent.tickUpper,
     tickLower: mintEvent.tickLower,
@@ -152,7 +151,7 @@ export function handleRegularTransfer(
   const currentPosition = positions[0];
 
   const nonFungiblePositionDiff = {
-    owner: toChecksumAddress(event.params.to),
+    owner: event.params.to,
     lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
   };
 

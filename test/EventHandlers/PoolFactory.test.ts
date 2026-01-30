@@ -8,6 +8,7 @@ import type {
 import {
   DEFAULT_SAMM_FEE_BPS,
   DEFAULT_VAMM_FEE_BPS,
+  PoolId,
   toChecksumAddress,
 } from "../../src/Constants";
 import * as PriceOracle from "../../src/PriceOracle";
@@ -21,9 +22,9 @@ describe("PoolFactory Events", () => {
     mockLiquidityPoolData,
     createMockLiquidityPoolAggregator,
   } = setupCommon();
+  const poolAddress = mockLiquidityPoolData.poolAddress;
   const token0Address = mockToken0Data.address;
   const token1Address = mockToken1Data.address;
-  const poolAddress = mockLiquidityPoolData.id;
   const chainId = 10;
 
   let mockPriceOracle: jest.SpyInstance;
@@ -43,6 +44,11 @@ describe("PoolFactory Events", () => {
   describe("PoolCreated event", () => {
     let createdPool: LiquidityPoolAggregator | undefined;
     let chainConstantsCleanup: (() => void) | undefined;
+
+    const fraxtalChainId = 252;
+    const mockLpHelperAddress = toChecksumAddress(
+      "0x2F44BD0Aff1826aec123cE3eA9Ce44445b64BB34",
+    );
 
     beforeEach(async () => {
       mockPriceOracle = jest.spyOn(PriceOracle, "createTokenEntity");
@@ -67,7 +73,9 @@ describe("PoolFactory Events", () => {
         event: mockEvent,
         mockDb,
       });
-      createdPool = result.entities.LiquidityPoolAggregator.get(poolAddress);
+      createdPool = result.entities.LiquidityPoolAggregator.get(
+        PoolId(chainId, poolAddress),
+      );
     });
 
     afterEach(() => {
@@ -128,8 +136,9 @@ describe("PoolFactory Events", () => {
         event: mockEvent,
         mockDb,
       });
-      const stablePool =
-        result.entities.LiquidityPoolAggregator.get(poolAddress);
+      const stablePool = result.entities.LiquidityPoolAggregator.get(
+        PoolId(chainId, poolAddress),
+      );
 
       // Stable pools should use DEFAULT_SAMM_FEE_BPS
       expect(stablePool?.baseFee).toBe(DEFAULT_SAMM_FEE_BPS);
@@ -199,15 +208,14 @@ describe("PoolFactory Events", () => {
     });
 
     it("should create RootPool_LeafPool for non-Optimism/Base chains (e.g., Fraxtal)", async () => {
-      const fraxtalChainId = 252;
-      const mockRootPoolAddressLowercase =
-        "0x98dcff98d17f21e35211c923934924af65fbdd66";
-      const mockLpHelperAddress = "0x2F44BD0Aff1826aec123cE3eA9Ce44445b64BB34";
+      const mockRootPoolAddress = toChecksumAddress(
+        "0x98dcff98d17f21e35211c923934924af65fbdd66",
+      );
 
       // Setup mock ethClient for Fraxtal
       const mockEthClient = {
         simulateContract: jest.fn().mockResolvedValue({
-          result: mockRootPoolAddressLowercase,
+          result: mockRootPoolAddress,
         }),
       } as unknown as PublicClient;
 
@@ -244,9 +252,7 @@ describe("PoolFactory Events", () => {
       // Should create RootPool_LeafPool for Fraxtal
       // The rootPoolAddress will be checksummed by the effect
       // ID format: rootPoolAddress_10_leafPoolAddress_leafChainId
-      const expectedRootPoolAddress = toChecksumAddress(
-        mockRootPoolAddressLowercase,
-      );
+      const expectedRootPoolAddress = toChecksumAddress(mockRootPoolAddress);
       const rootPoolLeafPoolId = `${expectedRootPoolAddress}_10_${poolAddress}_${fraxtalChainId}`;
       const rootPoolLeafPool =
         result.entities.RootPool_LeafPool.get(rootPoolLeafPoolId);
@@ -263,9 +269,6 @@ describe("PoolFactory Events", () => {
     });
 
     it("should handle error when getRootPoolAddress fails for non-Optimism/Base chains", async () => {
-      const fraxtalChainId = 252;
-      const mockLpHelperAddress = "0x2F44BD0Aff1826aec123cE3eA9Ce44445b64BB34";
-
       // Setup mock ethClient that throws an error
       const mockEthClient = {
         simulateContract: jest
@@ -306,8 +309,9 @@ describe("PoolFactory Events", () => {
       });
 
       // Should still create the pool even if root pool address fetch fails
-      const createdPool =
-        result.entities.LiquidityPoolAggregator.get(poolAddress);
+      const createdPool = result.entities.LiquidityPoolAggregator.get(
+        PoolId(fraxtalChainId, poolAddress),
+      );
       expect(createdPool).toBeDefined();
 
       // Should not create RootPool_LeafPool when effect fails (returns null/undefined)
@@ -320,9 +324,6 @@ describe("PoolFactory Events", () => {
     });
 
     it("should handle null/undefined rootPoolAddress from effect", async () => {
-      const fraxtalChainId = 252;
-      const mockLpHelperAddress = "0x2F44BD0Aff1826aec123cE3eA9Ce44445b64BB34";
-
       // Setup mock ethClient that returns null
       // This will cause fetchRootPoolAddress to return empty string, which the handler should handle
       const mockEthClient = {
@@ -362,8 +363,9 @@ describe("PoolFactory Events", () => {
       });
 
       // Should still create the pool
-      const createdPool =
-        result.entities.LiquidityPoolAggregator.get(poolAddress);
+      const createdPool = result.entities.LiquidityPoolAggregator.get(
+        PoolId(fraxtalChainId, poolAddress),
+      );
       expect(createdPool).toBeDefined();
 
       // Should not create RootPool_LeafPool when rootPoolAddress is null/undefined
@@ -408,8 +410,9 @@ describe("PoolFactory Events", () => {
       });
 
       // Assert - check LiquidityPoolAggregator was updated
-      const updatedPool =
-        result.entities.LiquidityPoolAggregator.get(poolAddress);
+      const updatedPool = result.entities.LiquidityPoolAggregator.get(
+        PoolId(chainId, poolAddress),
+      );
       expect(updatedPool).toBeDefined();
       expect(updatedPool?.baseFee).toBe(customFee);
       expect(updatedPool?.currentFee).toBe(customFee);
@@ -457,8 +460,9 @@ describe("PoolFactory Events", () => {
       });
 
       // Assert - check fees were updated
-      const updatedPool =
-        result.entities.LiquidityPoolAggregator.get(poolAddress);
+      const updatedPool = result.entities.LiquidityPoolAggregator.get(
+        PoolId(chainId, poolAddress),
+      );
       expect(updatedPool).toBeDefined();
       expect(updatedPool?.baseFee).toBe(newFee);
       expect(updatedPool?.currentFee).toBe(newFee);
@@ -496,7 +500,7 @@ describe("PoolFactory Events", () => {
 
       // Assert - LiquidityPoolAggregator should not be updated
       const pool = result.entities.LiquidityPoolAggregator.get(
-        nonExistentPoolAddress,
+        PoolId(10, nonExistentPoolAddress),
       );
       expect(pool).toBeUndefined();
     });

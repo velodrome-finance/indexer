@@ -87,7 +87,7 @@ describe("Pool Claim Event", () => {
           mockDb: updatedDB3,
         });
         updatedPool = postEventDB.entities.LiquidityPoolAggregator.get(
-          toChecksumAddress(eventData.mockEventData.srcAddress),
+          mockLiquidityPoolData.id,
         );
       });
 
@@ -188,7 +188,7 @@ describe("Pool Claim Event", () => {
           mockDb: updatedDB3,
         });
         updatedPool = postEventDB.entities.LiquidityPoolAggregator.get(
-          toChecksumAddress(eventData.mockEventData.srcAddress),
+          mockLiquidityPoolData.id,
         );
       });
 
@@ -270,7 +270,7 @@ describe("Pool Claim Event", () => {
           mockDb: updatedDB3,
         });
         const updatedPool = postEventDB.entities.LiquidityPoolAggregator.get(
-          toChecksumAddress(eventData.mockEventData.srcAddress),
+          mockLiquidityPoolData.id,
         );
 
         expect(updatedPool?.totalStakedFeesCollected0).toBe(
@@ -334,7 +334,7 @@ describe("Pool Claim Event", () => {
           mockDb: updatedDB3,
         });
         const updatedPool = postEventDB.entities.LiquidityPoolAggregator.get(
-          toChecksumAddress(eventData.mockEventData.srcAddress),
+          mockLiquidityPoolData.id,
         );
 
         // Should be treated as unstaked since gaugeAddress is undefined

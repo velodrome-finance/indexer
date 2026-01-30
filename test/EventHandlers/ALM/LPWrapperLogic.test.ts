@@ -5,7 +5,6 @@ import {
   ZERO_ADDRESS,
   toChecksumAddress,
 } from "../../../src/Constants";
-import * as TokenEffects from "../../../src/Effects/Token";
 import {
   calculateLiquidityFromAmounts,
   deriveUserAmounts,
@@ -18,9 +17,10 @@ import {
 import { setupCommon } from "../Pool/common";
 
 describe("LPWrapperLogic", () => {
-  const { mockALMLPWrapperData } = setupCommon();
-  const chainId = 10;
-  const poolAddress = "0x3333333333333333333333333333333333333333";
+  const { mockALMLPWrapperData, mockLiquidityPoolData } = setupCommon();
+  const poolId = mockLiquidityPoolData.id;
+  const chainId = mockLiquidityPoolData.chainId;
+  const poolAddress = mockLiquidityPoolData.poolAddress;
   const blockNumber = 123456;
   const timestamp = new Date(1000000 * 1000);
   const txHash = "0xtesttxhash";
@@ -182,7 +182,7 @@ describe("LPWrapperLogic", () => {
       expect(result).not.toBe(wrapper.liquidity);
       expect(typeof result).toBe("bigint");
       expect(mockLiquidityPoolAggregator).toHaveBeenCalledTimes(1);
-      expect(mockLiquidityPoolAggregator).toHaveBeenCalledWith(poolAddress);
+      expect(mockLiquidityPoolAggregator).toHaveBeenCalledWith(poolId);
     });
 
     it("should return current liquidity if pool entity is not found", async () => {
@@ -481,7 +481,7 @@ describe("LPWrapperLogic", () => {
         },
         LiquidityPoolAggregator: {
           get: jest.fn((poolAddr) => {
-            if (poolAddr === poolAddress) {
+            if (poolAddr === poolId) {
               return Promise.resolve(mockPool);
             }
             return Promise.resolve(null);
@@ -621,7 +621,7 @@ describe("LPWrapperLogic", () => {
         },
         LiquidityPoolAggregator: {
           get: jest.fn((poolAddr) => {
-            if (poolAddr === poolAddress) {
+            if (poolAddr === poolId) {
               return Promise.resolve(mockPool);
             }
             return Promise.resolve(null);
@@ -1230,7 +1230,7 @@ describe("LPWrapperLogic", () => {
         },
         LiquidityPoolAggregator: {
           get: jest.fn((poolAddr) => {
-            if (poolAddr === poolAddress) {
+            if (poolAddr === poolId) {
               return Promise.resolve(mockPool);
             }
             return Promise.resolve(null);

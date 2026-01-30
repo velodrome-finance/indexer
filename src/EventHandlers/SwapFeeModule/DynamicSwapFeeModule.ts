@@ -4,17 +4,14 @@ import type {
   LiquidityPoolAggregator,
 } from "generated";
 import { updateLiquidityPoolAggregator } from "../../Aggregators/LiquidityPoolAggregator";
-import { toChecksumAddress } from "../../Constants";
+import { PoolId } from "../../Constants";
 
 DynamicSwapFeeModule.CustomFeeSet.handler(async ({ event, context }) => {
-  const pool = await context.LiquidityPoolAggregator.get(
-    toChecksumAddress(event.params.pool),
-  );
+  const poolId = PoolId(event.chainId, event.params.pool);
+  const pool = await context.LiquidityPoolAggregator.get(poolId);
 
   if (!pool) {
-    context.log.warn(
-      `Pool ${event.params.pool} not found for CustomFeeSet event`,
-    );
+    context.log.warn(`Pool ${poolId} not found for CustomFeeSet event`);
     return;
   }
 
@@ -34,7 +31,7 @@ DynamicSwapFeeModule.CustomFeeSet.handler(async ({ event, context }) => {
 DynamicSwapFeeModule.SecondsAgoSet.handler(async ({ event, context }) => {
   // secondsAgo is a global setting for the DynamicSwapFeeModule
   // Store it in the DynamicFeeGlobalConfig entity
-  const configId = toChecksumAddress(event.srcAddress);
+  const configId = event.srcAddress;
 
   const config: DynamicFeeGlobalConfig = {
     id: configId,
@@ -46,14 +43,11 @@ DynamicSwapFeeModule.SecondsAgoSet.handler(async ({ event, context }) => {
 });
 
 DynamicSwapFeeModule.ScalingFactorSet.handler(async ({ event, context }) => {
-  const pool = await context.LiquidityPoolAggregator.get(
-    toChecksumAddress(event.params.pool),
-  );
+  const poolId = PoolId(event.chainId, event.params.pool);
+  const pool = await context.LiquidityPoolAggregator.get(poolId);
 
   if (!pool) {
-    context.log.warn(
-      `Pool ${event.params.pool} not found for ScalingFactorSet event`,
-    );
+    context.log.warn(`Pool ${poolId} not found for ScalingFactorSet event`);
     return;
   }
 
@@ -71,12 +65,11 @@ DynamicSwapFeeModule.ScalingFactorSet.handler(async ({ event, context }) => {
 });
 
 DynamicSwapFeeModule.FeeCapSet.handler(async ({ event, context }) => {
-  const pool = await context.LiquidityPoolAggregator.get(
-    toChecksumAddress(event.params.pool),
-  );
+  const poolId = PoolId(event.chainId, event.params.pool);
+  const pool = await context.LiquidityPoolAggregator.get(poolId);
 
   if (!pool) {
-    context.log.warn(`Pool ${event.params.pool} not found for FeeCapSet event`);
+    context.log.warn(`Pool ${poolId} not found for FeeCapSet event`);
     return;
   }
 

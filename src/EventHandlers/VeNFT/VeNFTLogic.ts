@@ -5,7 +5,6 @@ import type {
   VeNFT_Withdraw_event,
 } from "generated";
 import type { VeNFTAggregatorDiff } from "../../Aggregators/VeNFTAggregator";
-import { toChecksumAddress } from "../../Constants";
 
 export type VeNFTEvent =
   | VeNFT_Deposit_event
@@ -47,12 +46,10 @@ export async function processVeNFTEvent(
     // Deposit event
     // Note: VeNFT entity should already exist (created during Transfer/mint event)
 
-    const ownerChecksummedAddress = toChecksumAddress(event.params.provider);
-
     // Update existing VeNFT with deposit values
     veNFTAggregatorDiff = {
       ...veNFTAggregatorDiff,
-      owner: ownerChecksummedAddress,
+      owner: event.params.provider,
       locktime: event.params.locktime,
       incrementalTotalValueLocked: event.params.value,
       isAlive: true,
@@ -60,12 +57,10 @@ export async function processVeNFTEvent(
   } else if (isTransferEvent(event)) {
     // Transfer event
 
-    const toChecksummedAddress = toChecksumAddress(event.params.to);
-
     // Update existing VeNFT owner
     veNFTAggregatorDiff = {
       ...veNFTAggregatorDiff,
-      owner: toChecksummedAddress,
+      owner: event.params.to,
       locktime: currentVeNFT?.locktime ?? 0n,
       isAlive: event.params.to !== "0x0000000000000000000000000000000000000000",
     };

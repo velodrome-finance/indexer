@@ -5,10 +5,12 @@ import { setupCommon } from "./common";
 describe("Pool Transfer Event", () => {
   let mockDb: ReturnType<typeof MockDb.createMockDb>;
   let commonData: ReturnType<typeof setupCommon>;
+  let poolAddress: string;
 
   beforeEach(() => {
     mockDb = MockDb.createMockDb();
     commonData = setupCommon();
+    poolAddress = commonData.mockLiquidityPoolData.poolAddress;
 
     // Set up mock database with common data
     const updatedDB1 = mockDb.entities.LiquidityPoolAggregator.set(
@@ -34,7 +36,7 @@ describe("Pool Transfer Event", () => {
         },
         chainId: 10,
         logIndex: 0,
-        srcAddress: commonData.mockLiquidityPoolData.id,
+        srcAddress: poolAddress,
       },
     });
 
@@ -51,7 +53,7 @@ describe("Pool Transfer Event", () => {
     expect(updatedAggregator?.totalLPTokenSupply).toBe(LP_VALUE);
 
     // Verify PoolTransferInTx entity was created for matching
-    const transferId = `10-${mockEvent.transaction.hash}-${commonData.mockLiquidityPoolData.id}-0`;
+    const transferId = `10-${mockEvent.transaction.hash}-${poolAddress}-0`;
     const storedTransfer = result.entities.PoolTransferInTx.get(transferId);
     expect(storedTransfer).toBeDefined();
     expect(storedTransfer?.isMint).toBe(true);
@@ -60,7 +62,7 @@ describe("Pool Transfer Event", () => {
 
     // Verify user LP balance was updated
     const userStats = result.entities.UserStatsPerPool.get(
-      `${userAddress}_${commonData.mockLiquidityPoolData.id}_10`,
+      `${userAddress}_${poolAddress}_10`,
     );
     expect(userStats).toBeDefined();
     expect(userStats?.lpBalance).toBe(LP_VALUE);
@@ -92,7 +94,7 @@ describe("Pool Transfer Event", () => {
         },
         chainId: 10,
         logIndex: 0,
-        srcAddress: commonData.mockLiquidityPoolData.id,
+        srcAddress: poolAddress,
       },
     });
 
@@ -111,7 +113,7 @@ describe("Pool Transfer Event", () => {
     );
 
     // Verify PoolTransferInTx entity was created for matching
-    const transferId = `10-${mockEvent.transaction.hash}-${commonData.mockLiquidityPoolData.id}-0`;
+    const transferId = `10-${mockEvent.transaction.hash}-${poolAddress}-0`;
     const storedTransfer = result.entities.PoolTransferInTx.get(transferId);
     expect(storedTransfer).toBeDefined();
     expect(storedTransfer?.isMint).toBe(false);
@@ -120,7 +122,7 @@ describe("Pool Transfer Event", () => {
 
     // Verify user LP balance was updated
     const userStats = result.entities.UserStatsPerPool.get(
-      `${userAddress}_${commonData.mockLiquidityPoolData.id}_10`,
+      `${userAddress}_${poolAddress}_10`,
     );
     expect(userStats).toBeDefined();
     expect(userStats?.lpBalance).toBe(-LP_VALUE);
@@ -143,7 +145,7 @@ describe("Pool Transfer Event", () => {
         },
         chainId: 10,
         logIndex: 0,
-        srcAddress: commonData.mockLiquidityPoolData.id,
+        srcAddress: poolAddress,
       },
     });
 
@@ -160,20 +162,20 @@ describe("Pool Transfer Event", () => {
     expect(updatedAggregator?.totalLPTokenSupply).toBe(0n);
 
     // Verify PoolTransferInTx entity was NOT created (regular transfers are not stored)
-    const transferId = `10-${mockEvent.transaction.hash}-${commonData.mockLiquidityPoolData.id}-0`;
+    const transferId = `10-${mockEvent.transaction.hash}-${poolAddress}-0`;
     const storedTransfer = result.entities.PoolTransferInTx.get(transferId);
     expect(storedTransfer).toBeUndefined();
 
     // Verify sender LP balance was decreased
     const senderStats = result.entities.UserStatsPerPool.get(
-      `${senderAddress}_${commonData.mockLiquidityPoolData.id}_10`,
+      `${senderAddress}_${poolAddress}_10`,
     );
     expect(senderStats).toBeDefined();
     expect(senderStats?.lpBalance).toBe(-LP_VALUE);
 
     // Verify recipient LP balance was increased
     const recipientStats = result.entities.UserStatsPerPool.get(
-      `${recipientAddress}_${commonData.mockLiquidityPoolData.id}_10`,
+      `${recipientAddress}_${poolAddress}_10`,
     );
     expect(recipientStats).toBeDefined();
     expect(recipientStats?.lpBalance).toBe(LP_VALUE);
@@ -203,7 +205,7 @@ describe("Pool Transfer Event", () => {
           },
           chainId: 10,
           logIndex: 0,
-          srcAddress: commonData.mockLiquidityPoolData.id,
+          srcAddress: poolAddress,
         },
       });
 
@@ -219,7 +221,7 @@ describe("Pool Transfer Event", () => {
       expect(pool).toBeUndefined();
 
       // No entities should be created
-      const transferId = `10-${mockEvent.transaction.hash}-${commonData.mockLiquidityPoolData.id}-0`;
+      const transferId = `10-${mockEvent.transaction.hash}-${poolAddress}-0`;
       const storedTransfer =
         postEventDB.entities.PoolTransferInTx.get(transferId);
       expect(storedTransfer).toBeUndefined();

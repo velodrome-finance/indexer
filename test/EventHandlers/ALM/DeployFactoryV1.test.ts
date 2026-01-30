@@ -15,10 +15,16 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
   const { mockLiquidityPoolData, mockToken0Data, mockToken1Data } =
     setupCommon();
   const chainId = mockLiquidityPoolData.chainId;
-  const poolAddress = mockLiquidityPoolData.id;
-  const lpWrapperAddress = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-  const synthetixFarmAddress = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
-  const callerAddress = "0xcccccccccccccccccccccccccccccccccccccccc";
+  const poolAddress = mockLiquidityPoolData.poolAddress;
+  const lpWrapperAddress = toChecksumAddress(
+    "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  );
+  const synthetixFarmAddress = toChecksumAddress(
+    "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  );
+  const callerAddress = toChecksumAddress(
+    "0xcccccccccccccccccccccccccccccccccccccccc",
+  );
   const transactionHash =
     "0x1234567890123456789012345678901234567890123456789012345678901234";
   const blockTimestamp = 1000000;
@@ -93,11 +99,11 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
       // V1: params tuple has 6 elements: [pool, ammPosition (single tuple), strategyParams (4 fields), lpWrapper, synthetixFarm, caller]
       const mockEvent = ALMDeployFactoryV1.StrategyCreated.createMockEvent({
         params: [
-          toChecksumAddress(poolAddress),
+          poolAddress,
           // ammPosition is a single tuple, not an array
           [
-            toChecksumAddress(mockToken0Data.address),
-            toChecksumAddress(mockToken1Data.address),
+            mockToken0Data.address,
+            mockToken1Data.address,
             property,
             tickLower,
             tickUpper,
@@ -105,9 +111,9 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
           ],
           // strategyParams has 4 fields (no maxLiquidityRatioDeviationX96)
           [strategyType, tickNeighborhood, tickSpacing, width],
-          toChecksumAddress(lpWrapperAddress),
-          toChecksumAddress(synthetixFarmAddress),
-          toChecksumAddress(callerAddress),
+          lpWrapperAddress,
+          synthetixFarmAddress,
+          callerAddress,
         ],
         mockEventData,
       });
@@ -117,13 +123,13 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
         mockDb: mockDbWithGetWhere as typeof mockDb,
       });
 
-      const wrapperId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
+      const wrapperId = `${lpWrapperAddress}_${chainId}`;
       const createdWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
 
       expect(createdWrapper).toBeDefined();
       expect(createdWrapper?.id).toBe(wrapperId);
       expect(createdWrapper?.chainId).toBe(chainId);
-      expect(createdWrapper?.pool).toBe(toChecksumAddress(poolAddress));
+      expect(createdWrapper?.pool).toBe(poolAddress);
       expect(createdWrapper?.token0).toBe(mockToken0Data.address);
       expect(createdWrapper?.token1).toBe(mockToken1Data.address);
 
@@ -184,19 +190,19 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
 
       const mockEvent = ALMDeployFactoryV1.StrategyCreated.createMockEvent({
         params: [
-          toChecksumAddress(poolAddress),
+          poolAddress,
           [
-            toChecksumAddress(mockToken0Data.address),
-            toChecksumAddress(mockToken1Data.address),
+            mockToken0Data.address,
+            mockToken1Data.address,
             property,
             tickLower,
             tickUpper,
             liquidity,
           ],
           [strategyType, tickNeighborhood, tickSpacing, width],
-          toChecksumAddress(lpWrapperAddress),
-          toChecksumAddress(synthetixFarmAddress),
-          toChecksumAddress(callerAddress),
+          lpWrapperAddress,
+          synthetixFarmAddress,
+          callerAddress,
         ],
         mockEventData,
       });
@@ -207,7 +213,7 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
       });
 
       // Verify that no wrapper was created
-      const wrapperId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
+      const wrapperId = `${lpWrapperAddress}_${chainId}`;
       const createdWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
       expect(createdWrapper).toBeUndefined();
     });
@@ -233,19 +239,19 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
 
       const mockEvent = ALMDeployFactoryV1.StrategyCreated.createMockEvent({
         params: [
-          toChecksumAddress(poolAddress),
+          poolAddress,
           [
-            toChecksumAddress(mockToken0Data.address),
-            toChecksumAddress(mockToken1Data.address),
+            mockToken0Data.address,
+            mockToken1Data.address,
             property,
             tickLower,
             tickUpper,
             liquidity,
           ],
           [strategyType, tickNeighborhood, tickSpacing, width],
-          toChecksumAddress(lpWrapperAddress),
-          toChecksumAddress(synthetixFarmAddress),
-          toChecksumAddress(callerAddress),
+          lpWrapperAddress,
+          synthetixFarmAddress,
+          callerAddress,
         ],
         mockEventData,
       });
@@ -256,7 +262,7 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
       });
 
       // Verify that no wrapper was created
-      const wrapperId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
+      const wrapperId = `${lpWrapperAddress}_${chainId}`;
       const createdWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
       expect(createdWrapper).toBeUndefined();
     });
@@ -320,19 +326,19 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
 
       const mockEvent = ALMDeployFactoryV1.StrategyCreated.createMockEvent({
         params: [
-          toChecksumAddress(poolAddress),
+          poolAddress,
           [
-            toChecksumAddress(mockToken0Data.address),
-            toChecksumAddress(mockToken1Data.address),
+            mockToken0Data.address,
+            mockToken1Data.address,
             property,
             tickLower,
             tickUpper,
             liquidity,
           ],
           [strategyType, tickNeighborhood, tickSpacing, width],
-          toChecksumAddress(lpWrapperAddress),
-          toChecksumAddress(synthetixFarmAddress),
-          toChecksumAddress(callerAddress),
+          lpWrapperAddress,
+          synthetixFarmAddress,
+          callerAddress,
         ],
         mockEventData,
       });
@@ -342,7 +348,7 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
         mockDb: mockDbWithGetWhere as typeof mockDb,
       });
 
-      const wrapperId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
+      const wrapperId = `${lpWrapperAddress}_${chainId}`;
       const createdWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
 
       expect(createdWrapper).toBeDefined();
@@ -418,19 +424,19 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
 
       const mockEvent = ALMDeployFactoryV1.StrategyCreated.createMockEvent({
         params: [
-          toChecksumAddress(poolAddress),
+          poolAddress,
           [
-            toChecksumAddress(mockToken0Data.address),
-            toChecksumAddress(mockToken1Data.address),
+            mockToken0Data.address,
+            mockToken1Data.address,
             property,
             tickLower,
             tickUpper,
             liquidity,
           ],
           [strategyType, tickNeighborhood, tickSpacing, width],
-          toChecksumAddress(lpWrapperAddress),
-          toChecksumAddress(synthetixFarmAddress),
-          toChecksumAddress(callerAddress),
+          lpWrapperAddress,
+          synthetixFarmAddress,
+          callerAddress,
         ],
         mockEventData,
       });
@@ -440,7 +446,7 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
         mockDb: mockDbWithGetWhere as typeof mockDb,
       });
 
-      const wrapperId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
+      const wrapperId = `${lpWrapperAddress}_${chainId}`;
       const createdWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
 
       expect(createdWrapper).toBeDefined();

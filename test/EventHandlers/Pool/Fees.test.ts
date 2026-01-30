@@ -4,6 +4,7 @@ import type {
   Token,
   UserStatsPerPool,
 } from "../../../generated/src/Types.gen";
+import { toChecksumAddress } from "../../../src/Constants";
 import * as PoolFeesLogic from "../../../src/EventHandlers/Pool/PoolFeesLogic";
 import { setupCommon } from "./common";
 
@@ -53,7 +54,7 @@ describe("Pool Fees Event", () => {
     const mockEvent = Pool.Fees.createMockEvent({
       amount0: expectations.amount0In,
       amount1: expectations.amount1In,
-      sender: "0x1234567890123456789012345678901234567890",
+      sender: toChecksumAddress("0x1234567890123456789012345678901234567890"),
       mockEventData: {
         block: {
           number: 123456,
@@ -61,7 +62,7 @@ describe("Pool Fees Event", () => {
           hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
         },
         chainId: 10,
-        srcAddress: poolId,
+        srcAddress: mockLiquidityPoolData.poolAddress,
       },
     });
 
@@ -148,8 +149,12 @@ describe("Pool Fees Event", () => {
     // Create an existing user stats
     const { createMockUserStatsPerPool } = setupCommon();
     const existingUserStats = createMockUserStatsPerPool({
-      userAddress: "0x1234567890123456789012345678901234567890",
-      poolAddress: "0x3333333333333333333333333333333333333333",
+      userAddress: toChecksumAddress(
+        "0x1234567890123456789012345678901234567890",
+      ),
+      poolAddress: toChecksumAddress(
+        "0x3333333333333333333333333333333333333333",
+      ),
       chainId: 10,
       currentLiquidityUSD: 2000n,
       totalLiquidityAddedUSD: 2000n,
@@ -168,7 +173,7 @@ describe("Pool Fees Event", () => {
     const mockEvent = Pool.Fees.createMockEvent({
       amount0: 500n,
       amount1: 300n,
-      sender: "0x1234567890123456789012345678901234567890",
+      sender: toChecksumAddress("0x1234567890123456789012345678901234567890"),
       mockEventData: {
         block: {
           number: 123457,
@@ -176,7 +181,7 @@ describe("Pool Fees Event", () => {
           hash: "0x1234567890123456789012345678901234567890123456789012345678901235",
         },
         chainId: 10,
-        srcAddress: poolId,
+        srcAddress: mockLiquidityPoolData.poolAddress,
       },
     });
 
@@ -223,7 +228,7 @@ describe("Pool Fees Event", () => {
       const mockEvent = Pool.Fees.createMockEvent({
         amount0: 3n * 10n ** 18n,
         amount1: 2n * 10n ** 6n,
-        sender: "0x1234567890123456789012345678901234567890",
+        sender: toChecksumAddress("0x1234567890123456789012345678901234567890"),
         mockEventData: {
           block: {
             number: 123456,
@@ -231,7 +236,7 @@ describe("Pool Fees Event", () => {
             hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
           },
           chainId: 10,
-          srcAddress: poolId,
+          srcAddress: mockLiquidityPoolData.poolAddress,
         },
       });
 
@@ -283,7 +288,7 @@ describe("Pool Fees Event", () => {
       const mockEvent = Pool.Fees.createMockEvent({
         amount0: 3n * 10n ** 18n,
         amount1: 2n * 10n ** 6n,
-        sender: "0x1234567890123456789012345678901234567890",
+        sender: toChecksumAddress("0x1234567890123456789012345678901234567890"),
         mockEventData: {
           block: {
             number: 123456,
@@ -291,7 +296,7 @@ describe("Pool Fees Event", () => {
             hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
           },
           chainId: 10,
-          srcAddress: poolId,
+          srcAddress: mockLiquidityPoolData.poolAddress,
         },
       });
 
@@ -341,7 +346,7 @@ describe("Pool Fees Event", () => {
       const mockEvent = Pool.Fees.createMockEvent({
         amount0: 3n * 10n ** 18n,
         amount1: 2n * 10n ** 6n,
-        sender: "0x1234567890123456789012345678901234567890",
+        sender: toChecksumAddress("0x1234567890123456789012345678901234567890"),
         mockEventData: {
           block: {
             number: 123456,
@@ -349,7 +354,7 @@ describe("Pool Fees Event", () => {
             hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
           },
           chainId: 10,
-          srcAddress: poolId,
+          srcAddress: mockLiquidityPoolData.poolAddress,
         },
       });
 

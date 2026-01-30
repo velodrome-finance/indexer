@@ -12,10 +12,10 @@ import {
 } from "../../Aggregators/UserStatsPerPool";
 import {
   CHAIN_CONSTANTS,
+  PoolId,
   TokenIdByChain,
   VOTER_CLPOOLS_FACTORY_LIST,
-  VOTER_VAMM_POOLS_FACTORY_LIST,
-  toChecksumAddress,
+  VOTER_NONCL_POOLS_FACTORY_LIST,
 } from "../../Constants";
 import { getTokenDetails } from "../../Effects/Index";
 import { refreshTokenPrice } from "../../PriceOracle";
@@ -26,10 +26,10 @@ import {
 } from "./VoterCommonLogic";
 
 Voter.GaugeCreated.contractRegister(({ event, context }) => {
-  const pf = toChecksumAddress(event.params.poolFactory);
+  const pf = event.params.poolFactory;
   if (VOTER_CLPOOLS_FACTORY_LIST.includes(pf)) {
     context.addCLGauge(event.params.gauge);
-  } else if (VOTER_VAMM_POOLS_FACTORY_LIST.includes(pf)) {
+  } else if (VOTER_NONCL_POOLS_FACTORY_LIST.includes(pf)) {
     context.addGauge(event.params.gauge);
   }
 
@@ -39,10 +39,10 @@ Voter.GaugeCreated.contractRegister(({ event, context }) => {
 
 Voter.GaugeCreated.handler(async ({ event, context }) => {
   // Update the pool entity with the gauge address
-  const poolAddress = toChecksumAddress(event.params.pool);
-  const gaugeAddress = toChecksumAddress(event.params.gauge);
+  const poolId = PoolId(event.chainId, event.params.pool);
+  const gaugeAddress = event.params.gauge;
 
-  const poolEntity = await context.LiquidityPoolAggregator.get(poolAddress);
+  const poolEntity = await context.LiquidityPoolAggregator.get(poolId);
 
   if (poolEntity) {
     const poolUpdateDiff = {
@@ -66,18 +66,17 @@ Voter.GaugeCreated.handler(async ({ event, context }) => {
 // Leads to a deposit of veNFT
 Voter.Voted.handler(async ({ event, context }) => {
   // Load pool data and user data concurrently for better performance
-  const poolAddress = toChecksumAddress(event.params.pool);
   const [poolData, userData] = await Promise.all([
     loadPoolDataOrRootCLPool(
-      poolAddress,
+      event.params.pool,
       event.chainId,
       context,
       event.block.number,
       event.block.timestamp,
     ),
     loadOrCreateUserData(
-      toChecksumAddress(event.params.voter),
-      poolAddress,
+      event.params.voter,
+      event.params.pool,
       event.chainId,
       context,
       new Date(event.block.timestamp * 1000),
@@ -115,18 +114,17 @@ Voter.Voted.handler(async ({ event, context }) => {
 // The opposite of the Voted event: effectively withdraws veNFT
 Voter.Abstained.handler(async ({ event, context }) => {
   // Load pool data and user data concurrently for better performance
-  const poolAddress = toChecksumAddress(event.params.pool);
   const [poolData, userData] = await Promise.all([
     loadPoolDataOrRootCLPool(
-      poolAddress,
+      event.params.pool,
       event.chainId,
       context,
       event.block.number,
       event.block.timestamp,
     ),
     loadOrCreateUserData(
-      toChecksumAddress(event.params.voter),
-      poolAddress,
+      event.params.voter,
+      event.params.pool,
       event.chainId,
       context,
       new Date(event.block.timestamp * 1000),
@@ -297,9 +295,9 @@ Voter.GaugeKilled.handler(async ({ event, context }) => {
     event.chainId,
     context,
   );
-  const poolAddress = poolEntity?.id;
+  const poolId = poolEntity?.id;
 
-  if (poolAddress) {
+  if (poolId) {
     const poolUpdateDiff = {
       gaugeIsAlive: false,
       // Keep gaugeAddress, feeVotingRewardAddress and bribeVotingRewardAddress as historical data
@@ -322,9 +320,9 @@ Voter.GaugeRevived.handler(async ({ event, context }) => {
     event.chainId,
     context,
   );
-  const poolAddress = poolEntity?.id;
+  const poolId = poolEntity?.id;
 
-  if (poolAddress) {
+  if (poolId) {
     const poolUpdateDiff = {
       gaugeIsAlive: true,
       lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),

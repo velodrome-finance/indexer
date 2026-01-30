@@ -3,6 +3,7 @@ import type {
   PoolLauncherPool,
   handlerContext,
 } from "generated";
+import { PoolId } from "../../Constants";
 
 // Helper function to create or update PoolLauncherPool entity
 export async function processPoolLauncherPool(
@@ -15,7 +16,7 @@ export async function processPoolLauncherPool(
   chainId: number,
   context: handlerContext,
 ): Promise<PoolLauncherPool> {
-  const poolId = `${chainId}-${poolAddress.toLowerCase()}`;
+  const poolId = PoolId(chainId, poolAddress);
 
   let poolLauncherPool = await context.PoolLauncherPool.get(poolId);
 
@@ -59,12 +60,13 @@ export async function linkLiquidityPoolAggregatorToPoolLauncher(
   factoryType: "CL" | "V2",
 ): Promise<void> {
   // Load the existing LiquidityPoolAggregator (created by CLFactory or V2Factory)
+  const poolId = PoolId(chainId, poolAddress);
   const existingLiquidityPoolAggregator =
-    await context.LiquidityPoolAggregator.get(poolAddress.toLowerCase());
+    await context.LiquidityPoolAggregator.get(poolId);
 
   if (!existingLiquidityPoolAggregator) {
     context.log.warn(
-      `LiquidityPoolAggregator not found for pool ${poolAddress} - it should have been created by ${factoryType}Factory`,
+      `LiquidityPoolAggregator not found for pool ${poolId} - it should have been created by ${factoryType}Factory`,
     );
     return;
   }
@@ -72,7 +74,7 @@ export async function linkLiquidityPoolAggregatorToPoolLauncher(
   // Update the existing LiquidityPoolAggregator to link it to PoolLauncherPool
   const updatedLiquidityPoolAggregator: LiquidityPoolAggregator = {
     ...existingLiquidityPoolAggregator,
-    poolLauncherPoolId: `${chainId}-${poolAddress.toLowerCase()}`,
+    poolLauncherPoolId: poolId,
     lastUpdatedTimestamp: new Date(),
   };
 

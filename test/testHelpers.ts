@@ -4,7 +4,7 @@ import type {
   LiquidityPoolAggregator,
   NonFungiblePosition,
 } from "../generated/src/Types.gen";
-import { CHAIN_CONSTANTS, toChecksumAddress } from "../src/Constants";
+import { CHAIN_CONSTANTS, PoolId, toChecksumAddress } from "../src/Constants";
 
 /**
  * Extends mockDb with getWhere functionality for NonFungiblePosition queries
@@ -96,10 +96,12 @@ export function setupLiquidityPoolAggregator(
   mockLiquidityPoolData: LiquidityPoolAggregator,
   poolAddress: string,
 ): ReturnType<typeof MockDb.createMockDb> {
+  const poolId = PoolId(mockLiquidityPoolData.chainId, poolAddress);
   const mockLiquidityPoolAggregator = {
     ...mockLiquidityPoolData,
-    id: toChecksumAddress(poolAddress),
-    isCL: true, // CL pool
+    id: poolId,
+    poolAddress: poolAddress,
+    isCL: mockLiquidityPoolData.isCL ?? true,
   };
   return mockDb.entities.LiquidityPoolAggregator.set(
     mockLiquidityPoolAggregator,

@@ -38,7 +38,7 @@ export const VOTER_CLPOOLS_FACTORY_LIST: string[] = [
   "0xCc0bDDB707055e04e497aB22a59c2aF4391cd12F", // optimism
 ].map((x) => toChecksumAddress(x));
 
-export const VOTER_VAMM_POOLS_FACTORY_LIST: string[] = [
+export const VOTER_NONCL_POOLS_FACTORY_LIST: string[] = [
   "0x420DD381b31aEf6683db6B902084cB0FFECe40Da", // base
   "0xF1046053aa5682b4F9a81b5481394DA16BE5FF5a", // optimism
 ].map((x) => toChecksumAddress(x));
@@ -49,7 +49,7 @@ export const SUPERCHAIN_LEAF_VOTER_CLPOOLS_FACTORY_LIST: string[] = [
   "0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F", // All superchain chains have this address
 ].map((x) => toChecksumAddress(x));
 
-export const SUPERCHAIN_LEAF_VOTER_VAMM_POOLS_FACTORY_LIST: string[] = [
+export const SUPERCHAIN_LEAF_VOTER_NONCL_POOLS_FACTORY_LIST: string[] = [
   "0x31832f2a97Fd20664D76Cc421207669b55CE4BC0", // All superchain chains have this address
 ].map((x) => toChecksumAddress(x));
 
@@ -582,7 +582,15 @@ const SWELL_CONSTANTS: chainConstants = {
  * @returns string Merged Token ID.
  */
 export const TokenIdByChain = (address: string, chainId: number) =>
-  `${toChecksumAddress(address)}-${chainId}`;
+  `${address}-${chainId}`;
+
+/**
+ * Create a unique ID for a pool on a specific chain as used by LiquidityPoolAggregator.
+ * @param chainId
+ * @param pool
+ * @returns string Combined pool ID.
+ */
+export const PoolId = (chainId: number, pool: string) => `${chainId}-${pool}`;
 
 /**
  * Create a unique ID for a token on a specific chain at a specific block. Really should only be used
@@ -596,7 +604,7 @@ export const TokenIdByBlock = (
   address: string,
   chainId: number,
   blockNumber: number,
-) => `${chainId}_${toChecksumAddress(address)}_${blockNumber}`;
+) => `${chainId}-${address}-${blockNumber}`;
 
 // Key is chain ID
 export const CHAIN_CONSTANTS: Record<number, chainConstants> = {

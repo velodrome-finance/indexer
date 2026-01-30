@@ -20,10 +20,11 @@ import { setupCommon } from "./common";
 describe("PoolBurnAndMintLogic", () => {
   const commonData = setupCommon();
   const { mockLiquidityPoolData, mockToken0Data, mockToken1Data } = commonData;
+  const poolAddress = mockLiquidityPoolData.poolAddress;
 
   // Shared constants
   const CHAIN_ID = 10;
-  const POOL_ADDRESS = mockLiquidityPoolData.id;
+  const POOL_ADDRESS = poolAddress;
   const TX_HASH =
     "0x1234567890123456789012345678901234567890123456789012345678901234";
   const USER_ADDRESS = "0x1111111111111111111111111111111111111111";

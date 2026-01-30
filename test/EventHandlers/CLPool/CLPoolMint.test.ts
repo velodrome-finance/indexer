@@ -5,8 +5,8 @@ describe("CLPool Mint Event Handler", () => {
   let mockDb: ReturnType<typeof MockDb.createMockDb>;
   const { mockLiquidityPoolData, mockToken0Data, mockToken1Data } =
     setupCommon();
+  const poolAddress = mockLiquidityPoolData.poolAddress;
   const chainId = 10;
-  const poolAddress = mockLiquidityPoolData.id;
   const ownerAddress = "0x1111111111111111111111111111111111111111";
   const transactionHash =
     "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890";

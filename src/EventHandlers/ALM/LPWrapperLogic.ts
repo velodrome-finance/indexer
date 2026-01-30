@@ -11,7 +11,7 @@ import {
   loadUserStatsPerPool,
   updateUserStatsPerPool,
 } from "../../Aggregators/UserStatsPerPool";
-import { ZERO_ADDRESS } from "../../Constants";
+import { PoolId, ZERO_ADDRESS } from "../../Constants";
 
 interface MatchingBurnTransfer {
   id: string;
@@ -48,12 +48,13 @@ export async function calculateLiquidityFromAmounts(
 
   try {
     // Load pool entity to get sqrtPriceX96
+    const poolId = PoolId(chainId, poolAddress);
     const liquidityPoolAggregator =
-      await context.LiquidityPoolAggregator.get(poolAddress);
+      await context.LiquidityPoolAggregator.get(poolId);
 
     if (!liquidityPoolAggregator) {
       context.log.error(
-        `[ALMLPWrapper.${eventType}] LiquidityPoolAggregator not found for pool ${poolAddress} on chain ${chainId}. Skipping liquidity update.`,
+        `[ALMLPWrapper.${eventType}] LiquidityPoolAggregator ${poolId} not found on chain ${chainId}. Skipping liquidity update.`,
       );
       return updatedLiquidity;
     }
@@ -83,7 +84,7 @@ export async function calculateLiquidityFromAmounts(
     } else {
       // Do not update liquidity if sqrtPriceX96 is undefined or 0
       context.log.warn(
-        `[ALMLPWrapper.${eventType}] sqrtPriceX96 is undefined or 0 for pool ${poolAddress} at block ${blockNumber} on chain ${chainId}. Skipping liquidity update.`,
+        `[ALMLPWrapper.${eventType}] sqrtPriceX96 is undefined or 0 for pool ${poolId} at block ${blockNumber} on chain ${chainId}. Skipping liquidity update.`,
       );
     }
   } catch (error) {
