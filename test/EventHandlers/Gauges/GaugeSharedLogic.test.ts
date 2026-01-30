@@ -20,22 +20,24 @@ import {
 import { setupCommon } from "../Pool/common";
 
 describe("GaugeSharedLogic", () => {
-  const {
-    mockLiquidityPoolData,
-    mockToken0Data,
-    mockToken1Data,
-    createMockLiquidityPoolAggregator,
-  } = setupCommon();
+  const { mockToken0Data, mockToken1Data, createMockLiquidityPoolAggregator } =
+    setupCommon();
   const mockChainId = 8453;
-  const mockPoolAddress = "0x1111111111111111111111111111111111111111";
-  const mockGaugeAddress = "0x5555555555555555555555555555555555555555";
-  const mockUserAddress = "0x2222222222222222222222222222222222222222";
+  const mockPoolAddress = toChecksumAddress(
+    "0x1111111111111111111111111111111111111111",
+  );
+  const mockGaugeAddress = toChecksumAddress(
+    "0x5555555555555555555555555555555555555555",
+  );
+  const mockUserAddress = toChecksumAddress(
+    "0x2222222222222222222222222222222222222222",
+  );
   const mockTimestamp = new Date(1000000 * 1000);
 
   const mockToken0: Token = {
     ...mockToken0Data,
     id: "0x3333333333333333333333333333333333333333-8453",
-    address: "0x3333333333333333333333333333333333333333",
+    address: toChecksumAddress("0x3333333333333333333333333333333333333333"),
     symbol: "USDC",
     name: "USD Coin",
     chainId: mockChainId,
@@ -48,7 +50,7 @@ describe("GaugeSharedLogic", () => {
   const mockToken1: Token = {
     ...mockToken1Data,
     id: "0x4444444444444444444444444444444444444444-8453",
-    address: "0x4444444444444444444444444444444444444444",
+    address: toChecksumAddress("0x4444444444444444444444444444444444444444"),
     symbol: "USDT",
     name: "Tether USD",
     chainId: mockChainId,
@@ -96,7 +98,7 @@ describe("GaugeSharedLogic", () => {
     };
 
     mockLiquidityPoolAggregator = createMockLiquidityPoolAggregator({
-      id: mockPoolAddress,
+      poolAddress: mockPoolAddress,
       chainId: mockChainId,
       name: "USDC/USDT",
       token0_id: mockToken0.id,
@@ -130,7 +132,9 @@ describe("GaugeSharedLogic", () => {
     });
 
     // Create reward token (AERO on Base)
-    const rewardTokenAddress = "0x940181a94A35A4569E4529A3CDfB74e38FD98631";
+    const rewardTokenAddress = toChecksumAddress(
+      "0x940181a94A35A4569E4529A3CDfB74e38FD98631",
+    );
     mockRewardToken = {
       id: TokenIdByChain(rewardTokenAddress, mockChainId),
       address: toChecksumAddress(rewardTokenAddress),
@@ -165,8 +169,9 @@ describe("GaugeSharedLogic", () => {
           gaugeAddress: {
             eq: async (gaugeAddress: string) => {
               // Find pools with matching gauge address
-              const pool =
-                updatedDB.entities.LiquidityPoolAggregator.get(mockPoolAddress);
+              const pool = updatedDB.entities.LiquidityPoolAggregator.get(
+                mockLiquidityPoolAggregator.id,
+              );
               return pool && pool.gaugeAddress === gaugeAddress ? [pool] : [];
             },
           },
@@ -265,8 +270,9 @@ describe("GaugeSharedLogic", () => {
 
       await processGaugeDeposit(depositData, mockContext, "TestGaugeDeposit");
 
-      const updatedPool =
-        updatedDB.entities.LiquidityPoolAggregator.get(mockPoolAddress);
+      const updatedPool = updatedDB.entities.LiquidityPoolAggregator.get(
+        mockLiquidityPoolAggregator.id,
+      );
       const updatedUser = updatedDB.entities.UserStatsPerPool.get(
         mockUserStatsPerPool.id,
       );
@@ -307,8 +313,9 @@ describe("GaugeSharedLogic", () => {
         "TestGaugeWithdraw",
       );
 
-      const updatedPool =
-        updatedDB.entities.LiquidityPoolAggregator.get(mockPoolAddress);
+      const updatedPool = updatedDB.entities.LiquidityPoolAggregator.get(
+        mockLiquidityPoolAggregator.id,
+      );
       const updatedUser = updatedDB.entities.UserStatsPerPool.get(
         mockUserStatsPerPool.id,
       );
@@ -349,8 +356,9 @@ describe("GaugeSharedLogic", () => {
         "TestGaugeClaimRewards",
       );
 
-      const updatedPool =
-        updatedDB.entities.LiquidityPoolAggregator.get(mockPoolAddress);
+      const updatedPool = updatedDB.entities.LiquidityPoolAggregator.get(
+        mockLiquidityPoolAggregator.id,
+      );
       const updatedUser = updatedDB.entities.UserStatsPerPool.get(
         mockUserStatsPerPool.id,
       );
@@ -379,7 +387,9 @@ describe("GaugeSharedLogic", () => {
   describe("Error Handling", () => {
     it("should handle missing pool gracefully", async () => {
       const depositData: GaugeEventData = {
-        gaugeAddress: "0x9999999999999999999999999999999999999999", // Non-existent gauge
+        gaugeAddress: toChecksumAddress(
+          "0x9999999999999999999999999999999999999999",
+        ), // Non-existent gauge
         userAddress: mockUserAddress,
         chainId: mockChainId,
         blockNumber: 100,
@@ -391,8 +401,9 @@ describe("GaugeSharedLogic", () => {
       await processGaugeDeposit(depositData, mockContext, "TestGaugeDeposit");
 
       // Pool and user should remain unchanged
-      const updatedPool =
-        updatedDB.entities.LiquidityPoolAggregator.get(mockPoolAddress);
+      const updatedPool = updatedDB.entities.LiquidityPoolAggregator.get(
+        mockLiquidityPoolAggregator.id,
+      );
       const updatedUser = updatedDB.entities.UserStatsPerPool.get(
         mockUserStatsPerPool.id,
       );
@@ -428,8 +439,9 @@ describe("GaugeSharedLogic", () => {
       );
 
       // Pool and user should remain unchanged
-      const updatedPool =
-        updatedDB.entities.LiquidityPoolAggregator.get(mockPoolAddress);
+      const updatedPool = updatedDB.entities.LiquidityPoolAggregator.get(
+        mockLiquidityPoolAggregator.id,
+      );
       const updatedUser = updatedDB.entities.UserStatsPerPool.get(
         mockUserStatsPerPool.id,
       );
@@ -465,8 +477,9 @@ describe("GaugeSharedLogic", () => {
       );
 
       // Pool and user should remain unchanged
-      const updatedPool =
-        updatedDB.entities.LiquidityPoolAggregator.get(mockPoolAddress);
+      const updatedPool = updatedDB.entities.LiquidityPoolAggregator.get(
+        mockLiquidityPoolAggregator.id,
+      );
       const updatedUser = updatedDB.entities.UserStatsPerPool.get(
         mockUserStatsPerPool.id,
       );
@@ -502,8 +515,9 @@ describe("GaugeSharedLogic", () => {
       );
 
       // Pool and user should remain unchanged
-      const updatedPool =
-        updatedDB.entities.LiquidityPoolAggregator.get(mockPoolAddress);
+      const updatedPool = updatedDB.entities.LiquidityPoolAggregator.get(
+        mockLiquidityPoolAggregator.id,
+      );
       const updatedUser = updatedDB.entities.UserStatsPerPool.get(
         mockUserStatsPerPool.id,
       );
@@ -545,8 +559,9 @@ describe("GaugeSharedLogic", () => {
       );
 
       // Pool and user should remain unchanged
-      const updatedPool =
-        updatedDB.entities.LiquidityPoolAggregator.get(mockPoolAddress);
+      const updatedPool = updatedDB.entities.LiquidityPoolAggregator.get(
+        mockLiquidityPoolAggregator.id,
+      );
       const updatedUser = updatedDB.entities.UserStatsPerPool.get(
         mockUserStatsPerPool.id,
       );

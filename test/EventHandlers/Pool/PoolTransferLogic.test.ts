@@ -19,7 +19,7 @@ describe("PoolTransferLogic", () => {
 
   // Shared constants
   const CHAIN_ID = 10;
-  const POOL_ADDRESS = mockLiquidityPoolData.id;
+  const POOL_ADDRESS = mockLiquidityPoolData.poolAddress;
   const USER_ADDRESS = "0x1111111111111111111111111111111111111111";
   const RECIPIENT_ADDRESS = "0x2222222222222222222222222222222222222222";
   const TX_HASH =

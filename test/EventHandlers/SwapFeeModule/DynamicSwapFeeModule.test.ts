@@ -52,7 +52,7 @@ describe("DynamicSwapFeeModule Events", () => {
     it("should update baseFee, scalingFactor, and feeCap fields on the pool entity", async () => {
       // Setup
       let mockDb = MockDb.createMockDb();
-      const poolAddress = toChecksumAddress(mockLiquidityPoolData.id);
+      const poolAddress = mockLiquidityPoolData.poolAddress;
       const baseFee = 400n;
       const scalingFactor = 10000000n;
       const feeCap = 2000n;
@@ -84,7 +84,7 @@ describe("DynamicSwapFeeModule Events", () => {
       });
 
       let updatedPool = result.entities.LiquidityPoolAggregator.get(
-        toChecksumAddress(poolAddress),
+        mockLiquidityPoolData.id,
       );
 
       expect(updatedPool).toBeDefined();
@@ -115,7 +115,7 @@ describe("DynamicSwapFeeModule Events", () => {
       });
 
       updatedPool = result.entities.LiquidityPoolAggregator.get(
-        toChecksumAddress(poolAddress),
+        mockLiquidityPoolData.id,
       );
 
       expect(updatedPool).toBeDefined();
@@ -147,7 +147,7 @@ describe("DynamicSwapFeeModule Events", () => {
       });
 
       updatedPool = result.entities.LiquidityPoolAggregator.get(
-        toChecksumAddress(poolAddress),
+        mockLiquidityPoolData.id,
       );
       expect(updatedPool).toBeDefined();
       // baseFee and scalingFactor should be preserved from previous events

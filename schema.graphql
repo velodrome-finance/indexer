@@ -1,6 +1,7 @@
 type LiquidityPoolAggregator {
-  id: ID! # pool address
+  id: ID! # {chainId}-{poolAddress}
   chainId: Int!
+  poolAddress: String! # address of the pool
   name: String! # name of the pool
   token0_id: String! # token0 id
   token1_id: String! # token1 id
@@ -89,7 +90,7 @@ type LiquidityPoolAggregator {
 
 # Snapshot of the LiquidityPool entity
 type LiquidityPoolAggregatorSnapshot {
-  id: ID! # pool address
+  id: ID! # {chainId}-{poolAddress}-{snapshotTime}
   chainId: Int! # chain id
   name: String! # name of the pool
   pool: String! # pool address

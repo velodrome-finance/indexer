@@ -13,10 +13,12 @@ describe("ALMLPWrapperV2 Events", () => {
     createMockUserStatsPerPool,
   } = setupCommon();
   const chainId = mockLiquidityPoolData.chainId;
-  const lpWrapperAddress = "0x000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-  const poolAddress = mockLiquidityPoolData.id;
-  const userA = "0xcccccccccccccccccccccccccccccccccccccccc";
-  const userB = "0xdddddddddddddddddddddddddddddddddddddddd";
+  const lpWrapperAddress = toChecksumAddress(
+    "0x000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  );
+  const poolAddress = mockLiquidityPoolData.poolAddress;
+  const userA = toChecksumAddress("0xcccccccccccccccccccccccccccccccccccccccc");
+  const userB = toChecksumAddress("0xdddddddddddddddddddddddddddddddddddddddd");
 
   const mockEventData = {
     block: {
@@ -26,7 +28,7 @@ describe("ALMLPWrapperV2 Events", () => {
     },
     chainId,
     logIndex: 1,
-    srcAddress: toChecksumAddress(lpWrapperAddress),
+    srcAddress: lpWrapperAddress,
     transaction: {
       hash: "0x1111111111111111111111111111111111111111111111111111111111111111",
     },
@@ -37,7 +39,7 @@ describe("ALMLPWrapperV2 Events", () => {
       let mockDb = MockDb.createMockDb();
 
       // Pre-populate with existing wrapper (created by StrategyCreated event)
-      const wrapperId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
+      const wrapperId = `${lpWrapperAddress}_${chainId}`;
       mockDb = mockDb.entities.ALM_LP_Wrapper.set({
         ...mockALMLPWrapperData,
         id: wrapperId,
@@ -102,7 +104,7 @@ describe("ALMLPWrapperV2 Events", () => {
       });
 
       // Verify that no wrapper was created
-      const wrapperId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
+      const wrapperId = `${lpWrapperAddress}_${chainId}`;
       const wrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
       expect(wrapper).toBeUndefined();
     });
@@ -111,7 +113,7 @@ describe("ALMLPWrapperV2 Events", () => {
       let mockDb = MockDb.createMockDb();
 
       // Pre-populate with existing wrapper (created by StrategyCreated event)
-      const wrapperId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
+      const wrapperId = `${lpWrapperAddress}_${chainId}`;
       mockDb = mockDb.entities.ALM_LP_Wrapper.set({
         ...mockALMLPWrapperData,
         id: wrapperId,
@@ -133,13 +135,13 @@ describe("ALMLPWrapperV2 Events", () => {
         mockDb,
       });
 
-      const userStatsId = `${toChecksumAddress(userA)}_${toChecksumAddress(poolAddress)}_${chainId}`;
+      const userStatsId = `${userA}_${poolAddress}_${chainId}`;
       const userStats = result.entities.UserStatsPerPool.get(userStatsId);
 
       expect(userStats).toBeDefined();
       expect(userStats?.id).toBe(userStatsId);
-      expect(userStats?.userAddress).toBe(toChecksumAddress(userA));
-      expect(userStats?.poolAddress).toBe(toChecksumAddress(poolAddress));
+      expect(userStats?.userAddress).toBe(userA);
+      expect(userStats?.poolAddress).toBe(poolAddress);
       expect(userStats?.chainId).toBe(chainId);
       // User amounts are derived from LP share, not directly from event amounts
       // After deposit: wrapper amount0=1500, amount1=750, lpAmount=3000
@@ -153,14 +155,14 @@ describe("ALMLPWrapperV2 Events", () => {
       let mockDb = MockDb.createMockDb();
 
       // Pre-populate with existing wrapper (created by StrategyCreated event)
-      const wrapperId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
+      const wrapperId = `${lpWrapperAddress}_${chainId}`;
       mockDb = mockDb.entities.ALM_LP_Wrapper.set({
         ...mockALMLPWrapperData,
         id: wrapperId,
       });
 
       // Pre-populate with existing user stats
-      const userStatsId = `${toChecksumAddress(userA)}_${toChecksumAddress(poolAddress)}_${chainId}`;
+      const userStatsId = `${userA}_${poolAddress}_${chainId}`;
       mockDb = mockDb.entities.UserStatsPerPool.set(
         createMockUserStatsPerPool({
           userAddress: userA,
@@ -206,7 +208,7 @@ describe("ALMLPWrapperV2 Events", () => {
       let mockDb = MockDb.createMockDb();
 
       // Pre-populate with existing wrapper (created by StrategyCreated event)
-      const wrapperId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
+      const wrapperId = `${lpWrapperAddress}_${chainId}`;
       mockDb = mockDb.entities.ALM_LP_Wrapper.set({
         ...mockALMLPWrapperData,
         id: wrapperId,
@@ -228,7 +230,7 @@ describe("ALMLPWrapperV2 Events", () => {
         mockDb,
       });
 
-      const userStatsId = `${toChecksumAddress(userA)}_${toChecksumAddress(poolAddress)}_${chainId}`;
+      const userStatsId = `${userA}_${poolAddress}_${chainId}`;
 
       const wrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
       const userStats = result.entities.UserStatsPerPool.get(userStatsId);
@@ -262,7 +264,7 @@ describe("ALMLPWrapperV2 Events", () => {
       let mockDb = MockDb.createMockDb();
 
       // Pre-populate with existing wrapper
-      const wrapperId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
+      const wrapperId = `${lpWrapperAddress}_${chainId}`;
       mockDb = mockDb.entities.ALM_LP_Wrapper.set({
         ...mockALMLPWrapperData,
         id: wrapperId,
@@ -322,7 +324,7 @@ describe("ALMLPWrapperV2 Events", () => {
       });
 
       // Verify that no wrapper was created or updated
-      const wrapperId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
+      const wrapperId = `${lpWrapperAddress}_${chainId}`;
       const wrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
       expect(wrapper).toBeUndefined();
     });
@@ -331,14 +333,14 @@ describe("ALMLPWrapperV2 Events", () => {
       let mockDb = MockDb.createMockDb();
 
       // Pre-populate with existing wrapper (created by StrategyCreated event)
-      const wrapperId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
+      const wrapperId = `${lpWrapperAddress}_${chainId}`;
       mockDb = mockDb.entities.ALM_LP_Wrapper.set({
         ...mockALMLPWrapperData,
         id: wrapperId,
       });
 
       // Pre-populate with existing user stats
-      const userStatsId = `${toChecksumAddress(userA)}_${toChecksumAddress(poolAddress)}_${chainId}`;
+      const userStatsId = `${userA}_${poolAddress}_${chainId}`;
       mockDb = mockDb.entities.UserStatsPerPool.set(
         createMockUserStatsPerPool({
           userAddress: userA,
@@ -386,15 +388,15 @@ describe("ALMLPWrapperV2 Events", () => {
       let mockDb = MockDb.createMockDb();
 
       // Pre-populate with existing wrapper (required for Transfer to work)
-      const wrapperId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
+      const wrapperId = `${lpWrapperAddress}_${chainId}`;
       mockDb = mockDb.entities.ALM_LP_Wrapper.set({
         ...mockALMLPWrapperData,
         id: wrapperId,
       });
 
       // Pre-populate with existing user stats for both sender and recipient
-      const userStatsFromId = `${toChecksumAddress(userB)}_${toChecksumAddress(poolAddress)}_${chainId}`;
-      const userStatsToId = `${toChecksumAddress(userA)}_${toChecksumAddress(poolAddress)}_${chainId}`;
+      const userStatsFromId = `${userB}_${poolAddress}_${chainId}`;
+      const userStatsToId = `${userA}_${poolAddress}_${chainId}`;
 
       mockDb = mockDb.entities.UserStatsPerPool.set(
         createMockUserStatsPerPool({
@@ -454,21 +456,21 @@ describe("ALMLPWrapperV2 Events", () => {
       // Recipient LP=3000, so recipient gets: amount0=(1000*3000)/2000=1500, amount1=(500*3000)/2000=750
       expect(userStatsTo?.almAmount0).toBe(1500n * TEN_TO_THE_18_BI);
       expect(userStatsTo?.almAmount1).toBe(750n * TEN_TO_THE_6_BI);
-      expect(userStatsTo?.almAddress).toBe(toChecksumAddress(lpWrapperAddress));
+      expect(userStatsTo?.almAddress).toBe(lpWrapperAddress);
     });
 
     it("should handle transfer when recipient has no existing ALM position", async () => {
       let mockDb = MockDb.createMockDb();
 
       // Pre-populate with existing wrapper
-      const wrapperId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
+      const wrapperId = `${lpWrapperAddress}_${chainId}`;
       mockDb = mockDb.entities.ALM_LP_Wrapper.set({
         ...mockALMLPWrapperData,
         id: wrapperId,
       });
 
       // Pre-populate only sender's user stats
-      const userStatsFromId = `${toChecksumAddress(userB)}_${toChecksumAddress(poolAddress)}_${chainId}`;
+      const userStatsFromId = `${userB}_${poolAddress}_${chainId}`;
       mockDb = mockDb.entities.UserStatsPerPool.set(
         createMockUserStatsPerPool({
           userAddress: userB,
@@ -497,7 +499,7 @@ describe("ALMLPWrapperV2 Events", () => {
       expect(userStatsFrom?.almLpAmount).toBe(2500n * TEN_TO_THE_18_BI); // 3000 - 500
 
       // Verify recipient's almLpAmount was created and set to transfer amount
-      const userStatsToId = `${toChecksumAddress(userA)}_${toChecksumAddress(poolAddress)}_${chainId}`;
+      const userStatsToId = `${userA}_${poolAddress}_${chainId}`;
       const userStatsTo = result.entities.UserStatsPerPool.get(userStatsToId);
       expect(userStatsTo).toBeDefined();
       expect(userStatsTo?.almLpAmount).toBe(500n * TEN_TO_THE_18_BI); // 0 + 500
@@ -506,7 +508,7 @@ describe("ALMLPWrapperV2 Events", () => {
       // Recipient LP=500, so recipient gets: amount0=(1000*500)/2000=250, amount1=(500*500)/2000=125
       expect(userStatsTo?.almAmount0).toBe(250n * TEN_TO_THE_18_BI);
       expect(userStatsTo?.almAmount1).toBe(125n * TEN_TO_THE_6_BI);
-      expect(userStatsTo?.almAddress).toBe(toChecksumAddress(lpWrapperAddress));
+      expect(userStatsTo?.almAddress).toBe(lpWrapperAddress);
     });
 
     it("should not update when ALM_LP_Wrapper entity not found", async () => {
@@ -525,13 +527,13 @@ describe("ALMLPWrapperV2 Events", () => {
       });
 
       // Verify that no wrapper was created or updated
-      const wrapperId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
+      const wrapperId = `${lpWrapperAddress}_${chainId}`;
       const wrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
       expect(wrapper).toBeUndefined();
 
       // Verify that no user stats were created or updated
-      const userStatsFromId = `${toChecksumAddress(userB)}_${toChecksumAddress(poolAddress)}_${chainId}`;
-      const userStatsToId = `${toChecksumAddress(userA)}_${toChecksumAddress(poolAddress)}_${chainId}`;
+      const userStatsFromId = `${userB}_${poolAddress}_${chainId}`;
+      const userStatsToId = `${userA}_${poolAddress}_${chainId}`;
       const userStatsFrom =
         result.entities.UserStatsPerPool.get(userStatsFromId);
       const userStatsTo = result.entities.UserStatsPerPool.get(userStatsToId);
@@ -543,7 +545,7 @@ describe("ALMLPWrapperV2 Events", () => {
       let mockDb = MockDb.createMockDb();
 
       // Pre-populate with existing wrapper
-      const wrapperId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
+      const wrapperId = `${lpWrapperAddress}_${chainId}`;
       mockDb = mockDb.entities.ALM_LP_Wrapper.set({
         ...mockALMLPWrapperData,
         id: wrapperId,
@@ -566,7 +568,7 @@ describe("ALMLPWrapperV2 Events", () => {
         mockDb,
       });
 
-      const toUserStatsId = `${toChecksumAddress(userA)}_${toChecksumAddress(poolAddress)}_${chainId}`;
+      const toUserStatsId = `${userA}_${poolAddress}_${chainId}`;
       const toUserStats =
         mintResult.entities.UserStatsPerPool.get(toUserStatsId);
 
@@ -576,7 +578,7 @@ describe("ALMLPWrapperV2 Events", () => {
       // Burn: to zero address - handler should return early without updating UserStatsPerPool
       // Pre-populate with user stats for the burner
       const burnerAddress = userB;
-      const burnerUserStatsId = `${toChecksumAddress(burnerAddress)}_${toChecksumAddress(poolAddress)}_${chainId}`;
+      const burnerUserStatsId = `${burnerAddress}_${poolAddress}_${chainId}`;
       mockDb = mockDb.entities.UserStatsPerPool.set(
         createMockUserStatsPerPool({
           userAddress: burnerAddress,
@@ -614,7 +616,7 @@ describe("ALMLPWrapperV2 Events", () => {
       let mockDb = MockDb.createMockDb();
 
       // Pre-populate with existing wrapper (created by StrategyCreated event)
-      const wrapperId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
+      const wrapperId = `${lpWrapperAddress}_${chainId}`;
       mockDb = mockDb.entities.ALM_LP_Wrapper.set({
         ...mockALMLPWrapperData,
         id: wrapperId,
@@ -650,7 +652,7 @@ describe("ALMLPWrapperV2 Events", () => {
       let mockDb = MockDb.createMockDb();
 
       // Pre-populate with existing wrapper (created by StrategyCreated event)
-      const wrapperId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
+      const wrapperId = `${lpWrapperAddress}_${chainId}`;
       mockDb = mockDb.entities.ALM_LP_Wrapper.set({
         ...mockALMLPWrapperData,
         id: wrapperId,
@@ -725,8 +727,8 @@ describe("ALMLPWrapperV2 Events", () => {
       ); // 2000 + 1000 + 2000 = 5000
 
       // Both users should have their individual stats
-      const userStats1Id = `${toChecksumAddress(userA)}_${toChecksumAddress(poolAddress)}_${chainId}`;
-      const userStats2Id = `${toChecksumAddress(recipient2)}_${toChecksumAddress(poolAddress)}_${chainId}`;
+      const userStats1Id = `${userA}_${poolAddress}_${chainId}`;
+      const userStats2Id = `${recipient2}_${poolAddress}_${chainId}`;
 
       const userStats1 = result.entities.UserStatsPerPool.get(userStats1Id);
       const userStats2 = result.entities.UserStatsPerPool.get(userStats2Id);
@@ -747,7 +749,7 @@ describe("ALMLPWrapperV2 Events", () => {
       let mockDb = MockDb.createMockDb();
 
       // Pre-populate with existing wrapper
-      const wrapperId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
+      const wrapperId = `${lpWrapperAddress}_${chainId}`;
       const initialAmount0 = 1000n * TEN_TO_THE_18_BI;
       const initialAmount1 = 500n * TEN_TO_THE_6_BI;
       mockDb = mockDb.entities.ALM_LP_Wrapper.set({
@@ -829,15 +831,13 @@ describe("ALMLPWrapperV2 Events", () => {
         mockDb,
       });
 
-      const eventId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
+      const eventId = `${lpWrapperAddress}_${chainId}`;
       const createdEvent =
         result.entities.ALM_TotalSupplyLimitUpdated_event.get(eventId);
 
       expect(createdEvent).toBeDefined();
       expect(createdEvent?.id).toBe(eventId);
-      expect(createdEvent?.lpWrapperAddress).toBe(
-        toChecksumAddress(lpWrapperAddress),
-      );
+      expect(createdEvent?.lpWrapperAddress).toBe(lpWrapperAddress);
       expect(createdEvent?.currentTotalSupplyLPTokens).toBe(
         7500n * TEN_TO_THE_18_BI,
       );
@@ -850,10 +850,10 @@ describe("ALMLPWrapperV2 Events", () => {
     it("should update existing ALM_TotalSupplyLimitUpdated_event entity", async () => {
       let mockDb = MockDb.createMockDb();
 
-      const eventId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
+      const eventId = `${lpWrapperAddress}_${chainId}`;
       mockDb = mockDb.entities.ALM_TotalSupplyLimitUpdated_event.set({
         id: eventId,
-        lpWrapperAddress: toChecksumAddress(lpWrapperAddress),
+        lpWrapperAddress: lpWrapperAddress,
         currentTotalSupplyLPTokens: 5000n * TEN_TO_THE_18_BI,
         transactionHash: "0xoldhash",
       });

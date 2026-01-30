@@ -1,5 +1,4 @@
 import type { UserStatsPerPool, handlerContext } from "generated";
-import { toChecksumAddress } from "../Constants";
 
 export interface UserStatsPerPoolDiff {
   incrementalCurrentLiquidityUSD: bigint;
@@ -51,7 +50,7 @@ export function getUserStatsPerPoolId(
   poolAddress: string,
   chainId: number,
 ): string {
-  return `${toChecksumAddress(userAddress)}_${toChecksumAddress(poolAddress)}_${chainId}`;
+  return `${userAddress}_${poolAddress}_${chainId}`;
 }
 
 /**
@@ -98,8 +97,8 @@ export async function loadOrCreateUserData(
 
   if (!existingStats) {
     existingStats = createUserStatsPerPoolEntity(
-      toChecksumAddress(userAddress),
-      toChecksumAddress(poolAddress),
+      userAddress,
+      poolAddress,
       chainId,
       timestamp,
     );
@@ -120,9 +119,9 @@ export function createUserStatsPerPoolEntity(
 ): UserStatsPerPool {
   return {
     id: getUserStatsPerPoolId(userAddress, poolAddress, chainId),
-    userAddress: toChecksumAddress(userAddress),
-    poolAddress: toChecksumAddress(poolAddress),
-    chainId,
+    userAddress: userAddress,
+    poolAddress: poolAddress,
+    chainId: chainId,
 
     // Liquidity metrics
     currentLiquidityUSD: 0n,
