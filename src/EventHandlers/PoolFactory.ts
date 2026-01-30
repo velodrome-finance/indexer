@@ -148,6 +148,7 @@ PoolFactory.SetCustomFee.handler(async ({ event, context }) => {
     poolEntity,
     new Date(event.block.timestamp * 1000),
     context,
+    event.chainId,
     event.block.number,
   );
 });
