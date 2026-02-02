@@ -73,6 +73,7 @@ CLPool.Burn.handler(async ({ event, context }) => {
       liquidityPoolAggregator,
       timestamp,
       context,
+      event.chainId,
       event.block.number,
     ),
     updateUserStatsPerPool(userDiff, userData, context),
@@ -123,6 +124,7 @@ CLPool.Collect.handler(async ({ event, context }) => {
       liquidityPoolAggregator,
       timestamp,
       context,
+      event.chainId,
       event.block.number,
     ),
     updateUserStatsPerPool(userDiff, userData, context),
@@ -179,6 +181,7 @@ CLPool.CollectFees.handler(async ({ event, context }) => {
       liquidityPoolAggregator,
       timestamp,
       context,
+      event.chainId,
       event.block.number,
     ),
     updateUserStatsPerPool(userDiff, userData, context),
@@ -225,6 +228,7 @@ CLPool.Flash.handler(async ({ event, context }) => {
       liquidityPoolAggregator,
       timestamp,
       context,
+      event.chainId,
       event.block.number,
     ),
     ...((userDiff.incrementalTotalFlashLoanVolumeUSD ?? 0n) > 0n
@@ -258,6 +262,7 @@ CLPool.IncreaseObservationCardinalityNext.handler(
       liquidityPoolAggregator,
       new Date(event.block.timestamp * 1000),
       context,
+      event.chainId,
       event.block.number,
     );
   },
@@ -303,6 +308,7 @@ CLPool.Mint.handler(async ({ event, context }) => {
       liquidityPoolAggregator,
       timestamp,
       context,
+      event.chainId,
       event.block.number,
     ),
     updateUserStatsPerPool(userDiff, userData, context),
@@ -350,6 +356,7 @@ CLPool.SetFeeProtocol.handler(async ({ event, context }) => {
     liquidityPoolAggregator,
     new Date(event.block.timestamp * 1000),
     context,
+    event.chainId,
     event.block.number,
   );
 });
@@ -400,6 +407,7 @@ CLPool.Swap.handler(async ({ event, context }) => {
       liquidityPoolAggregator,
       timestamp,
       context,
+      event.chainId,
       event.block.number,
     ),
     updateUserStatsPerPool(userDiff, userData, context),

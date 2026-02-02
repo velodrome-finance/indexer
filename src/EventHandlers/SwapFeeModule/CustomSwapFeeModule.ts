@@ -25,6 +25,7 @@ CustomSwapFeeModule.SetCustomFee.handler(async ({ event, context }) => {
     pool,
     new Date(event.block.timestamp * 1000),
     context,
+    event.chainId,
     event.block.number,
   );
 
