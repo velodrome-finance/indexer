@@ -1,4 +1,4 @@
-import type { Token, handlerContext } from "generated";
+import type { Token, VeNFTState, handlerContext } from "generated";
 import {
   getIsAlive,
   getTokenDetails,
@@ -6,8 +6,10 @@ import {
 } from "../../../src/Effects/Index";
 import type { VoterCommonResult } from "../../../src/EventHandlers/Voter/VoterCommonLogic";
 import {
+  VoterEventType,
   buildLpDiffFromDistribute,
   computeVoterDistributeValues,
+  computeVoterRelatedEntitiesDiff,
 } from "../../../src/EventHandlers/Voter/VoterCommonLogic";
 
 function makeMockContext(effects: {
@@ -218,5 +220,60 @@ describe("buildLpDiffFromDistribute", () => {
     expect(diff.gaugeIsAlive).toBe(true);
     expect(diff.lastUpdatedTimestamp).toEqual(new Date(ts));
     expect(diff.gaugeAddress).toBe("0xgauge");
+  });
+});
+
+describe("computeVoterRelatedEntitiesDiff", () => {
+  const mockVeNFTState: VeNFTState = {
+    id: "10_1",
+    chainId: 10,
+    tokenId: 1n,
+    owner: "0x2222222222222222222222222222222222222222",
+    locktime: 100n,
+    lastUpdatedTimestamp: new Date(1000),
+    totalValueLocked: 1000n,
+    isAlive: true,
+  } as VeNFTState;
+
+  const timestamp = new Date(2000);
+
+  it("returns positive weight delta for VOTED event", () => {
+    const totalWeight = 500n;
+    const weight = 100n;
+
+    const result = computeVoterRelatedEntitiesDiff(
+      totalWeight,
+      weight,
+      mockVeNFTState,
+      timestamp,
+      VoterEventType.VOTED,
+    );
+
+    expect(result.poolVoteDiff.veNFTamountStaked).toBe(500n);
+    expect(result.userStatsPerPoolDiff.incrementalVeNFTamountStaked).toBe(100n);
+    expect(result.veNFTPoolVoteDiff.incrementalVeNFTamountStaked).toBe(100n);
+    expect(result.veNFTPoolVoteDiff.veNFTStateId).toBe("10_1");
+    expect(result.userStatsPerPoolDiff.lastActivityTimestamp).toBe(timestamp);
+    expect(result.veNFTPoolVoteDiff.lastUpdatedTimestamp).toBe(timestamp);
+  });
+
+  it("returns negative weight delta for ABSTAINED event", () => {
+    const totalWeight = 400n;
+    const weight = 100n;
+
+    const result = computeVoterRelatedEntitiesDiff(
+      totalWeight,
+      weight,
+      mockVeNFTState,
+      timestamp,
+      VoterEventType.ABSTAINED,
+    );
+
+    expect(result.poolVoteDiff.veNFTamountStaked).toBe(400n);
+    expect(result.userStatsPerPoolDiff.incrementalVeNFTamountStaked).toBe(
+      -100n,
+    );
+    expect(result.veNFTPoolVoteDiff.incrementalVeNFTamountStaked).toBe(-100n);
+    expect(result.veNFTPoolVoteDiff.veNFTStateId).toBe("10_1");
   });
 });
