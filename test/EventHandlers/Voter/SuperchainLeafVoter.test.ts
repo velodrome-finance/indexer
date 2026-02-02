@@ -12,24 +12,41 @@ describe("SuperchainLeafVoter Events", () => {
   afterEach(() => {
     jest.restoreAllMocks();
   });
+
+  const { createMockLiquidityPoolAggregator } = setupCommon();
+
   describe("GaugeCreated Event", () => {
     let mockDb: ReturnType<typeof MockDb.createMockDb>;
     let mockEvent: ReturnType<
       typeof SuperchainLeafVoter.GaugeCreated.createMockEvent
     >;
     const chainId = 10;
-    const poolAddress = "0x478946BcD4a5a22b316470F5486fAfb928C0bA25";
-    const gaugeAddress = "0xa75127121d28a9bf848f3b70e7eea26570aa7700";
+    const poolAddress = toChecksumAddress(
+      "0x478946BcD4a5a22b316470F5486fAfb928C0bA25",
+    );
+    const gaugeAddress = toChecksumAddress(
+      "0xa75127121d28a9bf848f3b70e7eea26570aa7700",
+    );
 
     beforeEach(() => {
       mockDb = MockDb.createMockDb();
       mockEvent = SuperchainLeafVoter.GaugeCreated.createMockEvent({
-        poolFactory: "0xeAD23f606643E387a073D0EE8718602291ffaAeB", // CL factory
-        votingRewardsFactory: "0x2222222222222222222222222222222222222222",
-        gaugeFactory: "0x3333333333333333333333333333333333333333",
+        poolFactory: toChecksumAddress(
+          "0xeAD23f606643E387a073D0EE8718602291ffaAeB",
+        ), // CL factory
+        votingRewardsFactory: toChecksumAddress(
+          "0x2222222222222222222222222222222222222222",
+        ),
+        gaugeFactory: toChecksumAddress(
+          "0x3333333333333333333333333333333333333333",
+        ),
         pool: poolAddress,
-        incentiveVotingReward: "0x5555555555555555555555555555555555555555",
-        feeVotingReward: "0x6666666666666666666666666666666666666666",
+        incentiveVotingReward: toChecksumAddress(
+          "0x5555555555555555555555555555555555555555",
+        ),
+        feeVotingReward: toChecksumAddress(
+          "0x6666666666666666666666666666666666666666",
+        ),
         gauge: gaugeAddress,
         mockEventData: {
           block: {
@@ -48,14 +65,11 @@ describe("SuperchainLeafVoter Events", () => {
       let mockLiquidityPool: LiquidityPoolAggregator;
 
       beforeEach(async () => {
-        const { mockLiquidityPoolData } = setupCommon();
-
-        mockLiquidityPool = {
-          ...mockLiquidityPoolData,
-          id: toChecksumAddress(poolAddress),
+        mockLiquidityPool = createMockLiquidityPoolAggregator({
+          poolAddress: poolAddress,
           chainId: chainId,
           gaugeAddress: "", // Initially empty
-        } as LiquidityPoolAggregator;
+        });
 
         mockDb = mockDb.entities.LiquidityPoolAggregator.set(mockLiquidityPool);
 
@@ -67,15 +81,15 @@ describe("SuperchainLeafVoter Events", () => {
 
       it("should update pool entity with gauge address and voting reward addresses", () => {
         const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
-          toChecksumAddress(poolAddress),
+          mockLiquidityPool.id,
         );
         expect(updatedPool).toBeDefined();
-        expect(updatedPool?.gaugeAddress).toBe(toChecksumAddress(gaugeAddress));
+        expect(updatedPool?.gaugeAddress).toBe(gaugeAddress);
         expect(updatedPool?.feeVotingRewardAddress).toBe(
-          "0x6666666666666666666666666666666666666666",
+          toChecksumAddress("0x6666666666666666666666666666666666666666"),
         );
         expect(updatedPool?.bribeVotingRewardAddress).toBe(
-          "0x5555555555555555555555555555555555555555",
+          toChecksumAddress("0x5555555555555555555555555555555555555555"),
         );
         expect(updatedPool?.lastUpdatedTimestamp).toEqual(
           new Date(1000000 * 1000),
@@ -103,7 +117,9 @@ describe("SuperchainLeafVoter Events", () => {
       typeof SuperchainLeafVoter.WhitelistToken.createMockEvent
     >;
     const chainId = 10;
-    const tokenAddress = "0x2222222222222222222222222222222222222222";
+    const tokenAddress = toChecksumAddress(
+      "0x2222222222222222222222222222222222222222",
+    );
 
     beforeEach(async () => {
       mockDb = MockDb.createMockDb();
@@ -277,8 +293,12 @@ describe("SuperchainLeafVoter Events", () => {
       typeof SuperchainLeafVoter.GaugeKilled.createMockEvent
     >;
     const chainId = 10;
-    const poolAddress = "0x478946BcD4a5a22b316470F5486fAfb928C0bA25";
-    const gaugeAddress = "0xa75127121d28a9bf848f3b70e7eea26570aa7700";
+    const poolAddress = toChecksumAddress(
+      "0x478946BcD4a5a22b316470F5486fAfb928C0bA25",
+    );
+    const gaugeAddress = toChecksumAddress(
+      "0xa75127121d28a9bf848f3b70e7eea26570aa7700",
+    );
 
     beforeEach(() => {
       mockDb = MockDb.createMockDb();
@@ -299,23 +319,22 @@ describe("SuperchainLeafVoter Events", () => {
     describe("when pool entity exists", () => {
       let resultDB: ReturnType<typeof MockDb.createMockDb>;
       let mockLiquidityPool: LiquidityPoolAggregator;
-      const feeVotingRewardAddress =
-        "0x6572b2b30f63B960608f3aA5205711C558998398";
-      const bribeVotingRewardAddress =
-        "0xc9eEBCD281d9A4c0839Eb643216caa80a68b88B1";
+      const feeVotingRewardAddress = toChecksumAddress(
+        "0x6572b2b30f63B960608f3aA5205711C558998398",
+      );
+      const bribeVotingRewardAddress = toChecksumAddress(
+        "0xc9eEBCD281d9A4c0839Eb643216caa80a68b88B1",
+      );
 
       beforeEach(async () => {
-        const { mockLiquidityPoolData } = setupCommon();
-
-        mockLiquidityPool = {
-          ...mockLiquidityPoolData,
-          id: toChecksumAddress(poolAddress),
+        mockLiquidityPool = createMockLiquidityPoolAggregator({
+          poolAddress: poolAddress,
           chainId: chainId,
           gaugeAddress: gaugeAddress, // Initially has gauge address
           gaugeIsAlive: true, // Initially alive
           feeVotingRewardAddress: feeVotingRewardAddress, // Has voting reward addresses
           bribeVotingRewardAddress: bribeVotingRewardAddress,
-        } as LiquidityPoolAggregator;
+        });
 
         // Mock findPoolByGaugeAddress to return the pool
         jest
@@ -332,7 +351,7 @@ describe("SuperchainLeafVoter Events", () => {
 
       it("should set gaugeIsAlive to false but preserve gauge address and voting reward addresses as historical data", () => {
         const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
-          toChecksumAddress(poolAddress),
+          mockLiquidityPool.id,
         );
         expect(updatedPool).toBeDefined();
         expect(updatedPool?.gaugeIsAlive).toBe(false); // Should be set to false
@@ -376,8 +395,12 @@ describe("SuperchainLeafVoter Events", () => {
       typeof SuperchainLeafVoter.GaugeRevived.createMockEvent
     >;
     const chainId = 10;
-    const poolAddress = "0x478946BcD4a5a22b316470F5486fAfb928C0bA25";
-    const gaugeAddress = "0xa75127121d28a9bf848f3b70e7eea26570aa7700";
+    const poolAddress = toChecksumAddress(
+      "0x478946BcD4a5a22b316470F5486fAfb928C0bA25",
+    );
+    const gaugeAddress = toChecksumAddress(
+      "0xa75127121d28a9bf848f3b70e7eea26570aa7700",
+    );
 
     beforeEach(() => {
       mockDb = MockDb.createMockDb();
@@ -398,23 +421,22 @@ describe("SuperchainLeafVoter Events", () => {
     describe("when pool entity exists", () => {
       let resultDB: ReturnType<typeof MockDb.createMockDb>;
       let mockLiquidityPool: LiquidityPoolAggregator;
-      const feeVotingRewardAddress =
-        "0x6572b2b30f63B960608f3aA5205711C558998398";
-      const bribeVotingRewardAddress =
-        "0xc9eEBCD281d9A4c0839Eb643216caa80a68b88B1";
+      const feeVotingRewardAddress = toChecksumAddress(
+        "0x6572b2b30f63B960608f3aA5205711C558998398",
+      );
+      const bribeVotingRewardAddress = toChecksumAddress(
+        "0xc9eEBCD281d9A4c0839Eb643216caa80a68b88B1",
+      );
 
       beforeEach(async () => {
-        const { mockLiquidityPoolData } = setupCommon();
-
-        mockLiquidityPool = {
-          ...mockLiquidityPoolData,
-          id: toChecksumAddress(poolAddress),
+        mockLiquidityPool = createMockLiquidityPoolAggregator({
+          poolAddress: poolAddress,
           chainId: chainId,
           gaugeAddress: gaugeAddress, // Has gauge address
           gaugeIsAlive: false, // Initially killed
           feeVotingRewardAddress: feeVotingRewardAddress, // Has voting reward addresses
           bribeVotingRewardAddress: bribeVotingRewardAddress,
-        } as LiquidityPoolAggregator;
+        });
 
         // Mock findPoolByGaugeAddress to return the pool
         jest
@@ -431,7 +453,7 @@ describe("SuperchainLeafVoter Events", () => {
 
       it("should set gaugeIsAlive to true", () => {
         const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
-          toChecksumAddress(poolAddress),
+          mockLiquidityPool.id,
         );
         expect(updatedPool).toBeDefined();
         expect(updatedPool?.gaugeIsAlive).toBe(true); // Should be set to true

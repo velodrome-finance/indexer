@@ -14,8 +14,8 @@ import { setupCommon } from "../Pool/common";
 describe("FeesVotingReward Events", () => {
   const { mockToken0Data, mockToken1Data, mockLiquidityPoolData } =
     setupCommon();
+  const poolAddress = mockLiquidityPoolData.poolAddress;
   const chainId = 10;
-  const poolAddress = toChecksumAddress(mockLiquidityPoolData.id);
   const votingRewardAddress = "0x3333333333333333333333333333333333333333";
   const userAddress = "0x2222222222222222222222222222222222222222";
   const rewardTokenAddress = "0x4444444444444444444444444444444444444444";
@@ -32,8 +32,6 @@ describe("FeesVotingReward Events", () => {
     // Set up liquidity pool with fee voting reward address
     liquidityPool = {
       ...mockLiquidityPoolData,
-      id: poolAddress,
-      chainId: chainId,
       feeVotingRewardAddress: toChecksumAddress(votingRewardAddress),
       bribeVotingRewardAddress: "",
     } as LiquidityPoolAggregator;
@@ -113,8 +111,9 @@ describe("FeesVotingReward Events", () => {
     });
 
     it("should update pool aggregator with fee reward claimed", () => {
-      const updatedPool =
-        resultDB.entities.LiquidityPoolAggregator.get(poolAddress);
+      const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
+        mockLiquidityPoolData.id,
+      );
       expect(updatedPool).toBeDefined();
       // The actual values depend on the price calculation, but should be updated
       expect(updatedPool?.totalFeeRewardClaimed).toBeGreaterThan(0n);

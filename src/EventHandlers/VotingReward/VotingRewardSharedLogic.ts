@@ -13,7 +13,7 @@ import {
   type UserStatsPerPoolDiff,
   loadOrCreateUserData,
 } from "../../Aggregators/UserStatsPerPool";
-import { TokenIdByChain, toChecksumAddress } from "../../Constants";
+import { TokenIdByChain } from "../../Constants";
 import {
   getTokenDetails,
   getTokenPrice,
@@ -152,14 +152,12 @@ export async function loadVotingRewardData(
   poolData?: { liquidityPoolAggregator: LiquidityPoolAggregator };
   userData: UserStatsPerPool;
 } | null> {
-  const votingRewardChecksumAddress = toChecksumAddress(
-    data.votingRewardAddress,
-  );
-  const userChecksumAddress = toChecksumAddress(data.userAddress);
+  const votingRewardAddress = data.votingRewardAddress;
+  const userAddress = data.userAddress;
 
   // Find the pool by voting reward address
   const pool = await findPoolByField(
-    votingRewardChecksumAddress,
+    votingRewardAddress,
     data.chainId,
     context,
     field,
@@ -169,7 +167,7 @@ export async function loadVotingRewardData(
     const rewardType =
       field === PoolAddressField.BRIBE_VOTING_REWARD_ADDRESS ? "bribe" : "fee";
     context.log.error(
-      `${handlerName}: Pool not found for ${rewardType} voting reward address ${votingRewardChecksumAddress} on chain ${data.chainId}`,
+      `${handlerName}: Pool not found for ${rewardType} voting reward address ${votingRewardAddress} on chain ${data.chainId}`,
     );
     return null;
   }
@@ -185,7 +183,7 @@ export async function loadVotingRewardData(
 
   // Load user data
   const userData = await loadOrCreateUserData(
-    userChecksumAddress,
+    userAddress,
     pool.id,
     data.chainId,
     context,

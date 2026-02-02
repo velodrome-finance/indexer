@@ -1,6 +1,6 @@
 import { V2PoolLauncher } from "generated";
-import type { handlerContext } from "generated";
 import type { PoolLauncherPool } from "generated";
+import { PoolId } from "../../Constants";
 import {
   linkLiquidityPoolAggregatorToPoolLauncher,
   processPoolLauncherPool,
@@ -48,7 +48,7 @@ V2PoolLauncher.Migrate.handler(async ({ event, context }) => {
   const pairToken = event.params.newPoolLauncherPool[1].toLowerCase();
   const timestamp = new Date(event.block.timestamp * 1000);
 
-  const poolId = `${event.chainId}-${underlyingPool}`;
+  const poolId = PoolId(event.chainId, underlyingPool);
   const poolLauncherPool = await context.PoolLauncherPool.get(poolId);
 
   if (poolLauncherPool) {
@@ -95,7 +95,7 @@ V2PoolLauncher.EmergingFlagged.handler(async ({ event, context }) => {
   const poolAddress = event.params.pool.toLowerCase();
   const timestamp = new Date(event.block.timestamp * 1000);
 
-  const poolId = `${event.chainId}-${poolAddress}`;
+  const poolId = PoolId(event.chainId, poolAddress);
   const poolLauncherPool = await context.PoolLauncherPool.get(poolId);
 
   if (poolLauncherPool) {
@@ -116,7 +116,7 @@ V2PoolLauncher.EmergingUnflagged.handler(async ({ event, context }) => {
   const poolAddress = event.params.pool.toLowerCase();
   const timestamp = new Date(event.block.timestamp * 1000);
 
-  const poolId = `${event.chainId}-${poolAddress}`;
+  const poolId = PoolId(event.chainId, poolAddress);
   const poolLauncherPool = await context.PoolLauncherPool.get(poolId);
 
   if (poolLauncherPool) {
@@ -139,7 +139,7 @@ V2PoolLauncher.CreationTimestampSet.handler(async ({ event, context }) => {
   const poolAddress = event.params.pool.toLowerCase();
   const createdAt = new Date(Number(event.params.createdAt) * 1000);
 
-  const poolId = `${event.chainId}-${poolAddress}`;
+  const poolId = PoolId(event.chainId, poolAddress);
   const poolLauncherPool = await context.PoolLauncherPool.get(poolId);
 
   if (poolLauncherPool) {
@@ -159,7 +159,7 @@ V2PoolLauncher.CreationTimestampSet.handler(async ({ event, context }) => {
 
 V2PoolLauncher.PairableTokenAdded.handler(async ({ event, context }) => {
   const tokenAddress = event.params.token.toLowerCase();
-  const configId = `${event.chainId}-${event.srcAddress}`;
+  const configId = PoolId(event.chainId, event.srcAddress);
 
   // Get or create PoolLauncherConfig
   let config = await context.PoolLauncherConfig.get(configId);
@@ -187,7 +187,7 @@ V2PoolLauncher.PairableTokenAdded.handler(async ({ event, context }) => {
 
 V2PoolLauncher.PairableTokenRemoved.handler(async ({ event, context }) => {
   const tokenAddress = event.params.token.toLowerCase();
-  const configId = `${event.chainId}-${event.srcAddress}`;
+  const configId = PoolId(event.chainId, event.srcAddress);
 
   // Get existing PoolLauncherConfig
   const config = await context.PoolLauncherConfig.get(configId);
@@ -212,8 +212,8 @@ V2PoolLauncher.PairableTokenRemoved.handler(async ({ event, context }) => {
 
 V2PoolLauncher.NewPoolLauncherSet.handler(async ({ event, context }) => {
   const newPoolLauncher = event.params.newPoolLauncher.toLowerCase();
-  const oldConfigId = `${event.chainId}-${event.srcAddress}`;
-  const newConfigId = `${event.chainId}-${newPoolLauncher}`;
+  const oldConfigId = PoolId(event.chainId, event.srcAddress);
+  const newConfigId = PoolId(event.chainId, newPoolLauncher);
 
   // Get the existing config
   const existingConfig = await context.PoolLauncherConfig.get(oldConfigId);

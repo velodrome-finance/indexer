@@ -3,12 +3,7 @@ import type {
   LiquidityPoolAggregator,
   Token,
 } from "../../../generated/src/Types.gen";
-import {
-  TEN_TO_THE_6_BI,
-  TEN_TO_THE_18_BI,
-  TokenIdByChain,
-  toChecksumAddress,
-} from "../../../src/Constants";
+import { PoolId, TEN_TO_THE_18_BI } from "../../../src/Constants";
 import { setupCommon } from "./common";
 
 describe("Pool Sync Event", () => {
@@ -97,7 +92,10 @@ describe("Pool Sync Event", () => {
     });
     it("should update reserves and usd liquidity", async () => {
       const updatedPool = postEventDB.entities.LiquidityPoolAggregator.get(
-        toChecksumAddress(eventData.mockEventData.srcAddress),
+        PoolId(
+          eventData.mockEventData.chainId,
+          eventData.mockEventData.srcAddress,
+        ),
       );
       expect(updatedPool).toBeDefined();
       expect(updatedPool?.reserve0).toBe(expectations.expectedReserve0);
@@ -124,7 +122,10 @@ describe("Pool Sync Event", () => {
 
       // Pool should not exist
       const pool = postEventDB.entities.LiquidityPoolAggregator.get(
-        toChecksumAddress(eventData.mockEventData.srcAddress),
+        PoolId(
+          eventData.mockEventData.chainId,
+          eventData.mockEventData.srcAddress,
+        ),
       );
       expect(pool).toBeUndefined();
     });

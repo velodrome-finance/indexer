@@ -5,6 +5,7 @@ import type {
 } from "../../../generated/src/Types.gen";
 import {
   OUSDT_ADDRESS,
+  PoolId,
   TEN_TO_THE_18_BI,
   TokenIdByChain,
   toChecksumAddress,
@@ -30,8 +31,8 @@ describe("Pool Swap Event", () => {
   };
 
   const eventData = {
-    sender: "0x4444444444444444444444444444444444444444",
-    to: "0x5555555555555555555555555555555555555555",
+    sender: toChecksumAddress("0x4444444444444444444444444444444444444444"),
+    to: toChecksumAddress("0x5555555555555555555555555555555555555555"),
     amount0In: 0n,
     amount1In: 0n,
     amount0Out: 0n,
@@ -44,7 +45,9 @@ describe("Pool Swap Event", () => {
       },
       chainId: 10,
       logIndex: 1,
-      srcAddress: "0x3333333333333333333333333333333333333333",
+      srcAddress: toChecksumAddress(
+        "0x3333333333333333333333333333333333333333",
+      ),
     },
   };
 
@@ -117,19 +120,20 @@ describe("Pool Swap Event", () => {
         mockDb: updatedDB3,
       });
       updatedPool = postEventDB.entities.LiquidityPoolAggregator.get(
-        toChecksumAddress(eventData.mockEventData.srcAddress),
+        PoolId(
+          eventData.mockEventData.chainId,
+          eventData.mockEventData.srcAddress,
+        ),
       );
     });
 
     it("should update UserStatsPerPool with swap activity", async () => {
       const userStats = postEventDB.entities.UserStatsPerPool.get(
-        `${eventData.sender.toLowerCase()}_${eventData.mockEventData.srcAddress.toLowerCase()}_${eventData.mockEventData.chainId}`,
+        `${eventData.sender}_${eventData.mockEventData.srcAddress}_${eventData.mockEventData.chainId}`,
       );
       expect(userStats).toBeDefined();
-      expect(userStats?.userAddress).toBe(eventData.sender.toLowerCase());
-      expect(userStats?.poolAddress).toBe(
-        eventData.mockEventData.srcAddress.toLowerCase(),
-      );
+      expect(userStats?.userAddress).toBe(eventData.sender);
+      expect(userStats?.poolAddress).toBe(eventData.mockEventData.srcAddress);
       expect(userStats?.chainId).toBe(eventData.mockEventData.chainId);
       expect(userStats?.numberOfSwaps).toBe(1n);
       expect(userStats?.totalSwapVolumeUSD).toBe(100000000000000000000n); // 100 tokens * 1 USD
@@ -181,14 +185,17 @@ describe("Pool Swap Event", () => {
 
       // Pool should not exist
       const pool = postEventDB.entities.LiquidityPoolAggregator.get(
-        toChecksumAddress(eventData.mockEventData.srcAddress),
+        PoolId(
+          eventData.mockEventData.chainId,
+          eventData.mockEventData.srcAddress,
+        ),
       );
       expect(pool).toBeUndefined();
 
       // User stats will still be created because loadOrCreateUserData is called in parallel
       // but they should have default/zero values since no swap processing occurred
       const userStats = postEventDB.entities.UserStatsPerPool.get(
-        `${eventData.sender.toLowerCase()}_${eventData.mockEventData.srcAddress.toLowerCase()}_${eventData.mockEventData.chainId}`,
+        `${eventData.sender}_${eventData.mockEventData.srcAddress}_${eventData.mockEventData.chainId}`,
       );
       expect(userStats).toBeDefined();
       // Verify no swap activity was recorded
@@ -233,9 +240,7 @@ describe("Pool Swap Event", () => {
       // Check that OUSDTSwap entity was created
       const ousdtSwaps = Array.from(postEventDB.entities.OUSDTSwaps.getAll());
       expect(ousdtSwaps.length).toBe(1);
-      expect(ousdtSwaps[0]?.tokenInPool.toLowerCase()).toBe(
-        ousdtAddress.toLowerCase(),
-      );
+      expect(ousdtSwaps[0]?.tokenInPool).toBe(ousdtAddress);
       expect(ousdtSwaps[0]?.amountIn).toBe(100n * 10n ** 18n);
     });
 
@@ -276,12 +281,8 @@ describe("Pool Swap Event", () => {
       // Check that OUSDTSwap entity was created
       const ousdtSwaps = Array.from(postEventDB.entities.OUSDTSwaps.getAll());
       expect(ousdtSwaps.length).toBe(1);
-      expect(ousdtSwaps[0]?.tokenInPool.toLowerCase()).toBe(
-        ousdtAddress.toLowerCase(),
-      );
-      expect(ousdtSwaps[0]?.tokenOutPool.toLowerCase()).toBe(
-        mockToken0Data.address.toLowerCase(),
-      );
+      expect(ousdtSwaps[0]?.tokenInPool).toBe(ousdtAddress);
+      expect(ousdtSwaps[0]?.tokenOutPool).toBe(mockToken0Data.address);
       expect(ousdtSwaps[0]?.amountIn).toBe(100n * 10n ** 18n);
       expect(ousdtSwaps[0]?.amountOut).toBe(99n * 10n ** 18n);
     });

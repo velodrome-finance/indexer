@@ -1,4 +1,5 @@
 import type { Pool_Claim_event, Token } from "generated";
+import { toChecksumAddress } from "../../../src/Constants";
 import { processPoolClaim } from "../../../src/EventHandlers/Pool/PoolClaimLogic";
 import { setupCommon } from "./common";
 
@@ -13,19 +14,23 @@ describe("PoolClaimLogic", () => {
       hash: "0x5555555555555555555555555555555555555555555555555555555555555555",
     },
     logIndex: 1,
-    srcAddress: "0x3333333333333333333333333333333333333333",
+    srcAddress: toChecksumAddress("0x3333333333333333333333333333333333333333"),
     transaction: {
       hash: "0x4444444444444444444444444444444444444444444444444444444444444444",
     },
     params: {
-      sender: "0x1234567890123456789012345678901234567890",
-      recipient: "0x9876543210987654321098765432109876543210",
+      sender: toChecksumAddress("0x1234567890123456789012345678901234567890"),
+      recipient: toChecksumAddress(
+        "0x9876543210987654321098765432109876543210",
+      ),
       amount0: 1000n,
       amount1: 2000n,
     },
   };
 
-  const gaugeAddress = "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+  const gaugeAddress = toChecksumAddress(
+    "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+  );
 
   describe("processPoolClaim", () => {
     describe("staked fees collection", () => {
@@ -67,7 +72,9 @@ describe("PoolClaimLogic", () => {
 
     describe("unstaked fees collection", () => {
       it("should track fees as unstaked and calculate USD correctly when sender is not the gauge address", () => {
-        const regularUserAddress = "0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB";
+        const regularUserAddress = toChecksumAddress(
+          "0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+        );
 
         const result = processPoolClaim(
           mockEvent,
@@ -105,7 +112,7 @@ describe("PoolClaimLogic", () => {
       it("should handle case when gauge address is empty string", () => {
         const result = processPoolClaim(
           mockEvent,
-          "0x1234567890123456789012345678901234567890",
+          toChecksumAddress("0x1234567890123456789012345678901234567890"),
           "", // empty gauge address
           mockToken0Data,
           mockToken1Data,

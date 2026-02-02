@@ -7,6 +7,7 @@ import {
 import {
   DEFAULT_SAMM_FEE_BPS,
   DEFAULT_VAMM_FEE_BPS,
+  PoolId,
   ROOT_POOL_FACTORY_ADDRESS_OPTIMISM,
   TokenIdByChain,
 } from "../Constants";
@@ -129,14 +130,11 @@ PoolFactory.PoolCreated.handler(async ({ event, context }) => {
 });
 
 PoolFactory.SetCustomFee.handler(async ({ event, context }) => {
-  const poolEntity = await context.LiquidityPoolAggregator.get(
-    event.params.pool,
-  );
+  const poolId = PoolId(event.chainId, event.params.pool);
+  const poolEntity = await context.LiquidityPoolAggregator.get(poolId);
 
   if (!poolEntity) {
-    context.log.warn(
-      `Pool ${event.params.pool} not found for SetCustomFee event`,
-    );
+    context.log.warn(`Pool ${poolId} not found for SetCustomFee event`);
     return;
   }
 

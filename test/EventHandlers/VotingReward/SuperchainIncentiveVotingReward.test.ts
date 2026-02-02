@@ -14,13 +14,17 @@ import * as VotingRewardSharedLogic from "../../../src/EventHandlers/VotingRewar
 import { setupCommon } from "../Pool/common";
 
 describe("SuperchainIncentiveVotingReward Events", () => {
-  const { mockToken0Data, mockToken1Data, mockLiquidityPoolData } =
-    setupCommon();
+  const { mockToken0Data, mockToken1Data } = setupCommon();
   const chainId = 252;
-  const poolAddress = toChecksumAddress(mockLiquidityPoolData.id);
-  const votingRewardAddress = "0x3333333333333333333333333333333333333333";
-  const userAddress = "0x2222222222222222222222222222222222222222";
-  const rewardTokenAddress = "0x4444444444444444444444444444444444444444";
+  const votingRewardAddress = toChecksumAddress(
+    "0x3333333333333333333333333333333333333333",
+  );
+  const userAddress = toChecksumAddress(
+    "0x2222222222222222222222222222222222222222",
+  );
+  const rewardTokenAddress = toChecksumAddress(
+    "0x4444444444444444444444444444444444444444",
+  );
   const tokenId = 1n;
 
   let mockDb: ReturnType<typeof MockDb.createMockDb>;
@@ -31,22 +35,22 @@ describe("SuperchainIncentiveVotingReward Events", () => {
 
   beforeEach(() => {
     mockDb = MockDb.createMockDb();
+    const { createMockUserStatsPerPool, createMockLiquidityPoolAggregator } =
+      setupCommon();
 
     // Set up liquidity pool with bribe voting reward address
-    liquidityPool = {
-      ...mockLiquidityPoolData,
-      id: poolAddress,
+    liquidityPool = createMockLiquidityPoolAggregator({
       chainId: chainId,
-      bribeVotingRewardAddress: toChecksumAddress(votingRewardAddress),
+      bribeVotingRewardAddress: votingRewardAddress,
       feeVotingRewardAddress: "",
       veNFTamountStaked: 1000n, // Initial staked amount
-    } as LiquidityPoolAggregator;
+    });
 
     // Set up user stats
-    const { createMockUserStatsPerPool } = setupCommon();
+
     userStats = createMockUserStatsPerPool({
       userAddress: userAddress,
-      poolAddress: poolAddress,
+      poolAddress: liquidityPool.poolAddress,
       chainId: chainId,
       lastActivityTimestamp: new Date(1000000 * 1000),
       veNFTamountStaked: 500n, // Initial staked amount
@@ -57,7 +61,7 @@ describe("SuperchainIncentiveVotingReward Events", () => {
       id: VeNFTId(chainId, tokenId),
       chainId: chainId,
       tokenId: tokenId,
-      owner: toChecksumAddress(userAddress),
+      owner: userAddress,
       locktime: 1000000n,
       totalValueLocked: 10000n,
       isAlive: true,
@@ -146,8 +150,9 @@ describe("SuperchainIncentiveVotingReward Events", () => {
     });
 
     it("should update pool aggregator with bribe claimed", () => {
-      const updatedPool =
-        resultDB.entities.LiquidityPoolAggregator.get(poolAddress);
+      const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
+        liquidityPool.id,
+      );
       expect(updatedPool).toBeDefined();
       expect(updatedPool?.totalBribeClaimed).toBe(1000000n);
       expect(updatedPool?.totalBribeClaimedUSD).toBe(1000000n);
@@ -175,8 +180,9 @@ describe("SuperchainIncentiveVotingReward Events", () => {
       });
 
       it("should not update pool or user stats", () => {
-        const updatedPool =
-          resultDB.entities.LiquidityPoolAggregator.get(poolAddress);
+        const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
+          liquidityPool.id,
+        );
         expect(updatedPool?.totalBribeClaimed).toBe(
           liquidityPool.totalBribeClaimed,
         );

@@ -1,4 +1,4 @@
-import { TokenIdByChain } from "../Constants";
+import { PoolId, TokenIdByChain } from "../Constants";
 import { getCurrentFee, roundBlockToInterval } from "../Effects/Index";
 import { generatePoolName } from "../Helpers";
 import { refreshTokenPrice } from "../PriceOracle";
@@ -11,6 +11,15 @@ import type {
 } from "./../src/Types.gen";
 
 const UPDATE_INTERVAL = 60 * 60 * 1000; // 1 hour
+
+/**
+ * Enum for pool address field types
+ */
+export enum PoolAddressField {
+  GAUGE_ADDRESS = "gaugeAddress",
+  BRIBE_VOTING_REWARD_ADDRESS = "bribeVotingRewardAddress",
+  FEE_VOTING_REWARD_ADDRESS = "feeVotingRewardAddress",
+}
 
 export type DynamicFeeConfig = {
   baseFee: bigint;
@@ -90,7 +99,7 @@ export async function updateDynamicFeePools(
   context: handlerContext,
   blockNumber: number,
 ): Promise<LiquidityPoolAggregator> {
-  const poolAddress = liquidityPoolAggregator.id;
+  const poolAddress = liquidityPoolAggregator.poolAddress;
   const chainId = liquidityPoolAggregator.chainId;
 
   const dynamicFeeGlobalConfigs =
@@ -150,8 +159,8 @@ export function setLiquidityPoolAggregatorSnapshot(
 
   const snapshot: LiquidityPoolAggregatorSnapshot = {
     ...liquidityPoolAggregator,
-    pool: liquidityPoolAggregator.id,
-    id: `${chainId}-${liquidityPoolAggregator.id}_${timestamp.getTime()}`,
+    id: `${PoolId(chainId, liquidityPoolAggregator.poolAddress)}-${timestamp.getTime()}`,
+    pool: liquidityPoolAggregator.poolAddress,
     timestamp: timestamp,
   };
 
@@ -347,14 +356,14 @@ export async function updateLiquidityPoolAggregator(
  * If blockNumber and blockTimestamp are provided, token prices will be refreshed
  * (refreshTokenPrice will decide internally if refresh is needed)
  *
- * @param srcAddress - The pool address
+ * @param poolAddress - The pool address
  * @param chainId - The chain ID
  * @param context - The handler context
  * @param blockNumber - Optional block number for price refresh
  * @param blockTimestamp - Optional block timestamp for price refresh
  */
 export async function loadPoolData(
-  srcAddress: string,
+  poolAddress: string,
   chainId: number,
   context: handlerContext,
   blockNumber?: number,
@@ -364,9 +373,10 @@ export async function loadPoolData(
   token0Instance: Token;
   token1Instance: Token;
 } | null> {
+  const poolId = PoolId(chainId, poolAddress);
   // Load liquidity pool aggregator and token instances efficiently
   const liquidityPoolAggregator =
-    await context.LiquidityPoolAggregator.get(srcAddress);
+    await context.LiquidityPoolAggregator.get(poolId);
 
   // Load token instances concurrently using the pool's token IDs
   const [token0Instance, token1Instance] = await Promise.all([
@@ -381,15 +391,13 @@ export async function loadPoolData(
   // Handle missing data errors
   if (!liquidityPoolAggregator) {
     context.log.error(
-      `LiquidityPoolAggregator ${srcAddress} not found on chain ${chainId}`,
+      `LiquidityPoolAggregator ${poolId} not found on chain ${chainId}`,
     );
     return null;
   }
 
   if (!token0Instance || !token1Instance) {
-    context.log.error(
-      `Token not found for pool ${srcAddress} on chain ${chainId}`,
-    );
+    context.log.error(`Token not found for pool ${poolId} on chain ${chainId}`);
     return null;
   }
 
@@ -479,7 +487,9 @@ export async function loadPoolDataOrRootCLPool(
   );
 
   const rootPoolLeafPools =
-    await context.RootPool_LeafPool.getWhere.rootPoolAddress.eq(poolAddress);
+    (await context.RootPool_LeafPool.getWhere?.rootPoolAddress?.eq(
+      poolAddress,
+    )) ?? [];
 
   if (rootPoolLeafPools.length !== 1) {
     context.log.error(
@@ -507,15 +517,6 @@ export async function loadPoolDataOrRootCLPool(
   }
 
   return leafPoolData;
-}
-
-/**
- * Enum for pool address field types
- */
-export enum PoolAddressField {
-  GAUGE_ADDRESS = "gaugeAddress",
-  BRIBE_VOTING_REWARD_ADDRESS = "bribeVotingRewardAddress",
-  FEE_VOTING_REWARD_ADDRESS = "feeVotingRewardAddress",
 }
 
 /**
@@ -598,9 +599,10 @@ export function createLiquidityPoolAggregatorEntity(params: {
   } = params;
 
   return {
-    id: poolAddress,
-    chainId,
-    isCL,
+    id: PoolId(chainId, poolAddress),
+    poolAddress: poolAddress,
+    chainId: chainId,
+    isCL: isCL,
     name: generatePoolName(
       token0Symbol,
       token1Symbol,
@@ -611,7 +613,7 @@ export function createLiquidityPoolAggregatorEntity(params: {
     token1_id: TokenIdByChain(token1Address, chainId),
     token0_address: token0Address,
     token1_address: token1Address,
-    isStable,
+    isStable: isStable,
     tickSpacing: tickSpacing ? BigInt(tickSpacing) : 0n, // 0 for non-CL pools
     reserve0: 0n,
     reserve1: 0n,

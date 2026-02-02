@@ -4,17 +4,14 @@ import type {
   LiquidityPoolAggregator,
 } from "generated";
 import { updateLiquidityPoolAggregator } from "../../Aggregators/LiquidityPoolAggregator";
-import { toChecksumAddress } from "../../Constants";
+import { PoolId } from "../../Constants";
 
 CustomSwapFeeModule.SetCustomFee.handler(async ({ event, context }) => {
-  const pool = await context.LiquidityPoolAggregator.get(
-    toChecksumAddress(event.params.pool),
-  );
+  const poolId = PoolId(event.chainId, event.params.pool);
+  const pool = await context.LiquidityPoolAggregator.get(poolId);
 
   if (!pool) {
-    context.log.warn(
-      `Pool ${event.params.pool} not found for SetCustomFee event`,
-    );
+    context.log.warn(`Pool ${poolId} not found for SetCustomFee event`);
     return;
   }
 
@@ -31,7 +28,7 @@ CustomSwapFeeModule.SetCustomFee.handler(async ({ event, context }) => {
     event.block.number,
   );
 
-  const configId = toChecksumAddress(event.srcAddress);
+  const configId = event.srcAddress;
 
   const config: DynamicFeeGlobalConfig = {
     id: configId,

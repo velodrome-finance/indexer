@@ -6,26 +6,29 @@ import { toChecksumAddress } from "../../../src/Constants";
 import { setupCommon } from "../Pool/common";
 
 describe("CustomSwapFeeModule Events", () => {
-  const { mockLiquidityPoolData } = setupCommon();
+  const { createMockLiquidityPoolAggregator } = setupCommon();
   const moduleAddress = toChecksumAddress(
     "0xbcAE2d4b4E8E34a4100e69E9C73af8214a89572e",
   );
   const chainId = 42220; // Celo
 
+  const mockLiquidityPoolAggregator = createMockLiquidityPoolAggregator({
+    chainId: chainId,
+  });
+
   describe("SetCustomFee event", () => {
     it("should create the DynamicFeeGlobalConfig entity", async () => {
       // Setup
       const mockDb = MockDb.createMockDb();
-      const poolAddress = toChecksumAddress(mockLiquidityPoolData.id);
       const fee = 300n;
 
       // Pre-populate pool in the mock database
       const populatedDb = mockDb.entities.LiquidityPoolAggregator.set(
-        mockLiquidityPoolData,
+        mockLiquidityPoolAggregator,
       );
 
       const mockEvent = CustomSwapFeeModule.SetCustomFee.createMockEvent({
-        pool: poolAddress,
+        pool: mockLiquidityPoolAggregator.poolAddress,
         fee: fee,
         mockEventData: {
           block: {
@@ -56,16 +59,15 @@ describe("CustomSwapFeeModule Events", () => {
     it("should update the pool's baseFee", async () => {
       // Setup
       const mockDb = MockDb.createMockDb();
-      const poolAddress = toChecksumAddress(mockLiquidityPoolData.id);
       const fee = 400n;
 
       // Pre-populate pool in the mock database
       const populatedDb = mockDb.entities.LiquidityPoolAggregator.set(
-        mockLiquidityPoolData,
+        mockLiquidityPoolAggregator,
       );
 
       const mockEvent = CustomSwapFeeModule.SetCustomFee.createMockEvent({
-        pool: poolAddress,
+        pool: mockLiquidityPoolAggregator.poolAddress,
         fee: fee,
         mockEventData: {
           block: {
@@ -86,8 +88,9 @@ describe("CustomSwapFeeModule Events", () => {
       });
 
       // Assert: Check that pool's baseFee was updated
-      const updatedPool =
-        result.entities.LiquidityPoolAggregator.get(poolAddress);
+      const updatedPool = result.entities.LiquidityPoolAggregator.get(
+        mockLiquidityPoolAggregator.id,
+      );
       expect(updatedPool).toBeDefined();
       expect(updatedPool?.baseFee).toBe(fee);
       expect(updatedPool?.currentFee).toBe(fee);

@@ -1,5 +1,5 @@
 import { ALMDeployFactoryV1 } from "generated";
-import { toChecksumAddress } from "../../Constants";
+import { PoolId } from "../../Constants";
 import { calculatePositionAmountsFromLiquidity } from "../../Helpers";
 
 ALMDeployFactoryV1.StrategyCreated.contractRegister(({ event, context }) => {
@@ -59,8 +59,9 @@ ALMDeployFactoryV1.StrategyCreated.handler(async ({ event, context }) => {
 
   // Compute amount0/amount1 from liquidity + sqrtPriceX96 + ticks (amount0/amount1 removed from schema)
   // Fetch sqrtPriceX96 from pool aggregator
+  const poolId = PoolId(event.chainId, pool);
   const liquidityPoolAggregator =
-    await context.LiquidityPoolAggregator.get(pool);
+    await context.LiquidityPoolAggregator.get(poolId);
   const sqrtPriceX96 = liquidityPoolAggregator?.sqrtPriceX96;
 
   let amount0 = 0n;
@@ -77,7 +78,7 @@ ALMDeployFactoryV1.StrategyCreated.handler(async ({ event, context }) => {
     amount1 = amounts.amount1;
   } else {
     context.log.warn(
-      `[ALMDeployFactoryV1] sqrtPriceX96 is missing or zero for pool ${pool} on chain ${event.chainId}. Cannot compute amount0/amount1, using 0`,
+      `[ALMDeployFactoryV1] sqrtPriceX96 is missing or zero for pool ${poolId} on chain ${event.chainId}. Cannot compute amount0/amount1, using 0`,
     );
   }
 
@@ -91,11 +92,11 @@ ALMDeployFactoryV1.StrategyCreated.handler(async ({ event, context }) => {
   // Note: DeployFactoryV1 doesn't have maxLiquidityRatioDeviationX96 in strategyParams,
   // so we set it to 0n as a default value (required by schema)
   context.ALM_LP_Wrapper.set({
-    id: `${toChecksumAddress(lpWrapper)}_${event.chainId}`,
+    id: `${lpWrapper}_${event.chainId}`,
     chainId: event.chainId,
-    pool: toChecksumAddress(pool),
-    token0: toChecksumAddress(token0),
-    token1: toChecksumAddress(token1),
+    pool: pool,
+    token0: token0,
+    token1: token1,
 
     amount0: amount0,
     amount1: amount1,

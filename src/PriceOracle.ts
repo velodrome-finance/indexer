@@ -4,7 +4,6 @@ import {
   SECONDS_IN_AN_HOUR,
   TokenIdByBlock,
   TokenIdByChain,
-  toChecksumAddress,
 } from "./Constants";
 import {
   getTokenDetails,
@@ -35,7 +34,7 @@ export async function createTokenEntity(
 
   const tokenEntity: Token = {
     id: TokenIdByChain(tokenAddress, chainId),
-    address: toChecksumAddress(tokenAddress),
+    address: tokenAddress,
     symbol: tokenDetails.symbol,
     name: tokenDetails.name, // Now using the actual name from token details
     chainId: chainId,
@@ -164,7 +163,7 @@ export async function refreshTokenPrice(
     // Create new TokenPrice entity
     const tokenPrice: TokenPriceSnapshot = {
       id: TokenIdByBlock(token.address, chainId, blockNumber),
-      address: toChecksumAddress(token.address),
+      address: token.address,
       pricePerUSDNew: currentPrice,
       chainId: chainId,
       isWhitelisted: token.isWhitelisted,

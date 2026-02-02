@@ -31,7 +31,7 @@ describe("Pool Mint Event", () => {
         },
         chainId: 10,
         logIndex: 1,
-        srcAddress: commonData.mockLiquidityPoolData.id,
+        srcAddress: commonData.mockLiquidityPoolData.poolAddress,
       },
     });
 
@@ -80,7 +80,7 @@ describe("Pool Mint Event", () => {
           },
           chainId: 10,
           logIndex: 1,
-          srcAddress: commonData.mockLiquidityPoolData.id,
+          srcAddress: commonData.mockLiquidityPoolData.poolAddress,
         },
       });
 
@@ -98,7 +98,7 @@ describe("Pool Mint Event", () => {
       // User stats will NOT be created when pool doesn't exist (early return)
       // and no transfer match is found
       const userStats = postEventDB.entities.UserStatsPerPool.get(
-        `0x1111111111111111111111111111111111111111_${commonData.mockLiquidityPoolData.id}_10`,
+        `0x1111111111111111111111111111111111111111_${commonData.mockLiquidityPoolData.poolAddress}_10`,
       );
       expect(userStats).toBeUndefined();
     });

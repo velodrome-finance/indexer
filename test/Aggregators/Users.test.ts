@@ -7,8 +7,12 @@ import { toChecksumAddress } from "../../src/Constants";
 import { setupCommon } from "../EventHandlers/Pool/common";
 
 describe("UserStatsPerPool Aggregator", () => {
-  const mockUserAddress = "0x1234567890123456789012345678901234567890";
-  const mockPoolAddress = "0xabcdef1234567890abcdef1234567890abcdef12";
+  const mockUserAddress = toChecksumAddress(
+    "0x1234567890123456789012345678901234567890",
+  );
+  const mockPoolAddress = toChecksumAddress(
+    "0xabcdef1234567890abcdef1234567890abcdef12",
+  );
   const mockChainId = 10;
   const mockTimestamp = new Date(1000000 * 1000);
 
@@ -22,10 +26,10 @@ describe("UserStatsPerPool Aggregator", () => {
       );
 
       expect(userStats.id).toBe(
-        `${toChecksumAddress(mockUserAddress)}_${toChecksumAddress(mockPoolAddress)}_${mockChainId}`,
+        `${mockUserAddress}_${mockPoolAddress}_${mockChainId}`,
       );
-      expect(userStats.userAddress).toBe(toChecksumAddress(mockUserAddress));
-      expect(userStats.poolAddress).toBe(toChecksumAddress(mockPoolAddress));
+      expect(userStats.userAddress).toBe(mockUserAddress);
+      expect(userStats.poolAddress).toBe(mockPoolAddress);
       expect(userStats.chainId).toBe(mockChainId);
       expect(userStats.currentLiquidityUSD).toBe(0n);
       expect(userStats.totalLiquidityAddedUSD).toBe(0n);
@@ -39,24 +43,6 @@ describe("UserStatsPerPool Aggregator", () => {
       expect(userStats.totalFlashLoanVolumeUSD).toBe(0n);
       expect(userStats.firstActivityTimestamp).toEqual(mockTimestamp);
       expect(userStats.lastActivityTimestamp).toEqual(mockTimestamp);
-    });
-
-    it("should normalize addresses to lowercase", () => {
-      const upperCaseUserAddress = "0xABCDEF1234567890ABCDEF1234567890ABCDEF12";
-      const upperCasePoolAddress = "0xABCDEF1234567890ABCDEF1234567890ABCDEF12";
-      const userStats = createUserStatsPerPoolEntity(
-        upperCaseUserAddress,
-        upperCasePoolAddress,
-        mockChainId,
-        mockTimestamp,
-      );
-
-      expect(userStats.userAddress).toBe(
-        toChecksumAddress(upperCaseUserAddress),
-      );
-      expect(userStats.poolAddress).toBe(
-        toChecksumAddress(upperCasePoolAddress),
-      );
     });
   });
 
