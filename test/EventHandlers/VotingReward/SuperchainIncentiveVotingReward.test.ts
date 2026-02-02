@@ -6,9 +6,9 @@ import type {
   LiquidityPoolAggregator,
   Token,
   UserStatsPerPool,
-  VeNFTAggregator,
+  VeNFTState,
 } from "../../../generated/src/Types.gen";
-import { VeNFTId } from "../../../src/Aggregators/VeNFTAggregator";
+import { VeNFTId } from "../../../src/Aggregators/VeNFTState";
 import { TokenIdByChain, toChecksumAddress } from "../../../src/Constants";
 import * as VotingRewardSharedLogic from "../../../src/EventHandlers/VotingReward/VotingRewardSharedLogic";
 import { setupCommon } from "../Pool/common";
@@ -31,7 +31,7 @@ describe("SuperchainIncentiveVotingReward Events", () => {
   let liquidityPool: LiquidityPoolAggregator;
   let userStats: UserStatsPerPool;
   let rewardToken: Token;
-  let veNFT: VeNFTAggregator;
+  let veNFT: VeNFTState;
 
   beforeEach(() => {
     mockDb = MockDb.createMockDb();
@@ -66,7 +66,7 @@ describe("SuperchainIncentiveVotingReward Events", () => {
       totalValueLocked: 10000n,
       isAlive: true,
       lastUpdatedTimestamp: new Date(1000000 * 1000),
-    } as VeNFTAggregator;
+    } as VeNFTState;
 
     // Set up reward token
     rewardToken = {
@@ -84,7 +84,7 @@ describe("SuperchainIncentiveVotingReward Events", () => {
     // Set up entities in mock DB
     mockDb = mockDb.entities.LiquidityPoolAggregator.set(liquidityPool);
     mockDb = mockDb.entities.UserStatsPerPool.set(userStats);
-    mockDb = mockDb.entities.VeNFTAggregator.set(veNFT);
+    mockDb = mockDb.entities.VeNFTState.set(veNFT);
     mockDb = mockDb.entities.Token.set(mockToken0Data as Token);
     mockDb = mockDb.entities.Token.set(mockToken1Data as Token);
     mockDb = mockDb.entities.Token.set(rewardToken);
