@@ -4,6 +4,8 @@ import type {
   LiquidityPoolAggregator,
   Token,
   UserStatsPerPool,
+  VeNFTPoolVote,
+  VeNFTState,
 } from "../../../generated/src/Types.gen";
 import {
   PoolId,
@@ -231,6 +233,25 @@ export function setupCommon() {
     lastAlmActivityTimestamp: new Date(900000 * 1000),
   };
 
+  const mockVeNFTStateData: VeNFTState = {
+    id: `${CHAIN_ID}_1`,
+    chainId: CHAIN_ID,
+    tokenId: 1n,
+    owner: normalizedDefaultUserAddress,
+    locktime: 0n,
+    lastUpdatedTimestamp: new Date(900000 * 1000),
+    totalValueLocked: 0n,
+    isAlive: true,
+  };
+
+  const mockVeNFTPoolVoteData: VeNFTPoolVote = {
+    id: `${CHAIN_ID}_1_${POOL_ADDRESS}`,
+    poolAddress: POOL_ADDRESS,
+    veNFTamountStaked: 0n,
+    veNFTState_id: mockVeNFTStateData.id,
+    lastUpdatedTimestamp: new Date(900000 * 1000),
+  };
+
   /**
    * Creates a mock UserStatsPerPool entity with customizable fields.
    * All fields default to zero/empty values, allowing tests to override only what they need.
@@ -287,13 +308,60 @@ export function setupCommon() {
     };
   }
 
+  /**
+   * Creates a mock VeNFTState entity with customizable fields.
+   */
+  function createMockVeNFTState(
+    overrides: Partial<VeNFTState> = {},
+  ): VeNFTState {
+    const chainId = overrides.chainId ?? CHAIN_ID;
+    const tokenId = overrides.tokenId ?? 1n;
+    const id = overrides.id ?? `${chainId}_${tokenId}`;
+
+    return {
+      ...mockVeNFTStateData,
+      ...overrides,
+      id,
+      chainId,
+      tokenId,
+    };
+  }
+
+  /**
+   * Creates a mock VeNFTPoolVote entity with customizable fields.
+   */
+  function createMockVeNFTPoolVote(
+    overrides: Partial<VeNFTPoolVote> = {},
+  ): VeNFTPoolVote {
+    const veNFTStateId = overrides.veNFTState_id ?? mockVeNFTStateData.id;
+    const [chainIdPart, tokenIdPart] = veNFTStateId.split("_");
+    const chainId = chainIdPart ? Number(chainIdPart) : CHAIN_ID;
+    const tokenId = tokenIdPart ? BigInt(tokenIdPart) : 1n;
+    const poolAddress = toChecksumAddress(
+      overrides.poolAddress ?? POOL_ADDRESS,
+    );
+    const id = overrides.id ?? `${chainId}_${tokenId}_${poolAddress}`;
+
+    return {
+      ...mockVeNFTPoolVoteData,
+      ...overrides,
+      id,
+      poolAddress,
+      veNFTState_id: veNFTStateId,
+    };
+  }
+
   return {
     mockToken0Data,
     mockToken1Data,
     mockLiquidityPoolData,
     mockALMLPWrapperData,
     mockUserStatsPerPoolData,
+    mockVeNFTStateData,
+    mockVeNFTPoolVoteData,
     createMockUserStatsPerPool,
     createMockLiquidityPoolAggregator,
+    createMockVeNFTState,
+    createMockVeNFTPoolVote,
   };
 }

@@ -262,7 +262,7 @@ type NonFungiblePosition {
   lastUpdatedTimestamp: Timestamp! # Timestamp of last update
 }
 
-type VeNFTAggregator {
+type VeNFTState {
   id: ID!
   chainId: Int!
   tokenId: BigInt! @config(precision: 76)
@@ -271,6 +271,15 @@ type VeNFTAggregator {
   lastUpdatedTimestamp: Timestamp!
   totalValueLocked: BigInt! @config(precision: 76)
   isAlive: Boolean!
+  votesPerPool: [VeNFTPoolVote!]! @derivedFrom(field: "veNFTState")
+}
+
+type VeNFTPoolVote {
+  id: ID!
+  poolAddress: String! @index
+  veNFTamountStaked: BigInt! @config(precision: 76)
+  veNFTState: VeNFTState! @index
+  lastUpdatedTimestamp: Timestamp!
 }
 
 # ALM LP Wrapper entity

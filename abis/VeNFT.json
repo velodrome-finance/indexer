@@ -3,17 +3,217 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "token_addr",
+        "name": "_forwarder",
         "type": "address"
       },
       {
         "internalType": "address",
-        "name": "art_proxy",
+        "name": "_token",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_factoryRegistry",
         "type": "address"
       }
     ],
     "stateMutability": "nonpayable",
     "type": "constructor"
+  },
+  {
+    "inputs": [],
+    "name": "AlreadyVoted",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "AmountTooBig",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ERC721ReceiverRejectedTokens",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ERC721TransferToNonERC721ReceiverImplementer",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidManagedNFTId",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidNonce",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidSignature",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidSignatureS",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "LockDurationNotInFuture",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "LockDurationTooLong",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "LockExpired",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "LockNotExpired",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NoLockFound",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NonExistentToken",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotApprovedOrOwner",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotDistributor",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotEmergencyCouncilOrGovernor",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotGovernor",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotGovernorOrManager",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotLockedNFT",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotManagedNFT",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotManagedOrNormalNFT",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotNormalNFT",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotOwner",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotPermanentLock",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotTeam",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotVoter",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OwnershipChange",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "PermanentLock",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SameAddress",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SameNFT",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SameState",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SignatureExpired",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SplitNoOwner",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SplitNotAllowed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TooManyTokenIDs",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ZeroAddress",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ZeroAmount",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ZeroBalance",
+    "type": "error"
   },
   {
     "anonymous": false,
@@ -69,6 +269,62 @@
     "anonymous": false,
     "inputs": [
       {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "_fromTokenId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "_toTokenId",
+        "type": "uint256"
+      }
+    ],
+    "name": "BatchMetadataUpdate",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "_to",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "_mTokenId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "_from",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "_lockedManagedReward",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "_freeManagedReward",
+        "type": "address"
+      }
+    ],
+    "name": "CreateManaged",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
         "indexed": true,
         "internalType": "address",
         "name": "delegator",
@@ -76,15 +332,15 @@
       },
       {
         "indexed": true,
-        "internalType": "address",
+        "internalType": "uint256",
         "name": "fromDelegate",
-        "type": "address"
+        "type": "uint256"
       },
       {
         "indexed": true,
-        "internalType": "address",
+        "internalType": "uint256",
         "name": "toDelegate",
-        "type": "address"
+        "type": "uint256"
       }
     ],
     "name": "DelegateChanged",
@@ -125,10 +381,16 @@
         "type": "address"
       },
       {
-        "indexed": false,
+        "indexed": true,
         "internalType": "uint256",
         "name": "tokenId",
         "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "enum IVotingEscrow.DepositType",
+        "name": "depositType",
+        "type": "uint8"
       },
       {
         "indexed": false,
@@ -137,16 +399,10 @@
         "type": "uint256"
       },
       {
-        "indexed": true,
+        "indexed": false,
         "internalType": "uint256",
         "name": "locktime",
         "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "enum VotingEscrow.DepositType",
-        "name": "deposit_type",
-        "type": "uint8"
       },
       {
         "indexed": false,
@@ -156,6 +412,210 @@
       }
     ],
     "name": "Deposit",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "_owner",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "_tokenId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "_mTokenId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "_weight",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "_ts",
+        "type": "uint256"
+      }
+    ],
+    "name": "DepositManaged",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "_owner",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "_tokenId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "_ts",
+        "type": "uint256"
+      }
+    ],
+    "name": "LockPermanent",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "_sender",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "_from",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "_to",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "_amountFrom",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "_amountTo",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "_amountFinal",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "_locktime",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "_ts",
+        "type": "uint256"
+      }
+    ],
+    "name": "Merge",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "_tokenId",
+        "type": "uint256"
+      }
+    ],
+    "name": "MetadataUpdate",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "_allowedManager",
+        "type": "address"
+      }
+    ],
+    "name": "SetAllowedManager",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "_from",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "_tokenId1",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "_tokenId2",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "_sender",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "_splitAmount1",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "_splitAmount2",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "_locktime",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "_ts",
+        "type": "uint256"
+      }
+    ],
+    "name": "Split",
     "type": "event"
   },
   {
@@ -208,11 +668,42 @@
       {
         "indexed": true,
         "internalType": "address",
+        "name": "_owner",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "_tokenId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "_ts",
+        "type": "uint256"
+      }
+    ],
+    "name": "UnlockPermanent",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
         "name": "provider",
         "type": "address"
       },
       {
-        "indexed": false,
+        "indexed": true,
         "internalType": "uint256",
         "name": "tokenId",
         "type": "uint256"
@@ -232,6 +723,56 @@
     ],
     "name": "Withdraw",
     "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "_owner",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "_tokenId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "_mTokenId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "_weight",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "_ts",
+        "type": "uint256"
+      }
+    ],
+    "name": "WithdrawManaged",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "CLOCK_MODE",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
   },
   {
     "inputs": [],
@@ -261,28 +802,15 @@
   },
   {
     "inputs": [],
-    "name": "MAX_DELEGATES",
+    "name": "allowedManager",
     "outputs": [
       {
-        "internalType": "uint256",
+        "internalType": "address",
         "name": "",
-        "type": "uint256"
+        "type": "address"
       }
     ],
     "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "_tokenId",
-        "type": "uint256"
-      }
-    ],
-    "name": "abstain",
-    "outputs": [],
-    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -319,68 +847,12 @@
   {
     "inputs": [
       {
-        "internalType": "uint256",
-        "name": "_tokenId",
-        "type": "uint256"
-      }
-    ],
-    "name": "attach",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "name": "attachments",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
         "internalType": "address",
         "name": "_owner",
         "type": "address"
       }
     ],
     "name": "balanceOf",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "_tokenId",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_block",
-        "type": "uint256"
-      }
-    ],
-    "name": "balanceOfAtNFT",
     "outputs": [
       {
         "internalType": "uint256",
@@ -435,13 +907,19 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "block_number",
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "canSplit",
     "outputs": [
       {
-        "internalType": "uint256",
+        "internalType": "bool",
         "name": "",
-        "type": "uint256"
+        "type": "bool"
       }
     ],
     "stateMutability": "view",
@@ -457,22 +935,57 @@
   {
     "inputs": [
       {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
+        "internalType": "uint256",
+        "name": "_tokenId",
+        "type": "uint256"
       },
       {
-        "internalType": "uint32",
-        "name": "",
-        "type": "uint32"
+        "internalType": "uint48",
+        "name": "_index",
+        "type": "uint48"
       }
     ],
     "name": "checkpoints",
     "outputs": [
       {
-        "internalType": "uint256",
-        "name": "timestamp",
-        "type": "uint256"
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "fromTimestamp",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "owner",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "delegatedBalance",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "delegatee",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct IVotingEscrow.Checkpoint",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "clock",
+    "outputs": [
+      {
+        "internalType": "uint48",
+        "name": "",
+        "type": "uint48"
       }
     ],
     "stateMutability": "view",
@@ -487,11 +1000,11 @@
       },
       {
         "internalType": "uint256",
-        "name": "_lock_duration",
+        "name": "_lockDuration",
         "type": "uint256"
       }
     ],
-    "name": "create_lock",
+    "name": "createLock",
     "outputs": [
       {
         "internalType": "uint256",
@@ -511,7 +1024,7 @@
       },
       {
         "internalType": "uint256",
-        "name": "_lock_duration",
+        "name": "_lockDuration",
         "type": "uint256"
       },
       {
@@ -520,7 +1033,7 @@
         "type": "address"
       }
     ],
-    "name": "create_lock_for",
+    "name": "createLockFor",
     "outputs": [
       {
         "internalType": "uint256",
@@ -529,6 +1042,44 @@
       }
     ],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_to",
+        "type": "address"
+      }
+    ],
+    "name": "createManagedLockFor",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "_mTokenId",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "deactivated",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -547,9 +1098,14 @@
   {
     "inputs": [
       {
-        "internalType": "address",
+        "internalType": "uint256",
+        "name": "delegator",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
         "name": "delegatee",
-        "type": "address"
+        "type": "uint256"
       }
     ],
     "name": "delegate",
@@ -560,9 +1116,14 @@
   {
     "inputs": [
       {
-        "internalType": "address",
+        "internalType": "uint256",
+        "name": "delegator",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
         "name": "delegatee",
-        "type": "address"
+        "type": "uint256"
       },
       {
         "internalType": "uint256",
@@ -598,17 +1159,17 @@
   {
     "inputs": [
       {
-        "internalType": "address",
+        "internalType": "uint256",
         "name": "delegator",
-        "type": "address"
+        "type": "uint256"
       }
     ],
     "name": "delegates",
     "outputs": [
       {
-        "internalType": "address",
+        "internalType": "uint256",
         "name": "",
-        "type": "address"
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -627,7 +1188,7 @@
         "type": "uint256"
       }
     ],
-    "name": "deposit_for",
+    "name": "depositFor",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -638,11 +1199,29 @@
         "internalType": "uint256",
         "name": "_tokenId",
         "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_mTokenId",
+        "type": "uint256"
       }
     ],
-    "name": "detach",
+    "name": "depositManaged",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "distributor",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -653,6 +1232,51 @@
         "internalType": "uint256",
         "name": "",
         "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "escrowType",
+    "outputs": [
+      {
+        "internalType": "enum IVotingEscrow.EscrowType",
+        "name": "",
+        "type": "uint8"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "factoryRegistry",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "forwarder",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
       }
     ],
     "stateMutability": "view",
@@ -681,7 +1305,7 @@
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "timestamp",
+        "name": "_timestamp",
         "type": "uint256"
       }
     ],
@@ -700,12 +1324,17 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "account",
+        "name": "_account",
         "type": "address"
       },
       {
         "internalType": "uint256",
-        "name": "timestamp",
+        "name": "_tokenId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_timestamp",
         "type": "uint256"
       }
     ],
@@ -723,60 +1352,17 @@
   {
     "inputs": [
       {
-        "internalType": "address",
-        "name": "account",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "timestamp",
-        "type": "uint256"
-      }
-    ],
-    "name": "getPastVotesIndex",
-    "outputs": [
-      {
-        "internalType": "uint32",
-        "name": "",
-        "type": "uint32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "account",
-        "type": "address"
-      }
-    ],
-    "name": "getVotes",
-    "outputs": [
-      {
         "internalType": "uint256",
         "name": "",
         "type": "uint256"
       }
     ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "_tokenId",
-        "type": "uint256"
-      }
-    ],
-    "name": "get_last_user_slope",
+    "name": "idToManaged",
     "outputs": [
       {
-        "internalType": "int128",
+        "internalType": "uint256",
         "name": "",
-        "type": "int128"
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -795,7 +1381,7 @@
         "type": "uint256"
       }
     ],
-    "name": "increase_amount",
+    "name": "increaseAmount",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -809,11 +1395,11 @@
       },
       {
         "internalType": "uint256",
-        "name": "_lock_duration",
+        "name": "_lockDuration",
         "type": "uint256"
       }
     ],
-    "name": "increase_unlock_time",
+    "name": "increaseUnlockTime",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -869,22 +1455,17 @@
   {
     "inputs": [
       {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
+        "internalType": "address",
+        "name": "forwarder",
+        "type": "address"
       }
     ],
-    "name": "locked",
+    "name": "isTrustedForwarder",
     "outputs": [
       {
-        "internalType": "int128",
-        "name": "amount",
-        "type": "int128"
-      },
-      {
-        "internalType": "uint256",
-        "name": "end",
-        "type": "uint256"
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
       }
     ],
     "stateMutability": "view",
@@ -898,12 +1479,80 @@
         "type": "uint256"
       }
     ],
-    "name": "locked__end",
+    "name": "lockPermanent",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_tokenId",
+        "type": "uint256"
+      }
+    ],
+    "name": "locked",
     "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "int128",
+            "name": "amount",
+            "type": "int128"
+          },
+          {
+            "internalType": "uint256",
+            "name": "end",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bool",
+            "name": "isPermanent",
+            "type": "bool"
+          }
+        ],
+        "internalType": "struct IVotingEscrow.LockedBalance",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
       {
         "internalType": "uint256",
         "name": "",
         "type": "uint256"
+      }
+    ],
+    "name": "managedToFree",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "managedToLocked",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
       }
     ],
     "stateMutability": "view",
@@ -962,17 +1611,17 @@
   {
     "inputs": [
       {
-        "internalType": "address",
+        "internalType": "uint256",
         "name": "",
-        "type": "address"
+        "type": "uint256"
       }
     ],
     "name": "numCheckpoints",
     "outputs": [
       {
-        "internalType": "uint32",
+        "internalType": "uint48",
         "name": "",
-        "type": "uint32"
+        "type": "uint48"
       }
     ],
     "stateMutability": "view",
@@ -1000,12 +1649,30 @@
   {
     "inputs": [
       {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      },
+      {
         "internalType": "uint256",
         "name": "",
         "type": "uint256"
       }
     ],
-    "name": "ownership_change",
+    "name": "ownerToNFTokenIdList",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "permanentLockBalance",
     "outputs": [
       {
         "internalType": "uint256",
@@ -1020,31 +1687,43 @@
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "",
+        "name": "_loc",
         "type": "uint256"
       }
     ],
-    "name": "point_history",
+    "name": "pointHistory",
     "outputs": [
       {
-        "internalType": "int128",
-        "name": "bias",
-        "type": "int128"
-      },
-      {
-        "internalType": "int128",
-        "name": "slope",
-        "type": "int128"
-      },
-      {
-        "internalType": "uint256",
-        "name": "ts",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "blk",
-        "type": "uint256"
+        "components": [
+          {
+            "internalType": "int128",
+            "name": "bias",
+            "type": "int128"
+          },
+          {
+            "internalType": "int128",
+            "name": "slope",
+            "type": "int128"
+          },
+          {
+            "internalType": "uint256",
+            "name": "ts",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "blk",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "permanentLockBalance",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct IVotingEscrow.GlobalPoint",
+        "name": "",
+        "type": "tuple"
       }
     ],
     "stateMutability": "view",
@@ -1105,6 +1784,19 @@
     "inputs": [
       {
         "internalType": "address",
+        "name": "_allowedManager",
+        "type": "address"
+      }
+    ],
+    "name": "setAllowedManager",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
         "name": "_operator",
         "type": "address"
       },
@@ -1135,6 +1827,24 @@
   {
     "inputs": [
       {
+        "internalType": "uint256",
+        "name": "_mTokenId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bool",
+        "name": "_state",
+        "type": "bool"
+      }
+    ],
+    "name": "setManagedState",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "address",
         "name": "_team",
         "type": "address"
@@ -1151,9 +1861,14 @@
         "internalType": "address",
         "name": "_voter",
         "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_distributor",
+        "type": "address"
       }
     ],
-    "name": "setVoter",
+    "name": "setVoterAndDistributor",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -1166,7 +1881,7 @@
         "type": "uint256"
       }
     ],
-    "name": "slope_changes",
+    "name": "slopeChanges",
     "outputs": [
       {
         "internalType": "int128",
@@ -1175,6 +1890,35 @@
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_from",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "split",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "_tokenId1",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_tokenId2",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -1236,6 +1980,24 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_account",
+        "type": "address"
+      },
+      {
+        "internalType": "bool",
+        "name": "_bool",
+        "type": "bool"
+      }
+    ],
+    "name": "toggleSplit",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "token",
     "outputs": [
@@ -1249,19 +2011,8 @@
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_owner",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_tokenIndex",
-        "type": "uint256"
-      }
-    ],
-    "name": "tokenOfOwnerByIndex",
+    "inputs": [],
+    "name": "tokenId",
     "outputs": [
       {
         "internalType": "uint256",
@@ -1308,30 +2059,11 @@
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "_block",
+        "name": "_timestamp",
         "type": "uint256"
       }
     ],
     "name": "totalSupplyAt",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "t",
-        "type": "uint256"
-      }
-    ],
-    "name": "totalSupplyAtT",
     "outputs": [
       {
         "internalType": "uint256",
@@ -1369,19 +2101,13 @@
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "",
+        "name": "_tokenId",
         "type": "uint256"
       }
     ],
-    "name": "user_point_epoch",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
+    "name": "unlockPermanent",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -1390,33 +2116,13 @@
         "internalType": "uint256",
         "name": "",
         "type": "uint256"
-      },
+      }
+    ],
+    "name": "userPointEpoch",
+    "outputs": [
       {
         "internalType": "uint256",
         "name": "",
-        "type": "uint256"
-      }
-    ],
-    "name": "user_point_history",
-    "outputs": [
-      {
-        "internalType": "int128",
-        "name": "bias",
-        "type": "int128"
-      },
-      {
-        "internalType": "int128",
-        "name": "slope",
-        "type": "int128"
-      },
-      {
-        "internalType": "uint256",
-        "name": "ts",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "blk",
         "type": "uint256"
       }
     ],
@@ -1432,16 +2138,43 @@
       },
       {
         "internalType": "uint256",
-        "name": "_idx",
+        "name": "_loc",
         "type": "uint256"
       }
     ],
-    "name": "user_point_history__ts",
+    "name": "userPointHistory",
     "outputs": [
       {
-        "internalType": "uint256",
+        "components": [
+          {
+            "internalType": "int128",
+            "name": "bias",
+            "type": "int128"
+          },
+          {
+            "internalType": "int128",
+            "name": "slope",
+            "type": "int128"
+          },
+          {
+            "internalType": "uint256",
+            "name": "ts",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "blk",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "permanent",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct IVotingEscrow.UserPoint",
         "name": "",
-        "type": "uint256"
+        "type": "tuple"
       }
     ],
     "stateMutability": "view",
@@ -1498,9 +2231,51 @@
         "internalType": "uint256",
         "name": "_tokenId",
         "type": "uint256"
+      },
+      {
+        "internalType": "bool",
+        "name": "_voted",
+        "type": "bool"
       }
     ],
     "name": "voting",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "weights",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_tokenId",
+        "type": "uint256"
+      }
+    ],
+    "name": "withdraw",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -1513,7 +2288,7 @@
         "type": "uint256"
       }
     ],
-    "name": "withdraw",
+    "name": "withdrawManaged",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

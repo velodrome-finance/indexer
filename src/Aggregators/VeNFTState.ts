@@ -1,7 +1,6 @@
-import type { handlerContext } from "generated";
-import type { VeNFTAggregator } from "generated";
+import type { VeNFTState, handlerContext } from "generated";
 
-export interface VeNFTAggregatorDiff {
+export interface VeNFTStateDiff {
   id: string;
   chainId: number;
   tokenId: bigint;
@@ -15,19 +14,34 @@ export interface VeNFTAggregatorDiff {
 export const VeNFTId = (chainId: number, tokenId: bigint) =>
   `${chainId}_${tokenId}`;
 
+export async function loadVeNFTState(
+  chainId: number,
+  tokenId: bigint,
+  context: handlerContext,
+): Promise<VeNFTState | undefined> {
+  const id = VeNFTId(chainId, tokenId);
+  const veNFTState = await context.VeNFTState.get(id);
+
+  if (!veNFTState) {
+    context.log.warn(`[loadVeNFTState] VeNFTState ${id} not found`);
+  }
+
+  return veNFTState;
+}
+
 /**
- * Updates VeNFTAggregator with the provided diff
+ * Updates VeNFTState with the provided diff
  * Uses spread operator to handle immutable entities
  */
-export function updateVeNFTAggregator(
-  diff: Partial<VeNFTAggregatorDiff>,
-  current: VeNFTAggregator,
+export function updateVeNFTState(
+  diff: Partial<VeNFTStateDiff>,
+  current: VeNFTState,
   timestamp: Date,
   context: handlerContext,
 ): void {
-  const veNFTAggregator: VeNFTAggregator = {
+  const veNFTState: VeNFTState = {
     ...current,
-    id: diff.id ?? `${current.chainId}_${current.tokenId}`,
+    id: diff.id ?? VeNFTId(current.chainId, current.tokenId),
     chainId: diff.chainId ?? current.chainId,
     tokenId: diff.tokenId ?? current.tokenId,
     owner: diff.owner ?? current.owner,
@@ -37,5 +51,5 @@ export function updateVeNFTAggregator(
       (diff.incrementalTotalValueLocked ?? 0n) + current.totalValueLocked,
     isAlive: diff.isAlive ?? current.isAlive,
   };
-  context.VeNFTAggregator.set(veNFTAggregator);
+  context.VeNFTState.set(veNFTState);
 }
