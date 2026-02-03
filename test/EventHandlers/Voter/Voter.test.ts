@@ -3,8 +3,12 @@ import type {
   LiquidityPoolAggregator,
   Token,
   UserStatsPerPool,
+  VeNFTPoolVote,
+  VeNFTState,
 } from "generated/src/Types.gen";
 import * as LiquidityPoolAggregatorModule from "../../../src/Aggregators/LiquidityPoolAggregator";
+import { getVeNFTPoolVoteId } from "../../../src/Aggregators/VeNFTPoolVote";
+import { VeNFTId } from "../../../src/Aggregators/VeNFTState";
 import {
   CHAIN_CONSTANTS,
   PoolId,
@@ -39,13 +43,17 @@ describe("Voter Events", () => {
     const voterAddress = toChecksumAddress(
       "0x1111111111111111111111111111111111111111",
     );
+    const tokenId = 1n;
+    const ownerAddress = toChecksumAddress(
+      "0x2222222222222222222222222222222222222222",
+    );
 
     beforeEach(() => {
       mockDb = MockDb.createMockDb();
       mockEvent = Voter.Voted.createMockEvent({
         voter: voterAddress,
         pool: poolAddress,
-        tokenId: 1n,
+        tokenId: tokenId,
         weight: 100n,
         totalWeight: 1000n,
         mockEventData: {
@@ -64,6 +72,7 @@ describe("Voter Events", () => {
       let resultDB: ReturnType<typeof MockDb.createMockDb>;
       let mockLiquidityPool: LiquidityPoolAggregator;
       let mockUserStats: UserStatsPerPool;
+      let mockVeNFTState: VeNFTState;
 
       beforeEach(async () => {
         const {
@@ -71,6 +80,7 @@ describe("Voter Events", () => {
           mockToken0Data,
           mockToken1Data,
           createMockUserStatsPerPool,
+          createMockVeNFTState,
         } = setupCommon();
 
         mockLiquidityPool = {
@@ -81,7 +91,7 @@ describe("Voter Events", () => {
         } as LiquidityPoolAggregator;
 
         mockUserStats = createMockUserStatsPerPool({
-          userAddress: voterAddress,
+          userAddress: ownerAddress,
           poolAddress: poolAddress,
           chainId: chainId,
           veNFTamountStaked: 0n,
@@ -89,11 +99,19 @@ describe("Voter Events", () => {
           lastActivityTimestamp: new Date(0),
         });
 
+        mockVeNFTState = createMockVeNFTState({
+          id: VeNFTId(chainId, tokenId),
+          chainId,
+          tokenId,
+          owner: ownerAddress,
+        });
+
         // Setup mock database with required entities
         mockDb = mockDb.entities.LiquidityPoolAggregator.set(mockLiquidityPool);
         mockDb = mockDb.entities.UserStatsPerPool.set(mockUserStats);
         mockDb = mockDb.entities.Token.set(mockToken0Data);
         mockDb = mockDb.entities.Token.set(mockToken1Data);
+        mockDb = mockDb.entities.VeNFTState.set(mockVeNFTState);
 
         resultDB = await Voter.Voted.processEvent({
           event: mockEvent,
@@ -113,12 +131,34 @@ describe("Voter Events", () => {
       });
 
       it("should update user stats per pool with voting data", () => {
-        const userStatsId = `${voterAddress}_${poolAddress}_${chainId}`;
+        const userStatsId = `${ownerAddress}_${poolAddress}_${chainId}`;
         const updatedUserStats =
           resultDB.entities.UserStatsPerPool.get(userStatsId);
         expect(updatedUserStats).toBeDefined();
         expect(updatedUserStats?.veNFTamountStaked).toBe(100n);
         expect(updatedUserStats?.lastActivityTimestamp).toEqual(
+          new Date(1000000 * 1000),
+        );
+      });
+
+      it("should attribute votes to tokenId owner, not voter", () => {
+        const voterStatsId = `${voterAddress}_${poolAddress}_${chainId}`;
+        const voterStats = resultDB.entities.UserStatsPerPool.get(voterStatsId);
+        expect(voterStats).toBeUndefined();
+      });
+
+      it("should create VeNFTPoolVote entity", () => {
+        const veNFTPoolVoteId = getVeNFTPoolVoteId(
+          chainId,
+          tokenId,
+          poolAddress,
+        );
+        const veNFTPoolVote =
+          resultDB.entities.VeNFTPoolVote.get(veNFTPoolVoteId);
+        expect(veNFTPoolVote).toBeDefined();
+        expect(veNFTPoolVote?.poolAddress).toBe(poolAddress);
+        expect(veNFTPoolVote?.veNFTamountStaked).toBe(100n);
+        expect(veNFTPoolVote?.lastUpdatedTimestamp).toEqual(
           new Date(1000000 * 1000),
         );
       });
@@ -135,11 +175,12 @@ describe("Voter Events", () => {
         expect(
           Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
         ).toHaveLength(0);
-        // loadOrCreateUserData is called in parallel and creates UserStatsPerPool even if pool doesn't exist
-        // This is expected behavior - the entity is created but not updated
         expect(
           Array.from(resultDB.entities.UserStatsPerPool.getAll()),
-        ).toHaveLength(1);
+        ).toHaveLength(0);
+        expect(
+          Array.from(resultDB.entities.VeNFTPoolVote.getAll()),
+        ).toHaveLength(0);
       });
     });
 
@@ -164,6 +205,7 @@ describe("Voter Events", () => {
       const leafChainId = 252; // Fraxtal
       let mockLeafPool: LiquidityPoolAggregator;
       let mockUserStats: UserStatsPerPool;
+      let mockVeNFTState: VeNFTState;
 
       beforeEach(async () => {
         const {
@@ -171,6 +213,7 @@ describe("Voter Events", () => {
           mockToken1Data,
           createMockUserStatsPerPool,
           createMockLiquidityPoolAggregator,
+          createMockVeNFTState,
         } = setupCommon();
 
         // Create tokens for the leaf chain (chain 252)
@@ -204,6 +247,13 @@ describe("Voter Events", () => {
           lastActivityTimestamp: new Date(0),
         });
 
+        mockVeNFTState = createMockVeNFTState({
+          id: VeNFTId(rootChainId, realTokenId),
+          chainId: rootChainId,
+          tokenId: realTokenId,
+          owner: realVoterAddress,
+        });
+
         // Create RootPool_LeafPool mapping
         const rootPoolLeafPool = {
           id: `${rootPoolAddress}_${rootChainId}_${leafPoolAddress}_${leafChainId}`,
@@ -219,6 +269,7 @@ describe("Voter Events", () => {
         mockDb = mockDb.entities.UserStatsPerPool.set(mockUserStats);
         mockDb = mockDb.entities.Token.set(leafToken0Data);
         mockDb = mockDb.entities.Token.set(leafToken1Data);
+        mockDb = mockDb.entities.VeNFTState.set(mockVeNFTState);
 
         // Update event to use real data
         mockEvent = Voter.Voted.createMockEvent({
@@ -266,6 +317,109 @@ describe("Voter Events", () => {
         );
       });
     });
+
+    describe("when multiple tokenIds share the same owner", () => {
+      it("should aggregate votes at the user level", async () => {
+        const {
+          mockToken0Data,
+          mockToken1Data,
+          createMockUserStatsPerPool,
+          createMockLiquidityPoolAggregator,
+          createMockVeNFTState,
+        } = setupCommon();
+
+        const owner = toChecksumAddress(
+          "0x3333333333333333333333333333333333333333",
+        );
+
+        const liquidityPool = createMockLiquidityPoolAggregator({
+          id: PoolId(chainId, poolAddress),
+          chainId: chainId,
+          veNFTamountStaked: 0n,
+        });
+
+        const userStats = createMockUserStatsPerPool({
+          userAddress: owner,
+          poolAddress: poolAddress,
+          chainId: chainId,
+          veNFTamountStaked: 0n,
+          firstActivityTimestamp: new Date(0),
+          lastActivityTimestamp: new Date(0),
+        });
+
+        const veNFT1 = createMockVeNFTState({
+          id: VeNFTId(chainId, 1n),
+          chainId,
+          tokenId: 1n,
+          owner,
+        });
+
+        const veNFT2 = createMockVeNFTState({
+          id: VeNFTId(chainId, 2n),
+          chainId,
+          tokenId: 2n,
+          owner,
+        });
+
+        let db = MockDb.createMockDb();
+        db = db.entities.LiquidityPoolAggregator.set(liquidityPool);
+        db = db.entities.UserStatsPerPool.set(userStats);
+        db = db.entities.Token.set(mockToken0Data);
+        db = db.entities.Token.set(mockToken1Data);
+        db = db.entities.VeNFTState.set(veNFT1);
+        db = db.entities.VeNFTState.set(veNFT2);
+
+        const voteEvent1 = Voter.Voted.createMockEvent({
+          voter: voterAddress,
+          pool: poolAddress,
+          tokenId: 1n,
+          weight: 100n,
+          totalWeight: 1000n,
+          mockEventData: {
+            block: {
+              number: 123456,
+              timestamp: 1000000,
+              hash: "0xhash",
+            },
+            chainId: chainId,
+            logIndex: 1,
+          },
+        });
+
+        const voteEvent2 = Voter.Voted.createMockEvent({
+          voter: voterAddress,
+          pool: poolAddress,
+          tokenId: 2n,
+          weight: 200n,
+          totalWeight: 1100n,
+          mockEventData: {
+            block: {
+              number: 123457,
+              timestamp: 1000001,
+              hash: "0xhash2",
+            },
+            chainId: chainId,
+            logIndex: 2,
+          },
+        });
+
+        const dbAfterFirst = await Voter.Voted.processEvent({
+          event: voteEvent1,
+          mockDb: db,
+        });
+
+        const dbAfterSecond = await Voter.Voted.processEvent({
+          event: voteEvent2,
+          mockDb: dbAfterFirst,
+        });
+
+        const updatedUserStats = dbAfterSecond.entities.UserStatsPerPool.get(
+          `${owner}_${poolAddress}_${chainId}`,
+        );
+        expect(updatedUserStats).toBeDefined();
+        expect(updatedUserStats?.veNFTamountStaked).toBe(300n);
+      });
+    });
   });
 
   describe("Abstained Event", () => {
@@ -278,13 +432,17 @@ describe("Voter Events", () => {
     const voterAddress = toChecksumAddress(
       "0x1111111111111111111111111111111111111111",
     );
+    const tokenId = 1n;
+    const ownerAddress = toChecksumAddress(
+      "0x2222222222222222222222222222222222222222",
+    );
 
     beforeEach(() => {
       mockDb = MockDb.createMockDb();
       mockEvent = Voter.Abstained.createMockEvent({
         voter: voterAddress,
         pool: poolAddress,
-        tokenId: 1n,
+        tokenId: tokenId,
         weight: 100n,
         totalWeight: 1000n,
         mockEventData: {
@@ -303,6 +461,8 @@ describe("Voter Events", () => {
       let resultDB: ReturnType<typeof MockDb.createMockDb>;
       let mockLiquidityPool: LiquidityPoolAggregator;
       let mockUserStats: UserStatsPerPool;
+      let mockVeNFTState: VeNFTState;
+      let mockVeNFTPoolVote: VeNFTPoolVote;
 
       beforeEach(async () => {
         const {
@@ -310,6 +470,8 @@ describe("Voter Events", () => {
           mockToken0Data,
           mockToken1Data,
           createMockUserStatsPerPool,
+          createMockVeNFTState,
+          createMockVeNFTPoolVote,
         } = setupCommon();
 
         mockLiquidityPool = {
@@ -320,7 +482,7 @@ describe("Voter Events", () => {
         } as LiquidityPoolAggregator;
 
         mockUserStats = createMockUserStatsPerPool({
-          userAddress: voterAddress,
+          userAddress: ownerAddress,
           poolAddress: poolAddress,
           chainId: chainId,
           veNFTamountStaked: 200n, // Initial user staked amount
@@ -328,11 +490,28 @@ describe("Voter Events", () => {
           lastActivityTimestamp: new Date(0),
         });
 
+        mockVeNFTState = createMockVeNFTState({
+          id: VeNFTId(chainId, tokenId),
+          chainId,
+          tokenId,
+          owner: ownerAddress,
+        });
+
+        mockVeNFTPoolVote = createMockVeNFTPoolVote({
+          id: getVeNFTPoolVoteId(chainId, tokenId, poolAddress),
+          poolAddress,
+          veNFTamountStaked: 200n,
+          veNFTState_id: mockVeNFTState.id,
+          lastUpdatedTimestamp: new Date(0),
+        });
+
         // Setup mock database with required entities
         mockDb = mockDb.entities.LiquidityPoolAggregator.set(mockLiquidityPool);
         mockDb = mockDb.entities.UserStatsPerPool.set(mockUserStats);
         mockDb = mockDb.entities.Token.set(mockToken0Data);
         mockDb = mockDb.entities.Token.set(mockToken1Data);
+        mockDb = mockDb.entities.VeNFTState.set(mockVeNFTState);
+        mockDb = mockDb.entities.VeNFTPoolVote.set(mockVeNFTPoolVote);
 
         resultDB = await Voter.Abstained.processEvent({
           event: mockEvent,
@@ -353,7 +532,7 @@ describe("Voter Events", () => {
       });
 
       it("should decrease user stats veNFT amount staked (negative weight)", () => {
-        const userStatsId = `${voterAddress}_${poolAddress}_${chainId}`;
+        const userStatsId = `${ownerAddress}_${poolAddress}_${chainId}`;
         const updatedUserStats =
           resultDB.entities.UserStatsPerPool.get(userStatsId);
         expect(updatedUserStats).toBeDefined();
@@ -362,6 +541,18 @@ describe("Voter Events", () => {
         expect(updatedUserStats?.lastActivityTimestamp).toEqual(
           new Date(1000000 * 1000),
         );
+      });
+
+      it("should decrement tokenId pool votes", () => {
+        const veNFTPoolVoteId = getVeNFTPoolVoteId(
+          chainId,
+          tokenId,
+          poolAddress,
+        );
+        const veNFTPoolVote =
+          resultDB.entities.VeNFTPoolVote.get(veNFTPoolVoteId);
+        expect(veNFTPoolVote).toBeDefined();
+        expect(veNFTPoolVote?.veNFTamountStaked).toBe(100n); // 200n - 100n
       });
     });
 
@@ -376,11 +567,12 @@ describe("Voter Events", () => {
         expect(
           Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
         ).toHaveLength(0);
-        // loadOrCreateUserData is called in parallel and creates UserStatsPerPool even if pool doesn't exist
-        // This is expected behavior - the entity is created but not updated
         expect(
           Array.from(resultDB.entities.UserStatsPerPool.getAll()),
-        ).toHaveLength(1);
+        ).toHaveLength(0);
+        expect(
+          Array.from(resultDB.entities.VeNFTPoolVote.getAll()),
+        ).toHaveLength(0);
       });
     });
 
@@ -400,6 +592,8 @@ describe("Voter Events", () => {
       const initialUserStaked = 50000000000000000000000n; // 50k tokens (18 decimals) - initial amount before withdrawal
       let mockLeafPool: LiquidityPoolAggregator;
       let mockUserStats: UserStatsPerPool;
+      let mockVeNFTState: VeNFTState;
+      let mockVeNFTPoolVote: VeNFTPoolVote;
 
       beforeEach(async () => {
         const {
@@ -407,6 +601,8 @@ describe("Voter Events", () => {
           mockToken1Data,
           createMockUserStatsPerPool,
           createMockLiquidityPoolAggregator,
+          createMockVeNFTState,
+          createMockVeNFTPoolVote,
         } = setupCommon();
 
         // Create tokens for the leaf chain (chain 252)
@@ -440,6 +636,21 @@ describe("Voter Events", () => {
           lastActivityTimestamp: new Date(0),
         });
 
+        mockVeNFTState = createMockVeNFTState({
+          id: VeNFTId(rootChainId, realTokenId),
+          chainId: rootChainId,
+          tokenId: realTokenId,
+          owner: realVoterAddress,
+        });
+
+        mockVeNFTPoolVote = createMockVeNFTPoolVote({
+          id: getVeNFTPoolVoteId(rootChainId, realTokenId, rootPoolAddress),
+          poolAddress: rootPoolAddress,
+          veNFTamountStaked: realWeight,
+          veNFTState_id: mockVeNFTState.id,
+          lastUpdatedTimestamp: new Date(0),
+        });
+
         // Create RootPool_LeafPool mapping
         const rootPoolLeafPool = {
           id: `${rootPoolAddress}_${rootChainId}_${leafPoolAddress}_${leafChainId}`,
@@ -455,6 +666,8 @@ describe("Voter Events", () => {
         mockDb = mockDb.entities.UserStatsPerPool.set(mockUserStats);
         mockDb = mockDb.entities.Token.set(leafToken0Data);
         mockDb = mockDb.entities.Token.set(leafToken1Data);
+        mockDb = mockDb.entities.VeNFTState.set(mockVeNFTState);
+        mockDb = mockDb.entities.VeNFTPoolVote.set(mockVeNFTPoolVote);
 
         // Update event to use real data
         mockEvent = Voter.Abstained.createMockEvent({
@@ -504,6 +717,18 @@ describe("Voter Events", () => {
         expect(updatedUserStats?.lastActivityTimestamp).toEqual(
           new Date(realTimestamp * 1000),
         );
+      });
+
+      it("should zero out veNFT pool votes", () => {
+        const veNFTPoolVoteId = getVeNFTPoolVoteId(
+          rootChainId,
+          realTokenId,
+          rootPoolAddress,
+        );
+        const veNFTPoolVote =
+          resultDB.entities.VeNFTPoolVote.get(veNFTPoolVoteId);
+        expect(veNFTPoolVote).toBeDefined();
+        expect(veNFTPoolVote?.veNFTamountStaked).toBe(0n);
       });
     });
   });
