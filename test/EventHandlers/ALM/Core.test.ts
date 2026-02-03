@@ -1,7 +1,6 @@
 import { ALMCore, MockDb } from "../../../generated/src/TestHelpers.gen";
 import type { ALM_LP_Wrapper } from "../../../generated/src/Types.gen";
 import { toChecksumAddress } from "../../../src/Constants";
-import { calculatePositionAmountsFromLiquidity } from "../../../src/Helpers";
 import { setupCommon } from "../Pool/common";
 
 describe("ALMCore Rebalance Event", () => {
@@ -66,14 +65,6 @@ describe("ALMCore Rebalance Event", () => {
       const newProperty = 3000n;
       const sqrtPriceX96 = 79228162514264337593543950336n; // sqrt(1) * 2^96
 
-      // Calculate expected recalculated amounts from liquidity and price
-      const expectedRecalculatedAmounts = calculatePositionAmountsFromLiquidity(
-        newLiquidity,
-        sqrtPriceX96,
-        newTickLower,
-        newTickUpper,
-      );
-
       const mockEvent = ALMCore.Rebalance.createMockEvent({
         rebalanceEventParams: [
           poolAddress,
@@ -102,9 +93,8 @@ describe("ALMCore Rebalance Event", () => {
       const updatedWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
 
       expect(updatedWrapper).toBeDefined();
-      // amount0 and amount1 are recalculated from liquidity and price, not from event amounts
-      expect(updatedWrapper?.amount0).toBe(expectedRecalculatedAmounts.amount0);
-      expect(updatedWrapper?.amount1).toBe(expectedRecalculatedAmounts.amount1);
+      expect(updatedWrapper?.amount0).toBe(newAmount0);
+      expect(updatedWrapper?.amount1).toBe(newAmount1);
       expect(updatedWrapper?.liquidity).toBe(newLiquidity);
       expect(updatedWrapper?.tokenId).toBe(newTokenId);
       expect(updatedWrapper?.tickLower).toBe(newTickLower);
