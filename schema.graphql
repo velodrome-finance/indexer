@@ -209,9 +209,7 @@ type UserStatsPerPool {
   veNFTamountStaked: BigInt! @config(precision: 76) # amount of veNFT staked by this user for this pool
 
   # ALM metrics
-  almAddress: String!
-  almAmount0: BigInt! @config(precision: 76) # Underlying amount of token0 associated with LP tokens owned
-  almAmount1: BigInt! @config(precision: 76) # Underlying amount of token1 associated with LP tokens owned
+  almAddress: String! # Address of ALM LP Wrapper (if the user interacts with it; otherwise defaults to "")
   almLpAmount: BigInt! @config(precision: 76) # Number of LP tokens
   lastAlmActivityTimestamp: Timestamp! # last ALM related activity that changed ALM related fields on user entity
 
@@ -293,9 +291,7 @@ type ALM_LP_Wrapper {
   token0: String! # Address of token 0
   token1: String! # Address of token 1
 
-  # Wrapper-level amounts (recalculated from liquidity and current price)
-  amount0: BigInt! @config(precision: 76) # Current amount of token0 in the AMM position (recalculated from liquidity and current price)
-  amount1: BigInt! @config(precision: 76) # Current amount of token1 in the AMM position (recalculated from liquidity and current price)
+  # Wrapper-level state
   lpAmount: BigInt! @config(precision: 76) # Total number of LP tokens wrapped (aggregated across all users)
   lastUpdatedTimestamp: Timestamp! # Timestamp of the last update to this entity
 
@@ -306,17 +302,6 @@ type ALM_LP_Wrapper {
   tickUpper: BigInt! @config(precision: 24) # Upper tick bound of the position's price range (in tick units)
   property: BigInt! @config(precision: 24) # Pool property parameter from the AMM position struct
   liquidity: BigInt! @config(precision: 76) # Amount of liquidity currently in the AMM position
-
-  # Indicates whether `liquidity`, `amount0`, and `amount1` are currently derived
-  # using an external price (e.g. oracle or pool price) rather than being a
-  # direct snapshot of the on-chain AMM position.
-  #
-  # - true: State was derived from (`amount0`, `amount1`) at a specific price
-  #   without a recent Rebalance event (price-relative valuation), typically
-  #   updated during ALMLPWrapper Deposit / Withdraw events.
-  # - false: State was last synced from an on-chain AMM snapshot (e.g. via
-  #   Rebalance) and reflects protocol-level liquidity exactly.
-  ammStateIsDerived: Boolean!
 
   strategyType: BigInt! @config(precision: 24) # Type/kind of ALM strategy being used (defines the strategy behavior)
   tickNeighborhood: BigInt! @config(precision: 24) # Tick neighborhood parameter for the strategy (defines rebalancing range around current price)

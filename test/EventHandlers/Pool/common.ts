@@ -150,12 +150,8 @@ export function setupCommon() {
     pool: POOL_ADDRESS,
     token0: mockToken0Data.address,
     token1: mockToken1Data.address,
-    // Wrapper-level aggregations
-    amount0: 1000n * TEN_TO_THE_18_BI,
-    amount1: 500n * TEN_TO_THE_6_BI,
     lpAmount: 2000n * TEN_TO_THE_18_BI,
     lastUpdatedTimestamp: new Date(900000 * 1000),
-    // Strategy/Position-level state
     tokenId: 1n,
     tickLower: -1000n,
     tickUpper: 1000n,
@@ -169,7 +165,6 @@ export function setupCommon() {
     creationTimestamp: new Date(900000 * 1000),
     strategyTransactionHash:
       "0x0000000000000000000000000000000000000000000000000000000000000001",
-    ammStateIsDerived: false, // Default to false (from on-chain AMM position), tests can override
   };
 
   const defaultUserAddress = "0xAbCccccccccccccccccccccccccccccccccccccc";
@@ -223,8 +218,6 @@ export function setupCommon() {
 
     // ALM metrics - initialized to empty/zero values
     almAddress: "",
-    almAmount0: 0n,
-    almAmount1: 0n,
     almLpAmount: 0n,
 
     // Timestamps

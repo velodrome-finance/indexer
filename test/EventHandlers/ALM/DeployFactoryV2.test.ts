@@ -4,7 +4,6 @@ import {
 } from "../../../generated/src/TestHelpers.gen";
 import type { NonFungiblePosition } from "../../../generated/src/Types.gen";
 import { toChecksumAddress } from "../../../src/Constants";
-import { calculatePositionAmountsFromLiquidity } from "../../../src/Helpers";
 import {
   extendMockDbWithGetWhere,
   setupLiquidityPoolAggregator,
@@ -138,16 +137,6 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
       expect(createdWrapper?.token0).toBe(mockToken0Data.address);
       expect(createdWrapper?.token1).toBe(mockToken1Data.address);
 
-      // Wrapper-level aggregations should be initialized from NonFungiblePosition
-      // Calculate expected amounts from liquidity and sqrtPriceX96
-      const expectedAmounts = calculatePositionAmountsFromLiquidity(
-        liquidity,
-        sqrtPriceX96,
-        tickLower,
-        tickUpper,
-      );
-      expect(createdWrapper?.amount0).toBe(expectedAmounts.amount0);
-      expect(createdWrapper?.amount1).toBe(expectedAmounts.amount1);
       // lpAmount should be initialized from TotalSupplyLimitUpdated event
       expect(createdWrapper?.lpAmount).toBe(5000n * 10n ** 18n);
 
@@ -171,8 +160,6 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
       expect(createdWrapper?.lastUpdatedTimestamp).toEqual(
         new Date(blockTimestamp * 1000),
       );
-      // Initial state from StrategyCreated is from on-chain AMM position, not derived
-      expect(createdWrapper?.ammStateIsDerived).toBe(false);
     });
 
     it("should not create entity when NonFungiblePosition not found (empty array - covers ?.filter branch)", async () => {
@@ -412,14 +399,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
       // Should use the matching NFPM (matchingNFPM), not the others
       expect(createdWrapper?.tokenId).toBe(tokenId);
       // Calculate expected amounts from liquidity and sqrtPriceX96
-      const expectedAmounts = calculatePositionAmountsFromLiquidity(
-        liquidity,
-        sqrtPriceX96,
-        tickLower,
-        tickUpper,
-      );
-      expect(createdWrapper?.amount0).toBe(expectedAmounts.amount0);
-      expect(createdWrapper?.amount1).toBe(expectedAmounts.amount1);
+      expect(createdWrapper?.liquidity).toBe(liquidity);
     });
 
     it("should filter out NonFungiblePosition with mismatched token0 (covers filter predicate branches)", async () => {
@@ -803,14 +783,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
       // Should use the first matching NFPM (matchingNFPM1)
       expect(createdWrapper?.tokenId).toBe(tokenId);
       // Calculate expected amounts from liquidity and sqrtPriceX96
-      const expectedAmounts = calculatePositionAmountsFromLiquidity(
-        1000000n, // liquidity
-        sqrtPriceX96,
-        -1000n, // tickLower
-        1000n, // tickUpper
-      );
-      expect(createdWrapper?.amount0).toBe(expectedAmounts.amount0);
-      expect(createdWrapper?.amount1).toBe(expectedAmounts.amount1);
+      expect(createdWrapper?.liquidity).toBe(1000000n);
     });
   });
 });

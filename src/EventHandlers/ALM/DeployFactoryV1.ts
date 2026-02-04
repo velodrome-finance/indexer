@@ -1,16 +1,12 @@
 import { ALMDeployFactoryV1 } from "generated";
-import { PoolId } from "../../Constants";
-import { calculatePositionAmountsFromLiquidity } from "../../Helpers";
 
 ALMDeployFactoryV1.StrategyCreated.contractRegister(({ event, context }) => {
-  const [pool, ammPosition, strategyParams, lpWrapper, synthetixFarm, caller] =
-    event.params.params;
+  const [, , , lpWrapper, ,] = event.params.params;
   context.addALMLPWrapperV1(lpWrapper);
 });
 
 ALMDeployFactoryV1.StrategyCreated.handler(async ({ event, context }) => {
-  const [pool, ammPosition, strategyParams, lpWrapper, synthetixFarm, caller] =
-    event.params.params;
+  const [pool, ammPosition, strategyParams, lpWrapper, ,] = event.params.params;
 
   const [strategyType, tickNeighborhood, tickSpacing, width] = strategyParams;
 
@@ -57,40 +53,13 @@ ALMDeployFactoryV1.StrategyCreated.handler(async ({ event, context }) => {
   const position = matchingPositions[0];
   const tokenId = position.tokenId;
 
-  // Compute amount0/amount1 from liquidity + sqrtPriceX96 + ticks (amount0/amount1 removed from schema)
-  // Fetch sqrtPriceX96 from pool aggregator
-  const poolId = PoolId(event.chainId, pool);
-  const liquidityPoolAggregator =
-    await context.LiquidityPoolAggregator.get(poolId);
-  const sqrtPriceX96 = liquidityPoolAggregator?.sqrtPriceX96;
-
-  let amount0 = 0n;
-  let amount1 = 0n;
-  // Treat sqrtPriceX96 === 0n the same as undefined (missing/invalid)
-  if (sqrtPriceX96 !== undefined && sqrtPriceX96 !== 0n) {
-    const amounts = calculatePositionAmountsFromLiquidity(
-      liquidity,
-      sqrtPriceX96,
-      tickLower,
-      tickUpper,
-    );
-    amount0 = amounts.amount0;
-    amount1 = amounts.amount1;
-  } else {
-    context.log.warn(
-      `[ALMDeployFactoryV1] sqrtPriceX96 is missing or zero for pool ${poolId} on chain ${event.chainId}. Cannot compute amount0/amount1, using 0`,
-    );
-  }
-
   // In DeployFactoryV1, lpWrapper.initialize() receives position.liquidity as initialTotalSupply
   // and mints that amount as LP tokens. So the initial LP token supply equals the liquidity value.
   // Note: Unlike V2, V1 doesn't emit TotalSupplyLimitUpdated event, so we use liquidity directly.
   const initialTotalSupplyLPTokens = liquidity;
 
   // Create ALM_LP_Wrapper (single entity tracks both wrapper and strategy)
-  // This single entity contains both wrapper-level aggregations and strategy/position state
-  // Note: DeployFactoryV1 doesn't have maxLiquidityRatioDeviationX96 in strategyParams,
-  // so we set it to 0n as a default value (required by schema)
+  // amount0/amount1 are derived at snapshot time from liquidity + sqrtPriceX96 + ticks
   context.ALM_LP_Wrapper.set({
     id: `${lpWrapper}_${event.chainId}`,
     chainId: event.chainId,
@@ -98,8 +67,6 @@ ALMDeployFactoryV1.StrategyCreated.handler(async ({ event, context }) => {
     token0: token0,
     token1: token1,
 
-    amount0: amount0,
-    amount1: amount1,
     lpAmount: initialTotalSupplyLPTokens,
     lastUpdatedTimestamp: timestamp,
 
@@ -113,7 +80,6 @@ ALMDeployFactoryV1.StrategyCreated.handler(async ({ event, context }) => {
     tickSpacing: tickSpacing,
     positionWidth: width,
     maxLiquidityRatioDeviationX96: 0n, // Not present in DeployFactoryV1 strategyParams, defaulting to 0
-    ammStateIsDerived: false, // State comes from on-chain AMM position (StrategyCreated event), not derived from amounts
     creationTimestamp: timestamp,
     strategyTransactionHash: event.transaction.hash,
   });
