@@ -1,10 +1,6 @@
 import type { ALM_LP_Wrapper, handlerContext } from "generated";
 import { updateALMLPWrapper } from "../../src/Aggregators/ALMLPWrapper";
-import {
-  TEN_TO_THE_6_BI,
-  TEN_TO_THE_18_BI,
-  toChecksumAddress,
-} from "../../src/Constants";
+import { TEN_TO_THE_18_BI } from "../../src/Constants";
 import { setupCommon } from "../EventHandlers/Pool/common";
 
 describe("ALMLPWrapper Aggregator", () => {
@@ -53,14 +49,13 @@ describe("ALMLPWrapper Aggregator", () => {
   });
 
   describe("updateALMLPWrapper", () => {
-    describe("when updating with deposit diff (positive amounts)", () => {
+    describe("when updating with deposit diff (incrementalLpAmount)", () => {
       let result: ALM_LP_Wrapper;
 
       beforeEach(async () => {
         const depositDiff = {
-          amount0: 250n * TEN_TO_THE_18_BI,
-          amount1: 125n * TEN_TO_THE_6_BI,
           incrementalLpAmount: 500n * TEN_TO_THE_18_BI,
+          liquidity: 1500000n,
         };
 
         await updateALMLPWrapper(
@@ -74,9 +69,8 @@ describe("ALMLPWrapper Aggregator", () => {
         result = mockSet?.mock.calls[0]?.[0] as ALM_LP_Wrapper;
       });
 
-      it("should set amount0 and amount1 directly (recalculated from liquidity), and increment lpAmount", () => {
-        expect(result.amount0).toBe(250n * TEN_TO_THE_18_BI); // Set directly, not incremented
-        expect(result.amount1).toBe(125n * TEN_TO_THE_6_BI); // Set directly, not incremented
+      it("should set liquidity directly and increment lpAmount", () => {
+        expect(result.liquidity).toBe(1500000n);
         expect(result.lpAmount).toBe(2500n * TEN_TO_THE_18_BI); // 2000 + 500 (incremented)
       });
 
@@ -91,14 +85,13 @@ describe("ALMLPWrapper Aggregator", () => {
       });
     });
 
-    describe("when updating with withdraw diff (negative amounts)", () => {
+    describe("when updating with withdraw diff (negative incrementalLpAmount)", () => {
       let result: ALM_LP_Wrapper;
 
       beforeEach(async () => {
         const withdrawDiff = {
-          amount0: -250n * TEN_TO_THE_18_BI,
-          amount1: -125n * TEN_TO_THE_6_BI,
           incrementalLpAmount: -500n * TEN_TO_THE_18_BI,
+          liquidity: 500000n,
         };
 
         await updateALMLPWrapper(
@@ -112,9 +105,8 @@ describe("ALMLPWrapper Aggregator", () => {
         result = mockSet?.mock.calls[0]?.[0] as ALM_LP_Wrapper;
       });
 
-      it("should set amount0 and amount1 directly (recalculated from liquidity), and decrement lpAmount", () => {
-        expect(result.amount0).toBe(-250n * TEN_TO_THE_18_BI); // Set directly (negative value), not decremented
-        expect(result.amount1).toBe(-125n * TEN_TO_THE_6_BI); // Set directly (negative value), not decremented
+      it("should set liquidity and decrement lpAmount", () => {
+        expect(result.liquidity).toBe(500000n);
         expect(result.lpAmount).toBe(1500n * TEN_TO_THE_18_BI); // 2000 - 500 (decremented)
       });
 
@@ -126,8 +118,7 @@ describe("ALMLPWrapper Aggregator", () => {
     describe("when updating with partial diff", () => {
       it("should only update provided fields", async () => {
         const partialDiff = {
-          amount0: 100n * TEN_TO_THE_18_BI,
-          // amount1 and lpAmount not provided
+          liquidity: 2000000n,
         };
 
         await updateALMLPWrapper(
@@ -140,15 +131,12 @@ describe("ALMLPWrapper Aggregator", () => {
         const mockSet = jest.mocked(mockContext.ALM_LP_Wrapper?.set);
         const result = mockSet?.mock.calls[0]?.[0] as ALM_LP_Wrapper;
 
-        expect(result.amount0).toBe(100n * TEN_TO_THE_18_BI); // Set directly, not incremented
-        expect(result.amount1).toBe(500n * TEN_TO_THE_6_BI); // unchanged
+        expect(result.liquidity).toBe(2000000n);
         expect(result.lpAmount).toBe(2000n * TEN_TO_THE_18_BI); // unchanged
       });
 
-      it("should handle zero values correctly", async () => {
+      it("should handle zero incrementalLpAmount correctly", async () => {
         const zeroDiff = {
-          amount0: 0n,
-          amount1: 0n,
           incrementalLpAmount: 0n,
         };
 
@@ -162,8 +150,6 @@ describe("ALMLPWrapper Aggregator", () => {
         const mockSet = jest.mocked(mockContext.ALM_LP_Wrapper?.set);
         const result = mockSet?.mock.calls[0]?.[0] as ALM_LP_Wrapper;
 
-        expect(result.amount0).toBe(0n); // Set to 0 directly
-        expect(result.amount1).toBe(0n); // Set to 0 directly
         expect(result.lpAmount).toBe(2000n * TEN_TO_THE_18_BI); // 2000 + 0 (unchanged)
       });
     });
@@ -172,15 +158,13 @@ describe("ALMLPWrapper Aggregator", () => {
       it("should handle deposit correctly", async () => {
         const emptyWrapper: ALM_LP_Wrapper = {
           ...mockALMLPWrapperData,
-          amount0: 0n,
-          amount1: 0n,
           lpAmount: 0n,
+          liquidity: 0n,
         };
 
         const depositDiff = {
-          amount0: 500n * TEN_TO_THE_18_BI,
-          amount1: 250n * TEN_TO_THE_6_BI,
           incrementalLpAmount: 1000n * TEN_TO_THE_18_BI,
+          liquidity: 500000n,
         };
 
         await updateALMLPWrapper(
@@ -193,23 +177,20 @@ describe("ALMLPWrapper Aggregator", () => {
         const mockSet = jest.mocked(mockContext.ALM_LP_Wrapper?.set);
         const result = mockSet?.mock.calls[0]?.[0] as ALM_LP_Wrapper;
 
-        expect(result.amount0).toBe(500n * TEN_TO_THE_18_BI);
-        expect(result.amount1).toBe(250n * TEN_TO_THE_6_BI);
+        expect(result.liquidity).toBe(500000n);
         expect(result.lpAmount).toBe(1000n * TEN_TO_THE_18_BI);
       });
 
-      it("should handle withdraw correctly (result in negative values)", async () => {
+      it("should handle withdraw correctly (negative lpAmount)", async () => {
         const emptyWrapper: ALM_LP_Wrapper = {
           ...mockALMLPWrapperData,
-          amount0: 0n,
-          amount1: 0n,
           lpAmount: 0n,
+          liquidity: 0n,
         };
 
         const withdrawDiff = {
-          amount0: -250n * TEN_TO_THE_18_BI,
-          amount1: -125n * TEN_TO_THE_6_BI,
           incrementalLpAmount: -500n * TEN_TO_THE_18_BI,
+          liquidity: 0n,
         };
 
         await updateALMLPWrapper(
@@ -222,17 +203,14 @@ describe("ALMLPWrapper Aggregator", () => {
         const mockSet = jest.mocked(mockContext.ALM_LP_Wrapper?.set);
         const result = mockSet?.mock.calls[0]?.[0] as ALM_LP_Wrapper;
 
-        expect(result.amount0).toBe(-250n * TEN_TO_THE_18_BI); // 0 - 250
-        expect(result.amount1).toBe(-125n * TEN_TO_THE_6_BI); // 0 - 125
         expect(result.lpAmount).toBe(-500n * TEN_TO_THE_18_BI); // 0 - 500
       });
     });
 
     describe("when updating with undefined values", () => {
-      it("should treat undefined as zero (no change)", async () => {
+      it("should keep current liquidity and lpAmount when undefined", async () => {
         const diffWithUndefined = {
-          amount0: 100n * TEN_TO_THE_18_BI,
-          amount1: undefined,
+          liquidity: 2000000n,
           incrementalLpAmount: undefined,
         };
 
@@ -246,20 +224,18 @@ describe("ALMLPWrapper Aggregator", () => {
         const mockSet = jest.mocked(mockContext.ALM_LP_Wrapper?.set);
         const result = mockSet?.mock.calls[0]?.[0] as ALM_LP_Wrapper;
 
-        expect(result.amount0).toBe(100n * TEN_TO_THE_18_BI); // Set directly, not incremented
-        expect(result.amount1).toBe(500n * TEN_TO_THE_6_BI); // unchanged (undefined means keep current)
+        expect(result.liquidity).toBe(2000000n);
         expect(result.lpAmount).toBe(2000n * TEN_TO_THE_18_BI); // unchanged (undefined means keep current)
       });
 
-      it("should keep current amount0 when amount0 is undefined (covers false branch on line 19)", async () => {
-        const diffWithUndefinedAmount0 = {
-          amount0: undefined,
-          amount1: 200n * TEN_TO_THE_6_BI,
+      it("should keep current liquidity when liquidity is undefined", async () => {
+        const diffWithUndefinedLiquidity = {
+          liquidity: undefined,
           incrementalLpAmount: 300n * TEN_TO_THE_18_BI,
         };
 
         await updateALMLPWrapper(
-          diffWithUndefinedAmount0,
+          diffWithUndefinedLiquidity,
           mockALMLPWrapperData,
           timestamp,
           mockContext as handlerContext,
@@ -268,8 +244,7 @@ describe("ALMLPWrapper Aggregator", () => {
         const mockSet = jest.mocked(mockContext.ALM_LP_Wrapper?.set);
         const result = mockSet?.mock.calls[0]?.[0] as ALM_LP_Wrapper;
 
-        expect(result.amount0).toBe(mockALMLPWrapperData.amount0); // unchanged (undefined means keep current)
-        expect(result.amount1).toBe(200n * TEN_TO_THE_6_BI); // Set directly
+        expect(result.liquidity).toBe(mockALMLPWrapperData.liquidity); // unchanged
         expect(result.lpAmount).toBe(2300n * TEN_TO_THE_18_BI); // 2000 + 300 (incremented)
       });
     });
@@ -277,9 +252,8 @@ describe("ALMLPWrapper Aggregator", () => {
     describe("when updating with very large amounts", () => {
       it("should handle large BigInt values correctly", async () => {
         const largeDiff = {
-          amount0: BigInt("1000000000000000000000000"), // 1M tokens with 18 decimals
-          amount1: BigInt("500000000000"), // 500k tokens with 6 decimals
-          incrementalLpAmount: BigInt("2000000000000000000000000"), // 2M tokens with 18 decimals
+          liquidity: BigInt("1000000000000000000000000"),
+          incrementalLpAmount: BigInt("2000000000000000000000000"),
         };
 
         await updateALMLPWrapper(
@@ -292,14 +266,9 @@ describe("ALMLPWrapper Aggregator", () => {
         const mockSet = jest.mocked(mockContext.ALM_LP_Wrapper?.set);
         const result = mockSet?.mock.calls[0]?.[0] as ALM_LP_Wrapper;
 
-        expect(result.amount0).toBe(
-          BigInt("1000000000000000000000000"), // Set directly, not incremented
-        );
-        expect(result.amount1).toBe(
-          BigInt("500000000000"), // Set directly, not incremented
-        );
+        expect(result.liquidity).toBe(BigInt("1000000000000000000000000"));
         expect(result.lpAmount).toBe(
-          2000n * TEN_TO_THE_18_BI + BigInt("2000000000000000000000000"), // Incremented
+          2000n * TEN_TO_THE_18_BI + BigInt("2000000000000000000000000"),
         );
       });
     });
@@ -307,7 +276,7 @@ describe("ALMLPWrapper Aggregator", () => {
     describe("edge cases", () => {
       it("should call context.set exactly once", async () => {
         const depositDiff = {
-          amount0: 100n * TEN_TO_THE_18_BI,
+          incrementalLpAmount: 100n * TEN_TO_THE_18_BI,
         };
 
         await updateALMLPWrapper(
@@ -324,7 +293,7 @@ describe("ALMLPWrapper Aggregator", () => {
 
       it("should preserve immutability (use spread operator)", async () => {
         const depositDiff = {
-          amount0: 100n * TEN_TO_THE_18_BI,
+          liquidity: 999999n,
         };
 
         await updateALMLPWrapper(
@@ -337,12 +306,10 @@ describe("ALMLPWrapper Aggregator", () => {
         const mockSet = jest.mocked(mockContext.ALM_LP_Wrapper?.set);
         const result = mockSet?.mock.calls[0]?.[0] as ALM_LP_Wrapper;
 
-        // Verify all original fields are preserved
         expect(result.id).toBe(mockALMLPWrapperData.id);
         expect(result.chainId).toBe(mockALMLPWrapperData.chainId);
         expect(result.pool).toBe(mockALMLPWrapperData.pool);
-        // Only amounts and timestamp should change
-        expect(result.amount0).not.toBe(mockALMLPWrapperData.amount0);
+        expect(result.liquidity).not.toBe(mockALMLPWrapperData.liquidity);
         expect(result.lastUpdatedTimestamp).not.toBe(
           mockALMLPWrapperData.lastUpdatedTimestamp,
         );
@@ -355,8 +322,6 @@ describe("ALMLPWrapper Aggregator", () => {
       beforeEach(async () => {
         const rebalanceDiff = {
           tokenId: 2n,
-          amount0: 600n * TEN_TO_THE_18_BI,
-          amount1: 300n * TEN_TO_THE_6_BI,
           liquidity: 1500000n,
           tickLower: -1200n,
           tickUpper: 1200n,
@@ -374,17 +339,15 @@ describe("ALMLPWrapper Aggregator", () => {
         result = mockSet?.mock.calls[0]?.[0] as ALM_LP_Wrapper;
       });
 
-      it("should set position fields directly (not increment)", () => {
-        expect(result.amount0).toBe(600n * TEN_TO_THE_18_BI); // Set directly, not 500 + 600
-        expect(result.amount1).toBe(300n * TEN_TO_THE_6_BI); // Set directly, not 250 + 300
-        expect(result.liquidity).toBe(1500000n); // Set directly, not 1000000 + 1500000
-        expect(result.tokenId).toBe(2n); // Set directly
-        expect(result.tickLower).toBe(-1200n); // Set directly
-        expect(result.tickUpper).toBe(1200n); // Set directly
-        expect(result.property).toBe(3000n); // Set directly
+      it("should set position fields directly", () => {
+        expect(result.liquidity).toBe(1500000n);
+        expect(result.tokenId).toBe(2n);
+        expect(result.tickLower).toBe(-1200n);
+        expect(result.tickUpper).toBe(1200n);
+        expect(result.property).toBe(3000n);
       });
 
-      it("should preserve lpAmount aggregation", () => {
+      it("should preserve lpAmount when not in diff", () => {
         expect(result.lpAmount).toBe(mockALMLPWrapperData.lpAmount);
       });
 
@@ -405,9 +368,7 @@ describe("ALMLPWrapper Aggregator", () => {
     describe("when updating with partial rebalance diff", () => {
       it("should only update provided position fields", async () => {
         const partialRebalanceDiff = {
-          amount0: 700n * TEN_TO_THE_18_BI,
           liquidity: 2000000n,
-          // Other position fields not provided
         };
 
         await updateALMLPWrapper(
@@ -420,11 +381,9 @@ describe("ALMLPWrapper Aggregator", () => {
         const mockSet = jest.mocked(mockContext.ALM_LP_Wrapper?.set);
         const result = mockSet?.mock.calls[0]?.[0] as ALM_LP_Wrapper;
 
-        expect(result.amount0).toBe(700n * TEN_TO_THE_18_BI); // Updated
-        expect(result.liquidity).toBe(2000000n); // Updated
-        expect(result.amount1).toBe(mockALMLPWrapperData.amount1); // Unchanged
-        expect(result.tokenId).toBe(mockALMLPWrapperData.tokenId); // Unchanged
-        expect(result.tickLower).toBe(mockALMLPWrapperData.tickLower); // Unchanged
+        expect(result.liquidity).toBe(2000000n);
+        expect(result.tokenId).toBe(mockALMLPWrapperData.tokenId);
+        expect(result.tickLower).toBe(mockALMLPWrapperData.tickLower);
       });
     });
   });

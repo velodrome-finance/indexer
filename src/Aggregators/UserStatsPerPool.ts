@@ -31,8 +31,6 @@ export interface UserStatsPerPoolDiff {
   incrementalTotalFeeRewardClaimed: bigint;
   incrementalTotalFeeRewardClaimedUSD: bigint;
   almAddress: string;
-  almAmount0: bigint;
-  almAmount1: bigint;
   incrementalAlmLpAmount: bigint;
   lastAlmActivityTimestamp: Date;
   lastActivityTimestamp: Date;
@@ -168,8 +166,6 @@ export function createUserStatsPerPoolEntity(
 
     // ALM metrics - initialized to empty/zero values
     almAddress: "",
-    almAmount0: 0n,
-    almAmount1: 0n,
     almLpAmount: 0n,
     lastAlmActivityTimestamp: timestamp,
 
@@ -334,10 +330,6 @@ export async function updateUserStatsPerPool(
         : current.totalFeeRewardClaimedUSD,
 
     // ALM metrics
-    almAmount0:
-      diff.almAmount0 !== undefined ? diff.almAmount0 : current.almAmount0,
-    almAmount1:
-      diff.almAmount1 !== undefined ? diff.almAmount1 : current.almAmount1,
     almLpAmount:
       diff.incrementalAlmLpAmount !== undefined
         ? current.almLpAmount + diff.incrementalAlmLpAmount

@@ -1,12 +1,61 @@
 import { ALMCore, MockDb } from "../../../generated/src/TestHelpers.gen";
-import type { ALM_LP_Wrapper } from "../../../generated/src/Types.gen";
+import type {
+  ALM_LP_Wrapper,
+  UserStatsPerPool,
+} from "../../../generated/src/Types.gen";
 import { toChecksumAddress } from "../../../src/Constants";
 import { setupCommon } from "../Pool/common";
 
+type MockDbInstance = ReturnType<typeof MockDb.createMockDb>;
+
+/** Extends mockDb with getWhere for ALM_LP_Wrapper (and optionally UserStatsPerPool) so processEvent can query by pool / poolAddress. */
+function extendMockDbWithGetWhere(
+  mockDb: MockDbInstance,
+  options: {
+    wrappers: ALM_LP_Wrapper[];
+    userStatsPerPool?: UserStatsPerPool[];
+  },
+): MockDbInstance {
+  const { wrappers, userStatsPerPool } = options;
+  const entities = {
+    ...mockDb.entities,
+    ALM_LP_Wrapper: {
+      ...mockDb.entities.ALM_LP_Wrapper,
+      getWhere: {
+        pool: {
+          eq: async (poolAddr: string) =>
+            wrappers.filter((e) => e.pool === toChecksumAddress(poolAddr)),
+        },
+      },
+    },
+    ...(userStatsPerPool !== undefined
+      ? {
+          UserStatsPerPool: {
+            ...mockDb.entities.UserStatsPerPool,
+            getWhere: {
+              poolAddress: {
+                eq: async (addr: string) =>
+                  userStatsPerPool.filter(
+                    (u) => u.poolAddress.toLowerCase() === addr.toLowerCase(),
+                  ),
+              },
+            },
+          },
+        }
+      : {}),
+  };
+  return { ...mockDb, entities } as MockDbInstance;
+}
+
 describe("ALMCore Rebalance Event", () => {
-  const { mockALMLPWrapperData, mockLiquidityPoolData } = setupCommon();
+  const {
+    mockALMLPWrapperData,
+    mockLiquidityPoolData,
+    createMockUserStatsPerPool,
+  } = setupCommon();
   const chainId = mockLiquidityPoolData.chainId;
   const poolAddress = mockLiquidityPoolData.poolAddress;
+  const wrapperAddress = mockALMLPWrapperData.id.split("_")[0];
   const transactionHash =
     "0x1234567890123456789012345678901234567890123456789012345678901234";
   const blockTimestamp = 1000000;
@@ -28,33 +77,11 @@ describe("ALMCore Rebalance Event", () => {
   describe("Rebalance event", () => {
     it("should update ALM_LP_Wrapper entity with new position state", async () => {
       let mockDb = MockDb.createMockDb();
-
-      // Pre-populate with existing wrapper
       const wrapperId = mockALMLPWrapperData.id;
       mockDb = mockDb.entities.ALM_LP_Wrapper.set(mockALMLPWrapperData);
-
-      // Track entities for getWhere query
-      const storedEntities = [mockALMLPWrapperData];
-
-      // Extend mockDb to include getWhere for ALM_LP_Wrapper
-      const mockDbWithGetWhere = {
-        ...mockDb,
-        entities: {
-          ...mockDb.entities,
-          ALM_LP_Wrapper: {
-            ...mockDb.entities.ALM_LP_Wrapper,
-            getWhere: {
-              pool: {
-                eq: async (poolAddr: string) => {
-                  return storedEntities.filter(
-                    (entity) => entity.pool === toChecksumAddress(poolAddr),
-                  );
-                },
-              },
-            },
-          },
-        },
-      };
+      const mockDbWithGetWhere = extendMockDbWithGetWhere(mockDb, {
+        wrappers: [mockALMLPWrapperData],
+      });
 
       const newAmount0 = 800n * 10n ** 18n;
       const newAmount1 = 400n * 10n ** 6n;
@@ -93,8 +120,6 @@ describe("ALMCore Rebalance Event", () => {
       const updatedWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
 
       expect(updatedWrapper).toBeDefined();
-      expect(updatedWrapper?.amount0).toBe(newAmount0);
-      expect(updatedWrapper?.amount1).toBe(newAmount1);
       expect(updatedWrapper?.liquidity).toBe(newLiquidity);
       expect(updatedWrapper?.tokenId).toBe(newTokenId);
       expect(updatedWrapper?.tickLower).toBe(newTickLower);
@@ -110,24 +135,9 @@ describe("ALMCore Rebalance Event", () => {
 
     it("should not update when ALM_LP_Wrapper entity not found", async () => {
       const mockDb = MockDb.createMockDb();
-
-      // Extend mockDb to include getWhere (returning empty array)
-      const mockDbWithGetWhere = {
-        ...mockDb,
-        entities: {
-          ...mockDb.entities,
-          ALM_LP_Wrapper: {
-            ...mockDb.entities.ALM_LP_Wrapper,
-            getWhere: {
-              pool: {
-                eq: async (_poolAddr: string) => {
-                  return []; // No entities found
-                },
-              },
-            },
-          },
-        },
-      };
+      const mockDbWithGetWhere = extendMockDbWithGetWhere(mockDb, {
+        wrappers: [],
+      });
 
       const mockEvent = ALMCore.Rebalance.createMockEvent({
         rebalanceEventParams: [
@@ -176,29 +186,9 @@ describe("ALMCore Rebalance Event", () => {
 
       mockDb = mockDb.entities.ALM_LP_Wrapper.set(wrapper1);
       mockDb = mockDb.entities.ALM_LP_Wrapper.set(wrapper2);
-
-      // Track entities for getWhere query
-      const storedEntities = [wrapper1, wrapper2];
-
-      // Extend mockDb to include getWhere
-      const mockDbWithGetWhere = {
-        ...mockDb,
-        entities: {
-          ...mockDb.entities,
-          ALM_LP_Wrapper: {
-            ...mockDb.entities.ALM_LP_Wrapper,
-            getWhere: {
-              pool: {
-                eq: async (poolAddr: string) => {
-                  return storedEntities.filter(
-                    (entity) => entity.pool === toChecksumAddress(poolAddr),
-                  );
-                },
-              },
-            },
-          },
-        },
-      };
+      const mockDbWithGetWhere = extendMockDbWithGetWhere(mockDb, {
+        wrappers: [wrapper1, wrapper2],
+      });
 
       const newTokenId = 3n;
       const mockEvent = ALMCore.Rebalance.createMockEvent({
@@ -233,6 +223,60 @@ describe("ALMCore Rebalance Event", () => {
       // Second wrapper should remain unchanged
       const unchangedWrapper2 = result.entities.ALM_LP_Wrapper.get(wrapper2.id);
       expect(unchangedWrapper2?.tokenId).toBe(wrapper2.tokenId);
+    });
+
+    it("should not update UserStatsPerPool on Rebalance (underlyings derived at snapshot time)", async () => {
+      let mockDb = MockDb.createMockDb();
+      mockDb = mockDb.entities.ALM_LP_Wrapper.set(mockALMLPWrapperData);
+
+      const userAlmLpAmount = 1000n * 10n ** 18n;
+      const userStats = createMockUserStatsPerPool({
+        poolAddress,
+        chainId,
+        almAddress: wrapperAddress,
+        almLpAmount: userAlmLpAmount,
+      });
+      mockDb = mockDb.entities.UserStatsPerPool.set(userStats);
+      const mockDbWithGetWhere = extendMockDbWithGetWhere(mockDb, {
+        wrappers: [mockALMLPWrapperData],
+        userStatsPerPool: [userStats],
+      });
+
+      const mockEvent = ALMCore.Rebalance.createMockEvent({
+        rebalanceEventParams: [
+          poolAddress,
+          [
+            mockALMLPWrapperData.token0,
+            mockALMLPWrapperData.token1,
+            3000n,
+            -1000n,
+            1000n,
+            1000000n,
+          ],
+          79228162514264337593543950336n,
+          800n * 10n ** 18n,
+          400n * 10n ** 6n,
+          1n,
+          2n,
+        ],
+        mockEventData,
+      });
+
+      const result = await ALMCore.Rebalance.processEvent({
+        event: mockEvent,
+        mockDb: mockDbWithGetWhere as typeof mockDb,
+      });
+
+      const updatedWrapper = result.entities.ALM_LP_Wrapper.get(
+        mockALMLPWrapperData.id,
+      );
+      expect(updatedWrapper?.liquidity).toBe(1000000n);
+      expect(updatedWrapper?.tokenId).toBe(2n);
+
+      // User stats unchanged (almAmount0/almAmount1 are derived at snapshot time, not stored)
+      const updatedUser = result.entities.UserStatsPerPool.get(userStats.id);
+      expect(updatedUser).toBeDefined();
+      expect(updatedUser?.almLpAmount).toBe(userAlmLpAmount);
     });
   });
 });
