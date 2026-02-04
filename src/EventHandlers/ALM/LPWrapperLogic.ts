@@ -12,6 +12,7 @@ import {
   updateUserStatsPerPool,
 } from "../../Aggregators/UserStatsPerPool";
 import { PoolId, ZERO_ADDRESS } from "../../Constants";
+import { computeLiquidityDeltaFromAmounts } from "../../Helpers";
 
 interface MatchingBurnTransfer {
   id: string;
@@ -297,41 +298,35 @@ export async function processDepositEvent(
     return;
   }
 
-  const updatedAmount0 = ALMLPWrapperEntity.amount0 + amount0;
-  const updatedAmount1 = ALMLPWrapperEntity.amount1 + amount1;
+  // Compute ΔL from event amounts (getLiquidityForAmounts) then wrapper.liquidity += ΔL
+  const poolId = PoolId(chainId, pool);
+  const liquidityPoolAggregator =
+    await context.LiquidityPoolAggregator.get(poolId);
+  const sqrtPriceX96 = liquidityPoolAggregator?.sqrtPriceX96;
 
-  const updatedLiquidity = await calculateLiquidityFromAmounts(
-    ALMLPWrapperEntity,
-    updatedAmount0,
-    updatedAmount1,
-    pool,
-    chainId,
-    blockNumber,
-    context,
-    "Deposit",
-  );
+  let updatedLiquidity = ALMLPWrapperEntity.liquidity;
+  if (sqrtPriceX96 !== undefined && sqrtPriceX96 !== 0n) {
+    const deltaL = computeLiquidityDeltaFromAmounts(
+      amount0,
+      amount1,
+      sqrtPriceX96,
+      ALMLPWrapperEntity.tickLower,
+      ALMLPWrapperEntity.tickUpper,
+    );
+    updatedLiquidity = ALMLPWrapperEntity.liquidity + deltaL;
+  } else {
+    context.log.warn(
+      `[ALMLPWrapper.Deposit] sqrtPriceX96 is undefined or 0 for pool ${poolId} at block ${blockNumber} on chain ${chainId}. Skipping liquidity update.`,
+    );
+  }
 
   const ALMLPWrapperDiff = {
-    amount0: updatedAmount0,
-    amount1: updatedAmount1,
     incrementalLpAmount: lpAmount,
     liquidity: updatedLiquidity,
-    ammStateIsDerived: true, // Derived from amount0 and amount1 at a specific price; not derived from on-chain AMM position (i.e. Rebalance event)
   };
-
-  // Derive user's current balance from their LP share after deposit
-  // Use updatedAmount0/amount1 (wrapper amounts AFTER deposit) to calculate user's position
-  const derivedUserAmounts = deriveUserAmounts(
-    userStats.almLpAmount + lpAmount, // User's LP after deposit
-    ALMLPWrapperEntity.lpAmount + lpAmount, // Total LP after deposit
-    updatedAmount0, // Wrapper amount0 AFTER deposit
-    updatedAmount1, // Wrapper amount1 AFTER deposit
-  );
 
   const userStatsDiff = {
     almAddress: srcAddress,
-    almAmount0: derivedUserAmounts.amount0,
-    almAmount1: derivedUserAmounts.amount1,
     incrementalAlmLpAmount: lpAmount,
     lastActivityTimestamp: timestamp,
     lastAlmActivityTimestamp: timestamp,
@@ -406,40 +401,37 @@ export async function processWithdrawEvent(
       )
     : lpAmount;
 
-  const updatedAmount0 = ALMLPWrapperEntity.amount0 - amount0;
-  const updatedAmount1 = ALMLPWrapperEntity.amount1 - amount1;
+  // Compute ΔL from event amounts (getLiquidityForAmounts) then wrapper.liquidity -= ΔL
+  const poolId = PoolId(chainId, pool);
+  const liquidityPoolAggregator =
+    await context.LiquidityPoolAggregator.get(poolId);
+  const sqrtPriceX96 = liquidityPoolAggregator?.sqrtPriceX96;
 
-  const updatedLiquidity = await calculateLiquidityFromAmounts(
-    ALMLPWrapperEntity,
-    updatedAmount0,
-    updatedAmount1,
-    pool,
-    chainId,
-    blockNumber,
-    context,
-    "Withdraw",
-  );
+  let updatedLiquidity = ALMLPWrapperEntity.liquidity;
+  if (sqrtPriceX96 !== undefined && sqrtPriceX96 !== 0n) {
+    const deltaL = computeLiquidityDeltaFromAmounts(
+      amount0,
+      amount1,
+      sqrtPriceX96,
+      ALMLPWrapperEntity.tickLower,
+      ALMLPWrapperEntity.tickUpper,
+    );
+    updatedLiquidity =
+      ALMLPWrapperEntity.liquidity > deltaL
+        ? ALMLPWrapperEntity.liquidity - deltaL
+        : 0n;
+  } else {
+    context.log.warn(
+      `[ALMLPWrapper.Withdraw] sqrtPriceX96 is undefined or 0 for pool ${poolId} at block ${blockNumber} on chain ${chainId}. Skipping liquidity update.`,
+    );
+  }
 
   const ALMLPWrapperDiff = {
-    amount0: updatedAmount0,
-    amount1: updatedAmount1,
     incrementalLpAmount: -actualLpAmountWithdrawn,
     liquidity: updatedLiquidity,
-    ammStateIsDerived: true, // Derived from amount0 and amount1 at a specific price; not derived from on-chain AMM position (i.e. Rebalance event)
   };
 
-  // Derive user's current balance from their LP share after withdrawal
-  // Use updatedAmount0/amount1 (wrapper amounts AFTER withdrawal) to calculate user's remaining position
-  const derivedUserAmounts = deriveUserAmounts(
-    userStats.almLpAmount - actualLpAmountWithdrawn, // User's LP after withdrawal
-    ALMLPWrapperEntity.lpAmount - actualLpAmountWithdrawn, // Total LP after withdrawal
-    updatedAmount0, // Wrapper amount0 AFTER withdrawal
-    updatedAmount1, // Wrapper amount1 AFTER withdrawal
-  );
-
   const userStatsDiff = {
-    almAmount0: derivedUserAmounts.amount0,
-    almAmount1: derivedUserAmounts.amount1,
     incrementalAlmLpAmount: -actualLpAmountWithdrawn,
     lastActivityTimestamp: timestamp,
     lastAlmActivityTimestamp: timestamp,
@@ -579,28 +571,7 @@ export async function processTransferEvent(
     return;
   }
 
-  // Derive user amounts from LP share after transfer
-  // Sender's LP decreases, recipient's LP increases
-  const senderLpAfter = userStatsFrom.almLpAmount - value;
-  const recipientLpAfter = userStatsTo.almLpAmount + value;
-
-  const senderAmounts = deriveUserAmounts(
-    senderLpAfter,
-    ALMLPWrapperEntity.lpAmount, // Total LP unchanged in transfers
-    ALMLPWrapperEntity.amount0,
-    ALMLPWrapperEntity.amount1,
-  );
-
-  const recipientAmounts = deriveUserAmounts(
-    recipientLpAfter,
-    ALMLPWrapperEntity.lpAmount, // Total LP unchanged in transfers
-    ALMLPWrapperEntity.amount0,
-    ALMLPWrapperEntity.amount1,
-  );
-
   const UserStatsFromDiff = {
-    almAmount0: senderAmounts.amount0,
-    almAmount1: senderAmounts.amount1,
     incrementalAlmLpAmount: -value,
     lastActivityTimestamp: timestamp,
     lastAlmActivityTimestamp: timestamp,
@@ -608,8 +579,6 @@ export async function processTransferEvent(
 
   const UserStatsToDiff = {
     almAddress: srcAddress,
-    almAmount0: recipientAmounts.amount0,
-    almAmount1: recipientAmounts.amount1,
     incrementalAlmLpAmount: value,
     lastActivityTimestamp: timestamp,
     lastAlmActivityTimestamp: timestamp,

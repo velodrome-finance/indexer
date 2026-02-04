@@ -1,4 +1,8 @@
-import { SqrtPriceMath, TickMath } from "@uniswap/v3-sdk";
+import {
+  SqrtPriceMath,
+  TickMath,
+  maxLiquidityForAmounts,
+} from "@uniswap/v3-sdk";
 import type { LiquidityPoolAggregator, Token, handlerContext } from "generated";
 import JSBI from "jsbi";
 import { TEN_TO_THE_18_BI } from "./Constants";
@@ -502,4 +506,36 @@ export async function updateReserveTokenData(
     token1UsdValue: token1Data?.usdValue,
     totalLiquidityUSD,
   };
+}
+
+/**
+ * Computes liquidity delta ΔL from token amounts using Uniswap V3's getLiquidityForAmounts logic.
+ * Used for Deposit (wrapper.liquidity += ΔL) and Withdraw (wrapper.liquidity -= ΔL).
+ *
+ * @param amount0 - Token0 amount (e.g. event actualAmount0)
+ * @param amount1 - Token1 amount (e.g. event actualAmount1)
+ * @param sqrtPriceX96 - Pool price at execution (Q96)
+ * @param tickLower - Position tick lower
+ * @param tickUpper - Position tick upper
+ * @returns ΔL (integer liquidity)
+ */
+export function computeLiquidityDeltaFromAmounts(
+  amount0: bigint,
+  amount1: bigint,
+  sqrtPriceX96: bigint,
+  tickLower: bigint,
+  tickUpper: bigint,
+): bigint {
+  const sqrtRatioAX96 = TickMath.getSqrtRatioAtTick(Number(tickLower));
+  const sqrtRatioBX96 = TickMath.getSqrtRatioAtTick(Number(tickUpper));
+  return BigInt(
+    maxLiquidityForAmounts(
+      JSBI.BigInt(sqrtPriceX96.toString()),
+      sqrtRatioAX96,
+      sqrtRatioBX96,
+      amount0.toString(),
+      amount1.toString(),
+      true,
+    ).toString(),
+  );
 }

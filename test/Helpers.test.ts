@@ -1,4 +1,8 @@
-import { SqrtPriceMath, TickMath } from "@uniswap/v3-sdk";
+import {
+  SqrtPriceMath,
+  TickMath,
+  maxLiquidityForAmounts,
+} from "@uniswap/v3-sdk";
 import JSBI from "jsbi";
 import type {
   LiquidityPoolAggregator,
@@ -8,6 +12,7 @@ import type {
 import {
   calculatePositionAmountsFromLiquidity,
   calculateStakedLiquidityUSD,
+  computeLiquidityDeltaFromAmounts,
   executeEffectWithRoundedBlockRetry,
 } from "../src/Helpers";
 import { setupCommon } from "./EventHandlers/Pool/common";
@@ -552,6 +557,113 @@ describe("Helpers", () => {
         expect(result.amount0).toBe(expectedAmount0);
         expect(result.amount1).toBe(expectedAmount1);
       });
+    });
+  });
+
+  describe("computeLiquidityDeltaFromAmounts", () => {
+    it("should match SDK maxLiquidityForAmounts for price within range", () => {
+      const amount0 = 1000000000000000000n; // 1e18
+      const amount1 = 1000000000000000000n; // 1e18
+      const tickLower = -100n;
+      const tickUpper = 100n;
+      const sqrtPriceX96JSBI = TickMath.getSqrtRatioAtTick(0);
+      const sqrtPriceX96 = BigInt(sqrtPriceX96JSBI.toString());
+
+      const expectedL = maxLiquidityForAmounts(
+        sqrtPriceX96JSBI,
+        TickMath.getSqrtRatioAtTick(Number(tickLower)),
+        TickMath.getSqrtRatioAtTick(Number(tickUpper)),
+        amount0.toString(),
+        amount1.toString(),
+        true,
+      );
+      const expectedLBigInt = BigInt(expectedL.toString());
+
+      const result = computeLiquidityDeltaFromAmounts(
+        amount0,
+        amount1,
+        sqrtPriceX96,
+        tickLower,
+        tickUpper,
+      );
+
+      expect(result).toBe(expectedLBigInt);
+    });
+
+    it("should round-trip with calculatePositionAmountsFromLiquidity", () => {
+      const amount0 = 500000000000000000n; // 0.5e18
+      const amount1 = 600000000000000000n; // 0.6e18
+      const tickLower = 1449n;
+      const tickUpper = 1459n;
+      const sqrtPriceX96 = BigInt("85202306940083509697531739922");
+
+      const deltaL = computeLiquidityDeltaFromAmounts(
+        amount0,
+        amount1,
+        sqrtPriceX96,
+        tickLower,
+        tickUpper,
+      );
+
+      const { amount0: back0, amount1: back1 } =
+        calculatePositionAmountsFromLiquidity(
+          deltaL,
+          sqrtPriceX96,
+          tickLower,
+          tickUpper,
+        );
+
+      // Integer liquidity truncates: amounts back should be <= original
+      expect(back0 <= amount0).toBe(true);
+      expect(back1 <= amount1).toBe(true);
+      // deltaL should be positive and round-trip should yield non-zero amounts
+      expect(deltaL > 0n).toBe(true);
+      expect(back0 + back1 > 0n).toBe(true);
+    });
+
+    it("should return zero for zero amounts", () => {
+      const tickLower = 0n;
+      const tickUpper = 100n;
+      const sqrtPriceX96 = BigInt(TickMath.getSqrtRatioAtTick(50).toString());
+
+      const result = computeLiquidityDeltaFromAmounts(
+        0n,
+        0n,
+        sqrtPriceX96,
+        tickLower,
+        tickUpper,
+      );
+
+      expect(result).toBe(0n);
+    });
+
+    it("should return consistent liquidity for ALM-style tick range", () => {
+      // Narrow range similar to StrategyCreated in events (tick 1449-1459)
+      const amount0 = 2299999999999999999n;
+      const amount1 = 1148196843480035830n;
+      const tickLower = 1449n;
+      const tickUpper = 1459n;
+      const sqrtPriceX96 = BigInt("85202936913728687396774655363");
+
+      const result = computeLiquidityDeltaFromAmounts(
+        amount0,
+        amount1,
+        sqrtPriceX96,
+        tickLower,
+        tickUpper,
+      );
+
+      const expectedL = maxLiquidityForAmounts(
+        JSBI.BigInt(sqrtPriceX96.toString()),
+        TickMath.getSqrtRatioAtTick(Number(tickLower)),
+        TickMath.getSqrtRatioAtTick(Number(tickUpper)),
+        amount0.toString(),
+        amount1.toString(),
+        true,
+      );
+
+      expect(result).toBe(BigInt(expectedL.toString()));
+      expect(result > 0n).toBe(true);
     });
   });
 
