@@ -9,7 +9,7 @@ Gauge.Deposit.handler(async ({ event, context }) => {
   await processGaugeDeposit(
     {
       gaugeAddress: event.srcAddress,
-      userAddress: event.params.from,
+      userAddress: event.params.to,
       chainId: event.chainId,
       blockNumber: event.block.number,
       timestamp: event.block.timestamp,
