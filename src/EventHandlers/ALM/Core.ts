@@ -1,6 +1,5 @@
 import { ALMCore, type ALM_LP_Wrapper } from "generated";
 import { updateALMLPWrapper } from "../../Aggregators/ALMLPWrapper";
-import { calculatePositionAmountsFromLiquidity } from "../../Helpers";
 
 ALMCore.Rebalance.handler(async ({ event, context }) => {
   const [
@@ -31,16 +30,7 @@ ALMCore.Rebalance.handler(async ({ event, context }) => {
   // Since there's exactly 1 wrapper per pool, take the first one
   const lpWrapper = wrappers[0];
 
-  // Recalculate amount0 and amount1 from liquidity and current price
-  // This ensures amounts reflect the current pool price, not stale values
-  const recalculatedAmounts = calculatePositionAmountsFromLiquidity(
-    liquidity,
-    sqrtPriceX96,
-    tickLower,
-    tickUpper,
-  );
-
-  // Update the wrapper's strategy position state with new amounts from Rebalance
+  // Update the wrapper's strategy position state with new amounts from Rebalance (amount0/amount1 from event)
   const lpWrapperDiff: Partial<ALM_LP_Wrapper> = {
     tokenId: ammPositionIdAfter,
     tickLower: tickLower,
@@ -48,9 +38,8 @@ ALMCore.Rebalance.handler(async ({ event, context }) => {
     property: property,
     liquidity: liquidity,
     ammStateIsDerived: false,
-    // Recalculate wrapper-level amounts from current liquidity and price
-    amount0: recalculatedAmounts.amount0,
-    amount1: recalculatedAmounts.amount1,
+    amount0: amount0,
+    amount1: amount1,
     lastUpdatedTimestamp: timestamp,
   };
 
