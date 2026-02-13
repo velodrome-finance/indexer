@@ -14,6 +14,7 @@ import {
   processTransferEvent,
   processWithdrawEvent,
 } from "../../../src/EventHandlers/ALM/LPWrapperLogic";
+import { computeLiquidityDeltaFromAmounts } from "../../../src/Helpers";
 import { setupCommon } from "../Pool/common";
 
 describe("LPWrapperLogic", () => {
@@ -160,8 +161,6 @@ describe("LPWrapperLogic", () => {
         liquidity: 1000000n,
         tickLower: -1000n,
         tickUpper: 1000n,
-        amount0: 500n * 10n ** 18n,
-        amount1: 250n * 10n ** 6n,
       };
 
       const updatedAmount0 = 600n * 10n ** 18n;
@@ -191,8 +190,6 @@ describe("LPWrapperLogic", () => {
         liquidity: 1000000n,
         tickLower: -1000n,
         tickUpper: 1000n,
-        amount0: 500n * 10n ** 18n,
-        amount1: 250n * 10n ** 6n,
       };
 
       const updatedAmount0 = 600n * 10n ** 18n;
@@ -224,8 +221,6 @@ describe("LPWrapperLogic", () => {
         liquidity: 1000000n,
         tickLower: -1000n,
         tickUpper: 1000n,
-        amount0: 500n * 10n ** 18n,
-        amount1: 250n * 10n ** 6n,
       };
 
       const updatedAmount0 = 600n * 10n ** 18n;
@@ -258,8 +253,6 @@ describe("LPWrapperLogic", () => {
         liquidity: 1000000n,
         tickLower: -1000n,
         tickUpper: 1000n,
-        amount0: 500n * 10n ** 18n,
-        amount1: 250n * 10n ** 6n,
       };
 
       const updatedAmount0 = 600n * 10n ** 18n;
@@ -296,8 +289,6 @@ describe("LPWrapperLogic", () => {
         liquidity: 1000000n,
         tickLower: -1000n,
         tickUpper: 1000n,
-        amount0: 500n * 10n ** 18n,
-        amount1: 250n * 10n ** 6n,
       };
 
       const updatedAmount0 = 600n * 10n ** 18n;
@@ -331,8 +322,6 @@ describe("LPWrapperLogic", () => {
         liquidity: 1000000n,
         tickLower: -1000n,
         tickUpper: 1000n,
-        amount0: 500n * 10n ** 18n,
-        amount1: 250n * 10n ** 6n,
       };
 
       const updatedAmount0 = 600n * 10n ** 18n;
@@ -368,8 +357,6 @@ describe("LPWrapperLogic", () => {
         liquidity: 1000000n,
         tickLower: -1000n,
         tickUpper: 1000n,
-        amount0: 500n * 10n ** 18n,
-        amount1: 250n * 10n ** 6n,
       };
 
       const updatedAmount0 = 600n * 10n ** 18n;
@@ -499,8 +486,6 @@ describe("LPWrapperLogic", () => {
       const mockWrapper = {
         ...mockALMLPWrapperData,
         id: wrapperId,
-        amount0: 1000n * TEN_TO_THE_18_BI,
-        amount1: 500n * TEN_TO_THE_6_BI,
         lpAmount: 2000n * TEN_TO_THE_18_BI,
       };
 
@@ -511,8 +496,6 @@ describe("LPWrapperLogic", () => {
         poolAddress: toChecksumAddress(poolAddress),
         chainId: chainId,
         almLpAmount: 0n,
-        almAmount0: 0n,
-        almAmount1: 0n,
       };
 
       (mockContext.ALM_LP_Wrapper?.get as jest.Mock).mockResolvedValueOnce(
@@ -543,14 +526,21 @@ describe("LPWrapperLogic", () => {
       ).toHaveBeenCalledTimes(1);
       const wrapperUpdate = (mockContext.ALM_LP_Wrapper?.set as jest.Mock).mock
         .calls[0][0];
-      expect(wrapperUpdate.amount0).toBe(mockWrapper.amount0 + depositAmount0);
-      expect(wrapperUpdate.amount1).toBe(mockWrapper.amount1 + depositAmount1);
       // lpAmount is aggregated: diff.lpAmount + current.lpAmount
       // Deposit: lpAmount (1000) + current (2000) = 3000
       expect(wrapperUpdate.lpAmount).toBe(
         mockWrapper.lpAmount + depositLpAmount,
       );
-      expect(wrapperUpdate.ammStateIsDerived).toBe(true);
+      const depositDeltaL = computeLiquidityDeltaFromAmounts(
+        depositAmount0,
+        depositAmount1,
+        mockSqrtPriceX96,
+        mockWrapper.tickLower,
+        mockWrapper.tickUpper,
+      );
+      expect(wrapperUpdate.liquidity).toBe(
+        mockWrapper.liquidity + depositDeltaL,
+      );
 
       // Verify user stats were updated
       expect(
@@ -573,8 +563,6 @@ describe("LPWrapperLogic", () => {
         poolAddress: toChecksumAddress(poolAddress),
         chainId: chainId,
         almLpAmount: 0n,
-        almAmount0: 0n,
-        almAmount1: 0n,
       });
 
       await processDepositEvent(
@@ -639,8 +627,6 @@ describe("LPWrapperLogic", () => {
       const mockWrapper = {
         ...mockALMLPWrapperData,
         id: wrapperId,
-        amount0: 1000n * TEN_TO_THE_18_BI,
-        amount1: 500n * TEN_TO_THE_6_BI,
         lpAmount: 2000n * TEN_TO_THE_18_BI,
       };
 
@@ -651,8 +637,6 @@ describe("LPWrapperLogic", () => {
         poolAddress: toChecksumAddress(poolAddress),
         chainId: chainId,
         almLpAmount: 1000n * TEN_TO_THE_18_BI,
-        almAmount0: 500n * TEN_TO_THE_18_BI,
-        almAmount1: 250n * TEN_TO_THE_6_BI,
       };
 
       (mockContext.ALM_LP_Wrapper?.get as jest.Mock).mockResolvedValueOnce(
@@ -684,14 +668,23 @@ describe("LPWrapperLogic", () => {
       ).toHaveBeenCalledTimes(1);
       const wrapperUpdate = (mockContext.ALM_LP_Wrapper?.set as jest.Mock).mock
         .calls[0][0];
-      expect(wrapperUpdate.amount0).toBe(mockWrapper.amount0 - amount0);
-      expect(wrapperUpdate.amount1).toBe(mockWrapper.amount1 - amount1);
       // lpAmount is aggregated: diff.lpAmount + current.lpAmount
       // Withdraw: -lpAmount (-500) + current (2000) = 1500
       expect(wrapperUpdate.lpAmount).toBe(
         mockWrapper.lpAmount - withdrawLpAmount,
       );
-      expect(wrapperUpdate.ammStateIsDerived).toBe(true);
+      const withdrawDeltaL = computeLiquidityDeltaFromAmounts(
+        amount0,
+        amount1,
+        mockSqrtPriceX96,
+        mockWrapper.tickLower,
+        mockWrapper.tickUpper,
+      );
+      const expectedLiquidity =
+        mockWrapper.liquidity > withdrawDeltaL
+          ? mockWrapper.liquidity - withdrawDeltaL
+          : 0n;
+      expect(wrapperUpdate.liquidity).toBe(expectedLiquidity);
 
       // Verify user stats were updated
       expect(
@@ -713,8 +706,6 @@ describe("LPWrapperLogic", () => {
         poolAddress: toChecksumAddress(poolAddress),
         chainId: chainId,
         almLpAmount: 0n,
-        almAmount0: 0n,
-        almAmount1: 0n,
       });
 
       await processWithdrawEvent(
@@ -767,8 +758,6 @@ describe("LPWrapperLogic", () => {
         ...mockALMLPWrapperData,
         id: wrapperId,
         pool: toChecksumAddress(poolAddress),
-        amount0: 1000n * TEN_TO_THE_18_BI,
-        amount1: 500n * TEN_TO_THE_6_BI,
         lpAmount: 2000n * TEN_TO_THE_18_BI,
       };
 
@@ -781,8 +770,6 @@ describe("LPWrapperLogic", () => {
         poolAddress: toChecksumAddress(poolAddress),
         chainId: chainId,
         almLpAmount: 1000n * TEN_TO_THE_18_BI,
-        almAmount0: 500n * TEN_TO_THE_18_BI,
-        almAmount1: 250n * TEN_TO_THE_6_BI,
       };
 
       const mockToUserStats = {
@@ -791,8 +778,6 @@ describe("LPWrapperLogic", () => {
         poolAddress: toChecksumAddress(poolAddress),
         chainId: chainId,
         almLpAmount: 0n,
-        almAmount0: 0n,
-        almAmount1: 0n,
       };
 
       (mockContext.ALM_LP_Wrapper?.get as jest.Mock).mockResolvedValueOnce(
@@ -897,6 +882,52 @@ describe("LPWrapperLogic", () => {
       );
 
       // Should not update any stats
+      expect(
+        mockContext.UserStatsPerPool?.set as jest.Mock,
+      ).toHaveBeenCalledTimes(0);
+    });
+
+    it("should return early when sender has no UserStatsPerPool", async () => {
+      const wrapperId = `${srcAddress}_${chainId}`;
+      // Id format must match getUserStatsPerPoolId(userAddress, poolAddress, chainId) - no checksum
+      const poolInWrapper = toChecksumAddress(poolAddress);
+      const fromUserStatsId = `${from}_${poolInWrapper}_${chainId}`;
+      (mockContext.ALM_LP_Wrapper?.get as jest.Mock).mockResolvedValueOnce({
+        ...mockALMLPWrapperData,
+        id: wrapperId,
+        pool: poolInWrapper,
+        lpAmount: 2000n * TEN_TO_THE_18_BI,
+      });
+      (mockContext.UserStatsPerPool?.get as jest.Mock).mockImplementation(
+        (id: string) =>
+          Promise.resolve(
+            id === fromUserStatsId
+              ? undefined
+              : {
+                  id,
+                  almLpAmount: 0n,
+                  poolAddress: poolInWrapper,
+                  chainId,
+                  userAddress: toChecksumAddress(to),
+                  almAddress: undefined,
+                },
+          ),
+      );
+
+      await processTransferEvent(
+        from,
+        to,
+        value,
+        srcAddress,
+        chainId,
+        txHash,
+        transferLogIndex,
+        blockNumber,
+        timestamp,
+        mockContext,
+        false,
+      );
+
       expect(
         mockContext.UserStatsPerPool?.set as jest.Mock,
       ).toHaveBeenCalledTimes(0);
@@ -1259,8 +1290,6 @@ describe("LPWrapperLogic", () => {
       const mockWrapper = {
         ...mockALMLPWrapperData,
         id: wrapperId,
-        amount0: 1000n * TEN_TO_THE_18_BI,
-        amount1: 500n * TEN_TO_THE_6_BI,
         lpAmount: 2000n * TEN_TO_THE_18_BI,
       };
 
@@ -1271,8 +1300,6 @@ describe("LPWrapperLogic", () => {
         poolAddress: toChecksumAddress(poolAddress),
         chainId: chainId,
         almLpAmount: 1000n * TEN_TO_THE_18_BI,
-        almAmount0: 500n * TEN_TO_THE_18_BI,
-        almAmount1: 250n * TEN_TO_THE_6_BI,
       };
 
       // Mock matching burn Transfer event
@@ -1329,12 +1356,22 @@ describe("LPWrapperLogic", () => {
       ).toHaveBeenCalledTimes(1);
       const wrapperUpdate = (mockContext.ALM_LP_Wrapper?.set as jest.Mock).mock
         .calls[0][0];
-      expect(wrapperUpdate.amount0).toBe(mockWrapper.amount0 - amount0);
-      expect(wrapperUpdate.amount1).toBe(mockWrapper.amount1 - amount1);
       // Should use actualBurnedAmount, not lpAmount
       expect(wrapperUpdate.lpAmount).toBe(
         mockWrapper.lpAmount - actualBurnedAmount,
       );
+      const withdrawDeltaL = computeLiquidityDeltaFromAmounts(
+        amount0,
+        amount1,
+        mockSqrtPriceX96,
+        mockWrapper.tickLower,
+        mockWrapper.tickUpper,
+      );
+      const expectedLiquidity =
+        mockWrapper.liquidity > withdrawDeltaL
+          ? mockWrapper.liquidity - withdrawDeltaL
+          : 0n;
+      expect(wrapperUpdate.liquidity).toBe(expectedLiquidity);
 
       // Verify Transfer event was marked as consumed
       expect(
@@ -1351,8 +1388,6 @@ describe("LPWrapperLogic", () => {
       const mockWrapper = {
         ...mockALMLPWrapperData,
         id: wrapperId,
-        amount0: 1000n * TEN_TO_THE_18_BI,
-        amount1: 500n * TEN_TO_THE_6_BI,
         lpAmount: 2000n * TEN_TO_THE_18_BI,
       };
 
@@ -1363,8 +1398,6 @@ describe("LPWrapperLogic", () => {
         poolAddress: toChecksumAddress(poolAddress),
         chainId: chainId,
         almLpAmount: 1000n * TEN_TO_THE_18_BI,
-        almAmount0: 500n * TEN_TO_THE_18_BI,
-        almAmount1: 250n * TEN_TO_THE_6_BI,
       };
 
       (mockContext.ALM_LP_Wrapper?.get as jest.Mock).mockResolvedValueOnce(
@@ -1414,8 +1447,6 @@ describe("LPWrapperLogic", () => {
       const mockWrapper = {
         ...mockALMLPWrapperData,
         id: wrapperId,
-        amount0: 1000n * TEN_TO_THE_18_BI,
-        amount1: 500n * TEN_TO_THE_6_BI,
         lpAmount: 2000n * TEN_TO_THE_18_BI,
       };
 
@@ -1426,8 +1457,6 @@ describe("LPWrapperLogic", () => {
         poolAddress: toChecksumAddress(poolAddress),
         chainId: chainId,
         almLpAmount: 1000n * TEN_TO_THE_18_BI,
-        almAmount0: 500n * TEN_TO_THE_18_BI,
-        almAmount1: 250n * TEN_TO_THE_6_BI,
       };
 
       const normalLpAmount = 500n * TEN_TO_THE_18_BI; // Normal value for V2

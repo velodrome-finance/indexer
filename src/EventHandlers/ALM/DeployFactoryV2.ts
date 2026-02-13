@@ -1,6 +1,4 @@
 import { ALMDeployFactoryV2 } from "generated";
-import { PoolId } from "../../Constants";
-import { calculatePositionAmountsFromLiquidity } from "../../Helpers";
 
 ALMDeployFactoryV2.StrategyCreated.contractRegister(({ event, context }) => {
   const [pool, ammPosition, strategyParams, lpWrapper, caller] =
@@ -63,30 +61,6 @@ ALMDeployFactoryV2.StrategyCreated.handler(async ({ event, context }) => {
   const position = matchingPositions[0];
   const tokenId = position.tokenId;
 
-  // Compute amount0/amount1 from liquidity + sqrtPriceX96 + ticks (amount0/amount1 removed from schema)
-  // Fetch sqrtPriceX96 from pool aggregator
-  const poolId = PoolId(event.chainId, pool);
-  const liquidityPoolAggregator =
-    await context.LiquidityPoolAggregator.get(poolId);
-  const sqrtPriceX96 = liquidityPoolAggregator?.sqrtPriceX96;
-
-  let amount0 = 0n;
-  let amount1 = 0n;
-  if (sqrtPriceX96 && sqrtPriceX96 !== 0n) {
-    const amounts = calculatePositionAmountsFromLiquidity(
-      liquidity,
-      sqrtPriceX96,
-      tickLower,
-      tickUpper,
-    );
-    amount0 = amounts.amount0;
-    amount1 = amounts.amount1;
-  } else {
-    context.log.warn(
-      `[ALMDeployFactoryV2] sqrtPriceX96 is undefined or 0 for pool ${poolId} on chain ${event.chainId}. Cannot compute amount0/amount1, using 0`,
-    );
-  }
-
   // Fetching LP tokens supply from TotalSupplyLimitUpdated event
   const totalSupplyEvent = await context.ALM_TotalSupplyLimitUpdated_event.get(
     `${lpWrapper}_${event.chainId}`,
@@ -106,7 +80,7 @@ ALMDeployFactoryV2.StrategyCreated.handler(async ({ event, context }) => {
     totalSupplyEvent.currentTotalSupplyLPTokens;
 
   // Create ALM_LP_Wrapper (single entity tracks both wrapper and strategy)
-  // This single entity contains both wrapper-level aggregations and strategy/position state
+  // amount0/amount1 are derived at snapshot time from liquidity + sqrtPriceX96 + ticks
   context.ALM_LP_Wrapper.set({
     id: `${lpWrapper}_${event.chainId}`,
     chainId: event.chainId,
@@ -114,8 +88,6 @@ ALMDeployFactoryV2.StrategyCreated.handler(async ({ event, context }) => {
     token0: token0,
     token1: token1,
 
-    amount0: amount0,
-    amount1: amount1,
     lpAmount: currentTotalSupplyLPTokens,
     lastUpdatedTimestamp: timestamp,
 
@@ -129,7 +101,6 @@ ALMDeployFactoryV2.StrategyCreated.handler(async ({ event, context }) => {
     tickSpacing: tickSpacing,
     positionWidth: width,
     maxLiquidityRatioDeviationX96: maxLiquidityRatioDeviationX96,
-    ammStateIsDerived: false, // State comes from on-chain AMM position (StrategyCreated event), not derived from amounts
     creationTimestamp: timestamp,
     strategyTransactionHash: event.transaction.hash,
   });
