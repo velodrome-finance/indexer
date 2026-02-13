@@ -16,6 +16,7 @@ describe("Gauge Event Handlers", () => {
     it("should map Gauge.Deposit event data correctly", async () => {
       const mockEvent = Gauge.Deposit.createMockEvent({
         from: mockUserAddress,
+        to: mockUserAddress, // recipient of staked position (balance owner)
         amount: 100000000000000000000n, // 100 USD
         mockEventData: {
           srcAddress: mockGaugeAddress,
@@ -28,8 +29,9 @@ describe("Gauge Event Handlers", () => {
         },
       });
 
-      // Test that the event data is correctly structured
+      // Test that the event data is correctly structured (to = balance owner for indexing)
       expect(mockEvent.params.from).toBe(mockUserAddress);
+      expect(mockEvent.params.to).toBe(mockUserAddress);
       expect(mockEvent.params.amount).toBe(100000000000000000000n);
       expect(mockEvent.srcAddress).toBe(mockGaugeAddress);
       expect(mockEvent.chainId).toBe(mockChainId);
@@ -90,6 +92,7 @@ describe("Gauge Event Handlers", () => {
     it("should call shared logic functions without errors for Deposit", async () => {
       const mockEvent = Gauge.Deposit.createMockEvent({
         from: mockUserAddress,
+        to: mockUserAddress,
         amount: 100000000000000000000n,
         mockEventData: {
           srcAddress: mockGaugeAddress,
