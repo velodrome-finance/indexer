@@ -656,6 +656,11 @@ describe("NFPMTransferLogic", () => {
 
   describe("handleRegularTransfer", () => {
     it("should update owner of existing position", async () => {
+      jest
+        .mocked(loadPoolData)
+        .mockResolvedValue(
+          minimalPoolData({ sqrtPriceX96: defaultSqrtPriceX96 }),
+        );
       const mockEvent = createMockTransferEvent(mockPosition.owner, userB);
 
       setPosition(mockPosition);
@@ -675,16 +680,21 @@ describe("NFPMTransferLogic", () => {
       );
     });
 
-    it("updates owner when poolData is null", async () => {
+    it("does not update owner when poolData is null (logs info and returns)", async () => {
       jest.mocked(loadPoolData).mockResolvedValue(null);
       const mockEvent = createMockTransferEvent(mockPosition.owner, userB);
       setPosition(mockPosition);
 
       await handleRegularTransfer(mockEvent, [mockPosition], mockContext);
 
-      const updatedPosition = getPositionAfterTransfer();
-      expect(updatedPosition).toBeDefined();
-      expect(updatedPosition?.owner).toBe(userB);
+      expect(mockContext.log.info).toHaveBeenCalledWith(
+        expect.stringContaining("Pool data missing"),
+      );
+      expect(mockContext.log.info).toHaveBeenCalledWith(
+        expect.stringContaining("skipping owner update"),
+      );
+      const positionAfter = getPositionAfterTransfer();
+      expect(positionAfter?.owner).toBe(mockPosition.owner);
     });
 
     it("does not update owner when transfer is stake (user to gauge)", async () => {
@@ -764,7 +774,7 @@ describe("NFPMTransferLogic", () => {
       const [removeCall, addCall] = jest.mocked(
         attributeLiquidityChangeToUserStatsPerPool,
       ).mock.calls;
-      // Arguments: (user, pool, token0, token1, amount0, amount1, timestamp, changeType, context)
+      // Arguments: (owner, poolAddress, poolData, context, amount0, amount1, blockTimestamp, liquidityChangeType)
       const [removeUser, , , , removeAmount0, removeAmount1, , removeType] =
         removeCall;
       const [addUser, , , , addAmount0, addAmount1, , addType] = addCall;
@@ -794,7 +804,7 @@ describe("NFPMTransferLogic", () => {
       const [removeCall] = jest.mocked(
         attributeLiquidityChangeToUserStatsPerPool,
       ).mock.calls;
-      // Arguments: (user, pool, token0, token1, amount0, amount1, timestamp, changeType, context)
+      // Arguments: (owner, poolAddress, poolData, context, amount0, amount1, blockTimestamp, liquidityChangeType)
       const [removeUser, , , , removeAmount0, removeAmount1, , removeType] =
         removeCall;
       expect(removeUser).toBe(userA);
@@ -838,6 +848,11 @@ describe("NFPMTransferLogic", () => {
     });
 
     it("should handle regular transfer and update owner", async () => {
+      jest
+        .mocked(loadPoolData)
+        .mockResolvedValue(
+          minimalPoolData({ sqrtPriceX96: defaultSqrtPriceX96 }),
+        );
       setPosition(mockPosition);
 
       const mockEvent = createMockTransferEvent(mockPosition.owner, userB);

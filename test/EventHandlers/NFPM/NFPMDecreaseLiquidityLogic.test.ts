@@ -1,13 +1,13 @@
-import type {
-  NFPM_DecreaseLiquidity_event,
-  NonFungiblePosition,
-  handlerContext,
-} from "generated";
+import type { NonFungiblePosition, handlerContext } from "generated";
 import { MockDb, NFPM } from "../../../generated/src/TestHelpers.gen";
-import type { PoolData } from "../../../src/Aggregators/LiquidityPoolAggregator";
-import { loadPoolData } from "../../../src/Aggregators/LiquidityPoolAggregator";
-import { attributeLiquidityChangeToUserStatsPerPool } from "../../../src/EventHandlers/NFPM/NFPMCommonLogic";
-import { LiquidityChangeType } from "../../../src/EventHandlers/NFPM/NFPMCommonLogic";
+import {
+  type PoolData,
+  loadPoolData,
+} from "../../../src/Aggregators/LiquidityPoolAggregator";
+import {
+  LiquidityChangeType,
+  attributeLiquidityChangeToUserStatsPerPool,
+} from "../../../src/EventHandlers/NFPM/NFPMCommonLogic";
 import {
   calculateDecreaseLiquidityDiff,
   processNFPMDecreaseLiquidity,

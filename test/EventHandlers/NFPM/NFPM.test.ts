@@ -1,6 +1,7 @@
 import type { PublicClient } from "viem";
 import { MockDb, NFPM } from "../../../generated/src/TestHelpers.gen";
 import { CHAIN_CONSTANTS, TokenIdByChain } from "../../../src/Constants";
+import { setupCommon } from "../Pool/common";
 
 const NonFungiblePositionId = (
   chainId: number,
@@ -12,27 +13,30 @@ const TokenId = (chainId: number, tokenAddress: string) =>
   TokenIdByChain(tokenAddress, chainId);
 
 describe("NFPM Events", () => {
+  const {
+    mockToken0Data,
+    mockToken1Data,
+    mockLiquidityPoolData,
+    createMockLiquidityPoolAggregator,
+  } = setupCommon();
+
   let mockDb: ReturnType<typeof MockDb.createMockDb>;
-  const chainId = 10;
+  const chainId = mockLiquidityPoolData.chainId;
+  const poolAddress = mockLiquidityPoolData.poolAddress;
+  const token0Address = mockToken0Data.address;
+  const token1Address = mockToken1Data.address;
   const tokenId = 1n;
-  // Use valid Ethereum addresses for tests (TokenIdByChain validates addresses)
-  const token0Address = "0x2222222222222222222222222222222222222222";
-  const token1Address = "0x3333333333333333333333333333333333333333";
 
   const transactionHash =
     "0x1234567890123456789012345678901234567890123456789012345678901234";
   // Mock position with amounts matching the IncreaseLiquidity event amounts
   // This represents a newly minted position before the IncreaseLiquidity event
   const mockNonFungiblePosition = {
-    id: NonFungiblePositionId(
-      chainId,
-      "0xPoolAddress0000000000000000000000",
-      tokenId,
-    ),
-    chainId: 10,
+    id: NonFungiblePositionId(chainId, poolAddress, tokenId),
+    chainId,
     tokenId: tokenId,
     owner: "0x1111111111111111111111111111111111111111",
-    pool: "0xPoolAddress0000000000000000000000",
+    pool: poolAddress,
     tickUpper: 100n,
     tickLower: -100n,
     token0: token0Address,
@@ -43,41 +47,14 @@ describe("NFPM Events", () => {
     lastUpdatedTimestamp: new Date(),
   };
 
-  // Mock Token entities needed for calculateTotalLiquidityUSD
-  // pricePerUSDNew is stored with 18 decimals (1e18 = 1 USD per token)
-  const mockToken0 = {
-    id: TokenId(chainId, token0Address),
-    chainId: chainId,
-    address: token0Address,
-    symbol: "TOKEN0",
-    name: "Token 0",
-    decimals: 18n,
-    pricePerUSD: 0n,
-    pricePerUSDNew: 10n ** 18n, // 1 USD per token (1e18)
-    isWhitelisted: true,
-    lastUpdatedTimestamp: new Date(),
-  };
-
-  const mockToken1 = {
-    id: TokenId(chainId, token1Address),
-    chainId: chainId,
-    address: token1Address,
-    symbol: "TOKEN1",
-    name: "Token 1",
-    decimals: 18n,
-    pricePerUSD: 0n,
-    pricePerUSDNew: 2n * 10n ** 18n, // 2 USD per token (2e18)
-    isWhitelisted: true,
-    lastUpdatedTimestamp: new Date(),
-  };
-
   beforeEach(() => {
     mockDb = MockDb.createMockDb();
     mockDb = mockDb.entities.NonFungiblePosition.set({
       ...mockNonFungiblePosition,
     });
-    mockDb = mockDb.entities.Token.set(mockToken0);
-    mockDb = mockDb.entities.Token.set(mockToken1);
+    mockDb = mockDb.entities.Token.set(mockToken0Data);
+    mockDb = mockDb.entities.Token.set(mockToken1Data);
+    mockDb = mockDb.entities.LiquidityPoolAggregator.set(mockLiquidityPoolData);
   });
 
   afterEach(() => {
@@ -114,7 +91,7 @@ describe("NFPM Events", () => {
 
     it("should update the owner", () => {
       const updatedEntity = postEventDB.entities.NonFungiblePosition.get(
-        NonFungiblePositionId(chainId, mockNonFungiblePosition.pool, tokenId),
+        NonFungiblePositionId(chainId, poolAddress, tokenId),
       );
       expect(updatedEntity).toBeDefined();
       if (!updatedEntity) return; // Type guard
@@ -126,12 +103,11 @@ describe("NFPM Events", () => {
       // In this test, CLPool.Mint has logIndex 0, Transfer has logIndex 2
       const mintLogIndex = 0;
       const transferLogIndex = 2;
-      const poolAddress = "0xPoolAddress0000000000000000000000";
       const stableId = `${chainId}_${poolAddress}_${tokenId}`;
 
       const mockCLPoolMintEvent = {
         id: `${chainId}_${poolAddress}_${transactionHash}_${mintLogIndex}`,
-        chainId: chainId,
+        chainId,
         pool: poolAddress,
         owner: "0x1111111111111111111111111111111111111111",
         tickLower: -100n,
@@ -151,8 +127,8 @@ describe("NFPM Events", () => {
       const mockDbWithMintEvent = MockDb.createMockDb();
       const dbWithMintEvent =
         mockDbWithMintEvent.entities.CLPoolMintEvent.set(mockCLPoolMintEvent);
-      const dbWithTokens = dbWithMintEvent.entities.Token.set(mockToken0);
-      const finalDb = dbWithTokens.entities.Token.set(mockToken1);
+      const dbWithTokens = dbWithMintEvent.entities.Token.set(mockToken0Data);
+      const finalDb = dbWithTokens.entities.Token.set(mockToken1Data);
 
       // Setup getWhere for queries
       const storedMintEvents = [mockCLPoolMintEvent];
@@ -282,7 +258,7 @@ describe("NFPM Events", () => {
 
     it("should increase liquidity", () => {
       const updatedEntity = postEventDB.entities.NonFungiblePosition.get(
-        NonFungiblePositionId(chainId, mockNonFungiblePosition.pool, tokenId),
+        NonFungiblePositionId(chainId, poolAddress, tokenId),
       );
       expect(updatedEntity).toBeDefined();
       if (!updatedEntity) return; // Type guard
@@ -332,7 +308,7 @@ describe("NFPM Events", () => {
 
       // Should match the first position, not the second
       const updatedEntity = result.entities.NonFungiblePosition.get(
-        NonFungiblePositionId(chainId, mockNonFungiblePosition.pool, tokenId),
+        NonFungiblePositionId(chainId, poolAddress, tokenId),
       );
       expect(updatedEntity).toBeDefined();
       if (!updatedEntity) return;
@@ -341,8 +317,8 @@ describe("NFPM Events", () => {
     it("should log error and return when no positions found by transaction hash", async () => {
       // Test error case (lines 97-100): no positions found by transaction hash
       const mockDbEmpty = MockDb.createMockDb();
-      const dbWithTokens = mockDbEmpty.entities.Token.set(mockToken0);
-      const finalDb = dbWithTokens.entities.Token.set(mockToken1);
+      const dbWithTokens = mockDbEmpty.entities.Token.set(mockToken0Data);
+      const finalDb = dbWithTokens.entities.Token.set(mockToken1Data);
 
       const mockDbNoPositions = {
         ...finalDb,
@@ -370,7 +346,7 @@ describe("NFPM Events", () => {
 
       // Should not create or update any position
       const updatedEntity = result.entities.NonFungiblePosition.get(
-        NonFungiblePositionId(chainId, mockNonFungiblePosition.pool, tokenId),
+        NonFungiblePositionId(chainId, poolAddress, tokenId),
       );
       expect(updatedEntity).toBeUndefined();
     });
@@ -394,8 +370,8 @@ describe("NFPM Events", () => {
       const dbWithPosition = mockDbBase.entities.NonFungiblePosition.set(
         positionWithDifferentTokenId,
       );
-      const dbWithTokens = dbWithPosition.entities.Token.set(mockToken0);
-      const finalDb = dbWithTokens.entities.Token.set(mockToken1);
+      const dbWithTokens = dbWithPosition.entities.Token.set(mockToken0Data);
+      const finalDb = dbWithTokens.entities.Token.set(mockToken1Data);
 
       const storedPositions = [positionWithDifferentTokenId];
       const mockDbWrongAmounts = {
@@ -472,7 +448,7 @@ describe("NFPM Events", () => {
 
     it("should decrease liquidity", () => {
       const updatedEntity = postEventDB.entities.NonFungiblePosition.get(
-        NonFungiblePositionId(chainId, mockNonFungiblePosition.pool, tokenId),
+        NonFungiblePositionId(chainId, poolAddress, tokenId),
       );
       expect(updatedEntity).toBeDefined();
       if (!updatedEntity) return; // Type guard
@@ -486,8 +462,8 @@ describe("NFPM Events", () => {
       // Simulate scenario where position doesn't exist
       // This should never happen in normal flow since Transfer should have already updated the placeholder
       const mockDb = MockDb.createMockDb();
-      const dbWithTokens = mockDb.entities.Token.set(mockToken0);
-      const finalDb = dbWithTokens.entities.Token.set(mockToken1);
+      const dbWithTokens = mockDb.entities.Token.set(mockToken0Data);
+      const finalDb = dbWithTokens.entities.Token.set(mockToken1Data);
 
       // Create DecreaseLiquidity event for non-existent position
       const decreaseEvent = NFPM.DecreaseLiquidity.createMockEvent({
@@ -517,7 +493,7 @@ describe("NFPM Events", () => {
 
       // Should not create any position
       const updatedEntity = result.entities.NonFungiblePosition.get(
-        NonFungiblePositionId(chainId, mockNonFungiblePosition.pool, tokenId),
+        NonFungiblePositionId(chainId, poolAddress, tokenId),
       );
       expect(updatedEntity).toBeUndefined();
     });
@@ -525,8 +501,8 @@ describe("NFPM Events", () => {
     it("should log error and return when position is not found", async () => {
       // Test the error case (lines 184-187)
       const mockDbEmpty = MockDb.createMockDb();
-      const dbWithTokens = mockDbEmpty.entities.Token.set(mockToken0);
-      const finalDb = dbWithTokens.entities.Token.set(mockToken1);
+      const dbWithTokens = mockDbEmpty.entities.Token.set(mockToken0Data);
+      const finalDb = dbWithTokens.entities.Token.set(mockToken1Data);
 
       // Setup getWhere to return empty array
       const mockDbNoPosition = {
@@ -575,7 +551,7 @@ describe("NFPM Events", () => {
 
       // Should not create any position
       const updatedEntity = result.entities.NonFungiblePosition.get(
-        NonFungiblePositionId(chainId, mockNonFungiblePosition.pool, tokenId),
+        NonFungiblePositionId(chainId, poolAddress, tokenId),
       );
       expect(updatedEntity).toBeUndefined();
     });
@@ -587,7 +563,7 @@ describe("NFPM Events", () => {
     const chainIdBase = 8453; // Base
     const chainIdLisk = 1135; // Lisk
     const sameTokenId = 42n; // Same tokenId on both chains
-    const poolAddressBase = "0xBasePoolAddress0000000000000000000";
+    const poolAddressBase = "0x0000000000000000000000000000000000000001";
     const poolAddressLisk = "0xc2026f3fb6fc51F4EcAE40a88b4509cB6C143ed4"; // The pool from the error
 
     // Position on Base (chain 8453)
@@ -666,14 +642,44 @@ describe("NFPM Events", () => {
     });
 
     it("should filter by chainId when querying by tokenId in Transfer event", async () => {
+      // Tokens for Base chain so loadPoolData can resolve and Transfer can update owner
+      const mockToken0DataBase = {
+        ...mockToken0Data,
+        id: TokenId(chainIdBase, token0Address),
+        chainId: chainIdBase,
+      };
+      const mockToken1DataBase = {
+        ...mockToken1Data,
+        id: TokenId(chainIdBase, token1Address),
+        chainId: chainIdBase,
+      };
+      const mockLiquidityPoolAggregatorBase = createMockLiquidityPoolAggregator(
+        {
+          chainId: chainIdBase,
+          poolAddress: poolAddressBase,
+          token0_id: mockToken0DataBase.id,
+          token1_id: mockToken1DataBase.id,
+          token0_address: token0Address,
+          token1_address: token1Address,
+        },
+      );
       // Setup mockDb with both positions (same tokenId, different chains)
       const mockDbCrossChain = MockDb.createMockDb();
       const dbWithBasePosition =
         mockDbCrossChain.entities.NonFungiblePosition.set(positionBase);
       const dbWithBothPositions =
         dbWithBasePosition.entities.NonFungiblePosition.set(positionLisk);
-      const dbWithTokens = dbWithBothPositions.entities.Token.set(mockToken0);
-      const finalDb = dbWithTokens.entities.Token.set(mockToken1);
+      const dbWithTokens =
+        dbWithBothPositions.entities.Token.set(mockToken0Data);
+      const dbWithBothChainsTokens = dbWithTokens.entities.Token.set(
+        mockToken1Data,
+      )
+        .entities.Token.set(mockToken0DataBase)
+        .entities.Token.set(mockToken1DataBase);
+      const finalDb =
+        dbWithBothChainsTokens.entities.LiquidityPoolAggregator.set(
+          mockLiquidityPoolAggregatorBase,
+        );
 
       // Setup getWhere to return both positions when querying by tokenId
       const storedPositions = [positionBase, positionLisk];
@@ -755,13 +761,13 @@ describe("NFPM Events", () => {
       expect(mockSimulateContractBase).toBeDefined();
 
       // Create tokens for Base chain
-      const mockToken0Base = {
-        ...mockToken0,
+      const mockToken0DataBase = {
+        ...mockToken0Data,
         id: TokenId(chainIdBase, token0Address),
         chainId: chainIdBase,
       };
-      const mockToken1Base = {
-        ...mockToken1,
+      const mockToken1DataBase = {
+        ...mockToken1Data,
         id: TokenId(chainIdBase, token1Address),
         chainId: chainIdBase,
       };
@@ -773,8 +779,8 @@ describe("NFPM Events", () => {
       const dbWithBothPositions =
         dbWithBasePosition.entities.NonFungiblePosition.set(positionLisk);
       const dbWithTokens =
-        dbWithBothPositions.entities.Token.set(mockToken0Base);
-      const finalDb = dbWithTokens.entities.Token.set(mockToken1Base);
+        dbWithBothPositions.entities.Token.set(mockToken0DataBase);
+      const finalDb = dbWithTokens.entities.Token.set(mockToken1DataBase);
 
       // Setup getWhere to return both positions when querying by tokenId
       const storedPositions = [positionBase, positionLisk];
@@ -856,13 +862,13 @@ describe("NFPM Events", () => {
       expect(mockSimulateContractLisk).toBeDefined();
 
       // Create tokens for Lisk chain
-      const mockToken0Lisk = {
-        ...mockToken0,
+      const mockToken0DataLisk = {
+        ...mockToken0Data,
         id: TokenId(chainIdLisk, token0Address),
         chainId: chainIdLisk,
       };
-      const mockToken1Lisk = {
-        ...mockToken1,
+      const mockToken1DataLisk = {
+        ...mockToken1Data,
         id: TokenId(chainIdLisk, token1Address),
         chainId: chainIdLisk,
       };
@@ -874,8 +880,8 @@ describe("NFPM Events", () => {
       const dbWithBothPositions =
         dbWithBasePosition.entities.NonFungiblePosition.set(positionLisk);
       const dbWithTokens =
-        dbWithBothPositions.entities.Token.set(mockToken0Lisk);
-      const finalDb = dbWithTokens.entities.Token.set(mockToken1Lisk);
+        dbWithBothPositions.entities.Token.set(mockToken0DataLisk);
+      const finalDb = dbWithTokens.entities.Token.set(mockToken1DataLisk);
 
       // Setup getWhere to return both positions when querying by tokenId
       const storedPositions = [positionBase, positionLisk];
@@ -957,19 +963,19 @@ describe("NFPM Events", () => {
         dbWithBasePosition.entities.NonFungiblePosition.set(positionLisk);
 
       // Create tokens for Base chain
-      const mockToken0Base = {
-        ...mockToken0,
+      const mockToken0DataBase = {
+        ...mockToken0Data,
         id: TokenId(chainIdBase, token0Address),
         chainId: chainIdBase,
       };
-      const mockToken1Base = {
-        ...mockToken1,
+      const mockToken1DataBase = {
+        ...mockToken1Data,
         id: TokenId(chainIdBase, token1Address),
         chainId: chainIdBase,
       };
       const dbWithTokens =
-        dbWithBothPositions.entities.Token.set(mockToken0Base);
-      const finalDb = dbWithTokens.entities.Token.set(mockToken1Base);
+        dbWithBothPositions.entities.Token.set(mockToken0DataBase);
+      const finalDb = dbWithTokens.entities.Token.set(mockToken1DataBase);
 
       // Setup getWhere - return BOTH positions when querying by tokenId
       // This simulates the bug: querying by tokenId without chainId filter returns positions from both chains

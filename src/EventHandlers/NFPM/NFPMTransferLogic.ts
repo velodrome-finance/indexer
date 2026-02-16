@@ -255,10 +255,12 @@ export async function handleRegularTransfer(
         event.params.to,
         poolData.liquidityPoolAggregator.gaugeAddress,
       )
-    : false;
+    : true; // Fallback to "true" to handle the case where poolData is null. poolData, in principle, should never be null, but we need to handle the case where it is null.
   if (isGauge) {
     context.log.info(
-      `[NFPMTransferLogic] Transfer to/from gauge ${poolData?.liquidityPoolAggregator.gaugeAddress} on chain ${event.chainId} in tx ${event.transaction.hash}`,
+      poolData
+        ? `[NFPMTransferLogic] Transfer to/from gauge ${poolData.liquidityPoolAggregator.gaugeAddress} on chain ${event.chainId} in tx ${event.transaction.hash}`
+        : `[NFPMTransferLogic] Pool data missing for pool ${position.pool}; skipping owner update on chain ${event.chainId} in tx ${event.transaction.hash}`,
     );
     return;
   }
