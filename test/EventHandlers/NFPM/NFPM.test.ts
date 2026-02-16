@@ -137,6 +137,8 @@ describe("NFPM Events", () => {
         tickLower: -100n,
         tickUpper: 100n,
         liquidity: 1000000000000000000n,
+        amount0: 0n,
+        amount1: 0n,
         token0: token0Address,
         token1: token1Address,
         transactionHash: transactionHash,

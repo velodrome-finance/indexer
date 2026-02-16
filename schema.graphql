@@ -170,12 +170,12 @@ type UserStatsPerPool {
   # Liquidity metrics
   currentLiquidityUSD: BigInt! @config(precision: 76) # current net liquidity position in USD
   lpBalance: BigInt! @config(precision: 76) # user's LP token balance (tracked from Transfer events)
-  totalLiquidityAddedUSD: BigInt! @config(precision: 76) # total liquidity added in USD
-  totalLiquidityAddedToken0: BigInt! @config(precision: 76) # total liquidity added in token0 (cumulative)
-  totalLiquidityAddedToken1: BigInt! @config(precision: 76) # total liquidity added in token1 (cumulative)
-  totalLiquidityRemovedUSD: BigInt! @config(precision: 76) # total liquidity removed in USD
-  totalLiquidityRemovedToken0: BigInt! @config(precision: 76) # total liquidity removed in token0 (cumulative)
-  totalLiquidityRemovedToken1: BigInt! @config(precision: 76) # total liquidity removed in token1 (cumulative)
+  totalLiquidityAddedUSD: BigInt! @config(precision: 76) # cumulative USD value of liquidity added (from IncreaseLiquidity events and Transfer ADD attribution)
+  totalLiquidityAddedToken0: BigInt! @config(precision: 76) # cumulative raw token0 amount added (sum of event.params.amount0 from IncreaseLiquidity + Transfer ADD). May differ from removed due to price movement between deposit and withdrawal
+  totalLiquidityAddedToken1: BigInt! @config(precision: 76) # cumulative raw token1 amount added (sum of event.params.amount1 from IncreaseLiquidity + Transfer ADD). May differ from removed due to price movement between deposit and withdrawal
+  totalLiquidityRemovedUSD: BigInt! @config(precision: 76) # cumulative USD value of liquidity removed (from DecreaseLiquidity events and Transfer REMOVE attribution)
+  totalLiquidityRemovedToken0: BigInt! @config(precision: 76) # cumulative raw token0 amount removed (sum of event.params.amount0 from DecreaseLiquidity + Transfer REMOVE). Can exceed totalLiquidityAddedToken0 due to price movement (impermanent loss rebalancing)
+  totalLiquidityRemovedToken1: BigInt! @config(precision: 76) # cumulative raw token1 amount removed (sum of event.params.amount1 from DecreaseLiquidity + Transfer REMOVE). Can exceed totalLiquidityAddedToken1 due to price movement (impermanent loss rebalancing)
 
   # Fee metrics
   totalFeesContributedUSD: BigInt! @config(precision: 76) # total fees contributed in USD (from swaps made by the user - essentially fees paid by the user in swaps)
@@ -458,6 +458,8 @@ type CLPoolMintEvent {
   tickLower: BigInt! @config(precision: 24)
   tickUpper: BigInt! @config(precision: 24)
   liquidity: BigInt! @config(precision: 76)
+  amount0: BigInt! @config(precision: 76)
+  amount1: BigInt! @config(precision: 76)
   token0: String!
   token1: String!
   transactionHash: String! @index

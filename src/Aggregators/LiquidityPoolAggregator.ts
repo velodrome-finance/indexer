@@ -88,6 +88,12 @@ export interface LiquidityPoolAggregatorDiff {
   lastSnapshotTimestamp: Date;
 }
 
+export interface PoolData {
+  token0Instance: Token;
+  token1Instance: Token;
+  liquidityPoolAggregator: LiquidityPoolAggregator;
+}
+
 /**
  * Update the dynamic fee pools data from the swap module.
  * @param liquidityPoolAggregator
@@ -388,11 +394,7 @@ export async function loadPoolData(
   context: handlerContext,
   blockNumber?: number,
   blockTimestamp?: number,
-): Promise<{
-  liquidityPoolAggregator: LiquidityPoolAggregator;
-  token0Instance: Token;
-  token1Instance: Token;
-} | null> {
+): Promise<PoolData | null> {
   const poolId = PoolId(chainId, poolAddress);
   // Load liquidity pool aggregator and token instances efficiently
   const liquidityPoolAggregator =
@@ -485,11 +487,7 @@ export async function loadPoolDataOrRootCLPool(
   context: handlerContext,
   blockNumber?: number,
   blockTimestamp?: number,
-): Promise<{
-  liquidityPoolAggregator: LiquidityPoolAggregator;
-  token0Instance: Token;
-  token1Instance: Token;
-} | null> {
+): Promise<PoolData | null> {
   const poolData = await loadPoolData(
     poolAddress,
     chainId,
