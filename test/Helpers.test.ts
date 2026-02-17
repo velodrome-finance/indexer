@@ -878,6 +878,7 @@ describe("Helpers", () => {
           isCL: false,
           reserve0,
           reserve1,
+          totalLPTokenSupply: totalSupply,
         } as LiquidityPoolAggregator;
 
         const mockContext = {
@@ -887,12 +888,6 @@ describe("Helpers", () => {
                 eq: async () => [],
               },
             },
-          },
-          effect: async (fn: { name: string }) => {
-            if (fn.name === "getTotalSupply") {
-              return totalSupply;
-            }
-            return {};
           },
           log: {
             warn: () => {},
@@ -945,6 +940,7 @@ describe("Helpers", () => {
           isCL: false,
           reserve0,
           reserve1,
+          totalLPTokenSupply: 0n,
         } as LiquidityPoolAggregator;
 
         const mockContext = {
@@ -954,12 +950,6 @@ describe("Helpers", () => {
                 eq: async () => [],
               },
             },
-          },
-          effect: async (fn: { name: string }) => {
-            if (fn.name === "getTotalSupply") {
-              return 0n; // Zero totalSupply
-            }
-            return {};
           },
           log: {
             warn: () => {},
@@ -986,19 +976,19 @@ describe("Helpers", () => {
         expect(result).toBe(0n);
       });
 
-      it("should handle errors in V2 pool calculation gracefully", async () => {
+      it("should return 0 when totalSupply is undefined for V2 pool", async () => {
         const amount = 100000000000000000000n;
-        // token0 has 18 decimals, token1 has 6 decimals
-        const reserve0 = 1000000000000000000000n; // 1000 tokens (18 decimals)
-        const reserve1 = 1000000000n; // 1000 tokens (6 decimals)
+        const reserve0 = 1000000000000000000000n;
+        const reserve1 = 1000000000n;
 
-        const mockPoolAggregator: LiquidityPoolAggregator = {
+        const mockPoolAggregator = {
           id: mockPoolAddress,
           chainId: mockChainId,
           isCL: false,
           reserve0,
           reserve1,
-        } as LiquidityPoolAggregator;
+          totalLPTokenSupply: undefined,
+        } as unknown as LiquidityPoolAggregator;
 
         const mockContext = {
           NonFungiblePosition: {
@@ -1007,9 +997,6 @@ describe("Helpers", () => {
                 eq: async () => [],
               },
             },
-          },
-          effect: async () => {
-            throw new Error("RPC error");
           },
           log: {
             warn: () => {},
@@ -1041,13 +1028,14 @@ describe("Helpers", () => {
       it("should return 0 for unsupported pool type", async () => {
         const amount = 100000000000000000000n;
 
-        // Pool that is neither CL nor V2 (edge case)
+        // CL pool without tokenId hits the "unsupported pool type" fallback (totalLPTokenSupply not used on this path)
         const mockPoolAggregator: LiquidityPoolAggregator = {
           id: mockPoolAddress,
           chainId: mockChainId,
-          isCL: false, // Not CL
+          isCL: true,
           reserve0: 0n,
           reserve1: 0n,
+          totalLPTokenSupply: 0n,
         } as LiquidityPoolAggregator;
 
         const mockContext = {
@@ -1058,7 +1046,6 @@ describe("Helpers", () => {
               },
             },
           },
-          effect: async () => 0n, // Return 0 totalSupply to trigger fallback
           log: {
             warn: () => {},
             error: () => {},
@@ -1081,54 +1068,6 @@ describe("Helpers", () => {
           mockContext,
         );
 
-        // Should return 0 due to zero totalSupply
-        expect(result).toBe(0n);
-      });
-
-      it("should handle CL pool without tokenId", async () => {
-        const amount = 1000000000000000000n;
-
-        const mockPoolAggregator: LiquidityPoolAggregator = {
-          id: mockPoolAddress,
-          chainId: mockChainId,
-          isCL: true,
-          reserve0: 0n,
-          reserve1: 0n,
-        } as LiquidityPoolAggregator;
-
-        const mockContext = {
-          NonFungiblePosition: {
-            getWhere: {
-              tokenId: {
-                eq: async () => [],
-              },
-            },
-          },
-          effect: async () => ({}),
-          log: {
-            warn: () => {},
-            error: () => {},
-            info: () => {},
-            debug: () => {},
-          },
-        } as unknown as handlerContext;
-
-        // CL pool without tokenId should fall through to fallback
-        const result = await calculateStakedLiquidityUSD(
-          amount,
-          mockPoolAddress,
-          mockChainId,
-          mockBlockNumber,
-          undefined, // No tokenId
-          {
-            liquidityPoolAggregator: mockPoolAggregator,
-            token0Instance: mockToken0,
-            token1Instance: mockToken1,
-          },
-          mockContext,
-        );
-
-        // Should return 0 (fallback case)
         expect(result).toBe(0n);
       });
     });
