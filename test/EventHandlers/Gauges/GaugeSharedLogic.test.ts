@@ -118,6 +118,7 @@ describe("GaugeSharedLogic", () => {
       lastUpdatedTimestamp: mockTimestamp,
       lastSnapshotTimestamp: mockTimestamp,
       isCL: false, // V2 pool
+      totalLPTokenSupply: 1000000000000000000000n, // 1000 LP tokens (18 decimals) for V2 staked liquidity USD
     });
 
     const { createMockUserStatsPerPool } = setupCommon();
@@ -226,11 +227,6 @@ describe("GaugeSharedLogic", () => {
             symbol: "AERO",
             decimals: 18,
           };
-        }
-        // Mock getTotalSupply for V2 pools
-        if (fn.name === "getTotalSupply") {
-          // Return a mock totalSupply (e.g., 1000 LP tokens)
-          return 1000000000000000000000n; // 1000 LP tokens (18 decimals)
         }
         return {};
       },

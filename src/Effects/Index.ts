@@ -2,7 +2,6 @@
 export {
   getTokenDetails,
   getTokenPrice,
-  getTotalSupply,
   roundBlockToInterval,
 } from "./Token";
 

@@ -6,10 +6,8 @@ import * as HelpersEffects from "../../src/Effects/Helpers";
 import {
   fetchTokenDetails,
   fetchTokenPrice,
-  fetchTotalSupply,
   getTokenDetails,
   getTokenPrice,
-  getTotalSupply,
 } from "../../src/Effects/Token";
 import * as TokenEffects from "../../src/Effects/Token";
 
@@ -311,81 +309,6 @@ describe("Token Effects", () => {
         priceOracleType: PriceOracleType.V3.toString(),
       });
       expect(mockContext.log.error).toHaveBeenCalled();
-    });
-  });
-
-  describe("getTotalSupply", () => {
-    it("should be a valid effect object", () => {
-      expect(typeof getTotalSupply).toBe("object");
-      expect(getTotalSupply).toHaveProperty("name", "getTotalSupply");
-    });
-
-    it("should call fetchTotalSupply via the effect handler", async () => {
-      jest.mocked(mockEthClient.simulateContract).mockResolvedValue({
-        result: 123n,
-        // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
-      } as any);
-
-      const result = await mockContext.effect(getTotalSupply as never, {
-        tokenAddress: TEST_TOKEN_ADDRESS,
-        chainId: TEST_CHAIN_ID,
-        blockNumber: TEST_BLOCK_NUMBER_EARLY,
-      });
-
-      expect(result).toBe(123n);
-      expect(mockEthClient.simulateContract).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  describe("fetchTotalSupply", () => {
-    it("should fetch totalSupply and handle different result formats", async () => {
-      const testCases = [
-        { result: 1000000000000000000000n, expected: 1000000000000000000000n },
-        { result: [500000000000000000000n], expected: 500000000000000000000n },
-        { result: "2000000000000000000000", expected: 2000000000000000000000n },
-      ];
-
-      for (const { result, expected } of testCases) {
-        jest.mocked(mockEthClient.simulateContract).mockResolvedValue({
-          result,
-          // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
-        } as any);
-
-        const fetchResult = await fetchTotalSupply(
-          TEST_TOKEN_ADDRESS,
-          TEST_CHAIN_ID,
-          TEST_BLOCK_NUMBER_EARLY,
-          mockEthClient,
-          mockContext.log,
-        );
-
-        expect(fetchResult).toBe(expected);
-      }
-    });
-
-    it("should handle contract call errors and throw with context", async () => {
-      jest
-        .mocked(mockEthClient.simulateContract)
-        .mockRejectedValue(new Error("Contract call failed"));
-
-      const contextWithCache = { cache: true };
-
-      await expect(
-        fetchTotalSupply(
-          TEST_TOKEN_ADDRESS,
-          TEST_CHAIN_ID,
-          TEST_BLOCK_NUMBER_EARLY,
-          mockEthClient,
-          mockContext.log,
-          contextWithCache,
-        ),
-      ).rejects.toThrow(
-        new RegExp(
-          `(?=.*getTotalSupply effect failed)(?=.*${TEST_TOKEN_ADDRESS})(?=.*Contract call failed)`,
-        ),
-      );
-
-      expect(contextWithCache.cache).toBe(false);
     });
   });
 

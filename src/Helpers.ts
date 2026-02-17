@@ -6,7 +6,6 @@ import {
 import type { LiquidityPoolAggregator, Token, handlerContext } from "generated";
 import JSBI from "jsbi";
 import { TEN_TO_THE_18_BI } from "./Constants";
-import { getTotalSupply, roundBlockToInterval } from "./Effects/Token";
 import { multiplyBase1e18 } from "./Maths";
 import { refreshTokenPrice } from "./PriceOracle";
 
@@ -343,8 +342,6 @@ export async function calculateStakedLiquidityUSD(
 ): Promise<bigint> {
   const { liquidityPoolAggregator, token0Instance, token1Instance } = poolData;
 
-  const roundedBlockNumber = roundBlockToInterval(blockNumber, chainId);
-
   // CL Pool: Use tokenId to get position and calculate from liquidity
   if (tokenId !== undefined && liquidityPoolAggregator.isCL) {
     try {
@@ -400,25 +397,7 @@ export async function calculateStakedLiquidityUSD(
       const reserve0 = liquidityPoolAggregator.reserve0;
       const reserve1 = liquidityPoolAggregator.reserve1;
 
-      const totalSupply = await executeEffectWithRoundedBlockRetry(
-        (input) => context.effect(getTotalSupply, input),
-        {
-          tokenAddress: poolAddress,
-          chainId,
-          blockNumber: roundedBlockNumber,
-        },
-        {
-          tokenAddress: poolAddress,
-          chainId,
-          blockNumber: blockNumber,
-        },
-        context,
-        "[calculateStakedLiquidityUSD]",
-        {
-          retryOnZero: true,
-          zeroValue: 0n,
-        },
-      );
+      const totalSupply = liquidityPoolAggregator.totalLPTokenSupply;
 
       if (totalSupply === 0n) {
         context.log.warn(
