@@ -34,23 +34,14 @@ import { processCLPoolSwap } from "./CLPool/CLPoolSwapLogic";
  */
 
 CLPool.Burn.handler(async ({ event, context }) => {
-  // Load pool data and user data concurrently for better performance
-  const [poolData, userData] = await Promise.all([
-    loadPoolData(
-      event.srcAddress,
-      event.chainId,
-      context,
-      event.block.number,
-      event.block.timestamp,
-    ),
-    loadOrCreateUserData(
-      event.params.owner,
-      event.srcAddress,
-      event.chainId,
-      context,
-      new Date(event.block.timestamp * 1000),
-    ),
-  ]);
+  // Pool-only update; user liquidity removed is attributed from NFPM.DecreaseLiquidity
+  const poolData = await loadPoolData(
+    event.srcAddress,
+    event.chainId,
+    context,
+    event.block.number,
+    event.block.timestamp,
+  );
 
   if (!poolData) {
     return;
@@ -58,26 +49,17 @@ CLPool.Burn.handler(async ({ event, context }) => {
 
   const { liquidityPoolAggregator, token0Instance, token1Instance } = poolData;
 
-  // Process the burn event
   const result = processCLPoolBurn(event, token0Instance, token1Instance);
-
-  const poolDiff = result.liquidityPoolDiff;
-  const userDiff = result.userLiquidityDiff;
-
   const timestamp = new Date(event.block.timestamp * 1000);
 
-  // Update pool and user entities
-  await Promise.all([
-    updateLiquidityPoolAggregator(
-      poolDiff,
-      liquidityPoolAggregator,
-      timestamp,
-      context,
-      event.chainId,
-      event.block.number,
-    ),
-    updateUserStatsPerPool(userDiff, userData, context),
-  ]);
+  await updateLiquidityPoolAggregator(
+    result.liquidityPoolDiff,
+    liquidityPoolAggregator,
+    timestamp,
+    context,
+    event.chainId,
+    event.block.number,
+  );
 });
 
 /**
@@ -269,23 +251,14 @@ CLPool.IncreaseObservationCardinalityNext.handler(
 );
 
 CLPool.Mint.handler(async ({ event, context }) => {
-  // Load pool data and user data concurrently for better performance
-  const [poolData, userData] = await Promise.all([
-    loadPoolData(
-      event.srcAddress,
-      event.chainId,
-      context,
-      event.block.number,
-      event.block.timestamp,
-    ),
-    loadOrCreateUserData(
-      event.params.owner,
-      event.srcAddress,
-      event.chainId,
-      context,
-      new Date(event.block.timestamp * 1000),
-    ),
-  ]);
+  // Pool-only update; user liquidity added is attributed from NFPM.Transfer (mint) and NFPM.IncreaseLiquidity
+  const poolData = await loadPoolData(
+    event.srcAddress,
+    event.chainId,
+    context,
+    event.block.number,
+    event.block.timestamp,
+  );
 
   if (!poolData) {
     return;
@@ -293,30 +266,19 @@ CLPool.Mint.handler(async ({ event, context }) => {
 
   const { liquidityPoolAggregator, token0Instance, token1Instance } = poolData;
 
-  // Process the mint event
   const result = processCLPoolMint(event, token0Instance, token1Instance);
-
-  const poolDiff = result.liquidityPoolDiff;
-  const userDiff = result.userLiquidityDiff;
-
   const timestamp = new Date(event.block.timestamp * 1000);
 
-  // Update pool and user entities
-  await Promise.all([
-    updateLiquidityPoolAggregator(
-      poolDiff,
-      liquidityPoolAggregator,
-      timestamp,
-      context,
-      event.chainId,
-      event.block.number,
-    ),
-    updateUserStatsPerPool(userDiff, userData, context),
-  ]);
+  await updateLiquidityPoolAggregator(
+    result.liquidityPoolDiff,
+    liquidityPoolAggregator,
+    timestamp,
+    context,
+    event.chainId,
+    event.block.number,
+  );
 
-  // Store CLPool.Mint data temporarily for NFPM.Transfer to consume
-  // This entity will be matched via NFPM.Transfer and deleted immediately after position creation
-  // NFPM.Transfer will create the NonFungiblePosition entity from this CLPoolMintEvent
+  // Store CLPool.Mint data for NFPM.Transfer (mint) to consume and attribute UserStatsPerPool to event.params.to
   const mintEventId = `${event.chainId}_${event.srcAddress}_${event.transaction.hash}_${event.logIndex}`;
   context.CLPoolMintEvent.set({
     id: mintEventId,
@@ -326,6 +288,8 @@ CLPool.Mint.handler(async ({ event, context }) => {
     tickLower: event.params.tickLower,
     tickUpper: event.params.tickUpper,
     liquidity: event.params.amount,
+    amount0: event.params.amount0,
+    amount1: event.params.amount1,
     token0: token0Instance.address,
     token1: token1Instance.address,
     transactionHash: event.transaction.hash,

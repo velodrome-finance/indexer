@@ -1,6 +1,21 @@
 import type { NonFungiblePosition, handlerContext } from "generated";
 import { MockDb } from "../../../generated/src/TestHelpers.gen";
-import { findPositionByTokenId } from "../../../src/EventHandlers/NFPM/NFPMCommonLogic";
+import type { PoolData } from "../../../src/Aggregators/LiquidityPoolAggregator";
+import {
+  loadOrCreateUserData,
+  updateUserStatsPerPool,
+} from "../../../src/Aggregators/UserStatsPerPool";
+import {
+  LiquidityChangeType,
+  attributeLiquidityChangeToUserStatsPerPool,
+  findPositionByTokenId,
+} from "../../../src/EventHandlers/NFPM/NFPMCommonLogic";
+import { calculateTotalLiquidityUSD } from "../../../src/Helpers";
+import { setupCommon } from "../Pool/common";
+
+jest.mock("../../../src/Aggregators/LiquidityPoolAggregator");
+jest.mock("../../../src/Aggregators/UserStatsPerPool");
+jest.mock("../../../src/Helpers");
 
 describe("NFPMCommonLogic", () => {
   const chainId = 10;
@@ -131,6 +146,114 @@ describe("NFPMCommonLogic", () => {
       );
 
       expect(positions).toHaveLength(0);
+    });
+  });
+
+  describe("attributeLiquidityChangeToUserStatsPerPool", () => {
+    const { createMockUserStatsPerPool, mockToken0Data, mockToken1Data } =
+      setupCommon();
+
+    const owner = "0x1DFAb7699121fEF702d07932a447868dCcCFb029";
+    const amount0 = 18500000000n;
+    const amount1 = 15171806313n;
+    const blockTimestamp = 1712065791;
+    const totalLiquidityUSD = 5000000000000000000n; // 5e18
+
+    const mockUserData = createMockUserStatsPerPool({
+      userAddress: owner,
+      poolAddress,
+      chainId,
+    });
+
+    const mockPoolData: PoolData = {
+      token0Instance: mockToken0Data,
+      token1Instance: mockToken1Data,
+      liquidityPoolAggregator: {
+        chainId,
+      } as PoolData["liquidityPoolAggregator"],
+    };
+
+    beforeEach(() => {
+      jest.mocked(loadOrCreateUserData).mockReset();
+      jest.mocked(updateUserStatsPerPool).mockReset();
+      jest.mocked(calculateTotalLiquidityUSD).mockReset();
+
+      jest.mocked(loadOrCreateUserData).mockResolvedValue(mockUserData);
+      jest
+        .mocked(calculateTotalLiquidityUSD)
+        .mockReturnValue(totalLiquidityUSD);
+    });
+
+    it("should call updateUserStatsPerPool with add diff when kind is ADD", async () => {
+      await attributeLiquidityChangeToUserStatsPerPool(
+        owner,
+        poolAddress,
+        mockPoolData,
+        mockContext,
+        amount0,
+        amount1,
+        blockTimestamp,
+        LiquidityChangeType.ADD,
+      );
+
+      expect(calculateTotalLiquidityUSD).toHaveBeenCalledWith(
+        amount0,
+        amount1,
+        mockToken0Data,
+        mockToken1Data,
+      );
+      const expectedTimestamp = new Date(blockTimestamp * 1000);
+      expect(loadOrCreateUserData).toHaveBeenCalledWith(
+        owner,
+        poolAddress,
+        chainId,
+        mockContext,
+        expectedTimestamp,
+      );
+      expect(updateUserStatsPerPool).toHaveBeenCalledTimes(1);
+      const [diff] = jest.mocked(updateUserStatsPerPool).mock.calls[0];
+      expect(diff).toMatchObject({
+        incrementalTotalLiquidityAddedUSD: totalLiquidityUSD,
+        incrementalTotalLiquidityAddedToken0: amount0,
+        incrementalTotalLiquidityAddedToken1: amount1,
+        lastActivityTimestamp: expectedTimestamp,
+      });
+    });
+
+    it("should call updateUserStatsPerPool with remove diff when kind is REMOVE", async () => {
+      await attributeLiquidityChangeToUserStatsPerPool(
+        owner,
+        poolAddress,
+        mockPoolData,
+        mockContext,
+        amount0,
+        amount1,
+        blockTimestamp,
+        LiquidityChangeType.REMOVE,
+      );
+      expect(calculateTotalLiquidityUSD).toHaveBeenCalledWith(
+        amount0,
+        amount1,
+        mockToken0Data,
+        mockToken1Data,
+      );
+      const expectedTimestamp = new Date(blockTimestamp * 1000);
+      expect(loadOrCreateUserData).toHaveBeenCalledWith(
+        owner,
+        poolAddress,
+        chainId,
+        mockContext,
+        expectedTimestamp,
+      );
+
+      expect(updateUserStatsPerPool).toHaveBeenCalledTimes(1);
+      const [diff] = jest.mocked(updateUserStatsPerPool).mock.calls[0];
+      expect(diff).toMatchObject({
+        incrementalTotalLiquidityRemovedUSD: totalLiquidityUSD,
+        incrementalTotalLiquidityRemovedToken0: amount0,
+        incrementalTotalLiquidityRemovedToken1: amount1,
+        lastActivityTimestamp: expectedTimestamp,
+      });
     });
   });
 });

@@ -87,31 +87,10 @@ describe("CLPoolMintLogic", () => {
       expect(result.liquidityPoolDiff.incrementalCurrentLiquidityUSD).toBe(
         1100000000000000000n,
       ); // 1.1 USD in 18 decimals
-
-      // Check user liquidity diff with exact values
-      expect(result.userLiquidityDiff.incrementalTotalLiquidityAddedUSD).toBe(
-        1100000000000000000n,
-      ); // 1.1 USD in 18 decimals
-      expect(
-        result.userLiquidityDiff.incrementalTotalLiquidityAddedToken0,
-      ).toBe(500000000000000000n); // amount0 (cumulative)
-      expect(
-        result.userLiquidityDiff.incrementalTotalLiquidityAddedToken1,
-      ).toBe(300000000000000000n); // amount1 (cumulative)
     });
 
     it("should calculate correct liquidity values for mint event", () => {
       const result = processCLPoolMint(mockEvent, mockToken0, mockToken1);
-
-      expect(result.userLiquidityDiff.incrementalTotalLiquidityAddedUSD).toBe(
-        1100000000000000000n,
-      ); // 1.1 USD in 18 decimals
-      expect(
-        result.userLiquidityDiff.incrementalTotalLiquidityAddedToken0,
-      ).toBe(500000000000000000n); // amount0 (cumulative)
-      expect(
-        result.userLiquidityDiff.incrementalTotalLiquidityAddedToken1,
-      ).toBe(300000000000000000n); // amount1 (cumulative)
 
       // The liquidity pool diff should reflect the amounts being added with exact values
       expect(result.liquidityPoolDiff.incrementalReserve0).toBe(
@@ -138,7 +117,6 @@ describe("CLPoolMintLogic", () => {
       );
 
       expect(result.liquidityPoolDiff).toBeDefined();
-      expect(result.userLiquidityDiff).toBeDefined();
     });
 
     it("should handle zero amounts correctly", () => {
@@ -159,15 +137,7 @@ describe("CLPoolMintLogic", () => {
 
       expect(result.liquidityPoolDiff.incrementalReserve0).toBe(0n);
       expect(result.liquidityPoolDiff.incrementalReserve1).toBe(0n);
-      expect(result.userLiquidityDiff.incrementalTotalLiquidityAddedUSD).toBe(
-        0n,
-      );
-      expect(
-        result.userLiquidityDiff.incrementalTotalLiquidityAddedToken0,
-      ).toBe(0n);
-      expect(
-        result.userLiquidityDiff.incrementalTotalLiquidityAddedToken1,
-      ).toBe(0n);
+      expect(result.liquidityPoolDiff.incrementalCurrentLiquidityUSD).toBe(0n);
     });
   });
 });

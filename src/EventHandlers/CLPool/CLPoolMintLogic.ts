@@ -1,11 +1,9 @@
 import type { CLPool_Mint_event, Token } from "generated";
 import type { LiquidityPoolAggregatorDiff } from "../../Aggregators/LiquidityPoolAggregator";
-import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import { calculateTotalLiquidityUSD } from "../../Helpers";
 
 export interface CLPoolMintResult {
   liquidityPoolDiff: Partial<LiquidityPoolAggregatorDiff>;
-  userLiquidityDiff: Partial<UserStatsPerPoolDiff>;
 }
 
 export function processCLPoolMint(
@@ -28,15 +26,7 @@ export function processCLPoolMint(
     lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
   };
 
-  const userLiquidityDiff = {
-    incrementalTotalLiquidityAddedUSD: totalLiquidityUSD, // Track total liquidity added (cumulative)
-    incrementalTotalLiquidityAddedToken0: event.params.amount0, // Track total liquidity added in token0 (cumulative)
-    incrementalTotalLiquidityAddedToken1: event.params.amount1, // Track total liquidity added in token1 (cumulative)
-    lastActivityTimestamp: new Date(event.block.timestamp * 1000),
-  };
-
   return {
     liquidityPoolDiff,
-    userLiquidityDiff,
   };
 }

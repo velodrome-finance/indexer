@@ -1,25 +1,53 @@
 import type {
   CLPoolMintEvent,
-  NFPM_IncreaseLiquidity_event,
   NonFungiblePosition,
   handlerContext,
 } from "generated";
 import { MockDb, NFPM } from "../../../generated/src/TestHelpers.gen";
 import {
+  type PoolData,
+  loadPoolData,
+} from "../../../src/Aggregators/LiquidityPoolAggregator";
+import { toChecksumAddress } from "../../../src/Constants";
+import {
+  LiquidityChangeType,
+  attributeLiquidityChangeToUserStatsPerPool,
+} from "../../../src/EventHandlers/NFPM/NFPMCommonLogic";
+import {
   calculateIncreaseLiquidityDiff,
   processNFPMIncreaseLiquidity,
 } from "../../../src/EventHandlers/NFPM/NFPMIncreaseLiquidityLogic";
 
+jest.mock("../../../src/Aggregators/LiquidityPoolAggregator", () => ({
+  ...jest.requireActual("../../../src/Aggregators/LiquidityPoolAggregator"),
+  loadPoolData: jest.fn(),
+}));
+
+jest.mock("../../../src/EventHandlers/NFPM/NFPMCommonLogic", () => ({
+  ...jest.requireActual("../../../src/EventHandlers/NFPM/NFPMCommonLogic"),
+  attributeLiquidityChangeToUserStatsPerPool: jest.fn(),
+}));
+
 describe("NFPMIncreaseLiquidityLogic", () => {
   const chainId = 10;
   const tokenId = 540n;
-  const poolAddress = "0x00cd0AbB6c2964F7Dfb5169dD94A9F004C35F458";
+  const poolAddress = toChecksumAddress(
+    "0x00cd0AbB6c2964F7Dfb5169dD94A9F004C35F458",
+  );
   const transactionHash =
     "0xaaa36689c538fcfee2e665f2c7b30bcf2f28ab898050252f50ec1f1d05a5392c";
-  const ownerAddress = "0x1DFAb7699121fEF702d07932a447868dCcCFb029";
-  const token0Address = "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85";
-  const token1Address = "0x7F5c764cBc14f9669B88837ca1490cCa17c31607";
-  const nfpmAddress = "0xbB5DFE1380333CEE4c2EeBd7202c80dE2256AdF4";
+  const ownerAddress = toChecksumAddress(
+    "0x1DFAb7699121fEF702d07932a447868dCcCFb029",
+  );
+  const token0Address = toChecksumAddress(
+    "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+  );
+  const token1Address = toChecksumAddress(
+    "0x7F5c764cBc14f9669B88837ca1490cCa17c31607",
+  );
+  const nfpmAddress = toChecksumAddress(
+    "0xbB5DFE1380333CEE4c2EeBd7202c80dE2256AdF4",
+  );
 
   const mockPosition: NonFungiblePosition = {
     id: `${chainId}_${poolAddress}_${tokenId}`,
@@ -83,6 +111,9 @@ describe("NFPMIncreaseLiquidityLogic", () => {
 
     return {
       ...currentDb,
+      LiquidityPoolAggregator: {
+        get: jest.fn().mockResolvedValue(undefined),
+      },
       NonFungiblePosition: {
         ...currentDb.entities.NonFungiblePosition,
         getWhere: {
@@ -164,6 +195,8 @@ describe("NFPMIncreaseLiquidityLogic", () => {
   }
 
   beforeEach(() => {
+    jest.mocked(loadPoolData).mockResolvedValue(null);
+    jest.mocked(attributeLiquidityChangeToUserStatsPerPool).mockResolvedValue();
     storedPositions = [mockPosition];
     storedMintEvents = [];
     mockContext = createMockContext(storedPositions, storedMintEvents);
@@ -268,6 +301,8 @@ describe("NFPMIncreaseLiquidityLogic", () => {
         tickLower: mockPosition.tickLower,
         tickUpper: mockPosition.tickUpper,
         liquidity: increaseAmount,
+        amount0: 18500000000n,
+        amount1: 15171806313n,
         token0: mockPosition.token0,
         token1: mockPosition.token1,
         transactionHash: transactionHash,
@@ -321,6 +356,8 @@ describe("NFPMIncreaseLiquidityLogic", () => {
         tickLower: mockPosition.tickLower,
         tickUpper: mockPosition.tickUpper,
         liquidity: increaseAmount,
+        amount0: 18500000000n,
+        amount1: 15171806313n,
         token0: mockPosition.token0,
         token1: mockPosition.token1,
         transactionHash: transactionHash,
@@ -337,6 +374,8 @@ describe("NFPMIncreaseLiquidityLogic", () => {
         tickLower: mockPosition.tickLower,
         tickUpper: mockPosition.tickUpper,
         liquidity: increaseAmount,
+        amount0: 18500000000n,
+        amount1: 15171806313n,
         token0: mockPosition.token0,
         token1: mockPosition.token1,
         transactionHash: transactionHash,
@@ -353,6 +392,8 @@ describe("NFPMIncreaseLiquidityLogic", () => {
         tickLower: mockPosition.tickLower,
         tickUpper: mockPosition.tickUpper,
         liquidity: increaseAmount,
+        amount0: 18500000000n,
+        amount1: 15171806313n,
         token0: mockPosition.token0,
         token1: mockPosition.token1,
         transactionHash: transactionHash,
@@ -419,6 +460,55 @@ describe("NFPMIncreaseLiquidityLogic", () => {
       // Position should remain unchanged
       const position = mockDb.entities.NonFungiblePosition.get(mockPosition.id);
       expect(position?.liquidity).toBe(mockPosition.liquidity);
+    });
+
+    it("does not call attributeLiquidityChangeToUserStatsPerPool when loadPoolData returns null", async () => {
+      // loadPoolData left as beforeEach default (null) — verifies early-exit when poolData is absent
+      const mockEvent = createMockIncreaseLiquidityEvent(168374122051126n, {
+        amount0: 18500000000n,
+        amount1: 15171806313n,
+      });
+
+      await processNFPMIncreaseLiquidity(mockEvent, mockContext);
+
+      expect(
+        jest.mocked(attributeLiquidityChangeToUserStatsPerPool),
+      ).not.toHaveBeenCalled();
+    });
+
+    it("calls attributeLiquidityChangeToUserStatsPerPool when poolData is loaded", async () => {
+      const mockPoolData: PoolData = {
+        token0Instance: {} as PoolData["token0Instance"],
+        token1Instance: {} as PoolData["token1Instance"],
+        liquidityPoolAggregator: {
+          chainId,
+        } as PoolData["liquidityPoolAggregator"],
+      };
+      jest.mocked(loadPoolData).mockResolvedValue(mockPoolData);
+
+      const increaseAmount = 168374122051126n;
+      const amount0 = 18500000000n;
+      const amount1 = 15171806313n;
+      const mockEvent = createMockIncreaseLiquidityEvent(increaseAmount, {
+        amount0,
+        amount1,
+      });
+
+      await processNFPMIncreaseLiquidity(mockEvent, mockContext);
+
+      expect(attributeLiquidityChangeToUserStatsPerPool).toHaveBeenCalledTimes(
+        1,
+      );
+      expect(attributeLiquidityChangeToUserStatsPerPool).toHaveBeenCalledWith(
+        mockPosition.owner,
+        poolAddress,
+        mockPoolData,
+        expect.anything(), // context
+        amount0,
+        amount1,
+        expect.anything(), // timestamp
+        LiquidityChangeType.ADD,
+      );
     });
   });
 });

@@ -340,13 +340,6 @@ describe("CLPool Events", () => {
             incrementalCurrentLiquidityUSD: 2000n,
             lastUpdatedTimestamp: new Date(1000000 * 1000),
           },
-          userLiquidityDiff: {
-            incrementalCurrentLiquidityUSD: 1000n,
-            incrementalTotalLiquidityAddedToken0: 500n,
-            incrementalTotalLiquidityAddedToken1: 500n,
-            incrementalTotalLiquidityAddedUSD: 1000n,
-            lastActivityTimestamp: new Date(1000000 * 1000),
-          },
         });
 
       mockEvent = CLPool.Mint.createMockEvent({
@@ -415,13 +408,6 @@ describe("CLPool Events", () => {
             incrementalReserve1: -500n, // Negative because burning decreases reserves
             incrementalCurrentLiquidityUSD: -1000n, // Negative because reserves decrease
             lastUpdatedTimestamp: new Date(1000000 * 1000),
-          },
-          userLiquidityDiff: {
-            incrementalCurrentLiquidityUSD: -500n,
-            incrementalTotalLiquidityRemovedToken0: 250n, // Positive value for cumulative tracking
-            incrementalTotalLiquidityRemovedToken1: 250n, // Positive value for cumulative tracking
-            incrementalTotalLiquidityRemovedUSD: 500n, // Positive value for tracking
-            lastActivityTimestamp: new Date(1000000 * 1000),
           },
         });
 

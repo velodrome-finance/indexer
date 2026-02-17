@@ -1,13 +1,27 @@
-import type {
-  NFPM_DecreaseLiquidity_event,
-  NonFungiblePosition,
-  handlerContext,
-} from "generated";
+import type { NonFungiblePosition, handlerContext } from "generated";
 import { MockDb, NFPM } from "../../../generated/src/TestHelpers.gen";
+import {
+  type PoolData,
+  loadPoolData,
+} from "../../../src/Aggregators/LiquidityPoolAggregator";
+import {
+  LiquidityChangeType,
+  attributeLiquidityChangeToUserStatsPerPool,
+} from "../../../src/EventHandlers/NFPM/NFPMCommonLogic";
 import {
   calculateDecreaseLiquidityDiff,
   processNFPMDecreaseLiquidity,
 } from "../../../src/EventHandlers/NFPM/NFPMDecreaseLiquidityLogic";
+
+jest.mock("../../../src/Aggregators/LiquidityPoolAggregator", () => ({
+  ...jest.requireActual("../../../src/Aggregators/LiquidityPoolAggregator"),
+  loadPoolData: jest.fn(),
+}));
+
+jest.mock("../../../src/EventHandlers/NFPM/NFPMCommonLogic", () => ({
+  ...jest.requireActual("../../../src/EventHandlers/NFPM/NFPMCommonLogic"),
+  attributeLiquidityChangeToUserStatsPerPool: jest.fn(),
+}));
 
 describe("NFPMDecreaseLiquidityLogic", () => {
   const chainId = 10;
@@ -35,6 +49,9 @@ describe("NFPMDecreaseLiquidityLogic", () => {
   let mockContext: handlerContext;
 
   beforeEach(() => {
+    jest.clearAllMocks();
+    jest.mocked(loadPoolData).mockResolvedValue(null);
+    jest.mocked(attributeLiquidityChangeToUserStatsPerPool).mockResolvedValue();
     mockDb = MockDb.createMockDb();
     mockDb = mockDb.entities.NonFungiblePosition.set(mockPosition);
 
@@ -56,6 +73,9 @@ describe("NFPMDecreaseLiquidityLogic", () => {
 
     mockContext = {
       ...mockDb,
+      LiquidityPoolAggregator: {
+        get: jest.fn().mockResolvedValue(undefined),
+      },
       NonFungiblePosition: {
         ...mockDb.entities.NonFungiblePosition,
         getWhere: {
@@ -233,6 +253,76 @@ describe("NFPMDecreaseLiquidityLogic", () => {
       // Position should remain unchanged
       const position = mockDb.entities.NonFungiblePosition.get(mockPosition.id);
       expect(position?.liquidity).toBe(mockPosition.liquidity);
+    });
+
+    it("does not call attributeLiquidityChangeToUserStatsPerPool when loadPoolData returns null", async () => {
+      // loadPoolData left as beforeEach default (null)
+      const mockEvent = NFPM.DecreaseLiquidity.createMockEvent({
+        tokenId: tokenId,
+        liquidity: 373020348524042n,
+        amount0: 0n,
+        amount1: 74592880586n,
+        mockEventData: {
+          block: {
+            timestamp: 1712065791,
+            number: 118233507,
+            hash: "0x0254451c8999a43d90b4efc69de225e676864561fc1eef2bfe6e1940d613e3f8",
+          },
+          chainId: chainId,
+          logIndex: 96,
+          srcAddress: "0xbB5DFE1380333CEE4c2EeBd7202c80dE2256AdF4",
+        },
+      });
+
+      await processNFPMDecreaseLiquidity(mockEvent, mockContext);
+
+      expect(
+        jest.mocked(attributeLiquidityChangeToUserStatsPerPool),
+      ).not.toHaveBeenCalled();
+    });
+
+    it("calls attributeLiquidityChangeToUserStatsPerPool when poolData is loaded", async () => {
+      const mockPoolData: PoolData = {
+        token0Instance: {} as PoolData["token0Instance"],
+        token1Instance: {} as PoolData["token1Instance"],
+        liquidityPoolAggregator: {
+          chainId,
+        } as PoolData["liquidityPoolAggregator"],
+      };
+      jest.mocked(loadPoolData).mockResolvedValue(mockPoolData);
+
+      const mockEvent = NFPM.DecreaseLiquidity.createMockEvent({
+        tokenId: tokenId,
+        liquidity: 373020348524042n,
+        amount0: 0n,
+        amount1: 74592880586n,
+        mockEventData: {
+          block: {
+            timestamp: 1712065791,
+            number: 118233507,
+            hash: "0x0254451c8999a43d90b4efc69de225e676864561fc1eef2bfe6e1940d613e3f8",
+          },
+          chainId: chainId,
+          logIndex: 96,
+          srcAddress: "0xbB5DFE1380333CEE4c2EeBd7202c80dE2256AdF4",
+        },
+      });
+
+      await processNFPMDecreaseLiquidity(mockEvent, mockContext);
+
+      expect(attributeLiquidityChangeToUserStatsPerPool).toHaveBeenCalledTimes(
+        1,
+      );
+      const [owner, poolAddr, data, , amount0, amount1, ts, type] = jest.mocked(
+        attributeLiquidityChangeToUserStatsPerPool,
+      ).mock.calls[0];
+      expect(owner).toBe(mockPosition.owner);
+      expect(poolAddr).toBe(poolAddress);
+      expect(data).toBe(mockPoolData);
+      expect(amount0).toBe(0n);
+      expect(amount1).toBe(74592880586n);
+      expect(ts).toBe(1712065791);
+      expect(type).toBe(LiquidityChangeType.REMOVE);
     });
   });
 });
