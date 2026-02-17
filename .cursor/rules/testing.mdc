@@ -1,0 +1,177 @@
+---
+title: Jest testing rules (Pool EventHandlers)
+scope:
+  - "**/*.test.ts"
+  - "**/*.spec.ts"
+  - "test/EventHandlers/Pool/**/*.ts"
+alwaysApply: true
+---
+# Jest Test Generation Rules
+
+You are writing tests using **Jest** for this repository.
+
+## Non-negotiables
+
+1. **Minimize duplication**
+   - Before creating any new helper, look for existing test helpers and reuse them.
+   - If logic repeats across **2+ tests**, extract it into a shared helper.
+   - For Pool EventHandlers, Pool-specific shared helpers belong in:
+     - `test/EventHandlers/Pool/common.ts`
+
+2. **Prefer shared setup**
+   - When tests touch Pool entities or Pool EventHandlers, you **must** use:
+     - `setupCommon()` from `test/EventHandlers/Pool/common.ts`
+   - Do **not** re-implement setup that already exists in `setupCommon`.
+
+3. **Deterministic tests only**
+   - Avoid `new Date()` in assertions and fixtures unless using fake timers.
+   - Prefer fixed timestamps from shared helpers.
+   - No real network/filesystem/time/randomness unless explicitly required.
+
+4. **Readable AAA structure**
+   - Use Arrange → Act → Assert.
+   - Tests should read like documentation.
+   - Prefer small focused tests.
+
+---
+
+## Pool EventHandlers: Required harness usage
+
+### When this applies
+If the test file is under `test/EventHandlers/Pool/**` OR the code under test uses any of:
+- `LiquidityPoolAggregator`
+- `UserStatsPerPool`
+- `VeNFTState`
+- `VeNFTPoolVote`
+- `ALM_LP_Wrapper`
+- `Token`
+
+### Required import + initialization
+Always import and initialize the shared harness:
+
+```ts
+import { setupCommon } from "./common"; // adjust relative path if needed
+
+let common: ReturnType<typeof setupCommon>;
+
+beforeEach(() => {
+  common = setupCommon();
+});
+```
+
+**Mandatory:** Pool tests MUST use `setupCommon()`; if missing, add it and refactor to `common.createMock*`.
+
+
+### Mandatory reuse of fixtures/builders
+
+Use these from `common` instead of creating objects from scratch:
+
+- `common.mockToken0Data`
+- `common.mockToken1Data`
+- `common.mockLiquidityPoolData`
+- `common.mockALMLPWrapperData`
+- `common.mockUserStatsPerPoolData`
+- `common.mockVeNFTStateData`
+- `common.mockVeNFTPoolVoteData`
+- `common.createMockUserStatsPerPool(overrides)`
+- `common.createMockLiquidityPoolAggregator(overrides)`
+- `common.createMockVeNFTState(overrides)`
+- `common.createMockVeNFTPoolVote(overrides)`
+
+**Rule:** Prefer `common.createMock*` builders whenever you need variants — **even if changing only one field**.
+
+### Object creation rules
+
+- Never construct `Token`, `LiquidityPoolAggregator`, `UserStatsPerPool`, `VeNFTState`, `VeNFTPoolVote` from scratch inside a test if `setupCommon()` already provides a mock or builder.
+
+- If you need variants, use the `createMock*` builders with `Partial<T>` overrides.
+
+- If a builder doesn’t exist but would be broadly useful, add it to `common.ts` rather than writing local one-off helpers.
+
+### Correct override patterns
+
+Use builder overrides so derived fields (like id) stay correct:
+
+```ts
+const pool = common.createMockLiquidityPoolAggregator({
+  reserve0: 500n,
+  chainId: 10,
+});
+const user = common.createMockUserStatsPerPool({
+  userAddress: "0xabc...",
+  totalFeesContributedUSD: 123n,
+});
+```
+
+## Test structure and style
+
+### Naming
+- `describe("<unit under test>")`
+- `test("should <expected> when <condition>")`
+
+Avoid vague names like “works” or “handles”.
+
+### Table-driven tests
+
+Prefer `test.each` for scenario matrices:
+
+```ts
+test.each([
+  ["case name", inputA, inputB, expected],
+])("should do X (%s)", async (_name, a, b, expected) => {
+  // Arrange
+  // Act
+  // Assert
+});
+```
+
+### Mocking
+
+- Mock only boundaries (DB, network, filesystem, third-party SDKs).
+
+- Prefer dependency injection over `jest.mock()` where possible.
+
+- If using spies/mocks in a suite, reset consistently:
+
+```ts
+beforeEach(() => {
+  jest.restoreAllMocks();
+  jest.clearAllMocks();
+});
+```
+
+### Assertions
+
+- Assert behavior and outputs first.
+
+- Use `toMatchObject` for partial matches when extra fields are noisy.
+
+- Avoid snapshots unless output is large and stable.
+
+### “Stop and centralize” rule
+
+When writing a new test, if you find yourself:
+
+- copying large object literals,
+
+- repeating the same calculations,
+
+- repeating the same assertions,
+
+- repeating setup boilerplate,
+
+stop and refactor:
+
+- Prefer adding a helper to `test/EventHandlers/Pool/common.ts` for Pool-specific reuse.
+
+- Otherwise add to an appropriate shared `test/utils/*` module.
+
+## Output requirements when generating/editing tests
+
+- Use Jest idioms: `describe`, `test`, `beforeEach`, `test.each`
+
+- For Pool tests: MUST use `setupCommon()` and `createMock*` builders.
+
+- Extract duplication to helpers instead of repeating logic
+
+- Keep tests deterministic and readable
