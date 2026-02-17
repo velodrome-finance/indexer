@@ -35,7 +35,6 @@ type LiquidityPoolAggregator {
   totalVotesDepositedUSD: BigInt! @config(precision: 76) # total votes deposited in USD
   totalEmissions: BigInt! @config(precision: 76) # total emissions for the pool in reward token units (VELO form Optimism and AERO for Base)
   totalEmissionsUSD: BigInt! @config(precision: 76) # total emissions for the pool in USD
-  totalBribesUSD: BigInt! @config(precision: 76) # total bribes for the pool in USD
 
   lastUpdatedTimestamp: Timestamp! # timestamp of last update
   lastSnapshotTimestamp: Timestamp! # timestamp of last snapshot

@@ -1,7 +1,7 @@
 import type { CLPool_Flash_event, Token } from "generated";
 import type { LiquidityPoolAggregatorDiff } from "../../Aggregators/LiquidityPoolAggregator";
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
-import { calculateTotalLiquidityUSD } from "../../Helpers";
+import { calculateTotalUSD } from "../../Helpers";
 
 export interface CLPoolFlashResult {
   liquidityPoolDiff: Partial<LiquidityPoolAggregatorDiff>;
@@ -14,7 +14,7 @@ export function processCLPoolFlash(
   token1Instance: Token | undefined,
 ): CLPoolFlashResult {
   // Calculate flash loan fees in USD using already-refreshed token prices from loadPoolData
-  const flashLoanFeesUSD = calculateTotalLiquidityUSD(
+  const flashLoanFeesUSD = calculateTotalUSD(
     event.params.paid0,
     event.params.paid1,
     token0Instance,
@@ -22,7 +22,7 @@ export function processCLPoolFlash(
   );
 
   // Calculate flash loan volume in USD (amount borrowed, not fees) using already-refreshed token prices
-  const flashLoanVolumeUSD = calculateTotalLiquidityUSD(
+  const flashLoanVolumeUSD = calculateTotalUSD(
     event.params.amount0,
     event.params.amount1,
     token0Instance,

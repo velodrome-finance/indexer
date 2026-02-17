@@ -4,7 +4,7 @@ import type {
   Token,
 } from "generated";
 import { processCLPoolBurn } from "../../../src/EventHandlers/CLPool/CLPoolBurnLogic";
-import { calculateTotalLiquidityUSD } from "../../../src/Helpers";
+import { calculateTotalUSD } from "../../../src/Helpers";
 import { setupCommon } from "../Pool/common";
 
 describe("CLPoolBurnLogic", () => {
@@ -91,7 +91,7 @@ describe("CLPoolBurnLogic", () => {
       );
 
       // Calculate expected values using the same logic as processCLPoolBurn
-      const expectedTotalLiquidityUSD = calculateTotalLiquidityUSD(
+      const expectedTotalLiquidityUSD = calculateTotalUSD(
         mockEvent.params.amount0,
         mockEvent.params.amount1,
         tokenWithDifferentDecimals,

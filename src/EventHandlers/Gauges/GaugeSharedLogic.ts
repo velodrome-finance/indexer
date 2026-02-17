@@ -9,10 +9,7 @@ import {
   updateUserStatsPerPool,
 } from "../../Aggregators/UserStatsPerPool";
 import { CHAIN_CONSTANTS, TokenIdByChain } from "../../Constants";
-import {
-  calculateStakedLiquidityUSD,
-  calculateTotalLiquidityUSD,
-} from "../../Helpers";
+import { calculateStakedLiquidityUSD, calculateTotalUSD } from "../../Helpers";
 
 export interface GaugeEventData {
   gaugeAddress: string;
@@ -257,7 +254,7 @@ export async function processGaugeClaimRewards(
 
   const { liquidityPoolAggregator } = poolData;
 
-  const rewardAmountUSD = calculateTotalLiquidityUSD(
+  const rewardAmountUSD = calculateTotalUSD(
     data.amount,
     0n,
     rewardToken,

@@ -1,6 +1,6 @@
 import type { CLPool_Mint_event, Token } from "generated";
 import type { LiquidityPoolAggregatorDiff } from "../../Aggregators/LiquidityPoolAggregator";
-import { calculateTotalLiquidityUSD } from "../../Helpers";
+import { calculateTotalUSD } from "../../Helpers";
 
 export interface CLPoolMintResult {
   liquidityPoolDiff: Partial<LiquidityPoolAggregatorDiff>;
@@ -12,7 +12,7 @@ export function processCLPoolMint(
   token1Instance: Token,
 ): CLPoolMintResult {
   // Calculate USD values using already-refreshed token prices from loadPoolData
-  const totalLiquidityUSD = calculateTotalLiquidityUSD(
+  const totalLiquidityUSD = calculateTotalUSD(
     event.params.amount0,
     event.params.amount1,
     token0Instance,

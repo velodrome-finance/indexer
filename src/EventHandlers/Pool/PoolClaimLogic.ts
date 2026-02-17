@@ -1,7 +1,7 @@
 import type { Pool_Claim_event, Token } from "generated";
 import type { LiquidityPoolAggregatorDiff } from "../../Aggregators/LiquidityPoolAggregator";
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
-import { calculateTotalLiquidityUSD } from "../../Helpers";
+import { calculateTotalUSD } from "../../Helpers";
 
 export interface PoolClaimResult {
   poolDiff: Partial<LiquidityPoolAggregatorDiff>;
@@ -20,7 +20,7 @@ export function processPoolClaim(
   token0Instance: Token | undefined,
   token1Instance: Token | undefined,
 ): PoolClaimResult {
-  const totalFeesUSD = calculateTotalLiquidityUSD(
+  const totalFeesUSD = calculateTotalUSD(
     event.params.amount0,
     event.params.amount1,
     token0Instance,

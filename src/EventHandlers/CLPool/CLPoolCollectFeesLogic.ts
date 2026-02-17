@@ -1,10 +1,7 @@
 import type { CLPool_CollectFees_event, Token } from "generated";
 import type { LiquidityPoolAggregatorDiff } from "../../Aggregators/LiquidityPoolAggregator";
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
-import {
-  calculateTotalLiquidityUSD,
-  calculateWhitelistedFeesUSD,
-} from "../../Helpers";
+import { calculateTotalUSD, calculateWhitelistedFeesUSD } from "../../Helpers";
 
 export interface CLPoolCollectFeesResult {
   liquidityPoolDiff: Partial<LiquidityPoolAggregatorDiff>;
@@ -18,7 +15,7 @@ export function processCLPoolCollectFees(
 ): CLPoolCollectFeesResult {
   // Calculate the increment values (not new totals)
   // updateLiquidityPoolAggregator expects increments and will add them to current values
-  const stakedFeesIncrementUSD = calculateTotalLiquidityUSD(
+  const stakedFeesIncrementUSD = calculateTotalUSD(
     event.params.amount0,
     event.params.amount1,
     token0Instance,

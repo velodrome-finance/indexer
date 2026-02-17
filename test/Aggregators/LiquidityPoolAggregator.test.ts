@@ -204,7 +204,6 @@ describe("LiquidityPoolAggregator Functions", () => {
       totalVotesDepositedUSD: 0n,
       totalEmissions: 0n,
       totalEmissionsUSD: 0n,
-      totalBribesUSD: 0n,
       gaugeIsAlive: false,
       lastUpdatedTimestamp: new Date(),
       lastSnapshotTimestamp: new Date(),

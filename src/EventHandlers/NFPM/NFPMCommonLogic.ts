@@ -4,7 +4,7 @@ import {
   loadOrCreateUserData,
   updateUserStatsPerPool,
 } from "../../Aggregators/UserStatsPerPool";
-import { calculateTotalLiquidityUSD } from "../../Helpers";
+import { calculateTotalUSD } from "../../Helpers";
 
 /** Type of liquidity change for UserStatsPerPool attribution. */
 export enum LiquidityChangeType {
@@ -63,7 +63,7 @@ export async function attributeLiquidityChangeToUserStatsPerPool(
   blockTimestamp: number,
   liquidityChangeType: LiquidityChangeType,
 ): Promise<void> {
-  const totalLiquidityUSD = calculateTotalLiquidityUSD(
+  const totalLiquidityUSD = calculateTotalUSD(
     amount0,
     amount1,
     poolData.token0Instance,

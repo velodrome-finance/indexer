@@ -1,10 +1,7 @@
 import type { CLPool_Collect_event, Token } from "generated";
 import type { LiquidityPoolAggregatorDiff } from "../../Aggregators/LiquidityPoolAggregator";
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
-import {
-  calculateTotalLiquidityUSD,
-  calculateWhitelistedFeesUSD,
-} from "../../Helpers";
+import { calculateTotalUSD, calculateWhitelistedFeesUSD } from "../../Helpers";
 
 export interface CLPoolCollectResult {
   liquidityPoolDiff: Partial<LiquidityPoolAggregatorDiff>;
@@ -20,7 +17,7 @@ export function processCLPoolCollect(
   // In CL pools, fees accumulate in positions (tokensOwed0/tokensOwed1) and are NOT part of base reserves.
   // When collected, they're transferred out but were never in the tracked reserves.
   // Therefore, Collect events should NOT affect reserves - only track fees collected.
-  const unstakedFeesUSD = calculateTotalLiquidityUSD(
+  const unstakedFeesUSD = calculateTotalUSD(
     event.params.amount0,
     event.params.amount1,
     token0Instance,

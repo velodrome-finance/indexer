@@ -8,7 +8,7 @@ import type { LiquidityPoolAggregatorDiff } from "../../Aggregators/LiquidityPoo
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import {
   calculateTokenAmountUSD,
-  calculateTotalLiquidityUSD,
+  calculateTotalUSD,
   normalizeTokenAmountTo1e18,
 } from "../../Helpers";
 import { abs } from "../../Maths";
@@ -204,7 +204,7 @@ export function calculateSwapLiquidityChanges(
   const newReserve1 = liquidityPoolAggregator.reserve1 + event.params.amount1;
 
   // Calculate new total liquidity USD using already-refreshed token prices
-  const newTotalLiquidityUSD = calculateTotalLiquidityUSD(
+  const newTotalLiquidityUSD = calculateTotalUSD(
     newReserve0,
     newReserve1,
     token0Instance,

@@ -49,7 +49,6 @@ export interface LiquidityPoolAggregatorDiff {
   incrementalNumberOfSwaps: bigint;
   incrementalTotalEmissions: bigint;
   incrementalTotalEmissionsUSD: bigint;
-  incrementalTotalBribesUSD: bigint;
   incrementalTotalFlashLoanFees0: bigint;
   incrementalTotalFlashLoanFees1: bigint;
   incrementalTotalFlashLoanFeesUSD: bigint;
@@ -259,8 +258,6 @@ export async function updateLiquidityPoolAggregator(
       (diff.incrementalTotalEmissions ?? 0n) + current.totalEmissions,
     totalEmissionsUSD:
       (diff.incrementalTotalEmissionsUSD ?? 0n) + current.totalEmissionsUSD,
-    totalBribesUSD:
-      (diff.incrementalTotalBribesUSD ?? 0n) + current.totalBribesUSD,
     totalFlashLoanFees0:
       (diff.incrementalTotalFlashLoanFees0 ?? 0n) +
       (current.totalFlashLoanFees0 ?? 0n),
@@ -656,7 +653,6 @@ export function createLiquidityPoolAggregatorEntity(params: {
     token1Price: 0n,
     totalEmissions: 0n,
     totalEmissionsUSD: 0n,
-    totalBribesUSD: 0n,
     totalVotesDeposited: 0n,
     totalVotesDepositedUSD: 0n,
     gaugeIsAlive: false,

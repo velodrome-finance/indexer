@@ -363,7 +363,7 @@ describe("GaugeSharedLogic", () => {
       expect(updatedPool?.totalGaugeRewardsClaimed).toBe(
         1000000000000000000000n,
       );
-      // calculateTotalLiquidityUSD(amount, 0n, rewardToken, undefined)
+      // calculateTotalUSD(amount, 0n, rewardToken, undefined)
       // amount = 1000 tokens (18 decimals), price = 1 USD
       // normalized = 1000 * 10^18 / 10^18 = 1000
       // USD = 1000 * 1 USD = 1000000000000000000000 (1000 USD in 18 decimals)

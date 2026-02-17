@@ -1,7 +1,7 @@
 import type { Pool_Claim_event } from "generated";
 import { toChecksumAddress } from "../../../src/Constants";
 import { processPoolClaim } from "../../../src/EventHandlers/Pool/PoolClaimLogic";
-import { calculateTotalLiquidityUSD } from "../../../src/Helpers";
+import { calculateTotalUSD } from "../../../src/Helpers";
 import { setupCommon } from "./common";
 
 describe("PoolClaimLogic", () => {
@@ -41,7 +41,7 @@ describe("PoolClaimLogic", () => {
     describe("staked fees collection", () => {
       it("should track fees as staked and calculate USD correctly when sender is the gauge address", () => {
         // Arrange
-        const expectedTotalFeesUSD = calculateTotalLiquidityUSD(
+        const expectedTotalFeesUSD = calculateTotalUSD(
           mockEvent.params.amount0,
           mockEvent.params.amount1,
           common.mockToken0Data,
@@ -94,7 +94,7 @@ describe("PoolClaimLogic", () => {
         const regularUserAddress = toChecksumAddress(
           "0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
         );
-        const expectedTotalFeesUSD = calculateTotalLiquidityUSD(
+        const expectedTotalFeesUSD = calculateTotalUSD(
           mockEvent.params.amount0,
           mockEvent.params.amount1,
           common.mockToken0Data,
@@ -224,7 +224,7 @@ describe("PoolClaimLogic", () => {
           },
           common.mockToken1Data,
         );
-        const expectedTotalFeesUSD = calculateTotalLiquidityUSD(
+        const expectedTotalFeesUSD = calculateTotalUSD(
           mockEvent.params.amount0,
           mockEvent.params.amount1,
           tokenWith6Decimals,
@@ -255,6 +255,13 @@ describe("PoolClaimLogic", () => {
       });
 
       it("should handle one token undefined", () => {
+        const expectedUSD = calculateTotalUSD(
+          mockEvent.params.amount0,
+          mockEvent.params.amount1,
+          common.mockToken0Data,
+          undefined,
+        );
+
         // Act
         const result = processPoolClaim(
           mockEvent,
@@ -273,7 +280,7 @@ describe("PoolClaimLogic", () => {
         expect(pool.incrementalTotalStakedFeesCollected1).toBe(
           mockEvent.params.amount1,
         );
-        expect(pool.incrementalTotalStakedFeesCollectedUSD).toBe(1000n);
+        expect(pool.incrementalTotalStakedFeesCollectedUSD).toBe(expectedUSD);
       });
     });
   });

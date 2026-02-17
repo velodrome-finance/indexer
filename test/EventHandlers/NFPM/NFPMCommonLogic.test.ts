@@ -10,7 +10,7 @@ import {
   attributeLiquidityChangeToUserStatsPerPool,
   findPositionByTokenId,
 } from "../../../src/EventHandlers/NFPM/NFPMCommonLogic";
-import { calculateTotalLiquidityUSD } from "../../../src/Helpers";
+import { calculateTotalUSD } from "../../../src/Helpers";
 import { setupCommon } from "../Pool/common";
 
 jest.mock("../../../src/Aggregators/LiquidityPoolAggregator");
@@ -176,12 +176,10 @@ describe("NFPMCommonLogic", () => {
     beforeEach(() => {
       jest.mocked(loadOrCreateUserData).mockReset();
       jest.mocked(updateUserStatsPerPool).mockReset();
-      jest.mocked(calculateTotalLiquidityUSD).mockReset();
+      jest.mocked(calculateTotalUSD).mockReset();
 
       jest.mocked(loadOrCreateUserData).mockResolvedValue(mockUserData);
-      jest
-        .mocked(calculateTotalLiquidityUSD)
-        .mockReturnValue(totalLiquidityUSD);
+      jest.mocked(calculateTotalUSD).mockReturnValue(totalLiquidityUSD);
     });
 
     it("should call updateUserStatsPerPool with add diff when kind is ADD", async () => {
@@ -196,7 +194,7 @@ describe("NFPMCommonLogic", () => {
         LiquidityChangeType.ADD,
       );
 
-      expect(calculateTotalLiquidityUSD).toHaveBeenCalledWith(
+      expect(calculateTotalUSD).toHaveBeenCalledWith(
         amount0,
         amount1,
         mockToken0Data,
@@ -231,7 +229,7 @@ describe("NFPMCommonLogic", () => {
         blockTimestamp,
         LiquidityChangeType.REMOVE,
       );
-      expect(calculateTotalLiquidityUSD).toHaveBeenCalledWith(
+      expect(calculateTotalUSD).toHaveBeenCalledWith(
         amount0,
         amount1,
         mockToken0Data,

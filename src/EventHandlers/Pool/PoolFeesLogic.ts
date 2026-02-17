@@ -1,10 +1,7 @@
 import type { Pool_Fees_event, Token } from "generated";
 import type { LiquidityPoolAggregatorDiff } from "../../Aggregators/LiquidityPoolAggregator";
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
-import {
-  calculateTotalLiquidityUSD,
-  calculateWhitelistedFeesUSD,
-} from "../../Helpers";
+import { calculateTotalUSD, calculateWhitelistedFeesUSD } from "../../Helpers";
 
 export interface PoolFeesResult {
   liquidityPoolDiff?: Partial<LiquidityPoolAggregatorDiff>;
@@ -23,7 +20,7 @@ export function processPoolFees(
   token1Instance: Token | undefined,
 ): PoolFeesResult {
   // Calculate total fees USD using already-refreshed token prices
-  const totalFeesUSD = calculateTotalLiquidityUSD(
+  const totalFeesUSD = calculateTotalUSD(
     event.params.amount0,
     event.params.amount1,
     token0Instance,
