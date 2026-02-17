@@ -976,11 +976,10 @@ describe("Helpers", () => {
         expect(result).toBe(0n);
       });
 
-      it("should handle errors in V2 pool calculation gracefully", async () => {
+      it("should return 0 when totalSupply is undefined for V2 pool", async () => {
         const amount = 100000000000000000000n;
-        // token0 has 18 decimals, token1 has 6 decimals
-        const reserve0 = 1000000000000000000000n; // 1000 tokens (18 decimals)
-        const reserve1 = 1000000000n; // 1000 tokens (6 decimals)
+        const reserve0 = 1000000000000000000000n;
+        const reserve1 = 1000000000n;
 
         const mockPoolAggregator = {
           id: mockPoolAddress,

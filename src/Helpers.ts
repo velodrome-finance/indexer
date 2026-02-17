@@ -399,9 +399,9 @@ export async function calculateStakedLiquidityUSD(
 
       const totalSupply = liquidityPoolAggregator.totalLPTokenSupply;
 
-      if (totalSupply === 0n) {
+      if (!totalSupply) {
         context.log.warn(
-          `[calculateStakedLiquidityUSD] TotalSupply is 0 for pool ${poolAddress} on chain ${chainId}, using 0 USD`,
+          `[calculateStakedLiquidityUSD] TotalSupply is 0 or undefined for pool ${poolAddress} on chain ${chainId}, using 0 USD`,
         );
         return 0n;
       }
