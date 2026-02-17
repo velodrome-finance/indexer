@@ -1,6 +1,12 @@
 import type { Pool_Claim_event, Token } from "generated";
 import type { LiquidityPoolAggregatorDiff } from "../../Aggregators/LiquidityPoolAggregator";
+import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import { calculateTotalLiquidityUSD } from "../../Helpers";
+
+export interface PoolClaimResult {
+  poolDiff: Partial<LiquidityPoolAggregatorDiff>;
+  userDiff: Partial<UserStatsPerPoolDiff>;
+}
 
 /**
  * Process claim event for fees collected from the pool
@@ -13,8 +19,7 @@ export function processPoolClaim(
   gaugeAddress: string,
   token0Instance: Token | undefined,
   token1Instance: Token | undefined,
-): Partial<LiquidityPoolAggregatorDiff> {
-  // Calculate total fees USD using already-refreshed token prices
+): PoolClaimResult {
   const totalFeesUSD = calculateTotalLiquidityUSD(
     event.params.amount0,
     event.params.amount1,
@@ -22,24 +27,41 @@ export function processPoolClaim(
     token1Instance,
   );
 
-  let liquidityPoolDiff: Partial<LiquidityPoolAggregatorDiff>;
+  const timestamp = new Date(event.block.timestamp * 1000);
 
-  // If the sender is the gauge address, then fees claimed are staked fees
-  if (sender === gaugeAddress) {
-    liquidityPoolDiff = {
-      incrementalTotalStakedFeesCollected0: event.params.amount0,
-      incrementalTotalStakedFeesCollected1: event.params.amount1,
-      incrementalTotalStakedFeesCollectedUSD: totalFeesUSD,
-      lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
-    };
-  } else {
-    liquidityPoolDiff = {
-      incrementalTotalUnstakedFeesCollected0: event.params.amount0,
-      incrementalTotalUnstakedFeesCollected1: event.params.amount1,
-      incrementalTotalUnstakedFeesCollectedUSD: totalFeesUSD,
-      lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
-    };
-  }
+  const isGaugeClaim = sender === gaugeAddress;
 
-  return liquidityPoolDiff;
+  // Select staked or unstaked field keys based on claim type
+  const poolDiff = isGaugeClaim
+    ? {
+        incrementalTotalStakedFeesCollected0: event.params.amount0,
+        incrementalTotalStakedFeesCollected1: event.params.amount1,
+        incrementalTotalStakedFeesCollectedUSD: totalFeesUSD,
+        lastUpdatedTimestamp: timestamp,
+      }
+    : {
+        incrementalTotalUnstakedFeesCollected0: event.params.amount0,
+        incrementalTotalUnstakedFeesCollected1: event.params.amount1,
+        incrementalTotalUnstakedFeesCollectedUSD: totalFeesUSD,
+        lastUpdatedTimestamp: timestamp,
+      };
+
+  const userDiff = isGaugeClaim
+    ? {
+        incrementalTotalStakedFeesCollected0: event.params.amount0,
+        incrementalTotalStakedFeesCollected1: event.params.amount1,
+        incrementalTotalStakedFeesCollectedUSD: totalFeesUSD,
+        lastActivityTimestamp: timestamp,
+      }
+    : {
+        incrementalTotalUnstakedFeesCollected0: event.params.amount0,
+        incrementalTotalUnstakedFeesCollected1: event.params.amount1,
+        incrementalTotalUnstakedFeesCollectedUSD: totalFeesUSD,
+        lastActivityTimestamp: timestamp,
+      };
+
+  return {
+    poolDiff,
+    userDiff,
+  };
 }

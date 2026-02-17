@@ -1,10 +1,15 @@
-import type { Pool_Claim_event, Token } from "generated";
+import type { Pool_Claim_event } from "generated";
 import { toChecksumAddress } from "../../../src/Constants";
 import { processPoolClaim } from "../../../src/EventHandlers/Pool/PoolClaimLogic";
+import { calculateTotalLiquidityUSD } from "../../../src/Helpers";
 import { setupCommon } from "./common";
 
 describe("PoolClaimLogic", () => {
-  const { mockToken0Data, mockToken1Data } = setupCommon();
+  let common: ReturnType<typeof setupCommon>;
+
+  beforeEach(() => {
+    common = setupCommon();
+  });
 
   const mockEvent: Pool_Claim_event = {
     chainId: 10,
@@ -35,97 +40,129 @@ describe("PoolClaimLogic", () => {
   describe("processPoolClaim", () => {
     describe("staked fees collection", () => {
       it("should track fees as staked and calculate USD correctly when sender is the gauge address", () => {
+        // Arrange
+        const expectedTotalFeesUSD = calculateTotalLiquidityUSD(
+          mockEvent.params.amount0,
+          mockEvent.params.amount1,
+          common.mockToken0Data,
+          common.mockToken1Data,
+        );
+
+        // Act
         const result = processPoolClaim(
           mockEvent,
-          gaugeAddress, // sender matches gauge address
           gaugeAddress,
-          mockToken0Data,
-          mockToken1Data,
+          gaugeAddress,
+          common.mockToken0Data,
+          common.mockToken1Data,
         );
 
-        // Calculate expected USD values
-        // token0: 1000n (18 decimals) * 1 USD = 1000n USD (normalized to 1e18)
-        // token1: 2000n (6 decimals) * 1 USD = 2000n * 10^12 = 2000000000000000n USD (normalized to 1e18)
-        // totalFeesUSD = 1000n + 2000000000000000n = 2000000000001000n
-        const expectedToken0FeesUSD = 1000n;
-        const expectedToken1FeesUSD = 2000000000000000n;
-        const expectedTotalFeesUSD =
-          expectedToken0FeesUSD + expectedToken1FeesUSD; // 2000000000001000n
-
+        // Assert
         expect(result).toBeDefined();
-        expect(result.incrementalTotalStakedFeesCollected0).toBe(
+        const pool = result.poolDiff;
+        expect(pool.incrementalTotalStakedFeesCollected0).toBe(
           mockEvent.params.amount0,
         );
-        expect(result.incrementalTotalStakedFeesCollected1).toBe(
+        expect(pool.incrementalTotalStakedFeesCollected1).toBe(
           mockEvent.params.amount1,
         );
-        expect(result.incrementalTotalStakedFeesCollectedUSD).toBe(
+        expect(pool.incrementalTotalStakedFeesCollectedUSD).toBe(
           expectedTotalFeesUSD,
         );
-        expect(result.incrementalTotalUnstakedFeesCollected0).toBeUndefined();
-        expect(result.incrementalTotalUnstakedFeesCollected1).toBeUndefined();
-        expect(result.lastUpdatedTimestamp).toEqual(
+        expect(pool.incrementalTotalUnstakedFeesCollected0).toBeUndefined();
+        expect(pool.incrementalTotalUnstakedFeesCollected1).toBeUndefined();
+        expect(pool.lastUpdatedTimestamp).toEqual(
           new Date(mockEvent.block.timestamp * 1000),
+        );
+        const user = result.userDiff;
+        expect(user).toBeDefined();
+        expect(user?.incrementalTotalStakedFeesCollected0).toBe(
+          mockEvent.params.amount0,
+        );
+        expect(user?.incrementalTotalStakedFeesCollected1).toBe(
+          mockEvent.params.amount1,
+        );
+        expect(user?.incrementalTotalStakedFeesCollectedUSD).toBe(
+          expectedTotalFeesUSD,
         );
       });
     });
 
     describe("unstaked fees collection", () => {
       it("should track fees as unstaked and calculate USD correctly when sender is not the gauge address", () => {
+        // Arrange
         const regularUserAddress = toChecksumAddress(
           "0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
         );
+        const expectedTotalFeesUSD = calculateTotalLiquidityUSD(
+          mockEvent.params.amount0,
+          mockEvent.params.amount1,
+          common.mockToken0Data,
+          common.mockToken1Data,
+        );
 
+        // Act
         const result = processPoolClaim(
           mockEvent,
-          regularUserAddress, // sender does not match gauge address
+          regularUserAddress,
           gaugeAddress,
-          mockToken0Data,
-          mockToken1Data,
+          common.mockToken0Data,
+          common.mockToken1Data,
         );
 
-        // Calculate expected USD values
-        const expectedToken0FeesUSD = 1000n;
-        const expectedToken1FeesUSD = 2000000000000000n;
-        const expectedTotalFeesUSD =
-          expectedToken0FeesUSD + expectedToken1FeesUSD; // 2000000000001000n
-
+        // Assert
         expect(result).toBeDefined();
-        expect(result.incrementalTotalUnstakedFeesCollected0).toBe(
+        const pool = result.poolDiff;
+        expect(pool.incrementalTotalUnstakedFeesCollected0).toBe(
           mockEvent.params.amount0,
         );
-        expect(result.incrementalTotalUnstakedFeesCollected1).toBe(
+        expect(pool.incrementalTotalUnstakedFeesCollected1).toBe(
           mockEvent.params.amount1,
         );
-        expect(result.incrementalTotalUnstakedFeesCollectedUSD).toBe(
+        expect(pool.incrementalTotalUnstakedFeesCollectedUSD).toBe(
           expectedTotalFeesUSD,
         );
-        expect(result.incrementalTotalStakedFeesCollected0).toBeUndefined();
-        expect(result.incrementalTotalStakedFeesCollected1).toBeUndefined();
-        expect(result.lastUpdatedTimestamp).toEqual(
+        expect(pool.incrementalTotalStakedFeesCollected0).toBeUndefined();
+        expect(pool.incrementalTotalStakedFeesCollected1).toBeUndefined();
+        expect(pool.lastUpdatedTimestamp).toEqual(
           new Date(mockEvent.block.timestamp * 1000),
+        );
+        const user = result.userDiff;
+        expect(user).toBeDefined();
+        expect(user?.incrementalTotalUnstakedFeesCollected0).toBe(
+          mockEvent.params.amount0,
+        );
+        expect(user?.incrementalTotalUnstakedFeesCollected1).toBe(
+          mockEvent.params.amount1,
+        );
+        expect(user?.incrementalTotalUnstakedFeesCollectedUSD).toBe(
+          expectedTotalFeesUSD,
         );
       });
     });
 
     describe("edge cases", () => {
       it("should handle case when gauge address is empty string", () => {
+        // Act
         const result = processPoolClaim(
           mockEvent,
           toChecksumAddress("0x1234567890123456789012345678901234567890"),
-          "", // empty gauge address
-          mockToken0Data,
-          mockToken1Data,
+          "",
+          common.mockToken0Data,
+          common.mockToken1Data,
         );
 
-        // Should be treated as unstaked since sender !== gaugeAddress
-        expect(result.incrementalTotalUnstakedFeesCollected0).toBe(
+        // Assert: treated as unstaked since sender !== gaugeAddress
+        expect(result.poolDiff.incrementalTotalUnstakedFeesCollected0).toBe(
           mockEvent.params.amount0,
         );
-        expect(result.incrementalTotalStakedFeesCollected0).toBeUndefined();
+        expect(
+          result.poolDiff.incrementalTotalStakedFeesCollected0,
+        ).toBeUndefined();
       });
 
       it("should handle undefined tokens", () => {
+        // Act
         const result = processPoolClaim(
           mockEvent,
           gaugeAddress,
@@ -134,18 +171,20 @@ describe("PoolClaimLogic", () => {
           undefined,
         );
 
+        // Assert
         expect(result).toBeDefined();
-        expect(result.incrementalTotalStakedFeesCollected0).toBe(
+        const pool = result.poolDiff;
+        expect(pool.incrementalTotalStakedFeesCollected0).toBe(
           mockEvent.params.amount0,
         );
-        expect(result.incrementalTotalStakedFeesCollected1).toBe(
+        expect(pool.incrementalTotalStakedFeesCollected1).toBe(
           mockEvent.params.amount1,
         );
-        // USD should be 0n when tokens are undefined
-        expect(result.incrementalTotalStakedFeesCollectedUSD).toBe(0n);
+        expect(pool.incrementalTotalStakedFeesCollectedUSD).toBe(0n);
       });
 
       it("should handle zero amounts", () => {
+        // Arrange
         const zeroAmountEvent: Pool_Claim_event = {
           ...mockEvent,
           params: {
@@ -155,34 +194,44 @@ describe("PoolClaimLogic", () => {
           },
         };
 
+        // Act
         const result = processPoolClaim(
           zeroAmountEvent,
           gaugeAddress,
           gaugeAddress,
-          mockToken0Data,
-          mockToken1Data,
+          common.mockToken0Data,
+          common.mockToken1Data,
         );
 
-        expect(result.incrementalTotalStakedFeesCollected0).toBe(0n);
-        expect(result.incrementalTotalStakedFeesCollected1).toBe(0n);
-        expect(result.incrementalTotalStakedFeesCollectedUSD).toBe(0n);
+        // Assert
+        expect(result.poolDiff.incrementalTotalStakedFeesCollected0).toBe(0n);
+        expect(result.poolDiff.incrementalTotalStakedFeesCollected1).toBe(0n);
+        expect(result.poolDiff.incrementalTotalStakedFeesCollectedUSD).toBe(0n);
       });
     });
 
     describe("different token configurations", () => {
       it("should handle tokens with different decimals", () => {
-        const tokenWith6Decimals: Token = {
-          ...mockToken0Data,
+        // Arrange
+        const tokenWith6Decimals = common.createMockToken({
           decimals: 6n,
-          pricePerUSDNew: 1000000000000000000n, // 1 USD
-        };
+          pricePerUSDNew: 1000000000000000000n,
+        });
+        const tokenWith18Decimals = common.createMockToken(
+          {
+            decimals: 18n,
+            pricePerUSDNew: 2000000000000000000n,
+          },
+          common.mockToken1Data,
+        );
+        const expectedTotalFeesUSD = calculateTotalLiquidityUSD(
+          mockEvent.params.amount0,
+          mockEvent.params.amount1,
+          tokenWith6Decimals,
+          tokenWith18Decimals,
+        );
 
-        const tokenWith18Decimals: Token = {
-          ...mockToken1Data,
-          decimals: 18n,
-          pricePerUSDNew: 2000000000000000000n, // 2 USD
-        };
-
+        // Act
         const result = processPoolClaim(
           mockEvent,
           gaugeAddress,
@@ -191,44 +240,40 @@ describe("PoolClaimLogic", () => {
           tokenWith18Decimals,
         );
 
+        // Assert
         expect(result).toBeDefined();
-        expect(result.incrementalTotalStakedFeesCollected0).toBe(
+        const pool = result.poolDiff;
+        expect(pool.incrementalTotalStakedFeesCollected0).toBe(
           mockEvent.params.amount0,
         );
-        expect(result.incrementalTotalStakedFeesCollected1).toBe(
+        expect(pool.incrementalTotalStakedFeesCollected1).toBe(
           mockEvent.params.amount1,
         );
-        // Calculate expected USD values
-        // token0: 1000n (6 decimals) * 1 USD = 1000n * 10^12 = 1000000000000000n USD (normalized to 1e18)
-        // token1: 2000n (18 decimals) * 2 USD = 2000n * 2 = 4000n USD (normalized to 1e18)
-        // totalFeesUSD = 1000000000000000n + 4000n = 1000000000004000n
-        const expectedToken0FeesUSD = 1000000000000000n; // 1000n * 10^18 / 10^6 * 1e18 / 1e18 = 1000000000000000n
-        const expectedToken1FeesUSD = 4000n; // 2000n * 10^18 / 10^18 * 2e18 / 1e18 = 4000n
-        const expectedTotalFeesUSD =
-          expectedToken0FeesUSD + expectedToken1FeesUSD; // 1000000000004000n
-        expect(result.incrementalTotalStakedFeesCollectedUSD).toBe(
+        expect(pool.incrementalTotalStakedFeesCollectedUSD).toBe(
           expectedTotalFeesUSD,
         );
       });
 
       it("should handle one token undefined", () => {
+        // Act
         const result = processPoolClaim(
           mockEvent,
           gaugeAddress,
           gaugeAddress,
-          mockToken0Data,
+          common.mockToken0Data,
           undefined,
         );
 
+        // Assert: USD includes only token0 value
         expect(result).toBeDefined();
-        expect(result.incrementalTotalStakedFeesCollected0).toBe(
+        const pool = result.poolDiff;
+        expect(pool.incrementalTotalStakedFeesCollected0).toBe(
           mockEvent.params.amount0,
         );
-        expect(result.incrementalTotalStakedFeesCollected1).toBe(
+        expect(pool.incrementalTotalStakedFeesCollected1).toBe(
           mockEvent.params.amount1,
         );
-        // USD should only include token0 value
-        expect(result.incrementalTotalStakedFeesCollectedUSD).toBe(1000n);
+        expect(pool.incrementalTotalStakedFeesCollectedUSD).toBe(1000n);
       });
     });
   });

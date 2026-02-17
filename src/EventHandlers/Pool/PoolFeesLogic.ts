@@ -2,8 +2,8 @@ import type { Pool_Fees_event, Token } from "generated";
 import type { LiquidityPoolAggregatorDiff } from "../../Aggregators/LiquidityPoolAggregator";
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import {
-  calculateTokenAmountUSD,
   calculateTotalLiquidityUSD,
+  calculateWhitelistedFeesUSD,
 } from "../../Helpers";
 
 export interface PoolFeesResult {
@@ -30,30 +30,12 @@ export function processPoolFees(
     token1Instance,
   );
 
-  // Calculate whitelisted fees increment: add each token's fees individually if whitelisted
-  let totalFeesUSDWhitelisted = 0n;
-
-  if (token0Instance) {
-    const token0FeesUSD = calculateTokenAmountUSD(
-      event.params.amount0,
-      Number(token0Instance.decimals),
-      token0Instance.pricePerUSDNew,
-    );
-    if (token0Instance.isWhitelisted) {
-      totalFeesUSDWhitelisted += token0FeesUSD;
-    }
-  }
-
-  if (token1Instance) {
-    const token1FeesUSD = calculateTokenAmountUSD(
-      event.params.amount1,
-      Number(token1Instance.decimals),
-      token1Instance.pricePerUSDNew,
-    );
-    if (token1Instance.isWhitelisted) {
-      totalFeesUSDWhitelisted += token1FeesUSD;
-    }
-  }
+  const totalFeesUSDWhitelisted = calculateWhitelistedFeesUSD(
+    event.params.amount0,
+    event.params.amount1,
+    token0Instance,
+    token1Instance,
+  );
 
   // Create liquidity pool diff
   const liquidityPoolDiff = {

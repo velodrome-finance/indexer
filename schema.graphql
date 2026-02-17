@@ -177,16 +177,14 @@ type UserStatsPerPool {
   totalLiquidityRemovedToken0: BigInt! @config(precision: 76) # cumulative raw token0 amount removed (sum of event.params.amount0 from DecreaseLiquidity + Transfer REMOVE). Can exceed totalLiquidityAddedToken0 due to price movement (impermanent loss rebalancing)
   totalLiquidityRemovedToken1: BigInt! @config(precision: 76) # cumulative raw token1 amount removed (sum of event.params.amount1 from DecreaseLiquidity + Transfer REMOVE). Can exceed totalLiquidityAddedToken1 due to price movement (impermanent loss rebalancing)
 
-  # Fee metrics
-  totalFeesContributedUSD: BigInt! @config(precision: 76) # total fees contributed in USD (from swaps made by the user - essentially fees paid by the user in swaps)
-  totalFeesContributed0: BigInt! @config(precision: 76) # total fees contributed in token0 (from swaps made by the user - essentially fees paid by the user in swaps)
-  totalFeesContributed1: BigInt! @config(precision: 76) # total fees contributed in token1 (from swaps made by the user - essentially fees paid by the user in swaps)
-
   # Swap metrics
   numberOfSwaps: BigInt! @config(precision: 76) # number of swaps in this pool
   totalSwapVolumeAmount0: BigInt! @config(precision: 76) # swap volume denominated in token0 in this pool
   totalSwapVolumeAmount1: BigInt! @config(precision: 76) # swap volume denominated in token1 in this pool
   totalSwapVolumeUSD: BigInt! @config(precision: 76) # swap volume in USD in this pool
+  totalFeesContributedUSD: BigInt! @config(precision: 76) # total fees contributed in USD (from swaps made by the user - essentially fees paid by the user in swaps)
+  totalFeesContributed0: BigInt! @config(precision: 76) # total fees contributed in token0 (from swaps made by the user - essentially fees paid by the user in swaps)
+  totalFeesContributed1: BigInt! @config(precision: 76) # total fees contributed in token1 (from swaps made by the user - essentially fees paid by the user in swaps)
 
   # Flash swap metrics
   numberOfFlashLoans: BigInt! @config(precision: 76) # number of flash loan swaps in this pool
@@ -198,6 +196,12 @@ type UserStatsPerPool {
   numberOfGaugeRewardClaims: BigInt! @config(precision: 76) # number of gauge reward claims
   totalGaugeRewardsClaimedUSD: BigInt! @config(precision: 76) # total gauge rewards claimed in USD
   totalGaugeRewardsClaimed: BigInt! @config(precision: 76) # total gauge rewards claimed in token units
+  totalStakedFeesCollected0: BigInt! @config(precision: 76) # pool fees (token0) collected by this user from staked position (CollectFees)
+  totalStakedFeesCollected1: BigInt! @config(precision: 76) # pool fees (token1) collected by this user from staked position (CollectFees)
+  totalStakedFeesCollectedUSD: BigInt! @config(precision: 76) # pool fees in USD collected by this user from staked position (CollectFees) - position earned vs totalGaugeRewardsClaimed (emissions received)
+  totalUnstakedFeesCollected0: BigInt! @config(precision: 76) # pool fees (token0) collected by this user from unstaked position (Collect)
+  totalUnstakedFeesCollected1: BigInt! @config(precision: 76) # pool fees (token1) collected by this user from unstaked position (Collect)
+  totalUnstakedFeesCollectedUSD: BigInt! @config(precision: 76) # pool fees in USD collected by this user from unstaked position (Collect)
   currentLiquidityStaked: BigInt! @config(precision: 76) # current liquidity staked in gauge in token units
   currentLiquidityStakedUSD: BigInt! @config(precision: 76) # current liquidity staked in gauge in USD
 

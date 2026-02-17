@@ -193,6 +193,31 @@ export function calculateTotalLiquidityUSD(
 }
 
 /**
+ * Calculates total fees USD counting only whitelisted tokens.
+ * Used for pool-level totalFeesUSDWhitelisted.
+ * @param amount0 - Token0 amount
+ * @param amount1 - Token1 amount
+ * @param token0 - Token0 instance
+ * @param token1 - Token1 instance
+ * @returns Total fees USD whitelisted
+ */
+export function calculateWhitelistedFeesUSD(
+  amount0: bigint,
+  amount1: bigint,
+  token0: Token | undefined,
+  token1: Token | undefined,
+): bigint {
+  let total = 0n;
+  if (token0?.isWhitelisted) {
+    total += calculateTotalLiquidityUSD(amount0, 0n, token0, undefined);
+  }
+  if (token1?.isWhitelisted) {
+    total += calculateTotalLiquidityUSD(0n, amount1, undefined, token1);
+  }
+  return total;
+}
+
+/**
  * Calculates token0 and token1 amounts from a Uniswap V3 liquidity position.
  *
  * Uses @uniswap/v3-sdk packages (TickMath and SqrtPriceMath).

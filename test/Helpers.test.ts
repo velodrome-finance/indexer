@@ -7,11 +7,14 @@ import JSBI from "jsbi";
 import type {
   LiquidityPoolAggregator,
   NonFungiblePosition,
+  Token,
   handlerContext,
 } from "../generated/src/Types.gen";
 import {
   calculatePositionAmountsFromLiquidity,
   calculateStakedLiquidityUSD,
+  calculateTotalLiquidityUSD,
+  calculateWhitelistedFeesUSD,
   computeLiquidityDeltaFromAmounts,
   executeEffectWithRoundedBlockRetry,
 } from "../src/Helpers";
@@ -19,6 +22,68 @@ import { setupCommon } from "./EventHandlers/Pool/common";
 
 describe("Helpers", () => {
   const Q96 = 2n ** 96n;
+
+  describe("calculateWhitelistedFeesUSD", () => {
+    const { mockToken0Data, mockToken1Data } = setupCommon();
+
+    it("should sum USD for both tokens when both are whitelisted", () => {
+      const amount0 = 1000000000000000000n;
+      const amount1 = 2000000000000000000n;
+      const total = calculateWhitelistedFeesUSD(
+        amount0,
+        amount1,
+        mockToken0Data,
+        mockToken1Data,
+      );
+      const expected = calculateTotalLiquidityUSD(
+        amount0,
+        amount1,
+        mockToken0Data,
+        mockToken1Data,
+      );
+      expect(total).toBe(expected);
+    });
+
+    it("should include only token0 USD when only token0 is whitelisted", () => {
+      const amount0 = 1000000000000000000n;
+      const amount1 = 2000000000000000000n;
+      const token1NotWhitelisted: Token = {
+        ...mockToken1Data,
+        isWhitelisted: false,
+      };
+      const total = calculateWhitelistedFeesUSD(
+        amount0,
+        amount1,
+        mockToken0Data,
+        token1NotWhitelisted,
+      );
+      const expectedToken0USD = calculateTotalLiquidityUSD(
+        amount0,
+        0n,
+        mockToken0Data,
+        undefined,
+      );
+      expect(total).toBe(expectedToken0USD);
+    });
+
+    it("should return 0n when neither token is whitelisted", () => {
+      const token0NotWhitelisted: Token = {
+        ...mockToken0Data,
+        isWhitelisted: false,
+      };
+      const token1NotWhitelisted: Token = {
+        ...mockToken1Data,
+        isWhitelisted: false,
+      };
+      const total = calculateWhitelistedFeesUSD(
+        1000n,
+        2000n,
+        token0NotWhitelisted,
+        token1NotWhitelisted,
+      );
+      expect(total).toBe(0n);
+    });
+  });
 
   describe("calculatePositionAmountsFromLiquidity", () => {
     describe("Price within range", () => {

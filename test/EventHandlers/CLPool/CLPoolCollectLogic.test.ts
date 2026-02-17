@@ -92,16 +92,16 @@ describe("CLPoolCollectLogic", () => {
         result.liquidityPoolDiff.incrementalTotalUnstakedFeesCollectedUSD,
       ).toBe(5000000000000000000n); // 5 USD in 18 decimals
 
-      // Check user fee contribution diff with exact values
-      expect(result.userLiquidityDiff.incrementalTotalFeesContributed0).toBe(
-        1000000000000000000n,
-      ); // amount0
-      expect(result.userLiquidityDiff.incrementalTotalFeesContributed1).toBe(
-        2000000000000000000n,
-      ); // amount1
-      expect(result.userLiquidityDiff.incrementalTotalFeesContributedUSD).toBe(
-        5000000000000000000n,
-      ); // 5 USD in 18 decimals
+      // Check user unstaked fees collected diff with exact values
+      expect(
+        result.userLiquidityDiff.incrementalTotalUnstakedFeesCollected0,
+      ).toBe(1000000000000000000n); // amount0
+      expect(
+        result.userLiquidityDiff.incrementalTotalUnstakedFeesCollected1,
+      ).toBe(2000000000000000000n); // amount1
+      expect(
+        result.userLiquidityDiff.incrementalTotalUnstakedFeesCollectedUSD,
+      ).toBe(5000000000000000000n); // 5 USD in 18 decimals
     });
 
     it("should handle different token decimals correctly", () => {
@@ -145,15 +145,15 @@ describe("CLPoolCollectLogic", () => {
       expect(
         result.liquidityPoolDiff.incrementalTotalUnstakedFeesCollectedUSD,
       ).toBe(0n);
-      expect(result.userLiquidityDiff.incrementalTotalFeesContributed0).toBe(
-        0n,
-      );
-      expect(result.userLiquidityDiff.incrementalTotalFeesContributed1).toBe(
-        0n,
-      );
-      expect(result.userLiquidityDiff.incrementalTotalFeesContributedUSD).toBe(
-        0n,
-      );
+      expect(
+        result.userLiquidityDiff.incrementalTotalUnstakedFeesCollected0,
+      ).toBe(0n);
+      expect(
+        result.userLiquidityDiff.incrementalTotalUnstakedFeesCollected1,
+      ).toBe(0n);
+      expect(
+        result.userLiquidityDiff.incrementalTotalUnstakedFeesCollectedUSD,
+      ).toBe(0n);
     });
 
     it("should only track unstaked fees, not staked fees", () => {
@@ -169,6 +169,10 @@ describe("CLPoolCollectLogic", () => {
       expect(
         result.liquidityPoolDiff.incrementalTotalUnstakedFeesCollectedUSD,
       ).toBe(5000000000000000000n);
+      // Neither mock token is whitelisted, so whitelisted increment is 0n
+      expect(result.liquidityPoolDiff.incrementalTotalFeesUSDWhitelisted).toBe(
+        0n,
+      );
 
       // Staked fees should not be present in the diff (they're undefined, not 0)
       // The aggregator will handle the addition, but the diff only contains unstaked fees

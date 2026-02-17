@@ -23,6 +23,12 @@ export interface UserStatsPerPoolDiff {
   incrementalNumberOfGaugeRewardClaims: bigint;
   incrementalTotalGaugeRewardsClaimedUSD: bigint;
   incrementalTotalGaugeRewardsClaimed: bigint;
+  incrementalTotalStakedFeesCollected0: bigint;
+  incrementalTotalStakedFeesCollected1: bigint;
+  incrementalTotalStakedFeesCollectedUSD: bigint;
+  incrementalTotalUnstakedFeesCollected0: bigint;
+  incrementalTotalUnstakedFeesCollected1: bigint;
+  incrementalTotalUnstakedFeesCollectedUSD: bigint;
   incrementalCurrentLiquidityStaked: bigint;
   incrementalCurrentLiquidityStakedUSD: bigint;
   incrementalVeNFTamountStaked: bigint;
@@ -152,6 +158,12 @@ export function createUserStatsPerPoolEntity(
     numberOfGaugeRewardClaims: 0n,
     totalGaugeRewardsClaimedUSD: 0n,
     totalGaugeRewardsClaimed: 0n,
+    totalStakedFeesCollected0: 0n,
+    totalStakedFeesCollected1: 0n,
+    totalStakedFeesCollectedUSD: 0n,
+    totalUnstakedFeesCollected0: 0n,
+    totalUnstakedFeesCollected1: 0n,
+    totalUnstakedFeesCollectedUSD: 0n,
     currentLiquidityStaked: 0n,
     currentLiquidityStakedUSD: 0n,
 
@@ -293,6 +305,36 @@ export async function updateUserStatsPerPool(
         ? current.totalGaugeRewardsClaimed +
           diff.incrementalTotalGaugeRewardsClaimed
         : current.totalGaugeRewardsClaimed,
+    totalStakedFeesCollected0:
+      diff.incrementalTotalStakedFeesCollected0 !== undefined
+        ? current.totalStakedFeesCollected0 +
+          diff.incrementalTotalStakedFeesCollected0
+        : current.totalStakedFeesCollected0,
+    totalStakedFeesCollected1:
+      diff.incrementalTotalStakedFeesCollected1 !== undefined
+        ? current.totalStakedFeesCollected1 +
+          diff.incrementalTotalStakedFeesCollected1
+        : current.totalStakedFeesCollected1,
+    totalStakedFeesCollectedUSD:
+      diff.incrementalTotalStakedFeesCollectedUSD !== undefined
+        ? current.totalStakedFeesCollectedUSD +
+          diff.incrementalTotalStakedFeesCollectedUSD
+        : current.totalStakedFeesCollectedUSD,
+    totalUnstakedFeesCollected0:
+      diff.incrementalTotalUnstakedFeesCollected0 !== undefined
+        ? current.totalUnstakedFeesCollected0 +
+          diff.incrementalTotalUnstakedFeesCollected0
+        : current.totalUnstakedFeesCollected0,
+    totalUnstakedFeesCollected1:
+      diff.incrementalTotalUnstakedFeesCollected1 !== undefined
+        ? current.totalUnstakedFeesCollected1 +
+          diff.incrementalTotalUnstakedFeesCollected1
+        : current.totalUnstakedFeesCollected1,
+    totalUnstakedFeesCollectedUSD:
+      diff.incrementalTotalUnstakedFeesCollectedUSD !== undefined
+        ? current.totalUnstakedFeesCollectedUSD +
+          diff.incrementalTotalUnstakedFeesCollectedUSD
+        : current.totalUnstakedFeesCollectedUSD,
     currentLiquidityStaked:
       diff.incrementalCurrentLiquidityStaked !== undefined
         ? current.currentLiquidityStaked +

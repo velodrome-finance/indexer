@@ -206,6 +206,12 @@ export function setupCommon() {
     numberOfGaugeRewardClaims: 0n,
     totalGaugeRewardsClaimedUSD: 0n,
     totalGaugeRewardsClaimed: 0n,
+    totalStakedFeesCollected0: 0n,
+    totalStakedFeesCollected1: 0n,
+    totalStakedFeesCollectedUSD: 0n,
+    totalUnstakedFeesCollected0: 0n,
+    totalUnstakedFeesCollected1: 0n,
+    totalUnstakedFeesCollectedUSD: 0n,
     currentLiquidityStaked: 0n,
     currentLiquidityStakedUSD: 0n,
 
@@ -321,6 +327,18 @@ export function setupCommon() {
   }
 
   /**
+   * Creates a mock Token with customizable fields. Use for token variants (e.g. different decimals).
+   * @param overrides - Partial Token to override default values
+   * @param base - Base token to copy from (defaults to mockToken0Data)
+   */
+  function createMockToken(
+    overrides: Partial<Token> = {},
+    base: Token = mockToken0Data,
+  ): Token {
+    return { ...base, ...overrides };
+  }
+
+  /**
    * Creates a mock VeNFTPoolVote entity with customizable fields.
    */
   function createMockVeNFTPoolVote(
@@ -352,6 +370,7 @@ export function setupCommon() {
     mockUserStatsPerPoolData,
     mockVeNFTStateData,
     mockVeNFTPoolVoteData,
+    createMockToken,
     createMockUserStatsPerPool,
     createMockLiquidityPoolAggregator,
     createMockVeNFTState,
