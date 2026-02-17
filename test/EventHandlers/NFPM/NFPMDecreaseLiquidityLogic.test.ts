@@ -255,6 +255,32 @@ describe("NFPMDecreaseLiquidityLogic", () => {
       expect(position?.liquidity).toBe(mockPosition.liquidity);
     });
 
+    it("does not call attributeLiquidityChangeToUserStatsPerPool when loadPoolData returns null", async () => {
+      // loadPoolData left as beforeEach default (null)
+      const mockEvent = NFPM.DecreaseLiquidity.createMockEvent({
+        tokenId: tokenId,
+        liquidity: 373020348524042n,
+        amount0: 0n,
+        amount1: 74592880586n,
+        mockEventData: {
+          block: {
+            timestamp: 1712065791,
+            number: 118233507,
+            hash: "0x0254451c8999a43d90b4efc69de225e676864561fc1eef2bfe6e1940d613e3f8",
+          },
+          chainId: chainId,
+          logIndex: 96,
+          srcAddress: "0xbB5DFE1380333CEE4c2EeBd7202c80dE2256AdF4",
+        },
+      });
+
+      await processNFPMDecreaseLiquidity(mockEvent, mockContext);
+
+      expect(
+        jest.mocked(attributeLiquidityChangeToUserStatsPerPool),
+      ).not.toHaveBeenCalled();
+    });
+
     it("calls attributeLiquidityChangeToUserStatsPerPool when poolData is loaded", async () => {
       const mockPoolData: PoolData = {
         token0Instance: {} as PoolData["token0Instance"],

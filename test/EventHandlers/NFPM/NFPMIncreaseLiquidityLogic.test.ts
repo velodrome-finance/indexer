@@ -8,6 +8,7 @@ import {
   type PoolData,
   loadPoolData,
 } from "../../../src/Aggregators/LiquidityPoolAggregator";
+import { toChecksumAddress } from "../../../src/Constants";
 import {
   LiquidityChangeType,
   attributeLiquidityChangeToUserStatsPerPool,
@@ -30,13 +31,23 @@ jest.mock("../../../src/EventHandlers/NFPM/NFPMCommonLogic", () => ({
 describe("NFPMIncreaseLiquidityLogic", () => {
   const chainId = 10;
   const tokenId = 540n;
-  const poolAddress = "0x00cd0AbB6c2964F7Dfb5169dD94A9F004C35F458";
+  const poolAddress = toChecksumAddress(
+    "0x00cd0AbB6c2964F7Dfb5169dD94A9F004C35F458",
+  );
   const transactionHash =
     "0xaaa36689c538fcfee2e665f2c7b30bcf2f28ab898050252f50ec1f1d05a5392c";
-  const ownerAddress = "0x1DFAb7699121fEF702d07932a447868dCcCFb029";
-  const token0Address = "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85";
-  const token1Address = "0x7F5c764cBc14f9669B88837ca1490cCa17c31607";
-  const nfpmAddress = "0xbB5DFE1380333CEE4c2EeBd7202c80dE2256AdF4";
+  const ownerAddress = toChecksumAddress(
+    "0x1DFAb7699121fEF702d07932a447868dCcCFb029",
+  );
+  const token0Address = toChecksumAddress(
+    "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+  );
+  const token1Address = toChecksumAddress(
+    "0x7F5c764cBc14f9669B88837ca1490cCa17c31607",
+  );
+  const nfpmAddress = toChecksumAddress(
+    "0xbB5DFE1380333CEE4c2EeBd7202c80dE2256AdF4",
+  );
 
   const mockPosition: NonFungiblePosition = {
     id: `${chainId}_${poolAddress}_${tokenId}`,

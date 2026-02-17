@@ -152,7 +152,7 @@ export async function handleMintTransfer(
  * @param gaugeAddress - The address of the pool's gauge
  * @returns True if the transfer is to or from the pool's gauge, false otherwise
  */
-export function isTransferToOrFromGauge(
+export function isGaugeTransfer(
   from: string,
   to: string,
   gaugeAddress: string | undefined,
@@ -239,6 +239,13 @@ export async function handleRegularTransfer(
   positions: NonFungiblePosition[],
   context: handlerContext,
 ): Promise<void> {
+  if (positions.length === 0) {
+    context.log.error(
+      `[handleRegularTransfer] No positions provided for transfer of tokenId ${event.params.tokenId} on chain ${event.chainId}`,
+    );
+    return;
+  }
+
   const position = positions[0];
 
   const poolData = await loadPoolData(
@@ -250,17 +257,15 @@ export async function handleRegularTransfer(
   );
 
   const isGauge = poolData
-    ? isTransferToOrFromGauge(
+    ? isGaugeTransfer(
         event.params.from,
         event.params.to,
         poolData.liquidityPoolAggregator.gaugeAddress,
       )
-    : true; // Fallback to "true" to handle the case where poolData is null. poolData, in principle, should never be null, but we need to handle the case where it is null.
+    : false; // When poolData is null we cannot know if it's a gauge transfer; skip only attribution below, still update owner.
   if (isGauge) {
     context.log.info(
-      poolData
-        ? `[NFPMTransferLogic] Transfer to/from gauge ${poolData.liquidityPoolAggregator.gaugeAddress} on chain ${event.chainId} in tx ${event.transaction.hash}`
-        : `[NFPMTransferLogic] Pool data missing for pool ${position.pool}; skipping owner update on chain ${event.chainId} in tx ${event.transaction.hash}`,
+      `[NFPMTransferLogic] Transfer to/from gauge ${poolData?.liquidityPoolAggregator.gaugeAddress} on chain ${event.chainId} in tx ${event.transaction.hash}`,
     );
     return;
   }

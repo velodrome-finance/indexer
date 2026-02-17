@@ -16,7 +16,7 @@ import {
   createPositionFromCLPoolMint,
   handleMintTransfer,
   handleRegularTransfer,
-  isTransferToOrFromGauge,
+  isGaugeTransfer,
   processNFPMTransfer,
 } from "../../../src/EventHandlers/NFPM/NFPMTransferLogic";
 
@@ -632,25 +632,21 @@ describe("NFPMTransferLogic", () => {
     });
   });
 
-  describe("isTransferToOrFromGauge", () => {
+  describe("isGaugeTransfer", () => {
     it("returns false when gaugeAddress is undefined", () => {
-      expect(isTransferToOrFromGauge(userA, userB, undefined)).toBe(false);
+      expect(isGaugeTransfer(userA, userB, undefined)).toBe(false);
     });
 
     it("returns false when both from and to are different from gauge", () => {
-      expect(isTransferToOrFromGauge(userA, userB, gaugeAddress)).toBe(false);
+      expect(isGaugeTransfer(userA, userB, gaugeAddress)).toBe(false);
     });
 
     it("returns true when from is gauge", () => {
-      expect(isTransferToOrFromGauge(gaugeAddress, userB, gaugeAddress)).toBe(
-        true,
-      );
+      expect(isGaugeTransfer(gaugeAddress, userB, gaugeAddress)).toBe(true);
     });
 
     it("returns true when to is gauge", () => {
-      expect(isTransferToOrFromGauge(userA, gaugeAddress, gaugeAddress)).toBe(
-        true,
-      );
+      expect(isGaugeTransfer(userA, gaugeAddress, gaugeAddress)).toBe(true);
     });
   });
 
@@ -680,21 +676,21 @@ describe("NFPMTransferLogic", () => {
       );
     });
 
-    it("does not update owner when poolData is null (logs info and returns)", async () => {
+    it("updates owner but skips attribution when poolData is null (logs warn)", async () => {
       jest.mocked(loadPoolData).mockResolvedValue(null);
       const mockEvent = createMockTransferEvent(mockPosition.owner, userB);
       setPosition(mockPosition);
 
       await handleRegularTransfer(mockEvent, [mockPosition], mockContext);
 
-      expect(mockContext.log.info).toHaveBeenCalledWith(
-        expect.stringContaining("Pool data missing"),
+      expect(mockContext.log.warn).toHaveBeenCalledWith(
+        expect.stringContaining("Pool data not found"),
       );
-      expect(mockContext.log.info).toHaveBeenCalledWith(
-        expect.stringContaining("skipping owner update"),
+      expect(mockContext.log.warn).toHaveBeenCalledWith(
+        expect.stringContaining("during transfer"),
       );
       const positionAfter = getPositionAfterTransfer();
-      expect(positionAfter?.owner).toBe(mockPosition.owner);
+      expect(positionAfter?.owner).toBe(userB);
     });
 
     it("does not update owner when transfer is stake (user to gauge)", async () => {
