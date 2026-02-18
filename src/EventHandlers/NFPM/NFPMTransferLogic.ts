@@ -290,7 +290,6 @@ export async function handleRegularTransfer(
     owner: event.params.to,
     lastUpdatedTimestamp: timestamp,
   };
-
   updateNonFungiblePosition(
     nonFungiblePositionDiff,
     position,
