@@ -97,14 +97,14 @@ describe("CLPoolCollectFeesLogic", () => {
         result.liquidityPoolDiff.incrementalTotalStakedFeesCollectedUSD,
       ).toBe(5000000000000000000n);
 
-      // Check user diff
-      expect(result.userDiff.incrementalTotalFeesContributedUSD).toBe(
+      // Check user diff (staked fees collected by this user)
+      expect(result.userDiff.incrementalTotalStakedFeesCollectedUSD).toBe(
         5000000000000000000n,
       );
-      expect(result.userDiff.incrementalTotalFeesContributed0).toBe(
+      expect(result.userDiff.incrementalTotalStakedFeesCollected0).toBe(
         1000000000000000000n,
       );
-      expect(result.userDiff.incrementalTotalFeesContributed1).toBe(
+      expect(result.userDiff.incrementalTotalStakedFeesCollected1).toBe(
         2000000000000000000n,
       );
     });

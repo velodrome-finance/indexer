@@ -4,7 +4,7 @@ import type {
   Token,
 } from "generated";
 import type { LiquidityPoolAggregatorDiff } from "../../Aggregators/LiquidityPoolAggregator";
-import { calculateTotalLiquidityUSD } from "../../Helpers";
+import { calculateTotalUSD } from "../../Helpers";
 
 export interface PoolSyncResult {
   liquidityPoolDiff: Partial<LiquidityPoolAggregatorDiff>;
@@ -50,7 +50,7 @@ export function processPoolSync(
     reserve1Change = event.params.reserve1 - liquidityPoolAggregator.reserve1;
 
     // Calculate total liquidity USD from the new total reserves using already-refreshed tokens
-    const newTotalLiquidityUSD = calculateTotalLiquidityUSD(
+    const newTotalLiquidityUSD = calculateTotalUSD(
       event.params.reserve0,
       event.params.reserve1,
       token0Instance,

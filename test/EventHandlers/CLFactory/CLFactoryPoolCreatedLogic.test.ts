@@ -421,7 +421,6 @@ describe("CLFactoryPoolCreatedLogic", () => {
         totalVotesDepositedUSD: 0n,
         totalEmissions: 0n,
         totalEmissionsUSD: 0n,
-        totalBribesUSD: 0n,
         // Boolean values
         isStable: false,
         isCL: true,

@@ -66,7 +66,7 @@ export function setupCommon() {
     totalVolumeUSDWhitelisted: 10n * TEN_TO_THE_18_BI,
     totalFeesGenerated0: 100n * TEN_TO_THE_18_BI,
     totalFeesGenerated1: 200n * TEN_TO_THE_6_BI,
-    // Calculate totalFeesGeneratedUSD using the same logic as calculateTotalLiquidityUSD:
+    // Calculate totalFeesGeneratedUSD using the same logic as calculateTotalUSD:
     // token0: calculateTokenAmountUSD(100n * 10^18, 18, 1n * 10^18) = 100n * 10^18 USD
     // token1: calculateTokenAmountUSD(200n * 10^6, 6, 1n * 10^18) = 200n * 10^18 USD
     // total = 100n * 10^18 + 200n * 10^18 = 300n * 10^18 USD
@@ -95,7 +95,6 @@ export function setupCommon() {
     totalVotesDepositedUSD: 1n * TEN_TO_THE_18_BI,
     totalEmissions: 1n,
     totalEmissionsUSD: 1n * TEN_TO_THE_18_BI,
-    totalBribesUSD: 1n * TEN_TO_THE_18_BI,
     gaugeIsAlive: true,
     isCL: false,
     lastUpdatedTimestamp: new Date(),
@@ -206,6 +205,12 @@ export function setupCommon() {
     numberOfGaugeRewardClaims: 0n,
     totalGaugeRewardsClaimedUSD: 0n,
     totalGaugeRewardsClaimed: 0n,
+    totalStakedFeesCollected0: 0n,
+    totalStakedFeesCollected1: 0n,
+    totalStakedFeesCollectedUSD: 0n,
+    totalUnstakedFeesCollected0: 0n,
+    totalUnstakedFeesCollected1: 0n,
+    totalUnstakedFeesCollectedUSD: 0n,
     currentLiquidityStaked: 0n,
     currentLiquidityStakedUSD: 0n,
 
@@ -321,6 +326,18 @@ export function setupCommon() {
   }
 
   /**
+   * Creates a mock Token with customizable fields. Use for token variants (e.g. different decimals).
+   * @param overrides - Partial Token to override default values
+   * @param base - Base token to copy from (defaults to mockToken0Data)
+   */
+  function createMockToken(
+    overrides: Partial<Token> = {},
+    base: Token = mockToken0Data,
+  ): Token {
+    return { ...base, ...overrides };
+  }
+
+  /**
    * Creates a mock VeNFTPoolVote entity with customizable fields.
    */
   function createMockVeNFTPoolVote(
@@ -352,6 +369,7 @@ export function setupCommon() {
     mockUserStatsPerPoolData,
     mockVeNFTStateData,
     mockVeNFTPoolVoteData,
+    createMockToken,
     createMockUserStatsPerPool,
     createMockLiquidityPoolAggregator,
     createMockVeNFTState,

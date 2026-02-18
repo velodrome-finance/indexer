@@ -11,7 +11,7 @@ import {
   loadOrCreateUserData,
   updateUserStatsPerPool,
 } from "../../Aggregators/UserStatsPerPool";
-import { calculateTotalLiquidityUSD } from "../../Helpers";
+import { calculateTotalUSD } from "../../Helpers";
 
 export interface AttributionResult {
   recipient: string | undefined;
@@ -185,7 +185,7 @@ export async function findTransferAndAttribute(
   });
 
   // Calculate USD value
-  const totalLiquidityUSD = calculateTotalLiquidityUSD(
+  const totalLiquidityUSD = calculateTotalUSD(
     event.params.amount0,
     event.params.amount1,
     token0Instance,

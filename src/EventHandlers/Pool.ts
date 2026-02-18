@@ -274,13 +274,22 @@ Pool.Transfer.handler(async ({ event, context }) => {
 });
 
 Pool.Claim.handler(async ({ event, context }) => {
-  const poolData = await loadPoolData(
-    event.srcAddress,
-    event.chainId,
-    context,
-    event.block.number,
-    event.block.timestamp,
-  );
+  const [poolData, userData] = await Promise.all([
+    loadPoolData(
+      event.srcAddress,
+      event.chainId,
+      context,
+      event.block.number,
+      event.block.timestamp,
+    ),
+    loadOrCreateUserData(
+      event.params.sender,
+      event.srcAddress,
+      event.chainId,
+      context,
+      new Date(event.block.timestamp * 1000),
+    ),
+  ]);
 
   if (!poolData) {
     return;
@@ -288,7 +297,7 @@ Pool.Claim.handler(async ({ event, context }) => {
 
   const { liquidityPoolAggregator, token0Instance, token1Instance } = poolData;
 
-  const liquidityPoolDiff = processPoolClaim(
+  const result = processPoolClaim(
     event,
     event.params.sender,
     liquidityPoolAggregator.gaugeAddress ?? "",
@@ -296,14 +305,17 @@ Pool.Claim.handler(async ({ event, context }) => {
     token1Instance,
   );
 
-  if (liquidityPoolDiff) {
-    await updateLiquidityPoolAggregator(
-      liquidityPoolDiff,
+  const timestamp = result.poolDiff.lastUpdatedTimestamp as Date;
+
+  await Promise.all([
+    updateLiquidityPoolAggregator(
+      result.poolDiff,
       liquidityPoolAggregator,
-      liquidityPoolDiff.lastUpdatedTimestamp as Date,
+      timestamp,
       context,
       event.chainId,
       event.block.number,
-    );
-  }
+    ),
+    updateUserStatsPerPool(result.userDiff, userData, context),
+  ]);
 });

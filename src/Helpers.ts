@@ -163,18 +163,23 @@ export async function updateFeeTokenData(
 }
 
 /**
- * Calculates total liquidity USD from amounts and token prices
+ * Calculates total USD from amounts and token prices
+ * @param amount0 - Token0 amount
+ * @param amount1 - Token1 amount
+ * @param token0 - Token0 instance
+ * @param token1 - Token1 instance
+ * @returns Total USD
  */
-export function calculateTotalLiquidityUSD(
+export function calculateTotalUSD(
   amount0: bigint,
   amount1: bigint,
   token0: Token | undefined,
   token1: Token | undefined,
 ): bigint {
-  let totalLiquidityUSD = 0n;
+  let totalUSD = 0n;
 
   if (token0) {
-    totalLiquidityUSD += calculateTokenAmountUSD(
+    totalUSD += calculateTokenAmountUSD(
       amount0,
       Number(token0.decimals),
       token0.pricePerUSDNew,
@@ -182,14 +187,47 @@ export function calculateTotalLiquidityUSD(
   }
 
   if (token1) {
-    totalLiquidityUSD += calculateTokenAmountUSD(
+    totalUSD += calculateTokenAmountUSD(
       amount1,
       Number(token1.decimals),
       token1.pricePerUSDNew,
     );
   }
 
-  return totalLiquidityUSD;
+  return totalUSD;
+}
+
+/**
+ * Calculates total fees USD counting only whitelisted tokens.
+ * Used for pool-level totalFeesUSDWhitelisted.
+ * @param amount0 - Token0 amount
+ * @param amount1 - Token1 amount
+ * @param token0 - Token0 instance
+ * @param token1 - Token1 instance
+ * @returns Total fees USD whitelisted
+ */
+export function calculateWhitelistedFeesUSD(
+  amount0: bigint,
+  amount1: bigint,
+  token0: Token | undefined,
+  token1: Token | undefined,
+): bigint {
+  let total = 0n;
+  if (token0?.isWhitelisted) {
+    total += calculateTokenAmountUSD(
+      amount0,
+      Number(token0.decimals),
+      token0.pricePerUSDNew,
+    );
+  }
+  if (token1?.isWhitelisted) {
+    total += calculateTokenAmountUSD(
+      amount1,
+      Number(token1.decimals),
+      token1.pricePerUSDNew,
+    );
+  }
+  return total;
 }
 
 /**
@@ -377,7 +415,7 @@ export async function calculateStakedLiquidityUSD(
       );
 
       // Calculate USD value
-      return calculateTotalLiquidityUSD(
+      return calculateTotalUSD(
         amount0,
         amount1,
         token0Instance,
@@ -411,7 +449,7 @@ export async function calculateStakedLiquidityUSD(
       const amount1 = (amount * reserve1) / totalSupply;
 
       // Calculate USD value
-      return calculateTotalLiquidityUSD(
+      return calculateTotalUSD(
         amount0,
         amount1,
         token0Instance,
@@ -435,7 +473,7 @@ export async function calculateStakedLiquidityUSD(
 /**
  * Updates tokens for reserve/liquidity operations (like Sync events)
  * NOTE: This function refreshes token prices. If prices are already refreshed
- * in loadPoolData, use calculateTotalLiquidityUSD instead.
+ * in loadPoolData, use calculateTotalUSD instead.
  */
 export async function updateReserveTokenData(
   token0: Token | undefined,
