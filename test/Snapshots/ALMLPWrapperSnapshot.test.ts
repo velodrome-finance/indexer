@@ -1,0 +1,101 @@
+import { ALMLPWrapperSnapshotId, SNAPSHOT_INTERVAL } from "../../src/Constants";
+import { setALMLPWrapperSnapshot } from "../../src/Snapshots/ALMLPWrapperSnapshot";
+import { setupCommon } from "../EventHandlers/Pool/common";
+import { getWrapperAddressFromId } from "./helpers";
+
+describe("ALMLPWrapperSnapshot", () => {
+  let common: ReturnType<typeof setupCommon>;
+  const baseTimestamp = new Date(SNAPSHOT_INTERVAL * 3);
+  const blockNumber = 123456;
+
+  beforeEach(() => {
+    common = setupCommon();
+    jest.clearAllMocks();
+  });
+
+  it("should call ALM_LP_WrapperSnapshot.set with correct id and epoch-aligned timestamp", () => {
+    const context = common.createMockContext({
+      ALM_LP_WrapperSnapshot: { set: jest.fn() },
+    });
+    const entity = common.mockALMLPWrapperData;
+    const timestamp = new Date(baseTimestamp.getTime() + 15 * 60 * 1000);
+    const expectedEpochMs = SNAPSHOT_INTERVAL * 3;
+    const wrapperAddress = getWrapperAddressFromId(entity.id);
+    const expectedId = ALMLPWrapperSnapshotId(
+      entity.chainId,
+      wrapperAddress,
+      expectedEpochMs,
+    );
+
+    setALMLPWrapperSnapshot(entity, timestamp, blockNumber, context);
+
+    expect(context.ALM_LP_WrapperSnapshot.set).toHaveBeenCalledTimes(1);
+    const setArg = (context.ALM_LP_WrapperSnapshot.set as jest.Mock).mock
+      .calls[0][0];
+    expect(setArg.id).toBe(expectedId);
+    expect(setArg.timestamp.getTime()).toBe(expectedEpochMs);
+  });
+
+  it("should pass blockNumber through to the snapshot", () => {
+    const context = common.createMockContext({
+      ALM_LP_WrapperSnapshot: { set: jest.fn() },
+    });
+    const entity = common.mockALMLPWrapperData;
+
+    setALMLPWrapperSnapshot(entity, baseTimestamp, blockNumber, context);
+
+    const setArg = (context.ALM_LP_WrapperSnapshot.set as jest.Mock).mock
+      .calls[0][0];
+    expect(setArg.blockNumber).toBe(blockNumber);
+  });
+
+  it("should use full entity.id as wrapper when id has no hyphen (fallback branch)", () => {
+    const context = common.createMockContext({
+      ALM_LP_WrapperSnapshot: { set: jest.fn() },
+    });
+    const entityWithoutHyphenInId = {
+      ...common.mockALMLPWrapperData,
+      id: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    };
+    const expectedEpochMs = SNAPSHOT_INTERVAL * 3;
+    const wrapperAddress = getWrapperAddressFromId(entityWithoutHyphenInId.id);
+
+    setALMLPWrapperSnapshot(
+      entityWithoutHyphenInId,
+      baseTimestamp,
+      blockNumber,
+      context,
+    );
+
+    const setArg = (context.ALM_LP_WrapperSnapshot.set as jest.Mock).mock
+      .calls[0][0];
+    expect(setArg.wrapper).toBe(wrapperAddress);
+    expect(setArg.id).toBe(
+      ALMLPWrapperSnapshotId(
+        entityWithoutHyphenInId.chainId,
+        wrapperAddress,
+        expectedEpochMs,
+      ),
+    );
+  });
+
+  it("should spread entity fields into the snapshot", () => {
+    const context = common.createMockContext({
+      ALM_LP_WrapperSnapshot: { set: jest.fn() },
+    });
+    const entity = common.mockALMLPWrapperData;
+
+    setALMLPWrapperSnapshot(entity, baseTimestamp, blockNumber, context);
+
+    const setArg = (context.ALM_LP_WrapperSnapshot.set as jest.Mock).mock
+      .calls[0][0];
+    expect(setArg.chainId).toBe(entity.chainId);
+    expect(setArg.pool).toBe(entity.pool);
+    expect(setArg.token0).toBe(entity.token0);
+    expect(setArg.token1).toBe(entity.token1);
+    expect(setArg.lpAmount).toBe(entity.lpAmount);
+    expect(setArg.liquidity).toBe(entity.liquidity);
+    expect(setArg.tickLower).toBe(entity.tickLower);
+    expect(setArg.tickUpper).toBe(entity.tickUpper);
+  });
+});

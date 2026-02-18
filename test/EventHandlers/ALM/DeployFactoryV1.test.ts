@@ -74,6 +74,7 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
         mintTransactionHash: transactionHash,
         mintLogIndex: 1,
         lastUpdatedTimestamp: new Date(blockTimestamp * 1000),
+        lastSnapshotTimestamp: undefined,
       };
 
       mockDb = mockDb.entities.NonFungiblePosition.set(mockNFPM);
@@ -158,6 +159,7 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
       expect(createdWrapper?.lastUpdatedTimestamp).toEqual(
         new Date(blockTimestamp * 1000),
       );
+      expect(createdWrapper?.lastSnapshotTimestamp).toBeUndefined();
     });
 
     it("should not create entity when NonFungiblePosition not found", async () => {
@@ -276,6 +278,7 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
         mintTransactionHash: transactionHash,
         mintLogIndex: 1,
         lastUpdatedTimestamp: new Date(blockTimestamp * 1000),
+        lastSnapshotTimestamp: undefined,
       };
 
       const nonMatchingNFPM: NonFungiblePosition = {
@@ -292,6 +295,7 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
         mintLogIndex: 1,
         mintTransactionHash: transactionHash,
         lastUpdatedTimestamp: new Date(blockTimestamp * 1000),
+        lastSnapshotTimestamp: undefined,
       };
 
       mockDb = mockDb.entities.NonFungiblePosition.set(matchingNFPM);
@@ -366,6 +370,7 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
         mintTransactionHash: transactionHash,
         mintLogIndex: 1,
         lastUpdatedTimestamp: new Date(blockTimestamp * 1000),
+        lastSnapshotTimestamp: undefined,
       };
 
       const matchingNFPM2: NonFungiblePosition = {
@@ -382,6 +387,7 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
         mintLogIndex: 1,
         mintTransactionHash: transactionHash,
         lastUpdatedTimestamp: new Date(blockTimestamp * 1000),
+        lastSnapshotTimestamp: undefined,
       };
 
       mockDb = mockDb.entities.NonFungiblePosition.set(matchingNFPM1);

@@ -28,6 +28,9 @@ export const SECONDS_IN_AN_HOUR = BigInt(3600);
 export const SECONDS_IN_A_DAY = BigInt(86400);
 export const SECONDS_IN_A_WEEK = BigInt(604800);
 
+/** Snapshot interval: 1 hour in milliseconds (for epoch-aligned snapshots) */
+export const SNAPSHOT_INTERVAL = 60 * 60 * 1000;
+
 export const toChecksumAddress = (address: string) =>
   Web3.utils.toChecksumAddress(address);
 
@@ -721,16 +724,17 @@ export const CLPoolMintEventId = (
   logIndex: number,
 ) => `${chainId}-${poolAddress}-${txHash}-${logIndex}`;
 
-/** Entity ID for LiquidityPoolAggregatorSnapshot.
- * @param chainId
- * @param poolAddress
- * @param snapshotTime
+/** Snapshot ID for LiquidityPoolAggregatorSnapshot. epochMs = getSnapshotEpoch(timestamp).getTime()
+ * @param chainId - Chain ID of the pool
+ * @param poolAddress - Address of the pool
+ * @param epochMs - Epoch timestamp in milliseconds
+ * @returns string Combined pool ID.
  */
 export const LiquidityPoolAggregatorSnapshotId = (
   chainId: number,
   poolAddress: string,
-  snapshotTime: number,
-) => `${chainId}-${poolAddress}-${snapshotTime}`;
+  epochMs: number,
+) => `${PoolId(chainId, poolAddress)}-${epochMs}`;
 
 /** Entity ID for DispatchId_event and ProcessId_event (Mailbox events).
  * @param transactionHash
@@ -784,6 +788,56 @@ export const SuperSwapId = (
   destinationChainTokenAmountSwapped: bigint,
 ) =>
   `${transactionHash}-${originChainId}-${destinationDomain}-${oUSDTamount}-${messageId}-${sourceChainToken}-${sourceChainTokenAmountSwapped}-${destinationChainToken}-${destinationChainTokenAmountSwapped}`;
+
+/** Snapshot ID for UserStatsPerPoolSnapshot. epochMs = getSnapshotEpoch(timestamp).getTime()
+ * @param chainId - Chain ID of the pool
+ * @param userAddress - Address of the user
+ * @param poolAddress - Address of the pool
+ * @param epochMs - Epoch timestamp in milliseconds
+ * @returns string Combined user ID.
+ */
+export const UserStatsPerPoolSnapshotId = (
+  chainId: number,
+  userAddress: string,
+  poolAddress: string,
+  epochMs: number,
+) => `${chainId}-${userAddress}-${poolAddress}-${epochMs}`;
+
+/** Snapshot ID for NonFungiblePositionSnapshot. epochMs = getSnapshotEpoch(timestamp).getTime()
+ * @param chainId - Chain ID of the non-fungible position
+ * @param tokenId - ID of the non-fungible position
+ * @param epochMs - Epoch timestamp in milliseconds
+ * @returns string Combined non-fungible position ID.
+ */
+export const NonFungiblePositionSnapshotId = (
+  chainId: number,
+  tokenId: bigint,
+  epochMs: number,
+) => `${chainId}-${tokenId}-${epochMs}`;
+
+/** Snapshot ID for ALM_LP_WrapperSnapshot. Format: {chainId}-{wrapperAddress}-{epochMs}. epochMs = getSnapshotEpoch(timestamp).getTime()
+ * @param chainId - Chain ID of the wrapper
+ * @param wrapperAddress - Address of the wrapper
+ * @param epochMs - Epoch timestamp in milliseconds
+ * @returns string Combined wrapper snapshot ID.
+ */
+export const ALMLPWrapperSnapshotId = (
+  chainId: number,
+  wrapperAddress: string,
+  epochMs: number,
+) => `${chainId}-${wrapperAddress}-${epochMs}`;
+
+/** Snapshot ID for VeNFTStateSnapshot. epochMs = getSnapshotEpoch(timestamp).getTime()
+ * @param chainId - Chain ID of the veNFT state
+ * @param tokenId - ID of the veNFT state
+ * @param epochMs - Epoch timestamp in milliseconds
+ * @returns string Combined veNFT state ID.
+ */
+export const VeNFTStateSnapshotId = (
+  chainId: number,
+  tokenId: bigint,
+  epochMs: number,
+) => `${chainId}-${tokenId}-${epochMs}`;
 
 // Key is chain ID
 export const CHAIN_CONSTANTS: Record<number, chainConstants> = {

@@ -104,5 +104,6 @@ ALMDeployFactoryV2.StrategyCreated.handler(async ({ event, context }) => {
     maxLiquidityRatioDeviationX96: maxLiquidityRatioDeviationX96,
     creationTimestamp: timestamp,
     strategyTransactionHash: event.transaction.hash,
+    lastSnapshotTimestamp: undefined,
   });
 });

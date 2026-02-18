@@ -22,6 +22,7 @@ describe("VeNFT Events", () => {
     locktime: 1n,
     owner: "0x2222222222222222222222222222222222222222",
     totalValueLocked: 1n,
+    lastSnapshotTimestamp: undefined as Date | undefined,
   };
 
   beforeEach(() => {

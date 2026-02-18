@@ -1,5 +1,5 @@
 type LiquidityPoolAggregator {
-  id: ID! # {chainId}-{poolAddress}
+  id: ID! # Format: {chainId}-{poolAddress} (PoolId)
   chainId: Int!
   poolAddress: String! # address of the pool
   name: String! # name of the pool
@@ -89,10 +89,10 @@ type LiquidityPoolAggregator {
 
 # Snapshot of the LiquidityPool entity
 type LiquidityPoolAggregatorSnapshot {
-  id: ID! # {chainId}-{poolAddress}-{snapshotTime}
+  id: ID! # Format: {chainId}-{poolAddress}-{epochMs} (PoolId-epochMs, epochMs from getSnapshotEpoch)
   chainId: Int! # chain id
   name: String! # name of the pool
-  pool: String! # pool address
+  poolAddress: String! # address of the pool
   token0_id: String! # token0 id
   token1_id: String! # token1 id
   token0_address: String! # token0 address
@@ -161,7 +161,7 @@ type LiquidityPoolAggregatorSnapshot {
 
 # Entity for tracking user activity and positions in specific pools
 type UserStatsPerPool {
-  id: ID! # userAddress_poolAddress_chainId
+  id: ID! # Format: {chainId}-{userAddress}-{poolAddress} (UserStatsPerPoolId)
   userAddress: String! @index
   poolAddress: String! @index
   chainId: Int!
@@ -219,12 +219,72 @@ type UserStatsPerPool {
   # Timestamps
   firstActivityTimestamp: Timestamp! # first activity in this pool
   lastActivityTimestamp: Timestamp! # last activity in this pool
+  lastSnapshotTimestamp: Timestamp # nullable - null means never snapshotted
+}
+
+# Snapshot of UserStatsPerPool at an epoch (invariant fields + position params for recomputation)
+type UserStatsPerPoolSnapshot {
+  id: ID! # Format: {chainId}-{userAddress}-{poolAddress}-{epochMs} (UserStatsPerPoolSnapshotId)
+  userAddress: String! @index
+  poolAddress: String! @index
+  chainId: Int!
+  timestamp: Timestamp! @index
+  blockNumber: Int!
+
+  # Liquidity metrics
+  currentLiquidityUSD: BigInt! @config(precision: 76)
+  lpBalance: BigInt! @config(precision: 76)
+  totalLiquidityAddedUSD: BigInt! @config(precision: 76)
+  totalLiquidityAddedToken0: BigInt! @config(precision: 76)
+  totalLiquidityAddedToken1: BigInt! @config(precision: 76)
+  totalLiquidityRemovedUSD: BigInt! @config(precision: 76)
+  totalLiquidityRemovedToken0: BigInt! @config(precision: 76)
+  totalLiquidityRemovedToken1: BigInt! @config(precision: 76)
+
+  # Swap metrics
+  numberOfSwaps: BigInt! @config(precision: 76)
+  totalSwapVolumeAmount0: BigInt! @config(precision: 76)
+  totalSwapVolumeAmount1: BigInt! @config(precision: 76)
+  totalSwapVolumeUSD: BigInt! @config(precision: 76)
+  totalFeesContributedUSD: BigInt! @config(precision: 76)
+  totalFeesContributed0: BigInt! @config(precision: 76)
+  totalFeesContributed1: BigInt! @config(precision: 76)
+
+  # Flash swap metrics
+  numberOfFlashLoans: BigInt! @config(precision: 76)
+  totalFlashLoanVolumeUSD: BigInt! @config(precision: 76)
+
+  # Gauge metrics
+  numberOfGaugeDeposits: BigInt! @config(precision: 76)
+  numberOfGaugeWithdrawals: BigInt! @config(precision: 76)
+  numberOfGaugeRewardClaims: BigInt! @config(precision: 76)
+  totalGaugeRewardsClaimedUSD: BigInt! @config(precision: 76)
+  totalGaugeRewardsClaimed: BigInt! @config(precision: 76)
+  totalStakedFeesCollected0: BigInt! @config(precision: 76)
+  totalStakedFeesCollected1: BigInt! @config(precision: 76)
+  totalStakedFeesCollectedUSD: BigInt! @config(precision: 76)
+  totalUnstakedFeesCollected0: BigInt! @config(precision: 76)
+  totalUnstakedFeesCollected1: BigInt! @config(precision: 76)
+  totalUnstakedFeesCollectedUSD: BigInt! @config(precision: 76)
+  currentLiquidityStaked: BigInt! @config(precision: 76)
+  currentLiquidityStakedUSD: BigInt! @config(precision: 76)
+
+  # Voting metrics
+  totalBribeClaimed: BigInt! @config(precision: 76)
+  totalBribeClaimedUSD: BigInt! @config(precision: 76)
+  totalFeeRewardClaimed: BigInt! @config(precision: 76)
+  totalFeeRewardClaimedUSD: BigInt! @config(precision: 76)
+  veNFTamountStaked: BigInt! @config(precision: 76)
+
+  # ALM metrics
+  almAddress: String!
+  almLpAmount: BigInt! @config(precision: 76)
 }
 
 # Entity that tracks the latest state of the token entity
 # By nature this entity saves the latest state of the token, and its state at different times should be attained from the snapshot entities
 type Token {
-  id: ID! # token address
+  id: ID! # Format: {chainId}-{address} (TokenId)
   address: String! @index # token address
   symbol: String! # token symbol
   name: String! # token name
@@ -237,7 +297,7 @@ type Token {
 
 # Snapshot of the Token entity
 type TokenPriceSnapshot {
-  id: ID! # Unique identifier for the record, could be a combination of token address and chain ID
+  id: ID! # Format: {chainId}-{address}-{blockNumber} (TokenIdByBlock)
   address: String! @index # Address of the token
   pricePerUSDNew: BigInt! @config(precision: 76) # price of token per USD
   chainId: Int!
@@ -248,7 +308,7 @@ type TokenPriceSnapshot {
 # Tracks relevant data for each NFT minted: each NFT represents a concentrated position in a pool
 # Note: amount0, amount1, amountUSD are derived fields computed on-demand from liquidity + sqrtPriceX96 + ticks
 type NonFungiblePosition {
-  id: ID! # Unique identifier: `${chainId}_${poolAddress}_${tokenId}` (stable, set when tokenId is known)
+  id: ID! # Format: {chainId}-{poolAddress}-{tokenId} (NonFungiblePositionId)
   chainId: Int! # Chain ID where the NFT exists
   tokenId: BigInt! @index # Token ID of the NFT (from Transfer event)
   owner: String! @index # Checksum address of the current owner (from Transfer event)
@@ -261,10 +321,30 @@ type NonFungiblePosition {
   mintTransactionHash: String! @index # Transaction hash of the NFT mint transaction
   mintLogIndex: Int! # Log index of CLPool.Mint event (for placeholder matching)
   lastUpdatedTimestamp: Timestamp! # Timestamp of last update
+  lastSnapshotTimestamp: Timestamp # nullable - null means never snapshotted
+}
+
+# Snapshot of NonFungiblePosition at an epoch (full state for historical queries / recomputation)
+type NonFungiblePositionSnapshot {
+  id: ID! # Format: {chainId}-{tokenId}-{epochMs} (NonFungiblePositionSnapshotId)
+  chainId: Int!
+  tokenId: BigInt! @index
+  owner: String! @index
+  pool: String! @index
+  tickLower: BigInt! @config(precision: 24)
+  tickUpper: BigInt! @config(precision: 24)
+  token0: String!
+  token1: String!
+  liquidity: BigInt! @config(precision: 76)
+  mintTransactionHash: String! @index
+  mintLogIndex: Int!
+  lastUpdatedTimestamp: Timestamp!
+  timestamp: Timestamp! @index
+  blockNumber: Int!
 }
 
 type VeNFTState {
-  id: ID!
+  id: ID! # Format: {chainId}-{tokenId} (VeNFTId)
   chainId: Int!
   tokenId: BigInt! @config(precision: 76)
   owner: String!
@@ -272,11 +352,26 @@ type VeNFTState {
   lastUpdatedTimestamp: Timestamp!
   totalValueLocked: BigInt! @config(precision: 76)
   isAlive: Boolean!
+  lastSnapshotTimestamp: Timestamp # nullable - null means never snapshotted
   votesPerPool: [VeNFTPoolVote!]! @derivedFrom(field: "veNFTState")
 }
 
+# Snapshot of VeNFTState at an epoch (full state for historical queries)
+type VeNFTStateSnapshot {
+  id: ID! # Format: {chainId}-{tokenId}-{epochMs} (VeNFTStateSnapshotId)
+  chainId: Int!
+  tokenId: BigInt! @index
+  owner: String! @index
+  locktime: BigInt! @config(precision: 76)
+  lastUpdatedTimestamp: Timestamp!
+  totalValueLocked: BigInt! @config(precision: 76)
+  isAlive: Boolean!
+  timestamp: Timestamp! @index
+  blockNumber: Int!
+}
+
 type VeNFTPoolVote {
-  id: ID!
+  id: ID! # Format: {chainId}-{tokenId}-{poolAddress} (VeNFTPoolVoteId)
   poolAddress: String! @index
   veNFTamountStaked: BigInt! @config(precision: 76)
   veNFTState: VeNFTState! @index
@@ -288,7 +383,7 @@ type VeNFTPoolVote {
 # Relationship: 1 LP wrapper per pool, 1 strategy per LP wrapper, 1 tokenId per strategy, 1 AMM position per tokenId (1:1:1:1 relationship)
 # Therefore this single entity tracks everything for the wrapper and its strategy
 type ALM_LP_Wrapper {
-  id: ID! # Unique identifier: {ALM_LP_Wrapper_address}_{chainId}
+  id: ID! # Format: {chainId}-{wrapperAddress} (ALMLPWrapperId)
   chainId: Int! # The blockchain network ID where this wrapper exists
   pool: String! @index # Address of the pool this ALM wrapper is associated with
   token0: String! # Address of token 0
@@ -313,10 +408,37 @@ type ALM_LP_Wrapper {
   maxLiquidityRatioDeviationX96: BigInt! @config(precision: 76) # Maximum allowed liquidity ratio deviation in X96 fixed-point format (controls rebalancing thresholds)
   creationTimestamp: Timestamp! # Timestamp when this strategy was created (from StrategyCreated event)
   strategyTransactionHash: String! @index # Transaction hash of the StrategyCreated event
+  lastSnapshotTimestamp: Timestamp # nullable - null means never snapshotted
+}
+
+# Snapshot of ALM_LP_Wrapper at an epoch (full state for historical queries / recomputation)
+type ALM_LP_WrapperSnapshot {
+  id: ID! # Format: {chainId}-{wrapperAddress}-{epochMs} (ALMLPWrapperSnapshotId)
+  wrapper: String! @index
+  pool: String! @index
+  chainId: Int!
+  token0: String!
+  token1: String!
+  lpAmount: BigInt! @config(precision: 76)
+  lastUpdatedTimestamp: Timestamp!
+  tokenId: BigInt! @config(precision: 24) @index
+  tickLower: BigInt! @config(precision: 24)
+  tickUpper: BigInt! @config(precision: 24)
+  property: BigInt! @config(precision: 24)
+  liquidity: BigInt! @config(precision: 76)
+  strategyType: BigInt! @config(precision: 24)
+  tickNeighborhood: BigInt! @config(precision: 24)
+  tickSpacing: BigInt! @config(precision: 24)
+  positionWidth: BigInt! @config(precision: 24)
+  maxLiquidityRatioDeviationX96: BigInt! @config(precision: 76)
+  creationTimestamp: Timestamp!
+  strategyTransactionHash: String! @index
+  timestamp: Timestamp! @index
+  blockNumber: Int!
 }
 
 type FactoryRegistryConfig {
-  id: ID! # {event.srcAddress}_${event.chainId}
+  id: ID! # Format: {srcAddress}_{chainId} (factory registry contract address)
   currentActivePoolFactory: String! # Address of the currently active pool factory (creates vAMM/sAMM or CL pools)
   currentActiveVotingRewardsFactory: String! # Address of the currently active voting rewards factory (creates fee and bribe voting reward contracts)
   currentActiveGaugeFactory: String! # Address of the currently active gauge factory (creates gauge contracts for emissions)
@@ -324,14 +446,14 @@ type FactoryRegistryConfig {
 }
 
 type DynamicFeeGlobalConfig {
-  id: ID! # address of DynamicSwapFeeModule
+  id: ID! # Format: contract address (DynamicSwapFeeModule)
   chainId: Int! @index
   secondsAgo: BigInt @config(precision: 32) # The amount of time used to calculate price change
 }
 
 # One per underlying pool (per chain) launched or migrated via Pool Launcher
 type PoolLauncherPool {
-  id: ID! # `${chainId}-${underlyingPool}`
+  id: ID! # Format: {chainId}-{underlyingPool}
   chainId: Int!
   underlyingPool: Bytes! # pool address
   launcher: String! # PoolLauncher contract address (the one that created or currently manages)
@@ -354,7 +476,7 @@ type PoolLauncherPool {
 }
 
 type PoolLauncherConfig {
-  id: ID!
+  id: ID! # Format: {chainId}-{poolLauncherAddress} (PoolId with launcher contract as address)
   version: String! # "CL" for concentrated liquidity, "V2" for V2 pools
   pairableTokens: [String!]
 }
@@ -364,7 +486,7 @@ type PoolLauncherConfig {
 # 2. The oUSDT is then bridged through Hyperlane to the destination chain.
 # 3. Bridged oUSDT is then swapped into the preferred asset on the destination chain.
 type SuperSwap {
-  id: ID! # {transactionHash}_{originChainId}_{destinationChainId}_{oUSDTamount}_{messageId}_{sourceChainToken}_{sourceChainTokenAmountSwapped}_{destinationChainToken}_{destinationChainTokenAmountSwapped}
+  id: ID! # Format: {transactionHash}_{originChainId}_{destinationChainId}_{oUSDTamount}_{messageId}_{sourceChainToken}_{sourceChainTokenAmountSwapped}_{destinationChainToken}_{destinationChainTokenAmountSwapped}
   originChainId: BigInt! @config(precision: 24) # Chain ID where the swap originated
   destinationChainId: BigInt! @config(precision: 24) # Chain ID of the swap target/recipient
   sender: String! # Original sender address initiating the swap
@@ -378,7 +500,7 @@ type SuperSwap {
 }
 
 type OUSDTBridgedTransaction {
-  id: ID! # Transaction hash
+  id: ID! # Format: transaction hash (unique per bridge tx)
   transactionHash: String! @index # Transaction hash
   originChainId: BigInt! @config(precision: 24) # Chain ID where the bridge transaction originated
   destinationChainId: BigInt! @config(precision: 24) # Chain ID where the bridge transaction is destined
@@ -390,7 +512,7 @@ type OUSDTBridgedTransaction {
 # Registering each event related from/to oUSDT. Needed for filtering and eventual registration of source/destination token
 # and corresponding amounts during superswaps execution
 type OUSDTSwaps {
-  id: ID! # {transactionHash}_{chainId}_{tokenInPool}_{amountIn}_{tokenOutPool}_{amountOut}
+  id: ID! # Format: {transactionHash}_{chainId}_{tokenInPool}_{amountIn}_{tokenOutPool}_{amountOut}
   transactionHash: String! @index # Transaction hash of the swap transaction
   tokenInPool: String! # Token that goes into the pool after swap
   tokenOutPool: String! # Token that goes out of the pool after swap
@@ -402,34 +524,34 @@ type OUSDTSwaps {
 # Specially relevant after the deployment of the new CLGaugeFactory that features emissions cap per gauge
 # Gauges that do no that associated SetEmissionCap events will have their emissions cap defaulted to defaultEmissionsCap
 type CLGaugeConfig {
-  id: ID! # Contract address
+  id: ID! # Format: contract address (CLGaugeFactory)
   defaultEmissionsCap: BigInt! @config(precision: 24)
   lastUpdatedTimestamp: Timestamp! # Timestamp of the last CLGaugeConfig update
 }
 
 type DispatchId_event {
-  id: ID! # Unique identifier: {transactionHash}_{chainId}_{messageId}
+  id: ID! # Format: {transactionHash}_{chainId}_{messageId}
   chainId: Int! # Chain ID where the message was dispatched (origin chain)
   transactionHash: String! @index # Transaction hash of the dispatch transaction
   messageId: String! @index # Unique message ID identifying the cross-chain message in Hyperlane
 }
 
 type ProcessId_event {
-  id: ID! # Unique identifier: {transactionHash}_{chainId}_{messageId}
+  id: ID! # Format: {transactionHash}_{chainId}_{messageId}
   chainId: Int! # Chain ID where the message was processed (destination chain)
   transactionHash: String! @index # Transaction hash of the process transaction
   messageId: String! @index # Unique message ID identifying the cross-chain message in Hyperlane (matches DispatchId messageId)
 }
 
 type ALM_TotalSupplyLimitUpdated_event {
-  id: ID! # {LPWrapper_address}_{chainId}
+  id: ID! # Format: {chainId}-{lpWrapperAddress} (ALMLPWrapperId)
   lpWrapperAddress: String! # LP Wrapper associated to the event
   currentTotalSupplyLPTokens: BigInt! @config(precision: 76) # Current supply of LP tokens for the pool, emitted by the event
   transactionHash: String! # Transaction hash of the event
 }
 
 type RootPool_LeafPool {
-  id: ID! #{RootPool}_{OptimismChainId}_{LeafPool}_{LeafChainId}
+  id: ID! # Format: {rootChainId}-{leafChainId}-{rootPoolAddress}-{leafPoolAddress} (RootPoolLeafPoolId)
   rootChainId: Int! # Optimism chain ID
   rootPoolAddress: String! @index # Placeholder contract that isn't a real pool (i.e., doesn't allow for LP, swap, etc). Mainly just for registring purposes
   leafChainId: Int! # Chain ID where the actual real pool (i.e. pool where it is possible to LP, swap, etc) is deployed
@@ -441,7 +563,7 @@ type RootPool_LeafPool {
 # CLPool fees can then be modified by either CustomSwapFeeModule or DynamicSwapFeeModule
 # The same tick spacing can be enabled multiple times (to update the fee), so this entity is updated, not created new
 type FeeToTickSpacingMapping {
-  id: ID! # `${chainId}_${tickSpacing}`
+  id: ID! # Format: {chainId}-{tickSpacing} (FeeToTickSpacingMappingId)
   chainId: Int! @index
   tickSpacing: BigInt! @config(precision: 24) @index # Tick spacing value
   fee: BigInt! @config(precision: 24) # Fee value for this tick spacing
@@ -454,7 +576,7 @@ type FeeToTickSpacingMapping {
 # This is where CLpoolMintEvent comes in
 # Deleted immediately after consumption
 type CLPoolMintEvent {
-  id: ID! # `${chainId}_${poolAddress}_${txHash}_${logIndex}`
+  id: ID! # Format: {chainId}_{poolAddress}_{txHash}_{logIndex}
   chainId: Int! @index
   pool: String! @index
   owner: String!
@@ -474,7 +596,7 @@ type CLPoolMintEvent {
 # Temporary entity for matching Mint/Burn with Transfer events
 # Only stores mint/burn transfers (isMint || isBurn) to reduce storage
 type PoolTransferInTx {
-  id: ID! # ${chainId}-${txHash}-${poolAddress}-${logIndex}
+  id: ID! # Format: {chainId}-{txHash}-{poolAddress}-{logIndex}
   chainId: Int! @index
   txHash: String! @index
   pool: String! @index
@@ -494,7 +616,7 @@ type PoolTransferInTx {
 # Only needed for burns (to = 0x0) since Deposit events emit the correct minted amount
 # Needed for LPWrapper V1 Withdraw event handler fix
 type ALMLPWrapperTransferInTx {
-  id: ID! # ${chainId}-${txHash}-${wrapperAddress}-${logIndex}
+  id: ID! # Format: {chainId}-{txHash}-{wrapperAddress}-{logIndex}
   chainId: Int! @index
   txHash: String! @index
   wrapperAddress: String! @index

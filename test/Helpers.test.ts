@@ -788,6 +788,7 @@ describe("Helpers", () => {
           mintTransactionHash:
             "0x0000000000000000000000000000000000000000000000000000000000000000",
           lastUpdatedTimestamp: new Date(1000000 * 1000),
+          lastSnapshotTimestamp: undefined,
         };
 
         const mockPoolAggregator: LiquidityPoolAggregator = {

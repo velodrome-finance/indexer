@@ -171,6 +171,7 @@ export function createUserStatsPerPoolEntity(
     // Timestamps
     firstActivityTimestamp: timestamp,
     lastActivityTimestamp: timestamp,
+    lastSnapshotTimestamp: undefined,
   };
 }
 

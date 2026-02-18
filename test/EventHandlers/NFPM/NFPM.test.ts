@@ -41,6 +41,7 @@ describe("NFPM Events", () => {
     mintTransactionHash: transactionHash,
     mintLogIndex: 42,
     lastUpdatedTimestamp: new Date(1000000 * 1000),
+    lastSnapshotTimestamp: undefined,
   };
 
   beforeEach(() => {
@@ -582,6 +583,7 @@ describe("NFPM Events", () => {
       mintTransactionHash: transactionHash,
       mintLogIndex: 42,
       lastUpdatedTimestamp: new Date(1000000 * 1000),
+      lastSnapshotTimestamp: undefined,
     };
 
     // Position on Lisk (chain 1135) with same tokenId
@@ -599,6 +601,7 @@ describe("NFPM Events", () => {
       mintTransactionHash: transactionHash,
       mintLogIndex: 42,
       lastUpdatedTimestamp: new Date(1000000 * 1000),
+      lastSnapshotTimestamp: undefined,
     };
 
     // Variables to hold mocks for verification

@@ -170,6 +170,7 @@ describe("NFPMTransferLogic", () => {
     mintTransactionHash: transactionHash,
     mintLogIndex: mintLogIndex,
     lastUpdatedTimestamp: new Date(1711601595000),
+    lastSnapshotTimestamp: undefined,
   };
 
   let mockDb: ReturnType<typeof MockDb.createMockDb>;
@@ -425,6 +426,7 @@ describe("NFPMTransferLogic", () => {
       expect(position.liquidity).toBe(0n); // Should start at 0
       expect(position.mintTransactionHash).toBe(transactionHash);
       expect(position.mintLogIndex).toBe(mintLogIndex);
+      expect(position.lastSnapshotTimestamp).toBeUndefined();
 
       // CLPoolMintEvent should be deleted
       const deletedEvent = storedMintEvents.find(
@@ -451,6 +453,7 @@ describe("NFPMTransferLogic", () => {
       expect(position.id).toBe(stableId);
       expect(position.tokenId).toBe(tokenId);
       expect(position.owner.toLowerCase()).toBe(ownerAddress.toLowerCase());
+      expect(position.lastSnapshotTimestamp).toBeUndefined();
     });
 
     it("should not create new position if position already exists", async () => {

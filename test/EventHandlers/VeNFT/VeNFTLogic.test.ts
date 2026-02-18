@@ -52,6 +52,7 @@ describe("VeNFTLogic", () => {
     lastUpdatedTimestamp: new Date(10000 * 1000),
     totalValueLocked: 100n,
     isAlive: true,
+    lastSnapshotTimestamp: undefined,
   };
 
   const createMockDepositEvent = (): VeNFT_Deposit_event => ({

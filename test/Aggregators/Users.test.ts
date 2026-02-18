@@ -43,6 +43,7 @@ describe("UserStatsPerPool Aggregator", () => {
       expect(userStats.totalFlashLoanVolumeUSD).toBe(0n);
       expect(userStats.firstActivityTimestamp).toEqual(mockTimestamp);
       expect(userStats.lastActivityTimestamp).toEqual(mockTimestamp);
+      expect(userStats.lastSnapshotTimestamp).toBeUndefined();
     });
   });
 

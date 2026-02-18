@@ -58,6 +58,7 @@ export async function createPositionFromCLPoolMint(
     mintTransactionHash: mintEvent.transactionHash,
     mintLogIndex: mintEvent.logIndex,
     lastUpdatedTimestamp: new Date(blockTimestamp * 1000),
+    lastSnapshotTimestamp: undefined,
   };
 
   context.NonFungiblePosition.set(position);

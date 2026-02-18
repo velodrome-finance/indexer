@@ -23,6 +23,7 @@ describe("NonFungiblePosition", () => {
     mintTransactionHash: transactionHash,
     mintLogIndex: 42,
     lastUpdatedTimestamp: new Date(10000 * 1000),
+    lastSnapshotTimestamp: undefined,
   };
   const timestamp = new Date(10001 * 1000);
 
@@ -82,6 +83,7 @@ describe("NonFungiblePosition", () => {
             "0x2222222222222222222222222222222222222222",
           ),
           lastUpdatedTimestamp: timestamp,
+          lastSnapshotTimestamp: undefined,
         };
 
         updateNonFungiblePosition(
@@ -102,6 +104,7 @@ describe("NonFungiblePosition", () => {
         expect(result.tickLower).toBe(-100n); // unchanged
         expect(result.liquidity).toBe(1000000000000000000n); // unchanged
         expect(result.lastUpdatedTimestamp).toBe(timestamp);
+        expect(result.lastSnapshotTimestamp).toBeUndefined(); // unchanged
       });
     });
 
@@ -111,6 +114,7 @@ describe("NonFungiblePosition", () => {
         const increaseDiff = {
           incrementalLiquidity: 500000000000000000n, // add liquidity
           lastUpdatedTimestamp: timestamp,
+          lastSnapshotTimestamp: undefined,
         };
 
         updateNonFungiblePosition(
@@ -139,6 +143,7 @@ describe("NonFungiblePosition", () => {
         const decreaseDiff = {
           incrementalLiquidity: -300000000000000000n, // remove liquidity
           lastUpdatedTimestamp: timestamp,
+          lastSnapshotTimestamp: undefined,
         };
 
         updateNonFungiblePosition(

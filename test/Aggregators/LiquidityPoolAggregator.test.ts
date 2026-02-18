@@ -6,7 +6,6 @@ import type {
 import {
   loadPoolData,
   loadPoolDataOrRootCLPool,
-  setLiquidityPoolAggregatorSnapshot,
   updateDynamicFeePools,
   updateLiquidityPoolAggregator,
 } from "../../src/Aggregators/LiquidityPoolAggregator";
@@ -17,6 +16,8 @@ import {
   RootPoolLeafPoolId,
 } from "../../src/Constants";
 import { getCurrentFee } from "../../src/Effects/DynamicFee";
+import { setLiquidityPoolAggregatorSnapshot } from "../../src/Snapshots/LiquidityPoolAggregatorSnapshot";
+import { getSnapshotEpoch } from "../../src/Snapshots/Shared";
 import { setupCommon } from "../EventHandlers/Pool/common";
 
 // Type for the simulateContract method
@@ -353,7 +354,7 @@ describe("LiquidityPoolAggregator Functions", () => {
           timestamp.getTime(),
         ),
       );
-      expect(snapshot?.pool).toBe(liquidityPoolAggregator.poolAddress);
+      expect(snapshot?.poolAddress).toBe(liquidityPoolAggregator.poolAddress);
     });
   });
 

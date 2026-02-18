@@ -118,6 +118,7 @@ export async function handleMintTransfer(
       lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
       totalValueLocked: 0n, // This is going to be updated in the Deposit event
       isAlive: true,
+      lastSnapshotTimestamp: undefined,
     });
   }
 

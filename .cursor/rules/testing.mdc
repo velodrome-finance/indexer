@@ -1,9 +1,7 @@
 ---
-title: Jest testing rules (Pool EventHandlers)
+title: Jest testing rules
 scope:
   - "**/*.test.ts"
-  - "**/*.spec.ts"
-  - "test/EventHandlers/Pool/**/*.ts"
 alwaysApply: true
 ---
 # Jest Test Generation Rules
@@ -13,15 +11,13 @@ You are writing tests using **Jest** for this repository.
 ## Non-negotiables
 
 1. **Minimize duplication**
-   - Before creating any new helper, look for existing test helpers and reuse them.
-   - If logic repeats across **2+ tests**, extract it into a shared helper.
-   - For Pool EventHandlers, Pool-specific shared helpers belong in:
-     - `test/EventHandlers/Pool/common.ts`
+   - Before creating any new helper, look for existing shared test helpers/harnesses/fixtures and reuse them.
+   - If logic repeats across **2+ tests**, extract it into a shared helper in the appropriate shared test module (not inline in one test file).
 
-2. **Prefer shared setup**
-   - When tests touch Pool entities or Pool EventHandlers, you **must** use:
-     - `setupCommon()` from `test/EventHandlers/Pool/common.ts`
-   - Do **not** re-implement setup that already exists in `setupCommon`.
+2. **Prefer shared harnesses and builders (whenever applicable)**
+   - **Rule:** If the code area you're testing already has a shared harness/fixture builder, you **must** use it rather than re-implementing setup or constructing entities from scratch.
+   - This repository's default shared harness is `test/EventHandlers/Pool/common.ts`. Use it whenever your test uses any entities/builders/fixtures it already provides.
+   - Only create new local helpers if a shared helper would not be reusable.
 
 3. **Deterministic tests only**
    - Avoid `new Date()` in assertions and fixtures unless using fake timers.
@@ -33,7 +29,7 @@ You are writing tests using **Jest** for this repository.
    - Tests should read like documentation.
    - Prefer small focused tests.
 
-5. **Checksum all mock Ethereum addresses**
+5. **Checksum all mock Ethereum addresses (whenever addresses are used)**
    - Any mock Ethereum-related address (pool, token, user, contract, etc.) used in tests **must** be checksummed using `toChecksumAddress` from `src/Constants.ts`.
    - Import: `import { toChecksumAddress } from "../../src/Constants";` (adjust path as needed).
    - Use valid 40-character hex (after `0x`); invalid or non-hex strings will throw at runtime.
@@ -41,19 +37,18 @@ You are writing tests using **Jest** for this repository.
 
 ---
 
-## Pool EventHandlers: Required harness usage
+## Shared test harness rules
 
-### When this applies
-If the test file is under `test/EventHandlers/Pool/**` OR the code under test uses any of:
-- `LiquidityPoolAggregator`
-- `UserStatsPerPool`
-- `VeNFTState`
-- `VeNFTPoolVote`
-- `ALM_LP_Wrapper`
-- `Token`
+### `common.ts` harness (repo-wide, whenever applicable)
 
-### Required import + initialization
-Always import and initialize the shared harness:
+This repository provides a shared test harness in `test/EventHandlers/Pool/common.ts`.  
+Despite the path name, it contains reusable fixtures/builders that are applicable to many tests.
+
+**Rule (whenever applicable):**
+- If your test needs any of the entities/fixtures/builders provided by this harness, you **must** use it instead of constructing objects from scratch.
+- Prefer `common.createMock*` builders whenever you need variants — even for a one-field change — to keep derived fields (like `id`) correct.
+
+#### Required import + initialization
 
 ```ts
 import { setupCommon } from "./common"; // use "../common" or "../../common" for nested subdirectories
@@ -65,12 +60,9 @@ beforeEach(() => {
 });
 ```
 
-**Mandatory:** Pool tests MUST use `setupCommon()`; if missing, add it and refactor to `common.createMock*`.
+**Mandatory reuse of fixtures/builders**
 
-
-### Mandatory reuse of fixtures/builders
-
-Use these from `common` instead of creating objects from scratch:
+Use these from `common` instead of creating objects from scratch (not complete list, just examples):
 
 - `common.mockToken0Data`
 - `common.mockToken1Data`
@@ -79,24 +71,23 @@ Use these from `common` instead of creating objects from scratch:
 - `common.mockUserStatsPerPoolData`
 - `common.mockVeNFTStateData`
 - `common.mockVeNFTPoolVoteData`
+- `common.mockNonFungiblePositionData`
 - `common.createMockUserStatsPerPool(overrides)`
 - `common.createMockLiquidityPoolAggregator(overrides)`
 - `common.createMockVeNFTState(overrides)`
 - `common.createMockVeNFTPoolVote(overrides)`
+- `common.createMockNonFungiblePosition(overrides)`
+- `common.createMockContext(entities)`
 
-**Rule:** Prefer `common.createMock*` builders whenever you need variants — **even if changing only one field**.
-
-### Object creation rules
+**Object creation rules**
 
 - Never construct `Token`, `LiquidityPoolAggregator`, `UserStatsPerPool`, `VeNFTState`, `VeNFTPoolVote` from scratch inside a test if `setupCommon()` already provides a mock or builder.
-
 - If you need variants, use the `createMock*` builders with `Partial<T>` overrides.
+- If a builder doesn't exist but would be broadly useful, add it to `common.ts` rather than writing local one-off helpers.
 
-- If a builder doesn’t exist but would be broadly useful, add it to `common.ts` rather than writing local one-off helpers.
+**Correct override patterns**
 
-### Correct override patterns
-
-Use builder overrides so derived fields (like id) stay correct:
+Use builder overrides so derived fields (like `id`) stay correct:
 
 ```ts
 const pool = common.createMockLiquidityPoolAggregator({
@@ -104,10 +95,16 @@ const pool = common.createMockLiquidityPoolAggregator({
   chainId: 10,
 });
 const user = common.createMockUserStatsPerPool({
-  userAddress: "0xabc...",
+  userAddress: toChecksumAddress("0x0000000000000000000000000000000000000abc"),
   totalFeesContributedUSD: 123n,
 });
 ```
+
+**Helper placement rule**
+
+- If the helper is **broadly reusable** across the repository's tests, add it to:
+  - `test/EventHandlers/Pool/common.ts`
+- If the helper is **truly domain-specific** and would confuse unrelated tests, add it to a domain-local module (e.g. `test/<Domain>/common.ts`) and keep `Pool/common.ts` focused on shared primitives.
 
 ## Test structure and style
 
@@ -166,18 +163,7 @@ When writing a new test, if you find yourself:
 
 - repeating setup boilerplate,
 
-stop and refactor:
+Stop and refactor:
 
-- Prefer adding a helper to `test/EventHandlers/Pool/common.ts` for Pool-specific reuse.
-
-- Otherwise add to an appropriate shared `test/utils/*` module.
-
-## Output requirements when generating/editing tests
-
-- Use Jest idioms: `describe`, `test`, `beforeEach`, `test.each`
-
-- For Pool tests: MUST use `setupCommon()` and `createMock*` builders.
-
-- Extract duplication to helpers instead of repeating logic
-
-- Keep tests deterministic and readable
+- If the helper is broadly reusable, add it to `test/EventHandlers/Pool/common.ts`.
+- If the helper is domain-specific and would confuse unrelated tests, add it to a domain-local module (e.g. `test/<Domain>/common.ts`).

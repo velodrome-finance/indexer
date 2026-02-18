@@ -24,6 +24,7 @@ describe("VeNFTState", () => {
     lastUpdatedTimestamp: new Date(10000 * 1000),
     totalValueLocked: 100n,
     isAlive: true,
+    lastSnapshotTimestamp: undefined,
   };
   const timestamp = new Date(10001 * 1000);
 
@@ -215,6 +216,7 @@ describe("VeNFTState", () => {
           lastUpdatedTimestamp: new Date(0),
           totalValueLocked: 0n,
           isAlive: false,
+          lastSnapshotTimestamp: undefined,
         };
 
         const depositDiff = {
@@ -236,6 +238,81 @@ describe("VeNFTState", () => {
       it("should create a new VeNFTState", () => {
         expect(result.totalValueLocked).toBe(100n);
         expect(result.isAlive).toBe(true);
+      });
+    });
+
+    describe("lastSnapshotTimestamp", () => {
+      it("should leave lastSnapshotTimestamp undefined when current has it undefined", () => {
+        const depositDiff = { incrementalTotalValueLocked: 10n };
+        updateVeNFTState(
+          depositDiff,
+          mockVeNFTState, // lastSnapshotTimestamp: undefined
+          timestamp,
+          mockContext as handlerContext,
+        );
+        const result = getVeNFTStateStore(mockContext).set as jest.Mock;
+        const updated = result.mock.calls[0][0] as VeNFTState;
+        expect(updated.lastSnapshotTimestamp).toBeUndefined();
+      });
+
+      it("should preserve lastSnapshotTimestamp when present and diff does not provide a newer one", () => {
+        const stateWithSnapshot: VeNFTState = {
+          ...mockVeNFTState,
+          lastSnapshotTimestamp: new Date(9000 * 1000),
+        };
+        const depositDiff = { incrementalTotalValueLocked: 10n };
+        updateVeNFTState(
+          depositDiff,
+          stateWithSnapshot,
+          timestamp,
+          mockContext as handlerContext,
+        );
+        const result = getVeNFTStateStore(mockContext).set as jest.Mock;
+        const updated = result.mock.calls[0][0] as VeNFTState;
+        expect(updated.lastSnapshotTimestamp).toEqual(new Date(9000 * 1000));
+      });
+
+      it("should replace lastSnapshotTimestamp when diff provides a newer value", () => {
+        const stateWithOlderSnapshot: VeNFTState = {
+          ...mockVeNFTState,
+          lastSnapshotTimestamp: new Date(8000 * 1000),
+        };
+        const newerSnapshotTime = new Date(12000 * 1000);
+        const depositDiff = {
+          incrementalTotalValueLocked: 10n,
+          lastSnapshotTimestamp: newerSnapshotTime,
+        };
+        updateVeNFTState(
+          depositDiff,
+          stateWithOlderSnapshot,
+          timestamp,
+          mockContext as handlerContext,
+        );
+        const result = getVeNFTStateStore(mockContext).set as jest.Mock;
+        const updated = result.mock.calls[0][0] as VeNFTState;
+        expect(updated.lastSnapshotTimestamp).toEqual(newerSnapshotTime);
+      });
+
+      it("should not replace lastSnapshotTimestamp when diff provides an older value", () => {
+        const existingSnapshot = new Date(10000 * 1000);
+        const stateWithNewerSnapshot: VeNFTState = {
+          ...mockVeNFTState,
+          lastSnapshotTimestamp: existingSnapshot,
+        };
+        const olderSnapshotTime = new Date(5000 * 1000);
+        const depositDiff = {
+          incrementalTotalValueLocked: 10n,
+          lastSnapshotTimestamp: olderSnapshotTime,
+        };
+        updateVeNFTState(
+          depositDiff,
+          stateWithNewerSnapshot,
+          timestamp,
+          mockContext as handlerContext,
+        );
+        const result = getVeNFTStateStore(mockContext).set as jest.Mock;
+        const updated = result.mock.calls[0][0] as VeNFTState;
+        expect(updated.lastSnapshotTimestamp).toEqual(existingSnapshot);
       });
     });
   });

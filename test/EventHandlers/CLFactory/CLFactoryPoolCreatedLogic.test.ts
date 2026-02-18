@@ -430,9 +430,9 @@ describe("CLFactoryPoolCreatedLogic", () => {
         isStable: false,
         isCL: true,
         gaugeIsAlive: false,
-        // Timestamps should be set to event timestamp
+        // Timestamps: lastUpdatedTimestamp from event; lastSnapshotTimestamp epoch 0 (never snapshotted)
         lastUpdatedTimestamp: new Date(1000000 * 1000),
-        lastSnapshotTimestamp: new Date(1000000 * 1000),
+        lastSnapshotTimestamp: new Date(0),
       });
     });
 
