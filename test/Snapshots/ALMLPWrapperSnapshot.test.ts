@@ -9,7 +9,6 @@ import { getWrapperAddressFromId } from "./helpers";
 describe("ALMLPWrapperSnapshot", () => {
   let common: ReturnType<typeof setupCommon>;
   const baseTimestamp = new Date(SNAPSHOT_INTERVAL_IN_MS * 3);
-=======
   beforeEach(() => {
     common = setupCommon();
     jest.clearAllMocks();

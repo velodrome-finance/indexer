@@ -1,17 +1,23 @@
 import type { UserStatsPerPool, handlerContext } from "generated";
 import { updateUserStatsPerPool } from "../../src/Aggregators/UserStatsPerPool";
+import { toChecksumAddress } from "../../src/Constants";
 import { setupCommon } from "../EventHandlers/Pool/common";
 
 describe("UserStatsPerPool Liquidity Logic", () => {
-  const mockUserAddress = "0x1234567890123456789012345678901234567890";
-  const mockPoolAddress = "0xabcdef1234567890abcdef1234567890abcdef12";
+  let common: ReturnType<typeof setupCommon>;
+  let mockContext: handlerContext;
+
+  const mockUserAddress = toChecksumAddress(
+    "0x1234567890123456789012345678901234567890",
+  );
+  const mockPoolAddress = toChecksumAddress(
+    "0xabcdef1234567890abcdef1234567890abcdef12",
+  );
   const mockChainId = 10;
   const mockTimestamp = new Date(1000000 * 1000);
 
-  const { createMockUserStatsPerPool } = setupCommon();
-
   const createMockUserStats = (): UserStatsPerPool =>
-    createMockUserStatsPerPool({
+    common.createMockUserStatsPerPool({
       userAddress: mockUserAddress,
       poolAddress: mockPoolAddress,
       chainId: mockChainId,
@@ -19,20 +25,17 @@ describe("UserStatsPerPool Liquidity Logic", () => {
       lastActivityTimestamp: mockTimestamp,
     });
 
+  beforeEach(() => {
+    common = setupCommon();
+    mockContext = common.createMockContext({
+      UserStatsPerPool: { set: async () => {} },
+      UserStatsPerPoolSnapshot: { set: jest.fn() },
+      log: { error: () => {}, warn: () => {}, info: () => {} },
+    });
+  });
+
   describe("Liquidity Addition Logic", () => {
     it("should handle positive liquidity addition correctly", async () => {
-      const mockContext = {
-        UserStatsPerPool: {
-          set: async () => {},
-        },
-        UserStatsPerPoolSnapshot: { set: jest.fn() },
-        log: {
-          error: () => {},
-          warn: () => {},
-          info: () => {},
-        },
-      } as unknown as handlerContext;
-
       const userStats = createMockUserStats();
       const netLiquidityAddedUSD = 1000n;
 
@@ -50,21 +53,19 @@ describe("UserStatsPerPool Liquidity Logic", () => {
       expect(result.currentLiquidityUSD).toBe(1000n);
       expect(result.totalLiquidityAddedUSD).toBe(1000n);
       expect(result.totalLiquidityRemovedUSD).toBe(0n);
+      expect(mockContext.UserStatsPerPoolSnapshot.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userAddress: mockUserAddress,
+          poolAddress: mockPoolAddress,
+          chainId: mockChainId,
+          currentLiquidityUSD: 1000n,
+          totalLiquidityAddedUSD: 1000n,
+          totalLiquidityRemovedUSD: 0n,
+        }),
+      );
     });
 
     it("should handle multiple liquidity additions correctly", async () => {
-      const mockContext = {
-        UserStatsPerPool: {
-          set: async () => {},
-        },
-        UserStatsPerPoolSnapshot: { set: jest.fn() },
-        log: {
-          error: () => {},
-          warn: () => {},
-          info: () => {},
-        },
-      } as unknown as handlerContext;
-
       let userStats = createMockUserStats();
 
       // First addition
@@ -103,18 +104,6 @@ describe("UserStatsPerPool Liquidity Logic", () => {
 
   describe("Liquidity Removal Logic", () => {
     it("should handle negative liquidity removal correctly", async () => {
-      const mockContext = {
-        UserStatsPerPool: {
-          set: async () => {},
-        },
-        UserStatsPerPoolSnapshot: { set: jest.fn() },
-        log: {
-          error: () => {},
-          warn: () => {},
-          info: () => {},
-        },
-      } as unknown as handlerContext;
-
       const userStats = createMockUserStats();
       const netLiquidityRemovedUSD = -500n;
 
@@ -135,18 +124,6 @@ describe("UserStatsPerPool Liquidity Logic", () => {
     });
 
     it("should handle multiple liquidity removals correctly", async () => {
-      const mockContext = {
-        UserStatsPerPool: {
-          set: async () => {},
-        },
-        UserStatsPerPoolSnapshot: { set: jest.fn() },
-        log: {
-          error: () => {},
-          warn: () => {},
-          info: () => {},
-        },
-      } as unknown as handlerContext;
-
       let userStats = createMockUserStats();
 
       // First removal
@@ -185,18 +162,6 @@ describe("UserStatsPerPool Liquidity Logic", () => {
 
   describe("Mixed Liquidity Operations", () => {
     it("should handle adding then removing liquidity correctly", async () => {
-      const mockContext = {
-        UserStatsPerPool: {
-          set: async () => {},
-        },
-        UserStatsPerPoolSnapshot: { set: jest.fn() },
-        log: {
-          error: () => {},
-          warn: () => {},
-          info: () => {},
-        },
-      } as unknown as handlerContext;
-
       let userStats = createMockUserStats();
 
       // Add liquidity
@@ -233,18 +198,6 @@ describe("UserStatsPerPool Liquidity Logic", () => {
     });
 
     it("should handle removing then adding liquidity correctly", async () => {
-      const mockContext = {
-        UserStatsPerPool: {
-          set: async () => {},
-        },
-        UserStatsPerPoolSnapshot: { set: jest.fn() },
-        log: {
-          error: () => {},
-          warn: () => {},
-          info: () => {},
-        },
-      } as unknown as handlerContext;
-
       let userStats = createMockUserStats();
 
       // Remove liquidity (should be 0 since we start with 0)
@@ -281,18 +234,6 @@ describe("UserStatsPerPool Liquidity Logic", () => {
     });
 
     it("should handle complex liquidity operations correctly", async () => {
-      const mockContext = {
-        UserStatsPerPool: {
-          set: async () => {},
-        },
-        UserStatsPerPoolSnapshot: { set: jest.fn() },
-        log: {
-          error: () => {},
-          warn: () => {},
-          info: () => {},
-        },
-      } as unknown as handlerContext;
-
       let userStats = createMockUserStats();
 
       // Add 1000
@@ -351,18 +292,6 @@ describe("UserStatsPerPool Liquidity Logic", () => {
 
   describe("Edge Cases", () => {
     it("should handle zero liquidity change", async () => {
-      const mockContext = {
-        UserStatsPerPool: {
-          set: async () => {},
-        },
-        UserStatsPerPoolSnapshot: { set: jest.fn() },
-        log: {
-          error: () => {},
-          warn: () => {},
-          info: () => {},
-        },
-      } as unknown as handlerContext;
-
       const userStats = createMockUserStats();
       const result = await updateUserStatsPerPool(
         {
@@ -380,18 +309,6 @@ describe("UserStatsPerPool Liquidity Logic", () => {
     });
 
     it("should handle very large liquidity amounts", async () => {
-      const mockContext = {
-        UserStatsPerPool: {
-          set: async () => {},
-        },
-        UserStatsPerPoolSnapshot: { set: jest.fn() },
-        log: {
-          error: () => {},
-          warn: () => {},
-          info: () => {},
-        },
-      } as unknown as handlerContext;
-
       const userStats = createMockUserStats();
       const largeAmount = BigInt("1000000000000000000000000"); // 1M tokens with 18 decimals
 

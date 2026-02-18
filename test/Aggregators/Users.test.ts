@@ -101,6 +101,16 @@ describe("UserStatsPerPool Aggregator", () => {
       expect(result.totalLiquidityRemovedUSD).toBe(0n);
       expect(result.lastActivityTimestamp).toEqual(mockTimestamp);
       expect(savedUserStats).toEqual(result);
+      expect(mockContext.UserStatsPerPoolSnapshot.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userAddress: mockUserAddress,
+          poolAddress: mockPoolAddress,
+          chainId: mockChainId,
+          currentLiquidityUSD: netLiquidityAddedUSD,
+          totalLiquidityAddedUSD: netLiquidityAddedUSD,
+          totalLiquidityRemovedUSD: 0n,
+        }),
+      );
     });
 
     it("should handle liquidity removal correctly", async () => {
@@ -136,6 +146,16 @@ describe("UserStatsPerPool Aggregator", () => {
       expect(result.totalLiquidityAddedUSD).toBe(0n);
       expect(result.totalLiquidityRemovedUSD).toBe(500n);
       expect(result.lastActivityTimestamp).toEqual(mockTimestamp);
+      expect(mockContext.UserStatsPerPoolSnapshot.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userAddress: mockUserAddress,
+          poolAddress: mockPoolAddress,
+          chainId: mockChainId,
+          currentLiquidityUSD: netLiquidityRemovedUSD,
+          totalLiquidityAddedUSD: 0n,
+          totalLiquidityRemovedUSD: 500n,
+        }),
+      );
     });
 
     it("should handle fee contributions correctly", async () => {
@@ -171,6 +191,16 @@ describe("UserStatsPerPool Aggregator", () => {
       expect(result.totalFeesContributed0).toBe(500n);
       expect(result.totalFeesContributed1).toBe(300n);
       expect(result.lastActivityTimestamp).toEqual(mockTimestamp);
+      expect(mockContext.UserStatsPerPoolSnapshot.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userAddress: mockUserAddress,
+          poolAddress: mockPoolAddress,
+          chainId: mockChainId,
+          totalFeesContributedUSD: 1000n,
+          totalFeesContributed0: 500n,
+          totalFeesContributed1: 300n,
+        }),
+      );
     });
 
     it("should handle swap activity correctly", async () => {
@@ -208,6 +238,17 @@ describe("UserStatsPerPool Aggregator", () => {
       expect(result.totalSwapVolumeAmount0).toBe(1000n);
       expect(result.totalSwapVolumeAmount1).toBe(2000n);
       expect(result.lastActivityTimestamp).toEqual(mockTimestamp);
+      expect(mockContext.UserStatsPerPoolSnapshot.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userAddress: mockUserAddress,
+          poolAddress: mockPoolAddress,
+          chainId: mockChainId,
+          numberOfSwaps: 1n,
+          totalSwapVolumeUSD: 5000n,
+          totalSwapVolumeAmount0: 1000n,
+          totalSwapVolumeAmount1: 2000n,
+        }),
+      );
     });
 
     it("should aggregate multiple swaps correctly", async () => {
@@ -243,6 +284,18 @@ describe("UserStatsPerPool Aggregator", () => {
       expect(userStats.totalSwapVolumeAmount0).toBe(1000n);
       expect(userStats.totalSwapVolumeAmount1).toBe(2000n);
       expect(userStats.totalSwapVolumeUSD).toBe(5000n);
+      expect(mockContext.UserStatsPerPoolSnapshot.set).toHaveBeenCalledTimes(1);
+      expect(mockContext.UserStatsPerPoolSnapshot.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userAddress: mockUserAddress,
+          poolAddress: mockPoolAddress,
+          chainId: mockChainId,
+          numberOfSwaps: 1n,
+          totalSwapVolumeUSD: 5000n,
+          totalSwapVolumeAmount0: 1000n,
+          totalSwapVolumeAmount1: 2000n,
+        }),
+      );
 
       // Second swap: amount0 = -500, amount1 = 3000
       userStats = await updateUserStatsPerPool(
@@ -314,6 +367,15 @@ describe("UserStatsPerPool Aggregator", () => {
       expect(result.numberOfFlashLoans).toBe(1n);
       expect(result.totalFlashLoanVolumeUSD).toBe(10000n);
       expect(result.lastActivityTimestamp).toEqual(mockTimestamp);
+      expect(mockContext.UserStatsPerPoolSnapshot.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userAddress: mockUserAddress,
+          poolAddress: mockPoolAddress,
+          chainId: mockChainId,
+          numberOfFlashLoans: 1n,
+          totalFlashLoanVolumeUSD: 10000n,
+        }),
+      );
     });
 
     it("should handle multiple field updates in a single call", async () => {
@@ -358,6 +420,20 @@ describe("UserStatsPerPool Aggregator", () => {
       expect(result.numberOfFlashLoans).toBe(1n);
       expect(result.totalFlashLoanVolumeUSD).toBe(15000n);
       expect(result.lastActivityTimestamp).toEqual(mockTimestamp);
+      expect(mockContext.UserStatsPerPoolSnapshot.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userAddress: mockUserAddress,
+          poolAddress: mockPoolAddress,
+          chainId: mockChainId,
+          currentLiquidityUSD: 2000n,
+          totalLiquidityAddedUSD: 2000n,
+          totalFeesContributedUSD: 500n,
+          numberOfSwaps: 2n,
+          totalSwapVolumeUSD: 8000n,
+          numberOfFlashLoans: 1n,
+          totalFlashLoanVolumeUSD: 15000n,
+        }),
+      );
     });
 
     it("should update existing user stats correctly", async () => {
@@ -412,6 +488,20 @@ describe("UserStatsPerPool Aggregator", () => {
       expect(result.numberOfFlashLoans).toBe(2n); // Unchanged
       expect(result.totalFlashLoanVolumeUSD).toBe(20000n); // Unchanged
       expect(result.lastActivityTimestamp).toEqual(mockTimestamp);
+      expect(mockContext.UserStatsPerPoolSnapshot.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userAddress: mockUserAddress,
+          poolAddress: mockPoolAddress,
+          chainId: mockChainId,
+          currentLiquidityUSD: 3000n,
+          totalLiquidityAddedUSD: 3000n,
+          totalFeesContributedUSD: 1500n,
+          numberOfSwaps: 6n,
+          totalSwapVolumeUSD: 13000n,
+          numberOfFlashLoans: 2n,
+          totalFlashLoanVolumeUSD: 20000n,
+        }),
+      );
     });
 
     it("should handle liquidity removal from existing stats", async () => {
@@ -458,6 +548,16 @@ describe("UserStatsPerPool Aggregator", () => {
       expect(result.totalLiquidityAddedUSD).toBe(2000n); // Unchanged
       expect(result.totalLiquidityRemovedUSD).toBe(500n); // 0 + 500
       expect(result.lastActivityTimestamp).toEqual(mockTimestamp);
+      expect(mockContext.UserStatsPerPoolSnapshot.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userAddress: mockUserAddress,
+          poolAddress: mockPoolAddress,
+          chainId: mockChainId,
+          currentLiquidityUSD: 1500n,
+          totalLiquidityAddedUSD: 2000n,
+          totalLiquidityRemovedUSD: 500n,
+        }),
+      );
     });
   });
 });

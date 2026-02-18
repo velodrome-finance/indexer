@@ -3,7 +3,8 @@ import {
   loadVeNFTState,
   updateVeNFTState,
 } from "../../src/Aggregators/VeNFTState";
-import { VeNFTId } from "../../src/Constants";
+import { VeNFTId, VeNFTStateSnapshotId } from "../../src/Constants";
+import { getSnapshotEpoch } from "../../src/Snapshots/Shared";
 
 function getVeNFTStateStore(
   ctx: Partial<handlerContext>,
@@ -259,6 +260,22 @@ describe("VeNFTState", () => {
         expect(updated.lastSnapshotTimestamp).toBeDefined();
         expect(updated.lastSnapshotTimestamp?.getTime()).toBe(
           Math.floor(timestamp.getTime() / (60 * 60 * 1000)) * (60 * 60 * 1000),
+        );
+        // Verify VeNFTStateSnapshot persistence was invoked for the first snapshot
+        expect(mockContext.VeNFTStateSnapshot?.set).toHaveBeenCalledTimes(1);
+        const expectedEpoch = getSnapshotEpoch(timestamp);
+        expect(mockContext.VeNFTStateSnapshot?.set).toHaveBeenCalledWith(
+          expect.objectContaining({
+            id: VeNFTStateSnapshotId(10, 1n, expectedEpoch.getTime()),
+            chainId: 10,
+            tokenId: 1n,
+            owner: mockVeNFTState.owner,
+            locktime: mockVeNFTState.locktime,
+            lastUpdatedTimestamp: timestamp,
+            totalValueLocked: 110n,
+            isAlive: true,
+            timestamp: expectedEpoch,
+          }),
         );
       });
 

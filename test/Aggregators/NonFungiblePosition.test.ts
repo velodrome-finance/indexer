@@ -1,6 +1,7 @@
 import type { NonFungiblePosition, handlerContext } from "generated";
 import { updateNonFungiblePosition } from "../../src/Aggregators/NonFungiblePosition";
 import { NonFungiblePositionId, toChecksumAddress } from "../../src/Constants";
+import { getSnapshotEpoch } from "../../src/Snapshots/Shared";
 
 describe("NonFungiblePosition", () => {
   let mockContext: Partial<handlerContext>;
@@ -108,8 +109,12 @@ describe("NonFungiblePosition", () => {
         expect(result.tickLower).toBe(-100n); // unchanged
         expect(result.liquidity).toBe(1000000000000000000n); // unchanged
         expect(result.lastUpdatedTimestamp).toBe(timestamp);
-        // When timestamp is provided and lastSnapshotTimestamp was undefined we take a snapshot and set it to the epoch
-        expect(result.lastSnapshotTimestamp).toBeDefined();
+        // When lastSnapshotTimestamp was undefined we take a snapshot and set it to the snapshot epoch (start of interval containing timestamp)
+        const expectedSnapshotEpoch = getSnapshotEpoch(timestamp);
+        expect(result.lastSnapshotTimestamp?.getTime()).toBe(
+          expectedSnapshotEpoch.getTime(),
+        );
+        expect(mockContext.NonFungiblePositionSnapshot?.set).toHaveBeenCalled();
       });
     });
 
@@ -140,6 +145,7 @@ describe("NonFungiblePosition", () => {
         expect(result.tickUpper).toBe(100n); // unchanged
         expect(result.tickLower).toBe(-100n); // unchanged
         expect(result.lastUpdatedTimestamp).toBe(timestamp);
+        expect(mockContext.NonFungiblePositionSnapshot?.set).toHaveBeenCalled();
       });
     });
 
@@ -170,6 +176,7 @@ describe("NonFungiblePosition", () => {
         expect(result.tickUpper).toBe(100n); // unchanged
         expect(result.tickLower).toBe(-100n); // unchanged
         expect(result.lastUpdatedTimestamp).toBe(timestamp);
+        expect(mockContext.NonFungiblePositionSnapshot?.set).toHaveBeenCalled();
       });
     });
   });

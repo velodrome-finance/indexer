@@ -68,6 +68,7 @@ CLPool.Burn.handler(async ({ event, context }) => {
  * These events do not impact the pool's reserves in the perspective of actual liquidity available for swaps.
  */
 CLPool.Collect.handler(async ({ event, context }) => {
+  const timestamp = new Date(event.block.timestamp * 1000);
   const [poolData, userData] = await Promise.all([
     loadPoolData(
       event.srcAddress,
@@ -81,7 +82,7 @@ CLPool.Collect.handler(async ({ event, context }) => {
       event.srcAddress,
       event.chainId,
       context,
-      new Date(event.block.timestamp * 1000),
+      timestamp,
     ),
   ]);
 
@@ -96,8 +97,6 @@ CLPool.Collect.handler(async ({ event, context }) => {
 
   const poolDiff = result.liquidityPoolDiff;
   const userDiff = result.userLiquidityDiff;
-
-  const timestamp = new Date(event.block.timestamp * 1000);
 
   // Update pool and user entities
   await Promise.all([
