@@ -2,13 +2,11 @@ import type { PublicClient } from "viem";
 import { MockDb, NFPM } from "../../../generated/src/TestHelpers.gen";
 import {
   CHAIN_CONSTANTS,
+  CLPoolMintEventId,
   NonFungiblePositionId,
-  TokenIdByChain,
+  TokenId,
 } from "../../../src/Constants";
 import { setupCommon } from "../Pool/common";
-
-const TokenId = (chainId: number, tokenAddress: string) =>
-  TokenIdByChain(tokenAddress, chainId);
 
 describe("NFPM Events", () => {
   const {
@@ -42,7 +40,7 @@ describe("NFPM Events", () => {
     liquidity: 1000000000000000000n,
     mintTransactionHash: transactionHash,
     mintLogIndex: 42,
-    lastUpdatedTimestamp: new Date(),
+    lastUpdatedTimestamp: new Date(1000000 * 1000),
   };
 
   beforeEach(() => {
@@ -101,10 +99,15 @@ describe("NFPM Events", () => {
       // In this test, CLPool.Mint has logIndex 0, Transfer has logIndex 2
       const mintLogIndex = 0;
       const transferLogIndex = 2;
-      const stableId = `${chainId}_${poolAddress}_${tokenId}`;
+      const stableId = NonFungiblePositionId(chainId, poolAddress, tokenId);
 
       const mockCLPoolMintEvent = {
-        id: `${chainId}_${poolAddress}_${transactionHash}_${mintLogIndex}`,
+        id: CLPoolMintEventId(
+          chainId,
+          poolAddress,
+          transactionHash,
+          mintLogIndex,
+        ),
         chainId,
         pool: poolAddress,
         owner: "0x1111111111111111111111111111111111111111",
@@ -578,7 +581,7 @@ describe("NFPM Events", () => {
       liquidity: 1000000000000000000n,
       mintTransactionHash: transactionHash,
       mintLogIndex: 42,
-      lastUpdatedTimestamp: new Date(),
+      lastUpdatedTimestamp: new Date(1000000 * 1000),
     };
 
     // Position on Lisk (chain 1135) with same tokenId
@@ -595,14 +598,21 @@ describe("NFPM Events", () => {
       liquidity: 2000000000000000000n,
       mintTransactionHash: transactionHash,
       mintLogIndex: 42,
-      lastUpdatedTimestamp: new Date(),
+      lastUpdatedTimestamp: new Date(1000000 * 1000),
     };
 
     // Variables to hold mocks for verification
     let mockSimulateContractBase: jest.Mock;
     let mockSimulateContractLisk: jest.Mock;
 
+    let originalChainConstantsBase: (typeof CHAIN_CONSTANTS)[number];
+    let originalChainConstantsLisk: (typeof CHAIN_CONSTANTS)[number];
+
     beforeEach(() => {
+      // Store original values
+      originalChainConstantsBase = CHAIN_CONSTANTS[chainIdBase];
+      originalChainConstantsLisk = CHAIN_CONSTANTS[chainIdLisk];
+
       // Mock ethClient for Base chain - create fresh mocks for each test
       const Q96 = 2n ** 96n;
       const mockSqrtPriceX96 = Q96;
@@ -636,6 +646,25 @@ describe("NFPM Events", () => {
     });
 
     afterEach(() => {
+      // Restore original CHAIN_CONSTANTS
+      if (originalChainConstantsBase !== undefined) {
+        (CHAIN_CONSTANTS as Record<number, { eth_client: PublicClient }>)[
+          chainIdBase
+        ] = originalChainConstantsBase;
+      } else {
+        delete (
+          CHAIN_CONSTANTS as Record<number, { eth_client: PublicClient }>
+        )[chainIdBase];
+      }
+      if (originalChainConstantsLisk !== undefined) {
+        (CHAIN_CONSTANTS as Record<number, { eth_client: PublicClient }>)[
+          chainIdLisk
+        ] = originalChainConstantsLisk;
+      } else {
+        delete (
+          CHAIN_CONSTANTS as Record<number, { eth_client: PublicClient }>
+        )[chainIdLisk];
+      }
       jest.restoreAllMocks();
     });
 

@@ -10,7 +10,9 @@ import * as LiquidityPoolAggregatorModule from "../../../src/Aggregators/Liquidi
 import {
   CHAIN_CONSTANTS,
   PoolId,
-  TokenIdByChain,
+  RootPoolLeafPoolId,
+  TokenId,
+  UserStatsPerPoolId,
   VeNFTId,
   VeNFTPoolVoteId,
   toChecksumAddress,
@@ -131,7 +133,11 @@ describe("Voter Events", () => {
       });
 
       it("should update user stats per pool with voting data", () => {
-        const userStatsId = `${ownerAddress}_${poolAddress}_${chainId}`;
+        const userStatsId = UserStatsPerPoolId(
+          chainId,
+          ownerAddress,
+          poolAddress,
+        );
         const updatedUserStats =
           resultDB.entities.UserStatsPerPool.get(userStatsId);
         expect(updatedUserStats).toBeDefined();
@@ -142,7 +148,11 @@ describe("Voter Events", () => {
       });
 
       it("should attribute votes to tokenId owner, not voter", () => {
-        const voterStatsId = `${voterAddress}_${poolAddress}_${chainId}`;
+        const voterStatsId = UserStatsPerPoolId(
+          chainId,
+          voterAddress,
+          poolAddress,
+        );
         const voterStats = resultDB.entities.UserStatsPerPool.get(voterStatsId);
         expect(voterStats).toBeUndefined();
       });
@@ -215,12 +225,12 @@ describe("Voter Events", () => {
         // Create tokens for the leaf chain (chain 252)
         const leafToken0Data: Token = {
           ...mockToken0Data,
-          id: TokenIdByChain(mockToken0Data.address, leafChainId),
+          id: TokenId(leafChainId, mockToken0Data.address),
           chainId: leafChainId,
         };
         const leafToken1Data: Token = {
           ...mockToken1Data,
-          id: TokenIdByChain(mockToken1Data.address, leafChainId),
+          id: TokenId(leafChainId, mockToken1Data.address),
           chainId: leafChainId,
         };
 
@@ -252,7 +262,12 @@ describe("Voter Events", () => {
 
         // Create RootPool_LeafPool mapping
         const rootPoolLeafPool = {
-          id: `${rootPoolAddress}_${rootChainId}_${leafPoolAddress}_${leafChainId}`,
+          id: RootPoolLeafPoolId(
+            rootChainId,
+            leafChainId,
+            rootPoolAddress,
+            leafPoolAddress,
+          ),
           rootChainId: rootChainId,
           rootPoolAddress: rootPoolAddress,
           leafChainId: leafChainId,
@@ -303,7 +318,11 @@ describe("Voter Events", () => {
       });
 
       it("should update user stats per pool with voting data", () => {
-        const userStatsId = `${realVoterAddress}_${rootPoolAddress}_${rootChainId}`;
+        const userStatsId = UserStatsPerPoolId(
+          rootChainId,
+          realVoterAddress,
+          rootPoolAddress,
+        );
         const updatedUserStats =
           resultDB.entities.UserStatsPerPool.get(userStatsId);
         expect(updatedUserStats).toBeDefined();
@@ -410,7 +429,7 @@ describe("Voter Events", () => {
         });
 
         const updatedUserStats = dbAfterSecond.entities.UserStatsPerPool.get(
-          `${owner}_${poolAddress}_${chainId}`,
+          UserStatsPerPoolId(chainId, owner, poolAddress),
         );
         expect(updatedUserStats).toBeDefined();
         expect(updatedUserStats?.veNFTamountStaked).toBe(300n);
@@ -528,7 +547,11 @@ describe("Voter Events", () => {
       });
 
       it("should decrease user stats veNFT amount staked (negative weight)", () => {
-        const userStatsId = `${ownerAddress}_${poolAddress}_${chainId}`;
+        const userStatsId = UserStatsPerPoolId(
+          chainId,
+          ownerAddress,
+          poolAddress,
+        );
         const updatedUserStats =
           resultDB.entities.UserStatsPerPool.get(userStatsId);
         expect(updatedUserStats).toBeDefined();
@@ -600,12 +623,12 @@ describe("Voter Events", () => {
         // Create tokens for the leaf chain (chain 252)
         const leafToken0Data: Token = {
           ...mockToken0Data,
-          id: TokenIdByChain(mockToken0Data.address, leafChainId),
+          id: TokenId(leafChainId, mockToken0Data.address),
           chainId: leafChainId,
         };
         const leafToken1Data: Token = {
           ...mockToken1Data,
-          id: TokenIdByChain(mockToken1Data.address, leafChainId),
+          id: TokenId(leafChainId, mockToken1Data.address),
           chainId: leafChainId,
         };
 
@@ -645,7 +668,12 @@ describe("Voter Events", () => {
 
         // Create RootPool_LeafPool mapping
         const rootPoolLeafPool = {
-          id: `${rootPoolAddress}_${rootChainId}_${leafPoolAddress}_${leafChainId}`,
+          id: RootPoolLeafPoolId(
+            rootChainId,
+            leafChainId,
+            rootPoolAddress,
+            leafPoolAddress,
+          ),
           rootChainId: rootChainId,
           rootPoolAddress: rootPoolAddress,
           leafChainId: leafChainId,
@@ -699,7 +727,11 @@ describe("Voter Events", () => {
       });
 
       it("should decrease user stats veNFT amount staked (negative weight)", () => {
-        const userStatsId = `${realVoterAddress}_${rootPoolAddress}_${rootChainId}`;
+        const userStatsId = UserStatsPerPoolId(
+          rootChainId,
+          realVoterAddress,
+          rootPoolAddress,
+        );
         const updatedUserStats =
           resultDB.entities.UserStatsPerPool.get(userStatsId);
         expect(updatedUserStats).toBeDefined();
@@ -1082,7 +1114,7 @@ describe("Voter Events", () => {
         // Note token doesn't have lastUpdatedTimestamp due to bug in codegen.
         // Will cast during the set call.
         const token = {
-          id: TokenIdByChain("0x2222222222222222222222222222222222222222", 10),
+          id: TokenId(10, "0x2222222222222222222222222222222222222222"),
           address: "0x2222222222222222222222222222222222222222",
           symbol: "TEST",
           name: "TEST",
@@ -1099,15 +1131,12 @@ describe("Voter Events", () => {
           mockDb: updatedDB1,
         });
 
-        expectedId = TokenIdByChain(
-          "0x2222222222222222222222222222222222222222",
-          10,
-        );
+        expectedId = TokenId(10, "0x2222222222222222222222222222222222222222");
       });
 
       it("should update the token entity", async () => {
         const token = resultDB.entities.Token.get(
-          TokenIdByChain("0x2222222222222222222222222222222222222222", 10),
+          TokenId(10, "0x2222222222222222222222222222222222222222"),
         );
         expect(token?.id).toBe(expectedId);
         expect(token?.isWhitelisted).toBe(true);
@@ -1116,7 +1145,7 @@ describe("Voter Events", () => {
 
       it("should update lastUpdatedTimestamp when updating existing token", async () => {
         const token = resultDB.entities.Token.get(
-          TokenIdByChain("0x2222222222222222222222222222222222222222", 10),
+          TokenId(10, "0x2222222222222222222222222222222222222222"),
         );
         expect(token?.lastUpdatedTimestamp).toBeInstanceOf(Date);
         expect(token?.lastUpdatedTimestamp?.getTime()).toBe(
@@ -1133,15 +1162,12 @@ describe("Voter Events", () => {
           mockDb: mockDb,
         });
 
-        expectedId = TokenIdByChain(
-          "0x2222222222222222222222222222222222222222",
-          10,
-        );
+        expectedId = TokenId(10, "0x2222222222222222222222222222222222222222");
       });
 
       it("should create a new Token entity", async () => {
         const token = resultDB.entities.Token.get(
-          TokenIdByChain("0x2222222222222222222222222222222222222222", 10),
+          TokenId(10, "0x2222222222222222222222222222222222222222"),
         );
         expect(token?.id).toBe(expectedId);
         expect(token?.isWhitelisted).toBe(true);
@@ -1155,7 +1181,7 @@ describe("Voter Events", () => {
 
       it("should set lastUpdatedTimestamp when creating new token", async () => {
         const token = resultDB.entities.Token.get(
-          TokenIdByChain("0x2222222222222222222222222222222222222222", 10),
+          TokenId(10, "0x2222222222222222222222222222222222222222"),
         );
         expect(token?.lastUpdatedTimestamp).toBeInstanceOf(Date);
         expect(token?.lastUpdatedTimestamp?.getTime()).toBe(
@@ -1235,7 +1261,7 @@ describe("Voter Events", () => {
         } as LiquidityPoolAggregator;
 
         const rewardToken: Token = {
-          id: TokenIdByChain(rewardTokenAddress, chainId),
+          id: TokenId(chainId, rewardTokenAddress),
           address: rewardTokenAddress,
           symbol: "VELO",
           name: "VELO",

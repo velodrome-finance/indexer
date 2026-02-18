@@ -8,7 +8,7 @@ import {
   loadOrCreateUserData,
   updateUserStatsPerPool,
 } from "../Aggregators/UserStatsPerPool";
-import { OUSDT_ADDRESS } from "../Constants";
+import { CLPoolMintEventId, OUSDT_ADDRESS } from "../Constants";
 import { processCLPoolBurn } from "./CLPool/CLPoolBurnLogic";
 import { processCLPoolCollectFees } from "./CLPool/CLPoolCollectFeesLogic";
 import { processCLPoolCollect } from "./CLPool/CLPoolCollectLogic";
@@ -279,7 +279,12 @@ CLPool.Mint.handler(async ({ event, context }) => {
   );
 
   // Store CLPool.Mint data for NFPM.Transfer (mint) to consume and attribute UserStatsPerPool to event.params.to
-  const mintEventId = `${event.chainId}_${event.srcAddress}_${event.transaction.hash}_${event.logIndex}`;
+  const mintEventId = CLPoolMintEventId(
+    event.chainId,
+    event.srcAddress,
+    event.transaction.hash,
+    event.logIndex,
+  );
   context.CLPoolMintEvent.set({
     id: mintEventId,
     chainId: event.chainId,

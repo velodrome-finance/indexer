@@ -16,7 +16,7 @@ function getVeNFTStateStore(
 describe("VeNFTState", () => {
   let mockContext: Partial<handlerContext>;
   const mockVeNFTState: VeNFTState = {
-    id: "10_1",
+    id: VeNFTId(10, 1n),
     chainId: 10,
     tokenId: 1n,
     owner: "0x1111111111111111111111111111111111111111",
@@ -57,9 +57,9 @@ describe("VeNFTState", () => {
   });
 
   describe("VeNFTId", () => {
-    it("returns id in format chainId_tokenId", () => {
-      expect(VeNFTId(10, 1n)).toBe("10_1");
-      expect(VeNFTId(8453, 42n)).toBe("8453_42");
+    it("returns id in format chainId-tokenId", () => {
+      expect(VeNFTId(10, 1n)).toBe("10-1");
+      expect(VeNFTId(8453, 42n)).toBe("8453-42");
     });
   });
 
@@ -75,7 +75,7 @@ describe("VeNFTState", () => {
       );
 
       expect(result).toEqual(mockVeNFTState);
-      expect(store.get).toHaveBeenCalledWith("10_1");
+      expect(store.get).toHaveBeenCalledWith(VeNFTId(10, 1n));
     });
 
     it("returns undefined and logs warn when entity does not exist", async () => {
@@ -91,7 +91,7 @@ describe("VeNFTState", () => {
 
       expect(result).toBeUndefined();
       expect(mockContext.log?.warn).toHaveBeenCalledWith(
-        "[loadVeNFTState] VeNFTState 10_99 not found",
+        "[loadVeNFTState] VeNFTState 10-99 not found",
       );
     });
   });
@@ -207,7 +207,7 @@ describe("VeNFTState", () => {
       beforeEach(async () => {
         // Create a dummy empty VeNFTState to add to
         const emptyVeNFT: VeNFTState = {
-          id: "10_99",
+          id: "10-99",
           chainId: 10,
           tokenId: 99n,
           owner: "0x0000000000000000000000000000000000000000",

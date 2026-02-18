@@ -576,13 +576,13 @@ const SWELL_CONSTANTS: chainConstants = {
 };
 
 /**
- * Create a unique ID for a token on a specific chain. Really should only be used for Token Entities.
- * @param address
+ * Create a unique ID for a token on a specific chain. Should only be used for Token entities.
  * @param chainId
+ * @param address
  * @returns string Merged Token ID.
  */
-export const TokenIdByChain = (address: string, chainId: number) =>
-  `${address}-${chainId}`;
+export const TokenId = (chainId: number, address: string) =>
+  `${chainId}-${address}`;
 
 /**
  * Create a unique ID for a pool on a specific chain as used by LiquidityPoolAggregator.
@@ -593,85 +593,197 @@ export const TokenIdByChain = (address: string, chainId: number) =>
 export const PoolId = (chainId: number, pool: string) => `${chainId}-${pool}`;
 
 /** Entity ID for ALM_LP_Wrapper.
- * @param wrapperAddress - Address of the wrapper
- * @param chainId - Chain ID of the wrapper
+ * @param chainId
+ * @param wrapperAddress
  * @returns string Combined wrapper ID.
  */
-export const ALMLPWrapperId = (wrapperAddress: string, chainId: number) =>
-  `${wrapperAddress}_${chainId}`;
+export const ALMLPWrapperId = (chainId: number, wrapperAddress: string) =>
+  `${chainId}-${wrapperAddress}`;
 
 /** Entity ID for UserStatsPerPool.
- * @param userAddress - Address of the user
- * @param poolAddress - Address of the pool
- * @param chainId - Chain ID of the pool
+ * @param chainId
+ * @param userAddress
+ * @param poolAddress
  * @returns string Combined user ID.
  */
 export const UserStatsPerPoolId = (
+  chainId: number,
   userAddress: string,
   poolAddress: string,
-  chainId: number,
-) => `${userAddress}_${poolAddress}_${chainId}`;
+) => `${chainId}-${userAddress}-${poolAddress}`;
 
-/** Entity ID for VeNFTState. */
+/** Entity ID for VeNFTState.
+ * @param chainId
+ * @param tokenId
+ * @returns string Combined veNFT ID.
+ */
 export const VeNFTId = (chainId: number, tokenId: bigint) =>
-  `${chainId}_${tokenId}`;
+  `${chainId}-${tokenId}`;
 
 /** Entity ID for VeNFTPoolVote.
- * @param chainId - Chain ID of the veNFT
- * @param tokenId - ID of the veNFT
- * @param poolAddress - Address of the pool
+ * @param chainId
+ * @param tokenId
+ * @param poolAddress
  * @returns string Combined veNFT pool vote ID.
  */
 export const VeNFTPoolVoteId = (
   chainId: number,
   tokenId: bigint,
   poolAddress: string,
-) => `${chainId}_${tokenId}_${poolAddress}`;
+) => `${chainId}-${tokenId}-${poolAddress}`;
 
-/** Entity ID for RootPool_LeafPool. rootChainId defaults to 10 (Optimism).
- * @param rootPoolAddress - Address of the root pool
- * @param leafPoolAddress - Address of the leaf pool
- * @param leafChainId - Chain ID of the leaf pool
- * @param rootChainId - Chain ID of the root pool
+/** Entity ID for RootPool_LeafPool. rootChainId is typically 10 (Optimism).
+ * @param rootChainId
+ * @param leafChainId
+ * @param rootPoolAddress
+ * @param leafPoolAddress
  * @returns string Combined root pool leaf pool ID.
  */
 export const RootPoolLeafPoolId = (
+  rootChainId: number,
+  leafChainId: number,
   rootPoolAddress: string,
   leafPoolAddress: string,
-  leafChainId: number,
-  rootChainId = 10,
-) => `${rootPoolAddress}_${rootChainId}_${leafPoolAddress}_${leafChainId}`;
+) => `${rootChainId}-${leafChainId}-${rootPoolAddress}-${leafPoolAddress}`;
 
 /** Entity ID for FeeToTickSpacingMapping.
- * @param chainId - Chain ID of the fee to tick spacing mapping
- * @param tickSpacing - Tick spacing of the fee to tick spacing mapping
+ * @param chainId
+ * @param tickSpacing
  * @returns string Combined fee to tick spacing mapping ID.
  */
 export const FeeToTickSpacingMappingId = (
   chainId: number,
   tickSpacing: bigint | number,
-) => `${chainId}_${tickSpacing}`;
+) => `${chainId}-${tickSpacing}`;
 
-/** Entity ID for NonFungiblePosition (stable id: chainId_poolAddress_tokenId). */
+/** Entity ID for NonFungiblePosition (stable id: chainId-poolAddress-tokenId).
+ * @param chainId
+ * @param poolAddress
+ * @param tokenId
+ * @returns string Combined non fungible position ID.
+ */
 export const NonFungiblePositionId = (
   chainId: number,
   poolAddress: string,
   tokenId: bigint,
-) => `${chainId}_${poolAddress}_${tokenId}`;
+) => `${chainId}-${poolAddress}-${tokenId}`;
 
 /**
  * Create a unique ID for a token on a specific chain at a specific block. Really should only be used
  * for TokenPrice Entities.
- * @param address
  * @param chainId
+ * @param address
  * @param blockNumber
  * @returns string Merged Token ID.
  */
 export const TokenIdByBlock = (
-  address: string,
   chainId: number,
+  address: string,
   blockNumber: number,
 ) => `${chainId}-${address}-${blockNumber}`;
+
+/** Entity ID for PoolTransferInTx.
+ * @param chainId
+ * @param txHash
+ * @param poolAddress
+ * @param logIndex
+ */
+export const PoolTransferInTxId = (
+  chainId: number,
+  txHash: string,
+  poolAddress: string,
+  logIndex: number,
+) => `${chainId}-${txHash}-${poolAddress}-${logIndex}`;
+
+/** Entity ID for ALMLPWrapperTransferInTx.
+ * @param chainId
+ * @param txHash
+ * @param wrapperAddress
+ * @param logIndex
+ */
+export const ALMLPWrapperTransferInTxId = (
+  chainId: number,
+  txHash: string,
+  wrapperAddress: string,
+  logIndex: number,
+) => `${chainId}-${txHash}-${wrapperAddress}-${logIndex}`;
+
+/** Entity ID for CLPoolMintEvent.
+ * @param chainId
+ * @param poolAddress
+ * @param txHash
+ * @param logIndex
+ */
+export const CLPoolMintEventId = (
+  chainId: number,
+  poolAddress: string,
+  txHash: string,
+  logIndex: number,
+) => `${chainId}-${poolAddress}-${txHash}-${logIndex}`;
+
+/** Entity ID for LiquidityPoolAggregatorSnapshot.
+ * @param chainId
+ * @param poolAddress
+ * @param snapshotTime
+ */
+export const LiquidityPoolAggregatorSnapshotId = (
+  chainId: number,
+  poolAddress: string,
+  snapshotTime: number,
+) => `${chainId}-${poolAddress}-${snapshotTime}`;
+
+/** Entity ID for DispatchId_event and ProcessId_event (Mailbox events).
+ * @param transactionHash
+ * @param chainId
+ * @param messageId
+ */
+export const MailboxMessageId = (
+  transactionHash: string,
+  chainId: number,
+  messageId: string,
+) => `${transactionHash}-${chainId}-${messageId}`;
+
+/** Entity ID for OUSDTSwaps.
+ * @param transactionHash
+ * @param chainId
+ * @param tokenInPool
+ * @param amountIn
+ * @param tokenOutPool
+ * @param amountOut
+ */
+export const OUSDTSwapsId = (
+  transactionHash: string,
+  chainId: number,
+  tokenInPool: string,
+  amountIn: bigint,
+  tokenOutPool: string,
+  amountOut: bigint,
+) =>
+  `${transactionHash}-${chainId}-${tokenInPool}-${amountIn}-${tokenOutPool}-${amountOut}`;
+
+/** Entity ID for SuperSwap.
+ * @param transactionHash
+ * @param originChainId
+ * @param destinationDomain
+ * @param oUSDTamount
+ * @param messageId
+ * @param sourceChainToken
+ * @param sourceChainTokenAmountSwapped
+ * @param destinationChainToken
+ * @param destinationChainTokenAmountSwapped
+ */
+export const SuperSwapId = (
+  transactionHash: string,
+  originChainId: number,
+  destinationDomain: bigint,
+  oUSDTamount: bigint,
+  messageId: string,
+  sourceChainToken: string,
+  sourceChainTokenAmountSwapped: bigint,
+  destinationChainToken: string,
+  destinationChainTokenAmountSwapped: bigint,
+) =>
+  `${transactionHash}-${originChainId}-${destinationDomain}-${oUSDTamount}-${messageId}-${sourceChainToken}-${sourceChainTokenAmountSwapped}-${destinationChainToken}-${destinationChainTokenAmountSwapped}`;
 
 // Key is chain ID
 export const CHAIN_CONSTANTS: Record<number, chainConstants> = {

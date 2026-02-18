@@ -8,7 +8,7 @@ import {
   loadOrCreateUserData,
   updateUserStatsPerPool,
 } from "../../Aggregators/UserStatsPerPool";
-import { ZERO_ADDRESS } from "../../Constants";
+import { PoolTransferInTxId, ZERO_ADDRESS } from "../../Constants";
 
 /**
  * Update pool totalLPTokenSupply based on mint/burn transfers
@@ -185,7 +185,12 @@ export function storeTransferForMatching(
 ): void {
   // Only store mint/burn transfers (not regular transfers) to reduce storage
   if (isMint || isBurn) {
-    const transferId = `${chainId}-${txHash}-${poolAddress}-${logIndex}`;
+    const transferId = PoolTransferInTxId(
+      chainId,
+      txHash,
+      poolAddress,
+      logIndex,
+    );
     context.PoolTransferInTx.set({
       id: transferId,
       chainId: chainId,

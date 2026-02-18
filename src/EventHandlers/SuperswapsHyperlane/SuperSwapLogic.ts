@@ -6,7 +6,7 @@ import type {
   SuperSwap,
   handlerContext,
 } from "generated";
-import { OUSDT_ADDRESS } from "../../Constants";
+import { OUSDT_ADDRESS, SuperSwapId } from "../../Constants";
 
 /**
  * Builds a map from messageId to ProcessId event and collects unique destination transaction hashes.
@@ -174,15 +174,6 @@ export function findDestinationSwapWithOUSDT(
       continue;
     }
 
-    // Since we only store swaps involving oUSDT, take the first swap
-    // (all stored swaps should involve oUSDT, but verify for safety)
-    if (destinationSwaps.length === 0) {
-      context.log.warn(
-        `No destination chain swap with oUSDT found for transaction hash ${processIdEvent.transactionHash}`,
-      );
-      continue;
-    }
-
     const destinationChainSwapWithOUSDT = destinationSwaps[0];
 
     // Safety check: verify the swap involves oUSDT
@@ -249,7 +240,17 @@ export async function createSuperSwapEntity(
   blockTimestamp: number,
   context: handlerContext,
 ): Promise<void> {
-  const superSwapId = `${transactionHash}_${BigInt(chainId)}_${destinationDomain}_${bridgedTransaction.amount}_${messageId}_${sourceSwap.tokenInPool}_${sourceSwap.amountIn}_${sourceSwap.tokenOutPool}_${sourceSwap.amountOut}`;
+  const superSwapId = SuperSwapId(
+    transactionHash,
+    chainId,
+    destinationDomain,
+    bridgedTransaction.amount,
+    messageId,
+    sourceSwap.tokenInPool,
+    sourceSwap.amountIn,
+    sourceSwap.tokenOutPool,
+    sourceSwap.amountOut,
+  );
 
   // Check if SuperSwap already exists (idempotency check)
   const existingSuperSwap = await context.SuperSwap.get(superSwapId);

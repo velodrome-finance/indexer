@@ -8,7 +8,7 @@ import {
 import {
   PoolId,
   SUPERCHAIN_LEAF_VOTER_CLPOOLS_FACTORY_LIST,
-  TokenIdByChain,
+  TokenId,
 } from "../../Constants";
 import { getTokenDetails } from "../../Effects/Index";
 
@@ -123,7 +123,7 @@ SuperchainLeafVoter.GaugeRevived.handler(async ({ event, context }) => {
  */
 SuperchainLeafVoter.WhitelistToken.handler(async ({ event, context }) => {
   const token = await context.Token.get(
-    TokenIdByChain(event.params.token, event.chainId),
+    TokenId(event.chainId, event.params.token),
   );
 
   // Update the Token entity in the DB, either by updating the existing one or creating a new one
@@ -144,7 +144,7 @@ SuperchainLeafVoter.WhitelistToken.handler(async ({ event, context }) => {
       chainId: event.chainId,
     });
     const updatedToken: Token = {
-      id: TokenIdByChain(event.params.token, event.chainId),
+      id: TokenId(event.chainId, event.params.token),
       name: tokenDetails.name,
       symbol: tokenDetails.symbol,
       pricePerUSDNew: 0n,

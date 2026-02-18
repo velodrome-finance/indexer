@@ -8,7 +8,7 @@ import {
   loadOrCreateUserData,
   updateUserStatsPerPool,
 } from "../../Aggregators/UserStatsPerPool";
-import { CHAIN_CONSTANTS, TokenIdByChain } from "../../Constants";
+import { CHAIN_CONSTANTS, TokenId } from "../../Constants";
 import { calculateStakedLiquidityUSD, calculateTotalUSD } from "../../Helpers";
 
 export interface GaugeEventData {
@@ -235,7 +235,7 @@ export async function processGaugeClaimRewards(
       context,
       timestamp,
     ),
-    context.Token.get(TokenIdByChain(rewardTokenAddress, data.chainId)),
+    context.Token.get(TokenId(data.chainId, rewardTokenAddress)),
   ]);
 
   if (!poolData) {

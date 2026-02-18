@@ -8,7 +8,12 @@ import type {
   OUSDTSwaps,
   ProcessId_event,
 } from "../../../generated/src/Types.gen";
-import { OUSDT_ADDRESS } from "../../../src/Constants";
+import {
+  MailboxMessageId,
+  OUSDTSwapsId,
+  OUSDT_ADDRESS,
+  SuperSwapId,
+} from "../../../src/Constants";
 
 describe("VelodromeUniversalRouter Event Handlers", () => {
   const chainId = 10; // Optimism
@@ -168,7 +173,7 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
 
       // Create DispatchId event
       const dispatchIdEvent: DispatchId_event = {
-        id: `${transactionHash}_${chainId}_${messageId}`,
+        id: MailboxMessageId(transactionHash, chainId, messageId),
         chainId: chainId,
         transactionHash: transactionHash,
         messageId: messageId,
@@ -176,7 +181,7 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
 
       // Create ProcessId event
       const processIdEvent: ProcessId_event = {
-        id: `${destinationTxHash}_${destinationDomain}_${messageId}`,
+        id: MailboxMessageId(destinationTxHash, destinationDomain, messageId),
         chainId: Number(destinationDomain),
         transactionHash: destinationTxHash,
         messageId: messageId,
@@ -184,7 +189,14 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
 
       // Create source chain oUSDTSwap entity (for transactionHash)
       const sourceSwapEvent: OUSDTSwaps = {
-        id: `${transactionHash}_${chainId}_${tokenInAddress}_1000_${OUSDT_ADDRESS}_${existingBridgedTransaction.amount}`,
+        id: OUSDTSwapsId(
+          transactionHash,
+          chainId,
+          tokenInAddress,
+          1000n,
+          OUSDT_ADDRESS,
+          existingBridgedTransaction.amount,
+        ),
         transactionHash: transactionHash,
         tokenInPool: tokenInAddress,
         tokenOutPool: OUSDT_ADDRESS,
@@ -194,7 +206,14 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
 
       // Create destination chain oUSDTSwap entity (for destinationTxHash)
       const destinationSwapEvent: OUSDTSwaps = {
-        id: `${destinationTxHash}_${destinationDomain}_${OUSDT_ADDRESS}_${existingBridgedTransaction.amount}_${tokenOutAddress}_950`,
+        id: OUSDTSwapsId(
+          destinationTxHash,
+          destinationDomain,
+          OUSDT_ADDRESS,
+          existingBridgedTransaction.amount,
+          tokenOutAddress,
+          950n,
+        ),
         transactionHash: destinationTxHash,
         tokenInPool: OUSDT_ADDRESS,
         tokenOutPool: tokenOutAddress,
@@ -298,7 +317,17 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
       );
 
       // New ID format includes messageId and source swap-specific data
-      const expectedSuperSwapId = `${transactionHash}_${BigInt(chainId)}_${destinationDomain}_${existingBridgedTransaction.amount}_${messageId}_${sourceSwapEvent.tokenInPool}_${sourceSwapEvent.amountIn}_${sourceSwapEvent.tokenOutPool}_${sourceSwapEvent.amountOut}`;
+      const expectedSuperSwapId = SuperSwapId(
+        transactionHash,
+        chainId,
+        BigInt(destinationDomain),
+        existingBridgedTransaction.amount,
+        messageId,
+        sourceSwapEvent.tokenInPool,
+        sourceSwapEvent.amountIn,
+        sourceSwapEvent.tokenOutPool,
+        sourceSwapEvent.amountOut,
+      );
       const superSwap = result.entities.SuperSwap.get(expectedSuperSwapId);
 
       expect(superSwap).toBeDefined();
@@ -371,11 +400,8 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
         },
       );
 
-      const expectedSuperSwapId = `${transactionHash}_${chainId}_${destinationDomain}_1000`;
-      const superSwap = result.entities.SuperSwap.get(expectedSuperSwapId);
-
       // Verify that no SuperSwap was created when no bridged transaction exists
-      expect(superSwap).toBeUndefined();
+      expect(Array.from(result.entities.SuperSwap.getAll())).toHaveLength(0);
     });
 
     it("should not create SuperSwap when no DispatchId events exist", async () => {
@@ -451,10 +477,8 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
         },
       );
 
-      const expectedSuperSwapId = `${transactionHash}_${chainId}_${destinationDomain}_${existingBridgedTransaction.amount}`;
-      const superSwap = result.entities.SuperSwap.get(expectedSuperSwapId);
-
-      expect(superSwap).toBeUndefined();
+      // Verify that no SuperSwap was created when no DispatchId events exist
+      expect(Array.from(result.entities.SuperSwap.getAll())).toHaveLength(0);
     });
 
     it("should use the first bridged transaction when multiple exist", async () => {
@@ -484,14 +508,14 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
       };
 
       const dispatchIdEvent: DispatchId_event = {
-        id: `${transactionHash}_${chainId}_${messageId}`,
+        id: MailboxMessageId(transactionHash, chainId, messageId),
         chainId: chainId,
         transactionHash: transactionHash,
         messageId: messageId,
       };
 
       const processIdEvent: ProcessId_event = {
-        id: `${destinationTxHash}_${destinationDomain}_${messageId}`,
+        id: MailboxMessageId(destinationTxHash, destinationDomain, messageId),
         chainId: Number(destinationDomain),
         transactionHash: destinationTxHash,
         messageId: messageId,
@@ -499,7 +523,14 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
 
       // Create source chain oUSDTSwap entity (for transactionHash)
       const sourceSwapEvent: OUSDTSwaps = {
-        id: `${transactionHash}_${chainId}_${tokenInAddress}_1000_${OUSDT_ADDRESS}_${bridgedTransaction1.amount}`,
+        id: OUSDTSwapsId(
+          transactionHash,
+          chainId,
+          tokenInAddress,
+          1000n,
+          OUSDT_ADDRESS,
+          bridgedTransaction1.amount,
+        ),
         transactionHash: transactionHash,
         tokenInPool: tokenInAddress,
         tokenOutPool: OUSDT_ADDRESS,
@@ -509,7 +540,14 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
 
       // Create destination chain oUSDTSwap entity (for destinationTxHash)
       const destinationSwapEvent: OUSDTSwaps = {
-        id: `${destinationTxHash}_${destinationDomain}_${OUSDT_ADDRESS}_${bridgedTransaction1.amount}_${tokenOutAddress}_950`,
+        id: OUSDTSwapsId(
+          destinationTxHash,
+          destinationDomain,
+          OUSDT_ADDRESS,
+          bridgedTransaction1.amount,
+          tokenOutAddress,
+          950n,
+        ),
         transactionHash: destinationTxHash,
         tokenInPool: OUSDT_ADDRESS,
         tokenOutPool: tokenOutAddress,
@@ -613,7 +651,17 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
       );
 
       // New ID format includes messageId and source swap-specific data
-      const expectedSuperSwapId = `${transactionHash}_${BigInt(chainId)}_${destinationDomain}_${bridgedTransaction1.amount}_${messageId}_${sourceSwapEvent.tokenInPool}_${sourceSwapEvent.amountIn}_${sourceSwapEvent.tokenOutPool}_${sourceSwapEvent.amountOut}`;
+      const expectedSuperSwapId = SuperSwapId(
+        transactionHash,
+        chainId,
+        BigInt(destinationDomain),
+        bridgedTransaction1.amount,
+        messageId,
+        sourceSwapEvent.tokenInPool,
+        sourceSwapEvent.amountIn,
+        sourceSwapEvent.tokenOutPool,
+        sourceSwapEvent.amountOut,
+      );
       const superSwap = result.entities.SuperSwap.get(expectedSuperSwapId);
 
       expect(superSwap).toBeDefined();

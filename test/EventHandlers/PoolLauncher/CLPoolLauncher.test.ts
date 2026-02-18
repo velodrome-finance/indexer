@@ -4,7 +4,7 @@ import type {
   PoolLauncherPool,
   Token,
 } from "generated/src/Types.gen";
-import { PoolId, toChecksumAddress } from "../../../src/Constants";
+import { PoolId, TokenId, toChecksumAddress } from "../../../src/Constants";
 import { setupCommon } from "../Pool/common";
 
 describe("CLPoolLauncher Events", () => {
@@ -31,7 +31,7 @@ describe("CLPoolLauncher Events", () => {
 
   const mockToken0: Token = {
     ...mockToken0Data,
-    id: "0x6666666666666666666666666666666666666666-10",
+    id: TokenId(mockChainId, "0x6666666666666666666666666666666666666666"),
     address: toChecksumAddress("0x6666666666666666666666666666666666666666"),
     symbol: "USDC",
     name: "USD Coin",
@@ -44,7 +44,7 @@ describe("CLPoolLauncher Events", () => {
 
   const mockToken1: Token = {
     ...mockToken1Data,
-    id: "0x7777777777777777777777777777777777777777-10",
+    id: TokenId(mockChainId, "0x7777777777777777777777777777777777777777"),
     address: toChecksumAddress("0x7777777777777777777777777777777777777777"),
     symbol: "USDT",
     name: "Tether USD",
@@ -100,7 +100,7 @@ describe("CLPoolLauncher Events", () => {
 
       // Check that PoolLauncherPool was created
       const poolLauncherPool = result.entities.PoolLauncherPool.get(
-        `${mockChainId}-${mockPoolAddress}`,
+        PoolId(mockChainId, mockPoolAddress),
       );
       expect(poolLauncherPool).toBeDefined();
       expect(poolLauncherPool?.underlyingPool).toBe(mockPoolAddress);
@@ -117,7 +117,7 @@ describe("CLPoolLauncher Events", () => {
         );
       expect(liquidityPoolAggregator).toBeDefined();
       expect(liquidityPoolAggregator?.poolLauncherPoolId).toBe(
-        `${mockChainId}-${mockPoolAddress}`,
+        PoolId(mockChainId, mockPoolAddress),
       );
     });
   });
@@ -139,7 +139,7 @@ describe("CLPoolLauncher Events", () => {
 
       // Create existing PoolLauncherPool
       const existingPoolLauncherPool: PoolLauncherPool = {
-        id: `${mockChainId}-${underlyingPool}`,
+        id: PoolId(mockChainId, underlyingPool),
         underlyingPool,
         launcher: mockLauncherAddress,
         creator: mockCreator,
@@ -184,7 +184,7 @@ describe("CLPoolLauncher Events", () => {
 
       // Check that original PoolLauncherPool was updated with migration info
       const originalPoolLauncherPool = result.entities.PoolLauncherPool.get(
-        `${mockChainId}-${underlyingPool}`,
+        PoolId(mockChainId, underlyingPool),
       );
       expect(originalPoolLauncherPool).toBeDefined();
       expect(originalPoolLauncherPool?.migratedTo).toBe(newPoolAddress);
@@ -194,7 +194,7 @@ describe("CLPoolLauncher Events", () => {
 
       // Check that new PoolLauncherPool was created
       const newPoolLauncherPool = result.entities.PoolLauncherPool.get(
-        `${mockChainId}-${newPoolAddress}`,
+        PoolId(mockChainId, newPoolAddress),
       );
       expect(newPoolLauncherPool).toBeDefined();
       expect(newPoolLauncherPool?.underlyingPool).toBe(newPoolAddress);
@@ -245,12 +245,12 @@ describe("CLPoolLauncher Events", () => {
 
       // Should not create any PoolLauncherPool entities since original doesn't exist
       const originalPoolLauncherPool = result.entities.PoolLauncherPool.get(
-        `${mockChainId}-${underlyingPool}`,
+        PoolId(mockChainId, underlyingPool),
       );
       expect(originalPoolLauncherPool).toBeUndefined();
 
       const newPoolLauncherPool = result.entities.PoolLauncherPool.get(
-        `${mockChainId}-${newPoolAddress}`,
+        PoolId(mockChainId, newPoolAddress),
       );
       expect(newPoolLauncherPool).toBeUndefined();
     });
@@ -259,7 +259,7 @@ describe("CLPoolLauncher Events", () => {
   describe("CLPoolLauncher.EmergingFlagged", () => {
     it("should flag existing PoolLauncherPool as emerging", async () => {
       const existingPoolLauncherPool: PoolLauncherPool = {
-        id: `${mockChainId}-${mockPoolAddress}`,
+        id: PoolId(mockChainId, mockPoolAddress),
         underlyingPool: mockPoolAddress,
         launcher: mockLauncherAddress,
         creator: mockCreator,
@@ -295,7 +295,7 @@ describe("CLPoolLauncher Events", () => {
       });
 
       const poolLauncherPool = result.entities.PoolLauncherPool.get(
-        `${mockChainId}-${mockPoolAddress}`,
+        PoolId(mockChainId, mockPoolAddress),
       );
       expect(poolLauncherPool).toBeDefined();
       expect(poolLauncherPool?.isEmerging).toBe(true);
@@ -321,7 +321,7 @@ describe("CLPoolLauncher Events", () => {
 
       // Should not create any PoolLauncherPool entities
       const poolLauncherPool = result.entities.PoolLauncherPool.get(
-        `${mockChainId}-${mockPoolAddress}`,
+        PoolId(mockChainId, mockPoolAddress),
       );
       expect(poolLauncherPool).toBeUndefined();
     });
@@ -330,7 +330,7 @@ describe("CLPoolLauncher Events", () => {
   describe("CLPoolLauncher.EmergingUnflagged", () => {
     it("should unflag existing PoolLauncherPool as emerging", async () => {
       const existingPoolLauncherPool: PoolLauncherPool = {
-        id: `${mockChainId}-${mockPoolAddress}`,
+        id: PoolId(mockChainId, mockPoolAddress),
         underlyingPool: mockPoolAddress,
         launcher: mockLauncherAddress,
         creator: mockCreator,
@@ -366,7 +366,7 @@ describe("CLPoolLauncher Events", () => {
       });
 
       const poolLauncherPool = result.entities.PoolLauncherPool.get(
-        `${mockChainId}-${mockPoolAddress}`,
+        PoolId(mockChainId, mockPoolAddress),
       );
       expect(poolLauncherPool).toBeDefined();
       expect(poolLauncherPool?.isEmerging).toBe(false);
@@ -392,7 +392,7 @@ describe("CLPoolLauncher Events", () => {
 
       // Should not create any PoolLauncherPool entities
       const poolLauncherPool = result.entities.PoolLauncherPool.get(
-        `${mockChainId}-${mockPoolAddress}`,
+        PoolId(mockChainId, mockPoolAddress),
       );
       expect(poolLauncherPool).toBeUndefined();
     });
@@ -401,7 +401,7 @@ describe("CLPoolLauncher Events", () => {
   describe("CLPoolLauncher.CreationTimestampSet", () => {
     it("should update creation timestamp for existing PoolLauncherPool", async () => {
       const existingPoolLauncherPool: PoolLauncherPool = {
-        id: `${mockChainId}-${mockPoolAddress}`,
+        id: PoolId(mockChainId, mockPoolAddress),
         underlyingPool: mockPoolAddress,
         launcher: mockLauncherAddress,
         creator: mockCreator,
@@ -439,7 +439,7 @@ describe("CLPoolLauncher Events", () => {
       });
 
       const poolLauncherPool = result.entities.PoolLauncherPool.get(
-        `${mockChainId}-${mockPoolAddress}`,
+        PoolId(mockChainId, mockPoolAddress),
       );
       expect(poolLauncherPool).toBeDefined();
       expect(poolLauncherPool?.createdAt).toEqual(
@@ -468,7 +468,7 @@ describe("CLPoolLauncher Events", () => {
 
       // Should not create any PoolLauncherPool entities
       const poolLauncherPool = result.entities.PoolLauncherPool.get(
-        `${mockChainId}-${mockPoolAddress}`,
+        PoolId(mockChainId, mockPoolAddress),
       );
       expect(poolLauncherPool).toBeUndefined();
     });
@@ -479,7 +479,7 @@ describe("CLPoolLauncher Events", () => {
       const tokenAddress = toChecksumAddress(
         "0x8888888888888888888888888888888888888888",
       );
-      const configId = `${mockChainId}-${mockLauncherAddress}`;
+      const configId = PoolId(mockChainId, mockLauncherAddress);
 
       const mockEvent = CLPoolLauncher.PairableTokenAdded.createMockEvent({
         token: tokenAddress,
@@ -512,7 +512,7 @@ describe("CLPoolLauncher Events", () => {
       const newToken = toChecksumAddress(
         "0x2222222222222222222222222222222222222222",
       );
-      const configId = `${mockChainId}-${mockLauncherAddress}`;
+      const configId = PoolId(mockChainId, mockLauncherAddress);
 
       // Set up existing config
       const existingConfig = {
@@ -550,7 +550,7 @@ describe("CLPoolLauncher Events", () => {
       const tokenAddress = toChecksumAddress(
         "0x8888888888888888888888888888888888888888",
       );
-      const configId = `${mockChainId}-${mockLauncherAddress}`;
+      const configId = PoolId(mockChainId, mockLauncherAddress);
 
       // Set up existing config with the same token
       const existingConfig = {
@@ -591,7 +591,7 @@ describe("CLPoolLauncher Events", () => {
       const remainingToken = toChecksumAddress(
         "0x1111111111111111111111111111111111111111",
       );
-      const configId = `${mockChainId}-${mockLauncherAddress}`;
+      const configId = PoolId(mockChainId, mockLauncherAddress);
 
       // Set up existing config with multiple tokens
       const existingConfig = {
@@ -629,7 +629,7 @@ describe("CLPoolLauncher Events", () => {
       const tokenAddress = toChecksumAddress(
         "0x8888888888888888888888888888888888888888",
       );
-      const configId = `${mockChainId}-${mockLauncherAddress}`;
+      const configId = PoolId(mockChainId, mockLauncherAddress);
 
       const mockEvent = CLPoolLauncher.PairableTokenRemoved.createMockEvent({
         token: tokenAddress,
@@ -659,7 +659,7 @@ describe("CLPoolLauncher Events", () => {
       const nonExistentToken = toChecksumAddress(
         "0x8888888888888888888888888888888888888888",
       );
-      const configId = `${mockChainId}-${mockLauncherAddress}`;
+      const configId = PoolId(mockChainId, mockLauncherAddress);
 
       // Set up existing config
       const existingConfig = {
@@ -696,8 +696,8 @@ describe("CLPoolLauncher Events", () => {
     const newPoolLauncher = toChecksumAddress(
       "0x8888888888888888888888888888888888888888",
     );
-    const oldConfigId = `${mockChainId}-${mockLauncherAddress}`;
-    const newConfigId = `${mockChainId}-${newPoolLauncher}`;
+    const oldConfigId = PoolId(mockChainId, mockLauncherAddress);
+    const newConfigId = PoolId(mockChainId, newPoolLauncher);
 
     it("should update PoolLauncherConfig ID when pool launcher changes", async () => {
       // Set up existing config

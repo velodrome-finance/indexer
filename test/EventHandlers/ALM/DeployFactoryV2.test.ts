@@ -3,7 +3,11 @@ import {
   MockDb,
 } from "../../../generated/src/TestHelpers.gen";
 import type { NonFungiblePosition } from "../../../generated/src/Types.gen";
-import { toChecksumAddress } from "../../../src/Constants";
+import {
+  ALMLPWrapperId,
+  NonFungiblePositionId,
+  toChecksumAddress,
+} from "../../../src/Constants";
 import {
   extendMockDbWithGetWhere,
   setupLiquidityPoolAggregator,
@@ -15,8 +19,12 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
     setupCommon();
   const chainId = mockLiquidityPoolData.chainId;
   const poolAddress = mockLiquidityPoolData.poolAddress;
-  const lpWrapperAddress = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-  const callerAddress = "0xcccccccccccccccccccccccccccccccccccccccc";
+  const lpWrapperAddress = toChecksumAddress(
+    "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  );
+  const callerAddress = toChecksumAddress(
+    "0xcccccccccccccccccccccccccccccccccccccccc",
+  );
   const transactionHash =
     "0x1234567890123456789012345678901234567890123456789012345678901234";
   const blockTimestamp = 1000000;
@@ -45,7 +53,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
 
       // Pre-populate with NonFungiblePosition (created by CLPool handlers)
       const mockNFPM: NonFungiblePosition = {
-        id: `${chainId}_${tokenId}`,
+        id: NonFungiblePositionId(chainId, poolAddress, tokenId),
         chainId,
         tokenId,
         owner: callerAddress,
@@ -68,7 +76,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
       );
 
       // Pre-populate with TotalSupplyLimitUpdated event
-      const totalSupplyEventId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
+      const totalSupplyEventId = ALMLPWrapperId(chainId, lpWrapperAddress);
       mockDb = mockDb.entities.ALM_TotalSupplyLimitUpdated_event.set({
         id: totalSupplyEventId,
         lpWrapperAddress: toChecksumAddress(lpWrapperAddress),
@@ -127,13 +135,13 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
         mockDb: mockDbWithGetWhere as typeof mockDb,
       });
 
-      const wrapperId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
+      const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
       const createdWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
 
       expect(createdWrapper).toBeDefined();
       expect(createdWrapper?.id).toBe(wrapperId);
       expect(createdWrapper?.chainId).toBe(chainId);
-      expect(createdWrapper?.pool).toBe(toChecksumAddress(poolAddress));
+      expect(createdWrapper?.pool).toBe(poolAddress);
       expect(createdWrapper?.token0).toBe(mockToken0Data.address);
       expect(createdWrapper?.token1).toBe(mockToken1Data.address);
 
@@ -200,7 +208,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
       });
 
       // Verify that no wrapper was created
-      const wrapperId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
+      const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
       const createdWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
       expect(createdWrapper).toBeUndefined();
     });
@@ -241,7 +249,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
       });
 
       // Verify that no wrapper was created
-      const wrapperId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
+      const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
       const createdWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
       expect(createdWrapper).toBeUndefined();
     });
@@ -283,7 +291,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
       });
 
       // Verify that no wrapper was created
-      const wrapperId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
+      const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
       const createdWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
       expect(createdWrapper).toBeUndefined();
     });
@@ -293,7 +301,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
 
       // Create multiple NonFungiblePositions with same transaction hash but different properties
       const matchingNFPM: NonFungiblePosition = {
-        id: `${chainId}_${tokenId}`,
+        id: NonFungiblePositionId(chainId, poolAddress, tokenId),
         chainId,
         tokenId,
         owner: callerAddress,
@@ -310,7 +318,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
 
       const nonMatchingNFPM1: NonFungiblePosition = {
         ...matchingNFPM,
-        id: `${chainId}_${tokenId + 1n}`,
+        id: NonFungiblePositionId(chainId, poolAddress, tokenId + 1n),
         tokenId: tokenId + 1n,
         tickLower: -2000n, // Different tickLower
         mintTransactionHash: transactionHash,
@@ -318,7 +326,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
 
       const nonMatchingNFPM2: NonFungiblePosition = {
         ...matchingNFPM,
-        id: `${chainId}_${tokenId + 2n}`,
+        id: NonFungiblePositionId(chainId, poolAddress, tokenId + 2n),
         tokenId: tokenId + 2n,
         liquidity: 2000000n, // Different liquidity
         mintTransactionHash: transactionHash,
@@ -334,7 +342,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
       );
 
       // Pre-populate with TotalSupplyLimitUpdated event
-      const totalSupplyEventId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
+      const totalSupplyEventId = ALMLPWrapperId(chainId, lpWrapperAddress);
       mockDb = mockDb.entities.ALM_TotalSupplyLimitUpdated_event.set({
         id: totalSupplyEventId,
         lpWrapperAddress: toChecksumAddress(lpWrapperAddress),
@@ -392,7 +400,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
         mockDb: mockDbWithGetWhere as typeof mockDb,
       });
 
-      const wrapperId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
+      const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
       const createdWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
 
       expect(createdWrapper).toBeDefined();
@@ -407,7 +415,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
 
       // Create NonFungiblePosition with matching properties except token0
       const nonMatchingNFPM: NonFungiblePosition = {
-        id: `${chainId}_${tokenId}`,
+        id: NonFungiblePositionId(chainId, poolAddress, tokenId),
         chainId,
         tokenId,
         owner: callerAddress,
@@ -455,7 +463,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
       });
 
       // Verify that no wrapper was created (filter should exclude this NFPM)
-      const wrapperId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
+      const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
       const createdWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
       expect(createdWrapper).toBeUndefined();
     });
@@ -465,7 +473,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
 
       // Create NonFungiblePosition with matching properties except token1
       const nonMatchingNFPM: NonFungiblePosition = {
-        id: `${chainId}_${tokenId}`,
+        id: NonFungiblePositionId(chainId, poolAddress, tokenId),
         chainId,
         tokenId,
         owner: callerAddress,
@@ -513,7 +521,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
       });
 
       // Verify that no wrapper was created (filter should exclude this NFPM)
-      const wrapperId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
+      const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
       const createdWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
       expect(createdWrapper).toBeUndefined();
     });
@@ -523,7 +531,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
 
       // Create NonFungiblePosition with matching tickLower but different tickUpper
       const nonMatchingNFPM: NonFungiblePosition = {
-        id: `${chainId}_${tokenId}`,
+        id: NonFungiblePositionId(chainId, poolAddress, tokenId),
         chainId,
         tokenId,
         owner: callerAddress,
@@ -571,7 +579,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
       });
 
       // Verify that no wrapper was created (filter should exclude this NFPM)
-      const wrapperId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
+      const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
       const createdWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
       expect(createdWrapper).toBeUndefined();
     });
@@ -581,7 +589,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
 
       // Pre-populate with NonFungiblePosition but NOT TotalSupplyLimitUpdated event
       const mockNFPM: NonFungiblePosition = {
-        id: `${chainId}_${tokenId}`,
+        id: NonFungiblePositionId(chainId, poolAddress, tokenId),
         chainId,
         tokenId,
         owner: callerAddress,
@@ -629,7 +637,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
       });
 
       // Verify that no wrapper was created
-      const wrapperId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
+      const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
       const createdWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
       expect(createdWrapper).toBeUndefined();
     });
@@ -639,7 +647,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
 
       // Pre-populate with NonFungiblePosition
       const mockNFPM: NonFungiblePosition = {
-        id: `${chainId}_${tokenId}`,
+        id: NonFungiblePositionId(chainId, poolAddress, tokenId),
         chainId,
         tokenId,
         owner: callerAddress,
@@ -658,7 +666,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
 
       // Pre-populate with TotalSupplyLimitUpdated event but with different transaction hash
       // This tests the second part of the OR condition: event exists but hash doesn't match
-      const totalSupplyEventId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
+      const totalSupplyEventId = ALMLPWrapperId(chainId, lpWrapperAddress);
       mockDb = mockDb.entities.ALM_TotalSupplyLimitUpdated_event.set({
         id: totalSupplyEventId,
         lpWrapperAddress: toChecksumAddress(lpWrapperAddress),
@@ -697,7 +705,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
       });
 
       // Verify that no wrapper was created
-      const wrapperId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
+      const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
       const createdWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
       expect(createdWrapper).toBeUndefined();
     });
@@ -707,7 +715,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
 
       // Create two NonFungiblePositions with identical matching properties
       const matchingNFPM1: NonFungiblePosition = {
-        id: `${chainId}_${tokenId}`,
+        id: NonFungiblePositionId(chainId, poolAddress, tokenId),
         chainId,
         tokenId,
         owner: callerAddress,
@@ -724,7 +732,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
 
       const matchingNFPM2: NonFungiblePosition = {
         ...matchingNFPM1,
-        id: `${chainId}_${poolAddress}_${tokenId + 1n}`,
+        id: NonFungiblePositionId(chainId, poolAddress, tokenId + 1n),
         tokenId: tokenId + 1n,
         mintLogIndex: 2,
       };
@@ -738,7 +746,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
       );
 
       // Pre-populate with TotalSupplyLimitUpdated event
-      const totalSupplyEventId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
+      const totalSupplyEventId = ALMLPWrapperId(chainId, lpWrapperAddress);
       mockDb = mockDb.entities.ALM_TotalSupplyLimitUpdated_event.set({
         id: totalSupplyEventId,
         lpWrapperAddress: toChecksumAddress(lpWrapperAddress),
@@ -776,7 +784,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
         mockDb: mockDbWithGetWhere as typeof mockDb,
       });
 
-      const wrapperId = `${toChecksumAddress(lpWrapperAddress)}_${chainId}`;
+      const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
       const createdWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
 
       expect(createdWrapper).toBeDefined();

@@ -8,7 +8,11 @@ import {
   type PoolData,
   loadPoolData,
 } from "../../../src/Aggregators/LiquidityPoolAggregator";
-import { toChecksumAddress } from "../../../src/Constants";
+import {
+  CLPoolMintEventId,
+  NonFungiblePositionId,
+  toChecksumAddress,
+} from "../../../src/Constants";
 import {
   LiquidityChangeType,
   attributeLiquidityChangeToUserStatsPerPool,
@@ -50,7 +54,7 @@ describe("NFPMIncreaseLiquidityLogic", () => {
   );
 
   const mockPosition: NonFungiblePosition = {
-    id: `${chainId}_${poolAddress}_${tokenId}`,
+    id: NonFungiblePositionId(chainId, poolAddress, tokenId),
     chainId: chainId,
     tokenId: tokenId,
     owner: ownerAddress,
@@ -294,7 +298,12 @@ describe("NFPMIncreaseLiquidityLogic", () => {
 
       // Create a CLPoolMintEvent that matches the increase (should be deleted)
       const mockMintEvent: CLPoolMintEvent = {
-        id: `${chainId}_${poolAddress}_${transactionHash}_${increaseLogIndex - 1}`,
+        id: CLPoolMintEventId(
+          chainId,
+          poolAddress,
+          transactionHash,
+          increaseLogIndex - 1,
+        ),
         chainId: chainId,
         pool: poolAddress,
         owner: mockPosition.owner,
@@ -349,7 +358,7 @@ describe("NFPMIncreaseLiquidityLogic", () => {
       // Create multiple CLPoolMintEvents that all match the criteria
       // They have different logIndexes but all match pool, ticks, and liquidity
       const mockMintEvent1: CLPoolMintEvent = {
-        id: `${chainId}_${poolAddress}_${transactionHash}_5`,
+        id: CLPoolMintEventId(chainId, poolAddress, transactionHash, 5),
         chainId: chainId,
         pool: poolAddress,
         owner: mockPosition.owner,
@@ -367,7 +376,7 @@ describe("NFPMIncreaseLiquidityLogic", () => {
       };
 
       const mockMintEvent2: CLPoolMintEvent = {
-        id: `${chainId}_${poolAddress}_${transactionHash}_10`,
+        id: CLPoolMintEventId(chainId, poolAddress, transactionHash, 10),
         chainId: chainId,
         pool: poolAddress,
         owner: mockPosition.owner,
@@ -385,7 +394,7 @@ describe("NFPMIncreaseLiquidityLogic", () => {
       };
 
       const mockMintEvent3: CLPoolMintEvent = {
-        id: `${chainId}_${poolAddress}_${transactionHash}_8`,
+        id: CLPoolMintEventId(chainId, poolAddress, transactionHash, 8),
         chainId: chainId,
         pool: poolAddress,
         owner: mockPosition.owner,

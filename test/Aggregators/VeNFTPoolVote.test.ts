@@ -5,7 +5,7 @@ import {
   loadVeNFTPoolVote,
   updateVeNFTPoolVote,
 } from "../../src/Aggregators/VeNFTPoolVote";
-import { VeNFTPoolVoteId } from "../../src/Constants";
+import { VeNFTId, VeNFTPoolVoteId } from "../../src/Constants";
 
 function getVeNFTPoolVoteStore(
   ctx: Partial<handlerContext>,
@@ -21,7 +21,7 @@ describe("VeNFTPoolVote", () => {
   const poolAddress = "0x3333333333333333333333333333333333333333";
 
   const mockVeNFTState: VeNFTState = {
-    id: `${chainId}_${tokenId}`,
+    id: VeNFTId(chainId, tokenId),
     chainId,
     tokenId,
     owner: "0x1111111111111111111111111111111111111111",
@@ -72,9 +72,9 @@ describe("VeNFTPoolVote", () => {
   });
 
   describe("VeNFTPoolVoteId", () => {
-    it("returns id in format chainId_tokenId_poolAddress", () => {
-      expect(VeNFTPoolVoteId(10, 1n, poolAddress)).toBe(`10_1_${poolAddress}`);
-      expect(VeNFTPoolVoteId(8453, 42n, "0xabc")).toBe("8453_42_0xabc");
+    it("returns id in format chainId-tokenId-poolAddress", () => {
+      expect(VeNFTPoolVoteId(10, 1n, poolAddress)).toBe(`10-1-${poolAddress}`);
+      expect(VeNFTPoolVoteId(8453, 42n, "0xabc")).toBe("8453-42-0xabc");
     });
   });
 

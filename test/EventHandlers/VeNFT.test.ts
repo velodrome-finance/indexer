@@ -1,6 +1,10 @@
 import { MockDb, VeNFT } from "../../generated/src/TestHelpers.gen";
 import * as VeNFTStateModule from "../../src/Aggregators/VeNFTState";
-import { VeNFTId, toChecksumAddress } from "../../src/Constants";
+import {
+  UserStatsPerPoolId,
+  VeNFTId,
+  toChecksumAddress,
+} from "../../src/Constants";
 import * as VeNFTLogic from "../../src/EventHandlers/VeNFT/VeNFTLogic";
 import { setupCommon } from "./Pool/common";
 
@@ -234,10 +238,10 @@ describe("VeNFT Events", () => {
       });
 
       const updatedOldUserStats = resultDB.entities.UserStatsPerPool.get(
-        `${oldOwner}_${poolAddress}_${chainId}`,
+        UserStatsPerPoolId(chainId, oldOwner, poolAddress),
       );
       const updatedNewUserStats = resultDB.entities.UserStatsPerPool.get(
-        `${newOwner}_${poolAddress}_${chainId}`,
+        UserStatsPerPoolId(chainId, newOwner, poolAddress),
       );
 
       expect(updatedOldUserStats?.veNFTamountStaked).toBe(0n);
@@ -348,16 +352,16 @@ describe("VeNFT Events", () => {
       });
 
       const updatedOldA = resultDB.entities.UserStatsPerPool.get(
-        `${oldOwner}_${poolA}_${chainId}`,
+        UserStatsPerPoolId(chainId, oldOwner, poolA),
       );
       const updatedOldB = resultDB.entities.UserStatsPerPool.get(
-        `${oldOwner}_${poolB}_${chainId}`,
+        UserStatsPerPoolId(chainId, oldOwner, poolB),
       );
       const updatedNewA = resultDB.entities.UserStatsPerPool.get(
-        `${newOwner}_${poolA}_${chainId}`,
+        UserStatsPerPoolId(chainId, newOwner, poolA),
       );
       const updatedNewB = resultDB.entities.UserStatsPerPool.get(
-        `${newOwner}_${poolB}_${chainId}`,
+        UserStatsPerPoolId(chainId, newOwner, poolB),
       );
 
       expect(updatedOldA?.veNFTamountStaked).toBe(0n);
@@ -431,12 +435,12 @@ describe("VeNFT Events", () => {
       });
 
       const updatedOldUserStats = resultDB.entities.UserStatsPerPool.get(
-        `${oldOwner}_${poolAddress}_${chainId}`,
+        UserStatsPerPoolId(chainId, oldOwner, poolAddress),
       );
       expect(updatedOldUserStats?.veNFTamountStaked).toBe(0n);
 
       const newOwnerStats = resultDB.entities.UserStatsPerPool.get(
-        `${zeroAddress}_${poolAddress}_${chainId}`,
+        UserStatsPerPoolId(chainId, zeroAddress, poolAddress),
       );
       expect(newOwnerStats).toBeUndefined();
     });
@@ -497,11 +501,11 @@ describe("VeNFT Events", () => {
       });
 
       const updatedOldUserStats = resultDB.entities.UserStatsPerPool.get(
-        `${oldOwner}_${poolAddress}_${chainId}`,
+        UserStatsPerPoolId(chainId, oldOwner, poolAddress),
       );
       expect(updatedOldUserStats?.veNFTamountStaked).toBe(123n);
       const newOwnerStats = resultDB.entities.UserStatsPerPool.get(
-        `${newOwner}_${poolAddress}_${chainId}`,
+        UserStatsPerPoolId(chainId, newOwner, poolAddress),
       );
       expect(newOwnerStats).toBeUndefined();
     });

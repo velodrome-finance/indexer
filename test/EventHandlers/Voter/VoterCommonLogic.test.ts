@@ -225,7 +225,7 @@ describe("buildLpDiffFromDistribute", () => {
 
 describe("computeVoterRelatedEntitiesDiff", () => {
   const mockVeNFTState: VeNFTState = {
-    id: "10_1",
+    id: "10-1",
     chainId: 10,
     tokenId: 1n,
     owner: "0x2222222222222222222222222222222222222222",
@@ -252,7 +252,7 @@ describe("computeVoterRelatedEntitiesDiff", () => {
     expect(result.poolVoteDiff.veNFTamountStaked).toBe(500n);
     expect(result.userStatsPerPoolDiff.incrementalVeNFTamountStaked).toBe(100n);
     expect(result.veNFTPoolVoteDiff.incrementalVeNFTamountStaked).toBe(100n);
-    expect(result.veNFTPoolVoteDiff.veNFTStateId).toBe("10_1");
+    expect(result.veNFTPoolVoteDiff.veNFTStateId).toBe("10-1");
     expect(result.userStatsPerPoolDiff.lastActivityTimestamp).toBe(timestamp);
     expect(result.veNFTPoolVoteDiff.lastUpdatedTimestamp).toBe(timestamp);
   });
@@ -274,6 +274,6 @@ describe("computeVoterRelatedEntitiesDiff", () => {
       -100n,
     );
     expect(result.veNFTPoolVoteDiff.incrementalVeNFTamountStaked).toBe(-100n);
-    expect(result.veNFTPoolVoteDiff.veNFTStateId).toBe("10_1");
+    expect(result.veNFTPoolVoteDiff.veNFTStateId).toBe("10-1");
   });
 });

@@ -6,6 +6,12 @@ import type {
   SuperSwap,
 } from "../../../generated/src/Types.gen";
 import {
+  MailboxMessageId,
+  OUSDTSwapsId,
+  SuperSwapId,
+  toChecksumAddress,
+} from "../../../src/Constants";
+import {
   attemptSuperSwapCreationFromProcessId,
   buildMessageIdToProcessIdMap,
   createSuperSwapEntity,
@@ -27,12 +33,28 @@ describe("SuperSwapLogic", () => {
   const messageId2 =
     "0xABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCD";
   const blockTimestamp = 1000000;
-  const senderAddress = "0x1111111111111111111111111111111111111111";
-  const recipientAddress = "0x2222222222222222222222222222222222222222";
-  const tokenInAddress = "0x3333333333333333333333333333333333333333";
-  const tokenOutAddress = "0x4444444444444444444444444444444444444444";
-  const oUSDTAddress = "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189"; // oUSDT
+  const senderAddress = toChecksumAddress(
+    "0x1111111111111111111111111111111111111111",
+  );
+  const recipientAddress = toChecksumAddress(
+    "0x2222222222222222222222222222222222222222",
+  );
+  const tokenInAddress = toChecksumAddress(
+    "0x3333333333333333333333333333333333333333",
+  );
+  const tokenOutAddress = toChecksumAddress(
+    "0x4444444444444444444444444444444444444444",
+  );
+  const oUSDTAddress = toChecksumAddress(
+    "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189",
+  ); // oUSDT
   const oUSDTAmount = 18116811000000000000n; // 18.116811 oUSDT
+  const opTokenAddress = toChecksumAddress(
+    "0x4200000000000000000000000000000000000042",
+  ); // OP
+  const wethTokenAddress = toChecksumAddress(
+    "0x4200000000000000000000000000000000000006",
+  ); // WETH (e.g. Mode)
 
   const mockBridgedTransaction: OUSDTBridgedTransaction = {
     id: transactionHash,
@@ -43,6 +65,57 @@ describe("SuperSwapLogic", () => {
     recipient: recipientAddress.toLowerCase(),
     amount: oUSDTAmount,
   };
+
+  function createDispatchIdEvent(
+    txHash: string,
+    chainIdNum: number,
+    messageId: string,
+  ): DispatchId_event {
+    return {
+      id: MailboxMessageId(txHash, chainIdNum, messageId),
+      chainId: chainIdNum,
+      transactionHash: txHash,
+      messageId,
+    };
+  }
+
+  function createProcessIdEvent(
+    txHash: string,
+    chainIdNum: number,
+    messageId: string,
+  ): ProcessId_event {
+    return {
+      id: MailboxMessageId(txHash, chainIdNum, messageId),
+      chainId: chainIdNum,
+      transactionHash: txHash,
+      messageId,
+    };
+  }
+
+  function createOUSDTSwap(
+    txHash: string,
+    chainIdNum: number,
+    tokenIn: string,
+    amountIn: bigint,
+    tokenOut: string,
+    amountOut: bigint,
+  ): OUSDTSwaps {
+    return {
+      id: OUSDTSwapsId(
+        txHash,
+        chainIdNum,
+        tokenIn,
+        amountIn,
+        tokenOut,
+        amountOut,
+      ),
+      transactionHash: txHash,
+      tokenInPool: tokenIn,
+      tokenOutPool: tokenOut,
+      amountIn,
+      amountOut,
+    };
+  }
 
   const createMockContext = (
     processIdEvents: ProcessId_event[],
@@ -105,44 +178,35 @@ describe("SuperSwapLogic", () => {
   describe("processCrossChainSwap", () => {
     it("should create SuperSwap entities when all data is present", async () => {
       const sourceChainMessageIdEntities: DispatchId_event[] = [
-        {
-          id: `${transactionHash}_${chainId}_${messageId1}`,
-          chainId: chainId,
-          transactionHash: transactionHash,
-          messageId: messageId1,
-        },
+        createDispatchIdEvent(transactionHash, chainId, messageId1),
       ];
 
       const processIdResults: ProcessId_event[][] = [
         [
-          {
-            id: `${destinationTxHash}_${destinationDomain}_${messageId1}`,
-            chainId: Number(destinationDomain),
-            transactionHash: destinationTxHash,
-            messageId: messageId1,
-          },
+          createProcessIdEvent(
+            destinationTxHash,
+            Number(destinationDomain),
+            messageId1,
+          ),
         ],
       ];
 
-      // Source chain swap: tokenIn -> oUSDT (on Optimism transaction)
-      const sourceSwap: OUSDTSwaps = {
-        id: `${transactionHash}_${chainId}_${tokenInAddress}_1000_${oUSDTAddress}_${oUSDTAmount}`,
-        transactionHash: transactionHash,
-        tokenInPool: tokenInAddress,
-        tokenOutPool: oUSDTAddress,
-        amountIn: 1000n,
-        amountOut: oUSDTAmount,
-      };
-
-      // Destination chain swap: oUSDT -> tokenOut (on Mode transaction)
-      const destinationSwap: OUSDTSwaps = {
-        id: `${destinationTxHash}_${destinationDomain}_${oUSDTAddress}_${oUSDTAmount}_${tokenOutAddress}_950`,
-        transactionHash: destinationTxHash,
-        tokenInPool: oUSDTAddress,
-        tokenOutPool: tokenOutAddress,
-        amountIn: oUSDTAmount,
-        amountOut: 950n,
-      };
+      const sourceSwap = createOUSDTSwap(
+        transactionHash,
+        chainId,
+        tokenInAddress,
+        1000n,
+        oUSDTAddress,
+        oUSDTAmount,
+      );
+      const destinationSwap = createOUSDTSwap(
+        destinationTxHash,
+        Number(destinationDomain),
+        oUSDTAddress,
+        oUSDTAmount,
+        tokenOutAddress,
+        950n,
+      );
 
       const context = createMockContext(processIdResults.flat(), [
         sourceSwap,
@@ -182,53 +246,47 @@ describe("SuperSwapLogic", () => {
 
     it("should create single SuperSwap when multiple destination swaps exist but only one has oUSDT", async () => {
       const sourceChainMessageIdEntities: DispatchId_event[] = [
-        {
-          id: `${transactionHash}_${chainId}_${messageId1}`,
-          chainId: chainId,
-          transactionHash: transactionHash,
-          messageId: messageId1,
-        },
+        createDispatchIdEvent(transactionHash, chainId, messageId1),
       ];
 
       const processIdResults: ProcessId_event[][] = [
         [
-          {
-            id: `${destinationTxHash}_${destinationDomain}_${messageId1}`,
-            chainId: Number(destinationDomain),
-            transactionHash: destinationTxHash,
-            messageId: messageId1,
-          },
+          createProcessIdEvent(
+            destinationTxHash,
+            Number(destinationDomain),
+            messageId1,
+          ),
         ],
       ];
 
       // Source chain swap: tokenIn -> oUSDT (on Optimism transaction)
-      const sourceSwap: OUSDTSwaps = {
-        id: `${transactionHash}_${chainId}_${tokenInAddress}_1000_${oUSDTAddress}_${oUSDTAmount}`,
-        transactionHash: transactionHash,
-        tokenInPool: tokenInAddress,
-        tokenOutPool: oUSDTAddress,
-        amountIn: 1000n,
-        amountOut: oUSDTAmount,
-      };
+      const sourceSwap = createOUSDTSwap(
+        transactionHash,
+        chainId,
+        tokenInAddress,
+        1000n,
+        oUSDTAddress,
+        oUSDTAmount,
+      );
 
       // Destination chain swaps: one with oUSDT, one without
       const destinationSwaps: OUSDTSwaps[] = [
-        {
-          id: `${destinationTxHash}_${destinationDomain}_${oUSDTAddress}_${oUSDTAmount}_${tokenOutAddress}_950`,
-          transactionHash: destinationTxHash,
-          tokenInPool: oUSDTAddress,
-          tokenOutPool: tokenOutAddress,
-          amountIn: oUSDTAmount,
-          amountOut: 950n,
-        },
-        {
-          id: `${destinationTxHash}_${destinationDomain}_${tokenOutAddress}_500_${tokenInAddress}_520`,
-          transactionHash: destinationTxHash,
-          tokenInPool: tokenOutAddress,
-          tokenOutPool: tokenInAddress,
-          amountIn: 500n,
-          amountOut: 520n,
-        },
+        createOUSDTSwap(
+          destinationTxHash,
+          Number(destinationDomain),
+          oUSDTAddress,
+          oUSDTAmount,
+          tokenOutAddress,
+          950n,
+        ),
+        createOUSDTSwap(
+          destinationTxHash,
+          Number(destinationDomain),
+          tokenOutAddress,
+          500n,
+          tokenInAddress,
+          520n,
+        ),
       ];
 
       const context = createMockContext(processIdResults.flat(), [
@@ -254,18 +312,8 @@ describe("SuperSwapLogic", () => {
 
     it("should handle multiple DispatchId events with different ProcessId transactions", async () => {
       const sourceChainMessageIdEntities: DispatchId_event[] = [
-        {
-          id: `${transactionHash}_${chainId}_${messageId1}`,
-          chainId: chainId,
-          transactionHash: transactionHash,
-          messageId: messageId1,
-        },
-        {
-          id: `${transactionHash}_${chainId}_${messageId2}`,
-          chainId: chainId,
-          transactionHash: transactionHash,
-          messageId: messageId2,
-        },
+        createDispatchIdEvent(transactionHash, chainId, messageId1),
+        createDispatchIdEvent(transactionHash, chainId, messageId2),
       ];
 
       const destinationTxHash2 =
@@ -273,51 +321,49 @@ describe("SuperSwapLogic", () => {
 
       const processIdResults: ProcessId_event[][] = [
         [
-          {
-            id: `${destinationTxHash}_${destinationDomain}_${messageId1}`,
-            chainId: Number(destinationDomain),
-            transactionHash: destinationTxHash,
-            messageId: messageId1,
-          },
+          createProcessIdEvent(
+            destinationTxHash,
+            Number(destinationDomain),
+            messageId1,
+          ),
         ],
         [
-          {
-            id: `${destinationTxHash2}_${destinationDomain}_${messageId2}`,
-            chainId: Number(destinationDomain),
-            transactionHash: destinationTxHash2,
-            messageId: messageId2,
-          },
+          createProcessIdEvent(
+            destinationTxHash2,
+            Number(destinationDomain),
+            messageId2,
+          ),
         ],
       ];
 
       // Source chain swap: tokenIn -> oUSDT (on Optimism transaction)
-      const sourceSwap: OUSDTSwaps = {
-        id: `${transactionHash}_${chainId}_${tokenInAddress}_1000_${oUSDTAddress}_${oUSDTAmount}`,
-        transactionHash: transactionHash,
-        tokenInPool: tokenInAddress,
-        tokenOutPool: oUSDTAddress,
-        amountIn: 1000n,
-        amountOut: oUSDTAmount,
-      };
+      const sourceSwap = createOUSDTSwap(
+        transactionHash,
+        chainId,
+        tokenInAddress,
+        1000n,
+        oUSDTAddress,
+        oUSDTAmount,
+      );
 
       // Destination chain swaps: only first transaction has oUSDT swap
       const swapEvents: OUSDTSwaps[] = [
-        {
-          id: `${destinationTxHash}_${destinationDomain}_${oUSDTAddress}_${oUSDTAmount}_${tokenOutAddress}_950`,
-          transactionHash: destinationTxHash,
-          tokenInPool: oUSDTAddress,
-          tokenOutPool: tokenOutAddress,
-          amountIn: oUSDTAmount,
-          amountOut: 950n,
-        },
-        {
-          id: `${destinationTxHash2}_${destinationDomain}_${tokenInAddress}_2000_${tokenOutAddress}_1900`,
-          transactionHash: destinationTxHash2,
-          tokenInPool: tokenInAddress,
-          tokenOutPool: tokenOutAddress,
-          amountIn: 2000n,
-          amountOut: 1900n,
-        },
+        createOUSDTSwap(
+          destinationTxHash,
+          Number(destinationDomain),
+          oUSDTAddress,
+          oUSDTAmount,
+          tokenOutAddress,
+          950n,
+        ),
+        createOUSDTSwap(
+          destinationTxHash2,
+          Number(destinationDomain),
+          tokenInAddress,
+          2000n,
+          tokenOutAddress,
+          1900n,
+        ),
       ];
 
       const context = createMockContext(processIdResults.flat(), [
@@ -343,12 +389,7 @@ describe("SuperSwapLogic", () => {
 
     it("should warn when ProcessId event is missing for a messageId", async () => {
       const sourceChainMessageIdEntities: DispatchId_event[] = [
-        {
-          id: `${transactionHash}_${chainId}_${messageId1}`,
-          chainId: chainId,
-          transactionHash: transactionHash,
-          messageId: messageId1,
-        },
+        createDispatchIdEvent(transactionHash, chainId, messageId1),
       ];
 
       const processIdResults: ProcessId_event[][] = [[]]; // Empty result
@@ -380,34 +421,28 @@ describe("SuperSwapLogic", () => {
 
     it("should warn when OUSDTSwaps are missing for a transaction", async () => {
       const sourceChainMessageIdEntities: DispatchId_event[] = [
-        {
-          id: `${transactionHash}_${chainId}_${messageId1}`,
-          chainId: chainId,
-          transactionHash: transactionHash,
-          messageId: messageId1,
-        },
+        createDispatchIdEvent(transactionHash, chainId, messageId1),
       ];
 
       const processIdResults: ProcessId_event[][] = [
         [
-          {
-            id: `${destinationTxHash}_${destinationDomain}_${messageId1}`,
-            chainId: Number(destinationDomain),
-            transactionHash: destinationTxHash,
-            messageId: messageId1,
-          },
+          createProcessIdEvent(
+            destinationTxHash,
+            Number(destinationDomain),
+            messageId1,
+          ),
         ],
       ];
 
       // Source chain swap: tokenIn -> oUSDT (on Optimism transaction)
-      const sourceSwap: OUSDTSwaps = {
-        id: `${transactionHash}_${chainId}_${tokenInAddress}_1000_${oUSDTAddress}_${oUSDTAmount}`,
-        transactionHash: transactionHash,
-        tokenInPool: tokenInAddress,
-        tokenOutPool: oUSDTAddress,
-        amountIn: 1000n,
-        amountOut: oUSDTAmount,
-      };
+      const sourceSwap = createOUSDTSwap(
+        transactionHash,
+        chainId,
+        tokenInAddress,
+        1000n,
+        oUSDTAddress,
+        oUSDTAmount,
+      );
 
       const context = createMockContext(processIdResults.flat(), [sourceSwap]); // No destination swaps
 
@@ -435,60 +470,48 @@ describe("SuperSwapLogic", () => {
 
     it("should match ProcessId events by messageId field, not array index", async () => {
       const sourceChainMessageIdEntities: DispatchId_event[] = [
-        {
-          id: `${transactionHash}_${chainId}_${messageId1}`,
-          chainId: chainId,
-          transactionHash: transactionHash,
-          messageId: messageId1,
-        },
-        {
-          id: `${transactionHash}_${chainId}_${messageId2}`,
-          chainId: chainId,
-          transactionHash: transactionHash,
-          messageId: messageId2,
-        },
+        createDispatchIdEvent(transactionHash, chainId, messageId1),
+        createDispatchIdEvent(transactionHash, chainId, messageId2),
       ];
 
       // ProcessId results in different order than source entities
       const processIdResults: ProcessId_event[][] = [
         [
-          {
-            id: `${destinationTxHash}_${destinationDomain}_${messageId2}`,
-            chainId: Number(destinationDomain),
-            transactionHash: destinationTxHash,
-            messageId: messageId2, // Different order
-          },
+          createProcessIdEvent(
+            destinationTxHash,
+            Number(destinationDomain),
+            messageId2,
+          ),
         ],
         [
-          {
-            id: `${destinationTxHash}_${destinationDomain}_${messageId1}`,
-            chainId: Number(destinationDomain),
-            transactionHash: destinationTxHash,
-            messageId: messageId1,
-          },
+          createProcessIdEvent(
+            destinationTxHash,
+            Number(destinationDomain),
+            messageId1,
+          ),
         ],
       ];
 
       // Source chain swap: tokenIn -> oUSDT (on Optimism transaction)
-      const sourceSwap: OUSDTSwaps = {
-        id: `${transactionHash}_${chainId}_${tokenInAddress}_1000_${oUSDTAddress}_${oUSDTAmount}`,
-        transactionHash: transactionHash,
-        tokenInPool: tokenInAddress,
-        tokenOutPool: oUSDTAddress,
-        amountIn: 1000n,
-        amountOut: oUSDTAmount,
-      };
+      const sourceSwap = createOUSDTSwap(
+        transactionHash,
+        chainId,
+        tokenInAddress,
+        1000n,
+        oUSDTAddress,
+        oUSDTAmount,
+      );
 
       // Destination chain swap: oUSDT -> tokenOut (on Mode transaction)
       // Both messageIds point to same transaction, but only one swap with oUSDT
-      const destinationSwap: OUSDTSwaps = {
-        id: `${destinationTxHash}_${destinationDomain}_${oUSDTAddress}_${oUSDTAmount}_${tokenOutAddress}_950`,
-        transactionHash: destinationTxHash,
-        tokenInPool: oUSDTAddress,
-        tokenOutPool: tokenOutAddress,
-        amountIn: oUSDTAmount,
-        amountOut: 950n,
-      };
+      const destinationSwap = createOUSDTSwap(
+        destinationTxHash,
+        Number(destinationDomain),
+        oUSDTAddress,
+        oUSDTAmount,
+        tokenOutAddress,
+        950n,
+      );
 
       const context = createMockContext(processIdResults.flat(), [
         sourceSwap,
@@ -512,36 +535,18 @@ describe("SuperSwapLogic", () => {
     });
 
     it("should create single SuperSwap for real-world (inspired) scenario: 3 DispatchIds, 2 destination transactions, only one has oUSDT swap", async () => {
+      const thirdMessageId =
+        "0xTHIRD_MESSAGE_ID_ABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCD";
       // Real scenario: Optimism -> Mode
       // On Optimism: 1 transaction with 3 DispatchId events and 1 swap (OP -> oUSDT)
       // On Mode: 2 transactions - one has 2 ProcessIds (no oUSDT swaps), other has 1 ProcessId (oUSDT -> WETH swap)
       // See the inspiration from this real world scenario on https://explorer.hyperlane.xyz/?search=0x619578b63a5e7961cf7768a60bcc519a71ec53e499e1ac50f92dd91dfa5dcca4&origin=optimism&destination=mode
 
-      const opTokenAddress = "0x4200000000000000000000000000000000000042"; // OP token
-      const wethTokenAddress = "0x4200000000000000000000000000000000000006"; // WETH on Mode
-      const oUSDTAddress = "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189"; // oUSDT
-
       // 3 DispatchId events in the same transaction
       const sourceChainMessageIdEntities: DispatchId_event[] = [
-        {
-          id: `${transactionHash}_${chainId}_${messageId1}`,
-          chainId: chainId,
-          transactionHash: transactionHash,
-          messageId: messageId1,
-        },
-        {
-          id: `${transactionHash}_${chainId}_${messageId2}`,
-          chainId: chainId,
-          transactionHash: transactionHash,
-          messageId: messageId2,
-        },
-        {
-          id: `${transactionHash}_${chainId}_${messageId1}`, // Using messageId1 again for third
-          chainId: chainId,
-          transactionHash: transactionHash,
-          messageId:
-            "0xTHIRD_MESSAGE_ID_ABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCD",
-        },
+        createDispatchIdEvent(transactionHash, chainId, messageId1),
+        createDispatchIdEvent(transactionHash, chainId, messageId2),
+        createDispatchIdEvent(transactionHash, chainId, thirdMessageId),
       ];
 
       const destinationTxHash1 =
@@ -552,65 +557,61 @@ describe("SuperSwapLogic", () => {
       // ProcessId results: first 2 messageIds go to tx1 (no swaps), third goes to tx2 (has swap)
       const processIdResults: ProcessId_event[][] = [
         [
-          {
-            id: `${destinationTxHash1}_${destinationDomain}_${messageId1}`,
-            chainId: Number(destinationDomain),
-            transactionHash: destinationTxHash1,
-            messageId: messageId1,
-          },
+          createProcessIdEvent(
+            destinationTxHash1,
+            Number(destinationDomain),
+            messageId1,
+          ),
         ],
         [
-          {
-            id: `${destinationTxHash1}_${destinationDomain}_${messageId2}`,
-            chainId: Number(destinationDomain),
-            transactionHash: destinationTxHash1,
-            messageId: messageId2,
-          },
+          createProcessIdEvent(
+            destinationTxHash1,
+            Number(destinationDomain),
+            messageId2,
+          ),
         ],
         [
-          {
-            id: `${destinationTxHash2}_${destinationDomain}_THIRD_MESSAGE_ID`,
-            chainId: Number(destinationDomain),
-            transactionHash: destinationTxHash2,
-            messageId:
-              "0xTHIRD_MESSAGE_ID_ABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCD",
-          },
+          createProcessIdEvent(
+            destinationTxHash2,
+            Number(destinationDomain),
+            thirdMessageId,
+          ),
         ],
       ];
 
       // Source chain swap: OP -> oUSDT (on Optimism transaction)
-      const sourceSwap: OUSDTSwaps = {
-        id: `${transactionHash}_${chainId}_${opTokenAddress}_1000000000000000000_${oUSDTAddress}_18116811000000000000`,
-        transactionHash: transactionHash,
-        tokenInPool: opTokenAddress,
-        tokenOutPool: oUSDTAddress,
-        amountIn: 1000000000000000000n, // 1 OP
-        amountOut: 18116811000000000000n, // oUSDT amount
-      };
+      const sourceSwap = createOUSDTSwap(
+        transactionHash,
+        chainId,
+        opTokenAddress,
+        1000000000000000000n,
+        oUSDTAddress,
+        18116811000000000000n,
+      );
 
       // Destination chain swaps
       // Transaction 1: Has swaps but NO oUSDT swaps
       const destinationSwapsTx1: OUSDTSwaps[] = [
-        {
-          id: `${destinationTxHash1}_${destinationDomain}_TOKEN_A_500_TOKEN_B_600`,
-          transactionHash: destinationTxHash1,
-          tokenInPool: "0xTOKEN_A",
-          tokenOutPool: "0xTOKEN_B",
-          amountIn: 500n,
-          amountOut: 600n,
-        },
+        createOUSDTSwap(
+          destinationTxHash1,
+          Number(destinationDomain),
+          "0xTOKEN_A",
+          500n,
+          "0xTOKEN_B",
+          600n,
+        ),
       ];
 
       // Transaction 2: Has oUSDT -> WETH swap
       const destinationSwapsTx2: OUSDTSwaps[] = [
-        {
-          id: `${destinationTxHash2}_${destinationDomain}_${oUSDTAddress}_18116811000000000000_${wethTokenAddress}_950000000000000000`,
-          transactionHash: destinationTxHash2,
-          tokenInPool: oUSDTAddress,
-          tokenOutPool: wethTokenAddress,
-          amountIn: 18116811000000000000n, // oUSDT in
-          amountOut: 950000000000000000n, // WETH out
-        },
+        createOUSDTSwap(
+          destinationTxHash2,
+          Number(destinationDomain),
+          oUSDTAddress,
+          18116811000000000000n,
+          wethTokenAddress,
+          950000000000000000n,
+        ),
       ];
 
       const context = createMockContext(processIdResults.flat(), [
@@ -664,36 +665,24 @@ describe("SuperSwapLogic", () => {
   describe("buildMessageIdToProcessIdMap", () => {
     it("should build map correctly when all messageIds have ProcessId events", () => {
       const sourceChainMessageIdEntities: DispatchId_event[] = [
-        {
-          id: `${transactionHash}_${chainId}_${messageId1}`,
-          chainId: chainId,
-          transactionHash: transactionHash,
-          messageId: messageId1,
-        },
-        {
-          id: `${transactionHash}_${chainId}_${messageId2}`,
-          chainId: chainId,
-          transactionHash: transactionHash,
-          messageId: messageId2,
-        },
+        createDispatchIdEvent(transactionHash, chainId, messageId1),
+        createDispatchIdEvent(transactionHash, chainId, messageId2),
       ];
 
       const processIdResults: ProcessId_event[][] = [
         [
-          {
-            id: `${destinationTxHash}_${destinationDomain}_${messageId1}`,
-            chainId: Number(destinationDomain),
-            transactionHash: destinationTxHash,
-            messageId: messageId1,
-          },
+          createProcessIdEvent(
+            destinationTxHash,
+            Number(destinationDomain),
+            messageId1,
+          ),
         ],
         [
-          {
-            id: `${destinationTxHash}_${destinationDomain}_${messageId2}`,
-            chainId: Number(destinationDomain),
-            transactionHash: destinationTxHash,
-            messageId: messageId2,
-          },
+          createProcessIdEvent(
+            destinationTxHash,
+            Number(destinationDomain),
+            messageId2,
+          ),
         ],
       ];
 
@@ -715,7 +704,11 @@ describe("SuperSwapLogic", () => {
       expect(processId1?.transactionHash).toBe(destinationTxHash);
       expect(processId1?.chainId).toBe(Number(destinationDomain));
       expect(processId1?.id).toBe(
-        `${destinationTxHash}_${destinationDomain}_${messageId1}`,
+        MailboxMessageId(
+          destinationTxHash,
+          Number(destinationDomain),
+          messageId1,
+        ),
       );
 
       // Verify messageId2 maps to correct ProcessId_event
@@ -725,7 +718,11 @@ describe("SuperSwapLogic", () => {
       expect(processId2?.transactionHash).toBe(destinationTxHash);
       expect(processId2?.chainId).toBe(Number(destinationDomain));
       expect(processId2?.id).toBe(
-        `${destinationTxHash}_${destinationDomain}_${messageId2}`,
+        MailboxMessageId(
+          destinationTxHash,
+          Number(destinationDomain),
+          messageId2,
+        ),
       );
 
       // Verify no unexpected messageIds in map
@@ -749,28 +746,17 @@ describe("SuperSwapLogic", () => {
 
     it("should warn when messageIds have no ProcessId events", () => {
       const sourceChainMessageIdEntities: DispatchId_event[] = [
-        {
-          id: `${transactionHash}_${chainId}_${messageId1}`,
-          chainId: chainId,
-          transactionHash: transactionHash,
-          messageId: messageId1,
-        },
-        {
-          id: `${transactionHash}_${chainId}_${messageId2}`,
-          chainId: chainId,
-          transactionHash: transactionHash,
-          messageId: messageId2,
-        },
+        createDispatchIdEvent(transactionHash, chainId, messageId1),
+        createDispatchIdEvent(transactionHash, chainId, messageId2),
       ];
 
       const processIdResults: ProcessId_event[][] = [
         [
-          {
-            id: `${destinationTxHash}_${destinationDomain}_${messageId1}`,
-            chainId: Number(destinationDomain),
-            transactionHash: destinationTxHash,
-            messageId: messageId1,
-          },
+          createProcessIdEvent(
+            destinationTxHash,
+            Number(destinationDomain),
+            messageId1,
+          ),
         ],
         [], // No ProcessId for messageId2
       ];
@@ -798,18 +784,8 @@ describe("SuperSwapLogic", () => {
 
     it("should collect unique destination transaction hashes", () => {
       const sourceChainMessageIdEntities: DispatchId_event[] = [
-        {
-          id: `${transactionHash}_${chainId}_${messageId1}`,
-          chainId: chainId,
-          transactionHash: transactionHash,
-          messageId: messageId1,
-        },
-        {
-          id: `${transactionHash}_${chainId}_${messageId2}`,
-          chainId: chainId,
-          transactionHash: transactionHash,
-          messageId: messageId2,
-        },
+        createDispatchIdEvent(transactionHash, chainId, messageId1),
+        createDispatchIdEvent(transactionHash, chainId, messageId2),
       ];
 
       const destinationTxHash2 =
@@ -817,20 +793,18 @@ describe("SuperSwapLogic", () => {
 
       const processIdResults: ProcessId_event[][] = [
         [
-          {
-            id: `${destinationTxHash}_${destinationDomain}_${messageId1}`,
-            chainId: Number(destinationDomain),
-            transactionHash: destinationTxHash,
-            messageId: messageId1,
-          },
+          createProcessIdEvent(
+            destinationTxHash,
+            Number(destinationDomain),
+            messageId1,
+          ),
         ],
         [
-          {
-            id: `${destinationTxHash2}_${destinationDomain}_${messageId2}`,
-            chainId: Number(destinationDomain),
-            transactionHash: destinationTxHash2,
-            messageId: messageId2,
-          },
+          createProcessIdEvent(
+            destinationTxHash2,
+            Number(destinationDomain),
+            messageId2,
+          ),
         ],
       ];
 
@@ -854,14 +828,14 @@ describe("SuperSwapLogic", () => {
 
   describe("findSourceSwapWithOUSDT", () => {
     it("should find source swap when oUSDT is tokenOutPool", async () => {
-      const sourceSwap: OUSDTSwaps = {
-        id: `${transactionHash}_${chainId}_${tokenInAddress}_1000_${oUSDTAddress}_${oUSDTAmount}`,
-        transactionHash: transactionHash,
-        tokenInPool: tokenInAddress,
-        tokenOutPool: oUSDTAddress,
-        amountIn: 1000n,
-        amountOut: oUSDTAmount,
-      };
+      const sourceSwap = createOUSDTSwap(
+        transactionHash,
+        chainId,
+        tokenInAddress,
+        1000n,
+        oUSDTAddress,
+        oUSDTAmount,
+      );
 
       const context = createMockContext([], [sourceSwap]);
 
@@ -874,14 +848,14 @@ describe("SuperSwapLogic", () => {
     });
 
     it("should find source swap when oUSDT is tokenInPool", async () => {
-      const sourceSwap: OUSDTSwaps = {
-        id: `${transactionHash}_${chainId}_${oUSDTAddress}_${oUSDTAmount}_${tokenOutAddress}_950`,
-        transactionHash: transactionHash,
-        tokenInPool: oUSDTAddress,
-        tokenOutPool: tokenOutAddress,
-        amountIn: oUSDTAmount,
-        amountOut: 950n,
-      };
+      const sourceSwap = createOUSDTSwap(
+        transactionHash,
+        chainId,
+        oUSDTAddress,
+        oUSDTAmount,
+        tokenOutAddress,
+        950n,
+      );
 
       const context = createMockContext([], [sourceSwap]);
 
@@ -896,14 +870,14 @@ describe("SuperSwapLogic", () => {
     it("should return null and warn when no source swap with oUSDT exists", async () => {
       // Since we only store oUSDT swaps, this test checks the safety verification
       // when a non-oUSDT swap somehow exists in the database
-      const swapWithoutOUSDT: OUSDTSwaps = {
-        id: `${transactionHash}_${chainId}_${tokenInAddress}_1000_${tokenOutAddress}_950`,
-        transactionHash: transactionHash,
-        tokenInPool: tokenInAddress,
-        tokenOutPool: tokenOutAddress,
-        amountIn: 1000n,
-        amountOut: 950n,
-      };
+      const swapWithoutOUSDT = createOUSDTSwap(
+        transactionHash,
+        chainId,
+        tokenInAddress,
+        1000n,
+        tokenOutAddress,
+        950n,
+      );
 
       const context = createMockContext([], [swapWithoutOUSDT]);
 
@@ -938,23 +912,23 @@ describe("SuperSwapLogic", () => {
       const destinationTxHash2 =
         "0x2222222222222222222222222222222222222222222222222222222222222222";
 
-      const swap1: OUSDTSwaps = {
-        id: `${destinationTxHash1}_${destinationDomain}_TOKEN_A_100_TOKEN_B_200`,
-        transactionHash: destinationTxHash1,
-        tokenInPool: "0xTOKEN_A",
-        tokenOutPool: "0xTOKEN_B",
-        amountIn: 100n,
-        amountOut: 200n,
-      };
+      const swap1 = createOUSDTSwap(
+        destinationTxHash1,
+        Number(destinationDomain),
+        "0xTOKEN_A",
+        100n,
+        "0xTOKEN_B",
+        200n,
+      );
 
-      const swap2: OUSDTSwaps = {
-        id: `${destinationTxHash2}_${destinationDomain}_TOKEN_C_300_TOKEN_D_400`,
-        transactionHash: destinationTxHash2,
-        tokenInPool: "0xTOKEN_C",
-        tokenOutPool: "0xTOKEN_D",
-        amountIn: 300n,
-        amountOut: 400n,
-      };
+      const swap2 = createOUSDTSwap(
+        destinationTxHash2,
+        Number(destinationDomain),
+        "0xTOKEN_C",
+        300n,
+        "0xTOKEN_D",
+        400n,
+      );
 
       const context = createMockContext([], [swap1, swap2]);
       const destinationTransactionHashes = new Set([
@@ -1005,32 +979,26 @@ describe("SuperSwapLogic", () => {
   describe("findDestinationSwapWithOUSDT", () => {
     it("should find destination swap when oUSDT is tokenInPool", () => {
       const sourceChainMessageIdEntities: DispatchId_event[] = [
-        {
-          id: `${transactionHash}_${chainId}_${messageId1}`,
-          chainId: chainId,
-          transactionHash: transactionHash,
-          messageId: messageId1,
-        },
+        createDispatchIdEvent(transactionHash, chainId, messageId1),
       ];
 
-      const processIdEvent: ProcessId_event = {
-        id: `${destinationTxHash}_${destinationDomain}_${messageId1}`,
-        chainId: Number(destinationDomain),
-        transactionHash: destinationTxHash,
-        messageId: messageId1,
-      };
+      const processIdEvent = createProcessIdEvent(
+        destinationTxHash,
+        Number(destinationDomain),
+        messageId1,
+      );
 
       const messageIdToProcessId = new Map<string, ProcessId_event>();
       messageIdToProcessId.set(messageId1, processIdEvent);
 
-      const destinationSwap: OUSDTSwaps = {
-        id: `${destinationTxHash}_${destinationDomain}_${oUSDTAddress}_${oUSDTAmount}_${tokenOutAddress}_950`,
-        transactionHash: destinationTxHash,
-        tokenInPool: oUSDTAddress,
-        tokenOutPool: tokenOutAddress,
-        amountIn: oUSDTAmount,
-        amountOut: 950n,
-      };
+      const destinationSwap = createOUSDTSwap(
+        destinationTxHash,
+        Number(destinationDomain),
+        oUSDTAddress,
+        oUSDTAmount,
+        tokenOutAddress,
+        950n,
+      );
 
       const transactionHashToSwaps = new Map<string, OUSDTSwaps[]>();
       transactionHashToSwaps.set(destinationTxHash, [destinationSwap]);
@@ -1053,32 +1021,26 @@ describe("SuperSwapLogic", () => {
 
     it("should find destination swap when oUSDT is tokenOutPool", () => {
       const sourceChainMessageIdEntities: DispatchId_event[] = [
-        {
-          id: `${transactionHash}_${chainId}_${messageId1}`,
-          chainId: chainId,
-          transactionHash: transactionHash,
-          messageId: messageId1,
-        },
+        createDispatchIdEvent(transactionHash, chainId, messageId1),
       ];
 
-      const processIdEvent: ProcessId_event = {
-        id: `${destinationTxHash}_${destinationDomain}_${messageId1}`,
-        chainId: Number(destinationDomain),
-        transactionHash: destinationTxHash,
-        messageId: messageId1,
-      };
+      const processIdEvent = createProcessIdEvent(
+        destinationTxHash,
+        Number(destinationDomain),
+        messageId1,
+      );
 
       const messageIdToProcessId = new Map<string, ProcessId_event>();
       messageIdToProcessId.set(messageId1, processIdEvent);
 
-      const destinationSwap: OUSDTSwaps = {
-        id: `${destinationTxHash}_${destinationDomain}_${tokenInAddress}_1000_${oUSDTAddress}_${oUSDTAmount}`,
-        transactionHash: destinationTxHash,
-        tokenInPool: tokenInAddress,
-        tokenOutPool: oUSDTAddress,
-        amountIn: 1000n,
-        amountOut: oUSDTAmount,
-      };
+      const destinationSwap = createOUSDTSwap(
+        destinationTxHash,
+        Number(destinationDomain),
+        tokenInAddress,
+        1000n,
+        oUSDTAddress,
+        oUSDTAmount,
+      );
 
       const transactionHashToSwaps = new Map<string, OUSDTSwaps[]>();
       transactionHashToSwaps.set(destinationTxHash, [destinationSwap]);
@@ -1101,42 +1063,36 @@ describe("SuperSwapLogic", () => {
 
     it("should find first swap with oUSDT when multiple oUSDT swaps exist", () => {
       const sourceChainMessageIdEntities: DispatchId_event[] = [
-        {
-          id: `${transactionHash}_${chainId}_${messageId1}`,
-          chainId: chainId,
-          transactionHash: transactionHash,
-          messageId: messageId1,
-        },
+        createDispatchIdEvent(transactionHash, chainId, messageId1),
       ];
 
-      const processIdEvent: ProcessId_event = {
-        id: `${destinationTxHash}_${destinationDomain}_${messageId1}`,
-        chainId: Number(destinationDomain),
-        transactionHash: destinationTxHash,
-        messageId: messageId1,
-      };
+      const processIdEvent = createProcessIdEvent(
+        destinationTxHash,
+        Number(destinationDomain),
+        messageId1,
+      );
 
       const messageIdToProcessId = new Map<string, ProcessId_event>();
       messageIdToProcessId.set(messageId1, processIdEvent);
 
       // Since we only store oUSDT swaps, all swaps in the array should be oUSDT swaps
-      const swapWithOUSDT1: OUSDTSwaps = {
-        id: `${destinationTxHash}_${destinationDomain}_${oUSDTAddress}_${oUSDTAmount}_${tokenOutAddress}_950`,
-        transactionHash: destinationTxHash,
-        tokenInPool: oUSDTAddress,
-        tokenOutPool: tokenOutAddress,
-        amountIn: oUSDTAmount,
-        amountOut: 950n,
-      };
+      const swapWithOUSDT1 = createOUSDTSwap(
+        destinationTxHash,
+        Number(destinationDomain),
+        oUSDTAddress,
+        oUSDTAmount,
+        tokenOutAddress,
+        950n,
+      );
 
-      const swapWithOUSDT2: OUSDTSwaps = {
-        id: `${destinationTxHash}_${destinationDomain}_${tokenOutAddress}_500_${oUSDTAddress}_${oUSDTAmount}`,
-        transactionHash: destinationTxHash,
-        tokenInPool: tokenOutAddress,
-        tokenOutPool: oUSDTAddress,
-        amountIn: 500n,
-        amountOut: oUSDTAmount,
-      };
+      const swapWithOUSDT2 = createOUSDTSwap(
+        destinationTxHash,
+        Number(destinationDomain),
+        tokenOutAddress,
+        500n,
+        oUSDTAddress,
+        oUSDTAmount,
+      );
 
       const transactionHashToSwaps = new Map<string, OUSDTSwaps[]>();
       transactionHashToSwaps.set(destinationTxHash, [
@@ -1161,34 +1117,28 @@ describe("SuperSwapLogic", () => {
 
     it("should return null when no destination swap with oUSDT exists", () => {
       const sourceChainMessageIdEntities: DispatchId_event[] = [
-        {
-          id: `${transactionHash}_${chainId}_${messageId1}`,
-          chainId: chainId,
-          transactionHash: transactionHash,
-          messageId: messageId1,
-        },
+        createDispatchIdEvent(transactionHash, chainId, messageId1),
       ];
 
-      const processIdEvent: ProcessId_event = {
-        id: `${destinationTxHash}_${destinationDomain}_${messageId1}`,
-        chainId: Number(destinationDomain),
-        transactionHash: destinationTxHash,
-        messageId: messageId1,
-      };
+      const processIdEvent = createProcessIdEvent(
+        destinationTxHash,
+        Number(destinationDomain),
+        messageId1,
+      );
 
       const messageIdToProcessId = new Map<string, ProcessId_event>();
       messageIdToProcessId.set(messageId1, processIdEvent);
 
       // Since we only store oUSDT swaps, this test checks the safety verification
       // when a non-oUSDT swap somehow exists in the database
-      const swapWithoutOUSDT: OUSDTSwaps = {
-        id: `${destinationTxHash}_${destinationDomain}_TOKEN_A_100_TOKEN_B_200`,
-        transactionHash: destinationTxHash,
-        tokenInPool: "0xTOKEN_A",
-        tokenOutPool: "0xTOKEN_B",
-        amountIn: 100n,
-        amountOut: 200n,
-      };
+      const swapWithoutOUSDT = createOUSDTSwap(
+        destinationTxHash,
+        Number(destinationDomain),
+        "0xTOKEN_A",
+        100n,
+        "0xTOKEN_B",
+        200n,
+      );
 
       const transactionHashToSwaps = new Map<string, OUSDTSwaps[]>();
       transactionHashToSwaps.set(destinationTxHash, [swapWithoutOUSDT]);
@@ -1213,18 +1163,8 @@ describe("SuperSwapLogic", () => {
 
     it("should find swap from correct messageId when multiple messageIds exist", () => {
       const sourceChainMessageIdEntities: DispatchId_event[] = [
-        {
-          id: `${transactionHash}_${chainId}_${messageId1}`,
-          chainId: chainId,
-          transactionHash: transactionHash,
-          messageId: messageId1,
-        },
-        {
-          id: `${transactionHash}_${chainId}_${messageId2}`,
-          chainId: chainId,
-          transactionHash: transactionHash,
-          messageId: messageId2,
-        },
+        createDispatchIdEvent(transactionHash, chainId, messageId1),
+        createDispatchIdEvent(transactionHash, chainId, messageId2),
       ];
 
       const destinationTxHash1 =
@@ -1232,42 +1172,40 @@ describe("SuperSwapLogic", () => {
       const destinationTxHash2 =
         "0x2222222222222222222222222222222222222222222222222222222222222222";
 
-      const processIdEvent1: ProcessId_event = {
-        id: `${destinationTxHash1}_${destinationDomain}_${messageId1}`,
-        chainId: Number(destinationDomain),
-        transactionHash: destinationTxHash1,
-        messageId: messageId1,
-      };
+      const processIdEvent1 = createProcessIdEvent(
+        destinationTxHash1,
+        Number(destinationDomain),
+        messageId1,
+      );
 
-      const processIdEvent2: ProcessId_event = {
-        id: `${destinationTxHash2}_${destinationDomain}_${messageId2}`,
-        chainId: Number(destinationDomain),
-        transactionHash: destinationTxHash2,
-        messageId: messageId2,
-      };
+      const processIdEvent2 = createProcessIdEvent(
+        destinationTxHash2,
+        Number(destinationDomain),
+        messageId2,
+      );
 
       const messageIdToProcessId = new Map<string, ProcessId_event>();
       messageIdToProcessId.set(messageId1, processIdEvent1);
       messageIdToProcessId.set(messageId2, processIdEvent2);
 
       // Only second transaction has oUSDT swap
-      const swapWithoutOUSDT: OUSDTSwaps = {
-        id: `${destinationTxHash1}_${destinationDomain}_TOKEN_A_100_TOKEN_B_200`,
-        transactionHash: destinationTxHash1,
-        tokenInPool: "0xTOKEN_A",
-        tokenOutPool: "0xTOKEN_B",
-        amountIn: 100n,
-        amountOut: 200n,
-      };
+      const swapWithoutOUSDT = createOUSDTSwap(
+        destinationTxHash1,
+        Number(destinationDomain),
+        "0xTOKEN_A",
+        100n,
+        "0xTOKEN_B",
+        200n,
+      );
 
-      const swapWithOUSDT: OUSDTSwaps = {
-        id: `${destinationTxHash2}_${destinationDomain}_${oUSDTAddress}_${oUSDTAmount}_${tokenOutAddress}_950`,
-        transactionHash: destinationTxHash2,
-        tokenInPool: oUSDTAddress,
-        tokenOutPool: tokenOutAddress,
-        amountIn: oUSDTAmount,
-        amountOut: 950n,
-      };
+      const swapWithOUSDT = createOUSDTSwap(
+        destinationTxHash2,
+        Number(destinationDomain),
+        oUSDTAddress,
+        oUSDTAmount,
+        tokenOutAddress,
+        950n,
+      );
 
       const transactionHashToSwaps = new Map<string, OUSDTSwaps[]>();
       transactionHashToSwaps.set(destinationTxHash1, [swapWithoutOUSDT]);
@@ -1292,14 +1230,14 @@ describe("SuperSwapLogic", () => {
     it("should create SuperSwap entity with correct fields", async () => {
       const context = createMockContext([], []);
 
-      const sourceSwap: OUSDTSwaps = {
-        id: `${transactionHash}_${chainId}_${tokenInAddress}_1000_${oUSDTAddress}_${oUSDTAmount}`,
-        transactionHash: transactionHash,
-        tokenInPool: tokenInAddress,
-        tokenOutPool: oUSDTAddress,
-        amountIn: 1000n,
-        amountOut: oUSDTAmount,
-      };
+      const sourceSwap = createOUSDTSwap(
+        transactionHash,
+        chainId,
+        tokenInAddress,
+        1000n,
+        oUSDTAddress,
+        oUSDTAmount,
+      );
 
       await createSuperSwapEntity(
         transactionHash,
@@ -1319,7 +1257,18 @@ describe("SuperSwapLogic", () => {
       const superSwaps = context.getSuperSwaps();
       expect(superSwaps.size).toBe(1);
 
-      const expectedId = `${transactionHash}_${BigInt(chainId)}_${destinationDomain}_${oUSDTAmount}_${messageId1}_${tokenInAddress}_1000_${oUSDTAddress}_${oUSDTAmount}`;
+      // createSuperSwapEntity builds id from sourceSwap (tokenInPool, amountIn, tokenOutPool, amountOut)
+      const expectedId = SuperSwapId(
+        transactionHash,
+        chainId,
+        destinationDomain,
+        oUSDTAmount,
+        messageId1,
+        sourceSwap.tokenInPool,
+        sourceSwap.amountIn,
+        sourceSwap.tokenOutPool,
+        sourceSwap.amountOut,
+      );
       const superSwap = superSwaps.get(expectedId);
 
       expect(superSwap).toBeDefined();
@@ -1339,14 +1288,14 @@ describe("SuperSwapLogic", () => {
     it("should skip creation if SuperSwap already exists", async () => {
       const context = createMockContext([], []);
 
-      const sourceSwap: OUSDTSwaps = {
-        id: `${transactionHash}_${chainId}_${tokenInAddress}_1000_${oUSDTAddress}_${oUSDTAmount}`,
-        transactionHash: transactionHash,
-        tokenInPool: tokenInAddress,
-        tokenOutPool: oUSDTAddress,
-        amountIn: 1000n,
-        amountOut: oUSDTAmount,
-      };
+      const sourceSwap = createOUSDTSwap(
+        transactionHash,
+        chainId,
+        tokenInAddress,
+        1000n,
+        oUSDTAddress,
+        oUSDTAmount,
+      );
 
       // Create SuperSwap first time
       await createSuperSwapEntity(
@@ -1497,39 +1446,37 @@ describe("SuperSwapLogic", () => {
     };
 
     it("should create SuperSwap when all data is present", async () => {
-      const dispatchIdEvent: DispatchId_event = {
-        id: `${transactionHash}_${chainId}_${messageId1}`,
-        chainId: chainId,
-        transactionHash: transactionHash,
-        messageId: messageId1,
-      };
+      const dispatchIdEvent = createDispatchIdEvent(
+        transactionHash,
+        chainId,
+        messageId1,
+      );
 
-      const processIdEvent: ProcessId_event = {
-        id: `${destinationTxHash}_${destinationDomain}_${messageId1}`,
-        chainId: Number(destinationDomain),
-        transactionHash: destinationTxHash,
-        messageId: messageId1,
-      };
+      const processIdEvent = createProcessIdEvent(
+        destinationTxHash,
+        Number(destinationDomain),
+        messageId1,
+      );
 
       // Source chain swap: tokenIn -> oUSDT
-      const sourceSwap: OUSDTSwaps = {
-        id: `${transactionHash}_${chainId}_${tokenInAddress}_1000_${oUSDTAddress}_${oUSDTAmount}`,
-        transactionHash: transactionHash,
-        tokenInPool: tokenInAddress,
-        tokenOutPool: oUSDTAddress,
-        amountIn: 1000n,
-        amountOut: oUSDTAmount,
-      };
+      const sourceSwap = createOUSDTSwap(
+        transactionHash,
+        chainId,
+        tokenInAddress,
+        1000n,
+        oUSDTAddress,
+        oUSDTAmount,
+      );
 
       // Destination chain swap: oUSDT -> tokenOut
-      const destinationSwap: OUSDTSwaps = {
-        id: `${destinationTxHash}_${destinationDomain}_${oUSDTAddress}_${oUSDTAmount}_${tokenOutAddress}_950`,
-        transactionHash: destinationTxHash,
-        tokenInPool: oUSDTAddress,
-        tokenOutPool: tokenOutAddress,
-        amountIn: oUSDTAmount,
-        amountOut: 950n,
-      };
+      const destinationSwap = createOUSDTSwap(
+        destinationTxHash,
+        Number(destinationDomain),
+        oUSDTAddress,
+        oUSDTAmount,
+        tokenOutAddress,
+        950n,
+      );
 
       const context = createExtendedMockContext(
         [dispatchIdEvent],
@@ -1582,12 +1529,11 @@ describe("SuperSwapLogic", () => {
     });
 
     it("should return early and log warn when no OUSDTBridgedTransaction is found", async () => {
-      const dispatchIdEvent: DispatchId_event = {
-        id: `${transactionHash}_${chainId}_${messageId1}`,
-        chainId: chainId,
-        transactionHash: transactionHash,
-        messageId: messageId1,
-      };
+      const dispatchIdEvent = createDispatchIdEvent(
+        transactionHash,
+        chainId,
+        messageId1,
+      );
 
       const context = createExtendedMockContext(
         [dispatchIdEvent],
@@ -1614,12 +1560,11 @@ describe("SuperSwapLogic", () => {
     });
 
     it("should return early and log warn when no DispatchId_event entities found for transaction", async () => {
-      const dispatchIdEvent: DispatchId_event = {
-        id: `${transactionHash}_${chainId}_${messageId1}`,
-        chainId: chainId,
-        transactionHash: transactionHash,
-        messageId: messageId1,
-      };
+      const dispatchIdEvent = createDispatchIdEvent(
+        transactionHash,
+        chainId,
+        messageId1,
+      );
 
       const context = createExtendedMockContext(
         [dispatchIdEvent], // Only the one found by messageId
@@ -1653,19 +1598,17 @@ describe("SuperSwapLogic", () => {
     });
 
     it("should handle errors gracefully and log warning", async () => {
-      const dispatchIdEvent: DispatchId_event = {
-        id: `${transactionHash}_${chainId}_${messageId1}`,
-        chainId: chainId,
-        transactionHash: transactionHash,
-        messageId: messageId1,
-      };
+      const dispatchIdEvent = createDispatchIdEvent(
+        transactionHash,
+        chainId,
+        messageId1,
+      );
 
-      const processIdEvent: ProcessId_event = {
-        id: `${destinationTxHash}_${destinationDomain}_${messageId1}`,
-        chainId: Number(destinationDomain),
-        transactionHash: destinationTxHash,
-        messageId: messageId1,
-      };
+      const processIdEvent = createProcessIdEvent(
+        destinationTxHash,
+        Number(destinationDomain),
+        messageId1,
+      );
 
       // Create a context that will throw an error when querying OUSDTSwaps
       const context = createExtendedMockContext(

@@ -8,7 +8,7 @@ import type {
 } from "../../../generated/src/Types.gen";
 import {
   CHAIN_CONSTANTS,
-  TokenIdByChain,
+  TokenId,
   toChecksumAddress,
 } from "../../../src/Constants";
 import {
@@ -137,7 +137,7 @@ describe("GaugeSharedLogic", () => {
       "0x940181a94A35A4569E4529A3CDfB74e38FD98631",
     );
     mockRewardToken = {
-      id: TokenIdByChain(rewardTokenAddress, mockChainId),
+      id: TokenId(mockChainId, rewardTokenAddress),
       address: toChecksumAddress(rewardTokenAddress),
       name: "AERO",
       symbol: "AERO",
@@ -530,7 +530,7 @@ describe("GaugeSharedLogic", () => {
           ...mockContext.Token,
           get: (id: string) => {
             // Return null for reward token, but return other tokens
-            if (id === TokenIdByChain(mockRewardToken.address, mockChainId)) {
+            if (id === TokenId(mockChainId, mockRewardToken.address)) {
               return Promise.resolve(undefined);
             }
             return updatedDB.entities.Token.get(id);

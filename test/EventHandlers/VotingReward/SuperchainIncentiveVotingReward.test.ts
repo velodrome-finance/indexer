@@ -8,11 +8,7 @@ import type {
   UserStatsPerPool,
   VeNFTState,
 } from "../../../generated/src/Types.gen";
-import {
-  TokenIdByChain,
-  VeNFTId,
-  toChecksumAddress,
-} from "../../../src/Constants";
+import { TokenId, VeNFTId, toChecksumAddress } from "../../../src/Constants";
 import * as VotingRewardSharedLogic from "../../../src/EventHandlers/VotingReward/VotingRewardSharedLogic";
 import { setupCommon } from "../Pool/common";
 
@@ -73,7 +69,7 @@ describe("SuperchainIncentiveVotingReward Events", () => {
 
     // Set up reward token
     rewardToken = {
-      id: TokenIdByChain(rewardTokenAddress, chainId),
+      id: TokenId(chainId, rewardTokenAddress),
       address: rewardTokenAddress,
       symbol: "REWARD",
       name: "Reward Token",

@@ -5,6 +5,7 @@ import {
   loadOrCreateUserData,
   updateUserStatsPerPool,
 } from "../../../src/Aggregators/UserStatsPerPool";
+import { NonFungiblePositionId } from "../../../src/Constants";
 import {
   LiquidityChangeType,
   attributeLiquidityChangeToUserStatsPerPool,
@@ -23,7 +24,7 @@ describe("NFPMCommonLogic", () => {
   const poolAddress = "0x00cd0AbB6c2964F7Dfb5169dD94A9F004C35F458";
 
   const mockPosition: NonFungiblePosition = {
-    id: `${chainId}_${poolAddress}_${tokenId}`,
+    id: NonFungiblePositionId(chainId, poolAddress, tokenId),
     chainId: chainId,
     tokenId: tokenId,
     owner: "0x1DFAb7699121fEF702d07932a447868dCcCFb029",
@@ -41,7 +42,7 @@ describe("NFPMCommonLogic", () => {
 
   const mockPositionDifferentChain: NonFungiblePosition = {
     ...mockPosition,
-    id: `8453_${poolAddress}_${tokenId}`,
+    id: NonFungiblePositionId(8453, poolAddress, tokenId),
     chainId: 8453, // Different chain
   };
 

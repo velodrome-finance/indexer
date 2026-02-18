@@ -6,7 +6,8 @@ import type {
 } from "../../generated/src/Types.gen";
 import {
   OUSDT_ADDRESS,
-  TokenIdByChain,
+  TokenId,
+  UserStatsPerPoolId,
   toChecksumAddress,
 } from "../../src/Constants";
 import * as CLPoolBurnLogic from "../../src/EventHandlers/CLPool/CLPoolBurnLogic";
@@ -132,7 +133,7 @@ describe("CLPool Events", () => {
 
       // Verify UserStatsPerPool is updated with swap volume amounts
       const updatedUserStats = resultDB.entities.UserStatsPerPool.get(
-        `${userAddress}_${liquidityPool.poolAddress}_${chainId}`,
+        UserStatsPerPoolId(chainId, userAddress, liquidityPool.poolAddress),
       );
       expect(updatedUserStats).toBeDefined();
       expect(updatedUserStats?.numberOfSwaps).toBe(1n);
@@ -157,7 +158,7 @@ describe("CLPool Events", () => {
       const ousdtToken: Token = {
         ...mockToken0Data,
         address: OUSDT_ADDRESS,
-        id: TokenIdByChain(OUSDT_ADDRESS, chainId),
+        id: TokenId(chainId, OUSDT_ADDRESS),
       };
 
       const ousdtPool: LiquidityPoolAggregator = {
@@ -248,7 +249,7 @@ describe("CLPool Events", () => {
       const ousdtToken: Token = {
         ...mockToken0Data,
         address: OUSDT_ADDRESS,
-        id: TokenIdByChain(OUSDT_ADDRESS, chainId),
+        id: TokenId(chainId, OUSDT_ADDRESS),
       };
 
       const ousdtPool: LiquidityPoolAggregator = {
@@ -760,7 +761,7 @@ describe("CLPool Events", () => {
 
       // Capture initial user stats state
       const initialUserStats = mockDb.entities.UserStatsPerPool.get(
-        `${userAddress}_${liquidityPool.poolAddress}_${chainId}`,
+        UserStatsPerPoolId(chainId, userAddress, liquidityPool.poolAddress),
       );
       const initialNumberOfFlashLoans =
         initialUserStats?.numberOfFlashLoans ?? 0n;
@@ -778,7 +779,7 @@ describe("CLPool Events", () => {
 
       // Verify user stats are NOT updated when volume is 0 (no-op behavior)
       const updatedUserStats = resultDB.entities.UserStatsPerPool.get(
-        `${userAddress}_${liquidityPool.poolAddress}_${chainId}`,
+        UserStatsPerPoolId(chainId, userAddress, liquidityPool.poolAddress),
       );
       expect(updatedUserStats).toBeDefined();
       // User stats should remain unchanged since volume is 0

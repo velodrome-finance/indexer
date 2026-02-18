@@ -10,6 +10,7 @@ import type {
   Token,
   handlerContext,
 } from "../generated/src/Types.gen";
+import { NonFungiblePositionId } from "../src/Constants";
 import {
   calculatePositionAmountsFromLiquidity,
   calculateStakedLiquidityUSD,
@@ -773,7 +774,7 @@ describe("Helpers", () => {
         const sqrtPriceX96 = 79228162514264337593543950336n; // Price at tick 0
 
         const mockPosition: NonFungiblePosition = {
-          id: `${tokenId}-${mockChainId}`,
+          id: NonFungiblePositionId(mockChainId, mockPoolAddress, tokenId),
           tokenId,
           chainId: mockChainId,
           pool: mockPoolAddress,

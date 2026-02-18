@@ -19,7 +19,7 @@ import {
 
 /**
  * Creates a definitive NonFungiblePosition entity from a CLPoolMintEvent and deletes the temporary event.
- * Creates a new entity with stable ID `${chainId}_${poolAddress}_${tokenId}` using data from the CLPoolMintEvent.
+ * Creates a new entity with stable ID via NonFungiblePositionId() using data from the CLPoolMintEvent.
  *
  * @param mintEvent - The CLPoolMintEvent to create position from
  * @param tokenId - The actual token ID from the NFPM.Transfer event
@@ -37,7 +37,7 @@ export async function createPositionFromCLPoolMint(
   blockTimestamp: number,
   context: handlerContext,
 ): Promise<void> {
-  // Create definitive NonFungiblePosition with stable ID: chainId_poolAddress_tokenId
+  // Create definitive NonFungiblePosition with stable ID via NonFungiblePositionId()
   const stableId = NonFungiblePositionId(chainId, mintEvent.pool, tokenId);
 
   // Create new entity with stable ID, using data from CLPoolMintEvent
@@ -296,7 +296,7 @@ export async function handleRegularTransfer(
  *
  * For mint transfers:
  * - Finds matching placeholder created by CLPool.Mint
- * - Promotes placeholder to stable ID: ${chainId}_${poolAddress}_${tokenId}
+ * - Promotes placeholder to stable ID via NonFungiblePositionId()
  * - Deletes placeholder entity
  *
  * For regular transfers:

@@ -1,4 +1,8 @@
-import { PoolId, TokenIdByChain } from "../Constants";
+import {
+  LiquidityPoolAggregatorSnapshotId,
+  PoolId,
+  TokenId,
+} from "../Constants";
 import { getCurrentFee, roundBlockToInterval } from "../Effects/Index";
 import { generatePoolName } from "../Helpers";
 import { refreshTokenPrice } from "../PriceOracle";
@@ -176,7 +180,11 @@ export function setLiquidityPoolAggregatorSnapshot(
 
   const snapshot: LiquidityPoolAggregatorSnapshot = {
     ...liquidityPoolAggregator,
-    id: `${PoolId(chainId, liquidityPoolAggregator.poolAddress)}-${timestamp.getTime()}`,
+    id: LiquidityPoolAggregatorSnapshotId(
+      chainId,
+      liquidityPoolAggregator.poolAddress,
+      timestamp.getTime(),
+    ),
     pool: liquidityPoolAggregator.poolAddress,
     timestamp: timestamp,
   };
@@ -624,8 +632,8 @@ export function createLiquidityPoolAggregatorEntity(params: {
       isStable,
       isCL ? (tickSpacing ?? 0) : 0,
     ),
-    token0_id: TokenIdByChain(token0Address, chainId),
-    token1_id: TokenIdByChain(token1Address, chainId),
+    token0_id: TokenId(chainId, token0Address),
+    token1_id: TokenId(chainId, token1Address),
     token0_address: token0Address,
     token1_address: token1Address,
     isStable: isStable,

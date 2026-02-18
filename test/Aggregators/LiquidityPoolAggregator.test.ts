@@ -11,7 +11,11 @@ import {
   updateLiquidityPoolAggregator,
 } from "../../src/Aggregators/LiquidityPoolAggregator";
 import type { CHAIN_CONSTANTS } from "../../src/Constants";
-import { PoolId } from "../../src/Constants";
+import {
+  LiquidityPoolAggregatorSnapshotId,
+  PoolId,
+  RootPoolLeafPoolId,
+} from "../../src/Constants";
 import { getCurrentFee } from "../../src/Effects/DynamicFee";
 import { setupCommon } from "../EventHandlers/Pool/common";
 
@@ -337,10 +341,17 @@ describe("LiquidityPoolAggregator Functions", () => {
       expect(mockSet).toHaveBeenCalledTimes(1);
       const snapshot = mockSet?.mock.calls[0]?.[0];
       expect(snapshot).toBeDefined();
+      const chainId = liquidityPoolAggregator.chainId;
+      const poolAddress = liquidityPoolAggregator.poolAddress;
+      if (chainId === undefined || poolAddress === undefined) {
+        throw new Error("test setup: chainId and poolAddress must be set");
+      }
       expect(snapshot?.id).toBe(
-        `${liquidityPoolAggregator.chainId}-${
-          liquidityPoolAggregator.poolAddress
-        }-${timestamp.getTime()}`,
+        LiquidityPoolAggregatorSnapshotId(
+          chainId,
+          poolAddress,
+          timestamp.getTime(),
+        ),
       );
       expect(snapshot?.pool).toBe(liquidityPoolAggregator.poolAddress);
     });
@@ -959,7 +970,12 @@ describe("LiquidityPoolAggregator Functions", () => {
       });
 
       const rootPoolLeafPool = {
-        id: `${rootPoolAddress}_${chainId}_${leafPoolAddress}_${leafChainId}`,
+        id: RootPoolLeafPoolId(
+          chainId,
+          leafChainId,
+          rootPoolAddress,
+          leafPoolAddress,
+        ),
         rootChainId: chainId,
         rootPoolAddress: rootPoolAddress,
         leafChainId: leafChainId,
@@ -1029,7 +1045,12 @@ describe("LiquidityPoolAggregator Functions", () => {
 
     it("should return null when multiple RootPool_LeafPool entries exist", async () => {
       const rootPoolLeafPool1 = {
-        id: `${rootPoolAddress}_${chainId}_${leafPoolAddress}_${chainId}`,
+        id: RootPoolLeafPoolId(
+          chainId,
+          chainId,
+          rootPoolAddress,
+          leafPoolAddress,
+        ),
         rootChainId: chainId,
         rootPoolAddress: rootPoolAddress,
         leafChainId: chainId,
@@ -1037,7 +1058,12 @@ describe("LiquidityPoolAggregator Functions", () => {
       };
 
       const rootPoolLeafPool2 = {
-        id: `${rootPoolAddress}_${chainId}_0x5555555555555555555555555555555555555555_${chainId}`,
+        id: RootPoolLeafPoolId(
+          chainId,
+          chainId,
+          rootPoolAddress,
+          "0x5555555555555555555555555555555555555555",
+        ),
         rootChainId: chainId,
         rootPoolAddress: rootPoolAddress,
         leafChainId: chainId,
@@ -1081,7 +1107,12 @@ describe("LiquidityPoolAggregator Functions", () => {
     it("should return null when leaf pool is not found", async () => {
       const leafChainId = 252;
       const rootPoolLeafPool = {
-        id: `${rootPoolAddress}_${chainId}_${leafPoolAddress}_${leafChainId}`,
+        id: RootPoolLeafPoolId(
+          chainId,
+          leafChainId,
+          rootPoolAddress,
+          leafPoolAddress,
+        ),
         rootChainId: chainId,
         rootPoolAddress: rootPoolAddress,
         leafChainId: leafChainId,

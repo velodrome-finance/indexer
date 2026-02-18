@@ -106,7 +106,7 @@ ALMLPWrapperV2.TotalSupplyLimitUpdated.handler(async ({ event, context }) => {
   const { totalSupplyCurrent } = event.params;
 
   const ALM_TotalSupplyLimitUpdated_event = {
-    id: ALMLPWrapperId(event.srcAddress, event.chainId),
+    id: ALMLPWrapperId(event.chainId, event.srcAddress),
     lpWrapperAddress: event.srcAddress,
     currentTotalSupplyLPTokens: totalSupplyCurrent,
     transactionHash: event.transaction.hash,

@@ -18,7 +18,7 @@ import { loadVeNFTState } from "../../Aggregators/VeNFTState";
 import {
   CHAIN_CONSTANTS,
   PoolId,
-  TokenIdByChain,
+  TokenId,
   VOTER_CLPOOLS_FACTORY_LIST,
   VOTER_NONCL_POOLS_FACTORY_LIST,
 } from "../../Constants";
@@ -211,7 +211,7 @@ Voter.DistributeReward.handler(async ({ event, context }) => {
 
   const [currentLiquidityPool, rewardToken] = await Promise.all([
     context.LiquidityPoolAggregator.get(poolEntity.id),
-    context.Token.get(TokenIdByChain(rewardTokenAddress, event.chainId)),
+    context.Token.get(TokenId(event.chainId, rewardTokenAddress)),
   ]);
 
   if (!currentLiquidityPool || !rewardToken) {
@@ -281,7 +281,7 @@ Voter.DistributeReward.handler(async ({ event, context }) => {
  */
 Voter.WhitelistToken.handler(async ({ event, context }) => {
   const token = await context.Token.get(
-    TokenIdByChain(event.params.token, event.chainId),
+    TokenId(event.chainId, event.params.token),
   );
 
   // Update the Token entity in the DB, either by updating the existing one or creating a new one
@@ -302,7 +302,7 @@ Voter.WhitelistToken.handler(async ({ event, context }) => {
       chainId: event.chainId,
     });
     const updatedToken: Token = {
-      id: TokenIdByChain(event.params.token, event.chainId),
+      id: TokenId(event.chainId, event.params.token),
       name: tokenDetails.name,
       symbol: tokenDetails.symbol,
       pricePerUSDNew: 0n,

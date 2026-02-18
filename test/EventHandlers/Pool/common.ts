@@ -8,10 +8,14 @@ import type {
   VeNFTState,
 } from "../../../generated/src/Types.gen";
 import {
+  ALMLPWrapperId,
   PoolId,
   TEN_TO_THE_6_BI,
   TEN_TO_THE_18_BI,
-  TokenIdByChain,
+  TokenId,
+  UserStatsPerPoolId,
+  VeNFTId,
+  VeNFTPoolVoteId,
   toChecksumAddress,
 } from "../../../src/Constants";
 import { calculateTokenAmountUSD } from "../../../src/Helpers";
@@ -23,9 +27,16 @@ export function setupCommon() {
   );
   const POOL_ID = PoolId(CHAIN_ID, POOL_ADDRESS);
 
+  const TOKEN0_ADDRESS = toChecksumAddress(
+    "0x1111111111111111111111111111111111111111",
+  );
+  const TOKEN1_ADDRESS = toChecksumAddress(
+    "0x2222222222222222222222222222222222222222",
+  );
+
   const mockToken0Data: Token = {
-    id: TokenIdByChain("0x1111111111111111111111111111111111111111", CHAIN_ID),
-    address: toChecksumAddress("0x1111111111111111111111111111111111111111"),
+    id: TokenId(CHAIN_ID, TOKEN0_ADDRESS),
+    address: TOKEN0_ADDRESS,
     symbol: "USDT",
     name: "Tether USD",
     decimals: 18n,
@@ -36,8 +47,8 @@ export function setupCommon() {
   };
 
   const mockToken1Data: Token = {
-    id: TokenIdByChain("0x2222222222222222222222222222222222222222", CHAIN_ID),
-    address: toChecksumAddress("0x2222222222222222222222222222222222222222"),
+    id: TokenId(CHAIN_ID, TOKEN1_ADDRESS),
+    address: TOKEN1_ADDRESS,
     symbol: "USDC",
     name: "USD Coin",
     decimals: 6n,
@@ -144,7 +155,10 @@ export function setupCommon() {
   };
 
   const mockALMLPWrapperData: ALM_LP_Wrapper = {
-    id: `${toChecksumAddress("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")}_${CHAIN_ID}`,
+    id: ALMLPWrapperId(
+      CHAIN_ID,
+      toChecksumAddress("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+    ),
     chainId: CHAIN_ID,
     pool: POOL_ADDRESS,
     token0: mockToken0Data.address,
@@ -169,7 +183,11 @@ export function setupCommon() {
   const defaultUserAddress = "0xAbCccccccccccccccccccccccccccccccccccccc";
   const normalizedDefaultUserAddress = toChecksumAddress(defaultUserAddress);
   const mockUserStatsPerPoolData: UserStatsPerPool = {
-    id: `${normalizedDefaultUserAddress}_${POOL_ADDRESS}_${CHAIN_ID}`,
+    id: UserStatsPerPoolId(
+      CHAIN_ID,
+      normalizedDefaultUserAddress,
+      POOL_ADDRESS,
+    ),
     userAddress: normalizedDefaultUserAddress,
     poolAddress: POOL_ADDRESS,
     chainId: CHAIN_ID,
@@ -232,7 +250,7 @@ export function setupCommon() {
   };
 
   const mockVeNFTStateData: VeNFTState = {
-    id: `${CHAIN_ID}_1`,
+    id: VeNFTId(CHAIN_ID, 1n),
     chainId: CHAIN_ID,
     tokenId: 1n,
     owner: normalizedDefaultUserAddress,
@@ -243,7 +261,7 @@ export function setupCommon() {
   };
 
   const mockVeNFTPoolVoteData: VeNFTPoolVote = {
-    id: `${CHAIN_ID}_1_${POOL_ADDRESS}`,
+    id: VeNFTPoolVoteId(CHAIN_ID, 1n, POOL_ADDRESS),
     poolAddress: POOL_ADDRESS,
     veNFTamountStaked: 0n,
     veNFTState_id: mockVeNFTStateData.id,
@@ -268,15 +286,15 @@ export function setupCommon() {
       overrides.poolAddress ?? POOL_ADDRESS,
     );
     const chainId = overrides.chainId ?? CHAIN_ID;
-    const id = `${userAddress}_${poolAddress}_${chainId}`;
+    const id = UserStatsPerPoolId(chainId, userAddress, poolAddress);
 
     return {
       ...mockUserStatsPerPoolData,
+      ...overrides,
       id,
       userAddress,
       poolAddress,
       chainId,
-      ...overrides,
     };
   }
 
@@ -314,7 +332,7 @@ export function setupCommon() {
   ): VeNFTState {
     const chainId = overrides.chainId ?? CHAIN_ID;
     const tokenId = overrides.tokenId ?? 1n;
-    const id = overrides.id ?? `${chainId}_${tokenId}`;
+    const id = overrides.id ?? VeNFTId(chainId, tokenId);
 
     return {
       ...mockVeNFTStateData,
@@ -344,13 +362,13 @@ export function setupCommon() {
     overrides: Partial<VeNFTPoolVote> = {},
   ): VeNFTPoolVote {
     const veNFTStateId = overrides.veNFTState_id ?? mockVeNFTStateData.id;
-    const [chainIdPart, tokenIdPart] = veNFTStateId.split("_");
+    const [chainIdPart, tokenIdPart] = veNFTStateId.split("-");
     const chainId = chainIdPart ? Number(chainIdPart) : CHAIN_ID;
     const tokenId = tokenIdPart ? BigInt(tokenIdPart) : 1n;
     const poolAddress = toChecksumAddress(
       overrides.poolAddress ?? POOL_ADDRESS,
     );
-    const id = overrides.id ?? `${chainId}_${tokenId}_${poolAddress}`;
+    const id = overrides.id ?? VeNFTPoolVoteId(chainId, tokenId, poolAddress);
 
     return {
       ...mockVeNFTPoolVoteData,

@@ -1,4 +1,5 @@
 import { CLPool, MockDb } from "../../../generated/src/TestHelpers.gen";
+import { CLPoolMintEventId } from "../../../src/Constants";
 import { setupCommon } from "../Pool/common";
 
 describe("CLPool Mint Event Handler", () => {
@@ -51,8 +52,12 @@ describe("CLPool Mint Event Handler", () => {
     });
 
     // Verify that CLPoolMintEvent entity was created
-    // CLPoolMintEvent ID format: ${chainId}_${poolAddress}_${txHash}_${logIndex}
-    const mintEventId = `${chainId}_${poolAddress}_${transactionHash}_${mockEvent.logIndex}`;
+    const mintEventId = CLPoolMintEventId(
+      chainId,
+      poolAddress,
+      transactionHash,
+      mockEvent.logIndex,
+    );
     const createdMintEvent = result.entities.CLPoolMintEvent.get(mintEventId);
     expect(createdMintEvent).toBeDefined();
 
@@ -105,8 +110,12 @@ describe("CLPool Mint Event Handler", () => {
       mockDb,
     });
 
-    // CLPoolMintEvent ID format: ${chainId}_${poolAddress}_${txHash}_${logIndex}
-    const mintEventId = `${chainId}_${poolAddress}_${customTransactionHash}_${mockEvent.logIndex}`;
+    const mintEventId = CLPoolMintEventId(
+      chainId,
+      poolAddress,
+      customTransactionHash,
+      mockEvent.logIndex,
+    );
     const createdMintEvent = result.entities.CLPoolMintEvent.get(mintEventId);
     expect(createdMintEvent).toBeDefined();
     if (!createdMintEvent) return;
@@ -144,8 +153,12 @@ describe("CLPool Mint Event Handler", () => {
       mockDb,
     });
 
-    // CLPoolMintEvent ID format: ${chainId}_${poolAddress}_${txHash}_${logIndex}
-    const mintEventId = `${chainId}_${poolAddress}_${transactionHash}_${mockEvent.logIndex}`;
+    const mintEventId = CLPoolMintEventId(
+      chainId,
+      poolAddress,
+      transactionHash,
+      mockEvent.logIndex,
+    );
     const createdMintEvent = result.entities.CLPoolMintEvent.get(mintEventId);
     expect(createdMintEvent).toBeDefined();
     if (!createdMintEvent) return;

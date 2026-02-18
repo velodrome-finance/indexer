@@ -3,7 +3,7 @@ import type {
   ALM_LP_Wrapper,
   UserStatsPerPool,
 } from "../../../generated/src/Types.gen";
-import { toChecksumAddress } from "../../../src/Constants";
+import { ALMLPWrapperId, toChecksumAddress } from "../../../src/Constants";
 import { setupCommon } from "../Pool/common";
 
 type MockDbInstance = ReturnType<typeof MockDb.createMockDb>;
@@ -176,12 +176,18 @@ describe("ALMCore Rebalance Event", () => {
       // Create multiple wrappers with the same pool address
       const wrapper1: ALM_LP_Wrapper = {
         ...mockALMLPWrapperData,
-        id: `${toChecksumAddress("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")}_${chainId}`,
+        id: ALMLPWrapperId(
+          chainId,
+          toChecksumAddress("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+        ),
       };
 
       const wrapper2: ALM_LP_Wrapper = {
         ...mockALMLPWrapperData,
-        id: `${toChecksumAddress("0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")}_${chainId}`,
+        id: ALMLPWrapperId(
+          chainId,
+          toChecksumAddress("0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"),
+        ),
       };
 
       mockDb = mockDb.entities.ALM_LP_Wrapper.set(wrapper1);

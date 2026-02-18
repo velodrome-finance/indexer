@@ -7,7 +7,8 @@ import {
   OUSDT_ADDRESS,
   PoolId,
   TEN_TO_THE_18_BI,
-  TokenIdByChain,
+  TokenId,
+  UserStatsPerPoolId,
   toChecksumAddress,
 } from "../../../src/Constants";
 import * as PriceOracle from "../../../src/PriceOracle";
@@ -17,6 +18,7 @@ describe("Pool Swap Event", () => {
   let mockToken0Data: Token;
   let mockToken1Data: Token;
   let mockLiquidityPoolData: LiquidityPoolAggregator;
+  let createMockToken: ReturnType<typeof setupCommon>["createMockToken"];
 
   const expectations = {
     swapAmount0In: 0n,
@@ -59,6 +61,7 @@ describe("Pool Swap Event", () => {
     mockToken0Data = setupData.mockToken0Data;
     mockToken1Data = setupData.mockToken1Data;
     mockLiquidityPoolData = setupData.mockLiquidityPoolData;
+    createMockToken = setupData.createMockToken;
 
     expectations.swapAmount0In = 100n * 10n ** mockToken0Data.decimals;
     expectations.swapAmount1Out = 99n * 10n ** mockToken1Data.decimals;
@@ -129,7 +132,11 @@ describe("Pool Swap Event", () => {
 
     it("should update UserStatsPerPool with swap activity", async () => {
       const userStats = postEventDB.entities.UserStatsPerPool.get(
-        `${eventData.sender}_${eventData.mockEventData.srcAddress}_${eventData.mockEventData.chainId}`,
+        UserStatsPerPoolId(
+          eventData.mockEventData.chainId,
+          eventData.sender,
+          eventData.mockEventData.srcAddress,
+        ),
       );
       expect(userStats).toBeDefined();
       expect(userStats?.userAddress).toBe(eventData.sender);
@@ -195,7 +202,11 @@ describe("Pool Swap Event", () => {
       // User stats will still be created because loadOrCreateUserData is called in parallel
       // but they should have default/zero values since no swap processing occurred
       const userStats = postEventDB.entities.UserStatsPerPool.get(
-        `${eventData.sender}_${eventData.mockEventData.srcAddress}_${eventData.mockEventData.chainId}`,
+        UserStatsPerPoolId(
+          eventData.mockEventData.chainId,
+          eventData.sender,
+          eventData.mockEventData.srcAddress,
+        ),
       );
       expect(userStats).toBeDefined();
       // Verify no swap activity was recorded
@@ -207,11 +218,10 @@ describe("Pool Swap Event", () => {
   describe("when OUSDT is involved", () => {
     it("should create OUSDTSwap entity when token0 is OUSDT", async () => {
       const ousdtAddress = toChecksumAddress(OUSDT_ADDRESS);
-      const ousdtToken: Token = {
-        ...mockToken0Data,
+      const ousdtToken = createMockToken({
         address: ousdtAddress,
-        id: TokenIdByChain(ousdtAddress, 10),
-      };
+        id: TokenId(10, ousdtAddress),
+      });
 
       // Update pool to reference OUSDT token
       const poolWithOusdt: LiquidityPoolAggregator = {
@@ -246,11 +256,10 @@ describe("Pool Swap Event", () => {
 
     it("should create OUSDTSwap entity when token1 is OUSDT", async () => {
       const ousdtAddress = toChecksumAddress(OUSDT_ADDRESS);
-      const ousdtToken: Token = {
-        ...mockToken1Data,
+      const ousdtToken = createMockToken({
         address: ousdtAddress,
-        id: TokenIdByChain(ousdtAddress, 10),
-      };
+        id: TokenId(10, ousdtAddress),
+      });
 
       // Update pool to reference OUSDT token
       const poolWithOusdt: LiquidityPoolAggregator = {

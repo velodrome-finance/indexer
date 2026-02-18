@@ -1,4 +1,5 @@
 import type { Token, handlerContext } from "generated";
+import { OUSDTSwapsId } from "../Constants";
 
 /**
  * Creates an OUSDTSwaps entity for swap events.
@@ -23,7 +24,14 @@ export function createOUSDTSwapEntity(
   if (amount0In > 0n) {
     // Token0 is going in, token1 is going out
     context.OUSDTSwaps.set({
-      id: `${transactionHash}_${chainId}_${token0Instance.address}_${amount0In}_${token1Instance.address}_${amount1Out}`,
+      id: OUSDTSwapsId(
+        transactionHash,
+        chainId,
+        token0Instance.address,
+        amount0In,
+        token1Instance.address,
+        amount1Out,
+      ),
       transactionHash,
       tokenInPool: token0Instance.address,
       tokenOutPool: token1Instance.address,
@@ -33,7 +41,14 @@ export function createOUSDTSwapEntity(
   } else if (amount1In > 0n) {
     // Token1 is going in, token0 is going out
     context.OUSDTSwaps.set({
-      id: `${transactionHash}_${chainId}_${token1Instance.address}_${amount1In}_${token0Instance.address}_${amount0Out}`,
+      id: OUSDTSwapsId(
+        transactionHash,
+        chainId,
+        token1Instance.address,
+        amount1In,
+        token0Instance.address,
+        amount0Out,
+      ),
       transactionHash,
       tokenInPool: token1Instance.address,
       tokenOutPool: token0Instance.address,

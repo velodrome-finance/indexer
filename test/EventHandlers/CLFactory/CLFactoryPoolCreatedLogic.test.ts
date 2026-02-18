@@ -5,7 +5,12 @@ import type {
   Token,
   handlerContext,
 } from "generated";
-import { PoolId, toChecksumAddress } from "../../../src/Constants";
+import {
+  FeeToTickSpacingMappingId,
+  PoolId,
+  TokenId,
+  toChecksumAddress,
+} from "../../../src/Constants";
 import { processCLFactoryPoolCreated } from "../../../src/EventHandlers/CLFactory/CLFactoryPoolCreatedLogic";
 import * as PriceOracle from "../../../src/PriceOracle";
 import { setupCommon } from "../Pool/common";
@@ -27,7 +32,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         pricePerUSDNew: 1000000000000000000n,
         chainId: 10,
         isWhitelisted: false,
-        lastUpdatedTimestamp: new Date(),
+        lastUpdatedTimestamp: new Date(1000000 * 1000),
       }));
   });
 
@@ -65,7 +70,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
 
   // Mock FeeToTickSpacingMapping
   const mockFeeToTickSpacingMapping: FeeToTickSpacingMapping = {
-    id: `${CHAIN_ID}_${TICK_SPACING}`,
+    id: FeeToTickSpacingMappingId(CHAIN_ID, TICK_SPACING),
     chainId: CHAIN_ID,
     tickSpacing: TICK_SPACING,
     fee: FEE,
@@ -96,8 +101,8 @@ describe("CLFactoryPoolCreatedLogic", () => {
         id: LEAF_POOL_ID,
         chainId: 10,
         name: "CL-60 AMM - USDT/USDC",
-        token0_id: "0x2222222222222222222222222222222222222222-10",
-        token1_id: "0x3333333333333333333333333333333333333333-10",
+        token0_id: TokenId(10, "0x2222222222222222222222222222222222222222"),
+        token1_id: TokenId(10, "0x3333333333333333333333333333333333333333"),
         token0_address: "0x2222222222222222222222222222222222222222",
         token1_address: "0x3333333333333333333333333333333333333333",
         isStable: false,
@@ -123,8 +128,8 @@ describe("CLFactoryPoolCreatedLogic", () => {
         id: LEAF_POOL_ID,
         chainId: 10,
         name: "CL-60 AMM - /USDC", // Empty symbol for token0
-        token0_id: "0x2222222222222222222222222222222222222222-10",
-        token1_id: "0x3333333333333333333333333333333333333333-10",
+        token0_id: TokenId(10, "0x2222222222222222222222222222222222222222"),
+        token1_id: TokenId(10, "0x3333333333333333333333333333333333333333"),
         token0_address: "0x2222222222222222222222222222222222222222",
         token1_address: "0x3333333333333333333333333333333333333333",
         isStable: false,
@@ -150,8 +155,8 @@ describe("CLFactoryPoolCreatedLogic", () => {
         id: LEAF_POOL_ID,
         chainId: 10,
         name: "CL-60 AMM - USDT/", // Empty symbol for token1
-        token0_id: "0x2222222222222222222222222222222222222222-10",
-        token1_id: "0x3333333333333333333333333333333333333333-10",
+        token0_id: TokenId(10, "0x2222222222222222222222222222222222222222"),
+        token1_id: TokenId(10, "0x3333333333333333333333333333333333333333"),
         token0_address: "0x2222222222222222222222222222222222222222",
         token1_address: "0x3333333333333333333333333333333333333333",
         isStable: false,
@@ -177,8 +182,8 @@ describe("CLFactoryPoolCreatedLogic", () => {
         id: LEAF_POOL_ID,
         chainId: 10,
         name: "CL-60 AMM - /", // Empty symbols for both tokens
-        token0_id: "0x2222222222222222222222222222222222222222-10",
-        token1_id: "0x3333333333333333333333333333333333333333-10",
+        token0_id: TokenId(10, "0x2222222222222222222222222222222222222222"),
+        token1_id: TokenId(10, "0x3333333333333333333333333333333333333333"),
         token0_address: "0x2222222222222222222222222222222222222222",
         token1_address: "0x3333333333333333333333333333333333333333",
         isStable: false,
@@ -201,7 +206,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
 
       // For different tick spacing, use a different mapping
       const mappingForTickSpacing200: FeeToTickSpacingMapping = {
-        id: `${CHAIN_ID}_200`,
+        id: FeeToTickSpacingMappingId(CHAIN_ID, 200),
         chainId: CHAIN_ID,
         tickSpacing: 200n,
         fee: 300n,
@@ -246,8 +251,8 @@ describe("CLFactoryPoolCreatedLogic", () => {
         id: LEAF_POOL_ID,
         chainId: 10,
         name: "CL-60 AMM - USDT/USDC",
-        token0_id: "0x2222222222222222222222222222222222222222-10",
-        token1_id: "0x3333333333333333333333333333333333333333-10",
+        token0_id: TokenId(10, "0x2222222222222222222222222222222222222222"),
+        token1_id: TokenId(10, "0x3333333333333333333333333333333333333333"),
         token0_address: "0x2222222222222222222222222222222222222222",
         token1_address: "0x3333333333333333333333333333333333333333",
         isStable: false,
@@ -283,8 +288,8 @@ describe("CLFactoryPoolCreatedLogic", () => {
         id: LEAF_POOL_ID,
         chainId: 10,
         name: "CL-60 AMM - USDT/USDC",
-        token0_id: "0x2222222222222222222222222222222222222222-10",
-        token1_id: "0x3333333333333333333333333333333333333333-10",
+        token0_id: TokenId(10, "0x2222222222222222222222222222222222222222"),
+        token1_id: TokenId(10, "0x3333333333333333333333333333333333333333"),
         token0_address: "0x2222222222222222222222222222222222222222",
         token1_address: "0x3333333333333333333333333333333333333333",
         isStable: false,
@@ -304,7 +309,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
 
       // For different chain ID, use a different mapping
       const mappingForBase: FeeToTickSpacingMapping = {
-        id: `8453_${TICK_SPACING}`,
+        id: FeeToTickSpacingMappingId(8453, TICK_SPACING),
         chainId: 8453,
         tickSpacing: TICK_SPACING,
         fee: 400n,
@@ -322,10 +327,10 @@ describe("CLFactoryPoolCreatedLogic", () => {
 
       expect(result.liquidityPoolAggregator?.chainId).toBe(8453);
       expect(result.liquidityPoolAggregator?.token0_id).toBe(
-        "0x2222222222222222222222222222222222222222-8453",
+        TokenId(8453, "0x2222222222222222222222222222222222222222"),
       );
       expect(result.liquidityPoolAggregator?.token1_id).toBe(
-        "0x3333333333333333333333333333333333333333-8453",
+        TokenId(8453, "0x3333333333333333333333333333333333333333"),
       );
     });
 
@@ -512,7 +517,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         };
 
         const mapping: FeeToTickSpacingMapping = {
-          id: `${CHAIN_ID}_${tickSpacing}`,
+          id: FeeToTickSpacingMappingId(CHAIN_ID, tickSpacing),
           chainId: CHAIN_ID,
           tickSpacing,
           fee,

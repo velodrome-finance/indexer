@@ -3,7 +3,7 @@ import { updateFeeToTickSpacingMapping } from "../Aggregators/FeeToTickSpacingMa
 import {
   CHAIN_CONSTANTS,
   FeeToTickSpacingMappingId,
-  TokenIdByChain,
+  TokenId,
 } from "../Constants";
 import { processCLFactoryPoolCreated } from "./CLFactory/CLFactoryPoolCreatedLogic";
 import { processCLFactoryTickSpacingEnabled } from "./CLFactory/CLFactoryTickSpacingEnabledLogic";
@@ -16,8 +16,8 @@ CLFactory.PoolCreated.handler(async ({ event, context }) => {
   // Load token instances efficiently
   const [poolToken0, poolToken1, CLGaugeConfig, feeToTickSpacingMapping] =
     await Promise.all([
-      context.Token.get(TokenIdByChain(event.params.token0, event.chainId)),
-      context.Token.get(TokenIdByChain(event.params.token1, event.chainId)),
+      context.Token.get(TokenId(event.chainId, event.params.token0)),
+      context.Token.get(TokenId(event.chainId, event.params.token1)),
       context.CLGaugeConfig.get(
         CHAIN_CONSTANTS[event.chainId].newCLGaugeFactoryAddress,
       ),

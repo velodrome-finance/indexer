@@ -4,6 +4,7 @@ import {
   type PoolData,
   loadPoolData,
 } from "../../../src/Aggregators/LiquidityPoolAggregator";
+import { NonFungiblePositionId } from "../../../src/Constants";
 import {
   LiquidityChangeType,
   attributeLiquidityChangeToUserStatsPerPool,
@@ -29,7 +30,7 @@ describe("NFPMDecreaseLiquidityLogic", () => {
   const poolAddress = "0x00cd0AbB6c2964F7Dfb5169dD94A9F004C35F458";
 
   const mockPosition: NonFungiblePosition = {
-    id: `${chainId}_${poolAddress}_${tokenId}`,
+    id: NonFungiblePositionId(chainId, poolAddress, tokenId),
     chainId: chainId,
     tokenId: tokenId,
     owner: "0x1DFAb7699121fEF702d07932a447868dCcCFb029",

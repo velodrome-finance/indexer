@@ -3,7 +3,7 @@ import {
   createUserStatsPerPoolEntity,
   updateUserStatsPerPool,
 } from "../../src/Aggregators/UserStatsPerPool";
-import { toChecksumAddress } from "../../src/Constants";
+import { UserStatsPerPoolId, toChecksumAddress } from "../../src/Constants";
 import { setupCommon } from "../EventHandlers/Pool/common";
 
 describe("UserStatsPerPool Aggregator", () => {
@@ -26,7 +26,7 @@ describe("UserStatsPerPool Aggregator", () => {
       );
 
       expect(userStats.id).toBe(
-        `${mockUserAddress}_${mockPoolAddress}_${mockChainId}`,
+        UserStatsPerPoolId(mockChainId, mockUserAddress, mockPoolAddress),
       );
       expect(userStats.userAddress).toBe(mockUserAddress);
       expect(userStats.poolAddress).toBe(mockPoolAddress);

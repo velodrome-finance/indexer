@@ -33,6 +33,12 @@ You are writing tests using **Jest** for this repository.
    - Tests should read like documentation.
    - Prefer small focused tests.
 
+5. **Checksum all mock Ethereum addresses**
+   - Any mock Ethereum-related address (pool, token, user, contract, etc.) used in tests **must** be checksummed using `toChecksumAddress` from `src/Constants.ts`.
+   - Import: `import { toChecksumAddress } from "../../src/Constants";` (adjust path as needed).
+   - Use valid 40-character hex (after `0x`); invalid or non-hex strings will throw at runtime.
+   - Do **not** use raw lowercase/uppercase address strings in mocks, fixtures, or assertions when the value represents an address.
+
 ---
 
 ## Pool EventHandlers: Required harness usage
@@ -50,7 +56,7 @@ If the test file is under `test/EventHandlers/Pool/**` OR the code under test us
 Always import and initialize the shared harness:
 
 ```ts
-import { setupCommon } from "./common"; // adjust relative path if needed
+import { setupCommon } from "./common"; // use "../common" or "../../common" for nested subdirectories
 
 let common: ReturnType<typeof setupCommon>;
 

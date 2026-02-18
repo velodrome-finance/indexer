@@ -58,7 +58,7 @@ export async function loadUserStatsPerPool(
   chainId: number,
   context: handlerContext,
 ): Promise<UserStatsPerPool | undefined> {
-  const id = UserStatsPerPoolId(userAddress, poolAddress, chainId);
+  const id = UserStatsPerPoolId(chainId, userAddress, poolAddress);
   return context.UserStatsPerPool.get(id);
 }
 
@@ -109,7 +109,7 @@ export function createUserStatsPerPoolEntity(
   timestamp: Date,
 ): UserStatsPerPool {
   return {
-    id: UserStatsPerPoolId(userAddress, poolAddress, chainId),
+    id: UserStatsPerPoolId(chainId, userAddress, poolAddress),
     userAddress: userAddress,
     poolAddress: poolAddress,
     chainId: chainId,
