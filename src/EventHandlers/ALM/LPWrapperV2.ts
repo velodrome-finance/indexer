@@ -1,4 +1,5 @@
 import { ALMLPWrapperV2 } from "generated";
+import { ALMLPWrapperId } from "../../Constants";
 import {
   processDepositEvent,
   processTransferEvent,
@@ -105,7 +106,7 @@ ALMLPWrapperV2.TotalSupplyLimitUpdated.handler(async ({ event, context }) => {
   const { totalSupplyCurrent } = event.params;
 
   const ALM_TotalSupplyLimitUpdated_event = {
-    id: `${event.srcAddress}_${event.chainId}`,
+    id: ALMLPWrapperId(event.srcAddress, event.chainId),
     lpWrapperAddress: event.srcAddress,
     currentTotalSupplyLPTokens: totalSupplyCurrent,
     transactionHash: event.transaction.hash,

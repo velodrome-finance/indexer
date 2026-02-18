@@ -9,7 +9,7 @@ import {
   loadPoolData,
 } from "../../Aggregators/LiquidityPoolAggregator";
 import { updateNonFungiblePosition } from "../../Aggregators/NonFungiblePosition";
-import { ZERO_ADDRESS } from "../../Constants";
+import { NonFungiblePositionId, ZERO_ADDRESS } from "../../Constants";
 import { calculatePositionAmountsFromLiquidity } from "../../Helpers";
 import {
   LiquidityChangeType,
@@ -37,8 +37,8 @@ export async function createPositionFromCLPoolMint(
   blockTimestamp: number,
   context: handlerContext,
 ): Promise<void> {
-  // Create definitive NonFungiblePosition with stable ID: ${chainId}_${poolAddress}_${tokenId}
-  const stableId = `${chainId}_${mintEvent.pool}_${tokenId}`;
+  // Create definitive NonFungiblePosition with stable ID: chainId_poolAddress_tokenId
+  const stableId = NonFungiblePositionId(chainId, mintEvent.pool, tokenId);
 
   // Create new entity with stable ID, using data from CLPoolMintEvent
   const position: NonFungiblePosition = {

@@ -1,4 +1,5 @@
 import { ALMDeployFactoryV1 } from "generated";
+import { ALMLPWrapperId } from "../../Constants";
 
 ALMDeployFactoryV1.StrategyCreated.contractRegister(({ event, context }) => {
   const [, , , lpWrapper, ,] = event.params.params;
@@ -61,7 +62,7 @@ ALMDeployFactoryV1.StrategyCreated.handler(async ({ event, context }) => {
   // Create ALM_LP_Wrapper (single entity tracks both wrapper and strategy)
   // amount0/amount1 are derived at snapshot time from liquidity + sqrtPriceX96 + ticks
   context.ALM_LP_Wrapper.set({
-    id: `${lpWrapper}_${event.chainId}`,
+    id: ALMLPWrapperId(lpWrapper, event.chainId),
     chainId: event.chainId,
     pool: pool,
     token0: token0,

@@ -1,7 +1,6 @@
 import { MockDb, VeNFT } from "../../generated/src/TestHelpers.gen";
 import * as VeNFTStateModule from "../../src/Aggregators/VeNFTState";
-import { VeNFTId } from "../../src/Aggregators/VeNFTState";
-import { toChecksumAddress } from "../../src/Constants";
+import { VeNFTId, toChecksumAddress } from "../../src/Constants";
 import * as VeNFTLogic from "../../src/EventHandlers/VeNFT/VeNFTLogic";
 import { setupCommon } from "./Pool/common";
 

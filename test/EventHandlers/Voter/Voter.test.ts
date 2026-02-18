@@ -7,12 +7,12 @@ import type {
   VeNFTState,
 } from "generated/src/Types.gen";
 import * as LiquidityPoolAggregatorModule from "../../../src/Aggregators/LiquidityPoolAggregator";
-import { getVeNFTPoolVoteId } from "../../../src/Aggregators/VeNFTPoolVote";
-import { VeNFTId } from "../../../src/Aggregators/VeNFTState";
 import {
   CHAIN_CONSTANTS,
   PoolId,
   TokenIdByChain,
+  VeNFTId,
+  VeNFTPoolVoteId,
   toChecksumAddress,
 } from "../../../src/Constants";
 import { getIsAlive, getTokensDeposited } from "../../../src/Effects/Voter";
@@ -148,11 +148,7 @@ describe("Voter Events", () => {
       });
 
       it("should create VeNFTPoolVote entity", () => {
-        const veNFTPoolVoteId = getVeNFTPoolVoteId(
-          chainId,
-          tokenId,
-          poolAddress,
-        );
+        const veNFTPoolVoteId = VeNFTPoolVoteId(chainId, tokenId, poolAddress);
         const veNFTPoolVote =
           resultDB.entities.VeNFTPoolVote.get(veNFTPoolVoteId);
         expect(veNFTPoolVote).toBeDefined();
@@ -498,7 +494,7 @@ describe("Voter Events", () => {
         });
 
         mockVeNFTPoolVote = createMockVeNFTPoolVote({
-          id: getVeNFTPoolVoteId(chainId, tokenId, poolAddress),
+          id: VeNFTPoolVoteId(chainId, tokenId, poolAddress),
           poolAddress,
           veNFTamountStaked: 200n,
           veNFTState_id: mockVeNFTState.id,
@@ -544,11 +540,7 @@ describe("Voter Events", () => {
       });
 
       it("should decrement tokenId pool votes", () => {
-        const veNFTPoolVoteId = getVeNFTPoolVoteId(
-          chainId,
-          tokenId,
-          poolAddress,
-        );
+        const veNFTPoolVoteId = VeNFTPoolVoteId(chainId, tokenId, poolAddress);
         const veNFTPoolVote =
           resultDB.entities.VeNFTPoolVote.get(veNFTPoolVoteId);
         expect(veNFTPoolVote).toBeDefined();
@@ -644,7 +636,7 @@ describe("Voter Events", () => {
         });
 
         mockVeNFTPoolVote = createMockVeNFTPoolVote({
-          id: getVeNFTPoolVoteId(rootChainId, realTokenId, rootPoolAddress),
+          id: VeNFTPoolVoteId(rootChainId, realTokenId, rootPoolAddress),
           poolAddress: rootPoolAddress,
           veNFTamountStaked: realWeight,
           veNFTState_id: mockVeNFTState.id,
@@ -720,7 +712,7 @@ describe("Voter Events", () => {
       });
 
       it("should zero out veNFT pool votes", () => {
-        const veNFTPoolVoteId = getVeNFTPoolVoteId(
+        const veNFTPoolVoteId = VeNFTPoolVoteId(
           rootChainId,
           realTokenId,
           rootPoolAddress,

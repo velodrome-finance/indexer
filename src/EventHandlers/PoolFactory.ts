@@ -9,6 +9,7 @@ import {
   DEFAULT_VAMM_FEE_BPS,
   PoolId,
   ROOT_POOL_FACTORY_ADDRESS_OPTIMISM,
+  RootPoolLeafPoolId,
   TokenIdByChain,
 } from "../Constants";
 import { getRootPoolAddress } from "../Effects/RootPool";
@@ -114,7 +115,7 @@ PoolFactory.PoolCreated.handler(async ({ event, context }) => {
 
     if (rootPoolAddress) {
       context.RootPool_LeafPool.set({
-        id: `${rootPoolAddress}_10_${event.params.pool}_${chainId}`,
+        id: RootPoolLeafPoolId(rootPoolAddress, event.params.pool, chainId),
         rootChainId: 10,
         rootPoolAddress: rootPoolAddress,
         leafChainId: chainId,

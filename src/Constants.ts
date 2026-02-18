@@ -592,6 +592,73 @@ export const TokenIdByChain = (address: string, chainId: number) =>
  */
 export const PoolId = (chainId: number, pool: string) => `${chainId}-${pool}`;
 
+/** Entity ID for ALM_LP_Wrapper.
+ * @param wrapperAddress - Address of the wrapper
+ * @param chainId - Chain ID of the wrapper
+ * @returns string Combined wrapper ID.
+ */
+export const ALMLPWrapperId = (wrapperAddress: string, chainId: number) =>
+  `${wrapperAddress}_${chainId}`;
+
+/** Entity ID for UserStatsPerPool.
+ * @param userAddress - Address of the user
+ * @param poolAddress - Address of the pool
+ * @param chainId - Chain ID of the pool
+ * @returns string Combined user ID.
+ */
+export const UserStatsPerPoolId = (
+  userAddress: string,
+  poolAddress: string,
+  chainId: number,
+) => `${userAddress}_${poolAddress}_${chainId}`;
+
+/** Entity ID for VeNFTState. */
+export const VeNFTId = (chainId: number, tokenId: bigint) =>
+  `${chainId}_${tokenId}`;
+
+/** Entity ID for VeNFTPoolVote.
+ * @param chainId - Chain ID of the veNFT
+ * @param tokenId - ID of the veNFT
+ * @param poolAddress - Address of the pool
+ * @returns string Combined veNFT pool vote ID.
+ */
+export const VeNFTPoolVoteId = (
+  chainId: number,
+  tokenId: bigint,
+  poolAddress: string,
+) => `${chainId}_${tokenId}_${poolAddress}`;
+
+/** Entity ID for RootPool_LeafPool. rootChainId defaults to 10 (Optimism).
+ * @param rootPoolAddress - Address of the root pool
+ * @param leafPoolAddress - Address of the leaf pool
+ * @param leafChainId - Chain ID of the leaf pool
+ * @param rootChainId - Chain ID of the root pool
+ * @returns string Combined root pool leaf pool ID.
+ */
+export const RootPoolLeafPoolId = (
+  rootPoolAddress: string,
+  leafPoolAddress: string,
+  leafChainId: number,
+  rootChainId = 10,
+) => `${rootPoolAddress}_${rootChainId}_${leafPoolAddress}_${leafChainId}`;
+
+/** Entity ID for FeeToTickSpacingMapping.
+ * @param chainId - Chain ID of the fee to tick spacing mapping
+ * @param tickSpacing - Tick spacing of the fee to tick spacing mapping
+ * @returns string Combined fee to tick spacing mapping ID.
+ */
+export const FeeToTickSpacingMappingId = (
+  chainId: number,
+  tickSpacing: bigint | number,
+) => `${chainId}_${tickSpacing}`;
+
+/** Entity ID for NonFungiblePosition (stable id: chainId_poolAddress_tokenId). */
+export const NonFungiblePositionId = (
+  chainId: number,
+  poolAddress: string,
+  tokenId: bigint,
+) => `${chainId}_${poolAddress}_${tokenId}`;
+
 /**
  * Create a unique ID for a token on a specific chain at a specific block. Really should only be used
  * for TokenPrice Entities.

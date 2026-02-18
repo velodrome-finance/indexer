@@ -1,6 +1,10 @@
 import { CLFactory } from "generated";
 import { updateFeeToTickSpacingMapping } from "../Aggregators/FeeToTickSpacingMapping";
-import { CHAIN_CONSTANTS, TokenIdByChain } from "../Constants";
+import {
+  CHAIN_CONSTANTS,
+  FeeToTickSpacingMappingId,
+  TokenIdByChain,
+} from "../Constants";
 import { processCLFactoryPoolCreated } from "./CLFactory/CLFactoryPoolCreatedLogic";
 import { processCLFactoryTickSpacingEnabled } from "./CLFactory/CLFactoryTickSpacingEnabledLogic";
 
@@ -18,7 +22,7 @@ CLFactory.PoolCreated.handler(async ({ event, context }) => {
         CHAIN_CONSTANTS[event.chainId].newCLGaugeFactoryAddress,
       ),
       context.FeeToTickSpacingMapping.get(
-        `${event.chainId}_${event.params.tickSpacing}`,
+        FeeToTickSpacingMappingId(event.chainId, event.params.tickSpacing),
       ),
     ]);
 
@@ -47,7 +51,7 @@ CLFactory.PoolCreated.handler(async ({ event, context }) => {
 CLFactory.TickSpacingEnabled.handler(async ({ event, context }) => {
   const feeToTickSpacingMapping =
     await context.FeeToTickSpacingMapping.getOrCreate({
-      id: `${event.chainId}_${event.params.tickSpacing}`,
+      id: FeeToTickSpacingMappingId(event.chainId, event.params.tickSpacing),
       chainId: event.chainId,
       tickSpacing: event.params.tickSpacing,
       fee: BigInt(event.params.fee),

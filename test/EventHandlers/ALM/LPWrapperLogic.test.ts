@@ -889,7 +889,7 @@ describe("LPWrapperLogic", () => {
 
     it("should return early when sender has no UserStatsPerPool", async () => {
       const wrapperId = `${srcAddress}_${chainId}`;
-      // Id format must match getUserStatsPerPoolId(userAddress, poolAddress, chainId) - no checksum
+      // Id format must match UserStatsPerPoolId(userAddress, poolAddress, chainId) from Constants - no checksum
       const poolInWrapper = toChecksumAddress(poolAddress);
       const fromUserStatsId = `${from}_${poolInWrapper}_${chainId}`;
       (mockContext.ALM_LP_Wrapper?.get as jest.Mock).mockResolvedValueOnce({

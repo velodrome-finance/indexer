@@ -8,8 +8,11 @@ import type {
   UserStatsPerPool,
   VeNFTState,
 } from "../../../generated/src/Types.gen";
-import { VeNFTId } from "../../../src/Aggregators/VeNFTState";
-import { TokenIdByChain, toChecksumAddress } from "../../../src/Constants";
+import {
+  TokenIdByChain,
+  VeNFTId,
+  toChecksumAddress,
+} from "../../../src/Constants";
 import * as VotingRewardSharedLogic from "../../../src/EventHandlers/VotingReward/VotingRewardSharedLogic";
 import { setupCommon } from "../Pool/common";
 

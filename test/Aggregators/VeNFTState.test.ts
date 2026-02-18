@@ -1,9 +1,9 @@
 import type { VeNFTState, handlerContext } from "generated";
 import {
-  VeNFTId,
   loadVeNFTState,
   updateVeNFTState,
 } from "../../src/Aggregators/VeNFTState";
+import { VeNFTId } from "../../src/Constants";
 
 function getVeNFTStateStore(
   ctx: Partial<handlerContext>,

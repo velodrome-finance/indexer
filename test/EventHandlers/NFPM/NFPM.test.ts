@@ -1,13 +1,11 @@
 import type { PublicClient } from "viem";
 import { MockDb, NFPM } from "../../../generated/src/TestHelpers.gen";
-import { CHAIN_CONSTANTS, TokenIdByChain } from "../../../src/Constants";
+import {
+  CHAIN_CONSTANTS,
+  NonFungiblePositionId,
+  TokenIdByChain,
+} from "../../../src/Constants";
 import { setupCommon } from "../Pool/common";
-
-const NonFungiblePositionId = (
-  chainId: number,
-  poolAddress: string,
-  tokenId: bigint,
-) => `${chainId}_${poolAddress}_${tokenId}`;
 
 const TokenId = (chainId: number, tokenAddress: string) =>
   TokenIdByChain(tokenAddress, chainId);

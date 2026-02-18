@@ -11,8 +11,8 @@ import {
   updateUserStatsPerPool,
 } from "../../Aggregators/UserStatsPerPool";
 import { loadPoolVotesByVeNFT } from "../../Aggregators/VeNFTPoolVote";
-import { VeNFTId, updateVeNFTState } from "../../Aggregators/VeNFTState";
-import { ZERO_ADDRESS } from "../../Constants";
+import { updateVeNFTState } from "../../Aggregators/VeNFTState";
+import { VeNFTId, ZERO_ADDRESS } from "../../Constants";
 
 /**
  * Processes a VeNFT Deposit event: updates the VeNFTState with the new locktime,

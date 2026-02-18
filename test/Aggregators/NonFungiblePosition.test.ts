@@ -1,19 +1,18 @@
 import type { NonFungiblePosition, handlerContext } from "generated";
-import {
-  NonFungiblePositionId,
-  updateNonFungiblePosition,
-} from "../../src/Aggregators/NonFungiblePosition";
+import { updateNonFungiblePosition } from "../../src/Aggregators/NonFungiblePosition";
+import { NonFungiblePositionId } from "../../src/Constants";
 
 describe("NonFungiblePosition", () => {
   let mockContext: Partial<handlerContext>;
   const transactionHash =
     "0x1234567890123456789012345678901234567890123456789012345678901234";
+  const poolAddress = "0xPoolAddress0000000000000000000000";
   const mockNonFungiblePosition: NonFungiblePosition = {
-    id: "10_1",
+    id: NonFungiblePositionId(10, poolAddress, 1n),
     chainId: 10,
     tokenId: 1n,
     owner: "0x1111111111111111111111111111111111111111",
-    pool: "0xPoolAddress0000000000000000000000",
+    pool: poolAddress,
     tickUpper: 100n,
     tickLower: -100n,
     token0: "0xToken0Address0000000000000000000000",
@@ -74,7 +73,7 @@ describe("NonFungiblePosition", () => {
       let result: NonFungiblePosition;
       beforeEach(async () => {
         const transferDiff = {
-          id: NonFungiblePositionId(10, 1n),
+          id: NonFungiblePositionId(10, poolAddress, 1n),
           chainId: 10,
           tokenId: 1n,
           owner: "0x2222222222222222222222222222222222222222",
@@ -91,7 +90,7 @@ describe("NonFungiblePosition", () => {
       });
 
       it("should update the nonFungiblePosition with new owner", () => {
-        expect(result.id).toBe(NonFungiblePositionId(10, 1n));
+        expect(result.id).toBe(NonFungiblePositionId(10, poolAddress, 1n));
         expect(result.owner).toBe("0x2222222222222222222222222222222222222222");
         expect(result.tickUpper).toBe(100n); // unchanged
         expect(result.tickLower).toBe(-100n); // unchanged
