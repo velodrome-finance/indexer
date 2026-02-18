@@ -49,7 +49,12 @@ BribesVotingReward.ClaimRewards.handler(async ({ event, context }) => {
         )
       : Promise.resolve(),
     result.userDiff
-      ? updateUserStatsPerPool(result.userDiff, loadedData.userData, context)
+      ? updateUserStatsPerPool(
+          result.userDiff,
+          loadedData.userData,
+          context,
+          new Date(data.timestamp * 1000),
+        )
       : Promise.resolve(),
   ]);
 });

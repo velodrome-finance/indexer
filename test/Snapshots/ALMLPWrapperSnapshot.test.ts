@@ -9,8 +9,7 @@ import { getWrapperAddressFromId } from "./helpers";
 describe("ALMLPWrapperSnapshot", () => {
   let common: ReturnType<typeof setupCommon>;
   const baseTimestamp = new Date(SNAPSHOT_INTERVAL_IN_MS * 3);
-  const blockNumber = 123456;
-
+=======
   beforeEach(() => {
     common = setupCommon();
     jest.clearAllMocks();
@@ -30,26 +29,13 @@ describe("ALMLPWrapperSnapshot", () => {
       expectedEpochMs,
     );
 
-    setALMLPWrapperSnapshot(entity, timestamp, blockNumber, context);
+    setALMLPWrapperSnapshot(entity, timestamp, context);
 
     expect(context.ALM_LP_WrapperSnapshot.set).toHaveBeenCalledTimes(1);
     const setArg = (context.ALM_LP_WrapperSnapshot.set as jest.Mock).mock
       .calls[0][0];
     expect(setArg.id).toBe(expectedId);
     expect(setArg.timestamp.getTime()).toBe(expectedEpochMs);
-  });
-
-  it("should pass blockNumber through to the snapshot", () => {
-    const context = common.createMockContext({
-      ALM_LP_WrapperSnapshot: { set: jest.fn() },
-    });
-    const entity = common.mockALMLPWrapperData;
-
-    setALMLPWrapperSnapshot(entity, baseTimestamp, blockNumber, context);
-
-    const setArg = (context.ALM_LP_WrapperSnapshot.set as jest.Mock).mock
-      .calls[0][0];
-    expect(setArg.blockNumber).toBe(blockNumber);
   });
 
   it("should use full entity.id as wrapper when id has no hyphen (fallback branch)", () => {
@@ -63,12 +49,7 @@ describe("ALMLPWrapperSnapshot", () => {
     const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 3;
     const wrapperAddress = getWrapperAddressFromId(entityWithoutHyphenInId.id);
 
-    setALMLPWrapperSnapshot(
-      entityWithoutHyphenInId,
-      baseTimestamp,
-      blockNumber,
-      context,
-    );
+    setALMLPWrapperSnapshot(entityWithoutHyphenInId, baseTimestamp, context);
 
     const setArg = (context.ALM_LP_WrapperSnapshot.set as jest.Mock).mock
       .calls[0][0];
@@ -88,7 +69,7 @@ describe("ALMLPWrapperSnapshot", () => {
     });
     const entity = common.mockALMLPWrapperData;
 
-    setALMLPWrapperSnapshot(entity, baseTimestamp, blockNumber, context);
+    setALMLPWrapperSnapshot(entity, baseTimestamp, context);
 
     const setArg = (context.ALM_LP_WrapperSnapshot.set as jest.Mock).mock
       .calls[0][0];

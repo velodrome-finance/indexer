@@ -1,5 +1,8 @@
 import type { ALM_LP_Wrapper, handlerContext } from "generated";
 
+import { setALMLPWrapperSnapshot } from "../Snapshots/ALMLPWrapperSnapshot";
+import { getSnapshotEpoch, shouldSnapshot } from "../Snapshots/Shared";
+
 interface ALM_LP_WrapperDiff {
   incrementalLpAmount: bigint;
   liquidity: bigint;
@@ -9,9 +12,10 @@ interface ALM_LP_WrapperDiff {
   tokenId: bigint;
   lastUpdatedTimestamp: Date;
 }
+
 /**
  * Generic function to update ALM_LP_Wrapper with any combination of fields.
- * lpAmount and position-level fields (liquidity, tickLower, tickUpper, etc.) are set from handlers.
+ * Takes an epoch-aligned snapshot when entering a new snapshot epoch.
  */
 export async function updateALMLPWrapper(
   diff: Partial<ALM_LP_WrapperDiff>,
@@ -19,7 +23,7 @@ export async function updateALMLPWrapper(
   timestamp: Date,
   context: handlerContext,
 ): Promise<void> {
-  const updated: ALM_LP_Wrapper = {
+  let updated: ALM_LP_Wrapper = {
     ...current,
     lpAmount:
       diff.incrementalLpAmount !== undefined
@@ -35,6 +39,14 @@ export async function updateALMLPWrapper(
     property: diff.property !== undefined ? diff.property : current.property,
     lastUpdatedTimestamp: timestamp,
   };
+
+  if (shouldSnapshot(current.lastSnapshotTimestamp, timestamp)) {
+    setALMLPWrapperSnapshot(updated, timestamp, context);
+    updated = {
+      ...updated,
+      lastSnapshotTimestamp: getSnapshotEpoch(timestamp),
+    };
+  }
 
   context.ALM_LP_Wrapper.set(updated);
 }

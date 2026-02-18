@@ -198,6 +198,7 @@ describe("GaugeSharedLogic", () => {
           },
         },
       },
+      UserStatsPerPoolSnapshot: { set: () => {} },
       Token: {
         get: (id: string) => updatedDB.entities.Token.get(id),
         // biome-ignore lint/suspicious/noExplicitAny: Mock entity for testing

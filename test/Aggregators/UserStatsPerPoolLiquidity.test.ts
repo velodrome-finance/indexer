@@ -25,6 +25,7 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         UserStatsPerPool: {
           set: async () => {},
         },
+        UserStatsPerPoolSnapshot: { set: jest.fn() },
         log: {
           error: () => {},
           warn: () => {},
@@ -43,6 +44,7 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         },
         userStats,
         mockContext,
+        mockTimestamp,
       );
 
       expect(result.currentLiquidityUSD).toBe(1000n);
@@ -55,6 +57,7 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         UserStatsPerPool: {
           set: async () => {},
         },
+        UserStatsPerPoolSnapshot: { set: jest.fn() },
         log: {
           error: () => {},
           warn: () => {},
@@ -73,6 +76,7 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         },
         userStats,
         mockContext,
+        mockTimestamp,
       );
 
       expect(userStats.currentLiquidityUSD).toBe(1000n);
@@ -88,6 +92,7 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         },
         userStats,
         mockContext,
+        mockTimestamp,
       );
 
       expect(userStats.currentLiquidityUSD).toBe(1500n);
@@ -102,6 +107,7 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         UserStatsPerPool: {
           set: async () => {},
         },
+        UserStatsPerPoolSnapshot: { set: jest.fn() },
         log: {
           error: () => {},
           warn: () => {},
@@ -120,6 +126,7 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         },
         userStats,
         mockContext,
+        mockTimestamp,
       );
 
       expect(result.currentLiquidityUSD).toBe(-500n);
@@ -132,6 +139,7 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         UserStatsPerPool: {
           set: async () => {},
         },
+        UserStatsPerPoolSnapshot: { set: jest.fn() },
         log: {
           error: () => {},
           warn: () => {},
@@ -150,6 +158,7 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         },
         userStats,
         mockContext,
+        mockTimestamp,
       );
 
       expect(userStats.currentLiquidityUSD).toBe(-300n);
@@ -165,6 +174,7 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         },
         userStats,
         mockContext,
+        mockTimestamp,
       );
 
       expect(userStats.currentLiquidityUSD).toBe(-500n);
@@ -179,6 +189,7 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         UserStatsPerPool: {
           set: async () => {},
         },
+        UserStatsPerPoolSnapshot: { set: jest.fn() },
         log: {
           error: () => {},
           warn: () => {},
@@ -197,6 +208,7 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         },
         userStats,
         mockContext,
+        mockTimestamp,
       );
 
       expect(userStats.currentLiquidityUSD).toBe(1000n);
@@ -212,6 +224,7 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         },
         userStats,
         mockContext,
+        mockTimestamp,
       );
 
       expect(userStats.currentLiquidityUSD).toBe(700n);
@@ -224,6 +237,7 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         UserStatsPerPool: {
           set: async () => {},
         },
+        UserStatsPerPoolSnapshot: { set: jest.fn() },
         log: {
           error: () => {},
           warn: () => {},
@@ -242,6 +256,7 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         },
         userStats,
         mockContext,
+        mockTimestamp,
       );
 
       expect(userStats.currentLiquidityUSD).toBe(-500n);
@@ -257,6 +272,7 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         },
         userStats,
         mockContext,
+        mockTimestamp,
       );
 
       expect(userStats.currentLiquidityUSD).toBe(300n);
@@ -269,6 +285,7 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         UserStatsPerPool: {
           set: async () => {},
         },
+        UserStatsPerPoolSnapshot: { set: jest.fn() },
         log: {
           error: () => {},
           warn: () => {},
@@ -287,6 +304,7 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         },
         userStats,
         mockContext,
+        mockTimestamp,
       );
 
       // Remove 200
@@ -298,6 +316,7 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         },
         userStats,
         mockContext,
+        mockTimestamp,
       );
 
       // Add 500
@@ -309,6 +328,7 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         },
         userStats,
         mockContext,
+        mockTimestamp,
       );
 
       // Remove 100
@@ -320,6 +340,7 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         },
         userStats,
         mockContext,
+        mockTimestamp,
       );
 
       expect(userStats.currentLiquidityUSD).toBe(1200n); // 1000 - 200 + 500 - 100
@@ -334,6 +355,7 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         UserStatsPerPool: {
           set: async () => {},
         },
+        UserStatsPerPoolSnapshot: { set: jest.fn() },
         log: {
           error: () => {},
           warn: () => {},
@@ -349,6 +371,7 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         },
         userStats,
         mockContext,
+        mockTimestamp,
       );
 
       expect(result.currentLiquidityUSD).toBe(0n);
@@ -361,6 +384,7 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         UserStatsPerPool: {
           set: async () => {},
         },
+        UserStatsPerPoolSnapshot: { set: jest.fn() },
         log: {
           error: () => {},
           warn: () => {},
@@ -379,6 +403,7 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         },
         userStats,
         mockContext,
+        mockTimestamp,
       );
 
       expect(result.currentLiquidityUSD).toBe(largeAmount);

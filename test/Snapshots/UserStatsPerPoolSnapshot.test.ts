@@ -8,7 +8,6 @@ import { setupCommon } from "../EventHandlers/Pool/common";
 describe("UserStatsPerPoolSnapshot", () => {
   let common: ReturnType<typeof setupCommon>;
   const baseTimestamp = new Date(SNAPSHOT_INTERVAL_IN_MS * 4);
-  const blockNumber = 200000;
 
   beforeEach(() => {
     common = setupCommon();
@@ -25,7 +24,7 @@ describe("UserStatsPerPoolSnapshot", () => {
     });
     const timestamp = new Date(baseTimestamp.getTime() + 45 * 60 * 1000);
 
-    setUserStatsPerPoolSnapshot(entity, timestamp, blockNumber, context);
+    setUserStatsPerPoolSnapshot(entity, timestamp, context);
 
     expect(context.UserStatsPerPoolSnapshot.set).toHaveBeenCalledTimes(1);
     const setArg = (context.UserStatsPerPoolSnapshot.set as jest.Mock).mock
@@ -40,7 +39,6 @@ describe("UserStatsPerPoolSnapshot", () => {
       ),
     );
     expect(setArg.timestamp.getTime()).toBe(expectedEpochMs);
-    expect(setArg.blockNumber).toBe(blockNumber);
   });
 
   it("should spread entity fields into the snapshot", () => {
@@ -52,7 +50,7 @@ describe("UserStatsPerPoolSnapshot", () => {
       totalFeesContributedUSD: 100n,
     });
 
-    setUserStatsPerPoolSnapshot(entity, baseTimestamp, blockNumber, context);
+    setUserStatsPerPoolSnapshot(entity, baseTimestamp, context);
 
     const setArg = (context.UserStatsPerPoolSnapshot.set as jest.Mock).mock
       .calls[0][0];

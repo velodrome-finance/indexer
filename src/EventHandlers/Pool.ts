@@ -133,7 +133,7 @@ Pool.Fees.handler(async ({ event, context }) => {
         )
       : Promise.resolve(),
     userDiff
-      ? updateUserStatsPerPool(userDiff, userData, context)
+      ? updateUserStatsPerPool(userDiff, userData, context, timestamp)
       : Promise.resolve(),
   ]);
 });
@@ -181,7 +181,7 @@ Pool.Swap.handler(async ({ event, context }) => {
       event.chainId,
       event.block.number,
     ),
-    updateUserStatsPerPool(userSwapDiff, userData, context),
+    updateUserStatsPerPool(userSwapDiff, userData, context, timestamp),
   ]);
 
   // Create OUSDTSwaps entity only if oUSDT is involved
@@ -316,6 +316,6 @@ Pool.Claim.handler(async ({ event, context }) => {
       event.chainId,
       event.block.number,
     ),
-    updateUserStatsPerPool(result.userDiff, userData, context),
+    updateUserStatsPerPool(result.userDiff, userData, context, timestamp),
   ]);
 });

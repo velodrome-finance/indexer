@@ -8,7 +8,6 @@ import { setupCommon } from "../EventHandlers/Pool/common";
 describe("NonFungiblePositionSnapshot", () => {
   let common: ReturnType<typeof setupCommon>;
   const baseTimestamp = new Date(SNAPSHOT_INTERVAL_IN_MS * 6);
-  const blockNumber = 300000;
 
   beforeEach(() => {
     common = setupCommon();
@@ -22,7 +21,7 @@ describe("NonFungiblePositionSnapshot", () => {
     const entity = common.createMockNonFungiblePosition();
     const timestamp = new Date(baseTimestamp.getTime() + 20 * 60 * 1000);
 
-    setNonFungiblePositionSnapshot(entity, timestamp, blockNumber, context);
+    setNonFungiblePositionSnapshot(entity, timestamp, context);
 
     expect(context.NonFungiblePositionSnapshot.set).toHaveBeenCalledTimes(1);
     const setArg = (context.NonFungiblePositionSnapshot.set as jest.Mock).mock
@@ -36,7 +35,6 @@ describe("NonFungiblePositionSnapshot", () => {
       ),
     );
     expect(setArg.timestamp.getTime()).toBe(expectedEpochMs);
-    expect(setArg.blockNumber).toBe(blockNumber);
   });
 
   it("should spread entity fields into the snapshot", () => {
@@ -45,7 +43,7 @@ describe("NonFungiblePositionSnapshot", () => {
     });
     const entity = common.createMockNonFungiblePosition({ liquidity: 5000n });
 
-    setNonFungiblePositionSnapshot(entity, baseTimestamp, blockNumber, context);
+    setNonFungiblePositionSnapshot(entity, baseTimestamp, context);
 
     const setArg = (context.NonFungiblePositionSnapshot.set as jest.Mock).mock
       .calls[0][0];

@@ -345,7 +345,7 @@ export async function processDepositEvent(
       timestamp,
       context,
     ),
-    updateUserStatsPerPool(userStatsDiff, userStats, context),
+    updateUserStatsPerPool(userStatsDiff, userStats, context, timestamp),
   ]);
 }
 
@@ -450,7 +450,7 @@ export async function processWithdrawEvent(
       timestamp,
       context,
     ),
-    updateUserStatsPerPool(userStatsDiff, userStats, context),
+    updateUserStatsPerPool(userStatsDiff, userStats, context, timestamp),
   ]);
 }
 
@@ -595,7 +595,12 @@ export async function processTransferEvent(
   };
 
   await Promise.all([
-    updateUserStatsPerPool(UserStatsFromDiff, userStatsFrom, context),
-    updateUserStatsPerPool(UserStatsToDiff, userStatsTo, context),
+    updateUserStatsPerPool(
+      UserStatsFromDiff,
+      userStatsFrom,
+      context,
+      timestamp,
+    ),
+    updateUserStatsPerPool(UserStatsToDiff, userStatsTo, context, timestamp),
   ]);
 }

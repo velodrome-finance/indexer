@@ -11,14 +11,12 @@ import { getSnapshotEpoch } from "./Shared";
  * Creates and persists an epoch-aligned snapshot of ALM_LP_Wrapper.
  * @param entity - ALM_LP_Wrapper to snapshot
  * @param timestamp - Timestamp of the snapshot
- * @param blockNumber - Block number of the snapshot
  * @param context - Handler context
  * @returns void
  */
 export function setALMLPWrapperSnapshot(
   entity: ALM_LP_Wrapper,
   timestamp: Date,
-  blockNumber: number,
   context: handlerContext,
 ): void {
   const epoch = getSnapshotEpoch(timestamp);
@@ -55,7 +53,6 @@ export function setALMLPWrapperSnapshot(
     creationTimestamp: entity.creationTimestamp,
     strategyTransactionHash: entity.strategyTransactionHash,
     timestamp: epoch,
-    blockNumber,
   };
 
   context.ALM_LP_WrapperSnapshot.set(snapshot);

@@ -11,14 +11,12 @@ import { getSnapshotEpoch } from "./Shared";
  * Creates and persists an epoch-aligned snapshot of NonFungiblePosition.
  * @param entity - NonFungiblePosition to snapshot
  * @param timestamp - Timestamp of the snapshot
- * @param blockNumber - Block number of the snapshot
  * @param context - Handler context
  * @returns void
  */
 export function setNonFungiblePositionSnapshot(
   entity: NonFungiblePosition,
   timestamp: Date,
-  blockNumber: number,
   context: handlerContext,
 ): void {
   const epoch = getSnapshotEpoch(timestamp);
@@ -44,7 +42,6 @@ export function setNonFungiblePositionSnapshot(
     mintLogIndex: entity.mintLogIndex,
     lastUpdatedTimestamp: entity.lastUpdatedTimestamp,
     timestamp: epoch,
-    blockNumber,
   };
 
   context.NonFungiblePositionSnapshot.set(snapshot);

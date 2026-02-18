@@ -288,7 +288,13 @@ export async function handleRegularTransfer(
     owner: event.params.to,
     lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
   };
-  updateNonFungiblePosition(nonFungiblePositionDiff, position, context);
+  const timestamp = new Date(event.block.timestamp * 1000);
+  updateNonFungiblePosition(
+    nonFungiblePositionDiff,
+    position,
+    context,
+    timestamp,
+  );
 }
 
 /**

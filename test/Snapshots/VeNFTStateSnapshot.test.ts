@@ -8,7 +8,6 @@ import { setupCommon } from "../EventHandlers/Pool/common";
 describe("VeNFTStateSnapshot", () => {
   let common: ReturnType<typeof setupCommon>;
   const baseTimestamp = new Date(SNAPSHOT_INTERVAL_IN_MS * 2);
-  const blockNumber = 150000;
 
   beforeEach(() => {
     common = setupCommon();
@@ -26,7 +25,7 @@ describe("VeNFTStateSnapshot", () => {
     );
     const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 3;
 
-    setVeNFTStateSnapshot(entity, midEpochTimestamp, blockNumber, context);
+    setVeNFTStateSnapshot(entity, midEpochTimestamp, context);
 
     const setArg = (context.VeNFTStateSnapshot.set as jest.Mock).mock
       .calls[0][0];
@@ -46,7 +45,7 @@ describe("VeNFTStateSnapshot", () => {
     });
     const timestamp = new Date(baseTimestamp.getTime() + 10 * 60 * 1000);
 
-    setVeNFTStateSnapshot(entity, timestamp, blockNumber, context);
+    setVeNFTStateSnapshot(entity, timestamp, context);
 
     expect(context.VeNFTStateSnapshot.set).toHaveBeenCalledTimes(1);
     const setArg = (context.VeNFTStateSnapshot.set as jest.Mock).mock
@@ -56,7 +55,6 @@ describe("VeNFTStateSnapshot", () => {
       VeNFTStateSnapshotId(entity.chainId, entity.tokenId, expectedEpochMs),
     );
     expect(setArg.timestamp.getTime()).toBe(expectedEpochMs);
-    expect(setArg.blockNumber).toBe(blockNumber);
   });
 
   it("should spread entity fields into the snapshot", () => {
@@ -69,7 +67,7 @@ describe("VeNFTStateSnapshot", () => {
       isAlive: false,
     });
 
-    setVeNFTStateSnapshot(entity, baseTimestamp, blockNumber, context);
+    setVeNFTStateSnapshot(entity, baseTimestamp, context);
 
     const setArg = (context.VeNFTStateSnapshot.set as jest.Mock).mock
       .calls[0][0];
@@ -80,6 +78,5 @@ describe("VeNFTStateSnapshot", () => {
     expect(setArg.locktime).toBe(entity.locktime);
     expect(setArg.lastUpdatedTimestamp).toEqual(entity.lastUpdatedTimestamp);
     expect(setArg.isAlive).toBe(entity.isAlive);
-    expect(setArg.lastSnapshotTimestamp).toEqual(entity.lastSnapshotTimestamp);
   });
 });

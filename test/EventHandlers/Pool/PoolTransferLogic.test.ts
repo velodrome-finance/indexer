@@ -57,6 +57,7 @@ describe("PoolTransferLogic", () => {
         get: jest.fn(),
         set: jest.fn(),
       },
+      UserStatsPerPoolSnapshot: { set: jest.fn() },
       PoolTransferInTx: {
         set: jest.fn(),
       },
@@ -201,6 +202,7 @@ describe("PoolTransferLogic", () => {
         }),
         expect.anything(),
         mockContext,
+        TIMESTAMP_DATE,
       );
     });
 
@@ -223,6 +225,7 @@ describe("PoolTransferLogic", () => {
         }),
         expect.anything(),
         mockContext,
+        TIMESTAMP_DATE,
       );
     });
 
@@ -246,6 +249,7 @@ describe("PoolTransferLogic", () => {
         }),
         expect.anything(),
         mockContext,
+        TIMESTAMP_DATE,
       );
       expect(updateUserStatsPerPoolSpy).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -253,6 +257,7 @@ describe("PoolTransferLogic", () => {
         }),
         expect.anything(),
         mockContext,
+        TIMESTAMP_DATE,
       );
     });
 
@@ -288,6 +293,7 @@ describe("PoolTransferLogic", () => {
         }),
         expect.anything(),
         mockContext,
+        TIMESTAMP_DATE,
       );
     });
   });

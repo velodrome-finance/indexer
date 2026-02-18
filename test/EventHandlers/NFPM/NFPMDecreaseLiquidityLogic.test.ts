@@ -78,6 +78,9 @@ describe("NFPMDecreaseLiquidityLogic", () => {
       LiquidityPoolAggregator: {
         get: jest.fn().mockResolvedValue(undefined),
       },
+      NonFungiblePositionSnapshot: {
+        set: jest.fn(),
+      },
       NonFungiblePosition: {
         ...mockDb.entities.NonFungiblePosition,
         getWhere: {

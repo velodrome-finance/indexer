@@ -44,6 +44,9 @@ describe("VeNFTState", () => {
           },
         },
       },
+      VeNFTStateSnapshot: {
+        set: jest.fn(),
+      } as unknown as handlerContext["VeNFTStateSnapshot"],
       log: {
         error: jest.fn(),
         info: jest.fn(),
@@ -242,7 +245,7 @@ describe("VeNFTState", () => {
     });
 
     describe("lastSnapshotTimestamp", () => {
-      it("should leave lastSnapshotTimestamp undefined when current has it undefined", () => {
+      it("should set lastSnapshotTimestamp to epoch when current has it undefined (first snapshot)", () => {
         const depositDiff = { incrementalTotalValueLocked: 10n };
         updateVeNFTState(
           depositDiff,
@@ -252,7 +255,11 @@ describe("VeNFTState", () => {
         );
         const result = getVeNFTStateStore(mockContext).set as jest.Mock;
         const updated = result.mock.calls[0][0] as VeNFTState;
-        expect(updated.lastSnapshotTimestamp).toBeUndefined();
+        // When lastSnapshotTimestamp is undefined we take a snapshot and set it to the epoch
+        expect(updated.lastSnapshotTimestamp).toBeDefined();
+        expect(updated.lastSnapshotTimestamp?.getTime()).toBe(
+          Math.floor(timestamp.getTime() / (60 * 60 * 1000)) * (60 * 60 * 1000),
+        );
       });
 
       it("should preserve lastSnapshotTimestamp when present and diff does not provide a newer one", () => {

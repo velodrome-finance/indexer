@@ -129,7 +129,13 @@ export async function processNFPMIncreaseLiquidity(
   const nonFungiblePositionDiff = calculateIncreaseLiquidityDiff(event);
 
   // Update position with result
-  updateNonFungiblePosition(nonFungiblePositionDiff, position, context);
+  const timestamp = new Date(event.block.timestamp * 1000);
+  updateNonFungiblePosition(
+    nonFungiblePositionDiff,
+    position,
+    context,
+    timestamp,
+  );
 
   const poolData = await loadPoolData(
     position.pool,

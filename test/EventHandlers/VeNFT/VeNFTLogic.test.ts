@@ -41,6 +41,7 @@ describe("VeNFTLogic", () => {
     },
     VeNFTPoolVote: mockVeNFTPoolVoteStore,
     UserStatsPerPool: mockUserStatsStore,
+    UserStatsPerPoolSnapshot: { set: jest.fn() },
   } as unknown as handlerContext;
 
   const mockVeNFTState: VeNFTState = {
@@ -384,6 +385,7 @@ describe("VeNFTLogic", () => {
         }),
         previousOwnerStats,
         mockContext,
+        new Date(mockTransferEvent.block.timestamp * 1000),
       );
       expect(updateUserStatsSpy).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -391,6 +393,7 @@ describe("VeNFTLogic", () => {
         }),
         newOwnerStats,
         mockContext,
+        new Date(mockTransferEvent.block.timestamp * 1000),
       );
     });
   });
@@ -461,6 +464,7 @@ describe("VeNFTLogic", () => {
         }),
         existingUserStats,
         mockContext,
+        new Date(mockTransferEvent.block.timestamp * 1000),
       );
     });
   });
@@ -521,6 +525,7 @@ describe("VeNFTLogic", () => {
         }),
         expect.any(Object),
         mockContext,
+        new Date(mockTransferEvent.block.timestamp * 1000),
       );
     });
   });

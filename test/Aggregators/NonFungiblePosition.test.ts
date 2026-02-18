@@ -29,6 +29,9 @@ describe("NonFungiblePosition", () => {
 
   beforeEach(() => {
     mockContext = {
+      NonFungiblePositionSnapshot: {
+        set: jest.fn(),
+      } as unknown as handlerContext["NonFungiblePositionSnapshot"],
       NonFungiblePosition: {
         set: jest.fn(),
         get: jest.fn(),
@@ -90,6 +93,7 @@ describe("NonFungiblePosition", () => {
           transferDiff,
           mockNonFungiblePosition,
           mockContext as handlerContext,
+          timestamp,
         );
         const mockSet = jest.mocked(mockContext.NonFungiblePosition?.set);
         result = mockSet?.mock.calls[0]?.[0] as NonFungiblePosition;
@@ -104,7 +108,8 @@ describe("NonFungiblePosition", () => {
         expect(result.tickLower).toBe(-100n); // unchanged
         expect(result.liquidity).toBe(1000000000000000000n); // unchanged
         expect(result.lastUpdatedTimestamp).toBe(timestamp);
-        expect(result.lastSnapshotTimestamp).toBeUndefined(); // unchanged
+        // When timestamp is provided and lastSnapshotTimestamp was undefined we take a snapshot and set it to the epoch
+        expect(result.lastSnapshotTimestamp).toBeDefined();
       });
     });
 
@@ -121,6 +126,7 @@ describe("NonFungiblePosition", () => {
           increaseDiff,
           mockNonFungiblePosition,
           mockContext as handlerContext,
+          timestamp,
         );
         const mockSet = jest.mocked(mockContext.NonFungiblePosition?.set);
         result = mockSet?.mock.calls[0]?.[0] as NonFungiblePosition;
@@ -150,6 +156,7 @@ describe("NonFungiblePosition", () => {
           decreaseDiff,
           mockNonFungiblePosition,
           mockContext as handlerContext,
+          timestamp,
         );
         const mockSet = jest.mocked(mockContext.NonFungiblePosition?.set);
         result = mockSet?.mock.calls[0]?.[0] as NonFungiblePosition;

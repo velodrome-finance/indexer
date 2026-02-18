@@ -109,7 +109,7 @@ CLPool.Collect.handler(async ({ event, context }) => {
       event.chainId,
       event.block.number,
     ),
-    updateUserStatsPerPool(userDiff, userData, context),
+    updateUserStatsPerPool(userDiff, userData, context, timestamp),
   ]);
 });
 
@@ -166,7 +166,7 @@ CLPool.CollectFees.handler(async ({ event, context }) => {
       event.chainId,
       event.block.number,
     ),
-    updateUserStatsPerPool(userDiff, userData, context),
+    updateUserStatsPerPool(userDiff, userData, context, timestamp),
   ]);
 });
 
@@ -214,7 +214,7 @@ CLPool.Flash.handler(async ({ event, context }) => {
       event.block.number,
     ),
     ...((userDiff.incrementalTotalFlashLoanVolumeUSD ?? 0n) > 0n
-      ? [updateUserStatsPerPool(userDiff, userData, context)]
+      ? [updateUserStatsPerPool(userDiff, userData, context, timestamp)]
       : []),
   ]);
 });
@@ -379,7 +379,7 @@ CLPool.Swap.handler(async ({ event, context }) => {
       event.chainId,
       event.block.number,
     ),
-    updateUserStatsPerPool(userDiff, userData, context),
+    updateUserStatsPerPool(userDiff, userData, context, timestamp),
   ]);
 
   // Create OUSDTSwaps entity

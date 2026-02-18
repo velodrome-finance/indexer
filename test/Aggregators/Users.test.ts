@@ -56,6 +56,9 @@ describe("UserStatsPerPool Aggregator", () => {
           get: async (id: string) => undefined,
           set: async (userStats: UserStatsPerPool) => {},
         },
+        UserStatsPerPoolSnapshot: {
+          set: jest.fn(),
+        } as unknown as handlerContext["UserStatsPerPoolSnapshot"],
         log: {
           error: () => {},
           warn: () => {},
@@ -90,6 +93,7 @@ describe("UserStatsPerPool Aggregator", () => {
         diff,
         mockUserData,
         mockContext,
+        mockTimestamp,
       );
 
       expect(result.currentLiquidityUSD).toBe(netLiquidityAddedUSD);
@@ -125,6 +129,7 @@ describe("UserStatsPerPool Aggregator", () => {
         diff,
         mockUserData,
         mockContext,
+        mockTimestamp,
       );
 
       expect(result.currentLiquidityUSD).toBe(netLiquidityRemovedUSD);
@@ -159,6 +164,7 @@ describe("UserStatsPerPool Aggregator", () => {
         diff,
         mockUserData,
         mockContext,
+        mockTimestamp,
       );
 
       expect(result.totalFeesContributedUSD).toBe(1000n);
@@ -194,6 +200,7 @@ describe("UserStatsPerPool Aggregator", () => {
         diff,
         mockUserData,
         mockContext,
+        mockTimestamp,
       );
 
       expect(result.numberOfSwaps).toBe(1n);
@@ -229,6 +236,7 @@ describe("UserStatsPerPool Aggregator", () => {
         },
         userStats,
         mockContext,
+        mockTimestamp,
       );
 
       expect(userStats.numberOfSwaps).toBe(1n);
@@ -247,6 +255,7 @@ describe("UserStatsPerPool Aggregator", () => {
         },
         userStats,
         mockContext,
+        mockTimestamp,
       );
 
       expect(userStats.numberOfSwaps).toBe(2n);
@@ -265,6 +274,7 @@ describe("UserStatsPerPool Aggregator", () => {
         },
         userStats,
         mockContext,
+        mockTimestamp,
       );
 
       expect(userStats.numberOfSwaps).toBe(3n);
@@ -298,6 +308,7 @@ describe("UserStatsPerPool Aggregator", () => {
         diff,
         mockUserData,
         mockContext,
+        mockTimestamp,
       );
 
       expect(result.numberOfFlashLoans).toBe(1n);
@@ -335,6 +346,7 @@ describe("UserStatsPerPool Aggregator", () => {
         diff,
         mockUserData,
         mockContext,
+        mockTimestamp,
       );
 
       expect(result.currentLiquidityUSD).toBe(2000n);
@@ -388,6 +400,7 @@ describe("UserStatsPerPool Aggregator", () => {
         diff,
         existingUserStats,
         mockContext,
+        mockTimestamp,
       );
 
       expect(result.currentLiquidityUSD).toBe(3000n); // 2000 + 1000
@@ -438,6 +451,7 @@ describe("UserStatsPerPool Aggregator", () => {
         diff,
         existingUserStats,
         mockContext,
+        mockTimestamp,
       );
 
       expect(result.currentLiquidityUSD).toBe(1500n); // 2000 - 500

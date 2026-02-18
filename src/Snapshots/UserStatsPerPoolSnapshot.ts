@@ -11,14 +11,12 @@ import { getSnapshotEpoch } from "./Shared";
  * Creates and persists an epoch-aligned snapshot of UserStatsPerPool.
  * @param entity - UserStatsPerPool to snapshot
  * @param timestamp - Timestamp of the snapshot
- * @param blockNumber - Block number of the snapshot
  * @param context - Handler context
  * @returns void
  */
 export function setUserStatsPerPoolSnapshot(
   entity: UserStatsPerPool,
   timestamp: Date,
-  blockNumber: number,
   context: handlerContext,
 ): void {
   const epoch = getSnapshotEpoch(timestamp);
@@ -36,7 +34,6 @@ export function setUserStatsPerPoolSnapshot(
     poolAddress: entity.poolAddress,
     chainId: entity.chainId,
     timestamp: epoch,
-    blockNumber,
     currentLiquidityUSD: entity.currentLiquidityUSD,
     lpBalance: entity.lpBalance,
     totalLiquidityAddedUSD: entity.totalLiquidityAddedUSD,

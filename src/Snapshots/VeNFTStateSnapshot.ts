@@ -7,14 +7,12 @@ import { getSnapshotEpoch } from "./Shared";
  * Creates and persists an epoch-aligned snapshot of VeNFTState.
  * @param entity - VeNFTState to snapshot
  * @param timestamp - Timestamp of the snapshot
- * @param blockNumber - Block number of the snapshot
  * @param context - Handler context
  * @returns void
  */
 export function setVeNFTStateSnapshot(
   entity: VeNFTState,
   timestamp: Date,
-  blockNumber: number,
   context: handlerContext,
 ): void {
   const epoch = getSnapshotEpoch(timestamp);
@@ -35,7 +33,6 @@ export function setVeNFTStateSnapshot(
     totalValueLocked: entity.totalValueLocked,
     isAlive: entity.isAlive,
     timestamp: epoch,
-    blockNumber,
   };
 
   context.VeNFTStateSnapshot.set(snapshot);

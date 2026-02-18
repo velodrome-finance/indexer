@@ -469,6 +469,8 @@ describe("LPWrapperLogic", () => {
           get: jest.fn(),
           set: jest.fn(),
         },
+        UserStatsPerPoolSnapshot: { set: jest.fn() },
+        ALM_LP_WrapperSnapshot: { set: jest.fn() },
         LiquidityPoolAggregator: {
           get: jest.fn((poolAddr) => {
             if (poolAddr === poolId) {
@@ -618,6 +620,8 @@ describe("LPWrapperLogic", () => {
           get: jest.fn(),
           set: jest.fn(),
         },
+        UserStatsPerPoolSnapshot: { set: jest.fn() },
+        ALM_LP_WrapperSnapshot: { set: jest.fn() },
         LiquidityPoolAggregator: {
           get: jest.fn((poolAddr) => {
             if (poolAddr === poolId) {
@@ -765,6 +769,8 @@ describe("LPWrapperLogic", () => {
           get: jest.fn(),
           set: jest.fn(),
         },
+        UserStatsPerPoolSnapshot: { set: jest.fn() },
+        ALM_LP_WrapperSnapshot: { set: jest.fn() },
         log: {
           error: jest.fn(),
         },
@@ -1291,6 +1297,8 @@ describe("LPWrapperLogic", () => {
           get: jest.fn(),
           set: jest.fn(),
         },
+        UserStatsPerPoolSnapshot: { set: jest.fn() },
+        ALM_LP_WrapperSnapshot: { set: jest.fn() },
         LiquidityPoolAggregator: {
           get: jest.fn((poolAddr) => {
             if (poolAddr === poolId) {

@@ -1,6 +1,8 @@
 import type { UserStatsPerPool, handlerContext } from "generated";
 
 import { UserStatsPerPoolId } from "../Constants";
+import { getSnapshotEpoch, shouldSnapshot } from "../Snapshots/Shared";
+import { setUserStatsPerPoolSnapshot } from "../Snapshots/UserStatsPerPoolSnapshot";
 
 export interface UserStatsPerPoolDiff {
   incrementalCurrentLiquidityUSD: bigint;
@@ -177,14 +179,16 @@ export function createUserStatsPerPoolEntity(
 
 /**
  * Generic function to update UserStatsPerPool with any combination of fields
- * Similar to updateLiquidityPoolAggregator pattern
+ * Similar to updateLiquidityPoolAggregator pattern.
+ * Takes an epoch-aligned snapshot when entering a new snapshot epoch.
  */
 export async function updateUserStatsPerPool(
   diff: Partial<UserStatsPerPoolDiff>,
   current: UserStatsPerPool,
   context: handlerContext,
+  timestamp: Date,
 ): Promise<UserStatsPerPool> {
-  const updated: UserStatsPerPool = {
+  let updated: UserStatsPerPool = {
     ...current,
     currentLiquidityUSD:
       diff.incrementalCurrentLiquidityUSD !== undefined
@@ -377,6 +381,14 @@ export async function updateUserStatsPerPool(
         ? diff.lastActivityTimestamp
         : current.lastActivityTimestamp,
   };
+
+  if (shouldSnapshot(current.lastSnapshotTimestamp, timestamp)) {
+    setUserStatsPerPoolSnapshot(updated, timestamp, context);
+    updated = {
+      ...updated,
+      lastSnapshotTimestamp: getSnapshotEpoch(timestamp),
+    };
+  }
 
   context.UserStatsPerPool.set(updated);
   return updated;

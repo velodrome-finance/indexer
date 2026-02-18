@@ -251,6 +251,9 @@ describe("NFPMTransferLogic", () => {
       LiquidityPoolAggregator: {
         get: jest.fn().mockResolvedValue(undefined),
       },
+      NonFungiblePositionSnapshot: {
+        set: jest.fn(),
+      },
       NonFungiblePosition: {
         ...currentDb.entities.NonFungiblePosition,
         getWhere: {
@@ -659,6 +662,21 @@ describe("NFPMTransferLogic", () => {
   });
 
   describe("handleRegularTransfer", () => {
+    it("logs error and returns when positions array is empty", async () => {
+      const mockEvent = createMockTransferEvent(userA, userB);
+
+      await handleRegularTransfer(mockEvent, [], mockContext);
+
+      expect(mockContext.log.error).toHaveBeenCalledWith(
+        expect.stringContaining(
+          "[handleRegularTransfer] No positions provided",
+        ),
+      );
+      expect(mockContext.log.error).toHaveBeenCalledWith(
+        expect.stringContaining(`tokenId ${tokenId}`),
+      );
+    });
+
     it("should update owner of existing position", async () => {
       jest
         .mocked(loadPoolData)
@@ -828,6 +846,23 @@ describe("NFPMTransferLogic", () => {
       expect(attributeLiquidityChangeToUserStatsPerPool).not.toHaveBeenCalled();
       const updatedPosition = getPositionAfterTransfer();
       expect(updatedPosition?.owner).toBe(userB);
+    });
+
+    it("does not call attributeLiquidityChangeToUserStatsPerPool on self-transfer (from === to)", async () => {
+      jest
+        .mocked(loadPoolData)
+        .mockResolvedValue(
+          minimalPoolData({ sqrtPriceX96: defaultSqrtPriceX96 }),
+        );
+      const pos = positionWithLiquidity(userA);
+      setPosition(pos);
+      const mockEvent = createMockTransferEvent(userA, userA);
+
+      await handleRegularTransfer(mockEvent, [pos], mockContext);
+
+      expect(attributeLiquidityChangeToUserStatsPerPool).not.toHaveBeenCalled();
+      const updatedPosition = getPositionAfterTransfer();
+      expect(updatedPosition?.owner).toBe(userA);
     });
   });
 
