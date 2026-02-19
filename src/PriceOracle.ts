@@ -2,8 +2,8 @@ import {
   CHAIN_CONSTANTS,
   PriceOracleType,
   SECONDS_IN_AN_HOUR,
+  TokenId,
   TokenIdByBlock,
-  TokenIdByChain,
 } from "./Constants";
 import {
   getTokenDetails,
@@ -33,7 +33,7 @@ export async function createTokenEntity(
   });
 
   const tokenEntity: Token = {
-    id: TokenIdByChain(tokenAddress, chainId),
+    id: TokenId(chainId, tokenAddress),
     address: tokenAddress,
     symbol: tokenDetails.symbol,
     name: tokenDetails.name, // Now using the actual name from token details
@@ -162,7 +162,7 @@ export async function refreshTokenPrice(
 
     // Create new TokenPrice entity
     const tokenPrice: TokenPriceSnapshot = {
-      id: TokenIdByBlock(token.address, chainId, blockNumber),
+      id: TokenIdByBlock(chainId, token.address, blockNumber),
       address: token.address,
       pricePerUSDNew: currentPrice,
       chainId: chainId,

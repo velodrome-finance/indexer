@@ -7,7 +7,7 @@ import type {
   Token,
   UserStatsPerPool,
 } from "../../../generated/src/Types.gen";
-import { TokenIdByChain, toChecksumAddress } from "../../../src/Constants";
+import { TokenId, toChecksumAddress } from "../../../src/Constants";
 import * as VotingRewardSharedLogic from "../../../src/EventHandlers/VotingReward/VotingRewardSharedLogic";
 import { setupCommon } from "../Pool/common";
 
@@ -47,7 +47,7 @@ describe("BribesVotingReward Events", () => {
 
     // Set up reward token
     rewardToken = {
-      id: TokenIdByChain(rewardTokenAddress, chainId),
+      id: TokenId(chainId, rewardTokenAddress),
       address: rewardTokenAddress,
       symbol: "REWARD",
       name: "Reward Token",

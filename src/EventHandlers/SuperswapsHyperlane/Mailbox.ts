@@ -3,12 +3,13 @@ import {
   Mailbox,
   type ProcessId_event,
 } from "generated";
+import { MailboxMessageId } from "../../Constants";
 import { attemptSuperSwapCreationFromProcessId } from "./SuperSwapLogic";
 
 Mailbox.DispatchId.handler(async ({ event, context }) => {
   const messageId = event.params.messageId;
   const entity: DispatchId_event = {
-    id: `${event.transaction.hash}_${event.chainId}_${messageId}`,
+    id: MailboxMessageId(event.transaction.hash, event.chainId, messageId),
     chainId: event.chainId,
     transactionHash: event.transaction.hash,
     messageId: messageId,
@@ -20,7 +21,7 @@ Mailbox.DispatchId.handler(async ({ event, context }) => {
 Mailbox.ProcessId.handler(async ({ event, context }) => {
   const messageId = event.params.messageId;
   const entity: ProcessId_event = {
-    id: `${event.transaction.hash}_${event.chainId}_${messageId}`,
+    id: MailboxMessageId(event.transaction.hash, event.chainId, messageId),
     chainId: event.chainId,
     transactionHash: event.transaction.hash,
     messageId: messageId,

@@ -3,7 +3,11 @@ import {
   MockDb,
 } from "../../../generated/src/TestHelpers.gen";
 import type { NonFungiblePosition } from "../../../generated/src/Types.gen";
-import { toChecksumAddress } from "../../../src/Constants";
+import {
+  ALMLPWrapperId,
+  NonFungiblePositionId,
+  toChecksumAddress,
+} from "../../../src/Constants";
 import {
   extendMockDbWithGetWhere,
   setupLiquidityPoolAggregator,
@@ -57,7 +61,7 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
 
       // Pre-populate with NonFungiblePosition (created by CLPool handlers)
       const mockNFPM: NonFungiblePosition = {
-        id: `${chainId}_${tokenId}`,
+        id: NonFungiblePositionId(chainId, poolAddress, tokenId),
         chainId,
         tokenId,
         owner: callerAddress,
@@ -122,7 +126,7 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
         mockDb: mockDbWithGetWhere as typeof mockDb,
       });
 
-      const wrapperId = `${lpWrapperAddress}_${chainId}`;
+      const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
       const createdWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
 
       expect(createdWrapper).toBeDefined();
@@ -200,7 +204,7 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
       });
 
       // Verify that no wrapper was created
-      const wrapperId = `${lpWrapperAddress}_${chainId}`;
+      const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
       const createdWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
       expect(createdWrapper).toBeUndefined();
     });
@@ -249,7 +253,7 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
       });
 
       // Verify that no wrapper was created
-      const wrapperId = `${lpWrapperAddress}_${chainId}`;
+      const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
       const createdWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
       expect(createdWrapper).toBeUndefined();
     });
@@ -259,7 +263,7 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
 
       // Create multiple NonFungiblePositions with different values
       const matchingNFPM: NonFungiblePosition = {
-        id: `${chainId}_${tokenId}`,
+        id: NonFungiblePositionId(chainId, poolAddress, tokenId),
         chainId,
         tokenId,
         owner: callerAddress,
@@ -275,7 +279,7 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
       };
 
       const nonMatchingNFPM: NonFungiblePosition = {
-        id: `${chainId}_${tokenId + 1n}`,
+        id: NonFungiblePositionId(chainId, poolAddress, tokenId + 1n),
         chainId,
         tokenId: tokenId + 1n,
         owner: callerAddress,
@@ -335,7 +339,7 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
         mockDb: mockDbWithGetWhere as typeof mockDb,
       });
 
-      const wrapperId = `${lpWrapperAddress}_${chainId}`;
+      const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
       const createdWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
 
       expect(createdWrapper).toBeDefined();
@@ -349,7 +353,7 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
 
       // Create two NonFungiblePositions with identical matching criteria
       const matchingNFPM1: NonFungiblePosition = {
-        id: `${chainId}_${tokenId}`,
+        id: NonFungiblePositionId(chainId, poolAddress, tokenId),
         chainId,
         tokenId,
         owner: callerAddress,
@@ -365,7 +369,7 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
       };
 
       const matchingNFPM2: NonFungiblePosition = {
-        id: `${chainId}_${tokenId + 1n}`,
+        id: NonFungiblePositionId(chainId, poolAddress, tokenId + 1n),
         chainId,
         tokenId: tokenId + 1n,
         owner: callerAddress,
@@ -425,7 +429,7 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
         mockDb: mockDbWithGetWhere as typeof mockDb,
       });
 
-      const wrapperId = `${lpWrapperAddress}_${chainId}`;
+      const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
       const createdWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
 
       expect(createdWrapper).toBeDefined();

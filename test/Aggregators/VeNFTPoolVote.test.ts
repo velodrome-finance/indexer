@@ -1,11 +1,11 @@
 import type { VeNFTPoolVote, VeNFTState, handlerContext } from "generated";
 import {
-  getVeNFTPoolVoteId,
   loadOrCreateVeNFTPoolVote,
   loadPoolVotesByVeNFT,
   loadVeNFTPoolVote,
   updateVeNFTPoolVote,
 } from "../../src/Aggregators/VeNFTPoolVote";
+import { VeNFTId, VeNFTPoolVoteId } from "../../src/Constants";
 
 function getVeNFTPoolVoteStore(
   ctx: Partial<handlerContext>,
@@ -21,7 +21,7 @@ describe("VeNFTPoolVote", () => {
   const poolAddress = "0x3333333333333333333333333333333333333333";
 
   const mockVeNFTState: VeNFTState = {
-    id: `${chainId}_${tokenId}`,
+    id: VeNFTId(chainId, tokenId),
     chainId,
     tokenId,
     owner: "0x1111111111111111111111111111111111111111",
@@ -32,7 +32,7 @@ describe("VeNFTPoolVote", () => {
   } as VeNFTState;
 
   const mockVeNFTPoolVote: VeNFTPoolVote = {
-    id: getVeNFTPoolVoteId(chainId, tokenId, poolAddress),
+    id: VeNFTPoolVoteId(chainId, tokenId, poolAddress),
     poolAddress,
     veNFTamountStaked: 100n,
     veNFTState_id: mockVeNFTState.id,
@@ -71,12 +71,10 @@ describe("VeNFTPoolVote", () => {
     jest.restoreAllMocks();
   });
 
-  describe("getVeNFTPoolVoteId", () => {
-    it("returns id in format chainId_tokenId_poolAddress", () => {
-      expect(getVeNFTPoolVoteId(10, 1n, poolAddress)).toBe(
-        `10_1_${poolAddress}`,
-      );
-      expect(getVeNFTPoolVoteId(8453, 42n, "0xabc")).toBe("8453_42_0xabc");
+  describe("VeNFTPoolVoteId", () => {
+    it("returns id in format chainId-tokenId-poolAddress", () => {
+      expect(VeNFTPoolVoteId(10, 1n, poolAddress)).toBe(`10-1-${poolAddress}`);
+      expect(VeNFTPoolVoteId(8453, 42n, "0xabc")).toBe("8453-42-0xabc");
     });
   });
 
@@ -94,7 +92,7 @@ describe("VeNFTPoolVote", () => {
 
       expect(result).toEqual(mockVeNFTPoolVote);
       expect(store.get).toHaveBeenCalledWith(
-        getVeNFTPoolVoteId(chainId, tokenId, poolAddress),
+        VeNFTPoolVoteId(chainId, tokenId, poolAddress),
       );
     });
 
@@ -175,7 +173,7 @@ describe("VeNFTPoolVote", () => {
 
       expect(result).toEqual(mockVeNFTPoolVote);
       expect(store.getOrCreate).toHaveBeenCalledWith({
-        id: getVeNFTPoolVoteId(chainId, tokenId, poolAddress),
+        id: VeNFTPoolVoteId(chainId, tokenId, poolAddress),
         poolAddress,
         veNFTamountStaked: 0n,
         veNFTState_id: mockVeNFTState.id,

@@ -1,4 +1,5 @@
 import { ALMDeployFactoryV2 } from "generated";
+import { ALMLPWrapperId } from "../../Constants";
 
 ALMDeployFactoryV2.StrategyCreated.contractRegister(({ event, context }) => {
   const [pool, ammPosition, strategyParams, lpWrapper, caller] =
@@ -63,7 +64,7 @@ ALMDeployFactoryV2.StrategyCreated.handler(async ({ event, context }) => {
 
   // Fetching LP tokens supply from TotalSupplyLimitUpdated event
   const totalSupplyEvent = await context.ALM_TotalSupplyLimitUpdated_event.get(
-    `${lpWrapper}_${event.chainId}`,
+    ALMLPWrapperId(event.chainId, lpWrapper),
   );
 
   if (
@@ -82,7 +83,7 @@ ALMDeployFactoryV2.StrategyCreated.handler(async ({ event, context }) => {
   // Create ALM_LP_Wrapper (single entity tracks both wrapper and strategy)
   // amount0/amount1 are derived at snapshot time from liquidity + sqrtPriceX96 + ticks
   context.ALM_LP_Wrapper.set({
-    id: `${lpWrapper}_${event.chainId}`,
+    id: ALMLPWrapperId(event.chainId, lpWrapper),
     chainId: event.chainId,
     pool: pool,
     token0: token0,

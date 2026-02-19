@@ -9,7 +9,8 @@ import {
   DEFAULT_VAMM_FEE_BPS,
   PoolId,
   ROOT_POOL_FACTORY_ADDRESS_OPTIMISM,
-  TokenIdByChain,
+  RootPoolLeafPoolId,
+  TokenId,
 } from "../Constants";
 import { getRootPoolAddress } from "../Effects/RootPool";
 import { createTokenEntity } from "../PriceOracle";
@@ -22,8 +23,8 @@ PoolFactory.PoolCreated.contractRegister(({ event, context }) => {
 PoolFactory.PoolCreated.handler(async ({ event, context }) => {
   // Load token instances efficiently
   const [poolToken0, poolToken1] = await Promise.all([
-    context.Token.get(TokenIdByChain(event.params.token0, event.chainId)),
-    context.Token.get(TokenIdByChain(event.params.token1, event.chainId)),
+    context.Token.get(TokenId(event.chainId, event.params.token0)),
+    context.Token.get(TokenId(event.chainId, event.params.token1)),
   ]);
 
   const poolTokenSymbols: string[] = [];
@@ -114,7 +115,7 @@ PoolFactory.PoolCreated.handler(async ({ event, context }) => {
 
     if (rootPoolAddress) {
       context.RootPool_LeafPool.set({
-        id: `${rootPoolAddress}_10_${event.params.pool}_${chainId}`,
+        id: RootPoolLeafPoolId(10, chainId, rootPoolAddress, event.params.pool),
         rootChainId: 10,
         rootPoolAddress: rootPoolAddress,
         leafChainId: chainId,

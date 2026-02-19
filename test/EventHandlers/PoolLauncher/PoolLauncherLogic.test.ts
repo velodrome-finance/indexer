@@ -119,8 +119,8 @@ describe("PoolLauncherLogic", () => {
 
       // Create an existing PoolLauncherPool
       const existingPoolLauncherPool = {
-        id: "8453-0x1234567890123456789012345678901234567890",
-        chainId: 8453,
+        id: PoolId(chainId, poolAddress),
+        chainId: chainId,
         underlyingPool: "0x1234567890123456789012345678901234567890",
         launcher: "0xoldlauncher0000000000000000000000000000000000",
         creator: "0x1111111111111111111111111111111111111111",

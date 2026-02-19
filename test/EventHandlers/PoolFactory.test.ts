@@ -9,6 +9,8 @@ import {
   DEFAULT_SAMM_FEE_BPS,
   DEFAULT_VAMM_FEE_BPS,
   PoolId,
+  RootPoolLeafPoolId,
+  TokenId,
   toChecksumAddress,
 } from "../../src/Constants";
 import * as PriceOracle from "../../src/PriceOracle";
@@ -102,8 +104,8 @@ describe("PoolFactory Events", () => {
     });
 
     it("should appropriately set token data on the aggregator", () => {
-      expect(createdPool?.token0_id).toBe(`${token0Address}-${chainId}`);
-      expect(createdPool?.token1_id).toBe(`${token1Address}-${chainId}`);
+      expect(createdPool?.token0_id).toBe(TokenId(chainId, token0Address));
+      expect(createdPool?.token1_id).toBe(TokenId(chainId, token1Address));
       expect(createdPool?.token0_address).toBe(token0Address);
       expect(createdPool?.token1_address).toBe(token1Address);
     });
@@ -251,9 +253,14 @@ describe("PoolFactory Events", () => {
 
       // Should create RootPool_LeafPool for Fraxtal
       // The rootPoolAddress will be checksummed by the effect
-      // ID format: rootPoolAddress_10_leafPoolAddress_leafChainId
+      // ID format: rootChainId-leafChainId-rootPoolAddress-leafPoolAddress
       const expectedRootPoolAddress = toChecksumAddress(mockRootPoolAddress);
-      const rootPoolLeafPoolId = `${expectedRootPoolAddress}_10_${poolAddress}_${fraxtalChainId}`;
+      const rootPoolLeafPoolId = RootPoolLeafPoolId(
+        10,
+        fraxtalChainId,
+        expectedRootPoolAddress,
+        poolAddress,
+      );
       const rootPoolLeafPool =
         result.entities.RootPool_LeafPool.get(rootPoolLeafPoolId);
 

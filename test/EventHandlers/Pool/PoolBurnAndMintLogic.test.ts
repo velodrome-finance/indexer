@@ -6,7 +6,7 @@ import type {
   Token,
   handlerContext,
 } from "generated";
-import { ZERO_ADDRESS } from "../../../src/Constants";
+import { PoolTransferInTxId, ZERO_ADDRESS } from "../../../src/Constants";
 import {
   extractRecipientAddress,
   findClosestPrecedingTransfer,
@@ -80,7 +80,7 @@ describe("PoolBurnAndMintLogic", () => {
     isBurn: boolean,
     consumedByLogIndex?: number,
   ): PoolTransferInTx => ({
-    id: `${CHAIN_ID}-${TX_HASH}-${POOL_ADDRESS}-${logIndex}`,
+    id: PoolTransferInTxId(CHAIN_ID, TX_HASH, POOL_ADDRESS, logIndex),
     chainId: CHAIN_ID,
     txHash: TX_HASH,
     pool: POOL_ADDRESS,

@@ -1,6 +1,5 @@
 import { VeNFT } from "generated";
-import { VeNFTId } from "../../Aggregators/VeNFTState";
-import { ZERO_ADDRESS } from "../../Constants";
+import { VeNFTId, ZERO_ADDRESS } from "../../Constants";
 import {
   handleMintTransfer,
   processVeNFTDeposit,

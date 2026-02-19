@@ -1,7 +1,10 @@
 import { ALMLPWrapperV1, MockDb } from "../../../generated/src/TestHelpers.gen";
 import {
+  ALMLPWrapperId,
+  ALMLPWrapperTransferInTxId,
   TEN_TO_THE_6_BI,
   TEN_TO_THE_18_BI,
+  UserStatsPerPoolId,
   toChecksumAddress,
 } from "../../../src/Constants";
 import { setupCommon } from "../Pool/common";
@@ -50,7 +53,12 @@ describe("ALMLPWrapperV1 Events", () => {
     actualBurnedAmount: bigint,
     logIndex = 0,
   ): ReturnType<typeof MockDb.createMockDb> {
-    const burnTransferId = `${chainId}-${mockEventData.transaction.hash}-${lpWrapperAddress}-${logIndex}`;
+    const burnTransferId = ALMLPWrapperTransferInTxId(
+      chainId,
+      mockEventData.transaction.hash,
+      lpWrapperAddress,
+      logIndex,
+    );
     const zeroAddress = "0x0000000000000000000000000000000000000000";
     const burnTransfer = {
       id: burnTransferId,
@@ -110,7 +118,7 @@ describe("ALMLPWrapperV1 Events", () => {
       let mockDb = MockDb.createMockDb();
 
       // Pre-populate with existing wrapper (created by StrategyCreated event)
-      const wrapperId = `${lpWrapperAddress}_${chainId}`;
+      const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
       mockDb = mockDb.entities.ALM_LP_Wrapper.set({
         ...mockALMLPWrapperData,
         id: wrapperId,
@@ -165,7 +173,7 @@ describe("ALMLPWrapperV1 Events", () => {
       });
 
       // Verify that no wrapper was created
-      const wrapperId = `${lpWrapperAddress}_${chainId}`;
+      const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
       const wrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
       expect(wrapper).toBeUndefined();
     });
@@ -174,7 +182,7 @@ describe("ALMLPWrapperV1 Events", () => {
       let mockDb = MockDb.createMockDb();
 
       // Pre-populate with existing wrapper (created by StrategyCreated event)
-      const wrapperId = `${lpWrapperAddress}_${chainId}`;
+      const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
       mockDb = mockDb.entities.ALM_LP_Wrapper.set({
         ...mockALMLPWrapperData,
         id: wrapperId,
@@ -195,7 +203,11 @@ describe("ALMLPWrapperV1 Events", () => {
         mockDb,
       });
 
-      const userStatsId = `${recipientAddress}_${poolAddress}_${chainId}`;
+      const userStatsId = UserStatsPerPoolId(
+        chainId,
+        recipientAddress,
+        poolAddress,
+      );
       const userStats = result.entities.UserStatsPerPool.get(userStatsId);
 
       expect(userStats).toBeDefined();
@@ -212,14 +224,18 @@ describe("ALMLPWrapperV1 Events", () => {
       let mockDb = MockDb.createMockDb();
 
       // Pre-populate with existing wrapper (created by StrategyCreated event)
-      const wrapperId = `${lpWrapperAddress}_${chainId}`;
+      const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
       mockDb = mockDb.entities.ALM_LP_Wrapper.set({
         ...mockALMLPWrapperData,
         id: wrapperId,
       });
 
       // Pre-populate with existing user stats
-      const userStatsId = `${recipientAddress}_${poolAddress}_${chainId}`;
+      const userStatsId = UserStatsPerPoolId(
+        chainId,
+        recipientAddress,
+        poolAddress,
+      );
       mockDb = mockDb.entities.UserStatsPerPool.set(
         createMockUserStatsPerPool({
           userAddress: recipientAddress,
@@ -258,7 +274,7 @@ describe("ALMLPWrapperV1 Events", () => {
       let mockDb = MockDb.createMockDb();
 
       // Pre-populate with existing wrapper (created by StrategyCreated event)
-      const wrapperId = `${lpWrapperAddress}_${chainId}`;
+      const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
       mockDb = mockDb.entities.ALM_LP_Wrapper.set({
         ...mockALMLPWrapperData,
         id: wrapperId,
@@ -279,7 +295,11 @@ describe("ALMLPWrapperV1 Events", () => {
         mockDb,
       });
 
-      const userStatsId = `${recipientAddress}_${poolAddress}_${chainId}`;
+      const userStatsId = UserStatsPerPoolId(
+        chainId,
+        recipientAddress,
+        poolAddress,
+      );
 
       const wrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
       const userStats = result.entities.UserStatsPerPool.get(userStatsId);
@@ -298,7 +318,7 @@ describe("ALMLPWrapperV1 Events", () => {
       let mockDb = MockDb.createMockDb();
 
       // Pre-populate with existing wrapper
-      const wrapperId = `${lpWrapperAddress}_${chainId}`;
+      const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
       mockDb = mockDb.entities.ALM_LP_Wrapper.set({
         ...mockALMLPWrapperData,
         id: wrapperId,
@@ -356,7 +376,7 @@ describe("ALMLPWrapperV1 Events", () => {
       });
 
       // Verify that no wrapper was created
-      const wrapperId = `${lpWrapperAddress}_${chainId}`;
+      const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
       const wrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
       expect(wrapper).toBeUndefined();
     });
@@ -365,7 +385,7 @@ describe("ALMLPWrapperV1 Events", () => {
       let mockDb = MockDb.createMockDb();
 
       // Pre-populate with existing wrapper
-      const wrapperId = `${lpWrapperAddress}_${chainId}`;
+      const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
       mockDb = mockDb.entities.ALM_LP_Wrapper.set({
         ...mockALMLPWrapperData,
         id: wrapperId,
@@ -373,7 +393,11 @@ describe("ALMLPWrapperV1 Events", () => {
 
       // Pre-populate with existing user stats (user has LP before withdrawing)
       // V1 withdraws use sender, not recipient
-      const userStatsId = `${senderAddress}_${poolAddress}_${chainId}`;
+      const userStatsId = UserStatsPerPoolId(
+        chainId,
+        senderAddress,
+        poolAddress,
+      );
       mockDb = mockDb.entities.UserStatsPerPool.set(
         createMockUserStatsPerPool({
           userAddress: senderAddress,
@@ -419,7 +443,7 @@ describe("ALMLPWrapperV1 Events", () => {
       let mockDb = MockDb.createMockDb();
 
       // Pre-populate with existing wrapper
-      const wrapperId = `${lpWrapperAddress}_${chainId}`;
+      const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
       mockDb = mockDb.entities.ALM_LP_Wrapper.set({
         ...mockALMLPWrapperData,
         id: wrapperId,
@@ -427,7 +451,11 @@ describe("ALMLPWrapperV1 Events", () => {
 
       // Pre-populate with existing user stats
       // V1 withdraws use sender, not recipient
-      const userStatsId = `${senderAddress}_${poolAddress}_${chainId}`;
+      const userStatsId = UserStatsPerPoolId(
+        chainId,
+        senderAddress,
+        poolAddress,
+      );
       mockDb = mockDb.entities.UserStatsPerPool.set(
         createMockUserStatsPerPool({
           userAddress: senderAddress,
@@ -482,14 +510,18 @@ describe("ALMLPWrapperV1 Events", () => {
       let mockDb = MockDb.createMockDb();
 
       // Pre-populate with existing wrapper (required for Transfer events to get pool address)
-      const wrapperId = `${lpWrapperAddress}_${chainId}`;
+      const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
       mockDb = mockDb.entities.ALM_LP_Wrapper.set({
         ...mockALMLPWrapperData,
         id: wrapperId,
       });
 
       // Pre-populate with existing user stats for sender
-      const fromUserStatsId = `${fromAddress}_${poolAddress}_${chainId}`;
+      const fromUserStatsId = UserStatsPerPoolId(
+        chainId,
+        fromAddress,
+        poolAddress,
+      );
       mockDb = mockDb.entities.UserStatsPerPool.set(
         createMockUserStatsPerPool({
           userAddress: fromAddress,
@@ -515,7 +547,7 @@ describe("ALMLPWrapperV1 Events", () => {
 
       const fromUserStats =
         result.entities.UserStatsPerPool.get(fromUserStatsId);
-      const toUserStatsId = `${toAddress}_${poolAddress}_${chainId}`;
+      const toUserStatsId = UserStatsPerPoolId(chainId, toAddress, poolAddress);
       const toUserStats = result.entities.UserStatsPerPool.get(toUserStatsId);
 
       expect(fromUserStats).toBeDefined();
@@ -547,7 +579,11 @@ describe("ALMLPWrapperV1 Events", () => {
       });
 
       // Verify that no user stats were created
-      const fromUserStatsId = `${fromAddress}_${poolAddress}_${chainId}`;
+      const fromUserStatsId = UserStatsPerPoolId(
+        chainId,
+        fromAddress,
+        poolAddress,
+      );
       const fromUserStats =
         result.entities.UserStatsPerPool.get(fromUserStatsId);
       expect(fromUserStats).toBeUndefined();
@@ -557,14 +593,18 @@ describe("ALMLPWrapperV1 Events", () => {
       let mockDb = MockDb.createMockDb();
 
       // Pre-populate with existing wrapper
-      const wrapperId = `${lpWrapperAddress}_${chainId}`;
+      const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
       mockDb = mockDb.entities.ALM_LP_Wrapper.set({
         ...mockALMLPWrapperData,
         id: wrapperId,
       });
 
       // Pre-populate with existing user stats for sender
-      const fromUserStatsId = `${fromAddress}_${poolAddress}_${chainId}`;
+      const fromUserStatsId = UserStatsPerPoolId(
+        chainId,
+        fromAddress,
+        poolAddress,
+      );
       mockDb = mockDb.entities.UserStatsPerPool.set(
         createMockUserStatsPerPool({
           userAddress: fromAddress,
@@ -588,7 +628,7 @@ describe("ALMLPWrapperV1 Events", () => {
         mockDb,
       });
 
-      const toUserStatsId = `${toAddress}_${poolAddress}_${chainId}`;
+      const toUserStatsId = UserStatsPerPoolId(chainId, toAddress, poolAddress);
       const toUserStats = result.entities.UserStatsPerPool.get(toUserStatsId);
 
       expect(toUserStats).toBeDefined();
@@ -605,7 +645,7 @@ describe("ALMLPWrapperV1 Events", () => {
       let mockDb = MockDb.createMockDb();
 
       // Pre-populate with existing wrapper
-      const wrapperId = `${lpWrapperAddress}_${chainId}`;
+      const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
       mockDb = mockDb.entities.ALM_LP_Wrapper.set({
         ...mockALMLPWrapperData,
         id: wrapperId,
@@ -628,7 +668,7 @@ describe("ALMLPWrapperV1 Events", () => {
         mockDb,
       });
 
-      const toUserStatsId = `${toAddress}_${poolAddress}_${chainId}`;
+      const toUserStatsId = UserStatsPerPoolId(chainId, toAddress, poolAddress);
       const toUserStats =
         mintResult.entities.UserStatsPerPool.get(toUserStatsId);
 
@@ -638,7 +678,11 @@ describe("ALMLPWrapperV1 Events", () => {
       // Burn: to zero address - handler should return early without updating UserStatsPerPool
       // Pre-populate with user stats for the burner
       const burnerAddress = fromAddress;
-      const burnerUserStatsId = `${burnerAddress}_${poolAddress}_${chainId}`;
+      const burnerUserStatsId = UserStatsPerPoolId(
+        chainId,
+        burnerAddress,
+        poolAddress,
+      );
       mockDb = mockDb.entities.UserStatsPerPool.set(
         createMockUserStatsPerPool({
           userAddress: burnerAddress,

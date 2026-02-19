@@ -1,5 +1,7 @@
 import type { VeNFTState, handlerContext } from "generated";
 
+import { VeNFTId } from "../Constants";
+
 export interface VeNFTStateDiff {
   id: string;
   chainId: number;
@@ -10,9 +12,6 @@ export interface VeNFTStateDiff {
   isAlive: boolean;
   lastUpdatedTimestamp: Date;
 }
-
-export const VeNFTId = (chainId: number, tokenId: bigint) =>
-  `${chainId}_${tokenId}`;
 
 export async function loadVeNFTState(
   chainId: number,

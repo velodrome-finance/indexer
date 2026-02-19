@@ -1,9 +1,6 @@
 import type { handlerContext } from "generated";
 import type { NonFungiblePosition } from "generated";
 
-export const NonFungiblePositionId = (chainId: number, tokenId: bigint) =>
-  `${chainId}_${tokenId}`;
-
 export interface NonFungiblePositionDiff {
   tokenId: bigint;
   owner: string;

@@ -1,5 +1,6 @@
 import type { Token, handlerContext } from "../../generated/src/Types.gen";
 import { createOUSDTSwapEntity } from "../../src/Aggregators/OUSDTSwaps";
+import { OUSDTSwapsId } from "../../src/Constants";
 import { setupCommon } from "../EventHandlers/Pool/common";
 
 describe("OUSDTSwaps", () => {
@@ -58,7 +59,14 @@ describe("OUSDTSwaps", () => {
         expect(mockOUSDTSwapsSet).toHaveBeenCalledTimes(1);
         const entity = mockOUSDTSwapsSet.mock.calls[0][0];
         expect(entity.id).toBe(
-          `${transactionHash}_${chainId}_${mockToken0Data.address}_${amount0In}_${mockToken1Data.address}_${amount1Out}`,
+          OUSDTSwapsId(
+            transactionHash,
+            chainId,
+            mockToken0Data.address,
+            amount0In,
+            mockToken1Data.address,
+            amount1Out,
+          ),
         );
         expect(entity.transactionHash).toBe(transactionHash);
         expect(entity.tokenInPool).toBe(mockToken0Data.address);
@@ -90,7 +98,14 @@ describe("OUSDTSwaps", () => {
         expect(mockOUSDTSwapsSet).toHaveBeenCalledTimes(1);
         const entity = mockOUSDTSwapsSet.mock.calls[0][0];
         expect(entity.id).toBe(
-          `${transactionHash}_${chainId}_${mockToken1Data.address}_${amount1In}_${mockToken0Data.address}_${amount0Out}`,
+          OUSDTSwapsId(
+            transactionHash,
+            chainId,
+            mockToken1Data.address,
+            amount1In,
+            mockToken0Data.address,
+            amount0Out,
+          ),
         );
         expect(entity.transactionHash).toBe(transactionHash);
         expect(entity.tokenInPool).toBe(mockToken1Data.address);
@@ -213,6 +228,16 @@ describe("OUSDTSwaps", () => {
 
         expect(mockOUSDTSwapsSet).toHaveBeenCalledTimes(1);
         const entity = mockOUSDTSwapsSet.mock.calls[0][0];
+        expect(entity.id).toBe(
+          OUSDTSwapsId(
+            transactionHash,
+            chainId,
+            mockToken0Data.address,
+            amount0In,
+            mockToken1Data.address,
+            amount1Out,
+          ),
+        );
         expect(entity.amountIn).toBe(amount0In);
         expect(entity.amountOut).toBe(amount1Out);
       });
@@ -237,6 +262,16 @@ describe("OUSDTSwaps", () => {
 
         expect(mockOUSDTSwapsSet).toHaveBeenCalledTimes(1);
         const entity = mockOUSDTSwapsSet.mock.calls[0][0];
+        expect(entity.id).toBe(
+          OUSDTSwapsId(
+            transactionHash,
+            chainId,
+            mockToken0Data.address,
+            amount0In,
+            mockToken1Data.address,
+            amount1Out,
+          ),
+        );
         expect(entity.amountIn).toBe(amount0In);
         expect(entity.amountOut).toBe(amount1Out);
       });

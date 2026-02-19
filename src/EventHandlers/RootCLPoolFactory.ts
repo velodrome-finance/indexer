@@ -1,6 +1,8 @@
 import { RootCLPoolFactory } from "generated";
 import type { RootPool_LeafPool } from "generated";
 
+import { RootPoolLeafPoolId } from "../Constants";
+
 RootCLPoolFactory.RootPoolCreated.handler(async ({ event, context }) => {
   const rootChainId = event.chainId;
   const leafChainId = Number(event.params.chainid);
@@ -27,8 +29,13 @@ RootCLPoolFactory.RootPoolCreated.handler(async ({ event, context }) => {
   }
   const matchingPool = pools[0];
 
-  const leafPoolAddress = matchingPool.id;
-  const rootPoolLeafPoolId = `${rootPoolAddress}_${rootChainId}_${leafPoolAddress}_${leafChainId}`;
+  const leafPoolAddress = matchingPool.poolAddress;
+  const rootPoolLeafPoolId = RootPoolLeafPoolId(
+    rootChainId,
+    leafChainId,
+    rootPoolAddress,
+    leafPoolAddress,
+  );
 
   const rootPoolLeafPool: RootPool_LeafPool = {
     id: rootPoolLeafPoolId,

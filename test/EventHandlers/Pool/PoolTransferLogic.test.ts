@@ -4,7 +4,7 @@ import type {
   UserStatsPerPool,
   handlerContext,
 } from "generated";
-import { ZERO_ADDRESS } from "../../../src/Constants";
+import { PoolTransferInTxId, ZERO_ADDRESS } from "../../../src/Constants";
 import {
   processPoolTransfer,
   storeTransferForMatching,
@@ -311,7 +311,7 @@ describe("PoolTransferLogic", () => {
 
       expect(mockContext.PoolTransferInTx.set).toHaveBeenCalledWith(
         expect.objectContaining({
-          id: `${CHAIN_ID}-${TX_HASH}-${POOL_ADDRESS}-${LOG_INDEX}`,
+          id: PoolTransferInTxId(CHAIN_ID, TX_HASH, POOL_ADDRESS, LOG_INDEX),
           chainId: CHAIN_ID,
           txHash: TX_HASH,
           pool: POOL_ADDRESS,

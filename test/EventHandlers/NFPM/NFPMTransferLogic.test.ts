@@ -7,7 +7,11 @@ import type {
 import { MockDb, NFPM } from "../../../generated/src/TestHelpers.gen";
 import { loadPoolData } from "../../../src/Aggregators/LiquidityPoolAggregator";
 import type { PoolData } from "../../../src/Aggregators/LiquidityPoolAggregator";
-import { toChecksumAddress } from "../../../src/Constants";
+import {
+  CLPoolMintEventId,
+  NonFungiblePositionId,
+  toChecksumAddress,
+} from "../../../src/Constants";
 import {
   LiquidityChangeType,
   attributeLiquidityChangeToUserStatsPerPool,
@@ -66,8 +70,9 @@ describe("NFPMTransferLogic", () => {
   const defaultSqrtPriceX96 = 79228162514264337593543950336n;
   const positionLiquidityAmount = 26679636922854n;
 
-  // Stable ID calculation helper
-  const getStableId = () => `${chainId}_${poolAddress}_${tokenId}`;
+  // Stable ID calculation helper (chainId-poolAddress-tokenId)
+  const getStableId = () =>
+    NonFungiblePositionId(chainId, poolAddress, tokenId);
 
   /** Minimal PoolData stub for tests (gauge and/or sqrtPriceX96). */
   function minimalPoolData(
@@ -134,7 +139,7 @@ describe("NFPMTransferLogic", () => {
   };
 
   const mockCLPoolMintEvent: CLPoolMintEvent = {
-    id: `${chainId}_${poolAddress}_${transactionHash}_${mintLogIndex}`,
+    id: CLPoolMintEventId(chainId, poolAddress, transactionHash, mintLogIndex),
     chainId: chainId,
     pool: poolAddress,
     owner: ownerAddress,
@@ -487,17 +492,17 @@ describe("NFPMTransferLogic", () => {
       // Create multiple CLPoolMintEvents in the same transaction
       const mintEvent1: CLPoolMintEvent = {
         ...mockCLPoolMintEvent,
-        id: `${chainId}_${poolAddress}_${transactionHash}_40`,
+        id: CLPoolMintEventId(chainId, poolAddress, transactionHash, 40),
         logIndex: 40,
       };
       const mintEvent2: CLPoolMintEvent = {
         ...mockCLPoolMintEvent,
-        id: `${chainId}_${poolAddress}_${transactionHash}_41`,
+        id: CLPoolMintEventId(chainId, poolAddress, transactionHash, 41),
         logIndex: 41,
       };
       const mintEvent3: CLPoolMintEvent = {
         ...mockCLPoolMintEvent,
-        id: `${chainId}_${poolAddress}_${transactionHash}_42`,
+        id: CLPoolMintEventId(chainId, poolAddress, transactionHash, 42),
         logIndex: 42,
       };
 
@@ -524,7 +529,7 @@ describe("NFPMTransferLogic", () => {
       };
       const unconsumedMintEvent: CLPoolMintEvent = {
         ...mockCLPoolMintEvent,
-        id: `${chainId}_${poolAddress}_${transactionHash}_41`,
+        id: CLPoolMintEventId(chainId, poolAddress, transactionHash, 41),
         logIndex: 41,
         consumedByTokenId: undefined,
       };
@@ -576,12 +581,12 @@ describe("NFPMTransferLogic", () => {
       // When current.logIndex (41) <= prev.logIndex (42), we keep prev
       const mintEvent1: CLPoolMintEvent = {
         ...mockCLPoolMintEvent,
-        id: `${chainId}_${poolAddress}_${transactionHash}_42`,
+        id: CLPoolMintEventId(chainId, poolAddress, transactionHash, 42),
         logIndex: 42, // This will be prev in reduce
       };
       const mintEvent2: CLPoolMintEvent = {
         ...mockCLPoolMintEvent,
-        id: `${chainId}_${poolAddress}_${transactionHash}_41`,
+        id: CLPoolMintEventId(chainId, poolAddress, transactionHash, 41),
         logIndex: 41, // This will be current in reduce, and 41 <= 42, so we keep prev
       };
 
@@ -606,12 +611,12 @@ describe("NFPMTransferLogic", () => {
       // Create events with same logIndex to test the "prev" branch when current.logIndex === prev.logIndex
       const mintEvent1: CLPoolMintEvent = {
         ...mockCLPoolMintEvent,
-        id: `${chainId}_${poolAddress}_${transactionHash}_41`,
+        id: CLPoolMintEventId(chainId, poolAddress, transactionHash, 41),
         logIndex: 41,
       };
       const mintEvent2: CLPoolMintEvent = {
         ...mockCLPoolMintEvent,
-        id: `${chainId}_${poolAddress}_${transactionHash}_41_alt`,
+        id: CLPoolMintEventId(chainId, poolAddress, transactionHash, 41),
         logIndex: 41, // Same logIndex - should keep prev
       };
 

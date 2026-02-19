@@ -11,7 +11,12 @@ import {
   loadUserStatsPerPool,
   updateUserStatsPerPool,
 } from "../../Aggregators/UserStatsPerPool";
-import { PoolId, ZERO_ADDRESS } from "../../Constants";
+import {
+  ALMLPWrapperId,
+  ALMLPWrapperTransferInTxId,
+  PoolId,
+  ZERO_ADDRESS,
+} from "../../Constants";
 import { computeLiquidityDeltaFromAmounts } from "../../Helpers";
 
 interface MatchingBurnTransfer {
@@ -147,7 +152,7 @@ export async function loadALMLPWrapper(
   chainId: number,
   context: handlerContext,
 ): Promise<ALM_LP_Wrapper | null> {
-  const lpWrapperId = `${srcAddress}_${chainId}`;
+  const lpWrapperId = ALMLPWrapperId(chainId, srcAddress);
   const ALMLPWrapperEntity = await context.ALM_LP_Wrapper.get(lpWrapperId);
 
   if (!ALMLPWrapperEntity) {
@@ -474,7 +479,12 @@ function storeBurnTransferForMatching(
   timestamp: Date,
   context: handlerContext,
 ): void {
-  const transferId = `${chainId}-${txHash}-${wrapperAddress}-${logIndex}`;
+  const transferId = ALMLPWrapperTransferInTxId(
+    chainId,
+    txHash,
+    wrapperAddress,
+    logIndex,
+  );
   (context as handlerContext).ALMLPWrapperTransferInTx.set({
     id: transferId,
     chainId: chainId,

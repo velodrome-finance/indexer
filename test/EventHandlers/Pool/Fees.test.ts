@@ -4,7 +4,7 @@ import type {
   Token,
   UserStatsPerPool,
 } from "../../../generated/src/Types.gen";
-import { toChecksumAddress } from "../../../src/Constants";
+import { UserStatsPerPoolId, toChecksumAddress } from "../../../src/Constants";
 import * as PoolFeesLogic from "../../../src/EventHandlers/Pool/PoolFeesLogic";
 import { setupCommon } from "./common";
 
@@ -73,7 +73,11 @@ describe("Pool Fees Event", () => {
 
     updatedPool = result.entities.LiquidityPoolAggregator.get(poolId);
     createdUserStats = result.entities.UserStatsPerPool.get(
-      "0x1234567890123456789012345678901234567890_0x3333333333333333333333333333333333333333_10",
+      UserStatsPerPoolId(
+        10,
+        toChecksumAddress("0x1234567890123456789012345678901234567890"),
+        toChecksumAddress("0x3333333333333333333333333333333333333333"),
+      ),
     );
   });
 
@@ -107,7 +111,11 @@ describe("Pool Fees Event", () => {
   it("should create a new UserStatsPerPool entity", async () => {
     expect(createdUserStats).toBeDefined();
     expect(createdUserStats?.id).toBe(
-      "0x1234567890123456789012345678901234567890_0x3333333333333333333333333333333333333333_10",
+      UserStatsPerPoolId(
+        10,
+        toChecksumAddress("0x1234567890123456789012345678901234567890"),
+        toChecksumAddress("0x3333333333333333333333333333333333333333"),
+      ),
     );
     expect(createdUserStats?.userAddress).toBe(
       "0x1234567890123456789012345678901234567890",
@@ -191,7 +199,11 @@ describe("Pool Fees Event", () => {
     });
 
     const updatedUserStats = result.entities.UserStatsPerPool.get(
-      "0x1234567890123456789012345678901234567890_0x3333333333333333333333333333333333333333_10",
+      UserStatsPerPoolId(
+        10,
+        toChecksumAddress("0x1234567890123456789012345678901234567890"),
+        toChecksumAddress("0x3333333333333333333333333333333333333333"),
+      ),
     );
 
     expect(updatedUserStats).toBeDefined();
@@ -252,7 +264,11 @@ describe("Pool Fees Event", () => {
       // User stats will still be created because loadOrCreateUserData is called in parallel
       // but they should have default/zero values since no fees processing occurred
       const userStats = postEventDB.entities.UserStatsPerPool.get(
-        "0x1234567890123456789012345678901234567890_0x3333333333333333333333333333333333333333_10",
+        UserStatsPerPoolId(
+          10,
+          toChecksumAddress("0x1234567890123456789012345678901234567890"),
+          toChecksumAddress("0x3333333333333333333333333333333333333333"),
+        ),
       );
       expect(userStats).toBeDefined();
       // Verify no fee activity was recorded
@@ -313,7 +329,11 @@ describe("Pool Fees Event", () => {
 
       // User stats should still be updated
       const userStats = result.entities.UserStatsPerPool.get(
-        "0x1234567890123456789012345678901234567890_0x3333333333333333333333333333333333333333_10",
+        UserStatsPerPoolId(
+          10,
+          toChecksumAddress("0x1234567890123456789012345678901234567890"),
+          toChecksumAddress("0x3333333333333333333333333333333333333333"),
+        ),
       );
       expect(userStats?.totalFeesContributed0).toBe(3n * 10n ** 18n);
 
@@ -371,7 +391,11 @@ describe("Pool Fees Event", () => {
 
       // User stats should still be created (from loadOrCreateUserData) but not updated
       const userStats = result.entities.UserStatsPerPool.get(
-        "0x1234567890123456789012345678901234567890_0x3333333333333333333333333333333333333333_10",
+        UserStatsPerPoolId(
+          10,
+          toChecksumAddress("0x1234567890123456789012345678901234567890"),
+          toChecksumAddress("0x3333333333333333333333333333333333333333"),
+        ),
       );
       expect(userStats).toBeDefined();
       // Should have default values since userDiff was undefined

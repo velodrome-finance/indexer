@@ -1,6 +1,11 @@
 import { MockDb, RootCLPoolFactory } from "generated/src/TestHelpers.gen";
 import type { LiquidityPoolAggregator } from "generated/src/Types.gen";
-import { TokenIdByChain } from "../../src/Constants";
+import {
+  PoolId,
+  RootPoolLeafPoolId,
+  TokenId,
+  toChecksumAddress,
+} from "../../src/Constants";
 import { setupCommon } from "./Pool/common";
 
 describe("RootCLPoolFactory Events", () => {
@@ -12,10 +17,18 @@ describe("RootCLPoolFactory Events", () => {
     // The following values are taken from an actual real event
     const rootChainId = 10; // Optimism
     const leafChainId = 252; // Fraxtal
-    const rootPoolAddress = "0xC4Cbb0ba3c902Fb4b49B3844230354d45C779F74";
-    const leafPoolAddress = "0x3BBdBAD64b383885031c4d9C8Afe0C3327d79888";
-    const token0 = "0xFc00000000000000000000000000000000000001";
-    const token1 = "0xFC00000000000000000000000000000000000006";
+    const rootPoolAddress = toChecksumAddress(
+      "0xC4Cbb0ba3c902Fb4b49B3844230354d45C779F74",
+    );
+    const leafPoolAddress = toChecksumAddress(
+      "0x3BBdBAD64b383885031c4d9C8Afe0C3327d79888",
+    );
+    const token0 = toChecksumAddress(
+      "0xFc00000000000000000000000000000000000001",
+    );
+    const token1 = toChecksumAddress(
+      "0xFC00000000000000000000000000000000000006",
+    );
     const tickSpacing = BigInt(100);
 
     beforeEach(() => {
@@ -47,10 +60,11 @@ describe("RootCLPoolFactory Events", () => {
 
         // Create a pool on the leaf chain with matching token addresses and tickSpacing
         mockLiquidityPool = createMockLiquidityPoolAggregator({
-          id: leafPoolAddress,
+          id: PoolId(leafChainId, leafPoolAddress),
+          poolAddress: leafPoolAddress,
           chainId: leafChainId,
-          token0_id: TokenIdByChain(token0, leafChainId),
-          token1_id: TokenIdByChain(token1, leafChainId),
+          token0_id: TokenId(leafChainId, token0),
+          token1_id: TokenId(leafChainId, token1),
           token0_address: token0,
           token1_address: token1,
           tickSpacing: tickSpacing,
@@ -68,7 +82,12 @@ describe("RootCLPoolFactory Events", () => {
 
       it("should create RootPool_LeafPool entity", () => {
         const rootPoolLeafPool = resultDB.entities.RootPool_LeafPool.get(
-          `${rootPoolAddress}_${rootChainId}_${leafPoolAddress}_${leafChainId}`,
+          RootPoolLeafPoolId(
+            rootChainId,
+            leafChainId,
+            rootPoolAddress,
+            leafPoolAddress,
+          ),
         );
         expect(rootPoolLeafPool).toBeDefined();
         expect(rootPoolLeafPool?.rootChainId).toBe(rootChainId);
@@ -101,10 +120,11 @@ describe("RootCLPoolFactory Events", () => {
 
         // Create two pools with the same rootPoolMatchingHash
         mockLiquidityPool1 = createMockLiquidityPoolAggregator({
-          id: leafPoolAddress,
+          id: PoolId(leafChainId, leafPoolAddress),
+          poolAddress: leafPoolAddress,
           chainId: leafChainId,
-          token0_id: TokenIdByChain(token0, leafChainId),
-          token1_id: TokenIdByChain(token1, leafChainId),
+          token0_id: TokenId(leafChainId, token0),
+          token1_id: TokenId(leafChainId, token1),
           token0_address: token0,
           token1_address: token1,
           tickSpacing: tickSpacing,
@@ -114,10 +134,16 @@ describe("RootCLPoolFactory Events", () => {
 
         // Different pool address
         mockLiquidityPool2 = createMockLiquidityPoolAggregator({
-          id: "0xFc00000000000000000000000000000000000001",
+          id: PoolId(
+            leafChainId,
+            toChecksumAddress("0xFc00000000000000000000000000000000000001"),
+          ),
+          poolAddress: toChecksumAddress(
+            "0xFc00000000000000000000000000000000000001",
+          ),
           chainId: leafChainId,
-          token0_id: TokenIdByChain(token0, leafChainId),
-          token1_id: TokenIdByChain(token1, leafChainId),
+          token0_id: TokenId(leafChainId, token0),
+          token1_id: TokenId(leafChainId, token1),
           token0_address: token0,
           token1_address: token1,
           tickSpacing: tickSpacing,

@@ -1,7 +1,10 @@
 import type { ALM_LP_Wrapper, handlerContext } from "generated";
 import {
+  ALMLPWrapperId,
+  ALMLPWrapperTransferInTxId,
   TEN_TO_THE_6_BI,
   TEN_TO_THE_18_BI,
+  UserStatsPerPoolId,
   ZERO_ADDRESS,
   toChecksumAddress,
 } from "../../../src/Constants";
@@ -399,7 +402,7 @@ describe("LPWrapperLogic", () => {
     });
 
     it("should return wrapper entity when found", async () => {
-      const wrapperId = `${srcAddress}_${chainId}`;
+      const wrapperId = ALMLPWrapperId(chainId, srcAddress);
       const mockWrapper = {
         ...mockALMLPWrapperData,
         id: wrapperId,
@@ -422,7 +425,7 @@ describe("LPWrapperLogic", () => {
     });
 
     it("should return null and log error when wrapper not found", async () => {
-      const wrapperId = `${srcAddress}_${chainId}`;
+      const wrapperId = ALMLPWrapperId(chainId, srcAddress);
 
       (mockContext.ALM_LP_Wrapper?.get as jest.Mock).mockResolvedValue(
         undefined,
@@ -482,14 +485,18 @@ describe("LPWrapperLogic", () => {
     });
 
     it("should process deposit event successfully", async () => {
-      const wrapperId = `${srcAddress}_${chainId}`;
+      const wrapperId = ALMLPWrapperId(chainId, srcAddress);
       const mockWrapper = {
         ...mockALMLPWrapperData,
         id: wrapperId,
         lpAmount: 2000n * TEN_TO_THE_18_BI,
       };
 
-      const userStatsId = `${toChecksumAddress(recipient)}_${toChecksumAddress(poolAddress)}_${chainId}`;
+      const userStatsId = UserStatsPerPoolId(
+        chainId,
+        toChecksumAddress(recipient),
+        toChecksumAddress(poolAddress),
+      );
       const mockUserStats = {
         id: userStatsId,
         userAddress: toChecksumAddress(recipient),
@@ -549,8 +556,12 @@ describe("LPWrapperLogic", () => {
     });
 
     it("should return early if wrapper not found", async () => {
-      const wrapperId = `${srcAddress}_${chainId}`;
-      const userStatsId = `${toChecksumAddress(recipient)}_${toChecksumAddress(poolAddress)}_${chainId}`;
+      const wrapperId = ALMLPWrapperId(chainId, srcAddress);
+      const userStatsId = UserStatsPerPoolId(
+        chainId,
+        toChecksumAddress(recipient),
+        toChecksumAddress(poolAddress),
+      );
 
       (mockContext.ALM_LP_Wrapper?.get as jest.Mock).mockResolvedValueOnce(
         undefined,
@@ -623,14 +634,18 @@ describe("LPWrapperLogic", () => {
     });
 
     it("should process withdraw event successfully", async () => {
-      const wrapperId = `${srcAddress}_${chainId}`;
+      const wrapperId = ALMLPWrapperId(chainId, srcAddress);
       const mockWrapper = {
         ...mockALMLPWrapperData,
         id: wrapperId,
         lpAmount: 2000n * TEN_TO_THE_18_BI,
       };
 
-      const userStatsId = `${toChecksumAddress(sender)}_${toChecksumAddress(poolAddress)}_${chainId}`;
+      const userStatsId = UserStatsPerPoolId(
+        chainId,
+        toChecksumAddress(sender),
+        toChecksumAddress(poolAddress),
+      );
       const mockUserStats = {
         id: userStatsId,
         userAddress: toChecksumAddress(sender),
@@ -693,7 +708,11 @@ describe("LPWrapperLogic", () => {
     });
 
     it("should return early if wrapper not found", async () => {
-      const userStatsId = `${toChecksumAddress(sender)}_${toChecksumAddress(poolAddress)}_${chainId}`;
+      const userStatsId = UserStatsPerPoolId(
+        chainId,
+        toChecksumAddress(sender),
+        toChecksumAddress(poolAddress),
+      );
 
       (mockContext.ALM_LP_Wrapper?.get as jest.Mock).mockResolvedValueOnce(
         undefined,
@@ -753,7 +772,7 @@ describe("LPWrapperLogic", () => {
     });
 
     it("should process transfer event successfully", async () => {
-      const wrapperId = `${srcAddress}_${chainId}`;
+      const wrapperId = ALMLPWrapperId(chainId, srcAddress);
       const mockWrapper = {
         ...mockALMLPWrapperData,
         id: wrapperId,
@@ -761,8 +780,16 @@ describe("LPWrapperLogic", () => {
         lpAmount: 2000n * TEN_TO_THE_18_BI,
       };
 
-      const fromUserStatsId = `${toChecksumAddress(from)}_${toChecksumAddress(poolAddress)}_${chainId}`;
-      const toUserStatsId = `${toChecksumAddress(to)}_${toChecksumAddress(poolAddress)}_${chainId}`;
+      const fromUserStatsId = UserStatsPerPoolId(
+        chainId,
+        toChecksumAddress(from),
+        toChecksumAddress(poolAddress),
+      );
+      const toUserStatsId = UserStatsPerPoolId(
+        chainId,
+        toChecksumAddress(to),
+        toChecksumAddress(poolAddress),
+      );
 
       const mockFromUserStats = {
         id: fromUserStatsId,
@@ -888,10 +915,10 @@ describe("LPWrapperLogic", () => {
     });
 
     it("should return early when sender has no UserStatsPerPool", async () => {
-      const wrapperId = `${srcAddress}_${chainId}`;
-      // Id format must match getUserStatsPerPoolId(userAddress, poolAddress, chainId) - no checksum
+      const wrapperId = ALMLPWrapperId(chainId, srcAddress);
+      // Id format must match UserStatsPerPoolId(chainId, userAddress, poolAddress) from Constants
       const poolInWrapper = toChecksumAddress(poolAddress);
-      const fromUserStatsId = `${from}_${poolInWrapper}_${chainId}`;
+      const fromUserStatsId = UserStatsPerPoolId(chainId, from, poolInWrapper);
       (mockContext.ALM_LP_Wrapper?.get as jest.Mock).mockResolvedValueOnce({
         ...mockALMLPWrapperData,
         id: wrapperId,
@@ -968,7 +995,12 @@ describe("LPWrapperLogic", () => {
         ((mockContext as any).ALMLPWrapperTransferInTx?.set as jest.Mock).mock
           .calls[0][0];
       expect(storedTransfer.id).toBe(
-        `${chainId}-${txHash}-${srcAddress}-${transferLogIndex}`,
+        ALMLPWrapperTransferInTxId(
+          chainId,
+          txHash,
+          srcAddress,
+          transferLogIndex,
+        ),
       );
       expect(storedTransfer.chainId).toBe(chainId);
       expect(storedTransfer.txHash).toBe(txHash);
@@ -1034,7 +1066,7 @@ describe("LPWrapperLogic", () => {
 
     it("should find matching burn Transfer event", async () => {
       const matchingBurn = {
-        id: `${chainId}-${txHash}-${srcAddress}-50`,
+        id: ALMLPWrapperTransferInTxId(chainId, txHash, srcAddress, 50),
         chainId: chainId,
         wrapperAddress: srcAddress,
         from: sender,
@@ -1045,7 +1077,7 @@ describe("LPWrapperLogic", () => {
       };
 
       const otherBurn = {
-        id: `${chainId}-${txHash}-${srcAddress}-60`,
+        id: ALMLPWrapperTransferInTxId(chainId, txHash, srcAddress, 60),
         chainId: chainId,
         wrapperAddress: srcAddress,
         from: sender,
@@ -1056,7 +1088,7 @@ describe("LPWrapperLogic", () => {
       };
 
       const nonMatchingBurn = {
-        id: `${chainId}-${txHash}-${srcAddress}-80`,
+        id: ALMLPWrapperTransferInTxId(chainId, txHash, srcAddress, 80),
         chainId: chainId,
         wrapperAddress: "0xdifferentwrapper",
         from: sender,
@@ -1104,7 +1136,7 @@ describe("LPWrapperLogic", () => {
 
     it("should filter out consumed transfers", async () => {
       const consumedBurn = {
-        id: `${chainId}-${txHash}-${srcAddress}-50`,
+        id: ALMLPWrapperTransferInTxId(chainId, txHash, srcAddress, 50),
         chainId: chainId,
         wrapperAddress: srcAddress,
         from: sender,
@@ -1132,7 +1164,7 @@ describe("LPWrapperLogic", () => {
 
     it("should filter out transfers with logIndex >= withdrawLogIndex", async () => {
       const futureBurn = {
-        id: `${chainId}-${txHash}-${srcAddress}-150`,
+        id: ALMLPWrapperTransferInTxId(chainId, txHash, srcAddress, 150),
         chainId: chainId,
         wrapperAddress: srcAddress,
         from: sender,
@@ -1160,7 +1192,7 @@ describe("LPWrapperLogic", () => {
 
     it("should select closest preceding burn when multiple matches exist", async () => {
       const burn1 = {
-        id: `${chainId}-${txHash}-${srcAddress}-30`,
+        id: ALMLPWrapperTransferInTxId(chainId, txHash, srcAddress, 30),
         chainId: chainId,
         wrapperAddress: srcAddress,
         from: sender,
@@ -1171,7 +1203,7 @@ describe("LPWrapperLogic", () => {
       };
 
       const burn2 = {
-        id: `${chainId}-${txHash}-${srcAddress}-70`,
+        id: ALMLPWrapperTransferInTxId(chainId, txHash, srcAddress, 70),
         chainId: chainId,
         wrapperAddress: srcAddress,
         from: sender,
@@ -1182,7 +1214,7 @@ describe("LPWrapperLogic", () => {
       };
 
       const burn3 = {
-        id: `${chainId}-${txHash}-${srcAddress}-90`,
+        id: ALMLPWrapperTransferInTxId(chainId, txHash, srcAddress, 90),
         chainId: chainId,
         wrapperAddress: srcAddress,
         from: sender,
@@ -1214,7 +1246,7 @@ describe("LPWrapperLogic", () => {
     it("should filter out burns from different senders", async () => {
       const differentSender = "0xdddddddddddddddddddddddddddddddddddddddd";
       const burnFromDifferentSender = {
-        id: `${chainId}-${txHash}-${srcAddress}-50`,
+        id: ALMLPWrapperTransferInTxId(chainId, txHash, srcAddress, 50),
         chainId: chainId,
         wrapperAddress: srcAddress,
         from: differentSender, // Different sender
@@ -1286,14 +1318,18 @@ describe("LPWrapperLogic", () => {
     });
 
     it("should use Transfer event value for V1 withdraw when matching burn found", async () => {
-      const wrapperId = `${srcAddress}_${chainId}`;
+      const wrapperId = ALMLPWrapperId(chainId, srcAddress);
       const mockWrapper = {
         ...mockALMLPWrapperData,
         id: wrapperId,
         lpAmount: 2000n * TEN_TO_THE_18_BI,
       };
 
-      const userStatsId = `${toChecksumAddress(sender)}_${toChecksumAddress(poolAddress)}_${chainId}`;
+      const userStatsId = UserStatsPerPoolId(
+        chainId,
+        toChecksumAddress(sender),
+        toChecksumAddress(poolAddress),
+      );
       const mockUserStats = {
         id: userStatsId,
         userAddress: toChecksumAddress(sender),
@@ -1304,7 +1340,12 @@ describe("LPWrapperLogic", () => {
 
       // Mock matching burn Transfer event
       const matchingBurn = {
-        id: `${chainId}-${txHash}-${srcAddress}-${transferLogIndex}`,
+        id: ALMLPWrapperTransferInTxId(
+          chainId,
+          txHash,
+          srcAddress,
+          transferLogIndex,
+        ),
         chainId: chainId,
         wrapperAddress: srcAddress,
         from: sender,
@@ -1384,14 +1425,18 @@ describe("LPWrapperLogic", () => {
     });
 
     it("should use 0n for V1 withdraw when no matching burn found", async () => {
-      const wrapperId = `${srcAddress}_${chainId}`;
+      const wrapperId = ALMLPWrapperId(chainId, srcAddress);
       const mockWrapper = {
         ...mockALMLPWrapperData,
         id: wrapperId,
         lpAmount: 2000n * TEN_TO_THE_18_BI,
       };
 
-      const userStatsId = `${toChecksumAddress(sender)}_${toChecksumAddress(poolAddress)}_${chainId}`;
+      const userStatsId = UserStatsPerPoolId(
+        chainId,
+        toChecksumAddress(sender),
+        toChecksumAddress(poolAddress),
+      );
       const mockUserStats = {
         id: userStatsId,
         userAddress: toChecksumAddress(sender),
@@ -1443,14 +1488,18 @@ describe("LPWrapperLogic", () => {
     });
 
     it("should use event parameter directly for V2 withdraw", async () => {
-      const wrapperId = `${srcAddress}_${chainId}`;
+      const wrapperId = ALMLPWrapperId(chainId, srcAddress);
       const mockWrapper = {
         ...mockALMLPWrapperData,
         id: wrapperId,
         lpAmount: 2000n * TEN_TO_THE_18_BI,
       };
 
-      const userStatsId = `${toChecksumAddress(sender)}_${toChecksumAddress(poolAddress)}_${chainId}`;
+      const userStatsId = UserStatsPerPoolId(
+        chainId,
+        toChecksumAddress(sender),
+        toChecksumAddress(poolAddress),
+      );
       const mockUserStats = {
         id: userStatsId,
         userAddress: toChecksumAddress(sender),

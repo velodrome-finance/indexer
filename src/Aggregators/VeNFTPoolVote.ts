@@ -1,25 +1,12 @@
 import type { VeNFTPoolVote, VeNFTState, handlerContext } from "generated";
 
+import { VeNFTPoolVoteId } from "../Constants";
+
 export interface VeNFTPoolVoteDiff {
   poolAddress: string;
   incrementalVeNFTamountStaked: bigint;
   veNFTStateId: string;
   lastUpdatedTimestamp: Date;
-}
-
-/**
- * Generates the ID for a VeNFTPoolVote entity
- * @param chainId - The chain ID
- * @param tokenId - The veNFT token ID
- * @param poolAddress - The pool address
- * @returns The entity ID string
- */
-export function getVeNFTPoolVoteId(
-  chainId: number,
-  tokenId: bigint,
-  poolAddress: string,
-): string {
-  return `${chainId}_${tokenId}_${poolAddress}`;
 }
 
 /**
@@ -36,7 +23,7 @@ export async function loadVeNFTPoolVote(
   poolAddress: string,
   context: handlerContext,
 ): Promise<VeNFTPoolVote | undefined> {
-  const id = getVeNFTPoolVoteId(chainId, tokenId, poolAddress);
+  const id = VeNFTPoolVoteId(chainId, tokenId, poolAddress);
   return context.VeNFTPoolVote.get(id);
 }
 
@@ -64,7 +51,7 @@ export async function loadOrCreateVeNFTPoolVote(
   timestamp: Date,
 ): Promise<VeNFTPoolVote> {
   const veNFTPoolVotes = await context.VeNFTPoolVote.getOrCreate({
-    id: getVeNFTPoolVoteId(chainId, tokenId, poolAddress),
+    id: VeNFTPoolVoteId(chainId, tokenId, poolAddress),
     poolAddress: poolAddress,
     veNFTamountStaked: 0n,
     veNFTState_id: veNFTState.id,

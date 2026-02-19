@@ -1,5 +1,7 @@
 import type { UserStatsPerPool, handlerContext } from "generated";
 
+import { UserStatsPerPoolId } from "../Constants";
+
 export interface UserStatsPerPoolDiff {
   incrementalCurrentLiquidityUSD: bigint;
   incrementalLpBalance: bigint;
@@ -43,21 +45,6 @@ export interface UserStatsPerPoolDiff {
 }
 
 /**
- * Generates the ID for a UserStatsPerPool entity
- * @param userAddress - The user's address
- * @param poolAddress - The pool's address
- * @param chainId - The chain ID
- * @returns The entity ID string
- */
-export function getUserStatsPerPoolId(
-  userAddress: string,
-  poolAddress: string,
-  chainId: number,
-): string {
-  return `${userAddress}_${poolAddress}_${chainId}`;
-}
-
-/**
  * Loads a UserStatsPerPool entity by its ID
  * @param userAddress - The user's address
  * @param poolAddress - The pool's address
@@ -71,7 +58,7 @@ export async function loadUserStatsPerPool(
   chainId: number,
   context: handlerContext,
 ): Promise<UserStatsPerPool | undefined> {
-  const id = getUserStatsPerPoolId(userAddress, poolAddress, chainId);
+  const id = UserStatsPerPoolId(chainId, userAddress, poolAddress);
   return context.UserStatsPerPool.get(id);
 }
 
@@ -122,7 +109,7 @@ export function createUserStatsPerPoolEntity(
   timestamp: Date,
 ): UserStatsPerPool {
   return {
-    id: getUserStatsPerPoolId(userAddress, poolAddress, chainId),
+    id: UserStatsPerPoolId(chainId, userAddress, poolAddress),
     userAddress: userAddress,
     poolAddress: poolAddress,
     chainId: chainId,

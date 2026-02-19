@@ -1,5 +1,5 @@
 import { MockDb, Pool } from "../../../generated/src/TestHelpers.gen";
-import { ZERO_ADDRESS } from "../../../src/Constants";
+import { UserStatsPerPoolId, ZERO_ADDRESS } from "../../../src/Constants";
 import { setupCommon } from "./common";
 
 describe("Pool Transfer Event", () => {
@@ -62,7 +62,7 @@ describe("Pool Transfer Event", () => {
 
     // Verify user LP balance was updated
     const userStats = result.entities.UserStatsPerPool.get(
-      `${userAddress}_${poolAddress}_10`,
+      UserStatsPerPoolId(10, userAddress, poolAddress),
     );
     expect(userStats).toBeDefined();
     expect(userStats?.lpBalance).toBe(LP_VALUE);
@@ -122,7 +122,7 @@ describe("Pool Transfer Event", () => {
 
     // Verify user LP balance was updated
     const userStats = result.entities.UserStatsPerPool.get(
-      `${userAddress}_${poolAddress}_10`,
+      UserStatsPerPoolId(10, userAddress, poolAddress),
     );
     expect(userStats).toBeDefined();
     expect(userStats?.lpBalance).toBe(-LP_VALUE);
@@ -168,14 +168,14 @@ describe("Pool Transfer Event", () => {
 
     // Verify sender LP balance was decreased
     const senderStats = result.entities.UserStatsPerPool.get(
-      `${senderAddress}_${poolAddress}_10`,
+      UserStatsPerPoolId(10, senderAddress, poolAddress),
     );
     expect(senderStats).toBeDefined();
     expect(senderStats?.lpBalance).toBe(-LP_VALUE);
 
     // Verify recipient LP balance was increased
     const recipientStats = result.entities.UserStatsPerPool.get(
-      `${recipientAddress}_${poolAddress}_10`,
+      UserStatsPerPoolId(10, recipientAddress, poolAddress),
     );
     expect(recipientStats).toBeDefined();
     expect(recipientStats?.lpBalance).toBe(LP_VALUE);

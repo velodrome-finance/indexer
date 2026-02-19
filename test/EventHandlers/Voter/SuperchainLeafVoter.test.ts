@@ -3,7 +3,7 @@ import type { LiquidityPoolAggregator, Token } from "generated/src/Types.gen";
 import * as LiquidityPoolAggregatorModule from "../../../src/Aggregators/LiquidityPoolAggregator";
 import {
   SUPERCHAIN_LEAF_VOTER_CLPOOLS_FACTORY_LIST,
-  TokenIdByChain,
+  TokenId,
   toChecksumAddress,
 } from "../../../src/Constants";
 import { setupCommon } from "../Pool/common";
@@ -187,7 +187,7 @@ describe("SuperchainLeafVoter Events", () => {
 
       beforeEach(async () => {
         const token: Token = {
-          id: TokenIdByChain(tokenAddress, chainId),
+          id: TokenId(chainId, tokenAddress),
           address: tokenAddress,
           symbol: "TEST",
           name: "TEST",
@@ -207,7 +207,7 @@ describe("SuperchainLeafVoter Events", () => {
 
       it("should update the existing token entity", () => {
         const token = resultDB.entities.Token.get(
-          TokenIdByChain(tokenAddress, chainId),
+          TokenId(chainId, tokenAddress),
         );
         expect(token).toBeDefined();
         expect(token?.isWhitelisted).toBe(true);
@@ -231,7 +231,7 @@ describe("SuperchainLeafVoter Events", () => {
 
       it("should create a new Token entity with whitelisted flag", () => {
         const token = resultDB.entities.Token.get(
-          TokenIdByChain(tokenAddress, chainId),
+          TokenId(chainId, tokenAddress),
         );
         expect(token).toBeDefined();
         expect(token?.isWhitelisted).toBe(true);
@@ -269,7 +269,7 @@ describe("SuperchainLeafVoter Events", () => {
 
         beforeEach(async () => {
           const token: Token = {
-            id: TokenIdByChain(tokenAddress, chainId),
+            id: TokenId(chainId, tokenAddress),
             address: tokenAddress,
             symbol: "TEST",
             name: "TEST",
@@ -289,7 +289,7 @@ describe("SuperchainLeafVoter Events", () => {
 
         it("should update the existing token entity to de-whitelist it", () => {
           const token = resultDB.entities.Token.get(
-            TokenIdByChain(tokenAddress, chainId),
+            TokenId(chainId, tokenAddress),
           );
           expect(token).toBeDefined();
           expect(token?.isWhitelisted).toBe(false);
@@ -313,7 +313,7 @@ describe("SuperchainLeafVoter Events", () => {
 
         it("should create a new Token entity with isWhitelisted set to false", () => {
           const token = resultDB.entities.Token.get(
-            TokenIdByChain(tokenAddress, chainId),
+            TokenId(chainId, tokenAddress),
           );
           expect(token).toBeDefined();
           expect(token?.isWhitelisted).toBe(false);

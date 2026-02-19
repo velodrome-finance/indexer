@@ -6,7 +6,9 @@ import type {
 } from "../../generated/src/Types.gen";
 import {
   CHAIN_CONSTANTS,
-  TokenIdByChain,
+  FeeToTickSpacingMappingId,
+  PoolId,
+  TokenId,
   toChecksumAddress,
 } from "../../src/Constants";
 import * as CLFactoryPoolCreatedLogic from "../../src/EventHandlers/CLFactory/CLFactoryPoolCreatedLogic";
@@ -17,7 +19,9 @@ describe("CLFactory Events", () => {
   const { mockToken0Data, mockToken1Data } = setupCommon();
   // Use Base (8453) instead of Optimism (10) because Optimism has empty newCLGaugeFactoryAddress
   const chainId = 8453; // Base chain has a valid newCLGaugeFactoryAddress
-  const poolAddress = "0x3333333333333333333333333333333333333333";
+  const poolAddress = toChecksumAddress(
+    "0x3333333333333333333333333333333333333333",
+  );
   const token0Address = mockToken0Data.address;
   const token1Address = mockToken1Data.address;
 
@@ -25,7 +29,7 @@ describe("CLFactory Events", () => {
   const TICK_SPACING = 60n;
   const FEE = 500n;
   const createFeeToTickSpacingMapping = () => ({
-    id: `${chainId}_${TICK_SPACING}`,
+    id: FeeToTickSpacingMappingId(chainId, TICK_SPACING),
     chainId: chainId,
     tickSpacing: TICK_SPACING,
     fee: FEE,
@@ -34,8 +38,9 @@ describe("CLFactory Events", () => {
 
   let processSpy: jest.SpyInstance;
   // Store the original newCLGaugeFactoryAddress from Constants (Base chain: 0xaDe65c38CD4849aDBA595a4323a8C7DdfE89716a)
-  const originalNewCLGaugeFactoryAddress =
-    "0xaDe65c38CD4849aDBA595a4323a8C7DdfE89716a";
+  const originalNewCLGaugeFactoryAddress = toChecksumAddress(
+    "0xaDe65c38CD4849aDBA595a4323a8C7DdfE89716a",
+  );
   let newCLGaugeFactoryAddress: string;
   let originalNewCLGaugeFactoryAddressValue: string | undefined;
 
@@ -55,7 +60,7 @@ describe("CLFactory Events", () => {
     jest
       .spyOn(PriceOracle, "createTokenEntity")
       .mockImplementation(async (address: string) => ({
-        id: TokenIdByChain(address, chainId),
+        id: TokenId(chainId, address),
         address: address,
         symbol: "",
         name: "Mock Token",
@@ -78,10 +83,10 @@ describe("CLFactory Events", () => {
         ) => {
           return {
             liquidityPoolAggregator: {
-              id: toChecksumAddress(poolAddress),
+              id: PoolId(chainId, poolAddress),
               chainId: chainId,
-              token0_id: TokenIdByChain(token0Address, chainId),
-              token1_id: TokenIdByChain(token1Address, chainId),
+              token0_id: TokenId(chainId, token0Address),
+              token1_id: TokenId(chainId, token1Address),
               token0_address: token0Address,
               token1_address: token1Address,
               isStable: false,
@@ -118,12 +123,12 @@ describe("CLFactory Events", () => {
       // Set up token entities with correct chainId (8453 for Base)
       const token0ForBase = {
         ...mockToken0Data,
-        id: TokenIdByChain(mockToken0Data.address, chainId),
+        id: TokenId(chainId, mockToken0Data.address),
         chainId: chainId,
       } as Token;
       const token1ForBase = {
         ...mockToken1Data,
-        id: TokenIdByChain(mockToken1Data.address, chainId),
+        id: TokenId(chainId, mockToken1Data.address),
         chainId: chainId,
       } as Token;
       mockDb = mockDb.entities.Token.set(token0ForBase);
@@ -192,7 +197,7 @@ describe("CLFactory Events", () => {
       // Verify feeToTickSpacingMapping was passed as 4th argument
       expect(callArgs[4]).toEqual(
         expect.objectContaining({
-          id: `${chainId}_60`,
+          id: FeeToTickSpacingMappingId(chainId, TICK_SPACING),
           fee: 500n,
         }),
       );
@@ -202,10 +207,10 @@ describe("CLFactory Events", () => {
 
     it("should set the liquidity pool aggregator entity", () => {
       const pool = resultDB.entities.LiquidityPoolAggregator.get(
-        toChecksumAddress(poolAddress),
+        PoolId(chainId, poolAddress),
       );
       expect(pool).toBeDefined();
-      expect(pool?.id).toBe(toChecksumAddress(poolAddress));
+      expect(pool?.id).toBe(PoolId(chainId, poolAddress));
       expect(pool?.chainId).toBe(chainId);
       expect(pool?.isCL).toBe(true);
     });
@@ -215,12 +220,12 @@ describe("CLFactory Events", () => {
       let preloadMockDb = MockDb.createMockDb();
       const token0ForBase = {
         ...mockToken0Data,
-        id: TokenIdByChain(mockToken0Data.address, chainId),
+        id: TokenId(chainId, mockToken0Data.address),
         chainId: chainId,
       } as Token;
       const token1ForBase = {
         ...mockToken1Data,
-        id: TokenIdByChain(mockToken1Data.address, chainId),
+        id: TokenId(chainId, mockToken1Data.address),
         chainId: chainId,
       } as Token;
       preloadMockDb = preloadMockDb.entities.Token.set(token0ForBase);
@@ -245,7 +250,7 @@ describe("CLFactory Events", () => {
       processSpy.mockClear();
 
       // Verify the mapping exists before processing (using the same key format as the handler)
-      const mappingKey = `${chainId}_${TICK_SPACING}`;
+      const mappingKey = FeeToTickSpacingMappingId(chainId, TICK_SPACING);
       const mappingBefore =
         preloadMockDb.entities.FeeToTickSpacingMapping.get(mappingKey);
       expect(mappingBefore).toBeDefined(); // Verify mapping exists before processing
@@ -258,7 +263,7 @@ describe("CLFactory Events", () => {
 
       // Verify that the handler ran (pool should be created if mapping exists)
       const pool = result.entities.LiquidityPoolAggregator.get(
-        toChecksumAddress(poolAddress),
+        PoolId(chainId, poolAddress),
       );
 
       // Since we verified the mapping exists, the handler should have run and created the pool
@@ -287,26 +292,29 @@ describe("CLFactory Events", () => {
 
     it("should set baseFee and currentFee from FeeToTickSpacingMapping when mapping exists", () => {
       const pool = resultDB.entities.LiquidityPoolAggregator.get(
-        toChecksumAddress(poolAddress),
+        PoolId(chainId, poolAddress),
       );
       expect(pool?.baseFee).toBe(500n);
       expect(pool?.currentFee).toBe(500n);
     });
 
     it("should handle missing FeeToTickSpacingMapping gracefully", async () => {
-      const mockDbWithoutMapping = MockDb.createMockDb();
+      let mockDbWithoutMapping = MockDb.createMockDb();
       const token0ForBase = {
         ...mockToken0Data,
-        id: TokenIdByChain(mockToken0Data.address, chainId),
+        id: TokenId(chainId, mockToken0Data.address),
         chainId: chainId,
       } as Token;
       const token1ForBase = {
         ...mockToken1Data,
-        id: TokenIdByChain(mockToken1Data.address, chainId),
+        id: TokenId(chainId, mockToken1Data.address),
         chainId: chainId,
       } as Token;
-      mockDbWithoutMapping.entities.Token.set(token0ForBase);
-      mockDbWithoutMapping.entities.Token.set(token1ForBase);
+      // Set up token entities
+      mockDbWithoutMapping =
+        mockDbWithoutMapping.entities.Token.set(token0ForBase);
+      mockDbWithoutMapping =
+        mockDbWithoutMapping.entities.Token.set(token1ForBase);
 
       const clGaugeConfig: CLGaugeConfig = {
         id: newCLGaugeFactoryAddress,
@@ -315,7 +323,9 @@ describe("CLFactory Events", () => {
         defaultEmissionsCap: 0n,
         lastUpdatedTimestamp: new Date(1000000 * 1000),
       } as CLGaugeConfig;
-      mockDbWithoutMapping.entities.CLGaugeConfig.set(clGaugeConfig);
+      // Set up CLGaugeConfig
+      mockDbWithoutMapping =
+        mockDbWithoutMapping.entities.CLGaugeConfig.set(clGaugeConfig);
       // Note: FeeToTickSpacingMapping is NOT set
 
       const result = await CLFactory.PoolCreated.processEvent({
@@ -324,7 +334,7 @@ describe("CLFactory Events", () => {
       });
 
       const pool = result.entities.LiquidityPoolAggregator.get(
-        toChecksumAddress(poolAddress),
+        PoolId(chainId, poolAddress),
       );
       // When mapping doesn't exist, handler returns early and no pool is created
       expect(pool).toBeUndefined();
@@ -373,7 +383,7 @@ describe("CLFactory Events", () => {
     });
 
     it("should create a new mapping when it doesn't exist", async () => {
-      const mappingId = `${CHAIN_ID}_${TICK_SPACING}`;
+      const mappingId = FeeToTickSpacingMappingId(CHAIN_ID, TICK_SPACING);
       const mockEvent = createMockEvent(TICK_SPACING, FEE);
 
       const result = await CLFactory.TickSpacingEnabled.processEvent({
@@ -393,7 +403,7 @@ describe("CLFactory Events", () => {
     });
 
     it("should update existing mapping when it already exists", async () => {
-      const mappingId = `${CHAIN_ID}_${TICK_SPACING}`;
+      const mappingId = FeeToTickSpacingMappingId(CHAIN_ID, TICK_SPACING);
       const oldFee = 400n;
       const newFee = 600n;
       const oldTimestamp = 500000;
@@ -460,7 +470,10 @@ describe("CLFactory Events", () => {
         }> = [];
 
         for (const mapping of mappings) {
-          const mappingId = `${mapping.chainId}_${mapping.tickSpacing}`;
+          const mappingId = FeeToTickSpacingMappingId(
+            mapping.chainId,
+            mapping.tickSpacing,
+          );
           expectedMappings.push({
             id: mappingId,
             chainId: mapping.chainId,

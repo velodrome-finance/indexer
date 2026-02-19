@@ -9,7 +9,11 @@ import type {
 } from "../../../generated";
 import * as VeNFTPoolVoteAggregator from "../../../src/Aggregators/VeNFTPoolVote";
 import * as VeNFTStateAggregator from "../../../src/Aggregators/VeNFTState";
-import { toChecksumAddress } from "../../../src/Constants";
+import {
+  VeNFTId,
+  VeNFTPoolVoteId,
+  toChecksumAddress,
+} from "../../../src/Constants";
 import * as VeNFTLogic from "../../../src/EventHandlers/VeNFT/VeNFTLogic";
 
 describe("VeNFTLogic", () => {
@@ -40,7 +44,7 @@ describe("VeNFTLogic", () => {
   } as unknown as handlerContext;
 
   const mockVeNFTState: VeNFTState = {
-    id: "10_1",
+    id: VeNFTId(10, 1n),
     chainId: 10,
     tokenId: 1n,
     owner: toChecksumAddress("0x1111111111111111111111111111111111111111"),
@@ -286,7 +290,7 @@ describe("VeNFTLogic", () => {
     it("loads pool votes and processes each pool with non-zero votes", async () => {
       const poolVotes = [
         {
-          id: "10_1_0xpool1",
+          id: VeNFTPoolVoteId(10, 1n, "0xpool1"),
           poolAddress: "0xpool1",
           veNFTamountStaked: 50n,
           veNFTState_id: mockVeNFTState.id,
@@ -312,14 +316,14 @@ describe("VeNFTLogic", () => {
     it("skips pool votes with zero veNFTamountStaked", async () => {
       const poolVotes = [
         {
-          id: "10_1_0xpool0",
+          id: VeNFTPoolVoteId(10, 1n, "0xpool0"),
           poolAddress: "0xpool0",
           veNFTamountStaked: 0n,
           veNFTState_id: mockVeNFTState.id,
           lastUpdatedTimestamp: new Date(0),
         },
         {
-          id: "10_1_0xpool1",
+          id: VeNFTPoolVoteId(10, 1n, "0xpool1"),
           poolAddress: "0xpool1",
           veNFTamountStaked: 50n,
           veNFTState_id: mockVeNFTState.id,
@@ -331,8 +335,8 @@ describe("VeNFTLogic", () => {
         .eq as jest.Mock;
       eqMock.mockImplementation(() => Promise.resolve(poolVotes));
 
-      const previousOwnerId = `${mockVeNFTState.owner}_0xpool1_10`;
-      const newOwnerId = `${mockTransferEvent.params.to}_0xpool1_10`;
+      const previousOwnerId = `10-${mockVeNFTState.owner}-0xpool1`;
+      const newOwnerId = `10-${mockTransferEvent.params.to}-0xpool1`;
       const previousOwnerStats = {
         id: previousOwnerId,
         userAddress: mockVeNFTState.owner,
@@ -426,7 +430,7 @@ describe("VeNFTLogic", () => {
 
     it("calls updateUserStatsPerPool with negative delta when previous owner exists", async () => {
       const existingUserStats = {
-        id: "0x1111111111111111111111111111111111111111_0xpool1_10",
+        id: "10-0x1111111111111111111111111111111111111111-0xpool1",
         userAddress: "0x1111111111111111111111111111111111111111",
         poolAddress: "0xpool1",
         chainId: 10,

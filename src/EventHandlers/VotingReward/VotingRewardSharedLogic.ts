@@ -13,7 +13,7 @@ import {
   type UserStatsPerPoolDiff,
   loadOrCreateUserData,
 } from "../../Aggregators/UserStatsPerPool";
-import { TokenIdByChain } from "../../Constants";
+import { TokenId } from "../../Constants";
 import {
   getTokenDetails,
   getTokenPrice,
@@ -50,7 +50,7 @@ export async function processVotingRewardClaimRewards(
   field: PoolAddressField,
 ): Promise<VotingRewardClaimRewardsResult> {
   // Get reward token and refresh price (refreshTokenPrice handles the update internally)
-  const rewardTokenId = TokenIdByChain(data.reward, data.chainId);
+  const rewardTokenId = TokenId(data.chainId, data.reward);
   let rewardToken = await context.Token.get(rewardTokenId);
 
   if (!rewardToken) {
@@ -83,7 +83,7 @@ export async function processVotingRewardClaimRewards(
     ]);
 
     const newToken = {
-      id: TokenIdByChain(data.reward, data.chainId),
+      id: TokenId(data.chainId, data.reward),
       address: data.reward,
       name: rewardTokenDetails.name,
       symbol: rewardTokenDetails.symbol,

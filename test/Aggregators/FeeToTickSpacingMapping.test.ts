@@ -1,5 +1,6 @@
 import type { FeeToTickSpacingMapping, handlerContext } from "generated";
 import { updateFeeToTickSpacingMapping } from "../../src/Aggregators/FeeToTickSpacingMapping";
+import { FeeToTickSpacingMappingId } from "../../src/Constants";
 
 describe("FeeToTickSpacingMapping", () => {
   // Shared constants
@@ -7,7 +8,7 @@ describe("FeeToTickSpacingMapping", () => {
   const TICK_SPACING = 100n;
   const INITIAL_FEE = 500n;
   const INITIAL_TIMESTAMP = 1000000;
-  const MAPPING_ID = `${CHAIN_ID}_${TICK_SPACING}`;
+  const MAPPING_ID = FeeToTickSpacingMappingId(CHAIN_ID, TICK_SPACING);
 
   let mockContext: Partial<handlerContext>;
   let currentMapping: FeeToTickSpacingMapping;
