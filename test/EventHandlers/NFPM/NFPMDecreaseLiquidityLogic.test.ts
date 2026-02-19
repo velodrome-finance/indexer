@@ -44,6 +44,7 @@ describe("NFPMDecreaseLiquidityLogic", () => {
       "0xaaa36689c538fcfee2e665f2c7b30bcf2f28ab898050252f50ec1f1d05a5392c",
     mintLogIndex: 42,
     lastUpdatedTimestamp: new Date(1711601595000),
+    lastSnapshotTimestamp: undefined,
   };
 
   let mockDb: ReturnType<typeof MockDb.createMockDb>;

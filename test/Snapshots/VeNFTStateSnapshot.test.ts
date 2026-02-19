@@ -1,0 +1,85 @@
+import {
+  SNAPSHOT_INTERVAL_IN_MS,
+  VeNFTStateSnapshotId,
+} from "../../src/Constants";
+import { setVeNFTStateSnapshot } from "../../src/Snapshots/VeNFTStateSnapshot";
+import { setupCommon } from "../EventHandlers/Pool/common";
+
+describe("VeNFTStateSnapshot", () => {
+  let common: ReturnType<typeof setupCommon>;
+  const baseTimestamp = new Date(SNAPSHOT_INTERVAL_IN_MS * 2);
+  const blockNumber = 150000;
+
+  beforeEach(() => {
+    common = setupCommon();
+    jest.clearAllMocks();
+  });
+
+  it("should compute snapshot epoch correctly (floor timestamp to interval boundary)", () => {
+    const context = common.createMockContext({
+      VeNFTStateSnapshot: { set: jest.fn() },
+    });
+    const entity = common.createMockVeNFTState();
+    // 25 min into the 3rd hour → epoch should be start of 3rd hour
+    const midEpochTimestamp = new Date(
+      SNAPSHOT_INTERVAL_IN_MS * 3 + 25 * 60 * 1000,
+    );
+    const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 3;
+
+    setVeNFTStateSnapshot(entity, midEpochTimestamp, blockNumber, context);
+
+    const setArg = (context.VeNFTStateSnapshot.set as jest.Mock).mock
+      .calls[0][0];
+    expect(setArg.timestamp.getTime()).toBe(expectedEpochMs);
+    expect(setArg.id).toBe(
+      VeNFTStateSnapshotId(entity.chainId, entity.tokenId, expectedEpochMs),
+    );
+  });
+
+  it("should set snapshot with epoch-aligned timestamp and correct id", () => {
+    const context = common.createMockContext({
+      VeNFTStateSnapshot: { set: jest.fn() },
+    });
+    const entity = common.createMockVeNFTState({
+      totalValueLocked: 1000n,
+      locktime: 1n,
+    });
+    const timestamp = new Date(baseTimestamp.getTime() + 10 * 60 * 1000);
+
+    setVeNFTStateSnapshot(entity, timestamp, blockNumber, context);
+
+    expect(context.VeNFTStateSnapshot.set).toHaveBeenCalledTimes(1);
+    const setArg = (context.VeNFTStateSnapshot.set as jest.Mock).mock
+      .calls[0][0];
+    const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 2;
+    expect(setArg.id).toBe(
+      VeNFTStateSnapshotId(entity.chainId, entity.tokenId, expectedEpochMs),
+    );
+    expect(setArg.timestamp.getTime()).toBe(expectedEpochMs);
+    expect(setArg.blockNumber).toBe(blockNumber);
+  });
+
+  it("should spread entity fields into the snapshot", () => {
+    const context = common.createMockContext({
+      VeNFTStateSnapshot: { set: jest.fn() },
+    });
+    const entity = common.createMockVeNFTState({
+      totalValueLocked: 1000n,
+      locktime: 1n,
+      isAlive: false,
+    });
+
+    setVeNFTStateSnapshot(entity, baseTimestamp, blockNumber, context);
+
+    const setArg = (context.VeNFTStateSnapshot.set as jest.Mock).mock
+      .calls[0][0];
+    expect(setArg.chainId).toBe(entity.chainId);
+    expect(setArg.tokenId).toBe(entity.tokenId);
+    expect(setArg.owner).toBe(entity.owner);
+    expect(setArg.totalValueLocked).toBe(entity.totalValueLocked);
+    expect(setArg.locktime).toBe(entity.locktime);
+    expect(setArg.lastUpdatedTimestamp).toEqual(entity.lastUpdatedTimestamp);
+    expect(setArg.isAlive).toBe(entity.isAlive);
+    expect(setArg.lastSnapshotTimestamp).toEqual(entity.lastSnapshotTimestamp);
+  });
+});

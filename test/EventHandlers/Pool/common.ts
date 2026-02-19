@@ -2,13 +2,16 @@ import { TickMath } from "@uniswap/v3-sdk";
 import type {
   ALM_LP_Wrapper,
   LiquidityPoolAggregator,
+  NonFungiblePosition,
   Token,
   UserStatsPerPool,
   VeNFTPoolVote,
   VeNFTState,
+  handlerContext,
 } from "../../../generated/src/Types.gen";
 import {
   ALMLPWrapperId,
+  NonFungiblePositionId,
   PoolId,
   TEN_TO_THE_6_BI,
   TEN_TO_THE_18_BI,
@@ -178,6 +181,7 @@ export function setupCommon() {
     creationTimestamp: new Date(900000 * 1000),
     strategyTransactionHash:
       "0x0000000000000000000000000000000000000000000000000000000000000001",
+    lastSnapshotTimestamp: undefined,
   };
 
   const defaultUserAddress = "0xAbCccccccccccccccccccccccccccccccccccccc";
@@ -247,6 +251,7 @@ export function setupCommon() {
     firstActivityTimestamp: new Date(900000 * 1000),
     lastActivityTimestamp: new Date(900000 * 1000),
     lastAlmActivityTimestamp: new Date(900000 * 1000),
+    lastSnapshotTimestamp: undefined,
   };
 
   const mockVeNFTStateData: VeNFTState = {
@@ -258,6 +263,7 @@ export function setupCommon() {
     lastUpdatedTimestamp: new Date(900000 * 1000),
     totalValueLocked: 0n,
     isAlive: true,
+    lastSnapshotTimestamp: undefined,
   };
 
   const mockVeNFTPoolVoteData: VeNFTPoolVote = {
@@ -267,6 +273,50 @@ export function setupCommon() {
     veNFTState_id: mockVeNFTStateData.id,
     lastUpdatedTimestamp: new Date(900000 * 1000),
   };
+
+  const defaultNFPMTokenId = 42n;
+  const mockNonFungiblePositionData: NonFungiblePosition = {
+    id: NonFungiblePositionId(CHAIN_ID, POOL_ADDRESS, defaultNFPMTokenId),
+    chainId: CHAIN_ID,
+    tokenId: defaultNFPMTokenId,
+    owner: normalizedDefaultUserAddress,
+    pool: POOL_ADDRESS,
+    tickLower: -1000n,
+    tickUpper: 1000n,
+    token0: mockToken0Data.address,
+    token1: mockToken1Data.address,
+    liquidity: 5000n,
+    mintTransactionHash:
+      "0x1234567890123456789012345678901234567890123456789012345678901234",
+    mintLogIndex: 1,
+    lastUpdatedTimestamp: new Date(900000 * 1000),
+    lastSnapshotTimestamp: undefined,
+  };
+
+  /**
+   * Creates a mock NonFungiblePosition entity with customizable fields.
+   */
+  function createMockNonFungiblePosition(
+    overrides: Partial<NonFungiblePosition> = {},
+  ): NonFungiblePosition {
+    const chainId = overrides.chainId ?? CHAIN_ID;
+    const pool = toChecksumAddress(overrides.pool ?? POOL_ADDRESS);
+    const tokenId = overrides.tokenId ?? defaultNFPMTokenId;
+    const id = overrides.id ?? NonFungiblePositionId(chainId, pool, tokenId);
+    const owner = toChecksumAddress(
+      overrides.owner ?? normalizedDefaultUserAddress,
+    );
+
+    return {
+      ...mockNonFungiblePositionData,
+      ...overrides,
+      id,
+      chainId,
+      tokenId,
+      pool,
+      owner,
+    };
+  }
 
   /**
    * Creates a mock UserStatsPerPool entity with customizable fields.
@@ -379,6 +429,17 @@ export function setupCommon() {
     };
   }
 
+  /**
+   * Builds a minimal handlerContext with only the given entities.
+   * Each key is an entity name (e.g. "VeNFTStateSnapshot"); each value is an object with the methods to mock (e.g. { set: jest.fn() }).
+   * Use for snapshot tests and any test that only needs to spy on entity methods.
+   */
+  function createMockContext(
+    entities: Record<string, Record<string, unknown>>,
+  ): handlerContext {
+    return { ...entities } as unknown as handlerContext;
+  }
+
   return {
     mockToken0Data,
     mockToken1Data,
@@ -387,10 +448,13 @@ export function setupCommon() {
     mockUserStatsPerPoolData,
     mockVeNFTStateData,
     mockVeNFTPoolVoteData,
+    mockNonFungiblePositionData,
     createMockToken,
     createMockUserStatsPerPool,
     createMockLiquidityPoolAggregator,
     createMockVeNFTState,
     createMockVeNFTPoolVote,
+    createMockNonFungiblePosition,
+    createMockContext,
   };
 }

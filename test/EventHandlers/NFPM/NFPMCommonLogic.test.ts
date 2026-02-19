@@ -38,6 +38,7 @@ describe("NFPMCommonLogic", () => {
       "0xaaa36689c538fcfee2e665f2c7b30bcf2f28ab898050252f50ec1f1d05a5392c",
     mintLogIndex: 42,
     lastUpdatedTimestamp: new Date(),
+    lastSnapshotTimestamp: undefined,
   };
 
   const mockPositionDifferentChain: NonFungiblePosition = {

@@ -6,15 +6,17 @@ import {
 import { getCurrentFee, roundBlockToInterval } from "../Effects/Index";
 import { generatePoolName } from "../Helpers";
 import { refreshTokenPrice } from "../PriceOracle";
+import {
+  getSnapshotEpoch,
+  setLiquidityPoolAggregatorSnapshot,
+  shouldSnapshot,
+} from "../Snapshots/Index";
 import type {
   CLGaugeConfig,
   LiquidityPoolAggregator,
-  LiquidityPoolAggregatorSnapshot,
   Token,
   handlerContext,
 } from "./../src/Types.gen";
-
-const UPDATE_INTERVAL = 60 * 60 * 1000; // 1 hour
 
 /**
  * Enum for pool address field types
@@ -161,43 +163,11 @@ export async function updateDynamicFeePools(
 }
 
 /**
- * Creates and stores a snapshot of the current state of a LiquidityPoolAggregator.
- *
- * This function is used to capture the state of a liquidity pool aggregator at a specific
- * point in time. The snapshot includes the pool's ID, a unique snapshot ID, and the timestamp
- * of the last update.
- *
- * @param liquidityPoolAggregator - The current state of the liquidity pool aggregator.
- * @param timestamp - The current timestamp when the snapshot is taken.
- * @param context - The handler context used to store the snapshot.
- */
-export function setLiquidityPoolAggregatorSnapshot(
-  liquidityPoolAggregator: LiquidityPoolAggregator,
-  timestamp: Date,
-  context: handlerContext,
-) {
-  const chainId = liquidityPoolAggregator.chainId;
-
-  const snapshot: LiquidityPoolAggregatorSnapshot = {
-    ...liquidityPoolAggregator,
-    id: LiquidityPoolAggregatorSnapshotId(
-      chainId,
-      liquidityPoolAggregator.poolAddress,
-      timestamp.getTime(),
-    ),
-    pool: liquidityPoolAggregator.poolAddress,
-    timestamp: timestamp,
-  };
-
-  context.LiquidityPoolAggregatorSnapshot.set(snapshot);
-}
-
-/**
  * Updates the state of a LiquidityPoolAggregator with new data and manages snapshots.
  *
  * This function applies a set of changes (diff) to the current state of a liquidity pool
- * aggregator. It updates the last updated timestamp and, if more than an hour has passed
- * since the last snapshot, it creates a new snapshot of the aggregator's state.
+ * aggregator. It updates the last updated timestamp and, when a new epoch boundary is crossed,
+ * creates a snapshot of the aggregator's state.
  *
  * @param diff - An object containing the changes to be applied to the current state.
  * @param current - The current state of the liquidity pool aggregator.
@@ -348,12 +318,8 @@ export async function updateLiquidityPoolAggregator(
     lastUpdatedTimestamp: timestamp,
   };
 
-  // Update the snapshot if the last update was more than 1 hour ago
-  if (
-    !current.lastSnapshotTimestamp ||
-    timestamp.getTime() - current.lastSnapshotTimestamp.getTime() >
-      UPDATE_INTERVAL
-  ) {
+  // Snapshot only when we've entered a new epoch (hour); use epoch-aligned timestamp so we don't drift
+  if (shouldSnapshot(current.lastSnapshotTimestamp, timestamp)) {
     // Only update dynamic fees for CL pools (they use dynamic fee modules)
     // Non-CL pools have their fees fixed at a certain constant level. It can change over time, but we fetch that change
     // through events.
@@ -370,13 +336,13 @@ export async function updateLiquidityPoolAggregator(
     }
 
     setLiquidityPoolAggregatorSnapshot(updated, timestamp, context);
-  }
 
-  // Update lastSnapshotTimestamp
-  updated = {
-    ...updated,
-    lastSnapshotTimestamp: timestamp,
-  };
+    // Only set lastSnapshotTimestamp when we actually created a snapshot (epoch boundary)
+    updated = {
+      ...updated,
+      lastSnapshotTimestamp: getSnapshotEpoch(timestamp),
+    };
+  }
 
   context.LiquidityPoolAggregator.set(updated);
 }
@@ -665,7 +631,8 @@ export function createLiquidityPoolAggregatorEntity(params: {
     totalVotesDepositedUSD: 0n,
     gaugeIsAlive: false,
     lastUpdatedTimestamp: timestamp,
-    lastSnapshotTimestamp: timestamp,
+    // Epoch 0 so first update in any hour triggers a snapshot (shouldSnapshot sees "never snapshotted" for this epoch)
+    lastSnapshotTimestamp: new Date(0),
     // CL Pool specific fields (set to 0 for regular pools)
     feeProtocol0: 0n,
     feeProtocol1: 0n,
