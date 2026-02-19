@@ -88,6 +88,8 @@ Pool.Burn.handler(async ({ event, context }) => {
 });
 
 Pool.Fees.handler(async ({ event, context }) => {
+  const timestamp = new Date(event.block.timestamp * 1000);
+
   // Load pool data and user data concurrently for better performance
   // Pass block number and timestamp to refresh token prices
   const [poolData, userData] = await Promise.all([
@@ -103,7 +105,7 @@ Pool.Fees.handler(async ({ event, context }) => {
       event.srcAddress,
       event.chainId,
       context,
-      new Date(event.block.timestamp * 1000),
+      timestamp,
     ),
   ]);
 
@@ -117,8 +119,6 @@ Pool.Fees.handler(async ({ event, context }) => {
   const result = processPoolFees(event, token0Instance, token1Instance);
 
   const { liquidityPoolDiff, userDiff } = result;
-
-  const timestamp = new Date(event.block.timestamp * 1000);
 
   // Update pool and user entities in parallel
   await Promise.all([
@@ -139,6 +139,8 @@ Pool.Fees.handler(async ({ event, context }) => {
 });
 
 Pool.Swap.handler(async ({ event, context }) => {
+  const timestamp = new Date(event.block.timestamp * 1000);
+
   // Load pool data and user data concurrently for better performance
   // Pass block number and timestamp to refresh token prices
   const [poolData, userData] = await Promise.all([
@@ -154,7 +156,7 @@ Pool.Swap.handler(async ({ event, context }) => {
       event.srcAddress,
       event.chainId,
       context,
-      new Date(event.block.timestamp * 1000),
+      timestamp,
     ),
   ]);
 
@@ -168,8 +170,6 @@ Pool.Swap.handler(async ({ event, context }) => {
   const result = processPoolSwap(event, token0Instance, token1Instance);
 
   const { liquidityPoolDiff, userSwapDiff } = result;
-
-  const timestamp = new Date(event.block.timestamp * 1000);
 
   // Update pool and user entities in parallel
   await Promise.all([

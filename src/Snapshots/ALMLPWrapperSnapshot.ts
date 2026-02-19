@@ -5,33 +5,33 @@ import type {
 } from "generated";
 
 import { ALMLPWrapperSnapshotId } from "../Constants";
-import { getSnapshotEpoch } from "./Shared";
+import {
+  type SnapshotForPersist,
+  SnapshotType,
+  getSnapshotEpoch,
+  persistSnapshot,
+} from "./Shared";
 
 /**
- * Creates and persists an epoch-aligned snapshot of ALM_LP_Wrapper.
+ * Creates an epoch-aligned snapshot of ALM_LP_Wrapper (no persistence).
  * @param entity - ALM_LP_Wrapper to snapshot
- * @param timestamp - Timestamp of the snapshot
- * @param context - Handler context
- * @returns void
+ * @param timestamp - Timestamp used to compute snapshot epoch
+ * @returns Epoch-aligned ALM_LP_WrapperSnapshot
  */
-export function setALMLPWrapperSnapshot(
+export function createALMLPWrapperSnapshot(
   entity: ALM_LP_Wrapper,
   timestamp: Date,
-  context: handlerContext,
-): void {
+): ALM_LP_WrapperSnapshot {
   const epoch = getSnapshotEpoch(timestamp);
-  // entity.id is ALMLPWrapperId: {chainId}-{wrapperAddress}
   const wrapperAddress = entity.id.includes("-")
     ? entity.id.split("-").slice(1).join("-")
     : entity.id;
-
   const snapshotId = ALMLPWrapperSnapshotId(
     entity.chainId,
     wrapperAddress,
     epoch.getTime(),
   );
-
-  const snapshot: ALM_LP_WrapperSnapshot = {
+  return {
     id: snapshotId,
     wrapper: wrapperAddress,
     pool: entity.pool,
@@ -54,6 +54,23 @@ export function setALMLPWrapperSnapshot(
     strategyTransactionHash: entity.strategyTransactionHash,
     timestamp: epoch,
   };
+}
 
-  context.ALM_LP_WrapperSnapshot.set(snapshot);
+/**
+ * Creates and persists an epoch-aligned snapshot of ALM_LP_Wrapper.
+ * @param entity - ALM_LP_Wrapper to snapshot
+ * @param timestamp - Timestamp used to compute snapshot epoch
+ * @param context - Handler context
+ * @returns void
+ */
+export function setALMLPWrapperSnapshot(
+  entity: ALM_LP_Wrapper,
+  timestamp: Date,
+  context: handlerContext,
+): void {
+  const snapshotForPersist: SnapshotForPersist = {
+    type: SnapshotType.ALMLPWrapper,
+    snapshot: createALMLPWrapperSnapshot(entity, timestamp),
+  };
+  persistSnapshot(snapshotForPersist, context);
 }

@@ -5,30 +5,31 @@ import type {
 } from "generated";
 
 import { UserStatsPerPoolSnapshotId } from "../Constants";
-import { getSnapshotEpoch } from "./Shared";
+import {
+  type SnapshotForPersist,
+  SnapshotType,
+  getSnapshotEpoch,
+  persistSnapshot,
+} from "./Shared";
 
 /**
- * Creates and persists an epoch-aligned snapshot of UserStatsPerPool.
+ * Creates an epoch-aligned snapshot of UserStatsPerPool (no persistence).
  * @param entity - UserStatsPerPool to snapshot
- * @param timestamp - Timestamp of the snapshot
- * @param context - Handler context
- * @returns void
+ * @param timestamp - Timestamp used to compute snapshot epoch
+ * @returns Epoch-aligned UserStatsPerPoolSnapshot
  */
-export function setUserStatsPerPoolSnapshot(
+export function createUserStatsPerPoolSnapshot(
   entity: UserStatsPerPool,
   timestamp: Date,
-  context: handlerContext,
-): void {
+): UserStatsPerPoolSnapshot {
   const epoch = getSnapshotEpoch(timestamp);
-
   const snapshotId = UserStatsPerPoolSnapshotId(
     entity.chainId,
     entity.userAddress,
     entity.poolAddress,
     epoch.getTime(),
   );
-
-  const snapshot: UserStatsPerPoolSnapshot = {
+  return {
     id: snapshotId,
     userAddress: entity.userAddress,
     poolAddress: entity.poolAddress,
@@ -72,6 +73,23 @@ export function setUserStatsPerPoolSnapshot(
     almAddress: entity.almAddress,
     almLpAmount: entity.almLpAmount,
   };
+}
 
-  context.UserStatsPerPoolSnapshot.set(snapshot);
+/**
+ * Creates and persists an epoch-aligned snapshot of UserStatsPerPool.
+ * @param entity - UserStatsPerPool to snapshot
+ * @param timestamp - Timestamp used to compute snapshot epoch
+ * @param context - Handler context
+ * @returns void
+ */
+export function setUserStatsPerPoolSnapshot(
+  entity: UserStatsPerPool,
+  timestamp: Date,
+  context: handlerContext,
+): void {
+  const snapshotForPersist: SnapshotForPersist = {
+    type: SnapshotType.UserStatsPerPool,
+    snapshot: createUserStatsPerPoolSnapshot(entity, timestamp),
+  };
+  persistSnapshot(snapshotForPersist, context);
 }

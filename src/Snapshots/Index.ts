@@ -1,7 +1,31 @@
-export { getSnapshotEpoch, shouldSnapshot } from "./Shared";
-export { setLiquidityPoolAggregatorSnapshot } from "./LiquidityPoolAggregatorSnapshot";
-export { setUserStatsPerPoolSnapshot } from "./UserStatsPerPoolSnapshot";
-export { setNonFungiblePositionSnapshot } from "./NonFungiblePositionSnapshot";
-export { setALMLPWrapperSnapshot } from "./ALMLPWrapperSnapshot";
-export { setVeNFTStateSnapshot } from "./VeNFTStateSnapshot";
-export { setTokenPriceSnapshot } from "./TokenPriceSnapshot";
+export {
+  getSnapshotEpoch,
+  persistSnapshot,
+  shouldSnapshot,
+  SnapshotType,
+  type SnapshotForPersist,
+} from "./Shared";
+export {
+  createLiquidityPoolAggregatorSnapshot,
+  setLiquidityPoolAggregatorSnapshot,
+} from "./LiquidityPoolAggregatorSnapshot";
+export {
+  createUserStatsPerPoolSnapshot,
+  setUserStatsPerPoolSnapshot,
+} from "./UserStatsPerPoolSnapshot";
+export {
+  createNonFungiblePositionSnapshot,
+  setNonFungiblePositionSnapshot,
+} from "./NonFungiblePositionSnapshot";
+export {
+  createALMLPWrapperSnapshot,
+  setALMLPWrapperSnapshot,
+} from "./ALMLPWrapperSnapshot";
+export {
+  createVeNFTStateSnapshot,
+  setVeNFTStateSnapshot,
+} from "./VeNFTStateSnapshot";
+export {
+  createTokenPriceSnapshot,
+  setTokenPriceSnapshot,
+} from "./TokenPriceSnapshot";

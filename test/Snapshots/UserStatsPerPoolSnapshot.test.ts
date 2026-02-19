@@ -2,7 +2,10 @@ import {
   SNAPSHOT_INTERVAL_IN_MS,
   UserStatsPerPoolSnapshotId,
 } from "../../src/Constants";
-import { setUserStatsPerPoolSnapshot } from "../../src/Snapshots/UserStatsPerPoolSnapshot";
+import {
+  createUserStatsPerPoolSnapshot,
+  setUserStatsPerPoolSnapshot,
+} from "../../src/Snapshots/UserStatsPerPoolSnapshot";
 import { setupCommon } from "../EventHandlers/Pool/common";
 
 describe("UserStatsPerPoolSnapshot", () => {
@@ -12,6 +15,45 @@ describe("UserStatsPerPoolSnapshot", () => {
   beforeEach(() => {
     common = setupCommon();
     jest.clearAllMocks();
+  });
+
+  describe("createUserStatsPerPoolSnapshot", () => {
+    it("should return epoch-aligned snapshot with correct id and timestamp", () => {
+      const entity = common.createMockUserStatsPerPool({
+        almLpAmount: 1000n,
+        totalFeesContributedUSD: 100n,
+      });
+      const timestamp = new Date(baseTimestamp.getTime() + 45 * 60 * 1000);
+      const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 4;
+
+      const snapshot = createUserStatsPerPoolSnapshot(entity, timestamp);
+
+      expect(snapshot.id).toBe(
+        UserStatsPerPoolSnapshotId(
+          entity.chainId,
+          entity.userAddress,
+          entity.poolAddress,
+          expectedEpochMs,
+        ),
+      );
+      expect(snapshot.timestamp.getTime()).toBe(expectedEpochMs);
+    });
+
+    it("should copy entity fields into snapshot without persisting", () => {
+      const entity = common.createMockUserStatsPerPool({
+        almLpAmount: 1000n,
+        totalFeesContributedUSD: 100n,
+      });
+      const snapshot = createUserStatsPerPoolSnapshot(entity, baseTimestamp);
+
+      expect(snapshot.userAddress).toBe(entity.userAddress);
+      expect(snapshot.poolAddress).toBe(entity.poolAddress);
+      expect(snapshot.chainId).toBe(entity.chainId);
+      expect(snapshot.almLpAmount).toBe(1000n);
+      expect(snapshot.totalFeesContributedUSD).toBe(
+        entity.totalFeesContributedUSD,
+      );
+    });
   });
 
   it("should set snapshot with epoch-aligned timestamp and correct id", () => {

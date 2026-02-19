@@ -2,7 +2,10 @@ import {
   ALMLPWrapperSnapshotId,
   SNAPSHOT_INTERVAL_IN_MS,
 } from "../../src/Constants";
-import { setALMLPWrapperSnapshot } from "../../src/Snapshots/ALMLPWrapperSnapshot";
+import {
+  createALMLPWrapperSnapshot,
+  setALMLPWrapperSnapshot,
+} from "../../src/Snapshots/ALMLPWrapperSnapshot";
 import { setupCommon } from "../EventHandlers/Pool/common";
 import { getWrapperAddressFromId } from "./helpers";
 
@@ -12,6 +15,36 @@ describe("ALMLPWrapperSnapshot", () => {
   beforeEach(() => {
     common = setupCommon();
     jest.clearAllMocks();
+  });
+
+  describe("createALMLPWrapperSnapshot", () => {
+    it("should return epoch-aligned snapshot with correct id and timestamp", () => {
+      const entity = common.mockALMLPWrapperData;
+      const timestamp = new Date(baseTimestamp.getTime() + 15 * 60 * 1000);
+      const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 3;
+      const wrapperAddress = getWrapperAddressFromId(entity.id);
+
+      const snapshot = createALMLPWrapperSnapshot(entity, timestamp);
+
+      expect(snapshot.id).toBe(
+        ALMLPWrapperSnapshotId(entity.chainId, wrapperAddress, expectedEpochMs),
+      );
+      expect(snapshot.timestamp.getTime()).toBe(expectedEpochMs);
+    });
+
+    it("should copy entity fields into snapshot without persisting", () => {
+      const entity = common.mockALMLPWrapperData;
+      const snapshot = createALMLPWrapperSnapshot(entity, baseTimestamp);
+
+      expect(snapshot.chainId).toBe(entity.chainId);
+      expect(snapshot.pool).toBe(entity.pool);
+      expect(snapshot.token0).toBe(entity.token0);
+      expect(snapshot.token1).toBe(entity.token1);
+      expect(snapshot.lpAmount).toBe(entity.lpAmount);
+      expect(snapshot.liquidity).toBe(entity.liquidity);
+      expect(snapshot.tickLower).toBe(entity.tickLower);
+      expect(snapshot.tickUpper).toBe(entity.tickUpper);
+    });
   });
 
   it("should call ALM_LP_WrapperSnapshot.set with correct id and epoch-aligned timestamp", () => {

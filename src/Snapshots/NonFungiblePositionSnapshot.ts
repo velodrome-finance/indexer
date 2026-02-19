@@ -5,29 +5,30 @@ import type {
 } from "generated";
 
 import { NonFungiblePositionSnapshotId } from "../Constants";
-import { getSnapshotEpoch } from "./Shared";
+import {
+  type SnapshotForPersist,
+  SnapshotType,
+  getSnapshotEpoch,
+  persistSnapshot,
+} from "./Shared";
 
 /**
- * Creates and persists an epoch-aligned snapshot of NonFungiblePosition.
+ * Creates an epoch-aligned snapshot of NonFungiblePosition (no persistence).
  * @param entity - NonFungiblePosition to snapshot
- * @param timestamp - Timestamp of the snapshot
- * @param context - Handler context
- * @returns void
+ * @param timestamp - Timestamp used to compute snapshot epoch
+ * @returns Epoch-aligned NonFungiblePositionSnapshot
  */
-export function setNonFungiblePositionSnapshot(
+export function createNonFungiblePositionSnapshot(
   entity: NonFungiblePosition,
   timestamp: Date,
-  context: handlerContext,
-): void {
+): NonFungiblePositionSnapshot {
   const epoch = getSnapshotEpoch(timestamp);
-
   const snapshotId = NonFungiblePositionSnapshotId(
     entity.chainId,
     entity.tokenId,
     epoch.getTime(),
   );
-
-  const snapshot: NonFungiblePositionSnapshot = {
+  return {
     id: snapshotId,
     chainId: entity.chainId,
     tokenId: entity.tokenId,
@@ -43,6 +44,23 @@ export function setNonFungiblePositionSnapshot(
     lastUpdatedTimestamp: entity.lastUpdatedTimestamp,
     timestamp: epoch,
   };
+}
 
-  context.NonFungiblePositionSnapshot.set(snapshot);
+/**
+ * Creates and persists an epoch-aligned snapshot of NonFungiblePosition.
+ * @param entity - NonFungiblePosition to snapshot
+ * @param timestamp - Timestamp used to compute snapshot epoch
+ * @param context - Handler context
+ * @returns void
+ */
+export function setNonFungiblePositionSnapshot(
+  entity: NonFungiblePosition,
+  timestamp: Date,
+  context: handlerContext,
+): void {
+  const snapshotForPersist: SnapshotForPersist = {
+    type: SnapshotType.NonFungiblePosition,
+    snapshot: createNonFungiblePositionSnapshot(entity, timestamp),
+  };
+  persistSnapshot(snapshotForPersist, context);
 }
