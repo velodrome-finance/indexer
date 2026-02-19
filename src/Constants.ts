@@ -592,18 +592,18 @@ export const TokenId = (chainId: number, address: string) =>
  */
 export const PoolId = (chainId: number, pool: string) => `${chainId}-${pool}`;
 
-/** Entity ID for ALM_LP_Wrapper.
- * @param chainId
- * @param wrapperAddress
+/** Entity ID for ALM_LP_Wrapper. Format: {chainId}-{wrapperAddress}
+ * @param chainId - Chain ID of the wrapper
+ * @param wrapperAddress - Address of the wrapper
  * @returns string Combined wrapper ID.
  */
 export const ALMLPWrapperId = (chainId: number, wrapperAddress: string) =>
   `${chainId}-${wrapperAddress}`;
 
-/** Entity ID for UserStatsPerPool.
- * @param chainId
- * @param userAddress
- * @param poolAddress
+/** Entity ID for UserStatsPerPool. Format: {chainId}-{userAddress}-{poolAddress}
+ * @param chainId - Chain ID of the pool
+ * @param userAddress - Address of the user
+ * @param poolAddress - Address of the pool
  * @returns string Combined user ID.
  */
 export const UserStatsPerPoolId = (
@@ -612,18 +612,18 @@ export const UserStatsPerPoolId = (
   poolAddress: string,
 ) => `${chainId}-${userAddress}-${poolAddress}`;
 
-/** Entity ID for VeNFTState.
- * @param chainId
- * @param tokenId
+/** Entity ID for VeNFTState. Format: {chainId}-{tokenId}
+ * @param chainId - Chain ID of the veNFT
+ * @param tokenId - ID of the veNFT
  * @returns string Combined veNFT ID.
  */
 export const VeNFTId = (chainId: number, tokenId: bigint) =>
   `${chainId}-${tokenId}`;
 
-/** Entity ID for VeNFTPoolVote.
- * @param chainId
- * @param tokenId
- * @param poolAddress
+/** Entity ID for VeNFTPoolVote. Format: {chainId}-{tokenId}-{poolAddress}
+ * @param chainId - Chain ID of the veNFT
+ * @param tokenId - ID of the veNFT
+ * @param poolAddress - Address of the pool
  * @returns string Combined veNFT pool vote ID.
  */
 export const VeNFTPoolVoteId = (
@@ -632,11 +632,11 @@ export const VeNFTPoolVoteId = (
   poolAddress: string,
 ) => `${chainId}-${tokenId}-${poolAddress}`;
 
-/** Entity ID for RootPool_LeafPool. rootChainId is typically 10 (Optimism).
- * @param rootChainId
- * @param leafChainId
- * @param rootPoolAddress
- * @param leafPoolAddress
+/** Entity ID for RootPool_LeafPool. Format: {rootChainId}-{leafChainId}-{rootPoolAddress}-{leafPoolAddress}. rootChainId is typically 10 (Optimism).
+ * @param rootChainId - Chain ID of the root pool
+ * @param leafChainId - Chain ID of the leaf pool
+ * @param rootPoolAddress - Address of the root pool
+ * @param leafPoolAddress - Address of the leaf pool
  * @returns string Combined root pool leaf pool ID.
  */
 export const RootPoolLeafPoolId = (
@@ -646,9 +646,9 @@ export const RootPoolLeafPoolId = (
   leafPoolAddress: string,
 ) => `${rootChainId}-${leafChainId}-${rootPoolAddress}-${leafPoolAddress}`;
 
-/** Entity ID for FeeToTickSpacingMapping.
- * @param chainId
- * @param tickSpacing
+/** Entity ID for FeeToTickSpacingMapping. Format: {chainId}-{tickSpacing}
+ * @param chainId - Chain ID of the fee to tick spacing mapping
+ * @param tickSpacing - Tick spacing value
  * @returns string Combined fee to tick spacing mapping ID.
  */
 export const FeeToTickSpacingMappingId = (
@@ -656,11 +656,11 @@ export const FeeToTickSpacingMappingId = (
   tickSpacing: bigint | number,
 ) => `${chainId}-${tickSpacing}`;
 
-/** Entity ID for NonFungiblePosition (stable id: chainId-poolAddress-tokenId).
- * @param chainId
- * @param poolAddress
- * @param tokenId
- * @returns string Combined non fungible position ID.
+/** Entity ID for NonFungiblePosition. Format: {chainId}-{poolAddress}-{tokenId} (stable id).
+ * @param chainId - Chain ID of the position
+ * @param poolAddress - Address of the pool
+ * @param tokenId - Token ID of the NFT position
+ * @returns string Combined non-fungible position ID.
  */
 export const NonFungiblePositionId = (
   chainId: number,
