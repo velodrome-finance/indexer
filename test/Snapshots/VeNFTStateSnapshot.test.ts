@@ -1,10 +1,13 @@
-import { SNAPSHOT_INTERVAL, VeNFTStateSnapshotId } from "../../src/Constants";
+import {
+  SNAPSHOT_INTERVAL_IN_MS,
+  VeNFTStateSnapshotId,
+} from "../../src/Constants";
 import { setVeNFTStateSnapshot } from "../../src/Snapshots/VeNFTStateSnapshot";
 import { setupCommon } from "../EventHandlers/Pool/common";
 
 describe("VeNFTStateSnapshot", () => {
   let common: ReturnType<typeof setupCommon>;
-  const baseTimestamp = new Date(SNAPSHOT_INTERVAL * 2);
+  const baseTimestamp = new Date(SNAPSHOT_INTERVAL_IN_MS * 2);
   const blockNumber = 150000;
 
   beforeEach(() => {
@@ -18,8 +21,10 @@ describe("VeNFTStateSnapshot", () => {
     });
     const entity = common.createMockVeNFTState();
     // 25 min into the 3rd hour → epoch should be start of 3rd hour
-    const midEpochTimestamp = new Date(SNAPSHOT_INTERVAL * 3 + 25 * 60 * 1000);
-    const expectedEpochMs = SNAPSHOT_INTERVAL * 3;
+    const midEpochTimestamp = new Date(
+      SNAPSHOT_INTERVAL_IN_MS * 3 + 25 * 60 * 1000,
+    );
+    const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 3;
 
     setVeNFTStateSnapshot(entity, midEpochTimestamp, blockNumber, context);
 
@@ -46,7 +51,7 @@ describe("VeNFTStateSnapshot", () => {
     expect(context.VeNFTStateSnapshot.set).toHaveBeenCalledTimes(1);
     const setArg = (context.VeNFTStateSnapshot.set as jest.Mock).mock
       .calls[0][0];
-    const expectedEpochMs = SNAPSHOT_INTERVAL * 2;
+    const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 2;
     expect(setArg.id).toBe(
       VeNFTStateSnapshotId(entity.chainId, entity.tokenId, expectedEpochMs),
     );

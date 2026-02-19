@@ -351,7 +351,7 @@ describe("LiquidityPoolAggregator Functions", () => {
         LiquidityPoolAggregatorSnapshotId(
           chainId,
           poolAddress,
-          timestamp.getTime(),
+          getSnapshotEpoch(timestamp).getTime(),
         ),
       );
       expect(snapshot?.poolAddress).toBe(liquidityPoolAggregator.poolAddress);

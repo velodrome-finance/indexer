@@ -29,7 +29,7 @@ export const SECONDS_IN_A_DAY = BigInt(86400);
 export const SECONDS_IN_A_WEEK = BigInt(604800);
 
 /** Snapshot interval: 1 hour in milliseconds (for epoch-aligned snapshots) */
-export const SNAPSHOT_INTERVAL = 60 * 60 * 1000;
+export const SNAPSHOT_INTERVAL_IN_MS = 60 * 60 * 1000;
 
 export const toChecksumAddress = (address: string) =>
   Web3.utils.toChecksumAddress(address);

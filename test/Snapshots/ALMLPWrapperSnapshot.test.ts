@@ -1,11 +1,14 @@
-import { ALMLPWrapperSnapshotId, SNAPSHOT_INTERVAL } from "../../src/Constants";
+import {
+  ALMLPWrapperSnapshotId,
+  SNAPSHOT_INTERVAL_IN_MS,
+} from "../../src/Constants";
 import { setALMLPWrapperSnapshot } from "../../src/Snapshots/ALMLPWrapperSnapshot";
 import { setupCommon } from "../EventHandlers/Pool/common";
 import { getWrapperAddressFromId } from "./helpers";
 
 describe("ALMLPWrapperSnapshot", () => {
   let common: ReturnType<typeof setupCommon>;
-  const baseTimestamp = new Date(SNAPSHOT_INTERVAL * 3);
+  const baseTimestamp = new Date(SNAPSHOT_INTERVAL_IN_MS * 3);
   const blockNumber = 123456;
 
   beforeEach(() => {
@@ -19,7 +22,7 @@ describe("ALMLPWrapperSnapshot", () => {
     });
     const entity = common.mockALMLPWrapperData;
     const timestamp = new Date(baseTimestamp.getTime() + 15 * 60 * 1000);
-    const expectedEpochMs = SNAPSHOT_INTERVAL * 3;
+    const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 3;
     const wrapperAddress = getWrapperAddressFromId(entity.id);
     const expectedId = ALMLPWrapperSnapshotId(
       entity.chainId,
@@ -57,7 +60,7 @@ describe("ALMLPWrapperSnapshot", () => {
       ...common.mockALMLPWrapperData,
       id: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     };
-    const expectedEpochMs = SNAPSHOT_INTERVAL * 3;
+    const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 3;
     const wrapperAddress = getWrapperAddressFromId(entityWithoutHyphenInId.id);
 
     setALMLPWrapperSnapshot(

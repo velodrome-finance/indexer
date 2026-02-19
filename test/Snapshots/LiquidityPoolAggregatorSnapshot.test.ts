@@ -1,6 +1,6 @@
 import {
   LiquidityPoolAggregatorSnapshotId,
-  SNAPSHOT_INTERVAL,
+  SNAPSHOT_INTERVAL_IN_MS,
 } from "../../src/Constants";
 import { setLiquidityPoolAggregatorSnapshot } from "../../src/Snapshots/LiquidityPoolAggregatorSnapshot";
 import { getSnapshotEpoch } from "../../src/Snapshots/Shared";
@@ -8,7 +8,7 @@ import { setupCommon } from "../EventHandlers/Pool/common";
 
 describe("LiquidityPoolAggregatorSnapshot", () => {
   let common: ReturnType<typeof setupCommon>;
-  const baseTimestamp = new Date(SNAPSHOT_INTERVAL * 5); // epoch boundary
+  const baseTimestamp = new Date(SNAPSHOT_INTERVAL_IN_MS * 5); // epoch boundary
 
   beforeEach(() => {
     common = setupCommon();
@@ -29,7 +29,7 @@ describe("LiquidityPoolAggregatorSnapshot", () => {
     );
     const setArg = (context.LiquidityPoolAggregatorSnapshot.set as jest.Mock)
       .mock.calls[0][0];
-    const expectedEpochMs = SNAPSHOT_INTERVAL * 5;
+    const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 5;
     expect(setArg.id).toBe(
       LiquidityPoolAggregatorSnapshotId(
         pool.chainId,

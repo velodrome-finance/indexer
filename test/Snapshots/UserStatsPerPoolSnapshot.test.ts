@@ -1,5 +1,5 @@
 import {
-  SNAPSHOT_INTERVAL,
+  SNAPSHOT_INTERVAL_IN_MS,
   UserStatsPerPoolSnapshotId,
 } from "../../src/Constants";
 import { setUserStatsPerPoolSnapshot } from "../../src/Snapshots/UserStatsPerPoolSnapshot";
@@ -7,7 +7,7 @@ import { setupCommon } from "../EventHandlers/Pool/common";
 
 describe("UserStatsPerPoolSnapshot", () => {
   let common: ReturnType<typeof setupCommon>;
-  const baseTimestamp = new Date(SNAPSHOT_INTERVAL * 4);
+  const baseTimestamp = new Date(SNAPSHOT_INTERVAL_IN_MS * 4);
   const blockNumber = 200000;
 
   beforeEach(() => {
@@ -30,7 +30,7 @@ describe("UserStatsPerPoolSnapshot", () => {
     expect(context.UserStatsPerPoolSnapshot.set).toHaveBeenCalledTimes(1);
     const setArg = (context.UserStatsPerPoolSnapshot.set as jest.Mock).mock
       .calls[0][0];
-    const expectedEpochMs = SNAPSHOT_INTERVAL * 4;
+    const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 4;
     expect(setArg.id).toBe(
       UserStatsPerPoolSnapshotId(
         entity.chainId,

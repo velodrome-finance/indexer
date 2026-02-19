@@ -1,13 +1,13 @@
 import {
   NonFungiblePositionSnapshotId,
-  SNAPSHOT_INTERVAL,
+  SNAPSHOT_INTERVAL_IN_MS,
 } from "../../src/Constants";
 import { setNonFungiblePositionSnapshot } from "../../src/Snapshots/NonFungiblePositionSnapshot";
 import { setupCommon } from "../EventHandlers/Pool/common";
 
 describe("NonFungiblePositionSnapshot", () => {
   let common: ReturnType<typeof setupCommon>;
-  const baseTimestamp = new Date(SNAPSHOT_INTERVAL * 6);
+  const baseTimestamp = new Date(SNAPSHOT_INTERVAL_IN_MS * 6);
   const blockNumber = 300000;
 
   beforeEach(() => {
@@ -27,7 +27,7 @@ describe("NonFungiblePositionSnapshot", () => {
     expect(context.NonFungiblePositionSnapshot.set).toHaveBeenCalledTimes(1);
     const setArg = (context.NonFungiblePositionSnapshot.set as jest.Mock).mock
       .calls[0][0];
-    const expectedEpochMs = SNAPSHOT_INTERVAL * 6;
+    const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 6;
     expect(setArg.id).toBe(
       NonFungiblePositionSnapshotId(
         entity.chainId,

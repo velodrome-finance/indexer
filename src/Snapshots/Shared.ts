@@ -1,13 +1,14 @@
-import { SNAPSHOT_INTERVAL } from "../Constants";
+import { SNAPSHOT_INTERVAL_IN_MS } from "../Constants";
 
 /**
- * Rounds a timestamp down to the nearest SNAPSHOT_INTERVAL boundary.
+ * Rounds a timestamp down to the nearest SNAPSHOT_INTERVAL_IN_MS boundary.
  * @param timestamp - Timestamp to round down
  * @returns Rounded down timestamp
  */
 export function getSnapshotEpoch(timestamp: Date): Date {
   return new Date(
-    Math.floor(timestamp.getTime() / SNAPSHOT_INTERVAL) * SNAPSHOT_INTERVAL,
+    Math.floor(timestamp.getTime() / SNAPSHOT_INTERVAL_IN_MS) *
+      SNAPSHOT_INTERVAL_IN_MS,
   );
 }
 
