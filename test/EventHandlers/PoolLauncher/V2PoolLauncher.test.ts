@@ -1,9 +1,10 @@
-import { MockDb, V2PoolLauncher } from "generated/src/TestHelpers.gen";
+import "../../eventHandlersRegistration";
 import type {
   LiquidityPoolAggregator,
   PoolLauncherPool,
   Token,
-} from "generated/src/Types.gen";
+} from "generated";
+import { MockDb, V2PoolLauncher } from "generated/src/TestHelpers.gen";
 import { PoolId, TokenId, toChecksumAddress } from "../../../src/Constants";
 import { setupCommon } from "../Pool/common";
 
@@ -92,10 +93,7 @@ describe("V2PoolLauncher Events", () => {
         },
       });
 
-      const result = await V2PoolLauncher.Launch.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       // Check that PoolLauncherPool was created
       const poolLauncherPool = result.entities.PoolLauncherPool.get(
@@ -176,10 +174,7 @@ describe("V2PoolLauncher Events", () => {
         },
       });
 
-      const result = await V2PoolLauncher.Migrate.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       // Check that original PoolLauncherPool was updated with migration info
       const originalPoolLauncherPool = result.entities.PoolLauncherPool.get(
@@ -237,10 +232,7 @@ describe("V2PoolLauncher Events", () => {
         },
       });
 
-      const result = await V2PoolLauncher.Migrate.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       // Should not create any PoolLauncherPool entities since original doesn't exist
       const originalPoolLauncherPool = result.entities.PoolLauncherPool.get(
@@ -288,10 +280,7 @@ describe("V2PoolLauncher Events", () => {
         },
       });
 
-      const result = await V2PoolLauncher.EmergingFlagged.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       const poolLauncherPool = result.entities.PoolLauncherPool.get(
         PoolId(mockChainId, mockPoolAddress),
@@ -313,10 +302,7 @@ describe("V2PoolLauncher Events", () => {
         },
       });
 
-      const result = await V2PoolLauncher.EmergingFlagged.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       // Should not create any PoolLauncherPool entities
       const poolLauncherPool = result.entities.PoolLauncherPool.get(
@@ -359,10 +345,7 @@ describe("V2PoolLauncher Events", () => {
         },
       });
 
-      const result = await V2PoolLauncher.EmergingUnflagged.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       const poolLauncherPool = result.entities.PoolLauncherPool.get(
         PoolId(mockChainId, mockPoolAddress),
@@ -384,10 +367,7 @@ describe("V2PoolLauncher Events", () => {
         },
       });
 
-      const result = await V2PoolLauncher.EmergingUnflagged.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       // Should not create any PoolLauncherPool entities
       const poolLauncherPool = result.entities.PoolLauncherPool.get(
@@ -432,10 +412,7 @@ describe("V2PoolLauncher Events", () => {
         },
       });
 
-      const result = await V2PoolLauncher.CreationTimestampSet.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       const poolLauncherPool = result.entities.PoolLauncherPool.get(
         PoolId(mockChainId, mockPoolAddress),
@@ -460,10 +437,7 @@ describe("V2PoolLauncher Events", () => {
         },
       });
 
-      const result = await V2PoolLauncher.CreationTimestampSet.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       // Should not create any PoolLauncherPool entities
       const poolLauncherPool = result.entities.PoolLauncherPool.get(
@@ -491,10 +465,7 @@ describe("V2PoolLauncher Events", () => {
         },
       });
 
-      const result = await V2PoolLauncher.PairableTokenAdded.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       // Should create new PoolLauncherConfig
       const config = result.entities.PoolLauncherConfig.get(configId);
@@ -532,10 +503,7 @@ describe("V2PoolLauncher Events", () => {
         },
       });
 
-      const result = await V2PoolLauncher.PairableTokenAdded.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       // Should update existing PoolLauncherConfig
       const config = result.entities.PoolLauncherConfig.get(configId);
@@ -570,10 +538,7 @@ describe("V2PoolLauncher Events", () => {
         },
       });
 
-      const result = await V2PoolLauncher.PairableTokenAdded.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       // Should not add duplicate token
       const config = result.entities.PoolLauncherConfig.get(configId);
@@ -611,10 +576,7 @@ describe("V2PoolLauncher Events", () => {
         },
       });
 
-      const result = await V2PoolLauncher.PairableTokenRemoved.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       // Should update PoolLauncherConfig by removing the token
       const config = result.entities.PoolLauncherConfig.get(configId);
@@ -641,10 +603,7 @@ describe("V2PoolLauncher Events", () => {
         },
       });
 
-      const result = await V2PoolLauncher.PairableTokenRemoved.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       // Should not create any config when trying to remove from non-existent config
       const config = result.entities.PoolLauncherConfig.get(configId);
@@ -679,10 +638,7 @@ describe("V2PoolLauncher Events", () => {
         },
       });
 
-      const result = await V2PoolLauncher.PairableTokenRemoved.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       // Should keep existing tokens unchanged
       const config = result.entities.PoolLauncherConfig.get(configId);
@@ -721,10 +677,7 @@ describe("V2PoolLauncher Events", () => {
         },
       });
 
-      const result = await V2PoolLauncher.NewPoolLauncherSet.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       // Should create new config with updated ID
       const newConfig = result.entities.PoolLauncherConfig.get(newConfigId);
@@ -750,10 +703,7 @@ describe("V2PoolLauncher Events", () => {
         },
       });
 
-      const result = await V2PoolLauncher.NewPoolLauncherSet.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       // Should not create any config when no existing config exists
       const newConfig = result.entities.PoolLauncherConfig.get(newConfigId);

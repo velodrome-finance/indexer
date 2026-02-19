@@ -1,5 +1,6 @@
+import "../eventHandlersRegistration";
+import type { LiquidityPoolAggregator } from "generated";
 import { MockDb, RootCLPoolFactory } from "generated/src/TestHelpers.gen";
-import type { LiquidityPoolAggregator } from "generated/src/Types.gen";
 import {
   PoolId,
   RootPoolLeafPoolId,
@@ -74,10 +75,7 @@ describe("RootCLPoolFactory Events", () => {
 
         mockDb = mockDb.entities.LiquidityPoolAggregator.set(mockLiquidityPool);
 
-        resultDB = await RootCLPoolFactory.RootPoolCreated.processEvent({
-          event: mockEvent,
-          mockDb,
-        });
+        resultDB = await mockDb.processEvents([mockEvent]);
       });
 
       it("should create RootPool_LeafPool entity", () => {
@@ -99,10 +97,7 @@ describe("RootCLPoolFactory Events", () => {
 
     describe("when no matching pool exists", () => {
       it("should not create RootPool_LeafPool entity", async () => {
-        const resultDB = await RootCLPoolFactory.RootPoolCreated.processEvent({
-          event: mockEvent,
-          mockDb,
-        });
+        const resultDB = await mockDb.processEvents([mockEvent]);
 
         expect(
           Array.from(resultDB.entities.RootPool_LeafPool.getAll()),
@@ -156,10 +151,7 @@ describe("RootCLPoolFactory Events", () => {
         mockDb =
           mockDb.entities.LiquidityPoolAggregator.set(mockLiquidityPool2);
 
-        resultDB = await RootCLPoolFactory.RootPoolCreated.processEvent({
-          event: mockEvent,
-          mockDb,
-        });
+        resultDB = await mockDb.processEvents([mockEvent]);
       });
 
       it("should not create RootPool_LeafPool entity", () => {

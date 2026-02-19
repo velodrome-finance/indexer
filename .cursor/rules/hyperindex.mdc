@@ -63,7 +63,7 @@ if (stream) {
 
 ### External Calls
 
-Add `preload_handlers: true` to the `config.yaml` file to enable preload optimisations. With preload optimisations, handlers will run twice.
+Preload optimisation is enabled by default in V3 (handlers run twice during preload).
 
 So if there's an external call, you MUST use the Effect API to make it.
 

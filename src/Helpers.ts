@@ -3,7 +3,12 @@ import {
   TickMath,
   maxLiquidityForAmounts,
 } from "@uniswap/v3-sdk";
-import type { LiquidityPoolAggregator, Token, handlerContext } from "generated";
+import type {
+  LiquidityPoolAggregator,
+  NonFungiblePosition,
+  Token,
+  handlerContext,
+} from "generated";
 import JSBI from "jsbi";
 import { TEN_TO_THE_18_BI } from "./Constants";
 import { multiplyBase1e18 } from "./Maths";
@@ -384,9 +389,12 @@ export async function calculateStakedLiquidityUSD(
   if (tokenId !== undefined && liquidityPoolAggregator.isCL) {
     try {
       // Load position to get tick ranges
-      const position =
-        await context.NonFungiblePosition.getWhere.tokenId.eq(tokenId);
-      const matchingPosition = position.find((p) => p.chainId === chainId);
+      const position = await context.NonFungiblePosition.getWhere({
+        tokenId: { _eq: tokenId },
+      });
+      const matchingPosition = position.find(
+        (p: NonFungiblePosition) => p.chainId === chainId,
+      );
 
       if (!matchingPosition) {
         context.log.warn(

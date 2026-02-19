@@ -1,12 +1,13 @@
-import {
-  FeesVotingReward,
-  MockDb,
-} from "../../../generated/src/TestHelpers.gen";
+import "../../eventHandlersRegistration";
 import type {
   LiquidityPoolAggregator,
   Token,
   UserStatsPerPool,
-} from "../../../generated/src/Types.gen";
+} from "generated";
+import {
+  FeesVotingReward,
+  MockDb,
+} from "../../../generated/src/TestHelpers.gen";
 import { TokenId, toChecksumAddress } from "../../../src/Constants";
 import * as VotingRewardSharedLogic from "../../../src/EventHandlers/VotingReward/VotingRewardSharedLogic";
 import { setupCommon } from "../Pool/common";
@@ -26,7 +27,7 @@ describe("FeesVotingReward Events", () => {
   let rewardToken: Token;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     mockDb = MockDb.createMockDb();
 
     // Set up liquidity pool with fee voting reward address
@@ -67,7 +68,7 @@ describe("FeesVotingReward Events", () => {
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe("ClaimRewards Event", () => {
@@ -78,15 +79,16 @@ describe("FeesVotingReward Events", () => {
 
     beforeEach(async () => {
       // Mock the getTokenPriceData effect
-      jest
-        .spyOn(VotingRewardSharedLogic, "loadVotingRewardData")
-        .mockResolvedValue({
-          pool: liquidityPool,
-          poolData: {
-            liquidityPoolAggregator: liquidityPool,
-          },
-          userData: userStats,
-        });
+      vi.spyOn(
+        VotingRewardSharedLogic,
+        "loadVotingRewardData",
+      ).mockResolvedValue({
+        pool: liquidityPool,
+        poolData: {
+          liquidityPoolAggregator: liquidityPool,
+        },
+        userData: userStats,
+      });
 
       mockEvent = FeesVotingReward.ClaimRewards.createMockEvent({
         from: userAddress,
@@ -104,10 +106,7 @@ describe("FeesVotingReward Events", () => {
         },
       });
 
-      resultDB = await FeesVotingReward.ClaimRewards.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      resultDB = await mockDb.processEvents([mockEvent]);
     });
 
     it("should update pool aggregator with fee reward claimed", () => {

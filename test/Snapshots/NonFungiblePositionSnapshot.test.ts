@@ -1,3 +1,4 @@
+import type { Mock } from "vitest";
 import {
   NonFungiblePositionSnapshotId,
   SNAPSHOT_INTERVAL_IN_MS,
@@ -14,7 +15,7 @@ describe("NonFungiblePositionSnapshot", () => {
 
   beforeEach(() => {
     common = setupCommon();
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe("createNonFungiblePositionSnapshot", () => {
@@ -52,7 +53,7 @@ describe("NonFungiblePositionSnapshot", () => {
 
   it("should set snapshot with epoch-aligned timestamp and correct id", () => {
     const context = common.createMockContext({
-      NonFungiblePositionSnapshot: { set: jest.fn() },
+      NonFungiblePositionSnapshot: { set: vi.fn() },
     });
     const entity = common.createMockNonFungiblePosition();
     const timestamp = new Date(baseTimestamp.getTime() + 20 * 60 * 1000);
@@ -60,7 +61,7 @@ describe("NonFungiblePositionSnapshot", () => {
     setNonFungiblePositionSnapshot(entity, timestamp, context);
 
     expect(context.NonFungiblePositionSnapshot.set).toHaveBeenCalledTimes(1);
-    const setArg = (context.NonFungiblePositionSnapshot.set as jest.Mock).mock
+    const setArg = (context.NonFungiblePositionSnapshot.set as Mock).mock
       .calls[0][0];
     const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 6;
     expect(setArg.id).toBe(
@@ -75,13 +76,13 @@ describe("NonFungiblePositionSnapshot", () => {
 
   it("should spread entity fields into the snapshot", () => {
     const context = common.createMockContext({
-      NonFungiblePositionSnapshot: { set: jest.fn() },
+      NonFungiblePositionSnapshot: { set: vi.fn() },
     });
     const entity = common.createMockNonFungiblePosition({ liquidity: 5000n });
 
     setNonFungiblePositionSnapshot(entity, baseTimestamp, context);
 
-    const setArg = (context.NonFungiblePositionSnapshot.set as jest.Mock).mock
+    const setArg = (context.NonFungiblePositionSnapshot.set as Mock).mock
       .calls[0][0];
     expect(setArg.chainId).toBe(entity.chainId);
     expect(setArg.tokenId).toBe(entity.tokenId);

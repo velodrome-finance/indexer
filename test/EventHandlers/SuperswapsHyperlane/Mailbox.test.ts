@@ -1,11 +1,12 @@
-import { Mailbox, MockDb } from "../../../generated/src/TestHelpers.gen";
+import "../../eventHandlersRegistration";
 import type {
   DispatchId_event,
   OUSDTBridgedTransaction,
   OUSDTSwaps,
   ProcessId_event,
   SuperSwap,
-} from "../../../generated/src/Types.gen";
+} from "generated";
+import { Mailbox, MockDb } from "../../../generated/src/TestHelpers.gen";
 import {
   MailboxMessageId,
   OUSDTSwapsId,
@@ -44,10 +45,7 @@ describe("Mailbox Events", () => {
       });
 
       // Execute
-      const result = await Mailbox.DispatchId.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       // Assert - check DispatchId_event was created
       const expectedId = MailboxMessageId(
@@ -106,10 +104,7 @@ describe("Mailbox Events", () => {
       });
 
       // Execute
-      const result1 = await Mailbox.DispatchId.processEvent({
-        event: mockEvent1,
-        mockDb,
-      });
+      const result1 = await mockDb.processEvents([mockEvent1]);
 
       // Merge entities from result1 into a new mockDb
       let updatedMockDb = MockDb.createMockDb();
@@ -121,10 +116,7 @@ describe("Mailbox Events", () => {
           updatedMockDb.entities.DispatchId_event.set(entity1FromResult1);
       }
 
-      const result2 = await Mailbox.DispatchId.processEvent({
-        event: mockEvent2,
-        mockDb: updatedMockDb,
-      });
+      const result2 = await updatedMockDb.processEvents([mockEvent2]);
 
       // Assert - check both entities were created with different IDs
       const expectedId1 = MailboxMessageId(
@@ -184,10 +176,7 @@ describe("Mailbox Events", () => {
       });
 
       // Execute
-      const result1 = await Mailbox.DispatchId.processEvent({
-        event: mockEvent1,
-        mockDb,
-      });
+      const result1 = await mockDb.processEvents([mockEvent1]);
 
       // Merge entities from result1 into a new mockDb
       let updatedMockDb = MockDb.createMockDb();
@@ -203,10 +192,7 @@ describe("Mailbox Events", () => {
           updatedMockDb.entities.DispatchId_event.set(entity1FromResult1);
       }
 
-      const result2 = await Mailbox.DispatchId.processEvent({
-        event: mockEvent2,
-        mockDb: updatedMockDb,
-      });
+      const result2 = await updatedMockDb.processEvents([mockEvent2]);
 
       // Assert - check both entities were created with different messageIds
       const expectedId2 = MailboxMessageId(
@@ -243,10 +229,7 @@ describe("Mailbox Events", () => {
       });
 
       // Execute
-      const result = await Mailbox.ProcessId.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       // Assert - check ProcessId_event was created
       const expectedId = MailboxMessageId(
@@ -305,10 +288,7 @@ describe("Mailbox Events", () => {
       });
 
       // Execute
-      const result1 = await Mailbox.ProcessId.processEvent({
-        event: mockEvent1,
-        mockDb,
-      });
+      const result1 = await mockDb.processEvents([mockEvent1]);
 
       // Merge entities from result1 into a new mockDb
       let updatedMockDb = MockDb.createMockDb();
@@ -324,10 +304,7 @@ describe("Mailbox Events", () => {
           updatedMockDb.entities.ProcessId_event.set(entity1FromResult1);
       }
 
-      const result2 = await Mailbox.ProcessId.processEvent({
-        event: mockEvent2,
-        mockDb: updatedMockDb,
-      });
+      const result2 = await updatedMockDb.processEvents([mockEvent2]);
 
       // Assert - check both entities were created with different IDs
       const expectedId2 = MailboxMessageId(
@@ -382,10 +359,7 @@ describe("Mailbox Events", () => {
       });
 
       // Execute
-      const result1 = await Mailbox.ProcessId.processEvent({
-        event: mockEvent1,
-        mockDb,
-      });
+      const result1 = await mockDb.processEvents([mockEvent1]);
 
       // Merge entities from result1 into a new mockDb
       let updatedMockDb = MockDb.createMockDb();
@@ -401,10 +375,7 @@ describe("Mailbox Events", () => {
           updatedMockDb.entities.ProcessId_event.set(entity1FromResult1);
       }
 
-      const result2 = await Mailbox.ProcessId.processEvent({
-        event: mockEvent2,
-        mockDb: updatedMockDb,
-      });
+      const result2 = await updatedMockDb.processEvents([mockEvent2]);
 
       // Assert - check both entities were created with different messageIds
       const expectedId2 = MailboxMessageId(
@@ -456,10 +427,7 @@ describe("Mailbox Events", () => {
       });
 
       // Execute
-      const result1 = await Mailbox.ProcessId.processEvent({
-        event: mockEvent1,
-        mockDb,
-      });
+      const result1 = await mockDb.processEvents([mockEvent1]);
 
       // Merge entities from result1 into a new mockDb
       let updatedMockDb = MockDb.createMockDb();
@@ -475,10 +443,7 @@ describe("Mailbox Events", () => {
           updatedMockDb.entities.ProcessId_event.set(entity1FromResult1);
       }
 
-      const result2 = await Mailbox.ProcessId.processEvent({
-        event: mockEvent2,
-        mockDb: updatedMockDb,
-      });
+      const result2 = await updatedMockDb.processEvents([mockEvent2]);
 
       // Assert - check both entities were created with different chainIds
       const expectedId2 = MailboxMessageId(
@@ -606,10 +571,7 @@ describe("Mailbox Events", () => {
         },
       });
 
-      const result = await Mailbox.ProcessId.processEvent({
-        event: processIdMockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([processIdMockEvent]);
 
       // Assert: ProcessId_event was created
       const processIdEntityId = MailboxMessageId(
@@ -659,10 +621,7 @@ describe("Mailbox Events", () => {
         },
       });
 
-      const result = await Mailbox.ProcessId.processEvent({
-        event: processIdMockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([processIdMockEvent]);
 
       // Assert: ProcessId_event was created
       const processIdEntityId = MailboxMessageId(
@@ -712,10 +671,7 @@ describe("Mailbox Events", () => {
         },
       });
 
-      const result = await Mailbox.ProcessId.processEvent({
-        event: processIdMockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([processIdMockEvent]);
 
       // Assert: ProcessId_event was created
       const processIdEntityId = MailboxMessageId(
@@ -790,10 +746,7 @@ describe("Mailbox Events", () => {
         },
       });
 
-      const result = await Mailbox.ProcessId.processEvent({
-        event: processIdMockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([processIdMockEvent]);
 
       // Assert: ProcessId_event was created
       const processIdEntityId = MailboxMessageId(

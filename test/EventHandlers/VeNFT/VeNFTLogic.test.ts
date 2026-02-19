@@ -1,3 +1,4 @@
+import type { Mock, MockInstance } from "vitest";
 import type {
   UserStatsPerPool,
   VeNFTPoolVote,
@@ -7,6 +8,7 @@ import type {
   VeNFT_Withdraw_event,
   handlerContext,
 } from "../../../generated";
+import * as UserStatsPerPoolModule from "../../../src/Aggregators/UserStatsPerPool";
 import * as VeNFTPoolVoteAggregator from "../../../src/Aggregators/VeNFTPoolVote";
 import * as VeNFTStateAggregator from "../../../src/Aggregators/VeNFTState";
 import {
@@ -18,30 +20,26 @@ import * as VeNFTLogic from "../../../src/EventHandlers/VeNFT/VeNFTLogic";
 
 describe("VeNFTLogic", () => {
   const mockVeNFTPoolVoteStore = {
-    getWhere: {
-      veNFTState_id: {
-        eq: jest.fn().mockResolvedValue([]),
-      },
-    },
-    get: jest.fn(),
-    set: jest.fn(),
+    getWhere: vi.fn().mockResolvedValue([]),
+    get: vi.fn(),
+    set: vi.fn(),
   };
 
   const mockUserStatsStore = {
-    get: jest.fn().mockResolvedValue(undefined),
-    set: jest.fn(),
+    get: vi.fn().mockResolvedValue(undefined),
+    set: vi.fn(),
   };
 
   const mockContext = {
     log: {
-      warn: jest.fn(),
-      info: jest.fn(),
-      error: jest.fn(),
-      debug: jest.fn(),
+      warn: vi.fn(),
+      info: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
     },
     VeNFTPoolVote: mockVeNFTPoolVoteStore,
     UserStatsPerPool: mockUserStatsStore,
-    UserStatsPerPoolSnapshot: { set: jest.fn() },
+    UserStatsPerPoolSnapshot: { set: vi.fn() },
   } as unknown as handlerContext;
 
   const mockVeNFTState: VeNFTState = {
@@ -80,13 +78,13 @@ describe("VeNFTLogic", () => {
 
   describe("processVeNFTDeposit", () => {
     beforeEach(() => {
-      jest.clearAllMocks();
+      vi.clearAllMocks();
     });
 
     it("should call updateVeNFTState with the proper diff", async () => {
       const mockDepositEvent = createMockDepositEvent();
       const timestamp = new Date(mockDepositEvent.block.timestamp * 1000);
-      const updateSpy = jest
+      const updateSpy = vi
         .spyOn(VeNFTStateAggregator, "updateVeNFTState")
         .mockImplementation(() => {});
 
@@ -131,15 +129,15 @@ describe("VeNFTLogic", () => {
     } as VeNFT_Transfer_event;
 
     beforeEach(() => {
-      jest.clearAllMocks();
-      jest
-        .spyOn(VeNFTLogic, "reassignVeNFTVotesOnTransfer")
-        .mockResolvedValue(undefined);
+      vi.clearAllMocks();
+      vi.spyOn(VeNFTLogic, "reassignVeNFTVotesOnTransfer").mockResolvedValue(
+        undefined,
+      );
     });
 
     it("should update VeNFTState and reassign votes on transfer", async () => {
       const timestamp = new Date(mockTransferEvent.block.timestamp * 1000);
-      const updateSpy = jest
+      const updateSpy = vi
         .spyOn(VeNFTStateAggregator, "updateVeNFTState")
         .mockImplementation(() => {});
 
@@ -172,7 +170,7 @@ describe("VeNFTLogic", () => {
         },
       } as VeNFT_Transfer_event;
       const timestamp = new Date(burnEvent.block.timestamp * 1000);
-      const updateSpy = jest
+      const updateSpy = vi
         .spyOn(VeNFTStateAggregator, "updateVeNFTState")
         .mockImplementation(() => {});
 
@@ -217,12 +215,12 @@ describe("VeNFTLogic", () => {
     } as VeNFT_Withdraw_event;
 
     beforeEach(() => {
-      jest.clearAllMocks();
+      vi.clearAllMocks();
     });
 
     it("should call updateVeNFTState with the proper diff", async () => {
       const timestamp = new Date(mockWithdrawEvent.block.timestamp * 1000);
-      const updateSpy = jest
+      const updateSpy = vi
         .spyOn(VeNFTStateAggregator, "updateVeNFTState")
         .mockImplementation(() => {});
 
@@ -245,7 +243,7 @@ describe("VeNFTLogic", () => {
   });
 
   describe("reassignVeNFTVotesOnTransfer", () => {
-    let loadPoolVotesSpy: jest.SpyInstance;
+    let loadPoolVotesSpy: MockInstance;
 
     const mockTransferEvent: VeNFT_Transfer_event = {
       params: {
@@ -265,7 +263,7 @@ describe("VeNFTLogic", () => {
     } as VeNFT_Transfer_event;
 
     beforeEach(() => {
-      loadPoolVotesSpy = jest.spyOn(
+      loadPoolVotesSpy = vi.spyOn(
         VeNFTPoolVoteAggregator,
         "loadPoolVotesByVeNFT",
       );
@@ -280,7 +278,10 @@ describe("VeNFTLogic", () => {
       await VeNFTLogic.reassignVeNFTVotesOnTransfer(
         {
           ...mockTransferEvent,
-          params: { ...mockTransferEvent.params, to: sameOwnerState.owner },
+          params: {
+            ...mockTransferEvent.params,
+            to: sameOwnerState.owner as `0x${string}`,
+          },
         },
         sameOwnerState,
         mockContext,
@@ -300,9 +301,9 @@ describe("VeNFTLogic", () => {
         },
       ] as VeNFTPoolVote[];
 
-      (
-        mockContext.VeNFTPoolVote.getWhere.veNFTState_id.eq as jest.Mock
-      ).mockResolvedValue(poolVotes);
+      (mockContext.VeNFTPoolVote?.getWhere as Mock).mockResolvedValue(
+        poolVotes,
+      );
 
       await VeNFTLogic.reassignVeNFTVotesOnTransfer(
         mockTransferEvent,
@@ -310,9 +311,9 @@ describe("VeNFTLogic", () => {
         mockContext,
       );
 
-      expect(
-        mockContext.VeNFTPoolVote.getWhere.veNFTState_id.eq,
-      ).toHaveBeenCalledWith(mockVeNFTState.id);
+      expect(mockContext.VeNFTPoolVote?.getWhere).toHaveBeenCalledWith({
+        veNFTState_id: { _eq: mockVeNFTState.id },
+      });
     });
 
     it("skips pool votes with zero veNFTamountStaked", async () => {
@@ -333,9 +334,8 @@ describe("VeNFTLogic", () => {
         },
       ] as VeNFTPoolVote[];
 
-      const eqMock = mockContext.VeNFTPoolVote.getWhere.veNFTState_id
-        .eq as jest.Mock;
-      eqMock.mockImplementation(() => Promise.resolve(poolVotes));
+      const getWhereMock = mockContext.VeNFTPoolVote?.getWhere as Mock;
+      getWhereMock.mockImplementation(() => Promise.resolve(poolVotes));
 
       const previousOwnerId = `10-${mockVeNFTState.owner}-0xpool1`;
       const newOwnerId = `10-${mockTransferEvent.params.to}-0xpool1`;
@@ -355,9 +355,8 @@ describe("VeNFTLogic", () => {
         veNFTamountStaked: 0n,
         lastActivityTimestamp: new Date(0),
       } as UserStatsPerPool;
-      jest
-        .mocked(mockContext.UserStatsPerPool?.get)
-        .mockImplementation((id: string) =>
+      vi.mocked(mockContext.UserStatsPerPool?.get).mockImplementation(
+        (id: string) =>
           Promise.resolve(
             id === previousOwnerId
               ? previousOwnerStats
@@ -365,10 +364,10 @@ describe("VeNFTLogic", () => {
                 ? newOwnerStats
                 : undefined,
           ),
-        );
+      );
 
-      const updateUserStatsSpy = jest.spyOn(
-        await import("../../../src/Aggregators/UserStatsPerPool"),
+      const updateUserStatsSpy = vi.spyOn(
+        UserStatsPerPoolModule,
         "updateUserStatsPerPool",
       );
 
@@ -413,10 +412,8 @@ describe("VeNFTLogic", () => {
     } as VeNFT_Transfer_event;
 
     it("logs warn and skips update when previous owner UserStatsPerPool is missing", async () => {
-      jest
-        .mocked(mockContext.UserStatsPerPool?.get)
-        .mockResolvedValue(undefined);
-      jest.mocked(mockContext.UserStatsPerPool?.set).mockClear();
+      vi.mocked(mockContext.UserStatsPerPool?.get).mockResolvedValue(undefined);
+      vi.mocked(mockContext.UserStatsPerPool?.set).mockClear();
 
       await VeNFTLogic.updatePreviousOwnerUserStatsOnTransfer(
         mockTransferEvent,
@@ -441,12 +438,12 @@ describe("VeNFTLogic", () => {
         veNFTamountStaked: 100n,
         lastActivityTimestamp: new Date(0),
       } as UserStatsPerPool;
-      jest
-        .mocked(mockContext.UserStatsPerPool?.get)
-        .mockResolvedValue(existingUserStats);
+      vi.mocked(mockContext.UserStatsPerPool?.get).mockResolvedValue(
+        existingUserStats,
+      );
 
-      const updateUserStatsSpy = jest.spyOn(
-        await import("../../../src/Aggregators/UserStatsPerPool"),
+      const updateUserStatsSpy = vi.spyOn(
+        UserStatsPerPoolModule,
         "updateUserStatsPerPool",
       );
 
@@ -484,8 +481,8 @@ describe("VeNFTLogic", () => {
     } as VeNFT_Transfer_event;
 
     it("skips update when new owner is zero address (burn)", async () => {
-      const loadOrCreateSpy = jest.spyOn(
-        await import("../../../src/Aggregators/UserStatsPerPool"),
+      const loadOrCreateSpy = vi.spyOn(
+        UserStatsPerPoolModule,
         "loadOrCreateUserData",
       );
 
@@ -501,12 +498,10 @@ describe("VeNFTLogic", () => {
     });
 
     it("calls updateUserStatsPerPool with positive delta when new owner is not burn", async () => {
-      jest
-        .mocked(mockContext.UserStatsPerPool?.get)
-        .mockResolvedValue(undefined);
+      vi.mocked(mockContext.UserStatsPerPool?.get).mockResolvedValue(undefined);
 
-      const updateUserStatsSpy = jest.spyOn(
-        await import("../../../src/Aggregators/UserStatsPerPool"),
+      const updateUserStatsSpy = vi.spyOn(
+        UserStatsPerPoolModule,
         "updateUserStatsPerPool",
       );
 
@@ -531,6 +526,6 @@ describe("VeNFTLogic", () => {
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 });

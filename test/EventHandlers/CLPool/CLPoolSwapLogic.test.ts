@@ -92,9 +92,9 @@ describe("CLPoolSwapLogic", () => {
 
   const mockContext: handlerContext = {
     log: {
-      error: jest.fn(),
-      warn: jest.fn(),
-      info: jest.fn(),
+      error: vi.fn(),
+      warn: vi.fn(),
+      info: vi.fn(),
     },
   } as unknown as handlerContext;
 

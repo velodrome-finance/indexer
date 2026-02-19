@@ -184,8 +184,9 @@ export async function getMatchingBurnTransferInTx(
   withdrawLogIndex: number,
   context: handlerContext,
 ): Promise<MatchingBurnTransfer | undefined> {
-  const transfersInTxHash =
-    await context.ALMLPWrapperTransferInTx.getWhere.txHash.eq(txHash);
+  const transfersInTxHash = await context.ALMLPWrapperTransferInTx.getWhere({
+    txHash: { _eq: txHash },
+  });
 
   const matchingBurns = transfersInTxHash.filter(
     (t: ALMLPWrapperTransferInTx) =>

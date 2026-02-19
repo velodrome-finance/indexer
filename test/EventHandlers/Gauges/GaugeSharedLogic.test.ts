@@ -1,11 +1,12 @@
-import type { PublicClient } from "viem";
-import { MockDb } from "../../../generated/src/TestHelpers.gen";
 import type {
   LiquidityPoolAggregator,
   Token,
   UserStatsPerPool,
   handlerContext,
-} from "../../../generated/src/Types.gen";
+} from "generated";
+import type { PublicClient } from "viem";
+import type { Mock } from "vitest";
+import { MockDb } from "../../../generated/src/TestHelpers.gen";
 import {
   CHAIN_CONSTANTS,
   TokenId,
@@ -166,16 +167,17 @@ describe("GaugeSharedLogic", () => {
           updatedDB = updatedDB.entities.LiquidityPoolAggregator.set(entity);
           return updatedDB;
         },
-        getWhere: {
-          gaugeAddress: {
-            eq: async (gaugeAddress: string) => {
-              // Find pools with matching gauge address
-              const pool = updatedDB.entities.LiquidityPoolAggregator.get(
-                mockLiquidityPoolAggregator.id,
-              );
-              return pool && pool.gaugeAddress === gaugeAddress ? [pool] : [];
-            },
-          },
+        // biome-ignore lint/suspicious/noExplicitAny: Mock entity for testing
+        getWhere: async (params: any) => {
+          if (params.gaugeAddress?._eq) {
+            const pool = updatedDB.entities.LiquidityPoolAggregator.get(
+              mockLiquidityPoolAggregator.id,
+            );
+            return pool && pool.gaugeAddress === params.gaugeAddress._eq
+              ? [pool]
+              : [];
+          }
+          return [];
         },
       },
       UserStatsPerPool: {
@@ -185,17 +187,17 @@ describe("GaugeSharedLogic", () => {
           updatedDB = updatedDB.entities.UserStatsPerPool.set(entity);
           return updatedDB;
         },
-        getWhere: {
-          userAddress: {
-            eq: async (userAddress: string) => {
-              const userStats = updatedDB.entities.UserStatsPerPool.get(
-                mockUserStatsPerPool.id,
-              );
-              return userStats && userStats.userAddress === userAddress
-                ? [userStats]
-                : [];
-            },
-          },
+        // biome-ignore lint/suspicious/noExplicitAny: Mock entity for testing
+        getWhere: async (params: any) => {
+          if (params.userAddress?._eq) {
+            const userStats = updatedDB.entities.UserStatsPerPool.get(
+              mockUserStatsPerPool.id,
+            );
+            return userStats && userStats.userAddress === params.userAddress._eq
+              ? [userStats]
+              : [];
+          }
+          return [];
         },
       },
       UserStatsPerPoolSnapshot: { set: () => {} },
@@ -232,14 +234,7 @@ describe("GaugeSharedLogic", () => {
         return {};
       },
       NonFungiblePosition: {
-        getWhere: {
-          tokenId: {
-            eq: async (tokenId: bigint) => {
-              // Return empty array for V2 pools (no positions)
-              return [];
-            },
-          },
-        },
+        getWhere: async () => [],
       },
       TokenPriceSnapshot: {
         set: () => {},

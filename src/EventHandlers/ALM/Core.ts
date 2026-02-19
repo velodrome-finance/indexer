@@ -10,7 +10,9 @@ ALMCore.Rebalance.handler(async ({ event, context }) => {
 
   // Find the wrapper by pool address (1 wrapper per pool)
   const poolAddress = pool;
-  const wrappers = await context.ALM_LP_Wrapper.getWhere.pool.eq(poolAddress);
+  const wrappers = await context.ALM_LP_Wrapper.getWhere({
+    pool: { _eq: poolAddress },
+  });
 
   if (!wrappers || wrappers.length === 0) {
     context.log.warn(

@@ -9,7 +9,7 @@ import { setupCommon } from "../Pool/common";
 describe("CLPoolMintLogic", () => {
   const { mockLiquidityPoolData, mockToken0Data, mockToken1Data } =
     setupCommon();
-  const mockEvent: CLPool_Mint_event = {
+  const mockEvent = {
     params: {
       owner: "0x1111111111111111111111111111111111111111",
       tickLower: 100000n,
@@ -29,7 +29,7 @@ describe("CLPoolMintLogic", () => {
     transaction: {
       hash: "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
     },
-  } as CLPool_Mint_event;
+  } as unknown as CLPool_Mint_event;
 
   const mockLiquidityPoolAggregator: LiquidityPoolAggregator = {
     ...mockLiquidityPoolData,

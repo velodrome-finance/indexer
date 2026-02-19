@@ -1,6 +1,5 @@
 import type {
   CLPoolMintEvent,
-  NFPM_Transfer_event,
   NonFungiblePosition,
   handlerContext,
 } from "generated";
@@ -24,14 +23,16 @@ import {
   processNFPMTransfer,
 } from "../../../src/EventHandlers/NFPM/NFPMTransferLogic";
 
-jest.mock("../../../src/Aggregators/LiquidityPoolAggregator", () => ({
-  ...jest.requireActual("../../../src/Aggregators/LiquidityPoolAggregator"),
-  loadPoolData: jest.fn(),
+vi.mock("../../../src/Aggregators/LiquidityPoolAggregator", async () => ({
+  ...(await vi.importActual(
+    "../../../src/Aggregators/LiquidityPoolAggregator",
+  )),
+  loadPoolData: vi.fn(),
 }));
 
-jest.mock("../../../src/EventHandlers/NFPM/NFPMCommonLogic", () => ({
-  ...jest.requireActual("../../../src/EventHandlers/NFPM/NFPMCommonLogic"),
-  attributeLiquidityChangeToUserStatsPerPool: jest.fn(),
+vi.mock("../../../src/EventHandlers/NFPM/NFPMCommonLogic", async () => ({
+  ...(await vi.importActual("../../../src/EventHandlers/NFPM/NFPMCommonLogic")),
+  attributeLiquidityChangeToUserStatsPerPool: vi.fn(),
 }));
 
 describe("NFPMTransferLogic", () => {
@@ -249,29 +250,33 @@ describe("NFPMTransferLogic", () => {
     return {
       ...currentDb,
       LiquidityPoolAggregator: {
-        get: jest.fn().mockResolvedValue(undefined),
+        get: vi.fn().mockResolvedValue(undefined),
+      },
+      UserStatsPerPool: {
+        get: vi.fn().mockResolvedValue(undefined),
+        getWhere: vi.fn().mockResolvedValue([]),
+        set: vi.fn(),
+        getOrThrow: vi.fn(),
+        getOrCreate: vi.fn(),
+        deleteUnsafe: vi.fn(),
+      },
+      UserStatsPerPoolSnapshot: {
+        set: vi.fn(),
+        get: vi.fn(),
+        getWhere: vi.fn().mockResolvedValue([]),
       },
       NonFungiblePositionSnapshot: {
-        set: jest.fn(),
+        set: vi.fn(),
       },
       NonFungiblePosition: {
         ...currentDb.entities.NonFungiblePosition,
-        getWhere: {
-          tokenId: {
-            eq: async (id: bigint) => {
-              return positions.filter((p) => p.tokenId === id);
-            },
-          },
-          pool: {
-            eq: jest.fn(),
-          },
-          owner: {
-            eq: jest.fn(),
-          },
-          mintTransactionHash: {
-            eq: jest.fn(),
-          },
-        },
+        getWhere: vi
+          .fn()
+          .mockImplementation((filter: { tokenId?: { _eq?: bigint } }) =>
+            Promise.resolve(
+              positions.filter((p) => p.tokenId === filter?.tokenId?._eq),
+            ),
+          ),
         set: (entity: NonFungiblePosition) => {
           trackPosition(entity);
           const updatedDb =
@@ -296,13 +301,16 @@ describe("NFPMTransferLogic", () => {
       },
       CLPoolMintEvent: {
         ...currentDb.entities.CLPoolMintEvent,
-        getWhere: {
-          transactionHash: {
-            eq: async (txHash: string) => {
-              return mintEvents.filter((e) => e.transactionHash === txHash);
-            },
-          },
-        },
+        getWhere: vi
+          .fn()
+          .mockImplementation(
+            (filter: { transactionHash?: { _eq?: string } }) =>
+              Promise.resolve(
+                mintEvents.filter(
+                  (e) => e.transactionHash === filter?.transactionHash?._eq,
+                ),
+              ),
+          ),
         set: (entity: CLPoolMintEvent) => {
           trackMintEvent(entity);
           const updatedDb =
@@ -322,9 +330,9 @@ describe("NFPMTransferLogic", () => {
         },
       },
       log: {
-        info: jest.fn(),
-        warn: jest.fn(),
-        error: jest.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
       },
     } as unknown as handlerContext;
   }
@@ -346,8 +354,8 @@ describe("NFPMTransferLogic", () => {
       : defaultRegularTransferEventData;
 
     return NFPM.Transfer.createMockEvent({
-      from,
-      to,
+      from: from as `0x${string}`,
+      to: to as `0x${string}`,
       tokenId: overrides.tokenId ?? tokenId,
       mockEventData: {
         ...defaultEventData,
@@ -361,9 +369,9 @@ describe("NFPMTransferLogic", () => {
     storedMintEvents = [];
     mockContext = createMockContext(storedPositions, storedMintEvents);
     mockDb = MockDb.createMockDb();
-    jest.mocked(loadPoolData).mockResolvedValue(null);
-    jest.mocked(attributeLiquidityChangeToUserStatsPerPool).mockClear();
-    jest.mocked(attributeLiquidityChangeToUserStatsPerPool).mockResolvedValue();
+    vi.mocked(loadPoolData).mockResolvedValue(null);
+    vi.mocked(attributeLiquidityChangeToUserStatsPerPool).mockClear();
+    vi.mocked(attributeLiquidityChangeToUserStatsPerPool).mockResolvedValue();
   });
 
   // Helper functions to set entities
@@ -561,13 +569,7 @@ describe("NFPMTransferLogic", () => {
         ...mockContext,
         CLPoolMintEvent: {
           ...mockContext.CLPoolMintEvent,
-          getWhere: {
-            ...mockContext.CLPoolMintEvent.getWhere,
-            transactionHash: {
-              // biome-ignore lint/suspicious/noExplicitAny: Mock for testing
-              eq: async () => null as any, // Return null to test ?? [] fallback
-            },
-          },
+          getWhere: vi.fn().mockResolvedValue(null),
         },
       } as unknown as handlerContext;
 
@@ -678,11 +680,9 @@ describe("NFPMTransferLogic", () => {
     });
 
     it("should update owner of existing position", async () => {
-      jest
-        .mocked(loadPoolData)
-        .mockResolvedValue(
-          minimalPoolData({ sqrtPriceX96: defaultSqrtPriceX96 }),
-        );
+      vi.mocked(loadPoolData).mockResolvedValue(
+        minimalPoolData({ sqrtPriceX96: defaultSqrtPriceX96 }),
+      );
       const mockEvent = createMockTransferEvent(mockPosition.owner, userB);
 
       setPosition(mockPosition);
@@ -703,7 +703,7 @@ describe("NFPMTransferLogic", () => {
     });
 
     it("updates owner but skips attribution when poolData is null (logs warn)", async () => {
-      jest.mocked(loadPoolData).mockResolvedValue(null);
+      vi.mocked(loadPoolData).mockResolvedValue(null);
       const mockEvent = createMockTransferEvent(mockPosition.owner, userB);
       setPosition(mockPosition);
 
@@ -720,9 +720,6 @@ describe("NFPMTransferLogic", () => {
     });
 
     it("does not update owner when transfer is stake (user to gauge)", async () => {
-      jest
-        .mocked(loadPoolData)
-        .mockResolvedValue(minimalPoolData({ gaugeAddress }));
       const positionWithOwner = {
         ...mockPosition,
         owner: originalOwnerAddress,
@@ -732,18 +729,23 @@ describe("NFPMTransferLogic", () => {
         originalOwnerAddress,
         gaugeAddress,
       );
+      vi.mocked(loadPoolData).mockResolvedValueOnce(
+        minimalPoolData({ gaugeAddress: mockEvent.params.to }),
+      );
 
       await handleRegularTransfer(mockEvent, [positionWithOwner], mockContext);
 
       const positionAfter = getPositionAfterTransfer();
       expect(positionAfter).toBeDefined();
-      expect(positionAfter?.owner).toBe(originalOwnerAddress);
+      expect(positionAfter?.owner?.toLowerCase()).toBe(
+        originalOwnerAddress.toLowerCase(),
+      );
     });
 
     it("does not update owner when transfer is unstake (gauge to user)", async () => {
-      jest
-        .mocked(loadPoolData)
-        .mockResolvedValue(minimalPoolData({ gaugeAddress }));
+      vi.mocked(loadPoolData).mockResolvedValue(
+        minimalPoolData({ gaugeAddress }),
+      );
       const positionWithOwner = {
         ...mockPosition,
         owner: originalOwnerAddress,
@@ -762,9 +764,9 @@ describe("NFPMTransferLogic", () => {
     });
 
     it("updates owner when transfer is normal and pool has gauge", async () => {
-      jest
-        .mocked(loadPoolData)
-        .mockResolvedValue(minimalPoolData({ gaugeAddress, sqrtPriceX96: 1n }));
+      vi.mocked(loadPoolData).mockResolvedValue(
+        minimalPoolData({ gaugeAddress, sqrtPriceX96: 1n }),
+      );
       const positionOwnedByA = { ...mockPosition, owner: userA };
       setPosition(positionOwnedByA);
       const mockEvent = createMockTransferEvent(userA, userB);
@@ -779,11 +781,9 @@ describe("NFPMTransferLogic", () => {
 
   describe("transfer accounting", () => {
     it("calls REMOVE for sender and ADD for recipient on regular transfer", async () => {
-      jest
-        .mocked(loadPoolData)
-        .mockResolvedValue(
-          minimalPoolData({ sqrtPriceX96: defaultSqrtPriceX96 }),
-        );
+      vi.mocked(loadPoolData).mockResolvedValue(
+        minimalPoolData({ sqrtPriceX96: defaultSqrtPriceX96 }),
+      );
       const pos = positionWithLiquidity(userA);
       setPosition(pos);
       const mockEvent = createMockTransferEvent(userA, userB);
@@ -793,7 +793,7 @@ describe("NFPMTransferLogic", () => {
       expect(attributeLiquidityChangeToUserStatsPerPool).toHaveBeenCalledTimes(
         2,
       );
-      const [removeCall, addCall] = jest.mocked(
+      const [removeCall, addCall] = vi.mocked(
         attributeLiquidityChangeToUserStatsPerPool,
       ).mock.calls;
       // Arguments: (owner, poolAddress, poolData, context, amount0, amount1, blockTimestamp, liquidityChangeType)
@@ -809,11 +809,9 @@ describe("NFPMTransferLogic", () => {
     });
 
     it("calls only REMOVE for sender on burn (to zero address)", async () => {
-      jest
-        .mocked(loadPoolData)
-        .mockResolvedValue(
-          minimalPoolData({ sqrtPriceX96: defaultSqrtPriceX96 }),
-        );
+      vi.mocked(loadPoolData).mockResolvedValue(
+        minimalPoolData({ sqrtPriceX96: defaultSqrtPriceX96 }),
+      );
       const pos = positionWithLiquidity(userA);
       setPosition(pos);
       const mockEvent = createMockTransferEvent(userA, zeroAddress);
@@ -823,9 +821,8 @@ describe("NFPMTransferLogic", () => {
       expect(attributeLiquidityChangeToUserStatsPerPool).toHaveBeenCalledTimes(
         1,
       );
-      const [removeCall] = jest.mocked(
-        attributeLiquidityChangeToUserStatsPerPool,
-      ).mock.calls;
+      const [removeCall] = vi.mocked(attributeLiquidityChangeToUserStatsPerPool)
+        .mock.calls;
       // Arguments: (owner, poolAddress, poolData, context, amount0, amount1, blockTimestamp, liquidityChangeType)
       const [removeUser, , , , removeAmount0, removeAmount1, , removeType] =
         removeCall;
@@ -834,9 +831,9 @@ describe("NFPMTransferLogic", () => {
     });
 
     it("does not call attributeLiquidityChangeToUserStatsPerPool when sqrtPriceX96 is 0", async () => {
-      jest
-        .mocked(loadPoolData)
-        .mockResolvedValue(minimalPoolData({ sqrtPriceX96: 0n }));
+      vi.mocked(loadPoolData).mockResolvedValue(
+        minimalPoolData({ sqrtPriceX96: 0n }),
+      );
       const pos = positionWithLiquidity(userA);
       setPosition(pos);
       const mockEvent = createMockTransferEvent(userA, userB);
@@ -849,11 +846,9 @@ describe("NFPMTransferLogic", () => {
     });
 
     it("does not call attributeLiquidityChangeToUserStatsPerPool on self-transfer (from === to)", async () => {
-      jest
-        .mocked(loadPoolData)
-        .mockResolvedValue(
-          minimalPoolData({ sqrtPriceX96: defaultSqrtPriceX96 }),
-        );
+      vi.mocked(loadPoolData).mockResolvedValue(
+        minimalPoolData({ sqrtPriceX96: defaultSqrtPriceX96 }),
+      );
       const pos = positionWithLiquidity(userA);
       setPosition(pos);
       const mockEvent = createMockTransferEvent(userA, userA);
@@ -887,11 +882,9 @@ describe("NFPMTransferLogic", () => {
     });
 
     it("should handle regular transfer and update owner", async () => {
-      jest
-        .mocked(loadPoolData)
-        .mockResolvedValue(
-          minimalPoolData({ sqrtPriceX96: defaultSqrtPriceX96 }),
-        );
+      vi.mocked(loadPoolData).mockResolvedValue(
+        minimalPoolData({ sqrtPriceX96: defaultSqrtPriceX96 }),
+      );
       setPosition(mockPosition);
 
       const mockEvent = createMockTransferEvent(mockPosition.owner, userB);

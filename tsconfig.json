@@ -1,17 +1,19 @@
 {
   "compilerOptions": {
-    "target": "es2020", //required for use with BigInt types
-    "module": "commonjs",
-    "lib": ["es6", "es2022.error"], //adds support for Error.cause
-    "allowJs": true,
-    "checkJs": false,
-    "outDir": "build",
-    "rootDirs": ["src", "generated"],
-    "strict": true,
-    "noImplicitAny": true,
     "esModuleInterop": true,
+    "skipLibCheck": true,
+    "target": "es2022",
+    "allowJs": true,
     "resolveJsonModule": true,
-    "skipLibCheck": true
+    "moduleDetection": "force",
+    "isolatedModules": true,
+    "strict": true,
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "noEmit": true,
+    "lib": ["es2022", "es2022.error"],
+    "rootDirs": ["src", "generated"],
+    "types": ["vitest/globals"]
   },
-  "include": ["src/**/*", "generated/**/*"]
+  "include": ["src/**/*", "generated/**/*", "test/**/*"]
 }

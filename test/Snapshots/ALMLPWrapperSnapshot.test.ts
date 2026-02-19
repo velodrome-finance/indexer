@@ -1,3 +1,4 @@
+import type { Mock } from "vitest";
 import {
   ALMLPWrapperSnapshotId,
   SNAPSHOT_INTERVAL_IN_MS,
@@ -14,7 +15,7 @@ describe("ALMLPWrapperSnapshot", () => {
   const baseTimestamp = new Date(SNAPSHOT_INTERVAL_IN_MS * 3);
   beforeEach(() => {
     common = setupCommon();
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe("createALMLPWrapperSnapshot", () => {
@@ -49,7 +50,7 @@ describe("ALMLPWrapperSnapshot", () => {
 
   it("should call ALM_LP_WrapperSnapshot.set with correct id and epoch-aligned timestamp", () => {
     const context = common.createMockContext({
-      ALM_LP_WrapperSnapshot: { set: jest.fn() },
+      ALM_LP_WrapperSnapshot: { set: vi.fn() },
     });
     const entity = common.mockALMLPWrapperData;
     const timestamp = new Date(baseTimestamp.getTime() + 15 * 60 * 1000);
@@ -64,7 +65,7 @@ describe("ALMLPWrapperSnapshot", () => {
     setALMLPWrapperSnapshot(entity, timestamp, context);
 
     expect(context.ALM_LP_WrapperSnapshot.set).toHaveBeenCalledTimes(1);
-    const setArg = (context.ALM_LP_WrapperSnapshot.set as jest.Mock).mock
+    const setArg = (context.ALM_LP_WrapperSnapshot.set as Mock).mock
       .calls[0][0];
     expect(setArg.id).toBe(expectedId);
     expect(setArg.timestamp.getTime()).toBe(expectedEpochMs);
@@ -72,7 +73,7 @@ describe("ALMLPWrapperSnapshot", () => {
 
   it("should use full entity.id as wrapper when id has no hyphen (fallback branch)", () => {
     const context = common.createMockContext({
-      ALM_LP_WrapperSnapshot: { set: jest.fn() },
+      ALM_LP_WrapperSnapshot: { set: vi.fn() },
     });
     const entityWithoutHyphenInId = {
       ...common.mockALMLPWrapperData,
@@ -83,7 +84,7 @@ describe("ALMLPWrapperSnapshot", () => {
 
     setALMLPWrapperSnapshot(entityWithoutHyphenInId, baseTimestamp, context);
 
-    const setArg = (context.ALM_LP_WrapperSnapshot.set as jest.Mock).mock
+    const setArg = (context.ALM_LP_WrapperSnapshot.set as Mock).mock
       .calls[0][0];
     expect(setArg.wrapper).toBe(wrapperAddress);
     expect(setArg.id).toBe(
@@ -97,13 +98,13 @@ describe("ALMLPWrapperSnapshot", () => {
 
   it("should spread entity fields into the snapshot", () => {
     const context = common.createMockContext({
-      ALM_LP_WrapperSnapshot: { set: jest.fn() },
+      ALM_LP_WrapperSnapshot: { set: vi.fn() },
     });
     const entity = common.mockALMLPWrapperData;
 
     setALMLPWrapperSnapshot(entity, baseTimestamp, context);
 
-    const setArg = (context.ALM_LP_WrapperSnapshot.set as jest.Mock).mock
+    const setArg = (context.ALM_LP_WrapperSnapshot.set as Mock).mock
       .calls[0][0];
     expect(setArg.chainId).toBe(entity.chainId);
     expect(setArg.pool).toBe(entity.pool);

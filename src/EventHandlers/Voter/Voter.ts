@@ -1,6 +1,6 @@
 import { Voter } from "generated";
 
-import type { Token } from "generated/src/Types.gen";
+import type { Token } from "generated";
 import {
   findPoolByGaugeAddress,
   loadPoolDataOrRootCLPool,

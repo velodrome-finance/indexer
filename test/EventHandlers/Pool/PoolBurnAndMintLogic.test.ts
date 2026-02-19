@@ -6,6 +6,7 @@ import type {
   Token,
   handlerContext,
 } from "generated";
+import type { Mock } from "vitest";
 import { PoolTransferInTxId, ZERO_ADDRESS } from "../../../src/Constants";
 import {
   extractRecipientAddress,
@@ -45,29 +46,30 @@ describe("PoolBurnAndMintLogic", () => {
     mockPoolTransferInTx = [];
     mockContext = {
       log: {
-        error: jest.fn(),
-        warn: jest.fn(),
-        info: jest.fn(),
+        error: vi.fn(),
+        warn: vi.fn(),
+        info: vi.fn(),
       },
       PoolTransferInTx: {
-        getWhere: {
-          txHash: {
-            eq: jest.fn(async (txHash: string) => {
-              return mockPoolTransferInTx.filter((t) => t.txHash === txHash);
-            }),
-          },
-        },
-        set: jest.fn(),
+        // biome-ignore lint/suspicious/noExplicitAny: Mock context for testing
+        getWhere: vi.fn(async (params: any) => {
+          const txHash = params.txHash?._eq;
+          if (txHash) {
+            return mockPoolTransferInTx.filter((t) => t.txHash === txHash);
+          }
+          return [];
+        }),
+        set: vi.fn(),
       },
       LiquidityPoolAggregator: {
-        get: jest.fn(),
-        set: jest.fn(),
+        get: vi.fn(),
+        set: vi.fn(),
       },
       UserStatsPerPool: {
-        get: jest.fn(),
-        set: jest.fn(),
+        get: vi.fn(),
+        set: vi.fn(),
       },
-      UserStatsPerPoolSnapshot: { set: jest.fn() },
+      UserStatsPerPoolSnapshot: { set: vi.fn() },
     } as unknown as handlerContext;
   });
 
@@ -105,7 +107,7 @@ describe("PoolBurnAndMintLogic", () => {
       hash: "0xblock",
     },
     logIndex,
-    srcAddress: POOL_ADDRESS,
+    srcAddress: POOL_ADDRESS as `0x${string}`,
     transaction: { hash: TX_HASH },
     params: {
       sender: ROUTER_ADDRESS,
@@ -123,7 +125,7 @@ describe("PoolBurnAndMintLogic", () => {
       hash: "0xblock",
     },
     logIndex,
-    srcAddress: POOL_ADDRESS,
+    srcAddress: POOL_ADDRESS as `0x${string}`,
     transaction: { hash: TX_HASH },
     params: {
       sender: ROUTER_ADDRESS,
@@ -887,7 +889,7 @@ describe("PoolBurnAndMintLogic", () => {
     };
 
     beforeEach(() => {
-      jest.clearAllMocks();
+      vi.clearAllMocks();
     });
 
     it("should process mint event and update pool token prices", async () => {

@@ -1,6 +1,6 @@
+import "../../eventHandlersRegistration";
 import { Pool } from "../../../generated/src/TestHelpers.gen";
 import { MockDb } from "../../../generated/src/TestHelpers.gen";
-import * as PoolBurnAndMintLogic from "../../../src/EventHandlers/Pool/PoolBurnAndMintLogic";
 import { setupCommon } from "./common";
 
 describe("Pool Burn Event", () => {
@@ -33,11 +33,12 @@ describe("Pool Burn Event", () => {
         },
         chainId: 10,
         logIndex: 1,
-        srcAddress: commonData.mockLiquidityPoolData.poolAddress,
+        srcAddress: commonData.mockLiquidityPoolData
+          .poolAddress as `0x${string}`,
       },
     });
 
-    const result = await Pool.Burn.processEvent({ event: mockEvent, mockDb });
+    const result = await mockDb.processEvents([mockEvent]);
 
     // Verify that the liquidity pool aggregator was updated
     const updatedAggregator = result.entities.LiquidityPoolAggregator.get(
@@ -83,14 +84,12 @@ describe("Pool Burn Event", () => {
           },
           chainId: 10,
           logIndex: 1,
-          srcAddress: commonData.mockLiquidityPoolData.poolAddress,
+          srcAddress: commonData.mockLiquidityPoolData
+            .poolAddress as `0x${string}`,
         },
       });
 
-      const postEventDB = await Pool.Burn.processEvent({
-        event: mockEvent,
-        mockDb: updatedDB2,
-      });
+      const postEventDB = await updatedDB2.processEvents([mockEvent]);
 
       // Pool should not exist
       const pool = postEventDB.entities.LiquidityPoolAggregator.get(

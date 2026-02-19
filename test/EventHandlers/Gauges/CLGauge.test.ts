@@ -1,3 +1,4 @@
+import "../../eventHandlersRegistration";
 import { CLGauge } from "../../../generated/src/TestHelpers.gen";
 import { MockDb } from "../../../generated/src/TestHelpers.gen";
 
@@ -108,10 +109,7 @@ describe("CLGauge Event Handlers", () => {
       });
 
       // Should not throw - the actual business logic is tested in GaugeSharedLogic.test.ts
-      await CLGauge.Deposit.processEvent({
-        event: mockEvent,
-        mockDb: mockDb,
-      });
+      await mockDb.processEvents([mockEvent]);
     });
 
     it("should call shared logic functions without errors for Withdraw", async () => {
@@ -131,10 +129,7 @@ describe("CLGauge Event Handlers", () => {
       });
 
       // Should not throw - the actual business logic is tested in GaugeSharedLogic.test.ts
-      await CLGauge.Withdraw.processEvent({
-        event: mockEvent,
-        mockDb: mockDb,
-      });
+      await mockDb.processEvents([mockEvent]);
     });
 
     it("should call shared logic functions without errors for ClaimRewards", async () => {
@@ -153,10 +148,7 @@ describe("CLGauge Event Handlers", () => {
       });
 
       // Should not throw - the actual business logic is tested in GaugeSharedLogic.test.ts
-      await CLGauge.ClaimRewards.processEvent({
-        event: mockEvent,
-        mockDb: mockDb,
-      });
+      await mockDb.processEvents([mockEvent]);
     });
   });
 });

@@ -13,10 +13,9 @@ NewCLGaugeFactory.SetDefaultCap.handler(async ({ event, context }) => {
 });
 
 NewCLGaugeFactory.SetEmissionCap.handler(async ({ event, context }) => {
-  const poolEntityList =
-    await context.LiquidityPoolAggregator.getWhere.gaugeAddress.eq(
-      event.params._gauge,
-    );
+  const poolEntityList = await context.LiquidityPoolAggregator.getWhere({
+    gaugeAddress: { _eq: event.params._gauge },
+  });
 
   if (!poolEntityList || poolEntityList.length === 0) {
     context.log.error(`Pool entity not found for gauge ${event.params._gauge}`);

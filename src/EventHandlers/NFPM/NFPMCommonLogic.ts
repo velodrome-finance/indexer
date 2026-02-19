@@ -26,15 +26,18 @@ export async function findPositionByTokenId(
   chainId: number,
   context: handlerContext,
 ): Promise<NonFungiblePosition[]> {
-  const positions =
-    await context.NonFungiblePosition.getWhere.tokenId.eq(tokenId);
+  const positions = await context.NonFungiblePosition.getWhere({
+    tokenId: { _eq: tokenId },
+  });
 
   if (!positions || positions.length === 0) {
     return [];
   }
 
   // Filter by chainId to ensure we get the position from the correct chain
-  return positions.filter((pos) => pos.chainId === chainId);
+  return positions.filter(
+    (pos: NonFungiblePosition) => pos.chainId === chainId,
+  );
 }
 
 /**

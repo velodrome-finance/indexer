@@ -19,11 +19,10 @@ describe("CLFactoryPoolCreatedLogic", () => {
   const { mockToken0Data, mockToken1Data } = setupCommon();
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     // Mock the createTokenEntity function using Jest
-    jest
-      .spyOn(PriceOracle, "createTokenEntity")
-      .mockImplementation(async (address: string) => ({
+    vi.spyOn(PriceOracle, "createTokenEntity").mockImplementation(
+      async (address: string) => ({
         id: "mock_token_id",
         address: address,
         symbol: "", // Empty symbol for missing tokens
@@ -33,11 +32,12 @@ describe("CLFactoryPoolCreatedLogic", () => {
         chainId: 10,
         isWhitelisted: false,
         lastUpdatedTimestamp: new Date(1000000 * 1000),
-      }));
+      }),
+    );
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   // Shared mock event for all tests
@@ -363,12 +363,12 @@ describe("CLFactoryPoolCreatedLogic", () => {
 
     it("should handle error during processing gracefully", async () => {
       // Restore the current mock and create a new one that throws
-      jest.restoreAllMocks();
-      jest
-        .spyOn(PriceOracle, "createTokenEntity")
-        .mockImplementation(async () => {
+      vi.restoreAllMocks();
+      vi.spyOn(PriceOracle, "createTokenEntity").mockImplementation(
+        async () => {
           throw new Error("Token creation failed");
-        });
+        },
+      );
 
       // Use undefined tokens to trigger createTokenEntity
       // The function catches errors and continues, so it should complete successfully

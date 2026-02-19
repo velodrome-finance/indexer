@@ -1,13 +1,14 @@
-import {
-  MockDb,
-  VelodromeUniversalRouter,
-} from "../../../generated/src/TestHelpers.gen";
+import "../../eventHandlersRegistration";
 import type {
   DispatchId_event,
   OUSDTBridgedTransaction,
   OUSDTSwaps,
   ProcessId_event,
-} from "../../../generated/src/Types.gen";
+} from "generated";
+import {
+  MockDb,
+  VelodromeUniversalRouter,
+} from "../../../generated/src/TestHelpers.gen";
 import {
   MailboxMessageId,
   OUSDTSwapsId,
@@ -50,11 +51,7 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
           },
         });
 
-      const result =
-        await VelodromeUniversalRouter.UniversalRouterBridge.processEvent({
-          event: mockEvent,
-          mockDb,
-        });
+      const result = await mockDb.processEvents([mockEvent]);
 
       const bridgedTransaction =
         result.entities.OUSDTBridgedTransaction.get(transactionHash);
@@ -98,11 +95,7 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
           },
         });
 
-      const result =
-        await VelodromeUniversalRouter.UniversalRouterBridge.processEvent({
-          event: mockEvent,
-          mockDb,
-        });
+      const result = await mockDb.processEvents([mockEvent]);
 
       const bridgedTransaction =
         result.entities.OUSDTBridgedTransaction.get(transactionHash);
@@ -135,11 +128,7 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
           },
         });
 
-      const result =
-        await VelodromeUniversalRouter.UniversalRouterBridge.processEvent({
-          event: mockEvent,
-          mockDb,
-        });
+      const result = await mockDb.processEvents([mockEvent]);
 
       const bridgedTransaction =
         result.entities.OUSDTBridgedTransaction.get(transactionHash);
@@ -309,12 +298,9 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
         },
       );
 
-      const result = await VelodromeUniversalRouter.CrossChainSwap.processEvent(
-        {
-          event: mockEvent,
-          mockDb: mockDbWithGetWhere as typeof mockDb,
-        },
-      );
+      const result = await (mockDbWithGetWhere as typeof mockDb).processEvents([
+        mockEvent,
+      ]);
 
       // New ID format includes messageId and source swap-specific data
       const expectedSuperSwapId = SuperSwapId(
@@ -393,12 +379,9 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
         },
       );
 
-      const result = await VelodromeUniversalRouter.CrossChainSwap.processEvent(
-        {
-          event: mockEvent,
-          mockDb: mockDbWithGetWhere as typeof mockDb,
-        },
-      );
+      const result = await (mockDbWithGetWhere as typeof mockDb).processEvents([
+        mockEvent,
+      ]);
 
       // Verify that no SuperSwap was created when no bridged transaction exists
       expect(Array.from(result.entities.SuperSwap.getAll())).toHaveLength(0);
@@ -470,12 +453,9 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
         },
       );
 
-      const result = await VelodromeUniversalRouter.CrossChainSwap.processEvent(
-        {
-          event: mockEvent,
-          mockDb: mockDbWithGetWhere as typeof mockDb,
-        },
-      );
+      const result = await (mockDbWithGetWhere as typeof mockDb).processEvents([
+        mockEvent,
+      ]);
 
       // Verify that no SuperSwap was created when no DispatchId events exist
       expect(Array.from(result.entities.SuperSwap.getAll())).toHaveLength(0);
@@ -643,12 +623,9 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
         },
       );
 
-      const result = await VelodromeUniversalRouter.CrossChainSwap.processEvent(
-        {
-          event: mockEvent,
-          mockDb: mockDbWithGetWhere as typeof mockDb,
-        },
-      );
+      const result = await (mockDbWithGetWhere as typeof mockDb).processEvents([
+        mockEvent,
+      ]);
 
       // New ID format includes messageId and source swap-specific data
       const expectedSuperSwapId = SuperSwapId(

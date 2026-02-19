@@ -1,4 +1,5 @@
 import type { VeNFTState, handlerContext } from "generated";
+import type { Mock } from "vitest";
 import {
   loadVeNFTState,
   updateVeNFTState,
@@ -32,33 +33,27 @@ describe("VeNFTState", () => {
   beforeEach(() => {
     mockContext = {
       VeNFTState: {
-        set: jest.fn(),
-        get: jest.fn(),
-        getOrThrow: jest.fn(),
-        getOrCreate: jest.fn(),
-        deleteUnsafe: jest.fn(),
-        getWhere: {
-          tokenId: {
-            eq: jest.fn(),
-            gt: jest.fn(),
-            lt: jest.fn(),
-          },
-        },
+        set: vi.fn(),
+        get: vi.fn(),
+        getOrThrow: vi.fn(),
+        getOrCreate: vi.fn(),
+        deleteUnsafe: vi.fn(),
+        getWhere: vi.fn().mockResolvedValue([]),
       },
       VeNFTStateSnapshot: {
-        set: jest.fn(),
+        set: vi.fn(),
       } as unknown as handlerContext["VeNFTStateSnapshot"],
       log: {
-        error: jest.fn(),
-        info: jest.fn(),
-        warn: jest.fn(),
-        debug: jest.fn(),
+        error: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        debug: vi.fn(),
       },
     };
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe("VeNFTId", () => {
@@ -71,7 +66,7 @@ describe("VeNFTState", () => {
   describe("loadVeNFTState", () => {
     it("returns VeNFTState when entity exists", async () => {
       const store = getVeNFTStateStore(mockContext);
-      jest.mocked(store.get).mockResolvedValue(mockVeNFTState);
+      vi.mocked(store.get).mockResolvedValue(mockVeNFTState);
 
       const result = await loadVeNFTState(
         10,
@@ -84,9 +79,9 @@ describe("VeNFTState", () => {
     });
 
     it("returns undefined and logs warn when entity does not exist", async () => {
-      jest
-        .mocked(getVeNFTStateStore(mockContext).get)
-        .mockResolvedValue(undefined);
+      vi.mocked(getVeNFTStateStore(mockContext).get).mockResolvedValue(
+        undefined,
+      );
 
       const result = await loadVeNFTState(
         10,
@@ -121,7 +116,7 @@ describe("VeNFTState", () => {
           timestamp,
           mockContext as handlerContext,
         );
-        const mockSet = jest.mocked(getVeNFTStateStore(mockContext).set);
+        const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
         expect(mockSet).toBeDefined();
         result = mockSet?.mock.calls[0]?.[0] as VeNFTState;
       });
@@ -149,7 +144,7 @@ describe("VeNFTState", () => {
           timestamp,
           mockContext as handlerContext,
         );
-        const mockSet = jest.mocked(getVeNFTStateStore(mockContext).set);
+        const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
         expect(mockSet).toBeDefined();
         result = mockSet?.mock.calls[0]?.[0] as VeNFTState;
       });
@@ -173,7 +168,7 @@ describe("VeNFTState", () => {
           timestamp,
           mockContext as handlerContext,
         );
-        const mockSet = jest.mocked(getVeNFTStateStore(mockContext).set);
+        const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
         expect(mockSet).toBeDefined();
         result = mockSet?.mock.calls[0]?.[0] as VeNFTState;
       });
@@ -197,7 +192,7 @@ describe("VeNFTState", () => {
           timestamp,
           mockContext as handlerContext,
         );
-        const mockSet = jest.mocked(getVeNFTStateStore(mockContext).set);
+        const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
         expect(mockSet).toBeDefined();
         result = mockSet?.mock.calls[0]?.[0] as VeNFTState;
       });
@@ -234,7 +229,7 @@ describe("VeNFTState", () => {
           timestamp,
           mockContext as handlerContext,
         );
-        const mockSet = jest.mocked(getVeNFTStateStore(mockContext).set);
+        const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
         expect(mockSet).toBeDefined();
         result = mockSet?.mock.calls[0]?.[0] as VeNFTState;
       });
@@ -254,7 +249,7 @@ describe("VeNFTState", () => {
           timestamp,
           mockContext as handlerContext,
         );
-        const result = getVeNFTStateStore(mockContext).set as jest.Mock;
+        const result = getVeNFTStateStore(mockContext).set as Mock;
         const updated = result.mock.calls[0][0] as VeNFTState;
         // When lastSnapshotTimestamp is undefined we take a snapshot and set it to the epoch
         expect(updated.lastSnapshotTimestamp).toBeDefined();
@@ -291,7 +286,7 @@ describe("VeNFTState", () => {
           timestamp,
           mockContext as handlerContext,
         );
-        const result = getVeNFTStateStore(mockContext).set as jest.Mock;
+        const result = getVeNFTStateStore(mockContext).set as Mock;
         const updated = result.mock.calls[0][0] as VeNFTState;
         expect(updated.lastSnapshotTimestamp).toEqual(new Date(9000 * 1000));
       });
@@ -312,7 +307,7 @@ describe("VeNFTState", () => {
           timestamp,
           mockContext as handlerContext,
         );
-        const result = getVeNFTStateStore(mockContext).set as jest.Mock;
+        const result = getVeNFTStateStore(mockContext).set as Mock;
         const updated = result.mock.calls[0][0] as VeNFTState;
         expect(updated.lastSnapshotTimestamp).toEqual(newerSnapshotTime);
       });
@@ -334,7 +329,7 @@ describe("VeNFTState", () => {
           timestamp,
           mockContext as handlerContext,
         );
-        const result = getVeNFTStateStore(mockContext).set as jest.Mock;
+        const result = getVeNFTStateStore(mockContext).set as Mock;
         const updated = result.mock.calls[0][0] as VeNFTState;
         expect(updated.lastSnapshotTimestamp).toEqual(existingSnapshot);
       });

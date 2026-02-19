@@ -34,7 +34,7 @@ describe("Voter Effects", () => {
 
   beforeEach(() => {
     mockEthClient = {
-      simulateContract: jest.fn().mockResolvedValue({
+      simulateContract: vi.fn().mockResolvedValue({
         result:
           "0x0000000000000000000000000000000000000000000000000000000000000000",
       } as unknown as { result: string }),
@@ -57,10 +57,10 @@ describe("Voter Effects", () => {
       ) => effect.handler({ input, context: mockContext }),
       ethClient: mockEthClient,
       log: {
-        info: jest.fn(),
-        error: jest.fn(),
-        warn: jest.fn(),
-        debug: jest.fn(),
+        info: vi.fn(),
+        error: vi.fn(),
+        warn: vi.fn(),
+        debug: vi.fn(),
       } as unknown as Envio_logger,
     };
   });
@@ -71,7 +71,7 @@ describe("Voter Effects", () => {
     } else {
       (CHAIN_CONSTANTS as Record<number, unknown>)[TEST_CHAIN_ID] = undefined;
     }
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe("getTokensDeposited", () => {
@@ -90,7 +90,7 @@ describe("Voter Effects", () => {
 
   describe("fetchTokensDeposited", () => {
     it("should fetch tokens deposited from contract", async () => {
-      jest.mocked(mockEthClient.simulateContract).mockResolvedValue({
+      vi.mocked(mockEthClient.simulateContract).mockResolvedValue({
         result: TEST_BALANCE_HEX,
         // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
       } as any);
@@ -106,7 +106,7 @@ describe("Voter Effects", () => {
 
       expect(result).toBe(1000n);
       expect(mockEthClient.simulateContract).toHaveBeenCalledTimes(1);
-      const callArgs = jest.mocked(mockEthClient.simulateContract).mock
+      const callArgs = vi.mocked(mockEthClient.simulateContract).mock
         .calls[0][0];
       expect(callArgs).toMatchObject({
         address: TEST_REWARD_TOKEN,
@@ -117,9 +117,9 @@ describe("Voter Effects", () => {
     });
 
     it("should throw error on contract call failure", async () => {
-      jest
-        .mocked(mockEthClient.simulateContract)
-        .mockRejectedValue(new Error("Contract call failed"));
+      vi.mocked(mockEthClient.simulateContract).mockRejectedValue(
+        new Error("Contract call failed"),
+      );
 
       await expect(
         fetchTokensDeposited(
@@ -134,7 +134,7 @@ describe("Voter Effects", () => {
     });
 
     it("should handle undefined/null results", async () => {
-      jest.mocked(mockEthClient.simulateContract).mockResolvedValue({
+      vi.mocked(mockEthClient.simulateContract).mockResolvedValue({
         result: undefined,
         // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
       } as any);
@@ -161,7 +161,7 @@ describe("Voter Effects", () => {
       ];
 
       for (const { result, expected } of testCases) {
-        jest.mocked(mockEthClient.simulateContract).mockResolvedValue({
+        vi.mocked(mockEthClient.simulateContract).mockResolvedValue({
           result,
           // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
         } as any);
@@ -176,7 +176,7 @@ describe("Voter Effects", () => {
         );
 
         expect(fetchResult).toBe(expected);
-        const callArgs = jest.mocked(mockEthClient.simulateContract).mock
+        const callArgs = vi.mocked(mockEthClient.simulateContract).mock
           .calls[0][0];
         expect(callArgs).toMatchObject({
           address: TEST_VOTER,
@@ -184,14 +184,14 @@ describe("Voter Effects", () => {
           blockNumber: BigInt(TEST_BLOCK_NUMBER),
         });
         expect(callArgs.args).toEqual([TEST_GAUGE]);
-        jest.mocked(mockEthClient.simulateContract).mockClear();
+        vi.mocked(mockEthClient.simulateContract).mockClear();
       }
     });
 
     it("should throw error on contract call failure", async () => {
-      jest
-        .mocked(mockEthClient.simulateContract)
-        .mockRejectedValue(new Error("Contract call failed"));
+      vi.mocked(mockEthClient.simulateContract).mockRejectedValue(
+        new Error("Contract call failed"),
+      );
 
       await expect(
         fetchIsAlive(
@@ -208,9 +208,9 @@ describe("Voter Effects", () => {
 
   describe("getTokensDeposited", () => {
     it("should return undefined on error", async () => {
-      jest
-        .mocked(mockEthClient.simulateContract)
-        .mockRejectedValue(new Error("Contract call failed"));
+      vi.mocked(mockEthClient.simulateContract).mockRejectedValue(
+        new Error("Contract call failed"),
+      );
 
       const result = await mockContext.effect(
         getTokensDeposited as unknown as {
@@ -232,9 +232,9 @@ describe("Voter Effects", () => {
 
   describe("getIsAlive", () => {
     it("should return undefined on error", async () => {
-      jest
-        .mocked(mockEthClient.simulateContract)
-        .mockRejectedValue(new Error("Contract call failed"));
+      vi.mocked(mockEthClient.simulateContract).mockRejectedValue(
+        new Error("Contract call failed"),
+      );
 
       const result = await mockContext.effect(
         getIsAlive as unknown as {

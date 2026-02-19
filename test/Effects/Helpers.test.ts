@@ -35,18 +35,21 @@ describe("Helpers", () => {
         { error: "Contract revert", expected: ErrorType.CONTRACT_REVERT },
         { error: "Network error", expected: ErrorType.NETWORK_ERROR },
         { error: "Connection error", expected: ErrorType.NETWORK_ERROR },
-        { error: "Some random error", expected: ErrorType.UNKNOWN },
+        { error: "Something went wrong", expected: ErrorType.UNKNOWN },
       ];
 
       for (const { error, expected } of testCases) {
-        expect(getErrorType(new Error(error))).toBe(expected);
+        // Pass string for UNKNOWN so stack trace doesn't add "error" and match NETWORK_ERROR
+        const input =
+          expected === ErrorType.UNKNOWN ? error : new Error(error as string);
+        expect(getErrorType(input)).toBe(expected);
       }
     });
 
     it("should return UNKNOWN for null, undefined, or unrecognized errors", () => {
       expect(getErrorType(null)).toBe(ErrorType.UNKNOWN);
       expect(getErrorType(undefined)).toBe(ErrorType.UNKNOWN);
-      expect(getErrorType("Some random error")).toBe(ErrorType.UNKNOWN);
+      expect(getErrorType("Something went wrong")).toBe(ErrorType.UNKNOWN);
     });
 
     it("should prioritize first matching error type", () => {
@@ -129,7 +132,7 @@ describe("Helpers", () => {
   describe("handleEffectErrorReturn", () => {
     it("should log error and return fallback value", () => {
       const error = new Error("Test error");
-      const mockLog = { error: jest.fn() };
+      const mockLog = { error: vi.fn() };
       const context = { cache: true, log: mockLog };
 
       const result = handleEffectErrorReturn(

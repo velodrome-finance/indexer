@@ -1,4 +1,5 @@
-import type { Token, handlerContext } from "../../generated/src/Types.gen";
+import type { Token, handlerContext } from "generated";
+import type { Mock } from "vitest";
 import { createOUSDTSwapEntity } from "../../src/Aggregators/OUSDTSwaps";
 import { OUSDTSwapsId } from "../../src/Constants";
 import { setupCommon } from "../EventHandlers/Pool/common";
@@ -10,30 +11,24 @@ describe("OUSDTSwaps", () => {
     "0x1234567890123456789012345678901234567890123456789012345678901234";
 
   let mockContext: Partial<handlerContext>;
-  let mockOUSDTSwapsSet: jest.Mock;
+  let mockOUSDTSwapsSet: Mock;
 
   beforeEach(() => {
-    mockOUSDTSwapsSet = jest.fn();
+    mockOUSDTSwapsSet = vi.fn();
     mockContext = {
       OUSDTSwaps: {
         set: mockOUSDTSwapsSet,
-        get: jest.fn(),
-        getOrThrow: jest.fn(),
-        getOrCreate: jest.fn(),
-        deleteUnsafe: jest.fn(),
-        getWhere: {
-          transactionHash: {
-            eq: jest.fn(),
-            gt: jest.fn(),
-            lt: jest.fn(),
-          },
-        },
+        get: vi.fn(),
+        getOrThrow: vi.fn(),
+        getOrCreate: vi.fn(),
+        deleteUnsafe: vi.fn(),
+        getWhere: vi.fn().mockResolvedValue([]),
       },
     };
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe("createOUSDTSwapEntity", () => {

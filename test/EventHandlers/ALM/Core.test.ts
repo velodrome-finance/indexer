@@ -1,8 +1,6 @@
+import "../../eventHandlersRegistration";
+import type { ALM_LP_Wrapper, UserStatsPerPool } from "generated";
 import { ALMCore, MockDb } from "../../../generated/src/TestHelpers.gen";
-import type {
-  ALM_LP_Wrapper,
-  UserStatsPerPool,
-} from "../../../generated/src/Types.gen";
 import { ALMLPWrapperId, toChecksumAddress } from "../../../src/Constants";
 import { setupCommon } from "../Pool/common";
 
@@ -94,10 +92,10 @@ describe("ALMCore Rebalance Event", () => {
 
       const mockEvent = ALMCore.Rebalance.createMockEvent({
         rebalanceEventParams: [
-          poolAddress,
+          poolAddress as `0x${string}`,
           [
-            mockALMLPWrapperData.token0,
-            mockALMLPWrapperData.token1,
+            mockALMLPWrapperData.token0 as `0x${string}`,
+            mockALMLPWrapperData.token1 as `0x${string}`,
             newProperty,
             newTickLower,
             newTickUpper,
@@ -112,10 +110,9 @@ describe("ALMCore Rebalance Event", () => {
         mockEventData,
       });
 
-      const result = await ALMCore.Rebalance.processEvent({
-        event: mockEvent,
-        mockDb: mockDbWithGetWhere as typeof mockDb,
-      });
+      const result = await (mockDbWithGetWhere as typeof mockDb).processEvents([
+        mockEvent,
+      ]);
 
       const updatedWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
 
@@ -141,10 +138,10 @@ describe("ALMCore Rebalance Event", () => {
 
       const mockEvent = ALMCore.Rebalance.createMockEvent({
         rebalanceEventParams: [
-          poolAddress,
+          poolAddress as `0x${string}`,
           [
-            mockALMLPWrapperData.token0,
-            mockALMLPWrapperData.token1,
+            mockALMLPWrapperData.token0 as `0x${string}`,
+            mockALMLPWrapperData.token1 as `0x${string}`,
             3000n,
             -1000n,
             1000n,
@@ -159,10 +156,9 @@ describe("ALMCore Rebalance Event", () => {
         mockEventData,
       });
 
-      const result = await ALMCore.Rebalance.processEvent({
-        event: mockEvent,
-        mockDb: mockDbWithGetWhere as typeof mockDb,
-      });
+      const result = await (mockDbWithGetWhere as typeof mockDb).processEvents([
+        mockEvent,
+      ]);
 
       // Verify that no wrapper was created or updated
       expect(Array.from(result.entities.ALM_LP_Wrapper.getAll())).toHaveLength(
@@ -199,10 +195,10 @@ describe("ALMCore Rebalance Event", () => {
       const newTokenId = 3n;
       const mockEvent = ALMCore.Rebalance.createMockEvent({
         rebalanceEventParams: [
-          poolAddress,
+          poolAddress as `0x${string}`,
           [
-            mockALMLPWrapperData.token0,
-            mockALMLPWrapperData.token1,
+            mockALMLPWrapperData.token0 as `0x${string}`,
+            mockALMLPWrapperData.token1 as `0x${string}`,
             3000n,
             -1000n,
             1000n,
@@ -217,10 +213,9 @@ describe("ALMCore Rebalance Event", () => {
         mockEventData,
       });
 
-      const result = await ALMCore.Rebalance.processEvent({
-        event: mockEvent,
-        mockDb: mockDbWithGetWhere as typeof mockDb,
-      });
+      const result = await (mockDbWithGetWhere as typeof mockDb).processEvents([
+        mockEvent,
+      ]);
 
       // Should update the first wrapper (wrapper1)
       const updatedWrapper1 = result.entities.ALM_LP_Wrapper.get(wrapper1.id);
@@ -250,10 +245,10 @@ describe("ALMCore Rebalance Event", () => {
 
       const mockEvent = ALMCore.Rebalance.createMockEvent({
         rebalanceEventParams: [
-          poolAddress,
+          poolAddress as `0x${string}`,
           [
-            mockALMLPWrapperData.token0,
-            mockALMLPWrapperData.token1,
+            mockALMLPWrapperData.token0 as `0x${string}`,
+            mockALMLPWrapperData.token1 as `0x${string}`,
             3000n,
             -1000n,
             1000n,
@@ -268,10 +263,9 @@ describe("ALMCore Rebalance Event", () => {
         mockEventData,
       });
 
-      const result = await ALMCore.Rebalance.processEvent({
-        event: mockEvent,
-        mockDb: mockDbWithGetWhere as typeof mockDb,
-      });
+      const result = await (mockDbWithGetWhere as typeof mockDb).processEvents([
+        mockEvent,
+      ]);
 
       const updatedWrapper = result.entities.ALM_LP_Wrapper.get(
         mockALMLPWrapperData.id,

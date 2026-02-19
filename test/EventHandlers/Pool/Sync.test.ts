@@ -1,8 +1,6 @@
+import "../../eventHandlersRegistration";
+import type { LiquidityPoolAggregator, Token } from "generated";
 import { MockDb, Pool } from "../../../generated/src/TestHelpers.gen";
-import type {
-  LiquidityPoolAggregator,
-  Token,
-} from "../../../generated/src/Types.gen";
 import { PoolId, TEN_TO_THE_18_BI } from "../../../src/Constants";
 import { setupCommon } from "./common";
 
@@ -33,7 +31,7 @@ describe("Pool Sync Event", () => {
       },
       chainId: 10,
       logIndex: 1,
-      srcAddress: "0x3333333333333333333333333333333333333333",
+      srcAddress: "0x3333333333333333333333333333333333333333" as `0x${string}`,
     },
   };
 
@@ -85,10 +83,7 @@ describe("Pool Sync Event", () => {
 
       const mockEvent = Pool.Sync.createMockEvent(eventData);
 
-      postEventDB = await Pool.Sync.processEvent({
-        event: mockEvent,
-        mockDb: updatedDB3,
-      });
+      postEventDB = await updatedDB3.processEvents([mockEvent]);
     });
     it("should update reserves and usd liquidity", async () => {
       const updatedPool = postEventDB.entities.LiquidityPoolAggregator.get(
@@ -115,10 +110,7 @@ describe("Pool Sync Event", () => {
 
       const mockEvent = Pool.Sync.createMockEvent(eventData);
 
-      const postEventDB = await Pool.Sync.processEvent({
-        event: mockEvent,
-        mockDb: updatedDB2,
-      });
+      const postEventDB = await updatedDB2.processEvents([mockEvent]);
 
       // Pool should not exist
       const pool = postEventDB.entities.LiquidityPoolAggregator.get(

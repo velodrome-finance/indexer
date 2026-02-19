@@ -57,7 +57,7 @@ describe("UserStatsPerPool Aggregator", () => {
           set: async (userStats: UserStatsPerPool) => {},
         },
         UserStatsPerPoolSnapshot: {
-          set: jest.fn(),
+          set: vi.fn(),
         } as unknown as handlerContext["UserStatsPerPoolSnapshot"],
         log: {
           error: () => {},

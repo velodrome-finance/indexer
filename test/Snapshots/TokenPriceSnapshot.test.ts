@@ -1,3 +1,4 @@
+import type { Mock } from "vitest";
 import { TokenIdByBlock, toChecksumAddress } from "../../src/Constants";
 import {
   createTokenPriceSnapshot,
@@ -18,7 +19,7 @@ describe("TokenPriceSnapshot", () => {
 
   beforeEach(() => {
     common = setupCommon();
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe("createTokenPriceSnapshot", () => {
@@ -68,7 +69,7 @@ describe("TokenPriceSnapshot", () => {
 
   it("should set snapshot with id from TokenIdByBlock", () => {
     const context = common.createMockContext({
-      TokenPriceSnapshot: { set: jest.fn() },
+      TokenPriceSnapshot: { set: vi.fn() },
     });
 
     setTokenPriceSnapshot(
@@ -82,15 +83,14 @@ describe("TokenPriceSnapshot", () => {
     );
 
     expect(context.TokenPriceSnapshot.set).toHaveBeenCalledTimes(1);
-    const setArg = (context.TokenPriceSnapshot.set as jest.Mock).mock
-      .calls[0][0];
+    const setArg = (context.TokenPriceSnapshot.set as Mock).mock.calls[0][0];
     // TokenIdByBlock(chainId, address, blockNumber) => "chainId-address-blockNumber"
     expect(setArg.id).toBe(TokenIdByBlock(chainId, address, blockNumber));
   });
 
   it("should set snapshot with all passed fields", () => {
     const context = common.createMockContext({
-      TokenPriceSnapshot: { set: jest.fn() },
+      TokenPriceSnapshot: { set: vi.fn() },
     });
 
     setTokenPriceSnapshot(
@@ -103,8 +103,7 @@ describe("TokenPriceSnapshot", () => {
       context,
     );
 
-    const setArg = (context.TokenPriceSnapshot.set as jest.Mock).mock
-      .calls[0][0];
+    const setArg = (context.TokenPriceSnapshot.set as Mock).mock.calls[0][0];
     expect(setArg.address).toBe(address);
     expect(setArg.chainId).toBe(chainId);
     expect(setArg.pricePerUSDNew).toBe(pricePerUSDNew);
@@ -114,7 +113,7 @@ describe("TokenPriceSnapshot", () => {
 
   it("should handle isWhitelisted false", () => {
     const context = common.createMockContext({
-      TokenPriceSnapshot: { set: jest.fn() },
+      TokenPriceSnapshot: { set: vi.fn() },
     });
 
     setTokenPriceSnapshot(
@@ -127,8 +126,7 @@ describe("TokenPriceSnapshot", () => {
       context,
     );
 
-    const setArg = (context.TokenPriceSnapshot.set as jest.Mock).mock
-      .calls[0][0];
+    const setArg = (context.TokenPriceSnapshot.set as Mock).mock.calls[0][0];
     expect(setArg.isWhitelisted).toBe(false);
   });
 });

@@ -1,9 +1,7 @@
+import "../eventHandlersRegistration";
+import type { CLGaugeConfig, LiquidityPoolAggregator, Token } from "generated";
+import type { Mock, MockInstance } from "vitest";
 import { CLFactory, MockDb } from "../../generated/src/TestHelpers.gen";
-import type {
-  CLGaugeConfig,
-  LiquidityPoolAggregator,
-  Token,
-} from "../../generated/src/Types.gen";
 import {
   CHAIN_CONSTANTS,
   FeeToTickSpacingMappingId,
@@ -36,7 +34,9 @@ describe("CLFactory Events", () => {
     lastUpdatedTimestamp: new Date(1000000 * 1000),
   });
 
-  let processSpy: jest.SpyInstance;
+  let processSpy: MockInstance<
+    typeof CLFactoryPoolCreatedLogic.processCLFactoryPoolCreated
+  >;
   // Store the original newCLGaugeFactoryAddress from Constants (Base chain: 0xaDe65c38CD4849aDBA595a4323a8C7DdfE89716a)
   const originalNewCLGaugeFactoryAddress = toChecksumAddress(
     "0xaDe65c38CD4849aDBA595a4323a8C7DdfE89716a",
@@ -57,9 +57,8 @@ describe("CLFactory Events", () => {
     newCLGaugeFactoryAddress = originalNewCLGaugeFactoryAddress;
 
     // Mock createTokenEntity in case it's called for missing tokens
-    jest
-      .spyOn(PriceOracle, "createTokenEntity")
-      .mockImplementation(async (address: string) => ({
+    vi.spyOn(PriceOracle, "createTokenEntity").mockImplementation(
+      async (address: string) => ({
         id: TokenId(chainId, address),
         address: address,
         symbol: "",
@@ -69,9 +68,10 @@ describe("CLFactory Events", () => {
         chainId: chainId,
         isWhitelisted: false,
         lastUpdatedTimestamp: new Date(),
-      }));
+      }),
+    );
 
-    processSpy = jest
+    processSpy = vi
       .spyOn(CLFactoryPoolCreatedLogic, "processCLFactoryPoolCreated")
       .mockImplementation(
         async (
@@ -109,7 +109,7 @@ describe("CLFactory Events", () => {
       CHAIN_CONSTANTS[chainId].newCLGaugeFactoryAddress =
         originalNewCLGaugeFactoryAddressValue;
     }
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe("PoolCreated event", () => {
@@ -151,8 +151,8 @@ describe("CLFactory Events", () => {
       );
 
       mockEvent = CLFactory.PoolCreated.createMockEvent({
-        token0: token0Address,
-        token1: token1Address,
+        token0: token0Address as `0x${string}`,
+        token1: token1Address as `0x${string}`,
         pool: poolAddress,
         tickSpacing: TICK_SPACING,
         mockEventData: {
@@ -166,10 +166,7 @@ describe("CLFactory Events", () => {
         },
       });
 
-      resultDB = await CLFactory.PoolCreated.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      resultDB = await mockDb.processEvents([mockEvent]);
     });
 
     it("should call processCLFactoryPoolCreated with correct parameters", () => {
@@ -256,10 +253,7 @@ describe("CLFactory Events", () => {
       expect(mappingBefore).toBeDefined(); // Verify mapping exists before processing
 
       // Handlers now run during both preload and normal phases
-      const result = await CLFactory.PoolCreated.processEvent({
-        event: mockEvent,
-        mockDb: preloadMockDb,
-      });
+      const result = await preloadMockDb.processEvents([mockEvent]);
 
       // Verify that the handler ran (pool should be created if mapping exists)
       const pool = result.entities.LiquidityPoolAggregator.get(
@@ -328,10 +322,7 @@ describe("CLFactory Events", () => {
         mockDbWithoutMapping.entities.CLGaugeConfig.set(clGaugeConfig);
       // Note: FeeToTickSpacingMapping is NOT set
 
-      const result = await CLFactory.PoolCreated.processEvent({
-        event: mockEvent,
-        mockDb: mockDbWithoutMapping,
-      });
+      const result = await mockDbWithoutMapping.processEvents([mockEvent]);
 
       const pool = result.entities.LiquidityPoolAggregator.get(
         PoolId(chainId, poolAddress),
@@ -386,10 +377,7 @@ describe("CLFactory Events", () => {
       const mappingId = FeeToTickSpacingMappingId(CHAIN_ID, TICK_SPACING);
       const mockEvent = createMockEvent(TICK_SPACING, FEE);
 
-      const result = await CLFactory.TickSpacingEnabled.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       const mapping = result.entities.FeeToTickSpacingMapping.get(mappingId);
       expect(mapping).toBeDefined();
@@ -425,10 +413,7 @@ describe("CLFactory Events", () => {
         logIndex: 2,
       });
 
-      const result = await CLFactory.TickSpacingEnabled.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       const updatedMapping =
         result.entities.FeeToTickSpacingMapping.get(mappingId);
@@ -485,10 +470,7 @@ describe("CLFactory Events", () => {
             chainId: mapping.chainId,
           });
 
-          result = await CLFactory.TickSpacingEnabled.processEvent({
-            event: mockEvent,
-            mockDb: result,
-          });
+          result = await result.processEvents([mockEvent]);
         }
 
         // Verify all mappings were created correctly

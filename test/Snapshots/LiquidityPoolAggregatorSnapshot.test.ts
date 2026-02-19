@@ -1,3 +1,4 @@
+import type { Mock } from "vitest";
 import {
   LiquidityPoolAggregatorSnapshotId,
   SNAPSHOT_INTERVAL_IN_MS,
@@ -15,7 +16,7 @@ describe("LiquidityPoolAggregatorSnapshot", () => {
 
   beforeEach(() => {
     common = setupCommon();
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe("createLiquidityPoolAggregatorSnapshot", () => {
@@ -53,7 +54,7 @@ describe("LiquidityPoolAggregatorSnapshot", () => {
 
   it("should set snapshot with epoch-aligned timestamp and correct id", () => {
     const context = common.createMockContext({
-      LiquidityPoolAggregatorSnapshot: { set: jest.fn() },
+      LiquidityPoolAggregatorSnapshot: { set: vi.fn() },
     });
     const pool = common.createMockLiquidityPoolAggregator();
     const timestamp = new Date(baseTimestamp.getTime() + 30 * 60 * 1000); // 30 min into epoch
@@ -63,8 +64,8 @@ describe("LiquidityPoolAggregatorSnapshot", () => {
     expect(context.LiquidityPoolAggregatorSnapshot.set).toHaveBeenCalledTimes(
       1,
     );
-    const setArg = (context.LiquidityPoolAggregatorSnapshot.set as jest.Mock)
-      .mock.calls[0][0];
+    const setArg = (context.LiquidityPoolAggregatorSnapshot.set as Mock).mock
+      .calls[0][0];
     const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 5;
     expect(setArg.id).toBe(
       LiquidityPoolAggregatorSnapshotId(
@@ -80,14 +81,14 @@ describe("LiquidityPoolAggregatorSnapshot", () => {
 
   it("should set all snapshot fields from pool (with id and timestamp from epoch)", () => {
     const context = common.createMockContext({
-      LiquidityPoolAggregatorSnapshot: { set: jest.fn() },
+      LiquidityPoolAggregatorSnapshot: { set: vi.fn() },
     });
     const pool = common.createMockLiquidityPoolAggregator();
 
     setLiquidityPoolAggregatorSnapshot(pool, baseTimestamp, context);
 
-    const setArg = (context.LiquidityPoolAggregatorSnapshot.set as jest.Mock)
-      .mock.calls[0][0];
+    const setArg = (context.LiquidityPoolAggregatorSnapshot.set as Mock).mock
+      .calls[0][0];
     const expectedEpoch = getSnapshotEpoch(baseTimestamp);
 
     expect(setArg.id).toBe(

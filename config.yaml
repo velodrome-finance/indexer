@@ -1,11 +1,8 @@
 # yaml-language-server: $schema=./node_modules/envio/evm.schema.json
 name: Velodrome_v2
 description: Multi-chain indexer for Velodrome V2 on Optimism and Aerodrome on Base
-unordered_multichain_mode: true
 rollback_on_reorg: true
 raw_events: false
-event_decoder: hypersync-client
-preload_handlers: true
 field_selection:
   transaction_fields:
     - "hash"
@@ -203,7 +200,7 @@ contracts:
     events:
       - event: DispatchId
       - event: ProcessId
-networks:
+chains:
   - id: 10 # Optimism
     start_block: 0
     contracts:

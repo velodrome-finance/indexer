@@ -8,7 +8,7 @@ import type {
   VeNFTPoolVote,
   VeNFTState,
   handlerContext,
-} from "../../../generated/src/Types.gen";
+} from "generated";
 import {
   ALMLPWrapperId,
   NonFungiblePositionId,
@@ -39,7 +39,7 @@ export function setupCommon() {
 
   const mockToken0Data: Token = {
     id: TokenId(CHAIN_ID, TOKEN0_ADDRESS),
-    address: TOKEN0_ADDRESS,
+    address: TOKEN0_ADDRESS as `0x${string}`,
     symbol: "USDT",
     name: "Tether USD",
     decimals: 18n,
@@ -51,7 +51,7 @@ export function setupCommon() {
 
   const mockToken1Data: Token = {
     id: TokenId(CHAIN_ID, TOKEN1_ADDRESS),
-    address: TOKEN1_ADDRESS,
+    address: TOKEN1_ADDRESS as `0x${string}`,
     symbol: "USDC",
     name: "USD Coin",
     decimals: 6n,
@@ -67,8 +67,8 @@ export function setupCommon() {
     chainId: CHAIN_ID,
     token0_id: mockToken0Data.id,
     token1_id: mockToken1Data.id,
-    token0_address: mockToken0Data.address,
-    token1_address: mockToken1Data.address,
+    token0_address: mockToken0Data.address as `0x${string}`,
+    token1_address: mockToken1Data.address as `0x${string}`,
     isStable: false,
     reserve0: 200n * TEN_TO_THE_18_BI,
     reserve1: 200n * TEN_TO_THE_6_BI,
@@ -431,7 +431,7 @@ export function setupCommon() {
 
   /**
    * Builds a minimal handlerContext with only the given entities.
-   * Each key is an entity name (e.g. "VeNFTStateSnapshot"); each value is an object with the methods to mock (e.g. { set: jest.fn() }).
+   * Each key is an entity name (e.g. "VeNFTStateSnapshot"); each value is an object with the methods to mock (e.g. { set: vi.fn() }).
    * Use for snapshot tests and any test that only needs to spy on entity methods.
    */
   function createMockContext(

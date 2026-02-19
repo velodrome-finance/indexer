@@ -1,4 +1,5 @@
 import type { ALM_LP_Wrapper, handlerContext } from "generated";
+import type { Mock } from "vitest";
 import {
   ALMLPWrapperId,
   ALMLPWrapperTransferInTxId,
@@ -50,10 +51,10 @@ describe("LPWrapperLogic", () => {
   const mockSqrtPriceX96 = 79228162514264337593543950336n; // sqrt(1) * 2^96
 
   let mockContext: handlerContext;
-  let mockLiquidityPoolAggregator: jest.Mock;
+  let mockLiquidityPoolAggregator: Mock;
 
   beforeEach(() => {
-    mockLiquidityPoolAggregator = jest.fn().mockResolvedValue({
+    mockLiquidityPoolAggregator = vi.fn().mockResolvedValue({
       sqrtPriceX96: mockSqrtPriceX96,
       isCL: true,
     });
@@ -63,15 +64,15 @@ describe("LPWrapperLogic", () => {
         get: mockLiquidityPoolAggregator,
       },
       log: {
-        warn: jest.fn(),
-        error: jest.fn(),
-        info: jest.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+        info: vi.fn(),
       },
     } as unknown as handlerContext;
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe("deriveUserAmounts", () => {
@@ -214,7 +215,7 @@ describe("LPWrapperLogic", () => {
 
       // Should return current liquidity
       expect(result).toBe(wrapper.liquidity);
-      expect(mockContext.log.error as jest.Mock).toHaveBeenCalledTimes(1);
+      expect(mockContext.log.error as Mock).toHaveBeenCalledTimes(1);
       expect(mockLiquidityPoolAggregator).toHaveBeenCalledTimes(1);
     });
 
@@ -247,7 +248,7 @@ describe("LPWrapperLogic", () => {
 
       // Should return current liquidity
       expect(result).toBe(wrapper.liquidity);
-      expect(mockContext.log.error as jest.Mock).toHaveBeenCalledTimes(1);
+      expect(mockContext.log.error as Mock).toHaveBeenCalledTimes(1);
     });
 
     it("should return current liquidity if sqrtPriceX96 is undefined", async () => {
@@ -280,8 +281,8 @@ describe("LPWrapperLogic", () => {
 
       // Should return current liquidity
       expect(result).toBe(wrapper.liquidity);
-      expect(mockContext.log.warn as jest.Mock).toHaveBeenCalledTimes(1);
-      expect((mockContext.log.warn as jest.Mock).mock.calls[0][0]).toContain(
+      expect(mockContext.log.warn as Mock).toHaveBeenCalledTimes(1);
+      expect((mockContext.log.warn as Mock).mock.calls[0][0]).toContain(
         "sqrtPriceX96 is undefined or 0",
       );
     });
@@ -316,7 +317,7 @@ describe("LPWrapperLogic", () => {
 
       // Should return current liquidity
       expect(result).toBe(wrapper.liquidity);
-      expect(mockContext.log.warn as jest.Mock).toHaveBeenCalledTimes(1);
+      expect(mockContext.log.warn as Mock).toHaveBeenCalledTimes(1);
     });
 
     it("should handle unexpected errors gracefully", async () => {
@@ -348,8 +349,8 @@ describe("LPWrapperLogic", () => {
 
       // Should return current liquidity on error
       expect(result).toBe(wrapper.liquidity);
-      expect(mockContext.log.error as jest.Mock).toHaveBeenCalledTimes(1);
-      expect((mockContext.log.error as jest.Mock).mock.calls[0][0]).toContain(
+      expect(mockContext.log.error as Mock).toHaveBeenCalledTimes(1);
+      expect((mockContext.log.error as Mock).mock.calls[0][0]).toContain(
         "Error calculating liquidity from amounts",
       );
     });
@@ -379,7 +380,7 @@ describe("LPWrapperLogic", () => {
         "CustomEvent",
       );
 
-      expect((mockContext.log.error as jest.Mock).mock.calls[0][0]).toContain(
+      expect((mockContext.log.error as Mock).mock.calls[0][0]).toContain(
         "ALMLPWrapper.CustomEvent",
       );
     });
@@ -393,10 +394,10 @@ describe("LPWrapperLogic", () => {
     beforeEach(() => {
       mockContext = {
         ALM_LP_Wrapper: {
-          get: jest.fn(),
+          get: vi.fn(),
         },
         log: {
-          error: jest.fn(),
+          error: vi.fn(),
         },
       } as unknown as handlerContext;
     });
@@ -408,40 +409,32 @@ describe("LPWrapperLogic", () => {
         id: wrapperId,
       };
 
-      (mockContext.ALM_LP_Wrapper?.get as jest.Mock).mockResolvedValue(
-        mockWrapper,
-      );
+      (mockContext.ALM_LP_Wrapper?.get as Mock).mockResolvedValue(mockWrapper);
 
       const result = await loadALMLPWrapper(srcAddress, chainId, mockContext);
 
       expect(result).toEqual(mockWrapper);
-      expect(
-        mockContext.ALM_LP_Wrapper?.get as jest.Mock,
-      ).toHaveBeenCalledTimes(1);
-      expect(
-        (mockContext.ALM_LP_Wrapper?.get as jest.Mock).mock.calls[0][0],
-      ).toBe(wrapperId);
-      expect(mockContext.log.error as jest.Mock).toHaveBeenCalledTimes(0);
+      expect(mockContext.ALM_LP_Wrapper?.get as Mock).toHaveBeenCalledTimes(1);
+      expect((mockContext.ALM_LP_Wrapper?.get as Mock).mock.calls[0][0]).toBe(
+        wrapperId,
+      );
+      expect(mockContext.log.error as Mock).toHaveBeenCalledTimes(0);
     });
 
     it("should return null and log error when wrapper not found", async () => {
       const wrapperId = ALMLPWrapperId(chainId, srcAddress);
 
-      (mockContext.ALM_LP_Wrapper?.get as jest.Mock).mockResolvedValue(
-        undefined,
-      );
+      (mockContext.ALM_LP_Wrapper?.get as Mock).mockResolvedValue(undefined);
 
       const result = await loadALMLPWrapper(srcAddress, chainId, mockContext);
 
       expect(result).toBeNull();
-      expect(
-        mockContext.ALM_LP_Wrapper?.get as jest.Mock,
-      ).toHaveBeenCalledTimes(1);
-      expect(
-        (mockContext.ALM_LP_Wrapper?.get as jest.Mock).mock.calls[0][0],
-      ).toBe(wrapperId);
-      expect(mockContext.log.error as jest.Mock).toHaveBeenCalledTimes(1);
-      expect((mockContext.log.error as jest.Mock).mock.calls[0][0]).toContain(
+      expect(mockContext.ALM_LP_Wrapper?.get as Mock).toHaveBeenCalledTimes(1);
+      expect((mockContext.ALM_LP_Wrapper?.get as Mock).mock.calls[0][0]).toBe(
+        wrapperId,
+      );
+      expect(mockContext.log.error as Mock).toHaveBeenCalledTimes(1);
+      expect((mockContext.log.error as Mock).mock.calls[0][0]).toContain(
         wrapperId,
       );
     });
@@ -462,17 +455,17 @@ describe("LPWrapperLogic", () => {
 
       mockContext = {
         ALM_LP_Wrapper: {
-          get: jest.fn(),
-          set: jest.fn(),
+          get: vi.fn(),
+          set: vi.fn(),
         },
         UserStatsPerPool: {
-          get: jest.fn(),
-          set: jest.fn(),
+          get: vi.fn(),
+          set: vi.fn(),
         },
-        UserStatsPerPoolSnapshot: { set: jest.fn() },
-        ALM_LP_WrapperSnapshot: { set: jest.fn() },
+        UserStatsPerPoolSnapshot: { set: vi.fn() },
+        ALM_LP_WrapperSnapshot: { set: vi.fn() },
         LiquidityPoolAggregator: {
-          get: jest.fn((poolAddr) => {
+          get: vi.fn((poolAddr) => {
             if (poolAddr === poolId) {
               return Promise.resolve(mockPool);
             }
@@ -480,8 +473,8 @@ describe("LPWrapperLogic", () => {
           }),
         },
         log: {
-          warn: jest.fn(),
-          error: jest.fn(),
+          warn: vi.fn(),
+          error: vi.fn(),
         },
       } as unknown as handlerContext;
     });
@@ -507,12 +500,12 @@ describe("LPWrapperLogic", () => {
         almLpAmount: 0n,
       };
 
-      (mockContext.ALM_LP_Wrapper?.get as jest.Mock).mockResolvedValueOnce(
+      (mockContext.ALM_LP_Wrapper?.get as Mock).mockResolvedValueOnce(
         mockWrapper,
       );
       // Pre-create user stats so loadOrCreateUserData doesn't call set
       // (loadOrCreateUserData calls set when creating a new entity)
-      (mockContext.UserStatsPerPool?.get as jest.Mock).mockResolvedValueOnce(
+      (mockContext.UserStatsPerPool?.get as Mock).mockResolvedValueOnce(
         mockUserStats,
       );
 
@@ -530,10 +523,8 @@ describe("LPWrapperLogic", () => {
       );
 
       // Verify wrapper was updated
-      expect(
-        mockContext.ALM_LP_Wrapper?.set as jest.Mock,
-      ).toHaveBeenCalledTimes(1);
-      const wrapperUpdate = (mockContext.ALM_LP_Wrapper?.set as jest.Mock).mock
+      expect(mockContext.ALM_LP_Wrapper?.set as Mock).toHaveBeenCalledTimes(1);
+      const wrapperUpdate = (mockContext.ALM_LP_Wrapper?.set as Mock).mock
         .calls[0][0];
       // lpAmount is aggregated: diff.lpAmount + current.lpAmount
       // Deposit: lpAmount (1000) + current (2000) = 3000
@@ -552,9 +543,9 @@ describe("LPWrapperLogic", () => {
       );
 
       // Verify user stats were updated
-      expect(
-        mockContext.UserStatsPerPool?.set as jest.Mock,
-      ).toHaveBeenCalledTimes(1);
+      expect(mockContext.UserStatsPerPool?.set as Mock).toHaveBeenCalledTimes(
+        1,
+      );
     });
 
     it("should return early if wrapper not found", async () => {
@@ -565,12 +556,12 @@ describe("LPWrapperLogic", () => {
         toChecksumAddress(poolAddress),
       );
 
-      (mockContext.ALM_LP_Wrapper?.get as jest.Mock).mockResolvedValueOnce(
+      (mockContext.ALM_LP_Wrapper?.get as Mock).mockResolvedValueOnce(
         undefined,
       );
       // Pre-create user stats so loadOrCreateUserData doesn't call set
       // (loadOrCreateUserData is called in parallel and may call set before we return early)
-      (mockContext.UserStatsPerPool?.get as jest.Mock).mockResolvedValueOnce({
+      (mockContext.UserStatsPerPool?.get as Mock).mockResolvedValueOnce({
         id: userStatsId,
         userAddress: toChecksumAddress(recipient),
         poolAddress: toChecksumAddress(poolAddress),
@@ -592,12 +583,10 @@ describe("LPWrapperLogic", () => {
       );
 
       // Should not update anything
-      expect(
-        mockContext.ALM_LP_Wrapper?.set as jest.Mock,
-      ).toHaveBeenCalledTimes(0);
-      expect(
-        mockContext.UserStatsPerPool?.set as jest.Mock,
-      ).toHaveBeenCalledTimes(0);
+      expect(mockContext.ALM_LP_Wrapper?.set as Mock).toHaveBeenCalledTimes(0);
+      expect(mockContext.UserStatsPerPool?.set as Mock).toHaveBeenCalledTimes(
+        0,
+      );
     });
   });
 
@@ -613,17 +602,17 @@ describe("LPWrapperLogic", () => {
 
       mockContext = {
         ALM_LP_Wrapper: {
-          get: jest.fn(),
-          set: jest.fn(),
+          get: vi.fn(),
+          set: vi.fn(),
         },
         UserStatsPerPool: {
-          get: jest.fn(),
-          set: jest.fn(),
+          get: vi.fn(),
+          set: vi.fn(),
         },
-        UserStatsPerPoolSnapshot: { set: jest.fn() },
-        ALM_LP_WrapperSnapshot: { set: jest.fn() },
+        UserStatsPerPoolSnapshot: { set: vi.fn() },
+        ALM_LP_WrapperSnapshot: { set: vi.fn() },
         LiquidityPoolAggregator: {
-          get: jest.fn((poolAddr) => {
+          get: vi.fn((poolAddr) => {
             if (poolAddr === poolId) {
               return Promise.resolve(mockPool);
             }
@@ -631,8 +620,8 @@ describe("LPWrapperLogic", () => {
           }),
         },
         log: {
-          warn: jest.fn(),
-          error: jest.fn(),
+          warn: vi.fn(),
+          error: vi.fn(),
         },
       } as unknown as handlerContext;
     });
@@ -658,10 +647,10 @@ describe("LPWrapperLogic", () => {
         almLpAmount: 1000n * TEN_TO_THE_18_BI,
       };
 
-      (mockContext.ALM_LP_Wrapper?.get as jest.Mock).mockResolvedValueOnce(
+      (mockContext.ALM_LP_Wrapper?.get as Mock).mockResolvedValueOnce(
         mockWrapper,
       );
-      (mockContext.UserStatsPerPool?.get as jest.Mock).mockResolvedValueOnce(
+      (mockContext.UserStatsPerPool?.get as Mock).mockResolvedValueOnce(
         mockUserStats,
       );
 
@@ -682,10 +671,8 @@ describe("LPWrapperLogic", () => {
       );
 
       // Verify wrapper was updated
-      expect(
-        mockContext.ALM_LP_Wrapper?.set as jest.Mock,
-      ).toHaveBeenCalledTimes(1);
-      const wrapperUpdate = (mockContext.ALM_LP_Wrapper?.set as jest.Mock).mock
+      expect(mockContext.ALM_LP_Wrapper?.set as Mock).toHaveBeenCalledTimes(1);
+      const wrapperUpdate = (mockContext.ALM_LP_Wrapper?.set as Mock).mock
         .calls[0][0];
       // lpAmount is aggregated: diff.lpAmount + current.lpAmount
       // Withdraw: -lpAmount (-500) + current (2000) = 1500
@@ -706,9 +693,9 @@ describe("LPWrapperLogic", () => {
       expect(wrapperUpdate.liquidity).toBe(expectedLiquidity);
 
       // Verify user stats were updated
-      expect(
-        mockContext.UserStatsPerPool?.set as jest.Mock,
-      ).toHaveBeenCalledTimes(1);
+      expect(mockContext.UserStatsPerPool?.set as Mock).toHaveBeenCalledTimes(
+        1,
+      );
     });
 
     it("should return early if wrapper not found", async () => {
@@ -718,12 +705,12 @@ describe("LPWrapperLogic", () => {
         toChecksumAddress(poolAddress),
       );
 
-      (mockContext.ALM_LP_Wrapper?.get as jest.Mock).mockResolvedValueOnce(
+      (mockContext.ALM_LP_Wrapper?.get as Mock).mockResolvedValueOnce(
         undefined,
       );
       // Pre-create user stats so loadOrCreateUserData doesn't call set
       // (loadOrCreateUserData is called in parallel and may call set before we return early)
-      (mockContext.UserStatsPerPool?.get as jest.Mock).mockResolvedValueOnce({
+      (mockContext.UserStatsPerPool?.get as Mock).mockResolvedValueOnce({
         id: userStatsId,
         userAddress: toChecksumAddress(sender),
         poolAddress: toChecksumAddress(poolAddress),
@@ -748,12 +735,10 @@ describe("LPWrapperLogic", () => {
       );
 
       // Should not update anything
-      expect(
-        mockContext.ALM_LP_Wrapper?.set as jest.Mock,
-      ).toHaveBeenCalledTimes(0);
-      expect(
-        mockContext.UserStatsPerPool?.set as jest.Mock,
-      ).toHaveBeenCalledTimes(0);
+      expect(mockContext.ALM_LP_Wrapper?.set as Mock).toHaveBeenCalledTimes(0);
+      expect(mockContext.UserStatsPerPool?.set as Mock).toHaveBeenCalledTimes(
+        0,
+      );
     });
   });
 
@@ -763,16 +748,16 @@ describe("LPWrapperLogic", () => {
     beforeEach(() => {
       mockContext = {
         ALM_LP_Wrapper: {
-          get: jest.fn(),
+          get: vi.fn(),
         },
         UserStatsPerPool: {
-          get: jest.fn(),
-          set: jest.fn(),
+          get: vi.fn(),
+          set: vi.fn(),
         },
-        UserStatsPerPoolSnapshot: { set: jest.fn() },
-        ALM_LP_WrapperSnapshot: { set: jest.fn() },
+        UserStatsPerPoolSnapshot: { set: vi.fn() },
+        ALM_LP_WrapperSnapshot: { set: vi.fn() },
         log: {
-          error: jest.fn(),
+          error: vi.fn(),
         },
       } as unknown as handlerContext;
     });
@@ -813,10 +798,10 @@ describe("LPWrapperLogic", () => {
         almLpAmount: 0n,
       };
 
-      (mockContext.ALM_LP_Wrapper?.get as jest.Mock).mockResolvedValueOnce(
+      (mockContext.ALM_LP_Wrapper?.get as Mock).mockResolvedValueOnce(
         mockWrapper,
       );
-      (mockContext.UserStatsPerPool?.get as jest.Mock)
+      (mockContext.UserStatsPerPool?.get as Mock)
         .mockResolvedValueOnce(mockFromUserStats)
         .mockResolvedValueOnce(mockToUserStats);
 
@@ -837,19 +822,19 @@ describe("LPWrapperLogic", () => {
       // Verify both user stats were updated
       // loadOrCreateUserData doesn't call set since both entities exist
       // updateUserStatsPerPool is called twice (once for sender, once for recipient)
-      expect(
-        mockContext.UserStatsPerPool?.set as jest.Mock,
-      ).toHaveBeenCalledTimes(2);
+      expect(mockContext.UserStatsPerPool?.set as Mock).toHaveBeenCalledTimes(
+        2,
+      );
 
       // Verify sender's stats were updated (decreased)
-      const fromUpdate = (mockContext.UserStatsPerPool?.set as jest.Mock).mock
+      const fromUpdate = (mockContext.UserStatsPerPool?.set as Mock).mock
         .calls[0][0];
       expect(fromUpdate.almLpAmount).toBe(
         mockFromUserStats.almLpAmount - value,
       );
 
       // Verify recipient's stats were updated (increased)
-      const toUpdate = (mockContext.UserStatsPerPool?.set as jest.Mock).mock
+      const toUpdate = (mockContext.UserStatsPerPool?.set as Mock).mock
         .calls[1][0];
       expect(toUpdate.almLpAmount).toBe(value);
       expect(toUpdate.almAddress).toBe(srcAddress);
@@ -887,16 +872,14 @@ describe("LPWrapperLogic", () => {
       );
 
       // Should not load wrapper or update any stats
-      expect(
-        mockContext.ALM_LP_Wrapper?.get as jest.Mock,
-      ).toHaveBeenCalledTimes(0);
-      expect(
-        mockContext.UserStatsPerPool?.set as jest.Mock,
-      ).toHaveBeenCalledTimes(0);
+      expect(mockContext.ALM_LP_Wrapper?.get as Mock).toHaveBeenCalledTimes(0);
+      expect(mockContext.UserStatsPerPool?.set as Mock).toHaveBeenCalledTimes(
+        0,
+      );
     });
 
     it("should return early if wrapper not found", async () => {
-      (mockContext.ALM_LP_Wrapper?.get as jest.Mock).mockResolvedValueOnce(
+      (mockContext.ALM_LP_Wrapper?.get as Mock).mockResolvedValueOnce(
         undefined,
       );
 
@@ -915,9 +898,9 @@ describe("LPWrapperLogic", () => {
       );
 
       // Should not update any stats
-      expect(
-        mockContext.UserStatsPerPool?.set as jest.Mock,
-      ).toHaveBeenCalledTimes(0);
+      expect(mockContext.UserStatsPerPool?.set as Mock).toHaveBeenCalledTimes(
+        0,
+      );
     });
 
     it("should return early when sender has no UserStatsPerPool", async () => {
@@ -925,13 +908,13 @@ describe("LPWrapperLogic", () => {
       // Id format must match UserStatsPerPoolId(chainId, userAddress, poolAddress) from Constants
       const poolInWrapper = toChecksumAddress(poolAddress);
       const fromUserStatsId = UserStatsPerPoolId(chainId, from, poolInWrapper);
-      (mockContext.ALM_LP_Wrapper?.get as jest.Mock).mockResolvedValueOnce({
+      (mockContext.ALM_LP_Wrapper?.get as Mock).mockResolvedValueOnce({
         ...mockALMLPWrapperData,
         id: wrapperId,
         pool: poolInWrapper,
         lpAmount: 2000n * TEN_TO_THE_18_BI,
       });
-      (mockContext.UserStatsPerPool?.get as jest.Mock).mockImplementation(
+      (mockContext.UserStatsPerPool?.get as Mock).mockImplementation(
         (id: string) =>
           Promise.resolve(
             id === fromUserStatsId
@@ -961,9 +944,9 @@ describe("LPWrapperLogic", () => {
         false,
       );
 
-      expect(
-        mockContext.UserStatsPerPool?.set as jest.Mock,
-      ).toHaveBeenCalledTimes(0);
+      expect(mockContext.UserStatsPerPool?.set as Mock).toHaveBeenCalledTimes(
+        0,
+      );
     });
 
     it("should store burn Transfer event for V1 wrapper", async () => {
@@ -972,7 +955,7 @@ describe("LPWrapperLogic", () => {
       mockContext = {
         ...mockContext,
         ALMLPWrapperTransferInTx: {
-          set: jest.fn(),
+          set: vi.fn(),
         },
         // biome-ignore lint/suspicious/noExplicitAny: Mock context type extension needed for test
       } as any;
@@ -994,11 +977,11 @@ describe("LPWrapperLogic", () => {
       // Verify burn Transfer event was stored
       expect(
         // biome-ignore lint/suspicious/noExplicitAny: Mock context type extension needed for test
-        (mockContext as any).ALMLPWrapperTransferInTx?.set as jest.Mock,
+        (mockContext as any).ALMLPWrapperTransferInTx?.set as Mock,
       ).toHaveBeenCalledTimes(1);
       const storedTransfer =
         // biome-ignore lint/suspicious/noExplicitAny: Mock context type extension needed for test
-        ((mockContext as any).ALMLPWrapperTransferInTx?.set as jest.Mock).mock
+        ((mockContext as any).ALMLPWrapperTransferInTx?.set as Mock).mock
           .calls[0][0];
       expect(storedTransfer.id).toBe(
         ALMLPWrapperTransferInTxId(
@@ -1023,7 +1006,7 @@ describe("LPWrapperLogic", () => {
       mockContext = {
         ...mockContext,
         ALMLPWrapperTransferInTx: {
-          set: jest.fn(),
+          set: vi.fn(),
         },
         // biome-ignore lint/suspicious/noExplicitAny: Mock context type extension needed for test
       } as any;
@@ -1045,7 +1028,7 @@ describe("LPWrapperLogic", () => {
       // Verify burn Transfer event was NOT stored
       expect(
         // biome-ignore lint/suspicious/noExplicitAny: Mock context type extension needed for test
-        (mockContext as any).ALMLPWrapperTransferInTx?.set as jest.Mock,
+        (mockContext as any).ALMLPWrapperTransferInTx?.set as Mock,
       ).toHaveBeenCalledTimes(0);
     });
   });
@@ -1056,15 +1039,11 @@ describe("LPWrapperLogic", () => {
     beforeEach(() => {
       mockContext = {
         ALMLPWrapperTransferInTx: {
-          getWhere: {
-            txHash: {
-              eq: jest.fn(),
-            },
-          },
+          getWhere: vi.fn().mockResolvedValue([]),
         },
         log: {
-          warn: jest.fn(),
-          error: jest.fn(),
+          warn: vi.fn(),
+          error: vi.fn(),
         },
         // biome-ignore lint/suspicious/noExplicitAny: Mock context type extension needed for test
       } as any;
@@ -1105,7 +1084,7 @@ describe("LPWrapperLogic", () => {
       };
 
       (
-        mockContext.ALMLPWrapperTransferInTx?.getWhere?.txHash?.eq as jest.Mock
+        mockContext.ALMLPWrapperTransferInTx?.getWhere as Mock
       ).mockResolvedValue([matchingBurn, otherBurn, nonMatchingBurn]);
 
       const result = await getMatchingBurnTransferInTx(
@@ -1125,7 +1104,7 @@ describe("LPWrapperLogic", () => {
 
     it("should return undefined if no matching burn found", async () => {
       (
-        mockContext.ALMLPWrapperTransferInTx?.getWhere?.txHash?.eq as jest.Mock
+        mockContext.ALMLPWrapperTransferInTx?.getWhere as Mock
       ).mockResolvedValue([]);
 
       const result = await getMatchingBurnTransferInTx(
@@ -1153,7 +1132,7 @@ describe("LPWrapperLogic", () => {
       };
 
       (
-        mockContext.ALMLPWrapperTransferInTx?.getWhere?.txHash?.eq as jest.Mock
+        mockContext.ALMLPWrapperTransferInTx?.getWhere as Mock
       ).mockResolvedValue([consumedBurn]);
 
       const result = await getMatchingBurnTransferInTx(
@@ -1181,7 +1160,7 @@ describe("LPWrapperLogic", () => {
       };
 
       (
-        mockContext.ALMLPWrapperTransferInTx?.getWhere?.txHash?.eq as jest.Mock
+        mockContext.ALMLPWrapperTransferInTx?.getWhere as Mock
       ).mockResolvedValue([futureBurn]);
 
       const result = await getMatchingBurnTransferInTx(
@@ -1231,7 +1210,7 @@ describe("LPWrapperLogic", () => {
       };
 
       (
-        mockContext.ALMLPWrapperTransferInTx?.getWhere?.txHash?.eq as jest.Mock
+        mockContext.ALMLPWrapperTransferInTx?.getWhere as Mock
       ).mockResolvedValue([burn1, burn2, burn3]);
 
       const result = await getMatchingBurnTransferInTx(
@@ -1263,7 +1242,7 @@ describe("LPWrapperLogic", () => {
       };
 
       (
-        mockContext.ALMLPWrapperTransferInTx?.getWhere?.txHash?.eq as jest.Mock
+        mockContext.ALMLPWrapperTransferInTx?.getWhere as Mock
       ).mockResolvedValue([burnFromDifferentSender]);
 
       const result = await getMatchingBurnTransferInTx(
@@ -1290,17 +1269,17 @@ describe("LPWrapperLogic", () => {
 
       mockContext = {
         ALM_LP_Wrapper: {
-          get: jest.fn(),
-          set: jest.fn(),
+          get: vi.fn(),
+          set: vi.fn(),
         },
         UserStatsPerPool: {
-          get: jest.fn(),
-          set: jest.fn(),
+          get: vi.fn(),
+          set: vi.fn(),
         },
-        UserStatsPerPoolSnapshot: { set: jest.fn() },
-        ALM_LP_WrapperSnapshot: { set: jest.fn() },
+        UserStatsPerPoolSnapshot: { set: vi.fn() },
+        ALM_LP_WrapperSnapshot: { set: vi.fn() },
         LiquidityPoolAggregator: {
-          get: jest.fn((poolAddr) => {
+          get: vi.fn((poolAddr) => {
             if (poolAddr === poolId) {
               return Promise.resolve(mockPool);
             }
@@ -1308,18 +1287,14 @@ describe("LPWrapperLogic", () => {
           }),
         },
         ALMLPWrapperTransferInTx: {
-          getWhere: {
-            txHash: {
-              eq: jest.fn(),
-            },
-          },
-          get: jest.fn(),
-          set: jest.fn(),
+          getWhere: vi.fn().mockResolvedValue([]),
+          get: vi.fn(),
+          set: vi.fn(),
         },
         log: {
-          warn: jest.fn(),
-          error: jest.fn(),
-          info: jest.fn(),
+          warn: vi.fn(),
+          error: vi.fn(),
+          info: vi.fn(),
         },
         // biome-ignore lint/suspicious/noExplicitAny: Mock context type extension needed for test
       } as any;
@@ -1370,18 +1345,18 @@ describe("LPWrapperLogic", () => {
         timestamp: timestamp,
       };
 
-      (mockContext.ALM_LP_Wrapper?.get as jest.Mock).mockResolvedValueOnce(
+      (mockContext.ALM_LP_Wrapper?.get as Mock).mockResolvedValueOnce(
         mockWrapper,
       );
-      (mockContext.UserStatsPerPool?.get as jest.Mock).mockResolvedValueOnce(
+      (mockContext.UserStatsPerPool?.get as Mock).mockResolvedValueOnce(
         mockUserStats,
       );
       (
-        mockContext.ALMLPWrapperTransferInTx?.getWhere?.txHash?.eq as jest.Mock
+        mockContext.ALMLPWrapperTransferInTx?.getWhere as Mock
       ).mockResolvedValue([matchingBurn]);
-      (
-        mockContext.ALMLPWrapperTransferInTx?.get as jest.Mock
-      ).mockResolvedValue(transferEntity);
+      (mockContext.ALMLPWrapperTransferInTx?.get as Mock).mockResolvedValue(
+        transferEntity,
+      );
 
       await processWithdrawEvent(
         sender,
@@ -1400,10 +1375,8 @@ describe("LPWrapperLogic", () => {
       );
 
       // Verify wrapper was updated with actual burned amount (not the suspicious input parameter)
-      expect(
-        mockContext.ALM_LP_Wrapper?.set as jest.Mock,
-      ).toHaveBeenCalledTimes(1);
-      const wrapperUpdate = (mockContext.ALM_LP_Wrapper?.set as jest.Mock).mock
+      expect(mockContext.ALM_LP_Wrapper?.set as Mock).toHaveBeenCalledTimes(1);
+      const wrapperUpdate = (mockContext.ALM_LP_Wrapper?.set as Mock).mock
         .calls[0][0];
       // Should use actualBurnedAmount, not lpAmount
       expect(wrapperUpdate.lpAmount).toBe(
@@ -1424,10 +1397,10 @@ describe("LPWrapperLogic", () => {
 
       // Verify Transfer event was marked as consumed
       expect(
-        mockContext.ALMLPWrapperTransferInTx?.set as jest.Mock,
+        mockContext.ALMLPWrapperTransferInTx?.set as Mock,
       ).toHaveBeenCalledTimes(1);
       const consumedTransfer = (
-        mockContext.ALMLPWrapperTransferInTx?.set as jest.Mock
+        mockContext.ALMLPWrapperTransferInTx?.set as Mock
       ).mock.calls[0][0];
       expect(consumedTransfer.consumedByLogIndex).toBe(withdrawLogIndex);
     });
@@ -1453,15 +1426,15 @@ describe("LPWrapperLogic", () => {
         almLpAmount: 1000n * TEN_TO_THE_18_BI,
       };
 
-      (mockContext.ALM_LP_Wrapper?.get as jest.Mock).mockResolvedValueOnce(
+      (mockContext.ALM_LP_Wrapper?.get as Mock).mockResolvedValueOnce(
         mockWrapper,
       );
-      (mockContext.UserStatsPerPool?.get as jest.Mock).mockResolvedValueOnce(
+      (mockContext.UserStatsPerPool?.get as Mock).mockResolvedValueOnce(
         mockUserStats,
       );
       // No matching burn Transfer event found
       (
-        mockContext.ALMLPWrapperTransferInTx?.getWhere?.txHash?.eq as jest.Mock
+        mockContext.ALMLPWrapperTransferInTx?.getWhere as Mock
       ).mockResolvedValue([]);
 
       await processWithdrawEvent(
@@ -1481,16 +1454,14 @@ describe("LPWrapperLogic", () => {
       );
 
       // Verify wrapper was updated with 0n (fallback when no Transfer found)
-      expect(
-        mockContext.ALM_LP_Wrapper?.set as jest.Mock,
-      ).toHaveBeenCalledTimes(1);
-      const wrapperUpdate = (mockContext.ALM_LP_Wrapper?.set as jest.Mock).mock
+      expect(mockContext.ALM_LP_Wrapper?.set as Mock).toHaveBeenCalledTimes(1);
+      const wrapperUpdate = (mockContext.ALM_LP_Wrapper?.set as Mock).mock
         .calls[0][0];
       expect(wrapperUpdate.lpAmount).toBe(mockWrapper.lpAmount - 0n);
 
       // Verify warning was logged
-      expect(mockContext.log.warn as jest.Mock).toHaveBeenCalledTimes(1);
-      expect((mockContext.log.warn as jest.Mock).mock.calls[0][0]).toContain(
+      expect(mockContext.log.warn as Mock).toHaveBeenCalledTimes(1);
+      expect((mockContext.log.warn as Mock).mock.calls[0][0]).toContain(
         "no matching burn Transfer event found",
       );
     });
@@ -1518,10 +1489,10 @@ describe("LPWrapperLogic", () => {
 
       const normalLpAmount = 500n * TEN_TO_THE_18_BI; // Normal value for V2
 
-      (mockContext.ALM_LP_Wrapper?.get as jest.Mock).mockResolvedValueOnce(
+      (mockContext.ALM_LP_Wrapper?.get as Mock).mockResolvedValueOnce(
         mockWrapper,
       );
-      (mockContext.UserStatsPerPool?.get as jest.Mock).mockResolvedValueOnce(
+      (mockContext.UserStatsPerPool?.get as Mock).mockResolvedValueOnce(
         mockUserStats,
       );
 
@@ -1542,10 +1513,8 @@ describe("LPWrapperLogic", () => {
       );
 
       // Verify wrapper was updated with event parameter (V2 is correct)
-      expect(
-        mockContext.ALM_LP_Wrapper?.set as jest.Mock,
-      ).toHaveBeenCalledTimes(1);
-      const wrapperUpdate = (mockContext.ALM_LP_Wrapper?.set as jest.Mock).mock
+      expect(mockContext.ALM_LP_Wrapper?.set as Mock).toHaveBeenCalledTimes(1);
+      const wrapperUpdate = (mockContext.ALM_LP_Wrapper?.set as Mock).mock
         .calls[0][0];
       expect(wrapperUpdate.lpAmount).toBe(
         mockWrapper.lpAmount - normalLpAmount,
@@ -1553,7 +1522,7 @@ describe("LPWrapperLogic", () => {
 
       // Verify Transfer matching was NOT attempted (V2 doesn't need it)
       expect(
-        mockContext.ALMLPWrapperTransferInTx?.getWhere?.txHash?.eq as jest.Mock,
+        mockContext.ALMLPWrapperTransferInTx?.getWhere as Mock,
       ).toHaveBeenCalledTimes(0);
     });
   });

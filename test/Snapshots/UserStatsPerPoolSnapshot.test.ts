@@ -1,3 +1,4 @@
+import type { Mock } from "vitest";
 import {
   SNAPSHOT_INTERVAL_IN_MS,
   UserStatsPerPoolSnapshotId,
@@ -14,7 +15,7 @@ describe("UserStatsPerPoolSnapshot", () => {
 
   beforeEach(() => {
     common = setupCommon();
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe("createUserStatsPerPoolSnapshot", () => {
@@ -58,7 +59,7 @@ describe("UserStatsPerPoolSnapshot", () => {
 
   it("should set snapshot with epoch-aligned timestamp and correct id", () => {
     const context = common.createMockContext({
-      UserStatsPerPoolSnapshot: { set: jest.fn() },
+      UserStatsPerPoolSnapshot: { set: vi.fn() },
     });
     const entity = common.createMockUserStatsPerPool({
       almLpAmount: 1000n,
@@ -69,7 +70,7 @@ describe("UserStatsPerPoolSnapshot", () => {
     setUserStatsPerPoolSnapshot(entity, timestamp, context);
 
     expect(context.UserStatsPerPoolSnapshot.set).toHaveBeenCalledTimes(1);
-    const setArg = (context.UserStatsPerPoolSnapshot.set as jest.Mock).mock
+    const setArg = (context.UserStatsPerPoolSnapshot.set as Mock).mock
       .calls[0][0];
     const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 4;
     expect(setArg.id).toBe(
@@ -85,7 +86,7 @@ describe("UserStatsPerPoolSnapshot", () => {
 
   it("should spread entity fields into the snapshot", () => {
     const context = common.createMockContext({
-      UserStatsPerPoolSnapshot: { set: jest.fn() },
+      UserStatsPerPoolSnapshot: { set: vi.fn() },
     });
     const entity = common.createMockUserStatsPerPool({
       almLpAmount: 1000n,
@@ -94,7 +95,7 @@ describe("UserStatsPerPoolSnapshot", () => {
 
     setUserStatsPerPoolSnapshot(entity, baseTimestamp, context);
 
-    const setArg = (context.UserStatsPerPoolSnapshot.set as jest.Mock).mock
+    const setArg = (context.UserStatsPerPoolSnapshot.set as Mock).mock
       .calls[0][0];
     expect(setArg.userAddress).toBe(entity.userAddress);
     expect(setArg.poolAddress).toBe(entity.poolAddress);

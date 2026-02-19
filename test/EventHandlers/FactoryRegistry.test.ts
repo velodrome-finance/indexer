@@ -1,3 +1,4 @@
+import "../eventHandlersRegistration";
 import { FactoryRegistry, MockDb } from "../../generated/src/TestHelpers.gen";
 import { toChecksumAddress } from "../../src/Constants";
 
@@ -38,10 +39,7 @@ describe("FactoryRegistry Events", () => {
       });
 
       // Execute
-      const result = await FactoryRegistry.Approve.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       // Assert - check FactoryRegistryConfig was created
       const configId = `${factoryRegistryAddress}_${chainId}`;
@@ -95,10 +93,7 @@ describe("FactoryRegistry Events", () => {
       });
 
       // Execute
-      const result = await FactoryRegistry.Approve.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       // Assert - check FactoryRegistryConfig was updated
       const config = result.entities.FactoryRegistryConfig.get(configId);
@@ -148,10 +143,7 @@ describe("FactoryRegistry Events", () => {
       });
 
       // Execute
-      const result = await FactoryRegistry.Unapprove.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       // Assert - check FactoryRegistryConfig was updated with empty addresses
       const config = result.entities.FactoryRegistryConfig.get(configId);
@@ -188,10 +180,7 @@ describe("FactoryRegistry Events", () => {
       });
 
       // Execute
-      const result = await FactoryRegistry.Unapprove.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       // Assert - config should not be created
       const config = result.entities.FactoryRegistryConfig.get(configId);

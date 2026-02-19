@@ -86,7 +86,7 @@ describe("Dynamic Fee Effects", () => {
 
   beforeEach(() => {
     mockEthClient = {
-      simulateContract: jest.fn().mockResolvedValue({
+      simulateContract: vi.fn().mockResolvedValue({
         result: [
           "0x0000000000000000000000000000000000000000000000000000000000000190",
           "0x00000000000000000000000000000000000000000000000000000000000007d0",
@@ -111,16 +111,16 @@ describe("Dynamic Fee Effects", () => {
       ) => effect.handler({ input, context: mockContext }),
       ethClient: mockEthClient,
       log: {
-        info: jest.fn(),
-        error: jest.fn(),
-        warn: jest.fn(),
-        debug: jest.fn(),
+        info: vi.fn(),
+        error: vi.fn(),
+        warn: vi.fn(),
+        debug: vi.fn(),
       } as unknown as Envio_logger,
     };
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe("getCurrentFee", () => {
@@ -130,9 +130,9 @@ describe("Dynamic Fee Effects", () => {
     });
 
     it("should return undefined on error", async () => {
-      jest
-        .mocked(mockEthClient.simulateContract)
-        .mockRejectedValue(new Error("Contract call failed"));
+      vi.mocked(mockEthClient.simulateContract).mockRejectedValue(
+        new Error("Contract call failed"),
+      );
 
       const result = await mockContext.effect(
         getCurrentFee as unknown as {
@@ -152,7 +152,7 @@ describe("Dynamic Fee Effects", () => {
     });
 
     it("should return fee value on success", async () => {
-      jest.mocked(mockEthClient.simulateContract).mockResolvedValue({
+      vi.mocked(mockEthClient.simulateContract).mockResolvedValue({
         result: TEST_FEE_VALUE,
         // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
       } as any);
@@ -184,8 +184,8 @@ describe("Dynamic Fee Effects", () => {
           eth_client: mockEthClient,
         };
 
-        jest.mocked(mockEthClient.simulateContract).mockClear();
-        jest.mocked(mockEthClient.simulateContract).mockResolvedValue({
+        vi.mocked(mockEthClient.simulateContract).mockClear();
+        vi.mocked(mockEthClient.simulateContract).mockResolvedValue({
           result: TEST_FEE_VALUE_ALT,
           // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
         } as any);
@@ -201,7 +201,7 @@ describe("Dynamic Fee Effects", () => {
 
         expect(result).toBe(TEST_FEE_VALUE_ALT);
         expect(mockEthClient.simulateContract).toHaveBeenCalledTimes(1);
-        const callArgs = jest.mocked(mockEthClient.simulateContract).mock
+        const callArgs = vi.mocked(mockEthClient.simulateContract).mock
           .calls[0][0];
         expect(callArgs.address.toLowerCase()).toBe(address.toLowerCase());
         expect(callArgs.functionName).toBe("getFee");
@@ -211,9 +211,9 @@ describe("Dynamic Fee Effects", () => {
     });
 
     it("should handle contract call errors", async () => {
-      jest
-        .mocked(mockEthClient.simulateContract)
-        .mockRejectedValue(new Error("Contract call failed"));
+      vi.mocked(mockEthClient.simulateContract).mockRejectedValue(
+        new Error("Contract call failed"),
+      );
 
       await expect(
         fetchCurrentFee(
@@ -228,7 +228,7 @@ describe("Dynamic Fee Effects", () => {
     });
 
     it("should convert non-bigint result to bigint", async () => {
-      jest.mocked(mockEthClient.simulateContract).mockResolvedValue({
+      vi.mocked(mockEthClient.simulateContract).mockResolvedValue({
         result: "500",
         // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
       } as any);

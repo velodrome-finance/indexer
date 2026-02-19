@@ -44,31 +44,24 @@ describe("VeNFTPoolVote", () => {
   beforeEach(() => {
     mockContext = {
       VeNFTPoolVote: {
-        get: jest.fn(),
-        getOrCreate: jest.fn(),
-        getOrThrow: jest.fn(),
-        set: jest.fn(),
-        deleteUnsafe: jest.fn(),
-        getWhere: {
-          poolAddress: { eq: jest.fn(), gt: jest.fn(), lt: jest.fn() },
-          veNFTState_id: {
-            eq: jest.fn().mockResolvedValue([]),
-            gt: jest.fn(),
-            lt: jest.fn(),
-          },
-        },
+        get: vi.fn(),
+        getOrCreate: vi.fn(),
+        getOrThrow: vi.fn(),
+        set: vi.fn(),
+        deleteUnsafe: vi.fn(),
+        getWhere: vi.fn().mockResolvedValue([]),
       },
       log: {
-        error: jest.fn(),
-        info: jest.fn(),
-        warn: jest.fn(),
-        debug: jest.fn(),
+        error: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        debug: vi.fn(),
       },
     } as unknown as handlerContext;
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe("VeNFTPoolVoteId", () => {
@@ -81,7 +74,7 @@ describe("VeNFTPoolVote", () => {
   describe("loadVeNFTPoolVote", () => {
     it("returns VeNFTPoolVote when entity exists", async () => {
       const store = getVeNFTPoolVoteStore(mockContext);
-      jest.mocked(store.get).mockResolvedValue(mockVeNFTPoolVote);
+      vi.mocked(store.get).mockResolvedValue(mockVeNFTPoolVote);
 
       const result = await loadVeNFTPoolVote(
         chainId,
@@ -97,9 +90,9 @@ describe("VeNFTPoolVote", () => {
     });
 
     it("returns undefined when entity does not exist", async () => {
-      jest
-        .mocked(getVeNFTPoolVoteStore(mockContext).get)
-        .mockResolvedValue(undefined);
+      vi.mocked(getVeNFTPoolVoteStore(mockContext).get).mockResolvedValue(
+        undefined,
+      );
 
       const result = await loadVeNFTPoolVote(
         chainId,
@@ -115,7 +108,7 @@ describe("VeNFTPoolVote", () => {
   describe("loadPoolVotesByVeNFT", () => {
     it("returns empty array when no votes exist", async () => {
       const store = getVeNFTPoolVoteStore(mockContext);
-      jest.mocked(store.getWhere.veNFTState_id.eq).mockResolvedValue([]);
+      vi.mocked(store.getWhere).mockResolvedValue([]);
 
       const result = await loadPoolVotesByVeNFT(
         mockVeNFTState,
@@ -123,16 +116,16 @@ describe("VeNFTPoolVote", () => {
       );
 
       expect(result).toEqual([]);
-      expect(store.getWhere.veNFTState_id.eq).toHaveBeenCalledWith(
-        mockVeNFTState.id,
-      );
+      expect(store.getWhere).toHaveBeenCalledWith({
+        veNFTState_id: { _eq: mockVeNFTState.id },
+      });
     });
 
     it("returns array of VeNFTPoolVote when votes exist", async () => {
       const votes = [mockVeNFTPoolVote];
-      jest
-        .mocked(getVeNFTPoolVoteStore(mockContext).getWhere.veNFTState_id.eq)
-        .mockResolvedValue(votes);
+      vi.mocked(getVeNFTPoolVoteStore(mockContext).getWhere).mockResolvedValue(
+        votes,
+      );
 
       const result = await loadPoolVotesByVeNFT(
         mockVeNFTState,
@@ -142,10 +135,10 @@ describe("VeNFTPoolVote", () => {
       expect(result).toEqual(votes);
     });
 
-    it("returns empty array when getWhere.veNFTState_id.eq returns undefined", async () => {
-      jest
-        .mocked(getVeNFTPoolVoteStore(mockContext).getWhere.veNFTState_id.eq)
-        .mockResolvedValue(undefined as unknown as VeNFTPoolVote[]);
+    it("returns empty array when getWhere returns undefined", async () => {
+      vi.mocked(getVeNFTPoolVoteStore(mockContext).getWhere).mockResolvedValue(
+        undefined as unknown as VeNFTPoolVote[],
+      );
 
       const result = await loadPoolVotesByVeNFT(
         mockVeNFTState,
@@ -159,7 +152,7 @@ describe("VeNFTPoolVote", () => {
   describe("loadOrCreateVeNFTPoolVote", () => {
     it("returns existing entity when it exists", async () => {
       const store = getVeNFTPoolVoteStore(mockContext);
-      jest.mocked(store.getOrCreate).mockResolvedValue(mockVeNFTPoolVote);
+      vi.mocked(store.getOrCreate).mockResolvedValue(mockVeNFTPoolVote);
 
       const timestamp = new Date(3000);
       const result = await loadOrCreateVeNFTPoolVote(

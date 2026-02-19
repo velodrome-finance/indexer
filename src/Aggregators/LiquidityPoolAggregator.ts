@@ -1,3 +1,9 @@
+import type {
+  CLGaugeConfig,
+  LiquidityPoolAggregator,
+  Token,
+  handlerContext,
+} from "generated";
 import {
   LiquidityPoolAggregatorSnapshotId,
   PoolId,
@@ -11,12 +17,6 @@ import {
   setLiquidityPoolAggregatorSnapshot,
   shouldSnapshot,
 } from "../Snapshots/Index";
-import type {
-  CLGaugeConfig,
-  LiquidityPoolAggregator,
-  Token,
-  handlerContext,
-} from "./../src/Types.gen";
 
 /**
  * Enum for pool address field types
@@ -125,8 +125,9 @@ export async function updateDynamicFeePools(
     return liquidityPoolAggregator;
   }
 
-  const dynamicFeeGlobalConfigs =
-    await context.DynamicFeeGlobalConfig.getWhere.chainId.eq(chainId);
+  const dynamicFeeGlobalConfigs = await context.DynamicFeeGlobalConfig.getWhere(
+    { chainId: { _eq: chainId } },
+  );
 
   if (!dynamicFeeGlobalConfigs || dynamicFeeGlobalConfigs.length === 0) {
     context.log.warn(
@@ -476,9 +477,9 @@ export async function loadPoolDataOrRootCLPool(
   );
 
   const rootPoolLeafPools =
-    (await context.RootPool_LeafPool.getWhere?.rootPoolAddress?.eq(
-      poolAddress,
-    )) ?? [];
+    (await context.RootPool_LeafPool.getWhere({
+      rootPoolAddress: { _eq: poolAddress },
+    })) ?? [];
 
   if (rootPoolLeafPools.length !== 1) {
     context.log.error(
@@ -523,11 +524,14 @@ export async function findPoolByField(
   field: PoolAddressField,
 ): Promise<LiquidityPoolAggregator | null> {
   // Query pools by the specified field using the indexed field
-  const pools =
-    await context.LiquidityPoolAggregator.getWhere[field].eq(address);
+  const pools = await context.LiquidityPoolAggregator.getWhere({
+    [field]: { _eq: address },
+  });
 
   // Filter by chainId and return the first match (should be unique)
-  const matchingPool = pools.find((pool) => pool.chainId === chainId);
+  const matchingPool = pools.find(
+    (pool: LiquidityPoolAggregator) => pool.chainId === chainId,
+  );
   return matchingPool || null;
 }
 

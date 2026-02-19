@@ -9,7 +9,7 @@ import { setupCommon } from "../Pool/common";
 describe("CLPoolFlashLogic", () => {
   const { mockLiquidityPoolData, mockToken0Data, mockToken1Data } =
     setupCommon();
-  const mockEvent: CLPool_Flash_event = {
+  const mockEvent = {
     chainId: 10,
     block: {
       number: 12345,
@@ -28,7 +28,7 @@ describe("CLPoolFlashLogic", () => {
       paid0: 1000n, // Fees paid
       paid1: 500n, // Fees paid
     },
-  } as CLPool_Flash_event;
+  } as unknown as CLPool_Flash_event;
 
   const mockLiquidityPoolAggregator: LiquidityPoolAggregator = {
     ...mockLiquidityPoolData,

@@ -1,10 +1,12 @@
-import type { PublicClient } from "viem";
-import { MockDb, PoolFactory } from "../../generated/src/TestHelpers.gen";
+import "../eventHandlersRegistration";
 import type {
   LiquidityPoolAggregator,
   RootPool_LeafPool,
   Token,
-} from "../../generated/src/Types.gen";
+} from "generated";
+import type { PublicClient } from "viem";
+import type { Mock, MockInstance } from "vitest";
+import { MockDb, PoolFactory } from "../../generated/src/TestHelpers.gen";
 import {
   DEFAULT_SAMM_FEE_BPS,
   DEFAULT_VAMM_FEE_BPS,
@@ -29,7 +31,7 @@ describe("PoolFactory Events", () => {
   const token1Address = mockToken1Data.address;
   const chainId = 10;
 
-  let mockPriceOracle: jest.SpyInstance;
+  let mockPriceOracle: MockInstance;
 
   /**
    * Helper function to reset and reconfigure the mockPriceOracle mock
@@ -53,14 +55,14 @@ describe("PoolFactory Events", () => {
     );
 
     beforeEach(async () => {
-      mockPriceOracle = jest.spyOn(PriceOracle, "createTokenEntity");
+      mockPriceOracle = vi.spyOn(PriceOracle, "createTokenEntity");
       resetMockPriceOracle();
 
       const mockDb = MockDb.createMockDb();
       const mockEvent = PoolFactory.PoolCreated.createMockEvent({
-        token0: token0Address,
-        token1: token1Address,
-        pool: poolAddress,
+        token0: token0Address as `0x${string}`,
+        token1: token1Address as `0x${string}`,
+        pool: poolAddress as `0x${string}`,
         stable: false,
         mockEventData: {
           block: {
@@ -71,17 +73,14 @@ describe("PoolFactory Events", () => {
           logIndex: 1,
         },
       });
-      const result = await PoolFactory.PoolCreated.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
       createdPool = result.entities.LiquidityPoolAggregator.get(
         PoolId(chainId, poolAddress),
       );
     });
 
     afterEach(() => {
-      jest.restoreAllMocks();
+      vi.restoreAllMocks();
       // Restore CHAIN_CONSTANTS if it was mutated
       if (chainConstantsCleanup) {
         chainConstantsCleanup();
@@ -121,9 +120,9 @@ describe("PoolFactory Events", () => {
 
       const mockDb = MockDb.createMockDb();
       const mockEvent = PoolFactory.PoolCreated.createMockEvent({
-        token0: token0Address,
-        token1: token1Address,
-        pool: poolAddress,
+        token0: token0Address as `0x${string}`,
+        token1: token1Address as `0x${string}`,
+        pool: poolAddress as `0x${string}`,
         stable: true, // Stable pool
         mockEventData: {
           block: {
@@ -134,10 +133,7 @@ describe("PoolFactory Events", () => {
           logIndex: 1,
         },
       });
-      const result = await PoolFactory.PoolCreated.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
       const stablePool = result.entities.LiquidityPoolAggregator.get(
         PoolId(chainId, poolAddress),
       );
@@ -152,9 +148,9 @@ describe("PoolFactory Events", () => {
 
       const mockDb = MockDb.createMockDb();
       const mockEvent = PoolFactory.PoolCreated.createMockEvent({
-        token0: token0Address,
-        token1: token1Address,
-        pool: poolAddress,
+        token0: token0Address as `0x${string}`,
+        token1: token1Address as `0x${string}`,
+        pool: poolAddress as `0x${string}`,
         stable: false,
         mockEventData: {
           block: {
@@ -166,10 +162,7 @@ describe("PoolFactory Events", () => {
         },
       });
 
-      const result = await PoolFactory.PoolCreated.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       // Should not create RootPool_LeafPool for Optimism
       const rootPoolLeafPools = Array.from(
@@ -183,9 +176,9 @@ describe("PoolFactory Events", () => {
 
       const mockDb = MockDb.createMockDb();
       const mockEvent = PoolFactory.PoolCreated.createMockEvent({
-        token0: token0Address,
-        token1: token1Address,
-        pool: poolAddress,
+        token0: token0Address as `0x${string}`,
+        token1: token1Address as `0x${string}`,
+        pool: poolAddress as `0x${string}`,
         stable: false,
         mockEventData: {
           block: {
@@ -197,10 +190,7 @@ describe("PoolFactory Events", () => {
         },
       });
 
-      const result = await PoolFactory.PoolCreated.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       // Should not create RootPool_LeafPool for Base
       const rootPoolLeafPools = Array.from(
@@ -216,7 +206,7 @@ describe("PoolFactory Events", () => {
 
       // Setup mock ethClient for Fraxtal
       const mockEthClient = {
-        simulateContract: jest.fn().mockResolvedValue({
+        simulateContract: vi.fn().mockResolvedValue({
           result: mockRootPoolAddress,
         }),
       } as unknown as PublicClient;
@@ -232,9 +222,9 @@ describe("PoolFactory Events", () => {
 
       const mockDb = MockDb.createMockDb();
       const mockEvent = PoolFactory.PoolCreated.createMockEvent({
-        token0: token0Address,
-        token1: token1Address,
-        pool: poolAddress,
+        token0: token0Address as `0x${string}`,
+        token1: token1Address as `0x${string}`,
+        pool: poolAddress as `0x${string}`,
         stable: false,
         mockEventData: {
           block: {
@@ -246,10 +236,7 @@ describe("PoolFactory Events", () => {
         },
       });
 
-      const result = await PoolFactory.PoolCreated.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       // Should create RootPool_LeafPool for Fraxtal
       // The rootPoolAddress will be checksummed by the effect
@@ -271,14 +258,14 @@ describe("PoolFactory Events", () => {
       expect(rootPoolLeafPool?.leafPoolAddress).toBe(poolAddress);
 
       // Verify the effect was called
-      const mockSimulateContract = jest.mocked(mockEthClient.simulateContract);
+      const mockSimulateContract = vi.mocked(mockEthClient.simulateContract);
       expect(mockSimulateContract).toHaveBeenCalledTimes(1);
     });
 
     it("should handle error when getRootPoolAddress fails for non-Optimism/Base chains", async () => {
       // Setup mock ethClient that throws an error
       const mockEthClient = {
-        simulateContract: jest
+        simulateContract: vi
           .fn()
           .mockRejectedValue(new Error("RPC call failed")),
       } as unknown as PublicClient;
@@ -294,9 +281,9 @@ describe("PoolFactory Events", () => {
 
       const mockDb = MockDb.createMockDb();
       const mockEvent = PoolFactory.PoolCreated.createMockEvent({
-        token0: token0Address,
-        token1: token1Address,
-        pool: poolAddress,
+        token0: token0Address as `0x${string}`,
+        token1: token1Address as `0x${string}`,
+        pool: poolAddress as `0x${string}`,
         stable: false,
         mockEventData: {
           block: {
@@ -310,10 +297,7 @@ describe("PoolFactory Events", () => {
 
       // The effect will throw an error, which should be caught by the handler
       // The handler checks if rootPoolAddress is falsy and returns early
-      const result = await PoolFactory.PoolCreated.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       // Should still create the pool even if root pool address fetch fails
       const createdPool = result.entities.LiquidityPoolAggregator.get(
@@ -334,7 +318,7 @@ describe("PoolFactory Events", () => {
       // Setup mock ethClient that returns null
       // This will cause fetchRootPoolAddress to return empty string, which the handler should handle
       const mockEthClient = {
-        simulateContract: jest.fn().mockResolvedValue({
+        simulateContract: vi.fn().mockResolvedValue({
           result: null,
         }),
       } as unknown as PublicClient;
@@ -350,9 +334,9 @@ describe("PoolFactory Events", () => {
 
       const mockDb = MockDb.createMockDb();
       const mockEvent = PoolFactory.PoolCreated.createMockEvent({
-        token0: token0Address,
-        token1: token1Address,
-        pool: poolAddress,
+        token0: token0Address as `0x${string}`,
+        token1: token1Address as `0x${string}`,
+        pool: poolAddress as `0x${string}`,
         stable: false,
         mockEventData: {
           block: {
@@ -364,10 +348,7 @@ describe("PoolFactory Events", () => {
         },
       });
 
-      const result = await PoolFactory.PoolCreated.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       // Should still create the pool
       const createdPool = result.entities.LiquidityPoolAggregator.get(
@@ -397,7 +378,7 @@ describe("PoolFactory Events", () => {
       const customFee = 500n; // 0.05% fee (500 basis points)
       const blockTimestamp = 2000000;
       const mockEvent = PoolFactory.SetCustomFee.createMockEvent({
-        pool: poolAddress,
+        pool: poolAddress as `0x${string}`,
         fee: customFee,
         mockEventData: {
           block: {
@@ -411,10 +392,7 @@ describe("PoolFactory Events", () => {
       });
 
       // Execute
-      const result = await PoolFactory.SetCustomFee.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       // Assert - check LiquidityPoolAggregator was updated
       const updatedPool = result.entities.LiquidityPoolAggregator.get(
@@ -447,7 +425,7 @@ describe("PoolFactory Events", () => {
       const newFee = 750n;
       const blockTimestamp = 2000000;
       const mockEvent = PoolFactory.SetCustomFee.createMockEvent({
-        pool: poolAddress,
+        pool: poolAddress as `0x${string}`,
         fee: newFee,
         mockEventData: {
           block: {
@@ -461,10 +439,7 @@ describe("PoolFactory Events", () => {
       });
 
       // Execute
-      const result = await PoolFactory.SetCustomFee.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       // Assert - check fees were updated
       const updatedPool = result.entities.LiquidityPoolAggregator.get(
@@ -500,10 +475,7 @@ describe("PoolFactory Events", () => {
       });
 
       // Execute
-      const result = await PoolFactory.SetCustomFee.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       // Assert - LiquidityPoolAggregator should not be updated
       const pool = result.entities.LiquidityPoolAggregator.get(

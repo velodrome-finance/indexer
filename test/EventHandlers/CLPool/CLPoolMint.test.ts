@@ -1,3 +1,4 @@
+import "../../eventHandlersRegistration";
 import { CLPool, MockDb } from "../../../generated/src/TestHelpers.gen";
 import { CLPoolMintEventId } from "../../../src/Constants";
 import { setupCommon } from "../Pool/common";
@@ -39,17 +40,14 @@ describe("CLPool Mint Event Handler", () => {
         },
         chainId,
         logIndex: 1,
-        srcAddress: poolAddress,
+        srcAddress: poolAddress as `0x${string}`,
         transaction: {
           hash: transactionHash,
         },
       },
     });
 
-    const result = await CLPool.Mint.processEvent({
-      event: mockEvent,
-      mockDb,
-    });
+    const result = await mockDb.processEvents([mockEvent]);
 
     // Verify that CLPoolMintEvent entity was created
     const mintEventId = CLPoolMintEventId(
@@ -98,17 +96,14 @@ describe("CLPool Mint Event Handler", () => {
         },
         chainId,
         logIndex: 2,
-        srcAddress: poolAddress,
+        srcAddress: poolAddress as `0x${string}`,
         transaction: {
           hash: customTransactionHash,
         },
       },
     });
 
-    const result = await CLPool.Mint.processEvent({
-      event: mockEvent,
-      mockDb,
-    });
+    const result = await mockDb.processEvents([mockEvent]);
 
     const mintEventId = CLPoolMintEventId(
       chainId,
@@ -141,17 +136,14 @@ describe("CLPool Mint Event Handler", () => {
         },
         chainId,
         logIndex: 1,
-        srcAddress: poolAddress,
+        srcAddress: poolAddress as `0x${string}`,
         transaction: {
           hash: transactionHash,
         },
       },
     });
 
-    const result = await CLPool.Mint.processEvent({
-      event: mockEvent,
-      mockDb,
-    });
+    const result = await mockDb.processEvents([mockEvent]);
 
     const mintEventId = CLPoolMintEventId(
       chainId,

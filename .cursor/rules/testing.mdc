@@ -1,12 +1,12 @@
 ---
-title: Jest testing rules
+title: Vitest testing rules
 scope:
   - "**/*.test.ts"
 alwaysApply: true
 ---
-# Jest Test Generation Rules
+# Vitest Test Generation Rules
 
-You are writing tests using **Jest** for this repository.
+You are writing tests using **Vitest** for this repository.
 
 ## Non-negotiables
 
@@ -34,6 +34,18 @@ You are writing tests using **Jest** for this repository.
    - Import: `import { toChecksumAddress } from "../../src/Constants";` (adjust path as needed).
    - Use valid 40-character hex (after `0x`); invalid or non-hex strings will throw at runtime.
    - Do **not** use raw lowercase/uppercase address strings in mocks, fixtures, or assertions when the value represents an address.
+
+---
+
+## Envio / MockDb and processEvents
+
+- **Event processing in tests:** Use `mockDb.processEvents([event])` (or the relevant db variable). The deprecated `Contract.Event.processEvent({ event, mockDb })` must not be used.
+- **Handler registration:** Any test file that calls `*.processEvents()` **must** import the registration module so all handlers are registered:
+  ```ts
+  import "../eventHandlersRegistration";  // from test/EventHandlers/*.test.ts
+  import "../../eventHandlersRegistration"; // from test/EventHandlers/**/*.test.ts
+  ```
+- **Event mocks:** Use the generated mock API (e.g. `NFPM.Transfer.createMockEvent({ ... })`, `Pool.Mint.createMockEvent({ ... })`) so events are valid for `processEvents`.
 
 ---
 
@@ -132,16 +144,20 @@ test.each([
 
 - Mock only boundaries (DB, network, filesystem, third-party SDKs).
 
-- Prefer dependency injection over `jest.mock()` where possible.
+- Prefer dependency injection over `vi.mock()` where possible.
+
+- Use Vitest APIs: `vi.mock()`, `vi.fn()`, `vi.spyOn()`, `vi.mocked()`, `vi.clearAllMocks()`, `vi.restoreAllMocks()`.
 
 - If using spies/mocks in a suite, reset consistently:
 
 ```ts
 beforeEach(() => {
-  jest.restoreAllMocks();
-  jest.clearAllMocks();
+  vi.restoreAllMocks();
+  vi.clearAllMocks();
 });
 ```
+
+- Prefer top-level imports and `vi.mocked(module.fn)` for assertions; avoid `vi.resetModules()` and dynamic `await import()` unless necessary (they are rarely needed with Vitest mocks).
 
 ### Assertions
 

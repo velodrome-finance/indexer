@@ -10,7 +10,7 @@ import { setupCommon } from "../Pool/common";
 describe("CLPoolBurnLogic", () => {
   const { mockLiquidityPoolData, mockToken0Data, mockToken1Data } =
     setupCommon();
-  const mockEvent: CLPool_Burn_event = {
+  const mockEvent = {
     chainId: 10,
     block: {
       number: 12345,
@@ -29,7 +29,7 @@ describe("CLPoolBurnLogic", () => {
       amount0: 500000n,
       amount1: 300000n,
     },
-  } as CLPool_Burn_event;
+  } as unknown as CLPool_Burn_event;
 
   const mockToken0: Token = {
     ...mockToken0Data,

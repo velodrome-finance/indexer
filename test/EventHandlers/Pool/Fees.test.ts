@@ -1,9 +1,10 @@
-import { MockDb, Pool } from "../../../generated/src/TestHelpers.gen";
+import "../../eventHandlersRegistration";
 import type {
   LiquidityPoolAggregator,
   Token,
   UserStatsPerPool,
-} from "../../../generated/src/Types.gen";
+} from "generated";
+import { MockDb, Pool } from "../../../generated/src/TestHelpers.gen";
 import { UserStatsPerPoolId, toChecksumAddress } from "../../../src/Constants";
 import * as PoolFeesLogic from "../../../src/EventHandlers/Pool/PoolFeesLogic";
 import { setupCommon } from "./common";
@@ -62,14 +63,11 @@ describe("Pool Fees Event", () => {
           hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
         },
         chainId: 10,
-        srcAddress: mockLiquidityPoolData.poolAddress,
+        srcAddress: mockLiquidityPoolData.poolAddress as `0x${string}`,
       },
     });
 
-    const result = await Pool.Fees.processEvent({
-      event: mockEvent,
-      mockDb: updatedDB,
-    });
+    const result = await updatedDB.processEvents([mockEvent]);
 
     updatedPool = result.entities.LiquidityPoolAggregator.get(poolId);
     createdUserStats = result.entities.UserStatsPerPool.get(
@@ -189,14 +187,11 @@ describe("Pool Fees Event", () => {
           hash: "0x1234567890123456789012345678901234567890123456789012345678901235",
         },
         chainId: 10,
-        srcAddress: mockLiquidityPoolData.poolAddress,
+        srcAddress: mockLiquidityPoolData.poolAddress as `0x${string}`,
       },
     });
 
-    const result = await Pool.Fees.processEvent({
-      event: mockEvent,
-      mockDb: updatedDB,
-    });
+    const result = await updatedDB.processEvents([mockEvent]);
 
     const updatedUserStats = result.entities.UserStatsPerPool.get(
       UserStatsPerPoolId(
@@ -248,14 +243,11 @@ describe("Pool Fees Event", () => {
             hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
           },
           chainId: 10,
-          srcAddress: mockLiquidityPoolData.poolAddress,
+          srcAddress: mockLiquidityPoolData.poolAddress as `0x${string}`,
         },
       });
 
-      const postEventDB = await Pool.Fees.processEvent({
-        event: mockEvent,
-        mockDb: updatedDB2,
-      });
+      const postEventDB = await updatedDB2.processEvents([mockEvent]);
 
       // Pool should not exist
       const pool = postEventDB.entities.LiquidityPoolAggregator.get(poolId);
@@ -289,7 +281,7 @@ describe("Pool Fees Event", () => {
       );
 
       // Mock processPoolFees to return undefined liquidityPoolDiff
-      const processSpy = jest
+      const processSpy = vi
         .spyOn(PoolFeesLogic, "processPoolFees")
         .mockReturnValue({
           liquidityPoolDiff: undefined, // Test the undefined branch
@@ -312,14 +304,11 @@ describe("Pool Fees Event", () => {
             hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
           },
           chainId: 10,
-          srcAddress: mockLiquidityPoolData.poolAddress,
+          srcAddress: mockLiquidityPoolData.poolAddress as `0x${string}`,
         },
       });
 
-      const result = await Pool.Fees.processEvent({
-        event: mockEvent,
-        mockDb: testDB3,
-      });
+      const result = await testDB3.processEvents([mockEvent]);
 
       // Pool should not be updated since liquidityPoolDiff is undefined
       const pool = result.entities.LiquidityPoolAggregator.get(poolId);
@@ -350,7 +339,7 @@ describe("Pool Fees Event", () => {
       );
 
       // Mock processPoolFees to return undefined userDiff
-      const processSpy = jest
+      const processSpy = vi
         .spyOn(PoolFeesLogic, "processPoolFees")
         .mockReturnValue({
           liquidityPoolDiff: {
@@ -374,14 +363,11 @@ describe("Pool Fees Event", () => {
             hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
           },
           chainId: 10,
-          srcAddress: mockLiquidityPoolData.poolAddress,
+          srcAddress: mockLiquidityPoolData.poolAddress as `0x${string}`,
         },
       });
 
-      const result = await Pool.Fees.processEvent({
-        event: mockEvent,
-        mockDb: testDB3,
-      });
+      const result = await testDB3.processEvents([mockEvent]);
 
       // Pool should still be updated
       const pool = result.entities.LiquidityPoolAggregator.get(poolId);

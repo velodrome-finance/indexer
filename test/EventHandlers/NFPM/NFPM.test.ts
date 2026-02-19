@@ -1,4 +1,6 @@
+import "../../eventHandlersRegistration";
 import type { PublicClient } from "viem";
+import type { Mock } from "vitest";
 import { MockDb, NFPM } from "../../../generated/src/TestHelpers.gen";
 import {
   CHAIN_CONSTANTS,
@@ -55,7 +57,7 @@ describe("NFPM Events", () => {
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe("Transfer Event", () => {
@@ -79,11 +81,10 @@ describe("NFPM Events", () => {
     let mockEvent: ReturnType<typeof NFPM.Transfer.createMockEvent>;
 
     beforeEach(async () => {
-      mockEvent = NFPM.Transfer.createMockEvent(eventData);
-      postEventDB = await NFPM.Transfer.processEvent({
-        event: mockEvent,
-        mockDb: mockDb,
-      });
+      mockEvent = NFPM.Transfer.createMockEvent(
+        eventData as Parameters<typeof NFPM.Transfer.createMockEvent>[0],
+      );
+      postEventDB = await mockDb.processEvents([mockEvent]);
     });
 
     it("should update the owner", () => {
@@ -182,10 +183,9 @@ describe("NFPM Events", () => {
         },
       });
 
-      const result = await NFPM.Transfer.processEvent({
-        event: mintTransferEvent,
-        mockDb: mockDbWithGetWhere,
-      });
+      const result = await mockDbWithGetWhere.processEvents([
+        mintTransferEvent,
+      ]);
 
       // Should create position with stable ID
       const createdEntity = result.entities.NonFungiblePosition.get(stableId);
@@ -251,11 +251,12 @@ describe("NFPM Events", () => {
         },
       } as typeof mockDb;
 
-      mockEvent = NFPM.IncreaseLiquidity.createMockEvent(eventData);
-      postEventDB = await NFPM.IncreaseLiquidity.processEvent({
-        event: mockEvent,
-        mockDb: mockDbWithGetWhere,
-      });
+      mockEvent = NFPM.IncreaseLiquidity.createMockEvent(
+        eventData as Parameters<
+          typeof NFPM.IncreaseLiquidity.createMockEvent
+        >[0],
+      );
+      postEventDB = await mockDbWithGetWhere.processEvents([mockEvent]);
     });
 
     it("should increase liquidity", () => {
@@ -303,10 +304,7 @@ describe("NFPM Events", () => {
         },
       } as typeof mockDb;
 
-      const result = await NFPM.IncreaseLiquidity.processEvent({
-        event: mockEvent,
-        mockDb: mockDbMultiplePositions,
-      });
+      const result = await mockDbMultiplePositions.processEvents([mockEvent]);
 
       // Should match the first position, not the second
       const updatedEntity = result.entities.NonFungiblePosition.get(
@@ -340,11 +338,12 @@ describe("NFPM Events", () => {
         },
       } as typeof finalDb;
 
-      const increaseEvent = NFPM.IncreaseLiquidity.createMockEvent(eventData);
-      const result = await NFPM.IncreaseLiquidity.processEvent({
-        event: increaseEvent,
-        mockDb: mockDbNoPositions,
-      });
+      const increaseEvent = NFPM.IncreaseLiquidity.createMockEvent(
+        eventData as Parameters<
+          typeof NFPM.IncreaseLiquidity.createMockEvent
+        >[0],
+      );
+      const result = await mockDbNoPositions.processEvents([increaseEvent]);
 
       // Should not create or update any position
       const updatedEntity = result.entities.NonFungiblePosition.get(
@@ -398,11 +397,12 @@ describe("NFPM Events", () => {
         },
       } as typeof finalDb;
 
-      const increaseEvent = NFPM.IncreaseLiquidity.createMockEvent(eventData);
-      const result = await NFPM.IncreaseLiquidity.processEvent({
-        event: increaseEvent,
-        mockDb: mockDbWrongAmounts,
-      });
+      const increaseEvent = NFPM.IncreaseLiquidity.createMockEvent(
+        eventData as Parameters<
+          typeof NFPM.IncreaseLiquidity.createMockEvent
+        >[0],
+      );
+      const result = await mockDbWrongAmounts.processEvents([increaseEvent]);
 
       // Should not update the position (amounts don't match, handler returns early)
       // Position should still exist in the result with original values
@@ -441,11 +441,12 @@ describe("NFPM Events", () => {
     let mockEvent: ReturnType<typeof NFPM.DecreaseLiquidity.createMockEvent>;
 
     beforeEach(async () => {
-      mockEvent = NFPM.DecreaseLiquidity.createMockEvent(eventData);
-      postEventDB = await NFPM.DecreaseLiquidity.processEvent({
-        event: mockEvent,
-        mockDb: mockDb,
-      });
+      mockEvent = NFPM.DecreaseLiquidity.createMockEvent(
+        eventData as Parameters<
+          typeof NFPM.DecreaseLiquidity.createMockEvent
+        >[0],
+      );
+      postEventDB = await mockDb.processEvents([mockEvent]);
     });
 
     it("should decrease liquidity", () => {
@@ -488,10 +489,7 @@ describe("NFPM Events", () => {
         },
       });
 
-      const result = await NFPM.DecreaseLiquidity.processEvent({
-        event: decreaseEvent,
-        mockDb: finalDb,
-      });
+      const result = await finalDb.processEvents([decreaseEvent]);
 
       // Should not create any position
       const updatedEntity = result.entities.NonFungiblePosition.get(
@@ -546,10 +544,7 @@ describe("NFPM Events", () => {
         },
       });
 
-      const result = await NFPM.DecreaseLiquidity.processEvent({
-        event: decreaseEvent,
-        mockDb: mockDbNoPosition,
-      });
+      const result = await mockDbNoPosition.processEvents([decreaseEvent]);
 
       // Should not create any position
       const updatedEntity = result.entities.NonFungiblePosition.get(
@@ -605,8 +600,8 @@ describe("NFPM Events", () => {
     };
 
     // Variables to hold mocks for verification
-    let mockSimulateContractBase: jest.Mock;
-    let mockSimulateContractLisk: jest.Mock;
+    let mockSimulateContractBase: Mock;
+    let mockSimulateContractLisk: Mock;
 
     let originalChainConstantsBase: (typeof CHAIN_CONSTANTS)[number];
     let originalChainConstantsLisk: (typeof CHAIN_CONSTANTS)[number];
@@ -620,7 +615,7 @@ describe("NFPM Events", () => {
       const Q96 = 2n ** 96n;
       const mockSqrtPriceX96 = Q96;
       // Use callsFake to ensure the mock properly returns a promise
-      mockSimulateContractBase = jest.fn().mockImplementation(async () => {
+      mockSimulateContractBase = vi.fn().mockImplementation(async () => {
         return { result: [mockSqrtPriceX96] };
       });
       const mockEthClientBase = {
@@ -628,7 +623,7 @@ describe("NFPM Events", () => {
       } as unknown as PublicClient;
 
       // Mock ethClient for Lisk chain - create fresh mocks for each test
-      mockSimulateContractLisk = jest.fn().mockImplementation(async () => {
+      mockSimulateContractLisk = vi.fn().mockImplementation(async () => {
         return { result: [mockSqrtPriceX96] };
       });
       const mockEthClientLisk = {
@@ -668,7 +663,7 @@ describe("NFPM Events", () => {
           CHAIN_CONSTANTS as Record<number, { eth_client: PublicClient }>
         )[chainIdLisk];
       }
-      jest.restoreAllMocks();
+      vi.restoreAllMocks();
     });
 
     it("should filter by chainId when querying by tokenId in Transfer event", async () => {
@@ -753,10 +748,9 @@ describe("NFPM Events", () => {
         },
       });
 
-      const result = await NFPM.Transfer.processEvent({
-        event: transferEventBase,
-        mockDb: mockDbWithGetWhere,
-      });
+      const result = await mockDbWithGetWhere.processEvents([
+        transferEventBase,
+      ]);
 
       // Should only update the Base position, not the Lisk position
       const updatedBasePosition = result.entities.NonFungiblePosition.get(
@@ -857,10 +851,9 @@ describe("NFPM Events", () => {
         },
       });
 
-      const result = await NFPM.IncreaseLiquidity.processEvent({
-        event: increaseEventBase,
-        mockDb: mockDbWithGetWhere,
-      });
+      const result = await mockDbWithGetWhere.processEvents([
+        increaseEventBase,
+      ]);
 
       // Should only update the Base position
       const updatedBasePosition = result.entities.NonFungiblePosition.get(
@@ -958,10 +951,9 @@ describe("NFPM Events", () => {
         },
       });
 
-      const result = await NFPM.DecreaseLiquidity.processEvent({
-        event: decreaseEventLisk,
-        mockDb: mockDbWithGetWhere,
-      });
+      const result = await mockDbWithGetWhere.processEvents([
+        decreaseEventLisk,
+      ]);
 
       // Should only update the Lisk position
       const basePosition = result.entities.NonFungiblePosition.get(
@@ -1060,10 +1052,9 @@ describe("NFPM Events", () => {
         },
       });
 
-      const result = await NFPM.IncreaseLiquidity.processEvent({
-        event: increaseEventBase,
-        mockDb: mockDbWithGetWhere,
-      });
+      const result = await mockDbWithGetWhere.processEvents([
+        increaseEventBase,
+      ]);
 
       // Verify: Base position should be updated (correct position was found and used)
       const updatedBasePosition = result.entities.NonFungiblePosition.get(

@@ -232,7 +232,7 @@ describe("PoolSwapLogic", () => {
 
     it("should handle undefined token0UsdValue when both tokens are whitelisted", () => {
       // Mock calculateTokenAmountUSD to return undefined for token0
-      const calculateTokenAmountUSDSpy = jest.spyOn(
+      const calculateTokenAmountUSDSpy = vi.spyOn(
         Helpers,
         "calculateTokenAmountUSD",
       );
@@ -263,7 +263,7 @@ describe("PoolSwapLogic", () => {
 
     it("should fallback to 0n when both token0UsdValue and token1UsdValue are undefined", () => {
       // Mock calculateTokenAmountUSD to return undefined for both tokens
-      const calculateTokenAmountUSDSpy = jest.spyOn(
+      const calculateTokenAmountUSDSpy = vi.spyOn(
         Helpers,
         "calculateTokenAmountUSD",
       );

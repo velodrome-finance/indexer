@@ -1,3 +1,4 @@
+import "../../eventHandlersRegistration";
 import {
   CustomSwapFeeModule,
   MockDb,
@@ -28,7 +29,7 @@ describe("CustomSwapFeeModule Events", () => {
       );
 
       const mockEvent = CustomSwapFeeModule.SetCustomFee.createMockEvent({
-        pool: mockLiquidityPoolAggregator.poolAddress,
+        pool: mockLiquidityPoolAggregator.poolAddress as `0x${string}`,
         fee: fee,
         mockEventData: {
           block: {
@@ -43,10 +44,7 @@ describe("CustomSwapFeeModule Events", () => {
       });
 
       // Execute
-      const result = await CustomSwapFeeModule.SetCustomFee.processEvent({
-        event: mockEvent,
-        mockDb: populatedDb,
-      });
+      const result = await populatedDb.processEvents([mockEvent]);
 
       // Assert: Check that DynamicFeeGlobalConfig was created
       const config = result.entities.DynamicFeeGlobalConfig.get(moduleAddress);
@@ -67,7 +65,7 @@ describe("CustomSwapFeeModule Events", () => {
       );
 
       const mockEvent = CustomSwapFeeModule.SetCustomFee.createMockEvent({
-        pool: mockLiquidityPoolAggregator.poolAddress,
+        pool: mockLiquidityPoolAggregator.poolAddress as `0x${string}`,
         fee: fee,
         mockEventData: {
           block: {
@@ -82,10 +80,7 @@ describe("CustomSwapFeeModule Events", () => {
       });
 
       // Execute
-      const result = await CustomSwapFeeModule.SetCustomFee.processEvent({
-        event: mockEvent,
-        mockDb: populatedDb,
-      });
+      const result = await populatedDb.processEvents([mockEvent]);
 
       // Assert: Check that pool's baseFee was updated
       const updatedPool = result.entities.LiquidityPoolAggregator.get(

@@ -1,9 +1,11 @@
-import { CLPool, MockDb } from "../../generated/src/TestHelpers.gen";
+import "../eventHandlersRegistration";
 import type {
   LiquidityPoolAggregator,
   Token,
   UserStatsPerPool,
-} from "../../generated/src/Types.gen";
+} from "generated";
+import type { Mock, MockInstance } from "vitest";
+import { CLPool, MockDb } from "../../generated/src/TestHelpers.gen";
 import {
   OUSDT_ADDRESS,
   TokenId,
@@ -59,15 +61,15 @@ describe("CLPool Events", () => {
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe("Swap Event", () => {
     let mockEvent: ReturnType<typeof CLPool.Swap.createMockEvent>;
-    let processSpy: jest.SpyInstance;
+    let processSpy: MockInstance;
 
     beforeEach(() => {
-      processSpy = jest
+      processSpy = vi
         .spyOn(CLPoolSwapLogic, "processCLPoolSwap")
         .mockResolvedValue({
           liquidityPoolDiff: {
@@ -94,7 +96,7 @@ describe("CLPool Events", () => {
         liquidity: 2000000n,
         tick: 100n,
         mockEventData: {
-          srcAddress: liquidityPool.poolAddress,
+          srcAddress: liquidityPool.poolAddress as `0x${string}`,
           chainId: chainId,
           block: {
             number: 1000000,
@@ -111,10 +113,7 @@ describe("CLPool Events", () => {
 
     it("should process swap event and update pool aggregator", async () => {
       processSpy.mockClear();
-      const resultDB = await CLPool.Swap.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const resultDB = await mockDb.processEvents([mockEvent]);
 
       expect(processSpy).toHaveBeenCalled();
       expect(processSpy.mock.calls.length).toBeGreaterThanOrEqual(1);
@@ -144,10 +143,7 @@ describe("CLPool Events", () => {
 
     it("should return early if pool data not found", async () => {
       const emptyDb = MockDb.createMockDb();
-      await CLPool.Swap.processEvent({
-        event: mockEvent,
-        mockDb: emptyDb,
-      });
+      await emptyDb.processEvents([mockEvent]);
 
       // Should not throw, but processSpy shouldn't be called
       expect(processSpy).not.toHaveBeenCalled();
@@ -174,10 +170,7 @@ describe("CLPool Events", () => {
       ousdtDb = ousdtDb.entities.UserStatsPerPool.set(userStats);
 
       processSpy.mockClear();
-      const resultDB = await CLPool.Swap.processEvent({
-        event: mockEvent,
-        mockDb: ousdtDb,
-      });
+      const resultDB = await ousdtDb.processEvents([mockEvent]);
 
       // Verify oUSDTSwap entity was created with OUSDT as token0
       const ousdtSwaps = resultDB.entities.OUSDTSwaps.getAll();
@@ -203,10 +196,7 @@ describe("CLPool Events", () => {
       ousdtDb2 = ousdtDb2.entities.Token.set(ousdtToken);
       ousdtDb2 = ousdtDb2.entities.UserStatsPerPool.set(userStats);
 
-      const resultDB2 = await CLPool.Swap.processEvent({
-        event: mockEvent,
-        mockDb: ousdtDb2,
-      });
+      const resultDB2 = await ousdtDb2.processEvents([mockEvent]);
 
       // Verify oUSDTSwap entity was created with OUSDT as token1
       const ousdtSwaps2 = resultDB2.entities.OUSDTSwaps.getAll();
@@ -231,7 +221,7 @@ describe("CLPool Events", () => {
         liquidity: 2000000n,
         tick: 100n,
         mockEventData: {
-          srcAddress: liquidityPool.poolAddress,
+          srcAddress: liquidityPool.poolAddress as `0x${string}`,
           chainId: chainId,
           block: {
             number: 1000000,
@@ -265,10 +255,7 @@ describe("CLPool Events", () => {
       ousdtDb = ousdtDb.entities.UserStatsPerPool.set(userStats);
 
       processSpy.mockClear();
-      const resultDB = await CLPool.Swap.processEvent({
-        event: positiveAmount0Event,
-        mockDb: ousdtDb,
-      });
+      const resultDB = await ousdtDb.processEvents([positiveAmount0Event]);
 
       const ousdtSwaps = resultDB.entities.OUSDTSwaps.getAll();
       expect(ousdtSwaps).toHaveLength(1);
@@ -293,7 +280,7 @@ describe("CLPool Events", () => {
         liquidity: 2000000n,
         tick: 100n,
         mockEventData: {
-          srcAddress: liquidityPool.poolAddress,
+          srcAddress: liquidityPool.poolAddress as `0x${string}`,
           chainId: chainId,
           block: {
             number: 1000000,
@@ -307,10 +294,7 @@ describe("CLPool Events", () => {
         },
       });
 
-      const resultDB2 = await CLPool.Swap.processEvent({
-        event: negativeAmount0Event,
-        mockDb: ousdtDb,
-      });
+      const resultDB2 = await ousdtDb.processEvents([negativeAmount0Event]);
 
       const ousdtSwaps2 = resultDB2.entities.OUSDTSwaps.getAll();
       expect(ousdtSwaps2).toHaveLength(1);
@@ -329,10 +313,10 @@ describe("CLPool Events", () => {
 
   describe("Mint Event", () => {
     let mockEvent: ReturnType<typeof CLPool.Mint.createMockEvent>;
-    let processSpy: jest.SpyInstance;
+    let processSpy: MockInstance;
 
     beforeEach(() => {
-      processSpy = jest
+      processSpy = vi
         .spyOn(CLPoolMintLogic, "processCLPoolMint")
         .mockReturnValue({
           liquidityPoolDiff: {
@@ -351,7 +335,7 @@ describe("CLPool Events", () => {
         amount0: 500n,
         amount1: 500n,
         mockEventData: {
-          srcAddress: liquidityPool.poolAddress,
+          srcAddress: liquidityPool.poolAddress as `0x${string}`,
           chainId: chainId,
           block: {
             number: 1000000,
@@ -368,10 +352,7 @@ describe("CLPool Events", () => {
 
     it("should process mint event and create NonFungiblePosition", async () => {
       processSpy.mockClear();
-      const resultDB = await CLPool.Mint.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const resultDB = await mockDb.processEvents([mockEvent]);
 
       expect(processSpy).toHaveBeenCalled();
       expect(processSpy.mock.calls.length).toBeGreaterThanOrEqual(1);
@@ -382,10 +363,7 @@ describe("CLPool Events", () => {
 
     it("should return early if pool data not found", async () => {
       const emptyDb = MockDb.createMockDb();
-      await CLPool.Mint.processEvent({
-        event: mockEvent,
-        mockDb: emptyDb,
-      });
+      await emptyDb.processEvents([mockEvent]);
 
       // Should not throw, handler should return early
       expect(processSpy).not.toHaveBeenCalled();
@@ -398,10 +376,10 @@ describe("CLPool Events", () => {
 
   describe("Burn Event", () => {
     let mockEvent: ReturnType<typeof CLPool.Burn.createMockEvent>;
-    let processSpy: jest.SpyInstance;
+    let processSpy: MockInstance;
 
     beforeEach(() => {
-      processSpy = jest
+      processSpy = vi
         .spyOn(CLPoolBurnLogic, "processCLPoolBurn")
         .mockReturnValue({
           liquidityPoolDiff: {
@@ -420,7 +398,7 @@ describe("CLPool Events", () => {
         amount0: 250n,
         amount1: 250n,
         mockEventData: {
-          srcAddress: liquidityPool.poolAddress,
+          srcAddress: liquidityPool.poolAddress as `0x${string}`,
           chainId: chainId,
           block: {
             number: 1000000,
@@ -434,10 +412,7 @@ describe("CLPool Events", () => {
 
     it("should process burn event and update pool aggregator", async () => {
       processSpy.mockClear();
-      const resultDB = await CLPool.Burn.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const resultDB = await mockDb.processEvents([mockEvent]);
 
       expect(processSpy).toHaveBeenCalled();
       expect(processSpy.mock.calls.length).toBeGreaterThanOrEqual(1);
@@ -449,10 +424,7 @@ describe("CLPool Events", () => {
 
     it("should return early if pool data not found", async () => {
       const emptyDb = MockDb.createMockDb();
-      await CLPool.Burn.processEvent({
-        event: mockEvent,
-        mockDb: emptyDb,
-      });
+      await emptyDb.processEvents([mockEvent]);
 
       // Should not throw, handler should return early
       expect(processSpy).not.toHaveBeenCalled();
@@ -465,10 +437,10 @@ describe("CLPool Events", () => {
 
   describe("Collect Event", () => {
     let mockEvent: ReturnType<typeof CLPool.Collect.createMockEvent>;
-    let processSpy: jest.SpyInstance;
+    let processSpy: MockInstance;
 
     beforeEach(() => {
-      processSpy = jest
+      processSpy = vi
         .spyOn(CLPoolCollectLogic, "processCLPoolCollect")
         .mockReturnValue({
           liquidityPoolDiff: {
@@ -495,7 +467,7 @@ describe("CLPool Events", () => {
         amount0: 100n,
         amount1: 200n,
         mockEventData: {
-          srcAddress: liquidityPool.poolAddress,
+          srcAddress: liquidityPool.poolAddress as `0x${string}`,
           chainId: chainId,
           block: {
             number: 1000000,
@@ -509,10 +481,7 @@ describe("CLPool Events", () => {
 
     it("should process collect event and update fees", async () => {
       processSpy.mockClear();
-      const resultDB = await CLPool.Collect.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const resultDB = await mockDb.processEvents([mockEvent]);
 
       expect(processSpy).toHaveBeenCalled();
       expect(processSpy.mock.calls.length).toBeGreaterThanOrEqual(1);
@@ -524,10 +493,7 @@ describe("CLPool Events", () => {
 
     it("should return early if pool data not found", async () => {
       const emptyDb = MockDb.createMockDb();
-      await CLPool.Collect.processEvent({
-        event: mockEvent,
-        mockDb: emptyDb,
-      });
+      await emptyDb.processEvents([mockEvent]);
 
       // Should not throw, handler should return early
       expect(processSpy).not.toHaveBeenCalled();
@@ -540,10 +506,10 @@ describe("CLPool Events", () => {
 
   describe("CollectFees Event", () => {
     let mockEvent: ReturnType<typeof CLPool.CollectFees.createMockEvent>;
-    let processSpy: jest.SpyInstance;
+    let processSpy: MockInstance;
 
     beforeEach(() => {
-      processSpy = jest
+      processSpy = vi
         .spyOn(CLPoolCollectFeesLogic, "processCLPoolCollectFees")
         .mockReturnValue({
           liquidityPoolDiff: {
@@ -568,7 +534,7 @@ describe("CLPool Events", () => {
         amount0: 50n,
         amount1: 75n,
         mockEventData: {
-          srcAddress: liquidityPool.poolAddress,
+          srcAddress: liquidityPool.poolAddress as `0x${string}`,
           chainId: chainId,
           block: {
             number: 1000000,
@@ -582,10 +548,7 @@ describe("CLPool Events", () => {
 
     it("should process collect fees event", async () => {
       processSpy.mockClear();
-      const resultDB = await CLPool.CollectFees.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const resultDB = await mockDb.processEvents([mockEvent]);
 
       expect(processSpy).toHaveBeenCalled();
       expect(processSpy.mock.calls.length).toBeGreaterThanOrEqual(1);
@@ -597,10 +560,7 @@ describe("CLPool Events", () => {
 
     it("should return early if pool data not found", async () => {
       const emptyDb = MockDb.createMockDb();
-      await CLPool.CollectFees.processEvent({
-        event: mockEvent,
-        mockDb: emptyDb,
-      });
+      await emptyDb.processEvents([mockEvent]);
 
       // Should not throw, handler should return early
       expect(processSpy).not.toHaveBeenCalled();
@@ -634,10 +594,7 @@ describe("CLPool Events", () => {
         const updatedDb = mockDb.entities.Token.set(token0);
         const finalDb = updatedDb.entities.Token.set(token1);
 
-        const resultDB = await CLPool.CollectFees.processEvent({
-          event: mockEvent,
-          mockDb: finalDb,
-        });
+        const resultDB = await finalDb.processEvents([mockEvent]);
 
         // Note: In a real scenario, the effect would be called and prices refreshed
         // For this test, we verify that the handler structure supports price refresh
@@ -670,10 +627,10 @@ describe("CLPool Events", () => {
 
   describe("Flash Event", () => {
     let mockEvent: ReturnType<typeof CLPool.Flash.createMockEvent>;
-    let processSpy: jest.SpyInstance;
+    let processSpy: MockInstance;
 
     beforeEach(() => {
-      processSpy = jest
+      processSpy = vi
         .spyOn(CLPoolFlashLogic, "processCLPoolFlash")
         .mockReturnValue({
           liquidityPoolDiff: {
@@ -699,7 +656,7 @@ describe("CLPool Events", () => {
         paid0: 1005n,
         paid1: 0n,
         mockEventData: {
-          srcAddress: liquidityPool.poolAddress,
+          srcAddress: liquidityPool.poolAddress as `0x${string}`,
           chainId: chainId,
           block: {
             number: 1000000,
@@ -713,10 +670,7 @@ describe("CLPool Events", () => {
 
     it("should process flash event and update flash loan metrics", async () => {
       processSpy.mockClear();
-      const resultDB = await CLPool.Flash.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const resultDB = await mockDb.processEvents([mockEvent]);
 
       expect(processSpy).toHaveBeenCalled();
       expect(processSpy.mock.calls.length).toBeGreaterThanOrEqual(1);
@@ -728,10 +682,7 @@ describe("CLPool Events", () => {
 
     it("should return early if pool data not found", async () => {
       const emptyDb = MockDb.createMockDb();
-      await CLPool.Flash.processEvent({
-        event: mockEvent,
-        mockDb: emptyDb,
-      });
+      await emptyDb.processEvents([mockEvent]);
 
       // Should not throw, handler should return early
       expect(processSpy).not.toHaveBeenCalled();
@@ -768,10 +719,7 @@ describe("CLPool Events", () => {
       const initialTotalFlashLoanVolumeUSD =
         initialUserStats?.totalFlashLoanVolumeUSD ?? 0n;
 
-      const resultDB = await CLPool.Flash.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const resultDB = await mockDb.processEvents([mockEvent]);
 
       // Should still process, but user stats update is conditional
       expect(processSpy).toHaveBeenCalled();
@@ -802,7 +750,7 @@ describe("CLPool Events", () => {
         observationCardinalityNextNew: 100n,
         observationCardinalityNextOld: 50n,
         mockEventData: {
-          srcAddress: liquidityPool.poolAddress,
+          srcAddress: liquidityPool.poolAddress as `0x${string}`,
           chainId: chainId,
           block: {
             number: 1000000,
@@ -815,11 +763,7 @@ describe("CLPool Events", () => {
     });
 
     it("should update observation cardinality", async () => {
-      const resultDB =
-        await CLPool.IncreaseObservationCardinalityNext.processEvent({
-          event: mockEvent,
-          mockDb,
-        });
+      const resultDB = await mockDb.processEvents([mockEvent]);
 
       const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
         liquidityPool.id,
@@ -830,10 +774,7 @@ describe("CLPool Events", () => {
 
     it("should return early if pool data not found", async () => {
       const emptyDb = MockDb.createMockDb();
-      await CLPool.IncreaseObservationCardinalityNext.processEvent({
-        event: mockEvent,
-        mockDb: emptyDb,
-      });
+      await emptyDb.processEvents([mockEvent]);
 
       // Should not throw, handler should return early
       const updatedPool = emptyDb.entities.LiquidityPoolAggregator.get(
@@ -853,7 +794,7 @@ describe("CLPool Events", () => {
         feeProtocol0Old: 5n,
         feeProtocol1Old: 15n,
         mockEventData: {
-          srcAddress: liquidityPool.poolAddress,
+          srcAddress: liquidityPool.poolAddress as `0x${string}`,
           chainId: chainId,
           block: {
             number: 1000000,
@@ -866,10 +807,7 @@ describe("CLPool Events", () => {
     });
 
     it("should update fee protocol settings", async () => {
-      const resultDB = await CLPool.SetFeeProtocol.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const resultDB = await mockDb.processEvents([mockEvent]);
 
       const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
         liquidityPool.id,
@@ -881,10 +819,7 @@ describe("CLPool Events", () => {
 
     it("should return early if pool data not found", async () => {
       const emptyDb = MockDb.createMockDb();
-      await CLPool.SetFeeProtocol.processEvent({
-        event: mockEvent,
-        mockDb: emptyDb,
-      });
+      await emptyDb.processEvents([mockEvent]);
 
       // Should not throw, handler should return early
       const updatedPool = emptyDb.entities.LiquidityPoolAggregator.get(

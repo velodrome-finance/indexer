@@ -1,4 +1,5 @@
-import type { Token } from "../../../generated/src/Types.gen";
+import type { Token } from "generated";
+import type { Mock } from "vitest";
 import { PoolAddressField } from "../../../src/Aggregators/LiquidityPoolAggregator";
 import {
   type VotingRewardClaimRewardsData,

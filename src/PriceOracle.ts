@@ -1,3 +1,4 @@
+import type { Token, handlerContext } from "generated";
 import {
   CHAIN_CONSTANTS,
   PriceOracleType,
@@ -10,7 +11,6 @@ import {
   roundBlockToInterval,
 } from "./Effects/Index";
 import { setTokenPriceSnapshot } from "./Snapshots/TokenPriceSnapshot";
-import type { Token, handlerContext } from "./src/Types.gen";
 export interface TokenPriceData {
   pricePerUSDNew: bigint;
   decimals: bigint;
