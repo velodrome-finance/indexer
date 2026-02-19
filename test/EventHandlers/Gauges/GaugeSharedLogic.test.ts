@@ -5,7 +5,6 @@ import type {
   handlerContext,
 } from "generated";
 import type { PublicClient } from "viem";
-import type { Mock } from "vitest";
 import { MockDb } from "../../../generated/src/TestHelpers.gen";
 import {
   CHAIN_CONSTANTS,

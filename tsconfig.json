@@ -13,7 +13,7 @@
     "noEmit": true,
     "lib": ["es2022", "es2022.error"],
     "rootDirs": ["src", "generated"],
-    "types": ["vitest/globals"]
+    "types": ["vitest/globals", "node"]
   },
   "include": ["src/**/*", "generated/**/*", "test/**/*"]
 }

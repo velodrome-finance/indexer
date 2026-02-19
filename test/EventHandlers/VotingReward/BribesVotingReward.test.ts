@@ -17,9 +17,15 @@ describe("BribesVotingReward Events", () => {
     setupCommon();
   const poolAddress = mockLiquidityPoolData.poolAddress;
   const chainId = 10;
-  const votingRewardAddress = "0x3333333333333333333333333333333333333333";
-  const userAddress = "0x2222222222222222222222222222222222222222";
-  const rewardTokenAddress = "0x4444444444444444444444444444444444444444";
+  const votingRewardAddress = toChecksumAddress(
+    "0x3333333333333333333333333333333333333333",
+  );
+  const userAddress = toChecksumAddress(
+    "0x2222222222222222222222222222222222222222",
+  );
+  const rewardTokenAddress = toChecksumAddress(
+    "0x4444444444444444444444444444444444444444",
+  );
 
   let mockDb: ReturnType<typeof MockDb.createMockDb>;
   let liquidityPool: LiquidityPoolAggregator;
@@ -27,7 +33,7 @@ describe("BribesVotingReward Events", () => {
   let rewardToken: Token;
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.restoreAllMocks();
     mockDb = MockDb.createMockDb();
 
     // Set up liquidity pool with bribe voting reward address

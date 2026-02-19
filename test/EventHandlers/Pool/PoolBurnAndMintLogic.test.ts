@@ -6,8 +6,11 @@ import type {
   Token,
   handlerContext,
 } from "generated";
-import type { Mock } from "vitest";
-import { PoolTransferInTxId, ZERO_ADDRESS } from "../../../src/Constants";
+import {
+  PoolTransferInTxId,
+  ZERO_ADDRESS,
+  toChecksumAddress,
+} from "../../../src/Constants";
 import {
   extractRecipientAddress,
   findClosestPrecedingTransfer,
@@ -28,9 +31,15 @@ describe("PoolBurnAndMintLogic", () => {
   const POOL_ADDRESS = poolAddress;
   const TX_HASH =
     "0x1234567890123456789012345678901234567890123456789012345678901234";
-  const USER_ADDRESS = "0x1111111111111111111111111111111111111111";
-  const ROUTER_ADDRESS = "0x2222222222222222222222222222222222222222";
-  const ADDRESS_ONE = "0x0000000000000000000000000000000000000001";
+  const USER_ADDRESS = toChecksumAddress(
+    "0x1111111111111111111111111111111111111111",
+  );
+  const ROUTER_ADDRESS = toChecksumAddress(
+    "0x2222222222222222222222222222222222222222",
+  );
+  const ADDRESS_ONE = toChecksumAddress(
+    "0x0000000000000000000000000000000000000001",
+  );
   const AMOUNT0 = 1000n * 10n ** 18n;
   const AMOUNT1 = 2000n * 10n ** 18n;
   const LP_VALUE = 500n * 10n ** 18n;
@@ -887,10 +896,6 @@ describe("PoolBurnAndMintLogic", () => {
     const mockLiquidityPoolAggregator: LiquidityPoolAggregator = {
       ...mockLiquidityPoolData,
     };
-
-    beforeEach(() => {
-      vi.clearAllMocks();
-    });
 
     it("should process mint event and update pool token prices", async () => {
       const mintTransfer = createMockTransfer(

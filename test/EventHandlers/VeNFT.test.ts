@@ -21,7 +21,7 @@ describe("VeNFT Events", () => {
     isAlive: true,
     lastUpdatedTimestamp: new Date(),
     locktime: 1n,
-    owner: "0x2222222222222222222222222222222222222222",
+    owner: toChecksumAddress("0x2222222222222222222222222222222222222222"),
     totalValueLocked: 1n,
     lastSnapshotTimestamp: undefined as Date | undefined,
   };
@@ -33,9 +33,9 @@ describe("VeNFT Events", () => {
 
   describe("Transfer Event", () => {
     const eventData = {
-      provider: "0x1111111111111111111111111111111111111111" as `0x${string}`,
-      from: "0x1111111111111111111111111111111111111111" as `0x${string}`,
-      to: "0x2222222222222222222222222222222222222222" as `0x${string}`,
+      provider: toChecksumAddress("0x1111111111111111111111111111111111111111"),
+      from: toChecksumAddress("0x1111111111111111111111111111111111111111"),
+      to: toChecksumAddress("0x2222222222222222222222222222222222222222"),
       tokenId: 1n,
       timestamp: 1n,
       chainId: 10,
@@ -47,8 +47,9 @@ describe("VeNFT Events", () => {
         },
         chainId: 10,
         logIndex: 1,
-        srcAddress:
-          "0x3333333333333333333333333333333333333333" as `0x${string}`,
+        srcAddress: toChecksumAddress(
+          "0x3333333333333333333333333333333333333333",
+        ),
       },
     };
 
@@ -105,9 +106,9 @@ describe("VeNFT Events", () => {
 
   describe("Transfer Event - Minting", () => {
     const mintEventData = {
-      provider: "0x1111111111111111111111111111111111111111" as `0x${string}`,
-      from: "0x0000000000000000000000000000000000000000" as `0x${string}`,
-      to: "0x2222222222222222222222222222222222222222" as `0x${string}`,
+      provider: toChecksumAddress("0x1111111111111111111111111111111111111111"),
+      from: toChecksumAddress("0x0000000000000000000000000000000000000000"),
+      to: toChecksumAddress("0x2222222222222222222222222222222222222222"),
       tokenId: 2n,
       timestamp: 1n,
       chainId: 10,
@@ -119,8 +120,9 @@ describe("VeNFT Events", () => {
         },
         chainId: 10,
         logIndex: 1,
-        srcAddress:
-          "0x3333333333333333333333333333333333333333" as `0x${string}`,
+        srcAddress: toChecksumAddress(
+          "0x3333333333333333333333333333333333333333",
+        ),
       },
     };
 
@@ -154,7 +156,9 @@ describe("VeNFT Events", () => {
   });
 
   describe("Transfer Event - Vote Reassignment", () => {
-    const zeroAddress = "0x0000000000000000000000000000000000000000";
+    const zeroAddress = toChecksumAddress(
+      "0x0000000000000000000000000000000000000000",
+    );
 
     it("should reassign votes from old owner to new owner", async () => {
       const {
@@ -497,7 +501,7 @@ describe("VeNFT Events", () => {
 
   describe("Withdraw Event", () => {
     const eventData = {
-      provider: "0x1111111111111111111111111111111111111111" as `0x${string}`,
+      provider: toChecksumAddress("0x1111111111111111111111111111111111111111"),
       tokenId: 1n,
       value: 1n,
       ts: 1n,
@@ -509,8 +513,9 @@ describe("VeNFT Events", () => {
         },
         chainId: 10,
         logIndex: 1,
-        srcAddress:
-          "0x3333333333333333333333333333333333333333" as `0x${string}`,
+        srcAddress: toChecksumAddress(
+          "0x3333333333333333333333333333333333333333",
+        ),
       },
     };
 
@@ -575,7 +580,7 @@ describe("VeNFT Events", () => {
 
   describe("Deposit Event", () => {
     const eventData = {
-      provider: "0x1111111111111111111111111111111111111111" as `0x${string}`,
+      provider: toChecksumAddress("0x1111111111111111111111111111111111111111"),
       tokenId: 1n,
       value: 1n,
       locktime: 1n,
@@ -589,8 +594,9 @@ describe("VeNFT Events", () => {
         },
         chainId: 10,
         logIndex: 1,
-        srcAddress:
-          "0x3333333333333333333333333333333333333333" as `0x${string}`,
+        srcAddress: toChecksumAddress(
+          "0x3333333333333333333333333333333333333333",
+        ),
       },
     };
 

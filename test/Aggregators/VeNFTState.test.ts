@@ -1,10 +1,13 @@
 import type { VeNFTState, handlerContext } from "generated";
-import type { Mock } from "vitest";
 import {
   loadVeNFTState,
   updateVeNFTState,
 } from "../../src/Aggregators/VeNFTState";
-import { VeNFTId, VeNFTStateSnapshotId } from "../../src/Constants";
+import {
+  VeNFTId,
+  VeNFTStateSnapshotId,
+  toChecksumAddress,
+} from "../../src/Constants";
 import { getSnapshotEpoch } from "../../src/Snapshots/Shared";
 
 function getVeNFTStateStore(
@@ -21,7 +24,7 @@ describe("VeNFTState", () => {
     id: VeNFTId(10, 1n),
     chainId: 10,
     tokenId: 1n,
-    owner: "0x1111111111111111111111111111111111111111",
+    owner: toChecksumAddress("0x1111111111111111111111111111111111111111"),
     locktime: 100n,
     lastUpdatedTimestamp: new Date(10000 * 1000),
     totalValueLocked: 100n,
@@ -104,7 +107,9 @@ describe("VeNFTState", () => {
           id: VeNFTId(10, 1n),
           chainId: 10,
           tokenId: 1n,
-          owner: "0x1111111111111111111111111111111111111111",
+          owner: toChecksumAddress(
+            "0x1111111111111111111111111111111111111111",
+          ),
           locktime: 100n,
           incrementalTotalValueLocked: 50n,
           isAlive: true,
@@ -158,7 +163,9 @@ describe("VeNFTState", () => {
       let result: VeNFTState;
       beforeEach(async () => {
         const transferDiff = {
-          owner: "0x2222222222222222222222222222222222222222",
+          owner: toChecksumAddress(
+            "0x2222222222222222222222222222222222222222",
+          ),
           isAlive: true,
         };
 
@@ -174,7 +181,9 @@ describe("VeNFTState", () => {
       });
 
       it("should update the VeNFTState with new owner", () => {
-        expect(result.owner).toBe("0x2222222222222222222222222222222222222222");
+        expect(result.owner).toBe(
+          toChecksumAddress("0x2222222222222222222222222222222222222222"),
+        );
       });
     });
 
@@ -182,7 +191,9 @@ describe("VeNFTState", () => {
       let result: VeNFTState;
       beforeEach(async () => {
         const burnDiff = {
-          owner: "0x0000000000000000000000000000000000000000",
+          owner: toChecksumAddress(
+            "0x0000000000000000000000000000000000000000",
+          ),
           isAlive: false,
         };
 
@@ -210,7 +221,9 @@ describe("VeNFTState", () => {
           id: "10-99",
           chainId: 10,
           tokenId: 99n,
-          owner: "0x0000000000000000000000000000000000000000",
+          owner: toChecksumAddress(
+            "0x0000000000000000000000000000000000000000",
+          ),
           locktime: 0n,
           lastUpdatedTimestamp: new Date(0),
           totalValueLocked: 0n,
@@ -249,8 +262,8 @@ describe("VeNFTState", () => {
           timestamp,
           mockContext as handlerContext,
         );
-        const result = getVeNFTStateStore(mockContext).set as Mock;
-        const updated = result.mock.calls[0][0] as VeNFTState;
+        const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
+        const updated = mockSet.mock.calls[0][0] as VeNFTState;
         // When lastSnapshotTimestamp is undefined we take a snapshot and set it to the epoch
         expect(updated.lastSnapshotTimestamp).toBeDefined();
         expect(updated.lastSnapshotTimestamp?.getTime()).toBe(
@@ -286,8 +299,8 @@ describe("VeNFTState", () => {
           timestamp,
           mockContext as handlerContext,
         );
-        const result = getVeNFTStateStore(mockContext).set as Mock;
-        const updated = result.mock.calls[0][0] as VeNFTState;
+        const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
+        const updated = mockSet.mock.calls[0][0] as VeNFTState;
         expect(updated.lastSnapshotTimestamp).toEqual(new Date(9000 * 1000));
       });
 
@@ -307,8 +320,8 @@ describe("VeNFTState", () => {
           timestamp,
           mockContext as handlerContext,
         );
-        const result = getVeNFTStateStore(mockContext).set as Mock;
-        const updated = result.mock.calls[0][0] as VeNFTState;
+        const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
+        const updated = mockSet.mock.calls[0][0] as VeNFTState;
         expect(updated.lastSnapshotTimestamp).toEqual(newerSnapshotTime);
       });
 
@@ -329,8 +342,8 @@ describe("VeNFTState", () => {
           timestamp,
           mockContext as handlerContext,
         );
-        const result = getVeNFTStateStore(mockContext).set as Mock;
-        const updated = result.mock.calls[0][0] as VeNFTState;
+        const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
+        const updated = mockSet.mock.calls[0][0] as VeNFTState;
         expect(updated.lastSnapshotTimestamp).toEqual(existingSnapshot);
       });
     });

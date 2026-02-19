@@ -13,13 +13,23 @@ import * as VotingRewardSharedLogic from "../../../src/EventHandlers/VotingRewar
 import { setupCommon } from "../Pool/common";
 
 describe("FeesVotingReward Events", () => {
-  const { mockToken0Data, mockToken1Data, mockLiquidityPoolData } =
-    setupCommon();
+  const {
+    mockToken0Data,
+    mockToken1Data,
+    mockLiquidityPoolData,
+    createMockUserStatsPerPool,
+  } = setupCommon();
   const poolAddress = mockLiquidityPoolData.poolAddress;
   const chainId = 10;
-  const votingRewardAddress = "0x3333333333333333333333333333333333333333";
-  const userAddress = "0x2222222222222222222222222222222222222222";
-  const rewardTokenAddress = "0x4444444444444444444444444444444444444444";
+  const votingRewardAddress = toChecksumAddress(
+    "0x3333333333333333333333333333333333333333",
+  );
+  const userAddress = toChecksumAddress(
+    "0x2222222222222222222222222222222222222222",
+  );
+  const rewardTokenAddress = toChecksumAddress(
+    "0x4444444444444444444444444444444444444444",
+  );
 
   let mockDb: ReturnType<typeof MockDb.createMockDb>;
   let liquidityPool: LiquidityPoolAggregator;
@@ -27,7 +37,7 @@ describe("FeesVotingReward Events", () => {
   let rewardToken: Token;
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.restoreAllMocks();
     mockDb = MockDb.createMockDb();
 
     // Set up liquidity pool with fee voting reward address
@@ -38,7 +48,6 @@ describe("FeesVotingReward Events", () => {
     } as LiquidityPoolAggregator;
 
     // Set up user stats
-    const { createMockUserStatsPerPool } = setupCommon();
     userStats = createMockUserStatsPerPool({
       userAddress: userAddress,
       poolAddress: poolAddress,

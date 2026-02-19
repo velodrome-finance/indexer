@@ -146,14 +146,13 @@ test.each([
 
 - Prefer dependency injection over `vi.mock()` where possible.
 
-- Use Vitest APIs: `vi.mock()`, `vi.fn()`, `vi.spyOn()`, `vi.mocked()`, `vi.clearAllMocks()`, `vi.restoreAllMocks()`.
+- Use Vitest APIs: `vi.mock()`, `vi.fn()`, `vi.spyOn()`, `vi.mocked()`, `vi.restoreAllMocks()`, `vi.restoreAllMocks()`.
 
 - If using spies/mocks in a suite, reset consistently:
 
 ```ts
 beforeEach(() => {
   vi.restoreAllMocks();
-  vi.clearAllMocks();
 });
 ```
 

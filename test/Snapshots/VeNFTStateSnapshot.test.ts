@@ -1,4 +1,3 @@
-import type { Mock } from "vitest";
 import {
   SNAPSHOT_INTERVAL_IN_MS,
   VeNFTStateSnapshotId,
@@ -15,7 +14,7 @@ describe("VeNFTStateSnapshot", () => {
 
   beforeEach(() => {
     common = setupCommon();
-    vi.clearAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe("createVeNFTStateSnapshot", () => {
@@ -65,10 +64,15 @@ describe("VeNFTStateSnapshot", () => {
 
     setVeNFTStateSnapshot(entity, midEpochTimestamp, context);
 
-    const setArg = (context.VeNFTStateSnapshot.set as Mock).mock.calls[0][0];
-    expect(setArg.timestamp.getTime()).toBe(expectedEpochMs);
-    expect(setArg.id).toBe(
-      VeNFTStateSnapshotId(entity.chainId, entity.tokenId, expectedEpochMs),
+    expect(context.VeNFTStateSnapshot.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: VeNFTStateSnapshotId(
+          entity.chainId,
+          entity.tokenId,
+          expectedEpochMs,
+        ),
+        timestamp: new Date(expectedEpochMs),
+      }),
     );
   });
 
@@ -81,16 +85,21 @@ describe("VeNFTStateSnapshot", () => {
       locktime: 1n,
     });
     const timestamp = new Date(baseTimestamp.getTime() + 10 * 60 * 1000);
+    const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 2;
 
     setVeNFTStateSnapshot(entity, timestamp, context);
 
     expect(context.VeNFTStateSnapshot.set).toHaveBeenCalledTimes(1);
-    const setArg = (context.VeNFTStateSnapshot.set as Mock).mock.calls[0][0];
-    const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 2;
-    expect(setArg.id).toBe(
-      VeNFTStateSnapshotId(entity.chainId, entity.tokenId, expectedEpochMs),
+    expect(context.VeNFTStateSnapshot.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: VeNFTStateSnapshotId(
+          entity.chainId,
+          entity.tokenId,
+          expectedEpochMs,
+        ),
+        timestamp: new Date(expectedEpochMs),
+      }),
     );
-    expect(setArg.timestamp.getTime()).toBe(expectedEpochMs);
   });
 
   it("should spread entity fields into the snapshot", () => {
@@ -102,16 +111,26 @@ describe("VeNFTStateSnapshot", () => {
       locktime: 1n,
       isAlive: false,
     });
+    const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 2;
 
     setVeNFTStateSnapshot(entity, baseTimestamp, context);
 
-    const setArg = (context.VeNFTStateSnapshot.set as Mock).mock.calls[0][0];
-    expect(setArg.chainId).toBe(entity.chainId);
-    expect(setArg.tokenId).toBe(entity.tokenId);
-    expect(setArg.owner).toBe(entity.owner);
-    expect(setArg.totalValueLocked).toBe(entity.totalValueLocked);
-    expect(setArg.locktime).toBe(entity.locktime);
-    expect(setArg.lastUpdatedTimestamp).toEqual(entity.lastUpdatedTimestamp);
-    expect(setArg.isAlive).toBe(entity.isAlive);
+    expect(context.VeNFTStateSnapshot.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: VeNFTStateSnapshotId(
+          entity.chainId,
+          entity.tokenId,
+          expectedEpochMs,
+        ),
+        timestamp: new Date(expectedEpochMs),
+        chainId: entity.chainId,
+        tokenId: entity.tokenId,
+        owner: entity.owner,
+        totalValueLocked: entity.totalValueLocked,
+        locktime: entity.locktime,
+        lastUpdatedTimestamp: entity.lastUpdatedTimestamp,
+        isAlive: entity.isAlive,
+      }),
+    );
   });
 });

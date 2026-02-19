@@ -11,7 +11,7 @@ import { setupCommon } from "../Pool/common";
 
 describe("SuperchainLeafVoter Events", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.restoreAllMocks();
   });
 
   afterEach(() => {

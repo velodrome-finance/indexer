@@ -1,4 +1,4 @@
-import type { Mock, MockInstance } from "vitest";
+import type { MockInstance } from "vitest";
 import type {
   UserStatsPerPool,
   VeNFTPoolVote,
@@ -56,7 +56,7 @@ describe("VeNFTLogic", () => {
 
   const createMockDepositEvent = (): VeNFT_Deposit_event => ({
     params: {
-      provider: "0x2222222222222222222222222222222222222222",
+      provider: toChecksumAddress("0x2222222222222222222222222222222222222222"),
       tokenId: 1n,
       value: 50n,
       locktime: 200n,
@@ -70,7 +70,7 @@ describe("VeNFTLogic", () => {
     },
     chainId: 10,
     logIndex: 1,
-    srcAddress: "0x3333333333333333333333333333333333333333",
+    srcAddress: toChecksumAddress("0x3333333333333333333333333333333333333333"),
     transaction: {
       hash: "0x1111111111111111111111111111111111111111",
     },
@@ -78,7 +78,7 @@ describe("VeNFTLogic", () => {
 
   describe("processVeNFTDeposit", () => {
     beforeEach(() => {
-      vi.clearAllMocks();
+      vi.restoreAllMocks();
     });
 
     it("should call updateVeNFTState with the proper diff", async () => {
@@ -111,8 +111,8 @@ describe("VeNFTLogic", () => {
   describe("processVeNFTTransfer", () => {
     const mockTransferEvent: VeNFT_Transfer_event = {
       params: {
-        from: "0x1111111111111111111111111111111111111111",
-        to: "0x2222222222222222222222222222222222222222",
+        from: toChecksumAddress("0x1111111111111111111111111111111111111111"),
+        to: toChecksumAddress("0x2222222222222222222222222222222222222222"),
         tokenId: 1n,
       },
       block: {
@@ -122,14 +122,16 @@ describe("VeNFTLogic", () => {
       },
       chainId: 10,
       logIndex: 1,
-      srcAddress: "0x3333333333333333333333333333333333333333",
+      srcAddress: toChecksumAddress(
+        "0x3333333333333333333333333333333333333333",
+      ),
       transaction: {
         hash: "0x1111111111111111111111111111111111111111",
       },
     } as VeNFT_Transfer_event;
 
     beforeEach(() => {
-      vi.clearAllMocks();
+      vi.restoreAllMocks();
       vi.spyOn(VeNFTLogic, "reassignVeNFTVotesOnTransfer").mockResolvedValue(
         undefined,
       );
@@ -166,7 +168,7 @@ describe("VeNFTLogic", () => {
         ...mockTransferEvent,
         params: {
           ...mockTransferEvent.params,
-          to: "0x0000000000000000000000000000000000000000",
+          to: toChecksumAddress("0x0000000000000000000000000000000000000000"),
         },
       } as VeNFT_Transfer_event;
       const timestamp = new Date(burnEvent.block.timestamp * 1000);
@@ -182,7 +184,9 @@ describe("VeNFTLogic", () => {
 
       expect(updateSpy).toHaveBeenCalledWith(
         {
-          owner: "0x0000000000000000000000000000000000000000",
+          owner: toChecksumAddress(
+            toChecksumAddress("0x0000000000000000000000000000000000000000"),
+          ),
           lastUpdatedTimestamp: timestamp,
           isAlive: false,
         },
@@ -196,7 +200,9 @@ describe("VeNFTLogic", () => {
   describe("processVeNFTWithdraw", () => {
     const mockWithdrawEvent: VeNFT_Withdraw_event = {
       params: {
-        provider: "0x1111111111111111111111111111111111111111",
+        provider: toChecksumAddress(
+          "0x1111111111111111111111111111111111111111",
+        ),
         tokenId: 1n,
         value: 25n,
         ts: 100n,
@@ -208,14 +214,16 @@ describe("VeNFTLogic", () => {
       },
       chainId: 10,
       logIndex: 1,
-      srcAddress: "0x3333333333333333333333333333333333333333",
+      srcAddress: toChecksumAddress(
+        "0x3333333333333333333333333333333333333333",
+      ),
       transaction: {
         hash: "0x1111111111111111111111111111111111111111",
       },
     } as VeNFT_Withdraw_event;
 
     beforeEach(() => {
-      vi.clearAllMocks();
+      vi.restoreAllMocks();
     });
 
     it("should call updateVeNFTState with the proper diff", async () => {
@@ -247,8 +255,8 @@ describe("VeNFTLogic", () => {
 
     const mockTransferEvent: VeNFT_Transfer_event = {
       params: {
-        from: "0x1111111111111111111111111111111111111111",
-        to: "0x2222222222222222222222222222222222222222",
+        from: toChecksumAddress("0x1111111111111111111111111111111111111111"),
+        to: toChecksumAddress("0x2222222222222222222222222222222222222222"),
         tokenId: 1n,
       },
       block: {
@@ -301,7 +309,7 @@ describe("VeNFTLogic", () => {
         },
       ] as VeNFTPoolVote[];
 
-      (mockContext.VeNFTPoolVote?.getWhere as Mock).mockResolvedValue(
+      vi.mocked(mockContext.VeNFTPoolVote?.getWhere).mockResolvedValue(
         poolVotes,
       );
 
@@ -334,7 +342,7 @@ describe("VeNFTLogic", () => {
         },
       ] as VeNFTPoolVote[];
 
-      const getWhereMock = mockContext.VeNFTPoolVote?.getWhere as Mock;
+      const getWhereMock = vi.mocked(mockContext.VeNFTPoolVote?.getWhere);
       getWhereMock.mockImplementation(() => Promise.resolve(poolVotes));
 
       const previousOwnerId = `10-${mockVeNFTState.owner}-0xpool1`;
@@ -355,7 +363,7 @@ describe("VeNFTLogic", () => {
         veNFTamountStaked: 0n,
         lastActivityTimestamp: new Date(0),
       } as UserStatsPerPool;
-      vi.mocked(mockContext.UserStatsPerPool?.get).mockImplementation(
+      vi.mocked(mockContext.UserStatsPerPool.get).mockImplementation(
         (id: string) =>
           Promise.resolve(
             id === previousOwnerId
@@ -400,8 +408,8 @@ describe("VeNFTLogic", () => {
   describe("updatePreviousOwnerUserStatsOnTransfer", () => {
     const mockTransferEvent: VeNFT_Transfer_event = {
       params: {
-        from: "0x1111111111111111111111111111111111111111",
-        to: "0x2222222222222222222222222222222222222222",
+        from: toChecksumAddress("0x1111111111111111111111111111111111111111"),
+        to: toChecksumAddress("0x2222222222222222222222222222222222222222"),
         tokenId: 1n,
       },
       block: { timestamp: 1000000, number: 1, hash: "0x" },
@@ -417,7 +425,7 @@ describe("VeNFTLogic", () => {
 
       await VeNFTLogic.updatePreviousOwnerUserStatsOnTransfer(
         mockTransferEvent,
-        "0x1111111111111111111111111111111111111111",
+        toChecksumAddress("0x1111111111111111111111111111111111111111"),
         "0xpool1",
         50n,
         mockContext,
@@ -432,7 +440,9 @@ describe("VeNFTLogic", () => {
     it("calls updateUserStatsPerPool with negative delta when previous owner exists", async () => {
       const existingUserStats = {
         id: "10-0x1111111111111111111111111111111111111111-0xpool1",
-        userAddress: "0x1111111111111111111111111111111111111111",
+        userAddress: toChecksumAddress(
+          "0x1111111111111111111111111111111111111111",
+        ),
         poolAddress: "0xpool1",
         chainId: 10,
         veNFTamountStaked: 100n,
@@ -449,7 +459,7 @@ describe("VeNFTLogic", () => {
 
       await VeNFTLogic.updatePreviousOwnerUserStatsOnTransfer(
         mockTransferEvent,
-        "0x1111111111111111111111111111111111111111",
+        toChecksumAddress("0x1111111111111111111111111111111111111111"),
         "0xpool1",
         50n,
         mockContext,
@@ -469,8 +479,8 @@ describe("VeNFTLogic", () => {
   describe("updateNewOwnerUserStatsOnTransfer", () => {
     const mockTransferEvent: VeNFT_Transfer_event = {
       params: {
-        from: "0x1111111111111111111111111111111111111111",
-        to: "0x2222222222222222222222222222222222222222",
+        from: toChecksumAddress("0x1111111111111111111111111111111111111111"),
+        to: toChecksumAddress("0x2222222222222222222222222222222222222222"),
         tokenId: 1n,
       },
       block: { timestamp: 1000000, number: 1, hash: "0x" },
@@ -488,7 +498,7 @@ describe("VeNFTLogic", () => {
 
       await VeNFTLogic.updateNewOwnerUserStatsOnTransfer(
         mockTransferEvent,
-        "0x0000000000000000000000000000000000000000",
+        toChecksumAddress("0x0000000000000000000000000000000000000000"),
         "0xpool1",
         50n,
         mockContext,
@@ -507,7 +517,7 @@ describe("VeNFTLogic", () => {
 
       await VeNFTLogic.updateNewOwnerUserStatsOnTransfer(
         mockTransferEvent,
-        "0x2222222222222222222222222222222222222222",
+        toChecksumAddress("0x2222222222222222222222222222222222222222"),
         "0xpool1",
         50n,
         mockContext,

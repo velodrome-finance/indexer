@@ -1,4 +1,3 @@
-import type { Mock } from "vitest";
 import { TokenIdByBlock, toChecksumAddress } from "../../src/Constants";
 import {
   createTokenPriceSnapshot,
@@ -19,7 +18,7 @@ describe("TokenPriceSnapshot", () => {
 
   beforeEach(() => {
     common = setupCommon();
-    vi.clearAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe("createTokenPriceSnapshot", () => {
@@ -83,9 +82,11 @@ describe("TokenPriceSnapshot", () => {
     );
 
     expect(context.TokenPriceSnapshot.set).toHaveBeenCalledTimes(1);
-    const setArg = (context.TokenPriceSnapshot.set as Mock).mock.calls[0][0];
-    // TokenIdByBlock(chainId, address, blockNumber) => "chainId-address-blockNumber"
-    expect(setArg.id).toBe(TokenIdByBlock(chainId, address, blockNumber));
+    expect(context.TokenPriceSnapshot.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: TokenIdByBlock(chainId, address, blockNumber),
+      }),
+    );
   });
 
   it("should set snapshot with all passed fields", () => {
@@ -103,12 +104,16 @@ describe("TokenPriceSnapshot", () => {
       context,
     );
 
-    const setArg = (context.TokenPriceSnapshot.set as Mock).mock.calls[0][0];
-    expect(setArg.address).toBe(address);
-    expect(setArg.chainId).toBe(chainId);
-    expect(setArg.pricePerUSDNew).toBe(pricePerUSDNew);
-    expect(setArg.isWhitelisted).toBe(isWhitelisted);
-    expect(setArg.lastUpdatedTimestamp).toBe(lastUpdatedTimestamp);
+    expect(context.TokenPriceSnapshot.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: TokenIdByBlock(chainId, address, blockNumber),
+        address,
+        chainId,
+        pricePerUSDNew,
+        isWhitelisted,
+        lastUpdatedTimestamp,
+      }),
+    );
   });
 
   it("should handle isWhitelisted false", () => {
@@ -126,7 +131,10 @@ describe("TokenPriceSnapshot", () => {
       context,
     );
 
-    const setArg = (context.TokenPriceSnapshot.set as Mock).mock.calls[0][0];
-    expect(setArg.isWhitelisted).toBe(false);
+    expect(context.TokenPriceSnapshot.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        isWhitelisted: false,
+      }),
+    );
   });
 });

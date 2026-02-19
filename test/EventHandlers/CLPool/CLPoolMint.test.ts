@@ -1,6 +1,6 @@
 import "../../eventHandlersRegistration";
 import { CLPool, MockDb } from "../../../generated/src/TestHelpers.gen";
-import { CLPoolMintEventId } from "../../../src/Constants";
+import { CLPoolMintEventId, toChecksumAddress } from "../../../src/Constants";
 import { setupCommon } from "../Pool/common";
 
 describe("CLPool Mint Event Handler", () => {
@@ -9,7 +9,9 @@ describe("CLPool Mint Event Handler", () => {
     setupCommon();
   const poolAddress = mockLiquidityPoolData.poolAddress;
   const chainId = 10;
-  const ownerAddress = "0x1111111111111111111111111111111111111111";
+  const ownerAddress = toChecksumAddress(
+    "0x1111111111111111111111111111111111111111",
+  );
   const transactionHash =
     "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890";
 

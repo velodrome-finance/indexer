@@ -1,6 +1,6 @@
 import "../eventHandlersRegistration";
 import type { CLGaugeConfig, LiquidityPoolAggregator, Token } from "generated";
-import type { Mock, MockInstance } from "vitest";
+import type { MockInstance } from "vitest";
 import { CLFactory, MockDb } from "../../generated/src/TestHelpers.gen";
 import {
   CHAIN_CONSTANTS,
@@ -33,6 +33,38 @@ describe("CLFactory Events", () => {
     fee: FEE,
     lastUpdatedTimestamp: new Date(1000000 * 1000),
   });
+
+  function setupMockDbWithEntities(
+    db: ReturnType<typeof MockDb.createMockDb>,
+    options: { includeFeeToTickSpacing?: boolean } = {},
+  ): ReturnType<typeof MockDb.createMockDb> {
+    const { includeFeeToTickSpacing = true } = options;
+    const token0ForBase = {
+      ...mockToken0Data,
+      id: TokenId(chainId, mockToken0Data.address),
+      chainId: chainId,
+    } satisfies Token;
+    const token1ForBase = {
+      ...mockToken1Data,
+      id: TokenId(chainId, mockToken1Data.address),
+      chainId: chainId,
+    } satisfies Token;
+    let updated =
+      db.entities.Token.set(token0ForBase).entities.Token.set(token1ForBase);
+    const clGaugeConfig = {
+      id: newCLGaugeFactoryAddress,
+      defaultEmissionsCap: 0n,
+      lastUpdatedTimestamp: new Date(1000000 * 1000),
+    } satisfies CLGaugeConfig;
+    updated = updated.entities.CLGaugeConfig.set(clGaugeConfig);
+    if (includeFeeToTickSpacing) {
+      const feeToTickSpacingMapping = createFeeToTickSpacingMapping();
+      updated = updated.entities.FeeToTickSpacingMapping.set(
+        feeToTickSpacingMapping,
+      );
+    }
+    return updated;
+  }
 
   let processSpy: MockInstance<
     typeof CLFactoryPoolCreatedLogic.processCLFactoryPoolCreated
@@ -67,7 +99,7 @@ describe("CLFactory Events", () => {
         pricePerUSDNew: 1000000000000000000n,
         chainId: chainId,
         isWhitelisted: false,
-        lastUpdatedTimestamp: new Date(),
+        lastUpdatedTimestamp: new Date(1000000 * 1000),
       }),
     );
 
@@ -119,36 +151,7 @@ describe("CLFactory Events", () => {
 
     beforeEach(async () => {
       mockDb = MockDb.createMockDb();
-
-      // Set up token entities with correct chainId (8453 for Base)
-      const token0ForBase = {
-        ...mockToken0Data,
-        id: TokenId(chainId, mockToken0Data.address),
-        chainId: chainId,
-      } as Token;
-      const token1ForBase = {
-        ...mockToken1Data,
-        id: TokenId(chainId, mockToken1Data.address),
-        chainId: chainId,
-      } as Token;
-      mockDb = mockDb.entities.Token.set(token0ForBase);
-      mockDb = mockDb.entities.Token.set(token1ForBase);
-
-      // Set up CLGaugeConfig
-      const clGaugeConfig: CLGaugeConfig = {
-        id: newCLGaugeFactoryAddress, // Use address as-is from CHAIN_CONSTANTS to match handler lookup
-        chainId: chainId,
-        gaugeFactoryAddress: newCLGaugeFactoryAddress,
-        defaultEmissionsCap: 0n,
-        lastUpdatedTimestamp: new Date(1000000 * 1000),
-      } as CLGaugeConfig;
-      mockDb = mockDb.entities.CLGaugeConfig.set(clGaugeConfig);
-
-      // Set up FeeToTickSpacingMapping for the pool's tick spacing
-      const feeToTickSpacingMapping = createFeeToTickSpacingMapping();
-      mockDb = mockDb.entities.FeeToTickSpacingMapping.set(
-        feeToTickSpacingMapping,
-      );
+      mockDb = setupMockDbWithEntities(mockDb);
 
       mockEvent = CLFactory.PoolCreated.createMockEvent({
         token0: token0Address as `0x${string}`,
@@ -215,33 +218,7 @@ describe("CLFactory Events", () => {
     it("should process event even during preload phase", async () => {
       // Create a mock context that simulates preload
       let preloadMockDb = MockDb.createMockDb();
-      const token0ForBase = {
-        ...mockToken0Data,
-        id: TokenId(chainId, mockToken0Data.address),
-        chainId: chainId,
-      } as Token;
-      const token1ForBase = {
-        ...mockToken1Data,
-        id: TokenId(chainId, mockToken1Data.address),
-        chainId: chainId,
-      } as Token;
-      preloadMockDb = preloadMockDb.entities.Token.set(token0ForBase);
-      preloadMockDb = preloadMockDb.entities.Token.set(token1ForBase);
-
-      const clGaugeConfig: CLGaugeConfig = {
-        id: newCLGaugeFactoryAddress, // Use the address as-is from CHAIN_CONSTANTS
-        chainId: chainId,
-        gaugeFactoryAddress: newCLGaugeFactoryAddress,
-        defaultEmissionsCap: 0n,
-        lastUpdatedTimestamp: new Date(1000000 * 1000),
-      } as CLGaugeConfig;
-      preloadMockDb = preloadMockDb.entities.CLGaugeConfig.set(clGaugeConfig);
-
-      // Set up FeeToTickSpacingMapping
-      const feeToTickSpacingMapping = createFeeToTickSpacingMapping();
-      preloadMockDb = preloadMockDb.entities.FeeToTickSpacingMapping.set(
-        feeToTickSpacingMapping,
-      );
+      preloadMockDb = setupMockDbWithEntities(preloadMockDb);
 
       // Reset spy to track calls
       processSpy.mockClear();
@@ -294,33 +271,9 @@ describe("CLFactory Events", () => {
 
     it("should handle missing FeeToTickSpacingMapping gracefully", async () => {
       let mockDbWithoutMapping = MockDb.createMockDb();
-      const token0ForBase = {
-        ...mockToken0Data,
-        id: TokenId(chainId, mockToken0Data.address),
-        chainId: chainId,
-      } as Token;
-      const token1ForBase = {
-        ...mockToken1Data,
-        id: TokenId(chainId, mockToken1Data.address),
-        chainId: chainId,
-      } as Token;
-      // Set up token entities
-      mockDbWithoutMapping =
-        mockDbWithoutMapping.entities.Token.set(token0ForBase);
-      mockDbWithoutMapping =
-        mockDbWithoutMapping.entities.Token.set(token1ForBase);
-
-      const clGaugeConfig: CLGaugeConfig = {
-        id: newCLGaugeFactoryAddress,
-        chainId: chainId,
-        gaugeFactoryAddress: newCLGaugeFactoryAddress,
-        defaultEmissionsCap: 0n,
-        lastUpdatedTimestamp: new Date(1000000 * 1000),
-      } as CLGaugeConfig;
-      // Set up CLGaugeConfig
-      mockDbWithoutMapping =
-        mockDbWithoutMapping.entities.CLGaugeConfig.set(clGaugeConfig);
-      // Note: FeeToTickSpacingMapping is NOT set
+      mockDbWithoutMapping = setupMockDbWithEntities(mockDbWithoutMapping, {
+        includeFeeToTickSpacing: false,
+      });
 
       const result = await mockDbWithoutMapping.processEvents([mockEvent]);
 

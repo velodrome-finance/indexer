@@ -11,6 +11,7 @@ import {
   LiquidityPoolAggregatorSnapshotId,
   PoolId,
   RootPoolLeafPoolId,
+  toChecksumAddress,
 } from "../../src/Constants";
 import { getCurrentFee } from "../../src/Effects/DynamicFee";
 import { setLiquidityPoolAggregatorSnapshot } from "../../src/Snapshots/LiquidityPoolAggregatorSnapshot";
@@ -25,7 +26,6 @@ describe("LiquidityPoolAggregator Functions", () => {
   let mockContext: Partial<handlerContext>;
   let liquidityPoolAggregator: Partial<LiquidityPoolAggregator>;
   let timestamp: Date;
-  let mockContract: Mock;
   const blockNumber = 131536921;
   const { createMockLiquidityPoolAggregator } = setupCommon();
 
@@ -101,12 +101,16 @@ describe("LiquidityPoolAggregator Functions", () => {
       }),
     };
     liquidityPoolAggregator = createMockLiquidityPoolAggregator({
-      id: "0x1234567890123456789012345678901234567890",
+      id: toChecksumAddress("0x1234567890123456789012345678901234567890"),
       name: "Test Pool",
       token0_id: "token0",
       token1_id: "token1",
-      token0_address: "0x1111111111111111111111111111111111111111",
-      token1_address: "0x2222222222222222222222222222222222222222",
+      token0_address: toChecksumAddress(
+        "0x1111111111111111111111111111111111111111",
+      ),
+      token1_address: toChecksumAddress(
+        "0x2222222222222222222222222222222222222222",
+      ),
       isStable: false,
       isCL: false,
       reserve0: 0n,
@@ -150,7 +154,7 @@ describe("LiquidityPoolAggregator Functions", () => {
       dynamicFeeConfigMock = {
         getWhere: vi.fn().mockResolvedValue([
           {
-            id: "0xd9eE4FBeE92970509ec795062cA759F8B52d6720",
+            id: toChecksumAddress("0xd9eE4FBeE92970509ec795062cA759F8B52d6720"),
             chainId: 10,
           },
         ]),
@@ -176,7 +180,7 @@ describe("LiquidityPoolAggregator Functions", () => {
 
     it("should handle missing config gracefully", async () => {
       // Mock no config found
-      (dynamicFeeConfigMock.getWhere as Mock).mockResolvedValue([]);
+      vi.mocked(dynamicFeeConfigMock.getWhere).mockResolvedValue([]);
 
       await updateDynamicFeePools(
         liquidityPoolAggregator as LiquidityPoolAggregator,
@@ -213,7 +217,9 @@ describe("LiquidityPoolAggregator Functions", () => {
       const effectMock = vi.mocked(mockContext.effect!);
       expect(effectMock).toHaveBeenCalledWith(getCurrentFee, {
         poolAddress: liquidityPoolAggregator.poolAddress,
-        dynamicFeeModuleAddress: "0xd9eE4FBeE92970509ec795062cA759F8B52d6720",
+        dynamicFeeModuleAddress: toChecksumAddress(
+          "0xd9eE4FBeE92970509ec795062cA759F8B52d6720",
+        ),
         chainId: liquidityPoolAggregator.chainId,
         blockNumber,
       });
@@ -378,7 +384,7 @@ describe("LiquidityPoolAggregator Functions", () => {
       const dynamicFeeConfigMock = {
         getWhere: vi.fn().mockResolvedValue([
           {
-            id: "0xd9eE4FBeE92970509ec795062cA759F8B52d6720",
+            id: toChecksumAddress("0xd9eE4FBeE92970509ec795062cA759F8B52d6720"),
             chainId: 10,
           },
         ]),
@@ -422,13 +428,17 @@ describe("LiquidityPoolAggregator Functions", () => {
   describe("loadPoolData", () => {
     let token0: Token;
     let token1: Token;
-    const poolAddress = "0x1234567890123456789012345678901234567890";
+    const poolAddress = toChecksumAddress(
+      "0x1234567890123456789012345678901234567890",
+    );
     const chainId = 10;
 
     beforeEach(() => {
       token0 = {
         id: "token0",
-        address: "0x1111111111111111111111111111111111111111",
+        address: toChecksumAddress(
+          "0x1111111111111111111111111111111111111111",
+        ),
         symbol: "TOKEN0",
         name: "Token 0",
         chainId: 10,
@@ -440,7 +450,9 @@ describe("LiquidityPoolAggregator Functions", () => {
 
       token1 = {
         id: "token1",
-        address: "0x2222222222222222222222222222222222222222",
+        address: toChecksumAddress(
+          "0x2222222222222222222222222222222222222222",
+        ),
         symbol: "TOKEN1",
         name: "Token 1",
         chainId: 10,
@@ -793,15 +805,21 @@ describe("LiquidityPoolAggregator Functions", () => {
   describe("loadPoolDataOrRootCLPool", () => {
     let token0: Token;
     let token1: Token;
-    const rootPoolAddress = "0x1111111111111111111111111111111111111111";
-    const leafPoolAddress = "0x2222222222222222222222222222222222222222";
+    const rootPoolAddress = toChecksumAddress(
+      "0x1111111111111111111111111111111111111111",
+    );
+    const leafPoolAddress = toChecksumAddress(
+      "0x2222222222222222222222222222222222222222",
+    );
     const chainId = 10;
     const rootPoolId = PoolId(chainId, rootPoolAddress);
 
     beforeEach(() => {
       token0 = {
         id: "token0",
-        address: "0x3333333333333333333333333333333333333333",
+        address: toChecksumAddress(
+          "0x3333333333333333333333333333333333333333",
+        ),
         symbol: "TOKEN0",
         name: "Token 0",
         chainId: 10,
@@ -813,7 +831,9 @@ describe("LiquidityPoolAggregator Functions", () => {
 
       token1 = {
         id: "token1",
-        address: "0x4444444444444444444444444444444444444444",
+        address: toChecksumAddress(
+          "0x4444444444444444444444444444444444444444",
+        ),
         symbol: "TOKEN1",
         name: "Token 1",
         chainId: 10,
@@ -972,12 +992,14 @@ describe("LiquidityPoolAggregator Functions", () => {
           chainId,
           chainId,
           rootPoolAddress,
-          "0x5555555555555555555555555555555555555555",
+          toChecksumAddress("0x5555555555555555555555555555555555555555"),
         ),
         rootChainId: chainId,
         rootPoolAddress: rootPoolAddress,
         leafChainId: chainId,
-        leafPoolAddress: "0x5555555555555555555555555555555555555555",
+        leafPoolAddress: toChecksumAddress(
+          "0x5555555555555555555555555555555555555555",
+        ),
       };
 
       const mockLiquidityPoolGet = vi.mocked(

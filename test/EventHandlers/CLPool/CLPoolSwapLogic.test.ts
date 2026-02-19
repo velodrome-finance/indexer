@@ -4,7 +4,7 @@ import type {
   Token,
   handlerContext,
 } from "generated";
-import { TEN_TO_THE_18_BI } from "../../../src/Constants";
+import { TEN_TO_THE_18_BI, toChecksumAddress } from "../../../src/Constants";
 import {
   calculateSwapFees,
   calculateSwapLiquidityChanges,
@@ -24,12 +24,16 @@ describe("CLPoolSwapLogic", () => {
   const FEE_100_BPS = 100n; // 1% fee
   const CHAIN_ID = 10;
   const BLOCK_TIMESTAMP = 1000000;
-  const POOL_ID = "0x1234567890123456789012345678901234567890";
+  const POOL_ID = toChecksumAddress(
+    "0x1234567890123456789012345678901234567890",
+  );
 
   const mockEvent: CLPool_Swap_event = {
     params: {
-      sender: "0x1111111111111111111111111111111111111111",
-      recipient: "0x2222222222222222222222222222222222222222",
+      sender: toChecksumAddress("0x1111111111111111111111111111111111111111"),
+      recipient: toChecksumAddress(
+        "0x2222222222222222222222222222222222222222",
+      ),
       amount0: 1n * TEN_TO_THE_18_BI,
       amount1: -2n * TEN_TO_THE_18_BI,
       sqrtPriceX96: 2000000000000000000000000000000n,
@@ -43,7 +47,7 @@ describe("CLPoolSwapLogic", () => {
     },
     chainId: CHAIN_ID,
     logIndex: 1,
-    srcAddress: "0x3333333333333333333333333333333333333333",
+    srcAddress: toChecksumAddress("0x3333333333333333333333333333333333333333"),
     transaction: {
       hash: "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
     },
@@ -69,7 +73,9 @@ describe("CLPoolSwapLogic", () => {
   const mockToken0: Token = {
     ...mockToken0Data,
     id: "token0_id",
-    address: "0xtoken0",
+    address: toChecksumAddress(
+      "0x0000000000000000000000000000000000000001",
+    ) as `0x${string}`,
     symbol: "TOKEN0",
     name: "Token 0",
     decimals: 18n,
@@ -81,7 +87,9 @@ describe("CLPoolSwapLogic", () => {
   const mockToken1: Token = {
     ...mockToken1Data,
     id: "token1_id",
-    address: "0xtoken1",
+    address: toChecksumAddress(
+      "0x0000000000000000000000000000000000000002",
+    ) as `0x${string}`,
     symbol: "TOKEN1",
     name: "Token 1",
     decimals: 18n,

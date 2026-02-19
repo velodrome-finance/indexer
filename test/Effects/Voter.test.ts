@@ -1,6 +1,6 @@
 import type { logger as Envio_logger } from "envio/src/Envio.gen";
 import type { PublicClient } from "viem";
-import { CHAIN_CONSTANTS } from "../../src/Constants";
+import { CHAIN_CONSTANTS, toChecksumAddress } from "../../src/Constants";
 import {
   fetchIsAlive,
   fetchTokensDeposited,
@@ -11,8 +11,12 @@ import {
 // Common test constants
 const TEST_CHAIN_ID = 10;
 const TEST_BLOCK_NUMBER = 12345;
-const TEST_REWARD_TOKEN = "0x1234567890123456789012345678901234567890";
-const TEST_GAUGE = "0x0987654321098765432109876543210987654321";
+const TEST_REWARD_TOKEN = toChecksumAddress(
+  "0x1234567890123456789012345678901234567890",
+);
+const TEST_GAUGE = toChecksumAddress(
+  "0x0987654321098765432109876543210987654321",
+);
 const TEST_VOTER = TEST_REWARD_TOKEN;
 const TEST_BALANCE_HEX =
   "0x00000000000000000000000000000000000000000000000000000000000003e8"; // 1000

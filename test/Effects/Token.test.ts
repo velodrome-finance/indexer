@@ -1,25 +1,42 @@
 import type { logger as Envio_logger } from "envio/src/Envio.gen";
 import type { PublicClient } from "viem";
-import { CHAIN_CONSTANTS, PriceOracleType } from "../../src/Constants";
-import * as ErrorsEffects from "../../src/Effects/Errors";
+import {
+  CHAIN_CONSTANTS,
+  PriceOracleType,
+  toChecksumAddress,
+} from "../../src/Constants";
 import * as HelpersEffects from "../../src/Effects/Helpers";
 import {
   fetchTokenDetails,
-  fetchTokenPrice,
+  type fetchTokenPrice,
   getTokenDetails,
   getTokenPrice,
 } from "../../src/Effects/Token";
 import * as TokenEffects from "../../src/Effects/Token";
+
+vi.mock("../../src/Effects/Token", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../../src/Effects/Token")>();
+  return { ...actual, fetchTokenPrice: vi.fn() };
+});
 
 // Common test constants
 const TEST_CHAIN_ID = 10;
 const TEST_BLOCK_NUMBER = 12345;
 const TEST_BLOCK_NUMBER_EARLY = 100;
 const TEST_GAS_LIMIT = 1000000n;
-const TEST_TOKEN_ADDRESS = "0x1234567890123456789012345678901234567890";
-const TEST_USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
-const TEST_SYSTEM_TOKEN = "0x4200000000000000000000000000000000000006";
-const TEST_ORACLE_ADDRESS = "0x1234567890123456789012345678901234567890";
+const TEST_TOKEN_ADDRESS = toChecksumAddress(
+  "0x1234567890123456789012345678901234567890",
+);
+const TEST_USDC_ADDRESS = toChecksumAddress(
+  "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+);
+const TEST_SYSTEM_TOKEN = toChecksumAddress(
+  "0x4200000000000000000000000000000000000006",
+);
+const TEST_ORACLE_ADDRESS = toChecksumAddress(
+  "0x1234567890123456789012345678901234567890",
+);
 const TEST_PRICE_RESULT = ["1000000000000000000"];
 
 // Helper functions will be defined inside describe block to access mockEthClient and mockContext
@@ -66,22 +83,21 @@ describe("Token Effects", () => {
     };
   };
 
-  // Helper to mock Date.now() for slow request simulation
+  // Helper to mock Date.now() for slow request simulation; returns restore fn
   const mockSlowDateNow = (
     attemptDuration: number,
     overallDuration?: number,
-  ) => {
-    const originalDateNow = Date.now;
+  ): (() => void) => {
     let callCount = 0;
     const baseTime = 1000000;
-    Date.now = vi.fn(() => {
+    const spy = vi.spyOn(Date, "now").mockImplementation(() => {
       callCount++;
       if (callCount === 1) return baseTime;
       if (callCount === 2) return baseTime;
       if (callCount === 3) return baseTime + attemptDuration;
       return baseTime + (overallDuration ?? attemptDuration);
     });
-    return originalDateNow;
+    return () => spy.mockRestore();
   };
 
   // Helper to setup token details mock
@@ -145,8 +161,7 @@ describe("Token Effects", () => {
 
     it("should return 1e18 price for USDC without calling oracle", async () => {
       setupChainConstants(PriceOracleType.V3, { usdc: TEST_USDC_ADDRESS });
-
-      const fetchSpy = vi.spyOn(TokenEffects, "fetchTokenPrice");
+      vi.mocked(TokenEffects.fetchTokenPrice).mockClear();
 
       const result = await mockContext.effect(getTokenPrice as never, {
         tokenAddress: TEST_USDC_ADDRESS,
@@ -158,13 +173,12 @@ describe("Token Effects", () => {
         pricePerUSDNew: 10n ** 18n,
         priceOracleType: PriceOracleType.V3.toString(),
       });
-      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(TokenEffects.fetchTokenPrice).not.toHaveBeenCalled();
     });
 
     it("should return 0 price when oracle is not deployed", async () => {
       setupChainConstants(PriceOracleType.V3, { startBlock: 999999 });
-
-      const fetchSpy = vi.spyOn(TokenEffects, "fetchTokenPrice");
+      vi.mocked(TokenEffects.fetchTokenPrice).mockClear();
 
       const result = await mockContext.effect(getTokenPrice as never, {
         tokenAddress: TEST_TOKEN_ADDRESS,
@@ -176,7 +190,7 @@ describe("Token Effects", () => {
         pricePerUSDNew: 0n,
         priceOracleType: PriceOracleType.V3.toString(),
       });
-      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(TokenEffects.fetchTokenPrice).not.toHaveBeenCalled();
       expect(mockContext.log.info).toHaveBeenCalled();
     });
 
@@ -185,7 +199,7 @@ describe("Token Effects", () => {
       setupTokenDetailsMock(TEST_USDC_ADDRESS);
 
       vi.spyOn(Date, "now").mockReturnValueOnce(0).mockReturnValueOnce(6001);
-      vi.spyOn(TokenEffects, "fetchTokenPrice").mockResolvedValue({
+      vi.mocked(TokenEffects.fetchTokenPrice).mockResolvedValue({
         pricePerUSDNew: 0n,
         priceOracleType: PriceOracleType.V3.toString(),
       });
@@ -207,7 +221,7 @@ describe("Token Effects", () => {
       setupChainConstants(PriceOracleType.V3);
       setupTokenDetailsMock(TEST_USDC_ADDRESS);
 
-      vi.spyOn(TokenEffects, "fetchTokenPrice").mockRejectedValue(
+      vi.mocked(TokenEffects.fetchTokenPrice).mockRejectedValue(
         new Error("oracle failure"),
       );
 
@@ -229,12 +243,16 @@ describe("Token Effects", () => {
         rewardToken: vi.fn().mockReturnValue(TEST_SYSTEM_TOKEN),
         priceConnectors: [
           {
-            address: "0x1111111111111111111111111111111111111111",
+            address: toChecksumAddress(
+              "0x1111111111111111111111111111111111111111",
+            ),
             createdBlock: 0,
           },
           { address: TEST_SYSTEM_TOKEN, createdBlock: 0 },
           {
-            address: "0x2222222222222222222222222222222222222222",
+            address: toChecksumAddress(
+              "0x2222222222222222222222222222222222222222",
+            ),
             createdBlock: 0,
           },
         ],
@@ -373,6 +391,15 @@ describe("Token Effects", () => {
   });
 
   describe("fetchTokenPrice", () => {
+    let realFetchTokenPrice: typeof fetchTokenPrice;
+
+    beforeAll(async () => {
+      const actual = await vi.importActual<
+        typeof import("../../src/Effects/Token")
+      >("../../src/Effects/Token");
+      realFetchTokenPrice = actual.fetchTokenPrice;
+    });
+
     it("should fetch token price from V3 and V2 oracles", async () => {
       const testCases = [
         {
@@ -402,7 +429,7 @@ describe("Token Effects", () => {
           // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
         } as any);
 
-        const result = await fetchTokenPrice(
+        const result = await realFetchTokenPrice(
           TEST_TOKEN_ADDRESS,
           TEST_USDC_ADDRESS,
           TEST_SYSTEM_TOKEN,
@@ -433,7 +460,7 @@ describe("Token Effects", () => {
         new Error("Oracle call failed"),
       );
 
-      const result = await fetchTokenPrice(
+      const result = await realFetchTokenPrice(
         TEST_TOKEN_ADDRESS,
         TEST_USDC_ADDRESS,
         TEST_SYSTEM_TOKEN,
@@ -467,7 +494,7 @@ describe("Token Effects", () => {
           // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
         } as any);
 
-      const result = await fetchTokenPrice(
+      const result = await realFetchTokenPrice(
         TEST_TOKEN_ADDRESS,
         TEST_USDC_ADDRESS,
         TEST_SYSTEM_TOKEN,
@@ -502,7 +529,7 @@ describe("Token Effects", () => {
           // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
         } as any);
 
-      const result = await fetchTokenPrice(
+      const result = await realFetchTokenPrice(
         TEST_TOKEN_ADDRESS,
         TEST_USDC_ADDRESS,
         TEST_SYSTEM_TOKEN,
@@ -528,7 +555,7 @@ describe("Token Effects", () => {
         new Error("execution reverted"),
       );
 
-      const result = await fetchTokenPrice(
+      const result = await realFetchTokenPrice(
         TEST_TOKEN_ADDRESS,
         TEST_USDC_ADDRESS,
         TEST_SYSTEM_TOKEN,
@@ -560,7 +587,7 @@ describe("Token Effects", () => {
           // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
         } as any);
 
-        await fetchTokenPrice(
+        await realFetchTokenPrice(
           TEST_TOKEN_ADDRESS,
           TEST_USDC_ADDRESS,
           TEST_SYSTEM_TOKEN,
@@ -577,8 +604,9 @@ describe("Token Effects", () => {
         expect(mockContext.log.warn).toHaveBeenCalledWith(
           expect.stringContaining("Slow request detected"),
         );
-        Date.now = restoreDateNow;
+        restoreDateNow();
         vi.mocked(mockContext.log.warn).mockClear();
+        vi.mocked(mockEthClient.simulateContract).mockClear();
       }
     });
 
@@ -593,7 +621,7 @@ describe("Token Effects", () => {
         // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
         .mockResolvedValue({ result: TEST_PRICE_RESULT } as any);
 
-      await fetchTokenPrice(
+      await realFetchTokenPrice(
         TEST_TOKEN_ADDRESS,
         TEST_USDC_ADDRESS,
         TEST_SYSTEM_TOKEN,
@@ -610,7 +638,7 @@ describe("Token Effects", () => {
       expect(mockContext.log.warn).toHaveBeenCalledWith(
         expect.stringContaining("Slow failed request"),
       );
-      Date.now = restoreDateNow;
+      restoreDateNow();
       sleepSpy.mockRestore();
     });
 
@@ -622,7 +650,7 @@ describe("Token Effects", () => {
         // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
       } as any);
 
-      await fetchTokenPrice(
+      await realFetchTokenPrice(
         TEST_TOKEN_ADDRESS,
         TEST_USDC_ADDRESS,
         TEST_SYSTEM_TOKEN,
@@ -639,7 +667,7 @@ describe("Token Effects", () => {
       expect(mockContext.log.error).toHaveBeenCalledWith(
         expect.stringContaining("Very slow request"),
       );
-      Date.now = restoreDateNow;
+      restoreDateNow();
     });
 
     it("should retry rate limit errors with correct delays", async () => {
@@ -662,7 +690,7 @@ describe("Token Effects", () => {
           return Promise.resolve({ result: TEST_PRICE_RESULT } as any);
         });
 
-        await fetchTokenPrice(
+        await realFetchTokenPrice(
           TEST_TOKEN_ADDRESS,
           TEST_USDC_ADDRESS,
           TEST_SYSTEM_TOKEN,
@@ -701,7 +729,7 @@ describe("Token Effects", () => {
           return Promise.resolve({ result: TEST_PRICE_RESULT } as any);
         });
 
-        await fetchTokenPrice(
+        await realFetchTokenPrice(
           TEST_TOKEN_ADDRESS,
           TEST_USDC_ADDRESS,
           TEST_SYSTEM_TOKEN,

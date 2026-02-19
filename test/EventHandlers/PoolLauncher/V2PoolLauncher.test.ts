@@ -31,7 +31,10 @@ describe("V2PoolLauncher Events", () => {
 
   const mockToken0: Token = {
     ...mockToken0Data,
-    id: TokenId(mockChainId, "0x6666666666666666666666666666666666666666"),
+    id: TokenId(
+      mockChainId,
+      toChecksumAddress("0x6666666666666666666666666666666666666666"),
+    ),
     address: toChecksumAddress("0x6666666666666666666666666666666666666666"),
     symbol: "USDC",
     name: "USD Coin",
@@ -44,7 +47,10 @@ describe("V2PoolLauncher Events", () => {
 
   const mockToken1: Token = {
     ...mockToken1Data,
-    id: TokenId(mockChainId, "0x7777777777777777777777777777777777777777"),
+    id: TokenId(
+      mockChainId,
+      toChecksumAddress("0x7777777777777777777777777777777777777777"),
+    ),
     address: toChecksumAddress("0x7777777777777777777777777777777777777777"),
     symbol: "USDT",
     name: "Tether USD",

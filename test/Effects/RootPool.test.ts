@@ -20,14 +20,30 @@ describe("RootPool Effects", () => {
   };
   let mockEthClient: PublicClient;
 
-  const mockLpHelperAddress = "0x2F44BD0Aff1826aec123cE3eA9Ce44445b64BB34";
-  const mockFactory = "0x31832f2a97Fd20664D76Cc421207669b55CE4BC0";
-  const mockToken0 = "0xDcc0F2D8F90FDe85b10aC1c8Ab57dc0AE946A543";
-  const mockToken1 = "0xFc00000000000000000000000000000000000001";
+  const mockLpHelperAddress = toChecksumAddress(
+    "0x2F44BD0Aff1826aec123cE3eA9Ce44445b64BB34",
+  );
+  const mockFactory = toChecksumAddress(
+    "0x31832f2a97Fd20664D76Cc421207669b55CE4BC0",
+  );
+  const mockToken0 = toChecksumAddress(
+    "0xDcc0F2D8F90FDe85b10aC1c8Ab57dc0AE946A543",
+  );
+  const mockToken1 = toChecksumAddress(
+    "0xFc00000000000000000000000000000000000001",
+  );
   const mockType = 0;
-  const mockRootPoolAddress = "0x98dcff98d17f21e35211c923934924af65fbdd66";
+  const mockRootPoolAddress = toChecksumAddress(
+    "0x98dcff98d17f21e35211c923934924af65fbdd66",
+  );
+
+  let originalChainConstants252: unknown;
 
   beforeEach(() => {
+    originalChainConstants252 = (
+      CHAIN_CONSTANTS as Record<number, unknown>
+    )[252];
+
     mockEthClient = {
       simulateContract: vi.fn().mockResolvedValue({
         result: mockRootPoolAddress.toLowerCase(), // viem returns lowercase
@@ -66,6 +82,12 @@ describe("RootPool Effects", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    if (originalChainConstants252 === undefined) {
+      (CHAIN_CONSTANTS as Record<number, unknown>)[252] = undefined;
+    } else {
+      (CHAIN_CONSTANTS as Record<number, unknown>)[252] =
+        originalChainConstants252;
+    }
   });
 
   describe("getRootPoolAddress", () => {

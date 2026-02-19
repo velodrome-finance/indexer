@@ -1,11 +1,7 @@
 import "../eventHandlersRegistration";
-import type {
-  LiquidityPoolAggregator,
-  RootPool_LeafPool,
-  Token,
-} from "generated";
+import type { LiquidityPoolAggregator, Token } from "generated";
 import type { PublicClient } from "viem";
-import type { Mock, MockInstance } from "vitest";
+import type { MockInstance } from "vitest";
 import { MockDb, PoolFactory } from "../../generated/src/TestHelpers.gen";
 import {
   DEFAULT_SAMM_FEE_BPS,

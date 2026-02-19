@@ -421,11 +421,10 @@ export async function attemptSuperSwapCreationFromProcessId(
     const bridgedTransaction = oUSDTBridgedTransactions[0];
 
     // Load all ProcessId_event entities for all messageIds from the DispatchId events
-    const processIdPromises = sourceChainMessageIdEntities.map(
-      (entity: { messageId: string }) =>
-        context.ProcessId_event.getWhere({
-          messageId: { _eq: entity.messageId },
-        }),
+    const processIdPromises = sourceChainMessageIdEntities.map((entity) =>
+      context.ProcessId_event.getWhere({
+        messageId: { _eq: entity.messageId },
+      }),
     );
     const processIdResults = await Promise.all(processIdPromises);
 

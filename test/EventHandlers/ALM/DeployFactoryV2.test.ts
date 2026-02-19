@@ -421,7 +421,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
         pool: poolAddress,
         tickUpper: 1000n,
         tickLower: -1000n,
-        token0: "0xffffffffffffffffffffffffffffffffffffffff", // Different token0
+        token0: toChecksumAddress("0xffffffffffffffffffffffffffffffffffffffff"), // Different token0
         token1: mockToken1Data.address,
         liquidity: 1000000n,
         mintTransactionHash: transactionHash,
@@ -480,7 +480,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
         tickUpper: 1000n,
         tickLower: -1000n,
         token0: mockToken0Data.address,
-        token1: "0xffffffffffffffffffffffffffffffffffffffff", // Different token1
+        token1: toChecksumAddress("0xffffffffffffffffffffffffffffffffffffffff"), // Different token1
         liquidity: 1000000n,
         mintTransactionHash: transactionHash,
         mintLogIndex: 1,

@@ -1,11 +1,16 @@
 import "../../eventHandlersRegistration";
 import { Gauge } from "../../../generated/src/TestHelpers.gen";
 import { MockDb } from "../../../generated/src/TestHelpers.gen";
+import { toChecksumAddress } from "../../../src/Constants";
 
 describe("Gauge Event Handlers", () => {
   const mockChainId = 10;
-  const mockGaugeAddress = "0x5555555555555555555555555555555555555555";
-  const mockUserAddress = "0x2222222222222222222222222222222222222222";
+  const mockGaugeAddress = toChecksumAddress(
+    "0x5555555555555555555555555555555555555555",
+  );
+  const mockUserAddress = toChecksumAddress(
+    "0x2222222222222222222222222222222222222222",
+  );
 
   let mockDb: ReturnType<typeof MockDb.createMockDb>;
 

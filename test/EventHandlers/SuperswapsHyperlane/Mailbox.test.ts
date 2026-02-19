@@ -26,6 +26,28 @@ describe("Mailbox Events", () => {
   const messageId =
     "0xabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdef";
 
+  /**
+   * Merges the ProcessId_event from a processEvents result (if present) into a
+   * new MockDb. Used when chaining processEvents calls so the second run sees
+   * entities created by the first (e.g. when testing different chainIds, since
+   * processEvents does not support multiple chains in one call).
+   */
+  function mergeProcessIdEventResult(
+    result: {
+      entities: {
+        ProcessId_event: { get: (id: string) => ProcessId_event | undefined };
+      };
+    },
+    expectedId: string,
+  ): ReturnType<typeof MockDb.createMockDb> {
+    let db = MockDb.createMockDb();
+    const entity = result.entities.ProcessId_event.get(expectedId);
+    if (entity) {
+      db = db.entities.ProcessId_event.set(entity);
+    }
+    return db;
+  }
+
   describe("DispatchId event", () => {
     it("should create DispatchId_event entity with correct fields", async () => {
       // Setup
@@ -104,19 +126,7 @@ describe("Mailbox Events", () => {
       });
 
       // Execute
-      const result1 = await mockDb.processEvents([mockEvent1]);
-
-      // Merge entities from result1 into a new mockDb
-      let updatedMockDb = MockDb.createMockDb();
-      const entity1FromResult1 = result1.entities.DispatchId_event.get(
-        MailboxMessageId(transactionHash1, chainId, messageId),
-      );
-      if (entity1FromResult1) {
-        updatedMockDb =
-          updatedMockDb.entities.DispatchId_event.set(entity1FromResult1);
-      }
-
-      const result2 = await updatedMockDb.processEvents([mockEvent2]);
+      const result = await mockDb.processEvents([mockEvent1, mockEvent2]);
 
       // Assert - check both entities were created with different IDs
       const expectedId1 = MailboxMessageId(
@@ -129,8 +139,8 @@ describe("Mailbox Events", () => {
         chainId,
         messageId,
       );
-      const entity1 = result2.entities.DispatchId_event.get(expectedId1);
-      const entity2 = result2.entities.DispatchId_event.get(expectedId2);
+      const entity1 = result.entities.DispatchId_event.get(expectedId1);
+      const entity2 = result.entities.DispatchId_event.get(expectedId2);
 
       expect(entity1).toBeDefined();
       expect(entity2).toBeDefined();
@@ -176,23 +186,13 @@ describe("Mailbox Events", () => {
       });
 
       // Execute
-      const result1 = await mockDb.processEvents([mockEvent1]);
+      const result = await mockDb.processEvents([mockEvent1, mockEvent2]);
 
-      // Merge entities from result1 into a new mockDb
-      let updatedMockDb = MockDb.createMockDb();
       const expectedId1 = MailboxMessageId(
         mockEvent1.transaction.hash,
         chainId,
         messageId1,
       );
-      const entity1FromResult1 =
-        result1.entities.DispatchId_event.get(expectedId1);
-      if (entity1FromResult1) {
-        updatedMockDb =
-          updatedMockDb.entities.DispatchId_event.set(entity1FromResult1);
-      }
-
-      const result2 = await updatedMockDb.processEvents([mockEvent2]);
 
       // Assert - check both entities were created with different messageIds
       const expectedId2 = MailboxMessageId(
@@ -200,8 +200,8 @@ describe("Mailbox Events", () => {
         chainId,
         messageId2,
       );
-      const entity1 = result2.entities.DispatchId_event.get(expectedId1);
-      const entity2 = result2.entities.DispatchId_event.get(expectedId2);
+      const entity1 = result.entities.DispatchId_event.get(expectedId1);
+      const entity2 = result.entities.DispatchId_event.get(expectedId2);
 
       expect(entity1).toBeDefined();
       expect(entity2).toBeDefined();
@@ -288,23 +288,12 @@ describe("Mailbox Events", () => {
       });
 
       // Execute
-      const result1 = await mockDb.processEvents([mockEvent1]);
-
-      // Merge entities from result1 into a new mockDb
-      let updatedMockDb = MockDb.createMockDb();
+      const result = await mockDb.processEvents([mockEvent1, mockEvent2]);
       const expectedId1 = MailboxMessageId(
         transactionHash1,
         chainId,
         messageId,
       );
-      const entity1FromResult1 =
-        result1.entities.ProcessId_event.get(expectedId1);
-      if (entity1FromResult1) {
-        updatedMockDb =
-          updatedMockDb.entities.ProcessId_event.set(entity1FromResult1);
-      }
-
-      const result2 = await updatedMockDb.processEvents([mockEvent2]);
 
       // Assert - check both entities were created with different IDs
       const expectedId2 = MailboxMessageId(
@@ -312,8 +301,8 @@ describe("Mailbox Events", () => {
         chainId,
         messageId,
       );
-      const entity1 = result2.entities.ProcessId_event.get(expectedId1);
-      const entity2 = result2.entities.ProcessId_event.get(expectedId2);
+      const entity1 = result.entities.ProcessId_event.get(expectedId1);
+      const entity2 = result.entities.ProcessId_event.get(expectedId2);
 
       expect(entity1).toBeDefined();
       expect(entity2).toBeDefined();
@@ -359,23 +348,12 @@ describe("Mailbox Events", () => {
       });
 
       // Execute
-      const result1 = await mockDb.processEvents([mockEvent1]);
-
-      // Merge entities from result1 into a new mockDb
-      let updatedMockDb = MockDb.createMockDb();
+      const result = await mockDb.processEvents([mockEvent1, mockEvent2]);
       const expectedId1 = MailboxMessageId(
         mockEvent1.transaction.hash,
         chainId,
         messageId1,
       );
-      const entity1FromResult1 =
-        result1.entities.ProcessId_event.get(expectedId1);
-      if (entity1FromResult1) {
-        updatedMockDb =
-          updatedMockDb.entities.ProcessId_event.set(entity1FromResult1);
-      }
-
-      const result2 = await updatedMockDb.processEvents([mockEvent2]);
 
       // Assert - check both entities were created with different messageIds
       const expectedId2 = MailboxMessageId(
@@ -383,8 +361,8 @@ describe("Mailbox Events", () => {
         chainId,
         messageId2,
       );
-      const entity1 = result2.entities.ProcessId_event.get(expectedId1);
-      const entity2 = result2.entities.ProcessId_event.get(expectedId2);
+      const entity1 = result.entities.ProcessId_event.get(expectedId1);
+      const entity2 = result.entities.ProcessId_event.get(expectedId2);
 
       expect(entity1).toBeDefined();
       expect(entity2).toBeDefined();
@@ -426,23 +404,14 @@ describe("Mailbox Events", () => {
         },
       });
 
-      // Execute
+      // Execute - processEvents does not support multiple chainIds in one call, so run separately and merge
       const result1 = await mockDb.processEvents([mockEvent1]);
-
-      // Merge entities from result1 into a new mockDb
-      let updatedMockDb = MockDb.createMockDb();
       const expectedId1 = MailboxMessageId(
         mockEvent1.transaction.hash,
         chainId1,
         messageId,
       );
-      const entity1FromResult1 =
-        result1.entities.ProcessId_event.get(expectedId1);
-      if (entity1FromResult1) {
-        updatedMockDb =
-          updatedMockDb.entities.ProcessId_event.set(entity1FromResult1);
-      }
-
+      const updatedMockDb = mergeProcessIdEventResult(result1, expectedId1);
       const result2 = await updatedMockDb.processEvents([mockEvent2]);
 
       // Assert - check both entities were created with different chainIds
@@ -470,8 +439,12 @@ describe("Mailbox Events", () => {
       "0xdc34c918860806a2dafebad41e539cfe42f20253c0585358b91d31a11de41806";
     const testMessageId =
       "0xCCE7BDDCBF46218439FDAF78B99904EDCDF012B927E95EB053B8D01461C9DF9B";
-    const tokenInAddress = "0x3333333333333333333333333333333333333333";
-    const tokenOutAddress = "0x4444444444444444444444444444444444444444";
+    const tokenInAddress = toChecksumAddress(
+      "0x3333333333333333333333333333333333333333",
+    );
+    const tokenOutAddress = toChecksumAddress(
+      "0x4444444444444444444444444444444444444444",
+    );
     const oUSDTAmount = 18116811000000000000n; // 18.116811 oUSDT
 
     it("should create SuperSwap when ProcessId is processed and all required data exists", async () => {
@@ -497,8 +470,10 @@ describe("Mailbox Events", () => {
         transactionHash: sourceTransactionHash,
         originChainId: BigInt(sourceChainId),
         destinationChainId: BigInt(destinationChainId),
-        sender: "0x1111111111111111111111111111111111111111",
-        recipient: "0x2222222222222222222222222222222222222222",
+        sender: toChecksumAddress("0x1111111111111111111111111111111111111111"),
+        recipient: toChecksumAddress(
+          "0x2222222222222222222222222222222222222222",
+        ),
         amount: oUSDTAmount,
       };
       mockDb = mockDb.entities.OUSDTBridgedTransaction.set(bridgedTransaction);
@@ -709,8 +684,10 @@ describe("Mailbox Events", () => {
         transactionHash: sourceTransactionHash,
         originChainId: BigInt(sourceChainId),
         destinationChainId: BigInt(destinationChainId),
-        sender: "0x1111111111111111111111111111111111111111",
-        recipient: "0x2222222222222222222222222222222222222222",
+        sender: toChecksumAddress("0x1111111111111111111111111111111111111111"),
+        recipient: toChecksumAddress(
+          "0x2222222222222222222222222222222222222222",
+        ),
         amount: oUSDTAmount,
       };
       mockDb = mockDb.entities.OUSDTBridgedTransaction.set(bridgedTransaction);

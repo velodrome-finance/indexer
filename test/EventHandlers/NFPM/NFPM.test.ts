@@ -7,6 +7,7 @@ import {
   CLPoolMintEventId,
   NonFungiblePositionId,
   TokenId,
+  toChecksumAddress,
 } from "../../../src/Constants";
 import { setupCommon } from "../Pool/common";
 
@@ -33,7 +34,7 @@ describe("NFPM Events", () => {
     id: NonFungiblePositionId(chainId, poolAddress, tokenId),
     chainId,
     tokenId: tokenId,
-    owner: "0x1111111111111111111111111111111111111111",
+    owner: toChecksumAddress("0x1111111111111111111111111111111111111111"),
     pool: poolAddress,
     tickUpper: 100n,
     tickLower: -100n,
@@ -62,8 +63,8 @@ describe("NFPM Events", () => {
 
   describe("Transfer Event", () => {
     const eventData = {
-      from: "0x1111111111111111111111111111111111111111",
-      to: "0x2222222222222222222222222222222222222222",
+      from: toChecksumAddress("0x1111111111111111111111111111111111111111"),
+      to: toChecksumAddress("0x2222222222222222222222222222222222222222"),
       tokenId: 1n,
       mockEventData: {
         block: {
@@ -73,7 +74,9 @@ describe("NFPM Events", () => {
         },
         chainId: 10,
         logIndex: 1,
-        srcAddress: "0x3333333333333333333333333333333333333333",
+        srcAddress: toChecksumAddress(
+          "0x3333333333333333333333333333333333333333",
+        ),
       },
     };
 
@@ -112,7 +115,7 @@ describe("NFPM Events", () => {
         ),
         chainId,
         pool: poolAddress,
-        owner: "0x1111111111111111111111111111111111111111",
+        owner: toChecksumAddress("0x1111111111111111111111111111111111111111"),
         tickLower: -100n,
         tickUpper: 100n,
         liquidity: 1000000000000000000n,
@@ -165,8 +168,8 @@ describe("NFPM Events", () => {
       // Create Transfer event for mint (from = zero address)
       // Transfer logIndex must be > mint logIndex for matching logic
       const mintTransferEvent = NFPM.Transfer.createMockEvent({
-        from: "0x0000000000000000000000000000000000000000", // Mint event
-        to: "0x2222222222222222222222222222222222222222",
+        from: toChecksumAddress("0x0000000000000000000000000000000000000000"), // Mint event
+        to: toChecksumAddress("0x2222222222222222222222222222222222222222"),
         tokenId: tokenId,
         mockEventData: {
           block: {
@@ -176,7 +179,9 @@ describe("NFPM Events", () => {
           },
           chainId: 10,
           logIndex: transferLogIndex,
-          srcAddress: "0x3333333333333333333333333333333333333333",
+          srcAddress: toChecksumAddress(
+            "0x3333333333333333333333333333333333333333",
+          ),
           transaction: {
             hash: transactionHash,
           },
@@ -196,7 +201,7 @@ describe("NFPM Events", () => {
       expect(createdEntity.id).toBe(stableId); // Stable ID format
       expect(createdEntity.tokenId).toBe(tokenId);
       expect(createdEntity.owner).toBe(
-        "0x2222222222222222222222222222222222222222",
+        toChecksumAddress("0x2222222222222222222222222222222222222222"),
       );
       expect(createdEntity.pool).toBe(poolAddress);
       expect(createdEntity.mintLogIndex).toBe(mintLogIndex);
@@ -217,7 +222,9 @@ describe("NFPM Events", () => {
         },
         chainId: 10,
         logIndex: 1,
-        srcAddress: "0x3333333333333333333333333333333333333333",
+        srcAddress: toChecksumAddress(
+          "0x3333333333333333333333333333333333333333",
+        ),
         transaction: {
           hash: transactionHash,
         },
@@ -433,7 +440,9 @@ describe("NFPM Events", () => {
         },
         chainId: 10,
         logIndex: 1,
-        srcAddress: "0x3333333333333333333333333333333333333333",
+        srcAddress: toChecksumAddress(
+          "0x3333333333333333333333333333333333333333",
+        ),
       },
     };
 
@@ -464,8 +473,8 @@ describe("NFPM Events", () => {
     it("should log error and return when position not found (Transfer should have run first)", async () => {
       // Simulate scenario where position doesn't exist
       // This should never happen in normal flow since Transfer should have already updated the placeholder
-      const mockDb = MockDb.createMockDb();
-      const dbWithTokens = mockDb.entities.Token.set(mockToken0Data);
+      const freshMockDb = MockDb.createMockDb();
+      const dbWithTokens = freshMockDb.entities.Token.set(mockToken0Data);
       const finalDb = dbWithTokens.entities.Token.set(mockToken1Data);
 
       // Create DecreaseLiquidity event for non-existent position
@@ -482,7 +491,9 @@ describe("NFPM Events", () => {
           },
           chainId: 10,
           logIndex: 1,
-          srcAddress: "0x3333333333333333333333333333333333333333",
+          srcAddress: toChecksumAddress(
+            "0x3333333333333333333333333333333333333333",
+          ),
           transaction: {
             hash: transactionHash,
           },
@@ -537,7 +548,9 @@ describe("NFPM Events", () => {
           },
           chainId: 10,
           logIndex: 1,
-          srcAddress: "0x3333333333333333333333333333333333333333",
+          srcAddress: toChecksumAddress(
+            "0x3333333333333333333333333333333333333333",
+          ),
           transaction: {
             hash: transactionHash,
           },
@@ -560,15 +573,19 @@ describe("NFPM Events", () => {
     const chainIdBase = 8453; // Base
     const chainIdLisk = 1135; // Lisk
     const sameTokenId = 42n; // Same tokenId on both chains
-    const poolAddressBase = "0x0000000000000000000000000000000000000001";
-    const poolAddressLisk = "0xc2026f3fb6fc51F4EcAE40a88b4509cB6C143ed4"; // The pool from the error
+    const poolAddressBase = toChecksumAddress(
+      "0x0000000000000000000000000000000000000001",
+    );
+    const poolAddressLisk = toChecksumAddress(
+      "0xc2026f3fb6fc51F4EcAE40a88b4509cB6C143ed4",
+    ); // The pool from the error
 
     // Position on Base (chain 8453)
     const positionBase = {
       id: NonFungiblePositionId(chainIdBase, poolAddressBase, sameTokenId),
       chainId: chainIdBase,
       tokenId: sameTokenId,
-      owner: "0x1111111111111111111111111111111111111111",
+      owner: toChecksumAddress("0x1111111111111111111111111111111111111111"),
       pool: poolAddressBase,
       tickUpper: 100n,
       tickLower: -100n,
@@ -586,7 +603,7 @@ describe("NFPM Events", () => {
       id: NonFungiblePositionId(chainIdLisk, poolAddressLisk, sameTokenId),
       chainId: chainIdLisk,
       tokenId: sameTokenId,
-      owner: "0x2222222222222222222222222222222222222222",
+      owner: toChecksumAddress("0x2222222222222222222222222222222222222222"),
       pool: poolAddressLisk,
       tickUpper: 200n,
       tickLower: -200n,
@@ -733,8 +750,8 @@ describe("NFPM Events", () => {
 
       // Create Transfer event on Base chain
       const transferEventBase = NFPM.Transfer.createMockEvent({
-        from: "0x1111111111111111111111111111111111111111",
-        to: "0x3333333333333333333333333333333333333333",
+        from: toChecksumAddress("0x1111111111111111111111111111111111111111"),
+        to: toChecksumAddress("0x3333333333333333333333333333333333333333"),
         tokenId: sameTokenId,
         mockEventData: {
           block: {
@@ -744,7 +761,9 @@ describe("NFPM Events", () => {
           },
           chainId: chainIdBase, // Event is on Base chain
           logIndex: 1,
-          srcAddress: "0x3333333333333333333333333333333333333333",
+          srcAddress: toChecksumAddress(
+            "0x3333333333333333333333333333333333333333",
+          ),
         },
       });
 
@@ -764,7 +783,7 @@ describe("NFPM Events", () => {
       if (!updatedBasePosition) return;
       // Should update owner to the new owner
       expect(updatedBasePosition.owner).toBe(
-        "0x3333333333333333333333333333333333333333",
+        toChecksumAddress("0x3333333333333333333333333333333333333333"),
       );
       // Should still have Base chain pool address
       expect(updatedBasePosition.pool).toBe(poolAddressBase);
@@ -844,7 +863,9 @@ describe("NFPM Events", () => {
           },
           chainId: chainIdBase, // Event is on Base chain
           logIndex: 1,
-          srcAddress: "0x3333333333333333333333333333333333333333",
+          srcAddress: toChecksumAddress(
+            "0x3333333333333333333333333333333333333333",
+          ),
           transaction: {
             hash: transactionHash,
           },
@@ -944,7 +965,9 @@ describe("NFPM Events", () => {
           },
           chainId: chainIdLisk, // Event is on Lisk chain
           logIndex: 1,
-          srcAddress: "0x3333333333333333333333333333333333333333",
+          srcAddress: toChecksumAddress(
+            "0x3333333333333333333333333333333333333333",
+          ),
           transaction: {
             hash: transactionHash,
           },
@@ -1045,7 +1068,9 @@ describe("NFPM Events", () => {
           },
           chainId: chainIdBase, // Event is on Base chain (8453)
           logIndex: 1,
-          srcAddress: "0x3333333333333333333333333333333333333333",
+          srcAddress: toChecksumAddress(
+            "0x3333333333333333333333333333333333333333",
+          ),
           transaction: {
             hash: transactionHash,
           },

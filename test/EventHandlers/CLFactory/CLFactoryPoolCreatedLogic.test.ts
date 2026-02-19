@@ -19,8 +19,8 @@ describe("CLFactoryPoolCreatedLogic", () => {
   const { mockToken0Data, mockToken1Data } = setupCommon();
 
   beforeEach(() => {
-    vi.clearAllMocks();
-    // Mock the createTokenEntity function using Jest
+    vi.restoreAllMocks();
+    // Mock the createTokenEntity function using vitest
     vi.spyOn(PriceOracle, "createTokenEntity").mockImplementation(
       async (address: string) => ({
         id: "mock_token_id",
@@ -85,6 +85,23 @@ describe("CLFactoryPoolCreatedLogic", () => {
   } as unknown as handlerContext;
 
   describe("processCLFactoryPoolCreated", () => {
+    const expectedTokenFields = {
+      token0_id: TokenId(
+        10,
+        toChecksumAddress("0x2222222222222222222222222222222222222222"),
+      ),
+      token1_id: TokenId(
+        10,
+        toChecksumAddress("0x3333333333333333333333333333333333333333"),
+      ),
+      token0_address: toChecksumAddress(
+        "0x2222222222222222222222222222222222222222",
+      ),
+      token1_address: toChecksumAddress(
+        "0x3333333333333333333333333333333333333333",
+      ),
+    };
+
     it("should create entity and liquidity pool aggregator for successful pool creation", async () => {
       // Process the pool created event
       const result = await processCLFactoryPoolCreated(
@@ -101,10 +118,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         id: LEAF_POOL_ID,
         chainId: 10,
         name: "CL-60 AMM - USDT/USDC",
-        token0_id: TokenId(10, "0x2222222222222222222222222222222222222222"),
-        token1_id: TokenId(10, "0x3333333333333333333333333333333333333333"),
-        token0_address: "0x2222222222222222222222222222222222222222",
-        token1_address: "0x3333333333333333333333333333333333333333",
+        ...expectedTokenFields,
         isStable: false,
         isCL: true,
         reserve0: 0n,
@@ -128,10 +142,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         id: LEAF_POOL_ID,
         chainId: 10,
         name: "CL-60 AMM - /USDC", // Empty symbol for token0
-        token0_id: TokenId(10, "0x2222222222222222222222222222222222222222"),
-        token1_id: TokenId(10, "0x3333333333333333333333333333333333333333"),
-        token0_address: "0x2222222222222222222222222222222222222222",
-        token1_address: "0x3333333333333333333333333333333333333333",
+        ...expectedTokenFields,
         isStable: false,
         isCL: true,
         reserve0: 0n,
@@ -155,10 +166,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         id: LEAF_POOL_ID,
         chainId: 10,
         name: "CL-60 AMM - USDT/", // Empty symbol for token1
-        token0_id: TokenId(10, "0x2222222222222222222222222222222222222222"),
-        token1_id: TokenId(10, "0x3333333333333333333333333333333333333333"),
-        token0_address: "0x2222222222222222222222222222222222222222",
-        token1_address: "0x3333333333333333333333333333333333333333",
+        ...expectedTokenFields,
         isStable: false,
         isCL: true,
         reserve0: 0n,
@@ -182,10 +190,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         id: LEAF_POOL_ID,
         chainId: 10,
         name: "CL-60 AMM - /", // Empty symbols for both tokens
-        token0_id: TokenId(10, "0x2222222222222222222222222222222222222222"),
-        token1_id: TokenId(10, "0x3333333333333333333333333333333333333333"),
-        token0_address: "0x2222222222222222222222222222222222222222",
-        token1_address: "0x3333333333333333333333333333333333333333",
+        ...expectedTokenFields,
         isStable: false,
         isCL: true,
         reserve0: 0n,
@@ -251,10 +256,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         id: LEAF_POOL_ID,
         chainId: 10,
         name: "CL-60 AMM - USDT/USDC",
-        token0_id: TokenId(10, "0x2222222222222222222222222222222222222222"),
-        token1_id: TokenId(10, "0x3333333333333333333333333333333333333333"),
-        token0_address: "0x2222222222222222222222222222222222222222",
-        token1_address: "0x3333333333333333333333333333333333333333",
+        ...expectedTokenFields,
         isStable: false,
         isCL: true,
         reserve0: 0n,
@@ -288,10 +290,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         id: LEAF_POOL_ID,
         chainId: 10,
         name: "CL-60 AMM - USDT/USDC",
-        token0_id: TokenId(10, "0x2222222222222222222222222222222222222222"),
-        token1_id: TokenId(10, "0x3333333333333333333333333333333333333333"),
-        token0_address: "0x2222222222222222222222222222222222222222",
-        token1_address: "0x3333333333333333333333333333333333333333",
+        ...expectedTokenFields,
         isStable: false,
         isCL: true,
         reserve0: 0n,
@@ -327,10 +326,16 @@ describe("CLFactoryPoolCreatedLogic", () => {
 
       expect(result.liquidityPoolAggregator?.chainId).toBe(8453);
       expect(result.liquidityPoolAggregator?.token0_id).toBe(
-        TokenId(8453, "0x2222222222222222222222222222222222222222"),
+        TokenId(
+          8453,
+          toChecksumAddress("0x2222222222222222222222222222222222222222"),
+        ),
       );
       expect(result.liquidityPoolAggregator?.token1_id).toBe(
-        TokenId(8453, "0x3333333333333333333333333333333333333333"),
+        TokenId(
+          8453,
+          toChecksumAddress("0x3333333333333333333333333333333333333333"),
+        ),
       );
     });
 
@@ -452,7 +457,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
     it("should set gaugeEmissionsCap to defaultEmissionsCap when CLGaugeConfig exists", async () => {
       const mockDefaultEmissionsCap = 1000000000000000000000n; // 1000 tokens in 18 decimals
       const mockCLGaugeConfig: CLGaugeConfig = {
-        id: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        id: toChecksumAddress("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
         defaultEmissionsCap: mockDefaultEmissionsCap,
         lastUpdatedTimestamp: new Date(1000000 * 1000),
       };

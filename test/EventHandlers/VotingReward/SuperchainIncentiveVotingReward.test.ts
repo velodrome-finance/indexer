@@ -164,6 +164,8 @@ describe("SuperchainIncentiveVotingReward Events", () => {
     });
 
     describe("when loadVotingRewardData returns null", () => {
+      let freshMockDb: ReturnType<typeof MockDb.createMockDb>;
+
       beforeEach(async () => {
         vi.restoreAllMocks();
         vi.spyOn(
@@ -171,7 +173,13 @@ describe("SuperchainIncentiveVotingReward Events", () => {
           "loadVotingRewardData",
         ).mockResolvedValue(null);
 
-        resultDB = await mockDb.processEvents([mockEvent]);
+        // Create fresh mockDb with initial entities to avoid interference from parent's processEvents
+        freshMockDb = MockDb.createMockDb();
+        freshMockDb =
+          freshMockDb.entities.LiquidityPoolAggregator.set(liquidityPool);
+        freshMockDb = freshMockDb.entities.UserStatsPerPool.set(userStats);
+        freshMockDb = freshMockDb.entities.Token.set(rewardToken);
+        resultDB = await freshMockDb.processEvents([mockEvent]);
       });
 
       it("should not update pool or user stats", () => {

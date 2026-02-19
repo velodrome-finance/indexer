@@ -4,7 +4,7 @@ import type {
   Token,
   UserStatsPerPool,
 } from "generated";
-import type { Mock, MockInstance } from "vitest";
+import type { MockInstance } from "vitest";
 import { CLPool, MockDb } from "../../generated/src/TestHelpers.gen";
 import {
   OUSDT_ADDRESS,
@@ -30,6 +30,9 @@ describe("CLPool Events", () => {
   const chainId = 10;
   const userAddress = toChecksumAddress(
     "0x2222222222222222222222222222222222222222",
+  );
+  const recipientAddress = toChecksumAddress(
+    "0x3333333333333333333333333333333333333333",
   );
 
   let mockDb: ReturnType<typeof MockDb.createMockDb>;
@@ -89,7 +92,7 @@ describe("CLPool Events", () => {
 
       mockEvent = CLPool.Swap.createMockEvent({
         sender: userAddress,
-        recipient: "0x3333333333333333333333333333333333333333",
+        recipient: recipientAddress,
         amount0: 1000n,
         amount1: -500n,
         sqrtPriceX96: 1000000n,
@@ -214,7 +217,7 @@ describe("CLPool Events", () => {
       // Test with positive amount0 (amount0In path)
       const positiveAmount0Event = CLPool.Swap.createMockEvent({
         sender: userAddress,
-        recipient: "0x3333333333333333333333333333333333333333",
+        recipient: recipientAddress,
         amount0: 1000n, // Positive
         amount1: -500n, // Negative
         sqrtPriceX96: 1000000n,
@@ -273,7 +276,7 @@ describe("CLPool Events", () => {
       // Test with negative amount0 (amount0Out path)
       const negativeAmount0Event = CLPool.Swap.createMockEvent({
         sender: userAddress,
-        recipient: "0x3333333333333333333333333333333333333333",
+        recipient: recipientAddress,
         amount0: -1000n, // Negative
         amount1: 500n, // Positive
         sqrtPriceX96: 1000000n,
@@ -579,48 +582,52 @@ describe("CLPool Events", () => {
       const existingToken0 = mockDb.entities.Token.get(mockToken0Data.id);
       const existingToken1 = mockDb.entities.Token.get(mockToken1Data.id);
 
-      if (existingToken0 && existingToken1) {
-        const token0 = {
-          ...existingToken0,
-          pricePerUSDNew: 1000000n, // $1.00
-          lastUpdatedTimestamp: staleTimestamp,
-        };
-        const token1 = {
-          ...existingToken1,
-          pricePerUSDNew: 2000000n, // $2.00
-          lastUpdatedTimestamp: staleTimestamp,
-        };
+      expect(existingToken0).toBeDefined();
+      expect(existingToken1).toBeDefined();
+      if (!existingToken0 || !existingToken1) {
+        throw new Error("tokens expected from mockDb");
+      }
 
-        const updatedDb = mockDb.entities.Token.set(token0);
-        const finalDb = updatedDb.entities.Token.set(token1);
+      const token0 = {
+        ...existingToken0,
+        pricePerUSDNew: 1000000n, // $1.00
+        lastUpdatedTimestamp: staleTimestamp,
+      };
+      const token1 = {
+        ...existingToken1,
+        pricePerUSDNew: 2000000n, // $2.00
+        lastUpdatedTimestamp: staleTimestamp,
+      };
 
-        const resultDB = await finalDb.processEvents([mockEvent]);
+      const updatedDb = mockDb.entities.Token.set(token0);
+      const finalDb = updatedDb.entities.Token.set(token1);
 
-        // Note: In a real scenario, the effect would be called and prices refreshed
-        // For this test, we verify that the handler structure supports price refresh
-        // The actual price refresh happens in loadPoolData which is tested separately
+      const resultDB = await finalDb.processEvents([mockEvent]);
 
-        // Verify tokens exist
-        const updatedToken0 = resultDB.entities.Token.get(token0.id);
-        const updatedToken1 = resultDB.entities.Token.get(token1.id);
+      // Note: In a real scenario, the effect would be called and prices refreshed
+      // For this test, we verify that the handler structure supports price refresh
+      // The actual price refresh happens in loadPoolData which is tested separately
 
-        expect(updatedToken0).toBeDefined();
-        expect(updatedToken1).toBeDefined();
+      // Verify tokens exist
+      const updatedToken0 = resultDB.entities.Token.get(token0.id);
+      const updatedToken1 = resultDB.entities.Token.get(token1.id);
 
-        // Verify pool was updated
-        const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
-          liquidityPool.id,
-        );
-        expect(updatedPool).toBeDefined();
-        // Verify staked and unstaked fees are tracked separately
-        expect(updatedPool?.totalStakedFeesCollectedUSD).toBeDefined();
-        expect(updatedPool?.totalUnstakedFeesCollectedUSD).toBeDefined();
-        if (updatedPool?.totalStakedFeesCollectedUSD !== undefined) {
-          expect(updatedPool.totalStakedFeesCollectedUSD >= 0n).toBe(true);
-        }
-        if (updatedPool?.totalUnstakedFeesCollectedUSD !== undefined) {
-          expect(updatedPool.totalUnstakedFeesCollectedUSD >= 0n).toBe(true);
-        }
+      expect(updatedToken0).toBeDefined();
+      expect(updatedToken1).toBeDefined();
+
+      // Verify pool was updated
+      const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
+        liquidityPool.id,
+      );
+      expect(updatedPool).toBeDefined();
+      // Verify staked and unstaked fees are tracked separately
+      expect(updatedPool?.totalStakedFeesCollectedUSD).toBeDefined();
+      expect(updatedPool?.totalUnstakedFeesCollectedUSD).toBeDefined();
+      if (updatedPool?.totalStakedFeesCollectedUSD !== undefined) {
+        expect(updatedPool.totalStakedFeesCollectedUSD >= 0n).toBe(true);
+      }
+      if (updatedPool?.totalUnstakedFeesCollectedUSD !== undefined) {
+        expect(updatedPool.totalUnstakedFeesCollectedUSD >= 0n).toBe(true);
       }
     });
   });

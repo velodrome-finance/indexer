@@ -184,8 +184,10 @@ export function setupCommon() {
     lastSnapshotTimestamp: undefined,
   };
 
-  const defaultUserAddress = "0xAbCccccccccccccccccccccccccccccccccccccc";
-  const normalizedDefaultUserAddress = toChecksumAddress(defaultUserAddress);
+  const defaultUserAddress = toChecksumAddress(
+    "0xAbCccccccccccccccccccccccccccccccccccccc",
+  );
+  const normalizedDefaultUserAddress = defaultUserAddress;
   const mockUserStatsPerPoolData: UserStatsPerPool = {
     id: UserStatsPerPoolId(
       CHAIN_ID,

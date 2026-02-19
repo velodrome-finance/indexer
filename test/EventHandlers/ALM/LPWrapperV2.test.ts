@@ -17,11 +17,11 @@ describe("ALMLPWrapperV2 Events", () => {
   } = setupCommon();
   const chainId = mockLiquidityPoolData.chainId;
   const lpWrapperAddress = toChecksumAddress(
-    "0x000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "0x0000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   );
   const poolAddress = mockLiquidityPoolData.poolAddress;
   const userA = toChecksumAddress("0xcccccccccccccccccccccccccccccccccccccccc");
-  const userB = toChecksumAddress("0xdddddddddddddddddddddddddddddddddddddddd");
+  const userB = toChecksumAddress("0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
 
   const mockEventData = {
     block: {
@@ -458,7 +458,9 @@ describe("ALMLPWrapperV2 Events", () => {
         id: wrapperId,
       });
 
-      const zeroAddress = "0x0000000000000000000000000000000000000000";
+      const zeroAddress = toChecksumAddress(
+        "0x0000000000000000000000000000000000000000",
+      );
       const transferAmount = 1000n * TEN_TO_THE_18_BI;
 
       // Mint: from zero address - handler should return early without updating UserStatsPerPool
@@ -556,7 +558,9 @@ describe("ALMLPWrapperV2 Events", () => {
         id: wrapperId,
       });
 
-      const recipient2 = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+      const recipient2 = toChecksumAddress(
+        "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      );
 
       // First deposit
       // V2: Deposit event has sender, recipient, pool, amount0, amount1, lpAmount, totalSupply
@@ -570,10 +574,7 @@ describe("ALMLPWrapperV2 Events", () => {
         mockEventData,
       });
 
-      let result = await mockDb.processEvents([mockEvent]);
-
-      // Update mockDb with the result
-      mockDb = result;
+      mockDb = await mockDb.processEvents([mockEvent]);
 
       // Second deposit from different user
       mockEvent = ALMLPWrapperV2.Deposit.createMockEvent({
@@ -591,7 +592,7 @@ describe("ALMLPWrapperV2 Events", () => {
         },
       });
 
-      result = await result.processEvents([mockEvent]);
+      const result = await mockDb.processEvents([mockEvent]);
 
       const wrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
 

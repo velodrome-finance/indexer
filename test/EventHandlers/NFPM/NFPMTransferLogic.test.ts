@@ -407,7 +407,9 @@ describe("NFPMTransferLogic", () => {
 
   describe("createPositionFromCLPoolMint", () => {
     it("should create position from CLPoolMintEvent with stable ID", async () => {
-      const owner = "0x3096D872E1FCc96e5E55F43411971d49bB137B9B";
+      const owner = toChecksumAddress(
+        "0x3096D872E1FCc96e5E55F43411971d49bB137B9B",
+      );
       const blockTimestamp = 1711601595;
 
       setMintEvent(mockCLPoolMintEvent);

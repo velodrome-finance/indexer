@@ -4,6 +4,7 @@ import type {
   Token,
   handlerContext,
 } from "generated";
+import { toChecksumAddress } from "../../../src/Constants";
 import { processPoolSync } from "../../../src/EventHandlers/Pool/PoolSyncLogic";
 import { setupCommon } from "./common";
 
@@ -18,7 +19,7 @@ describe("PoolSyncLogic", () => {
       hash: "0x5555555555555555555555555555555555555555555555555555555555555555",
     },
     logIndex: 1,
-    srcAddress: "0x3333333333333333333333333333333333333333",
+    srcAddress: toChecksumAddress("0x3333333333333333333333333333333333333333"),
     transaction: {
       hash: "0x4444444444444444444444444444444444444444444444444444444444444444",
     },
@@ -48,14 +49,16 @@ describe("PoolSyncLogic", () => {
     totalEmissionsUSD: 2000n,
     totalVotesDeposited: 5000n,
     totalVotesDepositedUSD: 10000n,
-    gaugeAddress: "0x4444444444444444444444444444444444444444",
+    gaugeAddress: toChecksumAddress(
+      "0x4444444444444444444444444444444444444444",
+    ),
     gaugeIsAlive: true,
     lastUpdatedTimestamp: new Date(1000000 * 1000),
   } as LiquidityPoolAggregator;
 
   const mockToken0 = {
-    id: "0x2222222222222222222222222222222222222222",
-    address: "0x2222222222222222222222222222222222222222",
+    id: toChecksumAddress("0x2222222222222222222222222222222222222222"),
+    address: toChecksumAddress("0x2222222222222222222222222222222222222222"),
     symbol: "USDC",
     name: "USD Coin",
     decimals: 6n,
@@ -66,8 +69,8 @@ describe("PoolSyncLogic", () => {
   } as Token;
 
   const mockToken1 = {
-    id: "0x3333333333333333333333333333333333333333",
-    address: "0x3333333333333333333333333333333333333333",
+    id: toChecksumAddress("0x3333333333333333333333333333333333333333"),
+    address: toChecksumAddress("0x3333333333333333333333333333333333333333"),
     symbol: "WETH",
     name: "Wrapped Ether",
     decimals: 18n,

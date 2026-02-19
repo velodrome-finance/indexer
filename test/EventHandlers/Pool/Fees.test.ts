@@ -116,10 +116,10 @@ describe("Pool Fees Event", () => {
       ),
     );
     expect(createdUserStats?.userAddress).toBe(
-      "0x1234567890123456789012345678901234567890",
+      toChecksumAddress("0x1234567890123456789012345678901234567890"),
     );
     expect(createdUserStats?.poolAddress).toBe(
-      "0x3333333333333333333333333333333333333333",
+      toChecksumAddress("0x3333333333333333333333333333333333333333"),
     );
     expect(createdUserStats?.chainId).toBe(10);
     expect(createdUserStats?.numberOfSwaps).toBe(0n);
@@ -271,6 +271,12 @@ describe("Pool Fees Event", () => {
   });
 
   describe("when optional diffs are undefined", () => {
+    let processSpy: ReturnType<typeof vi.spyOn>;
+
+    afterEach(() => {
+      processSpy?.mockRestore();
+    });
+
     it("should handle undefined liquidityPoolDiff gracefully", async () => {
       // Set up fresh database
       const freshMockDb = MockDb.createMockDb();
@@ -281,17 +287,15 @@ describe("Pool Fees Event", () => {
       );
 
       // Mock processPoolFees to return undefined liquidityPoolDiff
-      const processSpy = vi
-        .spyOn(PoolFeesLogic, "processPoolFees")
-        .mockReturnValue({
-          liquidityPoolDiff: undefined, // Test the undefined branch
-          userDiff: {
-            incrementalTotalFeesContributedUSD: 500n,
-            incrementalTotalFeesContributed0: 3n * 10n ** 18n,
-            incrementalTotalFeesContributed1: 2n * 10n ** 6n,
-            lastActivityTimestamp: new Date(1000000 * 1000),
-          },
-        });
+      processSpy = vi.spyOn(PoolFeesLogic, "processPoolFees").mockReturnValue({
+        liquidityPoolDiff: undefined, // Test the undefined branch
+        userDiff: {
+          incrementalTotalFeesContributedUSD: 500n,
+          incrementalTotalFeesContributed0: 3n * 10n ** 18n,
+          incrementalTotalFeesContributed1: 2n * 10n ** 6n,
+          lastActivityTimestamp: new Date(1000000 * 1000),
+        },
+      });
 
       const mockEvent = Pool.Fees.createMockEvent({
         amount0: 3n * 10n ** 18n,
@@ -325,8 +329,6 @@ describe("Pool Fees Event", () => {
         ),
       );
       expect(userStats?.totalFeesContributed0).toBe(3n * 10n ** 18n);
-
-      processSpy.mockRestore();
     });
 
     it("should handle undefined userDiff gracefully", async () => {

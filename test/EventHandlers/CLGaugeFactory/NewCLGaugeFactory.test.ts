@@ -10,8 +10,12 @@ import { setupCommon } from "../Pool/common";
 describe("NewCLGaugeFactory Event Handlers", () => {
   const { mockLiquidityPoolData } = setupCommon();
   const chainId = 10;
-  const mockGaugeFactoryAddress = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-  const mockGaugeAddress = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+  const mockGaugeFactoryAddress = toChecksumAddress(
+    "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  );
+  const mockGaugeAddress = toChecksumAddress(
+    "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  );
   const mockDefaultCap = 1000000000000000000000n; // 1000 tokens in 18 decimals
   const mockEmissionCap = 500000000000000000000n; // 500 tokens in 18 decimals
 
@@ -312,8 +316,9 @@ describe("NewCLGaugeFactory Event Handlers", () => {
     });
 
     it("should handle case where pool entity is not found", async () => {
-      const nonExistentGaugeAddress =
-        "0xdddddddddddddddddddddddddddddddddddddddd";
+      const nonExistentGaugeAddress = toChecksumAddress(
+        "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      );
 
       // Set up mockDb with getWhere that returns empty array for non-existent gauge
       const mockDbWithEmptyGetWhere = {

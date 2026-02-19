@@ -3,7 +3,6 @@ import type {
   NonFungiblePosition,
   handlerContext,
 } from "generated";
-import type { Mock } from "vitest";
 import { MockDb, NFPM } from "../../../generated/src/TestHelpers.gen";
 import {
   type PoolData,
@@ -213,6 +212,7 @@ describe("NFPMIncreaseLiquidityLogic", () => {
   }
 
   beforeEach(() => {
+    vi.restoreAllMocks();
     vi.mocked(loadPoolData).mockResolvedValue(null);
     vi.mocked(attributeLiquidityChangeToUserStatsPerPool).mockResolvedValue();
     storedPositions = [mockPosition];

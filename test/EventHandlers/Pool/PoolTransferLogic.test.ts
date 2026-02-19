@@ -7,7 +7,11 @@ import type {
 import type { MockInstance } from "vitest";
 import * as LiquidityPoolAggregatorModule from "../../../src/Aggregators/LiquidityPoolAggregator";
 import * as UserStatsPerPoolModule from "../../../src/Aggregators/UserStatsPerPool";
-import { PoolTransferInTxId, ZERO_ADDRESS } from "../../../src/Constants";
+import {
+  PoolTransferInTxId,
+  ZERO_ADDRESS,
+  toChecksumAddress,
+} from "../../../src/Constants";
 import {
   processPoolTransfer,
   storeTransferForMatching,
@@ -23,8 +27,12 @@ describe("PoolTransferLogic", () => {
   // Shared constants
   const CHAIN_ID = 10;
   const POOL_ADDRESS = mockLiquidityPoolData.poolAddress;
-  const USER_ADDRESS = "0x1111111111111111111111111111111111111111";
-  const RECIPIENT_ADDRESS = "0x2222222222222222222222222222222222222222";
+  const USER_ADDRESS = toChecksumAddress(
+    "0x1111111111111111111111111111111111111111",
+  );
+  const RECIPIENT_ADDRESS = toChecksumAddress(
+    "0x2222222222222222222222222222222222222222",
+  );
   const TX_HASH =
     "0x1234567890123456789012345678901234567890123456789012345678901234";
   const LP_VALUE = 500n * 10n ** 18n;
@@ -85,9 +93,7 @@ describe("PoolTransferLogic", () => {
   });
 
   afterEach(() => {
-    updateLiquidityPoolAggregatorSpy.mockClear();
-    updateUserStatsPerPoolSpy.mockClear();
-    loadOrCreateUserDataSpy.mockClear();
+    vi.restoreAllMocks();
   });
 
   // Helper to create mock Transfer event

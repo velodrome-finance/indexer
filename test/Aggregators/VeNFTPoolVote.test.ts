@@ -5,7 +5,11 @@ import {
   loadVeNFTPoolVote,
   updateVeNFTPoolVote,
 } from "../../src/Aggregators/VeNFTPoolVote";
-import { VeNFTId, VeNFTPoolVoteId } from "../../src/Constants";
+import {
+  VeNFTId,
+  VeNFTPoolVoteId,
+  toChecksumAddress,
+} from "../../src/Constants";
 
 function getVeNFTPoolVoteStore(
   ctx: Partial<handlerContext>,
@@ -18,13 +22,15 @@ function getVeNFTPoolVoteStore(
 describe("VeNFTPoolVote", () => {
   const chainId = 10;
   const tokenId = 1n;
-  const poolAddress = "0x3333333333333333333333333333333333333333";
+  const poolAddress = toChecksumAddress(
+    "0x3333333333333333333333333333333333333333",
+  );
 
   const mockVeNFTState: VeNFTState = {
     id: VeNFTId(chainId, tokenId),
     chainId,
     tokenId,
-    owner: "0x1111111111111111111111111111111111111111",
+    owner: toChecksumAddress("0x1111111111111111111111111111111111111111"),
     locktime: 100n,
     lastUpdatedTimestamp: new Date(1000),
     totalValueLocked: 1000n,

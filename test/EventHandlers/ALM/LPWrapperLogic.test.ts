@@ -1,4 +1,8 @@
-import type { ALM_LP_Wrapper, handlerContext } from "generated";
+import type {
+  ALMLPWrapperTransferInTx,
+  ALM_LP_Wrapper,
+  handlerContext,
+} from "generated";
 import type { Mock } from "vitest";
 import {
   ALMLPWrapperId,
@@ -22,7 +26,11 @@ import { computeLiquidityDeltaFromAmounts } from "../../../src/Helpers";
 import { setupCommon } from "../Pool/common";
 
 describe("LPWrapperLogic", () => {
-  const { mockALMLPWrapperData, mockLiquidityPoolData } = setupCommon();
+  const {
+    createMockUserStatsPerPool,
+    mockALMLPWrapperData,
+    mockLiquidityPoolData,
+  } = setupCommon();
   const poolId = mockLiquidityPoolData.id;
   const chainId = mockLiquidityPoolData.chainId;
   const poolAddress = mockLiquidityPoolData.poolAddress;
@@ -31,10 +39,14 @@ describe("LPWrapperLogic", () => {
   const txHash = "0xtesttxhash";
 
   // Shared addresses
-  const srcAddress = "0x000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-  const sender = "0xcccccccccccccccccccccccccccccccccccccccc";
-  const from = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
-  const to = "0xffffffffffffffffffffffffffffffffffffffff";
+  const srcAddress = toChecksumAddress(
+    "0x0000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  );
+  const sender = toChecksumAddress(
+    "0xcccccccccccccccccccccccccccccccccccccccc",
+  );
+  const from = toChecksumAddress("0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
+  const to = toChecksumAddress("0xffffffffffffffffffffffffffffffffffffffff");
 
   // Shared amounts
   const amount0 = 250n * TEN_TO_THE_18_BI;
@@ -215,7 +227,7 @@ describe("LPWrapperLogic", () => {
 
       // Should return current liquidity
       expect(result).toBe(wrapper.liquidity);
-      expect(mockContext.log.error as Mock).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(mockContext.log.error)).toHaveBeenCalledTimes(1);
       expect(mockLiquidityPoolAggregator).toHaveBeenCalledTimes(1);
     });
 
@@ -248,7 +260,7 @@ describe("LPWrapperLogic", () => {
 
       // Should return current liquidity
       expect(result).toBe(wrapper.liquidity);
-      expect(mockContext.log.error as Mock).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(mockContext.log.error)).toHaveBeenCalledTimes(1);
     });
 
     it("should return current liquidity if sqrtPriceX96 is undefined", async () => {
@@ -281,8 +293,8 @@ describe("LPWrapperLogic", () => {
 
       // Should return current liquidity
       expect(result).toBe(wrapper.liquidity);
-      expect(mockContext.log.warn as Mock).toHaveBeenCalledTimes(1);
-      expect((mockContext.log.warn as Mock).mock.calls[0][0]).toContain(
+      expect(vi.mocked(mockContext.log.warn)).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(mockContext.log.warn).mock.calls[0][0]).toContain(
         "sqrtPriceX96 is undefined or 0",
       );
     });
@@ -317,7 +329,7 @@ describe("LPWrapperLogic", () => {
 
       // Should return current liquidity
       expect(result).toBe(wrapper.liquidity);
-      expect(mockContext.log.warn as Mock).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(mockContext.log.warn)).toHaveBeenCalledTimes(1);
     });
 
     it("should handle unexpected errors gracefully", async () => {
@@ -349,8 +361,8 @@ describe("LPWrapperLogic", () => {
 
       // Should return current liquidity on error
       expect(result).toBe(wrapper.liquidity);
-      expect(mockContext.log.error as Mock).toHaveBeenCalledTimes(1);
-      expect((mockContext.log.error as Mock).mock.calls[0][0]).toContain(
+      expect(vi.mocked(mockContext.log.error)).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(mockContext.log.error).mock.calls[0][0]).toContain(
         "Error calculating liquidity from amounts",
       );
     });
@@ -380,7 +392,7 @@ describe("LPWrapperLogic", () => {
         "CustomEvent",
       );
 
-      expect((mockContext.log.error as Mock).mock.calls[0][0]).toContain(
+      expect(vi.mocked(mockContext.log.error).mock.calls[0][0]).toContain(
         "ALMLPWrapper.CustomEvent",
       );
     });
@@ -388,7 +400,9 @@ describe("LPWrapperLogic", () => {
 
   describe("loadALMLPWrapper", () => {
     let mockContext: handlerContext;
-    const srcAddress = "0x000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    const srcAddress = toChecksumAddress(
+      "0x0000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    );
     const chainId = 10;
 
     beforeEach(() => {
@@ -409,32 +423,36 @@ describe("LPWrapperLogic", () => {
         id: wrapperId,
       };
 
-      (mockContext.ALM_LP_Wrapper?.get as Mock).mockResolvedValue(mockWrapper);
+      vi.mocked(mockContext.ALM_LP_Wrapper?.get).mockResolvedValue(mockWrapper);
 
       const result = await loadALMLPWrapper(srcAddress, chainId, mockContext);
 
       expect(result).toEqual(mockWrapper);
-      expect(mockContext.ALM_LP_Wrapper?.get as Mock).toHaveBeenCalledTimes(1);
-      expect((mockContext.ALM_LP_Wrapper?.get as Mock).mock.calls[0][0]).toBe(
+      expect(vi.mocked(mockContext.ALM_LP_Wrapper?.get)).toHaveBeenCalledTimes(
+        1,
+      );
+      expect(vi.mocked(mockContext.ALM_LP_Wrapper?.get).mock.calls[0][0]).toBe(
         wrapperId,
       );
-      expect(mockContext.log.error as Mock).toHaveBeenCalledTimes(0);
+      expect(vi.mocked(mockContext.log.error)).toHaveBeenCalledTimes(0);
     });
 
     it("should return null and log error when wrapper not found", async () => {
       const wrapperId = ALMLPWrapperId(chainId, srcAddress);
 
-      (mockContext.ALM_LP_Wrapper?.get as Mock).mockResolvedValue(undefined);
+      vi.mocked(mockContext.ALM_LP_Wrapper?.get).mockResolvedValue(undefined);
 
       const result = await loadALMLPWrapper(srcAddress, chainId, mockContext);
 
       expect(result).toBeNull();
-      expect(mockContext.ALM_LP_Wrapper?.get as Mock).toHaveBeenCalledTimes(1);
-      expect((mockContext.ALM_LP_Wrapper?.get as Mock).mock.calls[0][0]).toBe(
+      expect(vi.mocked(mockContext.ALM_LP_Wrapper?.get)).toHaveBeenCalledTimes(
+        1,
+      );
+      expect(vi.mocked(mockContext.ALM_LP_Wrapper?.get).mock.calls[0][0]).toBe(
         wrapperId,
       );
-      expect(mockContext.log.error as Mock).toHaveBeenCalledTimes(1);
-      expect((mockContext.log.error as Mock).mock.calls[0][0]).toContain(
+      expect(vi.mocked(mockContext.log.error)).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(mockContext.log.error).mock.calls[0][0]).toContain(
         wrapperId,
       );
     });
@@ -442,7 +460,9 @@ describe("LPWrapperLogic", () => {
 
   describe("processDepositEvent", () => {
     let mockContext: handlerContext;
-    const recipient = "0xcccccccccccccccccccccccccccccccccccccccc";
+    const recipient = toChecksumAddress(
+      "0xcccccccccccccccccccccccccccccccccccccccc",
+    );
     const depositAmount0 = 500n * TEN_TO_THE_18_BI;
     const depositAmount1 = 250n * TEN_TO_THE_6_BI;
     const depositLpAmount = 1000n * TEN_TO_THE_18_BI;
@@ -487,25 +507,19 @@ describe("LPWrapperLogic", () => {
         lpAmount: 2000n * TEN_TO_THE_18_BI,
       };
 
-      const userStatsId = UserStatsPerPoolId(
-        chainId,
-        toChecksumAddress(recipient),
-        toChecksumAddress(poolAddress),
-      );
-      const mockUserStats = {
-        id: userStatsId,
+      const mockUserStats = createMockUserStatsPerPool({
         userAddress: toChecksumAddress(recipient),
         poolAddress: toChecksumAddress(poolAddress),
-        chainId: chainId,
+        chainId,
         almLpAmount: 0n,
-      };
+      });
 
-      (mockContext.ALM_LP_Wrapper?.get as Mock).mockResolvedValueOnce(
+      vi.mocked(mockContext.ALM_LP_Wrapper?.get).mockResolvedValueOnce(
         mockWrapper,
       );
       // Pre-create user stats so loadOrCreateUserData doesn't call set
       // (loadOrCreateUserData calls set when creating a new entity)
-      (mockContext.UserStatsPerPool?.get as Mock).mockResolvedValueOnce(
+      vi.mocked(mockContext.UserStatsPerPool?.get).mockResolvedValueOnce(
         mockUserStats,
       );
 
@@ -523,8 +537,10 @@ describe("LPWrapperLogic", () => {
       );
 
       // Verify wrapper was updated
-      expect(mockContext.ALM_LP_Wrapper?.set as Mock).toHaveBeenCalledTimes(1);
-      const wrapperUpdate = (mockContext.ALM_LP_Wrapper?.set as Mock).mock
+      expect(vi.mocked(mockContext.ALM_LP_Wrapper?.set)).toHaveBeenCalledTimes(
+        1,
+      );
+      const wrapperUpdate = vi.mocked(mockContext.ALM_LP_Wrapper?.set).mock
         .calls[0][0];
       // lpAmount is aggregated: diff.lpAmount + current.lpAmount
       // Deposit: lpAmount (1000) + current (2000) = 3000
@@ -543,31 +559,28 @@ describe("LPWrapperLogic", () => {
       );
 
       // Verify user stats were updated
-      expect(mockContext.UserStatsPerPool?.set as Mock).toHaveBeenCalledTimes(
-        1,
-      );
+      expect(
+        vi.mocked(mockContext.UserStatsPerPool?.set),
+      ).toHaveBeenCalledTimes(1);
     });
 
     it("should return early if wrapper not found", async () => {
       const wrapperId = ALMLPWrapperId(chainId, srcAddress);
-      const userStatsId = UserStatsPerPoolId(
+      const mockUserStats = createMockUserStatsPerPool({
+        userAddress: toChecksumAddress(recipient),
+        poolAddress: toChecksumAddress(poolAddress),
         chainId,
-        toChecksumAddress(recipient),
-        toChecksumAddress(poolAddress),
-      );
+        almLpAmount: 0n,
+      });
 
-      (mockContext.ALM_LP_Wrapper?.get as Mock).mockResolvedValueOnce(
+      vi.mocked(mockContext.ALM_LP_Wrapper?.get).mockResolvedValueOnce(
         undefined,
       );
       // Pre-create user stats so loadOrCreateUserData doesn't call set
       // (loadOrCreateUserData is called in parallel and may call set before we return early)
-      (mockContext.UserStatsPerPool?.get as Mock).mockResolvedValueOnce({
-        id: userStatsId,
-        userAddress: toChecksumAddress(recipient),
-        poolAddress: toChecksumAddress(poolAddress),
-        chainId: chainId,
-        almLpAmount: 0n,
-      });
+      vi.mocked(mockContext.UserStatsPerPool?.get).mockResolvedValueOnce(
+        mockUserStats,
+      );
 
       await processDepositEvent(
         recipient,
@@ -583,10 +596,12 @@ describe("LPWrapperLogic", () => {
       );
 
       // Should not update anything
-      expect(mockContext.ALM_LP_Wrapper?.set as Mock).toHaveBeenCalledTimes(0);
-      expect(mockContext.UserStatsPerPool?.set as Mock).toHaveBeenCalledTimes(
+      expect(vi.mocked(mockContext.ALM_LP_Wrapper?.set)).toHaveBeenCalledTimes(
         0,
       );
+      expect(
+        vi.mocked(mockContext.UserStatsPerPool?.set),
+      ).toHaveBeenCalledTimes(0);
     });
   });
 
@@ -634,23 +649,17 @@ describe("LPWrapperLogic", () => {
         lpAmount: 2000n * TEN_TO_THE_18_BI,
       };
 
-      const userStatsId = UserStatsPerPoolId(
-        chainId,
-        toChecksumAddress(sender),
-        toChecksumAddress(poolAddress),
-      );
-      const mockUserStats = {
-        id: userStatsId,
+      const mockUserStats = createMockUserStatsPerPool({
         userAddress: toChecksumAddress(sender),
         poolAddress: toChecksumAddress(poolAddress),
-        chainId: chainId,
+        chainId,
         almLpAmount: 1000n * TEN_TO_THE_18_BI,
-      };
+      });
 
-      (mockContext.ALM_LP_Wrapper?.get as Mock).mockResolvedValueOnce(
+      vi.mocked(mockContext.ALM_LP_Wrapper?.get).mockResolvedValueOnce(
         mockWrapper,
       );
-      (mockContext.UserStatsPerPool?.get as Mock).mockResolvedValueOnce(
+      vi.mocked(mockContext.UserStatsPerPool?.get).mockResolvedValueOnce(
         mockUserStats,
       );
 
@@ -671,8 +680,10 @@ describe("LPWrapperLogic", () => {
       );
 
       // Verify wrapper was updated
-      expect(mockContext.ALM_LP_Wrapper?.set as Mock).toHaveBeenCalledTimes(1);
-      const wrapperUpdate = (mockContext.ALM_LP_Wrapper?.set as Mock).mock
+      expect(vi.mocked(mockContext.ALM_LP_Wrapper?.set)).toHaveBeenCalledTimes(
+        1,
+      );
+      const wrapperUpdate = vi.mocked(mockContext.ALM_LP_Wrapper?.set).mock
         .calls[0][0];
       // lpAmount is aggregated: diff.lpAmount + current.lpAmount
       // Withdraw: -lpAmount (-500) + current (2000) = 1500
@@ -693,30 +704,27 @@ describe("LPWrapperLogic", () => {
       expect(wrapperUpdate.liquidity).toBe(expectedLiquidity);
 
       // Verify user stats were updated
-      expect(mockContext.UserStatsPerPool?.set as Mock).toHaveBeenCalledTimes(
-        1,
-      );
+      expect(
+        vi.mocked(mockContext.UserStatsPerPool?.set),
+      ).toHaveBeenCalledTimes(1);
     });
 
     it("should return early if wrapper not found", async () => {
-      const userStatsId = UserStatsPerPoolId(
+      const mockUserStats = createMockUserStatsPerPool({
+        userAddress: toChecksumAddress(sender),
+        poolAddress: toChecksumAddress(poolAddress),
         chainId,
-        toChecksumAddress(sender),
-        toChecksumAddress(poolAddress),
-      );
+        almLpAmount: 0n,
+      });
 
-      (mockContext.ALM_LP_Wrapper?.get as Mock).mockResolvedValueOnce(
+      vi.mocked(mockContext.ALM_LP_Wrapper?.get).mockResolvedValueOnce(
         undefined,
       );
       // Pre-create user stats so loadOrCreateUserData doesn't call set
       // (loadOrCreateUserData is called in parallel and may call set before we return early)
-      (mockContext.UserStatsPerPool?.get as Mock).mockResolvedValueOnce({
-        id: userStatsId,
-        userAddress: toChecksumAddress(sender),
-        poolAddress: toChecksumAddress(poolAddress),
-        chainId: chainId,
-        almLpAmount: 0n,
-      });
+      vi.mocked(mockContext.UserStatsPerPool?.get).mockResolvedValueOnce(
+        mockUserStats,
+      );
 
       await processWithdrawEvent(
         sender,
@@ -735,10 +743,12 @@ describe("LPWrapperLogic", () => {
       );
 
       // Should not update anything
-      expect(mockContext.ALM_LP_Wrapper?.set as Mock).toHaveBeenCalledTimes(0);
-      expect(mockContext.UserStatsPerPool?.set as Mock).toHaveBeenCalledTimes(
+      expect(vi.mocked(mockContext.ALM_LP_Wrapper?.set)).toHaveBeenCalledTimes(
         0,
       );
+      expect(
+        vi.mocked(mockContext.UserStatsPerPool?.set),
+      ).toHaveBeenCalledTimes(0);
     });
   });
 
@@ -771,37 +781,24 @@ describe("LPWrapperLogic", () => {
         lpAmount: 2000n * TEN_TO_THE_18_BI,
       };
 
-      const fromUserStatsId = UserStatsPerPoolId(
-        chainId,
-        toChecksumAddress(from),
-        toChecksumAddress(poolAddress),
-      );
-      const toUserStatsId = UserStatsPerPoolId(
-        chainId,
-        toChecksumAddress(to),
-        toChecksumAddress(poolAddress),
-      );
-
-      const mockFromUserStats = {
-        id: fromUserStatsId,
+      const mockFromUserStats = createMockUserStatsPerPool({
         userAddress: toChecksumAddress(from),
         poolAddress: toChecksumAddress(poolAddress),
-        chainId: chainId,
+        chainId,
         almLpAmount: 1000n * TEN_TO_THE_18_BI,
-      };
+      });
 
-      const mockToUserStats = {
-        id: toUserStatsId,
+      const mockToUserStats = createMockUserStatsPerPool({
         userAddress: toChecksumAddress(to),
         poolAddress: toChecksumAddress(poolAddress),
-        chainId: chainId,
+        chainId,
         almLpAmount: 0n,
-      };
+      });
 
-      (mockContext.ALM_LP_Wrapper?.get as Mock).mockResolvedValueOnce(
+      vi.mocked(mockContext.ALM_LP_Wrapper?.get).mockResolvedValueOnce(
         mockWrapper,
       );
-      (mockContext.UserStatsPerPool?.get as Mock)
+      vi.mocked(mockContext.UserStatsPerPool?.get)
         .mockResolvedValueOnce(mockFromUserStats)
         .mockResolvedValueOnce(mockToUserStats);
 
@@ -822,19 +819,19 @@ describe("LPWrapperLogic", () => {
       // Verify both user stats were updated
       // loadOrCreateUserData doesn't call set since both entities exist
       // updateUserStatsPerPool is called twice (once for sender, once for recipient)
-      expect(mockContext.UserStatsPerPool?.set as Mock).toHaveBeenCalledTimes(
-        2,
-      );
+      expect(
+        vi.mocked(mockContext.UserStatsPerPool?.set),
+      ).toHaveBeenCalledTimes(2);
 
       // Verify sender's stats were updated (decreased)
-      const fromUpdate = (mockContext.UserStatsPerPool?.set as Mock).mock
+      const fromUpdate = vi.mocked(mockContext.UserStatsPerPool?.set).mock
         .calls[0][0];
       expect(fromUpdate.almLpAmount).toBe(
         mockFromUserStats.almLpAmount - value,
       );
 
       // Verify recipient's stats were updated (increased)
-      const toUpdate = (mockContext.UserStatsPerPool?.set as Mock).mock
+      const toUpdate = vi.mocked(mockContext.UserStatsPerPool?.set).mock
         .calls[1][0];
       expect(toUpdate.almLpAmount).toBe(value);
       expect(toUpdate.almAddress).toBe(srcAddress);
@@ -872,14 +869,16 @@ describe("LPWrapperLogic", () => {
       );
 
       // Should not load wrapper or update any stats
-      expect(mockContext.ALM_LP_Wrapper?.get as Mock).toHaveBeenCalledTimes(0);
-      expect(mockContext.UserStatsPerPool?.set as Mock).toHaveBeenCalledTimes(
+      expect(vi.mocked(mockContext.ALM_LP_Wrapper?.get)).toHaveBeenCalledTimes(
         0,
       );
+      expect(
+        vi.mocked(mockContext.UserStatsPerPool?.set),
+      ).toHaveBeenCalledTimes(0);
     });
 
     it("should return early if wrapper not found", async () => {
-      (mockContext.ALM_LP_Wrapper?.get as Mock).mockResolvedValueOnce(
+      vi.mocked(mockContext.ALM_LP_Wrapper?.get).mockResolvedValueOnce(
         undefined,
       );
 
@@ -898,9 +897,9 @@ describe("LPWrapperLogic", () => {
       );
 
       // Should not update any stats
-      expect(mockContext.UserStatsPerPool?.set as Mock).toHaveBeenCalledTimes(
-        0,
-      );
+      expect(
+        vi.mocked(mockContext.UserStatsPerPool?.set),
+      ).toHaveBeenCalledTimes(0);
     });
 
     it("should return early when sender has no UserStatsPerPool", async () => {
@@ -908,26 +907,21 @@ describe("LPWrapperLogic", () => {
       // Id format must match UserStatsPerPoolId(chainId, userAddress, poolAddress) from Constants
       const poolInWrapper = toChecksumAddress(poolAddress);
       const fromUserStatsId = UserStatsPerPoolId(chainId, from, poolInWrapper);
-      (mockContext.ALM_LP_Wrapper?.get as Mock).mockResolvedValueOnce({
+      vi.mocked(mockContext.ALM_LP_Wrapper?.get).mockResolvedValueOnce({
         ...mockALMLPWrapperData,
         id: wrapperId,
         pool: poolInWrapper,
         lpAmount: 2000n * TEN_TO_THE_18_BI,
       });
-      (mockContext.UserStatsPerPool?.get as Mock).mockImplementation(
+      const toUserStats = createMockUserStatsPerPool({
+        userAddress: toChecksumAddress(to),
+        poolAddress: poolInWrapper,
+        chainId,
+        almLpAmount: 0n,
+      });
+      vi.mocked(mockContext.UserStatsPerPool?.get).mockImplementation(
         (id: string) =>
-          Promise.resolve(
-            id === fromUserStatsId
-              ? undefined
-              : {
-                  id,
-                  almLpAmount: 0n,
-                  poolAddress: poolInWrapper,
-                  chainId,
-                  userAddress: toChecksumAddress(to),
-                  almAddress: undefined,
-                },
-          ),
+          Promise.resolve(id === fromUserStatsId ? undefined : toUserStats),
       );
 
       await processTransferEvent(
@@ -944,9 +938,9 @@ describe("LPWrapperLogic", () => {
         false,
       );
 
-      expect(mockContext.UserStatsPerPool?.set as Mock).toHaveBeenCalledTimes(
-        0,
-      );
+      expect(
+        vi.mocked(mockContext.UserStatsPerPool?.set),
+      ).toHaveBeenCalledTimes(0);
     });
 
     it("should store burn Transfer event for V1 wrapper", async () => {
@@ -977,11 +971,11 @@ describe("LPWrapperLogic", () => {
       // Verify burn Transfer event was stored
       expect(
         // biome-ignore lint/suspicious/noExplicitAny: Mock context type extension needed for test
-        (mockContext as any).ALMLPWrapperTransferInTx?.set as Mock,
+        vi.mocked((mockContext as any).ALMLPWrapperTransferInTx?.set),
       ).toHaveBeenCalledTimes(1);
       const storedTransfer =
         // biome-ignore lint/suspicious/noExplicitAny: Mock context type extension needed for test
-        ((mockContext as any).ALMLPWrapperTransferInTx?.set as Mock).mock
+        vi.mocked((mockContext as any).ALMLPWrapperTransferInTx?.set).mock
           .calls[0][0];
       expect(storedTransfer.id).toBe(
         ALMLPWrapperTransferInTxId(
@@ -1028,7 +1022,7 @@ describe("LPWrapperLogic", () => {
       // Verify burn Transfer event was NOT stored
       expect(
         // biome-ignore lint/suspicious/noExplicitAny: Mock context type extension needed for test
-        (mockContext as any).ALMLPWrapperTransferInTx?.set as Mock,
+        vi.mocked((mockContext as any).ALMLPWrapperTransferInTx?.set),
       ).toHaveBeenCalledTimes(0);
     });
   });
@@ -1083,9 +1077,13 @@ describe("LPWrapperLogic", () => {
         consumedByLogIndex: undefined,
       };
 
-      (
-        mockContext.ALMLPWrapperTransferInTx?.getWhere as Mock
-      ).mockResolvedValue([matchingBurn, otherBurn, nonMatchingBurn]);
+      vi.mocked(
+        mockContext.ALMLPWrapperTransferInTx?.getWhere,
+      ).mockResolvedValue([
+        matchingBurn,
+        otherBurn,
+        nonMatchingBurn,
+      ] as ALMLPWrapperTransferInTx[]);
 
       const result = await getMatchingBurnTransferInTx(
         txHash,
@@ -1103,8 +1101,8 @@ describe("LPWrapperLogic", () => {
     });
 
     it("should return undefined if no matching burn found", async () => {
-      (
-        mockContext.ALMLPWrapperTransferInTx?.getWhere as Mock
+      vi.mocked(
+        mockContext.ALMLPWrapperTransferInTx?.getWhere,
       ).mockResolvedValue([]);
 
       const result = await getMatchingBurnTransferInTx(
@@ -1131,9 +1129,9 @@ describe("LPWrapperLogic", () => {
         consumedByLogIndex: 90, // Already consumed
       };
 
-      (
-        mockContext.ALMLPWrapperTransferInTx?.getWhere as Mock
-      ).mockResolvedValue([consumedBurn]);
+      vi.mocked(
+        mockContext.ALMLPWrapperTransferInTx?.getWhere,
+      ).mockResolvedValue([consumedBurn] as ALMLPWrapperTransferInTx[]);
 
       const result = await getMatchingBurnTransferInTx(
         txHash,
@@ -1159,9 +1157,9 @@ describe("LPWrapperLogic", () => {
         consumedByLogIndex: undefined,
       };
 
-      (
-        mockContext.ALMLPWrapperTransferInTx?.getWhere as Mock
-      ).mockResolvedValue([futureBurn]);
+      vi.mocked(
+        mockContext.ALMLPWrapperTransferInTx?.getWhere,
+      ).mockResolvedValue([futureBurn] as ALMLPWrapperTransferInTx[]);
 
       const result = await getMatchingBurnTransferInTx(
         txHash,
@@ -1209,9 +1207,9 @@ describe("LPWrapperLogic", () => {
         consumedByLogIndex: undefined,
       };
 
-      (
-        mockContext.ALMLPWrapperTransferInTx?.getWhere as Mock
-      ).mockResolvedValue([burn1, burn2, burn3]);
+      vi.mocked(
+        mockContext.ALMLPWrapperTransferInTx?.getWhere,
+      ).mockResolvedValue([burn1, burn2, burn3] as ALMLPWrapperTransferInTx[]);
 
       const result = await getMatchingBurnTransferInTx(
         txHash,
@@ -1229,7 +1227,9 @@ describe("LPWrapperLogic", () => {
     });
 
     it("should filter out burns from different senders", async () => {
-      const differentSender = "0xdddddddddddddddddddddddddddddddddddddddd";
+      const differentSender = toChecksumAddress(
+        "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      );
       const burnFromDifferentSender = {
         id: ALMLPWrapperTransferInTxId(chainId, txHash, srcAddress, 50),
         chainId: chainId,
@@ -1241,9 +1241,11 @@ describe("LPWrapperLogic", () => {
         consumedByLogIndex: undefined,
       };
 
-      (
-        mockContext.ALMLPWrapperTransferInTx?.getWhere as Mock
-      ).mockResolvedValue([burnFromDifferentSender]);
+      vi.mocked(
+        mockContext.ALMLPWrapperTransferInTx?.getWhere,
+      ).mockResolvedValue([
+        burnFromDifferentSender as ALMLPWrapperTransferInTx,
+      ]);
 
       const result = await getMatchingBurnTransferInTx(
         txHash,
@@ -1308,18 +1310,12 @@ describe("LPWrapperLogic", () => {
         lpAmount: 2000n * TEN_TO_THE_18_BI,
       };
 
-      const userStatsId = UserStatsPerPoolId(
-        chainId,
-        toChecksumAddress(sender),
-        toChecksumAddress(poolAddress),
-      );
-      const mockUserStats = {
-        id: userStatsId,
+      const mockUserStats = createMockUserStatsPerPool({
         userAddress: toChecksumAddress(sender),
         poolAddress: toChecksumAddress(poolAddress),
-        chainId: chainId,
+        chainId,
         almLpAmount: 1000n * TEN_TO_THE_18_BI,
-      };
+      });
 
       // Mock matching burn Transfer event
       const matchingBurn = {
@@ -1345,17 +1341,17 @@ describe("LPWrapperLogic", () => {
         timestamp: timestamp,
       };
 
-      (mockContext.ALM_LP_Wrapper?.get as Mock).mockResolvedValueOnce(
+      vi.mocked(mockContext.ALM_LP_Wrapper?.get).mockResolvedValueOnce(
         mockWrapper,
       );
-      (mockContext.UserStatsPerPool?.get as Mock).mockResolvedValueOnce(
+      vi.mocked(mockContext.UserStatsPerPool?.get).mockResolvedValueOnce(
         mockUserStats,
       );
-      (
-        mockContext.ALMLPWrapperTransferInTx?.getWhere as Mock
-      ).mockResolvedValue([matchingBurn]);
-      (mockContext.ALMLPWrapperTransferInTx?.get as Mock).mockResolvedValue(
-        transferEntity,
+      vi.mocked(
+        mockContext.ALMLPWrapperTransferInTx?.getWhere,
+      ).mockResolvedValue([matchingBurn] as ALMLPWrapperTransferInTx[]);
+      vi.mocked(mockContext.ALMLPWrapperTransferInTx?.get).mockResolvedValue(
+        transferEntity as ALMLPWrapperTransferInTx,
       );
 
       await processWithdrawEvent(
@@ -1375,8 +1371,10 @@ describe("LPWrapperLogic", () => {
       );
 
       // Verify wrapper was updated with actual burned amount (not the suspicious input parameter)
-      expect(mockContext.ALM_LP_Wrapper?.set as Mock).toHaveBeenCalledTimes(1);
-      const wrapperUpdate = (mockContext.ALM_LP_Wrapper?.set as Mock).mock
+      expect(vi.mocked(mockContext.ALM_LP_Wrapper?.set)).toHaveBeenCalledTimes(
+        1,
+      );
+      const wrapperUpdate = vi.mocked(mockContext.ALM_LP_Wrapper?.set).mock
         .calls[0][0];
       // Should use actualBurnedAmount, not lpAmount
       expect(wrapperUpdate.lpAmount).toBe(
@@ -1397,10 +1395,10 @@ describe("LPWrapperLogic", () => {
 
       // Verify Transfer event was marked as consumed
       expect(
-        mockContext.ALMLPWrapperTransferInTx?.set as Mock,
+        vi.mocked(mockContext.ALMLPWrapperTransferInTx?.set),
       ).toHaveBeenCalledTimes(1);
-      const consumedTransfer = (
-        mockContext.ALMLPWrapperTransferInTx?.set as Mock
+      const consumedTransfer = vi.mocked(
+        mockContext.ALMLPWrapperTransferInTx?.set,
       ).mock.calls[0][0];
       expect(consumedTransfer.consumedByLogIndex).toBe(withdrawLogIndex);
     });
@@ -1413,28 +1411,22 @@ describe("LPWrapperLogic", () => {
         lpAmount: 2000n * TEN_TO_THE_18_BI,
       };
 
-      const userStatsId = UserStatsPerPoolId(
-        chainId,
-        toChecksumAddress(sender),
-        toChecksumAddress(poolAddress),
-      );
-      const mockUserStats = {
-        id: userStatsId,
+      const mockUserStats = createMockUserStatsPerPool({
         userAddress: toChecksumAddress(sender),
         poolAddress: toChecksumAddress(poolAddress),
-        chainId: chainId,
+        chainId,
         almLpAmount: 1000n * TEN_TO_THE_18_BI,
-      };
+      });
 
-      (mockContext.ALM_LP_Wrapper?.get as Mock).mockResolvedValueOnce(
+      vi.mocked(mockContext.ALM_LP_Wrapper?.get).mockResolvedValueOnce(
         mockWrapper,
       );
-      (mockContext.UserStatsPerPool?.get as Mock).mockResolvedValueOnce(
+      vi.mocked(mockContext.UserStatsPerPool?.get).mockResolvedValueOnce(
         mockUserStats,
       );
       // No matching burn Transfer event found
-      (
-        mockContext.ALMLPWrapperTransferInTx?.getWhere as Mock
+      vi.mocked(
+        mockContext.ALMLPWrapperTransferInTx?.getWhere,
       ).mockResolvedValue([]);
 
       await processWithdrawEvent(
@@ -1454,14 +1446,16 @@ describe("LPWrapperLogic", () => {
       );
 
       // Verify wrapper was updated with 0n (fallback when no Transfer found)
-      expect(mockContext.ALM_LP_Wrapper?.set as Mock).toHaveBeenCalledTimes(1);
-      const wrapperUpdate = (mockContext.ALM_LP_Wrapper?.set as Mock).mock
+      expect(vi.mocked(mockContext.ALM_LP_Wrapper?.set)).toHaveBeenCalledTimes(
+        1,
+      );
+      const wrapperUpdate = vi.mocked(mockContext.ALM_LP_Wrapper?.set).mock
         .calls[0][0];
       expect(wrapperUpdate.lpAmount).toBe(mockWrapper.lpAmount - 0n);
 
       // Verify warning was logged
-      expect(mockContext.log.warn as Mock).toHaveBeenCalledTimes(1);
-      expect((mockContext.log.warn as Mock).mock.calls[0][0]).toContain(
+      expect(vi.mocked(mockContext.log.warn)).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(mockContext.log.warn).mock.calls[0][0]).toContain(
         "no matching burn Transfer event found",
       );
     });
@@ -1474,25 +1468,19 @@ describe("LPWrapperLogic", () => {
         lpAmount: 2000n * TEN_TO_THE_18_BI,
       };
 
-      const userStatsId = UserStatsPerPoolId(
-        chainId,
-        toChecksumAddress(sender),
-        toChecksumAddress(poolAddress),
-      );
-      const mockUserStats = {
-        id: userStatsId,
+      const mockUserStats = createMockUserStatsPerPool({
         userAddress: toChecksumAddress(sender),
         poolAddress: toChecksumAddress(poolAddress),
-        chainId: chainId,
+        chainId,
         almLpAmount: 1000n * TEN_TO_THE_18_BI,
-      };
+      });
 
       const normalLpAmount = 500n * TEN_TO_THE_18_BI; // Normal value for V2
 
-      (mockContext.ALM_LP_Wrapper?.get as Mock).mockResolvedValueOnce(
+      vi.mocked(mockContext.ALM_LP_Wrapper?.get).mockResolvedValueOnce(
         mockWrapper,
       );
-      (mockContext.UserStatsPerPool?.get as Mock).mockResolvedValueOnce(
+      vi.mocked(mockContext.UserStatsPerPool?.get).mockResolvedValueOnce(
         mockUserStats,
       );
 
@@ -1513,8 +1501,10 @@ describe("LPWrapperLogic", () => {
       );
 
       // Verify wrapper was updated with event parameter (V2 is correct)
-      expect(mockContext.ALM_LP_Wrapper?.set as Mock).toHaveBeenCalledTimes(1);
-      const wrapperUpdate = (mockContext.ALM_LP_Wrapper?.set as Mock).mock
+      expect(vi.mocked(mockContext.ALM_LP_Wrapper?.set)).toHaveBeenCalledTimes(
+        1,
+      );
+      const wrapperUpdate = vi.mocked(mockContext.ALM_LP_Wrapper?.set).mock
         .calls[0][0];
       expect(wrapperUpdate.lpAmount).toBe(
         mockWrapper.lpAmount - normalLpAmount,
@@ -1522,7 +1512,7 @@ describe("LPWrapperLogic", () => {
 
       // Verify Transfer matching was NOT attempted (V2 doesn't need it)
       expect(
-        mockContext.ALMLPWrapperTransferInTx?.getWhere as Mock,
+        vi.mocked(mockContext.ALMLPWrapperTransferInTx?.getWhere),
       ).toHaveBeenCalledTimes(0);
     });
   });

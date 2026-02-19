@@ -110,9 +110,7 @@ describe("ALMCore Rebalance Event", () => {
         mockEventData,
       });
 
-      const result = await (mockDbWithGetWhere as typeof mockDb).processEvents([
-        mockEvent,
-      ]);
+      const result = await mockDbWithGetWhere.processEvents([mockEvent]);
 
       const updatedWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
 
@@ -156,9 +154,7 @@ describe("ALMCore Rebalance Event", () => {
         mockEventData,
       });
 
-      const result = await (mockDbWithGetWhere as typeof mockDb).processEvents([
-        mockEvent,
-      ]);
+      const result = await mockDbWithGetWhere.processEvents([mockEvent]);
 
       // Verify that no wrapper was created or updated
       expect(Array.from(result.entities.ALM_LP_Wrapper.getAll())).toHaveLength(
@@ -213,9 +209,7 @@ describe("ALMCore Rebalance Event", () => {
         mockEventData,
       });
 
-      const result = await (mockDbWithGetWhere as typeof mockDb).processEvents([
-        mockEvent,
-      ]);
+      const result = await mockDbWithGetWhere.processEvents([mockEvent]);
 
       // Should update the first wrapper (wrapper1)
       const updatedWrapper1 = result.entities.ALM_LP_Wrapper.get(wrapper1.id);
@@ -263,9 +257,7 @@ describe("ALMCore Rebalance Event", () => {
         mockEventData,
       });
 
-      const result = await (mockDbWithGetWhere as typeof mockDb).processEvents([
-        mockEvent,
-      ]);
+      const result = await mockDbWithGetWhere.processEvents([mockEvent]);
 
       const updatedWrapper = result.entities.ALM_LP_Wrapper.get(
         mockALMLPWrapperData.id,

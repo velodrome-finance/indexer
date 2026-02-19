@@ -35,7 +35,7 @@ describe("FeeToTickSpacingMapping", () => {
   });
 
   afterEach(() => {
-    vi.clearAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe("updateFeeToTickSpacingMapping", () => {

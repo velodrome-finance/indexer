@@ -10,7 +10,7 @@ import type {
   handlerContext,
 } from "generated";
 import JSBI from "jsbi";
-import { NonFungiblePositionId } from "../src/Constants";
+import { NonFungiblePositionId, toChecksumAddress } from "../src/Constants";
 import {
   calculatePositionAmountsFromLiquidity,
   calculateStakedLiquidityUSD,
@@ -784,7 +784,9 @@ describe("Helpers", () => {
           token1: mockToken1.address,
           liquidity: amount,
           mintLogIndex: 0,
-          owner: "0x2222222222222222222222222222222222222222",
+          owner: toChecksumAddress(
+            "0x2222222222222222222222222222222222222222",
+          ),
           mintTransactionHash:
             "0x0000000000000000000000000000000000000000000000000000000000000000",
           lastUpdatedTimestamp: new Date(1000000 * 1000),
@@ -911,13 +913,7 @@ describe("Helpers", () => {
 
         const mockContext = {
           NonFungiblePosition: {
-            getWhere: {
-              tokenId: {
-                eq: async () => {
-                  throw new Error("Database error");
-                },
-              },
-            },
+            getWhere: vi.fn().mockRejectedValue(new Error("Database error")),
           },
           effect: async () => ({}),
           log: {
@@ -965,11 +961,7 @@ describe("Helpers", () => {
 
         const mockContext = {
           NonFungiblePosition: {
-            getWhere: {
-              tokenId: {
-                eq: async () => [],
-              },
-            },
+            getWhere: vi.fn().mockResolvedValue([]),
           },
           log: {
             warn: () => {},
@@ -1027,11 +1019,7 @@ describe("Helpers", () => {
 
         const mockContext = {
           NonFungiblePosition: {
-            getWhere: {
-              tokenId: {
-                eq: async () => [],
-              },
-            },
+            getWhere: vi.fn().mockResolvedValue([]),
           },
           log: {
             warn: () => {},
@@ -1074,11 +1062,7 @@ describe("Helpers", () => {
 
         const mockContext = {
           NonFungiblePosition: {
-            getWhere: {
-              tokenId: {
-                eq: async () => [],
-              },
-            },
+            getWhere: vi.fn().mockResolvedValue([]),
           },
           log: {
             warn: () => {},
@@ -1122,11 +1106,7 @@ describe("Helpers", () => {
 
         const mockContext = {
           NonFungiblePosition: {
-            getWhere: {
-              tokenId: {
-                eq: async () => [],
-              },
-            },
+            getWhere: vi.fn().mockResolvedValue([]),
           },
           log: {
             warn: () => {},

@@ -22,6 +22,12 @@ NewCLGaugeFactory.SetEmissionCap.handler(async ({ event, context }) => {
     return;
   }
 
+  if (poolEntityList.length > 1) {
+    context.log.warn(
+      `[NewCLGaugeFactory] Multiple pools found for gauge ${event.params._gauge}, using first match`,
+    );
+  }
+
   const poolEntity = poolEntityList[0];
 
   context.LiquidityPoolAggregator.set({

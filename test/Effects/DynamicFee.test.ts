@@ -1,12 +1,14 @@
 import type { logger as Envio_logger } from "envio/src/Envio.gen";
 import type { PublicClient } from "viem";
-import { CHAIN_CONSTANTS } from "../../src/Constants";
+import { CHAIN_CONSTANTS, toChecksumAddress } from "../../src/Constants";
 import { fetchCurrentFee, getCurrentFee } from "../../src/Effects/DynamicFee";
 
 // Common test constants
 const TEST_CHAIN_ID = 10;
 const TEST_BLOCK_NUMBER = 12345;
-const TEST_POOL_ADDRESS = "0x1234567890123456789012345678901234567890";
+const TEST_POOL_ADDRESS = toChecksumAddress(
+  "0x1234567890123456789012345678901234567890",
+);
 const TEST_DYNAMIC_FEE_MODULE = TEST_POOL_ADDRESS;
 const TEST_FEE_VALUE = 500n;
 const TEST_FEE_VALUE_ALT = 600n;
@@ -15,57 +17,57 @@ const TEST_FEE_VALUE_ALT = 600n;
 const CHAIN_CONFIGS = [
   {
     chainId: 10,
-    address: "0xd9eE4FBeE92970509ec795062cA759F8B52d6720",
+    address: toChecksumAddress("0xd9eE4FBeE92970509ec795062cA759F8B52d6720"),
     name: "Optimism",
   },
   {
     chainId: 8453,
-    address: "0xDB45818A6db280ecfeB33cbeBd445423d0216b5D",
+    address: toChecksumAddress("0xDB45818A6db280ecfeB33cbeBd445423d0216b5D"),
     name: "Base",
   },
   {
     chainId: 42220,
-    address: "0xbcAE2d4b4E8E34a4100e69E9C73af8214a89572e",
+    address: toChecksumAddress("0xbcAE2d4b4E8E34a4100e69E9C73af8214a89572e"),
     name: "Celo",
   },
   {
     chainId: 1868,
-    address: "0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F",
+    address: toChecksumAddress("0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F"),
     name: "Soneium",
   },
   {
     chainId: 34443,
-    address: "0x479Bec910d4025b4aC440ec27aCf28eac522242B",
+    address: toChecksumAddress("0x479Bec910d4025b4aC440ec27aCf28eac522242B"),
     name: "Mode",
   },
   {
     chainId: 1135,
-    address: "0xCB885Aa008031cBDb72447Bed78AF4f87a197126",
+    address: toChecksumAddress("0xCB885Aa008031cBDb72447Bed78AF4f87a197126"),
     name: "Lisk",
   },
   {
     chainId: 130,
-    address: "0x6812eefC19deB79D5191b52f4B763260d9F3C238",
+    address: toChecksumAddress("0x6812eefC19deB79D5191b52f4B763260d9F3C238"),
     name: "Unichain",
   },
   {
     chainId: 252,
-    address: "0xB0922e747e906B963dBdA37647DE1Aa709B35B2d",
+    address: toChecksumAddress("0xB0922e747e906B963dBdA37647DE1Aa709B35B2d"),
     name: "Fraxtal",
   },
   {
     chainId: 1750,
-    address: "0x6812eefC19deB79D5191b52f4B763260d9F3C238",
+    address: toChecksumAddress("0x6812eefC19deB79D5191b52f4B763260d9F3C238"),
     name: "Metal",
   },
   {
     chainId: 1923,
-    address: "0x6812eefC19deB79D5191b52f4B763260d9F3C238",
+    address: toChecksumAddress("0x6812eefC19deB79D5191b52f4B763260d9F3C238"),
     name: "Swell2",
   },
   {
     chainId: 57073,
-    address: "0x6812eefC19deB79D5191b52f4B763260d9F3C238",
+    address: toChecksumAddress("0x6812eefC19deB79D5191b52f4B763260d9F3C238"),
     name: "Ink",
   },
 ];
@@ -176,8 +178,9 @@ describe("Dynamic Fee Effects", () => {
   });
 
   describe("fetchCurrentFee", () => {
-    it("should fetch current fee for all supported chains", async () => {
-      for (const { chainId, address, name } of CHAIN_CONFIGS) {
+    it.each(CHAIN_CONFIGS)(
+      "should fetch current fee for $name (chainId $chainId)",
+      async ({ chainId, address }) => {
         (CHAIN_CONSTANTS as Record<number, { eth_client: PublicClient }>)[
           chainId
         ] = {
@@ -207,8 +210,8 @@ describe("Dynamic Fee Effects", () => {
         expect(callArgs.functionName).toBe("getFee");
         expect(callArgs.blockNumber).toBe(BigInt(TEST_BLOCK_NUMBER));
         expect(callArgs.args).toEqual([TEST_POOL_ADDRESS]);
-      }
-    });
+      },
+    );
 
     it("should handle contract call errors", async () => {
       vi.mocked(mockEthClient.simulateContract).mockRejectedValue(

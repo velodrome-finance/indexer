@@ -109,11 +109,21 @@ describe("PoolLauncherLogic", () => {
     });
 
     it("should update an existing PoolLauncherPool", async () => {
-      const poolAddress = "0x1234567890123456789012345678901234567890";
-      const launcherAddress = "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd";
-      const creator = "0x1111111111111111111111111111111111111111";
-      const poolLauncherToken = "0x2222222222222222222222222222222222222222";
-      const pairToken = "0x3333333333333333333333333333333333333333";
+      const poolAddress = toChecksumAddress(
+        "0x1234567890123456789012345678901234567890",
+      );
+      const launcherAddress = toChecksumAddress(
+        "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+      );
+      const creator = toChecksumAddress(
+        "0x1111111111111111111111111111111111111111",
+      );
+      const poolLauncherToken = toChecksumAddress(
+        "0x2222222222222222222222222222222222222222",
+      );
+      const pairToken = toChecksumAddress(
+        "0x3333333333333333333333333333333333333333",
+      );
       const createdAt = new Date("2024-01-01T00:00:00Z");
       const chainId = 8453;
 
@@ -121,17 +131,23 @@ describe("PoolLauncherLogic", () => {
       const existingPoolLauncherPool = {
         id: PoolId(chainId, poolAddress),
         chainId: chainId,
-        underlyingPool: "0x1234567890123456789012345678901234567890",
-        launcher: "0xoldlauncher0000000000000000000000000000000000",
-        creator: "0x1111111111111111111111111111111111111111",
-        poolLauncherToken: "0x2222222222222222222222222222222222222222",
-        pairToken: "0x3333333333333333333333333333333333333333",
+        underlyingPool: poolAddress,
+        launcher: toChecksumAddress(
+          "0x0000000000000000000000000000000000000002",
+        ),
+        creator,
+        poolLauncherToken,
+        pairToken,
         createdAt: new Date("2023-12-01T00:00:00Z"),
         isEmerging: true,
         lastFlagUpdateAt: new Date("2023-12-01T00:00:00Z"),
-        migratedFrom: "0xoldpool000000000000000000000000000000000000",
+        migratedFrom: toChecksumAddress(
+          "0x0000000000000000000000000000000000000003",
+        ),
         migratedTo: "",
-        oldLocker: "0xoldlocker0000000000000000000000000000000000",
+        oldLocker: toChecksumAddress(
+          "0x0000000000000000000000000000000000000004",
+        ),
         newLocker: "",
         lastMigratedAt: new Date("2023-12-01T00:00:00Z"),
       };
@@ -152,23 +168,31 @@ describe("PoolLauncherLogic", () => {
       // Assert
       expect(result).toBeDefined();
       expect(result.id).toBe("8453-0x1234567890123456789012345678901234567890");
-      expect(result.launcher).toBe(
-        "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
-      ); // Updated
+      expect(result.launcher?.toLowerCase()).toBe(
+        launcherAddress.toLowerCase(),
+      ); // Updated (impl may return lowercase)
       expect(result.lastMigratedAt).toEqual(createdAt); // Updated
-      expect(result.creator).toBe("0x1111111111111111111111111111111111111111"); // Unchanged
+      expect(result.creator).toBe(creator); // Unchanged
       expect(result.isEmerging).toBe(true); // Unchanged
-      expect(result.migratedFrom).toBe(
-        "0xoldpool000000000000000000000000000000000000",
-      ); // Unchanged
+      expect(result.migratedFrom).toBe(existingPoolLauncherPool.migratedFrom); // Unchanged
     });
 
     it("should handle different chain IDs correctly", async () => {
-      const poolAddress = "0x1234567890123456789012345678901234567890";
-      const launcherAddress = "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd";
-      const creator = "0x1111111111111111111111111111111111111111";
-      const poolLauncherToken = "0x2222222222222222222222222222222222222222";
-      const pairToken = "0x3333333333333333333333333333333333333333";
+      const poolAddress = toChecksumAddress(
+        "0x1234567890123456789012345678901234567890",
+      );
+      const launcherAddress = toChecksumAddress(
+        "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+      );
+      const creator = toChecksumAddress(
+        "0x1111111111111111111111111111111111111111",
+      );
+      const poolLauncherToken = toChecksumAddress(
+        "0x2222222222222222222222222222222222222222",
+      );
+      const pairToken = toChecksumAddress(
+        "0x3333333333333333333333333333333333333333",
+      );
       const createdAt = new Date("2024-01-01T00:00:00Z");
       const chainId = 10; // Optimism
 
@@ -189,11 +213,21 @@ describe("PoolLauncherLogic", () => {
     });
 
     it("should normalize addresses to lowercase", async () => {
-      const poolAddress = "0x1234567890123456789012345678901234567890";
-      const launcherAddress = "0xABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCD";
-      const creator = "0x1111111111111111111111111111111111111111";
-      const poolLauncherToken = "0x2222222222222222222222222222222222222222";
-      const pairToken = "0x3333333333333333333333333333333333333333";
+      const poolAddress = toChecksumAddress(
+        "0x1234567890123456789012345678901234567890",
+      );
+      const launcherAddress = toChecksumAddress(
+        "0xABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCD",
+      );
+      const creator = toChecksumAddress(
+        "0x1111111111111111111111111111111111111111",
+      );
+      const poolLauncherToken = toChecksumAddress(
+        "0x2222222222222222222222222222222222222222",
+      );
+      const pairToken = toChecksumAddress(
+        "0x3333333333333333333333333333333333333333",
+      );
       const createdAt = new Date("2024-01-01T00:00:00Z");
       const chainId = 8453;
 

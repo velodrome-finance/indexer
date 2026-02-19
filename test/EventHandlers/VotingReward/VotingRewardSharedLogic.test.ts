@@ -1,6 +1,6 @@
 import type { Token } from "generated";
-import type { Mock } from "vitest";
 import { PoolAddressField } from "../../../src/Aggregators/LiquidityPoolAggregator";
+import { toChecksumAddress } from "../../../src/Constants";
 import {
   type VotingRewardClaimRewardsData,
   processVotingRewardClaimRewards,
@@ -8,9 +8,15 @@ import {
 
 describe("VotingRewardSharedLogic", () => {
   const mockChainId = 8453;
-  const mockUserAddress = "0x2222222222222222222222222222222222222222";
-  const mockVotingRewardAddress = "0x3333333333333333333333333333333333333333";
-  const mockRewardTokenAddress = "0x4444444444444444444444444444444444444444";
+  const mockUserAddress = toChecksumAddress(
+    "0x2222222222222222222222222222222222222222",
+  );
+  const mockVotingRewardAddress = toChecksumAddress(
+    "0x3333333333333333333333333333333333333333",
+  );
+  const mockRewardTokenAddress = toChecksumAddress(
+    "0x4444444444444444444444444444444444444444",
+  );
   const mockTimestamp = new Date("2024-01-01T00:00:00Z");
 
   // biome-ignore lint/suspicious/noExplicitAny: Mock context for testing - complex type intersection would be overly verbose

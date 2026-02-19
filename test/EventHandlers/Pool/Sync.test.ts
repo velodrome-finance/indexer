@@ -1,7 +1,11 @@
 import "../../eventHandlersRegistration";
 import type { LiquidityPoolAggregator, Token } from "generated";
 import { MockDb, Pool } from "../../../generated/src/TestHelpers.gen";
-import { PoolId, TEN_TO_THE_18_BI } from "../../../src/Constants";
+import {
+  PoolId,
+  TEN_TO_THE_18_BI,
+  toChecksumAddress,
+} from "../../../src/Constants";
 import { setupCommon } from "./common";
 
 describe("Pool Sync Event", () => {
@@ -31,7 +35,9 @@ describe("Pool Sync Event", () => {
       },
       chainId: 10,
       logIndex: 1,
-      srcAddress: "0x3333333333333333333333333333333333333333" as `0x${string}`,
+      srcAddress: toChecksumAddress(
+        "0x3333333333333333333333333333333333333333",
+      ) as `0x${string}`,
     },
   };
 

@@ -1,7 +1,5 @@
 /**
- * Event handler registration for tests that use processEvent().
- * Every test file that calls mockDb.processEvents() must import this module at the top.
- * Envio's processEvent() requires the full config (all handlers) to be registered.
+ * Event handler registration for tests that use processEvents().
  */
 import "../src/EventHandlers/FactoryRegistry";
 import "../src/EventHandlers/PoolFactory";

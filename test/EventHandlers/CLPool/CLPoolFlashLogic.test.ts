@@ -1,52 +1,33 @@
-import type {
-  CLPool_Flash_event,
-  LiquidityPoolAggregator,
-  Token,
-} from "generated";
+import type { CLPool_Flash_event, Token } from "generated";
+import { TEN_TO_THE_18_BI, toChecksumAddress } from "../../../src/Constants";
 import { processCLPoolFlash } from "../../../src/EventHandlers/CLPool/CLPoolFlashLogic";
 import { setupCommon } from "../Pool/common";
 
 describe("CLPoolFlashLogic", () => {
-  const { mockLiquidityPoolData, mockToken0Data, mockToken1Data } =
-    setupCommon();
+  const { mockToken0Data, mockToken1Data } = setupCommon();
   const mockEvent = {
     chainId: 10,
     block: {
       number: 12345,
       timestamp: 1000000,
+      hash: "0x5555555555555555555555555555555555555555555555555555555555555555",
     },
     logIndex: 1,
-    srcAddress: "0x1234567890123456789012345678901234567890",
+    srcAddress: toChecksumAddress("0x1234567890123456789012345678901234567890"),
     transaction: {
       hash: "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
     },
     params: {
-      sender: "0xabcdef1234567890abcdef1234567890abcdef12",
-      recipient: "0xabcdef1234567890abcdef1234567890abcdef12",
+      sender: toChecksumAddress("0xabcdef1234567890abcdef1234567890abcdef12"),
+      recipient: toChecksumAddress(
+        "0xabcdef1234567890abcdef1234567890abcdef12",
+      ),
       amount0: 1000000n,
       amount1: 500000n,
       paid0: 1000n, // Fees paid
       paid1: 500n, // Fees paid
     },
-  } as unknown as CLPool_Flash_event;
-
-  const mockLiquidityPoolAggregator: LiquidityPoolAggregator = {
-    ...mockLiquidityPoolData,
-    id: "0x1234567890123456789012345678901234567890",
-    token0_id: mockToken0Data.id,
-    token1_id: mockToken1Data.id,
-    token0_address: mockToken0Data.address,
-    token1_address: mockToken1Data.address,
-    isCL: true,
-    reserve0: 10000000n,
-    reserve1: 6000000n,
-    totalLiquidityUSD: 10000000n,
-    token0Price: 1000000000000000000n,
-    token1Price: 2000000000000000000n,
-    gaugeIsAlive: false,
-    lastUpdatedTimestamp: new Date(1000000 * 1000),
-    lastSnapshotTimestamp: new Date(1000000 * 1000),
-  };
+  } satisfies Partial<CLPool_Flash_event> as unknown as CLPool_Flash_event;
 
   const mockToken0: Token = {
     ...mockToken0Data,
@@ -156,7 +137,7 @@ describe("CLPoolFlashLogic", () => {
     it("should handle different token decimals correctly", () => {
       const tokenWithDifferentDecimals: Token = {
         ...mockToken0,
-        decimals: 6n, // USDC-like token
+        decimals: 6n, // USDC-like token (6 decimals vs token1 at 18)
       };
 
       const result = processCLPoolFlash(
@@ -167,6 +148,35 @@ describe("CLPoolFlashLogic", () => {
 
       expect(result.liquidityPoolDiff).toBeDefined();
       expect(result.userFlashLoanDiff).toBeDefined();
+
+      // Raw fee amounts are passed through unchanged
+      expect(result.liquidityPoolDiff.incrementalTotalFlashLoanFees0).toBe(
+        mockEvent.params.paid0,
+      );
+      expect(result.liquidityPoolDiff.incrementalTotalFlashLoanFees1).toBe(
+        mockEvent.params.paid1,
+      );
+      expect(result.liquidityPoolDiff.incrementalNumberOfFlashLoans).toBe(1n);
+
+      // USD amounts use token decimals via calculateTotalUSD (normalize to 1e18 then multiply by price).
+      // Token0 (6 dec): paid0=1000 → normalized 1000*1e18/1e6 = 1e15 → USD 1e15*1e18/1e18 = 1e15 (0.001 USD in fixed-point).
+      // Token1 (18 dec): paid1=500 @ 2 USD → 500*2e18/1e18 = 1000.
+      // Fees USD = 1e15 + 1000
+      const expectedFeesUSD = 1000000000001000n;
+      expect(result.liquidityPoolDiff.incrementalTotalFlashLoanFeesUSD).toBe(
+        expectedFeesUSD,
+      );
+
+      // Volume: token0 amount0=1000000 (6 dec) = 1 unit → 1e18 USD; token1 amount1=500000 (18 dec) @ 2 USD = 1000000
+      // Total volume = 1e18 + 1000000
+      const expectedVolumeUSD = TEN_TO_THE_18_BI + 1000000n;
+      expect(result.liquidityPoolDiff.incrementalTotalFlashLoanVolumeUSD).toBe(
+        expectedVolumeUSD,
+      );
+      expect(result.userFlashLoanDiff.incrementalTotalFlashLoanVolumeUSD).toBe(
+        expectedVolumeUSD,
+      );
+      expect(result.userFlashLoanDiff.incrementalNumberOfFlashLoans).toBe(1n);
     });
 
     it("should handle existing flash loan data correctly", () => {

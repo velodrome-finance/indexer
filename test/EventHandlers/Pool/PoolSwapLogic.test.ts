@@ -1,8 +1,5 @@
-import type {
-  LiquidityPoolAggregator,
-  Pool_Swap_event,
-  Token,
-} from "generated";
+import type { Pool_Swap_event, Token } from "generated";
+import { toChecksumAddress } from "../../../src/Constants";
 import { processPoolSwap } from "../../../src/EventHandlers/Pool/PoolSwapLogic";
 import * as Helpers from "../../../src/Helpers";
 import { setupCommon } from "./common";
@@ -13,14 +10,14 @@ describe("PoolSwapLogic", () => {
   // Shared mock event for all tests
   const mockEvent: Pool_Swap_event = {
     params: {
-      sender: "0x1111111111111111111111111111111111111111",
-      to: "0x2222222222222222222222222222222222222222",
+      sender: toChecksumAddress("0x1111111111111111111111111111111111111111"),
+      to: toChecksumAddress("0x2222222222222222222222222222222222222222"),
       amount0In: 1000n,
       amount1In: 0n,
       amount0Out: 0n,
       amount1Out: 500n,
     },
-    srcAddress: "0x3333333333333333333333333333333333333333",
+    srcAddress: toChecksumAddress("0x3333333333333333333333333333333333333333"),
     transaction: {
       hash: "0x4444444444444444444444444444444444444444444444444444444444444444",
     },
@@ -37,14 +34,14 @@ describe("PoolSwapLogic", () => {
   const mockToken0: Token = {
     ...mockToken0Data,
     id: "token0_id",
-    address: "0x1111111111111111111111111111111111111111",
+    address: toChecksumAddress("0x1111111111111111111111111111111111111111"),
     symbol: "USDT",
   };
 
   const mockToken1: Token = {
     ...mockToken1Data,
     id: "token1_id",
-    address: "0x2222222222222222222222222222222222222222",
+    address: toChecksumAddress("0x2222222222222222222222222222222222222222"),
     symbol: "USDC",
     name: "USD Coin",
     decimals: 6n,

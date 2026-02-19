@@ -26,7 +26,7 @@ describe("ALMLPWrapperV1 Events", () => {
     "0xcccccccccccccccccccccccccccccccccccccccc",
   );
   const senderAddress = toChecksumAddress(
-    "0xdddddddddddddddddddddddddddddddddddddddd",
+    "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
   );
 
   const mockEventData = {
@@ -61,7 +61,9 @@ describe("ALMLPWrapperV1 Events", () => {
       lpWrapperAddress,
       logIndex,
     );
-    const zeroAddress = "0x0000000000000000000000000000000000000000";
+    const zeroAddress = toChecksumAddress(
+      "0x0000000000000000000000000000000000000000",
+    );
     const burnTransfer = {
       id: burnTransferId,
       chainId: chainId,
@@ -362,7 +364,7 @@ describe("ALMLPWrapperV1 Events", () => {
       expect(wrapper).toBeUndefined();
     });
 
-    it("should create UserStatsPerPool entity if it doesn't exist", async () => {
+    it("should reduce UserStatsPerPool almLpAmount to zero after full withdrawal", async () => {
       let mockDb = MockDb.createMockDb();
 
       // Pre-populate with existing wrapper
@@ -617,7 +619,9 @@ describe("ALMLPWrapperV1 Events", () => {
         id: wrapperId,
       });
 
-      const zeroAddress = "0x0000000000000000000000000000000000000000";
+      const zeroAddress = toChecksumAddress(
+        "0x0000000000000000000000000000000000000000",
+      );
       const transferAmount = 1000n * TEN_TO_THE_18_BI;
 
       // Mint: from zero address - handler should return early without updating UserStatsPerPool

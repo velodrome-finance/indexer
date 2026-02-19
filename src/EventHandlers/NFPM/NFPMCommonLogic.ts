@@ -14,7 +14,8 @@ export enum LiquidityChangeType {
 
 /**
  * Finds a NonFungiblePosition entity by tokenId, filtering by chainId to avoid cross-chain collisions.
- * This is a shared utility function used across NFPM event handlers.
+ * Uses a single-field getWhere (tokenId) then filters by chainId in memory because Envio's getWhere
+ * supports only one filter field per call.
  *
  * @param tokenId - The token ID to search for
  * @param chainId - The chain ID to filter by
