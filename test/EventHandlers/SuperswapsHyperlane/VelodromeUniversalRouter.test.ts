@@ -294,6 +294,7 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
         amountOut: 950n,
       };
 
+      // Populate internal store so handler can read entities (processEvents context uses this)
       mockDb = mockDb.entities.OUSDTBridgedTransaction.set(
         existingBridgedTransaction,
       );

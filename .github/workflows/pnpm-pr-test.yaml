@@ -9,6 +9,8 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    env:
+      ENVIO_API_TOKEN: ${{ secrets.ENVIO_API_TOKEN }}
 
     steps:
       - uses: actions/checkout@v4
@@ -55,7 +57,7 @@ jobs:
         run: |
           pnpm run codegen
           # Fail fast if codegen didn't produce expected files
-          test -f generated/src/Types.gen.ts || (echo "Types.gen.ts missing after codegen" && exit 1)
+          test -f generated/src/Types.ts || (echo "Types.ts missing after codegen" && exit 1)
 
       # Now that generated/package.json exists, install across all workspaces
       - name: Install dependencies (after codegen)

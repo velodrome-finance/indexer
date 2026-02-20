@@ -185,7 +185,7 @@ describe("VeNFTLogic", () => {
       expect(updateSpy).toHaveBeenCalledWith(
         {
           owner: toChecksumAddress(
-            toChecksumAddress("0x0000000000000000000000000000000000000000"),
+            "0x0000000000000000000000000000000000000000",
           ),
           lastUpdatedTimestamp: timestamp,
           isAlive: false,
