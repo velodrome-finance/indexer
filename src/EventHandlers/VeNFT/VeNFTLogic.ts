@@ -234,6 +234,7 @@ export async function updatePreviousOwnerUserStatsOnTransfer(
         previousOwnerUserStatsDiff,
         previousOwnerUserStats,
         context,
+        timestamp,
       );
     }
   }
@@ -278,6 +279,7 @@ export async function updateNewOwnerUserStatsOnTransfer(
       newOwnerUserStatsDiff,
       newOwnerUserStats,
       context,
+      timestamp,
     );
   }
 }

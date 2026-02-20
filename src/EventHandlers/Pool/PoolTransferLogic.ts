@@ -93,7 +93,7 @@ export async function updateUserLpBalances(
       lastActivityTimestamp: timestamp,
     };
 
-    await updateUserStatsPerPool(userDiff, recipientData, context);
+    await updateUserStatsPerPool(userDiff, recipientData, context, timestamp);
   } else if (isBurn) {
     // Burn: subtract from sender
     const senderData = await loadOrCreateUserData(
@@ -109,7 +109,7 @@ export async function updateUserLpBalances(
       lastActivityTimestamp: timestamp,
     };
 
-    await updateUserStatsPerPool(userDiff, senderData, context);
+    await updateUserStatsPerPool(userDiff, senderData, context, timestamp);
   } else {
     // Regular transfer: update both
     // Handle self-transfer case (from === to) to avoid conflicting updates
@@ -128,7 +128,7 @@ export async function updateUserLpBalances(
         lastActivityTimestamp: timestamp,
       };
 
-      await updateUserStatsPerPool(userDiff, userData, context);
+      await updateUserStatsPerPool(userDiff, userData, context, timestamp);
     } else {
       // Regular transfer between different addresses
       const [senderData, recipientData] = await Promise.all([
@@ -146,8 +146,8 @@ export async function updateUserLpBalances(
       };
 
       await Promise.all([
-        updateUserStatsPerPool(userDiffFrom, senderData, context),
-        updateUserStatsPerPool(userDiffTo, recipientData, context),
+        updateUserStatsPerPool(userDiffFrom, senderData, context, timestamp),
+        updateUserStatsPerPool(userDiffTo, recipientData, context, timestamp),
       ]);
     }
   }

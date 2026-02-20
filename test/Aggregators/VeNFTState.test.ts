@@ -3,7 +3,8 @@ import {
   loadVeNFTState,
   updateVeNFTState,
 } from "../../src/Aggregators/VeNFTState";
-import { VeNFTId } from "../../src/Constants";
+import { VeNFTId, VeNFTStateSnapshotId } from "../../src/Constants";
+import { getSnapshotEpoch } from "../../src/Snapshots/Shared";
 
 function getVeNFTStateStore(
   ctx: Partial<handlerContext>,
@@ -44,6 +45,9 @@ describe("VeNFTState", () => {
           },
         },
       },
+      VeNFTStateSnapshot: {
+        set: jest.fn(),
+      } as unknown as handlerContext["VeNFTStateSnapshot"],
       log: {
         error: jest.fn(),
         info: jest.fn(),
@@ -242,7 +246,7 @@ describe("VeNFTState", () => {
     });
 
     describe("lastSnapshotTimestamp", () => {
-      it("should leave lastSnapshotTimestamp undefined when current has it undefined", () => {
+      it("should set lastSnapshotTimestamp to epoch when current has it undefined (first snapshot)", () => {
         const depositDiff = { incrementalTotalValueLocked: 10n };
         updateVeNFTState(
           depositDiff,
@@ -252,7 +256,27 @@ describe("VeNFTState", () => {
         );
         const result = getVeNFTStateStore(mockContext).set as jest.Mock;
         const updated = result.mock.calls[0][0] as VeNFTState;
-        expect(updated.lastSnapshotTimestamp).toBeUndefined();
+        // When lastSnapshotTimestamp is undefined we take a snapshot and set it to the epoch
+        expect(updated.lastSnapshotTimestamp).toBeDefined();
+        expect(updated.lastSnapshotTimestamp?.getTime()).toBe(
+          Math.floor(timestamp.getTime() / (60 * 60 * 1000)) * (60 * 60 * 1000),
+        );
+        // Verify VeNFTStateSnapshot persistence was invoked for the first snapshot
+        expect(mockContext.VeNFTStateSnapshot?.set).toHaveBeenCalledTimes(1);
+        const expectedEpoch = getSnapshotEpoch(timestamp);
+        expect(mockContext.VeNFTStateSnapshot?.set).toHaveBeenCalledWith(
+          expect.objectContaining({
+            id: VeNFTStateSnapshotId(10, 1n, expectedEpoch.getTime()),
+            chainId: 10,
+            tokenId: 1n,
+            owner: mockVeNFTState.owner,
+            locktime: mockVeNFTState.locktime,
+            lastUpdatedTimestamp: timestamp,
+            totalValueLocked: 110n,
+            isAlive: true,
+            timestamp: expectedEpoch,
+          }),
+        );
       });
 
       it("should preserve lastSnapshotTimestamp when present and diff does not provide a newer one", () => {

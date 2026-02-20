@@ -4,7 +4,10 @@ import {
   type PoolData,
   loadPoolData,
 } from "../../../src/Aggregators/LiquidityPoolAggregator";
-import { NonFungiblePositionId } from "../../../src/Constants";
+import {
+  NonFungiblePositionId,
+  NonFungiblePositionSnapshotId,
+} from "../../../src/Constants";
 import {
   LiquidityChangeType,
   attributeLiquidityChangeToUserStatsPerPool,
@@ -13,6 +16,7 @@ import {
   calculateDecreaseLiquidityDiff,
   processNFPMDecreaseLiquidity,
 } from "../../../src/EventHandlers/NFPM/NFPMDecreaseLiquidityLogic";
+import { getSnapshotEpoch } from "../../../src/Snapshots/Shared";
 
 jest.mock("../../../src/Aggregators/LiquidityPoolAggregator", () => ({
   ...jest.requireActual("../../../src/Aggregators/LiquidityPoolAggregator"),
@@ -28,6 +32,24 @@ describe("NFPMDecreaseLiquidityLogic", () => {
   const chainId = 10;
   const tokenId = 540n;
   const poolAddress = "0x00cd0AbB6c2964F7Dfb5169dD94A9F004C35F458";
+  const blockTimestamp = new Date(1712065791 * 1000);
+
+  function expectSnapshotSet(context: handlerContext, liquidity: bigint): void {
+    const epoch = getSnapshotEpoch(blockTimestamp);
+    expect(context.NonFungiblePositionSnapshot.set).toHaveBeenCalledTimes(1);
+    expect(context.NonFungiblePositionSnapshot.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: NonFungiblePositionSnapshotId(chainId, tokenId, epoch.getTime()),
+        chainId,
+        tokenId,
+        owner: mockPosition.owner,
+        pool: poolAddress,
+        liquidity,
+        lastUpdatedTimestamp: blockTimestamp,
+        timestamp: epoch,
+      }),
+    );
+  }
 
   const mockPosition: NonFungiblePosition = {
     id: NonFungiblePositionId(chainId, poolAddress, tokenId),
@@ -77,6 +99,9 @@ describe("NFPMDecreaseLiquidityLogic", () => {
       ...mockDb,
       LiquidityPoolAggregator: {
         get: jest.fn().mockResolvedValue(undefined),
+      },
+      NonFungiblePositionSnapshot: {
+        set: jest.fn(),
       },
       NonFungiblePosition: {
         ...mockDb.entities.NonFungiblePosition,
@@ -195,6 +220,8 @@ describe("NFPMDecreaseLiquidityLogic", () => {
       expect(updatedPosition.lastUpdatedTimestamp).toEqual(
         new Date(1712065791 * 1000),
       );
+
+      expectSnapshotSet(mockContext, 0n);
     });
 
     it("should handle partial liquidity decrease", async () => {
@@ -225,7 +252,10 @@ describe("NFPMDecreaseLiquidityLogic", () => {
       if (!updatedPosition) return;
 
       // Liquidity should be decreased: 373020348524042 - 100000000000000 = 273020348524042
-      expect(updatedPosition.liquidity).toBe(373020348524042n - decreaseAmount);
+      const expectedLiquidity = 373020348524042n - decreaseAmount;
+      expect(updatedPosition.liquidity).toBe(expectedLiquidity);
+
+      expectSnapshotSet(mockContext, expectedLiquidity);
     });
 
     it("should log error and return early if position not found", async () => {
@@ -251,6 +281,10 @@ describe("NFPMDecreaseLiquidityLogic", () => {
       expect(mockContext.log.error).toHaveBeenCalledWith(
         expect.stringContaining("not found during decrease liquidity"),
       );
+
+      expect(
+        mockContext.NonFungiblePositionSnapshot.set,
+      ).not.toHaveBeenCalled();
 
       // Position should remain unchanged
       const position = mockDb.entities.NonFungiblePosition.get(mockPosition.id);
@@ -281,6 +315,8 @@ describe("NFPMDecreaseLiquidityLogic", () => {
       expect(
         jest.mocked(attributeLiquidityChangeToUserStatsPerPool),
       ).not.toHaveBeenCalled();
+
+      expectSnapshotSet(mockContext, 0n);
     });
 
     it("calls attributeLiquidityChangeToUserStatsPerPool when poolData is loaded", async () => {
@@ -325,6 +361,8 @@ describe("NFPMDecreaseLiquidityLogic", () => {
       expect(amount1).toBe(74592880586n);
       expect(ts).toBe(1712065791);
       expect(type).toBe(LiquidityChangeType.REMOVE);
+
+      expectSnapshotSet(mockContext, 0n);
     });
   });
 });

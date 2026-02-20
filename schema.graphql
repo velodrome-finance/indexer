@@ -229,7 +229,6 @@ type UserStatsPerPoolSnapshot {
   poolAddress: String! @index
   chainId: Int!
   timestamp: Timestamp! @index
-  blockNumber: Int!
 
   # Liquidity metrics
   currentLiquidityUSD: BigInt! @config(precision: 76)
@@ -340,7 +339,6 @@ type NonFungiblePositionSnapshot {
   mintLogIndex: Int!
   lastUpdatedTimestamp: Timestamp!
   timestamp: Timestamp! @index
-  blockNumber: Int!
 }
 
 type VeNFTState {
@@ -367,7 +365,6 @@ type VeNFTStateSnapshot {
   totalValueLocked: BigInt! @config(precision: 76)
   isAlive: Boolean!
   timestamp: Timestamp! @index
-  blockNumber: Int!
 }
 
 type VeNFTPoolVote {
@@ -434,7 +431,6 @@ type ALM_LP_WrapperSnapshot {
   creationTimestamp: Timestamp!
   strategyTransactionHash: String! @index
   timestamp: Timestamp! @index
-  blockNumber: Int!
 }
 
 type FactoryRegistryConfig {

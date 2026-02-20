@@ -2,17 +2,52 @@ import {
   NonFungiblePositionSnapshotId,
   SNAPSHOT_INTERVAL_IN_MS,
 } from "../../src/Constants";
-import { setNonFungiblePositionSnapshot } from "../../src/Snapshots/NonFungiblePositionSnapshot";
+import {
+  createNonFungiblePositionSnapshot,
+  setNonFungiblePositionSnapshot,
+} from "../../src/Snapshots/NonFungiblePositionSnapshot";
 import { setupCommon } from "../EventHandlers/Pool/common";
 
 describe("NonFungiblePositionSnapshot", () => {
   let common: ReturnType<typeof setupCommon>;
   const baseTimestamp = new Date(SNAPSHOT_INTERVAL_IN_MS * 6);
-  const blockNumber = 300000;
 
   beforeEach(() => {
     common = setupCommon();
     jest.clearAllMocks();
+  });
+
+  describe("createNonFungiblePositionSnapshot", () => {
+    it("should return epoch-aligned snapshot with correct id and timestamp", () => {
+      const entity = common.createMockNonFungiblePosition();
+      const timestamp = new Date(baseTimestamp.getTime() + 20 * 60 * 1000);
+      const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 6;
+
+      const snapshot = createNonFungiblePositionSnapshot(entity, timestamp);
+
+      expect(snapshot.id).toBe(
+        NonFungiblePositionSnapshotId(
+          entity.chainId,
+          entity.tokenId,
+          expectedEpochMs,
+        ),
+      );
+      expect(snapshot.timestamp.getTime()).toBe(expectedEpochMs);
+    });
+
+    it("should copy entity fields into snapshot without persisting", () => {
+      const entity = common.createMockNonFungiblePosition({
+        liquidity: 5000n,
+        tickLower: -200n,
+      });
+      const snapshot = createNonFungiblePositionSnapshot(entity, baseTimestamp);
+
+      expect(snapshot.chainId).toBe(entity.chainId);
+      expect(snapshot.tokenId).toBe(entity.tokenId);
+      expect(snapshot.pool).toBe(entity.pool);
+      expect(snapshot.liquidity).toBe(5000n);
+      expect(snapshot.tickLower).toBe(-200n);
+    });
   });
 
   it("should set snapshot with epoch-aligned timestamp and correct id", () => {
@@ -22,7 +57,7 @@ describe("NonFungiblePositionSnapshot", () => {
     const entity = common.createMockNonFungiblePosition();
     const timestamp = new Date(baseTimestamp.getTime() + 20 * 60 * 1000);
 
-    setNonFungiblePositionSnapshot(entity, timestamp, blockNumber, context);
+    setNonFungiblePositionSnapshot(entity, timestamp, context);
 
     expect(context.NonFungiblePositionSnapshot.set).toHaveBeenCalledTimes(1);
     const setArg = (context.NonFungiblePositionSnapshot.set as jest.Mock).mock
@@ -36,7 +71,6 @@ describe("NonFungiblePositionSnapshot", () => {
       ),
     );
     expect(setArg.timestamp.getTime()).toBe(expectedEpochMs);
-    expect(setArg.blockNumber).toBe(blockNumber);
   });
 
   it("should spread entity fields into the snapshot", () => {
@@ -45,7 +79,7 @@ describe("NonFungiblePositionSnapshot", () => {
     });
     const entity = common.createMockNonFungiblePosition({ liquidity: 5000n });
 
-    setNonFungiblePositionSnapshot(entity, baseTimestamp, blockNumber, context);
+    setNonFungiblePositionSnapshot(entity, baseTimestamp, context);
 
     const setArg = (context.NonFungiblePositionSnapshot.set as jest.Mock).mock
       .calls[0][0];

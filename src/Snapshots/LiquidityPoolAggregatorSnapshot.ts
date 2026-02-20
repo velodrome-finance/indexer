@@ -5,100 +5,110 @@ import type {
 } from "generated";
 
 import { LiquidityPoolAggregatorSnapshotId } from "../Constants";
-import { getSnapshotEpoch } from "./Shared";
+import {
+  type SnapshotForPersist,
+  SnapshotType,
+  getSnapshotEpoch,
+  persistSnapshot,
+} from "./Shared";
+
+/**
+ * Creates an epoch-aligned snapshot of LiquidityPoolAggregator (no persistence).
+ * @param entity - LiquidityPoolAggregator to snapshot
+ * @param timestamp - Timestamp used to compute snapshot epoch
+ * @returns Epoch-aligned LiquidityPoolAggregatorSnapshot
+ */
+export function createLiquidityPoolAggregatorSnapshot(
+  entity: LiquidityPoolAggregator,
+  timestamp: Date,
+): LiquidityPoolAggregatorSnapshot {
+  const epoch = getSnapshotEpoch(timestamp);
+
+  const snapshotId = LiquidityPoolAggregatorSnapshotId(
+    entity.chainId,
+    entity.poolAddress,
+    epoch.getTime(),
+  );
+  return {
+    id: snapshotId,
+    chainId: entity.chainId,
+    name: entity.name,
+    poolAddress: entity.poolAddress,
+    token0_id: entity.token0_id,
+    token1_id: entity.token1_id,
+    token0_address: entity.token0_address,
+    token1_address: entity.token1_address,
+    isStable: entity.isStable,
+    isCL: entity.isCL,
+    reserve0: entity.reserve0,
+    reserve1: entity.reserve1,
+    totalLPTokenSupply: entity.totalLPTokenSupply,
+    totalLiquidityUSD: entity.totalLiquidityUSD,
+    totalVolume0: entity.totalVolume0,
+    totalVolume1: entity.totalVolume1,
+    totalVolumeUSD: entity.totalVolumeUSD,
+    totalFeesGenerated0: entity.totalFeesGenerated0,
+    totalFeesGenerated1: entity.totalFeesGenerated1,
+    totalFeesGeneratedUSD: entity.totalFeesGeneratedUSD,
+    totalVolumeUSDWhitelisted: entity.totalVolumeUSDWhitelisted,
+    totalUnstakedFeesCollected0: entity.totalUnstakedFeesCollected0,
+    totalUnstakedFeesCollected1: entity.totalUnstakedFeesCollected1,
+    totalStakedFeesCollected0: entity.totalStakedFeesCollected0,
+    totalStakedFeesCollected1: entity.totalStakedFeesCollected1,
+    totalUnstakedFeesCollectedUSD: entity.totalUnstakedFeesCollectedUSD,
+    totalStakedFeesCollectedUSD: entity.totalStakedFeesCollectedUSD,
+    totalFeesUSDWhitelisted: entity.totalFeesUSDWhitelisted,
+    numberOfSwaps: entity.numberOfSwaps,
+    token0Price: entity.token0Price,
+    token1Price: entity.token1Price,
+    totalVotesDeposited: entity.totalVotesDeposited,
+    totalVotesDepositedUSD: entity.totalVotesDepositedUSD,
+    totalEmissions: entity.totalEmissions,
+    totalEmissionsUSD: entity.totalEmissionsUSD,
+    gaugeIsAlive: entity.gaugeIsAlive,
+    gaugeAddress: entity.gaugeAddress,
+    currentLiquidityStaked: entity.currentLiquidityStaked,
+    currentLiquidityStakedUSD: entity.currentLiquidityStakedUSD,
+    timestamp: epoch,
+    feeProtocol0: entity.feeProtocol0,
+    feeProtocol1: entity.feeProtocol1,
+    observationCardinalityNext: entity.observationCardinalityNext,
+    sqrtPriceX96: entity.sqrtPriceX96,
+    tick: entity.tick,
+    totalFlashLoanFees0: entity.totalFlashLoanFees0,
+    totalFlashLoanFees1: entity.totalFlashLoanFees1,
+    totalFlashLoanFeesUSD: entity.totalFlashLoanFeesUSD,
+    totalFlashLoanVolumeUSD: entity.totalFlashLoanVolumeUSD,
+    numberOfFlashLoans: entity.numberOfFlashLoans,
+    bribeVotingRewardAddress: entity.bribeVotingRewardAddress,
+    totalBribeClaimed: entity.totalBribeClaimed,
+    totalBribeClaimedUSD: entity.totalBribeClaimedUSD,
+    feeVotingRewardAddress: entity.feeVotingRewardAddress,
+    totalFeeRewardClaimed: entity.totalFeeRewardClaimed,
+    totalFeeRewardClaimedUSD: entity.totalFeeRewardClaimedUSD,
+    veNFTamountStaked: entity.veNFTamountStaked,
+    baseFee: entity.baseFee,
+    feeCap: entity.feeCap,
+    scalingFactor: entity.scalingFactor,
+    currentFee: entity.currentFee,
+  };
+}
 
 /**
  * Creates and persists an epoch-aligned snapshot of a LiquidityPoolAggregator.
- * @param liquidityPoolAggregator - Liquidity pool aggregator to snapshot
- * @param timestamp - Timestamp of the snapshot
+ * @param entity - LiquidityPoolAggregator to snapshot
+ * @param timestamp - Timestamp used to compute snapshot epoch
  * @param context - Handler context
  * @returns void
  */
 export function setLiquidityPoolAggregatorSnapshot(
-  liquidityPoolAggregator: LiquidityPoolAggregator,
+  entity: LiquidityPoolAggregator,
   timestamp: Date,
   context: handlerContext,
 ): void {
-  const epoch = getSnapshotEpoch(timestamp);
-
-  const snapshotId = LiquidityPoolAggregatorSnapshotId(
-    liquidityPoolAggregator.chainId,
-    liquidityPoolAggregator.poolAddress,
-    epoch.getTime(),
-  );
-
-  const snapshot: LiquidityPoolAggregatorSnapshot = {
-    id: snapshotId,
-    chainId: liquidityPoolAggregator.chainId,
-    name: liquidityPoolAggregator.name,
-    poolAddress: liquidityPoolAggregator.poolAddress,
-    token0_id: liquidityPoolAggregator.token0_id,
-    token1_id: liquidityPoolAggregator.token1_id,
-    token0_address: liquidityPoolAggregator.token0_address,
-    token1_address: liquidityPoolAggregator.token1_address,
-    isStable: liquidityPoolAggregator.isStable,
-    isCL: liquidityPoolAggregator.isCL,
-    reserve0: liquidityPoolAggregator.reserve0,
-    reserve1: liquidityPoolAggregator.reserve1,
-    totalLPTokenSupply: liquidityPoolAggregator.totalLPTokenSupply,
-    totalLiquidityUSD: liquidityPoolAggregator.totalLiquidityUSD,
-    totalVolume0: liquidityPoolAggregator.totalVolume0,
-    totalVolume1: liquidityPoolAggregator.totalVolume1,
-    totalVolumeUSD: liquidityPoolAggregator.totalVolumeUSD,
-    totalFeesGenerated0: liquidityPoolAggregator.totalFeesGenerated0,
-    totalFeesGenerated1: liquidityPoolAggregator.totalFeesGenerated1,
-    totalFeesGeneratedUSD: liquidityPoolAggregator.totalFeesGeneratedUSD,
-    totalVolumeUSDWhitelisted:
-      liquidityPoolAggregator.totalVolumeUSDWhitelisted,
-    totalUnstakedFeesCollected0:
-      liquidityPoolAggregator.totalUnstakedFeesCollected0,
-    totalUnstakedFeesCollected1:
-      liquidityPoolAggregator.totalUnstakedFeesCollected1,
-    totalStakedFeesCollected0:
-      liquidityPoolAggregator.totalStakedFeesCollected0,
-    totalStakedFeesCollected1:
-      liquidityPoolAggregator.totalStakedFeesCollected1,
-    totalUnstakedFeesCollectedUSD:
-      liquidityPoolAggregator.totalUnstakedFeesCollectedUSD,
-    totalStakedFeesCollectedUSD:
-      liquidityPoolAggregator.totalStakedFeesCollectedUSD,
-    totalFeesUSDWhitelisted: liquidityPoolAggregator.totalFeesUSDWhitelisted,
-    numberOfSwaps: liquidityPoolAggregator.numberOfSwaps,
-    token0Price: liquidityPoolAggregator.token0Price,
-    token1Price: liquidityPoolAggregator.token1Price,
-    totalVotesDeposited: liquidityPoolAggregator.totalVotesDeposited,
-    totalVotesDepositedUSD: liquidityPoolAggregator.totalVotesDepositedUSD,
-    totalEmissions: liquidityPoolAggregator.totalEmissions,
-    totalEmissionsUSD: liquidityPoolAggregator.totalEmissionsUSD,
-    gaugeIsAlive: liquidityPoolAggregator.gaugeIsAlive,
-    gaugeAddress: liquidityPoolAggregator.gaugeAddress,
-    currentLiquidityStaked: liquidityPoolAggregator.currentLiquidityStaked,
-    currentLiquidityStakedUSD:
-      liquidityPoolAggregator.currentLiquidityStakedUSD,
-    timestamp: epoch,
-    feeProtocol0: liquidityPoolAggregator.feeProtocol0,
-    feeProtocol1: liquidityPoolAggregator.feeProtocol1,
-    observationCardinalityNext:
-      liquidityPoolAggregator.observationCardinalityNext,
-    sqrtPriceX96: liquidityPoolAggregator.sqrtPriceX96,
-    tick: liquidityPoolAggregator.tick,
-    totalFlashLoanFees0: liquidityPoolAggregator.totalFlashLoanFees0,
-    totalFlashLoanFees1: liquidityPoolAggregator.totalFlashLoanFees1,
-    totalFlashLoanFeesUSD: liquidityPoolAggregator.totalFlashLoanFeesUSD,
-    totalFlashLoanVolumeUSD: liquidityPoolAggregator.totalFlashLoanVolumeUSD,
-    numberOfFlashLoans: liquidityPoolAggregator.numberOfFlashLoans,
-    bribeVotingRewardAddress: liquidityPoolAggregator.bribeVotingRewardAddress,
-    totalBribeClaimed: liquidityPoolAggregator.totalBribeClaimed,
-    totalBribeClaimedUSD: liquidityPoolAggregator.totalBribeClaimedUSD,
-    feeVotingRewardAddress: liquidityPoolAggregator.feeVotingRewardAddress,
-    totalFeeRewardClaimed: liquidityPoolAggregator.totalFeeRewardClaimed,
-    totalFeeRewardClaimedUSD: liquidityPoolAggregator.totalFeeRewardClaimedUSD,
-    veNFTamountStaked: liquidityPoolAggregator.veNFTamountStaked,
-    baseFee: liquidityPoolAggregator.baseFee,
-    feeCap: liquidityPoolAggregator.feeCap,
-    scalingFactor: liquidityPoolAggregator.scalingFactor,
-    currentFee: liquidityPoolAggregator.currentFee,
+  const snapshotForPersist: SnapshotForPersist = {
+    type: SnapshotType.LiquidityPoolAggregator,
+    snapshot: createLiquidityPoolAggregatorSnapshot(entity, timestamp),
   };
-
-  context.LiquidityPoolAggregatorSnapshot.set(snapshot);
+  persistSnapshot(snapshotForPersist, context);
 }

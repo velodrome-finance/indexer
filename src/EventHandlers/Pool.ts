@@ -88,6 +88,8 @@ Pool.Burn.handler(async ({ event, context }) => {
 });
 
 Pool.Fees.handler(async ({ event, context }) => {
+  const timestamp = new Date(event.block.timestamp * 1000);
+
   // Load pool data and user data concurrently for better performance
   // Pass block number and timestamp to refresh token prices
   const [poolData, userData] = await Promise.all([
@@ -103,7 +105,7 @@ Pool.Fees.handler(async ({ event, context }) => {
       event.srcAddress,
       event.chainId,
       context,
-      new Date(event.block.timestamp * 1000),
+      timestamp,
     ),
   ]);
 
@@ -118,8 +120,6 @@ Pool.Fees.handler(async ({ event, context }) => {
 
   const { liquidityPoolDiff, userDiff } = result;
 
-  const timestamp = new Date(event.block.timestamp * 1000);
-
   // Update pool and user entities in parallel
   await Promise.all([
     liquidityPoolDiff
@@ -133,12 +133,14 @@ Pool.Fees.handler(async ({ event, context }) => {
         )
       : Promise.resolve(),
     userDiff
-      ? updateUserStatsPerPool(userDiff, userData, context)
+      ? updateUserStatsPerPool(userDiff, userData, context, timestamp)
       : Promise.resolve(),
   ]);
 });
 
 Pool.Swap.handler(async ({ event, context }) => {
+  const timestamp = new Date(event.block.timestamp * 1000);
+
   // Load pool data and user data concurrently for better performance
   // Pass block number and timestamp to refresh token prices
   const [poolData, userData] = await Promise.all([
@@ -154,7 +156,7 @@ Pool.Swap.handler(async ({ event, context }) => {
       event.srcAddress,
       event.chainId,
       context,
-      new Date(event.block.timestamp * 1000),
+      timestamp,
     ),
   ]);
 
@@ -169,8 +171,6 @@ Pool.Swap.handler(async ({ event, context }) => {
 
   const { liquidityPoolDiff, userSwapDiff } = result;
 
-  const timestamp = new Date(event.block.timestamp * 1000);
-
   // Update pool and user entities in parallel
   await Promise.all([
     updateLiquidityPoolAggregator(
@@ -181,7 +181,7 @@ Pool.Swap.handler(async ({ event, context }) => {
       event.chainId,
       event.block.number,
     ),
-    updateUserStatsPerPool(userSwapDiff, userData, context),
+    updateUserStatsPerPool(userSwapDiff, userData, context, timestamp),
   ]);
 
   // Create OUSDTSwaps entity only if oUSDT is involved
@@ -316,6 +316,6 @@ Pool.Claim.handler(async ({ event, context }) => {
       event.chainId,
       event.block.number,
     ),
-    updateUserStatsPerPool(result.userDiff, userData, context),
+    updateUserStatsPerPool(result.userDiff, userData, context, timestamp),
   ]);
 });

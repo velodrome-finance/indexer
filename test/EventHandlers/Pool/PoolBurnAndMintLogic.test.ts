@@ -67,6 +67,7 @@ describe("PoolBurnAndMintLogic", () => {
         get: jest.fn(),
         set: jest.fn(),
       },
+      UserStatsPerPoolSnapshot: { set: jest.fn() },
     } as unknown as handlerContext;
   });
 

@@ -2,7 +2,10 @@ import {
   LiquidityPoolAggregatorSnapshotId,
   SNAPSHOT_INTERVAL_IN_MS,
 } from "../../src/Constants";
-import { setLiquidityPoolAggregatorSnapshot } from "../../src/Snapshots/LiquidityPoolAggregatorSnapshot";
+import {
+  createLiquidityPoolAggregatorSnapshot,
+  setLiquidityPoolAggregatorSnapshot,
+} from "../../src/Snapshots/LiquidityPoolAggregatorSnapshot";
 import { getSnapshotEpoch } from "../../src/Snapshots/Shared";
 import { setupCommon } from "../EventHandlers/Pool/common";
 
@@ -13,6 +16,39 @@ describe("LiquidityPoolAggregatorSnapshot", () => {
   beforeEach(() => {
     common = setupCommon();
     jest.clearAllMocks();
+  });
+
+  describe("createLiquidityPoolAggregatorSnapshot", () => {
+    it("should return epoch-aligned snapshot with correct id and timestamp", () => {
+      const pool = common.createMockLiquidityPoolAggregator();
+      const timestamp = new Date(baseTimestamp.getTime() + 30 * 60 * 1000);
+      const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 5;
+
+      const snapshot = createLiquidityPoolAggregatorSnapshot(pool, timestamp);
+
+      expect(snapshot.id).toBe(
+        LiquidityPoolAggregatorSnapshotId(
+          pool.chainId,
+          pool.poolAddress,
+          expectedEpochMs,
+        ),
+      );
+      expect(snapshot.timestamp.getTime()).toBe(expectedEpochMs);
+    });
+
+    it("should copy pool fields into snapshot without persisting", () => {
+      const pool = common.createMockLiquidityPoolAggregator();
+      const snapshot = createLiquidityPoolAggregatorSnapshot(
+        pool,
+        baseTimestamp,
+      );
+
+      expect(snapshot.poolAddress).toBe(pool.poolAddress);
+      expect(snapshot.chainId).toBe(pool.chainId);
+      expect(snapshot.reserve0).toBe(pool.reserve0);
+      expect(snapshot.reserve1).toBe(pool.reserve1);
+      expect(snapshot.totalLiquidityUSD).toBe(pool.totalLiquidityUSD);
+    });
   });
 
   it("should set snapshot with epoch-aligned timestamp and correct id", () => {

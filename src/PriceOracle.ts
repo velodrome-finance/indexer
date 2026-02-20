@@ -3,18 +3,14 @@ import {
   PriceOracleType,
   SECONDS_IN_AN_HOUR,
   TokenId,
-  TokenIdByBlock,
 } from "./Constants";
 import {
   getTokenDetails,
   getTokenPrice,
   roundBlockToInterval,
 } from "./Effects/Index";
-import type {
-  Token,
-  TokenPriceSnapshot,
-  handlerContext,
-} from "./src/Types.gen";
+import { setTokenPriceSnapshot } from "./Snapshots/TokenPriceSnapshot";
+import type { Token, handlerContext } from "./src/Types.gen";
 export interface TokenPriceData {
   pricePerUSDNew: bigint;
   decimals: bigint;
@@ -160,17 +156,15 @@ export async function refreshTokenPrice(
     };
     context.Token.set(updatedToken);
 
-    // Create new TokenPrice entity
-    const tokenPrice: TokenPriceSnapshot = {
-      id: TokenIdByBlock(chainId, token.address, blockNumber),
-      address: token.address,
-      pricePerUSDNew: currentPrice,
-      chainId: chainId,
-      isWhitelisted: token.isWhitelisted,
-      lastUpdatedTimestamp: new Date(blockTimestampMs),
-    };
-
-    context.TokenPriceSnapshot.set(tokenPrice);
+    setTokenPriceSnapshot(
+      token.address,
+      chainId,
+      blockNumber,
+      new Date(blockTimestampMs),
+      currentPrice,
+      token.isWhitelisted,
+      context,
+    );
     return updatedToken;
   } catch (error) {
     context.log.error(

@@ -94,5 +94,5 @@ export async function attributeLiquidityChangeToUserStatsPerPool(
           lastActivityTimestamp: timestamp,
         };
 
-  await updateUserStatsPerPool(userDiff, userData, context);
+  await updateUserStatsPerPool(userDiff, userData, context, timestamp);
 }

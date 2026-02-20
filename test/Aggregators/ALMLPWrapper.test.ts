@@ -35,6 +35,9 @@ describe("ALMLPWrapper Aggregator", () => {
         getOrCreate: jest.fn(),
         deleteUnsafe: jest.fn(),
       },
+      ALM_LP_WrapperSnapshot: {
+        set: jest.fn(),
+      } as unknown as handlerContext["ALM_LP_WrapperSnapshot"],
       log: {
         error: jest.fn(),
         info: jest.fn(),

@@ -1,5 +1,8 @@
 import { TokenIdByBlock, toChecksumAddress } from "../../src/Constants";
-import { setTokenPriceSnapshot } from "../../src/Snapshots/TokenPriceSnapshot";
+import {
+  createTokenPriceSnapshot,
+  setTokenPriceSnapshot,
+} from "../../src/Snapshots/TokenPriceSnapshot";
 import { setupCommon } from "../EventHandlers/Pool/common";
 
 describe("TokenPriceSnapshot", () => {
@@ -16,6 +19,51 @@ describe("TokenPriceSnapshot", () => {
   beforeEach(() => {
     common = setupCommon();
     jest.clearAllMocks();
+  });
+
+  describe("createTokenPriceSnapshot", () => {
+    it("should return snapshot with id from TokenIdByBlock", () => {
+      const snapshot = createTokenPriceSnapshot(
+        address,
+        chainId,
+        blockNumber,
+        lastUpdatedTimestamp,
+        pricePerUSDNew,
+        isWhitelisted,
+      );
+
+      expect(snapshot.id).toBe(TokenIdByBlock(chainId, address, blockNumber));
+    });
+
+    it("should return snapshot with all passed fields", () => {
+      const snapshot = createTokenPriceSnapshot(
+        address,
+        chainId,
+        blockNumber,
+        lastUpdatedTimestamp,
+        pricePerUSDNew,
+        isWhitelisted,
+      );
+
+      expect(snapshot.address).toBe(address);
+      expect(snapshot.chainId).toBe(chainId);
+      expect(snapshot.pricePerUSDNew).toBe(pricePerUSDNew);
+      expect(snapshot.isWhitelisted).toBe(isWhitelisted);
+      expect(snapshot.lastUpdatedTimestamp).toBe(lastUpdatedTimestamp);
+    });
+
+    it("should handle isWhitelisted false", () => {
+      const snapshot = createTokenPriceSnapshot(
+        address,
+        chainId,
+        blockNumber,
+        lastUpdatedTimestamp,
+        pricePerUSDNew,
+        false,
+      );
+
+      expect(snapshot.isWhitelisted).toBe(false);
+    });
   });
 
   it("should set snapshot with id from TokenIdByBlock", () => {

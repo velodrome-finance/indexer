@@ -119,6 +119,9 @@ describe("NFPMIncreaseLiquidityLogic", () => {
       LiquidityPoolAggregator: {
         get: jest.fn().mockResolvedValue(undefined),
       },
+      NonFungiblePositionSnapshot: {
+        set: jest.fn(),
+      },
       NonFungiblePosition: {
         ...currentDb.entities.NonFungiblePosition,
         getWhere: {
@@ -350,6 +353,54 @@ describe("NFPMIncreaseLiquidityLogic", () => {
 
       // CLPoolMintEvent should be deleted from storedMintEvents
       expect(storedMintEvents.length).toBe(0);
+    });
+
+    it("should not delete any CLPoolMintEvent when mint events exist in tx but none match the increase", async () => {
+      const increaseAmount = 168374122051126n;
+      const increaseLogIndex = 10;
+
+      // Mint event in same tx but with different liquidity so it does not match the filter
+      const nonMatchingMintEvent: CLPoolMintEvent = {
+        id: `${chainId}_${poolAddress}_${transactionHash}_${increaseLogIndex - 1}`,
+        chainId: chainId,
+        pool: poolAddress,
+        owner: mockPosition.owner,
+        tickLower: mockPosition.tickLower,
+        tickUpper: mockPosition.tickUpper,
+        liquidity: 999n, // Different from increaseAmount — filter will exclude it
+        amount0: 18500000000n,
+        amount1: 15171806313n,
+        token0: mockPosition.token0,
+        token1: mockPosition.token1,
+        transactionHash: transactionHash,
+        logIndex: increaseLogIndex - 1,
+        consumedByTokenId: undefined,
+        createdAt: new Date(),
+      };
+
+      storedMintEvents = [nonMatchingMintEvent];
+      mockContext = createMockContext(storedPositions, storedMintEvents);
+      mockDb = MockDb.createMockDb();
+      mockDb = mockDb.entities.NonFungiblePosition.set(mockPosition);
+      mockDb = mockDb.entities.CLPoolMintEvent.set(nonMatchingMintEvent);
+
+      const mockEvent = NFPM.IncreaseLiquidity.createMockEvent({
+        tokenId: tokenId,
+        liquidity: increaseAmount,
+        amount0: 18500000000n,
+        amount1: 15171806313n,
+        mockEventData: {
+          ...defaultMockEventData,
+          logIndex: increaseLogIndex,
+          transaction: { hash: transactionHash },
+        },
+      });
+
+      await processNFPMIncreaseLiquidity(mockEvent, mockContext);
+
+      // No mint event matched; none should be deleted
+      expect(storedMintEvents.length).toBe(1);
+      expect(storedMintEvents[0].id).toBe(nonMatchingMintEvent.id);
     });
 
     it("should deterministically select closest preceding mint when multiple CLPoolMintEvents match", async () => {

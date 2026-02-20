@@ -1,6 +1,8 @@
 import type { VeNFTState, handlerContext } from "generated";
 
 import { VeNFTId } from "../Constants";
+import { getSnapshotEpoch, shouldSnapshot } from "../Snapshots/Shared";
+import { setVeNFTStateSnapshot } from "../Snapshots/VeNFTStateSnapshot";
 
 export interface VeNFTStateDiff {
   id: string;
@@ -31,8 +33,8 @@ export async function loadVeNFTState(
 }
 
 /**
- * Updates VeNFTState with the provided diff
- * Uses spread operator to handle immutable entities
+ * Updates VeNFTState with the provided diff.
+ * Takes an epoch-aligned snapshot when entering a new snapshot epoch.
  */
 export function updateVeNFTState(
   diff: Partial<VeNFTStateDiff>,
@@ -48,7 +50,7 @@ export function updateVeNFTState(
       ? diff.lastSnapshotTimestamp
       : current.lastSnapshotTimestamp;
 
-  const veNFTState: VeNFTState = {
+  let veNFTState: VeNFTState = {
     ...current,
     id: diff.id ?? VeNFTId(current.chainId, current.tokenId),
     chainId: diff.chainId ?? current.chainId,
@@ -61,5 +63,14 @@ export function updateVeNFTState(
     isAlive: diff.isAlive ?? current.isAlive,
     lastSnapshotTimestamp,
   };
+
+  if (shouldSnapshot(current.lastSnapshotTimestamp, timestamp)) {
+    setVeNFTStateSnapshot(veNFTState, timestamp, context);
+    veNFTState = {
+      ...veNFTState,
+      lastSnapshotTimestamp: getSnapshotEpoch(timestamp),
+    };
+  }
+
   context.VeNFTState.set(veNFTState);
 }

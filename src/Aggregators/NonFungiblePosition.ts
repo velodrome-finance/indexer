@@ -1,6 +1,9 @@
 import type { handlerContext } from "generated";
 import type { NonFungiblePosition } from "generated";
 
+import { setNonFungiblePositionSnapshot } from "../Snapshots/NonFungiblePositionSnapshot";
+import { getSnapshotEpoch, shouldSnapshot } from "../Snapshots/Shared";
+
 export interface NonFungiblePositionDiff {
   tokenId: bigint;
   owner: string;
@@ -16,17 +19,18 @@ export interface NonFungiblePositionDiff {
 }
 
 /**
- * Updates NonFungiblePosition with the provided diff
- * Uses spread operator to handle immutable entities
- * Most fields are set to absolute values (directly substituted), except liquidity which is incremental
- * (current.liquidity + diff.incrementalLiquidity)
+ * Updates NonFungiblePosition with the provided diff.
+ * Uses spread operator to handle immutable entities.
+ * Most fields are set to absolute values (directly substituted), except liquidity which is incremental.
+ * Takes an epoch-aligned snapshot when entering a new snapshot epoch.
  */
 export function updateNonFungiblePosition(
   diff: Partial<NonFungiblePositionDiff>,
   current: NonFungiblePosition,
   context: handlerContext,
+  timestamp: Date,
 ): void {
-  const nonFungiblePosition: NonFungiblePosition = {
+  let nonFungiblePosition: NonFungiblePosition = {
     ...current,
     tokenId: diff.tokenId ?? current.tokenId,
     owner: diff.owner ?? current.owner,
@@ -42,5 +46,14 @@ export function updateNonFungiblePosition(
     lastUpdatedTimestamp:
       diff.lastUpdatedTimestamp ?? current.lastUpdatedTimestamp,
   };
+
+  if (shouldSnapshot(current.lastSnapshotTimestamp, timestamp)) {
+    setNonFungiblePositionSnapshot(nonFungiblePosition, timestamp, context);
+    nonFungiblePosition = {
+      ...nonFungiblePosition,
+      lastSnapshotTimestamp: getSnapshotEpoch(timestamp),
+    };
+  }
+
   context.NonFungiblePosition.set(nonFungiblePosition);
 }

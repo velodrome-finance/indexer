@@ -281,6 +281,6 @@ export async function processPoolLiquidityEvent(
           lastActivityTimestamp: timestamp,
         };
 
-    await updateUserStatsPerPool(userDiff, userData, context);
+    await updateUserStatsPerPool(userDiff, userData, context, timestamp);
   }
 }

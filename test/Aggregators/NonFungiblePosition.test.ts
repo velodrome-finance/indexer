@@ -1,6 +1,7 @@
 import type { NonFungiblePosition, handlerContext } from "generated";
 import { updateNonFungiblePosition } from "../../src/Aggregators/NonFungiblePosition";
 import { NonFungiblePositionId, toChecksumAddress } from "../../src/Constants";
+import { getSnapshotEpoch } from "../../src/Snapshots/Shared";
 
 describe("NonFungiblePosition", () => {
   let mockContext: Partial<handlerContext>;
@@ -29,6 +30,9 @@ describe("NonFungiblePosition", () => {
 
   beforeEach(() => {
     mockContext = {
+      NonFungiblePositionSnapshot: {
+        set: jest.fn(),
+      } as unknown as handlerContext["NonFungiblePositionSnapshot"],
       NonFungiblePosition: {
         set: jest.fn(),
         get: jest.fn(),
@@ -90,6 +94,7 @@ describe("NonFungiblePosition", () => {
           transferDiff,
           mockNonFungiblePosition,
           mockContext as handlerContext,
+          timestamp,
         );
         const mockSet = jest.mocked(mockContext.NonFungiblePosition?.set);
         result = mockSet?.mock.calls[0]?.[0] as NonFungiblePosition;
@@ -104,7 +109,12 @@ describe("NonFungiblePosition", () => {
         expect(result.tickLower).toBe(-100n); // unchanged
         expect(result.liquidity).toBe(1000000000000000000n); // unchanged
         expect(result.lastUpdatedTimestamp).toBe(timestamp);
-        expect(result.lastSnapshotTimestamp).toBeUndefined(); // unchanged
+        // When lastSnapshotTimestamp was undefined we take a snapshot and set it to the snapshot epoch (start of interval containing timestamp)
+        const expectedSnapshotEpoch = getSnapshotEpoch(timestamp);
+        expect(result.lastSnapshotTimestamp?.getTime()).toBe(
+          expectedSnapshotEpoch.getTime(),
+        );
+        expect(mockContext.NonFungiblePositionSnapshot?.set).toHaveBeenCalled();
       });
     });
 
@@ -121,6 +131,7 @@ describe("NonFungiblePosition", () => {
           increaseDiff,
           mockNonFungiblePosition,
           mockContext as handlerContext,
+          timestamp,
         );
         const mockSet = jest.mocked(mockContext.NonFungiblePosition?.set);
         result = mockSet?.mock.calls[0]?.[0] as NonFungiblePosition;
@@ -134,6 +145,7 @@ describe("NonFungiblePosition", () => {
         expect(result.tickUpper).toBe(100n); // unchanged
         expect(result.tickLower).toBe(-100n); // unchanged
         expect(result.lastUpdatedTimestamp).toBe(timestamp);
+        expect(mockContext.NonFungiblePositionSnapshot?.set).toHaveBeenCalled();
       });
     });
 
@@ -150,6 +162,7 @@ describe("NonFungiblePosition", () => {
           decreaseDiff,
           mockNonFungiblePosition,
           mockContext as handlerContext,
+          timestamp,
         );
         const mockSet = jest.mocked(mockContext.NonFungiblePosition?.set);
         result = mockSet?.mock.calls[0]?.[0] as NonFungiblePosition;
@@ -163,6 +176,7 @@ describe("NonFungiblePosition", () => {
         expect(result.tickUpper).toBe(100n); // unchanged
         expect(result.tickLower).toBe(-100n); // unchanged
         expect(result.lastUpdatedTimestamp).toBe(timestamp);
+        expect(mockContext.NonFungiblePositionSnapshot?.set).toHaveBeenCalled();
       });
     });
   });

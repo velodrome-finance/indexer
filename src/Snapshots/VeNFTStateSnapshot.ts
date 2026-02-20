@@ -1,31 +1,30 @@
 import type { VeNFTState, VeNFTStateSnapshot, handlerContext } from "generated";
 
 import { VeNFTStateSnapshotId } from "../Constants";
-import { getSnapshotEpoch } from "./Shared";
+import {
+  type SnapshotForPersist,
+  SnapshotType,
+  getSnapshotEpoch,
+  persistSnapshot,
+} from "./Shared";
 
 /**
- * Creates and persists an epoch-aligned snapshot of VeNFTState.
+ * Creates an epoch-aligned snapshot of VeNFTState (no persistence).
  * @param entity - VeNFTState to snapshot
- * @param timestamp - Timestamp of the snapshot
- * @param blockNumber - Block number of the snapshot
- * @param context - Handler context
- * @returns void
+ * @param timestamp - Timestamp used to compute snapshot epoch
+ * @returns Epoch-aligned VeNFTStateSnapshot
  */
-export function setVeNFTStateSnapshot(
+export function createVeNFTStateSnapshot(
   entity: VeNFTState,
   timestamp: Date,
-  blockNumber: number,
-  context: handlerContext,
-): void {
+): VeNFTStateSnapshot {
   const epoch = getSnapshotEpoch(timestamp);
-
   const snapshotId = VeNFTStateSnapshotId(
     entity.chainId,
     entity.tokenId,
     epoch.getTime(),
   );
-
-  const snapshot: VeNFTStateSnapshot = {
+  return {
     id: snapshotId,
     chainId: entity.chainId,
     tokenId: entity.tokenId,
@@ -35,8 +34,24 @@ export function setVeNFTStateSnapshot(
     totalValueLocked: entity.totalValueLocked,
     isAlive: entity.isAlive,
     timestamp: epoch,
-    blockNumber,
   };
+}
 
-  context.VeNFTStateSnapshot.set(snapshot);
+/**
+ * Creates and persists an epoch-aligned snapshot of VeNFTState.
+ * @param entity - VeNFTState to snapshot
+ * @param timestamp - Timestamp used to compute snapshot epoch
+ * @param context - Handler context
+ * @returns void
+ */
+export function setVeNFTStateSnapshot(
+  entity: VeNFTState,
+  timestamp: Date,
+  context: handlerContext,
+): void {
+  const snapshotForPersist: SnapshotForPersist = {
+    type: SnapshotType.VeNFTState,
+    snapshot: createVeNFTStateSnapshot(entity, timestamp),
+  };
+  persistSnapshot(snapshotForPersist, context);
 }
