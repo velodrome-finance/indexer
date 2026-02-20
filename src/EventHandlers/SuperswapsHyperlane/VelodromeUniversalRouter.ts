@@ -30,12 +30,12 @@ VelodromeUniversalRouter.CrossChainSwap.handler(async ({ event, context }) => {
   // Load all independent data in parallel
   const [oUSDTBridgedTransactions, sourceChainMessageIdEntities] =
     await Promise.all([
-      context.OUSDTBridgedTransaction.getWhere.transactionHash.eq(
-        event.transaction.hash,
-      ),
-      context.DispatchId_event.getWhere.transactionHash.eq(
-        event.transaction.hash,
-      ),
+      context.OUSDTBridgedTransaction.getWhere({
+        transactionHash: { _eq: event.transaction.hash },
+      }),
+      context.DispatchId_event.getWhere({
+        transactionHash: { _eq: event.transaction.hash },
+      }),
     ]);
 
   if (oUSDTBridgedTransactions.length === 0) {
@@ -54,8 +54,11 @@ VelodromeUniversalRouter.CrossChainSwap.handler(async ({ event, context }) => {
 
   // Load all ProcessId events in parallel for all message IDs
   // Note: Each messageId maps to exactly 1 ProcessId (1:1 relationship)
-  const processIdPromises = sourceChainMessageIdEntities.map((entity) =>
-    context.ProcessId_event.getWhere.messageId.eq(entity.messageId),
+  const processIdPromises = sourceChainMessageIdEntities.map(
+    (entity: { messageId: string }) =>
+      context.ProcessId_event.getWhere({
+        messageId: { _eq: entity.messageId },
+      }),
   );
   const processIdResults = await Promise.all(processIdPromises);
 

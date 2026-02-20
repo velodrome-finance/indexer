@@ -1,25 +1,42 @@
 import type { logger as Envio_logger } from "envio/src/Envio.gen";
 import type { PublicClient } from "viem";
-import { CHAIN_CONSTANTS, PriceOracleType } from "../../src/Constants";
-import * as ErrorsEffects from "../../src/Effects/Errors";
+import {
+  CHAIN_CONSTANTS,
+  PriceOracleType,
+  toChecksumAddress,
+} from "../../src/Constants";
 import * as HelpersEffects from "../../src/Effects/Helpers";
 import {
   fetchTokenDetails,
-  fetchTokenPrice,
+  type fetchTokenPrice,
   getTokenDetails,
   getTokenPrice,
 } from "../../src/Effects/Token";
 import * as TokenEffects from "../../src/Effects/Token";
+
+vi.mock("../../src/Effects/Token", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../../src/Effects/Token")>();
+  return { ...actual, fetchTokenPrice: vi.fn() };
+});
 
 // Common test constants
 const TEST_CHAIN_ID = 10;
 const TEST_BLOCK_NUMBER = 12345;
 const TEST_BLOCK_NUMBER_EARLY = 100;
 const TEST_GAS_LIMIT = 1000000n;
-const TEST_TOKEN_ADDRESS = "0x1234567890123456789012345678901234567890";
-const TEST_USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
-const TEST_SYSTEM_TOKEN = "0x4200000000000000000000000000000000000006";
-const TEST_ORACLE_ADDRESS = "0x1234567890123456789012345678901234567890";
+const TEST_TOKEN_ADDRESS = toChecksumAddress(
+  "0x1234567890123456789012345678901234567890",
+);
+const TEST_USDC_ADDRESS = toChecksumAddress(
+  "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+);
+const TEST_SYSTEM_TOKEN = toChecksumAddress(
+  "0x4200000000000000000000000000000000000006",
+);
+const TEST_ORACLE_ADDRESS = toChecksumAddress(
+  "0x1234567890123456789012345678901234567890",
+);
 const TEST_PRICE_RESULT = ["1000000000000000000"];
 
 // Helper functions will be defined inside describe block to access mockEthClient and mockContext
@@ -55,33 +72,32 @@ describe("Token Effects", () => {
       weth: options.weth ?? TEST_SYSTEM_TOKEN,
       usdc: options.usdc ?? TEST_USDC_ADDRESS,
       rewardToken:
-        options.rewardToken ?? jest.fn().mockReturnValue(TEST_SYSTEM_TOKEN),
+        options.rewardToken ?? vi.fn().mockReturnValue(TEST_SYSTEM_TOKEN),
       oracle: {
         startBlock: options.startBlock ?? 0,
         getType: () => oracleType,
         getAddress: () => TEST_ORACLE_ADDRESS,
-        getPrice: jest.fn(),
+        getPrice: vi.fn(),
         priceConnectors: options.priceConnectors ?? [],
       },
     };
   };
 
-  // Helper to mock Date.now() for slow request simulation
+  // Helper to mock Date.now() for slow request simulation; returns restore fn
   const mockSlowDateNow = (
     attemptDuration: number,
     overallDuration?: number,
-  ) => {
-    const originalDateNow = Date.now;
+  ): (() => void) => {
     let callCount = 0;
     const baseTime = 1000000;
-    Date.now = jest.fn(() => {
+    const spy = vi.spyOn(Date, "now").mockImplementation(() => {
       callCount++;
       if (callCount === 1) return baseTime;
       if (callCount === 2) return baseTime;
       if (callCount === 3) return baseTime + attemptDuration;
       return baseTime + (overallDuration ?? attemptDuration);
     });
-    return originalDateNow;
+    return () => spy.mockRestore();
   };
 
   // Helper to setup token details mock
@@ -100,12 +116,13 @@ describe("Token Effects", () => {
 
   beforeEach(() => {
     mockEthClient = {
-      simulateContract: jest.fn().mockResolvedValue({
+      simulateContract: vi.fn().mockResolvedValue({
         result: "Test Token",
       }),
     } as unknown as PublicClient;
 
     setupChainConstants();
+    vi.spyOn(HelpersEffects, "sleep").mockResolvedValue(undefined);
 
     mockContext = {
       effect: (
@@ -117,16 +134,16 @@ describe("Token Effects", () => {
       ) => effect.handler({ input, context: mockContext }),
       ethClient: mockEthClient,
       log: {
-        info: jest.fn(),
-        error: jest.fn(),
-        warn: jest.fn(),
-        debug: jest.fn(),
+        info: vi.fn(),
+        error: vi.fn(),
+        warn: vi.fn(),
+        debug: vi.fn(),
       } as unknown as Envio_logger,
     };
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe("getTokenDetails", () => {
@@ -144,8 +161,7 @@ describe("Token Effects", () => {
 
     it("should return 1e18 price for USDC without calling oracle", async () => {
       setupChainConstants(PriceOracleType.V3, { usdc: TEST_USDC_ADDRESS });
-
-      const fetchSpy = jest.spyOn(TokenEffects, "fetchTokenPrice");
+      vi.mocked(TokenEffects.fetchTokenPrice).mockClear();
 
       const result = await mockContext.effect(getTokenPrice as never, {
         tokenAddress: TEST_USDC_ADDRESS,
@@ -157,13 +173,12 @@ describe("Token Effects", () => {
         pricePerUSDNew: 10n ** 18n,
         priceOracleType: PriceOracleType.V3.toString(),
       });
-      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(TokenEffects.fetchTokenPrice).not.toHaveBeenCalled();
     });
 
     it("should return 0 price when oracle is not deployed", async () => {
       setupChainConstants(PriceOracleType.V3, { startBlock: 999999 });
-
-      const fetchSpy = jest.spyOn(TokenEffects, "fetchTokenPrice");
+      vi.mocked(TokenEffects.fetchTokenPrice).mockClear();
 
       const result = await mockContext.effect(getTokenPrice as never, {
         tokenAddress: TEST_TOKEN_ADDRESS,
@@ -175,7 +190,7 @@ describe("Token Effects", () => {
         pricePerUSDNew: 0n,
         priceOracleType: PriceOracleType.V3.toString(),
       });
-      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(TokenEffects.fetchTokenPrice).not.toHaveBeenCalled();
       expect(mockContext.log.info).toHaveBeenCalled();
     });
 
@@ -183,8 +198,8 @@ describe("Token Effects", () => {
       setupChainConstants(PriceOracleType.V3);
       setupTokenDetailsMock(TEST_USDC_ADDRESS);
 
-      jest.spyOn(Date, "now").mockReturnValueOnce(0).mockReturnValueOnce(6001);
-      jest.spyOn(TokenEffects, "fetchTokenPrice").mockResolvedValue({
+      vi.spyOn(Date, "now").mockReturnValueOnce(0).mockReturnValueOnce(6001);
+      vi.mocked(TokenEffects.fetchTokenPrice).mockResolvedValue({
         pricePerUSDNew: 0n,
         priceOracleType: PriceOracleType.V3.toString(),
       });
@@ -206,9 +221,9 @@ describe("Token Effects", () => {
       setupChainConstants(PriceOracleType.V3);
       setupTokenDetailsMock(TEST_USDC_ADDRESS);
 
-      jest
-        .spyOn(TokenEffects, "fetchTokenPrice")
-        .mockRejectedValue(new Error("oracle failure"));
+      vi.mocked(TokenEffects.fetchTokenPrice).mockRejectedValue(
+        new Error("oracle failure"),
+      );
 
       const result = await mockContext.effect(getTokenPrice as never, {
         tokenAddress: TEST_TOKEN_ADDRESS,
@@ -225,22 +240,26 @@ describe("Token Effects", () => {
 
     it("should use V2 oracle path and filter SYSTEM_TOKEN_ADDRESS from connectors", async () => {
       setupChainConstants(PriceOracleType.V2, {
-        rewardToken: jest.fn().mockReturnValue(TEST_SYSTEM_TOKEN),
+        rewardToken: vi.fn().mockReturnValue(TEST_SYSTEM_TOKEN),
         priceConnectors: [
           {
-            address: "0x1111111111111111111111111111111111111111",
+            address: toChecksumAddress(
+              "0x1111111111111111111111111111111111111111",
+            ),
             createdBlock: 0,
           },
           { address: TEST_SYSTEM_TOKEN, createdBlock: 0 },
           {
-            address: "0x2222222222222222222222222222222222222222",
+            address: toChecksumAddress(
+              "0x2222222222222222222222222222222222222222",
+            ),
             createdBlock: 0,
           },
         ],
       });
       setupTokenDetailsMock(TEST_USDC_ADDRESS);
 
-      const mockSimulateContract = jest.mocked(mockEthClient.simulateContract);
+      const mockSimulateContract = vi.mocked(mockEthClient.simulateContract);
       mockSimulateContract.mockResolvedValue({
         result: [
           "0x0000000000000000000000000000000000000000000000001bc16d674ec80000",
@@ -278,13 +297,13 @@ describe("Token Effects", () => {
       let getTypeCallCount = 0;
       const mockOracle = {
         startBlock: 0,
-        getType: jest.fn(() => {
+        getType: vi.fn(() => {
           getTypeCallCount++;
           if (getTypeCallCount === 1) throw new Error("getType failure");
           return PriceOracleType.V3;
         }),
         getAddress: () => TEST_ORACLE_ADDRESS,
-        getPrice: jest.fn(),
+        getPrice: vi.fn(),
         priceConnectors: [],
       };
 
@@ -294,7 +313,7 @@ describe("Token Effects", () => {
       ].oracle = mockOracle;
       setupTokenDetailsMock(TEST_USDC_ADDRESS);
 
-      jest.mocked(mockEthClient.simulateContract).mockResolvedValue({
+      vi.mocked(mockEthClient.simulateContract).mockResolvedValue({
         result: TEST_PRICE_RESULT as unknown,
       } as never);
 
@@ -314,8 +333,7 @@ describe("Token Effects", () => {
 
   describe("fetchTokenDetails", () => {
     it("should fetch token details from contract", async () => {
-      jest
-        .mocked(mockEthClient.simulateContract)
+      vi.mocked(mockEthClient.simulateContract)
         // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
         .mockResolvedValueOnce({ result: "Test Token" } as any)
         // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
@@ -341,14 +359,14 @@ describe("Token Effects", () => {
       const testCases = [
         {
           mock: () =>
-            jest
+            vi
               .mocked(mockEthClient.simulateContract)
               .mockRejectedValue(new Error("Contract call failed")),
           expected: { name: "", symbol: "", decimals: 0 },
         },
         {
           mock: () =>
-            jest
+            vi
               .mocked(mockEthClient.simulateContract)
               // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
               .mockResolvedValueOnce({ result: undefined } as any)
@@ -373,6 +391,15 @@ describe("Token Effects", () => {
   });
 
   describe("fetchTokenPrice", () => {
+    let realFetchTokenPrice: typeof fetchTokenPrice;
+
+    beforeAll(async () => {
+      const actual = await vi.importActual<
+        typeof import("../../src/Effects/Token")
+      >("../../src/Effects/Token");
+      realFetchTokenPrice = actual.fetchTokenPrice;
+    });
+
     it("should fetch token price from V3 and V2 oracles", async () => {
       const testCases = [
         {
@@ -397,12 +424,12 @@ describe("Token Effects", () => {
 
       for (const testCase of testCases) {
         setupChainConstants(testCase.oracleType);
-        jest.mocked(mockEthClient.simulateContract).mockResolvedValue({
+        vi.mocked(mockEthClient.simulateContract).mockResolvedValue({
           result: testCase.result,
           // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
         } as any);
 
-        const result = await fetchTokenPrice(
+        const result = await realFetchTokenPrice(
           TEST_TOKEN_ADDRESS,
           TEST_USDC_ADDRESS,
           TEST_SYSTEM_TOKEN,
@@ -420,20 +447,20 @@ describe("Token Effects", () => {
           pricePerUSDNew: testCase.expectedPrice,
           priceOracleType: testCase.expectedType,
         });
-        const callArgs = jest.mocked(mockEthClient.simulateContract).mock
+        const callArgs = vi.mocked(mockEthClient.simulateContract).mock
           .calls[0][0];
         expect(callArgs.functionName).toBe(testCase.functionName);
-        jest.mocked(mockEthClient.simulateContract).mockClear();
+        vi.mocked(mockEthClient.simulateContract).mockClear();
       }
     });
 
     it("should handle contract call errors gracefully", async () => {
       setupChainConstants(PriceOracleType.V2);
-      jest
-        .mocked(mockEthClient.simulateContract)
-        .mockRejectedValue(new Error("Oracle call failed"));
+      vi.mocked(mockEthClient.simulateContract).mockRejectedValue(
+        new Error("Oracle call failed"),
+      );
 
-      const result = await fetchTokenPrice(
+      const result = await realFetchTokenPrice(
         TEST_TOKEN_ADDRESS,
         TEST_USDC_ADDRESS,
         TEST_SYSTEM_TOKEN,
@@ -456,8 +483,7 @@ describe("Token Effects", () => {
 
     it("should retry on out of gas errors with increased gas limit", async () => {
       setupChainConstants(PriceOracleType.V2);
-      jest
-        .mocked(mockEthClient.simulateContract)
+      vi.mocked(mockEthClient.simulateContract)
         .mockRejectedValueOnce(
           new Error("out of gas: gas required exceeds: 1000000"),
         )
@@ -468,7 +494,7 @@ describe("Token Effects", () => {
           // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
         } as any);
 
-      const result = await fetchTokenPrice(
+      const result = await realFetchTokenPrice(
         TEST_TOKEN_ADDRESS,
         TEST_USDC_ADDRESS,
         TEST_SYSTEM_TOKEN,
@@ -484,15 +510,17 @@ describe("Token Effects", () => {
 
       expect(result.pricePerUSDNew).toBe(1n);
       expect(mockEthClient.simulateContract).toHaveBeenCalledTimes(2);
-      const secondCall = jest.mocked(mockEthClient.simulateContract).mock
+      const secondCall = vi.mocked(mockEthClient.simulateContract).mock
         .calls[1][0];
       expect(secondCall.gas).toBe(2000000n);
     });
 
     it("should retry on rate limit errors with exponential backoff", async () => {
       setupChainConstants(PriceOracleType.V2);
-      jest
-        .mocked(mockEthClient.simulateContract)
+      const sleepSpy = vi
+        .spyOn(HelpersEffects, "sleep")
+        .mockResolvedValue(undefined);
+      vi.mocked(mockEthClient.simulateContract)
         .mockRejectedValueOnce(new Error("rate limit exceeded"))
         .mockResolvedValueOnce({
           result: [
@@ -501,8 +529,7 @@ describe("Token Effects", () => {
           // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
         } as any);
 
-      const startTime = Date.now();
-      const result = await fetchTokenPrice(
+      const result = await realFetchTokenPrice(
         TEST_TOKEN_ADDRESS,
         TEST_USDC_ADDRESS,
         TEST_SYSTEM_TOKEN,
@@ -515,20 +542,20 @@ describe("Token Effects", () => {
         TEST_GAS_LIMIT,
         7,
       );
-      const endTime = Date.now();
 
       expect(result.pricePerUSDNew).toBe(1n);
       expect(mockEthClient.simulateContract).toHaveBeenCalledTimes(2);
-      expect(endTime - startTime).toBeGreaterThanOrEqual(900);
+      expect(sleepSpy).toHaveBeenCalled();
+      expect(sleepSpy.mock.calls[0]?.[0]).toBe(1000);
     });
 
     it("should handle contract revert errors without retries", async () => {
       setupChainConstants(PriceOracleType.V2);
-      jest
-        .mocked(mockEthClient.simulateContract)
-        .mockRejectedValue(new Error("execution reverted"));
+      vi.mocked(mockEthClient.simulateContract).mockRejectedValue(
+        new Error("execution reverted"),
+      );
 
-      const result = await fetchTokenPrice(
+      const result = await realFetchTokenPrice(
         TEST_TOKEN_ADDRESS,
         TEST_USDC_ADDRESS,
         TEST_SYSTEM_TOKEN,
@@ -555,12 +582,12 @@ describe("Token Effects", () => {
       for (const { oracleType } of testCases) {
         setupChainConstants(oracleType);
         const restoreDateNow = mockSlowDateNow(6000);
-        jest.mocked(mockEthClient.simulateContract).mockResolvedValue({
+        vi.mocked(mockEthClient.simulateContract).mockResolvedValue({
           result: TEST_PRICE_RESULT,
           // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
         } as any);
 
-        await fetchTokenPrice(
+        await realFetchTokenPrice(
           TEST_TOKEN_ADDRESS,
           TEST_USDC_ADDRESS,
           TEST_SYSTEM_TOKEN,
@@ -577,24 +604,24 @@ describe("Token Effects", () => {
         expect(mockContext.log.warn).toHaveBeenCalledWith(
           expect.stringContaining("Slow request detected"),
         );
-        Date.now = restoreDateNow;
-        jest.mocked(mockContext.log.warn).mockClear();
+        restoreDateNow();
+        vi.mocked(mockContext.log.warn).mockClear();
+        vi.mocked(mockEthClient.simulateContract).mockClear();
       }
     });
 
     it("should log warning for slow failed requests", async () => {
       setupChainConstants(PriceOracleType.V3);
-      const sleepSpy = jest
+      const sleepSpy = vi
         .spyOn(HelpersEffects, "sleep")
         .mockResolvedValue(undefined);
       const restoreDateNow = mockSlowDateNow(6000);
-      jest
-        .mocked(mockEthClient.simulateContract)
+      vi.mocked(mockEthClient.simulateContract)
         .mockRejectedValueOnce(new Error("network error"))
         // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
         .mockResolvedValue({ result: TEST_PRICE_RESULT } as any);
 
-      await fetchTokenPrice(
+      await realFetchTokenPrice(
         TEST_TOKEN_ADDRESS,
         TEST_USDC_ADDRESS,
         TEST_SYSTEM_TOKEN,
@@ -611,19 +638,19 @@ describe("Token Effects", () => {
       expect(mockContext.log.warn).toHaveBeenCalledWith(
         expect.stringContaining("Slow failed request"),
       );
-      Date.now = restoreDateNow;
+      restoreDateNow();
       sleepSpy.mockRestore();
     });
 
     it("should log error for very slow successful requests", async () => {
       setupChainConstants(PriceOracleType.V2);
       const restoreDateNow = mockSlowDateNow(1000, 35000);
-      jest.mocked(mockEthClient.simulateContract).mockResolvedValue({
+      vi.mocked(mockEthClient.simulateContract).mockResolvedValue({
         result: TEST_PRICE_RESULT,
         // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
       } as any);
 
-      await fetchTokenPrice(
+      await realFetchTokenPrice(
         TEST_TOKEN_ADDRESS,
         TEST_USDC_ADDRESS,
         TEST_SYSTEM_TOKEN,
@@ -640,7 +667,7 @@ describe("Token Effects", () => {
       expect(mockContext.log.error).toHaveBeenCalledWith(
         expect.stringContaining("Very slow request"),
       );
-      Date.now = restoreDateNow;
+      restoreDateNow();
     });
 
     it("should retry rate limit errors with correct delays", async () => {
@@ -651,12 +678,10 @@ describe("Token Effects", () => {
 
       for (const { failures, expectedDelay } of testCases) {
         setupChainConstants(PriceOracleType.V3);
-        const sleepSpy = jest
+        const sleepSpy = vi
           .spyOn(HelpersEffects, "sleep")
           .mockResolvedValue(undefined);
-        const mockSimulateContract = jest.mocked(
-          mockEthClient.simulateContract,
-        );
+        const mockSimulateContract = vi.mocked(mockEthClient.simulateContract);
         mockSimulateContract.mockReset().mockImplementation(() => {
           if (mockSimulateContract.mock.calls.length <= failures) {
             return Promise.reject(new Error("rate limit exceeded"));
@@ -665,7 +690,7 @@ describe("Token Effects", () => {
           return Promise.resolve({ result: TEST_PRICE_RESULT } as any);
         });
 
-        await fetchTokenPrice(
+        await realFetchTokenPrice(
           TEST_TOKEN_ADDRESS,
           TEST_USDC_ADDRESS,
           TEST_SYSTEM_TOKEN,
@@ -692,12 +717,10 @@ describe("Token Effects", () => {
 
       for (const { failures, expectedDelay } of testCases) {
         setupChainConstants(PriceOracleType.V3);
-        const sleepSpy = jest
+        const sleepSpy = vi
           .spyOn(HelpersEffects, "sleep")
           .mockResolvedValue(undefined);
-        const mockSimulateContract = jest.mocked(
-          mockEthClient.simulateContract,
-        );
+        const mockSimulateContract = vi.mocked(mockEthClient.simulateContract);
         mockSimulateContract.mockReset().mockImplementation(() => {
           if (mockSimulateContract.mock.calls.length <= failures) {
             return Promise.reject(new Error("network error"));
@@ -706,7 +729,7 @@ describe("Token Effects", () => {
           return Promise.resolve({ result: TEST_PRICE_RESULT } as any);
         });
 
-        await fetchTokenPrice(
+        await realFetchTokenPrice(
           TEST_TOKEN_ADDRESS,
           TEST_USDC_ADDRESS,
           TEST_SYSTEM_TOKEN,

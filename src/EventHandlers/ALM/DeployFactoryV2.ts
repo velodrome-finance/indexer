@@ -1,4 +1,4 @@
-import { ALMDeployFactoryV2 } from "generated";
+import { ALMDeployFactoryV2, type NonFungiblePosition } from "generated";
 import { ALMLPWrapperId } from "../../Constants";
 
 ALMDeployFactoryV2.StrategyCreated.contractRegister(({ event, context }) => {
@@ -27,15 +27,14 @@ ALMDeployFactoryV2.StrategyCreated.handler(async ({ event, context }) => {
   const timestamp = new Date(event.block.timestamp * 1000);
 
   // Query NonFungiblePosition by mintTransactionHash (already stored in position)
-  const nonFungiblePositions =
-    await context.NonFungiblePosition.getWhere.mintTransactionHash.eq(
-      event.transaction.hash,
-    );
+  const nonFungiblePositions = await context.NonFungiblePosition.getWhere({
+    mintTransactionHash: { _eq: event.transaction.hash },
+  });
 
   // Filter by matching fields
   const matchingPositions =
     nonFungiblePositions?.filter(
-      (pos) =>
+      (pos: NonFungiblePosition) =>
         pos.chainId === event.chainId &&
         pos.tickLower === tickLower &&
         pos.tickUpper === tickUpper &&

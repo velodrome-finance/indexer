@@ -14,7 +14,7 @@ describe("UserStatsPerPoolSnapshot", () => {
 
   beforeEach(() => {
     common = setupCommon();
-    jest.clearAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe("createUserStatsPerPoolSnapshot", () => {
@@ -58,48 +58,58 @@ describe("UserStatsPerPoolSnapshot", () => {
 
   it("should set snapshot with epoch-aligned timestamp and correct id", () => {
     const context = common.createMockContext({
-      UserStatsPerPoolSnapshot: { set: jest.fn() },
+      UserStatsPerPoolSnapshot: { set: vi.fn() },
     });
     const entity = common.createMockUserStatsPerPool({
       almLpAmount: 1000n,
       totalFeesContributedUSD: 100n,
     });
     const timestamp = new Date(baseTimestamp.getTime() + 45 * 60 * 1000);
+    const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 4;
 
     setUserStatsPerPoolSnapshot(entity, timestamp, context);
 
     expect(context.UserStatsPerPoolSnapshot.set).toHaveBeenCalledTimes(1);
-    const setArg = (context.UserStatsPerPoolSnapshot.set as jest.Mock).mock
-      .calls[0][0];
-    const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 4;
-    expect(setArg.id).toBe(
-      UserStatsPerPoolSnapshotId(
-        entity.chainId,
-        entity.userAddress,
-        entity.poolAddress,
-        expectedEpochMs,
-      ),
+    expect(context.UserStatsPerPoolSnapshot.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: UserStatsPerPoolSnapshotId(
+          entity.chainId,
+          entity.userAddress,
+          entity.poolAddress,
+          expectedEpochMs,
+        ),
+        timestamp: new Date(expectedEpochMs),
+      }),
     );
-    expect(setArg.timestamp.getTime()).toBe(expectedEpochMs);
   });
 
   it("should spread entity fields into the snapshot", () => {
     const context = common.createMockContext({
-      UserStatsPerPoolSnapshot: { set: jest.fn() },
+      UserStatsPerPoolSnapshot: { set: vi.fn() },
     });
     const entity = common.createMockUserStatsPerPool({
       almLpAmount: 1000n,
       totalFeesContributedUSD: 100n,
     });
+    const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 4;
 
     setUserStatsPerPoolSnapshot(entity, baseTimestamp, context);
-
-    const setArg = (context.UserStatsPerPoolSnapshot.set as jest.Mock).mock
-      .calls[0][0];
-    expect(setArg.userAddress).toBe(entity.userAddress);
-    expect(setArg.poolAddress).toBe(entity.poolAddress);
-    expect(setArg.chainId).toBe(entity.chainId);
-    expect(setArg.almLpAmount).toBe(1000n);
-    expect(setArg.totalFeesContributedUSD).toBe(entity.totalFeesContributedUSD);
+    expect(context.UserStatsPerPoolSnapshot.set).toHaveBeenCalledTimes(1);
+    expect(context.UserStatsPerPoolSnapshot.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: UserStatsPerPoolSnapshotId(
+          entity.chainId,
+          entity.userAddress,
+          entity.poolAddress,
+          expectedEpochMs,
+        ),
+        timestamp: new Date(expectedEpochMs),
+        userAddress: entity.userAddress,
+        poolAddress: entity.poolAddress,
+        chainId: entity.chainId,
+        almLpAmount: 1000n,
+        totalFeesContributedUSD: entity.totalFeesContributedUSD,
+      }),
+    );
   });
 });

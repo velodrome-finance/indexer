@@ -1,6 +1,7 @@
 import {
   ALMLPWrapperSnapshotId,
   SNAPSHOT_INTERVAL_IN_MS,
+  toChecksumAddress,
 } from "../../src/Constants";
 import {
   createALMLPWrapperSnapshot,
@@ -14,7 +15,7 @@ describe("ALMLPWrapperSnapshot", () => {
   const baseTimestamp = new Date(SNAPSHOT_INTERVAL_IN_MS * 3);
   beforeEach(() => {
     common = setupCommon();
-    jest.clearAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe("createALMLPWrapperSnapshot", () => {
@@ -49,7 +50,7 @@ describe("ALMLPWrapperSnapshot", () => {
 
   it("should call ALM_LP_WrapperSnapshot.set with correct id and epoch-aligned timestamp", () => {
     const context = common.createMockContext({
-      ALM_LP_WrapperSnapshot: { set: jest.fn() },
+      ALM_LP_WrapperSnapshot: { set: vi.fn() },
     });
     const entity = common.mockALMLPWrapperData;
     const timestamp = new Date(baseTimestamp.getTime() + 15 * 60 * 1000);
@@ -64,54 +65,67 @@ describe("ALMLPWrapperSnapshot", () => {
     setALMLPWrapperSnapshot(entity, timestamp, context);
 
     expect(context.ALM_LP_WrapperSnapshot.set).toHaveBeenCalledTimes(1);
-    const setArg = (context.ALM_LP_WrapperSnapshot.set as jest.Mock).mock
-      .calls[0][0];
-    expect(setArg.id).toBe(expectedId);
-    expect(setArg.timestamp.getTime()).toBe(expectedEpochMs);
+    expect(context.ALM_LP_WrapperSnapshot.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: expectedId,
+        timestamp: new Date(expectedEpochMs),
+      }),
+    );
   });
 
   it("should use full entity.id as wrapper when id has no hyphen (fallback branch)", () => {
     const context = common.createMockContext({
-      ALM_LP_WrapperSnapshot: { set: jest.fn() },
+      ALM_LP_WrapperSnapshot: { set: vi.fn() },
     });
     const entityWithoutHyphenInId = {
       ...common.mockALMLPWrapperData,
-      id: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      id: toChecksumAddress("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
     };
     const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 3;
     const wrapperAddress = getWrapperAddressFromId(entityWithoutHyphenInId.id);
 
     setALMLPWrapperSnapshot(entityWithoutHyphenInId, baseTimestamp, context);
 
-    const setArg = (context.ALM_LP_WrapperSnapshot.set as jest.Mock).mock
-      .calls[0][0];
-    expect(setArg.wrapper).toBe(wrapperAddress);
-    expect(setArg.id).toBe(
-      ALMLPWrapperSnapshotId(
-        entityWithoutHyphenInId.chainId,
-        wrapperAddress,
-        expectedEpochMs,
-      ),
+    expect(context.ALM_LP_WrapperSnapshot.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        wrapper: wrapperAddress,
+        id: ALMLPWrapperSnapshotId(
+          entityWithoutHyphenInId.chainId,
+          wrapperAddress,
+          expectedEpochMs,
+        ),
+        timestamp: new Date(expectedEpochMs),
+      }),
     );
   });
 
   it("should spread entity fields into the snapshot", () => {
     const context = common.createMockContext({
-      ALM_LP_WrapperSnapshot: { set: jest.fn() },
+      ALM_LP_WrapperSnapshot: { set: vi.fn() },
     });
     const entity = common.mockALMLPWrapperData;
+    const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 3;
+    const wrapperAddress = getWrapperAddressFromId(entity.id);
 
     setALMLPWrapperSnapshot(entity, baseTimestamp, context);
 
-    const setArg = (context.ALM_LP_WrapperSnapshot.set as jest.Mock).mock
-      .calls[0][0];
-    expect(setArg.chainId).toBe(entity.chainId);
-    expect(setArg.pool).toBe(entity.pool);
-    expect(setArg.token0).toBe(entity.token0);
-    expect(setArg.token1).toBe(entity.token1);
-    expect(setArg.lpAmount).toBe(entity.lpAmount);
-    expect(setArg.liquidity).toBe(entity.liquidity);
-    expect(setArg.tickLower).toBe(entity.tickLower);
-    expect(setArg.tickUpper).toBe(entity.tickUpper);
+    expect(context.ALM_LP_WrapperSnapshot.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: ALMLPWrapperSnapshotId(
+          entity.chainId,
+          wrapperAddress,
+          expectedEpochMs,
+        ),
+        timestamp: new Date(expectedEpochMs),
+        chainId: entity.chainId,
+        pool: entity.pool,
+        token0: entity.token0,
+        token1: entity.token1,
+        lpAmount: entity.lpAmount,
+        liquidity: entity.liquidity,
+        tickLower: entity.tickLower,
+        tickUpper: entity.tickUpper,
+      }),
+    );
   });
 });

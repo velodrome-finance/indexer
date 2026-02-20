@@ -1,3 +1,4 @@
+import "../../eventHandlersRegistration";
 import {
   DynamicSwapFeeModule,
   MockDb,
@@ -33,10 +34,7 @@ describe("DynamicSwapFeeModule Events", () => {
       });
 
       // Execute
-      const result = await DynamicSwapFeeModule.SecondsAgoSet.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       // Assert
       const config = result.entities.DynamicFeeGlobalConfig.get(
@@ -65,9 +63,9 @@ describe("DynamicSwapFeeModule Events", () => {
       );
 
       // Execute - Update baseFee
-      let result = await DynamicSwapFeeModule.CustomFeeSet.processEvent({
-        event: DynamicSwapFeeModule.CustomFeeSet.createMockEvent({
-          pool: poolAddress,
+      let result = await mockDb.processEvents([
+        DynamicSwapFeeModule.CustomFeeSet.createMockEvent({
+          pool: poolAddress as `0x${string}`,
           fee: baseFee,
           mockEventData: {
             block: {
@@ -80,8 +78,7 @@ describe("DynamicSwapFeeModule Events", () => {
             srcAddress: moduleAddress,
           },
         }),
-        mockDb,
-      });
+      ]);
 
       let updatedPool = result.entities.LiquidityPoolAggregator.get(
         mockLiquidityPoolData.id,
@@ -96,9 +93,9 @@ describe("DynamicSwapFeeModule Events", () => {
       mockDb = result;
 
       // Execute - Update scalingFactor
-      result = await DynamicSwapFeeModule.ScalingFactorSet.processEvent({
-        event: DynamicSwapFeeModule.ScalingFactorSet.createMockEvent({
-          pool: poolAddress,
+      result = await mockDb.processEvents([
+        DynamicSwapFeeModule.ScalingFactorSet.createMockEvent({
+          pool: poolAddress as `0x${string}`,
           scalingFactor: scalingFactor,
           mockEventData: {
             block: {
@@ -111,8 +108,7 @@ describe("DynamicSwapFeeModule Events", () => {
             srcAddress: moduleAddress,
           },
         }),
-        mockDb,
-      });
+      ]);
 
       updatedPool = result.entities.LiquidityPoolAggregator.get(
         mockLiquidityPoolData.id,
@@ -128,9 +124,9 @@ describe("DynamicSwapFeeModule Events", () => {
       mockDb = result;
 
       // Execute - Update feeCap
-      result = await DynamicSwapFeeModule.FeeCapSet.processEvent({
-        event: DynamicSwapFeeModule.FeeCapSet.createMockEvent({
-          pool: poolAddress,
+      result = await mockDb.processEvents([
+        DynamicSwapFeeModule.FeeCapSet.createMockEvent({
+          pool: poolAddress as `0x${string}`,
           feeCap: feeCap,
           mockEventData: {
             block: {
@@ -143,8 +139,7 @@ describe("DynamicSwapFeeModule Events", () => {
             srcAddress: moduleAddress,
           },
         }),
-        mockDb,
-      });
+      ]);
 
       updatedPool = result.entities.LiquidityPoolAggregator.get(
         mockLiquidityPoolData.id,

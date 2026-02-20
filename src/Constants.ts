@@ -31,8 +31,8 @@ export const SECONDS_IN_A_WEEK = BigInt(604800);
 /** Snapshot interval: 1 hour in milliseconds (for epoch-aligned snapshots) */
 export const SNAPSHOT_INTERVAL_IN_MS = 60 * 60 * 1000;
 
-export const toChecksumAddress = (address: string) =>
-  Web3.utils.toChecksumAddress(address);
+export const toChecksumAddress = (address: string): `0x${string}` =>
+  Web3.utils.toChecksumAddress(address) as `0x${string}`;
 
 // Note:
 // These pools factories addresses are hardcoded since we can't check the pool type from the Voter contract

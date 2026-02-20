@@ -1,4 +1,6 @@
+import "../../eventHandlersRegistration";
 import { MockDb, Pool } from "../../../generated/src/TestHelpers.gen";
+import { toChecksumAddress } from "../../../src/Constants";
 import * as PoolBurnAndMintLogic from "../../../src/EventHandlers/Pool/PoolBurnAndMintLogic";
 import { setupCommon } from "./common";
 
@@ -20,7 +22,7 @@ describe("Pool Mint Event", () => {
 
   it("should process mint event and update liquidity pool aggregator", async () => {
     const mockEvent = Pool.Mint.createMockEvent({
-      sender: "0x2222222222222222222222222222222222222222",
+      sender: toChecksumAddress("0x2222222222222222222222222222222222222222"),
       amount0: 1000n * 10n ** 18n,
       amount1: 2000n * 10n ** 18n,
       mockEventData: {
@@ -31,11 +33,12 @@ describe("Pool Mint Event", () => {
         },
         chainId: 10,
         logIndex: 1,
-        srcAddress: commonData.mockLiquidityPoolData.poolAddress,
+        srcAddress: commonData.mockLiquidityPoolData
+          .poolAddress as `0x${string}`,
       },
     });
 
-    const result = await Pool.Mint.processEvent({ event: mockEvent, mockDb });
+    const result = await mockDb.processEvents([mockEvent]);
 
     // Verify that the liquidity pool aggregator was updated
     const updatedAggregator = result.entities.LiquidityPoolAggregator.get(
@@ -69,7 +72,7 @@ describe("Pool Mint Event", () => {
       // Note: We intentionally don't set the LiquidityPoolAggregator
 
       const mockEvent = Pool.Mint.createMockEvent({
-        sender: "0x1111111111111111111111111111111111111111",
+        sender: toChecksumAddress("0x1111111111111111111111111111111111111111"),
         amount0: 1000n * 10n ** 18n,
         amount1: 2000n * 10n ** 18n,
         mockEventData: {
@@ -80,14 +83,12 @@ describe("Pool Mint Event", () => {
           },
           chainId: 10,
           logIndex: 1,
-          srcAddress: commonData.mockLiquidityPoolData.poolAddress,
+          srcAddress: commonData.mockLiquidityPoolData
+            .poolAddress as `0x${string}`,
         },
       });
 
-      const postEventDB = await Pool.Mint.processEvent({
-        event: mockEvent,
-        mockDb: updatedDB2,
-      });
+      const postEventDB = await updatedDB2.processEvents([mockEvent]);
 
       // Pool should not exist
       const pool = postEventDB.entities.LiquidityPoolAggregator.get(
@@ -98,7 +99,7 @@ describe("Pool Mint Event", () => {
       // User stats will NOT be created when pool doesn't exist (early return)
       // and no transfer match is found
       const userStats = postEventDB.entities.UserStatsPerPool.get(
-        `0x1111111111111111111111111111111111111111_${commonData.mockLiquidityPoolData.poolAddress}_10`,
+        `${toChecksumAddress("0x1111111111111111111111111111111111111111")}_${commonData.mockLiquidityPoolData.poolAddress}_10`,
       );
       expect(userStats).toBeUndefined();
     });

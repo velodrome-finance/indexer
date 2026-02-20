@@ -1,3 +1,5 @@
+import "../../eventHandlersRegistration";
+import type { Mock } from "vitest";
 import { ALMLPWrapperV1, MockDb } from "../../../generated/src/TestHelpers.gen";
 import {
   ALMLPWrapperId,
@@ -24,7 +26,7 @@ describe("ALMLPWrapperV1 Events", () => {
     "0xcccccccccccccccccccccccccccccccccccccccc",
   );
   const senderAddress = toChecksumAddress(
-    "0xdddddddddddddddddddddddddddddddddddddddd",
+    "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
   );
 
   const mockEventData = {
@@ -59,7 +61,9 @@ describe("ALMLPWrapperV1 Events", () => {
       lpWrapperAddress,
       logIndex,
     );
-    const zeroAddress = "0x0000000000000000000000000000000000000000";
+    const zeroAddress = toChecksumAddress(
+      "0x0000000000000000000000000000000000000000",
+    );
     const burnTransfer = {
       id: burnTransferId,
       chainId: chainId,
@@ -128,17 +132,14 @@ describe("ALMLPWrapperV1 Events", () => {
       const mockEvent = ALMLPWrapperV1.Deposit.createMockEvent({
         sender: senderAddress,
         recipient: recipientAddress,
-        pool: poolAddress,
+        pool: poolAddress as `0x${string}`,
         lpAmount: 1000n * TEN_TO_THE_18_BI,
         amount0: 500n * TEN_TO_THE_18_BI,
         amount1: 250n * TEN_TO_THE_6_BI,
         mockEventData,
       });
 
-      const result = await ALMLPWrapperV1.Deposit.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       const wrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
 
@@ -160,17 +161,14 @@ describe("ALMLPWrapperV1 Events", () => {
       const mockEvent = ALMLPWrapperV1.Deposit.createMockEvent({
         sender: senderAddress,
         recipient: recipientAddress,
-        pool: poolAddress,
+        pool: poolAddress as `0x${string}`,
         lpAmount: 1000n * TEN_TO_THE_18_BI,
         amount0: 500n * TEN_TO_THE_18_BI,
         amount1: 250n * TEN_TO_THE_6_BI,
         mockEventData,
       });
 
-      const result = await ALMLPWrapperV1.Deposit.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       // Verify that no wrapper was created
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
@@ -191,17 +189,14 @@ describe("ALMLPWrapperV1 Events", () => {
       const mockEvent = ALMLPWrapperV1.Deposit.createMockEvent({
         sender: senderAddress,
         recipient: recipientAddress,
-        pool: poolAddress,
+        pool: poolAddress as `0x${string}`,
         lpAmount: 1000n * TEN_TO_THE_18_BI,
         amount0: 500n * TEN_TO_THE_18_BI,
         amount1: 250n * TEN_TO_THE_6_BI,
         mockEventData,
       });
 
-      const result = await ALMLPWrapperV1.Deposit.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       const userStatsId = UserStatsPerPoolId(
         chainId,
@@ -248,17 +243,14 @@ describe("ALMLPWrapperV1 Events", () => {
       const mockEvent = ALMLPWrapperV1.Deposit.createMockEvent({
         sender: senderAddress,
         recipient: recipientAddress,
-        pool: poolAddress,
+        pool: poolAddress as `0x${string}`,
         lpAmount: 1000n * TEN_TO_THE_18_BI,
         amount0: 500n * TEN_TO_THE_18_BI,
         amount1: 250n * TEN_TO_THE_6_BI,
         mockEventData,
       });
 
-      const result = await ALMLPWrapperV1.Deposit.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       const userStats = result.entities.UserStatsPerPool.get(userStatsId);
 
@@ -283,17 +275,14 @@ describe("ALMLPWrapperV1 Events", () => {
       const mockEvent = ALMLPWrapperV1.Deposit.createMockEvent({
         sender: senderAddress,
         recipient: recipientAddress,
-        pool: poolAddress,
+        pool: poolAddress as `0x${string}`,
         lpAmount: 1000n * TEN_TO_THE_18_BI,
         amount0: 500n * TEN_TO_THE_18_BI,
         amount1: 250n * TEN_TO_THE_6_BI,
         mockEventData,
       });
 
-      const result = await ALMLPWrapperV1.Deposit.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       const userStatsId = UserStatsPerPoolId(
         chainId,
@@ -335,17 +324,14 @@ describe("ALMLPWrapperV1 Events", () => {
       const mockEvent = ALMLPWrapperV1.Withdraw.createMockEvent({
         sender: senderAddress,
         recipient: recipientAddress,
-        pool: poolAddress,
+        pool: poolAddress as `0x${string}`,
         lpAmount: 500n * TEN_TO_THE_18_BI,
         amount0: 250n * TEN_TO_THE_18_BI,
         amount1: 125n * TEN_TO_THE_6_BI,
         mockEventData,
       });
 
-      const result = await ALMLPWrapperV1.Withdraw.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       const wrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
 
@@ -363,17 +349,14 @@ describe("ALMLPWrapperV1 Events", () => {
       const mockEvent = ALMLPWrapperV1.Withdraw.createMockEvent({
         sender: senderAddress,
         recipient: recipientAddress,
-        pool: poolAddress,
+        pool: poolAddress as `0x${string}`,
         lpAmount: 500n * TEN_TO_THE_18_BI,
         amount0: 250n * TEN_TO_THE_18_BI,
         amount1: 125n * TEN_TO_THE_6_BI,
         mockEventData,
       });
 
-      const result = await ALMLPWrapperV1.Withdraw.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       // Verify that no wrapper was created
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
@@ -381,7 +364,7 @@ describe("ALMLPWrapperV1 Events", () => {
       expect(wrapper).toBeUndefined();
     });
 
-    it("should create UserStatsPerPool entity if it doesn't exist", async () => {
+    it("should reduce UserStatsPerPool almLpAmount to zero after full withdrawal", async () => {
       let mockDb = MockDb.createMockDb();
 
       // Pre-populate with existing wrapper
@@ -417,17 +400,14 @@ describe("ALMLPWrapperV1 Events", () => {
       const mockEvent = ALMLPWrapperV1.Withdraw.createMockEvent({
         sender: senderAddress,
         recipient: recipientAddress,
-        pool: poolAddress,
+        pool: poolAddress as `0x${string}`,
         lpAmount: 500n * TEN_TO_THE_18_BI, // User withdraws all their LP
         amount0: 250n * TEN_TO_THE_18_BI,
         amount1: 125n * TEN_TO_THE_6_BI,
         mockEventData,
       });
 
-      const result = await ALMLPWrapperV1.Withdraw.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       const userStats = result.entities.UserStatsPerPool.get(userStatsId);
 
@@ -475,17 +455,14 @@ describe("ALMLPWrapperV1 Events", () => {
       const mockEvent = ALMLPWrapperV1.Withdraw.createMockEvent({
         sender: senderAddress,
         recipient: recipientAddress,
-        pool: poolAddress,
+        pool: poolAddress as `0x${string}`,
         lpAmount: 500n * TEN_TO_THE_18_BI,
         amount0: 250n * TEN_TO_THE_18_BI,
         amount1: 125n * TEN_TO_THE_6_BI,
         mockEventData,
       });
 
-      const result = await ALMLPWrapperV1.Withdraw.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       const userStats = result.entities.UserStatsPerPool.get(userStatsId);
 
@@ -540,10 +517,7 @@ describe("ALMLPWrapperV1 Events", () => {
         mockEventData,
       });
 
-      const result = await ALMLPWrapperV1.Transfer.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       const fromUserStats =
         result.entities.UserStatsPerPool.get(fromUserStatsId);
@@ -573,10 +547,7 @@ describe("ALMLPWrapperV1 Events", () => {
         mockEventData,
       });
 
-      const result = await ALMLPWrapperV1.Transfer.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       // Verify that no user stats were created
       const fromUserStatsId = UserStatsPerPoolId(
@@ -623,10 +594,7 @@ describe("ALMLPWrapperV1 Events", () => {
         mockEventData,
       });
 
-      const result = await ALMLPWrapperV1.Transfer.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       const toUserStatsId = UserStatsPerPoolId(chainId, toAddress, poolAddress);
       const toUserStats = result.entities.UserStatsPerPool.get(toUserStatsId);
@@ -651,7 +619,9 @@ describe("ALMLPWrapperV1 Events", () => {
         id: wrapperId,
       });
 
-      const zeroAddress = "0x0000000000000000000000000000000000000000";
+      const zeroAddress = toChecksumAddress(
+        "0x0000000000000000000000000000000000000000",
+      );
       const transferAmount = 1000n * TEN_TO_THE_18_BI;
 
       // Mint: from zero address - handler should return early without updating UserStatsPerPool
@@ -663,10 +633,7 @@ describe("ALMLPWrapperV1 Events", () => {
         mockEventData,
       });
 
-      const mintResult = await ALMLPWrapperV1.Transfer.processEvent({
-        event: mintEvent,
-        mockDb,
-      });
+      const mintResult = await mockDb.processEvents([mintEvent]);
 
       const toUserStatsId = UserStatsPerPoolId(chainId, toAddress, poolAddress);
       const toUserStats =
@@ -699,10 +666,7 @@ describe("ALMLPWrapperV1 Events", () => {
         mockEventData,
       });
 
-      const burnResult = await ALMLPWrapperV1.Transfer.processEvent({
-        event: burnEvent,
-        mockDb,
-      });
+      const burnResult = await mockDb.processEvents([burnEvent]);
 
       const burnerUserStats =
         burnResult.entities.UserStatsPerPool.get(burnerUserStatsId);

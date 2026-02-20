@@ -22,14 +22,16 @@ import {
   processNFPMIncreaseLiquidity,
 } from "../../../src/EventHandlers/NFPM/NFPMIncreaseLiquidityLogic";
 
-jest.mock("../../../src/Aggregators/LiquidityPoolAggregator", () => ({
-  ...jest.requireActual("../../../src/Aggregators/LiquidityPoolAggregator"),
-  loadPoolData: jest.fn(),
+vi.mock("../../../src/Aggregators/LiquidityPoolAggregator", async () => ({
+  ...(await vi.importActual(
+    "../../../src/Aggregators/LiquidityPoolAggregator",
+  )),
+  loadPoolData: vi.fn(),
 }));
 
-jest.mock("../../../src/EventHandlers/NFPM/NFPMCommonLogic", () => ({
-  ...jest.requireActual("../../../src/EventHandlers/NFPM/NFPMCommonLogic"),
-  attributeLiquidityChangeToUserStatsPerPool: jest.fn(),
+vi.mock("../../../src/EventHandlers/NFPM/NFPMCommonLogic", async () => ({
+  ...(await vi.importActual("../../../src/EventHandlers/NFPM/NFPMCommonLogic")),
+  attributeLiquidityChangeToUserStatsPerPool: vi.fn(),
 }));
 
 describe("NFPMIncreaseLiquidityLogic", () => {
@@ -117,29 +119,33 @@ describe("NFPMIncreaseLiquidityLogic", () => {
     return {
       ...currentDb,
       LiquidityPoolAggregator: {
-        get: jest.fn().mockResolvedValue(undefined),
+        get: vi.fn().mockResolvedValue(undefined),
+      },
+      UserStatsPerPool: {
+        get: vi.fn().mockResolvedValue(undefined),
+        getWhere: vi.fn().mockResolvedValue([]),
+        set: vi.fn(),
+        getOrThrow: vi.fn(),
+        getOrCreate: vi.fn(),
+        deleteUnsafe: vi.fn(),
+      },
+      UserStatsPerPoolSnapshot: {
+        set: vi.fn(),
+        get: vi.fn(),
+        getWhere: vi.fn().mockResolvedValue([]),
       },
       NonFungiblePositionSnapshot: {
-        set: jest.fn(),
+        set: vi.fn(),
       },
       NonFungiblePosition: {
         ...currentDb.entities.NonFungiblePosition,
-        getWhere: {
-          tokenId: {
-            eq: async (id: bigint) => {
-              return positions.filter((p) => p.tokenId === id);
-            },
-          },
-          pool: {
-            eq: jest.fn(),
-          },
-          owner: {
-            eq: jest.fn(),
-          },
-          mintTransactionHash: {
-            eq: jest.fn(),
-          },
-        },
+        getWhere: vi
+          .fn()
+          .mockImplementation((filter: { tokenId?: { _eq?: bigint } }) =>
+            Promise.resolve(
+              positions.filter((p) => p.tokenId === filter?.tokenId?._eq),
+            ),
+          ),
         set: (entity: NonFungiblePosition) => {
           trackPosition(entity);
           const updatedDb = originalSet(entity);
@@ -152,13 +158,16 @@ describe("NFPMIncreaseLiquidityLogic", () => {
       },
       CLPoolMintEvent: {
         ...currentDb.entities.CLPoolMintEvent,
-        getWhere: {
-          transactionHash: {
-            eq: async (txHash: string) => {
-              return mintEvents.filter((e) => e.transactionHash === txHash);
-            },
-          },
-        },
+        getWhere: vi
+          .fn()
+          .mockImplementation(
+            (filter: { transactionHash?: { _eq?: string } }) =>
+              Promise.resolve(
+                mintEvents.filter(
+                  (e) => e.transactionHash === filter?.transactionHash?._eq,
+                ),
+              ),
+          ),
         deleteUnsafe: (id: string) => {
           const index = mintEvents.findIndex((e) => e.id === id);
           if (index >= 0) {
@@ -171,9 +180,9 @@ describe("NFPMIncreaseLiquidityLogic", () => {
         // biome-ignore lint/suspicious/noExplicitAny: Mock for testing
       } as any,
       log: {
-        info: jest.fn(),
-        warn: jest.fn(),
-        error: jest.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
       },
     } as unknown as handlerContext;
   }
@@ -203,8 +212,9 @@ describe("NFPMIncreaseLiquidityLogic", () => {
   }
 
   beforeEach(() => {
-    jest.mocked(loadPoolData).mockResolvedValue(null);
-    jest.mocked(attributeLiquidityChangeToUserStatsPerPool).mockResolvedValue();
+    vi.restoreAllMocks();
+    vi.mocked(loadPoolData).mockResolvedValue(null);
+    vi.mocked(attributeLiquidityChangeToUserStatsPerPool).mockResolvedValue();
     storedPositions = [mockPosition];
     storedMintEvents = [];
     mockContext = createMockContext(storedPositions, storedMintEvents);
@@ -533,7 +543,7 @@ describe("NFPMIncreaseLiquidityLogic", () => {
       await processNFPMIncreaseLiquidity(mockEvent, mockContext);
 
       expect(
-        jest.mocked(attributeLiquidityChangeToUserStatsPerPool),
+        vi.mocked(attributeLiquidityChangeToUserStatsPerPool),
       ).not.toHaveBeenCalled();
     });
 
@@ -545,8 +555,6 @@ describe("NFPMIncreaseLiquidityLogic", () => {
           chainId,
         } as PoolData["liquidityPoolAggregator"],
       };
-      jest.mocked(loadPoolData).mockResolvedValue(mockPoolData);
-
       const increaseAmount = 168374122051126n;
       const amount0 = 18500000000n;
       const amount1 = 15171806313n;
@@ -555,6 +563,7 @@ describe("NFPMIncreaseLiquidityLogic", () => {
         amount1,
       });
 
+      vi.mocked(loadPoolData).mockResolvedValue(mockPoolData);
       await processNFPMIncreaseLiquidity(mockEvent, mockContext);
 
       expect(attributeLiquidityChangeToUserStatsPerPool).toHaveBeenCalledTimes(

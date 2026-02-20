@@ -6,7 +6,11 @@ import type {
   Token,
   handlerContext,
 } from "generated";
-import { PoolTransferInTxId, ZERO_ADDRESS } from "../../../src/Constants";
+import {
+  PoolTransferInTxId,
+  ZERO_ADDRESS,
+  toChecksumAddress,
+} from "../../../src/Constants";
 import {
   extractRecipientAddress,
   findClosestPrecedingTransfer,
@@ -27,9 +31,15 @@ describe("PoolBurnAndMintLogic", () => {
   const POOL_ADDRESS = poolAddress;
   const TX_HASH =
     "0x1234567890123456789012345678901234567890123456789012345678901234";
-  const USER_ADDRESS = "0x1111111111111111111111111111111111111111";
-  const ROUTER_ADDRESS = "0x2222222222222222222222222222222222222222";
-  const ADDRESS_ONE = "0x0000000000000000000000000000000000000001";
+  const USER_ADDRESS = toChecksumAddress(
+    "0x1111111111111111111111111111111111111111",
+  );
+  const ROUTER_ADDRESS = toChecksumAddress(
+    "0x2222222222222222222222222222222222222222",
+  );
+  const ADDRESS_ONE = toChecksumAddress(
+    "0x0000000000000000000000000000000000000001",
+  );
   const AMOUNT0 = 1000n * 10n ** 18n;
   const AMOUNT1 = 2000n * 10n ** 18n;
   const LP_VALUE = 500n * 10n ** 18n;
@@ -45,29 +55,30 @@ describe("PoolBurnAndMintLogic", () => {
     mockPoolTransferInTx = [];
     mockContext = {
       log: {
-        error: jest.fn(),
-        warn: jest.fn(),
-        info: jest.fn(),
+        error: vi.fn(),
+        warn: vi.fn(),
+        info: vi.fn(),
       },
       PoolTransferInTx: {
-        getWhere: {
-          txHash: {
-            eq: jest.fn(async (txHash: string) => {
-              return mockPoolTransferInTx.filter((t) => t.txHash === txHash);
-            }),
-          },
-        },
-        set: jest.fn(),
+        // biome-ignore lint/suspicious/noExplicitAny: Mock context for testing
+        getWhere: vi.fn(async (params: any) => {
+          const txHash = params.txHash?._eq;
+          if (txHash) {
+            return mockPoolTransferInTx.filter((t) => t.txHash === txHash);
+          }
+          return [];
+        }),
+        set: vi.fn(),
       },
       LiquidityPoolAggregator: {
-        get: jest.fn(),
-        set: jest.fn(),
+        get: vi.fn(),
+        set: vi.fn(),
       },
       UserStatsPerPool: {
-        get: jest.fn(),
-        set: jest.fn(),
+        get: vi.fn(),
+        set: vi.fn(),
       },
-      UserStatsPerPoolSnapshot: { set: jest.fn() },
+      UserStatsPerPoolSnapshot: { set: vi.fn() },
     } as unknown as handlerContext;
   });
 
@@ -105,7 +116,7 @@ describe("PoolBurnAndMintLogic", () => {
       hash: "0xblock",
     },
     logIndex,
-    srcAddress: POOL_ADDRESS,
+    srcAddress: POOL_ADDRESS as `0x${string}`,
     transaction: { hash: TX_HASH },
     params: {
       sender: ROUTER_ADDRESS,
@@ -123,7 +134,7 @@ describe("PoolBurnAndMintLogic", () => {
       hash: "0xblock",
     },
     logIndex,
-    srcAddress: POOL_ADDRESS,
+    srcAddress: POOL_ADDRESS as `0x${string}`,
     transaction: { hash: TX_HASH },
     params: {
       sender: ROUTER_ADDRESS,
@@ -885,10 +896,6 @@ describe("PoolBurnAndMintLogic", () => {
     const mockLiquidityPoolAggregator: LiquidityPoolAggregator = {
       ...mockLiquidityPoolData,
     };
-
-    beforeEach(() => {
-      jest.clearAllMocks();
-    });
 
     it("should process mint event and update pool token prices", async () => {
       const mintTransfer = createMockTransfer(

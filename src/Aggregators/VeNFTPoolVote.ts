@@ -31,9 +31,9 @@ export async function loadPoolVotesByVeNFT(
   veNFTState: VeNFTState,
   context: handlerContext,
 ): Promise<VeNFTPoolVote[]> {
-  const votesByState = await context.VeNFTPoolVote.getWhere.veNFTState_id.eq(
-    veNFTState.id,
-  );
+  const votesByState = await context.VeNFTPoolVote.getWhere({
+    veNFTState_id: { _eq: veNFTState.id },
+  });
 
   return votesByState ?? [];
 }

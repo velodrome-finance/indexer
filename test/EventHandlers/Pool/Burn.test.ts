@@ -1,6 +1,7 @@
+import "../../eventHandlersRegistration";
 import { Pool } from "../../../generated/src/TestHelpers.gen";
 import { MockDb } from "../../../generated/src/TestHelpers.gen";
-import * as PoolBurnAndMintLogic from "../../../src/EventHandlers/Pool/PoolBurnAndMintLogic";
+import { toChecksumAddress } from "../../../src/Constants";
 import { setupCommon } from "./common";
 
 describe("Pool Burn Event", () => {
@@ -21,8 +22,8 @@ describe("Pool Burn Event", () => {
 
   it("should process burn event and update liquidity pool aggregator", async () => {
     const mockEvent = Pool.Burn.createMockEvent({
-      sender: "0x2222222222222222222222222222222222222222",
-      to: "0x3333333333333333333333333333333333333333",
+      sender: toChecksumAddress("0x2222222222222222222222222222222222222222"),
+      to: toChecksumAddress("0x3333333333333333333333333333333333333333"),
       amount0: 500n * 10n ** 18n,
       amount1: 1000n * 10n ** 18n,
       mockEventData: {
@@ -33,11 +34,12 @@ describe("Pool Burn Event", () => {
         },
         chainId: 10,
         logIndex: 1,
-        srcAddress: commonData.mockLiquidityPoolData.poolAddress,
+        srcAddress: commonData.mockLiquidityPoolData
+          .poolAddress as `0x${string}`,
       },
     });
 
-    const result = await Pool.Burn.processEvent({ event: mockEvent, mockDb });
+    const result = await mockDb.processEvents([mockEvent]);
 
     // Verify that the liquidity pool aggregator was updated
     const updatedAggregator = result.entities.LiquidityPoolAggregator.get(
@@ -71,8 +73,8 @@ describe("Pool Burn Event", () => {
       // Note: We intentionally don't set the LiquidityPoolAggregator
 
       const mockEvent = Pool.Burn.createMockEvent({
-        sender: "0x1111111111111111111111111111111111111111",
-        to: "0x2222222222222222222222222222222222222222",
+        sender: toChecksumAddress("0x1111111111111111111111111111111111111111"),
+        to: toChecksumAddress("0x2222222222222222222222222222222222222222"),
         amount0: 500n * 10n ** 18n,
         amount1: 1000n * 10n ** 18n,
         mockEventData: {
@@ -83,14 +85,12 @@ describe("Pool Burn Event", () => {
           },
           chainId: 10,
           logIndex: 1,
-          srcAddress: commonData.mockLiquidityPoolData.poolAddress,
+          srcAddress: commonData.mockLiquidityPoolData
+            .poolAddress as `0x${string}`,
         },
       });
 
-      const postEventDB = await Pool.Burn.processEvent({
-        event: mockEvent,
-        mockDb: updatedDB2,
-      });
+      const postEventDB = await updatedDB2.processEvents([mockEvent]);
 
       // Pool should not exist
       const pool = postEventDB.entities.LiquidityPoolAggregator.get(

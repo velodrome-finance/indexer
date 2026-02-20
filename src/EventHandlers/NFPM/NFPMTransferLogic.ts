@@ -93,9 +93,9 @@ export async function handleMintTransfer(
   }
 
   // Query CLPoolMintEvent by transaction hash
-  const mintEvents = await context.CLPoolMintEvent.getWhere.transactionHash.eq(
-    event.transaction.hash,
-  );
+  const mintEvents = await context.CLPoolMintEvent.getWhere({
+    transactionHash: { _eq: event.transaction.hash },
+  });
 
   // Filter by: chainId, logIndex < transferLogIndex, not consumed
   const matchingEvents =
@@ -290,7 +290,6 @@ export async function handleRegularTransfer(
     owner: event.params.to,
     lastUpdatedTimestamp: timestamp,
   };
-
   updateNonFungiblePosition(
     nonFungiblePositionDiff,
     position,

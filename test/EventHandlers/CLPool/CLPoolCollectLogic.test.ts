@@ -1,8 +1,5 @@
-import type {
-  CLPool_Collect_event,
-  LiquidityPoolAggregator,
-  Token,
-} from "generated";
+import type { CLPool_Collect_event, Token } from "generated";
+import { toChecksumAddress } from "../../../src/Constants";
 import { processCLPoolCollect } from "../../../src/EventHandlers/CLPool/CLPoolCollectLogic";
 import { setupCommon } from "../Pool/common";
 
@@ -11,8 +8,10 @@ describe("CLPoolCollectLogic", () => {
     setupCommon();
   const mockEvent: CLPool_Collect_event = {
     params: {
-      owner: "0x1111111111111111111111111111111111111111",
-      recipient: "0x2222222222222222222222222222222222222222",
+      owner: toChecksumAddress("0x1111111111111111111111111111111111111111"),
+      recipient: toChecksumAddress(
+        "0x2222222222222222222222222222222222222222",
+      ),
       tickLower: 100000n,
       tickUpper: 200000n,
       amount0: 1000000000000000000n, // 1 token
@@ -25,35 +24,11 @@ describe("CLPoolCollectLogic", () => {
     },
     chainId: 10,
     logIndex: 1,
-    srcAddress: "0x3333333333333333333333333333333333333333",
+    srcAddress: toChecksumAddress("0x3333333333333333333333333333333333333333"),
     transaction: {
       hash: "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
     },
   } as CLPool_Collect_event;
-
-  const mockLiquidityPoolAggregator: LiquidityPoolAggregator = {
-    ...mockLiquidityPoolData,
-    id: "0x1234567890123456789012345678901234567890",
-    token0_id: mockToken0Data.id,
-    token1_id: mockToken1Data.id,
-    token0_address: mockToken0Data.address,
-    token1_address: mockToken1Data.address,
-    isCL: true,
-    reserve0: 10000000n,
-    reserve1: 6000000n,
-    totalLiquidityUSD: 10000000n,
-    token0Price: 1000000000000000000n,
-    token1Price: 2000000000000000000n,
-    gaugeIsAlive: false,
-    totalUnstakedFeesCollected0: 0n,
-    totalUnstakedFeesCollected1: 0n,
-    totalUnstakedFeesCollectedUSD: 0n,
-    totalStakedFeesCollected0: 0n,
-    totalStakedFeesCollected1: 0n,
-    totalStakedFeesCollectedUSD: 0n,
-    lastUpdatedTimestamp: new Date(1000000 * 1000),
-    lastSnapshotTimestamp: new Date(1000000 * 1000),
-  };
 
   const mockToken0: Token = {
     ...mockToken0Data,

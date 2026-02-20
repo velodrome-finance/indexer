@@ -1,5 +1,10 @@
+import "../../eventHandlersRegistration";
 import { MockDb, Pool } from "../../../generated/src/TestHelpers.gen";
-import { UserStatsPerPoolId, ZERO_ADDRESS } from "../../../src/Constants";
+import {
+  UserStatsPerPoolId,
+  ZERO_ADDRESS,
+  toChecksumAddress,
+} from "../../../src/Constants";
 import { setupCommon } from "./common";
 
 describe("Pool Transfer Event", () => {
@@ -21,7 +26,9 @@ describe("Pool Transfer Event", () => {
   });
 
   it("should process mint transfer and update pool totalLPTokenSupply", async () => {
-    const userAddress = "0x1111111111111111111111111111111111111111";
+    const userAddress = toChecksumAddress(
+      "0x1111111111111111111111111111111111111111",
+    );
     const LP_VALUE = 500n * 10n ** 18n;
 
     const mockEvent = Pool.Transfer.createMockEvent({
@@ -36,14 +43,11 @@ describe("Pool Transfer Event", () => {
         },
         chainId: 10,
         logIndex: 0,
-        srcAddress: poolAddress,
+        srcAddress: poolAddress as `0x${string}`,
       },
     });
 
-    const result = await Pool.Transfer.processEvent({
-      event: mockEvent,
-      mockDb,
-    });
+    const result = await mockDb.processEvents([mockEvent]);
 
     // Verify pool aggregator was updated with new totalLPTokenSupply
     const updatedAggregator = result.entities.LiquidityPoolAggregator.get(
@@ -69,7 +73,9 @@ describe("Pool Transfer Event", () => {
   });
 
   it("should process burn transfer and update pool totalLPTokenSupply", async () => {
-    const userAddress = "0x1111111111111111111111111111111111111111";
+    const userAddress = toChecksumAddress(
+      "0x1111111111111111111111111111111111111111",
+    );
     const LP_VALUE = 300n * 10n ** 18n;
     const INITIAL_SUPPLY = 1000n * 10n ** 18n;
 
@@ -94,14 +100,11 @@ describe("Pool Transfer Event", () => {
         },
         chainId: 10,
         logIndex: 0,
-        srcAddress: poolAddress,
+        srcAddress: poolAddress as `0x${string}`,
       },
     });
 
-    const result = await Pool.Transfer.processEvent({
-      event: mockEvent,
-      mockDb,
-    });
+    const result = await mockDb.processEvents([mockEvent]);
 
     // Verify pool aggregator was updated with reduced totalLPTokenSupply
     const updatedAggregator = result.entities.LiquidityPoolAggregator.get(
@@ -129,8 +132,12 @@ describe("Pool Transfer Event", () => {
   });
 
   it("should process regular transfer and update both user balances", async () => {
-    const senderAddress = "0x1111111111111111111111111111111111111111";
-    const recipientAddress = "0x2222222222222222222222222222222222222222";
+    const senderAddress = toChecksumAddress(
+      "0x1111111111111111111111111111111111111111",
+    );
+    const recipientAddress = toChecksumAddress(
+      "0x2222222222222222222222222222222222222222",
+    );
     const LP_VALUE = 200n * 10n ** 18n;
 
     const mockEvent = Pool.Transfer.createMockEvent({
@@ -145,14 +152,11 @@ describe("Pool Transfer Event", () => {
         },
         chainId: 10,
         logIndex: 0,
-        srcAddress: poolAddress,
+        srcAddress: poolAddress as `0x${string}`,
       },
     });
 
-    const result = await Pool.Transfer.processEvent({
-      event: mockEvent,
-      mockDb,
-    });
+    const result = await mockDb.processEvents([mockEvent]);
 
     // Verify pool aggregator totalLPTokenSupply was NOT changed (regular transfer)
     const updatedAggregator = result.entities.LiquidityPoolAggregator.get(
@@ -194,8 +198,8 @@ describe("Pool Transfer Event", () => {
       // Note: We intentionally don't set the LiquidityPoolAggregator
 
       const mockEvent = Pool.Transfer.createMockEvent({
-        from: "0x1111111111111111111111111111111111111111",
-        to: "0x2222222222222222222222222222222222222222",
+        from: toChecksumAddress("0x1111111111111111111111111111111111111111"),
+        to: toChecksumAddress("0x2222222222222222222222222222222222222222"),
         value: 100n * 10n ** 18n,
         mockEventData: {
           block: {
@@ -205,14 +209,11 @@ describe("Pool Transfer Event", () => {
           },
           chainId: 10,
           logIndex: 0,
-          srcAddress: poolAddress,
+          srcAddress: poolAddress as `0x${string}`,
         },
       });
 
-      const postEventDB = await Pool.Transfer.processEvent({
-        event: mockEvent,
-        mockDb: updatedDB2,
-      });
+      const postEventDB = await updatedDB2.processEvents([mockEvent]);
 
       // Pool should not exist
       const pool = postEventDB.entities.LiquidityPoolAggregator.get(

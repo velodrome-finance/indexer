@@ -1,8 +1,9 @@
+import "../../eventHandlersRegistration";
+import type { NonFungiblePosition } from "generated";
 import {
   ALMDeployFactoryV1,
   MockDb,
 } from "../../../generated/src/TestHelpers.gen";
-import type { NonFungiblePosition } from "../../../generated/src/Types.gen";
 import {
   ALMLPWrapperId,
   NonFungiblePositionId,
@@ -103,11 +104,11 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
       // V1: params tuple has 6 elements: [pool, ammPosition (single tuple), strategyParams (4 fields), lpWrapper, synthetixFarm, caller]
       const mockEvent = ALMDeployFactoryV1.StrategyCreated.createMockEvent({
         params: [
-          poolAddress,
+          poolAddress as `0x${string}`,
           // ammPosition is a single tuple, not an array
           [
-            mockToken0Data.address,
-            mockToken1Data.address,
+            mockToken0Data.address as `0x${string}`,
+            mockToken1Data.address as `0x${string}`,
             property,
             tickLower,
             tickUpper,
@@ -122,10 +123,9 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
         mockEventData,
       });
 
-      const result = await ALMDeployFactoryV1.StrategyCreated.processEvent({
-        event: mockEvent,
-        mockDb: mockDbWithGetWhere as typeof mockDb,
-      });
+      const result = await (mockDbWithGetWhere as typeof mockDb).processEvents([
+        mockEvent,
+      ]);
 
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
       const createdWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
@@ -183,10 +183,10 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
 
       const mockEvent = ALMDeployFactoryV1.StrategyCreated.createMockEvent({
         params: [
-          poolAddress,
+          poolAddress as `0x${string}`,
           [
-            mockToken0Data.address,
-            mockToken1Data.address,
+            mockToken0Data.address as `0x${string}`,
+            mockToken1Data.address as `0x${string}`,
             property,
             tickLower,
             tickUpper,
@@ -200,10 +200,9 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
         mockEventData,
       });
 
-      const result = await ALMDeployFactoryV1.StrategyCreated.processEvent({
-        event: mockEvent,
-        mockDb: mockDbWithGetWhere as typeof mockDb,
-      });
+      const result = await (mockDbWithGetWhere as typeof mockDb).processEvents([
+        mockEvent,
+      ]);
 
       // Verify that no wrapper was created
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
@@ -232,10 +231,10 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
 
       const mockEvent = ALMDeployFactoryV1.StrategyCreated.createMockEvent({
         params: [
-          poolAddress,
+          poolAddress as `0x${string}`,
           [
-            mockToken0Data.address,
-            mockToken1Data.address,
+            mockToken0Data.address as `0x${string}`,
+            mockToken1Data.address as `0x${string}`,
             property,
             tickLower,
             tickUpper,
@@ -249,10 +248,9 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
         mockEventData,
       });
 
-      const result = await ALMDeployFactoryV1.StrategyCreated.processEvent({
-        event: mockEvent,
-        mockDb: mockDbWithGetWhere as typeof mockDb,
-      });
+      const result = await (mockDbWithGetWhere as typeof mockDb).processEvents([
+        mockEvent,
+      ]);
 
       // Verify that no wrapper was created
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
@@ -321,10 +319,10 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
 
       const mockEvent = ALMDeployFactoryV1.StrategyCreated.createMockEvent({
         params: [
-          poolAddress,
+          poolAddress as `0x${string}`,
           [
-            mockToken0Data.address,
-            mockToken1Data.address,
+            mockToken0Data.address as `0x${string}`,
+            mockToken1Data.address as `0x${string}`,
             property,
             tickLower,
             tickUpper,
@@ -338,10 +336,9 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
         mockEventData,
       });
 
-      const result = await ALMDeployFactoryV1.StrategyCreated.processEvent({
-        event: mockEvent,
-        mockDb: mockDbWithGetWhere as typeof mockDb,
-      });
+      const result = await (mockDbWithGetWhere as typeof mockDb).processEvents([
+        mockEvent,
+      ]);
 
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
       const createdWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
@@ -413,10 +410,10 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
 
       const mockEvent = ALMDeployFactoryV1.StrategyCreated.createMockEvent({
         params: [
-          poolAddress,
+          poolAddress as `0x${string}`,
           [
-            mockToken0Data.address,
-            mockToken1Data.address,
+            mockToken0Data.address as `0x${string}`,
+            mockToken1Data.address as `0x${string}`,
             property,
             tickLower,
             tickUpper,
@@ -430,10 +427,9 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
         mockEventData,
       });
 
-      const result = await ALMDeployFactoryV1.StrategyCreated.processEvent({
-        event: mockEvent,
-        mockDb: mockDbWithGetWhere as typeof mockDb,
-      });
+      const result = await (mockDbWithGetWhere as typeof mockDb).processEvents([
+        mockEvent,
+      ]);
 
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
       const createdWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);

@@ -1,5 +1,6 @@
+import "../../eventHandlersRegistration";
+import type { LiquidityPoolAggregator, Token } from "generated";
 import { MockDb, SuperchainLeafVoter } from "generated/src/TestHelpers.gen";
-import type { LiquidityPoolAggregator, Token } from "generated/src/Types.gen";
 import * as LiquidityPoolAggregatorModule from "../../../src/Aggregators/LiquidityPoolAggregator";
 import {
   SUPERCHAIN_LEAF_VOTER_CLPOOLS_FACTORY_LIST,
@@ -10,11 +11,11 @@ import { setupCommon } from "../Pool/common";
 
 describe("SuperchainLeafVoter Events", () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.restoreAllMocks();
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   const { createMockLiquidityPoolAggregator } = setupCommon();
@@ -77,10 +78,7 @@ describe("SuperchainLeafVoter Events", () => {
 
         mockDb = mockDb.entities.LiquidityPoolAggregator.set(mockLiquidityPool);
 
-        resultDB = await SuperchainLeafVoter.GaugeCreated.processEvent({
-          event: mockEvent,
-          mockDb,
-        });
+        resultDB = await mockDb.processEvents([mockEvent]);
       });
 
       it("should update pool entity with gauge address and voting reward addresses", () => {
@@ -106,7 +104,7 @@ describe("SuperchainLeafVoter Events", () => {
       const mockDbEmpty = MockDb.createMockDb();
       const eventWithCLFactory =
         SuperchainLeafVoter.GaugeCreated.createMockEvent({
-          poolFactory: poolFactoryFromList,
+          poolFactory: poolFactoryFromList as `0x${string}`,
           votingRewardsFactory: toChecksumAddress(
             "0x2222222222222222222222222222222222222222",
           ),
@@ -132,20 +130,14 @@ describe("SuperchainLeafVoter Events", () => {
           },
         });
 
-      const resultDB = await SuperchainLeafVoter.GaugeCreated.processEvent({
-        event: eventWithCLFactory,
-        mockDb: mockDbEmpty,
-      });
+      const resultDB = await mockDbEmpty.processEvents([eventWithCLFactory]);
 
       expect(resultDB).toBeDefined();
     });
 
     describe("when pool entity does not exist", () => {
       it("should not create any entities", async () => {
-        const resultDB = await SuperchainLeafVoter.GaugeCreated.processEvent({
-          event: mockEvent,
-          mockDb,
-        });
+        const resultDB = await mockDb.processEvents([mockEvent]);
 
         expect(
           Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
@@ -199,10 +191,7 @@ describe("SuperchainLeafVoter Events", () => {
 
         const updatedDb = mockDb.entities.Token.set(token);
 
-        resultDB = await SuperchainLeafVoter.WhitelistToken.processEvent({
-          event: mockEvent,
-          mockDb: updatedDb,
-        });
+        resultDB = await updatedDb.processEvents([mockEvent]);
       });
 
       it("should update the existing token entity", () => {
@@ -223,10 +212,7 @@ describe("SuperchainLeafVoter Events", () => {
       let resultDB: ReturnType<typeof MockDb.createMockDb>;
 
       beforeEach(async () => {
-        resultDB = await SuperchainLeafVoter.WhitelistToken.processEvent({
-          event: mockEvent,
-          mockDb,
-        });
+        resultDB = await mockDb.processEvents([mockEvent]);
       });
 
       it("should create a new Token entity with whitelisted flag", () => {
@@ -281,10 +267,7 @@ describe("SuperchainLeafVoter Events", () => {
 
           const updatedDb = mockDb.entities.Token.set(token);
 
-          resultDB = await SuperchainLeafVoter.WhitelistToken.processEvent({
-            event: mockEvent,
-            mockDb: updatedDb,
-          });
+          resultDB = await updatedDb.processEvents([mockEvent]);
         });
 
         it("should update the existing token entity to de-whitelist it", () => {
@@ -305,10 +288,7 @@ describe("SuperchainLeafVoter Events", () => {
         let resultDB: ReturnType<typeof MockDb.createMockDb>;
 
         beforeEach(async () => {
-          resultDB = await SuperchainLeafVoter.WhitelistToken.processEvent({
-            event: mockEvent,
-            mockDb,
-          });
+          resultDB = await mockDb.processEvents([mockEvent]);
         });
 
         it("should create a new Token entity with isWhitelisted set to false", () => {
@@ -380,16 +360,14 @@ describe("SuperchainLeafVoter Events", () => {
         });
 
         // Mock findPoolByGaugeAddress to return the pool
-        jest
-          .spyOn(LiquidityPoolAggregatorModule, "findPoolByGaugeAddress")
-          .mockResolvedValue(mockLiquidityPool);
+        vi.spyOn(
+          LiquidityPoolAggregatorModule,
+          "findPoolByGaugeAddress",
+        ).mockResolvedValue(mockLiquidityPool);
 
         mockDb = mockDb.entities.LiquidityPoolAggregator.set(mockLiquidityPool);
 
-        resultDB = await SuperchainLeafVoter.GaugeKilled.processEvent({
-          event: mockEvent,
-          mockDb,
-        });
+        resultDB = await mockDb.processEvents([mockEvent]);
       });
 
       it("should set gaugeIsAlive to false but preserve gauge address and voting reward addresses as historical data", () => {
@@ -416,14 +394,12 @@ describe("SuperchainLeafVoter Events", () => {
     describe("when pool entity does not exist", () => {
       it("should not create any entities", async () => {
         // Mock findPoolByGaugeAddress to return null
-        jest
-          .spyOn(LiquidityPoolAggregatorModule, "findPoolByGaugeAddress")
-          .mockResolvedValue(null);
+        vi.spyOn(
+          LiquidityPoolAggregatorModule,
+          "findPoolByGaugeAddress",
+        ).mockResolvedValue(null);
 
-        const resultDB = await SuperchainLeafVoter.GaugeKilled.processEvent({
-          event: mockEvent,
-          mockDb,
-        });
+        const resultDB = await mockDb.processEvents([mockEvent]);
 
         expect(
           Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
@@ -482,16 +458,14 @@ describe("SuperchainLeafVoter Events", () => {
         });
 
         // Mock findPoolByGaugeAddress to return the pool
-        jest
-          .spyOn(LiquidityPoolAggregatorModule, "findPoolByGaugeAddress")
-          .mockResolvedValue(mockLiquidityPool);
+        vi.spyOn(
+          LiquidityPoolAggregatorModule,
+          "findPoolByGaugeAddress",
+        ).mockResolvedValue(mockLiquidityPool);
 
         mockDb = mockDb.entities.LiquidityPoolAggregator.set(mockLiquidityPool);
 
-        resultDB = await SuperchainLeafVoter.GaugeRevived.processEvent({
-          event: mockEvent,
-          mockDb,
-        });
+        resultDB = await mockDb.processEvents([mockEvent]);
       });
 
       it("should set gaugeIsAlive to true", () => {
@@ -509,14 +483,12 @@ describe("SuperchainLeafVoter Events", () => {
     describe("when pool entity does not exist", () => {
       it("should not create any entities", async () => {
         // Mock findPoolByGaugeAddress to return null
-        jest
-          .spyOn(LiquidityPoolAggregatorModule, "findPoolByGaugeAddress")
-          .mockResolvedValue(null);
+        vi.spyOn(
+          LiquidityPoolAggregatorModule,
+          "findPoolByGaugeAddress",
+        ).mockResolvedValue(null);
 
-        const resultDB = await SuperchainLeafVoter.GaugeRevived.processEvent({
-          event: mockEvent,
-          mockDb,
-        });
+        const resultDB = await mockDb.processEvents([mockEvent]);
 
         expect(
           Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),

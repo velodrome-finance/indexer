@@ -3,14 +3,14 @@ import {
   TickMath,
   maxLiquidityForAmounts,
 } from "@uniswap/v3-sdk";
-import JSBI from "jsbi";
 import type {
   LiquidityPoolAggregator,
   NonFungiblePosition,
   Token,
   handlerContext,
-} from "../generated/src/Types.gen";
-import { NonFungiblePositionId } from "../src/Constants";
+} from "generated";
+import JSBI from "jsbi";
+import { NonFungiblePositionId, toChecksumAddress } from "../src/Constants";
 import {
   calculatePositionAmountsFromLiquidity,
   calculateStakedLiquidityUSD,
@@ -784,7 +784,9 @@ describe("Helpers", () => {
           token1: mockToken1.address,
           liquidity: amount,
           mintLogIndex: 0,
-          owner: "0x2222222222222222222222222222222222222222",
+          owner: toChecksumAddress(
+            "0x2222222222222222222222222222222222222222",
+          ),
           mintTransactionHash:
             "0x0000000000000000000000000000000000000000000000000000000000000000",
           lastUpdatedTimestamp: new Date(1000000 * 1000),
@@ -802,16 +804,13 @@ describe("Helpers", () => {
 
         const mockContext = {
           NonFungiblePosition: {
-            getWhere: {
-              tokenId: {
-                eq: async (tid: bigint) => {
-                  if (tid === tokenId) {
-                    return [mockPosition];
-                  }
-                  return [];
-                },
-              },
-            },
+            getWhere: vi
+              .fn()
+              .mockImplementation((filter: { tokenId?: { _eq?: bigint } }) => {
+                const tid = filter?.tokenId?._eq;
+                if (tid === tokenId) return Promise.resolve([mockPosition]);
+                return Promise.resolve([]);
+              }),
           },
           log: {
             warn: () => {},
@@ -872,11 +871,7 @@ describe("Helpers", () => {
 
         const mockContext = {
           NonFungiblePosition: {
-            getWhere: {
-              tokenId: {
-                eq: async () => [], // No position found
-              },
-            },
+            getWhere: vi.fn().mockResolvedValue([]), // No position found
           },
           effect: async () => ({}),
           log: {
@@ -918,13 +913,7 @@ describe("Helpers", () => {
 
         const mockContext = {
           NonFungiblePosition: {
-            getWhere: {
-              tokenId: {
-                eq: async () => {
-                  throw new Error("Database error");
-                },
-              },
-            },
+            getWhere: vi.fn().mockRejectedValue(new Error("Database error")),
           },
           effect: async () => ({}),
           log: {
@@ -972,11 +961,7 @@ describe("Helpers", () => {
 
         const mockContext = {
           NonFungiblePosition: {
-            getWhere: {
-              tokenId: {
-                eq: async () => [],
-              },
-            },
+            getWhere: vi.fn().mockResolvedValue([]),
           },
           log: {
             warn: () => {},
@@ -1034,11 +1019,7 @@ describe("Helpers", () => {
 
         const mockContext = {
           NonFungiblePosition: {
-            getWhere: {
-              tokenId: {
-                eq: async () => [],
-              },
-            },
+            getWhere: vi.fn().mockResolvedValue([]),
           },
           log: {
             warn: () => {},
@@ -1081,11 +1062,7 @@ describe("Helpers", () => {
 
         const mockContext = {
           NonFungiblePosition: {
-            getWhere: {
-              tokenId: {
-                eq: async () => [],
-              },
-            },
+            getWhere: vi.fn().mockResolvedValue([]),
           },
           log: {
             warn: () => {},
@@ -1129,11 +1106,7 @@ describe("Helpers", () => {
 
         const mockContext = {
           NonFungiblePosition: {
-            getWhere: {
-              tokenId: {
-                eq: async () => [],
-              },
-            },
+            getWhere: vi.fn().mockResolvedValue([]),
           },
           log: {
             warn: () => {},
@@ -1187,7 +1160,7 @@ describe("Helpers", () => {
 
     describe("when block numbers are the same", () => {
       it("should call effect once with rounded block and return result", async () => {
-        const mockEffect = jest.fn().mockResolvedValue(100n);
+        const mockEffect = vi.fn().mockResolvedValue(100n);
         const input = {
           tokenAddress: "0x123",
           chainId: 10,
@@ -1211,7 +1184,7 @@ describe("Helpers", () => {
 
     describe("when rounded block succeeds", () => {
       it("should return result without retry", async () => {
-        const mockEffect = jest.fn().mockResolvedValue(100n);
+        const mockEffect = vi.fn().mockResolvedValue(100n);
         const roundedInput = {
           tokenAddress: "0x123",
           chainId: 10,
@@ -1238,7 +1211,7 @@ describe("Helpers", () => {
       });
 
       it("should not retry on zero value when retryOnZero is false", async () => {
-        const mockEffect = jest.fn().mockResolvedValue(0n);
+        const mockEffect = vi.fn().mockResolvedValue(0n);
         const roundedInput = {
           tokenAddress: "0x123",
           chainId: 10,
@@ -1268,7 +1241,7 @@ describe("Helpers", () => {
 
     describe("when retryOnZero is enabled", () => {
       it("should retry with original block when rounded block returns zero", async () => {
-        const mockEffect = jest
+        const mockEffect = vi
           .fn()
           .mockResolvedValueOnce(0n) // First call (rounded) returns 0
           .mockResolvedValueOnce(100n); // Second call (original) returns non-zero
@@ -1307,7 +1280,7 @@ describe("Helpers", () => {
       });
 
       it("should return zero if both rounded and original blocks return zero", async () => {
-        const mockEffect = jest
+        const mockEffect = vi
           .fn()
           .mockResolvedValueOnce(0n) // First call (rounded) returns 0
           .mockResolvedValueOnce(0n); // Second call (original) also returns 0
@@ -1344,7 +1317,7 @@ describe("Helpers", () => {
     describe("when rounded block throws an exception", () => {
       it("should retry with original block and return result", async () => {
         const error = new Error("Contract does not exist");
-        const mockEffect = jest
+        const mockEffect = vi
           .fn()
           .mockRejectedValueOnce(error) // First call (rounded) throws
           .mockResolvedValueOnce(100n); // Second call (original) succeeds
@@ -1380,7 +1353,7 @@ describe("Helpers", () => {
 
       it("should throw if both rounded and original blocks fail", async () => {
         const error = new Error("Contract does not exist");
-        const mockEffect = jest
+        const mockEffect = vi
           .fn()
           .mockRejectedValueOnce(error) // First call (rounded) throws
           .mockRejectedValueOnce(error); // Second call (original) also throws
@@ -1413,7 +1386,7 @@ describe("Helpers", () => {
 
     describe("with different input types", () => {
       it("should work with bigint return type", async () => {
-        const mockEffect = jest.fn().mockResolvedValue(1000n);
+        const mockEffect = vi.fn().mockResolvedValue(1000n);
         const roundedInput = {
           poolAddress: "0x456",
           chainId: 10,
@@ -1438,7 +1411,7 @@ describe("Helpers", () => {
       });
 
       it("should work with string return type", async () => {
-        const mockEffect = jest.fn().mockResolvedValue("success");
+        const mockEffect = vi.fn().mockResolvedValue("success");
         const roundedInput = {
           address: "0x789",
           chainId: 10,
@@ -1464,7 +1437,7 @@ describe("Helpers", () => {
 
       it("should work with object return type and custom zero value", async () => {
         const zeroValue = { value: 0n };
-        const mockEffect = jest
+        const mockEffect = vi
           .fn()
           .mockResolvedValueOnce(zeroValue) // First call returns zero
           .mockResolvedValueOnce({ value: 100n }); // Second call returns non-zero
@@ -1500,7 +1473,7 @@ describe("Helpers", () => {
 
     describe("edge cases", () => {
       it("should handle when rounded block succeeds but original block is needed for zero retry", async () => {
-        const mockEffect = jest
+        const mockEffect = vi
           .fn()
           .mockResolvedValueOnce(0n) // Rounded block returns 0
           .mockResolvedValueOnce(50n); // Original block returns non-zero
@@ -1535,7 +1508,7 @@ describe("Helpers", () => {
       it("should preserve error stack trace when retrying", async () => {
         const error = new Error("Original error");
         error.stack = "Error: Original error\n    at test.js:1:1";
-        const mockEffect = jest
+        const mockEffect = vi
           .fn()
           .mockRejectedValueOnce(error)
           .mockResolvedValueOnce(200n);

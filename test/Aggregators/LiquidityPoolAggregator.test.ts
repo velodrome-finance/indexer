@@ -1,8 +1,5 @@
-import type {
-  LiquidityPoolAggregator,
-  Token,
-  handlerContext,
-} from "../../generated/src/Types.gen";
+import type { LiquidityPoolAggregator, Token, handlerContext } from "generated";
+import type { Mock } from "vitest";
 import {
   loadPoolData,
   loadPoolDataOrRootCLPool,
@@ -14,6 +11,7 @@ import {
   LiquidityPoolAggregatorSnapshotId,
   PoolId,
   RootPoolLeafPoolId,
+  toChecksumAddress,
 } from "../../src/Constants";
 import { getCurrentFee } from "../../src/Effects/DynamicFee";
 import { setLiquidityPoolAggregatorSnapshot } from "../../src/Snapshots/LiquidityPoolAggregatorSnapshot";
@@ -28,143 +26,66 @@ describe("LiquidityPoolAggregator Functions", () => {
   let mockContext: Partial<handlerContext>;
   let liquidityPoolAggregator: Partial<LiquidityPoolAggregator>;
   let timestamp: Date;
-  let mockContract: jest.Mock;
   const blockNumber = 131536921;
   const { createMockLiquidityPoolAggregator } = setupCommon();
 
   beforeEach(() => {
     mockContext = {
       LiquidityPoolAggregatorSnapshot: {
-        set: jest.fn(),
-        get: jest.fn(),
-        getOrThrow: jest.fn(),
-        getOrCreate: jest.fn(),
-        deleteUnsafe: jest.fn(),
-        getWhere: {
-          gaugeAddress: {
-            eq: jest.fn(),
-            gt: jest.fn(),
-            lt: jest.fn(),
-          },
-          bribeVotingRewardAddress: {
-            eq: jest.fn(),
-            gt: jest.fn(),
-            lt: jest.fn(),
-          },
-          feeVotingRewardAddress: {
-            eq: jest.fn(),
-            gt: jest.fn(),
-            lt: jest.fn(),
-          },
-        },
+        set: vi.fn(),
+        get: vi.fn(),
+        getOrThrow: vi.fn(),
+        getOrCreate: vi.fn(),
+        deleteUnsafe: vi.fn(),
+        getWhere: vi.fn().mockResolvedValue([]),
       },
       LiquidityPoolAggregator: {
-        set: jest.fn(),
-        get: jest.fn(),
-        getOrThrow: jest.fn(),
-        getOrCreate: jest.fn(),
-        deleteUnsafe: jest.fn(),
-        getWhere: {
-          gaugeAddress: {
-            eq: jest.fn(),
-            gt: jest.fn(),
-            lt: jest.fn(),
-          },
-          poolLauncherPoolId: {
-            eq: jest.fn(),
-            gt: jest.fn(),
-            lt: jest.fn(),
-          },
-          bribeVotingRewardAddress: {
-            eq: jest.fn(),
-            gt: jest.fn(),
-            lt: jest.fn(),
-          },
-          feeVotingRewardAddress: {
-            eq: jest.fn(),
-            gt: jest.fn(),
-            lt: jest.fn(),
-          },
-          rootPoolMatchingHash: {
-            eq: jest.fn(),
-            gt: jest.fn(),
-            lt: jest.fn(),
-          },
-        },
+        set: vi.fn(),
+        get: vi.fn(),
+        getOrThrow: vi.fn(),
+        getOrCreate: vi.fn(),
+        deleteUnsafe: vi.fn(),
+        getWhere: vi.fn().mockResolvedValue([]),
       },
       Token: {
-        set: jest.fn(),
-        get: jest.fn(),
-        getOrThrow: jest.fn(),
-        getOrCreate: jest.fn(),
-        deleteUnsafe: jest.fn(),
-        getWhere: {
-          address: {
-            eq: jest.fn(),
-            gt: jest.fn(),
-            lt: jest.fn(),
-          },
-          chainId: {
-            eq: jest.fn(),
-            gt: jest.fn(),
-            lt: jest.fn(),
-          },
-        },
+        set: vi.fn(),
+        get: vi.fn(),
+        getOrThrow: vi.fn(),
+        getOrCreate: vi.fn(),
+        deleteUnsafe: vi.fn(),
+        getWhere: vi.fn().mockResolvedValue([]),
       },
       TokenPriceSnapshot: {
-        set: jest.fn(),
-        get: jest.fn(),
-        getOrThrow: jest.fn(),
-        getOrCreate: jest.fn(),
-        deleteUnsafe: jest.fn(),
-        getWhere: {
-          address: {
-            eq: jest.fn(),
-            gt: jest.fn(),
-            lt: jest.fn(),
-          },
-          lastUpdatedTimestamp: {
-            eq: jest.fn(),
-            gt: jest.fn(),
-            lt: jest.fn(),
-          },
-        },
+        set: vi.fn(),
+        get: vi.fn(),
+        getOrThrow: vi.fn(),
+        getOrCreate: vi.fn(),
+        deleteUnsafe: vi.fn(),
+        getWhere: vi.fn().mockResolvedValue([]),
       },
       RootPool_LeafPool: {
-        set: jest.fn(),
-        get: jest.fn(),
-        getOrThrow: jest.fn(),
-        getOrCreate: jest.fn(),
-        deleteUnsafe: jest.fn(),
-        getWhere: {
-          rootPoolAddress: {
-            eq: jest.fn(),
-            gt: jest.fn(),
-            lt: jest.fn(),
-          },
-        },
+        set: vi.fn(),
+        get: vi.fn(),
+        getOrThrow: vi.fn(),
+        getOrCreate: vi.fn(),
+        deleteUnsafe: vi.fn(),
+        getWhere: vi.fn().mockResolvedValue([]),
       },
       DynamicFeeGlobalConfig: {
-        set: jest.fn(),
-        get: jest.fn(),
-        getOrThrow: jest.fn(),
-        getOrCreate: jest.fn(),
-        deleteUnsafe: jest.fn(),
-        getWhere: {
-          chainId: {
-            eq: jest.fn().mockReturnValue([]),
-            gt: jest.fn(),
-            lt: jest.fn(),
-          },
-        },
+        set: vi.fn(),
+        get: vi.fn(),
+        getOrThrow: vi.fn(),
+        getOrCreate: vi.fn(),
+        deleteUnsafe: vi.fn(),
+        getWhere: vi.fn().mockResolvedValue([]),
       },
       log: {
-        error: jest.fn(),
-        info: jest.fn(),
-        warn: jest.fn(),
-        debug: jest.fn(),
+        error: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        debug: vi.fn(),
       },
-      effect: jest.fn().mockImplementation(async (effectFn, input) => {
+      effect: vi.fn().mockImplementation(async (effectFn, input) => {
         // Mock the effect calls for testing
         if (effectFn.name === "getDynamicFeeConfig") {
           return {
@@ -180,12 +101,16 @@ describe("LiquidityPoolAggregator Functions", () => {
       }),
     };
     liquidityPoolAggregator = createMockLiquidityPoolAggregator({
-      id: "0x1234567890123456789012345678901234567890",
+      id: toChecksumAddress("0x1234567890123456789012345678901234567890"),
       name: "Test Pool",
       token0_id: "token0",
       token1_id: "token1",
-      token0_address: "0x1111111111111111111111111111111111111111",
-      token1_address: "0x2222222222222222222222222222222222222222",
+      token0_address: toChecksumAddress(
+        "0x1111111111111111111111111111111111111111",
+      ),
+      token1_address: toChecksumAddress(
+        "0x2222222222222222222222222222222222222222",
+      ),
       isStable: false,
       isCL: false,
       reserve0: 0n,
@@ -217,7 +142,7 @@ describe("LiquidityPoolAggregator Functions", () => {
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe("updateDynamicFeePools", () => {
@@ -227,18 +152,12 @@ describe("LiquidityPoolAggregator Functions", () => {
     beforeEach(() => {
       // Add DynamicFeeGlobalConfig mock
       dynamicFeeConfigMock = {
-        getWhere: {
-          chainId: {
-            eq: jest.fn().mockReturnValue([
-              {
-                id: "0xd9eE4FBeE92970509ec795062cA759F8B52d6720",
-                chainId: 10,
-              },
-            ]),
-            gt: jest.fn(),
-            lt: jest.fn(),
+        getWhere: vi.fn().mockResolvedValue([
+          {
+            id: toChecksumAddress("0xd9eE4FBeE92970509ec795062cA759F8B52d6720"),
+            chainId: 10,
           },
-        },
+        ]),
       };
       (
         mockContext as unknown as {
@@ -261,7 +180,7 @@ describe("LiquidityPoolAggregator Functions", () => {
 
     it("should handle missing config gracefully", async () => {
       // Mock no config found
-      jest.mocked(dynamicFeeConfigMock.getWhere.chainId.eq).mockReturnValue([]);
+      vi.mocked(dynamicFeeConfigMock.getWhere).mockResolvedValue([]);
 
       await updateDynamicFeePools(
         liquidityPoolAggregator as LiquidityPoolAggregator,
@@ -271,13 +190,13 @@ describe("LiquidityPoolAggregator Functions", () => {
       );
 
       // Should log a warning but not crash
-      expect(jest.mocked(mockContext.log?.warn)).toHaveBeenCalled();
+      expect(vi.mocked(mockContext.log?.warn)).toHaveBeenCalled();
     });
 
     it("should handle effect errors gracefully", async () => {
       // Mock effect to return undefined (error case)
       expect(mockContext.effect).toBeDefined();
-      jest
+      vi
         // biome-ignore lint/style/noNonNullAssertion: effect is verified to be defined above
         .mocked(mockContext.effect!)
         .mockResolvedValue(undefined);
@@ -291,25 +210,27 @@ describe("LiquidityPoolAggregator Functions", () => {
       );
 
       // Should log a warning
-      expect(jest.mocked(mockContext.log?.warn)).toHaveBeenCalled();
+      expect(vi.mocked(mockContext.log?.warn)).toHaveBeenCalled();
 
       // Verify that the effect was called with the expected arguments
       // biome-ignore lint/style/noNonNullAssertion: effect is verified to be defined above
-      const effectMock = jest.mocked(mockContext.effect!);
+      const effectMock = vi.mocked(mockContext.effect!);
       expect(effectMock).toHaveBeenCalledWith(getCurrentFee, {
         poolAddress: liquidityPoolAggregator.poolAddress,
-        dynamicFeeModuleAddress: "0xd9eE4FBeE92970509ec795062cA759F8B52d6720",
+        dynamicFeeModuleAddress: toChecksumAddress(
+          "0xd9eE4FBeE92970509ec795062cA759F8B52d6720",
+        ),
         chainId: liquidityPoolAggregator.chainId,
         blockNumber,
       });
     });
 
     it("should skip dynamic fee updates when event chain doesn’t match pool chain", async () => {
-      const warnMock = jest.mocked(mockContext.log?.warn);
+      const warnMock = vi.mocked(mockContext.log?.warn);
       expect(mockContext.effect).toBeDefined();
       const fallbackEffect = (async () =>
         undefined) as unknown as typeof mockContext.effect;
-      const effectMock = jest.mocked(mockContext.effect ?? fallbackEffect);
+      const effectMock = vi.mocked(mockContext.effect ?? fallbackEffect);
 
       const updatedPool = await updateDynamicFeePools(
         liquidityPoolAggregator as LiquidityPoolAggregator,
@@ -336,7 +257,7 @@ describe("LiquidityPoolAggregator Functions", () => {
     });
 
     it("should create a snapshot of the liquidity pool aggregator", () => {
-      const mockSet = jest.mocked(
+      const mockSet = vi.mocked(
         mockContext.LiquidityPoolAggregatorSnapshot?.set,
       );
       expect(mockSet).toHaveBeenCalledTimes(1);
@@ -393,7 +314,7 @@ describe("LiquidityPoolAggregator Functions", () => {
     });
 
     it("should update the liquidity pool aggregator", () => {
-      const mockSet = jest.mocked(mockContext.LiquidityPoolAggregator?.set);
+      const mockSet = vi.mocked(mockContext.LiquidityPoolAggregator?.set);
       const updatedAggregator = mockSet?.mock
         .calls[0]?.[0] as LiquidityPoolAggregator;
       expect(updatedAggregator.totalVolume0).toBe(diff.incrementalTotalVolume0);
@@ -423,7 +344,7 @@ describe("LiquidityPoolAggregator Functions", () => {
       if (!mockContext.effect) {
         throw new Error("mockContext.effect is not defined");
       }
-      const effectSpy = jest.mocked(mockContext.effect);
+      const effectSpy = vi.mocked(mockContext.effect);
       effectSpy.mockClear();
 
       await updateLiquidityPoolAggregator(
@@ -435,7 +356,7 @@ describe("LiquidityPoolAggregator Functions", () => {
         blockNumber,
       );
 
-      const mockSet = jest.mocked(
+      const mockSet = vi.mocked(
         mockContext.LiquidityPoolAggregatorSnapshot?.set,
       );
       const snapshot = mockSet?.mock.calls[0]?.[0];
@@ -461,18 +382,12 @@ describe("LiquidityPoolAggregator Functions", () => {
 
       // Add DynamicFeeGlobalConfig mock for this test
       const dynamicFeeConfigMock = {
-        getWhere: {
-          chainId: {
-            eq: jest.fn().mockReturnValue([
-              {
-                id: "0xd9eE4FBeE92970509ec795062cA759F8B52d6720",
-                chainId: 10,
-              },
-            ]),
-            gt: jest.fn(),
-            lt: jest.fn(),
+        getWhere: vi.fn().mockResolvedValue([
+          {
+            id: toChecksumAddress("0xd9eE4FBeE92970509ec795062cA759F8B52d6720"),
+            chainId: 10,
           },
-        },
+        ]),
       };
       (
         mockContext as unknown as {
@@ -484,7 +399,7 @@ describe("LiquidityPoolAggregator Functions", () => {
       if (!mockContext.effect) {
         throw new Error("mockContext.effect is not defined");
       }
-      const effectSpy = jest.mocked(mockContext.effect);
+      const effectSpy = vi.mocked(mockContext.effect);
       effectSpy.mockClear();
 
       await updateLiquidityPoolAggregator(
@@ -496,7 +411,7 @@ describe("LiquidityPoolAggregator Functions", () => {
         blockNumber,
       );
 
-      const mockSet = jest.mocked(
+      const mockSet = vi.mocked(
         mockContext.LiquidityPoolAggregatorSnapshot?.set,
       );
       const snapshot = mockSet?.mock.calls[0]?.[0];
@@ -513,13 +428,17 @@ describe("LiquidityPoolAggregator Functions", () => {
   describe("loadPoolData", () => {
     let token0: Token;
     let token1: Token;
-    const poolAddress = "0x1234567890123456789012345678901234567890";
+    const poolAddress = toChecksumAddress(
+      "0x1234567890123456789012345678901234567890",
+    );
     const chainId = 10;
 
     beforeEach(() => {
       token0 = {
         id: "token0",
-        address: "0x1111111111111111111111111111111111111111",
+        address: toChecksumAddress(
+          "0x1111111111111111111111111111111111111111",
+        ),
         symbol: "TOKEN0",
         name: "Token 0",
         chainId: 10,
@@ -531,7 +450,9 @@ describe("LiquidityPoolAggregator Functions", () => {
 
       token1 = {
         id: "token1",
-        address: "0x2222222222222222222222222222222222222222",
+        address: toChecksumAddress(
+          "0x2222222222222222222222222222222222222222",
+        ),
         symbol: "TOKEN1",
         name: "Token 1",
         chainId: 10,
@@ -541,24 +462,24 @@ describe("LiquidityPoolAggregator Functions", () => {
         isWhitelisted: false,
       } as Token;
 
-      const mockLiquidityPoolGet = jest.mocked(
+      const mockLiquidityPoolGet = vi.mocked(
         mockContext.LiquidityPoolAggregator?.get,
       );
       mockLiquidityPoolGet?.mockResolvedValue(
         liquidityPoolAggregator as unknown as LiquidityPoolAggregator,
       );
 
-      const mockTokenGet = jest.mocked(mockContext.Token?.get);
+      const mockTokenGet = vi.mocked(mockContext.Token?.get);
       mockTokenGet?.mockImplementation((id: string) => {
         if (id === "token0") return Promise.resolve(token0);
         if (id === "token1") return Promise.resolve(token1);
         return Promise.resolve(undefined);
       });
 
-      const mockTokenSet = jest.mocked(mockContext.Token?.set);
+      const mockTokenSet = vi.mocked(mockContext.Token?.set);
       mockTokenSet?.mockClear();
 
-      const mockSnapshotSet = jest.mocked(mockContext.TokenPriceSnapshot?.set);
+      const mockSnapshotSet = vi.mocked(mockContext.TokenPriceSnapshot?.set);
       mockSnapshotSet?.mockClear();
     });
 
@@ -575,7 +496,7 @@ describe("LiquidityPoolAggregator Functions", () => {
       expect(result?.token1Instance).toBe(token1);
 
       // Token.set should not be called (no price refresh)
-      const mockTokenSet = jest.mocked(mockContext.Token?.set);
+      const mockTokenSet = vi.mocked(mockContext.Token?.set);
       expect(mockTokenSet).not.toHaveBeenCalled();
     });
 
@@ -587,7 +508,7 @@ describe("LiquidityPoolAggregator Functions", () => {
 
       // Mock effect to return new prices and token details
       expect(mockContext.effect).toBeDefined();
-      jest
+      vi
         // biome-ignore lint/style/noNonNullAssertion: effect is verified to be defined above
         .mocked(mockContext.effect!)
         // biome-ignore lint/suspicious/noExplicitAny: effect mock implementation needs flexible types
@@ -648,11 +569,11 @@ describe("LiquidityPoolAggregator Functions", () => {
       expect(result?.token1Instance.lastUpdatedTimestamp).toBeInstanceOf(Date);
 
       // Token.set should be called for both tokens
-      const mockTokenSet = jest.mocked(mockContext.Token?.set);
+      const mockTokenSet = vi.mocked(mockContext.Token?.set);
       expect(mockTokenSet).toHaveBeenCalledTimes(2);
 
       // TokenPriceSnapshot.set should be called for both tokens
-      const mockSnapshotSet = jest.mocked(mockContext.TokenPriceSnapshot?.set);
+      const mockSnapshotSet = vi.mocked(mockContext.TokenPriceSnapshot?.set);
       expect(mockSnapshotSet).toHaveBeenCalledTimes(2);
     });
 
@@ -662,7 +583,7 @@ describe("LiquidityPoolAggregator Functions", () => {
       token1 = { ...token1, lastUpdatedTimestamp: recentTimestamp };
 
       // Update the mock to return the updated tokens
-      const mockTokenGet = jest.mocked(mockContext.Token?.get);
+      const mockTokenGet = vi.mocked(mockContext.Token?.get);
       mockTokenGet?.mockImplementation((id: string) => {
         if (id === "token0") return Promise.resolve(token0);
         if (id === "token1") return Promise.resolve(token1);
@@ -686,7 +607,7 @@ describe("LiquidityPoolAggregator Functions", () => {
       expect(result?.token1Instance.pricePerUSDNew).toBe(token1.pricePerUSDNew);
 
       // Token.set should not be called (no refresh needed)
-      const mockTokenSet = jest.mocked(mockContext.Token?.set);
+      const mockTokenSet = vi.mocked(mockContext.Token?.set);
       expect(mockTokenSet).not.toHaveBeenCalled();
     });
 
@@ -704,7 +625,7 @@ describe("LiquidityPoolAggregator Functions", () => {
       };
 
       // Update the mock to return the updated tokens
-      const mockTokenGet = jest.mocked(mockContext.Token?.get);
+      const mockTokenGet = vi.mocked(mockContext.Token?.get);
       mockTokenGet?.mockImplementation((id: string) => {
         if (id === "token0") return Promise.resolve(token0);
         if (id === "token1") return Promise.resolve(token1);
@@ -717,7 +638,7 @@ describe("LiquidityPoolAggregator Functions", () => {
 
       // Mock effect to return new price and token details
       expect(mockContext.effect).toBeDefined();
-      jest
+      vi
         // biome-ignore lint/style/noNonNullAssertion: effect is verified to be defined above
         .mocked(mockContext.effect!)
         // biome-ignore lint/suspicious/noExplicitAny: effect mock implementation needs flexible types
@@ -778,7 +699,7 @@ describe("LiquidityPoolAggregator Functions", () => {
       expect(result?.token1Instance.pricePerUSDNew).toBe(token1.pricePerUSDNew);
 
       // Token.set should be called only for token0
-      const mockTokenSet = jest.mocked(mockContext.Token?.set);
+      const mockTokenSet = vi.mocked(mockContext.Token?.set);
       expect(mockTokenSet).toHaveBeenCalledTimes(1);
     });
 
@@ -789,7 +710,7 @@ describe("LiquidityPoolAggregator Functions", () => {
       // Mock effect to throw error for token0, return price for token1
       expect(mockContext.effect).toBeDefined();
       // biome-ignore lint/style/noNonNullAssertion: effect is verified to be defined above
-      const effectMock = jest.mocked(mockContext.effect!);
+      const effectMock = vi.mocked(mockContext.effect!);
       // biome-ignore lint/suspicious/noExplicitAny: effect mock implementation needs flexible types
       effectMock.mockImplementation(async (effectFn: any, input: any) => {
         if (effectFn.name === "getTokenPrice") {
@@ -844,12 +765,12 @@ describe("LiquidityPoolAggregator Functions", () => {
       expect(result?.token1Instance.pricePerUSDNew).toBe(3000000n);
 
       // Error should be logged
-      const mockErrorLog = jest.mocked(mockContext.log?.error);
+      const mockErrorLog = vi.mocked(mockContext.log?.error);
       expect(mockErrorLog).toHaveBeenCalled();
     });
 
     it("should return null when pool is not found", async () => {
-      const mockLiquidityPoolGet = jest.mocked(
+      const mockLiquidityPoolGet = vi.mocked(
         mockContext.LiquidityPoolAggregator?.get,
       );
       mockLiquidityPoolGet?.mockResolvedValue(undefined);
@@ -861,12 +782,12 @@ describe("LiquidityPoolAggregator Functions", () => {
       );
 
       expect(result).toBeNull();
-      const mockErrorLog = jest.mocked(mockContext.log?.error);
+      const mockErrorLog = vi.mocked(mockContext.log?.error);
       expect(mockErrorLog).toHaveBeenCalled();
     });
 
     it("should return null when tokens are not found", async () => {
-      const mockTokenGet = jest.mocked(mockContext.Token?.get);
+      const mockTokenGet = vi.mocked(mockContext.Token?.get);
       mockTokenGet?.mockResolvedValue(undefined);
 
       const result = await loadPoolData(
@@ -876,7 +797,7 @@ describe("LiquidityPoolAggregator Functions", () => {
       );
 
       expect(result).toBeNull();
-      const mockErrorLog = jest.mocked(mockContext.log?.error);
+      const mockErrorLog = vi.mocked(mockContext.log?.error);
       expect(mockErrorLog).toHaveBeenCalled();
     });
   });
@@ -884,15 +805,21 @@ describe("LiquidityPoolAggregator Functions", () => {
   describe("loadPoolDataOrRootCLPool", () => {
     let token0: Token;
     let token1: Token;
-    const rootPoolAddress = "0x1111111111111111111111111111111111111111";
-    const leafPoolAddress = "0x2222222222222222222222222222222222222222";
+    const rootPoolAddress = toChecksumAddress(
+      "0x1111111111111111111111111111111111111111",
+    );
+    const leafPoolAddress = toChecksumAddress(
+      "0x2222222222222222222222222222222222222222",
+    );
     const chainId = 10;
     const rootPoolId = PoolId(chainId, rootPoolAddress);
 
     beforeEach(() => {
       token0 = {
         id: "token0",
-        address: "0x3333333333333333333333333333333333333333",
+        address: toChecksumAddress(
+          "0x3333333333333333333333333333333333333333",
+        ),
         symbol: "TOKEN0",
         name: "Token 0",
         chainId: 10,
@@ -904,7 +831,9 @@ describe("LiquidityPoolAggregator Functions", () => {
 
       token1 = {
         id: "token1",
-        address: "0x4444444444444444444444444444444444444444",
+        address: toChecksumAddress(
+          "0x4444444444444444444444444444444444444444",
+        ),
         symbol: "TOKEN1",
         name: "Token 1",
         chainId: 10,
@@ -925,7 +854,7 @@ describe("LiquidityPoolAggregator Functions", () => {
         token1_address: token1.address,
       });
 
-      const mockLiquidityPoolGet = jest.mocked(
+      const mockLiquidityPoolGet = vi.mocked(
         mockContext.LiquidityPoolAggregator?.get,
       );
       mockLiquidityPoolGet?.mockImplementation((address: string) => {
@@ -933,7 +862,7 @@ describe("LiquidityPoolAggregator Functions", () => {
         return Promise.resolve(undefined);
       });
 
-      const mockTokenGet = jest.mocked(mockContext.Token?.get);
+      const mockTokenGet = vi.mocked(mockContext.Token?.get);
       mockTokenGet?.mockImplementation((id: string) => {
         if (id === "token0") return Promise.resolve(token0);
         if (id === "token1") return Promise.resolve(token1);
@@ -952,8 +881,8 @@ describe("LiquidityPoolAggregator Functions", () => {
       expect(result?.token1Instance).toBe(token1);
 
       // Should not query RootPool_LeafPool when pool exists directly
-      const mockRootPoolLeafPoolGetWhere = jest.mocked(
-        mockContext.RootPool_LeafPool?.getWhere?.rootPoolAddress?.eq,
+      const mockRootPoolLeafPoolGetWhere = vi.mocked(
+        mockContext.RootPool_LeafPool?.getWhere,
       );
       expect(mockRootPoolLeafPoolGetWhere).not.toHaveBeenCalled();
     });
@@ -983,7 +912,7 @@ describe("LiquidityPoolAggregator Functions", () => {
         leafPoolAddress: leafPoolAddress,
       };
 
-      const mockLiquidityPoolGet = jest.mocked(
+      const mockLiquidityPoolGet = vi.mocked(
         mockContext.LiquidityPoolAggregator?.get,
       );
       mockLiquidityPoolGet?.mockImplementation((address: string) => {
@@ -992,19 +921,19 @@ describe("LiquidityPoolAggregator Functions", () => {
         return Promise.resolve(undefined);
       });
 
-      const mockTokenGet = jest.mocked(mockContext.Token?.get);
+      const mockTokenGet = vi.mocked(mockContext.Token?.get);
       mockTokenGet?.mockImplementation((id: string) => {
         if (id === "token0") return Promise.resolve(token0);
         if (id === "token1") return Promise.resolve(token1);
         return Promise.resolve(undefined);
       });
 
-      const mockRootPoolLeafPoolGetWhere = jest.mocked(
-        mockContext.RootPool_LeafPool?.getWhere?.rootPoolAddress?.eq,
+      const mockRootPoolLeafPoolGetWhere = vi.mocked(
+        mockContext.RootPool_LeafPool?.getWhere,
       );
       mockRootPoolLeafPoolGetWhere?.mockResolvedValue([rootPoolLeafPool]);
 
-      const mockWarnLog = jest.mocked(mockContext.log?.warn);
+      const mockWarnLog = vi.mocked(mockContext.log?.warn);
 
       const result = await loadPoolDataOrRootCLPool(
         rootPoolAddress,
@@ -1022,17 +951,17 @@ describe("LiquidityPoolAggregator Functions", () => {
     });
 
     it("should return null when root pool not found and no RootPool_LeafPool exists", async () => {
-      const mockLiquidityPoolGet = jest.mocked(
+      const mockLiquidityPoolGet = vi.mocked(
         mockContext.LiquidityPoolAggregator?.get,
       );
       mockLiquidityPoolGet?.mockResolvedValue(undefined);
 
-      const mockRootPoolLeafPoolGetWhere = jest.mocked(
-        mockContext.RootPool_LeafPool?.getWhere?.rootPoolAddress?.eq,
+      const mockRootPoolLeafPoolGetWhere = vi.mocked(
+        mockContext.RootPool_LeafPool?.getWhere,
       );
       mockRootPoolLeafPoolGetWhere?.mockResolvedValue([]);
 
-      const mockErrorLog = jest.mocked(mockContext.log?.error);
+      const mockErrorLog = vi.mocked(mockContext.log?.error);
 
       const result = await loadPoolDataOrRootCLPool(
         rootPoolAddress,
@@ -1063,28 +992,30 @@ describe("LiquidityPoolAggregator Functions", () => {
           chainId,
           chainId,
           rootPoolAddress,
-          "0x5555555555555555555555555555555555555555",
+          toChecksumAddress("0x5555555555555555555555555555555555555555"),
         ),
         rootChainId: chainId,
         rootPoolAddress: rootPoolAddress,
         leafChainId: chainId,
-        leafPoolAddress: "0x5555555555555555555555555555555555555555",
+        leafPoolAddress: toChecksumAddress(
+          "0x5555555555555555555555555555555555555555",
+        ),
       };
 
-      const mockLiquidityPoolGet = jest.mocked(
+      const mockLiquidityPoolGet = vi.mocked(
         mockContext.LiquidityPoolAggregator?.get,
       );
       mockLiquidityPoolGet?.mockResolvedValue(undefined);
 
-      const mockRootPoolLeafPoolGetWhere = jest.mocked(
-        mockContext.RootPool_LeafPool?.getWhere?.rootPoolAddress?.eq,
+      const mockRootPoolLeafPoolGetWhere = vi.mocked(
+        mockContext.RootPool_LeafPool?.getWhere,
       );
       mockRootPoolLeafPoolGetWhere?.mockResolvedValue([
         rootPoolLeafPool1,
         rootPoolLeafPool2,
       ]);
 
-      const mockErrorLog = jest.mocked(mockContext.log?.error);
+      const mockErrorLog = vi.mocked(mockContext.log?.error);
 
       const result = await loadPoolDataOrRootCLPool(
         rootPoolAddress,
@@ -1120,17 +1051,17 @@ describe("LiquidityPoolAggregator Functions", () => {
         leafPoolAddress: leafPoolAddress,
       };
 
-      const mockLiquidityPoolGet = jest.mocked(
+      const mockLiquidityPoolGet = vi.mocked(
         mockContext.LiquidityPoolAggregator?.get,
       );
       mockLiquidityPoolGet?.mockResolvedValue(undefined);
 
-      const mockRootPoolLeafPoolGetWhere = jest.mocked(
-        mockContext.RootPool_LeafPool?.getWhere?.rootPoolAddress?.eq,
+      const mockRootPoolLeafPoolGetWhere = vi.mocked(
+        mockContext.RootPool_LeafPool?.getWhere,
       );
       mockRootPoolLeafPoolGetWhere?.mockResolvedValue([rootPoolLeafPool]);
 
-      const mockErrorLog = jest.mocked(mockContext.log?.error);
+      const mockErrorLog = vi.mocked(mockContext.log?.error);
 
       const result = await loadPoolDataOrRootCLPool(
         rootPoolAddress,

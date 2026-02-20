@@ -16,15 +16,12 @@ describe("FeeToTickSpacingMapping", () => {
   beforeEach(() => {
     mockContext = {
       FeeToTickSpacingMapping: {
-        set: jest.fn(),
-        get: jest.fn(),
-        getOrThrow: jest.fn(),
-        getOrCreate: jest.fn(),
-        deleteUnsafe: jest.fn(),
-        getWhere: {
-          chainId: { eq: jest.fn(), gt: jest.fn(), lt: jest.fn() },
-          tickSpacing: { eq: jest.fn(), gt: jest.fn(), lt: jest.fn() },
-        },
+        set: vi.fn(),
+        get: vi.fn(),
+        getOrThrow: vi.fn(),
+        getOrCreate: vi.fn(),
+        deleteUnsafe: vi.fn(),
+        getWhere: vi.fn().mockResolvedValue([]),
       },
     };
 
@@ -38,7 +35,7 @@ describe("FeeToTickSpacingMapping", () => {
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe("updateFeeToTickSpacingMapping", () => {
@@ -56,7 +53,7 @@ describe("FeeToTickSpacingMapping", () => {
         mockContext as handlerContext,
       );
 
-      const mockSet = jest.mocked(mockContext.FeeToTickSpacingMapping?.set);
+      const mockSet = vi.mocked(mockContext.FeeToTickSpacingMapping?.set);
       expect(mockSet).toHaveBeenCalledTimes(1);
 
       const updatedMapping = mockSet?.mock
@@ -94,7 +91,7 @@ describe("FeeToTickSpacingMapping", () => {
       ];
 
       for (const testCase of testCases) {
-        const mockSet = jest.mocked(mockContext.FeeToTickSpacingMapping?.set);
+        const mockSet = vi.mocked(mockContext.FeeToTickSpacingMapping?.set);
         mockSet?.mockClear();
 
         await updateFeeToTickSpacingMapping(
@@ -125,7 +122,7 @@ describe("FeeToTickSpacingMapping", () => {
         mockContext as handlerContext,
       );
 
-      const mockSet = jest.mocked(mockContext.FeeToTickSpacingMapping?.set);
+      const mockSet = vi.mocked(mockContext.FeeToTickSpacingMapping?.set);
       const updatedMapping = mockSet?.mock
         .calls[0]?.[0] as FeeToTickSpacingMapping;
 
@@ -152,7 +149,7 @@ describe("FeeToTickSpacingMapping", () => {
       ];
 
       for (const testCase of testCases) {
-        const mockSet = jest.mocked(mockContext.FeeToTickSpacingMapping?.set);
+        const mockSet = vi.mocked(mockContext.FeeToTickSpacingMapping?.set);
         mockSet?.mockClear();
 
         await updateFeeToTickSpacingMapping(

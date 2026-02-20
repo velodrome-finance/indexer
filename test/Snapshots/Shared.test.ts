@@ -81,7 +81,7 @@ describe("Snapshots Shared", () => {
     it("should call LiquidityPoolAggregatorSnapshot.set when type is LiquidityPoolAggregator", () => {
       const common = setupCommon();
       const context = common.createMockContext({
-        LiquidityPoolAggregatorSnapshot: { set: jest.fn() },
+        LiquidityPoolAggregatorSnapshot: { set: vi.fn() },
       });
       const pool = common.createMockLiquidityPoolAggregator();
       const timestamp = new Date(oneHourMs * 5);
@@ -103,7 +103,7 @@ describe("Snapshots Shared", () => {
     it("should call UserStatsPerPoolSnapshot.set when type is UserStatsPerPool", () => {
       const common = setupCommon();
       const context = common.createMockContext({
-        UserStatsPerPoolSnapshot: { set: jest.fn() },
+        UserStatsPerPoolSnapshot: { set: vi.fn() },
       });
       const entity = common.createMockUserStatsPerPool();
       const timestamp = new Date(oneHourMs * 4);
@@ -123,7 +123,7 @@ describe("Snapshots Shared", () => {
     it("should call NonFungiblePositionSnapshot.set when type is NonFungiblePosition", () => {
       const common = setupCommon();
       const context = common.createMockContext({
-        NonFungiblePositionSnapshot: { set: jest.fn() },
+        NonFungiblePositionSnapshot: { set: vi.fn() },
       });
       const entity = common.createMockNonFungiblePosition();
       const timestamp = new Date(oneHourMs * 6);
@@ -143,7 +143,7 @@ describe("Snapshots Shared", () => {
     it("should call ALM_LP_WrapperSnapshot.set when type is ALMLPWrapper", () => {
       const common = setupCommon();
       const context = common.createMockContext({
-        ALM_LP_WrapperSnapshot: { set: jest.fn() },
+        ALM_LP_WrapperSnapshot: { set: vi.fn() },
       });
       const entity = common.mockALMLPWrapperData;
       const timestamp = new Date(oneHourMs * 3);
@@ -158,7 +158,7 @@ describe("Snapshots Shared", () => {
     it("should call VeNFTStateSnapshot.set when type is VeNFTState", () => {
       const common = setupCommon();
       const context = common.createMockContext({
-        VeNFTStateSnapshot: { set: jest.fn() },
+        VeNFTStateSnapshot: { set: vi.fn() },
       });
       const entity = common.createMockVeNFTState();
       const timestamp = new Date(oneHourMs * 2);
@@ -173,7 +173,7 @@ describe("Snapshots Shared", () => {
     it("should call TokenPriceSnapshot.set when type is TokenPrice", () => {
       const common = setupCommon();
       const context = common.createMockContext({
-        TokenPriceSnapshot: { set: jest.fn() },
+        TokenPriceSnapshot: { set: vi.fn() },
       });
       const address = toChecksumAddress(
         "0x1111111111111111111111111111111111111111",
@@ -201,12 +201,12 @@ describe("Snapshots Shared", () => {
     it("should hit default branch and not call any set when type is unknown (exhaustiveness)", () => {
       const common = setupCommon();
       const context = common.createMockContext({
-        LiquidityPoolAggregatorSnapshot: { set: jest.fn() },
-        UserStatsPerPoolSnapshot: { set: jest.fn() },
-        NonFungiblePositionSnapshot: { set: jest.fn() },
-        ALM_LP_WrapperSnapshot: { set: jest.fn() },
-        VeNFTStateSnapshot: { set: jest.fn() },
-        TokenPriceSnapshot: { set: jest.fn() },
+        LiquidityPoolAggregatorSnapshot: { set: vi.fn() },
+        UserStatsPerPoolSnapshot: { set: vi.fn() },
+        NonFungiblePositionSnapshot: { set: vi.fn() },
+        ALM_LP_WrapperSnapshot: { set: vi.fn() },
+        VeNFTStateSnapshot: { set: vi.fn() },
+        TokenPriceSnapshot: { set: vi.fn() },
       });
       const invalidItem = {
         type: "NonExistent",

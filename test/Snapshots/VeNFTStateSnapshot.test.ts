@@ -14,7 +14,7 @@ describe("VeNFTStateSnapshot", () => {
 
   beforeEach(() => {
     common = setupCommon();
-    jest.clearAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe("createVeNFTStateSnapshot", () => {
@@ -53,7 +53,7 @@ describe("VeNFTStateSnapshot", () => {
 
   it("should compute snapshot epoch correctly (floor timestamp to interval boundary)", () => {
     const context = common.createMockContext({
-      VeNFTStateSnapshot: { set: jest.fn() },
+      VeNFTStateSnapshot: { set: vi.fn() },
     });
     const entity = common.createMockVeNFTState();
     // 25 min into the 3rd hour → epoch should be start of 3rd hour
@@ -64,56 +64,73 @@ describe("VeNFTStateSnapshot", () => {
 
     setVeNFTStateSnapshot(entity, midEpochTimestamp, context);
 
-    const setArg = (context.VeNFTStateSnapshot.set as jest.Mock).mock
-      .calls[0][0];
-    expect(setArg.timestamp.getTime()).toBe(expectedEpochMs);
-    expect(setArg.id).toBe(
-      VeNFTStateSnapshotId(entity.chainId, entity.tokenId, expectedEpochMs),
+    expect(context.VeNFTStateSnapshot.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: VeNFTStateSnapshotId(
+          entity.chainId,
+          entity.tokenId,
+          expectedEpochMs,
+        ),
+        timestamp: new Date(expectedEpochMs),
+      }),
     );
   });
 
   it("should set snapshot with epoch-aligned timestamp and correct id", () => {
     const context = common.createMockContext({
-      VeNFTStateSnapshot: { set: jest.fn() },
+      VeNFTStateSnapshot: { set: vi.fn() },
     });
     const entity = common.createMockVeNFTState({
       totalValueLocked: 1000n,
       locktime: 1n,
     });
     const timestamp = new Date(baseTimestamp.getTime() + 10 * 60 * 1000);
+    const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 2;
 
     setVeNFTStateSnapshot(entity, timestamp, context);
 
     expect(context.VeNFTStateSnapshot.set).toHaveBeenCalledTimes(1);
-    const setArg = (context.VeNFTStateSnapshot.set as jest.Mock).mock
-      .calls[0][0];
-    const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 2;
-    expect(setArg.id).toBe(
-      VeNFTStateSnapshotId(entity.chainId, entity.tokenId, expectedEpochMs),
+    expect(context.VeNFTStateSnapshot.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: VeNFTStateSnapshotId(
+          entity.chainId,
+          entity.tokenId,
+          expectedEpochMs,
+        ),
+        timestamp: new Date(expectedEpochMs),
+      }),
     );
-    expect(setArg.timestamp.getTime()).toBe(expectedEpochMs);
   });
 
   it("should spread entity fields into the snapshot", () => {
     const context = common.createMockContext({
-      VeNFTStateSnapshot: { set: jest.fn() },
+      VeNFTStateSnapshot: { set: vi.fn() },
     });
     const entity = common.createMockVeNFTState({
       totalValueLocked: 1000n,
       locktime: 1n,
       isAlive: false,
     });
+    const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 2;
 
     setVeNFTStateSnapshot(entity, baseTimestamp, context);
 
-    const setArg = (context.VeNFTStateSnapshot.set as jest.Mock).mock
-      .calls[0][0];
-    expect(setArg.chainId).toBe(entity.chainId);
-    expect(setArg.tokenId).toBe(entity.tokenId);
-    expect(setArg.owner).toBe(entity.owner);
-    expect(setArg.totalValueLocked).toBe(entity.totalValueLocked);
-    expect(setArg.locktime).toBe(entity.locktime);
-    expect(setArg.lastUpdatedTimestamp).toEqual(entity.lastUpdatedTimestamp);
-    expect(setArg.isAlive).toBe(entity.isAlive);
+    expect(context.VeNFTStateSnapshot.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: VeNFTStateSnapshotId(
+          entity.chainId,
+          entity.tokenId,
+          expectedEpochMs,
+        ),
+        timestamp: new Date(expectedEpochMs),
+        chainId: entity.chainId,
+        tokenId: entity.tokenId,
+        owner: entity.owner,
+        totalValueLocked: entity.totalValueLocked,
+        locktime: entity.locktime,
+        lastUpdatedTimestamp: entity.lastUpdatedTimestamp,
+        isAlive: entity.isAlive,
+      }),
+    );
   });
 });

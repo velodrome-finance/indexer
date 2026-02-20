@@ -1,19 +1,21 @@
+import "../../eventHandlersRegistration";
+import type { LiquidityPoolAggregator } from "generated";
 import {
   MockDb,
   NewCLGaugeFactory,
 } from "../../../generated/src/TestHelpers.gen";
-import type {
-  CLGaugeConfig,
-  LiquidityPoolAggregator,
-} from "../../../generated/src/Types.gen";
 import { toChecksumAddress } from "../../../src/Constants";
 import { setupCommon } from "../Pool/common";
 
 describe("NewCLGaugeFactory Event Handlers", () => {
   const { mockLiquidityPoolData } = setupCommon();
   const chainId = 10;
-  const mockGaugeFactoryAddress = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-  const mockGaugeAddress = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+  const mockGaugeFactoryAddress = toChecksumAddress(
+    "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  );
+  const mockGaugeAddress = toChecksumAddress(
+    "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  );
   const mockDefaultCap = 1000000000000000000000n; // 1000 tokens in 18 decimals
   const mockEmissionCap = 500000000000000000000n; // 500 tokens in 18 decimals
 
@@ -39,10 +41,7 @@ describe("NewCLGaugeFactory Event Handlers", () => {
         },
       });
 
-      const result = await NewCLGaugeFactory.SetDefaultCap.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       const createdConfig = result.entities.CLGaugeConfig.get(
         mockGaugeFactoryAddress,
@@ -75,10 +74,7 @@ describe("NewCLGaugeFactory Event Handlers", () => {
         },
       });
 
-      const result1 = await NewCLGaugeFactory.SetDefaultCap.processEvent({
-        event: mockEvent1,
-        mockDb,
-      });
+      const result1 = await mockDb.processEvents([mockEvent1]);
 
       // Update mockDb with the result entities
       mockDb = MockDb.createMockDb();
@@ -105,10 +101,7 @@ describe("NewCLGaugeFactory Event Handlers", () => {
         },
       });
 
-      const result2 = await NewCLGaugeFactory.SetDefaultCap.processEvent({
-        event: mockEvent2,
-        mockDb,
-      });
+      const result2 = await mockDb.processEvents([mockEvent2]);
 
       const updatedConfig = result2.entities.CLGaugeConfig.get(
         mockGaugeFactoryAddress,
@@ -143,10 +136,7 @@ describe("NewCLGaugeFactory Event Handlers", () => {
         },
       });
 
-      const result1 = await NewCLGaugeFactory.SetDefaultCap.processEvent({
-        event: mockEvent1,
-        mockDb,
-      });
+      const result1 = await mockDb.processEvents([mockEvent1]);
 
       // Update mockDb with the result entities
       mockDb = MockDb.createMockDb();
@@ -171,10 +161,7 @@ describe("NewCLGaugeFactory Event Handlers", () => {
         },
       });
 
-      const result2 = await NewCLGaugeFactory.SetDefaultCap.processEvent({
-        event: mockEvent2,
-        mockDb,
-      });
+      const result2 = await mockDb.processEvents([mockEvent2]);
 
       const config1 = result2.entities.CLGaugeConfig.get(
         mockGaugeFactoryAddress,
@@ -249,10 +236,7 @@ describe("NewCLGaugeFactory Event Handlers", () => {
         },
       });
 
-      const result = await NewCLGaugeFactory.SetEmissionCap.processEvent({
-        event: mockEvent,
-        mockDb: mockDbWithGetWhere,
-      });
+      const result = await mockDbWithGetWhere.processEvents([mockEvent]);
 
       const updatedPool = result.entities.LiquidityPoolAggregator.get(
         mockLiquidityPoolData.id,
@@ -288,10 +272,7 @@ describe("NewCLGaugeFactory Event Handlers", () => {
         },
       });
 
-      const result1 = await NewCLGaugeFactory.SetEmissionCap.processEvent({
-        event: mockEvent1,
-        mockDb,
-      });
+      const result1 = await mockDb.processEvents([mockEvent1]);
 
       // Update mockDb with the result entities
       mockDb = MockDb.createMockDb();
@@ -319,10 +300,7 @@ describe("NewCLGaugeFactory Event Handlers", () => {
         },
       });
 
-      const result2 = await NewCLGaugeFactory.SetEmissionCap.processEvent({
-        event: mockEvent2,
-        mockDb,
-      });
+      const result2 = await mockDb.processEvents([mockEvent2]);
 
       const updatedPool = result2.entities.LiquidityPoolAggregator.get(
         mockLiquidityPoolData.id,
@@ -338,8 +316,9 @@ describe("NewCLGaugeFactory Event Handlers", () => {
     });
 
     it("should handle case where pool entity is not found", async () => {
-      const nonExistentGaugeAddress =
-        "0xdddddddddddddddddddddddddddddddddddddddd";
+      const nonExistentGaugeAddress = toChecksumAddress(
+        "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      );
 
       // Set up mockDb with getWhere that returns empty array for non-existent gauge
       const mockDbWithEmptyGetWhere = {
@@ -374,10 +353,7 @@ describe("NewCLGaugeFactory Event Handlers", () => {
         },
       });
 
-      const result = await NewCLGaugeFactory.SetEmissionCap.processEvent({
-        event: mockEvent,
-        mockDb: mockDbWithEmptyGetWhere,
-      });
+      const result = await mockDbWithEmptyGetWhere.processEvents([mockEvent]);
 
       // Pool should not be updated
       const pool = result.entities.LiquidityPoolAggregator.get(
@@ -407,10 +383,7 @@ describe("NewCLGaugeFactory Event Handlers", () => {
         },
       });
 
-      const result = await NewCLGaugeFactory.SetEmissionCap.processEvent({
-        event: mockEvent,
-        mockDb: mockDbWithGetWhere,
-      });
+      const result = await mockDbWithGetWhere.processEvents([mockEvent]);
 
       const updatedPool = result.entities.LiquidityPoolAggregator.get(
         mockLiquidityPoolData.id,

@@ -61,8 +61,9 @@ export async function findSourceSwapWithOUSDT(
   sourceChainToken: string;
   sourceChainTokenAmountSwapped: bigint;
 } | null> {
-  const sourceChainSwaps =
-    await context.OUSDTSwaps.getWhere.transactionHash.eq(transactionHash);
+  const sourceChainSwaps = await context.OUSDTSwaps.getWhere({
+    transactionHash: { _eq: transactionHash },
+  });
 
   // Since we only store swaps involving oUSDT, take the first swap
   // (all stored swaps should involve oUSDT, but verify for safety)
@@ -116,7 +117,7 @@ export async function loadDestinationSwaps(
 ): Promise<Map<string, OUSDTSwaps[]>> {
   const transactionHashesArray = Array.from(destinationTransactionHashes);
   const swapPromises = transactionHashesArray.map((txHash) =>
-    context.OUSDTSwaps.getWhere.transactionHash.eq(txHash),
+    context.OUSDTSwaps.getWhere({ transactionHash: { _eq: txHash } }),
   );
   const swapResults = await Promise.all(swapPromises);
 
@@ -375,8 +376,9 @@ export async function attemptSuperSwapCreationFromProcessId(
 ): Promise<void> {
   try {
     // Find matching DispatchId_event by messageId
-    const dispatchIdEvents =
-      await context.DispatchId_event.getWhere.messageId.eq(messageId);
+    const dispatchIdEvents = await context.DispatchId_event.getWhere({
+      messageId: { _eq: messageId },
+    });
 
     if (dispatchIdEvents.length === 0) {
       // No matching DispatchId found - this is expected if source chain hasn't synced yet
@@ -394,12 +396,12 @@ export async function attemptSuperSwapCreationFromProcessId(
     // Load OUSDTBridgedTransaction and DispatchId_event entities in parallel
     const [oUSDTBridgedTransactions, sourceChainMessageIdEntities] =
       await Promise.all([
-        context.OUSDTBridgedTransaction.getWhere.transactionHash.eq(
-          sourceTransactionHash,
-        ),
-        context.DispatchId_event.getWhere.transactionHash.eq(
-          sourceTransactionHash,
-        ),
+        context.OUSDTBridgedTransaction.getWhere({
+          transactionHash: { _eq: sourceTransactionHash },
+        }),
+        context.DispatchId_event.getWhere({
+          transactionHash: { _eq: sourceTransactionHash },
+        }),
       ]);
 
     if (oUSDTBridgedTransactions.length === 0) {
@@ -420,7 +422,9 @@ export async function attemptSuperSwapCreationFromProcessId(
 
     // Load all ProcessId_event entities for all messageIds from the DispatchId events
     const processIdPromises = sourceChainMessageIdEntities.map((entity) =>
-      context.ProcessId_event.getWhere.messageId.eq(entity.messageId),
+      context.ProcessId_event.getWhere({
+        messageId: { _eq: entity.messageId },
+      }),
     );
     const processIdResults = await Promise.all(processIdPromises);
 

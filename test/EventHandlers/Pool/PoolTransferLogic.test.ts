@@ -4,7 +4,14 @@ import type {
   UserStatsPerPool,
   handlerContext,
 } from "generated";
-import { PoolTransferInTxId, ZERO_ADDRESS } from "../../../src/Constants";
+import type { MockInstance } from "vitest";
+import * as LiquidityPoolAggregatorModule from "../../../src/Aggregators/LiquidityPoolAggregator";
+import * as UserStatsPerPoolModule from "../../../src/Aggregators/UserStatsPerPool";
+import {
+  PoolTransferInTxId,
+  ZERO_ADDRESS,
+  toChecksumAddress,
+} from "../../../src/Constants";
 import {
   processPoolTransfer,
   storeTransferForMatching,
@@ -20,8 +27,12 @@ describe("PoolTransferLogic", () => {
   // Shared constants
   const CHAIN_ID = 10;
   const POOL_ADDRESS = mockLiquidityPoolData.poolAddress;
-  const USER_ADDRESS = "0x1111111111111111111111111111111111111111";
-  const RECIPIENT_ADDRESS = "0x2222222222222222222222222222222222222222";
+  const USER_ADDRESS = toChecksumAddress(
+    "0x1111111111111111111111111111111111111111",
+  );
+  const RECIPIENT_ADDRESS = toChecksumAddress(
+    "0x2222222222222222222222222222222222222222",
+  );
   const TX_HASH =
     "0x1234567890123456789012345678901234567890123456789012345678901234";
   const LP_VALUE = 500n * 10n ** 18n;
@@ -33,11 +44,11 @@ describe("PoolTransferLogic", () => {
   // Shared mock context
   let mockContext: handlerContext;
   let mockLiquidityPoolAggregator: LiquidityPoolAggregator;
-  let updateLiquidityPoolAggregatorSpy: jest.SpyInstance;
-  let updateUserStatsPerPoolSpy: jest.SpyInstance;
-  let loadOrCreateUserDataSpy: jest.SpyInstance;
+  let updateLiquidityPoolAggregatorSpy: MockInstance;
+  let updateUserStatsPerPoolSpy: MockInstance;
+  let loadOrCreateUserDataSpy: MockInstance;
 
-  beforeEach(async () => {
+  beforeEach(() => {
     mockLiquidityPoolAggregator = {
       ...mockLiquidityPoolData,
       totalLPTokenSupply: 1000n * 10n ** 18n,
@@ -45,53 +56,44 @@ describe("PoolTransferLogic", () => {
 
     mockContext = {
       log: {
-        error: jest.fn(),
-        warn: jest.fn(),
-        info: jest.fn(),
+        error: vi.fn(),
+        warn: vi.fn(),
+        info: vi.fn(),
       },
       LiquidityPoolAggregator: {
-        get: jest.fn(),
-        set: jest.fn(),
+        get: vi.fn(),
+        set: vi.fn(),
       },
       UserStatsPerPool: {
-        get: jest.fn(),
-        set: jest.fn(),
+        get: vi.fn(),
+        set: vi.fn(),
       },
-      UserStatsPerPoolSnapshot: { set: jest.fn() },
+      UserStatsPerPoolSnapshot: { set: vi.fn() },
       PoolTransferInTx: {
-        set: jest.fn(),
+        set: vi.fn(),
       },
     } as unknown as handlerContext;
 
     // Set up spies with mocks
-    const liquidityPoolAggregator = await import(
-      "../../../src/Aggregators/LiquidityPoolAggregator"
-    );
-    const userStatsPerPool = await import(
-      "../../../src/Aggregators/UserStatsPerPool"
-    );
-
-    updateLiquidityPoolAggregatorSpy = jest
-      .spyOn(liquidityPoolAggregator, "updateLiquidityPoolAggregator")
+    updateLiquidityPoolAggregatorSpy = vi
+      .spyOn(LiquidityPoolAggregatorModule, "updateLiquidityPoolAggregator")
       .mockResolvedValue(undefined);
 
-    loadOrCreateUserDataSpy = jest
-      .spyOn(userStatsPerPool, "loadOrCreateUserData")
+    loadOrCreateUserDataSpy = vi
+      .spyOn(UserStatsPerPoolModule, "loadOrCreateUserData")
       .mockResolvedValue({
         ...commonData.mockUserStatsPerPoolData,
       } as UserStatsPerPool);
 
-    updateUserStatsPerPoolSpy = jest
-      .spyOn(userStatsPerPool, "updateUserStatsPerPool")
+    updateUserStatsPerPoolSpy = vi
+      .spyOn(UserStatsPerPoolModule, "updateUserStatsPerPool")
       .mockImplementation(async () => {
         return commonData.mockUserStatsPerPoolData;
       });
   });
 
   afterEach(() => {
-    updateLiquidityPoolAggregatorSpy.mockClear();
-    updateUserStatsPerPoolSpy.mockClear();
-    loadOrCreateUserDataSpy.mockClear();
+    vi.restoreAllMocks();
   });
 
   // Helper to create mock Transfer event
@@ -108,11 +110,11 @@ describe("PoolTransferLogic", () => {
       hash: "0xblock",
     },
     logIndex,
-    srcAddress: POOL_ADDRESS,
+    srcAddress: POOL_ADDRESS as `0x${string}`,
     transaction: { hash: TX_HASH },
     params: {
-      from,
-      to,
+      from: from as `0x${string}`,
+      to: to as `0x${string}`,
       value,
     },
   });

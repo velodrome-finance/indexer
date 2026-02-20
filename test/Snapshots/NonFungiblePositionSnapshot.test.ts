@@ -14,7 +14,7 @@ describe("NonFungiblePositionSnapshot", () => {
 
   beforeEach(() => {
     common = setupCommon();
-    jest.clearAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe("createNonFungiblePositionSnapshot", () => {
@@ -52,40 +52,49 @@ describe("NonFungiblePositionSnapshot", () => {
 
   it("should set snapshot with epoch-aligned timestamp and correct id", () => {
     const context = common.createMockContext({
-      NonFungiblePositionSnapshot: { set: jest.fn() },
+      NonFungiblePositionSnapshot: { set: vi.fn() },
     });
     const entity = common.createMockNonFungiblePosition();
     const timestamp = new Date(baseTimestamp.getTime() + 20 * 60 * 1000);
+    const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 6;
 
     setNonFungiblePositionSnapshot(entity, timestamp, context);
 
     expect(context.NonFungiblePositionSnapshot.set).toHaveBeenCalledTimes(1);
-    const setArg = (context.NonFungiblePositionSnapshot.set as jest.Mock).mock
-      .calls[0][0];
-    const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 6;
-    expect(setArg.id).toBe(
-      NonFungiblePositionSnapshotId(
-        entity.chainId,
-        entity.tokenId,
-        expectedEpochMs,
-      ),
+    expect(context.NonFungiblePositionSnapshot.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: NonFungiblePositionSnapshotId(
+          entity.chainId,
+          entity.tokenId,
+          expectedEpochMs,
+        ),
+        timestamp: new Date(expectedEpochMs),
+      }),
     );
-    expect(setArg.timestamp.getTime()).toBe(expectedEpochMs);
   });
 
   it("should spread entity fields into the snapshot", () => {
     const context = common.createMockContext({
-      NonFungiblePositionSnapshot: { set: jest.fn() },
+      NonFungiblePositionSnapshot: { set: vi.fn() },
     });
     const entity = common.createMockNonFungiblePosition({ liquidity: 5000n });
+    const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 6;
 
     setNonFungiblePositionSnapshot(entity, baseTimestamp, context);
 
-    const setArg = (context.NonFungiblePositionSnapshot.set as jest.Mock).mock
-      .calls[0][0];
-    expect(setArg.chainId).toBe(entity.chainId);
-    expect(setArg.tokenId).toBe(entity.tokenId);
-    expect(setArg.pool).toBe(entity.pool);
-    expect(setArg.liquidity).toBe(5000n);
+    expect(context.NonFungiblePositionSnapshot.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: NonFungiblePositionSnapshotId(
+          entity.chainId,
+          entity.tokenId,
+          expectedEpochMs,
+        ),
+        timestamp: new Date(expectedEpochMs),
+        chainId: entity.chainId,
+        tokenId: entity.tokenId,
+        pool: entity.pool,
+        liquidity: 5000n,
+      }),
+    );
   });
 });

@@ -4,7 +4,7 @@ import type {
   OUSDTSwaps,
   ProcessId_event,
   SuperSwap,
-} from "../../../generated/src/Types.gen";
+} from "generated";
 import {
   MailboxMessageId,
   OUSDTSwapsId,
@@ -140,17 +140,19 @@ describe("SuperSwapLogic", () => {
 
     return {
       ProcessId_event: {
-        getWhere: {
-          messageId: {
-            eq: async (msgId: string) => processIdMap.get(msgId) || [],
-          },
+        // biome-ignore lint/suspicious/noExplicitAny: test mock context needs flexibility
+        getWhere: async (params: any) => {
+          if (params.messageId?._eq)
+            return processIdMap.get(params.messageId._eq) || [];
+          return [];
         },
       },
       OUSDTSwaps: {
-        getWhere: {
-          transactionHash: {
-            eq: async (txHash: string) => swapMap.get(txHash) || [],
-          },
+        // biome-ignore lint/suspicious/noExplicitAny: test mock context needs flexibility
+        getWhere: async (params: any) => {
+          if (params.transactionHash?._eq)
+            return swapMap.get(params.transactionHash._eq) || [];
+          return [];
         },
       },
       SuperSwap: {
@@ -1388,36 +1390,37 @@ describe("SuperSwapLogic", () => {
 
       return {
         DispatchId_event: {
-          getWhere: {
-            messageId: {
-              eq: async (msgId: string) =>
-                dispatchIdByMessageId.get(msgId) || [],
-            },
-            transactionHash: {
-              eq: async (txHash: string) =>
-                dispatchIdByTxHash.get(txHash) || [],
-            },
+          // biome-ignore lint/suspicious/noExplicitAny: test mock context needs flexibility
+          getWhere: async (params: any) => {
+            if (params.messageId?._eq)
+              return dispatchIdByMessageId.get(params.messageId._eq) || [];
+            if (params.transactionHash?._eq)
+              return dispatchIdByTxHash.get(params.transactionHash._eq) || [];
+            return [];
           },
         },
         ProcessId_event: {
-          getWhere: {
-            messageId: {
-              eq: async (msgId: string) => processIdMap.get(msgId) || [],
-            },
+          // biome-ignore lint/suspicious/noExplicitAny: test mock context needs flexibility
+          getWhere: async (params: any) => {
+            if (params.messageId?._eq)
+              return processIdMap.get(params.messageId._eq) || [];
+            return [];
           },
         },
         OUSDTBridgedTransaction: {
-          getWhere: {
-            transactionHash: {
-              eq: async (txHash: string) => bridgedTxMap.get(txHash) || [],
-            },
+          // biome-ignore lint/suspicious/noExplicitAny: test mock context needs flexibility
+          getWhere: async (params: any) => {
+            if (params.transactionHash?._eq)
+              return bridgedTxMap.get(params.transactionHash._eq) || [];
+            return [];
           },
         },
         OUSDTSwaps: {
-          getWhere: {
-            transactionHash: {
-              eq: async (txHash: string) => swapMap.get(txHash) || [],
-            },
+          // biome-ignore lint/suspicious/noExplicitAny: test mock context needs flexibility
+          getWhere: async (params: any) => {
+            if (params.transactionHash?._eq)
+              return swapMap.get(params.transactionHash._eq) || [];
+            return [];
           },
         },
         SuperSwap: {
@@ -1573,9 +1576,14 @@ describe("SuperSwapLogic", () => {
         [],
       );
 
-      // Mock the transactionHash query to return empty (simulating no other DispatchId events for this transaction)
-      const originalEq = context.DispatchId_event.getWhere.transactionHash.eq;
-      context.DispatchId_event.getWhere.transactionHash.eq = async () => [];
+      // Mock the getWhere to return dispatch event for messageId but empty for transactionHash query
+      const originalGetWhere = context.DispatchId_event.getWhere;
+      // biome-ignore lint/suspicious/noExplicitAny: test mock override needs flexibility
+      context.DispatchId_event.getWhere = async (params: any) => {
+        if (params.messageId?._eq) return originalGetWhere(params);
+        if (params.transactionHash?._eq) return [];
+        return [];
+      };
 
       await attemptSuperSwapCreationFromProcessId(
         messageId1,
@@ -1594,7 +1602,7 @@ describe("SuperSwapLogic", () => {
       expect(dispatchWarning).toBeDefined();
 
       // Restore original
-      context.DispatchId_event.getWhere.transactionHash.eq = originalEq;
+      context.DispatchId_event.getWhere = originalGetWhere;
     });
 
     it("should handle errors gracefully and log warning", async () => {
@@ -1618,9 +1626,9 @@ describe("SuperSwapLogic", () => {
         [],
       );
 
-      // Override OUSDTSwaps query to throw an error
-      const originalEq = context.OUSDTSwaps.getWhere.transactionHash.eq;
-      context.OUSDTSwaps.getWhere.transactionHash.eq = async () => {
+      // Override OUSDTSwaps getWhere to throw an error
+      const originalGetWhere = context.OUSDTSwaps.getWhere;
+      context.OUSDTSwaps.getWhere = async () => {
         throw new Error("Database connection failed");
       };
 
@@ -1641,7 +1649,7 @@ describe("SuperSwapLogic", () => {
       ).toBe(true);
 
       // Restore original
-      context.OUSDTSwaps.getWhere.transactionHash.eq = originalEq;
+      context.OUSDTSwaps.getWhere = originalGetWhere;
     });
   });
 });

@@ -3,6 +3,7 @@ import type {
   LiquidityPoolAggregator,
   Token,
 } from "generated";
+import { toChecksumAddress } from "../../../src/Constants";
 import { processCLPoolCollectFees } from "../../../src/EventHandlers/CLPool/CLPoolCollectFeesLogic";
 import { setupCommon } from "../Pool/common";
 
@@ -11,8 +12,10 @@ describe("CLPoolCollectFeesLogic", () => {
     setupCommon();
   const mockEvent: CLPool_CollectFees_event = {
     params: {
-      owner: "0x1111111111111111111111111111111111111111",
-      recipient: "0x2222222222222222222222222222222222222222",
+      owner: toChecksumAddress("0x1111111111111111111111111111111111111111"),
+      recipient: toChecksumAddress(
+        "0x2222222222222222222222222222222222222222",
+      ),
       amount0: 1000000000000000000n, // 1 token
       amount1: 2000000000000000000n, // 2 tokens
     },
@@ -23,7 +26,7 @@ describe("CLPoolCollectFeesLogic", () => {
     },
     chainId: 10,
     logIndex: 1,
-    srcAddress: "0x3333333333333333333333333333333333333333",
+    srcAddress: toChecksumAddress("0x3333333333333333333333333333333333333333"),
     transaction: {
       hash: "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
     },
@@ -31,7 +34,7 @@ describe("CLPoolCollectFeesLogic", () => {
 
   const mockLiquidityPoolAggregator: LiquidityPoolAggregator = {
     ...mockLiquidityPoolData,
-    id: "0x1234567890123456789012345678901234567890",
+    id: toChecksumAddress("0x1234567890123456789012345678901234567890"),
     token0_id: mockToken0Data.id,
     token1_id: mockToken1Data.id,
     token0_address: mockToken0Data.address,

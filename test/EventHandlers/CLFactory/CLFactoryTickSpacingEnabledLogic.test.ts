@@ -1,4 +1,5 @@
 import type { CLFactory_TickSpacingEnabled_event } from "generated";
+import { toChecksumAddress } from "../../../src/Constants";
 import { processCLFactoryTickSpacingEnabled } from "../../../src/EventHandlers/CLFactory/CLFactoryTickSpacingEnabledLogic";
 
 describe("CLFactoryTickSpacingEnabledLogic", () => {
@@ -8,7 +9,9 @@ describe("CLFactoryTickSpacingEnabledLogic", () => {
   const FEE = 500n;
   const BLOCK_TIMESTAMP = 1000000;
   const BLOCK_NUMBER = 123456;
-  const SRC_ADDRESS = "0x1111111111111111111111111111111111111111";
+  const SRC_ADDRESS = toChecksumAddress(
+    "0x1111111111111111111111111111111111111111",
+  );
   const TX_HASH =
     "0x5555555555555555555555555555555555555555555555555555555555555555";
   const BLOCK_HASH =

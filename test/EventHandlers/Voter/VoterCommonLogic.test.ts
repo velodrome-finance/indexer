@@ -1,4 +1,5 @@
 import type { Token, VeNFTState, handlerContext } from "generated";
+import { toChecksumAddress } from "../../../src/Constants";
 import {
   getIsAlive,
   getTokenDetails,
@@ -69,7 +70,7 @@ describe("computeVoterDistributeValues", () => {
   it("returns snapshot votes deposited and cumulative emissions with USD conversions", async () => {
     const token: Token = {
       id: "token-1",
-      address: "0x0000000000000000000000000000000000000001",
+      address: toChecksumAddress("0x0000000000000000000000000000000000000001"),
       chainId: 1,
       decimals: 18n,
       pricePerUSDNew: 2_000000000000000000n, // $2 in 1e18
@@ -94,8 +95,12 @@ describe("computeVoterDistributeValues", () => {
 
     const result = await computeVoterDistributeValues({
       rewardToken: token,
-      gaugeAddress: "0x0000000000000000000000000000000000000abc",
-      voterAddress: "0x0000000000000000000000000000000000000def",
+      gaugeAddress: toChecksumAddress(
+        "0x0000000000000000000000000000000000000abc",
+      ),
+      voterAddress: toChecksumAddress(
+        "0x0000000000000000000000000000000000000def",
+      ),
       amountEmittedRaw: 3000000000000000000n, // 3 tokens emitted
       blockNumber: 12345,
       chainId: 1,
@@ -123,7 +128,7 @@ describe("computeVoterDistributeValues", () => {
   it("logs a warning when token price is zero, but still computes values", async () => {
     const token: Token = {
       id: "token-0",
-      address: "0x0000000000000000000000000000000000000002",
+      address: toChecksumAddress("0x0000000000000000000000000000000000000002"),
       chainId: 1,
       decimals: 18n,
       pricePerUSDNew: 0n,
@@ -142,8 +147,12 @@ describe("computeVoterDistributeValues", () => {
 
     const result = await computeVoterDistributeValues({
       rewardToken: token,
-      gaugeAddress: "0x0",
-      voterAddress: "0x1",
+      gaugeAddress: toChecksumAddress(
+        "0x0000000000000000000000000000000000000000",
+      ),
+      voterAddress: toChecksumAddress(
+        "0x0000000000000000000000000000000000000001",
+      ),
       amountEmittedRaw: 1n,
       blockNumber: 1,
       chainId: 1,
@@ -158,7 +167,7 @@ describe("computeVoterDistributeValues", () => {
   it("handles undefined effect returns by using defaults and logging errors", async () => {
     const token: Token = {
       id: "token-undefined",
-      address: "0x0000000000000000000000000000000000000003",
+      address: toChecksumAddress("0x0000000000000000000000000000000000000003"),
       chainId: 1,
       decimals: 18n,
       pricePerUSDNew: 1_000000000000000000n, // $1 in 1e18
@@ -179,8 +188,12 @@ describe("computeVoterDistributeValues", () => {
 
     const result = await computeVoterDistributeValues({
       rewardToken: token,
-      gaugeAddress: "0x0000000000000000000000000000000000000abc",
-      voterAddress: "0x0000000000000000000000000000000000000def",
+      gaugeAddress: toChecksumAddress(
+        "0x0000000000000000000000000000000000000abc",
+      ),
+      voterAddress: toChecksumAddress(
+        "0x0000000000000000000000000000000000000def",
+      ),
       amountEmittedRaw: 1000000000000000000n, // 1 token emitted
       blockNumber: 12345,
       chainId: 1,
@@ -212,14 +225,17 @@ describe("buildLpDiffFromDistribute", () => {
       normalizedVotesDepositedAmountUsd: 20n,
     };
     const ts = 1_700_000_000_000;
-    const diff = buildLpDiffFromDistribute(res, "0xgauge", ts);
+    const gaugeAddress = toChecksumAddress(
+      "0x0000000000000000000000000000000000000abc",
+    );
+    const diff = buildLpDiffFromDistribute(res, gaugeAddress, ts);
     expect(diff.totalVotesDeposited).toBe(10n);
     expect(diff.totalVotesDepositedUSD).toBe(20n);
     expect(diff.incrementalTotalEmissions).toBe(3n);
     expect(diff.incrementalTotalEmissionsUSD).toBe(6n);
     expect(diff.gaugeIsAlive).toBe(true);
     expect(diff.lastUpdatedTimestamp).toEqual(new Date(ts));
-    expect(diff.gaugeAddress).toBe("0xgauge");
+    expect(diff.gaugeAddress).toBe(gaugeAddress);
   });
 });
 
@@ -228,7 +244,7 @@ describe("computeVoterRelatedEntitiesDiff", () => {
     id: "10-1",
     chainId: 10,
     tokenId: 1n,
-    owner: "0x2222222222222222222222222222222222222222",
+    owner: toChecksumAddress("0x2222222222222222222222222222222222222222"),
     locktime: 100n,
     lastUpdatedTimestamp: new Date(1000),
     totalValueLocked: 1000n,

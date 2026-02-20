@@ -10,7 +10,6 @@ import {
   EFFECT_RATE_LIMITS,
   PriceOracleType,
 } from "../Constants";
-import { createFallbackClient, shouldUseFallbackRPC } from "./Errors";
 import {
   ErrorType,
   getErrorType,
@@ -176,14 +175,13 @@ export async function fetchTokenPrice(
 
       return {
         pricePerUSDNew: BigInt(result[0]),
-        priceOracleType: priceOracleType, // Use the determined oracle type, not hardcoded V2
+        priceOracleType: priceOracleType,
       };
     } catch (error) {
       const attemptDuration = Date.now() - attemptStartTime;
       const overallDuration = Date.now() - overallStartTime;
       const errorType = getErrorType(error);
 
-      // Log slow failed attempts
       if (attemptDuration > 5000) {
         logger.warn(
           `[fetchTokenPrice] Slow failed request: ${attemptDuration}ms for token ${tokenAddress} on chain ${chainId} at block ${blockNumber} (attempt ${attempt + 1}, error type: ${errorType}, total duration: ${overallDuration}ms)`,
@@ -196,66 +194,43 @@ export async function fetchTokenPrice(
         );
       }
 
-      // Check if it's an out of gas error and we have retries left
       if (errorType === ErrorType.OUT_OF_GAS && attempt < maxRetries) {
-        // Increase gas limit exponentially: 10M -> 20M -> 30M (max)
-        // Max set to 30M to avoid hitting RPC provider limits (typically 30-50M)
         currentGasLimit = BigInt(
           Math.min(Number(currentGasLimit) * 2, 30000000),
         );
         attempt++;
-
         logger.warn(
           `[fetchTokenPrice] Out of gas error (attempt ${attempt}/${maxRetries + 1}) for token ${tokenAddress} on chain ${chainId} at block ${blockNumber}. Retrying with gas limit ${currentGasLimit}...`,
         );
-
         continue;
       }
 
-      // Check if it's a rate limit error and we have retries left
       if (errorType === ErrorType.RATE_LIMIT && attempt < maxRetries) {
-        // Exponential backoff: 1s, 2s, 4s, 8s, 10s, 30s, 60s
         let delayMs: number;
-        if (attempt === 5) {
-          delayMs = 30000; // 30 seconds for 6th retry
-        } else if (attempt === 6) {
-          delayMs = 60000; // 60 seconds (1 minute) for 7th retry
-        } else {
-          delayMs = Math.min(1000 * 2 ** attempt, 10000); // Exponential backoff up to 10s
-        }
+        if (attempt === 5) delayMs = 30000;
+        else if (attempt === 6) delayMs = 60000;
+        else delayMs = Math.min(1000 * 2 ** attempt, 10000);
         attempt++;
-
         logger.warn(
           `[fetchTokenPrice] Rate limit error (attempt ${attempt}/${maxRetries + 1}) for token ${tokenAddress} on chain ${chainId} at block ${blockNumber}. Retrying in ${delayMs}ms...`,
         );
-
         await sleep(delayMs);
         continue;
       }
 
-      // Check if it's a network error and we have retries left
-      // Network errors use shorter backoff than rate limits since they're often transient
       if (errorType === ErrorType.NETWORK_ERROR && attempt < maxRetries) {
-        // Shorter exponential backoff for network errors: 500ms, 1s, 2s, 4s, 8s, 15s, 30s
         let delayMs: number;
-        if (attempt === 5) {
-          delayMs = 15000; // 15 seconds for 6th retry
-        } else if (attempt === 6) {
-          delayMs = 30000; // 30 seconds for 7th retry
-        } else {
-          delayMs = Math.min(500 * 2 ** attempt, 8000); // Exponential backoff up to 8s
-        }
+        if (attempt === 5) delayMs = 15000;
+        else if (attempt === 6) delayMs = 30000;
+        else delayMs = Math.min(500 * 2 ** attempt, 8000);
         attempt++;
-
         logger.warn(
           `[fetchTokenPrice] Network error (attempt ${attempt}/${maxRetries + 1}) for token ${tokenAddress} on chain ${chainId} at block ${blockNumber}. Retrying in ${delayMs}ms...`,
         );
-
         await sleep(delayMs);
         continue;
       }
 
-      // If not a retryable error or no retries left, log and break
       logger.error(
         `[fetchTokenPrice] Error fetching price for token ${tokenAddress} on chain ${chainId} at block ${blockNumber}${attempt > 0 ? ` (after ${attempt} retries)` : ""} (error type: ${errorType}):`,
         error instanceof Error ? error : new Error(String(error)),
@@ -271,7 +246,6 @@ export async function fetchTokenPrice(
     );
   }
 
-  // Return zero price on error to prevent processing failures
   return {
     pricePerUSDNew: 0n,
     priceOracleType: priceOracleType,

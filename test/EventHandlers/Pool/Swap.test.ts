@@ -1,8 +1,7 @@
+import "../../eventHandlersRegistration";
+import type { LiquidityPoolAggregator, Token } from "generated";
+import type { MockInstance } from "vitest";
 import { MockDb, Pool } from "../../../generated/src/TestHelpers.gen";
-import type {
-  LiquidityPoolAggregator,
-  Token,
-} from "../../../generated/src/Types.gen";
 import {
   OUSDT_ADDRESS,
   PoolId,
@@ -53,7 +52,7 @@ describe("Pool Swap Event", () => {
     },
   };
 
-  let mockPriceOracle: jest.SpyInstance;
+  let mockPriceOracle: MockInstance;
   let mockDb: ReturnType<typeof MockDb.createMockDb>;
 
   beforeEach(() => {
@@ -90,7 +89,7 @@ describe("Pool Swap Event", () => {
 
     expectations.totalVolumeUSDWhitelisted = expectations.expectedLPVolumeUSD0;
 
-    mockPriceOracle = jest
+    mockPriceOracle = vi
       .spyOn(PriceOracle, "refreshTokenPrice")
       .mockImplementation(async (...args) => {
         return args[0]; // Return the token that was passed in
@@ -102,7 +101,7 @@ describe("Pool Swap Event", () => {
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe("when both tokens exist", () => {
@@ -118,10 +117,7 @@ describe("Pool Swap Event", () => {
 
       const mockEvent = Pool.Swap.createMockEvent(eventData);
 
-      postEventDB = await Pool.Swap.processEvent({
-        event: mockEvent,
-        mockDb: updatedDB3,
-      });
+      postEventDB = await updatedDB3.processEvents([mockEvent]);
       updatedPool = postEventDB.entities.LiquidityPoolAggregator.get(
         PoolId(
           eventData.mockEventData.chainId,
@@ -185,10 +181,7 @@ describe("Pool Swap Event", () => {
 
       const mockEvent = Pool.Swap.createMockEvent(eventData);
 
-      const postEventDB = await Pool.Swap.processEvent({
-        event: mockEvent,
-        mockDb: updatedDB2,
-      });
+      const postEventDB = await updatedDB2.processEvents([mockEvent]);
 
       // Pool should not exist
       const pool = postEventDB.entities.LiquidityPoolAggregator.get(
@@ -242,10 +235,7 @@ describe("Pool Swap Event", () => {
         amount1Out: 99n * 10n ** 18n,
       });
 
-      const postEventDB = await Pool.Swap.processEvent({
-        event: mockEvent,
-        mockDb: updatedDB3,
-      });
+      const postEventDB = await updatedDB3.processEvents([mockEvent]);
 
       // Check that OUSDTSwap entity was created
       const ousdtSwaps = Array.from(postEventDB.entities.OUSDTSwaps.getAll());
@@ -282,10 +272,7 @@ describe("Pool Swap Event", () => {
         amount1Out: 0n, // Explicitly set to 0
       });
 
-      const postEventDB = await Pool.Swap.processEvent({
-        event: mockEvent,
-        mockDb: updatedDB3,
-      });
+      const postEventDB = await updatedDB3.processEvents([mockEvent]);
 
       // Check that OUSDTSwap entity was created
       const ousdtSwaps = Array.from(postEventDB.entities.OUSDTSwaps.getAll());
@@ -305,10 +292,7 @@ describe("Pool Swap Event", () => {
 
       const mockEvent = Pool.Swap.createMockEvent(eventData);
 
-      const postEventDB = await Pool.Swap.processEvent({
-        event: mockEvent,
-        mockDb: updatedDB3,
-      });
+      const postEventDB = await updatedDB3.processEvents([mockEvent]);
 
       // Check that no OUSDTSwap entity was created
       const ousdtSwaps = Array.from(postEventDB.entities.OUSDTSwaps.getAll());

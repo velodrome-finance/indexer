@@ -1,13 +1,14 @@
-import {
-  MockDb,
-  SuperchainIncentiveVotingReward,
-} from "../../../generated/src/TestHelpers.gen";
+import "../../eventHandlersRegistration";
 import type {
   LiquidityPoolAggregator,
   Token,
   UserStatsPerPool,
   VeNFTState,
-} from "../../../generated/src/Types.gen";
+} from "generated";
+import {
+  MockDb,
+  SuperchainIncentiveVotingReward,
+} from "../../../generated/src/TestHelpers.gen";
 import { TokenId, VeNFTId, toChecksumAddress } from "../../../src/Constants";
 import * as VotingRewardSharedLogic from "../../../src/EventHandlers/VotingReward/VotingRewardSharedLogic";
 import { setupCommon } from "../Pool/common";
@@ -90,7 +91,7 @@ describe("SuperchainIncentiveVotingReward Events", () => {
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe("ClaimRewards Event", () => {
@@ -101,29 +102,31 @@ describe("SuperchainIncentiveVotingReward Events", () => {
 
     beforeEach(async () => {
       // Mock the loadVotingRewardData function
-      jest
-        .spyOn(VotingRewardSharedLogic, "loadVotingRewardData")
-        .mockResolvedValue({
-          pool: liquidityPool,
-          poolData: {
-            liquidityPoolAggregator: liquidityPool,
-          },
-          userData: userStats,
-        });
+      vi.spyOn(
+        VotingRewardSharedLogic,
+        "loadVotingRewardData",
+      ).mockResolvedValue({
+        pool: liquidityPool,
+        poolData: {
+          liquidityPoolAggregator: liquidityPool,
+        },
+        userData: userStats,
+      });
 
       // Mock the processVotingRewardClaimRewards function
-      jest
-        .spyOn(VotingRewardSharedLogic, "processVotingRewardClaimRewards")
-        .mockResolvedValue({
-          poolDiff: {
-            incrementalTotalBribeClaimed: 1000000n,
-            incrementalTotalBribeClaimedUSD: 1000000n,
-          },
-          userDiff: {
-            incrementalTotalBribeClaimed: 1000000n,
-            incrementalTotalBribeClaimedUSD: 1000000n,
-          },
-        });
+      vi.spyOn(
+        VotingRewardSharedLogic,
+        "processVotingRewardClaimRewards",
+      ).mockResolvedValue({
+        poolDiff: {
+          incrementalTotalBribeClaimed: 1000000n,
+          incrementalTotalBribeClaimedUSD: 1000000n,
+        },
+        userDiff: {
+          incrementalTotalBribeClaimed: 1000000n,
+          incrementalTotalBribeClaimedUSD: 1000000n,
+        },
+      });
 
       mockEvent = SuperchainIncentiveVotingReward.ClaimRewards.createMockEvent({
         _sender: userAddress,
@@ -141,11 +144,7 @@ describe("SuperchainIncentiveVotingReward Events", () => {
         },
       });
 
-      resultDB =
-        await SuperchainIncentiveVotingReward.ClaimRewards.processEvent({
-          event: mockEvent,
-          mockDb,
-        });
+      resultDB = await mockDb.processEvents([mockEvent]);
     });
 
     it("should update pool aggregator with bribe claimed", () => {
@@ -165,17 +164,22 @@ describe("SuperchainIncentiveVotingReward Events", () => {
     });
 
     describe("when loadVotingRewardData returns null", () => {
-      beforeEach(async () => {
-        jest.restoreAllMocks();
-        jest
-          .spyOn(VotingRewardSharedLogic, "loadVotingRewardData")
-          .mockResolvedValue(null);
+      let freshMockDb: ReturnType<typeof MockDb.createMockDb>;
 
-        resultDB =
-          await SuperchainIncentiveVotingReward.ClaimRewards.processEvent({
-            event: mockEvent,
-            mockDb,
-          });
+      beforeEach(async () => {
+        vi.restoreAllMocks();
+        vi.spyOn(
+          VotingRewardSharedLogic,
+          "loadVotingRewardData",
+        ).mockResolvedValue(null);
+
+        // Create fresh mockDb with initial entities to avoid interference from parent's processEvents
+        freshMockDb = MockDb.createMockDb();
+        freshMockDb =
+          freshMockDb.entities.LiquidityPoolAggregator.set(liquidityPool);
+        freshMockDb = freshMockDb.entities.UserStatsPerPool.set(userStats);
+        freshMockDb = freshMockDb.entities.Token.set(rewardToken);
+        resultDB = await freshMockDb.processEvents([mockEvent]);
       });
 
       it("should not update pool or user stats", () => {

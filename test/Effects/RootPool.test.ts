@@ -20,16 +20,32 @@ describe("RootPool Effects", () => {
   };
   let mockEthClient: PublicClient;
 
-  const mockLpHelperAddress = "0x2F44BD0Aff1826aec123cE3eA9Ce44445b64BB34";
-  const mockFactory = "0x31832f2a97Fd20664D76Cc421207669b55CE4BC0";
-  const mockToken0 = "0xDcc0F2D8F90FDe85b10aC1c8Ab57dc0AE946A543";
-  const mockToken1 = "0xFc00000000000000000000000000000000000001";
+  const mockLpHelperAddress = toChecksumAddress(
+    "0x2F44BD0Aff1826aec123cE3eA9Ce44445b64BB34",
+  );
+  const mockFactory = toChecksumAddress(
+    "0x31832f2a97Fd20664D76Cc421207669b55CE4BC0",
+  );
+  const mockToken0 = toChecksumAddress(
+    "0xDcc0F2D8F90FDe85b10aC1c8Ab57dc0AE946A543",
+  );
+  const mockToken1 = toChecksumAddress(
+    "0xFc00000000000000000000000000000000000001",
+  );
   const mockType = 0;
-  const mockRootPoolAddress = "0x98dcff98d17f21e35211c923934924af65fbdd66";
+  const mockRootPoolAddress = toChecksumAddress(
+    "0x98dcff98d17f21e35211c923934924af65fbdd66",
+  );
+
+  let originalChainConstants252: unknown;
 
   beforeEach(() => {
+    originalChainConstants252 = (
+      CHAIN_CONSTANTS as Record<number, unknown>
+    )[252];
+
     mockEthClient = {
-      simulateContract: jest.fn().mockResolvedValue({
+      simulateContract: vi.fn().mockResolvedValue({
         result: mockRootPoolAddress.toLowerCase(), // viem returns lowercase
         // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
       } as any),
@@ -56,16 +72,22 @@ describe("RootPool Effects", () => {
       ) => effect.handler({ input, context: mockContext }),
       ethClient: mockEthClient,
       log: {
-        info: jest.fn(),
-        error: jest.fn(),
-        warn: jest.fn(),
-        debug: jest.fn(),
+        info: vi.fn(),
+        error: vi.fn(),
+        warn: vi.fn(),
+        debug: vi.fn(),
       } as unknown as Envio_logger,
     };
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
+    if (originalChainConstants252 === undefined) {
+      (CHAIN_CONSTANTS as Record<number, unknown>)[252] = undefined;
+    } else {
+      (CHAIN_CONSTANTS as Record<number, unknown>)[252] =
+        originalChainConstants252;
+    }
   });
 
   describe("getRootPoolAddress", () => {
@@ -93,13 +115,13 @@ describe("RootPool Effects", () => {
       expect(result).toBe(expectedChecksummed);
 
       // Verify simulateContract was called
-      const mockSimulateContract = jest.mocked(mockEthClient.simulateContract);
+      const mockSimulateContract = vi.mocked(mockEthClient.simulateContract);
       expect(mockSimulateContract).toHaveBeenCalledTimes(1);
     });
 
     it("should handle array result from simulateContract", async () => {
       // Mock simulateContract to return an array (some viem versions return arrays)
-      const mockSimulateContract = jest.mocked(mockEthClient.simulateContract);
+      const mockSimulateContract = vi.mocked(mockEthClient.simulateContract);
       mockSimulateContract.mockResolvedValue({
         result: [mockRootPoolAddress.toLowerCase()], // Array with single value
         // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
@@ -122,7 +144,7 @@ describe("RootPool Effects", () => {
 
     it("should handle direct string result from simulateContract", async () => {
       // Mock simulateContract to return a direct string
-      const mockSimulateContract = jest.mocked(mockEthClient.simulateContract);
+      const mockSimulateContract = vi.mocked(mockEthClient.simulateContract);
       mockSimulateContract.mockResolvedValue({
         result: mockRootPoolAddress.toLowerCase(),
         // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
@@ -144,7 +166,7 @@ describe("RootPool Effects", () => {
     });
 
     it("should handle contract call errors", async () => {
-      const mockSimulateContract = jest.mocked(mockEthClient.simulateContract);
+      const mockSimulateContract = vi.mocked(mockEthClient.simulateContract);
       const error = new Error("Contract call failed");
       mockSimulateContract.mockRejectedValue(error);
 
@@ -163,7 +185,7 @@ describe("RootPool Effects", () => {
 
     it("should normalize lowercase addresses to checksum format", async () => {
       const lowercaseAddress = "0xabcdef1234567890abcdef1234567890abcdef12";
-      const mockSimulateContract = jest.mocked(mockEthClient.simulateContract);
+      const mockSimulateContract = vi.mocked(mockEthClient.simulateContract);
       mockSimulateContract.mockResolvedValue({
         result: lowercaseAddress,
         // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
@@ -186,7 +208,7 @@ describe("RootPool Effects", () => {
     });
 
     it("should return empty string and log error when address is null/undefined", async () => {
-      const mockSimulateContract = jest.mocked(mockEthClient.simulateContract);
+      const mockSimulateContract = vi.mocked(mockEthClient.simulateContract);
       mockSimulateContract.mockResolvedValue({
         result: null,
         // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
@@ -206,7 +228,7 @@ describe("RootPool Effects", () => {
       expect(result).toBe("");
 
       // Should log an error
-      const mockError = jest.mocked(mockContext.log.error);
+      const mockError = vi.mocked(mockContext.log.error);
       expect(mockError).toHaveBeenCalledTimes(1);
       expect(mockError).toHaveBeenCalledWith(
         "[fetchRootPoolAddress] No root pool address found. Returning empty address",

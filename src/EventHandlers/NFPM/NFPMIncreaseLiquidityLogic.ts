@@ -92,10 +92,9 @@ export async function processNFPMIncreaseLiquidity(
   // Therefore, if we find an unconsumed CLPoolMintEvent in the same transaction when processing
   // IncreaseLiquidity, it MUST be from an increase (Case 2), because new mints (Case 1) would
   // have already been deleted by the Transfer handler that runs before IncreaseLiquidity.
-  const mintEventsInTx =
-    await context.CLPoolMintEvent.getWhere.transactionHash.eq(
-      event.transaction.hash,
-    );
+  const mintEventsInTx = await context.CLPoolMintEvent.getWhere({
+    transactionHash: { _eq: event.transaction.hash },
+  });
 
   if (mintEventsInTx && mintEventsInTx.length > 0) {
     const matchingMintEvents = mintEventsInTx.filter(
@@ -112,8 +111,9 @@ export async function processNFPMIncreaseLiquidity(
     // Select closest preceding mint by logIndex (deterministic for multiple matches)
     const matchingMintEvent =
       matchingMintEvents.length > 0
-        ? matchingMintEvents.reduce((prev, curr) =>
-            curr.logIndex > prev.logIndex ? curr : prev,
+        ? matchingMintEvents.reduce(
+            (prev: CLPoolMintEvent, curr: CLPoolMintEvent) =>
+              curr.logIndex > prev.logIndex ? curr : prev,
           )
         : undefined;
 

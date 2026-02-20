@@ -15,10 +15,9 @@ RootCLPoolFactory.RootPoolCreated.handler(async ({ event, context }) => {
   const hash = `${leafChainId}_${token0}_${token1}_${tickSpacing}`;
 
   // Query by rootPoolMatchingHash
-  const pools =
-    await context.LiquidityPoolAggregator.getWhere.rootPoolMatchingHash.eq(
-      hash,
-    );
+  const pools = await context.LiquidityPoolAggregator.getWhere({
+    rootPoolMatchingHash: { _eq: hash },
+  });
 
   // There should be only one matching pool
   if (pools.length !== 1) {

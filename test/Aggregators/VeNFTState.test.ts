@@ -3,7 +3,11 @@ import {
   loadVeNFTState,
   updateVeNFTState,
 } from "../../src/Aggregators/VeNFTState";
-import { VeNFTId, VeNFTStateSnapshotId } from "../../src/Constants";
+import {
+  VeNFTId,
+  VeNFTStateSnapshotId,
+  toChecksumAddress,
+} from "../../src/Constants";
 import { getSnapshotEpoch } from "../../src/Snapshots/Shared";
 
 function getVeNFTStateStore(
@@ -20,7 +24,7 @@ describe("VeNFTState", () => {
     id: VeNFTId(10, 1n),
     chainId: 10,
     tokenId: 1n,
-    owner: "0x1111111111111111111111111111111111111111",
+    owner: toChecksumAddress("0x1111111111111111111111111111111111111111"),
     locktime: 100n,
     lastUpdatedTimestamp: new Date(10000 * 1000),
     totalValueLocked: 100n,
@@ -32,33 +36,27 @@ describe("VeNFTState", () => {
   beforeEach(() => {
     mockContext = {
       VeNFTState: {
-        set: jest.fn(),
-        get: jest.fn(),
-        getOrThrow: jest.fn(),
-        getOrCreate: jest.fn(),
-        deleteUnsafe: jest.fn(),
-        getWhere: {
-          tokenId: {
-            eq: jest.fn(),
-            gt: jest.fn(),
-            lt: jest.fn(),
-          },
-        },
+        set: vi.fn(),
+        get: vi.fn(),
+        getOrThrow: vi.fn(),
+        getOrCreate: vi.fn(),
+        deleteUnsafe: vi.fn(),
+        getWhere: vi.fn().mockResolvedValue([]),
       },
       VeNFTStateSnapshot: {
-        set: jest.fn(),
+        set: vi.fn(),
       } as unknown as handlerContext["VeNFTStateSnapshot"],
       log: {
-        error: jest.fn(),
-        info: jest.fn(),
-        warn: jest.fn(),
-        debug: jest.fn(),
+        error: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        debug: vi.fn(),
       },
     };
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe("VeNFTId", () => {
@@ -71,7 +69,7 @@ describe("VeNFTState", () => {
   describe("loadVeNFTState", () => {
     it("returns VeNFTState when entity exists", async () => {
       const store = getVeNFTStateStore(mockContext);
-      jest.mocked(store.get).mockResolvedValue(mockVeNFTState);
+      vi.mocked(store.get).mockResolvedValue(mockVeNFTState);
 
       const result = await loadVeNFTState(
         10,
@@ -84,9 +82,9 @@ describe("VeNFTState", () => {
     });
 
     it("returns undefined and logs warn when entity does not exist", async () => {
-      jest
-        .mocked(getVeNFTStateStore(mockContext).get)
-        .mockResolvedValue(undefined);
+      vi.mocked(getVeNFTStateStore(mockContext).get).mockResolvedValue(
+        undefined,
+      );
 
       const result = await loadVeNFTState(
         10,
@@ -109,7 +107,9 @@ describe("VeNFTState", () => {
           id: VeNFTId(10, 1n),
           chainId: 10,
           tokenId: 1n,
-          owner: "0x1111111111111111111111111111111111111111",
+          owner: toChecksumAddress(
+            "0x1111111111111111111111111111111111111111",
+          ),
           locktime: 100n,
           incrementalTotalValueLocked: 50n,
           isAlive: true,
@@ -121,7 +121,7 @@ describe("VeNFTState", () => {
           timestamp,
           mockContext as handlerContext,
         );
-        const mockSet = jest.mocked(getVeNFTStateStore(mockContext).set);
+        const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
         expect(mockSet).toBeDefined();
         result = mockSet?.mock.calls[0]?.[0] as VeNFTState;
       });
@@ -149,7 +149,7 @@ describe("VeNFTState", () => {
           timestamp,
           mockContext as handlerContext,
         );
-        const mockSet = jest.mocked(getVeNFTStateStore(mockContext).set);
+        const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
         expect(mockSet).toBeDefined();
         result = mockSet?.mock.calls[0]?.[0] as VeNFTState;
       });
@@ -163,7 +163,9 @@ describe("VeNFTState", () => {
       let result: VeNFTState;
       beforeEach(async () => {
         const transferDiff = {
-          owner: "0x2222222222222222222222222222222222222222",
+          owner: toChecksumAddress(
+            "0x2222222222222222222222222222222222222222",
+          ),
           isAlive: true,
         };
 
@@ -173,13 +175,15 @@ describe("VeNFTState", () => {
           timestamp,
           mockContext as handlerContext,
         );
-        const mockSet = jest.mocked(getVeNFTStateStore(mockContext).set);
+        const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
         expect(mockSet).toBeDefined();
         result = mockSet?.mock.calls[0]?.[0] as VeNFTState;
       });
 
       it("should update the VeNFTState with new owner", () => {
-        expect(result.owner).toBe("0x2222222222222222222222222222222222222222");
+        expect(result.owner).toBe(
+          toChecksumAddress("0x2222222222222222222222222222222222222222"),
+        );
       });
     });
 
@@ -187,7 +191,9 @@ describe("VeNFTState", () => {
       let result: VeNFTState;
       beforeEach(async () => {
         const burnDiff = {
-          owner: "0x0000000000000000000000000000000000000000",
+          owner: toChecksumAddress(
+            "0x0000000000000000000000000000000000000000",
+          ),
           isAlive: false,
         };
 
@@ -197,7 +203,7 @@ describe("VeNFTState", () => {
           timestamp,
           mockContext as handlerContext,
         );
-        const mockSet = jest.mocked(getVeNFTStateStore(mockContext).set);
+        const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
         expect(mockSet).toBeDefined();
         result = mockSet?.mock.calls[0]?.[0] as VeNFTState;
       });
@@ -215,7 +221,9 @@ describe("VeNFTState", () => {
           id: "10-99",
           chainId: 10,
           tokenId: 99n,
-          owner: "0x0000000000000000000000000000000000000000",
+          owner: toChecksumAddress(
+            "0x0000000000000000000000000000000000000000",
+          ),
           locktime: 0n,
           lastUpdatedTimestamp: new Date(0),
           totalValueLocked: 0n,
@@ -234,7 +242,7 @@ describe("VeNFTState", () => {
           timestamp,
           mockContext as handlerContext,
         );
-        const mockSet = jest.mocked(getVeNFTStateStore(mockContext).set);
+        const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
         expect(mockSet).toBeDefined();
         result = mockSet?.mock.calls[0]?.[0] as VeNFTState;
       });
@@ -254,8 +262,8 @@ describe("VeNFTState", () => {
           timestamp,
           mockContext as handlerContext,
         );
-        const result = getVeNFTStateStore(mockContext).set as jest.Mock;
-        const updated = result.mock.calls[0][0] as VeNFTState;
+        const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
+        const updated = mockSet.mock.calls[0][0] as VeNFTState;
         // When lastSnapshotTimestamp is undefined we take a snapshot and set it to the epoch
         expect(updated.lastSnapshotTimestamp).toBeDefined();
         expect(updated.lastSnapshotTimestamp?.getTime()).toBe(
@@ -291,8 +299,8 @@ describe("VeNFTState", () => {
           timestamp,
           mockContext as handlerContext,
         );
-        const result = getVeNFTStateStore(mockContext).set as jest.Mock;
-        const updated = result.mock.calls[0][0] as VeNFTState;
+        const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
+        const updated = mockSet.mock.calls[0][0] as VeNFTState;
         expect(updated.lastSnapshotTimestamp).toEqual(new Date(9000 * 1000));
       });
 
@@ -312,8 +320,8 @@ describe("VeNFTState", () => {
           timestamp,
           mockContext as handlerContext,
         );
-        const result = getVeNFTStateStore(mockContext).set as jest.Mock;
-        const updated = result.mock.calls[0][0] as VeNFTState;
+        const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
+        const updated = mockSet.mock.calls[0][0] as VeNFTState;
         expect(updated.lastSnapshotTimestamp).toEqual(newerSnapshotTime);
       });
 
@@ -334,8 +342,8 @@ describe("VeNFTState", () => {
           timestamp,
           mockContext as handlerContext,
         );
-        const result = getVeNFTStateStore(mockContext).set as jest.Mock;
-        const updated = result.mock.calls[0][0] as VeNFTState;
+        const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
+        const updated = mockSet.mock.calls[0][0] as VeNFTState;
         expect(updated.lastSnapshotTimestamp).toEqual(existingSnapshot);
       });
     });

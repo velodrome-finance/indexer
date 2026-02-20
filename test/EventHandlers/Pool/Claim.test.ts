@@ -1,8 +1,7 @@
+import "../../eventHandlersRegistration";
+import type { LiquidityPoolAggregator, Token } from "generated";
+import type { MockInstance } from "vitest";
 import { MockDb, Pool } from "../../../generated/src/TestHelpers.gen";
-import type {
-  LiquidityPoolAggregator,
-  Token,
-} from "../../../generated/src/Types.gen";
 import { toChecksumAddress } from "../../../src/Constants";
 import * as PriceOracle from "../../../src/PriceOracle";
 import { setupCommon } from "./common";
@@ -12,7 +11,7 @@ describe("Pool Claim Event", () => {
   let mockToken1Data: Token;
   let mockLiquidityPoolData: LiquidityPoolAggregator;
   let mockDb: ReturnType<typeof MockDb.createMockDb>;
-  let mockPriceOracle: jest.SpyInstance;
+  let mockPriceOracle: MockInstance;
 
   const gaugeAddress = toChecksumAddress(
     "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
@@ -32,7 +31,7 @@ describe("Pool Claim Event", () => {
     } as LiquidityPoolAggregator;
 
     mockDb = MockDb.createMockDb();
-    mockPriceOracle = jest
+    mockPriceOracle = vi
       .spyOn(PriceOracle, "refreshTokenPrice")
       .mockImplementation(async (...args) => {
         return args[0]; // Return the token that was passed in
@@ -40,7 +39,7 @@ describe("Pool Claim Event", () => {
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe("when pool exists", () => {
@@ -82,10 +81,7 @@ describe("Pool Claim Event", () => {
 
         const mockEvent = Pool.Claim.createMockEvent(eventData);
 
-        postEventDB = await Pool.Claim.processEvent({
-          event: mockEvent,
-          mockDb: updatedDB3,
-        });
+        postEventDB = await updatedDB3.processEvents([mockEvent]);
         updatedPool = postEventDB.entities.LiquidityPoolAggregator.get(
           mockLiquidityPoolData.id,
         );
@@ -183,10 +179,7 @@ describe("Pool Claim Event", () => {
 
         const mockEvent = Pool.Claim.createMockEvent(eventData);
 
-        postEventDB = await Pool.Claim.processEvent({
-          event: mockEvent,
-          mockDb: updatedDB3,
-        });
+        postEventDB = await updatedDB3.processEvents([mockEvent]);
         updatedPool = postEventDB.entities.LiquidityPoolAggregator.get(
           mockLiquidityPoolData.id,
         );
@@ -265,10 +258,7 @@ describe("Pool Claim Event", () => {
 
         const mockEvent = Pool.Claim.createMockEvent(eventData);
 
-        const postEventDB = await Pool.Claim.processEvent({
-          event: mockEvent,
-          mockDb: updatedDB3,
-        });
+        const postEventDB = await updatedDB3.processEvents([mockEvent]);
         const updatedPool = postEventDB.entities.LiquidityPoolAggregator.get(
           mockLiquidityPoolData.id,
         );
@@ -329,10 +319,7 @@ describe("Pool Claim Event", () => {
 
         const mockEvent = Pool.Claim.createMockEvent(eventData);
 
-        const postEventDB = await Pool.Claim.processEvent({
-          event: mockEvent,
-          mockDb: updatedDB3,
-        });
+        const postEventDB = await updatedDB3.processEvents([mockEvent]);
         const updatedPool = postEventDB.entities.LiquidityPoolAggregator.get(
           mockLiquidityPoolData.id,
         );
@@ -373,10 +360,7 @@ describe("Pool Claim Event", () => {
 
       const mockEvent = Pool.Claim.createMockEvent(eventData);
 
-      const postEventDB = await Pool.Claim.processEvent({
-        event: mockEvent,
-        mockDb: mockDb,
-      });
+      const postEventDB = await mockDb.processEvents([mockEvent]);
 
       const pool = postEventDB.entities.LiquidityPoolAggregator.get(
         toChecksumAddress(eventData.mockEventData.srcAddress),

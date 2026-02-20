@@ -1,12 +1,13 @@
-import {
-  BribesVotingReward,
-  MockDb,
-} from "../../../generated/src/TestHelpers.gen";
+import "../../eventHandlersRegistration";
 import type {
   LiquidityPoolAggregator,
   Token,
   UserStatsPerPool,
-} from "../../../generated/src/Types.gen";
+} from "generated";
+import {
+  BribesVotingReward,
+  MockDb,
+} from "../../../generated/src/TestHelpers.gen";
 import { TokenId, toChecksumAddress } from "../../../src/Constants";
 import * as VotingRewardSharedLogic from "../../../src/EventHandlers/VotingReward/VotingRewardSharedLogic";
 import { setupCommon } from "../Pool/common";
@@ -16,9 +17,15 @@ describe("BribesVotingReward Events", () => {
     setupCommon();
   const poolAddress = mockLiquidityPoolData.poolAddress;
   const chainId = 10;
-  const votingRewardAddress = "0x3333333333333333333333333333333333333333";
-  const userAddress = "0x2222222222222222222222222222222222222222";
-  const rewardTokenAddress = "0x4444444444444444444444444444444444444444";
+  const votingRewardAddress = toChecksumAddress(
+    "0x3333333333333333333333333333333333333333",
+  );
+  const userAddress = toChecksumAddress(
+    "0x2222222222222222222222222222222222222222",
+  );
+  const rewardTokenAddress = toChecksumAddress(
+    "0x4444444444444444444444444444444444444444",
+  );
 
   let mockDb: ReturnType<typeof MockDb.createMockDb>;
   let liquidityPool: LiquidityPoolAggregator;
@@ -26,7 +33,7 @@ describe("BribesVotingReward Events", () => {
   let rewardToken: Token;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.restoreAllMocks();
     mockDb = MockDb.createMockDb();
 
     // Set up liquidity pool with bribe voting reward address
@@ -67,7 +74,7 @@ describe("BribesVotingReward Events", () => {
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe("ClaimRewards Event", () => {
@@ -78,15 +85,16 @@ describe("BribesVotingReward Events", () => {
 
     beforeEach(async () => {
       // Mock the getTokenPriceData effect
-      jest
-        .spyOn(VotingRewardSharedLogic, "loadVotingRewardData")
-        .mockResolvedValue({
-          pool: liquidityPool,
-          poolData: {
-            liquidityPoolAggregator: liquidityPool,
-          },
-          userData: userStats,
-        });
+      vi.spyOn(
+        VotingRewardSharedLogic,
+        "loadVotingRewardData",
+      ).mockResolvedValue({
+        pool: liquidityPool,
+        poolData: {
+          liquidityPoolAggregator: liquidityPool,
+        },
+        userData: userStats,
+      });
 
       mockEvent = BribesVotingReward.ClaimRewards.createMockEvent({
         from: userAddress,
@@ -104,10 +112,7 @@ describe("BribesVotingReward Events", () => {
         },
       });
 
-      resultDB = await BribesVotingReward.ClaimRewards.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      resultDB = await mockDb.processEvents([mockEvent]);
     });
 
     it("should update pool aggregator with bribe claimed", () => {

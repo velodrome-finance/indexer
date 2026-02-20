@@ -12,7 +12,7 @@ describe("Errors", () => {
     });
 
     it("should return null when chain ID is not in chainIdToChain map", () => {
-      const getDefaultRPCSpy = jest
+      const getDefaultRPCSpy = vi
         .spyOn(ConstantsModule, "getDefaultRPCByChainId")
         .mockReturnValue("https://rpc.example.com");
 

@@ -3,6 +3,7 @@ import type {
   LiquidityPoolAggregator,
   Token,
 } from "generated";
+import { toChecksumAddress } from "../../../src/Constants";
 import { processCLPoolBurn } from "../../../src/EventHandlers/CLPool/CLPoolBurnLogic";
 import { calculateTotalUSD } from "../../../src/Helpers";
 import { setupCommon } from "../Pool/common";
@@ -10,26 +11,26 @@ import { setupCommon } from "../Pool/common";
 describe("CLPoolBurnLogic", () => {
   const { mockLiquidityPoolData, mockToken0Data, mockToken1Data } =
     setupCommon();
-  const mockEvent: CLPool_Burn_event = {
+  const mockEvent = {
     chainId: 10,
     block: {
       number: 12345,
       timestamp: 1000000,
     },
     logIndex: 1,
-    srcAddress: "0x1234567890123456789012345678901234567890",
+    srcAddress: toChecksumAddress("0x1234567890123456789012345678901234567890"),
     transaction: {
       hash: "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
     },
     params: {
-      owner: "0xabcdef1234567890abcdef1234567890abcdef12",
+      owner: toChecksumAddress("0xabcdef1234567890abcdef1234567890abcdef12"),
       tickLower: -1000n,
       tickUpper: 1000n,
       amount: 1000000n,
       amount0: 500000n,
       amount1: 300000n,
     },
-  } as CLPool_Burn_event;
+  } as unknown as CLPool_Burn_event;
 
   const mockToken0: Token = {
     ...mockToken0Data,

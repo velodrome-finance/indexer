@@ -12,43 +12,27 @@ describe("ALMLPWrapper Aggregator", () => {
   beforeEach(() => {
     mockContext = {
       ALM_LP_Wrapper: {
-        set: jest.fn(),
-        get: jest.fn(),
-        getOrThrow: jest.fn(),
-        getWhere: {
-          pool: {
-            eq: jest.fn(),
-            gt: jest.fn(),
-            lt: jest.fn(),
-          },
-          strategyTransactionHash: {
-            eq: jest.fn(),
-            gt: jest.fn(),
-            lt: jest.fn(),
-          },
-          tokenId: {
-            eq: jest.fn(),
-            gt: jest.fn(),
-            lt: jest.fn(),
-          },
-        },
-        getOrCreate: jest.fn(),
-        deleteUnsafe: jest.fn(),
+        set: vi.fn(),
+        get: vi.fn(),
+        getOrThrow: vi.fn(),
+        getWhere: vi.fn().mockResolvedValue([]),
+        getOrCreate: vi.fn(),
+        deleteUnsafe: vi.fn(),
       },
       ALM_LP_WrapperSnapshot: {
-        set: jest.fn(),
+        set: vi.fn(),
       } as unknown as handlerContext["ALM_LP_WrapperSnapshot"],
       log: {
-        error: jest.fn(),
-        info: jest.fn(),
-        warn: jest.fn(),
-        debug: jest.fn(),
+        error: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        debug: vi.fn(),
       },
     };
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe("updateALMLPWrapper", () => {
@@ -68,7 +52,7 @@ describe("ALMLPWrapper Aggregator", () => {
           mockContext as handlerContext,
         );
 
-        const mockSet = jest.mocked(mockContext.ALM_LP_Wrapper?.set);
+        const mockSet = vi.mocked(mockContext.ALM_LP_Wrapper?.set);
         result = mockSet?.mock.calls[0]?.[0] as ALM_LP_Wrapper;
       });
 
@@ -104,7 +88,7 @@ describe("ALMLPWrapper Aggregator", () => {
           mockContext as handlerContext,
         );
 
-        const mockSet = jest.mocked(mockContext.ALM_LP_Wrapper?.set);
+        const mockSet = vi.mocked(mockContext.ALM_LP_Wrapper?.set);
         result = mockSet?.mock.calls[0]?.[0] as ALM_LP_Wrapper;
       });
 
@@ -131,7 +115,7 @@ describe("ALMLPWrapper Aggregator", () => {
           mockContext as handlerContext,
         );
 
-        const mockSet = jest.mocked(mockContext.ALM_LP_Wrapper?.set);
+        const mockSet = vi.mocked(mockContext.ALM_LP_Wrapper?.set);
         const result = mockSet?.mock.calls[0]?.[0] as ALM_LP_Wrapper;
 
         expect(result.liquidity).toBe(2000000n);
@@ -150,7 +134,7 @@ describe("ALMLPWrapper Aggregator", () => {
           mockContext as handlerContext,
         );
 
-        const mockSet = jest.mocked(mockContext.ALM_LP_Wrapper?.set);
+        const mockSet = vi.mocked(mockContext.ALM_LP_Wrapper?.set);
         const result = mockSet?.mock.calls[0]?.[0] as ALM_LP_Wrapper;
 
         expect(result.lpAmount).toBe(2000n * TEN_TO_THE_18_BI); // 2000 + 0 (unchanged)
@@ -177,7 +161,7 @@ describe("ALMLPWrapper Aggregator", () => {
           mockContext as handlerContext,
         );
 
-        const mockSet = jest.mocked(mockContext.ALM_LP_Wrapper?.set);
+        const mockSet = vi.mocked(mockContext.ALM_LP_Wrapper?.set);
         const result = mockSet?.mock.calls[0]?.[0] as ALM_LP_Wrapper;
 
         expect(result.liquidity).toBe(500000n);
@@ -203,7 +187,7 @@ describe("ALMLPWrapper Aggregator", () => {
           mockContext as handlerContext,
         );
 
-        const mockSet = jest.mocked(mockContext.ALM_LP_Wrapper?.set);
+        const mockSet = vi.mocked(mockContext.ALM_LP_Wrapper?.set);
         const result = mockSet?.mock.calls[0]?.[0] as ALM_LP_Wrapper;
 
         expect(result.lpAmount).toBe(-500n * TEN_TO_THE_18_BI); // 0 - 500
@@ -224,7 +208,7 @@ describe("ALMLPWrapper Aggregator", () => {
           mockContext as handlerContext,
         );
 
-        const mockSet = jest.mocked(mockContext.ALM_LP_Wrapper?.set);
+        const mockSet = vi.mocked(mockContext.ALM_LP_Wrapper?.set);
         const result = mockSet?.mock.calls[0]?.[0] as ALM_LP_Wrapper;
 
         expect(result.liquidity).toBe(2000000n);
@@ -244,7 +228,7 @@ describe("ALMLPWrapper Aggregator", () => {
           mockContext as handlerContext,
         );
 
-        const mockSet = jest.mocked(mockContext.ALM_LP_Wrapper?.set);
+        const mockSet = vi.mocked(mockContext.ALM_LP_Wrapper?.set);
         const result = mockSet?.mock.calls[0]?.[0] as ALM_LP_Wrapper;
 
         expect(result.liquidity).toBe(mockALMLPWrapperData.liquidity); // unchanged
@@ -266,7 +250,7 @@ describe("ALMLPWrapper Aggregator", () => {
           mockContext as handlerContext,
         );
 
-        const mockSet = jest.mocked(mockContext.ALM_LP_Wrapper?.set);
+        const mockSet = vi.mocked(mockContext.ALM_LP_Wrapper?.set);
         const result = mockSet?.mock.calls[0]?.[0] as ALM_LP_Wrapper;
 
         expect(result.liquidity).toBe(BigInt("1000000000000000000000000"));
@@ -290,7 +274,7 @@ describe("ALMLPWrapper Aggregator", () => {
         );
 
         expect(
-          jest.mocked(mockContext.ALM_LP_Wrapper?.set),
+          vi.mocked(mockContext.ALM_LP_Wrapper?.set),
         ).toHaveBeenCalledTimes(1);
       });
 
@@ -306,7 +290,7 @@ describe("ALMLPWrapper Aggregator", () => {
           mockContext as handlerContext,
         );
 
-        const mockSet = jest.mocked(mockContext.ALM_LP_Wrapper?.set);
+        const mockSet = vi.mocked(mockContext.ALM_LP_Wrapper?.set);
         const result = mockSet?.mock.calls[0]?.[0] as ALM_LP_Wrapper;
 
         expect(result.id).toBe(mockALMLPWrapperData.id);
@@ -338,7 +322,7 @@ describe("ALMLPWrapper Aggregator", () => {
           mockContext as handlerContext,
         );
 
-        const mockSet = jest.mocked(mockContext.ALM_LP_Wrapper?.set);
+        const mockSet = vi.mocked(mockContext.ALM_LP_Wrapper?.set);
         result = mockSet?.mock.calls[0]?.[0] as ALM_LP_Wrapper;
       });
 
@@ -381,7 +365,7 @@ describe("ALMLPWrapper Aggregator", () => {
           mockContext as handlerContext,
         );
 
-        const mockSet = jest.mocked(mockContext.ALM_LP_Wrapper?.set);
+        const mockSet = vi.mocked(mockContext.ALM_LP_Wrapper?.set);
         const result = mockSet?.mock.calls[0]?.[0] as ALM_LP_Wrapper;
 
         expect(result.liquidity).toBe(2000000n);

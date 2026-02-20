@@ -1,3 +1,4 @@
+import "../eventHandlersRegistration";
 import { MockDb, VeNFT } from "../../generated/src/TestHelpers.gen";
 import * as VeNFTStateModule from "../../src/Aggregators/VeNFTState";
 import {
@@ -20,7 +21,7 @@ describe("VeNFT Events", () => {
     isAlive: true,
     lastUpdatedTimestamp: new Date(),
     locktime: 1n,
-    owner: "0x2222222222222222222222222222222222222222",
+    owner: toChecksumAddress("0x2222222222222222222222222222222222222222"),
     totalValueLocked: 1n,
     lastSnapshotTimestamp: undefined as Date | undefined,
   };
@@ -32,9 +33,9 @@ describe("VeNFT Events", () => {
 
   describe("Transfer Event", () => {
     const eventData = {
-      provider: "0x1111111111111111111111111111111111111111",
-      from: "0x1111111111111111111111111111111111111111",
-      to: "0x2222222222222222222222222222222222222222",
+      provider: toChecksumAddress("0x1111111111111111111111111111111111111111"),
+      from: toChecksumAddress("0x1111111111111111111111111111111111111111"),
+      to: toChecksumAddress("0x2222222222222222222222222222222222222222"),
       tokenId: 1n,
       timestamp: 1n,
       chainId: 10,
@@ -46,7 +47,9 @@ describe("VeNFT Events", () => {
         },
         chainId: 10,
         logIndex: 1,
-        srcAddress: "0x3333333333333333333333333333333333333333",
+        srcAddress: toChecksumAddress(
+          "0x3333333333333333333333333333333333333333",
+        ),
       },
     };
 
@@ -54,27 +57,24 @@ describe("VeNFT Events", () => {
     let mockEvent: ReturnType<typeof VeNFT.Transfer.createMockEvent>;
 
     beforeEach(async () => {
-      jest
-        .spyOn(VeNFTStateModule, "updateVeNFTState")
-        .mockImplementation(() => {});
-      jest.spyOn(VeNFTLogic, "processVeNFTTransfer");
-      jest
-        .spyOn(VeNFTLogic, "reassignVeNFTVotesOnTransfer")
-        .mockResolvedValue(undefined);
+      vi.spyOn(VeNFTStateModule, "updateVeNFTState").mockImplementation(
+        () => {},
+      );
+      vi.spyOn(VeNFTLogic, "processVeNFTTransfer");
+      vi.spyOn(VeNFTLogic, "reassignVeNFTVotesOnTransfer").mockResolvedValue(
+        undefined,
+      );
 
       mockEvent = VeNFT.Transfer.createMockEvent(eventData);
-      postEventDB = await VeNFT.Transfer.processEvent({
-        event: mockEvent,
-        mockDb: mockDb,
-      });
+      postEventDB = await mockDb.processEvents([mockEvent]);
     });
 
     afterEach(() => {
-      jest.restoreAllMocks();
+      vi.restoreAllMocks();
     });
 
     it("should call processVeNFTTransfer with the correct arguments", () => {
-      const processVeNFTTransferMock = jest.mocked(
+      const processVeNFTTransferMock = vi.mocked(
         VeNFTLogic.processVeNFTTransfer,
       );
       expect(processVeNFTTransferMock).toHaveBeenCalled();
@@ -88,9 +88,7 @@ describe("VeNFT Events", () => {
     });
 
     it("should call updateVeNFTState with the correct arguments", () => {
-      const updateVeNFTStateMock = jest.mocked(
-        VeNFTStateModule.updateVeNFTState,
-      );
+      const updateVeNFTStateMock = vi.mocked(VeNFTStateModule.updateVeNFTState);
       expect(updateVeNFTStateMock).toHaveBeenCalled();
       // Handlers may run multiple times (preload + normal), so check if called at least once
       expect(updateVeNFTStateMock.mock.calls.length).toBeGreaterThanOrEqual(1);
@@ -108,9 +106,9 @@ describe("VeNFT Events", () => {
 
   describe("Transfer Event - Minting", () => {
     const mintEventData = {
-      provider: "0x1111111111111111111111111111111111111111",
-      from: "0x0000000000000000000000000000000000000000",
-      to: "0x2222222222222222222222222222222222222222",
+      provider: toChecksumAddress("0x1111111111111111111111111111111111111111"),
+      from: toChecksumAddress("0x0000000000000000000000000000000000000000"),
+      to: toChecksumAddress("0x2222222222222222222222222222222222222222"),
       tokenId: 2n,
       timestamp: 1n,
       chainId: 10,
@@ -122,7 +120,9 @@ describe("VeNFT Events", () => {
         },
         chainId: 10,
         logIndex: 1,
-        srcAddress: "0x3333333333333333333333333333333333333333",
+        srcAddress: toChecksumAddress(
+          "0x3333333333333333333333333333333333333333",
+        ),
       },
     };
 
@@ -133,10 +133,7 @@ describe("VeNFT Events", () => {
       // Create a fresh mockDb without the VeNFT for this tokenId
       const freshMockDb = MockDb.createMockDb();
       mockEvent = VeNFT.Transfer.createMockEvent(mintEventData);
-      postEventDB = await VeNFT.Transfer.processEvent({
-        event: mockEvent,
-        mockDb: freshMockDb,
-      });
+      postEventDB = await freshMockDb.processEvents([mockEvent]);
     });
 
     it("should create VeNFTState entity when minting (from zero address)", async () => {
@@ -159,7 +156,9 @@ describe("VeNFT Events", () => {
   });
 
   describe("Transfer Event - Vote Reassignment", () => {
-    const zeroAddress = "0x0000000000000000000000000000000000000000";
+    const zeroAddress = toChecksumAddress(
+      "0x0000000000000000000000000000000000000000",
+    );
 
     it("should reassign votes from old owner to new owner", async () => {
       const {
@@ -233,10 +232,7 @@ describe("VeNFT Events", () => {
         },
       });
 
-      const resultDB = await VeNFT.Transfer.processEvent({
-        event: transferEvent,
-        mockDb: db,
-      });
+      const resultDB = await db.processEvents([transferEvent]);
 
       const updatedOldUserStats = resultDB.entities.UserStatsPerPool.get(
         UserStatsPerPoolId(chainId, oldOwner, poolAddress),
@@ -347,10 +343,7 @@ describe("VeNFT Events", () => {
         },
       });
 
-      const resultDB = await VeNFT.Transfer.processEvent({
-        event: transferEvent,
-        mockDb: db,
-      });
+      const resultDB = await db.processEvents([transferEvent]);
 
       const updatedOldA = resultDB.entities.UserStatsPerPool.get(
         UserStatsPerPoolId(chainId, oldOwner, poolA),
@@ -430,10 +423,7 @@ describe("VeNFT Events", () => {
         },
       });
 
-      const resultDB = await VeNFT.Transfer.processEvent({
-        event: burnEvent,
-        mockDb: db,
-      });
+      const resultDB = await db.processEvents([burnEvent]);
 
       const updatedOldUserStats = resultDB.entities.UserStatsPerPool.get(
         UserStatsPerPoolId(chainId, oldOwner, poolAddress),
@@ -496,10 +486,7 @@ describe("VeNFT Events", () => {
         },
       });
 
-      const resultDB = await VeNFT.Transfer.processEvent({
-        event: transferEvent,
-        mockDb: db,
-      });
+      const resultDB = await db.processEvents([transferEvent]);
 
       const updatedOldUserStats = resultDB.entities.UserStatsPerPool.get(
         UserStatsPerPoolId(chainId, oldOwner, poolAddress),
@@ -514,11 +501,10 @@ describe("VeNFT Events", () => {
 
   describe("Withdraw Event", () => {
     const eventData = {
-      provider: "0x1111111111111111111111111111111111111111",
+      provider: toChecksumAddress("0x1111111111111111111111111111111111111111"),
       tokenId: 1n,
       value: 1n,
       ts: 1n,
-      chainId: 10,
       mockEventData: {
         block: {
           timestamp: 1000000,
@@ -527,7 +513,9 @@ describe("VeNFT Events", () => {
         },
         chainId: 10,
         logIndex: 1,
-        srcAddress: "0x3333333333333333333333333333333333333333",
+        srcAddress: toChecksumAddress(
+          "0x3333333333333333333333333333333333333333",
+        ),
       },
     };
 
@@ -535,24 +523,21 @@ describe("VeNFT Events", () => {
     let mockEvent: ReturnType<typeof VeNFT.Withdraw.createMockEvent>;
 
     beforeEach(async () => {
-      jest
-        .spyOn(VeNFTStateModule, "updateVeNFTState")
-        .mockImplementation(() => {});
-      jest.spyOn(VeNFTLogic, "processVeNFTWithdraw");
+      vi.spyOn(VeNFTStateModule, "updateVeNFTState").mockImplementation(
+        () => {},
+      );
+      vi.spyOn(VeNFTLogic, "processVeNFTWithdraw");
 
       mockEvent = VeNFT.Withdraw.createMockEvent(eventData);
-      postEventDB = await VeNFT.Withdraw.processEvent({
-        event: mockEvent,
-        mockDb: mockDb,
-      });
+      postEventDB = await mockDb.processEvents([mockEvent]);
     });
 
     afterEach(() => {
-      jest.restoreAllMocks();
+      vi.restoreAllMocks();
     });
 
     it("should call processVeNFTWithdraw with the correct arguments", () => {
-      const processVeNFTWithdrawMock = jest.mocked(
+      const processVeNFTWithdrawMock = vi.mocked(
         VeNFTLogic.processVeNFTWithdraw,
       );
       expect(processVeNFTWithdrawMock).toHaveBeenCalled();
@@ -566,9 +551,7 @@ describe("VeNFT Events", () => {
     });
 
     it("should call updateVeNFTState with the correct arguments", () => {
-      const updateVeNFTStateMock = jest.mocked(
-        VeNFTStateModule.updateVeNFTState,
-      );
+      const updateVeNFTStateMock = vi.mocked(VeNFTStateModule.updateVeNFTState);
       expect(updateVeNFTStateMock).toHaveBeenCalled();
       // Handlers may run multiple times (preload + normal), so check if called at least once
       expect(updateVeNFTStateMock.mock.calls.length).toBeGreaterThanOrEqual(1);
@@ -586,10 +569,7 @@ describe("VeNFT Events", () => {
       const dbWithoutVeNFTState = MockDb.createMockDb();
       const withdrawEvent = VeNFT.Withdraw.createMockEvent(eventData);
 
-      const resultDB = await VeNFT.Withdraw.processEvent({
-        event: withdrawEvent,
-        mockDb: dbWithoutVeNFTState,
-      });
+      const resultDB = await dbWithoutVeNFTState.processEvents([withdrawEvent]);
 
       expect(resultDB).toBeDefined();
       expect(
@@ -600,7 +580,7 @@ describe("VeNFT Events", () => {
 
   describe("Deposit Event", () => {
     const eventData = {
-      provider: "0x1111111111111111111111111111111111111111",
+      provider: toChecksumAddress("0x1111111111111111111111111111111111111111"),
       tokenId: 1n,
       value: 1n,
       locktime: 1n,
@@ -614,7 +594,9 @@ describe("VeNFT Events", () => {
         },
         chainId: 10,
         logIndex: 1,
-        srcAddress: "0x3333333333333333333333333333333333333333",
+        srcAddress: toChecksumAddress(
+          "0x3333333333333333333333333333333333333333",
+        ),
       },
     };
 
@@ -622,26 +604,21 @@ describe("VeNFT Events", () => {
     let mockEvent: ReturnType<typeof VeNFT.Deposit.createMockEvent>;
 
     beforeEach(async () => {
-      jest
-        .spyOn(VeNFTStateModule, "updateVeNFTState")
-        .mockImplementation(() => {});
-      jest.spyOn(VeNFTLogic, "processVeNFTDeposit");
+      vi.spyOn(VeNFTStateModule, "updateVeNFTState").mockImplementation(
+        () => {},
+      );
+      vi.spyOn(VeNFTLogic, "processVeNFTDeposit");
 
       mockEvent = VeNFT.Deposit.createMockEvent(eventData);
-      postEventDB = await VeNFT.Deposit.processEvent({
-        event: mockEvent,
-        mockDb: mockDb,
-      });
+      postEventDB = await mockDb.processEvents([mockEvent]);
     });
 
     afterEach(() => {
-      jest.restoreAllMocks();
+      vi.restoreAllMocks();
     });
 
     it("should call processVeNFTDeposit with the correct arguments", () => {
-      const processVeNFTDepositMock = jest.mocked(
-        VeNFTLogic.processVeNFTDeposit,
-      );
+      const processVeNFTDepositMock = vi.mocked(VeNFTLogic.processVeNFTDeposit);
       expect(processVeNFTDepositMock).toHaveBeenCalled();
       // Handlers may run multiple times (preload + normal), so check if called at least once
       expect(processVeNFTDepositMock.mock.calls.length).toBeGreaterThanOrEqual(
@@ -653,9 +630,7 @@ describe("VeNFT Events", () => {
     });
 
     it("should call updateVeNFTState with the correct arguments", () => {
-      const updateVeNFTStateMock = jest.mocked(
-        VeNFTStateModule.updateVeNFTState,
-      );
+      const updateVeNFTStateMock = vi.mocked(VeNFTStateModule.updateVeNFTState);
       expect(updateVeNFTStateMock).toHaveBeenCalled();
       // Handlers may run multiple times (preload + normal), so check if called at least once
       expect(updateVeNFTStateMock.mock.calls.length).toBeGreaterThanOrEqual(1);
@@ -675,10 +650,7 @@ describe("VeNFT Events", () => {
       const dbWithoutVeNFTState = MockDb.createMockDb();
       const depositEvent = VeNFT.Deposit.createMockEvent(eventData);
 
-      const resultDB = await VeNFT.Deposit.processEvent({
-        event: depositEvent,
-        mockDb: dbWithoutVeNFTState,
-      });
+      const resultDB = await dbWithoutVeNFTState.processEvents([depositEvent]);
 
       expect(resultDB).toBeDefined();
       expect(

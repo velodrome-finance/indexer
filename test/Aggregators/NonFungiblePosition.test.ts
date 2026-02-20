@@ -31,48 +31,27 @@ describe("NonFungiblePosition", () => {
   beforeEach(() => {
     mockContext = {
       NonFungiblePositionSnapshot: {
-        set: jest.fn(),
+        set: vi.fn(),
       } as unknown as handlerContext["NonFungiblePositionSnapshot"],
       NonFungiblePosition: {
-        set: jest.fn(),
-        get: jest.fn(),
-        getOrThrow: jest.fn(),
-        getOrCreate: jest.fn(),
-        deleteUnsafe: jest.fn(),
-        getWhere: {
-          owner: {
-            eq: jest.fn(),
-            gt: jest.fn(),
-            lt: jest.fn(),
-          },
-          tokenId: {
-            eq: jest.fn(),
-            gt: jest.fn(),
-            lt: jest.fn(),
-          },
-          pool: {
-            eq: jest.fn(),
-            gt: jest.fn(),
-            lt: jest.fn(),
-          },
-          mintTransactionHash: {
-            eq: jest.fn(),
-            gt: jest.fn(),
-            lt: jest.fn(),
-          },
-        },
+        set: vi.fn(),
+        get: vi.fn(),
+        getOrThrow: vi.fn(),
+        getOrCreate: vi.fn(),
+        deleteUnsafe: vi.fn(),
+        getWhere: vi.fn().mockResolvedValue([]),
       },
       log: {
-        error: jest.fn(),
-        info: jest.fn(),
-        warn: jest.fn(),
-        debug: jest.fn(),
+        error: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        debug: vi.fn(),
       },
     };
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe("updateNonFungiblePosition", () => {
@@ -96,7 +75,7 @@ describe("NonFungiblePosition", () => {
           mockContext as handlerContext,
           timestamp,
         );
-        const mockSet = jest.mocked(mockContext.NonFungiblePosition?.set);
+        const mockSet = vi.mocked(mockContext.NonFungiblePosition?.set);
         result = mockSet?.mock.calls[0]?.[0] as NonFungiblePosition;
       });
 
@@ -133,7 +112,7 @@ describe("NonFungiblePosition", () => {
           mockContext as handlerContext,
           timestamp,
         );
-        const mockSet = jest.mocked(mockContext.NonFungiblePosition?.set);
+        const mockSet = vi.mocked(mockContext.NonFungiblePosition?.set);
         result = mockSet?.mock.calls[0]?.[0] as NonFungiblePosition;
       });
 
@@ -164,7 +143,7 @@ describe("NonFungiblePosition", () => {
           mockContext as handlerContext,
           timestamp,
         );
-        const mockSet = jest.mocked(mockContext.NonFungiblePosition?.set);
+        const mockSet = vi.mocked(mockContext.NonFungiblePosition?.set);
         result = mockSet?.mock.calls[0]?.[0] as NonFungiblePosition;
       });
 

@@ -1,9 +1,10 @@
-import { CLPoolLauncher, MockDb } from "generated/src/TestHelpers.gen";
+import "../../eventHandlersRegistration";
 import type {
   LiquidityPoolAggregator,
   PoolLauncherPool,
   Token,
-} from "generated/src/Types.gen";
+} from "generated";
+import { CLPoolLauncher, MockDb } from "generated/src/TestHelpers.gen";
 import { PoolId, TokenId, toChecksumAddress } from "../../../src/Constants";
 import { setupCommon } from "../Pool/common";
 
@@ -31,7 +32,10 @@ describe("CLPoolLauncher Events", () => {
 
   const mockToken0: Token = {
     ...mockToken0Data,
-    id: TokenId(mockChainId, "0x6666666666666666666666666666666666666666"),
+    id: TokenId(
+      mockChainId,
+      toChecksumAddress("0x6666666666666666666666666666666666666666"),
+    ),
     address: toChecksumAddress("0x6666666666666666666666666666666666666666"),
     symbol: "USDC",
     name: "USD Coin",
@@ -44,7 +48,10 @@ describe("CLPoolLauncher Events", () => {
 
   const mockToken1: Token = {
     ...mockToken1Data,
-    id: TokenId(mockChainId, "0x7777777777777777777777777777777777777777"),
+    id: TokenId(
+      mockChainId,
+      toChecksumAddress("0x7777777777777777777777777777777777777777"),
+    ),
     address: toChecksumAddress("0x7777777777777777777777777777777777777777"),
     symbol: "USDT",
     name: "Tether USD",
@@ -93,10 +100,7 @@ describe("CLPoolLauncher Events", () => {
         },
       });
 
-      const result = await CLPoolLauncher.Launch.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       // Check that PoolLauncherPool was created
       const poolLauncherPool = result.entities.PoolLauncherPool.get(
@@ -177,10 +181,7 @@ describe("CLPoolLauncher Events", () => {
         },
       });
 
-      const result = await CLPoolLauncher.Migrate.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       // Check that original PoolLauncherPool was updated with migration info
       const originalPoolLauncherPool = result.entities.PoolLauncherPool.get(
@@ -238,10 +239,7 @@ describe("CLPoolLauncher Events", () => {
         },
       });
 
-      const result = await CLPoolLauncher.Migrate.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       // Should not create any PoolLauncherPool entities since original doesn't exist
       const originalPoolLauncherPool = result.entities.PoolLauncherPool.get(
@@ -289,10 +287,7 @@ describe("CLPoolLauncher Events", () => {
         },
       });
 
-      const result = await CLPoolLauncher.EmergingFlagged.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       const poolLauncherPool = result.entities.PoolLauncherPool.get(
         PoolId(mockChainId, mockPoolAddress),
@@ -314,10 +309,7 @@ describe("CLPoolLauncher Events", () => {
         },
       });
 
-      const result = await CLPoolLauncher.EmergingFlagged.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       // Should not create any PoolLauncherPool entities
       const poolLauncherPool = result.entities.PoolLauncherPool.get(
@@ -360,10 +352,7 @@ describe("CLPoolLauncher Events", () => {
         },
       });
 
-      const result = await CLPoolLauncher.EmergingUnflagged.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       const poolLauncherPool = result.entities.PoolLauncherPool.get(
         PoolId(mockChainId, mockPoolAddress),
@@ -385,10 +374,7 @@ describe("CLPoolLauncher Events", () => {
         },
       });
 
-      const result = await CLPoolLauncher.EmergingUnflagged.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       // Should not create any PoolLauncherPool entities
       const poolLauncherPool = result.entities.PoolLauncherPool.get(
@@ -433,10 +419,7 @@ describe("CLPoolLauncher Events", () => {
         },
       });
 
-      const result = await CLPoolLauncher.CreationTimestampSet.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       const poolLauncherPool = result.entities.PoolLauncherPool.get(
         PoolId(mockChainId, mockPoolAddress),
@@ -461,10 +444,7 @@ describe("CLPoolLauncher Events", () => {
         },
       });
 
-      const result = await CLPoolLauncher.CreationTimestampSet.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       // Should not create any PoolLauncherPool entities
       const poolLauncherPool = result.entities.PoolLauncherPool.get(
@@ -492,10 +472,7 @@ describe("CLPoolLauncher Events", () => {
         },
       });
 
-      const result = await CLPoolLauncher.PairableTokenAdded.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       // Should create new PoolLauncherConfig
       const config = result.entities.PoolLauncherConfig.get(configId);
@@ -533,10 +510,7 @@ describe("CLPoolLauncher Events", () => {
         },
       });
 
-      const result = await CLPoolLauncher.PairableTokenAdded.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       // Should update existing PoolLauncherConfig
       const config = result.entities.PoolLauncherConfig.get(configId);
@@ -571,10 +545,7 @@ describe("CLPoolLauncher Events", () => {
         },
       });
 
-      const result = await CLPoolLauncher.PairableTokenAdded.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       // Should not add duplicate token
       const config = result.entities.PoolLauncherConfig.get(configId);
@@ -612,10 +583,7 @@ describe("CLPoolLauncher Events", () => {
         },
       });
 
-      const result = await CLPoolLauncher.PairableTokenRemoved.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       // Should update PoolLauncherConfig by removing the token
       const config = result.entities.PoolLauncherConfig.get(configId);
@@ -642,10 +610,7 @@ describe("CLPoolLauncher Events", () => {
         },
       });
 
-      const result = await CLPoolLauncher.PairableTokenRemoved.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       // Should not create any config when trying to remove from non-existent config
       const config = result.entities.PoolLauncherConfig.get(configId);
@@ -680,10 +645,7 @@ describe("CLPoolLauncher Events", () => {
         },
       });
 
-      const result = await CLPoolLauncher.PairableTokenRemoved.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       // Should keep existing tokens unchanged
       const config = result.entities.PoolLauncherConfig.get(configId);
@@ -722,10 +684,7 @@ describe("CLPoolLauncher Events", () => {
         },
       });
 
-      const result = await CLPoolLauncher.NewPoolLauncherSet.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       // Should create new config with updated ID
       const newConfig = result.entities.PoolLauncherConfig.get(newConfigId);
@@ -751,10 +710,7 @@ describe("CLPoolLauncher Events", () => {
         },
       });
 
-      const result = await CLPoolLauncher.NewPoolLauncherSet.processEvent({
-        event: mockEvent,
-        mockDb,
-      });
+      const result = await mockDb.processEvents([mockEvent]);
 
       // Should not create any config when no existing config exists
       const newConfig = result.entities.PoolLauncherConfig.get(newConfigId);

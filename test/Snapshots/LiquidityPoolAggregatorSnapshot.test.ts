@@ -15,7 +15,7 @@ describe("LiquidityPoolAggregatorSnapshot", () => {
 
   beforeEach(() => {
     common = setupCommon();
-    jest.clearAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe("createLiquidityPoolAggregatorSnapshot", () => {
@@ -53,53 +53,54 @@ describe("LiquidityPoolAggregatorSnapshot", () => {
 
   it("should set snapshot with epoch-aligned timestamp and correct id", () => {
     const context = common.createMockContext({
-      LiquidityPoolAggregatorSnapshot: { set: jest.fn() },
+      LiquidityPoolAggregatorSnapshot: { set: vi.fn() },
     });
     const pool = common.createMockLiquidityPoolAggregator();
     const timestamp = new Date(baseTimestamp.getTime() + 30 * 60 * 1000); // 30 min into epoch
+    const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 5;
 
     setLiquidityPoolAggregatorSnapshot(pool, timestamp, context);
 
     expect(context.LiquidityPoolAggregatorSnapshot.set).toHaveBeenCalledTimes(
       1,
     );
-    const setArg = (context.LiquidityPoolAggregatorSnapshot.set as jest.Mock)
-      .mock.calls[0][0];
-    const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 5;
-    expect(setArg.id).toBe(
-      LiquidityPoolAggregatorSnapshotId(
-        pool.chainId,
-        pool.poolAddress,
-        expectedEpochMs,
-      ),
+    expect(context.LiquidityPoolAggregatorSnapshot.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: LiquidityPoolAggregatorSnapshotId(
+          pool.chainId,
+          pool.poolAddress,
+          expectedEpochMs,
+        ),
+        timestamp: new Date(expectedEpochMs),
+        poolAddress: pool.poolAddress,
+        chainId: pool.chainId,
+      }),
     );
-    expect(setArg.poolAddress).toBe(pool.poolAddress);
-    expect(setArg.timestamp.getTime()).toBe(expectedEpochMs);
-    expect(setArg.chainId).toBe(pool.chainId);
   });
 
   it("should set all snapshot fields from pool (with id and timestamp from epoch)", () => {
     const context = common.createMockContext({
-      LiquidityPoolAggregatorSnapshot: { set: jest.fn() },
+      LiquidityPoolAggregatorSnapshot: { set: vi.fn() },
     });
     const pool = common.createMockLiquidityPoolAggregator();
+    const expectedEpoch = getSnapshotEpoch(baseTimestamp);
 
     setLiquidityPoolAggregatorSnapshot(pool, baseTimestamp, context);
 
-    const setArg = (context.LiquidityPoolAggregatorSnapshot.set as jest.Mock)
-      .mock.calls[0][0];
-    const expectedEpoch = getSnapshotEpoch(baseTimestamp);
-
-    expect(setArg.id).toBe(
-      LiquidityPoolAggregatorSnapshotId(
-        pool.chainId,
-        pool.poolAddress,
-        expectedEpoch.getTime(),
-      ),
+    expect(context.LiquidityPoolAggregatorSnapshot.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: LiquidityPoolAggregatorSnapshotId(
+          pool.chainId,
+          pool.poolAddress,
+          expectedEpoch.getTime(),
+        ),
+        timestamp: new Date(expectedEpoch.getTime()),
+      }),
     );
-    expect(setArg.timestamp.getTime()).toBe(expectedEpoch.getTime());
 
     // Snapshot only includes fields defined on LiquidityPoolAggregatorSnapshot (no lastUpdatedTimestamp, lastSnapshotTimestamp, tickSpacing, etc.)
+    const setArg = vi.mocked(context.LiquidityPoolAggregatorSnapshot.set).mock
+      .calls[0][0];
     const snapshotKeysFromPool = (
       Object.keys(pool) as (keyof typeof pool)[]
     ).filter(

@@ -1,4 +1,5 @@
 import type { Pool_Fees_event, Token, handlerContext } from "generated";
+import { toChecksumAddress } from "../../../src/Constants";
 import { processPoolFees } from "../../../src/EventHandlers/Pool/PoolFeesLogic";
 import { setupCommon } from "./common";
 
@@ -13,14 +14,14 @@ describe("PoolFeesLogic", () => {
       hash: "0x5555555555555555555555555555555555555555555555555555555555555555",
     },
     logIndex: 1,
-    srcAddress: "0x3333333333333333333333333333333333333333",
+    srcAddress: toChecksumAddress("0x3333333333333333333333333333333333333333"),
     transaction: {
       hash: "0x4444444444444444444444444444444444444444444444444444444444444444",
     },
     params: {
       amount0: 1000n,
       amount1: 2000n,
-      sender: "0x1234567890123456789012345678901234567890",
+      sender: toChecksumAddress("0x1234567890123456789012345678901234567890"),
     },
   };
 

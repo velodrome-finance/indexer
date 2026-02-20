@@ -1,4 +1,4 @@
-import type { Token } from "./src/Types.gen";
+import type { Token } from "generated";
 
 // Ensure units is an array of valid unit types
 export type validUnit =

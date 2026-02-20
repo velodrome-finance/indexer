@@ -29,7 +29,7 @@ describe("UserStatsPerPool Liquidity Logic", () => {
     common = setupCommon();
     mockContext = common.createMockContext({
       UserStatsPerPool: { set: async () => {} },
-      UserStatsPerPoolSnapshot: { set: jest.fn() },
+      UserStatsPerPoolSnapshot: { set: vi.fn() },
       log: { error: () => {}, warn: () => {}, info: () => {} },
     });
   });
