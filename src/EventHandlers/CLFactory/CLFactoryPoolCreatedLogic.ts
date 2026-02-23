@@ -16,6 +16,7 @@ export interface CLFactoryPoolCreatedResult {
 
 export async function processCLFactoryPoolCreated(
   event: CLFactory_PoolCreated_event,
+  factoryAddress: string,
   poolToken0: Token | undefined,
   poolToken1: Token | undefined,
   CLGaugeConfig: CLGaugeConfig | undefined,
@@ -63,6 +64,7 @@ export async function processCLFactoryPoolCreated(
       timestamp: new Date(event.block.timestamp * 1000),
       tickSpacing: Number(event.params.tickSpacing),
       CLGaugeConfig: CLGaugeConfig,
+      factoryAddress: factoryAddress,
       // From what I've researched, there's always a TickSpacingEnabled event
       // with the appropriate tick spacing <-> fee mapping before a CL pool with the same tick spacing is created
       // CLFactoryPool constructor calls enableTickSpacing which emits TickSpacingEnabled event

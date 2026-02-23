@@ -81,6 +81,9 @@ type LiquidityPoolAggregator {
   # Pool Launcher relationship
   poolLauncherPoolId: String # ID of the PoolLauncherPool entity if this pool was launched via Pool Launcher
 
+  # Address of the factory that created this pool (e.g. CLFactory for CL pools, set from PoolCreated event)
+  factoryAddress: String
+
   # RootPool matching - only relevant for non-OP and non-Base pools
   # For each superChain pool there's a unique rootPool
   # This is because the rootPool is created through a hash of these 4 quantities and they are a unique combination (enforced by smart contract)

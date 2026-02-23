@@ -106,6 +106,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
       // Process the pool created event
       const result = await processCLFactoryPoolCreated(
         mockEvent,
+        mockEvent.srcAddress,
         mockToken0Data,
         mockToken1Data,
         undefined, // CLGaugeConfig
@@ -114,6 +115,9 @@ describe("CLFactoryPoolCreatedLogic", () => {
       );
 
       // Assertions
+      expect(result.liquidityPoolAggregator.factoryAddress).toBe(
+        mockEvent.srcAddress,
+      );
       expect(result.liquidityPoolAggregator).toMatchObject({
         id: LEAF_POOL_ID,
         chainId: 10,
@@ -131,6 +135,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
     it("should handle missing token0 gracefully", async () => {
       const result = await processCLFactoryPoolCreated(
         mockEvent,
+        mockEvent.srcAddress,
         undefined,
         mockToken1Data,
         undefined, // CLGaugeConfig
@@ -155,6 +160,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
     it("should handle missing token1 gracefully", async () => {
       const result = await processCLFactoryPoolCreated(
         mockEvent,
+        mockEvent.srcAddress,
         mockToken0Data,
         undefined,
         undefined, // CLGaugeConfig
@@ -179,6 +185,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
     it("should handle both tokens missing gracefully", async () => {
       const result = await processCLFactoryPoolCreated(
         mockEvent,
+        mockEvent.srcAddress,
         undefined,
         undefined,
         undefined, // CLGaugeConfig
@@ -220,6 +227,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
 
       const result = await processCLFactoryPoolCreated(
         mockEventWithDifferentTickSpacing,
+        mockEventWithDifferentTickSpacing.srcAddress,
         mockToken0Data,
         mockToken1Data,
         undefined, // CLGaugeConfig
@@ -245,6 +253,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
 
       const result = await processCLFactoryPoolCreated(
         mockEvent,
+        mockEvent.srcAddress,
         mockToken0NonWhitelisted,
         mockToken1NonWhitelisted,
         undefined, // CLGaugeConfig
@@ -279,6 +288,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
 
       const result = await processCLFactoryPoolCreated(
         mockEvent,
+        mockEvent.srcAddress,
         mockToken0Whitelisted,
         mockToken1NonWhitelisted,
         undefined, // CLGaugeConfig
@@ -317,6 +327,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
 
       const result = await processCLFactoryPoolCreated(
         mockEventWithDifferentChainId,
+        mockEventWithDifferentChainId.srcAddress,
         mockToken0Data,
         mockToken1Data,
         undefined, // CLGaugeConfig
@@ -354,6 +365,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
 
       const result = await processCLFactoryPoolCreated(
         mockEvent,
+        mockEvent.srcAddress,
         mockToken0WithSymbol,
         mockToken1WithSymbol,
         undefined, // CLGaugeConfig
@@ -379,6 +391,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
       // The function catches errors and continues, so it should complete successfully
       const result = await processCLFactoryPoolCreated(
         mockEvent,
+        mockEvent.srcAddress,
         undefined,
         undefined,
         undefined, // CLGaugeConfig
@@ -397,6 +410,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
     it("should set all initial values correctly for new pool", async () => {
       const result = await processCLFactoryPoolCreated(
         mockEvent,
+        mockEvent.srcAddress,
         mockToken0Data,
         mockToken1Data,
         undefined, // CLGaugeConfig
@@ -444,6 +458,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
     it("should set gaugeEmissionsCap to undefined when CLGaugeConfig does not exist", async () => {
       const result = await processCLFactoryPoolCreated(
         mockEvent,
+        mockEvent.srcAddress,
         mockToken0Data,
         mockToken1Data,
         undefined, // CLGaugeConfig does not exist
@@ -464,6 +479,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
 
       const result = await processCLFactoryPoolCreated(
         mockEvent,
+        mockEvent.srcAddress,
         mockToken0Data,
         mockToken1Data,
         mockCLGaugeConfig,
@@ -479,6 +495,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
     it("should set baseFee and currentFee from FeeToTickSpacingMapping when mapping exists", async () => {
       const result = await processCLFactoryPoolCreated(
         mockEvent,
+        mockEvent.srcAddress,
         mockToken0Data,
         mockToken1Data,
         undefined, // CLGaugeConfig
@@ -497,6 +514,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
       await expect(
         processCLFactoryPoolCreated(
           mockEvent,
+          mockEvent.srcAddress,
           mockToken0Data,
           mockToken1Data,
           undefined, // CLGaugeConfig
@@ -531,6 +549,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
 
         const result = await processCLFactoryPoolCreated(
           eventWithTickSpacing,
+          eventWithTickSpacing.srcAddress,
           mockToken0Data,
           mockToken1Data,
           undefined, // CLGaugeConfig

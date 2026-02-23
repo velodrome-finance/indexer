@@ -5,8 +5,8 @@ export {
   roundBlockToInterval,
 } from "./Token";
 
-// Dynamic fee-related effects
-export { getCurrentFee } from "./DynamicFee";
+// Swap fee-related effects (e.g. CLFactory.getSwapFee for CL pools)
+export { getSwapFee } from "./SwapFee";
 
 // Voter-related effects
 export {

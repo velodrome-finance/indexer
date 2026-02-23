@@ -82,6 +82,7 @@ PoolFactory.PoolCreated.handler(async ({ event, context }) => {
     token0Symbol: poolTokenSymbols[0],
     token1Symbol: poolTokenSymbols[1],
     timestamp: new Date(event.block.timestamp * 1000),
+    factoryAddress: event.srcAddress,
     baseFee: fee,
     currentFee: fee,
   });

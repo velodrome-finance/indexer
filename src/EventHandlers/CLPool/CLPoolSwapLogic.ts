@@ -102,7 +102,7 @@ export function calculateSwapFees(
 
   if (!fee) {
     context.log.error(
-      `[calculateSwapFees] Pool ${liquidityPoolAggregator.id} on chain ${event.chainId} has undefined currentFee and baseFee. Cannot calculate swap fees.`,
+      `[calculateSwapFees] Pool ${liquidityPoolAggregator.id} on chain ${event.chainId} has ${liquidityPoolAggregator.currentFee} for currentFee and ${liquidityPoolAggregator.baseFee} for baseFee. Cannot calculate swap fees.`,
     );
     // Set fees to 0 if fee is undefined (should not happen in practice)
     return {

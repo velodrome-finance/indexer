@@ -34,14 +34,14 @@ export async function fetchSwapFee(
 }
 
 /**
- * Effect to get current fee from the CLFactory that created the pool (CLFactory.getSwapFee).
+ * Effect to get swap fee from the factory that created the pool (e.g. CLFactory.getSwapFee).
  *
  * Error handling: Returns undefined on failure. Callers should check for undefined
  * and handle appropriately (e.g., skip update or use existing fee).
  */
-export const getCurrentFee = createEffect(
+export const getSwapFee = createEffect(
   {
-    name: "getCurrentFee",
+    name: "getSwapFee",
     input: {
       poolAddress: S.string,
       factoryAddress: S.string,
@@ -73,7 +73,7 @@ export const getCurrentFee = createEffect(
       return handleEffectErrorReturn(
         error,
         context,
-        "getCurrentFee",
+        "getSwapFee",
         {
           poolAddress,
           chainId,
