@@ -28,19 +28,19 @@ export async function fetchTokenDetails(
 ): Promise<{ name: string; decimals: number; symbol: string }> {
   try {
     const [nameResult, decimalsResult, symbolResult] = await Promise.all([
-      ethClient.simulateContract({
+      ethClient.readContract({
         address: contractAddress as `0x${string}`,
         abi: ERC20_ABI,
         functionName: "name",
         args: [],
       }),
-      ethClient.simulateContract({
+      ethClient.readContract({
         address: contractAddress as `0x${string}`,
         abi: ERC20_ABI,
         functionName: "decimals",
         args: [],
       }),
-      ethClient.simulateContract({
+      ethClient.readContract({
         address: contractAddress as `0x${string}`,
         abi: ERC20_ABI,
         functionName: "symbol",
@@ -49,9 +49,9 @@ export async function fetchTokenDetails(
     ]);
 
     const result = {
-      name: (nameResult.result as unknown)?.toString() || "",
-      decimals: Number(decimalsResult.result) || 0,
-      symbol: (symbolResult.result as unknown)?.toString() || "",
+      name: nameResult?.toString() || "",
+      decimals: Number(decimalsResult) || 0,
+      symbol: symbolResult?.toString() || "",
     };
 
     logger.info(
@@ -113,13 +113,12 @@ export async function fetchTokenPrice(
           tokenAddressArray,
           10,
         ];
-        const { result } = await ethClient.simulateContract({
+        const result = await ethClient.readContract({
           address: priceOracleAddress as `0x${string}`,
           abi: SpotPriceAggregatorABI,
           functionName: "getManyRatesWithCustomConnectors",
           args,
           blockNumber: BigInt(blockNumber),
-          gas: currentGasLimit,
         });
         const attemptDuration = Date.now() - attemptStartTime;
         const overallDuration = Date.now() - overallStartTime;
@@ -137,7 +136,7 @@ export async function fetchTokenPrice(
         }
 
         return {
-          pricePerUSDNew: BigInt(result[0]),
+          pricePerUSDNew: BigInt((result as readonly bigint[])[0]),
           priceOracleType: PriceOracleType.V3,
         };
       }
@@ -150,13 +149,12 @@ export async function fetchTokenPrice(
         usdcAddress,
       ];
       const args = [1, tokenAddressArray];
-      const { result } = await ethClient.simulateContract({
+      const result = await ethClient.readContract({
         address: priceOracleAddress as `0x${string}`,
         abi: PriceOracleABI,
         functionName: "getManyRatesWithConnectors",
         args,
         blockNumber: BigInt(blockNumber),
-        gas: currentGasLimit,
       });
       const attemptDuration = Date.now() - attemptStartTime;
       const overallDuration = Date.now() - overallStartTime;
@@ -174,7 +172,7 @@ export async function fetchTokenPrice(
       }
 
       return {
-        pricePerUSDNew: BigInt(result[0]),
+        pricePerUSDNew: BigInt((result as readonly bigint[])[0]),
         priceOracleType: priceOracleType,
       };
     } catch (error) {

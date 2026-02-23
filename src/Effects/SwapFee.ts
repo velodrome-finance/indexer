@@ -21,7 +21,7 @@ export async function fetchSwapFee(
     `[fetchSwapFee] Fetching swap fee for pool ${poolAddress} from factory ${factoryAddress} on chain ${chainId} at block ${blockNumber}`,
   );
 
-  const { result } = await ethClient.simulateContract({
+  const result = await ethClient.readContract({
     address: factoryAddress as `0x${string}`,
     abi: CL_FACTORY_ABI,
     functionName: "getSwapFee",
@@ -57,8 +57,12 @@ export const getSwapFee = createEffect(
   },
   async ({ input, context }) => {
     const { poolAddress, factoryAddress, chainId, blockNumber } = input;
-    const ethClient = CHAIN_CONSTANTS[chainId].eth_client;
     try {
+      const chainConfig = CHAIN_CONSTANTS[chainId];
+      if (!chainConfig?.eth_client) {
+        throw new Error(`No eth_client configured for chainId ${chainId}`);
+      }
+      const ethClient = chainConfig.eth_client;
       const result = await fetchSwapFee(
         poolAddress,
         factoryAddress,

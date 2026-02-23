@@ -45,10 +45,7 @@ describe("RootPool Effects", () => {
     )[252];
 
     mockEthClient = {
-      simulateContract: vi.fn().mockResolvedValue({
-        result: mockRootPoolAddress.toLowerCase(), // viem returns lowercase
-        // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
-      } as any),
+      readContract: vi.fn().mockResolvedValue(mockRootPoolAddress),
     } as unknown as PublicClient;
 
     // Mock CHAIN_CONSTANTS for Fraxtal (chainId 252)
@@ -114,18 +111,17 @@ describe("RootPool Effects", () => {
       const expectedChecksummed = toChecksumAddress(mockRootPoolAddress);
       expect(result).toBe(expectedChecksummed);
 
-      // Verify simulateContract was called
-      const mockSimulateContract = vi.mocked(mockEthClient.simulateContract);
-      expect(mockSimulateContract).toHaveBeenCalledTimes(1);
+      // Verify readContract was called
+      const mockReadContract = vi.mocked(mockEthClient.readContract);
+      expect(mockReadContract).toHaveBeenCalledTimes(1);
     });
 
-    it("should handle array result from simulateContract", async () => {
-      // Mock simulateContract to return an array (some viem versions return arrays)
-      const mockSimulateContract = vi.mocked(mockEthClient.simulateContract);
-      mockSimulateContract.mockResolvedValue({
-        result: [mockRootPoolAddress.toLowerCase()], // Array with single value
-        // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
-      } as any);
+    it("should handle array result from readContract", async () => {
+      // Mock readContract to return an array (some viem versions return arrays)
+      const mockReadContract = vi.mocked(mockEthClient.readContract);
+      mockReadContract.mockResolvedValue([
+        mockRootPoolAddress.toLowerCase(),
+      ] as unknown as string); // Array with single value
 
       const result = await fetchRootPoolAddress(
         mockEthClient,
@@ -142,13 +138,10 @@ describe("RootPool Effects", () => {
       expect(result).toBe(expectedChecksummed);
     });
 
-    it("should handle direct string result from simulateContract", async () => {
-      // Mock simulateContract to return a direct string
-      const mockSimulateContract = vi.mocked(mockEthClient.simulateContract);
-      mockSimulateContract.mockResolvedValue({
-        result: mockRootPoolAddress.toLowerCase(),
-        // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
-      } as any);
+    it("should handle direct string result from readContract", async () => {
+      // Mock readContract to return a direct string
+      const mockReadContract = vi.mocked(mockEthClient.readContract);
+      mockReadContract.mockResolvedValue(mockRootPoolAddress.toLowerCase());
 
       const result = await fetchRootPoolAddress(
         mockEthClient,
@@ -166,9 +159,9 @@ describe("RootPool Effects", () => {
     });
 
     it("should handle contract call errors", async () => {
-      const mockSimulateContract = vi.mocked(mockEthClient.simulateContract);
+      const mockReadContract = vi.mocked(mockEthClient.readContract);
       const error = new Error("Contract call failed");
-      mockSimulateContract.mockRejectedValue(error);
+      mockReadContract.mockRejectedValue(error);
 
       await expect(
         fetchRootPoolAddress(
@@ -185,11 +178,8 @@ describe("RootPool Effects", () => {
 
     it("should normalize lowercase addresses to checksum format", async () => {
       const lowercaseAddress = "0xabcdef1234567890abcdef1234567890abcdef12";
-      const mockSimulateContract = vi.mocked(mockEthClient.simulateContract);
-      mockSimulateContract.mockResolvedValue({
-        result: lowercaseAddress,
-        // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
-      } as any);
+      const mockReadContract = vi.mocked(mockEthClient.readContract);
+      mockReadContract.mockResolvedValue(lowercaseAddress);
 
       const result = await fetchRootPoolAddress(
         mockEthClient,
@@ -208,11 +198,8 @@ describe("RootPool Effects", () => {
     });
 
     it("should return empty string and log error when address is null/undefined", async () => {
-      const mockSimulateContract = vi.mocked(mockEthClient.simulateContract);
-      mockSimulateContract.mockResolvedValue({
-        result: null,
-        // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
-      } as any);
+      const mockReadContract = vi.mocked(mockEthClient.readContract);
+      mockReadContract.mockResolvedValue(null as unknown as string);
 
       const result = await fetchRootPoolAddress(
         mockEthClient,

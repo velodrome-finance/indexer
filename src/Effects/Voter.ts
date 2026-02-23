@@ -18,7 +18,7 @@ export async function fetchTokensDeposited(
   ethClient: PublicClient,
   logger: Envio_logger,
 ): Promise<bigint> {
-  const { result } = await ethClient.simulateContract({
+  const result = await ethClient.readContract({
     address: rewardTokenAddress as `0x${string}`,
     abi: ERC20_ABI,
     functionName: "balanceOf",
@@ -50,7 +50,7 @@ export async function fetchIsAlive(
   ethClient: PublicClient,
   logger: Envio_logger,
 ): Promise<boolean> {
-  const { result } = await ethClient.simulateContract({
+  const result = await ethClient.readContract({
     address: voterAddress as `0x${string}`,
     abi: VOTER_ABI,
     functionName: "isAlive",
