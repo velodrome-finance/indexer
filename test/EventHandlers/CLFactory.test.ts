@@ -108,11 +108,15 @@ describe("CLFactory Events", () => {
       .mockImplementation(
         async (
           event,
+          _factoryAddress,
           token0,
           token1,
           clGaugeConfig,
           feeToTickSpacingMapping,
         ) => {
+          const mapping = feeToTickSpacingMapping as
+            | { fee?: bigint }
+            | undefined;
           return {
             liquidityPoolAggregator: {
               id: PoolId(chainId, poolAddress),
@@ -123,8 +127,8 @@ describe("CLFactory Events", () => {
               token1_address: token1Address,
               isStable: false,
               isCL: true,
-              baseFee: feeToTickSpacingMapping?.fee,
-              currentFee: feeToTickSpacingMapping?.fee,
+              baseFee: mapping?.fee,
+              currentFee: mapping?.fee,
               lastUpdatedTimestamp: new Date(1000000 * 1000),
             } as LiquidityPoolAggregator,
           };
@@ -173,36 +177,36 @@ describe("CLFactory Events", () => {
     });
 
     it("should call processCLFactoryPoolCreated with correct parameters", () => {
-      // The spy should have been called when the event was processed in beforeEach
+      // processCLFactoryPoolCreated(event, factoryAddress, poolToken0, poolToken1, CLGaugeConfig, feeToTickSpacingMapping, context)
       expect(processSpy).toHaveBeenCalled();
       const callArgs = processSpy.mock.calls[0];
       expect(callArgs[0]).toEqual(mockEvent);
-      expect(callArgs[1]).toEqual(
+      expect(callArgs[1]).toEqual(mockEvent.srcAddress); // factoryAddress
+      expect(callArgs[2]).toEqual(
         expect.objectContaining({
           address: mockToken0Data.address,
           chainId: chainId,
         }),
       );
-      expect(callArgs[2]).toEqual(
+      expect(callArgs[3]).toEqual(
         expect.objectContaining({
           address: mockToken1Data.address,
           chainId: chainId,
         }),
       );
-      expect(callArgs[3]).toEqual(
+      expect(callArgs[4]).toEqual(
         expect.objectContaining({
           id: newCLGaugeFactoryAddress,
         }),
       );
-      // Verify feeToTickSpacingMapping was passed as 4th argument
-      expect(callArgs[4]).toEqual(
+      expect(callArgs[5]).toEqual(
         expect.objectContaining({
           id: FeeToTickSpacingMappingId(chainId, TICK_SPACING),
           fee: 500n,
         }),
       );
-      // Verify context was passed as 5th argument
-      expect(callArgs[5]).toBeDefined();
+      // Verify context was passed as 7th argument
+      expect(callArgs[6]).toBeDefined();
     });
 
     it("should set the liquidity pool aggregator entity", () => {
@@ -245,18 +249,18 @@ describe("CLFactory Events", () => {
     });
 
     it("should load token0, token1, CLGaugeConfig, and FeeToTickSpacingMapping in parallel", () => {
-      // Verify that the handler loads all four entities
-      // This is tested implicitly by the fact that processCLFactoryPoolCreated is called
-      // with the correct token instances
+      // Verify that the handler loads all four entities and passes factoryAddress
+      // processCLFactoryPoolCreated(event, factoryAddress, poolToken0, poolToken1, CLGaugeConfig, feeToTickSpacingMapping, context)
       expect(processSpy).toHaveBeenCalled();
       expect(processSpy.mock.calls.length).toBeGreaterThanOrEqual(1);
       const callArgs = processSpy.mock.calls[0];
-      expect(callArgs[1]).toBeDefined(); // token0
-      expect(callArgs[2]).toBeDefined(); // token1
-      const clGaugeConfig = callArgs[3];
+      expect(callArgs[1]).toBeDefined(); // factoryAddress
+      expect(callArgs[2]).toBeDefined(); // token0
+      expect(callArgs[3]).toBeDefined(); // token1
+      const clGaugeConfig = callArgs[4];
       expect(clGaugeConfig).toBeDefined(); // CLGaugeConfig
       expect(clGaugeConfig?.id).toBe(newCLGaugeFactoryAddress);
-      const feeToTickSpacingMapping = callArgs[4];
+      const feeToTickSpacingMapping = callArgs[5] as { fee?: bigint };
       expect(feeToTickSpacingMapping).toBeDefined(); // FeeToTickSpacingMapping
       expect(feeToTickSpacingMapping?.fee).toBe(500n);
     });

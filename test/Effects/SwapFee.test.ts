@@ -1,7 +1,7 @@
 import type { logger as Envio_logger } from "envio/src/Envio.gen";
 import type { PublicClient } from "viem";
 import { CHAIN_CONSTANTS, toChecksumAddress } from "../../src/Constants";
-import { fetchCurrentFee, getCurrentFee } from "../../src/Effects/DynamicFee";
+import { fetchSwapFee, getSwapFee } from "../../src/Effects/SwapFee";
 
 // Common test constants
 const TEST_CHAIN_ID = 10;
@@ -9,7 +9,7 @@ const TEST_BLOCK_NUMBER = 12345;
 const TEST_POOL_ADDRESS = toChecksumAddress(
   "0x1234567890123456789012345678901234567890",
 );
-const TEST_DYNAMIC_FEE_MODULE = TEST_POOL_ADDRESS;
+const TEST_CL_FACTORY_ADDRESS = TEST_POOL_ADDRESS;
 const TEST_FEE_VALUE = 500n;
 const TEST_FEE_VALUE_ALT = 600n;
 
@@ -72,7 +72,7 @@ const CHAIN_CONFIGS = [
   },
 ];
 
-describe("Dynamic Fee Effects", () => {
+describe("Swap Fee Effects", () => {
   let mockContext: {
     effect: (
       effect: {
@@ -125,10 +125,10 @@ describe("Dynamic Fee Effects", () => {
     vi.restoreAllMocks();
   });
 
-  describe("getCurrentFee", () => {
+  describe("getSwapFee", () => {
     it("should be a valid effect object", () => {
-      expect(typeof getCurrentFee).toBe("object");
-      expect(getCurrentFee).toHaveProperty("name", "getCurrentFee");
+      expect(typeof getSwapFee).toBe("object");
+      expect(getSwapFee).toHaveProperty("name", "getSwapFee");
     });
 
     it("should return undefined on error", async () => {
@@ -137,13 +137,13 @@ describe("Dynamic Fee Effects", () => {
       );
 
       const result = await mockContext.effect(
-        getCurrentFee as unknown as {
+        getSwapFee as unknown as {
           name: string;
           handler: (args: { input: unknown; context: unknown }) => unknown;
         },
         {
           poolAddress: TEST_POOL_ADDRESS,
-          dynamicFeeModuleAddress: TEST_DYNAMIC_FEE_MODULE,
+          factoryAddress: TEST_CL_FACTORY_ADDRESS,
           chainId: TEST_CHAIN_ID,
           blockNumber: TEST_BLOCK_NUMBER,
         },
@@ -160,13 +160,13 @@ describe("Dynamic Fee Effects", () => {
       } as any);
 
       const result = await mockContext.effect(
-        getCurrentFee as unknown as {
+        getSwapFee as unknown as {
           name: string;
           handler: (args: { input: unknown; context: unknown }) => unknown;
         },
         {
           poolAddress: TEST_POOL_ADDRESS,
-          dynamicFeeModuleAddress: TEST_DYNAMIC_FEE_MODULE,
+          factoryAddress: TEST_CL_FACTORY_ADDRESS,
           chainId: TEST_CHAIN_ID,
           blockNumber: TEST_BLOCK_NUMBER,
         },
@@ -177,7 +177,7 @@ describe("Dynamic Fee Effects", () => {
     });
   });
 
-  describe("fetchCurrentFee", () => {
+  describe("fetchSwapFee", () => {
     it.each(CHAIN_CONFIGS)(
       "should fetch current fee for $name (chainId $chainId)",
       async ({ chainId, address }) => {
@@ -193,7 +193,7 @@ describe("Dynamic Fee Effects", () => {
           // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
         } as any);
 
-        const result = await fetchCurrentFee(
+        const result = await fetchSwapFee(
           TEST_POOL_ADDRESS,
           address,
           chainId,
@@ -207,7 +207,7 @@ describe("Dynamic Fee Effects", () => {
         const callArgs = vi.mocked(mockEthClient.simulateContract).mock
           .calls[0][0];
         expect(callArgs.address.toLowerCase()).toBe(address.toLowerCase());
-        expect(callArgs.functionName).toBe("getFee");
+        expect(callArgs.functionName).toBe("getSwapFee");
         expect(callArgs.blockNumber).toBe(BigInt(TEST_BLOCK_NUMBER));
         expect(callArgs.args).toEqual([TEST_POOL_ADDRESS]);
       },
@@ -219,9 +219,9 @@ describe("Dynamic Fee Effects", () => {
       );
 
       await expect(
-        fetchCurrentFee(
+        fetchSwapFee(
           TEST_POOL_ADDRESS,
-          TEST_DYNAMIC_FEE_MODULE,
+          TEST_CL_FACTORY_ADDRESS,
           TEST_CHAIN_ID,
           TEST_BLOCK_NUMBER,
           mockEthClient,
@@ -236,9 +236,9 @@ describe("Dynamic Fee Effects", () => {
         // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
       } as any);
 
-      const result = await fetchCurrentFee(
+      const result = await fetchSwapFee(
         TEST_POOL_ADDRESS,
-        TEST_DYNAMIC_FEE_MODULE,
+        TEST_CL_FACTORY_ADDRESS,
         TEST_CHAIN_ID,
         TEST_BLOCK_NUMBER,
         mockEthClient,

@@ -9,7 +9,7 @@ import {
   PoolId,
   TokenId,
 } from "../Constants";
-import { getCurrentFee, roundBlockToInterval } from "../Effects/Index";
+import { getSwapFee, roundBlockToInterval } from "../Effects/Index";
 import { generatePoolName } from "../Helpers";
 import { refreshTokenPrice } from "../PriceOracle";
 import {
@@ -125,28 +125,21 @@ export async function updateDynamicFeePools(
     return liquidityPoolAggregator;
   }
 
-  const dynamicFeeGlobalConfigs = await context.DynamicFeeGlobalConfig.getWhere(
-    { chainId: { _eq: chainId } },
-  );
-
-  if (!dynamicFeeGlobalConfigs || dynamicFeeGlobalConfigs.length === 0) {
+  const factoryAddress = liquidityPoolAggregator.factoryAddress;
+  if (!factoryAddress || factoryAddress === "") {
     context.log.warn(
-      `No dynamic fee global config found for chain ${chainId}. No update to currentFee will be performed.`,
+      `[updateDynamicFeePools] Pool ${poolAddress} on chain ${chainId} has no factoryAddress. No update to currentFee will be performed.`,
     );
     return liquidityPoolAggregator;
   }
 
-  const dynamicFeeModuleAddress = dynamicFeeGlobalConfigs[0].id;
-
-  // base fee + dynamic fee
-  const currentFee = await context.effect(getCurrentFee, {
+  const currentFee = await context.effect(getSwapFee, {
     poolAddress,
-    dynamicFeeModuleAddress,
+    factoryAddress,
     chainId,
     blockNumber,
   });
 
-  // If fee is undefined, it means the effect failed - skip update to preserve existing fee
   if (currentFee === undefined) {
     context.log.warn(
       `[updateDynamicFeePools] Failed to fetch fee for pool ${poolAddress} on chain ${chainId}, skipping update`,
@@ -572,6 +565,7 @@ export function createLiquidityPoolAggregatorEntity(params: {
   timestamp: Date;
   tickSpacing?: number; // For CL pools
   CLGaugeConfig?: CLGaugeConfig | null; // For CL pools
+  factoryAddress: string; // Address of the factory that created this pool (e.g. CLFactory for CL pools)
   baseFee: bigint;
   currentFee: bigint;
 }): LiquidityPoolAggregator {
@@ -587,6 +581,7 @@ export function createLiquidityPoolAggregatorEntity(params: {
     timestamp,
     tickSpacing,
     CLGaugeConfig,
+    factoryAddress,
     baseFee,
     currentFee,
   } = params;
@@ -666,6 +661,8 @@ export function createLiquidityPoolAggregatorEntity(params: {
     veNFTamountStaked: 0n,
     // Pool Launcher relationship (undefined for pools not launched via PoolLauncher)
     poolLauncherPoolId: undefined,
+    // Address of the factory that created this pool (e.g. CLFactory for CL pools)
+    factoryAddress: factoryAddress,
     // Voting fields
     gaugeAddress: "",
     // Set to undefined if CLGaugeConfig does not exist (i.e before the deployment of NewCLGaugeFactory which introduces emissions caps per gauge)
