@@ -400,7 +400,7 @@ describe("Token Effects", () => {
       realFetchTokenPrice = actual.fetchTokenPrice;
     });
 
-    it("should fetch token price from V3 and V2 oracles", async () => {
+    it("should fetch token price from V3, V4 and V2 oracles", async () => {
       const testCases = [
         {
           oracleType: PriceOracleType.V3,
@@ -410,6 +410,15 @@ describe("Token Effects", () => {
           ],
           expectedPrice: 1n,
           expectedType: PriceOracleType.V3,
+        },
+        {
+          oracleType: PriceOracleType.V4,
+          functionName: "getManyRatesWithCustomConnectors",
+          result: [
+            "0x0000000000000000000000000000000000000000000000000000000000000003",
+          ],
+          expectedPrice: 3n,
+          expectedType: PriceOracleType.V4,
         },
         {
           oracleType: PriceOracleType.V2,
