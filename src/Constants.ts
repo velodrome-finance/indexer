@@ -123,12 +123,6 @@ export enum PriceOracleType {
   V1 = "v1",
 }
 
-/**
- * RPC timeout in milliseconds (60 seconds)
- * Prevents indefinite hangs on slow or unresponsive RPC providers
- */
-export const RPC_TIMEOUT_MS = 60000;
-
 export { zeroAddress as ZERO_ADDRESS } from "viem";
 
 /**
@@ -147,6 +141,29 @@ export const DefaultRPC = {
   ink: "https://ink.drpc.org",
   metal: "https://metall2.drpc.org",
   swell: "https://rpc.ankr.com/swell",
+} as const;
+
+/**
+ * Shared HTTP transport options for all chain RPC clients (Alchemy/DRPC best practices).
+ * Centralised so retries, batch size, and timeout are tuned in one place.
+ * - batchSize 50: avoids timeouts and unbounded response sizes; allows multiple batches in flight.
+ * - retryCount/retryDelay: exponential backoff on failures (viem applies backoff).
+ */
+export const RPC_HTTP_OPTIONS = {
+  batch: { batchSize: 50 },
+  timeout: 60000, // RPC timeout in milliseconds (60 seconds).  Prevents indefinite hangs on slow or unresponsive RPC providers
+  retryCount: 5,
+  retryDelay: 1000,
+} as const;
+
+/**
+ * Application-level retry config for fetchTokenPrice (effect); transport retries are in RPC_HTTP_OPTIONS.
+ * Only fetchTokenPrice uses this; other effects rely on transport retries.
+ */
+export const FETCH_TOKEN_PRICE_RETRY = {
+  maxRetries: 7,
+  rateLimit: { capMs: 10000, attempt5Ms: 30000, attempt6Ms: 60000 },
+  network: { capMs: 8000, attempt5Ms: 15000, attempt6Ms: 30000 },
 } as const;
 
 /**
@@ -230,10 +247,10 @@ const OPTIMISM_CONSTANTS: chainConstants = {
   newCLGaugeFactoryAddress: "", // TODO: Update with a real address
   eth_client: createPublicClient({
     chain: optimism satisfies Chain as Chain,
-    transport: http(process.env.ENVIO_OPTIMISM_RPC_URL || DefaultRPC.optimism, {
-      batch: true,
-      timeout: RPC_TIMEOUT_MS,
-    }),
+    transport: http(
+      process.env.ENVIO_OPTIMISM_RPC_URL || DefaultRPC.optimism,
+      RPC_HTTP_OPTIONS,
+    ),
   }),
   lpHelperAddress: "0xF313D54f514A810387D77b7Cc20a98ADd5f891f7",
 };
@@ -276,10 +293,10 @@ const BASE_CONSTANTS: chainConstants = {
   newCLGaugeFactoryAddress: "0xaDe65c38CD4849aDBA595a4323a8C7DdfE89716a",
   eth_client: createPublicClient({
     chain: base satisfies Chain as Chain,
-    transport: http(process.env.ENVIO_BASE_RPC_URL || DefaultRPC.base, {
-      batch: true,
-      timeout: RPC_TIMEOUT_MS,
-    }),
+    transport: http(
+      process.env.ENVIO_BASE_RPC_URL || DefaultRPC.base,
+      RPC_HTTP_OPTIONS,
+    ),
   }),
   lpHelperAddress: "0xd48bed8AFaF8A1d0909fe823F6b48a4A96f58224",
 };
@@ -318,10 +335,10 @@ const LISK_CONSTANTS: chainConstants = {
   newCLGaugeFactoryAddress: "", // TODO: Update with a real address
   eth_client: createPublicClient({
     chain: lisk satisfies Chain as Chain,
-    transport: http(process.env.ENVIO_LISK_RPC_URL || DefaultRPC.lisk, {
-      batch: true,
-      timeout: RPC_TIMEOUT_MS,
-    }),
+    transport: http(
+      process.env.ENVIO_LISK_RPC_URL || DefaultRPC.lisk,
+      RPC_HTTP_OPTIONS,
+    ),
   }),
   lpHelperAddress: "0xa2e319aBE4bBEadeD6FcE67F7D0CDDc5d23F8a8A",
 };
@@ -360,10 +377,10 @@ const MODE_CONSTANTS: chainConstants = {
   newCLGaugeFactoryAddress: "", // TODO: Update with a real address
   eth_client: createPublicClient({
     chain: mode satisfies Chain as Chain,
-    transport: http(process.env.ENVIO_MODE_RPC_URL || DefaultRPC.mode, {
-      batch: true,
-      timeout: RPC_TIMEOUT_MS,
-    }),
+    transport: http(
+      process.env.ENVIO_MODE_RPC_URL || DefaultRPC.mode,
+      RPC_HTTP_OPTIONS,
+    ),
   }),
   lpHelperAddress: "0xD4738416444ce276289A884fDA4FDAc31f8eC694",
 };
@@ -388,10 +405,10 @@ const CELO_CONSTANTS: chainConstants = {
   newCLGaugeFactoryAddress: "", // TODO: Update with a real address
   eth_client: createPublicClient({
     chain: celo satisfies Chain as Chain,
-    transport: http(process.env.ENVIO_CELO_RPC_URL || DefaultRPC.celo, {
-      batch: true,
-      timeout: RPC_TIMEOUT_MS,
-    }),
+    transport: http(
+      process.env.ENVIO_CELO_RPC_URL || DefaultRPC.celo,
+      RPC_HTTP_OPTIONS,
+    ),
   }),
   lpHelperAddress: "0xa916A76b052AcD3b0FF6Cc76b55602fba456a85C",
 };
@@ -416,10 +433,10 @@ const SONEIUM_CONSTANTS: chainConstants = {
   newCLGaugeFactoryAddress: "", // TODO: Update with a real address
   eth_client: createPublicClient({
     chain: soneium satisfies Chain as Chain,
-    transport: http(process.env.ENVIO_SONEIUM_RPC_URL || DefaultRPC.soneium, {
-      batch: true,
-      timeout: RPC_TIMEOUT_MS,
-    }),
+    transport: http(
+      process.env.ENVIO_SONEIUM_RPC_URL || DefaultRPC.soneium,
+      RPC_HTTP_OPTIONS,
+    ),
   }),
   lpHelperAddress: "0x600089ab611E4Cc9942163e68870806Db66e2B08",
 };
@@ -444,10 +461,10 @@ const UNICHAIN_CONSTANTS: chainConstants = {
   newCLGaugeFactoryAddress: "", // TODO: Update with a real address
   eth_client: createPublicClient({
     chain: unichain satisfies Chain as Chain,
-    transport: http(process.env.ENVIO_UNICHAIN_RPC_URL || DefaultRPC.unichain, {
-      batch: true,
-      timeout: RPC_TIMEOUT_MS,
-    }),
+    transport: http(
+      process.env.ENVIO_UNICHAIN_RPC_URL || DefaultRPC.unichain,
+      RPC_HTTP_OPTIONS,
+    ),
   }),
   lpHelperAddress: "0x2DCD9B33F0721000Dc1F8f84B804d4CFA23d7713",
 };
@@ -486,10 +503,10 @@ const FRAXTAL_CONSTANTS: chainConstants = {
   newCLGaugeFactoryAddress: "", // TODO: Update with a real address
   eth_client: createPublicClient({
     chain: fraxtal satisfies Chain as Chain,
-    transport: http(process.env.ENVIO_FRAXTAL_RPC_URL || DefaultRPC.fraxtal, {
-      batch: true,
-      timeout: RPC_TIMEOUT_MS,
-    }),
+    transport: http(
+      process.env.ENVIO_FRAXTAL_RPC_URL || DefaultRPC.fraxtal,
+      RPC_HTTP_OPTIONS,
+    ),
   }),
   lpHelperAddress: "0x2F44BD0Aff1826aec123cE3eA9Ce44445b64BB34",
 };
@@ -514,10 +531,10 @@ const INK_CONSTANTS: chainConstants = {
   newCLGaugeFactoryAddress: "", // TODO: Update with a real address
   eth_client: createPublicClient({
     chain: ink satisfies Chain as Chain,
-    transport: http(process.env.ENVIO_INK_RPC_URL || DefaultRPC.ink, {
-      batch: true,
-      timeout: RPC_TIMEOUT_MS,
-    }),
+    transport: http(
+      process.env.ENVIO_INK_RPC_URL || DefaultRPC.ink,
+      RPC_HTTP_OPTIONS,
+    ),
   }),
   lpHelperAddress: "0x2DCD9B33F0721000Dc1F8f84B804d4CFA23d7713",
 };
@@ -542,10 +559,10 @@ const METAL_CONSTANTS: chainConstants = {
   newCLGaugeFactoryAddress: "", // TODO: Update with a real address
   eth_client: createPublicClient({
     chain: metalL2 satisfies Chain as Chain,
-    transport: http(process.env.ENVIO_METAL_RPC_URL || DefaultRPC.metal, {
-      batch: true,
-      timeout: RPC_TIMEOUT_MS,
-    }),
+    transport: http(
+      process.env.ENVIO_METAL_RPC_URL || DefaultRPC.metal,
+      RPC_HTTP_OPTIONS,
+    ),
   }),
   lpHelperAddress: "0xcaa7d54453964773FE04B5aD32D06322Fc9d9fE4",
 };
@@ -570,10 +587,10 @@ const SWELL_CONSTANTS: chainConstants = {
   newCLGaugeFactoryAddress: "", // TODO: Update with a real address
   eth_client: createPublicClient({
     chain: swellchain,
-    transport: http(process.env.ENVIO_SWELL_RPC_URL || DefaultRPC.swell, {
-      batch: true,
-      timeout: RPC_TIMEOUT_MS,
-    }),
+    transport: http(
+      process.env.ENVIO_SWELL_RPC_URL || DefaultRPC.swell,
+      RPC_HTTP_OPTIONS,
+    ),
   }) as PublicClient,
   lpHelperAddress: "0x2002618dd63228670698200069E42f4422e82497",
 };
