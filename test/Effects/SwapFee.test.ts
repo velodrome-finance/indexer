@@ -3,6 +3,11 @@ import type { PublicClient } from "viem";
 import { CHAIN_CONSTANTS, toChecksumAddress } from "../../src/Constants";
 import { fetchSwapFee, getSwapFee } from "../../src/Effects/SwapFee";
 
+type MockEffect = {
+  name: string;
+  handler: (args: { input: unknown; context: unknown }) => unknown;
+};
+
 // Common test constants
 const TEST_CHAIN_ID = 10;
 const TEST_BLOCK_NUMBER = 12345;
@@ -74,29 +79,21 @@ const CHAIN_CONFIGS = [
 
 describe("Swap Fee Effects", () => {
   let mockContext: {
-    effect: (
-      effect: {
-        name: string;
-        handler: (args: { input: unknown; context: unknown }) => unknown;
-      },
-      input: unknown,
-    ) => unknown;
+    effect: (effect: MockEffect, input: unknown) => unknown;
     ethClient: PublicClient;
     log: Envio_logger;
   };
   let mockEthClient: PublicClient;
+  let originalChainEntry:
+    | (typeof CHAIN_CONSTANTS)[typeof TEST_CHAIN_ID]
+    | undefined;
 
   beforeEach(() => {
     mockEthClient = {
-      simulateContract: vi.fn().mockResolvedValue({
-        result: [
-          "0x0000000000000000000000000000000000000000000000000000000000000190",
-          "0x00000000000000000000000000000000000000000000000000000000000007d0",
-          "0x0000000000000000000000000000000000000000000000000000000000989680",
-        ],
-      }),
+      readContract: vi.fn().mockResolvedValue(TEST_FEE_VALUE),
     } as unknown as PublicClient;
 
+    originalChainEntry = CHAIN_CONSTANTS[TEST_CHAIN_ID];
     (CHAIN_CONSTANTS as Record<number, { eth_client: PublicClient }>)[
       TEST_CHAIN_ID
     ] = {
@@ -104,13 +101,8 @@ describe("Swap Fee Effects", () => {
     };
 
     mockContext = {
-      effect: (
-        effect: {
-          name: string;
-          handler: (args: { input: unknown; context: unknown }) => unknown;
-        },
-        input: unknown,
-      ) => effect.handler({ input, context: mockContext }),
+      effect: (effect: MockEffect, input: unknown) =>
+        effect.handler({ input, context: mockContext }),
       ethClient: mockEthClient,
       log: {
         info: vi.fn(),
@@ -122,6 +114,11 @@ describe("Swap Fee Effects", () => {
   });
 
   afterEach(() => {
+    if (originalChainEntry !== undefined) {
+      CHAIN_CONSTANTS[TEST_CHAIN_ID] = originalChainEntry;
+    } else {
+      delete (CHAIN_CONSTANTS as Record<number, unknown>)[TEST_CHAIN_ID];
+    }
     vi.restoreAllMocks();
   });
 
@@ -132,15 +129,12 @@ describe("Swap Fee Effects", () => {
     });
 
     it("should return undefined on error", async () => {
-      vi.mocked(mockEthClient.simulateContract).mockRejectedValue(
+      vi.mocked(mockEthClient.readContract).mockRejectedValue(
         new Error("Contract call failed"),
       );
 
       const result = await mockContext.effect(
-        getSwapFee as unknown as {
-          name: string;
-          handler: (args: { input: unknown; context: unknown }) => unknown;
-        },
+        getSwapFee as unknown as MockEffect,
         {
           poolAddress: TEST_POOL_ADDRESS,
           factoryAddress: TEST_CL_FACTORY_ADDRESS,
@@ -154,16 +148,10 @@ describe("Swap Fee Effects", () => {
     });
 
     it("should return fee value on success", async () => {
-      vi.mocked(mockEthClient.simulateContract).mockResolvedValue({
-        result: TEST_FEE_VALUE,
-        // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
-      } as any);
+      vi.mocked(mockEthClient.readContract).mockResolvedValue(TEST_FEE_VALUE);
 
       const result = await mockContext.effect(
-        getSwapFee as unknown as {
-          name: string;
-          handler: (args: { input: unknown; context: unknown }) => unknown;
-        },
+        getSwapFee as unknown as MockEffect,
         {
           poolAddress: TEST_POOL_ADDRESS,
           factoryAddress: TEST_CL_FACTORY_ADDRESS,
@@ -181,40 +169,51 @@ describe("Swap Fee Effects", () => {
     it.each(CHAIN_CONFIGS)(
       "should fetch current fee for $name (chainId $chainId)",
       async ({ chainId, address }) => {
+        const originalChainEntryForChain = (
+          CHAIN_CONSTANTS as Record<number, { eth_client: PublicClient }>
+        )[chainId];
         (CHAIN_CONSTANTS as Record<number, { eth_client: PublicClient }>)[
           chainId
         ] = {
           eth_client: mockEthClient,
         };
+        try {
+          vi.mocked(mockEthClient.readContract).mockClear();
+          vi.mocked(mockEthClient.readContract).mockResolvedValue(
+            TEST_FEE_VALUE_ALT,
+          );
 
-        vi.mocked(mockEthClient.simulateContract).mockClear();
-        vi.mocked(mockEthClient.simulateContract).mockResolvedValue({
-          result: TEST_FEE_VALUE_ALT,
-          // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
-        } as any);
+          const result = await fetchSwapFee(
+            TEST_POOL_ADDRESS,
+            address,
+            chainId,
+            TEST_BLOCK_NUMBER,
+            mockEthClient,
+            mockContext.log,
+          );
 
-        const result = await fetchSwapFee(
-          TEST_POOL_ADDRESS,
-          address,
-          chainId,
-          TEST_BLOCK_NUMBER,
-          mockEthClient,
-          mockContext.log,
-        );
-
-        expect(result).toBe(TEST_FEE_VALUE_ALT);
-        expect(mockEthClient.simulateContract).toHaveBeenCalledTimes(1);
-        const callArgs = vi.mocked(mockEthClient.simulateContract).mock
-          .calls[0][0];
-        expect(callArgs.address.toLowerCase()).toBe(address.toLowerCase());
-        expect(callArgs.functionName).toBe("getSwapFee");
-        expect(callArgs.blockNumber).toBe(BigInt(TEST_BLOCK_NUMBER));
-        expect(callArgs.args).toEqual([TEST_POOL_ADDRESS]);
+          expect(result).toBe(TEST_FEE_VALUE_ALT);
+          expect(mockEthClient.readContract).toHaveBeenCalledTimes(1);
+          const callArgs = vi.mocked(mockEthClient.readContract).mock
+            .calls[0][0];
+          expect(callArgs?.address?.toLowerCase()).toBe(address.toLowerCase());
+          expect(callArgs.functionName).toBe("getSwapFee");
+          expect(callArgs.blockNumber).toBe(BigInt(TEST_BLOCK_NUMBER));
+          expect(callArgs.args).toEqual([TEST_POOL_ADDRESS]);
+        } finally {
+          if (originalChainEntryForChain !== undefined) {
+            (CHAIN_CONSTANTS as Record<number, { eth_client: PublicClient }>)[
+              chainId
+            ] = originalChainEntryForChain;
+          } else {
+            delete (CHAIN_CONSTANTS as Record<number, unknown>)[chainId];
+          }
+        }
       },
     );
 
     it("should handle contract call errors", async () => {
-      vi.mocked(mockEthClient.simulateContract).mockRejectedValue(
+      vi.mocked(mockEthClient.readContract).mockRejectedValue(
         new Error("Contract call failed"),
       );
 
@@ -231,10 +230,7 @@ describe("Swap Fee Effects", () => {
     });
 
     it("should convert non-bigint result to bigint", async () => {
-      vi.mocked(mockEthClient.simulateContract).mockResolvedValue({
-        result: "500",
-        // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
-      } as any);
+      vi.mocked(mockEthClient.readContract).mockResolvedValue("500");
 
       const result = await fetchSwapFee(
         TEST_POOL_ADDRESS,

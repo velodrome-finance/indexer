@@ -18,7 +18,7 @@ export async function fetchRootPoolAddress(
   type: number,
   logger: Envio_logger,
 ): Promise<string> {
-  const { result } = await ethClient.simulateContract({
+  const result = await ethClient.readContract({
     address: lpHelperAddress as `0x${string}`,
     abi: lpHelperABI,
     functionName: "root_lp_address",

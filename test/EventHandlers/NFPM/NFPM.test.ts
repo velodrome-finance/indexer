@@ -617,8 +617,8 @@ describe("NFPM Events", () => {
     };
 
     // Variables to hold mocks for verification
-    let mockSimulateContractBase: Mock;
-    let mockSimulateContractLisk: Mock;
+    let mockReadContractBase: Mock;
+    let mockReadContractLisk: Mock;
 
     let originalChainConstantsBase: (typeof CHAIN_CONSTANTS)[number];
     let originalChainConstantsLisk: (typeof CHAIN_CONSTANTS)[number];
@@ -631,20 +631,20 @@ describe("NFPM Events", () => {
       // Mock ethClient for Base chain - create fresh mocks for each test
       const Q96 = 2n ** 96n;
       const mockSqrtPriceX96 = Q96;
-      // Use callsFake to ensure the mock properly returns a promise
-      mockSimulateContractBase = vi.fn().mockImplementation(async () => {
-        return { result: [mockSqrtPriceX96] };
+      // readContract returns the decoded value directly
+      mockReadContractBase = vi.fn().mockImplementation(async () => {
+        return [mockSqrtPriceX96];
       });
       const mockEthClientBase = {
-        simulateContract: mockSimulateContractBase,
+        readContract: mockReadContractBase,
       } as unknown as PublicClient;
 
       // Mock ethClient for Lisk chain - create fresh mocks for each test
-      mockSimulateContractLisk = vi.fn().mockImplementation(async () => {
-        return { result: [mockSqrtPriceX96] };
+      mockReadContractLisk = vi.fn().mockImplementation(async () => {
+        return [mockSqrtPriceX96];
       });
       const mockEthClientLisk = {
-        simulateContract: mockSimulateContractLisk,
+        readContract: mockReadContractLisk,
       } as unknown as PublicClient;
 
       // Setup CHAIN_CONSTANTS for both chains - ensure it's set before any effects are called
@@ -801,7 +801,7 @@ describe("NFPM Events", () => {
       // Verify CHAIN_CONSTANTS is set up correctly before test
       expect(CHAIN_CONSTANTS[chainIdBase]).toBeDefined();
       expect(CHAIN_CONSTANTS[chainIdBase].eth_client).toBeDefined();
-      expect(mockSimulateContractBase).toBeDefined();
+      expect(mockReadContractBase).toBeDefined();
 
       // Create tokens for Base chain
       const mockToken0DataBase = {
@@ -896,14 +896,14 @@ describe("NFPM Events", () => {
       if (!liskPosition) return;
       expect(liskPosition.liquidity).toBe(positionLisk.liquidity);
       // Should NOT have called Lisk ethClient
-      expect(mockSimulateContractLisk).not.toHaveBeenCalled();
+      expect(mockReadContractLisk).not.toHaveBeenCalled();
     });
 
     it("should filter by chainId when querying by tokenId in DecreaseLiquidity event", async () => {
       // Verify CHAIN_CONSTANTS is set up correctly before test
       expect(CHAIN_CONSTANTS[chainIdLisk]).toBeDefined();
       expect(CHAIN_CONSTANTS[chainIdLisk].eth_client).toBeDefined();
-      expect(mockSimulateContractLisk).toBeDefined();
+      expect(mockReadContractLisk).toBeDefined();
 
       // Create tokens for Lisk chain
       const mockToken0DataLisk = {

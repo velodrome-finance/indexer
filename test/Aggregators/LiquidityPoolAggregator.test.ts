@@ -17,9 +17,9 @@ import { setLiquidityPoolAggregatorSnapshot } from "../../src/Snapshots/Liquidit
 import { getSnapshotEpoch } from "../../src/Snapshots/Shared";
 import { setupCommon } from "../EventHandlers/Pool/common";
 
-// Type for the simulateContract method
-type SimulateContractMethod =
-  (typeof CHAIN_CONSTANTS)[10]["eth_client"]["simulateContract"];
+// Type for the readContract method
+type ReadContractMethod =
+  (typeof CHAIN_CONSTANTS)[10]["eth_client"]["readContract"];
 
 describe("LiquidityPoolAggregator Functions", () => {
   let mockContext: Partial<handlerContext>;
@@ -357,7 +357,7 @@ describe("LiquidityPoolAggregator Functions", () => {
     });
 
     it("should call updateDynamicFeePools for CL pools when creating snapshot", async () => {
-      // Set up a CL pool
+      // Set up a CL pool (liquidityPoolAggregator has factoryAddress set in beforeEach)
       const oldTimestamp = new Date(Date.now() - 2 * 60 * 60 * 1000); // 2 hours ago
       const currentTimestamp = new Date();
 
@@ -366,21 +366,6 @@ describe("LiquidityPoolAggregator Functions", () => {
         isCL: true,
         lastSnapshotTimestamp: oldTimestamp,
       };
-
-      // Add DynamicFeeGlobalConfig mock for this test
-      const dynamicFeeConfigMock = {
-        getWhere: vi.fn().mockResolvedValue([
-          {
-            id: toChecksumAddress("0xd9eE4FBeE92970509ec795062cA759F8B52d6720"),
-            chainId: 10,
-          },
-        ]),
-      };
-      (
-        mockContext as unknown as {
-          DynamicFeeGlobalConfig: typeof dynamicFeeConfigMock;
-        }
-      ).DynamicFeeGlobalConfig = dynamicFeeConfigMock;
 
       // Mock the effect to track if it's called
       if (!mockContext.effect) {
