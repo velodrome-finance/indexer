@@ -24,7 +24,6 @@ vi.mock("../../src/Effects/Token", async (importOriginal) => {
 const TEST_CHAIN_ID = 10;
 const TEST_BLOCK_NUMBER = 12345;
 const TEST_BLOCK_NUMBER_EARLY = 100;
-const TEST_GAS_LIMIT = 1000000n;
 const TEST_TOKEN_ADDRESS = toChecksumAddress(
   "0x1234567890123456789012345678901234567890",
 );
@@ -436,7 +435,6 @@ describe("Token Effects", () => {
           TEST_BLOCK_NUMBER,
           mockEthClient,
           mockContext.log,
-          TEST_GAS_LIMIT,
           7,
         );
 
@@ -466,7 +464,6 @@ describe("Token Effects", () => {
         TEST_BLOCK_NUMBER,
         mockEthClient,
         mockContext.log,
-        TEST_GAS_LIMIT,
         7,
       );
 
@@ -477,15 +474,11 @@ describe("Token Effects", () => {
       expect(mockContext.log.error).toHaveBeenCalled();
     });
 
-    it("should retry on out of gas errors", async () => {
+    it("should return zero price on out of gas errors without retry (readContract does not use gas)", async () => {
       setupChainConstants(PriceOracleType.V2);
-      vi.mocked(mockEthClient.readContract)
-        .mockRejectedValueOnce(
-          new Error("out of gas: gas required exceeds: 1000000"),
-        )
-        .mockResolvedValueOnce([
-          "0x0000000000000000000000000000000000000000000000000000000000000001",
-        ] as unknown as readonly bigint[]);
+      vi.mocked(mockEthClient.readContract).mockRejectedValue(
+        new Error("out of gas: gas required exceeds: 1000000"),
+      );
 
       const result = await realFetchTokenPrice(
         TEST_TOKEN_ADDRESS,
@@ -497,12 +490,12 @@ describe("Token Effects", () => {
         TEST_BLOCK_NUMBER,
         mockEthClient,
         mockContext.log,
-        TEST_GAS_LIMIT,
         7,
       );
 
-      expect(result.pricePerUSDNew).toBe(1n);
-      expect(mockEthClient.readContract).toHaveBeenCalledTimes(2);
+      expect(result.pricePerUSDNew).toBe(0n);
+      expect(result.priceOracleType).toBe("v2");
+      expect(mockEthClient.readContract).toHaveBeenCalledTimes(1);
     });
 
     it("should retry on rate limit errors with exponential backoff", async () => {
@@ -526,7 +519,6 @@ describe("Token Effects", () => {
         TEST_BLOCK_NUMBER,
         mockEthClient,
         mockContext.log,
-        TEST_GAS_LIMIT,
         7,
       );
 
@@ -552,7 +544,6 @@ describe("Token Effects", () => {
         TEST_BLOCK_NUMBER,
         mockEthClient,
         mockContext.log,
-        TEST_GAS_LIMIT,
         7,
       );
 
@@ -583,7 +574,6 @@ describe("Token Effects", () => {
           TEST_BLOCK_NUMBER,
           mockEthClient,
           mockContext.log,
-          TEST_GAS_LIMIT,
           7,
         );
 
@@ -616,7 +606,6 @@ describe("Token Effects", () => {
         TEST_BLOCK_NUMBER,
         mockEthClient,
         mockContext.log,
-        TEST_GAS_LIMIT,
         7,
       );
 
@@ -644,7 +633,6 @@ describe("Token Effects", () => {
         TEST_BLOCK_NUMBER,
         mockEthClient,
         mockContext.log,
-        TEST_GAS_LIMIT,
         7,
       );
 
@@ -685,7 +673,6 @@ describe("Token Effects", () => {
           TEST_BLOCK_NUMBER,
           mockEthClient,
           mockContext.log,
-          TEST_GAS_LIMIT,
           7,
         );
 
@@ -725,7 +712,6 @@ describe("Token Effects", () => {
           TEST_BLOCK_NUMBER,
           mockEthClient,
           mockContext.log,
-          TEST_GAS_LIMIT,
           7,
         );
 
