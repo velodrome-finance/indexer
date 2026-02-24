@@ -37,6 +37,7 @@ CLFactory.PoolCreated.handler(async ({ event, context }) => {
   // Process the pool created event
   const result = await processCLFactoryPoolCreated(
     event,
+    event.srcAddress,
     poolToken0,
     poolToken1,
     CLGaugeConfig,

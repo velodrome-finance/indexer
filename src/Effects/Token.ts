@@ -8,6 +8,7 @@ import PriceOracleABI from "../../abis/VeloPriceOracleABI.json";
 import {
   CHAIN_CONSTANTS,
   EFFECT_RATE_LIMITS,
+  FETCH_TOKEN_PRICE_RETRY,
   PriceOracleType,
 } from "../Constants";
 import {
@@ -28,19 +29,19 @@ export async function fetchTokenDetails(
 ): Promise<{ name: string; decimals: number; symbol: string }> {
   try {
     const [nameResult, decimalsResult, symbolResult] = await Promise.all([
-      ethClient.simulateContract({
+      ethClient.readContract({
         address: contractAddress as `0x${string}`,
         abi: ERC20_ABI,
         functionName: "name",
         args: [],
       }),
-      ethClient.simulateContract({
+      ethClient.readContract({
         address: contractAddress as `0x${string}`,
         abi: ERC20_ABI,
         functionName: "decimals",
         args: [],
       }),
-      ethClient.simulateContract({
+      ethClient.readContract({
         address: contractAddress as `0x${string}`,
         abi: ERC20_ABI,
         functionName: "symbol",
@@ -49,9 +50,9 @@ export async function fetchTokenDetails(
     ]);
 
     const result = {
-      name: (nameResult.result as unknown)?.toString() || "",
-      decimals: Number(decimalsResult.result) || 0,
-      symbol: (symbolResult.result as unknown)?.toString() || "",
+      name: nameResult?.toString() || "",
+      decimals: Number(decimalsResult) || 0,
+      symbol: symbolResult?.toString() || "",
     };
 
     logger.info(
@@ -74,6 +75,9 @@ export async function fetchTokenDetails(
  * This can be tested independently of the Effect API
  * Includes retry logic with exponential backoff for rate limit errors
  * Includes fallback RPC support for network and historical state errors
+ *
+ * Transport-level retries (batch size, retry count/delay) are configured in Constants (RPC_HTTP_OPTIONS);
+ * the logic below is application-level retry for rate limit and network errors.
  */
 export async function fetchTokenPrice(
   tokenAddress: string,
@@ -85,8 +89,7 @@ export async function fetchTokenPrice(
   blockNumber: number,
   ethClient: PublicClient,
   logger: Envio_logger,
-  gasLimit: bigint,
-  maxRetries = 7,
+  maxRetries = FETCH_TOKEN_PRICE_RETRY.maxRetries,
 ): Promise<{ pricePerUSDNew: bigint; priceOracleType: string }> {
   const overallStartTime = Date.now();
   const priceOracleType = CHAIN_CONSTANTS[chainId].oracle.getType(blockNumber);
@@ -94,7 +97,6 @@ export async function fetchTokenPrice(
     CHAIN_CONSTANTS[chainId].oracle.getAddress(priceOracleType);
 
   let attempt = 0;
-  let currentGasLimit = gasLimit;
 
   while (attempt <= maxRetries) {
     const attemptStartTime = Date.now();
@@ -116,13 +118,12 @@ export async function fetchTokenPrice(
           tokenAddressArray,
           10,
         ];
-        const { result } = await ethClient.simulateContract({
+        const result = await ethClient.readContract({
           address: priceOracleAddress as `0x${string}`,
           abi: SpotPriceAggregatorABI,
           functionName: "getManyRatesWithCustomConnectors",
           args,
           blockNumber: BigInt(blockNumber),
-          gas: currentGasLimit,
         });
         const attemptDuration = Date.now() - attemptStartTime;
         const overallDuration = Date.now() - overallStartTime;
@@ -140,8 +141,8 @@ export async function fetchTokenPrice(
         }
 
         return {
-          pricePerUSDNew: BigInt(result[0]),
-          priceOracleType: priceOracleType,
+          pricePerUSDNew: BigInt((result as readonly bigint[])[0]),
+          priceOracleType,
         };
       }
 
@@ -153,13 +154,12 @@ export async function fetchTokenPrice(
         usdcAddress,
       ];
       const args = [1, tokenAddressArray];
-      const { result } = await ethClient.simulateContract({
+      const result = await ethClient.readContract({
         address: priceOracleAddress as `0x${string}`,
         abi: PriceOracleABI,
         functionName: "getManyRatesWithConnectors",
         args,
         blockNumber: BigInt(blockNumber),
-        gas: currentGasLimit,
       });
       const attemptDuration = Date.now() - attemptStartTime;
       const overallDuration = Date.now() - overallStartTime;
@@ -177,7 +177,7 @@ export async function fetchTokenPrice(
       }
 
       return {
-        pricePerUSDNew: BigInt(result[0]),
+        pricePerUSDNew: BigInt((result as readonly bigint[])[0]),
         priceOracleType: priceOracleType,
       };
     } catch (error) {
@@ -197,22 +197,13 @@ export async function fetchTokenPrice(
         );
       }
 
-      if (errorType === ErrorType.OUT_OF_GAS && attempt < maxRetries) {
-        currentGasLimit = BigInt(
-          Math.min(Number(currentGasLimit) * 2, 30000000),
-        );
-        attempt++;
-        logger.warn(
-          `[fetchTokenPrice] Out of gas error (attempt ${attempt}/${maxRetries + 1}) for token ${tokenAddress} on chain ${chainId} at block ${blockNumber}. Retrying with gas limit ${currentGasLimit}...`,
-        );
-        continue;
-      }
-
       if (errorType === ErrorType.RATE_LIMIT && attempt < maxRetries) {
+        const { capMs, attempt5Ms, attempt6Ms } =
+          FETCH_TOKEN_PRICE_RETRY.rateLimit;
         let delayMs: number;
-        if (attempt === 5) delayMs = 30000;
-        else if (attempt === 6) delayMs = 60000;
-        else delayMs = Math.min(1000 * 2 ** attempt, 10000);
+        if (attempt === 5) delayMs = attempt5Ms;
+        else if (attempt === 6) delayMs = attempt6Ms;
+        else delayMs = Math.min(1000 * 2 ** attempt, capMs);
         attempt++;
         logger.warn(
           `[fetchTokenPrice] Rate limit error (attempt ${attempt}/${maxRetries + 1}) for token ${tokenAddress} on chain ${chainId} at block ${blockNumber}. Retrying in ${delayMs}ms...`,
@@ -222,10 +213,12 @@ export async function fetchTokenPrice(
       }
 
       if (errorType === ErrorType.NETWORK_ERROR && attempt < maxRetries) {
+        const { capMs, attempt5Ms, attempt6Ms } =
+          FETCH_TOKEN_PRICE_RETRY.network;
         let delayMs: number;
-        if (attempt === 5) delayMs = 15000;
-        else if (attempt === 6) delayMs = 30000;
-        else delayMs = Math.min(500 * 2 ** attempt, 8000);
+        if (attempt === 5) delayMs = attempt5Ms;
+        else if (attempt === 6) delayMs = attempt6Ms;
+        else delayMs = Math.min(500 * 2 ** attempt, capMs);
         attempt++;
         logger.warn(
           `[fetchTokenPrice] Network error (attempt ${attempt}/${maxRetries + 1}) for token ${tokenAddress} on chain ${chainId} at block ${blockNumber}. Retrying in ${delayMs}ms...`,
@@ -336,7 +329,6 @@ export const getTokenPrice = createEffect(
       tokenAddress: S.string,
       chainId: S.number,
       blockNumber: S.number,
-      gasLimit: S.optional(S.bigint),
     },
     output: {
       pricePerUSDNew: S.bigint,
@@ -349,12 +341,7 @@ export const getTokenPrice = createEffect(
     cache: true, // Cache enabled, block interval rounding improves hit rate
   },
   async ({ input, context }) => {
-    const {
-      tokenAddress,
-      chainId,
-      blockNumber,
-      gasLimit = 10_000_000n,
-    } = input;
+    const { tokenAddress, chainId, blockNumber } = input;
     // Note: blockNumber should already be rounded by the caller for proper caching
     // Cache key is based on input parameters, so rounding must happen before effect call
 
@@ -423,7 +410,6 @@ export const getTokenPrice = createEffect(
         blockNumber,
         ethClient,
         context.log,
-        gasLimit,
       );
 
       // Convert V3/V4 oracle prices to 18 decimals

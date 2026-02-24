@@ -24,7 +24,6 @@ vi.mock("../../src/Effects/Token", async (importOriginal) => {
 const TEST_CHAIN_ID = 10;
 const TEST_BLOCK_NUMBER = 12345;
 const TEST_BLOCK_NUMBER_EARLY = 100;
-const TEST_GAS_LIMIT = 1000000n;
 const TEST_TOKEN_ADDRESS = toChecksumAddress(
   "0x1234567890123456789012345678901234567890",
 );
@@ -116,9 +115,7 @@ describe("Token Effects", () => {
 
   beforeEach(() => {
     mockEthClient = {
-      simulateContract: vi.fn().mockResolvedValue({
-        result: "Test Token",
-      }),
+      readContract: vi.fn().mockResolvedValue("Test Token"),
     } as unknown as PublicClient;
 
     setupChainConstants();
@@ -259,13 +256,10 @@ describe("Token Effects", () => {
       });
       setupTokenDetailsMock(TEST_USDC_ADDRESS);
 
-      const mockSimulateContract = vi.mocked(mockEthClient.simulateContract);
-      mockSimulateContract.mockResolvedValue({
-        result: [
-          "0x0000000000000000000000000000000000000000000000001bc16d674ec80000",
-        ],
-        // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
-      } as any);
+      const mockReadContract = vi.mocked(mockEthClient.readContract);
+      mockReadContract.mockResolvedValue([
+        "0x0000000000000000000000000000000000000000000000001bc16d674ec80000",
+      ] as unknown as readonly bigint[]);
 
       const result = await mockContext.effect(getTokenPrice as never, {
         tokenAddress: TEST_TOKEN_ADDRESS,
@@ -273,8 +267,8 @@ describe("Token Effects", () => {
         blockNumber: TEST_BLOCK_NUMBER,
       });
 
-      expect(mockSimulateContract).toHaveBeenCalled();
-      const callArgs = mockSimulateContract.mock.calls[0][0];
+      expect(mockReadContract).toHaveBeenCalled();
+      const callArgs = mockReadContract.mock.calls[0][0];
       expect(callArgs.functionName).toBe("getManyRatesWithConnectors");
       const tokenAddressArray = (callArgs.args as unknown[])[1] as string[];
       const connectorsInArray = tokenAddressArray.slice(
@@ -313,9 +307,9 @@ describe("Token Effects", () => {
       ].oracle = mockOracle;
       setupTokenDetailsMock(TEST_USDC_ADDRESS);
 
-      vi.mocked(mockEthClient.simulateContract).mockResolvedValue({
-        result: TEST_PRICE_RESULT as unknown,
-      } as never);
+      vi.mocked(mockEthClient.readContract).mockResolvedValue(
+        TEST_PRICE_RESULT as unknown as readonly bigint[],
+      );
 
       const result = await mockContext.effect(getTokenPrice as never, {
         tokenAddress: TEST_TOKEN_ADDRESS,
@@ -333,13 +327,10 @@ describe("Token Effects", () => {
 
   describe("fetchTokenDetails", () => {
     it("should fetch token details from contract", async () => {
-      vi.mocked(mockEthClient.simulateContract)
-        // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
-        .mockResolvedValueOnce({ result: "Test Token" } as any)
-        // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
-        .mockResolvedValueOnce({ result: 18 } as any)
-        // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
-        .mockResolvedValueOnce({ result: "TEST" } as any);
+      vi.mocked(mockEthClient.readContract)
+        .mockResolvedValueOnce("Test Token" as unknown as string)
+        .mockResolvedValueOnce(18 as unknown as number)
+        .mockResolvedValueOnce("TEST" as unknown as string);
 
       const result = await fetchTokenDetails(
         TEST_TOKEN_ADDRESS,
@@ -352,7 +343,7 @@ describe("Token Effects", () => {
         symbol: "TEST",
         decimals: 18,
       });
-      expect(mockEthClient.simulateContract).toHaveBeenCalledTimes(3);
+      expect(mockEthClient.readContract).toHaveBeenCalledTimes(3);
     });
 
     it("should handle errors and undefined/null results", async () => {
@@ -360,20 +351,17 @@ describe("Token Effects", () => {
         {
           mock: () =>
             vi
-              .mocked(mockEthClient.simulateContract)
+              .mocked(mockEthClient.readContract)
               .mockRejectedValue(new Error("Contract call failed")),
           expected: { name: "", symbol: "", decimals: 0 },
         },
         {
           mock: () =>
             vi
-              .mocked(mockEthClient.simulateContract)
-              // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
-              .mockResolvedValueOnce({ result: undefined } as any)
-              // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
-              .mockResolvedValueOnce({ result: null } as any)
-              // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
-              .mockResolvedValueOnce({ result: undefined } as any),
+              .mocked(mockEthClient.readContract)
+              .mockResolvedValueOnce(undefined as unknown as string)
+              .mockResolvedValueOnce(null as unknown as number)
+              .mockResolvedValueOnce(undefined as unknown as string),
           expected: { name: "", symbol: "", decimals: 0 },
         },
       ];
@@ -433,10 +421,9 @@ describe("Token Effects", () => {
 
       for (const testCase of testCases) {
         setupChainConstants(testCase.oracleType);
-        vi.mocked(mockEthClient.simulateContract).mockResolvedValue({
-          result: testCase.result,
-          // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
-        } as any);
+        vi.mocked(mockEthClient.readContract).mockResolvedValue(
+          testCase.result as unknown as readonly bigint[],
+        );
 
         const result = await realFetchTokenPrice(
           TEST_TOKEN_ADDRESS,
@@ -448,7 +435,6 @@ describe("Token Effects", () => {
           TEST_BLOCK_NUMBER,
           mockEthClient,
           mockContext.log,
-          TEST_GAS_LIMIT,
           7,
         );
 
@@ -456,16 +442,15 @@ describe("Token Effects", () => {
           pricePerUSDNew: testCase.expectedPrice,
           priceOracleType: testCase.expectedType,
         });
-        const callArgs = vi.mocked(mockEthClient.simulateContract).mock
-          .calls[0][0];
+        const callArgs = vi.mocked(mockEthClient.readContract).mock.calls[0][0];
         expect(callArgs.functionName).toBe(testCase.functionName);
-        vi.mocked(mockEthClient.simulateContract).mockClear();
+        vi.mocked(mockEthClient.readContract).mockClear();
       }
     });
 
     it("should handle contract call errors gracefully", async () => {
       setupChainConstants(PriceOracleType.V2);
-      vi.mocked(mockEthClient.simulateContract).mockRejectedValue(
+      vi.mocked(mockEthClient.readContract).mockRejectedValue(
         new Error("Oracle call failed"),
       );
 
@@ -479,7 +464,6 @@ describe("Token Effects", () => {
         TEST_BLOCK_NUMBER,
         mockEthClient,
         mockContext.log,
-        TEST_GAS_LIMIT,
         7,
       );
 
@@ -490,18 +474,11 @@ describe("Token Effects", () => {
       expect(mockContext.log.error).toHaveBeenCalled();
     });
 
-    it("should retry on out of gas errors with increased gas limit", async () => {
+    it("should return zero price on out of gas errors without retry (readContract does not use gas)", async () => {
       setupChainConstants(PriceOracleType.V2);
-      vi.mocked(mockEthClient.simulateContract)
-        .mockRejectedValueOnce(
-          new Error("out of gas: gas required exceeds: 1000000"),
-        )
-        .mockResolvedValueOnce({
-          result: [
-            "0x0000000000000000000000000000000000000000000000000000000000000001",
-          ],
-          // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
-        } as any);
+      vi.mocked(mockEthClient.readContract).mockRejectedValue(
+        new Error("out of gas: gas required exceeds: 1000000"),
+      );
 
       const result = await realFetchTokenPrice(
         TEST_TOKEN_ADDRESS,
@@ -513,15 +490,12 @@ describe("Token Effects", () => {
         TEST_BLOCK_NUMBER,
         mockEthClient,
         mockContext.log,
-        TEST_GAS_LIMIT,
         7,
       );
 
-      expect(result.pricePerUSDNew).toBe(1n);
-      expect(mockEthClient.simulateContract).toHaveBeenCalledTimes(2);
-      const secondCall = vi.mocked(mockEthClient.simulateContract).mock
-        .calls[1][0];
-      expect(secondCall.gas).toBe(2000000n);
+      expect(result.pricePerUSDNew).toBe(0n);
+      expect(result.priceOracleType).toBe("v2");
+      expect(mockEthClient.readContract).toHaveBeenCalledTimes(1);
     });
 
     it("should retry on rate limit errors with exponential backoff", async () => {
@@ -529,14 +503,11 @@ describe("Token Effects", () => {
       const sleepSpy = vi
         .spyOn(HelpersEffects, "sleep")
         .mockResolvedValue(undefined);
-      vi.mocked(mockEthClient.simulateContract)
+      vi.mocked(mockEthClient.readContract)
         .mockRejectedValueOnce(new Error("rate limit exceeded"))
-        .mockResolvedValueOnce({
-          result: [
-            "0x0000000000000000000000000000000000000000000000000000000000000001",
-          ],
-          // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
-        } as any);
+        .mockResolvedValueOnce([
+          "0x0000000000000000000000000000000000000000000000000000000000000001",
+        ] as unknown as readonly bigint[]);
 
       const result = await realFetchTokenPrice(
         TEST_TOKEN_ADDRESS,
@@ -548,19 +519,18 @@ describe("Token Effects", () => {
         TEST_BLOCK_NUMBER,
         mockEthClient,
         mockContext.log,
-        TEST_GAS_LIMIT,
         7,
       );
 
       expect(result.pricePerUSDNew).toBe(1n);
-      expect(mockEthClient.simulateContract).toHaveBeenCalledTimes(2);
+      expect(mockEthClient.readContract).toHaveBeenCalledTimes(2);
       expect(sleepSpy).toHaveBeenCalled();
       expect(sleepSpy.mock.calls[0]?.[0]).toBe(1000);
     });
 
     it("should handle contract revert errors without retries", async () => {
       setupChainConstants(PriceOracleType.V2);
-      vi.mocked(mockEthClient.simulateContract).mockRejectedValue(
+      vi.mocked(mockEthClient.readContract).mockRejectedValue(
         new Error("execution reverted"),
       );
 
@@ -574,12 +544,11 @@ describe("Token Effects", () => {
         TEST_BLOCK_NUMBER,
         mockEthClient,
         mockContext.log,
-        TEST_GAS_LIMIT,
         7,
       );
 
       expect(result.pricePerUSDNew).toBe(0n);
-      expect(mockEthClient.simulateContract).toHaveBeenCalledTimes(1);
+      expect(mockEthClient.readContract).toHaveBeenCalledTimes(1);
     });
 
     it("should log warnings for slow successful requests (V3 and V2)", async () => {
@@ -591,10 +560,9 @@ describe("Token Effects", () => {
       for (const { oracleType } of testCases) {
         setupChainConstants(oracleType);
         const restoreDateNow = mockSlowDateNow(6000);
-        vi.mocked(mockEthClient.simulateContract).mockResolvedValue({
-          result: TEST_PRICE_RESULT,
-          // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
-        } as any);
+        vi.mocked(mockEthClient.readContract).mockResolvedValue(
+          TEST_PRICE_RESULT as unknown as readonly bigint[],
+        );
 
         await realFetchTokenPrice(
           TEST_TOKEN_ADDRESS,
@@ -606,7 +574,6 @@ describe("Token Effects", () => {
           TEST_BLOCK_NUMBER,
           mockEthClient,
           mockContext.log,
-          TEST_GAS_LIMIT,
           7,
         );
 
@@ -615,7 +582,7 @@ describe("Token Effects", () => {
         );
         restoreDateNow();
         vi.mocked(mockContext.log.warn).mockClear();
-        vi.mocked(mockEthClient.simulateContract).mockClear();
+        vi.mocked(mockEthClient.readContract).mockClear();
       }
     });
 
@@ -625,10 +592,9 @@ describe("Token Effects", () => {
         .spyOn(HelpersEffects, "sleep")
         .mockResolvedValue(undefined);
       const restoreDateNow = mockSlowDateNow(6000);
-      vi.mocked(mockEthClient.simulateContract)
+      vi.mocked(mockEthClient.readContract)
         .mockRejectedValueOnce(new Error("network error"))
-        // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
-        .mockResolvedValue({ result: TEST_PRICE_RESULT } as any);
+        .mockResolvedValue(TEST_PRICE_RESULT as unknown as readonly bigint[]);
 
       await realFetchTokenPrice(
         TEST_TOKEN_ADDRESS,
@@ -640,7 +606,6 @@ describe("Token Effects", () => {
         TEST_BLOCK_NUMBER,
         mockEthClient,
         mockContext.log,
-        TEST_GAS_LIMIT,
         7,
       );
 
@@ -654,10 +619,9 @@ describe("Token Effects", () => {
     it("should log error for very slow successful requests", async () => {
       setupChainConstants(PriceOracleType.V2);
       const restoreDateNow = mockSlowDateNow(1000, 35000);
-      vi.mocked(mockEthClient.simulateContract).mockResolvedValue({
-        result: TEST_PRICE_RESULT,
-        // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
-      } as any);
+      vi.mocked(mockEthClient.readContract).mockResolvedValue(
+        TEST_PRICE_RESULT as unknown as readonly bigint[],
+      );
 
       await realFetchTokenPrice(
         TEST_TOKEN_ADDRESS,
@@ -669,7 +633,6 @@ describe("Token Effects", () => {
         TEST_BLOCK_NUMBER,
         mockEthClient,
         mockContext.log,
-        TEST_GAS_LIMIT,
         7,
       );
 
@@ -690,13 +653,14 @@ describe("Token Effects", () => {
         const sleepSpy = vi
           .spyOn(HelpersEffects, "sleep")
           .mockResolvedValue(undefined);
-        const mockSimulateContract = vi.mocked(mockEthClient.simulateContract);
-        mockSimulateContract.mockReset().mockImplementation(() => {
-          if (mockSimulateContract.mock.calls.length <= failures) {
+        const mockReadContract = vi.mocked(mockEthClient.readContract);
+        mockReadContract.mockReset().mockImplementation(() => {
+          if (mockReadContract.mock.calls.length <= failures) {
             return Promise.reject(new Error("rate limit exceeded"));
           }
-          // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
-          return Promise.resolve({ result: TEST_PRICE_RESULT } as any);
+          return Promise.resolve(
+            TEST_PRICE_RESULT as unknown as readonly bigint[],
+          );
         });
 
         await realFetchTokenPrice(
@@ -709,7 +673,6 @@ describe("Token Effects", () => {
           TEST_BLOCK_NUMBER,
           mockEthClient,
           mockContext.log,
-          TEST_GAS_LIMIT,
           7,
         );
 
@@ -729,13 +692,14 @@ describe("Token Effects", () => {
         const sleepSpy = vi
           .spyOn(HelpersEffects, "sleep")
           .mockResolvedValue(undefined);
-        const mockSimulateContract = vi.mocked(mockEthClient.simulateContract);
-        mockSimulateContract.mockReset().mockImplementation(() => {
-          if (mockSimulateContract.mock.calls.length <= failures) {
+        const mockReadContract = vi.mocked(mockEthClient.readContract);
+        mockReadContract.mockReset().mockImplementation(() => {
+          if (mockReadContract.mock.calls.length <= failures) {
             return Promise.reject(new Error("network error"));
           }
-          // biome-ignore lint/suspicious/noExplicitAny: viem mock return shape not needed in tests
-          return Promise.resolve({ result: TEST_PRICE_RESULT } as any);
+          return Promise.resolve(
+            TEST_PRICE_RESULT as unknown as readonly bigint[],
+          );
         });
 
         await realFetchTokenPrice(
@@ -748,7 +712,6 @@ describe("Token Effects", () => {
           TEST_BLOCK_NUMBER,
           mockEthClient,
           mockContext.log,
-          TEST_GAS_LIMIT,
           7,
         );
 

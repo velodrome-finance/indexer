@@ -145,6 +145,8 @@ export function setupCommon() {
     veNFTamountStaked: 0n,
     // Pool Launcher relationship
     poolLauncherPoolId: undefined,
+    // Address of the factory that created this pool (e.g. CLFactory for CL pools)
+    factoryAddress: "",
     // Voting fields
     gaugeAddress: "",
     gaugeEmissionsCap: 0n,

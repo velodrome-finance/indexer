@@ -1,51 +1,50 @@
 import { S, createEffect } from "envio";
 import type { logger as Envio_logger } from "envio/src/Envio.gen";
 import type { PublicClient } from "viem";
-import DYNAMIC_FEE_ABI from "../../abis/DynamicSwapFeeModule.json";
+import CL_FACTORY_ABI from "../../abis/CLFactory.json";
 import { CHAIN_CONSTANTS, EFFECT_RATE_LIMITS } from "../Constants";
 import { handleEffectErrorReturn } from "./Helpers";
 
 /**
- * Core logic for fetching current fee
- * This can be tested independently of the Effect API
+ * Core logic for fetching current swap fee from the CLFactory that created the pool.
+ * This can be tested independently of the Effect API.
  */
-export async function fetchCurrentFee(
+export async function fetchSwapFee(
   poolAddress: string,
-  dynamicFeeModuleAddress: string,
+  factoryAddress: string,
   chainId: number,
   blockNumber: number,
   ethClient: PublicClient,
   logger: Envio_logger,
 ): Promise<bigint> {
   logger.info(
-    `[fetchCurrentFee] Fetching current fee for pool ${poolAddress} on chain ${chainId} at block ${blockNumber}`,
+    `[fetchSwapFee] Fetching swap fee for pool ${poolAddress} from factory ${factoryAddress} on chain ${chainId} at block ${blockNumber}`,
   );
 
-  const { result } = await ethClient.simulateContract({
-    address: dynamicFeeModuleAddress as `0x${string}`,
-    abi: DYNAMIC_FEE_ABI,
-    functionName: "getFee",
-    args: [poolAddress],
+  const result = await ethClient.readContract({
+    address: factoryAddress as `0x${string}`,
+    abi: CL_FACTORY_ABI,
+    functionName: "getSwapFee",
+    args: [poolAddress as `0x${string}`],
     blockNumber: BigInt(blockNumber),
   });
 
-  logger.info(`[fetchCurrentFee] Current fee fetched: ${result}`);
-  // viem returns bigint for uint256, ensure it's a bigint
+  // CLFactory.getSwapFee returns uint24; ensure it's a bigint
   return typeof result === "bigint" ? result : BigInt(String(result));
 }
 
 /**
- * Effect to get current fee from dynamic fee module
+ * Effect to get swap fee from the factory that created the pool (e.g. CLFactory.getSwapFee).
  *
  * Error handling: Returns undefined on failure. Callers should check for undefined
  * and handle appropriately (e.g., skip update or use existing fee).
  */
-export const getCurrentFee = createEffect(
+export const getSwapFee = createEffect(
   {
-    name: "getCurrentFee",
+    name: "getSwapFee",
     input: {
       poolAddress: S.string,
-      dynamicFeeModuleAddress: S.string,
+      factoryAddress: S.string,
       chainId: S.number,
       blockNumber: S.number,
     },
@@ -57,13 +56,16 @@ export const getCurrentFee = createEffect(
     cache: true,
   },
   async ({ input, context }) => {
-    const { poolAddress, dynamicFeeModuleAddress, chainId, blockNumber } =
-      input;
-    const ethClient = CHAIN_CONSTANTS[chainId].eth_client;
+    const { poolAddress, factoryAddress, chainId, blockNumber } = input;
     try {
-      const result = await fetchCurrentFee(
+      const chainConfig = CHAIN_CONSTANTS[chainId];
+      if (!chainConfig?.eth_client) {
+        throw new Error(`No eth_client configured for chainId ${chainId}`);
+      }
+      const ethClient = chainConfig.eth_client;
+      const result = await fetchSwapFee(
         poolAddress,
-        dynamicFeeModuleAddress,
+        factoryAddress,
         chainId,
         blockNumber,
         ethClient,
@@ -75,7 +77,7 @@ export const getCurrentFee = createEffect(
       return handleEffectErrorReturn(
         error,
         context,
-        "getCurrentFee",
+        "getSwapFee",
         {
           poolAddress,
           chainId,

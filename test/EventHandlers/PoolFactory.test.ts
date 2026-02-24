@@ -111,6 +111,30 @@ describe("PoolFactory Events", () => {
       expect(createdPool?.currentFee).toBe(DEFAULT_VAMM_FEE_BPS);
     });
 
+    it("should set factoryAddress to event.srcAddress for non-CL pools", async () => {
+      const mockDb = MockDb.createMockDb();
+      const mockEvent = PoolFactory.PoolCreated.createMockEvent({
+        token0: token0Address as `0x${string}`,
+        token1: token1Address as `0x${string}`,
+        pool: poolAddress as `0x${string}`,
+        stable: false,
+        mockEventData: {
+          block: {
+            timestamp: 1000000,
+            hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+          },
+          chainId,
+          logIndex: 1,
+        },
+      });
+      resetMockPriceOracle();
+      const result = await mockDb.processEvents([mockEvent]);
+      const pool = result.entities.LiquidityPoolAggregator.get(
+        PoolId(chainId, poolAddress),
+      );
+      expect(pool?.factoryAddress).toBe(mockEvent.srcAddress);
+    });
+
     it("should set baseFee and currentFee for stable pools (sAMM)", async () => {
       resetMockPriceOracle();
 
@@ -202,9 +226,7 @@ describe("PoolFactory Events", () => {
 
       // Setup mock ethClient for Fraxtal
       const mockEthClient = {
-        simulateContract: vi.fn().mockResolvedValue({
-          result: mockRootPoolAddress,
-        }),
+        readContract: vi.fn().mockResolvedValue(mockRootPoolAddress),
       } as unknown as PublicClient;
 
       // Mock CHAIN_CONSTANTS for Fraxtal
@@ -254,16 +276,14 @@ describe("PoolFactory Events", () => {
       expect(rootPoolLeafPool?.leafPoolAddress).toBe(poolAddress);
 
       // Verify the effect was called
-      const mockSimulateContract = vi.mocked(mockEthClient.simulateContract);
-      expect(mockSimulateContract).toHaveBeenCalledTimes(1);
+      const mockReadContract = vi.mocked(mockEthClient.readContract);
+      expect(mockReadContract).toHaveBeenCalledTimes(1);
     });
 
     it("should handle error when getRootPoolAddress fails for non-Optimism/Base chains", async () => {
       // Setup mock ethClient that throws an error
       const mockEthClient = {
-        simulateContract: vi
-          .fn()
-          .mockRejectedValue(new Error("RPC call failed")),
+        readContract: vi.fn().mockRejectedValue(new Error("RPC call failed")),
       } as unknown as PublicClient;
 
       // Mock CHAIN_CONSTANTS for Fraxtal
@@ -314,9 +334,7 @@ describe("PoolFactory Events", () => {
       // Setup mock ethClient that returns null
       // This will cause fetchRootPoolAddress to return empty string, which the handler should handle
       const mockEthClient = {
-        simulateContract: vi.fn().mockResolvedValue({
-          result: null,
-        }),
+        readContract: vi.fn().mockResolvedValue(null),
       } as unknown as PublicClient;
 
       // Mock CHAIN_CONSTANTS for Fraxtal

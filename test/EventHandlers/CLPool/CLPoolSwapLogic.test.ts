@@ -246,6 +246,13 @@ describe("CLPoolSwapLogic", () => {
       expect(result.swapFeesInToken1).toBe(0n);
       expect(result.swapFeesInUSD).toBe(0n);
       expect(mockContext.log.error).toHaveBeenCalled();
+      // Log should include actual values for diagnostics
+      expect(mockContext.log.error).toHaveBeenCalledWith(
+        expect.stringContaining("undefined"),
+      );
+      expect(mockContext.log.error).toHaveBeenCalledWith(
+        expect.stringContaining(poolWithoutFee.id),
+      );
     });
 
     it("should handle different token decimals correctly", () => {

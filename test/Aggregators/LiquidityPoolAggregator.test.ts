@@ -1,26 +1,25 @@
 import type { LiquidityPoolAggregator, Token, handlerContext } from "generated";
-import type { Mock } from "vitest";
 import {
   loadPoolData,
   loadPoolDataOrRootCLPool,
   updateDynamicFeePools,
   updateLiquidityPoolAggregator,
 } from "../../src/Aggregators/LiquidityPoolAggregator";
-import type { CHAIN_CONSTANTS } from "../../src/Constants";
 import {
+  type CHAIN_CONSTANTS,
   LiquidityPoolAggregatorSnapshotId,
   PoolId,
   RootPoolLeafPoolId,
   toChecksumAddress,
 } from "../../src/Constants";
-import { getCurrentFee } from "../../src/Effects/DynamicFee";
+import { getSwapFee } from "../../src/Effects/SwapFee";
 import { setLiquidityPoolAggregatorSnapshot } from "../../src/Snapshots/LiquidityPoolAggregatorSnapshot";
 import { getSnapshotEpoch } from "../../src/Snapshots/Shared";
 import { setupCommon } from "../EventHandlers/Pool/common";
 
-// Type for the simulateContract method
-type SimulateContractMethod =
-  (typeof CHAIN_CONSTANTS)[10]["eth_client"]["simulateContract"];
+// Type for the readContract method
+type ReadContractMethod =
+  (typeof CHAIN_CONSTANTS)[10]["eth_client"]["readContract"];
 
 describe("LiquidityPoolAggregator Functions", () => {
   let mockContext: Partial<handlerContext>;
@@ -94,7 +93,7 @@ describe("LiquidityPoolAggregator Functions", () => {
             scalingFactor: 10000000n,
           };
         }
-        if (effectFn.name === "getCurrentFee") {
+        if (effectFn.name === "getSwapFee") {
           return 1900n;
         }
         return {};
@@ -113,6 +112,9 @@ describe("LiquidityPoolAggregator Functions", () => {
       ),
       isStable: false,
       isCL: false,
+      factoryAddress: toChecksumAddress(
+        "0x548118C7E0B865C2CfA94D15EC86B666468ac758",
+      ),
       reserve0: 0n,
       reserve1: 0n,
       totalLiquidityUSD: 0n,
@@ -146,26 +148,6 @@ describe("LiquidityPoolAggregator Functions", () => {
   });
 
   describe("updateDynamicFeePools", () => {
-    // biome-ignore lint/suspicious/noExplicitAny: Mock for testing
-    let dynamicFeeConfigMock: any;
-
-    beforeEach(() => {
-      // Add DynamicFeeGlobalConfig mock
-      dynamicFeeConfigMock = {
-        getWhere: vi.fn().mockResolvedValue([
-          {
-            id: toChecksumAddress("0xd9eE4FBeE92970509ec795062cA759F8B52d6720"),
-            chainId: 10,
-          },
-        ]),
-      };
-      (
-        mockContext as unknown as {
-          DynamicFeeGlobalConfig: typeof dynamicFeeConfigMock;
-        }
-      ).DynamicFeeGlobalConfig = dynamicFeeConfigMock;
-    });
-
     it("should update the pool with current dynamic fee", async () => {
       const updatedPool = await updateDynamicFeePools(
         liquidityPoolAggregator as LiquidityPoolAggregator,
@@ -178,19 +160,24 @@ describe("LiquidityPoolAggregator Functions", () => {
       expect(updatedPool.currentFee).toBe(1900n); // From the mocked effect
     });
 
-    it("should handle missing config gracefully", async () => {
-      // Mock no config found
-      vi.mocked(dynamicFeeConfigMock.getWhere).mockResolvedValue([]);
+    it("should skip update when pool has no factoryAddress", async () => {
+      const poolNoFactory = {
+        ...liquidityPoolAggregator,
+        factoryAddress: "",
+      } as LiquidityPoolAggregator;
 
-      await updateDynamicFeePools(
-        liquidityPoolAggregator as LiquidityPoolAggregator,
+      const updatedPool = await updateDynamicFeePools(
+        poolNoFactory,
         mockContext as handlerContext,
         10,
         blockNumber,
       );
 
-      // Should log a warning but not crash
-      expect(vi.mocked(mockContext.log?.warn)).toHaveBeenCalled();
+      expect(updatedPool).toBe(poolNoFactory);
+      expect(vi.mocked(mockContext.log?.warn)).toHaveBeenCalledWith(
+        expect.stringContaining("no factoryAddress"),
+      );
+      expect(mockContext.effect).not.toHaveBeenCalled();
     });
 
     it("should handle effect errors gracefully", async () => {
@@ -215,10 +202,10 @@ describe("LiquidityPoolAggregator Functions", () => {
       // Verify that the effect was called with the expected arguments
       // biome-ignore lint/style/noNonNullAssertion: effect is verified to be defined above
       const effectMock = vi.mocked(mockContext.effect!);
-      expect(effectMock).toHaveBeenCalledWith(getCurrentFee, {
+      expect(effectMock).toHaveBeenCalledWith(getSwapFee, {
         poolAddress: liquidityPoolAggregator.poolAddress,
-        dynamicFeeModuleAddress: toChecksumAddress(
-          "0xd9eE4FBeE92970509ec795062cA759F8B52d6720",
+        factoryAddress: toChecksumAddress(
+          "0x548118C7E0B865C2CfA94D15EC86B666468ac758",
         ),
         chainId: liquidityPoolAggregator.chainId,
         blockNumber,
@@ -364,13 +351,13 @@ describe("LiquidityPoolAggregator Functions", () => {
 
       // For non-CL pools, updateDynamicFeePools should NOT be called
       const effectCalls = effectSpy.mock.calls.filter(
-        (call) => call[0] === getCurrentFee,
+        (call) => call[0] === getSwapFee,
       );
       expect(effectCalls.length).toBe(0);
     });
 
     it("should call updateDynamicFeePools for CL pools when creating snapshot", async () => {
-      // Set up a CL pool
+      // Set up a CL pool (liquidityPoolAggregator has factoryAddress set in beforeEach)
       const oldTimestamp = new Date(Date.now() - 2 * 60 * 60 * 1000); // 2 hours ago
       const currentTimestamp = new Date();
 
@@ -379,21 +366,6 @@ describe("LiquidityPoolAggregator Functions", () => {
         isCL: true,
         lastSnapshotTimestamp: oldTimestamp,
       };
-
-      // Add DynamicFeeGlobalConfig mock for this test
-      const dynamicFeeConfigMock = {
-        getWhere: vi.fn().mockResolvedValue([
-          {
-            id: toChecksumAddress("0xd9eE4FBeE92970509ec795062cA759F8B52d6720"),
-            chainId: 10,
-          },
-        ]),
-      };
-      (
-        mockContext as unknown as {
-          DynamicFeeGlobalConfig: typeof dynamicFeeConfigMock;
-        }
-      ).DynamicFeeGlobalConfig = dynamicFeeConfigMock;
 
       // Mock the effect to track if it's called
       if (!mockContext.effect) {
@@ -419,7 +391,7 @@ describe("LiquidityPoolAggregator Functions", () => {
 
       // For CL pools, updateDynamicFeePools should be called
       const effectCalls = effectSpy.mock.calls.filter(
-        (call) => call[0] === getCurrentFee,
+        (call) => call[0] === getSwapFee,
       );
       expect(effectCalls.length).toBe(1);
     });
