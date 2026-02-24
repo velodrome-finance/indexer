@@ -99,7 +99,10 @@ export async function fetchTokenPrice(
   while (attempt <= maxRetries) {
     const attemptStartTime = Date.now();
     try {
-      if (priceOracleType === PriceOracleType.V3) {
+      if (
+        priceOracleType === PriceOracleType.V3 ||
+        priceOracleType === PriceOracleType.V4
+      ) {
         const tokenAddressArray = [
           ...connectors,
           systemTokenAddress,
@@ -138,7 +141,7 @@ export async function fetchTokenPrice(
 
         return {
           pricePerUSDNew: BigInt(result[0]),
-          priceOracleType: PriceOracleType.V3,
+          priceOracleType: priceOracleType,
         };
       }
 
@@ -372,7 +375,7 @@ export const getTokenPrice = createEffect(
     }
 
     // Fetch token details for V3 oracle decimal conversion if needed
-    const [tokenDetails, USDTokenDetails] = await Promise.all([
+    const [tokenDetails, USDCTokenDetails] = await Promise.all([
       context.effect(getTokenDetails, {
         contractAddress: tokenAddress,
         chainId,
@@ -423,12 +426,15 @@ export const getTokenPrice = createEffect(
         gasLimit,
       );
 
-      // Convert V3 oracle prices to 18 decimals
+      // Convert V3/V4 oracle prices to 18 decimals
       let currentPrice: bigint;
-      if (priceData.priceOracleType === PriceOracleType.V3) {
+      if (
+        priceData.priceOracleType === PriceOracleType.V3 ||
+        priceData.priceOracleType === PriceOracleType.V4
+      ) {
         currentPrice =
           (priceData.pricePerUSDNew * 10n ** BigInt(tokenDetails.decimals)) /
-          10n ** BigInt(USDTokenDetails.decimals);
+          10n ** BigInt(USDCTokenDetails.decimals);
       } else {
         currentPrice = priceData.pricePerUSDNew;
       }
