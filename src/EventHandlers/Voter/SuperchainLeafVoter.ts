@@ -8,6 +8,7 @@ import {
 import {
   PoolId,
   SUPERCHAIN_LEAF_VOTER_CLPOOLS_FACTORY_LIST,
+  SUPERCHAIN_LEAF_VOTER_NONCL_POOLS_FACTORY_LIST,
   TokenId,
 } from "../../Constants";
 import { getTokenDetails } from "../../Effects/Index";
@@ -16,9 +17,9 @@ SuperchainLeafVoter.GaugeCreated.contractRegister(({ event, context }) => {
   const pf = event.params.poolFactory;
   if (SUPERCHAIN_LEAF_VOTER_CLPOOLS_FACTORY_LIST.includes(pf)) {
     context.addCLGauge(event.params.gauge);
-  } //else if (SUPERCHAIN_LEAF_VOTER_NONCL_POOLS_FACTORY_LIST.includes(pf)) {
-  // context.addGauge(event.params.gauge);
-  // }
+  } else if (SUPERCHAIN_LEAF_VOTER_NONCL_POOLS_FACTORY_LIST.includes(pf)) {
+    context.addGauge(event.params.gauge);
+  }
 
   context.addFeesVotingReward(event.params.feeVotingReward);
   context.addSuperchainIncentiveVotingReward(
