@@ -62,10 +62,10 @@ export const ROOT_POOL_FACTORY_ADDRESS_OPTIMISM = toChecksumAddress(
 
 // Effect rate limit constants (calls per second)
 export const EFFECT_RATE_LIMITS = {
-  TOKEN_EFFECTS: 5000, // Token details and price fetching effects
-  VOTER_EFFECTS: 5000, // Voter-related effects
-  DYNAMIC_FEE_EFFECTS: 5000, // Dynamic fee effects
-  ROOT_POOL_EFFECTS: 5000, // Root pool effects
+  TOKEN_EFFECTS: 500, // Token details and price fetching effects
+  VOTER_EFFECTS: 500, // Voter-related effects
+  DYNAMIC_FEE_EFFECTS: 500, // Dynamic fee effects
+  ROOT_POOL_EFFECTS: 500, // Root pool effects
 } as const;
 
 export const OUSDT_ADDRESS = "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189";
