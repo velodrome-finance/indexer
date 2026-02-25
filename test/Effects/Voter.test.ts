@@ -141,7 +141,51 @@ describe("Voter Effects", () => {
       expect(getTokensDeposited).toHaveProperty("name", "getTokensDeposited");
     });
 
-    it("should return undefined on error", async () => {
+    it("should return undefined when rpcGateway returns no value (unit: delegation in isolation)", async () => {
+      const unitContext = {
+        ...mockContext,
+        effect: (
+          effect: {
+            name: string;
+            handler: (args: { input: unknown; context: unknown }) => unknown;
+          },
+          input: unknown,
+        ) => {
+          if (effect.name === "rpcGateway") {
+            (
+              unitContext.log as { error: (msg: string, err: Error) => void }
+            ).error(
+              "rpcGateway.getTokensDeposited failed",
+              new Error("Simulated gateway error"),
+            );
+            // Gateway returns payload shape with value undefined (simulated error)
+            return Promise.resolve({ value: undefined });
+          }
+          return effect.handler({ input, context: unitContext });
+        },
+      };
+
+      const result = await unitContext.effect(
+        getTokensDeposited as unknown as {
+          name: string;
+          handler: (args: { input: unknown; context: unknown }) => unknown;
+        },
+        {
+          rewardTokenAddress: TEST_REWARD_TOKEN,
+          gaugeAddress: TEST_GAUGE,
+          blockNumber: TEST_BLOCK_NUMBER,
+          eventChainId: TEST_CHAIN_ID,
+        },
+      );
+
+      expect(result).toBeUndefined();
+      expect(unitContext.log.error).toHaveBeenCalledWith(
+        "rpcGateway.getTokensDeposited failed",
+        expect.any(Error),
+      );
+    });
+
+    it("should return undefined and log error when RPC fails (integration: full chain)", async () => {
       vi.mocked(mockEthClient.readContract).mockRejectedValue(
         new Error("Contract call failed"),
       );

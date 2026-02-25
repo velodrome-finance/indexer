@@ -1,47 +1,21 @@
 import { S, createEffect } from "envio";
-import type { logger as Envio_logger } from "envio/src/Envio.gen";
-import type { PublicClient } from "viem";
-import CL_FACTORY_ABI from "../../abis/CLFactory.json";
-import { CHAIN_CONSTANTS, EFFECT_RATE_LIMITS } from "../Constants";
-import { handleEffectErrorReturn } from "./Helpers";
+import { EffectType, callRpcGateway } from "./RpcGateway";
+
+export { fetchSwapFee } from "./fetchers/SwapFee";
 
 /**
- * Core logic for fetching current swap fee from the CLFactory that created the pool.
- * This can be tested independently of the Effect API.
- */
-export async function fetchSwapFee(
-  poolAddress: string,
-  factoryAddress: string,
-  chainId: number,
-  blockNumber: number,
-  ethClient: PublicClient,
-  logger: Envio_logger,
-): Promise<bigint> {
-  logger.info(
-    `[fetchSwapFee] Fetching swap fee for pool ${poolAddress} from factory ${factoryAddress} on chain ${chainId} at block ${blockNumber}`,
-  );
-
-  const result = await ethClient.readContract({
-    address: factoryAddress as `0x${string}`,
-    abi: CL_FACTORY_ABI,
-    functionName: "getSwapFee",
-    args: [poolAddress as `0x${string}`],
-    blockNumber: BigInt(blockNumber),
-  });
-
-  // CLFactory.getSwapFee returns uint24; ensure it's a bigint
-  return typeof result === "bigint" ? result : BigInt(String(result));
-}
-
-/**
- * Effect to get swap fee from the factory that created the pool (e.g. CLFactory.getSwapFee).
+ * Effect to get the current swap fee for a pool from the CL factory that created it.
+ * Delegates to {@link rpcGateway}; on error returns undefined.
  *
- * Error handling: Returns undefined on failure. Callers should check for undefined
- * and handle appropriately (e.g., skip update or use existing fee).
+ * @param input.poolAddress - Pool contract address.
+ * @param input.factoryAddress - CL factory that created the pool.
+ * @param input.chainId - Chain ID for RPC.
+ * @param input.blockNumber - Block at which to read the fee.
+ * @returns Promise resolving to swap fee (bigint) or undefined on error.
  */
 export const getSwapFee = createEffect(
   {
-    name: "getSwapFee",
+    name: EffectType.GET_SWAP_FEE,
     input: {
       poolAddress: S.string,
       factoryAddress: S.string,
@@ -49,42 +23,17 @@ export const getSwapFee = createEffect(
       blockNumber: S.number,
     },
     output: S.nullable(S.bigint),
-    rateLimit: {
-      calls: EFFECT_RATE_LIMITS.DYNAMIC_FEE_EFFECTS,
-      per: "second",
-    },
+    rateLimit: false,
     cache: true,
   },
   async ({ input, context }) => {
-    const { poolAddress, factoryAddress, chainId, blockNumber } = input;
-    try {
-      const chainConfig = CHAIN_CONSTANTS[chainId];
-      if (!chainConfig?.eth_client) {
-        throw new Error(`No eth_client configured for chainId ${chainId}`);
-      }
-      const ethClient = chainConfig.eth_client;
-      const result = await fetchSwapFee(
-        poolAddress,
-        factoryAddress,
-        chainId,
-        blockNumber,
-        ethClient,
-        context.log,
-      );
-      return result;
-    } catch (error) {
-      // Return undefined on error - callers should check and handle appropriately
-      return handleEffectErrorReturn(
-        error,
-        context,
-        "getSwapFee",
-        {
-          poolAddress,
-          chainId,
-          blockNumber,
-        },
-        undefined,
-      );
-    }
+    const result = await callRpcGateway(context, {
+      type: EffectType.GET_SWAP_FEE,
+      poolAddress: input.poolAddress,
+      factoryAddress: input.factoryAddress,
+      chainId: input.chainId,
+      blockNumber: input.blockNumber,
+    });
+    return result.value;
   },
 );

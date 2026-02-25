@@ -3,7 +3,6 @@
  */
 export enum ErrorType {
   RATE_LIMIT = "RATE_LIMIT",
-  OUT_OF_GAS = "OUT_OF_GAS",
   CONTRACT_REVERT = "CONTRACT_REVERT",
   NETWORK_ERROR = "NETWORK_ERROR",
   HISTORICAL_STATE_NOT_AVAILABLE = "HISTORICAL_STATE_NOT_AVAILABLE",
@@ -15,13 +14,6 @@ export enum ErrorType {
  * Note: Order matters - more specific errors should be checked first
  */
 const ERROR_KEYWORDS: Record<ErrorType, string[]> = {
-  [ErrorType.OUT_OF_GAS]: [
-    "out of gas",
-    "gas exhausted",
-    "gas required exceeds",
-    "gas limit exceeded",
-    "gas limit",
-  ],
   [ErrorType.HISTORICAL_STATE_NOT_AVAILABLE]: [
     "historical state",
     "is not available",
@@ -64,9 +56,11 @@ const ERROR_KEYWORDS: Record<ErrorType, string[]> = {
 };
 
 /**
- * Determines the type of error from the error message and stack trace
- * @param error - The error to analyze
- * @returns The ErrorType enum value
+ * Classifies an error for retry and logging. Matches message and stack against
+ * {@link ERROR_KEYWORDS} to determine if it is rate limit, network, revert, etc.
+ *
+ * @param error - The thrown value (Error or unknown) to classify.
+ * @returns The {@link ErrorType} enum value; {@link ErrorType.UNKNOWN} if no match or falsy input.
  */
 export function getErrorType(error: unknown): ErrorType {
   if (!error) return ErrorType.UNKNOWN;
@@ -87,18 +81,23 @@ export function getErrorType(error: unknown): ErrorType {
 }
 
 /**
- * Helper function to sleep for a given number of milliseconds
+ * Resolves after a given delay. Used for retry backoff in RPC operations.
+ *
+ * @param ms - Delay in milliseconds before the promise resolves.
+ * @returns A promise that resolves with `undefined` after `ms` milliseconds.
  */
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
- * Creates a readable error with preserved stack trace
- * @param error - The original error
- * @param context - Context string (e.g., "[getTokenDetails]")
- * @param details - Key-value pairs to include in error message
- * @returns A new Error with readable message and preserved stack trace
+ * Builds a single Error with a readable message (context + details + original message) and preserved stack.
+ * Used when logging or rethrowing so that both human-readable context and original stack are available.
+ *
+ * @param error - The original thrown value (Error or unknown); message is stringified.
+ * @param context - Prefix for the message (e.g. "[getTokenDetails]" or "[rpcGateway.getTokenDetails]").
+ * @param details - Key-value pairs appended as key=value, comma-separated, in the message.
+ * @returns A new Error whose message is `${context} ${detailStr} - ${errorMessage}` and stack is copied from error if present.
  */
 export function createReadableError(
   error: unknown,

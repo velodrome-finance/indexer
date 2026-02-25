@@ -11,6 +11,7 @@ import {
   TokenId,
   toChecksumAddress,
 } from "../../src/Constants";
+import * as HelpersModule from "../../src/Effects/Helpers";
 import * as PriceOracle from "../../src/PriceOracle";
 import { mutateChainConstants } from "../testHelpers";
 import { setupCommon } from "./Pool/common";
@@ -51,6 +52,7 @@ describe("PoolFactory Events", () => {
     );
 
     beforeEach(async () => {
+      vi.spyOn(HelpersModule, "sleep").mockResolvedValue(undefined);
       mockPriceOracle = vi.spyOn(PriceOracle, "createTokenEntity");
       resetMockPriceOracle();
 

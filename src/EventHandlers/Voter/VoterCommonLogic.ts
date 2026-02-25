@@ -36,7 +36,6 @@ export async function computeVoterDistributeValues(
   context: handlerContext,
   gaugeIsAlive: boolean,
 ): Promise<VoterCommonResult> {
-
   const tokensDepositedResult = await context.effect(getTokensDeposited, {
     rewardTokenAddress: rewardToken.address,
     gaugeAddress,

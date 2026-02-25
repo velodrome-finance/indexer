@@ -1,6 +1,7 @@
 import type { logger as Envio_logger } from "envio/src/Envio.gen";
 import type { PublicClient } from "viem";
 import { CHAIN_CONSTANTS, toChecksumAddress } from "../../src/Constants";
+import * as HelpersModule from "../../src/Effects/Helpers";
 import { fetchSwapFee, getSwapFee } from "../../src/Effects/SwapFee";
 
 type MockEffect = {
@@ -89,6 +90,8 @@ describe("Swap Fee Effects", () => {
     | undefined;
 
   beforeEach(() => {
+    vi.spyOn(HelpersModule, "sleep").mockResolvedValue(undefined);
+
     mockEthClient = {
       readContract: vi.fn().mockResolvedValue(TEST_FEE_VALUE),
     } as unknown as PublicClient;
@@ -186,10 +189,8 @@ describe("Swap Fee Effects", () => {
           const result = await fetchSwapFee(
             TEST_POOL_ADDRESS,
             address,
-            chainId,
             TEST_BLOCK_NUMBER,
             mockEthClient,
-            mockContext.log,
           );
 
           expect(result).toBe(TEST_FEE_VALUE_ALT);
@@ -221,10 +222,8 @@ describe("Swap Fee Effects", () => {
         fetchSwapFee(
           TEST_POOL_ADDRESS,
           TEST_CL_FACTORY_ADDRESS,
-          TEST_CHAIN_ID,
           TEST_BLOCK_NUMBER,
           mockEthClient,
-          mockContext.log,
         ),
       ).rejects.toThrow("Contract call failed");
     });
@@ -235,10 +234,8 @@ describe("Swap Fee Effects", () => {
       const result = await fetchSwapFee(
         TEST_POOL_ADDRESS,
         TEST_CL_FACTORY_ADDRESS,
-        TEST_CHAIN_ID,
         TEST_BLOCK_NUMBER,
         mockEthClient,
-        mockContext.log,
       );
 
       expect(result).toBe(500n);

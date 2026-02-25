@@ -1,52 +1,22 @@
-import { createEffect } from "envio";
-import { S } from "envio";
-import type { logger as Envio_logger } from "envio/src/Envio.gen";
-import type { PublicClient } from "viem";
-import lpHelperABI from "../../abis/LpHelper.json";
-import {
-  CHAIN_CONSTANTS,
-  EFFECT_RATE_LIMITS,
-  toChecksumAddress,
-} from "../Constants";
+import { S, createEffect } from "envio";
+import { EffectType, callRpcGateway } from "./RpcGateway";
 
-export async function fetchRootPoolAddress(
-  ethClient: PublicClient,
-  lpHelperAddress: string,
-  factory: string,
-  token0: string,
-  token1: string,
-  type: number,
-  logger: Envio_logger,
-): Promise<string> {
-  const result = await ethClient.readContract({
-    address: lpHelperAddress as `0x${string}`,
-    abi: lpHelperABI,
-    functionName: "root_lp_address",
-    args: [factory, token0, token1, type],
-  });
-
-  // viem returns the address as a string (lowercase, no padding), handle both array and direct string returns
-  const address = Array.isArray(result) ? result[0] : result;
-
-  // Handle null/undefined results
-  if (!address) {
-    logger.error(
-      "[fetchRootPoolAddress] No root pool address found. Returning empty address",
-    );
-    return "";
-  }
-
-  // Normalize to checksum format
-  // Type assertion: after null check, address is guaranteed to be a value that can be converted to string
-  return toChecksumAddress(String(address));
-}
+export { fetchRootPoolAddress } from "./fetchers/RootPool";
 
 /**
- * Effect to get root pool address of a leaf pool
+ * Effect to get the root pool address for a leaf pool from the LpHelper contract.
+ * Delegates to {@link rpcGateway}; on error returns empty string.
+ *
+ * @param input.chainId - Chain ID for RPC.
+ * @param input.factory - Factory contract address.
+ * @param input.token0 - First token of the pair.
+ * @param input.token1 - Second token of the pair.
+ * @param input.type - Pool type identifier (forwarded as poolType to rpcGateway).
+ * @returns Promise resolving to checksummed root pool address or "" on error.
  */
 export const getRootPoolAddress = createEffect(
   {
-    name: "getRootPoolAddress",
+    name: EffectType.GET_ROOT_POOL_ADDRESS,
     input: {
       chainId: S.number,
       factory: S.string,
@@ -55,24 +25,18 @@ export const getRootPoolAddress = createEffect(
       type: S.number,
     },
     output: S.string,
-    rateLimit: {
-      calls: EFFECT_RATE_LIMITS.ROOT_POOL_EFFECTS,
-      per: "second",
-    },
+    rateLimit: false,
     cache: true,
   },
   async ({ input, context }) => {
-    const { chainId, factory, token0, token1, type } = input;
-    const ethClient = CHAIN_CONSTANTS[chainId].eth_client;
-    const lpHelperAddress = CHAIN_CONSTANTS[chainId].lpHelperAddress;
-    return fetchRootPoolAddress(
-      ethClient,
-      lpHelperAddress,
-      factory,
-      token0,
-      token1,
-      type,
-      context.log,
-    );
+    const result = await callRpcGateway(context, {
+      type: EffectType.GET_ROOT_POOL_ADDRESS,
+      chainId: input.chainId,
+      factory: input.factory,
+      token0: input.token0,
+      token1: input.token1,
+      poolType: input.type,
+    });
+    return result.value;
   },
 );
