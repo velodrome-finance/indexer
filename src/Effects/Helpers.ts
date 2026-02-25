@@ -21,6 +21,8 @@ const ERROR_KEYWORDS: Record<ErrorType, string[]> = {
     "state histories haven't been fully indexed",
     "state histories",
     "haven't been fully indexed",
+    "unknown state",
+    "first available state",
   ],
   [ErrorType.CONTRACT_REVERT]: ["reverted", "revert", "execution reverted"],
   [ErrorType.RATE_LIMIT]: [

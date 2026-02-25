@@ -3,6 +3,8 @@ import {
   CHAIN_CONSTANTS,
   PriceOracleType,
   RPC_GATEWAY_PREFIX,
+  TOKEN_DETAILS_FALLBACK,
+  USDC_DETAILS_FALLBACK,
 } from "../Constants";
 import {
   GLOBAL_REQUESTS_PER_SECOND,
@@ -38,6 +40,9 @@ function rpcGatewayOpName(type: EffectType, sub?: string): string {
 
 /**
  * Single source of truth for each gateway operation: input and output schemas.
+ * Each inputSchema includes a literal `type` field so that RPC_GATEWAY_INPUT_SCHEMA
+ * (S.union of these schemas) is a proper discriminated union: the runtime validates
+ * and preserves `type`, and the handler's switch (i.type) receives it intact.
  * When adding an operation:
  * 1) add to EffectType,
  * 2) add an entry here,
@@ -46,6 +51,7 @@ function rpcGatewayOpName(type: EffectType, sub?: string): string {
 const RPC_GATEWAY_OPERATIONS = {
   [EffectType.GET_TOKEN_DETAILS]: {
     inputSchema: {
+      type: S.schema(EffectType.GET_TOKEN_DETAILS),
       contractAddress: S.string,
       chainId: S.number,
     },
@@ -57,6 +63,7 @@ const RPC_GATEWAY_OPERATIONS = {
   },
   [EffectType.GET_TOKEN_PRICE]: {
     inputSchema: {
+      type: S.schema(EffectType.GET_TOKEN_PRICE),
       tokenAddress: S.string,
       chainId: S.number,
       blockNumber: S.number,
@@ -68,6 +75,7 @@ const RPC_GATEWAY_OPERATIONS = {
   },
   [EffectType.GET_TOKENS_DEPOSITED]: {
     inputSchema: {
+      type: S.schema(EffectType.GET_TOKENS_DEPOSITED),
       rewardTokenAddress: S.string,
       gaugeAddress: S.string,
       blockNumber: S.number,
@@ -79,6 +87,7 @@ const RPC_GATEWAY_OPERATIONS = {
   },
   [EffectType.GET_SWAP_FEE]: {
     inputSchema: {
+      type: S.schema(EffectType.GET_SWAP_FEE),
       poolAddress: S.string,
       factoryAddress: S.string,
       chainId: S.number,
@@ -90,6 +99,7 @@ const RPC_GATEWAY_OPERATIONS = {
   },
   [EffectType.GET_ROOT_POOL_ADDRESS]: {
     inputSchema: {
+      type: S.schema(EffectType.GET_ROOT_POOL_ADDRESS),
       chainId: S.number,
       factory: S.string,
       token0: S.string,
@@ -197,8 +207,6 @@ type RpcGatewayHandlerContext = {
   };
 };
 
-const TOKEN_DETAILS_FALLBACK = { name: "", decimals: 0, symbol: "" };
-
 /**
  * Shared RPC gateway effect: all RPC-backed operations go through this single effect
  * so they share one rate-limit bucket. Alchemy allows 100,000 CU over any 10-second
@@ -219,7 +227,7 @@ export const rpcGateway = createEffect(
       calls: GLOBAL_REQUESTS_PER_SECOND,
       per: "second",
     },
-    cache: true,
+    cache: false,
   },
   async ({ input, context }) => {
     const i = input as RpcGatewayInput;
@@ -284,14 +292,25 @@ async function handleGetTokenDetails(
   i: RpcGatewayInputByType[EffectType.GET_TOKEN_DETAILS],
   context: RpcGatewayHandlerContext,
 ): Promise<RpcGatewayOutputByType[EffectType.GET_TOKEN_DETAILS]> {
-  const ethClient = CHAIN_CONSTANTS[i.chainId].eth_client;
+  const operationName = rpcGatewayOpName(EffectType.GET_TOKEN_DETAILS);
+  const logDetails = { contractAddress: i.contractAddress, chainId: i.chainId };
+  const fallback = TOKEN_DETAILS_FALLBACK;
+  const fetcher = () => {
+    const chain = CHAIN_CONSTANTS[i.chainId];
+    if (!chain) {
+      throw new Error(`Unsupported chainId: ${i.chainId}`);
+    }
+    return fetchTokenDetails(i.contractAddress, chain.eth_client);
+  };
+
   const result = await executeRpcWithFallback(
     context,
-    rpcGatewayOpName(EffectType.GET_TOKEN_DETAILS),
-    { contractAddress: i.contractAddress, chainId: i.chainId },
-    TOKEN_DETAILS_FALLBACK,
-    () => fetchTokenDetails(i.contractAddress, ethClient),
+    operationName,
+    logDetails,
+    fallback,
+    fetcher,
   );
+
   return result;
 }
 
@@ -306,53 +325,57 @@ async function handleGetTokenPrice(
   context: RpcGatewayHandlerContext,
 ): Promise<RpcGatewayOutputByType[EffectType.GET_TOKEN_PRICE]> {
   const { tokenAddress, chainId, blockNumber } = i;
-  const USDC_ADDRESS = CHAIN_CONSTANTS[chainId].usdc;
+  const chain = CHAIN_CONSTANTS[chainId];
+  if (!chain) {
+    context.log.error(
+      "Unsupported chainId in getTokenPrice",
+      new Error(`Unsupported chainId: ${chainId}`),
+    );
+    return {
+      pricePerUSDNew: 0n,
+      priceOracleType: "unknown",
+    };
+  }
+  const USDC_ADDRESS = chain.usdc;
 
   if (tokenAddress === USDC_ADDRESS) {
     return {
       pricePerUSDNew: 10n ** 18n,
-      priceOracleType: CHAIN_CONSTANTS[chainId].oracle
-        .getType(blockNumber)
-        .toString(),
+      priceOracleType: chain.oracle.getType(blockNumber).toString(),
     };
   }
 
-  const ethClient = CHAIN_CONSTANTS[chainId].eth_client;
   const [tokenDetails, USDCTokenDetails] = await Promise.all([
     executeRpcWithFallback(
       context,
       rpcGatewayOpName(EffectType.GET_TOKEN_PRICE, "tokenDetails"),
       { contractAddress: tokenAddress, chainId },
       TOKEN_DETAILS_FALLBACK,
-      () => fetchTokenDetails(tokenAddress, ethClient),
+      () => fetchTokenDetails(tokenAddress, chain.eth_client),
     ),
     executeRpcWithFallback(
       context,
       rpcGatewayOpName(EffectType.GET_TOKEN_PRICE, "usdcDetails"),
       { contractAddress: USDC_ADDRESS, chainId },
-      TOKEN_DETAILS_FALLBACK,
-      () => fetchTokenDetails(USDC_ADDRESS, ethClient),
+      USDC_DETAILS_FALLBACK,
+      () => fetchTokenDetails(USDC_ADDRESS, chain.eth_client),
     ),
   ]);
 
-  const ORACLE_DEPLOYED =
-    CHAIN_CONSTANTS[chainId].oracle.startBlock <= blockNumber;
+  const ORACLE_DEPLOYED = chain.oracle.startBlock <= blockNumber;
   if (!ORACLE_DEPLOYED) {
     context.log.info?.(
       `[getTokenPrice] Oracle not deployed, returning zero price for ${tokenAddress} on chain ${chainId} at block ${blockNumber}`,
     );
     return {
       pricePerUSDNew: 0n,
-      priceOracleType: CHAIN_CONSTANTS[chainId].oracle
-        .getType(blockNumber)
-        .toString(),
+      priceOracleType: chain.oracle.getType(blockNumber).toString(),
     };
   }
 
-  const WETH_ADDRESS = CHAIN_CONSTANTS[chainId].weth;
-  const SYSTEM_TOKEN_ADDRESS =
-    CHAIN_CONSTANTS[chainId].rewardToken(blockNumber);
-  const connectors = CHAIN_CONSTANTS[chainId].oracle.priceConnectors
+  const WETH_ADDRESS = chain.weth;
+  const SYSTEM_TOKEN_ADDRESS = chain.rewardToken(blockNumber);
+  const connectors = chain.oracle.priceConnectors
     .filter((c) => c.createdBlock <= blockNumber)
     .map((c) => c.address)
     .filter((a) => a !== tokenAddress)
@@ -364,9 +387,7 @@ async function handleGetTokenPrice(
   const logDetails = { tokenAddress, chainId, blockNumber };
   const fallback = {
     pricePerUSDNew: 0n,
-    priceOracleType: CHAIN_CONSTANTS[chainId].oracle
-      .getType(blockNumber)
-      .toString(),
+    priceOracleType: chain.oracle.getType(blockNumber).toString(),
   };
   const fetcher = () =>
     fetchTokenPrice(
@@ -377,7 +398,7 @@ async function handleGetTokenPrice(
       connectors,
       chainId,
       blockNumber,
-      ethClient,
+      chain.eth_client,
     );
 
   const priceData = await executeRpcWithFallback(
@@ -408,9 +429,7 @@ async function handleGetTokenPrice(
 
   return {
     pricePerUSDNew: currentPrice,
-    priceOracleType: CHAIN_CONSTANTS[chainId].oracle
-      .getType(blockNumber)
-      .toString(),
+    priceOracleType: chain.oracle.getType(blockNumber).toString(),
   };
 }
 
@@ -424,21 +443,24 @@ async function handleGetTokensDeposited(
   i: RpcGatewayInputByType[EffectType.GET_TOKENS_DEPOSITED],
   context: RpcGatewayHandlerContext,
 ): Promise<RpcGatewayOutputByType[EffectType.GET_TOKENS_DEPOSITED]> {
-  const ethClient = CHAIN_CONSTANTS[i.chainId].eth_client;
-
   const operationName = rpcGatewayOpName(EffectType.GET_TOKENS_DEPOSITED);
   const logDetails = {
     gaugeAddress: i.gaugeAddress,
     blockNumber: i.blockNumber,
   };
   const fallback = undefined;
-  const fetcher = () =>
-    fetchTokensDeposited(
+  const fetcher = () => {
+    const chain = CHAIN_CONSTANTS[i.chainId];
+    if (!chain) {
+      throw new Error(`Unsupported chainId: ${i.chainId}`);
+    }
+    return fetchTokensDeposited(
       i.rewardTokenAddress,
       i.gaugeAddress,
       i.blockNumber,
-      ethClient,
+      chain.eth_client,
     );
+  };
 
   const result = await executeRpcWithFallback(
     context,
@@ -461,8 +483,6 @@ async function handleGetSwapFee(
   i: RpcGatewayInputByType[EffectType.GET_SWAP_FEE],
   context: RpcGatewayHandlerContext,
 ): Promise<RpcGatewayOutputByType[EffectType.GET_SWAP_FEE]> {
-  const ethClient = CHAIN_CONSTANTS[i.chainId].eth_client;
-
   const operationName = rpcGatewayOpName(EffectType.GET_SWAP_FEE);
   const logDetails = {
     poolAddress: i.poolAddress,
@@ -470,8 +490,18 @@ async function handleGetSwapFee(
     blockNumber: i.blockNumber,
   };
   const fallback = undefined;
-  const fetcher = () =>
-    fetchSwapFee(i.poolAddress, i.factoryAddress, i.blockNumber, ethClient);
+  const fetcher = () => {
+    const chain = CHAIN_CONSTANTS[i.chainId];
+    if (!chain) {
+      throw new Error(`Unsupported chainId: ${i.chainId}`);
+    }
+    return fetchSwapFee(
+      i.poolAddress,
+      i.factoryAddress,
+      i.blockNumber,
+      chain.eth_client,
+    );
+  };
 
   const result = await executeRpcWithFallback(
     context,
@@ -494,21 +524,23 @@ async function handleGetRootPoolAddress(
   i: RpcGatewayInputByType[EffectType.GET_ROOT_POOL_ADDRESS],
   context: RpcGatewayHandlerContext,
 ): Promise<RpcGatewayOutputByType[EffectType.GET_ROOT_POOL_ADDRESS]> {
-  const ethClient = CHAIN_CONSTANTS[i.chainId].eth_client;
-  const lpHelperAddress = CHAIN_CONSTANTS[i.chainId].lpHelperAddress;
-
   const operationName = rpcGatewayOpName(EffectType.GET_ROOT_POOL_ADDRESS);
   const logDetails = { chainId: i.chainId, factory: i.factory };
   const fallback = "";
-  const fetcher = () =>
-    fetchRootPoolAddress(
-      ethClient,
-      lpHelperAddress,
+  const fetcher = () => {
+    const chain = CHAIN_CONSTANTS[i.chainId];
+    if (!chain) {
+      throw new Error(`Unsupported chainId: ${i.chainId}`);
+    }
+    return fetchRootPoolAddress(
+      chain.eth_client,
+      chain.lpHelperAddress,
       i.factory,
       i.token0,
       i.token1,
       i.poolType,
     );
+  };
 
   const result = await executeRpcWithFallback(
     context,
@@ -526,7 +558,7 @@ async function handleGetRootPoolAddress(
  * and returns the fallback. Centralises "retry then log + default" so the caller never throws.
  * Use this for all RPC gateway operations so errors are consistent and the indexer never crashes.
  *
- * @param context - Effect context with optional cache flag and log (error + warn). Cache is set to false on error.
+ * @param context - Effect context with optional cache flag and log (error + warn). On error, cache is set to false by {@link handleEffectErrorReturn}.
  * @param operationName - Identifier for logging (use {@link rpcGatewayOpName} for gateway operations).
  * @param logDetails - Key-value pairs included in error messages and retry logs.
  * @param fallback - Value returned when the operation throws (after retries are exhausted).

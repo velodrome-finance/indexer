@@ -98,6 +98,10 @@ async function main(): Promise<void> {
     log: {
       error: (msg: string) => console.error("[error]", msg),
       warn: (msg: string) => console.warn("[warn]", msg),
+      info: (msg: string) => console.info("[info]", msg),
+      debug: (_msg: string) => {},
+      errorWithExn: (_exn: unknown, msg: string) =>
+        console.error("[error]", msg),
     },
     cache: true,
     effect: (effect: unknown, input: unknown) =>

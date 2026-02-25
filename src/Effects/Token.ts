@@ -26,7 +26,7 @@ export function roundBlockToInterval(
 
 /**
  * Effect to get ERC20 token metadata (name, decimals, symbol). Delegates to {@link rpcGateway}.
- * On error, returns fallback values: empty name and symbol, 0 decimals.
+ * On error, fallback handling is delegated to the RPC gateway.
  *
  * @param input.contractAddress - ERC20 contract address.
  * @param input.chainId - Chain ID for RPC client.

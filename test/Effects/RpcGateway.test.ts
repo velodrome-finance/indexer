@@ -99,7 +99,7 @@ describe("RpcGateway", () => {
 
       expect(result).toEqual({
         name: "",
-        decimals: 0,
+        decimals: 18,
         symbol: "",
       });
       expect(mockContext.log.error).toHaveBeenCalledTimes(1);

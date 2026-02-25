@@ -5,13 +5,14 @@ export { fetchSwapFee } from "./fetchers/SwapFee";
 
 /**
  * Effect to get the current swap fee for a pool from the CL factory that created it.
- * Delegates to {@link rpcGateway}; on error returns undefined.
+ * Delegates to {@link rpcGateway}. RPC/contract errors are handled by the gateway and yield undefined.
+ * Other errors (e.g. invalid chainId) may propagate.
  *
  * @param input.poolAddress - Pool contract address.
  * @param input.factoryAddress - CL factory that created the pool.
  * @param input.chainId - Chain ID for RPC.
  * @param input.blockNumber - Block at which to read the fee.
- * @returns Promise resolving to swap fee (bigint) or undefined on error.
+ * @returns Promise resolving to swap fee (bigint) or undefined when the gateway handles an RPC/contract error.
  */
 export const getSwapFee = createEffect(
   {
@@ -22,7 +23,7 @@ export const getSwapFee = createEffect(
       chainId: S.number,
       blockNumber: S.number,
     },
-    output: S.nullable(S.bigint),
+    output: S.optional(S.bigint),
     rateLimit: false,
     cache: true,
   },

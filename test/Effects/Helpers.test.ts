@@ -183,7 +183,7 @@ describe("Helpers", () => {
         .mockRejectedValueOnce(new Error("rate limit exceeded"))
         .mockResolvedValueOnce(100n);
       const result = await runWithRpcRetry(
-        { log: mockLog, operationName: "testOp", details: { chainId: 10 } },
+        { log: mockLog, operationName: "testOp", logDetails: { chainId: 10 } },
         fn,
       );
       expect(result).toBe(100n);

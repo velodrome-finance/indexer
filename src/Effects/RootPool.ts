@@ -5,14 +5,16 @@ export { fetchRootPoolAddress } from "./fetchers/RootPool";
 
 /**
  * Effect to get the root pool address for a leaf pool from the LpHelper contract.
- * Delegates to {@link rpcGateway}; on error returns empty string.
+ * Delegates to {@link rpcGateway}. The gateway handles RPC errors internally and
+ * returns "" on failure (via executeRpcWithFallback); this effect returns that
+ * result as-is.
  *
  * @param input.chainId - Chain ID for RPC.
  * @param input.factory - Factory contract address.
  * @param input.token0 - First token of the pair.
  * @param input.token1 - Second token of the pair.
  * @param input.type - Pool type identifier (forwarded as poolType to rpcGateway).
- * @returns Promise resolving to checksummed root pool address or "" on error.
+ * @returns Promise resolving to checksummed root pool address or "" when the gateway returns empty (e.g. RPC error).
  */
 export const getRootPoolAddress = createEffect(
   {

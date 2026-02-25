@@ -1362,7 +1362,6 @@ describe("Voter Events", () => {
         expect(updatedPool?.totalEmissionsUSD).toBe(
           expectations.totalEmissionsUSD,
         );
-        expect(updatedPool?.gaugeIsAlive).toBe(false);
         expect(updatedPool?.totalVotesDeposited).toBe(
           expectations.getTokensDeposited,
         );
@@ -1385,11 +1384,80 @@ describe("Voter Events", () => {
         );
         expect(updatedPool?.gaugeAddress).toBe(gaugeAddress);
       });
-      it("should not modify gaugeIsAlive (preserves existing value)", () => {
+      it("should not modify gaugeIsAlive (preserves existing value) when false", () => {
         const updatedPool =
           resultDB.entities.LiquidityPoolAggregator.get(poolId);
         expect(updatedPool).toBeDefined();
         expect(updatedPool?.gaugeIsAlive).toBe(false);
+      });
+
+      describe("when pool has gaugeIsAlive true", () => {
+        let resultDBWithAliveGauge: ReturnType<typeof MockDb.createMockDb>;
+        let originalChainConstantsAlive: (typeof CHAIN_CONSTANTS)[typeof chainId];
+
+        beforeEach(async () => {
+          const liquidityPool: LiquidityPoolAggregator = {
+            ...mockLiquidityPoolData,
+            id: PoolId(chainId, poolAddress),
+            chainId: chainId,
+            totalEmissions: 0n,
+            totalEmissionsUSD: 0n,
+            totalVotesDeposited: 0n,
+            totalVotesDepositedUSD: 0n,
+            gaugeIsAlive: true,
+          } as LiquidityPoolAggregator;
+
+          const rewardToken: Token = {
+            id: TokenId(chainId, rewardTokenAddress),
+            address: rewardTokenAddress,
+            symbol: "VELO",
+            name: "VELO",
+            chainId: chainId,
+            decimals: 18n,
+            pricePerUSDNew: 2n * 10n ** 18n,
+            isWhitelisted: true,
+            lastUpdatedTimestamp: new Date(1000000 * 1000),
+          } as Token;
+
+          vi.spyOn(
+            LiquidityPoolAggregatorModule,
+            "findPoolByGaugeAddress",
+          ).mockResolvedValue(liquidityPool);
+
+          vi.spyOn(
+            getTokensDeposited as unknown as EffectWithHandler<
+              {
+                rewardTokenAddress: string;
+                gaugeAddress: string;
+                blockNumber: number;
+                eventChainId: number;
+              },
+              bigint | undefined
+            >,
+            "handler",
+          ).mockImplementation(async () => 500n * 10n ** 18n);
+
+          originalChainConstantsAlive = CHAIN_CONSTANTS[chainId];
+          CHAIN_CONSTANTS[chainId] = {
+            ...originalChainConstantsAlive,
+            rewardToken: vi.fn().mockReturnValue(rewardTokenAddress),
+          };
+
+          let db = mockDb.entities.Token.set(rewardToken);
+          db = db.entities.LiquidityPoolAggregator.set(liquidityPool);
+          resultDBWithAliveGauge = await db.processEvents([mockEvent]);
+        });
+
+        afterEach(() => {
+          CHAIN_CONSTANTS[chainId] = originalChainConstantsAlive;
+        });
+
+        it("should not modify gaugeIsAlive (preserves existing value) when true", () => {
+          const updatedPool =
+            resultDBWithAliveGauge.entities.LiquidityPoolAggregator.get(poolId);
+          expect(updatedPool).toBeDefined();
+          expect(updatedPool?.gaugeIsAlive).toBe(true);
+        });
       });
     });
 

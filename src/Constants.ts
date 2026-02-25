@@ -125,9 +125,18 @@ export const SLOW_REQUEST_MS = 5000;
 export const VERY_SLOW_REQUEST_MS = 30000;
 
 // Global rate limit for all RPC requests; used in rpcGateway effect
-export const GLOBAL_REQUESTS_PER_SECOND = 5000;
+export const GLOBAL_REQUESTS_PER_SECOND = 20000;
 
 export const RPC_GATEWAY_PREFIX = "rpcGateway";
+
+// RPC fallback for getTokenDetails effect
+export const TOKEN_DETAILS_FALLBACK = { name: "", decimals: 18, symbol: "" };
+
+export const USDC_DETAILS_FALLBACK = {
+  name: "USDC",
+  symbol: "USDC",
+  decimals: 6,
+};
 
 /**
  * Default/fallback public RPC URLs for each chain
@@ -148,15 +157,15 @@ export const DefaultRPC = {
 } as const;
 
 /**
- * Shared HTTP transport options for all chain RPC clients (Alchemy/DRPC best practices).
+ * Shared HTTP transport options for all chain RPC clients (DRPC best practices).
  * Centralised so batch size and timeout are tuned in one place.
- * - batchSize 50: avoids timeouts and unbounded response sizes; allows multiple batches in flight.
- * - timeout 60s: prevents indefinite hangs (Alchemy best practice).
+ * - batchSize 1_000: viem default. We are using dRPC now so we can use a larger batch size.
+ * - timeout 60s: prevents indefinite hangs.
  * - retryCount 0: transport-level retries are disabled. All RPC retries are handled in one place
  *   by RpcGateway (runWithRpcRetry + RPC_APP_RETRY), with logging and error-type-aware backoff.
  */
 export const RPC_HTTP_OPTIONS = {
-  batch: { batchSize: 50 },
+  batch: { batchSize: 1_000 },
   timeout: 60000, // RPC timeout in milliseconds (60 seconds). Prevents indefinite hangs on slow or unresponsive RPC providers
   retryCount: 0,
 } as const;

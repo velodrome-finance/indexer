@@ -3,7 +3,7 @@ import ERC20_ABI from "../../../abis/ERC20.json";
 
 /**
  * Fetches the balance of a reward token held by a gauge (tokens deposited in the gauge).
- * Uses ERC20 balanceOf(rewardToken, gauge). Pure RPC; use RpcGateway for retry and fallback.
+ * Uses ERC20 balanceOf(gauge). Pure RPC; use RpcGateway for retry and fallback.
  *
  * @param rewardTokenAddress - ERC20 reward token contract address.
  * @param gaugeAddress - Gauge contract address (balanceOf target).

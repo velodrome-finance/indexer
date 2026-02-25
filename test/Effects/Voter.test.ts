@@ -152,13 +152,6 @@ describe("Voter Effects", () => {
           input: unknown,
         ) => {
           if (effect.name === "rpcGateway") {
-            (
-              unitContext.log as { error: (msg: string, err: Error) => void }
-            ).error(
-              "rpcGateway.getTokensDeposited failed",
-              new Error("Simulated gateway error"),
-            );
-            // Gateway returns payload shape with value undefined (simulated error)
             return Promise.resolve({ value: undefined });
           }
           return effect.handler({ input, context: unitContext });
@@ -179,10 +172,6 @@ describe("Voter Effects", () => {
       );
 
       expect(result).toBeUndefined();
-      expect(unitContext.log.error).toHaveBeenCalledWith(
-        "rpcGateway.getTokensDeposited failed",
-        expect.any(Error),
-      );
     });
 
     it("should return undefined and log error when RPC fails (integration: full chain)", async () => {

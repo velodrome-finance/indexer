@@ -22,7 +22,7 @@ export const getTokensDeposited = createEffect(
       blockNumber: S.number,
       eventChainId: S.number,
     },
-    output: S.nullable(S.bigint),
+    output: S.optional(S.bigint),
     rateLimit: false,
     cache: true,
   },
