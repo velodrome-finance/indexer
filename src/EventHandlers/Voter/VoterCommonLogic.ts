@@ -10,7 +10,7 @@ import {
 } from "../../Aggregators/LiquidityPoolAggregator";
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import type { VeNFTPoolVoteDiff } from "../../Aggregators/VeNFTPoolVote";
-import { getIsAlive, getTokensDeposited } from "../../Effects/Index";
+import { getTokensDeposited } from "../../Effects/Index";
 import { normalizeTokenAmountTo1e18 } from "../../Helpers";
 import { multiplyBase1e18 } from "../../Maths";
 
@@ -27,50 +27,24 @@ export enum VoterEventType {
   ABSTAINED = "Abstained",
 }
 
-export async function computeVoterDistributeValues(params: {
-  rewardToken: Token;
-  gaugeAddress: string;
-  voterAddress: string;
-  amountEmittedRaw: bigint; // event.params.amount (reward token units)
-  blockNumber: number;
-  chainId: number;
-  context: handlerContext;
-}): Promise<VoterCommonResult> {
-  const {
-    rewardToken,
+export async function computeVoterDistributeValues(
+  rewardToken: Token,
+  gaugeAddress: string,
+  amountEmittedRaw: bigint, // event.params.amount (reward token units)
+  blockNumber: number,
+  chainId: number,
+  context: handlerContext,
+  gaugeIsAlive: boolean,
+): Promise<VoterCommonResult> {
+
+  const tokensDepositedResult = await context.effect(getTokensDeposited, {
+    rewardTokenAddress: rewardToken.address,
     gaugeAddress,
-    voterAddress,
-    amountEmittedRaw,
     blockNumber,
-    chainId,
-    context,
-  } = params;
+    eventChainId: chainId,
+  });
 
-  // Load gauge liveness and tokens deposited in parallel for better performance
-  const [isAliveResult, tokensDepositedResult] = await Promise.all([
-    context.effect(getIsAlive, {
-      voterAddress,
-      gaugeAddress,
-      blockNumber,
-      eventChainId: chainId,
-    }),
-    context.effect(getTokensDeposited, {
-      rewardTokenAddress: rewardToken.address,
-      gaugeAddress,
-      blockNumber,
-      eventChainId: chainId,
-    }),
-  ]);
-
-  // Handle undefined return values - use defaults if effects failed
-  const isAlive = isAliveResult ?? false;
   const tokensDeposited = tokensDepositedResult ?? 0n;
-
-  if (isAliveResult === undefined) {
-    context.log.error(
-      `Failed to fetch isAlive for gauge ${gaugeAddress} on chain ${chainId}, using default: false`,
-    );
-  }
 
   if (tokensDepositedResult === undefined) {
     context.log.error(
@@ -108,7 +82,7 @@ export async function computeVoterDistributeValues(params: {
   );
 
   return {
-    isAlive,
+    isAlive: gaugeIsAlive,
     tokensDeposited,
     normalizedEmissionsAmount,
     normalizedEmissionsAmountUsd,

@@ -231,20 +231,15 @@ Voter.DistributeReward.handler(async ({ event, context }) => {
     context,
   );
 
-  context.log.info(`Reward token address: ${rewardToken.address}`);
-  context.log.info(
-    `Updated reward token price: ${updatedRewardToken.pricePerUSDNew.toString()}`,
-  );
-
-  const result = await computeVoterDistributeValues({
-    rewardToken: updatedRewardToken,
-    gaugeAddress: event.params.gauge,
-    voterAddress: event.srcAddress,
-    amountEmittedRaw: event.params.amount,
-    blockNumber: event.block.number,
-    chainId: event.chainId,
+  const result = await computeVoterDistributeValues(
+    updatedRewardToken,
+    event.params.gauge,
+    event.params.amount,
+    event.block.number,
+    event.chainId,
     context,
-  });
+    currentLiquidityPool.gaugeIsAlive ?? false,
+  );
 
   const lpDiff = buildLpDiffFromDistribute(
     result,

@@ -18,7 +18,7 @@ import {
   VeNFTPoolVoteId,
   toChecksumAddress,
 } from "../../../src/Constants";
-import { getIsAlive, getTokensDeposited } from "../../../src/Effects/Voter";
+import { getTokensDeposited } from "../../../src/Effects/Voter";
 import { setupCommon } from "../Pool/common";
 
 // Type interface for Effect with handler property (for testing purposes)
@@ -1289,6 +1289,7 @@ describe("Voter Events", () => {
           totalEmissionsUSD: 0n,
           totalVotesDeposited: 0n,
           totalVotesDepositedUSD: 0n,
+          gaugeIsAlive: false, // DistributeReward does not set this; we assert it remains unchanged
         } as LiquidityPoolAggregator;
 
         const rewardToken: Token = {
@@ -1316,19 +1317,7 @@ describe("Voter Events", () => {
           "findPoolByGaugeAddress",
         ).mockResolvedValue(liquidityPool);
 
-        // Mock the effect functions at module level
-        vi.spyOn(
-          getIsAlive as unknown as EffectWithHandler<
-            {
-              voterAddress: string;
-              gaugeAddress: string;
-              blockNumber: number;
-              eventChainId: number;
-            },
-            boolean | undefined
-          >,
-          "handler",
-        ).mockImplementation(async () => true);
+        // Mock the effect function at module level
         vi.spyOn(
           getTokensDeposited as unknown as EffectWithHandler<
             {
@@ -1373,7 +1362,7 @@ describe("Voter Events", () => {
         expect(updatedPool?.totalEmissionsUSD).toBe(
           expectations.totalEmissionsUSD,
         );
-        expect(updatedPool?.gaugeIsAlive).toBe(true);
+        expect(updatedPool?.gaugeIsAlive).toBe(false);
         expect(updatedPool?.totalVotesDeposited).toBe(
           expectations.getTokensDeposited,
         );
@@ -1396,11 +1385,11 @@ describe("Voter Events", () => {
         );
         expect(updatedPool?.gaugeAddress).toBe(gaugeAddress);
       });
-      it("should update the liquidity pool aggregator with gauge is alive data", () => {
+      it("should not modify gaugeIsAlive (preserves existing value)", () => {
         const updatedPool =
           resultDB.entities.LiquidityPoolAggregator.get(poolId);
         expect(updatedPool).toBeDefined();
-        expect(updatedPool?.gaugeIsAlive).toBe(true);
+        expect(updatedPool?.gaugeIsAlive).toBe(false);
       });
     });
 
