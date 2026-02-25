@@ -1,10 +1,14 @@
 import type { Token } from "generated";
+import * as LiquidityPoolAggregatorModule from "../../../src/Aggregators/LiquidityPoolAggregator";
 import { PoolAddressField } from "../../../src/Aggregators/LiquidityPoolAggregator";
+import * as UserStatsPerPoolModule from "../../../src/Aggregators/UserStatsPerPool";
 import { toChecksumAddress } from "../../../src/Constants";
 import {
   type VotingRewardClaimRewardsData,
+  loadVotingRewardData,
   processVotingRewardClaimRewards,
 } from "../../../src/EventHandlers/VotingReward/VotingRewardSharedLogic";
+import { setupCommon } from "../Pool/common";
 
 describe("VotingRewardSharedLogic", () => {
   const mockChainId = 8453;
@@ -176,6 +180,95 @@ describe("VotingRewardSharedLogic", () => {
       expect(result.userDiff?.incrementalTotalBribeClaimedUSD).toBe(
         1000000000000000000n,
       );
+    });
+  });
+
+  describe("loadVotingRewardData", () => {
+    it("should call loadPoolData and loadOrCreateUserData with pool.poolAddress not pool.id", async () => {
+      const common = setupCommon();
+      const {
+        mockToken0Data,
+        mockToken1Data,
+        createMockLiquidityPoolAggregator,
+      } = common;
+
+      const chainId = 10;
+      const pool = createMockLiquidityPoolAggregator({
+        chainId,
+        bribeVotingRewardAddress: mockVotingRewardAddress,
+      });
+
+      const loadPoolDataSpy = vi.spyOn(
+        LiquidityPoolAggregatorModule,
+        "loadPoolData",
+      );
+      const loadOrCreateUserDataSpy = vi.spyOn(
+        UserStatsPerPoolModule,
+        "loadOrCreateUserData",
+      );
+
+      const userStatsStorage = new Map<string, unknown>();
+      const context = {
+        log: { error: () => {}, warn: () => {}, info: () => {} },
+        LiquidityPoolAggregator: {
+          getWhere: async (q: {
+            bribeVotingRewardAddress?: { _eq: string };
+          }) =>
+            q.bribeVotingRewardAddress?._eq === mockVotingRewardAddress
+              ? [pool]
+              : [],
+          get: async (poolId: string) =>
+            poolId === pool.id ? pool : undefined,
+        },
+        Token: {
+          get: async (id: string) =>
+            id === pool.token0_id
+              ? mockToken0Data
+              : id === pool.token1_id
+                ? mockToken1Data
+                : undefined,
+        },
+        UserStatsPerPool: {
+          get: async (id: string) => userStatsStorage.get(id) as undefined,
+          set: (entity: { id: string }) => {
+            userStatsStorage.set(entity.id, entity);
+          },
+        },
+      } as unknown as import("generated").handlerContext;
+
+      const data = {
+        votingRewardAddress: mockVotingRewardAddress,
+        userAddress: mockUserAddress,
+        chainId,
+        blockNumber: 12345,
+        timestamp: Math.floor(mockTimestamp.getTime() / 1000),
+      };
+
+      const result = await loadVotingRewardData(
+        data,
+        context,
+        "BribesVotingReward.ClaimRewards",
+        PoolAddressField.BRIBE_VOTING_REWARD_ADDRESS,
+      );
+
+      expect(result).not.toBeNull();
+      expect(loadPoolDataSpy).toHaveBeenCalledTimes(1);
+      expect(loadPoolDataSpy).toHaveBeenCalledWith(
+        pool.poolAddress,
+        chainId,
+        context,
+      );
+      expect(loadOrCreateUserDataSpy).toHaveBeenCalledTimes(1);
+      expect(loadOrCreateUserDataSpy).toHaveBeenCalledWith(
+        mockUserAddress,
+        pool.poolAddress,
+        chainId,
+        context,
+        expect.any(Date),
+      );
+
+      loadPoolDataSpy.mockRestore();
+      loadOrCreateUserDataSpy.mockRestore();
     });
   });
 });
