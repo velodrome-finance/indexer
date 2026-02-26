@@ -173,10 +173,10 @@ export async function loadVotingRewardData(
   }
 
   // Load pool data and handle errors
-  const poolData = await loadPoolData(pool.id, data.chainId, context);
+  const poolData = await loadPoolData(pool.poolAddress, data.chainId, context);
   if (!poolData) {
     context.log.error(
-      `${handlerName}: Pool data not found for pool ${pool.id} on chain ${data.chainId}`,
+      `${handlerName}: Pool data not found for pool ${pool.poolAddress} on chain ${data.chainId}`,
     );
     return null;
   }
@@ -184,7 +184,7 @@ export async function loadVotingRewardData(
   // Load user data
   const userData = await loadOrCreateUserData(
     userAddress,
-    pool.id,
+    pool.poolAddress,
     data.chainId,
     context,
     new Date(data.timestamp * 1000),
