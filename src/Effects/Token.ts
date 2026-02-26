@@ -1,258 +1,16 @@
 import { S, createEffect } from "envio";
-import type { logger as Envio_logger } from "envio/src/Envio.gen";
-import type { PublicClient } from "viem";
-import CLPOOL_ABI from "../../abis/CLPool.json";
-import ERC20_ABI from "../../abis/ERC20.json";
-import SpotPriceAggregatorABI from "../../abis/SpotPriceAggregator.json";
-import PriceOracleABI from "../../abis/VeloPriceOracleABI.json";
-import {
-  CHAIN_CONSTANTS,
-  EFFECT_RATE_LIMITS,
-  FETCH_TOKEN_PRICE_RETRY,
-  PriceOracleType,
-} from "../Constants";
-import {
-  ErrorType,
-  getErrorType,
-  handleEffectErrorReturn,
-  sleep,
-} from "./Helpers";
+import { EffectType, callRpcGateway } from "./RpcGateway";
+
+export { fetchTokenDetails, fetchTokenPrice } from "./fetchers/Token";
 
 /**
- * Core logic for fetching ERC20 token details
- * This can be tested independently of the Effect API
- */
-export async function fetchTokenDetails(
-  contractAddress: string,
-  ethClient: PublicClient,
-  logger: Envio_logger,
-): Promise<{ name: string; decimals: number; symbol: string }> {
-  try {
-    const [nameResult, decimalsResult, symbolResult] = await Promise.all([
-      ethClient.readContract({
-        address: contractAddress as `0x${string}`,
-        abi: ERC20_ABI,
-        functionName: "name",
-        args: [],
-      }),
-      ethClient.readContract({
-        address: contractAddress as `0x${string}`,
-        abi: ERC20_ABI,
-        functionName: "decimals",
-        args: [],
-      }),
-      ethClient.readContract({
-        address: contractAddress as `0x${string}`,
-        abi: ERC20_ABI,
-        functionName: "symbol",
-        args: [],
-      }),
-    ]);
-
-    const result = {
-      name: nameResult?.toString() || "",
-      decimals: Number(decimalsResult) || 0,
-      symbol: symbolResult?.toString() || "",
-    };
-
-    logger.info(
-      `[fetchTokenDetails] Token details fetched: name=${result.name}, decimals=${result.decimals}, symbol=${result.symbol}`,
-    );
-
-    return result;
-  } catch (error) {
-    // Return default values on error to prevent processing failures
-    return {
-      name: "",
-      decimals: 0,
-      symbol: "",
-    };
-  }
-}
-
-/**
- * Core logic for fetching token prices from price oracle contracts
- * This can be tested independently of the Effect API
- * Includes retry logic with exponential backoff for rate limit errors
- * Includes fallback RPC support for network and historical state errors
+ * Rounds a block number down to the start of its hourly interval for better cache hits on price lookups.
+ * Uses approximate block times: 2s for most L2s, 12s for Ethereum mainnet. Call before getTokenPrice
+ * so the effect cache key is stable within the same hour.
  *
- * Transport-level retries (batch size, retry count/delay) are configured in Constants (RPC_HTTP_OPTIONS);
- * the logic below is application-level retry for rate limit and network errors.
- */
-export async function fetchTokenPrice(
-  tokenAddress: string,
-  usdcAddress: string,
-  systemTokenAddress: string,
-  wethAddress: string,
-  connectors: string[],
-  chainId: number,
-  blockNumber: number,
-  ethClient: PublicClient,
-  logger: Envio_logger,
-  maxRetries = FETCH_TOKEN_PRICE_RETRY.maxRetries,
-): Promise<{ pricePerUSDNew: bigint; priceOracleType: string }> {
-  const overallStartTime = Date.now();
-  const priceOracleType = CHAIN_CONSTANTS[chainId].oracle.getType(blockNumber);
-  const priceOracleAddress =
-    CHAIN_CONSTANTS[chainId].oracle.getAddress(priceOracleType);
-
-  let attempt = 0;
-
-  while (attempt <= maxRetries) {
-    const attemptStartTime = Date.now();
-    try {
-      if (
-        priceOracleType === PriceOracleType.V3 ||
-        priceOracleType === PriceOracleType.V4
-      ) {
-        const tokenAddressArray = [
-          ...connectors,
-          systemTokenAddress,
-          wethAddress,
-          usdcAddress,
-        ];
-        const args = [
-          [tokenAddress],
-          usdcAddress,
-          false,
-          tokenAddressArray,
-          10,
-        ];
-        const result = await ethClient.readContract({
-          address: priceOracleAddress as `0x${string}`,
-          abi: SpotPriceAggregatorABI,
-          functionName: "getManyRatesWithCustomConnectors",
-          args,
-          blockNumber: BigInt(blockNumber),
-        });
-        const attemptDuration = Date.now() - attemptStartTime;
-        const overallDuration = Date.now() - overallStartTime;
-
-        if (attemptDuration > 5000) {
-          logger.warn(
-            `[fetchTokenPrice] Slow request detected: ${attemptDuration}ms for token ${tokenAddress} on chain ${chainId} at block ${blockNumber} (attempt ${attempt + 1}, total duration: ${overallDuration}ms)`,
-          );
-        }
-
-        if (overallDuration > 30000) {
-          logger.error(
-            `[fetchTokenPrice] Very slow request: ${overallDuration}ms total for token ${tokenAddress} on chain ${chainId} at block ${blockNumber} (attempt ${attempt + 1})`,
-          );
-        }
-
-        return {
-          pricePerUSDNew: BigInt((result as readonly bigint[])[0]),
-          priceOracleType,
-        };
-      }
-
-      const tokenAddressArray = [
-        tokenAddress,
-        ...connectors,
-        systemTokenAddress,
-        wethAddress,
-        usdcAddress,
-      ];
-      const args = [1, tokenAddressArray];
-      const result = await ethClient.readContract({
-        address: priceOracleAddress as `0x${string}`,
-        abi: PriceOracleABI,
-        functionName: "getManyRatesWithConnectors",
-        args,
-        blockNumber: BigInt(blockNumber),
-      });
-      const attemptDuration = Date.now() - attemptStartTime;
-      const overallDuration = Date.now() - overallStartTime;
-
-      if (attemptDuration > 5000) {
-        logger.warn(
-          `[fetchTokenPrice] Slow request detected: ${attemptDuration}ms for token ${tokenAddress} on chain ${chainId} at block ${blockNumber} (attempt ${attempt + 1}, total duration: ${overallDuration}ms)`,
-        );
-      }
-
-      if (overallDuration > 30000) {
-        logger.error(
-          `[fetchTokenPrice] Very slow request: ${overallDuration}ms total for token ${tokenAddress} on chain ${chainId} at block ${blockNumber} (attempt ${attempt + 1})`,
-        );
-      }
-
-      return {
-        pricePerUSDNew: BigInt((result as readonly bigint[])[0]),
-        priceOracleType: priceOracleType,
-      };
-    } catch (error) {
-      const attemptDuration = Date.now() - attemptStartTime;
-      const overallDuration = Date.now() - overallStartTime;
-      const errorType = getErrorType(error);
-
-      if (attemptDuration > 5000) {
-        logger.warn(
-          `[fetchTokenPrice] Slow failed request: ${attemptDuration}ms for token ${tokenAddress} on chain ${chainId} at block ${blockNumber} (attempt ${attempt + 1}, error type: ${errorType}, total duration: ${overallDuration}ms)`,
-        );
-      }
-
-      if (overallDuration > 30000) {
-        logger.error(
-          `[fetchTokenPrice] Very slow failed request: ${overallDuration}ms total for token ${tokenAddress} on chain ${chainId} at block ${blockNumber} (attempt ${attempt + 1}, error type: ${errorType})`,
-        );
-      }
-
-      if (errorType === ErrorType.RATE_LIMIT && attempt < maxRetries) {
-        const { capMs, attempt5Ms, attempt6Ms } =
-          FETCH_TOKEN_PRICE_RETRY.rateLimit;
-        let delayMs: number;
-        if (attempt === 5) delayMs = attempt5Ms;
-        else if (attempt === 6) delayMs = attempt6Ms;
-        else delayMs = Math.min(1000 * 2 ** attempt, capMs);
-        attempt++;
-        logger.warn(
-          `[fetchTokenPrice] Rate limit error (attempt ${attempt}/${maxRetries + 1}) for token ${tokenAddress} on chain ${chainId} at block ${blockNumber}. Retrying in ${delayMs}ms...`,
-        );
-        await sleep(delayMs);
-        continue;
-      }
-
-      if (errorType === ErrorType.NETWORK_ERROR && attempt < maxRetries) {
-        const { capMs, attempt5Ms, attempt6Ms } =
-          FETCH_TOKEN_PRICE_RETRY.network;
-        let delayMs: number;
-        if (attempt === 5) delayMs = attempt5Ms;
-        else if (attempt === 6) delayMs = attempt6Ms;
-        else delayMs = Math.min(500 * 2 ** attempt, capMs);
-        attempt++;
-        logger.warn(
-          `[fetchTokenPrice] Network error (attempt ${attempt}/${maxRetries + 1}) for token ${tokenAddress} on chain ${chainId} at block ${blockNumber}. Retrying in ${delayMs}ms...`,
-        );
-        await sleep(delayMs);
-        continue;
-      }
-
-      logger.error(
-        `[fetchTokenPrice] Error fetching price for token ${tokenAddress} on chain ${chainId} at block ${blockNumber}${attempt > 0 ? ` (after ${attempt} retries)` : ""} (error type: ${errorType}):`,
-        error instanceof Error ? error : new Error(String(error)),
-      );
-      break;
-    }
-  }
-
-  const finalDuration = Date.now() - overallStartTime;
-  if (finalDuration > 30000) {
-    logger.error(
-      `[fetchTokenPrice] Request failed after ${finalDuration}ms total for token ${tokenAddress} on chain ${chainId} at block ${blockNumber} (${attempt} attempts). Returning zero price.`,
-    );
-  }
-
-  return {
-    pricePerUSDNew: 0n,
-    priceOracleType: priceOracleType,
-  };
-}
-
-/**
- * Helper function to round block number to nearest hour interval for better cache hits
- * Uses approximate block times: 2s for most L2s, 12s for Ethereum mainnet
- * Exported so callers can round blockNumber before passing to getTokenPrice effect
- * (cache key is based on input parameters, so rounding must happen before the effect call)
+ * @param blockNumber - Block number to round.
+ * @param chainId - Chain ID (1 = mainnet 12s blocks; others use 2s).
+ * @returns The largest block number that is a multiple of (blocks per hour) and ≤ blockNumber.
  */
 export function roundBlockToInterval(
   blockNumber: number,
@@ -267,15 +25,16 @@ export function roundBlockToInterval(
 }
 
 /**
- * Effect to get ERC20 token details (name, decimals, symbol)
- * This replaces the direct RPC calls in getErc20TokenDetails
+ * Effect to get ERC20 token metadata (name, decimals, symbol). Delegates to {@link rpcGateway}.
+ * On error, fallback handling is delegated to the RPC gateway.
  *
- * Error handling: Returns default values ({ name: "", decimals: 0, symbol: "" }) on error
- * to allow the indexer to continue processing even if token details can't be fetched.
+ * @param input.contractAddress - ERC20 contract address.
+ * @param input.chainId - Chain ID for RPC client.
+ * @returns Promise resolving to { name, decimals, symbol }; fallback on error.
  */
 export const getTokenDetails = createEffect(
   {
-    name: "getTokenDetails",
+    name: EffectType.GET_TOKEN_DETAILS,
     input: {
       contractAddress: S.string,
       chainId: S.number,
@@ -285,46 +44,35 @@ export const getTokenDetails = createEffect(
       decimals: S.number,
       symbol: S.string,
     },
-    rateLimit: {
-      calls: EFFECT_RATE_LIMITS.TOKEN_EFFECTS,
-      per: "second",
-    },
-    cache: true, // Token details rarely change, perfect for caching
+    rateLimit: false,
+    cache: true,
   },
   async ({ input, context }) => {
-    const { contractAddress, chainId } = input;
-    const ethClient = CHAIN_CONSTANTS[chainId].eth_client;
-    try {
-      return await fetchTokenDetails(contractAddress, ethClient, context.log);
-    } catch (error) {
-      // Return default values on error to prevent processing failures
-      // This allows the indexer to continue even if token details can't be fetched
-      return handleEffectErrorReturn(
-        error,
-        context,
-        "getTokenDetails",
-        { contractAddress, chainId },
-        {
-          name: "",
-          decimals: 0,
-          symbol: "",
-        },
-      );
-    }
+    const result = await callRpcGateway(context, {
+      type: EffectType.GET_TOKEN_DETAILS,
+      contractAddress: input.contractAddress,
+      chainId: input.chainId,
+    });
+    return {
+      name: result.name,
+      decimals: result.decimals,
+      symbol: result.symbol,
+    };
   },
 );
 
 /**
- * Effect to read prices from price oracle contracts
- * Handles block rounding, connector building, USDC special case, and V3 decimal conversion
- * This is the main entry point for fetching token prices - all other functions should call this
+ * Effect to read token price in USD from the chain's price oracle. Delegates to {@link rpcGateway};
+ * fallback on error is handled inside the gateway.
  *
- * Error handling: Returns zero price (0n) on error to allow the indexer to continue processing
- * even if price can't be fetched. Callers should check for zero prices and handle appropriately.
+ * @param input.tokenAddress - Token to price.
+ * @param input.chainId - Chain ID for oracle and RPC.
+ * @param input.blockNumber - Block at which to read (often rounded via {@link roundBlockToInterval}).
+ * @returns Promise resolving to { pricePerUSDNew, priceOracleType }.
  */
 export const getTokenPrice = createEffect(
   {
-    name: "getTokenPrice",
+    name: EffectType.GET_TOKEN_PRICE,
     input: {
       tokenAddress: S.string,
       chainId: S.number,
@@ -334,133 +82,19 @@ export const getTokenPrice = createEffect(
       pricePerUSDNew: S.bigint,
       priceOracleType: S.string,
     },
-    rateLimit: {
-      calls: EFFECT_RATE_LIMITS.TOKEN_EFFECTS,
-      per: "second",
-    },
-    cache: true, // Cache enabled, block interval rounding improves hit rate
+    rateLimit: false,
+    cache: true,
   },
   async ({ input, context }) => {
-    const { tokenAddress, chainId, blockNumber } = input;
-    // Note: blockNumber should already be rounded by the caller for proper caching
-    // Cache key is based on input parameters, so rounding must happen before effect call
-
-    // Get chain constants
-    const WETH_ADDRESS = CHAIN_CONSTANTS[chainId].weth;
-    const USDC_ADDRESS = CHAIN_CONSTANTS[chainId].usdc;
-    const SYSTEM_TOKEN_ADDRESS =
-      CHAIN_CONSTANTS[chainId].rewardToken(blockNumber);
-
-    // Handle USDC special case
-    if (tokenAddress === USDC_ADDRESS) {
-      return {
-        pricePerUSDNew: 10n ** 18n, // TEN_TO_THE_18_BI
-        priceOracleType: CHAIN_CONSTANTS[chainId].oracle
-          .getType(blockNumber)
-          .toString(),
-      };
-    }
-
-    // Fetch token details for V3 oracle decimal conversion if needed
-    const [tokenDetails, USDCTokenDetails] = await Promise.all([
-      context.effect(getTokenDetails, {
-        contractAddress: tokenAddress,
-        chainId,
-      }),
-      context.effect(getTokenDetails, {
-        contractAddress: USDC_ADDRESS,
-        chainId,
-      }),
-    ]);
-
-    // Build connectors list
-    const connectors = CHAIN_CONSTANTS[chainId].oracle.priceConnectors
-      .filter((connector) => connector.createdBlock <= blockNumber)
-      .map((connector) => connector.address)
-      .filter((connector) => connector !== tokenAddress)
-      .filter((connector) => connector !== WETH_ADDRESS)
-      .filter((connector) => connector !== USDC_ADDRESS)
-      .filter((connector) => connector !== SYSTEM_TOKEN_ADDRESS);
-
-    const ORACLE_DEPLOYED =
-      CHAIN_CONSTANTS[chainId].oracle.startBlock <= blockNumber;
-
-    if (!ORACLE_DEPLOYED) {
-      context.log.info(
-        `[getTokenPrice] Oracle not deployed, returning zero price for ${tokenAddress} on chain ${chainId} at block ${blockNumber}`,
-      );
-      return {
-        pricePerUSDNew: 0n,
-        priceOracleType: CHAIN_CONSTANTS[chainId].oracle
-          .getType(blockNumber)
-          .toString(),
-      };
-    }
-
-    const ethClient = CHAIN_CONSTANTS[chainId].eth_client;
-    const effectStartTime = Date.now();
-    try {
-      const priceData = await fetchTokenPrice(
-        tokenAddress,
-        USDC_ADDRESS,
-        SYSTEM_TOKEN_ADDRESS,
-        WETH_ADDRESS,
-        connectors,
-        chainId,
-        blockNumber,
-        ethClient,
-        context.log,
-      );
-
-      // Convert V3/V4 oracle prices to 18 decimals
-      let currentPrice: bigint;
-      if (
-        priceData.priceOracleType === PriceOracleType.V3 ||
-        priceData.priceOracleType === PriceOracleType.V4
-      ) {
-        currentPrice =
-          (priceData.pricePerUSDNew * 10n ** BigInt(tokenDetails.decimals)) /
-          10n ** BigInt(USDCTokenDetails.decimals);
-      } else {
-        currentPrice = priceData.pricePerUSDNew;
-      }
-
-      // Log warning if price is 0
-      if (currentPrice === 0n) {
-        context.log.warn(
-          `[getTokenPrice] Oracle returned 0 price for ${tokenAddress} on chain ${chainId} at block ${blockNumber}. This means no price path exists.`,
-        );
-      }
-
-      const effectDuration = Date.now() - effectStartTime;
-      if (effectDuration > 5000) {
-        context.log.warn(
-          `[getTokenPrice] Effect took ${effectDuration}ms for token ${tokenAddress} on chain ${chainId} at block ${blockNumber}`,
-        );
-      }
-
-      return {
-        pricePerUSDNew: currentPrice,
-        priceOracleType: CHAIN_CONSTANTS[chainId].oracle
-          .getType(blockNumber)
-          .toString(),
-      };
-    } catch (error) {
-      const effectDuration = Date.now() - effectStartTime;
-      // Return zero price on error to prevent processing failures
-      // This allows the indexer to continue even if price can't be fetched
-      return handleEffectErrorReturn(
-        error,
-        context,
-        "getTokenPrice",
-        { tokenAddress, chainId, blockNumber, duration: `${effectDuration}ms` },
-        {
-          pricePerUSDNew: 0n,
-          priceOracleType: CHAIN_CONSTANTS[chainId].oracle
-            .getType(blockNumber)
-            .toString(),
-        },
-      );
-    }
+    const result = await callRpcGateway(context, {
+      type: EffectType.GET_TOKEN_PRICE,
+      tokenAddress: input.tokenAddress,
+      chainId: input.chainId,
+      blockNumber: input.blockNumber,
+    });
+    return {
+      pricePerUSDNew: result.pricePerUSDNew,
+      priceOracleType: result.priceOracleType,
+    };
   },
 );

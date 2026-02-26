@@ -60,14 +60,6 @@ export const ROOT_POOL_FACTORY_ADDRESS_OPTIMISM = toChecksumAddress(
   "0x31832f2a97Fd20664D76Cc421207669b55CE4BC0",
 );
 
-// Effect rate limit constants (calls per second)
-export const EFFECT_RATE_LIMITS = {
-  TOKEN_EFFECTS: 500, // Token details and price fetching effects
-  VOTER_EFFECTS: 500, // Voter-related effects
-  DYNAMIC_FEE_EFFECTS: 500, // Dynamic fee effects
-  ROOT_POOL_EFFECTS: 500, // Root pool effects
-} as const;
-
 export const OUSDT_ADDRESS = "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189";
 export const OUSDT_DECIMALS = 6;
 
@@ -126,6 +118,27 @@ export enum PriceOracleType {
 export { zeroAddress as ZERO_ADDRESS } from "viem";
 
 /**
+ * Slow and very slow request thresholds in milliseconds
+ * Used for logging slow requests
+ */
+export const SLOW_REQUEST_MS = 5000;
+export const VERY_SLOW_REQUEST_MS = 30000;
+
+// Global rate limit for all RPC requests; used in rpcGateway effect
+export const GLOBAL_REQUESTS_PER_SECOND = 20000;
+
+export const RPC_GATEWAY_PREFIX = "rpcGateway";
+
+// RPC fallback for getTokenDetails effect
+export const TOKEN_DETAILS_FALLBACK = { name: "", decimals: 18, symbol: "" };
+
+export const USDC_DETAILS_FALLBACK = {
+  name: "USDC",
+  symbol: "USDC",
+  decimals: 6,
+};
+
+/**
  * Default/fallback public RPC URLs for each chain
  * Used as fallback when private RPC fails or doesn't have historical state
  */
@@ -144,26 +157,28 @@ export const DefaultRPC = {
 } as const;
 
 /**
- * Shared HTTP transport options for all chain RPC clients (Alchemy/DRPC best practices).
- * Centralised so retries, batch size, and timeout are tuned in one place.
- * - batchSize 50: avoids timeouts and unbounded response sizes; allows multiple batches in flight.
- * - retryCount/retryDelay: exponential backoff on failures (viem applies backoff).
+ * Shared HTTP transport options for all chain RPC clients (DRPC best practices).
+ * Centralised so batch size and timeout are tuned in one place.
+ * - batchSize 1_000: viem default. We are using dRPC now so we can use a larger batch size.
+ * - timeout 60s: prevents indefinite hangs.
+ * - retryCount 0: transport-level retries are disabled. All RPC retries are handled in one place
+ *   by RpcGateway (runWithRpcRetry + RPC_APP_RETRY), with logging and error-type-aware backoff.
  */
 export const RPC_HTTP_OPTIONS = {
-  batch: { batchSize: 50 },
-  timeout: 60000, // RPC timeout in milliseconds (60 seconds).  Prevents indefinite hangs on slow or unresponsive RPC providers
-  retryCount: 5,
-  retryDelay: 1000,
+  batch: { batchSize: 1_000 },
+  timeout: 60000, // RPC timeout in milliseconds (60 seconds). Prevents indefinite hangs on slow or unresponsive RPC providers
+  retryCount: 0,
 } as const;
 
 /**
- * Application-level retry config for fetchTokenPrice (effect); transport retries are in RPC_HTTP_OPTIONS.
- * Only fetchTokenPrice uses this; other effects rely on transport retries.
+ * Single retry config for all RPC operations. Used by RpcGateway (runWithRpcRetry).
+ * Error-type-aware backoff: rate limit (429) vs network get different caps.
+ * Delay is min(baseMs * 2^attempt, capMs) with baseMs 1000 for rate limit, 500 for network.
  */
-export const FETCH_TOKEN_PRICE_RETRY = {
+export const RPC_APP_RETRY = {
   maxRetries: 7,
-  rateLimit: { capMs: 10000, attempt5Ms: 30000, attempt6Ms: 60000 },
-  network: { capMs: 8000, attempt5Ms: 15000, attempt6Ms: 30000 },
+  rateLimit: { capMs: 10000 },
+  network: { capMs: 8000 },
 } as const;
 
 /**

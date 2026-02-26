@@ -30,7 +30,11 @@ const chainIdToChain: Record<number, Chain> = {
 };
 
 /**
- * Creates a fallback PublicClient using public RPC for the given chain
+ * Creates a fallback viem PublicClient for a chain using its default public RPC URL.
+ * Used when the primary RPC fails with conditions that warrant trying public RPC (e.g. historical state).
+ *
+ * @param chainId - Chain ID; must have an entry in chainIdToChain and a default RPC in getDefaultRPCByChainId.
+ * @returns A PublicClient configured with http transport and RPC_HTTP_OPTIONS, or null if chain/RPC not available.
  */
 export function createFallbackClient(chainId: number): PublicClient | null {
   const publicRpcUrl = getDefaultRPCByChainId(chainId);
@@ -50,8 +54,11 @@ export function createFallbackClient(chainId: number): PublicClient | null {
 }
 
 /**
- * Checks if the error should trigger a fallback to public RPC
- * This includes historical state errors and temporary RPC errors
+ * Determines whether an error indicates that a fallback to public RPC should be tried.
+ * Returns true for historical-state-unavailable, temporary RPC, and rate-limit/timeout style errors.
+ *
+ * @param error - The thrown value (e.g. from an RPC call) to inspect.
+ * @returns true if the error message matches known fallback-trigger conditions; false otherwise.
  */
 export function shouldUseFallbackRPC(error: unknown): boolean {
   const errorMessage = error instanceof Error ? error.message : String(error);

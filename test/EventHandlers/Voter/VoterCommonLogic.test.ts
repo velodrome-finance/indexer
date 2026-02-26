@@ -1,7 +1,6 @@
 import type { Token, VeNFTState, handlerContext } from "generated";
 import { toChecksumAddress } from "../../../src/Constants";
 import {
-  getIsAlive,
   getTokenDetails,
   getTokensDeposited,
 } from "../../../src/Effects/Index";
@@ -14,7 +13,6 @@ import {
 } from "../../../src/EventHandlers/Voter/VoterCommonLogic";
 
 function makeMockContext(effects: {
-  isAlive?: boolean;
   tokensDeposited?: bigint;
   tokenGet?: Token | undefined;
   tokenDetails?: { name: string; symbol: string; decimals: number };
@@ -42,10 +40,6 @@ function makeMockContext(effects: {
 
   return {
     effect: async (effectDef: unknown, _input: unknown) => {
-      if (effectDef === getIsAlive) {
-        // Return undefined if not provided (simulating effect error)
-        return effects.isAlive !== undefined ? effects.isAlive : undefined;
-      }
       if (effectDef === getTokensDeposited) {
         // Return undefined if not provided (simulating effect error)
         return effects.tokensDeposited !== undefined
@@ -88,25 +82,22 @@ describe("computeVoterDistributeValues", () => {
     };
 
     const context = makeMockContext({
-      isAlive: true,
       tokensDeposited: 5000000000000000000n, // 5 tokens with 18 decimals
       logs,
     });
 
-    const result = await computeVoterDistributeValues({
-      rewardToken: token,
-      gaugeAddress: toChecksumAddress(
-        "0x0000000000000000000000000000000000000abc",
-      ),
-      voterAddress: toChecksumAddress(
-        "0x0000000000000000000000000000000000000def",
-      ),
-      amountEmittedRaw: 3000000000000000000n, // 3 tokens emitted
-      blockNumber: 12345,
-      chainId: 1,
+    const result = await computeVoterDistributeValues(
+      token,
+      toChecksumAddress("0x0000000000000000000000000000000000000abc"),
+      3000000000000000000n, // 3 tokens emitted
+      12345,
+      1,
       context,
-    });
+      true,
+    );
 
+    // gaugeIsAlive is passed through to result.isAlive
+    expect(result.isAlive).toBe(true);
     // tokensDeposited is a snapshot passthrough
     expect(result.tokensDeposited).toBe(5000000000000000000n);
 
@@ -145,26 +136,23 @@ describe("computeVoterDistributeValues", () => {
     };
     const context = makeMockContext({ tokensDeposited: 1n, logs });
 
-    const result = await computeVoterDistributeValues({
-      rewardToken: token,
-      gaugeAddress: toChecksumAddress(
-        "0x0000000000000000000000000000000000000000",
-      ),
-      voterAddress: toChecksumAddress(
-        "0x0000000000000000000000000000000000000001",
-      ),
-      amountEmittedRaw: 1n,
-      blockNumber: 1,
-      chainId: 1,
+    const result = await computeVoterDistributeValues(
+      token,
+      toChecksumAddress("0x0000000000000000000000000000000000000000"),
+      1n,
+      1,
+      1,
       context,
-    });
+      false,
+    );
 
     expect(result.normalizedEmissionsAmountUsd).toBe(0n);
     expect(result.normalizedVotesDepositedAmountUsd).toBe(0n);
+    expect(result.isAlive).toBe(false);
     expect(logs.warns).toHaveLength(1);
   });
 
-  it("handles undefined effect returns by using defaults and logging errors", async () => {
+  it("handles undefined tokensDeposited effect return by using default and logging error", async () => {
     const token: Token = {
       id: "token-undefined",
       address: toChecksumAddress("0x0000000000000000000000000000000000000003"),
@@ -183,31 +171,26 @@ describe("computeVoterDistributeValues", () => {
       errors: [] as string[],
     };
 
-    // Don't provide isAlive or tokensDeposited - effects will return undefined
+    // Don't provide tokensDeposited - effect will return undefined; gaugeIsAlive is passed in
     const context = makeMockContext({ logs });
 
-    const result = await computeVoterDistributeValues({
-      rewardToken: token,
-      gaugeAddress: toChecksumAddress(
-        "0x0000000000000000000000000000000000000abc",
-      ),
-      voterAddress: toChecksumAddress(
-        "0x0000000000000000000000000000000000000def",
-      ),
-      amountEmittedRaw: 1000000000000000000n, // 1 token emitted
-      blockNumber: 12345,
-      chainId: 1,
+    const result = await computeVoterDistributeValues(
+      token,
+      toChecksumAddress("0x0000000000000000000000000000000000000abc"),
+      1000000000000000000n, // 1 token emitted
+      12345,
+      1,
       context,
-    });
+      true,
+    );
 
-    // Should use defaults: false for isAlive, 0n for tokensDeposited
-    expect(result.isAlive).toBe(false);
+    // gaugeIsAlive is passed through; tokensDeposited defaults to 0n when effect fails
+    expect(result.isAlive).toBe(true);
     expect(result.tokensDeposited).toBe(0n);
 
-    // Should log errors for both undefined values
-    expect(logs.errors).toHaveLength(2);
-    expect(logs.errors[0]).toContain("Failed to fetch isAlive");
-    expect(logs.errors[1]).toContain("Failed to fetch tokensDeposited");
+    // Should log error for undefined tokensDeposited only
+    expect(logs.errors).toHaveLength(1);
+    expect(logs.errors[0]).toContain("Failed to fetch tokensDeposited");
 
     // Calculations should still work with defaults
     expect(result.normalizedEmissionsAmount).toBe(1000000000000000000n);

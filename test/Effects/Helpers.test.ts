@@ -1,3 +1,15 @@
+import { vi } from "vitest";
+
+// Mock Helpers before RpcGateway is loaded so runWithRpcRetry uses the mocked sleep (ESM closure).
+vi.mock("../../src/Effects/Helpers", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../../src/Effects/Helpers")>();
+  return {
+    ...actual,
+    sleep: vi.fn().mockImplementation((ms: number) => actual.sleep(ms)),
+  };
+});
+
 import {
   ErrorType,
   createReadableError,
@@ -5,6 +17,7 @@ import {
   handleEffectErrorReturn,
   sleep,
 } from "../../src/Effects/Helpers";
+import { runWithRpcRetry } from "../../src/Effects/RpcGateway";
 
 // Common test constants
 const TEST_EFFECT_NAME = "testEffect";
@@ -22,14 +35,6 @@ describe("Helpers", () => {
           error: "Too many requests per second",
           expected: ErrorType.RATE_LIMIT,
         },
-        { error: "Transaction out of gas", expected: ErrorType.OUT_OF_GAS },
-        { error: "Gas exhausted", expected: ErrorType.OUT_OF_GAS },
-        { error: "gas limit reached", expected: ErrorType.OUT_OF_GAS },
-        {
-          error: "out of gas: gas required exceeds: 1000000",
-          expected: ErrorType.OUT_OF_GAS,
-        },
-        { error: "gas limit exceeded", expected: ErrorType.OUT_OF_GAS },
         { error: "Transaction reverted", expected: ErrorType.CONTRACT_REVERT },
         { error: "execution reverted", expected: ErrorType.CONTRACT_REVERT },
         { error: "Contract revert", expected: ErrorType.CONTRACT_REVERT },
@@ -52,12 +57,10 @@ describe("Helpers", () => {
       expect(getErrorType("Something went wrong")).toBe(ErrorType.UNKNOWN);
     });
 
-    it("should prioritize first matching error type", () => {
-      expect(
-        getErrorType(new Error("out of gas: gas required exceeds: 1000000")),
-      ).toBe(ErrorType.OUT_OF_GAS);
-      expect(getErrorType(new Error("rate limit out of gas"))).toBe(
-        ErrorType.OUT_OF_GAS,
+    it("should return first matching ErrorType when message matches multiple patterns", () => {
+      // "rate limit" and "network error" both match; RATE_LIMIT is checked before NETWORK_ERROR in ERROR_KEYWORDS
+      expect(getErrorType(new Error("rate limit network error"))).toBe(
+        ErrorType.RATE_LIMIT,
       );
     });
   });
@@ -151,6 +154,61 @@ describe("Helpers", () => {
       expect(errorCall[0]).toContain("chainId=10");
       expect(errorCall[0]).toContain("blockNumber=12345");
       expect(errorCall[1]).toBeInstanceOf(Error);
+    });
+  });
+
+  describe("runWithRpcRetry", () => {
+    const mockLog = { warn: vi.fn() };
+
+    beforeEach(() => {
+      mockLog.warn.mockClear();
+      vi.mocked(sleep).mockResolvedValue(undefined);
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("should return result on first success", async () => {
+      const fn = vi.fn().mockResolvedValue(42);
+      const result = await runWithRpcRetry({ log: mockLog }, fn);
+      expect(result).toBe(42);
+      expect(fn).toHaveBeenCalledTimes(1);
+      expect(mockLog.warn).not.toHaveBeenCalled();
+    });
+
+    it("should retry on RATE_LIMIT then succeed", async () => {
+      const fn = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("rate limit exceeded"))
+        .mockResolvedValueOnce(100n);
+      const result = await runWithRpcRetry(
+        { log: mockLog, operationName: "testOp", logDetails: { chainId: 10 } },
+        fn,
+      );
+      expect(result).toBe(100n);
+      expect(fn).toHaveBeenCalledTimes(2);
+      expect(mockLog.warn).toHaveBeenCalledTimes(1);
+      expect(mockLog.warn.mock.calls[0]?.[0]).toContain("RATE_LIMIT");
+      expect(mockLog.warn.mock.calls[0]?.[0]).toContain("Retrying");
+    });
+
+    it("should not retry on CONTRACT_REVERT", async () => {
+      const fn = vi.fn().mockRejectedValue(new Error("execution reverted"));
+      await expect(runWithRpcRetry({ log: mockLog }, fn)).rejects.toThrow(
+        "execution reverted",
+      );
+      expect(fn).toHaveBeenCalledTimes(1);
+      expect(mockLog.warn).not.toHaveBeenCalled();
+    });
+
+    it("should throw after max retries exhausted", async () => {
+      const fn = vi.fn().mockRejectedValue(new Error("rate limit exceeded"));
+      await expect(runWithRpcRetry({ log: mockLog }, fn)).rejects.toThrow(
+        "rate limit exceeded",
+      );
+      expect(fn).toHaveBeenCalledTimes(8); // 1 initial + 7 retries (RPC_APP_RETRY.maxRetries)
+      expect(mockLog.warn).toHaveBeenCalledTimes(7);
     });
   });
 });

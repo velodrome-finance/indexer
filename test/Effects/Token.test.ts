@@ -11,6 +11,7 @@ import {
   type fetchTokenPrice,
   getTokenDetails,
   getTokenPrice,
+  roundBlockToInterval,
 } from "../../src/Effects/Token";
 import * as TokenEffects from "../../src/Effects/Token";
 
@@ -39,6 +40,32 @@ const TEST_ORACLE_ADDRESS = toChecksumAddress(
 const TEST_PRICE_RESULT = ["1000000000000000000"];
 
 // Helper functions will be defined inside describe block to access mockEthClient and mockContext
+
+describe("roundBlockToInterval", () => {
+  describe("chainId 1 (mainnet, 12s block time, 300 blocks/hour)", () => {
+    it("should return block number when it is already on interval boundary", () => {
+      expect(roundBlockToInterval(3600, 1)).toBe(3600);
+      expect(roundBlockToInterval(0, 1)).toBe(0);
+    });
+
+    it("should round down to interval boundary", () => {
+      expect(roundBlockToInterval(3601, 1)).toBe(3600);
+      expect(roundBlockToInterval(3899, 1)).toBe(3600);
+    });
+  });
+
+  describe("other chains (2s block time, 1800 blocks/hour)", () => {
+    it("should return block number when it is already on interval boundary", () => {
+      expect(roundBlockToInterval(1800, 10)).toBe(1800);
+      expect(roundBlockToInterval(0, 10)).toBe(0);
+    });
+
+    it("should round down to interval boundary", () => {
+      expect(roundBlockToInterval(1801, 10)).toBe(1800);
+      expect(roundBlockToInterval(3599, 10)).toBe(1800);
+    });
+  });
+});
 
 describe("Token Effects", () => {
   let mockContext: {
@@ -82,19 +109,17 @@ describe("Token Effects", () => {
     };
   };
 
-  // Helper to mock Date.now() for slow request simulation; returns restore fn
+  // Helper to mock Date.now() for slow request simulation (fetchTokenPrice calls it at start and after readContract); returns restore fn
   const mockSlowDateNow = (
-    attemptDuration: number,
-    overallDuration?: number,
+    durationMs: number,
+    secondCallDuration?: number,
   ): (() => void) => {
     let callCount = 0;
     const baseTime = 1000000;
     const spy = vi.spyOn(Date, "now").mockImplementation(() => {
       callCount++;
       if (callCount === 1) return baseTime;
-      if (callCount === 2) return baseTime;
-      if (callCount === 3) return baseTime + attemptDuration;
-      return baseTime + (overallDuration ?? attemptDuration);
+      return baseTime + (secondCallDuration ?? durationMs);
     });
     return () => spy.mockRestore();
   };
@@ -254,12 +279,18 @@ describe("Token Effects", () => {
           },
         ],
       });
-      setupTokenDetailsMock(TEST_USDC_ADDRESS);
-
+      // RpcGateway calls fetchTokenDetails x2 then fetchTokenPrice; set up 6 token-detail reads then oracle
       const mockReadContract = vi.mocked(mockEthClient.readContract);
-      mockReadContract.mockResolvedValue([
-        "0x0000000000000000000000000000000000000000000000001bc16d674ec80000",
-      ] as unknown as readonly bigint[]);
+      mockReadContract
+        .mockResolvedValueOnce("TKN" as unknown as string)
+        .mockResolvedValueOnce(18 as unknown as number)
+        .mockResolvedValueOnce("TKN" as unknown as string)
+        .mockResolvedValueOnce("USDC" as unknown as string)
+        .mockResolvedValueOnce(6 as unknown as number)
+        .mockResolvedValueOnce("USDC" as unknown as string)
+        .mockResolvedValue([
+          "0x0000000000000000000000000000000000000000000000001bc16d674ec80000",
+        ] as unknown as readonly bigint[]);
 
       const result = await mockContext.effect(getTokenPrice as never, {
         tokenAddress: TEST_TOKEN_ADDRESS,
@@ -268,9 +299,18 @@ describe("Token Effects", () => {
       });
 
       expect(mockReadContract).toHaveBeenCalled();
-      const callArgs = mockReadContract.mock.calls[0][0];
-      expect(callArgs.functionName).toBe("getManyRatesWithConnectors");
-      const tokenAddressArray = (callArgs.args as unknown[])[1] as string[];
+      // First 6 calls are fetchTokenDetails (name, decimals, symbol x2); 7th is oracle
+      const oracleCall = mockReadContract.mock.calls.find(
+        (call: unknown[]) =>
+          (call[0] as { functionName?: string }).functionName ===
+          "getManyRatesWithConnectors",
+      );
+      expect(oracleCall).toBeDefined();
+      const callArgs = oracleCall?.[0] as unknown as {
+        functionName: string;
+        args: readonly unknown[];
+      };
+      const tokenAddressArray = callArgs.args[1] as string[];
       const connectorsInArray = tokenAddressArray.slice(
         tokenAddressArray.findIndex(
           (a) => a.toLowerCase() === TEST_TOKEN_ADDRESS.toLowerCase(),
@@ -293,7 +333,8 @@ describe("Token Effects", () => {
         startBlock: 0,
         getType: vi.fn(() => {
           getTypeCallCount++;
-          if (getTypeCallCount === 1) throw new Error("getType failure");
+          // First getType is when building fallback; second is inside fetchTokenPrice
+          if (getTypeCallCount === 2) throw new Error("getType failure");
           return PriceOracleType.V3;
         }),
         getAddress: () => TEST_ORACLE_ADDRESS,
@@ -305,11 +346,16 @@ describe("Token Effects", () => {
       (CHAIN_CONSTANTS as Record<number, { oracle: unknown }>)[
         TEST_CHAIN_ID
       ].oracle = mockOracle;
-      setupTokenDetailsMock(TEST_USDC_ADDRESS);
 
-      vi.mocked(mockEthClient.readContract).mockResolvedValue(
-        TEST_PRICE_RESULT as unknown as readonly bigint[],
-      );
+      // RpcGateway calls fetchTokenDetails x2 then fetchTokenPrice; getType throws on 2nd call (inside fetchTokenPrice)
+      vi.mocked(mockEthClient.readContract)
+        .mockResolvedValueOnce("TKN" as unknown as string)
+        .mockResolvedValueOnce(18 as unknown as number)
+        .mockResolvedValueOnce("TKN" as unknown as string)
+        .mockResolvedValueOnce("USDC" as unknown as string)
+        .mockResolvedValueOnce(6 as unknown as number)
+        .mockResolvedValueOnce("USDC" as unknown as string)
+        .mockResolvedValue(TEST_PRICE_RESULT as unknown as readonly bigint[]);
 
       const result = await mockContext.effect(getTokenPrice as never, {
         tokenAddress: TEST_TOKEN_ADDRESS,
@@ -332,11 +378,7 @@ describe("Token Effects", () => {
         .mockResolvedValueOnce(18 as unknown as number)
         .mockResolvedValueOnce("TEST" as unknown as string);
 
-      const result = await fetchTokenDetails(
-        TEST_TOKEN_ADDRESS,
-        mockEthClient,
-        mockContext.log,
-      );
+      const result = await fetchTokenDetails(TEST_TOKEN_ADDRESS, mockEthClient);
 
       expect(result).toEqual({
         name: "Test Token",
@@ -346,35 +388,24 @@ describe("Token Effects", () => {
       expect(mockEthClient.readContract).toHaveBeenCalledTimes(3);
     });
 
-    it("should handle errors and undefined/null results", async () => {
-      const testCases = [
-        {
-          mock: () =>
-            vi
-              .mocked(mockEthClient.readContract)
-              .mockRejectedValue(new Error("Contract call failed")),
-          expected: { name: "", symbol: "", decimals: 0 },
-        },
-        {
-          mock: () =>
-            vi
-              .mocked(mockEthClient.readContract)
-              .mockResolvedValueOnce(undefined as unknown as string)
-              .mockResolvedValueOnce(null as unknown as number)
-              .mockResolvedValueOnce(undefined as unknown as string),
-          expected: { name: "", symbol: "", decimals: 0 },
-        },
-      ];
+    it("should throw on contract call errors (gateway logs and returns default)", async () => {
+      vi.mocked(mockEthClient.readContract).mockRejectedValue(
+        new Error("Contract call failed"),
+      );
 
-      for (const { mock, expected } of testCases) {
-        mock();
-        const result = await fetchTokenDetails(
-          TEST_TOKEN_ADDRESS,
-          mockEthClient,
-          mockContext.log,
-        );
-        expect(result).toEqual(expected);
-      }
+      await expect(
+        fetchTokenDetails(TEST_TOKEN_ADDRESS, mockEthClient),
+      ).rejects.toThrow("Contract call failed");
+    });
+
+    it("should return default fields for undefined/null results", async () => {
+      vi.mocked(mockEthClient.readContract)
+        .mockResolvedValueOnce(undefined as unknown as string)
+        .mockResolvedValueOnce(null as unknown as number)
+        .mockResolvedValueOnce(undefined as unknown as string);
+
+      const result = await fetchTokenDetails(TEST_TOKEN_ADDRESS, mockEthClient);
+      expect(result).toEqual({ name: "", symbol: "", decimals: 18 });
     });
   });
 
@@ -434,8 +465,6 @@ describe("Token Effects", () => {
           TEST_CHAIN_ID,
           TEST_BLOCK_NUMBER,
           mockEthClient,
-          mockContext.log,
-          7,
         );
 
         expect(result).toEqual({
@@ -448,110 +477,91 @@ describe("Token Effects", () => {
       }
     });
 
-    it("should handle contract call errors gracefully", async () => {
+    it("should throw on contract call errors (retries handled by RpcGateway)", async () => {
       setupChainConstants(PriceOracleType.V2);
       vi.mocked(mockEthClient.readContract).mockRejectedValue(
         new Error("Oracle call failed"),
       );
 
-      const result = await realFetchTokenPrice(
-        TEST_TOKEN_ADDRESS,
-        TEST_USDC_ADDRESS,
-        TEST_SYSTEM_TOKEN,
-        TEST_SYSTEM_TOKEN,
-        [],
-        TEST_CHAIN_ID,
-        TEST_BLOCK_NUMBER,
-        mockEthClient,
-        mockContext.log,
-        7,
-      );
-
-      expect(result).toEqual({
-        pricePerUSDNew: 0n,
-        priceOracleType: "v2",
-      });
-      expect(mockContext.log.error).toHaveBeenCalled();
+      await expect(
+        realFetchTokenPrice(
+          TEST_TOKEN_ADDRESS,
+          TEST_USDC_ADDRESS,
+          TEST_SYSTEM_TOKEN,
+          TEST_SYSTEM_TOKEN,
+          [],
+          TEST_CHAIN_ID,
+          TEST_BLOCK_NUMBER,
+          mockEthClient,
+        ),
+      ).rejects.toThrow("Oracle call failed");
+      expect(mockEthClient.readContract).toHaveBeenCalledTimes(1);
     });
 
-    it("should return zero price on out of gas errors without retry (readContract does not use gas)", async () => {
+    it("should throw on out of gas errors (no retry in fetcher)", async () => {
       setupChainConstants(PriceOracleType.V2);
       vi.mocked(mockEthClient.readContract).mockRejectedValue(
         new Error("out of gas: gas required exceeds: 1000000"),
       );
 
-      const result = await realFetchTokenPrice(
-        TEST_TOKEN_ADDRESS,
-        TEST_USDC_ADDRESS,
-        TEST_SYSTEM_TOKEN,
-        TEST_SYSTEM_TOKEN,
-        [],
-        TEST_CHAIN_ID,
-        TEST_BLOCK_NUMBER,
-        mockEthClient,
-        mockContext.log,
-        7,
-      );
-
-      expect(result.pricePerUSDNew).toBe(0n);
-      expect(result.priceOracleType).toBe("v2");
+      await expect(
+        realFetchTokenPrice(
+          TEST_TOKEN_ADDRESS,
+          TEST_USDC_ADDRESS,
+          TEST_SYSTEM_TOKEN,
+          TEST_SYSTEM_TOKEN,
+          [],
+          TEST_CHAIN_ID,
+          TEST_BLOCK_NUMBER,
+          mockEthClient,
+        ),
+      ).rejects.toThrow("out of gas");
       expect(mockEthClient.readContract).toHaveBeenCalledTimes(1);
     });
 
-    it("should retry on rate limit errors with exponential backoff", async () => {
+    it("should throw on rate limit error (retries are in runWithRpcRetry)", async () => {
       setupChainConstants(PriceOracleType.V2);
-      const sleepSpy = vi
-        .spyOn(HelpersEffects, "sleep")
-        .mockResolvedValue(undefined);
-      vi.mocked(mockEthClient.readContract)
-        .mockRejectedValueOnce(new Error("rate limit exceeded"))
-        .mockResolvedValueOnce([
-          "0x0000000000000000000000000000000000000000000000000000000000000001",
-        ] as unknown as readonly bigint[]);
-
-      const result = await realFetchTokenPrice(
-        TEST_TOKEN_ADDRESS,
-        TEST_USDC_ADDRESS,
-        TEST_SYSTEM_TOKEN,
-        TEST_SYSTEM_TOKEN,
-        [],
-        TEST_CHAIN_ID,
-        TEST_BLOCK_NUMBER,
-        mockEthClient,
-        mockContext.log,
-        7,
+      vi.mocked(mockEthClient.readContract).mockRejectedValue(
+        new Error("rate limit exceeded"),
       );
 
-      expect(result.pricePerUSDNew).toBe(1n);
-      expect(mockEthClient.readContract).toHaveBeenCalledTimes(2);
-      expect(sleepSpy).toHaveBeenCalled();
-      expect(sleepSpy.mock.calls[0]?.[0]).toBe(1000);
+      await expect(
+        realFetchTokenPrice(
+          TEST_TOKEN_ADDRESS,
+          TEST_USDC_ADDRESS,
+          TEST_SYSTEM_TOKEN,
+          TEST_SYSTEM_TOKEN,
+          [],
+          TEST_CHAIN_ID,
+          TEST_BLOCK_NUMBER,
+          mockEthClient,
+        ),
+      ).rejects.toThrow("rate limit exceeded");
+      expect(mockEthClient.readContract).toHaveBeenCalledTimes(1);
     });
 
-    it("should handle contract revert errors without retries", async () => {
+    it("should throw on contract revert (no retry in fetcher)", async () => {
       setupChainConstants(PriceOracleType.V2);
       vi.mocked(mockEthClient.readContract).mockRejectedValue(
         new Error("execution reverted"),
       );
 
-      const result = await realFetchTokenPrice(
-        TEST_TOKEN_ADDRESS,
-        TEST_USDC_ADDRESS,
-        TEST_SYSTEM_TOKEN,
-        TEST_SYSTEM_TOKEN,
-        [],
-        TEST_CHAIN_ID,
-        TEST_BLOCK_NUMBER,
-        mockEthClient,
-        mockContext.log,
-        7,
-      );
-
-      expect(result.pricePerUSDNew).toBe(0n);
+      await expect(
+        realFetchTokenPrice(
+          TEST_TOKEN_ADDRESS,
+          TEST_USDC_ADDRESS,
+          TEST_SYSTEM_TOKEN,
+          TEST_SYSTEM_TOKEN,
+          [],
+          TEST_CHAIN_ID,
+          TEST_BLOCK_NUMBER,
+          mockEthClient,
+        ),
+      ).rejects.toThrow("execution reverted");
       expect(mockEthClient.readContract).toHaveBeenCalledTimes(1);
     });
 
-    it("should log warnings for slow successful requests (V3 and V2)", async () => {
+    it("should return result for slow successful requests (V3 and V2); slow-request logging is in RpcGateway", async () => {
       const testCases = [
         { oracleType: PriceOracleType.V3 },
         { oracleType: PriceOracleType.V2 },
@@ -564,7 +574,7 @@ describe("Token Effects", () => {
           TEST_PRICE_RESULT as unknown as readonly bigint[],
         );
 
-        await realFetchTokenPrice(
+        const result = await realFetchTokenPrice(
           TEST_TOKEN_ADDRESS,
           TEST_USDC_ADDRESS,
           TEST_SYSTEM_TOKEN,
@@ -573,57 +583,44 @@ describe("Token Effects", () => {
           TEST_CHAIN_ID,
           TEST_BLOCK_NUMBER,
           mockEthClient,
-          mockContext.log,
-          7,
         );
 
-        expect(mockContext.log.warn).toHaveBeenCalledWith(
-          expect.stringContaining("Slow request detected"),
-        );
+        expect(result.pricePerUSDNew).toBeDefined();
         restoreDateNow();
-        vi.mocked(mockContext.log.warn).mockClear();
         vi.mocked(mockEthClient.readContract).mockClear();
       }
     });
 
-    it("should log warning for slow failed requests", async () => {
+    it("should throw for slow failed requests; slow-request logging is in RpcGateway", async () => {
       setupChainConstants(PriceOracleType.V3);
-      const sleepSpy = vi
-        .spyOn(HelpersEffects, "sleep")
-        .mockResolvedValue(undefined);
       const restoreDateNow = mockSlowDateNow(6000);
-      vi.mocked(mockEthClient.readContract)
-        .mockRejectedValueOnce(new Error("network error"))
-        .mockResolvedValue(TEST_PRICE_RESULT as unknown as readonly bigint[]);
-
-      await realFetchTokenPrice(
-        TEST_TOKEN_ADDRESS,
-        TEST_USDC_ADDRESS,
-        TEST_SYSTEM_TOKEN,
-        TEST_SYSTEM_TOKEN,
-        [],
-        TEST_CHAIN_ID,
-        TEST_BLOCK_NUMBER,
-        mockEthClient,
-        mockContext.log,
-        7,
+      vi.mocked(mockEthClient.readContract).mockRejectedValue(
+        new Error("network error"),
       );
 
-      expect(mockContext.log.warn).toHaveBeenCalledWith(
-        expect.stringContaining("Slow failed request"),
-      );
+      await expect(
+        realFetchTokenPrice(
+          TEST_TOKEN_ADDRESS,
+          TEST_USDC_ADDRESS,
+          TEST_SYSTEM_TOKEN,
+          TEST_SYSTEM_TOKEN,
+          [],
+          TEST_CHAIN_ID,
+          TEST_BLOCK_NUMBER,
+          mockEthClient,
+        ),
+      ).rejects.toThrow("network error");
       restoreDateNow();
-      sleepSpy.mockRestore();
     });
 
-    it("should log error for very slow successful requests", async () => {
+    it("should return result for very slow successful requests; very-slow logging is in RpcGateway", async () => {
       setupChainConstants(PriceOracleType.V2);
       const restoreDateNow = mockSlowDateNow(1000, 35000);
       vi.mocked(mockEthClient.readContract).mockResolvedValue(
         TEST_PRICE_RESULT as unknown as readonly bigint[],
       );
 
-      await realFetchTokenPrice(
+      const result = await realFetchTokenPrice(
         TEST_TOKEN_ADDRESS,
         TEST_USDC_ADDRESS,
         TEST_SYSTEM_TOKEN,
@@ -632,92 +629,10 @@ describe("Token Effects", () => {
         TEST_CHAIN_ID,
         TEST_BLOCK_NUMBER,
         mockEthClient,
-        mockContext.log,
-        7,
       );
 
-      expect(mockContext.log.error).toHaveBeenCalledWith(
-        expect.stringContaining("Very slow request"),
-      );
+      expect(result.pricePerUSDNew).toBeDefined();
       restoreDateNow();
-    });
-
-    it("should retry rate limit errors with correct delays", async () => {
-      const testCases = [
-        { failures: 6, expectedDelay: 30000, attempt: 5 },
-        { failures: 7, expectedDelay: 60000, attempt: 6 },
-      ];
-
-      for (const { failures, expectedDelay } of testCases) {
-        setupChainConstants(PriceOracleType.V3);
-        const sleepSpy = vi
-          .spyOn(HelpersEffects, "sleep")
-          .mockResolvedValue(undefined);
-        const mockReadContract = vi.mocked(mockEthClient.readContract);
-        mockReadContract.mockReset().mockImplementation(() => {
-          if (mockReadContract.mock.calls.length <= failures) {
-            return Promise.reject(new Error("rate limit exceeded"));
-          }
-          return Promise.resolve(
-            TEST_PRICE_RESULT as unknown as readonly bigint[],
-          );
-        });
-
-        await realFetchTokenPrice(
-          TEST_TOKEN_ADDRESS,
-          TEST_USDC_ADDRESS,
-          TEST_SYSTEM_TOKEN,
-          TEST_SYSTEM_TOKEN,
-          [],
-          TEST_CHAIN_ID,
-          TEST_BLOCK_NUMBER,
-          mockEthClient,
-          mockContext.log,
-          7,
-        );
-
-        expect(sleepSpy).toHaveBeenCalledWith(expectedDelay);
-        sleepSpy.mockRestore();
-      }
-    });
-
-    it("should retry network errors with correct delays", async () => {
-      const testCases = [
-        { failures: 6, expectedDelay: 15000 },
-        { failures: 7, expectedDelay: 30000 },
-      ];
-
-      for (const { failures, expectedDelay } of testCases) {
-        setupChainConstants(PriceOracleType.V3);
-        const sleepSpy = vi
-          .spyOn(HelpersEffects, "sleep")
-          .mockResolvedValue(undefined);
-        const mockReadContract = vi.mocked(mockEthClient.readContract);
-        mockReadContract.mockReset().mockImplementation(() => {
-          if (mockReadContract.mock.calls.length <= failures) {
-            return Promise.reject(new Error("network error"));
-          }
-          return Promise.resolve(
-            TEST_PRICE_RESULT as unknown as readonly bigint[],
-          );
-        });
-
-        await realFetchTokenPrice(
-          TEST_TOKEN_ADDRESS,
-          TEST_USDC_ADDRESS,
-          TEST_SYSTEM_TOKEN,
-          TEST_SYSTEM_TOKEN,
-          [],
-          TEST_CHAIN_ID,
-          TEST_BLOCK_NUMBER,
-          mockEthClient,
-          mockContext.log,
-          7,
-        );
-
-        expect(sleepSpy).toHaveBeenCalledWith(expectedDelay);
-        sleepSpy.mockRestore();
-      }
     });
   });
 });

@@ -265,9 +265,6 @@ export async function handleRegularTransfer(
       )
     : false; // When poolData is null we cannot know if it's a gauge transfer; skip only attribution below, still update owner.
   if (isGauge) {
-    context.log.info(
-      `[NFPMTransferLogic] Transfer to/from gauge ${poolData?.liquidityPoolAggregator.gaugeAddress} on chain ${event.chainId} in tx ${event.transaction.hash}`,
-    );
     return;
   }
 

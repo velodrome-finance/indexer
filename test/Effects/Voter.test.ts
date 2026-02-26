@@ -1,10 +1,9 @@
 import type { logger as Envio_logger } from "envio/src/Envio.gen";
 import type { PublicClient } from "viem";
 import { CHAIN_CONSTANTS, toChecksumAddress } from "../../src/Constants";
+import * as HelpersModule from "../../src/Effects/Helpers";
 import {
-  fetchIsAlive,
   fetchTokensDeposited,
-  getIsAlive,
   getTokensDeposited,
 } from "../../src/Effects/Voter";
 
@@ -37,6 +36,8 @@ describe("Voter Effects", () => {
   let originalChainConstants10: (typeof CHAIN_CONSTANTS)[10] | undefined;
 
   beforeEach(() => {
+    vi.spyOn(HelpersModule, "sleep").mockResolvedValue(undefined);
+
     mockEthClient = {
       readContract: vi
         .fn()
@@ -79,20 +80,6 @@ describe("Voter Effects", () => {
     vi.restoreAllMocks();
   });
 
-  describe("getTokensDeposited", () => {
-    it("should be a valid effect object", () => {
-      expect(typeof getTokensDeposited).toBe("object");
-      expect(getTokensDeposited).toHaveProperty("name", "getTokensDeposited");
-    });
-  });
-
-  describe("getIsAlive", () => {
-    it("should be a valid effect object", () => {
-      expect(typeof getIsAlive).toBe("object");
-      expect(getIsAlive).toHaveProperty("name", "getIsAlive");
-    });
-  });
-
   describe("fetchTokensDeposited", () => {
     it("should fetch tokens deposited from contract", async () => {
       vi.mocked(mockEthClient.readContract).mockResolvedValue(
@@ -103,9 +90,7 @@ describe("Voter Effects", () => {
         TEST_REWARD_TOKEN,
         TEST_GAUGE,
         TEST_BLOCK_NUMBER,
-        TEST_CHAIN_ID,
         mockEthClient,
-        mockContext.log,
       );
 
       expect(result).toBe(1000n);
@@ -129,9 +114,7 @@ describe("Voter Effects", () => {
           TEST_REWARD_TOKEN,
           TEST_GAUGE,
           TEST_BLOCK_NUMBER,
-          TEST_CHAIN_ID,
           mockEthClient,
-          mockContext.log,
         ),
       ).rejects.toThrow("Contract call failed");
     });
@@ -145,74 +128,37 @@ describe("Voter Effects", () => {
         TEST_REWARD_TOKEN,
         TEST_GAUGE,
         TEST_BLOCK_NUMBER,
-        TEST_CHAIN_ID,
         mockEthClient,
-        mockContext.log,
       );
 
       expect(result).toBe(0n);
     });
   });
 
-  describe("fetchIsAlive", () => {
-    it("should fetch is alive status from contract", async () => {
-      const testCases = [
-        { result: true, expected: true, description: "gauge is alive" },
-        { result: false, expected: false, description: "gauge is not alive" },
-        { result: 0, expected: false, description: "falsy value" },
-      ];
-
-      for (const { result, expected } of testCases) {
-        vi.mocked(mockEthClient.readContract).mockResolvedValue(
-          result as unknown as boolean,
-        );
-
-        const fetchResult = await fetchIsAlive(
-          TEST_VOTER,
-          TEST_GAUGE,
-          TEST_BLOCK_NUMBER,
-          TEST_CHAIN_ID,
-          mockEthClient,
-          mockContext.log,
-        );
-
-        expect(fetchResult).toBe(expected);
-        const callArgs = vi.mocked(mockEthClient.readContract).mock.calls[0][0];
-        expect(callArgs).toMatchObject({
-          address: TEST_VOTER,
-          functionName: "isAlive",
-          blockNumber: BigInt(TEST_BLOCK_NUMBER),
-        });
-        expect(callArgs.args).toEqual([TEST_GAUGE]);
-        vi.mocked(mockEthClient.readContract).mockClear();
-      }
-    });
-
-    it("should throw error on contract call failure", async () => {
-      vi.mocked(mockEthClient.readContract).mockRejectedValue(
-        new Error("Contract call failed"),
-      );
-
-      await expect(
-        fetchIsAlive(
-          TEST_VOTER,
-          TEST_GAUGE,
-          TEST_BLOCK_NUMBER,
-          TEST_CHAIN_ID,
-          mockEthClient,
-          mockContext.log,
-        ),
-      ).rejects.toThrow("Contract call failed");
-    });
-  });
-
   describe("getTokensDeposited", () => {
-    it("should return undefined on error", async () => {
-      vi.mocked(mockEthClient.readContract).mockRejectedValue(
-        new Error("Contract call failed"),
-      );
+    it("should be a valid effect object", () => {
+      expect(typeof getTokensDeposited).toBe("object");
+      expect(getTokensDeposited).toHaveProperty("name", "getTokensDeposited");
+    });
 
-      const result = await mockContext.effect(
+    it("should return undefined when rpcGateway returns no value (unit: delegation in isolation)", async () => {
+      const unitContext = {
+        ...mockContext,
+        effect: (
+          effect: {
+            name: string;
+            handler: (args: { input: unknown; context: unknown }) => unknown;
+          },
+          input: unknown,
+        ) => {
+          if (effect.name === "rpcGateway") {
+            return Promise.resolve({ value: undefined });
+          }
+          return effect.handler({ input, context: unitContext });
+        },
+      };
+
+      const result = await unitContext.effect(
         getTokensDeposited as unknown as {
           name: string;
           handler: (args: { input: unknown; context: unknown }) => unknown;
@@ -226,23 +172,20 @@ describe("Voter Effects", () => {
       );
 
       expect(result).toBeUndefined();
-      expect(mockContext.log.error).toHaveBeenCalled();
     });
-  });
 
-  describe("getIsAlive", () => {
-    it("should return undefined on error", async () => {
+    it("should return undefined and log error when RPC fails (integration: full chain)", async () => {
       vi.mocked(mockEthClient.readContract).mockRejectedValue(
         new Error("Contract call failed"),
       );
 
       const result = await mockContext.effect(
-        getIsAlive as unknown as {
+        getTokensDeposited as unknown as {
           name: string;
           handler: (args: { input: unknown; context: unknown }) => unknown;
         },
         {
-          voterAddress: TEST_VOTER,
+          rewardTokenAddress: TEST_REWARD_TOKEN,
           gaugeAddress: TEST_GAUGE,
           blockNumber: TEST_BLOCK_NUMBER,
           eventChainId: TEST_CHAIN_ID,

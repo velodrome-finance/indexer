@@ -103,7 +103,6 @@ describe("RootPool Effects", () => {
         mockToken0,
         mockToken1,
         mockType,
-        mockContext.log,
       );
 
       expect(typeof result).toBe("string");
@@ -130,7 +129,6 @@ describe("RootPool Effects", () => {
         mockToken0,
         mockToken1,
         mockType,
-        mockContext.log,
       );
 
       expect(typeof result).toBe("string");
@@ -150,7 +148,6 @@ describe("RootPool Effects", () => {
         mockToken0,
         mockToken1,
         mockType,
-        mockContext.log,
       );
 
       expect(typeof result).toBe("string");
@@ -171,7 +168,6 @@ describe("RootPool Effects", () => {
           mockToken0,
           mockToken1,
           mockType,
-          mockContext.log,
         ),
       ).rejects.toThrow("Contract call failed");
     });
@@ -188,7 +184,6 @@ describe("RootPool Effects", () => {
         mockToken0,
         mockToken1,
         mockType,
-        mockContext.log,
       );
 
       // Should be checksummed (use actual checksummed value)
@@ -197,7 +192,7 @@ describe("RootPool Effects", () => {
       expect(result).not.toBe(lowercaseAddress);
     });
 
-    it("should return empty string and log error when address is null/undefined", async () => {
+    it("should return empty string when address is null/undefined", async () => {
       const mockReadContract = vi.mocked(mockEthClient.readContract);
       mockReadContract.mockResolvedValue(null as unknown as string);
 
@@ -208,18 +203,9 @@ describe("RootPool Effects", () => {
         mockToken0,
         mockToken1,
         mockType,
-        mockContext.log,
       );
 
-      // Should return empty string instead of throwing
       expect(result).toBe("");
-
-      // Should log an error
-      const mockError = vi.mocked(mockContext.log.error);
-      expect(mockError).toHaveBeenCalledTimes(1);
-      expect(mockError).toHaveBeenCalledWith(
-        "[fetchRootPoolAddress] No root pool address found. Returning empty address",
-      );
     });
   });
 });

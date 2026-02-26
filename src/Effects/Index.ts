@@ -9,7 +9,4 @@ export {
 export { getSwapFee } from "./SwapFee";
 
 // Voter-related effects
-export {
-  getTokensDeposited,
-  getIsAlive,
-} from "./Voter";
+export { getTokensDeposited } from "./Voter";
