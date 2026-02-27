@@ -1,4 +1,4 @@
----
+ ---
 title: Vitest testing rules
 scope:
   - "**/*.test.ts"
@@ -39,6 +39,8 @@ You are writing tests using **Vitest** for this repository.
 
 ## Envio / MockDb and processEvents
 
+Use this for **unit tests** (mock events, shared harness, deterministic). For **integration tests** with real block ranges, see the Test Indexer section below.
+
 - **Event processing in tests:** Use `mockDb.processEvents([event])` (or the relevant db variable). The deprecated `Contract.Event.processEvent({ event, mockDb })` must not be used.
 - **Handler registration:** Any test file that calls `*.processEvents()` **must** import the registration module so all handlers are registered:
   ```ts
@@ -46,6 +48,64 @@ You are writing tests using **Vitest** for this repository.
   import "../../eventHandlersRegistration"; // from test/EventHandlers/**/*.test.ts
   ```
 - **Event mocks:** Use the generated mock API (e.g. `NFPM.Transfer.createMockEvent({ ... })`, `Pool.Mint.createMockEvent({ ... })`) so events are valid for `processEvents`.
+
+---
+
+## Test Indexer (Envio V3 — experimental)
+
+For integration-style tests with real blockchain data, snapshot testing, and entity read/write between runs, use the Envio V3 Test Indexer. Prefer MockDb/processEvents for unit tests (specific payloads, shared harness, no network).
+
+**When to use:** Running handlers over real block ranges; snapshotting full indexing output; debugging with real chain data; testing block and event handlers together; parallel test execution (worker-thread isolation).
+
+**API (from Envio docs and [releases](https://github.com/enviodev/hyperindex/releases)):**
+
+- `import { createTestIndexer } from "generated";`
+- `const indexer = createTestIndexer();`
+- `await indexer.process({ chains: { [chainId]: { startBlock, endBlock } } })` — returns a result with per-block changes (typed as **TestIndexerChange**; official format as of alpha.10).
+- **Entity read/write between runs (alpha.11):** `indexer.Entity.get(id)` / `indexer.Entity.set(entity)` to seed or assert entity state between `indexer.process()` calls.
+- **Chain/config:** `indexer.chainIds`, `indexer.chains[chainId].id`, `indexer.chains[chainId].Contract.addresses`, etc.
+- **Contract registrations** are preserved between `indexer.process()` runs (alpha.8); dynamic factory contracts work across multiple process calls.
+- **Entity types:** Generated entity types mark array field values as **readonly** (alpha.10); do not mutate array fields when building entities for `Entity.set`.
+
+**Choosing MockDb vs Test Indexer:**
+
+- **MockDb + processEvents:** Unit tests; controlled event payloads; shared harness (common.ts); no network; fast.
+- **Test Indexer:** Integration tests; real block ranges; snapshot of full handler output; entity get/set between runs; requires generated code that exposes `createTestIndexer`.
+
+**Example (snapshot test):**
+
+```ts
+import { describe, it, expect } from "vitest";
+import { createTestIndexer } from "generated";
+
+describe("Indexer Testing", () => {
+  it("Should create accounts from ERC20 Transfer events", async () => {
+    const indexer = createTestIndexer();
+    expect(
+      await indexer.process({
+        chains: {
+          1: { startBlock: 10_861_674, endBlock: 10_861_674 },
+        },
+      }),
+      "Should find the first mint at block 10_861_674"
+    ).toMatchInlineSnapshot(`
+      {
+        "changes": [
+          {
+            "Account": { "sets": [ ... ] },
+            "block": 10861674,
+            "blockHash": "0x...",
+            "chainId": 1,
+            "eventsProcessed": 1,
+          },
+        ],
+      }
+    `);
+  });
+});
+```
+
+**References:** [Migrate to V3 — New Testing Framework](https://docs.envio.dev/docs/HyperIndex/migrate-to-v3#new-testing-framework-experimental), [alpha.6](https://github.com/enviodev/hyperindex/releases/tag/v3.0.0-alpha.6), [alpha.8](https://github.com/enviodev/hyperindex/releases/tag/v3.0.0-alpha.8), [alpha.10](https://github.com/enviodev/hyperindex/releases/tag/v3.0.0-alpha.10), [alpha.11](https://github.com/enviodev/hyperindex/releases/tag/v3.0.0-alpha.11).
 
 ---
 
@@ -164,7 +224,7 @@ beforeEach(() => {
 
 - Use `toMatchObject` for partial matches when extra fields are noisy.
 
-- Avoid snapshots unless output is large and stable.
+- Avoid snapshots unless output is large and stable. **Exception:** When using the Test Indexer (`createTestIndexer`), `toMatchInlineSnapshot` on the result of `indexer.process(...)` is encouraged for integration tests; the output shape is stable (TestIndexerChange) and snapshotting is a documented use case.
 
 ### “Stop and centralize” rule
 
