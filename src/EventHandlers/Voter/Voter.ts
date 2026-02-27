@@ -3,6 +3,7 @@ import { Voter } from "generated";
 import type { Token } from "generated";
 import {
   findPoolByGaugeAddress,
+  isMissingRootPoolMapping,
   loadPoolDataOrRootCLPool,
   updateLiquidityPoolAggregator,
 } from "../../Aggregators/LiquidityPoolAggregator";
@@ -30,6 +31,7 @@ import {
   buildLpDiffFromDistribute,
   computeVoterDistributeValues,
   computeVoterRelatedEntitiesDiff,
+  createPendingVoteForDeferredProcessing,
 } from "./VoterCommonLogic";
 
 Voter.GaugeCreated.contractRegister(({ event, context }) => {
@@ -79,7 +81,7 @@ Voter.Voted.handler(async ({ event, context }) => {
   const chainId = event.chainId;
 
   // Load pool data and token owner concurrently for better performance
-  const [poolData, veNFTState] = await Promise.all([
+  const [poolResult, veNFTState] = await Promise.all([
     loadPoolDataOrRootCLPool(
       pool,
       chainId,
@@ -90,9 +92,29 @@ Voter.Voted.handler(async ({ event, context }) => {
     loadVeNFTState(chainId, tokenId, context),
   ]);
 
-  if (!poolData || !veNFTState) {
+  if (!poolResult.ok) {
+    // If the root pool mapping cannot be loaded, create a pending vote for deferred processing
+    if (isMissingRootPoolMapping(poolResult)) {
+      createPendingVoteForDeferredProcessing(
+        context,
+        chainId,
+        pool,
+        tokenId,
+        event.params.weight,
+        VoterEventType.VOTED,
+        timestamp,
+        event.block.number,
+        event.transaction.hash,
+      );
+    }
     return;
   }
+
+  if (!veNFTState) {
+    return;
+  }
+
+  const poolData = poolResult.poolData;
 
   const [veNFTPoolVote, userStats] = await Promise.all([
     loadOrCreateVeNFTPoolVote(
@@ -139,7 +161,7 @@ Voter.Abstained.handler(async ({ event, context }) => {
   const chainId = event.chainId;
 
   // Load pool data and token owner concurrently for better performance
-  const [poolData, veNFTState] = await Promise.all([
+  const [poolResult, veNFTState] = await Promise.all([
     loadPoolDataOrRootCLPool(
       pool,
       chainId,
@@ -150,10 +172,29 @@ Voter.Abstained.handler(async ({ event, context }) => {
     loadVeNFTState(chainId, tokenId, context),
   ]);
 
-  if (!poolData || !veNFTState) {
+  // If the pool data (or root pool mapping) cannot be loaded, create a pending vote for deferred processing
+  if (!poolResult.ok) {
+    if (isMissingRootPoolMapping(poolResult)) {
+      createPendingVoteForDeferredProcessing(
+        context,
+        chainId,
+        pool,
+        tokenId,
+        event.params.weight,
+        VoterEventType.ABSTAINED,
+        timestamp,
+        event.block.number,
+        event.transaction.hash,
+      );
+    }
     return;
   }
 
+  if (!veNFTState) {
+    return;
+  }
+
+  const poolData = poolResult.poolData;
   const { liquidityPoolAggregator } = poolData;
 
   const { poolVoteDiff, userStatsPerPoolDiff, veNFTPoolVoteDiff } =

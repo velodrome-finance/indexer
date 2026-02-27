@@ -1,7 +1,12 @@
 import { RootCLPoolFactory } from "generated";
 import type { RootPool_LeafPool } from "generated";
 
-import { RootPoolLeafPoolId } from "../Constants";
+import {
+  PendingRootPoolMappingId,
+  RootPoolLeafPoolId,
+  rootPoolMatchingHash,
+} from "../Constants";
+import { processAllPendingVotesForRootPool } from "./Voter/PendingVoteProcessing";
 
 RootCLPoolFactory.RootPoolCreated.handler(async ({ event, context }) => {
   const rootChainId = event.chainId;
@@ -11,15 +16,29 @@ RootCLPoolFactory.RootPoolCreated.handler(async ({ event, context }) => {
   const token1 = event.params.token1;
   const tickSpacing = BigInt(event.params.tickSpacing);
 
-  // Hash uses token0/token1 order
-  const hash = `${leafChainId}_${token0}_${token1}_${tickSpacing}`;
+  const hash = rootPoolMatchingHash(leafChainId, token0, token1, tickSpacing);
 
-  // Query by rootPoolMatchingHash
   const pools = await context.LiquidityPoolAggregator.getWhere({
     rootPoolMatchingHash: { _eq: hash },
   });
 
-  // There should be only one matching pool
+  if (pools.length === 0) {
+    context.PendingRootPoolMapping.set({
+      id: PendingRootPoolMappingId(rootChainId, rootPoolAddress),
+      rootChainId,
+      rootPoolAddress,
+      leafChainId,
+      token0,
+      token1,
+      tickSpacing,
+      rootPoolMatchingHash: hash,
+    });
+    context.log.warn(
+      `RootPoolCreated: no LiquidityPoolAggregator found for hash ${hash}. PendingRootPoolMapping stored for later reconciliation.`,
+    );
+    return;
+  }
+
   if (pools.length !== 1) {
     context.log.error(
       `Expected exactly one matching LiquidityPoolAggregator for RootPoolCreated: token0=${token0}, token1=${token1}, chainId=${leafChainId}, tickSpacing=${tickSpacing}`,
@@ -45,4 +64,5 @@ RootCLPoolFactory.RootPoolCreated.handler(async ({ event, context }) => {
   };
 
   context.RootPool_LeafPool.set(rootPoolLeafPool);
+  await processAllPendingVotesForRootPool(context, rootPoolAddress);
 });

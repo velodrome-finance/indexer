@@ -4,6 +4,7 @@ import { MockDb, SuperchainLeafVoter } from "generated/src/TestHelpers.gen";
 import * as LiquidityPoolAggregatorModule from "../../../src/Aggregators/LiquidityPoolAggregator";
 import {
   SUPERCHAIN_LEAF_VOTER_CLPOOLS_FACTORY_LIST,
+  SUPERCHAIN_LEAF_VOTER_NONCL_POOLS_FACTORY_LIST,
   TokenId,
   toChecksumAddress,
 } from "../../../src/Constants";
@@ -131,6 +132,43 @@ describe("SuperchainLeafVoter Events", () => {
         });
 
       const resultDB = await mockDbEmpty.processEvents([eventWithCLFactory]);
+
+      expect(resultDB).toBeDefined();
+    });
+
+    it("calls addGauge when poolFactory is in SUPERCHAIN_LEAF_VOTER_NONCL_POOLS_FACTORY_LIST", async () => {
+      const poolFactoryFromList =
+        SUPERCHAIN_LEAF_VOTER_NONCL_POOLS_FACTORY_LIST[0];
+      const mockDbEmpty = MockDb.createMockDb();
+      const eventWithNonCLFactory =
+        SuperchainLeafVoter.GaugeCreated.createMockEvent({
+          poolFactory: poolFactoryFromList as `0x${string}`,
+          votingRewardsFactory: toChecksumAddress(
+            "0x2222222222222222222222222222222222222222",
+          ),
+          gaugeFactory: toChecksumAddress(
+            "0x3333333333333333333333333333333333333333",
+          ),
+          pool: poolAddress,
+          incentiveVotingReward: toChecksumAddress(
+            "0x5555555555555555555555555555555555555555",
+          ),
+          feeVotingReward: toChecksumAddress(
+            "0x6666666666666666666666666666666666666666",
+          ),
+          gauge: gaugeAddress,
+          mockEventData: {
+            block: {
+              timestamp: 1000000,
+              number: 123456,
+              hash: "0xhash",
+            },
+            chainId: chainId,
+            logIndex: 1,
+          },
+        });
+
+      const resultDB = await mockDbEmpty.processEvents([eventWithNonCLFactory]);
 
       expect(resultDB).toBeDefined();
     });

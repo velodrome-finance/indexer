@@ -1,5 +1,5 @@
-import type { Token, VeNFTState, handlerContext } from "generated";
-import { toChecksumAddress } from "../../../src/Constants";
+import type { PendingVote, Token, VeNFTState, handlerContext } from "generated";
+import { PendingVoteId, toChecksumAddress } from "../../../src/Constants";
 import {
   getTokenDetails,
   getTokensDeposited,
@@ -10,6 +10,7 @@ import {
   buildLpDiffFromDistribute,
   computeVoterDistributeValues,
   computeVoterRelatedEntitiesDiff,
+  createPendingVoteForDeferredProcessing,
 } from "../../../src/EventHandlers/Voter/VoterCommonLogic";
 
 function makeMockContext(effects: {
@@ -274,5 +275,98 @@ describe("computeVoterRelatedEntitiesDiff", () => {
     );
     expect(result.veNFTPoolVoteDiff.incrementalVeNFTamountStaked).toBe(-100n);
     expect(result.veNFTPoolVoteDiff.veNFTStateId).toBe("10-1");
+  });
+});
+
+describe("createPendingVoteForDeferredProcessing", () => {
+  const chainId = 10;
+  const rootPoolAddress = toChecksumAddress(
+    "0xC4Cbb0ba3c902Fb4b49B3844230354d45C779F74",
+  );
+  const tokenId = 1n;
+  const weight = 100n;
+  const timestamp = new Date(1000000 * 1000);
+  const blockNumber = 123456;
+  const transactionHash =
+    "0x133260f0f7bf0a06d262f09b064a35d3c63178c6b5fd8e4798ba780f357dc7bd";
+
+  function makePendingVoteContext(): {
+    context: handlerContext;
+    pendingVoteSets: PendingVote[];
+    warns: string[];
+  } {
+    const pendingVoteSets: PendingVote[] = [];
+    const warns: string[] = [];
+    const context = {
+      PendingVote: {
+        set: (pv: PendingVote) => {
+          pendingVoteSets.push(pv);
+        },
+      },
+      log: {
+        warn: (msg: unknown) => warns.push(String(msg)),
+        info: () => {},
+        error: () => {},
+      },
+    } as unknown as handlerContext;
+    return { context, pendingVoteSets, warns };
+  }
+
+  it("should call PendingVote.set with correct payload and log.warn for Voted", () => {
+    const { context, pendingVoteSets, warns } = makePendingVoteContext();
+
+    createPendingVoteForDeferredProcessing(
+      context,
+      chainId,
+      rootPoolAddress,
+      tokenId,
+      weight,
+      VoterEventType.VOTED,
+      timestamp,
+      blockNumber,
+      transactionHash,
+    );
+
+    expect(pendingVoteSets).toHaveLength(1);
+    const pv = pendingVoteSets[0];
+    expect(pv.id).toBe(
+      PendingVoteId(chainId, rootPoolAddress, tokenId, timestamp.getTime()),
+    );
+    expect(pv.chainId).toBe(chainId);
+    expect(pv.rootPoolAddress).toBe(rootPoolAddress);
+    expect(pv.tokenId).toBe(tokenId);
+    expect(pv.weight).toBe(weight);
+    expect(pv.eventType).toBe("Voted");
+    expect(pv.timestamp).toEqual(timestamp);
+    expect(pv.blockNumber).toBe(BigInt(blockNumber));
+    expect(pv.transactionHash).toBe(transactionHash);
+
+    expect(warns).toHaveLength(1);
+    expect(warns[0]).toContain("Vote deferred");
+    expect(warns[0]).toContain(rootPoolAddress);
+  });
+
+  it("should call PendingVote.set with correct payload and log.warn for Abstained", () => {
+    const { context, pendingVoteSets, warns } = makePendingVoteContext();
+
+    createPendingVoteForDeferredProcessing(
+      context,
+      chainId,
+      rootPoolAddress,
+      tokenId,
+      weight,
+      VoterEventType.ABSTAINED,
+      timestamp,
+      blockNumber,
+      transactionHash,
+    );
+
+    expect(pendingVoteSets).toHaveLength(1);
+    const pv = pendingVoteSets[0];
+    expect(pv.eventType).toBe("Abstained");
+
+    expect(warns).toHaveLength(1);
+    expect(warns[0]).toContain("Vote withdrawal deferred");
+    expect(warns[0]).toContain(rootPoolAddress);
   });
 });

@@ -5,7 +5,10 @@ import {
   FeeToTickSpacingMappingId,
   TokenId,
 } from "../Constants";
-import { processCLFactoryPoolCreated } from "./CLFactory/CLFactoryPoolCreatedLogic";
+import {
+  flushPendingRootPoolMappingAndVotes,
+  processCLFactoryPoolCreated,
+} from "./CLFactory/CLFactoryPoolCreatedLogic";
 import { processCLFactoryTickSpacingEnabled } from "./CLFactory/CLFactoryTickSpacingEnabledLogic";
 
 CLFactory.PoolCreated.contractRegister(({ event, context }) => {
@@ -47,6 +50,15 @@ CLFactory.PoolCreated.handler(async ({ event, context }) => {
 
   // For new pool creation, set the entity directly (updateLiquidityPoolAggregator is for updates, not creation)
   context.LiquidityPoolAggregator.set(result.liquidityPoolAggregator);
+
+  await flushPendingRootPoolMappingAndVotes(
+    context,
+    event.chainId,
+    event.params.token0,
+    event.params.token1,
+    event.params.tickSpacing,
+    event.params.pool,
+  );
 });
 
 CLFactory.TickSpacingEnabled.handler(async ({ event, context }) => {

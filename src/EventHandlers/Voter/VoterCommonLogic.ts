@@ -10,6 +10,7 @@ import {
 } from "../../Aggregators/LiquidityPoolAggregator";
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import type { VeNFTPoolVoteDiff } from "../../Aggregators/VeNFTPoolVote";
+import { PendingVoteId } from "../../Constants";
 import { getTokensDeposited } from "../../Effects/Index";
 import { normalizeTokenAmountTo1e18 } from "../../Helpers";
 import { multiplyBase1e18 } from "../../Maths";
@@ -165,4 +166,51 @@ export function computeVoterRelatedEntitiesDiff(
     userStatsPerPoolDiff,
     veNFTPoolVoteDiff,
   };
+}
+
+/**
+ * Creates a PendingVote entity and logs a warning when a vote/abstain cannot be
+ * applied because the RootPool_LeafPool mapping does not exist yet. Used by
+ * Voted and Abstained handlers to defer processing until the mapping is created.
+ * @param context - The handler context
+ * @param chainId - The chain ID
+ * @param rootPoolAddress - The root pool address
+ * @param tokenId - The token ID
+ * @param weight - The weight of the vote
+ * @param eventType - The type of event (VOTED or ABSTAINED)
+ * @param timestamp - The timestamp of the event
+ * @param blockNumber - The block number of the event
+ * @param transactionHash - The transaction hash of the event
+ * @returns void
+ */
+export function createPendingVoteForDeferredProcessing(
+  context: handlerContext,
+  chainId: number,
+  rootPoolAddress: string,
+  tokenId: bigint,
+  weight: bigint,
+  eventType: VoterEventType,
+  timestamp: Date,
+  blockNumber: number,
+  transactionHash: string,
+): void {
+  const timestampMs = timestamp.getTime();
+  context.PendingVote.set({
+    id: PendingVoteId(chainId, rootPoolAddress, tokenId, timestampMs),
+    chainId,
+    rootPoolAddress,
+    tokenId,
+    weight,
+    eventType,
+    timestamp,
+    blockNumber: BigInt(blockNumber),
+    transactionHash,
+  });
+  const action =
+    eventType === VoterEventType.VOTED
+      ? "Vote deferred"
+      : "Vote withdrawal deferred";
+  context.log.warn(
+    `[Voter.${eventType}] ${action} for rootPool ${rootPoolAddress} (chainId ${chainId}): RootPool_LeafPool mapping not found. PendingVote stored for later processing.`,
+  );
 }
