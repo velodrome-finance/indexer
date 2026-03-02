@@ -557,6 +557,31 @@ type RootPool_LeafPool {
   leafPoolAddress: String! # Actual real pool that is deployed on leaf chain
 }
 
+# Deferred vote: stored when Voted/Abstained fires but RootPool_LeafPool mapping does not exist yet
+type PendingVote {
+  id: ID! # Format: {chainId}-{rootPoolAddress}-{tokenId}-{txHash}-{logIndex}
+  chainId: Int! # Chain ID for which the vote was intended
+  rootPoolAddress: String! @index # Address of the root pool being voted on
+  tokenId: BigInt! @config(precision: 76) # veNFT Token ID that cast the vote
+  weight: BigInt! @config(precision: 76) # Weight of the vote in veToken units
+  eventType: String! # "Voted" | "Abstained"
+  timestamp: Timestamp! # Timestamp when the vote event occurred
+  blockNumber: BigInt! @config(precision: 76) # Block number in which the vote was submitted
+  transactionHash: String! # Transaction hash of the vote event
+}
+
+# Deferred RootPool->LeafPool mapping: stored when RootPoolCreated fires but no LiquidityPoolAggregator exists yet
+type PendingRootPoolMapping {
+  id: ID! # Format: {rootChainId}-{rootPoolAddress}
+  rootChainId: Int! # Chain ID where the root pool exists (typically Optimism)
+  rootPoolAddress: String! # Address of the root pool (matches RootPool_LeafPool)
+  leafChainId: Int! # Chain ID where the leaf pool will be created
+  token0: String! # Address of token0 in the root/leaf pool
+  token1: String! # Address of token1 in the root/leaf pool
+  tickSpacing: BigInt! @config(precision: 24) # Tick spacing assigned for the pool
+  rootPoolMatchingHash: String! @index # {leafChainId}_{token0}_{token1}_{tickSpacing}  # Used for quick matching in LiquidityPoolAggregator
+}
+
 # Should be updated by TickSpacingEnabled event emitted by CLFactory contract
 # It allows to initialise currentFee field for all CLPools
 # CLPool fees can then be modified by either CustomSwapFeeModule or DynamicSwapFeeModule

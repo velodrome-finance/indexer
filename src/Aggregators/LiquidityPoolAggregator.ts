@@ -99,6 +99,39 @@ export interface PoolData {
   liquidityPoolAggregator: LiquidityPoolAggregator;
 }
 
+export enum LoadPoolDataOrRootCLPoolFailureReason {
+  MAPPING_NOT_FOUND = "MAPPING_NOT_FOUND",
+  MULTIPLE_MAPPINGS = "MULTIPLE_MAPPINGS",
+  LEAF_POOL_NOT_FOUND = "LEAF_POOL_NOT_FOUND",
+}
+
+export type LoadPoolDataOrRootCLPoolResult =
+  | { ok: true; poolData: PoolData }
+  | {
+      ok: false;
+      reason: LoadPoolDataOrRootCLPoolFailureReason.MAPPING_NOT_FOUND;
+    }
+  | {
+      ok: false;
+      reason: LoadPoolDataOrRootCLPoolFailureReason.MULTIPLE_MAPPINGS;
+    }
+  | {
+      ok: false;
+      reason: LoadPoolDataOrRootCLPoolFailureReason.LEAF_POOL_NOT_FOUND;
+    };
+
+export function isMissingRootPoolMapping(
+  result: LoadPoolDataOrRootCLPoolResult,
+): result is {
+  ok: false;
+  reason: LoadPoolDataOrRootCLPoolFailureReason.MAPPING_NOT_FOUND;
+} {
+  return (
+    !result.ok &&
+    result.reason === LoadPoolDataOrRootCLPoolFailureReason.MAPPING_NOT_FOUND
+  );
+}
+
 /**
  * Update the dynamic fee pools data from the swap module.
  * @param liquidityPoolAggregator
@@ -444,7 +477,7 @@ export async function loadPoolData(
  * @param context - The handler context
  * @param blockNumber - Optional block number for price refresh
  * @param blockTimestamp - Optional block timestamp for price refresh
- * @returns Pool data (either direct or from leaf pool) or null if not found
+ * @returns Discriminated result: ok + poolData, or ok false with reason (MAPPING_NOT_FOUND, MULTIPLE_MAPPINGS, LEAF_POOL_NOT_FOUND)
  */
 export async function loadPoolDataOrRootCLPool(
   poolAddress: string,
@@ -452,7 +485,7 @@ export async function loadPoolDataOrRootCLPool(
   context: handlerContext,
   blockNumber?: number,
   blockTimestamp?: number,
-): Promise<PoolData | null> {
+): Promise<LoadPoolDataOrRootCLPoolResult> {
   const poolData = await loadPoolData(
     poolAddress,
     chainId,
@@ -462,7 +495,7 @@ export async function loadPoolDataOrRootCLPool(
   );
 
   if (poolData) {
-    return poolData;
+    return { ok: true, poolData };
   }
 
   context.log.warn(
@@ -474,11 +507,21 @@ export async function loadPoolDataOrRootCLPool(
       rootPoolAddress: { _eq: poolAddress },
     })) ?? [];
 
+  if (rootPoolLeafPools.length === 0) {
+    return {
+      ok: false,
+      reason: LoadPoolDataOrRootCLPoolFailureReason.MAPPING_NOT_FOUND,
+    };
+  }
+
   if (rootPoolLeafPools.length !== 1) {
     context.log.error(
       `Expected exactly one RootPool_LeafPool for pool ${poolAddress} on chain ${chainId}`,
     );
-    return null;
+    return {
+      ok: false,
+      reason: LoadPoolDataOrRootCLPoolFailureReason.MULTIPLE_MAPPINGS,
+    };
   }
 
   const rootPoolLeafPool = rootPoolLeafPools[0];
@@ -496,10 +539,13 @@ export async function loadPoolDataOrRootCLPool(
     context.log.error(
       `Leaf pool data not found for pool ${leafPoolAddress} on chain ${leafChainId}`,
     );
-    return null;
+    return {
+      ok: false,
+      reason: LoadPoolDataOrRootCLPoolFailureReason.LEAF_POOL_NOT_FOUND,
+    };
   }
 
-  return leafPoolData;
+  return { ok: true, poolData: leafPoolData };
 }
 
 /**

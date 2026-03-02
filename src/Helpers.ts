@@ -14,6 +14,34 @@ import { TEN_TO_THE_18_BI } from "./Constants";
 import { multiplyBase1e18 } from "./Maths";
 import { refreshTokenPrice } from "./PriceOracle";
 
+/**
+ * Normalises an unknown value to an error message string.
+ * @param err - The unknown value to normalize
+ * @returns The error message string
+ */
+export function getErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * Logs an error via context. If err is provided, appends ": " + getErrorMessage(err) to the message.
+ * @param context - The handler context
+ * @param message - The message to log
+ * @param err - The unknown value to log
+ * @returns void
+ */
+export function logContextError(
+  context: handlerContext,
+  message: string,
+  err?: unknown,
+): void {
+  if (err !== undefined) {
+    context.log.error(`${message}: ${getErrorMessage(err)}`);
+  } else {
+    context.log.error(message);
+  }
+}
+
 // Helper function to normalize token amounts to 1e18
 export const normalizeTokenAmountTo1e18 = (
   amount: bigint,

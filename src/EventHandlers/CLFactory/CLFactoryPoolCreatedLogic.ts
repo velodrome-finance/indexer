@@ -7,8 +7,10 @@ import type {
   handlerContext,
 } from "generated";
 import { createLiquidityPoolAggregatorEntity } from "../../Aggregators/LiquidityPoolAggregator";
+import { RootPoolLeafPoolId, rootPoolMatchingHash } from "../../Constants";
 import type { TokenEntityMapping } from "../../CustomTypes";
 import { createTokenEntity } from "../../PriceOracle";
+import { processAllPendingVotesForRootPool } from "../Voter/PendingVoteProcessing";
 
 export interface CLFactoryPoolCreatedResult {
   liquidityPoolAggregator: LiquidityPoolAggregator;
@@ -79,5 +81,66 @@ export async function processCLFactoryPoolCreated(
     context.log.error(`Error processing CLFactory PoolCreated: ${error}`);
     // Re-throw to let the caller handle it
     throw error;
+  }
+}
+
+/**
+ * If a PendingRootPoolMapping exists for this leaf pool's (token0, token1, tickSpacing),
+ * creates the RootPool_LeafPool mapping, deletes the pending mapping, and flushes any
+ * pending votes for that root pool.
+ * @param context - The handler context
+ * @param leafChainId - The chain ID of the leaf pool
+ * @param token0 - The address of token0
+ * @param token1 - The address of token1
+ * @param tickSpacing - The tick spacing of the pool
+ * @param leafPoolAddress - The address of the leaf pool
+ * @returns void
+ */
+export async function flushPendingRootPoolMappingAndVotes(
+  context: handlerContext,
+  leafChainId: number,
+  token0: string,
+  token1: string,
+  tickSpacing: bigint | number,
+  leafPoolAddress: string,
+): Promise<void> {
+  const hash = rootPoolMatchingHash(leafChainId, token0, token1, tickSpacing);
+  const pendingMappings =
+    (await context.PendingRootPoolMapping.getWhere({
+      rootPoolMatchingHash: { _eq: hash },
+    })) ?? [];
+  if (pendingMappings.length === 0) {
+    context.log.info(
+      `[flushPendingRootPoolMappingAndVotes] No PendingRootPoolMapping for rootPoolMatchingHash ${hash}.`,
+    );
+    return;
+  }
+
+  if (pendingMappings.length > 1) {
+    context.log.warn(
+      `[flushPendingRootPoolMappingAndVotes] Multiple PendingRootPoolMapping entries for rootPoolMatchingHash ${hash}. Processing first only.`,
+    );
+  }
+
+  const pending = pendingMappings[0];
+  context.RootPool_LeafPool.set({
+    id: RootPoolLeafPoolId(
+      pending.rootChainId,
+      leafChainId,
+      pending.rootPoolAddress,
+      leafPoolAddress,
+    ),
+    rootChainId: pending.rootChainId,
+    rootPoolAddress: pending.rootPoolAddress,
+    leafChainId,
+    leafPoolAddress,
+  });
+  context.PendingRootPoolMapping.deleteUnsafe(pending.id);
+  try {
+    await processAllPendingVotesForRootPool(context, pending.rootPoolAddress);
+  } catch (error) {
+    context.log.error(
+      `[flushPendingRootPoolMappingAndVotes] processAllPendingVotesForRootPool failed for rootPoolAddress ${pending.rootPoolAddress}: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 }

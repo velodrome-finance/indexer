@@ -6,16 +6,23 @@ import type {
   VeNFTPoolVote,
   VeNFTState,
 } from "generated";
-import { MockDb, Voter } from "generated/src/TestHelpers.gen";
+import {
+  MockDb,
+  RootCLPoolFactory,
+  Voter,
+} from "generated/src/TestHelpers.gen";
 import * as LiquidityPoolAggregatorModule from "../../../src/Aggregators/LiquidityPoolAggregator";
 import {
   CHAIN_CONSTANTS,
+  PendingRootPoolMappingId,
+  PendingVoteId,
   PoolId,
   RootPoolLeafPoolId,
   TokenId,
   UserStatsPerPoolId,
   VeNFTId,
   VeNFTPoolVoteId,
+  rootPoolMatchingHash,
   toChecksumAddress,
 } from "../../../src/Constants";
 import { getTokensDeposited } from "../../../src/Effects/Voter";
@@ -168,6 +175,36 @@ describe("Voter Events", () => {
       });
     });
 
+    describe("when pool data exists but VeNFTState is missing", () => {
+      it("should return early without updating pool or creating vote entities", async () => {
+        const { mockLiquidityPoolData, mockToken0Data, mockToken1Data } =
+          setupCommon();
+        const poolWithZeroStaked = {
+          ...mockLiquidityPoolData,
+          id: PoolId(chainId, poolAddress),
+          chainId,
+          veNFTamountStaked: 0n,
+        } as LiquidityPoolAggregator;
+        let db = MockDb.createMockDb();
+        db = db.entities.LiquidityPoolAggregator.set(poolWithZeroStaked);
+        db = db.entities.Token.set(mockToken0Data);
+        db = db.entities.Token.set(mockToken1Data);
+
+        const resultDB = await db.processEvents([mockEvent]);
+
+        const pool = resultDB.entities.LiquidityPoolAggregator.get(
+          PoolId(chainId, poolAddress),
+        );
+        expect(pool?.veNFTamountStaked).toBe(0n);
+        expect(
+          Array.from(resultDB.entities.UserStatsPerPool.getAll()),
+        ).toHaveLength(0);
+        expect(
+          Array.from(resultDB.entities.VeNFTPoolVote.getAll()),
+        ).toHaveLength(0);
+      });
+    });
+
     describe("when pool data does not exist", () => {
       it("should return early without creating pool entities", async () => {
         const resultDB = await mockDb.processEvents([mockEvent]);
@@ -181,6 +218,526 @@ describe("Voter Events", () => {
         ).toHaveLength(0);
         expect(
           Array.from(resultDB.entities.VeNFTPoolVote.getAll()),
+        ).toHaveLength(0);
+      });
+    });
+
+    describe("when RootPool_LeafPool mapping is missing", () => {
+      const rootPoolAddress = toChecksumAddress(
+        "0xC4Cbb0ba3c902Fb4b49B3844230354d45C779F74",
+      );
+      const blockTimestamp = 1000000;
+      const blockNumber = 123456;
+      const txHash =
+        "0x133260f0f7bf0a06d262f09b064a35d3c63178c6b5fd8e4798ba780f357dc7bd";
+      const rootChainId = 10;
+      const leafChainId = 252;
+      const token0 = toChecksumAddress(
+        "0xFc00000000000000000000000000000000000001",
+      );
+      const token1 = toChecksumAddress(
+        "0xFC00000000000000000000000000000000000006",
+      );
+      const tickSpacing = 100n;
+      const makePendingMapping = () => ({
+        id: PendingRootPoolMappingId(rootChainId, rootPoolAddress),
+        rootChainId,
+        rootPoolAddress,
+        leafChainId,
+        token0,
+        token1,
+        tickSpacing,
+        rootPoolMatchingHash: rootPoolMatchingHash(
+          leafChainId,
+          token0,
+          token1,
+          tickSpacing,
+        ),
+      });
+
+      it("should create PendingVote for Voted and not update pool entities", async () => {
+        const { createMockVeNFTState } = setupCommon();
+        const mockVeNFTState = createMockVeNFTState({
+          id: VeNFTId(chainId, tokenId),
+          chainId,
+          tokenId,
+          owner: ownerAddress,
+        });
+        // Cross-chain: root pool has PendingRootPoolMapping but no leaf yet -> MAPPING_NOT_FOUND -> create PendingVote
+        mockDb = mockDb.entities.VeNFTState.set(mockVeNFTState);
+        mockDb = mockDb.entities.PendingRootPoolMapping.set(
+          makePendingMapping(),
+        );
+        mockEvent = Voter.Voted.createMockEvent({
+          voter: voterAddress,
+          pool: rootPoolAddress,
+          tokenId,
+          weight: 100n,
+          totalWeight: 1000n,
+          mockEventData: {
+            block: {
+              number: blockNumber,
+              timestamp: blockTimestamp,
+              hash: txHash,
+            },
+            chainId,
+            logIndex: 1,
+            transaction: { hash: txHash },
+          },
+        });
+
+        const resultDB = await mockDb.processEvents([mockEvent]);
+
+        const expectedPendingId = PendingVoteId(
+          chainId,
+          rootPoolAddress,
+          tokenId,
+          txHash,
+          1,
+        );
+        const pendingVote =
+          resultDB.entities.PendingVote.get(expectedPendingId);
+        expect(pendingVote).toBeDefined();
+        expect(pendingVote?.rootPoolAddress).toBe(rootPoolAddress);
+        expect(pendingVote?.tokenId).toBe(tokenId);
+        expect(pendingVote?.weight).toBe(100n);
+        expect(pendingVote?.eventType).toBe("Voted");
+        expect(pendingVote?.blockNumber).toBe(BigInt(blockNumber));
+        expect(pendingVote?.transactionHash).toBe(txHash);
+
+        expect(
+          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
+        ).toHaveLength(0);
+        expect(
+          Array.from(resultDB.entities.UserStatsPerPool.getAll()),
+        ).toHaveLength(0);
+        expect(
+          Array.from(resultDB.entities.VeNFTPoolVote.getAll()),
+        ).toHaveLength(0);
+      });
+
+      it("should create PendingVote for Abstained and not update pool entities", async () => {
+        const { createMockVeNFTState } = setupCommon();
+        const mockVeNFTState = createMockVeNFTState({
+          id: VeNFTId(chainId, tokenId),
+          chainId,
+          tokenId,
+          owner: ownerAddress,
+        });
+        mockDb = mockDb.entities.VeNFTState.set(mockVeNFTState);
+        mockDb = mockDb.entities.PendingRootPoolMapping.set(
+          makePendingMapping(),
+        );
+        const abstainedEvent = Voter.Abstained.createMockEvent({
+          voter: voterAddress,
+          pool: rootPoolAddress,
+          tokenId,
+          weight: 100n,
+          totalWeight: 1000n,
+          mockEventData: {
+            block: {
+              number: blockNumber,
+              timestamp: blockTimestamp,
+              hash: txHash,
+            },
+            chainId,
+            logIndex: 1,
+            transaction: { hash: txHash },
+          },
+        });
+
+        const resultDB = await mockDb.processEvents([abstainedEvent]);
+
+        const expectedPendingId = PendingVoteId(
+          chainId,
+          rootPoolAddress,
+          tokenId,
+          txHash,
+          1,
+        );
+        const pendingVote =
+          resultDB.entities.PendingVote.get(expectedPendingId);
+        expect(pendingVote).toBeDefined();
+        expect(pendingVote?.eventType).toBe("Abstained");
+        expect(pendingVote?.weight).toBe(100n);
+
+        expect(
+          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
+        ).toHaveLength(0);
+        expect(
+          Array.from(resultDB.entities.UserStatsPerPool.getAll()),
+        ).toHaveLength(0);
+        expect(
+          Array.from(resultDB.entities.VeNFTPoolVote.getAll()),
+        ).toHaveLength(0);
+      });
+
+      it("should not create PendingVote for Voted when RootPool_LeafPool mapping is missing and veNFTState is missing", async () => {
+        // Deferred path: missing root pool mapping. No VeNFTState in DB -> must not create PendingVote.
+        mockDb = mockDb.entities.PendingRootPoolMapping.set(
+          makePendingMapping(),
+        );
+        mockEvent = Voter.Voted.createMockEvent({
+          voter: voterAddress,
+          pool: rootPoolAddress,
+          tokenId,
+          weight: 100n,
+          totalWeight: 1000n,
+          mockEventData: {
+            block: {
+              number: blockNumber,
+              timestamp: blockTimestamp,
+              hash: txHash,
+            },
+            chainId,
+            logIndex: 1,
+            transaction: { hash: txHash },
+          },
+        });
+
+        const resultDB = await mockDb.processEvents([mockEvent]);
+
+        const expectedPendingId = PendingVoteId(
+          chainId,
+          rootPoolAddress,
+          tokenId,
+          txHash,
+          1,
+        );
+        const pendingVote =
+          resultDB.entities.PendingVote.get(expectedPendingId);
+        expect(pendingVote).toBeUndefined();
+        expect(Array.from(resultDB.entities.PendingVote.getAll())).toHaveLength(
+          0,
+        );
+        expect(
+          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
+        ).toHaveLength(0);
+        expect(
+          Array.from(resultDB.entities.UserStatsPerPool.getAll()),
+        ).toHaveLength(0);
+        expect(
+          Array.from(resultDB.entities.VeNFTPoolVote.getAll()),
+        ).toHaveLength(0);
+      });
+
+      it("should not create PendingVote for Abstained when RootPool_LeafPool mapping is missing and veNFTState is missing", async () => {
+        // Deferred path: missing root pool mapping. No VeNFTState in DB -> must not create PendingVote.
+        mockDb = mockDb.entities.PendingRootPoolMapping.set(
+          makePendingMapping(),
+        );
+        const abstainedEvent = Voter.Abstained.createMockEvent({
+          voter: voterAddress,
+          pool: rootPoolAddress,
+          tokenId,
+          weight: 100n,
+          totalWeight: 1000n,
+          mockEventData: {
+            block: {
+              number: blockNumber,
+              timestamp: blockTimestamp,
+              hash: txHash,
+            },
+            chainId,
+            logIndex: 1,
+            transaction: { hash: txHash },
+          },
+        });
+
+        const resultDB = await mockDb.processEvents([abstainedEvent]);
+
+        const expectedPendingId = PendingVoteId(
+          chainId,
+          rootPoolAddress,
+          tokenId,
+          txHash,
+          1,
+        );
+        const pendingVote =
+          resultDB.entities.PendingVote.get(expectedPendingId);
+        expect(pendingVote).toBeUndefined();
+        expect(Array.from(resultDB.entities.PendingVote.getAll())).toHaveLength(
+          0,
+        );
+        expect(
+          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
+        ).toHaveLength(0);
+        expect(
+          Array.from(resultDB.entities.UserStatsPerPool.getAll()),
+        ).toHaveLength(0);
+        expect(
+          Array.from(resultDB.entities.VeNFTPoolVote.getAll()),
+        ).toHaveLength(0);
+      });
+    });
+
+    describe("cross-chain sync: RootPoolCreated then Voted/Abstained (leaf chain behind)", () => {
+      const rootChainId = 10;
+      const leafChainId = 252;
+      const rootPoolAddress = toChecksumAddress(
+        "0xC4Cbb0ba3c902Fb4b49B3844230354d45C779F74",
+      );
+      const token0 = toChecksumAddress(
+        "0xFc00000000000000000000000000000000000001",
+      );
+      const token1 = toChecksumAddress(
+        "0xFC00000000000000000000000000000000000006",
+      );
+      const tickSpacing = BigInt(100);
+      const voteTokenId = 1n;
+      const voteWeight = 100n;
+      const totalWeight = 1000n;
+      const blockTimestamp = 1000000;
+      const blockNumber = 123456;
+      const txHash =
+        "0x133260f0f7bf0a06d262f09b064a35d3c63178c6b5fd8e4798ba780f357dc7bd";
+
+      it("should create PendingRootPoolMapping and PendingVote when RootPoolCreated then Voted (no leaf pool yet)", async () => {
+        const { createMockVeNFTState } = setupCommon();
+        const mockVeNFTState = createMockVeNFTState({
+          id: VeNFTId(rootChainId, voteTokenId),
+          chainId: rootChainId,
+          tokenId: voteTokenId,
+          owner: ownerAddress,
+        });
+        let db = MockDb.createMockDb();
+        db = db.entities.VeNFTState.set(mockVeNFTState);
+
+        const rootPoolCreatedEvent =
+          RootCLPoolFactory.RootPoolCreated.createMockEvent({
+            token0,
+            token1,
+            tickSpacing,
+            chainid: BigInt(leafChainId),
+            pool: rootPoolAddress,
+            mockEventData: {
+              block: {
+                timestamp: blockTimestamp,
+                number: blockNumber,
+                hash: txHash,
+              },
+              chainId: rootChainId,
+              logIndex: 1,
+            },
+          });
+        const votedEvent = Voter.Voted.createMockEvent({
+          voter: voterAddress,
+          pool: rootPoolAddress,
+          tokenId: voteTokenId,
+          weight: voteWeight,
+          totalWeight,
+          mockEventData: {
+            block: {
+              number: blockNumber,
+              timestamp: blockTimestamp,
+              hash: txHash,
+            },
+            chainId: rootChainId,
+            logIndex: 2,
+            transaction: { hash: txHash },
+          },
+        });
+
+        const resultDB = await db.processEvents([
+          rootPoolCreatedEvent,
+          votedEvent,
+        ]);
+
+        const pendingMapping = resultDB.entities.PendingRootPoolMapping.get(
+          PendingRootPoolMappingId(rootChainId, rootPoolAddress),
+        );
+        expect(pendingMapping).toBeDefined();
+        expect(pendingMapping?.rootPoolAddress).toBe(rootPoolAddress);
+        expect(pendingMapping?.rootChainId).toBe(rootChainId);
+        expect(pendingMapping?.leafChainId).toBe(leafChainId);
+        expect(pendingMapping?.token0).toBe(token0);
+        expect(pendingMapping?.token1).toBe(token1);
+        expect(pendingMapping?.tickSpacing).toBe(tickSpacing);
+        expect(pendingMapping?.rootPoolMatchingHash).toBe(
+          rootPoolMatchingHash(leafChainId, token0, token1, tickSpacing),
+        );
+
+        const expectedPendingVoteId = PendingVoteId(
+          rootChainId,
+          rootPoolAddress,
+          voteTokenId,
+          txHash,
+          2,
+        );
+        const pendingVote = resultDB.entities.PendingVote.get(
+          expectedPendingVoteId,
+        );
+        expect(pendingVote).toBeDefined();
+        expect(pendingVote?.rootPoolAddress).toBe(rootPoolAddress);
+        expect(pendingVote?.eventType).toBe("Voted");
+        expect(pendingVote?.weight).toBe(voteWeight);
+
+        expect(
+          Array.from(resultDB.entities.RootPool_LeafPool.getAll()),
+        ).toHaveLength(0);
+        expect(
+          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
+        ).toHaveLength(0);
+      });
+
+      it("should create PendingRootPoolMapping and PendingVote when RootPoolCreated then Abstained (no leaf pool yet)", async () => {
+        const { createMockVeNFTState } = setupCommon();
+        const mockVeNFTState = createMockVeNFTState({
+          id: VeNFTId(rootChainId, voteTokenId),
+          chainId: rootChainId,
+          tokenId: voteTokenId,
+          owner: ownerAddress,
+        });
+        let db = MockDb.createMockDb();
+        db = db.entities.VeNFTState.set(mockVeNFTState);
+
+        const rootPoolCreatedEvent =
+          RootCLPoolFactory.RootPoolCreated.createMockEvent({
+            token0,
+            token1,
+            tickSpacing,
+            chainid: BigInt(leafChainId),
+            pool: rootPoolAddress,
+            mockEventData: {
+              block: {
+                timestamp: blockTimestamp,
+                number: blockNumber,
+                hash: txHash,
+              },
+              chainId: rootChainId,
+              logIndex: 1,
+            },
+          });
+        const abstainedEvent = Voter.Abstained.createMockEvent({
+          voter: voterAddress,
+          pool: rootPoolAddress,
+          tokenId: voteTokenId,
+          weight: voteWeight,
+          totalWeight,
+          mockEventData: {
+            block: {
+              number: blockNumber,
+              timestamp: blockTimestamp,
+              hash: txHash,
+            },
+            chainId: rootChainId,
+            logIndex: 2,
+            transaction: { hash: txHash },
+          },
+        });
+
+        const resultDB = await db.processEvents([
+          rootPoolCreatedEvent,
+          abstainedEvent,
+        ]);
+
+        const pendingMapping = resultDB.entities.PendingRootPoolMapping.get(
+          PendingRootPoolMappingId(rootChainId, rootPoolAddress),
+        );
+        expect(pendingMapping).toBeDefined();
+
+        const expectedPendingVoteId = PendingVoteId(
+          rootChainId,
+          rootPoolAddress,
+          voteTokenId,
+          txHash,
+          2,
+        );
+        const pendingVote = resultDB.entities.PendingVote.get(
+          expectedPendingVoteId,
+        );
+        expect(pendingVote).toBeDefined();
+        expect(pendingVote?.eventType).toBe("Abstained");
+
+        expect(
+          Array.from(resultDB.entities.RootPool_LeafPool.getAll()),
+        ).toHaveLength(0);
+      });
+    });
+
+    describe("Voted processed before RootPoolCreated (sync order edge case)", () => {
+      const rootChainId = 10;
+      const leafChainId = 252;
+      const rootPoolAddress = toChecksumAddress(
+        "0xC4Cbb0ba3c902Fb4b49B3844230354d45C779F74",
+      );
+      const token0 = toChecksumAddress(
+        "0xFc00000000000000000000000000000000000001",
+      );
+      const token1 = toChecksumAddress(
+        "0xFC00000000000000000000000000000000000006",
+      );
+      const tickSpacing = BigInt(100);
+      const voteTokenId = 1n;
+      const blockTimestamp = 1000000;
+      const blockNumber = 123456;
+      const txHash =
+        "0x133260f0f7bf0a06d262f09b064a35d3c63178c6b5fd8e4798ba780f357dc7bd";
+
+      it("should create PendingVote when Voted is processed before RootPoolCreated (PendingRootPoolMapping created by second event)", async () => {
+        const { createMockVeNFTState } = setupCommon();
+        const mockVeNFTState = createMockVeNFTState({
+          id: VeNFTId(rootChainId, voteTokenId),
+          chainId: rootChainId,
+          tokenId: voteTokenId,
+          owner: ownerAddress,
+        });
+        let db = MockDb.createMockDb();
+        db = db.entities.VeNFTState.set(mockVeNFTState);
+
+        const votedEvent = Voter.Voted.createMockEvent({
+          voter: voterAddress,
+          pool: rootPoolAddress,
+          tokenId: voteTokenId,
+          weight: 100n,
+          totalWeight: 1000n,
+          mockEventData: {
+            block: {
+              number: blockNumber,
+              timestamp: blockTimestamp,
+              hash: txHash,
+            },
+            chainId: rootChainId,
+            logIndex: 1,
+            transaction: { hash: txHash },
+          },
+        });
+        const rootPoolCreatedEvent =
+          RootCLPoolFactory.RootPoolCreated.createMockEvent({
+            token0,
+            token1,
+            tickSpacing,
+            chainid: BigInt(leafChainId),
+            pool: rootPoolAddress,
+            mockEventData: {
+              block: {
+                timestamp: blockTimestamp + 1,
+                number: blockNumber + 1,
+                hash: txHash,
+              },
+              chainId: rootChainId,
+              logIndex: 2,
+            },
+          });
+
+        const resultDB = await db.processEvents([
+          votedEvent,
+          rootPoolCreatedEvent,
+        ]);
+
+        // create PendingVote whenever mapping is missing; RootPoolCreated then adds PendingRootPoolMapping
+        expect(Array.from(resultDB.entities.PendingVote.getAll())).toHaveLength(
+          1,
+        );
+
+        const pendingMapping = resultDB.entities.PendingRootPoolMapping.get(
+          PendingRootPoolMappingId(rootChainId, rootPoolAddress),
+        );
+        expect(pendingMapping).toBeDefined();
+        expect(pendingMapping?.rootPoolAddress).toBe(rootPoolAddress);
+
+        expect(
+          Array.from(resultDB.entities.RootPool_LeafPool.getAll()),
         ).toHaveLength(0);
       });
     });
@@ -551,6 +1108,36 @@ describe("Voter Events", () => {
           resultDB.entities.VeNFTPoolVote.get(veNFTPoolVoteId);
         expect(veNFTPoolVote).toBeDefined();
         expect(veNFTPoolVote?.veNFTamountStaked).toBe(100n); // 200n - 100n
+      });
+    });
+
+    describe("when pool data exists but VeNFTState is missing", () => {
+      it("should return early without updating pool or creating vote entities", async () => {
+        const { mockLiquidityPoolData, mockToken0Data, mockToken1Data } =
+          setupCommon();
+        const poolWithStaked = {
+          ...mockLiquidityPoolData,
+          id: PoolId(chainId, poolAddress),
+          chainId,
+          veNFTamountStaked: 1000n,
+        } as LiquidityPoolAggregator;
+        let db = MockDb.createMockDb();
+        db = db.entities.LiquidityPoolAggregator.set(poolWithStaked);
+        db = db.entities.Token.set(mockToken0Data);
+        db = db.entities.Token.set(mockToken1Data);
+
+        const resultDB = await db.processEvents([mockEvent]);
+
+        const pool = resultDB.entities.LiquidityPoolAggregator.get(
+          PoolId(chainId, poolAddress),
+        );
+        expect(pool?.veNFTamountStaked).toBe(1000n);
+        expect(
+          Array.from(resultDB.entities.UserStatsPerPool.getAll()),
+        ).toHaveLength(0);
+        expect(
+          Array.from(resultDB.entities.VeNFTPoolVote.getAll()),
+        ).toHaveLength(0);
       });
     });
 

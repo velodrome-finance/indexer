@@ -681,6 +681,39 @@ export const RootPoolLeafPoolId = (
   leafPoolAddress: string,
 ) => `${rootChainId}-${leafChainId}-${rootPoolAddress}-${leafPoolAddress}`;
 
+/** Entity ID for PendingVote. Format: {chainId}-{rootPoolAddress}-{tokenId}-{txHash}-{logIndex}
+ * @param chainId - Chain ID where the vote occurred
+ * @param rootPoolAddress - Root pool address
+ * @param tokenId - veNFT token ID
+ * @param transactionHash - Transaction hash of the vote event (for uniqueness)
+ * @param logIndex - Log index of the event (for uniqueness within same tx)
+ */
+export const PendingVoteId = (
+  chainId: number,
+  rootPoolAddress: string,
+  tokenId: bigint,
+  transactionHash: string,
+  logIndex: number,
+) => `${chainId}-${rootPoolAddress}-${tokenId}-${transactionHash}-${logIndex}`;
+
+/** Entity ID for PendingRootPoolMapping. Format: {rootChainId}-{rootPoolAddress}
+ * @param rootChainId - Root chain ID
+ * @param rootPoolAddress - Root pool address
+ */
+export const PendingRootPoolMappingId = (
+  rootChainId: number,
+  rootPoolAddress: string,
+) => `${rootChainId}-${rootPoolAddress}`;
+
+/** rootPoolMatchingHash for cross-chain pool matching. Format: {leafChainId}_{token0}_{token1}_{tickSpacing}
+ */
+export const rootPoolMatchingHash = (
+  leafChainId: number,
+  token0: string,
+  token1: string,
+  tickSpacing: bigint | number,
+) => `${leafChainId}_${token0}_${token1}_${tickSpacing}`;
+
 /** Entity ID for FeeToTickSpacingMapping. Format: {chainId}-{tickSpacing}
  * @param chainId - Chain ID of the fee to tick spacing mapping
  * @param tickSpacing - Tick spacing value

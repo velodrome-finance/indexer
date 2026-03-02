@@ -13,6 +13,7 @@ import {
   toChecksumAddress,
 } from "../../src/Constants";
 import { getSwapFee } from "../../src/Effects/SwapFee";
+import * as PriceOracle from "../../src/PriceOracle";
 import { setLiquidityPoolAggregatorSnapshot } from "../../src/Snapshots/LiquidityPoolAggregatorSnapshot";
 import { getSnapshotEpoch } from "../../src/Snapshots/Shared";
 import { setupCommon } from "../EventHandlers/Pool/common";
@@ -741,6 +742,57 @@ describe("LiquidityPoolAggregator Functions", () => {
       expect(mockErrorLog).toHaveBeenCalled();
     });
 
+    it("should return original token0 and log error when token0 price refresh rejects", async () => {
+      const blockNumber = 1000000;
+      const blockTimestamp = Math.floor(Date.now() / 1000);
+      vi.spyOn(PriceOracle, "refreshTokenPrice")
+        .mockRejectedValueOnce(new Error("token0 refresh failed"))
+        .mockImplementation(async (t) => Promise.resolve({ ...t }));
+
+      const result = await loadPoolData(
+        poolAddress,
+        chainId,
+        mockContext as handlerContext,
+        blockNumber,
+        blockTimestamp,
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.token0Instance).toBe(token0);
+      const mockErrorLog = vi.mocked(mockContext.log?.error);
+      expect(mockErrorLog).toHaveBeenCalledWith(
+        expect.stringContaining("Error refreshing token0 price"),
+      );
+    });
+
+    it("should return original token1 and log error when token1 price refresh rejects", async () => {
+      const blockNumber = 1000000;
+      const blockTimestamp = Math.floor(Date.now() / 1000);
+      vi.spyOn(PriceOracle, "refreshTokenPrice").mockImplementation(
+        async (t) => {
+          if (t.address === token1.address) {
+            throw new Error("token1 refresh failed");
+          }
+          return Promise.resolve({ ...t });
+        },
+      );
+
+      const result = await loadPoolData(
+        poolAddress,
+        chainId,
+        mockContext as handlerContext,
+        blockNumber,
+        blockTimestamp,
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.token1Instance).toBe(token1);
+      const mockErrorLog = vi.mocked(mockContext.log?.error);
+      expect(mockErrorLog).toHaveBeenCalledWith(
+        expect.stringContaining("Error refreshing token1 price"),
+      );
+    });
+
     it("should return null when pool is not found", async () => {
       const mockLiquidityPoolGet = vi.mocked(
         mockContext.LiquidityPoolAggregator?.get,
@@ -847,10 +899,12 @@ describe("LiquidityPoolAggregator Functions", () => {
         mockContext as handlerContext,
       );
 
-      expect(result).not.toBeNull();
-      expect(result?.liquidityPoolAggregator.id).toBe(rootPoolId);
-      expect(result?.token0Instance).toBe(token0);
-      expect(result?.token1Instance).toBe(token1);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.poolData.liquidityPoolAggregator.id).toBe(rootPoolId);
+        expect(result.poolData.token0Instance).toBe(token0);
+        expect(result.poolData.token1Instance).toBe(token1);
+      }
 
       // Should not query RootPool_LeafPool when pool exists directly
       const mockRootPoolLeafPoolGetWhere = vi.mocked(
@@ -913,16 +967,20 @@ describe("LiquidityPoolAggregator Functions", () => {
         mockContext as handlerContext,
       );
 
-      expect(result).not.toBeNull();
-      expect(result?.liquidityPoolAggregator.id).toBe(leafPoolId);
-      expect(result?.liquidityPoolAggregator.chainId).toBe(leafChainId);
-      expect(result?.token0Instance).toBe(token0);
-      expect(result?.token1Instance).toBe(token1);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.poolData.liquidityPoolAggregator.id).toBe(leafPoolId);
+        expect(result.poolData.liquidityPoolAggregator.chainId).toBe(
+          leafChainId,
+        );
+        expect(result.poolData.token0Instance).toBe(token0);
+        expect(result.poolData.token1Instance).toBe(token1);
+      }
       expect(mockWarnLog).toHaveBeenCalled();
       expect(mockRootPoolLeafPoolGetWhere).toHaveBeenCalled();
     });
 
-    it("should return null when root pool not found and no RootPool_LeafPool exists", async () => {
+    it("should return MAPPING_NOT_FOUND when root pool not found and no RootPool_LeafPool exists", async () => {
       const mockLiquidityPoolGet = vi.mocked(
         mockContext.LiquidityPoolAggregator?.get,
       );
@@ -933,16 +991,16 @@ describe("LiquidityPoolAggregator Functions", () => {
       );
       mockRootPoolLeafPoolGetWhere?.mockResolvedValue([]);
 
-      const mockErrorLog = vi.mocked(mockContext.log?.error);
-
       const result = await loadPoolDataOrRootCLPool(
         rootPoolAddress,
         chainId,
         mockContext as handlerContext,
       );
 
-      expect(result).toBeNull();
-      expect(mockErrorLog).toHaveBeenCalled();
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.reason).toBe("MAPPING_NOT_FOUND");
+      }
     });
 
     it("should return null when multiple RootPool_LeafPool entries exist", async () => {
@@ -995,7 +1053,10 @@ describe("LiquidityPoolAggregator Functions", () => {
         mockContext as handlerContext,
       );
 
-      expect(result).toBeNull();
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.reason).toBe("MULTIPLE_MAPPINGS");
+      }
       expect(mockErrorLog).toHaveBeenCalled();
       // Check if any error call contains the expected message
       const errorMessages = mockErrorLog?.mock.calls.map((call) => call[0]);
@@ -1008,7 +1069,7 @@ describe("LiquidityPoolAggregator Functions", () => {
       ).toBe(true);
     });
 
-    it("should return null when leaf pool is not found", async () => {
+    it("should return LEAF_POOL_NOT_FOUND when leaf pool is not found", async () => {
       const leafChainId = 252;
       const rootPoolLeafPool = {
         id: RootPoolLeafPoolId(
@@ -1041,7 +1102,10 @@ describe("LiquidityPoolAggregator Functions", () => {
         mockContext as handlerContext,
       );
 
-      expect(result).toBeNull();
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.reason).toBe("LEAF_POOL_NOT_FOUND");
+      }
       expect(mockErrorLog).toHaveBeenCalled();
       // Check if any error call contains the expected message
       const errorMessages = mockErrorLog?.mock.calls.map((call) => call[0]);

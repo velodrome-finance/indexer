@@ -12,6 +12,7 @@ import {
   toChecksumAddress,
 } from "../../src/Constants";
 import * as HelpersModule from "../../src/Effects/Helpers";
+import * as PendingVoteProcessing from "../../src/EventHandlers/Voter/PendingVoteProcessing";
 import * as PriceOracle from "../../src/PriceOracle";
 import { mutateChainConstants } from "../testHelpers";
 import { setupCommon } from "./Pool/common";
@@ -90,6 +91,35 @@ describe("PoolFactory Events", () => {
       expect(mockPriceOracle).toHaveBeenCalled();
       // Handlers may run multiple times (preload + normal), so check if called at least twice (once per token)
       expect(mockPriceOracle.mock.calls.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it("should continue when createTokenEntity rejects for one token", async () => {
+      mockPriceOracle.mockImplementation(async (address: string) => {
+        if (address === token0Address) {
+          throw new Error("fetch failed");
+        }
+        return mockToken1Data as Token;
+      });
+      const mockDb = MockDb.createMockDb();
+      const mockEvent = PoolFactory.PoolCreated.createMockEvent({
+        token0: token0Address as `0x${string}`,
+        token1: token1Address as `0x${string}`,
+        pool: poolAddress as `0x${string}`,
+        stable: false,
+        mockEventData: {
+          block: {
+            timestamp: 1000000,
+            hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+          },
+          chainId,
+          logIndex: 1,
+        },
+      });
+      const result = await mockDb.processEvents([mockEvent]);
+      const pool = result.entities.LiquidityPoolAggregator.get(
+        PoolId(chainId, poolAddress),
+      );
+      expect(pool).toBeDefined();
     });
 
     it("should create a new LiquidityPool entity and Token entities", async () => {
@@ -377,6 +407,65 @@ describe("PoolFactory Events", () => {
         result.entities.RootPool_LeafPool.getAll(),
       );
       expect(rootPoolLeafPools).toHaveLength(0);
+    });
+
+    it("should call processAllPendingVotesForRootPool when getRootPoolAddress returns address", async () => {
+      const mockRootPoolAddress = toChecksumAddress(
+        "0xC4Cbb0ba3c902Fb4b49B3844230354d45C779F74",
+      );
+      const rootChainId = 10;
+
+      const mockEthClient = {
+        readContract: vi.fn().mockResolvedValue(mockRootPoolAddress),
+      } as unknown as PublicClient;
+      const { cleanup } = mutateChainConstants(fraxtalChainId, {
+        eth_client: mockEthClient,
+        lpHelperAddress: mockLpHelperAddress,
+      });
+      chainConstantsCleanup = cleanup;
+
+      resetMockPriceOracle();
+
+      const processAllSpy = vi.spyOn(
+        PendingVoteProcessing,
+        "processAllPendingVotesForRootPool",
+      );
+
+      const mockDb = MockDb.createMockDb();
+      const mockEvent = PoolFactory.PoolCreated.createMockEvent({
+        token0: token0Address as `0x${string}`,
+        token1: token1Address as `0x${string}`,
+        pool: poolAddress as `0x${string}`,
+        stable: false,
+        mockEventData: {
+          block: {
+            timestamp: 1000000,
+            hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+          },
+          chainId: fraxtalChainId,
+          logIndex: 1,
+        },
+      });
+
+      const result = await mockDb.processEvents([mockEvent]);
+
+      const expectedRootPoolAddress = toChecksumAddress(mockRootPoolAddress);
+      const rootPoolLeafPoolId = RootPoolLeafPoolId(
+        rootChainId,
+        fraxtalChainId,
+        expectedRootPoolAddress,
+        poolAddress,
+      );
+      const rootPoolLeafPool =
+        result.entities.RootPool_LeafPool.get(rootPoolLeafPoolId);
+      expect(rootPoolLeafPool).toBeDefined();
+
+      expect(processAllSpy).toHaveBeenCalled();
+      const callRootPoolAddress = processAllSpy.mock.calls.find(
+        (call) => call[1] === expectedRootPoolAddress,
+      );
+      expect(callRootPoolAddress).toBeDefined();
+      expect(callRootPoolAddress?.[1]).toBe(expectedRootPoolAddress);
     });
   });
 
