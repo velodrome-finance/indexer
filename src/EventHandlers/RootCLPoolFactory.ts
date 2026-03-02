@@ -64,5 +64,11 @@ RootCLPoolFactory.RootPoolCreated.handler(async ({ event, context }) => {
   };
 
   context.RootPool_LeafPool.set(rootPoolLeafPool);
-  await processAllPendingVotesForRootPool(context, rootPoolAddress);
+  try {
+    await processAllPendingVotesForRootPool(context, rootPoolAddress);
+  } catch (error) {
+    context.log.error(
+      `[RootPoolCreated] processAllPendingVotesForRootPool failed for rootPoolAddress ${rootPoolAddress}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
 });

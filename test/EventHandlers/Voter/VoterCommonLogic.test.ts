@@ -289,6 +289,7 @@ describe("createPendingVoteForDeferredProcessing", () => {
   const blockNumber = 123456;
   const transactionHash =
     "0x133260f0f7bf0a06d262f09b064a35d3c63178c6b5fd8e4798ba780f357dc7bd";
+  const logIndex = 1;
 
   function makePendingVoteContext(): {
     context: handlerContext;
@@ -325,12 +326,19 @@ describe("createPendingVoteForDeferredProcessing", () => {
       timestamp,
       blockNumber,
       transactionHash,
+      logIndex,
     );
 
     expect(pendingVoteSets).toHaveLength(1);
     const pv = pendingVoteSets[0];
     expect(pv.id).toBe(
-      PendingVoteId(chainId, rootPoolAddress, tokenId, timestamp.getTime()),
+      PendingVoteId(
+        chainId,
+        rootPoolAddress,
+        tokenId,
+        transactionHash,
+        logIndex,
+      ),
     );
     expect(pv.chainId).toBe(chainId);
     expect(pv.rootPoolAddress).toBe(rootPoolAddress);
@@ -359,6 +367,7 @@ describe("createPendingVoteForDeferredProcessing", () => {
       timestamp,
       blockNumber,
       transactionHash,
+      logIndex,
     );
 
     expect(pendingVoteSets).toHaveLength(1);

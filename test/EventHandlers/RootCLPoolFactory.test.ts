@@ -13,7 +13,29 @@ import {
   rootPoolMatchingHash,
   toChecksumAddress,
 } from "../../src/Constants";
+import { processAllPendingVotesForRootPool } from "../../src/EventHandlers/Voter/PendingVoteProcessing";
 import { setupCommon } from "./Pool/common";
+
+vi.mock(
+  "../../src/EventHandlers/Voter/PendingVoteProcessing",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("../../src/EventHandlers/Voter/PendingVoteProcessing")
+      >();
+    return {
+      ...actual,
+      processAllPendingVotesForRootPool: vi.fn(
+        (
+          context: Parameters<
+            typeof actual.processAllPendingVotesForRootPool
+          >[0],
+          rootPoolAddress: string,
+        ) => actual.processAllPendingVotesForRootPool(context, rootPoolAddress),
+      ),
+    };
+  },
+);
 
 describe("RootCLPoolFactory Events", () => {
   describe("RootPoolCreated Event", () => {
@@ -76,7 +98,12 @@ describe("RootCLPoolFactory Events", () => {
           token1_address: token1,
           tickSpacing: tickSpacing,
           isCL: true,
-          rootPoolMatchingHash: `${leafChainId}_${token0}_${token1}_${tickSpacing}`,
+          rootPoolMatchingHash: rootPoolMatchingHash(
+            leafChainId,
+            token0,
+            token1,
+            tickSpacing,
+          ),
         });
 
         mockDb = mockDb.entities.LiquidityPoolAggregator.set(mockLiquidityPool);
@@ -98,6 +125,53 @@ describe("RootCLPoolFactory Events", () => {
         expect(rootPoolLeafPool?.rootPoolAddress).toBe(rootPoolAddress);
         expect(rootPoolLeafPool?.leafChainId).toBe(leafChainId);
         expect(rootPoolLeafPool?.leafPoolAddress).toBe(leafPoolAddress);
+      });
+    });
+
+    describe("when processAllPendingVotesForRootPool throws", () => {
+      beforeEach(async () => {
+        const { createMockLiquidityPoolAggregator } = setupCommon();
+        const mockLiquidityPool = createMockLiquidityPoolAggregator({
+          id: PoolId(leafChainId, leafPoolAddress),
+          poolAddress: leafPoolAddress,
+          chainId: leafChainId,
+          token0_id: TokenId(leafChainId, token0),
+          token1_id: TokenId(leafChainId, token1),
+          token0_address: token0,
+          token1_address: token1,
+          tickSpacing: tickSpacing,
+          isCL: true,
+          rootPoolMatchingHash: rootPoolMatchingHash(
+            leafChainId,
+            token0,
+            token1,
+            tickSpacing,
+          ),
+        });
+        mockDb = mockDb.entities.LiquidityPoolAggregator.set(mockLiquidityPool);
+      });
+
+      it("should still set RootPool_LeafPool and complete without throwing when processAllPendingVotesForRootPool throws", async () => {
+        vi.mocked(processAllPendingVotesForRootPool).mockRejectedValueOnce(
+          new Error("Pending vote processing failed"),
+        );
+
+        const resultDB = await mockDb.processEvents([mockEvent]);
+
+        const rootPoolLeafPool = resultDB.entities.RootPool_LeafPool.get(
+          RootPoolLeafPoolId(
+            rootChainId,
+            leafChainId,
+            rootPoolAddress,
+            leafPoolAddress,
+          ),
+        );
+        expect(rootPoolLeafPool).toBeDefined();
+        expect(rootPoolLeafPool?.rootChainId).toBe(rootChainId);
+        expect(rootPoolLeafPool?.rootPoolAddress).toBe(rootPoolAddress);
+        expect(rootPoolLeafPool?.leafChainId).toBe(leafChainId);
+        expect(rootPoolLeafPool?.leafPoolAddress).toBe(leafPoolAddress);
+        expect(processAllPendingVotesForRootPool).toHaveBeenCalled();
       });
     });
 
@@ -139,7 +213,12 @@ describe("RootCLPoolFactory Events", () => {
           token1_address: leafToken1.address,
           tickSpacing: tickSpacing,
           isCL: true,
-          rootPoolMatchingHash: `${leafChainId}_${token0}_${token1}_${tickSpacing}`,
+          rootPoolMatchingHash: rootPoolMatchingHash(
+            leafChainId,
+            token0,
+            token1,
+            tickSpacing,
+          ),
           veNFTamountStaked: 0n,
         });
         const veNFTState = createMockVeNFTState({
@@ -149,7 +228,7 @@ describe("RootCLPoolFactory Events", () => {
           owner: ownerAddress,
         });
         const pendingVote = {
-          id: PendingVoteId(rootChainId, rootPoolAddress, tokenId, timestampMs),
+          id: PendingVoteId(rootChainId, rootPoolAddress, tokenId, "0xhash", 1),
           chainId: rootChainId,
           rootPoolAddress,
           tokenId,
@@ -181,7 +260,7 @@ describe("RootCLPoolFactory Events", () => {
         expect(rootPoolLeafPool).toBeDefined();
 
         const processedPendingVote = resultDB.entities.PendingVote.get(
-          PendingVoteId(rootChainId, rootPoolAddress, tokenId, timestampMs),
+          PendingVoteId(rootChainId, rootPoolAddress, tokenId, "0xhash", 1),
         );
         expect(processedPendingVote).toBeUndefined();
 
@@ -260,7 +339,12 @@ describe("RootCLPoolFactory Events", () => {
           token1_address: token1,
           tickSpacing: tickSpacing,
           isCL: true,
-          rootPoolMatchingHash: `${leafChainId}_${token0}_${token1}_${tickSpacing}`,
+          rootPoolMatchingHash: rootPoolMatchingHash(
+            leafChainId,
+            token0,
+            token1,
+            tickSpacing,
+          ),
         });
 
         // Different pool address
@@ -279,7 +363,12 @@ describe("RootCLPoolFactory Events", () => {
           token1_address: token1,
           tickSpacing: tickSpacing,
           isCL: true,
-          rootPoolMatchingHash: `${leafChainId}_${token0}_${token1}_${tickSpacing}`,
+          rootPoolMatchingHash: rootPoolMatchingHash(
+            leafChainId,
+            token0,
+            token1,
+            tickSpacing,
+          ),
         });
 
         mockDb =

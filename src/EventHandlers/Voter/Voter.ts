@@ -95,6 +95,12 @@ Voter.Voted.handler(async ({ event, context }) => {
   if (!poolResult.ok) {
     // If the root pool mapping cannot be loaded, create a pending vote for deferred processing
     if (isMissingRootPoolMapping(poolResult)) {
+      if (!veNFTState) {
+        context.log.warn(
+          `[Voter.Voted] Deferred vote skipped for pool ${pool}: veNFTState not found for tokenId ${tokenId}.`,
+        );
+        return;
+      }
       createPendingVoteForDeferredProcessing(
         context,
         chainId,
@@ -105,6 +111,7 @@ Voter.Voted.handler(async ({ event, context }) => {
         timestamp,
         event.block.number,
         event.transaction.hash,
+        event.logIndex,
       );
     }
     return;
@@ -175,6 +182,12 @@ Voter.Abstained.handler(async ({ event, context }) => {
   // If the pool data (or root pool mapping) cannot be loaded, create a pending vote for deferred processing
   if (!poolResult.ok) {
     if (isMissingRootPoolMapping(poolResult)) {
+      if (!veNFTState) {
+        context.log.warn(
+          `[Voter.Abstained] Deferred abstention skipped for pool ${pool}: veNFTState not found for tokenId ${tokenId}.`,
+        );
+        return;
+      }
       createPendingVoteForDeferredProcessing(
         context,
         chainId,
@@ -185,6 +198,7 @@ Voter.Abstained.handler(async ({ event, context }) => {
         timestamp,
         event.block.number,
         event.transaction.hash,
+        event.logIndex,
       );
     }
     return;

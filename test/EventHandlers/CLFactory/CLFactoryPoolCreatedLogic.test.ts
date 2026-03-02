@@ -626,6 +626,48 @@ describe("CLFactoryPoolCreatedLogic", () => {
       expect(processAllSpy).not.toHaveBeenCalled();
     });
 
+    it.each([null, undefined])(
+      "should do nothing when getWhere returns %s (treat as empty)",
+      async (getWhereResult) => {
+        const getWhere = vi.fn().mockResolvedValue(getWhereResult);
+        const set = vi.fn();
+        const deleteUnsafe = vi.fn();
+        const processAllSpy = vi.spyOn(
+          PendingVoteProcessing,
+          "processAllPendingVotesForRootPool",
+        );
+
+        const context = {
+          PendingRootPoolMapping: { getWhere, deleteUnsafe },
+          RootPool_LeafPool: { set },
+          log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+        } as unknown as handlerContext;
+
+        await flushPendingRootPoolMappingAndVotes(
+          context,
+          leafChainId,
+          token0,
+          token1,
+          tickSpacing,
+          leafPoolAddress,
+        );
+
+        const expectedHash = rootPoolMatchingHash(
+          leafChainId,
+          token0,
+          token1,
+          tickSpacing,
+        );
+        expect(getWhere).toHaveBeenCalledTimes(1);
+        expect(getWhere).toHaveBeenCalledWith({
+          rootPoolMatchingHash: { _eq: expectedHash },
+        });
+        expect(set).not.toHaveBeenCalled();
+        expect(deleteUnsafe).not.toHaveBeenCalled();
+        expect(processAllSpy).not.toHaveBeenCalled();
+      },
+    );
+
     it("should set RootPool_LeafPool, delete PendingRootPoolMapping, and call processAllPendingVotesForRootPool when pending mapping exists", async () => {
       const hash = rootPoolMatchingHash(
         leafChainId,
@@ -686,6 +728,74 @@ describe("CLFactoryPoolCreatedLogic", () => {
       expect(deleteUnsafe).toHaveBeenCalledWith(pendingMapping.id);
       expect(processAllSpy).toHaveBeenCalledTimes(1);
       expect(processAllSpy).toHaveBeenCalledWith(context, rootPoolAddress);
+    });
+
+    it("should still set RootPool_LeafPool, delete PendingRootPoolMapping, and complete without throwing when processAllPendingVotesForRootPool throws", async () => {
+      const hash = rootPoolMatchingHash(
+        leafChainId,
+        token0,
+        token1,
+        tickSpacing,
+      );
+      const pendingMapping = {
+        id: PendingRootPoolMappingId(rootChainId, rootPoolAddress),
+        rootChainId,
+        rootPoolAddress,
+        leafChainId,
+        token0,
+        token1,
+        tickSpacing,
+        rootPoolMatchingHash: hash,
+      };
+
+      const getWhere = vi.fn().mockResolvedValue([pendingMapping]);
+      const set = vi.fn();
+      const deleteUnsafe = vi.fn();
+      const logError = vi.fn();
+      const processAllSpy = vi
+        .spyOn(PendingVoteProcessing, "processAllPendingVotesForRootPool")
+        .mockRejectedValueOnce(new Error("Pending vote processing failed"));
+
+      const context = {
+        PendingRootPoolMapping: { getWhere, deleteUnsafe },
+        RootPool_LeafPool: { set },
+        log: { info: vi.fn(), warn: vi.fn(), error: logError },
+      } as unknown as handlerContext;
+
+      await expect(
+        flushPendingRootPoolMappingAndVotes(
+          context,
+          leafChainId,
+          token0,
+          token1,
+          tickSpacing,
+          leafPoolAddress,
+        ),
+      ).resolves.toBeUndefined();
+
+      expect(set).toHaveBeenCalledTimes(1);
+      expect(set).toHaveBeenCalledWith({
+        id: RootPoolLeafPoolId(
+          rootChainId,
+          leafChainId,
+          rootPoolAddress,
+          leafPoolAddress,
+        ),
+        rootChainId,
+        rootPoolAddress,
+        leafChainId,
+        leafPoolAddress,
+      });
+      expect(deleteUnsafe).toHaveBeenCalledTimes(1);
+      expect(deleteUnsafe).toHaveBeenCalledWith(pendingMapping.id);
+      expect(processAllSpy).toHaveBeenCalledWith(context, rootPoolAddress);
+      expect(logError).toHaveBeenCalledTimes(1);
+      expect(logError).toHaveBeenCalledWith(
+        expect.stringContaining(rootPoolAddress),
+      );
+      expect(logError).toHaveBeenCalledWith(
+        expect.stringContaining("Pending vote processing failed"),
+      );
     });
   });
 });

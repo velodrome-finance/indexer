@@ -13,6 +13,7 @@ import {
   updateVeNFTPoolVote,
 } from "../../Aggregators/VeNFTPoolVote";
 import { loadVeNFTState } from "../../Aggregators/VeNFTState";
+import { logContextError } from "../../Helpers";
 import { VoterEventType } from "./VoterCommonLogic";
 import { computeVoterRelatedEntitiesDiff } from "./VoterCommonLogic";
 
@@ -49,13 +50,13 @@ export async function getPendingVotesByRootPool(
  * @param context - The handler context
  * @param pendingVote - The pending vote to process
  * @param leafPoolData - The leaf pool data
- * @returns void
+ * @returns true if the vote was applied, false if skipped (e.g. veNFTState not found)
  */
 export async function processPendingVote(
   context: handlerContext,
   pendingVote: PendingVote,
   leafPoolData: PoolData,
-): Promise<void> {
+): Promise<boolean> {
   const veNFTState = await loadVeNFTState(
     pendingVote.chainId,
     pendingVote.tokenId,
@@ -65,7 +66,7 @@ export async function processPendingVote(
     context.log.warn(
       `[processPendingVote] VeNFTState not found for tokenId ${pendingVote.tokenId} on chain ${pendingVote.chainId}, skipping pending vote ${pendingVote.id}`,
     );
-    return;
+    return false;
   }
 
   const leafPool = leafPoolData.liquidityPoolAggregator;
@@ -122,6 +123,7 @@ export async function processPendingVote(
     updateUserStatsPerPool(userStatsPerPoolDiff, userStats, context, timestamp),
     updateVeNFTPoolVote(veNFTPoolVoteDiff, veNFTPoolVote, context),
   ]);
+  return true;
 }
 
 /**
@@ -135,6 +137,44 @@ export function deleteProcessedPendingVote(
   pendingVote: PendingVote,
 ): void {
   context.PendingVote.deleteUnsafe(pendingVote.id);
+}
+
+const LOG_PREFIX = "[processAllPendingVotesForRootPool]";
+
+/**
+ * Tries to process one pending vote and delete it on success. Logs and swallows errors so the caller can continue with other votes.
+ * @param context - The handler context
+ * @param pendingVote - The pending vote to process
+ * @param leafPoolData - The leaf pool data
+ * @returns void
+ */
+async function tryProcessAndDeletePendingVote(
+  context: handlerContext,
+  pendingVote: PendingVote,
+  leafPoolData: PoolData,
+): Promise<void> {
+  let success = false;
+  try {
+    success = await processPendingVote(context, pendingVote, leafPoolData);
+  } catch (error) {
+    logContextError(
+      context,
+      `${LOG_PREFIX} Failed processing pending vote ${pendingVote.id}`,
+      error,
+    );
+    return;
+  }
+  if (!success) return;
+
+  try {
+    deleteProcessedPendingVote(context, pendingVote);
+  } catch (deleteError) {
+    logContextError(
+      context,
+      `${LOG_PREFIX} Failed to delete processed pending vote ${pendingVote.id}`,
+      deleteError,
+    );
+  }
 }
 
 /**
@@ -155,7 +195,7 @@ export async function processAllPendingVotesForRootPool(
 
   if (rootPoolLeafPools.length !== 1) {
     context.log.warn(
-      `[processAllPendingVotesForRootPool] Expected exactly one RootPool_LeafPool for rootPoolAddress ${rootPoolAddress}, got ${rootPoolLeafPools.length}. Skipping pending vote processing.`,
+      `${LOG_PREFIX} Expected exactly one RootPool_LeafPool for rootPoolAddress ${rootPoolAddress}, got ${rootPoolLeafPools.length}. Skipping pending vote processing.`,
     );
     return;
   }
@@ -171,7 +211,7 @@ export async function processAllPendingVotesForRootPool(
 
   if (!leafPoolData) {
     context.log.warn(
-      `[processAllPendingVotesForRootPool] Leaf pool data not found for ${leafPoolAddress} on chain ${leafChainId}. Skipping pending vote processing.`,
+      `${LOG_PREFIX} Leaf pool data not found for ${leafPoolAddress} on chain ${leafChainId}. Skipping pending vote processing.`,
     );
     return;
   }
@@ -191,11 +231,14 @@ export async function processAllPendingVotesForRootPool(
     );
     if (!currentLeafPoolData) {
       context.log.warn(
-        `[processAllPendingVotesForRootPool] Leaf pool data not found for leafPoolAddress ${leafPoolAddress} on chain ${leafChainId}, skipping pending vote ${pendingVote.id}`,
+        `${LOG_PREFIX} Leaf pool data not found for leafPoolAddress ${leafPoolAddress} on chain ${leafChainId}, skipping pending vote ${pendingVote.id}`,
       );
       continue;
     }
-    await processPendingVote(context, pendingVote, currentLeafPoolData);
-    deleteProcessedPendingVote(context, pendingVote);
+    await tryProcessAndDeletePendingVote(
+      context,
+      pendingVote,
+      currentLeafPoolData,
+    );
   }
 }

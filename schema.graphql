@@ -559,7 +559,7 @@ type RootPool_LeafPool {
 
 # Deferred vote: stored when Voted/Abstained fires but RootPool_LeafPool mapping does not exist yet
 type PendingVote {
-  id: ID! # Format: {chainId}-{rootPoolAddress}-{tokenId}-{timestamp}
+  id: ID! # Format: {chainId}-{rootPoolAddress}-{tokenId}-{txHash}-{logIndex}
   chainId: Int! # Chain ID for which the vote was intended
   rootPoolAddress: String! @index # Address of the root pool being voted on
   tokenId: BigInt! @config(precision: 76) # veNFT Token ID that cast the vote

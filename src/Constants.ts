@@ -681,18 +681,20 @@ export const RootPoolLeafPoolId = (
   leafPoolAddress: string,
 ) => `${rootChainId}-${leafChainId}-${rootPoolAddress}-${leafPoolAddress}`;
 
-/** Entity ID for PendingVote. Format: {chainId}-{rootPoolAddress}-{tokenId}-{timestamp}
+/** Entity ID for PendingVote. Format: {chainId}-{rootPoolAddress}-{tokenId}-{txHash}-{logIndex}
  * @param chainId - Chain ID where the vote occurred
  * @param rootPoolAddress - Root pool address
  * @param tokenId - veNFT token ID
- * @param timestampMs - Timestamp in ms (for uniqueness)
+ * @param transactionHash - Transaction hash of the vote event (for uniqueness)
+ * @param logIndex - Log index of the event (for uniqueness within same tx)
  */
 export const PendingVoteId = (
   chainId: number,
   rootPoolAddress: string,
   tokenId: bigint,
-  timestampMs: number,
-) => `${chainId}-${rootPoolAddress}-${tokenId}-${timestampMs}`;
+  transactionHash: string,
+  logIndex: number,
+) => `${chainId}-${rootPoolAddress}-${tokenId}-${transactionHash}-${logIndex}`;
 
 /** Entity ID for PendingRootPoolMapping. Format: {rootChainId}-{rootPoolAddress}
  * @param rootChainId - Root chain ID

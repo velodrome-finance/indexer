@@ -105,9 +105,10 @@ export async function flushPendingRootPoolMappingAndVotes(
   leafPoolAddress: string,
 ): Promise<void> {
   const hash = rootPoolMatchingHash(leafChainId, token0, token1, tickSpacing);
-  const pendingMappings = await context.PendingRootPoolMapping.getWhere({
-    rootPoolMatchingHash: { _eq: hash },
-  });
+  const pendingMappings =
+    (await context.PendingRootPoolMapping.getWhere({
+      rootPoolMatchingHash: { _eq: hash },
+    })) ?? [];
   if (pendingMappings.length === 0) {
     context.log.info(
       `[flushPendingRootPoolMappingAndVotes] No PendingRootPoolMapping for rootPoolMatchingHash ${hash}.`,
@@ -135,5 +136,11 @@ export async function flushPendingRootPoolMappingAndVotes(
     leafPoolAddress,
   });
   context.PendingRootPoolMapping.deleteUnsafe(pending.id);
-  await processAllPendingVotesForRootPool(context, pending.rootPoolAddress);
+  try {
+    await processAllPendingVotesForRootPool(context, pending.rootPoolAddress);
+  } catch (error) {
+    context.log.error(
+      `[flushPendingRootPoolMappingAndVotes] processAllPendingVotesForRootPool failed for rootPoolAddress ${pending.rootPoolAddress}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
 }

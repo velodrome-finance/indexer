@@ -305,7 +305,7 @@ describe("CLFactory Events", () => {
         "0xC4Cbb0ba3c902Fb4b49B3844230354d45C779F74",
       );
 
-      it("should create RootPool_LeafPool, delete PendingRootPoolMapping, and call processAllPendingVotesForRootPool", async () => {
+      it("should create RootPool_LeafPool and delete PendingRootPoolMapping", async () => {
         const hash = rootPoolMatchingHash(
           chainId,
           token0Address,
@@ -383,8 +383,16 @@ describe("CLFactory Events", () => {
         const tokenId = 1n;
         const voteWeight = 100n;
         const timestampMs = (mockEvent.block.timestamp as number) * 1000;
+        const txHash = mockEvent.transaction?.hash ?? "0xhash";
+        const logIndex = mockEvent.logIndex ?? 1;
         const pendingVote = {
-          id: PendingVoteId(rootChainId, rootPoolAddress, tokenId, timestampMs),
+          id: PendingVoteId(
+            rootChainId,
+            rootPoolAddress,
+            tokenId,
+            txHash,
+            logIndex,
+          ),
           chainId: rootChainId,
           rootPoolAddress,
           tokenId,
@@ -392,7 +400,7 @@ describe("CLFactory Events", () => {
           eventType: "Voted",
           timestamp: new Date(timestampMs),
           blockNumber: BigInt(mockEvent.block.number),
-          transactionHash: mockEvent.transaction?.hash ?? "0xhash",
+          transactionHash: txHash,
         };
         const ownerAddress = toChecksumAddress(
           "0x2222222222222222222222222222222222222222",
@@ -622,12 +630,7 @@ describe("CLFactory Events", () => {
           expect(rootPoolLeafPool).toBeDefined();
 
           const processedPendingVote = result.entities.PendingVote.get(
-            PendingVoteId(
-              rootChainId,
-              rootPoolAddress,
-              voteTokenId,
-              blockTimestamp * 1000,
-            ),
+            PendingVoteId(rootChainId, rootPoolAddress, voteTokenId, txHash, 2),
           );
           expect(processedPendingVote).toBeUndefined();
 
@@ -694,8 +697,9 @@ describe("CLFactory Events", () => {
           tickSpacing: TICK_SPACING,
           rootPoolMatchingHash: hash,
         };
+        const txHash = mockEvent.transaction?.hash ?? "0xhash";
         const pendingVote1 = {
-          id: PendingVoteId(chainId, rootPoolAddress, tokenId1, timestampMs),
+          id: PendingVoteId(chainId, rootPoolAddress, tokenId1, txHash, 1),
           chainId,
           rootPoolAddress,
           tokenId: tokenId1,
@@ -703,15 +707,10 @@ describe("CLFactory Events", () => {
           eventType: "Voted",
           timestamp: new Date(timestampMs),
           blockNumber: BigInt(mockEvent.block.number),
-          transactionHash: mockEvent.transaction?.hash ?? "0xhash",
+          transactionHash: txHash,
         };
         const pendingVote2 = {
-          id: PendingVoteId(
-            chainId,
-            rootPoolAddress,
-            tokenId2,
-            timestampMs + 1,
-          ),
+          id: PendingVoteId(chainId, rootPoolAddress, tokenId2, txHash, 2),
           chainId,
           rootPoolAddress,
           tokenId: tokenId2,
@@ -719,7 +718,7 @@ describe("CLFactory Events", () => {
           eventType: "Voted",
           timestamp: new Date(timestampMs + 1),
           blockNumber: BigInt(mockEvent.block.number),
-          transactionHash: mockEvent.transaction?.hash ?? "0xhash",
+          transactionHash: txHash,
         };
         const veNFTState1 = createMockVeNFTState({
           id: VeNFTId(chainId, tokenId1),

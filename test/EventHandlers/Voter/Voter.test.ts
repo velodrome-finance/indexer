@@ -239,7 +239,7 @@ describe("Voter Events", () => {
         "0xFC00000000000000000000000000000000000006",
       );
       const tickSpacing = 100n;
-      const pendingMapping = {
+      const makePendingMapping = () => ({
         id: PendingRootPoolMappingId(rootChainId, rootPoolAddress),
         rootChainId,
         rootPoolAddress,
@@ -253,7 +253,7 @@ describe("Voter Events", () => {
           token1,
           tickSpacing,
         ),
-      };
+      });
 
       it("should create PendingVote for Voted and not update pool entities", async () => {
         const { createMockVeNFTState } = setupCommon();
@@ -265,7 +265,9 @@ describe("Voter Events", () => {
         });
         // Cross-chain: root pool has PendingRootPoolMapping but no leaf yet -> MAPPING_NOT_FOUND -> create PendingVote
         mockDb = mockDb.entities.VeNFTState.set(mockVeNFTState);
-        mockDb = mockDb.entities.PendingRootPoolMapping.set(pendingMapping);
+        mockDb = mockDb.entities.PendingRootPoolMapping.set(
+          makePendingMapping(),
+        );
         mockEvent = Voter.Voted.createMockEvent({
           voter: voterAddress,
           pool: rootPoolAddress,
@@ -290,7 +292,8 @@ describe("Voter Events", () => {
           chainId,
           rootPoolAddress,
           tokenId,
-          blockTimestamp * 1000,
+          txHash,
+          1,
         );
         const pendingVote =
           resultDB.entities.PendingVote.get(expectedPendingId);
@@ -322,7 +325,9 @@ describe("Voter Events", () => {
           owner: ownerAddress,
         });
         mockDb = mockDb.entities.VeNFTState.set(mockVeNFTState);
-        mockDb = mockDb.entities.PendingRootPoolMapping.set(pendingMapping);
+        mockDb = mockDb.entities.PendingRootPoolMapping.set(
+          makePendingMapping(),
+        );
         const abstainedEvent = Voter.Abstained.createMockEvent({
           voter: voterAddress,
           pool: rootPoolAddress,
@@ -347,7 +352,8 @@ describe("Voter Events", () => {
           chainId,
           rootPoolAddress,
           tokenId,
-          blockTimestamp * 1000,
+          txHash,
+          1,
         );
         const pendingVote =
           resultDB.entities.PendingVote.get(expectedPendingId);
@@ -355,6 +361,104 @@ describe("Voter Events", () => {
         expect(pendingVote?.eventType).toBe("Abstained");
         expect(pendingVote?.weight).toBe(100n);
 
+        expect(
+          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
+        ).toHaveLength(0);
+        expect(
+          Array.from(resultDB.entities.UserStatsPerPool.getAll()),
+        ).toHaveLength(0);
+        expect(
+          Array.from(resultDB.entities.VeNFTPoolVote.getAll()),
+        ).toHaveLength(0);
+      });
+
+      it("should not create PendingVote for Voted when RootPool_LeafPool mapping is missing and veNFTState is missing", async () => {
+        // Deferred path: missing root pool mapping. No VeNFTState in DB -> must not create PendingVote.
+        mockDb = mockDb.entities.PendingRootPoolMapping.set(
+          makePendingMapping(),
+        );
+        mockEvent = Voter.Voted.createMockEvent({
+          voter: voterAddress,
+          pool: rootPoolAddress,
+          tokenId,
+          weight: 100n,
+          totalWeight: 1000n,
+          mockEventData: {
+            block: {
+              number: blockNumber,
+              timestamp: blockTimestamp,
+              hash: txHash,
+            },
+            chainId,
+            logIndex: 1,
+            transaction: { hash: txHash },
+          },
+        });
+
+        const resultDB = await mockDb.processEvents([mockEvent]);
+
+        const expectedPendingId = PendingVoteId(
+          chainId,
+          rootPoolAddress,
+          tokenId,
+          txHash,
+          1,
+        );
+        const pendingVote =
+          resultDB.entities.PendingVote.get(expectedPendingId);
+        expect(pendingVote).toBeUndefined();
+        expect(Array.from(resultDB.entities.PendingVote.getAll())).toHaveLength(
+          0,
+        );
+        expect(
+          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
+        ).toHaveLength(0);
+        expect(
+          Array.from(resultDB.entities.UserStatsPerPool.getAll()),
+        ).toHaveLength(0);
+        expect(
+          Array.from(resultDB.entities.VeNFTPoolVote.getAll()),
+        ).toHaveLength(0);
+      });
+
+      it("should not create PendingVote for Abstained when RootPool_LeafPool mapping is missing and veNFTState is missing", async () => {
+        // Deferred path: missing root pool mapping. No VeNFTState in DB -> must not create PendingVote.
+        mockDb = mockDb.entities.PendingRootPoolMapping.set(
+          makePendingMapping(),
+        );
+        const abstainedEvent = Voter.Abstained.createMockEvent({
+          voter: voterAddress,
+          pool: rootPoolAddress,
+          tokenId,
+          weight: 100n,
+          totalWeight: 1000n,
+          mockEventData: {
+            block: {
+              number: blockNumber,
+              timestamp: blockTimestamp,
+              hash: txHash,
+            },
+            chainId,
+            logIndex: 1,
+            transaction: { hash: txHash },
+          },
+        });
+
+        const resultDB = await mockDb.processEvents([abstainedEvent]);
+
+        const expectedPendingId = PendingVoteId(
+          chainId,
+          rootPoolAddress,
+          tokenId,
+          txHash,
+          1,
+        );
+        const pendingVote =
+          resultDB.entities.PendingVote.get(expectedPendingId);
+        expect(pendingVote).toBeUndefined();
+        expect(Array.from(resultDB.entities.PendingVote.getAll())).toHaveLength(
+          0,
+        );
         expect(
           Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
         ).toHaveLength(0);
@@ -457,7 +561,8 @@ describe("Voter Events", () => {
           rootChainId,
           rootPoolAddress,
           voteTokenId,
-          blockTimestamp * 1000,
+          txHash,
+          2,
         );
         const pendingVote = resultDB.entities.PendingVote.get(
           expectedPendingVoteId,
@@ -535,7 +640,8 @@ describe("Voter Events", () => {
           rootChainId,
           rootPoolAddress,
           voteTokenId,
-          blockTimestamp * 1000,
+          txHash,
+          2,
         );
         const pendingVote = resultDB.entities.PendingVote.get(
           expectedPendingVoteId,

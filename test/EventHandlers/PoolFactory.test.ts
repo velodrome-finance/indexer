@@ -93,7 +93,7 @@ describe("PoolFactory Events", () => {
       expect(mockPriceOracle.mock.calls.length).toBeGreaterThanOrEqual(2);
     });
 
-    it("should log error and continue when createTokenEntity rejects for one token", async () => {
+    it("should continue when createTokenEntity rejects for one token", async () => {
       mockPriceOracle.mockImplementation(async (address: string) => {
         if (address === token0Address) {
           throw new Error("fetch failed");
@@ -410,7 +410,9 @@ describe("PoolFactory Events", () => {
     });
 
     it("should call processAllPendingVotesForRootPool when getRootPoolAddress returns address", async () => {
-      const mockRootPoolAddress = "0xC4Cbb0ba3c902Fb4b49B3844230354d45C779F74";
+      const mockRootPoolAddress = toChecksumAddress(
+        "0xC4Cbb0ba3c902Fb4b49B3844230354d45C779F74",
+      );
       const rootChainId = 10;
 
       const mockEthClient = {

@@ -181,6 +181,7 @@ export function computeVoterRelatedEntitiesDiff(
  * @param timestamp - The timestamp of the event
  * @param blockNumber - The block number of the event
  * @param transactionHash - The transaction hash of the event
+ * @param logIndex - The log index of the event
  * @returns void
  */
 export function createPendingVoteForDeferredProcessing(
@@ -193,10 +194,16 @@ export function createPendingVoteForDeferredProcessing(
   timestamp: Date,
   blockNumber: number,
   transactionHash: string,
+  logIndex: number,
 ): void {
-  const timestampMs = timestamp.getTime();
   context.PendingVote.set({
-    id: PendingVoteId(chainId, rootPoolAddress, tokenId, timestampMs),
+    id: PendingVoteId(
+      chainId,
+      rootPoolAddress,
+      tokenId,
+      transactionHash,
+      logIndex,
+    ),
     chainId,
     rootPoolAddress,
     tokenId,
