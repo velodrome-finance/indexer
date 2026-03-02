@@ -18,7 +18,7 @@ import {
 import type { VoterCommonResult } from "../../../src/EventHandlers/Voter/VoterCommonLogic";
 import {
   VoterEventType,
-  buildLpDiffFromDistribute,
+  buildPoolDiffFromDistribute,
   computeVoterDistributeValues,
   computeVoterRelatedEntitiesDiff,
   createPendingVoteForDeferredProcessing,
@@ -211,7 +211,7 @@ describe("computeVoterDistributeValues", () => {
   });
 });
 
-describe("buildLpDiffFromDistribute", () => {
+describe("buildPoolDiffFromDistribute", () => {
   it("composes snapshot and cumulative fields correctly", () => {
     const res: VoterCommonResult = {
       isAlive: true,
@@ -224,7 +224,7 @@ describe("buildLpDiffFromDistribute", () => {
     const gaugeAddress = toChecksumAddress(
       "0x0000000000000000000000000000000000000abc",
     );
-    const diff = buildLpDiffFromDistribute(res, ts, gaugeAddress);
+    const diff = buildPoolDiffFromDistribute(res, ts, gaugeAddress);
     expect(diff.totalVotesDeposited).toBe(10n);
     expect(diff.totalVotesDepositedUSD).toBe(20n);
     expect(diff.incrementalTotalEmissions).toBe(3n);
@@ -243,7 +243,7 @@ describe("buildLpDiffFromDistribute", () => {
       normalizedVotesDepositedAmountUsd: 10n,
     };
     const ts = 1_700_000_000_000;
-    const diff = buildLpDiffFromDistribute(res, ts);
+    const diff = buildPoolDiffFromDistribute(res, ts);
     expect(diff.totalVotesDeposited).toBe(5n);
     expect(diff.gaugeAddress).toBeUndefined();
   });
@@ -453,6 +453,15 @@ describe("resolveLeafPoolForRootGauge", () => {
     } as unknown as handlerContext;
   }
 
+  const runResolve = (context: handlerContext) =>
+    resolveLeafPoolForRootGauge(
+      context,
+      chainId,
+      gaugeAddress,
+      blockNumber,
+      blockTimestamp,
+    );
+
   beforeEach(() => {
     vi.restoreAllMocks();
   });
@@ -461,13 +470,7 @@ describe("resolveLeafPoolForRootGauge", () => {
     const warns: string[] = [];
     const context = makeResolveContext({ warns });
 
-    const result = await resolveLeafPoolForRootGauge(
-      context,
-      chainId,
-      gaugeAddress,
-      blockNumber,
-      blockTimestamp,
-    );
+    const result = await runResolve(context);
 
     expect(result).toBeNull();
     expect(warns).toHaveLength(1);
@@ -484,13 +487,7 @@ describe("resolveLeafPoolForRootGauge", () => {
       warns,
     });
 
-    const result = await resolveLeafPoolForRootGauge(
-      context,
-      chainId,
-      gaugeAddress,
-      blockNumber,
-      blockTimestamp,
-    );
+    const result = await runResolve(context);
 
     expect(result).toBeNull();
     expect(warns).toHaveLength(1);
@@ -508,13 +505,7 @@ describe("resolveLeafPoolForRootGauge", () => {
       warns,
     });
 
-    const result = await resolveLeafPoolForRootGauge(
-      context,
-      chainId,
-      gaugeAddress,
-      blockNumber,
-      blockTimestamp,
-    );
+    const result = await runResolve(context);
 
     expect(result).toBeNull();
     expect(warns).toHaveLength(1);
@@ -535,13 +526,7 @@ describe("resolveLeafPoolForRootGauge", () => {
       warns,
     });
 
-    const result = await resolveLeafPoolForRootGauge(
-      context,
-      chainId,
-      gaugeAddress,
-      blockNumber,
-      blockTimestamp,
-    );
+    const result = await runResolve(context);
 
     expect(result).toBeNull();
     expect(warns).toHaveLength(1);
@@ -560,13 +545,7 @@ describe("resolveLeafPoolForRootGauge", () => {
       warns,
     });
 
-    const result = await resolveLeafPoolForRootGauge(
-      context,
-      chainId,
-      gaugeAddress,
-      blockNumber,
-      blockTimestamp,
-    );
+    const result = await runResolve(context);
 
     expect(result).toBeNull();
     expect(warns).toHaveLength(1);
@@ -593,13 +572,7 @@ describe("resolveLeafPoolForRootGauge", () => {
       rootPoolLeafPools: [{ leafPoolAddress, leafChainId }],
     });
 
-    const result = await resolveLeafPoolForRootGauge(
-      context,
-      chainId,
-      gaugeAddress,
-      blockNumber,
-      blockTimestamp,
-    );
+    const result = await runResolve(context);
 
     expect(result).not.toBeNull();
     expect(result?.pool).toBe(mockPool);

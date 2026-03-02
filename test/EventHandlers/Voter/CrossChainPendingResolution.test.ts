@@ -39,7 +39,10 @@ import * as PriceOracle from "../../../src/PriceOracle";
 import { setupCommon } from "../Pool/common";
 
 describe("CrossChainPendingResolution", () => {
+  let common: ReturnType<typeof setupCommon>;
+
   beforeEach(() => {
+    common = setupCommon();
     vi.restoreAllMocks();
   });
 
@@ -60,6 +63,24 @@ describe("CrossChainPendingResolution", () => {
   const gaugeAddress = toChecksumAddress(
     "0x1111111111111111111111111111111111111111",
   );
+
+  function makePendingDistribution(
+    overrides: Partial<PendingDistribution> = {},
+  ): PendingDistribution {
+    const blockNumber = 106000000;
+    const blockTimestampSeconds = 1700000000;
+    return {
+      id: PendingDistributionId(rootChainId, rootPoolAddress, blockNumber, 0),
+      rootChainId,
+      rootPoolAddress,
+      gaugeAddress,
+      amount: 1000000n,
+      blockNumber: BigInt(blockNumber),
+      blockTimestamp: new Date(blockTimestampSeconds * 1000),
+      logIndex: 0,
+      ...overrides,
+    } as PendingDistribution;
+  }
 
   function makePendingVote(overrides: Partial<PendingVote> = {}): PendingVote {
     return {
@@ -238,6 +259,35 @@ describe("CrossChainPendingResolution", () => {
       expect(result[0]).toBe(firstBlock);
       expect(result[1]).toBe(secondBlock);
     });
+
+    it("should order by log index within the same block (id-derived tie-break)", async () => {
+      const sameBlock = 50n;
+      const voteLogIndex1 = makePendingVote({
+        id: PendingVoteId(rootChainId, rootPoolAddress, tokenId, "0xhashA", 1),
+        blockNumber: sameBlock,
+      });
+      const voteLogIndex3 = makePendingVote({
+        id: PendingVoteId(rootChainId, rootPoolAddress, tokenId, "0xhashB", 3),
+        blockNumber: sameBlock,
+      });
+      const voteLogIndex2 = makePendingVote({
+        id: PendingVoteId(rootChainId, rootPoolAddress, tokenId, "0xhashC", 2),
+        blockNumber: sameBlock,
+      });
+      const getWhere = vi
+        .fn()
+        .mockResolvedValue([voteLogIndex3, voteLogIndex1, voteLogIndex2]);
+      const context = {
+        PendingVote: { getWhere },
+      } as unknown as handlerContext;
+
+      const result = await getPendingVotesByRootPool(context, rootPoolAddress);
+
+      expect(result).toHaveLength(3);
+      expect(result[0]).toBe(voteLogIndex1);
+      expect(result[1]).toBe(voteLogIndex2);
+      expect(result[2]).toBe(voteLogIndex3);
+    });
   });
 
   describe("processPendingVote", () => {
@@ -246,7 +296,7 @@ describe("CrossChainPendingResolution", () => {
         createMockLiquidityPoolAggregator,
         mockToken0Data,
         mockToken1Data,
-      } = setupCommon();
+      } = common;
       const leafPool = createMockLiquidityPoolAggregator({
         id: PoolId(leafChainId, leafPoolAddress),
         chainId: leafChainId,
@@ -282,7 +332,6 @@ describe("CrossChainPendingResolution", () => {
     });
 
     it("should update pool, user stats, and VeNFTPoolVote when VeNFTState exists", async () => {
-      const common = setupCommon();
       const {
         pendingVote,
         leafPoolData,
@@ -307,7 +356,6 @@ describe("CrossChainPendingResolution", () => {
     });
 
     it("should use negative weightDelta when eventType is Abstained", async () => {
-      const common = setupCommon();
       const { pendingVote, leafPoolData, context, updatePoolSpy } =
         prepareProcessPendingVoteFixture(common, {
           pendingVoteOverrides: { weight: 30n, eventType: "Abstained" },
@@ -329,7 +377,6 @@ describe("CrossChainPendingResolution", () => {
 
     it("should convert numeric timestamp to Date when timestamp is not a Date instance", async () => {
       const numericTimestampMs = 1234567890;
-      const common = setupCommon();
       const { pendingVote, leafPoolData, context, updatePoolSpy } =
         prepareProcessPendingVoteFixture(common, {
           pendingVoteOverrides: {
@@ -348,6 +395,33 @@ describe("CrossChainPendingResolution", () => {
       expect(updatePoolSpy).toHaveBeenCalledTimes(1);
       const [, , callTimestamp] = updatePoolSpy.mock.calls[0];
       expect(callTimestamp).toEqual(new Date(numericTimestampMs));
+    });
+
+    it("should call loadOrCreateVeNFTPoolVote and loadOrCreateUserData with leaf chain and pool address (not root)", async () => {
+      const { pendingVote, leafPoolData, context } =
+        prepareProcessPendingVoteFixture(common);
+
+      await processPendingVote(context, pendingVote, leafPoolData);
+
+      expect(
+        vi.mocked(VeNFTPoolVoteModule.loadOrCreateVeNFTPoolVote),
+      ).toHaveBeenCalledWith(
+        leafChainId,
+        pendingVote.tokenId,
+        leafPoolAddress,
+        expect.anything(),
+        expect.anything(),
+        expect.anything(),
+      );
+      expect(
+        vi.mocked(UserStatsPerPoolModule.loadOrCreateUserData),
+      ).toHaveBeenCalledWith(
+        ownerAddress,
+        leafPoolAddress,
+        leafChainId,
+        expect.anything(),
+        expect.anything(),
+      );
     });
   });
 
@@ -480,7 +554,7 @@ describe("CrossChainPendingResolution", () => {
         createMockLiquidityPoolAggregator,
         mockToken0Data,
         mockToken1Data,
-      } = setupCommon();
+      } = common;
       const mapping: RootPool_LeafPool = {
         id: RootPoolLeafPoolId(
           rootChainId,
@@ -545,7 +619,7 @@ describe("CrossChainPendingResolution", () => {
         createMockLiquidityPoolAggregator,
         mockToken0Data,
         mockToken1Data,
-      } = setupCommon();
+      } = common;
       const mapping: RootPool_LeafPool = {
         id: RootPoolLeafPoolId(
           rootChainId,
@@ -601,7 +675,6 @@ describe("CrossChainPendingResolution", () => {
     });
 
     it("should continue processing remaining pending votes and log error when processPendingVote throws for one vote", async () => {
-      const common = setupCommon();
       const {
         createMockLiquidityPoolAggregator,
         mockToken0Data,
@@ -723,7 +796,6 @@ describe("CrossChainPendingResolution", () => {
     });
 
     it("should continue loop and log error when deleteProcessedPendingVote throws after successful process", async () => {
-      const common = setupCommon();
       const {
         createMockLiquidityPoolAggregator,
         mockToken0Data,
@@ -944,24 +1016,6 @@ describe("CrossChainPendingResolution", () => {
   });
 
   describe("getPendingDistributionsByRootPool", () => {
-    function makePendingDistribution(
-      overrides: Partial<PendingDistribution> = {},
-    ): PendingDistribution {
-      const blockNumber = 106000000;
-      const blockTimestamp = 1700000000;
-      return {
-        id: PendingDistributionId(rootChainId, rootPoolAddress, blockNumber, 0),
-        rootChainId,
-        rootPoolAddress,
-        gaugeAddress,
-        amount: 1000000n,
-        blockNumber: BigInt(blockNumber),
-        blockTimestamp: BigInt(blockTimestamp),
-        logIndex: 0,
-        ...overrides,
-      } as PendingDistribution;
-    }
-
     it("should sort by blockNumber ascending then by logIndex ascending", async () => {
       const earlierBlock = makePendingDistribution({
         id: PendingDistributionId(rootChainId, rootPoolAddress, 100, 2),
@@ -1036,28 +1090,10 @@ describe("CrossChainPendingResolution", () => {
   });
 
   describe("processPendingDistribution", () => {
-    function makePendingDistribution(
-      overrides: Partial<PendingDistribution> = {},
-    ): PendingDistribution {
-      const blockNumber = 106000000;
-      const blockTimestamp = 1700000000;
-      return {
-        id: PendingDistributionId(rootChainId, rootPoolAddress, blockNumber, 0),
-        rootChainId,
-        rootPoolAddress,
-        gaugeAddress,
-        amount: 1000000n,
-        blockNumber: BigInt(blockNumber),
-        blockTimestamp: BigInt(blockTimestamp),
-        logIndex: 0,
-        ...overrides,
-      } as PendingDistribution;
-    }
-
     it("should warn and return when reward token is not found", async () => {
       const pending = makePendingDistribution({
         blockNumber: 106000000n,
-        blockTimestamp: 1700000000n,
+        blockTimestamp: new Date(1700000000 * 1000),
       });
       const rewardTokenAddress = CHAIN_CONSTANTS[rootChainId].rewardToken(
         Number(pending.blockNumber),
@@ -1123,7 +1159,7 @@ describe("CrossChainPendingResolution", () => {
         leafChainId,
         context,
         Number(pending.blockNumber),
-        Number(pending.blockTimestamp),
+        Math.floor((pending.blockTimestamp as Date).getTime() / 1000),
       );
       expect(warns).toHaveLength(1);
       expect(warns[0]).toContain("[processAllPendingDistributionsForRootPool]");
@@ -1138,7 +1174,7 @@ describe("CrossChainPendingResolution", () => {
         createMockLiquidityPoolAggregator,
         mockToken0Data,
         mockToken1Data,
-      } = setupCommon();
+      } = common;
       const pending = makePendingDistribution();
       const rewardTokenAddress = CHAIN_CONSTANTS[rootChainId].rewardToken(
         Number(pending.blockNumber),
@@ -1179,8 +1215,8 @@ describe("CrossChainPendingResolution", () => {
         normalizedEmissionsAmountUsd: 50n,
         normalizedVotesDepositedAmountUsd: 100n,
       });
-      const applyLpDiffSpy = vi
-        .spyOn(VoterCommonLogic, "applyLpDiff")
+      const updatePoolSpy = vi
+        .spyOn(LiquidityPoolAggregatorModule, "updateLiquidityPoolAggregator")
         .mockResolvedValue(undefined);
 
       const context = {
@@ -1198,12 +1234,13 @@ describe("CrossChainPendingResolution", () => {
       );
 
       expect(result).toBe(true);
-      expect(applyLpDiffSpy).toHaveBeenCalledTimes(1);
-      expect(applyLpDiffSpy).toHaveBeenCalledWith(
-        context,
-        leafPool,
+      expect(updatePoolSpy).toHaveBeenCalledTimes(1);
+      const timestampMs = (pending.blockTimestamp as Date).getTime();
+      expect(updatePoolSpy).toHaveBeenCalledWith(
         expect.any(Object),
-        Number(pending.blockTimestamp) * 1000,
+        leafPool,
+        new Date(timestampMs),
+        context,
         leafChainId,
         Number(pending.blockNumber),
       );
@@ -1211,24 +1248,6 @@ describe("CrossChainPendingResolution", () => {
   });
 
   describe("deleteProcessedPendingDistribution", () => {
-    function makePendingDistribution(
-      overrides: Partial<PendingDistribution> = {},
-    ): PendingDistribution {
-      const blockNumber = 106000000;
-      const blockTimestamp = 1700000000;
-      return {
-        id: PendingDistributionId(rootChainId, rootPoolAddress, blockNumber, 0),
-        rootChainId,
-        rootPoolAddress,
-        gaugeAddress,
-        amount: 1000000n,
-        blockNumber: BigInt(blockNumber),
-        blockTimestamp: BigInt(blockTimestamp),
-        logIndex: 0,
-        ...overrides,
-      } as PendingDistribution;
-    }
-
     it("should call PendingDistribution.deleteUnsafe with pending id", () => {
       const pending = makePendingDistribution();
       const deleteUnsafe = vi.fn();
@@ -1244,24 +1263,6 @@ describe("CrossChainPendingResolution", () => {
   });
 
   describe("processAllPendingDistributionsForRootPool", () => {
-    function makePendingDistribution(
-      overrides: Partial<PendingDistribution> = {},
-    ): PendingDistribution {
-      const blockNumber = 106000000;
-      const blockTimestamp = 1700000000;
-      return {
-        id: PendingDistributionId(rootChainId, rootPoolAddress, blockNumber, 0),
-        rootChainId,
-        rootPoolAddress,
-        gaugeAddress,
-        amount: 1000000n,
-        blockNumber: BigInt(blockNumber),
-        blockTimestamp: BigInt(blockTimestamp),
-        logIndex: 0,
-        ...overrides,
-      } as PendingDistribution;
-    }
-
     it("should warn and return when zero RootPool_LeafPool mappings exist", async () => {
       const getWhere = vi.fn().mockResolvedValue([]);
       const warns: string[] = [];
@@ -1359,7 +1360,7 @@ describe("CrossChainPendingResolution", () => {
         createMockLiquidityPoolAggregator,
         mockToken0Data,
         mockToken1Data,
-      } = setupCommon();
+      } = common;
       const leafPool = createMockLiquidityPoolAggregator({
         id: PoolId(leafChainId, leafPoolAddress),
         chainId: leafChainId,
@@ -1398,7 +1399,10 @@ describe("CrossChainPendingResolution", () => {
         normalizedEmissionsAmountUsd: 50n,
         normalizedVotesDepositedAmountUsd: 100n,
       });
-      vi.spyOn(VoterCommonLogic, "applyLpDiff").mockResolvedValue(undefined);
+      vi.spyOn(
+        LiquidityPoolAggregatorModule,
+        "updateLiquidityPoolAggregator",
+      ).mockResolvedValue(undefined);
 
       const context = {
         RootPool_LeafPool: { getWhere: rootPoolLeafPoolGetWhere },
@@ -1488,7 +1492,7 @@ describe("CrossChainPendingResolution", () => {
         createMockLiquidityPoolAggregator,
         mockToken0Data,
         mockToken1Data,
-      } = setupCommon();
+      } = common;
       const leafPool = createMockLiquidityPoolAggregator({
         id: PoolId(leafChainId, leafPoolAddress),
         chainId: leafChainId,
@@ -1527,7 +1531,7 @@ describe("CrossChainPendingResolution", () => {
         normalizedVotesDepositedAmountUsd: 100n,
       });
       const processError = new Error("processPendingDistribution failed");
-      vi.spyOn(VoterCommonLogic, "applyLpDiff")
+      vi.spyOn(LiquidityPoolAggregatorModule, "updateLiquidityPoolAggregator")
         .mockRejectedValueOnce(processError)
         .mockResolvedValue(undefined);
 
@@ -1579,7 +1583,7 @@ describe("CrossChainPendingResolution", () => {
         createMockLiquidityPoolAggregator,
         mockToken0Data,
         mockToken1Data,
-      } = setupCommon();
+      } = common;
       const leafPool = createMockLiquidityPoolAggregator({
         id: PoolId(leafChainId, leafPoolAddress),
         chainId: leafChainId,
@@ -1618,7 +1622,10 @@ describe("CrossChainPendingResolution", () => {
         normalizedEmissionsAmountUsd: 50n,
         normalizedVotesDepositedAmountUsd: 100n,
       });
-      vi.spyOn(VoterCommonLogic, "applyLpDiff").mockResolvedValue(undefined);
+      vi.spyOn(
+        LiquidityPoolAggregatorModule,
+        "updateLiquidityPoolAggregator",
+      ).mockResolvedValue(undefined);
 
       const errors: string[] = [];
       const context = {

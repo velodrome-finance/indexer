@@ -92,14 +92,14 @@ export async function computeVoterDistributeValues(
 }
 
 /**
- * Builds the LP diff for a DistributeReward. When gaugeAddress is omitted (cross-chain case),
+ * Builds the Pool diff for a DistributeReward. When gaugeAddress is omitted (cross-chain case),
  * the diff does not include gaugeAddress so the leaf pool's gauge is not overwritten.
  * @param result - The result of the computeVoterDistributeValues function
  * @param timestampMs - The timestamp in milliseconds
  * @param gaugeAddress - The address of the root gauge (optional)
- * @returns The LP diff
+ * @returns The Pool diff
  */
-export function buildLpDiffFromDistribute(
+export function buildPoolDiffFromDistribute(
   result: VoterCommonResult,
   timestampMs: number,
   gaugeAddress?: string,
@@ -116,24 +116,6 @@ export function buildLpDiffFromDistribute(
     diff.gaugeAddress = gaugeAddress;
   }
   return diff;
-}
-
-export async function applyLpDiff(
-  context: handlerContext,
-  currentLiquidityPool: LiquidityPoolAggregator,
-  lpDiff: Partial<LiquidityPoolAggregatorDiff>,
-  timestampMs: number,
-  eventChainId: number,
-  blockNumber: number,
-) {
-  return await updateLiquidityPoolAggregator(
-    lpDiff,
-    currentLiquidityPool,
-    new Date(timestampMs),
-    context,
-    eventChainId,
-    blockNumber,
-  );
 }
 
 /**

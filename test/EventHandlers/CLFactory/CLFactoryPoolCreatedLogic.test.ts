@@ -737,7 +737,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
       );
     });
 
-    it("should still set RootPool_LeafPool, delete PendingRootPoolMapping, and complete without throwing when processAllPendingVotesForRootPool throws", async () => {
+    it("should still set RootPool_LeafPool, delete PendingRootPoolMapping, and complete without throwing when flushPendingVotesAndDistributionsForRootPool throws", async () => {
       const hash = rootPoolMatchingHash(
         leafChainId,
         token0,

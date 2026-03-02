@@ -29,8 +29,7 @@ import { getTokenDetails } from "../../Effects/Index";
 import { refreshTokenPrice } from "../../PriceOracle";
 import {
   VoterEventType,
-  applyLpDiff,
-  buildLpDiffFromDistribute,
+  buildPoolDiffFromDistribute,
   computeVoterDistributeValues,
   computeVoterRelatedEntitiesDiff,
   createPendingVoteForDeferredProcessing,
@@ -135,20 +134,27 @@ Voter.Voted.handler(async ({ event, context }) => {
   }
 
   const poolData = poolResult.poolData;
+  const { liquidityPoolAggregator } = poolData;
+  const poolChainId = liquidityPoolAggregator.chainId;
+  const poolAddress = liquidityPoolAggregator.poolAddress;
 
   const [veNFTPoolVote, userStats] = await Promise.all([
     loadOrCreateVeNFTPoolVote(
-      chainId,
+      poolChainId,
       tokenId,
-      pool,
+      poolAddress,
       veNFTState,
       context,
       timestamp,
     ),
-    loadOrCreateUserData(veNFTState.owner, pool, chainId, context, timestamp),
+    loadOrCreateUserData(
+      veNFTState.owner,
+      poolAddress,
+      poolChainId,
+      context,
+      timestamp,
+    ),
   ]);
-
-  const { liquidityPoolAggregator } = poolData;
 
   const { poolVoteDiff, userStatsPerPoolDiff, veNFTPoolVoteDiff } =
     computeVoterRelatedEntitiesDiff(
@@ -223,6 +229,8 @@ Voter.Abstained.handler(async ({ event, context }) => {
 
   const poolData = poolResult.poolData;
   const { liquidityPoolAggregator } = poolData;
+  const poolChainId = liquidityPoolAggregator.chainId;
+  const poolAddress = liquidityPoolAggregator.poolAddress;
 
   const { poolVoteDiff, userStatsPerPoolDiff, veNFTPoolVoteDiff } =
     computeVoterRelatedEntitiesDiff(
@@ -235,14 +243,20 @@ Voter.Abstained.handler(async ({ event, context }) => {
 
   const [veNFTPoolVote, userStats] = await Promise.all([
     loadOrCreateVeNFTPoolVote(
-      chainId,
+      poolChainId,
       tokenId,
-      pool,
+      poolAddress,
       veNFTState,
       context,
       timestamp,
     ),
-    loadOrCreateUserData(veNFTState.owner, pool, chainId, context, timestamp),
+    loadOrCreateUserData(
+      veNFTState.owner,
+      poolAddress,
+      poolChainId,
+      context,
+      timestamp,
+    ),
   ]);
 
   await Promise.all([
@@ -299,12 +313,8 @@ Voter.DistributeReward.handler(async ({ event, context }) => {
           (await context.RootPool_LeafPool.getWhere({
             rootPoolAddress: { _eq: rootGaugeMapping.rootPoolAddress },
           })) ?? [];
-        if (rootPoolLeafPools.length === 0) {
-          const logIndex: number =
-            "logIndex" in event &&
-            typeof (event as { logIndex?: unknown }).logIndex === "number"
-              ? (event as { logIndex: number }).logIndex
-              : 0;
+        if (rootPoolLeafPools.length !== 1) {
+          const logIndex = event.logIndex;
           context.PendingDistribution.set({
             id: PendingDistributionId(
               eventChainId,
@@ -317,12 +327,13 @@ Voter.DistributeReward.handler(async ({ event, context }) => {
             gaugeAddress: event.params.gauge,
             amount: event.params.amount,
             blockNumber: BigInt(event.block.number),
-            blockTimestamp: BigInt(event.block.timestamp),
+            blockTimestamp: new Date(event.block.timestamp * 1000),
             logIndex,
           });
           context.log.warn(
-            `[Voter.DistributeReward] RootPool_LeafPool mapping not found for gauge ${event.params.gauge}. PendingDistribution stored for later processing.`,
+            `[Voter.DistributeReward] RootPool_LeafPool mapping missing/ambiguous (count=${rootPoolLeafPools.length}) for gauge ${event.params.gauge}. PendingDistribution stored for later processing.`,
           );
+          return;
         }
       }
     }
@@ -356,17 +367,17 @@ Voter.DistributeReward.handler(async ({ event, context }) => {
   );
 
   const timestampMs = event.block.timestamp * 1000;
-  const lpDiff = buildLpDiffFromDistribute(
+  const poolDiff = buildPoolDiffFromDistribute(
     result,
     timestampMs,
     isCrossChainDistribution ? undefined : event.params.gauge,
   );
 
-  await applyLpDiff(
-    context,
+  await updateLiquidityPoolAggregator(
+    poolDiff,
     currentLiquidityPool,
-    lpDiff,
-    timestampMs,
+    new Date(timestampMs),
+    context,
     currentLiquidityPool.chainId,
     event.block.number,
   );

@@ -598,7 +598,7 @@ type PendingDistribution {
   gaugeAddress: String! # Gauge that emitted DistributeReward
   amount: BigInt! @config(precision: 76) # Reward amount from event
   blockNumber: BigInt! @config(precision: 76) # Block number of the event
-  blockTimestamp: BigInt! @config(precision: 76) # Block timestamp (seconds) of the event
+  blockTimestamp: Timestamp! # Block timestamp of the event
   logIndex: Int! # Log index for uniqueness within block
 }
 

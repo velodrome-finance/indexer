@@ -40,8 +40,7 @@ import {
 import { refreshTokenPrice } from "../../PriceOracle";
 import {
   VoterEventType,
-  applyLpDiff,
-  buildLpDiffFromDistribute,
+  buildPoolDiffFromDistribute,
   computeVoterDistributeValues,
   computeVoterRelatedEntitiesDiff,
 } from "./VoterCommonLogic";
@@ -63,7 +62,17 @@ export async function getPendingVotesByRootPool(
     (await context.PendingVote.getWhere({
       rootPoolAddress: { _eq: rootPoolAddress },
     })) ?? [];
-  return sortByBlockThenLogIndex(list, (a) => Number(a.blockNumber));
+  const getLogIndexFromId = (id: string): number => {
+    const lastDash = id.lastIndexOf("-");
+    const segment = lastDash >= 0 ? id.slice(lastDash + 1) : "";
+    const n = Number(segment);
+    return Number.isNaN(n) ? 0 : n;
+  };
+  return sortByBlockThenLogIndex(
+    list,
+    (a) => Number(a.blockNumber),
+    (a) => getLogIndexFromId(a.id),
+  );
 }
 
 /**
@@ -248,6 +257,9 @@ export async function processAllPendingVotesForRootPool(
   );
 
   for (const pendingVote of pendingVotes) {
+    // Reload leaf pool data each iteration: processPendingVote updates the pool (e.g. veNFTamountStaked)
+    // via updateLiquidityPoolAggregator, so the next vote must see the updated state to compute
+    // the correct cumulative totalWeight.
     const currentLeafPoolData = await loadPoolData(
       leafPoolAddress,
       leafChainId,
@@ -313,7 +325,14 @@ export async function processPendingDistribution(
 ): Promise<boolean> {
   const rootChainId = pending.rootChainId;
   const blockNumber = Number(pending.blockNumber);
-  const blockTimestamp = Number(pending.blockTimestamp);
+
+  const blockTimestamp = Math.floor(
+    (pending.blockTimestamp instanceof Date
+      ? pending.blockTimestamp
+      : new Date(Number(pending.blockTimestamp))
+    ).getTime() / 1000,
+  );
+
   const rewardTokenAddress =
     CHAIN_CONSTANTS[rootChainId].rewardToken(blockNumber);
   const rewardToken = await context.Token.get(
@@ -360,13 +379,13 @@ export async function processPendingDistribution(
   );
 
   const timestampMs = blockTimestamp * 1000;
-  const lpDiff = buildLpDiffFromDistribute(result, timestampMs, undefined);
+  const poolDiff = buildPoolDiffFromDistribute(result, timestampMs, undefined);
 
-  await applyLpDiff(
-    context,
+  await updateLiquidityPoolAggregator(
+    poolDiff,
     currentLiquidityPool,
-    lpDiff,
-    timestampMs,
+    new Date(timestampMs),
+    context,
     leafChainId,
     blockNumber,
   );
