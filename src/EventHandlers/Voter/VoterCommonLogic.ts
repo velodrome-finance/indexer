@@ -6,11 +6,12 @@ import type {
 } from "generated";
 import {
   type LiquidityPoolAggregatorDiff,
+  loadPoolData,
   updateLiquidityPoolAggregator,
 } from "../../Aggregators/LiquidityPoolAggregator";
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import type { VeNFTPoolVoteDiff } from "../../Aggregators/VeNFTPoolVote";
-import { PendingVoteId } from "../../Constants";
+import { PendingVoteId, RootGaugeRootPoolId } from "../../Constants";
 import { getTokensDeposited } from "../../Effects/Index";
 import { normalizeTokenAmountTo1e18 } from "../../Helpers";
 import { multiplyBase1e18 } from "../../Maths";
@@ -90,20 +91,31 @@ export async function computeVoterDistributeValues(
   };
 }
 
+/**
+ * Builds the LP diff for a DistributeReward. When gaugeAddress is omitted (cross-chain case),
+ * the diff does not include gaugeAddress so the leaf pool's gauge is not overwritten.
+ * @param result - The result of the computeVoterDistributeValues function
+ * @param timestampMs - The timestamp in milliseconds
+ * @param gaugeAddress - The address of the root gauge (optional)
+ * @returns The LP diff
+ */
 export function buildLpDiffFromDistribute(
   result: VoterCommonResult,
-  gaugeAddress: string,
   timestampMs: number,
+  gaugeAddress?: string,
 ): Partial<LiquidityPoolAggregatorDiff> {
-  return {
+  const diff: Partial<LiquidityPoolAggregatorDiff> = {
     totalVotesDeposited: result.tokensDeposited,
     totalVotesDepositedUSD: result.normalizedVotesDepositedAmountUsd,
     incrementalTotalEmissions: result.normalizedEmissionsAmount,
     incrementalTotalEmissionsUSD: result.normalizedEmissionsAmountUsd,
     lastUpdatedTimestamp: new Date(timestampMs),
-    gaugeAddress,
     gaugeIsAlive: result.isAlive,
   };
+  if (gaugeAddress !== undefined) {
+    diff.gaugeAddress = gaugeAddress;
+  }
+  return diff;
 }
 
 export async function applyLpDiff(
@@ -122,6 +134,64 @@ export async function applyLpDiff(
     eventChainId,
     blockNumber,
   );
+}
+
+/**
+ * Resolves a root gauge (RootGauge/RootCLGauge on OP) to the corresponding leaf pool via
+ * RootGauge_RootPool and RootPool_LeafPool. Used when DistributeReward fires for a gauge
+ * that has no local LiquidityPoolAggregator (the real pool is on a leaf chain).
+ * @param context - The handler context
+ * @param chainId - The chain ID
+ * @param gaugeAddress - The address of the root gauge
+ * @param blockNumber - The block number
+ * @param blockTimestamp - The block timestamp
+ * @returns The leaf pool and isCrossChain: true, or null if resolution fails (logs warning).
+ */
+export async function resolveLeafPoolForRootGauge(
+  context: handlerContext,
+  chainId: number,
+  gaugeAddress: string,
+  blockNumber: number,
+  blockTimestamp: number,
+): Promise<{ pool: LiquidityPoolAggregator; isCrossChain: true } | null> {
+  const rootGaugeMapping = await context.RootGauge_RootPool.get(
+    RootGaugeRootPoolId(chainId, gaugeAddress),
+  );
+  if (!rootGaugeMapping) {
+    context.log.warn(
+      `[resolveLeafPoolForRootGauge] No pool address found for the gauge address ${gaugeAddress} on chain ${chainId}`,
+    );
+    return null;
+  }
+  const rootPoolAddress = rootGaugeMapping.rootPoolAddress;
+  const rootPoolLeafPools =
+    (await context.RootPool_LeafPool.getWhere({
+      rootPoolAddress: { _eq: rootPoolAddress },
+    })) ?? [];
+  if (rootPoolLeafPools.length !== 1) {
+    context.log.warn(
+      `[resolveLeafPoolForRootGauge] Root gauge ${gaugeAddress} maps to root pool ${rootPoolAddress} but RootPool_LeafPool mapping not found or ambiguous (count: ${rootPoolLeafPools.length}) on chain ${chainId}`,
+    );
+    return null;
+  }
+  const { leafPoolAddress, leafChainId } = rootPoolLeafPools[0];
+  const leafPoolData = await loadPoolData(
+    leafPoolAddress,
+    leafChainId,
+    context,
+    blockNumber,
+    blockTimestamp,
+  );
+  if (!leafPoolData) {
+    context.log.warn(
+      `[resolveLeafPoolForRootGauge] Leaf pool data not found for ${leafPoolAddress} on chain ${leafChainId} (root gauge ${gaugeAddress})`,
+    );
+    return null;
+  }
+  return {
+    pool: leafPoolData.liquidityPoolAggregator,
+    isCrossChain: true,
+  };
 }
 
 /**

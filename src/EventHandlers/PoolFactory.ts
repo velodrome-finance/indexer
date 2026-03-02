@@ -15,7 +15,7 @@ import {
 import { getRootPoolAddress } from "../Effects/RootPool";
 import { createTokenEntity } from "../PriceOracle";
 import type { TokenEntityMapping } from "./../CustomTypes";
-import { processAllPendingVotesForRootPool } from "./Voter/PendingVoteProcessing";
+import { flushPendingVotesAndDistributionsForRootPool } from "./Voter/CrossChainPendingResolution";
 
 PoolFactory.PoolCreated.contractRegister(({ event, context }) => {
   context.addPool(event.params.pool);
@@ -123,10 +123,14 @@ PoolFactory.PoolCreated.handler(async ({ event, context }) => {
         leafChainId: chainId,
         leafPoolAddress: event.params.pool,
       });
-      await processAllPendingVotesForRootPool(context, rootPoolAddress);
+      await flushPendingVotesAndDistributionsForRootPool(
+        context,
+        rootPoolAddress,
+        "[PoolFactory.PoolCreated]",
+      );
     } else {
       context.log.error(
-        `Failed to get root pool address for pool ${event.params.pool} on chain ${chainId}`,
+        `[PoolFactory.PoolCreated] Failed to get root pool address for pool ${event.params.pool} on chain ${chainId}`,
       );
       return;
     }

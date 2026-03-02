@@ -557,6 +557,14 @@ type RootPool_LeafPool {
   leafPoolAddress: String! # Actual real pool that is deployed on leaf chain
 }
 
+# Maps root gauge (RootGauge/RootCLGauge on OP) to root pool for DistributeReward cross-chain resolution
+type RootGauge_RootPool {
+  id: ID! # Unique identifier, formatted as {rootChainId}-{rootGaugeAddress}
+  rootChainId: Int! # Chain ID of the root chain (typically Optimism)
+  rootGaugeAddress: String! @index # Address of the root gauge contract on the root chain
+  rootPoolAddress: String! # Address of the root pool this gauge maps to
+}
+
 # Deferred vote: stored when Voted/Abstained fires but RootPool_LeafPool mapping does not exist yet
 type PendingVote {
   id: ID! # Format: {chainId}-{rootPoolAddress}-{tokenId}-{txHash}-{logIndex}
@@ -580,6 +588,18 @@ type PendingRootPoolMapping {
   token1: String! # Address of token1 in the root/leaf pool
   tickSpacing: BigInt! @config(precision: 24) # Tick spacing assigned for the pool
   rootPoolMatchingHash: String! @index # {leafChainId}_{token0}_{token1}_{tickSpacing}  # Used for quick matching in LiquidityPoolAggregator
+}
+
+# Deferred distribution: stored when DistributeReward fires for a root gauge but RootPool_LeafPool mapping does not exist yet
+type PendingDistribution {
+  id: ID! # Format: {rootChainId}-{rootPoolAddress}-{blockNumber}-{logIndex}
+  rootChainId: Int! # Chain ID where the root gauge and pool exist
+  rootPoolAddress: String! @index # Address of the root pool (matches RootPool_LeafPool)
+  gaugeAddress: String! # Gauge that emitted DistributeReward
+  amount: BigInt! @config(precision: 76) # Reward amount from event
+  blockNumber: BigInt! @config(precision: 76) # Block number of the event
+  blockTimestamp: BigInt! @config(precision: 76) # Block timestamp (seconds) of the event
+  logIndex: Int! # Log index for uniqueness within block
 }
 
 # Should be updated by TickSpacingEnabled event emitted by CLFactory contract

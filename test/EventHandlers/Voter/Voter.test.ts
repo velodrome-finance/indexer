@@ -14,9 +14,11 @@ import {
 import * as LiquidityPoolAggregatorModule from "../../../src/Aggregators/LiquidityPoolAggregator";
 import {
   CHAIN_CONSTANTS,
+  PendingDistributionId,
   PendingRootPoolMappingId,
   PendingVoteId,
   PoolId,
+  RootGaugeRootPoolId,
   RootPoolLeafPoolId,
   TokenId,
   UserStatsPerPoolId,
@@ -1410,13 +1412,21 @@ describe("Voter Events", () => {
       });
     });
 
-    describe("when pool entity does not exist", () => {
-      it("should not create any entities", async () => {
+    describe("when pool entity does not exist (RootPool case)", () => {
+      it("should create RootGauge_RootPool for cross-chain DistributeReward resolution", async () => {
         const resultDB = await mockDb.processEvents([mockEvent]);
 
         expect(
           Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
         ).toHaveLength(0);
+
+        const expectedId = RootGaugeRootPoolId(chainId, gaugeAddress);
+        const rootGaugeRootPool =
+          resultDB.entities.RootGauge_RootPool.get(expectedId);
+        expect(rootGaugeRootPool).toBeDefined();
+        expect(rootGaugeRootPool?.rootChainId).toBe(chainId);
+        expect(rootGaugeRootPool?.rootGaugeAddress).toBe(gaugeAddress);
+        expect(rootGaugeRootPool?.rootPoolAddress).toBe(poolAddress);
       });
     });
 
@@ -2051,7 +2061,7 @@ describe("Voter Events", () => {
     describe("when pool entity does not exist", () => {
       let originalChainConstantsForPoolTest: (typeof CHAIN_CONSTANTS)[typeof chainId];
 
-      it("should return early when pool does not exist", async () => {
+      it("should return early when pool does not exist and no RootGauge_RootPool mapping", async () => {
         // Mock CHAIN_CONSTANTS rewardToken function
         originalChainConstantsForPoolTest = CHAIN_CONSTANTS[chainId];
         CHAIN_CONSTANTS[chainId] = {
@@ -2059,7 +2069,7 @@ describe("Voter Events", () => {
           rewardToken: vi.fn().mockReturnValue(rewardTokenAddress),
         };
 
-        // Mock findPoolByGaugeAddress to return null
+        // Mock findPoolByGaugeAddress to return null (root gauge, no local pool)
         vi.spyOn(
           LiquidityPoolAggregatorModule,
           "findPoolByGaugeAddress",
@@ -2067,7 +2077,7 @@ describe("Voter Events", () => {
 
         const resultDB = await mockDb.processEvents([mockEvent]);
 
-        // Should not create any entities when pool doesn't exist
+        // Should not create any pool entities when pool doesn't exist and no root-gauge mapping
         expect(
           Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
         ).toHaveLength(0);
@@ -2077,6 +2087,285 @@ describe("Voter Events", () => {
         // Restore original CHAIN_CONSTANTS to prevent test pollution
         if (originalChainConstantsForPoolTest !== undefined) {
           CHAIN_CONSTANTS[chainId] = originalChainConstantsForPoolTest;
+        }
+      });
+    });
+
+    describe("when root gauge and no RootPool_LeafPool (deferred)", () => {
+      const rootPoolAddress = poolAddress;
+      const leafChainId = 252;
+      const blockTimestamp = 1000000;
+      const blockNumberForRoot = 128357870;
+      const txHash =
+        "0x1234567890123456789012345678901234567890123456789012345678901234";
+      const token0 = toChecksumAddress(
+        "0x1111111111111111111111111111111111111111",
+      );
+      const token1 = toChecksumAddress(
+        "0x2222222222222222222222222222222222222222",
+      );
+      const tickSpacing = 60n;
+      let originalChainConstantsDeferred: (typeof CHAIN_CONSTANTS)[typeof chainId];
+
+      it("should create RootGauge_RootPool and PendingDistribution when processEvents RootPoolCreated, GaugeCreated, DistributeReward with no leaf", async () => {
+        originalChainConstantsDeferred = CHAIN_CONSTANTS[chainId];
+        CHAIN_CONSTANTS[chainId] = {
+          ...originalChainConstantsDeferred,
+          rewardToken: vi.fn().mockReturnValue(rewardTokenAddress),
+        };
+
+        vi.spyOn(
+          getTokensDeposited as unknown as EffectWithHandler<
+            {
+              rewardTokenAddress: string;
+              gaugeAddress: string;
+              blockNumber: number;
+              eventChainId: number;
+            },
+            bigint | undefined
+          >,
+          "handler",
+        ).mockImplementation(async () => 500n * 10n ** 18n);
+
+        const rewardToken: Token = {
+          id: TokenId(chainId, rewardTokenAddress),
+          address: rewardTokenAddress,
+          symbol: "VELO",
+          name: "VELO",
+          chainId: chainId,
+          decimals: 18n,
+          pricePerUSDNew: 2n * 10n ** 18n,
+          isWhitelisted: true,
+          lastUpdatedTimestamp: new Date(blockTimestamp * 1000),
+        } as Token;
+
+        let db = MockDb.createMockDb();
+        db = db.entities.Token.set(rewardToken);
+
+        const rootPoolCreatedEvent =
+          RootCLPoolFactory.RootPoolCreated.createMockEvent({
+            token0: token0 as `0x${string}`,
+            token1: token1 as `0x${string}`,
+            tickSpacing,
+            chainid: BigInt(leafChainId),
+            pool: rootPoolAddress,
+            mockEventData: {
+              block: {
+                timestamp: blockTimestamp,
+                number: blockNumberForRoot,
+                hash: txHash,
+              },
+              chainId: chainId,
+              logIndex: 1,
+            },
+          });
+        const gaugeCreatedEvent = Voter.GaugeCreated.createMockEvent({
+          poolFactory: toChecksumAddress(
+            "0xCc0bDDB707055e04e497aB22a59c2aF4391cd12F",
+          ),
+          votingRewardsFactory: toChecksumAddress(
+            "0x2222222222222222222222222222222222222222",
+          ),
+          gaugeFactory: toChecksumAddress(
+            "0x3333333333333333333333333333333333333333",
+          ),
+          pool: rootPoolAddress,
+          bribeVotingReward: toChecksumAddress(
+            "0x5555555555555555555555555555555555555555",
+          ),
+          feeVotingReward: toChecksumAddress(
+            "0x6666666666666666666666666666666666666666",
+          ),
+          gauge: gaugeAddress,
+          creator: toChecksumAddress(
+            "0x7777777777777777777777777777777777777777",
+          ),
+          mockEventData: {
+            block: {
+              number: blockNumberForRoot,
+              timestamp: blockTimestamp,
+              hash: txHash,
+            },
+            chainId: chainId,
+            logIndex: 2,
+          },
+        });
+        const distributeRewardEvent = Voter.DistributeReward.createMockEvent({
+          gauge: gaugeAddress,
+          amount: 1000n * 10n ** 18n,
+          mockEventData: {
+            block: {
+              number: blockNumberForRoot,
+              timestamp: blockTimestamp,
+              hash: txHash,
+            },
+            chainId: chainId,
+            logIndex: 3,
+            srcAddress: toChecksumAddress(
+              "0x41C914ee0c7E1A5edCD0295623e6dC557B5aBf3C",
+            ),
+          },
+        });
+
+        const resultDB = await db.processEvents([
+          rootPoolCreatedEvent,
+          gaugeCreatedEvent,
+          distributeRewardEvent,
+        ]);
+
+        expect(
+          resultDB.entities.RootGauge_RootPool.get(
+            RootGaugeRootPoolId(chainId, gaugeAddress),
+          ),
+        ).toBeDefined();
+
+        const pendingDistId = PendingDistributionId(
+          chainId,
+          rootPoolAddress,
+          blockNumberForRoot,
+          3,
+        );
+        const pendingDistribution =
+          resultDB.entities.PendingDistribution.get(pendingDistId);
+        expect(pendingDistribution).toBeDefined();
+        expect(pendingDistribution?.gaugeAddress).toBe(gaugeAddress);
+        expect(pendingDistribution?.amount).toBe(1000n * 10n ** 18n);
+
+        expect(
+          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
+        ).toHaveLength(0);
+      });
+
+      afterEach(() => {
+        if (originalChainConstantsDeferred !== undefined) {
+          CHAIN_CONSTANTS[chainId] = originalChainConstantsDeferred;
+        }
+      });
+    });
+
+    describe("when gauge is root gauge and RootGauge_RootPool + RootPool_LeafPool exist", () => {
+      const leafChainId = 252;
+      const rootPoolAddress = poolAddress;
+      const leafPoolAddress = toChecksumAddress(
+        "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      );
+      const leafPoolId = PoolId(leafChainId, leafPoolAddress);
+      const leafGaugeAddress = toChecksumAddress(
+        "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      );
+      let originalChainConstantsCrossChain: (typeof CHAIN_CONSTANTS)[typeof chainId];
+
+      it("should apply distribution to leaf pool without overwriting gaugeAddress", async () => {
+        const { mockLiquidityPoolData, mockToken0Data, mockToken1Data } =
+          setupCommon();
+
+        const leafToken0Id = TokenId(leafChainId, mockToken0Data.address);
+        const leafToken1Id = TokenId(leafChainId, mockToken1Data.address);
+        const leafPool: LiquidityPoolAggregator = {
+          ...mockLiquidityPoolData,
+          id: leafPoolId,
+          poolAddress: leafPoolAddress as `0x${string}`,
+          chainId: leafChainId,
+          token0_id: leafToken0Id,
+          token1_id: leafToken1Id,
+          token0_address: mockToken0Data.address as `0x${string}`,
+          token1_address: mockToken1Data.address as `0x${string}`,
+          totalEmissions: 0n,
+          totalEmissionsUSD: 0n,
+          totalVotesDeposited: 0n,
+          totalVotesDepositedUSD: 0n,
+          gaugeAddress: leafGaugeAddress,
+          gaugeIsAlive: true,
+        } as LiquidityPoolAggregator;
+
+        const rewardToken: Token = {
+          id: TokenId(chainId, rewardTokenAddress),
+          address: rewardTokenAddress,
+          symbol: "VELO",
+          name: "VELO",
+          chainId: chainId,
+          decimals: 18n,
+          pricePerUSDNew: 2n * 10n ** 18n,
+          isWhitelisted: true,
+          lastUpdatedTimestamp: new Date(1000000 * 1000),
+        } as Token;
+
+        const leafToken0: Token = {
+          ...mockToken0Data,
+          id: leafToken0Id,
+          chainId: leafChainId,
+        };
+        const leafToken1: Token = {
+          ...mockToken1Data,
+          id: leafToken1Id,
+          chainId: leafChainId,
+        };
+
+        vi.spyOn(
+          LiquidityPoolAggregatorModule,
+          "findPoolByGaugeAddress",
+        ).mockResolvedValue(null);
+
+        vi.spyOn(
+          getTokensDeposited as unknown as EffectWithHandler<
+            {
+              rewardTokenAddress: string;
+              gaugeAddress: string;
+              blockNumber: number;
+              eventChainId: number;
+            },
+            bigint | undefined
+          >,
+          "handler",
+        ).mockImplementation(async () => 500n * 10n ** 18n);
+
+        originalChainConstantsCrossChain = CHAIN_CONSTANTS[chainId];
+        CHAIN_CONSTANTS[chainId] = {
+          ...originalChainConstantsCrossChain,
+          rewardToken: vi.fn().mockReturnValue(rewardTokenAddress),
+        };
+
+        const rootGaugeRootPoolId = RootGaugeRootPoolId(chainId, gaugeAddress);
+        const rootPoolLeafPoolId = RootPoolLeafPoolId(
+          chainId,
+          leafChainId,
+          rootPoolAddress,
+          leafPoolAddress,
+        );
+
+        let db = mockDb.entities.Token.set(rewardToken);
+        db = db.entities.Token.set(leafToken0);
+        db = db.entities.Token.set(leafToken1);
+        db = db.entities.LiquidityPoolAggregator.set(leafPool);
+        db = db.entities.RootGauge_RootPool.set({
+          id: rootGaugeRootPoolId,
+          rootChainId: chainId,
+          rootGaugeAddress: gaugeAddress,
+          rootPoolAddress: rootPoolAddress,
+        });
+        db = db.entities.RootPool_LeafPool.set({
+          id: rootPoolLeafPoolId,
+          rootChainId: chainId,
+          rootPoolAddress: rootPoolAddress,
+          leafChainId,
+          leafPoolAddress,
+        });
+
+        const resultDB = await db.processEvents([mockEvent]);
+
+        const updatedLeafPool =
+          resultDB.entities.LiquidityPoolAggregator.get(leafPoolId);
+        expect(updatedLeafPool).toBeDefined();
+        expect(updatedLeafPool?.totalEmissions).toBe(1000n * 10n ** 18n);
+        expect(updatedLeafPool?.totalEmissionsUSD).toBe(2000n * 10n ** 18n);
+        expect(updatedLeafPool?.totalVotesDeposited).toBe(500n * 10n ** 18n);
+        // Cross-chain path must not overwrite leaf pool's gauge
+        expect(updatedLeafPool?.gaugeAddress).toBe(leafGaugeAddress);
+      });
+
+      afterEach(() => {
+        if (originalChainConstantsCrossChain !== undefined) {
+          CHAIN_CONSTANTS[chainId] = originalChainConstantsCrossChain;
         }
       });
     });

@@ -204,6 +204,11 @@ export function getDefaultRPCByChainId(chainId: number): string | null {
   return chainIdMap[chainId] || null;
 }
 
+export enum CrossChainPendingResolutionLogPrefix {
+  Votes = "[processAllPendingVotesForRootPool]",
+  Distributions = "[processAllPendingDistributionsForRootPool]",
+}
+
 // Object containing all the constants for a chain
 type chainConstants = {
   weth: string;
@@ -704,6 +709,28 @@ export const PendingRootPoolMappingId = (
   rootChainId: number,
   rootPoolAddress: string,
 ) => `${rootChainId}-${rootPoolAddress}`;
+
+/** Entity ID for PendingDistribution. Format: {rootChainId}-{rootPoolAddress}-{blockNumber}-{logIndex}
+ * @param rootChainId - Root chain ID
+ * @param rootPoolAddress - Root pool address
+ * @param blockNumber - Block number of the DistributeReward event
+ * @param logIndex - Log index of the event (for uniqueness within block)
+ */
+export const PendingDistributionId = (
+  rootChainId: number,
+  rootPoolAddress: string,
+  blockNumber: number,
+  logIndex: number,
+) => `${rootChainId}-${rootPoolAddress}-${blockNumber}-${logIndex}`;
+
+/** Entity ID for RootGauge_RootPool. Format: {rootChainId}-{rootGaugeAddress}
+ * @param rootChainId - Root chain ID (e.g. Optimism)
+ * @param rootGaugeAddress - Root gauge address (RootGauge/RootCLGauge on root chain)
+ */
+export const RootGaugeRootPoolId = (
+  rootChainId: number,
+  rootGaugeAddress: string,
+) => `${rootChainId}-${rootGaugeAddress}`;
 
 /** rootPoolMatchingHash for cross-chain pool matching. Format: {leafChainId}_{token0}_{token1}_{tickSpacing}
  */

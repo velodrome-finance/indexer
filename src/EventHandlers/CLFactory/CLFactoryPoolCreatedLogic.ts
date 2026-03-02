@@ -10,7 +10,7 @@ import { createLiquidityPoolAggregatorEntity } from "../../Aggregators/Liquidity
 import { RootPoolLeafPoolId, rootPoolMatchingHash } from "../../Constants";
 import type { TokenEntityMapping } from "../../CustomTypes";
 import { createTokenEntity } from "../../PriceOracle";
-import { processAllPendingVotesForRootPool } from "../Voter/PendingVoteProcessing";
+import { flushPendingVotesAndDistributionsForRootPool } from "../Voter/CrossChainPendingResolution";
 
 export interface CLFactoryPoolCreatedResult {
   liquidityPoolAggregator: LiquidityPoolAggregator;
@@ -136,11 +136,9 @@ export async function flushPendingRootPoolMappingAndVotes(
     leafPoolAddress,
   });
   context.PendingRootPoolMapping.deleteUnsafe(pending.id);
-  try {
-    await processAllPendingVotesForRootPool(context, pending.rootPoolAddress);
-  } catch (error) {
-    context.log.error(
-      `[flushPendingRootPoolMappingAndVotes] processAllPendingVotesForRootPool failed for rootPoolAddress ${pending.rootPoolAddress}: ${error instanceof Error ? error.message : String(error)}`,
-    );
-  }
+  await flushPendingVotesAndDistributionsForRootPool(
+    context,
+    pending.rootPoolAddress,
+    "[flushPendingRootPoolMappingAndVotes]",
+  );
 }
