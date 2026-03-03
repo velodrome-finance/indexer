@@ -12,7 +12,7 @@ import {
   RootPoolLeafPoolId,
   toChecksumAddress,
 } from "../../src/Constants";
-import { getSwapFee } from "../../src/Effects/SwapFee";
+import { getCurrentFee } from "../../src/Effects/CurrentFee";
 import * as PriceOracle from "../../src/PriceOracle";
 import { setLiquidityPoolAggregatorSnapshot } from "../../src/Snapshots/LiquidityPoolAggregatorSnapshot";
 import { getSnapshotEpoch } from "../../src/Snapshots/Shared";
@@ -94,7 +94,7 @@ describe("LiquidityPoolAggregator Functions", () => {
             scalingFactor: 10000000n,
           };
         }
-        if (effectFn.name === "getSwapFee") {
+        if (effectFn.name === "getCurrentFee") {
           return 1900n;
         }
         return {};
@@ -203,7 +203,7 @@ describe("LiquidityPoolAggregator Functions", () => {
       // Verify that the effect was called with the expected arguments
       // biome-ignore lint/style/noNonNullAssertion: effect is verified to be defined above
       const effectMock = vi.mocked(mockContext.effect!);
-      expect(effectMock).toHaveBeenCalledWith(getSwapFee, {
+      expect(effectMock).toHaveBeenCalledWith(getCurrentFee, {
         poolAddress: liquidityPoolAggregator.poolAddress,
         factoryAddress: toChecksumAddress(
           "0x548118C7E0B865C2CfA94D15EC86B666468ac758",
@@ -352,7 +352,7 @@ describe("LiquidityPoolAggregator Functions", () => {
 
       // For non-CL pools, updateDynamicFeePools should NOT be called
       const effectCalls = effectSpy.mock.calls.filter(
-        (call) => call[0] === getSwapFee,
+        (call) => call[0] === getCurrentFee,
       );
       expect(effectCalls.length).toBe(0);
     });
@@ -392,7 +392,7 @@ describe("LiquidityPoolAggregator Functions", () => {
 
       // For CL pools, updateDynamicFeePools should be called
       const effectCalls = effectSpy.mock.calls.filter(
-        (call) => call[0] === getSwapFee,
+        (call) => call[0] === getCurrentFee,
       );
       expect(effectCalls.length).toBe(1);
     });

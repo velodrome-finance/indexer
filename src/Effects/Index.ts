@@ -5,8 +5,8 @@ export {
   roundBlockToInterval,
 } from "./Token";
 
-// Swap fee-related effects (e.g. CLFactory.getSwapFee for CL pools)
-export { getSwapFee } from "./SwapFee";
+// Current fee effect (CLFactory.getSwapFee for CL pools; cache key getCurrentFee)
+export { getCurrentFee } from "./CurrentFee";
 
 // Voter-related effects
 export { getTokensDeposited } from "./Voter";

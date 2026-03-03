@@ -14,9 +14,9 @@ export { fetchSwapFee } from "./fetchers/SwapFee";
  * @param input.blockNumber - Block at which to read the fee.
  * @returns Promise resolving to swap fee (bigint) or undefined when the gateway handles an RPC/contract error.
  */
-export const getSwapFee = createEffect(
+export const getCurrentFee = createEffect(
   {
-    name: EffectType.GET_SWAP_FEE,
+    name: EffectType.GET_CURRENT_FEE,
     input: {
       poolAddress: S.string,
       factoryAddress: S.string,
@@ -29,7 +29,7 @@ export const getSwapFee = createEffect(
   },
   async ({ input, context }) => {
     const result = await callRpcGateway(context, {
-      type: EffectType.GET_SWAP_FEE,
+      type: EffectType.GET_CURRENT_FEE,
       poolAddress: input.poolAddress,
       factoryAddress: input.factoryAddress,
       chainId: input.chainId,
