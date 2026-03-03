@@ -1,8 +1,8 @@
 import type { logger as Envio_logger } from "envio/src/Envio.gen";
 import type { PublicClient } from "viem";
 import { CHAIN_CONSTANTS, toChecksumAddress } from "../../src/Constants";
+import { fetchSwapFee, getCurrentFee } from "../../src/Effects/CurrentFee";
 import * as HelpersModule from "../../src/Effects/Helpers";
-import { fetchSwapFee, getSwapFee } from "../../src/Effects/SwapFee";
 
 type MockEffect = {
   name: string;
@@ -78,7 +78,7 @@ const CHAIN_CONFIGS = [
   },
 ];
 
-describe("Swap Fee Effects", () => {
+describe("Current Fee Effects", () => {
   let mockContext: {
     effect: (effect: MockEffect, input: unknown) => unknown;
     ethClient: PublicClient;
@@ -125,10 +125,10 @@ describe("Swap Fee Effects", () => {
     vi.restoreAllMocks();
   });
 
-  describe("getSwapFee", () => {
+  describe("getCurrentFee", () => {
     it("should be a valid effect object", () => {
-      expect(typeof getSwapFee).toBe("object");
-      expect(getSwapFee).toHaveProperty("name", "getSwapFee");
+      expect(typeof getCurrentFee).toBe("object");
+      expect(getCurrentFee).toHaveProperty("name", "getCurrentFee");
     });
 
     it("should return undefined on error", async () => {
@@ -137,7 +137,7 @@ describe("Swap Fee Effects", () => {
       );
 
       const result = await mockContext.effect(
-        getSwapFee as unknown as MockEffect,
+        getCurrentFee as unknown as MockEffect,
         {
           poolAddress: TEST_POOL_ADDRESS,
           factoryAddress: TEST_CL_FACTORY_ADDRESS,
@@ -154,7 +154,7 @@ describe("Swap Fee Effects", () => {
       vi.mocked(mockEthClient.readContract).mockResolvedValue(TEST_FEE_VALUE);
 
       const result = await mockContext.effect(
-        getSwapFee as unknown as MockEffect,
+        getCurrentFee as unknown as MockEffect,
         {
           poolAddress: TEST_POOL_ADDRESS,
           factoryAddress: TEST_CL_FACTORY_ADDRESS,
