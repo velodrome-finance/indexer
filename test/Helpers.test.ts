@@ -18,11 +18,102 @@ import {
   calculateWhitelistedFeesUSD,
   computeLiquidityDeltaFromAmounts,
   executeEffectWithRoundedBlockRetry,
+  runAsyncWithErrorLog,
+  sortByBlockThenLogIndex,
 } from "../src/Helpers";
 import { setupCommon } from "./EventHandlers/Pool/common";
 
 describe("Helpers", () => {
   const Q96 = 2n ** 96n;
+
+  describe("sortByBlockThenLogIndex", () => {
+    it("should sort by block number ascending when blocks differ", () => {
+      const items = [
+        { block: 200, logIndex: 1 },
+        { block: 100, logIndex: 2 },
+        { block: 150, logIndex: 0 },
+      ];
+      const result = sortByBlockThenLogIndex(
+        items,
+        (x) => x.block,
+        (x) => x.logIndex,
+      );
+      expect(result.map((x) => x.block)).toEqual([100, 150, 200]);
+    });
+
+    it("should sort by log index when block numbers are equal", () => {
+      const items = [
+        { block: 10, logIndex: 3 },
+        { block: 10, logIndex: 1 },
+        { block: 10, logIndex: 2 },
+      ];
+      const result = sortByBlockThenLogIndex(
+        items,
+        (x) => x.block,
+        (x) => x.logIndex,
+      );
+      expect(result.map((x) => x.logIndex)).toEqual([1, 2, 3]);
+    });
+
+    it("should default log index to 0 when getLogIndex is omitted", () => {
+      const items = [{ block: 2 }, { block: 1 }, { block: 3 }];
+      const result = sortByBlockThenLogIndex(items, (x) => x.block);
+      expect(result.map((x) => x.block)).toEqual([1, 2, 3]);
+    });
+
+    it("should not mutate the input array", () => {
+      const items = [{ block: 2 }, { block: 1 }];
+      const copy = [...items];
+      sortByBlockThenLogIndex(items, (x) => x.block);
+      expect(items).toEqual(copy);
+    });
+  });
+
+  describe("runAsyncWithErrorLog", () => {
+    it("should run fn and not log when fn resolves", async () => {
+      const logError = vi.fn();
+      const context = {
+        log: { error: logError },
+      } as unknown as handlerContext;
+      const fn = vi.fn().mockResolvedValue(undefined);
+
+      await runAsyncWithErrorLog(context, "Test message", fn);
+
+      expect(fn).toHaveBeenCalledTimes(1);
+      expect(logError).not.toHaveBeenCalled();
+    });
+
+    it("should log message and error and not throw when fn rejects", async () => {
+      const logError = vi.fn();
+      const context = {
+        log: { error: logError },
+      } as unknown as handlerContext;
+      const err = new Error("Something failed");
+      const fn = vi.fn().mockRejectedValue(err);
+
+      await expect(
+        runAsyncWithErrorLog(context, "Test message", fn),
+      ).resolves.toBeUndefined();
+
+      expect(logError).toHaveBeenCalledTimes(1);
+      expect(logError).toHaveBeenCalledWith("Test message: Something failed");
+    });
+
+    it("should log String(error) and not throw when fn rejects with non-Error", async () => {
+      const logError = vi.fn();
+      const context = {
+        log: { error: logError },
+      } as unknown as handlerContext;
+      const fn = vi.fn().mockRejectedValue("string error");
+
+      await expect(
+        runAsyncWithErrorLog(context, "Test message", fn),
+      ).resolves.toBeUndefined();
+
+      expect(logError).toHaveBeenCalledTimes(1);
+      expect(logError).toHaveBeenCalledWith("Test message: string error");
+    });
+  });
 
   describe("calculateWhitelistedFeesUSD", () => {
     const { mockToken0Data, mockToken1Data } = setupCommon();

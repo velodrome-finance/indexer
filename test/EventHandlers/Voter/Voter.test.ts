@@ -14,9 +14,11 @@ import {
 import * as LiquidityPoolAggregatorModule from "../../../src/Aggregators/LiquidityPoolAggregator";
 import {
   CHAIN_CONSTANTS,
+  PendingDistributionId,
   PendingRootPoolMappingId,
   PendingVoteId,
   PoolId,
+  RootGaugeRootPoolId,
   RootPoolLeafPoolId,
   TokenId,
   UserStatsPerPoolId,
@@ -28,11 +30,78 @@ import {
 import { getTokensDeposited } from "../../../src/Effects/Voter";
 import { setupCommon } from "../Pool/common";
 
-// Type interface for Effect with handler property (for testing purposes)
+// --- DistributeReward test helpers ---
 interface EffectWithHandler<I, O> {
   name: string;
   handler: (args: { input: I; context: unknown }) => Promise<O>;
 }
+
+const DEFAULT_REWARD_TIMESTAMP_SECONDS = 1000000;
+
+function createRewardToken(
+  chainId: number,
+  rewardTokenAddress: string,
+  overrides?: Partial<Token> & { timestampSeconds?: number },
+): Token {
+  const timestampSeconds =
+    overrides?.timestampSeconds ?? DEFAULT_REWARD_TIMESTAMP_SECONDS;
+  const base: Token = {
+    id: TokenId(chainId, rewardTokenAddress),
+    address: rewardTokenAddress as `0x${string}`,
+    symbol: "VELO",
+    name: "VELO",
+    chainId,
+    decimals: 18n,
+    pricePerUSDNew: 2n * 10n ** 18n,
+    isWhitelisted: true,
+    lastUpdatedTimestamp: new Date(timestampSeconds * 1000),
+  } as Token;
+  if (!overrides) return base;
+  const { timestampSeconds: _ts, ...rest } = overrides;
+  return { ...base, ...rest };
+}
+
+function setupDistributeRewardMocks(
+  chainId: number,
+  rewardTokenAddress: string,
+  options?: { getTokensDepositedValue?: bigint; timestampSeconds?: number },
+): { rewardToken: Token; cleanup: () => void } {
+  const original = CHAIN_CONSTANTS[chainId];
+  CHAIN_CONSTANTS[chainId] = {
+    ...original,
+    rewardToken: vi.fn().mockReturnValue(rewardTokenAddress),
+  };
+
+  let spy: ReturnType<typeof vi.spyOn> | undefined;
+  if (options?.getTokensDepositedValue !== undefined) {
+    spy = vi
+      .spyOn(
+        getTokensDeposited as unknown as EffectWithHandler<
+          {
+            rewardTokenAddress: string;
+            gaugeAddress: string;
+            blockNumber: number;
+            eventChainId: number;
+          },
+          bigint | undefined
+        >,
+        "handler",
+      )
+      .mockImplementation(async () => options.getTokensDepositedValue);
+  }
+
+  const rewardToken = createRewardToken(chainId, rewardTokenAddress, {
+    timestampSeconds: options?.timestampSeconds,
+  });
+
+  const cleanup = () => {
+    CHAIN_CONSTANTS[chainId] = original;
+    spy?.mockRestore();
+  };
+
+  return { rewardToken, cleanup };
+}
+// --- end DistributeReward helpers ---
 
 describe("Voter Events", () => {
   beforeEach(() => {
@@ -97,6 +166,7 @@ describe("Voter Events", () => {
           ...mockLiquidityPoolData,
           id: PoolId(chainId, poolAddress),
           chainId: chainId,
+          poolAddress: poolAddress,
           veNFTamountStaked: 0n,
         } as LiquidityPoolAggregator;
 
@@ -790,16 +860,17 @@ describe("Voter Events", () => {
         mockLeafPool = createMockLiquidityPoolAggregator({
           id: PoolId(leafChainId, leafPoolAddress),
           chainId: leafChainId,
+          poolAddress: leafPoolAddress,
           token0_id: leafToken0Data.id,
           token1_id: leafToken1Data.id,
           veNFTamountStaked: 0n,
         });
 
-        // Create user stats using helper function
+        // Create user stats keyed by leaf pool (real pool), not root
         mockUserStats = createMockUserStatsPerPool({
           userAddress: realVoterAddress,
-          poolAddress: rootPoolAddress,
-          chainId: rootChainId,
+          poolAddress: leafPoolAddress,
+          chainId: leafChainId,
           veNFTamountStaked: 0n,
           firstActivityTimestamp: new Date(0),
           lastActivityTimestamp: new Date(0),
@@ -868,9 +939,9 @@ describe("Voter Events", () => {
 
       it("should update user stats per pool with voting data", () => {
         const userStatsId = UserStatsPerPoolId(
-          rootChainId,
+          leafChainId,
           realVoterAddress,
-          rootPoolAddress,
+          leafPoolAddress,
         );
         const updatedUserStats =
           resultDB.entities.UserStatsPerPool.get(userStatsId);
@@ -899,6 +970,7 @@ describe("Voter Events", () => {
         const liquidityPool = createMockLiquidityPoolAggregator({
           id: PoolId(chainId, poolAddress),
           chainId: chainId,
+          poolAddress: poolAddress,
           veNFTamountStaked: 0n,
         });
 
@@ -1036,6 +1108,7 @@ describe("Voter Events", () => {
           ...mockLiquidityPoolData,
           id: PoolId(chainId, poolAddress),
           chainId: chainId,
+          poolAddress: poolAddress,
           veNFTamountStaked: 2000n, // Initial staked amount
         } as LiquidityPoolAggregator;
 
@@ -1209,16 +1282,17 @@ describe("Voter Events", () => {
         mockLeafPool = createMockLiquidityPoolAggregator({
           id: PoolId(leafChainId, leafPoolAddress),
           chainId: leafChainId,
+          poolAddress: leafPoolAddress,
           token0_id: leafToken0Data.id,
           token1_id: leafToken1Data.id,
           veNFTamountStaked: 3000000000000000000000000n, // Initial staked amount (3M tokens)
         });
 
-        // Create user stats using helper function with initial staked amount
+        // Create user stats keyed by leaf pool (real pool), not root
         mockUserStats = createMockUserStatsPerPool({
           userAddress: realVoterAddress,
-          poolAddress: rootPoolAddress,
-          chainId: rootChainId,
+          poolAddress: leafPoolAddress,
+          chainId: leafChainId,
           veNFTamountStaked: initialUserStaked,
           firstActivityTimestamp: new Date(0),
           lastActivityTimestamp: new Date(0),
@@ -1232,8 +1306,8 @@ describe("Voter Events", () => {
         });
 
         mockVeNFTPoolVote = createMockVeNFTPoolVote({
-          id: VeNFTPoolVoteId(rootChainId, realTokenId, rootPoolAddress),
-          poolAddress: rootPoolAddress,
+          id: VeNFTPoolVoteId(leafChainId, realTokenId, leafPoolAddress),
+          poolAddress: leafPoolAddress,
           veNFTamountStaked: realWeight,
           veNFTState_id: mockVeNFTState.id,
           lastUpdatedTimestamp: new Date(0),
@@ -1298,9 +1372,9 @@ describe("Voter Events", () => {
 
       it("should decrease user stats veNFT amount staked (negative weight)", () => {
         const userStatsId = UserStatsPerPoolId(
-          rootChainId,
+          leafChainId,
           realVoterAddress,
-          rootPoolAddress,
+          leafPoolAddress,
         );
         const updatedUserStats =
           resultDB.entities.UserStatsPerPool.get(userStatsId);
@@ -1315,14 +1389,54 @@ describe("Voter Events", () => {
 
       it("should zero out veNFT pool votes", () => {
         const veNFTPoolVoteId = VeNFTPoolVoteId(
-          rootChainId,
+          leafChainId,
           realTokenId,
-          rootPoolAddress,
+          leafPoolAddress,
         );
         const veNFTPoolVote =
           resultDB.entities.VeNFTPoolVote.get(veNFTPoolVoteId);
         expect(veNFTPoolVote).toBeDefined();
         expect(veNFTPoolVote?.veNFTamountStaked).toBe(0n);
+      });
+
+      it("should key VeNFTPoolVote and UserStatsPerPool by leaf pool (real pool) not root pool", () => {
+        const rootUserStatsId = UserStatsPerPoolId(
+          rootChainId,
+          realVoterAddress,
+          rootPoolAddress,
+        );
+        const rootVeNFTPoolVoteId = VeNFTPoolVoteId(
+          rootChainId,
+          realTokenId,
+          rootPoolAddress,
+        );
+        expect(
+          resultDB.entities.UserStatsPerPool.get(rootUserStatsId),
+        ).toBeUndefined();
+        expect(
+          resultDB.entities.VeNFTPoolVote.get(rootVeNFTPoolVoteId),
+        ).toBeUndefined();
+
+        const leafUserStatsId = UserStatsPerPoolId(
+          leafChainId,
+          realVoterAddress,
+          leafPoolAddress,
+        );
+        const leafVeNFTPoolVoteId = VeNFTPoolVoteId(
+          leafChainId,
+          realTokenId,
+          leafPoolAddress,
+        );
+        const leafUserStats =
+          resultDB.entities.UserStatsPerPool.get(leafUserStatsId);
+        const leafVeNFTPoolVote =
+          resultDB.entities.VeNFTPoolVote.get(leafVeNFTPoolVoteId);
+        expect(leafUserStats).toBeDefined();
+        expect(leafVeNFTPoolVote).toBeDefined();
+        expect(leafUserStats?.veNFTamountStaked).toBe(
+          initialUserStaked - realWeight,
+        );
+        expect(leafVeNFTPoolVote?.veNFTamountStaked).toBe(0n);
       });
     });
   });
@@ -1410,13 +1524,21 @@ describe("Voter Events", () => {
       });
     });
 
-    describe("when pool entity does not exist", () => {
-      it("should not create any entities", async () => {
+    describe("when pool entity does not exist (RootPool case)", () => {
+      it("should create RootGauge_RootPool for cross-chain DistributeReward resolution", async () => {
         const resultDB = await mockDb.processEvents([mockEvent]);
 
         expect(
           Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
         ).toHaveLength(0);
+
+        const expectedId = RootGaugeRootPoolId(chainId, gaugeAddress);
+        const rootGaugeRootPool =
+          resultDB.entities.RootGauge_RootPool.get(expectedId);
+        expect(rootGaugeRootPool).toBeDefined();
+        expect(rootGaugeRootPool?.rootChainId).toBe(chainId);
+        expect(rootGaugeRootPool?.rootGaugeAddress).toBe(gaugeAddress);
+        expect(rootGaugeRootPool?.rootPoolAddress).toBe(poolAddress);
       });
     });
 
@@ -1856,7 +1978,7 @@ describe("Voter Events", () => {
     describe("when reward token and liquidity pool exist", () => {
       let resultDB: ReturnType<typeof MockDb.createMockDb>;
       let updatedDB: ReturnType<typeof MockDb.createMockDb>;
-      let originalChainConstants: (typeof CHAIN_CONSTANTS)[typeof chainId];
+      let cleanup: () => void;
 
       const { mockLiquidityPoolData } = setupCommon();
 
@@ -1879,18 +2001,6 @@ describe("Voter Events", () => {
           gaugeIsAlive: false, // DistributeReward does not set this; we assert it remains unchanged
         } as LiquidityPoolAggregator;
 
-        const rewardToken: Token = {
-          id: TokenId(chainId, rewardTokenAddress),
-          address: rewardTokenAddress,
-          symbol: "VELO",
-          name: "VELO",
-          chainId: chainId,
-          decimals: 18n,
-          pricePerUSDNew: 2n * 10n ** 18n, // $2 per token
-          isWhitelisted: true,
-          lastUpdatedTimestamp: new Date(1000000 * 1000), // Set timestamp to prevent refresh
-        } as Token;
-
         expectations = {
           totalEmissions: 1000n * 10n ** 18n, // normalizedEmissionsAmount
           totalEmissionsUSD: 2000n * 10n ** 18n, // normalizedEmissionsAmountUsd
@@ -1898,47 +2008,30 @@ describe("Voter Events", () => {
           getTokensDepositedUSD: 1000n * 10n ** 18n,
         };
 
+        const { rewardToken, cleanup: cleanupFn } = setupDistributeRewardMocks(
+          chainId,
+          rewardTokenAddress,
+          { getTokensDepositedValue: expectations.getTokensDeposited },
+        );
+        cleanup = cleanupFn;
+
         // Mock findPoolByGaugeAddress to return the pool
         vi.spyOn(
           LiquidityPoolAggregatorModule,
           "findPoolByGaugeAddress",
         ).mockResolvedValue(liquidityPool);
 
-        // Mock the effect function at module level
-        vi.spyOn(
-          getTokensDeposited as unknown as EffectWithHandler<
-            {
-              rewardTokenAddress: string;
-              gaugeAddress: string;
-              blockNumber: number;
-              eventChainId: number;
-            },
-            bigint | undefined
-          >,
-          "handler",
-        ).mockImplementation(async () => expectations.getTokensDeposited);
-
         // Set entities in the mock database
         updatedDB = mockDb.entities.Token.set(rewardToken);
         updatedDB =
           updatedDB.entities.LiquidityPoolAggregator.set(liquidityPool);
-
-        // Mock CHAIN_CONSTANTS rewardToken function
-        // Store original before mutation to restore in afterEach
-        originalChainConstants = CHAIN_CONSTANTS[chainId];
-        CHAIN_CONSTANTS[chainId] = {
-          ...originalChainConstants,
-          rewardToken: vi.fn().mockReturnValue(rewardTokenAddress),
-        };
 
         // Process the event
         resultDB = await updatedDB.processEvents([mockEvent]);
       });
 
       afterEach(() => {
-        // Restore original CHAIN_CONSTANTS to prevent test pollution
-        // Note: vi.restoreAllMocks() in outer afterEach handles spy restoration
-        CHAIN_CONSTANTS[chainId] = originalChainConstants;
+        cleanup();
       });
 
       it("should update the liquidity pool aggregator with emissions data", () => {
@@ -2051,7 +2144,7 @@ describe("Voter Events", () => {
     describe("when pool entity does not exist", () => {
       let originalChainConstantsForPoolTest: (typeof CHAIN_CONSTANTS)[typeof chainId];
 
-      it("should return early when pool does not exist", async () => {
+      it("should return early when pool does not exist and no RootGauge_RootPool mapping", async () => {
         // Mock CHAIN_CONSTANTS rewardToken function
         originalChainConstantsForPoolTest = CHAIN_CONSTANTS[chainId];
         CHAIN_CONSTANTS[chainId] = {
@@ -2059,7 +2152,7 @@ describe("Voter Events", () => {
           rewardToken: vi.fn().mockReturnValue(rewardTokenAddress),
         };
 
-        // Mock findPoolByGaugeAddress to return null
+        // Mock findPoolByGaugeAddress to return null (root gauge, no local pool)
         vi.spyOn(
           LiquidityPoolAggregatorModule,
           "findPoolByGaugeAddress",
@@ -2067,7 +2160,7 @@ describe("Voter Events", () => {
 
         const resultDB = await mockDb.processEvents([mockEvent]);
 
-        // Should not create any entities when pool doesn't exist
+        // Should not create any pool entities when pool doesn't exist and no root-gauge mapping
         expect(
           Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
         ).toHaveLength(0);
@@ -2077,6 +2170,401 @@ describe("Voter Events", () => {
         // Restore original CHAIN_CONSTANTS to prevent test pollution
         if (originalChainConstantsForPoolTest !== undefined) {
           CHAIN_CONSTANTS[chainId] = originalChainConstantsForPoolTest;
+        }
+      });
+    });
+
+    describe("when root gauge and no RootPool_LeafPool (deferred)", () => {
+      const rootPoolAddress = poolAddress;
+      const leafChainId = 252;
+      const blockTimestamp = 1000000;
+      const blockNumberForRoot = 128357870;
+      const txHash =
+        "0x1234567890123456789012345678901234567890123456789012345678901234";
+      const token0 = toChecksumAddress(
+        "0x1111111111111111111111111111111111111111",
+      );
+      const token1 = toChecksumAddress(
+        "0x2222222222222222222222222222222222222222",
+      );
+      const tickSpacing = 60n;
+      let originalChainConstantsDeferred: (typeof CHAIN_CONSTANTS)[typeof chainId];
+
+      it("should create RootGauge_RootPool and PendingDistribution when processEvents RootPoolCreated, GaugeCreated, DistributeReward with no leaf", async () => {
+        originalChainConstantsDeferred = CHAIN_CONSTANTS[chainId];
+        CHAIN_CONSTANTS[chainId] = {
+          ...originalChainConstantsDeferred,
+          rewardToken: vi.fn().mockReturnValue(rewardTokenAddress),
+        };
+
+        vi.spyOn(
+          getTokensDeposited as unknown as EffectWithHandler<
+            {
+              rewardTokenAddress: string;
+              gaugeAddress: string;
+              blockNumber: number;
+              eventChainId: number;
+            },
+            bigint | undefined
+          >,
+          "handler",
+        ).mockImplementation(async () => 500n * 10n ** 18n);
+
+        const rewardToken: Token = {
+          id: TokenId(chainId, rewardTokenAddress),
+          address: rewardTokenAddress,
+          symbol: "VELO",
+          name: "VELO",
+          chainId: chainId,
+          decimals: 18n,
+          pricePerUSDNew: 2n * 10n ** 18n,
+          isWhitelisted: true,
+          lastUpdatedTimestamp: new Date(blockTimestamp * 1000),
+        } as Token;
+
+        let db = MockDb.createMockDb();
+        db = db.entities.Token.set(rewardToken);
+
+        const rootPoolCreatedEvent =
+          RootCLPoolFactory.RootPoolCreated.createMockEvent({
+            token0: token0 as `0x${string}`,
+            token1: token1 as `0x${string}`,
+            tickSpacing,
+            chainid: BigInt(leafChainId),
+            pool: rootPoolAddress,
+            mockEventData: {
+              block: {
+                timestamp: blockTimestamp,
+                number: blockNumberForRoot,
+                hash: txHash,
+              },
+              chainId: chainId,
+              logIndex: 1,
+            },
+          });
+        const gaugeCreatedEvent = Voter.GaugeCreated.createMockEvent({
+          poolFactory: toChecksumAddress(
+            "0xCc0bDDB707055e04e497aB22a59c2aF4391cd12F",
+          ),
+          votingRewardsFactory: toChecksumAddress(
+            "0x2222222222222222222222222222222222222222",
+          ),
+          gaugeFactory: toChecksumAddress(
+            "0x3333333333333333333333333333333333333333",
+          ),
+          pool: rootPoolAddress,
+          bribeVotingReward: toChecksumAddress(
+            "0x5555555555555555555555555555555555555555",
+          ),
+          feeVotingReward: toChecksumAddress(
+            "0x6666666666666666666666666666666666666666",
+          ),
+          gauge: gaugeAddress,
+          creator: toChecksumAddress(
+            "0x7777777777777777777777777777777777777777",
+          ),
+          mockEventData: {
+            block: {
+              number: blockNumberForRoot,
+              timestamp: blockTimestamp,
+              hash: txHash,
+            },
+            chainId: chainId,
+            logIndex: 2,
+          },
+        });
+        const distributeRewardEvent = Voter.DistributeReward.createMockEvent({
+          gauge: gaugeAddress,
+          amount: 1000n * 10n ** 18n,
+          mockEventData: {
+            block: {
+              number: blockNumberForRoot,
+              timestamp: blockTimestamp,
+              hash: txHash,
+            },
+            chainId: chainId,
+            logIndex: 3,
+            srcAddress: toChecksumAddress(
+              "0x41C914ee0c7E1A5edCD0295623e6dC557B5aBf3C",
+            ),
+          },
+        });
+
+        const resultDB = await db.processEvents([
+          rootPoolCreatedEvent,
+          gaugeCreatedEvent,
+          distributeRewardEvent,
+        ]);
+
+        expect(
+          resultDB.entities.RootGauge_RootPool.get(
+            RootGaugeRootPoolId(chainId, gaugeAddress),
+          ),
+        ).toBeDefined();
+
+        const pendingDistId = PendingDistributionId(
+          chainId,
+          rootPoolAddress,
+          blockNumberForRoot,
+          3,
+        );
+        const pendingDistribution =
+          resultDB.entities.PendingDistribution.get(pendingDistId);
+        expect(pendingDistribution).toBeDefined();
+        expect(pendingDistribution?.gaugeAddress).toBe(gaugeAddress);
+        expect(pendingDistribution?.amount).toBe(1000n * 10n ** 18n);
+
+        expect(
+          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
+        ).toHaveLength(0);
+      });
+
+      afterEach(() => {
+        if (originalChainConstantsDeferred !== undefined) {
+          CHAIN_CONSTANTS[chainId] = originalChainConstantsDeferred;
+        }
+      });
+
+      it("should create PendingDistribution when root gauge has ambiguous RootPool_LeafPool mapping (length > 1)", async () => {
+        originalChainConstantsDeferred = CHAIN_CONSTANTS[chainId];
+        CHAIN_CONSTANTS[chainId] = {
+          ...originalChainConstantsDeferred,
+          rewardToken: vi.fn().mockReturnValue(rewardTokenAddress),
+        };
+
+        vi.spyOn(
+          LiquidityPoolAggregatorModule,
+          "findPoolByGaugeAddress",
+        ).mockResolvedValue(null);
+
+        const rootPoolAddressForAmbiguous = poolAddress;
+        const leafChainId = 252;
+        const leafPoolAddressA = toChecksumAddress(
+          "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        );
+        const leafPoolAddressB = toChecksumAddress(
+          "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        );
+        const blockNumberForRoot = 128357870;
+        const logIndex = 3;
+
+        const rewardToken: Token = {
+          id: TokenId(chainId, rewardTokenAddress),
+          address: rewardTokenAddress,
+          symbol: "VELO",
+          name: "VELO",
+          chainId: chainId,
+          decimals: 18n,
+          pricePerUSDNew: 2n * 10n ** 18n,
+          isWhitelisted: true,
+          lastUpdatedTimestamp: new Date(1000000 * 1000),
+        } as Token;
+
+        const rootGaugeRootPoolId = RootGaugeRootPoolId(chainId, gaugeAddress);
+        const rootPoolLeafPoolIdA = RootPoolLeafPoolId(
+          chainId,
+          leafChainId,
+          rootPoolAddressForAmbiguous,
+          leafPoolAddressA,
+        );
+        const rootPoolLeafPoolIdB = RootPoolLeafPoolId(
+          chainId,
+          leafChainId,
+          rootPoolAddressForAmbiguous,
+          leafPoolAddressB,
+        );
+
+        const distributeRewardEvent = Voter.DistributeReward.createMockEvent({
+          gauge: gaugeAddress,
+          amount: 1000n * 10n ** 18n,
+          mockEventData: {
+            block: {
+              number: blockNumberForRoot,
+              timestamp: 1000000,
+              hash: "0xblockhash",
+            },
+            chainId: chainId,
+            logIndex,
+            srcAddress: toChecksumAddress(
+              "0x41C914ee0c7E1A5edCD0295623e6dC557B5aBf3C",
+            ),
+          },
+        });
+
+        let db = MockDb.createMockDb();
+        db = db.entities.Token.set(rewardToken);
+        db = db.entities.RootGauge_RootPool.set({
+          id: rootGaugeRootPoolId,
+          rootChainId: chainId,
+          rootGaugeAddress: gaugeAddress,
+          rootPoolAddress: rootPoolAddressForAmbiguous,
+        });
+        db = db.entities.RootPool_LeafPool.set({
+          id: rootPoolLeafPoolIdA,
+          rootChainId: chainId,
+          rootPoolAddress: rootPoolAddressForAmbiguous,
+          leafChainId,
+          leafPoolAddress: leafPoolAddressA,
+        });
+        db = db.entities.RootPool_LeafPool.set({
+          id: rootPoolLeafPoolIdB,
+          rootChainId: chainId,
+          rootPoolAddress: rootPoolAddressForAmbiguous,
+          leafChainId,
+          leafPoolAddress: leafPoolAddressB,
+        });
+
+        const resultDB = await db.processEvents([distributeRewardEvent]);
+
+        const pendingDistId = PendingDistributionId(
+          chainId,
+          rootPoolAddressForAmbiguous,
+          blockNumberForRoot,
+          logIndex,
+        );
+        const pendingDistribution =
+          resultDB.entities.PendingDistribution.get(pendingDistId);
+        expect(pendingDistribution).toBeDefined();
+        expect(pendingDistribution?.gaugeAddress).toBe(gaugeAddress);
+        expect(pendingDistribution?.amount).toBe(1000n * 10n ** 18n);
+        expect(pendingDistribution?.rootPoolAddress).toBe(
+          rootPoolAddressForAmbiguous,
+        );
+        expect(pendingDistribution?.blockNumber).toBe(
+          BigInt(blockNumberForRoot),
+        );
+        expect(pendingDistribution?.logIndex).toBe(logIndex);
+
+        // Distribution was deferred; no pool should have been updated
+        expect(
+          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
+        ).toHaveLength(0);
+      });
+    });
+
+    describe("when gauge is root gauge and RootGauge_RootPool + RootPool_LeafPool exist", () => {
+      const leafChainId = 252;
+      const rootPoolAddress = poolAddress;
+      const leafPoolAddress = toChecksumAddress(
+        "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      );
+      const leafPoolId = PoolId(leafChainId, leafPoolAddress);
+      const leafGaugeAddress = toChecksumAddress(
+        "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      );
+      let originalChainConstantsCrossChain: (typeof CHAIN_CONSTANTS)[typeof chainId];
+
+      it("should apply distribution to leaf pool without overwriting gaugeAddress", async () => {
+        const { mockLiquidityPoolData, mockToken0Data, mockToken1Data } =
+          setupCommon();
+
+        const leafToken0Id = TokenId(leafChainId, mockToken0Data.address);
+        const leafToken1Id = TokenId(leafChainId, mockToken1Data.address);
+        const leafPool: LiquidityPoolAggregator = {
+          ...mockLiquidityPoolData,
+          id: leafPoolId,
+          poolAddress: leafPoolAddress as `0x${string}`,
+          chainId: leafChainId,
+          token0_id: leafToken0Id,
+          token1_id: leafToken1Id,
+          token0_address: mockToken0Data.address as `0x${string}`,
+          token1_address: mockToken1Data.address as `0x${string}`,
+          totalEmissions: 0n,
+          totalEmissionsUSD: 0n,
+          totalVotesDeposited: 0n,
+          totalVotesDepositedUSD: 0n,
+          gaugeAddress: leafGaugeAddress,
+          gaugeIsAlive: true,
+        } as LiquidityPoolAggregator;
+
+        const rewardToken: Token = {
+          id: TokenId(chainId, rewardTokenAddress),
+          address: rewardTokenAddress,
+          symbol: "VELO",
+          name: "VELO",
+          chainId: chainId,
+          decimals: 18n,
+          pricePerUSDNew: 2n * 10n ** 18n,
+          isWhitelisted: true,
+          lastUpdatedTimestamp: new Date(1000000 * 1000),
+        } as Token;
+
+        const leafToken0: Token = {
+          ...mockToken0Data,
+          id: leafToken0Id,
+          chainId: leafChainId,
+        };
+        const leafToken1: Token = {
+          ...mockToken1Data,
+          id: leafToken1Id,
+          chainId: leafChainId,
+        };
+
+        vi.spyOn(
+          LiquidityPoolAggregatorModule,
+          "findPoolByGaugeAddress",
+        ).mockResolvedValue(null);
+
+        vi.spyOn(
+          getTokensDeposited as unknown as EffectWithHandler<
+            {
+              rewardTokenAddress: string;
+              gaugeAddress: string;
+              blockNumber: number;
+              eventChainId: number;
+            },
+            bigint | undefined
+          >,
+          "handler",
+        ).mockImplementation(async () => 500n * 10n ** 18n);
+
+        originalChainConstantsCrossChain = CHAIN_CONSTANTS[chainId];
+        CHAIN_CONSTANTS[chainId] = {
+          ...originalChainConstantsCrossChain,
+          rewardToken: vi.fn().mockReturnValue(rewardTokenAddress),
+        };
+
+        const rootGaugeRootPoolId = RootGaugeRootPoolId(chainId, gaugeAddress);
+        const rootPoolLeafPoolId = RootPoolLeafPoolId(
+          chainId,
+          leafChainId,
+          rootPoolAddress,
+          leafPoolAddress,
+        );
+
+        let db = mockDb.entities.Token.set(rewardToken);
+        db = db.entities.Token.set(leafToken0);
+        db = db.entities.Token.set(leafToken1);
+        db = db.entities.LiquidityPoolAggregator.set(leafPool);
+        db = db.entities.RootGauge_RootPool.set({
+          id: rootGaugeRootPoolId,
+          rootChainId: chainId,
+          rootGaugeAddress: gaugeAddress,
+          rootPoolAddress: rootPoolAddress,
+        });
+        db = db.entities.RootPool_LeafPool.set({
+          id: rootPoolLeafPoolId,
+          rootChainId: chainId,
+          rootPoolAddress: rootPoolAddress,
+          leafChainId,
+          leafPoolAddress,
+        });
+
+        const resultDB = await db.processEvents([mockEvent]);
+
+        const updatedLeafPool =
+          resultDB.entities.LiquidityPoolAggregator.get(leafPoolId);
+        expect(updatedLeafPool).toBeDefined();
+        expect(updatedLeafPool?.totalEmissions).toBe(1000n * 10n ** 18n);
+        expect(updatedLeafPool?.totalEmissionsUSD).toBe(2000n * 10n ** 18n);
+        expect(updatedLeafPool?.totalVotesDeposited).toBe(500n * 10n ** 18n);
+        // Cross-chain path must not overwrite leaf pool's gauge
+        expect(updatedLeafPool?.gaugeAddress).toBe(leafGaugeAddress);
+      });
+
+      afterEach(() => {
+        if (originalChainConstantsCrossChain !== undefined) {
+          CHAIN_CONSTANTS[chainId] = originalChainConstantsCrossChain;
         }
       });
     });

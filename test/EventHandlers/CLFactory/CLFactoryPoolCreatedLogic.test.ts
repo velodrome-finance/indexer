@@ -18,7 +18,7 @@ import {
   flushPendingRootPoolMappingAndVotes,
   processCLFactoryPoolCreated,
 } from "../../../src/EventHandlers/CLFactory/CLFactoryPoolCreatedLogic";
-import * as PendingVoteProcessing from "../../../src/EventHandlers/Voter/PendingVoteProcessing";
+import * as CrossChainPendingResolution from "../../../src/EventHandlers/Voter/CrossChainPendingResolution";
 import * as PriceOracle from "../../../src/PriceOracle";
 import { setupCommon } from "../Pool/common";
 
@@ -591,9 +591,9 @@ describe("CLFactoryPoolCreatedLogic", () => {
       const getWhere = vi.fn().mockResolvedValue([]);
       const set = vi.fn();
       const deleteUnsafe = vi.fn();
-      const processAllSpy = vi.spyOn(
-        PendingVoteProcessing,
-        "processAllPendingVotesForRootPool",
+      const flushSpy = vi.spyOn(
+        CrossChainPendingResolution,
+        "flushPendingVotesAndDistributionsForRootPool",
       );
 
       const context = {
@@ -623,7 +623,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
       });
       expect(set).not.toHaveBeenCalled();
       expect(deleteUnsafe).not.toHaveBeenCalled();
-      expect(processAllSpy).not.toHaveBeenCalled();
+      expect(flushSpy).not.toHaveBeenCalled();
     });
 
     it.each([null, undefined])(
@@ -632,9 +632,9 @@ describe("CLFactoryPoolCreatedLogic", () => {
         const getWhere = vi.fn().mockResolvedValue(getWhereResult);
         const set = vi.fn();
         const deleteUnsafe = vi.fn();
-        const processAllSpy = vi.spyOn(
-          PendingVoteProcessing,
-          "processAllPendingVotesForRootPool",
+        const flushSpy = vi.spyOn(
+          CrossChainPendingResolution,
+          "flushPendingVotesAndDistributionsForRootPool",
         );
 
         const context = {
@@ -664,11 +664,11 @@ describe("CLFactoryPoolCreatedLogic", () => {
         });
         expect(set).not.toHaveBeenCalled();
         expect(deleteUnsafe).not.toHaveBeenCalled();
-        expect(processAllSpy).not.toHaveBeenCalled();
+        expect(flushSpy).not.toHaveBeenCalled();
       },
     );
 
-    it("should set RootPool_LeafPool, delete PendingRootPoolMapping, and call processAllPendingVotesForRootPool when pending mapping exists", async () => {
+    it("should set RootPool_LeafPool, delete PendingRootPoolMapping, and call flushPendingVotesAndDistributionsForRootPool when pending mapping exists", async () => {
       const hash = rootPoolMatchingHash(
         leafChainId,
         token0,
@@ -689,8 +689,11 @@ describe("CLFactoryPoolCreatedLogic", () => {
       const getWhere = vi.fn().mockResolvedValue([pendingMapping]);
       const set = vi.fn();
       const deleteUnsafe = vi.fn();
-      const processAllSpy = vi
-        .spyOn(PendingVoteProcessing, "processAllPendingVotesForRootPool")
+      const flushSpy = vi
+        .spyOn(
+          CrossChainPendingResolution,
+          "flushPendingVotesAndDistributionsForRootPool",
+        )
         .mockResolvedValue(undefined);
 
       const context = {
@@ -726,11 +729,15 @@ describe("CLFactoryPoolCreatedLogic", () => {
       });
       expect(deleteUnsafe).toHaveBeenCalledTimes(1);
       expect(deleteUnsafe).toHaveBeenCalledWith(pendingMapping.id);
-      expect(processAllSpy).toHaveBeenCalledTimes(1);
-      expect(processAllSpy).toHaveBeenCalledWith(context, rootPoolAddress);
+      expect(flushSpy).toHaveBeenCalledTimes(1);
+      expect(flushSpy).toHaveBeenCalledWith(
+        context,
+        rootPoolAddress,
+        "[flushPendingRootPoolMappingAndVotes]",
+      );
     });
 
-    it("should still set RootPool_LeafPool, delete PendingRootPoolMapping, and complete without throwing when processAllPendingVotesForRootPool throws", async () => {
+    it("should still set RootPool_LeafPool, delete PendingRootPoolMapping, and complete without throwing when flushPendingVotesAndDistributionsForRootPool throws", async () => {
       const hash = rootPoolMatchingHash(
         leafChainId,
         token0,
@@ -752,13 +759,15 @@ describe("CLFactoryPoolCreatedLogic", () => {
       const set = vi.fn();
       const deleteUnsafe = vi.fn();
       const logError = vi.fn();
-      const processAllSpy = vi
-        .spyOn(PendingVoteProcessing, "processAllPendingVotesForRootPool")
-        .mockRejectedValueOnce(new Error("Pending vote processing failed"));
+      const getWhereRootPoolLeafPool = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("Pending vote processing failed"))
+        .mockResolvedValueOnce([{ leafPoolAddress, leafChainId }]);
 
       const context = {
         PendingRootPoolMapping: { getWhere, deleteUnsafe },
-        RootPool_LeafPool: { set },
+        RootPool_LeafPool: { set, getWhere: getWhereRootPoolLeafPool },
+        PendingDistribution: { getWhere: vi.fn().mockResolvedValue([]) },
         log: { info: vi.fn(), warn: vi.fn(), error: logError },
       } as unknown as handlerContext;
 
@@ -788,7 +797,6 @@ describe("CLFactoryPoolCreatedLogic", () => {
       });
       expect(deleteUnsafe).toHaveBeenCalledTimes(1);
       expect(deleteUnsafe).toHaveBeenCalledWith(pendingMapping.id);
-      expect(processAllSpy).toHaveBeenCalledWith(context, rootPoolAddress);
       expect(logError).toHaveBeenCalledTimes(1);
       expect(logError).toHaveBeenCalledWith(
         expect.stringContaining(rootPoolAddress),

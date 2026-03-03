@@ -10,15 +10,18 @@ import {
 import {
   CHAIN_CONSTANTS,
   FeeToTickSpacingMappingId,
+  PendingDistributionId,
   PendingRootPoolMappingId,
   PendingVoteId,
   PoolId,
+  RootGaugeRootPoolId,
   RootPoolLeafPoolId,
   TokenId,
   VeNFTId,
   rootPoolMatchingHash,
   toChecksumAddress,
 } from "../../src/Constants";
+import { getTokensDeposited } from "../../src/Effects/Voter";
 import * as CLFactoryPoolCreatedLogic from "../../src/EventHandlers/CLFactory/CLFactoryPoolCreatedLogic";
 import * as PriceOracle from "../../src/PriceOracle";
 import { setupCommon } from "./Pool/common";
@@ -445,6 +448,19 @@ describe("CLFactory Events", () => {
     describe("full E2E: root ahead then leaf catches up (flush)", () => {
       const rootChainId = 10;
       const leafChainId = 252; // Fraxtal
+      const rootPoolAddress = toChecksumAddress(
+        "0xC4Cbb0ba3c902Fb4b49B3844230354d45C779F74",
+      );
+      const leafPoolAddress = toChecksumAddress(
+        "0x3333333333333333333333333333333333333333",
+      );
+      const blockTimestamp = 1000000;
+      const blockNumber = 1000000;
+      const txHash =
+        "0x1234567890123456789012345678901234567890123456789012345678901234";
+      const leafCLGaugeConfigId = toChecksumAddress(
+        "0xaDe65c38CD4849aDBA595a4323a8C7DdfE89716a",
+      );
 
       function setupLeafChainEntities(
         db: ReturnType<typeof MockDb.createMockDb>,
@@ -454,17 +470,18 @@ describe("CLFactory Events", () => {
         leafToken1: string,
         tickSpacing: bigint,
         clGaugeConfigId: string,
+        fee: bigint = FEE,
       ): ReturnType<typeof MockDb.createMockDb> {
         const token0ForLeaf = {
           ...mockToken0Data,
           id: TokenId(leafChain, leafToken0),
-          address: leafToken0,
+          address: toChecksumAddress(leafToken0),
           chainId: leafChain,
         } satisfies Token;
         const token1ForLeaf = {
           ...mockToken1Data,
           id: TokenId(leafChain, leafToken1),
-          address: leafToken1,
+          address: toChecksumAddress(leafToken1),
           chainId: leafChain,
         } satisfies Token;
         let updated =
@@ -481,7 +498,7 @@ describe("CLFactory Events", () => {
           id: FeeToTickSpacingMappingId(leafChain, tickSpacing),
           chainId: leafChain,
           tickSpacing,
-          fee: FEE,
+          fee,
           lastUpdatedTimestamp: new Date(1000000 * 1000),
         };
         updated = updated.entities.FeeToTickSpacingMapping.set(
@@ -490,35 +507,113 @@ describe("CLFactory Events", () => {
         return updated;
       }
 
+      function setupCrossChainFlushE2E(options: {
+        rootChainId: number;
+        leafChainId: number;
+        rootPoolAddress: string;
+        leafPoolAddress: string;
+        blockTimestamp: number;
+        blockNumber: number;
+        txHash: string;
+        leafCLGaugeConfigId: string;
+        token0Address: string;
+        token1Address: string;
+        tickSpacing: bigint;
+        fee?: bigint;
+      }) {
+        const {
+          rootChainId: rcid,
+          leafChainId: lcid,
+          rootPoolAddress: rpa,
+          leafPoolAddress: lpa,
+          blockTimestamp: ts,
+          blockNumber: bn,
+          txHash: hash,
+          leafCLGaugeConfigId: configId,
+          token0Address: t0,
+          token1Address: t1,
+          tickSpacing: ts2,
+          fee = FEE,
+        } = options;
+
+        const original = CHAIN_CONSTANTS[lcid]?.newCLGaugeFactoryAddress;
+        if (CHAIN_CONSTANTS[lcid]) {
+          CHAIN_CONSTANTS[lcid].newCLGaugeFactoryAddress = configId;
+        }
+
+        const restore = () => {
+          if (CHAIN_CONSTANTS[lcid] && original !== undefined) {
+            CHAIN_CONSTANTS[lcid].newCLGaugeFactoryAddress = original;
+          }
+        };
+
+        let db = MockDb.createMockDb();
+        db = setupLeafChainEntities(db, lcid, lpa, t0, t1, ts2, configId, fee);
+
+        const rootPoolCreatedEvent =
+          RootCLPoolFactory.RootPoolCreated.createMockEvent({
+            token0: t0 as `0x${string}`,
+            token1: t1 as `0x${string}`,
+            tickSpacing: ts2,
+            chainid: BigInt(lcid),
+            pool: rpa as `0x${string}`,
+            mockEventData: {
+              block: { timestamp: ts, number: bn, hash },
+              chainId: rcid,
+              logIndex: 1,
+            },
+          });
+
+        const createClFactoryPoolCreatedEvent = (
+          blockOffset = 1,
+          timestampOffset = 1,
+        ) =>
+          CLFactory.PoolCreated.createMockEvent({
+            token0: t0 as `0x${string}`,
+            token1: t1 as `0x${string}`,
+            pool: lpa as `0x${string}`,
+            tickSpacing: ts2,
+            mockEventData: {
+              block: {
+                number: bn + blockOffset,
+                timestamp: ts + timestampOffset,
+                hash,
+              },
+              chainId: lcid,
+              logIndex: 1,
+            },
+          });
+
+        return {
+          db,
+          rootPoolCreatedEvent,
+          createClFactoryPoolCreatedEvent,
+          restore,
+        };
+      }
+
       it("should flush PendingRootPoolMapping and PendingVote when processing RootPoolCreated, Voted, then CLFactory.PoolCreated (two processEvents: root chain 10, leaf chain 252)", async () => {
-        const rootPoolAddress = toChecksumAddress(
-          "0xC4Cbb0ba3c902Fb4b49B3844230354d45C779F74",
-        );
-        const leafPoolAddress = toChecksumAddress(
-          "0x3333333333333333333333333333333333333333",
-        );
         const { createMockLiquidityPoolAggregator, createMockVeNFTState } =
           setupCommon();
-
         const voteTokenId = 1n;
         const voteWeight = 100n;
-        const blockTimestamp = 1000000;
-        const blockNumber = 1000000;
-        const txHash =
-          "0x1234567890123456789012345678901234567890123456789012345678901234";
         const ownerAddress = toChecksumAddress(
           "0x2222222222222222222222222222222222222222",
         );
 
-        const leafCLGaugeConfigId = toChecksumAddress(
-          "0xaDe65c38CD4849aDBA595a4323a8C7DdfE89716a",
-        );
-        const fraxtalNewCLGaugeOriginal =
-          CHAIN_CONSTANTS[leafChainId]?.newCLGaugeFactoryAddress;
-        if (CHAIN_CONSTANTS[leafChainId]) {
-          CHAIN_CONSTANTS[leafChainId].newCLGaugeFactoryAddress =
-            leafCLGaugeConfigId;
-        }
+        const e2e = setupCrossChainFlushE2E({
+          rootChainId,
+          leafChainId,
+          rootPoolAddress,
+          leafPoolAddress,
+          blockTimestamp,
+          blockNumber,
+          txHash,
+          leafCLGaugeConfigId,
+          token0Address,
+          token1Address,
+          tickSpacing: TICK_SPACING,
+        });
 
         try {
           const fullPool = createMockLiquidityPoolAggregator({
@@ -541,35 +636,8 @@ describe("CLFactory Events", () => {
             owner: ownerAddress,
           });
 
-          let db = MockDb.createMockDb();
-          db = db.entities.VeNFTState.set(veNFTState);
-          db = setupLeafChainEntities(
-            db,
-            leafChainId,
-            leafPoolAddress,
-            token0Address,
-            token1Address,
-            TICK_SPACING,
-            leafCLGaugeConfigId,
-          );
+          const db = e2e.db.entities.VeNFTState.set(veNFTState);
 
-          const rootPoolCreatedEvent =
-            RootCLPoolFactory.RootPoolCreated.createMockEvent({
-              token0: token0Address as `0x${string}`,
-              token1: token1Address as `0x${string}`,
-              tickSpacing: TICK_SPACING,
-              chainid: BigInt(leafChainId),
-              pool: rootPoolAddress,
-              mockEventData: {
-                block: {
-                  timestamp: blockTimestamp,
-                  number: blockNumber,
-                  hash: txHash,
-                },
-                chainId: rootChainId,
-                logIndex: 1,
-              },
-            });
           const votedEvent = Voter.Voted.createMockEvent({
             voter: ownerAddress,
             pool: rootPoolAddress,
@@ -589,26 +657,14 @@ describe("CLFactory Events", () => {
           });
 
           const afterRoot = await db.processEvents([
-            rootPoolCreatedEvent,
+            e2e.rootPoolCreatedEvent,
             votedEvent,
           ]);
 
-          const clFactoryPoolCreatedEvent =
-            CLFactory.PoolCreated.createMockEvent({
-              token0: token0Address as `0x${string}`,
-              token1: token1Address as `0x${string}`,
-              pool: leafPoolAddress,
-              tickSpacing: TICK_SPACING,
-              mockEventData: {
-                block: {
-                  number: blockNumber + 1,
-                  timestamp: blockTimestamp + 1,
-                  hash: txHash,
-                },
-                chainId: leafChainId,
-                logIndex: 1,
-              },
-            });
+          const clFactoryPoolCreatedEvent = e2e.createClFactoryPoolCreatedEvent(
+            1,
+            1,
+          );
 
           const result = await afterRoot.processEvents([
             clFactoryPoolCreatedEvent,
@@ -640,13 +696,190 @@ describe("CLFactory Events", () => {
           expect(leafPool).toBeDefined();
           expect(leafPool?.veNFTamountStaked).toBe(voteWeight);
         } finally {
-          if (
-            CHAIN_CONSTANTS[leafChainId] &&
-            fraxtalNewCLGaugeOriginal !== undefined
-          ) {
-            CHAIN_CONSTANTS[leafChainId].newCLGaugeFactoryAddress =
-              fraxtalNewCLGaugeOriginal;
-          }
+          e2e.restore();
+        }
+      });
+
+      it("should flush PendingDistribution when processing RootPoolCreated, GaugeCreated, DistributeReward, then CLFactory.PoolCreated (cross-chain E2E)", async () => {
+        const gaugeAddress = toChecksumAddress(
+          "0xa75127121d28a9bf848f3b70e7eea26570aa7700",
+        );
+        const leafGaugeAddress = toChecksumAddress(
+          "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        );
+        const { createMockLiquidityPoolAggregator, createMockToken } =
+          setupCommon();
+        const distAmount = 1000n * 10n ** 18n;
+        const tokensDepositedMock = 500n * 10n ** 18n;
+
+        const rewardTokenAddress =
+          CHAIN_CONSTANTS[rootChainId].rewardToken(blockNumber);
+        const rewardToken = createMockToken({
+          id: TokenId(rootChainId, rewardTokenAddress),
+          address: toChecksumAddress(rewardTokenAddress),
+          symbol: "VELO",
+          name: "VELO",
+          chainId: rootChainId,
+          decimals: 18n,
+          pricePerUSDNew: 2n * 10n ** 18n,
+          isWhitelisted: true,
+          lastUpdatedTimestamp: new Date(blockTimestamp * 1000),
+        });
+
+        vi.spyOn(
+          getTokensDeposited as unknown as {
+            handler: (args: { input: unknown }) => Promise<bigint | undefined>;
+          },
+          "handler",
+        ).mockImplementation(async () => tokensDepositedMock);
+
+        const e2e = setupCrossChainFlushE2E({
+          rootChainId,
+          leafChainId,
+          rootPoolAddress,
+          leafPoolAddress,
+          blockTimestamp,
+          blockNumber,
+          txHash,
+          leafCLGaugeConfigId,
+          token0Address,
+          token1Address,
+          tickSpacing: TICK_SPACING,
+        });
+
+        try {
+          const fullPool = createMockLiquidityPoolAggregator({
+            id: PoolId(leafChainId, leafPoolAddress),
+            chainId: leafChainId,
+            token0_id: TokenId(leafChainId, token0Address),
+            token1_id: TokenId(leafChainId, token1Address),
+            token0_address: token0Address,
+            token1_address: token1Address,
+            veNFTamountStaked: 0n,
+            totalEmissions: 0n,
+            totalEmissionsUSD: 0n,
+            totalVotesDeposited: 0n,
+            totalVotesDepositedUSD: 0n,
+            gaugeAddress: leafGaugeAddress,
+          });
+          processSpy.mockImplementation(async (_event, ..._rest) => ({
+            liquidityPoolAggregator: fullPool,
+          }));
+
+          const db = e2e.db.entities.Token.set(rewardToken);
+
+          const gaugeCreatedEvent = Voter.GaugeCreated.createMockEvent({
+            poolFactory: toChecksumAddress(
+              "0xCc0bDDB707055e04e497aB22a59c2aF4391cd12F",
+            ),
+            votingRewardsFactory: toChecksumAddress(
+              "0x2222222222222222222222222222222222222222",
+            ),
+            gaugeFactory: toChecksumAddress(
+              "0x3333333333333333333333333333333333333333",
+            ),
+            pool: rootPoolAddress,
+            bribeVotingReward: toChecksumAddress(
+              "0x5555555555555555555555555555555555555555",
+            ),
+            feeVotingReward: toChecksumAddress(
+              "0x6666666666666666666666666666666666666666",
+            ),
+            gauge: gaugeAddress,
+            creator: toChecksumAddress(
+              "0x7777777777777777777777777777777777777777",
+            ),
+            mockEventData: {
+              block: {
+                number: blockNumber,
+                timestamp: blockTimestamp,
+                hash: txHash,
+              },
+              chainId: rootChainId,
+              logIndex: 2,
+            },
+          });
+          const distributeRewardEvent = Voter.DistributeReward.createMockEvent({
+            gauge: gaugeAddress,
+            amount: distAmount,
+            mockEventData: {
+              block: {
+                number: blockNumber,
+                timestamp: blockTimestamp,
+                hash: txHash,
+              },
+              chainId: rootChainId,
+              logIndex: 3,
+              srcAddress: toChecksumAddress(
+                "0x41C914ee0c7E1A5edCD0295623e6dC557B5aBf3C",
+              ),
+            },
+          });
+
+          const afterRoot = await db.processEvents([
+            e2e.rootPoolCreatedEvent,
+            gaugeCreatedEvent,
+            distributeRewardEvent,
+          ]);
+
+          expect(
+            afterRoot.entities.PendingRootPoolMapping.get(
+              PendingRootPoolMappingId(rootChainId, rootPoolAddress),
+            ),
+          ).toBeDefined();
+          expect(
+            afterRoot.entities.RootGauge_RootPool.get(
+              RootGaugeRootPoolId(rootChainId, gaugeAddress),
+            ),
+          ).toBeDefined();
+          const pendingDistId = PendingDistributionId(
+            rootChainId,
+            rootPoolAddress,
+            blockNumber,
+            3,
+          );
+          expect(
+            afterRoot.entities.PendingDistribution.get(pendingDistId),
+          ).toBeDefined();
+
+          const clFactoryPoolCreatedEvent = e2e.createClFactoryPoolCreatedEvent(
+            1,
+            1,
+          );
+
+          const result = await afterRoot.processEvents([
+            clFactoryPoolCreatedEvent,
+          ]);
+
+          expect(
+            result.entities.PendingRootPoolMapping.get(
+              PendingRootPoolMappingId(rootChainId, rootPoolAddress),
+            ),
+          ).toBeUndefined();
+          expect(
+            result.entities.RootPool_LeafPool.get(
+              RootPoolLeafPoolId(
+                rootChainId,
+                leafChainId,
+                rootPoolAddress,
+                leafPoolAddress,
+              ),
+            ),
+          ).toBeDefined();
+          expect(
+            result.entities.PendingDistribution.get(pendingDistId),
+          ).toBeUndefined();
+
+          const leafPool = result.entities.LiquidityPoolAggregator.get(
+            PoolId(leafChainId, leafPoolAddress),
+          );
+          expect(leafPool).toBeDefined();
+          expect(leafPool?.totalEmissions).toBe(distAmount);
+          expect(leafPool?.totalVotesDeposited).toBe(tokensDepositedMock);
+          expect(leafPool?.gaugeAddress).toBe(leafGaugeAddress);
+        } finally {
+          e2e.restore();
+          vi.restoreAllMocks();
         }
       });
 

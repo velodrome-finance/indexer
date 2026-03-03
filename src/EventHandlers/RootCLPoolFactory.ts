@@ -6,7 +6,7 @@ import {
   RootPoolLeafPoolId,
   rootPoolMatchingHash,
 } from "../Constants";
-import { processAllPendingVotesForRootPool } from "./Voter/PendingVoteProcessing";
+import { flushPendingVotesAndDistributionsForRootPool } from "./Voter/CrossChainPendingResolution";
 
 RootCLPoolFactory.RootPoolCreated.handler(async ({ event, context }) => {
   const rootChainId = event.chainId;
@@ -64,11 +64,9 @@ RootCLPoolFactory.RootPoolCreated.handler(async ({ event, context }) => {
   };
 
   context.RootPool_LeafPool.set(rootPoolLeafPool);
-  try {
-    await processAllPendingVotesForRootPool(context, rootPoolAddress);
-  } catch (error) {
-    context.log.error(
-      `[RootPoolCreated] processAllPendingVotesForRootPool failed for rootPoolAddress ${rootPoolAddress}: ${error instanceof Error ? error.message : String(error)}`,
-    );
-  }
+  await flushPendingVotesAndDistributionsForRootPool(
+    context,
+    rootPoolAddress,
+    "[RootPoolCreated]",
+  );
 });

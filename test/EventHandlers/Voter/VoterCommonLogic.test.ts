@@ -1,5 +1,16 @@
-import type { PendingVote, Token, VeNFTState, handlerContext } from "generated";
-import { PendingVoteId, toChecksumAddress } from "../../../src/Constants";
+import type {
+  LiquidityPoolAggregator,
+  PendingVote,
+  Token,
+  VeNFTState,
+  handlerContext,
+} from "generated";
+import * as LiquidityPoolAggregatorModule from "../../../src/Aggregators/LiquidityPoolAggregator";
+import {
+  PendingVoteId,
+  RootGaugeRootPoolId,
+  toChecksumAddress,
+} from "../../../src/Constants";
 import {
   getTokenDetails,
   getTokensDeposited,
@@ -7,10 +18,11 @@ import {
 import type { VoterCommonResult } from "../../../src/EventHandlers/Voter/VoterCommonLogic";
 import {
   VoterEventType,
-  buildLpDiffFromDistribute,
+  buildPoolDiffFromDistribute,
   computeVoterDistributeValues,
   computeVoterRelatedEntitiesDiff,
   createPendingVoteForDeferredProcessing,
+  resolveLeafPoolForRootGauge,
 } from "../../../src/EventHandlers/Voter/VoterCommonLogic";
 
 function makeMockContext(effects: {
@@ -199,7 +211,7 @@ describe("computeVoterDistributeValues", () => {
   });
 });
 
-describe("buildLpDiffFromDistribute", () => {
+describe("buildPoolDiffFromDistribute", () => {
   it("composes snapshot and cumulative fields correctly", () => {
     const res: VoterCommonResult = {
       isAlive: true,
@@ -212,7 +224,7 @@ describe("buildLpDiffFromDistribute", () => {
     const gaugeAddress = toChecksumAddress(
       "0x0000000000000000000000000000000000000abc",
     );
-    const diff = buildLpDiffFromDistribute(res, gaugeAddress, ts);
+    const diff = buildPoolDiffFromDistribute(res, ts, gaugeAddress);
     expect(diff.totalVotesDeposited).toBe(10n);
     expect(diff.totalVotesDepositedUSD).toBe(20n);
     expect(diff.incrementalTotalEmissions).toBe(3n);
@@ -220,6 +232,20 @@ describe("buildLpDiffFromDistribute", () => {
     expect(diff.gaugeIsAlive).toBe(true);
     expect(diff.lastUpdatedTimestamp).toEqual(new Date(ts));
     expect(diff.gaugeAddress).toBe(gaugeAddress);
+  });
+
+  it("omits gaugeAddress when not provided (cross-chain case)", () => {
+    const res: VoterCommonResult = {
+      isAlive: true,
+      tokensDeposited: 5n,
+      normalizedEmissionsAmount: 1n,
+      normalizedEmissionsAmountUsd: 2n,
+      normalizedVotesDepositedAmountUsd: 10n,
+    };
+    const ts = 1_700_000_000_000;
+    const diff = buildPoolDiffFromDistribute(res, ts);
+    expect(diff.totalVotesDeposited).toBe(5n);
+    expect(diff.gaugeAddress).toBeUndefined();
   });
 });
 
@@ -377,5 +403,186 @@ describe("createPendingVoteForDeferredProcessing", () => {
     expect(warns).toHaveLength(1);
     expect(warns[0]).toContain("Vote withdrawal deferred");
     expect(warns[0]).toContain(rootPoolAddress);
+  });
+});
+
+describe("resolveLeafPoolForRootGauge", () => {
+  const chainId = 10;
+  const gaugeAddress = toChecksumAddress(
+    "0xfcD11ec7E9536e7B21C0FA98b95dAF81C0448f33",
+  );
+  const rootPoolAddress = toChecksumAddress(
+    "0x0000000000000000000000000000000000000abc",
+  );
+  const leafPoolAddress = toChecksumAddress(
+    "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  );
+  const leafChainId = 252;
+  const blockNumber = 1000;
+  const blockTimestamp = 2000;
+
+  function makeResolveContext(overrides: {
+    rootGaugeMapping?: { rootPoolAddress: string } | null;
+    rootPoolLeafPools?: { leafPoolAddress: string; leafChainId: number }[];
+    /** When true, getWhere returns null (covers ?? [] branch). */
+    getWhereReturnsNull?: boolean;
+    warns?: string[];
+  }): handlerContext {
+    const warns = overrides.warns ?? [];
+    const rootGaugeMapping = overrides.rootGaugeMapping ?? null;
+    const rootPoolLeafPools = overrides.rootPoolLeafPools ?? [];
+    const getWhereValue = overrides.getWhereReturnsNull
+      ? null
+      : rootPoolLeafPools;
+
+    return {
+      RootGauge_RootPool: {
+        get: vi.fn().mockImplementation(async (id: string) => {
+          expect(id).toBe(RootGaugeRootPoolId(chainId, gaugeAddress));
+          return rootGaugeMapping ?? undefined;
+        }),
+      },
+      RootPool_LeafPool: {
+        getWhere: vi.fn().mockResolvedValue(getWhereValue),
+      },
+      log: {
+        warn: vi.fn((msg: unknown) => warns.push(String(msg))),
+        info: vi.fn(),
+        error: vi.fn(),
+      },
+    } as unknown as handlerContext;
+  }
+
+  const runResolve = (context: handlerContext) =>
+    resolveLeafPoolForRootGauge(
+      context,
+      chainId,
+      gaugeAddress,
+      blockNumber,
+      blockTimestamp,
+    );
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("returns null and logs when RootGauge_RootPool has no mapping", async () => {
+    const warns: string[] = [];
+    const context = makeResolveContext({ warns });
+
+    const result = await runResolve(context);
+
+    expect(result).toBeNull();
+    expect(warns).toHaveLength(1);
+    expect(warns[0]).toContain("No pool address found for the gauge address");
+    expect(warns[0]).toContain(gaugeAddress);
+    expect(warns[0]).toContain(String(chainId));
+  });
+
+  it("returns null and logs when RootPool_LeafPool count is not exactly one (zero)", async () => {
+    const warns: string[] = [];
+    const context = makeResolveContext({
+      rootGaugeMapping: { rootPoolAddress },
+      rootPoolLeafPools: [],
+      warns,
+    });
+
+    const result = await runResolve(context);
+
+    expect(result).toBeNull();
+    expect(warns).toHaveLength(1);
+    expect(warns[0]).toContain(
+      "RootPool_LeafPool mapping not found or ambiguous",
+    );
+    expect(warns[0]).toContain("count: 0");
+  });
+
+  it("returns null and logs when RootPool_LeafPool getWhere returns null (?? [] branch)", async () => {
+    const warns: string[] = [];
+    const context = makeResolveContext({
+      rootGaugeMapping: { rootPoolAddress },
+      getWhereReturnsNull: true,
+      warns,
+    });
+
+    const result = await runResolve(context);
+
+    expect(result).toBeNull();
+    expect(warns).toHaveLength(1);
+    expect(warns[0]).toContain(
+      "RootPool_LeafPool mapping not found or ambiguous",
+    );
+    expect(warns[0]).toContain("count: 0");
+  });
+
+  it("returns null and logs when RootPool_LeafPool count is not exactly one (multiple)", async () => {
+    const warns: string[] = [];
+    const context = makeResolveContext({
+      rootGaugeMapping: { rootPoolAddress },
+      rootPoolLeafPools: [
+        { leafPoolAddress: "0x111", leafChainId: 252 },
+        { leafPoolAddress: "0x222", leafChainId: 252 },
+      ],
+      warns,
+    });
+
+    const result = await runResolve(context);
+
+    expect(result).toBeNull();
+    expect(warns).toHaveLength(1);
+    expect(warns[0]).toContain("count: 2");
+  });
+
+  it("returns null and logs when loadPoolData returns null", async () => {
+    vi.spyOn(LiquidityPoolAggregatorModule, "loadPoolData").mockResolvedValue(
+      null,
+    );
+
+    const warns: string[] = [];
+    const context = makeResolveContext({
+      rootGaugeMapping: { rootPoolAddress },
+      rootPoolLeafPools: [{ leafPoolAddress, leafChainId }],
+      warns,
+    });
+
+    const result = await runResolve(context);
+
+    expect(result).toBeNull();
+    expect(warns).toHaveLength(1);
+    expect(warns[0]).toContain("Leaf pool data not found");
+    expect(warns[0]).toContain(leafPoolAddress);
+    expect(warns[0]).toContain(String(leafChainId));
+  });
+
+  it("returns leaf pool and isCrossChain when resolution succeeds", async () => {
+    const mockPool = {
+      id: `10-${leafPoolAddress}`,
+      poolAddress: leafPoolAddress,
+      chainId: leafChainId,
+    } as unknown as LiquidityPoolAggregator;
+
+    vi.spyOn(LiquidityPoolAggregatorModule, "loadPoolData").mockResolvedValue({
+      liquidityPoolAggregator: mockPool,
+      token0Instance: {} as Token,
+      token1Instance: {} as Token,
+    });
+
+    const context = makeResolveContext({
+      rootGaugeMapping: { rootPoolAddress },
+      rootPoolLeafPools: [{ leafPoolAddress, leafChainId }],
+    });
+
+    const result = await runResolve(context);
+
+    expect(result).not.toBeNull();
+    expect(result?.pool).toBe(mockPool);
+    expect(result?.isCrossChain).toBe(true);
+    expect(LiquidityPoolAggregatorModule.loadPoolData).toHaveBeenCalledWith(
+      leafPoolAddress,
+      leafChainId,
+      context,
+      blockNumber,
+      blockTimestamp,
+    );
   });
 });

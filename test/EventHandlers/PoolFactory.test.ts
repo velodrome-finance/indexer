@@ -12,7 +12,7 @@ import {
   toChecksumAddress,
 } from "../../src/Constants";
 import * as HelpersModule from "../../src/Effects/Helpers";
-import * as PendingVoteProcessing from "../../src/EventHandlers/Voter/PendingVoteProcessing";
+import * as CrossChainPendingResolution from "../../src/EventHandlers/Voter/CrossChainPendingResolution";
 import * as PriceOracle from "../../src/PriceOracle";
 import { mutateChainConstants } from "../testHelpers";
 import { setupCommon } from "./Pool/common";
@@ -409,7 +409,7 @@ describe("PoolFactory Events", () => {
       expect(rootPoolLeafPools).toHaveLength(0);
     });
 
-    it("should call processAllPendingVotesForRootPool when getRootPoolAddress returns address", async () => {
+    it("should call flushPendingVotesAndDistributionsForRootPool when getRootPoolAddress returns address", async () => {
       const mockRootPoolAddress = toChecksumAddress(
         "0xC4Cbb0ba3c902Fb4b49B3844230354d45C779F74",
       );
@@ -426,9 +426,9 @@ describe("PoolFactory Events", () => {
 
       resetMockPriceOracle();
 
-      const processAllSpy = vi.spyOn(
-        PendingVoteProcessing,
-        "processAllPendingVotesForRootPool",
+      const flushSpy = vi.spyOn(
+        CrossChainPendingResolution,
+        "flushPendingVotesAndDistributionsForRootPool",
       );
 
       const mockDb = MockDb.createMockDb();
@@ -460,12 +460,11 @@ describe("PoolFactory Events", () => {
         result.entities.RootPool_LeafPool.get(rootPoolLeafPoolId);
       expect(rootPoolLeafPool).toBeDefined();
 
-      expect(processAllSpy).toHaveBeenCalled();
-      const callRootPoolAddress = processAllSpy.mock.calls.find(
-        (call) => call[1] === expectedRootPoolAddress,
+      expect(flushSpy).toHaveBeenCalledWith(
+        expect.anything(),
+        expectedRootPoolAddress,
+        "[PoolFactory.PoolCreated]",
       );
-      expect(callRootPoolAddress).toBeDefined();
-      expect(callRootPoolAddress?.[1]).toBe(expectedRootPoolAddress);
     });
   });
 

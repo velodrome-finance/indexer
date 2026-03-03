@@ -42,6 +42,26 @@ export function logContextError(
   }
 }
 
+/**
+ * Runs an async function and logs via context if it throws. Does not rethrow.
+ * Use for best-effort operations where failure should be logged but not abort the handler.
+ * @param context - The handler context
+ * @param message - Message to log on error (error message is appended via logContextError)
+ * @param fn - The async function to run
+ * @returns void
+ */
+export async function runAsyncWithErrorLog(
+  context: handlerContext,
+  message: string,
+  fn: () => Promise<void>,
+): Promise<void> {
+  try {
+    await fn();
+  } catch (error) {
+    logContextError(context, message, error);
+  }
+}
+
 // Helper function to normalize token amounts to 1e18
 export const normalizeTokenAmountTo1e18 = (
   amount: bigint,
@@ -80,6 +100,28 @@ export function generatePoolName(
     poolType = `CL-${clTickSpacing}`;
   }
   return `${poolType} AMM - ${token0Symbol}/${token1Symbol}`;
+}
+
+/**
+ * Sorts items by blockchain event order: block number ascending, then log index ascending.
+ * Use when replaying deferred events (e.g. PendingVote, PendingDistribution) so they are
+ * applied in the same order they occurred on-chain.
+ * @param items - Array to sort (not mutated; returns a new sorted array)
+ * @param getBlockNumber - Extracts block number from each item
+ * @param getLogIndex - Optional. Extracts log index from each item; defaults to 0 when omitted
+ */
+export function sortByBlockThenLogIndex<T>(
+  items: T[],
+  getBlockNumber: (item: T) => number,
+  getLogIndex?: (item: T) => number,
+): T[] {
+  const getLog = getLogIndex ?? (() => 0);
+  return [...items].sort((a, b) => {
+    const blockA = getBlockNumber(a);
+    const blockB = getBlockNumber(b);
+    if (blockA !== blockB) return blockA - blockB;
+    return getLog(a) - getLog(b);
+  });
 }
 
 /**
