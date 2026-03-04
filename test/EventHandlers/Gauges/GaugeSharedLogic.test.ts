@@ -13,6 +13,8 @@ import {
 } from "../../../src/Constants";
 import {
   type GaugeEventData,
+  findPoolOrSkipRootGauge,
+  isRootGauge,
   processGaugeClaimRewards,
   processGaugeDeposit,
   processGaugeWithdraw,
@@ -238,6 +240,9 @@ describe("GaugeSharedLogic", () => {
       TokenPriceSnapshot: {
         set: () => {},
       },
+      RootGauge_RootPool: {
+        getWhere: async () => [],
+      },
       isPreload: false,
     };
   });
@@ -372,6 +377,227 @@ describe("GaugeSharedLogic", () => {
       expect(updatedUser?.totalGaugeRewardsClaimedUSD).toBe(
         1000000000000000000000n,
       );
+    });
+  });
+
+  describe("isRootGauge", () => {
+    it("returns true when RootGauge_RootPool has a row for the gauge address", async () => {
+      const rootGaugeAddress = toChecksumAddress(
+        "0x923EC7E98706153Ce2c984DD802230476D4722B4",
+      );
+      const contextWithRootGauge = {
+        ...mockContext,
+        RootGauge_RootPool: {
+          getWhere: async (params: { rootGaugeAddress?: { _eq: string } }) =>
+            params.rootGaugeAddress?._eq === rootGaugeAddress
+              ? [
+                  {
+                    id: "10-".concat(rootGaugeAddress),
+                    rootChainId: 10,
+                    rootGaugeAddress,
+                    rootPoolAddress: "0x",
+                  },
+                ]
+              : [],
+        },
+      };
+
+      const result = await isRootGauge(
+        rootGaugeAddress,
+        contextWithRootGauge as unknown as handlerContext,
+      );
+      expect(result).toBe(true);
+    });
+
+    it("returns false when RootGauge_RootPool has no row for the gauge address", async () => {
+      const unknownGauge = toChecksumAddress(
+        "0x9999999999999999999999999999999999999999",
+      );
+      const result = await isRootGauge(
+        unknownGauge,
+        mockContext as unknown as handlerContext,
+      );
+      expect(result).toBe(false);
+    });
+  });
+
+  describe("findPoolOrSkipRootGauge", () => {
+    it("returns { pool } when pool exists for gauge address", async () => {
+      const result = await findPoolOrSkipRootGauge(
+        mockGaugeAddress,
+        mockChainId,
+        mockContext as unknown as handlerContext,
+        "TestHandler",
+      );
+      expect(result).not.toBeNull();
+      expect(result?.pool.id).toBe(mockLiquidityPoolAggregator.id);
+      expect(result?.pool.poolAddress).toBe(mockPoolAddress);
+    });
+
+    it("returns null without logging when gauge is root gauge", async () => {
+      const rootGaugeAddress = toChecksumAddress(
+        "0x923EC7E98706153Ce2c984DD802230476D4722B4",
+      );
+      const ctx = {
+        ...mockContext,
+        RootGauge_RootPool: {
+          getWhere: async (params: { rootGaugeAddress?: { _eq: string } }) =>
+            params.rootGaugeAddress?._eq === rootGaugeAddress
+              ? [
+                  {
+                    id: "10-".concat(rootGaugeAddress),
+                    rootChainId: 10,
+                    rootGaugeAddress,
+                    rootPoolAddress:
+                      "0x0000000000000000000000000000000000000001",
+                  },
+                ]
+              : [],
+        },
+        log: { ...mockContext.log, error: vi.fn() },
+      } as unknown as handlerContext;
+
+      const result = await findPoolOrSkipRootGauge(
+        rootGaugeAddress,
+        mockChainId,
+        ctx,
+        "TestHandler",
+      );
+      expect(result).toBeNull();
+      expect(ctx.log.error).not.toHaveBeenCalled();
+    });
+
+    it("returns null and logs when pool missing and not root gauge", async () => {
+      const unknownGauge = toChecksumAddress(
+        "0x9999999999999999999999999999999999999999",
+      );
+      const logErrorSpy = vi.fn();
+      const ctx = {
+        ...mockContext,
+        log: { ...mockContext.log, error: logErrorSpy },
+      } as unknown as handlerContext;
+
+      const result = await findPoolOrSkipRootGauge(
+        unknownGauge,
+        mockChainId,
+        ctx,
+        "TestHandler",
+      );
+      expect(result).toBeNull();
+      expect(logErrorSpy).toHaveBeenCalledTimes(1);
+      expect(logErrorSpy).toHaveBeenCalledWith(
+        `TestHandler: Pool not found for gauge address ${unknownGauge} on chain ${mockChainId}`,
+      );
+    });
+  });
+
+  describe("Root gauge skip", () => {
+    const rootGaugeAddress = toChecksumAddress(
+      "0x923EC7E98706153Ce2c984DD802230476D4722B4",
+    );
+
+    function createContextWithRootGauge() {
+      return {
+        ...mockContext,
+        RootGauge_RootPool: {
+          getWhere: async (params: { rootGaugeAddress?: { _eq: string } }) =>
+            params.rootGaugeAddress?._eq === rootGaugeAddress
+              ? [
+                  {
+                    id: "10-".concat(rootGaugeAddress),
+                    rootChainId: 10,
+                    rootGaugeAddress,
+                    rootPoolAddress:
+                      "0x0000000000000000000000000000000000000001",
+                  },
+                ]
+              : [],
+        },
+      } as unknown as handlerContext;
+    }
+
+    it("should skip deposit without error when gauge is root gauge", async () => {
+      const logErrorSpy = vi.fn();
+      const baseCtx = createContextWithRootGauge();
+      const ctx = {
+        ...baseCtx,
+        log: { ...baseCtx.log, error: logErrorSpy },
+      };
+
+      await processGaugeDeposit(
+        {
+          gaugeAddress: rootGaugeAddress,
+          userAddress: mockUserAddress,
+          chainId: mockChainId,
+          blockNumber: 100,
+          timestamp: 1000000,
+          amount: 100000000000000000000n,
+        },
+        ctx,
+        "TestGaugeDeposit",
+      );
+
+      expect(logErrorSpy).not.toHaveBeenCalled();
+      const updatedPool = updatedDB.entities.LiquidityPoolAggregator.get(
+        mockLiquidityPoolAggregator.id,
+      );
+      expect(updatedPool?.numberOfGaugeDeposits).toBe(0n);
+    });
+
+    it("should skip withdraw without error when gauge is root gauge", async () => {
+      const logErrorSpy = vi.fn();
+      const baseCtx = createContextWithRootGauge();
+      const ctx = {
+        ...baseCtx,
+        log: { ...baseCtx.log, error: logErrorSpy },
+      };
+
+      await processGaugeWithdraw(
+        {
+          gaugeAddress: rootGaugeAddress,
+          userAddress: mockUserAddress,
+          chainId: mockChainId,
+          blockNumber: 100,
+          timestamp: 1000000,
+          amount: 50000000000000000000n,
+        },
+        ctx,
+        "TestGaugeWithdraw",
+      );
+
+      expect(logErrorSpy).not.toHaveBeenCalled();
+      const updatedPool = updatedDB.entities.LiquidityPoolAggregator.get(
+        mockLiquidityPoolAggregator.id,
+      );
+      expect(updatedPool?.numberOfGaugeWithdrawals).toBe(0n);
+    });
+
+    it("should skip claim rewards without error when gauge is root gauge", async () => {
+      const logErrorSpy = vi.fn();
+      const baseCtx = createContextWithRootGauge();
+      const ctx = {
+        ...baseCtx,
+        log: { ...baseCtx.log, error: logErrorSpy },
+      };
+
+      await processGaugeClaimRewards(
+        {
+          gaugeAddress: rootGaugeAddress,
+          userAddress: mockUserAddress,
+          chainId: mockChainId,
+          blockNumber: 100,
+          timestamp: 1000000,
+          amount: 1000000000000000000000n,
+        },
+        ctx,
+        "TestGaugeClaimRewards",
+      );
+
+      expect(logErrorSpy).not.toHaveBeenCalled();
+      const updatedPool = updatedDB.entities.LiquidityPoolAggregator.get(
+        mockLiquidityPoolAggregator.id,
+      );
+      expect(updatedPool?.numberOfGaugeRewardClaims).toBe(0n);
     });
   });
 
