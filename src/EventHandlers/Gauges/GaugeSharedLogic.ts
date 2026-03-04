@@ -1,4 +1,4 @@
-import type { handlerContext } from "generated";
+import type { LiquidityPoolAggregator, handlerContext } from "generated";
 import {
   findPoolByGaugeAddress,
   loadPoolData,
@@ -22,6 +22,50 @@ export interface GaugeEventData {
 }
 
 /**
+ * Returns true if the gauge address is registered as a root gauge (RootGauge/RootCLGauge on the root chain).
+ * Used to skip Deposit/Withdraw/ClaimRewards for root gauges, which have no associated pool entity.
+ * @param gaugeAddress - The address of the gauge
+ * @param context - The handler context
+ * @returns True if the gauge address is registered as a root gauge, false otherwise
+ */
+export async function isRootGauge(
+  gaugeAddress: string,
+  context: handlerContext,
+): Promise<boolean> {
+  const mappings = await context.RootGauge_RootPool.getWhere({
+    rootGaugeAddress: { _eq: gaugeAddress },
+  });
+  return mappings.length > 0;
+}
+
+/**
+ * Looks up pool by gauge address; returns null silently for root gauges, logs and returns null otherwise when not found.
+ * @param gaugeAddress - The gauge address
+ * @param chainId - The chain ID
+ * @param context - The handler context
+ * @param handlerName - Handler name for error logging
+ * @returns { pool } if pool found, null if not found (root gauge = silent, else log error)
+ */
+export async function findPoolOrSkipRootGauge(
+  gaugeAddress: string,
+  chainId: number,
+  context: handlerContext,
+  handlerName: string,
+): Promise<{ pool: LiquidityPoolAggregator } | null> {
+  const pool = await findPoolByGaugeAddress(gaugeAddress, chainId, context);
+  if (pool) {
+    return { pool };
+  }
+  if (await isRootGauge(gaugeAddress, context)) {
+    return null;
+  }
+  context.log.error(
+    `${handlerName}: Pool not found for gauge address ${gaugeAddress} on chain ${chainId}`,
+  );
+  return null;
+}
+
+/**
  * Common logic for processing gauge deposit events
  */
 export async function processGaugeDeposit(
@@ -29,18 +73,14 @@ export async function processGaugeDeposit(
   context: handlerContext,
   handlerName: string,
 ): Promise<void> {
-  // Find the pool by gauge address
-  const pool = await findPoolByGaugeAddress(
+  const result = await findPoolOrSkipRootGauge(
     data.gaugeAddress,
     data.chainId,
     context,
+    handlerName,
   );
-  if (!pool) {
-    context.log.error(
-      `${handlerName}: Pool not found for gauge address ${data.gaugeAddress} on chain ${data.chainId}`,
-    );
-    return;
-  }
+  if (!result) return;
+  const { pool } = result;
 
   const timestamp = new Date(data.timestamp * 1000);
 
@@ -114,18 +154,14 @@ export async function processGaugeWithdraw(
   context: handlerContext,
   handlerName: string,
 ): Promise<void> {
-  // Find the pool by gauge address
-  const pool = await findPoolByGaugeAddress(
+  const result = await findPoolOrSkipRootGauge(
     data.gaugeAddress,
     data.chainId,
     context,
+    handlerName,
   );
-  if (!pool) {
-    context.log.error(
-      `${handlerName}: Pool not found for gauge address ${data.gaugeAddress} on chain ${data.chainId}`,
-    );
-    return;
-  }
+  if (!result) return;
+  const { pool } = result;
 
   const timestamp = new Date(data.timestamp * 1000);
 
@@ -199,18 +235,14 @@ export async function processGaugeClaimRewards(
   context: handlerContext,
   handlerName: string,
 ): Promise<void> {
-  // Find the pool by gauge address
-  const pool = await findPoolByGaugeAddress(
+  const result = await findPoolOrSkipRootGauge(
     data.gaugeAddress,
     data.chainId,
     context,
+    handlerName,
   );
-  if (!pool) {
-    context.log.error(
-      `${handlerName}: Pool not found for gauge address ${data.gaugeAddress} on chain ${data.chainId}`,
-    );
-    return;
-  }
+  if (!result) return;
+  const { pool } = result;
 
   const timestamp = new Date(data.timestamp * 1000);
 
