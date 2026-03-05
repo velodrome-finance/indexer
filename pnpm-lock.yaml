@@ -1656,8 +1656,8 @@ packages:
     resolution: {integrity: sha512-v3MXnZAcvnywkTUEZomIActle7RXXeedOR31wwl7VlyoXO4Qi9arvSenNQWne1TcRwhCL1HwLI21bEqdpj8/rA==}
     engines: {node: '>=0.10.0'}
 
-  immutable@4.3.7:
-    resolution: {integrity: sha512-1hqclzwYwjRDFLjcFxOM5AYkkG0rpFPpr1RLPMEuGczoS7YA8gLhy8SWXYRAA/XwfEHpfo3cw5JGioS32fnMRw==}
+  immutable@4.3.8:
+    resolution: {integrity: sha512-d/Ld9aLbKpNwyl0KiM2CT1WYvkitQ1TSvmRtkcV8FKStiDoA7Slzgjmb/1G2yhKM1p0XeNOieaTbFZmU1d3Xuw==}
 
   indent-string@4.0.0:
     resolution: {integrity: sha512-EdDDZu4A2OyIK7Lr/2zG+w5jmbuk1DVBnEwREQvBzspBJkCEbRa8GxU1lghYcaGJCnRWibjDXlq779X1/y5xwg==}
@@ -4403,7 +4403,7 @@ snapshots:
       find-up: 5.0.0
       fp-ts: 1.19.3
       fs-extra: 7.0.1
-      immutable: 4.3.7
+      immutable: 4.3.8
       io-ts: 1.10.4
       json-stream-stringify: 3.1.6
       keccak: 3.0.4
@@ -4492,7 +4492,7 @@ snapshots:
     dependencies:
       safer-buffer: 2.1.2
 
-  immutable@4.3.7: {}
+  immutable@4.3.8: {}
 
   indent-string@4.0.0: {}
 
