@@ -44,6 +44,7 @@ describe("NFPMCommonLogic", () => {
     mintLogIndex: 42,
     lastUpdatedTimestamp: new Date(),
     lastSnapshotTimestamp: undefined,
+    isStakedInGauge: false,
   };
 
   const mockPositionDifferentChain: NonFungiblePosition = {

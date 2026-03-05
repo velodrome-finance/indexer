@@ -59,6 +59,7 @@ export async function createPositionFromCLPoolMint(
     mintLogIndex: mintEvent.logIndex,
     lastUpdatedTimestamp: new Date(blockTimestamp * 1000),
     lastSnapshotTimestamp: undefined,
+    isStakedInGauge: false,
   };
 
   context.NonFungiblePosition.set(position);
@@ -248,13 +249,14 @@ export async function handleRegularTransfer(
   }
 
   const position = positions[0];
+  const timestamp = event.block.timestamp;
 
   const poolData = await loadPoolData(
     position.pool,
     event.chainId,
     context,
     event.block.number,
-    event.block.timestamp,
+    timestamp,
   );
 
   const isGauge = poolData
@@ -263,8 +265,24 @@ export async function handleRegularTransfer(
         event.params.to,
         poolData.liquidityPoolAggregator.gaugeAddress,
       )
-    : false; // When poolData is null we cannot know if it's a gauge transfer; skip only attribution below, still update owner.
-  if (isGauge) {
+    : false;
+  if (isGauge && poolData) {
+    // Update only isStakedInGauge (and timestamp)
+    // Do not update owner or attribute to UserStatsPerPool.
+    // Real underlying owner of the position is kept (whether staked or not).
+    const gaugeAddress = poolData.liquidityPoolAggregator.gaugeAddress;
+    const isStakedInGauge = event.params.to === gaugeAddress;
+
+    const nonFungiblePositionDiff = {
+      isStakedInGauge: isStakedInGauge,
+      lastUpdatedTimestamp: new Date(timestamp * 1000),
+    };
+    updateNonFungiblePosition(
+      nonFungiblePositionDiff,
+      position,
+      context,
+      new Date(timestamp * 1000),
+    );
     return;
   }
 
@@ -281,17 +299,15 @@ export async function handleRegularTransfer(
     );
   }
 
-  const timestamp = new Date(event.block.timestamp * 1000);
-
   const nonFungiblePositionDiff = {
     owner: event.params.to,
-    lastUpdatedTimestamp: timestamp,
+    lastUpdatedTimestamp: new Date(timestamp * 1000),
   };
   updateNonFungiblePosition(
     nonFungiblePositionDiff,
     position,
     context,
-    timestamp,
+    new Date(timestamp * 1000),
   );
 }
 

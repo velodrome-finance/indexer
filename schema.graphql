@@ -324,6 +324,7 @@ type NonFungiblePosition {
   mintLogIndex: Int! # Log index of CLPool.Mint event (for placeholder matching)
   lastUpdatedTimestamp: Timestamp! # Timestamp of last update
   lastSnapshotTimestamp: Timestamp # nullable - null means never snapshotted
+  isStakedInGauge: Boolean! # Set from NFPM.Transfer to/from the pool's gauge; owner is not updated on gauge transfers so we need this to know staked vs not.
 }
 
 # Snapshot of NonFungiblePosition at an epoch (full state for historical queries / recomputation)

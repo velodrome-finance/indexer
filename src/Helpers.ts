@@ -12,7 +12,6 @@ import type {
 import JSBI from "jsbi";
 import { TEN_TO_THE_18_BI } from "./Constants";
 import { multiplyBase1e18 } from "./Maths";
-import { refreshTokenPrice } from "./PriceOracle";
 
 /**
  * Normalises an unknown value to an error message string.
@@ -122,119 +121,6 @@ export function sortByBlockThenLogIndex<T>(
     if (blockA !== blockB) return blockA - blockB;
     return getLog(a) - getLog(b);
   });
-}
-
-/**
- * Updates a single token with price refresh and calculations
- */
-export async function updateTokenData(
-  token: Token,
-  amount: bigint,
-  event: {
-    block: { number: number; timestamp: number };
-    chainId: number;
-  },
-  context: handlerContext,
-): Promise<{
-  token: Token;
-  normalizedAmount: bigint;
-  usdValue: bigint;
-  netAmount: bigint;
-}> {
-  let updatedToken = token;
-
-  try {
-    updatedToken = await refreshTokenPrice(
-      token,
-      event.block.number,
-      event.block.timestamp,
-      event.chainId,
-      context,
-    );
-  } catch (error) {
-    context.log.error(
-      `Error refreshing token price for ${token?.address} on chain ${event.chainId}: ${error}`,
-    );
-  }
-
-  const normalizedAmount = normalizeTokenAmountTo1e18(
-    amount,
-    Number(updatedToken.decimals),
-  );
-
-  const usdValue = multiplyBase1e18(
-    normalizedAmount,
-    updatedToken.pricePerUSDNew,
-  );
-
-  return {
-    token: updatedToken,
-    normalizedAmount,
-    usdValue,
-    netAmount: amount,
-  };
-}
-
-/**
- * Updates tokens for fee collection operations
- */
-export async function updateFeeTokenData(
-  token0: Token | undefined,
-  token1: Token | undefined,
-  amount0: bigint,
-  amount1: bigint,
-  event: {
-    block: { number: number; timestamp: number };
-    chainId: number;
-  },
-  context: handlerContext,
-): Promise<{
-  token0?: Token;
-  token1?: Token;
-  token0UsdValue?: bigint;
-  token1UsdValue?: bigint;
-  totalFeesUSD: bigint;
-  totalFeesUSDWhitelisted: bigint;
-}> {
-  const results = await Promise.allSettled([
-    token0 ? updateTokenData(token0, amount0, event, context) : null,
-    token1 ? updateTokenData(token1, amount1, event, context) : null,
-  ]);
-
-  const token0Data =
-    results[0].status === "fulfilled" && results[0].value
-      ? results[0].value
-      : undefined;
-  const token1Data =
-    results[1].status === "fulfilled" && results[1].value
-      ? results[1].value
-      : undefined;
-
-  let totalFeesUSD = 0n;
-  let totalFeesUSDWhitelisted = 0n;
-
-  if (token0Data) {
-    totalFeesUSD += token0Data.usdValue;
-    totalFeesUSDWhitelisted += token0Data.token.isWhitelisted
-      ? token0Data.usdValue
-      : 0n;
-  }
-
-  if (token1Data) {
-    totalFeesUSD += token1Data.usdValue;
-    totalFeesUSDWhitelisted += token1Data.token.isWhitelisted
-      ? token1Data.usdValue
-      : 0n;
-  }
-
-  return {
-    token0: token0Data?.token,
-    token1: token1Data?.token,
-    token0UsdValue: token0Data?.usdValue,
-    token1UsdValue: token1Data?.usdValue,
-    totalFeesUSD,
-    totalFeesUSDWhitelisted,
-  };
 }
 
 /**
@@ -379,228 +265,137 @@ export function calculatePositionAmountsFromLiquidity(
 }
 
 /**
- * Executes an effect with retry logic for rounded block numbers.
- * Tries with rounded block first (for caching), then retries with original block
- * if the call fails or returns a zero value (for numeric effects).
+ * Converts concentrated liquidity (L) in a tick range to USD using exact CL math (TickMath + SqrtPriceMath → amount0/amount1 → USD).
+ * Used by computeCLStakedUSDFromPositions (per-position valuation).
  *
- * @param effect - The effect function to call
- * @param inputWithRoundedBlock - Input parameters with rounded block number
- * @param inputWithOriginalBlock - Input parameters with original block number
- * @param context - Handler context for effect calls and logging
- * @param logPrefix - Prefix for log messages (e.g., "[calculateStakedLiquidityUSD]")
- * @param options - Optional configuration
- * @returns The result from the effect call
+ * @param liquidity - Liquidity amount (L) as bigint
+ * @param sqrtPriceX96 - Current pool sqrt(price) Q64.96
+ * @param tickLower - Range lower tick
+ * @param tickUpper - Range upper tick
+ * @param token0Instance - Token0 for USD pricing (optional)
+ * @param token1Instance - Token1 for USD pricing (optional)
+ * @returns USD value in 1e18 units, or 0n on error / missing tokens
  */
-export async function executeEffectWithRoundedBlockRetry<
-  T,
-  I extends { blockNumber: number },
->(
-  effect: (input: I) => Promise<T>,
-  inputWithRoundedBlock: I,
-  inputWithOriginalBlock: I,
-  context: handlerContext,
-  logPrefix: string,
-  options?: {
-    retryOnZero?: boolean; // For numeric effects that might return 0 at rounded block
-    zeroValue?: T; // What constitutes "zero" for this effect type
-  },
-): Promise<T> {
-  const { retryOnZero = false, zeroValue } = options || {};
-  const roundedBlock = inputWithRoundedBlock.blockNumber;
-  const originalBlock = inputWithOriginalBlock.blockNumber;
-
-  // If blocks are the same, no need for retry logic
-  if (roundedBlock === originalBlock) {
-    return await effect(inputWithRoundedBlock);
-  }
-
+export function concentratedLiquidityToUSD(
+  liquidity: bigint,
+  sqrtPriceX96: bigint,
+  tickLower: bigint,
+  tickUpper: bigint,
+  token0Instance?: Token,
+  token1Instance?: Token,
+): bigint {
   try {
-    let result = await effect(inputWithRoundedBlock);
-
-    // Check if we should retry on zero value
-    if (retryOnZero && result === zeroValue) {
-      context.log.info(
-        `${logPrefix} Effect returned zero value at rounded block ${roundedBlock} (original: ${originalBlock}). Retrying with actual block number. This is expected when the contract was created after the rounded block interval.`,
-      );
-      result = await effect(inputWithOriginalBlock);
-    }
-
-    return result;
-  } catch (error) {
-    // Retry with original block on exception
-    context.log.info(
-      `${logPrefix} Effect failed at rounded block ${roundedBlock} (original: ${originalBlock}). Retrying with actual block number. This is expected when the contract was created after the rounded block interval.`,
+    const { amount0, amount1 } = calculatePositionAmountsFromLiquidity(
+      liquidity,
+      sqrtPriceX96,
+      tickLower,
+      tickUpper,
     );
-    return await effect(inputWithOriginalBlock);
+    return calculateTotalUSD(amount0, amount1, token0Instance, token1Instance);
+  } catch {
+    return 0n;
   }
 }
 
 /**
- * Calculate USD value of staked liquidity/LP tokens
- * For CL pools: Uses tokenId to get position tick ranges, then calculates from liquidity
- * For V2 pools: Converts LP tokens to amount0/amount1 using pool reserves and totalSupply
+ * Computes currentLiquidityStakedUSD for non-CL pools from stake units and pool state.
+ * Value is derived from reserves, totalSupply, and token prices.
+ *
+ * @param stakeAmount - Current staked liquidity in LP token units (pool or user)
+ * @param poolEntity - Non-CL pool entity with reserve0, reserve1, totalLPTokenSupply
+ * @param poolData - Token instances for USD pricing
+ * @param _context - Handler context (unused; for API consistency)
+ * @returns USD value in 1e18 units, or 0n if stake ≤ 0 or totalSupply missing/zero
  */
-export async function calculateStakedLiquidityUSD(
-  amount: bigint,
-  poolAddress: string,
+export function computeNonCLStakedUSD(
+  stakeAmount: bigint,
+  poolEntity: LiquidityPoolAggregator,
+  poolData: {
+    liquidityPoolAggregator: LiquidityPoolAggregator;
+    token0Instance?: Token;
+    token1Instance?: Token;
+  },
+  _context: handlerContext,
+): bigint {
+  if (stakeAmount <= 0n) {
+    return 0n;
+  }
+  const { token0Instance, token1Instance } = poolData;
+  const reserve0 = poolEntity.reserve0;
+  const reserve1 = poolEntity.reserve1;
+  const totalSupply = poolEntity.totalLPTokenSupply;
+  if (!totalSupply || totalSupply === 0n) {
+    return 0n;
+  }
+  const amount0 = (stakeAmount * reserve0) / totalSupply;
+  const amount1 = (stakeAmount * reserve1) / totalSupply;
+  return calculateTotalUSD(amount0, amount1, token0Instance, token1Instance);
+}
+
+/**
+ * Computes CL pool stake USD from staked positions: fetches positions for the pool
+ * (optional owner filter), then sums USD via concentratedLiquidityToUSD per position.
+ * Use for both pool-level (omit options.userAddress) and user-level (pass options.userAddress).
+ *
+ * @param chainId - Chain ID
+ * @param poolAddress - Pool address
+ * @param poolEntity - CL pool entity
+ * @param poolData - Pool data
+ * @param context - Handler context
+ * @param options - logLabel for errors; userAddress to restrict to one owner (omit for pool total)
+ * @returns Sum of position USD in 1e18 units
+ */
+export async function computeCLStakedUSDFromPositions(
   chainId: number,
-  blockNumber: number,
-  tokenId: bigint | undefined,
+  poolAddress: string,
+  poolEntity: LiquidityPoolAggregator,
   poolData: {
     liquidityPoolAggregator: LiquidityPoolAggregator;
     token0Instance?: Token;
     token1Instance?: Token;
   },
   context: handlerContext,
-): Promise<bigint> {
-  const { liquidityPoolAggregator, token0Instance, token1Instance } = poolData;
-
-  // CL Pool: Use tokenId to get position and calculate from liquidity
-  if (tokenId !== undefined && liquidityPoolAggregator.isCL) {
-    try {
-      // Load position to get tick ranges
-      const position = await context.NonFungiblePosition.getWhere({
-        tokenId: { _eq: tokenId },
-      });
-      const matchingPosition = position.find(
-        (p: NonFungiblePosition) => p.chainId === chainId,
-      );
-
-      if (!matchingPosition) {
-        context.log.warn(
-          `[calculateStakedLiquidityUSD] Position not found for tokenId ${tokenId} on chain ${chainId}, using 0 USD`,
-        );
-        return 0n;
-      }
-
-      // Get sqrtPriceX96 from pool entity
-      const sqrtPriceX96 = liquidityPoolAggregator.sqrtPriceX96;
-
-      // Check if sqrtPriceX96 is undefined or 0 (error case) - return 0 USD
-      if (sqrtPriceX96 === undefined || sqrtPriceX96 === 0n) {
-        context.log.warn(
-          `[calculateStakedLiquidityUSD] sqrtPriceX96 is undefined or 0 for pool ${poolAddress} on chain ${chainId}, using 0 USD`,
-        );
-        return 0n;
-      }
-
-      // Calculate amount0 and amount1 from liquidity
-      const { amount0, amount1 } = calculatePositionAmountsFromLiquidity(
-        amount,
-        sqrtPriceX96,
-        matchingPosition.tickLower,
-        matchingPosition.tickUpper,
-      );
-
-      // Calculate USD value
-      return calculateTotalUSD(
-        amount0,
-        amount1,
-        token0Instance,
-        token1Instance,
-      );
-    } catch (error) {
-      context.log.warn(
-        `[calculateStakedLiquidityUSD] Error calculating CL pool USD value for tokenId ${tokenId}: ${error instanceof Error ? error.message : String(error)}, using 0 USD`,
-      );
-      return 0n;
-    }
-  }
-
-  // V2 Pool: Convert LP tokens to amount0/amount1 using reserves and totalSupply
-  if (!liquidityPoolAggregator.isCL) {
-    try {
-      const reserve0 = liquidityPoolAggregator.reserve0;
-      const reserve1 = liquidityPoolAggregator.reserve1;
-
-      const totalSupply = liquidityPoolAggregator.totalLPTokenSupply;
-
-      if (!totalSupply) {
-        context.log.warn(
-          `[calculateStakedLiquidityUSD] TotalSupply is 0 or undefined for pool ${poolAddress} on chain ${chainId}, using 0 USD`,
-        );
-        return 0n;
-      }
-
-      // Calculate proportional amounts
-      const amount0 = (amount * reserve0) / totalSupply;
-      const amount1 = (amount * reserve1) / totalSupply;
-
-      // Calculate USD value
-      return calculateTotalUSD(
-        amount0,
-        amount1,
-        token0Instance,
-        token1Instance,
-      );
-    } catch (error) {
-      context.log.warn(
-        `[calculateStakedLiquidityUSD] Error calculating V2 pool USD value: ${error instanceof Error ? error.message : String(error)}, using 0 USD`,
-      );
-      return 0n;
-    }
-  }
-
-  // Fallback
-  context.log.warn(
-    `[calculateStakedLiquidityUSD] Unsupported pool type: ${poolAddress} on chain ${chainId}. Fallback to 0 USD`,
-  );
-  return 0n;
-}
-
-/**
- * Updates tokens for reserve/liquidity operations (like Sync events)
- * NOTE: This function refreshes token prices. If prices are already refreshed
- * in loadPoolData, use calculateTotalUSD instead.
- */
-export async function updateReserveTokenData(
-  token0: Token | undefined,
-  token1: Token | undefined,
-  amount0: bigint,
-  amount1: bigint,
-  event: {
-    block: { number: number; timestamp: number };
-    chainId: number;
+  options: {
+    userAddress?: string;
+    logLabel: string;
   },
-  context: handlerContext,
-): Promise<{
-  token0?: Token;
-  token1?: Token;
-  token0UsdValue?: bigint;
-  token1UsdValue?: bigint;
-  totalLiquidityUSD: bigint;
-}> {
-  const results = await Promise.allSettled([
-    token0 ? updateTokenData(token0, amount0, event, context) : null,
-    token1 ? updateTokenData(token1, amount1, event, context) : null,
-  ]);
-
-  const token0Data =
-    results[0].status === "fulfilled" && results[0].value
-      ? results[0].value
-      : undefined;
-  const token1Data =
-    results[1].status === "fulfilled" && results[1].value
-      ? results[1].value
-      : undefined;
-
-  let totalLiquidityUSD = 0n;
-
-  if (token0Data) {
-    totalLiquidityUSD += token0Data.usdValue;
+): Promise<bigint> {
+  const sqrtPriceX96 = poolEntity.sqrtPriceX96;
+  if (sqrtPriceX96 === undefined || sqrtPriceX96 === 0n) {
+    return 0n;
   }
-
-  if (token1Data) {
-    totalLiquidityUSD += token1Data.usdValue;
+  const { token0Instance, token1Instance } = poolData;
+  try {
+    const positions = await context.NonFungiblePosition.getWhere({
+      pool: { _eq: poolAddress },
+    });
+    const staked = (positions ?? []).filter(
+      (p: NonFungiblePosition) =>
+        p.chainId === chainId &&
+        p.isStakedInGauge === true &&
+        (options.userAddress === undefined || p.owner === options.userAddress),
+    );
+    const usdValues = await Promise.all(
+      staked.map((pos) =>
+        Promise.resolve(
+          concentratedLiquidityToUSD(
+            pos.liquidity,
+            sqrtPriceX96,
+            pos.tickLower,
+            pos.tickUpper,
+            token0Instance,
+            token1Instance,
+          ),
+        ),
+      ),
+    );
+    return usdValues.reduce((a, b) => a + b, 0n);
+  } catch (err) {
+    context.log.warn(
+      `[${options.logLabel}] Error: ${err instanceof Error ? err.message : String(err)}, using 0 USD`,
+    );
+    return 0n;
   }
-
-  return {
-    token0: token0Data?.token,
-    token1: token1Data?.token,
-    token0UsdValue: token0Data?.usdValue,
-    token1UsdValue: token1Data?.usdValue,
-    totalLiquidityUSD,
-  };
 }
 
 /**

@@ -294,17 +294,28 @@ describe("GaugeSharedLogic", () => {
 
   describe("processGaugeWithdraw", () => {
     it("should process gauge withdrawal correctly", async () => {
-      const withdrawData: GaugeEventData = {
-        gaugeAddress: mockGaugeAddress,
-        userAddress: mockUserAddress,
-        chainId: mockChainId,
-        blockNumber: 100,
-        timestamp: 1000000,
-        amount: 50000000000000000000n, // 50 LP tokens (18 decimals)
-      };
+      await processGaugeDeposit(
+        {
+          gaugeAddress: mockGaugeAddress,
+          userAddress: mockUserAddress,
+          chainId: mockChainId,
+          blockNumber: 99,
+          timestamp: 999999,
+          amount: 100000000000000000000n, // 100 LP
+        },
+        mockContext,
+        "TestGaugeDeposit",
+      );
 
       await processGaugeWithdraw(
-        withdrawData,
+        {
+          gaugeAddress: mockGaugeAddress,
+          userAddress: mockUserAddress,
+          chainId: mockChainId,
+          blockNumber: 100,
+          timestamp: 1000000,
+          amount: 50000000000000000000n, // 50 LP tokens (18 decimals)
+        },
         mockContext,
         "TestGaugeWithdraw",
       );
@@ -317,20 +328,57 @@ describe("GaugeSharedLogic", () => {
       );
 
       expect(updatedPool?.numberOfGaugeWithdrawals).toBe(1n);
-      expect(updatedPool?.currentLiquidityStaked).toBe(-50000000000000000000n);
-      // For V2 pools: amount0 = (50 LP * 1000000000 reserve0) / 1000 totalSupply = 50000000 (6 decimals = 50 tokens)
-      // amount1 = (50 LP * 1000000000 reserve1) / 1000 totalSupply = 50000000 (6 decimals = 50 tokens)
-      // Normalized to 18 decimals: 50000000 * 10^12 = 50000000000000000000n
-      // USD for token0: (50000000000000000000n * 1000000000000000000n) / 10^18 = 50000000000000000000n
-      // USD for token1: (50000000000000000000n * 1000000000000000000n) / 10^18 = 50000000000000000000n
-      // Total: 100000000000000000000n (100 USD in 18 decimals), negative for withdrawal
+      expect(updatedPool?.currentLiquidityStaked).toBe(50000000000000000000n); // 100 - 50
+      // Derived USD: 50 LP at reserves 1e9/1e9, totalSupply 1000e18, 1 USD each → 100e18
       expect(updatedPool?.currentLiquidityStakedUSD).toBe(
-        -100000000000000000000n,
+        100000000000000000000n,
       );
       expect(updatedUser?.numberOfGaugeWithdrawals).toBe(1n);
-      expect(updatedUser?.currentLiquidityStaked).toBe(-50000000000000000000n);
+      expect(updatedUser?.currentLiquidityStaked).toBe(50000000000000000000n);
       expect(updatedUser?.currentLiquidityStakedUSD).toBe(
-        -100000000000000000000n,
+        100000000000000000000n,
+      );
+    });
+
+    it("should derive non-negative currentLiquidityStakedUSD after deposit then partial withdraw", async () => {
+      await processGaugeDeposit(
+        {
+          gaugeAddress: mockGaugeAddress,
+          userAddress: mockUserAddress,
+          chainId: mockChainId,
+          blockNumber: 100,
+          timestamp: 1000000,
+          amount: 100000000000000000000n, // 100 LP
+        },
+        mockContext,
+        "TestGaugeDeposit",
+      );
+      await processGaugeWithdraw(
+        {
+          gaugeAddress: mockGaugeAddress,
+          userAddress: mockUserAddress,
+          chainId: mockChainId,
+          blockNumber: 101,
+          timestamp: 1000001,
+          amount: 50000000000000000000n, // 50 LP
+        },
+        mockContext,
+        "TestGaugeWithdraw",
+      );
+      const updatedPool = updatedDB.entities.LiquidityPoolAggregator.get(
+        mockLiquidityPoolAggregator.id,
+      );
+      const updatedUser = updatedDB.entities.UserStatsPerPool.get(
+        mockUserStatsPerPool.id,
+      );
+      expect(updatedPool?.currentLiquidityStaked).toBe(50000000000000000000n); // 100 - 50
+      // Derived USD: 50 LP at current reserves/prices = 100 USD (18 decimals)
+      expect(updatedPool?.currentLiquidityStakedUSD).toBe(
+        100000000000000000000n,
+      );
+      expect(updatedUser?.currentLiquidityStaked).toBe(50000000000000000000n);
+      expect(updatedUser?.currentLiquidityStakedUSD).toBe(
+        100000000000000000000n,
       );
     });
   });

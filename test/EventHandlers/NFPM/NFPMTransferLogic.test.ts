@@ -172,6 +172,7 @@ describe("NFPMTransferLogic", () => {
     mintLogIndex: mintLogIndex,
     lastUpdatedTimestamp: new Date(1711601595000),
     lastSnapshotTimestamp: undefined,
+    isStakedInGauge: false,
   };
 
   let mockDb: ReturnType<typeof MockDb.createMockDb>;

@@ -295,6 +295,7 @@ export function setupCommon() {
     mintLogIndex: 1,
     lastUpdatedTimestamp: new Date(900000 * 1000),
     lastSnapshotTimestamp: undefined,
+    isStakedInGauge: false,
   };
 
   /**

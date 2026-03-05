@@ -62,7 +62,8 @@ export interface LiquidityPoolAggregatorDiff {
   incrementalTotalGaugeRewardsClaimedUSD: bigint;
   incrementalTotalGaugeRewardsClaimed: bigint;
   incrementalCurrentLiquidityStaked: bigint;
-  incrementalCurrentLiquidityStakedUSD: bigint;
+  /** Non-cumulative: when set (e.g. by gauge flow), overwrites currentLiquidityStakedUSD. Same pattern as baseFee/currentFee. */
+  currentLiquidityStakedUSD?: bigint;
   token0Price: bigint;
   token1Price: bigint;
   gaugeIsAlive: boolean;
@@ -295,8 +296,7 @@ export async function updateLiquidityPoolAggregator(
       (diff.incrementalCurrentLiquidityStaked ?? 0n) +
       current.currentLiquidityStaked,
     currentLiquidityStakedUSD:
-      (diff.incrementalCurrentLiquidityStakedUSD ?? 0n) +
-      current.currentLiquidityStakedUSD,
+      diff.currentLiquidityStakedUSD ?? current.currentLiquidityStakedUSD,
 
     // Handle non-cumulative fields (prices, timestamps, etc.) - use diff values directly
     token0Price: diff.token0Price ?? current.token0Price,

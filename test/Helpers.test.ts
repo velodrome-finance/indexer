@@ -10,14 +10,15 @@ import type {
   handlerContext,
 } from "generated";
 import JSBI from "jsbi";
-import { NonFungiblePositionId, toChecksumAddress } from "../src/Constants";
+import { toChecksumAddress } from "../src/Constants";
 import {
   calculatePositionAmountsFromLiquidity,
-  calculateStakedLiquidityUSD,
   calculateTotalUSD,
   calculateWhitelistedFeesUSD,
+  computeCLStakedUSDFromPositions,
   computeLiquidityDeltaFromAmounts,
-  executeEffectWithRoundedBlockRetry,
+  computeNonCLStakedUSD,
+  concentratedLiquidityToUSD,
   runAsyncWithErrorLog,
   sortByBlockThenLogIndex,
 } from "../src/Helpers";
@@ -846,786 +847,663 @@ describe("Helpers", () => {
     });
   });
 
-  describe("calculateStakedLiquidityUSD", () => {
-    const {
-      mockToken0Data: mockToken0,
-      mockToken1Data: mockToken1,
-      mockLiquidityPoolData: mockLiquidityPoolAggregator,
-    } = setupCommon();
-    const mockChainId = mockToken0.chainId;
-    const mockPoolAddress = mockLiquidityPoolAggregator.id;
-    const mockBlockNumber = 100;
+  describe("concentratedLiquidityToUSD", () => {
+    const { mockToken0Data: mockToken0, mockToken1Data: mockToken1 } =
+      setupCommon();
 
-    describe("CL Pool calculations", () => {
-      it("should calculate USD value for CL pool with valid position", async () => {
-        const amount = 1000000000000000000n; // 1e18 liquidity
-        const tokenId = 1127n;
-        const tickLower = -100n;
-        const tickUpper = 100n;
-        const sqrtPriceX96 = 79228162514264337593543950336n; // Price at tick 0
+    it("should return USD value from liquidity and tick range when tokens provided", () => {
+      const liquidity = 1000000000000000000n;
+      const tickLower = -100n;
+      const tickUpper = 100n;
+      const sqrtPriceX96 = BigInt(TickMath.getSqrtRatioAtTick(0).toString());
 
-        const mockPosition: NonFungiblePosition = {
-          id: NonFungiblePositionId(mockChainId, mockPoolAddress, tokenId),
-          tokenId,
-          chainId: mockChainId,
-          pool: mockPoolAddress,
-          tickLower,
-          tickUpper,
-          token0: mockToken0.address,
-          token1: mockToken1.address,
-          liquidity: amount,
-          mintLogIndex: 0,
-          owner: toChecksumAddress(
-            "0x2222222222222222222222222222222222222222",
-          ),
-          mintTransactionHash:
-            "0x0000000000000000000000000000000000000000000000000000000000000000",
-          lastUpdatedTimestamp: new Date(1000000 * 1000),
-          lastSnapshotTimestamp: undefined,
-        };
+      const { amount0, amount1 } = calculatePositionAmountsFromLiquidity(
+        liquidity,
+        sqrtPriceX96,
+        tickLower,
+        tickUpper,
+      );
+      const expectedUSD = calculateTotalUSD(
+        amount0,
+        amount1,
+        mockToken0,
+        mockToken1,
+      );
 
-        const mockPoolAggregator: LiquidityPoolAggregator = {
-          id: mockPoolAddress,
-          chainId: mockChainId,
-          isCL: true,
-          reserve0: 0n,
-          reserve1: 0n,
-          sqrtPriceX96: sqrtPriceX96,
-        } as LiquidityPoolAggregator;
+      const result = concentratedLiquidityToUSD(
+        liquidity,
+        sqrtPriceX96,
+        tickLower,
+        tickUpper,
+        mockToken0,
+        mockToken1,
+      );
 
-        const mockContext = {
-          NonFungiblePosition: {
-            getWhere: vi
-              .fn()
-              .mockImplementation((filter: { tokenId?: { _eq?: bigint } }) => {
-                const tid = filter?.tokenId?._eq;
-                if (tid === tokenId) return Promise.resolve([mockPosition]);
-                return Promise.resolve([]);
-              }),
-          },
-          log: {
-            warn: () => {},
-            error: () => {},
-            info: () => {},
-            debug: () => {},
-          },
-        } as unknown as handlerContext;
-
-        // Calculate expected amounts
-        const { amount0, amount1 } = calculatePositionAmountsFromLiquidity(
-          amount,
-          sqrtPriceX96,
-          tickLower,
-          tickUpper,
-        );
-
-        // Expected USD: amount0 * price0 + amount1 * price1
-        // token0 has 18 decimals, token1 has 6 decimals, both prices are 1 USD
-        // Normalize to 18 decimals for USD calculation
-        const normalizedAmount0 =
-          (amount0 * 10n ** 18n) / 10n ** mockToken0.decimals;
-        const normalizedAmount1 =
-          (amount1 * 10n ** 18n) / 10n ** mockToken1.decimals;
-        const expectedUSD =
-          (normalizedAmount0 * mockToken0.pricePerUSDNew) / 10n ** 18n +
-          (normalizedAmount1 * mockToken1.pricePerUSDNew) / 10n ** 18n;
-
-        const result = await calculateStakedLiquidityUSD(
-          amount,
-          mockPoolAddress,
-          mockChainId,
-          mockBlockNumber,
-          tokenId,
-          {
-            liquidityPoolAggregator: mockPoolAggregator,
-            token0Instance: mockToken0,
-            token1Instance: mockToken1,
-          },
-          mockContext,
-        );
-
-        expect(result).toBe(expectedUSD);
-        expect(result > 0n).toBe(true);
-      });
-
-      it("should return 0 when position is not found for CL pool", async () => {
-        const amount = 1000000000000000000n;
-        const tokenId = 9999n; // Non-existent tokenId
-
-        const mockPoolAggregator: LiquidityPoolAggregator = {
-          id: mockPoolAddress,
-          chainId: mockChainId,
-          isCL: true,
-          reserve0: 0n,
-          reserve1: 0n,
-        } as LiquidityPoolAggregator;
-
-        const mockContext = {
-          NonFungiblePosition: {
-            getWhere: vi.fn().mockResolvedValue([]), // No position found
-          },
-          effect: async () => ({}),
-          log: {
-            warn: () => {},
-            error: () => {},
-            info: () => {},
-            debug: () => {},
-          },
-        } as unknown as handlerContext;
-
-        const result = await calculateStakedLiquidityUSD(
-          amount,
-          mockPoolAddress,
-          mockChainId,
-          mockBlockNumber,
-          tokenId,
-          {
-            liquidityPoolAggregator: mockPoolAggregator,
-            token0Instance: mockToken0,
-            token1Instance: mockToken1,
-          },
-          mockContext,
-        );
-
-        expect(result).toBe(0n);
-      });
-
-      it("should handle errors in CL pool calculation gracefully", async () => {
-        const amount = 1000000000000000000n;
-        const tokenId = 1127n;
-
-        const mockPoolAggregator: LiquidityPoolAggregator = {
-          id: mockPoolAddress,
-          chainId: mockChainId,
-          isCL: true,
-          reserve0: 0n,
-          reserve1: 0n,
-        } as LiquidityPoolAggregator;
-
-        const mockContext = {
-          NonFungiblePosition: {
-            getWhere: vi.fn().mockRejectedValue(new Error("Database error")),
-          },
-          effect: async () => ({}),
-          log: {
-            warn: () => {},
-            error: () => {},
-            info: () => {},
-            debug: () => {},
-          },
-        } as unknown as handlerContext;
-
-        const result = await calculateStakedLiquidityUSD(
-          amount,
-          mockPoolAddress,
-          mockChainId,
-          mockBlockNumber,
-          tokenId,
-          {
-            liquidityPoolAggregator: mockPoolAggregator,
-            token0Instance: mockToken0,
-            token1Instance: mockToken1,
-          },
-          mockContext,
-        );
-
-        expect(result).toBe(0n);
-      });
+      expect(result).toBe(expectedUSD);
+      expect(result > 0n).toBe(true);
     });
 
-    describe("V2 Pool calculations", () => {
-      it("should calculate USD value for V2 pool with valid reserves and totalSupply", async () => {
-        const amount = 100000000000000000000n; // 100 LP tokens (18 decimals)
-        // token0 has 18 decimals, token1 has 6 decimals
-        const reserve0 = 1000000000000000000000n; // 1000 tokens (18 decimals)
-        const reserve1 = 1000000000n; // 1000 tokens (6 decimals)
-        const totalSupply = 1000000000000000000000n; // 1000 LP tokens (18 decimals)
+    it("should return 0n when token instances are omitted", () => {
+      const liquidity = 1000000000000000000n;
+      const sqrtPriceX96 = BigInt(TickMath.getSqrtRatioAtTick(0).toString());
 
-        const mockPoolAggregator: LiquidityPoolAggregator = {
-          id: mockPoolAddress,
-          chainId: mockChainId,
-          isCL: false,
-          reserve0,
-          reserve1,
-          totalLPTokenSupply: totalSupply,
-        } as LiquidityPoolAggregator;
+      const result = concentratedLiquidityToUSD(
+        liquidity,
+        sqrtPriceX96,
+        -100n,
+        100n,
+        undefined,
+        undefined,
+      );
 
-        const mockContext = {
-          NonFungiblePosition: {
-            getWhere: vi.fn().mockResolvedValue([]),
-          },
-          log: {
-            warn: () => {},
-            error: () => {},
-            info: () => {},
-            debug: () => {},
-          },
-        } as unknown as handlerContext;
-
-        // Calculate expected: amount0 = (100 LP * 1000 reserve0) / 1000 totalSupply = 100
-        // amount1 = (100 LP * 1000 reserve1) / 1000 totalSupply = 100
-        // Normalize to 18 decimals using actual token decimals
-        // token0 has 18 decimals, token1 has 6 decimals
-        const expectedAmount0 = (amount * reserve0) / totalSupply;
-        const expectedAmount1 = (amount * reserve1) / totalSupply;
-        const normalizedAmount0 =
-          (expectedAmount0 * 10n ** 18n) / 10n ** mockToken0.decimals;
-        const normalizedAmount1 =
-          (expectedAmount1 * 10n ** 18n) / 10n ** mockToken1.decimals;
-        const expectedUSD =
-          (normalizedAmount0 * mockToken0.pricePerUSDNew) / 10n ** 18n +
-          (normalizedAmount1 * mockToken1.pricePerUSDNew) / 10n ** 18n;
-
-        const result = await calculateStakedLiquidityUSD(
-          amount,
-          mockPoolAddress,
-          mockChainId,
-          mockBlockNumber,
-          undefined, // No tokenId for V2
-          {
-            liquidityPoolAggregator: mockPoolAggregator,
-            token0Instance: mockToken0,
-            token1Instance: mockToken1,
-          },
-          mockContext,
-        );
-
-        expect(result).toBe(expectedUSD);
-      });
-
-      it("should return 0 when totalSupply is 0 for V2 pool", async () => {
-        const amount = 100000000000000000000n;
-        // token0 has 18 decimals, token1 has 6 decimals
-        const reserve0 = 1000000000000000000000n; // 1000 tokens (18 decimals)
-        const reserve1 = 1000000000n; // 1000 tokens (6 decimals)
-
-        const mockPoolAggregator: LiquidityPoolAggregator = {
-          id: mockPoolAddress,
-          chainId: mockChainId,
-          isCL: false,
-          reserve0,
-          reserve1,
-          totalLPTokenSupply: 0n,
-        } as LiquidityPoolAggregator;
-
-        const mockContext = {
-          NonFungiblePosition: {
-            getWhere: vi.fn().mockResolvedValue([]),
-          },
-          log: {
-            warn: () => {},
-            error: () => {},
-            info: () => {},
-            debug: () => {},
-          },
-        } as unknown as handlerContext;
-
-        const result = await calculateStakedLiquidityUSD(
-          amount,
-          mockPoolAddress,
-          mockChainId,
-          mockBlockNumber,
-          undefined,
-          {
-            liquidityPoolAggregator: mockPoolAggregator,
-            token0Instance: mockToken0,
-            token1Instance: mockToken1,
-          },
-          mockContext,
-        );
-
-        expect(result).toBe(0n);
-      });
-
-      it("should return 0 when totalSupply is undefined for V2 pool", async () => {
-        const amount = 100000000000000000000n;
-        const reserve0 = 1000000000000000000000n;
-        const reserve1 = 1000000000n;
-
-        const mockPoolAggregator = {
-          id: mockPoolAddress,
-          chainId: mockChainId,
-          isCL: false,
-          reserve0,
-          reserve1,
-          totalLPTokenSupply: undefined,
-        } as unknown as LiquidityPoolAggregator;
-
-        const mockContext = {
-          NonFungiblePosition: {
-            getWhere: vi.fn().mockResolvedValue([]),
-          },
-          log: {
-            warn: () => {},
-            error: () => {},
-            info: () => {},
-            debug: () => {},
-          },
-        } as unknown as handlerContext;
-
-        const result = await calculateStakedLiquidityUSD(
-          amount,
-          mockPoolAddress,
-          mockChainId,
-          mockBlockNumber,
-          undefined,
-          {
-            liquidityPoolAggregator: mockPoolAggregator,
-            token0Instance: mockToken0,
-            token1Instance: mockToken1,
-          },
-          mockContext,
-        );
-
-        expect(result).toBe(0n);
-      });
+      expect(result).toBe(0n);
     });
 
-    describe("Edge cases", () => {
-      it("should return 0 for unsupported pool type", async () => {
-        const amount = 100000000000000000000n;
+    it("should return 0n for zero liquidity", () => {
+      const sqrtPriceX96 = BigInt(TickMath.getSqrtRatioAtTick(0).toString());
 
-        // CL pool without tokenId hits the "unsupported pool type" fallback (totalLPTokenSupply not used on this path)
-        const mockPoolAggregator: LiquidityPoolAggregator = {
-          id: mockPoolAddress,
-          chainId: mockChainId,
-          isCL: true,
-          reserve0: 0n,
-          reserve1: 0n,
-          totalLPTokenSupply: 0n,
-        } as LiquidityPoolAggregator;
+      const result = concentratedLiquidityToUSD(
+        0n,
+        sqrtPriceX96,
+        -100n,
+        100n,
+        mockToken0,
+        mockToken1,
+      );
 
-        const mockContext = {
-          NonFungiblePosition: {
-            getWhere: vi.fn().mockResolvedValue([]),
-          },
-          log: {
-            warn: () => {},
-            error: () => {},
-            info: () => {},
-            debug: () => {},
-          },
-        } as unknown as handlerContext;
-
-        const result = await calculateStakedLiquidityUSD(
-          amount,
-          mockPoolAddress,
-          mockChainId,
-          mockBlockNumber,
-          undefined,
-          {
-            liquidityPoolAggregator: mockPoolAggregator,
-            token0Instance: mockToken0,
-            token1Instance: mockToken1,
-          },
-          mockContext,
-        );
-
-        expect(result).toBe(0n);
-      });
+      expect(result).toBe(0n);
     });
   });
 
-  describe("executeEffectWithRoundedBlockRetry", () => {
-    let mockContext: handlerContext;
-    let logInfoCalls: string[];
-    let logErrorCalls: string[];
+  describe("computeNonCLStakedUSD", () => {
+    const {
+      mockToken0Data: mockToken0,
+      mockToken1Data: mockToken1,
+      mockLiquidityPoolData: mockPool,
+    } = setupCommon();
+    const mockContext = {
+      log: { warn: () => {}, error: () => {}, info: () => {}, debug: () => {} },
+    } as unknown as handlerContext;
 
-    beforeEach(() => {
-      logInfoCalls = [];
-      logErrorCalls = [];
-      mockContext = {
+    it("should compute proportional USD from stake, reserves and totalSupply", () => {
+      const stakeAmount = 100n * 10n ** 18n;
+      const reserve0 = 1000n * 10n ** 18n;
+      const reserve1 = 1000n * 10n ** 6n;
+      const totalSupply = 1000n * 10n ** 18n;
+
+      const poolEntity: LiquidityPoolAggregator = {
+        ...mockPool,
+        isCL: false,
+        reserve0,
+        reserve1,
+        totalLPTokenSupply: totalSupply,
+      } as LiquidityPoolAggregator;
+
+      const amount0 = (stakeAmount * reserve0) / totalSupply;
+      const amount1 = (stakeAmount * reserve1) / totalSupply;
+      const expectedUSD = calculateTotalUSD(
+        amount0,
+        amount1,
+        mockToken0,
+        mockToken1,
+      );
+
+      const result = computeNonCLStakedUSD(
+        stakeAmount,
+        poolEntity,
+        {
+          liquidityPoolAggregator: poolEntity,
+          token0Instance: mockToken0,
+          token1Instance: mockToken1,
+        },
+        mockContext,
+      );
+
+      expect(result).toBe(expectedUSD);
+      expect(result > 0n).toBe(true);
+    });
+
+    it("should return 0n when stakeAmount is 0", () => {
+      const poolEntity = {
+        ...mockPool,
+        isCL: false,
+        reserve0: 1000n,
+        reserve1: 1000n,
+        totalLPTokenSupply: 1000n,
+      } as LiquidityPoolAggregator;
+
+      const result = computeNonCLStakedUSD(
+        0n,
+        poolEntity,
+        {
+          liquidityPoolAggregator: poolEntity,
+          token0Instance: mockToken0,
+          token1Instance: mockToken1,
+        },
+        mockContext,
+      );
+
+      expect(result).toBe(0n);
+    });
+
+    it("should return 0n when totalSupply is 0", () => {
+      const poolEntity = {
+        ...mockPool,
+        isCL: false,
+        reserve0: 1000n,
+        reserve1: 1000n,
+        totalLPTokenSupply: 0n,
+      } as LiquidityPoolAggregator;
+
+      const result = computeNonCLStakedUSD(
+        100n,
+        poolEntity,
+        {
+          liquidityPoolAggregator: poolEntity,
+          token0Instance: mockToken0,
+          token1Instance: mockToken1,
+        },
+        mockContext,
+      );
+
+      expect(result).toBe(0n);
+    });
+
+    it("should return 0n when totalSupply is undefined", () => {
+      const poolEntity = {
+        ...mockPool,
+        isCL: false,
+        reserve0: 1000n,
+        reserve1: 1000n,
+        totalLPTokenSupply: undefined,
+      } as unknown as LiquidityPoolAggregator;
+
+      const result = computeNonCLStakedUSD(
+        100n,
+        poolEntity,
+        {
+          liquidityPoolAggregator: poolEntity,
+          token0Instance: mockToken0,
+          token1Instance: mockToken1,
+        },
+        mockContext,
+      );
+
+      expect(result).toBe(0n);
+    });
+  });
+
+  describe("computeCLStakedUSDFromPositions", () => {
+    const {
+      mockToken0Data: mockToken0,
+      mockToken1Data: mockToken1,
+      mockLiquidityPoolData: mockPool,
+      createMockNonFungiblePosition,
+    } = setupCommon();
+    const chainId = mockToken0.chainId;
+    const poolAddress = mockPool.poolAddress ?? mockPool.id;
+
+    it("should sum USD from staked positions for pool when no user filter", async () => {
+      const sqrtPriceX96 = BigInt(TickMath.getSqrtRatioAtTick(0).toString());
+      const poolEntity = {
+        ...mockPool,
+        isCL: true,
+        sqrtPriceX96,
+      } as LiquidityPoolAggregator;
+
+      const pos1 = createMockNonFungiblePosition({
+        tokenId: 1n,
+        liquidity: 1000000000000000000n,
+        tickLower: -100n,
+        tickUpper: 100n,
+        isStakedInGauge: true,
+      });
+      const pos2 = createMockNonFungiblePosition({
+        tokenId: 2n,
+        liquidity: 2000000000000000000n,
+        tickLower: -200n,
+        tickUpper: 200n,
+        isStakedInGauge: true,
+      });
+
+      const expectedSum =
+        concentratedLiquidityToUSD(
+          pos1.liquidity,
+          sqrtPriceX96,
+          pos1.tickLower,
+          pos1.tickUpper,
+          mockToken0,
+          mockToken1,
+        ) +
+        concentratedLiquidityToUSD(
+          pos2.liquidity,
+          sqrtPriceX96,
+          pos2.tickLower,
+          pos2.tickUpper,
+          mockToken0,
+          mockToken1,
+        );
+
+      const mockContext = {
+        NonFungiblePosition: {
+          getWhere: vi.fn().mockResolvedValue([pos1, pos2]),
+        },
         log: {
-          info: (msg: unknown) => logInfoCalls.push(String(msg)),
           warn: () => {},
-          error: (msg: unknown) => logErrorCalls.push(String(msg)),
+          error: () => {},
+          info: () => {},
           debug: () => {},
         },
       } as unknown as handlerContext;
+
+      const result = await computeCLStakedUSDFromPositions(
+        chainId,
+        poolAddress,
+        poolEntity,
+        {
+          liquidityPoolAggregator: poolEntity,
+          token0Instance: mockToken0,
+          token1Instance: mockToken1,
+        },
+        mockContext,
+        { logLabel: "computeCLStakedUSDFromPositions" },
+      );
+
+      expect(result).toBe(expectedSum);
+      expect(result > 0n).toBe(true);
     });
 
-    afterEach(() => {
-      logInfoCalls = [];
-      logErrorCalls = [];
+    it("should filter by userAddress when option provided", async () => {
+      const sqrtPriceX96 = BigInt(TickMath.getSqrtRatioAtTick(0).toString());
+      const poolEntity = {
+        ...mockPool,
+        isCL: true,
+        sqrtPriceX96,
+      } as LiquidityPoolAggregator;
+
+      const userA = toChecksumAddress(
+        "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      );
+      const posStakedByA = createMockNonFungiblePosition({
+        tokenId: 1n,
+        owner: userA,
+        liquidity: 1000000000000000000n,
+        tickLower: -100n,
+        tickUpper: 100n,
+        isStakedInGauge: true,
+      });
+      const posStakedByB = createMockNonFungiblePosition({
+        tokenId: 2n,
+        owner: toChecksumAddress("0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"),
+        liquidity: 2000000000000000000n,
+        tickLower: -100n,
+        tickUpper: 100n,
+        isStakedInGauge: true,
+      });
+
+      const expectedUserAUSD = concentratedLiquidityToUSD(
+        posStakedByA.liquidity,
+        sqrtPriceX96,
+        posStakedByA.tickLower,
+        posStakedByA.tickUpper,
+        mockToken0,
+        mockToken1,
+      );
+
+      const mockContext = {
+        NonFungiblePosition: {
+          getWhere: vi.fn().mockResolvedValue([posStakedByA, posStakedByB]),
+        },
+        log: {
+          warn: () => {},
+          error: () => {},
+          info: () => {},
+          debug: () => {},
+        },
+      } as unknown as handlerContext;
+
+      const result = await computeCLStakedUSDFromPositions(
+        chainId,
+        poolAddress,
+        poolEntity,
+        {
+          liquidityPoolAggregator: poolEntity,
+          token0Instance: mockToken0,
+          token1Instance: mockToken1,
+        },
+        mockContext,
+        { userAddress: userA, logLabel: "computeCLStakedUSDFromPositions" },
+      );
+
+      expect(result).toBe(expectedUserAUSD);
     });
 
-    describe("when block numbers are the same", () => {
-      it("should call effect once with rounded block and return result", async () => {
-        const mockEffect = vi.fn().mockResolvedValue(100n);
-        const input = {
-          tokenAddress: "0x123",
-          chainId: 10,
-          blockNumber: 1000,
-        };
+    it("should return 0n when sqrtPriceX96 is undefined", async () => {
+      const poolEntity = {
+        ...mockPool,
+        isCL: true,
+        sqrtPriceX96: undefined,
+      } as unknown as LiquidityPoolAggregator;
 
-        const result = await executeEffectWithRoundedBlockRetry(
-          mockEffect,
-          input,
-          input,
-          mockContext,
-          "[test]",
-        );
+      const mockContext = {
+        NonFungiblePosition: { getWhere: vi.fn().mockResolvedValue([]) },
+        log: {
+          warn: () => {},
+          error: () => {},
+          info: () => {},
+          debug: () => {},
+        },
+      } as unknown as handlerContext;
 
-        expect(result).toBe(100n);
-        expect(mockEffect).toHaveBeenCalledTimes(1);
-        expect(mockEffect).toHaveBeenCalledWith(input);
-        expect(logInfoCalls).toHaveLength(0);
-      });
+      const result = await computeCLStakedUSDFromPositions(
+        chainId,
+        poolAddress,
+        poolEntity,
+        {
+          liquidityPoolAggregator: poolEntity,
+          token0Instance: mockToken0,
+          token1Instance: mockToken1,
+        },
+        mockContext,
+        { logLabel: "computeCLStakedUSDFromPositions" },
+      );
+
+      expect(result).toBe(0n);
     });
 
-    describe("when rounded block succeeds", () => {
-      it("should return result without retry", async () => {
-        const mockEffect = vi.fn().mockResolvedValue(100n);
-        const roundedInput = {
-          tokenAddress: "0x123",
-          chainId: 10,
-          blockNumber: 1000,
-        };
-        const originalInput = {
-          tokenAddress: "0x123",
-          chainId: 10,
-          blockNumber: 1050,
-        };
+    it("should return 0n when getWhere throws and log warn", async () => {
+      const sqrtPriceX96 = BigInt(TickMath.getSqrtRatioAtTick(0).toString());
+      const poolEntity = {
+        ...mockPool,
+        isCL: true,
+        sqrtPriceX96,
+      } as LiquidityPoolAggregator;
 
-        const result = await executeEffectWithRoundedBlockRetry(
-          mockEffect,
-          roundedInput,
-          originalInput,
-          mockContext,
-          "[test]",
-        );
+      const logWarn = vi.fn();
+      const mockContext = {
+        NonFungiblePosition: {
+          getWhere: vi.fn().mockRejectedValue(new Error("DB error")),
+        },
+        log: {
+          warn: logWarn,
+          error: () => {},
+          info: () => {},
+          debug: () => {},
+        },
+      } as unknown as handlerContext;
 
-        expect(result).toBe(100n);
-        expect(mockEffect).toHaveBeenCalledTimes(1);
-        expect(mockEffect).toHaveBeenCalledWith(roundedInput);
-        expect(logInfoCalls).toHaveLength(0);
-      });
+      const result = await computeCLStakedUSDFromPositions(
+        chainId,
+        poolAddress,
+        poolEntity,
+        {
+          liquidityPoolAggregator: poolEntity,
+          token0Instance: mockToken0,
+          token1Instance: mockToken1,
+        },
+        mockContext,
+        { logLabel: "TestLabel" },
+      );
 
-      it("should not retry on zero value when retryOnZero is false", async () => {
-        const mockEffect = vi.fn().mockResolvedValue(0n);
-        const roundedInput = {
-          tokenAddress: "0x123",
-          chainId: 10,
-          blockNumber: 1000,
-        };
-        const originalInput = {
-          tokenAddress: "0x123",
-          chainId: 10,
-          blockNumber: 1050,
-        };
-
-        const result = await executeEffectWithRoundedBlockRetry(
-          mockEffect,
-          roundedInput,
-          originalInput,
-          mockContext,
-          "[test]",
-          { retryOnZero: false },
-        );
-
-        expect(result).toBe(0n);
-        expect(mockEffect).toHaveBeenCalledTimes(1);
-        expect(mockEffect).toHaveBeenCalledWith(roundedInput);
-        expect(logInfoCalls).toHaveLength(0);
-      });
+      expect(result).toBe(0n);
+      expect(logWarn).toHaveBeenCalledWith(
+        expect.stringContaining("[TestLabel]"),
+      );
     });
 
-    describe("when retryOnZero is enabled", () => {
-      it("should retry with original block when rounded block returns zero", async () => {
-        const mockEffect = vi
-          .fn()
-          .mockResolvedValueOnce(0n) // First call (rounded) returns 0
-          .mockResolvedValueOnce(100n); // Second call (original) returns non-zero
+    it("should exclude positions not staked in gauge", async () => {
+      const sqrtPriceX96 = BigInt(TickMath.getSqrtRatioAtTick(0).toString());
+      const poolEntity = {
+        ...mockPool,
+        isCL: true,
+        sqrtPriceX96,
+      } as LiquidityPoolAggregator;
 
-        const roundedInput = {
-          tokenAddress: "0x123",
-          chainId: 10,
-          blockNumber: 1000,
-        };
-        const originalInput = {
-          tokenAddress: "0x123",
-          chainId: 10,
-          blockNumber: 1050,
-        };
-
-        const result = await executeEffectWithRoundedBlockRetry(
-          mockEffect,
-          roundedInput,
-          originalInput,
-          mockContext,
-          "[test]",
-          {
-            retryOnZero: true,
-            zeroValue: 0n,
-          },
-        );
-
-        expect(result).toBe(100n);
-        expect(mockEffect).toHaveBeenCalledTimes(2);
-        expect(mockEffect).toHaveBeenNthCalledWith(1, roundedInput);
-        expect(mockEffect).toHaveBeenNthCalledWith(2, originalInput);
-        expect(logInfoCalls).toHaveLength(1);
-        expect(logInfoCalls[0]).toContain("Effect returned zero value");
-        expect(logInfoCalls[0]).toContain("1000");
-        expect(logInfoCalls[0]).toContain("1050");
+      const stakedPos = createMockNonFungiblePosition({
+        tokenId: 1n,
+        liquidity: 1000000000000000000n,
+        tickLower: -100n,
+        tickUpper: 100n,
+        isStakedInGauge: true,
+      });
+      const unstakedPos = createMockNonFungiblePosition({
+        tokenId: 2n,
+        liquidity: 2000000000000000000n,
+        tickLower: -100n,
+        tickUpper: 100n,
+        isStakedInGauge: false,
       });
 
-      it("should return zero if both rounded and original blocks return zero", async () => {
-        const mockEffect = vi
-          .fn()
-          .mockResolvedValueOnce(0n) // First call (rounded) returns 0
-          .mockResolvedValueOnce(0n); // Second call (original) also returns 0
+      const expectedUSD = concentratedLiquidityToUSD(
+        stakedPos.liquidity,
+        sqrtPriceX96,
+        stakedPos.tickLower,
+        stakedPos.tickUpper,
+        mockToken0,
+        mockToken1,
+      );
 
-        const roundedInput = {
-          tokenAddress: "0x123",
-          chainId: 10,
-          blockNumber: 1000,
-        };
-        const originalInput = {
-          tokenAddress: "0x123",
-          chainId: 10,
-          blockNumber: 1050,
-        };
+      const mockContext = {
+        NonFungiblePosition: {
+          getWhere: vi.fn().mockResolvedValue([stakedPos, unstakedPos]),
+        },
+        log: {
+          warn: () => {},
+          error: () => {},
+          info: () => {},
+          debug: () => {},
+        },
+      } as unknown as handlerContext;
 
-        const result = await executeEffectWithRoundedBlockRetry(
-          mockEffect,
-          roundedInput,
-          originalInput,
-          mockContext,
-          "[test]",
-          {
-            retryOnZero: true,
-            zeroValue: 0n,
-          },
-        );
+      const result = await computeCLStakedUSDFromPositions(
+        chainId,
+        poolAddress,
+        poolEntity,
+        {
+          liquidityPoolAggregator: poolEntity,
+          token0Instance: mockToken0,
+          token1Instance: mockToken1,
+        },
+        mockContext,
+        { logLabel: "computeCLStakedUSDFromPositions" },
+      );
 
-        expect(result).toBe(0n);
-        expect(mockEffect).toHaveBeenCalledTimes(2);
-        expect(logInfoCalls).toHaveLength(1);
-      });
+      expect(result).toBe(expectedUSD);
     });
 
-    describe("when rounded block throws an exception", () => {
-      it("should retry with original block and return result", async () => {
-        const error = new Error("Contract does not exist");
-        const mockEffect = vi
-          .fn()
-          .mockRejectedValueOnce(error) // First call (rounded) throws
-          .mockResolvedValueOnce(100n); // Second call (original) succeeds
+    it("should sum only staked positions when pool has multiple staked and unstaked", async () => {
+      const sqrtPriceX96 = BigInt(TickMath.getSqrtRatioAtTick(0).toString());
+      const poolEntity = {
+        ...mockPool,
+        isCL: true,
+        sqrtPriceX96,
+      } as LiquidityPoolAggregator;
 
-        const roundedInput = {
-          tokenAddress: "0x123",
-          chainId: 10,
-          blockNumber: 1000,
-        };
-        const originalInput = {
-          tokenAddress: "0x123",
-          chainId: 10,
-          blockNumber: 1050,
-        };
+      const staked1 = createMockNonFungiblePosition({
+        tokenId: 1n,
+        liquidity: 1000000000000000000n,
+        tickLower: -100n,
+        tickUpper: 100n,
+        isStakedInGauge: true,
+      });
+      const staked2 = createMockNonFungiblePosition({
+        tokenId: 2n,
+        liquidity: 2000000000000000000n,
+        tickLower: -200n,
+        tickUpper: 200n,
+        isStakedInGauge: true,
+      });
+      const unstaked1 = createMockNonFungiblePosition({
+        tokenId: 3n,
+        liquidity: 3000000000000000000n,
+        tickLower: -100n,
+        tickUpper: 100n,
+        isStakedInGauge: false,
+      });
+      const unstaked2 = createMockNonFungiblePosition({
+        tokenId: 4n,
+        liquidity: 4000000000000000000n,
+        tickLower: -100n,
+        tickUpper: 100n,
+        isStakedInGauge: false,
+      });
 
-        const result = await executeEffectWithRoundedBlockRetry(
-          mockEffect,
-          roundedInput,
-          originalInput,
-          mockContext,
-          "[test]",
+      const expectedSum =
+        concentratedLiquidityToUSD(
+          staked1.liquidity,
+          sqrtPriceX96,
+          staked1.tickLower,
+          staked1.tickUpper,
+          mockToken0,
+          mockToken1,
+        ) +
+        concentratedLiquidityToUSD(
+          staked2.liquidity,
+          sqrtPriceX96,
+          staked2.tickLower,
+          staked2.tickUpper,
+          mockToken0,
+          mockToken1,
         );
 
-        expect(result).toBe(100n);
-        expect(mockEffect).toHaveBeenCalledTimes(2);
-        expect(mockEffect).toHaveBeenNthCalledWith(1, roundedInput);
-        expect(mockEffect).toHaveBeenNthCalledWith(2, originalInput);
-        expect(logInfoCalls).toHaveLength(1);
-        expect(logInfoCalls[0]).toContain("Effect failed at rounded block");
-        expect(logInfoCalls[0]).toContain("1000");
-        expect(logInfoCalls[0]).toContain("1050");
-      });
+      const mockContext = {
+        NonFungiblePosition: {
+          getWhere: vi
+            .fn()
+            .mockResolvedValue([staked1, unstaked1, staked2, unstaked2]),
+        },
+        log: {
+          warn: () => {},
+          error: () => {},
+          info: () => {},
+          debug: () => {},
+        },
+      } as unknown as handlerContext;
 
-      it("should throw if both rounded and original blocks fail", async () => {
-        const error = new Error("Contract does not exist");
-        const mockEffect = vi
-          .fn()
-          .mockRejectedValueOnce(error) // First call (rounded) throws
-          .mockRejectedValueOnce(error); // Second call (original) also throws
+      const result = await computeCLStakedUSDFromPositions(
+        chainId,
+        poolAddress,
+        poolEntity,
+        {
+          liquidityPoolAggregator: poolEntity,
+          token0Instance: mockToken0,
+          token1Instance: mockToken1,
+        },
+        mockContext,
+        { logLabel: "computeCLStakedUSDFromPositions" },
+      );
 
-        const roundedInput = {
-          tokenAddress: "0x123",
-          chainId: 10,
-          blockNumber: 1000,
-        };
-        const originalInput = {
-          tokenAddress: "0x123",
-          chainId: 10,
-          blockNumber: 1050,
-        };
-
-        await expect(
-          executeEffectWithRoundedBlockRetry(
-            mockEffect,
-            roundedInput,
-            originalInput,
-            mockContext,
-            "[test]",
-          ),
-        ).rejects.toThrow("Contract does not exist");
-
-        expect(mockEffect).toHaveBeenCalledTimes(2);
-        expect(logInfoCalls).toHaveLength(1);
-      });
+      expect(result).toBe(expectedSum);
+      expect(result > 0n).toBe(true);
     });
 
-    describe("with different input types", () => {
-      it("should work with bigint return type", async () => {
-        const mockEffect = vi.fn().mockResolvedValue(1000n);
-        const roundedInput = {
-          poolAddress: "0x456",
-          chainId: 10,
-          blockNumber: 2000,
-        };
-        const originalInput = {
-          poolAddress: "0x456",
-          chainId: 10,
-          blockNumber: 2050,
-        };
+    it("should return only the given user's staked positions when multiple users have both staked and unstaked", async () => {
+      const sqrtPriceX96 = BigInt(TickMath.getSqrtRatioAtTick(0).toString());
+      const poolEntity = {
+        ...mockPool,
+        isCL: true,
+        sqrtPriceX96,
+      } as LiquidityPoolAggregator;
 
-        const result = await executeEffectWithRoundedBlockRetry(
-          mockEffect,
-          roundedInput,
-          originalInput,
-          mockContext,
-          "[test]",
-        );
+      const userA = toChecksumAddress(
+        "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      );
+      const userB = toChecksumAddress(
+        "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      );
 
-        expect(result).toBe(1000n);
-        expect(mockEffect).toHaveBeenCalledTimes(1);
+      const aStaked = createMockNonFungiblePosition({
+        tokenId: 1n,
+        owner: userA,
+        liquidity: 1000000000000000000n,
+        tickLower: -100n,
+        tickUpper: 100n,
+        isStakedInGauge: true,
+      });
+      const aUnstaked = createMockNonFungiblePosition({
+        tokenId: 2n,
+        owner: userA,
+        liquidity: 500000000000000000n,
+        tickLower: -100n,
+        tickUpper: 100n,
+        isStakedInGauge: false,
+      });
+      const bStaked = createMockNonFungiblePosition({
+        tokenId: 3n,
+        owner: userB,
+        liquidity: 2000000000000000000n,
+        tickLower: -200n,
+        tickUpper: 200n,
+        isStakedInGauge: true,
+      });
+      const bUnstaked = createMockNonFungiblePosition({
+        tokenId: 4n,
+        owner: userB,
+        liquidity: 700000000000000000n,
+        tickLower: -100n,
+        tickUpper: 100n,
+        isStakedInGauge: false,
       });
 
-      it("should work with string return type", async () => {
-        const mockEffect = vi.fn().mockResolvedValue("success");
-        const roundedInput = {
-          address: "0x789",
-          chainId: 10,
-          blockNumber: 3000,
-        };
-        const originalInput = {
-          address: "0x789",
-          chainId: 10,
-          blockNumber: 3050,
-        };
+      const expectedAStakedUSD = concentratedLiquidityToUSD(
+        aStaked.liquidity,
+        sqrtPriceX96,
+        aStaked.tickLower,
+        aStaked.tickUpper,
+        mockToken0,
+        mockToken1,
+      );
+      const expectedBStakedUSD = concentratedLiquidityToUSD(
+        bStaked.liquidity,
+        sqrtPriceX96,
+        bStaked.tickLower,
+        bStaked.tickUpper,
+        mockToken0,
+        mockToken1,
+      );
 
-        const result = await executeEffectWithRoundedBlockRetry(
-          mockEffect,
-          roundedInput,
-          originalInput,
-          mockContext,
-          "[test]",
-        );
+      const allPositions = [aStaked, aUnstaked, bStaked, bUnstaked];
+      const mockContext = {
+        NonFungiblePosition: {
+          getWhere: vi.fn().mockResolvedValue(allPositions),
+        },
+        log: {
+          warn: () => {},
+          error: () => {},
+          info: () => {},
+          debug: () => {},
+        },
+      } as unknown as handlerContext;
 
-        expect(result).toBe("success");
-        expect(mockEffect).toHaveBeenCalledTimes(1);
-      });
+      const resultA = await computeCLStakedUSDFromPositions(
+        chainId,
+        poolAddress,
+        poolEntity,
+        {
+          liquidityPoolAggregator: poolEntity,
+          token0Instance: mockToken0,
+          token1Instance: mockToken1,
+        },
+        mockContext,
+        { userAddress: userA, logLabel: "computeCLStakedUSDFromPositions" },
+      );
+      const resultB = await computeCLStakedUSDFromPositions(
+        chainId,
+        poolAddress,
+        poolEntity,
+        {
+          liquidityPoolAggregator: poolEntity,
+          token0Instance: mockToken0,
+          token1Instance: mockToken1,
+        },
+        mockContext,
+        { userAddress: userB, logLabel: "computeCLStakedUSDFromPositions" },
+      );
 
-      it("should work with object return type and custom zero value", async () => {
-        const zeroValue = { value: 0n };
-        const mockEffect = vi
-          .fn()
-          .mockResolvedValueOnce(zeroValue) // First call returns zero
-          .mockResolvedValueOnce({ value: 100n }); // Second call returns non-zero
-
-        const roundedInput = {
-          tokenAddress: "0xabc",
-          chainId: 10,
-          blockNumber: 4000,
-        };
-        const originalInput = {
-          tokenAddress: "0xabc",
-          chainId: 10,
-          blockNumber: 4050,
-        };
-
-        const result = await executeEffectWithRoundedBlockRetry(
-          mockEffect,
-          roundedInput,
-          originalInput,
-          mockContext,
-          "[test]",
-          {
-            retryOnZero: true,
-            zeroValue,
-          },
-        );
-
-        expect(result).toEqual({ value: 100n });
-        expect(mockEffect).toHaveBeenCalledTimes(2);
-        expect(logInfoCalls).toHaveLength(1);
-      });
-    });
-
-    describe("edge cases", () => {
-      it("should handle when rounded block succeeds but original block is needed for zero retry", async () => {
-        const mockEffect = vi
-          .fn()
-          .mockResolvedValueOnce(0n) // Rounded block returns 0
-          .mockResolvedValueOnce(50n); // Original block returns non-zero
-
-        const roundedInput = {
-          tokenAddress: "0xdef",
-          chainId: 10,
-          blockNumber: 5000,
-        };
-        const originalInput = {
-          tokenAddress: "0xdef",
-          chainId: 10,
-          blockNumber: 5011, // Different block
-        };
-
-        const result = await executeEffectWithRoundedBlockRetry(
-          mockEffect,
-          roundedInput,
-          originalInput,
-          mockContext,
-          "[test]",
-          {
-            retryOnZero: true,
-            zeroValue: 0n,
-          },
-        );
-
-        expect(result).toBe(50n);
-        expect(mockEffect).toHaveBeenCalledTimes(2);
-      });
-
-      it("should preserve error stack trace when retrying", async () => {
-        const error = new Error("Original error");
-        error.stack = "Error: Original error\n    at test.js:1:1";
-        const mockEffect = vi
-          .fn()
-          .mockRejectedValueOnce(error)
-          .mockResolvedValueOnce(200n);
-
-        const roundedInput = {
-          tokenAddress: "0xghi",
-          chainId: 10,
-          blockNumber: 6000,
-        };
-        const originalInput = {
-          tokenAddress: "0xghi",
-          chainId: 10,
-          blockNumber: 6050,
-        };
-
-        const result = await executeEffectWithRoundedBlockRetry(
-          mockEffect,
-          roundedInput,
-          originalInput,
-          mockContext,
-          "[test]",
-        );
-
-        expect(result).toBe(200n);
-        expect(mockEffect).toHaveBeenCalledTimes(2);
-      });
+      expect(resultA).toBe(expectedAStakedUSD);
+      expect(resultB).toBe(expectedBStakedUSD);
+      expect(resultA > 0n).toBe(true);
+      expect(resultB > 0n).toBe(true);
     });
   });
 });

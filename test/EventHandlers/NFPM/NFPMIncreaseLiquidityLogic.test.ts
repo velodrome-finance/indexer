@@ -70,6 +70,7 @@ describe("NFPMIncreaseLiquidityLogic", () => {
     mintLogIndex: 42,
     lastUpdatedTimestamp: new Date(1711601595000),
     lastSnapshotTimestamp: undefined,
+    isStakedInGauge: false,
   };
 
   // Shared mock event data
