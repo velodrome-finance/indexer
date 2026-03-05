@@ -368,28 +368,26 @@ export async function computeCLStakedUSDFromPositions(
   try {
     const positions = await context.NonFungiblePosition.getWhere({
       pool: { _eq: poolAddress },
+      chainId: { _eq: chainId },
     });
     const staked = (positions ?? []).filter(
       (p: NonFungiblePosition) =>
-        p.chainId === chainId &&
         p.isStakedInGauge === true &&
         (options.userAddress === undefined || p.owner === options.userAddress),
     );
-    const usdValues = await Promise.all(
-      staked.map((pos) =>
-        Promise.resolve(
-          concentratedLiquidityToUSD(
-            pos.liquidity,
-            sqrtPriceX96,
-            pos.tickLower,
-            pos.tickUpper,
-            token0Instance,
-            token1Instance,
-          ),
+    return staked.reduce(
+      (sum, pos) =>
+        sum +
+        concentratedLiquidityToUSD(
+          pos.liquidity,
+          sqrtPriceX96,
+          pos.tickLower,
+          pos.tickUpper,
+          token0Instance,
+          token1Instance,
         ),
-      ),
+      0n,
     );
-    return usdValues.reduce((a, b) => a + b, 0n);
   } catch (err) {
     context.log.warn(
       `[${options.logLabel}] Error: ${err instanceof Error ? err.message : String(err)}, using 0 USD`,

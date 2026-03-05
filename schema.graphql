@@ -342,6 +342,7 @@ type NonFungiblePositionSnapshot {
   mintTransactionHash: String! @index
   mintLogIndex: Int!
   lastUpdatedTimestamp: Timestamp!
+  isStakedInGauge: Boolean!
   timestamp: Timestamp! @index
 }
 

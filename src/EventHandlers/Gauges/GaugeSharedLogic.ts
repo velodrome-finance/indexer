@@ -121,24 +121,18 @@ export async function computeStakedUSDForPoolAndUser(
     return { poolStakedUSD, userStakedUSD };
   }
   // Non-CL pools path
-  const [poolStakedUSD, userStakedUSD] = await Promise.all([
-    Promise.resolve(
-      computeNonCLStakedUSD(
-        newPoolStake,
-        liquidityPoolAggregator,
-        poolData,
-        context,
-      ),
-    ),
-    Promise.resolve(
-      computeNonCLStakedUSD(
-        newUserStake,
-        liquidityPoolAggregator,
-        poolData,
-        context,
-      ),
-    ),
-  ]);
+  const poolStakedUSD = computeNonCLStakedUSD(
+    newPoolStake,
+    liquidityPoolAggregator,
+    poolData,
+    context,
+  );
+  const userStakedUSD = computeNonCLStakedUSD(
+    newUserStake,
+    liquidityPoolAggregator,
+    poolData,
+    context,
+  );
   return { poolStakedUSD, userStakedUSD };
 }
 

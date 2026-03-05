@@ -42,6 +42,7 @@ export function createNonFungiblePositionSnapshot(
     mintTransactionHash: entity.mintTransactionHash,
     mintLogIndex: entity.mintLogIndex,
     lastUpdatedTimestamp: entity.lastUpdatedTimestamp,
+    isStakedInGauge: entity.isStakedInGauge,
     timestamp: epoch,
   };
 }

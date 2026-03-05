@@ -48,6 +48,27 @@ describe("NonFungiblePositionSnapshot", () => {
       expect(snapshot.liquidity).toBe(5000n);
       expect(snapshot.tickLower).toBe(-200n);
     });
+
+    it("should copy isStakedInGauge from entity into snapshot", () => {
+      const entityStaked = common.createMockNonFungiblePosition({
+        isStakedInGauge: true,
+      });
+      const entityUnstaked = common.createMockNonFungiblePosition({
+        isStakedInGauge: false,
+      });
+
+      const snapshotStaked = createNonFungiblePositionSnapshot(
+        entityStaked,
+        baseTimestamp,
+      );
+      const snapshotUnstaked = createNonFungiblePositionSnapshot(
+        entityUnstaked,
+        baseTimestamp,
+      );
+
+      expect(snapshotStaked.isStakedInGauge).toBe(true);
+      expect(snapshotUnstaked.isStakedInGauge).toBe(false);
+    });
   });
 
   it("should set snapshot with epoch-aligned timestamp and correct id", () => {
