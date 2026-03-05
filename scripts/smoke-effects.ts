@@ -144,9 +144,9 @@ async function main(): Promise<void> {
     );
   });
 
-  await run("getCurrentFee", async () => {
+  await run("getSwapFee", async () => {
     const r = await callRpcGateway(context, {
-      type: EffectType.GET_CURRENT_FEE,
+      type: EffectType.GET_SWAP_FEE,
       poolAddress: POOL_OPTIMISM,
       factoryAddress: CL_FACTORY_OPTIMISM,
       chainId: CHAIN_ID,

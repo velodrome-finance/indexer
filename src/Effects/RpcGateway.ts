@@ -27,7 +27,7 @@ export enum EffectType {
   GET_TOKEN_DETAILS = "getTokenDetails",
   GET_TOKEN_PRICE = "getTokenPrice",
   GET_TOKENS_DEPOSITED = "getTokensDeposited",
-  GET_CURRENT_FEE = "getCurrentFee",
+  GET_SWAP_FEE = "getSwapFee",
   GET_ROOT_POOL_ADDRESS = "getRootPoolAddress",
 }
 
@@ -85,9 +85,9 @@ const RPC_GATEWAY_OPERATIONS = {
       value: S.optional(S.bigint),
     },
   },
-  [EffectType.GET_CURRENT_FEE]: {
+  [EffectType.GET_SWAP_FEE]: {
     inputSchema: {
-      type: S.schema(EffectType.GET_CURRENT_FEE),
+      type: S.schema(EffectType.GET_SWAP_FEE),
       poolAddress: S.string,
       factoryAddress: S.string,
       chainId: S.number,
@@ -119,7 +119,7 @@ const RPC_GATEWAY_INPUT_SCHEMA = S.union([
   RPC_GATEWAY_OPERATIONS[EffectType.GET_TOKEN_DETAILS].inputSchema,
   RPC_GATEWAY_OPERATIONS[EffectType.GET_TOKEN_PRICE].inputSchema,
   RPC_GATEWAY_OPERATIONS[EffectType.GET_TOKENS_DEPOSITED].inputSchema,
-  RPC_GATEWAY_OPERATIONS[EffectType.GET_CURRENT_FEE].inputSchema,
+  RPC_GATEWAY_OPERATIONS[EffectType.GET_SWAP_FEE].inputSchema,
   RPC_GATEWAY_OPERATIONS[EffectType.GET_ROOT_POOL_ADDRESS].inputSchema,
 ]);
 
@@ -127,7 +127,7 @@ const RPC_GATEWAY_OUTPUT_SCHEMA = S.union([
   RPC_GATEWAY_OPERATIONS[EffectType.GET_TOKEN_DETAILS].outputSchema,
   RPC_GATEWAY_OPERATIONS[EffectType.GET_TOKEN_PRICE].outputSchema,
   RPC_GATEWAY_OPERATIONS[EffectType.GET_TOKENS_DEPOSITED].outputSchema,
-  RPC_GATEWAY_OPERATIONS[EffectType.GET_CURRENT_FEE].outputSchema,
+  RPC_GATEWAY_OPERATIONS[EffectType.GET_SWAP_FEE].outputSchema,
   RPC_GATEWAY_OPERATIONS[EffectType.GET_ROOT_POOL_ADDRESS].outputSchema,
 ]);
 
@@ -148,7 +148,7 @@ type RpcGatewayInputPayloadByType = {
     blockNumber: number;
     chainId: number;
   };
-  [EffectType.GET_CURRENT_FEE]: {
+  [EffectType.GET_SWAP_FEE]: {
     poolAddress: string;
     factoryAddress: string;
     chainId: number;
@@ -190,7 +190,7 @@ export type RpcGatewayOutputByType = {
     priceOracleType: string;
   };
   [EffectType.GET_TOKENS_DEPOSITED]: { value: bigint | undefined };
-  [EffectType.GET_CURRENT_FEE]: { value: bigint | undefined };
+  [EffectType.GET_SWAP_FEE]: { value: bigint | undefined };
   [EffectType.GET_ROOT_POOL_ADDRESS]: { value: string };
 };
 
@@ -239,8 +239,8 @@ export const rpcGateway = createEffect(
         return await handleGetTokenPrice(i, ctx);
       case EffectType.GET_TOKENS_DEPOSITED:
         return await handleGetTokensDeposited(i, ctx);
-      case EffectType.GET_CURRENT_FEE:
-        return await handleGetCurrentFee(i, ctx);
+      case EffectType.GET_SWAP_FEE:
+        return await handleGetSwapFee(i, ctx);
       case EffectType.GET_ROOT_POOL_ADDRESS:
         return await handleGetRootPoolAddress(i, ctx);
       default: {
@@ -474,16 +474,16 @@ async function handleGetTokensDeposited(
 }
 
 /**
- * Handles the GET_CURRENT_FEE effect.
+ * Handles the GET_SWAP_FEE effect.
  * @param i - The input for the effect.
  * @param context - The context for the effect.
  * @returns The current swap fee.
  */
-async function handleGetCurrentFee(
-  i: RpcGatewayInputByType[EffectType.GET_CURRENT_FEE],
+async function handleGetSwapFee(
+  i: RpcGatewayInputByType[EffectType.GET_SWAP_FEE],
   context: RpcGatewayHandlerContext,
-): Promise<RpcGatewayOutputByType[EffectType.GET_CURRENT_FEE]> {
-  const operationName = rpcGatewayOpName(EffectType.GET_CURRENT_FEE);
+): Promise<RpcGatewayOutputByType[EffectType.GET_SWAP_FEE]> {
+  const operationName = rpcGatewayOpName(EffectType.GET_SWAP_FEE);
   const logDetails = {
     poolAddress: i.poolAddress,
     factoryAddress: i.factoryAddress,
