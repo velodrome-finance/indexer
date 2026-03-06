@@ -49,7 +49,12 @@ CLPool.Burn.handler(async ({ event, context }) => {
 
   const { liquidityPoolAggregator, token0Instance, token1Instance } = poolData;
 
-  const result = processCLPoolBurn(event, token0Instance, token1Instance);
+  const result = processCLPoolBurn(
+    event,
+    liquidityPoolAggregator,
+    token0Instance,
+    token1Instance,
+  );
   const timestamp = new Date(event.block.timestamp * 1000);
 
   await updateLiquidityPoolAggregator(
@@ -265,7 +270,12 @@ CLPool.Mint.handler(async ({ event, context }) => {
 
   const { liquidityPoolAggregator, token0Instance, token1Instance } = poolData;
 
-  const result = processCLPoolMint(event, token0Instance, token1Instance);
+  const result = processCLPoolMint(
+    event,
+    liquidityPoolAggregator,
+    token0Instance,
+    token1Instance,
+  );
   const timestamp = new Date(event.block.timestamp * 1000);
 
   await updateLiquidityPoolAggregator(

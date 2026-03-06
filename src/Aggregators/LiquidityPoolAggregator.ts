@@ -33,7 +33,6 @@ export interface LiquidityPoolAggregatorDiff {
   incrementalReserve0: bigint;
   incrementalReserve1: bigint;
   incrementalTotalLPSupply: bigint;
-  incrementalCurrentLiquidityUSD: bigint;
   incrementalTotalVolume0: bigint;
   incrementalTotalVolume1: bigint;
   incrementalTotalVolumeUSD: bigint;
@@ -62,8 +61,8 @@ export interface LiquidityPoolAggregatorDiff {
   incrementalTotalGaugeRewardsClaimedUSD: bigint;
   incrementalTotalGaugeRewardsClaimed: bigint;
   incrementalCurrentLiquidityStaked: bigint;
-  /** Non-cumulative: when set (e.g. by gauge flow), overwrites currentLiquidityStakedUSD. Same pattern as baseFee/currentFee. */
-  currentLiquidityStakedUSD?: bigint;
+  currentTotalLiquidityUSD: bigint;
+  currentLiquidityStakedUSD: bigint;
   token0Price: bigint;
   token1Price: bigint;
   gaugeIsAlive: boolean;
@@ -216,7 +215,7 @@ export async function updateLiquidityPoolAggregator(
     totalLPTokenSupply:
       (diff.incrementalTotalLPSupply ?? 0n) + current.totalLPTokenSupply,
     totalLiquidityUSD:
-      (diff.incrementalCurrentLiquidityUSD ?? 0n) + current.totalLiquidityUSD,
+      diff.currentTotalLiquidityUSD ?? current.totalLiquidityUSD,
     totalVolume0: (diff.incrementalTotalVolume0 ?? 0n) + current.totalVolume0,
     totalVolume1: (diff.incrementalTotalVolume1 ?? 0n) + current.totalVolume1,
     totalVolumeUSD:
