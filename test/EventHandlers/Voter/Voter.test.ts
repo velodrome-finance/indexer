@@ -9,6 +9,7 @@ import type {
 import {
   MockDb,
   RootCLPoolFactory,
+  VeNFT,
   Voter,
 } from "generated/src/TestHelpers.gen";
 import * as LiquidityPoolAggregatorModule from "../../../src/Aggregators/LiquidityPoolAggregator";
@@ -1438,6 +1439,172 @@ describe("Voter Events", () => {
         );
         expect(leafVeNFTPoolVote?.veNFTamountStaked).toBe(0n);
       });
+    });
+  });
+
+  describe("cross-chain vote transfer then abstain", () => {
+    it("reassigns the leaf user stake on transfer and returns it to zero on abstain", async () => {
+      const {
+        mockToken0Data,
+        mockToken1Data,
+        createMockLiquidityPoolAggregator,
+        createMockVeNFTState,
+      } = setupCommon();
+
+      const rootChainId = 10;
+      const leafChainId = 252;
+      const tokenId = 4911n;
+      const voteWeight = 126886024262337895334200n;
+      const rootPoolAddress = toChecksumAddress(
+        "0xf1D64ffc40Dc0050584dEf9496c0f7C463ec93Bf",
+      );
+      const leafPoolAddress = toChecksumAddress(
+        "0xb43F6D14FeFA510F014cf90c8Ab110803bB28778",
+      );
+      const oldOwner = toChecksumAddress(
+        "0xdaA12ca83de2FaB833fC28CE1300Ba6ddEe67204",
+      );
+      const newOwner = toChecksumAddress(
+        "0x28ba242755de3034ac4bd63261e3579bDb37D599",
+      );
+
+      const leafToken0Data: Token = {
+        ...mockToken0Data,
+        id: TokenId(leafChainId, mockToken0Data.address),
+        chainId: leafChainId,
+      };
+      const leafToken1Data: Token = {
+        ...mockToken1Data,
+        id: TokenId(leafChainId, mockToken1Data.address),
+        chainId: leafChainId,
+      };
+
+      const leafPool = createMockLiquidityPoolAggregator({
+        id: PoolId(leafChainId, leafPoolAddress),
+        chainId: leafChainId,
+        poolAddress: leafPoolAddress,
+        token0_id: leafToken0Data.id,
+        token1_id: leafToken1Data.id,
+        veNFTamountStaked: 0n,
+      });
+
+      const veNFTState = createMockVeNFTState({
+        id: VeNFTId(rootChainId, tokenId),
+        chainId: rootChainId,
+        tokenId,
+        owner: oldOwner,
+      });
+
+      const rootPoolLeafPool = {
+        id: RootPoolLeafPoolId(
+          rootChainId,
+          leafChainId,
+          rootPoolAddress,
+          leafPoolAddress,
+        ),
+        rootChainId,
+        rootPoolAddress,
+        leafChainId,
+        leafPoolAddress,
+      };
+
+      let db = MockDb.createMockDb();
+      db = db.entities.LiquidityPoolAggregator.set(leafPool);
+      db = db.entities.RootPool_LeafPool.set(rootPoolLeafPool);
+      db = db.entities.Token.set(leafToken0Data);
+      db = db.entities.Token.set(leafToken1Data);
+      db = db.entities.VeNFTState.set(veNFTState);
+
+      const voteEvent = Voter.Voted.createMockEvent({
+        voter: oldOwner,
+        pool: rootPoolAddress,
+        tokenId,
+        weight: voteWeight,
+        totalWeight: voteWeight,
+        mockEventData: {
+          block: {
+            number: 129471197,
+            timestamp: 1734541171,
+            hash: "0xvote",
+          },
+          chainId: rootChainId,
+          logIndex: 123,
+        },
+      });
+
+      const transferEvent = VeNFT.Transfer.createMockEvent({
+        from: oldOwner,
+        to: newOwner,
+        tokenId,
+        mockEventData: {
+          block: {
+            number: 129598042,
+            timestamp: 1734794861,
+            hash: "0xtransfer",
+          },
+          chainId: rootChainId,
+          logIndex: 8,
+          srcAddress: toChecksumAddress(
+            "0xFAf8FD17D9840595845582fCB047DF13f006787d",
+          ),
+        },
+      });
+
+      const abstainEvent = Voter.Abstained.createMockEvent({
+        voter: newOwner,
+        pool: rootPoolAddress,
+        tokenId,
+        weight: voteWeight,
+        totalWeight: 0n,
+        mockEventData: {
+          block: {
+            number: 129598518,
+            timestamp: 1734795813,
+            hash: "0xabstain",
+          },
+          chainId: rootChainId,
+          logIndex: 24,
+        },
+      });
+
+      const dbAfterVote = await db.processEvents([voteEvent]);
+      const dbAfterTransfer = await dbAfterVote.processEvents([transferEvent]);
+      const resultDB = await dbAfterTransfer.processEvents([abstainEvent]);
+
+      const oldOwnerStatsAfterTransfer =
+        dbAfterTransfer.entities.UserStatsPerPool.get(
+          UserStatsPerPoolId(leafChainId, oldOwner, leafPoolAddress),
+        );
+      const newOwnerStatsAfterTransfer =
+        dbAfterTransfer.entities.UserStatsPerPool.get(
+          UserStatsPerPoolId(leafChainId, newOwner, leafPoolAddress),
+        );
+
+      expect(oldOwnerStatsAfterTransfer?.veNFTamountStaked).toBe(0n);
+      expect(newOwnerStatsAfterTransfer?.veNFTamountStaked).toBe(voteWeight);
+      expect(newOwnerStatsAfterTransfer?.firstActivityTimestamp).toEqual(
+        new Date(1734794861 * 1000),
+      );
+
+      const finalOldOwnerStats = resultDB.entities.UserStatsPerPool.get(
+        UserStatsPerPoolId(leafChainId, oldOwner, leafPoolAddress),
+      );
+      const finalNewOwnerStats = resultDB.entities.UserStatsPerPool.get(
+        UserStatsPerPoolId(leafChainId, newOwner, leafPoolAddress),
+      );
+      const finalPoolVote = resultDB.entities.VeNFTPoolVote.get(
+        VeNFTPoolVoteId(leafChainId, tokenId, leafPoolAddress),
+      );
+
+      expect(finalOldOwnerStats?.veNFTamountStaked).toBe(0n);
+      expect(finalNewOwnerStats?.veNFTamountStaked).toBe(0n);
+      expect(finalNewOwnerStats?.firstActivityTimestamp).toEqual(
+        new Date(1734794861 * 1000),
+      );
+      expect(finalNewOwnerStats?.lastActivityTimestamp).toEqual(
+        new Date(1734795813 * 1000),
+      );
+      expect(finalPoolVote?.veNFTamountStaked).toBe(0n);
     });
   });
 
