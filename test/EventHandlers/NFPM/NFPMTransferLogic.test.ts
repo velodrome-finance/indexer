@@ -9,6 +9,7 @@ import type { PoolData } from "../../../src/Aggregators/LiquidityPoolAggregator"
 import {
   CLPoolMintEventId,
   NonFungiblePositionId,
+  PoolId,
   toChecksumAddress,
 } from "../../../src/Constants";
 import {
@@ -180,6 +181,7 @@ describe("NFPMTransferLogic", () => {
   let mockDbRef: { current: ReturnType<typeof MockDb.createMockDb> };
   let storedPositions: NonFungiblePosition[] = [];
   let storedMintEvents: CLPoolMintEvent[] = [];
+  let liquidityPoolEntity: { gaugeAddress?: string } | undefined;
 
   /**
    * Helper function to create a mock context with getWhere functionality
@@ -251,7 +253,22 @@ describe("NFPMTransferLogic", () => {
     return {
       ...currentDb,
       LiquidityPoolAggregator: {
-        get: vi.fn().mockResolvedValue(undefined),
+        get: vi.fn().mockImplementation((id: string) => {
+          if (id !== PoolId(chainId, poolAddress)) {
+            return Promise.resolve(undefined);
+          }
+
+          if (!liquidityPoolEntity) {
+            return Promise.resolve(undefined);
+          }
+
+          return Promise.resolve({
+            id,
+            chainId,
+            poolAddress,
+            gaugeAddress: liquidityPoolEntity.gaugeAddress,
+          });
+        }),
       },
       UserStatsPerPool: {
         get: vi.fn().mockResolvedValue(undefined),
@@ -368,6 +385,7 @@ describe("NFPMTransferLogic", () => {
   beforeEach(() => {
     storedPositions = [];
     storedMintEvents = [];
+    liquidityPoolEntity = {};
     mockContext = createMockContext(storedPositions, storedMintEvents);
     mockDb = MockDb.createMockDb();
     vi.mocked(loadPoolData).mockResolvedValue(null);
@@ -705,7 +723,7 @@ describe("NFPMTransferLogic", () => {
       );
     });
 
-    it("does not update owner when poolData is null (logs warn and returns early)", async () => {
+    it("updates owner when poolData is null and pool entity exists", async () => {
       vi.mocked(loadPoolData).mockResolvedValue(null);
       const mockEvent = createMockTransferEvent(mockPosition.owner, userB);
       setPosition(mockPosition);
@@ -713,19 +731,21 @@ describe("NFPMTransferLogic", () => {
       await handleRegularTransfer(mockEvent, [mockPosition], mockContext);
 
       expect(mockContext.log.warn).toHaveBeenCalledWith(
-        expect.stringContaining("Pool data not found"),
+        expect.stringContaining("Pool pricing data not found"),
       );
       expect(mockContext.log.warn).toHaveBeenCalledWith(
-        expect.stringContaining("during transfer"),
+        expect.stringContaining("updating owner only"),
       );
+      expect(attributeLiquidityChangeToUserStatsPerPool).not.toHaveBeenCalled();
       const positionAfter = getPositionAfterTransfer();
-      expect(positionAfter?.owner).toBe(originalOwnerAddress);
+      expect(positionAfter?.owner).toBe(userB);
       expect(positionAfter?.lastUpdatedTimestamp).toEqual(
-        mockPosition.lastUpdatedTimestamp,
+        new Date(defaultRegularTransferEventData.block.timestamp * 1000),
       );
     });
 
     it("does not update owner when transfer is stake (user to gauge)", async () => {
+      liquidityPoolEntity = { gaugeAddress };
       const positionWithOwner = {
         ...mockPosition,
         owner: originalOwnerAddress,
@@ -749,6 +769,7 @@ describe("NFPMTransferLogic", () => {
     });
 
     it("does not update owner when transfer is unstake (gauge to user)", async () => {
+      liquidityPoolEntity = { gaugeAddress };
       vi.mocked(loadPoolData).mockResolvedValue(
         minimalPoolData({ gaugeAddress }),
       );
@@ -770,6 +791,7 @@ describe("NFPMTransferLogic", () => {
     });
 
     it("updates owner when transfer is normal and pool has gauge", async () => {
+      liquidityPoolEntity = { gaugeAddress };
       vi.mocked(loadPoolData).mockResolvedValue(
         minimalPoolData({ gaugeAddress, sqrtPriceX96: 1n }),
       );
@@ -782,6 +804,76 @@ describe("NFPMTransferLogic", () => {
       const updatedPosition = getPositionAfterTransfer();
       expect(updatedPosition).toBeDefined();
       expect(updatedPosition?.owner).toBe(userB);
+    });
+
+    it("updates isStakedInGauge on stake when poolData is null and gauge exists", async () => {
+      liquidityPoolEntity = { gaugeAddress };
+      vi.mocked(loadPoolData).mockResolvedValue(null);
+      const positionWithOwner = {
+        ...mockPosition,
+        owner: originalOwnerAddress,
+      };
+      setPosition(positionWithOwner);
+      const mockEvent = createMockTransferEvent(
+        originalOwnerAddress,
+        gaugeAddress,
+      );
+
+      await handleRegularTransfer(mockEvent, [positionWithOwner], mockContext);
+
+      expect(attributeLiquidityChangeToUserStatsPerPool).not.toHaveBeenCalled();
+      const positionAfter = getPositionAfterTransfer();
+      expect(positionAfter?.owner).toBe(originalOwnerAddress);
+      expect(positionAfter?.isStakedInGauge).toBe(true);
+      expect(positionAfter?.lastUpdatedTimestamp).toEqual(
+        new Date(defaultRegularTransferEventData.block.timestamp * 1000),
+      );
+    });
+
+    it("updates isStakedInGauge on unstake when poolData is null and gauge exists", async () => {
+      liquidityPoolEntity = { gaugeAddress };
+      vi.mocked(loadPoolData).mockResolvedValue(null);
+      const positionWithOwner = {
+        ...mockPosition,
+        owner: originalOwnerAddress,
+        isStakedInGauge: true,
+      };
+      setPosition(positionWithOwner);
+      const mockEvent = createMockTransferEvent(
+        gaugeAddress,
+        originalOwnerAddress,
+      );
+
+      await handleRegularTransfer(mockEvent, [positionWithOwner], mockContext);
+
+      expect(attributeLiquidityChangeToUserStatsPerPool).not.toHaveBeenCalled();
+      const positionAfter = getPositionAfterTransfer();
+      expect(positionAfter?.owner).toBe(originalOwnerAddress);
+      expect(positionAfter?.isStakedInGauge).toBe(false);
+      expect(positionAfter?.lastUpdatedTimestamp).toEqual(
+        new Date(defaultRegularTransferEventData.block.timestamp * 1000),
+      );
+    });
+
+    it("returns early when pool entity is missing", async () => {
+      liquidityPoolEntity = undefined;
+      vi.mocked(loadPoolData).mockResolvedValue(
+        minimalPoolData({ sqrtPriceX96: defaultSqrtPriceX96 }),
+      );
+      const mockEvent = createMockTransferEvent(mockPosition.owner, userB);
+      setPosition(mockPosition);
+
+      await handleRegularTransfer(mockEvent, [mockPosition], mockContext);
+
+      expect(mockContext.log.warn).toHaveBeenCalledWith(
+        expect.stringContaining("Pool entity not found"),
+      );
+      expect(attributeLiquidityChangeToUserStatsPerPool).not.toHaveBeenCalled();
+      const positionAfter = getPositionAfterTransfer();
+      expect(positionAfter?.owner).toBe(originalOwnerAddress);
+      expect(positionAfter?.lastUpdatedTimestamp).toEqual(
+        mockPosition.lastUpdatedTimestamp,
+      );
     });
   });
 

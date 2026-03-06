@@ -9,7 +9,7 @@ import {
   loadPoolData,
 } from "../../Aggregators/LiquidityPoolAggregator";
 import { updateNonFungiblePosition } from "../../Aggregators/NonFungiblePosition";
-import { NonFungiblePositionId, ZERO_ADDRESS } from "../../Constants";
+import { NonFungiblePositionId, PoolId, ZERO_ADDRESS } from "../../Constants";
 import { calculatePositionAmountsFromLiquidity } from "../../Helpers";
 import {
   LiquidityChangeType,
@@ -248,6 +248,45 @@ export async function handleRegularTransfer(
 
   const position = positions[0];
   const timestamp = event.block.timestamp;
+  const updateTimestamp = new Date(timestamp * 1000);
+
+  // TODO: Refactor loadPoolData() to support partial results so handlers that only
+  // need pool-level fields (like gaugeAddress) do not need a separate pool lookup.
+  const poolEntity = await context.LiquidityPoolAggregator.get(
+    PoolId(event.chainId, position.pool),
+  );
+
+  if (!poolEntity) {
+    context.log.warn(
+      `[NFPMTransferLogic] Pool entity not found for pool ${position.pool} during transfer on chain ${event.chainId} in tx ${event.transaction.hash}`,
+    );
+    return;
+  }
+
+  const isGauge = isGaugeTransfer(
+    event.params.from,
+    event.params.to,
+    poolEntity.gaugeAddress,
+  );
+  if (isGauge) {
+    // Update only isStakedInGauge (and timestamp)
+    // Do not update owner or attribute to UserStatsPerPool.
+    // Real underlying owner of the position is kept (whether staked or not).
+    const gaugeAddress = poolEntity.gaugeAddress;
+    const isStakedInGauge = event.params.to === gaugeAddress;
+
+    const nonFungiblePositionDiff = {
+      isStakedInGauge: isStakedInGauge,
+      lastUpdatedTimestamp: updateTimestamp,
+    };
+    updateNonFungiblePosition(
+      nonFungiblePositionDiff,
+      position,
+      context,
+      updateTimestamp,
+    );
+    return;
+  }
 
   const poolData = await loadPoolData(
     position.pool,
@@ -259,32 +298,17 @@ export async function handleRegularTransfer(
 
   if (!poolData) {
     context.log.warn(
-      `[NFPMTransferLogic] Pool data not found for pool ${position.pool} during transfer on chain ${event.chainId} in tx ${event.transaction.hash}`,
+      `[NFPMTransferLogic] Pool pricing data not found for pool ${position.pool} during transfer on chain ${event.chainId} in tx ${event.transaction.hash}; updating owner only`,
     );
-    return;
-  }
-
-  const isGauge = isGaugeTransfer(
-    event.params.from,
-    event.params.to,
-    poolData.liquidityPoolAggregator.gaugeAddress,
-  );
-  if (isGauge && poolData) {
-    // Update only isStakedInGauge (and timestamp)
-    // Do not update owner or attribute to UserStatsPerPool.
-    // Real underlying owner of the position is kept (whether staked or not).
-    const gaugeAddress = poolData.liquidityPoolAggregator.gaugeAddress;
-    const isStakedInGauge = event.params.to === gaugeAddress;
-
     const nonFungiblePositionDiff = {
-      isStakedInGauge: isStakedInGauge,
-      lastUpdatedTimestamp: new Date(timestamp * 1000),
+      owner: event.params.to,
+      lastUpdatedTimestamp: updateTimestamp,
     };
     updateNonFungiblePosition(
       nonFungiblePositionDiff,
       position,
       context,
-      new Date(timestamp * 1000),
+      updateTimestamp,
     );
     return;
   }
@@ -293,13 +317,13 @@ export async function handleRegularTransfer(
 
   const nonFungiblePositionDiff = {
     owner: event.params.to,
-    lastUpdatedTimestamp: new Date(timestamp * 1000),
+    lastUpdatedTimestamp: updateTimestamp,
   };
   updateNonFungiblePosition(
     nonFungiblePositionDiff,
     position,
     context,
-    new Date(timestamp * 1000),
+    updateTimestamp,
   );
 }
 

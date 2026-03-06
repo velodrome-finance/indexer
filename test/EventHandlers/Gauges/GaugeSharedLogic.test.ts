@@ -13,6 +13,7 @@ import {
 } from "../../../src/Constants";
 import {
   type GaugeEventData,
+  computeStakedUSDForPoolAndUser,
   findPoolOrSkipRootGauge,
   isRootGauge,
   processGaugeClaimRewards,
@@ -290,6 +291,50 @@ describe("GaugeSharedLogic", () => {
         200000000000000000000n,
       );
     });
+
+    it("should preserve existing staked USD when non-CL valuation is unavailable", async () => {
+      mockLiquidityPoolAggregator = {
+        ...mockLiquidityPoolAggregator,
+        currentLiquidityStakedUSD: 777000000000000000000n,
+        totalLPTokenSupply: 0n,
+      };
+      mockUserStatsPerPool = {
+        ...mockUserStatsPerPool,
+        currentLiquidityStakedUSD: 333000000000000000000n,
+      };
+
+      updatedDB = updatedDB.entities.LiquidityPoolAggregator.set(
+        mockLiquidityPoolAggregator,
+      );
+      updatedDB = updatedDB.entities.UserStatsPerPool.set(mockUserStatsPerPool);
+
+      const depositData: GaugeEventData = {
+        gaugeAddress: mockGaugeAddress,
+        userAddress: mockUserAddress,
+        chainId: mockChainId,
+        blockNumber: 100,
+        timestamp: 1000000,
+        amount: 100000000000000000000n,
+      };
+
+      await processGaugeDeposit(depositData, mockContext, "TestGaugeDeposit");
+
+      const updatedPool = updatedDB.entities.LiquidityPoolAggregator.get(
+        mockLiquidityPoolAggregator.id,
+      );
+      const updatedUser = updatedDB.entities.UserStatsPerPool.get(
+        mockUserStatsPerPool.id,
+      );
+
+      expect(updatedPool?.currentLiquidityStaked).toBe(100000000000000000000n);
+      expect(updatedPool?.currentLiquidityStakedUSD).toBe(
+        777000000000000000000n,
+      );
+      expect(updatedUser?.currentLiquidityStaked).toBe(100000000000000000000n);
+      expect(updatedUser?.currentLiquidityStakedUSD).toBe(
+        333000000000000000000n,
+      );
+    });
   });
 
   describe("processGaugeWithdraw", () => {
@@ -338,6 +383,46 @@ describe("GaugeSharedLogic", () => {
       expect(updatedUser?.currentLiquidityStakedUSD).toBe(
         100000000000000000000n,
       );
+    });
+
+    it("should overwrite staked USD with 0 on full withdraw when valuation succeeds", async () => {
+      await processGaugeDeposit(
+        {
+          gaugeAddress: mockGaugeAddress,
+          userAddress: mockUserAddress,
+          chainId: mockChainId,
+          blockNumber: 99,
+          timestamp: 999999,
+          amount: 100000000000000000000n,
+        },
+        mockContext,
+        "TestGaugeDeposit",
+      );
+
+      await processGaugeWithdraw(
+        {
+          gaugeAddress: mockGaugeAddress,
+          userAddress: mockUserAddress,
+          chainId: mockChainId,
+          blockNumber: 100,
+          timestamp: 1000000,
+          amount: 100000000000000000000n,
+        },
+        mockContext,
+        "TestGaugeWithdraw",
+      );
+
+      const updatedPool = updatedDB.entities.LiquidityPoolAggregator.get(
+        mockLiquidityPoolAggregator.id,
+      );
+      const updatedUser = updatedDB.entities.UserStatsPerPool.get(
+        mockUserStatsPerPool.id,
+      );
+
+      expect(updatedPool?.currentLiquidityStaked).toBe(0n);
+      expect(updatedPool?.currentLiquidityStakedUSD).toBe(0n);
+      expect(updatedUser?.currentLiquidityStaked).toBe(0n);
+      expect(updatedUser?.currentLiquidityStakedUSD).toBe(0n);
     });
 
     it("should derive non-negative currentLiquidityStakedUSD after deposit then partial withdraw", async () => {
@@ -425,6 +510,86 @@ describe("GaugeSharedLogic", () => {
       expect(updatedUser?.totalGaugeRewardsClaimedUSD).toBe(
         1000000000000000000000n,
       );
+    });
+  });
+
+  describe("computeStakedUSDForPoolAndUser", () => {
+    it("returns undefined for non-CL valuation when positive stake has zero total supply", async () => {
+      const result = await computeStakedUSDForPoolAndUser(
+        mockChainId,
+        mockPoolAddress,
+        mockUserAddress,
+        100000000000000000000n,
+        100000000000000000000n,
+        {
+          ...mockLiquidityPoolAggregator,
+          totalLPTokenSupply: 0n,
+        },
+        {
+          liquidityPoolAggregator: {
+            ...mockLiquidityPoolAggregator,
+            totalLPTokenSupply: 0n,
+          },
+          token0Instance: mockToken0,
+          token1Instance: mockToken1,
+        },
+        mockContext,
+      );
+
+      expect(result.poolStakedUSD).toBeUndefined();
+      expect(result.userStakedUSD).toBeUndefined();
+    });
+
+    it("returns 0 for non-CL zero stake even when total supply is zero", async () => {
+      const result = await computeStakedUSDForPoolAndUser(
+        mockChainId,
+        mockPoolAddress,
+        mockUserAddress,
+        0n,
+        0n,
+        {
+          ...mockLiquidityPoolAggregator,
+          totalLPTokenSupply: 0n,
+        },
+        {
+          liquidityPoolAggregator: {
+            ...mockLiquidityPoolAggregator,
+            totalLPTokenSupply: 0n,
+          },
+          token0Instance: mockToken0,
+          token1Instance: mockToken1,
+        },
+        mockContext,
+      );
+
+      expect(result.poolStakedUSD).toBe(0n);
+      expect(result.userStakedUSD).toBe(0n);
+    });
+
+    it("returns undefined for CL valuation when sqrtPriceX96 is missing", async () => {
+      const clPool = {
+        ...mockLiquidityPoolAggregator,
+        isCL: true,
+        sqrtPriceX96: 0n,
+      };
+
+      const result = await computeStakedUSDForPoolAndUser(
+        mockChainId,
+        mockPoolAddress,
+        mockUserAddress,
+        100000000000000000000n,
+        100000000000000000000n,
+        clPool,
+        {
+          liquidityPoolAggregator: clPool,
+          token0Instance: mockToken0,
+          token1Instance: mockToken1,
+        },
+        mockContext,
+      );
+
+      expect(result.poolStakedUSD).toBeUndefined();
+      expect(result.userStakedUSD).toBeUndefined();
     });
   });
 

@@ -27,6 +27,77 @@ export interface GaugeEventData {
 }
 
 /**
+ * Computes staked USD for a non-CL pool when the inputs are sufficient to do so.
+ * Returns `undefined` only for "valuation unavailable" cases, not for valid zero stake.
+ * @param stakeAmount - The amount of stake in the pool
+ * @param liquidityPoolAggregator - The liquidity pool aggregator
+ * @param poolData - The pool data
+ * @param context - The handler context
+ * @returns The staked USD, or undefined if valuation is unavailable
+ */
+function computeNonCLStakedUSDIfAvailable(
+  stakeAmount: bigint,
+  liquidityPoolAggregator: LiquidityPoolAggregator,
+  poolData: PoolData,
+  context: handlerContext,
+): bigint | undefined {
+  if (stakeAmount <= 0n) {
+    return 0n;
+  }
+
+  if (
+    liquidityPoolAggregator.totalLPTokenSupply === undefined ||
+    liquidityPoolAggregator.totalLPTokenSupply === 0n
+  ) {
+    return undefined;
+  }
+
+  return computeNonCLStakedUSD(
+    stakeAmount,
+    liquidityPoolAggregator,
+    poolData,
+    context,
+  );
+}
+
+/**
+ * Computes staked USD for a CL pool when the pool has enough price state to value positions.
+ * Returns `undefined` when valuation is unavailable so callers can preserve the prior USD value.
+ * @param chainId - The chain ID
+ * @param poolAddress - The pool address
+ * @param liquidityPoolAggregator - The liquidity pool aggregator
+ * @param poolData - The pool data
+ * @param context - The handler context
+ * @param options - The options
+ * @returns The staked USD, or undefined if valuation is unavailable
+ */
+async function computeCLStakedUSDIfAvailable(
+  chainId: number,
+  poolAddress: string,
+  liquidityPoolAggregator: LiquidityPoolAggregator,
+  poolData: PoolData,
+  context: handlerContext,
+  options: {
+    userAddress?: string;
+    logLabel: string;
+  },
+): Promise<bigint | undefined> {
+  const sqrtPriceX96 = liquidityPoolAggregator.sqrtPriceX96;
+  if (sqrtPriceX96 === undefined || sqrtPriceX96 === 0n) {
+    return undefined;
+  }
+
+  return computeCLStakedUSDFromPositions(
+    chainId,
+    poolAddress,
+    liquidityPoolAggregator,
+    poolData,
+    context,
+    options,
+  );
+}
+
+/**
  * Returns true if the gauge address is registered as a root gauge (RootGauge/RootCLGauge on the root chain).
  * Used to skip Deposit/Withdraw/ClaimRewards for root gauges, which have no associated pool entity.
  * @param gaugeAddress - The address of the gauge
@@ -83,7 +154,7 @@ export async function findPoolOrSkipRootGauge(
  * @param liquidityPoolAggregator - Pool entity
  * @param poolData - Pool data
  * @param context - Handler context
- * @returns { poolUSD: bigint; userUSD: bigint }
+ * @returns Recomputed pool/user staked USD, or undefined when valuation is unavailable
  */
 export async function computeStakedUSDForPoolAndUser(
   chainId: number,
@@ -94,11 +165,14 @@ export async function computeStakedUSDForPoolAndUser(
   liquidityPoolAggregator: LiquidityPoolAggregator,
   poolData: PoolData,
   context: handlerContext,
-): Promise<{ poolStakedUSD: bigint; userStakedUSD: bigint }> {
+): Promise<{
+  poolStakedUSD: bigint | undefined;
+  userStakedUSD: bigint | undefined;
+}> {
   // CL pools path
   if (liquidityPoolAggregator.isCL) {
     const [poolStakedUSD, userStakedUSD] = await Promise.all([
-      computeCLStakedUSDFromPositions(
+      computeCLStakedUSDIfAvailable(
         chainId,
         poolAddress,
         liquidityPoolAggregator,
@@ -106,7 +180,7 @@ export async function computeStakedUSDForPoolAndUser(
         context,
         { logLabel: "computeCLStakedUSDFromPositions(pool)" },
       ),
-      computeCLStakedUSDFromPositions(
+      computeCLStakedUSDIfAvailable(
         chainId,
         poolAddress,
         liquidityPoolAggregator,
@@ -121,13 +195,13 @@ export async function computeStakedUSDForPoolAndUser(
     return { poolStakedUSD, userStakedUSD };
   }
   // Non-CL pools path
-  const poolStakedUSD = computeNonCLStakedUSD(
+  const poolStakedUSD = computeNonCLStakedUSDIfAvailable(
     newPoolStake,
     liquidityPoolAggregator,
     poolData,
     context,
   );
-  const userStakedUSD = computeNonCLStakedUSD(
+  const userStakedUSD = computeNonCLStakedUSDIfAvailable(
     newUserStake,
     liquidityPoolAggregator,
     poolData,
