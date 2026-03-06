@@ -129,6 +129,15 @@ describe("CLPoolCollectFeesLogic", () => {
       expect(
         result.liquidityPoolDiff.incrementalTotalStakedFeesCollectedUSD,
       ).toBe(5000000000000000000n);
+      expect(result.liquidityPoolDiff).not.toHaveProperty(
+        "incrementalReserve0",
+      );
+      expect(result.liquidityPoolDiff).not.toHaveProperty(
+        "incrementalReserve1",
+      );
+      expect(result.liquidityPoolDiff).not.toHaveProperty(
+        "currentTotalLiquidityUSD",
+      );
     });
 
     it("should handle different token decimals correctly", () => {

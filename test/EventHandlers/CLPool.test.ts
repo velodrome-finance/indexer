@@ -325,7 +325,7 @@ describe("CLPool Events", () => {
           liquidityPoolDiff: {
             incrementalReserve0: 1000n,
             incrementalReserve1: 1000n,
-            incrementalCurrentLiquidityUSD: 2000n,
+            currentTotalLiquidityUSD: 2000n,
             lastUpdatedTimestamp: new Date(1000000 * 1000),
           },
         });
@@ -388,7 +388,7 @@ describe("CLPool Events", () => {
           liquidityPoolDiff: {
             incrementalReserve0: -500n, // Negative because burning decreases reserves
             incrementalReserve1: -500n, // Negative because burning decreases reserves
-            incrementalCurrentLiquidityUSD: -1000n, // Negative because reserves decrease
+            currentTotalLiquidityUSD: 1000n,
             lastUpdatedTimestamp: new Date(1000000 * 1000),
           },
         });

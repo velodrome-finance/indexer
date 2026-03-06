@@ -29,18 +29,17 @@ export function processPoolSync(
   // Handle different scenarios based on token availability and amounts
   let reserve0Change: bigint;
   let reserve1Change: bigint;
-  let totalLiquidityUSDChange: bigint;
+  let currentTotalLiquidityUSD: bigint | undefined;
 
   if (!token0Instance && !token1Instance) {
     // No tokens available: keep existing values (no change)
     reserve0Change = 0n;
     reserve1Change = 0n;
-    totalLiquidityUSDChange = 0n;
   } else if (event.params.reserve0 === 0n && event.params.reserve1 === 0n) {
     // Zero amounts: set reserves to zero (snapshot behavior)
     reserve0Change = -liquidityPoolAggregator.reserve0;
     reserve1Change = -liquidityPoolAggregator.reserve1;
-    totalLiquidityUSDChange = -liquidityPoolAggregator.totalLiquidityUSD;
+    currentTotalLiquidityUSD = 0n;
   } else {
     // Normal case: Sync events set reserves to absolute values
     // Calculate the delta needed to set reserves to the exact values from the event
@@ -49,22 +48,20 @@ export function processPoolSync(
     reserve0Change = event.params.reserve0 - liquidityPoolAggregator.reserve0;
     reserve1Change = event.params.reserve1 - liquidityPoolAggregator.reserve1;
 
-    // Calculate total liquidity USD from the new total reserves using already-refreshed tokens
-    const newTotalLiquidityUSD = calculateTotalUSD(
+    // totalLiquidityUSD is non-cumulative: overwrite it using the absolute
+    // post-sync reserves rather than applying a delta from the previous value.
+    currentTotalLiquidityUSD = calculateTotalUSD(
       event.params.reserve0,
       event.params.reserve1,
       token0Instance,
       token1Instance,
     );
-
-    totalLiquidityUSDChange =
-      newTotalLiquidityUSD - liquidityPoolAggregator.totalLiquidityUSD;
   }
 
   const liquidityPoolDiff = {
     incrementalReserve0: reserve0Change,
     incrementalReserve1: reserve1Change,
-    incrementalCurrentLiquidityUSD: totalLiquidityUSDChange,
+    currentTotalLiquidityUSD,
     token0Price:
       token0Instance?.pricePerUSDNew ?? liquidityPoolAggregator.token0Price,
     token1Price:
