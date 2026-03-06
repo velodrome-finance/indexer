@@ -414,6 +414,7 @@ export async function reassignVeNFTVotesOnTransfer(
   const poolVotePromises = poolVotes.map((tokenIdVotes) => {
     const poolAddress = tokenIdVotes.poolAddress;
     const voteAmount = tokenIdVotes.veNFTamountStaked;
+    const poolChainId = Number(tokenIdVotes.id.split("-", 1)[0]);
 
     if (voteAmount === 0n) {
       return Promise.resolve();
@@ -424,6 +425,7 @@ export async function reassignVeNFTVotesOnTransfer(
         event,
         previousOwner,
         poolAddress,
+        poolChainId,
         voteAmount,
         context,
       ),
@@ -431,6 +433,7 @@ export async function reassignVeNFTVotesOnTransfer(
         event,
         newOwner,
         poolAddress,
+        poolChainId,
         voteAmount,
         context,
       ),
@@ -447,6 +450,7 @@ export async function reassignVeNFTVotesOnTransfer(
  * @param event - The VeNFT Transfer event (used for chainId and block timestamp).
  * @param previousOwnerAddress - Address of the owner before the transfer.
  * @param poolAddress - Pool for which to decrease the staked amount.
+ * @param poolChainId - Chain ID of the pool.
  * @param voteDecreaseAmount - Amount to subtract from veNFTamountStaked (positive value).
  * @param context - Handler context for storage and logging.
  * @returns Resolves when the previous owner's UserStatsPerPool has been updated, or immediately if no row or zero amount.
@@ -455,6 +459,7 @@ export async function updatePreviousOwnerUserStatsOnTransfer(
   event: VeNFT_Transfer_event,
   previousOwnerAddress: string,
   poolAddress: string,
+  poolChainId: number,
   voteDecreaseAmount: bigint,
   context: handlerContext,
 ): Promise<void> {
@@ -463,14 +468,14 @@ export async function updatePreviousOwnerUserStatsOnTransfer(
   const previousOwnerUserStats = await loadUserStatsPerPool(
     previousOwnerAddress,
     poolAddress,
-    event.chainId,
+    poolChainId,
     context,
   );
 
   // Should already exist since at this point a mint transfer has already been processed
   if (!previousOwnerUserStats) {
     context.log.warn(
-      `[updatePreviousOwnerUserStatsOnTransfer] UserStatsPerPool missing for old owner ${previousOwnerAddress} on pool ${poolAddress} (chain ${event.chainId}) during transfer`,
+      `[updatePreviousOwnerUserStatsOnTransfer] UserStatsPerPool missing for old owner ${previousOwnerAddress} on pool ${poolAddress} (chain ${poolChainId}) during transfer`,
     );
   } else {
     if (voteDecreaseAmount !== 0n) {
@@ -496,6 +501,7 @@ export async function updatePreviousOwnerUserStatsOnTransfer(
  * @param event - The VeNFT Transfer event (used for chainId and block timestamp).
  * @param newOwnerAddress - Address of the owner after the transfer (zero address for burns).
  * @param poolAddress - Pool for which to increase the staked amount.
+ * @param poolChainId - Chain ID of the pool.
  * @param voteIncreaseAmount - Amount to add to veNFTamountStaked.
  * @param context - Handler context for storage and logging.
  * @returns Resolves when the new owner's UserStatsPerPool has been updated, or immediately if burn.
@@ -504,6 +510,7 @@ export async function updateNewOwnerUserStatsOnTransfer(
   event: VeNFT_Transfer_event,
   newOwnerAddress: string,
   poolAddress: string,
+  poolChainId: number,
   voteIncreaseAmount: bigint,
   context: handlerContext,
 ): Promise<void> {
@@ -514,7 +521,7 @@ export async function updateNewOwnerUserStatsOnTransfer(
     const newOwnerUserStats = await loadOrCreateUserData(
       newOwnerAddress,
       poolAddress,
-      event.chainId,
+      poolChainId,
       context,
       timestamp,
     );
