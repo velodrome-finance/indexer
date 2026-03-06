@@ -62,7 +62,8 @@ export interface LiquidityPoolAggregatorDiff {
   incrementalTotalGaugeRewardsClaimedUSD: bigint;
   incrementalTotalGaugeRewardsClaimed: bigint;
   incrementalCurrentLiquidityStaked: bigint;
-  incrementalCurrentLiquidityStakedUSD: bigint;
+  /** Non-cumulative: when set (e.g. by gauge flow), overwrites currentLiquidityStakedUSD. Same pattern as baseFee/currentFee. */
+  currentLiquidityStakedUSD?: bigint;
   token0Price: bigint;
   token1Price: bigint;
   gaugeIsAlive: boolean;
@@ -295,8 +296,7 @@ export async function updateLiquidityPoolAggregator(
       (diff.incrementalCurrentLiquidityStaked ?? 0n) +
       current.currentLiquidityStaked,
     currentLiquidityStakedUSD:
-      (diff.incrementalCurrentLiquidityStakedUSD ?? 0n) +
-      current.currentLiquidityStakedUSD,
+      diff.currentLiquidityStakedUSD ?? current.currentLiquidityStakedUSD,
 
     // Handle non-cumulative fields (prices, timestamps, etc.) - use diff values directly
     token0Price: diff.token0Price ?? current.token0Price,
@@ -556,16 +556,14 @@ export async function findPoolByField(
   context: handlerContext,
   field: PoolAddressField,
 ): Promise<LiquidityPoolAggregator | null> {
-  // Query pools by the specified field using the indexed field
   const pools = await context.LiquidityPoolAggregator.getWhere({
     [field]: { _eq: address },
   });
 
-  // Filter by chainId and return the first match (should be unique)
-  const matchingPool = pools.find(
+  const matchingPool = (pools ?? []).find(
     (pool: LiquidityPoolAggregator) => pool.chainId === chainId,
   );
-  return matchingPool || null;
+  return matchingPool ?? null;
 }
 
 /**

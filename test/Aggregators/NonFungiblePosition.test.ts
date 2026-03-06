@@ -25,6 +25,7 @@ describe("NonFungiblePosition", () => {
     mintLogIndex: 42,
     lastUpdatedTimestamp: new Date(10000 * 1000),
     lastSnapshotTimestamp: undefined,
+    isStakedInGauge: false,
   };
   const timestamp = new Date(10001 * 1000);
 

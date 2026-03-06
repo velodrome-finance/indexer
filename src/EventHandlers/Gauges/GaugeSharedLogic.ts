@@ -1,4 +1,5 @@
 import type { LiquidityPoolAggregator, handlerContext } from "generated";
+import type { PoolData } from "../../Aggregators/LiquidityPoolAggregator";
 import {
   findPoolByGaugeAddress,
   loadPoolData,
@@ -9,7 +10,11 @@ import {
   updateUserStatsPerPool,
 } from "../../Aggregators/UserStatsPerPool";
 import { CHAIN_CONSTANTS, TokenId } from "../../Constants";
-import { calculateStakedLiquidityUSD, calculateTotalUSD } from "../../Helpers";
+import {
+  calculateTotalUSD,
+  computeCLStakedUSDFromPositions,
+  computeNonCLStakedUSD,
+} from "../../Helpers";
 
 export interface GaugeEventData {
   gaugeAddress: string;
@@ -19,6 +24,77 @@ export interface GaugeEventData {
   timestamp: number;
   amount: bigint;
   tokenId?: bigint; // Optional - for CL pools to look up position tick ranges
+}
+
+/**
+ * Computes staked USD for a non-CL pool when the inputs are sufficient to do so.
+ * Returns `undefined` only for "valuation unavailable" cases, not for valid zero stake.
+ * @param stakeAmount - The amount of stake in the pool
+ * @param liquidityPoolAggregator - The liquidity pool aggregator
+ * @param poolData - The pool data
+ * @param context - The handler context
+ * @returns The staked USD, or undefined if valuation is unavailable
+ */
+function computeNonCLStakedUSDIfAvailable(
+  stakeAmount: bigint,
+  liquidityPoolAggregator: LiquidityPoolAggregator,
+  poolData: PoolData,
+  context: handlerContext,
+): bigint | undefined {
+  if (stakeAmount <= 0n) {
+    return 0n;
+  }
+
+  if (
+    liquidityPoolAggregator.totalLPTokenSupply === undefined ||
+    liquidityPoolAggregator.totalLPTokenSupply === 0n
+  ) {
+    return undefined;
+  }
+
+  return computeNonCLStakedUSD(
+    stakeAmount,
+    liquidityPoolAggregator,
+    poolData,
+    context,
+  );
+}
+
+/**
+ * Computes staked USD for a CL pool when the pool has enough price state to value positions.
+ * Returns `undefined` when valuation is unavailable so callers can preserve the prior USD value.
+ * @param chainId - The chain ID
+ * @param poolAddress - The pool address
+ * @param liquidityPoolAggregator - The liquidity pool aggregator
+ * @param poolData - The pool data
+ * @param context - The handler context
+ * @param options - The options
+ * @returns The staked USD, or undefined if valuation is unavailable
+ */
+async function computeCLStakedUSDIfAvailable(
+  chainId: number,
+  poolAddress: string,
+  liquidityPoolAggregator: LiquidityPoolAggregator,
+  poolData: PoolData,
+  context: handlerContext,
+  options: {
+    userAddress?: string;
+    logLabel: string;
+  },
+): Promise<bigint | undefined> {
+  const sqrtPriceX96 = liquidityPoolAggregator.sqrtPriceX96;
+  if (sqrtPriceX96 === undefined || sqrtPriceX96 === 0n) {
+    return undefined;
+  }
+
+  return computeCLStakedUSDFromPositions(
+    chainId,
+    poolAddress,
+    liquidityPoolAggregator,
+    poolData,
+    context,
+    options,
+  );
 }
 
 /**
@@ -66,6 +142,75 @@ export async function findPoolOrSkipRootGauge(
 }
 
 /**
+ * Computes currentLiquidityStakedUSD for pool and user:
+ * CL uses position-level recompute,
+ * Non-CL uses aggregate stake with reserves/totalSupply.
+ *
+ * @param chainId - Chain ID
+ * @param poolAddress - Pool address
+ * @param userAddress - User address
+ * @param newPoolStake - New pool stake amount
+ * @param newUserStake - New user stake amount
+ * @param liquidityPoolAggregator - Pool entity
+ * @param poolData - Pool data
+ * @param context - Handler context
+ * @returns Recomputed pool/user staked USD, or undefined when valuation is unavailable
+ */
+export async function computeStakedUSDForPoolAndUser(
+  chainId: number,
+  poolAddress: string,
+  userAddress: string,
+  newPoolStake: bigint,
+  newUserStake: bigint,
+  liquidityPoolAggregator: LiquidityPoolAggregator,
+  poolData: PoolData,
+  context: handlerContext,
+): Promise<{
+  poolStakedUSD: bigint | undefined;
+  userStakedUSD: bigint | undefined;
+}> {
+  // CL pools path
+  if (liquidityPoolAggregator.isCL) {
+    const [poolStakedUSD, userStakedUSD] = await Promise.all([
+      computeCLStakedUSDIfAvailable(
+        chainId,
+        poolAddress,
+        liquidityPoolAggregator,
+        poolData,
+        context,
+        { logLabel: "computeCLStakedUSDFromPositions(pool)" },
+      ),
+      computeCLStakedUSDIfAvailable(
+        chainId,
+        poolAddress,
+        liquidityPoolAggregator,
+        poolData,
+        context,
+        {
+          userAddress,
+          logLabel: "computeCLStakedUSDFromPositions(user)",
+        },
+      ),
+    ]);
+    return { poolStakedUSD, userStakedUSD };
+  }
+  // Non-CL pools path
+  const poolStakedUSD = computeNonCLStakedUSDIfAvailable(
+    newPoolStake,
+    liquidityPoolAggregator,
+    poolData,
+    context,
+  );
+  const userStakedUSD = computeNonCLStakedUSDIfAvailable(
+    newUserStake,
+    liquidityPoolAggregator,
+    poolData,
+    context,
+  );
+  return { poolStakedUSD, userStakedUSD };
+}
+
+/**
  * Common logic for processing gauge deposit events
  */
 export async function processGaugeDeposit(
@@ -105,34 +250,35 @@ export async function processGaugeDeposit(
 
   const { liquidityPoolAggregator } = poolData;
 
-  // Calculate USD value of staked liquidity
-  const currentLiquidityStakedUSD = await calculateStakedLiquidityUSD(
-    data.amount,
-    pool.poolAddress,
+  const newPoolStake =
+    liquidityPoolAggregator.currentLiquidityStaked + data.amount;
+  const newUserStake = userData.currentLiquidityStaked + data.amount;
+
+  const { poolStakedUSD, userStakedUSD } = await computeStakedUSDForPoolAndUser(
     data.chainId,
-    data.blockNumber,
-    data.tokenId,
+    pool.poolAddress,
+    data.userAddress,
+    newPoolStake,
+    newUserStake,
+    liquidityPoolAggregator,
     poolData,
     context,
   );
 
-  // Update pool aggregator with gauge deposit
   const poolDiff = {
     incrementalNumberOfGaugeDeposits: 1n,
-    incrementalCurrentLiquidityStaked: data.amount, // Add to staked amount
-    incrementalCurrentLiquidityStakedUSD: currentLiquidityStakedUSD,
+    incrementalCurrentLiquidityStaked: data.amount,
+    currentLiquidityStakedUSD: poolStakedUSD,
     lastUpdatedTimestamp: timestamp,
   };
 
-  // Update user stats with gauge deposit
   const userDiff = {
     incrementalNumberOfGaugeDeposits: 1n,
-    incrementalCurrentLiquidityStaked: data.amount, // Add to staked amount
-    incrementalCurrentLiquidityStakedUSD: currentLiquidityStakedUSD,
+    incrementalCurrentLiquidityStaked: data.amount,
+    currentLiquidityStakedUSD: userStakedUSD,
     lastActivityTimestamp: timestamp,
   };
 
-  // Update pool and user entities in parallel
   await Promise.all([
     updateLiquidityPoolAggregator(
       poolDiff,
@@ -186,34 +332,42 @@ export async function processGaugeWithdraw(
 
   const { liquidityPoolAggregator } = poolData;
 
-  // Calculate USD value of withdrawn liquidity (negative amount)
-  const currentLiquidityStakedUSD = await calculateStakedLiquidityUSD(
-    data.amount,
-    pool.poolAddress,
+  const newPoolStake =
+    liquidityPoolAggregator.currentLiquidityStaked - data.amount;
+  const newUserStake = userData.currentLiquidityStaked - data.amount;
+
+  if (newPoolStake < 0n || newUserStake < 0n) {
+    context.log.error(
+      `${handlerName}: withdraw exceeds current stake for pool ${pool.poolAddress} user ${data.userAddress}. Skipping update. This needs to be fixed.`,
+    );
+    return;
+  }
+
+  const { poolStakedUSD, userStakedUSD } = await computeStakedUSDForPoolAndUser(
     data.chainId,
-    data.blockNumber,
-    data.tokenId,
+    pool.poolAddress,
+    data.userAddress,
+    newPoolStake,
+    newUserStake,
+    liquidityPoolAggregator,
     poolData,
     context,
   );
 
-  // Update pool aggregator with gauge withdrawal
   const poolDiff = {
     incrementalNumberOfGaugeWithdrawals: 1n,
-    incrementalCurrentLiquidityStaked: -data.amount, // Subtract from staked amount
-    incrementalCurrentLiquidityStakedUSD: -currentLiquidityStakedUSD,
+    incrementalCurrentLiquidityStaked: -data.amount,
+    currentLiquidityStakedUSD: poolStakedUSD,
     lastUpdatedTimestamp: timestamp,
   };
 
-  // Update user stats with gauge withdrawal
   const userDiff = {
     incrementalNumberOfGaugeWithdrawals: 1n,
-    incrementalCurrentLiquidityStaked: -data.amount, // Subtract from staked amount
-    incrementalCurrentLiquidityStakedUSD: -currentLiquidityStakedUSD,
+    incrementalCurrentLiquidityStaked: -data.amount,
+    currentLiquidityStakedUSD: userStakedUSD,
     lastActivityTimestamp: timestamp,
   };
 
-  // Update pool and user entities in parallel
   await Promise.all([
     updateLiquidityPoolAggregator(
       poolDiff,

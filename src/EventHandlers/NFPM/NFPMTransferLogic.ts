@@ -9,7 +9,7 @@ import {
   loadPoolData,
 } from "../../Aggregators/LiquidityPoolAggregator";
 import { updateNonFungiblePosition } from "../../Aggregators/NonFungiblePosition";
-import { NonFungiblePositionId, ZERO_ADDRESS } from "../../Constants";
+import { NonFungiblePositionId, PoolId, ZERO_ADDRESS } from "../../Constants";
 import { calculatePositionAmountsFromLiquidity } from "../../Helpers";
 import {
   LiquidityChangeType,
@@ -59,6 +59,7 @@ export async function createPositionFromCLPoolMint(
     mintLogIndex: mintEvent.logIndex,
     lastUpdatedTimestamp: new Date(blockTimestamp * 1000),
     lastSnapshotTimestamp: undefined,
+    isStakedInGauge: false,
   };
 
   context.NonFungiblePosition.set(position);
@@ -92,12 +93,10 @@ export async function handleMintTransfer(
     return;
   }
 
-  // Query CLPoolMintEvent by transaction hash
   const mintEvents = await context.CLPoolMintEvent.getWhere({
     transactionHash: { _eq: event.transaction.hash },
   });
 
-  // Filter by: chainId, logIndex < transferLogIndex, not consumed
   const matchingEvents =
     mintEvents?.filter(
       (m: CLPoolMintEvent) =>
@@ -248,50 +247,83 @@ export async function handleRegularTransfer(
   }
 
   const position = positions[0];
+  const timestamp = event.block.timestamp;
+  const updateTimestamp = new Date(timestamp * 1000);
+
+  // TODO: Refactor loadPoolData() to support partial results so handlers that only
+  // need pool-level fields (like gaugeAddress) do not need a separate pool lookup.
+  const poolEntity = await context.LiquidityPoolAggregator.get(
+    PoolId(event.chainId, position.pool),
+  );
+
+  if (!poolEntity) {
+    context.log.warn(
+      `[NFPMTransferLogic] Pool entity not found for pool ${position.pool} during transfer on chain ${event.chainId} in tx ${event.transaction.hash}`,
+    );
+    return;
+  }
+
+  const isGauge = isGaugeTransfer(
+    event.params.from,
+    event.params.to,
+    poolEntity.gaugeAddress,
+  );
+  if (isGauge) {
+    // Update only isStakedInGauge (and timestamp)
+    // Do not update owner or attribute to UserStatsPerPool.
+    // Real underlying owner of the position is kept (whether staked or not).
+    const gaugeAddress = poolEntity.gaugeAddress;
+    const isStakedInGauge = event.params.to === gaugeAddress;
+
+    const nonFungiblePositionDiff = {
+      isStakedInGauge: isStakedInGauge,
+      lastUpdatedTimestamp: updateTimestamp,
+    };
+    updateNonFungiblePosition(
+      nonFungiblePositionDiff,
+      position,
+      context,
+      updateTimestamp,
+    );
+    return;
+  }
 
   const poolData = await loadPoolData(
     position.pool,
     event.chainId,
     context,
     event.block.number,
-    event.block.timestamp,
+    timestamp,
   );
 
-  const isGauge = poolData
-    ? isGaugeTransfer(
-        event.params.from,
-        event.params.to,
-        poolData.liquidityPoolAggregator.gaugeAddress,
-      )
-    : false; // When poolData is null we cannot know if it's a gauge transfer; skip only attribution below, still update owner.
-  if (isGauge) {
+  if (!poolData) {
+    context.log.warn(
+      `[NFPMTransferLogic] Pool pricing data not found for pool ${position.pool} during transfer on chain ${event.chainId} in tx ${event.transaction.hash}; updating owner only`,
+    );
+    const nonFungiblePositionDiff = {
+      owner: event.params.to,
+      lastUpdatedTimestamp: updateTimestamp,
+    };
+    updateNonFungiblePosition(
+      nonFungiblePositionDiff,
+      position,
+      context,
+      updateTimestamp,
+    );
     return;
   }
 
-  if (poolData) {
-    await attributeTransferToUserStatsPerPool(
-      event,
-      position,
-      context,
-      poolData,
-    );
-  } else {
-    context.log.warn(
-      `[NFPMTransferLogic] Pool data not found for pool ${position.pool} during transfer on chain ${event.chainId} in tx ${event.transaction.hash}`,
-    );
-  }
-
-  const timestamp = new Date(event.block.timestamp * 1000);
+  await attributeTransferToUserStatsPerPool(event, position, context, poolData);
 
   const nonFungiblePositionDiff = {
     owner: event.params.to,
-    lastUpdatedTimestamp: timestamp,
+    lastUpdatedTimestamp: updateTimestamp,
   };
   updateNonFungiblePosition(
     nonFungiblePositionDiff,
     position,
     context,
-    timestamp,
+    updateTimestamp,
   );
 }
 

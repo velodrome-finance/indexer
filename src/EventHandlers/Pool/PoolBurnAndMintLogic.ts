@@ -35,13 +35,11 @@ export async function getTransfersInTx(
   isMint: boolean,
   context: handlerContext,
 ): Promise<PoolTransferInTx[]> {
-  // Query by txHash
   const transfersInTxHash = await context.PoolTransferInTx.getWhere({
     txHash: { _eq: txHash },
   });
 
-  // Filter in memory by chainId, pool, and event type
-  return transfersInTxHash.filter(
+  return (transfersInTxHash ?? []).filter(
     (t: PoolTransferInTx) =>
       t.chainId === chainId &&
       t.pool === poolAddress &&

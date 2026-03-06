@@ -34,7 +34,8 @@ export interface UserStatsPerPoolDiff {
   incrementalTotalUnstakedFeesCollected1: bigint;
   incrementalTotalUnstakedFeesCollectedUSD: bigint;
   incrementalCurrentLiquidityStaked: bigint;
-  incrementalCurrentLiquidityStakedUSD: bigint;
+  /** Non-cumulative: when set (e.g. by gauge flow), overwrites currentLiquidityStakedUSD. Same pattern as other set-by-caller fields. */
+  currentLiquidityStakedUSD?: bigint;
   incrementalVeNFTamountStaked: bigint;
   incrementalTotalBribeClaimed: bigint;
   incrementalTotalBribeClaimedUSD: bigint;
@@ -333,9 +334,8 @@ export async function updateUserStatsPerPool(
           diff.incrementalCurrentLiquidityStaked
         : current.currentLiquidityStaked,
     currentLiquidityStakedUSD:
-      diff.incrementalCurrentLiquidityStakedUSD !== undefined
-        ? current.currentLiquidityStakedUSD +
-          diff.incrementalCurrentLiquidityStakedUSD
+      diff.currentLiquidityStakedUSD !== undefined
+        ? diff.currentLiquidityStakedUSD
         : current.currentLiquidityStakedUSD,
 
     // Voting metrics

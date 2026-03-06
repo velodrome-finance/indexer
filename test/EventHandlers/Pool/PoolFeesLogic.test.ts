@@ -94,7 +94,7 @@ describe("PoolFeesLogic", () => {
     });
 
     describe("fee calculation", () => {
-      it("should calculate USD fees correctly using updateFeeTokenData", () => {
+      it("should calculate USD fees correctly", () => {
         const result = processPoolFees(
           mockEvent,
           mockToken0Data,

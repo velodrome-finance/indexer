@@ -16,6 +16,7 @@ export interface NonFungiblePositionDiff {
   mintTransactionHash: string;
   mintLogIndex: number;
   lastUpdatedTimestamp: Date;
+  isStakedInGauge: boolean;
 }
 
 /**
@@ -45,6 +46,7 @@ export function updateNonFungiblePosition(
     mintLogIndex: diff.mintLogIndex ?? current.mintLogIndex,
     lastUpdatedTimestamp:
       diff.lastUpdatedTimestamp ?? current.lastUpdatedTimestamp,
+    isStakedInGauge: diff.isStakedInGauge ?? current.isStakedInGauge,
   };
 
   if (shouldSnapshot(current.lastSnapshotTimestamp, timestamp)) {
