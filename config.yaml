@@ -54,6 +54,10 @@ contracts:
     handler: src/EventHandlers/VeNFT/VeNFT.ts
     events:
       - event: Deposit
+      - event: DepositManaged
+      - event: Merge
+      - event: Split
+      - event: WithdrawManaged
       - event: Withdraw
       - event: Transfer
   - name: Pool
