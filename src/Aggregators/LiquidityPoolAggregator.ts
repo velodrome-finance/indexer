@@ -4,12 +4,8 @@ import type {
   Token,
   handlerContext,
 } from "generated";
-import {
-  LiquidityPoolAggregatorSnapshotId,
-  PoolId,
-  TokenId,
-} from "../Constants";
-import { getCurrentFee, roundBlockToInterval } from "../Effects/Index";
+import { PoolId, TokenId } from "../Constants";
+import { getSwapFee, roundBlockToInterval } from "../Effects/Index";
 import { generatePoolName } from "../Helpers";
 import { refreshTokenPrice } from "../PriceOracle";
 import {
@@ -166,7 +162,7 @@ export async function updateDynamicFeePools(
     return liquidityPoolAggregator;
   }
 
-  const currentFee = await context.effect(getCurrentFee, {
+  const currentFee = await context.effect(getSwapFee, {
     poolAddress,
     factoryAddress,
     chainId,
