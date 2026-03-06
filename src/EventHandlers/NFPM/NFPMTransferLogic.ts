@@ -93,12 +93,10 @@ export async function handleMintTransfer(
     return;
   }
 
-  // Query CLPoolMintEvent by transaction hash
   const mintEvents = await context.CLPoolMintEvent.getWhere({
     transactionHash: { _eq: event.transaction.hash },
   });
 
-  // Filter by: chainId, logIndex < transferLogIndex, not consumed
   const matchingEvents =
     mintEvents?.filter(
       (m: CLPoolMintEvent) =>
@@ -259,13 +257,18 @@ export async function handleRegularTransfer(
     timestamp,
   );
 
-  const isGauge = poolData
-    ? isGaugeTransfer(
-        event.params.from,
-        event.params.to,
-        poolData.liquidityPoolAggregator.gaugeAddress,
-      )
-    : false;
+  if (!poolData) {
+    context.log.warn(
+      `[NFPMTransferLogic] Pool data not found for pool ${position.pool} during transfer on chain ${event.chainId} in tx ${event.transaction.hash}`,
+    );
+    return;
+  }
+
+  const isGauge = isGaugeTransfer(
+    event.params.from,
+    event.params.to,
+    poolData.liquidityPoolAggregator.gaugeAddress,
+  );
   if (isGauge && poolData) {
     // Update only isStakedInGauge (and timestamp)
     // Do not update owner or attribute to UserStatsPerPool.
@@ -286,18 +289,7 @@ export async function handleRegularTransfer(
     return;
   }
 
-  if (poolData) {
-    await attributeTransferToUserStatsPerPool(
-      event,
-      position,
-      context,
-      poolData,
-    );
-  } else {
-    context.log.warn(
-      `[NFPMTransferLogic] Pool data not found for pool ${position.pool} during transfer on chain ${event.chainId} in tx ${event.transaction.hash}`,
-    );
-  }
+  await attributeTransferToUserStatsPerPool(event, position, context, poolData);
 
   const nonFungiblePositionDiff = {
     owner: event.params.to,

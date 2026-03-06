@@ -1034,23 +1034,75 @@ describe("Helpers", () => {
   });
 
   describe("computeCLStakedUSDFromPositions", () => {
+    const common = setupCommon();
     const {
       mockToken0Data: mockToken0,
       mockToken1Data: mockToken1,
-      mockLiquidityPoolData: mockPool,
       createMockNonFungiblePosition,
-    } = setupCommon();
-    const chainId = mockToken0.chainId;
-    const poolAddress = mockPool.poolAddress ?? mockPool.id;
+      createMockLiquidityPoolAggregator,
+      createMockContext,
+    } = common;
 
-    it("should sum USD from staked positions for pool when no user filter", async () => {
-      const sqrtPriceX96 = BigInt(TickMath.getSqrtRatioAtTick(0).toString());
-      const poolEntity = {
-        ...mockPool,
+    const defaultSqrtPriceX96 = BigInt(
+      TickMath.getSqrtRatioAtTick(0).toString(),
+    );
+
+    function makeCLStakedUSDTestContext(
+      commonInstance: ReturnType<typeof setupCommon>,
+      opts: {
+        sqrtPriceX96?: bigint;
+        explicitSqrtPriceX96Undefined?: boolean;
+        positions?: NonFungiblePosition[];
+        getWhereRejects?: Error;
+        logWarn?: (msg: string) => void;
+      } = {},
+    ): {
+      chainId: number;
+      poolAddress: string;
+      poolEntity: LiquidityPoolAggregator;
+      poolData: {
+        liquidityPoolAggregator: LiquidityPoolAggregator;
+        token0Instance: Token;
+        token1Instance: Token;
+      };
+      mockContext: handlerContext;
+    } {
+      const sqrtPriceX96 =
+        opts.explicitSqrtPriceX96Undefined === true
+          ? undefined
+          : (opts.sqrtPriceX96 ?? defaultSqrtPriceX96);
+      const poolEntity = createMockLiquidityPoolAggregator({
         isCL: true,
         sqrtPriceX96,
-      } as LiquidityPoolAggregator;
+      });
+      const getWhere =
+        opts.getWhereRejects != null
+          ? vi.fn().mockRejectedValue(opts.getWhereRejects)
+          : vi.fn().mockResolvedValue(opts.positions ?? []);
+      const noop = () => {};
+      const mockContext = createMockContext({
+        NonFungiblePosition: { getWhere },
+        log: {
+          warn: opts.logWarn ?? noop,
+          error: noop,
+          info: noop,
+          debug: noop,
+        },
+      });
+      const chainId = commonInstance.mockToken0Data.chainId;
+      const poolAddress =
+        commonInstance.mockLiquidityPoolData.poolAddress ??
+        commonInstance.mockLiquidityPoolData.id;
+      const poolData = {
+        liquidityPoolAggregator: poolEntity,
+        token0Instance: commonInstance.mockToken0Data,
+        token1Instance: commonInstance.mockToken1Data,
+      };
+      return { chainId, poolAddress, poolEntity, poolData, mockContext };
+    }
 
+    it("should sum USD from staked positions for pool when no user filter", async () => {
+      const sqrtPriceX96 = defaultSqrtPriceX96;
       const pos1 = createMockNonFungiblePosition({
         tokenId: 1n,
         liquidity: 1000000000000000000n,
@@ -1084,43 +1136,30 @@ describe("Helpers", () => {
           mockToken1,
         );
 
-      const mockContext = {
-        NonFungiblePosition: {
-          getWhere: vi.fn().mockResolvedValue([pos1, pos2]),
-        },
-        log: {
-          warn: () => {},
-          error: () => {},
-          info: () => {},
-          debug: () => {},
-        },
-      } as unknown as handlerContext;
+      const { chainId, poolAddress, poolEntity, poolData, mockContext } =
+        makeCLStakedUSDTestContext(common, {
+          sqrtPriceX96,
+          positions: [pos1, pos2],
+        });
 
       const result = await computeCLStakedUSDFromPositions(
         chainId,
         poolAddress,
         poolEntity,
-        {
-          liquidityPoolAggregator: poolEntity,
-          token0Instance: mockToken0,
-          token1Instance: mockToken1,
-        },
+        poolData,
         mockContext,
         { logLabel: "computeCLStakedUSDFromPositions" },
       );
 
       expect(result).toBe(expectedSum);
       expect(result > 0n).toBe(true);
+      expect(mockContext.NonFungiblePosition.getWhere).toHaveBeenCalledWith({
+        pool: { _eq: poolAddress },
+      });
     });
 
     it("should filter by userAddress when option provided", async () => {
-      const sqrtPriceX96 = BigInt(TickMath.getSqrtRatioAtTick(0).toString());
-      const poolEntity = {
-        ...mockPool,
-        isCL: true,
-        sqrtPriceX96,
-      } as LiquidityPoolAggregator;
-
+      const sqrtPriceX96 = defaultSqrtPriceX96;
       const userA = toChecksumAddress(
         "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       );
@@ -1150,60 +1189,39 @@ describe("Helpers", () => {
         mockToken1,
       );
 
-      const mockContext = {
-        NonFungiblePosition: {
-          getWhere: vi.fn().mockResolvedValue([posStakedByA, posStakedByB]),
-        },
-        log: {
-          warn: () => {},
-          error: () => {},
-          info: () => {},
-          debug: () => {},
-        },
-      } as unknown as handlerContext;
+      const { chainId, poolAddress, poolEntity, poolData, mockContext } =
+        makeCLStakedUSDTestContext(common, {
+          sqrtPriceX96,
+          positions: [posStakedByA, posStakedByB],
+        });
 
       const result = await computeCLStakedUSDFromPositions(
         chainId,
         poolAddress,
         poolEntity,
-        {
-          liquidityPoolAggregator: poolEntity,
-          token0Instance: mockToken0,
-          token1Instance: mockToken1,
-        },
+        poolData,
         mockContext,
         { userAddress: userA, logLabel: "computeCLStakedUSDFromPositions" },
       );
 
       expect(result).toBe(expectedUserAUSD);
+      expect(mockContext.NonFungiblePosition.getWhere).toHaveBeenCalledWith({
+        pool: { _eq: poolAddress },
+      });
     });
 
     it("should return 0n when sqrtPriceX96 is undefined", async () => {
-      const poolEntity = {
-        ...mockPool,
-        isCL: true,
-        sqrtPriceX96: undefined,
-      } as unknown as LiquidityPoolAggregator;
-
-      const mockContext = {
-        NonFungiblePosition: { getWhere: vi.fn().mockResolvedValue([]) },
-        log: {
-          warn: () => {},
-          error: () => {},
-          info: () => {},
-          debug: () => {},
-        },
-      } as unknown as handlerContext;
+      const { chainId, poolAddress, poolEntity, poolData, mockContext } =
+        makeCLStakedUSDTestContext(common, {
+          explicitSqrtPriceX96Undefined: true,
+          positions: [],
+        });
 
       const result = await computeCLStakedUSDFromPositions(
         chainId,
         poolAddress,
         poolEntity,
-        {
-          liquidityPoolAggregator: poolEntity,
-          token0Instance: mockToken0,
-          token1Instance: mockToken1,
-        },
+        poolData,
         mockContext,
         { logLabel: "computeCLStakedUSDFromPositions" },
       );
@@ -1212,35 +1230,19 @@ describe("Helpers", () => {
     });
 
     it("should return 0n when getWhere throws and log warn", async () => {
-      const sqrtPriceX96 = BigInt(TickMath.getSqrtRatioAtTick(0).toString());
-      const poolEntity = {
-        ...mockPool,
-        isCL: true,
-        sqrtPriceX96,
-      } as LiquidityPoolAggregator;
-
       const logWarn = vi.fn();
-      const mockContext = {
-        NonFungiblePosition: {
-          getWhere: vi.fn().mockRejectedValue(new Error("DB error")),
-        },
-        log: {
-          warn: logWarn,
-          error: () => {},
-          info: () => {},
-          debug: () => {},
-        },
-      } as unknown as handlerContext;
+      const { chainId, poolAddress, poolEntity, poolData, mockContext } =
+        makeCLStakedUSDTestContext(common, {
+          sqrtPriceX96: defaultSqrtPriceX96,
+          getWhereRejects: new Error("DB error"),
+          logWarn,
+        });
 
       const result = await computeCLStakedUSDFromPositions(
         chainId,
         poolAddress,
         poolEntity,
-        {
-          liquidityPoolAggregator: poolEntity,
-          token0Instance: mockToken0,
-          token1Instance: mockToken1,
-        },
+        poolData,
         mockContext,
         { logLabel: "TestLabel" },
       );
@@ -1252,13 +1254,7 @@ describe("Helpers", () => {
     });
 
     it("should exclude positions not staked in gauge", async () => {
-      const sqrtPriceX96 = BigInt(TickMath.getSqrtRatioAtTick(0).toString());
-      const poolEntity = {
-        ...mockPool,
-        isCL: true,
-        sqrtPriceX96,
-      } as LiquidityPoolAggregator;
-
+      const sqrtPriceX96 = defaultSqrtPriceX96;
       const stakedPos = createMockNonFungiblePosition({
         tokenId: 1n,
         liquidity: 1000000000000000000n,
@@ -1283,27 +1279,17 @@ describe("Helpers", () => {
         mockToken1,
       );
 
-      const mockContext = {
-        NonFungiblePosition: {
-          getWhere: vi.fn().mockResolvedValue([stakedPos, unstakedPos]),
-        },
-        log: {
-          warn: () => {},
-          error: () => {},
-          info: () => {},
-          debug: () => {},
-        },
-      } as unknown as handlerContext;
+      const { chainId, poolAddress, poolEntity, poolData, mockContext } =
+        makeCLStakedUSDTestContext(common, {
+          sqrtPriceX96,
+          positions: [stakedPos, unstakedPos],
+        });
 
       const result = await computeCLStakedUSDFromPositions(
         chainId,
         poolAddress,
         poolEntity,
-        {
-          liquidityPoolAggregator: poolEntity,
-          token0Instance: mockToken0,
-          token1Instance: mockToken1,
-        },
+        poolData,
         mockContext,
         { logLabel: "computeCLStakedUSDFromPositions" },
       );
@@ -1312,13 +1298,7 @@ describe("Helpers", () => {
     });
 
     it("should sum only staked positions when pool has multiple staked and unstaked", async () => {
-      const sqrtPriceX96 = BigInt(TickMath.getSqrtRatioAtTick(0).toString());
-      const poolEntity = {
-        ...mockPool,
-        isCL: true,
-        sqrtPriceX96,
-      } as LiquidityPoolAggregator;
-
+      const sqrtPriceX96 = defaultSqrtPriceX96;
       const staked1 = createMockNonFungiblePosition({
         tokenId: 1n,
         liquidity: 1000000000000000000n,
@@ -1366,29 +1346,17 @@ describe("Helpers", () => {
           mockToken1,
         );
 
-      const mockContext = {
-        NonFungiblePosition: {
-          getWhere: vi
-            .fn()
-            .mockResolvedValue([staked1, unstaked1, staked2, unstaked2]),
-        },
-        log: {
-          warn: () => {},
-          error: () => {},
-          info: () => {},
-          debug: () => {},
-        },
-      } as unknown as handlerContext;
+      const { chainId, poolAddress, poolEntity, poolData, mockContext } =
+        makeCLStakedUSDTestContext(common, {
+          sqrtPriceX96,
+          positions: [staked1, unstaked1, staked2, unstaked2],
+        });
 
       const result = await computeCLStakedUSDFromPositions(
         chainId,
         poolAddress,
         poolEntity,
-        {
-          liquidityPoolAggregator: poolEntity,
-          token0Instance: mockToken0,
-          token1Instance: mockToken1,
-        },
+        poolData,
         mockContext,
         { logLabel: "computeCLStakedUSDFromPositions" },
       );
@@ -1398,13 +1366,7 @@ describe("Helpers", () => {
     });
 
     it("should return only the given user's staked positions when multiple users have both staked and unstaked", async () => {
-      const sqrtPriceX96 = BigInt(TickMath.getSqrtRatioAtTick(0).toString());
-      const poolEntity = {
-        ...mockPool,
-        isCL: true,
-        sqrtPriceX96,
-      } as LiquidityPoolAggregator;
-
+      const sqrtPriceX96 = defaultSqrtPriceX96;
       const userA = toChecksumAddress(
         "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       );
@@ -1463,27 +1425,17 @@ describe("Helpers", () => {
       );
 
       const allPositions = [aStaked, aUnstaked, bStaked, bUnstaked];
-      const mockContext = {
-        NonFungiblePosition: {
-          getWhere: vi.fn().mockResolvedValue(allPositions),
-        },
-        log: {
-          warn: () => {},
-          error: () => {},
-          info: () => {},
-          debug: () => {},
-        },
-      } as unknown as handlerContext;
+      const { chainId, poolAddress, poolEntity, poolData, mockContext } =
+        makeCLStakedUSDTestContext(common, {
+          sqrtPriceX96,
+          positions: allPositions,
+        });
 
       const resultA = await computeCLStakedUSDFromPositions(
         chainId,
         poolAddress,
         poolEntity,
-        {
-          liquidityPoolAggregator: poolEntity,
-          token0Instance: mockToken0,
-          token1Instance: mockToken1,
-        },
+        poolData,
         mockContext,
         { userAddress: userA, logLabel: "computeCLStakedUSDFromPositions" },
       );
@@ -1491,11 +1443,7 @@ describe("Helpers", () => {
         chainId,
         poolAddress,
         poolEntity,
-        {
-          liquidityPoolAggregator: poolEntity,
-          token0Instance: mockToken0,
-          token1Instance: mockToken1,
-        },
+        poolData,
         mockContext,
         { userAddress: userB, logLabel: "computeCLStakedUSDFromPositions" },
       );

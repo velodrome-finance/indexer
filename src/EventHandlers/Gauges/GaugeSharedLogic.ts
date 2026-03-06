@@ -262,6 +262,13 @@ export async function processGaugeWithdraw(
     liquidityPoolAggregator.currentLiquidityStaked - data.amount;
   const newUserStake = userData.currentLiquidityStaked - data.amount;
 
+  if (newPoolStake < 0n || newUserStake < 0n) {
+    context.log.error(
+      `${handlerName}: withdraw exceeds current stake for pool ${pool.poolAddress} user ${data.userAddress}. Skipping update. This needs to be fixed.`,
+    );
+    return;
+  }
+
   const { poolStakedUSD, userStakedUSD } = await computeStakedUSDForPoolAndUser(
     data.chainId,
     pool.poolAddress,

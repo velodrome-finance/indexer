@@ -366,12 +366,13 @@ export async function computeCLStakedUSDFromPositions(
   }
   const { token0Instance, token1Instance } = poolData;
   try {
-    const positions = await context.NonFungiblePosition.getWhere({
-      pool: { _eq: poolAddress },
-      chainId: { _eq: chainId },
-    });
-    const staked = (positions ?? []).filter(
+    const positions =
+      (await context.NonFungiblePosition.getWhere({
+        pool: { _eq: poolAddress },
+      })) ?? [];
+    const staked = positions.filter(
       (p: NonFungiblePosition) =>
+        p.chainId === chainId &&
         p.isStakedInGauge === true &&
         (options.userAddress === undefined || p.owner === options.userAddress),
     );

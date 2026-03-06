@@ -188,7 +188,7 @@ export async function getMatchingBurnTransferInTx(
     txHash: { _eq: txHash },
   });
 
-  const matchingBurns = transfersInTxHash.filter(
+  const matchingBurns = (transfersInTxHash ?? []).filter(
     (t: ALMLPWrapperTransferInTx) =>
       t.chainId === chainId &&
       t.wrapperAddress === wrapperAddress &&

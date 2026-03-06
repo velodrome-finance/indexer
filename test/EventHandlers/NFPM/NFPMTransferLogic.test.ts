@@ -705,7 +705,7 @@ describe("NFPMTransferLogic", () => {
       );
     });
 
-    it("updates owner but skips attribution when poolData is null (logs warn)", async () => {
+    it("does not update owner when poolData is null (logs warn and returns early)", async () => {
       vi.mocked(loadPoolData).mockResolvedValue(null);
       const mockEvent = createMockTransferEvent(mockPosition.owner, userB);
       setPosition(mockPosition);
@@ -719,7 +719,10 @@ describe("NFPMTransferLogic", () => {
         expect.stringContaining("during transfer"),
       );
       const positionAfter = getPositionAfterTransfer();
-      expect(positionAfter?.owner).toBe(userB);
+      expect(positionAfter?.owner).toBe(originalOwnerAddress);
+      expect(positionAfter?.lastUpdatedTimestamp).toEqual(
+        mockPosition.lastUpdatedTimestamp,
+      );
     });
 
     it("does not update owner when transfer is stake (user to gauge)", async () => {

@@ -556,16 +556,14 @@ export async function findPoolByField(
   context: handlerContext,
   field: PoolAddressField,
 ): Promise<LiquidityPoolAggregator | null> {
-  // Query pools by the specified field using the indexed field
   const pools = await context.LiquidityPoolAggregator.getWhere({
     [field]: { _eq: address },
   });
 
-  // Filter by chainId and return the first match (should be unique)
-  const matchingPool = pools.find(
+  const matchingPool = (pools ?? []).find(
     (pool: LiquidityPoolAggregator) => pool.chainId === chainId,
   );
-  return matchingPool || null;
+  return matchingPool ?? null;
 }
 
 /**
