@@ -906,11 +906,14 @@ describe("LiquidityPoolAggregator Functions", () => {
         expect(result.poolData.token1Instance).toBe(token1);
       }
 
-      // Should not query RootPool_LeafPool when pool exists directly
+      // RootPool_LeafPool lookup runs first, then we fallback to direct pool load when no mapping exists
       const mockRootPoolLeafPoolGetWhere = vi.mocked(
         mockContext.RootPool_LeafPool?.getWhere,
       );
-      expect(mockRootPoolLeafPoolGetWhere).not.toHaveBeenCalled();
+      expect(mockRootPoolLeafPoolGetWhere).toHaveBeenCalledTimes(1);
+      expect(mockRootPoolLeafPoolGetWhere).toHaveBeenCalledWith({
+        rootPoolAddress: { _eq: rootPoolAddress },
+      });
     });
 
     it("should load leaf pool data when root pool is not found but RootPool_LeafPool exists", async () => {
@@ -959,7 +962,7 @@ describe("LiquidityPoolAggregator Functions", () => {
       );
       mockRootPoolLeafPoolGetWhere?.mockResolvedValue([rootPoolLeafPool]);
 
-      const mockWarnLog = vi.mocked(mockContext.log?.warn);
+      const mockErrorLog = vi.mocked(mockContext.log?.error);
 
       const result = await loadPoolDataOrRootCLPool(
         rootPoolAddress,
@@ -976,8 +979,22 @@ describe("LiquidityPoolAggregator Functions", () => {
         expect(result.poolData.token0Instance).toBe(token0);
         expect(result.poolData.token1Instance).toBe(token1);
       }
-      expect(mockWarnLog).toHaveBeenCalled();
       expect(mockRootPoolLeafPoolGetWhere).toHaveBeenCalled();
+
+      const lookedUpPoolIds = mockLiquidityPoolGet?.mock.calls.map(
+        (call) => call[0],
+      );
+      expect(lookedUpPoolIds).toContain(leafPoolId);
+      expect(lookedUpPoolIds).not.toContain(rootPoolId);
+
+      const errorMessages = mockErrorLog?.mock.calls.map((call) => call[0]);
+      expect(
+        errorMessages?.some(
+          (msg) =>
+            typeof msg === "string" &&
+            msg.includes(`LiquidityPoolAggregator ${rootPoolId} not found`),
+        ),
+      ).toBe(false);
     });
 
     it("should return MAPPING_NOT_FOUND when root pool not found and no RootPool_LeafPool exists", async () => {
@@ -990,6 +1007,7 @@ describe("LiquidityPoolAggregator Functions", () => {
         mockContext.RootPool_LeafPool?.getWhere,
       );
       mockRootPoolLeafPoolGetWhere?.mockResolvedValue([]);
+      const mockErrorLog = vi.mocked(mockContext.log?.error);
 
       const result = await loadPoolDataOrRootCLPool(
         rootPoolAddress,
@@ -1001,6 +1019,22 @@ describe("LiquidityPoolAggregator Functions", () => {
       if (!result.ok) {
         expect(result.reason).toBe("MAPPING_NOT_FOUND");
       }
+
+      expect(mockRootPoolLeafPoolGetWhere).toHaveBeenCalledWith({
+        rootPoolAddress: { _eq: rootPoolAddress },
+      });
+      expect(mockLiquidityPoolGet).toHaveBeenCalledWith(rootPoolId);
+
+      const errorMessages = mockErrorLog?.mock.calls.map((call) => call[0]);
+      expect(
+        errorMessages?.some(
+          (msg) =>
+            typeof msg === "string" &&
+            msg.includes(
+              `LiquidityPoolAggregator ${rootPoolId} not found on chain ${chainId}`,
+            ),
+        ),
+      ).toBe(true);
     });
 
     it("should return null when multiple RootPool_LeafPool entries exist", async () => {

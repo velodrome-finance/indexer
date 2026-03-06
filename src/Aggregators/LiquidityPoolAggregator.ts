@@ -407,13 +407,15 @@ export async function loadPoolData(
   // Handle missing data errors
   if (!liquidityPoolAggregator) {
     context.log.error(
-      `LiquidityPoolAggregator ${poolId} not found on chain ${chainId}`,
+      `[loadPoolData] LiquidityPoolAggregator ${poolId} not found on chain ${chainId}`,
     );
     return null;
   }
 
   if (!token0Instance || !token1Instance) {
-    context.log.error(`Token not found for pool ${poolId} on chain ${chainId}`);
+    context.log.error(
+      `[loadPoolData] Token not found for pool ${poolId} on chain ${chainId}`,
+    );
     return null;
   }
 
@@ -433,7 +435,7 @@ export async function loadPoolData(
       context,
     ).catch((error) => {
       context.log.error(
-        `Error refreshing token0 price for ${token0Instance.address} on chain ${chainId}: ${error}`,
+        `[loadPoolData] Error refreshing token0 price for ${token0Instance.address} on chain ${chainId}: ${error}`,
       );
       return token0Instance; // Return original on error
     });
@@ -446,7 +448,7 @@ export async function loadPoolData(
       context,
     ).catch((error) => {
       context.log.error(
-        `Error refreshing token1 price for ${token1Instance.address} on chain ${chainId}: ${error}`,
+        `[loadPoolData] Error refreshing token1 price for ${token1Instance.address} on chain ${chainId}: ${error}`,
       );
       return token1Instance; // Return original on error
     });
@@ -482,28 +484,24 @@ export async function loadPoolDataOrRootCLPool(
   blockNumber?: number,
   blockTimestamp?: number,
 ): Promise<LoadPoolDataOrRootCLPoolResult> {
-  const poolData = await loadPoolData(
-    poolAddress,
-    chainId,
-    context,
-    blockNumber,
-    blockTimestamp,
-  );
-
-  if (poolData) {
-    return { ok: true, poolData };
-  }
-
-  context.log.warn(
-    `Pool data not found for pool ${poolAddress} on chain ${chainId}. Might be a RootCLPool therefore we must get the actual Pool (on leaf chain) through the RootPool_LeafPool mapping`,
-  );
-
   const rootPoolLeafPools =
     (await context.RootPool_LeafPool.getWhere({
       rootPoolAddress: { _eq: poolAddress },
     })) ?? [];
 
   if (rootPoolLeafPools.length === 0) {
+    const poolData = await loadPoolData(
+      poolAddress,
+      chainId,
+      context,
+      blockNumber,
+      blockTimestamp,
+    );
+
+    if (poolData) {
+      return { ok: true, poolData };
+    }
+
     return {
       ok: false,
       reason: LoadPoolDataOrRootCLPoolFailureReason.MAPPING_NOT_FOUND,
@@ -512,7 +510,7 @@ export async function loadPoolDataOrRootCLPool(
 
   if (rootPoolLeafPools.length !== 1) {
     context.log.error(
-      `Expected exactly one RootPool_LeafPool for pool ${poolAddress} on chain ${chainId}`,
+      `[loadPoolDataOrRootCLPool] Expected exactly one RootPool_LeafPool for pool ${poolAddress} on chain ${chainId}`,
     );
     return {
       ok: false,
@@ -533,7 +531,7 @@ export async function loadPoolDataOrRootCLPool(
 
   if (!leafPoolData) {
     context.log.error(
-      `Leaf pool data not found for pool ${leafPoolAddress} on chain ${leafChainId}`,
+      `[loadPoolDataOrRootCLPool] Leaf pool data not found for pool ${leafPoolAddress} on chain ${leafChainId}`,
     );
     return {
       ok: false,
