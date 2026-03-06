@@ -27,6 +27,7 @@ export const TEN_TO_THE_18_BI = BigInt(10 ** 18);
 export const SECONDS_IN_AN_HOUR = BigInt(3600);
 export const SECONDS_IN_A_DAY = BigInt(86400);
 export const SECONDS_IN_A_WEEK = BigInt(604800);
+export const SECONDS_IN_FOUR_YEARS = BigInt(126144000);
 
 /** Snapshot interval: 1 hour in milliseconds (for epoch-aligned snapshots) */
 export const SNAPSHOT_INTERVAL_IN_MS = 60 * 60 * 1000;

@@ -1,7 +1,11 @@
 import type {
   VeNFTState,
+  VeNFT_DepositManaged_event,
   VeNFT_Deposit_event,
+  VeNFT_Merge_event,
+  VeNFT_Split_event,
   VeNFT_Transfer_event,
+  VeNFT_WithdrawManaged_event,
   VeNFT_Withdraw_event,
   handlerContext,
 } from "generated";
@@ -12,7 +16,12 @@ import {
 } from "../../Aggregators/UserStatsPerPool";
 import { loadPoolVotesByVeNFT } from "../../Aggregators/VeNFTPoolVote";
 import { updateVeNFTState } from "../../Aggregators/VeNFTState";
-import { VeNFTId, ZERO_ADDRESS } from "../../Constants";
+import {
+  SECONDS_IN_A_WEEK,
+  SECONDS_IN_FOUR_YEARS,
+  VeNFTId,
+  ZERO_ADDRESS,
+} from "../../Constants";
 
 /**
  * Processes a VeNFT Deposit event: updates the VeNFTState with the new locktime,
@@ -95,9 +104,246 @@ export async function processVeNFTTransfer(
 }
 
 /**
- * Handles the mint case of a VeNFT Transfer (from === zero address): creates the VeNFTState
- * entity with owner, chainId, tokenId, and initial timestamps. Returns the VeNFTState for the
- * token (existing or just created) so the caller can run processVeNFTTransfer for non-mint transfers.
+ * Reconciles a VeNFT position to an absolute target state.
+ *
+ * This helper translates an event-authoritative target TVL into the incremental
+ * diff expected by `updateVeNFTState`. It is used for flows such as `Merge`,
+ * `Split`, and managed-lock transitions where the contract emits the resulting
+ * balance directly and the indexer must correct any stale intermediate value.
+ *
+ * @param currentVeNFTState - The current persisted state for the affected token.
+ * @param timestamp - The block timestamp for the event being processed.
+ * @param context - Handler context used to persist the reconciled entity.
+ * @param target - The desired post-event state for the token. `totalValueLocked`
+ * is treated as an absolute value; the other fields override the current entity
+ * only when provided.
+ */
+function reconcileVeNFTState(
+  currentVeNFTState: VeNFTState,
+  timestamp: Date,
+  context: handlerContext,
+  target: {
+    totalValueLocked: bigint;
+    owner?: string;
+    locktime?: bigint;
+    isAlive?: boolean;
+  },
+): void {
+  const veNFTStateDiff = {
+    owner: target.owner,
+    locktime: target.locktime,
+    isAlive: target.isAlive,
+    incrementalTotalValueLocked:
+      target.totalValueLocked - currentVeNFTState.totalValueLocked,
+    lastUpdatedTimestamp: timestamp,
+  };
+
+  updateVeNFTState(veNFTStateDiff, currentVeNFTState, timestamp, context);
+}
+
+/**
+ * Reconstructs the lock end for a token leaving a managed position.
+ *
+ * The voting escrow contract restores the withdrawn token to a standard
+ * four-year lock aligned to week boundaries. The event exposes the withdrawal
+ * timestamp, so the indexer reproduces the contract's rounding logic here.
+ *
+ * @param ts - The withdrawal timestamp emitted by `WithdrawManaged`.
+ * @returns The reconstructed lock end, rounded down to the nearest week.
+ */
+function getManagedWithdrawLocktime(ts: bigint): bigint {
+  return ((ts + SECONDS_IN_FOUR_YEARS) / SECONDS_IN_A_WEEK) * SECONDS_IN_A_WEEK;
+}
+
+/**
+ * Reconciles both sides of a `Merge` into their post-event TVL state.
+ *
+ * The source token is burned by the merge and must end with zero TVL and
+ * `isAlive = false`. The destination token keeps the merged position and is
+ * reconciled to `_amountFinal` and `_locktime` from the event payload.
+ *
+ * @param event - The merge event carrying the authoritative destination amount
+ * and locktime.
+ * @param fromVeNFTState - Current state for the burned source token.
+ * @param toVeNFTState - Current state for the surviving destination token.
+ * @param context - Handler context used to persist both reconciled entities.
+ */
+export async function processVeNFTMerge(
+  event: VeNFT_Merge_event,
+  fromVeNFTState: VeNFTState,
+  toVeNFTState: VeNFTState,
+  context: handlerContext,
+): Promise<void> {
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  const fromVeNFTStateDiff = {
+    totalValueLocked: 0n,
+    locktime: 0n,
+    isAlive: false,
+  };
+
+  const toVeNFTStateDiff = {
+    totalValueLocked: event.params._amountFinal,
+    locktime: event.params._locktime,
+    isAlive: true,
+  };
+
+  reconcileVeNFTState(fromVeNFTState, timestamp, context, fromVeNFTStateDiff);
+  reconcileVeNFTState(toVeNFTState, timestamp, context, toVeNFTStateDiff);
+}
+
+/**
+ * Reconciles a `Split` into the exact balances emitted by the contract.
+ *
+ * The original token is fully consumed by the split and must end at zero TVL
+ * with `isAlive = false`. The two child tokens are reconciled to the
+ * authoritative split amounts and shared locktime provided by the event.
+ *
+ * @param event - The split event carrying both child amounts and the resulting
+ * locktime.
+ * @param fromVeNFTState - Current state for the token being split.
+ * @param token1VeNFTState - Current state for the first child token.
+ * @param token2VeNFTState - Current state for the second child token.
+ * @param context - Handler context used to persist all three reconciled entities.
+ */
+export async function processVeNFTSplit(
+  event: VeNFT_Split_event,
+  fromVeNFTState: VeNFTState,
+  token1VeNFTState: VeNFTState,
+  token2VeNFTState: VeNFTState,
+  context: handlerContext,
+): Promise<void> {
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  const originalVeNFTStateDiff = {
+    totalValueLocked: 0n,
+    locktime: 0n,
+    isAlive: false,
+  };
+
+  const token1VeNFTStateDiff = {
+    totalValueLocked: event.params._splitAmount1,
+    locktime: event.params._locktime,
+    isAlive: true,
+  };
+
+  const token2VeNFTStateDiff = {
+    totalValueLocked: event.params._splitAmount2,
+    locktime: event.params._locktime,
+    isAlive: true,
+  };
+
+  reconcileVeNFTState(
+    fromVeNFTState,
+    timestamp,
+    context,
+    originalVeNFTStateDiff,
+  );
+  reconcileVeNFTState(
+    token1VeNFTState,
+    timestamp,
+    context,
+    token1VeNFTStateDiff,
+  );
+  reconcileVeNFTState(
+    token2VeNFTState,
+    timestamp,
+    context,
+    token2VeNFTStateDiff,
+  );
+}
+
+/**
+ * Reconciles TVL movement when a standard veNFT is deposited into a managed lock.
+ *
+ * After `DepositManaged`, the source token no longer carries independent TVL,
+ * so it is reconciled to zero. The managed token absorbs the emitted `_weight`,
+ * which is added to its current TVL to reach the post-event balance.
+ *
+ * @param event - The managed-deposit event carrying the transferred weight.
+ * @param tokenVeNFTState - Current state for the deposited standard token.
+ * @param managedVeNFTState - Current state for the managed token receiving the weight.
+ * @param context - Handler context used to persist both reconciled entities.
+ */
+export async function processVeNFTDepositManaged(
+  event: VeNFT_DepositManaged_event,
+  tokenVeNFTState: VeNFTState,
+  managedVeNFTState: VeNFTState,
+  context: handlerContext,
+): Promise<void> {
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  const tokenVeNFTStateDiff = {
+    totalValueLocked: 0n,
+  };
+
+  const managedVeNFTStateDiff = {
+    totalValueLocked: managedVeNFTState.totalValueLocked + event.params._weight,
+  };
+
+  // DepositManaged moves value out of the standard token into the managed token,
+  // but it does not burn or replace the standard token ID. Keep `isAlive` unchanged:
+  // the NFT still exists on-chain, keeps its owner, and can later receive TVL again
+  // via WithdrawManaged. This differs from Merge / Split / burn flows, where the
+  // source token ID is actually destroyed and should be marked not alive.
+  reconcileVeNFTState(tokenVeNFTState, timestamp, context, tokenVeNFTStateDiff);
+  reconcileVeNFTState(
+    managedVeNFTState,
+    timestamp,
+    context,
+    managedVeNFTStateDiff,
+  );
+}
+
+/**
+ * Reconciles TVL movement when weight is withdrawn from a managed lock.
+ *
+ * The withdrawn standard token is restored with TVL equal to the emitted
+ * `_weight` and a new four-year lock derived from `_ts`. The managed token is
+ * reduced by the same amount so the pair remains consistent with contract state.
+ *
+ * @param event - The managed-withdraw event carrying the returned weight and timestamp.
+ * @param tokenVeNFTState - Current state for the token receiving the withdrawn weight.
+ * @param managedVeNFTState - Current state for the managed token losing the weight.
+ * @param context - Handler context used to persist both reconciled entities.
+ */
+export async function processVeNFTWithdrawManaged(
+  event: VeNFT_WithdrawManaged_event,
+  tokenVeNFTState: VeNFTState,
+  managedVeNFTState: VeNFTState,
+  context: handlerContext,
+): Promise<void> {
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  const tokenVeNFTStateDiff = {
+    totalValueLocked: event.params._weight,
+    locktime: getManagedWithdrawLocktime(event.params._ts),
+    isAlive: true,
+  };
+
+  const managedVeNFTStateDiff = {
+    totalValueLocked: managedVeNFTState.totalValueLocked - event.params._weight,
+  };
+
+  // WithdrawManaged restores value into an existing standard token ID. We set
+  // `isAlive = true` explicitly because the token is a live NFT position after
+  // the withdrawal; it was never burned during the managed-deposit period, only
+  // temporarily reduced to zero standalone TVL.
+  reconcileVeNFTState(tokenVeNFTState, timestamp, context, tokenVeNFTStateDiff);
+  reconcileVeNFTState(
+    managedVeNFTState,
+    timestamp,
+    context,
+    managedVeNFTStateDiff,
+  );
+}
+
+/**
+ * Ensures a VeNFT row exists for transfers involving newly minted token IDs.
+ *
+ * A mint `Transfer` is used only to create the entity shell. TVL is intentionally
+ * initialized to zero because amount-carrying events such as `Deposit` or `Split`
+ * are responsible for reconciling the actual locked balance afterward.
  *
  * @param event - The VeNFT Transfer event payload (from, to, tokenId).
  * @param context - Handler context for storage and logging.
@@ -114,9 +360,11 @@ export async function handleMintTransfer(
       chainId: event.chainId,
       tokenId: event.params.tokenId,
       owner: event.params.to,
-      locktime: 0n, // This is going to be updated in the Deposit event
+      // TVL-changing flows such as Split emit Transfer before the amount-carrying event.
+      // Create the shell here and let the follow-up VeNFT event reconcile TVL.
+      locktime: 0n,
       lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
-      totalValueLocked: 0n, // This is going to be updated in the Deposit event
+      totalValueLocked: 0n,
       isAlive: true,
       lastSnapshotTimestamp: undefined,
     });

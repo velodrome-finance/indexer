@@ -3,8 +3,12 @@ import type {
   UserStatsPerPool,
   VeNFTPoolVote,
   VeNFTState,
+  VeNFT_DepositManaged_event,
   VeNFT_Deposit_event,
+  VeNFT_Merge_event,
+  VeNFT_Split_event,
   VeNFT_Transfer_event,
+  VeNFT_WithdrawManaged_event,
   VeNFT_Withdraw_event,
   handlerContext,
 } from "../../../generated";
@@ -12,6 +16,8 @@ import * as UserStatsPerPoolModule from "../../../src/Aggregators/UserStatsPerPo
 import * as VeNFTPoolVoteAggregator from "../../../src/Aggregators/VeNFTPoolVote";
 import * as VeNFTStateAggregator from "../../../src/Aggregators/VeNFTState";
 import {
+  SECONDS_IN_A_WEEK,
+  SECONDS_IN_FOUR_YEARS,
   VeNFTId,
   VeNFTPoolVoteId,
   toChecksumAddress,
@@ -244,6 +250,335 @@ describe("VeNFTLogic", () => {
           lastUpdatedTimestamp: timestamp,
         },
         mockVeNFTState,
+        timestamp,
+        mockContext,
+      );
+    });
+  });
+
+  describe("processVeNFTMerge", () => {
+    it("reconciles source to zero and destination to the merged amount", async () => {
+      const fromState = {
+        ...mockVeNFTState,
+        tokenId: 1n,
+        totalValueLocked: 100n,
+      };
+      const toState = {
+        ...mockVeNFTState,
+        id: VeNFTId(10, 2n),
+        tokenId: 2n,
+        totalValueLocked: 40n,
+      };
+      const event = {
+        params: {
+          _sender: toChecksumAddress(
+            "0x9999999999999999999999999999999999999999",
+          ),
+          _from: 1n,
+          _to: 2n,
+          _amountFrom: 100n,
+          _amountTo: 40n,
+          _amountFinal: 140n,
+          _locktime: 500n,
+          _ts: 200n,
+        },
+        block: {
+          timestamp: 1000000,
+          number: 123456,
+          hash: "0x1234",
+        },
+        chainId: 10,
+        logIndex: 1,
+        srcAddress: toChecksumAddress(
+          "0x3333333333333333333333333333333333333333",
+        ),
+        transaction: { hash: "0xabcd" },
+      } as VeNFT_Merge_event;
+      const timestamp = new Date(event.block.timestamp * 1000);
+      const updateSpy = vi
+        .spyOn(VeNFTStateAggregator, "updateVeNFTState")
+        .mockImplementation(() => {});
+
+      await VeNFTLogic.processVeNFTMerge(
+        event,
+        fromState,
+        toState,
+        mockContext,
+      );
+
+      expect(updateSpy).toHaveBeenNthCalledWith(
+        1,
+        {
+          locktime: 0n,
+          isAlive: false,
+          incrementalTotalValueLocked: -100n,
+          lastUpdatedTimestamp: timestamp,
+          owner: undefined,
+        },
+        fromState,
+        timestamp,
+        mockContext,
+      );
+      expect(updateSpy).toHaveBeenNthCalledWith(
+        2,
+        {
+          locktime: 500n,
+          isAlive: true,
+          incrementalTotalValueLocked: 100n,
+          lastUpdatedTimestamp: timestamp,
+          owner: undefined,
+        },
+        toState,
+        timestamp,
+        mockContext,
+      );
+    });
+  });
+
+  describe("processVeNFTSplit", () => {
+    it("reconciles the parent to zero and children to split amounts", async () => {
+      const fromState = {
+        ...mockVeNFTState,
+        tokenId: 1n,
+        totalValueLocked: 100n,
+      };
+      const token1State = {
+        ...mockVeNFTState,
+        id: VeNFTId(10, 2n),
+        tokenId: 2n,
+        totalValueLocked: 0n,
+      };
+      const token2State = {
+        ...mockVeNFTState,
+        id: VeNFTId(10, 3n),
+        tokenId: 3n,
+        totalValueLocked: 0n,
+      };
+      const event = {
+        params: {
+          _from: 1n,
+          _tokenId1: 2n,
+          _tokenId2: 3n,
+          _sender: toChecksumAddress(
+            "0x9999999999999999999999999999999999999999",
+          ),
+          _splitAmount1: 30n,
+          _splitAmount2: 70n,
+          _locktime: 700n,
+          _ts: 200n,
+        },
+        block: {
+          timestamp: 1000000,
+          number: 123456,
+          hash: "0x1234",
+        },
+        chainId: 10,
+        logIndex: 1,
+        srcAddress: toChecksumAddress(
+          "0x3333333333333333333333333333333333333333",
+        ),
+        transaction: { hash: "0xabcd" },
+      } as VeNFT_Split_event;
+      const timestamp = new Date(event.block.timestamp * 1000);
+      const updateSpy = vi
+        .spyOn(VeNFTStateAggregator, "updateVeNFTState")
+        .mockImplementation(() => {});
+
+      await VeNFTLogic.processVeNFTSplit(
+        event,
+        fromState,
+        token1State,
+        token2State,
+        mockContext,
+      );
+
+      expect(updateSpy).toHaveBeenNthCalledWith(
+        1,
+        {
+          locktime: 0n,
+          isAlive: false,
+          incrementalTotalValueLocked: -100n,
+          lastUpdatedTimestamp: timestamp,
+          owner: undefined,
+        },
+        fromState,
+        timestamp,
+        mockContext,
+      );
+      expect(updateSpy).toHaveBeenNthCalledWith(
+        2,
+        {
+          locktime: 700n,
+          isAlive: true,
+          incrementalTotalValueLocked: 30n,
+          lastUpdatedTimestamp: timestamp,
+          owner: undefined,
+        },
+        token1State,
+        timestamp,
+        mockContext,
+      );
+      expect(updateSpy).toHaveBeenNthCalledWith(
+        3,
+        {
+          locktime: 700n,
+          isAlive: true,
+          incrementalTotalValueLocked: 70n,
+          lastUpdatedTimestamp: timestamp,
+          owner: undefined,
+        },
+        token2State,
+        timestamp,
+        mockContext,
+      );
+    });
+  });
+
+  describe("processVeNFTDepositManaged", () => {
+    it("moves weight from the normal token into the managed token", async () => {
+      const tokenState = {
+        ...mockVeNFTState,
+        tokenId: 1n,
+        totalValueLocked: 80n,
+      };
+      const managedState = {
+        ...mockVeNFTState,
+        id: VeNFTId(10, 2n),
+        tokenId: 2n,
+        totalValueLocked: 200n,
+      };
+      const event = {
+        params: {
+          _owner: mockVeNFTState.owner,
+          _tokenId: 1n,
+          _mTokenId: 2n,
+          _weight: 80n,
+          _ts: 200n,
+        },
+        block: {
+          timestamp: 1000000,
+          number: 123456,
+          hash: "0x1234",
+        },
+        chainId: 10,
+        logIndex: 1,
+        srcAddress: toChecksumAddress(
+          "0x3333333333333333333333333333333333333333",
+        ),
+        transaction: { hash: "0xabcd" },
+      } as VeNFT_DepositManaged_event;
+      const timestamp = new Date(event.block.timestamp * 1000);
+      const updateSpy = vi
+        .spyOn(VeNFTStateAggregator, "updateVeNFTState")
+        .mockImplementation(() => {});
+
+      await VeNFTLogic.processVeNFTDepositManaged(
+        event,
+        tokenState,
+        managedState,
+        mockContext,
+      );
+
+      expect(updateSpy).toHaveBeenNthCalledWith(
+        1,
+        {
+          locktime: undefined,
+          isAlive: undefined,
+          incrementalTotalValueLocked: -80n,
+          lastUpdatedTimestamp: timestamp,
+          owner: undefined,
+        },
+        tokenState,
+        timestamp,
+        mockContext,
+      );
+      expect(updateSpy).toHaveBeenNthCalledWith(
+        2,
+        {
+          locktime: undefined,
+          isAlive: undefined,
+          incrementalTotalValueLocked: 80n,
+          lastUpdatedTimestamp: timestamp,
+          owner: undefined,
+        },
+        managedState,
+        timestamp,
+        mockContext,
+      );
+    });
+  });
+
+  describe("processVeNFTWithdrawManaged", () => {
+    it("restores weight to the normal token and reduces managed TVL", async () => {
+      const tokenState = {
+        ...mockVeNFTState,
+        tokenId: 1n,
+        totalValueLocked: 0n,
+      };
+      const managedState = {
+        ...mockVeNFTState,
+        id: VeNFTId(10, 2n),
+        tokenId: 2n,
+        totalValueLocked: 280n,
+      };
+      const event = {
+        params: {
+          _owner: mockVeNFTState.owner,
+          _tokenId: 1n,
+          _mTokenId: 2n,
+          _weight: 80n,
+          _ts: 123456n,
+        },
+        block: {
+          timestamp: 1000000,
+          number: 123456,
+          hash: "0x1234",
+        },
+        chainId: 10,
+        logIndex: 1,
+        srcAddress: toChecksumAddress(
+          "0x3333333333333333333333333333333333333333",
+        ),
+        transaction: { hash: "0xabcd" },
+      } as VeNFT_WithdrawManaged_event;
+      const timestamp = new Date(event.block.timestamp * 1000);
+      const expectedLocktime =
+        ((123456n + SECONDS_IN_FOUR_YEARS) / SECONDS_IN_A_WEEK) *
+        SECONDS_IN_A_WEEK;
+      const updateSpy = vi
+        .spyOn(VeNFTStateAggregator, "updateVeNFTState")
+        .mockImplementation(() => {});
+
+      await VeNFTLogic.processVeNFTWithdrawManaged(
+        event,
+        tokenState,
+        managedState,
+        mockContext,
+      );
+
+      expect(updateSpy).toHaveBeenNthCalledWith(
+        1,
+        {
+          locktime: expectedLocktime,
+          isAlive: true,
+          incrementalTotalValueLocked: 80n,
+          lastUpdatedTimestamp: timestamp,
+          owner: undefined,
+        },
+        tokenState,
+        timestamp,
+        mockContext,
+      );
+      expect(updateSpy).toHaveBeenNthCalledWith(
+        2,
+        {
+          locktime: undefined,
+          isAlive: undefined,
+          incrementalTotalValueLocked: -80n,
+          lastUpdatedTimestamp: timestamp,
+          owner: undefined,
+        },
+        managedState,
         timestamp,
         mockContext,
       );

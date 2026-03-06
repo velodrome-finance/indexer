@@ -2,6 +2,8 @@ import "../eventHandlersRegistration";
 import { MockDb, VeNFT } from "../../generated/src/TestHelpers.gen";
 import * as VeNFTStateModule from "../../src/Aggregators/VeNFTState";
 import {
+  SECONDS_IN_A_WEEK,
+  SECONDS_IN_FOUR_YEARS,
   UserStatsPerPoolId,
   VeNFTId,
   toChecksumAddress,
@@ -656,6 +658,229 @@ describe("VeNFT Events", () => {
       expect(
         resultDB.entities.VeNFTState.get(VeNFTId(chainId, eventData.tokenId)),
       ).toBeUndefined();
+    });
+  });
+
+  describe("Split Flow Regression", () => {
+    it("reconciles child TVL before withdraw so it does not go negative", async () => {
+      const owner = toChecksumAddress(
+        "0x2222222222222222222222222222222222222222",
+      );
+      let db = MockDb.createMockDb();
+      db = db.entities.VeNFTState.set({
+        ...mockVeNFTState,
+        id: VeNFTId(chainId, 11n),
+        tokenId: 11n,
+        owner,
+        locktime: 999n,
+        totalValueLocked: 100n,
+      });
+
+      const mockEventData = (logIndex: number) => ({
+        block: {
+          timestamp: 1000000,
+          number: 123456,
+          hash: "0xsplit",
+        },
+        chainId,
+        logIndex,
+        srcAddress: owner,
+      });
+
+      const resultDB = await db.processEvents([
+        VeNFT.Transfer.createMockEvent({
+          from: owner,
+          to: toChecksumAddress("0x0000000000000000000000000000000000000000"),
+          tokenId: 11n,
+          mockEventData: mockEventData(1),
+        }),
+        VeNFT.Transfer.createMockEvent({
+          from: toChecksumAddress("0x0000000000000000000000000000000000000000"),
+          to: owner,
+          tokenId: 12n,
+          mockEventData: mockEventData(2),
+        }),
+        VeNFT.Transfer.createMockEvent({
+          from: toChecksumAddress("0x0000000000000000000000000000000000000000"),
+          to: owner,
+          tokenId: 13n,
+          mockEventData: mockEventData(3),
+        }),
+        VeNFT.Split.createMockEvent({
+          _from: 11n,
+          _tokenId1: 12n,
+          _tokenId2: 13n,
+          _sender: owner,
+          _splitAmount1: 30n,
+          _splitAmount2: 70n,
+          _locktime: 777n,
+          _ts: 555n,
+          mockEventData: mockEventData(4),
+        }),
+        VeNFT.Withdraw.createMockEvent({
+          provider: owner,
+          tokenId: 12n,
+          value: 30n,
+          ts: 556n,
+          mockEventData: mockEventData(5),
+        }),
+      ]);
+
+      expect(
+        resultDB.entities.VeNFTState.get(VeNFTId(chainId, 11n))
+          ?.totalValueLocked,
+      ).toBe(0n);
+      expect(
+        resultDB.entities.VeNFTState.get(VeNFTId(chainId, 12n))
+          ?.totalValueLocked,
+      ).toBe(0n);
+      expect(
+        resultDB.entities.VeNFTState.get(VeNFTId(chainId, 13n))
+          ?.totalValueLocked,
+      ).toBe(70n);
+    });
+  });
+
+  describe("Merge Flow Regression", () => {
+    it("reconciles destination TVL before withdraw so it does not go negative", async () => {
+      const owner = toChecksumAddress(
+        "0x2222222222222222222222222222222222222222",
+      );
+      let db = MockDb.createMockDb();
+      db = db.entities.VeNFTState.set({
+        ...mockVeNFTState,
+        id: VeNFTId(chainId, 21n),
+        tokenId: 21n,
+        owner,
+        locktime: 999n,
+        totalValueLocked: 100n,
+      });
+      db = db.entities.VeNFTState.set({
+        ...mockVeNFTState,
+        id: VeNFTId(chainId, 22n),
+        tokenId: 22n,
+        owner,
+        locktime: 999n,
+        totalValueLocked: 40n,
+      });
+
+      const mockEventData = (logIndex: number) => ({
+        block: {
+          timestamp: 1000000,
+          number: 123456,
+          hash: "0xmerge",
+        },
+        chainId,
+        logIndex,
+        srcAddress: owner,
+      });
+
+      const resultDB = await db.processEvents([
+        VeNFT.Transfer.createMockEvent({
+          from: owner,
+          to: toChecksumAddress("0x0000000000000000000000000000000000000000"),
+          tokenId: 21n,
+          mockEventData: mockEventData(1),
+        }),
+        VeNFT.Merge.createMockEvent({
+          _sender: owner,
+          _from: 21n,
+          _to: 22n,
+          _amountFrom: 100n,
+          _amountTo: 40n,
+          _amountFinal: 140n,
+          _locktime: 888n,
+          _ts: 777n,
+          mockEventData: mockEventData(2),
+        }),
+        VeNFT.Withdraw.createMockEvent({
+          provider: owner,
+          tokenId: 22n,
+          value: 140n,
+          ts: 778n,
+          mockEventData: mockEventData(3),
+        }),
+      ]);
+
+      expect(
+        resultDB.entities.VeNFTState.get(VeNFTId(chainId, 21n))
+          ?.totalValueLocked,
+      ).toBe(0n);
+      expect(
+        resultDB.entities.VeNFTState.get(VeNFTId(chainId, 22n))
+          ?.totalValueLocked,
+      ).toBe(0n);
+    });
+  });
+
+  describe("Managed Flow Regression", () => {
+    it("keeps normal and managed TVL consistent across depositManaged and withdrawManaged", async () => {
+      const owner = toChecksumAddress(
+        "0x2222222222222222222222222222222222222222",
+      );
+      let db = MockDb.createMockDb();
+      db = db.entities.VeNFTState.set({
+        ...mockVeNFTState,
+        id: VeNFTId(chainId, 31n),
+        tokenId: 31n,
+        owner,
+        locktime: 0n,
+        totalValueLocked: 80n,
+      });
+      db = db.entities.VeNFTState.set({
+        ...mockVeNFTState,
+        id: VeNFTId(chainId, 32n),
+        tokenId: 32n,
+        owner,
+        locktime: 0n,
+        totalValueLocked: 200n,
+      });
+
+      const withdrawTs = 123456n;
+      const expectedLocktime =
+        ((withdrawTs + SECONDS_IN_FOUR_YEARS) / SECONDS_IN_A_WEEK) *
+        SECONDS_IN_A_WEEK;
+      const mockEventData = (logIndex: number) => ({
+        block: {
+          timestamp: 1000000,
+          number: 123456,
+          hash: "0xmanaged",
+        },
+        chainId,
+        logIndex,
+        srcAddress: owner,
+      });
+
+      const resultDB = await db.processEvents([
+        VeNFT.DepositManaged.createMockEvent({
+          _owner: owner,
+          _tokenId: 31n,
+          _mTokenId: 32n,
+          _weight: 80n,
+          _ts: 1n,
+          mockEventData: mockEventData(1),
+        }),
+        VeNFT.WithdrawManaged.createMockEvent({
+          _owner: owner,
+          _tokenId: 31n,
+          _mTokenId: 32n,
+          _weight: 80n,
+          _ts: withdrawTs,
+          mockEventData: mockEventData(2),
+        }),
+      ]);
+
+      expect(
+        resultDB.entities.VeNFTState.get(VeNFTId(chainId, 31n))
+          ?.totalValueLocked,
+      ).toBe(80n);
+      expect(
+        resultDB.entities.VeNFTState.get(VeNFTId(chainId, 31n))?.locktime,
+      ).toBe(expectedLocktime);
+      expect(
+        resultDB.entities.VeNFTState.get(VeNFTId(chainId, 32n))
+          ?.totalValueLocked,
+      ).toBe(200n);
     });
   });
 });
