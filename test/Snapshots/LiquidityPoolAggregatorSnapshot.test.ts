@@ -48,6 +48,20 @@ describe("LiquidityPoolAggregatorSnapshot", () => {
       expect(snapshot.reserve0).toBe(pool.reserve0);
       expect(snapshot.reserve1).toBe(pool.reserve1);
       expect(snapshot.totalLiquidityUSD).toBe(pool.totalLiquidityUSD);
+      expect(snapshot.gaugeEmissionsCap).toBe(pool.gaugeEmissionsCap);
+      expect(snapshot.numberOfGaugeDeposits).toBe(pool.numberOfGaugeDeposits);
+      expect(snapshot.numberOfGaugeWithdrawals).toBe(
+        pool.numberOfGaugeWithdrawals,
+      );
+      expect(snapshot.numberOfGaugeRewardClaims).toBe(
+        pool.numberOfGaugeRewardClaims,
+      );
+      expect(snapshot.totalGaugeRewardsClaimedUSD).toBe(
+        pool.totalGaugeRewardsClaimedUSD,
+      );
+      expect(snapshot.totalGaugeRewardsClaimed).toBe(
+        pool.totalGaugeRewardsClaimed,
+      );
     });
   });
 
@@ -98,7 +112,7 @@ describe("LiquidityPoolAggregatorSnapshot", () => {
       }),
     );
 
-    // Snapshot only includes fields defined on LiquidityPoolAggregatorSnapshot (no lastUpdatedTimestamp, lastSnapshotTimestamp, tickSpacing, etc.)
+    // Snapshot only includes fields defined on LiquidityPoolAggregatorSnapshot.
     const setArg = vi.mocked(context.LiquidityPoolAggregatorSnapshot.set).mock
       .calls[0][0];
     const snapshotKeysFromPool = (
@@ -109,6 +123,9 @@ describe("LiquidityPoolAggregatorSnapshot", () => {
         k !== "lastUpdatedTimestamp" &&
         k !== "lastSnapshotTimestamp" &&
         k !== "tickSpacing" &&
+        k !== "rootPoolMatchingHash" &&
+        k !== "factoryAddress" &&
+        k !== "poolLauncherPoolId" &&
         (setArg as Record<string, unknown>)[k] !== undefined,
     );
     for (const key of snapshotKeysFromPool) {

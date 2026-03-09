@@ -36,12 +36,12 @@ export async function loadVeNFTState(
  * Updates VeNFTState with the provided diff.
  * Takes an epoch-aligned snapshot when entering a new snapshot epoch.
  */
-export function updateVeNFTState(
+export async function updateVeNFTState(
   diff: Partial<VeNFTStateDiff>,
   current: VeNFTState,
   timestamp: Date,
   context: handlerContext,
-): void {
+): Promise<void> {
   const lastSnapshotTimestamp =
     diff.lastSnapshotTimestamp !== undefined &&
     (current.lastSnapshotTimestamp === undefined ||
@@ -65,7 +65,7 @@ export function updateVeNFTState(
   };
 
   if (shouldSnapshot(current.lastSnapshotTimestamp, timestamp)) {
-    setVeNFTStateSnapshot(veNFTState, timestamp, context);
+    await setVeNFTStateSnapshot(veNFTState, timestamp, context);
     veNFTState = {
       ...veNFTState,
       lastSnapshotTimestamp: getSnapshotEpoch(timestamp),

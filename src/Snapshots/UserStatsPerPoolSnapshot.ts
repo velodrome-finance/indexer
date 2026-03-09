@@ -72,6 +72,8 @@ export function createUserStatsPerPoolSnapshot(
     veNFTamountStaked: entity.veNFTamountStaked,
     almAddress: entity.almAddress,
     almLpAmount: entity.almLpAmount,
+    lastAlmActivityTimestamp: entity.lastAlmActivityTimestamp,
+    lastActivityTimestamp: entity.lastActivityTimestamp,
   };
 }
 

@@ -59,8 +59,8 @@ describe("VeNFT Events", () => {
     let mockEvent: ReturnType<typeof VeNFT.Transfer.createMockEvent>;
 
     beforeEach(async () => {
-      vi.spyOn(VeNFTStateModule, "updateVeNFTState").mockImplementation(
-        () => {},
+      vi.spyOn(VeNFTStateModule, "updateVeNFTState").mockResolvedValue(
+        undefined,
       );
       vi.spyOn(VeNFTLogic, "processVeNFTTransfer");
       vi.spyOn(VeNFTLogic, "reassignVeNFTVotesOnTransfer").mockResolvedValue(
@@ -525,8 +525,8 @@ describe("VeNFT Events", () => {
     let mockEvent: ReturnType<typeof VeNFT.Withdraw.createMockEvent>;
 
     beforeEach(async () => {
-      vi.spyOn(VeNFTStateModule, "updateVeNFTState").mockImplementation(
-        () => {},
+      vi.spyOn(VeNFTStateModule, "updateVeNFTState").mockResolvedValue(
+        undefined,
       );
       vi.spyOn(VeNFTLogic, "processVeNFTWithdraw");
 
@@ -606,8 +606,8 @@ describe("VeNFT Events", () => {
     let mockEvent: ReturnType<typeof VeNFT.Deposit.createMockEvent>;
 
     beforeEach(async () => {
-      vi.spyOn(VeNFTStateModule, "updateVeNFTState").mockImplementation(
-        () => {},
+      vi.spyOn(VeNFTStateModule, "updateVeNFTState").mockResolvedValue(
+        undefined,
       );
       vi.spyOn(VeNFTLogic, "processVeNFTDeposit");
 

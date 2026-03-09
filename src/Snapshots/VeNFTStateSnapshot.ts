@@ -1,5 +1,6 @@
 import type { VeNFTState, VeNFTStateSnapshot, handlerContext } from "generated";
 
+import { loadPoolVotesByVeNFT } from "../Aggregators/VeNFTPoolVote";
 import { VeNFTStateSnapshotId } from "../Constants";
 import {
   type SnapshotForPersist,
@@ -7,6 +8,7 @@ import {
   getSnapshotEpoch,
   persistSnapshot,
 } from "./Shared";
+import { setVeNFTPoolVoteSnapshot } from "./VeNFTPoolVoteSnapshot";
 
 /**
  * Creates an epoch-aligned snapshot of VeNFTState (no persistence).
@@ -42,16 +44,23 @@ export function createVeNFTStateSnapshot(
  * @param entity - VeNFTState to snapshot
  * @param timestamp - Timestamp used to compute snapshot epoch
  * @param context - Handler context
- * @returns void
+ * @returns Resolves after the veNFT snapshot and any vote snapshots are persisted.
  */
-export function setVeNFTStateSnapshot(
+export async function setVeNFTStateSnapshot(
   entity: VeNFTState,
   timestamp: Date,
   context: handlerContext,
-): void {
+): Promise<void> {
+  const snapshot = createVeNFTStateSnapshot(entity, timestamp);
   const snapshotForPersist: SnapshotForPersist = {
     type: SnapshotType.VeNFTState,
-    snapshot: createVeNFTStateSnapshot(entity, timestamp),
+    snapshot,
   };
   persistSnapshot(snapshotForPersist, context);
+
+  const poolVotes = await loadPoolVotesByVeNFT(entity, context);
+
+  for (const poolVote of poolVotes) {
+    setVeNFTPoolVoteSnapshot(poolVote, entity, snapshot, timestamp, context);
+  }
 }

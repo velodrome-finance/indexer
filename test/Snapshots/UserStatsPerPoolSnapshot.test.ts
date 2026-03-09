@@ -53,6 +53,10 @@ describe("UserStatsPerPoolSnapshot", () => {
       expect(snapshot.totalFeesContributedUSD).toBe(
         entity.totalFeesContributedUSD,
       );
+      expect(snapshot.lastAlmActivityTimestamp).toBe(
+        entity.lastAlmActivityTimestamp,
+      );
+      expect(snapshot.lastActivityTimestamp).toBe(entity.lastActivityTimestamp);
     });
   });
 
@@ -109,6 +113,8 @@ describe("UserStatsPerPoolSnapshot", () => {
         chainId: entity.chainId,
         almLpAmount: 1000n,
         totalFeesContributedUSD: entity.totalFeesContributedUSD,
+        lastAlmActivityTimestamp: entity.lastAlmActivityTimestamp,
+        lastActivityTimestamp: entity.lastActivityTimestamp,
       }),
     );
   });

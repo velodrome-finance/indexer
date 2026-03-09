@@ -92,7 +92,7 @@ describe("VeNFTLogic", () => {
       const timestamp = new Date(mockDepositEvent.block.timestamp * 1000);
       const updateSpy = vi
         .spyOn(VeNFTStateAggregator, "updateVeNFTState")
-        .mockImplementation(() => {});
+        .mockResolvedValue(undefined);
 
       await VeNFTLogic.processVeNFTDeposit(
         mockDepositEvent,
@@ -147,7 +147,7 @@ describe("VeNFTLogic", () => {
       const timestamp = new Date(mockTransferEvent.block.timestamp * 1000);
       const updateSpy = vi
         .spyOn(VeNFTStateAggregator, "updateVeNFTState")
-        .mockImplementation(() => {});
+        .mockResolvedValue(undefined);
 
       await VeNFTLogic.processVeNFTTransfer(
         mockTransferEvent,
@@ -180,7 +180,7 @@ describe("VeNFTLogic", () => {
       const timestamp = new Date(burnEvent.block.timestamp * 1000);
       const updateSpy = vi
         .spyOn(VeNFTStateAggregator, "updateVeNFTState")
-        .mockImplementation(() => {});
+        .mockResolvedValue(undefined);
 
       await VeNFTLogic.processVeNFTTransfer(
         burnEvent,
@@ -236,7 +236,7 @@ describe("VeNFTLogic", () => {
       const timestamp = new Date(mockWithdrawEvent.block.timestamp * 1000);
       const updateSpy = vi
         .spyOn(VeNFTStateAggregator, "updateVeNFTState")
-        .mockImplementation(() => {});
+        .mockResolvedValue(undefined);
 
       await VeNFTLogic.processVeNFTWithdraw(
         mockWithdrawEvent,
@@ -297,7 +297,7 @@ describe("VeNFTLogic", () => {
       const timestamp = new Date(event.block.timestamp * 1000);
       const updateSpy = vi
         .spyOn(VeNFTStateAggregator, "updateVeNFTState")
-        .mockImplementation(() => {});
+        .mockResolvedValue(undefined);
 
       await VeNFTLogic.processVeNFTMerge(
         event,
@@ -382,7 +382,7 @@ describe("VeNFTLogic", () => {
       const timestamp = new Date(event.block.timestamp * 1000);
       const updateSpy = vi
         .spyOn(VeNFTStateAggregator, "updateVeNFTState")
-        .mockImplementation(() => {});
+        .mockResolvedValue(undefined);
 
       await VeNFTLogic.processVeNFTSplit(
         event,
@@ -470,7 +470,7 @@ describe("VeNFTLogic", () => {
       const timestamp = new Date(event.block.timestamp * 1000);
       const updateSpy = vi
         .spyOn(VeNFTStateAggregator, "updateVeNFTState")
-        .mockImplementation(() => {});
+        .mockResolvedValue(undefined);
 
       await VeNFTLogic.processVeNFTDepositManaged(
         event,
@@ -547,7 +547,7 @@ describe("VeNFTLogic", () => {
         SECONDS_IN_A_WEEK;
       const updateSpy = vi
         .spyOn(VeNFTStateAggregator, "updateVeNFTState")
-        .mockImplementation(() => {});
+        .mockResolvedValue(undefined);
 
       await VeNFTLogic.processVeNFTWithdrawManaged(
         event,
