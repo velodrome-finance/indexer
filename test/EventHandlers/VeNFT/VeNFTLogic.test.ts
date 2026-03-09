@@ -738,6 +738,87 @@ describe("VeNFTLogic", () => {
         new Date(mockTransferEvent.block.timestamp * 1000),
       );
     });
+
+    it("uses the pool vote chain id instead of the veNFT event chain id", async () => {
+      const leafChainId = 252;
+      const leafPoolAddress = toChecksumAddress(
+        "0xb43F6D14FeFA510F014cf90c8Ab110803bB28778",
+      );
+      const oldOwnerId = `${leafChainId}-${mockVeNFTState.owner}-${leafPoolAddress}`;
+      const newOwnerId = `${leafChainId}-${mockTransferEvent.params.to}-${leafPoolAddress}`;
+      const poolVotes = [
+        {
+          id: VeNFTPoolVoteId(leafChainId, 1n, leafPoolAddress),
+          poolAddress: leafPoolAddress,
+          veNFTamountStaked: 50n,
+          veNFTState_id: mockVeNFTState.id,
+          lastUpdatedTimestamp: new Date(0),
+        },
+      ] as VeNFTPoolVote[];
+
+      vi.mocked(mockContext.VeNFTPoolVote?.getWhere).mockResolvedValue(
+        poolVotes,
+      );
+
+      const previousOwnerStats = {
+        id: oldOwnerId,
+        userAddress: mockVeNFTState.owner,
+        poolAddress: leafPoolAddress,
+        chainId: leafChainId,
+        veNFTamountStaked: 50n,
+        lastActivityTimestamp: new Date(0),
+      } as UserStatsPerPool;
+      const newOwnerStats = {
+        id: newOwnerId,
+        userAddress: mockTransferEvent.params.to,
+        poolAddress: leafPoolAddress,
+        chainId: leafChainId,
+        veNFTamountStaked: 0n,
+        lastActivityTimestamp: new Date(0),
+      } as UserStatsPerPool;
+
+      vi.mocked(mockContext.UserStatsPerPool?.get).mockImplementation(
+        (id: string) =>
+          Promise.resolve(
+            id === oldOwnerId
+              ? previousOwnerStats
+              : id === newOwnerId
+                ? newOwnerStats
+                : undefined,
+          ),
+      );
+
+      const updateUserStatsSpy = vi.spyOn(
+        UserStatsPerPoolModule,
+        "updateUserStatsPerPool",
+      );
+
+      await VeNFTLogic.reassignVeNFTVotesOnTransfer(
+        mockTransferEvent,
+        mockVeNFTState,
+        mockContext,
+      );
+
+      expect(mockContext.UserStatsPerPool?.get).toHaveBeenCalledWith(
+        oldOwnerId,
+      );
+      expect(updateUserStatsSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          incrementalVeNFTamountStaked: -50n,
+        }),
+        previousOwnerStats,
+        mockContext,
+        new Date(mockTransferEvent.block.timestamp * 1000),
+      );
+      expect(updateUserStatsSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          incrementalVeNFTamountStaked: 50n,
+        }),
+        newOwnerStats,
+        mockContext,
+        new Date(mockTransferEvent.block.timestamp * 1000),
+      );
+    });
   });
 
   describe("updatePreviousOwnerUserStatsOnTransfer", () => {
@@ -762,6 +843,7 @@ describe("VeNFTLogic", () => {
         mockTransferEvent,
         toChecksumAddress("0x1111111111111111111111111111111111111111"),
         "0xpool1",
+        10,
         50n,
         mockContext,
       );
@@ -796,6 +878,7 @@ describe("VeNFTLogic", () => {
         mockTransferEvent,
         toChecksumAddress("0x1111111111111111111111111111111111111111"),
         "0xpool1",
+        10,
         50n,
         mockContext,
       );
@@ -835,6 +918,7 @@ describe("VeNFTLogic", () => {
         mockTransferEvent,
         toChecksumAddress("0x0000000000000000000000000000000000000000"),
         "0xpool1",
+        10,
         50n,
         mockContext,
       );
@@ -854,6 +938,7 @@ describe("VeNFTLogic", () => {
         mockTransferEvent,
         toChecksumAddress("0x2222222222222222222222222222222222222222"),
         "0xpool1",
+        10,
         50n,
         mockContext,
       );
