@@ -1,4 +1,8 @@
-import type { CLPool_Mint_event, Token } from "generated";
+import type {
+  CLPool_Mint_event,
+  LiquidityPoolAggregator,
+  Token,
+} from "generated";
 import type { LiquidityPoolAggregatorDiff } from "../../Aggregators/LiquidityPoolAggregator";
 import { calculateTotalUSD } from "../../Helpers";
 
@@ -8,13 +12,15 @@ export interface CLPoolMintResult {
 
 export function processCLPoolMint(
   event: CLPool_Mint_event,
+  liquidityPoolAggregator: LiquidityPoolAggregator,
   token0Instance: Token,
   token1Instance: Token,
 ): CLPoolMintResult {
-  // Calculate USD values using already-refreshed token prices from loadPoolData
-  const totalLiquidityUSD = calculateTotalUSD(
-    event.params.amount0,
-    event.params.amount1,
+  const newReserve0 = liquidityPoolAggregator.reserve0 + event.params.amount0;
+  const newReserve1 = liquidityPoolAggregator.reserve1 + event.params.amount1;
+  const currentTotalLiquidityUSD = calculateTotalUSD(
+    newReserve0,
+    newReserve1,
     token0Instance,
     token1Instance,
   );
@@ -22,7 +28,7 @@ export function processCLPoolMint(
   const liquidityPoolDiff = {
     incrementalReserve0: event.params.amount0,
     incrementalReserve1: event.params.amount1,
-    incrementalCurrentLiquidityUSD: totalLiquidityUSD,
+    currentTotalLiquidityUSD: currentTotalLiquidityUSD,
     lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
   };
 

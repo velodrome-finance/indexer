@@ -40,7 +40,7 @@ interface SwapVolumeAndFees {
 interface SwapLiquidityChanges {
   newReserve0: bigint;
   newReserve1: bigint;
-  deltaTotalLiquidityUSD: bigint;
+  currentTotalLiquidityUSD: bigint;
 }
 
 /**
@@ -198,28 +198,23 @@ export function calculateSwapLiquidityChanges(
   token0Instance: Token | undefined,
   token1Instance: Token | undefined,
 ): SwapLiquidityChanges {
-  // Calculate new reserves after the swap
-  // In the swap event, amount0 and amount1 can be both negative or positive, so we add either way
+  // Reserve fields represent swappable liquidity. We intentionally keep using the
+  // signed swap event deltas here and treat Collect/CollectFees/Flash as non-reserve
+  // events so CL totalLiquidityUSD can be derived from post-swap reserves.
   const newReserve0 = liquidityPoolAggregator.reserve0 + event.params.amount0;
   const newReserve1 = liquidityPoolAggregator.reserve1 + event.params.amount1;
 
-  // Calculate new total liquidity USD using already-refreshed token prices
-  const newTotalLiquidityUSD = calculateTotalUSD(
+  const currentTotalLiquidityUSD = calculateTotalUSD(
     newReserve0,
     newReserve1,
     token0Instance,
     token1Instance,
   );
 
-  // Calculate the delta in total liquidity USD
-  const currentTotalLiquidityUSD = liquidityPoolAggregator.totalLiquidityUSD;
-  const deltaTotalLiquidityUSD =
-    newTotalLiquidityUSD - currentTotalLiquidityUSD;
-
   return {
     newReserve0,
     newReserve1,
-    deltaTotalLiquidityUSD,
+    currentTotalLiquidityUSD,
   };
 }
 
@@ -246,7 +241,7 @@ export async function processCLPoolSwap(
   );
 
   // Calculate liquidity and reserve changes
-  const { deltaTotalLiquidityUSD } = calculateSwapLiquidityChanges(
+  const { currentTotalLiquidityUSD } = calculateSwapLiquidityChanges(
     event,
     liquidityPoolAggregator,
     token0Instance,
@@ -269,7 +264,7 @@ export async function processCLPoolSwap(
     incrementalNumberOfSwaps: 1n,
     incrementalReserve0: event.params.amount0, // Delta: can be positive or negative (signed int256)
     incrementalReserve1: event.params.amount1, // Delta: can be positive or negative (signed int256)
-    incrementalCurrentLiquidityUSD: deltaTotalLiquidityUSD,
+    currentTotalLiquidityUSD,
     sqrtPriceX96: event.params.sqrtPriceX96, // Store current sqrt price from Swap event
     tick: event.params.tick, // Store current tick from Swap event
     lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),

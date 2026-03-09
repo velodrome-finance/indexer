@@ -1,4 +1,4 @@
-import type { Token } from "generated";
+import type { LiquidityPoolAggregator, Token } from "generated";
 import { CLPool } from "../../../generated/src/TestHelpers.gen";
 import { toChecksumAddress } from "../../../src/Constants";
 import { processCLPoolMint } from "../../../src/EventHandlers/CLPool/CLPoolMintLogic";
@@ -54,9 +54,21 @@ describe("CLPoolMintLogic", () => {
     lastUpdatedTimestamp: new Date(1000000 * 1000),
   };
 
+  const mockLiquidityPoolAggregator = {
+    ...mockLiquidityPoolData,
+    reserve0: 1000000000000000000n,
+    reserve1: 2000000000000000000n,
+    totalLiquidityUSD: 5000000000000000000n,
+  } as LiquidityPoolAggregator;
+
   describe("processCLPoolMint", () => {
     it("should process mint event successfully with valid data", () => {
-      const result = processCLPoolMint(mockEvent, mockToken0, mockToken1);
+      const result = processCLPoolMint(
+        mockEvent,
+        mockLiquidityPoolAggregator,
+        mockToken0,
+        mockToken1,
+      );
 
       // Check liquidity pool diff with exact values
       expect(result.liquidityPoolDiff.incrementalReserve0).toBe(
@@ -66,14 +78,19 @@ describe("CLPoolMintLogic", () => {
         300000000000000000n,
       ); // amount1 (0.3 token)
 
-      // Calculate exact totalLiquidityUSD: (0.5 * 1 USD) + (0.3 * 2 USD) = 0.5 + 0.6 = 1.1 USD
-      expect(result.liquidityPoolDiff.incrementalCurrentLiquidityUSD).toBe(
-        1100000000000000000n,
-      ); // 1.1 USD in 18 decimals
+      // Post-mint reserves: token0 = 1.5, token1 = 2.3 -> TVL = 1.5 + 4.6 = 6.1 USD
+      expect(result.liquidityPoolDiff.currentTotalLiquidityUSD).toBe(
+        6100000000000000000n,
+      );
     });
 
     it("should calculate correct liquidity values for mint event", () => {
-      const result = processCLPoolMint(mockEvent, mockToken0, mockToken1);
+      const result = processCLPoolMint(
+        mockEvent,
+        mockLiquidityPoolAggregator,
+        mockToken0,
+        mockToken1,
+      );
 
       // The liquidity pool diff should reflect the amounts being added with exact values
       expect(result.liquidityPoolDiff.incrementalReserve0).toBe(
@@ -82,9 +99,9 @@ describe("CLPoolMintLogic", () => {
       expect(result.liquidityPoolDiff.incrementalReserve1).toBe(
         300000000000000000n,
       ); // amount1
-      expect(result.liquidityPoolDiff.incrementalCurrentLiquidityUSD).toBe(
-        1100000000000000000n,
-      ); // 1.1 USD in 18 decimals
+      expect(result.liquidityPoolDiff.currentTotalLiquidityUSD).toBe(
+        6100000000000000000n,
+      );
     });
 
     it("should handle different token decimals correctly", () => {
@@ -95,6 +112,7 @@ describe("CLPoolMintLogic", () => {
 
       const result = processCLPoolMint(
         mockEvent,
+        mockLiquidityPoolAggregator,
         tokenWithDifferentDecimals,
         mockToken1,
       );
@@ -121,13 +139,16 @@ describe("CLPoolMintLogic", () => {
 
       const result = processCLPoolMint(
         eventWithZeroAmounts,
+        mockLiquidityPoolAggregator,
         mockToken0,
         mockToken1,
       );
 
       expect(result.liquidityPoolDiff.incrementalReserve0).toBe(0n);
       expect(result.liquidityPoolDiff.incrementalReserve1).toBe(0n);
-      expect(result.liquidityPoolDiff.incrementalCurrentLiquidityUSD).toBe(0n);
+      expect(result.liquidityPoolDiff.currentTotalLiquidityUSD).toBe(
+        5000000000000000000n,
+      );
     });
   });
 });

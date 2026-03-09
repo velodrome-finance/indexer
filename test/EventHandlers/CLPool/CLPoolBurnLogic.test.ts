@@ -54,29 +54,45 @@ describe("CLPoolBurnLogic", () => {
     lastUpdatedTimestamp: new Date(1000000 * 1000),
   };
 
+  const mockLiquidityPoolAggregator: LiquidityPoolAggregator = {
+    ...mockLiquidityPoolData,
+    reserve0: 1000000n,
+    reserve1: 3000000000000000000n,
+    totalLiquidityUSD: 7000000000000000000n,
+  };
+
   describe("processCLPoolBurn", () => {
     it("should process burn event successfully with valid data", () => {
-      const result = processCLPoolBurn(mockEvent, mockToken0, mockToken1);
+      const result = processCLPoolBurn(
+        mockEvent,
+        mockLiquidityPoolAggregator,
+        mockToken0,
+        mockToken1,
+      );
 
       // Check liquidity pool diff with exact values (negative because burning decreases reserves)
       expect(result.liquidityPoolDiff.incrementalReserve0).toBe(-500000n); // -amount0 (delta)
       expect(result.liquidityPoolDiff.incrementalReserve1).toBe(-300000n); // -amount1 (delta)
 
-      // Calculate exact totalLiquidityUSD: (500000 * 1 USD) + (300000 * 2 USD) = 500000 + 600000 = 1100000 USD (negative because reserves decrease)
-      expect(result.liquidityPoolDiff.incrementalCurrentLiquidityUSD).toBe(
-        -1100000n,
-      ); // -1.1M USD in 18 decimals
+      expect(result.liquidityPoolDiff.currentTotalLiquidityUSD).toBe(
+        5999999999999900000n,
+      );
     });
 
     it("should calculate correct liquidity values for burn event", () => {
-      const result = processCLPoolBurn(mockEvent, mockToken0, mockToken1);
+      const result = processCLPoolBurn(
+        mockEvent,
+        mockLiquidityPoolAggregator,
+        mockToken0,
+        mockToken1,
+      );
 
       // The liquidity pool diff should reflect the reserve deltas (negative because burning decreases reserves)
       expect(result.liquidityPoolDiff.incrementalReserve0).toBe(-500000n); // -amount0 (delta)
       expect(result.liquidityPoolDiff.incrementalReserve1).toBe(-300000n); // -amount1 (delta)
-      expect(result.liquidityPoolDiff.incrementalCurrentLiquidityUSD).toBe(
-        -1100000n,
-      ); // Negative because reserves decrease
+      expect(result.liquidityPoolDiff.currentTotalLiquidityUSD).toBe(
+        5999999999999900000n,
+      );
     });
 
     it("should handle different token decimals correctly", () => {
@@ -87,14 +103,7 @@ describe("CLPoolBurnLogic", () => {
 
       const result = processCLPoolBurn(
         mockEvent,
-        tokenWithDifferentDecimals,
-        mockToken1,
-      );
-
-      // Calculate expected values using the same logic as processCLPoolBurn
-      const expectedTotalLiquidityUSD = calculateTotalUSD(
-        mockEvent.params.amount0,
-        mockEvent.params.amount1,
+        mockLiquidityPoolAggregator,
         tokenWithDifferentDecimals,
         mockToken1,
       );
@@ -103,7 +112,12 @@ describe("CLPoolBurnLogic", () => {
       const expectedLiquidityPoolDiff = {
         incrementalReserve0: -mockEvent.params.amount0, // -500000n
         incrementalReserve1: -mockEvent.params.amount1, // -300000n
-        incrementalCurrentLiquidityUSD: -expectedTotalLiquidityUSD,
+        currentTotalLiquidityUSD: calculateTotalUSD(
+          mockLiquidityPoolAggregator.reserve0 - mockEvent.params.amount0,
+          mockLiquidityPoolAggregator.reserve1 - mockEvent.params.amount1,
+          tokenWithDifferentDecimals,
+          mockToken1,
+        ),
       };
 
       // Assert liquidity pool diff with precise values
@@ -113,8 +127,8 @@ describe("CLPoolBurnLogic", () => {
       expect(result.liquidityPoolDiff.incrementalReserve1).toEqual(
         expectedLiquidityPoolDiff.incrementalReserve1,
       );
-      expect(result.liquidityPoolDiff.incrementalCurrentLiquidityUSD).toEqual(
-        expectedLiquidityPoolDiff.incrementalCurrentLiquidityUSD,
+      expect(result.liquidityPoolDiff.currentTotalLiquidityUSD).toEqual(
+        expectedLiquidityPoolDiff.currentTotalLiquidityUSD,
       );
     });
   });

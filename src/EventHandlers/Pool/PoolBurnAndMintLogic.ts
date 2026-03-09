@@ -239,7 +239,7 @@ export async function processPoolLiquidityEvent(
   );
 
   // Update pool metrics (token prices only)
-  // DO NOT update incrementalCurrentLiquidityUSD here - TVL is computed from reserves in Sync handler
+  // DO NOT update totalLiquidityUSD here - TVL is computed from reserves in Sync handler
   // No updates to reserves are needed - Sync events handle reserve updates
   // Mint and burn functions always call _update method on the contract which always emits Sync event
   const poolDiff = {

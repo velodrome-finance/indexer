@@ -160,6 +160,15 @@ describe("CLPoolCollectLogic", () => {
       expect(result.liquidityPoolDiff).not.toHaveProperty(
         "incrementalTotalStakedFeesCollectedUSD",
       );
+      expect(result.liquidityPoolDiff).not.toHaveProperty(
+        "incrementalReserve0",
+      );
+      expect(result.liquidityPoolDiff).not.toHaveProperty(
+        "incrementalReserve1",
+      );
+      expect(result.liquidityPoolDiff).not.toHaveProperty(
+        "currentTotalLiquidityUSD",
+      );
     });
   });
 });

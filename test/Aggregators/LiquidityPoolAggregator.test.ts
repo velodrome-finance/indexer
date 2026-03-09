@@ -267,6 +267,52 @@ describe("LiquidityPoolAggregator Functions", () => {
     });
   });
 
+  describe("updateLiquidityPoolAggregator", () => {
+    it("should overwrite totalLiquidityUSD when currentTotalLiquidityUSD is provided", async () => {
+      await updateLiquidityPoolAggregator(
+        {
+          currentTotalLiquidityUSD: 777n,
+        },
+        {
+          ...(liquidityPoolAggregator as LiquidityPoolAggregator),
+          totalLiquidityUSD: 100n,
+        },
+        timestamp,
+        mockContext as handlerContext,
+        10,
+        blockNumber,
+      );
+
+      const poolStore = mockContext.LiquidityPoolAggregator;
+      if (!poolStore) {
+        throw new Error("test setup: LiquidityPoolAggregator store must exist");
+      }
+      const setCalls = vi.mocked(poolStore.set).mock.calls;
+      expect(setCalls.at(-1)?.[0]?.totalLiquidityUSD).toBe(777n);
+    });
+
+    it("should preserve totalLiquidityUSD when no overwrite is provided", async () => {
+      await updateLiquidityPoolAggregator(
+        {},
+        {
+          ...(liquidityPoolAggregator as LiquidityPoolAggregator),
+          totalLiquidityUSD: 100n,
+        },
+        timestamp,
+        mockContext as handlerContext,
+        10,
+        blockNumber,
+      );
+
+      const poolStore = mockContext.LiquidityPoolAggregator;
+      if (!poolStore) {
+        throw new Error("test setup: LiquidityPoolAggregator store must exist");
+      }
+      const setCalls = vi.mocked(poolStore.set).mock.calls;
+      expect(setCalls.at(-1)?.[0]?.totalLiquidityUSD).toBe(100n);
+    });
+  });
+
   describe("Updating the Liquidity Pool Aggregator", () => {
     let diff = {
       incrementalTotalVolume0: 0n,

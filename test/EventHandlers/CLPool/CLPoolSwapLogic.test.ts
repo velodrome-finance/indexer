@@ -406,8 +406,7 @@ describe("CLPoolSwapLogic", () => {
 
       // New reserves: 1 + 1 = 2 tokens0, 2 + 2 = 4 tokens1
       // New liquidity: 2 * $1 + 4 * $2 = $2 + $8 = $10
-      // Delta: $10 - $5 = $5
-      expect(result.deltaTotalLiquidityUSD).toBe(5n * TEN_TO_THE_18_BI);
+      expect(result.currentTotalLiquidityUSD).toBe(10n * TEN_TO_THE_18_BI);
     });
 
     it("should calculate liquidity delta correctly when liquidity decreases", () => {
@@ -436,8 +435,7 @@ describe("CLPoolSwapLogic", () => {
 
       // New reserves: 10 - 5 = 5 tokens0, 20 - 10 = 10 tokens1
       // New liquidity: 5 * $1 + 10 * $2 = $5 + $20 = $25
-      // Delta: $25 - $50 = -$25
-      expect(result.deltaTotalLiquidityUSD).toBe(-25n * TEN_TO_THE_18_BI);
+      expect(result.currentTotalLiquidityUSD).toBe(25n * TEN_TO_THE_18_BI);
     });
 
     it("should handle undefined tokens correctly", () => {
@@ -482,6 +480,9 @@ describe("CLPoolSwapLogic", () => {
       expect(result.liquidityPoolDiff.incrementalTotalFeesGeneratedUSD).toBe(
         3000000000000000n,
       ); // 3e15
+      expect(result.liquidityPoolDiff.currentTotalLiquidityUSD).toBe(
+        19n * TEN_TO_THE_18_BI,
+      );
 
       expect(result.userSwapDiff.incrementalNumberOfSwaps).toBe(1n);
       expect(result.userSwapDiff.incrementalTotalSwapVolumeAmount0).toBe(
@@ -510,6 +511,9 @@ describe("CLPoolSwapLogic", () => {
       expect(result.liquidityPoolDiff.incrementalTotalVolume0).toBe(0n);
       expect(result.liquidityPoolDiff.incrementalTotalVolume1).toBe(0n);
       expect(result.liquidityPoolDiff.incrementalTotalVolumeUSD).toBe(0n);
+      expect(result.liquidityPoolDiff.currentTotalLiquidityUSD).toBe(
+        22n * TEN_TO_THE_18_BI,
+      );
     });
 
     it("should handle undefined tokens with fallback to pool prices", async () => {
