@@ -130,6 +130,12 @@ type LiquidityPoolAggregatorSnapshot {
 
   gaugeIsAlive: Boolean! # whether the gauge is alive
   gaugeAddress: String @index # address of the gauge for this pool
+  gaugeEmissionsCap: BigInt @config(precision: 76) # Emissions cap for gauge
+  numberOfGaugeDeposits: BigInt! @config(precision: 76) # number of gauge deposits (staking)
+  numberOfGaugeWithdrawals: BigInt! @config(precision: 76) # number of gauge withdrawals (unstaking)
+  numberOfGaugeRewardClaims: BigInt! @config(precision: 76) # number of gauge reward claims
+  totalGaugeRewardsClaimedUSD: BigInt! @config(precision: 76) # total gauge rewards claimed in USD
+  totalGaugeRewardsClaimed: BigInt! @config(precision: 76) # total gauge rewards claimed in token units
   currentLiquidityStaked: BigInt! @config(precision: 76) # current liquidity staked in gauge in token units
   currentLiquidityStakedUSD: BigInt! @config(precision: 76) # current liquidity staked in gauge in USD
   timestamp: Timestamp! # timestamp of last update
@@ -281,6 +287,8 @@ type UserStatsPerPoolSnapshot {
   # ALM metrics
   almAddress: String!
   almLpAmount: BigInt! @config(precision: 76)
+  lastAlmActivityTimestamp: Timestamp!
+  lastActivityTimestamp: Timestamp!
 }
 
 # Entity that tracks the latest state of the token entity
@@ -370,6 +378,8 @@ type VeNFTStateSnapshot {
   totalValueLocked: BigInt! @config(precision: 76)
   isAlive: Boolean!
   timestamp: Timestamp! @index
+  votesPerPool: [VeNFTPoolVoteSnapshot!]!
+    @derivedFrom(field: "veNFTStateSnapshot")
 }
 
 type VeNFTPoolVote {
@@ -378,6 +388,17 @@ type VeNFTPoolVote {
   veNFTamountStaked: BigInt! @config(precision: 76)
   veNFTState: VeNFTState! @index
   lastUpdatedTimestamp: Timestamp!
+}
+
+type VeNFTPoolVoteSnapshot {
+  id: ID! # Format: {chainId}-{tokenId}-{poolAddress}-{epochMs}
+  chainId: Int!
+  tokenId: BigInt! @config(precision: 76)
+  poolAddress: String! @index
+  veNFTamountStaked: BigInt! @config(precision: 76)
+  lastUpdatedTimestamp: Timestamp!
+  timestamp: Timestamp! @index
+  veNFTStateSnapshot: VeNFTStateSnapshot! @index
 }
 
 # ALM LP Wrapper entity

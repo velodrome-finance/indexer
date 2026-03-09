@@ -47,7 +47,7 @@ export async function processVeNFTDeposit(
   };
 
   // Apply VeNFT aggregator updates
-  updateVeNFTState(veNFTStateDiff, currentVeNFTState, timestamp, context);
+  await updateVeNFTState(veNFTStateDiff, currentVeNFTState, timestamp, context);
 }
 
 /**
@@ -72,7 +72,7 @@ export async function processVeNFTWithdraw(
   };
 
   // Apply VeNFT aggregator updates
-  updateVeNFTState(veNFTStateDiff, currentVeNFTState, timestamp, context);
+  await updateVeNFTState(veNFTStateDiff, currentVeNFTState, timestamp, context);
 }
 
 /**
@@ -100,7 +100,7 @@ export async function processVeNFTTransfer(
     isAlive: event.params.to !== ZERO_ADDRESS,
   };
 
-  updateVeNFTState(veNFTStateDiff, currentVeNFTState, timestamp, context);
+  await updateVeNFTState(veNFTStateDiff, currentVeNFTState, timestamp, context);
 }
 
 /**
@@ -118,7 +118,7 @@ export async function processVeNFTTransfer(
  * is treated as an absolute value; the other fields override the current entity
  * only when provided.
  */
-function reconcileVeNFTState(
+async function reconcileVeNFTState(
   currentVeNFTState: VeNFTState,
   timestamp: Date,
   context: handlerContext,
@@ -128,7 +128,7 @@ function reconcileVeNFTState(
     locktime?: bigint;
     isAlive?: boolean;
   },
-): void {
+): Promise<void> {
   const veNFTStateDiff = {
     owner: target.owner,
     locktime: target.locktime,
@@ -138,7 +138,7 @@ function reconcileVeNFTState(
     lastUpdatedTimestamp: timestamp,
   };
 
-  updateVeNFTState(veNFTStateDiff, currentVeNFTState, timestamp, context);
+  await updateVeNFTState(veNFTStateDiff, currentVeNFTState, timestamp, context);
 }
 
 /**
@@ -188,8 +188,10 @@ export async function processVeNFTMerge(
     isAlive: true,
   };
 
-  reconcileVeNFTState(fromVeNFTState, timestamp, context, fromVeNFTStateDiff);
-  reconcileVeNFTState(toVeNFTState, timestamp, context, toVeNFTStateDiff);
+  await Promise.all([
+    reconcileVeNFTState(fromVeNFTState, timestamp, context, fromVeNFTStateDiff),
+    reconcileVeNFTState(toVeNFTState, timestamp, context, toVeNFTStateDiff),
+  ]);
 }
 
 /**
@@ -233,24 +235,26 @@ export async function processVeNFTSplit(
     isAlive: true,
   };
 
-  reconcileVeNFTState(
-    fromVeNFTState,
-    timestamp,
-    context,
-    originalVeNFTStateDiff,
-  );
-  reconcileVeNFTState(
-    token1VeNFTState,
-    timestamp,
-    context,
-    token1VeNFTStateDiff,
-  );
-  reconcileVeNFTState(
-    token2VeNFTState,
-    timestamp,
-    context,
-    token2VeNFTStateDiff,
-  );
+  await Promise.all([
+    reconcileVeNFTState(
+      fromVeNFTState,
+      timestamp,
+      context,
+      originalVeNFTStateDiff,
+    ),
+    reconcileVeNFTState(
+      token1VeNFTState,
+      timestamp,
+      context,
+      token1VeNFTStateDiff,
+    ),
+    reconcileVeNFTState(
+      token2VeNFTState,
+      timestamp,
+      context,
+      token2VeNFTStateDiff,
+    ),
+  ]);
 }
 
 /**
@@ -286,13 +290,20 @@ export async function processVeNFTDepositManaged(
   // the NFT still exists on-chain, keeps its owner, and can later receive TVL again
   // via WithdrawManaged. This differs from Merge / Split / burn flows, where the
   // source token ID is actually destroyed and should be marked not alive.
-  reconcileVeNFTState(tokenVeNFTState, timestamp, context, tokenVeNFTStateDiff);
-  reconcileVeNFTState(
-    managedVeNFTState,
-    timestamp,
-    context,
-    managedVeNFTStateDiff,
-  );
+  await Promise.all([
+    reconcileVeNFTState(
+      tokenVeNFTState,
+      timestamp,
+      context,
+      tokenVeNFTStateDiff,
+    ),
+    reconcileVeNFTState(
+      managedVeNFTState,
+      timestamp,
+      context,
+      managedVeNFTStateDiff,
+    ),
+  ]);
 }
 
 /**
@@ -329,13 +340,20 @@ export async function processVeNFTWithdrawManaged(
   // `isAlive = true` explicitly because the token is a live NFT position after
   // the withdrawal; it was never burned during the managed-deposit period, only
   // temporarily reduced to zero standalone TVL.
-  reconcileVeNFTState(tokenVeNFTState, timestamp, context, tokenVeNFTStateDiff);
-  reconcileVeNFTState(
-    managedVeNFTState,
-    timestamp,
-    context,
-    managedVeNFTStateDiff,
-  );
+  await Promise.all([
+    reconcileVeNFTState(
+      tokenVeNFTState,
+      timestamp,
+      context,
+      tokenVeNFTStateDiff,
+    ),
+    reconcileVeNFTState(
+      managedVeNFTState,
+      timestamp,
+      context,
+      managedVeNFTStateDiff,
+    ),
+  ]);
 }
 
 /**

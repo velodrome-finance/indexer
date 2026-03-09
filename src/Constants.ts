@@ -932,6 +932,20 @@ export const VeNFTStateSnapshotId = (
   epochMs: number,
 ) => `${chainId}-${tokenId}-${epochMs}`;
 
+/** Snapshot ID for VeNFTPoolVoteSnapshot. Format: {chainId}-{tokenId}-{poolAddress}-{epochMs}
+ * @param chainId - Chain ID of the veNFT state
+ * @param tokenId - ID of the veNFT state
+ * @param poolAddress - Address of the pool
+ * @param epochMs - Epoch timestamp in milliseconds
+ * @returns string Combined veNFT pool vote snapshot ID.
+ */
+export const VeNFTPoolVoteSnapshotId = (
+  chainId: number,
+  tokenId: bigint,
+  poolAddress: string,
+  epochMs: number,
+) => `${chainId}-${tokenId}-${poolAddress}-${epochMs}`;
+
 // Key is chain ID
 export const CHAIN_CONSTANTS: Record<number, chainConstants> = {
   10: OPTIMISM_CONSTANTS,

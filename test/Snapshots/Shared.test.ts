@@ -14,6 +14,7 @@ import {
 } from "../../src/Snapshots/Shared";
 import { createTokenPriceSnapshot } from "../../src/Snapshots/TokenPriceSnapshot";
 import { createUserStatsPerPoolSnapshot } from "../../src/Snapshots/UserStatsPerPoolSnapshot";
+import { createVeNFTPoolVoteSnapshot } from "../../src/Snapshots/VeNFTPoolVoteSnapshot";
 import { createVeNFTStateSnapshot } from "../../src/Snapshots/VeNFTStateSnapshot";
 import { setupCommon } from "../EventHandlers/Pool/common";
 
@@ -170,6 +171,32 @@ describe("Snapshots Shared", () => {
       expect(context.VeNFTStateSnapshot.set).toHaveBeenCalledWith(snapshot);
     });
 
+    it("should call VeNFTPoolVoteSnapshot.set when type is VeNFTPoolVote", () => {
+      const common = setupCommon();
+      const context = common.createMockContext({
+        VeNFTPoolVoteSnapshot: { set: vi.fn() },
+      });
+      const veNFTState = common.createMockVeNFTState();
+      const veNFTStateSnapshot = createVeNFTStateSnapshot(
+        veNFTState,
+        new Date(oneHourMs * 2),
+      );
+      const poolVote = common.createMockVeNFTPoolVote({
+        veNFTamountStaked: 100n,
+      });
+      const snapshot = createVeNFTPoolVoteSnapshot(
+        poolVote,
+        veNFTState,
+        veNFTStateSnapshot,
+        new Date(oneHourMs * 2),
+      );
+
+      persistSnapshot({ type: SnapshotType.VeNFTPoolVote, snapshot }, context);
+
+      expect(context.VeNFTPoolVoteSnapshot.set).toHaveBeenCalledTimes(1);
+      expect(context.VeNFTPoolVoteSnapshot.set).toHaveBeenCalledWith(snapshot);
+    });
+
     it("should call TokenPriceSnapshot.set when type is TokenPrice", () => {
       const common = setupCommon();
       const context = common.createMockContext({
@@ -206,6 +233,7 @@ describe("Snapshots Shared", () => {
         NonFungiblePositionSnapshot: { set: vi.fn() },
         ALM_LP_WrapperSnapshot: { set: vi.fn() },
         VeNFTStateSnapshot: { set: vi.fn() },
+        VeNFTPoolVoteSnapshot: { set: vi.fn() },
         TokenPriceSnapshot: { set: vi.fn() },
       });
       const invalidItem = {
@@ -222,6 +250,7 @@ describe("Snapshots Shared", () => {
       expect(context.NonFungiblePositionSnapshot.set).not.toHaveBeenCalled();
       expect(context.ALM_LP_WrapperSnapshot.set).not.toHaveBeenCalled();
       expect(context.VeNFTStateSnapshot.set).not.toHaveBeenCalled();
+      expect(context.VeNFTPoolVoteSnapshot.set).not.toHaveBeenCalled();
       expect(context.TokenPriceSnapshot.set).not.toHaveBeenCalled();
     });
   });

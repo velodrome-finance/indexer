@@ -26,6 +26,10 @@ export {
   setVeNFTStateSnapshot,
 } from "./VeNFTStateSnapshot";
 export {
+  createVeNFTPoolVoteSnapshot,
+  setVeNFTPoolVoteSnapshot,
+} from "./VeNFTPoolVoteSnapshot";
+export {
   createTokenPriceSnapshot,
   setTokenPriceSnapshot,
 } from "./TokenPriceSnapshot";

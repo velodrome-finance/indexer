@@ -46,6 +46,12 @@ describe("VeNFTState", () => {
       VeNFTStateSnapshot: {
         set: vi.fn(),
       } as unknown as handlerContext["VeNFTStateSnapshot"],
+      VeNFTPoolVote: {
+        getWhere: vi.fn().mockResolvedValue([]),
+      } as unknown as handlerContext["VeNFTPoolVote"],
+      VeNFTPoolVoteSnapshot: {
+        set: vi.fn(),
+      } as unknown as handlerContext["VeNFTPoolVoteSnapshot"],
       log: {
         error: vi.fn(),
         info: vi.fn(),
@@ -115,7 +121,7 @@ describe("VeNFTState", () => {
           isAlive: true,
         };
 
-        updateVeNFTState(
+        await updateVeNFTState(
           depositDiff,
           mockVeNFTState,
           timestamp,
@@ -143,7 +149,7 @@ describe("VeNFTState", () => {
           incrementalTotalValueLocked: -30n,
         };
 
-        updateVeNFTState(
+        await updateVeNFTState(
           withdrawDiff,
           mockVeNFTState,
           timestamp,
@@ -169,7 +175,7 @@ describe("VeNFTState", () => {
           isAlive: true,
         };
 
-        updateVeNFTState(
+        await updateVeNFTState(
           transferDiff,
           mockVeNFTState,
           timestamp,
@@ -197,7 +203,7 @@ describe("VeNFTState", () => {
           isAlive: false,
         };
 
-        updateVeNFTState(
+        await updateVeNFTState(
           burnDiff,
           mockVeNFTState,
           timestamp,
@@ -236,7 +242,7 @@ describe("VeNFTState", () => {
           isAlive: true,
         };
 
-        updateVeNFTState(
+        await updateVeNFTState(
           depositDiff,
           emptyVeNFT,
           timestamp,
@@ -254,9 +260,9 @@ describe("VeNFTState", () => {
     });
 
     describe("lastSnapshotTimestamp", () => {
-      it("should set lastSnapshotTimestamp to epoch when current has it undefined (first snapshot)", () => {
+      it("should set lastSnapshotTimestamp to epoch when current has it undefined (first snapshot)", async () => {
         const depositDiff = { incrementalTotalValueLocked: 10n };
-        updateVeNFTState(
+        await updateVeNFTState(
           depositDiff,
           mockVeNFTState, // lastSnapshotTimestamp: undefined
           timestamp,
@@ -287,13 +293,13 @@ describe("VeNFTState", () => {
         );
       });
 
-      it("should preserve lastSnapshotTimestamp when present and diff does not provide a newer one", () => {
+      it("should preserve lastSnapshotTimestamp when present and diff does not provide a newer one", async () => {
         const stateWithSnapshot: VeNFTState = {
           ...mockVeNFTState,
           lastSnapshotTimestamp: new Date(9000 * 1000),
         };
         const depositDiff = { incrementalTotalValueLocked: 10n };
-        updateVeNFTState(
+        await updateVeNFTState(
           depositDiff,
           stateWithSnapshot,
           timestamp,
@@ -304,7 +310,7 @@ describe("VeNFTState", () => {
         expect(updated.lastSnapshotTimestamp).toEqual(new Date(9000 * 1000));
       });
 
-      it("should replace lastSnapshotTimestamp when diff provides a newer value", () => {
+      it("should replace lastSnapshotTimestamp when diff provides a newer value", async () => {
         const stateWithOlderSnapshot: VeNFTState = {
           ...mockVeNFTState,
           lastSnapshotTimestamp: new Date(8000 * 1000),
@@ -314,7 +320,7 @@ describe("VeNFTState", () => {
           incrementalTotalValueLocked: 10n,
           lastSnapshotTimestamp: newerSnapshotTime,
         };
-        updateVeNFTState(
+        await updateVeNFTState(
           depositDiff,
           stateWithOlderSnapshot,
           timestamp,
@@ -325,7 +331,7 @@ describe("VeNFTState", () => {
         expect(updated.lastSnapshotTimestamp).toEqual(newerSnapshotTime);
       });
 
-      it("should not replace lastSnapshotTimestamp when diff provides an older value", () => {
+      it("should not replace lastSnapshotTimestamp when diff provides an older value", async () => {
         const existingSnapshot = new Date(10000 * 1000);
         const stateWithNewerSnapshot: VeNFTState = {
           ...mockVeNFTState,
@@ -336,7 +342,7 @@ describe("VeNFTState", () => {
           incrementalTotalValueLocked: 10n,
           lastSnapshotTimestamp: olderSnapshotTime,
         };
-        updateVeNFTState(
+        await updateVeNFTState(
           depositDiff,
           stateWithNewerSnapshot,
           timestamp,

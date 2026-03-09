@@ -4,6 +4,7 @@ import type {
   NonFungiblePositionSnapshot,
   TokenPriceSnapshot,
   UserStatsPerPoolSnapshot,
+  VeNFTPoolVoteSnapshot,
   VeNFTStateSnapshot,
   handlerContext,
 } from "generated";
@@ -16,6 +17,7 @@ export enum SnapshotType {
   NonFungiblePosition = "NonFungiblePosition",
   ALMLPWrapper = "ALMLPWrapper",
   VeNFTState = "VeNFTState",
+  VeNFTPoolVote = "VeNFTPoolVote",
   TokenPrice = "TokenPrice",
 }
 
@@ -36,6 +38,7 @@ export type SnapshotForPersist =
     }
   | { type: SnapshotType.ALMLPWrapper; snapshot: ALM_LP_WrapperSnapshot }
   | { type: SnapshotType.VeNFTState; snapshot: VeNFTStateSnapshot }
+  | { type: SnapshotType.VeNFTPoolVote; snapshot: VeNFTPoolVoteSnapshot }
   | { type: SnapshotType.TokenPrice; snapshot: TokenPriceSnapshot };
 
 /**
@@ -95,6 +98,9 @@ export function persistSnapshot(
       break;
     case SnapshotType.VeNFTState:
       context.VeNFTStateSnapshot.set(item.snapshot);
+      break;
+    case SnapshotType.VeNFTPoolVote:
+      context.VeNFTPoolVoteSnapshot.set(item.snapshot);
       break;
     case SnapshotType.TokenPrice:
       context.TokenPriceSnapshot.set(item.snapshot);
