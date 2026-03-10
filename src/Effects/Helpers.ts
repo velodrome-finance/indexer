@@ -53,6 +53,7 @@ const ERROR_KEYWORDS: Record<ErrorType, string[]> = {
     "connection closed",
     "socket closed",
     "premature close",
+    "temporary internal error. please retry",
   ],
   [ErrorType.UNKNOWN]: [],
 };

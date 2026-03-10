@@ -40,6 +40,10 @@ describe("Helpers", () => {
         { error: "Contract revert", expected: ErrorType.CONTRACT_REVERT },
         { error: "Network error", expected: ErrorType.NETWORK_ERROR },
         { error: "Connection error", expected: ErrorType.NETWORK_ERROR },
+        {
+          error: "Temporary internal error. Please retry",
+          expected: ErrorType.NETWORK_ERROR,
+        },
         { error: "Something went wrong", expected: ErrorType.UNKNOWN },
       ];
 
@@ -190,6 +194,28 @@ describe("Helpers", () => {
       expect(fn).toHaveBeenCalledTimes(2);
       expect(mockLog.warn).toHaveBeenCalledTimes(1);
       expect(mockLog.warn.mock.calls[0]?.[0]).toContain("RATE_LIMIT");
+      expect(mockLog.warn.mock.calls[0]?.[0]).toContain("Retrying");
+    });
+
+    it("should retry on Temporary internal error. Please retry then succeed", async () => {
+      const fn = vi
+        .fn()
+        .mockRejectedValueOnce(
+          new Error("Temporary internal error. Please retry"),
+        )
+        .mockResolvedValueOnce(99n);
+      const result = await runWithRpcRetry(
+        {
+          log: mockLog,
+          operationName: "getSwapFee",
+          logDetails: { chainId: 10 },
+        },
+        fn,
+      );
+      expect(result).toBe(99n);
+      expect(fn).toHaveBeenCalledTimes(2);
+      expect(mockLog.warn).toHaveBeenCalledTimes(1);
+      expect(mockLog.warn.mock.calls[0]?.[0]).toContain("NETWORK_ERROR");
       expect(mockLog.warn.mock.calls[0]?.[0]).toContain("Retrying");
     });
 
