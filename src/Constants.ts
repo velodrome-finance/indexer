@@ -161,13 +161,13 @@ export const DefaultRPC = {
  * Shared HTTP transport options for all chain RPC clients (DRPC best practices).
  * Centralised so batch size and timeout are tuned in one place.
  * - batchSize 1_000: viem default. We are using dRPC now so we can use a larger batch size.
- * - timeout 60s: prevents indefinite hangs.
+ * - timeout 120s: applied per HTTP request (per batch when batching is enabled), not per individual JSON-RPC call.
  * - retryCount 0: transport-level retries are disabled. All RPC retries are handled in one place
  *   by RpcGateway (runWithRpcRetry + RPC_APP_RETRY), with logging and error-type-aware backoff.
  */
 export const RPC_HTTP_OPTIONS = {
   batch: { batchSize: 1_000 },
-  timeout: 60000, // RPC timeout in milliseconds (60 seconds). Prevents indefinite hangs on slow or unresponsive RPC providers
+  timeout: 120000, // Per HTTP request (per batch when batching). Prevents indefinite hangs on slow or unresponsive RPC providers.
   retryCount: 0,
 } as const;
 

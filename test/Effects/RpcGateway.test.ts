@@ -130,7 +130,7 @@ describe("RpcGateway", () => {
       );
     });
 
-    it("should log very slow request via log.error when getTokenDetails exceeds VERY_SLOW_REQUEST_MS", async () => {
+    it("should log very slow successful request via log.warn when getTokenDetails exceeds VERY_SLOW_REQUEST_MS", async () => {
       const readContract = vi.mocked(mockEthClient.readContract);
       readContract
         .mockResolvedValueOnce("Slow")
@@ -160,10 +160,9 @@ describe("RpcGateway", () => {
         decimals: 18,
         symbol: "TKN",
       });
-      expect(mockContext.log.error).toHaveBeenCalledTimes(1);
-      expect(mockContext.log.error).toHaveBeenCalledWith(
+      expect(mockContext.log.warn).toHaveBeenCalledTimes(1);
+      expect(mockContext.log.warn).toHaveBeenCalledWith(
         expect.stringContaining("Very slow request"),
-        expect.any(Error),
       );
     });
   });

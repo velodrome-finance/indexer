@@ -605,7 +605,8 @@ export async function executeRpcWithFallback<T>(
  * {@link ErrorType.RATE_LIMIT} and {@link ErrorType.NETWORK_ERROR} with
  * error-type-aware exponential backoff (caps from {@link RPC_APP_RETRY}).
  * Non-retryable errors or exhausted retries are rethrown for the caller to handle
- * (e.g. via {@link handleEffectErrorReturn}). Logs slow requests (>5s warn, >30s error).
+ * (e.g. via {@link handleEffectErrorReturn}). Logs slow requests: >5s warn; >30s
+ * very-slow successful requests as warn, very-slow failed requests as error.
  *
  * @param options - Configuration for retry and logging.
  * @param options.log - Logger with required `warn` and optional `error` (single-arg: message string).
@@ -633,6 +634,7 @@ export async function runWithRpcRetry<T>(
 
     try {
       const result = await fn();
+      // Wall-clock for this logical operation; fn() may perform one or more RPC calls (viem may batch them).
       const durationMs = Date.now() - startTime;
 
       logSlowRequestIfNeeded(
@@ -710,11 +712,12 @@ function getRetryLogPrefix(operationName: string | undefined): string {
 }
 
 /** Logs slow or very-slow request when duration exceeds thresholds.
+ * Very-slow successful requests are logged as warn; very-slow failed requests as error.
  *
  * @param log - Logger with required `warn` and optional `error` (single-arg: message string).
  * @param prefix - Log prefix for the message.
  * @param detailSuffix - Details suffix for the message.
- * @param durationMs - Duration in milliseconds.
+ * @param durationMs - Duration in milliseconds (wall-clock for the whole fn() invocation; may reflect one or more batched RPC calls).
  * @param kind - Kind of request ("request" or "failed request").
  * @returns void
  */
@@ -727,8 +730,14 @@ function logSlowRequestIfNeeded(
   kind: "request" | "failed request",
 ): void {
   const label = kind === "request" ? "request" : "failed request";
-  if (durationMs > VERY_SLOW_REQUEST_MS && log.error) {
+  if (
+    durationMs > VERY_SLOW_REQUEST_MS &&
+    kind === "failed request" &&
+    log.error
+  ) {
     log.error(`${prefix} Very slow ${label}: ${durationMs}ms${detailSuffix}`);
+  } else if (durationMs > VERY_SLOW_REQUEST_MS) {
+    log.warn(`${prefix} Very slow ${label}: ${durationMs}ms${detailSuffix}`);
   } else if (durationMs > SLOW_REQUEST_MS) {
     log.warn(`${prefix} Slow ${label}: ${durationMs}ms${detailSuffix}`);
   }
