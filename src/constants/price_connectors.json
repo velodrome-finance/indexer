@@ -45,10 +45,6 @@
       "createdBlock": 10
     },
     {
-      "address": "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",
-      "createdBlock": 1
-    },
-    {
       "address": "0x4200000000000000000000000000000000000006",
       "createdBlock": 1
     },
@@ -91,10 +87,6 @@
       "createdBlock": 2062407
     },
     {
-      "address": "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",
-      "createdBlock": 1
-    },
-    {
       "address": "0x4200000000000000000000000000000000000006",
       "createdBlock": 1
     },
@@ -104,10 +96,6 @@
     }
   ],
   "mode": [
-    {
-      "address": "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",
-      "createdBlock": 1
-    },
     {
       "address": "0x4200000000000000000000000000000000000006",
       "createdBlock": 1
@@ -126,10 +114,6 @@
     }
   ],
   "lisk": [
-    {
-      "address": "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",
-      "createdBlock": 1
-    },
     {
       "address": "0x05D032ac25d322df992303dCa074EE7392C117b9",
       "createdBlock": 1639961
@@ -179,17 +163,9 @@
     {
       "address": "0x4200000000000000000000000000000000000006",
       "createdBlock": 1
-    },
-    {
-      "address": "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",
-      "createdBlock": 1
     }
   ],
   "soneium": [
-    {
-      "address": "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",
-      "createdBlock": 1
-    },
     {
       "address": "0xbA9986D2381edf1DA03B0B9c1f8b00dc4AacC369",
       "createdBlock": 1
@@ -205,10 +181,6 @@
   ],
   "ink": [
     {
-      "address": "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",
-      "createdBlock": 1
-    },
-    {
       "address": "0xF1815bd50389c46847f0Bda824eC8da914045D14",
       "createdBlock": 1
     },
@@ -222,10 +194,6 @@
     }
   ],
   "metal": [
-    {
-      "address": "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",
-      "createdBlock": 1
-    },
     {
       "address": "0xb91CFCcA485C6E40E3bC622f9BFA02a8ACdEeBab",
       "createdBlock": 1
@@ -244,10 +212,6 @@
     }
   ],
   "unichain": [
-    {
-      "address": "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",
-      "createdBlock": 1
-    },
     {
       "address": "0x4200000000000000000000000000000000000006",
       "createdBlock": 1
@@ -271,10 +235,6 @@
   ],
   "celo": [
     {
-      "address": "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",
-      "createdBlock": 1
-    },
-    {
       "address": "0xD221812de1BD094f35587EE8E174B07B6167D9Af",
       "createdBlock": 1
     },
@@ -292,10 +252,6 @@
     }
   ],
   "swellchain": [
-    {
-      "address": "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",
-      "createdBlock": 1
-    },
     {
       "address": "0x4200000000000000000000000000000000000006",
       "createdBlock": 1
