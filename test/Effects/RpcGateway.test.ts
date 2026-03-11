@@ -130,7 +130,7 @@ describe("RpcGateway", () => {
       );
     });
 
-    it("should log very slow request via log.error when getTokenDetails exceeds VERY_SLOW_REQUEST_MS", async () => {
+    it("should log very slow successful request via log.warn when getTokenDetails exceeds VERY_SLOW_REQUEST_MS", async () => {
       const readContract = vi.mocked(mockEthClient.readContract);
       readContract
         .mockResolvedValueOnce("Slow")
@@ -160,9 +160,37 @@ describe("RpcGateway", () => {
         decimals: 18,
         symbol: "TKN",
       });
-      expect(mockContext.log.error).toHaveBeenCalledTimes(1);
-      expect(mockContext.log.error).toHaveBeenCalledWith(
+      expect(mockContext.log.warn).toHaveBeenCalledTimes(1);
+      expect(mockContext.log.warn).toHaveBeenCalledWith(
         expect.stringContaining("Very slow request"),
+      );
+    });
+
+    it("should log very slow failed request via log.error when getTokenDetails exceeds VERY_SLOW_REQUEST_MS", async () => {
+      vi.mocked(mockEthClient.readContract).mockRejectedValue(
+        new Error("execution reverted"),
+      );
+
+      const t0 = 1000000;
+      const verySlowMs = VERY_SLOW_REQUEST_MS + 1;
+      let dateNowCalls = 0;
+      vi.spyOn(Date, "now").mockImplementation(() =>
+        ++dateNowCalls === 1 ? t0 : t0 + verySlowMs,
+      );
+
+      await (
+        rpcGateway as unknown as { handler: MockEffect["handler"] }
+      ).handler({
+        input: {
+          type: "getTokenDetails",
+          chainId: TEST_CHAIN_ID,
+          contractAddress: TEST_CONTRACT_ADDRESS,
+        },
+        context: mockContext,
+      });
+
+      expect(mockContext.log.error).toHaveBeenCalledWith(
+        expect.stringContaining("Very slow failed request"),
         expect.any(Error),
       );
     });
