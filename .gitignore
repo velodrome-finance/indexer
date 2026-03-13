@@ -38,3 +38,6 @@ build
 
 # Coverage
 .nyc_output/
+
+# Script results (local-only test outputs)
+scripts/results/

@@ -213,7 +213,8 @@ export enum CrossChainPendingResolutionLogPrefix {
 // Object containing all the constants for a chain
 type chainConstants = {
   weth: string;
-  usdc: string;
+  destinationToken: string;
+  destinationTokenDecimals: number;
   oracle: {
     getType: (blockNumber: number) => PriceOracleType;
     getAddress: (priceOracleType: PriceOracleType) => string;
@@ -230,7 +231,8 @@ type chainConstants = {
 // Constants for Optimism
 const OPTIMISM_CONSTANTS: chainConstants = {
   weth: "0x4200000000000000000000000000000000000006",
-  usdc: "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+  destinationToken: "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+  destinationTokenDecimals: 6,
   oracle: {
     getType: (blockNumber: number) => {
       if (blockNumber > 125484892) {
@@ -279,7 +281,8 @@ const OPTIMISM_CONSTANTS: chainConstants = {
 // Constants for Base
 const BASE_CONSTANTS: chainConstants = {
   weth: "0x4200000000000000000000000000000000000006",
-  usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  destinationToken: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  destinationTokenDecimals: 6,
   oracle: {
     getType: (blockNumber: number) => {
       if (blockNumber > 37381618) {
@@ -325,7 +328,8 @@ const BASE_CONSTANTS: chainConstants = {
 // Constants for Lisk
 const LISK_CONSTANTS: chainConstants = {
   weth: "0x4200000000000000000000000000000000000006",
-  usdc: "0xF242275d3a6527d877f2c927a82D9b057609cc71",
+  destinationToken: "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189", // oUSDT
+  destinationTokenDecimals: 6,
   oracle: {
     getType: (blockNumber: number) => {
       if (blockNumber > 8457278) {
@@ -367,7 +371,8 @@ const LISK_CONSTANTS: chainConstants = {
 // Constants for Mode
 const MODE_CONSTANTS: chainConstants = {
   weth: "0x4200000000000000000000000000000000000006",
-  usdc: "0xd988097fb8612cc24eeC14542bC03424c656005f",
+  destinationToken: "0xd988097fb8612cc24eeC14542bC03424c656005f",
+  destinationTokenDecimals: 6,
   oracle: {
     getType: (blockNumber: number) => {
       if (blockNumber > 15738649) {
@@ -409,7 +414,8 @@ const MODE_CONSTANTS: chainConstants = {
 // Constants for Celo
 const CELO_CONSTANTS: chainConstants = {
   weth: "0x4200000000000000000000000000000000000006",
-  usdc: "0xef4229c8c3250C675F21BCefa42f58EfbfF6002a",
+  destinationToken: "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e", // USDT (native)
+  destinationTokenDecimals: 6,
   oracle: {
     getType: (blockNumber: number) => {
       return PriceOracleType.V3;
@@ -437,7 +443,8 @@ const CELO_CONSTANTS: chainConstants = {
 // Constants for Soneium
 const SONEIUM_CONSTANTS: chainConstants = {
   weth: "0x4200000000000000000000000000000000000006",
-  usdc: "0xbA9986D2381edf1DA03B0B9c1f8b00dc4AacC369",
+  destinationToken: "0xbA9986D2381edf1DA03B0B9c1f8b00dc4AacC369",
+  destinationTokenDecimals: 6,
   oracle: {
     getType: (blockNumber: number) => {
       return PriceOracleType.V3;
@@ -465,7 +472,8 @@ const SONEIUM_CONSTANTS: chainConstants = {
 // Constants for Unichain
 const UNICHAIN_CONSTANTS: chainConstants = {
   weth: "0x4200000000000000000000000000000000000006",
-  usdc: "0x078D782b760474a361dDA0AF3839290b0EF57AD6",
+  destinationToken: "0x078D782b760474a361dDA0AF3839290b0EF57AD6",
+  destinationTokenDecimals: 6,
   oracle: {
     getType: (blockNumber: number) => {
       return PriceOracleType.V3;
@@ -493,7 +501,8 @@ const UNICHAIN_CONSTANTS: chainConstants = {
 // Constants for Fraxtal
 const FRAXTAL_CONSTANTS: chainConstants = {
   weth: "0xFC00000000000000000000000000000000000006",
-  usdc: "0xDcc0F2D8F90FDe85b10aC1c8Ab57dc0AE946A543",
+  destinationToken: "0xFc00000000000000000000000000000000000001", // frxUSD
+  destinationTokenDecimals: 18,
   oracle: {
     getType: (blockNumber: number) => {
       if (blockNumber > 12710720) {
@@ -535,7 +544,8 @@ const FRAXTAL_CONSTANTS: chainConstants = {
 // Constants for Ink
 const INK_CONSTANTS: chainConstants = {
   weth: "0x4200000000000000000000000000000000000006",
-  usdc: "0xF1815bd50389c46847f0Bda824eC8da914045D14",
+  destinationToken: "0xF1815bd50389c46847f0Bda824eC8da914045D14",
+  destinationTokenDecimals: 6,
   oracle: {
     getType: (blockNumber: number) => {
       return PriceOracleType.V3;
@@ -563,7 +573,8 @@ const INK_CONSTANTS: chainConstants = {
 // Constants for Metal
 const METAL_CONSTANTS: chainConstants = {
   weth: "0x4200000000000000000000000000000000000006",
-  usdc: "0xb91CFCcA485C6E40E3bC622f9BFA02a8ACdEeBab",
+  destinationToken: "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189", // oUSDT
+  destinationTokenDecimals: 6,
   oracle: {
     getType: (blockNumber: number) => {
       return PriceOracleType.V3;
@@ -591,7 +602,8 @@ const METAL_CONSTANTS: chainConstants = {
 // Constants for Swell
 const SWELL_CONSTANTS: chainConstants = {
   weth: "0x4200000000000000000000000000000000000006",
-  usdc: "0x99a38322cAF878Ef55AE4d0Eda535535eF8C7960",
+  destinationToken: "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34", // USDe
+  destinationTokenDecimals: 18,
   oracle: {
     getType: (blockNumber: number) => {
       return PriceOracleType.V3;
