@@ -4,7 +4,6 @@ import {
   PriceOracleType,
   RPC_GATEWAY_PREFIX,
   TOKEN_DETAILS_FALLBACK,
-  USDC_DETAILS_FALLBACK,
 } from "../Constants";
 import {
   GLOBAL_REQUESTS_PER_SECOND,
@@ -336,16 +335,22 @@ async function handleGetTokenPrice(
       priceOracleType: "unknown",
     };
   }
-  const USDC_ADDRESS = chain.usdc;
+  const DESTINATION_TOKEN_ADDRESS = chain.destinationToken;
 
-  if (tokenAddress === USDC_ADDRESS) {
+  if (tokenAddress === DESTINATION_TOKEN_ADDRESS) {
     return {
       pricePerUSDNew: 10n ** 18n,
       priceOracleType: chain.oracle.getType(blockNumber).toString(),
     };
   }
 
-  const [tokenDetails, USDCTokenDetails] = await Promise.all([
+  const DESTINATION_TOKEN_DETAILS_FALLBACK = {
+    name: "DestinationToken",
+    symbol: "DestinationToken",
+    decimals: chain.destinationTokenDecimals,
+  };
+
+  const [tokenDetails, destinationTokenDetails] = await Promise.all([
     executeRpcWithFallback(
       context,
       rpcGatewayOpName(EffectType.GET_TOKEN_PRICE, "tokenDetails"),
@@ -355,10 +360,10 @@ async function handleGetTokenPrice(
     ),
     executeRpcWithFallback(
       context,
-      rpcGatewayOpName(EffectType.GET_TOKEN_PRICE, "usdcDetails"),
-      { contractAddress: USDC_ADDRESS, chainId },
-      USDC_DETAILS_FALLBACK,
-      () => fetchTokenDetails(USDC_ADDRESS, chain.eth_client),
+      rpcGatewayOpName(EffectType.GET_TOKEN_PRICE, "destinationTokenDetails"),
+      { contractAddress: DESTINATION_TOKEN_ADDRESS, chainId },
+      DESTINATION_TOKEN_DETAILS_FALLBACK,
+      () => fetchTokenDetails(DESTINATION_TOKEN_ADDRESS, chain.eth_client),
     ),
   ]);
 
@@ -380,7 +385,7 @@ async function handleGetTokenPrice(
     .map((c) => c.address)
     .filter((a) => a !== tokenAddress)
     .filter((a) => a !== WETH_ADDRESS)
-    .filter((a) => a !== USDC_ADDRESS)
+    .filter((a) => a !== DESTINATION_TOKEN_ADDRESS)
     .filter((a) => a !== SYSTEM_TOKEN_ADDRESS);
 
   const operationName = rpcGatewayOpName(EffectType.GET_TOKEN_PRICE);
@@ -392,7 +397,7 @@ async function handleGetTokenPrice(
   const fetcher = () =>
     fetchTokenPrice(
       tokenAddress,
-      USDC_ADDRESS,
+      DESTINATION_TOKEN_ADDRESS,
       SYSTEM_TOKEN_ADDRESS,
       WETH_ADDRESS,
       connectors,
@@ -416,7 +421,7 @@ async function handleGetTokenPrice(
   ) {
     currentPrice =
       (priceData.pricePerUSDNew * 10n ** BigInt(tokenDetails.decimals)) /
-      10n ** BigInt(USDCTokenDetails.decimals);
+      10n ** BigInt(destinationTokenDetails.decimals);
   } else {
     currentPrice = priceData.pricePerUSDNew;
   }

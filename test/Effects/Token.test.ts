@@ -89,14 +89,16 @@ describe("Token Effects", () => {
       startBlock?: number;
       priceConnectors?: Array<{ address: string; createdBlock: number }>;
       weth?: string;
-      usdc?: string;
+      destinationToken?: string;
+      destinationTokenDecimals?: number;
       rewardToken?: string | (() => string);
     } = {},
   ) => {
     (CHAIN_CONSTANTS as Record<number, unknown>)[TEST_CHAIN_ID] = {
       eth_client: mockEthClient,
       weth: options.weth ?? TEST_SYSTEM_TOKEN,
-      usdc: options.usdc ?? TEST_USDC_ADDRESS,
+      destinationToken: options.destinationToken ?? TEST_USDC_ADDRESS,
+      destinationTokenDecimals: options.destinationTokenDecimals ?? 6,
       rewardToken:
         options.rewardToken ?? vi.fn().mockReturnValue(TEST_SYSTEM_TOKEN),
       oracle: {
@@ -182,7 +184,9 @@ describe("Token Effects", () => {
     });
 
     it("should return 1e18 price for USDC without calling oracle", async () => {
-      setupChainConstants(PriceOracleType.V3, { usdc: TEST_USDC_ADDRESS });
+      setupChainConstants(PriceOracleType.V3, {
+        destinationToken: TEST_USDC_ADDRESS,
+      });
       vi.mocked(TokenEffects.fetchTokenPrice).mockClear();
 
       const result = await mockContext.effect(getTokenPrice as never, {
