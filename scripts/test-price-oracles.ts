@@ -9,27 +9,22 @@
  *   npx tsx scripts/test-price-oracles.ts
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
-import {
-  type PublicClient,
-  createPublicClient,
-  http,
-  type Chain,
-} from "viem";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { config } from "dotenv";
+import { http, type Chain, type PublicClient, createPublicClient } from "viem";
 import {
   base,
-  optimism,
-  lisk,
-  mode,
   celo,
   fraxtal,
   ink,
+  lisk,
+  mode,
+  optimism,
   soneium,
   unichain,
 } from "viem/chains";
-import { config } from "dotenv";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -47,7 +42,9 @@ let cgCache: Record<string, number> = {};
 if (existsSync(CG_CACHE_PATH)) {
   try {
     cgCache = JSON.parse(readFileSync(CG_CACHE_PATH, "utf-8"));
-  } catch { /* fresh cache */ }
+  } catch {
+    /* fresh cache */
+  }
 }
 
 function saveCgCache() {
@@ -100,7 +97,7 @@ const chains: ChainTestConfig[] = [
   {
     name: "Base",
     chain: base,
-    rpcUrl: process.env.ENVIO_BASE_RPC_URL!,
+    rpcUrl: process.env.ENVIO_BASE_RPC_URL ?? "",
     token: "0x940181a94A35A4569E4529A3CDfB74e38FD98631",
     tokenName: "AERO",
     destinationToken: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
@@ -118,10 +115,30 @@ const chains: ChainTestConfig[] = [
     ],
     cgId: "aerodrome-finance",
     oracles: [
-      { version: "V1", address: "0xe58920a8c684CD3d6dCaC2a41b12998e4CB17EfE", blocks: [15_000_000, 17_000_000, 18_400_000], type: "v1v2" },
-      { version: "V2", address: "0xcbf5b6abf55fb87271338097fdd03e9d82a9d63f", blocks: [18_600_000, 19_200_000, 19_800_000], type: "v1v2" },
-      { version: "V3", address: "0x3B06c787711ecb5624cE65AC8F26cde10831eb0C", blocks: [22_000_000, 28_000_000, 37_000_000], type: "v3v4" },
-      { version: "V4", address: "0x8456038bdae8672f552182B0FC39b1917dE9a41A", blocks: [38_000_000, 40_000_000, "latest"], type: "v3v4" },
+      {
+        version: "V1",
+        address: "0xe58920a8c684CD3d6dCaC2a41b12998e4CB17EfE",
+        blocks: [15_000_000, 17_000_000, 18_400_000],
+        type: "v1v2",
+      },
+      {
+        version: "V2",
+        address: "0xcbf5b6abf55fb87271338097fdd03e9d82a9d63f",
+        blocks: [18_600_000, 19_200_000, 19_800_000],
+        type: "v1v2",
+      },
+      {
+        version: "V3",
+        address: "0x3B06c787711ecb5624cE65AC8F26cde10831eb0C",
+        blocks: [22_000_000, 28_000_000, 37_000_000],
+        type: "v3v4",
+      },
+      {
+        version: "V4",
+        address: "0x8456038bdae8672f552182B0FC39b1917dE9a41A",
+        blocks: [38_000_000, 40_000_000, "latest"],
+        type: "v3v4",
+      },
     ],
   },
 
@@ -129,7 +146,7 @@ const chains: ChainTestConfig[] = [
   {
     name: "Optimism",
     chain: optimism,
-    rpcUrl: process.env.ENVIO_OPTIMISM_RPC_URL!,
+    rpcUrl: process.env.ENVIO_OPTIMISM_RPC_URL ?? "",
     token: "0x9560e827aF36c94D2Ac33a39bCE1Fe78631088Db",
     tokenName: "VELO",
     destinationToken: "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
@@ -154,39 +171,201 @@ const chains: ChainTestConfig[] = [
     ],
     cgId: "velodrome-finance",
     oracles: [
-      { version: "V1", address: "0x395942C2049604a314d39F370Dfb8D87AAC89e16", blocks: [115_000_000, 120_000_000, 124_000_000], type: "v1v2" },
-      { version: "V2", address: "0x6a3af44e23395d2470f7c81331add6ede8597306", blocks: [124_200_000, 124_800_000, 125_400_000], type: "v1v2" },
-      { version: "V3", address: "0x59114D308C6DE4A84F5F8cD80485a5481047b99f", blocks: [126_000_000, 128_000_000, "latest"], type: "v3v4" },
+      {
+        version: "V1",
+        address: "0x395942C2049604a314d39F370Dfb8D87AAC89e16",
+        blocks: [115_000_000, 120_000_000, 124_000_000],
+        type: "v1v2",
+      },
+      {
+        version: "V2",
+        address: "0x6a3af44e23395d2470f7c81331add6ede8597306",
+        blocks: [124_200_000, 124_800_000, 125_400_000],
+        type: "v1v2",
+      },
+      {
+        version: "V3",
+        address: "0x59114D308C6DE4A84F5F8cD80485a5481047b99f",
+        blocks: [126_000_000, 128_000_000, "latest"],
+        type: "v3v4",
+      },
     ],
   },
 
   // ===== SUPERCHAIN (XVELO) =====
   ...[
-    { name: "Lisk", chain: lisk, rpcUrl: process.env.ENVIO_LISK_RPC_URL!, oracle: "0x024503003fFE9AF285f47c1DaAaA497D9f1166D0", destinationToken: "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189", destinationTokenDecimals: 6, weth: "0x4200000000000000000000000000000000000006", connectors: ["0x05D032ac25d322df992303dCa074EE7392C117b9", "0xF242275d3a6527d877f2c927a82D9b057609cc71", "0x4200000000000000000000000000000000000006", "0xac485391EB2d7D88253a7F1eF18C37f4242D1A24", "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81"] },
-    { name: "Mode", chain: mode, rpcUrl: process.env.ENVIO_MODE_RPC_URL!, oracle: "0xbAEe949B52cb503e39f1Df54Dcee778da59E11bc", destinationToken: "0xd988097fb8612cc24eeC14542bC03424c656005f", destinationTokenDecimals: 6, weth: "0x4200000000000000000000000000000000000006", connectors: ["0x4200000000000000000000000000000000000006", "0xDfc7C877a950e49D2610114102175A06C2e3167a", "0xd988097fb8612cc24eeC14542bC03424c656005f", "0xf0F161fDA2712DB8b566946122a5af183995e2eD", "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189", "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34"] },
-    { name: "Celo", chain: celo, rpcUrl: process.env.ENVIO_CELO_RPC_URL!, oracle: "0xbf6d753FC4a10Ec5191c56BB3DC1e414b7572327", destinationToken: "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e", destinationTokenDecimals: 6, weth: "0x4200000000000000000000000000000000000006", connectors: ["0xD221812de1BD094f35587EE8E174B07B6167D9Af", "0x471EcE3750Da237f93B8E339c536989b8978a438", "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e", "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81", "0xef4229c8c3250C675F21BCefa42f58EfbfF6002a", "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189"] },
-    { name: "Soneium", chain: soneium, rpcUrl: process.env.ENVIO_SONEIUM_RPC_URL!, oracle: "0xe58920a8c684CD3d6dCaC2a41b12998e4CB17EfE", destinationToken: "0xbA9986D2381edf1DA03B0B9c1f8b00dc4AacC369", destinationTokenDecimals: 6, weth: "0x4200000000000000000000000000000000000006", connectors: ["0xbA9986D2381edf1DA03B0B9c1f8b00dc4AacC369", "0x4200000000000000000000000000000000000006", "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81", "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189"] },
-    { name: "Ink", chain: ink, rpcUrl: process.env.ENVIO_INK_RPC_URL!, oracle: "0xe58920a8c684CD3d6dCaC2a41b12998e4CB17EfE", destinationToken: "0xF1815bd50389c46847f0Bda824eC8da914045D14", destinationTokenDecimals: 6, weth: "0x4200000000000000000000000000000000000006", connectors: ["0xF1815bd50389c46847f0Bda824eC8da914045D14", "0x4200000000000000000000000000000000000006", "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81", "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189", "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34"] },
-    { name: "Metal", chain: metalL2, rpcUrl: process.env.ENVIO_METAL_RPC_URL!, oracle: "0x3e71CCdf495d9628D3655A600Bcad3afF2ddea98", destinationToken: "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189", destinationTokenDecimals: 6, weth: "0x4200000000000000000000000000000000000006", connectors: ["0xb91CFCcA485C6E40E3bC622f9BFA02a8ACdEeBab", "0x4200000000000000000000000000000000000006", "0xBCFc435d8F276585f6431Fc1b9EE9A850B5C00A9", "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81"] },
-    { name: "Unichain", chain: unichain, rpcUrl: process.env.ENVIO_UNICHAIN_RPC_URL!, oracle: "0xe58920a8c684CD3d6dCaC2a41b12998e4CB17EfE", destinationToken: "0x078D782b760474a361dDA0AF3839290b0EF57AD6", destinationTokenDecimals: 6, weth: "0x4200000000000000000000000000000000000006", connectors: ["0x4200000000000000000000000000000000000006", "0x078D782b760474a361dDA0AF3839290b0EF57AD6", "0x588CE4F028D8e7B53B687865d6A67b3A54C75518", "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81", "0x8f187aA05619a017077f5308904739877ce9eA21", "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189"] },
-    { name: "Fraxtal", chain: fraxtal, rpcUrl: process.env.ENVIO_FRAXTAL_RPC_URL!, oracle: "0x4817f8D70aE32Ee96e5E6BFA24eb7Fcfa83bbf29", destinationToken: "0xFc00000000000000000000000000000000000001", destinationTokenDecimals: 18, weth: "0xFC00000000000000000000000000000000000006", connectors: ["0xFC00000000000000000000000000000000000005", "0xFC00000000000000000000000000000000000006", "0xFc00000000000000000000000000000000000001", "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34", "0x211Cc4DD073734dA055fbF44a2b4667d5E5fE5d2", "0xDcc0F2D8F90FDe85b10aC1c8Ab57dc0AE946A543", "0x4200000000000000000000000000000000000006", "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189"] },
-    { name: "Swell", chain: swellchain, rpcUrl: process.env.ENVIO_SWELL_RPC_URL!, oracle: "0xe58920a8c684CD3d6dCaC2a41b12998e4CB17EfE", destinationToken: "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34", destinationTokenDecimals: 18, weth: "0x4200000000000000000000000000000000000006", connectors: ["0x4200000000000000000000000000000000000006", "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81", "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34", "0x0000bAa0b1678229863c0A941C1056b83a1955F5", "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189", "0x99a38322cAF878Ef55AE4d0Eda535535eF8C7960"] },
-  ].map((sc): ChainTestConfig => ({
-    name: sc.name,
-    chain: sc.chain,
-    rpcUrl: sc.rpcUrl,
-    token: "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81", // XVELO
-    tokenName: "XVELO",
-    destinationToken: sc.destinationToken,
-    destinationTokenDecimals: sc.destinationTokenDecimals,
-    weth: sc.weth,
-    systemToken: "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
-    connectors: sc.connectors,
-    cgId: null, // XVELO not on CoinGecko
-    oracles: [
-      { version: "V3", address: sc.oracle, blocks: ["latest", -50_000, -100_000], type: "v3v4" },
-    ],
-  })),
+    {
+      name: "Lisk",
+      chain: lisk,
+      rpcUrl: process.env.ENVIO_LISK_RPC_URL ?? "",
+      oracle: "0x024503003fFE9AF285f47c1DaAaA497D9f1166D0",
+      destinationToken: "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189",
+      destinationTokenDecimals: 6,
+      weth: "0x4200000000000000000000000000000000000006",
+      connectors: [
+        "0x05D032ac25d322df992303dCa074EE7392C117b9",
+        "0xF242275d3a6527d877f2c927a82D9b057609cc71",
+        "0x4200000000000000000000000000000000000006",
+        "0xac485391EB2d7D88253a7F1eF18C37f4242D1A24",
+        "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
+      ],
+    },
+    {
+      name: "Mode",
+      chain: mode,
+      rpcUrl: process.env.ENVIO_MODE_RPC_URL ?? "",
+      oracle: "0xbAEe949B52cb503e39f1Df54Dcee778da59E11bc",
+      destinationToken: "0xd988097fb8612cc24eeC14542bC03424c656005f",
+      destinationTokenDecimals: 6,
+      weth: "0x4200000000000000000000000000000000000006",
+      connectors: [
+        "0x4200000000000000000000000000000000000006",
+        "0xDfc7C877a950e49D2610114102175A06C2e3167a",
+        "0xd988097fb8612cc24eeC14542bC03424c656005f",
+        "0xf0F161fDA2712DB8b566946122a5af183995e2eD",
+        "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189",
+        "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
+      ],
+    },
+    {
+      name: "Celo",
+      chain: celo,
+      rpcUrl: process.env.ENVIO_CELO_RPC_URL ?? "",
+      oracle: "0xbf6d753FC4a10Ec5191c56BB3DC1e414b7572327",
+      destinationToken: "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e",
+      destinationTokenDecimals: 6,
+      weth: "0x4200000000000000000000000000000000000006",
+      connectors: [
+        "0xD221812de1BD094f35587EE8E174B07B6167D9Af",
+        "0x471EcE3750Da237f93B8E339c536989b8978a438",
+        "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e",
+        "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
+        "0xef4229c8c3250C675F21BCefa42f58EfbfF6002a",
+        "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189",
+      ],
+    },
+    {
+      name: "Soneium",
+      chain: soneium,
+      rpcUrl: process.env.ENVIO_SONEIUM_RPC_URL ?? "",
+      oracle: "0xe58920a8c684CD3d6dCaC2a41b12998e4CB17EfE",
+      destinationToken: "0xbA9986D2381edf1DA03B0B9c1f8b00dc4AacC369",
+      destinationTokenDecimals: 6,
+      weth: "0x4200000000000000000000000000000000000006",
+      connectors: [
+        "0xbA9986D2381edf1DA03B0B9c1f8b00dc4AacC369",
+        "0x4200000000000000000000000000000000000006",
+        "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
+        "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189",
+      ],
+    },
+    {
+      name: "Ink",
+      chain: ink,
+      rpcUrl: process.env.ENVIO_INK_RPC_URL ?? "",
+      oracle: "0xe58920a8c684CD3d6dCaC2a41b12998e4CB17EfE",
+      destinationToken: "0xF1815bd50389c46847f0Bda824eC8da914045D14",
+      destinationTokenDecimals: 6,
+      weth: "0x4200000000000000000000000000000000000006",
+      connectors: [
+        "0xF1815bd50389c46847f0Bda824eC8da914045D14",
+        "0x4200000000000000000000000000000000000006",
+        "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
+        "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189",
+        "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
+      ],
+    },
+    {
+      name: "Metal",
+      chain: metalL2,
+      rpcUrl: process.env.ENVIO_METAL_RPC_URL ?? "",
+      oracle: "0x3e71CCdf495d9628D3655A600Bcad3afF2ddea98",
+      destinationToken: "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189",
+      destinationTokenDecimals: 6,
+      weth: "0x4200000000000000000000000000000000000006",
+      connectors: [
+        "0xb91CFCcA485C6E40E3bC622f9BFA02a8ACdEeBab",
+        "0x4200000000000000000000000000000000000006",
+        "0xBCFc435d8F276585f6431Fc1b9EE9A850B5C00A9",
+        "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
+      ],
+    },
+    {
+      name: "Unichain",
+      chain: unichain,
+      rpcUrl: process.env.ENVIO_UNICHAIN_RPC_URL ?? "",
+      oracle: "0xe58920a8c684CD3d6dCaC2a41b12998e4CB17EfE",
+      destinationToken: "0x078D782b760474a361dDA0AF3839290b0EF57AD6",
+      destinationTokenDecimals: 6,
+      weth: "0x4200000000000000000000000000000000000006",
+      connectors: [
+        "0x4200000000000000000000000000000000000006",
+        "0x078D782b760474a361dDA0AF3839290b0EF57AD6",
+        "0x588CE4F028D8e7B53B687865d6A67b3A54C75518",
+        "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
+        "0x8f187aA05619a017077f5308904739877ce9eA21",
+        "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189",
+      ],
+    },
+    {
+      name: "Fraxtal",
+      chain: fraxtal,
+      rpcUrl: process.env.ENVIO_FRAXTAL_RPC_URL ?? "",
+      oracle: "0x4817f8D70aE32Ee96e5E6BFA24eb7Fcfa83bbf29",
+      destinationToken: "0xFc00000000000000000000000000000000000001",
+      destinationTokenDecimals: 18,
+      weth: "0xFC00000000000000000000000000000000000006",
+      connectors: [
+        "0xFC00000000000000000000000000000000000005",
+        "0xFC00000000000000000000000000000000000006",
+        "0xFc00000000000000000000000000000000000001",
+        "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
+        "0x211Cc4DD073734dA055fbF44a2b4667d5E5fE5d2",
+        "0xDcc0F2D8F90FDe85b10aC1c8Ab57dc0AE946A543",
+        "0x4200000000000000000000000000000000000006",
+        "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189",
+      ],
+    },
+    {
+      name: "Swell",
+      chain: swellchain,
+      rpcUrl: process.env.ENVIO_SWELL_RPC_URL ?? "",
+      oracle: "0xe58920a8c684CD3d6dCaC2a41b12998e4CB17EfE",
+      destinationToken: "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
+      destinationTokenDecimals: 18,
+      weth: "0x4200000000000000000000000000000000000006",
+      connectors: [
+        "0x4200000000000000000000000000000000000006",
+        "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
+        "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
+        "0x0000bAa0b1678229863c0A941C1056b83a1955F5",
+        "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189",
+        "0x99a38322cAF878Ef55AE4d0Eda535535eF8C7960",
+      ],
+    },
+  ].map(
+    (sc): ChainTestConfig => ({
+      name: sc.name,
+      chain: sc.chain,
+      rpcUrl: sc.rpcUrl,
+      token: "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81", // XVELO
+      tokenName: "XVELO",
+      destinationToken: sc.destinationToken,
+      destinationTokenDecimals: sc.destinationTokenDecimals,
+      weth: sc.weth,
+      systemToken: "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
+      connectors: sc.connectors,
+      cgId: null, // XVELO not on CoinGecko
+      oracles: [
+        {
+          version: "V3",
+          address: sc.oracle,
+          blocks: ["latest", -50_000, -100_000],
+          type: "v3v4",
+        },
+      ],
+    }),
+  ),
 ];
 
 // ============================================================================
@@ -360,7 +539,9 @@ async function fetchCoinGeckoPrice(
 // Main
 // ============================================================================
 
-async function testChain(chainConfig: ChainTestConfig): Promise<OracleResult[]> {
+async function testChain(
+  chainConfig: ChainTestConfig,
+): Promise<OracleResult[]> {
   const client = createPublicClient({
     chain: chainConfig.chain,
     transport: http(chainConfig.rpcUrl, { timeout: 120_000, retryCount: 2 }),
@@ -373,20 +554,22 @@ async function testChain(chainConfig: ChainTestConfig): Promise<OracleResult[]> 
   try {
     latestBlock = await client.getBlockNumber();
   } catch (e) {
-    return [{
-      chain: chainConfig.name,
-      token: chainConfig.tokenName,
-      version: "-",
-      block: "latest",
-      oracleAddr: "-",
-      rawRate: "ERROR",
-      priceUsd: 0,
-      timestamp: 0,
-      cgPrice: null,
-      deviation: null,
-      status: "RPC_UNREACHABLE",
-      error: String(e),
-    }];
+    return [
+      {
+        chain: chainConfig.name,
+        token: chainConfig.tokenName,
+        version: "-",
+        block: "latest",
+        oracleAddr: "-",
+        rawRate: "ERROR",
+        priceUsd: 0,
+        timestamp: 0,
+        cgPrice: null,
+        deviation: null,
+        status: "RPC_UNREACHABLE",
+        error: String(e),
+      },
+    ];
   }
 
   // Build all call promises
@@ -422,9 +605,13 @@ async function testChain(chainConfig: ChainTestConfig): Promise<OracleResult[]> 
     callPromises.map(async ({ oracle, block, resolvedBlock }) => {
       if (oracle.type === "v3v4") {
         return callV3V4(client, chainConfig, oracle.address, resolvedBlock);
-      } else {
-        return callV1V2(client, chainConfig, oracle.address, resolvedBlock!);
       }
+      return callV1V2(
+        client,
+        chainConfig,
+        oracle.address,
+        resolvedBlock as bigint,
+      );
     }),
   );
 
@@ -445,8 +632,7 @@ async function testChain(chainConfig: ChainTestConfig): Promise<OracleResult[]> 
   for (let i = 0; i < callPromises.length; i++) {
     const { oracle, block } = callPromises[i];
     const callResult = callResults[i];
-    const ts =
-      timestamps[i].status === "fulfilled" ? timestamps[i].value : 0;
+    const ts = timestamps[i].status === "fulfilled" ? timestamps[i].value : 0;
 
     if (callResult.status === "rejected") {
       const errMsg = String(callResult.reason).substring(0, 120);
@@ -514,7 +700,10 @@ async function main() {
   // Validate RPC URLs
   const missingRpcs = chains.filter((c) => !c.rpcUrl);
   if (missingRpcs.length > 0) {
-    console.error("Missing RPC URLs in .env for:", missingRpcs.map((c) => c.name).join(", "));
+    console.error(
+      "Missing RPC URLs in .env for:",
+      missingRpcs.map((c) => c.name).join(", "),
+    );
     process.exit(1);
   }
 
@@ -561,7 +750,8 @@ async function main() {
 
   // Print oracle results
   for (const r of results) {
-    const icon = r.status === "OK" ? "✅" : r.status === "ZERO_RATE" ? "⚠️ " : "❌";
+    const icon =
+      r.status === "OK" ? "✅" : r.status === "ZERO_RATE" ? "⚠️ " : "❌";
     const priceStr = r.priceUsd > 0 ? `$${r.priceUsd.toFixed(6)}` : r.status;
     console.log(
       `  ${icon} ${r.chain.padEnd(12)} ${r.version.padEnd(4)} block=${String(r.block).padEnd(14)} => ${priceStr}`,
@@ -594,7 +784,7 @@ async function main() {
   }
 
   // Summary table
-  console.log("\n" + "=".repeat(110));
+  console.log(`\n${"=".repeat(110)}`);
   console.log("  SUMMARY TABLE");
   console.log("=".repeat(110));
   console.log(
@@ -613,27 +803,36 @@ async function main() {
 
   // Issues summary
   const zeros = results.filter((r) => r.status === "ZERO_RATE");
-  const reverts = results.filter((r) => r.status === "REVERT" || r.status === "CHAIN_ERROR");
+  const reverts = results.filter(
+    (r) => r.status === "REVERT" || r.status === "CHAIN_ERROR",
+  );
   const highDev = results.filter((r) => r.status === "HIGH_DEVIATION");
   const ok = results.filter((r) => r.status === "OK");
 
-  console.log("\n" + "=".repeat(80));
+  console.log(`\n${"=".repeat(80)}`);
   console.log("  ISSUES DETECTED");
   console.log("=".repeat(80));
 
   if (zeros.length > 0) {
     console.log(`\n🔴 ZERO PRICE RETURNS (${zeros.length}):`);
-    for (const r of zeros) console.log(`   ${r.chain} ${r.version} block=${r.block}`);
+    for (const r of zeros)
+      console.log(`   ${r.chain} ${r.version} block=${r.block}`);
   }
 
   if (reverts.length > 0) {
     console.log(`\n🔴 REVERTS/ERRORS (${reverts.length}):`);
-    for (const r of reverts) console.log(`   ${r.chain} ${r.version} block=${r.block} => ${r.error?.substring(0, 80) ?? r.status}`);
+    for (const r of reverts)
+      console.log(
+        `   ${r.chain} ${r.version} block=${r.block} => ${r.error?.substring(0, 80) ?? r.status}`,
+      );
   }
 
   if (highDev.length > 0) {
     console.log(`\n🟡 HIGH DEVIATION >10% (${highDev.length}):`);
-    for (const r of highDev) console.log(`   ${r.chain} ${r.version} block=${r.block} oracle=$${r.priceUsd.toFixed(6)} cg=$${r.cgPrice?.toFixed(6)} dev=${r.deviation?.toFixed(2)}%`);
+    for (const r of highDev)
+      console.log(
+        `   ${r.chain} ${r.version} block=${r.block} oracle=$${r.priceUsd.toFixed(6)} cg=$${r.cgPrice?.toFixed(6)} dev=${r.deviation?.toFixed(2)}%`,
+      );
   }
 
   console.log(

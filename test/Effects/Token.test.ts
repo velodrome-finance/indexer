@@ -184,7 +184,9 @@ describe("Token Effects", () => {
     });
 
     it("should return 1e18 price for USDC without calling oracle", async () => {
-      setupChainConstants(PriceOracleType.V3, { destinationToken: TEST_USDC_ADDRESS });
+      setupChainConstants(PriceOracleType.V3, {
+        destinationToken: TEST_USDC_ADDRESS,
+      });
       vi.mocked(TokenEffects.fetchTokenPrice).mockClear();
 
       const result = await mockContext.effect(getTokenPrice as never, {
