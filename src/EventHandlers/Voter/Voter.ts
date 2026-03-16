@@ -3,19 +3,8 @@ import { Voter } from "generated";
 import type { Token } from "generated";
 import {
   findPoolByGaugeAddress,
-  isMissingRootPoolMapping,
-  loadPoolDataOrRootCLPool,
   updateLiquidityPoolAggregator,
 } from "../../Aggregators/LiquidityPoolAggregator";
-import {
-  loadOrCreateUserData,
-  updateUserStatsPerPool,
-} from "../../Aggregators/UserStatsPerPool";
-import {
-  loadOrCreateVeNFTPoolVote,
-  updateVeNFTPoolVote,
-} from "../../Aggregators/VeNFTPoolVote";
-import { loadVeNFTState } from "../../Aggregators/VeNFTState";
 import {
   CHAIN_CONSTANTS,
   PendingDistributionId,
@@ -28,11 +17,8 @@ import {
 import { getTokenDetails } from "../../Effects/Index";
 import { refreshTokenPrice } from "../../PriceOracle";
 import {
-  VoterEventType,
   buildPoolDiffFromDistribute,
   computeVoterDistributeValues,
-  computeVoterRelatedEntitiesDiff,
-  createPendingVoteForDeferredProcessing,
   resolveLeafPoolForRootGauge,
 } from "./VoterCommonLogic";
 
@@ -83,194 +69,6 @@ Voter.GaugeCreated.handler(async ({ event, context }) => {
       rootPoolAddress: event.params.pool,
     });
   }
-});
-
-// Leads to a deposit of veNFT
-Voter.Voted.handler(async ({ event, context }) => {
-  const tokenId = event.params.tokenId;
-  const timestamp = new Date(event.block.timestamp * 1000);
-  const pool = event.params.pool;
-  const chainId = event.chainId;
-
-  // Load pool data and token owner concurrently for better performance
-  const [poolResult, veNFTState] = await Promise.all([
-    loadPoolDataOrRootCLPool(
-      pool,
-      chainId,
-      context,
-      event.block.number,
-      event.block.timestamp,
-    ),
-    loadVeNFTState(chainId, tokenId, context),
-  ]);
-
-  if (!poolResult.ok) {
-    // If the root pool mapping cannot be loaded, create a pending vote for deferred processing
-    if (isMissingRootPoolMapping(poolResult)) {
-      if (!veNFTState) {
-        context.log.warn(
-          `[Voter.Voted] Deferred vote skipped for pool ${pool}: veNFTState not found for tokenId ${tokenId}.`,
-        );
-        return;
-      }
-      createPendingVoteForDeferredProcessing(
-        context,
-        chainId,
-        pool,
-        tokenId,
-        event.params.weight,
-        VoterEventType.VOTED,
-        timestamp,
-        event.block.number,
-        event.transaction.hash,
-        event.logIndex,
-      );
-    }
-    return;
-  }
-
-  if (!veNFTState) {
-    return;
-  }
-
-  const poolData = poolResult.poolData;
-  const { liquidityPoolAggregator } = poolData;
-  const poolChainId = liquidityPoolAggregator.chainId;
-  const poolAddress = liquidityPoolAggregator.poolAddress;
-
-  const [veNFTPoolVote, userStats] = await Promise.all([
-    loadOrCreateVeNFTPoolVote(
-      poolChainId,
-      tokenId,
-      poolAddress,
-      veNFTState,
-      context,
-      timestamp,
-    ),
-    loadOrCreateUserData(
-      veNFTState.owner,
-      poolAddress,
-      poolChainId,
-      context,
-      timestamp,
-    ),
-  ]);
-
-  const { poolVoteDiff, userStatsPerPoolDiff, veNFTPoolVoteDiff } =
-    computeVoterRelatedEntitiesDiff(
-      event.params.totalWeight,
-      event.params.weight,
-      veNFTState,
-      timestamp,
-      VoterEventType.VOTED,
-    );
-
-  await Promise.all([
-    updateLiquidityPoolAggregator(
-      poolVoteDiff,
-      liquidityPoolAggregator,
-      timestamp,
-      context,
-      event.chainId,
-      event.block.number,
-    ),
-    updateUserStatsPerPool(userStatsPerPoolDiff, userStats, context, timestamp),
-    updateVeNFTPoolVote(veNFTPoolVoteDiff, veNFTPoolVote, context),
-  ]);
-});
-
-// The opposite of the Voted event: effectively withdraws veNFT
-Voter.Abstained.handler(async ({ event, context }) => {
-  const tokenId = event.params.tokenId;
-  const timestamp = new Date(event.block.timestamp * 1000);
-  const pool = event.params.pool;
-  const chainId = event.chainId;
-
-  // Load pool data and token owner concurrently for better performance
-  const [poolResult, veNFTState] = await Promise.all([
-    loadPoolDataOrRootCLPool(
-      pool,
-      chainId,
-      context,
-      event.block.number,
-      event.block.timestamp,
-    ),
-    loadVeNFTState(chainId, tokenId, context),
-  ]);
-
-  // If the pool data (or root pool mapping) cannot be loaded, create a pending vote for deferred processing
-  if (!poolResult.ok) {
-    if (isMissingRootPoolMapping(poolResult)) {
-      if (!veNFTState) {
-        context.log.warn(
-          `[Voter.Abstained] Deferred abstention skipped for pool ${pool}: veNFTState not found for tokenId ${tokenId}.`,
-        );
-        return;
-      }
-      createPendingVoteForDeferredProcessing(
-        context,
-        chainId,
-        pool,
-        tokenId,
-        event.params.weight,
-        VoterEventType.ABSTAINED,
-        timestamp,
-        event.block.number,
-        event.transaction.hash,
-        event.logIndex,
-      );
-    }
-    return;
-  }
-
-  if (!veNFTState) {
-    return;
-  }
-
-  const poolData = poolResult.poolData;
-  const { liquidityPoolAggregator } = poolData;
-  const poolChainId = liquidityPoolAggregator.chainId;
-  const poolAddress = liquidityPoolAggregator.poolAddress;
-
-  const { poolVoteDiff, userStatsPerPoolDiff, veNFTPoolVoteDiff } =
-    computeVoterRelatedEntitiesDiff(
-      event.params.totalWeight,
-      event.params.weight,
-      veNFTState,
-      timestamp,
-      VoterEventType.ABSTAINED,
-    );
-
-  const [veNFTPoolVote, userStats] = await Promise.all([
-    loadOrCreateVeNFTPoolVote(
-      poolChainId,
-      tokenId,
-      poolAddress,
-      veNFTState,
-      context,
-      timestamp,
-    ),
-    loadOrCreateUserData(
-      veNFTState.owner,
-      poolAddress,
-      poolChainId,
-      context,
-      timestamp,
-    ),
-  ]);
-
-  await Promise.all([
-    updateLiquidityPoolAggregator(
-      poolVoteDiff,
-      liquidityPoolAggregator,
-      timestamp,
-      context,
-      event.chainId,
-      event.block.number,
-    ),
-    updateUserStatsPerPool(userStatsPerPoolDiff, userStats, context, timestamp),
-    updateVeNFTPoolVote(veNFTPoolVoteDiff, veNFTPoolVote, context),
-  ]);
 });
 
 Voter.DistributeReward.handler(async ({ event, context }) => {
