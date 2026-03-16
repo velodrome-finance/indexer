@@ -1,32 +1,18 @@
 /**
- * Cross-chain pending resolution for votes and reward distributions.
+ * Cross-chain pending resolution for reward distributions.
  *
  * When the RootPool_LeafPool mapping is not yet available (e.g. leaf pool created after
- * root pool), Voted/Abstained and DistributeReward events are stored as PendingVote and
- * PendingDistribution. This module fetches those pending entities, applies them to the
- * leaf pool once the mapping exists, and exposes a single flush entry point used by
- * CLFactory, PoolFactory, and RootCLPoolFactory when a new pool or mapping is created.
+ * root pool), DistributeReward events are stored as PendingDistribution. This module
+ * fetches those pending entities, applies them to the leaf pool once the mapping exists,
+ * and exposes a single flush entry point used by CLFactory, PoolFactory, and
+ * RootCLPoolFactory when a new pool or mapping is created.
  */
 
-import type {
-  PendingDistribution,
-  PendingVote,
-  handlerContext,
-} from "generated";
+import type { PendingDistribution, handlerContext } from "generated";
 import {
-  type PoolData,
   loadPoolData,
   updateLiquidityPoolAggregator,
 } from "../../Aggregators/LiquidityPoolAggregator";
-import {
-  loadOrCreateUserData,
-  updateUserStatsPerPool,
-} from "../../Aggregators/UserStatsPerPool";
-import {
-  loadOrCreateVeNFTPoolVote,
-  updateVeNFTPoolVote,
-} from "../../Aggregators/VeNFTPoolVote";
-import { loadVeNFTState } from "../../Aggregators/VeNFTState";
 import {
   CHAIN_CONSTANTS,
   CrossChainPendingResolutionLogPrefix,
@@ -39,137 +25,9 @@ import {
 } from "../../Helpers";
 import { refreshTokenPrice } from "../../PriceOracle";
 import {
-  VoterEventType,
   buildPoolDiffFromDistribute,
   computeVoterDistributeValues,
-  computeVoterRelatedEntitiesDiff,
 } from "./VoterCommonLogic";
-
-// ---------- Pending votes ----------
-
-/**
- * Fetches all pending votes for a given root pool address, sorted by block then log index.
- * Used when the RootPool_LeafPool mapping becomes available to flush deferred votes.
- * @param context - The handler context
- * @param rootPoolAddress - The root pool address
- * @returns Pending votes sorted by block number (and log index when available)
- */
-export async function getPendingVotesByRootPool(
-  context: handlerContext,
-  rootPoolAddress: string,
-): Promise<PendingVote[]> {
-  const list =
-    (await context.PendingVote.getWhere({
-      rootPoolAddress: { _eq: rootPoolAddress },
-    })) ?? [];
-  const getLogIndexFromId = (id: string): number => {
-    const lastDash = id.lastIndexOf("-");
-    const segment = lastDash >= 0 ? id.slice(lastDash + 1) : "";
-    const n = Number(segment);
-    return Number.isNaN(n) ? 0 : n;
-  };
-  return sortByBlockThenLogIndex(
-    list,
-    (a) => Number(a.blockNumber),
-    (a) => getLogIndexFromId(a.id),
-  );
-}
-
-/**
- * Applies a single pending vote to the leaf pool: updates LiquidityPoolAggregator,
- * UserStatsPerPool, and VeNFTPoolVote. Uses incremental pool update (current total + delta)
- * since we don't have the event's totalWeight.
- * @param context - The handler context
- * @param pendingVote - The pending vote to process
- * @param leafPoolData - The leaf pool data
- * @returns true if the vote was applied, false if skipped (e.g. veNFTState not found)
- */
-export async function processPendingVote(
-  context: handlerContext,
-  pendingVote: PendingVote,
-  leafPoolData: PoolData,
-): Promise<boolean> {
-  const veNFTState = await loadVeNFTState(
-    pendingVote.chainId,
-    pendingVote.tokenId,
-    context,
-  );
-  if (!veNFTState) {
-    context.log.warn(
-      `[processPendingVote] VeNFTState not found for tokenId ${pendingVote.tokenId} on chain ${pendingVote.chainId}, skipping pending vote ${pendingVote.id}`,
-    );
-    return false;
-  }
-
-  const leafPool = leafPoolData.liquidityPoolAggregator;
-  const leafChainId = leafPool.chainId;
-  const leafPoolAddress = leafPool.poolAddress;
-  const timestamp =
-    pendingVote.timestamp instanceof Date
-      ? pendingVote.timestamp
-      : new Date(Number(pendingVote.timestamp));
-
-  // Synthetic totalWeight: current pool total + this vote's delta (so computeVoterRelatedEntitiesDiff sets the right absolute value)
-  const weightDelta =
-    pendingVote.eventType === VoterEventType.VOTED
-      ? pendingVote.weight
-      : -pendingVote.weight;
-  const totalWeight = leafPool.veNFTamountStaked + weightDelta;
-
-  const { poolVoteDiff, userStatsPerPoolDiff, veNFTPoolVoteDiff } =
-    computeVoterRelatedEntitiesDiff(
-      totalWeight,
-      pendingVote.weight,
-      veNFTState,
-      timestamp,
-      pendingVote.eventType as VoterEventType,
-    );
-
-  const [veNFTPoolVote, userStats] = await Promise.all([
-    loadOrCreateVeNFTPoolVote(
-      leafChainId,
-      pendingVote.tokenId,
-      leafPoolAddress,
-      veNFTState,
-      context,
-      timestamp,
-    ),
-    loadOrCreateUserData(
-      veNFTState.owner,
-      leafPoolAddress,
-      leafChainId,
-      context,
-      timestamp,
-    ),
-  ]);
-
-  await Promise.all([
-    updateLiquidityPoolAggregator(
-      poolVoteDiff,
-      leafPool,
-      timestamp,
-      context,
-      leafChainId,
-      Number(pendingVote.blockNumber),
-    ),
-    updateUserStatsPerPool(userStatsPerPoolDiff, userStats, context, timestamp),
-    updateVeNFTPoolVote(veNFTPoolVoteDiff, veNFTPoolVote, context),
-  ]);
-  return true;
-}
-
-/**
- * Removes a PendingVote entity after it has been successfully applied.
- * @param context - The handler context
- * @param pendingVote - The pending vote to delete
- * @returns void
- */
-export function deleteProcessedPendingVote(
-  context: handlerContext,
-  pendingVote: PendingVote,
-): void {
-  context.PendingVote.deleteUnsafe(pendingVote.id);
-}
 
 /**
  * Tries to process a pending item and delete it only on success. Logs and swallows errors so the caller can continue with other items.
@@ -208,78 +66,6 @@ async function tryProcessAndDeletePending<T>(
       context,
       `${logPrefix} Failed to delete processed pending item ${itemId}`,
       deleteError,
-    );
-  }
-}
-
-/**
- * Loads the RootPool_LeafPool mapping for the given root pool, loads leaf pool data,
- * then processes all pending votes for that root pool and deletes each after success.
- * @param context - The handler context
- * @param rootPoolAddress - The root pool address
- * @returns void
- */
-export async function processAllPendingVotesForRootPool(
-  context: handlerContext,
-  rootPoolAddress: string,
-): Promise<void> {
-  const rootPoolLeafPools =
-    (await context.RootPool_LeafPool.getWhere({
-      rootPoolAddress: { _eq: rootPoolAddress },
-    })) ?? [];
-
-  if (rootPoolLeafPools.length !== 1) {
-    context.log.warn(
-      `${CrossChainPendingResolutionLogPrefix.Votes} Expected exactly one RootPool_LeafPool for rootPoolAddress ${rootPoolAddress}, got ${rootPoolLeafPools.length}. Skipping pending vote processing.`,
-    );
-    return;
-  }
-
-  const { leafPoolAddress, leafChainId } = rootPoolLeafPools[0];
-  const leafPoolData = await loadPoolData(
-    leafPoolAddress,
-    leafChainId,
-    context,
-    undefined,
-    undefined,
-  );
-
-  if (!leafPoolData) {
-    context.log.warn(
-      `${CrossChainPendingResolutionLogPrefix.Votes} Leaf pool data not found for ${leafPoolAddress} on chain ${leafChainId}. Skipping pending vote processing.`,
-    );
-    return;
-  }
-
-  const pendingVotes = await getPendingVotesByRootPool(
-    context,
-    rootPoolAddress,
-  );
-
-  for (const pendingVote of pendingVotes) {
-    // Reload leaf pool data each iteration: processPendingVote updates the pool (e.g. veNFTamountStaked)
-    // via updateLiquidityPoolAggregator, so the next vote must see the updated state to compute
-    // the correct cumulative totalWeight.
-    const currentLeafPoolData = await loadPoolData(
-      leafPoolAddress,
-      leafChainId,
-      context,
-      undefined,
-      undefined,
-    );
-    if (!currentLeafPoolData) {
-      context.log.warn(
-        `${CrossChainPendingResolutionLogPrefix.Votes} Leaf pool data not found for leafPoolAddress ${leafPoolAddress} on chain ${leafChainId}, skipping pending vote ${pendingVote.id}`,
-      );
-      continue;
-    }
-    await tryProcessAndDeletePending(
-      context,
-      pendingVote,
-      () => processPendingVote(context, pendingVote, currentLeafPoolData),
-      deleteProcessedPendingVote,
-      CrossChainPendingResolutionLogPrefix.Votes,
-      pendingVote.id,
     );
   }
 }
@@ -455,9 +241,8 @@ export async function processAllPendingDistributionsForRootPool(
 // ---------- Flush (orchestration) ----------
 
 /**
- * Runs processAllPendingVotesForRootPool and processAllPendingDistributionsForRootPool
- * for the given root pool. Each is run in its own try/catch so a failure in one is
- * logged and does not prevent the other from running; the handler never throws.
+ * Flushes all pending distributions for the given root pool. Runs in a try/catch
+ * so failures are logged without throwing; the handler never throws.
  * @param context - The handler context
  * @param rootPoolAddress - The root pool address
  * @param logPrefix - The log prefix
@@ -468,11 +253,6 @@ export async function flushPendingVotesAndDistributionsForRootPool(
   rootPoolAddress: string,
   logPrefix: string,
 ): Promise<void> {
-  await runAsyncWithErrorLog(
-    context,
-    `${logPrefix} processAllPendingVotesForRootPool failed for rootPoolAddress ${rootPoolAddress}`,
-    () => processAllPendingVotesForRootPool(context, rootPoolAddress),
-  );
   await runAsyncWithErrorLog(
     context,
     `${logPrefix} processAllPendingDistributionsForRootPool failed for rootPoolAddress ${rootPoolAddress}`,
