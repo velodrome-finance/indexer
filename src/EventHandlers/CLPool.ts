@@ -3,8 +3,7 @@ import {
   loadPoolData,
   updateLiquidityPoolAggregator,
 } from "../Aggregators/LiquidityPoolAggregator";
-import { createOUSDTSwapEntity } from "../Aggregators/OUSDTSwaps";
-import { CLPoolMintEventId, OUSDT_ADDRESS } from "../Constants";
+import { CLPoolMintEventId } from "../Constants";
 import { processCLPoolBurn } from "./CLPool/CLPoolBurnLogic";
 import { processCLPoolCollectFees } from "./CLPool/CLPoolCollectFeesLogic";
 import { processCLPoolCollect } from "./CLPool/CLPoolCollectLogic";
@@ -333,28 +332,4 @@ CLPool.Swap.handler(async ({ event, context }) => {
     event.block.number,
   );
 
-  // Create OUSDTSwaps entity
-
-  if (
-    poolData.token0Instance.address === OUSDT_ADDRESS ||
-    poolData.token1Instance.address === OUSDT_ADDRESS
-  ) {
-    // Convert CLPool int256 amounts to In/Out format
-    const amount0In = event.params.amount0 > 0n ? event.params.amount0 : 0n;
-    const amount0Out = event.params.amount0 < 0n ? -event.params.amount0 : 0n;
-    const amount1In = event.params.amount1 > 0n ? event.params.amount1 : 0n;
-    const amount1Out = event.params.amount1 < 0n ? -event.params.amount1 : 0n;
-
-    createOUSDTSwapEntity(
-      event.transaction.hash,
-      event.chainId,
-      poolData.token0Instance,
-      poolData.token1Instance,
-      amount0In,
-      amount0Out,
-      amount1In,
-      amount1Out,
-      context,
-    );
-  }
 });

@@ -61,9 +61,6 @@ export const ROOT_POOL_FACTORY_ADDRESS_OPTIMISM = toChecksumAddress(
   "0x31832f2a97Fd20664D76Cc421207669b55CE4BC0",
 );
 
-export const OUSDT_ADDRESS = "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189";
-export const OUSDT_DECIMALS = 6;
-
 // Default fee values from PoolFactory contract constructor (non CL pools)
 // This is needed for pools that don't have associated SetCustomFee events or
 // have been created before the first SetCustomFee event was emitted.
