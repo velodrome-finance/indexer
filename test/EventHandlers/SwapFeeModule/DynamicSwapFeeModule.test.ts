@@ -1,4 +1,3 @@
-import "../../eventHandlersRegistration";
 import {
   DynamicSwapFeeModule,
   MockDb,

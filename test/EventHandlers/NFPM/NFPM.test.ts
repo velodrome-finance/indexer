@@ -1,4 +1,3 @@
-import "../../eventHandlersRegistration";
 import type { PublicClient } from "viem";
 import type { Mock } from "vitest";
 import { MockDb, NFPM } from "../../../generated/src/TestHelpers.gen";

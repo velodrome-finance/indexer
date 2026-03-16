@@ -1,4 +1,3 @@
-import "../../eventHandlersRegistration";
 import { CLPool, MockDb } from "../../../generated/src/TestHelpers.gen";
 import { CLPoolMintEventId, toChecksumAddress } from "../../../src/Constants";
 import { setupCommon } from "../Pool/common";

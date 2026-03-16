@@ -1,4 +1,3 @@
-import "../../eventHandlersRegistration";
 import { MockDb, Pool } from "../../../generated/src/TestHelpers.gen";
 import {
   UserStatsPerPoolId,

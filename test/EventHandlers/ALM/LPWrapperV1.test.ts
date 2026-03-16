@@ -1,4 +1,3 @@
-import "../../eventHandlersRegistration";
 import type { Mock } from "vitest";
 import { ALMLPWrapperV1, MockDb } from "../../../generated/src/TestHelpers.gen";
 import {

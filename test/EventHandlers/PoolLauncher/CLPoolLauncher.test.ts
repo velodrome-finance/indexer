@@ -1,4 +1,3 @@
-import "../../eventHandlersRegistration";
 import type {
   LiquidityPoolAggregator,
   PoolLauncherPool,

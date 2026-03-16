@@ -1,4 +1,3 @@
-import "../../eventHandlersRegistration";
 import type { LiquidityPoolAggregator, Token } from "generated";
 import { MockDb, SuperchainLeafVoter } from "generated/src/TestHelpers.gen";
 import * as LiquidityPoolAggregatorModule from "../../../src/Aggregators/LiquidityPoolAggregator";

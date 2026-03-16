@@ -1,4 +1,3 @@
-import "../../eventHandlersRegistration";
 import { MockDb, Pool } from "../../../generated/src/TestHelpers.gen";
 import { toChecksumAddress } from "../../../src/Constants";
 import * as PoolBurnAndMintLogic from "../../../src/EventHandlers/Pool/PoolBurnAndMintLogic";
