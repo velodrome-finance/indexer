@@ -1,11 +1,9 @@
 import type { Pool_Claim_event, Token } from "generated";
 import type { LiquidityPoolAggregatorDiff } from "../../Aggregators/LiquidityPoolAggregator";
-import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import { calculateTotalUSD } from "../../Helpers";
 
 export interface PoolClaimResult {
   poolDiff: Partial<LiquidityPoolAggregatorDiff>;
-  userDiff: Partial<UserStatsPerPoolDiff>;
 }
 
 /**
@@ -46,22 +44,7 @@ export function processPoolClaim(
         lastUpdatedTimestamp: timestamp,
       };
 
-  const userDiff = isGaugeClaim
-    ? {
-        incrementalTotalStakedFeesCollected0: event.params.amount0,
-        incrementalTotalStakedFeesCollected1: event.params.amount1,
-        incrementalTotalStakedFeesCollectedUSD: totalFeesUSD,
-        lastActivityTimestamp: timestamp,
-      }
-    : {
-        incrementalTotalUnstakedFeesCollected0: event.params.amount0,
-        incrementalTotalUnstakedFeesCollected1: event.params.amount1,
-        incrementalTotalUnstakedFeesCollectedUSD: totalFeesUSD,
-        lastActivityTimestamp: timestamp,
-      };
-
   return {
     poolDiff,
-    userDiff,
   };
 }

@@ -7,10 +7,6 @@ import type {
   handlerContext,
 } from "generated";
 import { updateLiquidityPoolAggregator } from "../../Aggregators/LiquidityPoolAggregator";
-import {
-  loadOrCreateUserData,
-  updateUserStatsPerPool,
-} from "../../Aggregators/UserStatsPerPool";
 import { calculateTotalUSD } from "../../Helpers";
 
 export interface AttributionResult {
@@ -256,30 +252,4 @@ export async function processPoolLiquidityEvent(
     chainId,
     blockNumber,
   );
-
-  // Update user stats (actual user, not router) if we found a match
-  // This is the ONLY place where incrementalTotalLiquidityAddedUSD/RemovedUSD is set
-  if (attributionResult?.recipient) {
-    const userData = await loadOrCreateUserData(
-      attributionResult.recipient,
-      poolAddress,
-      chainId,
-      context,
-      timestamp,
-    );
-
-    const userDiff = isMint
-      ? {
-          incrementalTotalLiquidityAddedUSD:
-            attributionResult.totalLiquidityUSD,
-          lastActivityTimestamp: timestamp,
-        }
-      : {
-          incrementalTotalLiquidityRemovedUSD:
-            attributionResult.totalLiquidityUSD,
-          lastActivityTimestamp: timestamp,
-        };
-
-    await updateUserStatsPerPool(userDiff, userData, context, timestamp);
-  }
 }

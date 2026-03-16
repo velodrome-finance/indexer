@@ -1,11 +1,9 @@
 import type { Pool_Swap_event, Token } from "generated";
 import type { LiquidityPoolAggregatorDiff } from "../../Aggregators/LiquidityPoolAggregator";
-import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import { calculateTokenAmountUSD } from "../../Helpers";
 
 export interface PoolSwapResult {
   liquidityPoolDiff: Partial<LiquidityPoolAggregatorDiff>;
-  userSwapDiff: Partial<UserStatsPerPoolDiff>;
 }
 
 /**
@@ -57,17 +55,7 @@ export function processPoolSwap(
     lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
   };
 
-  // Create user swap diff
-  const userSwapDiff = {
-    incrementalNumberOfSwaps: 1n,
-    incrementalTotalSwapVolumeUSD: volumeInUSD,
-    incrementalTotalSwapVolumeAmount0: netAmount0,
-    incrementalTotalSwapVolumeAmount1: netAmount1,
-    lastActivityTimestamp: new Date(event.block.timestamp * 1000),
-  };
-
   return {
     liquidityPoolDiff,
-    userSwapDiff,
   };
 }

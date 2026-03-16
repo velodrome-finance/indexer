@@ -1,11 +1,9 @@
 import type { Pool_Fees_event, Token } from "generated";
 import type { LiquidityPoolAggregatorDiff } from "../../Aggregators/LiquidityPoolAggregator";
-import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import { calculateTotalUSD, calculateWhitelistedFeesUSD } from "../../Helpers";
 
 export interface PoolFeesResult {
   liquidityPoolDiff?: Partial<LiquidityPoolAggregatorDiff>;
-  userDiff?: Partial<UserStatsPerPoolDiff>;
 }
 
 /**
@@ -43,16 +41,7 @@ export function processPoolFees(
     lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
   };
 
-  // Prepare user diff data
-  const userDiff = {
-    incrementalTotalFeesContributedUSD: totalFeesUSD,
-    incrementalTotalFeesContributed0: event.params.amount0,
-    incrementalTotalFeesContributed1: event.params.amount1,
-    lastActivityTimestamp: new Date(event.block.timestamp * 1000),
-  };
-
   return {
     liquidityPoolDiff,
-    userDiff,
   };
 }

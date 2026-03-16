@@ -4,10 +4,6 @@ import type {
   handlerContext,
 } from "generated";
 import { updateLiquidityPoolAggregator } from "../../Aggregators/LiquidityPoolAggregator";
-import {
-  loadOrCreateUserData,
-  updateUserStatsPerPool,
-} from "../../Aggregators/UserStatsPerPool";
 import { PoolTransferInTxId, ZERO_ADDRESS } from "../../Constants";
 
 /**
@@ -52,104 +48,6 @@ export async function updatePoolTotalSupply(
       eventChainId,
       blockNumber,
     );
-  }
-}
-
-/**
- * Update user LP balances based on transfer type (mint, burn, or regular transfer)
- * @param isMint - Whether this is a mint transfer (from == 0x0)
- * @param isBurn - Whether this is a burn transfer (to == 0x0)
- * @param from - Transfer sender address
- * @param to - Transfer recipient address
- * @param value - The LP token amount transferred
- * @param poolAddress - Pool address
- * @param chainId - Chain ID
- * @param context - Handler context
- * @param timestamp - Event timestamp
- */
-export async function updateUserLpBalances(
-  isMint: boolean,
-  isBurn: boolean,
-  from: string,
-  to: string,
-  value: bigint,
-  poolAddress: string,
-  chainId: number,
-  context: handlerContext,
-  timestamp: Date,
-): Promise<void> {
-  if (isMint) {
-    // Mint: add to recipient
-    const recipientData = await loadOrCreateUserData(
-      to,
-      poolAddress,
-      chainId,
-      context,
-      timestamp,
-    );
-
-    const userDiff = {
-      incrementalLpBalance: value,
-      lastActivityTimestamp: timestamp,
-    };
-
-    await updateUserStatsPerPool(userDiff, recipientData, context, timestamp);
-  } else if (isBurn) {
-    // Burn: subtract from sender
-    const senderData = await loadOrCreateUserData(
-      from,
-      poolAddress,
-      chainId,
-      context,
-      timestamp,
-    );
-
-    const userDiff = {
-      incrementalLpBalance: -value,
-      lastActivityTimestamp: timestamp,
-    };
-
-    await updateUserStatsPerPool(userDiff, senderData, context, timestamp);
-  } else {
-    // Regular transfer: update both
-    // Handle self-transfer case (from === to) to avoid conflicting updates
-    if (from.toLowerCase() === to.toLowerCase()) {
-      // Self-transfer: only update lastActivityTimestamp, balance remains unchanged
-      const userData = await loadOrCreateUserData(
-        from,
-        poolAddress,
-        chainId,
-        context,
-        timestamp,
-      );
-
-      const userDiff = {
-        incrementalLpBalance: 0n,
-        lastActivityTimestamp: timestamp,
-      };
-
-      await updateUserStatsPerPool(userDiff, userData, context, timestamp);
-    } else {
-      // Regular transfer between different addresses
-      const [senderData, recipientData] = await Promise.all([
-        loadOrCreateUserData(from, poolAddress, chainId, context, timestamp),
-        loadOrCreateUserData(to, poolAddress, chainId, context, timestamp),
-      ]);
-
-      const userDiffFrom = {
-        incrementalLpBalance: -value,
-        lastActivityTimestamp: timestamp,
-      };
-      const userDiffTo = {
-        incrementalLpBalance: value,
-        lastActivityTimestamp: timestamp,
-      };
-
-      await Promise.all([
-        updateUserStatsPerPool(userDiffFrom, senderData, context, timestamp),
-        updateUserStatsPerPool(userDiffTo, recipientData, context, timestamp),
-      ]);
-    }
   }
 }
 
@@ -240,20 +138,7 @@ export async function processPoolTransfer(
     event.block.number,
   );
 
-  // 2. Update user LP balances
-  await updateUserLpBalances(
-    isMint,
-    isBurn,
-    from,
-    to,
-    value,
-    poolAddress,
-    chainId,
-    context,
-    timestamp,
-  );
-
-  // 3. Store transfer in temporary entity for Mint/Burn matching
+  // 2. Store transfer in temporary entity for Mint/Burn matching
   storeTransferForMatching(
     isMint,
     isBurn,
