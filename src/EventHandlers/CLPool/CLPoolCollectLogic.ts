@@ -1,11 +1,9 @@
 import type { CLPool_Collect_event, Token } from "generated";
 import type { LiquidityPoolAggregatorDiff } from "../../Aggregators/LiquidityPoolAggregator";
-import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import { calculateTotalUSD, calculateWhitelistedFeesUSD } from "../../Helpers";
 
 export interface CLPoolCollectResult {
   liquidityPoolDiff: Partial<LiquidityPoolAggregatorDiff>;
-  userLiquidityDiff: Partial<UserStatsPerPoolDiff>;
 }
 
 export function processCLPoolCollect(
@@ -39,15 +37,7 @@ export function processCLPoolCollect(
     incrementalTotalFeesUSDWhitelisted: totalFeesUSDWhitelistedIncrement,
     lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
   };
-  const userLiquidityDiff = {
-    incrementalTotalUnstakedFeesCollected0: event.params.amount0,
-    incrementalTotalUnstakedFeesCollected1: event.params.amount1,
-    incrementalTotalUnstakedFeesCollectedUSD: unstakedFeesUSD,
-    lastActivityTimestamp: new Date(event.block.timestamp * 1000),
-  };
-
   return {
     liquidityPoolDiff,
-    userLiquidityDiff,
   };
 }

@@ -1,11 +1,9 @@
 import type { CLPool_Flash_event, Token } from "generated";
 import type { LiquidityPoolAggregatorDiff } from "../../Aggregators/LiquidityPoolAggregator";
-import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import { calculateTotalUSD } from "../../Helpers";
 
 export interface CLPoolFlashResult {
   liquidityPoolDiff: Partial<LiquidityPoolAggregatorDiff>;
-  userFlashLoanDiff: Partial<UserStatsPerPoolDiff>;
 }
 
 export function processCLPoolFlash(
@@ -38,14 +36,7 @@ export function processCLPoolFlash(
     lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
   };
 
-  const userFlashLoanDiff = {
-    incrementalNumberOfFlashLoans: 1n, // Each flash event represents 1 flash loan
-    incrementalTotalFlashLoanVolumeUSD: flashLoanVolumeUSD,
-    lastActivityTimestamp: new Date(event.block.timestamp * 1000),
-  };
-
   return {
     liquidityPoolDiff,
-    userFlashLoanDiff,
   };
 }

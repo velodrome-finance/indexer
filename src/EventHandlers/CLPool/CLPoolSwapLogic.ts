@@ -5,7 +5,6 @@ import type {
   handlerContext,
 } from "generated";
 import type { LiquidityPoolAggregatorDiff } from "../../Aggregators/LiquidityPoolAggregator";
-import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import {
   calculateTokenAmountUSD,
   calculateTotalUSD,
@@ -15,7 +14,6 @@ import { abs } from "../../Maths";
 
 export interface CLPoolSwapResult {
   liquidityPoolDiff: Partial<LiquidityPoolAggregatorDiff>;
-  userSwapDiff: Partial<UserStatsPerPoolDiff>;
 }
 
 interface SwapVolume {
@@ -270,19 +268,7 @@ export async function processCLPoolSwap(
     lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
   };
 
-  const userSwapDiff = {
-    incrementalNumberOfSwaps: 1n, // Each swap event represents 1 swap
-    incrementalTotalSwapVolumeUSD: volumeInUSD,
-    incrementalTotalSwapVolumeAmount0: abs(event.params.amount0),
-    incrementalTotalSwapVolumeAmount1: abs(event.params.amount1),
-    incrementalTotalFeesContributed0: swapFeesInToken0,
-    incrementalTotalFeesContributed1: swapFeesInToken1,
-    incrementalTotalFeesContributedUSD: swapFeesInUSD,
-    lastActivityTimestamp: new Date(event.block.timestamp * 1000),
-  };
-
   return {
     liquidityPoolDiff,
-    userSwapDiff,
   };
 }
