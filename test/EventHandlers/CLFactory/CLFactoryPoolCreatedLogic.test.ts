@@ -319,13 +319,13 @@ describe("CLFactoryPoolCreatedLogic", () => {
     it("should handle different chain IDs correctly", async () => {
       const mockEventWithDifferentChainId: CLFactory_PoolCreated_event = {
         ...mockEvent,
-        chainId: 8453, // Base
+        chainId: 42220, // Base
       };
 
       // For different chain ID, use a different mapping
       const mappingForBase: FeeToTickSpacingMapping = {
-        id: FeeToTickSpacingMappingId(8453, TICK_SPACING),
-        chainId: 8453,
+        id: FeeToTickSpacingMappingId(42220, TICK_SPACING),
+        chainId: 42220,
         tickSpacing: TICK_SPACING,
         fee: 400n,
         lastUpdatedTimestamp: new Date(1000000 * 1000),
@@ -341,16 +341,16 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockContext,
       );
 
-      expect(result.liquidityPoolAggregator?.chainId).toBe(8453);
+      expect(result.liquidityPoolAggregator?.chainId).toBe(42220);
       expect(result.liquidityPoolAggregator?.token0_id).toBe(
         TokenId(
-          8453,
+          42220,
           toChecksumAddress("0x2222222222222222222222222222222222222222"),
         ),
       );
       expect(result.liquidityPoolAggregator?.token1_id).toBe(
         TokenId(
-          8453,
+          42220,
           toChecksumAddress("0x3333333333333333333333333333333333333333"),
         ),
       );
@@ -568,7 +568,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
   });
 
   describe("flushPendingRootPoolMappingAndVotes", () => {
-    const leafChainId = 8453;
+    const leafChainId = 42220;
     const leafPoolAddress = toChecksumAddress(
       "0x4444444444444444444444444444444444444444",
     );

@@ -223,34 +223,6 @@ describe("PoolFactory Events", () => {
       expect(rootPoolLeafPools).toHaveLength(0);
     });
 
-    it("should NOT create RootPool_LeafPool for Base (chainId 8453)", async () => {
-      resetMockPriceOracle();
-
-      const mockDb = MockDb.createMockDb();
-      const mockEvent = PoolFactory.PoolCreated.createMockEvent({
-        token0: token0Address as `0x${string}`,
-        token1: token1Address as `0x${string}`,
-        pool: poolAddress as `0x${string}`,
-        stable: false,
-        mockEventData: {
-          block: {
-            timestamp: 1000000,
-            hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
-          },
-          chainId: 8453, // Base
-          logIndex: 1,
-        },
-      });
-
-      const result = await mockDb.processEvents([mockEvent]);
-
-      // Should not create RootPool_LeafPool for Base
-      const rootPoolLeafPools = Array.from(
-        result.entities.RootPool_LeafPool.getAll(),
-      );
-      expect(rootPoolLeafPools).toHaveLength(0);
-    });
-
     // TODO: Skip until envio migrates to createTestIndexer — vi.spyOn can't intercept tsx-loaded modules (alpha.18)
     it.skip("should create RootPool_LeafPool for non-Optimism/Base chains (e.g., Fraxtal)", async () => {
       const mockRootPoolAddress = toChecksumAddress(

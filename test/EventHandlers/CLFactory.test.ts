@@ -25,8 +25,8 @@ import { setupCommon } from "./Pool/common";
 
 describe("CLFactory Events", () => {
   const { mockToken0Data, mockToken1Data } = setupCommon();
-  // Use Base (8453) instead of Optimism (10) because Optimism has empty newCLGaugeFactoryAddress
-  const chainId = 8453; // Base chain has a valid newCLGaugeFactoryAddress
+  // Use a superchain (Celo) since Base is not indexed in the lightweight indexer
+  const chainId = 42220; // Celo
   const poolAddress = toChecksumAddress(
     "0x3333333333333333333333333333333333333333",
   );
@@ -781,7 +781,7 @@ describe("CLFactory Events", () => {
         name: "same tick spacing on different chains",
         mappings: [
           { tickSpacing: TICK_SPACING, fee: 500n, chainId: 10 },
-          { tickSpacing: TICK_SPACING, fee: 400n, chainId: 8453 },
+          { tickSpacing: TICK_SPACING, fee: 400n, chainId: 42220 },
         ],
       },
     ])(
