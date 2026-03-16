@@ -1,18 +1,10 @@
-import type {
-  LiquidityPoolAggregator,
-  UserStatsPerPool,
-  handlerContext,
-} from "generated";
+import type { LiquidityPoolAggregator, handlerContext } from "generated";
 import {
   type LiquidityPoolAggregatorDiff,
   PoolAddressField,
   findPoolByField,
   loadPoolData,
 } from "../../Aggregators/LiquidityPoolAggregator";
-import {
-  type UserStatsPerPoolDiff,
-  loadOrCreateUserData,
-} from "../../Aggregators/UserStatsPerPool";
 import { TokenId } from "../../Constants";
 import {
   getTokenDetails,
@@ -37,7 +29,6 @@ export interface VotingRewardClaimRewardsData extends VotingRewardEventData {
 
 export interface VotingRewardClaimRewardsResult {
   poolDiff: Partial<LiquidityPoolAggregatorDiff>;
-  userDiff: Partial<UserStatsPerPoolDiff>;
 }
 
 /**
@@ -124,17 +115,8 @@ export async function processVotingRewardClaimRewards(
     lastUpdatedTimestamp: new Date(data.timestamp * 1000),
   };
 
-  const userDiff = {
-    incrementalTotalBribeClaimed: isBribe ? data.amount : 0n,
-    incrementalTotalBribeClaimedUSD: isBribe ? rewardAmountUSD : 0n,
-    incrementalTotalFeeRewardClaimed: isBribe ? 0n : data.amount,
-    incrementalTotalFeeRewardClaimedUSD: isBribe ? 0n : rewardAmountUSD,
-    lastActivityTimestamp: new Date(data.timestamp * 1000),
-  };
-
   return {
     poolDiff,
-    userDiff,
   };
 }
 
@@ -150,10 +132,8 @@ export async function loadVotingRewardData(
 ): Promise<{
   pool?: LiquidityPoolAggregator;
   poolData?: { liquidityPoolAggregator: LiquidityPoolAggregator };
-  userData: UserStatsPerPool;
 } | null> {
   const votingRewardAddress = data.votingRewardAddress;
-  const userAddress = data.userAddress;
 
   // Find the pool by voting reward address
   const pool = await findPoolByField(
@@ -181,18 +161,8 @@ export async function loadVotingRewardData(
     return null;
   }
 
-  // Load user data
-  const userData = await loadOrCreateUserData(
-    userAddress,
-    pool.poolAddress,
-    data.chainId,
-    context,
-    new Date(data.timestamp * 1000),
-  );
-
   return {
     pool,
     poolData,
-    userData,
   };
 }

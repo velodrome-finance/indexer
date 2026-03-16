@@ -242,7 +242,7 @@ CLPool.Mint.handler(async ({ event, context }) => {
     event.block.number,
   );
 
-  // Store CLPool.Mint data for NFPM.Transfer (mint) to consume and attribute UserStatsPerPool to event.params.to
+  // Store CLPool.Mint data for NFPM.Transfer (mint) to consume
   const mintEventId = CLPoolMintEventId(
     event.chainId,
     event.srcAddress,

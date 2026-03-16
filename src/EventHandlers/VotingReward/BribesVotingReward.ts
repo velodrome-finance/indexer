@@ -3,7 +3,6 @@ import {
   PoolAddressField,
   updateLiquidityPoolAggregator,
 } from "../../Aggregators/LiquidityPoolAggregator";
-import { updateUserStatsPerPool } from "../../Aggregators/UserStatsPerPool";
 import {
   loadVotingRewardData,
   processVotingRewardClaimRewards,
@@ -27,7 +26,7 @@ BribesVotingReward.ClaimRewards.handler(async ({ event, context }) => {
     PoolAddressField.BRIBE_VOTING_REWARD_ADDRESS,
   );
 
-  if (!loadedData?.poolData?.liquidityPoolAggregator || !loadedData?.userData) {
+  if (!loadedData?.poolData?.liquidityPoolAggregator) {
     return;
   }
 
@@ -37,24 +36,14 @@ BribesVotingReward.ClaimRewards.handler(async ({ event, context }) => {
     PoolAddressField.BRIBE_VOTING_REWARD_ADDRESS,
   );
 
-  await Promise.all([
-    result.poolDiff
-      ? updateLiquidityPoolAggregator(
-          result.poolDiff,
-          loadedData.poolData.liquidityPoolAggregator,
-          new Date(data.timestamp * 1000),
-          context,
-          event.chainId,
-          data.blockNumber,
-        )
-      : Promise.resolve(),
-    result.userDiff
-      ? updateUserStatsPerPool(
-          result.userDiff,
-          loadedData.userData,
-          context,
-          new Date(data.timestamp * 1000),
-        )
-      : Promise.resolve(),
-  ]);
+  if (result.poolDiff) {
+    await updateLiquidityPoolAggregator(
+      result.poolDiff,
+      loadedData.poolData.liquidityPoolAggregator,
+      new Date(data.timestamp * 1000),
+      context,
+      event.chainId,
+      data.blockNumber,
+    );
+  }
 });
