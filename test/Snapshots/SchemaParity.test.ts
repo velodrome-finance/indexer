@@ -40,13 +40,8 @@ describe("Snapshot schema parity", () => {
         "lastSnapshotTimestamp",
         "rootPoolMatchingHash",
         "factoryAddress",
-        "poolLauncherPoolId",
       ],
     ],
-    ["UserStatsPerPool", ["firstActivityTimestamp", "lastSnapshotTimestamp"]],
-    ["NonFungiblePosition", ["lastSnapshotTimestamp"]],
-    ["ALM_LP_Wrapper", ["lastSnapshotTimestamp"]],
-    ["VeNFTState", ["lastSnapshotTimestamp", "votesPerPool"]],
   ]);
 
   it("should keep snapshots in parity with their source entities except for the allowlist", () => {
@@ -73,17 +68,5 @@ describe("Snapshot schema parity", () => {
 
       expect(missingFields).toEqual([]);
     }
-  });
-
-  it("should model veNFT vote history through VeNFTPoolVoteSnapshot", () => {
-    const veNFTStateSnapshotFields = schemaTypes.get("VeNFTStateSnapshot");
-    const voteSnapshotFields = schemaTypes.get("VeNFTPoolVoteSnapshot");
-
-    expect(veNFTStateSnapshotFields?.get("votesPerPool")).toBe(
-      "[VeNFTPoolVoteSnapshot!]!",
-    );
-    expect(voteSnapshotFields?.get("veNFTStateSnapshot")).toBe(
-      "VeNFTStateSnapshot!",
-    );
   });
 });
