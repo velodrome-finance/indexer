@@ -5,10 +5,6 @@ import {
   loadPoolData,
   updateLiquidityPoolAggregator,
 } from "../../Aggregators/LiquidityPoolAggregator";
-import {
-  loadOrCreateUserData,
-  updateUserStatsPerPool,
-} from "../../Aggregators/UserStatsPerPool";
 import { CHAIN_CONSTANTS, TokenId } from "../../Constants";
 import {
   calculateTotalUSD,
@@ -229,17 +225,8 @@ export async function processGaugeDeposit(
 
   const timestamp = new Date(data.timestamp * 1000);
 
-  // Load pool data and user data concurrently
-  const [poolData, userData] = await Promise.all([
-    loadPoolData(pool.poolAddress, data.chainId, context),
-    loadOrCreateUserData(
-      data.userAddress,
-      pool.poolAddress,
-      data.chainId,
-      context,
-      timestamp,
-    ),
-  ]);
+  // Load pool data
+  const poolData = await loadPoolData(pool.poolAddress, data.chainId, context);
 
   if (!poolData) {
     context.log.error(
@@ -252,14 +239,13 @@ export async function processGaugeDeposit(
 
   const newPoolStake =
     liquidityPoolAggregator.currentLiquidityStaked + data.amount;
-  const newUserStake = userData.currentLiquidityStaked + data.amount;
 
-  const { poolStakedUSD, userStakedUSD } = await computeStakedUSDForPoolAndUser(
+  const { poolStakedUSD } = await computeStakedUSDForPoolAndUser(
     data.chainId,
     pool.poolAddress,
     data.userAddress,
     newPoolStake,
-    newUserStake,
+    0n,
     liquidityPoolAggregator,
     poolData,
     context,
@@ -272,24 +258,14 @@ export async function processGaugeDeposit(
     lastUpdatedTimestamp: timestamp,
   };
 
-  const userDiff = {
-    incrementalNumberOfGaugeDeposits: 1n,
-    incrementalCurrentLiquidityStaked: data.amount,
-    currentLiquidityStakedUSD: userStakedUSD,
-    lastActivityTimestamp: timestamp,
-  };
-
-  await Promise.all([
-    updateLiquidityPoolAggregator(
-      poolDiff,
-      liquidityPoolAggregator,
-      timestamp,
-      context,
-      data.chainId,
-      data.blockNumber,
-    ),
-    updateUserStatsPerPool(userDiff, userData, context, timestamp),
-  ]);
+  await updateLiquidityPoolAggregator(
+    poolDiff,
+    liquidityPoolAggregator,
+    timestamp,
+    context,
+    data.chainId,
+    data.blockNumber,
+  );
 }
 
 /**
@@ -311,17 +287,8 @@ export async function processGaugeWithdraw(
 
   const timestamp = new Date(data.timestamp * 1000);
 
-  // Load pool data and user data concurrently
-  const [poolData, userData] = await Promise.all([
-    loadPoolData(pool.poolAddress, data.chainId, context),
-    loadOrCreateUserData(
-      data.userAddress,
-      pool.poolAddress,
-      data.chainId,
-      context,
-      timestamp,
-    ),
-  ]);
+  // Load pool data
+  const poolData = await loadPoolData(pool.poolAddress, data.chainId, context);
 
   if (!poolData) {
     context.log.error(
@@ -334,21 +301,20 @@ export async function processGaugeWithdraw(
 
   const newPoolStake =
     liquidityPoolAggregator.currentLiquidityStaked - data.amount;
-  const newUserStake = userData.currentLiquidityStaked - data.amount;
 
-  if (newPoolStake < 0n || newUserStake < 0n) {
+  if (newPoolStake < 0n) {
     context.log.error(
       `${handlerName}: withdraw exceeds current stake for pool ${pool.poolAddress} user ${data.userAddress}. Skipping update. This needs to be fixed.`,
     );
     return;
   }
 
-  const { poolStakedUSD, userStakedUSD } = await computeStakedUSDForPoolAndUser(
+  const { poolStakedUSD } = await computeStakedUSDForPoolAndUser(
     data.chainId,
     pool.poolAddress,
     data.userAddress,
     newPoolStake,
-    newUserStake,
+    0n,
     liquidityPoolAggregator,
     poolData,
     context,
@@ -361,24 +327,14 @@ export async function processGaugeWithdraw(
     lastUpdatedTimestamp: timestamp,
   };
 
-  const userDiff = {
-    incrementalNumberOfGaugeWithdrawals: 1n,
-    incrementalCurrentLiquidityStaked: -data.amount,
-    currentLiquidityStakedUSD: userStakedUSD,
-    lastActivityTimestamp: timestamp,
-  };
-
-  await Promise.all([
-    updateLiquidityPoolAggregator(
-      poolDiff,
-      liquidityPoolAggregator,
-      timestamp,
-      context,
-      data.chainId,
-      data.blockNumber,
-    ),
-    updateUserStatsPerPool(userDiff, userData, context, timestamp),
-  ]);
+  await updateLiquidityPoolAggregator(
+    poolDiff,
+    liquidityPoolAggregator,
+    timestamp,
+    context,
+    data.chainId,
+    data.blockNumber,
+  );
 }
 
 /**
@@ -405,21 +361,14 @@ export async function processGaugeClaimRewards(
     data.blockNumber,
   );
 
-  // Load pool data, user data, and reward token concurrently
-  const [poolData, userData, rewardToken] = await Promise.all([
+  // Load pool data and reward token concurrently
+  const [poolData, rewardToken] = await Promise.all([
     loadPoolData(
       pool.poolAddress,
       data.chainId,
       context,
       data.blockNumber,
       data.timestamp,
-    ),
-    loadOrCreateUserData(
-      data.userAddress,
-      pool.poolAddress,
-      data.chainId,
-      context,
-      timestamp,
     ),
     context.Token.get(TokenId(data.chainId, rewardTokenAddress)),
   ]);
@@ -455,24 +404,13 @@ export async function processGaugeClaimRewards(
     lastUpdatedTimestamp: timestamp,
   };
 
-  // Update user stats with gauge reward claim
-  const userDiff = {
-    incrementalNumberOfGaugeRewardClaims: 1n,
-    incrementalTotalGaugeRewardsClaimedUSD: rewardAmountUSD,
-    incrementalTotalGaugeRewardsClaimed: data.amount, // in token units
-    lastActivityTimestamp: timestamp,
-  };
-
-  // Update pool and user entities in parallel
-  await Promise.all([
-    updateLiquidityPoolAggregator(
-      poolDiff,
-      liquidityPoolAggregator,
-      timestamp,
-      context,
-      data.chainId,
-      data.blockNumber,
-    ),
-    updateUserStatsPerPool(userDiff, userData, context, timestamp),
-  ]);
+  // Update pool entity
+  await updateLiquidityPoolAggregator(
+    poolDiff,
+    liquidityPoolAggregator,
+    timestamp,
+    context,
+    data.chainId,
+    data.blockNumber,
+  );
 }
