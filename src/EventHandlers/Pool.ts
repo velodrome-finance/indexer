@@ -151,7 +151,6 @@ Pool.Swap.handler(async ({ event, context }) => {
     event.chainId,
     event.block.number,
   );
-
 });
 
 /**

@@ -1,5 +1,4 @@
 import type {
-  CLGaugeConfig,
   LiquidityPoolAggregator,
   Token,
   handlerContext,
@@ -601,7 +600,7 @@ export function createLiquidityPoolAggregatorEntity(params: {
   token1Symbol: string;
   timestamp: Date;
   tickSpacing?: number; // For CL pools
-  CLGaugeConfig?: CLGaugeConfig | null; // For CL pools
+  CLGaugeConfig?: { defaultEmissionsCap: bigint } | null; // For CL pools
   factoryAddress: string; // Address of the factory that created this pool (e.g. CLFactory for CL pools)
   baseFee: bigint;
   currentFee: bigint;
@@ -696,8 +695,6 @@ export function createLiquidityPoolAggregatorEntity(params: {
     totalFeeRewardClaimed: 0n,
     totalFeeRewardClaimedUSD: 0n,
     veNFTamountStaked: 0n,
-    // Pool Launcher relationship (undefined for pools not launched via PoolLauncher)
-    poolLauncherPoolId: undefined,
     // Address of the factory that created this pool (e.g. CLFactory for CL pools)
     factoryAddress: factoryAddress,
     // Voting fields

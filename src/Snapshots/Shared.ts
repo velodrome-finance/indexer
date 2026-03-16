@@ -1,11 +1,6 @@
 import type {
-  ALM_LP_WrapperSnapshot,
   LiquidityPoolAggregatorSnapshot,
-  NonFungiblePositionSnapshot,
   TokenPriceSnapshot,
-  UserStatsPerPoolSnapshot,
-  VeNFTPoolVoteSnapshot,
-  VeNFTStateSnapshot,
   handlerContext,
 } from "generated";
 
@@ -13,11 +8,6 @@ import { SNAPSHOT_INTERVAL_IN_MS } from "../Constants";
 
 export enum SnapshotType {
   LiquidityPoolAggregator = "LiquidityPoolAggregator",
-  UserStatsPerPool = "UserStatsPerPool",
-  NonFungiblePosition = "NonFungiblePosition",
-  ALMLPWrapper = "ALMLPWrapper",
-  VeNFTState = "VeNFTState",
-  VeNFTPoolVote = "VeNFTPoolVote",
   TokenPrice = "TokenPrice",
 }
 
@@ -31,14 +21,6 @@ export type SnapshotForPersist =
       type: SnapshotType.LiquidityPoolAggregator;
       snapshot: LiquidityPoolAggregatorSnapshot;
     }
-  | { type: SnapshotType.UserStatsPerPool; snapshot: UserStatsPerPoolSnapshot }
-  | {
-      type: SnapshotType.NonFungiblePosition;
-      snapshot: NonFungiblePositionSnapshot;
-    }
-  | { type: SnapshotType.ALMLPWrapper; snapshot: ALM_LP_WrapperSnapshot }
-  | { type: SnapshotType.VeNFTState; snapshot: VeNFTStateSnapshot }
-  | { type: SnapshotType.VeNFTPoolVote; snapshot: VeNFTPoolVoteSnapshot }
   | { type: SnapshotType.TokenPrice; snapshot: TokenPriceSnapshot };
 
 /**
@@ -86,21 +68,6 @@ export function persistSnapshot(
   switch (item.type) {
     case SnapshotType.LiquidityPoolAggregator:
       context.LiquidityPoolAggregatorSnapshot.set(item.snapshot);
-      break;
-    case SnapshotType.UserStatsPerPool:
-      context.UserStatsPerPoolSnapshot.set(item.snapshot);
-      break;
-    case SnapshotType.NonFungiblePosition:
-      context.NonFungiblePositionSnapshot.set(item.snapshot);
-      break;
-    case SnapshotType.ALMLPWrapper:
-      context.ALM_LP_WrapperSnapshot.set(item.snapshot);
-      break;
-    case SnapshotType.VeNFTState:
-      context.VeNFTStateSnapshot.set(item.snapshot);
-      break;
-    case SnapshotType.VeNFTPoolVote:
-      context.VeNFTPoolVoteSnapshot.set(item.snapshot);
       break;
     case SnapshotType.TokenPrice:
       context.TokenPriceSnapshot.set(item.snapshot);

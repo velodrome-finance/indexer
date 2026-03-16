@@ -8,7 +8,6 @@ import {
 import { CHAIN_CONSTANTS, TokenId } from "../../Constants";
 import {
   calculateTotalUSD,
-  computeCLStakedUSDFromPositions,
   computeNonCLStakedUSD,
 } from "../../Helpers";
 
@@ -68,12 +67,12 @@ function computeNonCLStakedUSDIfAvailable(
  * @returns The staked USD, or undefined if valuation is unavailable
  */
 async function computeCLStakedUSDIfAvailable(
-  chainId: number,
-  poolAddress: string,
+  _chainId: number,
+  _poolAddress: string,
   liquidityPoolAggregator: LiquidityPoolAggregator,
-  poolData: PoolData,
-  context: handlerContext,
-  options: {
+  _poolData: PoolData,
+  _context: handlerContext,
+  _options: {
     userAddress?: string;
     logLabel: string;
   },
@@ -82,15 +81,8 @@ async function computeCLStakedUSDIfAvailable(
   if (sqrtPriceX96 === undefined || sqrtPriceX96 === 0n) {
     return undefined;
   }
-
-  return computeCLStakedUSDFromPositions(
-    chainId,
-    poolAddress,
-    liquidityPoolAggregator,
-    poolData,
-    context,
-    options,
-  );
+  // NonFungiblePosition entity has been stripped; CL staked USD is not tracked.
+  return 0n;
 }
 
 /**

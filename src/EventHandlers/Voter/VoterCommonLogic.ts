@@ -1,8 +1,4 @@
-import type {
-  LiquidityPoolAggregator,
-  Token,
-  handlerContext,
-} from "generated";
+import type { LiquidityPoolAggregator, Token, handlerContext } from "generated";
 import {
   type LiquidityPoolAggregatorDiff,
   loadPoolData,
@@ -166,4 +162,3 @@ export async function resolveLeafPoolForRootGauge(
     isCrossChain: true,
   };
 }
-

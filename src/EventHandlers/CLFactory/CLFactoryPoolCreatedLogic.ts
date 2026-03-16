@@ -1,6 +1,5 @@
 import type {
   CLFactory_PoolCreated_event,
-  CLGaugeConfig,
   FeeToTickSpacingMapping,
   LiquidityPoolAggregator,
   Token,
@@ -21,7 +20,7 @@ export async function processCLFactoryPoolCreated(
   factoryAddress: string,
   poolToken0: Token | undefined,
   poolToken1: Token | undefined,
-  CLGaugeConfig: CLGaugeConfig | undefined,
+  CLGaugeConfig: { defaultEmissionsCap: bigint } | undefined,
   feeToTickSpacingMapping: FeeToTickSpacingMapping,
   context: handlerContext,
 ): Promise<CLFactoryPoolCreatedResult> {

@@ -98,4 +98,3 @@ SuperchainLeafVoter.GaugeRevived.handler(async ({ event, context }) => {
     );
   }
 });
-
