@@ -10,26 +10,6 @@ export {
   setLiquidityPoolAggregatorSnapshot,
 } from "./LiquidityPoolAggregatorSnapshot";
 export {
-  createUserStatsPerPoolSnapshot,
-  setUserStatsPerPoolSnapshot,
-} from "./UserStatsPerPoolSnapshot";
-export {
-  createNonFungiblePositionSnapshot,
-  setNonFungiblePositionSnapshot,
-} from "./NonFungiblePositionSnapshot";
-export {
-  createALMLPWrapperSnapshot,
-  setALMLPWrapperSnapshot,
-} from "./ALMLPWrapperSnapshot";
-export {
-  createVeNFTStateSnapshot,
-  setVeNFTStateSnapshot,
-} from "./VeNFTStateSnapshot";
-export {
-  createVeNFTPoolVoteSnapshot,
-  setVeNFTPoolVoteSnapshot,
-} from "./VeNFTPoolVoteSnapshot";
-export {
   createTokenPriceSnapshot,
   setTokenPriceSnapshot,
 } from "./TokenPriceSnapshot";
