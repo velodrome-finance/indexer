@@ -2,9 +2,7 @@ import {
   SNAPSHOT_INTERVAL_IN_MS,
   toChecksumAddress,
 } from "../../src/Constants";
-import { createALMLPWrapperSnapshot } from "../../src/Snapshots/ALMLPWrapperSnapshot";
 import { createLiquidityPoolAggregatorSnapshot } from "../../src/Snapshots/LiquidityPoolAggregatorSnapshot";
-import { createNonFungiblePositionSnapshot } from "../../src/Snapshots/NonFungiblePositionSnapshot";
 import {
   type SnapshotForPersist,
   SnapshotType,
@@ -13,9 +11,6 @@ import {
   shouldSnapshot,
 } from "../../src/Snapshots/Shared";
 import { createTokenPriceSnapshot } from "../../src/Snapshots/TokenPriceSnapshot";
-import { createUserStatsPerPoolSnapshot } from "../../src/Snapshots/UserStatsPerPoolSnapshot";
-import { createVeNFTPoolVoteSnapshot } from "../../src/Snapshots/VeNFTPoolVoteSnapshot";
-import { createVeNFTStateSnapshot } from "../../src/Snapshots/VeNFTStateSnapshot";
 import { setupCommon } from "../EventHandlers/Pool/common";
 
 describe("Snapshots Shared", () => {
@@ -101,102 +96,6 @@ describe("Snapshots Shared", () => {
       );
     });
 
-    it("should call UserStatsPerPoolSnapshot.set when type is UserStatsPerPool", () => {
-      const common = setupCommon();
-      const context = common.createMockContext({
-        UserStatsPerPoolSnapshot: { set: vi.fn() },
-      });
-      const entity = common.createMockUserStatsPerPool();
-      const timestamp = new Date(oneHourMs * 4);
-      const snapshot = createUserStatsPerPoolSnapshot(entity, timestamp);
-
-      persistSnapshot(
-        { type: SnapshotType.UserStatsPerPool, snapshot },
-        context,
-      );
-
-      expect(context.UserStatsPerPoolSnapshot.set).toHaveBeenCalledTimes(1);
-      expect(context.UserStatsPerPoolSnapshot.set).toHaveBeenCalledWith(
-        snapshot,
-      );
-    });
-
-    it("should call NonFungiblePositionSnapshot.set when type is NonFungiblePosition", () => {
-      const common = setupCommon();
-      const context = common.createMockContext({
-        NonFungiblePositionSnapshot: { set: vi.fn() },
-      });
-      const entity = common.createMockNonFungiblePosition();
-      const timestamp = new Date(oneHourMs * 6);
-      const snapshot = createNonFungiblePositionSnapshot(entity, timestamp);
-
-      persistSnapshot(
-        { type: SnapshotType.NonFungiblePosition, snapshot },
-        context,
-      );
-
-      expect(context.NonFungiblePositionSnapshot.set).toHaveBeenCalledTimes(1);
-      expect(context.NonFungiblePositionSnapshot.set).toHaveBeenCalledWith(
-        snapshot,
-      );
-    });
-
-    it("should call ALM_LP_WrapperSnapshot.set when type is ALMLPWrapper", () => {
-      const common = setupCommon();
-      const context = common.createMockContext({
-        ALM_LP_WrapperSnapshot: { set: vi.fn() },
-      });
-      const entity = common.mockALMLPWrapperData;
-      const timestamp = new Date(oneHourMs * 3);
-      const snapshot = createALMLPWrapperSnapshot(entity, timestamp);
-
-      persistSnapshot({ type: SnapshotType.ALMLPWrapper, snapshot }, context);
-
-      expect(context.ALM_LP_WrapperSnapshot.set).toHaveBeenCalledTimes(1);
-      expect(context.ALM_LP_WrapperSnapshot.set).toHaveBeenCalledWith(snapshot);
-    });
-
-    it("should call VeNFTStateSnapshot.set when type is VeNFTState", () => {
-      const common = setupCommon();
-      const context = common.createMockContext({
-        VeNFTStateSnapshot: { set: vi.fn() },
-      });
-      const entity = common.createMockVeNFTState();
-      const timestamp = new Date(oneHourMs * 2);
-      const snapshot = createVeNFTStateSnapshot(entity, timestamp);
-
-      persistSnapshot({ type: SnapshotType.VeNFTState, snapshot }, context);
-
-      expect(context.VeNFTStateSnapshot.set).toHaveBeenCalledTimes(1);
-      expect(context.VeNFTStateSnapshot.set).toHaveBeenCalledWith(snapshot);
-    });
-
-    it("should call VeNFTPoolVoteSnapshot.set when type is VeNFTPoolVote", () => {
-      const common = setupCommon();
-      const context = common.createMockContext({
-        VeNFTPoolVoteSnapshot: { set: vi.fn() },
-      });
-      const veNFTState = common.createMockVeNFTState();
-      const veNFTStateSnapshot = createVeNFTStateSnapshot(
-        veNFTState,
-        new Date(oneHourMs * 2),
-      );
-      const poolVote = common.createMockVeNFTPoolVote({
-        veNFTamountStaked: 100n,
-      });
-      const snapshot = createVeNFTPoolVoteSnapshot(
-        poolVote,
-        veNFTState,
-        veNFTStateSnapshot,
-        new Date(oneHourMs * 2),
-      );
-
-      persistSnapshot({ type: SnapshotType.VeNFTPoolVote, snapshot }, context);
-
-      expect(context.VeNFTPoolVoteSnapshot.set).toHaveBeenCalledTimes(1);
-      expect(context.VeNFTPoolVoteSnapshot.set).toHaveBeenCalledWith(snapshot);
-    });
-
     it("should call TokenPriceSnapshot.set when type is TokenPrice", () => {
       const common = setupCommon();
       const context = common.createMockContext({
@@ -229,11 +128,6 @@ describe("Snapshots Shared", () => {
       const common = setupCommon();
       const context = common.createMockContext({
         LiquidityPoolAggregatorSnapshot: { set: vi.fn() },
-        UserStatsPerPoolSnapshot: { set: vi.fn() },
-        NonFungiblePositionSnapshot: { set: vi.fn() },
-        ALM_LP_WrapperSnapshot: { set: vi.fn() },
-        VeNFTStateSnapshot: { set: vi.fn() },
-        VeNFTPoolVoteSnapshot: { set: vi.fn() },
         TokenPriceSnapshot: { set: vi.fn() },
       });
       const invalidItem = {
@@ -246,11 +140,6 @@ describe("Snapshots Shared", () => {
       expect(
         context.LiquidityPoolAggregatorSnapshot.set,
       ).not.toHaveBeenCalled();
-      expect(context.UserStatsPerPoolSnapshot.set).not.toHaveBeenCalled();
-      expect(context.NonFungiblePositionSnapshot.set).not.toHaveBeenCalled();
-      expect(context.ALM_LP_WrapperSnapshot.set).not.toHaveBeenCalled();
-      expect(context.VeNFTStateSnapshot.set).not.toHaveBeenCalled();
-      expect(context.VeNFTPoolVoteSnapshot.set).not.toHaveBeenCalled();
       expect(context.TokenPriceSnapshot.set).not.toHaveBeenCalled();
     });
   });

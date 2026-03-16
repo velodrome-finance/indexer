@@ -1,8 +1,4 @@
-import type {
-  LiquidityPoolAggregator,
-  Token,
-  handlerContext,
-} from "generated";
+import type { LiquidityPoolAggregator, Token, handlerContext } from "generated";
 import { PoolId, TokenId } from "../Constants";
 import { getSwapFee, roundBlockToInterval } from "../Effects/Index";
 import { generatePoolName } from "../Helpers";

@@ -1,9 +1,5 @@
 import { MockDb, Pool } from "../../../generated/src/TestHelpers.gen";
-import {
-  UserStatsPerPoolId,
-  ZERO_ADDRESS,
-  toChecksumAddress,
-} from "../../../src/Constants";
+import { ZERO_ADDRESS, toChecksumAddress } from "../../../src/Constants";
 import { setupCommon } from "./common";
 
 describe("Pool Transfer Event", () => {
@@ -62,13 +58,6 @@ describe("Pool Transfer Event", () => {
     expect(storedTransfer?.isMint).toBe(true);
     expect(storedTransfer?.isBurn).toBe(false);
     expect(storedTransfer?.to).toBe(userAddress);
-
-    // Verify user LP balance was updated
-    const userStats = result.entities.UserStatsPerPool.get(
-      UserStatsPerPoolId(10, userAddress, poolAddress),
-    );
-    expect(userStats).toBeDefined();
-    expect(userStats?.lpBalance).toBe(LP_VALUE);
   });
 
   it("should process burn transfer and update pool totalLPTokenSupply", async () => {
@@ -121,13 +110,6 @@ describe("Pool Transfer Event", () => {
     expect(storedTransfer?.isMint).toBe(false);
     expect(storedTransfer?.isBurn).toBe(true);
     expect(storedTransfer?.from).toBe(userAddress);
-
-    // Verify user LP balance was updated
-    const userStats = result.entities.UserStatsPerPool.get(
-      UserStatsPerPoolId(10, userAddress, poolAddress),
-    );
-    expect(userStats).toBeDefined();
-    expect(userStats?.lpBalance).toBe(-LP_VALUE);
   });
 
   it("should process regular transfer and update both user balances", async () => {
@@ -168,20 +150,6 @@ describe("Pool Transfer Event", () => {
     const transferId = `10-${mockEvent.transaction.hash}-${poolAddress}-0`;
     const storedTransfer = result.entities.PoolTransferInTx.get(transferId);
     expect(storedTransfer).toBeUndefined();
-
-    // Verify sender LP balance was decreased
-    const senderStats = result.entities.UserStatsPerPool.get(
-      UserStatsPerPoolId(10, senderAddress, poolAddress),
-    );
-    expect(senderStats).toBeDefined();
-    expect(senderStats?.lpBalance).toBe(-LP_VALUE);
-
-    // Verify recipient LP balance was increased
-    const recipientStats = result.entities.UserStatsPerPool.get(
-      UserStatsPerPoolId(10, recipientAddress, poolAddress),
-    );
-    expect(recipientStats).toBeDefined();
-    expect(recipientStats?.lpBalance).toBe(LP_VALUE);
   });
 
   describe("when pool does not exist", () => {

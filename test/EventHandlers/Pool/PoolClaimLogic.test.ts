@@ -74,17 +74,6 @@ describe("PoolClaimLogic", () => {
         expect(pool.lastUpdatedTimestamp).toEqual(
           new Date(mockEvent.block.timestamp * 1000),
         );
-        const user = result.userDiff;
-        expect(user).toBeDefined();
-        expect(user?.incrementalTotalStakedFeesCollected0).toBe(
-          mockEvent.params.amount0,
-        );
-        expect(user?.incrementalTotalStakedFeesCollected1).toBe(
-          mockEvent.params.amount1,
-        );
-        expect(user?.incrementalTotalStakedFeesCollectedUSD).toBe(
-          expectedTotalFeesUSD,
-        );
       });
     });
 
@@ -126,17 +115,6 @@ describe("PoolClaimLogic", () => {
         expect(pool.incrementalTotalStakedFeesCollected1).toBeUndefined();
         expect(pool.lastUpdatedTimestamp).toEqual(
           new Date(mockEvent.block.timestamp * 1000),
-        );
-        const user = result.userDiff;
-        expect(user).toBeDefined();
-        expect(user?.incrementalTotalUnstakedFeesCollected0).toBe(
-          mockEvent.params.amount0,
-        );
-        expect(user?.incrementalTotalUnstakedFeesCollected1).toBe(
-          mockEvent.params.amount1,
-        );
-        expect(user?.incrementalTotalUnstakedFeesCollectedUSD).toBe(
-          expectedTotalFeesUSD,
         );
       });
     });

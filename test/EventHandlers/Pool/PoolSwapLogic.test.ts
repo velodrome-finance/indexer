@@ -54,16 +54,6 @@ describe("PoolSwapLogic", () => {
 
       // Assertions
       expect(result.liquidityPoolDiff).toBeDefined();
-      expect(result.userSwapDiff).toBeDefined();
-
-      // Verify user swap diff content
-      expect(result.userSwapDiff).toMatchObject({
-        incrementalNumberOfSwaps: 1n,
-        incrementalTotalSwapVolumeUSD: 1000n, // from swapData.volumeInUSD (token0: 1000 * 1 USD)
-        incrementalTotalSwapVolumeAmount0: 1000n, // amount0In + amount0Out = 1000 + 0
-        incrementalTotalSwapVolumeAmount1: 500n, // amount1In + amount1Out = 0 + 500
-        lastActivityTimestamp: new Date(1000000 * 1000),
-      });
 
       // Verify liquidity pool diff content
       expect(result.liquidityPoolDiff).toMatchObject({
@@ -109,7 +99,6 @@ describe("PoolSwapLogic", () => {
       );
 
       expect(result.liquidityPoolDiff).toBeDefined();
-      expect(result.userSwapDiff).toBeDefined();
 
       // When tokens are not whitelisted, whitelisted volume diff should be 0
       expect(
@@ -127,7 +116,6 @@ describe("PoolSwapLogic", () => {
       );
 
       expect(result.liquidityPoolDiff).toBeDefined();
-      expect(result.userSwapDiff).toBeDefined();
 
       // When both tokens are whitelisted, whitelisted volume should be added
       // Expected: 1000n USD (1000 USDT * 1 USD, uses token0 value)
@@ -144,7 +132,6 @@ describe("PoolSwapLogic", () => {
       );
 
       expect(result.liquidityPoolDiff).toBeDefined();
-      expect(result.userSwapDiff).toBeDefined();
 
       // When only one token is whitelisted, whitelisted volume diff should be 0
       expect(
@@ -187,8 +174,6 @@ describe("PoolSwapLogic", () => {
       // Net amounts should be sum of in and out
       expect(result.liquidityPoolDiff?.incrementalTotalVolume0).toBe(800n); // 500 + 300
       expect(result.liquidityPoolDiff?.incrementalTotalVolume1).toBe(600n); // 200 + 400
-      expect(result.userSwapDiff?.incrementalTotalSwapVolumeAmount0).toBe(800n);
-      expect(result.userSwapDiff?.incrementalTotalSwapVolumeAmount1).toBe(600n);
     });
 
     it("should use token0 USD value when available and non-zero", () => {

@@ -6,10 +6,7 @@ import {
   updateLiquidityPoolAggregator,
 } from "../../Aggregators/LiquidityPoolAggregator";
 import { CHAIN_CONSTANTS, TokenId } from "../../Constants";
-import {
-  calculateTotalUSD,
-  computeNonCLStakedUSD,
-} from "../../Helpers";
+import { calculateTotalUSD, computeNonCLStakedUSD } from "../../Helpers";
 
 export interface GaugeEventData {
   gaugeAddress: string;

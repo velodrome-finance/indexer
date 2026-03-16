@@ -1,24 +1,10 @@
 import { TickMath } from "@uniswap/v3-sdk";
-import type {
-  ALM_LP_Wrapper,
-  LiquidityPoolAggregator,
-  NonFungiblePosition,
-  Token,
-  UserStatsPerPool,
-  VeNFTPoolVote,
-  VeNFTState,
-  handlerContext,
-} from "generated";
+import type { LiquidityPoolAggregator, Token, handlerContext } from "generated";
 import {
-  ALMLPWrapperId,
-  NonFungiblePositionId,
   PoolId,
   TEN_TO_THE_6_BI,
   TEN_TO_THE_18_BI,
   TokenId,
-  UserStatsPerPoolId,
-  VeNFTId,
-  VeNFTPoolVoteId,
   toChecksumAddress,
 } from "../../../src/Constants";
 import { calculateTokenAmountUSD } from "../../../src/Helpers";
@@ -143,8 +129,6 @@ export function setupCommon() {
     totalFeeRewardClaimed: 0n,
     totalFeeRewardClaimedUSD: 0n,
     veNFTamountStaked: 0n,
-    // Pool Launcher relationship
-    poolLauncherPoolId: undefined,
     // Address of the factory that created this pool (e.g. CLFactory for CL pools)
     factoryAddress: "",
     // Voting fields
@@ -158,200 +142,6 @@ export function setupCommon() {
     rootPoolMatchingHash: "",
     tickSpacing: 0n,
   };
-
-  const mockALMLPWrapperData: ALM_LP_Wrapper = {
-    id: ALMLPWrapperId(
-      CHAIN_ID,
-      toChecksumAddress("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-    ),
-    chainId: CHAIN_ID,
-    pool: POOL_ADDRESS,
-    token0: mockToken0Data.address,
-    token1: mockToken1Data.address,
-    lpAmount: 2000n * TEN_TO_THE_18_BI,
-    lastUpdatedTimestamp: new Date(900000 * 1000),
-    tokenId: 1n,
-    tickLower: -1000n,
-    tickUpper: 1000n,
-    property: 3000n, // uint24 tick spacing
-    liquidity: 1000000n,
-    strategyType: 1n,
-    tickNeighborhood: 100n,
-    tickSpacing: 60n,
-    positionWidth: 2000n,
-    maxLiquidityRatioDeviationX96: 79228162514264337593543950336n, // 1 * 2^96
-    creationTimestamp: new Date(900000 * 1000),
-    strategyTransactionHash:
-      "0x0000000000000000000000000000000000000000000000000000000000000001",
-    lastSnapshotTimestamp: undefined,
-  };
-
-  const defaultUserAddress = toChecksumAddress(
-    "0xAbCccccccccccccccccccccccccccccccccccccc",
-  );
-  const normalizedDefaultUserAddress = defaultUserAddress;
-  const mockUserStatsPerPoolData: UserStatsPerPool = {
-    id: UserStatsPerPoolId(
-      CHAIN_ID,
-      normalizedDefaultUserAddress,
-      POOL_ADDRESS,
-    ),
-    userAddress: normalizedDefaultUserAddress,
-    poolAddress: POOL_ADDRESS,
-    chainId: CHAIN_ID,
-
-    // Liquidity metrics
-    currentLiquidityUSD: 0n,
-    totalLiquidityAddedUSD: 0n,
-    totalLiquidityAddedToken0: 0n,
-    totalLiquidityAddedToken1: 0n,
-    totalLiquidityRemovedUSD: 0n,
-    totalLiquidityRemovedToken0: 0n,
-    totalLiquidityRemovedToken1: 0n,
-    lpBalance: 0n,
-
-    // Fee metrics
-    totalFeesContributedUSD: 0n,
-    totalFeesContributed0: 0n,
-    totalFeesContributed1: 0n,
-
-    // Swap metrics
-    numberOfSwaps: 0n,
-    totalSwapVolumeAmount0: 0n,
-    totalSwapVolumeAmount1: 0n,
-    totalSwapVolumeUSD: 0n,
-
-    // Flash swap metrics
-    numberOfFlashLoans: 0n,
-    totalFlashLoanVolumeUSD: 0n,
-
-    // Gauge metrics
-    numberOfGaugeDeposits: 0n,
-    numberOfGaugeWithdrawals: 0n,
-    numberOfGaugeRewardClaims: 0n,
-    totalGaugeRewardsClaimedUSD: 0n,
-    totalGaugeRewardsClaimed: 0n,
-    totalStakedFeesCollected0: 0n,
-    totalStakedFeesCollected1: 0n,
-    totalStakedFeesCollectedUSD: 0n,
-    totalUnstakedFeesCollected0: 0n,
-    totalUnstakedFeesCollected1: 0n,
-    totalUnstakedFeesCollectedUSD: 0n,
-    currentLiquidityStaked: 0n,
-    currentLiquidityStakedUSD: 0n,
-
-    // Voting metrics
-    totalBribeClaimed: 0n,
-    totalBribeClaimedUSD: 0n,
-    totalFeeRewardClaimed: 0n,
-    totalFeeRewardClaimedUSD: 0n,
-    veNFTamountStaked: 0n,
-
-    // ALM metrics - initialized to empty/zero values
-    almAddress: "",
-    almLpAmount: 0n,
-
-    // Timestamps
-    firstActivityTimestamp: new Date(900000 * 1000),
-    lastActivityTimestamp: new Date(900000 * 1000),
-    lastAlmActivityTimestamp: new Date(900000 * 1000),
-    lastSnapshotTimestamp: undefined,
-  };
-
-  const mockVeNFTStateData: VeNFTState = {
-    id: VeNFTId(CHAIN_ID, 1n),
-    chainId: CHAIN_ID,
-    tokenId: 1n,
-    owner: normalizedDefaultUserAddress,
-    locktime: 0n,
-    lastUpdatedTimestamp: new Date(900000 * 1000),
-    totalValueLocked: 0n,
-    isAlive: true,
-    lastSnapshotTimestamp: undefined,
-  };
-
-  const mockVeNFTPoolVoteData: VeNFTPoolVote = {
-    id: VeNFTPoolVoteId(CHAIN_ID, 1n, POOL_ADDRESS),
-    poolAddress: POOL_ADDRESS,
-    veNFTamountStaked: 0n,
-    veNFTState_id: mockVeNFTStateData.id,
-    lastUpdatedTimestamp: new Date(900000 * 1000),
-  };
-
-  const defaultNFPMTokenId = 42n;
-  const mockNonFungiblePositionData: NonFungiblePosition = {
-    id: NonFungiblePositionId(CHAIN_ID, POOL_ADDRESS, defaultNFPMTokenId),
-    chainId: CHAIN_ID,
-    tokenId: defaultNFPMTokenId,
-    owner: normalizedDefaultUserAddress,
-    pool: POOL_ADDRESS,
-    tickLower: -1000n,
-    tickUpper: 1000n,
-    token0: mockToken0Data.address,
-    token1: mockToken1Data.address,
-    liquidity: 5000n,
-    mintTransactionHash:
-      "0x1234567890123456789012345678901234567890123456789012345678901234",
-    mintLogIndex: 1,
-    lastUpdatedTimestamp: new Date(900000 * 1000),
-    lastSnapshotTimestamp: undefined,
-    isStakedInGauge: false,
-  };
-
-  /**
-   * Creates a mock NonFungiblePosition entity with customizable fields.
-   */
-  function createMockNonFungiblePosition(
-    overrides: Partial<NonFungiblePosition> = {},
-  ): NonFungiblePosition {
-    const chainId = overrides.chainId ?? CHAIN_ID;
-    const pool = toChecksumAddress(overrides.pool ?? POOL_ADDRESS);
-    const tokenId = overrides.tokenId ?? defaultNFPMTokenId;
-    const id = overrides.id ?? NonFungiblePositionId(chainId, pool, tokenId);
-    const owner = toChecksumAddress(
-      overrides.owner ?? normalizedDefaultUserAddress,
-    );
-
-    return {
-      ...mockNonFungiblePositionData,
-      ...overrides,
-      id,
-      chainId,
-      tokenId,
-      pool,
-      owner,
-    };
-  }
-
-  /**
-   * Creates a mock UserStatsPerPool entity with customizable fields.
-   * All fields default to zero/empty values, allowing tests to override only what they need.
-   *
-   * @param overrides - Partial UserStatsPerPool to override default values
-   * @returns A complete UserStatsPerPool entity
-   */
-  function createMockUserStatsPerPool(
-    overrides: Partial<UserStatsPerPool> = {},
-  ): UserStatsPerPool {
-    // Calculate id if userAddress, poolAddress, or chainId are provided
-    const userAddress = toChecksumAddress(
-      overrides.userAddress ?? defaultUserAddress,
-    );
-    const poolAddress = toChecksumAddress(
-      overrides.poolAddress ?? POOL_ADDRESS,
-    );
-    const chainId = overrides.chainId ?? CHAIN_ID;
-    const id = UserStatsPerPoolId(chainId, userAddress, poolAddress);
-
-    return {
-      ...mockUserStatsPerPoolData,
-      ...overrides,
-      id,
-      userAddress,
-      poolAddress,
-      chainId,
-    };
-  }
 
   /**
    * Creates a mock LiquidityPoolAggregator entity with customizable fields.
@@ -380,25 +170,6 @@ export function setupCommon() {
   }
 
   /**
-   * Creates a mock VeNFTState entity with customizable fields.
-   */
-  function createMockVeNFTState(
-    overrides: Partial<VeNFTState> = {},
-  ): VeNFTState {
-    const chainId = overrides.chainId ?? CHAIN_ID;
-    const tokenId = overrides.tokenId ?? 1n;
-    const id = overrides.id ?? VeNFTId(chainId, tokenId);
-
-    return {
-      ...mockVeNFTStateData,
-      ...overrides,
-      id,
-      chainId,
-      tokenId,
-    };
-  }
-
-  /**
    * Creates a mock Token with customizable fields. Use for token variants (e.g. different decimals).
    * @param overrides - Partial Token to override default values
    * @param base - Base token to copy from (defaults to mockToken0Data)
@@ -408,30 +179,6 @@ export function setupCommon() {
     base: Token = mockToken0Data,
   ): Token {
     return { ...base, ...overrides };
-  }
-
-  /**
-   * Creates a mock VeNFTPoolVote entity with customizable fields.
-   */
-  function createMockVeNFTPoolVote(
-    overrides: Partial<VeNFTPoolVote> = {},
-  ): VeNFTPoolVote {
-    const veNFTStateId = overrides.veNFTState_id ?? mockVeNFTStateData.id;
-    const [chainIdPart, tokenIdPart] = veNFTStateId.split("-");
-    const chainId = chainIdPart ? Number(chainIdPart) : CHAIN_ID;
-    const tokenId = tokenIdPart ? BigInt(tokenIdPart) : 1n;
-    const poolAddress = toChecksumAddress(
-      overrides.poolAddress ?? POOL_ADDRESS,
-    );
-    const id = overrides.id ?? VeNFTPoolVoteId(chainId, tokenId, poolAddress);
-
-    return {
-      ...mockVeNFTPoolVoteData,
-      ...overrides,
-      id,
-      poolAddress,
-      veNFTState_id: veNFTStateId,
-    };
   }
 
   /**
@@ -449,17 +196,8 @@ export function setupCommon() {
     mockToken0Data,
     mockToken1Data,
     mockLiquidityPoolData,
-    mockALMLPWrapperData,
-    mockUserStatsPerPoolData,
-    mockVeNFTStateData,
-    mockVeNFTPoolVoteData,
-    mockNonFungiblePositionData,
     createMockToken,
-    createMockUserStatsPerPool,
     createMockLiquidityPoolAggregator,
-    createMockVeNFTState,
-    createMockVeNFTPoolVote,
-    createMockNonFungiblePosition,
     createMockContext,
   };
 }

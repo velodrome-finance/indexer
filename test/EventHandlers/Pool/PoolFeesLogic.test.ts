@@ -58,38 +58,6 @@ describe("PoolFeesLogic", () => {
         expect(result.liquidityPoolDiff?.lastUpdatedTimestamp).toEqual(
           new Date(mockEvent.block.timestamp * 1000),
         );
-
-        // Check user diff data
-        expect(result.userDiff).toBeDefined();
-        expect(result.userDiff?.incrementalTotalFeesContributed0).toBe(
-          mockEvent.params.amount0,
-        );
-        expect(result.userDiff?.incrementalTotalFeesContributed1).toBe(
-          mockEvent.params.amount1,
-        );
-        expect(result.userDiff?.lastActivityTimestamp).toEqual(
-          new Date(mockEvent.block.timestamp * 1000),
-        );
-      });
-
-      it("should prepare user update data correctly", () => {
-        const result = processPoolFees(
-          mockEvent,
-          mockToken0Data,
-          mockToken1Data,
-        );
-
-        // Check that user diff data is prepared correctly
-        expect(result.userDiff).toBeDefined();
-        expect(result.userDiff?.incrementalTotalFeesContributed0).toBe(
-          mockEvent.params.amount0,
-        );
-        expect(result.userDiff?.incrementalTotalFeesContributed1).toBe(
-          mockEvent.params.amount1,
-        );
-        expect(result.userDiff?.lastActivityTimestamp).toEqual(
-          new Date(mockEvent.block.timestamp * 1000),
-        );
       });
     });
 
@@ -142,14 +110,12 @@ describe("PoolFeesLogic", () => {
         );
 
         expect(result.liquidityPoolDiff).toBeDefined();
-        expect(result.userDiff).toBeDefined();
       });
 
       it("should handle undefined tokens", () => {
         const result = processPoolFees(mockEvent, undefined, undefined);
 
         expect(result.liquidityPoolDiff).toBeDefined();
-        expect(result.userDiff).toBeDefined();
       });
     });
   });

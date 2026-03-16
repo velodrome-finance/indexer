@@ -1,9 +1,6 @@
 import { CLFactory } from "generated";
 import { updateFeeToTickSpacingMapping } from "../Aggregators/FeeToTickSpacingMapping";
-import {
-  FeeToTickSpacingMappingId,
-  TokenId,
-} from "../Constants";
+import { FeeToTickSpacingMappingId, TokenId } from "../Constants";
 import {
   flushPendingRootPoolMappingAndVotes,
   processCLFactoryPoolCreated,
@@ -16,14 +13,13 @@ CLFactory.PoolCreated.contractRegister(({ event, context }) => {
 
 CLFactory.PoolCreated.handler(async ({ event, context }) => {
   // Load token instances efficiently
-  const [poolToken0, poolToken1, feeToTickSpacingMapping] =
-    await Promise.all([
-      context.Token.get(TokenId(event.chainId, event.params.token0)),
-      context.Token.get(TokenId(event.chainId, event.params.token1)),
-      context.FeeToTickSpacingMapping.get(
-        FeeToTickSpacingMappingId(event.chainId, event.params.tickSpacing),
-      ),
-    ]);
+  const [poolToken0, poolToken1, feeToTickSpacingMapping] = await Promise.all([
+    context.Token.get(TokenId(event.chainId, event.params.token0)),
+    context.Token.get(TokenId(event.chainId, event.params.token1)),
+    context.FeeToTickSpacingMapping.get(
+      FeeToTickSpacingMappingId(event.chainId, event.params.tickSpacing),
+    ),
+  ]);
   const CLGaugeConfig = undefined;
 
   // CLFactory emits TickSpacingEnabled events in its constructor, so feeToTickSpacingMapping should exist

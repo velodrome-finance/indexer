@@ -125,7 +125,6 @@ describe("LiquidityPoolAggregatorSnapshot", () => {
         k !== "tickSpacing" &&
         k !== "rootPoolMatchingHash" &&
         k !== "factoryAddress" &&
-        k !== "poolLauncherPoolId" &&
         (setArg as Record<string, unknown>)[k] !== undefined,
     );
     for (const key of snapshotKeysFromPool) {

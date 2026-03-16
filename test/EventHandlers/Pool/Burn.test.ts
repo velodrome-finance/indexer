@@ -97,12 +97,7 @@ describe("Pool Burn Event", () => {
       );
       expect(pool).toBeUndefined();
 
-      // User stats will NOT be created when pool doesn't exist (early return)
-      // and no transfer match is found
-      const userStats = postEventDB.entities.UserStatsPerPool.get(
-        `0x1111111111111111111111111111111111111111_${commonData.mockLiquidityPoolData.poolAddress}_10`,
-      );
-      expect(userStats).toBeUndefined();
+      // No user stats should be created when pool doesn't exist (early return)
     });
   });
 });

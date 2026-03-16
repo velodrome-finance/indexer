@@ -2,13 +2,9 @@ import type { LiquidityPoolAggregator } from "generated";
 import { MockDb, RootCLPoolFactory } from "generated/src/TestHelpers.gen";
 import {
   PendingRootPoolMappingId,
-  PendingVoteId,
   PoolId,
   RootPoolLeafPoolId,
   TokenId,
-  UserStatsPerPoolId,
-  VeNFTId,
-  VeNFTPoolVoteId,
   rootPoolMatchingHash,
   toChecksumAddress,
 } from "../../src/Constants";
@@ -128,123 +124,6 @@ describe("RootCLPoolFactory Events", () => {
           rootPoolAddress,
           "[RootPoolCreated]",
         );
-      });
-    });
-
-    describe("when PendingVote(s) exist for the root pool", () => {
-      let resultDB: ReturnType<typeof MockDb.createMockDb>;
-      const tokenId = 1n;
-      const voteWeight = 100n;
-      const ownerAddress = toChecksumAddress(
-        "0x2222222222222222222222222222222222222222",
-      );
-      const blockTimestamp = 1000000;
-      const timestampMs = blockTimestamp * 1000;
-
-      beforeEach(async () => {
-        const {
-          createMockLiquidityPoolAggregator,
-          createMockVeNFTState,
-          mockToken0Data,
-          mockToken1Data,
-        } = setupCommon();
-
-        const leafToken0 = {
-          ...mockToken0Data,
-          id: TokenId(leafChainId, mockToken0Data.address),
-          chainId: leafChainId,
-        };
-        const leafToken1 = {
-          ...mockToken1Data,
-          id: TokenId(leafChainId, mockToken1Data.address),
-          chainId: leafChainId,
-        };
-        const mockLiquidityPool = createMockLiquidityPoolAggregator({
-          id: PoolId(leafChainId, leafPoolAddress),
-          poolAddress: leafPoolAddress,
-          chainId: leafChainId,
-          token0_id: leafToken0.id,
-          token1_id: leafToken1.id,
-          token0_address: leafToken0.address,
-          token1_address: leafToken1.address,
-          tickSpacing: tickSpacing,
-          isCL: true,
-          rootPoolMatchingHash: rootPoolMatchingHash(
-            leafChainId,
-            token0,
-            token1,
-            tickSpacing,
-          ),
-          veNFTamountStaked: 0n,
-        });
-        const veNFTState = createMockVeNFTState({
-          id: VeNFTId(rootChainId, tokenId),
-          chainId: rootChainId,
-          tokenId,
-          owner: ownerAddress,
-        });
-        const pendingVote = {
-          id: PendingVoteId(rootChainId, rootPoolAddress, tokenId, "0xhash", 1),
-          chainId: rootChainId,
-          rootPoolAddress,
-          tokenId,
-          weight: voteWeight,
-          eventType: "Voted",
-          timestamp: new Date(timestampMs),
-          blockNumber: BigInt(123456),
-          transactionHash: "0xhash",
-        };
-
-        mockDb = mockDb.entities.LiquidityPoolAggregator.set(mockLiquidityPool);
-        mockDb = mockDb.entities.Token.set(leafToken0);
-        mockDb = mockDb.entities.Token.set(leafToken1);
-        mockDb = mockDb.entities.VeNFTState.set(veNFTState);
-        mockDb = mockDb.entities.PendingVote.set(pendingVote);
-
-        resultDB = await mockDb.processEvents([mockEvent]);
-      });
-
-      it("should create RootPool_LeafPool and flush pending votes to leaf pool", () => {
-        const rootPoolLeafPool = resultDB.entities.RootPool_LeafPool.get(
-          RootPoolLeafPoolId(
-            rootChainId,
-            leafChainId,
-            rootPoolAddress,
-            leafPoolAddress,
-          ),
-        );
-        expect(rootPoolLeafPool).toBeDefined();
-
-        const processedPendingVote = resultDB.entities.PendingVote.get(
-          PendingVoteId(rootChainId, rootPoolAddress, tokenId, "0xhash", 1),
-        );
-        expect(processedPendingVote).toBeUndefined();
-
-        const leafPool = resultDB.entities.LiquidityPoolAggregator.get(
-          PoolId(leafChainId, leafPoolAddress),
-        );
-        expect(leafPool?.veNFTamountStaked).toBe(voteWeight);
-      });
-
-      it("should update UserStatsPerPool and VeNFTPoolVote for the vote owner on leaf pool", () => {
-        const userStatsId = UserStatsPerPoolId(
-          leafChainId,
-          ownerAddress,
-          leafPoolAddress,
-        );
-        const userStats = resultDB.entities.UserStatsPerPool.get(userStatsId);
-        expect(userStats).toBeDefined();
-        expect(userStats?.veNFTamountStaked).toBe(voteWeight);
-
-        const veNFTPoolVoteId = VeNFTPoolVoteId(
-          leafChainId,
-          tokenId,
-          leafPoolAddress,
-        );
-        const veNFTPoolVote =
-          resultDB.entities.VeNFTPoolVote.get(veNFTPoolVoteId);
-        expect(veNFTPoolVote).toBeDefined();
-        expect(veNFTPoolVote?.veNFTamountStaked).toBe(voteWeight);
       });
     });
 

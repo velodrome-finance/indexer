@@ -66,17 +66,6 @@ describe("CLPoolCollectLogic", () => {
       expect(
         result.liquidityPoolDiff.incrementalTotalUnstakedFeesCollectedUSD,
       ).toBe(5000000000000000000n); // 5 USD in 18 decimals
-
-      // Check user unstaked fees collected diff with exact values
-      expect(
-        result.userLiquidityDiff.incrementalTotalUnstakedFeesCollected0,
-      ).toBe(1000000000000000000n); // amount0
-      expect(
-        result.userLiquidityDiff.incrementalTotalUnstakedFeesCollected1,
-      ).toBe(2000000000000000000n); // amount1
-      expect(
-        result.userLiquidityDiff.incrementalTotalUnstakedFeesCollectedUSD,
-      ).toBe(5000000000000000000n); // 5 USD in 18 decimals
     });
 
     it("should handle different token decimals correctly", () => {
@@ -92,7 +81,6 @@ describe("CLPoolCollectLogic", () => {
       );
 
       expect(result.liquidityPoolDiff).toBeDefined();
-      expect(result.userLiquidityDiff).toBeDefined();
     });
 
     it("should handle zero amounts correctly", () => {
@@ -119,15 +107,6 @@ describe("CLPoolCollectLogic", () => {
       ).toBe(0n);
       expect(
         result.liquidityPoolDiff.incrementalTotalUnstakedFeesCollectedUSD,
-      ).toBe(0n);
-      expect(
-        result.userLiquidityDiff.incrementalTotalUnstakedFeesCollected0,
-      ).toBe(0n);
-      expect(
-        result.userLiquidityDiff.incrementalTotalUnstakedFeesCollected1,
-      ).toBe(0n);
-      expect(
-        result.userLiquidityDiff.incrementalTotalUnstakedFeesCollectedUSD,
       ).toBe(0n);
     });
 

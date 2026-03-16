@@ -1,6 +1,5 @@
 import type {
   CLFactory_PoolCreated_event,
-  CLGaugeConfig,
   FeeToTickSpacingMapping,
   Token,
   handlerContext,
@@ -478,10 +477,8 @@ describe("CLFactoryPoolCreatedLogic", () => {
 
     it("should set gaugeEmissionsCap to defaultEmissionsCap when CLGaugeConfig exists", async () => {
       const mockDefaultEmissionsCap = 1000000000000000000000n; // 1000 tokens in 18 decimals
-      const mockCLGaugeConfig: CLGaugeConfig = {
-        id: toChecksumAddress("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+      const mockCLGaugeConfig: { defaultEmissionsCap: bigint } = {
         defaultEmissionsCap: mockDefaultEmissionsCap,
-        lastUpdatedTimestamp: new Date(1000000 * 1000),
       };
 
       const result = await processCLFactoryPoolCreated(

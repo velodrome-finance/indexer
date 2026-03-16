@@ -74,11 +74,6 @@ describe("CLPoolFlashLogic", () => {
         2000000n,
       );
 
-      // Check user flash loan diff with exact values
-      expect(result.userFlashLoanDiff.incrementalNumberOfFlashLoans).toBe(1n);
-      expect(result.userFlashLoanDiff.incrementalTotalFlashLoanVolumeUSD).toBe(
-        2000000n,
-      );
       expect(result.liquidityPoolDiff).not.toHaveProperty(
         "incrementalReserve0",
       );
@@ -108,11 +103,10 @@ describe("CLPoolFlashLogic", () => {
     it("should calculate flash loan volume correctly", () => {
       const result = processCLPoolFlash(mockEvent, mockToken0, mockToken1);
 
-      // Volume should be calculated based on borrowed amounts (not fees)
-      expect(result.userFlashLoanDiff.incrementalTotalFlashLoanVolumeUSD).toBe(
+      // Volume is tracked only in liquidityPoolDiff
+      expect(result.liquidityPoolDiff.incrementalTotalFlashLoanVolumeUSD).toBe(
         2000000n,
       ); // 2M USD in 18 decimals
-      expect(result.userFlashLoanDiff.incrementalNumberOfFlashLoans).toBe(1n);
     });
 
     it("should handle zero amounts correctly", () => {
@@ -138,9 +132,6 @@ describe("CLPoolFlashLogic", () => {
       expect(result.liquidityPoolDiff.incrementalTotalFlashLoanFeesUSD).toBe(
         0n,
       );
-      expect(result.userFlashLoanDiff.incrementalTotalFlashLoanVolumeUSD).toBe(
-        0n,
-      );
     });
 
     it("should handle different token decimals correctly", () => {
@@ -156,7 +147,6 @@ describe("CLPoolFlashLogic", () => {
       );
 
       expect(result.liquidityPoolDiff).toBeDefined();
-      expect(result.userFlashLoanDiff).toBeDefined();
 
       // Raw fee amounts are passed through unchanged
       expect(result.liquidityPoolDiff.incrementalTotalFlashLoanFees0).toBe(
@@ -182,10 +172,6 @@ describe("CLPoolFlashLogic", () => {
       expect(result.liquidityPoolDiff.incrementalTotalFlashLoanVolumeUSD).toBe(
         expectedVolumeUSD,
       );
-      expect(result.userFlashLoanDiff.incrementalTotalFlashLoanVolumeUSD).toBe(
-        expectedVolumeUSD,
-      );
-      expect(result.userFlashLoanDiff.incrementalNumberOfFlashLoans).toBe(1n);
     });
 
     it("should handle existing flash loan data correctly", () => {

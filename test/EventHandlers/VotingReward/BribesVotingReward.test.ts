@@ -1,8 +1,4 @@
-import type {
-  LiquidityPoolAggregator,
-  Token,
-  UserStatsPerPool,
-} from "generated";
+import type { LiquidityPoolAggregator, Token } from "generated";
 import {
   BribesVotingReward,
   MockDb,
@@ -14,7 +10,6 @@ import { setupCommon } from "../Pool/common";
 describe("BribesVotingReward Events", () => {
   const { mockToken0Data, mockToken1Data, mockLiquidityPoolData } =
     setupCommon();
-  const poolAddress = mockLiquidityPoolData.poolAddress;
   const chainId = 10;
   const votingRewardAddress = toChecksumAddress(
     "0x3333333333333333333333333333333333333333",
@@ -28,7 +23,6 @@ describe("BribesVotingReward Events", () => {
 
   let mockDb: ReturnType<typeof MockDb.createMockDb>;
   let liquidityPool: LiquidityPoolAggregator;
-  let userStats: UserStatsPerPool;
   let rewardToken: Token;
 
   beforeEach(() => {
@@ -41,15 +35,6 @@ describe("BribesVotingReward Events", () => {
       bribeVotingRewardAddress: toChecksumAddress(votingRewardAddress),
       feeVotingRewardAddress: "",
     } as LiquidityPoolAggregator;
-
-    // Set up user stats
-    const { createMockUserStatsPerPool } = setupCommon();
-    userStats = createMockUserStatsPerPool({
-      userAddress: userAddress,
-      poolAddress: poolAddress,
-      chainId: chainId,
-      lastActivityTimestamp: new Date(1000000 * 1000),
-    });
 
     // Set up reward token
     rewardToken = {
@@ -66,7 +51,6 @@ describe("BribesVotingReward Events", () => {
 
     // Set up entities in mock DB
     mockDb = mockDb.entities.LiquidityPoolAggregator.set(liquidityPool);
-    mockDb = mockDb.entities.UserStatsPerPool.set(userStats);
     mockDb = mockDb.entities.Token.set(mockToken0Data as Token);
     mockDb = mockDb.entities.Token.set(mockToken1Data as Token);
     mockDb = mockDb.entities.Token.set(rewardToken);
@@ -92,7 +76,6 @@ describe("BribesVotingReward Events", () => {
         poolData: {
           liquidityPoolAggregator: liquidityPool,
         },
-        userData: userStats,
       });
 
       mockEvent = BribesVotingReward.ClaimRewards.createMockEvent({
@@ -121,12 +104,6 @@ describe("BribesVotingReward Events", () => {
       expect(updatedPool).toBeDefined();
       // The actual values depend on the price calculation, but should be updated
       expect(updatedPool?.totalBribeClaimed).toBeGreaterThan(0n);
-    });
-
-    it("should update user stats with bribe claimed", () => {
-      const updatedUser = resultDB.entities.UserStatsPerPool.get(userStats.id);
-      expect(updatedUser).toBeDefined();
-      expect(updatedUser?.totalBribeClaimed).toBeGreaterThan(0n);
     });
   });
 });

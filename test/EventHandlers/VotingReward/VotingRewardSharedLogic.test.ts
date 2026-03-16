@@ -1,7 +1,6 @@
 import type { Token } from "generated";
 import * as LiquidityPoolAggregatorModule from "../../../src/Aggregators/LiquidityPoolAggregator";
 import { PoolAddressField } from "../../../src/Aggregators/LiquidityPoolAggregator";
-import * as UserStatsPerPoolModule from "../../../src/Aggregators/UserStatsPerPool";
 import { toChecksumAddress } from "../../../src/Constants";
 import {
   type VotingRewardClaimRewardsData,
@@ -93,14 +92,6 @@ describe("VotingRewardSharedLogic", () => {
         incrementalTotalFeeRewardClaimedUSD: 0n,
         lastUpdatedTimestamp: mockTimestamp,
       });
-
-      expect(result.userDiff).toMatchObject({
-        incrementalTotalBribeClaimed: 1000000n,
-        incrementalTotalBribeClaimedUSD: 1000000000000000000n,
-        incrementalTotalFeeRewardClaimed: 0n,
-        incrementalTotalFeeRewardClaimedUSD: 0n,
-        lastActivityTimestamp: mockTimestamp,
-      });
     });
 
     it("should distinguish between bribe and fee rewards", async () => {
@@ -127,14 +118,6 @@ describe("VotingRewardSharedLogic", () => {
         incrementalTotalFeeRewardClaimed: 2000000n,
         incrementalTotalFeeRewardClaimedUSD: 2000000000000000000n, // 2 USD in 18 decimals
         lastUpdatedTimestamp: mockTimestamp,
-      });
-
-      expect(result.userDiff).toMatchObject({
-        incrementalTotalBribeClaimed: 0n,
-        incrementalTotalBribeClaimedUSD: 0n,
-        incrementalTotalFeeRewardClaimed: 2000000n,
-        incrementalTotalFeeRewardClaimedUSD: 2000000000000000000n,
-        lastActivityTimestamp: mockTimestamp,
       });
     });
 
@@ -177,14 +160,11 @@ describe("VotingRewardSharedLogic", () => {
       expect(result.poolDiff?.incrementalTotalBribeClaimedUSD).toBe(
         1000000000000000000n,
       );
-      expect(result.userDiff?.incrementalTotalBribeClaimedUSD).toBe(
-        1000000000000000000n,
-      );
     });
   });
 
   describe("loadVotingRewardData", () => {
-    it("should call loadPoolData and loadOrCreateUserData with pool.poolAddress not pool.id", async () => {
+    it("should call loadPoolData with pool.poolAddress not pool.id", async () => {
       const common = setupCommon();
       const {
         mockToken0Data,
@@ -202,12 +182,7 @@ describe("VotingRewardSharedLogic", () => {
         LiquidityPoolAggregatorModule,
         "loadPoolData",
       );
-      const loadOrCreateUserDataSpy = vi.spyOn(
-        UserStatsPerPoolModule,
-        "loadOrCreateUserData",
-      );
 
-      const userStatsStorage = new Map<string, unknown>();
       const context = {
         log: { error: () => {}, warn: () => {}, info: () => {} },
         LiquidityPoolAggregator: {
@@ -227,12 +202,6 @@ describe("VotingRewardSharedLogic", () => {
               : id === pool.token1_id
                 ? mockToken1Data
                 : undefined,
-        },
-        UserStatsPerPool: {
-          get: async (id: string) => userStatsStorage.get(id) as undefined,
-          set: (entity: { id: string }) => {
-            userStatsStorage.set(entity.id, entity);
-          },
         },
       } as unknown as import("generated").handlerContext;
 
@@ -258,17 +227,8 @@ describe("VotingRewardSharedLogic", () => {
         chainId,
         context,
       );
-      expect(loadOrCreateUserDataSpy).toHaveBeenCalledTimes(1);
-      expect(loadOrCreateUserDataSpy).toHaveBeenCalledWith(
-        mockUserAddress,
-        pool.poolAddress,
-        chainId,
-        context,
-        expect.any(Date),
-      );
 
       loadPoolDataSpy.mockRestore();
-      loadOrCreateUserDataSpy.mockRestore();
     });
   });
 });

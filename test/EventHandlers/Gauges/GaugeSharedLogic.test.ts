@@ -1,9 +1,4 @@
-import type {
-  LiquidityPoolAggregator,
-  Token,
-  UserStatsPerPool,
-  handlerContext,
-} from "generated";
+import type { LiquidityPoolAggregator, Token, handlerContext } from "generated";
 import type { PublicClient } from "viem";
 import { MockDb } from "../../../generated/src/TestHelpers.gen";
 import {
@@ -64,7 +59,6 @@ describe("GaugeSharedLogic", () => {
   };
 
   let mockLiquidityPoolAggregator: LiquidityPoolAggregator;
-  let mockUserStatsPerPool: UserStatsPerPool;
   let mockRewardToken: Token;
   let mockDb: ReturnType<typeof MockDb.createMockDb>;
   let updatedDB: ReturnType<typeof MockDb.createMockDb>;
@@ -124,17 +118,6 @@ describe("GaugeSharedLogic", () => {
       totalLPTokenSupply: 1000000000000000000000n, // 1000 LP tokens (18 decimals) for V2 staked liquidity USD
     });
 
-    const { createMockUserStatsPerPool } = setupCommon();
-    mockUserStatsPerPool = createMockUserStatsPerPool({
-      userAddress: mockUserAddress,
-      poolAddress: mockPoolAddress,
-      chainId: mockChainId,
-      currentLiquidityUSD: 1000000000000000000000n, // 1K USD in 18 decimals
-      totalLiquidityAddedUSD: 1000000000000000000000n,
-      firstActivityTimestamp: mockTimestamp,
-      lastActivityTimestamp: mockTimestamp,
-    });
-
     // Create reward token (AERO on Base)
     const rewardTokenAddress = toChecksumAddress(
       "0x940181a94A35A4569E4529A3CDfB74e38FD98631",
@@ -158,7 +141,6 @@ describe("GaugeSharedLogic", () => {
     updatedDB = updatedDB.entities.Token.set(mockToken0);
     updatedDB = updatedDB.entities.Token.set(mockToken1);
     updatedDB = updatedDB.entities.Token.set(mockRewardToken);
-    updatedDB = updatedDB.entities.UserStatsPerPool.set(mockUserStatsPerPool);
 
     // Create a proper mock context
     mockContext = {
@@ -177,26 +159,6 @@ describe("GaugeSharedLogic", () => {
             );
             return pool && pool.gaugeAddress === params.gaugeAddress._eq
               ? [pool]
-              : [];
-          }
-          return [];
-        },
-      },
-      UserStatsPerPool: {
-        get: (id: string) => updatedDB.entities.UserStatsPerPool.get(id),
-        // biome-ignore lint/suspicious/noExplicitAny: Mock entity for testing
-        set: (entity: any) => {
-          updatedDB = updatedDB.entities.UserStatsPerPool.set(entity);
-          return updatedDB;
-        },
-        // biome-ignore lint/suspicious/noExplicitAny: Mock entity for testing
-        getWhere: async (params: any) => {
-          if (params.userAddress?._eq) {
-            const userStats = updatedDB.entities.UserStatsPerPool.get(
-              mockUserStatsPerPool.id,
-            );
-            return userStats && userStats.userAddress === params.userAddress._eq
-              ? [userStats]
               : [];
           }
           return [];
@@ -270,9 +232,6 @@ describe("GaugeSharedLogic", () => {
       const updatedPool = updatedDB.entities.LiquidityPoolAggregator.get(
         mockLiquidityPoolAggregator.id,
       );
-      const updatedUser = updatedDB.entities.UserStatsPerPool.get(
-        mockUserStatsPerPool.id,
-      );
 
       expect(updatedPool?.numberOfGaugeDeposits).toBe(1n);
       expect(updatedPool?.currentLiquidityStaked).toBe(100000000000000000000n);
@@ -285,11 +244,6 @@ describe("GaugeSharedLogic", () => {
       expect(updatedPool?.currentLiquidityStakedUSD).toBe(
         200000000000000000000n,
       );
-      expect(updatedUser?.numberOfGaugeDeposits).toBe(1n);
-      expect(updatedUser?.currentLiquidityStaked).toBe(100000000000000000000n);
-      expect(updatedUser?.currentLiquidityStakedUSD).toBe(
-        200000000000000000000n,
-      );
     });
 
     it("should preserve existing staked USD when non-CL valuation is unavailable", async () => {
@@ -298,15 +252,10 @@ describe("GaugeSharedLogic", () => {
         currentLiquidityStakedUSD: 777000000000000000000n,
         totalLPTokenSupply: 0n,
       };
-      mockUserStatsPerPool = {
-        ...mockUserStatsPerPool,
-        currentLiquidityStakedUSD: 333000000000000000000n,
-      };
 
       updatedDB = updatedDB.entities.LiquidityPoolAggregator.set(
         mockLiquidityPoolAggregator,
       );
-      updatedDB = updatedDB.entities.UserStatsPerPool.set(mockUserStatsPerPool);
 
       const depositData: GaugeEventData = {
         gaugeAddress: mockGaugeAddress,
@@ -322,17 +271,10 @@ describe("GaugeSharedLogic", () => {
       const updatedPool = updatedDB.entities.LiquidityPoolAggregator.get(
         mockLiquidityPoolAggregator.id,
       );
-      const updatedUser = updatedDB.entities.UserStatsPerPool.get(
-        mockUserStatsPerPool.id,
-      );
 
       expect(updatedPool?.currentLiquidityStaked).toBe(100000000000000000000n);
       expect(updatedPool?.currentLiquidityStakedUSD).toBe(
         777000000000000000000n,
-      );
-      expect(updatedUser?.currentLiquidityStaked).toBe(100000000000000000000n);
-      expect(updatedUser?.currentLiquidityStakedUSD).toBe(
-        333000000000000000000n,
       );
     });
   });
@@ -368,19 +310,11 @@ describe("GaugeSharedLogic", () => {
       const updatedPool = updatedDB.entities.LiquidityPoolAggregator.get(
         mockLiquidityPoolAggregator.id,
       );
-      const updatedUser = updatedDB.entities.UserStatsPerPool.get(
-        mockUserStatsPerPool.id,
-      );
 
       expect(updatedPool?.numberOfGaugeWithdrawals).toBe(1n);
       expect(updatedPool?.currentLiquidityStaked).toBe(50000000000000000000n); // 100 - 50
       // Derived USD: 50 LP at reserves 1e9/1e9, totalSupply 1000e18, 1 USD each → 100e18
       expect(updatedPool?.currentLiquidityStakedUSD).toBe(
-        100000000000000000000n,
-      );
-      expect(updatedUser?.numberOfGaugeWithdrawals).toBe(1n);
-      expect(updatedUser?.currentLiquidityStaked).toBe(50000000000000000000n);
-      expect(updatedUser?.currentLiquidityStakedUSD).toBe(
         100000000000000000000n,
       );
     });
@@ -415,14 +349,9 @@ describe("GaugeSharedLogic", () => {
       const updatedPool = updatedDB.entities.LiquidityPoolAggregator.get(
         mockLiquidityPoolAggregator.id,
       );
-      const updatedUser = updatedDB.entities.UserStatsPerPool.get(
-        mockUserStatsPerPool.id,
-      );
 
       expect(updatedPool?.currentLiquidityStaked).toBe(0n);
       expect(updatedPool?.currentLiquidityStakedUSD).toBe(0n);
-      expect(updatedUser?.currentLiquidityStaked).toBe(0n);
-      expect(updatedUser?.currentLiquidityStakedUSD).toBe(0n);
     });
 
     it("should derive non-negative currentLiquidityStakedUSD after deposit then partial withdraw", async () => {
@@ -453,16 +382,9 @@ describe("GaugeSharedLogic", () => {
       const updatedPool = updatedDB.entities.LiquidityPoolAggregator.get(
         mockLiquidityPoolAggregator.id,
       );
-      const updatedUser = updatedDB.entities.UserStatsPerPool.get(
-        mockUserStatsPerPool.id,
-      );
       expect(updatedPool?.currentLiquidityStaked).toBe(50000000000000000000n); // 100 - 50
       // Derived USD: 50 LP at current reserves/prices = 100 USD (18 decimals)
       expect(updatedPool?.currentLiquidityStakedUSD).toBe(
-        100000000000000000000n,
-      );
-      expect(updatedUser?.currentLiquidityStaked).toBe(50000000000000000000n);
-      expect(updatedUser?.currentLiquidityStakedUSD).toBe(
         100000000000000000000n,
       );
     });
@@ -488,9 +410,6 @@ describe("GaugeSharedLogic", () => {
       const updatedPool = updatedDB.entities.LiquidityPoolAggregator.get(
         mockLiquidityPoolAggregator.id,
       );
-      const updatedUser = updatedDB.entities.UserStatsPerPool.get(
-        mockUserStatsPerPool.id,
-      );
 
       expect(updatedPool?.numberOfGaugeRewardClaims).toBe(1n);
       expect(updatedPool?.totalGaugeRewardsClaimed).toBe(
@@ -501,13 +420,6 @@ describe("GaugeSharedLogic", () => {
       // normalized = 1000 * 10^18 / 10^18 = 1000
       // USD = 1000 * 1 USD = 1000000000000000000000 (1000 USD in 18 decimals)
       expect(updatedPool?.totalGaugeRewardsClaimedUSD).toBe(
-        1000000000000000000000n,
-      );
-      expect(updatedUser?.numberOfGaugeRewardClaims).toBe(1n);
-      expect(updatedUser?.totalGaugeRewardsClaimed).toBe(
-        1000000000000000000000n,
-      );
-      expect(updatedUser?.totalGaugeRewardsClaimedUSD).toBe(
         1000000000000000000000n,
       );
     });
@@ -830,16 +742,12 @@ describe("GaugeSharedLogic", () => {
       // Should not throw, but should log error and return early
       await processGaugeDeposit(depositData, mockContext, "TestGaugeDeposit");
 
-      // Pool and user should remain unchanged
+      // Pool should remain unchanged
       const updatedPool = updatedDB.entities.LiquidityPoolAggregator.get(
         mockLiquidityPoolAggregator.id,
       );
-      const updatedUser = updatedDB.entities.UserStatsPerPool.get(
-        mockUserStatsPerPool.id,
-      );
 
       expect(updatedPool?.numberOfGaugeDeposits).toBe(0n);
-      expect(updatedUser?.numberOfGaugeDeposits).toBe(0n);
     });
 
     it("should handle missing pool data gracefully in deposit", async () => {
@@ -868,16 +776,12 @@ describe("GaugeSharedLogic", () => {
         "TestGaugeDeposit",
       );
 
-      // Pool and user should remain unchanged
+      // Pool should remain unchanged
       const updatedPool = updatedDB.entities.LiquidityPoolAggregator.get(
         mockLiquidityPoolAggregator.id,
       );
-      const updatedUser = updatedDB.entities.UserStatsPerPool.get(
-        mockUserStatsPerPool.id,
-      );
 
       expect(updatedPool?.numberOfGaugeDeposits).toBe(0n);
-      expect(updatedUser?.numberOfGaugeDeposits).toBe(0n);
     });
 
     it("should handle missing pool data gracefully in withdraw", async () => {
@@ -906,16 +810,12 @@ describe("GaugeSharedLogic", () => {
         "TestGaugeWithdraw",
       );
 
-      // Pool and user should remain unchanged
+      // Pool should remain unchanged
       const updatedPool = updatedDB.entities.LiquidityPoolAggregator.get(
         mockLiquidityPoolAggregator.id,
       );
-      const updatedUser = updatedDB.entities.UserStatsPerPool.get(
-        mockUserStatsPerPool.id,
-      );
 
       expect(updatedPool?.numberOfGaugeWithdrawals).toBe(0n);
-      expect(updatedUser?.numberOfGaugeWithdrawals).toBe(0n);
     });
 
     it("should handle missing pool data gracefully in claim rewards", async () => {
@@ -944,16 +844,12 @@ describe("GaugeSharedLogic", () => {
         "TestGaugeClaimRewards",
       );
 
-      // Pool and user should remain unchanged
+      // Pool should remain unchanged
       const updatedPool = updatedDB.entities.LiquidityPoolAggregator.get(
         mockLiquidityPoolAggregator.id,
       );
-      const updatedUser = updatedDB.entities.UserStatsPerPool.get(
-        mockUserStatsPerPool.id,
-      );
 
       expect(updatedPool?.numberOfGaugeRewardClaims).toBe(0n);
-      expect(updatedUser?.numberOfGaugeRewardClaims).toBe(0n);
     });
 
     it("should handle missing reward token gracefully in claim rewards", async () => {
@@ -988,16 +884,12 @@ describe("GaugeSharedLogic", () => {
         "TestGaugeClaimRewards",
       );
 
-      // Pool and user should remain unchanged
+      // Pool should remain unchanged
       const updatedPool = updatedDB.entities.LiquidityPoolAggregator.get(
         mockLiquidityPoolAggregator.id,
       );
-      const updatedUser = updatedDB.entities.UserStatsPerPool.get(
-        mockUserStatsPerPool.id,
-      );
 
       expect(updatedPool?.numberOfGaugeRewardClaims).toBe(0n);
-      expect(updatedUser?.numberOfGaugeRewardClaims).toBe(0n);
     });
   });
 });

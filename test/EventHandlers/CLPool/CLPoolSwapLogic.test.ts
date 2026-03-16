@@ -483,15 +483,6 @@ describe("CLPoolSwapLogic", () => {
       expect(result.liquidityPoolDiff.currentTotalLiquidityUSD).toBe(
         19n * TEN_TO_THE_18_BI,
       );
-
-      expect(result.userSwapDiff.incrementalNumberOfSwaps).toBe(1n);
-      expect(result.userSwapDiff.incrementalTotalSwapVolumeAmount0).toBe(
-        1n * TEN_TO_THE_18_BI,
-      );
-      expect(result.userSwapDiff.incrementalTotalSwapVolumeAmount1).toBe(
-        2n * TEN_TO_THE_18_BI,
-      );
-      expect(result.userSwapDiff.incrementalTotalSwapVolumeUSD).toBe(ONE_USD);
     });
 
     it("should handle zero amounts correctly", async () => {
@@ -608,9 +599,6 @@ describe("CLPoolSwapLogic", () => {
       );
 
       expect(result.liquidityPoolDiff.lastUpdatedTimestamp).toEqual(
-        new Date(BLOCK_TIMESTAMP * 1000),
-      );
-      expect(result.userSwapDiff.lastActivityTimestamp).toEqual(
         new Date(BLOCK_TIMESTAMP * 1000),
       );
     });

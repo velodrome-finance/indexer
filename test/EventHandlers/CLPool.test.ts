@@ -1,16 +1,7 @@
-import type {
-  LiquidityPoolAggregator,
-  Token,
-  UserStatsPerPool,
-} from "generated";
+import type { LiquidityPoolAggregator, Token } from "generated";
 import type { MockInstance } from "vitest";
 import { CLPool, MockDb } from "../../generated/src/TestHelpers.gen";
-import {
-  OUSDT_ADDRESS,
-  TokenId,
-  UserStatsPerPoolId,
-  toChecksumAddress,
-} from "../../src/Constants";
+import { toChecksumAddress } from "../../src/Constants";
 import * as CLPoolBurnLogic from "../../src/EventHandlers/CLPool/CLPoolBurnLogic";
 import * as CLPoolCollectFeesLogic from "../../src/EventHandlers/CLPool/CLPoolCollectFeesLogic";
 import * as CLPoolCollectLogic from "../../src/EventHandlers/CLPool/CLPoolCollectLogic";
@@ -20,12 +11,8 @@ import * as CLPoolSwapLogic from "../../src/EventHandlers/CLPool/CLPoolSwapLogic
 import { setupCommon } from "./Pool/common";
 
 describe("CLPool Events", () => {
-  const {
-    mockToken0Data,
-    mockToken1Data,
-    createMockLiquidityPoolAggregator,
-    createMockUserStatsPerPool,
-  } = setupCommon();
+  const { mockToken0Data, mockToken1Data, createMockLiquidityPoolAggregator } =
+    setupCommon();
   const chainId = 10;
   const userAddress = toChecksumAddress(
     "0x2222222222222222222222222222222222222222",
@@ -36,7 +23,6 @@ describe("CLPool Events", () => {
 
   let mockDb: ReturnType<typeof MockDb.createMockDb>;
   let liquidityPool: LiquidityPoolAggregator;
-  let userStats: UserStatsPerPool;
 
   beforeEach(() => {
     mockDb = MockDb.createMockDb();
@@ -46,18 +32,8 @@ describe("CLPool Events", () => {
       isCL: true,
     });
 
-    // Set up user stats with all required fields
-    userStats = createMockUserStatsPerPool({
-      userAddress: userAddress,
-      poolAddress: liquidityPool.poolAddress,
-      chainId: chainId,
-      firstActivityTimestamp: new Date(1000000 * 1000),
-      lastActivityTimestamp: new Date(1000000 * 1000),
-    });
-
     // Set up entities in mock DB
     mockDb = mockDb.entities.LiquidityPoolAggregator.set(liquidityPool);
-    mockDb = mockDb.entities.UserStatsPerPool.set(userStats);
     mockDb = mockDb.entities.Token.set(mockToken0Data as Token);
     mockDb = mockDb.entities.Token.set(mockToken1Data as Token);
   });
@@ -79,13 +55,6 @@ describe("CLPool Events", () => {
             incrementalTotalVolume1: 500n,
             incrementalTotalVolumeUSD: 1500n,
             lastUpdatedTimestamp: new Date(1000000 * 1000),
-          },
-          userSwapDiff: {
-            incrementalNumberOfSwaps: 1n,
-            incrementalTotalSwapVolumeAmount0: 1000n,
-            incrementalTotalSwapVolumeAmount1: 500n,
-            incrementalTotalSwapVolumeUSD: 1500n,
-            lastActivityTimestamp: new Date(1000000 * 1000),
           },
         });
 
@@ -132,16 +101,6 @@ describe("CLPool Events", () => {
       expect(updatedPool?.totalVolume0).toBe(initialTotalVolume0 + 1000n);
       expect(updatedPool?.totalVolume1).toBe(initialTotalVolume1 + 500n);
       expect(updatedPool?.totalVolumeUSD).toBe(initialTotalVolumeUSD + 1500n);
-
-      // Verify UserStatsPerPool is updated with swap volume amounts
-      const updatedUserStats = resultDB.entities.UserStatsPerPool.get(
-        UserStatsPerPoolId(chainId, userAddress, liquidityPool.poolAddress),
-      );
-      expect(updatedUserStats).toBeDefined();
-      expect(updatedUserStats?.numberOfSwaps).toBe(1n);
-      expect(updatedUserStats?.totalSwapVolumeAmount0).toBe(1000n); // abs(amount0)
-      expect(updatedUserStats?.totalSwapVolumeAmount1).toBe(500n); // abs(amount1)
-      expect(updatedUserStats?.totalSwapVolumeUSD).toBe(1500n);
     });
 
     it("should return early if pool data not found", async () => {
@@ -150,167 +109,6 @@ describe("CLPool Events", () => {
 
       // Should not throw, but processSpy shouldn't be called
       expect(processSpy).not.toHaveBeenCalled();
-    });
-
-    it("should create oUSDTSwap entity when OUSDT token is involved", async () => {
-      // Create a pool with OUSDT as token0
-      const ousdtToken: Token = {
-        ...mockToken0Data,
-        address: OUSDT_ADDRESS,
-        id: TokenId(chainId, OUSDT_ADDRESS),
-      };
-
-      const ousdtPool: LiquidityPoolAggregator = {
-        ...liquidityPool,
-        token0_address: OUSDT_ADDRESS,
-        token0_id: ousdtToken.id,
-      };
-
-      let ousdtDb = MockDb.createMockDb();
-      ousdtDb = ousdtDb.entities.LiquidityPoolAggregator.set(ousdtPool);
-      ousdtDb = ousdtDb.entities.Token.set(ousdtToken);
-      ousdtDb = ousdtDb.entities.Token.set(mockToken1Data as Token);
-      ousdtDb = ousdtDb.entities.UserStatsPerPool.set(userStats);
-
-      processSpy.mockClear();
-      const resultDB = await ousdtDb.processEvents([mockEvent]);
-
-      // Verify oUSDTSwap entity was created with OUSDT as token0
-      const ousdtSwaps = resultDB.entities.OUSDTSwaps.getAll();
-      expect(ousdtSwaps).toHaveLength(1);
-      const swapEntity1 = ousdtSwaps[0];
-      expect(swapEntity1.transactionHash).toBe(mockEvent.transaction.hash);
-      // With amount0 > 0, token0 (OUSDT) goes in, token1 goes out
-      expect(swapEntity1.tokenInPool).toBe(OUSDT_ADDRESS);
-      expect(swapEntity1.tokenOutPool).toBe(mockToken1Data.address);
-      expect(swapEntity1.amountIn).toBe(1000n); // amount0 = 1000n
-      expect(swapEntity1.amountOut).toBe(500n); // amount1 = -500n, so amount1Out = 500n
-
-      // Test with OUSDT as token1 as well
-      const ousdtToken1Pool: LiquidityPoolAggregator = {
-        ...liquidityPool,
-        token1_address: OUSDT_ADDRESS,
-        token1_id: ousdtToken.id,
-      };
-
-      let ousdtDb2 = MockDb.createMockDb();
-      ousdtDb2 = ousdtDb2.entities.LiquidityPoolAggregator.set(ousdtToken1Pool);
-      ousdtDb2 = ousdtDb2.entities.Token.set(mockToken0Data as Token);
-      ousdtDb2 = ousdtDb2.entities.Token.set(ousdtToken);
-      ousdtDb2 = ousdtDb2.entities.UserStatsPerPool.set(userStats);
-
-      const resultDB2 = await ousdtDb2.processEvents([mockEvent]);
-
-      // Verify oUSDTSwap entity was created with OUSDT as token1
-      const ousdtSwaps2 = resultDB2.entities.OUSDTSwaps.getAll();
-      expect(ousdtSwaps2).toHaveLength(1);
-      const swapEntity2 = ousdtSwaps2[0];
-      expect(swapEntity2.transactionHash).toBe(mockEvent.transaction.hash);
-      // With amount0 > 0, token0 goes in, token1 (OUSDT) goes out
-      expect(swapEntity2.tokenInPool).toBe(mockToken0Data.address);
-      expect(swapEntity2.tokenOutPool).toBe(OUSDT_ADDRESS);
-      expect(swapEntity2.amountIn).toBe(1000n); // amount0 = 1000n
-      expect(swapEntity2.amountOut).toBe(500n); // amount1 = -500n, so amount1Out = 500n
-    });
-
-    it("should handle all amount conversion branches for oUSDTSwap", async () => {
-      // Test with positive amount0 (amount0In path)
-      const positiveAmount0Event = CLPool.Swap.createMockEvent({
-        sender: userAddress,
-        recipient: recipientAddress,
-        amount0: 1000n, // Positive
-        amount1: -500n, // Negative
-        sqrtPriceX96: 1000000n,
-        liquidity: 2000000n,
-        tick: 100n,
-        mockEventData: {
-          srcAddress: liquidityPool.poolAddress as `0x${string}`,
-          chainId: chainId,
-          block: {
-            number: 1000000,
-            timestamp: 1000000,
-            hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
-          },
-          transaction: {
-            hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
-          },
-          logIndex: 1,
-        },
-      });
-
-      // Create pool with OUSDT as token0
-      const ousdtToken: Token = {
-        ...mockToken0Data,
-        address: OUSDT_ADDRESS,
-        id: TokenId(chainId, OUSDT_ADDRESS),
-      };
-
-      const ousdtPool: LiquidityPoolAggregator = {
-        ...liquidityPool,
-        token0_address: OUSDT_ADDRESS,
-        token0_id: ousdtToken.id,
-      };
-
-      let ousdtDb = MockDb.createMockDb();
-      ousdtDb = ousdtDb.entities.LiquidityPoolAggregator.set(ousdtPool);
-      ousdtDb = ousdtDb.entities.Token.set(ousdtToken);
-      ousdtDb = ousdtDb.entities.Token.set(mockToken1Data as Token);
-      ousdtDb = ousdtDb.entities.UserStatsPerPool.set(userStats);
-
-      processSpy.mockClear();
-      const resultDB = await ousdtDb.processEvents([positiveAmount0Event]);
-
-      const ousdtSwaps = resultDB.entities.OUSDTSwaps.getAll();
-      expect(ousdtSwaps).toHaveLength(1);
-      // Verify entity was created with correct conversion (amount0 > 0 means token0 in, token1 out)
-      const swapEntity = ousdtSwaps[0];
-      expect(swapEntity).toBeDefined();
-      expect(swapEntity.transactionHash).toBe(
-        positiveAmount0Event.transaction.hash,
-      );
-      expect(swapEntity.tokenInPool).toBe(OUSDT_ADDRESS); // token0 (OUSDT) is going in
-      expect(swapEntity.tokenOutPool).toBe(mockToken1Data.address); // token1 is going out
-      expect(swapEntity.amountIn).toBe(1000n); // amount0In = 1000n
-      expect(swapEntity.amountOut).toBe(500n); // amount1Out = 500n
-
-      // Test with negative amount0 (amount0Out path)
-      const negativeAmount0Event = CLPool.Swap.createMockEvent({
-        sender: userAddress,
-        recipient: recipientAddress,
-        amount0: -1000n, // Negative
-        amount1: 500n, // Positive
-        sqrtPriceX96: 1000000n,
-        liquidity: 2000000n,
-        tick: 100n,
-        mockEventData: {
-          srcAddress: liquidityPool.poolAddress as `0x${string}`,
-          chainId: chainId,
-          block: {
-            number: 1000000,
-            timestamp: 1000000,
-            hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
-          },
-          transaction: {
-            hash: "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
-          },
-          logIndex: 1,
-        },
-      });
-
-      const resultDB2 = await ousdtDb.processEvents([negativeAmount0Event]);
-
-      const ousdtSwaps2 = resultDB2.entities.OUSDTSwaps.getAll();
-      expect(ousdtSwaps2).toHaveLength(1);
-      // Verify entity was created with correct conversion (amount1 > 0 means token1 in, token0 out)
-      const swapEntity2 = ousdtSwaps2[0];
-      expect(swapEntity2).toBeDefined();
-      expect(swapEntity2.transactionHash).toBe(
-        negativeAmount0Event.transaction.hash,
-      );
-      expect(swapEntity2.tokenInPool).toBe(mockToken1Data.address); // token1 is going in
-      expect(swapEntity2.tokenOutPool).toBe(OUSDT_ADDRESS); // token0 (OUSDT) is going out
-      expect(swapEntity2.amountIn).toBe(500n); // amount1In = 500n
-      expect(swapEntity2.amountOut).toBe(1000n); // amount0Out = 1000n
     });
   });
 
@@ -456,12 +254,6 @@ describe("CLPool Events", () => {
             incrementalTotalUnstakedFeesCollectedUSD: 300n,
             lastUpdatedTimestamp: new Date(1000000 * 1000),
           },
-          userLiquidityDiff: {
-            incrementalTotalFeesContributed0: 100n,
-            incrementalTotalFeesContributed1: 200n,
-            incrementalTotalFeesContributedUSD: 300n,
-            lastActivityTimestamp: new Date(1000000 * 1000),
-          },
         });
 
       mockEvent = CLPool.Collect.createMockEvent({
@@ -526,12 +318,6 @@ describe("CLPool Events", () => {
             incrementalTotalStakedFeesCollectedUSD: 125n,
             incrementalTotalFeesUSDWhitelisted: 125n,
             lastUpdatedTimestamp: new Date(1000000 * 1000),
-          },
-          userDiff: {
-            incrementalTotalFeesContributedUSD: 125n,
-            incrementalTotalFeesContributed0: 50n,
-            incrementalTotalFeesContributed1: 75n,
-            lastActivityTimestamp: new Date(1000000 * 1000),
           },
         });
 
@@ -652,11 +438,6 @@ describe("CLPool Events", () => {
             incrementalNumberOfFlashLoans: 1n,
             lastUpdatedTimestamp: new Date(1000000 * 1000),
           },
-          userFlashLoanDiff: {
-            incrementalNumberOfFlashLoans: 1n,
-            incrementalTotalFlashLoanVolumeUSD: 1000n,
-            lastActivityTimestamp: new Date(1000000 * 1000),
-          },
         });
 
       mockEvent = CLPool.Flash.createMockEvent({
@@ -716,40 +497,18 @@ describe("CLPool Events", () => {
           incrementalTotalFlashLoanVolumeUSD: 0n,
           lastUpdatedTimestamp: new Date(1000000 * 1000),
         },
-        userFlashLoanDiff: {
-          incrementalNumberOfFlashLoans: 1n,
-          incrementalTotalFlashLoanVolumeUSD: 0n,
-          lastActivityTimestamp: new Date(1000000 * 1000),
-        },
       });
-
-      // Capture initial user stats state
-      const initialUserStats = mockDb.entities.UserStatsPerPool.get(
-        UserStatsPerPoolId(chainId, userAddress, liquidityPool.poolAddress),
-      );
-      const initialNumberOfFlashLoans =
-        initialUserStats?.numberOfFlashLoans ?? 0n;
-      const initialTotalFlashLoanVolumeUSD =
-        initialUserStats?.totalFlashLoanVolumeUSD ?? 0n;
 
       const resultDB = await mockDb.processEvents([mockEvent]);
 
-      // Should still process, but user stats update is conditional
+      // Should still process
       expect(processSpy).toHaveBeenCalled();
       expect(processSpy.mock.calls.length).toBeGreaterThanOrEqual(1);
 
-      // Verify user stats are NOT updated when volume is 0 (no-op behavior)
-      const updatedUserStats = resultDB.entities.UserStatsPerPool.get(
-        UserStatsPerPoolId(chainId, userAddress, liquidityPool.poolAddress),
+      const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
+        liquidityPool.id,
       );
-      expect(updatedUserStats).toBeDefined();
-      // User stats should remain unchanged since volume is 0
-      expect(updatedUserStats?.numberOfFlashLoans).toBe(
-        initialNumberOfFlashLoans,
-      );
-      expect(updatedUserStats?.totalFlashLoanVolumeUSD).toBe(
-        initialTotalFlashLoanVolumeUSD,
-      );
+      expect(updatedPool).toBeDefined();
     });
   });
 
