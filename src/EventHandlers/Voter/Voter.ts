@@ -91,8 +91,6 @@ Voter.DistributeReward.handler(async ({ event, context }) => {
         context,
         eventChainId,
         event.params.gauge,
-        event.block.number,
-        event.block.timestamp,
       );
     })(),
     context.Token.get(TokenId(eventChainId, rewardTokenAddress)),
@@ -174,7 +172,9 @@ Voter.DistributeReward.handler(async ({ event, context }) => {
     currentLiquidityPool,
     new Date(timestampMs),
     context,
-    currentLiquidityPool.chainId,
+    // For cross-chain distributions, pass eventChainId (OP) so the dynamic fee
+    // guard in updateDynamicFeePools detects the chain mismatch and skips.
+    isCrossChainDistribution ? eventChainId : currentLiquidityPool.chainId,
     event.block.number,
   );
 });

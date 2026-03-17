@@ -515,12 +515,12 @@ export async function loadPoolDataOrRootCLPool(
   const rootPoolLeafPool = rootPoolLeafPools[0];
   const leafPoolAddress = rootPoolLeafPool.leafPoolAddress;
   const leafChainId = rootPoolLeafPool.leafChainId;
+  // Don't pass blockNumber/blockTimestamp: they belong to the caller's chain
+  // and cannot be used for RPC queries on the leaf chain.
   const leafPoolData = await loadPoolData(
     leafPoolAddress,
     leafChainId,
     context,
-    blockNumber,
-    blockTimestamp,
   );
 
   if (!leafPoolData) {

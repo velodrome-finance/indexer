@@ -284,13 +284,7 @@ describe("resolveLeafPoolForRootGauge", () => {
   }
 
   const runResolve = (context: handlerContext) =>
-    resolveLeafPoolForRootGauge(
-      context,
-      chainId,
-      gaugeAddress,
-      blockNumber,
-      blockTimestamp,
-    );
+    resolveLeafPoolForRootGauge(context, chainId, gaugeAddress);
 
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -411,8 +405,13 @@ describe("resolveLeafPoolForRootGauge", () => {
       leafPoolAddress,
       leafChainId,
       context,
-      blockNumber,
-      blockTimestamp,
     );
+
+    // Cross-chain fix: loadPoolData must NOT receive blockNumber/blockTimestamp
+    // because they belong to the root chain and would cause "Unknown block" errors
+    // on the leaf chain's RPC.
+    const callArgs = vi.mocked(LiquidityPoolAggregatorModule.loadPoolData).mock
+      .calls[0];
+    expect(callArgs).toHaveLength(3);
   });
 });

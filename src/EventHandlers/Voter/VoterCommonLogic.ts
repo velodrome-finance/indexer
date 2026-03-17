@@ -112,16 +112,12 @@ export function buildPoolDiffFromDistribute(
  * @param context - The handler context
  * @param chainId - The chain ID
  * @param gaugeAddress - The address of the root gauge
- * @param blockNumber - The block number
- * @param blockTimestamp - The block timestamp
  * @returns The leaf pool and isCrossChain: true, or null if resolution fails (logs warning).
  */
 export async function resolveLeafPoolForRootGauge(
   context: handlerContext,
   chainId: number,
   gaugeAddress: string,
-  blockNumber: number,
-  blockTimestamp: number,
 ): Promise<{ pool: LiquidityPoolAggregator; isCrossChain: true } | null> {
   const rootGaugeMapping = await context.RootGauge_RootPool.get(
     RootGaugeRootPoolId(chainId, gaugeAddress),
@@ -144,12 +140,13 @@ export async function resolveLeafPoolForRootGauge(
     return null;
   }
   const { leafPoolAddress, leafChainId } = rootPoolLeafPools[0];
+  // Don't pass blockNumber/blockTimestamp: they belong to the root chain (OP)
+  // and cannot be used for RPC queries on the leaf chain.
+  // Leaf pool token prices are refreshed by events on the leaf chain itself.
   const leafPoolData = await loadPoolData(
     leafPoolAddress,
     leafChainId,
     context,
-    blockNumber,
-    blockTimestamp,
   );
   if (!leafPoolData) {
     context.log.warn(
