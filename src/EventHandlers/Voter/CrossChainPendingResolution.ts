@@ -149,7 +149,9 @@ export async function processPendingVote(
       leafPool,
       timestamp,
       context,
-      leafChainId,
+      // Pass root chainId so the dynamic fee guard detects chain mismatch and skips.
+      // pendingVote.blockNumber is from the root chain (OP), not the leaf chain.
+      pendingVote.chainId,
       Number(pendingVote.blockNumber),
     ),
     updateUserStatsPerPool(userStatsPerPoolDiff, userStats, context, timestamp),

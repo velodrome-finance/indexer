@@ -353,6 +353,16 @@ describe("CrossChainPendingResolution", () => {
       expect(updatePoolSpy).toHaveBeenCalledTimes(1);
       expect(updateUserSpy).toHaveBeenCalledTimes(1);
       expect(updateVoteSpy).toHaveBeenCalledTimes(1);
+
+      // Cross-chain fix: updateLiquidityPoolAggregator must receive pendingVote.chainId
+      // (root chain, not leafChainId) so the updateDynamicFeePools guard detects
+      // the chain mismatch and skips the fee query (which would use root block on leaf RPC).
+      const [, , , , eventChainIdArg, blockNumberArg] =
+        updatePoolSpy.mock.calls[0];
+      expect(eventChainIdArg).toBe(pendingVote.chainId);
+      expect(eventChainIdArg).toBe(rootChainId);
+      expect(eventChainIdArg).not.toBe(leafChainId);
+      expect(blockNumberArg).toBe(Number(pendingVote.blockNumber));
     });
 
     it("should use negative weightDelta when eventType is Abstained", async () => {
