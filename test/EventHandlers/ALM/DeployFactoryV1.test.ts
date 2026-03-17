@@ -1,4 +1,3 @@
-import "../../eventHandlersRegistration";
 import type { NonFungiblePosition } from "generated";
 import {
   ALMDeployFactoryV1,

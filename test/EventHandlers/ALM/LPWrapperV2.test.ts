@@ -1,4 +1,3 @@
-import "../../eventHandlersRegistration";
 import { ALMLPWrapperV2, MockDb } from "../../../generated/src/TestHelpers.gen";
 import {
   ALMLPWrapperId,

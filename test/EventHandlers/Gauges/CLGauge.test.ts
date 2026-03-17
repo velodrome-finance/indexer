@@ -1,4 +1,3 @@
-import "../../eventHandlersRegistration";
 import { CLGauge } from "../../../generated/src/TestHelpers.gen";
 import { MockDb } from "../../../generated/src/TestHelpers.gen";
 import { toChecksumAddress } from "../../../src/Constants";

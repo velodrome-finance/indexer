@@ -1,4 +1,3 @@
-import "../../eventHandlersRegistration";
 import type { ALM_LP_Wrapper, UserStatsPerPool } from "generated";
 import { ALMCore, MockDb } from "../../../generated/src/TestHelpers.gen";
 import { ALMLPWrapperId, toChecksumAddress } from "../../../src/Constants";

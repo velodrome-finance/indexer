@@ -1,4 +1,3 @@
-import "../../eventHandlersRegistration";
 import type {
   DispatchId_event,
   OUSDTBridgedTransaction,

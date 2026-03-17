@@ -1,4 +1,3 @@
-import "../../eventHandlersRegistration";
 import type { LiquidityPoolAggregator, Token } from "generated";
 import { MockDb, Pool } from "../../../generated/src/TestHelpers.gen";
 import {
