@@ -21,6 +21,11 @@ import {
 } from "./VoterCommonLogic";
 
 Voter.GaugeCreated.contractRegister(({ event, context }) => {
+  // Skip Gauge/CLGauge/VotingReward registration on OP — we only need OP for
+  // cross-chain coordination (RootGauge_RootPool mappings + DistributeReward),
+  // not local gauge events (Deposit/Withdraw/ClaimRewards)
+  if (event.chainId === 10) return;
+
   const pf = event.params.poolFactory;
   if (VOTER_CLPOOLS_FACTORY_LIST.includes(pf)) {
     context.addCLGauge(event.params.gauge);

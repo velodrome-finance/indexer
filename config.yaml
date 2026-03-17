@@ -100,15 +100,9 @@ contracts:
     events:
       - event: SetCustomFee
 chains:
-  - id: 10 # Optimism
+  - id: 10 # Optimism (minimal config — only cross-chain coordination for superchains)
     start_block: 0
     contracts:
-      - name: DynamicSwapFeeModule
-        address:
-          - 0xd9eE4FBeE92970509ec795062cA759F8B52d6720
-      - name: CustomSwapFeeModule
-        address:
-          - 0x7361E9079920fb75496E9764A2665d8ee5049D5f
       - name: PoolFactory
         address:
           - 0xF1046053aa5682b4F9a81b5481394DA16BE5FF5a

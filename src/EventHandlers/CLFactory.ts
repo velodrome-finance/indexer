@@ -8,6 +8,8 @@ import {
 import { processCLFactoryTickSpacingEnabled } from "./CLFactory/CLFactoryTickSpacingEnabledLogic";
 
 CLFactory.PoolCreated.contractRegister(({ event, context }) => {
+  // Skip CLPool event registration on OP — we only need OP for cross-chain coordination
+  if (event.chainId === 10) return;
   context.addCLPool(event.params.pool);
 });
 

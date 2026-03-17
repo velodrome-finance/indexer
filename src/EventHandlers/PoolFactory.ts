@@ -18,6 +18,9 @@ import type { TokenEntityMapping } from "./../CustomTypes";
 import { flushPendingVotesAndDistributionsForRootPool } from "./Voter/CrossChainPendingResolution";
 
 PoolFactory.PoolCreated.contractRegister(({ event, context }) => {
+  // Skip Pool event registration on OP — we only need OP for cross-chain coordination
+  // (Token creation + RootPool_LeafPool mappings), not local pool events (Swap/Sync/Mint/Burn)
+  if (event.chainId === 10) return;
   context.addPool(event.params.pool);
 });
 
