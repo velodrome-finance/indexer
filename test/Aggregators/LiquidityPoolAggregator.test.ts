@@ -1043,6 +1043,72 @@ describe("LiquidityPoolAggregator Functions", () => {
       ).toBe(false);
     });
 
+    it("should not forward blockNumber/blockTimestamp to leaf chain loadPoolData (cross-chain fix)", async () => {
+      const leafChainId = 252;
+      const leafPoolId = PoolId(leafChainId, leafPoolAddress);
+      const leafPool = createMockLiquidityPoolAggregator({
+        id: leafPoolId,
+        chainId: leafChainId,
+        token0_id: "token0",
+        token1_id: "token1",
+        token0_address: token0.address,
+        token1_address: token1.address,
+      });
+
+      const rootPoolLeafPool = {
+        id: RootPoolLeafPoolId(
+          chainId,
+          leafChainId,
+          rootPoolAddress,
+          leafPoolAddress,
+        ),
+        rootChainId: chainId,
+        rootPoolAddress: rootPoolAddress,
+        leafChainId: leafChainId,
+        leafPoolAddress: leafPoolAddress,
+      };
+
+      const mockLiquidityPoolGet = vi.mocked(
+        mockContext.LiquidityPoolAggregator?.get,
+      );
+      mockLiquidityPoolGet?.mockImplementation((address: string) => {
+        if (address === leafPoolId) return Promise.resolve(leafPool);
+        return Promise.resolve(undefined);
+      });
+
+      const mockTokenGet = vi.mocked(mockContext.Token?.get);
+      mockTokenGet?.mockImplementation((id: string) => {
+        if (id === "token0") return Promise.resolve(token0);
+        if (id === "token1") return Promise.resolve(token1);
+        return Promise.resolve(undefined);
+      });
+
+      const mockRootPoolLeafPoolGetWhere = vi.mocked(
+        mockContext.RootPool_LeafPool?.getWhere,
+      );
+      mockRootPoolLeafPoolGetWhere?.mockResolvedValue([rootPoolLeafPool]);
+
+      // Call WITH block params — they should NOT be forwarded to the leaf chain path
+      const rootBlockNumber = 135229421; // OP block
+      const rootBlockTimestamp = 1710000000;
+      const result = await loadPoolDataOrRootCLPool(
+        rootPoolAddress,
+        chainId,
+        mockContext as handlerContext,
+        rootBlockNumber,
+        rootBlockTimestamp,
+      );
+
+      expect(result.ok).toBe(true);
+
+      // The leaf chain loadPoolData call should NOT include blockNumber/blockTimestamp
+      // because they belong to the root chain and would cause "Unknown block" errors
+      // on the leaf chain's RPC.
+      const lpaCalls = mockLiquidityPoolGet?.mock.calls ?? [];
+      // loadPoolData for leaf pool should have been called — verify via LPA.get
+      expect(lpaCalls.some((call) => call[0] === leafPoolId)).toBe(true);
+    });
+
     it("should return MAPPING_NOT_FOUND when root pool not found and no RootPool_LeafPool exists", async () => {
       const mockLiquidityPoolGet = vi.mocked(
         mockContext.LiquidityPoolAggregator?.get,

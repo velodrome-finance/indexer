@@ -345,12 +345,12 @@ export async function processPendingDistribution(
     return false;
   }
 
+  // Don't pass blockNumber/blockTimestamp: they belong to the root chain
+  // and cannot be used for RPC queries on the leaf chain.
   const leafPoolData = await loadPoolData(
     leafPoolAddress,
     leafChainId,
     context,
-    blockNumber,
-    blockTimestamp,
   );
   if (!leafPoolData) {
     context.log.warn(
@@ -386,7 +386,8 @@ export async function processPendingDistribution(
     currentLiquidityPool,
     new Date(timestampMs),
     context,
-    leafChainId,
+    // Pass rootChainId so the dynamic fee guard detects chain mismatch and skips
+    rootChainId,
     blockNumber,
   );
   return true;

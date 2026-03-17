@@ -1158,9 +1158,11 @@ describe("CrossChainPendingResolution", () => {
         leafPoolAddress,
         leafChainId,
         context,
-        Number(pending.blockNumber),
-        Math.floor((pending.blockTimestamp as Date).getTime() / 1000),
       );
+      // Cross-chain fix: loadPoolData must NOT receive blockNumber/blockTimestamp
+      // because they belong to the root chain and would cause "Unknown block" errors
+      // on the leaf chain's RPC.
+      expect(loadPoolDataSpy.mock.calls[0]).toHaveLength(3);
       expect(warns).toHaveLength(1);
       expect(warns[0]).toContain("[processAllPendingDistributionsForRootPool]");
       expect(warns[0]).toContain("Leaf pool data not found");
@@ -1234,6 +1236,16 @@ describe("CrossChainPendingResolution", () => {
       );
 
       expect(result).toBe(true);
+
+      // Cross-chain fix: loadPoolData must NOT receive blockNumber/blockTimestamp
+      const loadPoolDataSpy = vi.mocked(
+        LiquidityPoolAggregatorModule.loadPoolData,
+      );
+      expect(loadPoolDataSpy.mock.calls[0]).toHaveLength(3);
+
+      // Cross-chain fix: updateLiquidityPoolAggregator must receive rootChainId
+      // (not leafChainId) so the updateDynamicFeePools guard detects the chain
+      // mismatch and skips the fee query (which would use root block on leaf RPC).
       expect(updatePoolSpy).toHaveBeenCalledTimes(1);
       const timestampMs = (pending.blockTimestamp as Date).getTime();
       expect(updatePoolSpy).toHaveBeenCalledWith(
@@ -1241,9 +1253,11 @@ describe("CrossChainPendingResolution", () => {
         leafPool,
         new Date(timestampMs),
         context,
-        leafChainId,
+        rootChainId,
         Number(pending.blockNumber),
       );
+      // Verify it's rootChainId, not leafChainId
+      expect(rootChainId).not.toBe(leafChainId);
     });
   });
 
