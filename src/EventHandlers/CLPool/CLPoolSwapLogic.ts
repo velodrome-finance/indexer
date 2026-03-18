@@ -6,6 +6,7 @@ import type {
 } from "generated";
 import type { LiquidityPoolAggregatorDiff } from "../../Aggregators/LiquidityPoolAggregator";
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
+import { CL_FEE_SCALE } from "../../Constants";
 import {
   calculateTokenAmountUSD,
   calculateTotalUSD,
@@ -41,6 +42,11 @@ interface SwapLiquidityChanges {
   newReserve0: bigint;
   newReserve1: bigint;
   currentTotalLiquidityUSD: bigint;
+}
+
+/** Compute fee amount in native token units from a CL fee rate and a swap amount. */
+function computeClFeeAmount(amount: bigint, feeRate: bigint): bigint {
+  return (abs(amount) * feeRate) / CL_FEE_SCALE;
 }
 
 /**
@@ -114,8 +120,8 @@ export function calculateSwapFees(
 
   // Calculate fees in token native units
   // CL fee is in hundredths of a basis point (1e6 scale): 100 = 0.01%, 500 = 0.05%, 3000 = 0.30%
-  const swapFeesInToken0Raw = (abs(event.params.amount0) * fee) / 1000000n;
-  const swapFeesInToken1Raw = (abs(event.params.amount1) * fee) / 1000000n;
+  const swapFeesInToken0Raw = computeClFeeAmount(event.params.amount0, fee);
+  const swapFeesInToken1Raw = computeClFeeAmount(event.params.amount1, fee);
 
   // Normalize fees to 1e18 precision using helper function
   const token0Decimals = Number(token0Instance?.decimals ?? 18);
@@ -190,20 +196,44 @@ function calculateSwapVolumeAndFees(
 }
 
 /**
- * Calculates liquidity and reserve changes from a swap event
- * Exported for testing purposes only
+ * Calculates liquidity and reserve changes from a swap event.
+ *
+ * TVL definition: reserves track **LP-deposited capital only** (Mint/Burn/Swap rebalancing).
+ * Swap fees are excluded because they are protocol/LP earnings, not deposited capital.
+ * In the CLPool contract, swap event amounts (amount0/amount1) include fees — the fee
+ * portion flows into gaugeFees or feeGrowthGlobal, not into any LP position's liquidity.
+ * The fee is only charged on the **input token** (the positive amount side), confirmed by
+ * SwapMath.computeSwapStep which computes feeAmount solely from amountIn.
+ * We subtract the fee from the input side only so that:
+ *   - Mint: reserves += deposited amounts
+ *   - Burn: reserves -= withdrawn amounts (tokens stay in contract as tokensOwed until collect)
+ *   - Swap: reserves += net rebalancing (input-side fee excluded, output side unchanged)
+ *   - Collect/CollectFees: no reserve change (fees were never in reserves)
+ *
+ * Exported for testing purposes only.
  */
 export function calculateSwapLiquidityChanges(
   event: CLPool_Swap_event,
   liquidityPoolAggregator: LiquidityPoolAggregator,
   token0Instance: Token | undefined,
   token1Instance: Token | undefined,
+  clFeeRate: bigint,
 ): SwapLiquidityChanges {
-  // Reserve fields represent swappable liquidity. We intentionally keep using the
-  // signed swap event deltas here and treat Collect/CollectFees/Flash as non-reserve
-  // events so CL totalLiquidityUSD can be derived from post-swap reserves.
-  const newReserve0 = liquidityPoolAggregator.reserve0 + event.params.amount0;
-  const newReserve1 = liquidityPoolAggregator.reserve1 + event.params.amount1;
+  // Subtract fees only from the input token (positive amount). The output token
+  // (negative amount) is not fee-charged — see SwapMath.computeSwapStep.
+  const reserveDelta0 =
+    event.params.amount0 > 0n
+      ? event.params.amount0 -
+        computeClFeeAmount(event.params.amount0, clFeeRate)
+      : event.params.amount0;
+  const reserveDelta1 =
+    event.params.amount1 > 0n
+      ? event.params.amount1 -
+        computeClFeeAmount(event.params.amount1, clFeeRate)
+      : event.params.amount1;
+
+  const newReserve0 = liquidityPoolAggregator.reserve0 + reserveDelta0;
+  const newReserve1 = liquidityPoolAggregator.reserve1 + reserveDelta1;
 
   const currentTotalLiquidityUSD = calculateTotalUSD(
     newReserve0,
@@ -241,13 +271,17 @@ export async function processCLPoolSwap(
     context,
   );
 
-  // Calculate liquidity and reserve changes
-  const { currentTotalLiquidityUSD } = calculateSwapLiquidityChanges(
-    event,
-    liquidityPoolAggregator,
-    token0Instance,
-    token1Instance,
-  );
+  // Calculate liquidity and reserve changes (fees excluded from reserves — see function docs)
+  const clFeeRate =
+    liquidityPoolAggregator.currentFee ?? liquidityPoolAggregator.baseFee ?? 0n;
+  const { newReserve0, newReserve1, currentTotalLiquidityUSD } =
+    calculateSwapLiquidityChanges(
+      event,
+      liquidityPoolAggregator,
+      token0Instance,
+      token1Instance,
+      clFeeRate,
+    );
 
   // Build complete liquidity pool aggregator diff
   const liquidityPoolDiff = {
@@ -263,8 +297,8 @@ export async function processCLPoolSwap(
     token1Price:
       token1Instance?.pricePerUSDNew ?? liquidityPoolAggregator.token1Price,
     incrementalNumberOfSwaps: 1n,
-    incrementalReserve0: event.params.amount0, // Delta: can be positive or negative (signed int256)
-    incrementalReserve1: event.params.amount1, // Delta: can be positive or negative (signed int256)
+    incrementalReserve0: newReserve0 - liquidityPoolAggregator.reserve0,
+    incrementalReserve1: newReserve1 - liquidityPoolAggregator.reserve1,
     currentTotalLiquidityUSD,
     sqrtPriceX96: event.params.sqrtPriceX96, // Store current sqrt price from Swap event
     tick: event.params.tick, // Store current tick from Swap event
