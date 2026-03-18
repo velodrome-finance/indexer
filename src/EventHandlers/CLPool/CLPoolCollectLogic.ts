@@ -11,10 +11,11 @@ export function processCLPoolCollect(
   token0Instance: Token | undefined,
   token1Instance: Token | undefined,
 ): CLPoolCollectResult {
-  // Calculate USD values using already-refreshed token prices from loadPoolData
-  // In CL pools, fees accumulate in positions (tokensOwed0/tokensOwed1) and are NOT part of base reserves.
-  // When collected, they're transferred out but were never in the tracked reserves.
-  // Therefore, Collect events should NOT affect reserves - only track fees collected.
+  // TVL definition: reserves track LP-deposited capital only (see calculateSwapLiquidityChanges).
+  // Collect transfers tokensOwed (burned liquidity + accumulated fees) out of the pool.
+  // - The burned liquidity portion was already subtracted from reserves by the Burn handler.
+  // - The fee portion was never added to reserves (fees are excluded at swap time).
+  // Therefore, Collect events should NOT affect reserves — only track fees collected.
   const unstakedFeesUSD = calculateTotalUSD(
     event.params.amount0,
     event.params.amount1,

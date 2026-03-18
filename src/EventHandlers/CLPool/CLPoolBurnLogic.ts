@@ -16,6 +16,9 @@ export function processCLPoolBurn(
   token0Instance: Token,
   token1Instance: Token,
 ): CLPoolBurnResult {
+  // TVL definition: reserves track LP-deposited capital only.
+  // Burn removes capital from a position (tokens stay in contract as tokensOwed
+  // until collect(), but are no longer part of any LP position's liquidity).
   const newReserve0 = liquidityPoolAggregator.reserve0 - event.params.amount0;
   const newReserve1 = liquidityPoolAggregator.reserve1 - event.params.amount1;
   const currentTotalLiquidityUSD = calculateTotalUSD(
