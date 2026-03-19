@@ -112,9 +112,10 @@ export function calculateSwapFees(
     };
   }
 
-  // Calculate fees in token native units (fee is in basis points, so divide by 10000)
-  const swapFeesInToken0Raw = (abs(event.params.amount0) * fee) / 10000n;
-  const swapFeesInToken1Raw = (abs(event.params.amount1) * fee) / 10000n;
+  // Calculate fees in token native units
+  // CL fee is in hundredths of a basis point (1e6 scale): 100 = 0.01%, 500 = 0.05%, 3000 = 0.30%
+  const swapFeesInToken0Raw = (abs(event.params.amount0) * fee) / 1000000n;
+  const swapFeesInToken1Raw = (abs(event.params.amount1) * fee) / 1000000n;
 
   // Normalize fees to 1e18 precision using helper function
   const token0Decimals = Number(token0Instance?.decimals ?? 18);

@@ -20,8 +20,8 @@ describe("CLPoolSwapLogic", () => {
   // Constants for reusable test values
   const ONE_USD = 1n * TEN_TO_THE_18_BI;
   const TWO_USD = 2n * TEN_TO_THE_18_BI;
-  const FEE_30_BPS = 30n; // 0.3% fee
-  const FEE_100_BPS = 100n; // 1% fee
+  const CL_FEE_30 = 3000n; // 0.3% fee (CL fees use 1e6 scale: 3000 / 1_000_000 = 0.3%)
+  const CL_FEE_100 = 10000n; // 1% fee (CL fees use 1e6 scale: 10000 / 1_000_000 = 1%)
   const CHAIN_ID = 10;
   const BLOCK_TIMESTAMP = 1000000;
   const POOL_ID = toChecksumAddress(
@@ -65,8 +65,8 @@ describe("CLPoolSwapLogic", () => {
     totalLiquidityUSD: 10n * TEN_TO_THE_18_BI,
     token0Price: ONE_USD,
     token1Price: TWO_USD,
-    currentFee: FEE_30_BPS,
-    baseFee: FEE_30_BPS,
+    currentFee: CL_FEE_30,
+    baseFee: CL_FEE_30,
     lastUpdatedTimestamp: new Date(BLOCK_TIMESTAMP * 1000),
   };
 
@@ -196,10 +196,10 @@ describe("CLPoolSwapLogic", () => {
         mockContext,
       );
 
-      // Fee = 30 bps = 0.3%
-      // token0: (1e18 * 30) / 10000 = 3e15, normalized to 1e18: (3e15 * 1e18) / 1e18 = 3e15
-      // token1: (2e18 * 30) / 10000 = 6e15, normalized to 1e18: (6e15 * 1e18) / 1e18 = 6e15
-      // USD: calculateTokenAmountUSD(3e15, 18, 1e18) = multiplyBase1e18(3e15, 1e18) = 3e15
+      // Fee = 3000 (0.3% in 1e6 scale)
+      // token0: (1e18 * 3000) / 1000000 = 3e15, normalized to 1e18: 3e15
+      // token1: (2e18 * 3000) / 1000000 = 6e15, normalized to 1e18: 6e15
+      // USD: calculateTokenAmountUSD(3e15, 18, 1e18) = 3e15
       expect(result.swapFeesInToken0).toBe(3000000000000000n); // 3e15
       expect(result.swapFeesInToken1).toBe(6000000000000000n); // 6e15
       expect(result.swapFeesInUSD).toBe(3000000000000000n); // 3e15
@@ -209,7 +209,7 @@ describe("CLPoolSwapLogic", () => {
       const poolWithBaseFee = {
         ...mockLiquidityPoolAggregator,
         currentFee: undefined,
-        baseFee: FEE_100_BPS,
+        baseFee: CL_FEE_100,
       } as unknown as LiquidityPoolAggregator;
 
       const result = calculateSwapFees(
@@ -220,9 +220,9 @@ describe("CLPoolSwapLogic", () => {
         mockContext,
       );
 
-      // Fee = 100 bps = 1%
-      // token0: (1e18 * 100) / 10000 = 1e16, normalized to 1e18: 1e16
-      // token1: (2e18 * 100) / 10000 = 2e16, normalized to 1e18: 2e16
+      // Fee = 10000 (1% in 1e6 scale)
+      // token0: (1e18 * 10000) / 1000000 = 1e16, normalized to 1e18: 1e16
+      // token1: (2e18 * 10000) / 1000000 = 2e16, normalized to 1e18: 2e16
       expect(result.swapFeesInToken0).toBe(10000000000000000n); // 1e16
       expect(result.swapFeesInToken1).toBe(20000000000000000n); // 2e16
     });
@@ -269,9 +269,9 @@ describe("CLPoolSwapLogic", () => {
         mockContext,
       );
 
-      // Fee = 30 bps
-      // token0: (1e18 * 30) / 10000 = 3e15, normalized to 1e18: (3e15 * 1e18) / 1e6 = 3e27
-      // token1: (2e18 * 30) / 10000 = 6e15, normalized to 1e18: (6e15 * 1e18) / 1e18 = 6e15
+      // Fee = 3000 (0.3% in 1e6 scale)
+      // token0: (1e18 * 3000) / 1000000 = 3e15, normalized from 6 decimals: (3e15 * 1e18) / 1e6 = 3e27
+      // token1: (2e18 * 3000) / 1000000 = 6e15, normalized from 18 decimals: 6e15
       expect(result.swapFeesInToken0).toBe(3000000000000000000000000000n); // 3e27
       expect(result.swapFeesInToken1).toBe(6000000000000000n); // 6e15
     });
@@ -285,7 +285,7 @@ describe("CLPoolSwapLogic", () => {
         mockContext,
       );
 
-      // Same calculation as first test: 3e15
+      // Same fee calculation as first test: 3e15
       expect(result.swapFeesInUSD).toBe(3000000000000000n); // 3e15
     });
 
@@ -303,7 +303,7 @@ describe("CLPoolSwapLogic", () => {
         mockContext,
       );
 
-      // Uses token1: calculateTokenAmountUSD(6e15, 18, 2e18) = multiplyBase1e18(6e15, 2e18) = 12e15
+      // Uses token1: calculateTokenAmountUSD(6e15, 18, 2e18) = 12e15
       expect(result.swapFeesInUSD).toBe(12000000000000000n); // 12e15
     });
 
@@ -473,7 +473,7 @@ describe("CLPoolSwapLogic", () => {
       );
       expect(result.liquidityPoolDiff.incrementalNumberOfSwaps).toBe(1n);
       expect(result.liquidityPoolDiff.incrementalTotalVolumeUSD).toBe(ONE_USD);
-      // Same fee calculation as first test: 3e15 for both
+      // Fee = 3000 (0.3%): (amount * 3000) / 1000000 → 3e15 for token0, 6e15 for token1
       expect(result.liquidityPoolDiff.incrementalTotalFeesGenerated0).toBe(
         3000000000000000n,
       ); // 3e15
