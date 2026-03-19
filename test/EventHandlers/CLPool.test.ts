@@ -385,7 +385,7 @@ describe("CLPool Events", () => {
     beforeEach(() => {
       processSpy = vi
         .spyOn(CLPoolBurnLogic, "processCLPoolBurn")
-        .mockReturnValue({
+        .mockResolvedValue({
           liquidityPoolDiff: {
             incrementalReserve0: -500n, // Negative because burning decreases reserves
             incrementalReserve1: -500n, // Negative because burning decreases reserves
@@ -447,7 +447,7 @@ describe("CLPool Events", () => {
     beforeEach(() => {
       processSpy = vi
         .spyOn(CLPoolCollectLogic, "processCLPoolCollect")
-        .mockReturnValue({
+        .mockResolvedValue({
           liquidityPoolDiff: {
             // In CL pools, Collect events do NOT affect reserves - fees were never part of reserves
             // Track unstaked fees (from Collect events - LPs that didn't stake)

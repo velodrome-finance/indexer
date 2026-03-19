@@ -1,11 +1,20 @@
-import type { CLPool_Collect_event, Token } from "generated";
+import type {
+  CLPool_Collect_event,
+  CLPositionPendingPrincipal,
+  Token,
+  handlerContext,
+} from "generated";
 import { toChecksumAddress } from "../../../src/Constants";
 import { processCLPoolCollect } from "../../../src/EventHandlers/CLPool/CLPoolCollectLogic";
 import { setupCommon } from "../Pool/common";
 
 describe("CLPoolCollectLogic", () => {
-  const { mockLiquidityPoolData, mockToken0Data, mockToken1Data } =
-    setupCommon();
+  const { mockToken0Data, mockToken1Data } = setupCommon();
+
+  const POOL_ADDRESS = toChecksumAddress(
+    "0x3333333333333333333333333333333333333333",
+  );
+
   const mockEvent: CLPool_Collect_event = {
     params: {
       owner: toChecksumAddress("0x1111111111111111111111111111111111111111"),
@@ -24,7 +33,7 @@ describe("CLPoolCollectLogic", () => {
     },
     chainId: 10,
     logIndex: 1,
-    srcAddress: toChecksumAddress("0x3333333333333333333333333333333333333333"),
+    srcAddress: POOL_ADDRESS,
     transaction: {
       hash: "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
     },
@@ -52,89 +61,32 @@ describe("CLPoolCollectLogic", () => {
     lastUpdatedTimestamp: new Date(1000000 * 1000),
   };
 
+  /** Creates a mock context with optional pending principal tracker */
+  function createMockContext(
+    tracker?: CLPositionPendingPrincipal | null,
+  ): handlerContext {
+    const storedTracker = { current: tracker ?? null };
+    return {
+      CLPositionPendingPrincipal: {
+        get: vi.fn().mockResolvedValue(storedTracker.current),
+        set: vi.fn((t: CLPositionPendingPrincipal) => {
+          storedTracker.current = t;
+        }),
+      },
+    } as unknown as handlerContext;
+  }
+
   describe("processCLPoolCollect", () => {
-    it("should process collect event successfully with valid data", () => {
-      const result = processCLPoolCollect(mockEvent, mockToken0, mockToken1);
-
-      // Check unstaked fees in liquidity pool diff
-      expect(
-        result.liquidityPoolDiff.incrementalTotalUnstakedFeesCollected0,
-      ).toBe(1000000000000000000n); // amount0
-      expect(
-        result.liquidityPoolDiff.incrementalTotalUnstakedFeesCollected1,
-      ).toBe(2000000000000000000n); // amount1
-      expect(
-        result.liquidityPoolDiff.incrementalTotalUnstakedFeesCollectedUSD,
-      ).toBe(5000000000000000000n); // 5 USD in 18 decimals
-
-      // Check user unstaked fees collected diff with exact values
-      expect(
-        result.userLiquidityDiff.incrementalTotalUnstakedFeesCollected0,
-      ).toBe(1000000000000000000n); // amount0
-      expect(
-        result.userLiquidityDiff.incrementalTotalUnstakedFeesCollected1,
-      ).toBe(2000000000000000000n); // amount1
-      expect(
-        result.userLiquidityDiff.incrementalTotalUnstakedFeesCollectedUSD,
-      ).toBe(5000000000000000000n); // 5 USD in 18 decimals
-    });
-
-    it("should handle different token decimals correctly", () => {
-      const tokenWithDifferentDecimals: Token = {
-        ...mockToken0,
-        decimals: 6n, // USDC-like token
-      };
-
-      const result = processCLPoolCollect(
+    it("should treat entire amount as fees when no prior burns exist", async () => {
+      const ctx = createMockContext(null);
+      const result = await processCLPoolCollect(
         mockEvent,
-        tokenWithDifferentDecimals,
-        mockToken1,
-      );
-
-      expect(result.liquidityPoolDiff).toBeDefined();
-      expect(result.userLiquidityDiff).toBeDefined();
-    });
-
-    it("should handle zero amounts correctly", () => {
-      const eventWithZeroAmounts: CLPool_Collect_event = {
-        ...mockEvent,
-        params: {
-          ...mockEvent.params,
-          amount0: 0n,
-          amount1: 0n,
-        },
-      };
-
-      const result = processCLPoolCollect(
-        eventWithZeroAmounts,
         mockToken0,
         mockToken1,
+        ctx,
       );
 
-      expect(
-        result.liquidityPoolDiff.incrementalTotalUnstakedFeesCollected0,
-      ).toBe(0n);
-      expect(
-        result.liquidityPoolDiff.incrementalTotalUnstakedFeesCollected1,
-      ).toBe(0n);
-      expect(
-        result.liquidityPoolDiff.incrementalTotalUnstakedFeesCollectedUSD,
-      ).toBe(0n);
-      expect(
-        result.userLiquidityDiff.incrementalTotalUnstakedFeesCollected0,
-      ).toBe(0n);
-      expect(
-        result.userLiquidityDiff.incrementalTotalUnstakedFeesCollected1,
-      ).toBe(0n);
-      expect(
-        result.userLiquidityDiff.incrementalTotalUnstakedFeesCollectedUSD,
-      ).toBe(0n);
-    });
-
-    it("should only track unstaked fees, not staked fees", () => {
-      const result = processCLPoolCollect(mockEvent, mockToken0, mockToken1);
-
-      // Collect events should only update unstaked fees
+      // No pending principal → entire collect amount is fees
       expect(
         result.liquidityPoolDiff.incrementalTotalUnstakedFeesCollected0,
       ).toBe(1000000000000000000n);
@@ -143,14 +95,116 @@ describe("CLPoolCollectLogic", () => {
       ).toBe(2000000000000000000n);
       expect(
         result.liquidityPoolDiff.incrementalTotalUnstakedFeesCollectedUSD,
+      ).toBe(5000000000000000000n); // 1*$1 + 2*$2 = $5
+
+      expect(
+        result.userLiquidityDiff.incrementalTotalUnstakedFeesCollected0,
+      ).toBe(1000000000000000000n);
+      expect(
+        result.userLiquidityDiff.incrementalTotalUnstakedFeesCollected1,
+      ).toBe(2000000000000000000n);
+      expect(
+        result.userLiquidityDiff.incrementalTotalUnstakedFeesCollectedUSD,
       ).toBe(5000000000000000000n);
-      // Neither mock token is whitelisted, so whitelisted increment is 0n
-      expect(result.liquidityPoolDiff.incrementalTotalFeesUSDWhitelisted).toBe(
-        0n,
+    });
+
+    it("should subtract burned principal to isolate fees", async () => {
+      // Burn of 0.8 token0 and 1.5 token1 preceded this collect
+      const tracker: CLPositionPendingPrincipal = {
+        id: "tracker",
+        pendingPrincipal0: 800000000000000000n, // 0.8 token0
+        pendingPrincipal1: 1500000000000000000n, // 1.5 token1
+      };
+      const ctx = createMockContext(tracker);
+      const result = await processCLPoolCollect(
+        mockEvent,
+        mockToken0,
+        mockToken1,
+        ctx,
       );
 
-      // Staked fees should not be present in the diff (they're undefined, not 0)
-      // The aggregator will handle the addition, but the diff only contains unstaked fees
+      // fees0 = 1.0 - 0.8 = 0.2, fees1 = 2.0 - 1.5 = 0.5
+      expect(
+        result.liquidityPoolDiff.incrementalTotalUnstakedFeesCollected0,
+      ).toBe(200000000000000000n); // 0.2 token0
+      expect(
+        result.liquidityPoolDiff.incrementalTotalUnstakedFeesCollected1,
+      ).toBe(500000000000000000n); // 0.5 token1
+
+      // Tracker should be fully drained
+      const setCall = vi.mocked(ctx.CLPositionPendingPrincipal.set).mock
+        .lastCall?.[0] as CLPositionPendingPrincipal;
+      expect(setCall.pendingPrincipal0).toBe(0n);
+      expect(setCall.pendingPrincipal1).toBe(0n);
+    });
+
+    it("should handle collect smaller than pending principal (partial collect)", async () => {
+      // More principal pending than what's being collected
+      const tracker: CLPositionPendingPrincipal = {
+        id: "tracker",
+        pendingPrincipal0: 5000000000000000000n, // 5 tokens (larger than collect's 1)
+        pendingPrincipal1: 10000000000000000000n, // 10 tokens (larger than collect's 2)
+      };
+      const ctx = createMockContext(tracker);
+      const result = await processCLPoolCollect(
+        mockEvent,
+        mockToken0,
+        mockToken1,
+        ctx,
+      );
+
+      // Entire collect is principal, no fees
+      expect(
+        result.liquidityPoolDiff.incrementalTotalUnstakedFeesCollected0,
+      ).toBe(0n);
+      expect(
+        result.liquidityPoolDiff.incrementalTotalUnstakedFeesCollected1,
+      ).toBe(0n);
+      expect(
+        result.liquidityPoolDiff.incrementalTotalUnstakedFeesCollectedUSD,
+      ).toBe(0n);
+
+      // Tracker should retain remaining principal
+      const setCall = vi.mocked(ctx.CLPositionPendingPrincipal.set).mock
+        .lastCall?.[0] as CLPositionPendingPrincipal;
+      expect(setCall.pendingPrincipal0).toBe(4000000000000000000n); // 5 - 1
+      expect(setCall.pendingPrincipal1).toBe(8000000000000000000n); // 10 - 2
+    });
+
+    it("should handle zero collect amounts correctly", async () => {
+      const eventWithZeroAmounts: CLPool_Collect_event = {
+        ...mockEvent,
+        params: { ...mockEvent.params, amount0: 0n, amount1: 0n },
+      };
+      const ctx = createMockContext(null);
+      const result = await processCLPoolCollect(
+        eventWithZeroAmounts,
+        mockToken0,
+        mockToken1,
+        ctx,
+      );
+
+      expect(
+        result.liquidityPoolDiff.incrementalTotalUnstakedFeesCollected0,
+      ).toBe(0n);
+      expect(
+        result.liquidityPoolDiff.incrementalTotalUnstakedFeesCollected1,
+      ).toBe(0n);
+      expect(
+        result.liquidityPoolDiff.incrementalTotalUnstakedFeesCollectedUSD,
+      ).toBe(0n);
+    });
+
+    it("should only track unstaked fees, not staked fees", async () => {
+      const ctx = createMockContext(null);
+      const result = await processCLPoolCollect(
+        mockEvent,
+        mockToken0,
+        mockToken1,
+        ctx,
+      );
+
+      // Staked fees should not be present in the diff
       expect(result.liquidityPoolDiff).not.toHaveProperty(
         "incrementalTotalStakedFeesCollected0",
       );
@@ -160,6 +214,7 @@ describe("CLPoolCollectLogic", () => {
       expect(result.liquidityPoolDiff).not.toHaveProperty(
         "incrementalTotalStakedFeesCollectedUSD",
       );
+      // No reserve changes from Collect
       expect(result.liquidityPoolDiff).not.toHaveProperty(
         "incrementalReserve0",
       );
@@ -169,6 +224,23 @@ describe("CLPoolCollectLogic", () => {
       expect(result.liquidityPoolDiff).not.toHaveProperty(
         "currentTotalLiquidityUSD",
       );
+    });
+
+    it("should handle different token decimals correctly", async () => {
+      const tokenWithDifferentDecimals: Token = {
+        ...mockToken0,
+        decimals: 6n,
+      };
+      const ctx = createMockContext(null);
+      const result = await processCLPoolCollect(
+        mockEvent,
+        tokenWithDifferentDecimals,
+        mockToken1,
+        ctx,
+      );
+
+      expect(result.liquidityPoolDiff).toBeDefined();
+      expect(result.userLiquidityDiff).toBeDefined();
     });
   });
 });

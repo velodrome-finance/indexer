@@ -837,6 +837,18 @@ export const CLPoolMintEventId = (
   logIndex: number,
 ) => `${chainId}-${poolAddress}-${txHash}-${logIndex}`;
 
+/** ID for CLPositionPendingPrincipal — tracks burned principal awaiting collection.
+ * Keyed by contract-level position identity (pool + owner + tick range).
+ * Mirrors Solidity's positions mapping key: keccak256(owner, tickLower, tickUpper) per pool.
+ */
+export const CLPositionPendingPrincipalId = (
+  chainId: number,
+  poolAddress: string,
+  owner: string,
+  tickLower: bigint,
+  tickUpper: bigint,
+) => `${chainId}-${poolAddress}-${owner}-${tickLower}-${tickUpper}`;
+
 /** Snapshot ID for LiquidityPoolAggregatorSnapshot. epochMs = getSnapshotEpoch(timestamp).getTime()
  * @param chainId - Chain ID of the pool
  * @param poolAddress - Address of the pool

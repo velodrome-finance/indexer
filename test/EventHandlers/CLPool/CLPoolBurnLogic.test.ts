@@ -1,7 +1,9 @@
 import type {
   CLPool_Burn_event,
+  CLPositionPendingPrincipal,
   LiquidityPoolAggregator,
   Token,
+  handlerContext,
 } from "generated";
 import { toChecksumAddress } from "../../../src/Constants";
 import { processCLPoolBurn } from "../../../src/EventHandlers/CLPool/CLPoolBurnLogic";
@@ -61,57 +63,91 @@ describe("CLPoolBurnLogic", () => {
     totalLiquidityUSD: 7000000000000000000n,
   };
 
+  /** Creates a mock context that tracks CLPositionPendingPrincipal get/set */
+  function createMockContext(
+    existingTracker?: CLPositionPendingPrincipal | null,
+  ): handlerContext {
+    return {
+      CLPositionPendingPrincipal: {
+        get: vi.fn().mockResolvedValue(existingTracker ?? null),
+        set: vi.fn(),
+      },
+    } as unknown as handlerContext;
+  }
+
   describe("processCLPoolBurn", () => {
-    it("should process burn event successfully with valid data", () => {
-      const result = processCLPoolBurn(
+    it("should process burn event successfully with valid data", async () => {
+      const ctx = createMockContext();
+      const result = await processCLPoolBurn(
         mockEvent,
         mockLiquidityPoolAggregator,
         mockToken0,
         mockToken1,
+        ctx,
       );
 
-      // Check liquidity pool diff with exact values (negative because burning decreases reserves)
-      expect(result.liquidityPoolDiff.incrementalReserve0).toBe(-500000n); // -amount0 (delta)
-      expect(result.liquidityPoolDiff.incrementalReserve1).toBe(-300000n); // -amount1 (delta)
-
+      expect(result.liquidityPoolDiff.incrementalReserve0).toBe(-500000n);
+      expect(result.liquidityPoolDiff.incrementalReserve1).toBe(-300000n);
       expect(result.liquidityPoolDiff.currentTotalLiquidityUSD).toBe(
         5999999999999900000n,
       );
     });
 
-    it("should calculate correct liquidity values for burn event", () => {
-      const result = processCLPoolBurn(
+    it("should track burned principal in CLPositionPendingPrincipal", async () => {
+      const ctx = createMockContext();
+      await processCLPoolBurn(
         mockEvent,
         mockLiquidityPoolAggregator,
         mockToken0,
         mockToken1,
+        ctx,
       );
 
-      // The liquidity pool diff should reflect the reserve deltas (negative because burning decreases reserves)
-      expect(result.liquidityPoolDiff.incrementalReserve0).toBe(-500000n); // -amount0 (delta)
-      expect(result.liquidityPoolDiff.incrementalReserve1).toBe(-300000n); // -amount1 (delta)
-      expect(result.liquidityPoolDiff.currentTotalLiquidityUSD).toBe(
-        5999999999999900000n,
-      );
+      // Should have called set with burn amounts
+      const setCall = vi.mocked(ctx.CLPositionPendingPrincipal.set).mock
+        .lastCall?.[0] as CLPositionPendingPrincipal;
+      expect(setCall.pendingPrincipal0).toBe(500000n);
+      expect(setCall.pendingPrincipal1).toBe(300000n);
     });
 
-    it("should handle different token decimals correctly", () => {
+    it("should accumulate principal across multiple burns", async () => {
+      const existingTracker: CLPositionPendingPrincipal = {
+        id: "tracker",
+        pendingPrincipal0: 100000n,
+        pendingPrincipal1: 200000n,
+      };
+      const ctx = createMockContext(existingTracker);
+      await processCLPoolBurn(
+        mockEvent,
+        mockLiquidityPoolAggregator,
+        mockToken0,
+        mockToken1,
+        ctx,
+      );
+
+      const setCall = vi.mocked(ctx.CLPositionPendingPrincipal.set).mock
+        .lastCall?.[0] as CLPositionPendingPrincipal;
+      expect(setCall.pendingPrincipal0).toBe(600000n); // 100000 + 500000
+      expect(setCall.pendingPrincipal1).toBe(500000n); // 200000 + 300000
+    });
+
+    it("should handle different token decimals correctly", async () => {
       const tokenWithDifferentDecimals: Token = {
         ...mockToken0,
-        decimals: 6n, // USDC-like token
+        decimals: 6n,
       };
-
-      const result = processCLPoolBurn(
+      const ctx = createMockContext();
+      const result = await processCLPoolBurn(
         mockEvent,
         mockLiquidityPoolAggregator,
         tokenWithDifferentDecimals,
         mockToken1,
+        ctx,
       );
 
-      // Expected liquidity pool diff (negative because burning decreases reserves)
       const expectedLiquidityPoolDiff = {
-        incrementalReserve0: -mockEvent.params.amount0, // -500000n
-        incrementalReserve1: -mockEvent.params.amount1, // -300000n
+        incrementalReserve0: -mockEvent.params.amount0,
+        incrementalReserve1: -mockEvent.params.amount1,
         currentTotalLiquidityUSD: calculateTotalUSD(
           mockLiquidityPoolAggregator.reserve0 - mockEvent.params.amount0,
           mockLiquidityPoolAggregator.reserve1 - mockEvent.params.amount1,
@@ -120,7 +156,6 @@ describe("CLPoolBurnLogic", () => {
         ),
       };
 
-      // Assert liquidity pool diff with precise values
       expect(result.liquidityPoolDiff.incrementalReserve0).toEqual(
         expectedLiquidityPoolDiff.incrementalReserve0,
       );

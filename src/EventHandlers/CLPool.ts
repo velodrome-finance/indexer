@@ -49,11 +49,12 @@ CLPool.Burn.handler(async ({ event, context }) => {
 
   const { liquidityPoolAggregator, token0Instance, token1Instance } = poolData;
 
-  const result = processCLPoolBurn(
+  const result = await processCLPoolBurn(
     event,
     liquidityPoolAggregator,
     token0Instance,
     token1Instance,
+    context,
   );
   const timestamp = new Date(event.block.timestamp * 1000);
 
@@ -97,8 +98,13 @@ CLPool.Collect.handler(async ({ event, context }) => {
 
   const { liquidityPoolAggregator, token0Instance, token1Instance } = poolData;
 
-  // Process the collect event
-  const result = processCLPoolCollect(event, token0Instance, token1Instance);
+  // Process the collect event — isolates fees from burned principal
+  const result = await processCLPoolCollect(
+    event,
+    token0Instance,
+    token1Instance,
+    context,
+  );
 
   const poolDiff = result.liquidityPoolDiff;
   const userDiff = result.userLiquidityDiff;
