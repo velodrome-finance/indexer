@@ -21,8 +21,8 @@ importers:
         specifier: ^16.4.5
         version: 16.6.1
       envio:
-        specifier: 3.0.0-alpha.18-main-pg-client-downgrade
-        version: 3.0.0-alpha.18-main-pg-client-downgrade(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@5.9.3)(zod@3.25.76)
+        specifier: 3.0.0-alpha.19
+        version: 3.0.0-alpha.19(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@5.9.3)(zod@3.25.76)
       jsbi:
         specifier: ^4.3.2
         version: 4.3.2
@@ -1372,28 +1372,28 @@ packages:
     resolution: {integrity: sha512-+h1lkLKhZMTYjog1VEpJNG7NZJWcuc2DDk/qsqSTRRCOXiLjeQ1d1/udrUGhqMxUgAlwKNZ0cf2uqan5GLuS2A==}
     engines: {node: '>=6'}
 
-  envio-darwin-arm64@3.0.0-alpha.18-main-pg-client-downgrade:
-    resolution: {integrity: sha512-XohbYoEcSG7BlUdi4tdbKSKvt4GKMgjrqGbdIVNydO77gsjlTCJa/+FYkHY83F3pgHrOz+YzcfesgGbjVsfy0A==}
+  envio-darwin-arm64@3.0.0-alpha.19:
+    resolution: {integrity: sha512-PExo4Ioq01VrAvAVZ/JokLJoMUsCTJjTLZ751xUSD1dQIcB90pNgKrL2GOYG5o2b/AWn4ifu4sl0D9kk4nEAfw==}
     cpu: [arm64]
     os: [darwin]
 
-  envio-darwin-x64@3.0.0-alpha.18-main-pg-client-downgrade:
-    resolution: {integrity: sha512-aIxITk2xYgGAmT/UHmUeXHGQcK3jP1qIwH+bx4FmbE5adYEJy7J9+2BJo4ajBGElPy4H6meosl4yaWSbOwhdqQ==}
+  envio-darwin-x64@3.0.0-alpha.19:
+    resolution: {integrity: sha512-/ZmSTe/av+4Ulu02dkki8oKYqKIGjPO472PdGoeP8DOoBTRXCY4r7tPYBFdjk7NY2lEcM2ysalbeca0p0UnEtw==}
     cpu: [x64]
     os: [darwin]
 
-  envio-linux-arm64@3.0.0-alpha.18-main-pg-client-downgrade:
-    resolution: {integrity: sha512-ThFzOqsxcoNOdTV9jAjMdtta1v3kTaNU/JYjSP87rIcBIu3MY09Avu4xExjOU/D9KRX0Ehk4ZqFBCKcw4tdj9A==}
+  envio-linux-arm64@3.0.0-alpha.19:
+    resolution: {integrity: sha512-uNairDh9enf9tWGFfY6JPNiuJKoD7zjPeyoZFLKsZiMropXHvEHI5r8Z6KTYfkrUIYj0q1s6Y5cjVfugsrYYmQ==}
     cpu: [arm64]
     os: [linux]
 
-  envio-linux-x64@3.0.0-alpha.18-main-pg-client-downgrade:
-    resolution: {integrity: sha512-DpMXHiYT+pmG/0nkK5AX2DsZfg2SG4RG4CBe6R3tIXTaW+fUsM1ACDLTEPVZtIhXl9skaLfARVTeMlyLv5Rh/A==}
+  envio-linux-x64@3.0.0-alpha.19:
+    resolution: {integrity: sha512-egC/u8rUNfVD8pmi0p0CvO6bMIRIH3BDTZ4vYYmTJxbUc+NLS9BFxYiiMYFHeXehKJVSOKlIgj7PsvgB+G4WrQ==}
     cpu: [x64]
     os: [linux]
 
-  envio@3.0.0-alpha.18-main-pg-client-downgrade:
-    resolution: {integrity: sha512-84wVfcMAROiOJ7xwXFmbauwDmzOv0j9C/mn0QtBSARr7MzuL3ZxckmbEMs5RhtMClqNB0aynpUmMfw2jD0T2Og==}
+  envio@3.0.0-alpha.19:
+    resolution: {integrity: sha512-56GwwghlqvQBEIPWegnSHb0lyv/pS6t/GWqE7eom0DK0qGLM/AdUv9epDlhFDI+mN132gYVOOpqxbwsa5Qu7cQ==}
     engines: {node: '>=22.0.0'}
     hasBin: true
 
@@ -2126,8 +2126,8 @@ packages:
     resolution: {integrity: sha512-OW/rX8O/jXnm82Ey1k44pObPtdblfiuWnrd8X7GJ7emImCOstunGbXUpp7HdBrFQX6rJzn3sPT397Wp5aCwCHg==}
     engines: {node: ^10 || ^12 || >=14}
 
-  postgres@3.4.1:
-    resolution: {integrity: sha512-Wasjv6WEzrZXbwKByR2RGD7MBfj7VBqco3hYWz8ifzSAp6tb2L6MlmcKFzkmgV1jT7/vKlcSa+lxXZeTdeVMzQ==}
+  postgres@3.4.8:
+    resolution: {integrity: sha512-d+JFcLM17njZaOLkv6SCev7uoLaBtfK86vMUXhW1Z4glPWh4jozno9APvW/XKFJ3CCxVoC7OL38BqRydtu5nGg==}
     engines: {node: '>=12'}
 
   process-warning@5.0.0:
@@ -4116,19 +4116,19 @@ snapshots:
 
   env-paths@2.2.1: {}
 
-  envio-darwin-arm64@3.0.0-alpha.18-main-pg-client-downgrade:
+  envio-darwin-arm64@3.0.0-alpha.19:
     optional: true
 
-  envio-darwin-x64@3.0.0-alpha.18-main-pg-client-downgrade:
+  envio-darwin-x64@3.0.0-alpha.19:
     optional: true
 
-  envio-linux-arm64@3.0.0-alpha.18-main-pg-client-downgrade:
+  envio-linux-arm64@3.0.0-alpha.19:
     optional: true
 
-  envio-linux-x64@3.0.0-alpha.18-main-pg-client-downgrade:
+  envio-linux-x64@3.0.0-alpha.19:
     optional: true
 
-  envio@3.0.0-alpha.18-main-pg-client-downgrade(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@5.9.3)(zod@3.25.76):
+  envio@3.0.0-alpha.19(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@5.9.3)(zod@3.25.76):
     dependencies:
       '@clickhouse/client': 1.17.0
       '@elastic/ecs-pino-format': 1.4.0
@@ -4145,7 +4145,7 @@ snapshots:
       ink-spinner: 5.0.0(ink@6.8.0(react@19.2.4))(react@19.2.4)
       pino: 10.3.1
       pino-pretty: 13.1.3
-      postgres: 3.4.1
+      postgres: 3.4.8
       prom-client: 15.1.3
       rescript: 11.1.3
       rescript-envsafe: 5.0.0(rescript-schema@9.3.4(rescript@11.1.3))(rescript@11.1.3)
@@ -4154,10 +4154,10 @@ snapshots:
       viem: 2.46.2(typescript@5.9.3)(zod@3.25.76)
       yargs: 17.7.2
     optionalDependencies:
-      envio-darwin-arm64: 3.0.0-alpha.18-main-pg-client-downgrade
-      envio-darwin-x64: 3.0.0-alpha.18-main-pg-client-downgrade
-      envio-linux-arm64: 3.0.0-alpha.18-main-pg-client-downgrade
-      envio-linux-x64: 3.0.0-alpha.18-main-pg-client-downgrade
+      envio-darwin-arm64: 3.0.0-alpha.19
+      envio-darwin-x64: 3.0.0-alpha.19
+      envio-linux-arm64: 3.0.0-alpha.19
+      envio-linux-x64: 3.0.0-alpha.19
     transitivePeerDependencies:
       - '@types/react'
       - bufferutil
@@ -4980,7 +4980,7 @@ snapshots:
       picocolors: 1.1.1
       source-map-js: 1.2.1
 
-  postgres@3.4.1: {}
+  postgres@3.4.8: {}
 
   process-warning@5.0.0: {}
 
