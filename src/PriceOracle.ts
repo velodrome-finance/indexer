@@ -1,8 +1,8 @@
 import type { Token, handlerContext } from "generated";
 import {
   CHAIN_CONSTANTS,
+  MS_IN_AN_HOUR,
   PriceOracleType,
-  SECONDS_IN_AN_HOUR,
   TokenId,
 } from "./Constants";
 import {
@@ -72,8 +72,7 @@ export async function refreshTokenPrice(
   const shouldRefresh =
     token.pricePerUSDNew === 0n ||
     !token.lastUpdatedTimestamp ||
-    blockTimestampMs - token.lastUpdatedTimestamp.getTime() >=
-      SECONDS_IN_AN_HOUR;
+    blockTimestampMs - token.lastUpdatedTimestamp.getTime() >= MS_IN_AN_HOUR;
 
   if (!shouldRefresh) {
     return token;

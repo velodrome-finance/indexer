@@ -129,6 +129,31 @@ describe("PriceOracle", () => {
         ).not.toHaveBeenCalled();
       });
     });
+    describe("if less than 1 hour has passed (e.g. 30 minutes)", () => {
+      beforeEach(async () => {
+        const thirtyMinutesAgo = new Date(
+          blockDatetime.getTime() - 30 * 60 * 1000,
+        );
+        const fetchedToken = {
+          ...mockToken0Data,
+          lastUpdatedTimestamp: thirtyMinutesAgo,
+        };
+        const blockTimestamp = blockDatetime.getTime() / 1000;
+        await PriceOracle.refreshTokenPrice(
+          fetchedToken,
+          blockNumber,
+          blockTimestamp,
+          chainId,
+          mockContext as handlerContext,
+        );
+      });
+      it("should not refresh price when only 30 minutes have passed", async () => {
+        expect(vi.mocked(mockContext.Token?.set)).not.toHaveBeenCalled();
+        expect(
+          vi.mocked(mockContext.TokenPriceSnapshot?.set),
+        ).not.toHaveBeenCalled();
+      });
+    });
     describe("if the update interval has passed", () => {
       let updatedToken: Token;
       let testLastUpdated: Date;
