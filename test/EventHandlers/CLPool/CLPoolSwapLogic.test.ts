@@ -330,32 +330,24 @@ describe("CLPoolSwapLogic", () => {
   });
 
   describe("calculateSwapLiquidityChanges", () => {
-    it("should calculate new reserves correctly with positive amounts", () => {
-      const eventWithPositiveAmounts: CLPool_Swap_event = {
-        ...mockEvent,
-        params: {
-          ...mockEvent.params,
-          amount0: 5n * TEN_TO_THE_18_BI,
-          amount1: 3n * TEN_TO_THE_18_BI,
-        },
-      };
-
+    it("should exclude fees from the input token and leave output unchanged", () => {
       const result = calculateSwapLiquidityChanges(
-        eventWithPositiveAmounts,
+        mockEvent,
         mockLiquidityPoolAggregator,
         mockToken0,
         mockToken1,
+        CL_FEE_30,
       );
-
+      const fee0 = (1n * TEN_TO_THE_18_BI * CL_FEE_30) / 1000000n;
       expect(result.newReserve0).toBe(
-        mockLiquidityPoolAggregator.reserve0 + 5n * TEN_TO_THE_18_BI,
+        mockLiquidityPoolAggregator.reserve0 + 1n * TEN_TO_THE_18_BI - fee0,
       );
       expect(result.newReserve1).toBe(
-        mockLiquidityPoolAggregator.reserve1 + 3n * TEN_TO_THE_18_BI,
+        mockLiquidityPoolAggregator.reserve1 - 2n * TEN_TO_THE_18_BI,
       );
     });
 
-    it("should calculate new reserves correctly with negative amounts", () => {
+    it("should not deduct fees when both amounts are negative (output)", () => {
       const eventWithNegativeAmounts: CLPool_Swap_event = {
         ...mockEvent,
         params: {
@@ -364,14 +356,13 @@ describe("CLPoolSwapLogic", () => {
           amount1: -3n * TEN_TO_THE_18_BI,
         },
       };
-
       const result = calculateSwapLiquidityChanges(
         eventWithNegativeAmounts,
         mockLiquidityPoolAggregator,
         mockToken0,
         mockToken1,
+        CL_FEE_30,
       );
-
       expect(result.newReserve0).toBe(
         mockLiquidityPoolAggregator.reserve0 - 5n * TEN_TO_THE_18_BI,
       );
@@ -380,72 +371,40 @@ describe("CLPoolSwapLogic", () => {
       );
     });
 
-    it("should calculate liquidity delta correctly when liquidity increases", () => {
-      const poolWithLowLiquidity: LiquidityPoolAggregator = {
-        ...mockLiquidityPoolAggregator,
-        reserve0: 1n * TEN_TO_THE_18_BI,
-        reserve1: 2n * TEN_TO_THE_18_BI,
-        totalLiquidityUSD: 5n * TEN_TO_THE_18_BI,
-      };
-
-      const eventAddingLiquidity: CLPool_Swap_event = {
+    it("should deduct fees from both sides when both amounts are positive", () => {
+      const eventWithPositiveAmounts: CLPool_Swap_event = {
         ...mockEvent,
         params: {
           ...mockEvent.params,
-          amount0: 1n * TEN_TO_THE_18_BI,
-          amount1: 2n * TEN_TO_THE_18_BI,
+          amount0: 5n * TEN_TO_THE_18_BI,
+          amount1: 3n * TEN_TO_THE_18_BI,
         },
       };
-
       const result = calculateSwapLiquidityChanges(
-        eventAddingLiquidity,
-        poolWithLowLiquidity,
+        eventWithPositiveAmounts,
+        mockLiquidityPoolAggregator,
         mockToken0,
         mockToken1,
+        CL_FEE_30,
       );
-
-      // New reserves: 1 + 1 = 2 tokens0, 2 + 2 = 4 tokens1
-      // New liquidity: 2 * $1 + 4 * $2 = $2 + $8 = $10
-      expect(result.currentTotalLiquidityUSD).toBe(10n * TEN_TO_THE_18_BI);
+      const fee0 = (5n * TEN_TO_THE_18_BI * CL_FEE_30) / 1000000n;
+      const fee1 = (3n * TEN_TO_THE_18_BI * CL_FEE_30) / 1000000n;
+      expect(result.newReserve0).toBe(
+        mockLiquidityPoolAggregator.reserve0 + 5n * TEN_TO_THE_18_BI - fee0,
+      );
+      expect(result.newReserve1).toBe(
+        mockLiquidityPoolAggregator.reserve1 + 3n * TEN_TO_THE_18_BI - fee1,
+      );
     });
 
-    it("should calculate liquidity delta correctly when liquidity decreases", () => {
-      const poolWithHighLiquidity: LiquidityPoolAggregator = {
-        ...mockLiquidityPoolAggregator,
-        reserve0: 10n * TEN_TO_THE_18_BI,
-        reserve1: 20n * TEN_TO_THE_18_BI,
-        totalLiquidityUSD: 50n * TEN_TO_THE_18_BI,
-      };
-
-      const eventRemovingLiquidity: CLPool_Swap_event = {
-        ...mockEvent,
-        params: {
-          ...mockEvent.params,
-          amount0: -5n * TEN_TO_THE_18_BI,
-          amount1: -10n * TEN_TO_THE_18_BI,
-        },
-      };
-
-      const result = calculateSwapLiquidityChanges(
-        eventRemovingLiquidity,
-        poolWithHighLiquidity,
-        mockToken0,
-        mockToken1,
-      );
-
-      // New reserves: 10 - 5 = 5 tokens0, 20 - 10 = 10 tokens1
-      // New liquidity: 5 * $1 + 10 * $2 = $5 + $20 = $25
-      expect(result.currentTotalLiquidityUSD).toBe(25n * TEN_TO_THE_18_BI);
-    });
-
-    it("should handle undefined tokens correctly", () => {
+    it("should not deduct fees when fee rate is zero", () => {
       const result = calculateSwapLiquidityChanges(
         mockEvent,
         mockLiquidityPoolAggregator,
         undefined,
         undefined,
+        0n,
       );
-
       expect(result.newReserve0).toBe(
         mockLiquidityPoolAggregator.reserve0 + mockEvent.params.amount0,
       );
@@ -480,8 +439,11 @@ describe("CLPoolSwapLogic", () => {
       expect(result.liquidityPoolDiff.incrementalTotalFeesGeneratedUSD).toBe(
         3000000000000000n,
       ); // 3e15
+      // TVL: reserves exclude the 0.3% fee on the input side (amount0 = +1e18)
+      // reserve0 = 10e18 + (1e18 - 3e15) = 10.997e18, reserve1 = 6e18 - 2e18 = 4e18
+      // TVL = 10.997 * $1 + 4 * $2 = $18.997
       expect(result.liquidityPoolDiff.currentTotalLiquidityUSD).toBe(
-        19n * TEN_TO_THE_18_BI,
+        18997000000000000000n,
       );
 
       expect(result.userSwapDiff.incrementalNumberOfSwaps).toBe(1n);
@@ -533,7 +495,7 @@ describe("CLPoolSwapLogic", () => {
       );
     });
 
-    it("should calculate reserves correctly with signed amounts", async () => {
+    it("should exclude fees from reserve increments (input side only)", async () => {
       const eventWithPositiveAmounts: CLPool_Swap_event = {
         ...mockEvent,
         params: {
@@ -551,11 +513,13 @@ describe("CLPoolSwapLogic", () => {
         mockContext,
       );
 
+      const fee0 = (5n * TEN_TO_THE_18_BI * CL_FEE_30) / 1000000n;
+      const fee1 = (3n * TEN_TO_THE_18_BI * CL_FEE_30) / 1000000n;
       expect(result.liquidityPoolDiff.incrementalReserve0).toBe(
-        5n * TEN_TO_THE_18_BI,
+        5n * TEN_TO_THE_18_BI - fee0,
       );
       expect(result.liquidityPoolDiff.incrementalReserve1).toBe(
-        3n * TEN_TO_THE_18_BI,
+        3n * TEN_TO_THE_18_BI - fee1,
       );
     });
 

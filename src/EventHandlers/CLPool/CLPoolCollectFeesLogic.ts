@@ -29,9 +29,10 @@ export function processCLPoolCollectFees(
     token1Instance,
   );
 
-  // In CL pools, gauge fees accumulate in gaugeFees.token0/token1 and are NOT part of base reserves.
-  // When collected, they're transferred out but were never in the tracked reserves.
-  // Therefore, CollectFees events should NOT affect reserves - only track fees collected.
+  // TVL definition: reserves track LP-deposited capital only (see calculateSwapLiquidityChanges).
+  // Gauge fees accumulate in gaugeFees.token0/token1 during swaps but are excluded from
+  // reserves at swap time. When the gauge collects them, no reserve change is needed.
+  // Therefore, CollectFees events should NOT affect reserves — only track fees collected.
   // Return increments (not new totals) since updateLiquidityPoolAggregator will add them to current values
   const liquidityPoolDiff = {
     incrementalTotalStakedFeesCollected0: event.params.amount0,

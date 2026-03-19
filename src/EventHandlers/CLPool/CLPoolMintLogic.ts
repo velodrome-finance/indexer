@@ -16,6 +16,8 @@ export function processCLPoolMint(
   token0Instance: Token,
   token1Instance: Token,
 ): CLPoolMintResult {
+  // TVL definition: reserves track LP-deposited capital only.
+  // Mint deposits new capital into the pool — always increases reserves.
   const newReserve0 = liquidityPoolAggregator.reserve0 + event.params.amount0;
   const newReserve1 = liquidityPoolAggregator.reserve1 + event.params.amount1;
   const currentTotalLiquidityUSD = calculateTotalUSD(
