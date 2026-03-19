@@ -39,10 +39,11 @@ export function processPoolSwap(
       ? token0UsdValue
       : (token1UsdValue ?? 0n);
 
-  // Calculate whitelisted volume (both tokens must be whitelisted)
+  // Calculate whitelisted volume (at least one token must be whitelisted,
+  // consistent with calculateWhitelistedFeesUSD which uses the same rule)
   const volumeInUSDWhitelisted =
-    token0Instance.isWhitelisted && token1Instance.isWhitelisted
-      ? (token0UsdValue ?? token1UsdValue ?? 0n)
+    token0Instance.isWhitelisted || token1Instance.isWhitelisted
+      ? volumeInUSD
       : 0n;
 
   // Create liquidity pool diff

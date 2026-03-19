@@ -136,7 +136,7 @@ describe("PoolSwapLogic", () => {
       ).toBe(1000n);
     });
 
-    it("should handle mixed whitelist status correctly", () => {
+    it("should count whitelisted volume when only one token is whitelisted", () => {
       const result = processPoolSwap(
         mockEvent,
         { ...mockToken0, isWhitelisted: true },
@@ -146,10 +146,10 @@ describe("PoolSwapLogic", () => {
       expect(result.liquidityPoolDiff).toBeDefined();
       expect(result.userSwapDiff).toBeDefined();
 
-      // When only one token is whitelisted, whitelisted volume diff should be 0
+      // "Any whitelisted" rule — consistent with calculateWhitelistedFeesUSD
       expect(
         result.liquidityPoolDiff?.incrementalTotalVolumeUSDWhitelisted,
-      ).toBe(0n);
+      ).toBe(result.liquidityPoolDiff?.incrementalTotalVolumeUSD);
     });
 
     it("should update token prices correctly", () => {

@@ -150,7 +150,7 @@ describe("CLPoolSwapLogic", () => {
       expect(result.volumeInUSDWhitelisted).toBe(result.volumeInUSD);
     });
 
-    it("should return zero whitelisted volume when only one token is whitelisted", () => {
+    it("should count whitelisted volume when only one token is whitelisted", () => {
       const whitelistedToken0: Token = { ...mockToken0, isWhitelisted: true };
 
       const result = calculateSwapVolume(
@@ -159,7 +159,8 @@ describe("CLPoolSwapLogic", () => {
         mockToken1,
       );
 
-      expect(result.volumeInUSDWhitelisted).toBe(0n);
+      // "Any whitelisted" rule — consistent with calculateWhitelistedFeesUSD
+      expect(result.volumeInUSDWhitelisted).toBe(result.volumeInUSD);
     });
 
     it("should handle different token decimals correctly", () => {

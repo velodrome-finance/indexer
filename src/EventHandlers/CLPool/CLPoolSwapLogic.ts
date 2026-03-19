@@ -78,9 +78,10 @@ export function calculateSwapVolume(
   // Calculate volume in USD (use token0 if available and non-zero, otherwise token1)
   const volumeInUSD = token0UsdValue !== 0n ? token0UsdValue : token1UsdValue;
 
-  // Calculate whitelisted volume (both tokens must be whitelisted)
+  // Calculate whitelisted volume (at least one token must be whitelisted,
+  // consistent with calculateWhitelistedFeesUSD which uses the same rule)
   const volumeInUSDWhitelisted =
-    token0Instance?.isWhitelisted && token1Instance?.isWhitelisted
+    token0Instance?.isWhitelisted || token1Instance?.isWhitelisted
       ? volumeInUSD
       : 0n;
 
