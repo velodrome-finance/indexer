@@ -31,6 +31,7 @@ export const TEN_TO_THE_18_BI = BigInt(10 ** 18);
 export const CL_FEE_SCALE = 1000000n;
 
 export const SECONDS_IN_AN_HOUR = BigInt(3600);
+export const MS_IN_AN_HOUR = 3600 * 1000; // 3_600_000 ms
 export const SECONDS_IN_A_DAY = BigInt(86400);
 export const SECONDS_IN_A_WEEK = BigInt(604800);
 export const SECONDS_IN_FOUR_YEARS = BigInt(126144000);

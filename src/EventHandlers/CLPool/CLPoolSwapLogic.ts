@@ -118,10 +118,17 @@ export function calculateSwapFees(
     };
   }
 
-  // Calculate fees in token native units
+  // Calculate fees in token native units — fees are ONLY charged on the input token
+  // (positive amount). The output token (negative amount) has no fee.
   // CL fee is in hundredths of a basis point (1e6 scale): 100 = 0.01%, 500 = 0.05%, 3000 = 0.30%
-  const swapFeesInToken0Raw = computeClFeeAmount(event.params.amount0, fee);
-  const swapFeesInToken1Raw = computeClFeeAmount(event.params.amount1, fee);
+  const swapFeesInToken0Raw =
+    event.params.amount0 > 0n
+      ? computeClFeeAmount(event.params.amount0, fee)
+      : 0n;
+  const swapFeesInToken1Raw =
+    event.params.amount1 > 0n
+      ? computeClFeeAmount(event.params.amount1, fee)
+      : 0n;
 
   // Normalize fees to 1e18 precision using helper function
   const token0Decimals = Number(token0Instance?.decimals ?? 18);
@@ -135,23 +142,21 @@ export function calculateSwapFees(
     token1Decimals,
   );
 
-  // Calculate USD value using helper function
-  // Helper handles normalization and USD conversion in one step
-  const swapFeesInUSD =
-    token0Instance?.pricePerUSDNew !== 0n &&
-    token0Instance?.pricePerUSDNew !== undefined
-      ? calculateTokenAmountUSD(
-          swapFeesInToken0Raw,
-          token0Decimals,
-          token0Instance.pricePerUSDNew,
-        )
-      : token1Instance?.pricePerUSDNew !== undefined
-        ? calculateTokenAmountUSD(
-            swapFeesInToken1Raw,
-            token1Decimals,
-            token1Instance.pricePerUSDNew,
-          )
-        : 0n;
+  // Calculate USD value from the input-side fee only
+  let swapFeesInUSD = 0n;
+  if (swapFeesInToken0Raw > 0n && token0Instance?.pricePerUSDNew) {
+    swapFeesInUSD = calculateTokenAmountUSD(
+      swapFeesInToken0Raw,
+      token0Decimals,
+      token0Instance.pricePerUSDNew,
+    );
+  } else if (swapFeesInToken1Raw > 0n && token1Instance?.pricePerUSDNew) {
+    swapFeesInUSD = calculateTokenAmountUSD(
+      swapFeesInToken1Raw,
+      token1Decimals,
+      token1Instance.pricePerUSDNew,
+    );
+  }
 
   return {
     swapFeesInToken0,
