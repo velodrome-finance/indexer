@@ -660,6 +660,20 @@ type CLPoolMintEvent {
   createdAt: Timestamp!
 }
 
+# Tracks burned principal per CL position that hasn't been collected yet.
+# Used to isolate actual swap fees from the CLPool Collect event, which emits
+# a combined amount (burned principal + accumulated fees) in tokensOwed.
+#
+# Flow: Burn adds principal here → Collect subtracts it → remainder = fees.
+# Keyed by contract-level position identity (pool + owner + tick range).
+type CLPositionPendingPrincipal {
+  id: ID! # {chainId}-{poolAddress}-{owner}-{tickLower}-{tickUpper}
+  # Principal from Burn events not yet drained by Collect.
+  # Accumulates across multiple Burns; reduced when Collect fires.
+  pendingPrincipal0: BigInt! @config(precision: 76)
+  pendingPrincipal1: BigInt! @config(precision: 76)
+}
+
 # Temporary entity for matching Mint/Burn with Transfer events
 # Only stores mint/burn transfers (isMint || isBurn) to reduce storage
 type PoolTransferInTx {
