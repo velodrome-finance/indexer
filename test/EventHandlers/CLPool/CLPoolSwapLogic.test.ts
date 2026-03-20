@@ -196,12 +196,12 @@ describe("CLPoolSwapLogic", () => {
         mockContext,
       );
 
-      // Fee = 3000 (0.3% in 1e6 scale)
-      // token0: (1e18 * 3000) / 1000000 = 3e15, normalized to 1e18: 3e15
-      // token1: (2e18 * 3000) / 1000000 = 6e15, normalized to 1e18: 6e15
+      // Fee = 3000 (0.3% in 1e6 scale), only charged on input token (positive amount)
+      // token0 (input, +1e18): (1e18 * 3000) / 1000000 = 3e15, normalized to 1e18: 3e15
+      // token1 (output, -2e18): 0 (fees only on input side)
       // USD: calculateTokenAmountUSD(3e15, 18, 1e18) = 3e15
       expect(result.swapFeesInToken0).toBe(3000000000000000n); // 3e15
-      expect(result.swapFeesInToken1).toBe(6000000000000000n); // 6e15
+      expect(result.swapFeesInToken1).toBe(0n); // output side — no fee
       expect(result.swapFeesInUSD).toBe(3000000000000000n); // 3e15
     });
 
@@ -220,11 +220,11 @@ describe("CLPoolSwapLogic", () => {
         mockContext,
       );
 
-      // Fee = 10000 (1% in 1e6 scale)
-      // token0: (1e18 * 10000) / 1000000 = 1e16, normalized to 1e18: 1e16
-      // token1: (2e18 * 10000) / 1000000 = 2e16, normalized to 1e18: 2e16
+      // Fee = 10000 (1% in 1e6 scale), only charged on input token (positive amount)
+      // token0 (input, +1e18): (1e18 * 10000) / 1000000 = 1e16, normalized to 1e18: 1e16
+      // token1 (output, -2e18): 0 (fees only on input side)
       expect(result.swapFeesInToken0).toBe(10000000000000000n); // 1e16
-      expect(result.swapFeesInToken1).toBe(20000000000000000n); // 2e16
+      expect(result.swapFeesInToken1).toBe(0n); // output side — no fee
     });
 
     it("should return zero fees when both currentFee and baseFee are undefined", () => {
@@ -269,11 +269,11 @@ describe("CLPoolSwapLogic", () => {
         mockContext,
       );
 
-      // Fee = 3000 (0.3% in 1e6 scale)
-      // token0: (1e18 * 3000) / 1000000 = 3e15, normalized from 6 decimals: (3e15 * 1e18) / 1e6 = 3e27
-      // token1: (2e18 * 3000) / 1000000 = 6e15, normalized from 18 decimals: 6e15
+      // Fee = 3000 (0.3% in 1e6 scale), only charged on input token (positive amount)
+      // token0 (input, +1e18): (1e18 * 3000) / 1000000 = 3e15, normalized from 6 decimals: (3e15 * 1e18) / 1e6 = 3e27
+      // token1 (output, -2e18): 0 (fees only on input side)
       expect(result.swapFeesInToken0).toBe(3000000000000000000000000000n); // 3e27
-      expect(result.swapFeesInToken1).toBe(6000000000000000n); // 6e15
+      expect(result.swapFeesInToken1).toBe(0n); // output side — no fee
     });
 
     it("should calculate USD fees using token0 price when available", () => {
@@ -289,7 +289,7 @@ describe("CLPoolSwapLogic", () => {
       expect(result.swapFeesInUSD).toBe(3000000000000000n); // 3e15
     });
 
-    it("should calculate USD fees using token1 price when token0 price is zero", () => {
+    it("should return zero USD fees when input token has no price and output has no fee", () => {
       const token0WithZeroPrice: Token = {
         ...mockToken0,
         pricePerUSDNew: 0n,
@@ -303,8 +303,9 @@ describe("CLPoolSwapLogic", () => {
         mockContext,
       );
 
-      // Uses token1: calculateTokenAmountUSD(6e15, 18, 2e18) = 12e15
-      expect(result.swapFeesInUSD).toBe(12000000000000000n); // 12e15
+      // token0 is input (amount0 > 0) but price is 0 → can't price the fee
+      // token1 is output (amount1 < 0) → no fee computed
+      expect(result.swapFeesInUSD).toBe(0n);
     });
 
     it("should return zero USD fees when both token prices are unavailable", () => {
