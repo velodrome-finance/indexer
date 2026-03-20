@@ -32,7 +32,7 @@
     "@uniswap/sdk-core": "^7.9.0",
     "@uniswap/v3-sdk": "3.29.1",
     "dotenv": "^16.4.5",
-    "envio": "3.0.0-alpha.18-main-pg-client-downgrade",
+    "envio": "3.0.0-alpha.19",
     "jsbi": "^4.3.2",
     "viem": "2.24.3",
     "web3": "^4.16.0"
