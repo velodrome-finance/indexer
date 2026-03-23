@@ -1075,10 +1075,23 @@ describe("Helpers", () => {
         isCL: true,
         sqrtPriceX96,
       });
+      const allPositions = opts.positions ?? [];
       const getWhere =
         opts.getWhereRejects != null
           ? vi.fn().mockRejectedValue(opts.getWhereRejects)
-          : vi.fn().mockResolvedValue(opts.positions ?? []);
+          : vi.fn().mockImplementation(
+              (filter: {
+                pool?: { _eq?: string };
+                owner?: { _eq?: string };
+              }) => {
+                if (filter.owner?._eq) {
+                  return Promise.resolve(
+                    allPositions.filter((p) => p.owner === filter.owner?._eq),
+                  );
+                }
+                return Promise.resolve(allPositions);
+              },
+            );
       const noop = () => {};
       const mockContext = createMockContext({
         NonFungiblePosition: { getWhere },
@@ -1206,8 +1219,63 @@ describe("Helpers", () => {
 
       expect(result).toBe(expectedUserAUSD);
       expect(mockContext.NonFungiblePosition.getWhere).toHaveBeenCalledWith({
-        pool: { _eq: poolAddress },
+        owner: { _eq: userA },
       });
+    });
+
+    it("should exclude positions from other pools when querying by owner", async () => {
+      const sqrtPriceX96 = defaultSqrtPriceX96;
+      const userA = toChecksumAddress(
+        "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      );
+      const otherPool = toChecksumAddress(
+        "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+      );
+
+      const posInTargetPool = createMockNonFungiblePosition({
+        tokenId: 1n,
+        owner: userA,
+        liquidity: 1000000000000000000n,
+        tickLower: -100n,
+        tickUpper: 100n,
+        isStakedInGauge: true,
+      });
+      const posInOtherPool = createMockNonFungiblePosition({
+        tokenId: 2n,
+        owner: userA,
+        liquidity: 2000000000000000000n,
+        tickLower: -100n,
+        tickUpper: 100n,
+        isStakedInGauge: true,
+        pool: otherPool,
+      });
+
+      const expectedUSD = concentratedLiquidityToUSD(
+        posInTargetPool.liquidity,
+        sqrtPriceX96,
+        posInTargetPool.tickLower,
+        posInTargetPool.tickUpper,
+        mockToken0,
+        mockToken1,
+      );
+
+      const { chainId, poolAddress, poolEntity, poolData, mockContext } =
+        makeCLStakedUSDTestContext(common, {
+          sqrtPriceX96,
+          positions: [posInTargetPool, posInOtherPool],
+        });
+
+      const result = await computeCLStakedUSDFromPositions(
+        chainId,
+        poolAddress,
+        poolEntity,
+        poolData,
+        mockContext,
+        { userAddress: userA, logLabel: "computeCLStakedUSDFromPositions" },
+      );
+
+      // Should only include the position from the target pool, not the other pool
+      expect(result).toBe(expectedUSD);
     });
 
     it("should return 0n when sqrtPriceX96 is undefined", async () => {
