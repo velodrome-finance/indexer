@@ -6,7 +6,7 @@ import type {
 } from "generated";
 import { PoolId, TokenId } from "../Constants";
 import { getSwapFee, roundBlockToInterval } from "../Effects/Index";
-import { generatePoolName } from "../Helpers";
+import { computeCLStakedUSDFromPositions, generatePoolName } from "../Helpers";
 import { refreshTokenPrice } from "../PriceOracle";
 import {
   getSnapshotEpoch,
@@ -355,6 +355,28 @@ export async function updateLiquidityPoolAggregator(
           blockNumber,
         )),
       };
+
+      // Recompute CL staked USD at snapshot time (O(N) once per hour instead of per gauge event)
+      if (updated.currentLiquidityStaked > 0n) {
+        const [token0Instance, token1Instance] = await Promise.all([
+          context.Token.get(updated.token0_id),
+          context.Token.get(updated.token1_id),
+        ]);
+        const poolData = {
+          liquidityPoolAggregator: updated,
+          token0Instance: token0Instance ?? undefined,
+          token1Instance: token1Instance ?? undefined,
+        };
+        const stakedUSD = await computeCLStakedUSDFromPositions(
+          updated.chainId,
+          updated.poolAddress,
+          updated,
+          poolData,
+          context,
+          { logLabel: "snapshot:pool-staked-usd" },
+        );
+        updated = { ...updated, currentLiquidityStakedUSD: stakedUSD };
+      }
     }
 
     setLiquidityPoolAggregatorSnapshot(updated, timestamp, context);

@@ -3,7 +3,11 @@ import {
   createUserStatsPerPoolEntity,
   updateUserStatsPerPool,
 } from "../../src/Aggregators/UserStatsPerPool";
-import { UserStatsPerPoolId, toChecksumAddress } from "../../src/Constants";
+import {
+  PoolId,
+  UserStatsPerPoolId,
+  toChecksumAddress,
+} from "../../src/Constants";
 import { setupCommon } from "../EventHandlers/Pool/common";
 
 describe("UserStatsPerPool Aggregator", () => {
@@ -502,6 +506,287 @@ describe("UserStatsPerPool Aggregator", () => {
           totalFlashLoanVolumeUSD: 20000n,
         }),
       );
+    });
+
+    it("should recompute CL staked USD at snapshot time for user with staked liquidity", async () => {
+      const {
+        createMockUserStatsPerPool,
+        createMockNonFungiblePosition,
+        createMockLiquidityPoolAggregator,
+      } = setupCommon();
+      const oldTimestamp = new Date(Date.now() - 2 * 60 * 60 * 1000);
+      const currentTimestamp = new Date();
+
+      const poolAddr = mockPoolAddress;
+      const token0Id = `10-${toChecksumAddress("0x1111111111111111111111111111111111111111")}`;
+      const token1Id = `10-${toChecksumAddress("0x2222222222222222222222222222222222222222")}`;
+
+      const existingUserStats = createMockUserStatsPerPool({
+        userAddress: mockUserAddress,
+        poolAddress: poolAddr,
+        chainId: mockChainId,
+        currentLiquidityStaked: 5000n,
+        currentLiquidityStakedUSD: 100n, // Stale value
+        lastSnapshotTimestamp: oldTimestamp, // Triggers snapshot
+      });
+
+      const mockLPA = createMockLiquidityPoolAggregator({
+        poolAddress: poolAddr,
+        chainId: mockChainId,
+        isCL: true,
+        sqrtPriceX96: 79228162514264337593543950336n,
+        tick: 0n,
+        token0_id: token0Id,
+        token1_id: token1Id,
+        token0_address: toChecksumAddress(
+          "0x1111111111111111111111111111111111111111",
+        ),
+        token1_address: toChecksumAddress(
+          "0x2222222222222222222222222222222222222222",
+        ),
+      });
+
+      const mockToken0 = {
+        id: token0Id,
+        address: toChecksumAddress(
+          "0x1111111111111111111111111111111111111111",
+        ),
+        symbol: "TK0",
+        name: "Token0",
+        chainId: mockChainId,
+        decimals: 18n,
+        pricePerUSDNew: 1000000000000000000n,
+        lastUpdatedTimestamp: currentTimestamp,
+        isWhitelisted: true,
+      };
+      const mockToken1 = {
+        id: token1Id,
+        address: toChecksumAddress(
+          "0x2222222222222222222222222222222222222222",
+        ),
+        symbol: "TK1",
+        name: "Token1",
+        chainId: mockChainId,
+        decimals: 18n,
+        pricePerUSDNew: 1000000000000000000n,
+        lastUpdatedTimestamp: currentTimestamp,
+        isWhitelisted: true,
+      };
+
+      const stakedPosition = createMockNonFungiblePosition({
+        tokenId: 1n,
+        pool: poolAddr,
+        chainId: mockChainId,
+        owner: mockUserAddress,
+        isStakedInGauge: true,
+        liquidity: 5000n,
+        tickLower: -1000n,
+        tickUpper: 1000n,
+      });
+
+      let savedUserStats: UserStatsPerPool | undefined;
+      const snapshotCtx = {
+        ...mockContext,
+        UserStatsPerPool: {
+          get: async () => existingUserStats,
+          set: async (entity: UserStatsPerPool) => {
+            savedUserStats = entity;
+          },
+        },
+        LiquidityPoolAggregator: {
+          get: vi.fn().mockResolvedValue(mockLPA),
+        },
+        Token: {
+          get: vi.fn().mockImplementation((id: string) => {
+            if (id === token0Id) return mockToken0;
+            if (id === token1Id) return mockToken1;
+            return undefined;
+          }),
+        },
+        NonFungiblePosition: {
+          getWhere: vi.fn().mockResolvedValue([stakedPosition]),
+        },
+        UserStatsPerPoolSnapshot: {
+          set: vi.fn(),
+        },
+        log: {
+          error: () => {},
+          warn: () => {},
+          info: () => {},
+        },
+      } as unknown as handlerContext;
+
+      const result = await updateUserStatsPerPool(
+        { lastActivityTimestamp: currentTimestamp },
+        existingUserStats,
+        snapshotCtx,
+        currentTimestamp,
+      );
+
+      // Should have recomputed staked USD (not the stale 100n)
+      expect(result.currentLiquidityStakedUSD).toBeGreaterThan(0n);
+      expect(result.currentLiquidityStakedUSD).not.toBe(100n);
+    });
+
+    it("should NOT recompute CL staked USD at snapshot time when staked liquidity is 0", async () => {
+      const { createMockUserStatsPerPool } = setupCommon();
+      const oldTimestamp = new Date(Date.now() - 2 * 60 * 60 * 1000);
+      const currentTimestamp = new Date();
+
+      const existingUserStats = createMockUserStatsPerPool({
+        userAddress: mockUserAddress,
+        poolAddress: mockPoolAddress,
+        chainId: mockChainId,
+        currentLiquidityStaked: 0n,
+        currentLiquidityStakedUSD: 0n,
+        lastSnapshotTimestamp: oldTimestamp,
+      });
+
+      const snapshotCtx = {
+        ...mockContext,
+        LiquidityPoolAggregator: {
+          get: vi.fn(),
+        },
+        NonFungiblePosition: {
+          getWhere: vi.fn(),
+        },
+      } as unknown as handlerContext;
+
+      await updateUserStatsPerPool(
+        { lastActivityTimestamp: currentTimestamp },
+        existingUserStats,
+        snapshotCtx,
+        currentTimestamp,
+      );
+
+      // LPA should not be loaded (skipped because staked == 0)
+      expect(snapshotCtx.LiquidityPoolAggregator.get).not.toHaveBeenCalled();
+    });
+
+    it("should NOT recompute staked USD at snapshot time for non-CL pool user", async () => {
+      const { createMockUserStatsPerPool, createMockLiquidityPoolAggregator } =
+        setupCommon();
+      const oldTimestamp = new Date(Date.now() - 2 * 60 * 60 * 1000);
+      const currentTimestamp = new Date();
+
+      const existingUserStats = createMockUserStatsPerPool({
+        userAddress: mockUserAddress,
+        poolAddress: mockPoolAddress,
+        chainId: mockChainId,
+        currentLiquidityStaked: 5000n,
+        currentLiquidityStakedUSD: 100n,
+        lastSnapshotTimestamp: oldTimestamp,
+      });
+
+      const nonCLPool = createMockLiquidityPoolAggregator({
+        poolAddress: mockPoolAddress,
+        chainId: mockChainId,
+        isCL: false,
+      });
+
+      const snapshotCtx = {
+        ...mockContext,
+        LiquidityPoolAggregator: {
+          get: vi.fn().mockResolvedValue(nonCLPool),
+        },
+        NonFungiblePosition: {
+          getWhere: vi.fn(),
+        },
+      } as unknown as handlerContext;
+
+      const result = await updateUserStatsPerPool(
+        { lastActivityTimestamp: currentTimestamp },
+        existingUserStats,
+        snapshotCtx,
+        currentTimestamp,
+      );
+
+      // Should not query positions (non-CL pool)
+      expect(snapshotCtx.NonFungiblePosition.getWhere).not.toHaveBeenCalled();
+      // Staked USD preserved
+      expect(result.currentLiquidityStakedUSD).toBe(100n);
+    });
+
+    it("should NOT recompute staked USD at snapshot time when LPA is not found", async () => {
+      const { createMockUserStatsPerPool } = setupCommon();
+      const oldTimestamp = new Date(Date.now() - 2 * 60 * 60 * 1000);
+      const currentTimestamp = new Date();
+
+      const existingUserStats = createMockUserStatsPerPool({
+        userAddress: mockUserAddress,
+        poolAddress: mockPoolAddress,
+        chainId: mockChainId,
+        currentLiquidityStaked: 5000n,
+        currentLiquidityStakedUSD: 100n,
+        lastSnapshotTimestamp: oldTimestamp,
+      });
+
+      const snapshotCtx = {
+        ...mockContext,
+        LiquidityPoolAggregator: {
+          get: vi.fn().mockResolvedValue(undefined), // LPA not found
+        },
+        NonFungiblePosition: {
+          getWhere: vi.fn(),
+        },
+      } as unknown as handlerContext;
+
+      const result = await updateUserStatsPerPool(
+        { lastActivityTimestamp: currentTimestamp },
+        existingUserStats,
+        snapshotCtx,
+        currentTimestamp,
+      );
+
+      // Should not query positions (LPA not found)
+      expect(snapshotCtx.NonFungiblePosition.getWhere).not.toHaveBeenCalled();
+      // Staked USD preserved
+      expect(result.currentLiquidityStakedUSD).toBe(100n);
+    });
+
+    it("should NOT recompute staked USD at snapshot time when CL pool has sqrtPriceX96 == 0", async () => {
+      const { createMockUserStatsPerPool, createMockLiquidityPoolAggregator } =
+        setupCommon();
+      const oldTimestamp = new Date(Date.now() - 2 * 60 * 60 * 1000);
+      const currentTimestamp = new Date();
+
+      const existingUserStats = createMockUserStatsPerPool({
+        userAddress: mockUserAddress,
+        poolAddress: mockPoolAddress,
+        chainId: mockChainId,
+        currentLiquidityStaked: 5000n,
+        currentLiquidityStakedUSD: 100n,
+        lastSnapshotTimestamp: oldTimestamp,
+      });
+
+      const clPoolNoPrice = createMockLiquidityPoolAggregator({
+        poolAddress: mockPoolAddress,
+        chainId: mockChainId,
+        isCL: true,
+        sqrtPriceX96: 0n,
+      });
+
+      const snapshotCtx = {
+        ...mockContext,
+        LiquidityPoolAggregator: {
+          get: vi.fn().mockResolvedValue(clPoolNoPrice),
+        },
+        NonFungiblePosition: {
+          getWhere: vi.fn(),
+        },
+      } as unknown as handlerContext;
+
+      const result = await updateUserStatsPerPool(
+        { lastActivityTimestamp: currentTimestamp },
+        existingUserStats,
+        snapshotCtx,
+        currentTimestamp,
+      );
+
+      // Should not query positions (sqrtPriceX96 == 0)
+      expect(snapshotCtx.NonFungiblePosition.getWhere).not.toHaveBeenCalled();
+      // Staked USD preserved
+      expect(result.currentLiquidityStakedUSD).toBe(100n);
     });
 
     it("should handle liquidity removal from existing stats", async () => {

@@ -354,6 +354,7 @@ export async function processNFPMTransfer(
   );
 
   const isMint = event.params.from === ZERO_ADDRESS;
+  const isBurn = event.params.to === ZERO_ADDRESS;
 
   if (isMint) {
     // Handle mint transfer: find appropriate CLPoolMintEvent entity and
@@ -362,7 +363,6 @@ export async function processNFPMTransfer(
     return;
   }
 
-  // Handle regular transfer: gauge check, token0/token1 accounting, then update owner
   if (positions.length === 0) {
     context.log.error(
       `NonFungiblePosition with tokenId ${event.params.tokenId} not found during transfer on chain ${event.chainId}`,
@@ -370,5 +370,13 @@ export async function processNFPMTransfer(
     return;
   }
 
+  if (isBurn) {
+    // NFT burned — liquidity is already 0 (DecreaseLiquidity precedes burn).
+    // Delete to reduce getWhere scan size for staked USD computation.
+    context.NonFungiblePosition.deleteUnsafe(positions[0].id);
+    return;
+  }
+
+  // Handle regular transfer: gauge check, token0/token1 accounting, then update owner
   await handleRegularTransfer(event, positions, context);
 }
