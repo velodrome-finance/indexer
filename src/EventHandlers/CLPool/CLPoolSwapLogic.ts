@@ -313,7 +313,16 @@ export async function processCLPoolSwap(
         )
       : currentStakedLiqInRange;
 
-  // Attribute staked share of swap reserve deltas proportionally
+  // Attribute staked share of swap reserve deltas proportionally.
+  //
+  // KNOWN APPROXIMATION: When a swap crosses multiple ticks, the staked/total liquidity
+  // ratio changes at each tick boundary (positions enter/exit range). We apply the
+  // post-crossing ratio to the entire swap's net reserve deltas, rather than computing
+  // per-segment contributions. This is because the Swap event only emits net amount0/amount1
+  // totals — per-segment token flows are not available. The error per swap is proportional
+  // to how much the staked ratio varies across crossed segments. This drift accumulates
+  // over time and is NOT corrected at snapshot time (snapshots re-price existing reserves
+  // at current token prices but do not recompute reserve quantities).
   const reserveDelta0 = newReserve0 - liquidityPoolAggregator.reserve0;
   const reserveDelta1 = newReserve1 - liquidityPoolAggregator.reserve1;
   const { stakedDelta0, stakedDelta1 } = computeStakedSwapReserveDelta(

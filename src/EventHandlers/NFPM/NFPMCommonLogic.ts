@@ -144,32 +144,41 @@ export async function updateStakedPositionLiquidity(
   const currentTick = liquidityPoolAggregator.tick ?? 0n;
   const sqrtPriceX96 = liquidityPoolAggregator.sqrtPriceX96 ?? 0n;
 
-  if (
-    isPositionInRange(position.tickLower, position.tickUpper, currentTick) &&
-    sqrtPriceX96 !== 0n
-  ) {
-    const { amount0, amount1 } = calculatePositionAmountsFromLiquidity(
-      liquidityDelta > 0n ? liquidityDelta : -liquidityDelta,
-      sqrtPriceX96,
-      position.tickLower,
-      position.tickUpper,
-    );
+  if (sqrtPriceX96 === 0n) return;
 
-    const direction = liquidityDelta > 0n ? 1n : -1n;
-    const stakedDiff = {
-      stakedLiquidityInRange:
-        (liquidityPoolAggregator.stakedLiquidityInRange ?? 0n) + liquidityDelta,
-      incrementalStakedReserve0: direction * amount0,
-      incrementalStakedReserve1: direction * amount1,
-    };
+  // stakedReserve0/1 track ALL staked token holdings (in-range + out-of-range) for USD valuation.
+  // Out-of-range positions still hold tokens, and calculatePositionAmountsFromLiquidity handles
+  // all three cases (below range, in range, above range).
+  const { amount0, amount1 } = calculatePositionAmountsFromLiquidity(
+    liquidityDelta > 0n ? liquidityDelta : -liquidityDelta,
+    sqrtPriceX96,
+    position.tickLower,
+    position.tickUpper,
+  );
 
-    await updateLiquidityPoolAggregator(
-      stakedDiff,
-      liquidityPoolAggregator,
-      timestamp,
-      context,
-      chainId,
-      blockNumber,
-    );
-  }
+  const direction = liquidityDelta > 0n ? 1n : -1n;
+
+  // stakedLiquidityInRange only changes when the position is in range (drives swap proportional attribution)
+  const stakedLiquidityInRange = isPositionInRange(
+    position.tickLower,
+    position.tickUpper,
+    currentTick,
+  )
+    ? (liquidityPoolAggregator.stakedLiquidityInRange ?? 0n) + liquidityDelta
+    : undefined;
+
+  const stakedDiff = {
+    stakedLiquidityInRange,
+    incrementalStakedReserve0: direction * amount0,
+    incrementalStakedReserve1: direction * amount1,
+  };
+
+  await updateLiquidityPoolAggregator(
+    stakedDiff,
+    liquidityPoolAggregator,
+    timestamp,
+    context,
+    chainId,
+    blockNumber,
+  );
 }

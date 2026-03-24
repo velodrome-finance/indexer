@@ -332,7 +332,7 @@ describe("NFPMCommonLogic", () => {
       );
     });
 
-    it("should update pool staked reserves when position is in range", async () => {
+    it("should update total staked reserves and stakedLiquidityInRange when position is in range", async () => {
       vi.mocked(isPositionInRange).mockReturnValue(true);
 
       await updateStakedPositionLiquidity(
@@ -400,7 +400,7 @@ describe("NFPMCommonLogic", () => {
       );
     });
 
-    it("should not update pool reserves when position is out of range", async () => {
+    it("should update total staked reserves but not stakedLiquidityInRange when position is out of range", async () => {
       vi.mocked(isPositionInRange).mockReturnValue(false);
 
       await updateStakedPositionLiquidity(
@@ -414,10 +414,27 @@ describe("NFPMCommonLogic", () => {
       );
 
       expect(updateTicksForStakedPosition).toHaveBeenCalled();
-      expect(updateLiquidityPoolAggregator).not.toHaveBeenCalled();
+      expect(calculatePositionAmountsFromLiquidity).toHaveBeenCalledWith(
+        5000n,
+        sqrtPriceX96AtTick0,
+        -200n,
+        200n,
+      );
+      expect(updateLiquidityPoolAggregator).toHaveBeenCalledWith(
+        {
+          stakedLiquidityInRange: undefined, // not in range, so unchanged
+          incrementalStakedReserve0: 100n,
+          incrementalStakedReserve1: 200n,
+        },
+        poolData.liquidityPoolAggregator,
+        timestamp,
+        mockContext,
+        chainId,
+        blockNumber,
+      );
     });
 
-    it("should not update pool reserves when sqrtPriceX96 is zero", async () => {
+    it("should not update total staked reserves when sqrtPriceX96 is zero", async () => {
       vi.mocked(isPositionInRange).mockReturnValue(true);
 
       const poolDataZeroPrice: PoolData = {

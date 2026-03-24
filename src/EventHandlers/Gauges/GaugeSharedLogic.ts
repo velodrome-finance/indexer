@@ -82,25 +82,30 @@ async function computeCLStakedReservesOnGaugeEvent(
     context,
   );
 
-  let stakedLiquidityInRange: bigint | undefined;
+  // stakedLiquidityInRange only changes when the position is in range (drives swap proportional attribution)
+  const stakedLiquidityInRange = isPositionInRange(
+    position.tickLower,
+    position.tickUpper,
+    currentTick,
+  )
+    ? (liquidityPoolAggregator.stakedLiquidityInRange ?? 0n) +
+      direction * position.liquidity
+    : undefined;
+
+  // stakedReserve0/1 track ALL staked token holdings (in-range + out-of-range) for USD valuation.
+  // Out-of-range positions still hold tokens (100% token0 if below, 100% token1 if above),
+  // and calculatePositionAmountsFromLiquidity handles all three cases.
   let incrementalStakedReserve0: bigint | undefined;
   let incrementalStakedReserve1: bigint | undefined;
-
-  if (isPositionInRange(position.tickLower, position.tickUpper, currentTick)) {
-    stakedLiquidityInRange =
-      (liquidityPoolAggregator.stakedLiquidityInRange ?? 0n) +
-      direction * position.liquidity;
-
-    if (sqrtPriceX96 !== 0n) {
-      const { amount0, amount1 } = calculatePositionAmountsFromLiquidity(
-        position.liquidity,
-        sqrtPriceX96,
-        position.tickLower,
-        position.tickUpper,
-      );
-      incrementalStakedReserve0 = direction * amount0;
-      incrementalStakedReserve1 = direction * amount1;
-    }
+  if (sqrtPriceX96 !== 0n) {
+    const { amount0, amount1 } = calculatePositionAmountsFromLiquidity(
+      position.liquidity,
+      sqrtPriceX96,
+      position.tickLower,
+      position.tickUpper,
+    );
+    incrementalStakedReserve0 = direction * amount0;
+    incrementalStakedReserve1 = direction * amount1;
   }
 
   // Compute pool staked USD from updated staked reserves
