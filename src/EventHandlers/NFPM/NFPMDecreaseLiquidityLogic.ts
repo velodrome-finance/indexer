@@ -8,6 +8,7 @@ import {
   LiquidityChangeType,
   attributeLiquidityChangeToUserStatsPerPool,
   findPositionByTokenId,
+  updateStakedPositionLiquidity,
 } from "./NFPMCommonLogic";
 
 /**
@@ -106,4 +107,17 @@ export async function processNFPMDecreaseLiquidity(
     event.block.timestamp,
     LiquidityChangeType.REMOVE,
   );
+
+  // If the position is staked, update tick entities and staked reserves
+  if (position.isStakedInGauge) {
+    await updateStakedPositionLiquidity(
+      position,
+      poolData,
+      -event.params.liquidity,
+      context,
+      timestamp,
+      event.chainId,
+      event.block.number,
+    );
+  }
 }

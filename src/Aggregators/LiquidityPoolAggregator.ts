@@ -6,7 +6,7 @@ import type {
 } from "generated";
 import { PoolId, TokenId } from "../Constants";
 import { getSwapFee, roundBlockToInterval } from "../Effects/Index";
-import { computeCLStakedUSDFromPositions, generatePoolName } from "../Helpers";
+import { calculateTotalUSD, generatePoolName } from "../Helpers";
 import { refreshTokenPrice } from "../PriceOracle";
 import {
   getSnapshotEpoch,
@@ -74,6 +74,10 @@ export interface LiquidityPoolAggregatorDiff {
   observationCardinalityNext: bigint;
   sqrtPriceX96: bigint;
   tick: bigint;
+  liquidityInRange: bigint;
+  stakedLiquidityInRange: bigint;
+  incrementalStakedReserve0: bigint;
+  incrementalStakedReserve1: bigint;
   totalVotesDeposited: bigint;
   totalVotesDepositedUSD: bigint;
   incrementalTotalBribeClaimed: bigint;
@@ -312,6 +316,13 @@ export async function updateLiquidityPoolAggregator(
       diff.observationCardinalityNext ?? current.observationCardinalityNext,
     sqrtPriceX96: diff.sqrtPriceX96 ?? current.sqrtPriceX96,
     tick: diff.tick ?? current.tick,
+    liquidityInRange: diff.liquidityInRange ?? current.liquidityInRange,
+    stakedLiquidityInRange:
+      diff.stakedLiquidityInRange ?? current.stakedLiquidityInRange,
+    stakedReserve0:
+      (current.stakedReserve0 ?? 0n) + (diff.incrementalStakedReserve0 ?? 0n),
+    stakedReserve1:
+      (current.stakedReserve1 ?? 0n) + (diff.incrementalStakedReserve1 ?? 0n),
     totalVotesDeposited:
       diff.totalVotesDeposited ?? current.totalVotesDeposited,
     totalVotesDepositedUSD:
@@ -356,28 +367,25 @@ export async function updateLiquidityPoolAggregator(
         )),
       };
 
-      // Recompute CL staked USD at snapshot time (O(N) once per hour instead of per gauge event)
-      if (updated.currentLiquidityStaked === 0n) {
+      // Compute CL staked USD from running staked reserves — O(1) instead of O(N) position scan
+      const stakedReserve0 = updated.stakedReserve0 ?? 0n;
+      const stakedReserve1 = updated.stakedReserve1 ?? 0n;
+      if (stakedReserve0 <= 0n && stakedReserve1 <= 0n) {
         updated = { ...updated, currentLiquidityStakedUSD: 0n };
-      } else if (updated.currentLiquidityStaked > 0n) {
+      } else {
         const [token0Instance, token1Instance] = await Promise.all([
           context.Token.get(updated.token0_id),
           context.Token.get(updated.token1_id),
         ]);
-        const poolData = {
-          liquidityPoolAggregator: updated,
-          token0Instance: token0Instance ?? undefined,
-          token1Instance: token1Instance ?? undefined,
+        updated = {
+          ...updated,
+          currentLiquidityStakedUSD: calculateTotalUSD(
+            stakedReserve0 > 0n ? stakedReserve0 : 0n,
+            stakedReserve1 > 0n ? stakedReserve1 : 0n,
+            token0Instance ?? undefined,
+            token1Instance ?? undefined,
+          ),
         };
-        const stakedUSD = await computeCLStakedUSDFromPositions(
-          updated.chainId,
-          updated.poolAddress,
-          updated,
-          poolData,
-          context,
-          { logLabel: "snapshot:pool-staked-usd" },
-        );
-        updated = { ...updated, currentLiquidityStakedUSD: stakedUSD };
       }
     }
 
@@ -699,6 +707,10 @@ export function createLiquidityPoolAggregatorEntity(params: {
     observationCardinalityNext: 0n,
     sqrtPriceX96: 0n,
     tick: 0n,
+    liquidityInRange: 0n,
+    stakedLiquidityInRange: 0n,
+    stakedReserve0: 0n,
+    stakedReserve1: 0n,
     totalFlashLoanFees0: 0n,
     totalFlashLoanFees1: 0n,
     totalFlashLoanFeesUSD: 0n,
