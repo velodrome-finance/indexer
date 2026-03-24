@@ -385,7 +385,9 @@ export async function updateUserStatsPerPool(
 
   if (shouldSnapshot(current.lastSnapshotTimestamp, timestamp)) {
     // Recompute CL staked USD for this user at snapshot time
-    if (updated.currentLiquidityStaked > 0n) {
+    if (updated.currentLiquidityStaked === 0n) {
+      updated = { ...updated, currentLiquidityStakedUSD: 0n };
+    } else if (updated.currentLiquidityStaked > 0n) {
       const poolId = PoolId(updated.chainId, updated.poolAddress);
       const lpa = await context.LiquidityPoolAggregator.get(poolId);
       if (lpa?.isCL && lpa.sqrtPriceX96 && lpa.sqrtPriceX96 !== 0n) {

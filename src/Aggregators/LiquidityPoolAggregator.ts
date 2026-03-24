@@ -357,7 +357,9 @@ export async function updateLiquidityPoolAggregator(
       };
 
       // Recompute CL staked USD at snapshot time (O(N) once per hour instead of per gauge event)
-      if (updated.currentLiquidityStaked > 0n) {
+      if (updated.currentLiquidityStaked === 0n) {
+        updated = { ...updated, currentLiquidityStakedUSD: 0n };
+      } else if (updated.currentLiquidityStaked > 0n) {
         const [token0Instance, token1Instance] = await Promise.all([
           context.Token.get(updated.token0_id),
           context.Token.get(updated.token1_id),

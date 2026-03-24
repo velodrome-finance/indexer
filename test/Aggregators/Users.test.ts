@@ -663,6 +663,50 @@ describe("UserStatsPerPool Aggregator", () => {
       expect(snapshotCtx.LiquidityPoolAggregator.get).not.toHaveBeenCalled();
     });
 
+    it("should zero CL staked USD at snapshot time when staked liquidity is 0 but USD is stale", async () => {
+      const { createMockUserStatsPerPool } = setupCommon();
+      const oldTimestamp = new Date(Date.now() - 2 * 60 * 60 * 1000);
+      const currentTimestamp = new Date();
+
+      const existingUserStats = createMockUserStatsPerPool({
+        userAddress: mockUserAddress,
+        poolAddress: mockPoolAddress,
+        chainId: mockChainId,
+        currentLiquidityStaked: 0n,
+        currentLiquidityStakedUSD: 500n, // Stale positive value from before last exit
+        lastSnapshotTimestamp: oldTimestamp,
+      });
+
+      let savedUserStats: UserStatsPerPool | undefined;
+      const snapshotCtx = {
+        ...mockContext,
+        UserStatsPerPool: {
+          get: async () => existingUserStats,
+          set: async (entity: UserStatsPerPool) => {
+            savedUserStats = entity;
+          },
+        },
+        LiquidityPoolAggregator: {
+          get: vi.fn(),
+        },
+        NonFungiblePosition: {
+          getWhere: vi.fn(),
+        },
+      } as unknown as handlerContext;
+
+      await updateUserStatsPerPool(
+        { lastActivityTimestamp: currentTimestamp },
+        existingUserStats,
+        snapshotCtx,
+        currentTimestamp,
+      );
+
+      // Stale USD should be cleared to 0
+      expect(savedUserStats?.currentLiquidityStakedUSD).toBe(0n);
+      // LPA should not be loaded (no need when stake is 0)
+      expect(snapshotCtx.LiquidityPoolAggregator.get).not.toHaveBeenCalled();
+    });
+
     it("should NOT recompute staked USD at snapshot time for non-CL pool user", async () => {
       const { createMockUserStatsPerPool, createMockLiquidityPoolAggregator } =
         setupCommon();

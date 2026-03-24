@@ -587,6 +587,51 @@ describe("LiquidityPoolAggregator Functions", () => {
       expect(ctx.NonFungiblePosition.getWhere).not.toHaveBeenCalled();
     });
 
+    it("should zero CL staked USD at snapshot time when staked liquidity is 0 but USD is stale", async () => {
+      const oldTimestamp = new Date(Date.now() - 2 * 60 * 60 * 1000);
+      const currentTimestamp = new Date();
+
+      const clPool = createMockLiquidityPoolAggregator({
+        chainId: 10,
+        isCL: true,
+        lastSnapshotTimestamp: oldTimestamp,
+        currentLiquidityStaked: 0n,
+        currentLiquidityStakedUSD: 500n, // Stale positive value from before last exit
+        factoryAddress: toChecksumAddress(
+          "0x548118C7E0B865C2CfA94D15EC86B666468ac758",
+        ),
+      });
+
+      const setMock = vi.fn();
+      const ctx = {
+        ...mockContext,
+        LiquidityPoolAggregator: {
+          ...mockContext.LiquidityPoolAggregator,
+          set: setMock,
+        },
+        NonFungiblePosition: {
+          getWhere: vi.fn().mockResolvedValue([]),
+        },
+      } as unknown as handlerContext;
+
+      await updateLiquidityPoolAggregator(
+        diff,
+        clPool,
+        currentTimestamp,
+        ctx,
+        10,
+        blockNumber,
+      );
+
+      const updatedAggregator = setMock.mock
+        .calls[0]?.[0] as LiquidityPoolAggregator;
+
+      // Stale USD should be cleared to 0
+      expect(updatedAggregator.currentLiquidityStakedUSD).toBe(0n);
+      // Should NOT have queried positions (no need when stake is 0)
+      expect(ctx.NonFungiblePosition.getWhere).not.toHaveBeenCalled();
+    });
+
     it("should NOT recompute staked USD for non-CL pools at snapshot time", async () => {
       const oldTimestamp = new Date(Date.now() - 2 * 60 * 60 * 1000);
       const currentTimestamp = new Date();
