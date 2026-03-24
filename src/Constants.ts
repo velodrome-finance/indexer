@@ -891,29 +891,8 @@ export const OUSDTSwapsId = (
 ) =>
   `${transactionHash}-${chainId}-${tokenInPool}-${amountIn}-${tokenOutPool}-${amountOut}`;
 
-/** Entity ID for SuperSwap.
- * @param transactionHash
- * @param originChainId
- * @param destinationDomain
- * @param oUSDTamount
- * @param messageId
- * @param sourceChainToken
- * @param sourceChainTokenAmountSwapped
- * @param destinationChainToken
- * @param destinationChainTokenAmountSwapped
- */
-export const SuperSwapId = (
-  transactionHash: string,
-  originChainId: number,
-  destinationDomain: bigint,
-  oUSDTamount: bigint,
-  messageId: string,
-  sourceChainToken: string,
-  sourceChainTokenAmountSwapped: bigint,
-  destinationChainToken: string,
-  destinationChainTokenAmountSwapped: bigint,
-) =>
-  `${transactionHash}-${originChainId}-${destinationDomain}-${oUSDTamount}-${messageId}-${sourceChainToken}-${sourceChainTokenAmountSwapped}-${destinationChainToken}-${destinationChainTokenAmountSwapped}`;
+/** Entity ID for SuperSwap. Uses Hyperlane messageId which is globally unique (keccak256 of packed message including origin domain + nonce). */
+export const SuperSwapId = (messageId: string) => messageId;
 
 /** Snapshot ID for UserStatsPerPoolSnapshot. epochMs = getSnapshotEpoch(timestamp).getTime()
  * @param chainId - Chain ID of the pool
