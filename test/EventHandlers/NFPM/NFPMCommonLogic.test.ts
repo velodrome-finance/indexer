@@ -1,6 +1,14 @@
+import { TickMath } from "@uniswap/v3-sdk";
 import type { NonFungiblePosition, handlerContext } from "generated";
 import { MockDb } from "../../../generated/src/TestHelpers.gen";
-import type { PoolData } from "../../../src/Aggregators/LiquidityPoolAggregator";
+import {
+  isPositionInRange,
+  updateTicksForStakedPosition,
+} from "../../../src/Aggregators/CLStakedLiquidity";
+import {
+  type PoolData,
+  updateLiquidityPoolAggregator,
+} from "../../../src/Aggregators/LiquidityPoolAggregator";
 import {
   loadOrCreateUserData,
   updateUserStatsPerPool,
@@ -13,10 +21,15 @@ import {
   LiquidityChangeType,
   attributeLiquidityChangeToUserStatsPerPool,
   findPositionByTokenId,
+  updateStakedPositionLiquidity,
 } from "../../../src/EventHandlers/NFPM/NFPMCommonLogic";
-import { calculateTotalUSD } from "../../../src/Helpers";
+import {
+  calculatePositionAmountsFromLiquidity,
+  calculateTotalUSD,
+} from "../../../src/Helpers";
 import { setupCommon } from "../Pool/common";
 
+vi.mock("../../../src/Aggregators/CLStakedLiquidity");
 vi.mock("../../../src/Aggregators/LiquidityPoolAggregator");
 vi.mock("../../../src/Aggregators/UserStatsPerPool");
 vi.mock("../../../src/Helpers");
@@ -249,6 +262,184 @@ describe("NFPMCommonLogic", () => {
         incrementalTotalLiquidityRemovedToken1: amount1,
         lastActivityTimestamp: expectedTimestamp,
       });
+    });
+  });
+
+  describe("updateStakedPositionLiquidity", () => {
+    const { mockLiquidityPoolData, mockToken0Data, mockToken1Data } =
+      setupCommon();
+
+    const stakedPosition: NonFungiblePosition = {
+      ...mockPosition,
+      tickLower: -200n,
+      tickUpper: 200n,
+      liquidity: 5000n,
+      isStakedInGauge: true,
+    };
+
+    const sqrtPriceX96AtTick0 = BigInt(
+      TickMath.getSqrtRatioAtTick(0).toString(),
+    );
+
+    const poolData: PoolData = {
+      token0Instance: mockToken0Data,
+      token1Instance: mockToken1Data,
+      liquidityPoolAggregator: {
+        ...mockLiquidityPoolData,
+        isCL: true,
+        tick: 0n, // Position [-200, 200] is in range
+        sqrtPriceX96: sqrtPriceX96AtTick0,
+        stakedLiquidityInRange: 1000n,
+      },
+    };
+
+    const timestamp = new Date(1000000 * 1000);
+    const blockNumber = 123456;
+
+    beforeEach(() => {
+      vi.mocked(updateTicksForStakedPosition).mockReset();
+      vi.mocked(updateTicksForStakedPosition).mockResolvedValue(undefined);
+      vi.mocked(isPositionInRange).mockReset();
+      vi.mocked(updateLiquidityPoolAggregator).mockReset();
+      vi.mocked(updateLiquidityPoolAggregator).mockResolvedValue(undefined);
+      vi.mocked(calculatePositionAmountsFromLiquidity).mockReset();
+      vi.mocked(calculatePositionAmountsFromLiquidity).mockReturnValue({
+        amount0: 100n,
+        amount1: 200n,
+      });
+    });
+
+    it("should always update tick entities regardless of in-range status", async () => {
+      vi.mocked(isPositionInRange).mockReturnValue(false);
+
+      await updateStakedPositionLiquidity(
+        stakedPosition,
+        poolData,
+        5000n,
+        mockContext,
+        timestamp,
+        chainId,
+        blockNumber,
+      );
+
+      expect(updateTicksForStakedPosition).toHaveBeenCalledWith(
+        chainId,
+        stakedPosition.pool,
+        stakedPosition.tickLower,
+        stakedPosition.tickUpper,
+        5000n,
+        mockContext,
+      );
+    });
+
+    it("should update pool staked reserves when position is in range", async () => {
+      vi.mocked(isPositionInRange).mockReturnValue(true);
+
+      await updateStakedPositionLiquidity(
+        stakedPosition,
+        poolData,
+        5000n, // positive = increase
+        mockContext,
+        timestamp,
+        chainId,
+        blockNumber,
+      );
+
+      expect(isPositionInRange).toHaveBeenCalledWith(-200n, 200n, 0n);
+      expect(calculatePositionAmountsFromLiquidity).toHaveBeenCalledWith(
+        5000n,
+        sqrtPriceX96AtTick0,
+        -200n,
+        200n,
+      );
+      expect(updateLiquidityPoolAggregator).toHaveBeenCalledWith(
+        {
+          stakedLiquidityInRange: 6000n, // 1000 + 5000
+          incrementalStakedReserve0: 100n, // direction=+1 * 100
+          incrementalStakedReserve1: 200n, // direction=+1 * 200
+        },
+        poolData.liquidityPoolAggregator,
+        timestamp,
+        mockContext,
+        chainId,
+        blockNumber,
+      );
+    });
+
+    it("should use negative direction for decrease (negative liquidityDelta)", async () => {
+      vi.mocked(isPositionInRange).mockReturnValue(true);
+
+      await updateStakedPositionLiquidity(
+        stakedPosition,
+        poolData,
+        -3000n, // negative = decrease
+        mockContext,
+        timestamp,
+        chainId,
+        blockNumber,
+      );
+
+      // abs(-3000) = 3000 passed to calculatePositionAmountsFromLiquidity
+      expect(calculatePositionAmountsFromLiquidity).toHaveBeenCalledWith(
+        3000n,
+        sqrtPriceX96AtTick0,
+        -200n,
+        200n,
+      );
+      expect(updateLiquidityPoolAggregator).toHaveBeenCalledWith(
+        {
+          stakedLiquidityInRange: -2000n, // 1000 + (-3000)
+          incrementalStakedReserve0: -100n, // direction=-1 * 100
+          incrementalStakedReserve1: -200n, // direction=-1 * 200
+        },
+        poolData.liquidityPoolAggregator,
+        timestamp,
+        mockContext,
+        chainId,
+        blockNumber,
+      );
+    });
+
+    it("should not update pool reserves when position is out of range", async () => {
+      vi.mocked(isPositionInRange).mockReturnValue(false);
+
+      await updateStakedPositionLiquidity(
+        stakedPosition,
+        poolData,
+        5000n,
+        mockContext,
+        timestamp,
+        chainId,
+        blockNumber,
+      );
+
+      expect(updateTicksForStakedPosition).toHaveBeenCalled();
+      expect(updateLiquidityPoolAggregator).not.toHaveBeenCalled();
+    });
+
+    it("should not update pool reserves when sqrtPriceX96 is zero", async () => {
+      vi.mocked(isPositionInRange).mockReturnValue(true);
+
+      const poolDataZeroPrice: PoolData = {
+        ...poolData,
+        liquidityPoolAggregator: {
+          ...poolData.liquidityPoolAggregator,
+          sqrtPriceX96: 0n,
+        },
+      };
+
+      await updateStakedPositionLiquidity(
+        stakedPosition,
+        poolDataZeroPrice,
+        5000n,
+        mockContext,
+        timestamp,
+        chainId,
+        blockNumber,
+      );
+
+      expect(updateTicksForStakedPosition).toHaveBeenCalled();
+      expect(updateLiquidityPoolAggregator).not.toHaveBeenCalled();
     });
   });
 });

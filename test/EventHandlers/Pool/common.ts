@@ -121,6 +121,10 @@ export function setupCommon() {
     // Calculate sqrtPriceX96 from tick 0 (middle of range) to get both amount0 and amount1
     sqrtPriceX96: BigInt(TickMath.getSqrtRatioAtTick(0).toString()),
     tick: 0n,
+    liquidityInRange: 0n,
+    stakedLiquidityInRange: 0n,
+    stakedReserve0: 0n,
+    stakedReserve1: 0n,
     totalFlashLoanFees0: 0n,
     totalFlashLoanFees1: 0n,
     totalFlashLoanFeesUSD: 0n,
