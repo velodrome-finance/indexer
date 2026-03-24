@@ -593,6 +593,108 @@ describe("GaugeSharedLogic", () => {
     });
   });
 
+  describe("CL pool gauge deposit/withdraw defers staked USD to snapshot", () => {
+    it("should preserve existing staked USD on CL pool deposit (no O(N) recompute)", async () => {
+      // Switch pool to CL
+      mockLiquidityPoolAggregator = {
+        ...mockLiquidityPoolAggregator,
+        isCL: true,
+        currentLiquidityStakedUSD: 500000000000000000000n, // 500 USD
+      };
+      mockUserStatsPerPool = {
+        ...mockUserStatsPerPool,
+        currentLiquidityStakedUSD: 250000000000000000000n, // 250 USD
+        lastSnapshotTimestamp: mockTimestamp, // Same epoch as event → no snapshot trigger
+      };
+      updatedDB = updatedDB.entities.LiquidityPoolAggregator.set(
+        mockLiquidityPoolAggregator,
+      );
+      updatedDB = updatedDB.entities.UserStatsPerPool.set(mockUserStatsPerPool);
+
+      await processGaugeDeposit(
+        {
+          gaugeAddress: mockGaugeAddress,
+          userAddress: mockUserAddress,
+          chainId: mockChainId,
+          blockNumber: 100,
+          timestamp: 1000000,
+          amount: 100000000000000000000n,
+        },
+        mockContext,
+        "TestCLDeposit",
+      );
+
+      const updatedPool = updatedDB.entities.LiquidityPoolAggregator.get(
+        mockLiquidityPoolAggregator.id,
+      );
+      const updatedUser = updatedDB.entities.UserStatsPerPool.get(
+        mockUserStatsPerPool.id,
+      );
+
+      // Raw liquidity count should increment
+      expect(updatedPool?.currentLiquidityStaked).toBe(100000000000000000000n);
+      // USD should be preserved (not recomputed)
+      expect(updatedPool?.currentLiquidityStakedUSD).toBe(
+        500000000000000000000n,
+      );
+      expect(updatedUser?.currentLiquidityStaked).toBe(100000000000000000000n);
+      expect(updatedUser?.currentLiquidityStakedUSD).toBe(
+        250000000000000000000n,
+      );
+    });
+
+    it("should preserve existing staked USD on CL pool withdraw (no O(N) recompute)", async () => {
+      // Switch pool to CL with existing stake
+      mockLiquidityPoolAggregator = {
+        ...mockLiquidityPoolAggregator,
+        isCL: true,
+        currentLiquidityStaked: 200000000000000000000n,
+        currentLiquidityStakedUSD: 500000000000000000000n,
+      };
+      mockUserStatsPerPool = {
+        ...mockUserStatsPerPool,
+        currentLiquidityStaked: 200000000000000000000n,
+        currentLiquidityStakedUSD: 250000000000000000000n,
+        lastSnapshotTimestamp: mockTimestamp, // Same epoch as event → no snapshot trigger
+      };
+      updatedDB = updatedDB.entities.LiquidityPoolAggregator.set(
+        mockLiquidityPoolAggregator,
+      );
+      updatedDB = updatedDB.entities.UserStatsPerPool.set(mockUserStatsPerPool);
+
+      await processGaugeWithdraw(
+        {
+          gaugeAddress: mockGaugeAddress,
+          userAddress: mockUserAddress,
+          chainId: mockChainId,
+          blockNumber: 100,
+          timestamp: 1000000,
+          amount: 100000000000000000000n,
+        },
+        mockContext,
+        "TestCLWithdraw",
+      );
+
+      const updatedPool = updatedDB.entities.LiquidityPoolAggregator.get(
+        mockLiquidityPoolAggregator.id,
+      );
+      const updatedUser = updatedDB.entities.UserStatsPerPool.get(
+        mockUserStatsPerPool.id,
+      );
+
+      // Raw liquidity count should decrement
+      expect(updatedPool?.currentLiquidityStaked).toBe(100000000000000000000n);
+      // USD should be preserved (not recomputed)
+      expect(updatedPool?.currentLiquidityStakedUSD).toBe(
+        500000000000000000000n,
+      );
+      expect(updatedUser?.currentLiquidityStaked).toBe(100000000000000000000n);
+      expect(updatedUser?.currentLiquidityStakedUSD).toBe(
+        250000000000000000000n,
+      );
+    });
+  });
+
   describe("isRootGauge", () => {
     it("returns true when RootGauge_RootPool has a row for the gauge address", async () => {
       const rootGaugeAddress = toChecksumAddress(

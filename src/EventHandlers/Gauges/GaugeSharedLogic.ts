@@ -254,16 +254,20 @@ export async function processGaugeDeposit(
     liquidityPoolAggregator.currentLiquidityStaked + data.amount;
   const newUserStake = userData.currentLiquidityStaked + data.amount;
 
-  const { poolStakedUSD, userStakedUSD } = await computeStakedUSDForPoolAndUser(
-    data.chainId,
-    pool.poolAddress,
-    data.userAddress,
-    newPoolStake,
-    newUserStake,
-    liquidityPoolAggregator,
-    poolData,
-    context,
-  );
+  // For CL pools, defer staked USD recompute to snapshot time (O(N) too expensive per event)
+  // For non-CL pools, compute immediately (O(1) reserves-based math)
+  const { poolStakedUSD, userStakedUSD } = liquidityPoolAggregator.isCL
+    ? { poolStakedUSD: undefined, userStakedUSD: undefined }
+    : await computeStakedUSDForPoolAndUser(
+        data.chainId,
+        pool.poolAddress,
+        data.userAddress,
+        newPoolStake,
+        newUserStake,
+        liquidityPoolAggregator,
+        poolData,
+        context,
+      );
 
   const poolDiff = {
     incrementalNumberOfGaugeDeposits: 1n,
@@ -343,16 +347,20 @@ export async function processGaugeWithdraw(
     return;
   }
 
-  const { poolStakedUSD, userStakedUSD } = await computeStakedUSDForPoolAndUser(
-    data.chainId,
-    pool.poolAddress,
-    data.userAddress,
-    newPoolStake,
-    newUserStake,
-    liquidityPoolAggregator,
-    poolData,
-    context,
-  );
+  // For CL pools, defer staked USD recompute to snapshot time (O(N) too expensive per event)
+  // For non-CL pools, compute immediately (O(1) reserves-based math)
+  const { poolStakedUSD, userStakedUSD } = liquidityPoolAggregator.isCL
+    ? { poolStakedUSD: undefined, userStakedUSD: undefined }
+    : await computeStakedUSDForPoolAndUser(
+        data.chainId,
+        pool.poolAddress,
+        data.userAddress,
+        newPoolStake,
+        newUserStake,
+        liquidityPoolAggregator,
+        poolData,
+        context,
+      );
 
   const poolDiff = {
     incrementalNumberOfGaugeWithdrawals: 1n,

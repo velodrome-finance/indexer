@@ -1009,6 +1009,38 @@ describe("NFPMTransferLogic", () => {
       );
     });
 
+    it("should delete position on burn transfer (to zero address)", async () => {
+      const pos = positionWithLiquidity(userA);
+      setPosition(pos);
+
+      const mockEvent = createMockTransferEvent(userA, zeroAddress);
+
+      await processNFPMTransfer(mockEvent, mockContext);
+
+      // Position should be deleted from storedPositions
+      const deletedPosition = storedPositions.find(
+        (p) => p.id === mockPosition.id,
+      );
+      expect(deletedPosition).toBeUndefined();
+    });
+
+    it("should not call handleRegularTransfer on burn transfer", async () => {
+      vi.mocked(loadPoolData).mockClear();
+      vi.mocked(attributeLiquidityChangeToUserStatsPerPool).mockClear();
+
+      const pos = positionWithLiquidity(userA);
+      setPosition(pos);
+
+      const mockEvent = createMockTransferEvent(userA, zeroAddress);
+
+      await processNFPMTransfer(mockEvent, mockContext);
+
+      // loadPoolData should not be called (burn skips handleRegularTransfer)
+      expect(loadPoolData).not.toHaveBeenCalled();
+      // attributeLiquidityChangeToUserStatsPerPool should not be called
+      expect(attributeLiquidityChangeToUserStatsPerPool).not.toHaveBeenCalled();
+    });
+
     it("should return early if mint transfer fails to find CLPoolMintEvent", async () => {
       const mockEvent = createMockTransferEvent(zeroAddress, ownerAddress);
 

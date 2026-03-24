@@ -366,15 +366,20 @@ export async function computeCLStakedUSDFromPositions(
   }
   const { token0Instance, token1Instance } = poolData;
   try {
-    const positions =
-      (await context.NonFungiblePosition.getWhere({
-        pool: { _eq: poolAddress },
-      })) ?? [];
+    // When a userAddress is provided, query by owner (indexed) — a user-pool entity
+    // has far fewer positions than an entire pool, making this significantly faster.
+    const positions = options.userAddress
+      ? ((await context.NonFungiblePosition.getWhere({
+          owner: { _eq: options.userAddress },
+        })) ?? [])
+      : ((await context.NonFungiblePosition.getWhere({
+          pool: { _eq: poolAddress },
+        })) ?? []);
     const staked = positions.filter(
       (p: NonFungiblePosition) =>
         p.chainId === chainId &&
         p.isStakedInGauge === true &&
-        (options.userAddress === undefined || p.owner === options.userAddress),
+        (options.userAddress === undefined || p.pool === poolAddress),
     );
     return staked.reduce(
       (sum, pos) =>
