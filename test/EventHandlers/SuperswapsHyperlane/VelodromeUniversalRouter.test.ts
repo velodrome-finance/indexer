@@ -334,18 +334,7 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
 
       const result = await db.processEvents([mockEvent]);
 
-      // New ID format includes messageId and source swap-specific data
-      const expectedSuperSwapId = SuperSwapId(
-        transactionHash,
-        chainId,
-        BigInt(destinationDomain),
-        existingBridgedTransaction.amount,
-        messageId,
-        sourceSwapEvent.tokenInPool,
-        sourceSwapEvent.amountIn,
-        sourceSwapEvent.tokenOutPool,
-        sourceSwapEvent.amountOut,
-      );
+      const expectedSuperSwapId = SuperSwapId(messageId);
       const superSwap = result.entities.SuperSwap.get(expectedSuperSwapId);
 
       expect(superSwap).toBeDefined();
@@ -550,18 +539,7 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
 
       const result = await db.processEvents([mockEvent]);
 
-      // New ID format includes messageId and source swap-specific data
-      const expectedSuperSwapId = SuperSwapId(
-        transactionHash,
-        chainId,
-        BigInt(destinationDomain),
-        bridgedTransaction1.amount,
-        messageId,
-        sourceSwapEvent.tokenInPool,
-        sourceSwapEvent.amountIn,
-        sourceSwapEvent.tokenOutPool,
-        sourceSwapEvent.amountOut,
-      );
+      const expectedSuperSwapId = SuperSwapId(messageId);
       const superSwap = result.entities.SuperSwap.get(expectedSuperSwapId);
 
       expect(superSwap).toBeDefined();

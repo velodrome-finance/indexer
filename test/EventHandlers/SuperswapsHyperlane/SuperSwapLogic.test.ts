@@ -1259,18 +1259,7 @@ describe("SuperSwapLogic", () => {
       const superSwaps = context.getSuperSwaps();
       expect(superSwaps.size).toBe(1);
 
-      // createSuperSwapEntity builds id from sourceSwap (tokenInPool, amountIn, tokenOutPool, amountOut)
-      const expectedId = SuperSwapId(
-        transactionHash,
-        chainId,
-        destinationDomain,
-        oUSDTAmount,
-        messageId1,
-        sourceSwap.tokenInPool,
-        sourceSwap.amountIn,
-        sourceSwap.tokenOutPool,
-        sourceSwap.amountOut,
-      );
+      const expectedId = SuperSwapId(messageId1);
       const superSwap = superSwaps.get(expectedId);
 
       expect(superSwap).toBeDefined();

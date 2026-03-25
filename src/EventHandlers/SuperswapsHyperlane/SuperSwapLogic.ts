@@ -241,17 +241,7 @@ export async function createSuperSwapEntity(
   blockTimestamp: number,
   context: handlerContext,
 ): Promise<void> {
-  const superSwapId = SuperSwapId(
-    transactionHash,
-    chainId,
-    destinationDomain,
-    bridgedTransaction.amount,
-    messageId,
-    sourceSwap.tokenInPool,
-    sourceSwap.amountIn,
-    sourceSwap.tokenOutPool,
-    sourceSwap.amountOut,
-  );
+  const superSwapId = SuperSwapId(messageId);
 
   // Check if SuperSwap already exists (idempotency check)
   const existingSuperSwap = await context.SuperSwap.get(superSwapId);
