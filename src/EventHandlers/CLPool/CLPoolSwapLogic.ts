@@ -4,6 +4,10 @@ import type {
   Token,
   handlerContext,
 } from "generated";
+import {
+  computeStakedSwapReserveDelta,
+  processTickCrossingsForStaked,
+} from "../../Aggregators/CLStakedLiquidity";
 import type { LiquidityPoolAggregatorDiff } from "../../Aggregators/LiquidityPoolAggregator";
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import { CL_FEE_SCALE } from "../../Constants";
@@ -289,6 +293,45 @@ export async function processCLPoolSwap(
       clFeeRate,
     );
 
+  // Process tick crossings for staked liquidity tracking
+  const oldTick = liquidityPoolAggregator.tick ?? 0n;
+  const newTick = event.params.tick;
+  const tickSpacing = liquidityPoolAggregator.tickSpacing;
+  const currentStakedLiqInRange =
+    liquidityPoolAggregator.stakedLiquidityInRange ?? 0n;
+
+  const stakedLiquidityInRange =
+    oldTick !== newTick && tickSpacing > 0n
+      ? await processTickCrossingsForStaked(
+          event.chainId,
+          event.srcAddress,
+          oldTick,
+          newTick,
+          tickSpacing,
+          context,
+          currentStakedLiqInRange,
+        )
+      : currentStakedLiqInRange;
+
+  // Attribute staked share of swap reserve deltas proportionally.
+  //
+  // KNOWN APPROXIMATION: When a swap crosses multiple ticks, the staked/total liquidity
+  // ratio changes at each tick boundary (positions enter/exit range). We apply the
+  // post-crossing ratio to the entire swap's net reserve deltas, rather than computing
+  // per-segment contributions. This is because the Swap event only emits net amount0/amount1
+  // totals — per-segment token flows are not available. The error per swap is proportional
+  // to how much the staked ratio varies across crossed segments. This drift accumulates
+  // over time and is NOT corrected at snapshot time (snapshots re-price existing reserves
+  // at current token prices but do not recompute reserve quantities).
+  const reserveDelta0 = newReserve0 - liquidityPoolAggregator.reserve0;
+  const reserveDelta1 = newReserve1 - liquidityPoolAggregator.reserve1;
+  const { stakedDelta0, stakedDelta1 } = computeStakedSwapReserveDelta(
+    reserveDelta0,
+    reserveDelta1,
+    stakedLiquidityInRange,
+    event.params.liquidity,
+  );
+
   // Build complete liquidity pool aggregator diff
   const liquidityPoolDiff = {
     incrementalTotalVolume0: abs(event.params.amount0),
@@ -303,11 +346,15 @@ export async function processCLPoolSwap(
     token1Price:
       token1Instance?.pricePerUSDNew ?? liquidityPoolAggregator.token1Price,
     incrementalNumberOfSwaps: 1n,
-    incrementalReserve0: newReserve0 - liquidityPoolAggregator.reserve0,
-    incrementalReserve1: newReserve1 - liquidityPoolAggregator.reserve1,
+    incrementalReserve0: reserveDelta0,
+    incrementalReserve1: reserveDelta1,
     currentTotalLiquidityUSD,
-    sqrtPriceX96: event.params.sqrtPriceX96, // Store current sqrt price from Swap event
-    tick: event.params.tick, // Store current tick from Swap event
+    sqrtPriceX96: event.params.sqrtPriceX96,
+    tick: event.params.tick,
+    liquidityInRange: event.params.liquidity,
+    stakedLiquidityInRange,
+    incrementalStakedReserve0: stakedDelta0,
+    incrementalStakedReserve1: stakedDelta1,
     lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
   };
 

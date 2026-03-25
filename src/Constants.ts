@@ -786,6 +786,19 @@ export const NonFungiblePositionId = (
 ) => `${chainId}-${poolAddress}-${tokenId}`;
 
 /**
+ * Create a unique ID for a CLTickStaked entity.
+ * @param chainId - Chain ID
+ * @param poolAddress - Address of the CL pool
+ * @param tickIndex - Tick index (aligned to tick spacing)
+ * @returns string Combined tick staked ID.
+ */
+export const CLTickStakedId = (
+  chainId: number,
+  poolAddress: string,
+  tickIndex: bigint,
+) => `${chainId}-${poolAddress}-${tickIndex}`;
+
+/**
  * Create a unique ID for a token on a specific chain at a specific block. Really should only be used
  * for TokenPrice Entities.
  * @param chainId

@@ -45,6 +45,10 @@ type LiquidityPoolAggregator {
   observationCardinalityNext: BigInt @config(precision: 76) # oracle observation cardinality
   sqrtPriceX96: BigInt @config(precision: 76) # current sqrt price (Q96 fixed point) - updated from Swap/Initialize events
   tick: BigInt @config(precision: 24) # current tick - updated from Swap/Initialize events
+  liquidityInRange: BigInt @config(precision: 76) # total in-range liquidity L from Swap events
+  stakedLiquidityInRange: BigInt @config(precision: 76) # staked in-range liquidity L (running counter from tick-based tracking)
+  stakedReserve0: BigInt @config(precision: 76) # staked reserves in token0 raw units (running counter)
+  stakedReserve1: BigInt @config(precision: 76) # staked reserves in token1 raw units (running counter)
   totalFlashLoanFees0: BigInt @config(precision: 76) # total flash loan fees collected in token0
   totalFlashLoanFees1: BigInt @config(precision: 76) # total flash loan fees collected in token1
   totalFlashLoanFeesUSD: BigInt @config(precision: 76) # total flash loan fees collected in USD
@@ -146,6 +150,10 @@ type LiquidityPoolAggregatorSnapshot {
   observationCardinalityNext: BigInt @config(precision: 76) # oracle observation cardinality
   sqrtPriceX96: BigInt @config(precision: 76) # current sqrt price (Q96 fixed point) - updated from Swap/Initialize events
   tick: BigInt @config(precision: 24) # current tick - updated from Swap/Initialize events
+  liquidityInRange: BigInt @config(precision: 76) # total in-range liquidity L from Swap events
+  stakedLiquidityInRange: BigInt @config(precision: 76) # staked in-range liquidity L
+  stakedReserve0: BigInt @config(precision: 76) # staked reserves in token0 raw units
+  stakedReserve1: BigInt @config(precision: 76) # staked reserves in token1 raw units
   totalFlashLoanFees0: BigInt @config(precision: 76) # total flash loan fees collected in token0
   totalFlashLoanFees1: BigInt @config(precision: 76) # total flash loan fees collected in token1
   totalFlashLoanFeesUSD: BigInt @config(precision: 76) # total flash loan fees collected in USD
@@ -352,6 +360,17 @@ type NonFungiblePositionSnapshot {
   lastUpdatedTimestamp: Timestamp!
   isStakedInGauge: Boolean!
   timestamp: Timestamp! @index
+}
+
+# Tracks staked liquidity net delta per initialized tick for CL pools.
+# Mirrors Uniswap v3's ticks[i].liquidityNet but only for the staked subset.
+# Used to maintain stakedLiquidityInRange on the pool aggregator during tick crossings.
+type CLTickStaked {
+  id: ID! # Format: {chainId}-{poolAddress}-{tickIndex} (CLTickStakedId)
+  chainId: Int!
+  poolAddress: String! @index
+  tickIndex: BigInt! @config(precision: 24)
+  stakedLiquidityNet: BigInt! @config(precision: 76) # net staked liquidity change when crossing this tick
 }
 
 type VeNFTState {

@@ -1,10 +1,18 @@
 import type { NonFungiblePosition, handlerContext } from "generated";
+import {
+  isPositionInRange,
+  updateTicksForStakedPosition,
+} from "../../Aggregators/CLStakedLiquidity";
 import type { PoolData } from "../../Aggregators/LiquidityPoolAggregator";
+import { updateLiquidityPoolAggregator } from "../../Aggregators/LiquidityPoolAggregator";
 import {
   loadOrCreateUserData,
   updateUserStatsPerPool,
 } from "../../Aggregators/UserStatsPerPool";
-import { calculateTotalUSD } from "../../Helpers";
+import {
+  calculatePositionAmountsFromLiquidity,
+  calculateTotalUSD,
+} from "../../Helpers";
 
 /** Type of liquidity change for UserStatsPerPool attribution. */
 export enum LiquidityChangeType {
@@ -99,4 +107,78 @@ export async function attributeLiquidityChangeToUserStatsPerPool(
         };
 
   await updateUserStatsPerPool(userDiff, userData, context, timestamp);
+}
+
+/**
+ * Updates CLTickStaked entities and pool staked reserves when a staked position's
+ * liquidity changes (IncreaseLiquidity or DecreaseLiquidity).
+ *
+ * @param position - The NonFungiblePosition being modified
+ * @param poolData - Pool data with liquidityPoolAggregator and token instances
+ * @param liquidityDelta - Positive for increase, negative for decrease
+ * @param context - Handler context for entity access
+ * @param timestamp - Block timestamp
+ * @param chainId - Chain ID
+ * @param blockNumber - Block number
+ */
+export async function updateStakedPositionLiquidity(
+  position: NonFungiblePosition,
+  poolData: PoolData,
+  liquidityDelta: bigint,
+  context: handlerContext,
+  timestamp: Date,
+  chainId: number,
+  blockNumber: number,
+): Promise<void> {
+  const { liquidityPoolAggregator } = poolData;
+
+  await updateTicksForStakedPosition(
+    chainId,
+    position.pool,
+    position.tickLower,
+    position.tickUpper,
+    liquidityDelta,
+    context,
+  );
+
+  const currentTick = liquidityPoolAggregator.tick ?? 0n;
+  const sqrtPriceX96 = liquidityPoolAggregator.sqrtPriceX96 ?? 0n;
+
+  if (sqrtPriceX96 === 0n) return;
+
+  // stakedReserve0/1 track ALL staked token holdings (in-range + out-of-range) for USD valuation.
+  // Out-of-range positions still hold tokens, and calculatePositionAmountsFromLiquidity handles
+  // all three cases (below range, in range, above range).
+  const { amount0, amount1 } = calculatePositionAmountsFromLiquidity(
+    liquidityDelta > 0n ? liquidityDelta : -liquidityDelta,
+    sqrtPriceX96,
+    position.tickLower,
+    position.tickUpper,
+  );
+
+  const direction = liquidityDelta > 0n ? 1n : -1n;
+
+  // stakedLiquidityInRange only changes when the position is in range (drives swap proportional attribution)
+  const stakedLiquidityInRange = isPositionInRange(
+    position.tickLower,
+    position.tickUpper,
+    currentTick,
+  )
+    ? (liquidityPoolAggregator.stakedLiquidityInRange ?? 0n) + liquidityDelta
+    : undefined;
+
+  const stakedDiff = {
+    stakedLiquidityInRange,
+    incrementalStakedReserve0: direction * amount0,
+    incrementalStakedReserve1: direction * amount1,
+  };
+
+  await updateLiquidityPoolAggregator(
+    stakedDiff,
+    liquidityPoolAggregator,
+    timestamp,
+    context,
+    chainId,
+    blockNumber,
+  );
 }

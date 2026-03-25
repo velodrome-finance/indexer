@@ -104,6 +104,10 @@ describe("CLPoolSwapLogic", () => {
       warn: vi.fn(),
       info: vi.fn(),
     },
+    CLTickStaked: {
+      get: vi.fn().mockResolvedValue(null),
+      set: vi.fn(),
+    },
   } as unknown as handlerContext;
 
   describe("calculateSwapVolume", () => {
@@ -579,6 +583,83 @@ describe("CLPoolSwapLogic", () => {
       expect(result.userSwapDiff.lastActivityTimestamp).toEqual(
         new Date(BLOCK_TIMESTAMP * 1000),
       );
+    });
+
+    it("should set liquidityInRange from event params", async () => {
+      const result = await processCLPoolSwap(
+        mockEvent,
+        mockLiquidityPoolAggregator,
+        mockToken0,
+        mockToken1,
+        mockContext,
+      );
+
+      expect(result.liquidityPoolDiff.liquidityInRange).toBe(
+        mockEvent.params.liquidity,
+      );
+    });
+
+    it("should compute staked reserve deltas proportionally", async () => {
+      const poolWithStaked = {
+        ...mockLiquidityPoolAggregator,
+        tick: 500n, // Different from event tick (1000n) to trigger tick crossing
+        tickSpacing: 200n,
+        stakedLiquidityInRange: 200n,
+      };
+
+      const result = await processCLPoolSwap(
+        mockEvent,
+        poolWithStaked,
+        mockToken0,
+        mockToken1,
+        mockContext,
+      );
+
+      // No tick entities exist → stakedLiquidityInRange stays 200n
+      // reserveDelta0/1 are proportioned by 200/1000000000000000000000 (event liquidity)
+      // With such small staked vs total, staked deltas will be ~0 due to bigint truncation
+      expect(result.liquidityPoolDiff.stakedLiquidityInRange).toBe(200n);
+      expect(result.liquidityPoolDiff.incrementalStakedReserve0).toBeDefined();
+      expect(result.liquidityPoolDiff.incrementalStakedReserve1).toBeDefined();
+    });
+
+    it("should return zero staked deltas when no staked liquidity", async () => {
+      const poolNoStaked = {
+        ...mockLiquidityPoolAggregator,
+        stakedLiquidityInRange: 0n,
+      };
+
+      const result = await processCLPoolSwap(
+        mockEvent,
+        poolNoStaked,
+        mockToken0,
+        mockToken1,
+        mockContext,
+      );
+
+      expect(result.liquidityPoolDiff.incrementalStakedReserve0).toBe(0n);
+      expect(result.liquidityPoolDiff.incrementalStakedReserve1).toBe(0n);
+      expect(result.liquidityPoolDiff.stakedLiquidityInRange).toBe(0n);
+    });
+
+    it("should skip tick crossings when tick unchanged", async () => {
+      const poolSameTick = {
+        ...mockLiquidityPoolAggregator,
+        tick: mockEvent.params.tick, // Same tick → no crossing
+        tickSpacing: 200n,
+        stakedLiquidityInRange: 500n,
+      };
+
+      const result = await processCLPoolSwap(
+        mockEvent,
+        poolSameTick,
+        mockToken0,
+        mockToken1,
+        mockContext,
+      );
+
+      // No tick crossing → stakedLiquidityInRange unchanged
+      expect(result.liquidityPoolDiff.stakedLiquidityInRange).toBe(500n);
     });
   });
 });

@@ -446,7 +446,7 @@ describe("LiquidityPoolAggregator Functions", () => {
     it("should recompute CL staked USD at snapshot time when staked liquidity > 0", async () => {
       const oldTimestamp = new Date(Date.now() - 2 * 60 * 60 * 1000);
       const currentTimestamp = new Date();
-      const { createMockNonFungiblePosition } = setupCommon();
+      setupCommon();
 
       const token0Id = "10-0x1111111111111111111111111111111111111111";
       const token1Id = "10-0x2222222222222222222222222222222222222222";
@@ -463,6 +463,8 @@ describe("LiquidityPoolAggregator Functions", () => {
         currentLiquidityStakedUSD: 100n, // Stale value
         sqrtPriceX96: 79228162514264337593543950336n, // tick 0
         tick: 0n,
+        stakedReserve0: 5000000000000000000000n, // Nonzero staked reserves for USD computation
+        stakedReserve1: 5000000000000000000000n,
         token0_id: token0Id,
         token1_id: token1Id,
         token0_address: toChecksumAddress(
@@ -503,17 +505,6 @@ describe("LiquidityPoolAggregator Functions", () => {
         isWhitelisted: true,
       };
 
-      const stakedPosition = createMockNonFungiblePosition({
-        tokenId: 1n,
-        pool: poolAddr,
-        chainId: 10,
-        owner: toChecksumAddress("0x9999999999999999999999999999999999999999"),
-        isStakedInGauge: true,
-        liquidity: 5000000000000000000000n, // Large enough to produce non-zero USD
-        tickLower: -1000n,
-        tickUpper: 1000n,
-      });
-
       // Fresh set mock to avoid picking up calls from outer beforeEach
       const setMock = vi.fn();
       const ctx = {
@@ -530,9 +521,6 @@ describe("LiquidityPoolAggregator Functions", () => {
             return undefined;
           }),
         },
-        NonFungiblePosition: {
-          getWhere: vi.fn().mockResolvedValue([stakedPosition]),
-        },
       } as unknown as handlerContext;
 
       await updateLiquidityPoolAggregator(
@@ -547,7 +535,7 @@ describe("LiquidityPoolAggregator Functions", () => {
       const updatedAggregator = setMock.mock
         .calls[0]?.[0] as LiquidityPoolAggregator;
 
-      // Should have recomputed staked USD (not the stale 100n)
+      // Should have computed staked USD from stakedReserve0/stakedReserve1 (not the stale 100n)
       expect(updatedAggregator.currentLiquidityStakedUSD).toBeGreaterThan(0n);
       expect(updatedAggregator.currentLiquidityStakedUSD).not.toBe(100n);
     });
