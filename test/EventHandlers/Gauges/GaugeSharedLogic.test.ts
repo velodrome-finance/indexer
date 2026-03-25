@@ -286,12 +286,13 @@ describe("GaugeSharedLogic", () => {
       );
       expect(updatedUser?.numberOfGaugeDeposits).toBe(1n);
       expect(updatedUser?.currentLiquidityStaked).toBe(100000000000000000000n);
+      // User staked USD is computed at snapshot time (non-CL pro-rata)
       expect(updatedUser?.currentLiquidityStakedUSD).toBe(
         200000000000000000000n,
       );
     });
 
-    it("should preserve existing staked USD when non-CL valuation is unavailable", async () => {
+    it("should preserve existing pool staked USD when non-CL valuation is unavailable", async () => {
       mockLiquidityPoolAggregator = {
         ...mockLiquidityPoolAggregator,
         currentLiquidityStakedUSD: 777000000000000000000n,
@@ -325,14 +326,14 @@ describe("GaugeSharedLogic", () => {
         mockUserStatsPerPool.id,
       );
 
+      // Pool staked USD is preserved (undefined from event → keeps old value)
       expect(updatedPool?.currentLiquidityStaked).toBe(100000000000000000000n);
       expect(updatedPool?.currentLiquidityStakedUSD).toBe(
         777000000000000000000n,
       );
+      // User staked USD is recomputed at snapshot time; totalSupply=0 → returns 0
       expect(updatedUser?.currentLiquidityStaked).toBe(100000000000000000000n);
-      expect(updatedUser?.currentLiquidityStakedUSD).toBe(
-        333000000000000000000n,
-      );
+      expect(updatedUser?.currentLiquidityStakedUSD).toBe(0n);
     });
   });
 
@@ -379,8 +380,10 @@ describe("GaugeSharedLogic", () => {
       );
       expect(updatedUser?.numberOfGaugeWithdrawals).toBe(1n);
       expect(updatedUser?.currentLiquidityStaked).toBe(50000000000000000000n);
+      // User staked USD was set to 200 at deposit snapshot; withdraw is in the same
+      // epoch so no new snapshot fires — value stays at deposit-time snapshot value
       expect(updatedUser?.currentLiquidityStakedUSD).toBe(
-        100000000000000000000n,
+        200000000000000000000n,
       );
     });
 
@@ -421,7 +424,11 @@ describe("GaugeSharedLogic", () => {
       expect(updatedPool?.currentLiquidityStaked).toBe(0n);
       expect(updatedPool?.currentLiquidityStakedUSD).toBe(0n);
       expect(updatedUser?.currentLiquidityStaked).toBe(0n);
-      expect(updatedUser?.currentLiquidityStakedUSD).toBe(0n);
+      // User staked USD was set to 200 at deposit snapshot; withdraw is in the same
+      // epoch so no new snapshot fires — value stays at deposit-time snapshot value
+      expect(updatedUser?.currentLiquidityStakedUSD).toBe(
+        200000000000000000000n,
+      );
     });
 
     it("should derive non-negative currentLiquidityStakedUSD after deposit then partial withdraw", async () => {
@@ -461,8 +468,10 @@ describe("GaugeSharedLogic", () => {
         100000000000000000000n,
       );
       expect(updatedUser?.currentLiquidityStaked).toBe(50000000000000000000n);
+      // User staked USD was set to 200 at deposit snapshot; withdraw is in the same
+      // epoch so no new snapshot fires — value stays at deposit-time snapshot value
       expect(updatedUser?.currentLiquidityStakedUSD).toBe(
-        100000000000000000000n,
+        200000000000000000000n,
       );
     });
   });

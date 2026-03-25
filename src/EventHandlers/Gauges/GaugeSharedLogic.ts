@@ -209,45 +209,21 @@ export async function findPoolOrSkipRootGauge(
 }
 
 /**
- * Computes currentLiquidityStakedUSD for pool and user for non-CL pools.
- * Uses aggregate stake with reserves/totalSupply.
- *
- * @param chainId - Chain ID
- * @param poolAddress - Pool address
- * @param userAddress - User address
- * @param newPoolStake - New pool stake amount
- * @param newUserStake - New user stake amount
- * @param liquidityPoolAggregator - Pool entity
- * @param poolData - Pool data
- * @param context - Handler context
- * @returns Recomputed pool/user staked USD, or undefined when valuation is unavailable
+ * Computes currentLiquidityStakedUSD for the pool (not user) for non-CL pools.
+ * User staked USD is deferred to hourly snapshots (see UserStatsPerPool.ts).
  */
-function computeNonCLStakedUSDForPoolAndUser(
-  chainId: number,
-  poolAddress: string,
-  userAddress: string,
+function computeNonCLPoolStakedUSD(
   newPoolStake: bigint,
-  newUserStake: bigint,
   liquidityPoolAggregator: LiquidityPoolAggregator,
   poolData: PoolData,
   context: handlerContext,
-): {
-  poolStakedUSD: bigint | undefined;
-  userStakedUSD: bigint | undefined;
-} {
-  const poolStakedUSD = computeNonCLStakedUSDIfAvailable(
+): bigint | undefined {
+  return computeNonCLStakedUSDIfAvailable(
     newPoolStake,
     liquidityPoolAggregator,
     poolData,
     context,
   );
-  const userStakedUSD = computeNonCLStakedUSDIfAvailable(
-    newUserStake,
-    liquidityPoolAggregator,
-    poolData,
-    context,
-  );
-  return { poolStakedUSD, userStakedUSD };
 }
 
 /**
@@ -292,10 +268,8 @@ export async function processGaugeDeposit(
 
   const newPoolStake =
     liquidityPoolAggregator.currentLiquidityStaked + data.amount;
-  const newUserStake = userData.currentLiquidityStaked + data.amount;
 
   let poolStakedUSD: bigint | undefined;
-  let userStakedUSD: bigint | undefined;
   let stakedLiquidityInRange: bigint | undefined;
   let incrementalStakedReserve0: bigint | undefined;
   let incrementalStakedReserve1: bigint | undefined;
@@ -313,18 +287,12 @@ export async function processGaugeDeposit(
     incrementalStakedReserve0 = clResult.incrementalStakedReserve0;
     incrementalStakedReserve1 = clResult.incrementalStakedReserve1;
   } else {
-    const nonCLResult = computeNonCLStakedUSDForPoolAndUser(
-      data.chainId,
-      pool.poolAddress,
-      data.userAddress,
+    poolStakedUSD = computeNonCLPoolStakedUSD(
       newPoolStake,
-      newUserStake,
       liquidityPoolAggregator,
       poolData,
       context,
     );
-    poolStakedUSD = nonCLResult.poolStakedUSD;
-    userStakedUSD = nonCLResult.userStakedUSD;
   }
 
   const poolDiff = {
@@ -340,7 +308,6 @@ export async function processGaugeDeposit(
   const userDiff = {
     incrementalNumberOfGaugeDeposits: 1n,
     incrementalCurrentLiquidityStaked: data.amount,
-    currentLiquidityStakedUSD: userStakedUSD,
     lastActivityTimestamp: timestamp,
   };
 
@@ -409,7 +376,6 @@ export async function processGaugeWithdraw(
   }
 
   let poolStakedUSD: bigint | undefined;
-  let userStakedUSD: bigint | undefined;
   let stakedLiquidityInRange: bigint | undefined;
   let incrementalStakedReserve0: bigint | undefined;
   let incrementalStakedReserve1: bigint | undefined;
@@ -427,18 +393,12 @@ export async function processGaugeWithdraw(
     incrementalStakedReserve0 = clResult.incrementalStakedReserve0;
     incrementalStakedReserve1 = clResult.incrementalStakedReserve1;
   } else {
-    const nonCLResult = computeNonCLStakedUSDForPoolAndUser(
-      data.chainId,
-      pool.poolAddress,
-      data.userAddress,
+    poolStakedUSD = computeNonCLPoolStakedUSD(
       newPoolStake,
-      newUserStake,
       liquidityPoolAggregator,
       poolData,
       context,
     );
-    poolStakedUSD = nonCLResult.poolStakedUSD;
-    userStakedUSD = nonCLResult.userStakedUSD;
   }
 
   const poolDiff = {
@@ -454,7 +414,6 @@ export async function processGaugeWithdraw(
   const userDiff = {
     incrementalNumberOfGaugeWithdrawals: 1n,
     incrementalCurrentLiquidityStaked: -data.amount,
-    currentLiquidityStakedUSD: userStakedUSD,
     lastActivityTimestamp: timestamp,
   };
 
