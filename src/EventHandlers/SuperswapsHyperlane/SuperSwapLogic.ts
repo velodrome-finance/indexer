@@ -10,16 +10,13 @@ import { OUSDT_ADDRESS, SuperSwapId } from "../../Constants";
 
 /**
  * Builds a map from messageId to ProcessId event and collects unique destination transaction hashes.
- * Also logs warnings for messageIds without corresponding ProcessId events.
  * @param sourceChainMessageIdEntities - DispatchId events from the source chain transaction
  * @param processIdResults - ProcessId events queried for each messageId (array of arrays)
- * @param context - Handler context for queries and entity operations
  * @returns A map from messageId to ProcessId event and a set of unique destination transaction hashes
  */
 export function buildMessageIdToProcessIdMap(
   sourceChainMessageIdEntities: DispatchId_event[],
   processIdResults: ProcessId_event[][],
-  context: handlerContext,
 ): {
   messageIdToProcessId: Map<string, ProcessId_event>;
   destinationTransactionHashes: Set<string>;
@@ -32,15 +29,6 @@ export function buildMessageIdToProcessIdMap(
   for (const processIdEvent of allProcessIdEvents) {
     messageIdToProcessId.set(processIdEvent.messageId, processIdEvent);
     destinationTransactionHashes.add(processIdEvent.transactionHash);
-  }
-
-  // Warn for messageIds that have no ProcessId events
-  for (const sourceEntity of sourceChainMessageIdEntities) {
-    if (!messageIdToProcessId.has(sourceEntity.messageId)) {
-      context.log.warn(
-        `No ProcessId_event found for messageId ${sourceEntity.messageId}`,
-      );
-    }
   }
 
   return { messageIdToProcessId, destinationTransactionHashes };
@@ -68,9 +56,6 @@ export async function findSourceSwapWithOUSDT(
   // Since we only store swaps involving oUSDT, take the first swap
   // (all stored swaps should involve oUSDT, but verify for safety)
   if (sourceChainSwaps.length === 0) {
-    context.log.warn(
-      `No source chain swap with oUSDT found for transaction ${transactionHash}`,
-    );
     return null;
   }
 
@@ -81,9 +66,6 @@ export async function findSourceSwapWithOUSDT(
     sourceSwap.tokenInPool !== OUSDT_ADDRESS &&
     sourceSwap.tokenOutPool !== OUSDT_ADDRESS
   ) {
-    context.log.warn(
-      `Source swap does not involve oUSDT for transaction ${transactionHash}`,
-    );
     return null;
   }
 
@@ -136,15 +118,12 @@ export async function loadDestinationSwaps(
  * @param sourceChainMessageIdEntities - DispatchId events from the source chain transaction
  * @param messageIdToProcessId - A map from messageId to ProcessId event
  * @param transactionHashToSwaps - A map from transaction hash to swaps array
- * @param context - Handler context for queries and entity operations
  * @returns The swap and extracts the destination chain token information.
- * @throws An error if no destination chain swap with oUSDT is found
  */
 export function findDestinationSwapWithOUSDT(
   sourceChainMessageIdEntities: DispatchId_event[],
   messageIdToProcessId: Map<string, ProcessId_event>,
   transactionHashToSwaps: Map<string, OUSDTSwaps[]>,
-  context: handlerContext,
 ): {
   destinationSwap: OUSDTSwaps;
   matchingMessageId: string;
@@ -158,9 +137,6 @@ export function findDestinationSwapWithOUSDT(
 
     // Skip if no ProcessId event is found for the messageId being processed
     if (!processIdEvent) {
-      context.log.warn(
-        `No ProcessId event found for messageId ${sourceChainMessageIdEntity.messageId}`,
-      );
       continue;
     }
 
@@ -169,9 +145,6 @@ export function findDestinationSwapWithOUSDT(
     );
 
     if (!destinationSwaps || destinationSwaps.length === 0) {
-      context.log.warn(
-        `No destination swaps found for transaction hash ${processIdEvent.transactionHash}`,
-      );
       continue;
     }
 
@@ -182,9 +155,6 @@ export function findDestinationSwapWithOUSDT(
       destinationChainSwapWithOUSDT.tokenInPool !== OUSDT_ADDRESS &&
       destinationChainSwapWithOUSDT.tokenOutPool !== OUSDT_ADDRESS
     ) {
-      context.log.warn(
-        `Destination swap does not involve oUSDT for transaction hash ${processIdEvent.transactionHash}`,
-      );
       continue;
     }
 
@@ -206,9 +176,6 @@ export function findDestinationSwapWithOUSDT(
     };
   }
 
-  context.log.warn(
-    "No destination chain swap with oUSDT found for any ProcessId transaction",
-  );
   return null;
 }
 
@@ -246,9 +213,6 @@ export async function createSuperSwapEntity(
   // Check if SuperSwap already exists (idempotency check)
   const existingSuperSwap = await context.SuperSwap.get(superSwapId);
   if (existingSuperSwap) {
-    context.log.info(
-      `SuperSwap entity already exists for transaction ${transactionHash} with messageId ${messageId}, skipping creation`,
-    );
     return;
   }
 
@@ -299,7 +263,6 @@ export async function processCrossChainSwap(
     buildMessageIdToProcessIdMap(
       sourceChainMessageIdEntities,
       processIdResults,
-      context,
     );
 
   // Find source swap with oUSDT
@@ -308,9 +271,6 @@ export async function processCrossChainSwap(
     context,
   );
   if (!sourceSwapData) {
-    context.log.warn(
-      `No source chain swap with oUSDT found for transaction ${transactionHash}`,
-    );
     return;
   }
 
@@ -325,7 +285,6 @@ export async function processCrossChainSwap(
     sourceChainMessageIdEntities,
     messageIdToProcessId,
     transactionHashToSwaps,
-    context,
   );
   if (!destinationSwapData) {
     return;
@@ -371,10 +330,6 @@ export async function attemptSuperSwapCreationFromProcessId(
     });
 
     if (dispatchIdEvents.length === 0) {
-      // No matching DispatchId found - this is expected if source chain hasn't synced yet
-      context.log.info(
-        `No matching DispatchId found for messageId ${messageId} when processing ProcessId ${messageId}. This is expected if source chain hasn't synced yet.`,
-      );
       return;
     }
 
@@ -395,16 +350,10 @@ export async function attemptSuperSwapCreationFromProcessId(
       ]);
 
     if (oUSDTBridgedTransactions.length === 0) {
-      context.log.warn(
-        `No OUSDTBridgedTransaction found for transaction ${sourceTransactionHash} when processing ProcessId ${messageId}`,
-      );
       return;
     }
 
     if (sourceChainMessageIdEntities.length === 0) {
-      context.log.warn(
-        `No DispatchId_event entities found for transaction ${sourceTransactionHash}`,
-      );
       return;
     }
 

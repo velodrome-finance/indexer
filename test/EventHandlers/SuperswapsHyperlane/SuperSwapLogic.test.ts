@@ -409,14 +409,6 @@ describe("SuperSwapLogic", () => {
         context,
       );
 
-      const warnings = context.getWarnings();
-      expect(warnings.length).toBeGreaterThanOrEqual(1);
-      const processIdWarning = warnings.find(
-        (w: string) =>
-          w.includes(messageId1) && w.includes("No ProcessId_event found"),
-      );
-      expect(processIdWarning).toBeDefined();
-
       const superSwaps = context.getSuperSwaps();
       expect(superSwaps.size).toBe(0);
     });
@@ -458,13 +450,6 @@ describe("SuperSwapLogic", () => {
         blockTimestamp,
         context,
       );
-
-      const warnings = context.getWarnings();
-      expect(warnings.length).toBeGreaterThanOrEqual(1);
-      const swapWarning = warnings.find((w: string) =>
-        w.includes("No destination chain swap with oUSDT found"),
-      );
-      expect(swapWarning).toBeDefined();
 
       const superSwaps = context.getSuperSwaps();
       expect(superSwaps.size).toBe(0);
@@ -688,12 +673,9 @@ describe("SuperSwapLogic", () => {
         ],
       ];
 
-      const context = createMockContext([], []);
-
       const result = buildMessageIdToProcessIdMap(
         sourceChainMessageIdEntities,
         processIdResults,
-        context,
       );
 
       // Verify map size
@@ -741,9 +723,6 @@ describe("SuperSwapLogic", () => {
       expect(Array.from(result.destinationTransactionHashes)).toEqual([
         destinationTxHash,
       ]);
-
-      // Verify no warnings were logged
-      expect(context.getWarnings()).toHaveLength(0);
     });
 
     it("should warn when messageIds have no ProcessId events", () => {
@@ -763,25 +742,14 @@ describe("SuperSwapLogic", () => {
         [], // No ProcessId for messageId2
       ];
 
-      const context = createMockContext([], []);
-
       const result = buildMessageIdToProcessIdMap(
         sourceChainMessageIdEntities,
         processIdResults,
-        context,
       );
 
       expect(result.messageIdToProcessId.size).toBe(1);
       expect(result.messageIdToProcessId.has(messageId1)).toBe(true);
       expect(result.messageIdToProcessId.has(messageId2)).toBe(false);
-
-      const warnings = context.getWarnings();
-      expect(warnings.length).toBeGreaterThanOrEqual(1);
-      const processIdWarning = warnings.find(
-        (w: string) =>
-          w.includes(messageId2) && w.includes("No ProcessId_event found"),
-      );
-      expect(processIdWarning).toBeDefined();
     });
 
     it("should collect unique destination transaction hashes", () => {
@@ -810,12 +778,9 @@ describe("SuperSwapLogic", () => {
         ],
       ];
 
-      const context = createMockContext([], []);
-
       const result = buildMessageIdToProcessIdMap(
         sourceChainMessageIdEntities,
         processIdResults,
-        context,
       );
 
       expect(result.destinationTransactionHashes.size).toBe(2);
@@ -886,10 +851,6 @@ describe("SuperSwapLogic", () => {
       const result = await findSourceSwapWithOUSDT(transactionHash, context);
 
       expect(result).toBeNull();
-      const warnings = context.getWarnings();
-      expect(warnings).toHaveLength(1);
-      expect(warnings[0]).toContain("Source swap does not involve oUSDT");
-      expect(warnings[0]).toContain(transactionHash);
     });
 
     it("should return null when no swaps exist for transaction", async () => {
@@ -898,12 +859,6 @@ describe("SuperSwapLogic", () => {
       const result = await findSourceSwapWithOUSDT(transactionHash, context);
 
       expect(result).toBeNull();
-      const warnings = context.getWarnings();
-      expect(warnings.length).toBeGreaterThanOrEqual(1);
-      const sourceWarning = warnings.find((w: string) =>
-        w.includes("No source chain swap with oUSDT found"),
-      );
-      expect(sourceWarning).toBeDefined();
     });
   });
 
@@ -1011,7 +966,6 @@ describe("SuperSwapLogic", () => {
         sourceChainMessageIdEntities,
         messageIdToProcessId,
         transactionHashToSwaps,
-        context,
       );
 
       expect(result).not.toBeNull();
@@ -1053,7 +1007,6 @@ describe("SuperSwapLogic", () => {
         sourceChainMessageIdEntities,
         messageIdToProcessId,
         transactionHashToSwaps,
-        context,
       );
 
       expect(result).not.toBeNull();
@@ -1102,13 +1055,10 @@ describe("SuperSwapLogic", () => {
         swapWithOUSDT2,
       ]);
 
-      const context = createMockContext([], []);
-
       const result = findDestinationSwapWithOUSDT(
         sourceChainMessageIdEntities,
         messageIdToProcessId,
         transactionHashToSwaps,
-        context,
       );
 
       // Should return the first swap (swapWithOUSDT1)
@@ -1145,22 +1095,13 @@ describe("SuperSwapLogic", () => {
       const transactionHashToSwaps = new Map<string, OUSDTSwaps[]>();
       transactionHashToSwaps.set(destinationTxHash, [swapWithoutOUSDT]);
 
-      const context = createMockContext([], []);
-
       const result = findDestinationSwapWithOUSDT(
         sourceChainMessageIdEntities,
         messageIdToProcessId,
         transactionHashToSwaps,
-        context,
       );
 
       expect(result).toBeNull();
-      const warnings = context.getWarnings();
-      expect(warnings.length).toBeGreaterThanOrEqual(1);
-      const destinationWarning = warnings.find((w: string) =>
-        w.includes("Destination swap does not involve oUSDT"),
-      );
-      expect(destinationWarning).toBeDefined();
     });
 
     it("should find swap from correct messageId when multiple messageIds exist", () => {
@@ -1219,7 +1160,6 @@ describe("SuperSwapLogic", () => {
         sourceChainMessageIdEntities,
         messageIdToProcessId,
         transactionHashToSwaps,
-        context,
       );
 
       expect(result).not.toBeNull();
@@ -1511,13 +1451,6 @@ describe("SuperSwapLogic", () => {
 
       const superSwaps = context.getSuperSwaps();
       expect(superSwaps.size).toBe(0);
-
-      const infos = context.getInfos();
-      expect(infos).toHaveLength(1);
-      expect(infos[0]).toContain("No matching DispatchId found for messageId");
-      expect(infos[0]).toContain(
-        "This is expected if source chain hasn't synced yet",
-      );
     });
 
     it("should return early and log warn when no OUSDTBridgedTransaction is found", async () => {
@@ -1542,13 +1475,6 @@ describe("SuperSwapLogic", () => {
 
       const superSwaps = context.getSuperSwaps();
       expect(superSwaps.size).toBe(0);
-
-      const warnings = context.getWarnings();
-      expect(warnings.length).toBeGreaterThanOrEqual(1);
-      const bridgedWarning = warnings.find((w: string) =>
-        w.includes("No OUSDTBridgedTransaction found for transaction"),
-      );
-      expect(bridgedWarning).toBeDefined();
     });
 
     it("should return early and log warn when no DispatchId_event entities found for transaction", async () => {
@@ -1582,13 +1508,6 @@ describe("SuperSwapLogic", () => {
 
       const superSwaps = context.getSuperSwaps();
       expect(superSwaps.size).toBe(0);
-
-      const warnings = context.getWarnings();
-      expect(warnings.length).toBeGreaterThanOrEqual(1);
-      const dispatchWarning = warnings.find((w: string) =>
-        w.includes("No DispatchId_event entities found for transaction"),
-      );
-      expect(dispatchWarning).toBeDefined();
 
       // Restore original
       context.DispatchId_event.getWhere = originalGetWhere;

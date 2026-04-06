@@ -369,9 +369,6 @@ async function handleGetTokenPrice(
 
   const ORACLE_DEPLOYED = chain.oracle.startBlock <= blockNumber;
   if (!ORACLE_DEPLOYED) {
-    context.log.info?.(
-      `[getTokenPrice] Oracle not deployed, returning zero price for ${tokenAddress} on chain ${chainId} at block ${blockNumber}`,
-    );
     return {
       pricePerUSDNew: 0n,
       priceOracleType: chain.oracle.getType(blockNumber).toString(),
@@ -424,12 +421,6 @@ async function handleGetTokenPrice(
       10n ** BigInt(destinationTokenDetails.decimals);
   } else {
     currentPrice = priceData.pricePerUSDNew;
-  }
-
-  if (currentPrice === 0n) {
-    context.log.warn(
-      `[getTokenPrice] Oracle returned 0 price for ${tokenAddress} on chain ${chainId} at block ${blockNumber}. This means no price path exists.`,
-    );
   }
 
   return {

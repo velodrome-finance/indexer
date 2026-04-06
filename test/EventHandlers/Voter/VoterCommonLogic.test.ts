@@ -129,7 +129,7 @@ describe("computeVoterDistributeValues", () => {
     expect(logs.warns).toHaveLength(0);
   });
 
-  it("logs a warning when token price is zero, but still computes values", async () => {
+  it("computes zero USD values when token price is zero", async () => {
     const token: Token = {
       id: "token-0",
       address: toChecksumAddress("0x0000000000000000000000000000000000000002"),
@@ -162,7 +162,6 @@ describe("computeVoterDistributeValues", () => {
     expect(result.normalizedEmissionsAmountUsd).toBe(0n);
     expect(result.normalizedVotesDepositedAmountUsd).toBe(0n);
     expect(result.isAlive).toBe(false);
-    expect(logs.warns).toHaveLength(1);
   });
 
   it("handles undefined tokensDeposited effect return by using default and logging error", async () => {
@@ -339,7 +338,7 @@ describe("createPendingVoteForDeferredProcessing", () => {
     return { context, pendingVoteSets, warns };
   }
 
-  it("should call PendingVote.set with correct payload and log.warn for Voted", () => {
+  it("should call PendingVote.set with correct payload for Voted", () => {
     const { context, pendingVoteSets, warns } = makePendingVoteContext();
 
     createPendingVoteForDeferredProcessing(
@@ -374,13 +373,9 @@ describe("createPendingVoteForDeferredProcessing", () => {
     expect(pv.timestamp).toEqual(timestamp);
     expect(pv.blockNumber).toBe(BigInt(blockNumber));
     expect(pv.transactionHash).toBe(transactionHash);
-
-    expect(warns).toHaveLength(1);
-    expect(warns[0]).toContain("Vote deferred");
-    expect(warns[0]).toContain(rootPoolAddress);
   });
 
-  it("should call PendingVote.set with correct payload and log.warn for Abstained", () => {
+  it("should call PendingVote.set with correct payload for Abstained", () => {
     const { context, pendingVoteSets, warns } = makePendingVoteContext();
 
     createPendingVoteForDeferredProcessing(
@@ -399,10 +394,6 @@ describe("createPendingVoteForDeferredProcessing", () => {
     expect(pendingVoteSets).toHaveLength(1);
     const pv = pendingVoteSets[0];
     expect(pv.eventType).toBe("Abstained");
-
-    expect(warns).toHaveLength(1);
-    expect(warns[0]).toContain("Vote withdrawal deferred");
-    expect(warns[0]).toContain(rootPoolAddress);
   });
 });
 

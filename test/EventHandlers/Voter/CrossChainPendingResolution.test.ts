@@ -291,7 +291,7 @@ describe("CrossChainPendingResolution", () => {
   });
 
   describe("processPendingVote", () => {
-    it("should skip and log warn when VeNFTState is missing", async () => {
+    it("should skip when VeNFTState is missing", async () => {
       const {
         createMockLiquidityPoolAggregator,
         mockToken0Data,
@@ -310,11 +310,10 @@ describe("CrossChainPendingResolution", () => {
       };
       const pendingVote = makePendingVote();
 
-      const warns: string[] = [];
       const VeNFTStateGet = vi.fn().mockResolvedValue(undefined);
       const context = {
         VeNFTState: { get: VeNFTStateGet },
-        log: { warn: (msg: unknown) => warns.push(String(msg)) },
+        log: { warn: vi.fn() },
       } as unknown as handlerContext;
 
       const result = await processPendingVote(
@@ -324,11 +323,6 @@ describe("CrossChainPendingResolution", () => {
       );
 
       expect(result).toBe(false);
-      expect(warns.length).toBeGreaterThanOrEqual(1);
-      const processWarn = warns.find((w) => w.includes("processPendingVote"));
-      expect(processWarn).toBeDefined();
-      expect(processWarn).toContain("VeNFTState not found");
-      expect(processWarn).toContain(String(tokenId));
     });
 
     it("should update pool, user stats, and VeNFTPoolVote when VeNFTState exists", async () => {
@@ -451,12 +445,10 @@ describe("CrossChainPendingResolution", () => {
   });
 
   describe("processAllPendingVotesForRootPool", () => {
-    it("should warn and return when zero RootPool_LeafPool mappings exist", async () => {
+    it("should return when zero RootPool_LeafPool mappings exist", async () => {
       const getWhere = vi.fn().mockResolvedValue([]);
-      const warns: string[] = [];
       const context = {
         RootPool_LeafPool: { getWhere },
-        log: { warn: (msg: unknown) => warns.push(String(msg)) },
       } as unknown as handlerContext;
 
       await processAllPendingVotesForRootPool(context, rootPoolAddress);
@@ -464,17 +456,12 @@ describe("CrossChainPendingResolution", () => {
       expect(getWhere).toHaveBeenCalledWith({
         rootPoolAddress: { _eq: rootPoolAddress },
       });
-      expect(warns).toHaveLength(1);
-      expect(warns[0]).toContain("Expected exactly one");
-      expect(warns[0]).toContain("got 0");
     });
 
-    it("should warn and return when getWhere returns null (uses ?? [])", async () => {
+    it("should return when getWhere returns null (uses ?? [])", async () => {
       const getWhere = vi.fn().mockResolvedValue(null);
-      const warns: string[] = [];
       const context = {
         RootPool_LeafPool: { getWhere },
-        log: { warn: (msg: unknown) => warns.push(String(msg)) },
       } as unknown as handlerContext;
 
       await processAllPendingVotesForRootPool(context, rootPoolAddress);
@@ -482,12 +469,9 @@ describe("CrossChainPendingResolution", () => {
       expect(getWhere).toHaveBeenCalledWith({
         rootPoolAddress: { _eq: rootPoolAddress },
       });
-      expect(warns).toHaveLength(1);
-      expect(warns[0]).toContain("Expected exactly one");
-      expect(warns[0]).toContain("got 0");
     });
 
-    it("should warn and return when multiple RootPool_LeafPool mappings exist", async () => {
+    it("should return when multiple RootPool_LeafPool mappings exist", async () => {
       const mapping1: RootPool_LeafPool = {
         id: RootPoolLeafPoolId(
           rootChainId,
@@ -514,19 +498,14 @@ describe("CrossChainPendingResolution", () => {
         ),
       };
       const getWhere = vi.fn().mockResolvedValue([mapping1, mapping2]);
-      const warns: string[] = [];
       const context = {
         RootPool_LeafPool: { getWhere },
-        log: { warn: (msg: unknown) => warns.push(String(msg)) },
       } as unknown as handlerContext;
 
       await processAllPendingVotesForRootPool(context, rootPoolAddress);
-
-      expect(warns).toHaveLength(1);
-      expect(warns[0]).toContain("got 2");
     });
 
-    it("should warn and return when leaf pool data is not found", async () => {
+    it("should return when leaf pool data is not found", async () => {
       const mapping: RootPool_LeafPool = {
         id: RootPoolLeafPoolId(
           rootChainId,
@@ -541,22 +520,16 @@ describe("CrossChainPendingResolution", () => {
       };
       const rootPoolLeafPoolGetWhere = vi.fn().mockResolvedValue([mapping]);
       const liquidityPoolGet = vi.fn().mockResolvedValue(undefined);
-      const warns: string[] = [];
       const context = {
         RootPool_LeafPool: { getWhere: rootPoolLeafPoolGetWhere },
         LiquidityPoolAggregator: { get: liquidityPoolGet },
         Token: { get: vi.fn().mockResolvedValue(undefined) },
         log: {
-          warn: (msg: unknown) => warns.push(String(msg)),
           error: vi.fn(),
         },
       } as unknown as handlerContext;
 
       await processAllPendingVotesForRootPool(context, rootPoolAddress);
-
-      expect(warns).toHaveLength(1);
-      expect(warns[0]).toContain("Leaf pool data not found");
-      expect(warns[0]).toContain(leafPoolAddress);
     });
 
     it("should break loop when loadPoolData returns null during iteration", async () => {
@@ -1100,7 +1073,7 @@ describe("CrossChainPendingResolution", () => {
   });
 
   describe("processPendingDistribution", () => {
-    it("should warn and return when reward token is not found", async () => {
+    it("should return false when reward token is not found", async () => {
       const pending = makePendingDistribution({
         blockNumber: 106000000n,
         blockTimestamp: new Date(1700000000 * 1000),
@@ -1109,10 +1082,8 @@ describe("CrossChainPendingResolution", () => {
         Number(pending.blockNumber),
       );
       const tokenGet = vi.fn().mockResolvedValue(undefined);
-      const warns: string[] = [];
       const context = {
         Token: { get: tokenGet },
-        log: { warn: (msg: unknown) => warns.push(String(msg)) },
       } as unknown as handlerContext;
 
       const result = await processPendingDistribution(
@@ -1126,14 +1097,9 @@ describe("CrossChainPendingResolution", () => {
       expect(tokenGet).toHaveBeenCalledWith(
         TokenId(rootChainId, rewardTokenAddress),
       );
-      expect(warns).toHaveLength(1);
-      expect(warns[0]).toContain("[processAllPendingDistributionsForRootPool]");
-      expect(warns[0]).toContain("Reward token not found");
-      expect(warns[0]).toContain(String(rootChainId));
-      expect(warns[0]).toContain(pending.id);
     });
 
-    it("should warn and return when leaf pool data is not found", async () => {
+    it("should return false when leaf pool data is not found", async () => {
       const pending = makePendingDistribution();
       const rewardTokenAddress = CHAIN_CONSTANTS[rootChainId].rewardToken(
         Number(pending.blockNumber),
@@ -1150,10 +1116,8 @@ describe("CrossChainPendingResolution", () => {
       const loadPoolDataSpy = vi
         .spyOn(LiquidityPoolAggregatorModule, "loadPoolData")
         .mockResolvedValue(null);
-      const warns: string[] = [];
       const context = {
         Token: { get: tokenGet },
-        log: { warn: (msg: unknown) => warns.push(String(msg)) },
       } as unknown as handlerContext;
 
       const result = await processPendingDistribution(
@@ -1173,12 +1137,6 @@ describe("CrossChainPendingResolution", () => {
       // because they belong to the root chain and would cause "Unknown block" errors
       // on the leaf chain's RPC.
       expect(loadPoolDataSpy.mock.calls[0]).toHaveLength(3);
-      expect(warns).toHaveLength(1);
-      expect(warns[0]).toContain("[processAllPendingDistributionsForRootPool]");
-      expect(warns[0]).toContain("Leaf pool data not found");
-      expect(warns[0]).toContain(leafPoolAddress);
-      expect(warns[0]).toContain(String(leafChainId));
-      expect(warns[0]).toContain(pending.id);
     });
 
     it("should apply LP diff when reward token and leaf pool data exist", async () => {
@@ -1287,12 +1245,10 @@ describe("CrossChainPendingResolution", () => {
   });
 
   describe("processAllPendingDistributionsForRootPool", () => {
-    it("should warn and return when zero RootPool_LeafPool mappings exist", async () => {
+    it("should return when zero RootPool_LeafPool mappings exist", async () => {
       const getWhere = vi.fn().mockResolvedValue([]);
-      const warns: string[] = [];
       const context = {
         RootPool_LeafPool: { getWhere },
-        log: { warn: (msg: unknown) => warns.push(String(msg)) },
       } as unknown as handlerContext;
 
       await processAllPendingDistributionsForRootPool(context, rootPoolAddress);
@@ -1300,17 +1256,12 @@ describe("CrossChainPendingResolution", () => {
       expect(getWhere).toHaveBeenCalledWith({
         rootPoolAddress: { _eq: rootPoolAddress },
       });
-      expect(warns).toHaveLength(1);
-      expect(warns[0]).toContain("Expected exactly one");
-      expect(warns[0]).toContain("got 0");
     });
 
-    it("should warn and return when getWhere returns null (uses ?? [])", async () => {
+    it("should return when getWhere returns null (uses ?? [])", async () => {
       const getWhere = vi.fn().mockResolvedValue(null);
-      const warns: string[] = [];
       const context = {
         RootPool_LeafPool: { getWhere },
-        log: { warn: (msg: unknown) => warns.push(String(msg)) },
       } as unknown as handlerContext;
 
       await processAllPendingDistributionsForRootPool(context, rootPoolAddress);
@@ -1318,12 +1269,9 @@ describe("CrossChainPendingResolution", () => {
       expect(getWhere).toHaveBeenCalledWith({
         rootPoolAddress: { _eq: rootPoolAddress },
       });
-      expect(warns).toHaveLength(1);
-      expect(warns[0]).toContain("Expected exactly one");
-      expect(warns[0]).toContain("got 0");
     });
 
-    it("should warn and return when multiple RootPool_LeafPool mappings exist", async () => {
+    it("should return when multiple RootPool_LeafPool mappings exist", async () => {
       const mapping1 = {
         id: RootPoolLeafPoolId(
           rootChainId,
@@ -1350,16 +1298,11 @@ describe("CrossChainPendingResolution", () => {
         ),
       };
       const getWhere = vi.fn().mockResolvedValue([mapping1, mapping2]);
-      const warns: string[] = [];
       const context = {
         RootPool_LeafPool: { getWhere },
-        log: { warn: (msg: unknown) => warns.push(String(msg)) },
       } as unknown as handlerContext;
 
       await processAllPendingDistributionsForRootPool(context, rootPoolAddress);
-
-      expect(warns).toHaveLength(1);
-      expect(warns[0]).toContain("got 2");
     });
 
     it("should process pending distributions and delete each when one mapping exists", async () => {

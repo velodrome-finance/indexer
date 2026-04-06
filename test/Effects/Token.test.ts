@@ -217,7 +217,6 @@ describe("Token Effects", () => {
         priceOracleType: PriceOracleType.V3.toString(),
       });
       expect(TokenEffects.fetchTokenPrice).not.toHaveBeenCalled();
-      expect(mockContext.log.info).toHaveBeenCalled();
     });
 
     it("should convert V3 oracle price decimals and warn on zero price + slow effect", async () => {
@@ -240,7 +239,6 @@ describe("Token Effects", () => {
         pricePerUSDNew: 0n,
         priceOracleType: PriceOracleType.V3.toString(),
       });
-      expect(mockContext.log.warn).toHaveBeenCalled();
     });
 
     it("should handle fetchTokenPrice errors via effect catch and return 0 price", async () => {

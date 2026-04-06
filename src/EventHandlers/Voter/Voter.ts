@@ -108,9 +108,6 @@ Voter.Voted.handler(async ({ event, context }) => {
     // If the root pool mapping cannot be loaded, create a pending vote for deferred processing
     if (isMissingRootPoolMapping(poolResult)) {
       if (!veNFTState) {
-        context.log.warn(
-          `[Voter.Voted] Deferred vote skipped for pool ${pool}: veNFTState not found for tokenId ${tokenId}.`,
-        );
         return;
       }
       createPendingVoteForDeferredProcessing(
@@ -202,9 +199,6 @@ Voter.Abstained.handler(async ({ event, context }) => {
   if (!poolResult.ok) {
     if (isMissingRootPoolMapping(poolResult)) {
       if (!veNFTState) {
-        context.log.warn(
-          `[Voter.Abstained] Deferred abstention skipped for pool ${pool}: veNFTState not found for tokenId ${tokenId}.`,
-        );
         return;
       }
       createPendingVoteForDeferredProcessing(
@@ -328,16 +322,10 @@ Voter.DistributeReward.handler(async ({ event, context }) => {
             blockTimestamp: new Date(event.block.timestamp * 1000),
             logIndex,
           });
-          context.log.warn(
-            `[Voter.DistributeReward] RootPool_LeafPool mapping missing/ambiguous (count=${rootPoolLeafPools.length}) for gauge ${event.params.gauge}. PendingDistribution stored for later processing.`,
-          );
           return;
         }
       }
     }
-    context.log.warn(
-      `[Voter.DistributeReward] Missing pool or reward token for gauge ${event.params.gauge.toString()} on chain ${eventChainId}`,
-    );
     return;
   }
 

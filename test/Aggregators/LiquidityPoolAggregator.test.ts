@@ -214,7 +214,6 @@ describe("LiquidityPoolAggregator Functions", () => {
     });
 
     it("should skip dynamic fee updates when event chain doesn’t match pool chain", async () => {
-      const warnMock = vi.mocked(mockContext.log?.warn);
       expect(mockContext.effect).toBeDefined();
       const fallbackEffect = (async () =>
         undefined) as unknown as typeof mockContext.effect;
@@ -228,9 +227,6 @@ describe("LiquidityPoolAggregator Functions", () => {
       );
 
       expect(updatedPool).toBe(liquidityPoolAggregator);
-      expect(warnMock).toHaveBeenCalledWith(
-        expect.stringContaining("Chain ID mismatch"),
-      );
       expect(effectMock).not.toHaveBeenCalled();
     });
   });

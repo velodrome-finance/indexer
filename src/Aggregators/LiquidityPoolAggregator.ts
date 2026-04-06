@@ -150,11 +150,6 @@ export async function updateDynamicFeePools(
   const chainId = liquidityPoolAggregator.chainId;
 
   if (chainId !== eventChainId) {
-    context.log.warn(
-      `[updateDynamicFeePools] Chain ID mismatch for pool entity ${liquidityPoolAggregator.id}. Expected ${eventChainId}, got ${chainId}. No update to currentFee will be performed.
-      This is expected if the event is coming from Voter.ts since this contract is only available on Optimism but makes association with
-      cross-chain pool entities.`,
-    );
     return liquidityPoolAggregator;
   }
 

@@ -421,9 +421,6 @@ export async function reassignVeNFTVotesOnTransfer(
   const newOwner = event.params.to;
 
   if (previousOwner === newOwner) {
-    context.log.debug(
-      `[reassignVeNFTVotesOnTransfer] Skipping vote reassignment for tokenId ${event.params.tokenId.toString()} transfer to same owner ${newOwner}`,
-    );
     return;
   }
 
