@@ -715,6 +715,53 @@ chains:
       - name: Mailbox
         address:
           - 0x730f8a4128Fa8c53C777B62Baa1abeF94cAd34a9
+  - id: 5330 # Superseed
+    hypersync_config:
+      url: https://superseed.hypersync.xyz
+    start_block: 0
+    contracts:
+      - name: CustomSwapFeeModule
+        address:
+          - 0x6812eefC19deB79D5191b52f4B763260d9F3C238
+      - name: NFPM
+        address:
+          - 0x991d5546C4B442B4c5fdc4c8B8b8d131DEB24702
+      - name: PoolFactory
+        address:
+          - 0x31832f2a97Fd20664D76Cc421207669b55CE4BC0
+      - name: CLFactory
+        address:
+          - 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F
+      - name: Pool
+        address:
+      - name: SuperchainLeafVoter
+        address:
+          - 0x97cDBCe21B6fd0585d29E539B1B99dAd328a1123
+      - name: FeesVotingReward
+        address:
+      - name: SuperchainIncentiveVotingReward
+        address:
+      - name: CLPool
+        address:
+      - name: ALMDeployFactoryV2
+        address:
+          - 0xE46EC96906fc6dEC53De25F013639969Fe10180d
+      - name: ALMCore
+        address:
+          - 0x0000000cE42D4981513060aB7E50B9e5e2D19AF1
+      - name: ALMLPWrapperV2
+        address:
+      - name: CLGauge
+        address:
+      - name: Gauge
+        address:
+      - name: VelodromeUniversalRouter
+        address:
+          - 0x01D40099fCD87C018969B0e8D4aB1633Fb34763C
+          - 0xa9606caaC711Ac816E568356187EC7a009500Eb2
+      - name: Mailbox
+        address:
+          - 0x3a464f746D23Ab22155710f44dB16dcA53e0775E
   - id: 1923 # Swell
     hypersync_config:
       url: https://swell.hypersync.xyz

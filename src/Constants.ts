@@ -11,6 +11,7 @@ import {
   mode,
   optimism,
   soneium,
+  superseed,
   swellchain,
   unichain,
 } from "viem/chains";
@@ -113,6 +114,9 @@ export const UNICHAIN_PRICE_CONNECTORS: PriceConnector[] =
 export const CELO_PRICE_CONNECTORS: PriceConnector[] =
   PriceConnectors.celo as PriceConnector[];
 
+export const SUPERSEED_PRICE_CONNECTORS: PriceConnector[] =
+  PriceConnectors.superseed as PriceConnector[];
+
 export const SWELL_PRICE_CONNECTORS: PriceConnector[] =
   PriceConnectors.swellchain as PriceConnector[];
 
@@ -162,6 +166,7 @@ export const DefaultRPC = {
   ink: "https://ink.drpc.org",
   metal: "https://metall2.drpc.org",
   swell: "https://rpc.ankr.com/swell",
+  superseed: "https://mainnet.superseed.xyz",
 } as const;
 
 /**
@@ -209,6 +214,7 @@ export function getDefaultRPCByChainId(chainId: number): string | null {
     57073: DefaultRPC.ink,
     1750: DefaultRPC.metal,
     1923: DefaultRPC.swell,
+    5330: DefaultRPC.superseed,
   };
 
   return chainIdMap[chainId] || null;
@@ -637,6 +643,35 @@ const SWELL_CONSTANTS: chainConstants = {
   lpHelperAddress: "0x2002618dd63228670698200069E42f4422e82497",
 };
 
+// Constants for Superseed
+const SUPERSEED_CONSTANTS: chainConstants = {
+  weth: "0x4200000000000000000000000000000000000006",
+  destinationToken: "0xC316C8252B5F2176d0135Ebb0999E99296998F2e", // USDC
+  destinationTokenDecimals: 6,
+  oracle: {
+    getType: (blockNumber: number) => {
+      return PriceOracleType.V3;
+    },
+    getAddress: (priceOracleType: PriceOracleType) => {
+      return "0xe58920a8c684CD3d6dCaC2a41b12998e4CB17EfE";
+    },
+    startBlock: 5642528,
+    updateDelta: 60 * 60, // 1 hour
+    priceConnectors: SUPERSEED_PRICE_CONNECTORS,
+  },
+  rewardToken: (blockNumber: number) =>
+    "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
+  newCLGaugeFactoryAddress: "", // TODO: Update with a real address
+  eth_client: createPublicClient({
+    chain: superseed satisfies Chain as Chain,
+    transport: http(
+      process.env.ENVIO_SUPERSEED_RPC_URL || DefaultRPC.superseed,
+      RPC_HTTP_OPTIONS,
+    ),
+  }),
+  lpHelperAddress: "0xee717411f6E44F9feE011835C8E6FAaC5dEfF166",
+};
+
 /**
  * Create a unique ID for a token on a specific chain. Should only be used for Token entities.
  * @param chainId
@@ -984,4 +1019,5 @@ export const CHAIN_CONSTANTS: Record<number, chainConstants> = {
   130: UNICHAIN_CONSTANTS,
   42220: CELO_CONSTANTS,
   1923: SWELL_CONSTANTS,
+  5330: SUPERSEED_CONSTANTS,
 };
