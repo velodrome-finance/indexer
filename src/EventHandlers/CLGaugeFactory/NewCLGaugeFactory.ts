@@ -6,10 +6,6 @@ NewCLGaugeFactory.SetDefaultCap.handler(async ({ event, context }) => {
     defaultEmissionsCap: event.params._newDefaultCap,
     lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
   });
-
-  context.log.info(
-    `Default emissions cap set to ${event.params._newDefaultCap} for CLGaugeFactory ${event.srcAddress}`,
-  );
 });
 
 NewCLGaugeFactory.SetEmissionCap.handler(async ({ event, context }) => {
@@ -35,8 +31,4 @@ NewCLGaugeFactory.SetEmissionCap.handler(async ({ event, context }) => {
     gaugeEmissionsCap: event.params._newEmissionCap,
     lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
   });
-
-  context.log.info(
-    `Emissions cap set to ${event.params._newEmissionCap} for gauge ${event.params._gauge}`,
-  );
 });

@@ -110,9 +110,6 @@ export async function flushPendingRootPoolMappingAndVotes(
       rootPoolMatchingHash: { _eq: hash },
     })) ?? [];
   if (pendingMappings.length === 0) {
-    context.log.info(
-      `[flushPendingRootPoolMappingAndVotes] No PendingRootPoolMapping for rootPoolMatchingHash ${hash}.`,
-    );
     return;
   }
 

@@ -64,13 +64,6 @@ export async function computeVoterDistributeValues(
     Number(rewardToken.decimals),
   );
 
-  // Warn if no USD price
-  if (rewardToken.pricePerUSDNew === 0n) {
-    context.log.warn(
-      `Reward token with ID ${rewardToken.id.toString()} does not have a USD price yet on chain ${chainId}`,
-    );
-  }
-
   // USD conversions
   const normalizedEmissionsAmountUsd = multiplyBase1e18(
     normalizedEmissionsAmount,
@@ -262,11 +255,4 @@ export function createPendingVoteForDeferredProcessing(
     blockNumber: BigInt(blockNumber),
     transactionHash,
   });
-  const action =
-    eventType === VoterEventType.VOTED
-      ? "Vote deferred"
-      : "Vote withdrawal deferred";
-  context.log.warn(
-    `[Voter.${eventType}] ${action} for rootPool ${rootPoolAddress} (chainId ${chainId}): RootPool_LeafPool mapping not found. PendingVote stored for later processing.`,
-  );
 }

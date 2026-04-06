@@ -34,8 +34,6 @@ V2PoolLauncher.Launch.handler(async ({ event, context }) => {
     context,
     "V2",
   );
-
-  context.log.info(`Pool launched: ${poolAddress} by ${creator}`);
 });
 
 V2PoolLauncher.Migrate.handler(async ({ event, context }) => {
@@ -82,8 +80,6 @@ V2PoolLauncher.Migrate.handler(async ({ event, context }) => {
       context,
       "V2",
     );
-
-    context.log.info(`Pool migrated: ${underlyingPool} -> ${newPoolAddress}`);
   } else {
     context.log.warn(
       `PoolLauncherPool not found for migration: ${underlyingPool}`,
@@ -106,7 +102,6 @@ V2PoolLauncher.EmergingFlagged.handler(async ({ event, context }) => {
     };
 
     context.PoolLauncherPool.set(updatedPoolLauncherPool);
-    context.log.info(`Pool flagged as emerging: ${poolAddress}`);
   } else {
     context.log.warn(`PoolLauncherPool not found for flagging: ${poolAddress}`);
   }
@@ -127,7 +122,6 @@ V2PoolLauncher.EmergingUnflagged.handler(async ({ event, context }) => {
     };
 
     context.PoolLauncherPool.set(updatedPoolLauncherPool);
-    context.log.info(`Pool unflagged as emerging: ${poolAddress}`);
   } else {
     context.log.warn(
       `PoolLauncherPool not found for unflagging: ${poolAddress}`,
@@ -149,7 +143,6 @@ V2PoolLauncher.CreationTimestampSet.handler(async ({ event, context }) => {
     };
 
     context.PoolLauncherPool.set(updatedPoolLauncherPool);
-    context.log.info(`Creation timestamp set for pool: ${poolAddress}`);
   } else {
     context.log.warn(
       `PoolLauncherPool not found for timestamp update: ${poolAddress}`,
@@ -182,7 +175,6 @@ V2PoolLauncher.PairableTokenAdded.handler(async ({ event, context }) => {
   }
 
   context.PoolLauncherConfig.set(config);
-  context.log.info(`Pairable token added: ${tokenAddress}`);
 });
 
 V2PoolLauncher.PairableTokenRemoved.handler(async ({ event, context }) => {
@@ -202,7 +194,6 @@ V2PoolLauncher.PairableTokenRemoved.handler(async ({ event, context }) => {
     };
 
     context.PoolLauncherConfig.set(updatedConfig);
-    context.log.info(`Pairable token removed: ${tokenAddress}`);
   } else {
     context.log.warn(
       `PoolLauncherConfig not found for token removal: ${configId}`,
@@ -227,10 +218,6 @@ V2PoolLauncher.NewPoolLauncherSet.handler(async ({ event, context }) => {
 
     // Set the new config
     context.PoolLauncherConfig.set(newConfig);
-
-    context.log.info(
-      `New pool launcher set: ${newPoolLauncher}, config updated from ${oldConfigId} to ${newConfigId}`,
-    );
   } else {
     context.log.warn(
       `PoolLauncherConfig not found for pool launcher update: ${oldConfigId}`,

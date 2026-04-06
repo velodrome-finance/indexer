@@ -95,9 +95,6 @@ export async function processPendingVote(
     context,
   );
   if (!veNFTState) {
-    context.log.warn(
-      `[processPendingVote] VeNFTState not found for tokenId ${pendingVote.tokenId} on chain ${pendingVote.chainId}, skipping pending vote ${pendingVote.id}`,
-    );
     return false;
   }
 
@@ -231,9 +228,6 @@ export async function processAllPendingVotesForRootPool(
     })) ?? [];
 
   if (rootPoolLeafPools.length !== 1) {
-    context.log.warn(
-      `${CrossChainPendingResolutionLogPrefix.Votes} Expected exactly one RootPool_LeafPool for rootPoolAddress ${rootPoolAddress}, got ${rootPoolLeafPools.length}. Skipping pending vote processing.`,
-    );
     return;
   }
 
@@ -247,9 +241,6 @@ export async function processAllPendingVotesForRootPool(
   );
 
   if (!leafPoolData) {
-    context.log.warn(
-      `${CrossChainPendingResolutionLogPrefix.Votes} Leaf pool data not found for ${leafPoolAddress} on chain ${leafChainId}. Skipping pending vote processing.`,
-    );
     return;
   }
 
@@ -270,9 +261,6 @@ export async function processAllPendingVotesForRootPool(
       undefined,
     );
     if (!currentLeafPoolData) {
-      context.log.warn(
-        `${CrossChainPendingResolutionLogPrefix.Votes} Leaf pool data not found for leafPoolAddress ${leafPoolAddress} on chain ${leafChainId}, skipping pending vote ${pendingVote.id}`,
-      );
       continue;
     }
     await tryProcessAndDeletePending(
@@ -341,9 +329,6 @@ export async function processPendingDistribution(
     TokenId(rootChainId, rewardTokenAddress),
   );
   if (!rewardToken) {
-    context.log.warn(
-      `${CrossChainPendingResolutionLogPrefix.Distributions} Reward token not found for chain ${rootChainId} at block ${blockNumber}, skipping pending distribution ${pending.id}`,
-    );
     return false;
   }
 
@@ -355,9 +340,6 @@ export async function processPendingDistribution(
     context,
   );
   if (!leafPoolData) {
-    context.log.warn(
-      `${CrossChainPendingResolutionLogPrefix.Distributions} Leaf pool data not found for ${leafPoolAddress} on chain ${leafChainId}, skipping pending distribution ${pending.id}`,
-    );
     return false;
   }
 
@@ -425,9 +407,6 @@ export async function processAllPendingDistributionsForRootPool(
     })) ?? [];
 
   if (rootPoolLeafPools.length !== 1) {
-    context.log.warn(
-      `${CrossChainPendingResolutionLogPrefix.Distributions} Expected exactly one RootPool_LeafPool for rootPoolAddress ${rootPoolAddress}, got ${rootPoolLeafPools.length}. Skipping pending distribution processing.`,
-    );
     return;
   }
 
