@@ -303,6 +303,24 @@
       "createdBlock": 1
     }
   ],
+  "superseed": [
+    {
+      "address": "0x4200000000000000000000000000000000000006",
+      "createdBlock": 1
+    },
+    {
+      "address": "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
+      "createdBlock": 1
+    },
+    {
+      "address": "0xC316C8252B5F2176d0135Ebb0999E99296998F2e",
+      "createdBlock": 1
+    },
+    {
+      "address": "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189",
+      "createdBlock": 1
+    }
+  ],
   "swellchain": [
     {
       "address": "0x4200000000000000000000000000000000000006",
