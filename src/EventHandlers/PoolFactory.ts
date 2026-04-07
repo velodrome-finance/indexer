@@ -46,6 +46,7 @@ PoolFactory.PoolCreated.handler(async ({ event, context }) => {
         event.chainId,
         event.block.number,
         context,
+        event.block.timestamp,
       ).catch((error) => {
         context.log.error(
           `Error in pool factory fetching token details for ${mapping.address} on chain ${event.chainId}: ${error}`,

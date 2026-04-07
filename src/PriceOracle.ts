@@ -23,8 +23,9 @@ export async function createTokenEntity(
   chainId: number,
   blockNumber: number,
   context: handlerContext,
+  blockTimestamp: number,
 ) {
-  const blockDatetime = new Date(blockNumber * 1000);
+  const blockDatetime = new Date(blockTimestamp * 1000);
   const tokenDetails = await context.effect(getTokenDetails, {
     contractAddress: tokenAddress,
     chainId,
