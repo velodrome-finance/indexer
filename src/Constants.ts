@@ -17,6 +17,7 @@ import {
 import { Web3 } from "web3";
 
 import PriceConnectors from "./constants/price_connectors.json";
+import StablecoinsJson from "./constants/stablecoins.json";
 
 dotenv.config();
 
@@ -111,6 +112,26 @@ export const CELO_PRICE_CONNECTORS: PriceConnector[] =
 
 export const SWELL_PRICE_CONNECTORS: PriceConnector[] =
   PriceConnectors.swellchain as PriceConnector[];
+
+/**
+ * Build a set of stablecoin addresses from a list of addresses and a destination token
+ * @param addresses
+ * @param destinationToken
+ * @returns A set of stablecoin addresses
+ */
+function buildStablecoinSet(
+  addresses: string[],
+  destinationToken: string,
+): Set<string> {
+  const set = new Set<string>();
+  for (const addr of addresses) {
+    const lower = addr.toLowerCase();
+    if (lower !== destinationToken.toLowerCase()) {
+      set.add(lower);
+    }
+  }
+  return set;
+}
 
 export enum PriceOracleType {
   V4 = "v4",
@@ -231,6 +252,7 @@ type chainConstants = {
   newCLGaugeFactoryAddress: string;
   eth_client: PublicClient;
   lpHelperAddress: string;
+  stablecoins: Set<string>;
 };
 
 // Constants for Optimism
@@ -281,6 +303,10 @@ const OPTIMISM_CONSTANTS: chainConstants = {
     ),
   }),
   lpHelperAddress: "0xF313D54f514A810387D77b7Cc20a98ADd5f891f7",
+  stablecoins: buildStablecoinSet(
+    StablecoinsJson.optimism,
+    "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+  ),
 };
 
 // Constants for Base
@@ -328,6 +354,10 @@ const BASE_CONSTANTS: chainConstants = {
     ),
   }),
   lpHelperAddress: "0xd48bed8AFaF8A1d0909fe823F6b48a4A96f58224",
+  stablecoins: buildStablecoinSet(
+    StablecoinsJson.base,
+    "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  ),
 };
 
 // Constants for Lisk
@@ -371,6 +401,10 @@ const LISK_CONSTANTS: chainConstants = {
     ),
   }),
   lpHelperAddress: "0xa2e319aBE4bBEadeD6FcE67F7D0CDDc5d23F8a8A",
+  stablecoins: buildStablecoinSet(
+    StablecoinsJson.lisk,
+    "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189",
+  ),
 };
 
 // Constants for Mode
@@ -414,11 +448,15 @@ const MODE_CONSTANTS: chainConstants = {
     ),
   }),
   lpHelperAddress: "0xD4738416444ce276289A884fDA4FDAc31f8eC694",
+  stablecoins: buildStablecoinSet(
+    StablecoinsJson.mode,
+    "0xd988097fb8612cc24eeC14542bC03424c656005f",
+  ),
 };
 
 // Constants for Celo
 const CELO_CONSTANTS: chainConstants = {
-  weth: "0x4200000000000000000000000000000000000006",
+  weth: "0xD221812de1BD094f35587EE8E174B07B6167D9Af",
   destinationToken: "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e", // USDT (native)
   destinationTokenDecimals: 6,
   oracle: {
@@ -443,6 +481,10 @@ const CELO_CONSTANTS: chainConstants = {
     ),
   }),
   lpHelperAddress: "0xa916A76b052AcD3b0FF6Cc76b55602fba456a85C",
+  stablecoins: buildStablecoinSet(
+    StablecoinsJson.celo,
+    "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e",
+  ),
 };
 
 // Constants for Soneium
@@ -472,6 +514,10 @@ const SONEIUM_CONSTANTS: chainConstants = {
     ),
   }),
   lpHelperAddress: "0x600089ab611E4Cc9942163e68870806Db66e2B08",
+  stablecoins: buildStablecoinSet(
+    StablecoinsJson.soneium,
+    "0xbA9986D2381edf1DA03B0B9c1f8b00dc4AacC369",
+  ),
 };
 
 // Constants for Unichain
@@ -501,6 +547,10 @@ const UNICHAIN_CONSTANTS: chainConstants = {
     ),
   }),
   lpHelperAddress: "0x2DCD9B33F0721000Dc1F8f84B804d4CFA23d7713",
+  stablecoins: buildStablecoinSet(
+    StablecoinsJson.unichain,
+    "0x078D782b760474a361dDA0AF3839290b0EF57AD6",
+  ),
 };
 
 // Constants for Fraxtal
@@ -544,6 +594,10 @@ const FRAXTAL_CONSTANTS: chainConstants = {
     ),
   }),
   lpHelperAddress: "0x2F44BD0Aff1826aec123cE3eA9Ce44445b64BB34",
+  stablecoins: buildStablecoinSet(
+    StablecoinsJson.fraxtal,
+    "0xFc00000000000000000000000000000000000001",
+  ),
 };
 
 // Constants for Ink
@@ -573,6 +627,10 @@ const INK_CONSTANTS: chainConstants = {
     ),
   }),
   lpHelperAddress: "0x2DCD9B33F0721000Dc1F8f84B804d4CFA23d7713",
+  stablecoins: buildStablecoinSet(
+    StablecoinsJson.ink,
+    "0xF1815bd50389c46847f0Bda824eC8da914045D14",
+  ),
 };
 
 // Constants for Metal
@@ -602,6 +660,10 @@ const METAL_CONSTANTS: chainConstants = {
     ),
   }),
   lpHelperAddress: "0xcaa7d54453964773FE04B5aD32D06322Fc9d9fE4",
+  stablecoins: buildStablecoinSet(
+    StablecoinsJson.metal,
+    "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189",
+  ),
 };
 
 // Constants for Swell
@@ -631,6 +693,10 @@ const SWELL_CONSTANTS: chainConstants = {
     ),
   }) as PublicClient,
   lpHelperAddress: "0x2002618dd63228670698200069E42f4422e82497",
+  stablecoins: buildStablecoinSet(
+    StablecoinsJson.swellchain,
+    "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
+  ),
 };
 
 /**

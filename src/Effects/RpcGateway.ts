@@ -344,6 +344,13 @@ async function handleGetTokenPrice(
     };
   }
 
+  if (chain.stablecoins.has(tokenAddress.toLowerCase())) {
+    return {
+      pricePerUSDNew: 10n ** 18n,
+      priceOracleType: chain.oracle.getType(blockNumber).toString(),
+    };
+  }
+
   const DESTINATION_TOKEN_DETAILS_FALLBACK = {
     name: "DestinationToken",
     symbol: "DestinationToken",

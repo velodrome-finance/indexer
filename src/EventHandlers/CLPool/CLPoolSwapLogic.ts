@@ -220,11 +220,13 @@ export function calculateSwapLiquidityChanges(
   // (negative amount) is not fee-charged — see SwapMath.computeSwapStep.
   const reserveDelta0 =
     event.params.amount0 > 0n
-      ? event.params.amount0 - computeClFeeAmount(event.params.amount0, clFeeRate)
+      ? event.params.amount0 -
+        computeClFeeAmount(event.params.amount0, clFeeRate)
       : event.params.amount0;
   const reserveDelta1 =
     event.params.amount1 > 0n
-      ? event.params.amount1 - computeClFeeAmount(event.params.amount1, clFeeRate)
+      ? event.params.amount1 -
+        computeClFeeAmount(event.params.amount1, clFeeRate)
       : event.params.amount1;
 
   const newReserve0 = liquidityPoolAggregator.reserve0 + reserveDelta0;
@@ -268,9 +270,7 @@ export async function processCLPoolSwap(
 
   // Calculate liquidity and reserve changes (fees excluded from reserves — see function docs)
   const clFeeRate =
-    liquidityPoolAggregator.currentFee ??
-    liquidityPoolAggregator.baseFee ??
-    0n;
+    liquidityPoolAggregator.currentFee ?? liquidityPoolAggregator.baseFee ?? 0n;
   const { newReserve0, newReserve1, currentTotalLiquidityUSD } =
     calculateSwapLiquidityChanges(
       event,
