@@ -36,6 +36,18 @@ export const SECONDS_IN_A_DAY = BigInt(86400);
 export const SECONDS_IN_A_WEEK = BigInt(604800);
 export const SECONDS_IN_FOUR_YEARS = BigInt(126144000);
 
+/**
+ * Chains with historically broken oracle connectors that cached $0 prices.
+ * Used by refreshTokenPrice to bypass the effect cache on these chains.
+ * TEMPORARY: Remove after one full reindex with fixed connectors.
+ */
+export const AFFECTED_CHAINS: ReadonlySet<number> = new Set([
+  42220, // Celo
+  1923, // Swell
+  252, // Fraxtal
+  1868, // Soneium
+]);
+
 /** Snapshot interval: 1 hour in milliseconds (for epoch-aligned snapshots) */
 export const SNAPSHOT_INTERVAL_IN_MS = 60 * 60 * 1000;
 

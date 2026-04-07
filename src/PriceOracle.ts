@@ -1,5 +1,6 @@
 import type { Token, handlerContext } from "generated";
 import {
+  AFFECTED_CHAINS,
   CHAIN_CONSTANTS,
   PriceOracleType,
   SECONDS_IN_AN_HOUR,
@@ -10,6 +11,7 @@ import {
   getTokenPrice,
   roundBlockToInterval,
 } from "./Effects/Index";
+import { EffectType, rpcGateway } from "./Effects/RpcGateway";
 import { setTokenPriceSnapshot } from "./Snapshots/TokenPriceSnapshot";
 export interface TokenPriceData {
   pricePerUSDNew: bigint;
@@ -66,14 +68,19 @@ export async function refreshTokenPrice(
   context: handlerContext,
 ): Promise<Token> {
   const blockTimestampMs = blockTimestamp * 1000;
+  const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
-  // Always fetch price if it's 0 (token was just created or price fetch failed previously)
-  // Also refresh if lastUpdatedTimestamp is missing or if more than 1h has passed
+  // Refresh logic:
+  // - Missing timestamp → always refresh
+  // - $0 price for <30 days → retry (connector fix or Change A may self-heal)
+  // - $0 price for >30 days → stop retrying (accepted as unpriceable, bounds RPC waste)
+  // - Non-zero price → refresh on hourly interval
   const shouldRefresh =
-    token.pricePerUSDNew === 0n ||
     !token.lastUpdatedTimestamp ||
-    blockTimestampMs - token.lastUpdatedTimestamp.getTime() >=
-      SECONDS_IN_AN_HOUR;
+    (token.pricePerUSDNew === 0n
+      ? blockTimestampMs - token.lastUpdatedTimestamp.getTime() < THIRTY_DAYS_MS
+      : blockTimestampMs - token.lastUpdatedTimestamp.getTime() >=
+        SECONDS_IN_AN_HOUR);
 
   if (!shouldRefresh) {
     return token;
@@ -96,7 +103,20 @@ export async function refreshTokenPrice(
         blockNumber: roundedBlockNumber, // Use rounded block for cache key
       }),
     ]);
-    const currentPrice = priceData.pricePerUSDNew;
+    // TEMPORARY: Bypass effect cache for affected chains with $0 cached results.
+    // These chains had broken oracle connectors that cached $0 prices permanently.
+    // The rpcGateway effect (cache: false) re-fetches from now-fixed connectors.
+    // Remove after one full reindex with fixed connectors.
+    let currentPrice = priceData.pricePerUSDNew;
+    if (currentPrice === 0n && AFFECTED_CHAINS.has(chainId)) {
+      const bypassResult = (await context.effect(rpcGateway, {
+        type: EffectType.GET_TOKEN_PRICE,
+        tokenAddress: token.address,
+        chainId,
+        blockNumber: roundedBlockNumber,
+      })) as { pricePerUSDNew: bigint; priceOracleType: string };
+      currentPrice = bypassResult.pricePerUSDNew;
+    }
 
     // If price fetch returned 0, it could mean:
     // 1. No price path exists in the oracle (token not configured)
@@ -152,7 +172,12 @@ export async function refreshTokenPrice(
       ...token,
       pricePerUSDNew: currentPrice,
       decimals: BigInt(tokenDetails.decimals),
-      lastUpdatedTimestamp: new Date(blockTimestampMs),
+      // Preserve original timestamp when price stays $0 so 30-day backoff timer
+      // tracks from creation/last non-zero price, not from last refresh attempt.
+      lastUpdatedTimestamp:
+        currentPrice === 0n && token.pricePerUSDNew === 0n
+          ? token.lastUpdatedTimestamp
+          : new Date(blockTimestampMs),
     };
     context.Token.set(updatedToken);
 

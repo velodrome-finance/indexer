@@ -6,6 +6,7 @@ import {
   toChecksumAddress,
 } from "../../src/Constants";
 import * as HelpersEffects from "../../src/Effects/Helpers";
+import * as RpcGatewayModule from "../../src/Effects/RpcGateway";
 import {
   fetchTokenDetails,
   type fetchTokenPrice,
@@ -243,6 +244,41 @@ describe("Token Effects", () => {
       });
       expect(TokenEffects.fetchTokenPrice).not.toHaveBeenCalled();
       expect(mockContext.log.info).toHaveBeenCalled();
+    });
+
+    it("should set context.cache = false when oracle returns $0 price", async () => {
+      vi.spyOn(RpcGatewayModule, "callRpcGateway").mockResolvedValue({
+        pricePerUSDNew: 0n,
+        priceOracleType: PriceOracleType.V3.toString(),
+      } as never);
+
+      // Ensure cache starts as undefined (default)
+      expect(mockContext.cache).toBeUndefined();
+
+      await mockContext.effect(getTokenPrice as never, {
+        tokenAddress: TEST_TOKEN_ADDRESS,
+        chainId: TEST_CHAIN_ID,
+        blockNumber: TEST_BLOCK_NUMBER,
+      });
+
+      // $0 result should disable cache write
+      expect(mockContext.cache).toBe(false);
+    });
+
+    it("should NOT set context.cache = false when oracle returns non-zero price", async () => {
+      vi.spyOn(RpcGatewayModule, "callRpcGateway").mockResolvedValue({
+        pricePerUSDNew: 2000000000000000000n,
+        priceOracleType: PriceOracleType.V3.toString(),
+      } as never);
+
+      await mockContext.effect(getTokenPrice as never, {
+        tokenAddress: TEST_TOKEN_ADDRESS,
+        chainId: TEST_CHAIN_ID,
+        blockNumber: TEST_BLOCK_NUMBER,
+      });
+
+      // Non-zero result should leave cache as default (undefined = cached)
+      expect(mockContext.cache).toBeUndefined();
     });
 
     it("should convert V3 oracle price decimals and warn on zero price + slow effect", async () => {

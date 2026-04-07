@@ -92,6 +92,13 @@ export const getTokenPrice = createEffect(
       chainId: input.chainId,
       blockNumber: input.blockNumber,
     });
+
+    // Don't cache $0 results — allows re-fetch on next query when oracle connectors are fixed.
+    // Same pattern as handleEffectErrorReturn (Helpers.ts).
+    if (result.pricePerUSDNew === 0n) {
+      context.cache = false;
+    }
+
     return {
       pricePerUSDNew: result.pricePerUSDNew,
       priceOracleType: result.priceOracleType,
