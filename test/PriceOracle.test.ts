@@ -468,6 +468,7 @@ describe("PriceOracle", () => {
       "0x1111111111111111111111111111111111111111",
     );
     const blockNumber = 1000000;
+    const blockTimestamp = Math.floor(blockDatetime.getTime() / 1000);
 
     beforeEach(() => {
       // Reset mocks
@@ -481,6 +482,7 @@ describe("PriceOracle", () => {
         chainId,
         blockNumber,
         mockContext as handlerContext,
+        blockTimestamp,
       );
 
       expect(token).toBeDefined();
@@ -500,6 +502,7 @@ describe("PriceOracle", () => {
         chainId,
         blockNumber,
         mockContext as handlerContext,
+        blockTimestamp,
       );
 
       expect(vi.mocked(mockContext.Token?.set)).toHaveBeenCalledTimes(1);
@@ -515,6 +518,7 @@ describe("PriceOracle", () => {
         chainId,
         blockNumber,
         mockContext as handlerContext,
+        blockTimestamp,
       );
 
       expect(vi.mocked(mockContext.effect)).toHaveBeenCalledTimes(1);
