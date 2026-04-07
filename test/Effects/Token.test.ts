@@ -108,6 +108,7 @@ describe("Token Effects", () => {
         getPrice: vi.fn(),
         priceConnectors: options.priceConnectors ?? [],
       },
+      stablecoins: new Set<string>(),
     };
   };
 
@@ -191,6 +192,30 @@ describe("Token Effects", () => {
 
       const result = await mockContext.effect(getTokenPrice as never, {
         tokenAddress: TEST_USDC_ADDRESS,
+        chainId: TEST_CHAIN_ID,
+        blockNumber: TEST_BLOCK_NUMBER,
+      });
+
+      expect(result).toEqual({
+        pricePerUSDNew: 10n ** 18n,
+        priceOracleType: PriceOracleType.V3.toString(),
+      });
+      expect(TokenEffects.fetchTokenPrice).not.toHaveBeenCalled();
+    });
+
+    it("should return 1e18 price for known stablecoins without calling oracle", async () => {
+      const stablecoinAddress = toChecksumAddress(
+        "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      );
+      setupChainConstants(PriceOracleType.V3, {});
+      // Add the stablecoin to the chain's set
+      (CHAIN_CONSTANTS as Record<number, { stablecoins: Set<string> }>)[
+        TEST_CHAIN_ID
+      ].stablecoins.add(stablecoinAddress.toLowerCase());
+      vi.mocked(TokenEffects.fetchTokenPrice).mockClear();
+
+      const result = await mockContext.effect(getTokenPrice as never, {
+        tokenAddress: stablecoinAddress,
         chainId: TEST_CHAIN_ID,
         blockNumber: TEST_BLOCK_NUMBER,
       });
