@@ -41,6 +41,7 @@ export async function processCLFactoryPoolCreated(
             event.chainId,
             event.block.number,
             context,
+            event.block.timestamp,
           );
           poolTokenSymbols.push(poolTokenAddressMapping.tokenInstance.symbol);
         } catch (error) {
