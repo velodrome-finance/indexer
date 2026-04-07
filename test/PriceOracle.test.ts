@@ -222,6 +222,33 @@ describe("PriceOracle", () => {
       });
     });
 
+    describe("when pricePerUSDNew is 0n for more than 30 days (unpriceable)", () => {
+      beforeEach(async () => {
+        vi.mocked(mockContext.Token?.set)?.mockClear();
+
+        const thirtyOneDaysAgo = new Date(
+          blockDatetime.getTime() - 31 * 24 * 60 * 60 * 1000,
+        );
+        const fetchedToken = {
+          ...mockToken0Data,
+          pricePerUSDNew: 0n,
+          lastUpdatedTimestamp: thirtyOneDaysAgo,
+        };
+        const blockTimestamp = blockDatetime.getTime() / 1000;
+        await PriceOracle.refreshTokenPrice(
+          fetchedToken,
+          blockNumber,
+          blockTimestamp,
+          chainId,
+          mockContext as handlerContext,
+        );
+      });
+      it("should NOT retry price fetch after 30-day backoff", async () => {
+        // Token.set should not be called — shouldRefresh returns false
+        expect(vi.mocked(mockContext.Token?.set)).not.toHaveBeenCalled();
+      });
+    });
+
     describe("when lastUpdatedTimestamp is missing", () => {
       let updatedToken: Token;
       beforeEach(async () => {
@@ -301,6 +328,163 @@ describe("PriceOracle", () => {
         );
         expect(errorRelatedCalls).toHaveLength(0);
       });
+    });
+  });
+
+  describe("rpcGateway bypass for affected chains (Change C)", () => {
+    const CELO_CHAIN_ID = 42220;
+    const celoStartBlock = CHAIN_CONSTANTS[CELO_CHAIN_ID].oracle.startBlock;
+    const celoBlockNumber = celoStartBlock + 1;
+    const celoToken = {
+      ...mockToken0Data,
+      id: `${CELO_CHAIN_ID}-${mockToken0Data.address}`,
+      chainId: CELO_CHAIN_ID,
+      pricePerUSDNew: 0n,
+      lastUpdatedTimestamp: new Date(blockDatetime.getTime()),
+    };
+
+    it("should call rpcGateway bypass when getTokenPrice returns $0 on affected chain", async () => {
+      const bypassPrice = 5n * 10n ** 18n;
+      vi.mocked(mockContext.effect)?.mockImplementation(
+        async (effect: unknown, _input: unknown) => {
+          const name = (effect as { name?: string }).name;
+          if (name === "getTokenPrice") {
+            return { pricePerUSDNew: 0n, priceOracleType: "v3" };
+          }
+          if (name === "getTokenDetails") {
+            return { name: "CELO", decimals: 18, symbol: "CELO" };
+          }
+          if (name === "rpcGateway") {
+            return { pricePerUSDNew: bypassPrice, priceOracleType: "v3" };
+          }
+          return {};
+        },
+      );
+
+      await PriceOracle.refreshTokenPrice(
+        celoToken,
+        celoBlockNumber,
+        blockDatetime.getTime() / 1000,
+        CELO_CHAIN_ID,
+        mockContext as handlerContext,
+      );
+
+      // rpcGateway should have been called (3 effect calls: getTokenDetails, getTokenPrice, rpcGateway)
+      expect(vi.mocked(mockContext.effect)).toHaveBeenCalledTimes(3);
+      const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
+        .lastCall?.[0] as Token;
+      expect(updatedToken.pricePerUSDNew).toBe(bypassPrice);
+    });
+
+    it("should NOT call rpcGateway bypass when getTokenPrice returns non-zero on affected chain", async () => {
+      const nonZeroToken = {
+        ...celoToken,
+        pricePerUSDNew: 1n * 10n ** 18n,
+        lastUpdatedTimestamp: new Date(
+          blockDatetime.getTime() - 61 * 60 * 1000,
+        ),
+      };
+      vi.mocked(mockContext.effect)?.mockImplementation(
+        async (effect: unknown, _input: unknown) => {
+          const name = (effect as { name?: string }).name;
+          if (name === "getTokenPrice") {
+            return { pricePerUSDNew: 3n * 10n ** 18n, priceOracleType: "v3" };
+          }
+          if (name === "getTokenDetails") {
+            return { name: "CELO", decimals: 18, symbol: "CELO" };
+          }
+          if (name === "rpcGateway") {
+            throw new Error("rpcGateway bypass should not be called");
+          }
+          return {};
+        },
+      );
+
+      await PriceOracle.refreshTokenPrice(
+        nonZeroToken,
+        celoBlockNumber,
+        blockDatetime.getTime() / 1000,
+        CELO_CHAIN_ID,
+        mockContext as handlerContext,
+      );
+
+      // Only 2 effect calls: getTokenDetails + getTokenPrice (no rpcGateway bypass)
+      expect(vi.mocked(mockContext.effect)).toHaveBeenCalledTimes(2);
+    });
+
+    it("should NOT call rpcGateway bypass on unaffected chains even with $0 price", async () => {
+      const optimismToken = {
+        ...mockToken0Data,
+        pricePerUSDNew: 0n,
+        lastUpdatedTimestamp: new Date(blockDatetime.getTime()),
+      };
+      vi.mocked(mockContext.effect)?.mockImplementation(
+        async (effect: unknown, _input: unknown) => {
+          const name = (effect as { name?: string }).name;
+          if (name === "getTokenPrice") {
+            return { pricePerUSDNew: 0n, priceOracleType: "v3" };
+          }
+          if (name === "getTokenDetails") {
+            return { name: "Test Token", decimals: 18, symbol: "TEST" };
+          }
+          if (name === "rpcGateway") {
+            throw new Error("rpcGateway bypass should not be called");
+          }
+          return {};
+        },
+      );
+
+      await PriceOracle.refreshTokenPrice(
+        optimismToken,
+        blockNumber,
+        blockDatetime.getTime() / 1000,
+        chainId, // Optimism - not affected
+        mockContext as handlerContext,
+      );
+
+      // Only 2 effect calls: getTokenDetails + getTokenPrice (no rpcGateway bypass)
+      expect(vi.mocked(mockContext.effect)).toHaveBeenCalledTimes(2);
+    });
+
+    it("should use last known price when bypass also returns $0 on affected chain", async () => {
+      const previousPrice = 3n * 10n ** 18n;
+      const tokenWithPreviousPrice = {
+        ...celoToken,
+        pricePerUSDNew: previousPrice,
+        lastUpdatedTimestamp: new Date(
+          blockDatetime.getTime() - 2 * 60 * 60 * 1000,
+        ),
+      };
+      vi.mocked(mockContext.effect)?.mockImplementation(
+        async (effect: unknown, _input: unknown) => {
+          const name = (effect as { name?: string }).name;
+          if (name === "getTokenPrice") {
+            return { pricePerUSDNew: 0n, priceOracleType: "v3" };
+          }
+          if (name === "getTokenDetails") {
+            return { name: "CELO", decimals: 18, symbol: "CELO" };
+          }
+          if (name === "rpcGateway") {
+            return { pricePerUSDNew: 0n, priceOracleType: "v3" };
+          }
+          return {};
+        },
+      );
+
+      await PriceOracle.refreshTokenPrice(
+        tokenWithPreviousPrice,
+        celoBlockNumber,
+        blockDatetime.getTime() / 1000,
+        CELO_CHAIN_ID,
+        mockContext as handlerContext,
+      );
+
+      // Bypass was called (3 effect calls) but also returned $0
+      expect(vi.mocked(mockContext.effect)).toHaveBeenCalledTimes(3);
+      const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
+        .lastCall?.[0] as Token;
+      // Should fall back to last known price (7-day fallback in V3 path)
+      expect(updatedToken.pricePerUSDNew).toBe(previousPrice);
     });
   });
 
