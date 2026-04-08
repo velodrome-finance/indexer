@@ -1,8 +1,4 @@
-import type {
-  LiquidityPoolAggregator,
-  Token,
-  UserStatsPerPool,
-} from "generated";
+import type { LiquidityPoolAggregator, Token } from "generated";
 import type { MockInstance } from "vitest";
 import { CLPool, MockDb } from "../../generated/src/TestHelpers.gen";
 import {
@@ -36,7 +32,7 @@ describe("CLPool Events", () => {
 
   let mockDb: ReturnType<typeof MockDb.createMockDb>;
   let liquidityPool: LiquidityPoolAggregator;
-  let userStats: UserStatsPerPool;
+  let userStats: ReturnType<typeof createMockUserStatsPerPool>;
 
   beforeEach(() => {
     mockDb = MockDb.createMockDb();

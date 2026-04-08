@@ -1,9 +1,4 @@
-import type {
-  LiquidityPoolAggregator,
-  Token,
-  UserStatsPerPool,
-  VeNFTState,
-} from "generated";
+import type { LiquidityPoolAggregator, Token, VeNFTState } from "generated";
 import {
   MockDb,
   SuperchainIncentiveVotingReward,
@@ -28,7 +23,9 @@ describe("SuperchainIncentiveVotingReward Events", () => {
 
   let mockDb: ReturnType<typeof MockDb.createMockDb>;
   let liquidityPool: LiquidityPoolAggregator;
-  let userStats: UserStatsPerPool;
+  let userStats: ReturnType<
+    ReturnType<typeof setupCommon>["createMockUserStatsPerPool"]
+  >;
   let rewardToken: Token;
   let veNFT: VeNFTState;
 

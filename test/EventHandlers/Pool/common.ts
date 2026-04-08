@@ -194,7 +194,9 @@ export function setupCommon() {
     "0xAbCccccccccccccccccccccccccccccccccccccc",
   );
   const normalizedDefaultUserAddress = defaultUserAddress;
-  const mockUserStatsPerPoolData: UserStatsPerPool = {
+  // Not annotated as UserStatsPerPool to avoid readonly bigint[] vs bigint[] mismatch
+  // between envio.d.ts (readonly bigint[]) and Indexer.gen.ts (bigint[]) for array fields.
+  const mockUserStatsPerPoolData = {
     id: UserStatsPerPoolId(
       CHAIN_ID,
       normalizedDefaultUserAddress,
@@ -243,6 +245,7 @@ export function setupCommon() {
     totalUnstakedFeesCollectedUSD: 0n,
     currentLiquidityStaked: 0n,
     currentLiquidityStakedUSD: 0n,
+    stakedCLPositionTokenIds: [],
 
     // Voting metrics
     totalBribeClaimed: 0n,
@@ -336,7 +339,7 @@ export function setupCommon() {
    */
   function createMockUserStatsPerPool(
     overrides: Partial<UserStatsPerPool> = {},
-  ): UserStatsPerPool {
+  ) {
     // Calculate id if userAddress, poolAddress, or chainId are provided
     const userAddress = toChecksumAddress(
       overrides.userAddress ?? defaultUserAddress,
@@ -350,6 +353,12 @@ export function setupCommon() {
     return {
       ...mockUserStatsPerPoolData,
       ...overrides,
+      // Array fields: ensure mutable bigint[] to satisfy both envio.d.ts (readonly bigint[])
+      // and Indexer.gen.ts (bigint[]) types used by MockDb.set()
+      stakedCLPositionTokenIds: [
+        ...(overrides.stakedCLPositionTokenIds ??
+          mockUserStatsPerPoolData.stakedCLPositionTokenIds),
+      ],
       id,
       userAddress,
       poolAddress,

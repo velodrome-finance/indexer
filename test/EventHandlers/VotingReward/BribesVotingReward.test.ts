@@ -1,8 +1,4 @@
-import type {
-  LiquidityPoolAggregator,
-  Token,
-  UserStatsPerPool,
-} from "generated";
+import type { LiquidityPoolAggregator, Token } from "generated";
 import {
   BribesVotingReward,
   MockDb,
@@ -28,7 +24,9 @@ describe("BribesVotingReward Events", () => {
 
   let mockDb: ReturnType<typeof MockDb.createMockDb>;
   let liquidityPool: LiquidityPoolAggregator;
-  let userStats: UserStatsPerPool;
+  let userStats: ReturnType<
+    ReturnType<typeof setupCommon>["createMockUserStatsPerPool"]
+  >;
   let rewardToken: Token;
 
   beforeEach(() => {

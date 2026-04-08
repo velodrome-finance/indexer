@@ -41,3 +41,6 @@ build
 
 # Script results (local-only test outputs)
 scripts/results/
+
+# Claude Code worktrees (ephemeral, local-only)
+.claude/worktrees/

@@ -1,10 +1,11 @@
 import type { UserStatsPerPool, handlerContext } from "generated";
 
-import { PoolId, UserStatsPerPoolId } from "../Constants";
 import {
-  computeCLStakedUSDFromPositions,
-  computeNonCLStakedUSD,
-} from "../Helpers";
+  NonFungiblePositionId,
+  PoolId,
+  UserStatsPerPoolId,
+} from "../Constants";
+import { computeNonCLStakedUSD, concentratedLiquidityToUSD } from "../Helpers";
 import { getSnapshotEpoch, shouldSnapshot } from "../Snapshots/Shared";
 import { setUserStatsPerPoolSnapshot } from "../Snapshots/UserStatsPerPoolSnapshot";
 
@@ -40,6 +41,8 @@ export interface UserStatsPerPoolDiff {
   incrementalCurrentLiquidityStaked: bigint;
   /** Non-cumulative: computed at snapshot time only (not at gauge event time). When set, overwrites currentLiquidityStakedUSD. */
   currentLiquidityStakedUSD?: bigint;
+  /** Non-cumulative: overwrite list of CL position tokenIds currently staked in gauge. Maintained on gauge deposit (append) and withdraw (remove). */
+  stakedCLPositionTokenIds?: readonly bigint[];
   incrementalVeNFTamountStaked: bigint;
   incrementalTotalBribeClaimed: bigint;
   incrementalTotalBribeClaimedUSD: bigint;
@@ -160,6 +163,7 @@ export function createUserStatsPerPoolEntity(
     totalUnstakedFeesCollectedUSD: 0n,
     currentLiquidityStaked: 0n,
     currentLiquidityStakedUSD: 0n,
+    stakedCLPositionTokenIds: [],
 
     // Voting metrics
     veNFTamountStaked: 0n,
@@ -341,6 +345,10 @@ export async function updateUserStatsPerPool(
       diff.currentLiquidityStakedUSD !== undefined
         ? diff.currentLiquidityStakedUSD
         : current.currentLiquidityStakedUSD,
+    stakedCLPositionTokenIds:
+      diff.stakedCLPositionTokenIds !== undefined
+        ? diff.stakedCLPositionTokenIds
+        : current.stakedCLPositionTokenIds,
 
     // Voting metrics
     veNFTamountStaked:
@@ -406,19 +414,34 @@ export async function updateUserStatsPerPool(
         if (
           poolEntity.isCL &&
           poolEntity.sqrtPriceX96 &&
-          poolEntity.sqrtPriceX96 !== 0n
+          poolEntity.sqrtPriceX96 !== 0n &&
+          updated.stakedCLPositionTokenIds.length > 0
         ) {
-          const stakedUSD = await computeCLStakedUSDFromPositions(
-            updated.chainId,
-            updated.poolAddress,
-            poolEntity,
-            poolData,
-            context,
-            {
-              userAddress: updated.userAddress,
-              logLabel: "snapshot:user-cl-staked-usd",
-            },
+          // Fetch all staked positions in parallel — O(1) per get(), O(K) total
+          const positions = await Promise.all(
+            updated.stakedCLPositionTokenIds.map((tokenId) =>
+              context.NonFungiblePosition.get(
+                NonFungiblePositionId(
+                  updated.chainId,
+                  updated.poolAddress,
+                  tokenId,
+                ),
+              ),
+            ),
           );
+          let stakedUSD = 0n;
+          for (const position of positions) {
+            if (position) {
+              stakedUSD += concentratedLiquidityToUSD(
+                position.liquidity,
+                poolEntity.sqrtPriceX96,
+                position.tickLower,
+                position.tickUpper,
+                token0Instance ?? undefined,
+                token1Instance ?? undefined,
+              );
+            }
+          }
           updated = { ...updated, currentLiquidityStakedUSD: stakedUSD };
         } else if (!poolEntity.isCL) {
           const stakedUSD = computeNonCLStakedUSD(

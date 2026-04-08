@@ -1,7 +1,6 @@
 import type {
   LiquidityPoolAggregator,
   Token,
-  UserStatsPerPool,
   VeNFTPoolVote,
   VeNFTState,
 } from "generated";
@@ -150,7 +149,9 @@ describe("Voter Events", () => {
     describe("when pool data exists", () => {
       let resultDB: ReturnType<typeof MockDb.createMockDb>;
       let mockLiquidityPool: LiquidityPoolAggregator;
-      let mockUserStats: UserStatsPerPool;
+      let mockUserStats: ReturnType<
+        ReturnType<typeof setupCommon>["createMockUserStatsPerPool"]
+      >;
       let mockVeNFTState: VeNFTState;
 
       beforeEach(async () => {
@@ -832,7 +833,9 @@ describe("Voter Events", () => {
       const rootChainId = 10; // Optimism
       const leafChainId = 252; // Fraxtal
       let mockLeafPool: LiquidityPoolAggregator;
-      let mockUserStats: UserStatsPerPool;
+      let mockUserStats: ReturnType<
+        ReturnType<typeof setupCommon>["createMockUserStatsPerPool"]
+      >;
       let mockVeNFTState: VeNFTState;
 
       beforeEach(async () => {
@@ -1090,7 +1093,9 @@ describe("Voter Events", () => {
     describe("when pool data exists", () => {
       let resultDB: ReturnType<typeof MockDb.createMockDb>;
       let mockLiquidityPool: LiquidityPoolAggregator;
-      let mockUserStats: UserStatsPerPool;
+      let mockUserStats: ReturnType<
+        ReturnType<typeof setupCommon>["createMockUserStatsPerPool"]
+      >;
       let mockVeNFTState: VeNFTState;
       let mockVeNFTPoolVote: VeNFTPoolVote;
 
@@ -1252,7 +1257,9 @@ describe("Voter Events", () => {
       const leafChainId = 252; // Fraxtal
       const initialUserStaked = 50000000000000000000000n; // 50k tokens (18 decimals) - initial amount before withdrawal
       let mockLeafPool: LiquidityPoolAggregator;
-      let mockUserStats: UserStatsPerPool;
+      let mockUserStats: ReturnType<
+        ReturnType<typeof setupCommon>["createMockUserStatsPerPool"]
+      >;
       let mockVeNFTState: VeNFTState;
       let mockVeNFTPoolVote: VeNFTPoolVote;
 

@@ -527,6 +527,7 @@ describe("UserStatsPerPool Aggregator", () => {
         chainId: mockChainId,
         currentLiquidityStaked: 5000n,
         currentLiquidityStakedUSD: 100n, // Stale value
+        stakedCLPositionTokenIds: [1n], // Position tokenId for direct get()
         lastSnapshotTimestamp: oldTimestamp, // Triggers snapshot
       });
 
@@ -604,7 +605,11 @@ describe("UserStatsPerPool Aggregator", () => {
           }),
         },
         NonFungiblePosition: {
-          getWhere: vi.fn().mockResolvedValue([stakedPosition]),
+          get: vi
+            .fn()
+            .mockImplementation((id: string) =>
+              id === stakedPosition.id ? stakedPosition : undefined,
+            ),
         },
         UserStatsPerPoolSnapshot: {
           set: vi.fn(),

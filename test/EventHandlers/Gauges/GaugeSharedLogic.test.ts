@@ -1,14 +1,12 @@
-import type {
-  LiquidityPoolAggregator,
-  Token,
-  UserStatsPerPool,
-  handlerContext,
-} from "generated";
+import { TickMath } from "@uniswap/v3-sdk";
+import type { LiquidityPoolAggregator, Token, handlerContext } from "generated";
 import type { PublicClient } from "viem";
 import { MockDb } from "../../../generated/src/TestHelpers.gen";
 import {
   CHAIN_CONSTANTS,
+  NonFungiblePositionId,
   TokenId,
+  UserStatsPerPoolId,
   toChecksumAddress,
 } from "../../../src/Constants";
 import {
@@ -63,7 +61,9 @@ describe("GaugeSharedLogic", () => {
   };
 
   let mockLiquidityPoolAggregator: LiquidityPoolAggregator;
-  let mockUserStatsPerPool: UserStatsPerPool;
+  let mockUserStatsPerPool: ReturnType<
+    ReturnType<typeof setupCommon>["createMockUserStatsPerPool"]
+  >;
   let mockRewardToken: Token;
   let mockDb: ReturnType<typeof MockDb.createMockDb>;
   let updatedDB: ReturnType<typeof MockDb.createMockDb>;
@@ -926,6 +926,251 @@ describe("GaugeSharedLogic", () => {
 
       expect(updatedPool?.numberOfGaugeRewardClaims).toBe(0n);
       expect(updatedUser?.numberOfGaugeRewardClaims).toBe(0n);
+    });
+  });
+
+  describe("CL pool stakedCLPositionTokenIds maintenance", () => {
+    const sqrtPriceX96AtTick0 = BigInt(
+      TickMath.getSqrtRatioAtTick(0).toString(),
+    );
+
+    let clPool: LiquidityPoolAggregator;
+    let clMockContext: typeof mockContext;
+
+    const mockTokenId1 = 42n;
+    const mockTokenId2 = 99n;
+
+    beforeEach(() => {
+      const {
+        createMockLiquidityPoolAggregator,
+        createMockNonFungiblePosition,
+      } = setupCommon();
+
+      clPool = createMockLiquidityPoolAggregator({
+        poolAddress: mockPoolAddress,
+        chainId: mockChainId,
+        isCL: true,
+        sqrtPriceX96: sqrtPriceX96AtTick0,
+        tick: 0n,
+        token0_id: mockToken0.id,
+        token1_id: mockToken1.id,
+        token0_address: mockToken0.address,
+        token1_address: mockToken1.address,
+        gaugeAddress: mockGaugeAddress,
+        gaugeIsAlive: true,
+        currentLiquidityStaked: 0n,
+        currentLiquidityStakedUSD: 0n,
+        lastUpdatedTimestamp: mockTimestamp,
+        lastSnapshotTimestamp: mockTimestamp,
+      });
+
+      const pos1 = createMockNonFungiblePosition({
+        chainId: mockChainId,
+        pool: mockPoolAddress,
+        tokenId: mockTokenId1,
+        owner: mockUserAddress,
+        liquidity: 5000n,
+        tickLower: -1000n,
+        tickUpper: 1000n,
+        isStakedInGauge: false,
+      });
+      const pos2 = createMockNonFungiblePosition({
+        chainId: mockChainId,
+        pool: mockPoolAddress,
+        tokenId: mockTokenId2,
+        owner: mockUserAddress,
+        liquidity: 3000n,
+        tickLower: -500n,
+        tickUpper: 500n,
+        isStakedInGauge: false,
+      });
+
+      const positionMap = new Map([
+        [pos1.id, pos1],
+        [pos2.id, pos2],
+      ]);
+
+      updatedDB = updatedDB.entities.LiquidityPoolAggregator.set(clPool);
+
+      clMockContext = {
+        ...mockContext,
+        LiquidityPoolAggregator: {
+          ...mockContext.LiquidityPoolAggregator,
+          // biome-ignore lint/suspicious/noExplicitAny: Mock entity for testing
+          getWhere: async (params: any) => {
+            if (params.gaugeAddress?._eq) {
+              const pool = updatedDB.entities.LiquidityPoolAggregator.get(
+                clPool.id,
+              );
+              return pool && pool.gaugeAddress === params.gaugeAddress._eq
+                ? [pool]
+                : [];
+            }
+            return [];
+          },
+        },
+        NonFungiblePosition: {
+          get: async (id: string) => positionMap.get(id),
+          getWhere: async () => [],
+        },
+        CLTickStaked: {
+          get: async () => undefined,
+          set: () => {},
+        },
+        LiquidityPoolAggregatorSnapshot: {
+          set: () => {},
+        },
+      };
+    });
+
+    it("should append tokenId to stakedCLPositionTokenIds on CL deposit", async () => {
+      const depositData: GaugeEventData = {
+        gaugeAddress: mockGaugeAddress,
+        userAddress: mockUserAddress,
+        chainId: mockChainId,
+        blockNumber: 100,
+        timestamp: 1000000,
+        amount: 5000n,
+        tokenId: mockTokenId1,
+      };
+
+      await processGaugeDeposit(depositData, clMockContext, "CLGauge.Deposit");
+
+      const updatedUser = updatedDB.entities.UserStatsPerPool.get(
+        mockUserStatsPerPool.id,
+      );
+      expect(updatedUser?.stakedCLPositionTokenIds).toEqual([mockTokenId1]);
+      expect(updatedUser?.currentLiquidityStaked).toBe(5000n);
+    });
+
+    it("should accumulate tokenIds on multiple CL deposits", async () => {
+      // First deposit
+      await processGaugeDeposit(
+        {
+          gaugeAddress: mockGaugeAddress,
+          userAddress: mockUserAddress,
+          chainId: mockChainId,
+          blockNumber: 100,
+          timestamp: 1000000,
+          amount: 5000n,
+          tokenId: mockTokenId1,
+        },
+        clMockContext,
+        "CLGauge.Deposit",
+      );
+
+      // Second deposit
+      await processGaugeDeposit(
+        {
+          gaugeAddress: mockGaugeAddress,
+          userAddress: mockUserAddress,
+          chainId: mockChainId,
+          blockNumber: 101,
+          timestamp: 1000000,
+          amount: 3000n,
+          tokenId: mockTokenId2,
+        },
+        clMockContext,
+        "CLGauge.Deposit",
+      );
+
+      const updatedUser = updatedDB.entities.UserStatsPerPool.get(
+        mockUserStatsPerPool.id,
+      );
+      expect(updatedUser?.stakedCLPositionTokenIds).toEqual([
+        mockTokenId1,
+        mockTokenId2,
+      ]);
+      expect(updatedUser?.currentLiquidityStaked).toBe(8000n);
+    });
+
+    it("should remove tokenId from stakedCLPositionTokenIds on CL withdraw", async () => {
+      // Setup: deposit two positions first
+      await processGaugeDeposit(
+        {
+          gaugeAddress: mockGaugeAddress,
+          userAddress: mockUserAddress,
+          chainId: mockChainId,
+          blockNumber: 100,
+          timestamp: 1000000,
+          amount: 5000n,
+          tokenId: mockTokenId1,
+        },
+        clMockContext,
+        "CLGauge.Deposit",
+      );
+      await processGaugeDeposit(
+        {
+          gaugeAddress: mockGaugeAddress,
+          userAddress: mockUserAddress,
+          chainId: mockChainId,
+          blockNumber: 101,
+          timestamp: 1000000,
+          amount: 3000n,
+          tokenId: mockTokenId2,
+        },
+        clMockContext,
+        "CLGauge.Deposit",
+      );
+
+      // Withdraw first position
+      await processGaugeWithdraw(
+        {
+          gaugeAddress: mockGaugeAddress,
+          userAddress: mockUserAddress,
+          chainId: mockChainId,
+          blockNumber: 102,
+          timestamp: 1000000,
+          amount: 5000n,
+          tokenId: mockTokenId1,
+        },
+        clMockContext,
+        "CLGauge.Withdraw",
+      );
+
+      const updatedUser = updatedDB.entities.UserStatsPerPool.get(
+        mockUserStatsPerPool.id,
+      );
+      expect(updatedUser?.stakedCLPositionTokenIds).toEqual([mockTokenId2]);
+      expect(updatedUser?.currentLiquidityStaked).toBe(3000n);
+    });
+
+    it("should produce empty list after withdrawing all positions", async () => {
+      // Deposit one position
+      await processGaugeDeposit(
+        {
+          gaugeAddress: mockGaugeAddress,
+          userAddress: mockUserAddress,
+          chainId: mockChainId,
+          blockNumber: 100,
+          timestamp: 1000000,
+          amount: 5000n,
+          tokenId: mockTokenId1,
+        },
+        clMockContext,
+        "CLGauge.Deposit",
+      );
+
+      // Withdraw it
+      await processGaugeWithdraw(
+        {
+          gaugeAddress: mockGaugeAddress,
+          userAddress: mockUserAddress,
+          chainId: mockChainId,
+          blockNumber: 101,
+          timestamp: 1000000,
+          amount: 5000n,
+          tokenId: mockTokenId1,
+        },
+        clMockContext,
+        "CLGauge.Withdraw",
+      );
+
+      const updatedUser = updatedDB.entities.UserStatsPerPool.get(
+        mockUserStatsPerPool.id,
+      );
+      expect(updatedUser?.stakedCLPositionTokenIds).toEqual([]);
+      expect(updatedUser?.currentLiquidityStaked).toBe(0n);
     });
   });
 });

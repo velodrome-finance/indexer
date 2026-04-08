@@ -32,7 +32,7 @@ describe("FeesVotingReward Events", () => {
 
   let mockDb: ReturnType<typeof MockDb.createMockDb>;
   let liquidityPool: LiquidityPoolAggregator;
-  let userStats: UserStatsPerPool;
+  let userStats: ReturnType<typeof createMockUserStatsPerPool>;
   let rewardToken: Token;
 
   beforeEach(() => {

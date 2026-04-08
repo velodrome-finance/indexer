@@ -3,12 +3,7 @@ import {
   TickMath,
   maxLiquidityForAmounts,
 } from "@uniswap/v3-sdk";
-import type {
-  LiquidityPoolAggregator,
-  NonFungiblePosition,
-  Token,
-  handlerContext,
-} from "generated";
+import type { LiquidityPoolAggregator, Token, handlerContext } from "generated";
 import JSBI from "jsbi";
 import { TEN_TO_THE_18_BI } from "./Constants";
 import { multiplyBase1e18 } from "./Maths";
@@ -266,7 +261,6 @@ export function calculatePositionAmountsFromLiquidity(
 
 /**
  * Converts concentrated liquidity (L) in a tick range to USD using exact CL math (TickMath + SqrtPriceMath → amount0/amount1 → USD).
- * Used by computeCLStakedUSDFromPositions (per-position valuation).
  *
  * @param liquidity - Liquidity amount (L) as bigint
  * @param sqrtPriceX96 - Current pool sqrt(price) Q64.96
@@ -330,76 +324,6 @@ export function computeNonCLStakedUSD(
   const amount0 = (stakeAmount * reserve0) / totalSupply;
   const amount1 = (stakeAmount * reserve1) / totalSupply;
   return calculateTotalUSD(amount0, amount1, token0Instance, token1Instance);
-}
-
-/**
- * Computes CL pool stake USD from staked positions: fetches positions for the pool
- * (optional owner filter), then sums USD via concentratedLiquidityToUSD per position.
- * Use for both pool-level (omit options.userAddress) and user-level (pass options.userAddress).
- *
- * @param chainId - Chain ID
- * @param poolAddress - Pool address
- * @param poolEntity - CL pool entity
- * @param poolData - Pool data
- * @param context - Handler context
- * @param options - logLabel for errors; userAddress to restrict to one owner (omit for pool total)
- * @returns Sum of position USD in 1e18 units
- */
-export async function computeCLStakedUSDFromPositions(
-  chainId: number,
-  poolAddress: string,
-  poolEntity: LiquidityPoolAggregator,
-  poolData: {
-    liquidityPoolAggregator: LiquidityPoolAggregator;
-    token0Instance?: Token;
-    token1Instance?: Token;
-  },
-  context: handlerContext,
-  options: {
-    userAddress?: string;
-    logLabel: string;
-  },
-): Promise<bigint> {
-  const sqrtPriceX96 = poolEntity.sqrtPriceX96;
-  if (sqrtPriceX96 === undefined || sqrtPriceX96 === 0n) {
-    return 0n;
-  }
-  const { token0Instance, token1Instance } = poolData;
-  try {
-    // When a userAddress is provided, query by owner (indexed) — a user-pool entity
-    // has far fewer positions than an entire pool, making this significantly faster.
-    const positions = options.userAddress
-      ? ((await context.NonFungiblePosition.getWhere({
-          owner: { _eq: options.userAddress },
-        })) ?? [])
-      : ((await context.NonFungiblePosition.getWhere({
-          pool: { _eq: poolAddress },
-        })) ?? []);
-    const staked = positions.filter(
-      (p: NonFungiblePosition) =>
-        p.chainId === chainId &&
-        p.isStakedInGauge === true &&
-        (options.userAddress === undefined || p.pool === poolAddress),
-    );
-    return staked.reduce(
-      (sum, pos) =>
-        sum +
-        concentratedLiquidityToUSD(
-          pos.liquidity,
-          sqrtPriceX96,
-          pos.tickLower,
-          pos.tickUpper,
-          token0Instance,
-          token1Instance,
-        ),
-      0n,
-    );
-  } catch (err) {
-    context.log.warn(
-      `[${options.logLabel}] Error: ${err instanceof Error ? err.message : String(err)}, using 0 USD`,
-    );
-    return 0n;
-  }
 }
 
 /**

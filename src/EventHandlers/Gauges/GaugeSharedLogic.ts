@@ -305,9 +305,16 @@ export async function processGaugeDeposit(
     lastUpdatedTimestamp: timestamp,
   };
 
+  // For CL pools with a tokenId, append to the user's staked position list
+  const stakedCLPositionTokenIds =
+    liquidityPoolAggregator.isCL && data.tokenId !== undefined
+      ? [...userData.stakedCLPositionTokenIds, data.tokenId]
+      : undefined;
+
   const userDiff = {
     incrementalNumberOfGaugeDeposits: 1n,
     incrementalCurrentLiquidityStaked: data.amount,
+    stakedCLPositionTokenIds,
     lastActivityTimestamp: timestamp,
   };
 
@@ -411,9 +418,16 @@ export async function processGaugeWithdraw(
     lastUpdatedTimestamp: timestamp,
   };
 
+  // For CL pools with a tokenId, remove from the user's staked position list
+  const stakedCLPositionTokenIds =
+    liquidityPoolAggregator.isCL && data.tokenId !== undefined
+      ? userData.stakedCLPositionTokenIds.filter((id) => id !== data.tokenId)
+      : undefined;
+
   const userDiff = {
     incrementalNumberOfGaugeWithdrawals: 1n,
     incrementalCurrentLiquidityStaked: -data.amount,
+    stakedCLPositionTokenIds,
     lastActivityTimestamp: timestamp,
   };
 
