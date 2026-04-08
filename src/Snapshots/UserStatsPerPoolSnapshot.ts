@@ -65,6 +65,7 @@ export function createUserStatsPerPoolSnapshot(
     totalUnstakedFeesCollectedUSD: entity.totalUnstakedFeesCollectedUSD,
     currentLiquidityStaked: entity.currentLiquidityStaked,
     currentLiquidityStakedUSD: entity.currentLiquidityStakedUSD,
+    stakedCLPositionTokenIds: [...entity.stakedCLPositionTokenIds],
     totalBribeClaimed: entity.totalBribeClaimed,
     totalBribeClaimedUSD: entity.totalBribeClaimedUSD,
     totalFeeRewardClaimed: entity.totalFeeRewardClaimed,

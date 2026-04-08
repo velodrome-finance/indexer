@@ -220,6 +220,7 @@ type UserStatsPerPool {
   totalUnstakedFeesCollectedUSD: BigInt! @config(precision: 76) # pool fees in USD collected by this user from unstaked position (Collect)
   currentLiquidityStaked: BigInt! @config(precision: 76) # current liquidity staked in gauge in token units
   currentLiquidityStakedUSD: BigInt! @config(precision: 76) # current liquidity staked in gauge in USD
+  stakedCLPositionTokenIds: [BigInt!]! # tokenIds of CL positions currently staked in gauge (maintained on deposit/withdraw, enables O(1) primary-key lookups per position at snapshot time)
 
   # Voting metrics
   totalBribeClaimed: BigInt! @config(precision: 76) # total amount of bribe rewards claimed by this user for this pool
@@ -284,6 +285,7 @@ type UserStatsPerPoolSnapshot {
   totalUnstakedFeesCollectedUSD: BigInt! @config(precision: 76)
   currentLiquidityStaked: BigInt! @config(precision: 76)
   currentLiquidityStakedUSD: BigInt! @config(precision: 76)
+  stakedCLPositionTokenIds: [BigInt!]!
 
   # Voting metrics
   totalBribeClaimed: BigInt! @config(precision: 76)
