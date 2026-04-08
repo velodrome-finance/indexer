@@ -348,7 +348,7 @@ export async function updateUserStatsPerPool(
     stakedCLPositionTokenIds:
       diff.stakedCLPositionTokenIds !== undefined
         ? diff.stakedCLPositionTokenIds
-        : current.stakedCLPositionTokenIds,
+        : (current.stakedCLPositionTokenIds ?? []),
 
     // Voting metrics
     veNFTamountStaked:

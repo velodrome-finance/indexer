@@ -306,9 +306,10 @@ export async function processGaugeDeposit(
   };
 
   // For CL pools with a tokenId, append to the user's staked position list
+  const existingStakedTokenIds = userData.stakedCLPositionTokenIds ?? [];
   const stakedCLPositionTokenIds =
     liquidityPoolAggregator.isCL && data.tokenId !== undefined
-      ? [...userData.stakedCLPositionTokenIds, data.tokenId]
+      ? [...existingStakedTokenIds, data.tokenId]
       : undefined;
 
   const userDiff = {
@@ -419,9 +420,10 @@ export async function processGaugeWithdraw(
   };
 
   // For CL pools with a tokenId, remove from the user's staked position list
+  const existingStakedTokenIds = userData.stakedCLPositionTokenIds ?? [];
   const stakedCLPositionTokenIds =
     liquidityPoolAggregator.isCL && data.tokenId !== undefined
-      ? userData.stakedCLPositionTokenIds.filter((id) => id !== data.tokenId)
+      ? existingStakedTokenIds.filter((id) => id !== data.tokenId)
       : undefined;
 
   const userDiff = {
