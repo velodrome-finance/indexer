@@ -171,7 +171,13 @@ Voter.Voted.handler(async ({ event, context }) => {
       event.chainId,
       event.block.number,
     ),
-    updateUserStatsPerPool(userStatsPerPoolDiff, userStats, context, timestamp),
+    updateUserStatsPerPool(
+      userStatsPerPoolDiff,
+      userStats,
+      context,
+      timestamp,
+      poolData,
+    ),
     updateVeNFTPoolVote(veNFTPoolVoteDiff, veNFTPoolVote, context),
   ]);
 });
@@ -262,7 +268,13 @@ Voter.Abstained.handler(async ({ event, context }) => {
       event.chainId,
       event.block.number,
     ),
-    updateUserStatsPerPool(userStatsPerPoolDiff, userStats, context, timestamp),
+    updateUserStatsPerPool(
+      userStatsPerPoolDiff,
+      userStats,
+      context,
+      timestamp,
+      poolData,
+    ),
     updateVeNFTPoolVote(veNFTPoolVoteDiff, veNFTPoolVote, context),
   ]);
 });

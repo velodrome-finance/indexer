@@ -35,16 +35,12 @@ Pool.Mint.handler(async ({ event, context }) => {
     return;
   }
 
-  const { liquidityPoolAggregator, token0Instance, token1Instance } = poolData;
-
   // Process mint event using shared logic
   await processPoolLiquidityEvent(
     event,
-    liquidityPoolAggregator,
+    poolData,
     poolAddress,
     chainId,
-    token0Instance,
-    token1Instance,
     context,
     timestamp,
     event.block.number,
@@ -70,16 +66,12 @@ Pool.Burn.handler(async ({ event, context }) => {
     return;
   }
 
-  const { liquidityPoolAggregator, token0Instance, token1Instance } = poolData;
-
   // Process burn event using shared logic
   await processPoolLiquidityEvent(
     event,
-    liquidityPoolAggregator,
+    poolData,
     poolAddress,
     chainId,
-    token0Instance,
-    token1Instance,
     context,
     timestamp,
     event.block.number,
@@ -133,7 +125,7 @@ Pool.Fees.handler(async ({ event, context }) => {
         )
       : Promise.resolve(),
     userDiff
-      ? updateUserStatsPerPool(userDiff, userData, context, timestamp)
+      ? updateUserStatsPerPool(userDiff, userData, context, timestamp, poolData)
       : Promise.resolve(),
   ]);
 });
@@ -181,7 +173,13 @@ Pool.Swap.handler(async ({ event, context }) => {
       event.chainId,
       event.block.number,
     ),
-    updateUserStatsPerPool(userSwapDiff, userData, context, timestamp),
+    updateUserStatsPerPool(
+      userSwapDiff,
+      userData,
+      context,
+      timestamp,
+      poolData,
+    ),
   ]);
 
   // Create OUSDTSwaps entity only if oUSDT is involved
@@ -316,6 +314,12 @@ Pool.Claim.handler(async ({ event, context }) => {
       event.chainId,
       event.block.number,
     ),
-    updateUserStatsPerPool(result.userDiff, userData, context, timestamp),
+    updateUserStatsPerPool(
+      result.userDiff,
+      userData,
+      context,
+      timestamp,
+      poolData,
+    ),
   ]);
 });

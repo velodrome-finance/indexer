@@ -1,12 +1,14 @@
 import type {
-  LiquidityPoolAggregator,
   PoolTransferInTx,
   Pool_Burn_event,
   Pool_Mint_event,
   Token,
   handlerContext,
 } from "generated";
-import { updateLiquidityPoolAggregator } from "../../Aggregators/LiquidityPoolAggregator";
+import {
+  type PoolData,
+  updateLiquidityPoolAggregator,
+} from "../../Aggregators/LiquidityPoolAggregator";
 import {
   loadOrCreateUserData,
   updateUserStatsPerPool,
@@ -200,11 +202,9 @@ export async function findTransferAndAttribute(
 /**
  * Process Pool Mint or Burn event with Transfer matching and USD attribution
  * @param event - Mint or Burn event
- * @param liquidityPoolAggregator - Pool aggregator entity
+ * @param poolData - Preloaded pool data (aggregator + token instances)
  * @param poolAddress - Pool address
  * @param chainId - Chain ID
- * @param token0Instance - Token0 instance
- * @param token1Instance - Token1 instance
  * @param context - Handler context
  * @param timestamp - Event timestamp
  * @param blockNumber - Block number
@@ -212,16 +212,15 @@ export async function findTransferAndAttribute(
  */
 export async function processPoolLiquidityEvent(
   event: Pool_Mint_event | Pool_Burn_event,
-  liquidityPoolAggregator: LiquidityPoolAggregator,
+  poolData: PoolData,
   poolAddress: string,
   chainId: number,
-  token0Instance: Token,
-  token1Instance: Token,
   context: handlerContext,
   timestamp: Date,
   blockNumber: number,
   isMint: boolean,
 ): Promise<void> {
+  const { liquidityPoolAggregator, token0Instance, token1Instance } = poolData;
   const txHash = event.transaction.hash;
   const eventLogIndex = event.logIndex;
 
@@ -280,6 +279,12 @@ export async function processPoolLiquidityEvent(
           lastActivityTimestamp: timestamp,
         };
 
-    await updateUserStatsPerPool(userDiff, userData, context, timestamp);
+    await updateUserStatsPerPool(
+      userDiff,
+      userData,
+      context,
+      timestamp,
+      poolData,
+    );
   }
 }
