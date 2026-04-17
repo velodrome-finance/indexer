@@ -728,6 +728,178 @@ describe("Voter Events", () => {
       });
     });
 
+    describe("orphan PendingRootPoolMapping reconciliation (leaf pool already exists)", () => {
+      // Mirrors the issue #601 scenario: RootPoolCreated fired on Optimism producing a
+      // PendingRootPoolMapping, but CLFactory.PoolCreated was never observed on the leaf
+      // chain (e.g. created before start_block). The leaf pool's LiquidityPoolAggregator
+      // exists in the DB — a subsequent Voted on the root chain must reconcile the mapping
+      // using the pending record and the leaf aggregator, then apply the vote to the leaf
+      // pool rather than dropping it into PendingVote.
+      const rootChainId = 10; // Optimism
+      const leafChainId = 42220; // Celo
+      const rootPoolAddress = toChecksumAddress(
+        "0x333030A736B47D20346d82A473680658ac1C2b88",
+      );
+      const leafPoolAddress = toChecksumAddress(
+        "0x5555555555555555555555555555555555555555",
+      );
+      const token0 = toChecksumAddress(
+        "0x471EcE3750Da237f93B8E339c536989b8978a438",
+      );
+      const token1 = toChecksumAddress(
+        "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
+      );
+      const tickSpacing = 2000n;
+      const voteTokenId = 42n;
+      const voteWeight = 100n;
+      const totalWeight = 1000n;
+      const blockTimestamp = 1000000;
+      const blockNumber = 123456;
+      const txHash =
+        "0xabcdef0000000000000000000000000000000000000000000000000000000001";
+
+      it("should reconcile the pending mapping, delete it, create RootPool_LeafPool, and apply the Vote to the leaf pool", async () => {
+        const {
+          createMockLiquidityPoolAggregator,
+          createMockUserStatsPerPool,
+          createMockVeNFTState,
+          mockToken0Data,
+          mockToken1Data,
+        } = setupCommon();
+
+        const leafToken0: Token = {
+          ...mockToken0Data,
+          id: TokenId(leafChainId, mockToken0Data.address),
+          chainId: leafChainId,
+        };
+        const leafToken1: Token = {
+          ...mockToken1Data,
+          id: TokenId(leafChainId, mockToken1Data.address),
+          chainId: leafChainId,
+        };
+
+        const leafPool = createMockLiquidityPoolAggregator({
+          id: PoolId(leafChainId, leafPoolAddress),
+          chainId: leafChainId,
+          poolAddress: leafPoolAddress,
+          token0_id: leafToken0.id,
+          token1_id: leafToken1.id,
+          veNFTamountStaked: 0n,
+          rootPoolMatchingHash: rootPoolMatchingHash(
+            leafChainId,
+            token0,
+            token1,
+            tickSpacing,
+          ),
+        });
+
+        const leafUserStats = createMockUserStatsPerPool({
+          userAddress: ownerAddress,
+          poolAddress: leafPoolAddress,
+          chainId: leafChainId,
+          veNFTamountStaked: 0n,
+          firstActivityTimestamp: new Date(0),
+          lastActivityTimestamp: new Date(0),
+        });
+
+        const mockVeNFTState = createMockVeNFTState({
+          id: VeNFTId(rootChainId, voteTokenId),
+          chainId: rootChainId,
+          tokenId: voteTokenId,
+          owner: ownerAddress,
+        });
+
+        const pendingMapping = {
+          id: PendingRootPoolMappingId(rootChainId, rootPoolAddress),
+          rootChainId,
+          rootPoolAddress,
+          leafChainId,
+          token0,
+          token1,
+          tickSpacing,
+          rootPoolMatchingHash: rootPoolMatchingHash(
+            leafChainId,
+            token0,
+            token1,
+            tickSpacing,
+          ),
+        };
+
+        let db = MockDb.createMockDb();
+        db = db.entities.LiquidityPoolAggregator.set(leafPool);
+        db = db.entities.UserStatsPerPool.set(leafUserStats);
+        db = db.entities.Token.set(leafToken0);
+        db = db.entities.Token.set(leafToken1);
+        db = db.entities.VeNFTState.set(mockVeNFTState);
+        db = db.entities.PendingRootPoolMapping.set(pendingMapping);
+
+        const votedEvent = Voter.Voted.createMockEvent({
+          voter: voterAddress,
+          pool: rootPoolAddress,
+          tokenId: voteTokenId,
+          weight: voteWeight,
+          totalWeight,
+          mockEventData: {
+            block: {
+              number: blockNumber,
+              timestamp: blockTimestamp,
+              hash: txHash,
+            },
+            chainId: rootChainId,
+            logIndex: 1,
+            transaction: { hash: txHash },
+          },
+        });
+
+        const resultDB = await db.processEvents([votedEvent]);
+
+        // PendingRootPoolMapping was consumed.
+        const pending = resultDB.entities.PendingRootPoolMapping.get(
+          PendingRootPoolMappingId(rootChainId, rootPoolAddress),
+        );
+        expect(pending).toBeUndefined();
+
+        // RootPool_LeafPool was created linking root pool to leaf pool.
+        const rpLp = resultDB.entities.RootPool_LeafPool.get(
+          RootPoolLeafPoolId(
+            rootChainId,
+            leafChainId,
+            rootPoolAddress,
+            leafPoolAddress,
+          ),
+        );
+        expect(rpLp).toBeDefined();
+        expect(rpLp?.leafPoolAddress).toBe(leafPoolAddress);
+        expect(rpLp?.leafChainId).toBe(leafChainId);
+
+        // Vote was applied to the leaf pool, not dropped into PendingVote.
+        const updatedLeafPool = resultDB.entities.LiquidityPoolAggregator.get(
+          PoolId(leafChainId, leafPoolAddress),
+        );
+        expect(updatedLeafPool?.veNFTamountStaked).toBe(totalWeight);
+
+        const leafUserStatsId = UserStatsPerPoolId(
+          leafChainId,
+          ownerAddress,
+          leafPoolAddress,
+        );
+        const updatedUserStats =
+          resultDB.entities.UserStatsPerPool.get(leafUserStatsId);
+        expect(updatedUserStats?.veNFTamountStaked).toBe(voteWeight);
+
+        const veNFTPoolVote = resultDB.entities.VeNFTPoolVote.get(
+          VeNFTPoolVoteId(leafChainId, voteTokenId, leafPoolAddress),
+        );
+        expect(veNFTPoolVote).toBeDefined();
+        expect(veNFTPoolVote?.veNFTamountStaked).toBe(voteWeight);
+
+        // No PendingVote should remain — the vote was applied, not deferred.
+        expect(Array.from(resultDB.entities.PendingVote.getAll())).toHaveLength(
+          0,
+        );
+      });
+    });
+
     describe("Voted processed before RootPoolCreated (sync order edge case)", () => {
       const rootChainId = 10;
       const leafChainId = 252;

@@ -9,6 +9,7 @@ import * as LiquidityPoolAggregatorModule from "../../../src/Aggregators/Liquidi
 import {
   PendingVoteId,
   RootGaugeRootPoolId,
+  RootPoolLeafPoolId,
   toChecksumAddress,
 } from "../../../src/Constants";
 import {
@@ -435,6 +436,16 @@ describe("resolveLeafPoolForRootGauge", () => {
       },
       RootPool_LeafPool: {
         getWhere: vi.fn().mockResolvedValue(getWhereValue),
+        set: vi.fn(),
+      },
+      // tryReconcileOrphanPendingRootPoolMapping reads these entities in the
+      // zero-mapping branch; the default stubs make reconciliation a no-op.
+      PendingRootPoolMapping: {
+        get: vi.fn().mockResolvedValue(undefined),
+        deleteUnsafe: vi.fn(),
+      },
+      LiquidityPoolAggregator: {
+        getWhere: vi.fn().mockResolvedValue([]),
       },
       log: {
         warn: vi.fn((msg: unknown) => warns.push(String(msg))),
@@ -574,5 +585,55 @@ describe("resolveLeafPoolForRootGauge", () => {
     const callArgs = vi.mocked(LiquidityPoolAggregatorModule.loadPoolData).mock
       .calls[0];
     expect(callArgs).toHaveLength(3);
+  });
+
+  // Issue #601: when no RootPool_LeafPool exists but a PendingRootPoolMapping is stuck
+  // and the leaf pool's LiquidityPoolAggregator is available, the helper must reconcile
+  // the mapping on the fly rather than returning null.
+  it("reconciles a stuck PendingRootPoolMapping via tryReconcileOrphanPendingRootPoolMapping and returns the leaf pool", async () => {
+    const mockPool = {
+      id: `${leafChainId}-${leafPoolAddress}`,
+      poolAddress: leafPoolAddress,
+      chainId: leafChainId,
+    } as unknown as LiquidityPoolAggregator;
+
+    vi.spyOn(LiquidityPoolAggregatorModule, "loadPoolData").mockResolvedValue({
+      liquidityPoolAggregator: mockPool,
+      token0Instance: {} as Token,
+      token1Instance: {} as Token,
+    });
+    const reconcileSpy = vi
+      .spyOn(
+        LiquidityPoolAggregatorModule,
+        "tryReconcileOrphanPendingRootPoolMapping",
+      )
+      .mockResolvedValue({
+        id: RootPoolLeafPoolId(
+          chainId,
+          leafChainId,
+          rootPoolAddress,
+          leafPoolAddress,
+        ),
+        rootChainId: chainId,
+        rootPoolAddress,
+        leafChainId,
+        leafPoolAddress,
+      });
+
+    const context = makeResolveContext({
+      rootGaugeMapping: { rootPoolAddress },
+      rootPoolLeafPools: [],
+    });
+
+    const result = await runResolve(context);
+
+    expect(reconcileSpy).toHaveBeenCalledWith(
+      context,
+      chainId,
+      rootPoolAddress,
+    );
+    expect(result).not.toBeNull();
+    expect(result?.pool).toBe(mockPool);
+    expect(result?.isCrossChain).toBe(true);
   });
 });

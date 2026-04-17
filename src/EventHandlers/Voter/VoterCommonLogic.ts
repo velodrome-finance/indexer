@@ -7,6 +7,7 @@ import type {
 import {
   type LiquidityPoolAggregatorDiff,
   loadPoolData,
+  tryReconcileOrphanPendingRootPoolMapping,
   updateLiquidityPoolAggregator,
 } from "../../Aggregators/LiquidityPoolAggregator";
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
@@ -135,10 +136,23 @@ export async function resolveLeafPoolForRootGauge(
     return null;
   }
   const rootPoolAddress = rootGaugeMapping.rootPoolAddress;
-  const rootPoolLeafPools =
+  let rootPoolLeafPools =
     (await context.RootPool_LeafPool.getWhere({
       rootPoolAddress: { _eq: rootPoolAddress },
     })) ?? [];
+  if (rootPoolLeafPools.length === 0) {
+    // Orphan reconciliation (issue #601): the PendingRootPoolMapping may be stuck
+    // because CLFactory.PoolCreated never fired on the leaf chain. If the leaf pool's
+    // LiquidityPoolAggregator is already in the DB, retry the mapping now.
+    const reconciled = await tryReconcileOrphanPendingRootPoolMapping(
+      context,
+      chainId,
+      rootPoolAddress,
+    );
+    if (reconciled) {
+      rootPoolLeafPools = [reconciled];
+    }
+  }
   if (rootPoolLeafPools.length !== 1) {
     context.log.warn(
       `[resolveLeafPoolForRootGauge] Root gauge ${gaugeAddress} maps to root pool ${rootPoolAddress} but RootPool_LeafPool mapping not found or ambiguous (count: ${rootPoolLeafPools.length}) on chain ${chainId}`,

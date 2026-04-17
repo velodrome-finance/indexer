@@ -2,14 +2,17 @@ import type { LiquidityPoolAggregator, Token, handlerContext } from "generated";
 import {
   loadPoolData,
   loadPoolDataOrRootCLPool,
+  tryReconcileOrphanPendingRootPoolMapping,
   updateDynamicFeePools,
   updateLiquidityPoolAggregator,
 } from "../../src/Aggregators/LiquidityPoolAggregator";
 import {
   type CHAIN_CONSTANTS,
   LiquidityPoolAggregatorSnapshotId,
+  PendingRootPoolMappingId,
   PoolId,
   RootPoolLeafPoolId,
+  rootPoolMatchingHash,
   toChecksumAddress,
 } from "../../src/Constants";
 import { getSwapFee } from "../../src/Effects/SwapFee";
@@ -66,6 +69,14 @@ describe("LiquidityPoolAggregator Functions", () => {
       RootPool_LeafPool: {
         set: vi.fn(),
         get: vi.fn(),
+        getOrThrow: vi.fn(),
+        getOrCreate: vi.fn(),
+        deleteUnsafe: vi.fn(),
+        getWhere: vi.fn().mockResolvedValue([]),
+      },
+      PendingRootPoolMapping: {
+        set: vi.fn(),
+        get: vi.fn().mockResolvedValue(undefined),
         getOrThrow: vi.fn(),
         getOrCreate: vi.fn(),
         deleteUnsafe: vi.fn(),
@@ -1428,6 +1439,176 @@ describe("LiquidityPoolAggregator Functions", () => {
             msg.includes("Expected exactly one RootPool_LeafPool"),
         ),
       ).toBe(true);
+    });
+
+    // Issue #601: orphan PendingRootPoolMapping reconciliation during load path.
+    // See `tryReconcileOrphanPendingRootPoolMapping` for the failure mode we are
+    // recovering from (leaf CLFactory.PoolCreated never observed).
+    describe("orphan reconciliation via PendingRootPoolMapping", () => {
+      const leafChainId = 42220; // Celo — mirrors the real orphan from issue #601
+      const pendingToken0 = toChecksumAddress(
+        "0x471EcE3750Da237f93B8E339c536989b8978a438",
+      );
+      const pendingToken1 = toChecksumAddress(
+        "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
+      );
+      const pendingTickSpacing = 2000n;
+      const pendingHash = rootPoolMatchingHash(
+        leafChainId,
+        pendingToken0,
+        pendingToken1,
+        pendingTickSpacing,
+      );
+
+      it("reconciles a stuck PendingRootPoolMapping when the leaf LiquidityPoolAggregator already exists and returns leaf pool data", async () => {
+        const leafPoolId = PoolId(leafChainId, leafPoolAddress);
+        const leafPool = createMockLiquidityPoolAggregator({
+          id: leafPoolId,
+          chainId: leafChainId,
+          poolAddress: leafPoolAddress,
+          token0_id: "token0",
+          token1_id: "token1",
+          token0_address: token0.address,
+          token1_address: token1.address,
+          rootPoolMatchingHash: pendingHash,
+        });
+
+        const pending = {
+          id: PendingRootPoolMappingId(chainId, rootPoolAddress),
+          rootChainId: chainId,
+          rootPoolAddress,
+          leafChainId,
+          token0: pendingToken0,
+          token1: pendingToken1,
+          tickSpacing: pendingTickSpacing,
+          rootPoolMatchingHash: pendingHash,
+        };
+
+        // No existing RootPool_LeafPool; root pool has no local aggregator.
+        const mockRootPoolLeafPoolGetWhere = vi.mocked(
+          mockContext.RootPool_LeafPool?.getWhere,
+        );
+        mockRootPoolLeafPoolGetWhere?.mockResolvedValue([]);
+
+        // Pending mapping is present — simulates the stuck record from production.
+        const mockPendingGet = vi.mocked(
+          mockContext.PendingRootPoolMapping?.get,
+        );
+        mockPendingGet?.mockResolvedValue(pending);
+
+        // Leaf aggregator has since appeared — reconciliation should find it by hash.
+        const mockLpaGetWhere = vi.mocked(
+          mockContext.LiquidityPoolAggregator?.getWhere,
+        );
+        mockLpaGetWhere?.mockResolvedValue([leafPool]);
+
+        const mockLpaGet = vi.mocked(mockContext.LiquidityPoolAggregator?.get);
+        mockLpaGet?.mockImplementation((id: string) => {
+          if (id === leafPoolId) return Promise.resolve(leafPool);
+          return Promise.resolve(undefined);
+        });
+
+        const mockTokenGet = vi.mocked(mockContext.Token?.get);
+        mockTokenGet?.mockImplementation((id: string) => {
+          if (id === "token0") return Promise.resolve(token0);
+          if (id === "token1") return Promise.resolve(token1);
+          return Promise.resolve(undefined);
+        });
+
+        const result = await loadPoolDataOrRootCLPool(
+          rootPoolAddress,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.poolData.liquidityPoolAggregator.id).toBe(leafPoolId);
+        }
+        // Reconciliation must persist the new RootPool_LeafPool and delete the pending.
+        expect(
+          vi.mocked(mockContext.RootPool_LeafPool?.set),
+        ).toHaveBeenCalledWith(
+          expect.objectContaining({
+            rootChainId: chainId,
+            rootPoolAddress,
+            leafChainId,
+            leafPoolAddress,
+          }),
+        );
+        expect(
+          vi.mocked(mockContext.PendingRootPoolMapping?.deleteUnsafe),
+        ).toHaveBeenCalledWith(pending.id);
+      });
+
+      it("does not reconcile when multiple leaf aggregators match the pending hash (ambiguous — fail safe)", async () => {
+        const leafPoolA = createMockLiquidityPoolAggregator({
+          id: PoolId(leafChainId, leafPoolAddress),
+          chainId: leafChainId,
+          poolAddress: leafPoolAddress,
+          rootPoolMatchingHash: pendingHash,
+        });
+        const leafPoolBAddress = toChecksumAddress(
+          "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        );
+        const leafPoolB = createMockLiquidityPoolAggregator({
+          id: PoolId(leafChainId, leafPoolBAddress),
+          chainId: leafChainId,
+          poolAddress: leafPoolBAddress,
+          rootPoolMatchingHash: pendingHash,
+        });
+
+        const pending = {
+          id: PendingRootPoolMappingId(chainId, rootPoolAddress),
+          rootChainId: chainId,
+          rootPoolAddress,
+          leafChainId,
+          token0: pendingToken0,
+          token1: pendingToken1,
+          tickSpacing: pendingTickSpacing,
+          rootPoolMatchingHash: pendingHash,
+        };
+
+        const resultReconcile = await tryReconcileOrphanPendingRootPoolMapping(
+          {
+            ...mockContext,
+            PendingRootPoolMapping: {
+              ...mockContext.PendingRootPoolMapping,
+              get: vi.fn().mockResolvedValue(pending),
+              deleteUnsafe: vi.fn(),
+            },
+            LiquidityPoolAggregator: {
+              ...mockContext.LiquidityPoolAggregator,
+              getWhere: vi.fn().mockResolvedValue([leafPoolA, leafPoolB]),
+            },
+            RootPool_LeafPool: {
+              ...mockContext.RootPool_LeafPool,
+              set: vi.fn(),
+            },
+          } as unknown as handlerContext,
+          chainId,
+          rootPoolAddress,
+        );
+
+        expect(resultReconcile).toBeNull();
+      });
+
+      it("returns null when no PendingRootPoolMapping exists", async () => {
+        const resultReconcile = await tryReconcileOrphanPendingRootPoolMapping(
+          {
+            ...mockContext,
+            PendingRootPoolMapping: {
+              ...mockContext.PendingRootPoolMapping,
+              get: vi.fn().mockResolvedValue(undefined),
+              deleteUnsafe: vi.fn(),
+            },
+          } as unknown as handlerContext,
+          chainId,
+          rootPoolAddress,
+        );
+
+        expect(resultReconcile).toBeNull();
+      });
     });
 
     it("should return LEAF_POOL_NOT_FOUND when leaf pool is not found", async () => {

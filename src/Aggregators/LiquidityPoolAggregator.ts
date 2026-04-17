@@ -1,10 +1,16 @@
 import type {
   CLGaugeConfig,
   LiquidityPoolAggregator,
+  RootPool_LeafPool,
   Token,
   handlerContext,
 } from "generated";
-import { PoolId, TokenId } from "../Constants";
+import {
+  PendingRootPoolMappingId,
+  PoolId,
+  RootPoolLeafPoolId,
+  TokenId,
+} from "../Constants";
 import { getSwapFee, roundBlockToInterval } from "../Effects/Index";
 import { calculateTotalUSD, generatePoolName } from "../Helpers";
 import { refreshTokenPrice } from "../PriceOracle";
@@ -493,6 +499,65 @@ export async function loadPoolData(
 }
 
 /**
+ * Attempts to reconcile a stuck PendingRootPoolMapping for the given root pool.
+ *
+ * This handles the failure mode from issue #601: RootCLPoolFactory.RootPoolCreated fires
+ * on the root chain (Optimism) and stores a PendingRootPoolMapping because no
+ * LiquidityPoolAggregator exists on the leaf chain yet. Normally CLFactory.PoolCreated
+ * on the leaf chain would consume the pending record, but if the leaf pool was created
+ * before the leaf chain's `start_block` (or by a factory not registered in config.yaml),
+ * the event is never observed and the pending record is orphaned.
+ *
+ * When a later Voted/Abstained/DistributeReward references the orphan root pool, we
+ * retry the reconciliation: if the leaf pool's LiquidityPoolAggregator has since appeared
+ * (e.g. created by a swap or other event that surfaced it), create the RootPool_LeafPool
+ * mapping, delete the pending record, and return the leaf pool info.
+ *
+ * @returns The newly-created RootPool_LeafPool row, or null if reconciliation was not possible.
+ */
+export async function tryReconcileOrphanPendingRootPoolMapping(
+  context: handlerContext,
+  rootChainId: number,
+  rootPoolAddress: string,
+): Promise<RootPool_LeafPool | null> {
+  const pending = await context.PendingRootPoolMapping.get(
+    PendingRootPoolMappingId(rootChainId, rootPoolAddress),
+  );
+  if (!pending) {
+    return null;
+  }
+
+  const matchingAggregators =
+    (await context.LiquidityPoolAggregator.getWhere({
+      rootPoolMatchingHash: { _eq: pending.rootPoolMatchingHash },
+    })) ?? [];
+  if (matchingAggregators.length !== 1) {
+    return null;
+  }
+
+  const leafAggregator = matchingAggregators[0];
+  const leafChainId = leafAggregator.chainId;
+  const leafPoolAddress = leafAggregator.poolAddress;
+
+  const rootPoolLeafPool: RootPool_LeafPool = {
+    id: RootPoolLeafPoolId(
+      rootChainId,
+      leafChainId,
+      rootPoolAddress,
+      leafPoolAddress,
+    ),
+    rootChainId,
+    rootPoolAddress,
+    leafChainId,
+    leafPoolAddress,
+  };
+  context.RootPool_LeafPool.set(rootPoolLeafPool);
+  context.PendingRootPoolMapping.deleteUnsafe(pending.id);
+
+  return rootPoolLeafPool;
+}
+
+/**
  * Attempts to load pool data, and if not found, checks if it's a RootCLPool
  * and loads the corresponding leaf pool data instead.
  *
@@ -510,28 +575,42 @@ export async function loadPoolDataOrRootCLPool(
   blockNumber?: number,
   blockTimestamp?: number,
 ): Promise<LoadPoolDataOrRootCLPoolResult> {
-  const rootPoolLeafPools =
+  let rootPoolLeafPools =
     (await context.RootPool_LeafPool.getWhere({
       rootPoolAddress: { _eq: poolAddress },
     })) ?? [];
 
   if (rootPoolLeafPools.length === 0) {
-    const poolData = await loadPoolData(
-      poolAddress,
-      chainId,
+    // Orphan reconciliation: a PendingRootPoolMapping may exist for this root pool
+    // (e.g. CLFactory.PoolCreated was never observed on the leaf chain because the pool
+    // predates start_block). If the leaf pool's LiquidityPoolAggregator is present in the
+    // DB with a matching rootPoolMatchingHash, create the RootPool_LeafPool mapping now
+    // rather than dropping votes/distributions into pending state forever. See issue #601.
+    const reconciled = await tryReconcileOrphanPendingRootPoolMapping(
       context,
-      blockNumber,
-      blockTimestamp,
+      chainId,
+      poolAddress,
     );
+    if (reconciled) {
+      rootPoolLeafPools = [reconciled];
+    } else {
+      const poolData = await loadPoolData(
+        poolAddress,
+        chainId,
+        context,
+        blockNumber,
+        blockTimestamp,
+      );
 
-    if (poolData) {
-      return { ok: true, poolData };
+      if (poolData) {
+        return { ok: true, poolData };
+      }
+
+      return {
+        ok: false,
+        reason: LoadPoolDataOrRootCLPoolFailureReason.MAPPING_NOT_FOUND,
+      };
     }
-
-    return {
-      ok: false,
-      reason: LoadPoolDataOrRootCLPoolFailureReason.MAPPING_NOT_FOUND,
-    };
   }
 
   if (rootPoolLeafPools.length !== 1) {
