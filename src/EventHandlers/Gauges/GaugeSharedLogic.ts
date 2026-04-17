@@ -328,7 +328,7 @@ export async function processGaugeDeposit(
       data.chainId,
       data.blockNumber,
     ),
-    updateUserStatsPerPool(userDiff, userData, context, timestamp),
+    updateUserStatsPerPool(userDiff, userData, context, timestamp, poolData),
   ]);
 }
 
@@ -442,7 +442,7 @@ export async function processGaugeWithdraw(
       data.chainId,
       data.blockNumber,
     ),
-    updateUserStatsPerPool(userDiff, userData, context, timestamp),
+    updateUserStatsPerPool(userDiff, userData, context, timestamp, poolData),
   ]);
 }
 
@@ -538,6 +538,6 @@ export async function processGaugeClaimRewards(
       data.chainId,
       data.blockNumber,
     ),
-    updateUserStatsPerPool(userDiff, userData, context, timestamp),
+    updateUserStatsPerPool(userDiff, userData, context, timestamp, poolData),
   ]);
 }
