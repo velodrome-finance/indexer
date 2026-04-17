@@ -24,6 +24,7 @@ import {
   TokenId,
   VOTER_CLPOOLS_FACTORY_LIST,
   VOTER_NONCL_POOLS_FACTORY_LIST,
+  isKnownSinkRootPool,
 } from "../../Constants";
 import { getTokenDetails } from "../../Effects/Index";
 import { refreshTokenPrice } from "../../PriceOracle";
@@ -313,6 +314,11 @@ Voter.DistributeReward.handler(async ({ event, context }) => {
         RootGaugeRootPoolId(eventChainId, event.params.gauge),
       );
       if (rootGaugeMapping) {
+        if (
+          isKnownSinkRootPool(eventChainId, rootGaugeMapping.rootPoolAddress)
+        ) {
+          return;
+        }
         const rootPoolLeafPools =
           (await context.RootPool_LeafPool.getWhere({
             rootPoolAddress: { _eq: rootGaugeMapping.rootPoolAddress },

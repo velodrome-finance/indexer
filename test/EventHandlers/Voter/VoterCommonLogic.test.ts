@@ -539,6 +539,27 @@ describe("resolveLeafPoolForRootGauge", () => {
     expect(warns[0]).toContain(String(leafChainId));
   });
 
+  it("short-circuits silently when rootPoolAddress is a known sink", async () => {
+    // Known sink per src/Constants.ts KNOWN_SINK_ROOT_POOLS (OP).
+    const sinkRootPoolAddress = toChecksumAddress(
+      "0x333030A736B47D20346d82A473680658ac1C2b88",
+    );
+    const warns: string[] = [];
+    const context = makeResolveContext({
+      rootGaugeMapping: { rootPoolAddress: sinkRootPoolAddress },
+      warns,
+    });
+
+    const result = await runResolve(context);
+
+    expect(result).toBeNull();
+    // No warn logs and no RootPool_LeafPool lookup for known sinks.
+    expect(warns).toHaveLength(0);
+    expect(
+      vi.mocked(context.RootPool_LeafPool.getWhere),
+    ).not.toHaveBeenCalled();
+  });
+
   it("returns leaf pool and isCrossChain when resolution succeeds", async () => {
     const mockPool = {
       id: `10-${leafPoolAddress}`,

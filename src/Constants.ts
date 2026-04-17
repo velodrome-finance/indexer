@@ -771,6 +771,32 @@ export const TokenId = (chainId: number, address: string) =>
  */
 export const PoolId = (chainId: number, pool: string) => `${chainId}-${pool}`;
 
+/**
+ * Known "sink" root pool addresses. These contracts were registered via
+ * RootPoolCreated / GaugeCreated but their on-chain bytecode is a revert-only
+ * stub (no token0/token1/factory/tickSpacing). They have no real leaf pool
+ * counterpart and can never be reconciled, so handlers short-circuit on them:
+ * Voted/Abstained/DistributeReward events are silently dropped instead of
+ * emitting noisy "mapping not found" logs or creating orphan Pending* records
+ * that would never flush. See issue #601.
+ */
+export const KNOWN_SINK_ROOT_POOLS: ReadonlySet<string> = new Set([
+  PoolId(
+    10, // Optimism — gauge 0x3B59a6B600f912260048a0f3a834C1039aEcD367
+    toChecksumAddress("0x333030A736B47D20346d82A473680658ac1C2b88"),
+  ),
+  PoolId(
+    8453, // Base — gauge 0x287C94a1fE647014317E91A0E42425D6a237081D
+    toChecksumAddress("0x97Cd4EB683E29695DC93eec95d47d4E7a35E2112"),
+  ),
+]);
+
+export const isKnownSinkRootPool = (
+  chainId: number,
+  poolAddress: string,
+): boolean =>
+  KNOWN_SINK_ROOT_POOLS.has(PoolId(chainId, toChecksumAddress(poolAddress)));
+
 /** Entity ID for ALM_LP_Wrapper. Format: {chainId}-{wrapperAddress}
  * @param chainId - Chain ID of the wrapper
  * @param wrapperAddress - Address of the wrapper
