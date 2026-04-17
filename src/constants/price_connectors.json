@@ -187,6 +187,10 @@
     {
       "address": "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189",
       "createdBlock": 1
+    },
+    {
+      "address": "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
+      "createdBlock": 12603122
     }
   ],
   "soneium": [
