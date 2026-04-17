@@ -16,14 +16,17 @@ CLFactory.PoolCreated.contractRegister(({ event, context }) => {
 });
 
 CLFactory.PoolCreated.handler(async ({ event, context }) => {
+  const newCLGaugeFactoryAddress =
+    CHAIN_CONSTANTS[event.chainId].newCLGaugeFactoryAddress;
+
   // Load token instances efficiently
   const [poolToken0, poolToken1, CLGaugeConfig, feeToTickSpacingMapping] =
     await Promise.all([
       context.Token.get(TokenId(event.chainId, event.params.token0)),
       context.Token.get(TokenId(event.chainId, event.params.token1)),
-      context.CLGaugeConfig.get(
-        CHAIN_CONSTANTS[event.chainId].newCLGaugeFactoryAddress,
-      ),
+      newCLGaugeFactoryAddress
+        ? context.CLGaugeConfig.get(newCLGaugeFactoryAddress)
+        : Promise.resolve(undefined),
       context.FeeToTickSpacingMapping.get(
         FeeToTickSpacingMappingId(event.chainId, event.params.tickSpacing),
       ),

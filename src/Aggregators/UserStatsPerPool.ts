@@ -8,6 +8,7 @@ import {
 import { computeNonCLStakedUSD, concentratedLiquidityToUSD } from "../Helpers";
 import { getSnapshotEpoch, shouldSnapshot } from "../Snapshots/Shared";
 import { setUserStatsPerPoolSnapshot } from "../Snapshots/UserStatsPerPoolSnapshot";
+import type { PoolData } from "./LiquidityPoolAggregator";
 
 export interface UserStatsPerPoolDiff {
   incrementalCurrentLiquidityUSD: bigint;
@@ -196,6 +197,7 @@ export async function updateUserStatsPerPool(
   current: UserStatsPerPool,
   context: handlerContext,
   timestamp: Date,
+  preloadedPoolData?: PoolData,
 ): Promise<UserStatsPerPool> {
   let updated: UserStatsPerPool = {
     ...current,
@@ -399,13 +401,23 @@ export async function updateUserStatsPerPool(
     if (updated.currentLiquidityStaked === 0n) {
       updated = { ...updated, currentLiquidityStakedUSD: 0n };
     } else if (updated.currentLiquidityStaked > 0n) {
-      const poolId = PoolId(updated.chainId, updated.poolAddress);
-      const poolEntity = await context.LiquidityPoolAggregator.get(poolId);
+      // Reuse caller-provided poolData when available (saves 3 redundant entity loads
+      // per snapshot when the caller already loaded pool + token0 + token1).
+      let poolEntity = preloadedPoolData?.liquidityPoolAggregator;
+      let token0Instance = preloadedPoolData?.token0Instance;
+      let token1Instance = preloadedPoolData?.token1Instance;
+      if (!poolEntity) {
+        const poolId = PoolId(updated.chainId, updated.poolAddress);
+        poolEntity =
+          (await context.LiquidityPoolAggregator.get(poolId)) ?? undefined;
+        if (poolEntity) {
+          [token0Instance, token1Instance] = await Promise.all([
+            context.Token.get(poolEntity.token0_id),
+            context.Token.get(poolEntity.token1_id),
+          ]);
+        }
+      }
       if (poolEntity) {
-        const [token0Instance, token1Instance] = await Promise.all([
-          context.Token.get(poolEntity.token0_id),
-          context.Token.get(poolEntity.token1_id),
-        ]);
         const poolData = {
           liquidityPoolAggregator: poolEntity,
           token0Instance: token0Instance ?? undefined,
