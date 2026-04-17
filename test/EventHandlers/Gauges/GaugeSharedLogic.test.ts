@@ -474,6 +474,100 @@ describe("GaugeSharedLogic", () => {
         200000000000000000000n,
       );
     });
+
+    describe("withdraw exceeds current stake (issue #604)", () => {
+      it("clamps to zero and records withdrawal when user has no prior indexed stake", async () => {
+        // Simulate a missed Deposit attribution: user issues a Withdraw event for an
+        // amount the indexer never saw deposited. Prior to the fix, this branch
+        // silently skipped the update, leaving aggregates stuck forever.
+        const logWarnSpy = vi.fn();
+        const logErrorSpy = vi.fn();
+        const ctx = {
+          ...mockContext,
+          log: {
+            ...mockContext.log,
+            warn: logWarnSpy,
+            error: logErrorSpy,
+          },
+        };
+
+        await processGaugeWithdraw(
+          {
+            gaugeAddress: mockGaugeAddress,
+            userAddress: mockUserAddress,
+            chainId: mockChainId,
+            blockNumber: 100,
+            timestamp: 1000000,
+            amount: 50000000000000000000n,
+          },
+          ctx,
+          "TestGaugeWithdraw",
+        );
+
+        const updatedPool = updatedDB.entities.LiquidityPoolAggregator.get(
+          mockLiquidityPoolAggregator.id,
+        );
+        const updatedUser = updatedDB.entities.UserStatsPerPool.get(
+          mockUserStatsPerPool.id,
+        );
+
+        // Pool and user staked counters are clamped to zero (not left at a
+        // dangling inflated value and not made negative).
+        expect(updatedPool?.currentLiquidityStaked).toBe(0n);
+        expect(updatedUser?.currentLiquidityStaked).toBe(0n);
+        // The withdrawal itself is recorded so downstream counters stay honest.
+        expect(updatedPool?.numberOfGaugeWithdrawals).toBe(1n);
+        expect(updatedUser?.numberOfGaugeWithdrawals).toBe(1n);
+        // Visibility: one warning, no error — event is handled, not skipped.
+        expect(logWarnSpy).toHaveBeenCalledTimes(1);
+        expect(logErrorSpy).not.toHaveBeenCalled();
+      });
+
+      it("clamps pool counter when pool is short but user has prior stake", async () => {
+        // User has stake recorded but pool aggregate is behind — simulates a
+        // partial-attribution inconsistency across the two aggregates.
+        mockUserStatsPerPool = {
+          ...mockUserStatsPerPool,
+          currentLiquidityStaked: 100000000000000000000n,
+        };
+        updatedDB =
+          updatedDB.entities.UserStatsPerPool.set(mockUserStatsPerPool);
+
+        const logWarnSpy = vi.fn();
+        const ctx = {
+          ...mockContext,
+          log: { ...mockContext.log, warn: logWarnSpy },
+        };
+
+        await processGaugeWithdraw(
+          {
+            gaugeAddress: mockGaugeAddress,
+            userAddress: mockUserAddress,
+            chainId: mockChainId,
+            blockNumber: 100,
+            timestamp: 1000000,
+            amount: 50000000000000000000n,
+          },
+          ctx,
+          "TestGaugeWithdraw",
+        );
+
+        const updatedPool = updatedDB.entities.LiquidityPoolAggregator.get(
+          mockLiquidityPoolAggregator.id,
+        );
+        const updatedUser = updatedDB.entities.UserStatsPerPool.get(
+          mockUserStatsPerPool.id,
+        );
+
+        // Pool counter was 0 — clamped to 0 (can't go below).
+        expect(updatedPool?.currentLiquidityStaked).toBe(0n);
+        // User counter debits only what the pool can actually absorb so the
+        // two aggregates stay consistent after clamping.
+        expect(updatedUser?.currentLiquidityStaked).toBe(50000000000000000000n);
+        expect(updatedPool?.numberOfGaugeWithdrawals).toBe(1n);
+        expect(logWarnSpy).toHaveBeenCalledTimes(1);
+      });
+    });
   });
 
   describe("processGaugeClaimRewards", () => {

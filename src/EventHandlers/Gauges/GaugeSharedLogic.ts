@@ -372,16 +372,29 @@ export async function processGaugeWithdraw(
 
   const { liquidityPoolAggregator } = poolData;
 
-  const newPoolStake =
-    liquidityPoolAggregator.currentLiquidityStaked - data.amount;
-  const newUserStake = userData.currentLiquidityStaked - data.amount;
+  // Clamp the pool and user decrements independently to each aggregate's
+  // current stake. On-chain reality is the source of truth: when a Withdraw
+  // exceeds the indexer's view of stake, a prior Deposit was missed
+  // (attribution gap, event ordering, cross-chain migration, etc.).
+  // Previously this branch skipped the update entirely, which left
+  // currentLiquidityStaked permanently inflated with no recovery path.
+  const poolDecrement =
+    data.amount <= liquidityPoolAggregator.currentLiquidityStaked
+      ? data.amount
+      : liquidityPoolAggregator.currentLiquidityStaked;
+  const userDecrement =
+    data.amount <= userData.currentLiquidityStaked
+      ? data.amount
+      : userData.currentLiquidityStaked;
 
-  if (newPoolStake < 0n || newUserStake < 0n) {
-    context.log.error(
-      `${handlerName}: withdraw exceeds current stake for pool ${pool.poolAddress} user ${data.userAddress}. Skipping update. This needs to be fixed.`,
+  if (poolDecrement < data.amount || userDecrement < data.amount) {
+    context.log.warn(
+      `${handlerName}: withdraw ${data.amount} exceeds indexed stake (pool=${liquidityPoolAggregator.currentLiquidityStaked}, user=${userData.currentLiquidityStaked}) for pool ${pool.poolAddress} user ${data.userAddress} on chain ${data.chainId}. Clamping to available stake.`,
     );
-    return;
   }
+
+  const newPoolStake =
+    liquidityPoolAggregator.currentLiquidityStaked - poolDecrement;
 
   let poolStakedUSD: bigint | undefined;
   let stakedLiquidityInRange: bigint | undefined;
@@ -411,7 +424,7 @@ export async function processGaugeWithdraw(
 
   const poolDiff = {
     incrementalNumberOfGaugeWithdrawals: 1n,
-    incrementalCurrentLiquidityStaked: -data.amount,
+    incrementalCurrentLiquidityStaked: -poolDecrement,
     currentLiquidityStakedUSD: poolStakedUSD,
     stakedLiquidityInRange,
     incrementalStakedReserve0,
@@ -428,7 +441,7 @@ export async function processGaugeWithdraw(
 
   const userDiff = {
     incrementalNumberOfGaugeWithdrawals: 1n,
-    incrementalCurrentLiquidityStaked: -data.amount,
+    incrementalCurrentLiquidityStaked: -userDecrement,
     stakedCLPositionTokenIds,
     lastActivityTimestamp: timestamp,
   };
