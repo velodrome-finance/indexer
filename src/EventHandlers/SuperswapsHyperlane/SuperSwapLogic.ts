@@ -308,6 +308,80 @@ export async function processCrossChainSwap(
 }
 
 /**
+ * Handles a CrossChainSwap event by loading the OUSDT bridge record and related
+ * mailbox state, then delegating to processCrossChainSwap for SuperSwap entity
+ * creation.
+ *
+ * CrossChainSwap fires for every cross-chain swap through VelodromeUniversalRouter,
+ * including non-OUSDT bridges that the UniversalRouterBridge producer filtered out.
+ * To avoid spamming warnings for those non-OUSDT bridges, this function treats the
+ * absence of an OUSDTBridgedTransaction as an error ONLY when an OUSDTSwaps record
+ * for the same transaction exists (meaning OUSDT was actually swapped but the
+ * bridge correlation is missing).
+ */
+export async function handleCrossChainSwapEvent(
+  transactionHash: string,
+  chainId: number,
+  destinationDomain: bigint,
+  blockTimestamp: number,
+  context: handlerContext,
+): Promise<void> {
+  const [oUSDTBridgedTransactions, sourceChainMessageIdEntities] =
+    await Promise.all([
+      context.OUSDTBridgedTransaction.getWhere({
+        transactionHash: { _eq: transactionHash },
+      }),
+      context.DispatchId_event.getWhere({
+        transactionHash: { _eq: transactionHash },
+      }),
+    ]);
+
+  if (oUSDTBridgedTransactions.length === 0) {
+    // Symmetric filter with the UniversalRouterBridge producer: CrossChainSwap
+    // fires for any bridged token, but OUSDTBridgedTransaction is only recorded
+    // when the bridged token is OUSDT. If no OUSDT pool swap exists for this
+    // transaction, this cross-chain swap did not involve OUSDT — silently skip.
+    const sourceChainOUSDTSwaps = await context.OUSDTSwaps.getWhere({
+      transactionHash: { _eq: transactionHash },
+    });
+    if (sourceChainOUSDTSwaps.length > 0) {
+      context.log.error(
+        `No OUSDTBridgedTransaction found for OUSDT swap at chain ${chainId} tx ${transactionHash}`,
+        new Error(
+          `Missing OUSDTBridgedTransaction for transaction ${transactionHash}`,
+        ),
+      );
+    }
+    return;
+  }
+
+  const bridgedTransaction = oUSDTBridgedTransactions[0];
+
+  if (sourceChainMessageIdEntities.length === 0) {
+    return;
+  }
+
+  const processIdPromises = sourceChainMessageIdEntities.map(
+    (entity: { messageId: string }) =>
+      context.ProcessId_event.getWhere({
+        messageId: { _eq: entity.messageId },
+      }),
+  );
+  const processIdResults = await Promise.all(processIdPromises);
+
+  await processCrossChainSwap(
+    sourceChainMessageIdEntities,
+    processIdResults,
+    bridgedTransaction,
+    transactionHash,
+    chainId,
+    destinationDomain,
+    blockTimestamp,
+    context,
+  );
+}
+
+/**
  * Attempts to create a SuperSwap entity when ProcessId is available.
  * This handles the case where ProcessId is processed after CrossChainSwap.
  * Since we are running Unordered Multichain Mode, there's no deterministic

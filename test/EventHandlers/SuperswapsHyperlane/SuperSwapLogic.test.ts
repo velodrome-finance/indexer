@@ -17,6 +17,7 @@ import {
   createSuperSwapEntity,
   findDestinationSwapWithOUSDT,
   findSourceSwapWithOUSDT,
+  handleCrossChainSwapEvent,
   loadDestinationSwaps,
   processCrossChainSwap,
 } from "../../../src/EventHandlers/SuperswapsHyperlane/SuperSwapLogic";
@@ -1558,6 +1559,204 @@ describe("SuperSwapLogic", () => {
 
       // Restore original
       context.OUSDTSwaps.getWhere = originalGetWhere;
+    });
+  });
+
+  describe("handleCrossChainSwapEvent", () => {
+    const createHandlerMockContext = (
+      dispatchIdEvents: DispatchId_event[],
+      processIdEvents: ProcessId_event[],
+      bridgedTransactions: OUSDTBridgedTransaction[],
+      swapEvents: OUSDTSwaps[],
+    ) => {
+      const dispatchIdByTxHash = new Map<string, DispatchId_event[]>();
+      const processIdMap = new Map<string, ProcessId_event[]>();
+      const bridgedTxMap = new Map<string, OUSDTBridgedTransaction[]>();
+      const swapMap = new Map<string, OUSDTSwaps[]>();
+      const logWarnings: string[] = [];
+      const logErrors: Array<{ message: string; error?: unknown }> = [];
+      const superSwaps = new Map<string, SuperSwap>();
+
+      for (const event of dispatchIdEvents) {
+        const existing = dispatchIdByTxHash.get(event.transactionHash) || [];
+        dispatchIdByTxHash.set(event.transactionHash, [...existing, event]);
+      }
+
+      for (const event of processIdEvents) {
+        const existing = processIdMap.get(event.messageId) || [];
+        processIdMap.set(event.messageId, [...existing, event]);
+      }
+
+      for (const tx of bridgedTransactions) {
+        const existing = bridgedTxMap.get(tx.transactionHash) || [];
+        bridgedTxMap.set(tx.transactionHash, [...existing, tx]);
+      }
+
+      for (const event of swapEvents) {
+        const existing = swapMap.get(event.transactionHash) || [];
+        swapMap.set(event.transactionHash, [...existing, event]);
+      }
+
+      return {
+        DispatchId_event: {
+          // biome-ignore lint/suspicious/noExplicitAny: test mock context needs flexibility
+          getWhere: async (params: any) => {
+            if (params.transactionHash?._eq)
+              return dispatchIdByTxHash.get(params.transactionHash._eq) || [];
+            return [];
+          },
+        },
+        ProcessId_event: {
+          // biome-ignore lint/suspicious/noExplicitAny: test mock context needs flexibility
+          getWhere: async (params: any) => {
+            if (params.messageId?._eq)
+              return processIdMap.get(params.messageId._eq) || [];
+            return [];
+          },
+        },
+        OUSDTBridgedTransaction: {
+          // biome-ignore lint/suspicious/noExplicitAny: test mock context needs flexibility
+          getWhere: async (params: any) => {
+            if (params.transactionHash?._eq)
+              return bridgedTxMap.get(params.transactionHash._eq) || [];
+            return [];
+          },
+        },
+        OUSDTSwaps: {
+          // biome-ignore lint/suspicious/noExplicitAny: test mock context needs flexibility
+          getWhere: async (params: any) => {
+            if (params.transactionHash?._eq)
+              return swapMap.get(params.transactionHash._eq) || [];
+            return [];
+          },
+        },
+        SuperSwap: {
+          set: (entity: SuperSwap) => {
+            superSwaps.set(entity.id, entity);
+          },
+          get: (id: string) => superSwaps.get(id),
+        },
+        log: {
+          warn: (message: string) => {
+            logWarnings.push(message);
+          },
+          error: (message: string, error?: unknown) => {
+            logErrors.push({ message, error });
+          },
+          info: () => {},
+          debug: () => {},
+        },
+        getWarnings: () => logWarnings,
+        getErrors: () => logErrors,
+        getSuperSwaps: () => superSwaps,
+        // biome-ignore lint/suspicious/noExplicitAny: test mock context needs flexibility
+      } as any;
+    };
+
+    it("creates a SuperSwap when a bridge+swap pair exists end-to-end", async () => {
+      const dispatchIdEvent = createDispatchIdEvent(
+        transactionHash,
+        chainId,
+        messageId1,
+      );
+      const processIdEvent = createProcessIdEvent(
+        destinationTxHash,
+        Number(destinationDomain),
+        messageId1,
+      );
+      const sourceSwap = createOUSDTSwap(
+        transactionHash,
+        chainId,
+        tokenInAddress,
+        1000n,
+        oUSDTAddress,
+        oUSDTAmount,
+      );
+      const destinationSwap = createOUSDTSwap(
+        destinationTxHash,
+        Number(destinationDomain),
+        oUSDTAddress,
+        oUSDTAmount,
+        tokenOutAddress,
+        950n,
+      );
+
+      const context = createHandlerMockContext(
+        [dispatchIdEvent],
+        [processIdEvent],
+        [mockBridgedTransaction],
+        [sourceSwap, destinationSwap],
+      );
+
+      await handleCrossChainSwapEvent(
+        transactionHash,
+        chainId,
+        destinationDomain,
+        blockTimestamp,
+        context,
+      );
+
+      const superSwaps = context.getSuperSwaps();
+      expect(superSwaps.size).toBe(1);
+      const superSwap = Array.from(superSwaps.values())[0] as SuperSwap;
+      expect(superSwap.originChainId).toBe(BigInt(chainId));
+      expect(superSwap.destinationChainId).toBe(destinationDomain);
+      expect(superSwap.oUSDTamount).toBe(oUSDTAmount);
+      expect(superSwap.sourceChainToken).toBe(tokenInAddress);
+      expect(superSwap.destinationChainToken).toBe(tokenOutAddress);
+      expect(context.getErrors()).toHaveLength(0);
+      expect(context.getWarnings()).toHaveLength(0);
+    });
+
+    it("logs a uerror when an OUSDT swap exists without a bridge record", async () => {
+      // OUSDT pool swap is present on source chain but OUSDTBridgedTransaction
+      // is missing — this is a real correlation failure that must be visible.
+      const sourceSwap = createOUSDTSwap(
+        transactionHash,
+        chainId,
+        tokenInAddress,
+        1000n,
+        oUSDTAddress,
+        oUSDTAmount,
+      );
+
+      const context = createHandlerMockContext([], [], [], [sourceSwap]);
+
+      await handleCrossChainSwapEvent(
+        transactionHash,
+        chainId,
+        destinationDomain,
+        blockTimestamp,
+        context,
+      );
+
+      expect(context.getSuperSwaps().size).toBe(0);
+      const errors = context.getErrors();
+      expect(errors).toHaveLength(1);
+      expect(errors[0].message).toContain("No OUSDTBridgedTransaction found");
+      expect(errors[0].message).toContain(transactionHash);
+      expect(errors[0].error).toBeInstanceOf(Error);
+      // The legacy uwarn path must not fire anymore.
+      expect(context.getWarnings()).toHaveLength(0);
+    });
+
+    it("silently skips when neither bridge nor OUSDT swap exist (non-OUSDT cross-chain swap)", async () => {
+      // CrossChainSwap fires for any bridged token; when the bridged token is
+      // not OUSDT, neither OUSDTBridgedTransaction nor OUSDTSwaps is produced.
+      // This must not log (formerly produced 709 spurious warnings on Celo).
+      const context = createHandlerMockContext([], [], [], []);
+
+      await handleCrossChainSwapEvent(
+        transactionHash,
+        chainId,
+        destinationDomain,
+        blockTimestamp,
+        context,
+      );
+
+      expect(context.getSuperSwaps().size).toBe(0);
+      expect(context.getErrors()).toHaveLength(0);
+      expect(context.getWarnings()).toHaveLength(0);
     });
   });
 });
