@@ -5,12 +5,7 @@ import {
   RPC_GATEWAY_PREFIX,
   TOKEN_DETAILS_FALLBACK,
 } from "../Constants";
-import {
-  GLOBAL_REQUESTS_PER_SECOND,
-  RPC_APP_RETRY,
-  SLOW_REQUEST_MS,
-  VERY_SLOW_REQUEST_MS,
-} from "../Constants";
+import { GLOBAL_REQUESTS_PER_SECOND, RPC_APP_RETRY } from "../Constants";
 import {
   ErrorType,
   getErrorType,
@@ -582,16 +577,7 @@ export async function executeRpcWithFallback<T>(
   fn: () => Promise<T>,
 ): Promise<T> {
   try {
-    const retryAndLoggingOptions = {
-      log: {
-        warn: context.log.warn,
-        error: (msg: string) => context.log.error(msg, new Error(msg)),
-      },
-      operationName,
-      logDetails,
-    };
-
-    return await runWithRpcRetry(retryAndLoggingOptions, fn);
+    return await runWithRpcRetry(fn);
   } catch (error) {
     return handleEffectErrorReturn(
       error,
@@ -607,59 +593,25 @@ export async function executeRpcWithFallback<T>(
  * Runs an async RPC operation with retries on retryable errors. Retries on
  * {@link ErrorType.RATE_LIMIT} and {@link ErrorType.NETWORK_ERROR} with
  * error-type-aware exponential backoff (caps from {@link RPC_APP_RETRY}).
- * Non-retryable errors or exhausted retries are rethrown for the caller to handle
- * (e.g. via {@link handleEffectErrorReturn}). Logs slow requests: >5s warn; >30s
- * very-slow successful requests as warn, very-slow failed requests as error.
+ * Non-retryable errors or exhausted retries are rethrown for the caller to
+ * convert into a single `uerror` (see {@link handleEffectErrorReturn}).
  *
- * @param options - Configuration for retry and logging.
- * @param options.log - Logger with required `warn` and optional `error` (single-arg: message string).
- * @param options.operationName - Optional name for log prefixes (use {@link rpcGatewayOpName} for gateway ops).
- * @param options.logDetails - Optional key-value pairs included in log messages.
+ * Intentionally silent: intermediate retries and per-attempt latency emit no
+ * logs. Aggregate latency is visible via the Envio `/metrics` endpoint; only
+ * the final exhausted-retries error surfaces, via the caller.
+ *
  * @param fn - Async function that performs the RPC call. Invoked on each attempt.
  * @returns The result of `fn()` when it resolves successfully.
  * @throws Rethrows the last error when retries are exhausted or the error is not retryable.
  */
-export async function runWithRpcRetry<T>(
-  options: {
-    log: { warn: (msg: string) => void; error?: (msg: string) => void };
-    operationName?: string;
-    logDetails?: Record<string, string | number>;
-  },
-  fn: () => Promise<T>,
-): Promise<T> {
+export async function runWithRpcRetry<T>(fn: () => Promise<T>): Promise<T> {
   const { maxRetries, rateLimit, network } = RPC_APP_RETRY;
-  const detailSuffix = formatDetailsSuffix(options.logDetails);
-  const prefix = getRetryLogPrefix(options.operationName);
 
   let attempt = 0;
   while (true) {
-    const startTime = Date.now();
-
     try {
-      const result = await fn();
-      // Wall-clock for this logical operation; fn() may perform one or more RPC calls (viem may batch them).
-      const durationMs = Date.now() - startTime;
-
-      logSlowRequestIfNeeded(
-        options.log,
-        prefix,
-        detailSuffix,
-        durationMs,
-        "request",
-      );
-
-      return result;
+      return await fn();
     } catch (error) {
-      const durationMs = Date.now() - startTime;
-
-      logSlowRequestIfNeeded(
-        options.log,
-        prefix,
-        detailSuffix,
-        durationMs,
-        "failed request",
-      );
-
       const errorType = getErrorType(error);
       const isRetryable =
         (errorType === ErrorType.RATE_LIMIT ||
@@ -679,70 +631,8 @@ export async function runWithRpcRetry<T>(
 
       attempt++;
 
-      options.log.warn(
-        `${prefix} ${errorType} (attempt ${attempt}/${maxRetries + 1})${detailSuffix}. Retrying in ${delayMs}ms...`,
-      );
-
       await sleep(delayMs);
     }
-  }
-}
-
-/** Builds the " key1=val1, key2=val2" suffix for retry/slow-request log lines, or "".
- *
- * @param logDetails - Details to format.
- * @returns The formatted logDetails suffix.
- */
-function formatDetailsSuffix(
-  logDetails: Record<string, string | number> | undefined,
-): string {
-  if (!logDetails) return "";
-  const part = Object.entries(logDetails)
-    .map(([k, v]) => `${k}=${v}`)
-    .join(", ");
-  return part ? ` ${part}` : "";
-}
-
-/** Log prefix for runWithRpcRetry messages.
- *
- * @param operationName - Operation name for the message.
- * @returns Log prefix for the message.
- */
-function getRetryLogPrefix(operationName: string | undefined): string {
-  return operationName
-    ? `[runWithRpcRetry:${operationName}]`
-    : "[runWithRpcRetry]";
-}
-
-/** Logs slow or very-slow request when duration exceeds thresholds.
- * Very-slow successful requests are logged as warn; very-slow failed requests as error.
- *
- * @param log - Logger with required `warn` and optional `error` (single-arg: message string).
- * @param prefix - Log prefix for the message.
- * @param detailSuffix - Details suffix for the message.
- * @param durationMs - Duration in milliseconds (wall-clock for the whole fn() invocation; may reflect one or more batched RPC calls).
- * @param kind - Kind of request ("request" or "failed request").
- * @returns void
- */
-
-function logSlowRequestIfNeeded(
-  log: { warn: (msg: string) => void; error?: (msg: string) => void },
-  prefix: string,
-  detailSuffix: string,
-  durationMs: number,
-  kind: "request" | "failed request",
-): void {
-  const label = kind === "request" ? "request" : "failed request";
-  if (
-    durationMs > VERY_SLOW_REQUEST_MS &&
-    kind === "failed request" &&
-    log.error
-  ) {
-    log.error(`${prefix} Very slow ${label}: ${durationMs}ms${detailSuffix}`);
-  } else if (durationMs > VERY_SLOW_REQUEST_MS) {
-    log.warn(`${prefix} Very slow ${label}: ${durationMs}ms${detailSuffix}`);
-  } else if (durationMs > SLOW_REQUEST_MS) {
-    log.warn(`${prefix} Slow ${label}: ${durationMs}ms${detailSuffix}`);
   }
 }
 

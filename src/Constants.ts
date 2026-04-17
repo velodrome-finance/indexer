@@ -162,13 +162,6 @@ export enum PriceOracleType {
 
 export { zeroAddress as ZERO_ADDRESS } from "viem";
 
-/**
- * Slow and very slow request thresholds in milliseconds
- * Used for logging slow requests
- */
-export const SLOW_REQUEST_MS = 5000;
-export const VERY_SLOW_REQUEST_MS = 30000;
-
 // Global rate limit for all RPC requests; used in rpcGateway effect
 export const GLOBAL_REQUESTS_PER_SECOND = 20000;
 
