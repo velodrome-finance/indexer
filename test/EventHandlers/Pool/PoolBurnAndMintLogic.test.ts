@@ -1,5 +1,4 @@
 import type {
-  LiquidityPoolAggregator,
   PoolTransferInTx,
   Pool_Burn_event,
   Pool_Mint_event,
@@ -893,8 +892,10 @@ describe("PoolBurnAndMintLogic", () => {
   });
 
   describe("processPoolLiquidityEvent", () => {
-    const mockLiquidityPoolAggregator: LiquidityPoolAggregator = {
-      ...mockLiquidityPoolData,
+    const mockPoolData = {
+      liquidityPoolAggregator: { ...mockLiquidityPoolData },
+      token0Instance: mockToken0Data,
+      token1Instance: mockToken1Data,
     };
 
     it("should process mint event and update pool token prices", async () => {
@@ -911,11 +912,9 @@ describe("PoolBurnAndMintLogic", () => {
       const event = createMockMintEvent(2);
       await processPoolLiquidityEvent(
         event,
-        mockLiquidityPoolAggregator,
+        mockPoolData,
         POOL_ADDRESS,
         CHAIN_ID,
-        mockToken0Data,
-        mockToken1Data,
         mockContext,
         TIMESTAMP_DATE,
         BLOCK_NUMBER,
@@ -939,11 +938,9 @@ describe("PoolBurnAndMintLogic", () => {
       const event = createMockBurnEvent(2);
       await processPoolLiquidityEvent(
         event,
-        mockLiquidityPoolAggregator,
+        mockPoolData,
         POOL_ADDRESS,
         CHAIN_ID,
-        mockToken0Data,
-        mockToken1Data,
         mockContext,
         TIMESTAMP_DATE,
         BLOCK_NUMBER,
@@ -959,11 +956,9 @@ describe("PoolBurnAndMintLogic", () => {
       const event = createMockMintEvent(2);
       await processPoolLiquidityEvent(
         event,
-        mockLiquidityPoolAggregator,
+        mockPoolData,
         POOL_ADDRESS,
         CHAIN_ID,
-        mockToken0Data,
-        mockToken1Data,
         mockContext,
         TIMESTAMP_DATE,
         BLOCK_NUMBER,
