@@ -186,7 +186,7 @@ export const DefaultRPC = {
   lisk: "https://lisk.drpc.org",
   mode: "https://1rpc.io/mode",
   celo: "https://celo.drpc.org",
-  soneium: "https://soneium.drpc.org",
+  soneium: "https://rpc.soneium.org",
   unichain: "https://0xrpc.io/uni",
   fraxtal: "https://fraxtal.drpc.org",
   ink: "https://ink.drpc.org",
@@ -215,35 +215,76 @@ export const RPC_HTTP_OPTIONS = {
  * Single retry config for all RPC operations. Used by RpcGateway (runWithRpcRetry).
  * Error-type-aware backoff: rate limit (429) vs network get different caps.
  * Delay is min(baseMs * 2^attempt, capMs) with baseMs 1000 for rate limit, 500 for network.
+ *
+ * `methodNotSupportedMaxRetries` caps retries for provider-side method outages
+ * (e.g. `eth_call does not exist / is not available`). These errors are usually
+ * deterministic (upstream node has the method disabled) so retrying the primary
+ * more than a couple of times is wasted work and log noise; after this cap the
+ * caller falls back to the default public RPC for the chain.
  */
 export const RPC_APP_RETRY = {
   maxRetries: 7,
+  methodNotSupportedMaxRetries: 2,
   rateLimit: { capMs: 10000 },
   network: { capMs: 8000 },
 } as const;
 
-/**
- * Get default RPC URL by chain ID
- * @param chainId - The chain ID
- * @returns The default RPC URL for the chain, or null if not found
- */
-export function getDefaultRPCByChainId(chainId: number): string | null {
-  const chainIdMap: Record<number, string> = {
-    10: DefaultRPC.optimism,
-    8453: DefaultRPC.base,
-    1135: DefaultRPC.lisk,
-    34443: DefaultRPC.mode,
-    42220: DefaultRPC.celo,
-    1868: DefaultRPC.soneium,
-    130: DefaultRPC.unichain,
-    252: DefaultRPC.fraxtal,
-    57073: DefaultRPC.ink,
-    1750: DefaultRPC.metal,
-    1923: DefaultRPC.swell,
-    5330: DefaultRPC.superseed,
-  };
+const CHAIN_BY_ID: Record<number, Chain> = {
+  10: optimism,
+  8453: base,
+  1135: lisk,
+  34443: mode,
+  42220: celo,
+  1868: soneium,
+  130: unichain,
+  252: fraxtal,
+  57073: ink,
+  1750: metalL2,
+  1923: swellchain,
+  5330: superseed,
+};
 
-  return chainIdMap[chainId] || null;
+const DEFAULT_RPC_BY_ID: Record<number, string> = {
+  10: DefaultRPC.optimism,
+  8453: DefaultRPC.base,
+  1135: DefaultRPC.lisk,
+  34443: DefaultRPC.mode,
+  42220: DefaultRPC.celo,
+  1868: DefaultRPC.soneium,
+  130: DefaultRPC.unichain,
+  252: DefaultRPC.fraxtal,
+  57073: DefaultRPC.ink,
+  1750: DefaultRPC.metal,
+  1923: DefaultRPC.swell,
+  5330: DefaultRPC.superseed,
+};
+
+/**
+ * Builds a viem PublicClient pinned to the public DefaultRPC for a chain.
+ * Used by executeRpcWithFallback as a secondary client when the primary
+ * provider exhausts retries on recoverable errors (historical state or
+ * method-not-supported). Returns null if the chain has no default RPC.
+ *
+ * Clients are cached per chainId so the HTTP agent is reused across calls.
+ *
+ * @param chainId - Chain ID to build the fallback client for.
+ * @returns A viem PublicClient configured for the default RPC, or null if unsupported.
+ */
+const fallbackClientCache: Map<number, PublicClient> = new Map();
+export function createFallbackRpcClient(chainId: number): PublicClient | null {
+  const cached = fallbackClientCache.get(chainId);
+  if (cached) return cached;
+
+  const chain = CHAIN_BY_ID[chainId];
+  const url = DEFAULT_RPC_BY_ID[chainId];
+  if (!chain || !url) return null;
+
+  const client = createPublicClient({
+    chain: chain satisfies Chain as Chain,
+    transport: http(url, RPC_HTTP_OPTIONS),
+  });
+  fallbackClientCache.set(chainId, client);
+  return client;
 }
 
 export enum CrossChainPendingResolutionLogPrefix {

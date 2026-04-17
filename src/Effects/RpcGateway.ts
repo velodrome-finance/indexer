@@ -4,6 +4,7 @@ import {
   PriceOracleType,
   RPC_GATEWAY_PREFIX,
   TOKEN_DETAILS_FALLBACK,
+  createFallbackRpcClient,
 } from "../Constants";
 import { GLOBAL_REQUESTS_PER_SECOND, RPC_APP_RETRY } from "../Constants";
 import {
@@ -296,6 +297,10 @@ async function handleGetTokenDetails(
     }
     return fetchTokenDetails(i.contractAddress, chain.eth_client);
   };
+  const fallbackClient = createFallbackRpcClient(i.chainId);
+  const fallbackFetcher = fallbackClient
+    ? () => fetchTokenDetails(i.contractAddress, fallbackClient)
+    : undefined;
 
   const result = await executeRpcWithFallback(
     context,
@@ -303,6 +308,7 @@ async function handleGetTokenDetails(
     logDetails,
     fallback,
     fetcher,
+    fallbackFetcher,
   );
 
   return result;
@@ -352,6 +358,8 @@ async function handleGetTokenPrice(
     decimals: chain.destinationTokenDecimals,
   };
 
+  const fallbackClient = createFallbackRpcClient(chainId);
+
   const [tokenDetails, destinationTokenDetails] = await Promise.all([
     executeRpcWithFallback(
       context,
@@ -359,6 +367,9 @@ async function handleGetTokenPrice(
       { contractAddress: tokenAddress, chainId },
       TOKEN_DETAILS_FALLBACK,
       () => fetchTokenDetails(tokenAddress, chain.eth_client),
+      fallbackClient
+        ? () => fetchTokenDetails(tokenAddress, fallbackClient)
+        : undefined,
     ),
     executeRpcWithFallback(
       context,
@@ -366,6 +377,9 @@ async function handleGetTokenPrice(
       { contractAddress: DESTINATION_TOKEN_ADDRESS, chainId },
       DESTINATION_TOKEN_DETAILS_FALLBACK,
       () => fetchTokenDetails(DESTINATION_TOKEN_ADDRESS, chain.eth_client),
+      fallbackClient
+        ? () => fetchTokenDetails(DESTINATION_TOKEN_ADDRESS, fallbackClient)
+        : undefined,
     ),
   ]);
 
@@ -393,7 +407,7 @@ async function handleGetTokenPrice(
     pricePerUSDNew: 0n,
     priceOracleType: chain.oracle.getType(blockNumber).toString(),
   };
-  const fetcher = () =>
+  const buildPriceFetcher = (client: typeof chain.eth_client) => () =>
     fetchTokenPrice(
       tokenAddress,
       DESTINATION_TOKEN_ADDRESS,
@@ -402,7 +416,7 @@ async function handleGetTokenPrice(
       connectors,
       chainId,
       blockNumber,
-      chain.eth_client,
+      client,
     );
 
   const priceData = await executeRpcWithFallback(
@@ -410,7 +424,8 @@ async function handleGetTokenPrice(
     operationName,
     logDetails,
     fallback,
-    fetcher,
+    buildPriceFetcher(chain.eth_client),
+    fallbackClient ? buildPriceFetcher(fallbackClient) : undefined,
   );
 
   let currentPrice: bigint;
@@ -556,12 +571,19 @@ async function handleGetRootPoolAddress(
  * and returns the fallback. Centralises "retry then log + default" so the caller never throws.
  * Use this for all RPC gateway operations so errors are consistent and the indexer never crashes.
  *
+ * When `fallbackFn` is provided and the primary exhausts retries on a
+ * fallback-worthy error (METHOD_NOT_SUPPORTED or HISTORICAL_STATE_NOT_AVAILABLE),
+ * one warn is emitted and the fallback is retried on its own budget. Any other
+ * error class bypasses the fallback and surfaces a single uerror via
+ * {@link handleEffectErrorReturn}.
+ *
  * @param context - Effect context with optional cache flag and log (error + warn). On error, cache is set to false by {@link handleEffectErrorReturn}.
  * @param operationName - Identifier for logging (use {@link rpcGatewayOpName} for gateway operations).
- * @param logDetails - Key-value pairs included in error messages and retry logs.
+ * @param logDetails - Key-value pairs included in error messages.
  * @param fallback - Value returned when the operation throws (after retries are exhausted).
- * @param fn - Async function that performs the RPC call (e.g. a fetcher). No arguments; close over args in the caller.
- * @returns The result of `fn()`, or `fallback` if `fn` throws and the error is handled.
+ * @param fn - Async function that performs the primary RPC call. No arguments; close over args in the caller.
+ * @param fallbackFn - Optional async function to try on a different RPC when the primary exhausts on a fallback-worthy error.
+ * @returns The result of `fn()` (or `fallbackFn()` when engaged), or `fallback` if both throw.
  */
 export async function executeRpcWithFallback<T>(
   context: {
@@ -575,12 +597,30 @@ export async function executeRpcWithFallback<T>(
   logDetails: Record<string, string | number>,
   fallback: T,
   fn: () => Promise<T>,
+  fallbackFn?: () => Promise<T>,
 ): Promise<T> {
   try {
     return await runWithRpcRetry(fn);
-  } catch (error) {
+  } catch (primaryError) {
+    if (fallbackFn && shouldAttemptFallback(primaryError)) {
+      const primaryType = getErrorType(primaryError);
+      context.log.warn(
+        `[${operationName}] primary RPC exhausted (${primaryType})${formatDetailsSuffix(logDetails)}; trying fallback public RPC.`,
+      );
+      try {
+        return await runWithRpcRetry(fallbackFn);
+      } catch (fallbackError) {
+        return handleEffectErrorReturn(
+          fallbackError,
+          context,
+          `${operationName}.fallback`,
+          logDetails,
+          fallback,
+        );
+      }
+    }
     return handleEffectErrorReturn(
-      error,
+      primaryError,
       context,
       operationName,
       logDetails,
@@ -589,10 +629,37 @@ export async function executeRpcWithFallback<T>(
   }
 }
 
+/** True if the primary-RPC error is worth retrying on the default/public RPC.
+ * Provider-side method outages and historical-state-unavailable errors are the
+ * cases where a different provider has a real chance of succeeding. Rate
+ * limits, network blips, and contract reverts do not benefit from a fallback
+ * provider (or are not the fallback's job).
+ */
+function shouldAttemptFallback(error: unknown): boolean {
+  const t = getErrorType(error);
+  return (
+    t === ErrorType.METHOD_NOT_SUPPORTED ||
+    t === ErrorType.HISTORICAL_STATE_NOT_AVAILABLE
+  );
+}
+
+/** Builds the " key1=val1, key2=val2" suffix for the single fallback-engage warn, or "". */
+function formatDetailsSuffix(
+  logDetails: Record<string, string | number>,
+): string {
+  const entries = Object.entries(logDetails);
+  if (!entries.length) return "";
+  return ` ${entries.map(([k, v]) => `${k}=${v}`).join(", ")}`;
+}
+
 /**
  * Runs an async RPC operation with retries on retryable errors. Retries on
- * {@link ErrorType.RATE_LIMIT} and {@link ErrorType.NETWORK_ERROR} with
- * error-type-aware exponential backoff (caps from {@link RPC_APP_RETRY}).
+ * {@link ErrorType.RATE_LIMIT}, {@link ErrorType.NETWORK_ERROR}, and
+ * {@link ErrorType.METHOD_NOT_SUPPORTED} with error-type-aware exponential
+ * backoff (caps from {@link RPC_APP_RETRY}). METHOD_NOT_SUPPORTED uses its own
+ * low cap so the caller can fall back to the default RPC quickly instead of
+ * hammering a deterministically broken upstream.
+ *
  * Non-retryable errors or exhausted retries are rethrown for the caller to
  * convert into a single `uerror` (see {@link handleEffectErrorReturn}).
  *
@@ -605,7 +672,8 @@ export async function executeRpcWithFallback<T>(
  * @throws Rethrows the last error when retries are exhausted or the error is not retryable.
  */
 export async function runWithRpcRetry<T>(fn: () => Promise<T>): Promise<T> {
-  const { maxRetries, rateLimit, network } = RPC_APP_RETRY;
+  const { maxRetries, methodNotSupportedMaxRetries, rateLimit, network } =
+    RPC_APP_RETRY;
 
   let attempt = 0;
   while (true) {
@@ -613,10 +681,12 @@ export async function runWithRpcRetry<T>(fn: () => Promise<T>): Promise<T> {
       return await fn();
     } catch (error) {
       const errorType = getErrorType(error);
-      const isRetryable =
-        (errorType === ErrorType.RATE_LIMIT ||
-          errorType === ErrorType.NETWORK_ERROR) &&
-        attempt < maxRetries;
+      const attemptCap = maxAttemptsForErrorType(
+        errorType,
+        maxRetries,
+        methodNotSupportedMaxRetries,
+      );
+      const isRetryable = attemptCap !== null && attempt < attemptCap;
 
       if (!isRetryable) {
         throw error;
@@ -634,6 +704,28 @@ export async function runWithRpcRetry<T>(fn: () => Promise<T>): Promise<T> {
       await sleep(delayMs);
     }
   }
+}
+
+/** Returns the per-error-type retry cap for runWithRpcRetry, or null if the
+ * error class is non-retryable. Keeps provider-side method outages
+ * (METHOD_NOT_SUPPORTED) on a tight budget so the caller can fall back to the
+ * default RPC quickly instead of hammering a deterministically broken upstream.
+ */
+function maxAttemptsForErrorType(
+  errorType: ErrorType,
+  defaultMax: number,
+  methodNotSupportedMax: number,
+): number | null {
+  if (
+    errorType === ErrorType.RATE_LIMIT ||
+    errorType === ErrorType.NETWORK_ERROR
+  ) {
+    return defaultMax;
+  }
+  if (errorType === ErrorType.METHOD_NOT_SUPPORTED) {
+    return methodNotSupportedMax;
+  }
+  return null;
 }
 
 /** Computes delay in ms for the next retry attempt (exponential backoff with cap).
