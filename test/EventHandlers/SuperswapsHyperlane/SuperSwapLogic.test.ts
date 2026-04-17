@@ -1653,7 +1653,7 @@ describe("SuperSwapLogic", () => {
       } as any;
     };
 
-    it("creates a SuperSwap when a bridge+swap pair exists end-to-end", async () => {
+    it("should create a SuperSwap when a bridge+swap pair exists end-to-end", async () => {
       const dispatchIdEvent = createDispatchIdEvent(
         transactionHash,
         chainId,
@@ -1708,7 +1708,7 @@ describe("SuperSwapLogic", () => {
       expect(context.getWarnings()).toHaveLength(0);
     });
 
-    it("logs a uerror when an OUSDT swap exists without a bridge record", async () => {
+    it("should log a uerror when an OUSDT swap exists without a bridge record", async () => {
       // OUSDT pool swap is present on source chain but OUSDTBridgedTransaction
       // is missing — this is a real correlation failure that must be visible.
       const sourceSwap = createOUSDTSwap(
@@ -1740,7 +1740,7 @@ describe("SuperSwapLogic", () => {
       expect(context.getWarnings()).toHaveLength(0);
     });
 
-    it("silently skips when neither bridge nor OUSDT swap exist (non-OUSDT cross-chain swap)", async () => {
+    it("should silently skip when neither bridge nor OUSDT swap exist (non-OUSDT cross-chain swap)", async () => {
       // CrossChainSwap fires for any bridged token; when the bridged token is
       // not OUSDT, neither OUSDTBridgedTransaction nor OUSDTSwaps is produced.
       // This must not log (formerly produced 709 spurious warnings on Celo).

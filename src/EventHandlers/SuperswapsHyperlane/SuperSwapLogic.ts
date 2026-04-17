@@ -337,10 +337,13 @@ export async function handleCrossChainSwapEvent(
     ]);
 
   if (oUSDTBridgedTransactions.length === 0) {
-    // Symmetric filter with the UniversalRouterBridge producer: CrossChainSwap
-    // fires for any bridged token, but OUSDTBridgedTransaction is only recorded
-    // when the bridged token is OUSDT. If no OUSDT pool swap exists for this
-    // transaction, this cross-chain swap did not involve OUSDT — silently skip.
+    // No OUSDTBridgedTransaction for this tx — distinguish two cases via
+    // the OUSDTSwaps lookup, preserving symmetry with the UniversalRouterBridge
+    // producer (which only records OUSDTBridgedTransaction when token === OUSDT):
+    //   - sourceChainOUSDTSwaps.length > 0: OUSDT was swapped on source chain
+    //     but the bridge record is missing → real correlation failure, uerror.
+    //   - sourceChainOUSDTSwaps.length === 0: bridged token was not OUSDT,
+    //     so neither OUSDTBridgedTransaction nor OUSDTSwaps exist → silent skip.
     const sourceChainOUSDTSwaps = await context.OUSDTSwaps.getWhere({
       transactionHash: { _eq: transactionHash },
     });
