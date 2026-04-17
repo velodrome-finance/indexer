@@ -331,6 +331,7 @@ type NonFungiblePosition {
   id: ID! # Format: {chainId}-{poolAddress}-{tokenId} (NonFungiblePositionId)
   chainId: Int! # Chain ID where the NFT exists
   tokenId: BigInt! @index # Token ID of the NFT (from Transfer event)
+  nfpmAddress: String! @index # Address of the NFPM contract that emitted the Transfer; disambiguates intra-chain tokenId collisions across multiple NFPMs (e.g. Optimism has two)
   owner: String! @index # Checksum address of the current owner (from Transfer event)
   pool: String! @index # Address of the CL pool this position belongs to
   tickUpper: BigInt! @config(precision: 24) # Upper tick of the position range
@@ -350,6 +351,7 @@ type NonFungiblePositionSnapshot {
   id: ID! # Format: {chainId}-{tokenId}-{epochMs} (NonFungiblePositionSnapshotId)
   chainId: Int!
   tokenId: BigInt! @index
+  nfpmAddress: String! @index
   owner: String! @index
   pool: String! @index
   tickLower: BigInt! @config(precision: 24)

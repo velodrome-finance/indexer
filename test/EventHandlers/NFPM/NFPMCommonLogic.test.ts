@@ -40,6 +40,15 @@ describe("NFPMCommonLogic", () => {
   const poolAddress = toChecksumAddress(
     "0x00cd0AbB6c2964F7Dfb5169dD94A9F004C35F458",
   );
+  const nfpmAddressA = toChecksumAddress(
+    "0xbB5DFE1380333CEE4c2EeBd7202c80dE2256AdF4",
+  );
+  const nfpmAddressB = toChecksumAddress(
+    "0x416b433906b1B72FA758e166e239c43d68dC6F29",
+  );
+  const poolAddressB = toChecksumAddress(
+    "0x00cd0AbB6c2964F7Dfb5169dD94A9F004C35F459",
+  );
 
   const mockPosition: NonFungiblePosition = {
     id: NonFungiblePositionId(chainId, poolAddress, tokenId),
@@ -47,6 +56,7 @@ describe("NFPMCommonLogic", () => {
     tokenId: tokenId,
     owner: toChecksumAddress("0x1DFAb7699121fEF702d07932a447868dCcCFb029"),
     pool: poolAddress,
+    nfpmAddress: nfpmAddressA,
     tickUpper: 0n,
     tickLower: -4n,
     token0: toChecksumAddress("0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85"),
@@ -66,6 +76,16 @@ describe("NFPMCommonLogic", () => {
     chainId: 8453, // Different chain
   };
 
+  // Same chain (chainId=10) and same tokenId as mockPosition, but different NFPM and pool.
+  // Reproduces the intra-chain multi-NFPM collision: Optimism has two NFPM contracts,
+  // each with its own tokenId counter, so tokenId 540 can exist on both.
+  const mockPositionSameTokenDifferentNfpm: NonFungiblePosition = {
+    ...mockPosition,
+    id: NonFungiblePositionId(chainId, poolAddressB, tokenId),
+    pool: poolAddressB,
+    nfpmAddress: nfpmAddressB,
+  };
+
   let mockDb: ReturnType<typeof MockDb.createMockDb>;
   let mockContext: handlerContext;
 
@@ -75,6 +95,7 @@ describe("NFPMCommonLogic", () => {
     const storedPositions: NonFungiblePosition[] = [
       mockPosition,
       mockPositionDifferentChain,
+      mockPositionSameTokenDifferentNfpm,
     ];
 
     const getWhereNonFungiblePosition = vi
@@ -113,22 +134,25 @@ describe("NFPMCommonLogic", () => {
   });
 
   describe("findPositionByTokenId", () => {
-    it("should find position by tokenId on correct chain", async () => {
+    it("should find position by tokenId on correct chain and NFPM", async () => {
       const positions = await findPositionByTokenId(
         tokenId,
         chainId,
+        nfpmAddressA,
         mockContext,
       );
 
       expect(positions).toHaveLength(1);
       expect(positions[0]?.id).toBe(mockPosition.id);
       expect(positions[0]?.chainId).toBe(chainId);
+      expect(positions[0]?.nfpmAddress).toBe(nfpmAddressA);
     });
 
     it("should filter by chainId to avoid cross-chain collisions", async () => {
       const positions = await findPositionByTokenId(
         tokenId,
         8453, // Different chain
+        nfpmAddressA,
         mockContext,
       );
 
@@ -137,10 +161,26 @@ describe("NFPMCommonLogic", () => {
       expect(positions[0]?.chainId).toBe(8453);
     });
 
+    it("should filter by nfpmAddress to avoid intra-chain multi-NFPM collisions", async () => {
+      // Same chain, same tokenId, but a different NFPM contract (Optimism has two)
+      const positions = await findPositionByTokenId(
+        tokenId,
+        chainId,
+        nfpmAddressB,
+        mockContext,
+      );
+
+      expect(positions).toHaveLength(1);
+      expect(positions[0]?.id).toBe(mockPositionSameTokenDifferentNfpm.id);
+      expect(positions[0]?.nfpmAddress).toBe(nfpmAddressB);
+      expect(positions[0]?.pool).toBe(poolAddressB);
+    });
+
     it("should return empty array when no position exists", async () => {
       const positions = await findPositionByTokenId(
         999n, // Non-existent tokenId
         chainId,
+        nfpmAddressA,
         mockContext,
       );
 
@@ -151,6 +191,24 @@ describe("NFPMCommonLogic", () => {
       const positions = await findPositionByTokenId(
         tokenId,
         1, // Chain where position doesn't exist
+        nfpmAddressA,
+        mockContext,
+      );
+
+      expect(positions).toHaveLength(0);
+    });
+
+    it("should return empty array when the tokenId exists on same chain but under a different NFPM", async () => {
+      // Querying for an NFPM that has no position for this tokenId on this chain:
+      // previous behavior would leak the other NFPM's position and corrupt it.
+      const unknownNfpm = toChecksumAddress(
+        "0x0000000000000000000000000000000000000123",
+      );
+
+      const positions = await findPositionByTokenId(
+        tokenId,
+        chainId,
+        unknownNfpm,
         mockContext,
       );
 

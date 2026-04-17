@@ -37,6 +37,9 @@ describe("NFPMDecreaseLiquidityLogic", () => {
   const poolAddress = toChecksumAddress(
     "0x00cd0AbB6c2964F7Dfb5169dD94A9F004C35F458",
   );
+  const nfpmAddress = toChecksumAddress(
+    "0xbB5DFE1380333CEE4c2EeBd7202c80dE2256AdF4",
+  );
   const blockTimestamp = new Date(1712065791 * 1000);
 
   function expectSnapshotSet(context: handlerContext, liquidity: bigint): void {
@@ -60,6 +63,7 @@ describe("NFPMDecreaseLiquidityLogic", () => {
     id: NonFungiblePositionId(chainId, poolAddress, tokenId),
     chainId: chainId,
     tokenId: tokenId,
+    nfpmAddress: nfpmAddress,
     owner: toChecksumAddress("0x1DFAb7699121fEF702d07932a447868dCcCFb029"),
     pool: poolAddress,
     tickUpper: 0n,

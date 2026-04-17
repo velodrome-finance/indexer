@@ -59,6 +59,7 @@ describe("NFPMIncreaseLiquidityLogic", () => {
     id: NonFungiblePositionId(chainId, poolAddress, tokenId),
     chainId: chainId,
     tokenId: tokenId,
+    nfpmAddress: nfpmAddress,
     owner: ownerAddress,
     pool: poolAddress,
     tickUpper: 0n,

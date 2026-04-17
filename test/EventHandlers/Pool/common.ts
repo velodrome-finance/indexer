@@ -36,6 +36,9 @@ export function setupCommon() {
   const TOKEN1_ADDRESS = toChecksumAddress(
     "0x2222222222222222222222222222222222222222",
   );
+  const nfpmAddress = toChecksumAddress(
+    "0xbB5DFE1380333CEE4c2EeBd7202c80dE2256AdF4",
+  );
 
   const mockToken0Data: Token = {
     id: TokenId(CHAIN_ID, TOKEN0_ADDRESS),
@@ -290,6 +293,7 @@ export function setupCommon() {
     id: NonFungiblePositionId(CHAIN_ID, POOL_ADDRESS, defaultNFPMTokenId),
     chainId: CHAIN_ID,
     tokenId: defaultNFPMTokenId,
+    nfpmAddress: nfpmAddress,
     owner: normalizedDefaultUserAddress,
     pool: POOL_ADDRESS,
     tickLower: -1000n,

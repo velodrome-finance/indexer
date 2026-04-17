@@ -32,6 +32,7 @@ export function createNonFungiblePositionSnapshot(
     id: snapshotId,
     chainId: entity.chainId,
     tokenId: entity.tokenId,
+    nfpmAddress: entity.nfpmAddress,
     owner: entity.owner,
     pool: entity.pool,
     tickLower: entity.tickLower,

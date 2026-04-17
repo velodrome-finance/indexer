@@ -24,6 +24,9 @@ describe("NFPM Events", () => {
   const token0Address = mockToken0Data.address;
   const token1Address = mockToken1Data.address;
   const tokenId = 1n;
+  const nfpmAddress = toChecksumAddress(
+    "0xbB5DFE1380333CEE4c2EeBd7202c80dE2256AdF4",
+  );
 
   const transactionHash =
     "0x1234567890123456789012345678901234567890123456789012345678901234";
@@ -33,6 +36,7 @@ describe("NFPM Events", () => {
     id: NonFungiblePositionId(chainId, poolAddress, tokenId),
     chainId,
     tokenId: tokenId,
+    nfpmAddress: nfpmAddress,
     owner: toChecksumAddress("0x1111111111111111111111111111111111111111"),
     pool: poolAddress,
     tickUpper: 100n,
@@ -74,9 +78,7 @@ describe("NFPM Events", () => {
         },
         chainId: 10,
         logIndex: 1,
-        srcAddress: toChecksumAddress(
-          "0x3333333333333333333333333333333333333333",
-        ),
+        srcAddress: nfpmAddress,
       },
     };
 
@@ -179,9 +181,7 @@ describe("NFPM Events", () => {
           },
           chainId: 10,
           logIndex: transferLogIndex,
-          srcAddress: toChecksumAddress(
-            "0x3333333333333333333333333333333333333333",
-          ),
+          srcAddress: nfpmAddress,
           transaction: {
             hash: transactionHash,
           },
@@ -222,9 +222,7 @@ describe("NFPM Events", () => {
         },
         chainId: 10,
         logIndex: 1,
-        srcAddress: toChecksumAddress(
-          "0x3333333333333333333333333333333333333333",
-        ),
+        srcAddress: nfpmAddress,
         transaction: {
           hash: transactionHash,
         },
@@ -440,9 +438,7 @@ describe("NFPM Events", () => {
         },
         chainId: 10,
         logIndex: 1,
-        srcAddress: toChecksumAddress(
-          "0x3333333333333333333333333333333333333333",
-        ),
+        srcAddress: nfpmAddress,
       },
     };
 
@@ -491,9 +487,7 @@ describe("NFPM Events", () => {
           },
           chainId: 10,
           logIndex: 1,
-          srcAddress: toChecksumAddress(
-            "0x3333333333333333333333333333333333333333",
-          ),
+          srcAddress: nfpmAddress,
           transaction: {
             hash: transactionHash,
           },
@@ -548,9 +542,7 @@ describe("NFPM Events", () => {
           },
           chainId: 10,
           logIndex: 1,
-          srcAddress: toChecksumAddress(
-            "0x3333333333333333333333333333333333333333",
-          ),
+          srcAddress: nfpmAddress,
           transaction: {
             hash: transactionHash,
           },
@@ -585,6 +577,7 @@ describe("NFPM Events", () => {
       id: NonFungiblePositionId(chainIdBase, poolAddressBase, sameTokenId),
       chainId: chainIdBase,
       tokenId: sameTokenId,
+      nfpmAddress: nfpmAddress,
       owner: toChecksumAddress("0x1111111111111111111111111111111111111111"),
       pool: poolAddressBase,
       tickUpper: 100n,
@@ -604,6 +597,7 @@ describe("NFPM Events", () => {
       id: NonFungiblePositionId(chainIdLisk, poolAddressLisk, sameTokenId),
       chainId: chainIdLisk,
       tokenId: sameTokenId,
+      nfpmAddress: nfpmAddress,
       owner: toChecksumAddress("0x2222222222222222222222222222222222222222"),
       pool: poolAddressLisk,
       tickUpper: 200n,
@@ -763,9 +757,7 @@ describe("NFPM Events", () => {
           },
           chainId: chainIdBase, // Event is on Base chain
           logIndex: 1,
-          srcAddress: toChecksumAddress(
-            "0x3333333333333333333333333333333333333333",
-          ),
+          srcAddress: nfpmAddress,
         },
       });
 
@@ -865,9 +857,7 @@ describe("NFPM Events", () => {
           },
           chainId: chainIdBase, // Event is on Base chain
           logIndex: 1,
-          srcAddress: toChecksumAddress(
-            "0x3333333333333333333333333333333333333333",
-          ),
+          srcAddress: nfpmAddress,
           transaction: {
             hash: transactionHash,
           },
@@ -967,9 +957,7 @@ describe("NFPM Events", () => {
           },
           chainId: chainIdLisk, // Event is on Lisk chain
           logIndex: 1,
-          srcAddress: toChecksumAddress(
-            "0x3333333333333333333333333333333333333333",
-          ),
+          srcAddress: nfpmAddress,
           transaction: {
             hash: transactionHash,
           },
@@ -1070,9 +1058,7 @@ describe("NFPM Events", () => {
           },
           chainId: chainIdBase, // Event is on Base chain (8453)
           logIndex: 1,
-          srcAddress: toChecksumAddress(
-            "0x3333333333333333333333333333333333333333",
-          ),
+          srcAddress: nfpmAddress,
           transaction: {
             hash: transactionHash,
           },

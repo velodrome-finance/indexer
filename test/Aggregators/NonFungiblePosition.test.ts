@@ -10,10 +10,14 @@ describe("NonFungiblePosition", () => {
   const poolAddress = toChecksumAddress(
     "0x0000000000000000000000000000000000000001",
   );
+  const nfpmAddress = toChecksumAddress(
+    "0xbB5DFE1380333CEE4c2EeBd7202c80dE2256AdF4",
+  );
   const mockNonFungiblePosition: NonFungiblePosition = {
     id: NonFungiblePositionId(10, poolAddress, 1n),
     chainId: 10,
     tokenId: 1n,
+    nfpmAddress: nfpmAddress,
     owner: toChecksumAddress("0x1111111111111111111111111111111111111111"),
     pool: poolAddress,
     tickUpper: 100n,

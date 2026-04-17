@@ -52,10 +52,12 @@ export async function processNFPMDecreaseLiquidity(
 ): Promise<void> {
   // Get position by tokenId
   // Transfer should have already run and updated the placeholder, so position should exist when a DecreaseLiquidity event is processed
-  // Filter by chainId to avoid cross-chain collisions (same tokenId can exist on different chains)
+  // Filter by chainId AND nfpmAddress to avoid collisions: same tokenId can exist on different chains,
+  // and on chains with multiple NFPM contracts (e.g. Optimism) each NFPM has its own tokenId counter.
   const positions = await findPositionByTokenId(
     event.params.tokenId,
     event.chainId,
+    event.srcAddress,
     context,
   );
 

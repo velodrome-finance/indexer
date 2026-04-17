@@ -21,18 +21,24 @@ export enum LiquidityChangeType {
 }
 
 /**
- * Finds a NonFungiblePosition entity by tokenId, filtering by chainId to avoid cross-chain collisions.
- * Uses a single-field getWhere (tokenId) then filters by chainId in memory because Envio's getWhere
- * supports only one filter field per call.
+ * Finds a NonFungiblePosition entity by tokenId, scoped to a specific chain AND NFPM contract.
+ *
+ * Uses a single-field getWhere (tokenId) then narrows in memory because Envio's getWhere supports
+ * only one filter field per call. Filtering by (chainId, nfpmAddress) is required because tokenIds
+ * are only unique within a single NFPM contract's counter — cross-chain and intra-chain (multiple
+ * NFPMs on the same chain, e.g. Optimism) collisions would otherwise leak the wrong position and
+ * silently misattribute liquidity, ownership, and stake state.
  *
  * @param tokenId - The token ID to search for
  * @param chainId - The chain ID to filter by
+ * @param nfpmAddress - The NFPM contract address (event.srcAddress) to filter by
  * @param context - The handler context for database operations
- * @returns Array of matching positions (should be 0 or 1), filtered by chainId
+ * @returns Array of matching positions (should be 0 or 1)
  */
 export async function findPositionByTokenId(
   tokenId: bigint,
   chainId: number,
+  nfpmAddress: string,
   context: handlerContext,
 ): Promise<NonFungiblePosition[]> {
   const positions = await context.NonFungiblePosition.getWhere({
@@ -43,9 +49,9 @@ export async function findPositionByTokenId(
     return [];
   }
 
-  // Filter by chainId to ensure we get the position from the correct chain
   return positions.filter(
-    (pos: NonFungiblePosition) => pos.chainId === chainId,
+    (pos: NonFungiblePosition) =>
+      pos.chainId === chainId && pos.nfpmAddress === nfpmAddress,
   );
 }
 

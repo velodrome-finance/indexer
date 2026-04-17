@@ -33,6 +33,7 @@ export async function createPositionFromCLPoolMint(
   mintEvent: CLPoolMintEvent,
   tokenId: bigint,
   owner: string,
+  nfpmAddress: string,
   chainId: number,
   blockTimestamp: number,
   context: handlerContext,
@@ -45,6 +46,7 @@ export async function createPositionFromCLPoolMint(
     id: stableId,
     chainId: mintEvent.chainId,
     tokenId: tokenId,
+    nfpmAddress: nfpmAddress,
     owner: owner,
     pool: mintEvent.pool,
     tickUpper: mintEvent.tickUpper,
@@ -132,6 +134,7 @@ export async function handleMintTransfer(
       mintEvent,
       event.params.tokenId,
       event.params.to,
+      event.srcAddress,
       event.chainId,
       event.block.timestamp,
       context,
@@ -350,6 +353,7 @@ export async function processNFPMTransfer(
   const positions = await findPositionByTokenId(
     event.params.tokenId,
     event.chainId,
+    event.srcAddress,
     context,
   );
 
