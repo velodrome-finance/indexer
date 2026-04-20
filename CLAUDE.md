@@ -70,6 +70,27 @@ The indexer tracks these protocol domains, each with its own event handlers:
 - **Addresses**: Use lowercase keys in config objects for `.toLowerCase()` lookups. Always checksum addresses for entity storage.
 - **Amount normalization**: Always normalize token amounts to a common decimal base before arithmetic across different tokens.
 
+## Conventions
+
+### File naming under `src/EventHandlers/`
+
+Files use PascalCase with a descriptive suffix that reflects what the file does:
+
+- `*Logic.ts` — event-specific logic (e.g. `CLFactoryPoolCreatedLogic.ts`, `PoolSwapLogic.ts`)
+- `*SharedLogic.ts` / `*CommonLogic.ts` — helpers shared across multiple handlers in the same domain (e.g. `GaugeSharedLogic.ts`, `VoterCommonLogic.ts`, `CLGaugeFactorySharedLogic.ts`)
+
+Avoid bare names like `shared.ts`, `utils.ts`, or `helpers.ts` inside `src/EventHandlers/` — prefix them with the contract/domain they belong to so grep and imports stay self-documenting.
+
+### JSDoc on exported functions
+
+Every exported function in `src/**/*.ts` carries a JSDoc block with:
+
+- A one-line summary (plus a longer paragraph when behavior is non-obvious — side effects, ordering constraints, last-writer-wins semantics, etc.)
+- `@param name - description` for every parameter
+- `@returns description` — even for `Promise<void>`, summarize what was staged/written (e.g. "Promise that resolves once the upsert is staged")
+
+Match the style already in `src/Aggregators/LiquidityPoolAggregator.ts`, `src/EventHandlers/Gauges/GaugeSharedLogic.ts`, and `src/EventHandlers/CLGaugeFactory/CLGaugeFactorySharedLogic.ts`.
+
 ## Testing
 
 Tests live in `test/` mirroring the `src/` structure. Uses Vitest with threaded parallelism and 120s timeout.
