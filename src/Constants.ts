@@ -102,15 +102,18 @@ const CL_FACTORY_TO_NFPM: Record<string, string> = {
   [`10-${toChecksumAddress("0xCc0bDDB707055e04e497aB22a59c2aF4391cd12F")}`]:
     toChecksumAddress("0x416b433906b1B72FA758e166e239c43d68dC6F29"),
 
-  // Base — two NFPMs, two canonical CLFactories. The third factory
-  // (0x9592CD9B...) has a slightly different ABI and currently does not
-  // drive handler behavior; we pair it with the newer NFPM for completeness.
+  // Base — three CLFactories each with a dedicated NFPM, verified on-chain via
+  // NFPM.factory(). The newest Base CLFactory (0xf8f2eB49...) does not yet have
+  // a paired NFPM deployed, so pools from it fall through to null — this will
+  // resolve itself once a new NFPM is deployed and added here.
+  // TODO(nfpm): add Base V3-newest NFPM for 0xf8f2eB4940CFE7d13603DDDD87f123820Fc061Ef
+  //             once that factory ships with a paired NFPM.
   [`8453-${toChecksumAddress("0x5e7BB104d84c7CB9B682AaC2F3d509f5F406809A")}`]:
     toChecksumAddress("0x827922686190790b37229fd06084350E74485b72"),
   [`8453-${toChecksumAddress("0xaDe65c38CD4849aDBA595a4323a8C7DdfE89716a")}`]:
     toChecksumAddress("0xa990C6a764b73BF43cee5Bb40339c3322FB9D55F"),
   [`8453-${toChecksumAddress("0x9592CD9B267748cbfBDe90Ac9F7DF3c437A6d51B")}`]:
-    toChecksumAddress("0xa990C6a764b73BF43cee5Bb40339c3322FB9D55F"),
+    toChecksumAddress("0xc741beb2156827704A1466575ccA1cBf726a1178"),
 };
 
 /**
