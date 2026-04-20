@@ -25,6 +25,7 @@ export function createNonFungiblePositionSnapshot(
   const epoch = getSnapshotEpoch(timestamp);
   const snapshotId = NonFungiblePositionSnapshotId(
     entity.chainId,
+    entity.nfpmAddress,
     entity.tokenId,
     epoch.getTime(),
   );

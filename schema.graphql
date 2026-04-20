@@ -350,7 +350,7 @@ type NonFungiblePosition {
 
 # Snapshot of NonFungiblePosition at an epoch (full state for historical queries / recomputation)
 type NonFungiblePositionSnapshot {
-  id: ID! # Format: {chainId}-{tokenId}-{epochMs} (NonFungiblePositionSnapshotId)
+  id: ID! # Format: {chainId}-{nfpmAddress}-{tokenId}-{epochMs} (NonFungiblePositionSnapshotId). nfpmAddress disambiguates intra-chain tokenId collisions across multiple NFPMs (e.g. Optimism has two).
   chainId: Int!
   tokenId: BigInt! @index
   nfpmAddress: String! @index

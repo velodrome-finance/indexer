@@ -1085,17 +1085,26 @@ export const UserStatsPerPoolSnapshotId = (
   epochMs: number,
 ) => `${chainId}-${userAddress}-${poolAddress}-${epochMs}`;
 
-/** Snapshot ID for NonFungiblePositionSnapshot. epochMs = getSnapshotEpoch(timestamp).getTime()
+/** Snapshot ID for NonFungiblePositionSnapshot.
+ * Format: {chainId}-{nfpmAddress}-{tokenId}-{epochMs}. epochMs = getSnapshotEpoch(timestamp).getTime().
+ *
+ * Includes nfpmAddress because tokenIds are only unique within a single NFPM contract's
+ * counter. Optimism has two NFPMs so two positions can share (chainId, tokenId) with
+ * different pools; without nfpmAddress in the ID their snapshots would collide in the
+ * same epoch and overwrite each other. See #620.
+ *
  * @param chainId - Chain ID of the non-fungible position
+ * @param nfpmAddress - Address of the NFPM contract that owns the position
  * @param tokenId - ID of the non-fungible position
  * @param epochMs - Epoch timestamp in milliseconds
- * @returns string Combined non-fungible position ID.
+ * @returns string Combined non-fungible position snapshot ID.
  */
 export const NonFungiblePositionSnapshotId = (
   chainId: number,
+  nfpmAddress: string,
   tokenId: bigint,
   epochMs: number,
-) => `${chainId}-${tokenId}-${epochMs}`;
+) => `${chainId}-${nfpmAddress}-${tokenId}-${epochMs}`;
 
 /** Snapshot ID for ALM_LP_WrapperSnapshot. Format: {chainId}-{wrapperAddress}-{epochMs}. epochMs = getSnapshotEpoch(timestamp).getTime()
  * @param chainId - Chain ID of the wrapper
