@@ -8,7 +8,11 @@ import {
   loadOrCreateUserData,
   updateUserStatsPerPool,
 } from "../../Aggregators/UserStatsPerPool";
-import { PoolTransferInTxId, ZERO_ADDRESS } from "../../Constants";
+import {
+  PoolTransferInTxId,
+  TxPoolTransferRegistryId,
+  ZERO_ADDRESS,
+} from "../../Constants";
 
 /**
  * Update pool totalLPTokenSupply based on mint/burn transfers
@@ -169,7 +173,7 @@ export async function updateUserLpBalances(
  * @param timestamp - Event timestamp
  * @param context - Handler context
  */
-export function storeTransferForMatching(
+export async function storeTransferForMatching(
   isMint: boolean,
   isBurn: boolean,
   chainId: number,
@@ -182,7 +186,7 @@ export function storeTransferForMatching(
   value: bigint,
   timestamp: Date,
   context: handlerContext,
-): void {
+): Promise<void> {
   // Only store mint/burn transfers (not regular transfers) to reduce storage
   if (isMint || isBurn) {
     const transferId = PoolTransferInTxId(
@@ -205,6 +209,18 @@ export function storeTransferForMatching(
       isBurn: isBurn,
       consumedByLogIndex: undefined, // Initially unused
       timestamp: timestamp,
+    });
+
+    // Per-(tx, pool) registry so Pool.Mint/Pool.Burn can PK-lookup the transfer
+    // ids for this tx+pool instead of running a getWhere scan on
+    // PoolTransferInTx.txHash.
+    const registryId = TxPoolTransferRegistryId(chainId, txHash, poolAddress);
+    const existing = await context.TxPoolTransferRegistry.get(registryId);
+    context.TxPoolTransferRegistry.set({
+      id: registryId,
+      transferIds: existing
+        ? [...existing.transferIds, transferId]
+        : [transferId],
     });
   }
 }
@@ -254,7 +270,7 @@ export async function processPoolTransfer(
   );
 
   // 3. Store transfer in temporary entity for Mint/Burn matching
-  storeTransferForMatching(
+  await storeTransferForMatching(
     isMint,
     isBurn,
     chainId,

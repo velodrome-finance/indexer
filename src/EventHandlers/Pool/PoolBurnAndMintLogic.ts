@@ -13,6 +13,7 @@ import {
   loadOrCreateUserData,
   updateUserStatsPerPool,
 } from "../../Aggregators/UserStatsPerPool";
+import { TxPoolTransferRegistryId } from "../../Constants";
 import { calculateTotalUSD } from "../../Helpers";
 
 export interface AttributionResult {
@@ -21,14 +22,20 @@ export interface AttributionResult {
 }
 
 /**
- * Query transfers by indexed fields (txHash is indexed, most selective)
- * Then filter in memory by chainId, pool, and event type
- * @param txHash - Transaction hash (indexed)
+ * Fetch mint/burn transfers for a (tx, pool) via the per-(tx, pool) registry,
+ * then PK-get each transfer by id. Replaces the old
+ * `PoolTransferInTx.getWhere({ txHash })` index scan.
+ *
+ * Registry rows may contain ids whose entities were deleted by a prior
+ * consumption in the same tx; those get filtered out. The chainId/pool filter
+ * is retained as a safety belt even though the key already scopes by both.
+ *
+ * @param txHash - Transaction hash
  * @param chainId - Chain ID
  * @param poolAddress - Pool address
  * @param isMint - Whether this is a Mint event (true) or Burn event (false)
  * @param context - Handler context
- * @returns Filtered transfers in the transaction
+ * @returns Filtered transfers for the (chainId, tx, pool) event type
  */
 export async function getTransfersInTx(
   txHash: string,
@@ -37,16 +44,52 @@ export async function getTransfersInTx(
   isMint: boolean,
   context: handlerContext,
 ): Promise<PoolTransferInTx[]> {
-  const transfersInTxHash = await context.PoolTransferInTx.getWhere({
-    txHash: { _eq: txHash },
-  });
+  const registryId = TxPoolTransferRegistryId(chainId, txHash, poolAddress);
+  const registry = await context.TxPoolTransferRegistry.get(registryId);
+  if (!registry || registry.transferIds.length === 0) {
+    return [];
+  }
 
-  return (transfersInTxHash ?? []).filter(
-    (t: PoolTransferInTx) =>
+  const transfers = (
+    await Promise.all(
+      registry.transferIds.map((id) => context.PoolTransferInTx.get(id)),
+    )
+  ).filter((t): t is PoolTransferInTx => t !== undefined);
+
+  return transfers.filter(
+    (t) =>
       t.chainId === chainId &&
       t.pool === poolAddress &&
       (isMint ? t.isMint === true : t.isBurn === true),
   );
+}
+
+/**
+ * Remove a consumed transfer id from the per-(tx, pool) registry and delete
+ * the registry row when it empties. Paired with the PoolTransferInTx
+ * deletion in findTransferAndAttribute so the registry doesn't leak rows.
+ *
+ * @param registryId - TxPoolTransferRegistryId for the (chainId, tx, pool)
+ * @param transferId - The PoolTransferInTx id that was consumed
+ * @param context - Handler context
+ * @returns Promise that resolves once the registry update is staged
+ */
+async function pruneRegistryOnConsume(
+  registryId: string,
+  transferId: string,
+  context: handlerContext,
+): Promise<void> {
+  const registry = await context.TxPoolTransferRegistry.get(registryId);
+  if (!registry) return;
+  const remaining = registry.transferIds.filter((id) => id !== transferId);
+  if (remaining.length === 0) {
+    context.TxPoolTransferRegistry.deleteUnsafe(registryId);
+  } else {
+    context.TxPoolTransferRegistry.set({
+      id: registryId,
+      transferIds: remaining,
+    });
+  }
 }
 
 /**
@@ -179,11 +222,16 @@ export async function findTransferAndAttribute(
     extractRecipientAddress(matchedTransfer, precedingTransfers, isMint);
   matchedTransfer = finalMatchedTransfer;
 
-  // Mark the matched transfer as consumed by this event
-  context.PoolTransferInTx.set({
-    ...matchedTransfer,
-    consumedByLogIndex: eventLogIndex,
-  });
+  // Consume the matched transfer: delete it and prune its id from the
+  // per-(tx, pool) registry. Symmetric with the CL mint registry cleanup path
+  // (#628) — avoids accumulating stale PoolTransferInTx rows since this file
+  // is the only reader (grep-verified in #629).
+  context.PoolTransferInTx.deleteUnsafe(matchedTransfer.id);
+  await pruneRegistryOnConsume(
+    TxPoolTransferRegistryId(chainId, txHash, poolAddress),
+    matchedTransfer.id,
+    context,
+  );
 
   // Calculate USD value
   const totalLiquidityUSD = calculateTotalUSD(

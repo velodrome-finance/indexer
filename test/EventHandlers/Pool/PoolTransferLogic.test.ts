@@ -72,6 +72,11 @@ describe("PoolTransferLogic", () => {
       PoolTransferInTx: {
         set: vi.fn(),
       },
+      TxPoolTransferRegistry: {
+        get: vi.fn().mockResolvedValue(undefined),
+        set: vi.fn(),
+        deleteUnsafe: vi.fn(),
+      },
     } as unknown as handlerContext;
 
     // Set up spies with mocks
