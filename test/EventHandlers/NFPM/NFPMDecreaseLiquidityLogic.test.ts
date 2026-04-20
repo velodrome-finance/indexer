@@ -18,7 +18,7 @@ import {
   processNFPMDecreaseLiquidity,
 } from "../../../src/EventHandlers/NFPM/NFPMDecreaseLiquidityLogic";
 import { getSnapshotEpoch } from "../../../src/Snapshots/Shared";
-import { NFPM_ADDRESS } from "../Pool/common";
+import { defaultNfpmAddress } from "../Pool/common";
 
 vi.mock("../../../src/Aggregators/LiquidityPoolAggregator", async () => ({
   ...(await vi.importActual(
@@ -38,7 +38,7 @@ describe("NFPMDecreaseLiquidityLogic", () => {
   const poolAddress = toChecksumAddress(
     "0x00cd0AbB6c2964F7Dfb5169dD94A9F004C35F458",
   );
-  const nfpmAddress = NFPM_ADDRESS;
+  const nfpmAddress = defaultNfpmAddress;
   const blockTimestamp = new Date(1712065791 * 1000);
 
   function expectSnapshotSet(context: handlerContext, liquidity: bigint): void {

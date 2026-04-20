@@ -642,6 +642,10 @@ export function createLiquidityPoolAggregatorEntity(params: {
   tickSpacing?: number; // For CL pools
   CLGaugeConfig?: CLGaugeConfig | null; // For CL pools
   factoryAddress: string; // Address of the factory that created this pool (e.g. CLFactory for CL pools)
+  // Address of the NFPM contract that mints positions for this pool (CL only; null for V2).
+  // Resolved by nfpmForCLPool() at the PoolCreated handler; threaded here so downstream
+  // consumers (gauges, user-stats, NFPM handlers) can look up positions without a separate scan.
+  nfpmAddress?: string | null;
   baseFee: bigint;
   currentFee: bigint;
 }): LiquidityPoolAggregator {
@@ -658,6 +662,7 @@ export function createLiquidityPoolAggregatorEntity(params: {
     tickSpacing,
     CLGaugeConfig,
     factoryAddress,
+    nfpmAddress,
     baseFee,
     currentFee,
   } = params;
@@ -743,6 +748,8 @@ export function createLiquidityPoolAggregatorEntity(params: {
     poolLauncherPoolId: undefined,
     // Address of the factory that created this pool (e.g. CLFactory for CL pools)
     factoryAddress: factoryAddress,
+    // Address of the NFPM for this CL pool (null for V2). See nfpmForCLPool in Constants.ts.
+    nfpmAddress: nfpmAddress ?? undefined,
     // Voting fields
     gaugeAddress: "",
     // Set to undefined if CLGaugeConfig does not exist (i.e before the deployment of CLGaugeFactoryV2 which introduces emissions caps per gauge).

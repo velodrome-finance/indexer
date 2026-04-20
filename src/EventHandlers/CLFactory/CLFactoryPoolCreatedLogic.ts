@@ -7,7 +7,11 @@ import type {
   handlerContext,
 } from "generated";
 import { createLiquidityPoolAggregatorEntity } from "../../Aggregators/LiquidityPoolAggregator";
-import { RootPoolLeafPoolId, rootPoolMatchingHash } from "../../Constants";
+import {
+  RootPoolLeafPoolId,
+  nfpmForCLPool,
+  rootPoolMatchingHash,
+} from "../../Constants";
 import type { TokenEntityMapping } from "../../CustomTypes";
 import { createTokenEntity } from "../../PriceOracle";
 import { flushPendingVotesAndDistributionsForRootPool } from "../Voter/CrossChainPendingResolution";
@@ -68,6 +72,10 @@ export async function processCLFactoryPoolCreated(
       tickSpacing: Number(event.params.tickSpacing),
       CLGaugeConfig: CLGaugeConfig,
       factoryAddress: factoryAddress,
+      // Resolve the canonical NFPM that mints positions for this pool.
+      // Threaded onto the aggregator so gauge + user-stats + NFPM handlers
+      // can build the new NonFungiblePositionId() without a separate scan.
+      nfpmAddress: nfpmForCLPool(event.chainId, factoryAddress),
       // From what I've researched, there's always a TickSpacingEnabled event
       // with the appropriate tick spacing <-> fee mapping before a CL pool with the same tick spacing is created
       // CLFactoryPool constructor calls enableTickSpacing which emits TickSpacingEnabled event

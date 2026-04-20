@@ -82,6 +82,73 @@ export const ROOT_POOL_FACTORY_ADDRESS_OPTIMISM = toChecksumAddress(
   "0x31832f2a97Fd20664D76Cc421207669b55CE4BC0",
 );
 
+/**
+ * Canonical NFPM address for each CL pool, keyed by (chainId, CLFactory address).
+ *
+ * Chains typically have a 1:1 CLFactory↔NFPM pairing, but Optimism has two of each.
+ * We disambiguate via factory-source: the CLFactory that emitted PoolCreated tells us
+ * which NFPM will mint positions in that pool. Pairings are by deployment lineage —
+ * the older factory pairs with the older NFPM, the newer factory pairs with the newer NFPM.
+ *
+ * Keys are `${chainId}-${checksumFactoryAddress}`. Values are checksummed NFPM addresses.
+ *
+ * Extracted from config.yaml — any new chain or factory must be added here for nfpmAddress
+ * to populate on newly created CL pools.
+ */
+const CL_FACTORY_TO_NFPM: Record<string, string> = {
+  // Optimism — two NFPMs, two CLFactories. Paired by deployment order.
+  [`10-${toChecksumAddress("0x548118C7E0B865C2CfA94D15EC86B666468ac758")}`]:
+    toChecksumAddress("0xbB5DFE1380333CEE4c2EeBd7202c80dE2256AdF4"),
+  [`10-${toChecksumAddress("0xCc0bDDB707055e04e497aB22a59c2aF4391cd12F")}`]:
+    toChecksumAddress("0x416b433906b1B72FA758e166e239c43d68dC6F29"),
+
+  // Base — three CLFactories each with a dedicated NFPM, verified on-chain via
+  // NFPM.factory(). The newest Base CLFactory (0xf8f2eB49...) does not yet have
+  // a paired NFPM deployed, so pools from it fall through to null — this will
+  // resolve itself once a new NFPM is deployed and added here.
+  // TODO(nfpm): add Base V3-newest NFPM for 0xf8f2eB4940CFE7d13603DDDD87f123820Fc061Ef
+  //             once that factory ships with a paired NFPM.
+  [`8453-${toChecksumAddress("0x5e7BB104d84c7CB9B682AaC2F3d509f5F406809A")}`]:
+    toChecksumAddress("0x827922686190790b37229fd06084350E74485b72"),
+  [`8453-${toChecksumAddress("0xaDe65c38CD4849aDBA595a4323a8C7DdfE89716a")}`]:
+    toChecksumAddress("0xa990C6a764b73BF43cee5Bb40339c3322FB9D55F"),
+  [`8453-${toChecksumAddress("0x9592CD9B267748cbfBDe90Ac9F7DF3c437A6d51B")}`]:
+    toChecksumAddress("0xc741beb2156827704A1466575ccA1cBf726a1178"),
+};
+
+/**
+ * All superchain leaf chains share the same CLFactory↔NFPM pair, so we match on
+ * factory alone to avoid listing every chain ID explicitly.
+ */
+const SUPERCHAIN_CL_FACTORY = toChecksumAddress(
+  "0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F",
+);
+const SUPERCHAIN_NFPM = toChecksumAddress(
+  "0x991d5546C4B442B4c5fdc4c8B8b8d131DEB24702",
+);
+
+/**
+ * Resolve the canonical NFPM address for a CL pool from its (chainId, factoryAddress) pair.
+ *
+ * The NFPM contract owns position NFTs for CL pools created by its paired CLFactory.
+ * On chains with a single NFPM/CLFactory this is trivially deterministic; on Optimism
+ * (two NFPMs) we rely on the factory that emitted PoolCreated to pick the right one.
+ *
+ * @param chainId - Chain ID where the CL pool lives
+ * @param factoryAddress - Address of the CLFactory that created the pool (event.srcAddress)
+ * @returns Checksummed NFPM address, or null if the (chainId, factory) pair is unknown
+ */
+export function nfpmForCLPool(
+  chainId: number,
+  factoryAddress: string,
+): string | null {
+  const checksummed = toChecksumAddress(factoryAddress);
+  const explicit = CL_FACTORY_TO_NFPM[`${chainId}-${checksummed}`];
+  if (explicit) return explicit;
+  if (checksummed === SUPERCHAIN_CL_FACTORY) return SUPERCHAIN_NFPM;
+  return null;
+}
+
 export const OUSDT_ADDRESS = "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189";
 export const OUSDT_DECIMALS = 6;
 

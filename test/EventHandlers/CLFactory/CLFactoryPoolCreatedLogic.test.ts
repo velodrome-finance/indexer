@@ -125,6 +125,8 @@ describe("CLFactoryPoolCreatedLogic", () => {
       expect(result.liquidityPoolAggregator.factoryAddress).toBe(
         mockEvent.srcAddress,
       );
+      // Unknown factory in the test mock resolves to null via nfpmForCLPool
+      expect(result.liquidityPoolAggregator.nfpmAddress).toBeUndefined();
       expect(result.liquidityPoolAggregator).toMatchObject({
         id: LEAF_POOL_ID,
         chainId: 10,
@@ -355,6 +357,45 @@ describe("CLFactoryPoolCreatedLogic", () => {
           toChecksumAddress("0x3333333333333333333333333333333333333333"),
         ),
       );
+    });
+
+    // US-1 acceptance: nfpmAddress is resolved from (chainId, factoryAddress) at pool creation
+    // so downstream (#621) can build the new NonFungiblePositionId() without a separate scan.
+    it("should populate nfpmAddress from nfpmForCLPool for known Optimism CLFactories", async () => {
+      const opFactoryOld = toChecksumAddress(
+        "0x548118C7E0B865C2CfA94D15EC86B666468ac758",
+      );
+      const opNfpmOld = toChecksumAddress(
+        "0xbB5DFE1380333CEE4c2EeBd7202c80dE2256AdF4",
+      );
+      const opFactoryNew = toChecksumAddress(
+        "0xCc0bDDB707055e04e497aB22a59c2aF4391cd12F",
+      );
+      const opNfpmNew = toChecksumAddress(
+        "0x416b433906b1B72FA758e166e239c43d68dC6F29",
+      );
+
+      const resultOld = await processCLFactoryPoolCreated(
+        mockEvent,
+        opFactoryOld,
+        mockToken0Data,
+        mockToken1Data,
+        undefined,
+        mockFeeToTickSpacingMapping,
+        mockContext,
+      );
+      expect(resultOld.liquidityPoolAggregator.nfpmAddress).toBe(opNfpmOld);
+
+      const resultNew = await processCLFactoryPoolCreated(
+        mockEvent,
+        opFactoryNew,
+        mockToken0Data,
+        mockToken1Data,
+        undefined,
+        mockFeeToTickSpacingMapping,
+        mockContext,
+      );
+      expect(resultNew.liquidityPoolAggregator.nfpmAddress).toBe(opNfpmNew);
     });
 
     it("should handle different token symbols correctly", async () => {

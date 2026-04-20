@@ -40,6 +40,7 @@ describe("Snapshot schema parity", () => {
         "lastSnapshotTimestamp",
         "rootPoolMatchingHash",
         "factoryAddress",
+        "nfpmAddress",
         "poolLauncherPoolId",
       ],
     ],
