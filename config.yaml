@@ -111,6 +111,12 @@ contracts:
     events:
       - event: SetDefaultCap
       - event: SetEmissionCap
+  - name: CLGaugeFactoryV3
+    abi_file_path: abis/CLGaugeFactoryV3.json
+    handler: src/EventHandlers/CLGaugeFactory/CLGaugeFactoryV3.ts
+    events:
+      - event: SetDefaultCap
+      - event: SetEmissionCap
   - name: CLGauge
     abi_file_path: abis/CLGauge.json
     handler: src/EventHandlers/Gauges/CLGauge.ts
@@ -306,9 +312,13 @@ chains:
           - 0x5e7BB104d84c7CB9B682AaC2F3d509f5F406809A
           - 0xaDe65c38CD4849aDBA595a4323a8C7DdfE89716a # New CL Factory
           - 0x9592CD9B267748cbfBDe90Ac9F7DF3c437A6d51B # Another CL - abi is slightly different but has no impact on event handlers currently
+          - 0xf8f2eB4940CFE7d13603DDDD87f123820Fc061Ef # Newest CL Factory (paired with CLGaugeFactoryV3) — ABI event signatures are identical to the existing CLFactory
       - name: CLGaugeFactoryV2
         address:
           - 0xB630227a79707D517320b6c0f885806389dFcbB3
+      - name: CLGaugeFactoryV3
+        address:
+          - 0x385293CaE378C813F16f0C1334d774AdDDf56AbB
       - name: Pool
         address:
       - name: Voter

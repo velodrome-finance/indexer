@@ -1,10 +1,10 @@
-import { CLGaugeFactoryV2 } from "generated";
+import { CLGaugeFactoryV3 } from "generated";
 import {
   applySetDefaultCap,
   applySetEmissionCap,
 } from "./CLGaugeFactorySharedLogic";
 
-CLGaugeFactoryV2.SetDefaultCap.handler(async ({ event, context }) => {
+CLGaugeFactoryV3.SetDefaultCap.handler(async ({ event, context }) => {
   await applySetDefaultCap(
     event.chainId,
     event.params._newDefaultCap,
@@ -13,12 +13,12 @@ CLGaugeFactoryV2.SetDefaultCap.handler(async ({ event, context }) => {
   );
 });
 
-CLGaugeFactoryV2.SetEmissionCap.handler(async ({ event, context }) => {
+CLGaugeFactoryV3.SetEmissionCap.handler(async ({ event, context }) => {
   await applySetEmissionCap(
     event.params._gauge,
     event.params._newEmissionCap,
     event.block.timestamp,
-    "CLGaugeFactoryV2",
+    "CLGaugeFactoryV3",
     context,
   );
 });

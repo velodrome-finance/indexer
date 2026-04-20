@@ -1,0 +1,131 @@
+[
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "_newDefaultCap",
+        "type": "uint256"
+      }
+    ],
+    "name": "SetDefaultCap",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "_emissionAdmin",
+        "type": "address"
+      }
+    ],
+    "name": "SetEmissionAdmin",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "_gauge",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "_newEmissionCap",
+        "type": "uint256"
+      }
+    ],
+    "name": "SetEmissionCap",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "_notifyAdmin",
+        "type": "address"
+      }
+    ],
+    "name": "SetNotifyAdmin",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "_newRedistributor",
+        "type": "address"
+      }
+    ],
+    "name": "SetRedistributor",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "_gaugeStakeManager",
+        "type": "address"
+      }
+    ],
+    "name": "SetGaugeStakeManager",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "_minStakeTime",
+        "type": "uint256"
+      }
+    ],
+    "name": "SetDefaultMinStakeTime",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "_pool",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "_minStakeTime",
+        "type": "uint256"
+      }
+    ],
+    "name": "SetPoolMinStakeTime",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "_penaltyRate",
+        "type": "uint256"
+      }
+    ],
+    "name": "SetPenaltyRate",
+    "type": "event"
+  }
+]
