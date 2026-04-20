@@ -59,6 +59,7 @@ type LiquidityPoolAggregator {
   gaugeIsAlive: Boolean! # whether the gauge is alive
   gaugeAddress: String @index # address of the gauge for this pool
   gaugeEmissionsCap: BigInt @config(precision: 76) # Emissions cap for gauge. If not specified in an SetEmissionsCap event, set to defaultEmissionsCap as per CLGaugeConfig. If CLGaugeConfig doesn't exist, there's no emissions cap
+  minStakeTime: BigInt! @config(precision: 24) # Per-pool LP stake lockup (seconds). Seeded from CLGaugeConfig.defaultMinStakeTime at pool creation; overridden by CLGaugeFactoryV3.SetPoolMinStakeTime. 0 before V3.
   numberOfGaugeDeposits: BigInt! @config(precision: 76) # number of gauge deposits (staking)
   numberOfGaugeWithdrawals: BigInt! @config(precision: 76) # number of gauge withdrawals (unstaking)
   numberOfGaugeRewardClaims: BigInt! @config(precision: 76) # number of gauge reward claims
@@ -135,6 +136,7 @@ type LiquidityPoolAggregatorSnapshot {
   gaugeIsAlive: Boolean! # whether the gauge is alive
   gaugeAddress: String @index # address of the gauge for this pool
   gaugeEmissionsCap: BigInt @config(precision: 76) # Emissions cap for gauge
+  minStakeTime: BigInt! @config(precision: 24) # Per-pool LP stake lockup (seconds) at snapshot time
   numberOfGaugeDeposits: BigInt! @config(precision: 76) # number of gauge deposits (staking)
   numberOfGaugeWithdrawals: BigInt! @config(precision: 76) # number of gauge withdrawals (unstaking)
   numberOfGaugeRewardClaims: BigInt! @config(precision: 76) # number of gauge reward claims
@@ -565,13 +567,16 @@ type OUSDTSwaps {
   amountOut: BigInt! @config(precision: 76) # Amount of tokenOutPool being swapped out of the pool
 }
 
-# Stores chain-wide CLGauge config data such as default emissions cap.
-# Keyed by chainId so the CLFactory.PoolCreated handler can resolve it with a direct get()
-# without a per-chain lookup constant. Last-writer-wins across gauge factory generations
-# (V2, V3, ...) — the row reflects the most recent chain-wide default.
+# Stores chain-wide CLGauge config data — default emissions cap, default
+# min-stake-time, and penalty rate. Keyed by chainId so the CLFactory.PoolCreated
+# handler can resolve it with a direct get() without a per-chain lookup constant.
+# Last-writer-wins across gauge factory generations (V2, V3, ...) — the row
+# reflects the most recent chain-wide defaults.
 type CLGaugeConfig {
   id: ID! # Format: stringified chainId (e.g. "8453" for Base)
   defaultEmissionsCap: BigInt! @config(precision: 24)
+  defaultMinStakeTime: BigInt! @config(precision: 24) # Chain-wide default LP stake lockup (seconds), set via CLGaugeFactoryV3.SetDefaultMinStakeTime. 0 before V3.
+  penaltyRate: BigInt! @config(precision: 24) # Early-unstake penalty rate in basis points, set via CLGaugeFactoryV3.SetPenaltyRate. 0 before V3.
   lastUpdatedTimestamp: Timestamp! # Timestamp of the last CLGaugeConfig update
 }
 

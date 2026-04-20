@@ -481,6 +481,8 @@ describe("CLFactoryPoolCreatedLogic", () => {
       const mockCLGaugeConfig: CLGaugeConfig = {
         id: String(mockEvent.chainId),
         defaultEmissionsCap: mockDefaultEmissionsCap,
+        defaultMinStakeTime: 0n,
+        penaltyRate: 0n,
         lastUpdatedTimestamp: new Date(1000000 * 1000),
       };
 
@@ -497,6 +499,45 @@ describe("CLFactoryPoolCreatedLogic", () => {
       expect(result.liquidityPoolAggregator.gaugeEmissionsCap).toBe(
         mockDefaultEmissionsCap,
       );
+    });
+
+    it("should seed minStakeTime from CLGaugeConfig.defaultMinStakeTime when CLGaugeConfig exists", async () => {
+      const mockDefaultMinStakeTime = 86_400n; // 1 day
+      const mockCLGaugeConfig: CLGaugeConfig = {
+        id: String(mockEvent.chainId),
+        defaultEmissionsCap: 0n,
+        defaultMinStakeTime: mockDefaultMinStakeTime,
+        penaltyRate: 0n,
+        lastUpdatedTimestamp: new Date(1000000 * 1000),
+      };
+
+      const result = await processCLFactoryPoolCreated(
+        mockEvent,
+        mockEvent.srcAddress,
+        mockToken0Data,
+        mockToken1Data,
+        mockCLGaugeConfig,
+        mockFeeToTickSpacingMapping,
+        mockContext,
+      );
+
+      expect(result.liquidityPoolAggregator.minStakeTime).toBe(
+        mockDefaultMinStakeTime,
+      );
+    });
+
+    it("should fall back to 0n minStakeTime when CLGaugeConfig does not exist", async () => {
+      const result = await processCLFactoryPoolCreated(
+        mockEvent,
+        mockEvent.srcAddress,
+        mockToken0Data,
+        mockToken1Data,
+        undefined,
+        mockFeeToTickSpacingMapping,
+        mockContext,
+      );
+
+      expect(result.liquidityPoolAggregator.minStakeTime).toBe(0n);
     });
 
     it("should set baseFee and currentFee from FeeToTickSpacingMapping when mapping exists", async () => {
