@@ -2,6 +2,7 @@ import type { NonFungiblePosition, handlerContext } from "generated";
 import { updateNonFungiblePosition } from "../../src/Aggregators/NonFungiblePosition";
 import { NonFungiblePositionId, toChecksumAddress } from "../../src/Constants";
 import { getSnapshotEpoch } from "../../src/Snapshots/Shared";
+import { NFPM_ADDRESS } from "../EventHandlers/Pool/common";
 
 describe("NonFungiblePosition", () => {
   let mockContext: Partial<handlerContext>;
@@ -10,10 +11,12 @@ describe("NonFungiblePosition", () => {
   const poolAddress = toChecksumAddress(
     "0x0000000000000000000000000000000000000001",
   );
+  const nfpmAddress = NFPM_ADDRESS;
   const mockNonFungiblePosition: NonFungiblePosition = {
     id: NonFungiblePositionId(10, poolAddress, 1n),
     chainId: 10,
     tokenId: 1n,
+    nfpmAddress: nfpmAddress,
     owner: toChecksumAddress("0x1111111111111111111111111111111111111111"),
     pool: poolAddress,
     tickUpper: 100n,

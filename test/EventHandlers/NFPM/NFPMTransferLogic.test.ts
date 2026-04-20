@@ -23,6 +23,7 @@ import {
   isGaugeTransfer,
   processNFPMTransfer,
 } from "../../../src/EventHandlers/NFPM/NFPMTransferLogic";
+import { NFPM_ADDRESS } from "../Pool/common";
 
 vi.mock("../../../src/Aggregators/LiquidityPoolAggregator", async () => ({
   ...(await vi.importActual(
@@ -58,9 +59,7 @@ describe("NFPMTransferLogic", () => {
   const token1Address = toChecksumAddress(
     "0x7F5c764cBc14f9669B88837ca1490cCa17c31607",
   );
-  const nfpmAddress = toChecksumAddress(
-    "0xbB5DFE1380333CEE4c2EeBd7202c80dE2256AdF4",
-  );
+  const nfpmAddress = NFPM_ADDRESS;
   const zeroAddress = toChecksumAddress(
     "0x0000000000000000000000000000000000000000",
   );
@@ -162,6 +161,7 @@ describe("NFPMTransferLogic", () => {
     id: getStableId(),
     chainId: chainId,
     tokenId: tokenId,
+    nfpmAddress: nfpmAddress,
     owner: originalOwnerAddress,
     pool: poolAddress,
     tickUpper: 0n,
@@ -437,6 +437,7 @@ describe("NFPMTransferLogic", () => {
         mockCLPoolMintEvent,
         tokenId,
         owner,
+        nfpmAddress,
         chainId,
         blockTimestamp,
         mockContext,
@@ -449,6 +450,7 @@ describe("NFPMTransferLogic", () => {
       if (!position) return;
       expect(position.id).toBe(stableId);
       expect(position.tokenId).toBe(tokenId);
+      expect(position.nfpmAddress).toBe(nfpmAddress);
       expect(position.owner.toLowerCase()).toBe(owner.toLowerCase());
       expect(position.pool).toBe(poolAddress);
       expect(position.tickUpper).toBe(mockCLPoolMintEvent.tickUpper);
@@ -1052,6 +1054,65 @@ describe("NFPMTransferLogic", () => {
 
       const position = mockDb.entities.NonFungiblePosition.get(getStableId());
       expect(position).toBeUndefined();
+    });
+
+    // Regression: Optimism has two NFPM contracts, each with its own tokenId counter.
+    // Before the fix, findPositionByTokenId(tokenId, chainId) returned positions from
+    // BOTH NFPMs, so handleMintTransfer's existingPositions guard silently skipped
+    // creation of NFPM-B's position — orphaning all downstream events for that tokenId.
+    it("creates a position for NFPM-B even when NFPM-A already owns same (chainId, tokenId)", async () => {
+      const nfpmAddressB = toChecksumAddress(
+        "0x416b433906b1B72FA758e166e239c43d68dC6F29",
+      );
+      const poolAddressB = toChecksumAddress(
+        "0x00cd0AbB6c2964F7Dfb5169dD94A9F004C35F459",
+      );
+
+      // NFPM-A position already exists on chain 10, tokenId 540.
+      setPosition(mockPosition);
+
+      // NFPM-B emits its own CLPool.Mint for the SAME tokenId, on a different pool.
+      const nfpmBMintEvent: CLPoolMintEvent = {
+        ...mockCLPoolMintEvent,
+        id: CLPoolMintEventId(
+          chainId,
+          poolAddressB,
+          transactionHash,
+          mintLogIndex,
+        ),
+        pool: poolAddressB,
+      };
+      setMintEvent(nfpmBMintEvent);
+
+      // NFPM-B's Transfer(mint) fires. srcAddress = NFPM-B.
+      const nfpmBTransferEvent = createMockTransferEvent(
+        zeroAddress,
+        ownerAddress,
+        {
+          mockEventData: {
+            ...defaultMintTransferEventData,
+            srcAddress: nfpmAddressB,
+          },
+        },
+      );
+
+      await processNFPMTransfer(nfpmBTransferEvent, mockContext);
+
+      // NFPM-A's position must be untouched.
+      const positionA = storedPositions.find((p) => p.id === mockPosition.id);
+      expect(positionA).toBeDefined();
+      expect(positionA?.nfpmAddress).toBe(nfpmAddress);
+      expect(positionA?.pool).toBe(poolAddress);
+
+      // NFPM-B's position must have been created.
+      const positionB = storedPositions.find(
+        (p) =>
+          p.pool === poolAddressB &&
+          p.tokenId === tokenId &&
+          p.chainId === chainId,
+      );
+      expect(positionB).toBeDefined();
+      expect(positionB?.nfpmAddress).toBe(nfpmAddressB);
     });
   });
 });

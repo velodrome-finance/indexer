@@ -21,6 +21,7 @@ import {
   calculateIncreaseLiquidityDiff,
   processNFPMIncreaseLiquidity,
 } from "../../../src/EventHandlers/NFPM/NFPMIncreaseLiquidityLogic";
+import { NFPM_ADDRESS } from "../Pool/common";
 
 vi.mock("../../../src/Aggregators/LiquidityPoolAggregator", async () => ({
   ...(await vi.importActual(
@@ -51,14 +52,13 @@ describe("NFPMIncreaseLiquidityLogic", () => {
   const token1Address = toChecksumAddress(
     "0x7F5c764cBc14f9669B88837ca1490cCa17c31607",
   );
-  const nfpmAddress = toChecksumAddress(
-    "0xbB5DFE1380333CEE4c2EeBd7202c80dE2256AdF4",
-  );
+  const nfpmAddress = NFPM_ADDRESS;
 
   const mockPosition: NonFungiblePosition = {
     id: NonFungiblePositionId(chainId, poolAddress, tokenId),
     chainId: chainId,
     tokenId: tokenId,
+    nfpmAddress: nfpmAddress,
     owner: ownerAddress,
     pool: poolAddress,
     tickUpper: 0n,

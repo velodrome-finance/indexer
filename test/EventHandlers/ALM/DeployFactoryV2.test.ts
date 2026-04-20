@@ -15,7 +15,7 @@ import {
 import { setupCommon } from "../Pool/common";
 
 describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
-  const { mockLiquidityPoolData, mockToken0Data, mockToken1Data } =
+  const { mockLiquidityPoolData, mockToken0Data, mockToken1Data, nfpmAddress } =
     setupCommon();
   const chainId = mockLiquidityPoolData.chainId;
   const poolAddress = mockLiquidityPoolData.poolAddress;
@@ -56,6 +56,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
         id: NonFungiblePositionId(chainId, poolAddress, tokenId),
         chainId,
         tokenId,
+        nfpmAddress: nfpmAddress,
         owner: callerAddress,
         pool: poolAddress,
         tickUpper: 1000n,
@@ -303,6 +304,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
         id: NonFungiblePositionId(chainId, poolAddress, tokenId),
         chainId,
         tokenId,
+        nfpmAddress: nfpmAddress,
         owner: callerAddress,
         pool: poolAddress,
         tickUpper: 1000n,
@@ -418,6 +420,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
         id: NonFungiblePositionId(chainId, poolAddress, tokenId),
         chainId,
         tokenId,
+        nfpmAddress: nfpmAddress,
         owner: callerAddress,
         pool: poolAddress,
         tickUpper: 1000n,
@@ -477,6 +480,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
         id: NonFungiblePositionId(chainId, poolAddress, tokenId),
         chainId,
         tokenId,
+        nfpmAddress: nfpmAddress,
         owner: callerAddress,
         pool: poolAddress,
         tickUpper: 1000n,
@@ -536,6 +540,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
         id: NonFungiblePositionId(chainId, poolAddress, tokenId),
         chainId,
         tokenId,
+        nfpmAddress: nfpmAddress,
         owner: callerAddress,
         pool: poolAddress,
         tickUpper: 2000n, // Different tickUpper (tickLower matches)
@@ -595,6 +600,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
         id: NonFungiblePositionId(chainId, poolAddress, tokenId),
         chainId,
         tokenId,
+        nfpmAddress: nfpmAddress,
         owner: callerAddress,
         pool: poolAddress,
         tickUpper: 1000n,
@@ -654,6 +660,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
         id: NonFungiblePositionId(chainId, poolAddress, tokenId),
         chainId,
         tokenId,
+        nfpmAddress: nfpmAddress,
         owner: callerAddress,
         pool: poolAddress,
         tickUpper: 1000n,
@@ -723,6 +730,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
         id: NonFungiblePositionId(chainId, poolAddress, tokenId),
         chainId,
         tokenId,
+        nfpmAddress: nfpmAddress,
         owner: callerAddress,
         pool: poolAddress,
         tickUpper: 1000n,

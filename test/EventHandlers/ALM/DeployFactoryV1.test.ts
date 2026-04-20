@@ -15,7 +15,7 @@ import {
 import { setupCommon } from "../Pool/common";
 
 describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
-  const { mockLiquidityPoolData, mockToken0Data, mockToken1Data } =
+  const { mockLiquidityPoolData, mockToken0Data, mockToken1Data, nfpmAddress } =
     setupCommon();
   const chainId = mockLiquidityPoolData.chainId;
   const poolAddress = mockLiquidityPoolData.poolAddress;
@@ -64,6 +64,7 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
         id: NonFungiblePositionId(chainId, poolAddress, tokenId),
         chainId,
         tokenId,
+        nfpmAddress: nfpmAddress,
         owner: callerAddress,
         pool: poolAddress,
         tickUpper: 1000n,
@@ -266,6 +267,7 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
         id: NonFungiblePositionId(chainId, poolAddress, tokenId),
         chainId,
         tokenId,
+        nfpmAddress: nfpmAddress,
         owner: callerAddress,
         pool: poolAddress,
         tickUpper: 1000n,
@@ -284,6 +286,7 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
         id: NonFungiblePositionId(chainId, poolAddress, tokenId + 1n),
         chainId,
         tokenId: tokenId + 1n,
+        nfpmAddress: nfpmAddress,
         owner: callerAddress,
         pool: poolAddress,
         tickUpper: 2000n, // Different tickUpper
@@ -359,6 +362,7 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
         id: NonFungiblePositionId(chainId, poolAddress, tokenId),
         chainId,
         tokenId,
+        nfpmAddress: nfpmAddress,
         owner: callerAddress,
         pool: poolAddress,
         tickUpper: 1000n,
@@ -377,6 +381,7 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
         id: NonFungiblePositionId(chainId, poolAddress, tokenId + 1n),
         chainId,
         tokenId: tokenId + 1n,
+        nfpmAddress: nfpmAddress,
         owner: callerAddress,
         pool: poolAddress,
         tickUpper: 1000n,
