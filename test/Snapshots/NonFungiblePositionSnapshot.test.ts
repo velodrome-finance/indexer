@@ -1,6 +1,7 @@
 import {
   NonFungiblePositionSnapshotId,
   SNAPSHOT_INTERVAL_IN_MS,
+  toChecksumAddress,
 } from "../../src/Constants";
 import {
   createNonFungiblePositionSnapshot,
@@ -28,6 +29,7 @@ describe("NonFungiblePositionSnapshot", () => {
       expect(snapshot.id).toBe(
         NonFungiblePositionSnapshotId(
           entity.chainId,
+          entity.nfpmAddress,
           entity.tokenId,
           expectedEpochMs,
         ),
@@ -86,12 +88,44 @@ describe("NonFungiblePositionSnapshot", () => {
       expect.objectContaining({
         id: NonFungiblePositionSnapshotId(
           entity.chainId,
+          entity.nfpmAddress,
           entity.tokenId,
           expectedEpochMs,
         ),
         timestamp: new Date(expectedEpochMs),
       }),
     );
+  });
+
+  // #620 regression: two NFPMs on the same chain can mint positions that share (chainId, tokenId).
+  // Before this fix, their snapshots collided in the same epoch and overwrote each other.
+  it("should produce distinct snapshot rows for two positions sharing (chainId, tokenId) under different NFPMs", () => {
+    const NFPM_A = toChecksumAddress(
+      "0xbB5DFE1380333CEE4c2EeBd7202c80dE2256AdF4",
+    );
+    const NFPM_B = toChecksumAddress(
+      "0x416b433906b1B72FA758e166e239c43d68dC6F29",
+    );
+    const sharedTokenId = 42n;
+
+    const entityA = common.createMockNonFungiblePosition({
+      nfpmAddress: NFPM_A,
+      tokenId: sharedTokenId,
+      pool: toChecksumAddress("0xAaAa000000000000000000000000000000000001"),
+    });
+    const entityB = common.createMockNonFungiblePosition({
+      nfpmAddress: NFPM_B,
+      tokenId: sharedTokenId,
+      pool: toChecksumAddress("0xBbBb000000000000000000000000000000000002"),
+    });
+
+    const snapshotA = createNonFungiblePositionSnapshot(entityA, baseTimestamp);
+    const snapshotB = createNonFungiblePositionSnapshot(entityB, baseTimestamp);
+
+    expect(snapshotA.chainId).toBe(snapshotB.chainId);
+    expect(snapshotA.tokenId).toBe(snapshotB.tokenId);
+    expect(snapshotA.timestamp.getTime()).toBe(snapshotB.timestamp.getTime());
+    expect(snapshotA.id).not.toBe(snapshotB.id);
   });
 
   it("should spread entity fields into the snapshot", () => {
@@ -107,6 +141,7 @@ describe("NonFungiblePositionSnapshot", () => {
       expect.objectContaining({
         id: NonFungiblePositionSnapshotId(
           entity.chainId,
+          entity.nfpmAddress,
           entity.tokenId,
           expectedEpochMs,
         ),

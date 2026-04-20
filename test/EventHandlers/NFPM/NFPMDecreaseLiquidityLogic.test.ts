@@ -46,7 +46,12 @@ describe("NFPMDecreaseLiquidityLogic", () => {
     expect(context.NonFungiblePositionSnapshot.set).toHaveBeenCalledTimes(1);
     expect(context.NonFungiblePositionSnapshot.set).toHaveBeenCalledWith(
       expect.objectContaining({
-        id: NonFungiblePositionSnapshotId(chainId, tokenId, epoch.getTime()),
+        id: NonFungiblePositionSnapshotId(
+          chainId,
+          mockPosition.nfpmAddress,
+          tokenId,
+          epoch.getTime(),
+        ),
         chainId,
         tokenId,
         nfpmAddress: mockPosition.nfpmAddress,
