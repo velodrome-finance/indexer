@@ -1,12 +1,12 @@
 import type { LiquidityPoolAggregator } from "generated";
 import {
+  CLGaugeFactoryV2,
   MockDb,
-  NewCLGaugeFactory,
 } from "../../../generated/src/TestHelpers.gen";
 import { toChecksumAddress } from "../../../src/Constants";
 import { setupCommon } from "../Pool/common";
 
-describe("NewCLGaugeFactory Event Handlers", () => {
+describe("CLGaugeFactoryV2 Event Handlers", () => {
   const { mockLiquidityPoolData } = setupCommon();
   const chainId = 10;
   const mockGaugeFactoryAddress = toChecksumAddress(
@@ -25,8 +25,8 @@ describe("NewCLGaugeFactory Event Handlers", () => {
   });
 
   describe("SetDefaultCap Event Handler", () => {
-    it("should create CLGaugeConfig entity with correct values", async () => {
-      const mockEvent = NewCLGaugeFactory.SetDefaultCap.createMockEvent({
+    it("should create CLGaugeConfig entity keyed by chainId", async () => {
+      const mockEvent = CLGaugeFactoryV2.SetDefaultCap.createMockEvent({
         _newDefaultCap: mockDefaultCap,
         mockEventData: {
           srcAddress: mockGaugeFactoryAddress,
@@ -42,24 +42,22 @@ describe("NewCLGaugeFactory Event Handlers", () => {
 
       const result = await mockDb.processEvents([mockEvent]);
 
-      const createdConfig = result.entities.CLGaugeConfig.get(
-        mockGaugeFactoryAddress,
-      );
+      const createdConfig = result.entities.CLGaugeConfig.get(String(chainId));
 
       expect(createdConfig).toBeDefined();
 
       if (!createdConfig) return; // Type guard
 
-      expect(createdConfig.id).toBe(mockGaugeFactoryAddress);
+      expect(createdConfig.id).toBe(String(chainId));
       expect(createdConfig.defaultEmissionsCap).toBe(mockDefaultCap);
       expect(createdConfig.lastUpdatedTimestamp).toEqual(
         new Date(1000000 * 1000),
       );
     });
 
-    it("should update existing CLGaugeConfig entity when called multiple times", async () => {
+    it("should update existing CLGaugeConfig entity when called multiple times on the same chain", async () => {
       // First call
-      const mockEvent1 = NewCLGaugeFactory.SetDefaultCap.createMockEvent({
+      const mockEvent1 = CLGaugeFactoryV2.SetDefaultCap.createMockEvent({
         _newDefaultCap: mockDefaultCap,
         mockEventData: {
           srcAddress: mockGaugeFactoryAddress,
@@ -77,16 +75,14 @@ describe("NewCLGaugeFactory Event Handlers", () => {
 
       // Update mockDb with the result entities
       mockDb = MockDb.createMockDb();
-      const config1 = result1.entities.CLGaugeConfig.get(
-        mockGaugeFactoryAddress,
-      );
+      const config1 = result1.entities.CLGaugeConfig.get(String(chainId));
       if (config1) {
         mockDb = mockDb.entities.CLGaugeConfig.set(config1);
       }
 
       // Second call with different cap
       const newDefaultCap = 2000000000000000000000n; // 2000 tokens
-      const mockEvent2 = NewCLGaugeFactory.SetDefaultCap.createMockEvent({
+      const mockEvent2 = CLGaugeFactoryV2.SetDefaultCap.createMockEvent({
         _newDefaultCap: newDefaultCap,
         mockEventData: {
           srcAddress: mockGaugeFactoryAddress,
@@ -102,26 +98,23 @@ describe("NewCLGaugeFactory Event Handlers", () => {
 
       const result2 = await mockDb.processEvents([mockEvent2]);
 
-      const updatedConfig = result2.entities.CLGaugeConfig.get(
-        mockGaugeFactoryAddress,
-      );
+      const updatedConfig = result2.entities.CLGaugeConfig.get(String(chainId));
 
       expect(updatedConfig).toBeDefined();
       if (!updatedConfig) return;
 
-      expect(updatedConfig.id).toBe(mockGaugeFactoryAddress);
+      expect(updatedConfig.id).toBe(String(chainId));
       expect(updatedConfig.defaultEmissionsCap).toBe(newDefaultCap);
       expect(updatedConfig.lastUpdatedTimestamp).toEqual(
         new Date(2000000 * 1000),
       );
     });
 
-    it("should handle different gauge factory addresses independently", async () => {
-      const anotherFactoryAddress =
-        "0xcccccccccccccccccccccccccccccccccccccccc";
-      const anotherDefaultCap = 3000000000000000000000n; // 3000 tokens
+    it("should key CLGaugeConfig by chainId independently per chain", async () => {
+      const otherChainId = 8453; // Base
+      const otherDefaultCap = 3000000000000000000000n; // 3000 tokens
 
-      const mockEvent1 = NewCLGaugeFactory.SetDefaultCap.createMockEvent({
+      const mockEvent1 = CLGaugeFactoryV2.SetDefaultCap.createMockEvent({
         _newDefaultCap: mockDefaultCap,
         mockEventData: {
           srcAddress: mockGaugeFactoryAddress,
@@ -137,20 +130,18 @@ describe("NewCLGaugeFactory Event Handlers", () => {
 
       const result1 = await mockDb.processEvents([mockEvent1]);
 
-      // Update mockDb with the result entities
+      // Carry the chain 10 config forward when creating the next mockDb
       mockDb = MockDb.createMockDb();
-      const firstConfig = result1.entities.CLGaugeConfig.get(
-        mockGaugeFactoryAddress,
-      );
+      const firstConfig = result1.entities.CLGaugeConfig.get(String(chainId));
       if (firstConfig) {
         mockDb = mockDb.entities.CLGaugeConfig.set(firstConfig);
       }
 
-      const mockEvent2 = NewCLGaugeFactory.SetDefaultCap.createMockEvent({
-        _newDefaultCap: anotherDefaultCap,
+      const mockEvent2 = CLGaugeFactoryV2.SetDefaultCap.createMockEvent({
+        _newDefaultCap: otherDefaultCap,
         mockEventData: {
-          srcAddress: anotherFactoryAddress,
-          chainId,
+          srcAddress: mockGaugeFactoryAddress,
+          chainId: otherChainId,
           block: {
             timestamp: 1000000,
             number: 123456,
@@ -162,20 +153,19 @@ describe("NewCLGaugeFactory Event Handlers", () => {
 
       const result2 = await mockDb.processEvents([mockEvent2]);
 
-      const config1 = result2.entities.CLGaugeConfig.get(
-        mockGaugeFactoryAddress,
+      const configChain10 = result2.entities.CLGaugeConfig.get(String(chainId));
+      const configChain8453 = result2.entities.CLGaugeConfig.get(
+        String(otherChainId),
       );
-      const config2 = result2.entities.CLGaugeConfig.get(anotherFactoryAddress);
 
-      expect(config1).toBeDefined();
-      expect(config2).toBeDefined();
+      expect(configChain10).toBeDefined();
+      expect(configChain8453).toBeDefined();
+      if (!configChain10 || !configChain8453) return;
 
-      if (!config1 || !config2) return;
-
-      expect(config1.id).toBe(mockGaugeFactoryAddress);
-      expect(config2.id).toBe(anotherFactoryAddress);
-      expect(config1.defaultEmissionsCap).toBe(mockDefaultCap);
-      expect(config2.defaultEmissionsCap).toBe(anotherDefaultCap);
+      expect(configChain10.id).toBe(String(chainId));
+      expect(configChain8453.id).toBe(String(otherChainId));
+      expect(configChain10.defaultEmissionsCap).toBe(mockDefaultCap);
+      expect(configChain8453.defaultEmissionsCap).toBe(otherDefaultCap);
     });
   });
 
@@ -220,7 +210,7 @@ describe("NewCLGaugeFactory Event Handlers", () => {
     });
 
     it("should update pool entity with new emission cap", async () => {
-      const mockEvent = NewCLGaugeFactory.SetEmissionCap.createMockEvent({
+      const mockEvent = CLGaugeFactoryV2.SetEmissionCap.createMockEvent({
         _gauge: mockGaugeAddress,
         _newEmissionCap: mockEmissionCap,
         mockEventData: {
@@ -256,7 +246,7 @@ describe("NewCLGaugeFactory Event Handlers", () => {
 
     it("should update existing emission cap when called multiple times", async () => {
       // First update
-      const mockEvent1 = NewCLGaugeFactory.SetEmissionCap.createMockEvent({
+      const mockEvent1 = CLGaugeFactoryV2.SetEmissionCap.createMockEvent({
         _gauge: mockGaugeAddress,
         _newEmissionCap: mockEmissionCap,
         mockEventData: {
@@ -284,7 +274,7 @@ describe("NewCLGaugeFactory Event Handlers", () => {
 
       // Second update with different cap
       const newEmissionCap = 750000000000000000000n; // 750 tokens
-      const mockEvent2 = NewCLGaugeFactory.SetEmissionCap.createMockEvent({
+      const mockEvent2 = CLGaugeFactoryV2.SetEmissionCap.createMockEvent({
         _gauge: mockGaugeAddress,
         _newEmissionCap: newEmissionCap,
         mockEventData: {
@@ -337,7 +327,7 @@ describe("NewCLGaugeFactory Event Handlers", () => {
         },
       } as typeof mockDb;
 
-      const mockEvent = NewCLGaugeFactory.SetEmissionCap.createMockEvent({
+      const mockEvent = CLGaugeFactoryV2.SetEmissionCap.createMockEvent({
         _gauge: nonExistentGaugeAddress,
         _newEmissionCap: mockEmissionCap,
         mockEventData: {
@@ -367,7 +357,7 @@ describe("NewCLGaugeFactory Event Handlers", () => {
     });
 
     it("should preserve all other pool fields when updating emission cap", async () => {
-      const mockEvent = NewCLGaugeFactory.SetEmissionCap.createMockEvent({
+      const mockEvent = CLGaugeFactoryV2.SetEmissionCap.createMockEvent({
         _gauge: mockGaugeAddress,
         _newEmissionCap: mockEmissionCap,
         mockEventData: {

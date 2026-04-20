@@ -1,14 +1,14 @@
-import { NewCLGaugeFactory } from "generated";
+import { CLGaugeFactoryV2 } from "generated";
 
-NewCLGaugeFactory.SetDefaultCap.handler(async ({ event, context }) => {
+CLGaugeFactoryV2.SetDefaultCap.handler(async ({ event, context }) => {
   context.CLGaugeConfig.set({
-    id: event.srcAddress,
+    id: String(event.chainId),
     defaultEmissionsCap: event.params._newDefaultCap,
     lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
   });
 });
 
-NewCLGaugeFactory.SetEmissionCap.handler(async ({ event, context }) => {
+CLGaugeFactoryV2.SetEmissionCap.handler(async ({ event, context }) => {
   const poolEntityList = await context.LiquidityPoolAggregator.getWhere({
     gaugeAddress: { _eq: event.params._gauge },
   });
@@ -20,7 +20,7 @@ NewCLGaugeFactory.SetEmissionCap.handler(async ({ event, context }) => {
 
   if (poolEntityList.length > 1) {
     context.log.warn(
-      `[NewCLGaugeFactory] Multiple pools found for gauge ${event.params._gauge}, using first match`,
+      `[CLGaugeFactoryV2] Multiple pools found for gauge ${event.params._gauge}, using first match`,
     );
   }
 

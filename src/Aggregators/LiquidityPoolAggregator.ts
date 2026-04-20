@@ -745,8 +745,8 @@ export function createLiquidityPoolAggregatorEntity(params: {
     factoryAddress: factoryAddress,
     // Voting fields
     gaugeAddress: "",
-    // Set to undefined if CLGaugeConfig does not exist (i.e before the deployment of NewCLGaugeFactory which introduces emissions caps per gauge)
-    // Otherwise, set to defaultEmissionCap
+    // Set to undefined if CLGaugeConfig does not exist (i.e before the deployment of CLGaugeFactoryV2 which introduces emissions caps per gauge).
+    // Otherwise, set to defaultEmissionsCap (the chain-wide default captured at pool creation time).
     gaugeEmissionsCap: CLGaugeConfig
       ? CLGaugeConfig.defaultEmissionsCap
       : isCL
