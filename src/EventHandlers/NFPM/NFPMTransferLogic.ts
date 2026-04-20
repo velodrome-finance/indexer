@@ -14,7 +14,6 @@ import { calculatePositionAmountsFromLiquidity } from "../../Helpers";
 import {
   LiquidityChangeType,
   attributeLiquidityChangeToUserStatsPerPool,
-  findPositionByTokenId,
 } from "./NFPMCommonLogic";
 
 /**
@@ -38,8 +37,9 @@ export async function createPositionFromCLPoolMint(
   blockTimestamp: number,
   context: handlerContext,
 ): Promise<void> {
-  // Create definitive NonFungiblePosition with stable ID via NonFungiblePositionId()
-  const stableId = NonFungiblePositionId(chainId, mintEvent.pool, tokenId);
+  // Create definitive NonFungiblePosition with stable ID via NonFungiblePositionId().
+  // Key is (chainId, nfpmAddress, tokenId) — pool is metadata, not part of the identity.
+  const stableId = NonFungiblePositionId(chainId, nfpmAddress, tokenId);
 
   // Create new entity with stable ID, using data from CLPoolMintEvent
   const position: NonFungiblePosition = {
@@ -83,15 +83,15 @@ export async function createPositionFromCLPoolMint(
  *
  * @param event - The NFPM.Transfer event (mint case)
  * @param context - The handler context
- * @param existingPositions - Array of existing positions found by tokenId (pre-queried)
+ * @param existingPosition - Existing position found via direct get() (undefined when none exists)
  */
 export async function handleMintTransfer(
   event: NFPM_Transfer_event,
   context: handlerContext,
-  existingPositions: NonFungiblePosition[],
+  existingPosition: NonFungiblePosition | undefined,
 ): Promise<void> {
   // If position already exists, nothing to do (shouldn't happen for new mints)
-  if (existingPositions.length > 0) {
+  if (existingPosition) {
     return;
   }
 
@@ -234,22 +234,14 @@ export async function attributeTransferToUserStatsPerPool(
  * Otherwise attributes position token0/token1 to UserStatsPerPool (remove from sender, add to recipient) then updates owner.
  *
  * @param event - The NFPM.Transfer event (regular transfer case)
- * @param positions - The existing positions. Only one position should be found.
+ * @param position - The existing position (pre-fetched via direct get() by the caller)
  * @param context - The handler context
  */
 export async function handleRegularTransfer(
   event: NFPM_Transfer_event,
-  positions: NonFungiblePosition[],
+  position: NonFungiblePosition,
   context: handlerContext,
 ): Promise<void> {
-  if (positions.length === 0) {
-    context.log.error(
-      `[handleRegularTransfer] No positions provided for transfer of tokenId ${event.params.tokenId} on chain ${event.chainId}`,
-    );
-    return;
-  }
-
-  const position = positions[0];
   const timestamp = event.block.timestamp;
   const updateTimestamp = new Date(timestamp * 1000);
 
@@ -350,11 +342,14 @@ export async function processNFPMTransfer(
   event: NFPM_Transfer_event,
   context: handlerContext,
 ): Promise<void> {
-  const positions = await findPositionByTokenId(
-    event.params.tokenId,
-    event.chainId,
-    event.srcAddress,
-    context,
+  // Direct O(1) lookup via stable ID (chainId, nfpmAddress, tokenId).
+  // event.srcAddress is the NFPM contract that emitted the Transfer.
+  const position = await context.NonFungiblePosition.get(
+    NonFungiblePositionId(
+      event.chainId,
+      event.srcAddress,
+      event.params.tokenId,
+    ),
   );
 
   const isMint = event.params.from === ZERO_ADDRESS;
@@ -363,11 +358,11 @@ export async function processNFPMTransfer(
   if (isMint) {
     // Handle mint transfer: find appropriate CLPoolMintEvent entity and
     // create NonFungiblePosition entity with stable ID
-    await handleMintTransfer(event, context, positions);
+    await handleMintTransfer(event, context, position);
     return;
   }
 
-  if (positions.length === 0) {
+  if (!position) {
     context.log.error(
       `NonFungiblePosition with tokenId ${event.params.tokenId} not found during transfer on chain ${event.chainId}`,
     );
@@ -376,11 +371,10 @@ export async function processNFPMTransfer(
 
   if (isBurn) {
     // NFT burned — liquidity is already 0 (DecreaseLiquidity precedes burn).
-    // Delete to reduce getWhere scan size for staked USD computation.
-    context.NonFungiblePosition.deleteUnsafe(positions[0].id);
+    context.NonFungiblePosition.deleteUnsafe(position.id);
     return;
   }
 
   // Handle regular transfer: gauge check, token0/token1 accounting, then update owner
-  await handleRegularTransfer(event, positions, context);
+  await handleRegularTransfer(event, position, context);
 }

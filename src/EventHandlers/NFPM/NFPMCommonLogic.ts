@@ -21,41 +21,6 @@ export enum LiquidityChangeType {
 }
 
 /**
- * Finds a NonFungiblePosition entity by tokenId, scoped to a specific chain AND NFPM contract.
- *
- * Uses a single-field getWhere (tokenId) then narrows in memory because Envio's getWhere supports
- * only one filter field per call. Filtering by (chainId, nfpmAddress) is required because tokenIds
- * are only unique within a single NFPM contract's counter — cross-chain and intra-chain (multiple
- * NFPMs on the same chain, e.g. Optimism) collisions would otherwise leak the wrong position and
- * silently misattribute liquidity, ownership, and stake state.
- *
- * @param tokenId - The token ID to search for
- * @param chainId - The chain ID to filter by
- * @param nfpmAddress - The NFPM contract address (event.srcAddress) to filter by
- * @param context - The handler context for database operations
- * @returns Array of matching positions (should be 0 or 1)
- */
-export async function findPositionByTokenId(
-  tokenId: bigint,
-  chainId: number,
-  nfpmAddress: string,
-  context: handlerContext,
-): Promise<NonFungiblePosition[]> {
-  const positions = await context.NonFungiblePosition.getWhere({
-    tokenId: { _eq: tokenId },
-  });
-
-  if (!positions || positions.length === 0) {
-    return [];
-  }
-
-  return positions.filter(
-    (pos: NonFungiblePosition) =>
-      pos.chainId === chainId && pos.nfpmAddress === nfpmAddress,
-  );
-}
-
-/**
  * Attributes a liquidity addition or removal to the UserStatsPerPool entity for a given owner and pool.
  * Calculates the total USD-equivalent value of the liquidity change, updates per-token stats,
  * and records the user's last activity timestamp.

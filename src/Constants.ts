@@ -1004,17 +1004,22 @@ export const FeeToTickSpacingMappingId = (
   tickSpacing: bigint | number,
 ) => `${chainId}-${tickSpacing}`;
 
-/** Entity ID for NonFungiblePosition. Format: {chainId}-{poolAddress}-{tokenId} (stable id).
+/** Entity ID for NonFungiblePosition. Format: {chainId}-{nfpmAddress}-{tokenId} (stable id).
+ *
+ * The natural key is (NFPM, tokenId) — pool is metadata on the position. tokenIds are only
+ * unique within a single NFPM contract's counter, so on chains with multiple NFPMs
+ * (e.g. Optimism) nfpmAddress is required to prevent silent overwrites. See #618 / #621.
+ *
  * @param chainId - Chain ID of the position
- * @param poolAddress - Address of the pool
+ * @param nfpmAddress - Address of the NFPM contract that owns the position
  * @param tokenId - Token ID of the NFT position
  * @returns string Combined non-fungible position ID.
  */
 export const NonFungiblePositionId = (
   chainId: number,
-  poolAddress: string,
+  nfpmAddress: string,
   tokenId: bigint,
-) => `${chainId}-${poolAddress}-${tokenId}`;
+) => `${chainId}-${nfpmAddress}-${tokenId}`;
 
 /**
  * Create a unique ID for a CLTickStaked entity.

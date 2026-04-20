@@ -335,7 +335,7 @@ type TokenPriceSnapshot {
 # Tracks relevant data for each NFT minted: each NFT represents a concentrated position in a pool
 # Note: amount0, amount1, amountUSD are derived fields computed on-demand from liquidity + sqrtPriceX96 + ticks
 type NonFungiblePosition {
-  id: ID! # Format: {chainId}-{poolAddress}-{tokenId} (NonFungiblePositionId)
+  id: ID! # Format: {chainId}-{nfpmAddress}-{tokenId} (NonFungiblePositionId). Natural key is (NFPM, tokenId); pool is metadata and preserved as a field. nfpmAddress disambiguates intra-chain tokenId collisions across multiple NFPMs (e.g. Optimism has two).
   chainId: Int! # Chain ID where the NFT exists
   tokenId: BigInt! @index # Token ID of the NFT (from Transfer event)
   nfpmAddress: String! @index # Address of the NFPM contract that emitted the Transfer; disambiguates intra-chain tokenId collisions across multiple NFPMs (e.g. Optimism has two)

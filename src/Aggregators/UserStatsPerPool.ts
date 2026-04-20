@@ -427,17 +427,16 @@ export async function updateUserStatsPerPool(
           poolEntity.isCL &&
           poolEntity.sqrtPriceX96 &&
           poolEntity.sqrtPriceX96 !== 0n &&
-          updated.stakedCLPositionTokenIds.length > 0
+          updated.stakedCLPositionTokenIds.length > 0 &&
+          poolEntity.nfpmAddress
         ) {
-          // Fetch all staked positions in parallel — O(1) per get(), O(K) total
+          // Fetch all staked positions in parallel — O(1) per get(), O(K) total.
+          // pool.nfpmAddress is threaded onto the aggregator at PoolCreated time (see #619).
+          const nfpmAddress = poolEntity.nfpmAddress;
           const positions = await Promise.all(
             updated.stakedCLPositionTokenIds.map((tokenId) =>
               context.NonFungiblePosition.get(
-                NonFungiblePositionId(
-                  updated.chainId,
-                  updated.poolAddress,
-                  tokenId,
-                ),
+                NonFungiblePositionId(updated.chainId, nfpmAddress, tokenId),
               ),
             ),
           );
