@@ -18,6 +18,7 @@ import {
   processNFPMDecreaseLiquidity,
 } from "../../../src/EventHandlers/NFPM/NFPMDecreaseLiquidityLogic";
 import { getSnapshotEpoch } from "../../../src/Snapshots/Shared";
+import { NFPM_ADDRESS } from "../Pool/common";
 
 vi.mock("../../../src/Aggregators/LiquidityPoolAggregator", async () => ({
   ...(await vi.importActual(
@@ -37,9 +38,7 @@ describe("NFPMDecreaseLiquidityLogic", () => {
   const poolAddress = toChecksumAddress(
     "0x00cd0AbB6c2964F7Dfb5169dD94A9F004C35F458",
   );
-  const nfpmAddress = toChecksumAddress(
-    "0xbB5DFE1380333CEE4c2EeBd7202c80dE2256AdF4",
-  );
+  const nfpmAddress = NFPM_ADDRESS;
   const blockTimestamp = new Date(1712065791 * 1000);
 
   function expectSnapshotSet(context: handlerContext, liquidity: bigint): void {
@@ -50,6 +49,7 @@ describe("NFPMDecreaseLiquidityLogic", () => {
         id: NonFungiblePositionSnapshotId(chainId, tokenId, epoch.getTime()),
         chainId,
         tokenId,
+        nfpmAddress: mockPosition.nfpmAddress,
         owner: mockPosition.owner,
         pool: poolAddress,
         liquidity,
@@ -168,9 +168,7 @@ describe("NFPMDecreaseLiquidityLogic", () => {
           },
           chainId: chainId,
           logIndex: 96,
-          srcAddress: toChecksumAddress(
-            "0xbB5DFE1380333CEE4c2EeBd7202c80dE2256AdF4",
-          ),
+          srcAddress: nfpmAddress,
         },
       });
 
@@ -194,9 +192,7 @@ describe("NFPMDecreaseLiquidityLogic", () => {
           },
           chainId: chainId,
           logIndex: 96,
-          srcAddress: toChecksumAddress(
-            "0xbB5DFE1380333CEE4c2EeBd7202c80dE2256AdF4",
-          ),
+          srcAddress: nfpmAddress,
         },
       });
 
@@ -221,9 +217,7 @@ describe("NFPMDecreaseLiquidityLogic", () => {
           },
           chainId: chainId,
           logIndex: 96,
-          srcAddress: toChecksumAddress(
-            "0xbB5DFE1380333CEE4c2EeBd7202c80dE2256AdF4",
-          ),
+          srcAddress: nfpmAddress,
         },
       });
 
@@ -259,9 +253,7 @@ describe("NFPMDecreaseLiquidityLogic", () => {
           },
           chainId: chainId,
           logIndex: 96,
-          srcAddress: toChecksumAddress(
-            "0xbB5DFE1380333CEE4c2EeBd7202c80dE2256AdF4",
-          ),
+          srcAddress: nfpmAddress,
         },
       });
 
@@ -294,9 +286,7 @@ describe("NFPMDecreaseLiquidityLogic", () => {
           },
           chainId: chainId,
           logIndex: 96,
-          srcAddress: toChecksumAddress(
-            "0xbB5DFE1380333CEE4c2EeBd7202c80dE2256AdF4",
-          ),
+          srcAddress: nfpmAddress,
         },
       });
 
@@ -330,9 +320,7 @@ describe("NFPMDecreaseLiquidityLogic", () => {
           },
           chainId: chainId,
           logIndex: 96,
-          srcAddress: toChecksumAddress(
-            "0xbB5DFE1380333CEE4c2EeBd7202c80dE2256AdF4",
-          ),
+          srcAddress: nfpmAddress,
         },
       });
 
@@ -366,9 +354,7 @@ describe("NFPMDecreaseLiquidityLogic", () => {
           },
           chainId: chainId,
           logIndex: 96,
-          srcAddress: toChecksumAddress(
-            "0xbB5DFE1380333CEE4c2EeBd7202c80dE2256AdF4",
-          ),
+          srcAddress: nfpmAddress,
         },
       });
 

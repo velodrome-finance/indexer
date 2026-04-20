@@ -23,6 +23,12 @@ import {
 } from "../../../src/Constants";
 import { calculateTokenAmountUSD } from "../../../src/Helpers";
 
+// Primary Optimism NFPM address. Exported so test files that do not call
+// setupCommon() can still share a single source of truth for the NFPM literal.
+export const NFPM_ADDRESS = toChecksumAddress(
+  "0xbB5DFE1380333CEE4c2EeBd7202c80dE2256AdF4",
+);
+
 export function setupCommon() {
   const CHAIN_ID = 10;
   const POOL_ADDRESS = toChecksumAddress(
@@ -36,9 +42,7 @@ export function setupCommon() {
   const TOKEN1_ADDRESS = toChecksumAddress(
     "0x2222222222222222222222222222222222222222",
   );
-  const nfpmAddress = toChecksumAddress(
-    "0xbB5DFE1380333CEE4c2EeBd7202c80dE2256AdF4",
-  );
+  const nfpmAddress = NFPM_ADDRESS;
 
   const mockToken0Data: Token = {
     id: TokenId(CHAIN_ID, TOKEN0_ADDRESS),
@@ -471,6 +475,7 @@ export function setupCommon() {
     mockVeNFTStateData,
     mockVeNFTPoolVoteData,
     mockNonFungiblePositionData,
+    nfpmAddress,
     createMockToken,
     createMockUserStatsPerPool,
     createMockLiquidityPoolAggregator,

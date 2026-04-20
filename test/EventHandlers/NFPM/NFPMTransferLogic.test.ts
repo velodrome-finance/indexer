@@ -23,6 +23,7 @@ import {
   isGaugeTransfer,
   processNFPMTransfer,
 } from "../../../src/EventHandlers/NFPM/NFPMTransferLogic";
+import { NFPM_ADDRESS } from "../Pool/common";
 
 vi.mock("../../../src/Aggregators/LiquidityPoolAggregator", async () => ({
   ...(await vi.importActual(
@@ -58,9 +59,7 @@ describe("NFPMTransferLogic", () => {
   const token1Address = toChecksumAddress(
     "0x7F5c764cBc14f9669B88837ca1490cCa17c31607",
   );
-  const nfpmAddress = toChecksumAddress(
-    "0xbB5DFE1380333CEE4c2EeBd7202c80dE2256AdF4",
-  );
+  const nfpmAddress = NFPM_ADDRESS;
   const zeroAddress = toChecksumAddress(
     "0x0000000000000000000000000000000000000000",
   );

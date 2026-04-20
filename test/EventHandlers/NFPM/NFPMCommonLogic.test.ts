@@ -27,7 +27,7 @@ import {
   calculatePositionAmountsFromLiquidity,
   calculateTotalUSD,
 } from "../../../src/Helpers";
-import { setupCommon } from "../Pool/common";
+import { NFPM_ADDRESS, setupCommon } from "../Pool/common";
 
 vi.mock("../../../src/Aggregators/CLStakedLiquidity");
 vi.mock("../../../src/Aggregators/LiquidityPoolAggregator");
@@ -40,9 +40,7 @@ describe("NFPMCommonLogic", () => {
   const poolAddress = toChecksumAddress(
     "0x00cd0AbB6c2964F7Dfb5169dD94A9F004C35F458",
   );
-  const nfpmAddressA = toChecksumAddress(
-    "0xbB5DFE1380333CEE4c2EeBd7202c80dE2256AdF4",
-  );
+  const nfpmAddressA = NFPM_ADDRESS;
   const nfpmAddressB = toChecksumAddress(
     "0x416b433906b1B72FA758e166e239c43d68dC6F29",
   );

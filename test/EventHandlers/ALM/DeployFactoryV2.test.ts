@@ -15,7 +15,7 @@ import {
 import { setupCommon } from "../Pool/common";
 
 describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
-  const { mockLiquidityPoolData, mockToken0Data, mockToken1Data } =
+  const { mockLiquidityPoolData, mockToken0Data, mockToken1Data, nfpmAddress } =
     setupCommon();
   const chainId = mockLiquidityPoolData.chainId;
   const poolAddress = mockLiquidityPoolData.poolAddress;
@@ -30,9 +30,6 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
   const blockTimestamp = 1000000;
   const blockNumber = 123456;
   const tokenId = 42n;
-  const nfpmAddress = toChecksumAddress(
-    "0xbB5DFE1380333CEE4c2EeBd7202c80dE2256AdF4",
-  );
 
   // sqrtPriceX96 is constant (calculated from tick 0 in setupCommon)
   const sqrtPriceX96 = mockLiquidityPoolData.sqrtPriceX96 ?? 0n;
