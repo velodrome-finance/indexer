@@ -1,7 +1,14 @@
 import type { PublicClient } from "viem";
-import { CHAIN_CONSTANTS, toChecksumAddress } from "../../src/Constants";
+import {
+  CHAIN_CONSTANTS,
+  createFallbackRpcClient,
+  toChecksumAddress,
+} from "../../src/Constants";
 import * as Helpers from "../../src/Effects/Helpers";
-import { rpcGateway } from "../../src/Effects/RpcGateway";
+import {
+  executeRpcWithFallback,
+  rpcGateway,
+} from "../../src/Effects/RpcGateway";
 import {
   type MockEffect,
   type MockEffectContext,
@@ -259,6 +266,108 @@ describe("RpcGateway", () => {
         errorMessages.some((m) => m.includes("Very slow failed request")),
       ).toBe(false);
       expect(mockContext.log.warn).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("executeRpcWithFallback", () => {
+    const METHOD_ERR = new Error(
+      'the method "eth_call" does not exist / is not available',
+    );
+    const REVERT_ERR = new Error("execution reverted");
+    const STATIC_FALLBACK = { name: "", decimals: 18, symbol: "" };
+
+    it("uses fallbackFn when primary exhausts retries on METHOD_NOT_SUPPORTED", async () => {
+      const primary = vi.fn().mockRejectedValue(METHOD_ERR);
+      const fallbackFn = vi
+        .fn()
+        .mockResolvedValue({ name: "X", decimals: 6, symbol: "X" });
+
+      const result = await executeRpcWithFallback(
+        mockContext,
+        "op",
+        { chainId: 1868 },
+        STATIC_FALLBACK,
+        primary,
+        fallbackFn,
+      );
+
+      expect(result).toEqual({ name: "X", decimals: 6, symbol: "X" });
+      // Primary retried up to methodNotSupportedMaxRetries (2) then handed off.
+      expect(primary).toHaveBeenCalledTimes(3);
+      expect(fallbackFn).toHaveBeenCalledTimes(1);
+      // Hand-off warn mentions the error type we're falling back on.
+      expect(mockContext.log.warn).toHaveBeenCalledWith(
+        expect.stringContaining("METHOD_NOT_SUPPORTED"),
+      );
+    });
+
+    it("skips fallbackFn when primary fails with a non-fallback-worthy error", async () => {
+      const primary = vi.fn().mockRejectedValue(REVERT_ERR);
+      const fallbackFn = vi.fn();
+
+      const result = await executeRpcWithFallback(
+        mockContext,
+        "op",
+        { chainId: 1868 },
+        STATIC_FALLBACK,
+        primary,
+        fallbackFn,
+      );
+
+      expect(result).toBe(STATIC_FALLBACK);
+      expect(fallbackFn).not.toHaveBeenCalled();
+    });
+
+    it("returns static fallback when both primary and fallbackFn fail", async () => {
+      const primary = vi.fn().mockRejectedValue(METHOD_ERR);
+      const fallbackFn = vi.fn().mockRejectedValue(METHOD_ERR);
+
+      const result = await executeRpcWithFallback(
+        mockContext,
+        "op",
+        { chainId: 1868 },
+        STATIC_FALLBACK,
+        primary,
+        fallbackFn,
+      );
+
+      expect(result).toBe(STATIC_FALLBACK);
+      expect(mockContext.log.error).toHaveBeenCalledWith(
+        expect.stringContaining("op.fallback"),
+        expect.any(Error),
+      );
+    });
+
+    it("returns static fallback when no fallbackFn is provided", async () => {
+      const primary = vi.fn().mockRejectedValue(METHOD_ERR);
+
+      const result = await executeRpcWithFallback(
+        mockContext,
+        "op",
+        { chainId: 1868 },
+        STATIC_FALLBACK,
+        primary,
+      );
+
+      expect(result).toBe(STATIC_FALLBACK);
+    });
+  });
+
+  describe("createFallbackRpcClient", () => {
+    it("returns a client for a supported chain (Soneium)", () => {
+      const client = createFallbackRpcClient(1868);
+      expect(client).not.toBeNull();
+      expect(client?.chain?.id).toBe(1868);
+    });
+
+    it("returns null for an unsupported chain", () => {
+      expect(createFallbackRpcClient(99999)).toBeNull();
+    });
+
+    it("caches the client across calls for the same chainId", () => {
+      const a = createFallbackRpcClient(1868);
+      const b = createFallbackRpcClient(1868);
+      expect(a).toBe(b);
     });
   });
 });

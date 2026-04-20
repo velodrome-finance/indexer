@@ -44,6 +44,22 @@ describe("Helpers", () => {
           error: "Temporary internal error. Please retry",
           expected: ErrorType.NETWORK_ERROR,
         },
+        {
+          error: 'the method "eth_call" does not exist / is not available',
+          expected: ErrorType.METHOD_NOT_SUPPORTED,
+        },
+        {
+          error: "method not found",
+          expected: ErrorType.METHOD_NOT_SUPPORTED,
+        },
+        {
+          error: "method not supported by this provider",
+          expected: ErrorType.METHOD_NOT_SUPPORTED,
+        },
+        {
+          error: "historical state is not available at block 1",
+          expected: ErrorType.HISTORICAL_STATE_NOT_AVAILABLE,
+        },
         { error: "Something went wrong", expected: ErrorType.UNKNOWN },
       ];
 
@@ -211,6 +227,17 @@ describe("Helpers", () => {
       const fn = vi.fn().mockRejectedValue(new Error("rate limit exceeded"));
       await expect(runWithRpcRetry(fn)).rejects.toThrow("rate limit exceeded");
       expect(fn).toHaveBeenCalledTimes(8); // 1 initial + 7 retries (RPC_APP_RETRY.maxRetries)
+    });
+
+    it("should retry METHOD_NOT_SUPPORTED on its own low cap and escalate fast", async () => {
+      // 1 initial + methodNotSupportedMaxRetries (2) = 3 total attempts before throwing.
+      const fn = vi
+        .fn()
+        .mockRejectedValue(
+          new Error('the method "eth_call" does not exist / is not available'),
+        );
+      await expect(runWithRpcRetry(fn)).rejects.toThrow("does not exist");
+      expect(fn).toHaveBeenCalledTimes(3);
     });
   });
 });

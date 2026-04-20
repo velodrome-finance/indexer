@@ -5,18 +5,29 @@ export enum ErrorType {
   RATE_LIMIT = "RATE_LIMIT",
   CONTRACT_REVERT = "CONTRACT_REVERT",
   NETWORK_ERROR = "NETWORK_ERROR",
+  METHOD_NOT_SUPPORTED = "METHOD_NOT_SUPPORTED",
   HISTORICAL_STATE_NOT_AVAILABLE = "HISTORICAL_STATE_NOT_AVAILABLE",
   UNKNOWN = "UNKNOWN",
 }
 
 /**
- * Error keyword mappings for each error type
- * Note: Order matters - more specific errors should be checked first
+ * Error keyword mappings for each error type. Order matters: the first match
+ * wins (see {@link getErrorType}), so more specific buckets must come before
+ * broader ones. In particular METHOD_NOT_SUPPORTED precedes
+ * HISTORICAL_STATE_NOT_AVAILABLE so that phrasings like
+ * `the method "eth_call" does not exist / is not available` classify as a
+ * provider-side method outage rather than a historical-state issue -- the two
+ * have different retry policies and fallback behaviour.
  */
 const ERROR_KEYWORDS: Record<ErrorType, string[]> = {
+  [ErrorType.METHOD_NOT_SUPPORTED]: [
+    "does not exist",
+    "method not found",
+    "method not supported",
+    "unsupported method",
+  ],
   [ErrorType.HISTORICAL_STATE_NOT_AVAILABLE]: [
     "historical state",
-    "is not available",
     "historical state not available",
     "state histories haven't been fully indexed",
     "state histories",
