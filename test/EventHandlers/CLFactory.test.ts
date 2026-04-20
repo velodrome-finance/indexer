@@ -27,8 +27,8 @@ import { setupCommon } from "./Pool/common";
 
 describe("CLFactory Events", () => {
   const { mockToken0Data, mockToken1Data } = setupCommon();
-  // Use Base (8453) instead of Optimism (10) because Optimism has empty newCLGaugeFactoryAddress
-  const chainId = 8453; // Base chain has a valid newCLGaugeFactoryAddress
+  // Use Base (8453) — chainId-keyed CLGaugeConfig has a row for 8453 via CLGaugeFactoryV2
+  const chainId = 8453;
   const poolAddress = toChecksumAddress(
     "0x3333333333333333333333333333333333333333",
   );
@@ -48,9 +48,13 @@ describe("CLFactory Events", () => {
 
   function setupMockDbWithEntities(
     db: ReturnType<typeof MockDb.createMockDb>,
-    options: { includeFeeToTickSpacing?: boolean } = {},
+    options: {
+      includeFeeToTickSpacing?: boolean;
+      clGaugeConfigChainId?: number;
+    } = {},
   ): ReturnType<typeof MockDb.createMockDb> {
-    const { includeFeeToTickSpacing = true } = options;
+    const { includeFeeToTickSpacing = true, clGaugeConfigChainId = chainId } =
+      options;
     const token0ForBase = {
       ...mockToken0Data,
       id: TokenId(chainId, mockToken0Data.address),
@@ -64,7 +68,7 @@ describe("CLFactory Events", () => {
     let updated =
       db.entities.Token.set(token0ForBase).entities.Token.set(token1ForBase);
     const clGaugeConfig = {
-      id: newCLGaugeFactoryAddress,
+      id: String(clGaugeConfigChainId),
       defaultEmissionsCap: 0n,
       lastUpdatedTimestamp: new Date(1000000 * 1000),
     } satisfies CLGaugeConfig;
@@ -81,25 +85,8 @@ describe("CLFactory Events", () => {
   let processSpy: MockInstance<
     typeof CLFactoryPoolCreatedLogic.processCLFactoryPoolCreated
   >;
-  // Store the original newCLGaugeFactoryAddress from Constants (Base chain: 0xaDe65c38CD4849aDBA595a4323a8C7DdfE89716a)
-  const originalNewCLGaugeFactoryAddress = toChecksumAddress(
-    "0xaDe65c38CD4849aDBA595a4323a8C7DdfE89716a",
-  );
-  let newCLGaugeFactoryAddress: string;
-  let originalNewCLGaugeFactoryAddressValue: string | undefined;
 
   beforeEach(() => {
-    // Store the original value before mutation to restore in afterEach
-    if (CHAIN_CONSTANTS[chainId]) {
-      originalNewCLGaugeFactoryAddressValue =
-        CHAIN_CONSTANTS[chainId].newCLGaugeFactoryAddress;
-      // Always ensure CHAIN_CONSTANTS[chainId].newCLGaugeFactoryAddress is set correctly
-      // (in case another test modified it). This ensures the handler can find the CLGaugeConfig.
-      CHAIN_CONSTANTS[chainId].newCLGaugeFactoryAddress =
-        originalNewCLGaugeFactoryAddress;
-    }
-    newCLGaugeFactoryAddress = originalNewCLGaugeFactoryAddress;
-
     // Mock createTokenEntity in case it's called for missing tokens
     vi.spyOn(PriceOracle, "createTokenEntity").mockImplementation(
       async (address: string) => ({
@@ -150,14 +137,6 @@ describe("CLFactory Events", () => {
   });
 
   afterEach(() => {
-    // Restore original newCLGaugeFactoryAddress to prevent interference with other tests
-    if (
-      CHAIN_CONSTANTS[chainId] &&
-      originalNewCLGaugeFactoryAddressValue !== undefined
-    ) {
-      CHAIN_CONSTANTS[chainId].newCLGaugeFactoryAddress =
-        originalNewCLGaugeFactoryAddressValue;
-    }
     vi.restoreAllMocks();
   });
 
@@ -210,7 +189,7 @@ describe("CLFactory Events", () => {
       );
       expect(callArgs[4]).toEqual(
         expect.objectContaining({
-          id: newCLGaugeFactoryAddress,
+          id: String(chainId),
         }),
       );
       expect(callArgs[5]).toEqual(
@@ -275,7 +254,7 @@ describe("CLFactory Events", () => {
       expect(callArgs[3]).toBeDefined(); // token1
       const clGaugeConfig = callArgs[4];
       expect(clGaugeConfig).toBeDefined(); // CLGaugeConfig
-      expect(clGaugeConfig?.id).toBe(newCLGaugeFactoryAddress);
+      expect(clGaugeConfig?.id).toBe(String(chainId));
       const feeToTickSpacingMapping = callArgs[5] as { fee?: bigint };
       expect(feeToTickSpacingMapping).toBeDefined(); // FeeToTickSpacingMapping
       expect(feeToTickSpacingMapping?.fee).toBe(500n);
@@ -460,10 +439,6 @@ describe("CLFactory Events", () => {
       const blockNumber = 1000000;
       const txHash =
         "0x1234567890123456789012345678901234567890123456789012345678901234";
-      const leafCLGaugeConfigId = toChecksumAddress(
-        "0xaDe65c38CD4849aDBA595a4323a8C7DdfE89716a",
-      );
-
       function setupLeafChainEntities(
         db: ReturnType<typeof MockDb.createMockDb>,
         leafChain: number,
@@ -471,7 +446,6 @@ describe("CLFactory Events", () => {
         leafToken0: string,
         leafToken1: string,
         tickSpacing: bigint,
-        clGaugeConfigId: string,
         fee: bigint = FEE,
       ): ReturnType<typeof MockDb.createMockDb> {
         const token0ForLeaf = {
@@ -491,7 +465,7 @@ describe("CLFactory Events", () => {
             token1ForLeaf,
           );
         const clGaugeConfig = {
-          id: clGaugeConfigId,
+          id: String(leafChain),
           defaultEmissionsCap: 0n,
           lastUpdatedTimestamp: new Date(1000000 * 1000),
         } satisfies CLGaugeConfig;
@@ -517,7 +491,6 @@ describe("CLFactory Events", () => {
         blockTimestamp: number;
         blockNumber: number;
         txHash: string;
-        leafCLGaugeConfigId: string;
         token0Address: string;
         token1Address: string;
         tickSpacing: bigint;
@@ -531,26 +504,14 @@ describe("CLFactory Events", () => {
           blockTimestamp: ts,
           blockNumber: bn,
           txHash: hash,
-          leafCLGaugeConfigId: configId,
           token0Address: t0,
           token1Address: t1,
           tickSpacing: ts2,
           fee = FEE,
         } = options;
 
-        const original = CHAIN_CONSTANTS[lcid]?.newCLGaugeFactoryAddress;
-        if (CHAIN_CONSTANTS[lcid]) {
-          CHAIN_CONSTANTS[lcid].newCLGaugeFactoryAddress = configId;
-        }
-
-        const restore = () => {
-          if (CHAIN_CONSTANTS[lcid] && original !== undefined) {
-            CHAIN_CONSTANTS[lcid].newCLGaugeFactoryAddress = original;
-          }
-        };
-
         let db = MockDb.createMockDb();
-        db = setupLeafChainEntities(db, lcid, lpa, t0, t1, ts2, configId, fee);
+        db = setupLeafChainEntities(db, lcid, lpa, t0, t1, ts2, fee);
 
         const rootPoolCreatedEvent =
           RootCLPoolFactory.RootPoolCreated.createMockEvent({
@@ -590,7 +551,6 @@ describe("CLFactory Events", () => {
           db,
           rootPoolCreatedEvent,
           createClFactoryPoolCreatedEvent,
-          restore,
         };
       }
 
@@ -611,13 +571,12 @@ describe("CLFactory Events", () => {
           blockTimestamp,
           blockNumber,
           txHash,
-          leafCLGaugeConfigId,
           token0Address,
           token1Address,
           tickSpacing: TICK_SPACING,
         });
 
-        try {
+        {
           const fullPool = createMockLiquidityPoolAggregator({
             id: PoolId(leafChainId, leafPoolAddress),
             chainId: leafChainId,
@@ -697,8 +656,6 @@ describe("CLFactory Events", () => {
           );
           expect(leafPool).toBeDefined();
           expect(leafPool?.veNFTamountStaked).toBe(voteWeight);
-        } finally {
-          e2e.restore();
         }
       });
 
@@ -744,13 +701,12 @@ describe("CLFactory Events", () => {
           blockTimestamp,
           blockNumber,
           txHash,
-          leafCLGaugeConfigId,
           token0Address,
           token1Address,
           tickSpacing: TICK_SPACING,
         });
 
-        try {
+        {
           const fullPool = createMockLiquidityPoolAggregator({
             id: PoolId(leafChainId, leafPoolAddress),
             chainId: leafChainId,
@@ -880,8 +836,6 @@ describe("CLFactory Events", () => {
           expect(leafPool?.totalEmissions).toBe(distAmount);
           expect(leafPool?.totalVotesDeposited).toBe(tokensDepositedMock);
           expect(leafPool?.gaugeAddress).toBe(leafGaugeAddress);
-        } finally {
-          e2e.restore();
           vi.restoreAllMocks();
         }
       });

@@ -479,7 +479,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
     it("should set gaugeEmissionsCap to defaultEmissionsCap when CLGaugeConfig exists", async () => {
       const mockDefaultEmissionsCap = 1000000000000000000000n; // 1000 tokens in 18 decimals
       const mockCLGaugeConfig: CLGaugeConfig = {
-        id: toChecksumAddress("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+        id: String(mockEvent.chainId),
         defaultEmissionsCap: mockDefaultEmissionsCap,
         lastUpdatedTimestamp: new Date(1000000 * 1000),
       };

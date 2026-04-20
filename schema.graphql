@@ -565,11 +565,12 @@ type OUSDTSwaps {
   amountOut: BigInt! @config(precision: 76) # Amount of tokenOutPool being swapped out of the pool
 }
 
-# Stores relevant CLGauge config data such as default emissions cap and emissions cap per gauge
-# Specially relevant after the deployment of the new CLGaugeFactory that features emissions cap per gauge
-# Gauges that do no that associated SetEmissionCap events will have their emissions cap defaulted to defaultEmissionsCap
+# Stores chain-wide CLGauge config data such as default emissions cap.
+# Keyed by chainId so the CLFactory.PoolCreated handler can resolve it with a direct get()
+# without a per-chain lookup constant. Last-writer-wins across gauge factory generations
+# (V2, V3, ...) — the row reflects the most recent chain-wide default.
 type CLGaugeConfig {
-  id: ID! # Format: contract address (CLGaugeFactory)
+  id: ID! # Format: stringified chainId (e.g. "8453" for Base)
   defaultEmissionsCap: BigInt! @config(precision: 24)
   lastUpdatedTimestamp: Timestamp! # Timestamp of the last CLGaugeConfig update
 }
