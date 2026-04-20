@@ -1477,5 +1477,38 @@ describe("LiquidityPoolAggregator Functions", () => {
         ),
       ).toBe(true);
     });
+
+    it("short-circuits silently with SINK_ROOT_POOL for a known-sink address", async () => {
+      // Known sink per src/Constants.ts KNOWN_SINK_ROOT_POOLS (OP).
+      const sinkRootPoolAddress = toChecksumAddress(
+        "0x333030A736B47D20346d82A473680658ac1C2b88",
+      );
+      const sinkChainId = 10;
+
+      const mockRootPoolLeafPoolGetWhere = vi.mocked(
+        mockContext.RootPool_LeafPool?.getWhere,
+      );
+      const mockLiquidityPoolGet = vi.mocked(
+        mockContext.LiquidityPoolAggregator?.get,
+      );
+      const mockErrorLog = vi.mocked(mockContext.log?.error);
+      const mockWarnLog = vi.mocked(mockContext.log?.warn);
+
+      const result = await loadPoolDataOrRootCLPool(
+        sinkRootPoolAddress,
+        sinkChainId,
+        mockContext as handlerContext,
+      );
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.reason).toBe("SINK_ROOT_POOL");
+      }
+      // No DB reads and no log output for known sinks.
+      expect(mockRootPoolLeafPoolGetWhere).not.toHaveBeenCalled();
+      expect(mockLiquidityPoolGet).not.toHaveBeenCalled();
+      expect(mockErrorLog).not.toHaveBeenCalled();
+      expect(mockWarnLog).not.toHaveBeenCalled();
+    });
   });
 });

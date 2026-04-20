@@ -544,6 +544,92 @@ describe("Voter Events", () => {
       });
     });
 
+    describe("when pool is a known sink root pool (issue #601)", () => {
+      // Known sink per src/Constants.ts KNOWN_SINK_ROOT_POOLS (OP). These
+      // addresses are placeholder contracts with no real leaf pool, so votes
+      // must be silently dropped instead of accumulating orphan PendingVote
+      // rows that would never flush.
+      const sinkRootPoolAddress = toChecksumAddress(
+        "0x333030A736B47D20346d82A473680658ac1C2b88",
+      );
+
+      it("drops Voted silently without creating PendingVote", async () => {
+        const { createMockVeNFTState } = setupCommon();
+        const mockVeNFTState = createMockVeNFTState({
+          id: VeNFTId(chainId, tokenId),
+          chainId,
+          tokenId,
+          owner: ownerAddress,
+        });
+        mockDb = mockDb.entities.VeNFTState.set(mockVeNFTState);
+
+        const votedEvent = Voter.Voted.createMockEvent({
+          voter: voterAddress,
+          pool: sinkRootPoolAddress,
+          tokenId,
+          weight: 100n,
+          totalWeight: 1000n,
+          mockEventData: {
+            block: {
+              number: 123456,
+              timestamp: 1000000,
+              hash: "0xsinkhash",
+            },
+            chainId,
+            logIndex: 1,
+            transaction: { hash: "0xsinkhash" },
+          },
+        });
+
+        const resultDB = await mockDb.processEvents([votedEvent]);
+
+        expect(Array.from(resultDB.entities.PendingVote.getAll())).toHaveLength(
+          0,
+        );
+        expect(
+          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
+        ).toHaveLength(0);
+      });
+
+      it("drops Abstained silently without creating PendingVote", async () => {
+        const { createMockVeNFTState } = setupCommon();
+        const mockVeNFTState = createMockVeNFTState({
+          id: VeNFTId(chainId, tokenId),
+          chainId,
+          tokenId,
+          owner: ownerAddress,
+        });
+        mockDb = mockDb.entities.VeNFTState.set(mockVeNFTState);
+
+        const abstainedEvent = Voter.Abstained.createMockEvent({
+          voter: voterAddress,
+          pool: sinkRootPoolAddress,
+          tokenId,
+          weight: 100n,
+          totalWeight: 1000n,
+          mockEventData: {
+            block: {
+              number: 123456,
+              timestamp: 1000000,
+              hash: "0xsinkhash",
+            },
+            chainId,
+            logIndex: 1,
+            transaction: { hash: "0xsinkhash" },
+          },
+        });
+
+        const resultDB = await mockDb.processEvents([abstainedEvent]);
+
+        expect(Array.from(resultDB.entities.PendingVote.getAll())).toHaveLength(
+          0,
+        );
+        expect(
+          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
+        ).toHaveLength(0);
+      });
+    });
+
     describe("cross-chain sync: RootPoolCreated then Voted/Abstained (leaf chain behind)", () => {
       const rootChainId = 10;
       const leafChainId = 252;
@@ -2607,6 +2693,73 @@ describe("Voter Events", () => {
         expect(pendingDistribution?.logIndex).toBe(logIndex);
 
         // Distribution was deferred; no pool should have been updated
+        expect(
+          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
+        ).toHaveLength(0);
+      });
+    });
+
+    describe("when rootPoolAddress is a known sink (issue #601)", () => {
+      it("drops DistributeReward silently without creating PendingDistribution", async () => {
+        // Seed a RootGauge_RootPool mapping whose rootPoolAddress is a
+        // known sink (OP). Known sinks are placeholder contracts with no
+        // real leaf pool; we must not accumulate orphan Pending* records.
+        const sinkRootPoolAddress = toChecksumAddress(
+          "0x333030A736B47D20346d82A473680658ac1C2b88",
+        );
+        const blockNumberForSink = 128357870;
+        const logIndex = 3;
+
+        const rewardToken: Token = {
+          id: TokenId(chainId, rewardTokenAddress),
+          address: rewardTokenAddress,
+          symbol: "VELO",
+          name: "VELO",
+          chainId: chainId,
+          decimals: 18n,
+          pricePerUSDNew: 2n * 10n ** 18n,
+          isWhitelisted: true,
+          lastUpdatedTimestamp: new Date(1000000 * 1000),
+        } as Token;
+
+        const distributeRewardEvent = Voter.DistributeReward.createMockEvent({
+          gauge: gaugeAddress,
+          amount: 1000n * 10n ** 18n,
+          mockEventData: {
+            block: {
+              number: blockNumberForSink,
+              timestamp: 1000000,
+              hash: "0xblockhash",
+            },
+            chainId: chainId,
+            logIndex,
+            srcAddress: voterAddress,
+          },
+        });
+
+        let db = MockDb.createMockDb();
+        db = db.entities.Token.set(rewardToken);
+        db = db.entities.RootGauge_RootPool.set({
+          id: RootGaugeRootPoolId(chainId, gaugeAddress),
+          rootChainId: chainId,
+          rootGaugeAddress: gaugeAddress,
+          rootPoolAddress: sinkRootPoolAddress,
+        });
+
+        const resultDB = await db.processEvents([distributeRewardEvent]);
+
+        const pendingDistribution = resultDB.entities.PendingDistribution.get(
+          PendingDistributionId(
+            chainId,
+            sinkRootPoolAddress,
+            blockNumberForSink,
+            logIndex,
+          ),
+        );
+        expect(pendingDistribution).toBeUndefined();
+        expect(
+          Array.from(resultDB.entities.PendingDistribution.getAll()),
+        ).toHaveLength(0);
         expect(
           Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
         ).toHaveLength(0);

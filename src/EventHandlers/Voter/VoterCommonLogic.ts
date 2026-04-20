@@ -11,7 +11,11 @@ import {
 } from "../../Aggregators/LiquidityPoolAggregator";
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import type { VeNFTPoolVoteDiff } from "../../Aggregators/VeNFTPoolVote";
-import { PendingVoteId, RootGaugeRootPoolId } from "../../Constants";
+import {
+  PendingVoteId,
+  RootGaugeRootPoolId,
+  isKnownSinkRootPool,
+} from "../../Constants";
 import { getTokensDeposited } from "../../Effects/Index";
 import { normalizeTokenAmountTo1e18 } from "../../Helpers";
 import { multiplyBase1e18 } from "../../Maths";
@@ -135,6 +139,9 @@ export async function resolveLeafPoolForRootGauge(
     return null;
   }
   const rootPoolAddress = rootGaugeMapping.rootPoolAddress;
+  if (isKnownSinkRootPool(chainId, rootPoolAddress)) {
+    return null;
+  }
   const rootPoolLeafPools =
     (await context.RootPool_LeafPool.getWhere({
       rootPoolAddress: { _eq: rootPoolAddress },

@@ -4,7 +4,7 @@ import type {
   Token,
   handlerContext,
 } from "generated";
-import { PoolId, TokenId } from "../Constants";
+import { PoolId, TokenId, isKnownSinkRootPool } from "../Constants";
 import { getSwapFee, roundBlockToInterval } from "../Effects/Index";
 import { calculateTotalUSD, generatePoolName } from "../Helpers";
 import { refreshTokenPrice } from "../PriceOracle";
@@ -103,6 +103,7 @@ export enum LoadPoolDataOrRootCLPoolFailureReason {
   MAPPING_NOT_FOUND = "MAPPING_NOT_FOUND",
   MULTIPLE_MAPPINGS = "MULTIPLE_MAPPINGS",
   LEAF_POOL_NOT_FOUND = "LEAF_POOL_NOT_FOUND",
+  SINK_ROOT_POOL = "SINK_ROOT_POOL",
 }
 
 export type LoadPoolDataOrRootCLPoolResult =
@@ -118,6 +119,10 @@ export type LoadPoolDataOrRootCLPoolResult =
   | {
       ok: false;
       reason: LoadPoolDataOrRootCLPoolFailureReason.LEAF_POOL_NOT_FOUND;
+    }
+  | {
+      ok: false;
+      reason: LoadPoolDataOrRootCLPoolFailureReason.SINK_ROOT_POOL;
     };
 
 export function isMissingRootPoolMapping(
@@ -510,6 +515,13 @@ export async function loadPoolDataOrRootCLPool(
   blockNumber?: number,
   blockTimestamp?: number,
 ): Promise<LoadPoolDataOrRootCLPoolResult> {
+  if (isKnownSinkRootPool(chainId, poolAddress)) {
+    return {
+      ok: false,
+      reason: LoadPoolDataOrRootCLPoolFailureReason.SINK_ROOT_POOL,
+    };
+  }
+
   const rootPoolLeafPools =
     (await context.RootPool_LeafPool.getWhere({
       rootPoolAddress: { _eq: poolAddress },
