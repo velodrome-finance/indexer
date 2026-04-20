@@ -65,7 +65,7 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
 
       // Pre-populate with NonFungiblePosition (created by CLPool handlers)
       const mockNFPM: NonFungiblePosition = {
-        id: NonFungiblePositionId(chainId, poolAddress, tokenId),
+        id: NonFungiblePositionId(chainId, nfpmAddress, tokenId),
         chainId,
         tokenId,
         nfpmAddress: nfpmAddress,
@@ -268,7 +268,7 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
 
       // Create multiple NonFungiblePositions with different values
       const matchingNFPM: NonFungiblePosition = {
-        id: NonFungiblePositionId(chainId, poolAddress, tokenId),
+        id: NonFungiblePositionId(chainId, nfpmAddress, tokenId),
         chainId,
         tokenId,
         nfpmAddress: nfpmAddress,
@@ -287,7 +287,7 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
       };
 
       const nonMatchingNFPM: NonFungiblePosition = {
-        id: NonFungiblePositionId(chainId, poolAddress, tokenId + 1n),
+        id: NonFungiblePositionId(chainId, nfpmAddress, tokenId + 1n),
         chainId,
         tokenId: tokenId + 1n,
         nfpmAddress: nfpmAddress,
@@ -363,7 +363,7 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
 
       // Create two NonFungiblePositions with identical matching criteria
       const matchingNFPM1: NonFungiblePosition = {
-        id: NonFungiblePositionId(chainId, poolAddress, tokenId),
+        id: NonFungiblePositionId(chainId, nfpmAddress, tokenId),
         chainId,
         tokenId,
         nfpmAddress: nfpmAddress,
@@ -382,7 +382,7 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
       };
 
       const matchingNFPM2: NonFungiblePosition = {
-        id: NonFungiblePositionId(chainId, poolAddress, tokenId + 1n),
+        id: NonFungiblePositionId(chainId, nfpmAddress, tokenId + 1n),
         chainId,
         tokenId: tokenId + 1n,
         nfpmAddress: nfpmAddress,

@@ -71,9 +71,9 @@ describe("NFPMTransferLogic", () => {
   const defaultSqrtPriceX96 = 79228162514264337593543950336n;
   const positionLiquidityAmount = 26679636922854n;
 
-  // Stable ID calculation helper (chainId-poolAddress-tokenId)
+  // Stable ID calculation helper (chainId-nfpmAddress-tokenId)
   const getStableId = () =>
-    NonFungiblePositionId(chainId, poolAddress, tokenId);
+    NonFungiblePositionId(chainId, nfpmAddress, tokenId);
 
   /** Minimal PoolData stub for tests (gauge and/or sqrtPriceX96). */
   function minimalPoolData(
@@ -476,7 +476,7 @@ describe("NFPMTransferLogic", () => {
 
       const mockEvent = createMockTransferEvent(zeroAddress, ownerAddress);
 
-      await handleMintTransfer(mockEvent, mockContext, []);
+      await handleMintTransfer(mockEvent, mockContext, undefined);
 
       const stableId = getStableId();
       const position = storedPositions.find((p) => p.id === stableId);
@@ -495,11 +495,11 @@ describe("NFPMTransferLogic", () => {
 
       const mockEvent = createMockTransferEvent(zeroAddress, ownerAddress);
 
-      // Pass the position from storedPositions to match what processNFPMTransfer would do
-      const existingPositions = storedPositions.filter(
+      // Pass the existing position to match what processNFPMTransfer would do
+      const existingPosition = storedPositions.find(
         (p) => p.tokenId === tokenId,
       );
-      await handleMintTransfer(mockEvent, mockContext, existingPositions);
+      await handleMintTransfer(mockEvent, mockContext, existingPosition);
 
       // Position should still exist with same ID
       const position =
@@ -513,7 +513,7 @@ describe("NFPMTransferLogic", () => {
     it("should log warning if no CLPoolMintEvent found", async () => {
       const mockEvent = createMockTransferEvent(zeroAddress, ownerAddress);
 
-      await handleMintTransfer(mockEvent, mockContext, []);
+      await handleMintTransfer(mockEvent, mockContext, undefined);
 
       // No position should be created
       const stableId = getStableId();
@@ -549,7 +549,7 @@ describe("NFPMTransferLogic", () => {
 
       const mockEvent = createMockTransferEvent(zeroAddress, ownerAddress);
 
-      await handleMintTransfer(mockEvent, mockContext, []);
+      await handleMintTransfer(mockEvent, mockContext, undefined);
 
       const stableId = getStableId();
       const position = storedPositions.find((p) => p.id === stableId);
@@ -576,7 +576,7 @@ describe("NFPMTransferLogic", () => {
 
       const mockEvent = createMockTransferEvent(zeroAddress, ownerAddress);
 
-      await handleMintTransfer(mockEvent, mockContext, []);
+      await handleMintTransfer(mockEvent, mockContext, undefined);
 
       const stableId = getStableId();
       const position = storedPositions.find((p) => p.id === stableId);
@@ -598,7 +598,7 @@ describe("NFPMTransferLogic", () => {
 
       const mockEvent = createMockTransferEvent(zeroAddress, ownerAddress);
 
-      await handleMintTransfer(mockEvent, nullMockContext, []);
+      await handleMintTransfer(mockEvent, nullMockContext, undefined);
 
       // Should log warning since no events found
       expect(nullMockContext.log.warn).toHaveBeenCalledWith(
@@ -627,7 +627,7 @@ describe("NFPMTransferLogic", () => {
 
       const mockEvent = createMockTransferEvent(zeroAddress, ownerAddress);
 
-      await handleMintTransfer(mockEvent, mockContext, []);
+      await handleMintTransfer(mockEvent, mockContext, undefined);
 
       const stableId = getStableId();
       const position = storedPositions.find((p) => p.id === stableId);
@@ -656,7 +656,7 @@ describe("NFPMTransferLogic", () => {
 
       const mockEvent = createMockTransferEvent(zeroAddress, ownerAddress);
 
-      await handleMintTransfer(mockEvent, mockContext, []);
+      await handleMintTransfer(mockEvent, mockContext, undefined);
 
       const stableId = getStableId();
       const position = storedPositions.find((p) => p.id === stableId);
@@ -687,21 +687,6 @@ describe("NFPMTransferLogic", () => {
   });
 
   describe("handleRegularTransfer", () => {
-    it("logs error and returns when positions array is empty", async () => {
-      const mockEvent = createMockTransferEvent(userA, userB);
-
-      await handleRegularTransfer(mockEvent, [], mockContext);
-
-      expect(mockContext.log.error).toHaveBeenCalledWith(
-        expect.stringContaining(
-          "[handleRegularTransfer] No positions provided",
-        ),
-      );
-      expect(mockContext.log.error).toHaveBeenCalledWith(
-        expect.stringContaining(`tokenId ${tokenId}`),
-      );
-    });
-
     it("should update owner of existing position", async () => {
       vi.mocked(loadPoolData).mockResolvedValue(
         minimalPoolData({ sqrtPriceX96: defaultSqrtPriceX96 }),
@@ -710,7 +695,7 @@ describe("NFPMTransferLogic", () => {
 
       setPosition(mockPosition);
 
-      await handleRegularTransfer(mockEvent, [mockPosition], mockContext);
+      await handleRegularTransfer(mockEvent, mockPosition, mockContext);
 
       const updatedPosition = mockDb.entities.NonFungiblePosition.get(
         mockPosition.id,
@@ -730,7 +715,7 @@ describe("NFPMTransferLogic", () => {
       const mockEvent = createMockTransferEvent(mockPosition.owner, userB);
       setPosition(mockPosition);
 
-      await handleRegularTransfer(mockEvent, [mockPosition], mockContext);
+      await handleRegularTransfer(mockEvent, mockPosition, mockContext);
 
       expect(mockContext.log.warn).toHaveBeenCalledWith(
         expect.stringContaining("Pool pricing data not found"),
@@ -761,7 +746,7 @@ describe("NFPMTransferLogic", () => {
         minimalPoolData({ gaugeAddress: mockEvent.params.to }),
       );
 
-      await handleRegularTransfer(mockEvent, [positionWithOwner], mockContext);
+      await handleRegularTransfer(mockEvent, positionWithOwner, mockContext);
 
       const positionAfter = getPositionAfterTransfer();
       expect(positionAfter).toBeDefined();
@@ -785,7 +770,7 @@ describe("NFPMTransferLogic", () => {
         originalOwnerAddress,
       );
 
-      await handleRegularTransfer(mockEvent, [positionWithOwner], mockContext);
+      await handleRegularTransfer(mockEvent, positionWithOwner, mockContext);
 
       const positionAfter = getPositionAfterTransfer();
       expect(positionAfter).toBeDefined();
@@ -801,7 +786,7 @@ describe("NFPMTransferLogic", () => {
       setPosition(positionOwnedByA);
       const mockEvent = createMockTransferEvent(userA, userB);
 
-      await handleRegularTransfer(mockEvent, [positionOwnedByA], mockContext);
+      await handleRegularTransfer(mockEvent, positionOwnedByA, mockContext);
 
       const updatedPosition = getPositionAfterTransfer();
       expect(updatedPosition).toBeDefined();
@@ -821,7 +806,7 @@ describe("NFPMTransferLogic", () => {
         gaugeAddress,
       );
 
-      await handleRegularTransfer(mockEvent, [positionWithOwner], mockContext);
+      await handleRegularTransfer(mockEvent, positionWithOwner, mockContext);
 
       expect(attributeLiquidityChangeToUserStatsPerPool).not.toHaveBeenCalled();
       const positionAfter = getPositionAfterTransfer();
@@ -846,7 +831,7 @@ describe("NFPMTransferLogic", () => {
         originalOwnerAddress,
       );
 
-      await handleRegularTransfer(mockEvent, [positionWithOwner], mockContext);
+      await handleRegularTransfer(mockEvent, positionWithOwner, mockContext);
 
       expect(attributeLiquidityChangeToUserStatsPerPool).not.toHaveBeenCalled();
       const positionAfter = getPositionAfterTransfer();
@@ -865,7 +850,7 @@ describe("NFPMTransferLogic", () => {
       const mockEvent = createMockTransferEvent(mockPosition.owner, userB);
       setPosition(mockPosition);
 
-      await handleRegularTransfer(mockEvent, [mockPosition], mockContext);
+      await handleRegularTransfer(mockEvent, mockPosition, mockContext);
 
       expect(mockContext.log.warn).toHaveBeenCalledWith(
         expect.stringContaining("Pool entity not found"),
@@ -888,7 +873,7 @@ describe("NFPMTransferLogic", () => {
       setPosition(pos);
       const mockEvent = createMockTransferEvent(userA, userB);
 
-      await handleRegularTransfer(mockEvent, [pos], mockContext);
+      await handleRegularTransfer(mockEvent, pos, mockContext);
 
       expect(attributeLiquidityChangeToUserStatsPerPool).toHaveBeenCalledTimes(
         2,
@@ -916,7 +901,7 @@ describe("NFPMTransferLogic", () => {
       setPosition(pos);
       const mockEvent = createMockTransferEvent(userA, zeroAddress);
 
-      await handleRegularTransfer(mockEvent, [pos], mockContext);
+      await handleRegularTransfer(mockEvent, pos, mockContext);
 
       expect(attributeLiquidityChangeToUserStatsPerPool).toHaveBeenCalledTimes(
         1,
@@ -938,7 +923,7 @@ describe("NFPMTransferLogic", () => {
       setPosition(pos);
       const mockEvent = createMockTransferEvent(userA, userB);
 
-      await handleRegularTransfer(mockEvent, [pos], mockContext);
+      await handleRegularTransfer(mockEvent, pos, mockContext);
 
       expect(attributeLiquidityChangeToUserStatsPerPool).not.toHaveBeenCalled();
       const updatedPosition = getPositionAfterTransfer();
@@ -953,7 +938,7 @@ describe("NFPMTransferLogic", () => {
       setPosition(pos);
       const mockEvent = createMockTransferEvent(userA, userA);
 
-      await handleRegularTransfer(mockEvent, [pos], mockContext);
+      await handleRegularTransfer(mockEvent, pos, mockContext);
 
       expect(attributeLiquidityChangeToUserStatsPerPool).not.toHaveBeenCalled();
       const updatedPosition = getPositionAfterTransfer();

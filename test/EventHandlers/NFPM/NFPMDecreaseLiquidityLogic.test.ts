@@ -60,7 +60,7 @@ describe("NFPMDecreaseLiquidityLogic", () => {
   }
 
   const mockPosition: NonFungiblePosition = {
-    id: NonFungiblePositionId(chainId, poolAddress, tokenId),
+    id: NonFungiblePositionId(chainId, nfpmAddress, tokenId),
     chainId: chainId,
     tokenId: tokenId,
     nfpmAddress: nfpmAddress,

@@ -60,12 +60,13 @@ async function computeCLStakedReservesOnGaugeEvent(
 }> {
   if (data.tokenId === undefined) return {};
 
+  // Pool → NFPM is threaded onto the aggregator at PoolCreated time (see #619).
+  // For V2 pools or pools without an NFPM mapping, no position can exist — bail early.
+  const nfpmAddress = liquidityPoolAggregator.nfpmAddress;
+  if (!nfpmAddress) return {};
+
   const position = await context.NonFungiblePosition.get(
-    NonFungiblePositionId(
-      data.chainId,
-      liquidityPoolAggregator.poolAddress,
-      data.tokenId,
-    ),
+    NonFungiblePositionId(data.chainId, nfpmAddress, data.tokenId),
   );
   if (!position) return {};
 

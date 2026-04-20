@@ -9,10 +9,10 @@ import {
   type NonFungiblePositionDiff,
   updateNonFungiblePosition,
 } from "../../Aggregators/NonFungiblePosition";
+import { NonFungiblePositionId } from "../../Constants";
 import {
   LiquidityChangeType,
   attributeLiquidityChangeToUserStatsPerPool,
-  findPositionByTokenId,
   updateStakedPositionLiquidity,
 } from "./NFPMCommonLogic";
 
@@ -55,25 +55,22 @@ export async function processNFPMIncreaseLiquidity(
   event: NFPM_IncreaseLiquidity_event,
   context: handlerContext,
 ): Promise<void> {
-  // Get position by tokenId
-  // Transfer (i.e. relative to mint) should have already run and updated the placeholder, so position should exist when an IncreaseLiquidity event is processed
-  // Filter by chainId AND nfpmAddress to avoid collisions: same tokenId can exist on different chains,
-  // and on chains with multiple NFPM contracts (e.g. Optimism) each NFPM has its own tokenId counter.
-  const positions = await findPositionByTokenId(
-    event.params.tokenId,
-    event.chainId,
-    event.srcAddress,
-    context,
+  // Transfer (relative to mint) runs before IncreaseLiquidity, so the stable position
+  // should already exist. Direct O(1) lookup via (chainId, nfpmAddress, tokenId).
+  const position = await context.NonFungiblePosition.get(
+    NonFungiblePositionId(
+      event.chainId,
+      event.srcAddress,
+      event.params.tokenId,
+    ),
   );
 
-  if (positions.length === 0) {
+  if (!position) {
     context.log.error(
       `NonFungiblePosition with tokenId ${event.params.tokenId} not found during increase liquidity on chain ${event.chainId}`,
     );
     return;
   }
-
-  const position = positions[0];
 
   // Clean up any orphaned CLPoolMintEvent entities from same transaction
   //

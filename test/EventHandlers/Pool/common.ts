@@ -297,7 +297,7 @@ export function setupCommon() {
 
   const defaultNFPMTokenId = 42n;
   const mockNonFungiblePositionData: NonFungiblePosition = {
-    id: NonFungiblePositionId(CHAIN_ID, POOL_ADDRESS, defaultNFPMTokenId),
+    id: NonFungiblePositionId(CHAIN_ID, defaultNfpmAddress, defaultNFPMTokenId),
     chainId: CHAIN_ID,
     tokenId: defaultNFPMTokenId,
     nfpmAddress: defaultNfpmAddress,
@@ -325,7 +325,11 @@ export function setupCommon() {
     const chainId = overrides.chainId ?? CHAIN_ID;
     const pool = toChecksumAddress(overrides.pool ?? POOL_ADDRESS);
     const tokenId = overrides.tokenId ?? defaultNFPMTokenId;
-    const id = overrides.id ?? NonFungiblePositionId(chainId, pool, tokenId);
+    const positionNfpm = toChecksumAddress(
+      overrides.nfpmAddress ?? defaultNfpmAddress,
+    );
+    const id =
+      overrides.id ?? NonFungiblePositionId(chainId, positionNfpm, tokenId);
     const owner = toChecksumAddress(
       overrides.owner ?? normalizedDefaultUserAddress,
     );
@@ -338,6 +342,7 @@ export function setupCommon() {
       tokenId,
       pool,
       owner,
+      nfpmAddress: positionNfpm,
     };
   }
 
@@ -393,6 +398,14 @@ export function setupCommon() {
       overrides.poolAddress ?? POOL_ADDRESS,
     );
     const id = overrides.id ?? PoolId(chainId, poolAddress);
+    // Default nfpmAddress for CL pools so tests that exercise NFPM-scoped lookups
+    // (gauges, UserStatsPerPool snapshot USD) see a valid mapping. V2 pools keep it null.
+    const nfpmAddress =
+      overrides.nfpmAddress !== undefined
+        ? overrides.nfpmAddress
+        : overrides.isCL
+          ? defaultNfpmAddress
+          : undefined;
 
     return {
       ...mockLiquidityPoolData,
@@ -400,6 +413,7 @@ export function setupCommon() {
       poolAddress,
       chainId,
       id,
+      nfpmAddress,
     };
   }
 
