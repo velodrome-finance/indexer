@@ -99,10 +99,7 @@ describe("PoolBurnAndMintLogic", () => {
           // Seed lazily on first access so tests can assign mockPoolTransferInTx
           // without calling a setup helper. Re-seed is safe: we only rebuild
           // when the registry array is still empty relative to the transfer set.
-          if (
-            mockRegistries.length === 0 &&
-            mockPoolTransferInTx.length > 0
-          ) {
+          if (mockRegistries.length === 0 && mockPoolTransferInTx.length > 0) {
             seedRegistriesFromTransfers();
           }
           return mockRegistries.find((r) => r.id === id);
@@ -1064,9 +1061,9 @@ describe("PoolBurnAndMintLogic", () => {
         TX_HASH,
         POOL_ADDRESS,
       );
-      expect(mockRegistries.find((r) => r.id === registryId)?.transferIds).toEqual([
-        transfer2.id,
-      ]);
+      expect(
+        mockRegistries.find((r) => r.id === registryId)?.transferIds,
+      ).toEqual([transfer2.id]);
 
       // Second Mint matches transfer2
       const mint2 = createMockMintEvent(4);
