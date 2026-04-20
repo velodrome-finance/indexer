@@ -6,6 +6,7 @@ import {
   CLPoolMintEventId,
   NonFungiblePositionId,
   TokenId,
+  TxCLPoolMintRegistryId,
   toChecksumAddress,
 } from "../../../src/Constants";
 import { defaultNfpmAddress, setupCommon } from "../Pool/common";
@@ -129,11 +130,15 @@ describe("NFPM Events", () => {
         createdAt: new Date(1000000 * 1000),
       };
 
-      // Setup mockDb with CLPoolMintEvent
+      // Setup mockDb with CLPoolMintEvent + matching registry row
       const mockDbWithMintEvent = MockDb.createMockDb();
       const dbWithMintEvent =
         mockDbWithMintEvent.entities.CLPoolMintEvent.set(mockCLPoolMintEvent);
-      const dbWithTokens = dbWithMintEvent.entities.Token.set(mockToken0Data);
+      const dbWithRegistry = dbWithMintEvent.entities.TxCLPoolMintRegistry.set({
+        id: TxCLPoolMintRegistryId(chainId, transactionHash),
+        mintEventIds: [mockCLPoolMintEvent.id],
+      });
+      const dbWithTokens = dbWithRegistry.entities.Token.set(mockToken0Data);
       const finalDb = dbWithTokens.entities.Token.set(mockToken1Data);
 
       // Setup getWhere for queries

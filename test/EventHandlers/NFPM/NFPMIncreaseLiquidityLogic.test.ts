@@ -159,16 +159,6 @@ describe("NFPMIncreaseLiquidityLogic", () => {
       },
       CLPoolMintEvent: {
         ...currentDb.entities.CLPoolMintEvent,
-        getWhere: vi
-          .fn()
-          .mockImplementation(
-            (filter: { transactionHash?: { _eq?: string } }) =>
-              Promise.resolve(
-                mintEvents.filter(
-                  (e) => e.transactionHash === filter?.transactionHash?._eq,
-                ),
-              ),
-          ),
         deleteUnsafe: (id: string) => {
           const index = mintEvents.findIndex((e) => e.id === id);
           if (index >= 0) {
@@ -180,6 +170,22 @@ describe("NFPMIncreaseLiquidityLogic", () => {
         },
         // biome-ignore lint/suspicious/noExplicitAny: Mock for testing
       } as any,
+      TxCLPoolMintRegistry: {
+        // Mirror producer: one registry row per tx with all mint ids in that tx.
+        get: vi.fn().mockImplementation((id: string) => {
+          const byTx = new Map<string, string[]>();
+          for (const m of mintEvents) {
+            const key = `${m.chainId}-${m.transactionHash}`;
+            const list = byTx.get(key) ?? [];
+            list.push(m.id);
+            byTx.set(key, list);
+          }
+          const ids = byTx.get(id);
+          return Promise.resolve(ids ? { id, mintEventIds: ids } : undefined);
+        }),
+        set: vi.fn(),
+        deleteUnsafe: vi.fn(),
+      },
       log: {
         info: vi.fn(),
         warn: vi.fn(),

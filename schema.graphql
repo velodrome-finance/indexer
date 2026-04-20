@@ -708,6 +708,16 @@ type CLPositionPendingPrincipal {
   pendingPrincipal1: BigInt! @config(precision: 76)
 }
 
+# Per-transaction registry of CLPoolMintEvent IDs, used to skip the index scan
+# on CLPoolMintEvent.getWhere({ transactionHash }) in the NFPM.Transfer(mint) consumer.
+# The consumer knows chainId + txHash; it reads this row and then PK-gets each event by id.
+# Cleaned up as events are consumed: ids are removed on consumption and the row is deleted
+# when the last id is removed.
+type TxCLPoolMintRegistry {
+  id: ID! # Format: {chainId}-{txHash}
+  mintEventIds: [String!]! # CLPoolMintEvent ids produced in this tx, in insertion order
+}
+
 # Temporary entity for matching Mint/Burn with Transfer events
 # Only stores mint/burn transfers (isMint || isBurn) to reduce storage
 type PoolTransferInTx {

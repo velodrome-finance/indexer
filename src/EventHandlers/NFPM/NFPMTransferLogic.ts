@@ -9,7 +9,12 @@ import {
   loadPoolData,
 } from "../../Aggregators/LiquidityPoolAggregator";
 import { updateNonFungiblePosition } from "../../Aggregators/NonFungiblePosition";
-import { NonFungiblePositionId, PoolId, ZERO_ADDRESS } from "../../Constants";
+import {
+  NonFungiblePositionId,
+  PoolId,
+  TxCLPoolMintRegistryId,
+  ZERO_ADDRESS,
+} from "../../Constants";
 import { calculatePositionAmountsFromLiquidity } from "../../Helpers";
 import {
   LiquidityChangeType,
@@ -76,10 +81,11 @@ export async function createPositionFromCLPoolMint(
  *
  * Process:
  * 1. Check if position already exists (early return if found)
- * 2. Query CLPoolMintEvent by transaction hash
+ * 2. PK-lookup TxCLPoolMintRegistry for (chainId, txHash), then PK-get each CLPoolMintEvent by id
+ *    (replaces the old CLPoolMintEvent.getWhere({ transactionHash }) index scan)
  * 3. Filter by: chainId, logIndex < transferLogIndex, not consumed
  * 4. Select closest preceding mint by logIndex (deterministic for multiple mints)
- * 5. Create definitive position and delete CLPoolMintEvent
+ * 5. Create definitive position, delete CLPoolMintEvent, prune consumed id from the registry
  *
  * @param event - The NFPM.Transfer event (mint case)
  * @param context - The handler context
@@ -95,56 +101,79 @@ export async function handleMintTransfer(
     return;
   }
 
-  const mintEvents = await context.CLPoolMintEvent.getWhere({
-    transactionHash: { _eq: event.transaction.hash },
-  });
+  const registryId = TxCLPoolMintRegistryId(
+    event.chainId,
+    event.transaction.hash,
+  );
+  const registry = await context.TxCLPoolMintRegistry.get(registryId);
 
-  const matchingEvents =
-    mintEvents?.filter(
-      (m: CLPoolMintEvent) =>
-        m.chainId === event.chainId &&
-        !m.consumedByTokenId &&
-        m.logIndex < event.logIndex,
-    ) ?? [];
-
-  if (matchingEvents.length > 0) {
-    // Select closest preceding mint by logIndex (deterministic for multiple mints)
-    //
-    // Why this selection strategy is necessary:
-    // 1. A single transaction can contain multiple CLPool.Mint events (e.g., user mints positions in multiple pools)
-    // 2. Each NFPM.Transfer (mint) event must match with the correct CLPool.Mint event
-    // 3. Events are processed in logIndex order within a transaction
-    // 4. The Transfer event should match with the most recent (closest) preceding Mint event
-    //
-    // Example transaction with multiple mints:
-    //   logIndex 10: CLPool.Mint (pool A) → creates CLPoolMintEvent A
-    //   logIndex 20: CLPool.Mint (pool B) → creates CLPoolMintEvent B
-    //   logIndex 30: NFPM.Transfer (mint, pool A) → should match CLPoolMintEvent A (logIndex 10)
-    //   logIndex 40: NFPM.Transfer (mint, pool B) → should match CLPoolMintEvent B (logIndex 20)
-    //
-    // By selecting the maximum logIndex from matchingEvents (which are already filtered to logIndex < transferLogIndex),
-    // we get the closest preceding mint, ensuring deterministic and correct matching.
-    const mintEvent = matchingEvents.reduce(
-      (prev: CLPoolMintEvent, current: CLPoolMintEvent) =>
-        current.logIndex > prev.logIndex ? current : prev,
-    );
-
-    // Create definitive position and delete CLPoolMintEvent entity
-    await createPositionFromCLPoolMint(
-      mintEvent,
-      event.params.tokenId,
-      event.params.to,
-      event.srcAddress,
-      event.chainId,
-      event.block.timestamp,
-      context,
+  if (!registry || registry.mintEventIds.length === 0) {
+    context.log.warn(
+      `No CLPoolMintEvent found for NFPM.Transfer(mint) tokenId ${event.params.tokenId} in tx ${event.transaction.hash}`,
     );
     return;
   }
 
-  context.log.warn(
-    `No CLPoolMintEvent found for NFPM.Transfer(mint) tokenId ${event.params.tokenId} in tx ${event.transaction.hash}`,
+  const mintEvents = (
+    await Promise.all(
+      registry.mintEventIds.map((id) => context.CLPoolMintEvent.get(id)),
+    )
+  ).filter((m): m is CLPoolMintEvent => m !== undefined);
+
+  const matchingEvents = mintEvents.filter(
+    (m) =>
+      m.chainId === event.chainId &&
+      !m.consumedByTokenId &&
+      m.logIndex < event.logIndex,
   );
+
+  if (matchingEvents.length === 0) {
+    context.log.warn(
+      `No CLPoolMintEvent found for NFPM.Transfer(mint) tokenId ${event.params.tokenId} in tx ${event.transaction.hash}`,
+    );
+    return;
+  }
+
+  // Select closest preceding mint by logIndex (deterministic for multiple mints)
+  //
+  // Why this selection strategy is necessary:
+  // 1. A single transaction can contain multiple CLPool.Mint events (e.g., user mints positions in multiple pools)
+  // 2. Each NFPM.Transfer (mint) event must match with the correct CLPool.Mint event
+  // 3. Events are processed in logIndex order within a transaction
+  // 4. The Transfer event should match with the most recent (closest) preceding Mint event
+  //
+  // Example transaction with multiple mints:
+  //   logIndex 10: CLPool.Mint (pool A) → creates CLPoolMintEvent A
+  //   logIndex 20: CLPool.Mint (pool B) → creates CLPoolMintEvent B
+  //   logIndex 30: NFPM.Transfer (mint, pool A) → should match CLPoolMintEvent A (logIndex 10)
+  //   logIndex 40: NFPM.Transfer (mint, pool B) → should match CLPoolMintEvent B (logIndex 20)
+  //
+  // By selecting the maximum logIndex from matchingEvents (which are already filtered to logIndex < transferLogIndex),
+  // we get the closest preceding mint, ensuring deterministic and correct matching.
+  const mintEvent = matchingEvents.reduce((prev, current) =>
+    current.logIndex > prev.logIndex ? current : prev,
+  );
+
+  await createPositionFromCLPoolMint(
+    mintEvent,
+    event.params.tokenId,
+    event.params.to,
+    event.srcAddress,
+    event.chainId,
+    event.block.timestamp,
+    context,
+  );
+
+  // Prune the consumed id from the registry; delete the row when it empties.
+  const remaining = registry.mintEventIds.filter((id) => id !== mintEvent.id);
+  if (remaining.length === 0) {
+    context.TxCLPoolMintRegistry.deleteUnsafe(registryId);
+  } else {
+    context.TxCLPoolMintRegistry.set({
+      id: registryId,
+      mintEventIds: remaining,
+    });
+  }
 }
 
 /**

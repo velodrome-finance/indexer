@@ -1087,6 +1087,18 @@ export const CLPoolMintEventId = (
   logIndex: number,
 ) => `${chainId}-${poolAddress}-${txHash}-${logIndex}`;
 
+/** Entity ID for TxCLPoolMintRegistry. Format: {chainId}-{txHash}.
+ * Keyed by transaction (not pool) because the NFPM.Transfer(mint) consumer only
+ * knows chainId + txHash at lookup time; filtering by pool/logIndex happens on
+ * the CLPoolMintEvent rows fetched via the registry.
+ *
+ * @param chainId - Chain ID of the tx
+ * @param txHash - Transaction hash that produced one or more CLPool.Mint events
+ * @returns string Combined registry ID.
+ */
+export const TxCLPoolMintRegistryId = (chainId: number, txHash: string) =>
+  `${chainId}-${txHash}`;
+
 /** ID for CLPositionPendingPrincipal — tracks burned principal awaiting collection.
  * Keyed by contract-level position identity (pool + owner + tick range).
  * Mirrors Solidity's positions mapping key: keccak256(owner, tickLower, tickUpper) per pool.

@@ -8,7 +8,11 @@ import {
   loadOrCreateUserData,
   updateUserStatsPerPool,
 } from "../Aggregators/UserStatsPerPool";
-import { CLPoolMintEventId, OUSDT_ADDRESS } from "../Constants";
+import {
+  CLPoolMintEventId,
+  OUSDT_ADDRESS,
+  TxCLPoolMintRegistryId,
+} from "../Constants";
 import { processCLPoolBurn } from "./CLPool/CLPoolBurnLogic";
 import { processCLPoolCollectFees } from "./CLPool/CLPoolCollectFeesLogic";
 import { processCLPoolCollect } from "./CLPool/CLPoolCollectLogic";
@@ -324,6 +328,20 @@ CLPool.Mint.handler(async ({ event, context }) => {
     logIndex: event.logIndex,
     consumedByTokenId: undefined,
     createdAt: timestamp,
+  });
+
+  // Per-tx registry so NFPM.Transfer(mint) can PK-lookup the mint ids for this
+  // tx instead of running a getWhere scan on CLPoolMintEvent.transactionHash.
+  const registryId = TxCLPoolMintRegistryId(
+    event.chainId,
+    event.transaction.hash,
+  );
+  const existingRegistry = await context.TxCLPoolMintRegistry.get(registryId);
+  context.TxCLPoolMintRegistry.set({
+    id: registryId,
+    mintEventIds: existingRegistry
+      ? [...existingRegistry.mintEventIds, mintEventId]
+      : [mintEventId],
   });
 });
 
