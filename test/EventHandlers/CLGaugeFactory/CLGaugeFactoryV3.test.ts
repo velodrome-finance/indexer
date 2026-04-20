@@ -1,10 +1,10 @@
-import type { LiquidityPoolAggregator } from "generated";
+import type { CLGaugeConfig, LiquidityPoolAggregator } from "generated";
 import {
   CLGaugeFactoryV2,
   CLGaugeFactoryV3,
   MockDb,
 } from "../../../generated/src/TestHelpers.gen";
-import { toChecksumAddress } from "../../../src/Constants";
+import { PoolId, toChecksumAddress } from "../../../src/Constants";
 import { setupCommon } from "../Pool/common";
 
 describe("CLGaugeFactoryV3 Event Handlers", () => {
@@ -210,6 +210,202 @@ describe("CLGaugeFactoryV3 Event Handlers", () => {
       expect(pool).toBeDefined();
       if (!pool) return;
       expect(pool.gaugeEmissionsCap).toBe(0n);
+    });
+  });
+
+  describe("SetDefaultMinStakeTime", () => {
+    const mockMinStakeTime = 86_400n; // 1 day
+
+    it("creates a CLGaugeConfig with defaultMinStakeTime and zero defaults for siblings", async () => {
+      const event = CLGaugeFactoryV3.SetDefaultMinStakeTime.createMockEvent({
+        _minStakeTime: mockMinStakeTime,
+        mockEventData: {
+          srcAddress: v3FactoryAddress,
+          chainId,
+          block: {
+            timestamp: 4_000_000,
+            number: 4,
+            hash: "0x4444444444444444444444444444444444444444444444444444444444444444",
+          },
+          logIndex: 1,
+        },
+      });
+
+      const result = await mockDb.processEvents([event]);
+
+      const config = result.entities.CLGaugeConfig.get(String(chainId));
+      expect(config).toBeDefined();
+      if (!config) return;
+      expect(config.defaultMinStakeTime).toBe(mockMinStakeTime);
+      expect(config.defaultEmissionsCap).toBe(0n);
+      expect(config.penaltyRate).toBe(0n);
+      expect(config.lastUpdatedTimestamp).toEqual(new Date(4_000_000 * 1000));
+    });
+
+    it("updates defaultMinStakeTime without stomping existing defaultEmissionsCap or penaltyRate", async () => {
+      const existing: CLGaugeConfig = {
+        id: String(chainId),
+        defaultEmissionsCap: mockDefaultCap,
+        defaultMinStakeTime: 0n,
+        penaltyRate: 250n,
+        lastUpdatedTimestamp: new Date(3_000_000 * 1000),
+      };
+      const seeded = mockDb.entities.CLGaugeConfig.set(existing);
+
+      const event = CLGaugeFactoryV3.SetDefaultMinStakeTime.createMockEvent({
+        _minStakeTime: mockMinStakeTime,
+        mockEventData: {
+          srcAddress: v3FactoryAddress,
+          chainId,
+          block: {
+            timestamp: 4_000_000,
+            number: 4,
+            hash: "0x4444444444444444444444444444444444444444444444444444444444444444",
+          },
+          logIndex: 1,
+        },
+      });
+
+      const result = await seeded.processEvents([event]);
+
+      const config = result.entities.CLGaugeConfig.get(String(chainId));
+      expect(config).toBeDefined();
+      if (!config) return;
+      expect(config.defaultEmissionsCap).toBe(mockDefaultCap);
+      expect(config.defaultMinStakeTime).toBe(mockMinStakeTime);
+      expect(config.penaltyRate).toBe(250n);
+    });
+  });
+
+  describe("SetPoolMinStakeTime", () => {
+    const poolAddress = toChecksumAddress(
+      "0xcccccccccccccccccccccccccccccccccccccccc",
+    );
+    const poolOnBaseId = PoolId(chainId, poolAddress);
+
+    it("sets minStakeTime on the matching LiquidityPoolAggregator", async () => {
+      const existingPool: LiquidityPoolAggregator = {
+        ...mockLiquidityPoolData,
+        id: poolOnBaseId,
+        chainId,
+        poolAddress: poolAddress as `0x${string}`,
+        minStakeTime: 0n,
+      };
+      const seeded = mockDb.entities.LiquidityPoolAggregator.set(existingPool);
+
+      const event = CLGaugeFactoryV3.SetPoolMinStakeTime.createMockEvent({
+        _pool: poolAddress,
+        _minStakeTime: 3_600n,
+        mockEventData: {
+          srcAddress: v3FactoryAddress,
+          chainId,
+          block: {
+            timestamp: 5_000_000,
+            number: 5,
+            hash: "0x5555555555555555555555555555555555555555555555555555555555555555",
+          },
+          logIndex: 1,
+        },
+      });
+
+      const result = await seeded.processEvents([event]);
+
+      const pool = result.entities.LiquidityPoolAggregator.get(poolOnBaseId);
+      expect(pool).toBeDefined();
+      if (!pool) return;
+      expect(pool.minStakeTime).toBe(3_600n);
+      expect(pool.lastUpdatedTimestamp).toEqual(new Date(5_000_000 * 1000));
+    });
+
+    it("returns cleanly when no pool is found for the given pool address", async () => {
+      const event = CLGaugeFactoryV3.SetPoolMinStakeTime.createMockEvent({
+        _pool: toChecksumAddress("0xdddddddddddddddddddddddddddddddddddddddd"),
+        _minStakeTime: 3_600n,
+        mockEventData: {
+          srcAddress: v3FactoryAddress,
+          chainId,
+          block: {
+            timestamp: 5_000_000,
+            number: 5,
+            hash: "0x5555555555555555555555555555555555555555555555555555555555555555",
+          },
+          logIndex: 1,
+        },
+      });
+
+      const result = await mockDb.processEvents([event]);
+
+      // Verify no pool entity was created for the missing pool — handler short-circuits.
+      const missingPool = result.entities.LiquidityPoolAggregator.get(
+        PoolId(
+          chainId,
+          toChecksumAddress("0xdddddddddddddddddddddddddddddddddddddddd"),
+        ),
+      );
+      expect(missingPool).toBeUndefined();
+    });
+  });
+
+  describe("SetPenaltyRate", () => {
+    const mockPenaltyRate = 250n; // 2.5% in bps
+
+    it("creates a CLGaugeConfig with penaltyRate and zero defaults for siblings", async () => {
+      const event = CLGaugeFactoryV3.SetPenaltyRate.createMockEvent({
+        _penaltyRate: mockPenaltyRate,
+        mockEventData: {
+          srcAddress: v3FactoryAddress,
+          chainId,
+          block: {
+            timestamp: 6_000_000,
+            number: 6,
+            hash: "0x6666666666666666666666666666666666666666666666666666666666666666",
+          },
+          logIndex: 1,
+        },
+      });
+
+      const result = await mockDb.processEvents([event]);
+
+      const config = result.entities.CLGaugeConfig.get(String(chainId));
+      expect(config).toBeDefined();
+      if (!config) return;
+      expect(config.penaltyRate).toBe(mockPenaltyRate);
+      expect(config.defaultEmissionsCap).toBe(0n);
+      expect(config.defaultMinStakeTime).toBe(0n);
+    });
+
+    it("updates penaltyRate without stomping defaultEmissionsCap or defaultMinStakeTime", async () => {
+      const existing: CLGaugeConfig = {
+        id: String(chainId),
+        defaultEmissionsCap: mockDefaultCap,
+        defaultMinStakeTime: 86_400n,
+        penaltyRate: 0n,
+        lastUpdatedTimestamp: new Date(4_000_000 * 1000),
+      };
+      const seeded = mockDb.entities.CLGaugeConfig.set(existing);
+
+      const event = CLGaugeFactoryV3.SetPenaltyRate.createMockEvent({
+        _penaltyRate: mockPenaltyRate,
+        mockEventData: {
+          srcAddress: v3FactoryAddress,
+          chainId,
+          block: {
+            timestamp: 6_000_000,
+            number: 6,
+            hash: "0x6666666666666666666666666666666666666666666666666666666666666666",
+          },
+          logIndex: 1,
+        },
+      });
+
+      const result = await seeded.processEvents([event]);
+
+      const config = result.entities.CLGaugeConfig.get(String(chainId));
+      expect(config).toBeDefined();
+      if (!config) return;
+      expect(config.defaultEmissionsCap).toBe(mockDefaultCap);
+      expect(config.defaultMinStakeTime).toBe(86_400n);
+      expect(config.penaltyRate).toBe(mockPenaltyRate);
     });
   });
 });

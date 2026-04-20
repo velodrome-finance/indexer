@@ -70,6 +70,8 @@ describe("CLFactory Events", () => {
     const clGaugeConfig = {
       id: String(clGaugeConfigChainId),
       defaultEmissionsCap: 0n,
+      defaultMinStakeTime: 0n,
+      penaltyRate: 0n,
       lastUpdatedTimestamp: new Date(1000000 * 1000),
     } satisfies CLGaugeConfig;
     updated = updated.entities.CLGaugeConfig.set(clGaugeConfig);
@@ -467,6 +469,8 @@ describe("CLFactory Events", () => {
         const clGaugeConfig = {
           id: String(leafChain),
           defaultEmissionsCap: 0n,
+          defaultMinStakeTime: 0n,
+          penaltyRate: 0n,
           lastUpdatedTimestamp: new Date(1000000 * 1000),
         } satisfies CLGaugeConfig;
         updated = updated.entities.CLGaugeConfig.set(clGaugeConfig);

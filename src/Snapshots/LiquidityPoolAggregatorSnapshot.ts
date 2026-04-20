@@ -68,6 +68,7 @@ export function createLiquidityPoolAggregatorSnapshot(
     gaugeIsAlive: entity.gaugeIsAlive,
     gaugeAddress: entity.gaugeAddress,
     gaugeEmissionsCap: entity.gaugeEmissionsCap,
+    minStakeTime: entity.minStakeTime,
     numberOfGaugeDeposits: entity.numberOfGaugeDeposits,
     numberOfGaugeWithdrawals: entity.numberOfGaugeWithdrawals,
     numberOfGaugeRewardClaims: entity.numberOfGaugeRewardClaims,

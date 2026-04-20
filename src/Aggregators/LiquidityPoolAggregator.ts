@@ -752,6 +752,9 @@ export function createLiquidityPoolAggregatorEntity(params: {
       : isCL
         ? undefined
         : 0n,
+    // Seed per-pool min stake lockup from the chain-wide default; 0 before CLGaugeFactoryV3's SetDefaultMinStakeTime has fired.
+    // SetPoolMinStakeTime can override this per-pool later.
+    minStakeTime: CLGaugeConfig?.defaultMinStakeTime ?? 0n,
     // Dynamic Fee fields
     baseFee: baseFee,
     feeCap: undefined,

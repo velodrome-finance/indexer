@@ -117,6 +117,9 @@ contracts:
     events:
       - event: SetDefaultCap
       - event: SetEmissionCap
+      - event: SetDefaultMinStakeTime
+      - event: SetPoolMinStakeTime
+      - event: SetPenaltyRate
   - name: CLGauge
     abi_file_path: abis/CLGauge.json
     handler: src/EventHandlers/Gauges/CLGauge.ts

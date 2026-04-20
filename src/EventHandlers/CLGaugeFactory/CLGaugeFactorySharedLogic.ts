@@ -1,4 +1,33 @@
-import type { handlerContext } from "generated";
+import type { CLGaugeConfig, handlerContext } from "generated";
+
+/**
+ * Build a fully-populated CLGaugeConfig row for a chain, spreading an existing
+ * row if present and supplying zero defaults for any required fields not yet set.
+ * Every partial-update helper (applySetDefaultCap, applySetDefaultMinStakeTime,
+ * applySetPenaltyRate) routes through this so a first-time write never leaves
+ * required fields missing and a subsequent write never stomps sibling fields.
+ * @param chainId - Chain ID keying the CLGaugeConfig row
+ * @param existing - Current CLGaugeConfig row, if any
+ * @param override - Partial fields to apply on top of the existing row
+ * @param blockTimestampSeconds - Block timestamp (seconds) used for lastUpdatedTimestamp
+ * @returns A complete CLGaugeConfig ready to be passed to context.CLGaugeConfig.set
+ */
+function mergeCLGaugeConfig(
+  chainId: number,
+  existing: CLGaugeConfig | undefined,
+  override: Partial<CLGaugeConfig>,
+  blockTimestampSeconds: number,
+): CLGaugeConfig {
+  return {
+    id: String(chainId),
+    defaultEmissionsCap: 0n,
+    defaultMinStakeTime: 0n,
+    penaltyRate: 0n,
+    ...(existing ?? {}),
+    ...override,
+    lastUpdatedTimestamp: new Date(blockTimestampSeconds * 1000),
+  };
+}
 
 /**
  * Upsert the chain-wide CLGaugeConfig default emissions cap.
@@ -16,12 +45,66 @@ export async function applySetDefaultCap(
   context: handlerContext,
 ): Promise<void> {
   const existing = await context.CLGaugeConfig.get(String(chainId));
-  context.CLGaugeConfig.set({
-    ...(existing ?? {}),
-    id: String(chainId),
-    defaultEmissionsCap: newDefaultCap,
-    lastUpdatedTimestamp: new Date(blockTimestampSeconds * 1000),
-  });
+  context.CLGaugeConfig.set(
+    mergeCLGaugeConfig(
+      chainId,
+      existing,
+      { defaultEmissionsCap: newDefaultCap },
+      blockTimestampSeconds,
+    ),
+  );
+}
+
+/**
+ * Upsert the chain-wide CLGaugeConfig default min stake time (LP lockup in seconds).
+ * Emitted by CLGaugeFactoryV3.SetDefaultMinStakeTime.
+ * @param chainId - Chain ID the event fired on (keys the CLGaugeConfig row)
+ * @param newMinStakeTime - New default min stake time (seconds) from the event payload
+ * @param blockTimestampSeconds - Block timestamp (seconds) used for lastUpdatedTimestamp
+ * @param context - Handler context for entity access
+ * @returns Promise that resolves once the upsert is staged
+ */
+export async function applySetDefaultMinStakeTime(
+  chainId: number,
+  newMinStakeTime: bigint,
+  blockTimestampSeconds: number,
+  context: handlerContext,
+): Promise<void> {
+  const existing = await context.CLGaugeConfig.get(String(chainId));
+  context.CLGaugeConfig.set(
+    mergeCLGaugeConfig(
+      chainId,
+      existing,
+      { defaultMinStakeTime: newMinStakeTime },
+      blockTimestampSeconds,
+    ),
+  );
+}
+
+/**
+ * Upsert the chain-wide CLGaugeConfig early-unstake penalty rate (basis points).
+ * Emitted by CLGaugeFactoryV3.SetPenaltyRate.
+ * @param chainId - Chain ID the event fired on (keys the CLGaugeConfig row)
+ * @param newPenaltyRate - New penalty rate (bps) from the event payload
+ * @param blockTimestampSeconds - Block timestamp (seconds) used for lastUpdatedTimestamp
+ * @param context - Handler context for entity access
+ * @returns Promise that resolves once the upsert is staged
+ */
+export async function applySetPenaltyRate(
+  chainId: number,
+  newPenaltyRate: bigint,
+  blockTimestampSeconds: number,
+  context: handlerContext,
+): Promise<void> {
+  const existing = await context.CLGaugeConfig.get(String(chainId));
+  context.CLGaugeConfig.set(
+    mergeCLGaugeConfig(
+      chainId,
+      existing,
+      { penaltyRate: newPenaltyRate },
+      blockTimestampSeconds,
+    ),
+  );
 }
 
 /**

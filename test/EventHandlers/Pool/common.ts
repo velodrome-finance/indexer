@@ -138,6 +138,7 @@ export function setupCommon() {
     totalFlashLoanVolumeUSD: 0n,
     numberOfFlashLoans: 0n,
     // Gauge fields
+    minStakeTime: 0n,
     numberOfGaugeDeposits: 0n,
     numberOfGaugeWithdrawals: 0n,
     numberOfGaugeRewardClaims: 0n,
