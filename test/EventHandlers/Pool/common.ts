@@ -159,6 +159,8 @@ export function setupCommon() {
     poolLauncherPoolId: undefined,
     // Address of the factory that created this pool (e.g. CLFactory for CL pools)
     factoryAddress: "",
+    // NFPM address for CL pools (null for V2). See nfpmForCLPool in Constants.ts.
+    nfpmAddress: undefined,
     // Voting fields
     gaugeAddress: "",
     gaugeEmissionsCap: 0n,

@@ -167,6 +167,12 @@ describe("PoolFactory Events", () => {
       expect(pool?.factoryAddress).toBe(mockEvent.srcAddress);
     });
 
+    // US-1 acceptance: V2 (non-CL) pools do not carry an NFPM — leave nfpmAddress unset.
+    it("should leave nfpmAddress unset for non-CL (V2) pools", () => {
+      expect(createdPool?.isCL).toBe(false);
+      expect(createdPool?.nfpmAddress).toBeUndefined();
+    });
+
     it("should set baseFee and currentFee for stable pools (sAMM)", async () => {
       resetMockPriceOracle();
 

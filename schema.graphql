@@ -89,6 +89,11 @@ type LiquidityPoolAggregator {
   # Address of the factory that created this pool (e.g. CLFactory for CL pools, set from PoolCreated event)
   factoryAddress: String
 
+  # Address of the NFPM contract that mints positions for this CL pool. Null for V2 (non-CL) pools.
+  # Resolved from (chainId, factoryAddress) via nfpmForCLPool in Constants.ts. Used by downstream
+  # consumers (gauges, user-stats, NFPM handlers) to derive the correct NFPM without a separate scan.
+  nfpmAddress: String @index
+
   # RootPool matching - only relevant for non-OP and non-Base pools
   # For each superChain pool there's a unique rootPool
   # This is because the rootPool is created through a hash of these 4 quantities and they are a unique combination (enforced by smart contract)
