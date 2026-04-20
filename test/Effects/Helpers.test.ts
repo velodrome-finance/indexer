@@ -162,10 +162,7 @@ describe("Helpers", () => {
   });
 
   describe("runWithRpcRetry", () => {
-    const mockLog = { warn: vi.fn() };
-
     beforeEach(() => {
-      mockLog.warn.mockClear();
       vi.mocked(sleep).mockResolvedValue(undefined);
     });
 
@@ -175,10 +172,9 @@ describe("Helpers", () => {
 
     it("should return result on first success", async () => {
       const fn = vi.fn().mockResolvedValue(42);
-      const result = await runWithRpcRetry({ log: mockLog }, fn);
+      const result = await runWithRpcRetry(fn);
       expect(result).toBe(42);
       expect(fn).toHaveBeenCalledTimes(1);
-      expect(mockLog.warn).not.toHaveBeenCalled();
     });
 
     it("should retry on RATE_LIMIT then succeed", async () => {
@@ -186,55 +182,35 @@ describe("Helpers", () => {
         .fn()
         .mockRejectedValueOnce(new Error("rate limit exceeded"))
         .mockResolvedValueOnce(100n);
-      const result = await runWithRpcRetry(
-        { log: mockLog, operationName: "testOp", logDetails: { chainId: 10 } },
-        fn,
-      );
+      const result = await runWithRpcRetry(fn);
       expect(result).toBe(100n);
       expect(fn).toHaveBeenCalledTimes(2);
-      expect(mockLog.warn).toHaveBeenCalledTimes(1);
-      expect(mockLog.warn.mock.calls[0]?.[0]).toContain("RATE_LIMIT");
-      expect(mockLog.warn.mock.calls[0]?.[0]).toContain("Retrying");
     });
 
-    it("should retry on Temporary internal error. Please retry then succeed", async () => {
+    it("should retry on NETWORK_ERROR across multiple attempts then succeed", async () => {
       const fn = vi
         .fn()
         .mockRejectedValueOnce(
           new Error("Temporary internal error. Please retry"),
         )
+        .mockRejectedValueOnce(new Error("connection error"))
+        .mockRejectedValueOnce(new Error("socket hang up"))
         .mockResolvedValueOnce(99n);
-      const result = await runWithRpcRetry(
-        {
-          log: mockLog,
-          operationName: "getSwapFee",
-          logDetails: { chainId: 10 },
-        },
-        fn,
-      );
+      const result = await runWithRpcRetry(fn);
       expect(result).toBe(99n);
-      expect(fn).toHaveBeenCalledTimes(2);
-      expect(mockLog.warn).toHaveBeenCalledTimes(1);
-      expect(mockLog.warn.mock.calls[0]?.[0]).toContain("NETWORK_ERROR");
-      expect(mockLog.warn.mock.calls[0]?.[0]).toContain("Retrying");
+      expect(fn).toHaveBeenCalledTimes(4);
     });
 
     it("should not retry on CONTRACT_REVERT", async () => {
       const fn = vi.fn().mockRejectedValue(new Error("execution reverted"));
-      await expect(runWithRpcRetry({ log: mockLog }, fn)).rejects.toThrow(
-        "execution reverted",
-      );
+      await expect(runWithRpcRetry(fn)).rejects.toThrow("execution reverted");
       expect(fn).toHaveBeenCalledTimes(1);
-      expect(mockLog.warn).not.toHaveBeenCalled();
     });
 
     it("should throw after max retries exhausted", async () => {
       const fn = vi.fn().mockRejectedValue(new Error("rate limit exceeded"));
-      await expect(runWithRpcRetry({ log: mockLog }, fn)).rejects.toThrow(
-        "rate limit exceeded",
-      );
+      await expect(runWithRpcRetry(fn)).rejects.toThrow("rate limit exceeded");
       expect(fn).toHaveBeenCalledTimes(8); // 1 initial + 7 retries (RPC_APP_RETRY.maxRetries)
-      expect(mockLog.warn).toHaveBeenCalledTimes(7);
     });
   });
 });
