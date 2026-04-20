@@ -61,17 +61,15 @@ describe("nfpmForCLPool", () => {
     expect(nfpmForCLPool(8453, BASE_CL_FACTORY_V3_NEWEST)).toBeNull();
   });
 
-  it("returns the superchain NFPM for any superchain leaf chain", () => {
-    // Every superchain leaf shares the same CLFactory↔NFPM pair
-    const superchainChainIds = [
-      1135, 34443, 42220, 1868, 130, 252, 57073, 1750, 1923, 5330,
-    ];
-    for (const chainId of superchainChainIds) {
+  // Every superchain leaf shares the same CLFactory↔NFPM pair
+  it.each([1135, 34443, 42220, 1868, 130, 252, 57073, 1750, 1923, 5330])(
+    "returns the superchain NFPM for leaf chain %i",
+    (chainId) => {
       expect(nfpmForCLPool(chainId, SUPERCHAIN_CL_FACTORY)).toBe(
         SUPERCHAIN_NFPM,
       );
-    }
-  });
+    },
+  );
 
   it("accepts lowercase factory addresses (checksums internally)", () => {
     expect(nfpmForCLPool(10, OP_CL_FACTORY_OLD.toLowerCase())).toBe(
@@ -81,7 +79,10 @@ describe("nfpmForCLPool", () => {
 
   it("returns null for unknown (chainId, factory) pairs", () => {
     expect(
-      nfpmForCLPool(10, "0x0000000000000000000000000000000000000001"),
+      nfpmForCLPool(
+        10,
+        toChecksumAddress("0x0000000000000000000000000000000000000001"),
+      ),
     ).toBeNull();
     // Optimism factory on wrong chain
     expect(nfpmForCLPool(8453, OP_CL_FACTORY_OLD)).toBeNull();

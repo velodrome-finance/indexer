@@ -15,8 +15,12 @@ import {
 import { setupCommon } from "../Pool/common";
 
 describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
-  const { mockLiquidityPoolData, mockToken0Data, mockToken1Data, nfpmAddress } =
-    setupCommon();
+  const {
+    mockLiquidityPoolData,
+    mockToken0Data,
+    mockToken1Data,
+    defaultNfpmAddress: nfpmAddress,
+  } = setupCommon();
   const chainId = mockLiquidityPoolData.chainId;
   const poolAddress = mockLiquidityPoolData.poolAddress;
   const lpWrapperAddress = toChecksumAddress(

@@ -8,7 +8,7 @@ import {
   TokenId,
   toChecksumAddress,
 } from "../../../src/Constants";
-import { NFPM_ADDRESS, setupCommon } from "../Pool/common";
+import { defaultNfpmAddress, setupCommon } from "../Pool/common";
 
 describe("NFPM Events", () => {
   const {
@@ -24,7 +24,7 @@ describe("NFPM Events", () => {
   const token0Address = mockToken0Data.address;
   const token1Address = mockToken1Data.address;
   const tokenId = 1n;
-  const nfpmAddress = NFPM_ADDRESS;
+  const nfpmAddress = defaultNfpmAddress;
 
   const transactionHash =
     "0x1234567890123456789012345678901234567890123456789012345678901234";

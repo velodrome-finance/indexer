@@ -23,9 +23,11 @@ import {
 } from "../../../src/Constants";
 import { calculateTokenAmountUSD } from "../../../src/Helpers";
 
-// Primary Optimism NFPM address. Exported so test files that do not call
-// setupCommon() can still share a single source of truth for the NFPM literal.
-export const NFPM_ADDRESS = toChecksumAddress(
+// Canonical NFPM used for mock NonFungiblePosition fixtures (Optimism-old NFPM).
+// Named `default*` rather than a SCREAMING_CASE module constant because it's the
+// fixture paired with the default mock position — not a general-purpose NFPM default
+// for the V2 `mockLiquidityPoolData` (which intentionally has `nfpmAddress: undefined`).
+export const defaultNfpmAddress = toChecksumAddress(
   "0xbB5DFE1380333CEE4c2EeBd7202c80dE2256AdF4",
 );
 
@@ -42,8 +44,6 @@ export function setupCommon() {
   const TOKEN1_ADDRESS = toChecksumAddress(
     "0x2222222222222222222222222222222222222222",
   );
-  const nfpmAddress = NFPM_ADDRESS;
-
   const mockToken0Data: Token = {
     id: TokenId(CHAIN_ID, TOKEN0_ADDRESS),
     address: TOKEN0_ADDRESS as `0x${string}`,
@@ -300,7 +300,7 @@ export function setupCommon() {
     id: NonFungiblePositionId(CHAIN_ID, POOL_ADDRESS, defaultNFPMTokenId),
     chainId: CHAIN_ID,
     tokenId: defaultNFPMTokenId,
-    nfpmAddress: nfpmAddress,
+    nfpmAddress: defaultNfpmAddress,
     owner: normalizedDefaultUserAddress,
     pool: POOL_ADDRESS,
     tickLower: -1000n,
@@ -478,7 +478,7 @@ export function setupCommon() {
     mockVeNFTStateData,
     mockVeNFTPoolVoteData,
     mockNonFungiblePositionData,
-    nfpmAddress,
+    defaultNfpmAddress,
     createMockToken,
     createMockUserStatsPerPool,
     createMockLiquidityPoolAggregator,
