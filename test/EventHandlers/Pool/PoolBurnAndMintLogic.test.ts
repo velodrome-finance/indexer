@@ -3,10 +3,12 @@ import type {
   Pool_Burn_event,
   Pool_Mint_event,
   Token,
+  TxPoolTransferRegistry,
   handlerContext,
 } from "generated";
 import {
   PoolTransferInTxId,
+  TxPoolTransferRegistryId,
   ZERO_ADDRESS,
   toChecksumAddress,
 } from "../../../src/Constants";
@@ -49,9 +51,32 @@ describe("PoolBurnAndMintLogic", () => {
   // Shared mock context
   let mockContext: handlerContext;
   let mockPoolTransferInTx: PoolTransferInTx[];
+  let mockRegistries: TxPoolTransferRegistry[];
+  let registrySeeded: boolean;
+
+  // Seed the per-(tx, pool) registry rows from the current transfer list. Tests
+  // set `mockPoolTransferInTx = [...]` before invoking the handler; callers then
+  // call this to mirror what the producer (`storeTransferForMatching`) would
+  // have written. After seeding, registry mutations go through set/deleteUnsafe.
+  const seedRegistriesFromTransfers = () => {
+    const byKey = new Map<string, string[]>();
+    for (const t of mockPoolTransferInTx) {
+      const key = TxPoolTransferRegistryId(t.chainId, t.txHash, t.pool);
+      const list = byKey.get(key) ?? [];
+      list.push(t.id);
+      byKey.set(key, list);
+    }
+    mockRegistries = Array.from(byKey.entries()).map(([id, transferIds]) => ({
+      id,
+      transferIds,
+    }));
+    registrySeeded = true;
+  };
 
   beforeEach(() => {
     mockPoolTransferInTx = [];
+    mockRegistries = [];
+    registrySeeded = false;
     mockContext = {
       log: {
         error: vi.fn(),
@@ -59,15 +84,40 @@ describe("PoolBurnAndMintLogic", () => {
         info: vi.fn(),
       },
       PoolTransferInTx: {
-        // biome-ignore lint/suspicious/noExplicitAny: Mock context for testing
-        getWhere: vi.fn(async (params: any) => {
-          const txHash = params.txHash?._eq;
-          if (txHash) {
-            return mockPoolTransferInTx.filter((t) => t.txHash === txHash);
-          }
-          return [];
+        get: vi.fn(async (id: string) =>
+          mockPoolTransferInTx.find((t) => t.id === id),
+        ),
+        set: vi.fn((entity: PoolTransferInTx) => {
+          const idx = mockPoolTransferInTx.findIndex((t) => t.id === entity.id);
+          if (idx >= 0) mockPoolTransferInTx[idx] = entity;
+          else mockPoolTransferInTx.push(entity);
         }),
-        set: vi.fn(),
+        deleteUnsafe: vi.fn((id: string) => {
+          const idx = mockPoolTransferInTx.findIndex((t) => t.id === id);
+          if (idx >= 0) mockPoolTransferInTx.splice(idx, 1);
+        }),
+      },
+      TxPoolTransferRegistry: {
+        get: vi.fn(async (id: string) => {
+          // Seed lazily on first access so tests can assign mockPoolTransferInTx
+          // without calling a setup helper. The `registrySeeded` flag (instead
+          // of a length-based guard) prevents re-seeding after an explicit
+          // delete, which would diverge from production — prod never resurrects
+          // a deleted registry row from its PoolTransferInTx entries.
+          if (!registrySeeded && mockPoolTransferInTx.length > 0) {
+            seedRegistriesFromTransfers();
+          }
+          return mockRegistries.find((r) => r.id === id);
+        }),
+        set: vi.fn((entity: TxPoolTransferRegistry) => {
+          const idx = mockRegistries.findIndex((r) => r.id === entity.id);
+          if (idx >= 0) mockRegistries[idx] = entity;
+          else mockRegistries.push(entity);
+        }),
+        deleteUnsafe: vi.fn((id: string) => {
+          const idx = mockRegistries.findIndex((r) => r.id === id);
+          if (idx >= 0) mockRegistries.splice(idx, 1);
+        }),
       },
       LiquidityPoolAggregator: {
         get: vi.fn(),
@@ -89,7 +139,6 @@ describe("PoolBurnAndMintLogic", () => {
     value: bigint,
     isMint: boolean,
     isBurn: boolean,
-    consumedByLogIndex?: number,
   ): PoolTransferInTx => ({
     id: PoolTransferInTxId(CHAIN_ID, TX_HASH, POOL_ADDRESS, logIndex),
     chainId: CHAIN_ID,
@@ -102,7 +151,6 @@ describe("PoolBurnAndMintLogic", () => {
     value,
     isMint,
     isBurn,
-    consumedByLogIndex,
     timestamp: TIMESTAMP_DATE,
   });
 
@@ -333,71 +381,6 @@ describe("PoolBurnAndMintLogic", () => {
 
       expect(result).toHaveLength(2);
       expect(result.every((t) => t.value > 0n)).toBe(true);
-    });
-
-    it("should exclude already consumed transfers", () => {
-      const transfers = [
-        createMockTransfer(
-          1,
-          ZERO_ADDRESS,
-          USER_ADDRESS,
-          LP_VALUE,
-          true,
-          false,
-        ),
-        createMockTransfer(
-          2,
-          ZERO_ADDRESS,
-          USER_ADDRESS,
-          LP_VALUE,
-          true,
-          false,
-          5,
-        ),
-        createMockTransfer(
-          3,
-          ZERO_ADDRESS,
-          USER_ADDRESS,
-          LP_VALUE,
-          true,
-          false,
-        ),
-      ];
-
-      const result = getPrecedingTransfers(transfers, 4);
-
-      expect(result).toHaveLength(2);
-      expect(result.every((t) => !t.consumedByLogIndex)).toBe(true);
-      expect(result[0].logIndex).toBe(1);
-      expect(result[1].logIndex).toBe(3);
-    });
-
-    it("should handle null consumedByLogIndex", () => {
-      const transfers = [
-        createMockTransfer(
-          1,
-          ZERO_ADDRESS,
-          USER_ADDRESS,
-          LP_VALUE,
-          true,
-          false,
-        ),
-        {
-          ...createMockTransfer(
-            2,
-            ZERO_ADDRESS,
-            USER_ADDRESS,
-            LP_VALUE,
-            true,
-            false,
-          ),
-          consumedByLogIndex: undefined,
-        },
-      ];
-
-      const result = getPrecedingTransfers(transfers, 3);
-
-      expect(result).toHaveLength(2);
     });
 
     it("should return empty array when no transfers precede", () => {
@@ -784,10 +767,15 @@ describe("PoolBurnAndMintLogic", () => {
       expect(result).toBeDefined();
       expect(result?.recipient).toBe(USER_ADDRESS);
       expect(result?.totalLiquidityUSD).toBeGreaterThan(0n);
-      expect(mockContext.PoolTransferInTx.set).toHaveBeenCalledWith(
-        expect.objectContaining({
-          consumedByLogIndex: 2,
-        }),
+      // Consumption now deletes the PoolTransferInTx and prunes the registry.
+      expect(mockContext.PoolTransferInTx.deleteUnsafe).toHaveBeenCalledWith(
+        PoolTransferInTxId(CHAIN_ID, TX_HASH, POOL_ADDRESS, 1),
+      );
+      // Registry drops to empty → row is deleted.
+      expect(
+        mockContext.TxPoolTransferRegistry.deleteUnsafe,
+      ).toHaveBeenCalledWith(
+        TxPoolTransferRegistryId(CHAIN_ID, TX_HASH, POOL_ADDRESS),
       );
     });
 
@@ -882,11 +870,9 @@ describe("PoolBurnAndMintLogic", () => {
       );
 
       expect(result).toBeDefined();
-      // Should pick logIndex 3 (closest preceding)
-      expect(mockContext.PoolTransferInTx.set).toHaveBeenCalledWith(
-        expect.objectContaining({
-          logIndex: 3,
-        }),
+      // Should pick logIndex 3 (closest preceding) and delete it.
+      expect(mockContext.PoolTransferInTx.deleteUnsafe).toHaveBeenCalledWith(
+        PoolTransferInTxId(CHAIN_ID, TX_HASH, POOL_ADDRESS, 3),
       );
     });
   });
@@ -921,7 +907,7 @@ describe("PoolBurnAndMintLogic", () => {
         true,
       );
 
-      expect(mockContext.PoolTransferInTx.set).toHaveBeenCalled();
+      expect(mockContext.PoolTransferInTx.deleteUnsafe).toHaveBeenCalled();
     });
 
     it("should process burn event and update pool token prices", async () => {
@@ -947,7 +933,7 @@ describe("PoolBurnAndMintLogic", () => {
         false,
       );
 
-      expect(mockContext.PoolTransferInTx.set).toHaveBeenCalled();
+      expect(mockContext.PoolTransferInTx.deleteUnsafe).toHaveBeenCalled();
     });
 
     it("should skip user attribution when no transfer match found", async () => {
@@ -966,6 +952,118 @@ describe("PoolBurnAndMintLogic", () => {
       );
 
       expect(mockContext.log.warn).toHaveBeenCalled();
+    });
+
+    it("multi-mint tx: each Mint consumes its own transfer and the registry is pruned to empty", async () => {
+      // Two mints in the same (tx, pool), each with its own preceding Transfer:
+      //   logIndex 1: Transfer mint #1 (to USER_ADDRESS)
+      //   logIndex 2: Pool.Mint #1 → consumes Transfer at logIndex 1
+      //   logIndex 3: Transfer mint #2 (to ROUTER_ADDRESS)
+      //   logIndex 4: Pool.Mint #2 → consumes Transfer at logIndex 3
+      const transfer1 = createMockTransfer(
+        1,
+        ZERO_ADDRESS,
+        USER_ADDRESS,
+        LP_VALUE,
+        true,
+        false,
+      );
+      const transfer2 = createMockTransfer(
+        3,
+        ZERO_ADDRESS,
+        ROUTER_ADDRESS,
+        LP_VALUE,
+        true,
+        false,
+      );
+      mockPoolTransferInTx = [transfer1, transfer2];
+
+      // First Mint matches transfer1
+      const mint1 = createMockMintEvent(2);
+      const result1 = await findTransferAndAttribute(
+        mint1,
+        POOL_ADDRESS,
+        CHAIN_ID,
+        TX_HASH,
+        2,
+        true,
+        mockToken0Data,
+        mockToken1Data,
+        mockContext,
+      );
+      expect(result1?.recipient).toBe(USER_ADDRESS);
+
+      // Registry should still hold transfer2's id.
+      const registryId = TxPoolTransferRegistryId(
+        CHAIN_ID,
+        TX_HASH,
+        POOL_ADDRESS,
+      );
+      expect(
+        mockRegistries.find((r) => r.id === registryId)?.transferIds,
+      ).toEqual([transfer2.id]);
+
+      // Second Mint matches transfer2
+      const mint2 = createMockMintEvent(4);
+      const result2 = await findTransferAndAttribute(
+        mint2,
+        POOL_ADDRESS,
+        CHAIN_ID,
+        TX_HASH,
+        4,
+        true,
+        mockToken0Data,
+        mockToken1Data,
+        mockContext,
+      );
+      expect(result2?.recipient).toBe(ROUTER_ADDRESS);
+
+      // Registry row deleted after the final consumption.
+      expect(mockRegistries.find((r) => r.id === registryId)).toBeUndefined();
+      // Both PoolTransferInTx rows deleted.
+      expect(mockPoolTransferInTx).toHaveLength(0);
+    });
+
+    it("address(1) MINIMUM_LIQUIDITY mint: still resolves to the user mint, not address(1)", async () => {
+      // First mint of a V2 pool emits two LP Transfers: one to address(1) for
+      // MINIMUM_LIQUIDITY and one to the actual user. The registry-backed
+      // consumer must still pick the user transfer.
+      const minLiquidityTransfer = createMockTransfer(
+        1,
+        ZERO_ADDRESS,
+        ADDRESS_ONE,
+        1000n,
+        true,
+        false,
+      );
+      const userMintTransfer = createMockTransfer(
+        2,
+        ZERO_ADDRESS,
+        USER_ADDRESS,
+        LP_VALUE,
+        true,
+        false,
+      );
+      mockPoolTransferInTx = [minLiquidityTransfer, userMintTransfer];
+
+      const event = createMockMintEvent(3);
+      const result = await findTransferAndAttribute(
+        event,
+        POOL_ADDRESS,
+        CHAIN_ID,
+        TX_HASH,
+        3,
+        true,
+        mockToken0Data,
+        mockToken1Data,
+        mockContext,
+      );
+
+      expect(result?.recipient).toBe(USER_ADDRESS);
+      // The consumed (deleted) transfer is the user mint, not the address(1) one.
+      expect(mockContext.PoolTransferInTx.deleteUnsafe).toHaveBeenCalledWith(
+        userMintTransfer.id,
+      );
     });
   });
 });

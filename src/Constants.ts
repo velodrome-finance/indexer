@@ -1061,6 +1061,22 @@ export const PoolTransferInTxId = (
   logIndex: number,
 ) => `${chainId}-${txHash}-${poolAddress}-${logIndex}`;
 
+/** Entity ID for TxPoolTransferRegistry. Format: {chainId}-{txHash}-{poolAddress}.
+ * Keyed by (tx, pool) — finer grain than the CL mint registry — because the
+ * Pool.Mint/Pool.Burn consumer already knows the pool (event.srcAddress). This
+ * keeps registry rows small (typically 1–2 transfer ids per row).
+ *
+ * @param chainId - Chain ID of the tx
+ * @param txHash - Transaction hash that produced the mint/burn Transfer
+ * @param poolAddress - Address of the pool whose Transfer we are registering
+ * @returns string Combined registry ID.
+ */
+export const TxPoolTransferRegistryId = (
+  chainId: number,
+  txHash: string,
+  poolAddress: string,
+) => `${chainId}-${txHash}-${poolAddress}`;
+
 /** Entity ID for ALMLPWrapperTransferInTx.
  * @param chainId
  * @param txHash

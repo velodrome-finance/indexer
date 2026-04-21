@@ -718,6 +718,15 @@ type TxCLPoolMintRegistry {
   mintEventIds: [String!]! # CLPoolMintEvent ids produced in this tx, in insertion order
 }
 
+# Per-(tx, pool) registry of PoolTransferInTx ids, used to skip the index scan
+# on PoolTransferInTx.getWhere({ txHash }) in the Pool.Mint / Pool.Burn consumer.
+# The consumer knows chainId + txHash + pool; it reads this row and then PK-gets
+# each transfer by id. Rows are pruned on consumption and deleted when empty.
+type TxPoolTransferRegistry {
+  id: ID! # Format: {chainId}-{txHash}-{poolAddress}
+  transferIds: [String!]! # PoolTransferInTx ids produced in this (tx, pool), in insertion order
+}
+
 # Temporary entity for matching Mint/Burn with Transfer events
 # Only stores mint/burn transfers (isMint || isBurn) to reduce storage
 type PoolTransferInTx {
@@ -732,7 +741,6 @@ type PoolTransferInTx {
   value: BigInt! @config(precision: 76)
   isMint: Boolean! # from == 0x0
   isBurn: Boolean! # to == 0x0
-  consumedByLogIndex: Int # logIndex of the Mint/Burn event that consumed this transfer (undefined if unused)
   timestamp: Timestamp!
 }
 
