@@ -74,21 +74,13 @@ describe("PoolLauncherLogic", () => {
 
       // Assert
       expect(result).toBeDefined();
-      expect(result.id).toBe("8453-0x1234567890123456789012345678901234567890");
+      expect(result.id).toBe(`8453-${poolAddress}`);
       expect(result.chainId).toBe(8453);
-      expect(result.underlyingPool).toBe(
-        "0x1234567890123456789012345678901234567890",
-      );
-      expect(result.launcher).toBe(
-        "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
-      );
-      expect(result.creator).toBe("0x1111111111111111111111111111111111111111");
-      expect(result.poolLauncherToken).toBe(
-        "0x2222222222222222222222222222222222222222",
-      );
-      expect(result.pairToken).toBe(
-        "0x3333333333333333333333333333333333333333",
-      );
+      expect(result.underlyingPool).toBe(poolAddress);
+      expect(result.launcher).toBe(launcherAddress);
+      expect(result.creator).toBe(creator);
+      expect(result.poolLauncherToken).toBe(poolLauncherToken);
+      expect(result.pairToken).toBe(pairToken);
       expect(result.createdAt).toEqual(createdAt);
       expect(result.isEmerging).toBe(false);
       expect(result.lastFlagUpdateAt).toEqual(createdAt);
@@ -100,12 +92,10 @@ describe("PoolLauncherLogic", () => {
 
       // Verify the entity was set in the context
       const savedEntity = mockDb.entities.PoolLauncherPool.get(
-        "8453-0x1234567890123456789012345678901234567890",
+        `8453-${poolAddress}`,
       );
       expect(savedEntity).toBeDefined();
-      expect(savedEntity?.id).toBe(
-        "8453-0x1234567890123456789012345678901234567890",
-      );
+      expect(savedEntity?.id).toBe(`8453-${poolAddress}`);
     });
 
     it("should update an existing PoolLauncherPool", async () => {
@@ -212,7 +202,9 @@ describe("PoolLauncherLogic", () => {
       expect(result.chainId).toBe(10);
     });
 
-    it("should normalize addresses to lowercase", async () => {
+    it("should preserve EIP-55 checksum-cased addresses verbatim (no internal lowercasing)", async () => {
+      // Envio's event.params.* always supplies EIP-55 addresses; storing them
+      // verbatim keeps writers and readers on the same canonical key. See #633.
       const poolAddress = toChecksumAddress(
         "0x1234567890123456789012345678901234567890",
       );
@@ -242,17 +234,14 @@ describe("PoolLauncherLogic", () => {
         mockContext,
       );
 
-      // Assert
-      expect(result.launcher).toBe(
-        "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
-      );
-      expect(result.creator).toBe("0x1111111111111111111111111111111111111111");
-      expect(result.poolLauncherToken).toBe(
-        "0x2222222222222222222222222222222222222222",
-      );
-      expect(result.pairToken).toBe(
-        "0x3333333333333333333333333333333333333333",
-      );
+      // Assert addresses are stored as-is (checksum-cased), not lowercased.
+      expect(result.launcher).toBe(launcherAddress);
+      expect(result.creator).toBe(creator);
+      expect(result.poolLauncherToken).toBe(poolLauncherToken);
+      expect(result.pairToken).toBe(pairToken);
+      // Sanity check: the checksum form differs from the all-lowercase form
+      // for at least one of these addresses (the all-A-F launcher).
+      expect(result.launcher).not.toBe(launcherAddress.toLowerCase());
     });
   });
 

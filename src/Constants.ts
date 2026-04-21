@@ -844,6 +844,7 @@ const SUPERSEED_CONSTANTS: chainConstants = {
 
 /**
  * Create a unique ID for a token on a specific chain. Should only be used for Token entities.
+ * Address must be EIP-55 checksum-cased (Envio's `event.params.*` already are).
  * @param chainId
  * @param address
  * @returns string Merged Token ID.
@@ -853,6 +854,8 @@ export const TokenId = (chainId: number, address: string) =>
 
 /**
  * Create a unique ID for a pool on a specific chain as used by LiquidityPoolAggregator.
+ * Pool address must be EIP-55 checksum-cased (Envio's `event.params.*` already are).
+ * Callers must NOT pre-lowercase — that triggers the silent miss documented in #633.
  * @param chainId
  * @param pool
  * @returns string Combined pool ID.
@@ -887,7 +890,7 @@ export const isKnownSinkRootPool = (
 
 /** Entity ID for ALM_LP_Wrapper. Format: {chainId}-{wrapperAddress}
  * @param chainId - Chain ID of the wrapper
- * @param wrapperAddress - Address of the wrapper
+ * @param wrapperAddress - Address of the wrapper (must be EIP-55 checksum-cased)
  * @returns string Combined wrapper ID.
  */
 export const ALMLPWrapperId = (chainId: number, wrapperAddress: string) =>
