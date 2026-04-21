@@ -52,6 +52,7 @@ describe("PoolBurnAndMintLogic", () => {
   let mockContext: handlerContext;
   let mockPoolTransferInTx: PoolTransferInTx[];
   let mockRegistries: TxPoolTransferRegistry[];
+  let registrySeeded: boolean;
 
   // Seed the per-(tx, pool) registry rows from the current transfer list. Tests
   // set `mockPoolTransferInTx = [...]` before invoking the handler; callers then
@@ -69,11 +70,13 @@ describe("PoolBurnAndMintLogic", () => {
       id,
       transferIds,
     }));
+    registrySeeded = true;
   };
 
   beforeEach(() => {
     mockPoolTransferInTx = [];
     mockRegistries = [];
+    registrySeeded = false;
     mockContext = {
       log: {
         error: vi.fn(),
@@ -97,9 +100,11 @@ describe("PoolBurnAndMintLogic", () => {
       TxPoolTransferRegistry: {
         get: vi.fn(async (id: string) => {
           // Seed lazily on first access so tests can assign mockPoolTransferInTx
-          // without calling a setup helper. Re-seed is safe: we only rebuild
-          // when the registry array is still empty relative to the transfer set.
-          if (mockRegistries.length === 0 && mockPoolTransferInTx.length > 0) {
+          // without calling a setup helper. The `registrySeeded` flag (instead
+          // of a length-based guard) prevents re-seeding after an explicit
+          // delete, which would diverge from production — prod never resurrects
+          // a deleted registry row from its PoolTransferInTx entries.
+          if (!registrySeeded && mockPoolTransferInTx.length > 0) {
             seedRegistriesFromTransfers();
           }
           return mockRegistries.find((r) => r.id === id);
