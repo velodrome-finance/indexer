@@ -139,7 +139,6 @@ describe("PoolBurnAndMintLogic", () => {
     value: bigint,
     isMint: boolean,
     isBurn: boolean,
-    consumedByLogIndex?: number,
   ): PoolTransferInTx => ({
     id: PoolTransferInTxId(CHAIN_ID, TX_HASH, POOL_ADDRESS, logIndex),
     chainId: CHAIN_ID,
@@ -152,7 +151,6 @@ describe("PoolBurnAndMintLogic", () => {
     value,
     isMint,
     isBurn,
-    consumedByLogIndex,
     timestamp: TIMESTAMP_DATE,
   });
 
@@ -383,71 +381,6 @@ describe("PoolBurnAndMintLogic", () => {
 
       expect(result).toHaveLength(2);
       expect(result.every((t) => t.value > 0n)).toBe(true);
-    });
-
-    it("should exclude already consumed transfers", () => {
-      const transfers = [
-        createMockTransfer(
-          1,
-          ZERO_ADDRESS,
-          USER_ADDRESS,
-          LP_VALUE,
-          true,
-          false,
-        ),
-        createMockTransfer(
-          2,
-          ZERO_ADDRESS,
-          USER_ADDRESS,
-          LP_VALUE,
-          true,
-          false,
-          5,
-        ),
-        createMockTransfer(
-          3,
-          ZERO_ADDRESS,
-          USER_ADDRESS,
-          LP_VALUE,
-          true,
-          false,
-        ),
-      ];
-
-      const result = getPrecedingTransfers(transfers, 4);
-
-      expect(result).toHaveLength(2);
-      expect(result.every((t) => !t.consumedByLogIndex)).toBe(true);
-      expect(result[0].logIndex).toBe(1);
-      expect(result[1].logIndex).toBe(3);
-    });
-
-    it("should handle null consumedByLogIndex", () => {
-      const transfers = [
-        createMockTransfer(
-          1,
-          ZERO_ADDRESS,
-          USER_ADDRESS,
-          LP_VALUE,
-          true,
-          false,
-        ),
-        {
-          ...createMockTransfer(
-            2,
-            ZERO_ADDRESS,
-            USER_ADDRESS,
-            LP_VALUE,
-            true,
-            false,
-          ),
-          consumedByLogIndex: undefined,
-        },
-      ];
-
-      const result = getPrecedingTransfers(transfers, 3);
-
-      expect(result).toHaveLength(2);
     });
 
     it("should return empty array when no transfers precede", () => {

@@ -102,11 +102,10 @@ export function getPrecedingTransfers(
   transfersInTx: PoolTransferInTx[],
   eventLogIndex: number,
 ): PoolTransferInTx[] {
+  // Consumed transfers are deleted (see findTransferAndAttribute), so
+  // presence in transfersInTx already implies "not consumed".
   return transfersInTx.filter(
-    (t) =>
-      t.logIndex < eventLogIndex &&
-      t.value > 0n &&
-      (t.consumedByLogIndex === null || t.consumedByLogIndex === undefined),
+    (t) => t.logIndex < eventLogIndex && t.value > 0n,
   );
 }
 
@@ -189,7 +188,7 @@ export async function findTransferAndAttribute(
   // Find matching Transfer event
   // Rule: Find Transfer where isMint/isBurn matches, logIndex < eventLogIndex, same tx+pool+chainId
   // Stricter matching: value > 0, and prefer non-address(1) transfers for mints
-  // Query by txHash (indexed, most selective) then filter by chainId, pool, and event type
+  // Lookup is a PK read on TxPoolTransferRegistry, then PK gets per transfer id.
   const transfersInTx = await getTransfersInTx(
     txHash,
     chainId,

@@ -9,6 +9,7 @@ import * as LiquidityPoolAggregatorModule from "../../../src/Aggregators/Liquidi
 import * as UserStatsPerPoolModule from "../../../src/Aggregators/UserStatsPerPool";
 import {
   PoolTransferInTxId,
+  TxPoolTransferRegistryId,
   ZERO_ADDRESS,
   toChecksumAddress,
 } from "../../../src/Constants";
@@ -306,8 +307,8 @@ describe("PoolTransferLogic", () => {
   });
 
   describe("storeTransferForMatching", () => {
-    it("should store mint transfers", () => {
-      storeTransferForMatching(
+    it("should store mint transfers", async () => {
+      await storeTransferForMatching(
         true, // isMint
         false, // isBurn
         CHAIN_ID,
@@ -322,9 +323,15 @@ describe("PoolTransferLogic", () => {
         mockContext,
       );
 
+      const transferId = PoolTransferInTxId(
+        CHAIN_ID,
+        TX_HASH,
+        POOL_ADDRESS,
+        LOG_INDEX,
+      );
       expect(mockContext.PoolTransferInTx.set).toHaveBeenCalledWith(
         expect.objectContaining({
-          id: PoolTransferInTxId(CHAIN_ID, TX_HASH, POOL_ADDRESS, LOG_INDEX),
+          id: transferId,
           chainId: CHAIN_ID,
           txHash: TX_HASH,
           pool: POOL_ADDRESS,
@@ -334,13 +341,16 @@ describe("PoolTransferLogic", () => {
           value: LP_VALUE,
           isMint: true,
           isBurn: false,
-          consumedByLogIndex: undefined,
         }),
       );
+      expect(mockContext.TxPoolTransferRegistry.set).toHaveBeenCalledWith({
+        id: TxPoolTransferRegistryId(CHAIN_ID, TX_HASH, POOL_ADDRESS),
+        transferIds: [transferId],
+      });
     });
 
-    it("should store burn transfers", () => {
-      storeTransferForMatching(
+    it("should store burn transfers", async () => {
+      await storeTransferForMatching(
         false, // isMint
         true, // isBurn
         CHAIN_ID,
@@ -355,6 +365,12 @@ describe("PoolTransferLogic", () => {
         mockContext,
       );
 
+      const transferId = PoolTransferInTxId(
+        CHAIN_ID,
+        TX_HASH,
+        POOL_ADDRESS,
+        LOG_INDEX,
+      );
       expect(mockContext.PoolTransferInTx.set).toHaveBeenCalledWith(
         expect.objectContaining({
           isMint: false,
@@ -363,10 +379,14 @@ describe("PoolTransferLogic", () => {
           to: ZERO_ADDRESS,
         }),
       );
+      expect(mockContext.TxPoolTransferRegistry.set).toHaveBeenCalledWith({
+        id: TxPoolTransferRegistryId(CHAIN_ID, TX_HASH, POOL_ADDRESS),
+        transferIds: [transferId],
+      });
     });
 
-    it("should not store regular transfers", () => {
-      storeTransferForMatching(
+    it("should not store regular transfers", async () => {
+      await storeTransferForMatching(
         false, // isMint
         false, // isBurn
         CHAIN_ID,
@@ -382,6 +402,7 @@ describe("PoolTransferLogic", () => {
       );
 
       expect(mockContext.PoolTransferInTx.set).not.toHaveBeenCalled();
+      expect(mockContext.TxPoolTransferRegistry.set).not.toHaveBeenCalled();
     });
   });
 

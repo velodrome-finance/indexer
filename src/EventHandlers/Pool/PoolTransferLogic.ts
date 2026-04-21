@@ -158,8 +158,18 @@ export async function updateUserLpBalances(
 }
 
 /**
- * Store mint/burn transfer in PoolTransferInTx entity for later Mint/Burn event matching
- * Only stores mint/burn transfers (not regular transfers) to reduce storage
+ * Store mint/burn transfer in PoolTransferInTx entity for later Mint/Burn event matching.
+ * Only stores mint/burn transfers (not regular transfers) to reduce storage; regular
+ * transfers are a no-op.
+ *
+ * Side effects (in order):
+ *   1. Upserts PoolTransferInTx keyed by {chainId}-{txHash}-{poolAddress}-{logIndex}.
+ *   2. Upserts TxPoolTransferRegistry keyed by {chainId}-{txHash}-{poolAddress},
+ *      appending the new transfer id to `transferIds` in insertion (logIndex)
+ *      order. `PoolBurnAndMintLogic.getTransfersInTx` relies on this append order
+ *      to locate the closest preceding transfer. Last-writer-wins on the registry
+ *      row: each call reads the existing row and writes back a superset.
+ *
  * @param isMint - Whether this is a mint transfer (from == 0x0)
  * @param isBurn - Whether this is a burn transfer (to == 0x0)
  * @param chainId - Chain ID
@@ -172,6 +182,7 @@ export async function updateUserLpBalances(
  * @param value - The LP token amount transferred
  * @param timestamp - Event timestamp
  * @param context - Handler context
+ * @returns Promise that resolves once both the transfer and registry upserts are staged
  */
 export async function storeTransferForMatching(
   isMint: boolean,
@@ -207,7 +218,6 @@ export async function storeTransferForMatching(
       value: value,
       isMint: isMint,
       isBurn: isBurn,
-      consumedByLogIndex: undefined, // Initially unused
       timestamp: timestamp,
     });
 

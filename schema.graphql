@@ -741,7 +741,6 @@ type PoolTransferInTx {
   value: BigInt! @config(precision: 76)
   isMint: Boolean! # from == 0x0
   isBurn: Boolean! # to == 0x0
-  consumedByLogIndex: Int # logIndex of the Mint/Burn event that consumed this transfer (undefined if unused)
   timestamp: Timestamp!
 }
 
