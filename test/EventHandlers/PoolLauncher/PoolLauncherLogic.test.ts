@@ -158,9 +158,7 @@ describe("PoolLauncherLogic", () => {
       // Assert
       expect(result).toBeDefined();
       expect(result.id).toBe("8453-0x1234567890123456789012345678901234567890");
-      expect(result.launcher?.toLowerCase()).toBe(
-        launcherAddress.toLowerCase(),
-      ); // Updated (impl may return lowercase)
+      expect(result.launcher).toBe(launcherAddress); // Updated, casing preserved verbatim
       expect(result.lastMigratedAt).toEqual(createdAt); // Updated
       expect(result.creator).toBe(creator); // Unchanged
       expect(result.isEmerging).toBe(true); // Unchanged
@@ -437,35 +435,6 @@ describe("PoolLauncherLogic", () => {
       );
       expect(updatedEntity).toBeDefined();
       expect(updatedEntity?.poolLauncherPoolId).toBe(PoolId(10, poolAddress));
-    });
-
-    it("should normalize pool address to lowercase", async () => {
-      const existingLiquidityPoolAggregator = createMockLiquidityPoolAggregator(
-        {
-          poolAddress: poolAddress,
-          chainId: chainId,
-        },
-      );
-
-      mockDb = mockDb.entities.LiquidityPoolAggregator.set(
-        existingLiquidityPoolAggregator,
-      );
-
-      await linkLiquidityPoolAggregatorToPoolLauncher(
-        poolAddress,
-        chainId,
-        mockContext,
-        "CL",
-      );
-
-      // Assert
-      const updatedEntity = mockDb.entities.LiquidityPoolAggregator.get(
-        PoolId(chainId, poolAddress),
-      );
-      expect(updatedEntity).toBeDefined();
-      expect(updatedEntity?.poolLauncherPoolId).toBe(
-        PoolId(chainId, poolAddress),
-      );
     });
   });
 });

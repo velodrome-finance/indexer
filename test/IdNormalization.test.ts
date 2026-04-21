@@ -56,177 +56,192 @@ const AMOUNT_IN = 1000n;
 const AMOUNT_OUT = 999n;
 
 describe("ID helpers preserve EIP-55 checksum input (issue #633)", () => {
-  it("PoolId preserves checksum-cased pool address", () => {
-    expect(PoolId(CHAIN_ID, POOL)).toBe(`${CHAIN_ID}-${POOL}`);
-  });
+  // Each row exercises one *Id helper with checksum-cased inputs and asserts
+  // the output equals the template-literal composition of those same inputs.
+  // Adding a new helper to the contract = adding a new row here.
+  const cases: ReadonlyArray<{
+    name: string;
+    actual: () => string;
+    expected: string;
+  }> = [
+    {
+      name: "PoolId",
+      actual: () => PoolId(CHAIN_ID, POOL),
+      expected: `${CHAIN_ID}-${POOL}`,
+    },
+    {
+      name: "TokenId",
+      actual: () => TokenId(CHAIN_ID, POOL),
+      expected: `${CHAIN_ID}-${POOL}`,
+    },
+    {
+      name: "TokenIdByBlock",
+      actual: () => TokenIdByBlock(CHAIN_ID, POOL, BLOCK_NUMBER),
+      expected: `${CHAIN_ID}-${POOL}-${BLOCK_NUMBER}`,
+    },
+    {
+      name: "ALMLPWrapperId",
+      actual: () => ALMLPWrapperId(CHAIN_ID, POOL),
+      expected: `${CHAIN_ID}-${POOL}`,
+    },
+    {
+      name: "UserStatsPerPoolId",
+      actual: () => UserStatsPerPoolId(CHAIN_ID, POOL, POOL_2),
+      expected: `${CHAIN_ID}-${POOL}-${POOL_2}`,
+    },
+    {
+      name: "VeNFTPoolVoteId",
+      actual: () => VeNFTPoolVoteId(CHAIN_ID, TOKEN_ID, POOL),
+      expected: `${CHAIN_ID}-${TOKEN_ID}-${POOL}`,
+    },
+    {
+      name: "RootPoolLeafPoolId",
+      actual: () => RootPoolLeafPoolId(ROOT_CHAIN_ID, CHAIN_ID, POOL, POOL_2),
+      expected: `${ROOT_CHAIN_ID}-${CHAIN_ID}-${POOL}-${POOL_2}`,
+    },
+    {
+      name: "PendingVoteId",
+      actual: () => PendingVoteId(CHAIN_ID, POOL, TOKEN_ID, TX_HASH, LOG_INDEX),
+      expected: `${CHAIN_ID}-${POOL}-${TOKEN_ID}-${TX_HASH}-${LOG_INDEX}`,
+    },
+    {
+      name: "PendingRootPoolMappingId",
+      actual: () => PendingRootPoolMappingId(ROOT_CHAIN_ID, POOL),
+      expected: `${ROOT_CHAIN_ID}-${POOL}`,
+    },
+    {
+      name: "PendingDistributionId",
+      actual: () =>
+        PendingDistributionId(ROOT_CHAIN_ID, POOL, BLOCK_NUMBER, LOG_INDEX),
+      expected: `${ROOT_CHAIN_ID}-${POOL}-${BLOCK_NUMBER}-${LOG_INDEX}`,
+    },
+    {
+      name: "RootGaugeRootPoolId",
+      actual: () => RootGaugeRootPoolId(ROOT_CHAIN_ID, POOL),
+      expected: `${ROOT_CHAIN_ID}-${POOL}`,
+    },
+    {
+      name: "rootPoolMatchingHash",
+      actual: () => rootPoolMatchingHash(CHAIN_ID, POOL, POOL_2, TICK_SPACING),
+      expected: `${CHAIN_ID}_${POOL}_${POOL_2}_${TICK_SPACING}`,
+    },
+    {
+      name: "NonFungiblePositionId",
+      actual: () => NonFungiblePositionId(CHAIN_ID, POOL, TOKEN_ID),
+      expected: `${CHAIN_ID}-${POOL}-${TOKEN_ID}`,
+    },
+    {
+      name: "CLTickStakedId",
+      actual: () => CLTickStakedId(CHAIN_ID, POOL, TICK_INDEX),
+      expected: `${CHAIN_ID}-${POOL}-${TICK_INDEX}`,
+    },
+    {
+      name: "PoolTransferInTxId",
+      actual: () => PoolTransferInTxId(CHAIN_ID, TX_HASH, POOL, LOG_INDEX),
+      expected: `${CHAIN_ID}-${TX_HASH}-${POOL}-${LOG_INDEX}`,
+    },
+    {
+      name: "ALMLPWrapperTransferInTxId",
+      actual: () =>
+        ALMLPWrapperTransferInTxId(CHAIN_ID, TX_HASH, POOL, LOG_INDEX),
+      expected: `${CHAIN_ID}-${TX_HASH}-${POOL}-${LOG_INDEX}`,
+    },
+    {
+      name: "CLPoolMintEventId",
+      actual: () => CLPoolMintEventId(CHAIN_ID, POOL, TX_HASH, LOG_INDEX),
+      expected: `${CHAIN_ID}-${POOL}-${TX_HASH}-${LOG_INDEX}`,
+    },
+    {
+      name: "TxCLPoolMintRegistryId",
+      actual: () => TxCLPoolMintRegistryId(CHAIN_ID, TX_HASH),
+      expected: `${CHAIN_ID}-${TX_HASH}`,
+    },
+    {
+      name: "CLPositionPendingPrincipalId",
+      actual: () =>
+        CLPositionPendingPrincipalId(
+          CHAIN_ID,
+          POOL,
+          POOL_2,
+          TICK_LOWER,
+          TICK_UPPER,
+        ),
+      expected: `${CHAIN_ID}-${POOL}-${POOL_2}-${TICK_LOWER}-${TICK_UPPER}`,
+    },
+    {
+      name: "LiquidityPoolAggregatorSnapshotId",
+      actual: () => LiquidityPoolAggregatorSnapshotId(CHAIN_ID, POOL, EPOCH_MS),
+      expected: `${CHAIN_ID}-${POOL}-${EPOCH_MS}`,
+    },
+    {
+      name: "MailboxMessageId",
+      actual: () => MailboxMessageId(TX_HASH, CHAIN_ID, MSG_ID),
+      expected: `${TX_HASH}-${CHAIN_ID}-${MSG_ID}`,
+    },
+    {
+      name: "OUSDTSwapsId",
+      actual: () =>
+        OUSDTSwapsId(TX_HASH, CHAIN_ID, POOL, AMOUNT_IN, POOL_2, AMOUNT_OUT),
+      expected: `${TX_HASH}-${CHAIN_ID}-${POOL}-${AMOUNT_IN}-${POOL_2}-${AMOUNT_OUT}`,
+    },
+    {
+      name: "SuperSwapId",
+      actual: () => SuperSwapId(MSG_ID),
+      expected: MSG_ID,
+    },
+    {
+      name: "UserStatsPerPoolSnapshotId",
+      actual: () =>
+        UserStatsPerPoolSnapshotId(CHAIN_ID, POOL, POOL_2, EPOCH_MS),
+      expected: `${CHAIN_ID}-${POOL}-${POOL_2}-${EPOCH_MS}`,
+    },
+    {
+      name: "NonFungiblePositionSnapshotId",
+      actual: () =>
+        NonFungiblePositionSnapshotId(CHAIN_ID, POOL, TOKEN_ID, EPOCH_MS),
+      expected: `${CHAIN_ID}-${POOL}-${TOKEN_ID}-${EPOCH_MS}`,
+    },
+    {
+      name: "ALMLPWrapperSnapshotId",
+      actual: () => ALMLPWrapperSnapshotId(CHAIN_ID, POOL, EPOCH_MS),
+      expected: `${CHAIN_ID}-${POOL}-${EPOCH_MS}`,
+    },
+    {
+      name: "VeNFTPoolVoteSnapshotId",
+      actual: () => VeNFTPoolVoteSnapshotId(CHAIN_ID, TOKEN_ID, POOL, EPOCH_MS),
+      expected: `${CHAIN_ID}-${TOKEN_ID}-${POOL}-${EPOCH_MS}`,
+    },
+  ];
 
-  it("TokenId preserves checksum-cased token address", () => {
-    expect(TokenId(CHAIN_ID, POOL)).toBe(`${CHAIN_ID}-${POOL}`);
-  });
+  it.each(cases)(
+    "$name preserves checksum-cased input",
+    ({ actual, expected }) => {
+      expect(actual()).toBe(expected);
+    },
+  );
 
-  it("TokenIdByBlock preserves checksum-cased token address", () => {
-    expect(TokenIdByBlock(CHAIN_ID, POOL, BLOCK_NUMBER)).toBe(
-      `${CHAIN_ID}-${POOL}-${BLOCK_NUMBER}`,
-    );
-  });
+  it("regression #633: stale lowercased reader keys diverge from checksum writer keys; current reader matches writer", () => {
+    // Simulate the two call sites involved in issue #633:
+    //   - CLFactory writer: stores the pool keyed by event.params.pool (checksum-cased).
+    //   - CLPoolLauncher reader: looks up that pool to link a launcher record.
+    //
+    // The bug was that the launcher reader called `.toLowerCase()` on the address
+    // before invoking PoolId(), producing a different key than the writer and
+    // silently missing the pool. The fix removes the lowercasing on the reader path.
+    const writerId = PoolId(CHAIN_ID, POOL);
 
-  it("ALMLPWrapperId preserves checksum-cased wrapper address", () => {
-    expect(ALMLPWrapperId(CHAIN_ID, POOL)).toBe(`${CHAIN_ID}-${POOL}`);
-  });
+    // Pre-fix reader path: lowercased the address before keying. This MUST diverge
+    // from the writer key — otherwise this regression test cannot fail on the bug
+    // it claims to guard.
+    const staleReaderId = PoolId(CHAIN_ID, POOL.toLowerCase());
+    expect(writerId).not.toBe(staleReaderId);
 
-  it("UserStatsPerPoolId preserves both checksum-cased addresses", () => {
-    expect(UserStatsPerPoolId(CHAIN_ID, POOL, POOL_2)).toBe(
-      `${CHAIN_ID}-${POOL}-${POOL_2}`,
-    );
-  });
+    // Post-fix reader path: consumes event.params.pool unchanged, exactly like the
+    // writer. Both call sites must land on the same key.
+    const currentReaderId = PoolId(CHAIN_ID, POOL);
+    expect(writerId).toBe(currentReaderId);
 
-  it("VeNFTPoolVoteId preserves checksum-cased pool address", () => {
-    expect(VeNFTPoolVoteId(CHAIN_ID, TOKEN_ID, POOL)).toBe(
-      `${CHAIN_ID}-${TOKEN_ID}-${POOL}`,
-    );
-  });
-
-  it("RootPoolLeafPoolId preserves both checksum-cased pool addresses", () => {
-    expect(RootPoolLeafPoolId(ROOT_CHAIN_ID, CHAIN_ID, POOL, POOL_2)).toBe(
-      `${ROOT_CHAIN_ID}-${CHAIN_ID}-${POOL}-${POOL_2}`,
-    );
-  });
-
-  it("PendingVoteId preserves checksum-cased root pool address and tx hash", () => {
-    expect(PendingVoteId(CHAIN_ID, POOL, TOKEN_ID, TX_HASH, LOG_INDEX)).toBe(
-      `${CHAIN_ID}-${POOL}-${TOKEN_ID}-${TX_HASH}-${LOG_INDEX}`,
-    );
-  });
-
-  it("PendingRootPoolMappingId preserves checksum-cased root pool address", () => {
-    expect(PendingRootPoolMappingId(ROOT_CHAIN_ID, POOL)).toBe(
-      `${ROOT_CHAIN_ID}-${POOL}`,
-    );
-  });
-
-  it("PendingDistributionId preserves checksum-cased root pool address", () => {
-    expect(
-      PendingDistributionId(ROOT_CHAIN_ID, POOL, BLOCK_NUMBER, LOG_INDEX),
-    ).toBe(`${ROOT_CHAIN_ID}-${POOL}-${BLOCK_NUMBER}-${LOG_INDEX}`);
-  });
-
-  it("RootGaugeRootPoolId preserves checksum-cased root gauge address", () => {
-    expect(RootGaugeRootPoolId(ROOT_CHAIN_ID, POOL)).toBe(
-      `${ROOT_CHAIN_ID}-${POOL}`,
-    );
-  });
-
-  it("rootPoolMatchingHash preserves both checksum-cased token addresses", () => {
-    expect(rootPoolMatchingHash(CHAIN_ID, POOL, POOL_2, TICK_SPACING)).toBe(
-      `${CHAIN_ID}_${POOL}_${POOL_2}_${TICK_SPACING}`,
-    );
-  });
-
-  it("NonFungiblePositionId preserves checksum-cased nfpm address", () => {
-    expect(NonFungiblePositionId(CHAIN_ID, POOL, TOKEN_ID)).toBe(
-      `${CHAIN_ID}-${POOL}-${TOKEN_ID}`,
-    );
-  });
-
-  it("CLTickStakedId preserves checksum-cased pool address", () => {
-    expect(CLTickStakedId(CHAIN_ID, POOL, TICK_INDEX)).toBe(
-      `${CHAIN_ID}-${POOL}-${TICK_INDEX}`,
-    );
-  });
-
-  it("PoolTransferInTxId preserves checksum-cased tx hash and pool address", () => {
-    expect(PoolTransferInTxId(CHAIN_ID, TX_HASH, POOL, LOG_INDEX)).toBe(
-      `${CHAIN_ID}-${TX_HASH}-${POOL}-${LOG_INDEX}`,
-    );
-  });
-
-  it("ALMLPWrapperTransferInTxId preserves checksum-cased tx hash and wrapper address", () => {
-    expect(ALMLPWrapperTransferInTxId(CHAIN_ID, TX_HASH, POOL, LOG_INDEX)).toBe(
-      `${CHAIN_ID}-${TX_HASH}-${POOL}-${LOG_INDEX}`,
-    );
-  });
-
-  it("CLPoolMintEventId preserves checksum-cased pool address and tx hash", () => {
-    expect(CLPoolMintEventId(CHAIN_ID, POOL, TX_HASH, LOG_INDEX)).toBe(
-      `${CHAIN_ID}-${POOL}-${TX_HASH}-${LOG_INDEX}`,
-    );
-  });
-
-  it("TxCLPoolMintRegistryId preserves checksum-cased tx hash", () => {
-    expect(TxCLPoolMintRegistryId(CHAIN_ID, TX_HASH)).toBe(
-      `${CHAIN_ID}-${TX_HASH}`,
-    );
-  });
-
-  it("CLPositionPendingPrincipalId preserves checksum-cased pool and owner addresses", () => {
-    expect(
-      CLPositionPendingPrincipalId(
-        CHAIN_ID,
-        POOL,
-        POOL_2,
-        TICK_LOWER,
-        TICK_UPPER,
-      ),
-    ).toBe(`${CHAIN_ID}-${POOL}-${POOL_2}-${TICK_LOWER}-${TICK_UPPER}`);
-  });
-
-  it("LiquidityPoolAggregatorSnapshotId preserves checksum-cased pool address", () => {
-    expect(LiquidityPoolAggregatorSnapshotId(CHAIN_ID, POOL, EPOCH_MS)).toBe(
-      `${CHAIN_ID}-${POOL}-${EPOCH_MS}`,
-    );
-  });
-
-  it("MailboxMessageId preserves checksum-cased tx hash and message id", () => {
-    expect(MailboxMessageId(TX_HASH, CHAIN_ID, MSG_ID)).toBe(
-      `${TX_HASH}-${CHAIN_ID}-${MSG_ID}`,
-    );
-  });
-
-  it("OUSDTSwapsId preserves checksum-cased tx hash and both pool addresses", () => {
-    expect(
-      OUSDTSwapsId(TX_HASH, CHAIN_ID, POOL, AMOUNT_IN, POOL_2, AMOUNT_OUT),
-    ).toBe(
-      `${TX_HASH}-${CHAIN_ID}-${POOL}-${AMOUNT_IN}-${POOL_2}-${AMOUNT_OUT}`,
-    );
-  });
-
-  it("SuperSwapId preserves the message id verbatim", () => {
-    expect(SuperSwapId(MSG_ID)).toBe(MSG_ID);
-  });
-
-  it("UserStatsPerPoolSnapshotId preserves checksum-cased addresses", () => {
-    expect(UserStatsPerPoolSnapshotId(CHAIN_ID, POOL, POOL_2, EPOCH_MS)).toBe(
-      `${CHAIN_ID}-${POOL}-${POOL_2}-${EPOCH_MS}`,
-    );
-  });
-
-  it("NonFungiblePositionSnapshotId preserves checksum-cased nfpm address", () => {
-    expect(
-      NonFungiblePositionSnapshotId(CHAIN_ID, POOL, TOKEN_ID, EPOCH_MS),
-    ).toBe(`${CHAIN_ID}-${POOL}-${TOKEN_ID}-${EPOCH_MS}`);
-  });
-
-  it("ALMLPWrapperSnapshotId preserves checksum-cased wrapper address", () => {
-    expect(ALMLPWrapperSnapshotId(CHAIN_ID, POOL, EPOCH_MS)).toBe(
-      `${CHAIN_ID}-${POOL}-${EPOCH_MS}`,
-    );
-  });
-
-  it("VeNFTPoolVoteSnapshotId preserves checksum-cased pool address", () => {
-    expect(VeNFTPoolVoteSnapshotId(CHAIN_ID, TOKEN_ID, POOL, EPOCH_MS)).toBe(
-      `${CHAIN_ID}-${TOKEN_ID}-${POOL}-${EPOCH_MS}`,
-    );
-  });
-
-  it("CLFactory writer and CLPoolLauncher reader resolve to the same key when both consume event.params.pool unchanged (issue #633 regression)", () => {
-    // Both handlers receive the same EIP-55 checksum address from
-    // Envio's event.params.pool. Once the launcher stops calling
-    // .toLowerCase() before PoolId(), both paths land on the same key.
-    const writerId = PoolId(8453, POOL);
-    const readerId = PoolId(8453, POOL);
-    expect(writerId).toBe(readerId);
-    expect(writerId).toBe(`8453-${POOL}`);
-    // Sanity: a stale lowercased reader would have produced a different key.
-    expect(writerId).not.toBe(`8453-${POOL.toLowerCase()}`);
+    // Pin the exact key shape, anchoring future refactors of PoolId().
+    expect(writerId).toBe(`${CHAIN_ID}-${POOL}`);
   });
 });
