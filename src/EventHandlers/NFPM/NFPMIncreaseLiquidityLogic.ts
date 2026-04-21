@@ -9,7 +9,7 @@ import {
   type NonFungiblePositionDiff,
   updateNonFungiblePosition,
 } from "../../Aggregators/NonFungiblePosition";
-import { NonFungiblePositionId } from "../../Constants";
+import { NonFungiblePositionId, TxCLPoolMintRegistryId } from "../../Constants";
 import {
   LiquidityChangeType,
   attributeLiquidityChangeToUserStatsPerPool,
@@ -50,6 +50,7 @@ export function calculateIncreaseLiquidityDiff(
  *
  * @param event - The NFPM.IncreaseLiquidity event
  * @param context - The handler context
+ * @returns Promise that resolves once the position update, orphan-mint cleanup, and downstream attributions are staged
  */
 export async function processNFPMIncreaseLiquidity(
   event: NFPM_IncreaseLiquidity_event,
@@ -92,13 +93,21 @@ export async function processNFPMIncreaseLiquidity(
   // Therefore, if we find an unconsumed CLPoolMintEvent in the same transaction when processing
   // IncreaseLiquidity, it MUST be from an increase (Case 2), because new mints (Case 1) would
   // have already been deleted by the Transfer handler that runs before IncreaseLiquidity.
-  const mintEventsInTx = await context.CLPoolMintEvent.getWhere({
-    transactionHash: { _eq: event.transaction.hash },
-  });
+  const registryId = TxCLPoolMintRegistryId(
+    event.chainId,
+    event.transaction.hash,
+  );
+  const registry = await context.TxCLPoolMintRegistry.get(registryId);
 
-  if (mintEventsInTx && mintEventsInTx.length > 0) {
+  if (registry && registry.mintEventIds.length > 0) {
+    const mintEventsInTx = (
+      await Promise.all(
+        registry.mintEventIds.map((id) => context.CLPoolMintEvent.get(id)),
+      )
+    ).filter((m): m is CLPoolMintEvent => m !== undefined);
+
     const matchingMintEvents = mintEventsInTx.filter(
-      (m: CLPoolMintEvent) =>
+      (m) =>
         m.chainId === event.chainId &&
         m.pool === position.pool &&
         m.tickLower === position.tickLower &&
@@ -111,17 +120,27 @@ export async function processNFPMIncreaseLiquidity(
     // Select closest preceding mint by logIndex (deterministic for multiple matches)
     const matchingMintEvent =
       matchingMintEvents.length > 0
-        ? matchingMintEvents.reduce(
-            (prev: CLPoolMintEvent, curr: CLPoolMintEvent) =>
-              curr.logIndex > prev.logIndex ? curr : prev,
+        ? matchingMintEvents.reduce((prev, curr) =>
+            curr.logIndex > prev.logIndex ? curr : prev,
           )
         : undefined;
 
     if (matchingMintEvent) {
       // This matches Case 2 (INCREASE) from the explanation above.
       // The CLPoolMintEvent is orphaned because no Transfer event consumed it.
-      // Delete it to prevent accumulation of temporary entities.
+      // Delete it and prune the registry (drop the row when it empties).
       context.CLPoolMintEvent.deleteUnsafe(matchingMintEvent.id);
+      const remaining = registry.mintEventIds.filter(
+        (id) => id !== matchingMintEvent.id,
+      );
+      if (remaining.length === 0) {
+        context.TxCLPoolMintRegistry.deleteUnsafe(registryId);
+      } else {
+        context.TxCLPoolMintRegistry.set({
+          id: registryId,
+          mintEventIds: remaining,
+        });
+      }
     }
   }
 

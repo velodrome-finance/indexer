@@ -1,6 +1,7 @@
 import type {
   CLPoolMintEvent,
   NonFungiblePosition,
+  TxCLPoolMintRegistry,
   handlerContext,
 } from "generated";
 import { MockDb, NFPM } from "../../../generated/src/TestHelpers.gen";
@@ -10,6 +11,7 @@ import {
   CLPoolMintEventId,
   NonFungiblePositionId,
   PoolId,
+  TxCLPoolMintRegistryId,
   toChecksumAddress,
 } from "../../../src/Constants";
 import {
@@ -181,6 +183,7 @@ describe("NFPMTransferLogic", () => {
   let mockDbRef: { current: ReturnType<typeof MockDb.createMockDb> };
   let storedPositions: NonFungiblePosition[] = [];
   let storedMintEvents: CLPoolMintEvent[] = [];
+  let storedRegistries: TxCLPoolMintRegistry[] = [];
   let liquidityPoolEntity: { gaugeAddress?: string } | undefined;
 
   /**
@@ -189,6 +192,7 @@ describe("NFPMTransferLogic", () => {
   function createMockContext(
     positions: NonFungiblePosition[] = [],
     mintEvents: CLPoolMintEvent[] = [],
+    registries: TxCLPoolMintRegistry[] = [],
   ): handlerContext {
     const db = MockDb.createMockDb();
     let currentDb = positions.reduce(
@@ -319,16 +323,6 @@ describe("NFPMTransferLogic", () => {
       },
       CLPoolMintEvent: {
         ...currentDb.entities.CLPoolMintEvent,
-        getWhere: vi
-          .fn()
-          .mockImplementation(
-            (filter: { transactionHash?: { _eq?: string } }) =>
-              Promise.resolve(
-                mintEvents.filter(
-                  (e) => e.transactionHash === filter?.transactionHash?._eq,
-                ),
-              ),
-          ),
         set: (entity: CLPoolMintEvent) => {
           trackMintEvent(entity);
           const updatedDb =
@@ -344,6 +338,24 @@ describe("NFPMTransferLogic", () => {
           const index = mintEvents.findIndex((e) => e.id === id);
           if (index >= 0) {
             mintEvents.splice(index, 1);
+          }
+        },
+      },
+      TxCLPoolMintRegistry: {
+        get: (id: string) =>
+          Promise.resolve(registries.find((r) => r.id === id)),
+        set: (entity: TxCLPoolMintRegistry) => {
+          const index = registries.findIndex((r) => r.id === entity.id);
+          if (index >= 0) {
+            registries[index] = entity;
+          } else {
+            registries.push(entity);
+          }
+        },
+        deleteUnsafe: (id: string) => {
+          const index = registries.findIndex((r) => r.id === id);
+          if (index >= 0) {
+            registries.splice(index, 1);
           }
         },
       },
@@ -385,8 +397,13 @@ describe("NFPMTransferLogic", () => {
   beforeEach(() => {
     storedPositions = [];
     storedMintEvents = [];
+    storedRegistries = [];
     liquidityPoolEntity = {};
-    mockContext = createMockContext(storedPositions, storedMintEvents);
+    mockContext = createMockContext(
+      storedPositions,
+      storedMintEvents,
+      storedRegistries,
+    );
     mockDb = MockDb.createMockDb();
     vi.mocked(loadPoolData).mockResolvedValue(null);
     vi.mocked(attributeLiquidityChangeToUserStatsPerPool).mockClear();
@@ -416,6 +433,26 @@ describe("NFPMTransferLogic", () => {
       storedMintEvents[index] = entity;
     } else {
       storedMintEvents.push(entity);
+    }
+    // Mirror CLPool.Mint handler behavior: upsert the per-tx registry so the
+    // NFPM.Transfer(mint) consumer can PK-lookup mint event ids.
+    const registryId = TxCLPoolMintRegistryId(
+      entity.chainId,
+      entity.transactionHash,
+    );
+    const existingIndex = storedRegistries.findIndex(
+      (r) => r.id === registryId,
+    );
+    if (existingIndex >= 0) {
+      const existing = storedRegistries[existingIndex];
+      if (!existing.mintEventIds.includes(entity.id)) {
+        storedRegistries[existingIndex] = {
+          id: existing.id,
+          mintEventIds: [...existing.mintEventIds, entity.id],
+        };
+      }
+    } else {
+      storedRegistries.push({ id: registryId, mintEventIds: [entity.id] });
     }
     mockDb = mockDb.entities.CLPoolMintEvent.set(entity);
     if (mockDbRef) {
@@ -586,24 +623,29 @@ describe("NFPMTransferLogic", () => {
       expect(position.mintLogIndex).toBe(41); // Should use unconsumed event
     });
 
-    it("should handle null/undefined mintEvents from getWhere query (covers ?? [] fallback)", async () => {
-      // Create a new mock context with getWhere that returns null to test ?? [] fallback on line 95
-      const nullMockContext = {
+    it("should warn and create no position when TxCLPoolMintRegistry is missing for the tx", async () => {
+      // Registry not populated (no CLPool.Mint ran for this tx) → warn, no position.
+      const emptyMockContext = {
         ...mockContext,
-        CLPoolMintEvent: {
-          ...mockContext.CLPoolMintEvent,
-          getWhere: vi.fn().mockResolvedValue(null),
+        TxCLPoolMintRegistry: {
+          ...(
+            mockContext as unknown as {
+              TxCLPoolMintRegistry: { get: unknown };
+            }
+          ).TxCLPoolMintRegistry,
+          get: vi.fn().mockResolvedValue(undefined),
         },
       } as unknown as handlerContext;
 
       const mockEvent = createMockTransferEvent(zeroAddress, ownerAddress);
 
-      await handleMintTransfer(mockEvent, nullMockContext, undefined);
+      await handleMintTransfer(mockEvent, emptyMockContext, undefined);
 
-      // Should log warning since no events found
-      expect(nullMockContext.log.warn).toHaveBeenCalledWith(
+      expect(emptyMockContext.log.warn).toHaveBeenCalledWith(
         expect.stringContaining("No CLPoolMintEvent found"),
       );
+      const stableId = getStableId();
+      expect(storedPositions.find((p) => p.id === stableId)).toBeUndefined();
     });
 
     it("should keep prev when current.logIndex <= prev.logIndex in reduce", async () => {
@@ -665,6 +707,82 @@ describe("NFPMTransferLogic", () => {
       if (!position) return;
       // Should use the first one (prev) when logIndexes are equal
       expect(position.mintLogIndex).toBe(41);
+    });
+
+    it("multi-mint tx: each NFPM.Transfer(mint) matches its closest preceding CLPool.Mint and the registry is pruned to empty", async () => {
+      // Two pools minted in the same tx, two interleaved NFPM.Transfer(mint) events.
+      //   logIndex 10: CLPool.Mint (pool A)
+      //   logIndex 20: NFPM.Transfer (mint, tokenId 1) → should match mint A (10)
+      //   logIndex 30: CLPool.Mint (pool B)
+      //   logIndex 40: NFPM.Transfer (mint, tokenId 2) → should match mint B (30)
+      const poolB = toChecksumAddress(
+        "0x00cd0AbB6c2964F7Dfb5169dD94A9F004C35F459",
+      );
+      const tokenIdA = 1001n;
+      const tokenIdB = 1002n;
+
+      const mintA: CLPoolMintEvent = {
+        ...mockCLPoolMintEvent,
+        id: CLPoolMintEventId(chainId, poolAddress, transactionHash, 10),
+        logIndex: 10,
+      };
+      const mintB: CLPoolMintEvent = {
+        ...mockCLPoolMintEvent,
+        id: CLPoolMintEventId(chainId, poolB, transactionHash, 30),
+        pool: poolB,
+        logIndex: 30,
+      };
+
+      setMintEvent(mintA);
+      setMintEvent(mintB);
+
+      // Registry populated with both ids under the single tx key.
+      const registryId = TxCLPoolMintRegistryId(chainId, transactionHash);
+      expect(
+        storedRegistries.find((r) => r.id === registryId)?.mintEventIds,
+      ).toEqual([mintA.id, mintB.id]);
+
+      // First transfer: should bind to mintA (logIndex 10, the only preceding mint at logIndex 20).
+      const transferA = createMockTransferEvent(zeroAddress, ownerAddress, {
+        tokenId: tokenIdA,
+        mockEventData: {
+          ...defaultMintTransferEventData,
+          logIndex: 20,
+        },
+      });
+      await handleMintTransfer(transferA, mockContext, undefined);
+
+      const positionA = storedPositions.find(
+        (p) => p.id === NonFungiblePositionId(chainId, nfpmAddress, tokenIdA),
+      );
+      expect(positionA).toBeDefined();
+      expect(positionA?.mintLogIndex).toBe(10);
+      expect(positionA?.pool).toBe(poolAddress);
+
+      // Registry should now hold only mintB's id.
+      expect(
+        storedRegistries.find((r) => r.id === registryId)?.mintEventIds,
+      ).toEqual([mintB.id]);
+
+      // Second transfer: should bind to mintB (logIndex 30, closest preceding at logIndex 40).
+      const transferB = createMockTransferEvent(zeroAddress, ownerAddress, {
+        tokenId: tokenIdB,
+        mockEventData: {
+          ...defaultMintTransferEventData,
+          logIndex: 40,
+        },
+      });
+      await handleMintTransfer(transferB, mockContext, undefined);
+
+      const positionB = storedPositions.find(
+        (p) => p.id === NonFungiblePositionId(chainId, nfpmAddress, tokenIdB),
+      );
+      expect(positionB).toBeDefined();
+      expect(positionB?.mintLogIndex).toBe(30);
+      expect(positionB?.pool).toBe(poolB);
+
+      // Registry row deleted after the final consumption.
+      expect(storedRegistries.find((r) => r.id === registryId)).toBeUndefined();
     });
   });
 
