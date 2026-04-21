@@ -7,12 +7,12 @@ import {
 } from "./PoolLauncherLogic";
 
 CLPoolLauncher.Launch.handler(async ({ event, context }) => {
-  const poolAddress = event.params.pool.toLowerCase();
+  const poolAddress = event.params.pool;
   const launcherAddress = event.srcAddress;
-  const creator = event.params.sender.toLowerCase();
-  const poolLauncherToken = event.params.poolLauncherToken.toLowerCase();
+  const creator = event.params.sender;
+  const poolLauncherToken = event.params.poolLauncherToken;
   // poolLauncherPool is a tuple: [bigint, Address_t, Address_t, Address_t]
-  const pairToken = event.params.poolLauncherPool[1].toLowerCase();
+  const pairToken = event.params.poolLauncherPool[1];
   const createdAt = new Date(event.block.timestamp * 1000);
 
   // Create or update PoolLauncherPool entity
@@ -37,13 +37,13 @@ CLPoolLauncher.Launch.handler(async ({ event, context }) => {
 });
 
 CLPoolLauncher.Migrate.handler(async ({ event, context }) => {
-  const underlyingPool = event.params.underlyingPool.toLowerCase();
-  const oldLocker = event.params.locker.toLowerCase();
-  const newLocker = event.params.newLocker.toLowerCase();
+  const underlyingPool = event.params.underlyingPool;
+  const oldLocker = event.params.locker;
+  const newLocker = event.params.newLocker;
   // newPoolLauncherPool is a tuple: [bigint, Address_t, Address_t, Address_t]
-  const newPoolAddress = event.params.newPoolLauncherPool[3].toLowerCase();
-  const poolLauncherToken = event.params.newPoolLauncherPool[2].toLowerCase();
-  const pairToken = event.params.newPoolLauncherPool[1].toLowerCase();
+  const newPoolAddress = event.params.newPoolLauncherPool[3];
+  const poolLauncherToken = event.params.newPoolLauncherPool[2];
+  const pairToken = event.params.newPoolLauncherPool[1];
   const timestamp = new Date(event.block.timestamp * 1000);
 
   const poolId = PoolId(event.chainId, underlyingPool);
@@ -88,7 +88,7 @@ CLPoolLauncher.Migrate.handler(async ({ event, context }) => {
 });
 
 CLPoolLauncher.EmergingFlagged.handler(async ({ event, context }) => {
-  const poolAddress = event.params.pool.toLowerCase();
+  const poolAddress = event.params.pool;
   const timestamp = new Date(event.block.timestamp * 1000);
 
   const poolId = PoolId(event.chainId, poolAddress);
@@ -108,7 +108,7 @@ CLPoolLauncher.EmergingFlagged.handler(async ({ event, context }) => {
 });
 
 CLPoolLauncher.EmergingUnflagged.handler(async ({ event, context }) => {
-  const poolAddress = event.params.pool.toLowerCase();
+  const poolAddress = event.params.pool;
   const timestamp = new Date(event.block.timestamp * 1000);
 
   const poolId = PoolId(event.chainId, poolAddress);
@@ -130,7 +130,7 @@ CLPoolLauncher.EmergingUnflagged.handler(async ({ event, context }) => {
 });
 
 CLPoolLauncher.CreationTimestampSet.handler(async ({ event, context }) => {
-  const poolAddress = event.params.pool.toLowerCase();
+  const poolAddress = event.params.pool;
   const createdAt = new Date(Number(event.params.createdAt) * 1000);
 
   const poolId = PoolId(event.chainId, poolAddress);
@@ -151,7 +151,7 @@ CLPoolLauncher.CreationTimestampSet.handler(async ({ event, context }) => {
 });
 
 CLPoolLauncher.PairableTokenAdded.handler(async ({ event, context }) => {
-  const tokenAddress = event.params.token.toLowerCase();
+  const tokenAddress = event.params.token;
   const configId = PoolId(event.chainId, event.srcAddress);
 
   // Get or create PoolLauncherConfig
@@ -178,7 +178,7 @@ CLPoolLauncher.PairableTokenAdded.handler(async ({ event, context }) => {
 });
 
 CLPoolLauncher.PairableTokenRemoved.handler(async ({ event, context }) => {
-  const tokenAddress = event.params.token.toLowerCase();
+  const tokenAddress = event.params.token;
   const configId = PoolId(event.chainId, event.srcAddress);
 
   // Get existing PoolLauncherConfig
@@ -202,7 +202,7 @@ CLPoolLauncher.PairableTokenRemoved.handler(async ({ event, context }) => {
 });
 
 CLPoolLauncher.NewPoolLauncherSet.handler(async ({ event, context }) => {
-  const newPoolLauncher = event.params.newPoolLauncher.toLowerCase();
+  const newPoolLauncher = event.params.newPoolLauncher;
   const oldConfigId = PoolId(event.chainId, event.srcAddress);
   const newConfigId = PoolId(event.chainId, newPoolLauncher);
 

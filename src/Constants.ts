@@ -844,8 +844,9 @@ const SUPERSEED_CONSTANTS: chainConstants = {
 
 /**
  * Create a unique ID for a token on a specific chain. Should only be used for Token entities.
+ * Address must be EIP-55 checksum-cased (Envio's `event.params.*` already are).
  * @param chainId
- * @param address
+ * @param address - Token address (must be EIP-55 checksum-cased; do not pre-lowercase)
  * @returns string Merged Token ID.
  */
 export const TokenId = (chainId: number, address: string) =>
@@ -853,8 +854,10 @@ export const TokenId = (chainId: number, address: string) =>
 
 /**
  * Create a unique ID for a pool on a specific chain as used by LiquidityPoolAggregator.
+ * Pool address must be EIP-55 checksum-cased (Envio's `event.params.*` already are).
+ * Callers must NOT pre-lowercase — that triggers the silent miss documented in #633.
  * @param chainId
- * @param pool
+ * @param pool - Pool address (must be EIP-55 checksum-cased; do not pre-lowercase)
  * @returns string Combined pool ID.
  */
 export const PoolId = (chainId: number, pool: string) => `${chainId}-${pool}`;
@@ -887,7 +890,7 @@ export const isKnownSinkRootPool = (
 
 /** Entity ID for ALM_LP_Wrapper. Format: {chainId}-{wrapperAddress}
  * @param chainId - Chain ID of the wrapper
- * @param wrapperAddress - Address of the wrapper
+ * @param wrapperAddress - Address of the wrapper (must be EIP-55 checksum-cased; do not pre-lowercase)
  * @returns string Combined wrapper ID.
  */
 export const ALMLPWrapperId = (chainId: number, wrapperAddress: string) =>
@@ -895,8 +898,8 @@ export const ALMLPWrapperId = (chainId: number, wrapperAddress: string) =>
 
 /** Entity ID for UserStatsPerPool. Format: {chainId}-{userAddress}-{poolAddress}
  * @param chainId - Chain ID of the pool
- * @param userAddress - Address of the user
- * @param poolAddress - Address of the pool
+ * @param userAddress - Address of the user (must be EIP-55 checksum-cased; do not pre-lowercase)
+ * @param poolAddress - Address of the pool (must be EIP-55 checksum-cased; do not pre-lowercase)
  * @returns string Combined user ID.
  */
 export const UserStatsPerPoolId = (
@@ -916,7 +919,7 @@ export const VeNFTId = (chainId: number, tokenId: bigint) =>
 /** Entity ID for VeNFTPoolVote. Format: {chainId}-{tokenId}-{poolAddress}
  * @param chainId - Chain ID of the veNFT
  * @param tokenId - ID of the veNFT
- * @param poolAddress - Address of the pool
+ * @param poolAddress - Address of the pool (must be EIP-55 checksum-cased; do not pre-lowercase)
  * @returns string Combined veNFT pool vote ID.
  */
 export const VeNFTPoolVoteId = (
@@ -928,8 +931,8 @@ export const VeNFTPoolVoteId = (
 /** Entity ID for RootPool_LeafPool. Format: {rootChainId}-{leafChainId}-{rootPoolAddress}-{leafPoolAddress}. rootChainId is typically 10 (Optimism).
  * @param rootChainId - Chain ID of the root pool
  * @param leafChainId - Chain ID of the leaf pool
- * @param rootPoolAddress - Address of the root pool
- * @param leafPoolAddress - Address of the leaf pool
+ * @param rootPoolAddress - Address of the root pool (must be EIP-55 checksum-cased; do not pre-lowercase)
+ * @param leafPoolAddress - Address of the leaf pool (must be EIP-55 checksum-cased; do not pre-lowercase)
  * @returns string Combined root pool leaf pool ID.
  */
 export const RootPoolLeafPoolId = (
@@ -941,7 +944,7 @@ export const RootPoolLeafPoolId = (
 
 /** Entity ID for PendingVote. Format: {chainId}-{rootPoolAddress}-{tokenId}-{txHash}-{logIndex}
  * @param chainId - Chain ID where the vote occurred
- * @param rootPoolAddress - Root pool address
+ * @param rootPoolAddress - Root pool address (must be EIP-55 checksum-cased; do not pre-lowercase)
  * @param tokenId - veNFT token ID
  * @param transactionHash - Transaction hash of the vote event (for uniqueness)
  * @param logIndex - Log index of the event (for uniqueness within same tx)
@@ -956,7 +959,7 @@ export const PendingVoteId = (
 
 /** Entity ID for PendingRootPoolMapping. Format: {rootChainId}-{rootPoolAddress}
  * @param rootChainId - Root chain ID
- * @param rootPoolAddress - Root pool address
+ * @param rootPoolAddress - Root pool address (must be EIP-55 checksum-cased; do not pre-lowercase)
  */
 export const PendingRootPoolMappingId = (
   rootChainId: number,
@@ -965,7 +968,7 @@ export const PendingRootPoolMappingId = (
 
 /** Entity ID for PendingDistribution. Format: {rootChainId}-{rootPoolAddress}-{blockNumber}-{logIndex}
  * @param rootChainId - Root chain ID
- * @param rootPoolAddress - Root pool address
+ * @param rootPoolAddress - Root pool address (must be EIP-55 checksum-cased; do not pre-lowercase)
  * @param blockNumber - Block number of the DistributeReward event
  * @param logIndex - Log index of the event (for uniqueness within block)
  */
@@ -978,7 +981,7 @@ export const PendingDistributionId = (
 
 /** Entity ID for RootGauge_RootPool. Format: {rootChainId}-{rootGaugeAddress}
  * @param rootChainId - Root chain ID (e.g. Optimism)
- * @param rootGaugeAddress - Root gauge address (RootGauge/RootCLGauge on root chain)
+ * @param rootGaugeAddress - Root gauge address (RootGauge/RootCLGauge on root chain) (must be EIP-55 checksum-cased; do not pre-lowercase)
  */
 export const RootGaugeRootPoolId = (
   rootChainId: number,
@@ -986,6 +989,10 @@ export const RootGaugeRootPoolId = (
 ) => `${rootChainId}-${rootGaugeAddress}`;
 
 /** rootPoolMatchingHash for cross-chain pool matching. Format: {leafChainId}_{token0}_{token1}_{tickSpacing}
+ * @param leafChainId - Chain ID of the leaf pool
+ * @param token0 - Token0 address (must be EIP-55 checksum-cased; do not pre-lowercase)
+ * @param token1 - Token1 address (must be EIP-55 checksum-cased; do not pre-lowercase)
+ * @param tickSpacing - Tick spacing value
  */
 export const rootPoolMatchingHash = (
   leafChainId: number,
@@ -1011,7 +1018,7 @@ export const FeeToTickSpacingMappingId = (
  * (e.g. Optimism) nfpmAddress is required to prevent silent overwrites. See #618 / #621.
  *
  * @param chainId - Chain ID of the position
- * @param nfpmAddress - Address of the NFPM contract that owns the position
+ * @param nfpmAddress - Address of the NFPM contract that owns the position (must be EIP-55 checksum-cased; do not pre-lowercase)
  * @param tokenId - Token ID of the NFT position
  * @returns string Combined non-fungible position ID.
  */
@@ -1024,7 +1031,7 @@ export const NonFungiblePositionId = (
 /**
  * Create a unique ID for a CLTickStaked entity.
  * @param chainId - Chain ID
- * @param poolAddress - Address of the CL pool
+ * @param poolAddress - Address of the CL pool (must be EIP-55 checksum-cased; do not pre-lowercase)
  * @param tickIndex - Tick index (aligned to tick spacing)
  * @returns string Combined tick staked ID.
  */
@@ -1038,7 +1045,7 @@ export const CLTickStakedId = (
  * Create a unique ID for a token on a specific chain at a specific block. Really should only be used
  * for TokenPrice Entities.
  * @param chainId
- * @param address
+ * @param address - Token address (must be EIP-55 checksum-cased; do not pre-lowercase)
  * @param blockNumber
  * @returns string Merged Token ID.
  */
@@ -1051,7 +1058,7 @@ export const TokenIdByBlock = (
 /** Entity ID for PoolTransferInTx.
  * @param chainId
  * @param txHash
- * @param poolAddress
+ * @param poolAddress - Address of the pool (must be EIP-55 checksum-cased; do not pre-lowercase)
  * @param logIndex
  */
 export const PoolTransferInTxId = (
@@ -1080,7 +1087,7 @@ export const TxPoolTransferRegistryId = (
 /** Entity ID for ALMLPWrapperTransferInTx.
  * @param chainId
  * @param txHash
- * @param wrapperAddress
+ * @param wrapperAddress - Address of the wrapper (must be EIP-55 checksum-cased; do not pre-lowercase)
  * @param logIndex
  */
 export const ALMLPWrapperTransferInTxId = (
@@ -1092,7 +1099,7 @@ export const ALMLPWrapperTransferInTxId = (
 
 /** Entity ID for CLPoolMintEvent.
  * @param chainId
- * @param poolAddress
+ * @param poolAddress - Address of the CL pool (must be EIP-55 checksum-cased; do not pre-lowercase)
  * @param txHash
  * @param logIndex
  */
@@ -1118,6 +1125,11 @@ export const TxCLPoolMintRegistryId = (chainId: number, txHash: string) =>
 /** ID for CLPositionPendingPrincipal — tracks burned principal awaiting collection.
  * Keyed by contract-level position identity (pool + owner + tick range).
  * Mirrors Solidity's positions mapping key: keccak256(owner, tickLower, tickUpper) per pool.
+ * @param chainId - Chain ID of the position
+ * @param poolAddress - Address of the CL pool (must be EIP-55 checksum-cased; do not pre-lowercase)
+ * @param owner - Owner address (must be EIP-55 checksum-cased; do not pre-lowercase)
+ * @param tickLower - Lower tick of the position range
+ * @param tickUpper - Upper tick of the position range
  */
 export const CLPositionPendingPrincipalId = (
   chainId: number,
@@ -1129,7 +1141,7 @@ export const CLPositionPendingPrincipalId = (
 
 /** Snapshot ID for LiquidityPoolAggregatorSnapshot. epochMs = getSnapshotEpoch(timestamp).getTime()
  * @param chainId - Chain ID of the pool
- * @param poolAddress - Address of the pool
+ * @param poolAddress - Address of the pool (must be EIP-55 checksum-cased; do not pre-lowercase)
  * @param epochMs - Epoch timestamp in milliseconds
  * @returns string Combined pool ID.
  */
@@ -1173,8 +1185,8 @@ export const SuperSwapId = (messageId: string) => messageId;
 
 /** Snapshot ID for UserStatsPerPoolSnapshot. epochMs = getSnapshotEpoch(timestamp).getTime()
  * @param chainId - Chain ID of the pool
- * @param userAddress - Address of the user
- * @param poolAddress - Address of the pool
+ * @param userAddress - Address of the user (must be EIP-55 checksum-cased; do not pre-lowercase)
+ * @param poolAddress - Address of the pool (must be EIP-55 checksum-cased; do not pre-lowercase)
  * @param epochMs - Epoch timestamp in milliseconds
  * @returns string Combined user ID.
  */
@@ -1194,7 +1206,7 @@ export const UserStatsPerPoolSnapshotId = (
  * same epoch and overwrite each other. See #620.
  *
  * @param chainId - Chain ID of the non-fungible position
- * @param nfpmAddress - Address of the NFPM contract that owns the position
+ * @param nfpmAddress - Address of the NFPM contract that owns the position (must be EIP-55 checksum-cased; do not pre-lowercase)
  * @param tokenId - ID of the non-fungible position
  * @param epochMs - Epoch timestamp in milliseconds
  * @returns string Combined non-fungible position snapshot ID.
@@ -1208,7 +1220,7 @@ export const NonFungiblePositionSnapshotId = (
 
 /** Snapshot ID for ALM_LP_WrapperSnapshot. Format: {chainId}-{wrapperAddress}-{epochMs}. epochMs = getSnapshotEpoch(timestamp).getTime()
  * @param chainId - Chain ID of the wrapper
- * @param wrapperAddress - Address of the wrapper
+ * @param wrapperAddress - Address of the wrapper (must be EIP-55 checksum-cased; do not pre-lowercase)
  * @param epochMs - Epoch timestamp in milliseconds
  * @returns string Combined wrapper snapshot ID.
  */
@@ -1233,7 +1245,7 @@ export const VeNFTStateSnapshotId = (
 /** Snapshot ID for VeNFTPoolVoteSnapshot. Format: {chainId}-{tokenId}-{poolAddress}-{epochMs}
  * @param chainId - Chain ID of the veNFT state
  * @param tokenId - ID of the veNFT state
- * @param poolAddress - Address of the pool
+ * @param poolAddress - Address of the pool (must be EIP-55 checksum-cased; do not pre-lowercase)
  * @param epochMs - Epoch timestamp in milliseconds
  * @returns string Combined veNFT pool vote snapshot ID.
  */

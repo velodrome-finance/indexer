@@ -18,6 +18,7 @@ import * as VeNFTStateAggregator from "../../../src/Aggregators/VeNFTState";
 import {
   SECONDS_IN_A_WEEK,
   SECONDS_IN_FOUR_YEARS,
+  UserStatsPerPoolId,
   VeNFTId,
   VeNFTPoolVoteId,
   toChecksumAddress,
@@ -744,8 +745,16 @@ describe("VeNFTLogic", () => {
       const leafPoolAddress = toChecksumAddress(
         "0xb43F6D14FeFA510F014cf90c8Ab110803bB28778",
       );
-      const oldOwnerId = `${leafChainId}-${mockVeNFTState.owner}-${leafPoolAddress}`;
-      const newOwnerId = `${leafChainId}-${mockTransferEvent.params.to}-${leafPoolAddress}`;
+      const oldOwnerId = UserStatsPerPoolId(
+        leafChainId,
+        mockVeNFTState.owner,
+        leafPoolAddress,
+      );
+      const newOwnerId = UserStatsPerPoolId(
+        leafChainId,
+        mockTransferEvent.params.to,
+        leafPoolAddress,
+      );
       const poolVotes = [
         {
           id: VeNFTPoolVoteId(leafChainId, 1n, leafPoolAddress),

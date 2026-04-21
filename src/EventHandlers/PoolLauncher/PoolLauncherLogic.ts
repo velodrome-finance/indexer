@@ -25,11 +25,11 @@ export async function processPoolLauncherPool(
     poolLauncherPool = {
       id: poolId,
       chainId,
-      underlyingPool: poolAddress.toLowerCase(),
-      launcher: launcherAddress.toLowerCase(),
-      creator: creator.toLowerCase(),
-      poolLauncherToken: poolLauncherToken.toLowerCase(),
-      pairToken: pairToken.toLowerCase(),
+      underlyingPool: poolAddress,
+      launcher: launcherAddress,
+      creator,
+      poolLauncherToken,
+      pairToken,
       createdAt,
       isEmerging: false,
       lastFlagUpdateAt: createdAt,
@@ -43,7 +43,7 @@ export async function processPoolLauncherPool(
     // Update existing PoolLauncherPool
     poolLauncherPool = {
       ...poolLauncherPool,
-      launcher: launcherAddress.toLowerCase(),
+      launcher: launcherAddress,
       lastMigratedAt: createdAt,
     };
   }
