@@ -292,8 +292,11 @@ chains:
     contracts:
       - name: DynamicSwapFeeModule
         address:
-          - 0xDB45818A6db280ecfeB33cbeBd445423d0216b5D
-          - 0x00cB12a1c84dfC1b9c70734C0385E769Bc86e9Ef
+          - 0xDB45818A6db280ecfeB33cbeBd445423d0216b5D # previously tracked
+          - 0x00cB12a1c84dfC1b9c70734C0385E769Bc86e9Ef # previously tracked
+          - 0x090b2A6bb475c00e2256e2095A60887cD710803b # Slipstream README — Initial Deployment
+          - 0xF4Ecd78EBEB6d36CF7f80B5B6B41453515fe2785 # Slipstream README — Gauge Caps Deployment
+          - 0x87D8f999BBa9343E8099552426775B51C338E8CB # Slipstream README — Gauges V3 Deployment (current)
       - name: CustomSwapFeeModule
         address:
           - 0xF4171B0953b52Fa55462E4d76ecA1845Db69af00
