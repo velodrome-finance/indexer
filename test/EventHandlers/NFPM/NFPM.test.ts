@@ -141,8 +141,9 @@ describe("NFPM Events", () => {
       const dbWithTokens = dbWithRegistry.entities.Token.set(mockToken0Data);
       const finalDb = dbWithTokens.entities.Token.set(mockToken1Data);
 
-      // Setup getWhere for queries
-      const storedMintEvents = [mockCLPoolMintEvent];
+      // Handler uses TxCLPoolMintRegistry PK-lookup + CLPoolMintEvent PK-get,
+      // so no CLPoolMintEvent.getWhere shim is needed. If the handler ever
+      // regresses to the scan path, the mint match below will fail.
       const mockDbWithGetWhere = {
         ...finalDb,
         entities: {
@@ -152,18 +153,6 @@ describe("NFPM Events", () => {
             getWhere: {
               tokenId: {
                 eq: async () => [], // No existing position
-              },
-            },
-          },
-          CLPoolMintEvent: {
-            ...finalDb.entities.CLPoolMintEvent,
-            getWhere: {
-              transactionHash: {
-                eq: async (txHash: string) => {
-                  return storedMintEvents.filter(
-                    (e) => e.transactionHash === txHash,
-                  );
-                },
               },
             },
           },

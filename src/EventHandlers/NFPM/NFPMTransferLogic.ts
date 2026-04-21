@@ -90,6 +90,7 @@ export async function createPositionFromCLPoolMint(
  * @param event - The NFPM.Transfer event (mint case)
  * @param context - The handler context
  * @param existingPosition - Existing position found via direct get() (undefined when none exists)
+ * @returns Promise that resolves once the definitive position is staged, the consumed CLPoolMintEvent deleted, and the registry row pruned
  */
 export async function handleMintTransfer(
   event: NFPM_Transfer_event,

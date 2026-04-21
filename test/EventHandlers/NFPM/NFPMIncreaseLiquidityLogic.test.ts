@@ -89,6 +89,7 @@ describe("NFPMIncreaseLiquidityLogic", () => {
   let mockContext: handlerContext;
   let storedPositions: NonFungiblePosition[];
   let storedMintEvents: CLPoolMintEvent[];
+  let registryState: Map<string, string[]>;
 
   /**
    * Helper function to create a mock context with getWhere functionality
@@ -97,6 +98,15 @@ describe("NFPMIncreaseLiquidityLogic", () => {
     positions: NonFungiblePosition[] = [mockPosition],
     mintEvents: CLPoolMintEvent[] = [],
   ): handlerContext {
+    // (Re)seed registry state from mintEvents: one row per (chainId, txHash).
+    registryState = new Map<string, string[]>();
+    for (const m of mintEvents) {
+      const key = `${m.chainId}-${m.transactionHash}`;
+      const list = registryState.get(key) ?? [];
+      list.push(m.id);
+      registryState.set(key, list);
+    }
+
     const db = MockDb.createMockDb();
     let currentDb = positions.reduce(
       (acc, pos) => acc.entities.NonFungiblePosition.set(pos),
@@ -171,20 +181,21 @@ describe("NFPMIncreaseLiquidityLogic", () => {
         // biome-ignore lint/suspicious/noExplicitAny: Mock for testing
       } as any,
       TxCLPoolMintRegistry: {
-        // Mirror producer: one registry row per tx with all mint ids in that tx.
+        // Backed by shared registryState so set/deleteUnsafe are observable.
         get: vi.fn().mockImplementation((id: string) => {
-          const byTx = new Map<string, string[]>();
-          for (const m of mintEvents) {
-            const key = `${m.chainId}-${m.transactionHash}`;
-            const list = byTx.get(key) ?? [];
-            list.push(m.id);
-            byTx.set(key, list);
-          }
-          const ids = byTx.get(id);
+          const ids = registryState.get(id);
           return Promise.resolve(ids ? { id, mintEventIds: ids } : undefined);
         }),
-        set: vi.fn(),
-        deleteUnsafe: vi.fn(),
+        set: vi
+          .fn()
+          .mockImplementation(
+            (entity: { id: string; mintEventIds: string[] }) => {
+              registryState.set(entity.id, entity.mintEventIds);
+            },
+          ),
+        deleteUnsafe: vi.fn().mockImplementation((id: string) => {
+          registryState.delete(id);
+        }),
       },
       log: {
         info: vi.fn(),
@@ -370,6 +381,15 @@ describe("NFPMIncreaseLiquidityLogic", () => {
 
       // CLPoolMintEvent should be deleted from storedMintEvents
       expect(storedMintEvents.length).toBe(0);
+
+      // Registry row should be deleted after its last id is consumed
+      const registryId = `${chainId}-${transactionHash}`;
+      expect(
+        mockContext.TxCLPoolMintRegistry.deleteUnsafe,
+      ).toHaveBeenCalledWith(registryId);
+      const registryAfter =
+        await mockContext.TxCLPoolMintRegistry.get(registryId);
+      expect(registryAfter).toBeUndefined();
     });
 
     it("should not delete any CLPoolMintEvent when mint events exist in tx but none match the increase", async () => {
@@ -520,6 +540,26 @@ describe("NFPMIncreaseLiquidityLogic", () => {
       expect(
         storedMintEvents.find((e) => e.id === mockMintEvent3.id),
       ).toBeDefined(); // Should remain
+
+      // Registry row should be updated with the remaining ids (not deleted, since 2 remain)
+      const registryId = `${chainId}-${transactionHash}`;
+      expect(mockContext.TxCLPoolMintRegistry.set).toHaveBeenCalledWith({
+        id: registryId,
+        mintEventIds: expect.arrayContaining([
+          mockMintEvent1.id,
+          mockMintEvent3.id,
+        ]),
+      });
+      expect(
+        mockContext.TxCLPoolMintRegistry.deleteUnsafe,
+      ).not.toHaveBeenCalled();
+      const registryAfter =
+        await mockContext.TxCLPoolMintRegistry.get(registryId);
+      expect(registryAfter?.mintEventIds).toEqual(
+        expect.arrayContaining([mockMintEvent1.id, mockMintEvent3.id]),
+      );
+      expect(registryAfter?.mintEventIds).toHaveLength(2);
+      expect(registryAfter?.mintEventIds).not.toContain(mockMintEvent2.id);
     });
 
     it("should log error and return early if position not found", async () => {

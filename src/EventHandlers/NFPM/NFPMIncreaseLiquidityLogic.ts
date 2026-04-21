@@ -50,6 +50,7 @@ export function calculateIncreaseLiquidityDiff(
  *
  * @param event - The NFPM.IncreaseLiquidity event
  * @param context - The handler context
+ * @returns Promise that resolves once the position update, orphan-mint cleanup, and downstream attributions are staged
  */
 export async function processNFPMIncreaseLiquidity(
   event: NFPM_IncreaseLiquidity_event,
