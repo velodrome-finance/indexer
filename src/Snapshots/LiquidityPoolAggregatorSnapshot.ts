@@ -77,6 +77,7 @@ export function createLiquidityPoolAggregatorSnapshot(
     currentLiquidityStaked: entity.currentLiquidityStaked,
     currentLiquidityStakedUSD: entity.currentLiquidityStakedUSD,
     timestamp: epoch,
+    unstakedFee: entity.unstakedFee,
     feeProtocol0: entity.feeProtocol0,
     feeProtocol1: entity.feeProtocol1,
     observationCardinalityNext: entity.observationCardinalityNext,

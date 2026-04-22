@@ -83,6 +83,12 @@ type LiquidityPoolAggregator {
   scalingFactor: BigInt @config(precision: 76) # Current scaling factor for pool
   currentFee: BigInt! @config(precision: 76) # Current fee for pool (base + dynamic)
 
+  # Unstaked Fee fields
+  # Raw customFee value last emitted by an UnstakedFeeModule for this pool (CL pools only).
+  # 0 = no override (factory default applies), 420 = explicit 0% fee (ZERO_FEE_INDICATOR),
+  # else fee rate with 6-decimal precision (e.g. 500_000 = 50%). Null = never set.
+  unstakedFee: BigInt @config(precision: 24)
+
   # Pool Launcher relationship
   poolLauncherPoolId: String # ID of the PoolLauncherPool entity if this pool was launched via Pool Launcher
 
@@ -181,6 +187,9 @@ type LiquidityPoolAggregatorSnapshot {
   feeCap: BigInt @config(precision: 76) # Current fee cap for pool
   scalingFactor: BigInt @config(precision: 76) # Current scaling factor for pool
   currentFee: BigInt! @config(precision: 76) # Current fee for pool (base + dynamic)
+
+  # Unstaked Fee fields
+  unstakedFee: BigInt @config(precision: 24) # Raw customFee value last emitted by an UnstakedFeeModule for this pool (see LiquidityPoolAggregator for semantics)
 }
 
 # Entity for tracking user activity and positions in specific pools

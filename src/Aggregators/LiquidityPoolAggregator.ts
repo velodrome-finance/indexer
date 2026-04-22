@@ -89,6 +89,10 @@ export interface LiquidityPoolAggregatorDiff {
   feeCap: bigint;
   scalingFactor: bigint;
   currentFee: bigint;
+  // Nullable to allow an explicit "unset" sentinel (entity field is also nullable).
+  // No clear path exists today — the module never emits a reset — but widening keeps
+  // diff nullability aligned with the entity if one is ever added.
+  unstakedFee: bigint | undefined;
   lastUpdatedTimestamp: Date;
   lastSnapshotTimestamp: Date;
 }
@@ -347,6 +351,9 @@ export async function updateLiquidityPoolAggregator(
     currentFee: diff.currentFee ?? current.currentFee,
     feeCap: diff.feeCap ?? current.feeCap,
     scalingFactor: diff.scalingFactor ?? current.scalingFactor,
+
+    // Unstaked Fee fields - non-cumulative, last-writer-wins across UnstakedFeeModule instances
+    unstakedFee: diff.unstakedFee ?? current.unstakedFee,
 
     lastUpdatedTimestamp: timestamp,
   };
@@ -767,6 +774,8 @@ export function createLiquidityPoolAggregatorEntity(params: {
     feeCap: undefined,
     scalingFactor: undefined,
     currentFee: currentFee,
+    // Unstaked Fee fields - populated by UnstakedFeeModule / CustomUnstakedFeeModule events.
+    unstakedFee: undefined,
     rootPoolMatchingHash: `${chainId}_${token0Address}_${token1Address}_${(tickSpacing ? BigInt(tickSpacing) : 0n).toString()}`,
   };
 }

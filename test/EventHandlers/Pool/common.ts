@@ -169,6 +169,8 @@ export function setupCommon() {
     feeCap: undefined,
     scalingFactor: undefined,
     currentFee: 0n,
+    // Unstaked Fee fields
+    unstakedFee: undefined,
     rootPoolMatchingHash: "",
     tickSpacing: 0n,
   };
