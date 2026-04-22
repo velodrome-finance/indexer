@@ -89,7 +89,10 @@ export interface LiquidityPoolAggregatorDiff {
   feeCap: bigint;
   scalingFactor: bigint;
   currentFee: bigint;
-  unstakedFee: bigint;
+  // Nullable to allow an explicit "unset" sentinel (entity field is also nullable).
+  // No clear path exists today — the module never emits a reset — but widening keeps
+  // diff nullability aligned with the entity if one is ever added.
+  unstakedFee: bigint | undefined;
   lastUpdatedTimestamp: Date;
   lastSnapshotTimestamp: Date;
 }

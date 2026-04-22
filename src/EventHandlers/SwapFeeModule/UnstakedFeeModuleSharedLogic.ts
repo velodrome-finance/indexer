@@ -1,5 +1,8 @@
-import type { LiquidityPoolAggregator, handlerContext } from "generated";
-import { updateLiquidityPoolAggregator } from "../../Aggregators/LiquidityPoolAggregator";
+import type { handlerContext } from "generated";
+import {
+  type LiquidityPoolAggregatorDiff,
+  updateLiquidityPoolAggregator,
+} from "../../Aggregators/LiquidityPoolAggregator";
 import { PoolId } from "../../Constants";
 
 export interface UnstakedFeeEventData {
@@ -39,7 +42,7 @@ export async function applyUnstakedFee(
     return;
   }
 
-  const diff: Partial<LiquidityPoolAggregator> = {
+  const diff: Partial<LiquidityPoolAggregatorDiff> = {
     unstakedFee: data.fee,
   };
 
