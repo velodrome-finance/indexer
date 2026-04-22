@@ -398,6 +398,9 @@ chains:
       - name: CustomSwapFeeModule
         address:
           - 0xbcAE2d4b4E8E34a4100e69E9C73af8214a89572e
+      - name: CustomUnstakedFeeModule
+        address:
+          - 0xb8E41Db4Be1F6249cEc64F48CE4349004442d5c5 # CLFactory.unstakedFeeModule()
       - name: NFPM
         address:
           - 0x991d5546C4B442B4c5fdc4c8B8b8d131DEB24702
@@ -445,6 +448,9 @@ chains:
       - name: CustomSwapFeeModule
         address:
           - 0x6812eefC19deB79D5191b52f4B763260d9F3C238
+      - name: CustomUnstakedFeeModule
+        address:
+          - 0xFF02E0330bD42976754FB37CBFfd9549473E1E60 # CLFactory.unstakedFeeModule()
       - name: NFPM
         address:
           - 0x991d5546C4B442B4c5fdc4c8B8b8d131DEB24702
@@ -492,6 +498,9 @@ chains:
       - name: CustomSwapFeeModule
         address:
           - 0x6812eefC19deB79D5191b52f4B763260d9F3C238
+      - name: CustomUnstakedFeeModule
+        address:
+          - 0xFF02E0330bD42976754FB37CBFfd9549473E1E60 # CLFactory.unstakedFeeModule()
       - name: NFPM
         address:
           - 0x991d5546C4B442B4c5fdc4c8B8b8d131DEB24702
@@ -543,6 +552,9 @@ chains:
       - name: CustomSwapFeeModule
         address:
           - 0x479Bec910d4025b4aC440ec27aCf28eac522242B
+      - name: CustomUnstakedFeeModule
+        address:
+          - 0x03Cd805861CC6D9891e4908BAcD0472a3341E90C # CLFactory.unstakedFeeModule()
       - name: NFPM
         address:
           - 0x991d5546C4B442B4c5fdc4c8B8b8d131DEB24702
@@ -588,6 +600,9 @@ chains:
       - name: CustomSwapFeeModule
         address:
           - 0xCB885Aa008031cBDb72447Bed78AF4f87a197126
+      - name: CustomUnstakedFeeModule
+        address:
+          - 0x916e0AD2d7e3f446A26b0333Ca37A9e8972030c5 # CLFactory.unstakedFeeModule()
       - name: NFPM
         address:
           - 0x991d5546C4B442B4c5fdc4c8B8b8d131DEB24702
@@ -635,6 +650,9 @@ chains:
       - name: CustomSwapFeeModule
         address:
           - 0x6812eefC19deB79D5191b52f4B763260d9F3C238
+      - name: CustomUnstakedFeeModule
+        address:
+          - 0xFF02E0330bD42976754FB37CBFfd9549473E1E60 # CLFactory.unstakedFeeModule()
       - name: NFPM
         address:
           - 0x991d5546C4B442B4c5fdc4c8B8b8d131DEB24702
@@ -682,6 +700,9 @@ chains:
       - name: CustomSwapFeeModule
         address:
           - 0xB0922e747e906B963dBdA37647DE1Aa709B35B2d
+      - name: CustomUnstakedFeeModule
+        address:
+          - 0x479Bec910d4025b4aC440ec27aCf28eac522242B # CLFactory.unstakedFeeModule()
       - name: NFPM
         address:
           - 0x991d5546C4B442B4c5fdc4c8B8b8d131DEB24702
@@ -721,6 +742,9 @@ chains:
       - name: CustomSwapFeeModule
         address:
           - 0x6812eefC19deB79D5191b52f4B763260d9F3C238
+      - name: CustomUnstakedFeeModule
+        address:
+          - 0xFF02E0330bD42976754FB37CBFfd9549473E1E60 # CLFactory.unstakedFeeModule()
       - name: NFPM
         address:
           - 0x991d5546C4B442B4c5fdc4c8B8b8d131DEB24702
@@ -760,6 +784,9 @@ chains:
       - name: CustomSwapFeeModule
         address:
           - 0x6812eefC19deB79D5191b52f4B763260d9F3C238
+      - name: CustomUnstakedFeeModule
+        address:
+          - 0xFF02E0330bD42976754FB37CBFfd9549473E1E60 # CLFactory.unstakedFeeModule()
       - name: NFPM
         address:
           - 0x991d5546C4B442B4c5fdc4c8B8b8d131DEB24702
@@ -807,6 +834,9 @@ chains:
       - name: CustomSwapFeeModule
         address:
           - 0x6812eefC19deB79D5191b52f4B763260d9F3C238
+      - name: CustomUnstakedFeeModule
+        address:
+          - 0xFF02E0330bD42976754FB37CBFfd9549473E1E60 # CLFactory.unstakedFeeModule()
       - name: NFPM
         address:
           - 0x991d5546C4B442B4c5fdc4c8B8b8d131DEB24702
