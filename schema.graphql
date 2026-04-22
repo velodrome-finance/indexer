@@ -35,6 +35,8 @@ type LiquidityPoolAggregator {
   totalVotesDepositedUSD: BigInt! @config(precision: 76) # total votes deposited in USD
   totalEmissions: BigInt! @config(precision: 76) # total emissions for the pool in reward token units (VELO form Optimism and AERO for Base)
   totalEmissionsUSD: BigInt! @config(precision: 76) # total emissions for the pool in USD
+  totalEmissionsRedistributed: BigInt! @config(precision: 76) # cumulative reward tokens this pool's gauge received from the Redistributor (Redistributed events)
+  totalEmissionsForfeited: BigInt! @config(precision: 76) # cumulative reward tokens this pool's gauge forwarded to the Redistributor or minter because it was over its cap (Deposited events)
 
   lastUpdatedTimestamp: Timestamp! # timestamp of last update
   lastSnapshotTimestamp: Timestamp! # timestamp of last snapshot
@@ -137,6 +139,8 @@ type LiquidityPoolAggregatorSnapshot {
   totalVotesDepositedUSD: BigInt! @config(precision: 76) # total votes deposited in USD
   totalEmissions: BigInt! @config(precision: 76) # total emissions for the pool in reward token units (VELO form Optimism and AERO for Base)
   totalEmissionsUSD: BigInt! @config(precision: 76) # total emissions for the pool in USD
+  totalEmissionsRedistributed: BigInt! @config(precision: 76) # cumulative reward tokens this pool's gauge received from the Redistributor at snapshot time
+  totalEmissionsForfeited: BigInt! @config(precision: 76) # cumulative reward tokens this pool's gauge forwarded to the Redistributor or minter at snapshot time
 
   gaugeIsAlive: Boolean! # whether the gauge is alive
   gaugeAddress: String @index # address of the gauge for this pool
@@ -761,4 +765,20 @@ type ALMLPWrapperTransferInTx {
   isBurn: Boolean! # to == 0x0
   consumedByLogIndex: Int # logIndex of the Withdraw event that consumed this transfer (undefined if unused)
   timestamp: Timestamp!
+}
+
+# Singleton config state per Redistributor contract, updated by SetKeeper /
+# SetUpkeepManager events. Last-writer-wins — the row reflects the most recent
+# keeper / upkeep manager addresses.
+#
+# Redistributed and Deposited events are folded into LiquidityPoolAggregator
+# counters (totalEmissionsRedistributed / totalEmissionsForfeited) via a
+# gauge→pool lookup; they have no dedicated entity.
+type RedistributorConfig {
+  id: ID! # Format: {chainId}-{redistributorAddress}
+  chainId: Int! @index
+  redistributorAddress: String! # Redistributor contract address
+  keeper: String! # Current keeper address (empty string until SetKeeper fires)
+  upkeepManager: String! # Current upkeep manager address (empty string until SetUpkeepManager fires)
+  lastUpdatedTimestamp: Timestamp!
 }

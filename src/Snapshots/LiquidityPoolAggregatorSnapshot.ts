@@ -65,6 +65,8 @@ export function createLiquidityPoolAggregatorSnapshot(
     totalVotesDepositedUSD: entity.totalVotesDepositedUSD,
     totalEmissions: entity.totalEmissions,
     totalEmissionsUSD: entity.totalEmissionsUSD,
+    totalEmissionsRedistributed: entity.totalEmissionsRedistributed,
+    totalEmissionsForfeited: entity.totalEmissionsForfeited,
     gaugeIsAlive: entity.gaugeIsAlive,
     gaugeAddress: entity.gaugeAddress,
     gaugeEmissionsCap: entity.gaugeEmissionsCap,

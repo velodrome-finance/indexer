@@ -116,6 +116,8 @@ export function setupCommon() {
     totalVotesDepositedUSD: 1n * TEN_TO_THE_18_BI,
     totalEmissions: 1n,
     totalEmissionsUSD: 1n * TEN_TO_THE_18_BI,
+    totalEmissionsRedistributed: 0n,
+    totalEmissionsForfeited: 0n,
     gaugeIsAlive: true,
     isCL: false,
     lastUpdatedTimestamp: new Date(),
