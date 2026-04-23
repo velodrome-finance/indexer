@@ -223,6 +223,14 @@ contracts:
     events:
       - event: DispatchId
       - event: ProcessId
+  - name: Redistributor
+    abi_file_path: abis/Redistributor.json
+    handler: src/EventHandlers/Redistributor/Redistributor.ts
+    events:
+      - event: Deposited
+      - event: Redistributed
+      - event: SetKeeper
+      - event: SetUpkeepManager
 chains:
   - id: 10 # Optimism
     start_block: 0
@@ -390,6 +398,10 @@ chains:
       - name: Mailbox
         address:
           - 0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D
+      - name: Redistributor
+        address:
+          - 0x11a53f31Bf406de59fCf9613E1922bd3E283A4B4 # Slipstream README — Gauge Caps Deployment
+          - 0xEe5b3C7b333e2870B746b3B2b168EF0958e55e15 # Slipstream README — Gauges V3 Deployment (current)
   - id: 42220 # Celo
     hypersync_config:
       url: https://celo.hypersync.xyz
