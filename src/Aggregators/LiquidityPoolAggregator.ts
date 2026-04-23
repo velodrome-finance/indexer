@@ -5,7 +5,7 @@ import type {
   handlerContext,
 } from "generated";
 import { PoolId, TokenId, isKnownSinkRootPool } from "../Constants";
-import { getSwapFee, roundBlockToInterval } from "../Effects/Index";
+import { getSwapFee } from "../Effects/Index";
 import { calculateTotalUSD, generatePoolName } from "../Helpers";
 import { refreshTokenPrice } from "../PriceOracle";
 import {
@@ -466,16 +466,14 @@ export async function loadPoolData(
   }
 
   // Refresh token prices if block data is provided
-  // refreshTokenPrice will decide internally if refresh is needed
+  // refreshTokenPrice will decide internally if refresh is needed and handles block rounding
   let updatedToken0 = token0Instance;
   let updatedToken1 = token1Instance;
   if (blockNumber !== undefined && blockTimestamp !== undefined) {
-    const roundedBlockNumber = roundBlockToInterval(blockNumber, chainId);
-
     // Wrap each refresh in a promise that catches errors individually
     const token0Refresh = refreshTokenPrice(
       token0Instance,
-      roundedBlockNumber,
+      blockNumber,
       blockTimestamp,
       chainId,
       context,
@@ -488,7 +486,7 @@ export async function loadPoolData(
 
     const token1Refresh = refreshTokenPrice(
       token1Instance,
-      roundedBlockNumber,
+      blockNumber,
       blockTimestamp,
       chainId,
       context,
