@@ -165,9 +165,11 @@ describe("CLStakedLiquidity", () => {
   describe("processTickCrossingsForStaked", () => {
     let tickStore: Map<string, CLTickStaked>;
     let mockContext: handlerContext;
+    let logErrorSpy: ReturnType<typeof vi.fn>;
 
     beforeEach(() => {
       tickStore = new Map();
+      logErrorSpy = vi.fn();
       mockContext = {
         CLTickStaked: {
           get: vi
@@ -180,6 +182,12 @@ describe("CLStakedLiquidity", () => {
             .mockImplementation((entity: CLTickStaked) =>
               tickStore.set(entity.id, entity),
             ),
+        },
+        log: {
+          error: logErrorSpy,
+          warn: vi.fn(),
+          info: vi.fn(),
+          debug: vi.fn(),
         },
       } as unknown as handlerContext;
     });
@@ -207,6 +215,7 @@ describe("CLStakedLiquidity", () => {
         200n,
         mockContext,
         500n,
+        true,
       );
       expect(result).toBe(500n);
     });
@@ -220,6 +229,7 @@ describe("CLStakedLiquidity", () => {
         0n,
         mockContext,
         500n,
+        true,
       );
       expect(result).toBe(500n);
     });
@@ -237,6 +247,7 @@ describe("CLStakedLiquidity", () => {
         200n,
         mockContext,
         0n,
+        true,
       );
 
       // alignTickUp(100, 200) = 200, crosses 200 (200 <= 250)
@@ -257,6 +268,7 @@ describe("CLStakedLiquidity", () => {
         200n,
         mockContext,
         300n,
+        true,
       );
 
       expect(result).toBe(0n);
@@ -278,6 +290,7 @@ describe("CLStakedLiquidity", () => {
         200n,
         mockContext,
         0n,
+        true,
       );
 
       expect(result).toBe(250n); // 0 + 100 + 200 - 50
@@ -300,6 +313,7 @@ describe("CLStakedLiquidity", () => {
         200n,
         mockContext,
         250n,
+        true,
       );
 
       // 250 - (-50) - 200 - 100 = 250 + 50 - 200 - 100 = 0
@@ -321,6 +335,7 @@ describe("CLStakedLiquidity", () => {
         200n,
         mockContext,
         50n,
+        true,
       );
 
       expect(result).toBe(200n); // 50 + 150
@@ -339,6 +354,7 @@ describe("CLStakedLiquidity", () => {
         200n,
         mockContext,
         0n,
+        true,
       );
 
       expect(result).toBe(500n);
@@ -358,6 +374,7 @@ describe("CLStakedLiquidity", () => {
         200n,
         mockContext,
         0n,
+        true,
       );
 
       expect(result).toBe(0n);
@@ -377,6 +394,7 @@ describe("CLStakedLiquidity", () => {
         200n,
         mockContext,
         100n,
+        true,
       );
 
       // 100 - 100 = 0
@@ -399,9 +417,86 @@ describe("CLStakedLiquidity", () => {
         1n,
         mockContext,
         0n,
+        true,
       );
 
       expect(result).toBe(25n); // 0 + 10 + 20 - 5
+    });
+
+    describe("safety guards", () => {
+      it("should short-circuit when hasStakes is false (skip CLTickStaked reads)", async () => {
+        // Seed a tick entity that would otherwise contribute — the guard must
+        // skip the read so this value is never applied.
+        seedTick(200n, 999n);
+
+        const result = await processTickCrossingsForStaked(
+          CHAIN_ID,
+          POOL_ADDRESS,
+          100n,
+          250n,
+          200n,
+          mockContext,
+          500n,
+          false,
+        );
+
+        expect(result).toBe(500n);
+        expect(mockContext.CLTickStaked.get).not.toHaveBeenCalled();
+      });
+
+      it("should bail and log when oldTick is below TICK_MIN", async () => {
+        const result = await processTickCrossingsForStaked(
+          CHAIN_ID,
+          POOL_ADDRESS,
+          -900000n, // below TICK_MIN = -887272n
+          100n,
+          200n,
+          mockContext,
+          500n,
+          true,
+        );
+
+        expect(result).toBe(500n);
+        expect(logErrorSpy).toHaveBeenCalledTimes(1);
+        expect(logErrorSpy.mock.calls[0][0]).toContain(
+          "out of Uniswap v3 range",
+        );
+        expect(mockContext.CLTickStaked.get).not.toHaveBeenCalled();
+      });
+
+      it("should bail and log when newTick is above TICK_MAX", async () => {
+        const result = await processTickCrossingsForStaked(
+          CHAIN_ID,
+          POOL_ADDRESS,
+          100n,
+          900000n, // above TICK_MAX = 887272n
+          200n,
+          mockContext,
+          500n,
+          true,
+        );
+
+        expect(result).toBe(500n);
+        expect(logErrorSpy).toHaveBeenCalledTimes(1);
+        expect(mockContext.CLTickStaked.get).not.toHaveBeenCalled();
+      });
+
+      it("should accept boundary ticks at exactly TICK_MIN and TICK_MAX", async () => {
+        // No tick entities seeded → result should equal the input
+        const result = await processTickCrossingsForStaked(
+          CHAIN_ID,
+          POOL_ADDRESS,
+          -887272n,
+          887272n,
+          200n,
+          mockContext,
+          0n,
+          true,
+        );
+
+        expect(result).toBe(0n);
+        expect(logErrorSpy).not.toHaveBeenCalled();
+      });
     });
   });
 

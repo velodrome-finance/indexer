@@ -310,6 +310,7 @@ export async function processCLPoolSwap(
           tickSpacing,
           context,
           currentStakedLiqInRange,
+          liquidityPoolAggregator.hasStakes,
         )
       : currentStakedLiqInRange;
 

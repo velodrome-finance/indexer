@@ -2,6 +2,16 @@ import type { handlerContext } from "generated";
 import { CLTickStakedId } from "../Constants";
 
 /**
+ * Uniswap v3 absolute tick range. Any tick outside [TICK_MIN, TICK_MAX] is
+ * unreachable by a valid swap; seeing one indicates corrupt upstream state
+ * (missed Initialize, event ordering bug, RPC inconsistency) and MUST NOT be
+ * used to drive the CLTickStaked sweep — at tickSpacing=1 that is ~1.77M
+ * iterations, each triggering an entity fetch.
+ */
+export const TICK_MIN = -887272n;
+export const TICK_MAX = 887272n;
+
+/**
  * Returns true if a position's tick range includes the current tick.
  * Follows Uniswap v3 convention: tickLower <= currentTick < tickUpper.
  *
@@ -126,6 +136,13 @@ function alignTickDown(tick: bigint, spacing: bigint): bigint {
  * when a swap crosses tick T going up, stakedLiq += tick[T].stakedLiquidityNet
  * when a swap crosses tick T going down, stakedLiq -= tick[T].stakedLiquidityNet
  *
+ * Safety guards (added for the Lisk OOM hotfix):
+ *   - `hasStakes=false` short-circuits the sweep for pools that have never been
+ *     staked — the per-tick CLTickStaked reads are provably zero, so the loop
+ *     cannot change `currentStakedLiqInRange`.
+ *   - Out-of-range ticks (outside [TICK_MIN, TICK_MAX]) are rejected and logged
+ *     instead of driving the loop with millions of iterations.
+ *
  * @param chainId - Chain ID
  * @param poolAddress - CL pool address
  * @param oldTick - Tick before the swap
@@ -133,6 +150,7 @@ function alignTickDown(tick: bigint, spacing: bigint): bigint {
  * @param tickSpacing - Pool's tick spacing
  * @param context - Handler context for entity access
  * @param currentStakedLiqInRange - Staked in-range liquidity before the swap
+ * @param hasStakes - Whether this pool has ever had a staked position (from the aggregator latch)
  * @returns Updated stakedLiquidityInRange after processing tick crossings
  */
 export async function processTickCrossingsForStaked(
@@ -143,8 +161,33 @@ export async function processTickCrossingsForStaked(
   tickSpacing: bigint,
   context: handlerContext,
   currentStakedLiqInRange: bigint,
+  hasStakes: boolean,
 ): Promise<bigint> {
   if (oldTick === newTick || tickSpacing === 0n) {
+    return currentStakedLiqInRange;
+  }
+
+  // Bounds check runs BEFORE the hasStakes short-circuit so that out-of-range
+  // ticks — which indicate upstream correctness bugs (missed Initialize, event
+  // ordering, RPC inconsistency) — get surfaced regardless of whether the pool
+  // has ever been staked. Unstaked CL pools are the majority, and silencing the
+  // diagnostic on them would mask the signal.
+  if (
+    oldTick < TICK_MIN ||
+    oldTick > TICK_MAX ||
+    newTick < TICK_MIN ||
+    newTick > TICK_MAX
+  ) {
+    context.log.error(
+      `[processTickCrossingsForStaked] Tick out of Uniswap v3 range for pool ${poolAddress} on chain ${chainId}: oldTick=${oldTick}, newTick=${newTick}. Skipping crossing sweep to avoid runaway loop.`,
+    );
+    return currentStakedLiqInRange;
+  }
+
+  // Pools without any CLTickStaked entries cannot contribute to stakedLiq — skip
+  // the sweep entirely. This is the hot path: it eliminates the O((Δtick)/spacing)
+  // per-swap scan for every unstaked pool.
+  if (!hasStakes) {
     return currentStakedLiqInRange;
   }
 

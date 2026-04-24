@@ -80,6 +80,7 @@ export interface LiquidityPoolAggregatorDiff {
   stakedLiquidityInRange: bigint;
   incrementalStakedReserve0: bigint;
   incrementalStakedReserve1: bigint;
+  hasStakes: boolean;
   totalVotesDeposited: bigint;
   totalVotesDepositedUSD: bigint;
   incrementalTotalBribeClaimed: bigint;
@@ -335,6 +336,9 @@ export async function updateLiquidityPoolAggregator(
       (current.stakedReserve0 ?? 0n) + (diff.incrementalStakedReserve0 ?? 0n),
     stakedReserve1:
       (current.stakedReserve1 ?? 0n) + (diff.incrementalStakedReserve1 ?? 0n),
+    // Monotonic latch: once a pool has ever been staked, hasStakes stays true
+    // even if the diff doesn't explicitly re-assert it.
+    hasStakes: current.hasStakes || (diff.hasStakes ?? false),
     totalVotesDeposited:
       diff.totalVotesDeposited ?? current.totalVotesDeposited,
     totalVotesDepositedUSD:
@@ -738,6 +742,7 @@ export function createLiquidityPoolAggregatorEntity(params: {
     stakedLiquidityInRange: 0n,
     stakedReserve0: 0n,
     stakedReserve1: 0n,
+    hasStakes: false,
     totalFlashLoanFees0: 0n,
     totalFlashLoanFees1: 0n,
     totalFlashLoanFeesUSD: 0n,

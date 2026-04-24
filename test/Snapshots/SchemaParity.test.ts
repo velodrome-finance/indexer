@@ -42,6 +42,9 @@ describe("Snapshot schema parity", () => {
         "factoryAddress",
         "nfpmAddress",
         "poolLauncherPoolId",
+        // Control-flow latch for processTickCrossingsForStaked — once true, stays
+        // true. No analytical value in trending it over time.
+        "hasStakes",
       ],
     ],
     ["UserStatsPerPool", ["firstActivityTimestamp", "lastSnapshotTimestamp"]],
