@@ -1,12 +1,11 @@
 import type { handlerContext } from "generated";
-import { CLTickStakedId } from "../Constants";
 
 /**
  * Uniswap v3 absolute tick range. Any tick outside [TICK_MIN, TICK_MAX] is
  * unreachable by a valid swap; seeing one indicates corrupt upstream state
  * (missed Initialize, event ordering bug, RPC inconsistency) and MUST NOT be
- * used to drive the CLTickStaked sweep — at tickSpacing=1 that is ~1.77M
- * iterations, each triggering an entity fetch.
+ * used to drive the staked-tick sweep — at tickSpacing=1 that is ~1.77M
+ * iterations.
  */
 export const TICK_MIN = -887272n;
 export const TICK_MAX = 887272n;
@@ -147,10 +146,10 @@ export type StakedEdgesRejection = "ticks_out_of_range" | "degenerate_range";
 
 /**
  * Applies a staked-position liquidity change ([tickLower, tickUpper] × liquidityDelta)
- * to the parallel (edges, nets) arrays. Mirrors the updateTicksForStakedPosition
- * CLTickStaked write, but in-aggregator so the swap path never needs to load it.
+ * to the parallel (edges, nets) arrays. In-aggregator only — the swap path never
+ * needs to load a per-tick entity.
  *
- * Convention (same as CLTickStaked):
+ * Convention (mirrors Uniswap v3 per-tick liquidityNet):
  *   - At tickLower: net += liquidityDelta  (positions ENTER range on upward cross)
  *   - At tickUpper: net -= liquidityDelta  (positions EXIT range on upward cross)
  *
@@ -210,67 +209,6 @@ export function applyStakedPositionToEdges(
 }
 
 /**
- * Updates the two CLTickStaked entities that bookend a position's tick range.
- * Mirrors Uniswap v3's ticks[i].liquidityNet but for the staked subset only.
- *
- * The +/- convention follows Uniswap v3: when a swap crosses a tick going UP
- * (price increasing), the pool applies `liquidity += ticks[t].liquidityNet`.
- *   - At tickLower: position ENTERS range on upward cross → +liquidityDelta
- *   - At tickUpper: position EXITS range on upward cross  → -liquidityDelta
- * When crossing DOWN, the pool subtracts liquidityNet, which naturally reverses
- * both signs, correctly handling the opposite direction.
- *
- * On stake:   liquidityDelta = +position.liquidity
- * On unstake: liquidityDelta = -position.liquidity
- *
- * DEPRECATED in-place alongside #649: the swap path no longer reads
- * CLTickStaked, and no other internal consumer remains. The writes are kept
- * on purpose for one release so the GraphQL entity (which is auto-exposed
- * to external consumers) doesn't disappear without notice. Scheduled for
- * removal in velodrome-finance/indexer#652. New callers MUST use
- * applyStakedPositionToEdges on the aggregator.
- *
- * @param chainId - Chain ID
- * @param poolAddress - CL pool address
- * @param tickLower - Position's lower tick boundary
- * @param tickUpper - Position's upper tick boundary
- * @param liquidityDelta - Liquidity to add (positive) or remove (negative)
- * @param context - Handler context for entity access
- */
-export async function updateTicksForStakedPosition(
-  chainId: number,
-  poolAddress: string,
-  tickLower: bigint,
-  tickUpper: bigint,
-  liquidityDelta: bigint,
-  context: handlerContext,
-): Promise<void> {
-  const lowerTickId = CLTickStakedId(chainId, poolAddress, tickLower);
-  const upperTickId = CLTickStakedId(chainId, poolAddress, tickUpper);
-
-  const [lowerTick, upperTick] = await Promise.all([
-    context.CLTickStaked.get(lowerTickId),
-    context.CLTickStaked.get(upperTickId),
-  ]);
-
-  context.CLTickStaked.set({
-    id: lowerTickId,
-    chainId,
-    poolAddress,
-    tickIndex: tickLower,
-    stakedLiquidityNet: (lowerTick?.stakedLiquidityNet ?? 0n) + liquidityDelta,
-  });
-
-  context.CLTickStaked.set({
-    id: upperTickId,
-    chainId,
-    poolAddress,
-    tickIndex: tickUpper,
-    stakedLiquidityNet: (upperTick?.stakedLiquidityNet ?? 0n) - liquidityDelta,
-  });
-}
-
-/**
  * Processes tick crossings between oldTick and newTick, adjusting
  * stakedLiquidityInRange by walking the in-aggregator (stakedTickEdges,
  * stakedTickEdgeNets) parallel arrays.
@@ -282,15 +220,14 @@ export async function updateTicksForStakedPosition(
  * Structural fix for the 20GB OOM (see #648, #649):
  *   - Zero `.get()` or `.getWhere()` calls on the swap path. The per-edge net is
  *     read from the in-memory `stakedTickEdgeNets` array carried on the
- *     aggregator, not from a CLTickStaked entity load.
+ *     aggregator.
  *   - Total cost per swap: O(log E + K) where E = per-pool edge count (worst
  *     case ~22k per #648) and K = edges actually crossed (typically 0–few).
  *     Linear scanning all E edges is what this replaces, and what drove the
- *     OOM in the old implementation — every candidate tick-spacing step
- *     issued a CLTickStaked.get.
+ *     OOM in the old implementation.
  *   - Breaks the chain-of-amplification from #648: no LoadManager grouping, no
- *     postgres-js text[] serialization, no InMemTable CLTickStaked accumulation,
- *     no 5000-handler preload fan-out.
+ *     postgres-js text[] serialization, no InMemTable accumulation, no
+ *     5000-handler preload fan-out.
  *
  * Safety guards retained from PR 1 (#650):
  *   - `hasStakes=false` short-circuits the walk entirely. Redundant with an
@@ -302,10 +239,8 @@ export async function updateTicksForStakedPosition(
  *     nets until the next rebuild — worth alerting on.
  *
  * Pure in-memory computation. Uses the Envio `context` ONLY for
- * `context.log.error` — any entity access here (e.g. `context.CLTickStaked.get`)
- * would reintroduce the #648 OOM fan-out this function was written to replace.
- * Enforced by the throwing spy in test/Aggregators/CLStakedLiquidityEdgeSanity.test.ts
- * and CLStakedLiquidity.test.ts.
+ * `context.log.error` — any entity access here would reintroduce the #648 OOM
+ * fan-out this function was written to replace.
  *
  * @param chainId - Chain ID (used only for error logging)
  * @param poolAddress - CL pool address (used only for error logging)

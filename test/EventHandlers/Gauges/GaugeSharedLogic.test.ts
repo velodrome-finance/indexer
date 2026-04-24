@@ -1015,10 +1015,6 @@ describe("GaugeSharedLogic", () => {
           get: async (id: string) => positionMap.get(id),
           getWhere: async () => [],
         },
-        CLTickStaked: {
-          get: async () => undefined,
-          set: () => {},
-        },
         LiquidityPoolAggregatorSnapshot: {
           set: () => {},
         },

@@ -50,9 +50,7 @@ describe("Snapshot schema parity", () => {
         // processTickCrossingsForStaked. Not snapshotted hourly — the arrays
         // are derived state (sum-of-stakes per tick) and the per-stake history
         // is already captured by Gauge Deposit/Withdraw and NFPM
-        // IncreaseLiquidity/DecreaseLiquidity events. Legacy CLTickStaked
-        // entity is the current GraphQL mirror; scheduled for removal in
-        // velodrome-finance/indexer#652.
+        // IncreaseLiquidity/DecreaseLiquidity events.
         "stakedTickEdges",
         "stakedTickEdgeNets",
       ],

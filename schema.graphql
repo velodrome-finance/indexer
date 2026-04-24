@@ -52,7 +52,7 @@ type LiquidityPoolAggregator {
   stakedReserve0: BigInt @config(precision: 76) # staked reserves in token0 raw units (running counter)
   stakedReserve1: BigInt @config(precision: 76) # staked reserves in token1 raw units (running counter)
   # True once any staked position has been recorded for this pool. Gates the
-  # per-swap CLTickStaked sweep in processTickCrossingsForStaked: pools that have
+  # per-swap staked-tick sweep in processTickCrossingsForStaked: pools that have
   # never been staked skip the sweep entirely. Set on the first gauge Deposit.
   # One-way latch: does NOT clear if every staked position is later withdrawn.
   # A transiently-staked-then-fully-unstaked pool will keep running the sweep
@@ -68,8 +68,8 @@ type LiquidityPoolAggregator {
   #
   # Maintained on gauge deposit / withdraw / NFPM staked-position liquidity
   # changes. Consumed by processTickCrossingsForStaked via in-memory binary
-  # search — no CLTickStaked.get / getWhere calls on the swap path, which
-  # breaks the OOM chain-of-amplification from #648.
+  # search — no per-tick entity loads on the swap path, which breaks the OOM
+  # chain-of-amplification from #648.
   stakedTickEdges: [BigInt!]!
   stakedTickEdgeNets: [BigInt!]!
   totalFlashLoanFees0: BigInt @config(precision: 76) # total flash loan fees collected in token0
@@ -405,17 +405,6 @@ type NonFungiblePositionSnapshot {
   lastUpdatedTimestamp: Timestamp!
   isStakedInGauge: Boolean!
   timestamp: Timestamp! @index
-}
-
-# Tracks staked liquidity net delta per initialized tick for CL pools.
-# Mirrors Uniswap v3's ticks[i].liquidityNet but only for the staked subset.
-# Used to maintain stakedLiquidityInRange on the pool aggregator during tick crossings.
-type CLTickStaked {
-  id: ID! # Format: {chainId}-{poolAddress}-{tickIndex} (CLTickStakedId)
-  chainId: Int!
-  poolAddress: String! @index
-  tickIndex: BigInt! @config(precision: 24)
-  stakedLiquidityNet: BigInt! @config(precision: 76) # net staked liquidity change when crossing this tick
 }
 
 type VeNFTState {

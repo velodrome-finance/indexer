@@ -1,12 +1,10 @@
-import type { CLTickStaked, handlerContext } from "generated";
+import type { handlerContext } from "generated";
 import {
   applyStakedPositionToEdges,
   computeStakedSwapReserveDelta,
   isPositionInRange,
   processTickCrossingsForStaked,
-  updateTicksForStakedPosition,
 } from "../../src/Aggregators/CLStakedLiquidity";
-import { CLTickStakedId } from "../../src/Constants";
 
 describe("CLStakedLiquidity", () => {
   const CHAIN_ID = 8453;
@@ -49,113 +47,6 @@ describe("CLStakedLiquidity", () => {
     it("should handle single-tick range (tickLower = tickUpper - 1)", () => {
       expect(isPositionInRange(99n, 100n, 99n)).toBe(true);
       expect(isPositionInRange(99n, 100n, 100n)).toBe(false);
-    });
-  });
-
-  describe("updateTicksForStakedPosition", () => {
-    let tickStore: Map<string, CLTickStaked>;
-    let mockContext: handlerContext;
-
-    beforeEach(() => {
-      tickStore = new Map();
-      mockContext = {
-        CLTickStaked: {
-          get: vi
-            .fn()
-            .mockImplementation((id: string) =>
-              Promise.resolve(tickStore.get(id) ?? null),
-            ),
-          set: vi
-            .fn()
-            .mockImplementation((entity: CLTickStaked) =>
-              tickStore.set(entity.id, entity),
-            ),
-        },
-      } as unknown as handlerContext;
-    });
-
-    it("should create new tick entities on first stake", async () => {
-      await updateTicksForStakedPosition(
-        CHAIN_ID,
-        POOL_ADDRESS,
-        -200n,
-        200n,
-        1000n,
-        mockContext,
-      );
-
-      const lowerId = CLTickStakedId(CHAIN_ID, POOL_ADDRESS, -200n);
-      const upperId = CLTickStakedId(CHAIN_ID, POOL_ADDRESS, 200n);
-
-      expect(tickStore.get(lowerId)?.stakedLiquidityNet).toBe(1000n);
-      expect(tickStore.get(upperId)?.stakedLiquidityNet).toBe(-1000n);
-    });
-
-    it("should accumulate liquidity from multiple positions at same ticks", async () => {
-      await updateTicksForStakedPosition(
-        CHAIN_ID,
-        POOL_ADDRESS,
-        0n,
-        400n,
-        500n,
-        mockContext,
-      );
-      await updateTicksForStakedPosition(
-        CHAIN_ID,
-        POOL_ADDRESS,
-        0n,
-        400n,
-        300n,
-        mockContext,
-      );
-
-      const lowerId = CLTickStakedId(CHAIN_ID, POOL_ADDRESS, 0n);
-      const upperId = CLTickStakedId(CHAIN_ID, POOL_ADDRESS, 400n);
-
-      expect(tickStore.get(lowerId)?.stakedLiquidityNet).toBe(800n);
-      expect(tickStore.get(upperId)?.stakedLiquidityNet).toBe(-800n);
-    });
-
-    it("should handle unstake (negative liquidityDelta)", async () => {
-      await updateTicksForStakedPosition(
-        CHAIN_ID,
-        POOL_ADDRESS,
-        -100n,
-        100n,
-        1000n,
-        mockContext,
-      );
-      await updateTicksForStakedPosition(
-        CHAIN_ID,
-        POOL_ADDRESS,
-        -100n,
-        100n,
-        -1000n,
-        mockContext,
-      );
-
-      const lowerId = CLTickStakedId(CHAIN_ID, POOL_ADDRESS, -100n);
-      const upperId = CLTickStakedId(CHAIN_ID, POOL_ADDRESS, 100n);
-
-      expect(tickStore.get(lowerId)?.stakedLiquidityNet).toBe(0n);
-      expect(tickStore.get(upperId)?.stakedLiquidityNet).toBe(0n);
-    });
-
-    it("should store correct chainId, poolAddress, and tickIndex", async () => {
-      await updateTicksForStakedPosition(
-        CHAIN_ID,
-        POOL_ADDRESS,
-        -600n,
-        600n,
-        100n,
-        mockContext,
-      );
-
-      const lowerId = CLTickStakedId(CHAIN_ID, POOL_ADDRESS, -600n);
-      const lower = tickStore.get(lowerId);
-      expect(lower?.chainId).toBe(CHAIN_ID);
-      expect(lower?.poolAddress).toBe(POOL_ADDRESS);
-      expect(lower?.tickIndex).toBe(-600n);
     });
   });
 
@@ -353,21 +244,10 @@ describe("CLStakedLiquidity", () => {
   describe("processTickCrossingsForStaked", () => {
     let mockContext: handlerContext;
     let logErrorSpy: ReturnType<typeof vi.fn>;
-    let getSpy: ReturnType<typeof vi.fn>;
 
     beforeEach(() => {
       logErrorSpy = vi.fn();
-      // The swap path must NEVER call CLTickStaked.get — if it does, the OOM
-      // regression from #648 is back. Make the spy THROW so any accidental
-      // call surfaces loudly in the test output (a silent vi.fn() would let a
-      // regression return `undefined` and skate past weaker assertions).
-      getSpy = vi.fn(() => {
-        throw new Error(
-          "processTickCrossingsForStaked must not call CLTickStaked.get on the swap path (#649 regression)",
-        );
-      });
       mockContext = {
-        CLTickStaked: { get: getSpy, set: vi.fn() },
         log: {
           error: logErrorSpy,
           warn: vi.fn(),
@@ -391,7 +271,6 @@ describe("CLStakedLiquidity", () => {
         [300n, -300n],
       );
       expect(result).toBe(500n);
-      expect(getSpy).not.toHaveBeenCalled();
     });
 
     it("should return unchanged when tickSpacing is zero", async () => {
@@ -408,7 +287,6 @@ describe("CLStakedLiquidity", () => {
         [300n],
       );
       expect(result).toBe(500n);
-      expect(getSpy).not.toHaveBeenCalled();
     });
 
     it("should add stakedLiquidityNet when crossing up", async () => {
@@ -425,7 +303,6 @@ describe("CLStakedLiquidity", () => {
         [300n],
       );
       expect(result).toBe(300n);
-      expect(getSpy).not.toHaveBeenCalled();
     });
 
     it("should subtract stakedLiquidityNet when crossing down", async () => {
@@ -442,7 +319,6 @@ describe("CLStakedLiquidity", () => {
         [300n],
       );
       expect(result).toBe(0n);
-      expect(getSpy).not.toHaveBeenCalled();
     });
 
     it("should handle multiple tick crossings going up", async () => {
@@ -459,7 +335,6 @@ describe("CLStakedLiquidity", () => {
         [100n, 200n, -50n],
       );
       expect(result).toBe(250n); // 0 + 100 + 200 - 50
-      expect(getSpy).not.toHaveBeenCalled();
     });
 
     it("should handle multiple tick crossings going down", async () => {
@@ -477,7 +352,6 @@ describe("CLStakedLiquidity", () => {
       );
       // 250 - (-50) - 200 - 100 = 250 + 50 - 200 - 100 = 0
       expect(result).toBe(0n);
-      expect(getSpy).not.toHaveBeenCalled();
     });
 
     it("should skip edges that fall outside the [oldTick, newTick] window", async () => {
@@ -563,7 +437,6 @@ describe("CLStakedLiquidity", () => {
         [10n, 20n, -5n],
       );
       expect(result).toBe(25n); // 0 + 10 + 20 - 5
-      expect(getSpy).not.toHaveBeenCalled();
     });
 
     describe("safety guards", () => {
@@ -581,7 +454,6 @@ describe("CLStakedLiquidity", () => {
           [999n],
         );
         expect(result).toBe(500n);
-        expect(getSpy).not.toHaveBeenCalled();
       });
 
       it("should short-circuit when the edge list is empty (no staked positions)", async () => {
@@ -598,7 +470,6 @@ describe("CLStakedLiquidity", () => {
           [],
         );
         expect(result).toBe(500n);
-        expect(getSpy).not.toHaveBeenCalled();
       });
 
       it("should bail and log when oldTick is below TICK_MIN", async () => {

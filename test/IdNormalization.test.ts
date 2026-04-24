@@ -5,7 +5,6 @@ import {
   ALMLPWrapperTransferInTxId,
   CLPoolMintEventId,
   CLPositionPendingPrincipalId,
-  CLTickStakedId,
   LiquidityPoolAggregatorSnapshotId,
   MailboxMessageId,
   NonFungiblePositionId,
@@ -45,7 +44,6 @@ const TX_HASH =
 const MSG_ID =
   "0xdead0123456789abcdef0123456789abcdef0123456789abcdef0123456789be";
 const TOKEN_ID = 42n;
-const TICK_INDEX = 0n;
 const TICK_LOWER = -100n;
 const TICK_UPPER = 100n;
 const EPOCH_MS = 1700000000000;
@@ -129,11 +127,6 @@ describe("ID helpers preserve EIP-55 checksum input (issue #633)", () => {
       name: "NonFungiblePositionId",
       actual: () => NonFungiblePositionId(CHAIN_ID, POOL, TOKEN_ID),
       expected: `${CHAIN_ID}-${POOL}-${TOKEN_ID}`,
-    },
-    {
-      name: "CLTickStakedId",
-      actual: () => CLTickStakedId(CHAIN_ID, POOL, TICK_INDEX),
-      expected: `${CHAIN_ID}-${POOL}-${TICK_INDEX}`,
     },
     {
       name: "PoolTransferInTxId",

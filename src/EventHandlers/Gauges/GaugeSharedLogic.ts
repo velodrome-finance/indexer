@@ -2,7 +2,6 @@ import type { LiquidityPoolAggregator, handlerContext } from "generated";
 import {
   applyStakedPositionToEdges,
   isPositionInRange,
-  updateTicksForStakedPosition,
 } from "../../Aggregators/CLStakedLiquidity";
 import type { PoolData } from "../../Aggregators/LiquidityPoolAggregator";
 import {
@@ -76,20 +75,7 @@ async function computeCLStakedReservesOnGaugeEvent(
   const currentTick = liquidityPoolAggregator.tick ?? 0n;
   const sqrtPriceX96 = liquidityPoolAggregator.sqrtPriceX96 ?? 0n;
 
-  // Maintain the deprecated CLTickStaked entity writes (scheduled for removal
-  // in velodrome-finance/indexer#652) alongside the in-aggregator parallel
-  // edge/nets arrays. The swap path reads ONLY the aggregator arrays — the
-  // legacy writes are kept for one release so the auto-exposed GraphQL entity
-  // doesn't vanish without notice.
   const liquidityDelta = direction * position.liquidity;
-  await updateTicksForStakedPosition(
-    data.chainId,
-    liquidityPoolAggregator.poolAddress,
-    position.tickLower,
-    position.tickUpper,
-    liquidityDelta,
-    context,
-  );
   const {
     edges: stakedTickEdges,
     nets: stakedTickEdgeNets,
@@ -341,7 +327,7 @@ export async function processGaugeDeposit(
     stakedTickEdges,
     stakedTickEdgeNets,
     // Flip the CL pool's hasStakes latch on the first deposit. The latch gates the
-    // per-swap CLTickStaked sweep in processTickCrossingsForStaked. Non-CL pools
+    // per-swap staked-tick sweep in processTickCrossingsForStaked. Non-CL pools
     // and already-latched CL pools leave this field alone. Also gate on an actual
     // edge list being produced: if computeCLStakedReservesOnGaugeEvent bailed
     // early or the edge merge was rejected, latching hasStakes would mark the

@@ -4,7 +4,6 @@ import { MockDb } from "../../../generated/src/TestHelpers.gen";
 import {
   applyStakedPositionToEdges,
   isPositionInRange,
-  updateTicksForStakedPosition,
 } from "../../../src/Aggregators/CLStakedLiquidity";
 import {
   type PoolData,
@@ -287,8 +286,6 @@ describe("NFPMCommonLogic", () => {
     const blockNumber = 123456;
 
     beforeEach(() => {
-      vi.mocked(updateTicksForStakedPosition).mockReset();
-      vi.mocked(updateTicksForStakedPosition).mockResolvedValue(undefined);
       vi.mocked(isPositionInRange).mockReset();
       vi.mocked(updateLiquidityPoolAggregator).mockReset();
       vi.mocked(updateLiquidityPoolAggregator).mockResolvedValue(undefined);
@@ -306,7 +303,7 @@ describe("NFPMCommonLogic", () => {
       });
     });
 
-    it("should always update tick entities regardless of in-range status", async () => {
+    it("should apply the liquidity delta to the aggregator edge list regardless of in-range status", async () => {
       vi.mocked(isPositionInRange).mockReturnValue(false);
 
       await updateStakedPositionLiquidity(
@@ -319,13 +316,12 @@ describe("NFPMCommonLogic", () => {
         blockNumber,
       );
 
-      expect(updateTicksForStakedPosition).toHaveBeenCalledWith(
-        chainId,
-        stakedPosition.pool,
+      expect(applyStakedPositionToEdges).toHaveBeenCalledWith(
+        poolData.liquidityPoolAggregator.stakedTickEdges,
+        poolData.liquidityPoolAggregator.stakedTickEdgeNets,
         stakedPosition.tickLower,
         stakedPosition.tickUpper,
         5000n,
-        mockContext,
       );
     });
 
@@ -416,7 +412,6 @@ describe("NFPMCommonLogic", () => {
         blockNumber,
       );
 
-      expect(updateTicksForStakedPosition).toHaveBeenCalled();
       expect(calculatePositionAmountsFromLiquidity).toHaveBeenCalledWith(
         5000n,
         sqrtPriceX96AtTick0,
@@ -461,7 +456,6 @@ describe("NFPMCommonLogic", () => {
         blockNumber,
       );
 
-      expect(updateTicksForStakedPosition).toHaveBeenCalled();
       // Reserve math is skipped (no sqrtPriceX96 to split into token0/token1),
       // but we still persist the edge-list update so the swap path has correct
       // state once the pool is initialized.
