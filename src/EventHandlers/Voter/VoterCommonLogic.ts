@@ -17,8 +17,10 @@ import {
   isKnownSinkRootPool,
 } from "../../Constants";
 import { getTokensDeposited } from "../../Effects/Index";
-import { normalizeTokenAmountTo1e18 } from "../../Helpers";
-import { multiplyBase1e18 } from "../../Maths";
+import {
+  calculateTokenAmountUSD,
+  normalizeTokenAmountTo1e18,
+} from "../../Helpers";
 
 export interface VoterCommonResult {
   isAlive: boolean;
@@ -57,25 +59,22 @@ export async function computeVoterDistributeValues(
     );
   }
 
-  // Normalize amounts to 1e18
+  const rewardTokenDecimals = Number(rewardToken.decimals);
+
   const normalizedEmissionsAmount = normalizeTokenAmountTo1e18(
     amountEmittedRaw,
-    Number(rewardToken.decimals),
+    rewardTokenDecimals,
   );
 
-  const normalizedVotesDepositedAmount = normalizeTokenAmountTo1e18(
-    BigInt(tokensDeposited.toString()),
-    Number(rewardToken.decimals),
-  );
-
-  // USD conversions
-  const normalizedEmissionsAmountUsd = multiplyBase1e18(
-    normalizedEmissionsAmount,
+  const normalizedEmissionsAmountUsd = calculateTokenAmountUSD(
+    amountEmittedRaw,
+    rewardTokenDecimals,
     rewardToken.pricePerUSDNew,
   );
 
-  const normalizedVotesDepositedAmountUsd = multiplyBase1e18(
-    normalizedVotesDepositedAmount,
+  const normalizedVotesDepositedAmountUsd = calculateTokenAmountUSD(
+    BigInt(tokensDeposited.toString()),
+    rewardTokenDecimals,
     rewardToken.pricePerUSDNew,
   );
 
