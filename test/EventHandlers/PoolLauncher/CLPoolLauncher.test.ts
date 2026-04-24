@@ -1,11 +1,7 @@
-import type {
-  LiquidityPoolAggregator,
-  PoolLauncherPool,
-  Token,
-} from "generated";
+import type { PoolLauncherPool, Token } from "generated";
 import { CLPoolLauncher, MockDb } from "generated/src/TestHelpers.gen";
 import { PoolId, TokenId, toChecksumAddress } from "../../../src/Constants";
-import { setupCommon } from "../Pool/common";
+import { type MockLiquidityPoolAggregator, setupCommon } from "../Pool/common";
 
 describe("CLPoolLauncher Events", () => {
   const { createMockLiquidityPoolAggregator, mockToken0Data, mockToken1Data } =
@@ -61,7 +57,7 @@ describe("CLPoolLauncher Events", () => {
     isWhitelisted: true,
   };
 
-  let mockLiquidityPoolAggregator: LiquidityPoolAggregator;
+  let mockLiquidityPoolAggregator: MockLiquidityPoolAggregator;
   let mockDb: ReturnType<typeof MockDb.createMockDb>;
 
   beforeEach(() => {

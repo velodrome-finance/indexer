@@ -15,7 +15,9 @@ import { setupCommon } from "./common";
 describe("Pool Swap Event", () => {
   let mockToken0Data: Token;
   let mockToken1Data: Token;
-  let mockLiquidityPoolData: LiquidityPoolAggregator;
+  let mockLiquidityPoolData: ReturnType<
+    typeof setupCommon
+  >["mockLiquidityPoolData"];
   let createMockToken: ReturnType<typeof setupCommon>["createMockToken"];
 
   const expectations = {
@@ -108,9 +110,11 @@ describe("Pool Swap Event", () => {
     let updatedPool: LiquidityPoolAggregator | undefined;
 
     beforeEach(async () => {
-      const updatedDB1 = mockDb.entities.LiquidityPoolAggregator.set(
-        mockLiquidityPoolData as LiquidityPoolAggregator,
-      );
+      const updatedDB1 = mockDb.entities.LiquidityPoolAggregator.set({
+        ...mockLiquidityPoolData,
+        stakedTickEdges: [...mockLiquidityPoolData.stakedTickEdges],
+        stakedTickEdgeNets: [...mockLiquidityPoolData.stakedTickEdgeNets],
+      });
       const updatedDB2 = updatedDB1.entities.Token.set(mockToken0Data as Token);
       const updatedDB3 = updatedDB2.entities.Token.set(mockToken1Data as Token);
 
@@ -218,15 +222,16 @@ describe("Pool Swap Event", () => {
       });
 
       // Update pool to reference OUSDT token
-      const poolWithOusdt: LiquidityPoolAggregator = {
+      const poolWithOusdt = {
         ...mockLiquidityPoolData,
         token0_id: ousdtToken.id,
         token0_address: ousdtAddress,
+        stakedTickEdges: [...mockLiquidityPoolData.stakedTickEdges],
+        stakedTickEdgeNets: [...mockLiquidityPoolData.stakedTickEdgeNets],
       };
 
-      const updatedDB1 = mockDb.entities.LiquidityPoolAggregator.set(
-        poolWithOusdt as LiquidityPoolAggregator,
-      );
+      const updatedDB1 =
+        mockDb.entities.LiquidityPoolAggregator.set(poolWithOusdt);
       const updatedDB2 = updatedDB1.entities.Token.set(ousdtToken as Token);
       const updatedDB3 = updatedDB2.entities.Token.set(mockToken1Data as Token);
 
@@ -253,15 +258,16 @@ describe("Pool Swap Event", () => {
       });
 
       // Update pool to reference OUSDT token
-      const poolWithOusdt: LiquidityPoolAggregator = {
+      const poolWithOusdt = {
         ...mockLiquidityPoolData,
         token1_id: ousdtToken.id,
         token1_address: ousdtAddress,
+        stakedTickEdges: [...mockLiquidityPoolData.stakedTickEdges],
+        stakedTickEdgeNets: [...mockLiquidityPoolData.stakedTickEdgeNets],
       };
 
-      const updatedDB1 = mockDb.entities.LiquidityPoolAggregator.set(
-        poolWithOusdt as LiquidityPoolAggregator,
-      );
+      const updatedDB1 =
+        mockDb.entities.LiquidityPoolAggregator.set(poolWithOusdt);
       const updatedDB2 = updatedDB1.entities.Token.set(mockToken0Data as Token);
       const updatedDB3 = updatedDB2.entities.Token.set(ousdtToken as Token);
 
@@ -285,9 +291,11 @@ describe("Pool Swap Event", () => {
     });
 
     it("should not create OUSDTSwap entity when neither token is OUSDT", async () => {
-      const updatedDB1 = mockDb.entities.LiquidityPoolAggregator.set(
-        mockLiquidityPoolData as LiquidityPoolAggregator,
-      );
+      const updatedDB1 = mockDb.entities.LiquidityPoolAggregator.set({
+        ...mockLiquidityPoolData,
+        stakedTickEdges: [...mockLiquidityPoolData.stakedTickEdges],
+        stakedTickEdgeNets: [...mockLiquidityPoolData.stakedTickEdgeNets],
+      });
       const updatedDB2 = updatedDB1.entities.Token.set(mockToken0Data as Token);
       const updatedDB3 = updatedDB2.entities.Token.set(mockToken1Data as Token);
 

@@ -29,7 +29,14 @@ describe("PoolLauncherLogic", () => {
       LiquidityPoolAggregator: {
         get: (id: string) => mockDb.entities.LiquidityPoolAggregator.get(id),
         set: (entity: LiquidityPoolAggregator) => {
-          mockDb = mockDb.entities.LiquidityPoolAggregator.set(entity);
+          // Copy readonly bigint[] fields into mutable bigint[] to satisfy
+          // MockDb.set() — envio.d.ts types these as readonly but Indexer.gen.ts
+          // expects mutable. Same workaround as createMockLiquidityPoolAggregator.
+          mockDb = mockDb.entities.LiquidityPoolAggregator.set({
+            ...entity,
+            stakedTickEdges: [...entity.stakedTickEdges],
+            stakedTickEdgeNets: [...entity.stakedTickEdgeNets],
+          });
         },
       },
       isPreload: false,

@@ -1,5 +1,6 @@
 import type { NonFungiblePosition, handlerContext } from "generated";
 import {
+  applyStakedPositionToEdges,
   isPositionInRange,
   updateTicksForStakedPosition,
 } from "../../Aggregators/CLStakedLiquidity";
@@ -109,6 +110,11 @@ export async function updateStakedPositionLiquidity(
 ): Promise<void> {
   const { liquidityPoolAggregator } = poolData;
 
+  // Maintain the deprecated CLTickStaked entity writes (scheduled for removal
+  // in velodrome-finance/indexer#652) alongside the in-aggregator parallel
+  // edge/nets arrays. The swap path reads ONLY the aggregator arrays — the
+  // legacy writes are kept for one release so the auto-exposed GraphQL entity
+  // doesn't vanish without notice.
   await updateTicksForStakedPosition(
     chainId,
     position.pool,
@@ -117,11 +123,45 @@ export async function updateStakedPositionLiquidity(
     liquidityDelta,
     context,
   );
+  const {
+    edges: stakedTickEdges,
+    nets: stakedTickEdgeNets,
+    rejected: edgesRejected,
+  } = applyStakedPositionToEdges(
+    liquidityPoolAggregator.stakedTickEdges,
+    liquidityPoolAggregator.stakedTickEdgeNets,
+    position.tickLower,
+    position.tickUpper,
+    liquidityDelta,
+  );
+  if (edgesRejected) {
+    context.log.error(
+      `[updateStakedPositionLiquidity] applyStakedPositionToEdges rejected position ${position.tokenId} on pool ${position.pool} chain ${chainId}: reason=${edgesRejected} tickLower=${position.tickLower} tickUpper=${position.tickUpper}. Edge list left unchanged.`,
+    );
+  }
+
+  // Belt-and-suspenders: flip the hasStakes latch whenever the edge list is
+  // non-empty. The primary flip happens on gauge Deposit, but pinning it here
+  // too guarantees the swap-path walker sees a consistent (hasStakes=true,
+  // edges.length>0) pairing regardless of event ordering.
+  const hasStakes = stakedTickEdges.length > 0 ? true : undefined;
 
   const currentTick = liquidityPoolAggregator.tick ?? 0n;
   const sqrtPriceX96 = liquidityPoolAggregator.sqrtPriceX96 ?? 0n;
 
-  if (sqrtPriceX96 === 0n) return;
+  if (sqrtPriceX96 === 0n) {
+    // Even without a price, we still persist the edge-list update so the swap
+    // path has correct state once a price is established.
+    await updateLiquidityPoolAggregator(
+      { stakedTickEdges, stakedTickEdgeNets, hasStakes },
+      liquidityPoolAggregator,
+      timestamp,
+      context,
+      chainId,
+      blockNumber,
+    );
+    return;
+  }
 
   // stakedReserve0/1 track ALL staked token holdings (in-range + out-of-range) for USD valuation.
   // Out-of-range positions still hold tokens, and calculatePositionAmountsFromLiquidity handles
@@ -148,6 +188,9 @@ export async function updateStakedPositionLiquidity(
     stakedLiquidityInRange,
     incrementalStakedReserve0: direction * amount0,
     incrementalStakedReserve1: direction * amount1,
+    stakedTickEdges,
+    stakedTickEdgeNets,
+    hasStakes,
   };
 
   await updateLiquidityPoolAggregator(

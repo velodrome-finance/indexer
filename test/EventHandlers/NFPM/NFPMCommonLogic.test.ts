@@ -2,6 +2,7 @@ import { TickMath } from "@uniswap/v3-sdk";
 import type { NonFungiblePosition, handlerContext } from "generated";
 import { MockDb } from "../../../generated/src/TestHelpers.gen";
 import {
+  applyStakedPositionToEdges,
   isPositionInRange,
   updateTicksForStakedPosition,
 } from "../../../src/Aggregators/CLStakedLiquidity";
@@ -296,6 +297,13 @@ describe("NFPMCommonLogic", () => {
         amount0: 100n,
         amount1: 200n,
       });
+      // applyStakedPositionToEdges is auto-mocked by vi.mock above; return a
+      // valid shape so NFPMCommonLogic's destructure doesn't trip.
+      vi.mocked(applyStakedPositionToEdges).mockReset();
+      vi.mocked(applyStakedPositionToEdges).mockReturnValue({
+        edges: [-200n, 200n],
+        nets: [5000n, -5000n],
+      });
     });
 
     it("should always update tick entities regardless of in-range status", async () => {
@@ -346,6 +354,9 @@ describe("NFPMCommonLogic", () => {
           stakedLiquidityInRange: 6000n, // 1000 + 5000
           incrementalStakedReserve0: 100n, // direction=+1 * 100
           incrementalStakedReserve1: 200n, // direction=+1 * 200
+          stakedTickEdges: [-200n, 200n],
+          stakedTickEdgeNets: [5000n, -5000n],
+          hasStakes: true, // belt-and-suspenders: NFPM path also flips the latch when edges are non-empty
         },
         poolData.liquidityPoolAggregator,
         timestamp,
@@ -380,6 +391,9 @@ describe("NFPMCommonLogic", () => {
           stakedLiquidityInRange: -2000n, // 1000 + (-3000)
           incrementalStakedReserve0: -100n, // direction=-1 * 100
           incrementalStakedReserve1: -200n, // direction=-1 * 200
+          stakedTickEdges: [-200n, 200n],
+          stakedTickEdgeNets: [5000n, -5000n],
+          hasStakes: true,
         },
         poolData.liquidityPoolAggregator,
         timestamp,
@@ -414,6 +428,9 @@ describe("NFPMCommonLogic", () => {
           stakedLiquidityInRange: undefined, // not in range, so unchanged
           incrementalStakedReserve0: 100n,
           incrementalStakedReserve1: 200n,
+          stakedTickEdges: [-200n, 200n],
+          stakedTickEdgeNets: [5000n, -5000n],
+          hasStakes: true,
         },
         poolData.liquidityPoolAggregator,
         timestamp,
@@ -423,7 +440,7 @@ describe("NFPMCommonLogic", () => {
       );
     });
 
-    it("should not update total staked reserves when sqrtPriceX96 is zero", async () => {
+    it("should persist edge-list updates even when sqrtPriceX96 is zero", async () => {
       vi.mocked(isPositionInRange).mockReturnValue(true);
 
       const poolDataZeroPrice: PoolData = {
@@ -445,7 +462,21 @@ describe("NFPMCommonLogic", () => {
       );
 
       expect(updateTicksForStakedPosition).toHaveBeenCalled();
-      expect(updateLiquidityPoolAggregator).not.toHaveBeenCalled();
+      // Reserve math is skipped (no sqrtPriceX96 to split into token0/token1),
+      // but we still persist the edge-list update so the swap path has correct
+      // state once the pool is initialized.
+      expect(updateLiquidityPoolAggregator).toHaveBeenCalledWith(
+        {
+          stakedTickEdges: [-200n, 200n],
+          stakedTickEdgeNets: [5000n, -5000n],
+          hasStakes: true,
+        },
+        poolDataZeroPrice.liquidityPoolAggregator,
+        timestamp,
+        mockContext,
+        chainId,
+        blockNumber,
+      );
     });
   });
 });

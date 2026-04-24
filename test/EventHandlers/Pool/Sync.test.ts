@@ -1,16 +1,19 @@
-import type { LiquidityPoolAggregator, Token } from "generated";
+import type { Token } from "generated";
 import { MockDb, Pool } from "../../../generated/src/TestHelpers.gen";
 import {
   PoolId,
   TEN_TO_THE_18_BI,
   toChecksumAddress,
 } from "../../../src/Constants";
+import { setupLiquidityPoolAggregator } from "../../testHelpers";
 import { setupCommon } from "./common";
 
 describe("Pool Sync Event", () => {
   let mockToken0Data: Token;
   let mockToken1Data: Token;
-  let mockLiquidityPoolData: LiquidityPoolAggregator;
+  let mockLiquidityPoolData: ReturnType<
+    typeof setupCommon
+  >["mockLiquidityPoolData"];
 
   const expectations = {
     reserveAmount0In: 0n,
@@ -80,8 +83,10 @@ describe("Pool Sync Event", () => {
     let postEventDB: ReturnType<typeof MockDb.createMockDb>;
 
     beforeEach(async () => {
-      const updatedDB1 = mockDb.entities.LiquidityPoolAggregator.set(
-        mockLiquidityPoolData as LiquidityPoolAggregator,
+      const updatedDB1 = setupLiquidityPoolAggregator(
+        mockDb,
+        mockLiquidityPoolData,
+        eventData.mockEventData.srcAddress,
       );
       const updatedDB2 = updatedDB1.entities.Token.set(mockToken0Data);
       const updatedDB3 = updatedDB2.entities.Token.set(mockToken1Data);

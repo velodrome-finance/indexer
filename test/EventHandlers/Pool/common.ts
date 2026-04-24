@@ -31,6 +31,22 @@ export const defaultNfpmAddress = toChecksumAddress(
   "0xbB5DFE1380333CEE4c2EeBd7202c80dE2256AdF4",
 );
 
+/**
+ * Shared alias for the mock `LiquidityPoolAggregator` shape returned by
+ * `setupCommon().createMockLiquidityPoolAggregator(...)`.
+ *
+ * Why the alias exists: envio codegen emits TWO slightly different array-field
+ * types for the same entity — `readonly bigint[]` in `envio.d.ts` vs mutable
+ * `bigint[]` in `Indexer.gen.ts`. `createMockLiquidityPoolAggregator` deliberately
+ * returns an inferred (untyped) shape with mutable arrays so it satisfies both.
+ * Annotating a test variable as `LiquidityPoolAggregator` directly conflicts
+ * with `MockDb.set()`'s expected mutable shape. Tests should use this alias
+ * instead of duplicating the `ReturnType<...>` incantation per file.
+ */
+export type MockLiquidityPoolAggregator = ReturnType<
+  ReturnType<typeof setupCommon>["createMockLiquidityPoolAggregator"]
+>;
+
 export function setupCommon() {
   const CHAIN_ID = 10;
   const POOL_ADDRESS = toChecksumAddress(
@@ -68,7 +84,10 @@ export function setupCommon() {
     lastUpdatedTimestamp: new Date(),
   };
 
-  const mockLiquidityPoolData: LiquidityPoolAggregator = {
+  // Not annotated as LiquidityPoolAggregator to avoid readonly bigint[] vs bigint[] mismatch
+  // between envio.d.ts (readonly bigint[]) and Indexer.gen.ts (bigint[]) for stakedTickEdges /
+  // stakedTickEdgeNets array fields. Same workaround as mockUserStatsPerPoolData.
+  const mockLiquidityPoolData = {
     id: POOL_ID,
     poolAddress: POOL_ADDRESS,
     chainId: CHAIN_ID,
@@ -135,6 +154,8 @@ export function setupCommon() {
     stakedReserve0: 0n,
     stakedReserve1: 0n,
     hasStakes: false,
+    stakedTickEdges: [],
+    stakedTickEdgeNets: [],
     totalFlashLoanFees0: 0n,
     totalFlashLoanFees1: 0n,
     totalFlashLoanFeesUSD: 0n,
@@ -392,11 +413,13 @@ export function setupCommon() {
    * All fields default to values from mockLiquidityPoolData, allowing tests to override only what they need.
    *
    * @param overrides - Partial LiquidityPoolAggregator to override default values
-   * @returns A complete LiquidityPoolAggregator entity
+   * @returns A complete LiquidityPoolAggregator entity (untyped return to let TS
+   *   infer mutable bigint[] for stakedTickEdges / stakedTickEdgeNets — same
+   *   readonly-vs-mutable workaround as createMockUserStatsPerPool).
    */
   function createMockLiquidityPoolAggregator(
     overrides: Partial<LiquidityPoolAggregator> = {},
-  ): LiquidityPoolAggregator {
+  ) {
     // Calculate id if poolAddress or chainId are provided
     const chainId = overrides.chainId ?? CHAIN_ID;
     const poolAddress = toChecksumAddress(
@@ -415,6 +438,15 @@ export function setupCommon() {
     return {
       ...mockLiquidityPoolData,
       ...overrides,
+      // Array fields: ensure mutable bigint[] to satisfy both envio.d.ts
+      // (readonly bigint[]) and Indexer.gen.ts (bigint[]) types used by MockDb.set()
+      stakedTickEdges: [
+        ...(overrides.stakedTickEdges ?? mockLiquidityPoolData.stakedTickEdges),
+      ],
+      stakedTickEdgeNets: [
+        ...(overrides.stakedTickEdgeNets ??
+          mockLiquidityPoolData.stakedTickEdgeNets),
+      ],
       poolAddress,
       chainId,
       id,

@@ -1,15 +1,20 @@
-import type { LiquidityPoolAggregator, Token } from "generated";
+import type { Token } from "generated";
 import {
   BribesVotingReward,
   MockDb,
 } from "../../../generated/src/TestHelpers.gen";
 import { TokenId, toChecksumAddress } from "../../../src/Constants";
 import * as VotingRewardSharedLogic from "../../../src/EventHandlers/VotingReward/VotingRewardSharedLogic";
-import { setupCommon } from "../Pool/common";
+import { type MockLiquidityPoolAggregator, setupCommon } from "../Pool/common";
 
 describe("BribesVotingReward Events", () => {
-  const { mockToken0Data, mockToken1Data, mockLiquidityPoolData } =
-    setupCommon();
+  const {
+    mockToken0Data,
+    mockToken1Data,
+    mockLiquidityPoolData,
+    createMockLiquidityPoolAggregator,
+    createMockUserStatsPerPool,
+  } = setupCommon();
   const poolAddress = mockLiquidityPoolData.poolAddress;
   const chainId = 10;
   const votingRewardAddress = toChecksumAddress(
@@ -23,7 +28,7 @@ describe("BribesVotingReward Events", () => {
   );
 
   let mockDb: ReturnType<typeof MockDb.createMockDb>;
-  let liquidityPool: LiquidityPoolAggregator;
+  let liquidityPool: MockLiquidityPoolAggregator;
   let userStats: ReturnType<
     ReturnType<typeof setupCommon>["createMockUserStatsPerPool"]
   >;
@@ -34,14 +39,12 @@ describe("BribesVotingReward Events", () => {
     mockDb = MockDb.createMockDb();
 
     // Set up liquidity pool with bribe voting reward address
-    liquidityPool = {
-      ...mockLiquidityPoolData,
+    liquidityPool = createMockLiquidityPoolAggregator({
       bribeVotingRewardAddress: toChecksumAddress(votingRewardAddress),
       feeVotingRewardAddress: "",
-    } as LiquidityPoolAggregator;
+    });
 
     // Set up user stats
-    const { createMockUserStatsPerPool } = setupCommon();
     userStats = createMockUserStatsPerPool({
       userAddress: userAddress,
       poolAddress: poolAddress,

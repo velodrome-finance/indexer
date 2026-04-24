@@ -302,7 +302,7 @@ export async function processCLPoolSwap(
 
   const stakedLiquidityInRange =
     oldTick !== newTick && tickSpacing > 0n
-      ? await processTickCrossingsForStaked(
+      ? processTickCrossingsForStaked(
           event.chainId,
           event.srcAddress,
           oldTick,
@@ -311,6 +311,8 @@ export async function processCLPoolSwap(
           context,
           currentStakedLiqInRange,
           liquidityPoolAggregator.hasStakes,
+          liquidityPoolAggregator.stakedTickEdges,
+          liquidityPoolAggregator.stakedTickEdgeNets,
         )
       : currentStakedLiqInRange;
 

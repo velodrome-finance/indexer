@@ -1,14 +1,15 @@
-import type { CLGaugeConfig, LiquidityPoolAggregator } from "generated";
+import type { CLGaugeConfig } from "generated";
 import {
   CLGaugeFactoryV2,
   CLGaugeFactoryV3,
   MockDb,
 } from "../../../generated/src/TestHelpers.gen";
 import { PoolId, toChecksumAddress } from "../../../src/Constants";
-import { setupCommon } from "../Pool/common";
+import { type MockLiquidityPoolAggregator, setupCommon } from "../Pool/common";
 
 describe("CLGaugeFactoryV3 Event Handlers", () => {
-  const { mockLiquidityPoolData } = setupCommon();
+  const { mockLiquidityPoolData, createMockLiquidityPoolAggregator } =
+    setupCommon();
   const chainId = 8453; // Base — where V3 is deployed
   const v2FactoryAddress = toChecksumAddress(
     "0xB630227a79707D517320b6c0f885806389dFcbB3",
@@ -107,15 +108,14 @@ describe("CLGaugeFactoryV3 Event Handlers", () => {
   });
 
   describe("SetEmissionCap", () => {
-    let mockPoolWithGauge: LiquidityPoolAggregator;
+    let mockPoolWithGauge: MockLiquidityPoolAggregator;
     let mockDbWithGetWhere: typeof mockDb;
 
     beforeEach(() => {
-      mockPoolWithGauge = {
-        ...mockLiquidityPoolData,
+      mockPoolWithGauge = createMockLiquidityPoolAggregator({
         gaugeAddress: mockGaugeAddress,
         gaugeEmissionsCap: 0n,
-      };
+      });
 
       mockDb = mockDb.entities.LiquidityPoolAggregator.set(mockPoolWithGauge);
 
@@ -284,13 +284,12 @@ describe("CLGaugeFactoryV3 Event Handlers", () => {
     const poolOnBaseId = PoolId(chainId, poolAddress);
 
     it("sets minStakeTime on the matching LiquidityPoolAggregator", async () => {
-      const existingPool: LiquidityPoolAggregator = {
-        ...mockLiquidityPoolData,
+      const existingPool = createMockLiquidityPoolAggregator({
         id: poolOnBaseId,
         chainId,
         poolAddress: poolAddress as `0x${string}`,
         minStakeTime: 0n,
-      };
+      });
       const seeded = mockDb.entities.LiquidityPoolAggregator.set(existingPool);
 
       const event = CLGaugeFactoryV3.SetPoolMinStakeTime.createMockEvent({

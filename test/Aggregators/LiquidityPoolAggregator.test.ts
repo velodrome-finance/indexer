@@ -307,6 +307,43 @@ describe("LiquidityPoolAggregator Functions", () => {
       const setCalls = vi.mocked(poolStore.set).mock.calls;
       expect(setCalls.at(-1)?.[0]?.totalLiquidityUSD).toBe(100n);
     });
+
+    it("should preserve hasStakes=true when a full-unstake diff leaves hasStakes undefined (one-way latch)", async () => {
+      // Simulates the NFPMCommonLogic path where the edge list becomes empty
+      // after a full unstake: the producer passes `hasStakes: undefined` (see
+      // src/EventHandlers/NFPM/NFPMCommonLogic.ts:147, `stakedTickEdges.length > 0 ? true : undefined`).
+      // The monotonic-latch merge at LiquidityPoolAggregator.ts:390
+      // (`current.hasStakes || (diff.hasStakes ?? false)`) must keep the
+      // prior `true` value regardless of the empty edge list.
+      await updateLiquidityPoolAggregator(
+        {
+          hasStakes: undefined,
+          stakedTickEdges: [],
+          stakedTickEdgeNets: [],
+        },
+        {
+          ...(liquidityPoolAggregator as LiquidityPoolAggregator),
+          hasStakes: true,
+          stakedTickEdges: [100n, 200n],
+          stakedTickEdgeNets: [500n, -500n],
+        },
+        timestamp,
+        mockContext as handlerContext,
+        10,
+        blockNumber,
+      );
+
+      const poolStore = mockContext.LiquidityPoolAggregator;
+      if (!poolStore) {
+        throw new Error("test setup: LiquidityPoolAggregator store must exist");
+      }
+      const setCalls = vi.mocked(poolStore.set).mock.calls;
+      const updated = setCalls.at(-1)?.[0] as LiquidityPoolAggregator;
+      expect(updated.hasStakes).toBe(true);
+      // Edge arrays should still be replaced (empty) since the diff provides them.
+      expect(updated.stakedTickEdges).toEqual([]);
+      expect(updated.stakedTickEdgeNets).toEqual([]);
+    });
   });
 
   describe("Updating the Liquidity Pool Aggregator", () => {

@@ -60,6 +60,18 @@ type LiquidityPoolAggregator {
   # negligible is tracked in #649 (sparse stakedTickEdges list); until it lands,
   # the latch is "accept a degenerate case to avoid the bookkeeping of clearing".
   hasStakes: Boolean!
+  # Parallel arrays encoding Uniswap v3's per-tick liquidityNet for the staked
+  # subset. Sorted ascending by tick, dedup'd, no zero-net entries. Same length,
+  # same index: (stakedTickEdges[i], stakedTickEdgeNets[i]) is one (tick, net)
+  # pair. Two arrays instead of one list-of-structs because GraphQL lists only
+  # allow scalars or named types — tuples don't exist at this layer.
+  #
+  # Maintained on gauge deposit / withdraw / NFPM staked-position liquidity
+  # changes. Consumed by processTickCrossingsForStaked via in-memory binary
+  # search — no CLTickStaked.get / getWhere calls on the swap path, which
+  # breaks the OOM chain-of-amplification from #648.
+  stakedTickEdges: [BigInt!]!
+  stakedTickEdgeNets: [BigInt!]!
   totalFlashLoanFees0: BigInt @config(precision: 76) # total flash loan fees collected in token0
   totalFlashLoanFees1: BigInt @config(precision: 76) # total flash loan fees collected in token1
   totalFlashLoanFeesUSD: BigInt @config(precision: 76) # total flash loan fees collected in USD

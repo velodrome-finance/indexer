@@ -45,6 +45,16 @@ describe("Snapshot schema parity", () => {
         // Control-flow latch for processTickCrossingsForStaked — once true, stays
         // true. No analytical value in trending it over time.
         "hasStakes",
+        // Implementation detail of the #649 swap-path optimization: a sparse
+        // in-memory liquidityNet list keyed by tick, consumed only by
+        // processTickCrossingsForStaked. Not snapshotted hourly — the arrays
+        // are derived state (sum-of-stakes per tick) and the per-stake history
+        // is already captured by Gauge Deposit/Withdraw and NFPM
+        // IncreaseLiquidity/DecreaseLiquidity events. Legacy CLTickStaked
+        // entity is the current GraphQL mirror; scheduled for removal in
+        // velodrome-finance/indexer#652.
+        "stakedTickEdges",
+        "stakedTickEdgeNets",
       ],
     ],
     ["UserStatsPerPool", ["firstActivityTimestamp", "lastSnapshotTimestamp"]],
