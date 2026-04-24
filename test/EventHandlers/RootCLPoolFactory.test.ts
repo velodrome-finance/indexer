@@ -1,4 +1,3 @@
-import type { LiquidityPoolAggregator } from "generated";
 import { MockDb, RootCLPoolFactory } from "generated/src/TestHelpers.gen";
 import {
   PendingRootPoolMappingId,
@@ -13,7 +12,7 @@ import {
   toChecksumAddress,
 } from "../../src/Constants";
 import { flushPendingVotesAndDistributionsForRootPool } from "../../src/EventHandlers/Voter/CrossChainPendingResolution";
-import { setupCommon } from "./Pool/common";
+import { type MockLiquidityPoolAggregator, setupCommon } from "./Pool/common";
 
 vi.mock(
   "../../src/EventHandlers/Voter/CrossChainPendingResolution",
@@ -74,7 +73,7 @@ describe("RootCLPoolFactory Events", () => {
 
     describe("when matching pool exists on leaf chain", () => {
       let resultDB: ReturnType<typeof MockDb.createMockDb>;
-      let mockLiquidityPool: LiquidityPoolAggregator;
+      let mockLiquidityPool: MockLiquidityPoolAggregator;
 
       beforeEach(async () => {
         const { createMockLiquidityPoolAggregator } = setupCommon();
@@ -278,8 +277,8 @@ describe("RootCLPoolFactory Events", () => {
 
     describe("when multiple matching pools exist", () => {
       let resultDB: ReturnType<typeof MockDb.createMockDb>;
-      let mockLiquidityPool1: LiquidityPoolAggregator;
-      let mockLiquidityPool2: LiquidityPoolAggregator;
+      let mockLiquidityPool1: MockLiquidityPoolAggregator;
+      let mockLiquidityPool2: MockLiquidityPoolAggregator;
 
       beforeEach(async () => {
         const { createMockLiquidityPoolAggregator } = setupCommon();

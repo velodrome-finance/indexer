@@ -1,4 +1,4 @@
-import type { LiquidityPoolAggregator, Token } from "generated";
+import type { Token } from "generated";
 import type { MockInstance } from "vitest";
 import { CLPool, MockDb } from "../../generated/src/TestHelpers.gen";
 import {
@@ -13,7 +13,7 @@ import * as CLPoolCollectLogic from "../../src/EventHandlers/CLPool/CLPoolCollec
 import * as CLPoolFlashLogic from "../../src/EventHandlers/CLPool/CLPoolFlashLogic";
 import * as CLPoolMintLogic from "../../src/EventHandlers/CLPool/CLPoolMintLogic";
 import * as CLPoolSwapLogic from "../../src/EventHandlers/CLPool/CLPoolSwapLogic";
-import { setupCommon } from "./Pool/common";
+import { type MockLiquidityPoolAggregator, setupCommon } from "./Pool/common";
 
 describe("CLPool Events", () => {
   const {
@@ -31,7 +31,7 @@ describe("CLPool Events", () => {
   );
 
   let mockDb: ReturnType<typeof MockDb.createMockDb>;
-  let liquidityPool: LiquidityPoolAggregator;
+  let liquidityPool: MockLiquidityPoolAggregator;
   let userStats: ReturnType<typeof createMockUserStatsPerPool>;
 
   beforeEach(() => {
@@ -156,7 +156,7 @@ describe("CLPool Events", () => {
         id: TokenId(chainId, OUSDT_ADDRESS),
       };
 
-      const ousdtPool: LiquidityPoolAggregator = {
+      const ousdtPool = {
         ...liquidityPool,
         token0_address: OUSDT_ADDRESS,
         token0_id: ousdtToken.id,
@@ -183,7 +183,7 @@ describe("CLPool Events", () => {
       expect(swapEntity1.amountOut).toBe(500n); // amount1 = -500n, so amount1Out = 500n
 
       // Test with OUSDT as token1 as well
-      const ousdtToken1Pool: LiquidityPoolAggregator = {
+      const ousdtToken1Pool = {
         ...liquidityPool,
         token1_address: OUSDT_ADDRESS,
         token1_id: ousdtToken.id,
@@ -241,7 +241,7 @@ describe("CLPool Events", () => {
         id: TokenId(chainId, OUSDT_ADDRESS),
       };
 
-      const ousdtPool: LiquidityPoolAggregator = {
+      const ousdtPool = {
         ...liquidityPool,
         token0_address: OUSDT_ADDRESS,
         token0_id: ousdtToken.id,

@@ -42,5 +42,11 @@ build
 # Script results (local-only test outputs)
 scripts/results/
 
+# Local-only investigation/benchmark/replay scripts. Pre-existing tracked scripts
+# (generate_whitelist.ts, smoke-effects.ts, test-price-oracles.ts, etc.) remain
+# tracked — gitignore affects only future untracked files. Remove this line when
+# we want to start shipping new scripts in the repo again.
+scripts/
+
 # Claude Code worktrees (ephemeral, local-only)
 .claude/worktrees/

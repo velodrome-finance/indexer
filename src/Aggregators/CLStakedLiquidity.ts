@@ -29,6 +29,183 @@ export function isPositionInRange(
 }
 
 /**
+ * Binary-search an ascending-sorted bigint[] for `target` — O(log n) comparisons.
+ *
+ * Returns the lowest index `i` such that `arr[i] >= target`, or `arr.length`
+ * if every element is strictly less than `target`. Matches `std::lower_bound`.
+ *
+ * Why binary search, not linear: per-pool edge counts can reach ~22k (#648's
+ * worst-case envelope). Linear would scan all of them even when a typical swap
+ * crosses 0–few; O(log n) jumps straight to the crossing window.
+ *
+ * @param arr - Sorted ascending array (monotone; no duplicates in stakedTickEdges)
+ * @param target - Tick value to locate
+ * @returns Lower-bound index in [0, arr.length]
+ */
+function lowerBound(arr: readonly bigint[], target: bigint): number {
+  let lo = 0;
+  let hi = arr.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (arr[mid] < target) {
+      lo = mid + 1;
+    } else {
+      hi = mid;
+    }
+  }
+  return lo;
+}
+
+/**
+ * Applies a +/-delta to the running net at `tick` on the parallel (edges, nets)
+ * arrays. Inserts a new (edge, net) entry if `tick` is not present; when the
+ * resulting net becomes 0n the edge is dropped. Returns a NEW pair of arrays —
+ * Envio entities are immutable and must be replaced, not patched.
+ *
+ * Cost: O(log E) for the binary-search locate, O(E) for the immutable array
+ * copy (where E = edges.length). The copy dominates. #648's worst-case
+ * envelope: ~50µs at E=22k on V8 (pointer memcpy at ~10 GB/s). At 2500
+ * stake/unstake writes/batch that's ~125ms extra CPU per batch — the cost
+ * we're paying to break the OOM fan-out.
+ *
+ * The parallel-arrays shape mirrors Uniswap v3's per-tick `liquidityNet`: one
+ * running counter per initialized tick, adjusted on every stake/unstake event
+ * that crosses that boundary. Multiple staked positions at the same edge sum
+ * into the same slot, which is how refcount is expressed implicitly (no
+ * separate counter is needed).
+ *
+ * @param edges - Current sorted-ascending edge list (must be monotone, no dupes)
+ * @param nets - Parallel nets array (same length, same index as `edges`)
+ * @param tick - Tick value to adjust
+ * @param delta - Signed delta to add to the net at `tick`
+ * @returns { edges, nets } new parallel arrays with the delta applied
+ */
+function applyDeltaAtTick(
+  edges: readonly bigint[],
+  nets: readonly bigint[],
+  tick: bigint,
+  delta: bigint,
+): { edges: bigint[]; nets: bigint[] } {
+  const idx = lowerBound(edges, tick);
+  const present = idx < edges.length && edges[idx] === tick;
+
+  if (present) {
+    const newNet = nets[idx] + delta;
+    if (newNet === 0n) {
+      const outEdges = new Array<bigint>(edges.length - 1);
+      const outNets = new Array<bigint>(nets.length - 1);
+      for (let i = 0; i < idx; i++) {
+        outEdges[i] = edges[i];
+        outNets[i] = nets[i];
+      }
+      for (let i = idx + 1; i < edges.length; i++) {
+        outEdges[i - 1] = edges[i];
+        outNets[i - 1] = nets[i];
+      }
+      return { edges: outEdges, nets: outNets };
+    }
+    const outEdges = edges.slice();
+    const outNets = nets.slice();
+    outNets[idx] = newNet;
+    return { edges: outEdges, nets: outNets };
+  }
+
+  // Not present — insert. The caller (applyStakedPositionToEdges) already
+  // rejects delta === 0n at its top guard, so reaching this branch with a
+  // zero delta is unreachable by construction.
+  const outEdges = new Array<bigint>(edges.length + 1);
+  const outNets = new Array<bigint>(nets.length + 1);
+  for (let i = 0; i < idx; i++) {
+    outEdges[i] = edges[i];
+    outNets[i] = nets[i];
+  }
+  outEdges[idx] = tick;
+  outNets[idx] = delta;
+  for (let i = idx; i < edges.length; i++) {
+    outEdges[i + 1] = edges[i];
+    outNets[i + 1] = nets[i];
+  }
+  return { edges: outEdges, nets: outNets };
+}
+
+/**
+ * Reason tag emitted by `applyStakedPositionToEdges` when it refuses to apply a
+ * position. Callers use this to log the anomaly while still receiving valid
+ * (unchanged) arrays to assign into the aggregator diff.
+ *   - "ticks_out_of_range": at least one tick is outside [TICK_MIN, TICK_MAX].
+ *     Indicates upstream state corruption (bad NFPM event, ordering bug, etc.).
+ *   - "degenerate_range": tickLower >= tickUpper. Should never happen for a
+ *     valid Uniswap v3 position; indicates bad upstream data.
+ * `liquidityDelta === 0n` is a legitimate no-op (e.g., the Mint-0 case from
+ * NFPM) and does NOT produce a rejection tag.
+ */
+export type StakedEdgesRejection = "ticks_out_of_range" | "degenerate_range";
+
+/**
+ * Applies a staked-position liquidity change ([tickLower, tickUpper] × liquidityDelta)
+ * to the parallel (edges, nets) arrays. Mirrors the updateTicksForStakedPosition
+ * CLTickStaked write, but in-aggregator so the swap path never needs to load it.
+ *
+ * Convention (same as CLTickStaked):
+ *   - At tickLower: net += liquidityDelta  (positions ENTER range on upward cross)
+ *   - At tickUpper: net -= liquidityDelta  (positions EXIT range on upward cross)
+ *
+ * On stake:   liquidityDelta = +position.liquidity
+ * On unstake: liquidityDelta = -position.liquidity
+ *
+ * When the inputs would violate an invariant (ticks outside Uniswap v3 range,
+ * or tickLower >= tickUpper), the arrays are returned unchanged and `rejected`
+ * carries a tag so the caller can log the anomaly. Zero-delta is a silent
+ * no-op (no tag) because it is a legitimate NFPM Mint-0 / liq-unchanged flow.
+ *
+ * @param edges - Current sorted edge list
+ * @param nets - Parallel nets
+ * @param tickLower - Position's lower tick boundary
+ * @param tickUpper - Position's upper tick boundary
+ * @param liquidityDelta - Signed liquidity change
+ * @returns New parallel (edges, nets) arrays; `rejected` set when an invariant
+ *          violation prevented the update
+ */
+export function applyStakedPositionToEdges(
+  edges: readonly bigint[],
+  nets: readonly bigint[],
+  tickLower: bigint,
+  tickUpper: bigint,
+  liquidityDelta: bigint,
+): { edges: bigint[]; nets: bigint[]; rejected?: StakedEdgesRejection } {
+  if (liquidityDelta === 0n) {
+    return { edges: edges.slice(), nets: nets.slice() };
+  }
+  if (
+    tickLower < TICK_MIN ||
+    tickLower > TICK_MAX ||
+    tickUpper < TICK_MIN ||
+    tickUpper > TICK_MAX
+  ) {
+    return {
+      edges: edges.slice(),
+      nets: nets.slice(),
+      rejected: "ticks_out_of_range",
+    };
+  }
+  if (tickLower >= tickUpper) {
+    return {
+      edges: edges.slice(),
+      nets: nets.slice(),
+      rejected: "degenerate_range",
+    };
+  }
+
+  const afterLower = applyDeltaAtTick(edges, nets, tickLower, liquidityDelta);
+  return applyDeltaAtTick(
+    afterLower.edges,
+    afterLower.nets,
+    tickUpper,
+    -liquidityDelta,
+  );
+}
+
+/**
  * Updates the two CLTickStaked entities that bookend a position's tick range.
  * Mirrors Uniswap v3's ticks[i].liquidityNet but for the staked subset only.
  *
@@ -41,6 +218,13 @@ export function isPositionInRange(
  *
  * On stake:   liquidityDelta = +position.liquidity
  * On unstake: liquidityDelta = -position.liquidity
+ *
+ * DEPRECATED in-place alongside #649: the swap path no longer reads
+ * CLTickStaked, and no other internal consumer remains. The writes are kept
+ * on purpose for one release so the GraphQL entity (which is auto-exposed
+ * to external consumers) doesn't disappear without notice. Scheduled for
+ * removal in velodrome-finance/indexer#652. New callers MUST use
+ * applyStakedPositionToEdges on the aggregator.
  *
  * @param chainId - Chain ID
  * @param poolAddress - CL pool address
@@ -83,77 +267,56 @@ export async function updateTicksForStakedPosition(
 }
 
 /**
- * Aligns a tick value UP to the next tick-spacing boundary STRICTLY ABOVE tick.
- * Used to find the first initialized tick boundary to cross when price moves up.
+ * Processes tick crossings between oldTick and newTick, adjusting
+ * stakedLiquidityInRange by walking the in-aggregator (stakedTickEdges,
+ * stakedTickEdgeNets) parallel arrays.
  *
- * Examples with spacing=200:
- *   alignTickUp(100, 200)  → 200   (next multiple of 200 above 100)
- *   alignTickUp(200, 200)  → 400   (strictly above, so skip 200 itself)
- *   alignTickUp(0, 200)    → 200
- *   alignTickUp(-50, 200)  → 0
- *   alignTickUp(-200, 200) → 0     (strictly above -200)
+ * Replicates the Uniswap v3 pool contract's tick-crossing logic for the staked
+ * subset: when a swap crosses tick T going up, stakedLiq += net[T]; when going
+ * down, stakedLiq -= net[T].
  *
- * @param tick - Current tick value
- * @param spacing - Tick spacing
- * @returns Next tick-spacing-aligned tick strictly above tick
- */
-function alignTickUp(tick: bigint, spacing: bigint): bigint {
-  if (spacing === 0n) return tick;
-  const t = tick + 1n;
-  if (t >= 0n) {
-    return ((t + spacing - 1n) / spacing) * spacing;
-  }
-  return -(-t / spacing) * spacing;
-}
-
-/**
- * Aligns a tick value DOWN to the tick-spacing boundary AT OR BELOW tick.
- * Used to find the first initialized tick boundary to cross when price moves down.
+ * Structural fix for the 20GB OOM (see #648, #649):
+ *   - Zero `.get()` or `.getWhere()` calls on the swap path. The per-edge net is
+ *     read from the in-memory `stakedTickEdgeNets` array carried on the
+ *     aggregator, not from a CLTickStaked entity load.
+ *   - Total cost per swap: O(log E + K) where E = per-pool edge count (worst
+ *     case ~22k per #648) and K = edges actually crossed (typically 0–few).
+ *     Linear scanning all E edges is what this replaces, and what drove the
+ *     OOM in the old implementation — every candidate tick-spacing step
+ *     issued a CLTickStaked.get.
+ *   - Breaks the chain-of-amplification from #648: no LoadManager grouping, no
+ *     postgres-js text[] serialization, no InMemTable CLTickStaked accumulation,
+ *     no 5000-handler preload fan-out.
  *
- * Examples with spacing=200:
- *   alignTickDown(100, 200)  → 0    (floor to multiple of 200)
- *   alignTickDown(200, 200)  → 200  (already aligned, keep it)
- *   alignTickDown(399, 200)  → 200
- *   alignTickDown(-50, 200)  → -200
- *
- * @param tick - Current tick value
- * @param spacing - Tick spacing
- * @returns Tick-spacing-aligned tick at or below tick
- */
-function alignTickDown(tick: bigint, spacing: bigint): bigint {
-  if (spacing === 0n) return tick;
-  if (tick >= 0n) {
-    return (tick / spacing) * spacing;
-  }
-  return -((-tick + spacing - 1n) / spacing) * spacing;
-}
-
-/**
- * Processes tick crossings between oldTick and newTick, adjusting stakedLiquidityInRange
- * by reading CLTickStaked entities at each crossed tick boundary.
- *
- * Replicates the Uniswap v3 pool contract's tick-crossing logic for the staked subset:
- * when a swap crosses tick T going up, stakedLiq += tick[T].stakedLiquidityNet
- * when a swap crosses tick T going down, stakedLiq -= tick[T].stakedLiquidityNet
- *
- * Safety guards (added for the Lisk OOM hotfix):
- *   - `hasStakes=false` short-circuits the sweep for pools that have never been
- *     staked — the per-tick CLTickStaked reads are provably zero, so the loop
- *     cannot change `currentStakedLiqInRange`.
+ * Safety guards retained from PR 1 (#650):
+ *   - `hasStakes=false` short-circuits the walk entirely. Redundant with an
+ *     empty edge list, but kept explicit for parity with other call sites.
  *   - Out-of-range ticks (outside [TICK_MIN, TICK_MAX]) are rejected and logged
- *     instead of driving the loop with millions of iterations.
+ *     with a `STAKED_TICK_DRIFT` tag so ops can alert on it. After a bail the
+ *     aggregator still writes the new tick, so downstream reads of
+ *     `stakedLiquidityInRange` on this pool will be stale by the un-applied
+ *     nets until the next rebuild — worth alerting on.
  *
- * @param chainId - Chain ID
- * @param poolAddress - CL pool address
+ * Pure in-memory computation. Uses the Envio `context` ONLY for
+ * `context.log.error` — any entity access here (e.g. `context.CLTickStaked.get`)
+ * would reintroduce the #648 OOM fan-out this function was written to replace.
+ * Enforced by the throwing spy in test/Aggregators/CLStakedLiquidityEdgeSanity.test.ts
+ * and CLStakedLiquidity.test.ts.
+ *
+ * @param chainId - Chain ID (used only for error logging)
+ * @param poolAddress - CL pool address (used only for error logging)
  * @param oldTick - Tick before the swap
  * @param newTick - Tick after the swap
- * @param tickSpacing - Pool's tick spacing
- * @param context - Handler context for entity access
+ * @param tickSpacing - Pool's tick spacing (used only to short-circuit when 0)
+ * @param context - Envio handler context — used ONLY for context.log.error;
+ *                  must not touch entity APIs (see note above)
  * @param currentStakedLiqInRange - Staked in-range liquidity before the swap
- * @param hasStakes - Whether this pool has ever had a staked position (from the aggregator latch)
+ * @param hasStakes - Whether this pool has ever had a staked position
+ * @param stakedTickEdges - Sorted, dedup'd tick edges from the aggregator
+ * @param stakedTickEdgeNets - Parallel nets (same index as stakedTickEdges)
  * @returns Updated stakedLiquidityInRange after processing tick crossings
  */
-export async function processTickCrossingsForStaked(
+export function processTickCrossingsForStaked(
   chainId: number,
   poolAddress: string,
   oldTick: bigint,
@@ -162,7 +325,9 @@ export async function processTickCrossingsForStaked(
   context: handlerContext,
   currentStakedLiqInRange: bigint,
   hasStakes: boolean,
-): Promise<bigint> {
+  stakedTickEdges: readonly bigint[],
+  stakedTickEdgeNets: readonly bigint[],
+): bigint {
   if (oldTick === newTick || tickSpacing === 0n) {
     return currentStakedLiqInRange;
   }
@@ -179,49 +344,36 @@ export async function processTickCrossingsForStaked(
     newTick > TICK_MAX
   ) {
     context.log.error(
-      `[processTickCrossingsForStaked] Tick out of Uniswap v3 range for pool ${poolAddress} on chain ${chainId}: oldTick=${oldTick}, newTick=${newTick}. Skipping crossing sweep to avoid runaway loop.`,
+      `[STAKED_TICK_DRIFT][processTickCrossingsForStaked] Tick out of Uniswap v3 range for pool ${poolAddress} on chain ${chainId}: oldTick=${oldTick}, newTick=${newTick}. Skipping crossing sweep to avoid runaway loop; stakedLiquidityInRange will be stale on this pool until a subsequent stake/unstake rebuilds it.`,
     );
     return currentStakedLiqInRange;
   }
 
-  // Pools without any CLTickStaked entries cannot contribute to stakedLiq — skip
-  // the sweep entirely. This is the hot path: it eliminates the O((Δtick)/spacing)
-  // per-swap scan for every unstaked pool.
-  if (!hasStakes) {
+  // Pools without any staked positions cannot contribute to stakedLiq — skip
+  // the binary search entirely. This is the hot path: it eliminates the
+  // O(log E + k) per-swap cost for every unstaked pool.
+  if (!hasStakes || stakedTickEdges.length === 0) {
     return currentStakedLiqInRange;
   }
 
   let stakedLiq = currentStakedLiqInRange;
 
   if (newTick > oldTick) {
-    // Price moving up — cross ticks from oldTick toward newTick
-    const startTick = alignTickUp(oldTick, tickSpacing);
-    const tickIds: string[] = [];
-    for (let t = startTick; t <= newTick; t += tickSpacing) {
-      tickIds.push(CLTickStakedId(chainId, poolAddress, t));
-    }
-    const tickEntities = await Promise.all(
-      tickIds.map((id) => context.CLTickStaked.get(id)),
-    );
-    for (const tick of tickEntities) {
-      if (tick) {
-        stakedLiq += tick.stakedLiquidityNet;
-      }
+    // Price moving up — cross ticks STRICTLY above oldTick, up to and including newTick.
+    // Mirror the pre-PR alignTickUp semantics (strictly above oldTick) by starting the
+    // binary search at `oldTick + 1`.
+    const startIdx = lowerBound(stakedTickEdges, oldTick + 1n);
+    for (let i = startIdx; i < stakedTickEdges.length; i++) {
+      if (stakedTickEdges[i] > newTick) break;
+      stakedLiq += stakedTickEdgeNets[i];
     }
   } else {
-    // Price moving down — cross ticks from oldTick toward newTick
-    const startTick = alignTickDown(oldTick, tickSpacing);
-    const tickIds: string[] = [];
-    for (let t = startTick; t > newTick; t -= tickSpacing) {
-      tickIds.push(CLTickStakedId(chainId, poolAddress, t));
-    }
-    const tickEntities = await Promise.all(
-      tickIds.map((id) => context.CLTickStaked.get(id)),
-    );
-    for (const tick of tickEntities) {
-      if (tick) {
-        stakedLiq -= tick.stakedLiquidityNet;
-      }
+    // Price moving down — cross ticks AT OR BELOW oldTick, strictly above newTick.
+    // Walk backwards from the last edge <= oldTick.
+    const endIdx = lowerBound(stakedTickEdges, oldTick + 1n) - 1;
+    for (let i = endIdx; i >= 0; i--) {
+      if (stakedTickEdges[i] <= newTick) break;
+      stakedLiq -= stakedTickEdgeNets[i];
     }
   }
 

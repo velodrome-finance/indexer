@@ -1,13 +1,13 @@
-import type { LiquidityPoolAggregator } from "generated";
 import {
   CLGaugeFactoryV2,
   MockDb,
 } from "../../../generated/src/TestHelpers.gen";
 import { toChecksumAddress } from "../../../src/Constants";
-import { setupCommon } from "../Pool/common";
+import { type MockLiquidityPoolAggregator, setupCommon } from "../Pool/common";
 
 describe("CLGaugeFactoryV2 Event Handlers", () => {
-  const { mockLiquidityPoolData } = setupCommon();
+  const { mockLiquidityPoolData, createMockLiquidityPoolAggregator } =
+    setupCommon();
   const chainId = 10;
   const mockGaugeFactoryAddress = toChecksumAddress(
     "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -170,16 +170,15 @@ describe("CLGaugeFactoryV2 Event Handlers", () => {
   });
 
   describe("SetEmissionCap Event Handler", () => {
-    let mockPoolWithGauge: LiquidityPoolAggregator;
+    let mockPoolWithGauge: MockLiquidityPoolAggregator;
     let mockDbWithGetWhere: typeof mockDb;
 
     beforeEach(() => {
       // Create a pool entity with a gauge address
-      mockPoolWithGauge = {
-        ...mockLiquidityPoolData,
+      mockPoolWithGauge = createMockLiquidityPoolAggregator({
         gaugeAddress: mockGaugeAddress,
         gaugeEmissionsCap: 0n, // Initial value
-      };
+      });
 
       mockDb = mockDb.entities.LiquidityPoolAggregator.set(mockPoolWithGauge);
 

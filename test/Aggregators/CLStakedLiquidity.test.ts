@@ -1,5 +1,6 @@
 import type { CLTickStaked, handlerContext } from "generated";
 import {
+  applyStakedPositionToEdges,
   computeStakedSwapReserveDelta,
   isPositionInRange,
   processTickCrossingsForStaked,
@@ -91,7 +92,6 @@ describe("CLStakedLiquidity", () => {
     });
 
     it("should accumulate liquidity from multiple positions at same ticks", async () => {
-      // First position: +500 at lower, -500 at upper
       await updateTicksForStakedPosition(
         CHAIN_ID,
         POOL_ADDRESS,
@@ -100,7 +100,6 @@ describe("CLStakedLiquidity", () => {
         500n,
         mockContext,
       );
-      // Second position: +300 at same ticks
       await updateTicksForStakedPosition(
         CHAIN_ID,
         POOL_ADDRESS,
@@ -118,7 +117,6 @@ describe("CLStakedLiquidity", () => {
     });
 
     it("should handle unstake (negative liquidityDelta)", async () => {
-      // Stake 1000
       await updateTicksForStakedPosition(
         CHAIN_ID,
         POOL_ADDRESS,
@@ -127,7 +125,6 @@ describe("CLStakedLiquidity", () => {
         1000n,
         mockContext,
       );
-      // Unstake 1000
       await updateTicksForStakedPosition(
         CHAIN_ID,
         POOL_ADDRESS,
@@ -162,27 +159,215 @@ describe("CLStakedLiquidity", () => {
     });
   });
 
+  describe("applyStakedPositionToEdges", () => {
+    it("should insert both edges with correct signs on stake", () => {
+      const { edges, nets } = applyStakedPositionToEdges(
+        [],
+        [],
+        100n,
+        200n,
+        500n,
+      );
+      expect(edges).toEqual([100n, 200n]);
+      expect(nets).toEqual([500n, -500n]);
+    });
+
+    it("should keep the list sorted when inserting into the middle", () => {
+      // Start with an existing position at [0, 400]
+      const start = applyStakedPositionToEdges([], [], 0n, 400n, 100n);
+      // Insert a nested position at [100, 300]
+      const { edges, nets } = applyStakedPositionToEdges(
+        start.edges,
+        start.nets,
+        100n,
+        300n,
+        50n,
+      );
+      expect(edges).toEqual([0n, 100n, 300n, 400n]);
+      expect(nets).toEqual([100n, 50n, -50n, -100n]);
+    });
+
+    it("should sum nets when two positions share an edge", () => {
+      const a = applyStakedPositionToEdges([], [], 100n, 200n, 500n);
+      const b = applyStakedPositionToEdges(a.edges, a.nets, 100n, 300n, 200n);
+      // tickLower=100 contributes +500 (A) + +200 (B) = +700
+      // tickUpper=200 is only A: -500
+      // tickUpper=300 is only B: -200
+      expect(b.edges).toEqual([100n, 200n, 300n]);
+      expect(b.nets).toEqual([700n, -500n, -200n]);
+    });
+
+    it("should drop an edge when its net becomes zero", () => {
+      // Stake then unstake the same position
+      const a = applyStakedPositionToEdges([], [], 100n, 200n, 500n);
+      const b = applyStakedPositionToEdges(a.edges, a.nets, 100n, 200n, -500n);
+      expect(b.edges).toEqual([]);
+      expect(b.nets).toEqual([]);
+    });
+
+    it("should keep non-zero edges when a partial unstake leaves residual net", () => {
+      // Two positions sharing tickLower=100
+      const a = applyStakedPositionToEdges([], [], 100n, 200n, 500n);
+      const b = applyStakedPositionToEdges(a.edges, a.nets, 100n, 300n, 200n);
+      // Unstake only one of them
+      const c = applyStakedPositionToEdges(b.edges, b.nets, 100n, 200n, -500n);
+      // tickLower=100: +700 - 500 = +200
+      // tickUpper=200: -500 + 500 = 0 → dropped
+      // tickUpper=300: -200 (unchanged)
+      expect(c.edges).toEqual([100n, 300n]);
+      expect(c.nets).toEqual([200n, -200n]);
+    });
+
+    it("should ignore out-of-range ticks and tag them 'ticks_out_of_range'", () => {
+      const result = applyStakedPositionToEdges(
+        [],
+        [],
+        -900000n, // below TICK_MIN
+        100n,
+        500n,
+      );
+      expect(result.edges).toEqual([]);
+      expect(result.nets).toEqual([]);
+      expect(result.rejected).toBe("ticks_out_of_range");
+    });
+
+    it("should ignore degenerate ranges and tag them 'degenerate_range'", () => {
+      const result = applyStakedPositionToEdges([], [], 200n, 100n, 500n);
+      expect(result.edges).toEqual([]);
+      expect(result.nets).toEqual([]);
+      expect(result.rejected).toBe("degenerate_range");
+    });
+
+    it("should silently no-op on liquidityDelta=0 without a rejection tag", () => {
+      // Zero-delta is a legitimate NFPM Mint-0 flow, not an invariant violation.
+      // It must NOT log/alert — the caller treats `rejected: undefined` as success.
+      const seed = applyStakedPositionToEdges([], [], 100n, 200n, 500n);
+      const result = applyStakedPositionToEdges(
+        seed.edges,
+        seed.nets,
+        100n,
+        200n,
+        0n,
+      );
+      expect(result.edges).toEqual([100n, 200n]);
+      expect(result.nets).toEqual([500n, -500n]);
+      expect(result.rejected).toBeUndefined();
+    });
+
+    it("should preserve negative residual nets (upper-tick side + partial overlap)", () => {
+      // Uniswap v3 semantics: at a tickUpper the net is -liquidity (negative).
+      // When two positions share a tick where one uses it as tickUpper and the
+      // other as tickLower, the residual can remain negative but non-zero.
+      // Invariant under test: the edge MUST be preserved (not dropped just because
+      // the net is negative) and the sort order MUST hold.
+      const a = applyStakedPositionToEdges([], [], 100n, 200n, 500n);
+      expect(a.edges).toEqual([100n, 200n]);
+      expect(a.nets).toEqual([500n, -500n]);
+
+      // Second position uses 200 as tickLower, stacking onto the existing -500 net.
+      const b = applyStakedPositionToEdges(a.edges, a.nets, 200n, 300n, 300n);
+      // tickLower=100: +500 (A)
+      // tickLower=200 from B adds +300 onto -500 (A's upper) = -200 (residual NEGATIVE, not dropped)
+      // tickUpper=300 from B: -300
+      expect(b.edges).toEqual([100n, 200n, 300n]);
+      expect(b.nets).toEqual([500n, -200n, -300n]);
+      expect(b.rejected).toBeUndefined();
+
+      // Sanity: sum of nets must still be zero (invariant for a balanced stake set).
+      const totalNet = b.nets.reduce((acc, n) => acc + n, 0n);
+      expect(totalNet).toBe(0n);
+
+      // Swap cross-check: the in-aggregator walker applied across the full
+      // range must see the same answer as summing the negative residuals.
+      // Going up from -inf to +inf, stakedLiq delta = 500 + -200 + -300 = 0.
+      // This is the "closed system" property — all stakes cancel end-to-end.
+    });
+
+    it("should round-trip a stake then unstake back to an empty edge list", () => {
+      // Even with negative residuals in flight, a full unstake must return to
+      // an empty edge list (no orphaned nets, no zombie edges).
+      let edges: readonly bigint[] = [];
+      let nets: readonly bigint[] = [];
+      const positions = [
+        { tl: 100n, tu: 200n, liq: 500n },
+        { tl: 200n, tu: 300n, liq: 300n },
+        { tl: 150n, tu: 250n, liq: 700n },
+      ];
+      for (const p of positions) {
+        const out = applyStakedPositionToEdges(edges, nets, p.tl, p.tu, p.liq);
+        edges = out.edges;
+        nets = out.nets;
+      }
+      expect(edges.length).toBeGreaterThan(0);
+      // Unstake each in reverse order
+      for (const p of positions.slice().reverse()) {
+        const out = applyStakedPositionToEdges(edges, nets, p.tl, p.tu, -p.liq);
+        edges = out.edges;
+        nets = out.nets;
+      }
+      expect(edges).toEqual([]);
+      expect(nets).toEqual([]);
+    });
+
+    it("should not mutate the input arrays", () => {
+      const input = applyStakedPositionToEdges([], [], 100n, 200n, 500n);
+      const frozenEdges = Object.freeze([...input.edges]);
+      const frozenNets = Object.freeze([...input.nets]);
+      applyStakedPositionToEdges(frozenEdges, frozenNets, 300n, 400n, 100n);
+      // Freeze throws on mutation; absence of throw proves no mutation happened.
+      expect(frozenEdges).toEqual([100n, 200n]);
+      expect(frozenNets).toEqual([500n, -500n]);
+    });
+
+    it("should stay monotone after many interleaved stake/unstake events", () => {
+      let edges: readonly bigint[] = [];
+      let nets: readonly bigint[] = [];
+      const positions: { tl: bigint; tu: bigint; liq: bigint }[] = [];
+      for (let i = 0; i < 50; i++) {
+        const tl = BigInt(i * 10);
+        const tu = BigInt(i * 10 + 50);
+        const liq = BigInt(100 + i);
+        positions.push({ tl, tu, liq });
+        const out = applyStakedPositionToEdges(edges, nets, tl, tu, liq);
+        edges = out.edges;
+        nets = out.nets;
+        // Monotone check after every event
+        for (let k = 1; k < edges.length; k++) {
+          expect(edges[k]).toBeGreaterThan(edges[k - 1]);
+        }
+      }
+      // Unstake half of them
+      for (let i = 0; i < 25; i++) {
+        const p = positions[i * 2];
+        const out = applyStakedPositionToEdges(edges, nets, p.tl, p.tu, -p.liq);
+        edges = out.edges;
+        nets = out.nets;
+        for (let k = 1; k < edges.length; k++) {
+          expect(edges[k]).toBeGreaterThan(edges[k - 1]);
+        }
+      }
+      expect(edges.length).toBeGreaterThan(0);
+    });
+  });
+
   describe("processTickCrossingsForStaked", () => {
-    let tickStore: Map<string, CLTickStaked>;
     let mockContext: handlerContext;
     let logErrorSpy: ReturnType<typeof vi.fn>;
+    let getSpy: ReturnType<typeof vi.fn>;
 
     beforeEach(() => {
-      tickStore = new Map();
       logErrorSpy = vi.fn();
+      // The swap path must NEVER call CLTickStaked.get — if it does, the OOM
+      // regression from #648 is back. Make the spy THROW so any accidental
+      // call surfaces loudly in the test output (a silent vi.fn() would let a
+      // regression return `undefined` and skate past weaker assertions).
+      getSpy = vi.fn(() => {
+        throw new Error(
+          "processTickCrossingsForStaked must not call CLTickStaked.get on the swap path (#649 regression)",
+        );
+      });
       mockContext = {
-        CLTickStaked: {
-          get: vi
-            .fn()
-            .mockImplementation((id: string) =>
-              Promise.resolve(tickStore.get(id) ?? null),
-            ),
-          set: vi
-            .fn()
-            .mockImplementation((entity: CLTickStaked) =>
-              tickStore.set(entity.id, entity),
-            ),
-        },
+        CLTickStaked: { get: getSpy, set: vi.fn() },
         log: {
           error: logErrorSpy,
           warn: vi.fn(),
@@ -191,20 +376,6 @@ describe("CLStakedLiquidity", () => {
         },
       } as unknown as handlerContext;
     });
-
-    /**
-     * Helper to seed a CLTickStaked entity at a given tick index.
-     */
-    function seedTick(tickIndex: bigint, stakedLiquidityNet: bigint): void {
-      const id = CLTickStakedId(CHAIN_ID, POOL_ADDRESS, tickIndex);
-      tickStore.set(id, {
-        id,
-        chainId: CHAIN_ID,
-        poolAddress: POOL_ADDRESS,
-        tickIndex,
-        stakedLiquidityNet,
-      });
-    }
 
     it("should return unchanged when oldTick === newTick", async () => {
       const result = await processTickCrossingsForStaked(
@@ -216,8 +387,11 @@ describe("CLStakedLiquidity", () => {
         mockContext,
         500n,
         true,
+        [100n, 200n],
+        [300n, -300n],
       );
       expect(result).toBe(500n);
+      expect(getSpy).not.toHaveBeenCalled();
     });
 
     it("should return unchanged when tickSpacing is zero", async () => {
@@ -230,15 +404,14 @@ describe("CLStakedLiquidity", () => {
         mockContext,
         500n,
         true,
+        [200n],
+        [300n],
       );
       expect(result).toBe(500n);
+      expect(getSpy).not.toHaveBeenCalled();
     });
 
     it("should add stakedLiquidityNet when crossing up", async () => {
-      // Position staked at [200, 400]: lower tick has +300
-      seedTick(200n, 300n);
-
-      // Swap from tick 100 to tick 250 (crosses tick 200 going up)
       const result = await processTickCrossingsForStaked(
         CHAIN_ID,
         POOL_ADDRESS,
@@ -248,18 +421,14 @@ describe("CLStakedLiquidity", () => {
         mockContext,
         0n,
         true,
+        [200n],
+        [300n],
       );
-
-      // alignTickUp(100, 200) = 200, crosses 200 (200 <= 250)
       expect(result).toBe(300n);
+      expect(getSpy).not.toHaveBeenCalled();
     });
 
     it("should subtract stakedLiquidityNet when crossing down", async () => {
-      // Position staked at [200, 400]: lower tick has +300
-      seedTick(200n, 300n);
-
-      // Swap from tick 250 to tick 100 (crosses tick 200 going down)
-      // alignTickDown(250, 200) = 200, crosses 200 (200 > 100)
       const result = await processTickCrossingsForStaked(
         CHAIN_ID,
         POOL_ADDRESS,
@@ -269,19 +438,14 @@ describe("CLStakedLiquidity", () => {
         mockContext,
         300n,
         true,
+        [200n],
+        [300n],
       );
-
       expect(result).toBe(0n);
+      expect(getSpy).not.toHaveBeenCalled();
     });
 
     it("should handle multiple tick crossings going up", async () => {
-      seedTick(200n, 100n);
-      seedTick(400n, 200n);
-      seedTick(600n, -50n);
-
-      // Swap from tick 100 to tick 650
-      // alignTickUp(100, 200) = 200
-      // Crosses: 200 (+100), 400 (+200), 600 (-50) — all <= 650
       const result = await processTickCrossingsForStaked(
         CHAIN_ID,
         POOL_ADDRESS,
@@ -291,20 +455,14 @@ describe("CLStakedLiquidity", () => {
         mockContext,
         0n,
         true,
+        [200n, 400n, 600n],
+        [100n, 200n, -50n],
       );
-
       expect(result).toBe(250n); // 0 + 100 + 200 - 50
+      expect(getSpy).not.toHaveBeenCalled();
     });
 
     it("should handle multiple tick crossings going down", async () => {
-      seedTick(600n, -50n);
-      seedTick(400n, 200n);
-      seedTick(200n, 100n);
-
-      // Swap from tick 650 to tick 100
-      // alignTickDown(650, 200) = 600
-      // Crosses: 600 (sub -50 → +50), 400 (sub 200 → -150), 200 (sub 100 → -250)
-      // All > 100
       const result = await processTickCrossingsForStaked(
         CHAIN_ID,
         POOL_ADDRESS,
@@ -314,38 +472,32 @@ describe("CLStakedLiquidity", () => {
         mockContext,
         250n,
         true,
+        [200n, 400n, 600n],
+        [100n, 200n, -50n],
       );
-
       // 250 - (-50) - 200 - 100 = 250 + 50 - 200 - 100 = 0
       expect(result).toBe(0n);
+      expect(getSpy).not.toHaveBeenCalled();
     });
 
-    it("should skip ticks with no entity (treat as zero)", async () => {
-      // Only seed tick 400, tick 200 has no entity
-      seedTick(400n, 150n);
-
-      // Swap from tick 100 to tick 450
-      // alignTickUp(100, 200) = 200
-      // Crosses: 200 (no entity → skip), 400 (+150) — both <= 450
+    it("should skip edges that fall outside the [oldTick, newTick] window", async () => {
+      // Edges exist at 200 and 400, but swap only crosses 200
       const result = await processTickCrossingsForStaked(
         CHAIN_ID,
         POOL_ADDRESS,
         100n,
-        450n,
+        300n,
         200n,
         mockContext,
         50n,
         true,
+        [200n, 400n],
+        [150n, -150n],
       );
-
-      expect(result).toBe(200n); // 50 + 150
+      expect(result).toBe(200n); // 50 + 150 (only 200 crossed, 400 is beyond newTick=300)
     });
 
     it("should handle negative tick ranges", async () => {
-      seedTick(-200n, 500n);
-
-      // Swap from tick -300 to tick -100 (crosses -200 going up)
-      // alignTickUp(-300, 200) = -200 (strictly above -300)
       const result = await processTickCrossingsForStaked(
         CHAIN_ID,
         POOL_ADDRESS,
@@ -355,17 +507,14 @@ describe("CLStakedLiquidity", () => {
         mockContext,
         0n,
         true,
+        [-200n],
+        [500n],
       );
-
       expect(result).toBe(500n);
     });
 
-    it("should not cross the oldTick itself when going up (alignTickUp is strictly above)", async () => {
-      seedTick(200n, 100n);
-
-      // oldTick = 200, newTick = 350
-      // alignTickUp(200, 200) = 400 (strictly above 200)
-      // 400 > 350, so NO ticks are crossed
+    it("should not cross the oldTick itself when going up (strict-above semantics)", async () => {
+      // oldTick=200, edge at 200 — since we search lowerBound(201), edge is skipped
       const result = await processTickCrossingsForStaked(
         CHAIN_ID,
         POOL_ADDRESS,
@@ -375,17 +524,14 @@ describe("CLStakedLiquidity", () => {
         mockContext,
         0n,
         true,
+        [200n],
+        [100n],
       );
-
       expect(result).toBe(0n);
     });
 
-    it("should include the oldTick boundary when going down (alignTickDown is at-or-below)", async () => {
-      seedTick(200n, 100n);
-
-      // oldTick = 200, newTick = 50
-      // alignTickDown(200, 200) = 200
-      // 200 > 50, so tick 200 IS crossed
+    it("should include the oldTick boundary when going down (at-or-below semantics)", async () => {
+      // oldTick=200, edge at 200 — going down includes it
       const result = await processTickCrossingsForStaked(
         CHAIN_ID,
         POOL_ADDRESS,
@@ -395,20 +541,15 @@ describe("CLStakedLiquidity", () => {
         mockContext,
         100n,
         true,
+        [200n],
+        [100n],
       );
-
-      // 100 - 100 = 0
-      expect(result).toBe(0n);
+      expect(result).toBe(0n); // 100 - 100
     });
 
-    it("should handle tickSpacing of 1", async () => {
-      seedTick(101n, 10n);
-      seedTick(102n, 20n);
-      seedTick(103n, -5n);
-
-      // Swap from tick 100 to tick 103, spacing=1
-      // alignTickUp(100, 1) = 101
-      // Crosses: 101 (+10), 102 (+20), 103 (-5) — all <= 103
+    it("should handle tickSpacing of 1 without scanning per-tick (only edges drive the walk)", async () => {
+      // Edges 101/102/103; spacing=1 means the old impl would sweep per-tick,
+      // but the new impl only visits the edges that exist.
       const result = await processTickCrossingsForStaked(
         CHAIN_ID,
         POOL_ADDRESS,
@@ -418,17 +559,15 @@ describe("CLStakedLiquidity", () => {
         mockContext,
         0n,
         true,
+        [101n, 102n, 103n],
+        [10n, 20n, -5n],
       );
-
       expect(result).toBe(25n); // 0 + 10 + 20 - 5
+      expect(getSpy).not.toHaveBeenCalled();
     });
 
     describe("safety guards", () => {
-      it("should short-circuit when hasStakes is false (skip CLTickStaked reads)", async () => {
-        // Seed a tick entity that would otherwise contribute — the guard must
-        // skip the read so this value is never applied.
-        seedTick(200n, 999n);
-
+      it("should short-circuit when hasStakes is false", async () => {
         const result = await processTickCrossingsForStaked(
           CHAIN_ID,
           POOL_ADDRESS,
@@ -438,30 +577,48 @@ describe("CLStakedLiquidity", () => {
           mockContext,
           500n,
           false,
+          [200n],
+          [999n],
         );
-
         expect(result).toBe(500n);
-        expect(mockContext.CLTickStaked.get).not.toHaveBeenCalled();
+        expect(getSpy).not.toHaveBeenCalled();
+      });
+
+      it("should short-circuit when the edge list is empty (no staked positions)", async () => {
+        const result = await processTickCrossingsForStaked(
+          CHAIN_ID,
+          POOL_ADDRESS,
+          100n,
+          250n,
+          200n,
+          mockContext,
+          500n,
+          true, // latch true but no edges
+          [],
+          [],
+        );
+        expect(result).toBe(500n);
+        expect(getSpy).not.toHaveBeenCalled();
       });
 
       it("should bail and log when oldTick is below TICK_MIN", async () => {
         const result = await processTickCrossingsForStaked(
           CHAIN_ID,
           POOL_ADDRESS,
-          -900000n, // below TICK_MIN = -887272n
+          -900000n,
           100n,
           200n,
           mockContext,
           500n,
           true,
+          [200n],
+          [300n],
         );
-
         expect(result).toBe(500n);
         expect(logErrorSpy).toHaveBeenCalledTimes(1);
         expect(logErrorSpy.mock.calls[0][0]).toContain(
           "out of Uniswap v3 range",
         );
-        expect(mockContext.CLTickStaked.get).not.toHaveBeenCalled();
       });
 
       it("should bail and log when newTick is above TICK_MAX", async () => {
@@ -469,20 +626,19 @@ describe("CLStakedLiquidity", () => {
           CHAIN_ID,
           POOL_ADDRESS,
           100n,
-          900000n, // above TICK_MAX = 887272n
+          900000n,
           200n,
           mockContext,
           500n,
           true,
+          [200n],
+          [300n],
         );
-
         expect(result).toBe(500n);
         expect(logErrorSpy).toHaveBeenCalledTimes(1);
-        expect(mockContext.CLTickStaked.get).not.toHaveBeenCalled();
       });
 
       it("should accept boundary ticks at exactly TICK_MIN and TICK_MAX", async () => {
-        // No tick entities seeded → result should equal the input
         const result = await processTickCrossingsForStaked(
           CHAIN_ID,
           POOL_ADDRESS,
@@ -492,8 +648,9 @@ describe("CLStakedLiquidity", () => {
           mockContext,
           0n,
           true,
+          [],
+          [],
         );
-
         expect(result).toBe(0n);
         expect(logErrorSpy).not.toHaveBeenCalled();
       });

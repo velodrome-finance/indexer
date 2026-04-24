@@ -1,11 +1,11 @@
-import type { LiquidityPoolAggregator, Token, VeNFTState } from "generated";
+import type { Token, VeNFTState } from "generated";
 import {
   MockDb,
   SuperchainIncentiveVotingReward,
 } from "../../../generated/src/TestHelpers.gen";
 import { TokenId, VeNFTId, toChecksumAddress } from "../../../src/Constants";
 import * as VotingRewardSharedLogic from "../../../src/EventHandlers/VotingReward/VotingRewardSharedLogic";
-import { setupCommon } from "../Pool/common";
+import { type MockLiquidityPoolAggregator, setupCommon } from "../Pool/common";
 
 describe("SuperchainIncentiveVotingReward Events", () => {
   const { mockToken0Data, mockToken1Data } = setupCommon();
@@ -22,7 +22,7 @@ describe("SuperchainIncentiveVotingReward Events", () => {
   const tokenId = 1n;
 
   let mockDb: ReturnType<typeof MockDb.createMockDb>;
-  let liquidityPool: LiquidityPoolAggregator;
+  let liquidityPool: MockLiquidityPoolAggregator;
   let userStats: ReturnType<
     ReturnType<typeof setupCommon>["createMockUserStatsPerPool"]
   >;

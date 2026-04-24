@@ -81,6 +81,24 @@ export interface LiquidityPoolAggregatorDiff {
   incrementalStakedReserve0: bigint;
   incrementalStakedReserve1: bigint;
   hasStakes: boolean;
+  // Replace semantics (NOT incremental): producers — gauge deposit/withdraw,
+  // NFPM liquidity change — compute the full post-edit arrays from `current.
+  // stakedTickEdges` / `current.stakedTickEdgeNets` and pass them whole. The
+  // aggregator writes them verbatim; there is no merge/sum path for these
+  // fields the way `incrementalCurrentLiquidityStaked` & co. have. This is
+  // the same "last-writer-wins" style used for `tick`, `sqrtPriceX96`, etc.
+  //
+  // Why replace (not incremental): the array is a sorted, dedup'd, no-zero
+  // encoding of Uniswap v3's liquidityNet per tick. Splicing in a delta
+  // requires a binary-search locate that only makes sense against the current
+  // state — producers already do it in applyStakedPositionToEdges, so the
+  // aggregator just takes the result.
+  //
+  // Typed `readonly bigint[]` so callers can pass the value straight from the
+  // `LiquidityPoolAggregator` entity (whose array fields are readonly in
+  // envio.d.ts) without a copy.
+  stakedTickEdges: readonly bigint[];
+  stakedTickEdgeNets: readonly bigint[];
   totalVotesDeposited: bigint;
   totalVotesDepositedUSD: bigint;
   incrementalTotalBribeClaimed: bigint;
@@ -218,6 +236,31 @@ export async function updateLiquidityPoolAggregator(
   eventChainId: number,
   blockNumber: number,
 ) {
+  // Invariant check for the parallel-array pair (stakedTickEdges,
+  // stakedTickEdgeNets). Writers are supposed to compute both together via
+  // applyStakedPositionToEdges (see src/Aggregators/CLStakedLiquidity.ts),
+  // but there's nothing in the type system that prevents a future caller
+  // from setting one and forgetting the other. Diverging lengths would
+  // silently desync the sparse map the swap path binary-searches, so fail
+  // loudly at the merge point.
+  if (
+    diff.stakedTickEdges !== undefined &&
+    diff.stakedTickEdgeNets !== undefined &&
+    diff.stakedTickEdges.length !== diff.stakedTickEdgeNets.length
+  ) {
+    throw new Error(
+      `[updateLiquidityPoolAggregator] stakedTickEdges/stakedTickEdgeNets length mismatch for pool ${current.poolAddress} on chain ${current.chainId}: edges.length=${diff.stakedTickEdges.length}, nets.length=${diff.stakedTickEdgeNets.length}. Both arrays MUST be produced together by applyStakedPositionToEdges.`,
+    );
+  }
+  if (
+    (diff.stakedTickEdges !== undefined) !==
+    (diff.stakedTickEdgeNets !== undefined)
+  ) {
+    throw new Error(
+      `[updateLiquidityPoolAggregator] stakedTickEdges and stakedTickEdgeNets must be updated together (parallel arrays) for pool ${current.poolAddress} on chain ${current.chainId}. Got edges=${diff.stakedTickEdges !== undefined ? "set" : "unset"}, nets=${diff.stakedTickEdgeNets !== undefined ? "set" : "unset"}.`,
+    );
+  }
+
   let updated: LiquidityPoolAggregator = {
     ...current,
     // Handle cumulative fields by adding diff values to current values
@@ -339,6 +382,11 @@ export async function updateLiquidityPoolAggregator(
     // Monotonic latch: once a pool has ever been staked, hasStakes stays true
     // even if the diff doesn't explicitly re-assert it.
     hasStakes: current.hasStakes || (diff.hasStakes ?? false),
+    // Replace semantics: if the diff provides a new edge list, use it directly.
+    // Producers compute the post-edit arrays from `current.stakedTickEdges`/
+    // `current.stakedTickEdgeNets` and must replace both together (parallel arrays).
+    stakedTickEdges: diff.stakedTickEdges ?? current.stakedTickEdges,
+    stakedTickEdgeNets: diff.stakedTickEdgeNets ?? current.stakedTickEdgeNets,
     totalVotesDeposited:
       diff.totalVotesDeposited ?? current.totalVotesDeposited,
     totalVotesDepositedUSD:
@@ -743,6 +791,8 @@ export function createLiquidityPoolAggregatorEntity(params: {
     stakedReserve0: 0n,
     stakedReserve1: 0n,
     hasStakes: false,
+    stakedTickEdges: [],
+    stakedTickEdgeNets: [],
     totalFlashLoanFees0: 0n,
     totalFlashLoanFees1: 0n,
     totalFlashLoanFeesUSD: 0n,

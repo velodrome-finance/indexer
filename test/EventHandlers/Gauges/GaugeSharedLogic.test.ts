@@ -1,5 +1,5 @@
 import { TickMath } from "@uniswap/v3-sdk";
-import type { LiquidityPoolAggregator, Token, handlerContext } from "generated";
+import type { Token, handlerContext } from "generated";
 import type { PublicClient } from "viem";
 import { MockDb } from "../../../generated/src/TestHelpers.gen";
 import {
@@ -17,7 +17,7 @@ import {
   processGaugeDeposit,
   processGaugeWithdraw,
 } from "../../../src/EventHandlers/Gauges/GaugeSharedLogic";
-import { setupCommon } from "../Pool/common";
+import { type MockLiquidityPoolAggregator, setupCommon } from "../Pool/common";
 
 describe("GaugeSharedLogic", () => {
   const { mockToken0Data, mockToken1Data, createMockLiquidityPoolAggregator } =
@@ -60,7 +60,7 @@ describe("GaugeSharedLogic", () => {
     isWhitelisted: true,
   };
 
-  let mockLiquidityPoolAggregator: LiquidityPoolAggregator;
+  let mockLiquidityPoolAggregator: MockLiquidityPoolAggregator;
   let mockUserStatsPerPool: ReturnType<
     ReturnType<typeof setupCommon>["createMockUserStatsPerPool"]
   >;
@@ -936,7 +936,7 @@ describe("GaugeSharedLogic", () => {
       TickMath.getSqrtRatioAtTick(0).toString(),
     );
 
-    let clPool: LiquidityPoolAggregator;
+    let clPool: MockLiquidityPoolAggregator;
     let clMockContext: typeof mockContext;
 
     const mockTokenId1 = 42n;

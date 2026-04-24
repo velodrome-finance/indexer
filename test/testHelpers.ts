@@ -113,6 +113,9 @@ export function setupLiquidityPoolAggregator(
     id: poolId,
     poolAddress: poolAddress,
     isCL: mockLiquidityPoolData.isCL ?? true,
+    // Array fields: force mutable bigint[] (envio.d.ts uses readonly; set() wants mutable).
+    stakedTickEdges: [...mockLiquidityPoolData.stakedTickEdges],
+    stakedTickEdgeNets: [...mockLiquidityPoolData.stakedTickEdgeNets],
   };
   return mockDb.entities.LiquidityPoolAggregator.set(
     mockLiquidityPoolAggregator,

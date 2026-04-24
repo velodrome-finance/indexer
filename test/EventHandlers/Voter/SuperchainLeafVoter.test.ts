@@ -1,4 +1,4 @@
-import type { LiquidityPoolAggregator, Token } from "generated";
+import type { Token } from "generated";
 import { MockDb, SuperchainLeafVoter } from "generated/src/TestHelpers.gen";
 import * as LiquidityPoolAggregatorModule from "../../../src/Aggregators/LiquidityPoolAggregator";
 import {
@@ -7,7 +7,7 @@ import {
   TokenId,
   toChecksumAddress,
 } from "../../../src/Constants";
-import { setupCommon } from "../Pool/common";
+import { type MockLiquidityPoolAggregator, setupCommon } from "../Pool/common";
 
 describe("SuperchainLeafVoter Events", () => {
   beforeEach(() => {
@@ -67,7 +67,7 @@ describe("SuperchainLeafVoter Events", () => {
 
     describe("when pool entity exists", () => {
       let resultDB: ReturnType<typeof MockDb.createMockDb>;
-      let mockLiquidityPool: LiquidityPoolAggregator;
+      let mockLiquidityPool: MockLiquidityPoolAggregator;
 
       beforeEach(async () => {
         mockLiquidityPool = createMockLiquidityPoolAggregator({
@@ -378,7 +378,7 @@ describe("SuperchainLeafVoter Events", () => {
 
     describe("when pool entity exists", () => {
       let resultDB: ReturnType<typeof MockDb.createMockDb>;
-      let mockLiquidityPool: LiquidityPoolAggregator;
+      let mockLiquidityPool: MockLiquidityPoolAggregator;
       const feeVotingRewardAddress = toChecksumAddress(
         "0x6572b2b30f63B960608f3aA5205711C558998398",
       );
@@ -476,7 +476,7 @@ describe("SuperchainLeafVoter Events", () => {
 
     describe("when pool entity exists", () => {
       let resultDB: ReturnType<typeof MockDb.createMockDb>;
-      let mockLiquidityPool: LiquidityPoolAggregator;
+      let mockLiquidityPool: MockLiquidityPoolAggregator;
       const feeVotingRewardAddress = toChecksumAddress(
         "0x6572b2b30f63B960608f3aA5205711C558998398",
       );

@@ -1,6 +1,6 @@
 import { MockDb, Redistributor } from "../../../generated/src/TestHelpers.gen";
 import { toChecksumAddress } from "../../../src/Constants";
-import { setupCommon } from "../Pool/common";
+import { type MockLiquidityPoolAggregator, setupCommon } from "../Pool/common";
 import { makeRedistributorMockEventData } from "./common";
 
 describe("Redistributor Event Handlers", () => {
@@ -43,7 +43,7 @@ describe("Redistributor Event Handlers", () => {
   const seedPool = (
     existingForfeited = 0n,
     existingRedistributed = 0n,
-  ): ReturnType<typeof createMockLiquidityPoolAggregator> =>
+  ): MockLiquidityPoolAggregator =>
     createMockLiquidityPoolAggregator({
       chainId,
       gaugeAddress,

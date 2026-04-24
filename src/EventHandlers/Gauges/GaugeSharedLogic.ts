@@ -1,5 +1,6 @@
 import type { LiquidityPoolAggregator, handlerContext } from "generated";
 import {
+  applyStakedPositionToEdges,
   isPositionInRange,
   updateTicksForStakedPosition,
 } from "../../Aggregators/CLStakedLiquidity";
@@ -57,6 +58,8 @@ async function computeCLStakedReservesOnGaugeEvent(
   stakedLiquidityInRange?: bigint;
   incrementalStakedReserve0?: bigint;
   incrementalStakedReserve1?: bigint;
+  stakedTickEdges?: bigint[];
+  stakedTickEdgeNets?: bigint[];
 }> {
   if (data.tokenId === undefined) return {};
 
@@ -73,25 +76,47 @@ async function computeCLStakedReservesOnGaugeEvent(
   const currentTick = liquidityPoolAggregator.tick ?? 0n;
   const sqrtPriceX96 = liquidityPoolAggregator.sqrtPriceX96 ?? 0n;
 
-  // Update tick entities: +liquidity on deposit, -liquidity on withdraw
+  // Maintain the deprecated CLTickStaked entity writes (scheduled for removal
+  // in velodrome-finance/indexer#652) alongside the in-aggregator parallel
+  // edge/nets arrays. The swap path reads ONLY the aggregator arrays — the
+  // legacy writes are kept for one release so the auto-exposed GraphQL entity
+  // doesn't vanish without notice.
+  const liquidityDelta = direction * position.liquidity;
   await updateTicksForStakedPosition(
     data.chainId,
     liquidityPoolAggregator.poolAddress,
     position.tickLower,
     position.tickUpper,
-    direction * position.liquidity,
+    liquidityDelta,
     context,
   );
-
-  // stakedLiquidityInRange only changes when the position is in range (drives swap proportional attribution)
-  const stakedLiquidityInRange = isPositionInRange(
+  const {
+    edges: stakedTickEdges,
+    nets: stakedTickEdgeNets,
+    rejected: edgesRejected,
+  } = applyStakedPositionToEdges(
+    liquidityPoolAggregator.stakedTickEdges,
+    liquidityPoolAggregator.stakedTickEdgeNets,
     position.tickLower,
     position.tickUpper,
-    currentTick,
-  )
-    ? (liquidityPoolAggregator.stakedLiquidityInRange ?? 0n) +
-      direction * position.liquidity
-    : undefined;
+    liquidityDelta,
+  );
+  if (edgesRejected) {
+    context.log.error(
+      `[computeCLStakedReservesOnGaugeEvent] applyStakedPositionToEdges rejected position ${data.tokenId} on pool ${liquidityPoolAggregator.poolAddress} chain ${data.chainId}: reason=${edgesRejected} tickLower=${position.tickLower} tickUpper=${position.tickUpper}. Edge list left unchanged.`,
+    );
+  }
+
+  // stakedLiquidityInRange only changes when the position is in range (drives swap proportional attribution).
+  // Gate on sqrtPriceX96 !== 0n: before the pool's first Swap initializes price,
+  // `tick` falls back to 0n, which would falsely classify any position spanning
+  // tick 0 as "in range" and permanently poison stakedLiquidityInRange.
+  const stakedLiquidityInRange =
+    sqrtPriceX96 !== 0n &&
+    isPositionInRange(position.tickLower, position.tickUpper, currentTick)
+      ? (liquidityPoolAggregator.stakedLiquidityInRange ?? 0n) +
+        direction * position.liquidity
+      : undefined;
 
   // stakedReserve0/1 track ALL staked token holdings (in-range + out-of-range) for USD valuation.
   // Out-of-range positions still hold tokens (100% token0 if below, 100% token1 if above),
@@ -128,6 +153,8 @@ async function computeCLStakedReservesOnGaugeEvent(
     stakedLiquidityInRange,
     incrementalStakedReserve0,
     incrementalStakedReserve1,
+    stakedTickEdges,
+    stakedTickEdgeNets,
   };
 }
 
@@ -274,6 +301,8 @@ export async function processGaugeDeposit(
   let stakedLiquidityInRange: bigint | undefined;
   let incrementalStakedReserve0: bigint | undefined;
   let incrementalStakedReserve1: bigint | undefined;
+  let stakedTickEdges: bigint[] | undefined;
+  let stakedTickEdgeNets: bigint[] | undefined;
 
   if (liquidityPoolAggregator.isCL) {
     const clResult = await computeCLStakedReservesOnGaugeEvent(
@@ -287,6 +316,8 @@ export async function processGaugeDeposit(
     stakedLiquidityInRange = clResult.stakedLiquidityInRange;
     incrementalStakedReserve0 = clResult.incrementalStakedReserve0;
     incrementalStakedReserve1 = clResult.incrementalStakedReserve1;
+    stakedTickEdges = clResult.stakedTickEdges;
+    stakedTickEdgeNets = clResult.stakedTickEdgeNets;
   } else {
     poolStakedUSD = computeNonCLPoolStakedUSD(
       newPoolStake,
@@ -303,6 +334,8 @@ export async function processGaugeDeposit(
     stakedLiquidityInRange,
     incrementalStakedReserve0,
     incrementalStakedReserve1,
+    stakedTickEdges,
+    stakedTickEdgeNets,
     // Flip the CL pool's hasStakes latch on the first deposit. The latch gates the
     // per-swap CLTickStaked sweep in processTickCrossingsForStaked. Non-CL pools
     // and already-latched CL pools leave this field alone.
@@ -395,6 +428,8 @@ export async function processGaugeWithdraw(
   let stakedLiquidityInRange: bigint | undefined;
   let incrementalStakedReserve0: bigint | undefined;
   let incrementalStakedReserve1: bigint | undefined;
+  let stakedTickEdges: bigint[] | undefined;
+  let stakedTickEdgeNets: bigint[] | undefined;
 
   if (liquidityPoolAggregator.isCL) {
     const clResult = await computeCLStakedReservesOnGaugeEvent(
@@ -408,6 +443,8 @@ export async function processGaugeWithdraw(
     stakedLiquidityInRange = clResult.stakedLiquidityInRange;
     incrementalStakedReserve0 = clResult.incrementalStakedReserve0;
     incrementalStakedReserve1 = clResult.incrementalStakedReserve1;
+    stakedTickEdges = clResult.stakedTickEdges;
+    stakedTickEdgeNets = clResult.stakedTickEdgeNets;
   } else {
     poolStakedUSD = computeNonCLPoolStakedUSD(
       newPoolStake,
@@ -424,6 +461,8 @@ export async function processGaugeWithdraw(
     stakedLiquidityInRange,
     incrementalStakedReserve0,
     incrementalStakedReserve1,
+    stakedTickEdges,
+    stakedTickEdgeNets,
     lastUpdatedTimestamp: timestamp,
   };
 
