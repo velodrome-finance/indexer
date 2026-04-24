@@ -136,8 +136,13 @@ export async function updateStakedPositionLiquidity(
   const sqrtPriceX96 = liquidityPoolAggregator.sqrtPriceX96 ?? 0n;
 
   if (sqrtPriceX96 === 0n) {
-    // Even without a price, we still persist the edge-list update so the swap
-    // path has correct state once a price is established.
+    // Defensive fallback: since velodrome-finance/indexer#654 wired
+    // CLPool.Initialize to populate sqrtPriceX96/tick on the aggregator, a
+    // zero price here implies the pool was never Initialize'd in the indexed
+    // range (e.g. pre-existing data from a previous indexer version). Persist
+    // the edge-list update so the swap path has correct state once a price is
+    // established, but skip the amount math that would otherwise produce
+    // garbage from sqrtPriceX96=0.
     await updateLiquidityPoolAggregator(
       { stakedTickEdges, stakedTickEdgeNets, hasStakes },
       liquidityPoolAggregator,

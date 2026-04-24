@@ -198,6 +198,13 @@ export function isGaugeTransfer(
  * Attributes the position's token0/token1 amounts to UserStatsPerPool: REMOVE from sender, ADD to recipient (if not zero address).
  * No-op if sqrtPriceX96 is missing/zero.
  *
+ * Defensive fallback: since velodrome-finance/indexer#654 wired CLPool.Initialize
+ * to populate sqrtPriceX96, a zero/undefined price here implies the pool was
+ * never Initialize'd in the indexed range (e.g. pre-existing data from a
+ * previous indexer version). In that case we skip the attribution — amount math
+ * off sqrtPriceX96=0 would produce garbage — and let the caller still update
+ * the owner field.
+ *
  * @param event - The NFPM.Transfer event
  * @param position - The NonFungiblePosition entity
  * @param context - The handler context
