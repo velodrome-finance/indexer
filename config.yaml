@@ -39,6 +39,7 @@ contracts:
       - event: CollectFees
       - event: Flash
       - event: IncreaseObservationCardinalityNext
+      - event: Initialize
       - event: Mint
       - event: SetFeeProtocol
       - event: Swap

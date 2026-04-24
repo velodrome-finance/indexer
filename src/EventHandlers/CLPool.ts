@@ -17,6 +17,7 @@ import { processCLPoolBurn } from "./CLPool/CLPoolBurnLogic";
 import { processCLPoolCollectFees } from "./CLPool/CLPoolCollectFeesLogic";
 import { processCLPoolCollect } from "./CLPool/CLPoolCollectLogic";
 import { processCLPoolFlash } from "./CLPool/CLPoolFlashLogic";
+import { processCLPoolInitialize } from "./CLPool/CLPoolInitializeLogic";
 import { processCLPoolMint } from "./CLPool/CLPoolMintLogic";
 import { processCLPoolSwap } from "./CLPool/CLPoolSwapLogic";
 
@@ -271,6 +272,38 @@ CLPool.IncreaseObservationCardinalityNext.handler(
     );
   },
 );
+
+// Initialize fires once per pool, between PoolCreated and the first Mint/Swap.
+// Writing sqrtPriceX96/tick here closes the pre-first-swap dead-zone so NFPM
+// handlers can compute range math for positions minted before any swap has
+// occurred (see velodrome-finance/indexer#654).
+CLPool.Initialize.handler(async ({ event, context }) => {
+  const poolData = await loadPoolData(
+    event.srcAddress,
+    event.chainId,
+    context,
+    event.block.number,
+    event.block.timestamp,
+  );
+
+  if (!poolData) {
+    return;
+  }
+
+  const { liquidityPoolAggregator } = poolData;
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  const { liquidityPoolDiff } = processCLPoolInitialize(event);
+
+  await updateLiquidityPoolAggregator(
+    liquidityPoolDiff,
+    liquidityPoolAggregator,
+    timestamp,
+    context,
+    event.chainId,
+    event.block.number,
+  );
+});
 
 CLPool.Mint.handler(async ({ event, context }) => {
   // Pool-only update; user liquidity added is attributed from NFPM.Transfer (mint) and NFPM.IncreaseLiquidity
