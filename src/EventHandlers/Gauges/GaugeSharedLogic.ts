@@ -36,8 +36,9 @@ export interface GaugeEventData {
 
 /**
  * Computes the CL staked reserve deltas and updated pool staked USD when a position
- * is deposited to or withdrawn from a gauge. Handles tick entity updates and determines
- * whether the position is in range.
+ * is deposited to or withdrawn from a gauge. Applies the position's liquidity to the
+ * aggregator's in-memory (stakedTickEdges, stakedTickEdgeNets) arrays via
+ * applyStakedPositionToEdges and determines whether the position is in range.
  *
  * @param data - Gauge event data (must have tokenId for CL)
  * @param liquidityPoolAggregator - Current pool entity
