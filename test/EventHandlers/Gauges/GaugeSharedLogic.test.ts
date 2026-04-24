@@ -275,6 +275,8 @@ describe("GaugeSharedLogic", () => {
 
       expect(updatedPool?.numberOfGaugeDeposits).toBe(1n);
       expect(updatedPool?.currentLiquidityStaked).toBe(100000000000000000000n);
+      // hasStakes latch is CL-only. V2 deposits must leave it alone (stays false).
+      expect(updatedPool?.hasStakes).toBe(false);
       // For V2 pools: amount0 = (100 LP * 1000000000 reserve0) / 1000 totalSupply = 100000000 (6 decimals = 100 tokens)
       // amount1 = (100 LP * 1000000000 reserve1) / 1000 totalSupply = 100000000 (6 decimals = 100 tokens)
       // Normalized to 18 decimals: 100000000 * 10^12 = 100000000000000000000n
@@ -1041,6 +1043,33 @@ describe("GaugeSharedLogic", () => {
       );
       expect(updatedUser?.stakedCLPositionTokenIds).toEqual([mockTokenId1]);
       expect(updatedUser?.currentLiquidityStaked).toBe(5000n);
+    });
+
+    it("should set hasStakes=true on first CL deposit", async () => {
+      // Before any deposit, the pool was created with hasStakes=false
+      const initialPool = updatedDB.entities.LiquidityPoolAggregator.get(
+        clPool.id,
+      );
+      expect(initialPool?.hasStakes).toBe(false);
+
+      await processGaugeDeposit(
+        {
+          gaugeAddress: mockGaugeAddress,
+          userAddress: mockUserAddress,
+          chainId: mockChainId,
+          blockNumber: 100,
+          timestamp: 1000000,
+          amount: 5000n,
+          tokenId: mockTokenId1,
+        },
+        clMockContext,
+        "CLGauge.Deposit",
+      );
+
+      const updatedPool = updatedDB.entities.LiquidityPoolAggregator.get(
+        clPool.id,
+      );
+      expect(updatedPool?.hasStakes).toBe(true);
     });
 
     it("should accumulate tokenIds on multiple CL deposits", async () => {

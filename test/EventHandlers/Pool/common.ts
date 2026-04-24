@@ -134,6 +134,7 @@ export function setupCommon() {
     stakedLiquidityInRange: 0n,
     stakedReserve0: 0n,
     stakedReserve1: 0n,
+    hasStakes: false,
     totalFlashLoanFees0: 0n,
     totalFlashLoanFees1: 0n,
     totalFlashLoanFeesUSD: 0n,

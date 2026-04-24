@@ -51,6 +51,10 @@ type LiquidityPoolAggregator {
   stakedLiquidityInRange: BigInt @config(precision: 76) # staked in-range liquidity L (running counter from tick-based tracking)
   stakedReserve0: BigInt @config(precision: 76) # staked reserves in token0 raw units (running counter)
   stakedReserve1: BigInt @config(precision: 76) # staked reserves in token1 raw units (running counter)
+  # True once any staked position has been recorded for this pool. Gates the
+  # per-swap CLTickStaked sweep in processTickCrossingsForStaked: pools that have
+  # never been staked skip the sweep entirely. Set on the first gauge Deposit.
+  hasStakes: Boolean!
   totalFlashLoanFees0: BigInt @config(precision: 76) # total flash loan fees collected in token0
   totalFlashLoanFees1: BigInt @config(precision: 76) # total flash loan fees collected in token1
   totalFlashLoanFeesUSD: BigInt @config(precision: 76) # total flash loan fees collected in USD

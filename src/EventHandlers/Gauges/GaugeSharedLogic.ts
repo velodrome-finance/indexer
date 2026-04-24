@@ -303,6 +303,10 @@ export async function processGaugeDeposit(
     stakedLiquidityInRange,
     incrementalStakedReserve0,
     incrementalStakedReserve1,
+    // Flip the CL pool's hasStakes latch on the first deposit. The latch gates the
+    // per-swap CLTickStaked sweep in processTickCrossingsForStaked. Non-CL pools
+    // leave this field alone (the aggregator never reads it for them).
+    hasStakes: liquidityPoolAggregator.isCL ? true : undefined,
     lastUpdatedTimestamp: timestamp,
   };
 
