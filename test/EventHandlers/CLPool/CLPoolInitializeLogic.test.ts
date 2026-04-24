@@ -1,7 +1,7 @@
 import { TickMath } from "@uniswap/v3-sdk";
 import type { CLPool_Initialize_event } from "generated";
 import { CLPool, MockDb } from "../../../generated/src/TestHelpers.gen";
-import { toChecksumAddress } from "../../../src/Constants";
+import { PoolId, toChecksumAddress } from "../../../src/Constants";
 import { processCLPoolInitialize } from "../../../src/EventHandlers/CLPool/CLPoolInitializeLogic";
 import "../../eventHandlersRegistration";
 import { setupCommon } from "../Pool/common";
@@ -129,7 +129,7 @@ describe("CLPoolInitializeLogic", () => {
       const result = await mockDb.processEvents([mockEvent]);
       expect(
         result.entities.LiquidityPoolAggregator.get(
-          `${chainId}-${unknownPool}`,
+          PoolId(chainId, unknownPool),
         ),
       ).toBeUndefined();
     });
