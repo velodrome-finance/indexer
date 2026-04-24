@@ -241,24 +241,30 @@ export async function updateLiquidityPoolAggregator(
   // applyStakedPositionToEdges (see src/Aggregators/CLStakedLiquidity.ts),
   // but there's nothing in the type system that prevents a future caller
   // from setting one and forgetting the other. Diverging lengths would
-  // silently desync the sparse map the swap path binary-searches, so fail
-  // loudly at the merge point.
-  if (
-    diff.stakedTickEdges !== undefined &&
-    diff.stakedTickEdgeNets !== undefined &&
-    diff.stakedTickEdges.length !== diff.stakedTickEdgeNets.length
-  ) {
-    throw new Error(
-      `[updateLiquidityPoolAggregator] stakedTickEdges/stakedTickEdgeNets length mismatch for pool ${current.poolAddress} on chain ${current.chainId}: edges.length=${diff.stakedTickEdges.length}, nets.length=${diff.stakedTickEdgeNets.length}. Both arrays MUST be produced together by applyStakedPositionToEdges.`,
+  // silently desync the sparse map the swap path binary-searches, so log
+  // loudly under the [STAKED_TICK_DRIFT] tag and DROP both fields from the
+  // diff — preserving the prior consistent pair is safer than writing a
+  // mismatched one. Does not crash the indexer.
+  const edgesSet = diff.stakedTickEdges !== undefined;
+  const netsSet = diff.stakedTickEdgeNets !== undefined;
+  if (edgesSet !== netsSet) {
+    context.log.error(
+      `[STAKED_TICK_DRIFT][updateLiquidityPoolAggregator] stakedTickEdges and stakedTickEdgeNets must be updated together (parallel arrays) for pool ${current.poolAddress} on chain ${current.chainId}. Got edges=${edgesSet ? "set" : "unset"}, nets=${netsSet ? "set" : "unset"}. Dropping both from this update; aggregator retains the prior consistent pair.`,
     );
-  }
-  if (
-    (diff.stakedTickEdges !== undefined) !==
-    (diff.stakedTickEdgeNets !== undefined)
+    diff.stakedTickEdges = undefined;
+    diff.stakedTickEdgeNets = undefined;
+  } else if (
+    edgesSet &&
+    netsSet &&
+    // biome-ignore lint/style/noNonNullAssertion: edgesSet/netsSet narrow above
+    diff.stakedTickEdges!.length !== diff.stakedTickEdgeNets!.length
   ) {
-    throw new Error(
-      `[updateLiquidityPoolAggregator] stakedTickEdges and stakedTickEdgeNets must be updated together (parallel arrays) for pool ${current.poolAddress} on chain ${current.chainId}. Got edges=${diff.stakedTickEdges !== undefined ? "set" : "unset"}, nets=${diff.stakedTickEdgeNets !== undefined ? "set" : "unset"}.`,
+    context.log.error(
+      // biome-ignore lint/style/noNonNullAssertion: edgesSet/netsSet narrow above
+      `[STAKED_TICK_DRIFT][updateLiquidityPoolAggregator] stakedTickEdges/stakedTickEdgeNets length mismatch for pool ${current.poolAddress} on chain ${current.chainId}: edges.length=${diff.stakedTickEdges!.length}, nets.length=${diff.stakedTickEdgeNets!.length}. Dropping both from this update; aggregator retains the prior consistent pair.`,
     );
+    diff.stakedTickEdges = undefined;
+    diff.stakedTickEdgeNets = undefined;
   }
 
   let updated: LiquidityPoolAggregator = {
