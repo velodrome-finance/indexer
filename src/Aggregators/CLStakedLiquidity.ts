@@ -92,15 +92,18 @@ function applyDeltaAtTick(
   if (present) {
     const newNet = nets[idx] + delta;
     if (newNet === 0n) {
-      const outEdges = new Array<bigint>(edges.length - 1);
-      const outNets = new Array<bigint>(nets.length - 1);
+      // Build via push to keep V8 packed-elements kind (pre-sized `new Array`
+      // stays HOLEY_SMI_ELEMENTS even after every slot is filled, which
+      // prevents the packed fast path in downstream iterators).
+      const outEdges: bigint[] = [];
+      const outNets: bigint[] = [];
       for (let i = 0; i < idx; i++) {
-        outEdges[i] = edges[i];
-        outNets[i] = nets[i];
+        outEdges.push(edges[i]);
+        outNets.push(nets[i]);
       }
       for (let i = idx + 1; i < edges.length; i++) {
-        outEdges[i - 1] = edges[i];
-        outNets[i - 1] = nets[i];
+        outEdges.push(edges[i]);
+        outNets.push(nets[i]);
       }
       return { edges: outEdges, nets: outNets };
     }
@@ -113,17 +116,18 @@ function applyDeltaAtTick(
   // Not present — insert. The caller (applyStakedPositionToEdges) already
   // rejects delta === 0n at its top guard, so reaching this branch with a
   // zero delta is unreachable by construction.
-  const outEdges = new Array<bigint>(edges.length + 1);
-  const outNets = new Array<bigint>(nets.length + 1);
+  // Build via push to keep V8 packed-elements kind (see note above).
+  const outEdges: bigint[] = [];
+  const outNets: bigint[] = [];
   for (let i = 0; i < idx; i++) {
-    outEdges[i] = edges[i];
-    outNets[i] = nets[i];
+    outEdges.push(edges[i]);
+    outNets.push(nets[i]);
   }
-  outEdges[idx] = tick;
-  outNets[idx] = delta;
+  outEdges.push(tick);
+  outNets.push(delta);
   for (let i = idx; i < edges.length; i++) {
-    outEdges[i + 1] = edges[i];
-    outNets[i + 1] = nets[i];
+    outEdges.push(edges[i]);
+    outNets.push(nets[i]);
   }
   return { edges: outEdges, nets: outNets };
 }

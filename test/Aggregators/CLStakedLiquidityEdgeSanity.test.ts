@@ -149,6 +149,8 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
 
     // Invariant 4: edge list consistent with CLTickStaked — each edge's net
     // equals the corresponding CLTickStaked.stakedLiquidityNet.
+    // TODO(#652): Remove this invariant when the legacy CLTickStaked writes
+    // are deleted; the in-aggregator edge list becomes the sole source of truth.
     for (let i = 0; i < edges.length; i++) {
       const tickEntity = resultDb.entities.CLTickStaked.get(
         CLTickStakedId(chainId, liquidityPool.poolAddress, edges[i]),
@@ -225,7 +227,7 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
       // biome-ignore lint/suspicious/noExplicitAny: test-only shape
     } as any;
 
-    const newResult = await processTickCrossingsForStaked(
+    const newResult = processTickCrossingsForStaked(
       chainId,
       mockPoolAddress,
       oldTick,
@@ -262,7 +264,7 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
       }
     }
 
-    const downResult = await processTickCrossingsForStaked(
+    const downResult = processTickCrossingsForStaked(
       chainId,
       mockPoolAddress,
       oldTickDown,

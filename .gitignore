@@ -39,14 +39,26 @@ build
 # Coverage
 .nyc_output/
 
-# Script results (local-only test outputs)
+# Script results and local-only output directories
 scripts/results/
+scripts/out/
+scripts/profiles/
 
-# Local-only investigation/benchmark/replay scripts. Pre-existing tracked scripts
-# (generate_whitelist.ts, smoke-effects.ts, test-price-oracles.ts, etc.) remain
-# tracked — gitignore affects only future untracked files. Remove this line when
-# we want to start shipping new scripts in the repo again.
-scripts/
+# Local-only investigation/benchmark/replay scripts.
+# Listed explicitly so that any NEW shared script added to scripts/ is visible
+# by default rather than silently ignored by a blanket scripts/ pattern.
+scripts/analyze-cpuprofile.ts
+scripts/bench-tick-crossings.ts
+scripts/bench-tick-edges.ts
+scripts/check-604-timing.ts
+scripts/measure-cl-pool-staked-vs-swaps.ts
+scripts/measure-cltickstaked-max.ts
+scripts/measure-lisk-tick-sweeps.ts
+scripts/measure-negative-pool-fields.ts
+scripts/measure-staked-nfp-per-pool.ts
+scripts/replay-604-superseed.ts
+scripts/verify-cpuprofile.ts
+scripts/verify-oom-fix.ts
 
 # Claude Code worktrees (ephemeral, local-only)
 .claude/worktrees/

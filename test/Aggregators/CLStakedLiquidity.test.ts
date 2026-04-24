@@ -378,7 +378,7 @@ describe("CLStakedLiquidity", () => {
     });
 
     it("should return unchanged when oldTick === newTick", async () => {
-      const result = await processTickCrossingsForStaked(
+      const result = processTickCrossingsForStaked(
         CHAIN_ID,
         POOL_ADDRESS,
         100n,
@@ -395,7 +395,7 @@ describe("CLStakedLiquidity", () => {
     });
 
     it("should return unchanged when tickSpacing is zero", async () => {
-      const result = await processTickCrossingsForStaked(
+      const result = processTickCrossingsForStaked(
         CHAIN_ID,
         POOL_ADDRESS,
         100n,
@@ -412,7 +412,7 @@ describe("CLStakedLiquidity", () => {
     });
 
     it("should add stakedLiquidityNet when crossing up", async () => {
-      const result = await processTickCrossingsForStaked(
+      const result = processTickCrossingsForStaked(
         CHAIN_ID,
         POOL_ADDRESS,
         100n,
@@ -429,7 +429,7 @@ describe("CLStakedLiquidity", () => {
     });
 
     it("should subtract stakedLiquidityNet when crossing down", async () => {
-      const result = await processTickCrossingsForStaked(
+      const result = processTickCrossingsForStaked(
         CHAIN_ID,
         POOL_ADDRESS,
         250n,
@@ -446,7 +446,7 @@ describe("CLStakedLiquidity", () => {
     });
 
     it("should handle multiple tick crossings going up", async () => {
-      const result = await processTickCrossingsForStaked(
+      const result = processTickCrossingsForStaked(
         CHAIN_ID,
         POOL_ADDRESS,
         100n,
@@ -463,7 +463,7 @@ describe("CLStakedLiquidity", () => {
     });
 
     it("should handle multiple tick crossings going down", async () => {
-      const result = await processTickCrossingsForStaked(
+      const result = processTickCrossingsForStaked(
         CHAIN_ID,
         POOL_ADDRESS,
         650n,
@@ -482,7 +482,7 @@ describe("CLStakedLiquidity", () => {
 
     it("should skip edges that fall outside the [oldTick, newTick] window", async () => {
       // Edges exist at 200 and 400, but swap only crosses 200
-      const result = await processTickCrossingsForStaked(
+      const result = processTickCrossingsForStaked(
         CHAIN_ID,
         POOL_ADDRESS,
         100n,
@@ -498,7 +498,7 @@ describe("CLStakedLiquidity", () => {
     });
 
     it("should handle negative tick ranges", async () => {
-      const result = await processTickCrossingsForStaked(
+      const result = processTickCrossingsForStaked(
         CHAIN_ID,
         POOL_ADDRESS,
         -300n,
@@ -515,7 +515,7 @@ describe("CLStakedLiquidity", () => {
 
     it("should not cross the oldTick itself when going up (strict-above semantics)", async () => {
       // oldTick=200, edge at 200 — since we search lowerBound(201), edge is skipped
-      const result = await processTickCrossingsForStaked(
+      const result = processTickCrossingsForStaked(
         CHAIN_ID,
         POOL_ADDRESS,
         200n,
@@ -532,7 +532,7 @@ describe("CLStakedLiquidity", () => {
 
     it("should include the oldTick boundary when going down (at-or-below semantics)", async () => {
       // oldTick=200, edge at 200 — going down includes it
-      const result = await processTickCrossingsForStaked(
+      const result = processTickCrossingsForStaked(
         CHAIN_ID,
         POOL_ADDRESS,
         200n,
@@ -550,7 +550,7 @@ describe("CLStakedLiquidity", () => {
     it("should handle tickSpacing of 1 without scanning per-tick (only edges drive the walk)", async () => {
       // Edges 101/102/103; spacing=1 means the old impl would sweep per-tick,
       // but the new impl only visits the edges that exist.
-      const result = await processTickCrossingsForStaked(
+      const result = processTickCrossingsForStaked(
         CHAIN_ID,
         POOL_ADDRESS,
         100n,
@@ -568,7 +568,7 @@ describe("CLStakedLiquidity", () => {
 
     describe("safety guards", () => {
       it("should short-circuit when hasStakes is false", async () => {
-        const result = await processTickCrossingsForStaked(
+        const result = processTickCrossingsForStaked(
           CHAIN_ID,
           POOL_ADDRESS,
           100n,
@@ -585,7 +585,7 @@ describe("CLStakedLiquidity", () => {
       });
 
       it("should short-circuit when the edge list is empty (no staked positions)", async () => {
-        const result = await processTickCrossingsForStaked(
+        const result = processTickCrossingsForStaked(
           CHAIN_ID,
           POOL_ADDRESS,
           100n,
@@ -602,7 +602,7 @@ describe("CLStakedLiquidity", () => {
       });
 
       it("should bail and log when oldTick is below TICK_MIN", async () => {
-        const result = await processTickCrossingsForStaked(
+        const result = processTickCrossingsForStaked(
           CHAIN_ID,
           POOL_ADDRESS,
           -900000n,
@@ -622,7 +622,7 @@ describe("CLStakedLiquidity", () => {
       });
 
       it("should bail and log when newTick is above TICK_MAX", async () => {
-        const result = await processTickCrossingsForStaked(
+        const result = processTickCrossingsForStaked(
           CHAIN_ID,
           POOL_ADDRESS,
           100n,
@@ -639,7 +639,7 @@ describe("CLStakedLiquidity", () => {
       });
 
       it("should accept boundary ticks at exactly TICK_MIN and TICK_MAX", async () => {
-        const result = await processTickCrossingsForStaked(
+        const result = processTickCrossingsForStaked(
           CHAIN_ID,
           POOL_ADDRESS,
           -887272n,

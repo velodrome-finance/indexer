@@ -111,7 +111,11 @@ async function computeCLStakedReservesOnGaugeEvent(
   // Gate on sqrtPriceX96 !== 0n: before the pool's first Swap initializes price,
   // `tick` falls back to 0n, which would falsely classify any position spanning
   // tick 0 as "in range" and permanently poison stakedLiquidityInRange.
+  // Also gate on !edgesRejected: if applyStakedPositionToEdges rejected the merge,
+  // the sparse edge map is unchanged, so updating the running in-range total would
+  // make it disagree with the edge set the swap path crosses and drift permanently.
   const stakedLiquidityInRange =
+    !edgesRejected &&
     sqrtPriceX96 !== 0n &&
     isPositionInRange(position.tickLower, position.tickUpper, currentTick)
       ? (liquidityPoolAggregator.stakedLiquidityInRange ?? 0n) +
@@ -338,9 +342,16 @@ export async function processGaugeDeposit(
     stakedTickEdgeNets,
     // Flip the CL pool's hasStakes latch on the first deposit. The latch gates the
     // per-swap CLTickStaked sweep in processTickCrossingsForStaked. Non-CL pools
-    // and already-latched CL pools leave this field alone.
+    // and already-latched CL pools leave this field alone. Also gate on an actual
+    // edge list being produced: if computeCLStakedReservesOnGaugeEvent bailed
+    // early or the edge merge was rejected, latching hasStakes would mark the
+    // pool as staked while the sparse map stays empty, leaving swap-path
+    // attribution incomplete until a later writer repairs it.
     hasStakes:
-      liquidityPoolAggregator.isCL && !liquidityPoolAggregator.hasStakes
+      liquidityPoolAggregator.isCL &&
+      !liquidityPoolAggregator.hasStakes &&
+      stakedTickEdges !== undefined &&
+      stakedTickEdges.length > 0
         ? true
         : undefined,
     lastUpdatedTimestamp: timestamp,
