@@ -54,6 +54,11 @@ type LiquidityPoolAggregator {
   # True once any staked position has been recorded for this pool. Gates the
   # per-swap CLTickStaked sweep in processTickCrossingsForStaked: pools that have
   # never been staked skip the sweep entirely. Set on the first gauge Deposit.
+  # One-way latch: does NOT clear if every staked position is later withdrawn.
+  # A transiently-staked-then-fully-unstaked pool will keep running the sweep
+  # (with zero contributions). The structural fix that makes the residual cost
+  # negligible is tracked in #649 (sparse stakedTickEdges list); until it lands,
+  # the latch is "accept a degenerate case to avoid the bookkeeping of clearing".
   hasStakes: Boolean!
   totalFlashLoanFees0: BigInt @config(precision: 76) # total flash loan fees collected in token0
   totalFlashLoanFees1: BigInt @config(precision: 76) # total flash loan fees collected in token1

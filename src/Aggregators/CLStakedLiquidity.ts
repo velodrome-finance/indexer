@@ -167,13 +167,11 @@ export async function processTickCrossingsForStaked(
     return currentStakedLiqInRange;
   }
 
-  // Pools without any CLTickStaked entries cannot contribute to stakedLiq — skip
-  // the sweep entirely. This is the hot path: it eliminates the O((Δtick)/spacing)
-  // per-swap scan for every unstaked pool.
-  if (!hasStakes) {
-    return currentStakedLiqInRange;
-  }
-
+  // Bounds check runs BEFORE the hasStakes short-circuit so that out-of-range
+  // ticks — which indicate upstream correctness bugs (missed Initialize, event
+  // ordering, RPC inconsistency) — get surfaced regardless of whether the pool
+  // has ever been staked. Unstaked CL pools are the majority, and silencing the
+  // diagnostic on them would mask the signal.
   if (
     oldTick < TICK_MIN ||
     oldTick > TICK_MAX ||
@@ -183,6 +181,13 @@ export async function processTickCrossingsForStaked(
     context.log.error(
       `[processTickCrossingsForStaked] Tick out of Uniswap v3 range for pool ${poolAddress} on chain ${chainId}: oldTick=${oldTick}, newTick=${newTick}. Skipping crossing sweep to avoid runaway loop.`,
     );
+    return currentStakedLiqInRange;
+  }
+
+  // Pools without any CLTickStaked entries cannot contribute to stakedLiq — skip
+  // the sweep entirely. This is the hot path: it eliminates the O((Δtick)/spacing)
+  // per-swap scan for every unstaked pool.
+  if (!hasStakes) {
     return currentStakedLiqInRange;
   }
 
