@@ -40,7 +40,7 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
     "0x2222222222222222222222222222222222222222",
   );
 
-  it("(a) stakedTickEdges stays sorted + monotone across ≥200 interleaved gauge Deposit/Withdraw events", async () => {
+  it("(a) stakedTickEdges stays sorted + monotone across 150 interleaved gauge Deposit/Withdraw events", async () => {
     let mockDb = MockDb.createMockDb();
 
     const liquidityPool = createMockLiquidityPoolAggregator({
@@ -74,7 +74,7 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
     }
 
     // Interleave Deposit and Withdraw events: deposit all, then withdraw half
-    // in a non-sorted order. ≥200 total events (100 deposits + 100 withdraws).
+    // in a non-sorted order. 150 total events (100 deposits + 50 withdraws).
     const depositEvents = [];
     for (let i = 0; i < POSITIONS; i++) {
       const tokenId = BigInt(i + 1);
@@ -159,6 +159,7 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
   });
 
   it("(b) processTickCrossingsForStaked returns the same in-range delta as a CLTickStaked-reading baseline across a swap window crossing multiple edges", async () => {
+    const mockPoolAddress = toChecksumAddress(`0x${"1".repeat(40)}`);
     // Build a realistic edge set by simulating 50 stake events and walking
     // the exact same events through the pure baseline (a CLTickStaked map).
     const baselineNet = new Map<bigint, bigint>();
@@ -226,7 +227,7 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
 
     const newResult = await processTickCrossingsForStaked(
       chainId,
-      `0x${"1".repeat(40)}`,
+      mockPoolAddress,
       oldTick,
       newTick,
       10n,
@@ -263,7 +264,7 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
 
     const downResult = await processTickCrossingsForStaked(
       chainId,
-      `0x${"1".repeat(40)}`,
+      mockPoolAddress,
       oldTickDown,
       newTickDown,
       10n,

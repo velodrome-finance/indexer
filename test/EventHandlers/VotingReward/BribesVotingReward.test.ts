@@ -13,6 +13,7 @@ describe("BribesVotingReward Events", () => {
     mockToken1Data,
     mockLiquidityPoolData,
     createMockLiquidityPoolAggregator,
+    createMockUserStatsPerPool,
   } = setupCommon();
   const poolAddress = mockLiquidityPoolData.poolAddress;
   const chainId = 10;
@@ -44,7 +45,6 @@ describe("BribesVotingReward Events", () => {
     });
 
     // Set up user stats
-    const { createMockUserStatsPerPool } = setupCommon();
     userStats = createMockUserStatsPerPool({
       userAddress: userAddress,
       poolAddress: poolAddress,

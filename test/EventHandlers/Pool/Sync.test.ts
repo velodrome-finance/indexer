@@ -5,6 +5,7 @@ import {
   TEN_TO_THE_18_BI,
   toChecksumAddress,
 } from "../../../src/Constants";
+import { setupLiquidityPoolAggregator } from "../../testHelpers";
 import { setupCommon } from "./common";
 
 describe("Pool Sync Event", () => {
@@ -82,11 +83,11 @@ describe("Pool Sync Event", () => {
     let postEventDB: ReturnType<typeof MockDb.createMockDb>;
 
     beforeEach(async () => {
-      const updatedDB1 = mockDb.entities.LiquidityPoolAggregator.set({
-        ...mockLiquidityPoolData,
-        stakedTickEdges: [...mockLiquidityPoolData.stakedTickEdges],
-        stakedTickEdgeNets: [...mockLiquidityPoolData.stakedTickEdgeNets],
-      });
+      const updatedDB1 = setupLiquidityPoolAggregator(
+        mockDb,
+        mockLiquidityPoolData,
+        eventData.mockEventData.srcAddress,
+      );
       const updatedDB2 = updatedDB1.entities.Token.set(mockToken0Data);
       const updatedDB3 = updatedDB2.entities.Token.set(mockToken1Data);
 

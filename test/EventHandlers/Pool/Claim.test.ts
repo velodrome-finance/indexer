@@ -9,6 +9,9 @@ describe("Pool Claim Event", () => {
   let mockToken0Data: Token;
   let mockToken1Data: Token;
   let mockLiquidityPoolData: MockLiquidityPoolAggregator;
+  let createMockLiquidityPoolAggregator: ReturnType<
+    typeof setupCommon
+  >["createMockLiquidityPoolAggregator"];
   let mockDb: ReturnType<typeof MockDb.createMockDb>;
   let mockPriceOracle: MockInstance;
 
@@ -20,10 +23,11 @@ describe("Pool Claim Event", () => {
     const {
       mockToken0Data: token0,
       mockToken1Data: token1,
-      createMockLiquidityPoolAggregator,
+      createMockLiquidityPoolAggregator: builder,
     } = setupCommon();
     mockToken0Data = token0;
     mockToken1Data = token1;
+    createMockLiquidityPoolAggregator = builder;
     mockLiquidityPoolData = createMockLiquidityPoolAggregator({
       gaugeAddress: gaugeAddress,
     });
@@ -281,10 +285,9 @@ describe("Pool Claim Event", () => {
       });
 
       it("should handle case when gauge address is undefined", async () => {
-        const poolWithoutGauge = {
-          ...mockLiquidityPoolData,
+        const poolWithoutGauge = createMockLiquidityPoolAggregator({
           gaugeAddress: undefined,
-        };
+        });
 
         const eventData = {
           sender: gaugeAddress,
