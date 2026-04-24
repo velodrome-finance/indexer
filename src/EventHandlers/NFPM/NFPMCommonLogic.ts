@@ -2,7 +2,6 @@ import type { NonFungiblePosition, handlerContext } from "generated";
 import {
   applyStakedPositionToEdges,
   isPositionInRange,
-  updateTicksForStakedPosition,
 } from "../../Aggregators/CLStakedLiquidity";
 import type { PoolData } from "../../Aggregators/LiquidityPoolAggregator";
 import { updateLiquidityPoolAggregator } from "../../Aggregators/LiquidityPoolAggregator";
@@ -88,8 +87,8 @@ export async function attributeLiquidityChangeToUserStatsPerPool(
 }
 
 /**
- * Updates CLTickStaked entities and pool staked reserves when a staked position's
- * liquidity changes (IncreaseLiquidity or DecreaseLiquidity).
+ * Updates the aggregator's staked-tick edge list and pool staked reserves when
+ * a staked position's liquidity changes (IncreaseLiquidity or DecreaseLiquidity).
  *
  * @param position - The NonFungiblePosition being modified
  * @param poolData - Pool data with liquidityPoolAggregator and token instances
@@ -110,19 +109,6 @@ export async function updateStakedPositionLiquidity(
 ): Promise<void> {
   const { liquidityPoolAggregator } = poolData;
 
-  // Maintain the deprecated CLTickStaked entity writes (scheduled for removal
-  // in velodrome-finance/indexer#652) alongside the in-aggregator parallel
-  // edge/nets arrays. The swap path reads ONLY the aggregator arrays — the
-  // legacy writes are kept for one release so the auto-exposed GraphQL entity
-  // doesn't vanish without notice.
-  await updateTicksForStakedPosition(
-    chainId,
-    position.pool,
-    position.tickLower,
-    position.tickUpper,
-    liquidityDelta,
-    context,
-  );
   const {
     edges: stakedTickEdges,
     nets: stakedTickEdgeNets,

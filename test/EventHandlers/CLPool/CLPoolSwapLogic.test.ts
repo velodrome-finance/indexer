@@ -104,10 +104,6 @@ describe("CLPoolSwapLogic", () => {
       warn: vi.fn(),
       info: vi.fn(),
     },
-    CLTickStaked: {
-      get: vi.fn().mockResolvedValue(null),
-      set: vi.fn(),
-    },
   } as unknown as handlerContext;
 
   describe("calculateSwapVolume", () => {

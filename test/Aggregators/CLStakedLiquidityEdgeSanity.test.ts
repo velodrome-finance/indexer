@@ -5,7 +5,6 @@ import {
   processTickCrossingsForStaked,
 } from "../../src/Aggregators/CLStakedLiquidity";
 import {
-  CLTickStakedId,
   NonFungiblePositionId,
   PoolId,
   toChecksumAddress,
@@ -21,8 +20,8 @@ import { setupCommon } from "../EventHandlers/Pool/common";
  *   (a) The edge list stays sorted + monotone under arbitrary gauge
  *       deposit/withdraw ordering across ≥200 synthetic events.
  *   (b) `processTickCrossingsForStaked` returns the same staked-liq-in-range
- *       delta as the pre-PR baseline (which reads CLTickStaked entities) for
- *       a swap window that crosses multiple edges.
+ *       delta as a pure in-test baseline map for a swap window that crosses
+ *       multiple edges.
  */
 describe("CLStakedLiquidity edge-list sanity (#649)", () => {
   const {
@@ -147,23 +146,43 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
       expect(nets[i]).not.toBe(0n);
     }
 
-    // Invariant 4: edge list consistent with CLTickStaked — each edge's net
-    // equals the corresponding CLTickStaked.stakedLiquidityNet.
-    // TODO(#652): Remove this invariant when the legacy CLTickStaked writes
-    // are deleted; the in-aggregator edge list becomes the sole source of truth.
+    // Invariant 4: edge list matches a pure-function in-test baseline that
+    // replays the same deposit/withdraw stream onto a Map<tick, net>. This
+    // pins the aggregator's sparse encoding to the underlying Uniswap v3
+    // per-tick liquidityNet semantics without depending on any entity.
+    const withdrawnTokenIds = new Set<bigint>();
+    for (let i = 0; i < POSITIONS; i++) {
+      if (i % 2 !== 0) continue;
+      const pick = ((i * 7) % POSITIONS) + 1;
+      withdrawnTokenIds.add(BigInt(pick));
+    }
+
+    const baseline = new Map<bigint, bigint>();
+    for (let i = 0; i < POSITIONS; i++) {
+      const tokenId = BigInt(i + 1);
+      if (withdrawnTokenIds.has(tokenId)) continue;
+      const tickLower = BigInt(-500 + (i % 20) * 50);
+      const tickUpper = tickLower + BigInt(100 + (i % 7) * 50);
+      const liquidity = BigInt(1000 + i);
+      baseline.set(tickLower, (baseline.get(tickLower) ?? 0n) + liquidity);
+      baseline.set(tickUpper, (baseline.get(tickUpper) ?? 0n) - liquidity);
+    }
+
+    const baselineSorted = [...baseline.entries()]
+      .filter(([, net]) => net !== 0n)
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+
+    expect(edges.length).toBe(baselineSorted.length);
     for (let i = 0; i < edges.length; i++) {
-      const tickEntity = resultDb.entities.CLTickStaked.get(
-        CLTickStakedId(chainId, liquidityPool.poolAddress, edges[i]),
-      );
-      expect(tickEntity).toBeDefined();
-      expect(tickEntity?.stakedLiquidityNet).toBe(nets[i]);
+      expect(edges[i]).toBe(baselineSorted[i][0]);
+      expect(nets[i]).toBe(baselineSorted[i][1]);
     }
   });
 
-  it("(b) processTickCrossingsForStaked returns the same in-range delta as a CLTickStaked-reading baseline across a swap window crossing multiple edges", async () => {
+  it("(b) processTickCrossingsForStaked returns the same in-range delta as a pure-map baseline across a swap window crossing multiple edges", async () => {
     const mockPoolAddress = toChecksumAddress(`0x${"1".repeat(40)}`);
     // Build a realistic edge set by simulating 50 stake events and walking
-    // the exact same events through the pure baseline (a CLTickStaked map).
+    // the exact same events through a pure-map baseline.
     const baselineNet = new Map<bigint, bigint>();
     let edges: readonly bigint[] = [];
     let nets: readonly bigint[] = [];
@@ -173,7 +192,7 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
       const tickUpper = tickLower + 100n;
       const liquidity = BigInt(500 + i * 10);
 
-      // Baseline: maintain a map keyed by tick, mirroring CLTickStaked.stakedLiquidityNet.
+      // Baseline: maintain a map keyed by tick (Uniswap v3 per-tick liquidityNet).
       baselineNet.set(
         tickLower,
         (baselineNet.get(tickLower) ?? 0n) + liquidity,
@@ -208,21 +227,13 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
       }
     }
 
-    // Under test: use the new function with in-aggregator arrays. Must NOT
-    // touch CLTickStaked (we assert by installing a spy that throws).
+    // Under test: use the new function with in-aggregator arrays.
     const noDbContext = {
       log: {
         error: vi.fn(),
         warn: vi.fn(),
         info: vi.fn(),
         debug: vi.fn(),
-      },
-      CLTickStaked: {
-        get: vi.fn(() => {
-          throw new Error(
-            "processTickCrossingsForStaked must not call CLTickStaked.get on the swap path (#649)",
-          );
-        }),
       },
       // biome-ignore lint/suspicious/noExplicitAny: test-only shape
     } as any;
@@ -241,7 +252,6 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
     );
 
     expect(newResult).toBe(baselineResult);
-    expect(noDbContext.CLTickStaked.get).not.toHaveBeenCalled();
 
     // Sanity: the window actually crosses multiple edges.
     const crossingCount = edges.filter(
@@ -281,6 +291,5 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
     // Round-trip parity: up-swap then down-swap over the same window must
     // return stakedLiq to its starting value (0n in this test).
     expect(downResult).toBe(0n);
-    expect(noDbContext.CLTickStaked.get).not.toHaveBeenCalled();
   });
 });
