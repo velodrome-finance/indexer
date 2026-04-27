@@ -1,6 +1,6 @@
 import { CLFactory } from "generated";
 import { updateFeeToTickSpacingMapping } from "../Aggregators/FeeToTickSpacingMapping";
-import { FeeToTickSpacingMappingId, TokenId } from "../Constants";
+import { FeeToTickSpacingMappingId, PoolId, TokenId } from "../Constants";
 import {
   flushPendingRootPoolMappingAndVotes,
   processCLFactoryPoolCreated,
@@ -12,16 +12,26 @@ CLFactory.PoolCreated.contractRegister(({ event, context }) => {
 });
 
 CLFactory.PoolCreated.handler(async ({ event, context }) => {
-  // Load token instances efficiently
-  const [poolToken0, poolToken1, CLGaugeConfig, feeToTickSpacingMapping] =
-    await Promise.all([
-      context.Token.get(TokenId(event.chainId, event.params.token0)),
-      context.Token.get(TokenId(event.chainId, event.params.token1)),
-      context.CLGaugeConfig.get(String(event.chainId)),
-      context.FeeToTickSpacingMapping.get(
-        FeeToTickSpacingMappingId(event.chainId, event.params.tickSpacing),
-      ),
-    ]);
+  // Load token instances and any buffered Initialize state. Aerodrome
+  // Slipstream emits CLPool.Initialize at a LOWER log index than this
+  // PoolCreated within the same tx, so the Initialize handler may already
+  // have buffered sqrtPriceX96/tick into CLPoolPendingInitialize.
+  const pendingInitializeId = PoolId(event.chainId, event.params.pool);
+  const [
+    poolToken0,
+    poolToken1,
+    CLGaugeConfig,
+    feeToTickSpacingMapping,
+    pendingInitialize,
+  ] = await Promise.all([
+    context.Token.get(TokenId(event.chainId, event.params.token0)),
+    context.Token.get(TokenId(event.chainId, event.params.token1)),
+    context.CLGaugeConfig.get(String(event.chainId)),
+    context.FeeToTickSpacingMapping.get(
+      FeeToTickSpacingMappingId(event.chainId, event.params.tickSpacing),
+    ),
+    context.CLPoolPendingInitialize.get(pendingInitializeId),
+  ]);
 
   // CLFactory emits TickSpacingEnabled events in its constructor, so feeToTickSpacingMapping should exist
   if (!feeToTickSpacingMapping) {
@@ -40,10 +50,21 @@ CLFactory.PoolCreated.handler(async ({ event, context }) => {
     CLGaugeConfig,
     feeToTickSpacingMapping,
     context,
+    pendingInitialize
+      ? {
+          sqrtPriceX96: pendingInitialize.sqrtPriceX96,
+          tick: pendingInitialize.tick,
+        }
+      : undefined,
   );
 
   // For new pool creation, set the entity directly (updateLiquidityPoolAggregator is for updates, not creation)
   context.LiquidityPoolAggregator.set(result.liquidityPoolAggregator);
+
+  // Drop the buffer once consumed so it cannot leak into future blocks.
+  if (pendingInitialize) {
+    context.CLPoolPendingInitialize.deleteUnsafe(pendingInitializeId);
+  }
 
   await flushPendingRootPoolMappingAndVotes(
     context,

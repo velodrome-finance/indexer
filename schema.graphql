@@ -658,6 +658,20 @@ type PendingVote {
   transactionHash: String! # Transaction hash of the vote event
 }
 
+# Deferred CL pool initialization state: stored when CLPool.Initialize fires
+# BEFORE CLFactory.PoolCreated has created the LiquidityPoolAggregator.
+# Aerodrome Slipstream emits Initialize from the pool inside the same tx as
+# (and at a LOWER log index than) PoolCreated from the factory, so Envio
+# delivers Initialize first. PoolCreated reads this buffer when constructing
+# the new aggregator and deletes the entry afterwards.
+type CLPoolPendingInitialize {
+  id: ID! # Format: {chainId}-{poolAddress} (PoolId)
+  chainId: Int!
+  poolAddress: String!
+  sqrtPriceX96: BigInt! @config(precision: 76)
+  tick: BigInt! @config(precision: 24)
+}
+
 # Deferred RootPool->LeafPool mapping: stored when RootPoolCreated fires but no LiquidityPoolAggregator exists yet
 type PendingRootPoolMapping {
   id: ID! # Format: {rootChainId}-{rootPoolAddress}

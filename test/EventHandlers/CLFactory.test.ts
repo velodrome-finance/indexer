@@ -1113,3 +1113,179 @@ describe("CLFactory Events", () => {
     );
   });
 });
+
+// Slipstream same-tx ordering: CLPool.Initialize fires BEFORE
+// CLFactory.PoolCreated within the same transaction, at a lower log index.
+// CLPool.Initialize buffers sqrtPriceX96/tick into CLPoolPendingInitialize;
+// CLFactory.PoolCreated must consume that buffer when constructing the
+// aggregator so the aggregator is born with the correct opening price, then
+// delete the buffer entry. This describe runs without the global processSpy
+// mock so it exercises the real processCLFactoryPoolCreated.
+describe("CLFactory.PoolCreated ↔ CLPoolPendingInitialize buffer", () => {
+  const { mockToken0Data, mockToken1Data } = setupCommon();
+  const chainId = 8453;
+  const poolAddress = toChecksumAddress(
+    "0x565aecF84b5d30a6E79a5CEf3f0dA0Fc4280dEBC",
+  );
+  const TICK_SPACING = 60n;
+  const FEE = 500n;
+  const sqrtPriceX96 = 79228162514264337593543950336n; // sqrt(1) << 96
+  const tick = -887n;
+
+  beforeEach(() => {
+    vi.spyOn(PriceOracle, "createTokenEntity").mockImplementation(
+      async (address: string) => ({
+        id: TokenId(chainId, address),
+        address: address,
+        symbol: "",
+        name: "Mock Token",
+        decimals: 18n,
+        pricePerUSDNew: 1000000000000000000n,
+        chainId: chainId,
+        isWhitelisted: false,
+        lastUpdatedTimestamp: new Date(1000000 * 1000),
+      }),
+    );
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function seedDb(
+    db: ReturnType<typeof MockDb.createMockDb>,
+  ): ReturnType<typeof MockDb.createMockDb> {
+    const token0 = {
+      ...mockToken0Data,
+      id: TokenId(chainId, mockToken0Data.address),
+      chainId,
+    } satisfies Token;
+    const token1 = {
+      ...mockToken1Data,
+      id: TokenId(chainId, mockToken1Data.address),
+      chainId,
+    } satisfies Token;
+    return db.entities.Token.set(token0)
+      .entities.Token.set(token1)
+      .entities.CLGaugeConfig.set({
+        id: String(chainId),
+        defaultEmissionsCap: 0n,
+        defaultMinStakeTime: 0n,
+        penaltyRate: 0n,
+        lastUpdatedTimestamp: new Date(1000000 * 1000),
+      } satisfies CLGaugeConfig)
+      .entities.FeeToTickSpacingMapping.set({
+        id: FeeToTickSpacingMappingId(chainId, TICK_SPACING),
+        chainId,
+        tickSpacing: TICK_SPACING,
+        fee: FEE,
+        lastUpdatedTimestamp: new Date(1000000 * 1000),
+      });
+  }
+
+  it("creates the aggregator with the buffered sqrtPriceX96/tick when CLPoolPendingInitialize is present", async () => {
+    let mockDb = MockDb.createMockDb();
+    mockDb = seedDb(mockDb);
+    // Pre-seed the buffer as if CLPool.Initialize had run first.
+    mockDb = mockDb.entities.CLPoolPendingInitialize.set({
+      id: PoolId(chainId, poolAddress),
+      chainId,
+      poolAddress,
+      sqrtPriceX96,
+      tick,
+    });
+
+    const event = CLFactory.PoolCreated.createMockEvent({
+      token0: mockToken0Data.address as `0x${string}`,
+      token1: mockToken1Data.address as `0x${string}`,
+      pool: poolAddress,
+      tickSpacing: TICK_SPACING,
+      mockEventData: {
+        block: {
+          number: 13901333,
+          timestamp: 1700000000,
+          hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+        },
+        chainId,
+        logIndex: 313,
+      },
+    });
+
+    const resultDB = await mockDb.processEvents([event]);
+
+    const pool = resultDB.entities.LiquidityPoolAggregator.get(
+      PoolId(chainId, poolAddress),
+    );
+    expect(pool).toBeDefined();
+    if (!pool) return;
+    expect(pool.sqrtPriceX96).toBe(sqrtPriceX96);
+    expect(pool.tick).toBe(tick);
+  });
+
+  it("deletes CLPoolPendingInitialize after consuming it", async () => {
+    let mockDb = MockDb.createMockDb();
+    mockDb = seedDb(mockDb);
+    mockDb = mockDb.entities.CLPoolPendingInitialize.set({
+      id: PoolId(chainId, poolAddress),
+      chainId,
+      poolAddress,
+      sqrtPriceX96,
+      tick,
+    });
+
+    const event = CLFactory.PoolCreated.createMockEvent({
+      token0: mockToken0Data.address as `0x${string}`,
+      token1: mockToken1Data.address as `0x${string}`,
+      pool: poolAddress,
+      tickSpacing: TICK_SPACING,
+      mockEventData: {
+        block: {
+          number: 13901333,
+          timestamp: 1700000000,
+          hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+        },
+        chainId,
+        logIndex: 313,
+      },
+    });
+
+    const resultDB = await mockDb.processEvents([event]);
+
+    expect(
+      resultDB.entities.CLPoolPendingInitialize.get(
+        PoolId(chainId, poolAddress),
+      ),
+    ).toBeUndefined();
+  });
+
+  it("creates the aggregator with default 0n sqrtPriceX96/tick when no buffer is present (pre-Slipstream factories)", async () => {
+    let mockDb = MockDb.createMockDb();
+    mockDb = seedDb(mockDb);
+
+    const event = CLFactory.PoolCreated.createMockEvent({
+      token0: mockToken0Data.address as `0x${string}`,
+      token1: mockToken1Data.address as `0x${string}`,
+      pool: poolAddress,
+      tickSpacing: TICK_SPACING,
+      mockEventData: {
+        block: {
+          number: 13901333,
+          timestamp: 1700000000,
+          hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+        },
+        chainId,
+        logIndex: 313,
+      },
+    });
+
+    const resultDB = await mockDb.processEvents([event]);
+
+    const pool = resultDB.entities.LiquidityPoolAggregator.get(
+      PoolId(chainId, poolAddress),
+    );
+    expect(pool).toBeDefined();
+    if (!pool) return;
+    expect(pool.sqrtPriceX96).toBe(0n);
+    expect(pool.tick).toBe(0n);
+  });
+});

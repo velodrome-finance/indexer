@@ -11,13 +11,13 @@ import {
 import {
   CLPoolMintEventId,
   OUSDT_ADDRESS,
+  PoolId,
   TxCLPoolMintRegistryId,
 } from "../Constants";
 import { processCLPoolBurn } from "./CLPool/CLPoolBurnLogic";
 import { processCLPoolCollectFees } from "./CLPool/CLPoolCollectFeesLogic";
 import { processCLPoolCollect } from "./CLPool/CLPoolCollectLogic";
 import { processCLPoolFlash } from "./CLPool/CLPoolFlashLogic";
-import { processCLPoolInitialize } from "./CLPool/CLPoolInitializeLogic";
 import { processCLPoolMint } from "./CLPool/CLPoolMintLogic";
 import { processCLPoolSwap } from "./CLPool/CLPoolSwapLogic";
 
@@ -273,36 +273,22 @@ CLPool.IncreaseObservationCardinalityNext.handler(
   },
 );
 
-// Initialize fires once per pool, between PoolCreated and the first Mint/Swap.
-// Writing sqrtPriceX96/tick here closes the pre-first-swap dead-zone so NFPM
-// handlers can compute range math for positions minted before any swap has
-// occurred (see velodrome-finance/indexer#654).
+// Slipstream's CLFactory.createPool initializes the pool inside the same
+// function call that deploys it, so CLPool.Initialize is always emitted at a
+// LOWER log index than CLFactory.PoolCreated within the same tx. The
+// aggregator therefore does not exist yet when Initialize runs — buffer the
+// opening sqrtPriceX96/tick into CLPoolPendingInitialize so PoolCreated can
+// apply it on creation and delete the entry. Closes the pre-first-swap
+// dead-zone where NFPM handlers silently dropped range math for positions
+// minted before any swap had occurred (see velodrome-finance/indexer#654).
 CLPool.Initialize.handler(async ({ event, context }) => {
-  const poolData = await loadPoolData(
-    event.srcAddress,
-    event.chainId,
-    context,
-    event.block.number,
-    event.block.timestamp,
-  );
-
-  if (!poolData) {
-    return;
-  }
-
-  const { liquidityPoolAggregator } = poolData;
-  const timestamp = new Date(event.block.timestamp * 1000);
-
-  const { liquidityPoolDiff } = processCLPoolInitialize(event);
-
-  await updateLiquidityPoolAggregator(
-    liquidityPoolDiff,
-    liquidityPoolAggregator,
-    timestamp,
-    context,
-    event.chainId,
-    event.block.number,
-  );
+  context.CLPoolPendingInitialize.set({
+    id: PoolId(event.chainId, event.srcAddress),
+    chainId: event.chainId,
+    poolAddress: event.srcAddress,
+    sqrtPriceX96: event.params.sqrtPriceX96,
+    tick: event.params.tick,
+  });
 });
 
 CLPool.Mint.handler(async ({ event, context }) => {
