@@ -3,6 +3,7 @@ import type { MockInstance } from "vitest";
 import { CLPool, MockDb } from "../../generated/src/TestHelpers.gen";
 import {
   OUSDT_ADDRESS,
+  PoolId,
   TokenId,
   UserStatsPerPoolId,
   toChecksumAddress,
@@ -835,6 +836,51 @@ describe("CLPool Events", () => {
         liquidityPool.id,
       );
       expect(updatedPool).toBeUndefined();
+    });
+  });
+
+  // Slipstream emits Initialize from the pool BEFORE its CLFactory emits
+  // PoolCreated within the same tx, so the aggregator does not exist yet.
+  // The handler buffers the opening price for PoolCreated to consume.
+  describe("Initialize Event", () => {
+    it("buffers sqrtPriceX96/tick into CLPoolPendingInitialize", async () => {
+      const pool = toChecksumAddress(
+        "0x9999999999999999999999999999999999999999",
+      );
+      const mockEvent = CLPool.Initialize.createMockEvent({
+        sqrtPriceX96: 79228162514264337593543950336n,
+        tick: 1n,
+        mockEventData: {
+          srcAddress: pool as `0x${string}`,
+          chainId,
+          block: {
+            number: 42,
+            timestamp: 1_234_567,
+            hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+          },
+          logIndex: 0,
+          transaction: {
+            hash: "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+          },
+        },
+      });
+
+      const resultDB = await MockDb.createMockDb().processEvents([mockEvent]);
+
+      // No phantom aggregator created — Initialize lacks token0/token1/tickSpacing.
+      expect(
+        resultDB.entities.LiquidityPoolAggregator.get(PoolId(chainId, pool)),
+      ).toBeUndefined();
+
+      const pending = resultDB.entities.CLPoolPendingInitialize.get(
+        PoolId(chainId, pool),
+      );
+      expect(pending).toBeDefined();
+      if (!pending) return;
+      expect(pending.sqrtPriceX96).toBe(79228162514264337593543950336n);
+      expect(pending.tick).toBe(1n);
+      expect(pending.poolAddress).toBe(pool);
+      expect(pending.chainId).toBe(chainId);
     });
   });
 });

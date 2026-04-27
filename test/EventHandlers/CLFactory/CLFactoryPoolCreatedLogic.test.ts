@@ -613,6 +613,40 @@ describe("CLFactoryPoolCreatedLogic", () => {
       ).rejects.toThrow();
     });
 
+    it("should apply sqrtPriceX96 and tick from pendingInitialize when provided (Slipstream same-tx)", async () => {
+      const sqrtPriceX96 = 1234567890123456789012345678901234n;
+      const tick = -887n;
+
+      const result = await processCLFactoryPoolCreated(
+        mockEvent,
+        mockEvent.srcAddress,
+        mockToken0Data,
+        mockToken1Data,
+        undefined,
+        mockFeeToTickSpacingMapping,
+        mockContext,
+        { sqrtPriceX96, tick },
+      );
+
+      expect(result.liquidityPoolAggregator.sqrtPriceX96).toBe(sqrtPriceX96);
+      expect(result.liquidityPoolAggregator.tick).toBe(tick);
+    });
+
+    it("should default sqrtPriceX96 and tick to 0n when no pendingInitialize is provided", async () => {
+      const result = await processCLFactoryPoolCreated(
+        mockEvent,
+        mockEvent.srcAddress,
+        mockToken0Data,
+        mockToken1Data,
+        undefined,
+        mockFeeToTickSpacingMapping,
+        mockContext,
+      );
+
+      expect(result.liquidityPoolAggregator.sqrtPriceX96).toBe(0n);
+      expect(result.liquidityPoolAggregator.tick).toBe(0n);
+    });
+
     it.each([
       { tickSpacing: 60n, fee: 500n },
       { tickSpacing: 100n, fee: 400n },

@@ -20,6 +20,35 @@ export interface CLFactoryPoolCreatedResult {
   liquidityPoolAggregator: LiquidityPoolAggregator;
 }
 
+/**
+ * Opening price state buffered by CLPool.Initialize when it fires before
+ * CLFactory.PoolCreated within the same tx (Aerodrome Slipstream flow).
+ */
+export interface CLPoolPendingInitializeInput {
+  sqrtPriceX96: bigint;
+  tick: bigint;
+}
+
+/**
+ * Builds the LiquidityPoolAggregator for a freshly-created CL pool. Token
+ * entities are created on demand if the caller did not pre-resolve them.
+ *
+ * If `pendingInitialize` is provided (Slipstream same-tx ordering, where
+ * CLPool.Initialize fired before CLFactory.PoolCreated and buffered the
+ * opening sqrtPriceX96/tick), those values are written onto the new
+ * aggregator so downstream NFPM range math sees a non-zero price from the
+ * very first event after creation.
+ *
+ * @param event - The CLFactory PoolCreated event
+ * @param factoryAddress - Address of the CLFactory that emitted the event
+ * @param poolToken0 - Pre-resolved Token entity for token0 (or undefined to fetch)
+ * @param poolToken1 - Pre-resolved Token entity for token1 (or undefined to fetch)
+ * @param CLGaugeConfig - Optional CLGaugeConfig for the chain (seeds emissions/min-stake)
+ * @param feeToTickSpacingMapping - FeeToTickSpacingMapping for this pool's tick spacing
+ * @param context - The handler context
+ * @param pendingInitialize - Optional opening price buffered by CLPool.Initialize
+ * @returns The constructed aggregator, ready for `context.LiquidityPoolAggregator.set`
+ */
 export async function processCLFactoryPoolCreated(
   event: CLFactory_PoolCreated_event,
   factoryAddress: string,
@@ -28,6 +57,7 @@ export async function processCLFactoryPoolCreated(
   CLGaugeConfig: CLGaugeConfig | undefined,
   feeToTickSpacingMapping: FeeToTickSpacingMapping,
   context: handlerContext,
+  pendingInitialize?: CLPoolPendingInitializeInput,
 ): Promise<CLFactoryPoolCreatedResult> {
   try {
     const poolTokenSymbols: string[] = [];
@@ -59,7 +89,7 @@ export async function processCLFactoryPoolCreated(
     }
 
     // Create the liquidity pool aggregator
-    const liquidityPoolAggregator = createLiquidityPoolAggregatorEntity({
+    const baseAggregator = createLiquidityPoolAggregatorEntity({
       poolAddress: event.params.pool,
       chainId: event.chainId,
       isCL: true,
@@ -82,6 +112,17 @@ export async function processCLFactoryPoolCreated(
       baseFee: feeToTickSpacingMapping.fee,
       currentFee: feeToTickSpacingMapping.fee,
     });
+
+    // Slipstream same-tx ordering: CLPool.Initialize buffered the opening
+    // price before this handler ran. Apply it so the aggregator is born with
+    // the correct sqrtPriceX96/tick instead of the 0n defaults.
+    const liquidityPoolAggregator = pendingInitialize
+      ? {
+          ...baseAggregator,
+          sqrtPriceX96: pendingInitialize.sqrtPriceX96,
+          tick: pendingInitialize.tick,
+        }
+      : baseAggregator;
 
     return {
       liquidityPoolAggregator,
