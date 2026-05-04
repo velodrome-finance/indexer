@@ -276,6 +276,116 @@ describe("PriceOracle", () => {
       });
     });
 
+    describe("Override path: blacklist + rebind (issue #669)", () => {
+      // Issue #669: tokens whose on-chain oracle is structurally unusable get
+      // either forced to 0 (blacklist) or copied from another chain's already-
+      // priced Token entity (rebind). Either path bypasses the on-chain oracle
+      // entirely — no getTokenPrice/rpcGateway/getTokenDetails calls fire.
+      const oneHourAndOneMinuteAgo = () =>
+        new Date(blockDatetime.getTime() - 61 * 60 * 1000);
+
+      beforeEach(() => {
+        vi.mocked(mockContext.Token?.set)?.mockClear();
+        vi.mocked(mockContext.Token?.get)?.mockReset();
+        vi.mocked(mockContext.effect)?.mockClear();
+        vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mockClear();
+      });
+
+      it("blacklisted token: forces price to 0 and skips the oracle entirely", async () => {
+        const MANATEE_OP = toChecksumAddress(
+          "0x7909Bda52eAf7C3cc12745E727Eb527a485241D8",
+        );
+        const fetchedToken = {
+          ...mockToken0Data,
+          address: MANATEE_OP,
+          pricePerUSDNew: 388_328n * 10n ** 18n, // contaminated baseline
+          lastUpdatedTimestamp: oneHourAndOneMinuteAgo(),
+        };
+
+        const result = await PriceOracle.refreshTokenPrice(
+          fetchedToken,
+          blockNumber,
+          blockDatetime.getTime() / 1000,
+          10, // Optimism, where $Manatee is blacklisted
+          mockContext as handlerContext,
+        );
+
+        expect(result.pricePerUSDNew).toBe(0n);
+        expect(vi.mocked(mockContext.effect)).not.toHaveBeenCalled();
+        expect(
+          vi.mocked(mockContext.TokenPriceSnapshot?.set),
+        ).not.toHaveBeenCalled();
+      });
+
+      it("rebind: copies price from the source chain's Token entity", async () => {
+        const RSETH_SWELL = toChecksumAddress(
+          "0xc3eaCf0612346366Db554c991D7858716db09f58",
+        );
+        const WRSETH_BASE = toChecksumAddress(
+          "0xEDfa23602D0EC14714057867A78d01e94176BEA0",
+        );
+        const sourcePrice = 2_443n * 10n ** 18n;
+        vi.mocked(mockContext.Token?.get)?.mockImplementation(async (id) => {
+          if (id === `8453-${WRSETH_BASE}`) {
+            return { pricePerUSDNew: sourcePrice } as Token;
+          }
+          return undefined;
+        });
+
+        const fetchedToken = {
+          ...mockToken0Data,
+          address: RSETH_SWELL,
+          pricePerUSDNew: 3_620_000n * 10n ** 18n, // corrupt baseline ($3.62M)
+          lastUpdatedTimestamp: oneHourAndOneMinuteAgo(),
+        };
+
+        const result = await PriceOracle.refreshTokenPrice(
+          fetchedToken,
+          blockNumber,
+          blockDatetime.getTime() / 1000,
+          1923, // Swell, where rsETH rebinds to wrsETH/Base
+          mockContext as handlerContext,
+        );
+
+        expect(result.pricePerUSDNew).toBe(sourcePrice);
+        expect(vi.mocked(mockContext.effect)).not.toHaveBeenCalled();
+        // Snapshot should fire when source has a non-zero price
+        expect(
+          vi.mocked(mockContext.TokenPriceSnapshot?.set),
+        ).toHaveBeenCalled();
+      });
+
+      it("rebind with unpriced source: writes 0 rather than falling back to oracle", async () => {
+        const XVELO = toChecksumAddress(
+          "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
+        );
+        vi.mocked(mockContext.Token?.get)?.mockResolvedValue(undefined);
+
+        const fetchedToken = {
+          ...mockToken0Data,
+          address: XVELO,
+          pricePerUSDNew: 0n,
+          lastUpdatedTimestamp: oneHourAndOneMinuteAgo(),
+        };
+
+        const result = await PriceOracle.refreshTokenPrice(
+          fetchedToken,
+          blockNumber,
+          blockDatetime.getTime() / 1000,
+          252, // Fraxtal — XVELO rebinds to VELO/OP
+          mockContext as handlerContext,
+        );
+
+        // Critical: must NOT fall through to oracle (which would re-introduce corruption)
+        expect(result.pricePerUSDNew).toBe(0n);
+        expect(vi.mocked(mockContext.effect)).not.toHaveBeenCalled();
+        // No snapshot when source price is 0 (would be a no-op and is noisy)
+        expect(
+          vi.mocked(mockContext.TokenPriceSnapshot?.set),
+        ).not.toHaveBeenCalled();
+      });
+    });
+
     describe("when price fetch fails", () => {
       let originalToken: Token;
       beforeEach(async () => {
