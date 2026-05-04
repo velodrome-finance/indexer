@@ -424,6 +424,22 @@ export async function updateLiquidityPoolAggregator(
     lastUpdatedTimestamp: timestamp,
   };
 
+  // Soft invariant (issue #670): real swap fee tiers cap at ~1% of volume, so a
+  // running totalFeesGeneratedUSD exceeding 5% of totalVolumeUSD signals that the
+  // fee-USD path has diverged from the volume-USD path (precision mismatch,
+  // double-counting, or wrong fee tier). Log under [FEE_VOLUME_DIVERGENCE] only
+  // on the crossing event so future drifts surface in logs without flooding them
+  // and without aborting the indexer or mutating state.
+  const crossedDivergenceThreshold =
+    updated.totalVolumeUSD > 0n &&
+    updated.totalFeesGeneratedUSD * 20n > updated.totalVolumeUSD &&
+    current.totalFeesGeneratedUSD * 20n <= current.totalVolumeUSD;
+  if (crossedDivergenceThreshold) {
+    context.log.warn(
+      `[FEE_VOLUME_DIVERGENCE][updateLiquidityPoolAggregator] Pool ${current.poolAddress} on chain ${current.chainId} totalFeesGeneratedUSD (${updated.totalFeesGeneratedUSD}) exceeds 5% of totalVolumeUSD (${updated.totalVolumeUSD}). Real fee tiers cap at ~1%; this likely indicates a fee/volume USD-path divergence.`,
+    );
+  }
+
   // Snapshot only when we've entered a new epoch (hour); use epoch-aligned timestamp so we don't drift
   if (shouldSnapshot(current.lastSnapshotTimestamp, timestamp)) {
     // Only update dynamic fees for CL pools (they use dynamic fee modules)

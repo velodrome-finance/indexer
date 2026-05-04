@@ -696,6 +696,81 @@ describe("LiquidityPoolAggregator Functions", () => {
     });
   });
 
+  describe("fee/volume invariant warning (issue #670)", () => {
+    // Real swap fee tiers cap at ~1%; a running totalFeesGeneratedUSD exceeding
+    // 5% of totalVolumeUSD signals divergence between the fee-USD and volume-USD
+    // paths. The aggregator emits a warning under [FEE_VOLUME_DIVERGENCE] so
+    // future drifts surface in logs without aborting the indexer.
+    it("warns when totalFeesGeneratedUSD exceeds 5% of totalVolumeUSD", async () => {
+      const pool = createMockLiquidityPoolAggregator({
+        totalVolumeUSD: 1_000n * 10n ** 18n,
+        totalFeesGeneratedUSD: 0n,
+      });
+
+      await updateLiquidityPoolAggregator(
+        { incrementalTotalFeesGeneratedUSD: 60n * 10n ** 18n },
+        pool as LiquidityPoolAggregator,
+        timestamp,
+        mockContext as handlerContext,
+        10,
+        blockNumber,
+      );
+
+      const warnMock = vi.mocked(mockContext.log?.warn);
+      const warnCalls = warnMock?.mock.calls ?? [];
+      const divergenceWarnings = warnCalls.filter((args) =>
+        String(args[0] ?? "").includes("[FEE_VOLUME_DIVERGENCE]"),
+      );
+      expect(divergenceWarnings.length).toBe(1);
+    });
+
+    it("does not warn when fees are below the 5% threshold", async () => {
+      const pool = createMockLiquidityPoolAggregator({
+        totalVolumeUSD: 1_000n * 10n ** 18n,
+        totalFeesGeneratedUSD: 0n,
+      });
+
+      await updateLiquidityPoolAggregator(
+        { incrementalTotalFeesGeneratedUSD: 10n * 10n ** 18n },
+        pool as LiquidityPoolAggregator,
+        timestamp,
+        mockContext as handlerContext,
+        10,
+        blockNumber,
+      );
+
+      const warnMock = vi.mocked(mockContext.log?.warn);
+      const warnCalls = warnMock?.mock.calls ?? [];
+      const divergenceWarnings = warnCalls.filter((args) =>
+        String(args[0] ?? "").includes("[FEE_VOLUME_DIVERGENCE]"),
+      );
+      expect(divergenceWarnings.length).toBe(0);
+    });
+
+    it("does not warn when totalVolumeUSD is zero (avoid div-by-zero noise)", async () => {
+      const pool = createMockLiquidityPoolAggregator({
+        totalVolumeUSD: 0n,
+        totalFeesGeneratedUSD: 0n,
+      });
+
+      await updateLiquidityPoolAggregator(
+        { incrementalTotalFeesGeneratedUSD: 10n * 10n ** 18n },
+        pool as LiquidityPoolAggregator,
+        timestamp,
+        mockContext as handlerContext,
+        10,
+        blockNumber,
+      );
+
+      const warnMock = vi.mocked(mockContext.log?.warn);
+      const warnCalls = warnMock?.mock.calls ?? [];
+      const divergenceWarnings = warnCalls.filter((args) =>
+        String(args[0] ?? "").includes("[FEE_VOLUME_DIVERGENCE]"),
+      );
+      expect(divergenceWarnings.length).toBe(0);
+    });
+  });
+
   describe("loadPoolData", () => {
     let token0: Token;
     let token1: Token;
