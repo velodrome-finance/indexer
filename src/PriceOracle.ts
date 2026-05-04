@@ -92,18 +92,12 @@ export async function refreshTokenPrice(
     // Cache key is based on input parameters, so rounding must happen before effect call
     const roundedBlockNumber = roundBlockToInterval(blockNumber, chainId);
 
-    // Fetch token details and price in parallel
-    const [tokenDetails, priceData] = await Promise.all([
-      context.effect(getTokenDetails, {
-        contractAddress: token.address,
-        chainId,
-      }),
-      context.effect(getTokenPrice, {
-        tokenAddress: token.address,
-        chainId,
-        blockNumber: roundedBlockNumber, // Use rounded block for cache key
-      }),
-    ]);
+    // ERC20 metadata is immutable; populated once at token creation, not refreshed here.
+    const priceData = await context.effect(getTokenPrice, {
+      tokenAddress: token.address,
+      chainId,
+      blockNumber: roundedBlockNumber,
+    });
     // TEMPORARY: Bypass effect cache for affected chains with $0 cached results.
     // These chains had broken oracle connectors that cached $0 prices permanently.
     // The rpcGateway effect (cache: false) re-fetches from now-fixed connectors.
@@ -157,7 +151,6 @@ export async function refreshTokenPrice(
     const updatedToken: Token = {
       ...token,
       pricePerUSDNew: currentPrice,
-      decimals: BigInt(tokenDetails.decimals),
       // Preserve original timestamp when price stays $0 so 30-day backoff timer
       // tracks from creation/last non-zero price, not from last refresh attempt.
       lastUpdatedTimestamp:
