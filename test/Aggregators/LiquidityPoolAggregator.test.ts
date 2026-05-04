@@ -699,12 +699,19 @@ describe("LiquidityPoolAggregator Functions", () => {
   describe("fee/volume invariant warning (issue #670)", () => {
     // Real swap fee tiers cap at ~1%; a running totalFeesGeneratedUSD exceeding
     // 5% of totalVolumeUSD signals divergence between the fee-USD and volume-USD
-    // paths. The aggregator emits a warning under [FEE_VOLUME_DIVERGENCE] so
-    // future drifts surface in logs without aborting the indexer.
-    it("warns when totalFeesGeneratedUSD exceeds 5% of totalVolumeUSD", async () => {
+    // paths. The aggregator emits a warning under [FEE_VOLUME_DIVERGENCE] at
+    // each snapshot epoch boundary while still divergent (≤1/hour per pool) so
+    // a persistent drift stays visible in recent logs without flooding them and
+    // without aborting the indexer.
+    const previousEpoch = () =>
+      new Date(timestamp.getTime() - 2 * 60 * 60 * 1000);
+
+    it("warns at snapshot epoch when totalFeesGeneratedUSD exceeds 5% of totalVolumeUSD", async () => {
       const pool = createMockLiquidityPoolAggregator({
         totalVolumeUSD: 1_000n * 10n ** 18n,
         totalFeesGeneratedUSD: 0n,
+        lastSnapshotTimestamp: previousEpoch(),
+        lastUpdatedTimestamp: previousEpoch(),
       });
 
       await updateLiquidityPoolAggregator(
@@ -728,6 +735,8 @@ describe("LiquidityPoolAggregator Functions", () => {
       const pool = createMockLiquidityPoolAggregator({
         totalVolumeUSD: 1_000n * 10n ** 18n,
         totalFeesGeneratedUSD: 0n,
+        lastSnapshotTimestamp: previousEpoch(),
+        lastUpdatedTimestamp: previousEpoch(),
       });
 
       await updateLiquidityPoolAggregator(
@@ -751,10 +760,37 @@ describe("LiquidityPoolAggregator Functions", () => {
       const pool = createMockLiquidityPoolAggregator({
         totalVolumeUSD: 0n,
         totalFeesGeneratedUSD: 0n,
+        lastSnapshotTimestamp: previousEpoch(),
+        lastUpdatedTimestamp: previousEpoch(),
       });
 
       await updateLiquidityPoolAggregator(
         { incrementalTotalFeesGeneratedUSD: 10n * 10n ** 18n },
+        pool as LiquidityPoolAggregator,
+        timestamp,
+        mockContext as handlerContext,
+        10,
+        blockNumber,
+      );
+
+      const warnMock = vi.mocked(mockContext.log?.warn);
+      const warnCalls = warnMock?.mock.calls ?? [];
+      const divergenceWarnings = warnCalls.filter((args) =>
+        String(args[0] ?? "").includes("[FEE_VOLUME_DIVERGENCE]"),
+      );
+      expect(divergenceWarnings.length).toBe(0);
+    });
+
+    it("does not warn when divergent but inside the same snapshot epoch (rate-limit gate)", async () => {
+      const pool = createMockLiquidityPoolAggregator({
+        totalVolumeUSD: 1_000n * 10n ** 18n,
+        totalFeesGeneratedUSD: 100n * 10n ** 18n,
+        lastSnapshotTimestamp: timestamp,
+        lastUpdatedTimestamp: timestamp,
+      });
+
+      await updateLiquidityPoolAggregator(
+        { incrementalTotalFeesGeneratedUSD: 1n * 10n ** 18n },
         pool as LiquidityPoolAggregator,
         timestamp,
         mockContext as handlerContext,
