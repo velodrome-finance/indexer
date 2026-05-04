@@ -344,6 +344,101 @@ describe("LiquidityPoolAggregator Functions", () => {
       expect(updated.stakedTickEdges).toEqual([]);
       expect(updated.stakedTickEdgeNets).toEqual([]);
     });
+
+    // Regression test for issue #666: stakedReserve0/stakedReserve1 are
+    // running counters of staked LP-deposited capital and should never go
+    // negative. 166 CL pools across all chains have drifted negative; a
+    // defensive max(0, _) clamp at LiquidityPoolAggregator.ts:444-457 masks
+    // the symptom at the USD layer but the raw fields persist as negative.
+    // Mirrors the [NEGATIVE_RESERVE_DRIFT] pattern from #674/#680 so future
+    // drifts surface in logs without aborting the indexer.
+    describe("negative staked reserve drift warning (issue #666)", () => {
+      const negativeStakedReserveWarnings = () => {
+        const warnMock = vi.mocked(mockContext.log?.warn);
+        const calls = warnMock?.mock.calls ?? [];
+        return calls.filter((args) =>
+          String(args[0] ?? "").includes("[NEGATIVE_STAKED_RESERVE_DRIFT]"),
+        );
+      };
+
+      it("warns when stakedReserve0 crosses from non-negative to negative", async () => {
+        await updateLiquidityPoolAggregator(
+          { incrementalStakedReserve0: -100n },
+          {
+            ...(liquidityPoolAggregator as LiquidityPoolAggregator),
+            isCL: true,
+            stakedReserve0: 50n,
+            stakedReserve1: 1000n,
+          },
+          timestamp,
+          mockContext as handlerContext,
+          10,
+          blockNumber,
+        );
+
+        expect(negativeStakedReserveWarnings().length).toBe(1);
+      });
+
+      it("warns when stakedReserve1 crosses from non-negative to negative", async () => {
+        await updateLiquidityPoolAggregator(
+          { incrementalStakedReserve1: -100n },
+          {
+            ...(liquidityPoolAggregator as LiquidityPoolAggregator),
+            isCL: true,
+            stakedReserve0: 1000n,
+            stakedReserve1: 50n,
+          },
+          timestamp,
+          mockContext as handlerContext,
+          10,
+          blockNumber,
+        );
+
+        expect(negativeStakedReserveWarnings().length).toBe(1);
+      });
+
+      it("does not warn when staked reserves stay non-negative after the diff", async () => {
+        await updateLiquidityPoolAggregator(
+          {
+            incrementalStakedReserve0: -50n,
+            incrementalStakedReserve1: -50n,
+          },
+          {
+            ...(liquidityPoolAggregator as LiquidityPoolAggregator),
+            isCL: true,
+            stakedReserve0: 100n,
+            stakedReserve1: 100n,
+          },
+          timestamp,
+          mockContext as handlerContext,
+          10,
+          blockNumber,
+        );
+
+        expect(negativeStakedReserveWarnings().length).toBe(0);
+      });
+
+      it("does not warn when staked reserves were already negative (only on crossing)", async () => {
+        await updateLiquidityPoolAggregator(
+          {
+            incrementalStakedReserve0: -10n,
+            incrementalStakedReserve1: -10n,
+          },
+          {
+            ...(liquidityPoolAggregator as LiquidityPoolAggregator),
+            isCL: true,
+            stakedReserve0: -100n,
+            stakedReserve1: -100n,
+          },
+          timestamp,
+          mockContext as handlerContext,
+          10,
+          blockNumber,
+        );
+
+        expect(negativeStakedReserveWarnings().length).toBe(0);
+      });
+    });
   });
 
   describe("Updating the Liquidity Pool Aggregator", () => {

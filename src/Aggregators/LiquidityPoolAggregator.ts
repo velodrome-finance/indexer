@@ -424,6 +424,32 @@ export async function updateLiquidityPoolAggregator(
     lastUpdatedTimestamp: timestamp,
   };
 
+  // Soft invariant (issue #666): stakedReserve0/stakedReserve1 are running
+  // counters of staked LP-deposited capital and should never go negative. 166
+  // CL pools across all chains have drifted negative; the defensive
+  // max(0, _) clamp below at the USD-conversion site masks the symptom but
+  // the raw fields persist as negative. Log under
+  // [NEGATIVE_STAKED_RESERVE_DRIFT] only on the crossing event
+  // (non-negative → negative) so future drifts surface in logs without
+  // flooding them and without aborting the indexer or mutating state.
+  // Mirrors the [NEGATIVE_RESERVE_DRIFT] pattern from #674.
+  if (
+    (updated.stakedReserve0 ?? 0n) < 0n &&
+    (current.stakedReserve0 ?? 0n) >= 0n
+  ) {
+    context.log.warn(
+      `[NEGATIVE_STAKED_RESERVE_DRIFT][updateLiquidityPoolAggregator] Pool ${current.poolAddress} on chain ${current.chainId} stakedReserve0 crossed negative: ${current.stakedReserve0 ?? 0n} + ${diff.incrementalStakedReserve0 ?? 0n} = ${updated.stakedReserve0 ?? 0n}. Staked reserves are LP-deposited capital and should never go below zero.`,
+    );
+  }
+  if (
+    (updated.stakedReserve1 ?? 0n) < 0n &&
+    (current.stakedReserve1 ?? 0n) >= 0n
+  ) {
+    context.log.warn(
+      `[NEGATIVE_STAKED_RESERVE_DRIFT][updateLiquidityPoolAggregator] Pool ${current.poolAddress} on chain ${current.chainId} stakedReserve1 crossed negative: ${current.stakedReserve1 ?? 0n} + ${diff.incrementalStakedReserve1 ?? 0n} = ${updated.stakedReserve1 ?? 0n}. Staked reserves are LP-deposited capital and should never go below zero.`,
+    );
+  }
+
   // Snapshot only when we've entered a new epoch (hour); use epoch-aligned timestamp so we don't drift
   if (shouldSnapshot(current.lastSnapshotTimestamp, timestamp)) {
     // Only update dynamic fees for CL pools (they use dynamic fee modules)
