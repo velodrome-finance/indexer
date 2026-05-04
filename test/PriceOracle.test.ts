@@ -279,8 +279,10 @@ describe("PriceOracle", () => {
     describe("Override path: blacklist + rebind (issue #669)", () => {
       // Issue #669: tokens whose on-chain oracle is structurally unusable get
       // either forced to 0 (blacklist) or copied from another chain's already-
-      // priced Token entity (rebind). Either path bypasses the on-chain oracle
-      // entirely — no getTokenPrice/rpcGateway/getTokenDetails calls fire.
+      // priced Token entity (rebind). Both paths bypass the *local* on-chain
+      // oracle entirely. The rebind path may dispatch a single cross-chain
+      // `getTokenPrice` against the SOURCE chain when the local Token entity
+      // for the source token hasn't been priced yet (cold-sync gap).
       const oneHourAndOneMinuteAgo = () =>
         new Date(blockDatetime.getTime() - 61 * 60 * 1000);
 
@@ -355,31 +357,111 @@ describe("PriceOracle", () => {
         ).toHaveBeenCalled();
       });
 
-      it("rebind with unpriced source: writes 0 rather than falling back to oracle", async () => {
+      // Worked example for the cross-chain prefetch:
+      //   Fraxtal handler firing at wall-clock T (block 9_999_999 on Fraxtal)
+      //   wants the price of XVELO (which rebinds to VELO/OP).
+      //   Local Token entity for VELO/OP is unpriced (OP indexer is behind).
+      //   → estimateBlockAtTimestamp(10, T)  estimates VELO/OP's block at T
+      //   → roundBlockToInterval(estimate, 10) snaps to a 1-hour bucket
+      //   → context.effect(getTokenPrice, { tokenAddress: VELO_OP, chainId: 10, blockNumber: snapped })
+      //   When the OP indexer eventually refreshes VELO at any block in that
+      //   same hour, it rounds to the same bucket → cache hit, zero extra RPCs.
+      // Both rebind sources (OP, Base) anchor in mid-2023, so prefetch tests
+      // pick a timestamp comfortably after both: 2023-11-16 (~unix 1_700_100_000).
+      const postAnchorTimestamp = 1_700_100_000;
+      const postAnchorDate = new Date(postAnchorTimestamp * 1000);
+      const postAnchorOneHourAgo = () =>
+        new Date(postAnchorDate.getTime() - 61 * 60 * 1000);
+
+      it("rebind with unpriced source: prefetches the source chain's oracle", async () => {
         const XVELO = toChecksumAddress(
           "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
         );
+        const VELO_OP = toChecksumAddress(
+          "0x9560e827aF36c94D2Ac33a39bCE1Fe78631088Db",
+        );
+        const sourcePrice = 5n * 10n ** 17n; // $0.50
+
+        // Local Token entity for VELO/OP not yet priced (cold-sync gap).
         vi.mocked(mockContext.Token?.get)?.mockResolvedValue(undefined);
+
+        // Source-chain prefetch returns the live VELO/OP price.
+        vi.mocked(mockContext.effect)?.mockImplementation(
+          async (effect, input) => {
+            const name = (effect as { name?: string }).name;
+            const args = input as { tokenAddress?: string; chainId?: number };
+            if (
+              name === "getTokenPrice" &&
+              args.chainId === 10 &&
+              args.tokenAddress === VELO_OP
+            ) {
+              return { pricePerUSDNew: sourcePrice, priceOracleType: "V3" };
+            }
+            return { pricePerUSDNew: 0n, priceOracleType: "V1" };
+          },
+        );
 
         const fetchedToken = {
           ...mockToken0Data,
           address: XVELO,
           pricePerUSDNew: 0n,
-          lastUpdatedTimestamp: oneHourAndOneMinuteAgo(),
+          lastUpdatedTimestamp: postAnchorOneHourAgo(),
         };
 
         const result = await PriceOracle.refreshTokenPrice(
           fetchedToken,
           blockNumber,
-          blockDatetime.getTime() / 1000,
+          postAnchorTimestamp,
           252, // Fraxtal — XVELO rebinds to VELO/OP
           mockContext as handlerContext,
         );
 
-        // Critical: must NOT fall through to oracle (which would re-introduce corruption)
+        expect(result.pricePerUSDNew).toBe(sourcePrice);
+        // The effect must dispatch against the SOURCE chain (10), not the
+        // local chain (252). That's what makes the cache key reusable when
+        // the OP indexer eventually catches up.
+        expect(vi.mocked(mockContext.effect)).toHaveBeenCalledWith(
+          expect.objectContaining({ name: "getTokenPrice" }),
+          expect.objectContaining({ tokenAddress: VELO_OP, chainId: 10 }),
+        );
+        expect(
+          vi.mocked(mockContext.TokenPriceSnapshot?.set),
+        ).toHaveBeenCalled();
+      });
+
+      it("rebind with unpriced source AND prefetch returns 0: writes 0 (no fall-through to local oracle)", async () => {
+        const XVELO = toChecksumAddress(
+          "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
+        );
+        vi.mocked(mockContext.Token?.get)?.mockResolvedValue(undefined);
+        // Source-chain prefetch also returns 0 (no price path on source oracle).
+        vi.mocked(mockContext.effect)?.mockResolvedValue({
+          pricePerUSDNew: 0n,
+          priceOracleType: "V3",
+        });
+
+        const fetchedToken = {
+          ...mockToken0Data,
+          address: XVELO,
+          pricePerUSDNew: 0n,
+          lastUpdatedTimestamp: postAnchorOneHourAgo(),
+        };
+
+        const result = await PriceOracle.refreshTokenPrice(
+          fetchedToken,
+          blockNumber,
+          postAnchorTimestamp,
+          252, // Fraxtal
+          mockContext as handlerContext,
+        );
+
+        // Prefetched 0 — write 0. We MUST NOT fall through to the local
+        // (corrupt) oracle: that's the whole point of the rebind.
         expect(result.pricePerUSDNew).toBe(0n);
-        expect(vi.mocked(mockContext.effect)).not.toHaveBeenCalled();
-        // No snapshot when source price is 0 (would be a no-op and is noisy)
+        expect(vi.mocked(mockContext.effect)).toHaveBeenCalledWith(
+          expect.objectContaining({ name: "getTokenPrice" }),
+          expect.objectContaining({ chainId: 10 }),
+        );
         expect(
           vi.mocked(mockContext.TokenPriceSnapshot?.set),
         ).not.toHaveBeenCalled();
