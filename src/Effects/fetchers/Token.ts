@@ -38,9 +38,12 @@ export async function fetchTokenDetails(
     }),
   ]);
 
+  // Preserve contract-returned 0; some legit ERC20s have 0 decimals (e.g. IDRX).
+  const decimalsNum = decimalsResult == null ? 18 : Number(decimalsResult);
+
   return {
     name: nameResult?.toString() || "",
-    decimals: Number(decimalsResult) || 18,
+    decimals: Number.isFinite(decimalsNum) ? decimalsNum : 18,
     symbol: symbolResult?.toString() || "",
   };
 }

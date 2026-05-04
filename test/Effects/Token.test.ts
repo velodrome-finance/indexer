@@ -470,6 +470,27 @@ describe("Token Effects", () => {
       const result = await fetchTokenDetails(TEST_TOKEN_ADDRESS, mockEthClient);
       expect(result).toEqual({ name: "", symbol: "", decimals: 18 });
     });
+
+    it("preserves a contract-returned 0 (legitimate 0-decimal token, e.g. IDRX)", async () => {
+      vi.mocked(mockEthClient.readContract)
+        .mockResolvedValueOnce("Indonesian Rupiah" as unknown as string)
+        .mockResolvedValueOnce(0 as unknown as number)
+        .mockResolvedValueOnce("IDRX" as unknown as string);
+
+      const result = await fetchTokenDetails(TEST_TOKEN_ADDRESS, mockEthClient);
+      expect(result.decimals).toBe(0);
+      expect(result.symbol).toBe("IDRX");
+    });
+
+    it("falls back to 18 when decimals decodes to NaN", async () => {
+      vi.mocked(mockEthClient.readContract)
+        .mockResolvedValueOnce("Test" as unknown as string)
+        .mockResolvedValueOnce("not a number" as unknown as number)
+        .mockResolvedValueOnce("TEST" as unknown as string);
+
+      const result = await fetchTokenDetails(TEST_TOKEN_ADDRESS, mockEthClient);
+      expect(result.decimals).toBe(18);
+    });
   });
 
   describe("fetchTokenPrice", () => {
