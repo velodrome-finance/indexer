@@ -177,6 +177,53 @@ describe("Token Effects", () => {
       expect(typeof getTokenDetails).toBe("object");
       expect(getTokenDetails).toHaveProperty("name", "getTokenDetails");
     });
+
+    it("should set context.cache = false when RPC returns the empty fallback", async () => {
+      vi.spyOn(RpcGatewayModule, "callRpcGateway").mockResolvedValue({
+        name: "",
+        decimals: 18,
+        symbol: "",
+      } as never);
+
+      expect(mockContext.cache).toBeUndefined();
+
+      await mockContext.effect(getTokenDetails as never, {
+        contractAddress: TEST_TOKEN_ADDRESS,
+        chainId: TEST_CHAIN_ID,
+      });
+
+      expect(mockContext.cache).toBe(false);
+    });
+
+    it("should NOT set context.cache = false for a real token result", async () => {
+      vi.spyOn(RpcGatewayModule, "callRpcGateway").mockResolvedValue({
+        name: "Wrapped Ether",
+        decimals: 18,
+        symbol: "WETH",
+      } as never);
+
+      await mockContext.effect(getTokenDetails as never, {
+        contractAddress: TEST_TOKEN_ADDRESS,
+        chainId: TEST_CHAIN_ID,
+      });
+
+      expect(mockContext.cache).toBeUndefined();
+    });
+
+    it("should NOT set context.cache = false for IDRX (legit 0-decimal token, non-empty symbol)", async () => {
+      vi.spyOn(RpcGatewayModule, "callRpcGateway").mockResolvedValue({
+        name: "Indonesian Rupiah",
+        decimals: 0,
+        symbol: "IDRX",
+      } as never);
+
+      await mockContext.effect(getTokenDetails as never, {
+        contractAddress: TEST_TOKEN_ADDRESS,
+        chainId: TEST_CHAIN_ID,
+      });
+
+      expect(mockContext.cache).toBeUndefined();
+    });
   });
 
   describe("getTokenPrice", () => {

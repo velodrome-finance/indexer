@@ -53,6 +53,14 @@ export const getTokenDetails = createEffect(
       contractAddress: input.contractAddress,
       chainId: input.chainId,
     });
+
+    // Don't cache the RPC error fallback (`{ name: "", decimals: 18, symbol: "" }`)
+    // — allows re-fetch on next run when the underlying RPC issue clears.
+    // Same pattern as getTokenPrice on $0 results.
+    if (result.name === "" && result.symbol === "") {
+      context.cache = false;
+    }
+
     return {
       name: result.name,
       decimals: result.decimals,
