@@ -16,6 +16,9 @@ export interface RebindTarget {
  * tBTC and produces $76K-$92K; alETH/$Manatee disagrees with alUSD/$Manatee by 10x).
  * Issue #669: SQUID (oracle returns 0 at every stable read; the $13B contaminated
  * total comes from transient single-block spikes during swaps).
+ * Issue #671: ION/Lisk (one-sided pool 11.2M ION + 0.24 WETH; oracle reports $17
+ * but the pool's own reserve ratio implies ~$5e-5, inflating TVL to $196M for a
+ * pool with $22K lifetime volume across 24K swaps — no real swappable market).
  */
 const BLACKLIST: ReadonlySet<string> = new Set([
   TokenId(10, toChecksumAddress("0x7909Bda52eAf7C3cc12745E727Eb527a485241D8")), // $Manatee / Optimism
@@ -23,6 +26,10 @@ const BLACKLIST: ReadonlySet<string> = new Set([
     57073,
     toChecksumAddress("0x2e3b82891d1B2b90655597110cCA9b6587607e0c"),
   ), // SQUID / Ink
+  TokenId(
+    1135,
+    toChecksumAddress("0x3f608A49a3ab475dA7fBb167C1Be6b7a45cD7013"),
+  ), // ION / Lisk
 ]);
 
 /**

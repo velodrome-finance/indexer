@@ -21,6 +21,15 @@ describe("PriceOverrides", () => {
       ).toBe(true);
     });
 
+    it("returns true for ION on Lisk", () => {
+      expect(
+        isBlacklistedToken(
+          1135,
+          toChecksumAddress("0x3f608A49a3ab475dA7fBb167C1Be6b7a45cD7013"),
+        ),
+      ).toBe(true);
+    });
+
     it("returns false for tokens not in the blacklist", () => {
       expect(
         isBlacklistedToken(
