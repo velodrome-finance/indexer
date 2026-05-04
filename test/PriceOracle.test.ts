@@ -369,8 +369,8 @@ describe("PriceOracle", () => {
         mockContext as handlerContext,
       );
 
-      // rpcGateway should have been called (3 effect calls: getTokenDetails, getTokenPrice, rpcGateway)
-      expect(vi.mocked(mockContext.effect)).toHaveBeenCalledTimes(3);
+      // 2 effect calls: getTokenPrice + rpcGateway bypass
+      expect(vi.mocked(mockContext.effect)).toHaveBeenCalledTimes(2);
       const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
         .lastCall?.[0] as Token;
       expect(updatedToken.pricePerUSDNew).toBe(bypassPrice);
@@ -408,8 +408,8 @@ describe("PriceOracle", () => {
         mockContext as handlerContext,
       );
 
-      // Only 2 effect calls: getTokenDetails + getTokenPrice (no rpcGateway bypass)
-      expect(vi.mocked(mockContext.effect)).toHaveBeenCalledTimes(2);
+      // 1 effect call: getTokenPrice (no rpcGateway bypass)
+      expect(vi.mocked(mockContext.effect)).toHaveBeenCalledTimes(1);
     });
 
     it("should NOT call rpcGateway bypass on unaffected chains even with $0 price", async () => {
@@ -442,8 +442,8 @@ describe("PriceOracle", () => {
         mockContext as handlerContext,
       );
 
-      // Only 2 effect calls: getTokenDetails + getTokenPrice (no rpcGateway bypass)
-      expect(vi.mocked(mockContext.effect)).toHaveBeenCalledTimes(2);
+      // 1 effect call: getTokenPrice (no rpcGateway bypass)
+      expect(vi.mocked(mockContext.effect)).toHaveBeenCalledTimes(1);
     });
 
     it("should use last known price when bypass also returns $0 on affected chain", async () => {
@@ -479,8 +479,8 @@ describe("PriceOracle", () => {
         mockContext as handlerContext,
       );
 
-      // Bypass was called (3 effect calls) but also returned $0
-      expect(vi.mocked(mockContext.effect)).toHaveBeenCalledTimes(3);
+      // Bypass was called (2 effect calls: getTokenPrice + rpcGateway) but also returned $0
+      expect(vi.mocked(mockContext.effect)).toHaveBeenCalledTimes(2);
       const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
         .lastCall?.[0] as Token;
       // Should fall back to last known price (7-day fallback in V3 path)
