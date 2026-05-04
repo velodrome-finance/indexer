@@ -12,6 +12,7 @@ import {
   roundBlockToInterval,
 } from "./Effects/Index";
 import { EffectType, rpcGateway } from "./Effects/RpcGateway";
+import { getRebindTarget, isBlacklistedToken } from "./PriceOverrides";
 import { setTokenPriceSnapshot } from "./Snapshots/TokenPriceSnapshot";
 export interface TokenPriceData {
   pricePerUSDNew: bigint;
@@ -85,6 +86,44 @@ export async function refreshTokenPrice(
 
   if (!shouldRefresh) {
     return token;
+  }
+
+  // Issue #669: blacklist + canonical rebind override the oracle for known-bad
+  // (chain, token) pairs. See src/PriceOverrides.ts for rationale per token.
+  if (isBlacklistedToken(chainId, token.address)) {
+    const updated: Token = {
+      ...token,
+      pricePerUSDNew: 0n,
+      lastUpdatedTimestamp: new Date(blockTimestampMs),
+    };
+    context.Token.set(updated);
+    return updated;
+  }
+
+  const rebindTarget = getRebindTarget(chainId, token.address);
+  if (rebindTarget) {
+    const sourceToken = await context.Token.get(
+      TokenId(rebindTarget.chainId, rebindTarget.address),
+    );
+    const sourcePrice = sourceToken?.pricePerUSDNew ?? 0n;
+    const updated: Token = {
+      ...token,
+      pricePerUSDNew: sourcePrice,
+      lastUpdatedTimestamp: new Date(blockTimestampMs),
+    };
+    context.Token.set(updated);
+    if (sourcePrice > 0n) {
+      setTokenPriceSnapshot(
+        token.address,
+        chainId,
+        blockNumber,
+        new Date(blockTimestampMs),
+        sourcePrice,
+        token.isWhitelisted,
+        context,
+      );
+    }
+    return updated;
   }
 
   try {
