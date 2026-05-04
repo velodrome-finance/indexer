@@ -477,6 +477,120 @@ describe("LiquidityPoolAggregator Functions", () => {
         expect(negativeStakedReserveWarnings().length).toBe(0);
       });
     });
+
+    // Regression test for issue #674: pool reserves should never go negative.
+    // The aggregator emits a warning under [NEGATIVE_RESERVE_DRIFT] at each
+    // snapshot epoch boundary while still negative (≤1/hour per pool) so a
+    // persistent drift stays visible in recent logs without flooding them and
+    // without aborting the indexer. Concentrated on Superseed (chain 5330)
+    // but the warning is chain-agnostic.
+    describe("negative reserve drift warning (issue #674)", () => {
+      const previousEpoch = () =>
+        new Date(timestamp.getTime() - 2 * 60 * 60 * 1000);
+
+      const negativeReserveWarnings = () => {
+        const warnMock = vi.mocked(mockContext.log?.warn);
+        const calls = warnMock?.mock.calls ?? [];
+        return calls.filter((args) =>
+          String(args[0] ?? "").includes("[NEGATIVE_RESERVE_DRIFT]"),
+        );
+      };
+
+      it("warns at snapshot epoch when reserve0 is negative", async () => {
+        await updateLiquidityPoolAggregator(
+          { incrementalReserve0: -100n },
+          {
+            ...(liquidityPoolAggregator as LiquidityPoolAggregator),
+            reserve0: 50n,
+            reserve1: 1000n,
+            lastSnapshotTimestamp: previousEpoch(),
+            lastUpdatedTimestamp: previousEpoch(),
+          },
+          timestamp,
+          mockContext as handlerContext,
+          5330,
+          blockNumber,
+        );
+
+        expect(negativeReserveWarnings().length).toBe(1);
+      });
+
+      it("warns at snapshot epoch when reserve1 is negative", async () => {
+        await updateLiquidityPoolAggregator(
+          { incrementalReserve1: -100n },
+          {
+            ...(liquidityPoolAggregator as LiquidityPoolAggregator),
+            reserve0: 1000n,
+            reserve1: 50n,
+            lastSnapshotTimestamp: previousEpoch(),
+            lastUpdatedTimestamp: previousEpoch(),
+          },
+          timestamp,
+          mockContext as handlerContext,
+          5330,
+          blockNumber,
+        );
+
+        expect(negativeReserveWarnings().length).toBe(1);
+      });
+
+      it("does not warn at snapshot epoch when reserves stay non-negative", async () => {
+        await updateLiquidityPoolAggregator(
+          { incrementalReserve0: -50n, incrementalReserve1: -50n },
+          {
+            ...(liquidityPoolAggregator as LiquidityPoolAggregator),
+            reserve0: 100n,
+            reserve1: 100n,
+            lastSnapshotTimestamp: previousEpoch(),
+            lastUpdatedTimestamp: previousEpoch(),
+          },
+          timestamp,
+          mockContext as handlerContext,
+          5330,
+          blockNumber,
+        );
+
+        expect(negativeReserveWarnings().length).toBe(0);
+      });
+
+      it("re-warns at snapshot epoch when reserves are still negative from a prior epoch", async () => {
+        await updateLiquidityPoolAggregator(
+          { incrementalReserve0: -10n, incrementalReserve1: -10n },
+          {
+            ...(liquidityPoolAggregator as LiquidityPoolAggregator),
+            reserve0: -100n,
+            reserve1: -100n,
+            lastSnapshotTimestamp: previousEpoch(),
+            lastUpdatedTimestamp: previousEpoch(),
+          },
+          timestamp,
+          mockContext as handlerContext,
+          5330,
+          blockNumber,
+        );
+
+        expect(negativeReserveWarnings().length).toBe(2);
+      });
+
+      it("does not warn when negative but inside the same snapshot epoch (rate-limit gate)", async () => {
+        await updateLiquidityPoolAggregator(
+          { incrementalReserve0: -10n, incrementalReserve1: -10n },
+          {
+            ...(liquidityPoolAggregator as LiquidityPoolAggregator),
+            reserve0: -100n,
+            reserve1: -100n,
+            lastSnapshotTimestamp: timestamp,
+            lastUpdatedTimestamp: timestamp,
+          },
+          timestamp,
+          mockContext as handlerContext,
+          5330,
+          blockNumber,
+        );
+
+        expect(negativeReserveWarnings().length).toBe(0);
+      });
+    });
   });
 
   describe("Updating the Liquidity Pool Aggregator", () => {
