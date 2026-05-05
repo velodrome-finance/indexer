@@ -4,10 +4,7 @@ import type {
   Token,
   handlerContext,
 } from "generated";
-import {
-  computeStakedSwapReserveDelta,
-  processTickCrossingsForStaked,
-} from "../../Aggregators/CLStakedLiquidity";
+import { processTickCrossingsForStaked } from "../../Aggregators/CLStakedLiquidity";
 import type { LiquidityPoolAggregatorDiff } from "../../Aggregators/LiquidityPoolAggregator";
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import { CL_FEE_SCALE } from "../../Constants";
@@ -293,47 +290,27 @@ export async function processCLPoolSwap(
       clFeeRate,
     );
 
-  // Process tick crossings for staked liquidity tracking
-  const oldTick = liquidityPoolAggregator.tick ?? 0n;
-  const newTick = event.params.tick;
-  const tickSpacing = liquidityPoolAggregator.tickSpacing;
-  const currentStakedLiqInRange =
-    liquidityPoolAggregator.stakedLiquidityInRange ?? 0n;
-
-  const stakedLiquidityInRange =
-    oldTick !== newTick && tickSpacing > 0n
-      ? processTickCrossingsForStaked(
-          event.chainId,
-          event.srcAddress,
-          oldTick,
-          newTick,
-          tickSpacing,
-          context,
-          currentStakedLiqInRange,
-          liquidityPoolAggregator.hasStakes,
-          liquidityPoolAggregator.stakedTickEdges,
-          liquidityPoolAggregator.stakedTickEdgeNets,
-        )
-      : currentStakedLiqInRange;
-
-  // Attribute staked share of swap reserve deltas proportionally.
-  //
-  // KNOWN APPROXIMATION: When a swap crosses multiple ticks, the staked/total liquidity
-  // ratio changes at each tick boundary (positions enter/exit range). We apply the
-  // post-crossing ratio to the entire swap's net reserve deltas, rather than computing
-  // per-segment contributions. This is because the Swap event only emits net amount0/amount1
-  // totals — per-segment token flows are not available. The error per swap is proportional
-  // to how much the staked ratio varies across crossed segments. This drift accumulates
-  // over time and is NOT corrected at snapshot time (snapshots re-price existing reserves
-  // at current token prices but do not recompute reserve quantities).
+  // Process tick crossings for staked liquidity tracking AND compute the
+  // per-segment staked share of the swap's reserve deltas. The walk and the
+  // attribution share the same edge sweep — see CLStakedLiquidity.ts for the
+  // per-segment Uniswap v3 math (fix for #666).
   const reserveDelta0 = newReserve0 - liquidityPoolAggregator.reserve0;
   const reserveDelta1 = newReserve1 - liquidityPoolAggregator.reserve1;
-  const { stakedDelta0, stakedDelta1 } = computeStakedSwapReserveDelta(
-    reserveDelta0,
-    reserveDelta1,
-    stakedLiquidityInRange,
-    event.params.liquidity,
-  );
+  const { stakedLiquidityInRange, stakedDelta0, stakedDelta1 } =
+    processTickCrossingsForStaked(
+      event.chainId,
+      event.srcAddress,
+      liquidityPoolAggregator.tick ?? 0n,
+      event.params.tick,
+      liquidityPoolAggregator.sqrtPriceX96 ?? 0n,
+      event.params.sqrtPriceX96,
+      liquidityPoolAggregator.tickSpacing,
+      context,
+      liquidityPoolAggregator.stakedLiquidityInRange ?? 0n,
+      liquidityPoolAggregator.hasStakes,
+      liquidityPoolAggregator.stakedTickEdges,
+      liquidityPoolAggregator.stakedTickEdgeNets,
+    );
 
   // Build complete liquidity pool aggregator diff
   const liquidityPoolDiff = {
