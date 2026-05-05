@@ -658,4 +658,37 @@ describe("CLPoolSwapLogic", () => {
       expect(result.liquidityPoolDiff.stakedLiquidityInRange).toBe(500n);
     });
   });
+
+  // Regression test for issue #670: real CL fee tiers cap at ~1%, so for a
+  // controlled swap fee USD must be at most 1% of volume USD.
+  describe("fee ≤ 1% of volume invariant (issue #670)", () => {
+    const realisticFeeTiers = [100n, 500n, 3000n, 10000n] as const;
+
+    it.each(realisticFeeTiers)(
+      "keeps fee USD within 1%% of volume USD at fee tier %s",
+      async (fee) => {
+        const pool = {
+          ...mockLiquidityPoolAggregator,
+          currentFee: fee,
+          baseFee: fee,
+        };
+
+        const result = await processCLPoolSwap(
+          mockEvent,
+          pool,
+          mockToken0,
+          mockToken1,
+          mockContext,
+        );
+
+        const volumeUSD =
+          result.liquidityPoolDiff.incrementalTotalVolumeUSD ?? 0n;
+        const feesUSD =
+          result.liquidityPoolDiff.incrementalTotalFeesGeneratedUSD ?? 0n;
+
+        expect(volumeUSD).toBeGreaterThan(0n);
+        expect(feesUSD * 100n).toBeLessThanOrEqual(volumeUSD);
+      },
+    );
+  });
 });

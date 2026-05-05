@@ -464,6 +464,21 @@ export async function updateLiquidityPoolAggregator(
 
     setLiquidityPoolAggregatorSnapshot(updated, timestamp, context);
 
+    // Soft invariant (issue #670): real swap fee tiers cap at ~1% of volume,
+    // so totalFeesGeneratedUSD > 5% of totalVolumeUSD signals fee/volume
+    // USD-path divergence (precision mismatch, double-counting, wrong fee
+    // tier). Logged once per snapshot epoch (≤1/hour per pool) so the signal
+    // stays visible in recent logs while the drift persists, without
+    // flooding and without aborting the indexer or mutating state.
+    if (
+      updated.totalVolumeUSD > 0n &&
+      updated.totalFeesGeneratedUSD * 20n > updated.totalVolumeUSD
+    ) {
+      context.log.warn(
+        `[FEE_VOLUME_DIVERGENCE][updateLiquidityPoolAggregator] Pool ${current.poolAddress} on chain ${current.chainId} totalFeesGeneratedUSD (${updated.totalFeesGeneratedUSD}) exceeds 5% of totalVolumeUSD (${updated.totalVolumeUSD}). Real fee tiers cap at ~1%; this likely indicates a fee/volume USD-path divergence.`,
+      );
+    }
+
     // Only set lastSnapshotTimestamp when we actually created a snapshot (epoch boundary)
     updated = {
       ...updated,

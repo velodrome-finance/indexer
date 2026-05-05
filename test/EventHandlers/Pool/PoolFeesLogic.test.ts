@@ -152,5 +152,44 @@ describe("PoolFeesLogic", () => {
         expect(result.userDiff).toBeDefined();
       });
     });
+
+    // Regression test for issue #670: for a known token0-input swap at a
+    // realistic V2 fee tier (0.05%), fee USD must be at most 1% of volume USD.
+    describe("fee ≤ 1% of volume invariant (issue #670)", () => {
+      it("keeps fee USD within 1% of volume USD for token0-input swap at 0.05% fee", () => {
+        const usdt: Token = {
+          ...mockToken0Data,
+          decimals: 6n,
+          pricePerUSDNew: 1n * 10n ** 18n,
+        };
+        const sygx: Token = {
+          ...mockToken1Data,
+          decimals: 18n,
+          pricePerUSDNew: 1n * 10n ** 18n,
+        };
+
+        const swapAmount0 = 1000n * 10n ** 6n;
+        const feeBps = 5n;
+        const feeAmount0 = (swapAmount0 * feeBps) / 10000n;
+
+        const feesEvent: Pool_Fees_event = {
+          ...mockEvent,
+          params: {
+            ...mockEvent.params,
+            amount0: feeAmount0,
+            amount1: 0n,
+          },
+        };
+
+        const result = processPoolFees(feesEvent, usdt, sygx);
+
+        const volumeUSD = (swapAmount0 * 10n ** 18n) / 10n ** 6n;
+        const feesUSD =
+          result.liquidityPoolDiff?.incrementalTotalFeesGeneratedUSD ?? 0n;
+
+        expect(feesUSD * 10000n).toBe(volumeUSD * feeBps);
+        expect(feesUSD * 100n).toBeLessThanOrEqual(volumeUSD);
+      });
+    });
   });
 });
