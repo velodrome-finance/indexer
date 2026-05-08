@@ -1,4 +1,5 @@
 import type { Token, handlerContext } from "generated";
+import { estimateBlockAtTimestamp } from "./ChainBlockTime";
 import {
   AFFECTED_CHAINS,
   CHAIN_CONSTANTS,
@@ -105,7 +106,34 @@ export async function refreshTokenPrice(
     const sourceToken = await context.Token.get(
       TokenId(rebindTarget.chainId, rebindTarget.address),
     );
-    const sourcePrice = sourceToken?.pricePerUSDNew ?? 0n;
+    let sourcePrice = sourceToken?.pricePerUSDNew ?? 0n;
+
+    // Cold-sync gap: the source chain's indexer hasn't priced the source token
+    // yet (e.g. Swell handler at T runs while OP indexer is still behind T).
+    // Reach across to the source chain's oracle directly. The effect cache
+    // key is (tokenAddress, chainId, blockNumber), and we round to the same
+    // hour bucket the source chain's own indexer will use — so when the
+    // source catches up its native refresh hits this cache slot for free.
+    // Worked example walked through in test/PriceOracle.test.ts.
+    if (sourcePrice === 0n) {
+      const estimatedSourceBlock = estimateBlockAtTimestamp(
+        rebindTarget.chainId,
+        blockTimestamp,
+      );
+      if (estimatedSourceBlock !== undefined) {
+        const sourceBlockRounded = roundBlockToInterval(
+          estimatedSourceBlock,
+          rebindTarget.chainId,
+        );
+        const prefetched = await context.effect(getTokenPrice, {
+          tokenAddress: rebindTarget.address,
+          chainId: rebindTarget.chainId,
+          blockNumber: sourceBlockRounded,
+        });
+        sourcePrice = prefetched.pricePerUSDNew;
+      }
+    }
+
     const updated: Token = {
       ...token,
       pricePerUSDNew: sourcePrice,
