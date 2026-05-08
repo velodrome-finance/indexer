@@ -1,4 +1,3 @@
-import { TickMath } from "@uniswap/v3-sdk";
 import type { Token } from "generated";
 import { CLGauge, MockDb } from "../../generated/src/TestHelpers.gen";
 import {
@@ -11,9 +10,7 @@ import {
   toChecksumAddress,
 } from "../../src/Constants";
 import { setupCommon } from "../EventHandlers/Pool/common";
-
-const sqrtAt = (tick: bigint): bigint =>
-  BigInt(TickMath.getSqrtRatioAtTick(Number(tick)).toString());
+import { sqrtAt } from "./common";
 
 /**
  * Co-located sanity test for #649: replacing `processTickCrossingsForStaked`

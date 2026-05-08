@@ -347,19 +347,12 @@ export function processTickCrossingsForStaked(
   stakedDelta0: bigint;
   stakedDelta1: bigint;
 } {
-  if (tickSpacing === 0n || oldSqrtPriceX96 === 0n || newSqrtPriceX96 === 0n) {
-    return {
-      stakedLiquidityInRange: currentStakedLiqInRange,
-      stakedDelta0: 0n,
-      stakedDelta1: 0n,
-    };
-  }
-
-  // Bounds check runs BEFORE the hasStakes short-circuit so that out-of-range
-  // ticks — which indicate upstream correctness bugs (missed Initialize, event
-  // ordering, RPC inconsistency) — get surfaced regardless of whether the pool
-  // has ever been staked. Unstaked CL pools are the majority, and silencing the
-  // diagnostic on them would mask the signal.
+  // Bounds check runs BEFORE the zero-sqrt/tickSpacing bailout so that
+  // out-of-range ticks — which indicate upstream correctness bugs (missed
+  // Initialize, event ordering, RPC inconsistency) — get surfaced even on
+  // uninitialized pools where sqrtPriceX96/tickSpacing are still 0n. Unstaked
+  // CL pools are the majority, and silencing the diagnostic on them would
+  // mask the signal.
   if (
     oldTick < TICK_MIN ||
     oldTick > TICK_MAX ||
@@ -369,6 +362,14 @@ export function processTickCrossingsForStaked(
     context.log.error(
       `[STAKED_TICK_DRIFT][processTickCrossingsForStaked] Tick out of Uniswap v3 range for pool ${poolAddress} on chain ${chainId}: oldTick=${oldTick}, newTick=${newTick}. Skipping crossing sweep to avoid runaway loop; stakedLiquidityInRange will be stale on this pool until a subsequent stake/unstake rebuilds it.`,
     );
+    return {
+      stakedLiquidityInRange: currentStakedLiqInRange,
+      stakedDelta0: 0n,
+      stakedDelta1: 0n,
+    };
+  }
+
+  if (tickSpacing === 0n || oldSqrtPriceX96 === 0n || newSqrtPriceX96 === 0n) {
     return {
       stakedLiquidityInRange: currentStakedLiqInRange,
       stakedDelta0: 0n,

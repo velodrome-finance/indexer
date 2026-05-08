@@ -1,4 +1,3 @@
-import { TickMath } from "@uniswap/v3-sdk";
 import type { handlerContext } from "generated";
 import {
   applyStakedPositionToEdges,
@@ -6,14 +5,7 @@ import {
   processTickCrossingsForStaked,
 } from "../../src/Aggregators/CLStakedLiquidity";
 import { calculatePositionAmountsFromLiquidity } from "../../src/Helpers";
-
-/**
- * Returns sqrt(1.0001^tick) in Q64.96 fixed-point as bigint — the same
- * conversion the source-of-truth helper uses internally. Centralizes the
- * JSBI→bigint plumbing so test math reads cleanly.
- */
-const sqrtAt = (tick: bigint): bigint =>
-  BigInt(TickMath.getSqrtRatioAtTick(Number(tick)).toString());
+import { sqrtAt } from "./common";
 
 describe("CLStakedLiquidity", () => {
   const CHAIN_ID = 8453;
@@ -503,6 +495,10 @@ describe("CLStakedLiquidity", () => {
 
     describe("safety guards", () => {
       it("should short-circuit when hasStakes is false", async () => {
+        // Precondition: hasStakes=false ⇒ pool has never had a staked position,
+        // so currentStakedLiqInRange MUST be 0n. Seed 0n to reflect that and
+        // assert zero deltas — non-zero L would let the final-segment fallback
+        // emit attribution despite the edge loop being skipped.
         const result = processTickCrossingsForStaked(
           CHAIN_ID,
           POOL_ADDRESS,
@@ -512,15 +508,19 @@ describe("CLStakedLiquidity", () => {
           sqrtAt(250n),
           200n,
           mockContext,
-          500n,
+          0n,
           false,
           [200n],
           [999n],
         );
-        expect(result.stakedLiquidityInRange).toBe(500n);
+        expect(result.stakedLiquidityInRange).toBe(0n);
+        expect(result.stakedDelta0).toBe(0n);
+        expect(result.stakedDelta1).toBe(0n);
       });
 
       it("should short-circuit when the edge list is empty (no staked positions)", async () => {
+        // Precondition: empty edge list ⇒ no active staked positions ⇒
+        // currentStakedLiqInRange MUST be 0n. Same reasoning as above.
         const result = processTickCrossingsForStaked(
           CHAIN_ID,
           POOL_ADDRESS,
@@ -530,12 +530,14 @@ describe("CLStakedLiquidity", () => {
           sqrtAt(250n),
           200n,
           mockContext,
-          500n,
+          0n,
           true, // latch true but no edges
           [],
           [],
         );
-        expect(result.stakedLiquidityInRange).toBe(500n);
+        expect(result.stakedLiquidityInRange).toBe(0n);
+        expect(result.stakedDelta0).toBe(0n);
+        expect(result.stakedDelta1).toBe(0n);
       });
 
       it("should bail and log when oldTick is below TICK_MIN", async () => {
