@@ -30,6 +30,7 @@ describe("RpcGateway", () => {
 
     mockEthClient = {
       readContract: vi.fn(),
+      getCode: vi.fn(),
     } as unknown as PublicClient;
 
     originalChainEntry = CHAIN_CONSTANTS[TEST_CHAIN_ID];
@@ -110,6 +111,63 @@ describe("RpcGateway", () => {
         expect.stringContaining("rpcGateway.getTokenDetails"),
         expect.any(Error),
       );
+    });
+
+    it("returns hasCode=true when getCode returns deployed bytecode (issue #677 gate)", async () => {
+      vi.mocked(
+        mockEthClient.getCode as unknown as ReturnType<typeof vi.fn>,
+      ).mockResolvedValue("0x60806040");
+
+      const result = await (
+        rpcGateway as unknown as { handler: MockEffect["handler"] }
+      ).handler({
+        input: {
+          type: "hasContractBytecode",
+          chainId: TEST_CHAIN_ID,
+          address: TEST_CONTRACT_ADDRESS,
+        },
+        context: mockContext,
+      });
+
+      expect(result).toEqual({ hasCode: true });
+    });
+
+    it("returns hasCode=false when getCode returns 0x (EOA / non-contract)", async () => {
+      vi.mocked(
+        mockEthClient.getCode as unknown as ReturnType<typeof vi.fn>,
+      ).mockResolvedValue("0x");
+
+      const result = await (
+        rpcGateway as unknown as { handler: MockEffect["handler"] }
+      ).handler({
+        input: {
+          type: "hasContractBytecode",
+          chainId: TEST_CHAIN_ID,
+          address: TEST_CONTRACT_ADDRESS,
+        },
+        context: mockContext,
+      });
+
+      expect(result).toEqual({ hasCode: false });
+    });
+
+    it("fails open (hasCode=true) when getCode RPC throws", async () => {
+      vi.mocked(
+        mockEthClient.getCode as unknown as ReturnType<typeof vi.fn>,
+      ).mockRejectedValue(new Error("network error"));
+
+      const result = await (
+        rpcGateway as unknown as { handler: MockEffect["handler"] }
+      ).handler({
+        input: {
+          type: "hasContractBytecode",
+          chainId: TEST_CHAIN_ID,
+          address: TEST_CONTRACT_ADDRESS,
+        },
+        context: mockContext,
+      });
+
+      expect(result).toEqual({ hasCode: true });
     });
 
     it("should log and return undefined for unexpected input type (default branch)", async () => {

@@ -58,6 +58,9 @@ describe("VotingRewardSharedLogic", () => {
             decimals: 6,
           };
         }
+        if (fn.name === "hasContractBytecode") {
+          return { hasCode: true };
+        }
         return {};
       },
       TokenPriceSnapshot: {
@@ -155,6 +158,9 @@ describe("VotingRewardSharedLogic", () => {
             decimals: 18,
           };
         }
+        if (fn.name === "hasContractBytecode") {
+          return { hasCode: true };
+        }
         return {};
       };
 
@@ -180,6 +186,48 @@ describe("VotingRewardSharedLogic", () => {
       expect(result.userDiff?.incrementalTotalBribeClaimedUSD).toBe(
         1000000000000000000n,
       );
+    });
+
+    it("skips Token creation and returns zero diffs when reward address has no bytecode (issue #677)", async () => {
+      let tokenSetCalled = false;
+      mockContext.Token.set = () => {
+        tokenSetCalled = true;
+      };
+      mockContext.effect = async (fn: { name: string }) => {
+        if (fn.name === "hasContractBytecode") return { hasCode: false };
+        if (fn.name === "getTokenDetails") {
+          return { name: "Test Token", symbol: "TEST", decimals: 6 };
+        }
+        if (fn.name === "getTokenPrice") {
+          return {
+            pricePerUSDNew: 1000000000000000000n,
+            priceOracleType: "v3",
+          };
+        }
+        return {};
+      };
+
+      const data: VotingRewardClaimRewardsData = {
+        votingRewardAddress: mockVotingRewardAddress,
+        userAddress: mockUserAddress,
+        chainId: mockChainId,
+        blockNumber: 12345,
+        timestamp: Math.floor(mockTimestamp.getTime() / 1000),
+        reward: mockRewardTokenAddress,
+        amount: 1000000n,
+      };
+
+      const result = await processVotingRewardClaimRewards(
+        data,
+        mockContext,
+        PoolAddressField.BRIBE_VOTING_REWARD_ADDRESS,
+      );
+
+      expect(tokenSetCalled).toBe(false);
+      expect(result.poolDiff?.incrementalTotalBribeClaimed).toBe(0n);
+      expect(result.poolDiff?.incrementalTotalBribeClaimedUSD).toBe(0n);
+      expect(result.userDiff?.incrementalTotalBribeClaimed).toBe(0n);
+      expect(result.userDiff?.incrementalTotalBribeClaimedUSD).toBe(0n);
     });
   });
 

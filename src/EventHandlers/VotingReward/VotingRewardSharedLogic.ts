@@ -17,8 +17,9 @@ import { TokenId } from "../../Constants";
 import {
   getTokenDetails,
   getTokenPrice,
+  hasContractBytecode,
   roundBlockToInterval,
-} from "../../Effects/Token";
+} from "../../Effects/Index";
 import { calculateTokenAmountUSD } from "../../Helpers";
 import { refreshTokenPrice } from "../../PriceOracle";
 
@@ -57,6 +58,30 @@ export async function processVotingRewardClaimRewards(
     context.log.warn(
       `[processVotingRewardClaimRewards] Reward token not found for ${data.reward} on chain ${data.chainId}`,
     );
+
+    const { hasCode } = await context.effect(hasContractBytecode, {
+      address: data.reward,
+      chainId: data.chainId,
+    });
+    if (!hasCode) {
+      context.log.warn(
+        `[processVotingRewardClaimRewards] Skipping Token row and reward USD for non-contract address ${data.reward} on chain ${data.chainId} (no deployed bytecode)`,
+      );
+      const zeroDiffs = {
+        incrementalTotalBribeClaimed: 0n,
+        incrementalTotalBribeClaimedUSD: 0n,
+        incrementalTotalFeeRewardClaimed: 0n,
+        incrementalTotalFeeRewardClaimedUSD: 0n,
+        lastUpdatedTimestamp: new Date(data.timestamp * 1000),
+      };
+      return {
+        poolDiff: zeroDiffs,
+        userDiff: {
+          ...zeroDiffs,
+          lastActivityTimestamp: new Date(data.timestamp * 1000),
+        },
+      };
+    }
 
     context.log.warn(
       "[processVotingRewardClaimRewards] Using separate effects to get token data and then creating Token entity",

@@ -70,14 +70,17 @@ export async function processCLFactoryPoolCreated(
     for (const poolTokenAddressMapping of poolTokenAddressMappings) {
       if (poolTokenAddressMapping.tokenInstance === undefined) {
         try {
-          poolTokenAddressMapping.tokenInstance = await createTokenEntity(
+          const created = await createTokenEntity(
             poolTokenAddressMapping.address,
             event.chainId,
             event.block.number,
             context,
             event.block.timestamp,
           );
-          poolTokenSymbols.push(poolTokenAddressMapping.tokenInstance.symbol);
+          if (created) {
+            poolTokenAddressMapping.tokenInstance = created;
+            poolTokenSymbols.push(created.symbol);
+          }
         } catch (error) {
           context.log.error(
             `Error in cl factory fetching token details for ${poolTokenAddressMapping.address} on chain ${event.chainId}: ${error}`,

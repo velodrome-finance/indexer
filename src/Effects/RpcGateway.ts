@@ -13,6 +13,7 @@ import {
   handleEffectErrorReturn,
   sleep,
 } from "./Helpers";
+import { fetchHasContractBytecode } from "./fetchers/Bytecode";
 import { fetchRootPoolAddress } from "./fetchers/RootPool";
 import { fetchSwapFee } from "./fetchers/SwapFee";
 import { fetchTokenDetails, fetchTokenPrice } from "./fetchers/Token";
@@ -24,6 +25,7 @@ export enum EffectType {
   GET_TOKENS_DEPOSITED = "getTokensDeposited",
   GET_SWAP_FEE = "getSwapFee",
   GET_ROOT_POOL_ADDRESS = "getRootPoolAddress",
+  HAS_CONTRACT_BYTECODE = "hasContractBytecode",
 }
 
 /** Log name for a gateway operation; use sub for nested operations (e.g. "tokenDetails"). */
@@ -105,6 +107,16 @@ const RPC_GATEWAY_OPERATIONS = {
       value: S.string,
     },
   },
+  [EffectType.HAS_CONTRACT_BYTECODE]: {
+    inputSchema: {
+      type: S.schema(EffectType.HAS_CONTRACT_BYTECODE),
+      address: S.string,
+      chainId: S.number,
+    },
+    outputSchema: {
+      hasCode: S.boolean,
+    },
+  },
 } as const satisfies Record<
   EffectType,
   { inputSchema: object; outputSchema: object }
@@ -116,6 +128,7 @@ const RPC_GATEWAY_INPUT_SCHEMA = S.union([
   RPC_GATEWAY_OPERATIONS[EffectType.GET_TOKENS_DEPOSITED].inputSchema,
   RPC_GATEWAY_OPERATIONS[EffectType.GET_SWAP_FEE].inputSchema,
   RPC_GATEWAY_OPERATIONS[EffectType.GET_ROOT_POOL_ADDRESS].inputSchema,
+  RPC_GATEWAY_OPERATIONS[EffectType.HAS_CONTRACT_BYTECODE].inputSchema,
 ]);
 
 const RPC_GATEWAY_OUTPUT_SCHEMA = S.union([
@@ -124,6 +137,7 @@ const RPC_GATEWAY_OUTPUT_SCHEMA = S.union([
   RPC_GATEWAY_OPERATIONS[EffectType.GET_TOKENS_DEPOSITED].outputSchema,
   RPC_GATEWAY_OPERATIONS[EffectType.GET_SWAP_FEE].outputSchema,
   RPC_GATEWAY_OPERATIONS[EffectType.GET_ROOT_POOL_ADDRESS].outputSchema,
+  RPC_GATEWAY_OPERATIONS[EffectType.HAS_CONTRACT_BYTECODE].outputSchema,
 ]);
 
 /**
@@ -156,6 +170,10 @@ type RpcGatewayInputPayloadByType = {
     token1: string;
     poolType: number;
   };
+  [EffectType.HAS_CONTRACT_BYTECODE]: {
+    address: string;
+    chainId: number;
+  };
 };
 
 /**
@@ -187,6 +205,7 @@ export type RpcGatewayOutputByType = {
   [EffectType.GET_TOKENS_DEPOSITED]: { value: bigint | undefined };
   [EffectType.GET_SWAP_FEE]: { value: bigint | undefined };
   [EffectType.GET_ROOT_POOL_ADDRESS]: { value: string };
+  [EffectType.HAS_CONTRACT_BYTECODE]: { hasCode: boolean };
 };
 
 /** Union of all gateway output payloads. */
@@ -238,6 +257,8 @@ export const rpcGateway = createEffect(
         return await handleGetSwapFee(i, ctx);
       case EffectType.GET_ROOT_POOL_ADDRESS:
         return await handleGetRootPoolAddress(i, ctx);
+      case EffectType.HAS_CONTRACT_BYTECODE:
+        return await handleHasContractBytecode(i, ctx);
       default: {
         const _exhaust: never = i;
         context.log.error(
@@ -578,6 +599,46 @@ async function handleGetRootPoolAddress(
   );
 
   return { value: result };
+}
+
+/**
+ * Handles the HAS_CONTRACT_BYTECODE effect via `eth_getCode`.
+ * Fail-open on RPC errors (returns `hasCode: true`) so transient outages don't
+ * regress current behavior at Token-row creation sites; the caller controls
+ * caching of negative results.
+ *
+ * @param i - The input for the effect.
+ * @param context - The context for the effect.
+ * @returns Object with `hasCode: true` when bytecode is non-empty, `false` otherwise.
+ */
+async function handleHasContractBytecode(
+  i: RpcGatewayInputByType[EffectType.HAS_CONTRACT_BYTECODE],
+  context: RpcGatewayHandlerContext,
+): Promise<RpcGatewayOutputByType[EffectType.HAS_CONTRACT_BYTECODE]> {
+  const operationName = rpcGatewayOpName(EffectType.HAS_CONTRACT_BYTECODE);
+  const logDetails = { address: i.address, chainId: i.chainId };
+  const fetcher = () => {
+    const chain = CHAIN_CONSTANTS[i.chainId];
+    if (!chain) {
+      throw new Error(`Unsupported chainId: ${i.chainId}`);
+    }
+    return fetchHasContractBytecode(i.address, chain.eth_client);
+  };
+  const fallbackClient = createFallbackRpcClient(i.chainId);
+  const fallbackFetcher = fallbackClient
+    ? () => fetchHasContractBytecode(i.address, fallbackClient)
+    : undefined;
+
+  const hasCode = await executeRpcWithFallback(
+    context,
+    operationName,
+    logDetails,
+    true,
+    fetcher,
+    fallbackFetcher,
+  );
+
+  return { hasCode };
 }
 
 /**
