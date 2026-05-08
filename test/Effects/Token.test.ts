@@ -108,6 +108,7 @@ describe("Token Effects", () => {
         getAddress: () => TEST_ORACLE_ADDRESS,
         getPrice: vi.fn(),
         priceConnectors: options.priceConnectors ?? [],
+        v1v2ConnectorBlacklist: new Set<string>(),
       },
       stablecoins: new Set<string>(),
     };
@@ -443,13 +444,15 @@ describe("Token Effects", () => {
         startBlock: 0,
         getType: vi.fn(() => {
           getTypeCallCount++;
-          // First getType is when building fallback; second is inside fetchTokenPrice
+          // First getType is in RpcGateway (drives blacklist gate + fallback);
+          // second is inside fetchTokenPrice — that's where we want to throw.
           if (getTypeCallCount === 2) throw new Error("getType failure");
           return PriceOracleType.V3;
         }),
         getAddress: () => TEST_ORACLE_ADDRESS,
         getPrice: vi.fn(),
         priceConnectors: [],
+        v1v2ConnectorBlacklist: new Set<string>(),
       };
 
       setupChainConstants(PriceOracleType.V3, {});

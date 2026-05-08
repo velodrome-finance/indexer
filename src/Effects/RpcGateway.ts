@@ -419,7 +419,7 @@ async function handleGetTokenPrice(
   const logDetails = { tokenAddress, chainId, blockNumber };
   const fallback = {
     pricePerUSDNew: 0n,
-    priceOracleType: chain.oracle.getType(blockNumber).toString(),
+    priceOracleType: oracleType.toString(),
   };
   const buildPriceFetcher = (client: typeof chain.eth_client) => () =>
     fetchTokenPrice(
