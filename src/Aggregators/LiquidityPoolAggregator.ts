@@ -499,6 +499,22 @@ export async function updateLiquidityPoolAggregator(
       );
     }
 
+    // Soft invariant (issue #674): reserve0/reserve1 track LP-deposited capital
+    // and should never go below zero. Logged at each snapshot epoch boundary
+    // while still negative (≤1/hour per pool) so a persistent drift stays
+    // visible in recent logs without flooding them and without aborting the
+    // indexer or mutating state.
+    if (updated.reserve0 < 0n) {
+      context.log.warn(
+        `[NEGATIVE_RESERVE_DRIFT][updateLiquidityPoolAggregator] Pool ${current.poolAddress} on chain ${current.chainId} reserve0 is negative (${updated.reserve0}). Reserves are LP-deposited capital and should never go below zero.`,
+      );
+    }
+    if (updated.reserve1 < 0n) {
+      context.log.warn(
+        `[NEGATIVE_RESERVE_DRIFT][updateLiquidityPoolAggregator] Pool ${current.poolAddress} on chain ${current.chainId} reserve1 is negative (${updated.reserve1}). Reserves are LP-deposited capital and should never go below zero.`,
+      );
+    }
+
     // Only set lastSnapshotTimestamp when we actually created a snapshot (epoch boundary)
     updated = {
       ...updated,
