@@ -10,6 +10,7 @@ import {
   toChecksumAddress,
 } from "../../src/Constants";
 import { setupCommon } from "../EventHandlers/Pool/common";
+import { sqrtAt } from "./common";
 
 /**
  * Co-located sanity test for #649: replacing `processTickCrossingsForStaked`
@@ -243,6 +244,8 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
       mockPoolAddress,
       oldTick,
       newTick,
+      sqrtAt(oldTick),
+      sqrtAt(newTick),
       10n,
       noDbContext,
       0n,
@@ -251,7 +254,7 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
       nets,
     );
 
-    expect(newResult).toBe(baselineResult);
+    expect(newResult.stakedLiquidityInRange).toBe(baselineResult);
 
     // Sanity: the window actually crosses multiple edges.
     const crossingCount = edges.filter(
@@ -279,6 +282,8 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
       mockPoolAddress,
       oldTickDown,
       newTickDown,
+      sqrtAt(oldTickDown),
+      sqrtAt(newTickDown),
       10n,
       noDbContext,
       baselineResult,
@@ -287,9 +292,9 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
       nets,
     );
 
-    expect(downResult).toBe(baselineDownResult);
+    expect(downResult.stakedLiquidityInRange).toBe(baselineDownResult);
     // Round-trip parity: up-swap then down-swap over the same window must
     // return stakedLiq to its starting value (0n in this test).
-    expect(downResult).toBe(0n);
+    expect(downResult.stakedLiquidityInRange).toBe(0n);
   });
 });
