@@ -95,20 +95,23 @@ describe("nfpmForCLPool", () => {
 
 describe("oracle.v1v2ConnectorBlacklist (#688)", () => {
   // Empirically determined connectors that revert V1/V2
-  // `getManyRatesWithConnectors`. Lowercased per filter contract in
-  // src/Effects/RpcGateway.ts.
-  const OUSDT = "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189";
+  // `getManyRatesWithConnectors`. Casing matches price_connectors.json so the
+  // case-sensitive filter in src/Effects/RpcGateway.ts strikes them.
+  const OUSDT = "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189";
 
   it("populates the OP V1/V2 poison set", () => {
     const set = CHAIN_CONSTANTS[10].oracle.v1v2ConnectorBlacklist;
-    expect(set.has("0x01bff41798a0bcf287b996046ca68b395dbc1071")).toBe(true);
+    expect(set.has("0x01bFF41798a0BcF287b996046Ca68b395DbC1071")).toBe(true);
     expect(set.has(OUSDT)).toBe(true);
   });
 
   it("populates the Base V1/V2 poison set", () => {
     const set = CHAIN_CONSTANTS[8453].oracle.v1v2ConnectorBlacklist;
     expect(set.has(OUSDT)).toBe(true);
-    expect(set.has("0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34")).toBe(true);
+    // 0x5d3a1Ff... is in the priceConnectors list but works individually on
+    // both V1 and V2 — the discriminator probe shows dropping oUSDT alone is
+    // sufficient. Keep this address out of the blacklist.
+    expect(set.has("0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34")).toBe(false);
   });
 
   it("populates Mode and Fraxtal V2 poison sets with oUSDT", () => {
@@ -129,10 +132,14 @@ describe("oracle.v1v2ConnectorBlacklist (#688)", () => {
     }
   });
 
-  it("uses lowercase addresses (matches RpcGateway's case-insensitive compare)", () => {
+  it("uses casing that matches the chain's priceConnectors entries", () => {
+    // RpcGateway compares with `!==` (case-sensitive), so every blacklist
+    // entry must be present verbatim in priceConnectors to actually filter.
     for (const chainId of [10, 8453, 34443, 252]) {
-      for (const a of CHAIN_CONSTANTS[chainId].oracle.v1v2ConnectorBlacklist) {
-        expect(a).toBe(a.toLowerCase());
+      const chain = CHAIN_CONSTANTS[chainId];
+      const known = new Set(chain.oracle.priceConnectors.map((c) => c.address));
+      for (const a of chain.oracle.v1v2ConnectorBlacklist) {
+        expect(known.has(a)).toBe(true);
       }
     }
   });

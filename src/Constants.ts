@@ -415,8 +415,8 @@ const OPTIMISM_CONSTANTS: chainConstants = {
     updateDelta: 60 * 60, // 1 hour
     priceConnectors: OPTIMISM_PRICE_CONNECTORS,
     v1v2ConnectorBlacklist: new Set([
-      "0x01bff41798a0bcf287b996046ca68b395dbc1071",
-      "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189",
+      "0x01bFF41798a0BcF287b996046Ca68b395DbC1071",
+      "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189",
     ]),
   },
   rewardToken: (blockNumber: number) => {
@@ -473,8 +473,7 @@ const BASE_CONSTANTS: chainConstants = {
     updateDelta: 60 * 60, // 1 hour
     priceConnectors: BASE_PRICE_CONNECTORS,
     v1v2ConnectorBlacklist: new Set([
-      "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189",
-      "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+      "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189",
     ]),
   },
   rewardToken: (blockNumber: number) =>
@@ -570,7 +569,7 @@ const MODE_CONSTANTS: chainConstants = {
     updateDelta: 60 * 60, // 1 hour
     priceConnectors: MODE_PRICE_CONNECTORS,
     v1v2ConnectorBlacklist: new Set([
-      "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189",
+      "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189",
     ]),
   },
   rewardToken: (blockNumber: number) =>
@@ -718,7 +717,7 @@ const FRAXTAL_CONSTANTS: chainConstants = {
     updateDelta: 60 * 60, // 1 hour
     priceConnectors: FRAXTAL_PRICE_CONNECTORS,
     v1v2ConnectorBlacklist: new Set([
-      "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189",
+      "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189",
     ]),
   },
   rewardToken: (blockNumber: number) =>

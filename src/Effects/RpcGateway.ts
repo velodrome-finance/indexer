@@ -404,12 +404,14 @@ async function handleGetTokenPrice(
   // Issue #688: V1/V2 (VeloPriceOracle.getManyRatesWithConnectors) reverts
   // when the connector array contains tokens with no AMM pool at the queried
   // block. Strip the per-chain blacklist for V1/V2 calls only — V3+ silently
-  // skips unreachable paths and tolerates the full list.
+  // skips unreachable paths and tolerates the full list. Blacklist entries
+  // mirror the checksum casing used in price_connectors.json so this matches
+  // the same case-sensitive convention as the dedup filter above.
   const oracleType = chain.oracle.getType(blockNumber);
   if (oracleType === PriceOracleType.V1 || oracleType === PriceOracleType.V2) {
     const blacklist = chain.oracle.v1v2ConnectorBlacklist;
     if (blacklist.size > 0) {
-      connectors = connectors.filter((a) => !blacklist.has(a.toLowerCase()));
+      connectors = connectors.filter((a) => !blacklist.has(a));
     }
   }
 
