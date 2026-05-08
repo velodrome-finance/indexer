@@ -344,6 +344,139 @@ describe("LiquidityPoolAggregator Functions", () => {
       expect(updated.stakedTickEdges).toEqual([]);
       expect(updated.stakedTickEdgeNets).toEqual([]);
     });
+
+    // Regression test for issue #666: stakedReserve0/stakedReserve1 are
+    // running counters of staked LP-deposited capital and should never go
+    // negative. 166 CL pools across all chains have drifted negative; a
+    // defensive max(0, _) clamp at the USD-conversion site masks the symptom
+    // at the USD layer but the raw fields persist as negative. The aggregator
+    // emits [NEGATIVE_STAKED_RESERVE_DRIFT] at each snapshot epoch boundary
+    // while still negative (≤1/hour per pool) so a persistent drift stays
+    // visible in recent logs without flooding them and without aborting the
+    // indexer. Mirrors the snapshot-epoch [FEE_VOLUME_DIVERGENCE] pattern
+    // from #679 and the [NEGATIVE_RESERVE_DRIFT] tag from #674/#680.
+    describe("negative staked reserve drift warning (issue #666)", () => {
+      const negativeStakedReserveWarnings = () => {
+        const warnMock = vi.mocked(mockContext.log?.warn);
+        const calls = warnMock?.mock.calls ?? [];
+        return calls.filter((args) =>
+          String(args[0] ?? "").includes("[NEGATIVE_STAKED_RESERVE_DRIFT]"),
+        );
+      };
+
+      const previousEpoch = () =>
+        new Date(timestamp.getTime() - 2 * 60 * 60 * 1000);
+
+      it("warns at snapshot epoch when stakedReserve0 is negative", async () => {
+        await updateLiquidityPoolAggregator(
+          { incrementalStakedReserve0: -100n },
+          {
+            ...(liquidityPoolAggregator as LiquidityPoolAggregator),
+            isCL: true,
+            stakedReserve0: 50n,
+            stakedReserve1: 1000n,
+            lastSnapshotTimestamp: previousEpoch(),
+            lastUpdatedTimestamp: previousEpoch(),
+          },
+          timestamp,
+          mockContext as handlerContext,
+          10,
+          blockNumber,
+        );
+
+        expect(negativeStakedReserveWarnings().length).toBe(1);
+      });
+
+      it("warns at snapshot epoch when stakedReserve1 is negative", async () => {
+        await updateLiquidityPoolAggregator(
+          { incrementalStakedReserve1: -100n },
+          {
+            ...(liquidityPoolAggregator as LiquidityPoolAggregator),
+            isCL: true,
+            stakedReserve0: 1000n,
+            stakedReserve1: 50n,
+            lastSnapshotTimestamp: previousEpoch(),
+            lastUpdatedTimestamp: previousEpoch(),
+          },
+          timestamp,
+          mockContext as handlerContext,
+          10,
+          blockNumber,
+        );
+
+        expect(negativeStakedReserveWarnings().length).toBe(1);
+      });
+
+      it("does not warn when staked reserves stay non-negative after the diff", async () => {
+        await updateLiquidityPoolAggregator(
+          {
+            incrementalStakedReserve0: -50n,
+            incrementalStakedReserve1: -50n,
+          },
+          {
+            ...(liquidityPoolAggregator as LiquidityPoolAggregator),
+            isCL: true,
+            stakedReserve0: 100n,
+            stakedReserve1: 100n,
+            lastSnapshotTimestamp: previousEpoch(),
+            lastUpdatedTimestamp: previousEpoch(),
+          },
+          timestamp,
+          mockContext as handlerContext,
+          10,
+          blockNumber,
+        );
+
+        expect(negativeStakedReserveWarnings().length).toBe(0);
+      });
+
+      it("warns again at the next snapshot epoch while staked reserves remain negative", async () => {
+        await updateLiquidityPoolAggregator(
+          {
+            incrementalStakedReserve0: -10n,
+            incrementalStakedReserve1: -10n,
+          },
+          {
+            ...(liquidityPoolAggregator as LiquidityPoolAggregator),
+            isCL: true,
+            stakedReserve0: -100n,
+            stakedReserve1: -100n,
+            lastSnapshotTimestamp: previousEpoch(),
+            lastUpdatedTimestamp: previousEpoch(),
+          },
+          timestamp,
+          mockContext as handlerContext,
+          10,
+          blockNumber,
+        );
+
+        // Both reserve0 and reserve1 still negative ⇒ one warn each per snapshot epoch.
+        expect(negativeStakedReserveWarnings().length).toBe(2);
+      });
+
+      it("does not warn when reserves are negative but inside the same snapshot epoch (rate-limit gate)", async () => {
+        await updateLiquidityPoolAggregator(
+          {
+            incrementalStakedReserve0: -10n,
+            incrementalStakedReserve1: -10n,
+          },
+          {
+            ...(liquidityPoolAggregator as LiquidityPoolAggregator),
+            isCL: true,
+            stakedReserve0: -100n,
+            stakedReserve1: -100n,
+            lastSnapshotTimestamp: timestamp,
+            lastUpdatedTimestamp: timestamp,
+          },
+          timestamp,
+          mockContext as handlerContext,
+          10,
+          blockNumber,
+        );
+
+        expect(negativeStakedReserveWarnings().length).toBe(0);
+      });
+    });
   });
 
   describe("Updating the Liquidity Pool Aggregator", () => {
