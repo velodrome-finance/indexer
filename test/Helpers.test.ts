@@ -5,9 +5,10 @@ import {
 } from "@uniswap/v3-sdk";
 import type { LiquidityPoolAggregator, Token, handlerContext } from "generated";
 import JSBI from "jsbi";
-import { toChecksumAddress } from "../src/Constants";
+import { TEN_TO_THE_18_BI, toChecksumAddress } from "../src/Constants";
 import {
   calculatePositionAmountsFromLiquidity,
+  calculateTokenAmountUSD,
   calculateTotalUSD,
   calculateWhitelistedFeesUSD,
   computeLiquidityDeltaFromAmounts,
@@ -107,6 +108,64 @@ describe("Helpers", () => {
 
       expect(logError).toHaveBeenCalledTimes(1);
       expect(logError).toHaveBeenCalledWith("Test message: string error");
+    });
+  });
+
+  describe("calculateTokenAmountUSD precision-overflow guard (issue #668)", () => {
+    it("returns 0n when implied per-raw-unit USD exceeds $1 (decimals=0 misread of 18-decimal token)", () => {
+      // Simulates an 18-decimal token like wstETH whose decimals were persisted as 0
+      // due to an RPC failure. With decimals=0, the normalize path leaves the raw
+      // 1e18 amount untouched and multiplies by ~$4500 → ~$4.5e21 instead of ~$4500.
+      const oneRawUnitOf18Decimal = 10n ** 18n;
+      const wronglyZeroDecimals = 0;
+      const wstEthIshPrice = 4500n * TEN_TO_THE_18_BI;
+      expect(
+        calculateTokenAmountUSD(
+          oneRawUnitOf18Decimal,
+          wronglyZeroDecimals,
+          wstEthIshPrice,
+        ),
+      ).toBe(0n);
+    });
+
+    it("does not zap a legitimate decimals=0 token priced under $1 (e.g. IDRX)", () => {
+      // IDRX (Indonesian rupiah stablecoin) legitimately has decimals=0; its
+      // per-raw-unit price is ~$0.00006, well below the $1 cap.
+      const idrxRawAmount = 1_000_000n;
+      const idrxPrice = 60_000_000_000_000n; // ~$6e-5 in 1e18-base
+      const usd = calculateTokenAmountUSD(idrxRawAmount, 0, idrxPrice);
+      expect(usd).toBe((idrxRawAmount * idrxPrice) / TEN_TO_THE_18_BI);
+    });
+
+    it("preserves existing USD math for typical 18-decimal tokens within bounds", () => {
+      const amount = 5n * TEN_TO_THE_18_BI; // 5 tokens
+      const decimals = 18;
+      const price = 1n * TEN_TO_THE_18_BI; // $1
+      expect(calculateTokenAmountUSD(amount, decimals, price)).toBe(
+        5n * TEN_TO_THE_18_BI,
+      );
+    });
+
+    it("isolates one corrupted token in calculateTotalUSD (the swap-USD entry point)", () => {
+      // Simulates the Fraxtal scenario: a legitimately-priced token0 paired with
+      // a token1 whose decimals were misread as 0. Only token1's contribution is
+      // zeroed; token0's USD must still flow through. Pre-fix, token1 alone
+      // would warp the swap's USD into 1e21+.
+      const { mockToken0Data, mockToken1Data } = setupCommon();
+      const corruptedToken1: Token = {
+        ...mockToken1Data,
+        decimals: 0n,
+        pricePerUSDNew: 4500n * TEN_TO_THE_18_BI,
+      };
+      const amount0 = 3n * TEN_TO_THE_18_BI; // $3 from token0
+      const amount1 = 10n ** 18n; // would be $4.5e21 without the guard
+      const total = calculateTotalUSD(
+        amount0,
+        amount1,
+        mockToken0Data,
+        corruptedToken1,
+      );
+      expect(total).toBe(3n * TEN_TO_THE_18_BI);
     });
   });
 

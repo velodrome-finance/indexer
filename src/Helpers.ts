@@ -73,6 +73,14 @@ export function calculateTokenAmountUSD(
   tokenDecimals: number,
   pricePerUSDNew: bigint,
 ): bigint {
+  // Issue #668: reject malformed (decimals, price) tuples whose implied per-raw-unit
+  // USD exceeds $1 — no real ERC20 has a smallest unit worth more than $1, so this
+  // only triggers when a token's decimals were lost (typically persisted as 0
+  // instead of 18 after an RPC failure). One such token can otherwise warp
+  // lifetime swap-USD totals into the quadrillions.
+  if (pricePerUSDNew > TEN_TO_THE_18_BI * 10n ** BigInt(tokenDecimals)) {
+    return 0n;
+  }
   const normalizedAmount = normalizeTokenAmountTo1e18(amount, tokenDecimals);
   return multiplyBase1e18(normalizedAmount, pricePerUSDNew);
 }
