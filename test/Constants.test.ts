@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { nfpmForCLPool, toChecksumAddress } from "../src/Constants";
+import {
+  CHAIN_CONSTANTS,
+  nfpmForCLPool,
+  toChecksumAddress,
+} from "../src/Constants";
 
 describe("nfpmForCLPool", () => {
   const OP_CL_FACTORY_OLD = toChecksumAddress(
@@ -86,5 +90,57 @@ describe("nfpmForCLPool", () => {
     ).toBeNull();
     // Optimism factory on wrong chain
     expect(nfpmForCLPool(8453, OP_CL_FACTORY_OLD)).toBeNull();
+  });
+});
+
+describe("oracle.v1v2ConnectorBlacklist (#688)", () => {
+  // Empirically determined connectors that revert V1/V2
+  // `getManyRatesWithConnectors`. Casing matches price_connectors.json so the
+  // case-sensitive filter in src/Effects/RpcGateway.ts strikes them.
+  const OUSDT = "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189";
+
+  it("populates the OP V1/V2 poison set", () => {
+    const set = CHAIN_CONSTANTS[10].oracle.v1v2ConnectorBlacklist;
+    expect(set.has("0x01bFF41798a0BcF287b996046Ca68b395DbC1071")).toBe(true);
+    expect(set.has(OUSDT)).toBe(true);
+  });
+
+  it("populates the Base V1/V2 poison set", () => {
+    const set = CHAIN_CONSTANTS[8453].oracle.v1v2ConnectorBlacklist;
+    expect(set.has(OUSDT)).toBe(true);
+    // 0x5d3a1Ff... is in the priceConnectors list but works individually on
+    // both V1 and V2 — the discriminator probe shows dropping oUSDT alone is
+    // sufficient. Keep this address out of the blacklist.
+    expect(set.has("0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34")).toBe(false);
+  });
+
+  it("populates Mode and Fraxtal V2 poison sets with oUSDT", () => {
+    expect(
+      CHAIN_CONSTANTS[34443].oracle.v1v2ConnectorBlacklist.has(OUSDT),
+    ).toBe(true);
+    expect(CHAIN_CONSTANTS[252].oracle.v1v2ConnectorBlacklist.has(OUSDT)).toBe(
+      true,
+    );
+  });
+
+  it("leaves V3-only chains with an empty blacklist", () => {
+    // Celo, Soneium, Unichain, Ink, Metal, Swell, Superseed never call V1/V2.
+    for (const chainId of [42220, 1868, 130, 57073, 1750, 1923, 5330]) {
+      expect(CHAIN_CONSTANTS[chainId].oracle.v1v2ConnectorBlacklist.size).toBe(
+        0,
+      );
+    }
+  });
+
+  it("uses casing that matches the chain's priceConnectors entries", () => {
+    // RpcGateway compares with `!==` (case-sensitive), so every blacklist
+    // entry must be present verbatim in priceConnectors to actually filter.
+    for (const chainId of [10, 8453, 34443, 252]) {
+      const chain = CHAIN_CONSTANTS[chainId];
+      const known = new Set(chain.oracle.priceConnectors.map((c) => c.address));
+      for (const a of chain.oracle.v1v2ConnectorBlacklist) {
+        expect(known.has(a)).toBe(true);
+      }
+    }
   });
 });

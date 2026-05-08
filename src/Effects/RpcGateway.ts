@@ -393,7 +393,7 @@ async function handleGetTokenPrice(
 
   const WETH_ADDRESS = chain.weth;
   const SYSTEM_TOKEN_ADDRESS = chain.rewardToken(blockNumber);
-  const connectors = chain.oracle.priceConnectors
+  let connectors = chain.oracle.priceConnectors
     .filter((c) => c.createdBlock <= blockNumber)
     .map((c) => c.address)
     .filter((a) => a !== tokenAddress)
@@ -401,11 +401,25 @@ async function handleGetTokenPrice(
     .filter((a) => a !== DESTINATION_TOKEN_ADDRESS)
     .filter((a) => a !== SYSTEM_TOKEN_ADDRESS);
 
+  // Issue #688: V1/V2 (VeloPriceOracle.getManyRatesWithConnectors) reverts
+  // when the connector array contains tokens with no AMM pool at the queried
+  // block. Strip the per-chain blacklist for V1/V2 calls only — V3+ silently
+  // skips unreachable paths and tolerates the full list. Blacklist entries
+  // mirror the checksum casing used in price_connectors.json so this matches
+  // the same case-sensitive convention as the dedup filter above.
+  const oracleType = chain.oracle.getType(blockNumber);
+  if (oracleType === PriceOracleType.V1 || oracleType === PriceOracleType.V2) {
+    const blacklist = chain.oracle.v1v2ConnectorBlacklist;
+    if (blacklist.size > 0) {
+      connectors = connectors.filter((a) => !blacklist.has(a));
+    }
+  }
+
   const operationName = rpcGatewayOpName(EffectType.GET_TOKEN_PRICE);
   const logDetails = { tokenAddress, chainId, blockNumber };
   const fallback = {
     pricePerUSDNew: 0n,
-    priceOracleType: chain.oracle.getType(blockNumber).toString(),
+    priceOracleType: oracleType.toString(),
   };
   const buildPriceFetcher = (client: typeof chain.eth_client) => () =>
     fetchTokenPrice(

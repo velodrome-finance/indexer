@@ -215,13 +215,18 @@ export async function refreshTokenPrice(
       return updatedToken;
     }
 
+    // Issue #673: only preserve the timestamp once the oracle has actually
+    // been queryable. For tokens whose entity is created before
+    // `oracle.startBlock`, every pre-deploy refresh returns $0 and would
+    // otherwise pin the timestamp at creation — letting the 30-day backoff
+    // trip before the oracle ever runs and stranding reward tokens at $0.
+    const oracleDeployed =
+      blockNumber >= CHAIN_CONSTANTS[chainId].oracle.startBlock;
     const updatedToken: Token = {
       ...token,
       pricePerUSDNew: currentPrice,
-      // Preserve original timestamp when price stays $0 so 30-day backoff timer
-      // tracks from creation/last non-zero price, not from last refresh attempt.
       lastUpdatedTimestamp:
-        currentPrice === 0n && token.pricePerUSDNew === 0n
+        oracleDeployed && currentPrice === 0n && token.pricePerUSDNew === 0n
           ? token.lastUpdatedTimestamp
           : new Date(blockTimestampMs),
     };
