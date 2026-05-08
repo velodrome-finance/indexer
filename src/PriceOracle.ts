@@ -20,6 +20,17 @@ export interface TokenPriceData {
   decimals: bigint;
 }
 
+// Issue #668: receiver-side guard against transient absurd oracle reads. The
+// Fraxtal V3 oracle has historically returned values 15–30 OOM away from the
+// surrounding baseline for sfrxETH and FXB20291231; persisting any one of
+// those readings permanently poisons cumulative pool aggregates because
+// volume/fees are append-only. We treat the on-chain oracle as untrusted
+// input: any refresh whose ratio against the last accepted price exceeds
+// 10× is rejected as long as the anchor is still fresh (≤ 14 days). See the
+// issue body for the heuristic calibration.
+const PRICE_SPIKE_RATIO_THRESHOLD = 10n;
+const PRICE_SPIKE_STALENESS_MS = 14 * 24 * 60 * 60 * 1000;
+
 export async function createTokenEntity(
   tokenAddress: string,
   chainId: number,
@@ -187,6 +198,26 @@ export async function refreshTokenPrice(
         blockNumber: roundedBlockNumber,
       })) as { pricePerUSDNew: bigint; priceOracleType: string };
       currentPrice = bypassResult.pricePerUSDNew;
+    }
+
+    // Issue #668: reject refreshes that jump ≥10× vs a still-fresh accepted
+    // anchor. First-fetch (anchor == 0) and stale-anchor (anchor older than
+    // PRICE_SPIKE_STALENESS_MS) are exempt — neither shape can be a transient
+    // oracle glitch poisoning a previously-good baseline.
+    const anchorPrice = token.pricePerUSDNew;
+    const anchorAgeMs = token.lastUpdatedTimestamp
+      ? blockTimestampMs - token.lastUpdatedTimestamp.getTime()
+      : Number.POSITIVE_INFINITY;
+    const ratioExceeds =
+      anchorPrice > 0n &&
+      currentPrice > 0n &&
+      (currentPrice >= anchorPrice * PRICE_SPIKE_RATIO_THRESHOLD ||
+        anchorPrice >= currentPrice * PRICE_SPIKE_RATIO_THRESHOLD);
+    if (ratioExceeds && anchorAgeMs < PRICE_SPIKE_STALENESS_MS) {
+      context.log.warn(
+        `[priceSpikeRejected] ${token.address} chain=${chainId} anchor=${anchorPrice} candidate=${currentPrice}`,
+      );
+      currentPrice = anchorPrice;
     }
 
     // If price fetch returned 0, it could mean:
