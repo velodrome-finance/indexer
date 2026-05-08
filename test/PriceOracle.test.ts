@@ -222,6 +222,109 @@ describe("PriceOracle", () => {
       });
     });
 
+    describe("Issue #673: pre-oracle stranding regression", () => {
+      // Reward tokens (VELO/OP, AERO/Base, XVELO/OP) were stuck at $0 with
+      // 2023 timestamps because their Token entities are created before the
+      // chain's oracle deploys. While the oracle is unreachable, the price
+      // refresh keeps returning 0; with timestamp preservation, the 30-day
+      // backoff trips before the oracle ever runs, stranding the token.
+      // Fix: only preserve the timestamp once the oracle has actually been
+      // queryable at this block.
+
+      it("advances lastUpdatedTimestamp when oracle is not yet deployed (lets the 30-day clock count from oracle deploy, not creation)", async () => {
+        vi.mocked(mockContext.Token?.set)?.mockClear();
+
+        const preOracleBlock = startBlock - 1;
+        // Mock effects: getTokenDetails works, getTokenPrice returns $0 (the
+        // ORACLE_DEPLOYED gate inside handleGetTokenPrice does the same in prod).
+        vi.mocked(mockContext.effect)?.mockImplementation(
+          async (effect: unknown, _input: unknown) => {
+            const name = (effect as { name?: string }).name;
+            if (name === "getTokenPrice") {
+              return { pricePerUSDNew: 0n };
+            }
+            if (name === "getTokenDetails") {
+              return { name: "VELO", decimals: 18, symbol: "VELO" };
+            }
+            return {};
+          },
+        );
+
+        const creationDate = new Date(blockDatetime.getTime());
+        const fetchedToken = {
+          ...mockToken0Data,
+          pricePerUSDNew: 0n,
+          lastUpdatedTimestamp: creationDate,
+        };
+        // 1 hour later, still pre-oracle
+        const blockTimestamp = blockDatetime.getTime() / 1000 + 60 * 60;
+
+        await PriceOracle.refreshTokenPrice(
+          fetchedToken,
+          preOracleBlock,
+          blockTimestamp,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
+          .lastCall?.[0] as Token;
+        expect(updatedToken.pricePerUSDNew).toBe(0n);
+        // Critical: timestamp must move forward so the 30-day backoff resets.
+        expect(updatedToken.lastUpdatedTimestamp.getTime()).toBe(
+          blockTimestamp * 1000,
+        );
+        expect(updatedToken.lastUpdatedTimestamp.getTime()).toBeGreaterThan(
+          creationDate.getTime(),
+        );
+      });
+
+      it("preserves lastUpdatedTimestamp once oracle is deployed and price stays $0 (existing 30-day backoff behavior intact)", async () => {
+        vi.mocked(mockContext.Token?.set)?.mockClear();
+
+        const postOracleBlock = startBlock + 1;
+        vi.mocked(mockContext.effect)?.mockImplementation(
+          async (effect: unknown, _input: unknown) => {
+            const name = (effect as { name?: string }).name;
+            if (name === "getTokenPrice") {
+              return { pricePerUSDNew: 0n };
+            }
+            if (name === "getTokenDetails") {
+              return { name: "VELO", decimals: 18, symbol: "VELO" };
+            }
+            return {};
+          },
+        );
+
+        const earlierTimestamp = new Date(
+          blockDatetime.getTime() - 5 * 24 * 60 * 60 * 1000,
+        );
+        const fetchedToken = {
+          ...mockToken0Data,
+          pricePerUSDNew: 0n,
+          lastUpdatedTimestamp: earlierTimestamp,
+        };
+        const blockTimestamp = blockDatetime.getTime() / 1000;
+
+        await PriceOracle.refreshTokenPrice(
+          fetchedToken,
+          postOracleBlock,
+          blockTimestamp,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
+          .lastCall?.[0] as Token;
+        expect(updatedToken.pricePerUSDNew).toBe(0n);
+        // Post-oracle preservation must still apply — bounds RPC waste for
+        // genuinely unpriceable tokens.
+        expect(updatedToken.lastUpdatedTimestamp.getTime()).toBe(
+          earlierTimestamp.getTime(),
+        );
+      });
+    });
+
     describe("when pricePerUSDNew is 0n for more than 30 days (unpriceable)", () => {
       beforeEach(async () => {
         vi.mocked(mockContext.Token?.set)?.mockClear();
