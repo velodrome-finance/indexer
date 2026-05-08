@@ -7,13 +7,7 @@ import {
   TokenId,
   toChecksumAddress,
 } from "../../../src/Constants";
-import { hasContractBytecode } from "../../../src/Effects/Index";
 import { type MockLiquidityPoolAggregator, setupCommon } from "../Pool/common";
-
-interface EffectWithHandler<I, O> {
-  name: string;
-  handler: (args: { input: I; context: unknown }) => Promise<O>;
-}
 
 describe("SuperchainLeafVoter Events", () => {
   beforeEach(() => {
@@ -195,8 +189,10 @@ describe("SuperchainLeafVoter Events", () => {
       typeof SuperchainLeafVoter.WhitelistToken.createMockEvent
     >;
     const chainId = 10;
+    // Real WETH on Optimism — has on-chain bytecode, so the #677
+    // hasContractBytecode gate doesn't short-circuit Token creation.
     const tokenAddress = toChecksumAddress(
-      "0x2222222222222222222222222222222222222222",
+      "0x4200000000000000000000000000000000000006",
     );
 
     beforeEach(async () => {
@@ -255,16 +251,6 @@ describe("SuperchainLeafVoter Events", () => {
       let resultDB: ReturnType<typeof MockDb.createMockDb>;
 
       beforeEach(async () => {
-        // Placeholder address has no on-chain bytecode; force hasCode=true so
-        // the #677 gate doesn't short-circuit Token creation in this test.
-        vi.spyOn(
-          hasContractBytecode as unknown as EffectWithHandler<
-            { address: string; chainId: number },
-            { hasCode: boolean }
-          >,
-          "handler",
-        ).mockResolvedValue({ hasCode: true });
-
         resultDB = await mockDb.processEvents([mockEvent]);
       });
 
@@ -341,16 +327,6 @@ describe("SuperchainLeafVoter Events", () => {
         let resultDB: ReturnType<typeof MockDb.createMockDb>;
 
         beforeEach(async () => {
-          // Placeholder address has no on-chain bytecode; force hasCode=true so
-          // the #677 gate doesn't short-circuit Token creation in this test.
-          vi.spyOn(
-            hasContractBytecode as unknown as EffectWithHandler<
-              { address: string; chainId: number },
-              { hasCode: boolean }
-            >,
-            "handler",
-          ).mockResolvedValue({ hasCode: true });
-
           resultDB = await mockDb.processEvents([mockEvent]);
         });
 
