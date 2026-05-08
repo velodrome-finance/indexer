@@ -21,6 +21,7 @@ import {
   rootPoolMatchingHash,
   toChecksumAddress,
 } from "../../../src/Constants";
+import { hasContractBytecode } from "../../../src/Effects/Index";
 import { getTokensDeposited } from "../../../src/Effects/Voter";
 import { type MockLiquidityPoolAggregator, setupCommon } from "../Pool/common";
 
@@ -2134,6 +2135,16 @@ describe("Voter Events", () => {
       let resultDB: ReturnType<typeof MockDb.createMockDb>;
       let expectedId: string;
       beforeEach(async () => {
+        // Placeholder address has no on-chain bytecode; force hasCode=true so
+        // the #677 gate doesn't short-circuit Token creation in this test.
+        vi.spyOn(
+          hasContractBytecode as unknown as EffectWithHandler<
+            { address: string; chainId: number },
+            { hasCode: boolean }
+          >,
+          "handler",
+        ).mockResolvedValue({ hasCode: true });
+
         resultDB = await mockDb.processEvents([mockEvent]);
 
         expectedId = TokenId(
