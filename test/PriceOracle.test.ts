@@ -468,6 +468,251 @@ describe("PriceOracle", () => {
       });
     });
 
+    describe("Metadata heal: empty symbol/name (issue #672)", () => {
+      // Issue #672: Soneium pools display tokens with `?` (empty symbol). Root
+      // cause is a transient RPC failure during the single createTokenEntity
+      // call when the pool's PoolCreated event was first seen — the empty
+      // symbol/name was persisted and never re-fetched, since ERC20 metadata
+      // was treated as immutable. Heal path: whenever refreshTokenPrice runs
+      // and observes an empty symbol or name, re-fetch via getTokenDetails
+      // and overlay the healed fields onto the Token entity.
+      const oneHourAndOneMinuteAgo = () =>
+        new Date(blockDatetime.getTime() - 61 * 60 * 1000);
+
+      beforeEach(() => {
+        vi.mocked(mockContext.Token?.set)?.mockClear();
+        vi.mocked(mockContext.effect)?.mockClear();
+        vi.mocked(mockContext.log?.error)?.mockClear();
+      });
+
+      it("heals empty symbol on refresh by calling getTokenDetails and writing the value", async () => {
+        const fetchedToken = {
+          ...mockToken0Data,
+          symbol: "",
+          name: "Tether USD",
+          lastUpdatedTimestamp: oneHourAndOneMinuteAgo(),
+        };
+        await PriceOracle.refreshTokenPrice(
+          fetchedToken,
+          blockNumber,
+          blockDatetime.getTime() / 1000,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
+          .lastCall?.[0] as Token;
+        expect(updatedToken.symbol).toBe("TEST");
+        // getTokenDetails must have been invoked
+        const detailsCall = vi
+          .mocked(mockContext.effect)
+          ?.mock.calls.find(
+            (c) => (c[0] as { name?: string }).name === "getTokenDetails",
+          );
+        expect(detailsCall).toBeDefined();
+      });
+
+      it("does NOT call getTokenDetails when symbol and name are already populated", async () => {
+        const fetchedToken = {
+          ...mockToken0Data,
+          symbol: "USDT",
+          name: "Tether USD",
+          lastUpdatedTimestamp: oneHourAndOneMinuteAgo(),
+        };
+        await PriceOracle.refreshTokenPrice(
+          fetchedToken,
+          blockNumber,
+          blockDatetime.getTime() / 1000,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        const detailsCall = vi
+          .mocked(mockContext.effect)
+          ?.mock.calls.find(
+            (c) => (c[0] as { name?: string }).name === "getTokenDetails",
+          );
+        expect(detailsCall).toBeUndefined();
+      });
+
+      it("preserves the existing empty symbol when getTokenDetails still returns empty", async () => {
+        vi.mocked(mockContext.effect)?.mockImplementation(
+          async (effect: unknown, _input: unknown) => {
+            const name = (effect as { name?: string }).name;
+            if (name === "getTokenDetails") {
+              return { name: "", decimals: 18, symbol: "" };
+            }
+            if (name === "getTokenPrice") {
+              return { pricePerUSDNew: 2n * 10n ** 18n };
+            }
+            return {};
+          },
+        );
+
+        const fetchedToken = {
+          ...mockToken0Data,
+          symbol: "",
+          name: "",
+          lastUpdatedTimestamp: oneHourAndOneMinuteAgo(),
+        };
+        await PriceOracle.refreshTokenPrice(
+          fetchedToken,
+          blockNumber,
+          blockDatetime.getTime() / 1000,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
+          .lastCall?.[0] as Token;
+        expect(updatedToken.symbol).toBe("");
+        expect(updatedToken.name).toBe("");
+      });
+
+      it("does NOT abort price refresh when getTokenDetails throws", async () => {
+        vi.mocked(mockContext.effect)?.mockImplementation(
+          async (effect: unknown, _input: unknown) => {
+            const name = (effect as { name?: string }).name;
+            if (name === "getTokenDetails") {
+              throw new Error("RPC down");
+            }
+            if (name === "getTokenPrice") {
+              return { pricePerUSDNew: 2n * 10n ** 18n };
+            }
+            return {};
+          },
+        );
+
+        const fetchedToken = {
+          ...mockToken0Data,
+          symbol: "",
+          name: "",
+          lastUpdatedTimestamp: oneHourAndOneMinuteAgo(),
+        };
+        await PriceOracle.refreshTokenPrice(
+          fetchedToken,
+          blockNumber,
+          blockDatetime.getTime() / 1000,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
+          .lastCall?.[0] as Token;
+        // Price should still update; symbol/name preserved as empty
+        expect(updatedToken.pricePerUSDNew).toBe(2n * 10n ** 18n);
+        expect(updatedToken.symbol).toBe("");
+        // Metadata error should be logged
+        expect(vi.mocked(mockContext.log?.error)).toHaveBeenCalledWith(
+          expect.stringContaining("Error refreshing token metadata"),
+        );
+      });
+
+      it("heals symbol on the blacklist path (token forced to 0 still gets symbol)", async () => {
+        const MANATEE_OP = toChecksumAddress(
+          "0x7909Bda52eAf7C3cc12745E727Eb527a485241D8",
+        );
+        vi.mocked(mockContext.effect)?.mockImplementation(
+          async (effect: unknown, _input: unknown) => {
+            const name = (effect as { name?: string }).name;
+            if (name === "getTokenDetails") {
+              return { name: "$Manatee", decimals: 18, symbol: "MANATEE" };
+            }
+            return {};
+          },
+        );
+
+        const fetchedToken = {
+          ...mockToken0Data,
+          address: MANATEE_OP,
+          symbol: "",
+          name: "",
+          pricePerUSDNew: 388_328n * 10n ** 18n,
+          lastUpdatedTimestamp: oneHourAndOneMinuteAgo(),
+        };
+        await PriceOracle.refreshTokenPrice(
+          fetchedToken,
+          blockNumber,
+          blockDatetime.getTime() / 1000,
+          10,
+          mockContext as handlerContext,
+        );
+
+        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
+          .lastCall?.[0] as Token;
+        expect(updatedToken.symbol).toBe("MANATEE");
+        expect(updatedToken.pricePerUSDNew).toBe(0n);
+      });
+
+      it("heals symbol on the rebind path", async () => {
+        const RSETH_SWELL = toChecksumAddress(
+          "0xc3eaCf0612346366Db554c991D7858716db09f58",
+        );
+        const WRSETH_BASE = toChecksumAddress(
+          "0xEDfa23602D0EC14714057867A78d01e94176BEA0",
+        );
+        const sourcePrice = 2_443n * 10n ** 18n;
+
+        vi.mocked(mockContext.Token?.get)?.mockImplementation(async (id) => {
+          if (id === `8453-${WRSETH_BASE}`) {
+            return { pricePerUSDNew: sourcePrice } as Token;
+          }
+          return undefined;
+        });
+        vi.mocked(mockContext.effect)?.mockImplementation(
+          async (effect: unknown, _input: unknown) => {
+            const name = (effect as { name?: string }).name;
+            if (name === "getTokenDetails") {
+              return { name: "rsETH", decimals: 18, symbol: "rsETH" };
+            }
+            return {};
+          },
+        );
+
+        const fetchedToken = {
+          ...mockToken0Data,
+          address: RSETH_SWELL,
+          symbol: "",
+          name: "",
+          lastUpdatedTimestamp: oneHourAndOneMinuteAgo(),
+        };
+        await PriceOracle.refreshTokenPrice(
+          fetchedToken,
+          blockNumber,
+          blockDatetime.getTime() / 1000,
+          1923,
+          mockContext as handlerContext,
+        );
+
+        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
+          .lastCall?.[0] as Token;
+        expect(updatedToken.symbol).toBe("rsETH");
+        expect(updatedToken.pricePerUSDNew).toBe(sourcePrice);
+      });
+
+      it("heals empty name when symbol is already populated", async () => {
+        const fetchedToken = {
+          ...mockToken0Data,
+          symbol: "USDT",
+          name: "",
+          lastUpdatedTimestamp: oneHourAndOneMinuteAgo(),
+        };
+        await PriceOracle.refreshTokenPrice(
+          fetchedToken,
+          blockNumber,
+          blockDatetime.getTime() / 1000,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
+          .lastCall?.[0] as Token;
+        expect(updatedToken.name).toBe("Test Token");
+        // Existing non-empty symbol must not be overwritten
+        expect(updatedToken.symbol).toBe("USDT");
+      });
+    });
+
     describe("when price fetch fails", () => {
       let originalToken: Token;
       beforeEach(async () => {
