@@ -370,6 +370,11 @@ type chainConstants = {
     startBlock: number;
     updateDelta: number;
     priceConnectors: PriceConnector[];
+    // Issue #688: V1/V2 oracles' getManyRatesWithConnectors reverts when the
+    // connector array contains tokens with no AMM pool at the queried block.
+    // Lowercased addresses listed here are stripped from connectors only when
+    // querying V1/V2 oracles. V3+ tolerates these silently.
+    v1v2ConnectorBlacklist: Set<string>;
   };
   rewardToken: (blockNumber: number) => string;
   eth_client: PublicClient;
@@ -409,6 +414,10 @@ const OPTIMISM_CONSTANTS: chainConstants = {
     startBlock: 107676013,
     updateDelta: 60 * 60, // 1 hour
     priceConnectors: OPTIMISM_PRICE_CONNECTORS,
+    v1v2ConnectorBlacklist: new Set([
+      "0x01bff41798a0bcf287b996046ca68b395dbc1071",
+      "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189",
+    ]),
   },
   rewardToken: (blockNumber: number) => {
     if (blockNumber < 105896880) {
@@ -463,6 +472,10 @@ const BASE_CONSTANTS: chainConstants = {
     startBlock: 3219857,
     updateDelta: 60 * 60, // 1 hour
     priceConnectors: BASE_PRICE_CONNECTORS,
+    v1v2ConnectorBlacklist: new Set([
+      "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189",
+      "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+    ]),
   },
   rewardToken: (blockNumber: number) =>
     "0x940181a94A35A4569E4529A3CDfB74e38FD98631",
@@ -509,6 +522,7 @@ const LISK_CONSTANTS: chainConstants = {
     startBlock: 8380726,
     updateDelta: 60 * 60, // 1 hour
     priceConnectors: LISK_PRICE_CONNECTORS,
+    v1v2ConnectorBlacklist: new Set(),
   },
   rewardToken: (blockNumber: number) =>
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
@@ -555,6 +569,9 @@ const MODE_CONSTANTS: chainConstants = {
     startBlock: 15591759,
     updateDelta: 60 * 60, // 1 hour
     priceConnectors: MODE_PRICE_CONNECTORS,
+    v1v2ConnectorBlacklist: new Set([
+      "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189",
+    ]),
   },
   rewardToken: (blockNumber: number) =>
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
@@ -587,6 +604,7 @@ const CELO_CONSTANTS: chainConstants = {
     startBlock: 31690441,
     updateDelta: 60 * 60, // 1 hour
     priceConnectors: CELO_PRICE_CONNECTORS,
+    v1v2ConnectorBlacklist: new Set(),
   },
   rewardToken: (blockNumber: number) =>
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
@@ -619,6 +637,7 @@ const SONEIUM_CONSTANTS: chainConstants = {
     startBlock: 1863998, // TODO: Get start block
     updateDelta: 60 * 60, // 1 hour
     priceConnectors: SONEIUM_PRICE_CONNECTORS,
+    v1v2ConnectorBlacklist: new Set(),
   },
   rewardToken: (blockNumber: number) =>
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
@@ -651,6 +670,7 @@ const UNICHAIN_CONSTANTS: chainConstants = {
     startBlock: 9415475,
     updateDelta: 60 * 60, // 1 hour
     priceConnectors: UNICHAIN_PRICE_CONNECTORS,
+    v1v2ConnectorBlacklist: new Set(),
   },
   rewardToken: (blockNumber: number) =>
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
@@ -697,6 +717,9 @@ const FRAXTAL_CONSTANTS: chainConstants = {
     startBlock: 12640176,
     updateDelta: 60 * 60, // 1 hour
     priceConnectors: FRAXTAL_PRICE_CONNECTORS,
+    v1v2ConnectorBlacklist: new Set([
+      "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189",
+    ]),
   },
   rewardToken: (blockNumber: number) =>
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
@@ -729,6 +752,7 @@ const INK_CONSTANTS: chainConstants = {
     startBlock: 3361885,
     updateDelta: 60 * 60, // 1 hour
     priceConnectors: INK_PRICE_CONNECTORS,
+    v1v2ConnectorBlacklist: new Set(),
   },
   rewardToken: (blockNumber: number) =>
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
@@ -761,6 +785,7 @@ const METAL_CONSTANTS: chainConstants = {
     startBlock: 11438647,
     updateDelta: 60 * 60, // 1 hour
     priceConnectors: METAL_PRICE_CONNECTORS,
+    v1v2ConnectorBlacklist: new Set(),
   },
   rewardToken: (blockNumber: number) =>
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
@@ -793,6 +818,7 @@ const SWELL_CONSTANTS: chainConstants = {
     startBlock: 3733759,
     updateDelta: 60 * 60, // 1 hour
     priceConnectors: SWELL_PRICE_CONNECTORS,
+    v1v2ConnectorBlacklist: new Set(),
   },
   rewardToken: (blockNumber: number) =>
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
@@ -825,6 +851,7 @@ const SUPERSEED_CONSTANTS: chainConstants = {
     startBlock: 5642528,
     updateDelta: 60 * 60, // 1 hour
     priceConnectors: SUPERSEED_PRICE_CONNECTORS,
+    v1v2ConnectorBlacklist: new Set(),
   },
   rewardToken: (blockNumber: number) =>
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { nfpmForCLPool, toChecksumAddress } from "../src/Constants";
+import {
+  CHAIN_CONSTANTS,
+  nfpmForCLPool,
+  toChecksumAddress,
+} from "../src/Constants";
 
 describe("nfpmForCLPool", () => {
   const OP_CL_FACTORY_OLD = toChecksumAddress(
@@ -86,5 +90,50 @@ describe("nfpmForCLPool", () => {
     ).toBeNull();
     // Optimism factory on wrong chain
     expect(nfpmForCLPool(8453, OP_CL_FACTORY_OLD)).toBeNull();
+  });
+});
+
+describe("oracle.v1v2ConnectorBlacklist (#688)", () => {
+  // Empirically determined connectors that revert V1/V2
+  // `getManyRatesWithConnectors`. Lowercased per filter contract in
+  // src/Effects/RpcGateway.ts.
+  const OUSDT = "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189";
+
+  it("populates the OP V1/V2 poison set", () => {
+    const set = CHAIN_CONSTANTS[10].oracle.v1v2ConnectorBlacklist;
+    expect(set.has("0x01bff41798a0bcf287b996046ca68b395dbc1071")).toBe(true);
+    expect(set.has(OUSDT)).toBe(true);
+  });
+
+  it("populates the Base V1/V2 poison set", () => {
+    const set = CHAIN_CONSTANTS[8453].oracle.v1v2ConnectorBlacklist;
+    expect(set.has(OUSDT)).toBe(true);
+    expect(set.has("0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34")).toBe(true);
+  });
+
+  it("populates Mode and Fraxtal V2 poison sets with oUSDT", () => {
+    expect(
+      CHAIN_CONSTANTS[34443].oracle.v1v2ConnectorBlacklist.has(OUSDT),
+    ).toBe(true);
+    expect(CHAIN_CONSTANTS[252].oracle.v1v2ConnectorBlacklist.has(OUSDT)).toBe(
+      true,
+    );
+  });
+
+  it("leaves V3-only chains with an empty blacklist", () => {
+    // Celo, Soneium, Unichain, Ink, Metal, Swell, Superseed never call V1/V2.
+    for (const chainId of [42220, 1868, 130, 57073, 1750, 1923, 5330]) {
+      expect(CHAIN_CONSTANTS[chainId].oracle.v1v2ConnectorBlacklist.size).toBe(
+        0,
+      );
+    }
+  });
+
+  it("uses lowercase addresses (matches RpcGateway's case-insensitive compare)", () => {
+    for (const chainId of [10, 8453, 34443, 252]) {
+      for (const a of CHAIN_CONSTANTS[chainId].oracle.v1v2ConnectorBlacklist) {
+        expect(a).toBe(a.toLowerCase());
+      }
+    }
   });
 });
