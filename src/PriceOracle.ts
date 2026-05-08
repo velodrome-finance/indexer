@@ -89,11 +89,17 @@ export async function refreshTokenPrice(
     return token;
   }
 
+  // Issue #672: heal empty symbol/name from a transient RPC failure at token
+  // creation. ERC20 metadata is otherwise treated as immutable, so a single
+  // failure during createTokenEntity persists `?` (empty symbol) forever.
+  const healedMetadata = await maybeHealMetadata(token, chainId, context);
+
   // Issue #669: blacklist + canonical rebind override the oracle for known-bad
   // (chain, token) pairs. See src/PriceOverrides.ts for rationale per token.
   if (isBlacklistedToken(chainId, token.address)) {
     const updated: Token = {
       ...token,
+      ...healedMetadata,
       pricePerUSDNew: 0n,
       lastUpdatedTimestamp: new Date(blockTimestampMs),
     };
@@ -136,6 +142,7 @@ export async function refreshTokenPrice(
 
     const updated: Token = {
       ...token,
+      ...healedMetadata,
       pricePerUSDNew: sourcePrice,
       lastUpdatedTimestamp: new Date(blockTimestampMs),
     };
@@ -159,7 +166,9 @@ export async function refreshTokenPrice(
     // Cache key is based on input parameters, so rounding must happen before effect call
     const roundedBlockNumber = roundBlockToInterval(blockNumber, chainId);
 
-    // ERC20 metadata is immutable; populated once at token creation, not refreshed here.
+    // ERC20 metadata is mostly immutable, but symbol/name may have been
+    // persisted as empty due to a transient RPC failure at createTokenEntity
+    // time (issue #672). Heal happens above this try block; price fetch below.
     const priceData = await context.effect(getTokenPrice, {
       tokenAddress: token.address,
       chainId,
@@ -209,6 +218,7 @@ export async function refreshTokenPrice(
       // This ensures we don't keep trying to refresh too frequently
       const updatedToken: Token = {
         ...token,
+        ...healedMetadata,
         lastUpdatedTimestamp: new Date(blockTimestampMs),
       };
       context.Token.set(updatedToken);
@@ -224,6 +234,7 @@ export async function refreshTokenPrice(
       blockNumber >= CHAIN_CONSTANTS[chainId].oracle.startBlock;
     const updatedToken: Token = {
       ...token,
+      ...healedMetadata,
       pricePerUSDNew: currentPrice,
       lastUpdatedTimestamp:
         oracleDeployed && currentPrice === 0n && token.pricePerUSDNew === 0n
@@ -248,5 +259,48 @@ export async function refreshTokenPrice(
     );
     // Return original token if refresh fails - this preserves the last known price
     return token;
+  }
+}
+
+/**
+ * Re-fetches ERC20 metadata when the stored Token entity has an empty symbol or
+ * name (issue #672). createTokenEntity calls getTokenDetails exactly once per
+ * pool's PoolCreated event, so a transient RPC failure persists `?` (empty
+ * symbol) on the Token forever. The Effect already bypasses cache on empty
+ * results, so a fresh call retries the underlying RPC.
+ *
+ * Returns an overlay containing only the fields that were empty on `token` and
+ * came back non-empty from the RPC. Callers spread it: `{ ...token, ...healed }`.
+ * Failures are logged but never thrown — metadata is display-only and must not
+ * abort the price refresh.
+ *
+ * @param token - Existing Token entity (read-only).
+ * @param chainId - Chain to query.
+ * @param context - Envio handler context for the effect call and logging.
+ * @returns `{ symbol?, name? }` overlay; empty object if no heal applied.
+ */
+async function maybeHealMetadata(
+  token: Token,
+  chainId: number,
+  context: handlerContext,
+): Promise<{ symbol?: string; name?: string }> {
+  if (token.symbol && token.name) {
+    return {};
+  }
+
+  try {
+    const details = await context.effect(getTokenDetails, {
+      contractAddress: token.address,
+      chainId,
+    });
+    const overlay: { symbol?: string; name?: string } = {};
+    if (!token.symbol && details.symbol) overlay.symbol = details.symbol;
+    if (!token.name && details.name) overlay.name = details.name;
+    return overlay;
+  } catch (error) {
+    context.log.error(
+      `Error refreshing token metadata for ${token.address} on chain ${chainId}: ${error}`,
+    );
+    return {};
   }
 }
