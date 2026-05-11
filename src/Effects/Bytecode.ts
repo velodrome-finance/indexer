@@ -9,8 +9,12 @@ export { fetchHasContractBytecode } from "./fetchers/Bytecode";
  * addresses (e.g. Lisk 0x1847…34CA) that would otherwise persist Token rows
  * with empty `symbol`/`name` from the static fallback in {@link getTokenDetails}.
  *
- * Caches positive results (bytecode existence is effectively permanent for
- * deployed contracts); skips caching `false` so transient RPC failures retry.
+ * Caching is disabled because {@link handleHasContractBytecode} fails open
+ * (returns `hasCode: true` on transient RPC failure), and a cached `true` would
+ * defeat the gate for that address permanently. The Token row itself acts as
+ * the natural cache: callers `context.Token.get` first and only invoke this
+ * effect for addresses not yet persisted, so at most one `eth_getCode` per
+ * new token address per indexer run.
  *
  * @param input.address - Address to query.
  * @param input.chainId - Chain ID for RPC client.
@@ -27,7 +31,7 @@ export const hasContractBytecode = createEffect(
       hasCode: S.boolean,
     },
     rateLimit: false,
-    cache: true,
+    cache: false,
   },
   async ({ input, context }) => {
     const result = await callRpcGateway(context, {
@@ -35,10 +39,6 @@ export const hasContractBytecode = createEffect(
       address: input.address,
       chainId: input.chainId,
     });
-
-    if (!result.hasCode) {
-      context.cache = false;
-    }
 
     return { hasCode: result.hasCode };
   },

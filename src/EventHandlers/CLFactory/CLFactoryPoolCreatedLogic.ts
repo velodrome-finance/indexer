@@ -69,7 +69,13 @@ export async function processCLFactoryPoolCreated(
       { address: event.params.token1, tokenInstance: poolToken1 },
     ];
 
-    for (const poolTokenAddressMapping of poolTokenAddressMappings) {
+    // Index-based assignment so a transient throw on one token side cannot
+    // shift the other token's symbol into the wrong slot (token0Symbol /
+    // token1Symbol must stay aligned with event.params.token0 / token1).
+    for (const [
+      index,
+      poolTokenAddressMapping,
+    ] of poolTokenAddressMappings.entries()) {
       if (poolTokenAddressMapping.tokenInstance === undefined) {
         try {
           const created = await createTokenEntity(
@@ -86,14 +92,14 @@ export async function processCLFactoryPoolCreated(
             return null;
           }
           poolTokenAddressMapping.tokenInstance = created;
-          poolTokenSymbols.push(created.symbol);
+          poolTokenSymbols[index] = created.symbol;
         } catch (error) {
           context.log.error(
             `Error in cl factory fetching token details for ${poolTokenAddressMapping.address} on chain ${event.chainId}: ${error}`,
           );
         }
       } else {
-        poolTokenSymbols.push(poolTokenAddressMapping.tokenInstance.symbol);
+        poolTokenSymbols[index] = poolTokenAddressMapping.tokenInstance.symbol;
       }
     }
 
