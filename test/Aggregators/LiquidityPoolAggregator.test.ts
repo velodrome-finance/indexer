@@ -1241,7 +1241,7 @@ describe("LiquidityPoolAggregator Functions", () => {
     });
 
     it("refreshes a $0 token once the hourly throttle has elapsed (#676 — no more 30-day trap)", async () => {
-      const now = new Date();
+      const now = new Date("2024-01-01T12:00:00Z");
       const overOneHourAgo = new Date(now.getTime() - 61 * 60 * 1000);
       token0 = {
         ...token0,
@@ -1263,7 +1263,7 @@ describe("LiquidityPoolAggregator Functions", () => {
       });
 
       const blockNumber = 1000000;
-      const blockTimestamp = Math.floor(Date.now() / 1000);
+      const blockTimestamp = Math.floor(now.getTime() / 1000);
       const newPrice0 = 1000000n; // $1.00
 
       // Mock effect to return new price and token details
