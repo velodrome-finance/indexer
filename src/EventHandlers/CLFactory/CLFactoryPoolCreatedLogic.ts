@@ -47,7 +47,10 @@ export interface CLPoolPendingInitializeInput {
  * @param feeToTickSpacingMapping - FeeToTickSpacingMapping for this pool's tick spacing
  * @param context - The handler context
  * @param pendingInitialize - Optional opening price buffered by CLPool.Initialize
- * @returns The constructed aggregator, ready for `context.LiquidityPoolAggregator.set`
+ * @returns The constructed aggregator, or `null` when the bytecode gate (#677)
+ *   confirmed either token side is a non-contract — caller should skip
+ *   `context.LiquidityPoolAggregator.set` and any root-pool flush so no
+ *   dangling token references are persisted.
  */
 export async function processCLFactoryPoolCreated(
   event: CLFactory_PoolCreated_event,
@@ -58,7 +61,7 @@ export async function processCLFactoryPoolCreated(
   feeToTickSpacingMapping: FeeToTickSpacingMapping,
   context: handlerContext,
   pendingInitialize?: CLPoolPendingInitializeInput,
-): Promise<CLFactoryPoolCreatedResult> {
+): Promise<CLFactoryPoolCreatedResult | null> {
   try {
     const poolTokenSymbols: string[] = [];
     const poolTokenAddressMappings: TokenEntityMapping[] = [
@@ -66,7 +69,6 @@ export async function processCLFactoryPoolCreated(
       { address: event.params.token1, tokenInstance: poolToken1 },
     ];
 
-    // Handle token creation and validation
     for (const poolTokenAddressMapping of poolTokenAddressMappings) {
       if (poolTokenAddressMapping.tokenInstance === undefined) {
         try {
@@ -77,10 +79,14 @@ export async function processCLFactoryPoolCreated(
             context,
             event.block.timestamp,
           );
-          if (created) {
-            poolTokenAddressMapping.tokenInstance = created;
-            poolTokenSymbols.push(created.symbol);
+          if (created === null) {
+            context.log.warn(
+              `[CLFactory.PoolCreated] Skipping LiquidityPoolAggregator for pool ${event.params.pool} on chain ${event.chainId} — non-contract token side`,
+            );
+            return null;
           }
+          poolTokenAddressMapping.tokenInstance = created;
+          poolTokenSymbols.push(created.symbol);
         } catch (error) {
           context.log.error(
             `Error in cl factory fetching token details for ${poolTokenAddressMapping.address} on chain ${event.chainId}: ${error}`,

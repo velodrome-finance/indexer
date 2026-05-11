@@ -24,8 +24,17 @@ describe("PoolFactory Events", () => {
     createMockLiquidityPoolAggregator,
   } = setupCommon();
   const poolAddress = mockLiquidityPoolData.poolAddress;
-  const token0Address = mockToken0Data.address;
-  const token1Address = mockToken1Data.address;
+  // Real Optimism contracts (WETH, USDC.e) so the #677 hasContractBytecode
+  // gate doesn't short-circuit pool creation: eth_getCode returns bytecode
+  // for both on the public RPC. The shared mockToken0Data/mockToken1Data
+  // are still used for symbol/decimals data via the (no-op) createTokenEntity
+  // spy below.
+  const token0Address = toChecksumAddress(
+    "0x4200000000000000000000000000000000000006",
+  );
+  const token1Address = toChecksumAddress(
+    "0x7F5c764cBc14f9669B88837ca1490cCa17c31607",
+  );
   const chainId = 10;
 
   let mockPriceOracle: MockInstance;
@@ -91,6 +100,37 @@ describe("PoolFactory Events", () => {
       expect(mockPriceOracle).toHaveBeenCalled();
       // Handlers may run multiple times (preload + normal), so check if called at least twice (once per token)
       expect(mockPriceOracle.mock.calls.length).toBeGreaterThanOrEqual(2);
+    });
+
+    // Issue #677 follow-up: when createTokenEntity returns null (bytecode
+    // gate confirmed the address is a non-contract), no LiquidityPoolAggregator
+    // is created so we don't persist a pool pointing at a token row that was
+    // deliberately not written. Uses a placeholder address for token0 that
+    // has no on-chain bytecode on Optimism.
+    it("should skip LiquidityPoolAggregator when token has no bytecode", async () => {
+      const noBytecodeToken = toChecksumAddress(
+        "0x1111111111111111111111111111111111111111",
+      );
+      const mockDb = MockDb.createMockDb();
+      const mockEvent = PoolFactory.PoolCreated.createMockEvent({
+        token0: noBytecodeToken as `0x${string}`,
+        token1: token1Address as `0x${string}`,
+        pool: poolAddress as `0x${string}`,
+        stable: false,
+        mockEventData: {
+          block: {
+            timestamp: 1000000,
+            hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+          },
+          chainId,
+          logIndex: 1,
+        },
+      });
+      const result = await mockDb.processEvents([mockEvent]);
+      const pool = result.entities.LiquidityPoolAggregator.get(
+        PoolId(chainId, poolAddress),
+      );
+      expect(pool).toBeUndefined();
     });
 
     it("should continue when createTokenEntity rejects for one token", async () => {

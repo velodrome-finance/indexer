@@ -1,5 +1,5 @@
 import { PoolFactory } from "generated";
-import type { LiquidityPoolAggregator } from "generated";
+import type { LiquidityPoolAggregator, Token } from "generated";
 import {
   createLiquidityPoolAggregatorEntity,
   updateLiquidityPoolAggregator,
@@ -40,27 +40,38 @@ PoolFactory.PoolCreated.handler(async ({ event, context }) => {
   );
 
   if (missingTokenMappings.length > 0) {
-    const createTokenPromises = missingTokenMappings.map((mapping) =>
-      createTokenEntity(
-        mapping.address,
-        event.chainId,
-        event.block.number,
-        context,
-        event.block.timestamp,
-      ).catch((error) => {
-        context.log.error(
-          `Error in pool factory fetching token details for ${mapping.address} on chain ${event.chainId}: ${error}`,
-        );
-        return null;
-      }),
+    // createTokenEntity returns `null` only when the bytecode gate confirms
+    // the address is a non-contract (issue #677). Distinguish that from a
+    // thrown error (transient RPC failure) which `.catch` maps to `undefined`
+    // — only the former triggers the pool-boundary skip below.
+    const createTokenPromises = missingTokenMappings.map(
+      (mapping): Promise<Token | null | undefined> =>
+        createTokenEntity(
+          mapping.address,
+          event.chainId,
+          event.block.number,
+          context,
+          event.block.timestamp,
+        ).catch((error) => {
+          context.log.error(
+            `Error in pool factory fetching token details for ${mapping.address} on chain ${event.chainId}: ${error}`,
+          );
+          return undefined;
+        }),
     );
 
     const createdTokens = await Promise.all(createTokenPromises);
 
-    // Update mappings with created tokens
     for (let i = 0; i < missingTokenMappings.length; i++) {
-      if (createdTokens[i]) {
-        missingTokenMappings[i].tokenInstance = createdTokens[i] ?? undefined;
+      const created = createdTokens[i];
+      if (created === null) {
+        context.log.warn(
+          `[PoolFactory.PoolCreated] Skipping LiquidityPoolAggregator for pool ${event.params.pool} on chain ${event.chainId} — non-contract token side`,
+        );
+        return;
+      }
+      if (created !== undefined) {
+        missingTokenMappings[i].tokenInstance = created;
       }
     }
   }
