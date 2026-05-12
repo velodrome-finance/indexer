@@ -136,6 +136,12 @@ export function createReadableError(
  * All effects should return fallback values to prevent indexer crashes.
  * Errors are always logged for debugging purposes.
  *
+ * Log level is differentiated by error class (issue #692): a deterministic
+ * `CONTRACT_REVERT` is logged at `warn` (expected when a token / pool is
+ * non-standard at the queried block), while every other class — RPC outages,
+ * rate limits, network errors — is logged at `error` so on-call gets paged
+ * on real upstream incidents.
+ *
  * @param error - The original error
  * @param context - Effect context with cache and log
  * @param effectName - Name of the effect (e.g., "getTokenDetails")
@@ -147,7 +153,10 @@ export function handleEffectErrorReturn<T>(
   error: unknown,
   context: {
     cache?: boolean;
-    log: { error: (msg: string, err: Error) => void };
+    log: {
+      error: (msg: string, err: Error) => void;
+      warn: (msg: string) => void;
+    };
   },
   effectName: string,
   details: Record<string, string | number>,
@@ -155,6 +164,10 @@ export function handleEffectErrorReturn<T>(
 ): T {
   context.cache = false;
   const readableError = createReadableError(error, `[${effectName}]`, details);
-  context.log.error(readableError.message, readableError);
+  if (getErrorType(error) === ErrorType.CONTRACT_REVERT) {
+    context.log.warn(readableError.message);
+  } else {
+    context.log.error(readableError.message, readableError);
+  }
   return fallbackValue;
 }

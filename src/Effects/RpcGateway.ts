@@ -57,6 +57,7 @@ const RPC_GATEWAY_OPERATIONS = {
       decimals: S.number,
       symbol: S.string,
       usedDefault: S.boolean,
+      errorClass: S.nullable(S.string),
     },
   },
   [EffectType.GET_TOKEN_PRICE]: {
@@ -70,6 +71,7 @@ const RPC_GATEWAY_OPERATIONS = {
       pricePerUSDNew: S.bigint,
       priceOracleType: S.string,
       usedDefault: S.boolean,
+      errorClass: S.nullable(S.string),
     },
   },
   [EffectType.GET_TOKENS_DEPOSITED]: {
@@ -83,6 +85,7 @@ const RPC_GATEWAY_OPERATIONS = {
     outputSchema: {
       value: S.optional(S.bigint),
       usedDefault: S.boolean,
+      errorClass: S.nullable(S.string),
     },
   },
   [EffectType.GET_SWAP_FEE]: {
@@ -96,6 +99,7 @@ const RPC_GATEWAY_OPERATIONS = {
     outputSchema: {
       value: S.optional(S.bigint),
       usedDefault: S.boolean,
+      errorClass: S.nullable(S.string),
     },
   },
   [EffectType.GET_ROOT_POOL_ADDRESS]: {
@@ -110,6 +114,7 @@ const RPC_GATEWAY_OPERATIONS = {
     outputSchema: {
       value: S.string,
       usedDefault: S.boolean,
+      errorClass: S.nullable(S.string),
     },
   },
   [EffectType.HAS_CONTRACT_BYTECODE]: {
@@ -121,6 +126,7 @@ const RPC_GATEWAY_OPERATIONS = {
     outputSchema: {
       hasCode: S.boolean,
       usedDefault: S.boolean,
+      errorClass: S.nullable(S.string),
     },
   },
 } as const satisfies Record<
@@ -204,24 +210,33 @@ export type RpcGatewayOutputByType = {
     decimals: number;
     symbol: string;
     usedDefault: boolean;
+    errorClass: string | undefined;
   };
   [EffectType.GET_TOKEN_PRICE]: {
     pricePerUSDNew: bigint;
     priceOracleType: string;
     usedDefault: boolean;
+    errorClass: string | undefined;
   };
   [EffectType.GET_TOKENS_DEPOSITED]: {
     value: bigint | undefined;
     usedDefault: boolean;
+    errorClass: string | undefined;
   };
   [EffectType.GET_SWAP_FEE]: {
     value: bigint | undefined;
     usedDefault: boolean;
+    errorClass: string | undefined;
   };
-  [EffectType.GET_ROOT_POOL_ADDRESS]: { value: string; usedDefault: boolean };
+  [EffectType.GET_ROOT_POOL_ADDRESS]: {
+    value: string;
+    usedDefault: boolean;
+    errorClass: string | undefined;
+  };
   [EffectType.HAS_CONTRACT_BYTECODE]: {
     hasCode: boolean;
     usedDefault: boolean;
+    errorClass: string | undefined;
   };
 };
 
@@ -340,7 +355,7 @@ async function handleGetTokenDetails(
     ? () => fetchTokenDetails(i.contractAddress, fallbackClient)
     : undefined;
 
-  const { value, usedDefault } = await executeRpcWithFallback(
+  const { value, usedDefault, errorClass } = await executeRpcWithFallback(
     context,
     operationName,
     logDetails,
@@ -349,7 +364,7 @@ async function handleGetTokenDetails(
     fallbackFetcher,
   );
 
-  return { ...value, usedDefault };
+  return { ...value, usedDefault, errorClass };
 }
 
 /**
@@ -373,6 +388,7 @@ async function handleGetTokenPrice(
       pricePerUSDNew: 0n,
       priceOracleType: "unknown",
       usedDefault: true,
+      errorClass: ErrorType.UNKNOWN,
     };
   }
   const DESTINATION_TOKEN_ADDRESS = chain.destinationToken;
@@ -382,6 +398,7 @@ async function handleGetTokenPrice(
       pricePerUSDNew: 10n ** 18n,
       priceOracleType: chain.oracle.getType(blockNumber).toString(),
       usedDefault: false,
+      errorClass: undefined,
     };
   }
 
@@ -390,6 +407,7 @@ async function handleGetTokenPrice(
       pricePerUSDNew: 10n ** 18n,
       priceOracleType: chain.oracle.getType(blockNumber).toString(),
       usedDefault: false,
+      errorClass: undefined,
     };
   }
 
@@ -432,6 +450,7 @@ async function handleGetTokenPrice(
       pricePerUSDNew: 0n,
       priceOracleType: chain.oracle.getType(blockNumber).toString(),
       usedDefault: false,
+      errorClass: undefined,
     };
   }
 
@@ -507,11 +526,41 @@ async function handleGetTokenPrice(
     tokenDetails.usedDefault ||
     destinationTokenDetails.usedDefault;
 
+  // Compose errorClass across the three legs: a single transient/network leg
+  // forces the whole result to look transient (less cacheable) even if the
+  // other legs reverted deterministically. Only when every defaulted leg is
+  // CONTRACT_REVERT does the composed result inherit the cacheable revert
+  // class. Stays null when no leg defaulted.
+  const errorClass = mostCacheBlockingErrorClass(
+    priceResult.errorClass,
+    tokenDetails.errorClass,
+    destinationTokenDetails.errorClass,
+  );
+
   return {
     pricePerUSDNew: currentPrice,
     priceOracleType: chain.oracle.getType(blockNumber).toString(),
     usedDefault,
+    errorClass,
   };
+}
+
+/**
+ * Picks the errorClass that should drive the cache decision when multiple
+ * fallback legs are composed. A transient class (anything that isn't
+ * {@link ErrorType.CONTRACT_REVERT}) outranks a revert, so the caller sees the
+ * worst-cacheability signal across legs. Returns null when no leg defaulted.
+ *
+ * @param classes - Per-leg error classes (null for legs that didn't default).
+ * @returns A non-revert class if any leg has one; otherwise the first revert; otherwise null.
+ */
+function mostCacheBlockingErrorClass(
+  ...classes: (ErrorType | undefined)[]
+): ErrorType | undefined {
+  const present = classes.filter((c): c is ErrorType => c !== undefined);
+  if (present.length === 0) return undefined;
+  const nonRevert = present.find((c) => c !== ErrorType.CONTRACT_REVERT);
+  return nonRevert ?? present[0];
 }
 
 /**
@@ -543,7 +592,7 @@ async function handleGetTokensDeposited(
     );
   };
 
-  const { value, usedDefault } = await executeRpcWithFallback(
+  const { value, usedDefault, errorClass } = await executeRpcWithFallback(
     context,
     operationName,
     logDetails,
@@ -551,7 +600,7 @@ async function handleGetTokensDeposited(
     fetcher,
   );
 
-  return { value, usedDefault };
+  return { value, usedDefault, errorClass };
 }
 
 /**
@@ -584,7 +633,7 @@ async function handleGetSwapFee(
     );
   };
 
-  const { value, usedDefault } = await executeRpcWithFallback(
+  const { value, usedDefault, errorClass } = await executeRpcWithFallback(
     context,
     operationName,
     logDetails,
@@ -592,7 +641,7 @@ async function handleGetSwapFee(
     fetcher,
   );
 
-  return { value, usedDefault };
+  return { value, usedDefault, errorClass };
 }
 
 /**
@@ -623,7 +672,7 @@ async function handleGetRootPoolAddress(
     );
   };
 
-  const { value, usedDefault } = await executeRpcWithFallback(
+  const { value, usedDefault, errorClass } = await executeRpcWithFallback(
     context,
     operationName,
     logDetails,
@@ -631,7 +680,7 @@ async function handleGetRootPoolAddress(
     fetcher,
   );
 
-  return { value, usedDefault };
+  return { value, usedDefault, errorClass };
 }
 
 /**
@@ -662,7 +711,7 @@ async function handleHasContractBytecode(
     ? () => fetchHasContractBytecode(i.address, fallbackClient)
     : undefined;
 
-  const { value, usedDefault } = await executeRpcWithFallback(
+  const { value, usedDefault, errorClass } = await executeRpcWithFallback(
     context,
     operationName,
     logDetails,
@@ -671,7 +720,7 @@ async function handleHasContractBytecode(
     fallbackFetcher,
   );
 
-  return { hasCode: value, usedDefault };
+  return { hasCode: value, usedDefault, errorClass };
 }
 
 /**
@@ -680,8 +729,17 @@ async function handleHasContractBytecode(
  * caller-supplied `fallback` constant was returned. A real answer from either RPC
  * yields `usedDefault: false`. Outer effects use this to drive cache decisions
  * without resorting to value-shape heuristics (issue #691).
+ *
+ * `errorClass` carries the {@link ErrorType} of the underlying failure on the
+ * fail-open path (`usedDefault: true`) and is `undefined` on success. Outer
+ * effects use it to keep deterministic-revert fallbacks cached while still
+ * skipping transient-RPC failures (issue #692) and to differentiate log levels.
  */
-export type RpcResult<T> = { value: T; usedDefault: boolean };
+export type RpcResult<T> = {
+  value: T;
+  usedDefault: boolean;
+  errorClass: ErrorType | undefined;
+};
 
 /**
  * Runs an RPC operation with retry; on any throw, logs via {@link handleEffectErrorReturn}
@@ -724,7 +782,7 @@ export async function executeRpcWithFallback<T>(
 ): Promise<RpcResult<T>> {
   try {
     const value = await runWithRpcRetry(fn);
-    return { value, usedDefault: false };
+    return { value, usedDefault: false, errorClass: undefined };
   } catch (primaryError) {
     if (fallbackFn && shouldAttemptFallback(primaryError)) {
       const primaryType = getErrorType(primaryError);
@@ -733,7 +791,7 @@ export async function executeRpcWithFallback<T>(
       );
       try {
         const value = await runWithRpcRetry(fallbackFn);
-        return { value, usedDefault: false };
+        return { value, usedDefault: false, errorClass: undefined };
       } catch (fallbackError) {
         const value = handleEffectErrorReturn(
           fallbackError,
@@ -742,7 +800,11 @@ export async function executeRpcWithFallback<T>(
           logDetails,
           fallback,
         );
-        return { value, usedDefault: true };
+        return {
+          value,
+          usedDefault: true,
+          errorClass: getErrorType(fallbackError),
+        };
       }
     }
     const value = handleEffectErrorReturn(
@@ -752,7 +814,11 @@ export async function executeRpcWithFallback<T>(
       logDetails,
       fallback,
     );
-    return { value, usedDefault: true };
+    return {
+      value,
+      usedDefault: true,
+      errorClass: getErrorType(primaryError),
+    };
   }
 }
 

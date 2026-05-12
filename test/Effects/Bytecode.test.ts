@@ -25,6 +25,7 @@ describe("hasContractBytecode", () => {
     vi.spyOn(RpcGatewayModule, "callRpcGateway").mockResolvedValue({
       hasCode: true,
       usedDefault: false,
+      errorClass: undefined,
     } as never);
 
     const result = await mockContext.effect(hasContractBytecode as never, {
@@ -36,11 +37,12 @@ describe("hasContractBytecode", () => {
     expect(mockContext.cache).toBeUndefined();
   });
 
-  it("disables cache for this run when the gateway used the fail-open default (usedDefault:true)", async () => {
+  it("disables cache for this run when the fail-open default fires on a transient error (usedDefault:true, NETWORK_ERROR)", async () => {
     mockContext.cache = undefined;
     vi.spyOn(RpcGatewayModule, "callRpcGateway").mockResolvedValue({
       hasCode: true,
       usedDefault: true,
+      errorClass: "NETWORK_ERROR",
     } as never);
 
     const result = await mockContext.effect(hasContractBytecode as never, {
@@ -52,11 +54,28 @@ describe("hasContractBytecode", () => {
     expect(mockContext.cache).toBe(false);
   });
 
+  it("keeps cache on for deterministic-revert fallbacks (errorClass:CONTRACT_REVERT, issue #692)", async () => {
+    mockContext.cache = undefined;
+    vi.spyOn(RpcGatewayModule, "callRpcGateway").mockResolvedValue({
+      hasCode: true,
+      usedDefault: true,
+      errorClass: "CONTRACT_REVERT",
+    } as never);
+
+    await mockContext.effect(hasContractBytecode as never, {
+      address: TEST_ADDRESS,
+      chainId: TEST_CHAIN_ID,
+    });
+
+    expect(mockContext.cache).toBeUndefined();
+  });
+
   it("does not disable cache for a real hasCode:false (EOA) result", async () => {
     mockContext.cache = undefined;
     vi.spyOn(RpcGatewayModule, "callRpcGateway").mockResolvedValue({
       hasCode: false,
       usedDefault: false,
+      errorClass: undefined,
     } as never);
 
     await mockContext.effect(hasContractBytecode as never, {

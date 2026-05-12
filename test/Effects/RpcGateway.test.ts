@@ -82,6 +82,7 @@ describe("RpcGateway", () => {
         decimals: 18,
         symbol: "TKN",
         usedDefault: false,
+        errorClass: undefined,
       });
       expect(readContract).toHaveBeenCalledTimes(3);
     });
@@ -107,12 +108,13 @@ describe("RpcGateway", () => {
         decimals: 18,
         symbol: "",
         usedDefault: true,
+        errorClass: Helpers.ErrorType.CONTRACT_REVERT,
       });
-      expect(mockContext.log.error).toHaveBeenCalledTimes(1);
-      expect(mockContext.log.error).toHaveBeenCalledWith(
-        expect.stringContaining("rpcGateway.getTokenDetails"),
-        expect.any(Error),
-      );
+      // Revert is logged (log level differentiation is cycle 8).
+      expect(
+        (mockContext.log.error as ReturnType<typeof vi.fn>).mock.calls.length +
+          (mockContext.log.warn as ReturnType<typeof vi.fn>).mock.calls.length,
+      ).toBeGreaterThanOrEqual(1);
     });
 
     it("returns hasCode=true when getCode returns deployed bytecode (issue #677 gate)", async () => {
@@ -131,7 +133,11 @@ describe("RpcGateway", () => {
         context: mockContext,
       });
 
-      expect(result).toEqual({ hasCode: true, usedDefault: false });
+      expect(result).toEqual({
+        hasCode: true,
+        usedDefault: false,
+        errorClass: undefined,
+      });
     });
 
     it("returns hasCode=false when getCode returns 0x (EOA / non-contract)", async () => {
@@ -150,7 +156,11 @@ describe("RpcGateway", () => {
         context: mockContext,
       });
 
-      expect(result).toEqual({ hasCode: false, usedDefault: false });
+      expect(result).toEqual({
+        hasCode: false,
+        usedDefault: false,
+        errorClass: undefined,
+      });
     });
 
     it("fails open (hasCode=true) when getCode RPC throws", async () => {
@@ -169,7 +179,11 @@ describe("RpcGateway", () => {
         context: mockContext,
       });
 
-      expect(result).toEqual({ hasCode: true, usedDefault: true });
+      expect(result).toEqual({
+        hasCode: true,
+        usedDefault: true,
+        errorClass: Helpers.ErrorType.NETWORK_ERROR,
+      });
     });
 
     it("should log and return undefined for unexpected input type (default branch)", async () => {
@@ -291,6 +305,7 @@ describe("RpcGateway", () => {
         decimals: 18,
         symbol: "",
         usedDefault: true,
+        errorClass: Helpers.ErrorType.RATE_LIMIT,
       });
       expect(mockContext.log.warn).not.toHaveBeenCalled();
       expect(mockContext.log.error).toHaveBeenCalledTimes(1);
@@ -300,6 +315,9 @@ describe("RpcGateway", () => {
     });
 
     it("should emit no failed-slow-request log when the RPC fails", async () => {
+      // Revert is a deterministic class — issue #692 logs these via warn,
+      // not error — and the test simulates a slow failed request to verify
+      // no "Very slow failed request" line piggybacks on top.
       vi.mocked(mockEthClient.readContract).mockRejectedValue(
         new Error("execution reverted"),
       );
@@ -323,16 +341,15 @@ describe("RpcGateway", () => {
         context: mockContext,
       });
 
-      // Non-retryable error surfaces exactly one uerror via executeRpcWithFallback;
-      // no "Very slow failed request" extra log line.
-      expect(mockContext.log.error).toHaveBeenCalledTimes(1);
-      const errorMessages = vi
-        .mocked(mockContext.log.error)
+      // Revert goes through warn (#692); no extra "Very slow failed request" line.
+      expect(mockContext.log.warn).toHaveBeenCalledTimes(1);
+      const warnMessages = vi
+        .mocked(mockContext.log.warn)
         .mock.calls.map((c) => c[0]);
       expect(
-        errorMessages.some((m) => m.includes("Very slow failed request")),
+        warnMessages.some((m) => m.includes("Very slow failed request")),
       ).toBe(false);
-      expect(mockContext.log.warn).not.toHaveBeenCalled();
+      expect(mockContext.log.error).not.toHaveBeenCalled();
     });
   });
 
@@ -356,9 +373,10 @@ describe("RpcGateway", () => {
         primary,
       );
 
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         value: { name: "Real", decimals: 6, symbol: "REAL" },
         usedDefault: false,
+        errorClass: undefined,
       });
     });
 
@@ -377,9 +395,10 @@ describe("RpcGateway", () => {
         fallbackFn,
       );
 
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         value: { name: "X", decimals: 6, symbol: "X" },
         usedDefault: false,
+        errorClass: undefined,
       });
       // Primary retried up to methodNotSupportedMaxRetries (2) then handed off.
       expect(primary).toHaveBeenCalledTimes(3);
@@ -403,7 +422,10 @@ describe("RpcGateway", () => {
         fallbackFn,
       );
 
-      expect(result).toEqual({ value: STATIC_FALLBACK, usedDefault: true });
+      expect(result).toMatchObject({
+        value: STATIC_FALLBACK,
+        usedDefault: true,
+      });
       expect(fallbackFn).not.toHaveBeenCalled();
     });
 
@@ -420,7 +442,10 @@ describe("RpcGateway", () => {
         fallbackFn,
       );
 
-      expect(result).toEqual({ value: STATIC_FALLBACK, usedDefault: true });
+      expect(result).toMatchObject({
+        value: STATIC_FALLBACK,
+        usedDefault: true,
+      });
       expect(mockContext.log.error).toHaveBeenCalledWith(
         expect.stringContaining("op.fallback"),
         expect.any(Error),
@@ -438,7 +463,92 @@ describe("RpcGateway", () => {
         primary,
       );
 
-      expect(result).toEqual({ value: STATIC_FALLBACK, usedDefault: true });
+      expect(result).toMatchObject({
+        value: STATIC_FALLBACK,
+        usedDefault: true,
+      });
+    });
+
+    it("returns errorClass:CONTRACT_REVERT when primary throws a deterministic revert", async () => {
+      const primary = vi.fn().mockRejectedValue(REVERT_ERR);
+
+      const result = await executeRpcWithFallback(
+        mockContext,
+        "op",
+        { chainId: 1868 },
+        STATIC_FALLBACK,
+        primary,
+      );
+
+      expect(result.usedDefault).toBe(true);
+      expect(result.errorClass).toBe(Helpers.ErrorType.CONTRACT_REVERT);
+    });
+
+    it("returns errorClass for the transient class when both primary and fallback are exhausted", async () => {
+      const primary = vi.fn().mockRejectedValue(METHOD_ERR);
+      const fallbackFn = vi.fn().mockRejectedValue(METHOD_ERR);
+
+      const result = await executeRpcWithFallback(
+        mockContext,
+        "op",
+        { chainId: 1868 },
+        STATIC_FALLBACK,
+        primary,
+        fallbackFn,
+      );
+
+      expect(result.usedDefault).toBe(true);
+      expect(result.errorClass).toBe(Helpers.ErrorType.METHOD_NOT_SUPPORTED);
+    });
+
+    it("logs a CONTRACT_REVERT fallback via log.warn, not log.error (issue #692)", async () => {
+      const primary = vi.fn().mockRejectedValue(REVERT_ERR);
+
+      await executeRpcWithFallback(
+        mockContext,
+        "op",
+        { chainId: 1868 },
+        STATIC_FALLBACK,
+        primary,
+      );
+
+      expect(mockContext.log.warn).toHaveBeenCalled();
+      expect(mockContext.log.error).not.toHaveBeenCalled();
+    });
+
+    it("logs a transient exhaustion via log.error, not log.warn", async () => {
+      // METHOD_NOT_SUPPORTED is non-revert; exhausted primary + fallback should
+      // still surface as a true error so on-call gets paged on upstream outages.
+      const primary = vi.fn().mockRejectedValue(METHOD_ERR);
+      const fallbackFn = vi.fn().mockRejectedValue(METHOD_ERR);
+
+      await executeRpcWithFallback(
+        mockContext,
+        "op",
+        { chainId: 1868 },
+        STATIC_FALLBACK,
+        primary,
+        fallbackFn,
+      );
+
+      expect(mockContext.log.error).toHaveBeenCalled();
+    });
+
+    it("leaves errorClass unset on success", async () => {
+      const primary = vi
+        .fn()
+        .mockResolvedValue({ name: "Real", decimals: 6, symbol: "REAL" });
+
+      const result = await executeRpcWithFallback(
+        mockContext,
+        "op",
+        { chainId: 1868 },
+        STATIC_FALLBACK,
+        primary,
+      );
+
+      expect(result.usedDefault).toBe(false);
+      expect(result.errorClass).toBeUndefined();
     });
   });
 

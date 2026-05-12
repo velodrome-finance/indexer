@@ -179,12 +179,13 @@ describe("Token Effects", () => {
       expect(getTokenDetails).toHaveProperty("name", "getTokenDetails");
     });
 
-    it("should set context.cache = false when gateway signals usedDefault:true", async () => {
+    it("should set context.cache = false when gateway signals usedDefault:true with a transient errorClass", async () => {
       vi.spyOn(RpcGatewayModule, "callRpcGateway").mockResolvedValue({
         name: "",
         decimals: 18,
         symbol: "",
         usedDefault: true,
+        errorClass: "NETWORK_ERROR",
       } as never);
 
       expect(mockContext.cache).toBeUndefined();
@@ -197,12 +198,33 @@ describe("Token Effects", () => {
       expect(mockContext.cache).toBe(false);
     });
 
+    it("keeps cache on for deterministic-revert fallbacks (errorClass:CONTRACT_REVERT, issue #692)", async () => {
+      // A revert at block N is deterministic — re-fetching the same block
+      // would produce the same revert — so the fallback constant is safe to
+      // cache. Only transient classes should skip caching.
+      vi.spyOn(RpcGatewayModule, "callRpcGateway").mockResolvedValue({
+        name: "",
+        decimals: 18,
+        symbol: "",
+        usedDefault: true,
+        errorClass: "CONTRACT_REVERT",
+      } as never);
+
+      await mockContext.effect(getTokenDetails as never, {
+        contractAddress: TEST_TOKEN_ADDRESS,
+        chainId: TEST_CHAIN_ID,
+      });
+
+      expect(mockContext.cache).toBeUndefined();
+    });
+
     it("should NOT set context.cache = false for a real token result", async () => {
       vi.spyOn(RpcGatewayModule, "callRpcGateway").mockResolvedValue({
         name: "Wrapped Ether",
         decimals: 18,
         symbol: "WETH",
         usedDefault: false,
+        errorClass: undefined,
       } as never);
 
       await mockContext.effect(getTokenDetails as never, {
@@ -219,6 +241,7 @@ describe("Token Effects", () => {
         decimals: 0,
         symbol: "IDRX",
         usedDefault: false,
+        errorClass: undefined,
       } as never);
 
       await mockContext.effect(getTokenDetails as never, {
@@ -238,6 +261,7 @@ describe("Token Effects", () => {
         decimals: 18,
         symbol: "",
         usedDefault: false,
+        errorClass: undefined,
       } as never);
 
       await mockContext.effect(getTokenDetails as never, {
@@ -315,11 +339,12 @@ describe("Token Effects", () => {
       expect(TokenEffects.fetchTokenPrice).not.toHaveBeenCalled();
     });
 
-    it("should set context.cache = false when gateway signals usedDefault:true", async () => {
+    it("should set context.cache = false when gateway signals usedDefault:true with a transient errorClass", async () => {
       vi.spyOn(RpcGatewayModule, "callRpcGateway").mockResolvedValue({
         pricePerUSDNew: 0n,
         priceOracleType: PriceOracleType.V3.toString(),
         usedDefault: true,
+        errorClass: "NETWORK_ERROR",
       } as never);
 
       // Ensure cache starts as undefined (default)
@@ -334,11 +359,29 @@ describe("Token Effects", () => {
       expect(mockContext.cache).toBe(false);
     });
 
+    it("keeps cache on for deterministic-revert fallbacks (errorClass:CONTRACT_REVERT, issue #692)", async () => {
+      vi.spyOn(RpcGatewayModule, "callRpcGateway").mockResolvedValue({
+        pricePerUSDNew: 0n,
+        priceOracleType: PriceOracleType.V3.toString(),
+        usedDefault: true,
+        errorClass: "CONTRACT_REVERT",
+      } as never);
+
+      await mockContext.effect(getTokenPrice as never, {
+        tokenAddress: TEST_TOKEN_ADDRESS,
+        chainId: TEST_CHAIN_ID,
+        blockNumber: TEST_BLOCK_NUMBER,
+      });
+
+      expect(mockContext.cache).toBeUndefined();
+    });
+
     it("should NOT set context.cache = false when oracle returns non-zero price", async () => {
       vi.spyOn(RpcGatewayModule, "callRpcGateway").mockResolvedValue({
         pricePerUSDNew: 2000000000000000000n,
         priceOracleType: PriceOracleType.V3.toString(),
         usedDefault: false,
+        errorClass: undefined,
       } as never);
 
       await mockContext.effect(getTokenPrice as never, {
@@ -356,6 +399,7 @@ describe("Token Effects", () => {
         pricePerUSDNew: 0n,
         priceOracleType: PriceOracleType.V3.toString(),
         usedDefault: false,
+        errorClass: undefined,
       } as never);
 
       await mockContext.effect(getTokenPrice as never, {
