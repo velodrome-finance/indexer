@@ -208,7 +208,7 @@ export async function refreshTokenPrice(
       chainId,
       blockNumber: roundedBlockNumber,
     });
-    const currentPrice = priceData.pricePerUSDNew;
+    let currentPrice = priceData.pricePerUSDNew;
 
     // Issue #668: reject refreshes that jump ≥10× vs a still-fresh accepted
     // anchor. First-fetch (anchor == 0) and stale-anchor (anchor older than
