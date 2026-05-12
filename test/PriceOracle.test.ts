@@ -84,6 +84,9 @@ describe("PriceOracle", () => {
         symbol: "TEST",
       };
     }
+    if (name === "hasContractBytecode") {
+      return { hasCode: true };
+    }
     return {};
   };
 
@@ -1309,7 +1312,7 @@ describe("PriceOracle", () => {
         blockTimestamp,
       );
 
-      expect(token).toBeDefined();
+      if (!token) throw new Error("expected token to be created");
       expect(token.address).toBe(tokenAddress);
       expect(token.symbol).toBe("TEST");
       expect(token.name).toBe("Test Token");
@@ -1345,12 +1348,60 @@ describe("PriceOracle", () => {
         blockTimestamp,
       );
 
-      expect(vi.mocked(mockContext.effect)).toHaveBeenCalledTimes(1);
-      const effectCall = vi.mocked(mockContext.effect)?.mock.lastCall;
+      const detailsCall = vi
+        .mocked(mockContext.effect)
+        ?.mock.calls.find(
+          (c) => (c[0] as { name?: string }).name === "getTokenDetails",
+        );
+      expect(detailsCall).toBeDefined();
       expect(
-        (effectCall?.[1] as { contractAddress: string }).contractAddress,
+        (detailsCall?.[1] as { contractAddress: string }).contractAddress,
       ).toBe(tokenAddress);
-      expect((effectCall?.[1] as { chainId: number }).chainId).toBe(chainId);
+      expect((detailsCall?.[1] as { chainId: number }).chainId).toBe(chainId);
+    });
+
+    describe("when address has no bytecode (EOA / non-contract)", () => {
+      beforeEach(() => {
+        vi.mocked(mockContext.effect)?.mockImplementation(
+          async (effect: unknown) => {
+            const name = (effect as { name?: string }).name;
+            if (name === "hasContractBytecode") return { hasCode: false };
+            if (name === "getTokenDetails")
+              return { name: "Test Token", decimals: 18, symbol: "TEST" };
+            return {};
+          },
+        );
+      });
+
+      it("returns null and does not call Token.set", async () => {
+        const token = await PriceOracle.createTokenEntity(
+          tokenAddress,
+          chainId,
+          blockNumber,
+          mockContext as handlerContext,
+          blockTimestamp,
+        );
+
+        expect(token).toBeNull();
+        expect(vi.mocked(mockContext.Token?.set)).not.toHaveBeenCalled();
+      });
+
+      it("does not call getTokenDetails when bytecode is empty", async () => {
+        await PriceOracle.createTokenEntity(
+          tokenAddress,
+          chainId,
+          blockNumber,
+          mockContext as handlerContext,
+          blockTimestamp,
+        );
+
+        const detailsCall = vi
+          .mocked(mockContext.effect)
+          ?.mock.calls.find(
+            (c) => (c[0] as { name?: string }).name === "getTokenDetails",
+          );
+        expect(detailsCall).toBeUndefined();
+      });
     });
   });
 });

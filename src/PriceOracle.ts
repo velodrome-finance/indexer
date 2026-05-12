@@ -10,6 +10,7 @@ import {
 import {
   getTokenDetails,
   getTokenPrice,
+  hasContractBytecode,
   roundBlockToInterval,
 } from "./Effects/Index";
 import { EffectType, rpcGateway } from "./Effects/RpcGateway";
@@ -31,14 +32,42 @@ export interface TokenPriceData {
 const PRICE_SPIKE_RATIO_THRESHOLD = 10n;
 const PRICE_SPIKE_STALENESS_MS = 14 * 24 * 60 * 60 * 1000;
 
+/**
+ * Creates and persists a Token entity at first sight, gated on the address
+ * actually being a contract on-chain.
+ *
+ * Issue #677: addresses with no deployed bytecode (EOAs, never-deployed
+ * contracts) used to write Token rows with empty `symbol`/`name` from the
+ * static fallback in {@link getTokenDetails}. The bytecode gate filters them
+ * here so callers see `null` and can skip downstream work.
+ *
+ * @param tokenAddress - Address of the token contract.
+ * @param chainId - Chain ID where the token lives.
+ * @param blockNumber - Block at which the entity is being created.
+ * @param context - Envio handler context for effects + Token.set.
+ * @param blockTimestamp - Block timestamp in seconds; stored as `lastUpdatedTimestamp`.
+ * @returns The created Token entity, or `null` when the address has no deployed bytecode.
+ */
 export async function createTokenEntity(
   tokenAddress: string,
   chainId: number,
   blockNumber: number,
   context: handlerContext,
   blockTimestamp: number,
-) {
+): Promise<Token | null> {
   const blockDatetime = new Date(blockTimestamp * 1000);
+
+  const { hasCode } = await context.effect(hasContractBytecode, {
+    address: tokenAddress,
+    chainId,
+  });
+  if (!hasCode) {
+    context.log.warn(
+      `[createTokenEntity] Skipping Token row for non-contract address ${tokenAddress} on chain ${chainId} (no deployed bytecode)`,
+    );
+    return null;
+  }
+
   const tokenDetails = await context.effect(getTokenDetails, {
     contractAddress: tokenAddress,
     chainId,

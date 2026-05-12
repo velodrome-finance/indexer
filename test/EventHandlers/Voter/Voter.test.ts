@@ -2053,6 +2053,11 @@ describe("Voter Events", () => {
     let resultDB: ReturnType<typeof MockDb.createMockDb>;
     let mockDb: ReturnType<typeof MockDb.createMockDb>;
     let mockEvent: ReturnType<typeof Voter.WhitelistToken.createMockEvent>;
+    // Real WETH on Optimism — has on-chain bytecode, so the #677
+    // hasContractBytecode gate doesn't short-circuit Token creation.
+    const tokenAddress = toChecksumAddress(
+      "0x4200000000000000000000000000000000000006",
+    );
 
     beforeEach(async () => {
       mockDb = MockDb.createMockDb();
@@ -2060,7 +2065,7 @@ describe("Voter Events", () => {
         whitelister: toChecksumAddress(
           "0x1111111111111111111111111111111111111111",
         ),
-        token: toChecksumAddress("0x2222222222222222222222222222222222222222"),
+        token: tokenAddress,
         _bool: true,
         mockEventData: {
           block: {
@@ -2080,13 +2085,8 @@ describe("Voter Events", () => {
         // Note token doesn't have lastUpdatedTimestamp due to bug in codegen.
         // Will cast during the set call.
         const token = {
-          id: TokenId(
-            10,
-            toChecksumAddress("0x2222222222222222222222222222222222222222"),
-          ),
-          address: toChecksumAddress(
-            "0x2222222222222222222222222222222222222222",
-          ),
+          id: TokenId(10, tokenAddress),
+          address: tokenAddress,
           symbol: "TEST",
           name: "TEST",
           chainId: 10,
@@ -2099,31 +2099,18 @@ describe("Voter Events", () => {
 
         resultDB = await updatedDB1.processEvents([mockEvent]);
 
-        expectedId = TokenId(
-          10,
-          toChecksumAddress("0x2222222222222222222222222222222222222222"),
-        );
+        expectedId = TokenId(10, tokenAddress);
       });
 
       it("should update the token entity", async () => {
-        const token = resultDB.entities.Token.get(
-          TokenId(
-            10,
-            toChecksumAddress("0x2222222222222222222222222222222222222222"),
-          ),
-        );
+        const token = resultDB.entities.Token.get(TokenId(10, tokenAddress));
         expect(token?.id).toBe(expectedId);
         expect(token?.isWhitelisted).toBe(true);
         expect(token?.pricePerUSDNew).toBe(expectedPricePerUSDNew);
       });
 
       it("should update lastUpdatedTimestamp when updating existing token", async () => {
-        const token = resultDB.entities.Token.get(
-          TokenId(
-            10,
-            toChecksumAddress("0x2222222222222222222222222222222222222222"),
-          ),
-        );
+        const token = resultDB.entities.Token.get(TokenId(10, tokenAddress));
         expect(token?.lastUpdatedTimestamp).toBeInstanceOf(Date);
         expect(token?.lastUpdatedTimestamp?.getTime()).toBe(
           mockEvent.block.timestamp * 1000,
@@ -2136,36 +2123,21 @@ describe("Voter Events", () => {
       beforeEach(async () => {
         resultDB = await mockDb.processEvents([mockEvent]);
 
-        expectedId = TokenId(
-          10,
-          toChecksumAddress("0x2222222222222222222222222222222222222222"),
-        );
+        expectedId = TokenId(10, tokenAddress);
       });
 
       it("should create a new Token entity", async () => {
-        const token = resultDB.entities.Token.get(
-          TokenId(
-            10,
-            toChecksumAddress("0x2222222222222222222222222222222222222222"),
-          ),
-        );
+        const token = resultDB.entities.Token.get(TokenId(10, tokenAddress));
         expect(token?.id).toBe(expectedId);
         expect(token?.isWhitelisted).toBe(true);
         expect(token?.pricePerUSDNew).toBe(0n);
         expect(typeof token?.name).toBe("string");
         expect(typeof token?.symbol).toBe("string");
-        expect(token?.address).toBe(
-          toChecksumAddress("0x2222222222222222222222222222222222222222"),
-        );
+        expect(token?.address).toBe(tokenAddress);
       });
 
       it("should set lastUpdatedTimestamp when creating new token", async () => {
-        const token = resultDB.entities.Token.get(
-          TokenId(
-            10,
-            toChecksumAddress("0x2222222222222222222222222222222222222222"),
-          ),
-        );
+        const token = resultDB.entities.Token.get(TokenId(10, tokenAddress));
         expect(token?.lastUpdatedTimestamp).toBeInstanceOf(Date);
         expect(token?.lastUpdatedTimestamp?.getTime()).toBe(
           mockEvent.block.timestamp * 1000,

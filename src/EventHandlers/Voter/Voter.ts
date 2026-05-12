@@ -26,7 +26,7 @@ import {
   VOTER_NONCL_POOLS_FACTORY_LIST,
   isKnownSinkRootPool,
 } from "../../Constants";
-import { getTokenDetails } from "../../Effects/Index";
+import { getTokenDetails, hasContractBytecode } from "../../Effects/Index";
 import { refreshTokenPrice } from "../../PriceOracle";
 import {
   VoterEventType,
@@ -424,6 +424,17 @@ Voter.WhitelistToken.handler(async ({ event, context }) => {
   }
 
   try {
+    const { hasCode } = await context.effect(hasContractBytecode, {
+      address: event.params.token,
+      chainId: event.chainId,
+    });
+    if (!hasCode) {
+      context.log.warn(
+        `[Voter.WhitelistToken] Skipping Token row for non-contract address ${event.params.token} on chain ${event.chainId} (no deployed bytecode)`,
+      );
+      return;
+    }
+
     const tokenDetails = await context.effect(getTokenDetails, {
       contractAddress: event.params.token,
       chainId: event.chainId,

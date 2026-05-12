@@ -88,6 +88,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
   const mockContext = {
     log: {
       error: () => {},
+      warn: () => {},
     },
   } as unknown as handlerContext;
 
@@ -122,12 +123,12 @@ describe("CLFactoryPoolCreatedLogic", () => {
       );
 
       // Assertions
-      expect(result.liquidityPoolAggregator.factoryAddress).toBe(
+      expect(result?.liquidityPoolAggregator.factoryAddress).toBe(
         mockEvent.srcAddress,
       );
       // Unknown factory in the test mock resolves to null via nfpmForCLPool
-      expect(result.liquidityPoolAggregator.nfpmAddress).toBeUndefined();
-      expect(result.liquidityPoolAggregator).toMatchObject({
+      expect(result?.liquidityPoolAggregator.nfpmAddress).toBeUndefined();
+      expect(result?.liquidityPoolAggregator).toMatchObject({
         id: LEAF_POOL_ID,
         chainId: 10,
         name: "CL-60 AMM - USDT/USDC",
@@ -152,7 +153,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockContext,
       );
 
-      expect(result.liquidityPoolAggregator).toMatchObject({
+      expect(result?.liquidityPoolAggregator).toMatchObject({
         id: LEAF_POOL_ID,
         chainId: 10,
         name: "CL-60 AMM - /USDC", // Empty symbol for token0
@@ -177,7 +178,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockContext,
       );
 
-      expect(result.liquidityPoolAggregator).toMatchObject({
+      expect(result?.liquidityPoolAggregator).toMatchObject({
         id: LEAF_POOL_ID,
         chainId: 10,
         name: "CL-60 AMM - USDT/", // Empty symbol for token1
@@ -202,7 +203,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockContext,
       );
 
-      expect(result.liquidityPoolAggregator).toMatchObject({
+      expect(result?.liquidityPoolAggregator).toMatchObject({
         id: LEAF_POOL_ID,
         chainId: 10,
         name: "CL-60 AMM - /", // Empty symbols for both tokens
@@ -244,7 +245,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockContext,
       );
 
-      expect(result.liquidityPoolAggregator?.name).toBe(
+      expect(result?.liquidityPoolAggregator?.name).toBe(
         "CL-200 AMM - USDT/USDC",
       );
     });
@@ -270,7 +271,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockContext,
       );
 
-      expect(result.liquidityPoolAggregator).toMatchObject({
+      expect(result?.liquidityPoolAggregator).toMatchObject({
         id: LEAF_POOL_ID,
         chainId: 10,
         name: "CL-60 AMM - USDT/USDC",
@@ -305,7 +306,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockContext,
       );
 
-      expect(result.liquidityPoolAggregator).toMatchObject({
+      expect(result?.liquidityPoolAggregator).toMatchObject({
         id: LEAF_POOL_ID,
         chainId: 10,
         name: "CL-60 AMM - USDT/USDC",
@@ -344,14 +345,14 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockContext,
       );
 
-      expect(result.liquidityPoolAggregator?.chainId).toBe(8453);
-      expect(result.liquidityPoolAggregator?.token0_id).toBe(
+      expect(result?.liquidityPoolAggregator?.chainId).toBe(8453);
+      expect(result?.liquidityPoolAggregator?.token0_id).toBe(
         TokenId(
           8453,
           toChecksumAddress("0x2222222222222222222222222222222222222222"),
         ),
       );
-      expect(result.liquidityPoolAggregator?.token1_id).toBe(
+      expect(result?.liquidityPoolAggregator?.token1_id).toBe(
         TokenId(
           8453,
           toChecksumAddress("0x3333333333333333333333333333333333333333"),
@@ -384,7 +385,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockFeeToTickSpacingMapping,
         mockContext,
       );
-      expect(resultOld.liquidityPoolAggregator.nfpmAddress).toBe(opNfpmOld);
+      expect(resultOld?.liquidityPoolAggregator.nfpmAddress).toBe(opNfpmOld);
 
       const resultNew = await processCLFactoryPoolCreated(
         mockEvent,
@@ -395,7 +396,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockFeeToTickSpacingMapping,
         mockContext,
       );
-      expect(resultNew.liquidityPoolAggregator.nfpmAddress).toBe(opNfpmNew);
+      expect(resultNew?.liquidityPoolAggregator.nfpmAddress).toBe(opNfpmNew);
     });
 
     it("should handle different token symbols correctly", async () => {
@@ -421,7 +422,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockContext,
       );
 
-      expect(result.liquidityPoolAggregator?.name).toBe(
+      expect(result?.liquidityPoolAggregator?.name).toBe(
         "CL-60 AMM - WETH/USDC",
       );
     });
@@ -449,8 +450,8 @@ describe("CLFactoryPoolCreatedLogic", () => {
 
       // The function should complete successfully (errors are logged but don't stop processing)
       // When token creation fails, symbols will be undefined
-      expect(result.liquidityPoolAggregator).toBeDefined();
-      expect(result.liquidityPoolAggregator.name).toBe(
+      expect(result?.liquidityPoolAggregator).toBeDefined();
+      expect(result?.liquidityPoolAggregator.name).toBe(
         "CL-60 AMM - undefined/undefined",
       );
     });
@@ -466,7 +467,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockContext,
       );
 
-      const aggregator = result.liquidityPoolAggregator;
+      const aggregator = result?.liquidityPoolAggregator;
       expect(aggregator).toBeDefined();
 
       // All initial values should be set correctly for a new pool
@@ -514,7 +515,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockContext,
       );
 
-      expect(result.liquidityPoolAggregator.gaugeEmissionsCap).toBeUndefined();
+      expect(result?.liquidityPoolAggregator.gaugeEmissionsCap).toBeUndefined();
     });
 
     it("should set gaugeEmissionsCap to defaultEmissionsCap when CLGaugeConfig exists", async () => {
@@ -537,7 +538,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockContext,
       );
 
-      expect(result.liquidityPoolAggregator.gaugeEmissionsCap).toBe(
+      expect(result?.liquidityPoolAggregator.gaugeEmissionsCap).toBe(
         mockDefaultEmissionsCap,
       );
     });
@@ -562,7 +563,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockContext,
       );
 
-      expect(result.liquidityPoolAggregator.minStakeTime).toBe(
+      expect(result?.liquidityPoolAggregator.minStakeTime).toBe(
         mockDefaultMinStakeTime,
       );
     });
@@ -578,7 +579,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockContext,
       );
 
-      expect(result.liquidityPoolAggregator.minStakeTime).toBe(0n);
+      expect(result?.liquidityPoolAggregator.minStakeTime).toBe(0n);
     });
 
     it("should set baseFee and currentFee from FeeToTickSpacingMapping when mapping exists", async () => {
@@ -592,8 +593,8 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockContext,
       );
 
-      expect(result.liquidityPoolAggregator.baseFee).toBe(FEE);
-      expect(result.liquidityPoolAggregator.currentFee).toBe(FEE);
+      expect(result?.liquidityPoolAggregator.baseFee).toBe(FEE);
+      expect(result?.liquidityPoolAggregator.currentFee).toBe(FEE);
     });
 
     it("should throw error when FeeToTickSpacingMapping does not exist", async () => {
@@ -628,8 +629,8 @@ describe("CLFactoryPoolCreatedLogic", () => {
         { sqrtPriceX96, tick },
       );
 
-      expect(result.liquidityPoolAggregator.sqrtPriceX96).toBe(sqrtPriceX96);
-      expect(result.liquidityPoolAggregator.tick).toBe(tick);
+      expect(result?.liquidityPoolAggregator.sqrtPriceX96).toBe(sqrtPriceX96);
+      expect(result?.liquidityPoolAggregator.tick).toBe(tick);
     });
 
     it("should default sqrtPriceX96 and tick to 0n when no pendingInitialize is provided", async () => {
@@ -643,8 +644,8 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockContext,
       );
 
-      expect(result.liquidityPoolAggregator.sqrtPriceX96).toBe(0n);
-      expect(result.liquidityPoolAggregator.tick).toBe(0n);
+      expect(result?.liquidityPoolAggregator.sqrtPriceX96).toBe(0n);
+      expect(result?.liquidityPoolAggregator.tick).toBe(0n);
     });
 
     it.each([
@@ -680,8 +681,41 @@ describe("CLFactoryPoolCreatedLogic", () => {
           mockContext,
         );
 
-        expect(result.liquidityPoolAggregator.baseFee).toBe(fee);
-        expect(result.liquidityPoolAggregator.currentFee).toBe(fee);
+        expect(result?.liquidityPoolAggregator.baseFee).toBe(fee);
+        expect(result?.liquidityPoolAggregator.currentFee).toBe(fee);
+      },
+    );
+
+    // Issue #677 follow-up: when createTokenEntity returns null (bytecode gate
+    // confirmed the address is a non-contract), the function must return null
+    // so the caller skips persisting an aggregator with a dangling token_id.
+    it.each([
+      { side: "token0", failsToken0: true, failsToken1: false },
+      { side: "token1", failsToken0: false, failsToken1: true },
+      { side: "both", failsToken0: true, failsToken1: true },
+    ])(
+      "returns null when bytecode gate skips $side",
+      async ({ failsToken0, failsToken1 }) => {
+        vi.restoreAllMocks();
+        vi.spyOn(PriceOracle, "createTokenEntity").mockImplementation(
+          async (address: string) => {
+            if (address === mockEvent.params.token0 && failsToken0) return null;
+            if (address === mockEvent.params.token1 && failsToken1) return null;
+            return mockToken0Data as Token;
+          },
+        );
+
+        const result = await processCLFactoryPoolCreated(
+          mockEvent,
+          mockEvent.srcAddress,
+          undefined,
+          undefined,
+          undefined,
+          mockFeeToTickSpacingMapping,
+          mockContext,
+        );
+
+        expect(result).toBeNull();
       },
     );
   });

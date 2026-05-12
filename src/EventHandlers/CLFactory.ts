@@ -58,13 +58,22 @@ CLFactory.PoolCreated.handler(async ({ event, context }) => {
       : undefined,
   );
 
-  // For new pool creation, set the entity directly (updateLiquidityPoolAggregator is for updates, not creation)
-  context.LiquidityPoolAggregator.set(result.liquidityPoolAggregator);
-
-  // Drop the buffer once consumed so it cannot leak into future blocks.
+  // Drop the buffer once consumed so it cannot leak into future blocks
+  // (also when we skip pool creation below, so a stale Initialize doesn't
+  // bleed into a future PoolCreated at the same address).
   if (pendingInitialize) {
     context.CLPoolPendingInitialize.deleteUnsafe(pendingInitializeId);
   }
+
+  // Bytecode-gate (#677): processCLFactoryPoolCreated returns null when
+  // either token side is a non-contract, so we skip aggregator creation and
+  // any root-pool flush to avoid persisting dangling token references.
+  if (!result) {
+    return;
+  }
+
+  // For new pool creation, set the entity directly (updateLiquidityPoolAggregator is for updates, not creation)
+  context.LiquidityPoolAggregator.set(result.liquidityPoolAggregator);
 
   await flushPendingRootPoolMappingAndVotes(
     context,

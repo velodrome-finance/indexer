@@ -17,8 +17,9 @@ import { TokenId } from "../../Constants";
 import {
   getTokenDetails,
   getTokenPrice,
+  hasContractBytecode,
   roundBlockToInterval,
-} from "../../Effects/Token";
+} from "../../Effects/Index";
 import { calculateTokenAmountUSD } from "../../Helpers";
 import { refreshTokenPrice } from "../../PriceOracle";
 
@@ -41,8 +42,26 @@ export interface VotingRewardClaimRewardsResult {
 }
 
 /**
- * Business logic for processing voting reward claim events
- * Returns data structures for database updates - does not perform DB operations
+ * Builds pool + user diffs for a single ClaimRewards event on a fee or bribe
+ * VotingReward contract. Pure: returns incremental diffs to be staged by the
+ * caller, no DB writes.
+ *
+ * Side effects: on a first-sighting reward token, runs the bytecode gate (#677)
+ * to filter EOA / non-contract addresses, and otherwise stages `context.Token.set`
+ * for the new token row after fetching details + price in parallel.
+ *
+ * When the bytecode gate rejects the reward address, zero-valued diffs are
+ * returned so the pool/user entities still get a `lastUpdatedTimestamp` /
+ * `lastActivityTimestamp` bump without persisting USD attribution against a
+ * non-existent token.
+ *
+ * @param data - The claim payload (reward token address, amount, block, chain, user).
+ * @param context - The handler context (used for Token storage, effects, logging).
+ * @param field - Which VotingReward role the event originated from (fee vs bribe).
+ *   Selects whether the amount accumulates into `incrementalTotalBribeClaimed*`
+ *   or `incrementalTotalFeeRewardClaimed*`.
+ * @returns Promise resolving to `{ poolDiff, userDiff }` — incremental amounts +
+ *   USD attribution to merge into the pool aggregator and the user stats row.
  */
 export async function processVotingRewardClaimRewards(
   data: VotingRewardClaimRewardsData,
@@ -57,6 +76,32 @@ export async function processVotingRewardClaimRewards(
     context.log.warn(
       `[processVotingRewardClaimRewards] Reward token not found for ${data.reward} on chain ${data.chainId}`,
     );
+
+    const { hasCode } = await context.effect(hasContractBytecode, {
+      address: data.reward,
+      chainId: data.chainId,
+    });
+    if (!hasCode) {
+      context.log.warn(
+        `[processVotingRewardClaimRewards] Skipping Token row and reward USD for non-contract address ${data.reward} on chain ${data.chainId} (no deployed bytecode)`,
+      );
+      const zeroIncrementals = {
+        incrementalTotalBribeClaimed: 0n,
+        incrementalTotalBribeClaimedUSD: 0n,
+        incrementalTotalFeeRewardClaimed: 0n,
+        incrementalTotalFeeRewardClaimedUSD: 0n,
+      };
+      return {
+        poolDiff: {
+          ...zeroIncrementals,
+          lastUpdatedTimestamp: new Date(data.timestamp * 1000),
+        },
+        userDiff: {
+          ...zeroIncrementals,
+          lastActivityTimestamp: new Date(data.timestamp * 1000),
+        },
+      };
+    }
 
     context.log.warn(
       "[processVotingRewardClaimRewards] Using separate effects to get token data and then creating Token entity",
