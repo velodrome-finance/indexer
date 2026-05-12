@@ -228,6 +228,14 @@ describe("VotingRewardSharedLogic", () => {
       expect(result.poolDiff?.incrementalTotalBribeClaimedUSD).toBe(0n);
       expect(result.userDiff?.incrementalTotalBribeClaimed).toBe(0n);
       expect(result.userDiff?.incrementalTotalBribeClaimedUSD).toBe(0n);
+      // Skip-path shape must mirror the normal path: poolDiff carries
+      // lastUpdatedTimestamp, userDiff carries lastActivityTimestamp only.
+      expect(result.poolDiff?.lastUpdatedTimestamp).toBeInstanceOf(Date);
+      expect(result.userDiff?.lastActivityTimestamp).toBeInstanceOf(Date);
+      expect(
+        (result.userDiff as { lastUpdatedTimestamp?: Date })
+          .lastUpdatedTimestamp,
+      ).toBeUndefined();
     });
   });
 

@@ -85,17 +85,19 @@ export async function processVotingRewardClaimRewards(
       context.log.warn(
         `[processVotingRewardClaimRewards] Skipping Token row and reward USD for non-contract address ${data.reward} on chain ${data.chainId} (no deployed bytecode)`,
       );
-      const zeroDiffs = {
+      const zeroIncrementals = {
         incrementalTotalBribeClaimed: 0n,
         incrementalTotalBribeClaimedUSD: 0n,
         incrementalTotalFeeRewardClaimed: 0n,
         incrementalTotalFeeRewardClaimedUSD: 0n,
-        lastUpdatedTimestamp: new Date(data.timestamp * 1000),
       };
       return {
-        poolDiff: zeroDiffs,
+        poolDiff: {
+          ...zeroIncrementals,
+          lastUpdatedTimestamp: new Date(data.timestamp * 1000),
+        },
         userDiff: {
-          ...zeroDiffs,
+          ...zeroIncrementals,
           lastActivityTimestamp: new Date(data.timestamp * 1000),
         },
       };
