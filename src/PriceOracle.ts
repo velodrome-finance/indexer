@@ -80,6 +80,7 @@ export async function createTokenEntity(
     decimals: BigInt(tokenDetails.decimals),
     pricePerUSDNew: BigInt(0),
     lastUpdatedTimestamp: blockDatetime,
+    lastSuccessfulPriceTimestamp: undefined,
     isWhitelisted: false,
   };
 
@@ -91,9 +92,17 @@ export async function createTokenEntity(
  * Refreshes a token's price subject to a uniform 1-hour throttle, dispatching
  * to blacklist, cross-chain rebind, or on-chain oracle paths as configured.
  *
- * `lastUpdatedTimestamp` is bumped on every attempt — including those that
- * return $0 — so the throttle advances and we don't re-hit the oracle on every
- * subsequent event for stuck tokens.
+ * Two clocks are tracked independently (issue #694):
+ *
+ * - `lastUpdatedTimestamp` advances on EVERY refresh attempt (including $0
+ *   reads and fallback writes). It drives the 1-hour throttle at the top of
+ *   this function, ensuring we don't re-hit the oracle on every subsequent
+ *   event for stuck tokens.
+ * - `lastSuccessfulPriceTimestamp` advances ONLY when a non-zero price is
+ *   persisted (main oracle write or rebind with a priced source). It drives
+ *   the 7-day staleness window guarding the V3 last-known-price fallback —
+ *   so once a token enters fallback, the window can actually expire even
+ *   with hourly retries.
  *
  * @param token - The token entity to refresh.
  * @param blockNumber - Block at which to fetch price (rounded to an hourly bucket for cache hits).
@@ -179,6 +188,10 @@ export async function refreshTokenPrice(
       ...healedMetadata,
       pricePerUSDNew: sourcePrice,
       lastUpdatedTimestamp: new Date(blockTimestampMs),
+      lastSuccessfulPriceTimestamp:
+        sourcePrice > 0n
+          ? new Date(blockTimestampMs)
+          : token.lastSuccessfulPriceTimestamp,
     };
     context.Token.set(updated);
     if (sourcePrice > 0n) {
@@ -208,7 +221,7 @@ export async function refreshTokenPrice(
       chainId,
       blockNumber: roundedBlockNumber,
     });
-    const currentPrice = priceData.pricePerUSDNew;
+    let currentPrice = priceData.pricePerUSDNew;
 
     // Issue #668: reject refreshes that jump ≥10× vs a still-fresh accepted
     // anchor. First-fetch (anchor == 0) and stale-anchor (anchor older than
@@ -237,13 +250,19 @@ export async function refreshTokenPrice(
     // If we have a previous non-zero price, use it as fallback.
     // This works in harmony with Envio's effect caching - if the effect cache has a previous
     // successful result, it will be used. But if it returns 0, we fall back to the token's stored price.
+    //
+    // Issue #694: gate the staleness window on `lastSuccessfulPriceTimestamp`,
+    // not `lastUpdatedTimestamp`. The latter advances on every attempt
+    // (including fallback writes), which previously made the window
+    // effectively never expire while a token was stuck in fallback.
     const shouldUseLastKnownPrice =
       currentPrice === 0n &&
       token.pricePerUSDNew > 0n &&
-      token.lastUpdatedTimestamp &&
-      // Only use last known price if it's relatively recent (within 7 days)
-      // This prevents using very stale prices but allows for temporary oracle issues
-      blockTimestampMs - token.lastUpdatedTimestamp.getTime() <
+      token.lastSuccessfulPriceTimestamp &&
+      // Only use last known price if the LAST SUCCESSFUL write is relatively
+      // recent (within 7 days). This prevents using very stale prices but
+      // allows for temporary oracle issues.
+      blockTimestampMs - token.lastSuccessfulPriceTimestamp.getTime() <
         7 * 24 * 60 * 60 * 1000;
 
     // V3 last-known-price fallback: V3 is the modern, mostly-reliable oracle,
@@ -259,6 +278,8 @@ export async function refreshTokenPrice(
         ...token,
         ...healedMetadata,
         lastUpdatedTimestamp: new Date(blockTimestampMs),
+        // lastSuccessfulPriceTimestamp deliberately NOT bumped: this write
+        // doesn't represent a fresh oracle success (#694).
       };
       context.Token.set(updatedToken);
       return updatedToken;
@@ -269,6 +290,10 @@ export async function refreshTokenPrice(
       ...healedMetadata,
       pricePerUSDNew: currentPrice,
       lastUpdatedTimestamp: new Date(blockTimestampMs),
+      lastSuccessfulPriceTimestamp:
+        currentPrice > 0n
+          ? new Date(blockTimestampMs)
+          : token.lastSuccessfulPriceTimestamp,
     };
     context.Token.set(updatedToken);
 

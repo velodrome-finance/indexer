@@ -352,7 +352,8 @@ type Token {
   chainId: Int! @index
   decimals: BigInt! @config(precision: 76) # number of decimals
   pricePerUSDNew: BigInt! @config(precision: 76) # price of token per USD
-  lastUpdatedTimestamp: Timestamp! # timestamp of last update
+  lastUpdatedTimestamp: Timestamp! # timestamp of last refresh attempt (used by 1-hour throttle)
+  lastSuccessfulPriceTimestamp: Timestamp # timestamp of last non-zero oracle write (used by 7-day fallback staleness window, #694)
   isWhitelisted: Boolean! # whether the token is whitelisted
 }
 

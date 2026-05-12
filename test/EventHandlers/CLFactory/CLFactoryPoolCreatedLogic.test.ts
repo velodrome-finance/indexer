@@ -39,6 +39,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         chainId: 10,
         isWhitelisted: false,
         lastUpdatedTimestamp: new Date(1000000 * 1000),
+        lastSuccessfulPriceTimestamp: undefined,
       }),
     );
   });

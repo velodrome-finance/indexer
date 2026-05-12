@@ -1062,6 +1062,171 @@ describe("PriceOracle", () => {
       });
     });
 
+    // Issue #694: V3 last-known-price fallback used `lastUpdatedTimestamp`
+    // for two purposes — the 1-hour throttle and the 7-day staleness window
+    // guarding the fallback. Because every refresh attempt (including those
+    // that fall back) bumps `lastUpdatedTimestamp`, the 7-day window was
+    // effectively reset each hour. Once a token entered fallback, the stored
+    // non-zero price would pin indefinitely even if the oracle never
+    // recovered. Fix: introduce `lastSuccessfulPriceTimestamp`, only bumped
+    // on non-zero oracle writes; fallback's staleness window reads from it.
+    describe("V3 fallback staleness (issue #694)", () => {
+      // V3 oracle on Optimism starts at block 125484892. Use a post-V3 block
+      // so the V3 fallback branch in refreshTokenPrice is exercised.
+      const v3Block = 125484893;
+      const oneHourOneMinuteAgo = () =>
+        new Date(blockDatetime.getTime() - 61 * 60 * 1000);
+
+      beforeEach(() => {
+        vi.mocked(mockContext.Token?.set)?.mockClear();
+        vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mockClear();
+      });
+
+      it("applies the V3 fallback when the last successful price is recent (<7d) even though lastUpdatedTimestamp keeps advancing", async () => {
+        const anchorPrice = 2n * 10n ** 18n;
+        const recentSuccess = new Date(
+          blockDatetime.getTime() - 2 * 24 * 60 * 60 * 1000,
+        );
+        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
+          if ((effect as { name?: string }).name === "getTokenPrice") {
+            return { pricePerUSDNew: 0n };
+          }
+          return {};
+        });
+
+        const fetchedToken = {
+          ...mockToken0Data,
+          pricePerUSDNew: anchorPrice,
+          // Throttle clock is recent (1h ago), but the LAST SUCCESSFUL write
+          // was 2 days ago — fallback should apply.
+          lastUpdatedTimestamp: oneHourOneMinuteAgo(),
+          lastSuccessfulPriceTimestamp: recentSuccess,
+        };
+
+        await PriceOracle.refreshTokenPrice(
+          fetchedToken,
+          v3Block,
+          blockDatetime.getTime() / 1000,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
+          .lastCall?.[0] as Token;
+        expect(updatedToken.pricePerUSDNew).toBe(anchorPrice);
+        // Throttle clock advances on every attempt (existing behavior)
+        expect(updatedToken.lastUpdatedTimestamp.getTime()).toBe(
+          blockDatetime.getTime(),
+        );
+        // Last successful timestamp must NOT advance on a fallback write
+        expect(updatedToken.lastSuccessfulPriceTimestamp?.getTime()).toBe(
+          recentSuccess.getTime(),
+        );
+      });
+
+      it("stops re-pinning once last successful price is older than 7 days, even with hourly retries (regression)", async () => {
+        const anchorPrice = 2n * 10n ** 18n;
+        const eightDaysAgo = new Date(
+          blockDatetime.getTime() - 8 * 24 * 60 * 60 * 1000,
+        );
+        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
+          if ((effect as { name?: string }).name === "getTokenPrice") {
+            return { pricePerUSDNew: 0n };
+          }
+          return {};
+        });
+
+        const fetchedToken = {
+          ...mockToken0Data,
+          pricePerUSDNew: anchorPrice,
+          // Throttle clock has been ticking forward hourly under fallback —
+          // imagine the most recent retry was 1h+1min ago. lastSuccessful
+          // hasn't moved since the last real oracle hit, which is now 8d old.
+          lastUpdatedTimestamp: oneHourOneMinuteAgo(),
+          lastSuccessfulPriceTimestamp: eightDaysAgo,
+        };
+
+        await PriceOracle.refreshTokenPrice(
+          fetchedToken,
+          v3Block,
+          blockDatetime.getTime() / 1000,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
+          .lastCall?.[0] as Token;
+        // 7-day window has expired — fallback must NOT apply. Write 0.
+        expect(updatedToken.pricePerUSDNew).toBe(0n);
+      });
+
+      it("bumps lastSuccessfulPriceTimestamp on a successful non-zero write", async () => {
+        const newPrice = 3n * 10n ** 18n;
+        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
+          if ((effect as { name?: string }).name === "getTokenPrice") {
+            return { pricePerUSDNew: newPrice };
+          }
+          return {};
+        });
+
+        const fetchedToken = {
+          ...mockToken0Data,
+          pricePerUSDNew: 0n,
+          lastUpdatedTimestamp: oneHourOneMinuteAgo(),
+          lastSuccessfulPriceTimestamp: undefined,
+        };
+
+        await PriceOracle.refreshTokenPrice(
+          fetchedToken,
+          v3Block,
+          blockDatetime.getTime() / 1000,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
+          .lastCall?.[0] as Token;
+        expect(updatedToken.pricePerUSDNew).toBe(newPrice);
+        expect(updatedToken.lastSuccessfulPriceTimestamp?.getTime()).toBe(
+          blockDatetime.getTime(),
+        );
+      });
+
+      it("does NOT bump lastSuccessfulPriceTimestamp when oracle returns 0 and no fallback is used", async () => {
+        // First-priced token: anchor is 0 (never priced), oracle still 0 →
+        // shouldn't qualify as a successful write.
+        const earlierTimestamp = new Date(
+          blockDatetime.getTime() - 2 * 60 * 60 * 1000,
+        );
+        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
+          if ((effect as { name?: string }).name === "getTokenPrice") {
+            return { pricePerUSDNew: 0n };
+          }
+          return {};
+        });
+
+        const fetchedToken = {
+          ...mockToken0Data,
+          pricePerUSDNew: 0n,
+          lastUpdatedTimestamp: earlierTimestamp,
+          lastSuccessfulPriceTimestamp: undefined,
+        };
+
+        await PriceOracle.refreshTokenPrice(
+          fetchedToken,
+          v3Block,
+          blockDatetime.getTime() / 1000,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
+          .lastCall?.[0] as Token;
+        expect(updatedToken.pricePerUSDNew).toBe(0n);
+        expect(updatedToken.lastSuccessfulPriceTimestamp).toBeUndefined();
+      });
+    });
+
     describe("when price fetch fails", () => {
       let originalToken: Token;
       beforeEach(async () => {

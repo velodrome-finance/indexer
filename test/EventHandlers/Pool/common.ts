@@ -70,6 +70,7 @@ export function setupCommon() {
     chainId: CHAIN_ID,
     isWhitelisted: true,
     lastUpdatedTimestamp: new Date(),
+    lastSuccessfulPriceTimestamp: new Date(),
   };
 
   const mockToken1Data: Token = {
@@ -82,6 +83,7 @@ export function setupCommon() {
     chainId: CHAIN_ID,
     isWhitelisted: true,
     lastUpdatedTimestamp: new Date(),
+    lastSuccessfulPriceTimestamp: new Date(),
   };
 
   // Not annotated as LiquidityPoolAggregator to avoid readonly bigint[] vs bigint[] mismatch

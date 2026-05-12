@@ -449,6 +449,7 @@ Voter.WhitelistToken.handler(async ({ event, context }) => {
       decimals: BigInt(tokenDetails.decimals),
       isWhitelisted: event.params._bool,
       lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
+      lastSuccessfulPriceTimestamp: undefined,
     };
     context.Token.set(updatedToken);
   } catch (error) {

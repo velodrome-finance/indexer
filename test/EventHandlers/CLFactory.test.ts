@@ -101,6 +101,7 @@ describe("CLFactory Events", () => {
         chainId: chainId,
         isWhitelisted: false,
         lastUpdatedTimestamp: new Date(1000000 * 1000),
+        lastSuccessfulPriceTimestamp: undefined,
       }),
     );
 
@@ -1144,6 +1145,7 @@ describe("CLFactory.PoolCreated ↔ CLPoolPendingInitialize buffer", () => {
         chainId: chainId,
         isWhitelisted: false,
         lastUpdatedTimestamp: new Date(1000000 * 1000),
+        lastSuccessfulPriceTimestamp: undefined,
       }),
     );
   });
