@@ -147,6 +147,7 @@ describe("GaugeSharedLogic", () => {
       decimals: 18n,
       pricePerUSDNew: 1000000000000000000n, // 1 USD in 18 decimals
       lastUpdatedTimestamp: mockTimestamp,
+      lastSuccessfulPriceTimestamp: mockTimestamp,
       isWhitelisted: true,
     };
 

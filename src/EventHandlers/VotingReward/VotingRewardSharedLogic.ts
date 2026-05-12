@@ -1,5 +1,6 @@
 import type {
   LiquidityPoolAggregator,
+  Token,
   UserStatsPerPool,
   handlerContext,
 } from "generated";
@@ -127,7 +128,7 @@ export async function processVotingRewardClaimRewards(
       }),
     ]);
 
-    const newToken = {
+    const newToken: Token = {
       id: TokenId(data.chainId, data.reward),
       address: data.reward,
       name: rewardTokenDetails.name,
@@ -136,6 +137,10 @@ export async function processVotingRewardClaimRewards(
       decimals: BigInt(rewardTokenDetails.decimals),
       pricePerUSDNew: priceData.pricePerUSDNew,
       lastUpdatedTimestamp: new Date(data.timestamp * 1000),
+      lastSuccessfulPriceTimestamp:
+        priceData.pricePerUSDNew > 0n
+          ? new Date(data.timestamp * 1000)
+          : undefined,
       isWhitelisted: true,
     };
 
