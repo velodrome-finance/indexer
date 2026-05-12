@@ -1240,17 +1240,18 @@ describe("LiquidityPoolAggregator Functions", () => {
       expect(mockTokenSet).not.toHaveBeenCalled();
     });
 
-    it("should always refresh token prices when pricePerUSDNew is 0", async () => {
-      const recentTimestamp = new Date(); // Recent timestamp
+    it("refreshes a $0 token once the hourly throttle has elapsed (#676 — no more 30-day trap)", async () => {
+      const now = new Date("2024-01-01T12:00:00Z");
+      const overOneHourAgo = new Date(now.getTime() - 61 * 60 * 1000);
       token0 = {
         ...token0,
         pricePerUSDNew: 0n,
-        lastUpdatedTimestamp: recentTimestamp,
+        lastUpdatedTimestamp: overOneHourAgo,
       };
       // Ensure token1 has recent timestamp so it won't be refreshed
       token1 = {
         ...token1,
-        lastUpdatedTimestamp: recentTimestamp,
+        lastUpdatedTimestamp: now,
       };
 
       // Update the mock to return the updated tokens
@@ -1262,7 +1263,7 @@ describe("LiquidityPoolAggregator Functions", () => {
       });
 
       const blockNumber = 1000000;
-      const blockTimestamp = Math.floor(Date.now() / 1000);
+      const blockTimestamp = Math.floor(now.getTime() / 1000);
       const newPrice0 = 1000000n; // $1.00
 
       // Mock effect to return new price and token details
@@ -1322,12 +1323,11 @@ describe("LiquidityPoolAggregator Functions", () => {
       );
 
       expect(result).not.toBeNull();
-      // token0 should be refreshed even though timestamp is recent
+      // token0 was $0 + stale → refresh fires
       expect(result?.token0Instance.pricePerUSDNew).toBe(newPrice0);
-      // token1 should not be refreshed (recent timestamp and non-zero price)
+      // token1 has a recent timestamp → throttled
       expect(result?.token1Instance.pricePerUSDNew).toBe(token1.pricePerUSDNew);
 
-      // Token.set should be called only for token0
       const mockTokenSet = vi.mocked(mockContext.Token?.set);
       expect(mockTokenSet).toHaveBeenCalledTimes(1);
     });

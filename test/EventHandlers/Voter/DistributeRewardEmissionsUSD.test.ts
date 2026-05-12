@@ -169,8 +169,8 @@ describe("Voter.DistributeReward → totalEmissionsUSD regression (#673)", () =>
     // contract so future regressions surface here.
     //
     // To make refreshTokenPrice a no-op against a $0-priced token, set
-    // `lastUpdatedTimestamp` more than 30 days before the event: the
-    // PriceOracle backoff (`THIRTY_DAYS_MS`) stops retrying past that point.
+    // `lastUpdatedTimestamp` to the block time so the 1-hour throttle skips
+    // the RPC call and the stored $0 price is what feeds the USD calc.
     const { createMockLiquidityPoolAggregator } = setupCommon();
     const liquidityPool = createMockLiquidityPoolAggregator({
       id: PoolId(chainId, poolAddress),
@@ -182,12 +182,9 @@ describe("Voter.DistributeReward → totalEmissionsUSD regression (#673)", () =>
       gaugeIsAlive: true,
     });
 
-    const THIRTY_ONE_DAYS_S = 31 * 24 * 60 * 60;
     const rewardToken = makeRewardToken({
       pricePerUSDNew: 0n,
-      lastUpdatedTimestamp: new Date(
-        (blockTimestamp - THIRTY_ONE_DAYS_S) * 1000,
-      ),
+      lastUpdatedTimestamp: new Date(blockTimestamp * 1000),
     });
     const amountEmitted = 1000n * 10n ** 18n;
 
