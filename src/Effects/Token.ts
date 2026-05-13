@@ -54,10 +54,10 @@ export const getTokenDetails = createEffect(
       chainId: input.chainId,
     });
 
-    // Don't cache the RPC error fallback (`{ name: "", decimals: 18, symbol: "" }`)
-    // — allows re-fetch on next run when the underlying RPC issue clears.
-    // Same pattern as getTokenPrice on $0 results.
-    if (result.name === "" && result.symbol === "") {
+    // Skip caching only when the gateway returned the static fallback constant
+    // after both RPCs were exhausted (issue #691) — a legitimate empty-string
+    // contract response stays cached.
+    if (result.usedDefault) {
       context.cache = false;
     }
 
@@ -101,9 +101,9 @@ export const getTokenPrice = createEffect(
       blockNumber: input.blockNumber,
     });
 
-    // Don't cache $0 results — allows re-fetch on next query when oracle connectors are fixed.
-    // Same pattern as handleEffectErrorReturn (Helpers.ts).
-    if (result.pricePerUSDNew === 0n) {
+    // Skip caching only when the gateway used the fallback constant (issue #691).
+    // Legitimate zero prices (pre-oracle-deploy, broken connectors) are now cacheable.
+    if (result.usedDefault) {
       context.cache = false;
     }
 

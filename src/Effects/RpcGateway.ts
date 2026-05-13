@@ -56,6 +56,7 @@ const RPC_GATEWAY_OPERATIONS = {
       name: S.string,
       decimals: S.number,
       symbol: S.string,
+      usedDefault: S.boolean,
     },
   },
   [EffectType.GET_TOKEN_PRICE]: {
@@ -68,6 +69,7 @@ const RPC_GATEWAY_OPERATIONS = {
     outputSchema: {
       pricePerUSDNew: S.bigint,
       priceOracleType: S.string,
+      usedDefault: S.boolean,
     },
   },
   [EffectType.GET_TOKENS_DEPOSITED]: {
@@ -80,6 +82,7 @@ const RPC_GATEWAY_OPERATIONS = {
     },
     outputSchema: {
       value: S.optional(S.bigint),
+      usedDefault: S.boolean,
     },
   },
   [EffectType.GET_SWAP_FEE]: {
@@ -92,6 +95,7 @@ const RPC_GATEWAY_OPERATIONS = {
     },
     outputSchema: {
       value: S.optional(S.bigint),
+      usedDefault: S.boolean,
     },
   },
   [EffectType.GET_ROOT_POOL_ADDRESS]: {
@@ -105,6 +109,7 @@ const RPC_GATEWAY_OPERATIONS = {
     },
     outputSchema: {
       value: S.string,
+      usedDefault: S.boolean,
     },
   },
   [EffectType.HAS_CONTRACT_BYTECODE]: {
@@ -115,6 +120,7 @@ const RPC_GATEWAY_OPERATIONS = {
     },
     outputSchema: {
       hasCode: S.boolean,
+      usedDefault: S.boolean,
     },
   },
 } as const satisfies Record<
@@ -197,15 +203,26 @@ export type RpcGatewayOutputByType = {
     name: string;
     decimals: number;
     symbol: string;
+    usedDefault: boolean;
   };
   [EffectType.GET_TOKEN_PRICE]: {
     pricePerUSDNew: bigint;
     priceOracleType: string;
+    usedDefault: boolean;
   };
-  [EffectType.GET_TOKENS_DEPOSITED]: { value: bigint | undefined };
-  [EffectType.GET_SWAP_FEE]: { value: bigint | undefined };
-  [EffectType.GET_ROOT_POOL_ADDRESS]: { value: string };
-  [EffectType.HAS_CONTRACT_BYTECODE]: { hasCode: boolean };
+  [EffectType.GET_TOKENS_DEPOSITED]: {
+    value: bigint | undefined;
+    usedDefault: boolean;
+  };
+  [EffectType.GET_SWAP_FEE]: {
+    value: bigint | undefined;
+    usedDefault: boolean;
+  };
+  [EffectType.GET_ROOT_POOL_ADDRESS]: { value: string; usedDefault: boolean };
+  [EffectType.HAS_CONTRACT_BYTECODE]: {
+    hasCode: boolean;
+    usedDefault: boolean;
+  };
 };
 
 /** Union of all gateway output payloads. */
@@ -323,7 +340,7 @@ async function handleGetTokenDetails(
     ? () => fetchTokenDetails(i.contractAddress, fallbackClient)
     : undefined;
 
-  const result = await executeRpcWithFallback(
+  const { value, usedDefault } = await executeRpcWithFallback(
     context,
     operationName,
     logDetails,
@@ -332,7 +349,7 @@ async function handleGetTokenDetails(
     fallbackFetcher,
   );
 
-  return result;
+  return { ...value, usedDefault };
 }
 
 /**
@@ -355,6 +372,7 @@ async function handleGetTokenPrice(
     return {
       pricePerUSDNew: 0n,
       priceOracleType: "unknown",
+      usedDefault: true,
     };
   }
   const DESTINATION_TOKEN_ADDRESS = chain.destinationToken;
@@ -363,6 +381,7 @@ async function handleGetTokenPrice(
     return {
       pricePerUSDNew: 10n ** 18n,
       priceOracleType: chain.oracle.getType(blockNumber).toString(),
+      usedDefault: false,
     };
   }
 
@@ -370,6 +389,7 @@ async function handleGetTokenPrice(
     return {
       pricePerUSDNew: 10n ** 18n,
       priceOracleType: chain.oracle.getType(blockNumber).toString(),
+      usedDefault: false,
     };
   }
 
@@ -406,9 +426,12 @@ async function handleGetTokenPrice(
 
   const ORACLE_DEPLOYED = chain.oracle.startBlock <= blockNumber;
   if (!ORACLE_DEPLOYED) {
+    // Pre-deploy zero is a real, cacheable answer (the oracle does not exist yet),
+    // not the fallback constant — keep usedDefault: false so the result stays in the cache.
     return {
       pricePerUSDNew: 0n,
       priceOracleType: chain.oracle.getType(blockNumber).toString(),
+      usedDefault: false,
     };
   }
 
@@ -454,7 +477,7 @@ async function handleGetTokenPrice(
       client,
     );
 
-  const priceData = await executeRpcWithFallback(
+  const priceResult = await executeRpcWithFallback(
     context,
     operationName,
     logDetails,
@@ -463,21 +486,31 @@ async function handleGetTokenPrice(
     fallbackClient ? buildPriceFetcher(fallbackClient) : undefined,
   );
 
+  const priceData = priceResult.value;
   let currentPrice: bigint;
   if (
     priceData.priceOracleType === PriceOracleType.V3 ||
     priceData.priceOracleType === PriceOracleType.V4
   ) {
     currentPrice =
-      (priceData.pricePerUSDNew * 10n ** BigInt(tokenDetails.decimals)) /
-      10n ** BigInt(destinationTokenDetails.decimals);
+      (priceData.pricePerUSDNew * 10n ** BigInt(tokenDetails.value.decimals)) /
+      10n ** BigInt(destinationTokenDetails.value.decimals);
   } else {
     currentPrice = priceData.pricePerUSDNew;
   }
 
+  // Any leg that returned the fallback constant means the composed price is
+  // synthetic — the price RPC itself, or either token-details RPC backing the
+  // decimal conversion. OR all three so the outer effect can skip caching.
+  const usedDefault =
+    priceResult.usedDefault ||
+    tokenDetails.usedDefault ||
+    destinationTokenDetails.usedDefault;
+
   return {
     pricePerUSDNew: currentPrice,
     priceOracleType: chain.oracle.getType(blockNumber).toString(),
+    usedDefault,
   };
 }
 
@@ -510,7 +543,7 @@ async function handleGetTokensDeposited(
     );
   };
 
-  const result = await executeRpcWithFallback(
+  const { value, usedDefault } = await executeRpcWithFallback(
     context,
     operationName,
     logDetails,
@@ -518,7 +551,7 @@ async function handleGetTokensDeposited(
     fetcher,
   );
 
-  return { value: result };
+  return { value, usedDefault };
 }
 
 /**
@@ -551,7 +584,7 @@ async function handleGetSwapFee(
     );
   };
 
-  const result = await executeRpcWithFallback(
+  const { value, usedDefault } = await executeRpcWithFallback(
     context,
     operationName,
     logDetails,
@@ -559,7 +592,7 @@ async function handleGetSwapFee(
     fetcher,
   );
 
-  return { value: result };
+  return { value, usedDefault };
 }
 
 /**
@@ -590,7 +623,7 @@ async function handleGetRootPoolAddress(
     );
   };
 
-  const result = await executeRpcWithFallback(
+  const { value, usedDefault } = await executeRpcWithFallback(
     context,
     operationName,
     logDetails,
@@ -598,7 +631,7 @@ async function handleGetRootPoolAddress(
     fetcher,
   );
 
-  return { value: result };
+  return { value, usedDefault };
 }
 
 /**
@@ -629,7 +662,7 @@ async function handleHasContractBytecode(
     ? () => fetchHasContractBytecode(i.address, fallbackClient)
     : undefined;
 
-  const hasCode = await executeRpcWithFallback(
+  const { value, usedDefault } = await executeRpcWithFallback(
     context,
     operationName,
     logDetails,
@@ -638,8 +671,17 @@ async function handleHasContractBytecode(
     fallbackFetcher,
   );
 
-  return { hasCode };
+  return { hasCode: value, usedDefault };
 }
+
+/**
+ * Result wrapper for {@link executeRpcWithFallback}: `usedDefault` is `true` only
+ * when both the primary and the optional fallback RPC have been exhausted and the
+ * caller-supplied `fallback` constant was returned. A real answer from either RPC
+ * yields `usedDefault: false`. Outer effects use this to drive cache decisions
+ * without resorting to value-shape heuristics (issue #691).
+ */
+export type RpcResult<T> = { value: T; usedDefault: boolean };
 
 /**
  * Runs an RPC operation with retry; on any throw, logs via {@link handleEffectErrorReturn}
@@ -652,13 +694,19 @@ async function handleHasContractBytecode(
  * error class bypasses the fallback and surfaces a single uerror via
  * {@link handleEffectErrorReturn}.
  *
+ * Returns `{ value, usedDefault }`: `usedDefault: true` signals that the
+ * caller-supplied `fallback` constant was returned because both primary and
+ * fallback RPCs were exhausted (or the primary failed with a non-fallback-worthy
+ * error and no fallback was tried). Callers use this to skip caching the
+ * stand-in constant — see issue #691.
+ *
  * @param context - Effect context with optional cache flag and log (error + warn). On error, cache is set to false by {@link handleEffectErrorReturn}.
  * @param operationName - Identifier for logging (use {@link rpcGatewayOpName} for gateway operations).
  * @param logDetails - Key-value pairs included in error messages.
  * @param fallback - Value returned when the operation throws (after retries are exhausted).
  * @param fn - Async function that performs the primary RPC call. No arguments; close over args in the caller.
  * @param fallbackFn - Optional async function to try on a different RPC when the primary exhausts on a fallback-worthy error.
- * @returns The result of `fn()` (or `fallbackFn()` when engaged), or `fallback` if both throw.
+ * @returns `{ value, usedDefault }` — `value` is the RPC result or `fallback`; `usedDefault` is `true` iff `fallback` was returned.
  */
 export async function executeRpcWithFallback<T>(
   context: {
@@ -673,9 +721,10 @@ export async function executeRpcWithFallback<T>(
   fallback: T,
   fn: () => Promise<T>,
   fallbackFn?: () => Promise<T>,
-): Promise<T> {
+): Promise<RpcResult<T>> {
   try {
-    return await runWithRpcRetry(fn);
+    const value = await runWithRpcRetry(fn);
+    return { value, usedDefault: false };
   } catch (primaryError) {
     if (fallbackFn && shouldAttemptFallback(primaryError)) {
       const primaryType = getErrorType(primaryError);
@@ -683,24 +732,27 @@ export async function executeRpcWithFallback<T>(
         `[${operationName}] primary RPC exhausted (${primaryType})${formatDetailsSuffix(logDetails)}; trying fallback public RPC.`,
       );
       try {
-        return await runWithRpcRetry(fallbackFn);
+        const value = await runWithRpcRetry(fallbackFn);
+        return { value, usedDefault: false };
       } catch (fallbackError) {
-        return handleEffectErrorReturn(
+        const value = handleEffectErrorReturn(
           fallbackError,
           context,
           `${operationName}.fallback`,
           logDetails,
           fallback,
         );
+        return { value, usedDefault: true };
       }
     }
-    return handleEffectErrorReturn(
+    const value = handleEffectErrorReturn(
       primaryError,
       context,
       operationName,
       logDetails,
       fallback,
     );
+    return { value, usedDefault: true };
   }
 }
 

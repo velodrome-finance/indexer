@@ -81,6 +81,7 @@ describe("RpcGateway", () => {
         name: "Test Token",
         decimals: 18,
         symbol: "TKN",
+        usedDefault: false,
       });
       expect(readContract).toHaveBeenCalledTimes(3);
     });
@@ -105,6 +106,7 @@ describe("RpcGateway", () => {
         name: "",
         decimals: 18,
         symbol: "",
+        usedDefault: true,
       });
       expect(mockContext.log.error).toHaveBeenCalledTimes(1);
       expect(mockContext.log.error).toHaveBeenCalledWith(
@@ -129,7 +131,7 @@ describe("RpcGateway", () => {
         context: mockContext,
       });
 
-      expect(result).toEqual({ hasCode: true });
+      expect(result).toEqual({ hasCode: true, usedDefault: false });
     });
 
     it("returns hasCode=false when getCode returns 0x (EOA / non-contract)", async () => {
@@ -148,7 +150,7 @@ describe("RpcGateway", () => {
         context: mockContext,
       });
 
-      expect(result).toEqual({ hasCode: false });
+      expect(result).toEqual({ hasCode: false, usedDefault: false });
     });
 
     it("fails open (hasCode=true) when getCode RPC throws", async () => {
@@ -167,7 +169,7 @@ describe("RpcGateway", () => {
         context: mockContext,
       });
 
-      expect(result).toEqual({ hasCode: true });
+      expect(result).toEqual({ hasCode: true, usedDefault: true });
     });
 
     it("should log and return undefined for unexpected input type (default branch)", async () => {
@@ -221,6 +223,7 @@ describe("RpcGateway", () => {
         name: "Slow",
         decimals: 18,
         symbol: "TKN",
+        usedDefault: false,
       });
       expect(mockContext.log.warn).not.toHaveBeenCalled();
       expect(mockContext.log.error).not.toHaveBeenCalled();
@@ -260,6 +263,7 @@ describe("RpcGateway", () => {
         name: "OkToken",
         decimals: 18,
         symbol: "OK",
+        usedDefault: false,
       });
       expect(mockContext.log.warn).not.toHaveBeenCalled();
       expect(mockContext.log.error).not.toHaveBeenCalled();
@@ -282,7 +286,12 @@ describe("RpcGateway", () => {
         context: mockContext,
       });
 
-      expect(result).toEqual({ name: "", decimals: 18, symbol: "" });
+      expect(result).toEqual({
+        name: "",
+        decimals: 18,
+        symbol: "",
+        usedDefault: true,
+      });
       expect(mockContext.log.warn).not.toHaveBeenCalled();
       expect(mockContext.log.error).toHaveBeenCalledTimes(1);
       const [, loggedError] = vi.mocked(mockContext.log.error).mock.calls[0];
@@ -334,6 +343,25 @@ describe("RpcGateway", () => {
     const REVERT_ERR = new Error("execution reverted");
     const STATIC_FALLBACK = { name: "", decimals: 18, symbol: "" };
 
+    it("returns usedDefault:false when primary RPC succeeds", async () => {
+      const primary = vi
+        .fn()
+        .mockResolvedValue({ name: "Real", decimals: 6, symbol: "REAL" });
+
+      const result = await executeRpcWithFallback(
+        mockContext,
+        "op",
+        { chainId: 1868 },
+        STATIC_FALLBACK,
+        primary,
+      );
+
+      expect(result).toEqual({
+        value: { name: "Real", decimals: 6, symbol: "REAL" },
+        usedDefault: false,
+      });
+    });
+
     it("uses fallbackFn when primary exhausts retries on METHOD_NOT_SUPPORTED", async () => {
       const primary = vi.fn().mockRejectedValue(METHOD_ERR);
       const fallbackFn = vi
@@ -349,7 +377,10 @@ describe("RpcGateway", () => {
         fallbackFn,
       );
 
-      expect(result).toEqual({ name: "X", decimals: 6, symbol: "X" });
+      expect(result).toEqual({
+        value: { name: "X", decimals: 6, symbol: "X" },
+        usedDefault: false,
+      });
       // Primary retried up to methodNotSupportedMaxRetries (2) then handed off.
       expect(primary).toHaveBeenCalledTimes(3);
       expect(fallbackFn).toHaveBeenCalledTimes(1);
@@ -359,7 +390,7 @@ describe("RpcGateway", () => {
       );
     });
 
-    it("skips fallbackFn when primary fails with a non-fallback-worthy error", async () => {
+    it("returns usedDefault:true when primary fails with a non-fallback-worthy error", async () => {
       const primary = vi.fn().mockRejectedValue(REVERT_ERR);
       const fallbackFn = vi.fn();
 
@@ -372,11 +403,11 @@ describe("RpcGateway", () => {
         fallbackFn,
       );
 
-      expect(result).toBe(STATIC_FALLBACK);
+      expect(result).toEqual({ value: STATIC_FALLBACK, usedDefault: true });
       expect(fallbackFn).not.toHaveBeenCalled();
     });
 
-    it("returns static fallback when both primary and fallbackFn fail", async () => {
+    it("returns usedDefault:true when both primary and fallbackFn fail", async () => {
       const primary = vi.fn().mockRejectedValue(METHOD_ERR);
       const fallbackFn = vi.fn().mockRejectedValue(METHOD_ERR);
 
@@ -389,14 +420,14 @@ describe("RpcGateway", () => {
         fallbackFn,
       );
 
-      expect(result).toBe(STATIC_FALLBACK);
+      expect(result).toEqual({ value: STATIC_FALLBACK, usedDefault: true });
       expect(mockContext.log.error).toHaveBeenCalledWith(
         expect.stringContaining("op.fallback"),
         expect.any(Error),
       );
     });
 
-    it("returns static fallback when no fallbackFn is provided", async () => {
+    it("returns usedDefault:true when no fallbackFn is provided and primary fails", async () => {
       const primary = vi.fn().mockRejectedValue(METHOD_ERR);
 
       const result = await executeRpcWithFallback(
@@ -407,7 +438,7 @@ describe("RpcGateway", () => {
         primary,
       );
 
-      expect(result).toBe(STATIC_FALLBACK);
+      expect(result).toEqual({ value: STATIC_FALLBACK, usedDefault: true });
     });
   });
 

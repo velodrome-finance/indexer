@@ -179,11 +179,12 @@ describe("Token Effects", () => {
       expect(getTokenDetails).toHaveProperty("name", "getTokenDetails");
     });
 
-    it("should set context.cache = false when RPC returns the empty fallback", async () => {
+    it("should set context.cache = false when gateway signals usedDefault:true", async () => {
       vi.spyOn(RpcGatewayModule, "callRpcGateway").mockResolvedValue({
         name: "",
         decimals: 18,
         symbol: "",
+        usedDefault: true,
       } as never);
 
       expect(mockContext.cache).toBeUndefined();
@@ -201,6 +202,7 @@ describe("Token Effects", () => {
         name: "Wrapped Ether",
         decimals: 18,
         symbol: "WETH",
+        usedDefault: false,
       } as never);
 
       await mockContext.effect(getTokenDetails as never, {
@@ -216,6 +218,26 @@ describe("Token Effects", () => {
         name: "Indonesian Rupiah",
         decimals: 0,
         symbol: "IDRX",
+        usedDefault: false,
+      } as never);
+
+      await mockContext.effect(getTokenDetails as never, {
+        contractAddress: TEST_TOKEN_ADDRESS,
+        chainId: TEST_CHAIN_ID,
+      });
+
+      expect(mockContext.cache).toBeUndefined();
+    });
+
+    it("caches a contract that legitimately returns empty name+symbol (usedDefault:false)", async () => {
+      // Same shape as the static fallback constant, but a real RPC answer.
+      // The old shape heuristic incorrectly skipped caching here; usedDefault
+      // separates "looks like fallback" from "is fallback" (issue #691).
+      vi.spyOn(RpcGatewayModule, "callRpcGateway").mockResolvedValue({
+        name: "",
+        decimals: 18,
+        symbol: "",
+        usedDefault: false,
       } as never);
 
       await mockContext.effect(getTokenDetails as never, {
@@ -293,10 +315,11 @@ describe("Token Effects", () => {
       expect(TokenEffects.fetchTokenPrice).not.toHaveBeenCalled();
     });
 
-    it("should set context.cache = false when oracle returns $0 price", async () => {
+    it("should set context.cache = false when gateway signals usedDefault:true", async () => {
       vi.spyOn(RpcGatewayModule, "callRpcGateway").mockResolvedValue({
         pricePerUSDNew: 0n,
         priceOracleType: PriceOracleType.V3.toString(),
+        usedDefault: true,
       } as never);
 
       // Ensure cache starts as undefined (default)
@@ -308,7 +331,6 @@ describe("Token Effects", () => {
         blockNumber: TEST_BLOCK_NUMBER,
       });
 
-      // $0 result should disable cache write
       expect(mockContext.cache).toBe(false);
     });
 
@@ -316,6 +338,7 @@ describe("Token Effects", () => {
       vi.spyOn(RpcGatewayModule, "callRpcGateway").mockResolvedValue({
         pricePerUSDNew: 2000000000000000000n,
         priceOracleType: PriceOracleType.V3.toString(),
+        usedDefault: false,
       } as never);
 
       await mockContext.effect(getTokenPrice as never, {
@@ -325,6 +348,22 @@ describe("Token Effects", () => {
       });
 
       // Non-zero result should leave cache as default (undefined = cached)
+      expect(mockContext.cache).toBeUndefined();
+    });
+
+    it("caches a real $0 oracle answer (usedDefault:false) — distinguished from fallback by #691", async () => {
+      vi.spyOn(RpcGatewayModule, "callRpcGateway").mockResolvedValue({
+        pricePerUSDNew: 0n,
+        priceOracleType: PriceOracleType.V3.toString(),
+        usedDefault: false,
+      } as never);
+
+      await mockContext.effect(getTokenPrice as never, {
+        tokenAddress: TEST_TOKEN_ADDRESS,
+        chainId: TEST_CHAIN_ID,
+        blockNumber: TEST_BLOCK_NUMBER,
+      });
+
       expect(mockContext.cache).toBeUndefined();
     });
 
