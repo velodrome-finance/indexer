@@ -153,9 +153,9 @@ describe("Helpers", () => {
   });
 
   describe("handleEffectErrorReturn", () => {
-    it("should log error and return fallback value", () => {
+    it("should log error and return fallback value for a non-revert error", () => {
       const error = new Error("Test error");
-      const mockLog = { error: vi.fn() };
+      const mockLog = { error: vi.fn(), warn: vi.fn() };
       const context = { cache: true, log: mockLog };
 
       const result = handleEffectErrorReturn(
@@ -169,11 +169,34 @@ describe("Helpers", () => {
       expect(result).toBe(TEST_FALLBACK_VALUE);
       expect(context.cache).toBe(false);
       expect(mockLog.error).toHaveBeenCalledTimes(1);
+      expect(mockLog.warn).not.toHaveBeenCalled();
       const errorCall = mockLog.error.mock.calls[0];
       expect(errorCall[0]).toContain(`[${TEST_EFFECT_NAME}]`);
       expect(errorCall[0]).toContain("chainId=10");
       expect(errorCall[0]).toContain("blockNumber=12345");
       expect(errorCall[1]).toBeInstanceOf(Error);
+    });
+
+    it("logs a CONTRACT_REVERT via warn instead of error (issue #692)", () => {
+      const error = new Error("execution reverted");
+      const mockLog = { error: vi.fn(), warn: vi.fn() };
+      const context = { cache: true, log: mockLog };
+
+      const result = handleEffectErrorReturn(
+        error,
+        context,
+        TEST_EFFECT_NAME,
+        TEST_DETAILS,
+        TEST_FALLBACK_VALUE,
+      );
+
+      expect(result).toBe(TEST_FALLBACK_VALUE);
+      expect(context.cache).toBe(false);
+      expect(mockLog.warn).toHaveBeenCalledTimes(1);
+      expect(mockLog.error).not.toHaveBeenCalled();
+      const warnMsg = mockLog.warn.mock.calls[0][0];
+      expect(warnMsg).toContain(`[${TEST_EFFECT_NAME}]`);
+      expect(warnMsg).toContain("execution reverted");
     });
   });
 

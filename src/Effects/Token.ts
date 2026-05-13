@@ -1,4 +1,5 @@
 import { S, createEffect } from "envio";
+import { ErrorType } from "./Helpers";
 import { EffectType, callRpcGateway } from "./RpcGateway";
 
 export { fetchTokenDetails, fetchTokenPrice } from "./fetchers/Token";
@@ -54,10 +55,12 @@ export const getTokenDetails = createEffect(
       chainId: input.chainId,
     });
 
-    // Skip caching only when the gateway returned the static fallback constant
-    // after both RPCs were exhausted (issue #691) — a legitimate empty-string
-    // contract response stays cached.
-    if (result.usedDefault) {
+    // Skip caching only when the fallback was returned because of a transient
+    // RPC failure (issue #691 + #692). A deterministic contract revert is
+    // safe to cache — re-fetching at the same block would produce the same
+    // revert and the same fallback constant, so caching avoids one extra RPC
+    // call per revert-producing address per indexer run.
+    if (shouldSkipCacheOnDefault(result.usedDefault, result.errorClass)) {
       context.cache = false;
     }
 
@@ -68,6 +71,24 @@ export const getTokenDetails = createEffect(
     };
   },
 );
+
+/**
+ * Cache gating helper for outer effects sitting on top of {@link callRpcGateway}.
+ * Returns true when the fallback constant is unsafe to cache — i.e. it was
+ * produced by a transient RPC failure (network blip, rate limit, etc.) rather
+ * than a deterministic contract revert. CONTRACT_REVERT fallbacks stay cached
+ * (issue #692) so reverts amortise like real successes.
+ *
+ * @param usedDefault - Whether the gateway returned the caller's fallback constant.
+ * @param errorClass - The {@link ErrorType} of the underlying failure, or null on success.
+ * @returns true when the caller should set `context.cache = false`; false otherwise.
+ */
+function shouldSkipCacheOnDefault(
+  usedDefault: boolean,
+  errorClass: ErrorType | string | undefined,
+): boolean {
+  return usedDefault && errorClass !== ErrorType.CONTRACT_REVERT;
+}
 
 /**
  * Effect to read token price in USD from the chain's price oracle. Delegates to {@link rpcGateway};
@@ -101,9 +122,10 @@ export const getTokenPrice = createEffect(
       blockNumber: input.blockNumber,
     });
 
-    // Skip caching only when the gateway used the fallback constant (issue #691).
-    // Legitimate zero prices (pre-oracle-deploy, broken connectors) are now cacheable.
-    if (result.usedDefault) {
+    // Skip caching only on transient-RPC fallbacks (issue #691 + #692).
+    // Legitimate zero prices (pre-oracle-deploy, broken connectors) are cacheable;
+    // a deterministic CONTRACT_REVERT fallback is also cacheable.
+    if (shouldSkipCacheOnDefault(result.usedDefault, result.errorClass)) {
       context.cache = false;
     }
 

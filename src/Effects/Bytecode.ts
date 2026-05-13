@@ -1,4 +1,5 @@
 import { S, createEffect } from "envio";
+import { ErrorType } from "./Helpers";
 import { EffectType, callRpcGateway } from "./RpcGateway";
 
 export { fetchHasContractBytecode } from "./fetchers/Bytecode";
@@ -13,8 +14,9 @@ export { fetchHasContractBytecode } from "./fetchers/Bytecode";
  * `eth_getCode` per address per cache lifetime). The fail-open path — where
  * {@link handleHasContractBytecode} returns `hasCode: true` after both primary
  * and fallback RPCs are exhausted — is detected via the gateway's `usedDefault`
- * flag (issue #691) and skips caching so a transient RPC failure can be retried
- * on the next run instead of being pinned to `true` until the cache evicts.
+ * flag (issue #691). Caching is only skipped when the failure was transient
+ * (network/rate-limit, issue #692); a deterministic `CONTRACT_REVERT` fallback
+ * stays cached because re-fetching at the same block produces the same revert.
  *
  * @param input.address - Address to query.
  * @param input.chainId - Chain ID for RPC client.
@@ -40,7 +42,7 @@ export const hasContractBytecode = createEffect(
       chainId: input.chainId,
     });
 
-    if (result.usedDefault) {
+    if (result.usedDefault && result.errorClass !== ErrorType.CONTRACT_REVERT) {
       context.cache = false;
     }
 
