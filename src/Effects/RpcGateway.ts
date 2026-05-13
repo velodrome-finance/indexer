@@ -57,7 +57,7 @@ const RPC_GATEWAY_OPERATIONS = {
       decimals: S.number,
       symbol: S.string,
       usedDefault: S.boolean,
-      errorClass: S.nullable(S.string),
+      errorClass: S.optional(S.string),
     },
   },
   [EffectType.GET_TOKEN_PRICE]: {
@@ -71,7 +71,7 @@ const RPC_GATEWAY_OPERATIONS = {
       pricePerUSDNew: S.bigint,
       priceOracleType: S.string,
       usedDefault: S.boolean,
-      errorClass: S.nullable(S.string),
+      errorClass: S.optional(S.string),
     },
   },
   [EffectType.GET_TOKENS_DEPOSITED]: {
@@ -85,7 +85,7 @@ const RPC_GATEWAY_OPERATIONS = {
     outputSchema: {
       value: S.optional(S.bigint),
       usedDefault: S.boolean,
-      errorClass: S.nullable(S.string),
+      errorClass: S.optional(S.string),
     },
   },
   [EffectType.GET_SWAP_FEE]: {
@@ -99,7 +99,7 @@ const RPC_GATEWAY_OPERATIONS = {
     outputSchema: {
       value: S.optional(S.bigint),
       usedDefault: S.boolean,
-      errorClass: S.nullable(S.string),
+      errorClass: S.optional(S.string),
     },
   },
   [EffectType.GET_ROOT_POOL_ADDRESS]: {
@@ -114,7 +114,7 @@ const RPC_GATEWAY_OPERATIONS = {
     outputSchema: {
       value: S.string,
       usedDefault: S.boolean,
-      errorClass: S.nullable(S.string),
+      errorClass: S.optional(S.string),
     },
   },
   [EffectType.HAS_CONTRACT_BYTECODE]: {
@@ -126,7 +126,7 @@ const RPC_GATEWAY_OPERATIONS = {
     outputSchema: {
       hasCode: S.boolean,
       usedDefault: S.boolean,
-      errorClass: S.nullable(S.string),
+      errorClass: S.optional(S.string),
     },
   },
 } as const satisfies Record<
