@@ -150,5 +150,81 @@ describe("CLPoolMintLogic", () => {
         5000000000000000000n,
       );
     });
+
+    it("should increment liquidityInRange when tickLower <= aggregator.tick < tickUpper (in-range)", () => {
+      // mockEvent uses tickLower=100000, tickUpper=200000.
+      // Place aggregator.tick mid-range so the position contributes its full L.
+      const inRangeAggregator = {
+        ...mockLiquidityPoolAggregator,
+        tick: 150000n,
+        liquidityInRange: 7_000_000_000n,
+      } as LiquidityPoolAggregator;
+
+      const result = processCLPoolMint(
+        mockEvent,
+        inRangeAggregator,
+        mockToken0,
+        mockToken1,
+      );
+
+      // event.params.amount = 1e18 — full L contribution
+      expect(result.liquidityPoolDiff.incrementalLiquidityInRange).toBe(
+        1000000000000000000n,
+      );
+      // Swap-authoritative replace must NOT be set on Mint
+      expect(result.liquidityPoolDiff.liquidityInRange).toBeUndefined();
+    });
+
+    it("should not touch liquidityInRange when position is out of range (tick below tickLower)", () => {
+      // Default mockLiquidityPoolAggregator.tick = 0n, tickLower = 100000n → below.
+      const result = processCLPoolMint(
+        mockEvent,
+        mockLiquidityPoolAggregator,
+        mockToken0,
+        mockToken1,
+      );
+
+      expect(
+        result.liquidityPoolDiff.incrementalLiquidityInRange,
+      ).toBeUndefined();
+      expect(result.liquidityPoolDiff.liquidityInRange).toBeUndefined();
+    });
+
+    it("should not touch liquidityInRange when position is out of range (tick at or above tickUpper)", () => {
+      // tickUpper is exclusive: tick === tickUpper means out-of-range above.
+      const aboveAggregator = {
+        ...mockLiquidityPoolAggregator,
+        tick: 200000n,
+      } as LiquidityPoolAggregator;
+
+      const result = processCLPoolMint(
+        mockEvent,
+        aboveAggregator,
+        mockToken0,
+        mockToken1,
+      );
+
+      expect(
+        result.liquidityPoolDiff.incrementalLiquidityInRange,
+      ).toBeUndefined();
+    });
+
+    it("should include the boundary at tickLower (inclusive)", () => {
+      const atLowerAggregator = {
+        ...mockLiquidityPoolAggregator,
+        tick: 100000n,
+      } as LiquidityPoolAggregator;
+
+      const result = processCLPoolMint(
+        mockEvent,
+        atLowerAggregator,
+        mockToken0,
+        mockToken1,
+      );
+
+      expect(result.liquidityPoolDiff.incrementalLiquidityInRange).toBe(
+        1000000000000000000n,
+      );
+    });
   });
 });

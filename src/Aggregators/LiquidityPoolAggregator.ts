@@ -76,7 +76,14 @@ export interface LiquidityPoolAggregatorDiff {
   observationCardinalityNext: bigint;
   sqrtPriceX96: bigint;
   tick: bigint;
+  // Absolute (replace) write of liquidityInRange — Swap is authoritative because
+  // event.params.liquidity reflects the pool's post-swap on-chain liquidity()
+  // (it captures any tick-crossings that happened during the swap).
   liquidityInRange: bigint;
+  // Incremental (sum-with-current) write — emitted by in-range CL Mint/Burn so
+  // L-changes outside swaps no longer wait for the next swap to be reflected.
+  // If both are present in the same diff, the absolute write wins (see #703).
+  incrementalLiquidityInRange: bigint;
   stakedLiquidityInRange: bigint;
   incrementalStakedReserve0: bigint;
   incrementalStakedReserve1: bigint;
@@ -378,7 +385,16 @@ export async function updateLiquidityPoolAggregator(
       diff.observationCardinalityNext ?? current.observationCardinalityNext,
     sqrtPriceX96: diff.sqrtPriceX96 ?? current.sqrtPriceX96,
     tick: diff.tick ?? current.tick,
-    liquidityInRange: diff.liquidityInRange ?? current.liquidityInRange,
+    // Issue #703: Swap is authoritative (absolute write captures any tick
+    // crossings); in-range Mint/Burn supply an incremental delta so L changes
+    // are reflected without waiting for the next swap. Absolute wins if both
+    // are set in the same diff. `current.liquidityInRange` is nullable on the
+    // entity (see schema.graphql:50); coalesce to 0n so a pre-first-swap pool
+    // can still accept Mint/Burn increments.
+    liquidityInRange:
+      diff.liquidityInRange ??
+      (diff.incrementalLiquidityInRange ?? 0n) +
+        (current.liquidityInRange ?? 0n),
     stakedLiquidityInRange:
       diff.stakedLiquidityInRange ?? current.stakedLiquidityInRange,
     stakedReserve0:
