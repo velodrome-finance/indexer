@@ -13,6 +13,7 @@ import {
   computeLiquidityDeltaFromAmounts,
   computeNonCLStakedUSD,
   concentratedLiquidityToUSD,
+  pickTrustedSwapVolumeUSD,
   runAsyncWithErrorLog,
   sortByBlockThenLogIndex,
 } from "../src/Helpers";
@@ -1024,6 +1025,29 @@ describe("Helpers", () => {
       );
 
       expect(result).toBe(0n);
+    });
+  });
+
+  describe("pickTrustedSwapVolumeUSD", () => {
+    it("returns min when both legs are non-zero", () => {
+      expect(pickTrustedSwapVolumeUSD(100n, 99n)).toBe(99n);
+      expect(pickTrustedSwapVolumeUSD(99n, 100n)).toBe(99n);
+    });
+
+    it("falls back to the non-zero leg when one is zero", () => {
+      expect(pickTrustedSwapVolumeUSD(0n, 500n)).toBe(500n);
+      expect(pickTrustedSwapVolumeUSD(500n, 0n)).toBe(500n);
+    });
+
+    it("treats undefined as zero", () => {
+      expect(pickTrustedSwapVolumeUSD(undefined, 500n)).toBe(500n);
+      expect(pickTrustedSwapVolumeUSD(500n, undefined)).toBe(500n);
+    });
+
+    it("returns 0n when both legs are zero/undefined", () => {
+      expect(pickTrustedSwapVolumeUSD(0n, 0n)).toBe(0n);
+      expect(pickTrustedSwapVolumeUSD(undefined, undefined)).toBe(0n);
+      expect(pickTrustedSwapVolumeUSD(undefined, 0n)).toBe(0n);
     });
   });
 });

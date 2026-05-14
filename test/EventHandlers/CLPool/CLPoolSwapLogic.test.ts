@@ -185,6 +185,41 @@ describe("CLPoolSwapLogic", () => {
 
       expect(result.volumeInUSD).toBe(ONE_USD);
     });
+
+    it("should pick the smaller-USD leg when one token's price is corrupted (#699)", () => {
+      // Reproduces issue #699: scam-token / poisoned-oracle case. token0 reports
+      // an absurdly inflated price (1e35 instead of 1e18), token1 is a healthy
+      // USDC ($1). Old behaviour picked token0 and contaminated totalVolumeUSD;
+      // new behaviour picks min(t0, t1) — the honest USDC-side amount.
+      const corruptedToken0: Token = {
+        ...mockToken0,
+        pricePerUSDNew: 100000000000000000000000000000000000n, // 1e35
+      };
+      const healthyToken1: Token = {
+        ...mockToken1,
+        decimals: 6n,
+        pricePerUSDNew: ONE_USD, // $1
+      };
+      const swapEvent: CLPool_Swap_event = {
+        ...mockEvent,
+        params: {
+          ...mockEvent.params,
+          amount0: 1n * TEN_TO_THE_18_BI, // 1 token (18 decimals)
+          amount1: -1000000n, // 1 USDC (6 decimals)
+        },
+      };
+
+      const result = calculateSwapVolume(
+        swapEvent,
+        corruptedToken0,
+        healthyToken1,
+      );
+
+      // token0UsdValue = 1e18 * 1e35 / 1e18 = 1e35 (corrupted)
+      // token1UsdValue = (1e6 * 1e18 / 1e6) * 1e18 / 1e18 = 1e18 ($1, honest)
+      // min picks the honest leg.
+      expect(result.volumeInUSD).toBe(ONE_USD);
+    });
   });
 
   describe("calculateSwapFees", () => {
