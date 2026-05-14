@@ -4,9 +4,11 @@ import {
   handleMintTransfer,
   processVeNFTDeposit,
   processVeNFTDepositManaged,
+  processVeNFTLockPermanent,
   processVeNFTMerge,
   processVeNFTSplit,
   processVeNFTTransfer,
+  processVeNFTUnlockPermanent,
   processVeNFTWithdraw,
   processVeNFTWithdrawManaged,
 } from "./VeNFTLogic";
@@ -117,6 +119,36 @@ VeNFT.DepositManaged.handler(async ({ event, context }) => {
   }
 
   await processVeNFTDepositManaged(event, tokenState, managedState, context);
+});
+
+VeNFT.LockPermanent.handler(async ({ event, context }) => {
+  const veNFTState = await context.VeNFTState.get(
+    VeNFTId(event.chainId, event.params._tokenId),
+  );
+
+  if (!veNFTState) {
+    context.log.error(
+      `[VeNFT.LockPermanent] VeNFTState ${event.params._tokenId} not found during VeNFT lockPermanent on chain ${event.chainId}`,
+    );
+    return;
+  }
+
+  await processVeNFTLockPermanent(event, veNFTState, context);
+});
+
+VeNFT.UnlockPermanent.handler(async ({ event, context }) => {
+  const veNFTState = await context.VeNFTState.get(
+    VeNFTId(event.chainId, event.params._tokenId),
+  );
+
+  if (!veNFTState) {
+    context.log.error(
+      `[VeNFT.UnlockPermanent] VeNFTState ${event.params._tokenId} not found during VeNFT unlockPermanent on chain ${event.chainId}`,
+    );
+    return;
+  }
+
+  await processVeNFTUnlockPermanent(event, veNFTState, context);
 });
 
 VeNFT.WithdrawManaged.handler(async ({ event, context }) => {

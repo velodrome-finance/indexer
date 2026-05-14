@@ -56,8 +56,10 @@ contracts:
     events:
       - event: Deposit
       - event: DepositManaged
+      - event: LockPermanent
       - event: Merge
       - event: Split
+      - event: UnlockPermanent
       - event: WithdrawManaged
       - event: Withdraw
       - event: Transfer

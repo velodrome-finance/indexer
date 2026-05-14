@@ -26,6 +26,7 @@ describe("VeNFTState", () => {
     tokenId: 1n,
     owner: toChecksumAddress("0x1111111111111111111111111111111111111111"),
     locktime: 100n,
+    isPermanent: false,
     lastUpdatedTimestamp: new Date(10000 * 1000),
     totalValueLocked: 100n,
     isAlive: true,
@@ -193,6 +194,72 @@ describe("VeNFTState", () => {
       });
     });
 
+    describe("when updating with permanent-lock diff", () => {
+      it("flips isPermanent to true and zeroes locktime", async () => {
+        const lockDiff = {
+          isPermanent: true,
+          locktime: 0n,
+        };
+
+        await updateVeNFTState(
+          lockDiff,
+          mockVeNFTState,
+          timestamp,
+          mockContext as handlerContext,
+        );
+
+        const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
+        const result = mockSet?.mock.calls[0]?.[0] as VeNFTState;
+        expect(result.isPermanent).toBe(true);
+        expect(result.locktime).toBe(0n);
+      });
+
+      it("restores isPermanent to false on unlock", async () => {
+        const permanentState: VeNFTState = {
+          ...mockVeNFTState,
+          isPermanent: true,
+          locktime: 0n,
+        };
+        const unlockDiff = {
+          isPermanent: false,
+          locktime: 9999n,
+        };
+
+        await updateVeNFTState(
+          unlockDiff,
+          permanentState,
+          timestamp,
+          mockContext as handlerContext,
+        );
+
+        const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
+        const result = mockSet?.mock.calls[0]?.[0] as VeNFTState;
+        expect(result.isPermanent).toBe(false);
+        expect(result.locktime).toBe(9999n);
+      });
+
+      it("preserves isPermanent when diff does not provide it", async () => {
+        const permanentState: VeNFTState = {
+          ...mockVeNFTState,
+          isPermanent: true,
+          locktime: 0n,
+        };
+        const incrementOnly = { incrementalTotalValueLocked: 5n };
+
+        await updateVeNFTState(
+          incrementOnly,
+          permanentState,
+          timestamp,
+          mockContext as handlerContext,
+        );
+
+        const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
+        const result = mockSet?.mock.calls[0]?.[0] as VeNFTState;
+        expect(result.isPermanent).toBe(true);
+        expect(result.locktime).toBe(0n);
+      });
+    });
+
     describe("when updating with burn diff", () => {
       let result: VeNFTState;
       beforeEach(async () => {
@@ -231,6 +298,7 @@ describe("VeNFTState", () => {
             "0x0000000000000000000000000000000000000000",
           ),
           locktime: 0n,
+          isPermanent: false,
           lastUpdatedTimestamp: new Date(0),
           totalValueLocked: 0n,
           isAlive: false,

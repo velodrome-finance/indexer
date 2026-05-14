@@ -10,6 +10,7 @@ export interface VeNFTStateDiff {
   tokenId: bigint;
   owner: string;
   locktime: bigint;
+  isPermanent: boolean;
   incrementalTotalValueLocked: bigint;
   isAlive: boolean;
   lastUpdatedTimestamp: Date;
@@ -57,6 +58,7 @@ export async function updateVeNFTState(
     tokenId: diff.tokenId ?? current.tokenId,
     owner: diff.owner ?? current.owner,
     locktime: diff.locktime ?? current.locktime, // lockTime of the deposit action
+    isPermanent: diff.isPermanent ?? current.isPermanent,
     lastUpdatedTimestamp: timestamp,
     totalValueLocked:
       (diff.incrementalTotalValueLocked ?? 0n) + current.totalValueLocked,

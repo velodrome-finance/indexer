@@ -308,6 +308,7 @@ export function setupCommon() {
     tokenId: 1n,
     owner: normalizedDefaultUserAddress,
     locktime: 0n,
+    isPermanent: false,
     lastUpdatedTimestamp: new Date(900000 * 1000),
     totalValueLocked: 0n,
     isAlive: true,

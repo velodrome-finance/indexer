@@ -22,6 +22,7 @@ describe("VeNFT Events", () => {
     isAlive: true,
     lastUpdatedTimestamp: new Date(),
     locktime: 1n,
+    isPermanent: false,
     owner: toChecksumAddress("0x2222222222222222222222222222222222222222"),
     totalValueLocked: 1n,
     lastSnapshotTimestamp: undefined as Date | undefined,

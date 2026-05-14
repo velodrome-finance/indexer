@@ -426,6 +426,7 @@ type VeNFTState {
   tokenId: BigInt! @config(precision: 76)
   owner: String!
   locktime: BigInt! @config(precision: 76)
+  isPermanent: Boolean!
   lastUpdatedTimestamp: Timestamp!
   totalValueLocked: BigInt! @config(precision: 76)
   isAlive: Boolean!
@@ -440,6 +441,7 @@ type VeNFTStateSnapshot {
   tokenId: BigInt! @index
   owner: String! @index
   locktime: BigInt! @config(precision: 76)
+  isPermanent: Boolean!
   lastUpdatedTimestamp: Timestamp!
   totalValueLocked: BigInt! @config(precision: 76)
   isAlive: Boolean!
