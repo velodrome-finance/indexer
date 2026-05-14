@@ -245,7 +245,6 @@ export function setupCommon() {
     chainId: CHAIN_ID,
 
     // Liquidity metrics
-    currentLiquidityUSD: 0n,
     totalLiquidityAddedUSD: 0n,
     totalLiquidityAddedToken0: 0n,
     totalLiquidityAddedToken1: 0n,
