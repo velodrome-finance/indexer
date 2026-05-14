@@ -65,6 +65,11 @@ const RPC_GATEWAY_OPERATIONS = {
       tokenAddress: S.string,
       chainId: S.number,
       blockNumber: S.number,
+      // Issue #700: when true, skip the per-chain price-connector list and
+      // quote only via the canonical set ([SYSTEM, WETH, USDC]). Used by
+      // refreshTokenPrice to cross-check a first-fetch candidate against a
+      // path that can't be poisoned by an illiquid connector pool.
+      canonicalOnly: S.boolean,
     },
     outputSchema: {
       pricePerUSDNew: S.bigint,
@@ -156,6 +161,7 @@ type RpcGatewayInputPayloadByType = {
     tokenAddress: string;
     chainId: number;
     blockNumber: number;
+    canonicalOnly: boolean;
   };
   [EffectType.GET_TOKENS_DEPOSITED]: {
     rewardTokenAddress: string;
@@ -457,6 +463,15 @@ async function handleGetTokenPrice(
     if (blacklist.size > 0) {
       connectors = connectors.filter((a) => !blacklist.has(a));
     }
+  }
+
+  // Issue #700: canonical-only mode strips the per-chain priceConnectors so
+  // the oracle quote only travels via [SYSTEM, WETH, USDC] (appended inside
+  // fetchTokenPrice). Used by refreshTokenPrice to bootstrap-check a
+  // first-fetch candidate against a path that can't be poisoned by an
+  // illiquid connector pool.
+  if (i.canonicalOnly) {
+    connectors = [];
   }
 
   const operationName = rpcGatewayOpName(EffectType.GET_TOKEN_PRICE);

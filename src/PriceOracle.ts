@@ -31,6 +31,25 @@ const PRICE_SPIKE_RATIO_THRESHOLD = 10n;
 const PRICE_SPIKE_STALENESS_MS = 14 * 24 * 60 * 60 * 1000;
 
 /**
+ * Returns true when two positive bigints diverge by ≥ {@link PRICE_SPIKE_RATIO_THRESHOLD}
+ * in either direction (a ≥ T·b or b ≥ T·a). Zero inputs are treated as
+ * non-divergent — callers handle the zero case explicitly because its
+ * meaning differs by site (first-fetch exemption vs. unverifiable canonical).
+ *
+ * @param a - First positive bigint.
+ * @param b - Second positive bigint.
+ * @returns Whether the ratio between a and b is ≥10× in either direction.
+ */
+function ratioDivergesBy10x(a: bigint, b: bigint): boolean {
+  return (
+    a > 0n &&
+    b > 0n &&
+    (a >= b * PRICE_SPIKE_RATIO_THRESHOLD ||
+      b >= a * PRICE_SPIKE_RATIO_THRESHOLD)
+  );
+}
+
+/**
  * Creates and persists a Token entity at first sight, gated on the address
  * actually being a contract on-chain.
  *
@@ -178,6 +197,7 @@ export async function refreshTokenPrice(
           tokenAddress: rebindTarget.address,
           chainId: rebindTarget.chainId,
           blockNumber: sourceBlockRounded,
+          canonicalOnly: false,
         });
         sourcePrice = prefetched.pricePerUSDNew;
       }
@@ -220,6 +240,7 @@ export async function refreshTokenPrice(
       tokenAddress: token.address,
       chainId,
       blockNumber: roundedBlockNumber,
+      canonicalOnly: false,
     });
     let currentPrice = priceData.pricePerUSDNew;
 
@@ -231,16 +252,42 @@ export async function refreshTokenPrice(
     const anchorAgeMs = token.lastUpdatedTimestamp
       ? blockTimestampMs - token.lastUpdatedTimestamp.getTime()
       : Number.POSITIVE_INFINITY;
-    const ratioExceeds =
-      anchorPrice > 0n &&
-      currentPrice > 0n &&
-      (currentPrice >= anchorPrice * PRICE_SPIKE_RATIO_THRESHOLD ||
-        anchorPrice >= currentPrice * PRICE_SPIKE_RATIO_THRESHOLD);
-    if (ratioExceeds && anchorAgeMs < PRICE_SPIKE_STALENESS_MS) {
+    if (
+      ratioDivergesBy10x(anchorPrice, currentPrice) &&
+      anchorAgeMs < PRICE_SPIKE_STALENESS_MS
+    ) {
       context.log.warn(
         `[priceSpikeRejected] ${token.address} chain=${chainId} anchor=${anchorPrice} candidate=${currentPrice}`,
       );
       currentPrice = anchorPrice;
+    }
+
+    // Issue #700: bootstrap-from-canonical guard. The ratio rejector above is
+    // exempt for first-fetch (anchor == 0) because there's no prior accepted
+    // price to anchor against — but that lets a poisoned full-connector path
+    // (e.g. an illiquid pool with a one-wei trade) write a wildly inflated
+    // first price, which then propagates into every downstream USD aggregate.
+    // Cross-check the candidate against an oracle read using only the
+    // canonical connectors ([SYSTEM, WETH, USDC]). If the canonical path
+    // returns 0n or the two answers diverge by ≥10×, treat the first-fetch
+    // candidate as untrusted and write 0n.
+    if (anchorPrice === 0n && currentPrice > 0n) {
+      const canonical = await context.effect(getTokenPrice, {
+        tokenAddress: token.address,
+        chainId,
+        blockNumber: roundedBlockNumber,
+        canonicalOnly: true,
+      });
+      const canonicalPrice = canonical.pricePerUSDNew;
+      if (
+        canonicalPrice === 0n ||
+        ratioDivergesBy10x(currentPrice, canonicalPrice)
+      ) {
+        context.log.warn(
+          `[bootstrapPathRejected] ${token.address} chain=${chainId} candidate=${currentPrice} canonical=${canonicalPrice}`,
+        );
+        currentPrice = 0n;
+      }
     }
 
     // If price fetch returned 0, it could mean:

@@ -125,6 +125,7 @@ export async function processVotingRewardClaimRewards(
         tokenAddress: data.reward,
         chainId: data.chainId,
         blockNumber: roundedBlockNumber, // Use rounded block for cache key
+        canonicalOnly: false,
       }),
     ]);
 

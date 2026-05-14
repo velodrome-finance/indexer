@@ -1062,6 +1062,190 @@ describe("PriceOracle", () => {
       });
     });
 
+    // Issue #700: the ≥10× spike rejector (issue #668) exempts first-fetch
+    // reads because there is no prior accepted price to anchor against. That
+    // exemption lets a poisoned full-connector oracle path (e.g. an illiquid
+    // pool with a one-wei trade) write a wildly inflated first price, which
+    // then propagates into every downstream USD aggregate. Bootstrap-from-
+    // canonical: on first-fetch, cross-check the candidate against an oracle
+    // read using only the canonical connectors (USDC, WETH, system token);
+    // reject if the canonical path returns 0n or the two answers diverge by
+    // ≥10×.
+    describe("first-fetch bootstrap-from-canonical (issue #700)", () => {
+      const oneHourOneMinuteAgo = () =>
+        new Date(blockDatetime.getTime() - 61 * 60 * 1000);
+
+      beforeEach(() => {
+        vi.mocked(mockContext.Token?.set)?.mockClear();
+        vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mockClear();
+        vi.mocked(mockContext.log?.warn)?.mockClear();
+      });
+
+      it("rejects a first-fetch when canonical-only diverges by ≥10× from the full-path candidate", async () => {
+        // Anchor is 0n (first-fetch). Full-path oracle returns 1.5e23
+        // (poisoned by an illiquid connector pool). Canonical-only oracle
+        // returns 1e18 (~$1, the real price). 1.5e23 vs 1e18 is a 1.5e5×
+        // divergence — must reject, leaving the stored price at 0n.
+        const poisonedPrice = 15n * 10n ** 22n; // 1.5e23
+        const canonicalPrice = 1n * 10n ** 18n;
+
+        vi.mocked(mockContext.effect)?.mockImplementation(
+          async (effect, input) => {
+            if ((effect as { name?: string }).name === "getTokenPrice") {
+              if ((input as { canonicalOnly?: boolean }).canonicalOnly) {
+                return { pricePerUSDNew: canonicalPrice };
+              }
+              return { pricePerUSDNew: poisonedPrice };
+            }
+            return {};
+          },
+        );
+
+        const fetchedToken = {
+          ...mockToken0Data,
+          pricePerUSDNew: 0n,
+          lastUpdatedTimestamp: oneHourOneMinuteAgo(),
+        };
+
+        await PriceOracle.refreshTokenPrice(
+          fetchedToken,
+          blockNumber,
+          blockDatetime.getTime() / 1000,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
+          .lastCall?.[0] as Token;
+        expect(updatedToken.pricePerUSDNew).toBe(0n);
+        const warnCall = vi.mocked(mockContext.log?.warn)?.mock.lastCall;
+        expect(warnCall?.[0]).toContain("[bootstrapPathRejected]");
+      });
+
+      it("rejects a first-fetch when canonical-only returns 0n (unreachable canonical path)", async () => {
+        // Full-path returns a non-zero candidate, but the canonical-only
+        // oracle has no route — likely a token that only quotes through the
+        // pathological pool. Treat as unverifiable → leave at 0n.
+        const candidatePrice = 5n * 10n ** 21n;
+
+        vi.mocked(mockContext.effect)?.mockImplementation(
+          async (effect, input) => {
+            if ((effect as { name?: string }).name === "getTokenPrice") {
+              if ((input as { canonicalOnly?: boolean }).canonicalOnly) {
+                return { pricePerUSDNew: 0n };
+              }
+              return { pricePerUSDNew: candidatePrice };
+            }
+            return {};
+          },
+        );
+
+        const fetchedToken = {
+          ...mockToken0Data,
+          pricePerUSDNew: 0n,
+          lastUpdatedTimestamp: oneHourOneMinuteAgo(),
+        };
+
+        await PriceOracle.refreshTokenPrice(
+          fetchedToken,
+          blockNumber,
+          blockDatetime.getTime() / 1000,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
+          .lastCall?.[0] as Token;
+        expect(updatedToken.pricePerUSDNew).toBe(0n);
+        const warnCall = vi.mocked(mockContext.log?.warn)?.mock.lastCall;
+        expect(warnCall?.[0]).toContain("[bootstrapPathRejected]");
+      });
+
+      it("accepts a first-fetch (WETH-like) when canonical and full-path agree within 10×", async () => {
+        // Real-world bootstrap path: a freshly-tracked token whose full-path
+        // and canonical-only oracle reads both return 2.275e21 (~$2,275 per
+        // unit, mirrors a WETH bootstrap). Stored price must land at the
+        // candidate value.
+        const realPrice = 2275n * 10n ** 18n; // 2.275e21
+
+        vi.mocked(mockContext.effect)?.mockImplementation(
+          async (effect, _input) => {
+            if ((effect as { name?: string }).name === "getTokenPrice") {
+              return { pricePerUSDNew: realPrice };
+            }
+            return {};
+          },
+        );
+
+        const fetchedToken = {
+          ...mockToken0Data,
+          pricePerUSDNew: 0n,
+          lastUpdatedTimestamp: oneHourOneMinuteAgo(),
+        };
+
+        await PriceOracle.refreshTokenPrice(
+          fetchedToken,
+          blockNumber,
+          blockDatetime.getTime() / 1000,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
+          .lastCall?.[0] as Token;
+        expect(updatedToken.pricePerUSDNew).toBe(realPrice);
+        const warnCalls = vi.mocked(mockContext.log?.warn)?.mock.calls ?? [];
+        for (const call of warnCalls) {
+          expect(call?.[0] ?? "").not.toContain("[bootstrapPathRejected]");
+        }
+      });
+
+      it("only invokes the canonical-only cross-check on first-fetch, not on subsequent refreshes", async () => {
+        // Established token (anchor > 0n) must NOT trigger the second oracle
+        // call. Guarantees the bootstrap guard doesn't double the RPC budget
+        // for the steady-state case.
+        const anchorPrice = 2n * 10n ** 18n;
+        const newPrice = 3n * 10n ** 18n;
+
+        const effectCalls: Array<{ name: string; canonicalOnly: boolean }> = [];
+        vi.mocked(mockContext.effect)?.mockImplementation(
+          async (effect, input) => {
+            const name = (effect as { name?: string }).name ?? "";
+            if (name === "getTokenPrice") {
+              effectCalls.push({
+                name,
+                canonicalOnly: Boolean(
+                  (input as { canonicalOnly?: boolean }).canonicalOnly,
+                ),
+              });
+              return { pricePerUSDNew: newPrice };
+            }
+            return {};
+          },
+        );
+
+        const fetchedToken = {
+          ...mockToken0Data,
+          pricePerUSDNew: anchorPrice,
+          lastUpdatedTimestamp: oneHourOneMinuteAgo(),
+        };
+
+        await PriceOracle.refreshTokenPrice(
+          fetchedToken,
+          blockNumber,
+          blockDatetime.getTime() / 1000,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        const priceCalls = effectCalls.filter(
+          (c) => c.name === "getTokenPrice",
+        );
+        expect(priceCalls).toHaveLength(1);
+        expect(priceCalls[0]?.canonicalOnly).toBe(false);
+      });
+    });
+
     // Issue #694: V3 last-known-price fallback used `lastUpdatedTimestamp`
     // for two purposes — the 1-hour throttle and the 7-day staleness window
     // guarding the fallback. Because every refresh attempt (including those

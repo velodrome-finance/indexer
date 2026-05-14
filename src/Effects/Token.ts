@@ -76,6 +76,7 @@ export const getTokenDetails = createEffect(
  * @param input.tokenAddress - Token to price.
  * @param input.chainId - Chain ID for oracle and RPC.
  * @param input.blockNumber - Block at which to read (often rounded via {@link roundBlockToInterval}).
+ * @param input.canonicalOnly - When `true`, skip the per-chain priceConnectors list and quote only via the canonical [SYSTEM, WETH, USDC] set (issue #700). Used by refreshTokenPrice's first-fetch bootstrap check. The effect's input is part of its cache key, so canonical-only and full-path reads occupy distinct cache slots.
  * @returns Promise resolving to { pricePerUSDNew, priceOracleType }.
  */
 export const getTokenPrice = createEffect(
@@ -85,6 +86,7 @@ export const getTokenPrice = createEffect(
       tokenAddress: S.string,
       chainId: S.number,
       blockNumber: S.number,
+      canonicalOnly: S.boolean,
     },
     output: {
       pricePerUSDNew: S.bigint,
@@ -99,6 +101,7 @@ export const getTokenPrice = createEffect(
       tokenAddress: input.tokenAddress,
       chainId: input.chainId,
       blockNumber: input.blockNumber,
+      canonicalOnly: input.canonicalOnly,
     });
 
     // Skip caching only when the gateway used the fallback constant (issue #691).
