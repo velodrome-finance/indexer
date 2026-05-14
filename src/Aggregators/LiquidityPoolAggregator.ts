@@ -274,11 +274,35 @@ export async function updateLiquidityPoolAggregator(
     diff.stakedTickEdgeNets = undefined;
   }
 
+  // Clamp reserve0 / reserve1 to >= 0n at the accumulator path (issue #702).
+  // Reserves are LP-deposited capital and must never go negative; a Burn
+  // larger than the cumulative Mint we observed would otherwise drive the
+  // stored field negative permanently, breaking downstream Hasura consumers.
+  // Clamp-and-continue (not skip-on-underflow) because reserves are pure
+  // derived state; logged under [NEG_RESERVE_GUARD] with prior reserve,
+  // delta, and clamped value.
+  const reserve0Delta = diff.incrementalReserve0 ?? 0n;
+  const reserve0Sum = current.reserve0 + reserve0Delta;
+  const clampedReserve0 = reserve0Sum < 0n ? 0n : reserve0Sum;
+  if (reserve0Sum < 0n) {
+    context.log.warn(
+      `[NEG_RESERVE_GUARD][updateLiquidityPoolAggregator] field=reserve0 poolAddress=${current.poolAddress} chainId=${current.chainId} priorReserve=${current.reserve0} delta=${reserve0Delta} clampedTo=${clampedReserve0}`,
+    );
+  }
+  const reserve1Delta = diff.incrementalReserve1 ?? 0n;
+  const reserve1Sum = current.reserve1 + reserve1Delta;
+  const clampedReserve1 = reserve1Sum < 0n ? 0n : reserve1Sum;
+  if (reserve1Sum < 0n) {
+    context.log.warn(
+      `[NEG_RESERVE_GUARD][updateLiquidityPoolAggregator] field=reserve1 poolAddress=${current.poolAddress} chainId=${current.chainId} priorReserve=${current.reserve1} delta=${reserve1Delta} clampedTo=${clampedReserve1}`,
+    );
+  }
+
   let updated: LiquidityPoolAggregator = {
     ...current,
     // Handle cumulative fields by adding diff values to current values
-    reserve0: (diff.incrementalReserve0 ?? 0n) + current.reserve0,
-    reserve1: (diff.incrementalReserve1 ?? 0n) + current.reserve1,
+    reserve0: clampedReserve0,
+    reserve1: clampedReserve1,
     totalLPTokenSupply:
       (diff.incrementalTotalLPSupply ?? 0n) + current.totalLPTokenSupply,
     totalLiquidityUSD:
@@ -512,22 +536,6 @@ export async function updateLiquidityPoolAggregator(
     if ((updated.stakedReserve1 ?? 0n) < 0n) {
       context.log.warn(
         `[NEGATIVE_STAKED_RESERVE_DRIFT][updateLiquidityPoolAggregator] Pool ${current.poolAddress} on chain ${current.chainId} stakedReserve1 is negative at snapshot epoch: ${updated.stakedReserve1 ?? 0n}. Staked reserves are LP-deposited capital and should never go below zero.`,
-      );
-    }
-
-    // Soft invariant (issue #674): reserve0/reserve1 track LP-deposited capital
-    // and should never go below zero. Logged at each snapshot epoch boundary
-    // while still negative (≤1/hour per pool) so a persistent drift stays
-    // visible in recent logs without flooding them and without aborting the
-    // indexer or mutating state.
-    if (updated.reserve0 < 0n) {
-      context.log.warn(
-        `[NEGATIVE_RESERVE_DRIFT][updateLiquidityPoolAggregator] Pool ${current.poolAddress} on chain ${current.chainId} reserve0 is negative (${updated.reserve0}). Reserves are LP-deposited capital and should never go below zero.`,
-      );
-    }
-    if (updated.reserve1 < 0n) {
-      context.log.warn(
-        `[NEGATIVE_RESERVE_DRIFT][updateLiquidityPoolAggregator] Pool ${current.poolAddress} on chain ${current.chainId} reserve1 is negative (${updated.reserve1}). Reserves are LP-deposited capital and should never go below zero.`,
       );
     }
 

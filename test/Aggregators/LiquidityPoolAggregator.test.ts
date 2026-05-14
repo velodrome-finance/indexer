@@ -583,117 +583,183 @@ describe("LiquidityPoolAggregator Functions", () => {
       });
     });
 
-    // Regression test for issue #674: pool reserves should never go negative.
-    // The aggregator emits a warning under [NEGATIVE_RESERVE_DRIFT] at each
-    // snapshot epoch boundary while still negative (≤1/hour per pool) so a
-    // persistent drift stays visible in recent logs without flooding them and
-    // without aborting the indexer. Concentrated on Superseed (chain 5330)
-    // but the warning is chain-agnostic.
-    describe("negative reserve drift warning (issue #674)", () => {
-      const previousEpoch = () =>
-        new Date(timestamp.getTime() - 2 * 60 * 60 * 1000);
+    // Regression test for issue #702: pool reserves must never persist negative.
+    // The aggregator clamps reserve0 / reserve1 to >= 0n at the accumulator
+    // path and emits [NEG_RESERVE_GUARD] with {poolAddress, chainId,
+    // priorReserve, delta, clampedTo} each time the clamp fires.
+    describe("negative reserve clamp guard (issue #702)", () => {
+      const sameEpochAsTimestamp = () => timestamp;
 
-      const negativeReserveWarnings = () => {
+      const negReserveGuardLogs = () => {
         const warnMock = vi.mocked(mockContext.log?.warn);
         const calls = warnMock?.mock.calls ?? [];
         return calls.filter((args) =>
-          String(args[0] ?? "").includes("[NEGATIVE_RESERVE_DRIFT]"),
+          String(args[0] ?? "").includes("[NEG_RESERVE_GUARD]"),
         );
       };
 
-      it("warns at snapshot epoch when reserve0 is negative", async () => {
+      const lastSet = (): LiquidityPoolAggregator => {
+        const setMock = vi.mocked(mockContext.LiquidityPoolAggregator?.set);
+        return setMock?.mock.lastCall?.[0] as LiquidityPoolAggregator;
+      };
+
+      it("clamps reserve0 to 0n and logs guard when delta would drive it negative", async () => {
         await updateLiquidityPoolAggregator(
           { incrementalReserve0: -100n },
           {
             ...(liquidityPoolAggregator as LiquidityPoolAggregator),
             reserve0: 50n,
             reserve1: 1000n,
-            lastSnapshotTimestamp: previousEpoch(),
-            lastUpdatedTimestamp: previousEpoch(),
+            lastSnapshotTimestamp: sameEpochAsTimestamp(),
+            lastUpdatedTimestamp: sameEpochAsTimestamp(),
           },
           timestamp,
           mockContext as handlerContext,
-          5330,
+          8453,
           blockNumber,
         );
 
-        expect(negativeReserveWarnings().length).toBe(1);
+        expect(lastSet().reserve0).toBe(0n);
+        expect(lastSet().reserve1).toBe(1000n);
+
+        const logs = negReserveGuardLogs();
+        expect(logs.length).toBe(1);
+        const msg = String(logs[0]?.[0] ?? "");
+        expect(msg).toContain("reserve0");
+        expect(msg).toContain("priorReserve=50");
+        expect(msg).toContain("delta=-100");
+        expect(msg).toContain("clampedTo=0");
+        // chainId in the log is the pool entity's chainId, not the eventChainId
+        // parameter — those agree in practice (a reserve diff comes from the
+        // pool's own chain) and the pool's chainId is what Hasura consumers query.
+        expect(msg).toContain(
+          `chainId=${(liquidityPoolAggregator as LiquidityPoolAggregator).chainId}`,
+        );
       });
 
-      it("warns at snapshot epoch when reserve1 is negative", async () => {
+      it("clamps reserve1 to 0n and logs guard when delta would drive it negative", async () => {
         await updateLiquidityPoolAggregator(
           { incrementalReserve1: -100n },
           {
             ...(liquidityPoolAggregator as LiquidityPoolAggregator),
             reserve0: 1000n,
             reserve1: 50n,
-            lastSnapshotTimestamp: previousEpoch(),
-            lastUpdatedTimestamp: previousEpoch(),
+            lastSnapshotTimestamp: sameEpochAsTimestamp(),
+            lastUpdatedTimestamp: sameEpochAsTimestamp(),
           },
           timestamp,
           mockContext as handlerContext,
-          5330,
+          8453,
           blockNumber,
         );
 
-        expect(negativeReserveWarnings().length).toBe(1);
+        expect(lastSet().reserve0).toBe(1000n);
+        expect(lastSet().reserve1).toBe(0n);
+
+        const logs = negReserveGuardLogs();
+        expect(logs.length).toBe(1);
+        expect(String(logs[0]?.[0] ?? "")).toContain("reserve1");
       });
 
-      it("does not warn at snapshot epoch when reserves stay non-negative", async () => {
+      it("does not clamp or log when reserves stay non-negative", async () => {
         await updateLiquidityPoolAggregator(
           { incrementalReserve0: -50n, incrementalReserve1: -50n },
           {
             ...(liquidityPoolAggregator as LiquidityPoolAggregator),
             reserve0: 100n,
             reserve1: 100n,
-            lastSnapshotTimestamp: previousEpoch(),
-            lastUpdatedTimestamp: previousEpoch(),
+            lastSnapshotTimestamp: sameEpochAsTimestamp(),
+            lastUpdatedTimestamp: sameEpochAsTimestamp(),
           },
           timestamp,
           mockContext as handlerContext,
-          5330,
+          8453,
           blockNumber,
         );
 
-        expect(negativeReserveWarnings().length).toBe(0);
+        expect(lastSet().reserve0).toBe(50n);
+        expect(lastSet().reserve1).toBe(50n);
+        expect(negReserveGuardLogs().length).toBe(0);
       });
 
-      it("re-warns at snapshot epoch when reserves are still negative from a prior epoch", async () => {
+      it("clamps both reserves independently and logs once per field", async () => {
         await updateLiquidityPoolAggregator(
-          { incrementalReserve0: -10n, incrementalReserve1: -10n },
+          { incrementalReserve0: -200n, incrementalReserve1: -200n },
           {
             ...(liquidityPoolAggregator as LiquidityPoolAggregator),
-            reserve0: -100n,
-            reserve1: -100n,
-            lastSnapshotTimestamp: previousEpoch(),
-            lastUpdatedTimestamp: previousEpoch(),
+            reserve0: 100n,
+            reserve1: 100n,
+            lastSnapshotTimestamp: sameEpochAsTimestamp(),
+            lastUpdatedTimestamp: sameEpochAsTimestamp(),
           },
           timestamp,
           mockContext as handlerContext,
-          5330,
+          8453,
           blockNumber,
         );
 
-        expect(negativeReserveWarnings().length).toBe(2);
+        expect(lastSet().reserve0).toBe(0n);
+        expect(lastSet().reserve1).toBe(0n);
+        expect(negReserveGuardLogs().length).toBe(2);
       });
 
-      it("does not warn when negative but inside the same snapshot epoch (rate-limit gate)", async () => {
+      // Distinguishes the new clamp from the prior snapshot-epoch warn: the
+      // clamp fires on every update that would underflow, not only at hour
+      // boundaries, so a Burn-larger-than-Mint mid-epoch still gets caught.
+      it("clamps mid-epoch (no snapshot boundary required)", async () => {
         await updateLiquidityPoolAggregator(
-          { incrementalReserve0: -10n, incrementalReserve1: -10n },
+          { incrementalReserve0: -500n },
           {
             ...(liquidityPoolAggregator as LiquidityPoolAggregator),
-            reserve0: -100n,
-            reserve1: -100n,
-            lastSnapshotTimestamp: timestamp,
-            lastUpdatedTimestamp: timestamp,
+            reserve0: 100n,
+            reserve1: 100n,
+            // lastSnapshotTimestamp === timestamp → no snapshot this call.
+            lastSnapshotTimestamp: sameEpochAsTimestamp(),
+            lastUpdatedTimestamp: sameEpochAsTimestamp(),
           },
           timestamp,
           mockContext as handlerContext,
-          5330,
+          8453,
           blockNumber,
         );
 
-        expect(negativeReserveWarnings().length).toBe(0);
+        expect(lastSet().reserve0).toBe(0n);
+        expect(negReserveGuardLogs().length).toBe(1);
+      });
+
+      // AC item 2: Burn-larger-than-Mint scenario produces clamped reserves
+      // and a working USD path. We exercise the aggregator directly with the
+      // diff a CL Burn would produce; the Burn handler's USD calc is tested
+      // separately in CLPoolBurnLogic.test.ts.
+      it("clamps when Burn delta exceeds cumulative Mint and downstream USD is computed", async () => {
+        // currentTotalLiquidityUSD comes from the producer (Burn handler) and
+        // is passed through unchanged; the aggregator does not recompute it
+        // from reserves. We assert the diff value lands on the entity.
+        await updateLiquidityPoolAggregator(
+          {
+            incrementalReserve0: -1000n,
+            incrementalReserve1: -1000n,
+            currentTotalLiquidityUSD: 0n,
+          },
+          {
+            ...(liquidityPoolAggregator as LiquidityPoolAggregator),
+            isCL: true,
+            reserve0: 100n,
+            reserve1: 100n,
+            totalLiquidityUSD: 5000n,
+            lastSnapshotTimestamp: sameEpochAsTimestamp(),
+            lastUpdatedTimestamp: sameEpochAsTimestamp(),
+          },
+          timestamp,
+          mockContext as handlerContext,
+          8453,
+          blockNumber,
+        );
+
+        expect(lastSet().reserve0).toBe(0n);
+        expect(lastSet().reserve1).toBe(0n);
+        expect(lastSet().totalLiquidityUSD).toBe(0n);
+        expect(negReserveGuardLogs().length).toBe(2);
       });
     });
   });
