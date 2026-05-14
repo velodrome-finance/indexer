@@ -26,8 +26,9 @@ export interface RebindTarget {
  * Issue #671: ION/Lisk (one-sided pool 11.2M ION + 0.24 WETH; oracle reports $17
  * but the pool's own reserve ratio implies ~$5e-5, inflating TVL to $196M for a
  * pool with $22K lifetime volume across 24K swaps — no real swappable market).
- * Issue #701: 67 scam tokens on Base (chainId 8453, all `decimals: 18`, most
- * spoofing canonical USDC/USDT/AERO against unrelated addresses).
+ * Issue #701: 67 inflated-price tokens on Base (chainId 8453, all
+ * `decimals: 18`, many sharing symbols with canonical USDC/USDT/AERO at
+ * unrelated addresses).
  */
 const BLACKLIST: ReadonlySet<string> = new Set([
   TokenId(10, toChecksumAddress("0x7909Bda52eAf7C3cc12745E727Eb527a485241D8")), // $Manatee / Optimism
@@ -39,7 +40,7 @@ const BLACKLIST: ReadonlySet<string> = new Set([
     1135,
     toChecksumAddress("0x3f608A49a3ab475dA7fBb167C1Be6b7a45cD7013"),
   ), // ION / Lisk
-  // Issue #701: scam tokens on Base (chainId 8453) with pricePerUSDNew > 10^28
+  // Issue #701: inflated-price tokens on Base (chainId 8453) with pricePerUSDNew > 10^28
   TokenId(
     8453,
     toChecksumAddress("0x3D6039ce21339BbBc0e107eab061F1E3073f7275"),

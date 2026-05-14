@@ -49,12 +49,15 @@ describe("PriceOverrides", () => {
     });
 
     it.each([
-      ["NANO", "0x3D6039ce21339BbBc0e107eab061F1E3073f7275"], // highest-magnitude scam
-      ["AERO (spoof)", "0x52Db46082ce6031347449A278748527e0075B5Ac"], // spoofs canonical AERO
+      ["NANO", "0x3D6039ce21339BbBc0e107eab061F1E3073f7275"], // highest-magnitude entry
+      ["AERO (symbol collision)", "0x52Db46082ce6031347449A278748527e0075B5Ac"], // shares symbol with canonical AERO
       ["ARASH", "0xEBCc3B60ED7bD906463BFafEbF5F9b19b5b0Cb7c"], // lowest-magnitude entry
-    ])("returns true for %s (Base scam token, issue #701)", (_, address) => {
-      expect(isBlacklistedToken(8453, toChecksumAddress(address))).toBe(true);
-    });
+    ])(
+      "returns true for %s (Base inflated-price token, issue #701)",
+      (_, address) => {
+        expect(isBlacklistedToken(8453, toChecksumAddress(address))).toBe(true);
+      },
+    );
 
     it("does not blacklist the canonical AERO on Base", () => {
       expect(
