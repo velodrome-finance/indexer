@@ -131,6 +131,71 @@ describe("CLPoolBurnLogic", () => {
       expect(setCall.pendingPrincipal1).toBe(500000n); // 200000 + 300000
     });
 
+    it("should decrement liquidityInRange when tickLower <= aggregator.tick < tickUpper (in-range)", async () => {
+      // mockEvent uses tickLower=-1000n, tickUpper=1000n; default aggregator.tick=0n is in range.
+      const inRangeAggregator: LiquidityPoolAggregator = {
+        ...mockLiquidityPoolAggregator,
+        tick: 0n,
+        liquidityInRange: 5_000_000n,
+      };
+      const ctx = createMockContext();
+
+      const result = await processCLPoolBurn(
+        mockEvent,
+        inRangeAggregator,
+        mockToken0,
+        mockToken1,
+        ctx,
+      );
+
+      // event.params.amount = 1_000_000n — decremented from in-range L
+      expect(result.liquidityPoolDiff.incrementalLiquidityInRange).toBe(
+        -1000000n,
+      );
+      expect(result.liquidityPoolDiff.liquidityInRange).toBeUndefined();
+    });
+
+    it("should not touch liquidityInRange on burn when out of range (tick below tickLower)", async () => {
+      const belowAggregator: LiquidityPoolAggregator = {
+        ...mockLiquidityPoolAggregator,
+        tick: -5000n,
+      };
+      const ctx = createMockContext();
+
+      const result = await processCLPoolBurn(
+        mockEvent,
+        belowAggregator,
+        mockToken0,
+        mockToken1,
+        ctx,
+      );
+
+      expect(
+        result.liquidityPoolDiff.incrementalLiquidityInRange,
+      ).toBeUndefined();
+      expect(result.liquidityPoolDiff.liquidityInRange).toBeUndefined();
+    });
+
+    it("should not touch liquidityInRange on burn when tick at tickUpper (exclusive)", async () => {
+      const atUpperAggregator: LiquidityPoolAggregator = {
+        ...mockLiquidityPoolAggregator,
+        tick: 1000n,
+      };
+      const ctx = createMockContext();
+
+      const result = await processCLPoolBurn(
+        mockEvent,
+        atUpperAggregator,
+        mockToken0,
+        mockToken1,
+        ctx,
+      );
+
+      expect(
+        result.liquidityPoolDiff.incrementalLiquidityInRange,
+      ).toBeUndefined();
+    });
+
     it("should handle different token decimals correctly", async () => {
       const tokenWithDifferentDecimals: Token = {
         ...mockToken0,

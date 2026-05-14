@@ -13,15 +13,23 @@ export interface CLPoolBurnResult {
 }
 
 /**
- * Processes a CLPool Burn event: updates reserves and tracks burned principal
- * so the Collect handler can isolate actual swap fees.
+ * Processes a CLPool Burn event: updates reserves, tracks burned principal
+ * so the Collect handler can isolate actual swap fees, and — when the burned
+ * position is in-range against the pool's current tick — decrements
+ * `liquidityInRange` by the burned L so the field tracks the on-chain
+ * `liquidity()` getter between swaps.
+ *
+ * The in-range gate matches Uniswap v3 semantics:
+ * `tickLower <= aggregator.tick < tickUpper` (lower inclusive, upper exclusive).
+ * Swap remains authoritative on `liquidityInRange` (see CLPoolSwapLogic);
+ * see velodrome-finance/indexer#703.
  *
  * @param event - The CLPool Burn event
- * @param liquidityPoolAggregator - Current pool aggregator state
+ * @param liquidityPoolAggregator - Current pool aggregator state (provides current tick)
  * @param token0Instance - Token0 entity for USD pricing
  * @param token1Instance - Token1 entity for USD pricing
  * @param context - Handler context for entity reads/writes
- * @returns Pool diff with reserve decrements and updated TVL
+ * @returns Pool diff with reserve decrements, updated TVL, and (if in range) negative incrementalLiquidityInRange
  */
 export async function processCLPoolBurn(
   event: CLPool_Burn_event,
@@ -47,11 +55,18 @@ export async function processCLPoolBurn(
   // These accumulate until the position owner calls collect().
   await trackBurnedPrincipal(event, context);
 
-  const liquidityPoolDiff = {
+  const currentTick = liquidityPoolAggregator.tick;
+  const isInRange =
+    currentTick !== undefined &&
+    event.params.tickLower <= currentTick &&
+    currentTick < event.params.tickUpper;
+
+  const liquidityPoolDiff: Partial<LiquidityPoolAggregatorDiff> = {
     incrementalReserve0: -event.params.amount0,
     incrementalReserve1: -event.params.amount1,
     currentTotalLiquidityUSD: currentTotalLiquidityUSD,
     lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
+    ...(isInRange ? { incrementalLiquidityInRange: -event.params.amount } : {}),
   };
 
   return {

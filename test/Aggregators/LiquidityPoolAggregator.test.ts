@@ -308,6 +308,111 @@ describe("LiquidityPoolAggregator Functions", () => {
       expect(setCalls.at(-1)?.[0]?.totalLiquidityUSD).toBe(100n);
     });
 
+    // Regression test for issue #703: liquidityInRange must mirror the CL pool's
+    // on-chain liquidity() getter. Swap writes the absolute value (authoritative
+    // reset); in-range Mint/Burn supply incrementalLiquidityInRange to bump it
+    // without waiting for the next swap.
+    describe("liquidityInRange (issue #703)", () => {
+      it("applies incrementalLiquidityInRange on top of current value", async () => {
+        await updateLiquidityPoolAggregator(
+          { incrementalLiquidityInRange: 1_000_000n },
+          {
+            ...(liquidityPoolAggregator as LiquidityPoolAggregator),
+            liquidityInRange: 5_000_000n,
+          },
+          timestamp,
+          mockContext as handlerContext,
+          10,
+          blockNumber,
+        );
+
+        const poolStore = mockContext.LiquidityPoolAggregator;
+        if (!poolStore) {
+          throw new Error(
+            "test setup: LiquidityPoolAggregator store must exist",
+          );
+        }
+        const setCalls = vi.mocked(poolStore.set).mock.calls;
+        const updated = setCalls.at(-1)?.[0] as LiquidityPoolAggregator;
+        expect(updated.liquidityInRange).toBe(6_000_000n);
+      });
+
+      it("absolute liquidityInRange (Swap authoritative reset) wins over incrementalLiquidityInRange", async () => {
+        await updateLiquidityPoolAggregator(
+          {
+            liquidityInRange: 42n,
+            incrementalLiquidityInRange: 1_000_000n,
+          },
+          {
+            ...(liquidityPoolAggregator as LiquidityPoolAggregator),
+            liquidityInRange: 5_000_000n,
+          },
+          timestamp,
+          mockContext as handlerContext,
+          10,
+          blockNumber,
+        );
+
+        const poolStore = mockContext.LiquidityPoolAggregator;
+        if (!poolStore) {
+          throw new Error(
+            "test setup: LiquidityPoolAggregator store must exist",
+          );
+        }
+        const setCalls = vi.mocked(poolStore.set).mock.calls;
+        const updated = setCalls.at(-1)?.[0] as LiquidityPoolAggregator;
+        expect(updated.liquidityInRange).toBe(42n);
+      });
+
+      it("preserves current liquidityInRange when diff supplies neither field", async () => {
+        await updateLiquidityPoolAggregator(
+          {},
+          {
+            ...(liquidityPoolAggregator as LiquidityPoolAggregator),
+            liquidityInRange: 5_000_000n,
+          },
+          timestamp,
+          mockContext as handlerContext,
+          10,
+          blockNumber,
+        );
+
+        const poolStore = mockContext.LiquidityPoolAggregator;
+        if (!poolStore) {
+          throw new Error(
+            "test setup: LiquidityPoolAggregator store must exist",
+          );
+        }
+        const setCalls = vi.mocked(poolStore.set).mock.calls;
+        const updated = setCalls.at(-1)?.[0] as LiquidityPoolAggregator;
+        expect(updated.liquidityInRange).toBe(5_000_000n);
+      });
+
+      it("decrements via negative incrementalLiquidityInRange (Burn semantics)", async () => {
+        await updateLiquidityPoolAggregator(
+          { incrementalLiquidityInRange: -700_000n },
+          {
+            ...(liquidityPoolAggregator as LiquidityPoolAggregator),
+            liquidityInRange: 5_000_000n,
+          },
+          timestamp,
+          mockContext as handlerContext,
+          10,
+          blockNumber,
+        );
+
+        const poolStore = mockContext.LiquidityPoolAggregator;
+        if (!poolStore) {
+          throw new Error(
+            "test setup: LiquidityPoolAggregator store must exist",
+          );
+        }
+        const setCalls = vi.mocked(poolStore.set).mock.calls;
+        const updated = setCalls.at(-1)?.[0] as LiquidityPoolAggregator;
+        expect(updated.liquidityInRange).toBe(4_300_000n);
+      });
+    });
+
     it("should preserve hasStakes=true when a full-unstake diff leaves hasStakes undefined (one-way latch)", async () => {
       // Simulates the NFPMCommonLogic path where the edge list becomes empty
       // after a full unstake: the producer passes `hasStakes: undefined` (see
