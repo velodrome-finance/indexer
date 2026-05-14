@@ -42,8 +42,15 @@ type LiquidityPoolAggregator {
   lastSnapshotTimestamp: Timestamp! # timestamp of last snapshot
 
   # CL Pool specific fields
-  feeProtocol0: BigInt @config(precision: 76) # current fee protocol for token0
-  feeProtocol1: BigInt @config(precision: 76) # current fee protocol for token1
+  # protocol fee % for token0. Set via SetFeeProtocol (governance-gated admin call).
+  # Uniformly 0 across all Slipstream pools as of 2026-05: Aerodrome/Velodrome
+  # governance has not activated protocol fees. The handler (src/EventHandlers/CLPool.ts)
+  # is wired correctly; the field will populate only when (and if) governance turns the
+  # toggle on. Slipstream's slot0() does not pack feeProtocol and the pool exposes no
+  # feeProtocol() getter, so the on-chain SetFeeProtocol event is the only source.
+  feeProtocol0: BigInt @config(precision: 76)
+  # As feeProtocol0, for token1.
+  feeProtocol1: BigInt @config(precision: 76)
   observationCardinalityNext: BigInt @config(precision: 76) # oracle observation cardinality
   sqrtPriceX96: BigInt @config(precision: 76) # current sqrt price (Q96 fixed point) - updated from Swap/Initialize events
   tick: BigInt @config(precision: 24) # current tick - updated from Swap/Initialize events
@@ -183,8 +190,15 @@ type LiquidityPoolAggregatorSnapshot {
   timestamp: Timestamp! # timestamp of last update
 
   # CL Pool specific fields
-  feeProtocol0: BigInt @config(precision: 76) # current fee protocol for token0
-  feeProtocol1: BigInt @config(precision: 76) # current fee protocol for token1
+  # protocol fee % for token0. Set via SetFeeProtocol (governance-gated admin call).
+  # Uniformly 0 across all Slipstream pools as of 2026-05: Aerodrome/Velodrome
+  # governance has not activated protocol fees. The handler (src/EventHandlers/CLPool.ts)
+  # is wired correctly; the field will populate only when (and if) governance turns the
+  # toggle on. Slipstream's slot0() does not pack feeProtocol and the pool exposes no
+  # feeProtocol() getter, so the on-chain SetFeeProtocol event is the only source.
+  feeProtocol0: BigInt @config(precision: 76)
+  # As feeProtocol0, for token1.
+  feeProtocol1: BigInt @config(precision: 76)
   observationCardinalityNext: BigInt @config(precision: 76) # oracle observation cardinality
   sqrtPriceX96: BigInt @config(precision: 76) # current sqrt price (Q96 fixed point) - updated from Swap/Initialize events
   tick: BigInt @config(precision: 24) # current tick - updated from Swap/Initialize events
