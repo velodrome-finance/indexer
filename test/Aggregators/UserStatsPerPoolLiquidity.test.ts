@@ -35,14 +35,12 @@ describe("UserStatsPerPool Liquidity Logic", () => {
   });
 
   describe("Liquidity Addition Logic", () => {
-    it("should handle positive liquidity addition correctly", async () => {
+    it("should accumulate totalLiquidityAddedUSD on a single addition", async () => {
       const userStats = createMockUserStats();
-      const netLiquidityAddedUSD = 1000n;
 
       const result = await updateUserStatsPerPool(
         {
-          incrementalCurrentLiquidityUSD: netLiquidityAddedUSD,
-          incrementalTotalLiquidityAddedUSD: netLiquidityAddedUSD,
+          incrementalTotalLiquidityAddedUSD: 1000n,
           lastActivityTimestamp: mockTimestamp,
         },
         userStats,
@@ -50,7 +48,6 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         mockTimestamp,
       );
 
-      expect(result.currentLiquidityUSD).toBe(1000n);
       expect(result.totalLiquidityAddedUSD).toBe(1000n);
       expect(result.totalLiquidityRemovedUSD).toBe(0n);
       expect(mockContext.UserStatsPerPoolSnapshot.set).toHaveBeenCalledWith(
@@ -58,20 +55,17 @@ describe("UserStatsPerPool Liquidity Logic", () => {
           userAddress: mockUserAddress,
           poolAddress: mockPoolAddress,
           chainId: mockChainId,
-          currentLiquidityUSD: 1000n,
           totalLiquidityAddedUSD: 1000n,
           totalLiquidityRemovedUSD: 0n,
         }),
       );
     });
 
-    it("should handle multiple liquidity additions correctly", async () => {
+    it("should accumulate totalLiquidityAddedUSD across multiple additions", async () => {
       let userStats = createMockUserStats();
 
-      // First addition
       userStats = await updateUserStatsPerPool(
         {
-          incrementalCurrentLiquidityUSD: 1000n,
           incrementalTotalLiquidityAddedUSD: 1000n,
           lastActivityTimestamp: mockTimestamp,
         },
@@ -80,14 +74,10 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         mockTimestamp,
       );
 
-      expect(userStats.currentLiquidityUSD).toBe(1000n);
       expect(userStats.totalLiquidityAddedUSD).toBe(1000n);
-      expect(userStats.totalLiquidityRemovedUSD).toBe(0n);
 
-      // Second addition
       userStats = await updateUserStatsPerPool(
         {
-          incrementalCurrentLiquidityUSD: 500n,
           incrementalTotalLiquidityAddedUSD: 500n,
           lastActivityTimestamp: mockTimestamp,
         },
@@ -96,20 +86,17 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         mockTimestamp,
       );
 
-      expect(userStats.currentLiquidityUSD).toBe(1500n);
       expect(userStats.totalLiquidityAddedUSD).toBe(1500n);
       expect(userStats.totalLiquidityRemovedUSD).toBe(0n);
     });
   });
 
   describe("Liquidity Removal Logic", () => {
-    it("should handle negative liquidity removal correctly", async () => {
+    it("should accumulate totalLiquidityRemovedUSD on a single removal", async () => {
       const userStats = createMockUserStats();
-      const netLiquidityRemovedUSD = -500n;
 
       const result = await updateUserStatsPerPool(
         {
-          incrementalCurrentLiquidityUSD: netLiquidityRemovedUSD,
           incrementalTotalLiquidityRemovedUSD: 500n,
           lastActivityTimestamp: mockTimestamp,
         },
@@ -118,18 +105,15 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         mockTimestamp,
       );
 
-      expect(result.currentLiquidityUSD).toBe(-500n);
       expect(result.totalLiquidityAddedUSD).toBe(0n);
       expect(result.totalLiquidityRemovedUSD).toBe(500n);
     });
 
-    it("should handle multiple liquidity removals correctly", async () => {
+    it("should accumulate totalLiquidityRemovedUSD across multiple removals", async () => {
       let userStats = createMockUserStats();
 
-      // First removal
       userStats = await updateUserStatsPerPool(
         {
-          incrementalCurrentLiquidityUSD: -300n,
           incrementalTotalLiquidityRemovedUSD: 300n,
           lastActivityTimestamp: mockTimestamp,
         },
@@ -138,14 +122,10 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         mockTimestamp,
       );
 
-      expect(userStats.currentLiquidityUSD).toBe(-300n);
-      expect(userStats.totalLiquidityAddedUSD).toBe(0n);
       expect(userStats.totalLiquidityRemovedUSD).toBe(300n);
 
-      // Second removal
       userStats = await updateUserStatsPerPool(
         {
-          incrementalCurrentLiquidityUSD: -200n,
           incrementalTotalLiquidityRemovedUSD: 200n,
           lastActivityTimestamp: mockTimestamp,
         },
@@ -154,20 +134,17 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         mockTimestamp,
       );
 
-      expect(userStats.currentLiquidityUSD).toBe(-500n);
-      expect(userStats.totalLiquidityAddedUSD).toBe(0n);
       expect(userStats.totalLiquidityRemovedUSD).toBe(500n);
+      expect(userStats.totalLiquidityAddedUSD).toBe(0n);
     });
   });
 
   describe("Mixed Liquidity Operations", () => {
-    it("should handle adding then removing liquidity correctly", async () => {
+    it("should track adds and removes independently", async () => {
       let userStats = createMockUserStats();
 
-      // Add liquidity
       userStats = await updateUserStatsPerPool(
         {
-          incrementalCurrentLiquidityUSD: 1000n,
           incrementalTotalLiquidityAddedUSD: 1000n,
           lastActivityTimestamp: mockTimestamp,
         },
@@ -176,14 +153,8 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         mockTimestamp,
       );
 
-      expect(userStats.currentLiquidityUSD).toBe(1000n);
-      expect(userStats.totalLiquidityAddedUSD).toBe(1000n);
-      expect(userStats.totalLiquidityRemovedUSD).toBe(0n);
-
-      // Remove some liquidity
       userStats = await updateUserStatsPerPool(
         {
-          incrementalCurrentLiquidityUSD: -300n,
           incrementalTotalLiquidityRemovedUSD: 300n,
           lastActivityTimestamp: mockTimestamp,
         },
@@ -192,54 +163,15 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         mockTimestamp,
       );
 
-      expect(userStats.currentLiquidityUSD).toBe(700n);
       expect(userStats.totalLiquidityAddedUSD).toBe(1000n);
       expect(userStats.totalLiquidityRemovedUSD).toBe(300n);
     });
 
-    it("should handle removing then adding liquidity correctly", async () => {
+    it("should handle interleaved add/remove operations", async () => {
       let userStats = createMockUserStats();
 
-      // Remove liquidity (should be 0 since we start with 0)
       userStats = await updateUserStatsPerPool(
         {
-          incrementalCurrentLiquidityUSD: -500n,
-          incrementalTotalLiquidityRemovedUSD: 500n,
-          lastActivityTimestamp: mockTimestamp,
-        },
-        userStats,
-        mockContext,
-        mockTimestamp,
-      );
-
-      expect(userStats.currentLiquidityUSD).toBe(-500n);
-      expect(userStats.totalLiquidityAddedUSD).toBe(0n);
-      expect(userStats.totalLiquidityRemovedUSD).toBe(500n);
-
-      // Add liquidity
-      userStats = await updateUserStatsPerPool(
-        {
-          incrementalCurrentLiquidityUSD: 800n,
-          incrementalTotalLiquidityAddedUSD: 800n,
-          lastActivityTimestamp: mockTimestamp,
-        },
-        userStats,
-        mockContext,
-        mockTimestamp,
-      );
-
-      expect(userStats.currentLiquidityUSD).toBe(300n);
-      expect(userStats.totalLiquidityAddedUSD).toBe(800n);
-      expect(userStats.totalLiquidityRemovedUSD).toBe(500n);
-    });
-
-    it("should handle complex liquidity operations correctly", async () => {
-      let userStats = createMockUserStats();
-
-      // Add 1000
-      userStats = await updateUserStatsPerPool(
-        {
-          incrementalCurrentLiquidityUSD: 1000n,
           incrementalTotalLiquidityAddedUSD: 1000n,
           lastActivityTimestamp: mockTimestamp,
         },
@@ -248,10 +180,8 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         mockTimestamp,
       );
 
-      // Remove 200
       userStats = await updateUserStatsPerPool(
         {
-          incrementalCurrentLiquidityUSD: -200n,
           incrementalTotalLiquidityRemovedUSD: 200n,
           lastActivityTimestamp: mockTimestamp,
         },
@@ -260,10 +190,8 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         mockTimestamp,
       );
 
-      // Add 500
       userStats = await updateUserStatsPerPool(
         {
-          incrementalCurrentLiquidityUSD: 500n,
           incrementalTotalLiquidityAddedUSD: 500n,
           lastActivityTimestamp: mockTimestamp,
         },
@@ -272,10 +200,8 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         mockTimestamp,
       );
 
-      // Remove 100
       userStats = await updateUserStatsPerPool(
         {
-          incrementalCurrentLiquidityUSD: -100n,
           incrementalTotalLiquidityRemovedUSD: 100n,
           lastActivityTimestamp: mockTimestamp,
         },
@@ -284,18 +210,16 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         mockTimestamp,
       );
 
-      expect(userStats.currentLiquidityUSD).toBe(1200n); // 1000 - 200 + 500 - 100
       expect(userStats.totalLiquidityAddedUSD).toBe(1500n); // 1000 + 500
       expect(userStats.totalLiquidityRemovedUSD).toBe(300n); // 200 + 100
     });
   });
 
   describe("Edge Cases", () => {
-    it("should handle zero liquidity change", async () => {
+    it("should leave totals unchanged when no liquidity diffs are passed", async () => {
       const userStats = createMockUserStats();
       const result = await updateUserStatsPerPool(
         {
-          incrementalCurrentLiquidityUSD: 0n,
           lastActivityTimestamp: mockTimestamp,
         },
         userStats,
@@ -303,7 +227,6 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         mockTimestamp,
       );
 
-      expect(result.currentLiquidityUSD).toBe(0n);
       expect(result.totalLiquidityAddedUSD).toBe(0n);
       expect(result.totalLiquidityRemovedUSD).toBe(0n);
     });
@@ -314,7 +237,6 @@ describe("UserStatsPerPool Liquidity Logic", () => {
 
       const result = await updateUserStatsPerPool(
         {
-          incrementalCurrentLiquidityUSD: largeAmount,
           incrementalTotalLiquidityAddedUSD: largeAmount,
           lastActivityTimestamp: mockTimestamp,
         },
@@ -323,7 +245,6 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         mockTimestamp,
       );
 
-      expect(result.currentLiquidityUSD).toBe(largeAmount);
       expect(result.totalLiquidityAddedUSD).toBe(largeAmount);
       expect(result.totalLiquidityRemovedUSD).toBe(0n);
     });

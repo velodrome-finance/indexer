@@ -239,7 +239,6 @@ type UserStatsPerPool {
   chainId: Int!
 
   # Liquidity metrics
-  currentLiquidityUSD: BigInt! @config(precision: 76) # current net liquidity position in USD
   lpBalance: BigInt! @config(precision: 76) # user's LP token balance (tracked from Transfer events)
   totalLiquidityAddedUSD: BigInt! @config(precision: 76) # cumulative USD value of liquidity added (from IncreaseLiquidity events and Transfer ADD attribution)
   totalLiquidityAddedToken0: BigInt! @config(precision: 76) # cumulative raw token0 amount added (sum of event.params.amount0 from IncreaseLiquidity + Transfer ADD). May differ from removed due to price movement between deposit and withdrawal
@@ -304,7 +303,6 @@ type UserStatsPerPoolSnapshot {
   timestamp: Timestamp! @index
 
   # Liquidity metrics
-  currentLiquidityUSD: BigInt! @config(precision: 76)
   lpBalance: BigInt! @config(precision: 76)
   totalLiquidityAddedUSD: BigInt! @config(precision: 76)
   totalLiquidityAddedToken0: BigInt! @config(precision: 76)

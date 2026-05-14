@@ -35,7 +35,6 @@ describe("UserStatsPerPool Aggregator", () => {
       expect(userStats.userAddress).toBe(mockUserAddress);
       expect(userStats.poolAddress).toBe(mockPoolAddress);
       expect(userStats.chainId).toBe(mockChainId);
-      expect(userStats.currentLiquidityUSD).toBe(0n);
       expect(userStats.totalLiquidityAddedUSD).toBe(0n);
       expect(userStats.totalLiquidityRemovedUSD).toBe(0n);
       expect(userStats.totalFeesContributedUSD).toBe(0n);
@@ -88,7 +87,6 @@ describe("UserStatsPerPool Aggregator", () => {
 
       const netLiquidityAddedUSD = 1000n;
       const diff = {
-        incrementalCurrentLiquidityUSD: netLiquidityAddedUSD,
         incrementalTotalLiquidityAddedUSD: netLiquidityAddedUSD,
         lastActivityTimestamp: mockTimestamp,
       };
@@ -100,7 +98,6 @@ describe("UserStatsPerPool Aggregator", () => {
         mockTimestamp,
       );
 
-      expect(result.currentLiquidityUSD).toBe(netLiquidityAddedUSD);
       expect(result.totalLiquidityAddedUSD).toBe(netLiquidityAddedUSD);
       expect(result.totalLiquidityRemovedUSD).toBe(0n);
       expect(result.lastActivityTimestamp).toEqual(mockTimestamp);
@@ -110,7 +107,6 @@ describe("UserStatsPerPool Aggregator", () => {
           userAddress: mockUserAddress,
           poolAddress: mockPoolAddress,
           chainId: mockChainId,
-          currentLiquidityUSD: netLiquidityAddedUSD,
           totalLiquidityAddedUSD: netLiquidityAddedUSD,
           totalLiquidityRemovedUSD: 0n,
         }),
@@ -132,9 +128,7 @@ describe("UserStatsPerPool Aggregator", () => {
         mockTimestamp,
       );
 
-      const netLiquidityRemovedUSD = -500n;
       const diff = {
-        incrementalCurrentLiquidityUSD: netLiquidityRemovedUSD,
         incrementalTotalLiquidityRemovedUSD: 500n,
         lastActivityTimestamp: mockTimestamp,
       };
@@ -146,7 +140,6 @@ describe("UserStatsPerPool Aggregator", () => {
         mockTimestamp,
       );
 
-      expect(result.currentLiquidityUSD).toBe(netLiquidityRemovedUSD);
       expect(result.totalLiquidityAddedUSD).toBe(0n);
       expect(result.totalLiquidityRemovedUSD).toBe(500n);
       expect(result.lastActivityTimestamp).toEqual(mockTimestamp);
@@ -155,7 +148,6 @@ describe("UserStatsPerPool Aggregator", () => {
           userAddress: mockUserAddress,
           poolAddress: mockPoolAddress,
           chainId: mockChainId,
-          currentLiquidityUSD: netLiquidityRemovedUSD,
           totalLiquidityAddedUSD: 0n,
           totalLiquidityRemovedUSD: 500n,
         }),
@@ -398,7 +390,6 @@ describe("UserStatsPerPool Aggregator", () => {
       );
 
       const diff = {
-        incrementalCurrentLiquidityUSD: 2000n,
         incrementalTotalLiquidityAddedUSD: 2000n,
         incrementalTotalFeesContributedUSD: 500n,
         incrementalNumberOfSwaps: 2n,
@@ -415,7 +406,6 @@ describe("UserStatsPerPool Aggregator", () => {
         mockTimestamp,
       );
 
-      expect(result.currentLiquidityUSD).toBe(2000n);
       expect(result.totalLiquidityAddedUSD).toBe(2000n);
       expect(result.totalLiquidityRemovedUSD).toBe(0n);
       expect(result.totalFeesContributedUSD).toBe(500n);
@@ -429,7 +419,6 @@ describe("UserStatsPerPool Aggregator", () => {
           userAddress: mockUserAddress,
           poolAddress: mockPoolAddress,
           chainId: mockChainId,
-          currentLiquidityUSD: 2000n,
           totalLiquidityAddedUSD: 2000n,
           totalFeesContributedUSD: 500n,
           numberOfSwaps: 2n,
@@ -446,7 +435,6 @@ describe("UserStatsPerPool Aggregator", () => {
         userAddress: mockUserAddress,
         poolAddress: mockPoolAddress,
         chainId: mockChainId,
-        currentLiquidityUSD: 2000n,
         totalLiquidityAddedUSD: 2000n,
         totalFeesContributedUSD: 1000n,
         totalFeesContributed0: 500n,
@@ -468,7 +456,6 @@ describe("UserStatsPerPool Aggregator", () => {
       });
 
       const diff = {
-        incrementalCurrentLiquidityUSD: 1000n, // Adding more liquidity
         incrementalTotalLiquidityAddedUSD: 1000n,
         incrementalTotalFeesContributedUSD: 500n,
         incrementalNumberOfSwaps: 1n,
@@ -483,7 +470,6 @@ describe("UserStatsPerPool Aggregator", () => {
         mockTimestamp,
       );
 
-      expect(result.currentLiquidityUSD).toBe(3000n); // 2000 + 1000
       expect(result.totalLiquidityAddedUSD).toBe(3000n); // 2000 + 1000
       expect(result.totalLiquidityRemovedUSD).toBe(0n); // No removal
       expect(result.totalFeesContributedUSD).toBe(1500n); // 1000 + 500
@@ -497,7 +483,6 @@ describe("UserStatsPerPool Aggregator", () => {
           userAddress: mockUserAddress,
           poolAddress: mockPoolAddress,
           chainId: mockChainId,
-          currentLiquidityUSD: 3000n,
           totalLiquidityAddedUSD: 3000n,
           totalFeesContributedUSD: 1500n,
           numberOfSwaps: 6n,
@@ -918,7 +903,6 @@ describe("UserStatsPerPool Aggregator", () => {
         userAddress: mockUserAddress,
         poolAddress: mockPoolAddress,
         chainId: mockChainId,
-        currentLiquidityUSD: 2000n,
         totalLiquidityAddedUSD: 2000n,
         totalFeesContributedUSD: 1000n,
         totalFeesContributed0: 500n,
@@ -940,7 +924,6 @@ describe("UserStatsPerPool Aggregator", () => {
       });
 
       const diff = {
-        incrementalCurrentLiquidityUSD: -500n, // Removing liquidity
         incrementalTotalLiquidityRemovedUSD: 500n,
         lastActivityTimestamp: mockTimestamp,
       };
@@ -952,7 +935,6 @@ describe("UserStatsPerPool Aggregator", () => {
         mockTimestamp,
       );
 
-      expect(result.currentLiquidityUSD).toBe(1500n); // 2000 - 500
       expect(result.totalLiquidityAddedUSD).toBe(2000n); // Unchanged
       expect(result.totalLiquidityRemovedUSD).toBe(500n); // 0 + 500
       expect(result.lastActivityTimestamp).toEqual(mockTimestamp);
@@ -961,7 +943,6 @@ describe("UserStatsPerPool Aggregator", () => {
           userAddress: mockUserAddress,
           poolAddress: mockPoolAddress,
           chainId: mockChainId,
-          currentLiquidityUSD: 1500n,
           totalLiquidityAddedUSD: 2000n,
           totalLiquidityRemovedUSD: 500n,
         }),

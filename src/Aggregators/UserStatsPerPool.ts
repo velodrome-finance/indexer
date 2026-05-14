@@ -11,7 +11,6 @@ import { setUserStatsPerPoolSnapshot } from "../Snapshots/UserStatsPerPoolSnapsh
 import type { PoolData } from "./LiquidityPoolAggregator";
 
 export interface UserStatsPerPoolDiff {
-  incrementalCurrentLiquidityUSD: bigint;
   incrementalLpBalance: bigint;
   incrementalTotalLiquidityAddedUSD: bigint;
   incrementalTotalLiquidityAddedToken0: bigint;
@@ -126,7 +125,6 @@ export function createUserStatsPerPoolEntity(
     chainId: chainId,
 
     // Liquidity metrics
-    currentLiquidityUSD: 0n,
     lpBalance: 0n,
     totalLiquidityAddedUSD: 0n,
     totalLiquidityAddedToken0: 0n,
@@ -201,10 +199,6 @@ export async function updateUserStatsPerPool(
 ): Promise<UserStatsPerPool> {
   let updated: UserStatsPerPool = {
     ...current,
-    currentLiquidityUSD:
-      diff.incrementalCurrentLiquidityUSD !== undefined
-        ? current.currentLiquidityUSD + diff.incrementalCurrentLiquidityUSD
-        : current.currentLiquidityUSD,
     totalLiquidityAddedUSD:
       diff.incrementalTotalLiquidityAddedUSD !== undefined
         ? current.totalLiquidityAddedUSD +

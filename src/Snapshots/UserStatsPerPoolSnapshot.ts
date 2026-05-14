@@ -35,7 +35,6 @@ export function createUserStatsPerPoolSnapshot(
     poolAddress: entity.poolAddress,
     chainId: entity.chainId,
     timestamp: epoch,
-    currentLiquidityUSD: entity.currentLiquidityUSD,
     lpBalance: entity.lpBalance,
     totalLiquidityAddedUSD: entity.totalLiquidityAddedUSD,
     totalLiquidityAddedToken0: entity.totalLiquidityAddedToken0,

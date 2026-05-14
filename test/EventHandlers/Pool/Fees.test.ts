@@ -161,7 +161,6 @@ describe("Pool Fees Event", () => {
         "0x3333333333333333333333333333333333333333",
       ),
       chainId: 10,
-      currentLiquidityUSD: 2000n,
       totalLiquidityAddedUSD: 2000n,
       totalFeesContributedUSD: 2000n,
       totalFeesContributed0: 1000n,
