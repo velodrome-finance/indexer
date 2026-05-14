@@ -2,9 +2,11 @@ import type {
   VeNFTState,
   VeNFT_DepositManaged_event,
   VeNFT_Deposit_event,
+  VeNFT_LockPermanent_event,
   VeNFT_Merge_event,
   VeNFT_Split_event,
   VeNFT_Transfer_event,
+  VeNFT_UnlockPermanent_event,
   VeNFT_WithdrawManaged_event,
   VeNFT_Withdraw_event,
   handlerContext,
@@ -76,6 +78,60 @@ export async function processVeNFTWithdraw(
 }
 
 /**
+ * Processes a VeNFT LockPermanent event: marks the position as a permanent lock
+ * and zeroes locktime. The on-chain contract sets `end = 0` for permanent locks,
+ * so downstream consumers should rely on `isPermanent` (not `locktime`) to detect
+ * permanently-locked positions.
+ *
+ * @param event - The VeNFT LockPermanent event payload (_owner, _tokenId, amount, _ts).
+ * @param currentVeNFTState - The existing VeNFTState entity for this token.
+ * @param context - Handler context for storage and logging.
+ * @returns Resolves when the state has been persisted (no value).
+ */
+export async function processVeNFTLockPermanent(
+  event: VeNFT_LockPermanent_event,
+  currentVeNFTState: VeNFTState,
+  context: handlerContext,
+): Promise<void> {
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  const veNFTStateDiff = {
+    locktime: 0n,
+    isPermanent: true,
+    lastUpdatedTimestamp: timestamp,
+  };
+
+  await updateVeNFTState(veNFTStateDiff, currentVeNFTState, timestamp, context);
+}
+
+/**
+ * Processes a VeNFT UnlockPermanent event: flips the position back to a standard
+ * timed lock by clearing `isPermanent` and restoring `locktime` to the contract's
+ * post-unlock value (`block.timestamp + MAXTIME` rounded down to week boundaries,
+ * mirroring `_unlockPermanent` in VotingEscrow).
+ *
+ * @param event - The VeNFT UnlockPermanent event payload (_owner, _tokenId, amount, _ts).
+ * @param currentVeNFTState - The existing VeNFTState entity for this token.
+ * @param context - Handler context for storage and logging.
+ * @returns Resolves when the state has been persisted (no value).
+ */
+export async function processVeNFTUnlockPermanent(
+  event: VeNFT_UnlockPermanent_event,
+  currentVeNFTState: VeNFTState,
+  context: handlerContext,
+): Promise<void> {
+  const timestamp = new Date(event.block.timestamp * 1000);
+
+  const veNFTStateDiff = {
+    locktime: getStandardLockEnd(event.params._ts),
+    isPermanent: false,
+    lastUpdatedTimestamp: timestamp,
+  };
+
+  await updateVeNFTState(veNFTStateDiff, currentVeNFTState, timestamp, context);
+}
+
+/**
  * Processes a VeNFT Transfer event: reassigns all of the token's pool votes from the previous
  * owner to the new owner in UserStatsPerPool (see reassignVeNFTVotesOnTransfer), then updates
  * VeNFTState with the new owner, isAlive (false if burn), and lastUpdatedTimestamp.
@@ -142,16 +198,17 @@ async function reconcileVeNFTState(
 }
 
 /**
- * Reconstructs the lock end for a token leaving a managed position.
+ * Reconstructs a standard four-year lock end from an event timestamp.
  *
- * The voting escrow contract restores the withdrawn token to a standard
- * four-year lock aligned to week boundaries. The event exposes the withdrawal
- * timestamp, so the indexer reproduces the contract's rounding logic here.
+ * The voting escrow contract uses the same `ts + MAXTIME` rounded down to week
+ * boundaries when restoring a standard lock in two flows: `_withdrawManaged`
+ * (token leaving a managed position) and `_unlockPermanent` (flipping a
+ * permanent lock back to timed). The indexer mirrors that math here.
  *
- * @param ts - The withdrawal timestamp emitted by `WithdrawManaged`.
+ * @param ts - The block timestamp emitted by the originating event.
  * @returns The reconstructed lock end, rounded down to the nearest week.
  */
-function getManagedWithdrawLocktime(ts: bigint): bigint {
+function getStandardLockEnd(ts: bigint): bigint {
   return ((ts + SECONDS_IN_FOUR_YEARS) / SECONDS_IN_A_WEEK) * SECONDS_IN_A_WEEK;
 }
 
@@ -328,7 +385,7 @@ export async function processVeNFTWithdrawManaged(
 
   const tokenVeNFTStateDiff = {
     totalValueLocked: event.params._weight,
-    locktime: getManagedWithdrawLocktime(event.params._ts),
+    locktime: getStandardLockEnd(event.params._ts),
     isAlive: true,
   };
 
@@ -381,6 +438,7 @@ export async function handleMintTransfer(
       // TVL-changing flows such as Split emit Transfer before the amount-carrying event.
       // Create the shell here and let the follow-up VeNFT event reconcile TVL.
       locktime: 0n,
+      isPermanent: false,
       lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
       totalValueLocked: 0n,
       isAlive: true,

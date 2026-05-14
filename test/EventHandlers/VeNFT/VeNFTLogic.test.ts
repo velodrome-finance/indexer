@@ -5,9 +5,11 @@ import type {
   VeNFTState,
   VeNFT_DepositManaged_event,
   VeNFT_Deposit_event,
+  VeNFT_LockPermanent_event,
   VeNFT_Merge_event,
   VeNFT_Split_event,
   VeNFT_Transfer_event,
+  VeNFT_UnlockPermanent_event,
   VeNFT_WithdrawManaged_event,
   VeNFT_Withdraw_event,
   handlerContext,
@@ -55,6 +57,7 @@ describe("VeNFTLogic", () => {
     tokenId: 1n,
     owner: toChecksumAddress("0x1111111111111111111111111111111111111111"),
     locktime: 100n,
+    isPermanent: false,
     lastUpdatedTimestamp: new Date(10000 * 1000),
     totalValueLocked: 100n,
     isAlive: true,
@@ -580,6 +583,124 @@ describe("VeNFTLogic", () => {
           owner: undefined,
         },
         managedState,
+        timestamp,
+        mockContext,
+      );
+    });
+  });
+
+  describe("processVeNFTLockPermanent", () => {
+    const createMockLockPermanentEvent = (): VeNFT_LockPermanent_event =>
+      ({
+        params: {
+          _owner: toChecksumAddress(
+            "0x1111111111111111111111111111111111111111",
+          ),
+          _tokenId: 1n,
+          amount: 1000n,
+          _ts: 200n,
+        },
+        block: {
+          timestamp: 1000000,
+          number: 123456,
+          hash: "0x1234",
+        },
+        chainId: 10,
+        logIndex: 1,
+        srcAddress: toChecksumAddress(
+          "0x3333333333333333333333333333333333333333",
+        ),
+        transaction: { hash: "0xabcd" },
+      }) as VeNFT_LockPermanent_event;
+
+    beforeEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("flips the lock to permanent and zeroes locktime", async () => {
+      const event = createMockLockPermanentEvent();
+      const timestamp = new Date(event.block.timestamp * 1000);
+      const updateSpy = vi
+        .spyOn(VeNFTStateAggregator, "updateVeNFTState")
+        .mockResolvedValue(undefined);
+
+      await VeNFTLogic.processVeNFTLockPermanent(
+        event,
+        mockVeNFTState,
+        mockContext,
+      );
+
+      expect(updateSpy).toHaveBeenCalledWith(
+        {
+          locktime: 0n,
+          isPermanent: true,
+          lastUpdatedTimestamp: timestamp,
+        },
+        mockVeNFTState,
+        timestamp,
+        mockContext,
+      );
+    });
+  });
+
+  describe("processVeNFTUnlockPermanent", () => {
+    const createMockUnlockPermanentEvent = (
+      ts: bigint,
+    ): VeNFT_UnlockPermanent_event =>
+      ({
+        params: {
+          _owner: toChecksumAddress(
+            "0x1111111111111111111111111111111111111111",
+          ),
+          _tokenId: 1n,
+          amount: 1000n,
+          _ts: ts,
+        },
+        block: {
+          timestamp: 1000000,
+          number: 123456,
+          hash: "0x1234",
+        },
+        chainId: 10,
+        logIndex: 1,
+        srcAddress: toChecksumAddress(
+          "0x3333333333333333333333333333333333333333",
+        ),
+        transaction: { hash: "0xabcd" },
+      }) as VeNFT_UnlockPermanent_event;
+
+    beforeEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("clears isPermanent and restores a week-aligned 4-year locktime", async () => {
+      const ts = 1_700_000_000n;
+      const event = createMockUnlockPermanentEvent(ts);
+      const permanentState: VeNFTState = {
+        ...mockVeNFTState,
+        isPermanent: true,
+        locktime: 0n,
+      };
+      const timestamp = new Date(event.block.timestamp * 1000);
+      const expectedLocktime =
+        ((ts + SECONDS_IN_FOUR_YEARS) / SECONDS_IN_A_WEEK) * SECONDS_IN_A_WEEK;
+      const updateSpy = vi
+        .spyOn(VeNFTStateAggregator, "updateVeNFTState")
+        .mockResolvedValue(undefined);
+
+      await VeNFTLogic.processVeNFTUnlockPermanent(
+        event,
+        permanentState,
+        mockContext,
+      );
+
+      expect(updateSpy).toHaveBeenCalledWith(
+        {
+          locktime: expectedLocktime,
+          isPermanent: false,
+          lastUpdatedTimestamp: timestamp,
+        },
+        permanentState,
         timestamp,
         mockContext,
       );

@@ -32,6 +32,7 @@ export function createVeNFTStateSnapshot(
     tokenId: entity.tokenId,
     owner: entity.owner,
     locktime: entity.locktime,
+    isPermanent: entity.isPermanent,
     lastUpdatedTimestamp: entity.lastUpdatedTimestamp,
     totalValueLocked: entity.totalValueLocked,
     isAlive: entity.isAlive,

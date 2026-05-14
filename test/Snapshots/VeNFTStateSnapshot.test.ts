@@ -59,6 +59,16 @@ describe("VeNFTStateSnapshot", () => {
       expect(snapshot.locktime).toBe(entity.locktime);
       expect(snapshot.isAlive).toBe(false);
     });
+
+    it("should propagate isPermanent into the snapshot", () => {
+      const entity = common.createMockVeNFTState({
+        isPermanent: true,
+        locktime: 0n,
+      });
+      const snapshot = createVeNFTStateSnapshot(entity, baseTimestamp);
+      expect(snapshot.isPermanent).toBe(true);
+      expect(snapshot.locktime).toBe(0n);
+    });
   });
 
   it("should compute snapshot epoch correctly (floor timestamp to interval boundary)", async () => {
