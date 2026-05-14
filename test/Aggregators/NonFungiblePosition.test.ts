@@ -162,5 +162,43 @@ describe("NonFungiblePosition", () => {
         expect(mockContext.NonFungiblePositionSnapshot?.set).toHaveBeenCalled();
       });
     });
+
+    describe("when decrement exceeds current liquidity (issue #706 latent guard)", () => {
+      let result: NonFungiblePosition;
+      beforeEach(async () => {
+        const overdraftDiff = {
+          // -2x current liquidity: simulates a Decrease without a matching Increase
+          // (HyperSync gap, reorg, or periphery vault firing Decrease without Increase).
+          incrementalLiquidity: -2000000000000000000n,
+          lastUpdatedTimestamp: timestamp,
+          lastSnapshotTimestamp: undefined,
+        };
+
+        updateNonFungiblePosition(
+          overdraftDiff,
+          mockNonFungiblePosition,
+          mockContext as handlerContext,
+          timestamp,
+        );
+        const mockSet = vi.mocked(mockContext.NonFungiblePosition?.set);
+        result = mockSet?.mock.calls[0]?.[0] as NonFungiblePosition;
+      });
+
+      it("clamps liquidity to 0n instead of going negative", () => {
+        expect(result.liquidity).toBe(0n);
+      });
+
+      it("emits a [NEG_NFP_LIQUIDITY_GUARD] error log with diagnostic fields", () => {
+        const error = vi.mocked(mockContext.log?.error);
+        expect(error).toHaveBeenCalledTimes(1);
+        const msg = error?.mock.calls[0]?.[0] as string;
+        expect(msg).toContain("[NEG_NFP_LIQUIDITY_GUARD]");
+        expect(msg).toContain("tokenId=1");
+        expect(msg).toContain("chain=10");
+        expect(msg).toContain("prior=1000000000000000000");
+        expect(msg).toContain("delta=-2000000000000000000");
+        expect(msg).toContain("clampedTo=0");
+      });
+    });
   });
 });
