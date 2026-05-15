@@ -29,6 +29,14 @@ export interface RebindTarget {
  * Issue #701: 67 inflated-price tokens on Base (chainId 8453, all
  * `decimals: 18`, many sharing symbols with canonical USDC/USDT/AERO at
  * unrelated addresses).
+ * Issue #720: 12 implausibly-priced tokens on Optimism (10), Soneium (1868),
+ * and Unichain (130) — same Mode A shape (first non-zero oracle read was a
+ * spike that became a locked anchor; merged spike-guard/V3-fallback PRs cannot
+ * heal an already-poisoned anchor going forward). Whitelisted Tier-1 inflated
+ * tokens rsETH/Swell and SolvBTC/Ink are handled via canonical rebinds (see
+ * REBINDS below); XAUt0/Ink and KING/Swell were also whitelisted but have no
+ * canonical priced source on any indexed chain, so they fall under blacklist
+ * (see #721 below).
  * Issue #721: XAUt0/Ink (gold-pegged, on-chain oracle reports ~$4.7K vs ~$2.5K
  * spot; no canonical XAUt0 is priced on any indexed chain, so cross-chain rebind
  * isn't available — blacklist is the only honest valuation until a priced source
@@ -36,6 +44,18 @@ export interface RebindTarget {
  * Issue #721: KING/Swell (on-chain oracle reports $222 with no canonical
  * cross-chain source identified; blacklist pending ground-truth pricing
  * investigation and an eventual de-whitelist).
+ *
+ * Mode A follow-up (no separate issue): 9 additional Base tokens surfaced by
+ * a counterparty-leg pool-significance scan — same locked-anchor shape, all
+ * paired with WETH or USDC in pools with <$1K real TVL but enough historical
+ * volume to contaminate chain-level aggregates. Plus one DAI-symbol spoof
+ * (0x1397aA9eF11eeC24658F09CFd53446158F39b38A) that the initial stablecoin
+ * audit pinned to $1; later identified as not legitimate DAI.
+ *
+ * Comprehensive-scan follow-up: 15 additional Base tokens surfaced by a
+ * full sweep of every Token whose current `pricePerUSDNew` exceeds $10K
+ * (10^22 in 1e18-fixed) and which is not a BTC variant. Same locked-anchor
+ * shape as the rest of the Mode A entries.
  */
 const BLACKLIST: ReadonlySet<string> = new Set([
   TokenId(10, toChecksumAddress("0x7909Bda52eAf7C3cc12745E727Eb527a485241D8")), // $Manatee / Optimism
@@ -324,6 +344,131 @@ const BLACKLIST: ReadonlySet<string> = new Set([
     8453,
     toChecksumAddress("0xEBCc3B60ED7bD906463BFafEbF5F9b19b5b0Cb7c"),
   ), // ARASH
+  // Issue #720: implausibly-priced tokens on Optimism (chainId 10) — Mode A
+  TokenId(10, toChecksumAddress("0xc32e6bb2958e5633b2Bb9c49Dbbd22dB831c8c66")), // STABLECOIN
+  TokenId(10, toChecksumAddress("0x1eb8C65f5aFE1cBF62dfb2FD114809F0ec87EBFf")), // BITCOINBR
+  TokenId(10, toChecksumAddress("0xCb8e85c739B115FAE175e1F5741E1792cE2a2569")), // JEWT
+  TokenId(10, toChecksumAddress("0xFC366d0F92F5E03f25d867C82B451B89E17907a3")), // ET
+  TokenId(10, toChecksumAddress("0x350a791Bfc2C21F9Ed5d10980Dad2e2638ffa7f6")), // LINK (impostor)
+  TokenId(10, toChecksumAddress("0xf5ACDd10CD97Cb96c256A337e00478715Df55759")), // HKD (impostor — real HKD ~$0.13)
+  TokenId(10, toChecksumAddress("0x9d36F8f62347538440a212e9162f534f797542df")), // SATS
+  TokenId(10, toChecksumAddress("0xB9243C495117343981EC9f8AA2ABfFEe54396Fc0")), // USDpy (stable)
+  TokenId(10, toChecksumAddress("0xCF9326e24EBfFBEF22ce1050007A43A3c0B6DB55")), // sUSDC (stable)
+  // Issue #720: implausibly-priced token on Soneium (chainId 1868) — Mode A
+  TokenId(
+    1868,
+    toChecksumAddress("0xAffEb8576b927050f5a3B6fbA43F360D2883A118"),
+  ), // SolvBTC.JUP
+  // Issue #720: implausibly-priced token on Unichain (chainId 130) — Mode A
+  TokenId(130, toChecksumAddress("0x749Fb1c53bd3dC7269b42bc7ffDaB111532e664a")), // GUEDDY🌹♱
+  // Mode A follow-up: 9 additional Base tokens surfaced by counterparty-leg
+  // pool-significance scan. All locked-anchor (single or stuck inflated read),
+  // negligible real TVL on the legit (WETH or USDC) side of every pool.
+  TokenId(
+    8453,
+    toChecksumAddress("0xcE683b7F1ad1Cdc1A27069450fFDeDfb32FB80C1"),
+  ), // FERFIE
+  TokenId(
+    8453,
+    toChecksumAddress("0x67AA700Ab0110Cc52bf7F308fe25068E87a0f581"),
+  ), // PUNDIAI
+  TokenId(
+    8453,
+    toChecksumAddress("0x692C3e95db7DAc415cfA48584DBd1385D650fdf3"),
+  ), // REAL
+  TokenId(
+    8453,
+    toChecksumAddress("0x53EB7233b443a9043292b14c86ff11688bd35a4A"),
+  ), // BIFY
+  TokenId(
+    8453,
+    toChecksumAddress("0xC1dfE6106cCF467FF271075daB41c1A5e30acA42"),
+  ), // H3
+  TokenId(
+    8453,
+    toChecksumAddress("0x14A7d168148E31B7c68eCdaD815258f3c20e1A3C"),
+  ), // KTAMACH
+  TokenId(
+    8453,
+    toChecksumAddress("0x89428C1e3B80dd646d53f14981dC135B6A244478"),
+  ), // FNK
+  TokenId(
+    8453,
+    toChecksumAddress("0x78E0096BE1021a408dcA71E9585C4d81D0E57D5f"),
+  ), // PEAOIN
+  TokenId(
+    8453,
+    toChecksumAddress("0xac853112b19286fB159d7C283c7cA11A95c7D255"),
+  ), // IPFUN
+  // DAI-symbol spoof on Base — initial stablecoin-audit pinned it to $1 (symbol
+  // trusted, price was a stable ~$0.99), but it is not legitimate DAI. Real
+  // DAI on Base is 0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb.
+  TokenId(
+    8453,
+    toChecksumAddress("0x1397aA9eF11eeC24658F09CFd53446158F39b38A"),
+  ), // DAI (spoof)
+  // Comprehensive-scan follow-up: 15 additional Base tokens with current
+  // `pricePerUSDNew` > $10K (locked anchors, all non-BTC).
+  TokenId(
+    8453,
+    toChecksumAddress("0x5BfA4c00839bde2c2973AEBFE8f5aE42269b7b06"),
+  ), // SPLIT (~$76.6M)
+  TokenId(
+    8453,
+    toChecksumAddress("0xd4EAE162F19c4DFCDC0238c0995AB5d6586aa919"),
+  ), // CETUS (~$2B; impostor — real CETUS is on Sui)
+  TokenId(
+    8453,
+    toChecksumAddress("0xD3f0AF6eE15e66844e1471bF88F5Cf260d391457"),
+  ), // LEKLI (~$34.8M)
+  TokenId(
+    8453,
+    toChecksumAddress("0x7442740CA87e9B7E9eC726cC21B078cf0C32a29F"),
+  ), // Ak6 (~$5.1M)
+  TokenId(
+    8453,
+    toChecksumAddress("0x13d81329bC45f1E55b72eCc733ac6bb0b7559c1A"),
+  ), // xae (~$1.6M)
+  TokenId(
+    8453,
+    toChecksumAddress("0x9E8d4B4701B6a0f6DF0f67e6fd2B0778c514b9D2"),
+  ), // SMART (~$1.1M)
+  TokenId(
+    8453,
+    toChecksumAddress("0x55Af813F856e4E6A3d1A408Ddb554d71fF666a8d"),
+  ), // GAME (~$104K)
+  TokenId(
+    8453,
+    toChecksumAddress("0x7A467F510434dF4D14D00E9c18DaAd1D07b7fC56"),
+  ), // COPYRIGHT© (~$93K)
+  TokenId(
+    8453,
+    toChecksumAddress("0xdC006E5F6AcAd20E5d2703a1e34e9a0b7F16a5d3"),
+  ), // COPYRIGHT (~$75K)
+  TokenId(
+    8453,
+    toChecksumAddress("0xedc0Ec4E3944fa97613104b34C6ad7b72ADfe379"),
+  ), // KRYON (~$71K)
+  TokenId(
+    8453,
+    toChecksumAddress("0x5F32E3CA03Ab53556b3C36F6039555F0E395909F"),
+  ), // PB (~$29.3K)
+  TokenId(
+    8453,
+    toChecksumAddress("0x95Fcb37b56A508bE7Ad14c10faF61a5cFABBcD67"),
+  ), // pBARIO (~$30K)
+  TokenId(
+    8453,
+    toChecksumAddress("0xc1276167f1884761F7CC249519d5191742D35240"),
+  ), // ALPHECCA2 (~$29K)
+  TokenId(
+    8453,
+    toChecksumAddress("0x172a3E283B8Df81fbE9837ce40289Bc21841BcD6"),
+  ), // MINTDAO (~$25K)
+  TokenId(
+    8453,
+    toChecksumAddress("0x3F328768C598F6A685B0698E269E09B267C3EBdD"),
+  ), // 🍕 (~$13.8K)
 ]);
 
 /**
