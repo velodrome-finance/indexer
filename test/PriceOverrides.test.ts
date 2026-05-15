@@ -82,7 +82,6 @@ describe("PriceOverrides", () => {
     const WRSETH_BASE = toChecksumAddress(
       "0xEDfa23602D0EC14714057867A78d01e94176BEA0",
     );
-
     it("rebinds rsETH/Swell to wrsETH/Base", () => {
       expect(getRebindTarget(1923, RSETH_SWELL)).toEqual({
         chainId: 8453,
