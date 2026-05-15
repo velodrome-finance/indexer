@@ -1,6 +1,5 @@
 import type {
   ALM_LP_WrapperSnapshot,
-  LiquidityPoolAggregatorSnapshot,
   NonFungiblePositionSnapshot,
   TokenPriceSnapshot,
   UserStatsPerPoolSnapshot,
@@ -10,9 +9,10 @@ import type {
 } from "generated";
 
 import { SNAPSHOT_INTERVAL_IN_MS } from "../Constants";
+import type { PoolSnapshot } from "../EntityTypes";
 
 export enum SnapshotType {
-  LiquidityPoolAggregator = "LiquidityPoolAggregator",
+  Pool = "Pool",
   UserStatsPerPool = "UserStatsPerPool",
   NonFungiblePosition = "NonFungiblePosition",
   ALMLPWrapper = "ALMLPWrapper",
@@ -28,8 +28,8 @@ export enum SnapshotType {
  */
 export type SnapshotForPersist =
   | {
-      type: SnapshotType.LiquidityPoolAggregator;
-      snapshot: LiquidityPoolAggregatorSnapshot;
+      type: SnapshotType.Pool;
+      snapshot: PoolSnapshot;
     }
   | { type: SnapshotType.UserStatsPerPool; snapshot: UserStatsPerPoolSnapshot }
   | {
@@ -84,8 +84,8 @@ export function persistSnapshot(
   context: handlerContext,
 ): void {
   switch (item.type) {
-    case SnapshotType.LiquidityPoolAggregator:
-      context.LiquidityPoolAggregatorSnapshot.set(item.snapshot);
+    case SnapshotType.Pool:
+      context.PoolSnapshot.set(item.snapshot);
       break;
     case SnapshotType.UserStatsPerPool:
       context.UserStatsPerPoolSnapshot.set(item.snapshot);

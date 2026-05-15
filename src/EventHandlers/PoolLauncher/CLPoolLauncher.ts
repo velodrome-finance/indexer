@@ -2,7 +2,7 @@ import { CLPoolLauncher } from "generated";
 import type { PoolLauncherPool } from "generated";
 import { PoolId } from "../../Constants";
 import {
-  linkLiquidityPoolAggregatorToPoolLauncher,
+  linkPoolToPoolLauncher,
   processPoolLauncherPool,
 } from "./PoolLauncherLogic";
 
@@ -27,13 +27,8 @@ CLPoolLauncher.Launch.handler(async ({ event, context }) => {
     context,
   );
 
-  // Link existing LiquidityPoolAggregator to PoolLauncherPool
-  await linkLiquidityPoolAggregatorToPoolLauncher(
-    poolAddress,
-    event.chainId,
-    context,
-    "CL",
-  );
+  // Link existing Pool to PoolLauncherPool
+  await linkPoolToPoolLauncher(poolAddress, event.chainId, context, "CL");
 });
 
 CLPoolLauncher.Migrate.handler(async ({ event, context }) => {
@@ -73,13 +68,8 @@ CLPoolLauncher.Migrate.handler(async ({ event, context }) => {
       context,
     );
 
-    // Link existing LiquidityPoolAggregator to PoolLauncherPool for migrated pool
-    await linkLiquidityPoolAggregatorToPoolLauncher(
-      newPoolAddress,
-      event.chainId,
-      context,
-      "CL",
-    );
+    // Link existing Pool to PoolLauncherPool for migrated pool
+    await linkPoolToPoolLauncher(newPoolAddress, event.chainId, context, "CL");
   } else {
     context.log.warn(
       `PoolLauncherPool not found for migration: ${underlyingPool}`,

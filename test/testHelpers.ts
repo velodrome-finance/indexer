@@ -1,7 +1,8 @@
-import type { LiquidityPoolAggregator, NonFungiblePosition } from "generated";
+import type { NonFungiblePosition } from "generated";
 import type { PublicClient } from "viem";
 import type { MockDb } from "../generated/src/TestHelpers.gen";
 import { CHAIN_CONSTANTS, PoolId, toChecksumAddress } from "../src/Constants";
+import type { Pool } from "../src/EntityTypes";
 
 /** Cast string to V3 Address type for mock event data */
 export const asAddress = (s: string): `0x${string}` => s as `0x${string}`;
@@ -94,21 +95,21 @@ export function mutateChainConstants(
 }
 
 /**
- * Helper function to set up LiquidityPoolAggregator on a mockDb.
+ * Helper function to set up Pool on a mockDb.
  * Returns the updated mockDb.
  *
  * @param mockDb - The mock database to update
  * @param mockLiquidityPoolData - Base liquidity pool data
  * @param poolAddress - The pool address
- * @returns The updated mockDb with LiquidityPoolAggregator set
+ * @returns The updated mockDb with Pool set
  */
-export function setupLiquidityPoolAggregator(
+export function setupPool(
   mockDb: ReturnType<typeof MockDb.createMockDb>,
-  mockLiquidityPoolData: LiquidityPoolAggregator,
+  mockLiquidityPoolData: Pool,
   poolAddress: string,
 ): ReturnType<typeof MockDb.createMockDb> {
   const poolId = PoolId(mockLiquidityPoolData.chainId, poolAddress);
-  const mockLiquidityPoolAggregator = {
+  const mockPool = {
     ...mockLiquidityPoolData,
     id: poolId,
     poolAddress: poolAddress,
@@ -117,7 +118,5 @@ export function setupLiquidityPoolAggregator(
     stakedTickEdges: [...mockLiquidityPoolData.stakedTickEdges],
     stakedTickEdgeNets: [...mockLiquidityPoolData.stakedTickEdgeNets],
   };
-  return mockDb.entities.LiquidityPoolAggregator.set(
-    mockLiquidityPoolAggregator,
-  );
+  return mockDb.entities.Pool.set(mockPool);
 }

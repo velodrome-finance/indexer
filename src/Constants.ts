@@ -867,7 +867,7 @@ export const TokenId = (chainId: number, address: string) =>
   `${chainId}-${address}`;
 
 /**
- * Create a unique ID for a pool on a specific chain as used by LiquidityPoolAggregator.
+ * Create a unique ID for a pool on a specific chain as used by Pool.
  * Pool address must be EIP-55 checksum-cased (Envio's `event.params.*` already are).
  * Callers must NOT pre-lowercase — that triggers the silent miss documented in #633.
  * @param chainId
@@ -1140,13 +1140,13 @@ export const CLPositionPendingPrincipalId = (
   tickUpper: bigint,
 ) => `${chainId}-${poolAddress}-${owner}-${tickLower}-${tickUpper}`;
 
-/** Snapshot ID for LiquidityPoolAggregatorSnapshot. epochMs = getSnapshotEpoch(timestamp).getTime()
+/** Snapshot ID for PoolSnapshot. epochMs = getSnapshotEpoch(timestamp).getTime()
  * @param chainId - Chain ID of the pool
  * @param poolAddress - Address of the pool (must be EIP-55 checksum-cased; do not pre-lowercase)
  * @param epochMs - Epoch timestamp in milliseconds
  * @returns string Combined pool ID.
  */
-export const LiquidityPoolAggregatorSnapshotId = (
+export const PoolSnapshotId = (
   chainId: number,
   poolAddress: string,
   epochMs: number,

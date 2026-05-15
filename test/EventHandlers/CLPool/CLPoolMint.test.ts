@@ -18,9 +18,7 @@ describe("CLPool Mint Event Handler", () => {
     mockDb = MockDb.createMockDb();
 
     // Set up mock database with required entities
-    const updatedDB1 = mockDb.entities.LiquidityPoolAggregator.set(
-      mockLiquidityPoolData,
-    );
+    const updatedDB1 = mockDb.entities.Pool.set(mockLiquidityPoolData);
     const updatedDB2 = updatedDB1.entities.Token.set(mockToken0Data);
     mockDb = updatedDB2.entities.Token.set(mockToken1Data);
   });

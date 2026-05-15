@@ -1,9 +1,6 @@
-import type {
-  CLPool_CollectFees_event,
-  LiquidityPoolAggregator,
-  Token,
-} from "generated";
+import type { CLPool_CollectFees_event, Token } from "generated";
 import { toChecksumAddress } from "../../../src/Constants";
+import type { Pool } from "../../../src/EntityTypes";
 import { processCLPoolCollectFees } from "../../../src/EventHandlers/CLPool/CLPoolCollectFeesLogic";
 import { setupCommon } from "../Pool/common";
 
@@ -32,7 +29,7 @@ describe("CLPoolCollectFeesLogic", () => {
     },
   } as CLPool_CollectFees_event;
 
-  const mockLiquidityPoolAggregator: LiquidityPoolAggregator = {
+  const mockPool: Pool = {
     ...mockLiquidityPoolData,
     id: toChecksumAddress("0x1234567890123456789012345678901234567890"),
     token0_id: mockToken0Data.id,
@@ -469,20 +466,20 @@ describe("CLPoolCollectFeesLogic", () => {
         5000000000000000000n, // Increment: $5.00
       );
 
-      // Simulate what updateLiquidityPoolAggregator does: add diff to current
+      // Simulate what updatePool does: add diff to current
       // After first event: 0 + 1 = 1 token0, 0 + 2 = 2 token1, 0 + 5 = 5 USD
-      const aggregatorAfterFirst: LiquidityPoolAggregator = {
-        ...mockLiquidityPoolAggregator,
+      const aggregatorAfterFirst: Pool = {
+        ...mockPool,
         totalStakedFeesCollected0:
-          mockLiquidityPoolAggregator.totalStakedFeesCollected0 +
+          mockPool.totalStakedFeesCollected0 +
           (result1.liquidityPoolDiff.incrementalTotalStakedFeesCollected0 ??
             0n), // 0 + 1 = 1
         totalStakedFeesCollected1:
-          mockLiquidityPoolAggregator.totalStakedFeesCollected1 +
+          mockPool.totalStakedFeesCollected1 +
           (result1.liquidityPoolDiff.incrementalTotalStakedFeesCollected1 ??
             0n), // 0 + 2 = 2
         totalStakedFeesCollectedUSD:
-          mockLiquidityPoolAggregator.totalStakedFeesCollectedUSD +
+          mockPool.totalStakedFeesCollectedUSD +
           (result1.liquidityPoolDiff.incrementalTotalStakedFeesCollectedUSD ??
             0n), // 0 + 5 = 5
       };
@@ -495,7 +492,7 @@ describe("CLPoolCollectFeesLogic", () => {
       );
 
       // Second event should return the same increments (not accumulated totals)
-      // The diff contains increments that updateLiquidityPoolAggregator will add
+      // The diff contains increments that updatePool will add
       expect(
         result2.liquidityPoolDiff.incrementalTotalStakedFeesCollected0,
       ).toBe(
@@ -512,7 +509,7 @@ describe("CLPoolCollectFeesLogic", () => {
         5000000000000000000n, // Increment: $5.00 (same as first event)
       );
 
-      // Verify that if we simulate updateLiquidityPoolAggregator adding the diff:
+      // Verify that if we simulate updatePool adding the diff:
       // After second event: 1 + 1 = 2 token0, 2 + 2 = 4 token1, 5 + 5 = 10 USD
       const finalTotal0 =
         aggregatorAfterFirst.totalStakedFeesCollected0 +

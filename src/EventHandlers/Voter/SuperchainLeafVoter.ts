@@ -1,10 +1,7 @@
 import { SuperchainLeafVoter } from "generated";
 
 import type { Token } from "generated";
-import {
-  findPoolByGaugeAddress,
-  updateLiquidityPoolAggregator,
-} from "../../Aggregators/LiquidityPoolAggregator";
+import { findPoolByGaugeAddress, updatePool } from "../../Aggregators/Pool";
 import {
   PoolId,
   SUPERCHAIN_LEAF_VOTER_CLPOOLS_FACTORY_LIST,
@@ -32,7 +29,7 @@ SuperchainLeafVoter.GaugeCreated.handler(async ({ event, context }) => {
   const poolId = PoolId(event.chainId, event.params.pool);
   const gaugeAddress = event.params.gauge;
 
-  const poolEntity = await context.LiquidityPoolAggregator.get(poolId);
+  const poolEntity = await context.Pool.get(poolId);
 
   if (poolEntity) {
     const poolUpdateDiff = {
@@ -43,7 +40,7 @@ SuperchainLeafVoter.GaugeCreated.handler(async ({ event, context }) => {
       lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
     };
 
-    await updateLiquidityPoolAggregator(
+    await updatePool(
       poolUpdateDiff,
       poolEntity,
       new Date(event.block.timestamp * 1000),
@@ -69,7 +66,7 @@ SuperchainLeafVoter.GaugeKilled.handler(async ({ event, context }) => {
       lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
     };
 
-    await updateLiquidityPoolAggregator(
+    await updatePool(
       poolUpdateDiff,
       poolEntity,
       new Date(event.block.timestamp * 1000),
@@ -94,7 +91,7 @@ SuperchainLeafVoter.GaugeRevived.handler(async ({ event, context }) => {
       lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
     };
 
-    await updateLiquidityPoolAggregator(
+    await updatePool(
       poolUpdateDiff,
       poolEntity,
       new Date(event.block.timestamp * 1000),

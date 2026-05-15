@@ -1,15 +1,12 @@
+import { PoolSnapshotId, SNAPSHOT_INTERVAL_IN_MS } from "../../src/Constants";
 import {
-  LiquidityPoolAggregatorSnapshotId,
-  SNAPSHOT_INTERVAL_IN_MS,
-} from "../../src/Constants";
-import {
-  createLiquidityPoolAggregatorSnapshot,
-  setLiquidityPoolAggregatorSnapshot,
-} from "../../src/Snapshots/LiquidityPoolAggregatorSnapshot";
+  createPoolSnapshot,
+  setPoolSnapshot,
+} from "../../src/Snapshots/PoolSnapshot";
 import { getSnapshotEpoch } from "../../src/Snapshots/Shared";
 import { setupCommon } from "../EventHandlers/Pool/common";
 
-describe("LiquidityPoolAggregatorSnapshot", () => {
+describe("PoolSnapshot", () => {
   let common: ReturnType<typeof setupCommon>;
   const baseTimestamp = new Date(SNAPSHOT_INTERVAL_IN_MS * 5); // epoch boundary
 
@@ -18,30 +15,23 @@ describe("LiquidityPoolAggregatorSnapshot", () => {
     vi.restoreAllMocks();
   });
 
-  describe("createLiquidityPoolAggregatorSnapshot", () => {
+  describe("createPoolSnapshot", () => {
     it("should return epoch-aligned snapshot with correct id and timestamp", () => {
-      const pool = common.createMockLiquidityPoolAggregator();
+      const pool = common.createMockPool();
       const timestamp = new Date(baseTimestamp.getTime() + 30 * 60 * 1000);
       const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 5;
 
-      const snapshot = createLiquidityPoolAggregatorSnapshot(pool, timestamp);
+      const snapshot = createPoolSnapshot(pool, timestamp);
 
       expect(snapshot.id).toBe(
-        LiquidityPoolAggregatorSnapshotId(
-          pool.chainId,
-          pool.poolAddress,
-          expectedEpochMs,
-        ),
+        PoolSnapshotId(pool.chainId, pool.poolAddress, expectedEpochMs),
       );
       expect(snapshot.timestamp.getTime()).toBe(expectedEpochMs);
     });
 
     it("should copy pool fields into snapshot without persisting", () => {
-      const pool = common.createMockLiquidityPoolAggregator();
-      const snapshot = createLiquidityPoolAggregatorSnapshot(
-        pool,
-        baseTimestamp,
-      );
+      const pool = common.createMockPool();
+      const snapshot = createPoolSnapshot(pool, baseTimestamp);
 
       expect(snapshot.poolAddress).toBe(pool.poolAddress);
       expect(snapshot.chainId).toBe(pool.chainId);
@@ -67,24 +57,18 @@ describe("LiquidityPoolAggregatorSnapshot", () => {
 
   it("should set snapshot with epoch-aligned timestamp and correct id", () => {
     const context = common.createMockContext({
-      LiquidityPoolAggregatorSnapshot: { set: vi.fn() },
+      PoolSnapshot: { set: vi.fn() },
     });
-    const pool = common.createMockLiquidityPoolAggregator();
+    const pool = common.createMockPool();
     const timestamp = new Date(baseTimestamp.getTime() + 30 * 60 * 1000); // 30 min into epoch
     const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 5;
 
-    setLiquidityPoolAggregatorSnapshot(pool, timestamp, context);
+    setPoolSnapshot(pool, timestamp, context);
 
-    expect(context.LiquidityPoolAggregatorSnapshot.set).toHaveBeenCalledTimes(
-      1,
-    );
-    expect(context.LiquidityPoolAggregatorSnapshot.set).toHaveBeenCalledWith(
+    expect(context.PoolSnapshot.set).toHaveBeenCalledTimes(1);
+    expect(context.PoolSnapshot.set).toHaveBeenCalledWith(
       expect.objectContaining({
-        id: LiquidityPoolAggregatorSnapshotId(
-          pool.chainId,
-          pool.poolAddress,
-          expectedEpochMs,
-        ),
+        id: PoolSnapshotId(pool.chainId, pool.poolAddress, expectedEpochMs),
         timestamp: new Date(expectedEpochMs),
         poolAddress: pool.poolAddress,
         chainId: pool.chainId,
@@ -94,16 +78,16 @@ describe("LiquidityPoolAggregatorSnapshot", () => {
 
   it("should set all snapshot fields from pool (with id and timestamp from epoch)", () => {
     const context = common.createMockContext({
-      LiquidityPoolAggregatorSnapshot: { set: vi.fn() },
+      PoolSnapshot: { set: vi.fn() },
     });
-    const pool = common.createMockLiquidityPoolAggregator();
+    const pool = common.createMockPool();
     const expectedEpoch = getSnapshotEpoch(baseTimestamp);
 
-    setLiquidityPoolAggregatorSnapshot(pool, baseTimestamp, context);
+    setPoolSnapshot(pool, baseTimestamp, context);
 
-    expect(context.LiquidityPoolAggregatorSnapshot.set).toHaveBeenCalledWith(
+    expect(context.PoolSnapshot.set).toHaveBeenCalledWith(
       expect.objectContaining({
-        id: LiquidityPoolAggregatorSnapshotId(
+        id: PoolSnapshotId(
           pool.chainId,
           pool.poolAddress,
           expectedEpoch.getTime(),
@@ -112,9 +96,8 @@ describe("LiquidityPoolAggregatorSnapshot", () => {
       }),
     );
 
-    // Snapshot only includes fields defined on LiquidityPoolAggregatorSnapshot.
-    const setArg = vi.mocked(context.LiquidityPoolAggregatorSnapshot.set).mock
-      .calls[0][0];
+    // Snapshot only includes fields defined on PoolSnapshot.
+    const setArg = vi.mocked(context.PoolSnapshot.set).mock.calls[0][0];
     const snapshotKeysFromPool = (
       Object.keys(pool) as (keyof typeof pool)[]
     ).filter(

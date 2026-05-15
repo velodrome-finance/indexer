@@ -119,7 +119,7 @@ describe("PoolBurnAndMintLogic", () => {
           if (idx >= 0) mockRegistries.splice(idx, 1);
         }),
       },
-      LiquidityPoolAggregator: {
+      Pool: {
         get: vi.fn(),
         set: vi.fn(),
       },

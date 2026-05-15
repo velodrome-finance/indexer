@@ -5,10 +5,7 @@ import {
   applyStakedPositionToEdges,
   isPositionInRange,
 } from "../../../src/Aggregators/CLStakedLiquidity";
-import {
-  type PoolData,
-  updateLiquidityPoolAggregator,
-} from "../../../src/Aggregators/LiquidityPoolAggregator";
+import { type PoolData, updatePool } from "../../../src/Aggregators/Pool";
 import {
   loadOrCreateUserData,
   updateUserStatsPerPool,
@@ -29,7 +26,7 @@ import {
 import { defaultNfpmAddress, setupCommon } from "../Pool/common";
 
 vi.mock("../../../src/Aggregators/CLStakedLiquidity");
-vi.mock("../../../src/Aggregators/LiquidityPoolAggregator");
+vi.mock("../../../src/Aggregators/Pool");
 vi.mock("../../../src/Aggregators/UserStatsPerPool");
 vi.mock("../../../src/Helpers");
 
@@ -287,8 +284,8 @@ describe("NFPMCommonLogic", () => {
 
     beforeEach(() => {
       vi.mocked(isPositionInRange).mockReset();
-      vi.mocked(updateLiquidityPoolAggregator).mockReset();
-      vi.mocked(updateLiquidityPoolAggregator).mockResolvedValue(undefined);
+      vi.mocked(updatePool).mockReset();
+      vi.mocked(updatePool).mockResolvedValue(undefined);
       vi.mocked(calculatePositionAmountsFromLiquidity).mockReset();
       vi.mocked(calculatePositionAmountsFromLiquidity).mockReturnValue({
         amount0: 100n,
@@ -345,7 +342,7 @@ describe("NFPMCommonLogic", () => {
         -200n,
         200n,
       );
-      expect(updateLiquidityPoolAggregator).toHaveBeenCalledWith(
+      expect(updatePool).toHaveBeenCalledWith(
         {
           stakedLiquidityInRange: 6000n, // 1000 + 5000
           incrementalStakedReserve0: 100n, // direction=+1 * 100
@@ -382,7 +379,7 @@ describe("NFPMCommonLogic", () => {
         -200n,
         200n,
       );
-      expect(updateLiquidityPoolAggregator).toHaveBeenCalledWith(
+      expect(updatePool).toHaveBeenCalledWith(
         {
           stakedLiquidityInRange: -2000n, // 1000 + (-3000)
           incrementalStakedReserve0: -100n, // direction=-1 * 100
@@ -418,7 +415,7 @@ describe("NFPMCommonLogic", () => {
         -200n,
         200n,
       );
-      expect(updateLiquidityPoolAggregator).toHaveBeenCalledWith(
+      expect(updatePool).toHaveBeenCalledWith(
         {
           stakedLiquidityInRange: undefined, // not in range, so unchanged
           incrementalStakedReserve0: 100n,
@@ -459,7 +456,7 @@ describe("NFPMCommonLogic", () => {
       // Reserve math is skipped (no sqrtPriceX96 to split into token0/token1),
       // but we still persist the edge-list update so the swap path has correct
       // state once the pool is initialized.
-      expect(updateLiquidityPoolAggregator).toHaveBeenCalledWith(
+      expect(updatePool).toHaveBeenCalledWith(
         {
           stakedTickEdges: [-200n, 200n],
           stakedTickEdgeNets: [5000n, -5000n],

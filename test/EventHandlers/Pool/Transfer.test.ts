@@ -17,7 +17,7 @@ describe("Pool Transfer Event", () => {
     poolAddress = commonData.mockLiquidityPoolData.poolAddress;
 
     // Set up mock database with common data
-    const updatedDB1 = mockDb.entities.LiquidityPoolAggregator.set(
+    const updatedDB1 = mockDb.entities.Pool.set(
       commonData.mockLiquidityPoolData,
     );
     const updatedDB2 = updatedDB1.entities.Token.set(commonData.mockToken0Data);
@@ -49,7 +49,7 @@ describe("Pool Transfer Event", () => {
     const result = await mockDb.processEvents([mockEvent]);
 
     // Verify pool aggregator was updated with new totalLPTokenSupply
-    const updatedAggregator = result.entities.LiquidityPoolAggregator.get(
+    const updatedAggregator = result.entities.Pool.get(
       commonData.mockLiquidityPoolData.id,
     );
     expect(updatedAggregator).toBeDefined();
@@ -83,8 +83,7 @@ describe("Pool Transfer Event", () => {
       ...commonData.mockLiquidityPoolData,
       totalLPTokenSupply: INITIAL_SUPPLY,
     };
-    const updatedDB1 =
-      mockDb.entities.LiquidityPoolAggregator.set(poolWithSupply);
+    const updatedDB1 = mockDb.entities.Pool.set(poolWithSupply);
     mockDb = updatedDB1;
 
     const mockEvent = Pool.Transfer.createMockEvent({
@@ -106,7 +105,7 @@ describe("Pool Transfer Event", () => {
     const result = await mockDb.processEvents([mockEvent]);
 
     // Verify pool aggregator was updated with reduced totalLPTokenSupply
-    const updatedAggregator = result.entities.LiquidityPoolAggregator.get(
+    const updatedAggregator = result.entities.Pool.get(
       commonData.mockLiquidityPoolData.id,
     );
     expect(updatedAggregator).toBeDefined();
@@ -158,7 +157,7 @@ describe("Pool Transfer Event", () => {
     const result = await mockDb.processEvents([mockEvent]);
 
     // Verify pool aggregator totalLPTokenSupply was NOT changed (regular transfer)
-    const updatedAggregator = result.entities.LiquidityPoolAggregator.get(
+    const updatedAggregator = result.entities.Pool.get(
       commonData.mockLiquidityPoolData.id,
     );
     expect(updatedAggregator).toBeDefined();
@@ -194,7 +193,7 @@ describe("Pool Transfer Event", () => {
       const updatedDB2 = updatedDB1.entities.Token.set(
         commonData.mockToken1Data,
       );
-      // Note: We intentionally don't set the LiquidityPoolAggregator
+      // Note: We intentionally don't set the Pool
 
       const mockEvent = Pool.Transfer.createMockEvent({
         from: toChecksumAddress("0x1111111111111111111111111111111111111111"),
@@ -215,7 +214,7 @@ describe("Pool Transfer Event", () => {
       const postEventDB = await updatedDB2.processEvents([mockEvent]);
 
       // Pool should not exist
-      const pool = postEventDB.entities.LiquidityPoolAggregator.get(
+      const pool = postEventDB.entities.Pool.get(
         commonData.mockLiquidityPoolData.id,
       );
       expect(pool).toBeUndefined();

@@ -53,7 +53,7 @@ describe("UserStatsPerPool CL snapshot USD via direct gets", () => {
     isCL?: boolean;
   }) {
     const isCL = opts.isCL ?? true;
-    const poolEntity = common.createMockLiquidityPoolAggregator({
+    const poolEntity = common.createMockPool({
       poolAddress: mockPoolAddress,
       chainId: mockChainId,
       isCL,
@@ -85,7 +85,7 @@ describe("UserStatsPerPool CL snapshot USD via direct gets", () => {
     return common.createMockContext({
       UserStatsPerPool: { set: async () => {} },
       UserStatsPerPoolSnapshot: { set: vi.fn() },
-      LiquidityPoolAggregator: {
+      Pool: {
         get: async (id: string) => (id === poolId ? poolEntity : undefined),
       },
       Token: {

@@ -71,11 +71,10 @@ describe("UnstakedFeeModule Events", () => {
     it.each(feeCases)(
       "should store $label on the pool",
       async ({ fee, srcAddress }) => {
-        const pool = common.createMockLiquidityPoolAggregator({
+        const pool = common.createMockPool({
           chainId: CHAIN_ID_BASE,
         });
-        const populatedDb =
-          MockDb.createMockDb().entities.LiquidityPoolAggregator.set(pool);
+        const populatedDb = MockDb.createMockDb().entities.Pool.set(pool);
 
         const event = createCustomFeeSetEvent({
           poolAddress: pool.poolAddress,
@@ -85,9 +84,7 @@ describe("UnstakedFeeModule Events", () => {
 
         const result = await populatedDb.processEvents([event]);
 
-        const updatedPool = result.entities.LiquidityPoolAggregator.get(
-          pool.id,
-        );
+        const updatedPool = result.entities.Pool.get(pool.id);
         expect(updatedPool).toBeDefined();
         expect(updatedPool?.unstakedFee).toBe(fee);
         // baseFee and currentFee must be orthogonal and untouched.
@@ -97,7 +94,7 @@ describe("UnstakedFeeModule Events", () => {
     );
 
     it("should no-op (not throw) when the pool aggregator does not exist", async () => {
-      const pool = common.createMockLiquidityPoolAggregator({
+      const pool = common.createMockPool({
         chainId: CHAIN_ID_BASE,
       });
       const mockDb = MockDb.createMockDb();
@@ -110,18 +107,18 @@ describe("UnstakedFeeModule Events", () => {
 
       const result = await mockDb.processEvents([event]);
 
-      const updatedPool = result.entities.LiquidityPoolAggregator.get(pool.id);
+      const updatedPool = result.entities.Pool.get(pool.id);
       expect(updatedPool).toBeUndefined();
     });
   });
 
   describe("Last-writer-wins across module deployments", () => {
     it("applies the most-recent event regardless of which module (Custom vs plain) fired it", async () => {
-      const pool = common.createMockLiquidityPoolAggregator({
+      const pool = common.createMockPool({
         chainId: CHAIN_ID_BASE,
       });
       let mockDb = MockDb.createMockDb();
-      mockDb = mockDb.entities.LiquidityPoolAggregator.set(pool);
+      mockDb = mockDb.entities.Pool.set(pool);
 
       // First: Initial CustomUnstakedFeeModule fires SetCustomFee with 300.
       const initialEvent = CustomUnstakedFeeModule.SetCustomFee.createMockEvent(
@@ -155,7 +152,7 @@ describe("UnstakedFeeModule Events", () => {
       });
       const result = await mockDb.processEvents([laterEvent]);
 
-      const updatedPool = result.entities.LiquidityPoolAggregator.get(pool.id);
+      const updatedPool = result.entities.Pool.get(pool.id);
       expect(updatedPool?.unstakedFee).toBe(700n);
     });
   });

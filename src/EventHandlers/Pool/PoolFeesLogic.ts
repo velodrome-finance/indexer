@@ -1,10 +1,10 @@
 import type { Pool_Fees_event, Token } from "generated";
-import type { LiquidityPoolAggregatorDiff } from "../../Aggregators/LiquidityPoolAggregator";
+import type { PoolDiff } from "../../Aggregators/Pool";
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import { calculateTotalUSD, calculateWhitelistedFeesUSD } from "../../Helpers";
 
 export interface PoolFeesResult {
-  liquidityPoolDiff?: Partial<LiquidityPoolAggregatorDiff>;
+  liquidityPoolDiff?: Partial<PoolDiff>;
   userDiff?: Partial<UserStatsPerPoolDiff>;
 }
 

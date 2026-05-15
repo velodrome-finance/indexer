@@ -1,11 +1,5 @@
-import type {
-  LiquidityPoolAggregator,
-  PendingVote,
-  Token,
-  VeNFTState,
-  handlerContext,
-} from "generated";
-import * as LiquidityPoolAggregatorModule from "../../../src/Aggregators/LiquidityPoolAggregator";
+import type { PendingVote, Token, VeNFTState, handlerContext } from "generated";
+import * as PoolModule from "../../../src/Aggregators/Pool";
 import {
   PendingVoteId,
   RootGaugeRootPoolId,
@@ -15,6 +9,7 @@ import {
   getTokenDetails,
   getTokensDeposited,
 } from "../../../src/Effects/Index";
+import type { Pool } from "../../../src/EntityTypes";
 import type { VoterCommonResult } from "../../../src/EventHandlers/Voter/VoterCommonLogic";
 import {
   VoterEventType,
@@ -519,9 +514,7 @@ describe("resolveLeafPoolForRootGauge", () => {
   });
 
   it("returns null and logs when loadPoolData returns null", async () => {
-    vi.spyOn(LiquidityPoolAggregatorModule, "loadPoolData").mockResolvedValue(
-      null,
-    );
+    vi.spyOn(PoolModule, "loadPoolData").mockResolvedValue(null);
 
     const warns: string[] = [];
     const context = makeResolveContext({
@@ -565,9 +558,9 @@ describe("resolveLeafPoolForRootGauge", () => {
       id: `10-${leafPoolAddress}`,
       poolAddress: leafPoolAddress,
       chainId: leafChainId,
-    } as unknown as LiquidityPoolAggregator;
+    } as unknown as Pool;
 
-    vi.spyOn(LiquidityPoolAggregatorModule, "loadPoolData").mockResolvedValue({
+    vi.spyOn(PoolModule, "loadPoolData").mockResolvedValue({
       liquidityPoolAggregator: mockPool,
       token0Instance: {} as Token,
       token1Instance: {} as Token,
@@ -583,7 +576,7 @@ describe("resolveLeafPoolForRootGauge", () => {
     expect(result).not.toBeNull();
     expect(result?.pool).toBe(mockPool);
     expect(result?.isCrossChain).toBe(true);
-    expect(LiquidityPoolAggregatorModule.loadPoolData).toHaveBeenCalledWith(
+    expect(PoolModule.loadPoolData).toHaveBeenCalledWith(
       leafPoolAddress,
       leafChainId,
       context,
@@ -592,8 +585,7 @@ describe("resolveLeafPoolForRootGauge", () => {
     // Cross-chain fix: loadPoolData must NOT receive blockNumber/blockTimestamp
     // because they belong to the root chain and would cause "Unknown block" errors
     // on the leaf chain's RPC.
-    const callArgs = vi.mocked(LiquidityPoolAggregatorModule.loadPoolData).mock
-      .calls[0];
+    const callArgs = vi.mocked(PoolModule.loadPoolData).mock.calls[0];
     expect(callArgs).toHaveLength(3);
   });
 });

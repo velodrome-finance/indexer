@@ -1,4 +1,4 @@
-import type { CLGaugeConfig, LiquidityPoolAggregator, Token } from "generated";
+import type { CLGaugeConfig, Token } from "generated";
 import type { MockInstance } from "vitest";
 import {
   CLFactory,
@@ -21,6 +21,7 @@ import {
   toChecksumAddress,
 } from "../../src/Constants";
 import { getTokensDeposited } from "../../src/Effects/Voter";
+import type { Pool } from "../../src/EntityTypes";
 import * as CLFactoryPoolCreatedLogic from "../../src/EventHandlers/CLFactory/CLFactoryPoolCreatedLogic";
 import * as PriceOracle from "../../src/PriceOracle";
 import { setupCommon } from "./Pool/common";
@@ -133,7 +134,7 @@ describe("CLFactory Events", () => {
               currentFee: mapping?.fee,
               lastUpdatedTimestamp: new Date(1000000 * 1000),
               veNFTamountStaked: 0n,
-            } as LiquidityPoolAggregator,
+            } as Pool,
           };
         },
       );
@@ -206,9 +207,7 @@ describe("CLFactory Events", () => {
     });
 
     it("should set the liquidity pool aggregator entity", () => {
-      const pool = resultDB.entities.LiquidityPoolAggregator.get(
-        PoolId(chainId, poolAddress),
-      );
+      const pool = resultDB.entities.Pool.get(PoolId(chainId, poolAddress));
       expect(pool).toBeDefined();
       expect(pool?.id).toBe(PoolId(chainId, poolAddress));
       expect(pool?.chainId).toBe(chainId);
@@ -234,9 +233,7 @@ describe("CLFactory Events", () => {
       const result = await preloadMockDb.processEvents([mockEvent]);
 
       // Verify that the handler ran (pool should be created if mapping exists)
-      const pool = result.entities.LiquidityPoolAggregator.get(
-        PoolId(chainId, poolAddress),
-      );
+      const pool = result.entities.Pool.get(PoolId(chainId, poolAddress));
 
       // Since we verified the mapping exists, the handler should have run and created the pool
       expect(pool).toBeDefined();
@@ -264,9 +261,7 @@ describe("CLFactory Events", () => {
     });
 
     it("should set baseFee and currentFee from FeeToTickSpacingMapping when mapping exists", () => {
-      const pool = resultDB.entities.LiquidityPoolAggregator.get(
-        PoolId(chainId, poolAddress),
-      );
+      const pool = resultDB.entities.Pool.get(PoolId(chainId, poolAddress));
       expect(pool?.baseFee).toBe(500n);
       expect(pool?.currentFee).toBe(500n);
     });
@@ -279,9 +274,7 @@ describe("CLFactory Events", () => {
 
       const result = await mockDbWithoutMapping.processEvents([mockEvent]);
 
-      const pool = result.entities.LiquidityPoolAggregator.get(
-        PoolId(chainId, poolAddress),
-      );
+      const pool = result.entities.Pool.get(PoolId(chainId, poolAddress));
       // When mapping doesn't exist, handler returns early and no pool is created
       expect(pool).toBeUndefined();
     });
@@ -336,9 +329,8 @@ describe("CLFactory Events", () => {
       });
 
       it("should flush pending votes when PendingVote and VeNFTState exist", async () => {
-        const { createMockLiquidityPoolAggregator, createMockVeNFTState } =
-          setupCommon();
-        const fullPool = createMockLiquidityPoolAggregator({
+        const { createMockPool, createMockVeNFTState } = setupCommon();
+        const fullPool = createMockPool({
           id: PoolId(chainId, poolAddress),
           chainId,
           token0_id: TokenId(chainId, token0Address),
@@ -422,9 +414,7 @@ describe("CLFactory Events", () => {
         );
         expect(processedPendingVote).toBeUndefined();
 
-        const leafPool = result.entities.LiquidityPoolAggregator.get(
-          PoolId(chainId, poolAddress),
-        );
+        const leafPool = result.entities.Pool.get(PoolId(chainId, poolAddress));
         expect(leafPool?.veNFTamountStaked).toBe(voteWeight);
       });
     });
@@ -560,8 +550,7 @@ describe("CLFactory Events", () => {
       }
 
       it("should flush PendingRootPoolMapping and PendingVote when processing RootPoolCreated, Voted, then CLFactory.PoolCreated (two processEvents: root chain 10, leaf chain 252)", async () => {
-        const { createMockLiquidityPoolAggregator, createMockVeNFTState } =
-          setupCommon();
+        const { createMockPool, createMockVeNFTState } = setupCommon();
         const voteTokenId = 1n;
         const voteWeight = 100n;
         const ownerAddress = toChecksumAddress(
@@ -582,7 +571,7 @@ describe("CLFactory Events", () => {
         });
 
         {
-          const fullPool = createMockLiquidityPoolAggregator({
+          const fullPool = createMockPool({
             id: PoolId(leafChainId, leafPoolAddress),
             chainId: leafChainId,
             token0_id: TokenId(leafChainId, token0Address),
@@ -656,7 +645,7 @@ describe("CLFactory Events", () => {
           );
           expect(processedPendingVote).toBeUndefined();
 
-          const leafPool = result.entities.LiquidityPoolAggregator.get(
+          const leafPool = result.entities.Pool.get(
             PoolId(leafChainId, leafPoolAddress),
           );
           expect(leafPool).toBeDefined();
@@ -672,8 +661,7 @@ describe("CLFactory Events", () => {
         const leafGaugeAddress = toChecksumAddress(
           "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
         );
-        const { createMockLiquidityPoolAggregator, createMockToken } =
-          setupCommon();
+        const { createMockPool, createMockToken } = setupCommon();
         const distAmount = 1000n * 10n ** 18n;
         const tokensDepositedMock = 500n * 10n ** 18n;
 
@@ -712,7 +700,7 @@ describe("CLFactory Events", () => {
         });
 
         {
-          const fullPool = createMockLiquidityPoolAggregator({
+          const fullPool = createMockPool({
             id: PoolId(leafChainId, leafPoolAddress),
             chainId: leafChainId,
             token0_id: TokenId(leafChainId, token0Address),
@@ -834,7 +822,7 @@ describe("CLFactory Events", () => {
             result.entities.PendingDistribution.get(pendingDistId),
           ).toBeUndefined();
 
-          const leafPool = result.entities.LiquidityPoolAggregator.get(
+          const leafPool = result.entities.Pool.get(
             PoolId(leafChainId, leafPoolAddress),
           );
           expect(leafPool).toBeDefined();
@@ -849,8 +837,7 @@ describe("CLFactory Events", () => {
         const rootPoolAddress = toChecksumAddress(
           "0xC4Cbb0ba3c902Fb4b49B3844230354d45C779F74",
         );
-        const { createMockLiquidityPoolAggregator, createMockVeNFTState } =
-          setupCommon();
+        const { createMockPool, createMockVeNFTState } = setupCommon();
         const voteWeight1 = 100n;
         const voteWeight2 = 200n;
         const tokenId1 = 1n;
@@ -863,7 +850,7 @@ describe("CLFactory Events", () => {
           "0x3333333333333333333333333333333333333333",
         );
 
-        const fullPool = createMockLiquidityPoolAggregator({
+        const fullPool = createMockPool({
           id: PoolId(chainId, poolAddress),
           chainId,
           token0_id: TokenId(chainId, token0Address),
@@ -950,9 +937,7 @@ describe("CLFactory Events", () => {
         );
         expect(rootPoolLeafPool).toBeDefined();
 
-        const leafPool = result.entities.LiquidityPoolAggregator.get(
-          PoolId(chainId, poolAddress),
-        );
+        const leafPool = result.entities.Pool.get(PoolId(chainId, poolAddress));
         expect(leafPool).toBeDefined();
         expect(leafPool?.veNFTamountStaked).toBe(voteWeight1 + voteWeight2);
       });
@@ -1215,9 +1200,7 @@ describe("CLFactory.PoolCreated ↔ CLPoolPendingInitialize buffer", () => {
 
     const resultDB = await mockDb.processEvents([event]);
 
-    const pool = resultDB.entities.LiquidityPoolAggregator.get(
-      PoolId(chainId, poolAddress),
-    );
+    const pool = resultDB.entities.Pool.get(PoolId(chainId, poolAddress));
     expect(pool).toBeDefined();
     if (!pool) return;
     expect(pool.sqrtPriceX96).toBe(sqrtPriceX96);
@@ -1282,9 +1265,7 @@ describe("CLFactory.PoolCreated ↔ CLPoolPendingInitialize buffer", () => {
 
     const resultDB = await mockDb.processEvents([event]);
 
-    const pool = resultDB.entities.LiquidityPoolAggregator.get(
-      PoolId(chainId, poolAddress),
-    );
+    const pool = resultDB.entities.Pool.get(PoolId(chainId, poolAddress));
     expect(pool).toBeDefined();
     if (!pool) return;
     expect(pool.sqrtPriceX96).toBe(0n);

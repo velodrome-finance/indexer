@@ -15,7 +15,7 @@ import { sqrtAt } from "./common";
 /**
  * Co-located sanity test for #649: replacing `processTickCrossingsForStaked`
  * fan-out with the sparse stakedTickEdges / stakedTickEdgeNets list on
- * LiquidityPoolAggregator.
+ * Pool.
  *
  * Two assertions:
  *   (a) The edge list stays sorted + monotone under arbitrary gauge
@@ -28,7 +28,7 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
   const {
     mockToken0Data,
     mockToken1Data,
-    createMockLiquidityPoolAggregator,
+    createMockPool,
     createMockNonFungiblePosition,
     defaultNfpmAddress,
   } = setupCommon();
@@ -43,13 +43,13 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
   it("(a) stakedTickEdges stays sorted + monotone across 150 interleaved gauge Deposit/Withdraw events", async () => {
     let mockDb = MockDb.createMockDb();
 
-    const liquidityPool = createMockLiquidityPoolAggregator({
+    const liquidityPool = createMockPool({
       isCL: true,
       gaugeAddress,
       hasStakes: false,
     });
 
-    mockDb = mockDb.entities.LiquidityPoolAggregator.set(liquidityPool);
+    mockDb = mockDb.entities.Pool.set(liquidityPool);
     mockDb = mockDb.entities.Token.set(mockToken0Data as Token);
     mockDb = mockDb.entities.Token.set(mockToken1Data as Token);
 
@@ -124,7 +124,7 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
     expect(events.length).toBeGreaterThanOrEqual(150);
 
     const resultDb = await mockDb.processEvents(events);
-    const updated = resultDb.entities.LiquidityPoolAggregator.get(
+    const updated = resultDb.entities.Pool.get(
       PoolId(chainId, liquidityPool.poolAddress),
     );
 

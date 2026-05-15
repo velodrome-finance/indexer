@@ -66,9 +66,8 @@ describe("CustomUnstakedFeeModule Events", () => {
     it.each(chainCases)(
       "should set unstakedFee on $name",
       async ({ chainId, srcAddress, fee }) => {
-        const pool = common.createMockLiquidityPoolAggregator({ chainId });
-        const populatedDb =
-          MockDb.createMockDb().entities.LiquidityPoolAggregator.set(pool);
+        const pool = common.createMockPool({ chainId });
+        const populatedDb = MockDb.createMockDb().entities.Pool.set(pool);
 
         const event = createSetCustomFeeEvent({
           poolAddress: pool.poolAddress,
@@ -79,9 +78,7 @@ describe("CustomUnstakedFeeModule Events", () => {
 
         const result = await populatedDb.processEvents([event]);
 
-        const updatedPool = result.entities.LiquidityPoolAggregator.get(
-          pool.id,
-        );
+        const updatedPool = result.entities.Pool.get(pool.id);
         expect(updatedPool).toBeDefined();
         expect(updatedPool?.unstakedFee).toBe(fee);
         // baseFee and currentFee must be orthogonal and untouched.
@@ -95,9 +92,8 @@ describe("CustomUnstakedFeeModule Events", () => {
     const chainId = 8453;
 
     it("should store the raw ZERO_FEE_INDICATOR sentinel (420) without normalization", async () => {
-      const pool = common.createMockLiquidityPoolAggregator({ chainId });
-      const populatedDb =
-        MockDb.createMockDb().entities.LiquidityPoolAggregator.set(pool);
+      const pool = common.createMockPool({ chainId });
+      const populatedDb = MockDb.createMockDb().entities.Pool.set(pool);
 
       const event = createSetCustomFeeEvent({
         poolAddress: pool.poolAddress,
@@ -108,12 +104,12 @@ describe("CustomUnstakedFeeModule Events", () => {
 
       const result = await populatedDb.processEvents([event]);
 
-      const updatedPool = result.entities.LiquidityPoolAggregator.get(pool.id);
+      const updatedPool = result.entities.Pool.get(pool.id);
       expect(updatedPool?.unstakedFee).toBe(420n);
     });
 
     it("should no-op (not throw) when the pool aggregator does not exist", async () => {
-      const pool = common.createMockLiquidityPoolAggregator({ chainId });
+      const pool = common.createMockPool({ chainId });
       const mockDb = MockDb.createMockDb();
 
       const event = createSetCustomFeeEvent({
@@ -125,7 +121,7 @@ describe("CustomUnstakedFeeModule Events", () => {
 
       const result = await mockDb.processEvents([event]);
 
-      const updatedPool = result.entities.LiquidityPoolAggregator.get(pool.id);
+      const updatedPool = result.entities.Pool.get(pool.id);
       expect(updatedPool).toBeUndefined();
     });
   });

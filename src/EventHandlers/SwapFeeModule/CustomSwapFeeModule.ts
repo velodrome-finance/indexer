@@ -1,26 +1,24 @@
 import { CustomSwapFeeModule } from "generated";
-import type {
-  DynamicFeeGlobalConfig,
-  LiquidityPoolAggregator,
-} from "generated";
-import { updateLiquidityPoolAggregator } from "../../Aggregators/LiquidityPoolAggregator";
+import type { DynamicFeeGlobalConfig } from "generated";
+import { updatePool } from "../../Aggregators/Pool";
 import { PoolId } from "../../Constants";
+import type { Pool } from "../../EntityTypes";
 
 CustomSwapFeeModule.SetCustomFee.handler(async ({ event, context }) => {
   const poolId = PoolId(event.chainId, event.params.pool);
-  const pool = await context.LiquidityPoolAggregator.get(poolId);
+  const pool = await context.Pool.get(poolId);
 
   if (!pool) {
     context.log.warn(`Pool ${poolId} not found for SetCustomFee event`);
     return;
   }
 
-  const diff: Partial<LiquidityPoolAggregator> = {
+  const diff: Partial<Pool> = {
     baseFee: BigInt(event.params.fee),
     currentFee: BigInt(event.params.fee),
   };
 
-  await updateLiquidityPoolAggregator(
+  await updatePool(
     diff,
     pool,
     new Date(event.block.timestamp * 1000),

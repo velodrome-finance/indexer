@@ -1,16 +1,12 @@
-import type {
-  CLGaugeConfig,
-  LiquidityPoolAggregator,
-  Token,
-  handlerContext,
-} from "generated";
+import type { CLGaugeConfig, Token, handlerContext } from "generated";
 import { PoolId, TokenId, isKnownSinkRootPool } from "../Constants";
 import { getSwapFee } from "../Effects/Index";
+import type { Pool } from "../EntityTypes";
 import { calculateTotalUSD, generatePoolName } from "../Helpers";
 import { refreshTokenPrice } from "../PriceOracle";
 import {
   getSnapshotEpoch,
-  setLiquidityPoolAggregatorSnapshot,
+  setPoolSnapshot,
   shouldSnapshot,
 } from "../Snapshots/Index";
 
@@ -29,7 +25,7 @@ export type DynamicFeeConfig = {
   scalingFactor: bigint;
 };
 
-export interface LiquidityPoolAggregatorDiff {
+export interface PoolDiff {
   incrementalReserve0: bigint;
   incrementalReserve1: bigint;
   incrementalTotalLPSupply: bigint;
@@ -102,7 +98,7 @@ export interface LiquidityPoolAggregatorDiff {
   // aggregator just takes the result.
   //
   // Typed `readonly bigint[]` so callers can pass the value straight from the
-  // `LiquidityPoolAggregator` entity (whose array fields are readonly in
+  // `Pool` entity (whose array fields are readonly in
   // envio.d.ts) without a copy.
   stakedTickEdges: readonly bigint[];
   stakedTickEdgeNets: readonly bigint[];
@@ -128,7 +124,7 @@ export interface LiquidityPoolAggregatorDiff {
 export interface PoolData {
   token0Instance: Token;
   token1Instance: Token;
-  liquidityPoolAggregator: LiquidityPoolAggregator;
+  liquidityPoolAggregator: Pool;
 }
 
 export enum LoadPoolDataOrRootCLPoolFailureReason {
@@ -178,11 +174,11 @@ export function isMissingRootPoolMapping(
  * @returns The updated liquidity pool aggregator, or the original if chain mismatch occurs
  */
 export async function updateDynamicFeePools(
-  liquidityPoolAggregator: LiquidityPoolAggregator,
+  liquidityPoolAggregator: Pool,
   context: handlerContext,
   eventChainId: number,
   blockNumber: number,
-): Promise<LiquidityPoolAggregator> {
+): Promise<Pool> {
   const poolAddress = liquidityPoolAggregator.poolAddress;
   const chainId = liquidityPoolAggregator.chainId;
 
@@ -213,16 +209,16 @@ export async function updateDynamicFeePools(
   }
 
   // Update the current fee in the pool entity
-  const updatedLiquidityPoolAggregator = {
+  const updatedPool = {
     ...liquidityPoolAggregator,
     currentFee,
   };
 
-  return updatedLiquidityPoolAggregator;
+  return updatedPool;
 }
 
 /**
- * Updates the state of a LiquidityPoolAggregator with new data and manages snapshots.
+ * Updates the state of a Pool with new data and manages snapshots.
  *
  * This function applies a set of changes (diff) to the current state of a liquidity pool
  * aggregator. It updates the last updated timestamp and, when a new epoch boundary is crossed,
@@ -235,9 +231,9 @@ export async function updateDynamicFeePools(
  * @param eventChainId - The chain ID of the event that triggered the update.
  * @param blockNumber - The block number of the event that triggered the update.
  */
-export async function updateLiquidityPoolAggregator(
-  diff: Partial<LiquidityPoolAggregatorDiff>,
-  current: LiquidityPoolAggregator,
+export async function updatePool(
+  diff: Partial<PoolDiff>,
+  current: Pool,
   timestamp: Date,
   context: handlerContext,
   eventChainId: number,
@@ -256,7 +252,7 @@ export async function updateLiquidityPoolAggregator(
   const netsSet = diff.stakedTickEdgeNets !== undefined;
   if (edgesSet !== netsSet) {
     context.log.error(
-      `[STAKED_TICK_DRIFT][updateLiquidityPoolAggregator] stakedTickEdges and stakedTickEdgeNets must be updated together (parallel arrays) for pool ${current.poolAddress} on chain ${current.chainId}. Got edges=${edgesSet ? "set" : "unset"}, nets=${netsSet ? "set" : "unset"}. Dropping both from this update; aggregator retains the prior consistent pair.`,
+      `[STAKED_TICK_DRIFT][updatePool] stakedTickEdges and stakedTickEdgeNets must be updated together (parallel arrays) for pool ${current.poolAddress} on chain ${current.chainId}. Got edges=${edgesSet ? "set" : "unset"}, nets=${netsSet ? "set" : "unset"}. Dropping both from this update; aggregator retains the prior consistent pair.`,
     );
     diff.stakedTickEdges = undefined;
     diff.stakedTickEdgeNets = undefined;
@@ -268,7 +264,7 @@ export async function updateLiquidityPoolAggregator(
   ) {
     context.log.error(
       // biome-ignore lint/style/noNonNullAssertion: edgesSet/netsSet narrow above
-      `[STAKED_TICK_DRIFT][updateLiquidityPoolAggregator] stakedTickEdges/stakedTickEdgeNets length mismatch for pool ${current.poolAddress} on chain ${current.chainId}: edges.length=${diff.stakedTickEdges!.length}, nets.length=${diff.stakedTickEdgeNets!.length}. Dropping both from this update; aggregator retains the prior consistent pair.`,
+      `[STAKED_TICK_DRIFT][updatePool] stakedTickEdges/stakedTickEdgeNets length mismatch for pool ${current.poolAddress} on chain ${current.chainId}: edges.length=${diff.stakedTickEdges!.length}, nets.length=${diff.stakedTickEdgeNets!.length}. Dropping both from this update; aggregator retains the prior consistent pair.`,
     );
     diff.stakedTickEdges = undefined;
     diff.stakedTickEdgeNets = undefined;
@@ -286,7 +282,7 @@ export async function updateLiquidityPoolAggregator(
   const clampedReserve0 = reserve0Sum < 0n ? 0n : reserve0Sum;
   if (reserve0Sum < 0n) {
     context.log.warn(
-      `[NEG_RESERVE_GUARD][updateLiquidityPoolAggregator] field=reserve0 poolAddress=${current.poolAddress} chainId=${current.chainId} priorReserve=${current.reserve0} delta=${reserve0Delta} clampedTo=${clampedReserve0}`,
+      `[NEG_RESERVE_GUARD][updatePool] field=reserve0 poolAddress=${current.poolAddress} chainId=${current.chainId} priorReserve=${current.reserve0} delta=${reserve0Delta} clampedTo=${clampedReserve0}`,
     );
   }
   const reserve1Delta = diff.incrementalReserve1 ?? 0n;
@@ -294,11 +290,11 @@ export async function updateLiquidityPoolAggregator(
   const clampedReserve1 = reserve1Sum < 0n ? 0n : reserve1Sum;
   if (reserve1Sum < 0n) {
     context.log.warn(
-      `[NEG_RESERVE_GUARD][updateLiquidityPoolAggregator] field=reserve1 poolAddress=${current.poolAddress} chainId=${current.chainId} priorReserve=${current.reserve1} delta=${reserve1Delta} clampedTo=${clampedReserve1}`,
+      `[NEG_RESERVE_GUARD][updatePool] field=reserve1 poolAddress=${current.poolAddress} chainId=${current.chainId} priorReserve=${current.reserve1} delta=${reserve1Delta} clampedTo=${clampedReserve1}`,
     );
   }
 
-  let updated: LiquidityPoolAggregator = {
+  let updated: Pool = {
     ...current,
     // Handle cumulative fields by adding diff values to current values
     reserve0: clampedReserve0,
@@ -502,7 +498,7 @@ export async function updateLiquidityPoolAggregator(
       }
     }
 
-    setLiquidityPoolAggregatorSnapshot(updated, timestamp, context);
+    setPoolSnapshot(updated, timestamp, context);
 
     // Soft invariant (issue #670): real swap fee tiers cap at ~1% of volume,
     // so totalFeesGeneratedUSD > 5% of totalVolumeUSD signals fee/volume
@@ -515,7 +511,7 @@ export async function updateLiquidityPoolAggregator(
       updated.totalFeesGeneratedUSD * 20n > updated.totalVolumeUSD
     ) {
       context.log.warn(
-        `[FEE_VOLUME_DIVERGENCE][updateLiquidityPoolAggregator] Pool ${current.poolAddress} on chain ${current.chainId} totalFeesGeneratedUSD (${updated.totalFeesGeneratedUSD}) exceeds 5% of totalVolumeUSD (${updated.totalVolumeUSD}). Real fee tiers cap at ~1%; this likely indicates a fee/volume USD-path divergence.`,
+        `[FEE_VOLUME_DIVERGENCE][updatePool] Pool ${current.poolAddress} on chain ${current.chainId} totalFeesGeneratedUSD (${updated.totalFeesGeneratedUSD}) exceeds 5% of totalVolumeUSD (${updated.totalVolumeUSD}). Real fee tiers cap at ~1%; this likely indicates a fee/volume USD-path divergence.`,
       );
     }
 
@@ -530,12 +526,12 @@ export async function updateLiquidityPoolAggregator(
     // pattern from #679 and the [NEGATIVE_RESERVE_DRIFT] tag from #674.
     if ((updated.stakedReserve0 ?? 0n) < 0n) {
       context.log.warn(
-        `[NEGATIVE_STAKED_RESERVE_DRIFT][updateLiquidityPoolAggregator] Pool ${current.poolAddress} on chain ${current.chainId} stakedReserve0 is negative at snapshot epoch: ${updated.stakedReserve0 ?? 0n}. Staked reserves are LP-deposited capital and should never go below zero.`,
+        `[NEGATIVE_STAKED_RESERVE_DRIFT][updatePool] Pool ${current.poolAddress} on chain ${current.chainId} stakedReserve0 is negative at snapshot epoch: ${updated.stakedReserve0 ?? 0n}. Staked reserves are LP-deposited capital and should never go below zero.`,
       );
     }
     if ((updated.stakedReserve1 ?? 0n) < 0n) {
       context.log.warn(
-        `[NEGATIVE_STAKED_RESERVE_DRIFT][updateLiquidityPoolAggregator] Pool ${current.poolAddress} on chain ${current.chainId} stakedReserve1 is negative at snapshot epoch: ${updated.stakedReserve1 ?? 0n}. Staked reserves are LP-deposited capital and should never go below zero.`,
+        `[NEGATIVE_STAKED_RESERVE_DRIFT][updatePool] Pool ${current.poolAddress} on chain ${current.chainId} stakedReserve1 is negative at snapshot epoch: ${updated.stakedReserve1 ?? 0n}. Staked reserves are LP-deposited capital and should never go below zero.`,
       );
     }
 
@@ -546,7 +542,7 @@ export async function updateLiquidityPoolAggregator(
     };
   }
 
-  context.LiquidityPoolAggregator.set(updated);
+  context.Pool.set(updated);
 }
 
 /**
@@ -570,8 +566,7 @@ export async function loadPoolData(
 ): Promise<PoolData | null> {
   const poolId = PoolId(chainId, poolAddress);
   // Load liquidity pool aggregator and token instances efficiently
-  const liquidityPoolAggregator =
-    await context.LiquidityPoolAggregator.get(poolId);
+  const liquidityPoolAggregator = await context.Pool.get(poolId);
 
   // Load token instances concurrently using the pool's token IDs
   const [token0Instance, token1Instance] = await Promise.all([
@@ -586,7 +581,7 @@ export async function loadPoolData(
   // Handle missing data errors
   if (!liquidityPoolAggregator) {
     context.log.error(
-      `[loadPoolData] LiquidityPoolAggregator ${poolId} not found on chain ${chainId}`,
+      `[loadPoolData] Pool ${poolId} not found on chain ${chainId}`,
     );
     return null;
   }
@@ -739,13 +734,13 @@ export async function findPoolByField(
   chainId: number,
   context: handlerContext,
   field: PoolAddressField,
-): Promise<LiquidityPoolAggregator | null> {
-  const pools = await context.LiquidityPoolAggregator.getWhere({
+): Promise<Pool | null> {
+  const pools = await context.Pool.getWhere({
     [field]: { _eq: address },
   });
 
   const matchingPool = (pools ?? []).find(
-    (pool: LiquidityPoolAggregator) => pool.chainId === chainId,
+    (pool: Pool) => pool.chainId === chainId,
   );
   return matchingPool ?? null;
 }
@@ -761,7 +756,7 @@ export async function findPoolByGaugeAddress(
   gaugeAddress: string,
   chainId: number,
   context: handlerContext,
-): Promise<LiquidityPoolAggregator | null> {
+): Promise<Pool | null> {
   return findPoolByField(
     gaugeAddress,
     chainId,
@@ -771,11 +766,11 @@ export async function findPoolByGaugeAddress(
 }
 
 /**
- * Creates a new LiquidityPoolAggregator entity with default values
+ * Creates a new Pool entity with default values
  * @param params - Parameters for creating the pool entity
- * @returns A new LiquidityPoolAggregator entity
+ * @returns A new Pool entity
  */
-export function createLiquidityPoolAggregatorEntity(params: {
+export function createPoolEntity(params: {
   poolAddress: string;
   chainId: number;
   isCL: boolean;
@@ -794,7 +789,7 @@ export function createLiquidityPoolAggregatorEntity(params: {
   nfpmAddress?: string | null;
   baseFee: bigint;
   currentFee: bigint;
-}): LiquidityPoolAggregator {
+}): Pool {
   const {
     poolAddress,
     chainId,

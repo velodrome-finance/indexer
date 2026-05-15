@@ -4,11 +4,8 @@ import type {
   NonFungiblePosition,
   handlerContext,
 } from "generated";
-import {
-  type PoolData,
-  loadPoolData,
-} from "../../Aggregators/LiquidityPoolAggregator";
 import { updateNonFungiblePosition } from "../../Aggregators/NonFungiblePosition";
+import { type PoolData, loadPoolData } from "../../Aggregators/Pool";
 import {
   NonFungiblePositionId,
   PoolId,
@@ -284,7 +281,7 @@ export async function handleRegularTransfer(
 
   // TODO: Refactor loadPoolData() to support partial results so handlers that only
   // need pool-level fields (like gaugeAddress) do not need a separate pool lookup.
-  const poolEntity = await context.LiquidityPoolAggregator.get(
+  const poolEntity = await context.Pool.get(
     PoolId(event.chainId, position.pool),
   );
 

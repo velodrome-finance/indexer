@@ -1,4 +1,4 @@
-import type { LiquidityPoolAggregator, Token } from "generated";
+import type { Token } from "generated";
 import type { MockInstance } from "vitest";
 import { MockDb, Pool } from "../../../generated/src/TestHelpers.gen";
 import {
@@ -9,6 +9,7 @@ import {
   UserStatsPerPoolId,
   toChecksumAddress,
 } from "../../../src/Constants";
+import type { Pool as PoolEntity } from "../../../src/EntityTypes";
 import * as PriceOracle from "../../../src/PriceOracle";
 import { setupCommon } from "./common";
 
@@ -120,10 +121,10 @@ describe("Pool Swap Event", () => {
 
   describe("when both tokens exist", () => {
     let postEventDB: ReturnType<typeof MockDb.createMockDb>;
-    let updatedPool: LiquidityPoolAggregator | undefined;
+    let updatedPool: PoolEntity | undefined;
 
     beforeEach(async () => {
-      const updatedDB1 = mockDb.entities.LiquidityPoolAggregator.set({
+      const updatedDB1 = mockDb.entities.Pool.set({
         ...mockLiquidityPoolData,
         stakedTickEdges: [...mockLiquidityPoolData.stakedTickEdges],
         stakedTickEdgeNets: [...mockLiquidityPoolData.stakedTickEdgeNets],
@@ -134,7 +135,7 @@ describe("Pool Swap Event", () => {
       const mockEvent = Pool.Swap.createMockEvent(eventData);
 
       postEventDB = await updatedDB3.processEvents([mockEvent]);
-      updatedPool = postEventDB.entities.LiquidityPoolAggregator.get(
+      updatedPool = postEventDB.entities.Pool.get(
         PoolId(
           eventData.mockEventData.chainId,
           eventData.mockEventData.srcAddress,
@@ -198,14 +199,14 @@ describe("Pool Swap Event", () => {
       // Create a mockDb without the pool
       const updatedDB1 = mockDb.entities.Token.set(mockToken0Data as Token);
       const updatedDB2 = updatedDB1.entities.Token.set(mockToken1Data as Token);
-      // Note: We intentionally don't set the LiquidityPoolAggregator
+      // Note: We intentionally don't set the Pool
 
       const mockEvent = Pool.Swap.createMockEvent(eventData);
 
       const postEventDB = await updatedDB2.processEvents([mockEvent]);
 
       // Pool should not exist
-      const pool = postEventDB.entities.LiquidityPoolAggregator.get(
+      const pool = postEventDB.entities.Pool.get(
         PoolId(
           eventData.mockEventData.chainId,
           eventData.mockEventData.srcAddress,
@@ -246,8 +247,7 @@ describe("Pool Swap Event", () => {
         stakedTickEdgeNets: [...mockLiquidityPoolData.stakedTickEdgeNets],
       };
 
-      const updatedDB1 =
-        mockDb.entities.LiquidityPoolAggregator.set(poolWithOusdt);
+      const updatedDB1 = mockDb.entities.Pool.set(poolWithOusdt);
       const updatedDB2 = updatedDB1.entities.Token.set(ousdtToken as Token);
       const updatedDB3 = updatedDB2.entities.Token.set(mockToken1Data as Token);
 
@@ -282,8 +282,7 @@ describe("Pool Swap Event", () => {
         stakedTickEdgeNets: [...mockLiquidityPoolData.stakedTickEdgeNets],
       };
 
-      const updatedDB1 =
-        mockDb.entities.LiquidityPoolAggregator.set(poolWithOusdt);
+      const updatedDB1 = mockDb.entities.Pool.set(poolWithOusdt);
       const updatedDB2 = updatedDB1.entities.Token.set(mockToken0Data as Token);
       const updatedDB3 = updatedDB2.entities.Token.set(ousdtToken as Token);
 
@@ -307,7 +306,7 @@ describe("Pool Swap Event", () => {
     });
 
     it("should not create OUSDTSwap entity when neither token is OUSDT", async () => {
-      const updatedDB1 = mockDb.entities.LiquidityPoolAggregator.set({
+      const updatedDB1 = mockDb.entities.Pool.set({
         ...mockLiquidityPoolData,
         stakedTickEdges: [...mockLiquidityPoolData.stakedTickEdges],
         stakedTickEdgeNets: [...mockLiquidityPoolData.stakedTickEdgeNets],

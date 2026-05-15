@@ -1,10 +1,10 @@
 import type { CLPool_Flash_event, Token } from "generated";
-import type { LiquidityPoolAggregatorDiff } from "../../Aggregators/LiquidityPoolAggregator";
+import type { PoolDiff } from "../../Aggregators/Pool";
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import { calculateTotalUSD } from "../../Helpers";
 
 export interface CLPoolFlashResult {
-  liquidityPoolDiff: Partial<LiquidityPoolAggregatorDiff>;
+  liquidityPoolDiff: Partial<PoolDiff>;
   userFlashLoanDiff: Partial<UserStatsPerPoolDiff>;
 }
 

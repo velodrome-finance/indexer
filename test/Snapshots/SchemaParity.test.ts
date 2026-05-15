@@ -33,7 +33,7 @@ describe("Snapshot schema parity", () => {
   const schemaTypes = parseSchemaTypes(schemaText);
   const allowedOmissions = new Map<string, string[]>([
     [
-      "LiquidityPoolAggregator",
+      "Pool",
       [
         "tickSpacing",
         "lastUpdatedTimestamp",

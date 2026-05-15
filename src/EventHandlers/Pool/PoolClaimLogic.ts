@@ -1,10 +1,10 @@
 import type { Pool_Claim_event, Token } from "generated";
-import type { LiquidityPoolAggregatorDiff } from "../../Aggregators/LiquidityPoolAggregator";
+import type { PoolDiff } from "../../Aggregators/Pool";
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import { calculateTotalUSD } from "../../Helpers";
 
 export interface PoolClaimResult {
-  poolDiff: Partial<LiquidityPoolAggregatorDiff>;
+  poolDiff: Partial<PoolDiff>;
   userDiff: Partial<UserStatsPerPoolDiff>;
 }
 

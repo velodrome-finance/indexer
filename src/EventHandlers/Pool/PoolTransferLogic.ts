@@ -1,9 +1,5 @@
-import type {
-  LiquidityPoolAggregator,
-  Pool_Transfer_event,
-  handlerContext,
-} from "generated";
-import { updateLiquidityPoolAggregator } from "../../Aggregators/LiquidityPoolAggregator";
+import type { Pool_Transfer_event, handlerContext } from "generated";
+import { updatePool } from "../../Aggregators/Pool";
 import {
   loadOrCreateUserData,
   updateUserStatsPerPool,
@@ -13,6 +9,7 @@ import {
   TxPoolTransferRegistryId,
   ZERO_ADDRESS,
 } from "../../Constants";
+import type { Pool } from "../../EntityTypes";
 
 /**
  * Update pool totalLPTokenSupply based on mint/burn transfers
@@ -29,7 +26,7 @@ export async function updatePoolTotalSupply(
   isMint: boolean,
   isBurn: boolean,
   value: bigint,
-  liquidityPoolAggregator: LiquidityPoolAggregator,
+  liquidityPoolAggregator: Pool,
   timestamp: Date,
   context: handlerContext,
   eventChainId: number,
@@ -48,7 +45,7 @@ export async function updatePoolTotalSupply(
   };
 
   if (incrementalTotalLPSupply !== 0n) {
-    await updateLiquidityPoolAggregator(
+    await updatePool(
       poolDiff,
       liquidityPoolAggregator,
       timestamp,
@@ -242,7 +239,7 @@ export async function storeTransferForMatching(
  */
 export async function processPoolTransfer(
   event: Pool_Transfer_event,
-  liquidityPoolAggregator: LiquidityPoolAggregator,
+  liquidityPoolAggregator: Pool,
   poolAddress: string,
   chainId: number,
   context: handlerContext,

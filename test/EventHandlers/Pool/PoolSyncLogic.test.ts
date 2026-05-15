@@ -1,10 +1,6 @@
-import type {
-  LiquidityPoolAggregator,
-  Pool_Sync_event,
-  Token,
-  handlerContext,
-} from "generated";
+import type { Pool_Sync_event, Token, handlerContext } from "generated";
 import { toChecksumAddress } from "../../../src/Constants";
+import type { Pool } from "../../../src/EntityTypes";
 import { processPoolSync } from "../../../src/EventHandlers/Pool/PoolSyncLogic";
 import { setupCommon } from "./common";
 
@@ -29,7 +25,7 @@ describe("PoolSyncLogic", () => {
     },
   };
 
-  const mockLiquidityPoolAggregator = {
+  const mockPool = {
     ...mockLiquidityPoolData,
     reserve0: 500n,
     reserve1: 1000n,
@@ -54,7 +50,7 @@ describe("PoolSyncLogic", () => {
     ),
     gaugeIsAlive: true,
     lastUpdatedTimestamp: new Date(1000000 * 1000),
-  } as LiquidityPoolAggregator;
+  } as Pool;
 
   const mockToken0 = {
     id: toChecksumAddress("0x2222222222222222222222222222222222222222"),
@@ -92,7 +88,7 @@ describe("PoolSyncLogic", () => {
     it("should create entity and calculate sync updates for successful sync", () => {
       const result = processPoolSync(
         mockEvent,
-        mockLiquidityPoolAggregator,
+        mockPool,
         mockToken0,
         mockToken1,
       );
@@ -113,7 +109,7 @@ describe("PoolSyncLogic", () => {
     it("should calculate total liquidity USD correctly with both tokens", () => {
       const result = processPoolSync(
         mockEvent,
-        mockLiquidityPoolAggregator,
+        mockPool,
         mockToken0,
         mockToken1,
       );
@@ -126,7 +122,7 @@ describe("PoolSyncLogic", () => {
     it("should calculate total liquidity USD correctly with only token0", () => {
       const result = processPoolSync(
         mockEvent,
-        mockLiquidityPoolAggregator,
+        mockPool,
         mockToken0,
         undefined,
       );
@@ -139,7 +135,7 @@ describe("PoolSyncLogic", () => {
     it("should calculate total liquidity USD correctly with only token1", () => {
       const result = processPoolSync(
         mockEvent,
-        mockLiquidityPoolAggregator,
+        mockPool,
         undefined,
         mockToken1,
       );
@@ -148,12 +144,7 @@ describe("PoolSyncLogic", () => {
     });
 
     it("should leave totalLiquidityUSD unchanged when no tokens are available", () => {
-      const result = processPoolSync(
-        mockEvent,
-        mockLiquidityPoolAggregator,
-        undefined,
-        undefined,
-      );
+      const result = processPoolSync(mockEvent, mockPool, undefined, undefined);
 
       // No tokens available: keep existing values (no change)
       expect(result.liquidityPoolDiff.currentTotalLiquidityUSD).toBeUndefined();
@@ -167,7 +158,7 @@ describe("PoolSyncLogic", () => {
 
       const result = processPoolSync(
         mockEvent,
-        mockLiquidityPoolAggregator,
+        mockPool,
         mockToken0WithDifferentDecimals,
         mockToken1,
       );
@@ -188,7 +179,7 @@ describe("PoolSyncLogic", () => {
 
       const result = processPoolSync(
         mockEventWithZeroAmounts,
-        mockLiquidityPoolAggregator,
+        mockPool,
         mockToken0,
         mockToken1,
       );
@@ -201,19 +192,14 @@ describe("PoolSyncLogic", () => {
     });
 
     it("should handle missing token instances gracefully", () => {
-      const result = processPoolSync(
-        mockEvent,
-        mockLiquidityPoolAggregator,
-        undefined,
-        undefined,
-      );
+      const result = processPoolSync(mockEvent, mockPool, undefined, undefined);
 
       expect(result.liquidityPoolDiff).toBeDefined();
 
       // Should use existing prices from aggregator
       expect(result.liquidityPoolDiff).toMatchObject({
-        token0Price: mockLiquidityPoolAggregator.token0Price,
-        token1Price: mockLiquidityPoolAggregator.token1Price,
+        token0Price: mockPool.token0Price,
+        token1Price: mockPool.token1Price,
       });
     });
 
@@ -230,7 +216,7 @@ describe("PoolSyncLogic", () => {
 
       const result = processPoolSync(
         mockEvent,
-        mockLiquidityPoolAggregator,
+        mockPool,
         mockToken0WithNewPrice,
         mockToken1WithNewPrice,
       );

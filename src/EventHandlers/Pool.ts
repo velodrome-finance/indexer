@@ -1,10 +1,7 @@
 import { Pool } from "generated";
 
-import {
-  loadPoolData,
-  updateLiquidityPoolAggregator,
-} from "../Aggregators/LiquidityPoolAggregator";
 import { createOUSDTSwapEntity } from "../Aggregators/OUSDTSwaps";
+import { loadPoolData, updatePool } from "../Aggregators/Pool";
 import {
   loadOrCreateUserData,
   updateUserStatsPerPool,
@@ -115,7 +112,7 @@ Pool.Fees.handler(async ({ event, context }) => {
   // Update pool and user entities in parallel
   await Promise.all([
     liquidityPoolDiff
-      ? updateLiquidityPoolAggregator(
+      ? updatePool(
           liquidityPoolDiff,
           liquidityPoolAggregator,
           timestamp,
@@ -165,7 +162,7 @@ Pool.Swap.handler(async ({ event, context }) => {
 
   // Update pool and user entities in parallel
   await Promise.all([
-    updateLiquidityPoolAggregator(
+    updatePool(
       liquidityPoolDiff,
       liquidityPoolAggregator,
       timestamp,
@@ -229,7 +226,7 @@ Pool.Sync.handler(async ({ event, context }) => {
 
   // Apply liquidity pool updates
   if (liquidityPoolDiff) {
-    await updateLiquidityPoolAggregator(
+    await updatePool(
       liquidityPoolDiff,
       liquidityPoolAggregator,
       liquidityPoolDiff.lastUpdatedTimestamp as Date,
@@ -306,7 +303,7 @@ Pool.Claim.handler(async ({ event, context }) => {
   const timestamp = result.poolDiff.lastUpdatedTimestamp as Date;
 
   await Promise.all([
-    updateLiquidityPoolAggregator(
+    updatePool(
       result.poolDiff,
       liquidityPoolAggregator,
       timestamp,

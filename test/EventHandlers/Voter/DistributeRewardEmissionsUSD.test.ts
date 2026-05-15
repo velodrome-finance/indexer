@@ -88,8 +88,8 @@ describe("Voter.DistributeReward → totalEmissionsUSD regression (#673)", () =>
   }
 
   it("writes totalEmissionsUSD = emission * reward-token price when price is non-zero", async () => {
-    const { createMockLiquidityPoolAggregator } = setupCommon();
-    const liquidityPool = createMockLiquidityPoolAggregator({
+    const { createMockPool } = setupCommon();
+    const liquidityPool = createMockPool({
       id: PoolId(chainId, poolAddress),
       chainId,
       poolAddress,
@@ -105,13 +105,13 @@ describe("Voter.DistributeReward → totalEmissionsUSD regression (#673)", () =>
 
     let db = MockDb.createMockDb();
     db = db.entities.Token.set(rewardToken);
-    db = db.entities.LiquidityPoolAggregator.set(liquidityPool);
+    db = db.entities.Pool.set(liquidityPool);
 
     const resultDB = await db.processEvents([
       makeDistributeRewardEvent(amountEmitted),
     ]);
 
-    const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
+    const updatedPool = resultDB.entities.Pool.get(
       PoolId(chainId, poolAddress),
     );
     expect(updatedPool?.totalEmissions).toBe(amountEmitted);
@@ -124,12 +124,8 @@ describe("Voter.DistributeReward → totalEmissionsUSD regression (#673)", () =>
     // price, the USD result would be 1000 * $1 = $1000 (matching neither $7000
     // nor a decimals-mismatched USDC variant), so the $7000 expectation forces
     // the right token to be picked.
-    const {
-      createMockLiquidityPoolAggregator,
-      mockToken0Data,
-      mockToken1Data,
-    } = setupCommon();
-    const liquidityPool = createMockLiquidityPoolAggregator({
+    const { createMockPool, mockToken0Data, mockToken1Data } = setupCommon();
+    const liquidityPool = createMockPool({
       id: PoolId(chainId, poolAddress),
       chainId,
       poolAddress,
@@ -149,13 +145,13 @@ describe("Voter.DistributeReward → totalEmissionsUSD regression (#673)", () =>
     db = db.entities.Token.set(mockToken0Data);
     db = db.entities.Token.set(mockToken1Data);
     db = db.entities.Token.set(rewardToken);
-    db = db.entities.LiquidityPoolAggregator.set(liquidityPool);
+    db = db.entities.Pool.set(liquidityPool);
 
     const resultDB = await db.processEvents([
       makeDistributeRewardEvent(amountEmitted),
     ]);
 
-    const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
+    const updatedPool = resultDB.entities.Pool.get(
       PoolId(chainId, poolAddress),
     );
     expect(updatedPool?.totalEmissionsUSD).toBe(7000n * 10n ** 18n);
@@ -171,8 +167,8 @@ describe("Voter.DistributeReward → totalEmissionsUSD regression (#673)", () =>
     // To make refreshTokenPrice a no-op against a $0-priced token, set
     // `lastUpdatedTimestamp` to the block time so the 1-hour throttle skips
     // the RPC call and the stored $0 price is what feeds the USD calc.
-    const { createMockLiquidityPoolAggregator } = setupCommon();
-    const liquidityPool = createMockLiquidityPoolAggregator({
+    const { createMockPool } = setupCommon();
+    const liquidityPool = createMockPool({
       id: PoolId(chainId, poolAddress),
       chainId,
       poolAddress,
@@ -190,13 +186,13 @@ describe("Voter.DistributeReward → totalEmissionsUSD regression (#673)", () =>
 
     let db = MockDb.createMockDb();
     db = db.entities.Token.set(rewardToken);
-    db = db.entities.LiquidityPoolAggregator.set(liquidityPool);
+    db = db.entities.Pool.set(liquidityPool);
 
     const resultDB = await db.processEvents([
       makeDistributeRewardEvent(amountEmitted),
     ]);
 
-    const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
+    const updatedPool = resultDB.entities.Pool.get(
       PoolId(chainId, poolAddress),
     );
     expect(updatedPool?.totalEmissions).toBe(amountEmitted);

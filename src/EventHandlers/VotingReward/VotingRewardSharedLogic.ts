@@ -1,15 +1,10 @@
-import type {
-  LiquidityPoolAggregator,
-  Token,
-  UserStatsPerPool,
-  handlerContext,
-} from "generated";
+import type { Token, UserStatsPerPool, handlerContext } from "generated";
 import {
-  type LiquidityPoolAggregatorDiff,
   PoolAddressField,
+  type PoolDiff,
   findPoolByField,
   loadPoolData,
-} from "../../Aggregators/LiquidityPoolAggregator";
+} from "../../Aggregators/Pool";
 import {
   type UserStatsPerPoolDiff,
   loadOrCreateUserData,
@@ -21,6 +16,7 @@ import {
   hasContractBytecode,
   roundBlockToInterval,
 } from "../../Effects/Index";
+import type { Pool } from "../../EntityTypes";
 import { calculateTokenAmountUSD } from "../../Helpers";
 import { refreshTokenPrice } from "../../PriceOracle";
 
@@ -38,7 +34,7 @@ export interface VotingRewardClaimRewardsData extends VotingRewardEventData {
 }
 
 export interface VotingRewardClaimRewardsResult {
-  poolDiff: Partial<LiquidityPoolAggregatorDiff>;
+  poolDiff: Partial<PoolDiff>;
   userDiff: Partial<UserStatsPerPoolDiff>;
 }
 
@@ -198,8 +194,8 @@ export async function loadVotingRewardData(
   handlerName: string,
   field: PoolAddressField,
 ): Promise<{
-  pool?: LiquidityPoolAggregator;
-  poolData?: { liquidityPoolAggregator: LiquidityPoolAggregator };
+  pool?: Pool;
+  poolData?: { liquidityPoolAggregator: Pool };
   userData: UserStatsPerPool;
 } | null> {
   const votingRewardAddress = data.votingRewardAddress;

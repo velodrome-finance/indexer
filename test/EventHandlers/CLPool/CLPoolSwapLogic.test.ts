@@ -1,10 +1,6 @@
-import type {
-  CLPool_Swap_event,
-  LiquidityPoolAggregator,
-  Token,
-  handlerContext,
-} from "generated";
+import type { CLPool_Swap_event, Token, handlerContext } from "generated";
 import { TEN_TO_THE_18_BI, toChecksumAddress } from "../../../src/Constants";
+import type { Pool } from "../../../src/EntityTypes";
 import {
   calculateSwapFees,
   calculateSwapLiquidityChanges,
@@ -53,7 +49,7 @@ describe("CLPoolSwapLogic", () => {
     },
   } as CLPool_Swap_event;
 
-  const mockLiquidityPoolAggregator: LiquidityPoolAggregator = {
+  const mockPool: Pool = {
     ...mockLiquidityPoolData,
     id: POOL_ID,
     token0_id: mockToken0Data.id,
@@ -226,7 +222,7 @@ describe("CLPoolSwapLogic", () => {
     it("should calculate fees correctly with currentFee", () => {
       const result = calculateSwapFees(
         mockEvent,
-        mockLiquidityPoolAggregator,
+        mockPool,
         mockToken0,
         mockToken1,
         mockContext,
@@ -243,10 +239,10 @@ describe("CLPoolSwapLogic", () => {
 
     it("should fallback to baseFee when currentFee is undefined", () => {
       const poolWithBaseFee = {
-        ...mockLiquidityPoolAggregator,
+        ...mockPool,
         currentFee: undefined,
         baseFee: CL_FEE_100,
-      } as unknown as LiquidityPoolAggregator;
+      } as unknown as Pool;
 
       const result = calculateSwapFees(
         mockEvent,
@@ -265,10 +261,10 @@ describe("CLPoolSwapLogic", () => {
 
     it("should return zero fees when both currentFee and baseFee are undefined", () => {
       const poolWithoutFee = {
-        ...mockLiquidityPoolAggregator,
+        ...mockPool,
         currentFee: undefined,
         baseFee: undefined,
-      } as unknown as LiquidityPoolAggregator;
+      } as unknown as Pool;
 
       const result = calculateSwapFees(
         mockEvent,
@@ -299,7 +295,7 @@ describe("CLPoolSwapLogic", () => {
 
       const result = calculateSwapFees(
         mockEvent,
-        mockLiquidityPoolAggregator,
+        mockPool,
         tokenWith6Decimals,
         mockToken1,
         mockContext,
@@ -315,7 +311,7 @@ describe("CLPoolSwapLogic", () => {
     it("should calculate USD fees using token0 price when available", () => {
       const result = calculateSwapFees(
         mockEvent,
-        mockLiquidityPoolAggregator,
+        mockPool,
         mockToken0,
         mockToken1,
         mockContext,
@@ -333,7 +329,7 @@ describe("CLPoolSwapLogic", () => {
 
       const result = calculateSwapFees(
         mockEvent,
-        mockLiquidityPoolAggregator,
+        mockPool,
         token0WithZeroPrice,
         mockToken1,
         mockContext,
@@ -356,7 +352,7 @@ describe("CLPoolSwapLogic", () => {
 
       const result = calculateSwapFees(
         mockEvent,
-        mockLiquidityPoolAggregator,
+        mockPool,
         token0WithZeroPrice,
         token1WithoutPrice,
         mockContext,
@@ -370,17 +366,17 @@ describe("CLPoolSwapLogic", () => {
     it("should exclude fees from the input token and leave output unchanged", () => {
       const result = calculateSwapLiquidityChanges(
         mockEvent,
-        mockLiquidityPoolAggregator,
+        mockPool,
         mockToken0,
         mockToken1,
         CL_FEE_30,
       );
       const fee0 = (1n * TEN_TO_THE_18_BI * CL_FEE_30) / 1000000n;
       expect(result.newReserve0).toBe(
-        mockLiquidityPoolAggregator.reserve0 + 1n * TEN_TO_THE_18_BI - fee0,
+        mockPool.reserve0 + 1n * TEN_TO_THE_18_BI - fee0,
       );
       expect(result.newReserve1).toBe(
-        mockLiquidityPoolAggregator.reserve1 - 2n * TEN_TO_THE_18_BI,
+        mockPool.reserve1 - 2n * TEN_TO_THE_18_BI,
       );
     });
 
@@ -395,16 +391,16 @@ describe("CLPoolSwapLogic", () => {
       };
       const result = calculateSwapLiquidityChanges(
         eventWithNegativeAmounts,
-        mockLiquidityPoolAggregator,
+        mockPool,
         mockToken0,
         mockToken1,
         CL_FEE_30,
       );
       expect(result.newReserve0).toBe(
-        mockLiquidityPoolAggregator.reserve0 - 5n * TEN_TO_THE_18_BI,
+        mockPool.reserve0 - 5n * TEN_TO_THE_18_BI,
       );
       expect(result.newReserve1).toBe(
-        mockLiquidityPoolAggregator.reserve1 - 3n * TEN_TO_THE_18_BI,
+        mockPool.reserve1 - 3n * TEN_TO_THE_18_BI,
       );
     });
 
@@ -419,7 +415,7 @@ describe("CLPoolSwapLogic", () => {
       };
       const result = calculateSwapLiquidityChanges(
         eventWithPositiveAmounts,
-        mockLiquidityPoolAggregator,
+        mockPool,
         mockToken0,
         mockToken1,
         CL_FEE_30,
@@ -427,26 +423,26 @@ describe("CLPoolSwapLogic", () => {
       const fee0 = (5n * TEN_TO_THE_18_BI * CL_FEE_30) / 1000000n;
       const fee1 = (3n * TEN_TO_THE_18_BI * CL_FEE_30) / 1000000n;
       expect(result.newReserve0).toBe(
-        mockLiquidityPoolAggregator.reserve0 + 5n * TEN_TO_THE_18_BI - fee0,
+        mockPool.reserve0 + 5n * TEN_TO_THE_18_BI - fee0,
       );
       expect(result.newReserve1).toBe(
-        mockLiquidityPoolAggregator.reserve1 + 3n * TEN_TO_THE_18_BI - fee1,
+        mockPool.reserve1 + 3n * TEN_TO_THE_18_BI - fee1,
       );
     });
 
     it("should not deduct fees when fee rate is zero", () => {
       const result = calculateSwapLiquidityChanges(
         mockEvent,
-        mockLiquidityPoolAggregator,
+        mockPool,
         undefined,
         undefined,
         0n,
       );
       expect(result.newReserve0).toBe(
-        mockLiquidityPoolAggregator.reserve0 + mockEvent.params.amount0,
+        mockPool.reserve0 + mockEvent.params.amount0,
       );
       expect(result.newReserve1).toBe(
-        mockLiquidityPoolAggregator.reserve1 + mockEvent.params.amount1,
+        mockPool.reserve1 + mockEvent.params.amount1,
       );
     });
   });
@@ -455,7 +451,7 @@ describe("CLPoolSwapLogic", () => {
     it("should process swap event and calculate correct volumes and fees", async () => {
       const result = await processCLPoolSwap(
         mockEvent,
-        mockLiquidityPoolAggregator,
+        mockPool,
         mockToken0,
         mockToken1,
         mockContext,
@@ -501,7 +497,7 @@ describe("CLPoolSwapLogic", () => {
 
       const result = await processCLPoolSwap(
         eventWithZeroAmounts,
-        mockLiquidityPoolAggregator,
+        mockPool,
         mockToken0,
         mockToken1,
         mockContext,
@@ -518,18 +514,14 @@ describe("CLPoolSwapLogic", () => {
     it("should handle undefined tokens with fallback to pool prices", async () => {
       const result = await processCLPoolSwap(
         mockEvent,
-        mockLiquidityPoolAggregator,
+        mockPool,
         undefined,
         undefined,
         mockContext,
       );
 
-      expect(result.liquidityPoolDiff.token0Price).toBe(
-        mockLiquidityPoolAggregator.token0Price,
-      );
-      expect(result.liquidityPoolDiff.token1Price).toBe(
-        mockLiquidityPoolAggregator.token1Price,
-      );
+      expect(result.liquidityPoolDiff.token0Price).toBe(mockPool.token0Price);
+      expect(result.liquidityPoolDiff.token1Price).toBe(mockPool.token1Price);
     });
 
     it("should exclude fees from reserve increments (input side only)", async () => {
@@ -544,7 +536,7 @@ describe("CLPoolSwapLogic", () => {
 
       const result = await processCLPoolSwap(
         eventWithPositiveAmounts,
-        mockLiquidityPoolAggregator,
+        mockPool,
         mockToken0,
         mockToken1,
         mockContext,
@@ -566,7 +558,7 @@ describe("CLPoolSwapLogic", () => {
 
       const result = await processCLPoolSwap(
         mockEvent,
-        mockLiquidityPoolAggregator,
+        mockPool,
         whitelistedToken0,
         whitelistedToken1,
         mockContext,
@@ -589,7 +581,7 @@ describe("CLPoolSwapLogic", () => {
 
       const result = await processCLPoolSwap(
         mockEvent,
-        mockLiquidityPoolAggregator,
+        mockPool,
         token0WithNewPrice,
         token1WithNewPrice,
         mockContext,
@@ -602,7 +594,7 @@ describe("CLPoolSwapLogic", () => {
     it("should set correct timestamps", async () => {
       const result = await processCLPoolSwap(
         mockEvent,
-        mockLiquidityPoolAggregator,
+        mockPool,
         mockToken0,
         mockToken1,
         mockContext,
@@ -619,7 +611,7 @@ describe("CLPoolSwapLogic", () => {
     it("should set liquidityInRange from event params", async () => {
       const result = await processCLPoolSwap(
         mockEvent,
-        mockLiquidityPoolAggregator,
+        mockPool,
         mockToken0,
         mockToken1,
         mockContext,
@@ -632,7 +624,7 @@ describe("CLPoolSwapLogic", () => {
 
     it("should compute staked reserve deltas proportionally", async () => {
       const poolWithStaked = {
-        ...mockLiquidityPoolAggregator,
+        ...mockPool,
         tick: 500n, // Different from event tick (1000n) to trigger tick crossing
         tickSpacing: 200n,
         stakedLiquidityInRange: 200n,
@@ -656,7 +648,7 @@ describe("CLPoolSwapLogic", () => {
 
     it("should return zero staked deltas when no staked liquidity", async () => {
       const poolNoStaked = {
-        ...mockLiquidityPoolAggregator,
+        ...mockPool,
         stakedLiquidityInRange: 0n,
       };
 
@@ -675,7 +667,7 @@ describe("CLPoolSwapLogic", () => {
 
     it("should skip tick crossings when tick unchanged", async () => {
       const poolSameTick = {
-        ...mockLiquidityPoolAggregator,
+        ...mockPool,
         tick: mockEvent.params.tick, // Same tick → no crossing
         tickSpacing: 200n,
         stakedLiquidityInRange: 500n,
@@ -703,7 +695,7 @@ describe("CLPoolSwapLogic", () => {
       "keeps fee USD within 1%% of volume USD at fee tier %s",
       async (fee) => {
         const pool = {
-          ...mockLiquidityPoolAggregator,
+          ...mockPool,
           currentFee: fee,
           baseFee: fee,
         };

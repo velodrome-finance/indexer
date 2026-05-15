@@ -2,22 +2,22 @@ import type {
   CLFactory_PoolCreated_event,
   CLGaugeConfig,
   FeeToTickSpacingMapping,
-  LiquidityPoolAggregator,
   Token,
   handlerContext,
 } from "generated";
-import { createLiquidityPoolAggregatorEntity } from "../../Aggregators/LiquidityPoolAggregator";
+import { createPoolEntity } from "../../Aggregators/Pool";
 import {
   RootPoolLeafPoolId,
   nfpmForCLPool,
   rootPoolMatchingHash,
 } from "../../Constants";
 import type { TokenEntityMapping } from "../../CustomTypes";
+import type { Pool } from "../../EntityTypes";
 import { createTokenEntity } from "../../PriceOracle";
 import { flushPendingVotesAndDistributionsForRootPool } from "../Voter/CrossChainPendingResolution";
 
 export interface CLFactoryPoolCreatedResult {
-  liquidityPoolAggregator: LiquidityPoolAggregator;
+  liquidityPoolAggregator: Pool;
 }
 
 /**
@@ -30,7 +30,7 @@ export interface CLPoolPendingInitializeInput {
 }
 
 /**
- * Builds the LiquidityPoolAggregator for a freshly-created CL pool. Token
+ * Builds the Pool for a freshly-created CL pool. Token
  * entities are created on demand if the caller did not pre-resolve them.
  *
  * If `pendingInitialize` is provided (Slipstream same-tx ordering, where
@@ -49,7 +49,7 @@ export interface CLPoolPendingInitializeInput {
  * @param pendingInitialize - Optional opening price buffered by CLPool.Initialize
  * @returns The constructed aggregator, or `null` when the bytecode gate (#677)
  *   confirmed either token side is a non-contract — caller should skip
- *   `context.LiquidityPoolAggregator.set` and any root-pool flush so no
+ *   `context.Pool.set` and any root-pool flush so no
  *   dangling token references are persisted.
  */
 export async function processCLFactoryPoolCreated(
@@ -87,7 +87,7 @@ export async function processCLFactoryPoolCreated(
           );
           if (created === null) {
             context.log.warn(
-              `[CLFactory.PoolCreated] Skipping LiquidityPoolAggregator for pool ${event.params.pool} on chain ${event.chainId} — non-contract token side`,
+              `[CLFactory.PoolCreated] Skipping Pool for pool ${event.params.pool} on chain ${event.chainId} — non-contract token side`,
             );
             return null;
           }
@@ -104,7 +104,7 @@ export async function processCLFactoryPoolCreated(
     }
 
     // Create the liquidity pool aggregator
-    const baseAggregator = createLiquidityPoolAggregatorEntity({
+    const baseAggregator = createPoolEntity({
       poolAddress: event.params.pool,
       chainId: event.chainId,
       isCL: true,

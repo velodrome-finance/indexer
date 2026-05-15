@@ -17,11 +17,10 @@ import {
   processGaugeDeposit,
   processGaugeWithdraw,
 } from "../../../src/EventHandlers/Gauges/GaugeSharedLogic";
-import { type MockLiquidityPoolAggregator, setupCommon } from "../Pool/common";
+import { type MockPool, setupCommon } from "../Pool/common";
 
 describe("GaugeSharedLogic", () => {
-  const { mockToken0Data, mockToken1Data, createMockLiquidityPoolAggregator } =
-    setupCommon();
+  const { mockToken0Data, mockToken1Data, createMockPool } = setupCommon();
   const mockChainId = 8453;
   const mockPoolAddress = toChecksumAddress(
     "0x1111111111111111111111111111111111111111",
@@ -60,7 +59,7 @@ describe("GaugeSharedLogic", () => {
     isWhitelisted: true,
   };
 
-  let mockLiquidityPoolAggregator: MockLiquidityPoolAggregator;
+  let mockPool: MockPool;
   let mockUserStatsPerPool: ReturnType<
     ReturnType<typeof setupCommon>["createMockUserStatsPerPool"]
   >;
@@ -99,7 +98,7 @@ describe("GaugeSharedLogic", () => {
       },
     };
 
-    mockLiquidityPoolAggregator = createMockLiquidityPoolAggregator({
+    mockPool = createMockPool({
       poolAddress: mockPoolAddress,
       chainId: mockChainId,
       name: "USDC/USDT",
@@ -151,9 +150,7 @@ describe("GaugeSharedLogic", () => {
     };
 
     mockDb = MockDb.createMockDb();
-    updatedDB = mockDb.entities.LiquidityPoolAggregator.set(
-      mockLiquidityPoolAggregator,
-    );
+    updatedDB = mockDb.entities.Pool.set(mockPool);
     updatedDB = updatedDB.entities.Token.set(mockToken0);
     updatedDB = updatedDB.entities.Token.set(mockToken1);
     updatedDB = updatedDB.entities.Token.set(mockRewardToken);
@@ -161,19 +158,17 @@ describe("GaugeSharedLogic", () => {
 
     // Create a proper mock context
     mockContext = {
-      LiquidityPoolAggregator: {
-        get: (id: string) => updatedDB.entities.LiquidityPoolAggregator.get(id),
+      Pool: {
+        get: (id: string) => updatedDB.entities.Pool.get(id),
         // biome-ignore lint/suspicious/noExplicitAny: Mock entity for testing
         set: (entity: any) => {
-          updatedDB = updatedDB.entities.LiquidityPoolAggregator.set(entity);
+          updatedDB = updatedDB.entities.Pool.set(entity);
           return updatedDB;
         },
         // biome-ignore lint/suspicious/noExplicitAny: Mock entity for testing
         getWhere: async (params: any) => {
           if (params.gaugeAddress?._eq) {
-            const pool = updatedDB.entities.LiquidityPoolAggregator.get(
-              mockLiquidityPoolAggregator.id,
-            );
+            const pool = updatedDB.entities.Pool.get(mockPool.id);
             return pool && pool.gaugeAddress === params.gaugeAddress._eq
               ? [pool]
               : [];
@@ -266,9 +261,7 @@ describe("GaugeSharedLogic", () => {
 
       await processGaugeDeposit(depositData, mockContext, "TestGaugeDeposit");
 
-      const updatedPool = updatedDB.entities.LiquidityPoolAggregator.get(
-        mockLiquidityPoolAggregator.id,
-      );
+      const updatedPool = updatedDB.entities.Pool.get(mockPool.id);
       const updatedUser = updatedDB.entities.UserStatsPerPool.get(
         mockUserStatsPerPool.id,
       );
@@ -295,8 +288,8 @@ describe("GaugeSharedLogic", () => {
     });
 
     it("should preserve existing pool staked USD when non-CL valuation is unavailable", async () => {
-      mockLiquidityPoolAggregator = {
-        ...mockLiquidityPoolAggregator,
+      mockPool = {
+        ...mockPool,
         currentLiquidityStakedUSD: 777000000000000000000n,
         totalLPTokenSupply: 0n,
       };
@@ -305,9 +298,7 @@ describe("GaugeSharedLogic", () => {
         currentLiquidityStakedUSD: 333000000000000000000n,
       };
 
-      updatedDB = updatedDB.entities.LiquidityPoolAggregator.set(
-        mockLiquidityPoolAggregator,
-      );
+      updatedDB = updatedDB.entities.Pool.set(mockPool);
       updatedDB = updatedDB.entities.UserStatsPerPool.set(mockUserStatsPerPool);
 
       const depositData: GaugeEventData = {
@@ -321,9 +312,7 @@ describe("GaugeSharedLogic", () => {
 
       await processGaugeDeposit(depositData, mockContext, "TestGaugeDeposit");
 
-      const updatedPool = updatedDB.entities.LiquidityPoolAggregator.get(
-        mockLiquidityPoolAggregator.id,
-      );
+      const updatedPool = updatedDB.entities.Pool.get(mockPool.id);
       const updatedUser = updatedDB.entities.UserStatsPerPool.get(
         mockUserStatsPerPool.id,
       );
@@ -367,9 +356,7 @@ describe("GaugeSharedLogic", () => {
         "TestGaugeWithdraw",
       );
 
-      const updatedPool = updatedDB.entities.LiquidityPoolAggregator.get(
-        mockLiquidityPoolAggregator.id,
-      );
+      const updatedPool = updatedDB.entities.Pool.get(mockPool.id);
       const updatedUser = updatedDB.entities.UserStatsPerPool.get(
         mockUserStatsPerPool.id,
       );
@@ -416,9 +403,7 @@ describe("GaugeSharedLogic", () => {
         "TestGaugeWithdraw",
       );
 
-      const updatedPool = updatedDB.entities.LiquidityPoolAggregator.get(
-        mockLiquidityPoolAggregator.id,
-      );
+      const updatedPool = updatedDB.entities.Pool.get(mockPool.id);
       const updatedUser = updatedDB.entities.UserStatsPerPool.get(
         mockUserStatsPerPool.id,
       );
@@ -458,9 +443,7 @@ describe("GaugeSharedLogic", () => {
         mockContext,
         "TestGaugeWithdraw",
       );
-      const updatedPool = updatedDB.entities.LiquidityPoolAggregator.get(
-        mockLiquidityPoolAggregator.id,
-      );
+      const updatedPool = updatedDB.entities.Pool.get(mockPool.id);
       const updatedUser = updatedDB.entities.UserStatsPerPool.get(
         mockUserStatsPerPool.id,
       );
@@ -495,9 +478,7 @@ describe("GaugeSharedLogic", () => {
         "TestGaugeClaimRewards",
       );
 
-      const updatedPool = updatedDB.entities.LiquidityPoolAggregator.get(
-        mockLiquidityPoolAggregator.id,
-      );
+      const updatedPool = updatedDB.entities.Pool.get(mockPool.id);
       const updatedUser = updatedDB.entities.UserStatsPerPool.get(
         mockUserStatsPerPool.id,
       );
@@ -573,7 +554,7 @@ describe("GaugeSharedLogic", () => {
         "TestHandler",
       );
       expect(result).not.toBeNull();
-      expect(result?.pool.id).toBe(mockLiquidityPoolAggregator.id);
+      expect(result?.pool.id).toBe(mockPool.id);
       expect(result?.pool.poolAddress).toBe(mockPoolAddress);
     });
 
@@ -681,9 +662,7 @@ describe("GaugeSharedLogic", () => {
       );
 
       expect(logErrorSpy).not.toHaveBeenCalled();
-      const updatedPool = updatedDB.entities.LiquidityPoolAggregator.get(
-        mockLiquidityPoolAggregator.id,
-      );
+      const updatedPool = updatedDB.entities.Pool.get(mockPool.id);
       expect(updatedPool?.numberOfGaugeDeposits).toBe(0n);
     });
 
@@ -709,9 +688,7 @@ describe("GaugeSharedLogic", () => {
       );
 
       expect(logErrorSpy).not.toHaveBeenCalled();
-      const updatedPool = updatedDB.entities.LiquidityPoolAggregator.get(
-        mockLiquidityPoolAggregator.id,
-      );
+      const updatedPool = updatedDB.entities.Pool.get(mockPool.id);
       expect(updatedPool?.numberOfGaugeWithdrawals).toBe(0n);
     });
 
@@ -737,9 +714,7 @@ describe("GaugeSharedLogic", () => {
       );
 
       expect(logErrorSpy).not.toHaveBeenCalled();
-      const updatedPool = updatedDB.entities.LiquidityPoolAggregator.get(
-        mockLiquidityPoolAggregator.id,
-      );
+      const updatedPool = updatedDB.entities.Pool.get(mockPool.id);
       expect(updatedPool?.numberOfGaugeRewardClaims).toBe(0n);
     });
   });
@@ -761,9 +736,7 @@ describe("GaugeSharedLogic", () => {
       await processGaugeDeposit(depositData, mockContext, "TestGaugeDeposit");
 
       // Pool and user should remain unchanged
-      const updatedPool = updatedDB.entities.LiquidityPoolAggregator.get(
-        mockLiquidityPoolAggregator.id,
-      );
+      const updatedPool = updatedDB.entities.Pool.get(mockPool.id);
       const updatedUser = updatedDB.entities.UserStatsPerPool.get(
         mockUserStatsPerPool.id,
       );
@@ -776,8 +749,8 @@ describe("GaugeSharedLogic", () => {
       // Create a context that returns null for pool data
       const mockContextWithNullPool = {
         ...mockContext,
-        LiquidityPoolAggregator: {
-          ...mockContext.LiquidityPoolAggregator,
+        Pool: {
+          ...mockContext.Pool,
           get: () => Promise.resolve(undefined), // Return null to simulate missing pool
         },
       };
@@ -799,9 +772,7 @@ describe("GaugeSharedLogic", () => {
       );
 
       // Pool and user should remain unchanged
-      const updatedPool = updatedDB.entities.LiquidityPoolAggregator.get(
-        mockLiquidityPoolAggregator.id,
-      );
+      const updatedPool = updatedDB.entities.Pool.get(mockPool.id);
       const updatedUser = updatedDB.entities.UserStatsPerPool.get(
         mockUserStatsPerPool.id,
       );
@@ -814,8 +785,8 @@ describe("GaugeSharedLogic", () => {
       // Create a context that returns null for pool data
       const mockContextWithNullPool = {
         ...mockContext,
-        LiquidityPoolAggregator: {
-          ...mockContext.LiquidityPoolAggregator,
+        Pool: {
+          ...mockContext.Pool,
           get: () => Promise.resolve(undefined), // Return null to simulate missing pool
         },
       };
@@ -837,9 +808,7 @@ describe("GaugeSharedLogic", () => {
       );
 
       // Pool and user should remain unchanged
-      const updatedPool = updatedDB.entities.LiquidityPoolAggregator.get(
-        mockLiquidityPoolAggregator.id,
-      );
+      const updatedPool = updatedDB.entities.Pool.get(mockPool.id);
       const updatedUser = updatedDB.entities.UserStatsPerPool.get(
         mockUserStatsPerPool.id,
       );
@@ -852,8 +821,8 @@ describe("GaugeSharedLogic", () => {
       // Create a context that returns null for pool data
       const mockContextWithNullPool = {
         ...mockContext,
-        LiquidityPoolAggregator: {
-          ...mockContext.LiquidityPoolAggregator,
+        Pool: {
+          ...mockContext.Pool,
           get: () => Promise.resolve(undefined), // Return null to simulate missing pool
         },
       };
@@ -875,9 +844,7 @@ describe("GaugeSharedLogic", () => {
       );
 
       // Pool and user should remain unchanged
-      const updatedPool = updatedDB.entities.LiquidityPoolAggregator.get(
-        mockLiquidityPoolAggregator.id,
-      );
+      const updatedPool = updatedDB.entities.Pool.get(mockPool.id);
       const updatedUser = updatedDB.entities.UserStatsPerPool.get(
         mockUserStatsPerPool.id,
       );
@@ -919,9 +886,7 @@ describe("GaugeSharedLogic", () => {
       );
 
       // Pool and user should remain unchanged
-      const updatedPool = updatedDB.entities.LiquidityPoolAggregator.get(
-        mockLiquidityPoolAggregator.id,
-      );
+      const updatedPool = updatedDB.entities.Pool.get(mockPool.id);
       const updatedUser = updatedDB.entities.UserStatsPerPool.get(
         mockUserStatsPerPool.id,
       );
@@ -936,19 +901,16 @@ describe("GaugeSharedLogic", () => {
       TickMath.getSqrtRatioAtTick(0).toString(),
     );
 
-    let clPool: MockLiquidityPoolAggregator;
+    let clPool: MockPool;
     let clMockContext: typeof mockContext;
 
     const mockTokenId1 = 42n;
     const mockTokenId2 = 99n;
 
     beforeEach(() => {
-      const {
-        createMockLiquidityPoolAggregator,
-        createMockNonFungiblePosition,
-      } = setupCommon();
+      const { createMockPool, createMockNonFungiblePosition } = setupCommon();
 
-      clPool = createMockLiquidityPoolAggregator({
+      clPool = createMockPool({
         poolAddress: mockPoolAddress,
         chainId: mockChainId,
         isCL: true,
@@ -992,18 +954,16 @@ describe("GaugeSharedLogic", () => {
         [pos2.id, pos2],
       ]);
 
-      updatedDB = updatedDB.entities.LiquidityPoolAggregator.set(clPool);
+      updatedDB = updatedDB.entities.Pool.set(clPool);
 
       clMockContext = {
         ...mockContext,
-        LiquidityPoolAggregator: {
-          ...mockContext.LiquidityPoolAggregator,
+        Pool: {
+          ...mockContext.Pool,
           // biome-ignore lint/suspicious/noExplicitAny: Mock entity for testing
           getWhere: async (params: any) => {
             if (params.gaugeAddress?._eq) {
-              const pool = updatedDB.entities.LiquidityPoolAggregator.get(
-                clPool.id,
-              );
+              const pool = updatedDB.entities.Pool.get(clPool.id);
               return pool && pool.gaugeAddress === params.gaugeAddress._eq
                 ? [pool]
                 : [];
@@ -1015,7 +975,7 @@ describe("GaugeSharedLogic", () => {
           get: async (id: string) => positionMap.get(id),
           getWhere: async () => [],
         },
-        LiquidityPoolAggregatorSnapshot: {
+        PoolSnapshot: {
           set: () => {},
         },
       };
@@ -1043,9 +1003,7 @@ describe("GaugeSharedLogic", () => {
 
     it("should set hasStakes=true on first CL deposit", async () => {
       // Before any deposit, the pool was created with hasStakes=false
-      const initialPool = updatedDB.entities.LiquidityPoolAggregator.get(
-        clPool.id,
-      );
+      const initialPool = updatedDB.entities.Pool.get(clPool.id);
       expect(initialPool?.hasStakes).toBe(false);
 
       await processGaugeDeposit(
@@ -1062,9 +1020,7 @@ describe("GaugeSharedLogic", () => {
         "CLGauge.Deposit",
       );
 
-      const updatedPool = updatedDB.entities.LiquidityPoolAggregator.get(
-        clPool.id,
-      );
+      const updatedPool = updatedDB.entities.Pool.get(clPool.id);
       expect(updatedPool?.hasStakes).toBe(true);
     });
 

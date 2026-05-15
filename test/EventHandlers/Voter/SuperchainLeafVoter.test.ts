@@ -1,13 +1,13 @@
 import type { Token } from "generated";
 import { MockDb, SuperchainLeafVoter } from "generated/src/TestHelpers.gen";
-import * as LiquidityPoolAggregatorModule from "../../../src/Aggregators/LiquidityPoolAggregator";
+import * as PoolModule from "../../../src/Aggregators/Pool";
 import {
   SUPERCHAIN_LEAF_VOTER_CLPOOLS_FACTORY_LIST,
   SUPERCHAIN_LEAF_VOTER_NONCL_POOLS_FACTORY_LIST,
   TokenId,
   toChecksumAddress,
 } from "../../../src/Constants";
-import { type MockLiquidityPoolAggregator, setupCommon } from "../Pool/common";
+import { type MockPool, setupCommon } from "../Pool/common";
 
 describe("SuperchainLeafVoter Events", () => {
   beforeEach(() => {
@@ -18,7 +18,7 @@ describe("SuperchainLeafVoter Events", () => {
     vi.restoreAllMocks();
   });
 
-  const { createMockLiquidityPoolAggregator } = setupCommon();
+  const { createMockPool } = setupCommon();
 
   describe("GaugeCreated Event", () => {
     let mockDb: ReturnType<typeof MockDb.createMockDb>;
@@ -67,24 +67,22 @@ describe("SuperchainLeafVoter Events", () => {
 
     describe("when pool entity exists", () => {
       let resultDB: ReturnType<typeof MockDb.createMockDb>;
-      let mockLiquidityPool: MockLiquidityPoolAggregator;
+      let mockLiquidityPool: MockPool;
 
       beforeEach(async () => {
-        mockLiquidityPool = createMockLiquidityPoolAggregator({
+        mockLiquidityPool = createMockPool({
           poolAddress: poolAddress,
           chainId: chainId,
           gaugeAddress: "", // Initially empty
         });
 
-        mockDb = mockDb.entities.LiquidityPoolAggregator.set(mockLiquidityPool);
+        mockDb = mockDb.entities.Pool.set(mockLiquidityPool);
 
         resultDB = await mockDb.processEvents([mockEvent]);
       });
 
       it("should update pool entity with gauge address and voting reward addresses", () => {
-        const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
-          mockLiquidityPool.id,
-        );
+        const updatedPool = resultDB.entities.Pool.get(mockLiquidityPool.id);
         expect(updatedPool).toBeDefined();
         expect(updatedPool?.gaugeAddress).toBe(gaugeAddress);
         expect(updatedPool?.feeVotingRewardAddress).toBe(
@@ -176,9 +174,7 @@ describe("SuperchainLeafVoter Events", () => {
       it("should not create any entities", async () => {
         const resultDB = await mockDb.processEvents([mockEvent]);
 
-        expect(
-          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
-        ).toHaveLength(0);
+        expect(Array.from(resultDB.entities.Pool.getAll())).toHaveLength(0);
       });
     });
   });
@@ -380,7 +376,7 @@ describe("SuperchainLeafVoter Events", () => {
 
     describe("when pool entity exists", () => {
       let resultDB: ReturnType<typeof MockDb.createMockDb>;
-      let mockLiquidityPool: MockLiquidityPoolAggregator;
+      let mockLiquidityPool: MockPool;
       const feeVotingRewardAddress = toChecksumAddress(
         "0x6572b2b30f63B960608f3aA5205711C558998398",
       );
@@ -389,7 +385,7 @@ describe("SuperchainLeafVoter Events", () => {
       );
 
       beforeEach(async () => {
-        mockLiquidityPool = createMockLiquidityPoolAggregator({
+        mockLiquidityPool = createMockPool({
           poolAddress: poolAddress,
           chainId: chainId,
           gaugeAddress: gaugeAddress, // Initially has gauge address
@@ -399,20 +395,17 @@ describe("SuperchainLeafVoter Events", () => {
         });
 
         // Mock findPoolByGaugeAddress to return the pool
-        vi.spyOn(
-          LiquidityPoolAggregatorModule,
-          "findPoolByGaugeAddress",
-        ).mockResolvedValue(mockLiquidityPool);
+        vi.spyOn(PoolModule, "findPoolByGaugeAddress").mockResolvedValue(
+          mockLiquidityPool,
+        );
 
-        mockDb = mockDb.entities.LiquidityPoolAggregator.set(mockLiquidityPool);
+        mockDb = mockDb.entities.Pool.set(mockLiquidityPool);
 
         resultDB = await mockDb.processEvents([mockEvent]);
       });
 
       it("should set gaugeIsAlive to false but preserve gauge address and voting reward addresses as historical data", () => {
-        const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
-          mockLiquidityPool.id,
-        );
+        const updatedPool = resultDB.entities.Pool.get(mockLiquidityPool.id);
         expect(updatedPool).toBeDefined();
         expect(updatedPool?.gaugeIsAlive).toBe(false); // Should be set to false
         // Gauge address should be preserved as historical data
@@ -433,16 +426,11 @@ describe("SuperchainLeafVoter Events", () => {
     describe("when pool entity does not exist", () => {
       it("should not create any entities", async () => {
         // Mock findPoolByGaugeAddress to return null
-        vi.spyOn(
-          LiquidityPoolAggregatorModule,
-          "findPoolByGaugeAddress",
-        ).mockResolvedValue(null);
+        vi.spyOn(PoolModule, "findPoolByGaugeAddress").mockResolvedValue(null);
 
         const resultDB = await mockDb.processEvents([mockEvent]);
 
-        expect(
-          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
-        ).toHaveLength(0);
+        expect(Array.from(resultDB.entities.Pool.getAll())).toHaveLength(0);
       });
     });
   });
@@ -478,7 +466,7 @@ describe("SuperchainLeafVoter Events", () => {
 
     describe("when pool entity exists", () => {
       let resultDB: ReturnType<typeof MockDb.createMockDb>;
-      let mockLiquidityPool: MockLiquidityPoolAggregator;
+      let mockLiquidityPool: MockPool;
       const feeVotingRewardAddress = toChecksumAddress(
         "0x6572b2b30f63B960608f3aA5205711C558998398",
       );
@@ -487,7 +475,7 @@ describe("SuperchainLeafVoter Events", () => {
       );
 
       beforeEach(async () => {
-        mockLiquidityPool = createMockLiquidityPoolAggregator({
+        mockLiquidityPool = createMockPool({
           poolAddress: poolAddress,
           chainId: chainId,
           gaugeAddress: gaugeAddress, // Has gauge address
@@ -497,20 +485,17 @@ describe("SuperchainLeafVoter Events", () => {
         });
 
         // Mock findPoolByGaugeAddress to return the pool
-        vi.spyOn(
-          LiquidityPoolAggregatorModule,
-          "findPoolByGaugeAddress",
-        ).mockResolvedValue(mockLiquidityPool);
+        vi.spyOn(PoolModule, "findPoolByGaugeAddress").mockResolvedValue(
+          mockLiquidityPool,
+        );
 
-        mockDb = mockDb.entities.LiquidityPoolAggregator.set(mockLiquidityPool);
+        mockDb = mockDb.entities.Pool.set(mockLiquidityPool);
 
         resultDB = await mockDb.processEvents([mockEvent]);
       });
 
       it("should set gaugeIsAlive to true", () => {
-        const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
-          mockLiquidityPool.id,
-        );
+        const updatedPool = resultDB.entities.Pool.get(mockLiquidityPool.id);
         expect(updatedPool).toBeDefined();
         expect(updatedPool?.gaugeIsAlive).toBe(true); // Should be set to true
         expect(updatedPool?.lastUpdatedTimestamp).toEqual(
@@ -522,16 +507,11 @@ describe("SuperchainLeafVoter Events", () => {
     describe("when pool entity does not exist", () => {
       it("should not create any entities", async () => {
         // Mock findPoolByGaugeAddress to return null
-        vi.spyOn(
-          LiquidityPoolAggregatorModule,
-          "findPoolByGaugeAddress",
-        ).mockResolvedValue(null);
+        vi.spyOn(PoolModule, "findPoolByGaugeAddress").mockResolvedValue(null);
 
         const resultDB = await mockDb.processEvents([mockEvent]);
 
-        expect(
-          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
-        ).toHaveLength(0);
+        expect(Array.from(resultDB.entities.Pool.getAll())).toHaveLength(0);
       });
     });
   });

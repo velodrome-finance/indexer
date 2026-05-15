@@ -1,4 +1,4 @@
-type LiquidityPoolAggregator {
+type Pool {
   id: ID! # Format: {chainId}-{poolAddress} (PoolId)
   chainId: Int!
   poolAddress: String! # address of the pool
@@ -137,7 +137,7 @@ type LiquidityPoolAggregator {
 }
 
 # Snapshot of the LiquidityPool entity
-type LiquidityPoolAggregatorSnapshot {
+type PoolSnapshot {
   id: ID! # Format: {chainId}-{poolAddress}-{epochMs} (PoolId-epochMs, epochMs from getSnapshotEpoch)
   chainId: Int! # chain id
   name: String! # name of the pool
@@ -228,7 +228,7 @@ type LiquidityPoolAggregatorSnapshot {
   currentFee: BigInt! @config(precision: 76) # Current fee for pool (base + dynamic)
 
   # Unstaked Fee fields
-  unstakedFee: BigInt @config(precision: 24) # Raw customFee value last emitted by an UnstakedFeeModule for this pool (see LiquidityPoolAggregator for semantics)
+  unstakedFee: BigInt @config(precision: 24) # Raw customFee value last emitted by an UnstakedFeeModule for this pool (see Pool for semantics)
 }
 
 # Entity for tracking user activity and positions in specific pools
@@ -561,8 +561,7 @@ type PoolLauncherPool {
   newLocker: String! # target locker from migration
   lastMigratedAt: Timestamp!
 
-  poolStats: [LiquidityPoolAggregator!]!
-    @derivedFrom(field: "poolLauncherPoolId")
+  poolStats: [Pool!]! @derivedFrom(field: "poolLauncherPoolId")
 }
 
 type PoolLauncherConfig {
@@ -674,7 +673,7 @@ type PendingVote {
 }
 
 # Deferred CL pool initialization state: stored when CLPool.Initialize fires
-# BEFORE CLFactory.PoolCreated has created the LiquidityPoolAggregator.
+# BEFORE CLFactory.PoolCreated has created the Pool.
 # Aerodrome Slipstream emits Initialize from the pool inside the same tx as
 # (and at a LOWER log index than) PoolCreated from the factory, so Envio
 # delivers Initialize first. PoolCreated reads this buffer when constructing
@@ -687,7 +686,7 @@ type CLPoolPendingInitialize {
   tick: BigInt! @config(precision: 24)
 }
 
-# Deferred RootPool->LeafPool mapping: stored when RootPoolCreated fires but no LiquidityPoolAggregator exists yet
+# Deferred RootPool->LeafPool mapping: stored when RootPoolCreated fires but no Pool exists yet
 type PendingRootPoolMapping {
   id: ID! # Format: {rootChainId}-{rootPoolAddress}
   rootChainId: Int! # Chain ID where the root pool exists (typically Optimism)
@@ -696,7 +695,7 @@ type PendingRootPoolMapping {
   token0: String! # Address of token0 in the root/leaf pool
   token1: String! # Address of token1 in the root/leaf pool
   tickSpacing: BigInt! @config(precision: 24) # Tick spacing assigned for the pool
-  rootPoolMatchingHash: String! @index # {leafChainId}_{token0}_{token1}_{tickSpacing}  # Used for quick matching in LiquidityPoolAggregator
+  rootPoolMatchingHash: String! @index # {leafChainId}_{token0}_{token1}_{tickSpacing}  # Used for quick matching in Pool
 }
 
 # Deferred distribution: stored when DistributeReward fires for a root gauge but RootPool_LeafPool mapping does not exist yet
@@ -819,7 +818,7 @@ type ALMLPWrapperTransferInTx {
 # SetUpkeepManager events. Last-writer-wins — the row reflects the most recent
 # keeper / upkeep manager addresses.
 #
-# Redistributed and Deposited events are folded into LiquidityPoolAggregator
+# Redistributed and Deposited events are folded into Pool
 # counters (totalEmissionsRedistributed / totalEmissionsForfeited) via a
 # gauge→pool lookup; they have no dedicated entity.
 type RedistributorConfig {

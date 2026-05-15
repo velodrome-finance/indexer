@@ -3,9 +3,10 @@ import {
   TickMath,
   maxLiquidityForAmounts,
 } from "@uniswap/v3-sdk";
-import type { LiquidityPoolAggregator, Token, handlerContext } from "generated";
+import type { Token, handlerContext } from "generated";
 import JSBI from "jsbi";
 import { TEN_TO_THE_18_BI } from "./Constants";
+import type { Pool } from "./EntityTypes";
 import { multiplyBase1e18 } from "./Maths";
 
 /**
@@ -329,9 +330,9 @@ export function concentratedLiquidityToUSD(
  */
 export function computeNonCLStakedUSD(
   stakeAmount: bigint,
-  poolEntity: LiquidityPoolAggregator,
+  poolEntity: Pool,
   poolData: {
-    liquidityPoolAggregator: LiquidityPoolAggregator;
+    liquidityPoolAggregator: Pool;
     token0Instance?: Token;
     token1Instance?: Token;
   },

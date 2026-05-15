@@ -1,5 +1,4 @@
 import type {
-  LiquidityPoolAggregator,
   PendingDistribution,
   PendingVote,
   RootPool_LeafPool,
@@ -8,8 +7,8 @@ import type {
   VeNFTState,
   handlerContext,
 } from "generated";
-import type { PoolData } from "../../../src/Aggregators/LiquidityPoolAggregator";
-import * as LiquidityPoolAggregatorModule from "../../../src/Aggregators/LiquidityPoolAggregator";
+import type { PoolData } from "../../../src/Aggregators/Pool";
+import * as PoolModule from "../../../src/Aggregators/Pool";
 import * as UserStatsPerPoolModule from "../../../src/Aggregators/UserStatsPerPool";
 import * as VeNFTPoolVoteModule from "../../../src/Aggregators/VeNFTPoolVote";
 import * as VeNFTStateModule from "../../../src/Aggregators/VeNFTState";
@@ -23,6 +22,7 @@ import {
   VeNFTId,
   toChecksumAddress,
 } from "../../../src/Constants";
+import type { Pool } from "../../../src/EntityTypes";
 import {
   deleteProcessedPendingDistribution,
   deleteProcessedPendingVote,
@@ -101,7 +101,7 @@ describe("CrossChainPendingResolution", () => {
     common: ReturnType<typeof setupCommon>,
     overrides?: {
       pendingVoteOverrides?: Partial<PendingVote>;
-      leafPoolOverrides?: Partial<LiquidityPoolAggregator>;
+      leafPoolOverrides?: Partial<Pool>;
     },
   ): {
     pendingVote: PendingVote;
@@ -114,7 +114,7 @@ describe("CrossChainPendingResolution", () => {
     updateUserSpy: ReturnType<typeof vi.spyOn>;
     updateVoteSpy: ReturnType<typeof vi.spyOn>;
   } {
-    const leafPool = common.createMockLiquidityPoolAggregator({
+    const leafPool = common.createMockPool({
       id: PoolId(leafChainId, leafPoolAddress),
       chainId: leafChainId,
       poolAddress: leafPoolAddress,
@@ -154,7 +154,7 @@ describe("CrossChainPendingResolution", () => {
       mockUserStats,
     );
     const updatePoolSpy = vi
-      .spyOn(LiquidityPoolAggregatorModule, "updateLiquidityPoolAggregator")
+      .spyOn(PoolModule, "updatePool")
       .mockResolvedValue(undefined);
     const updateUserSpy = vi
       .spyOn(UserStatsPerPoolModule, "updateUserStatsPerPool")
@@ -165,7 +165,7 @@ describe("CrossChainPendingResolution", () => {
 
     const context = {
       VeNFTState: { get: vi.fn() },
-      LiquidityPoolAggregator: { set: vi.fn() },
+      Pool: { set: vi.fn() },
     } as unknown as handlerContext;
 
     return {
@@ -292,12 +292,8 @@ describe("CrossChainPendingResolution", () => {
 
   describe("processPendingVote", () => {
     it("should skip when VeNFTState is missing", async () => {
-      const {
-        createMockLiquidityPoolAggregator,
-        mockToken0Data,
-        mockToken1Data,
-      } = common;
-      const leafPool = createMockLiquidityPoolAggregator({
+      const { createMockPool, mockToken0Data, mockToken1Data } = common;
+      const leafPool = createMockPool({
         id: PoolId(leafChainId, leafPoolAddress),
         chainId: leafChainId,
         poolAddress: leafPoolAddress,
@@ -348,7 +344,7 @@ describe("CrossChainPendingResolution", () => {
       expect(updateUserSpy).toHaveBeenCalledTimes(1);
       expect(updateVoteSpy).toHaveBeenCalledTimes(1);
 
-      // Cross-chain fix: updateLiquidityPoolAggregator must receive pendingVote.chainId
+      // Cross-chain fix: updatePool must receive pendingVote.chainId
       // (root chain, not leafChainId) so the updateDynamicFeePools guard detects
       // the chain mismatch and skips the fee query (which would use root block on leaf RPC).
       const [, , , , eventChainIdArg, blockNumberArg] =
@@ -522,7 +518,7 @@ describe("CrossChainPendingResolution", () => {
       const liquidityPoolGet = vi.fn().mockResolvedValue(undefined);
       const context = {
         RootPool_LeafPool: { getWhere: rootPoolLeafPoolGetWhere },
-        LiquidityPoolAggregator: { get: liquidityPoolGet },
+        Pool: { get: liquidityPoolGet },
         Token: { get: vi.fn().mockResolvedValue(undefined) },
         log: {
           error: vi.fn(),
@@ -533,11 +529,7 @@ describe("CrossChainPendingResolution", () => {
     });
 
     it("should break loop when loadPoolData returns null during iteration", async () => {
-      const {
-        createMockLiquidityPoolAggregator,
-        mockToken0Data,
-        mockToken1Data,
-      } = common;
+      const { createMockPool, mockToken0Data, mockToken1Data } = common;
       const mapping: RootPool_LeafPool = {
         id: RootPoolLeafPoolId(
           rootChainId,
@@ -550,7 +542,7 @@ describe("CrossChainPendingResolution", () => {
         leafChainId,
         leafPoolAddress,
       };
-      const leafPool = createMockLiquidityPoolAggregator({
+      const leafPool = createMockPool({
         id: PoolId(leafChainId, leafPoolAddress),
         chainId: leafChainId,
         poolAddress: leafPoolAddress,
@@ -569,7 +561,7 @@ describe("CrossChainPendingResolution", () => {
       ]);
       let loadPoolDataCallCount = 0;
       const loadPoolDataSpy = vi
-        .spyOn(LiquidityPoolAggregatorModule, "loadPoolData")
+        .spyOn(PoolModule, "loadPoolData")
         .mockImplementation(async () => {
           loadPoolDataCallCount++;
           return loadPoolDataCallCount === 1 ? leafPoolData : null;
@@ -578,7 +570,7 @@ describe("CrossChainPendingResolution", () => {
       const context = {
         RootPool_LeafPool: { getWhere: rootPoolLeafPoolGetWhere },
         PendingVote: { getWhere: pendingVoteGetWhere, deleteUnsafe },
-        LiquidityPoolAggregator: { get: vi.fn().mockResolvedValue(leafPool) },
+        Pool: { get: vi.fn().mockResolvedValue(leafPool) },
         Token: {
           get: vi
             .fn()
@@ -598,11 +590,7 @@ describe("CrossChainPendingResolution", () => {
     });
 
     it("should not delete pending vote when VeNFTState is missing so it can be retried later", async () => {
-      const {
-        createMockLiquidityPoolAggregator,
-        mockToken0Data,
-        mockToken1Data,
-      } = common;
+      const { createMockPool, mockToken0Data, mockToken1Data } = common;
       const mapping: RootPool_LeafPool = {
         id: RootPoolLeafPoolId(
           rootChainId,
@@ -615,7 +603,7 @@ describe("CrossChainPendingResolution", () => {
         leafChainId,
         leafPoolAddress,
       };
-      const leafPool = createMockLiquidityPoolAggregator({
+      const leafPool = createMockPool({
         id: PoolId(leafChainId, leafPoolAddress),
         chainId: leafChainId,
         poolAddress: leafPoolAddress,
@@ -632,14 +620,12 @@ describe("CrossChainPendingResolution", () => {
       const rootPoolLeafPoolGetWhere = vi.fn().mockResolvedValue([mapping]);
       const pendingVoteGetWhere = vi.fn().mockResolvedValue([pendingVote]);
       const deleteUnsafe = vi.fn();
-      vi.spyOn(LiquidityPoolAggregatorModule, "loadPoolData").mockResolvedValue(
-        leafPoolData,
-      );
+      vi.spyOn(PoolModule, "loadPoolData").mockResolvedValue(leafPoolData);
       vi.spyOn(VeNFTStateModule, "loadVeNFTState").mockResolvedValue(undefined);
       const context = {
         RootPool_LeafPool: { getWhere: rootPoolLeafPoolGetWhere },
         PendingVote: { getWhere: pendingVoteGetWhere, deleteUnsafe },
-        LiquidityPoolAggregator: { get: vi.fn().mockResolvedValue(leafPool) },
+        Pool: { get: vi.fn().mockResolvedValue(leafPool) },
         Token: {
           get: vi
             .fn()
@@ -658,11 +644,7 @@ describe("CrossChainPendingResolution", () => {
     });
 
     it("should continue processing remaining pending votes and log error when processPendingVote throws for one vote", async () => {
-      const {
-        createMockLiquidityPoolAggregator,
-        mockToken0Data,
-        mockToken1Data,
-      } = common;
+      const { createMockPool, mockToken0Data, mockToken1Data } = common;
       const mockVeNFTState = common.createMockVeNFTState({
         id: VeNFTId(rootChainId, tokenId),
         chainId: rootChainId,
@@ -690,7 +672,7 @@ describe("CrossChainPendingResolution", () => {
         leafChainId,
         leafPoolAddress,
       };
-      const leafPool = createMockLiquidityPoolAggregator({
+      const leafPool = createMockPool({
         id: PoolId(leafChainId, leafPoolAddress),
         chainId: leafChainId,
         poolAddress: leafPoolAddress,
@@ -711,9 +693,7 @@ describe("CrossChainPendingResolution", () => {
       const pendingVoteGetWhere = vi
         .fn()
         .mockResolvedValue([pendingVote1, pendingVote2]);
-      vi.spyOn(LiquidityPoolAggregatorModule, "loadPoolData").mockResolvedValue(
-        leafPoolData,
-      );
+      vi.spyOn(PoolModule, "loadPoolData").mockResolvedValue(leafPoolData);
       const processError = new Error("processPendingVote failed");
       vi.spyOn(VeNFTStateModule, "loadVeNFTState")
         .mockRejectedValueOnce(processError)
@@ -726,10 +706,7 @@ describe("CrossChainPendingResolution", () => {
         UserStatsPerPoolModule,
         "loadOrCreateUserData",
       ).mockResolvedValue(mockUserStats);
-      vi.spyOn(
-        LiquidityPoolAggregatorModule,
-        "updateLiquidityPoolAggregator",
-      ).mockResolvedValue(undefined);
+      vi.spyOn(PoolModule, "updatePool").mockResolvedValue(undefined);
       vi.spyOn(
         UserStatsPerPoolModule,
         "updateUserStatsPerPool",
@@ -742,7 +719,7 @@ describe("CrossChainPendingResolution", () => {
       const context = {
         RootPool_LeafPool: { getWhere: rootPoolLeafPoolGetWhere },
         PendingVote: { getWhere: pendingVoteGetWhere, deleteUnsafe },
-        LiquidityPoolAggregator: {
+        Pool: {
           get: vi.fn().mockResolvedValue(leafPool),
           set: vi.fn(),
         },
@@ -779,11 +756,7 @@ describe("CrossChainPendingResolution", () => {
     });
 
     it("should continue loop and log error when deleteProcessedPendingVote throws after successful process", async () => {
-      const {
-        createMockLiquidityPoolAggregator,
-        mockToken0Data,
-        mockToken1Data,
-      } = common;
+      const { createMockPool, mockToken0Data, mockToken1Data } = common;
       const mockVeNFTState = common.createMockVeNFTState({
         id: VeNFTId(rootChainId, tokenId),
         chainId: rootChainId,
@@ -811,7 +784,7 @@ describe("CrossChainPendingResolution", () => {
         leafChainId,
         leafPoolAddress,
       };
-      const leafPool = createMockLiquidityPoolAggregator({
+      const leafPool = createMockPool({
         id: PoolId(leafChainId, leafPoolAddress),
         chainId: leafChainId,
         poolAddress: leafPoolAddress,
@@ -831,9 +804,7 @@ describe("CrossChainPendingResolution", () => {
       const deleteUnsafe = vi.fn().mockImplementationOnce(() => {
         throw deleteError;
       });
-      vi.spyOn(LiquidityPoolAggregatorModule, "loadPoolData").mockResolvedValue(
-        leafPoolData,
-      );
+      vi.spyOn(PoolModule, "loadPoolData").mockResolvedValue(leafPoolData);
       vi.spyOn(VeNFTStateModule, "loadVeNFTState").mockResolvedValue(
         mockVeNFTState,
       );
@@ -845,10 +816,7 @@ describe("CrossChainPendingResolution", () => {
         UserStatsPerPoolModule,
         "loadOrCreateUserData",
       ).mockResolvedValue(mockUserStats);
-      vi.spyOn(
-        LiquidityPoolAggregatorModule,
-        "updateLiquidityPoolAggregator",
-      ).mockResolvedValue(undefined);
+      vi.spyOn(PoolModule, "updatePool").mockResolvedValue(undefined);
       vi.spyOn(
         UserStatsPerPoolModule,
         "updateUserStatsPerPool",
@@ -860,7 +828,7 @@ describe("CrossChainPendingResolution", () => {
       const context = {
         RootPool_LeafPool: { getWhere: rootPoolLeafPoolGetWhere },
         PendingVote: { getWhere: pendingVoteGetWhere, deleteUnsafe },
-        LiquidityPoolAggregator: {
+        Pool: {
           get: vi.fn().mockResolvedValue(leafPool),
           set: vi.fn(),
         },
@@ -1114,7 +1082,7 @@ describe("CrossChainPendingResolution", () => {
       };
       const tokenGet = vi.fn().mockResolvedValue(mockToken);
       const loadPoolDataSpy = vi
-        .spyOn(LiquidityPoolAggregatorModule, "loadPoolData")
+        .spyOn(PoolModule, "loadPoolData")
         .mockResolvedValue(null);
       const context = {
         Token: { get: tokenGet },
@@ -1140,11 +1108,7 @@ describe("CrossChainPendingResolution", () => {
     });
 
     it("should apply LP diff when reward token and leaf pool data exist", async () => {
-      const {
-        createMockLiquidityPoolAggregator,
-        mockToken0Data,
-        mockToken1Data,
-      } = common;
+      const { createMockPool, mockToken0Data, mockToken1Data } = common;
       const pending = makePendingDistribution();
       const rewardTokenAddress = CHAIN_CONSTANTS[rootChainId].rewardToken(
         Number(pending.blockNumber),
@@ -1157,7 +1121,7 @@ describe("CrossChainPendingResolution", () => {
         decimals: 18n,
         chainId: rootChainId,
       };
-      const leafPool = createMockLiquidityPoolAggregator({
+      const leafPool = createMockPool({
         id: PoolId(leafChainId, leafPoolAddress),
         chainId: leafChainId,
         poolAddress: leafPoolAddress,
@@ -1169,9 +1133,7 @@ describe("CrossChainPendingResolution", () => {
         token1Instance: mockToken1Data,
       };
 
-      vi.spyOn(LiquidityPoolAggregatorModule, "loadPoolData").mockResolvedValue(
-        leafPoolData,
-      );
+      vi.spyOn(PoolModule, "loadPoolData").mockResolvedValue(leafPoolData);
       vi.spyOn(PriceOracle, "refreshTokenPrice").mockResolvedValue(
         mockRewardToken as never,
       );
@@ -1186,7 +1148,7 @@ describe("CrossChainPendingResolution", () => {
         normalizedVotesDepositedAmountUsd: 100n,
       });
       const updatePoolSpy = vi
-        .spyOn(LiquidityPoolAggregatorModule, "updateLiquidityPoolAggregator")
+        .spyOn(PoolModule, "updatePool")
         .mockResolvedValue(undefined);
 
       const context = {
@@ -1206,12 +1168,10 @@ describe("CrossChainPendingResolution", () => {
       expect(result).toBe(true);
 
       // Cross-chain fix: loadPoolData must NOT receive blockNumber/blockTimestamp
-      const loadPoolDataSpy = vi.mocked(
-        LiquidityPoolAggregatorModule.loadPoolData,
-      );
+      const loadPoolDataSpy = vi.mocked(PoolModule.loadPoolData);
       expect(loadPoolDataSpy.mock.calls[0]).toHaveLength(3);
 
-      // Cross-chain fix: updateLiquidityPoolAggregator must receive rootChainId
+      // Cross-chain fix: updatePool must receive rootChainId
       // (not leafChainId) so the updateDynamicFeePools guard detects the chain
       // mismatch and skips the fee query (which would use root block on leaf RPC).
       expect(updatePoolSpy).toHaveBeenCalledTimes(1);
@@ -1323,12 +1283,8 @@ describe("CrossChainPendingResolution", () => {
       const pendingDistributionGetWhere = vi.fn().mockResolvedValue([pending]);
       const deleteUnsafe = vi.fn();
 
-      const {
-        createMockLiquidityPoolAggregator,
-        mockToken0Data,
-        mockToken1Data,
-      } = common;
-      const leafPool = createMockLiquidityPoolAggregator({
+      const { createMockPool, mockToken0Data, mockToken1Data } = common;
+      const leafPool = createMockPool({
         id: PoolId(leafChainId, leafPoolAddress),
         chainId: leafChainId,
         poolAddress: leafPoolAddress,
@@ -1350,9 +1306,7 @@ describe("CrossChainPendingResolution", () => {
         chainId: rootChainId,
       };
 
-      vi.spyOn(LiquidityPoolAggregatorModule, "loadPoolData").mockResolvedValue(
-        leafPoolData,
-      );
+      vi.spyOn(PoolModule, "loadPoolData").mockResolvedValue(leafPoolData);
       vi.spyOn(PriceOracle, "refreshTokenPrice").mockResolvedValue(
         mockRewardToken as never,
       );
@@ -1366,10 +1320,7 @@ describe("CrossChainPendingResolution", () => {
         normalizedEmissionsAmountUsd: 50n,
         normalizedVotesDepositedAmountUsd: 100n,
       });
-      vi.spyOn(
-        LiquidityPoolAggregatorModule,
-        "updateLiquidityPoolAggregator",
-      ).mockResolvedValue(undefined);
+      vi.spyOn(PoolModule, "updatePool").mockResolvedValue(undefined);
 
       const context = {
         RootPool_LeafPool: { getWhere: rootPoolLeafPoolGetWhere },
@@ -1455,12 +1406,8 @@ describe("CrossChainPendingResolution", () => {
         .mockResolvedValue([pending1, pending2]);
       const deleteUnsafe = vi.fn();
 
-      const {
-        createMockLiquidityPoolAggregator,
-        mockToken0Data,
-        mockToken1Data,
-      } = common;
-      const leafPool = createMockLiquidityPoolAggregator({
+      const { createMockPool, mockToken0Data, mockToken1Data } = common;
+      const leafPool = createMockPool({
         id: PoolId(leafChainId, leafPoolAddress),
         chainId: leafChainId,
         poolAddress: leafPoolAddress,
@@ -1481,9 +1428,7 @@ describe("CrossChainPendingResolution", () => {
         chainId: rootChainId,
       };
 
-      vi.spyOn(LiquidityPoolAggregatorModule, "loadPoolData").mockResolvedValue(
-        leafPoolData,
-      );
+      vi.spyOn(PoolModule, "loadPoolData").mockResolvedValue(leafPoolData);
       vi.spyOn(PriceOracle, "refreshTokenPrice").mockResolvedValue(
         mockRewardToken as never,
       );
@@ -1498,7 +1443,7 @@ describe("CrossChainPendingResolution", () => {
         normalizedVotesDepositedAmountUsd: 100n,
       });
       const processError = new Error("processPendingDistribution failed");
-      vi.spyOn(LiquidityPoolAggregatorModule, "updateLiquidityPoolAggregator")
+      vi.spyOn(PoolModule, "updatePool")
         .mockRejectedValueOnce(processError)
         .mockResolvedValue(undefined);
 
@@ -1546,12 +1491,8 @@ describe("CrossChainPendingResolution", () => {
         throw deleteError;
       });
 
-      const {
-        createMockLiquidityPoolAggregator,
-        mockToken0Data,
-        mockToken1Data,
-      } = common;
-      const leafPool = createMockLiquidityPoolAggregator({
+      const { createMockPool, mockToken0Data, mockToken1Data } = common;
+      const leafPool = createMockPool({
         id: PoolId(leafChainId, leafPoolAddress),
         chainId: leafChainId,
         poolAddress: leafPoolAddress,
@@ -1573,9 +1514,7 @@ describe("CrossChainPendingResolution", () => {
         chainId: rootChainId,
       };
 
-      vi.spyOn(LiquidityPoolAggregatorModule, "loadPoolData").mockResolvedValue(
-        leafPoolData,
-      );
+      vi.spyOn(PoolModule, "loadPoolData").mockResolvedValue(leafPoolData);
       vi.spyOn(PriceOracle, "refreshTokenPrice").mockResolvedValue(
         mockRewardToken as never,
       );
@@ -1589,10 +1528,7 @@ describe("CrossChainPendingResolution", () => {
         normalizedEmissionsAmountUsd: 50n,
         normalizedVotesDepositedAmountUsd: 100n,
       });
-      vi.spyOn(
-        LiquidityPoolAggregatorModule,
-        "updateLiquidityPoolAggregator",
-      ).mockResolvedValue(undefined);
+      vi.spyOn(PoolModule, "updatePool").mockResolvedValue(undefined);
 
       const errors: string[] = [];
       const context = {

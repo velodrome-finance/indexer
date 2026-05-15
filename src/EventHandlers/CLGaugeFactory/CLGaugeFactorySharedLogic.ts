@@ -108,7 +108,7 @@ export async function applySetPenaltyRate(
 }
 
 /**
- * Apply a per-gauge emission cap to the matching LiquidityPoolAggregator.
+ * Apply a per-gauge emission cap to the matching Pool.
  * Shared by CLGaugeFactoryV2 and CLGaugeFactoryV3.
  * @param gauge - Gauge address from the event payload
  * @param newEmissionCap - New emissions cap for the gauge's pool
@@ -124,7 +124,7 @@ export async function applySetEmissionCap(
   factoryLogPrefix: string,
   context: handlerContext,
 ): Promise<void> {
-  const poolEntityList = await context.LiquidityPoolAggregator.getWhere({
+  const poolEntityList = await context.Pool.getWhere({
     gaugeAddress: { _eq: gauge },
   });
 
@@ -141,7 +141,7 @@ export async function applySetEmissionCap(
 
   const poolEntity = poolEntityList[0];
 
-  context.LiquidityPoolAggregator.set({
+  context.Pool.set({
     ...poolEntity,
     gaugeEmissionsCap: newEmissionCap,
     lastUpdatedTimestamp: new Date(blockTimestampSeconds * 1000),

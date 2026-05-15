@@ -4,11 +4,11 @@ import type {
   NonFungiblePosition,
   handlerContext,
 } from "generated";
-import { loadPoolData } from "../../Aggregators/LiquidityPoolAggregator";
 import {
   type NonFungiblePositionDiff,
   updateNonFungiblePosition,
 } from "../../Aggregators/NonFungiblePosition";
+import { loadPoolData } from "../../Aggregators/Pool";
 import { NonFungiblePositionId, TxCLPoolMintRegistryId } from "../../Constants";
 import {
   LiquidityChangeType,

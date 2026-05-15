@@ -5,7 +5,7 @@ import {
   TEN_TO_THE_18_BI,
   toChecksumAddress,
 } from "../../../src/Constants";
-import { setupLiquidityPoolAggregator } from "../../testHelpers";
+import { setupPool } from "../../testHelpers";
 import { setupCommon } from "./common";
 
 describe("Pool Sync Event", () => {
@@ -83,7 +83,7 @@ describe("Pool Sync Event", () => {
     let postEventDB: ReturnType<typeof MockDb.createMockDb>;
 
     beforeEach(async () => {
-      const updatedDB1 = setupLiquidityPoolAggregator(
+      const updatedDB1 = setupPool(
         mockDb,
         mockLiquidityPoolData,
         eventData.mockEventData.srcAddress,
@@ -96,7 +96,7 @@ describe("Pool Sync Event", () => {
       postEventDB = await updatedDB3.processEvents([mockEvent]);
     });
     it("should update reserves and usd liquidity", async () => {
-      const updatedPool = postEventDB.entities.LiquidityPoolAggregator.get(
+      const updatedPool = postEventDB.entities.Pool.get(
         PoolId(
           eventData.mockEventData.chainId,
           eventData.mockEventData.srcAddress,
@@ -116,14 +116,14 @@ describe("Pool Sync Event", () => {
       // Create a mockDb without the pool
       const updatedDB1 = mockDb.entities.Token.set(mockToken0Data);
       const updatedDB2 = updatedDB1.entities.Token.set(mockToken1Data);
-      // Note: We intentionally don't set the LiquidityPoolAggregator
+      // Note: We intentionally don't set the Pool
 
       const mockEvent = Pool.Sync.createMockEvent(eventData);
 
       const postEventDB = await updatedDB2.processEvents([mockEvent]);
 
       // Pool should not exist
-      const pool = postEventDB.entities.LiquidityPoolAggregator.get(
+      const pool = postEventDB.entities.Pool.get(
         PoolId(
           eventData.mockEventData.chainId,
           eventData.mockEventData.srcAddress,

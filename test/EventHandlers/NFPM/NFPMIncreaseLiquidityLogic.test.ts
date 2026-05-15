@@ -4,10 +4,7 @@ import type {
   handlerContext,
 } from "generated";
 import { MockDb, NFPM } from "../../../generated/src/TestHelpers.gen";
-import {
-  type PoolData,
-  loadPoolData,
-} from "../../../src/Aggregators/LiquidityPoolAggregator";
+import { type PoolData, loadPoolData } from "../../../src/Aggregators/Pool";
 import {
   CLPoolMintEventId,
   NonFungiblePositionId,
@@ -23,10 +20,8 @@ import {
 } from "../../../src/EventHandlers/NFPM/NFPMIncreaseLiquidityLogic";
 import { defaultNfpmAddress } from "../Pool/common";
 
-vi.mock("../../../src/Aggregators/LiquidityPoolAggregator", async () => ({
-  ...(await vi.importActual(
-    "../../../src/Aggregators/LiquidityPoolAggregator",
-  )),
+vi.mock("../../../src/Aggregators/Pool", async () => ({
+  ...(await vi.importActual("../../../src/Aggregators/Pool")),
   loadPoolData: vi.fn(),
 }));
 
@@ -129,7 +124,7 @@ describe("NFPMIncreaseLiquidityLogic", () => {
 
     return {
       ...currentDb,
-      LiquidityPoolAggregator: {
+      Pool: {
         get: vi.fn().mockResolvedValue(undefined),
       },
       UserStatsPerPool: {

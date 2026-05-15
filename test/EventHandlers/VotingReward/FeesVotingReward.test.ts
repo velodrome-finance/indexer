@@ -5,7 +5,7 @@ import {
 } from "../../../generated/src/TestHelpers.gen";
 import { TokenId, toChecksumAddress } from "../../../src/Constants";
 import * as VotingRewardSharedLogic from "../../../src/EventHandlers/VotingReward/VotingRewardSharedLogic";
-import { type MockLiquidityPoolAggregator, setupCommon } from "../Pool/common";
+import { type MockPool, setupCommon } from "../Pool/common";
 
 describe("FeesVotingReward Events", () => {
   const {
@@ -13,7 +13,7 @@ describe("FeesVotingReward Events", () => {
     mockToken1Data,
     mockLiquidityPoolData,
     createMockUserStatsPerPool,
-    createMockLiquidityPoolAggregator,
+    createMockPool,
   } = setupCommon();
   const poolAddress = mockLiquidityPoolData.poolAddress;
   const chainId = 10;
@@ -28,7 +28,7 @@ describe("FeesVotingReward Events", () => {
   );
 
   let mockDb: ReturnType<typeof MockDb.createMockDb>;
-  let liquidityPool: MockLiquidityPoolAggregator;
+  let liquidityPool: MockPool;
   let userStats: ReturnType<typeof createMockUserStatsPerPool>;
   let rewardToken: Token;
 
@@ -37,7 +37,7 @@ describe("FeesVotingReward Events", () => {
     mockDb = MockDb.createMockDb();
 
     // Set up liquidity pool with fee voting reward address
-    liquidityPool = createMockLiquidityPoolAggregator({
+    liquidityPool = createMockPool({
       feeVotingRewardAddress: toChecksumAddress(votingRewardAddress),
       bribeVotingRewardAddress: "",
     });
@@ -64,7 +64,7 @@ describe("FeesVotingReward Events", () => {
     } as Token;
 
     // Set up entities in mock DB
-    mockDb = mockDb.entities.LiquidityPoolAggregator.set(liquidityPool);
+    mockDb = mockDb.entities.Pool.set(liquidityPool);
     mockDb = mockDb.entities.UserStatsPerPool.set(userStats);
     mockDb = mockDb.entities.Token.set(mockToken0Data as Token);
     mockDb = mockDb.entities.Token.set(mockToken1Data as Token);
@@ -114,9 +114,7 @@ describe("FeesVotingReward Events", () => {
     });
 
     it("should update pool aggregator with fee reward claimed", () => {
-      const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
-        mockLiquidityPoolData.id,
-      );
+      const updatedPool = resultDB.entities.Pool.get(mockLiquidityPoolData.id);
       expect(updatedPool).toBeDefined();
       // The actual values depend on the price calculation, but should be updated
       expect(updatedPool?.totalFeeRewardClaimed).toBeGreaterThan(0n);

@@ -14,13 +14,13 @@ import * as CLPoolCollectLogic from "../../src/EventHandlers/CLPool/CLPoolCollec
 import * as CLPoolFlashLogic from "../../src/EventHandlers/CLPool/CLPoolFlashLogic";
 import * as CLPoolMintLogic from "../../src/EventHandlers/CLPool/CLPoolMintLogic";
 import * as CLPoolSwapLogic from "../../src/EventHandlers/CLPool/CLPoolSwapLogic";
-import { type MockLiquidityPoolAggregator, setupCommon } from "./Pool/common";
+import { type MockPool, setupCommon } from "./Pool/common";
 
 describe("CLPool Events", () => {
   const {
     mockToken0Data,
     mockToken1Data,
-    createMockLiquidityPoolAggregator,
+    createMockPool,
     createMockUserStatsPerPool,
   } = setupCommon();
   const chainId = 10;
@@ -32,14 +32,14 @@ describe("CLPool Events", () => {
   );
 
   let mockDb: ReturnType<typeof MockDb.createMockDb>;
-  let liquidityPool: MockLiquidityPoolAggregator;
+  let liquidityPool: MockPool;
   let userStats: ReturnType<typeof createMockUserStatsPerPool>;
 
   beforeEach(() => {
     mockDb = MockDb.createMockDb();
 
     // Set up liquidity pool
-    liquidityPool = createMockLiquidityPoolAggregator({
+    liquidityPool = createMockPool({
       isCL: true,
     });
 
@@ -53,7 +53,7 @@ describe("CLPool Events", () => {
     });
 
     // Set up entities in mock DB
-    mockDb = mockDb.entities.LiquidityPoolAggregator.set(liquidityPool);
+    mockDb = mockDb.entities.Pool.set(liquidityPool);
     mockDb = mockDb.entities.UserStatsPerPool.set(userStats);
     mockDb = mockDb.entities.Token.set(mockToken0Data as Token);
     mockDb = mockDb.entities.Token.set(mockToken1Data as Token);
@@ -117,9 +117,7 @@ describe("CLPool Events", () => {
 
       expect(processSpy).toHaveBeenCalled();
       expect(processSpy.mock.calls.length).toBeGreaterThanOrEqual(1);
-      const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
-        liquidityPool.id,
-      );
+      const updatedPool = resultDB.entities.Pool.get(liquidityPool.id);
       expect(updatedPool).toBeDefined();
 
       // Verify pool cumulative totals are updated correctly from incremental values
@@ -164,7 +162,7 @@ describe("CLPool Events", () => {
       };
 
       let ousdtDb = MockDb.createMockDb();
-      ousdtDb = ousdtDb.entities.LiquidityPoolAggregator.set(ousdtPool);
+      ousdtDb = ousdtDb.entities.Pool.set(ousdtPool);
       ousdtDb = ousdtDb.entities.Token.set(ousdtToken);
       ousdtDb = ousdtDb.entities.Token.set(mockToken1Data as Token);
       ousdtDb = ousdtDb.entities.UserStatsPerPool.set(userStats);
@@ -191,7 +189,7 @@ describe("CLPool Events", () => {
       };
 
       let ousdtDb2 = MockDb.createMockDb();
-      ousdtDb2 = ousdtDb2.entities.LiquidityPoolAggregator.set(ousdtToken1Pool);
+      ousdtDb2 = ousdtDb2.entities.Pool.set(ousdtToken1Pool);
       ousdtDb2 = ousdtDb2.entities.Token.set(mockToken0Data as Token);
       ousdtDb2 = ousdtDb2.entities.Token.set(ousdtToken);
       ousdtDb2 = ousdtDb2.entities.UserStatsPerPool.set(userStats);
@@ -249,7 +247,7 @@ describe("CLPool Events", () => {
       };
 
       let ousdtDb = MockDb.createMockDb();
-      ousdtDb = ousdtDb.entities.LiquidityPoolAggregator.set(ousdtPool);
+      ousdtDb = ousdtDb.entities.Pool.set(ousdtPool);
       ousdtDb = ousdtDb.entities.Token.set(ousdtToken);
       ousdtDb = ousdtDb.entities.Token.set(mockToken1Data as Token);
       ousdtDb = ousdtDb.entities.UserStatsPerPool.set(userStats);
@@ -368,9 +366,7 @@ describe("CLPool Events", () => {
 
       // Should not throw, handler should return early
       expect(processSpy).not.toHaveBeenCalled();
-      const updatedPool = emptyDb.entities.LiquidityPoolAggregator.get(
-        liquidityPool.id,
-      );
+      const updatedPool = emptyDb.entities.Pool.get(liquidityPool.id);
       expect(updatedPool).toBeUndefined();
     });
   });
@@ -418,9 +414,7 @@ describe("CLPool Events", () => {
 
       expect(processSpy).toHaveBeenCalled();
       expect(processSpy.mock.calls.length).toBeGreaterThanOrEqual(1);
-      const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
-        liquidityPool.id,
-      );
+      const updatedPool = resultDB.entities.Pool.get(liquidityPool.id);
       expect(updatedPool).toBeDefined();
     });
 
@@ -430,9 +424,7 @@ describe("CLPool Events", () => {
 
       // Should not throw, handler should return early
       expect(processSpy).not.toHaveBeenCalled();
-      const updatedPool = emptyDb.entities.LiquidityPoolAggregator.get(
-        liquidityPool.id,
-      );
+      const updatedPool = emptyDb.entities.Pool.get(liquidityPool.id);
       expect(updatedPool).toBeUndefined();
     });
   });
@@ -488,9 +480,7 @@ describe("CLPool Events", () => {
 
       expect(processSpy).toHaveBeenCalled();
       expect(processSpy.mock.calls.length).toBeGreaterThanOrEqual(1);
-      const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
-        liquidityPool.id,
-      );
+      const updatedPool = resultDB.entities.Pool.get(liquidityPool.id);
       expect(updatedPool).toBeDefined();
     });
 
@@ -500,9 +490,7 @@ describe("CLPool Events", () => {
 
       // Should not throw, handler should return early
       expect(processSpy).not.toHaveBeenCalled();
-      const updatedPool = emptyDb.entities.LiquidityPoolAggregator.get(
-        liquidityPool.id,
-      );
+      const updatedPool = emptyDb.entities.Pool.get(liquidityPool.id);
       expect(updatedPool).toBeUndefined();
     });
   });
@@ -556,9 +544,7 @@ describe("CLPool Events", () => {
 
       expect(processSpy).toHaveBeenCalled();
       expect(processSpy.mock.calls.length).toBeGreaterThanOrEqual(1);
-      const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
-        liquidityPool.id,
-      );
+      const updatedPool = resultDB.entities.Pool.get(liquidityPool.id);
       expect(updatedPool).toBeDefined();
     });
 
@@ -568,9 +554,7 @@ describe("CLPool Events", () => {
 
       // Should not throw, handler should return early
       expect(processSpy).not.toHaveBeenCalled();
-      const updatedPool = emptyDb.entities.LiquidityPoolAggregator.get(
-        liquidityPool.id,
-      );
+      const updatedPool = emptyDb.entities.Pool.get(liquidityPool.id);
       expect(updatedPool).toBeUndefined();
     });
 
@@ -617,9 +601,7 @@ describe("CLPool Events", () => {
       expect(updatedToken1).toBeDefined();
 
       // Verify pool was updated
-      const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
-        liquidityPool.id,
-      );
+      const updatedPool = resultDB.entities.Pool.get(liquidityPool.id);
       expect(updatedPool).toBeDefined();
       // Verify staked and unstaked fees are tracked separately
       expect(updatedPool?.totalStakedFeesCollectedUSD).toBeDefined();
@@ -683,9 +665,7 @@ describe("CLPool Events", () => {
 
       expect(processSpy).toHaveBeenCalled();
       expect(processSpy.mock.calls.length).toBeGreaterThanOrEqual(1);
-      const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
-        liquidityPool.id,
-      );
+      const updatedPool = resultDB.entities.Pool.get(liquidityPool.id);
       expect(updatedPool).toBeDefined();
     });
 
@@ -695,9 +675,7 @@ describe("CLPool Events", () => {
 
       // Should not throw, handler should return early
       expect(processSpy).not.toHaveBeenCalled();
-      const updatedPool = emptyDb.entities.LiquidityPoolAggregator.get(
-        liquidityPool.id,
-      );
+      const updatedPool = emptyDb.entities.Pool.get(liquidityPool.id);
       expect(updatedPool).toBeUndefined();
     });
 
@@ -775,9 +753,7 @@ describe("CLPool Events", () => {
     it("should update observation cardinality", async () => {
       const resultDB = await mockDb.processEvents([mockEvent]);
 
-      const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
-        liquidityPool.id,
-      );
+      const updatedPool = resultDB.entities.Pool.get(liquidityPool.id);
       expect(updatedPool).toBeDefined();
       expect(updatedPool?.observationCardinalityNext).toBe(100n);
     });
@@ -787,9 +763,7 @@ describe("CLPool Events", () => {
       await emptyDb.processEvents([mockEvent]);
 
       // Should not throw, handler should return early
-      const updatedPool = emptyDb.entities.LiquidityPoolAggregator.get(
-        liquidityPool.id,
-      );
+      const updatedPool = emptyDb.entities.Pool.get(liquidityPool.id);
       expect(updatedPool).toBeUndefined();
     });
   });
@@ -819,9 +793,7 @@ describe("CLPool Events", () => {
     it("should update fee protocol settings", async () => {
       const resultDB = await mockDb.processEvents([mockEvent]);
 
-      const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
-        liquidityPool.id,
-      );
+      const updatedPool = resultDB.entities.Pool.get(liquidityPool.id);
       expect(updatedPool).toBeDefined();
       expect(updatedPool?.feeProtocol0).toBe(10n);
       expect(updatedPool?.feeProtocol1).toBe(20n);
@@ -832,9 +804,7 @@ describe("CLPool Events", () => {
       await emptyDb.processEvents([mockEvent]);
 
       // Should not throw, handler should return early
-      const updatedPool = emptyDb.entities.LiquidityPoolAggregator.get(
-        liquidityPool.id,
-      );
+      const updatedPool = emptyDb.entities.Pool.get(liquidityPool.id);
       expect(updatedPool).toBeUndefined();
     });
   });
@@ -868,9 +838,7 @@ describe("CLPool Events", () => {
       const resultDB = await MockDb.createMockDb().processEvents([mockEvent]);
 
       // No phantom aggregator created — Initialize lacks token0/token1/tickSpacing.
-      expect(
-        resultDB.entities.LiquidityPoolAggregator.get(PoolId(chainId, pool)),
-      ).toBeUndefined();
+      expect(resultDB.entities.Pool.get(PoolId(chainId, pool))).toBeUndefined();
 
       const pending = resultDB.entities.CLPoolPendingInitialize.get(
         PoolId(chainId, pool),

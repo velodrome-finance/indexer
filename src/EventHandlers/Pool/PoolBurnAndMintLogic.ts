@@ -5,10 +5,7 @@ import type {
   Token,
   handlerContext,
 } from "generated";
-import {
-  type PoolData,
-  updateLiquidityPoolAggregator,
-} from "../../Aggregators/LiquidityPoolAggregator";
+import { type PoolData, updatePool } from "../../Aggregators/Pool";
 import {
   loadOrCreateUserData,
   updateUserStatsPerPool,
@@ -294,7 +291,7 @@ export async function processPoolLiquidityEvent(
     lastUpdatedTimestamp: timestamp,
   };
 
-  await updateLiquidityPoolAggregator(
+  await updatePool(
     poolDiff,
     liquidityPoolAggregator,
     timestamp,

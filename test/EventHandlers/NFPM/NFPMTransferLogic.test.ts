@@ -5,8 +5,8 @@ import type {
   handlerContext,
 } from "generated";
 import { MockDb, NFPM } from "../../../generated/src/TestHelpers.gen";
-import { loadPoolData } from "../../../src/Aggregators/LiquidityPoolAggregator";
-import type { PoolData } from "../../../src/Aggregators/LiquidityPoolAggregator";
+import { loadPoolData } from "../../../src/Aggregators/Pool";
+import type { PoolData } from "../../../src/Aggregators/Pool";
 import {
   CLPoolMintEventId,
   NonFungiblePositionId,
@@ -27,10 +27,8 @@ import {
 } from "../../../src/EventHandlers/NFPM/NFPMTransferLogic";
 import { defaultNfpmAddress } from "../Pool/common";
 
-vi.mock("../../../src/Aggregators/LiquidityPoolAggregator", async () => ({
-  ...(await vi.importActual(
-    "../../../src/Aggregators/LiquidityPoolAggregator",
-  )),
+vi.mock("../../../src/Aggregators/Pool", async () => ({
+  ...(await vi.importActual("../../../src/Aggregators/Pool")),
   loadPoolData: vi.fn(),
 }));
 
@@ -256,7 +254,7 @@ describe("NFPMTransferLogic", () => {
 
     return {
       ...currentDb,
-      LiquidityPoolAggregator: {
+      Pool: {
         get: vi.fn().mockImplementation((id: string) => {
           if (id !== PoolId(chainId, poolAddress)) {
             return Promise.resolve(undefined);

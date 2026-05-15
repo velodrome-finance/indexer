@@ -1,18 +1,15 @@
-import type {
-  LiquidityPoolAggregator,
-  PoolLauncherPool,
-  handlerContext,
-} from "generated";
+import type { PoolLauncherPool, handlerContext } from "generated";
 import { MockDb } from "../../../generated/src/TestHelpers.gen";
 import { PoolId, toChecksumAddress } from "../../../src/Constants";
+import type { Pool } from "../../../src/EntityTypes";
 import {
-  linkLiquidityPoolAggregatorToPoolLauncher,
+  linkPoolToPoolLauncher,
   processPoolLauncherPool,
 } from "../../../src/EventHandlers/PoolLauncher/PoolLauncherLogic";
 import { setupCommon } from "../Pool/common";
 
 describe("PoolLauncherLogic", () => {
-  const { createMockLiquidityPoolAggregator } = setupCommon();
+  const { createMockPool } = setupCommon();
 
   let mockContext: handlerContext;
   let mockDb: ReturnType<typeof MockDb.createMockDb>;
@@ -26,13 +23,13 @@ describe("PoolLauncherLogic", () => {
           mockDb = mockDb.entities.PoolLauncherPool.set(entity);
         },
       },
-      LiquidityPoolAggregator: {
-        get: (id: string) => mockDb.entities.LiquidityPoolAggregator.get(id),
-        set: (entity: LiquidityPoolAggregator) => {
+      Pool: {
+        get: (id: string) => mockDb.entities.Pool.get(id),
+        set: (entity: Pool) => {
           // Copy readonly bigint[] fields into mutable bigint[] to satisfy
           // MockDb.set() — envio.d.ts types these as readonly but Indexer.gen.ts
-          // expects mutable. Same workaround as createMockLiquidityPoolAggregator.
-          mockDb = mockDb.entities.LiquidityPoolAggregator.set({
+          // expects mutable. Same workaround as createMockPool.
+          mockDb = mockDb.entities.Pool.set({
             ...entity,
             stakedTickEdges: [...entity.stakedTickEdges],
             stakedTickEdgeNets: [...entity.stakedTickEdgeNets],
@@ -250,39 +247,31 @@ describe("PoolLauncherLogic", () => {
     });
   });
 
-  describe("linkLiquidityPoolAggregatorToPoolLauncher", () => {
+  describe("linkPoolToPoolLauncher", () => {
     const poolAddress = toChecksumAddress(
       "0x1234567890123456789012345678901234567890",
     );
     const chainId = 8453;
 
     describe("with CL factory", () => {
-      it("should successfully link existing LiquidityPoolAggregator to PoolLauncherPool", async () => {
-        // Create an existing LiquidityPoolAggregator (as if created by CLFactory)
-        const existingLiquidityPoolAggregator =
-          createMockLiquidityPoolAggregator({
-            poolAddress: poolAddress,
-            chainId: chainId,
-            name: "TEST/USDC",
-            reserve0: 1000000n,
-            reserve1: 2000000n,
-            totalLiquidityUSD: 3000000n,
-            isCL: true,
-          });
+      it("should successfully link existing Pool to PoolLauncherPool", async () => {
+        // Create an existing Pool (as if created by CLFactory)
+        const existingPool = createMockPool({
+          poolAddress: poolAddress,
+          chainId: chainId,
+          name: "TEST/USDC",
+          reserve0: 1000000n,
+          reserve1: 2000000n,
+          totalLiquidityUSD: 3000000n,
+          isCL: true,
+        });
 
-        mockDb = mockDb.entities.LiquidityPoolAggregator.set(
-          existingLiquidityPoolAggregator,
-        );
+        mockDb = mockDb.entities.Pool.set(existingPool);
 
-        await linkLiquidityPoolAggregatorToPoolLauncher(
-          poolAddress,
-          chainId,
-          mockContext,
-          "CL",
-        );
+        await linkPoolToPoolLauncher(poolAddress, chainId, mockContext, "CL");
 
         // Assert
-        const updatedEntity = mockDb.entities.LiquidityPoolAggregator.get(
+        const updatedEntity = mockDb.entities.Pool.get(
           PoolId(chainId, poolAddress),
         );
         expect(updatedEntity).toBeDefined();
@@ -302,7 +291,7 @@ describe("PoolLauncherLogic", () => {
         expect(updatedEntity?.gaugeIsAlive).toBe(true);
       });
 
-      it("should handle case where LiquidityPoolAggregator does not exist", async () => {
+      it("should handle case where Pool does not exist", async () => {
         let warnCalled = false;
         const mockContextWithWarn = {
           ...mockContext,
@@ -310,9 +299,7 @@ describe("PoolLauncherLogic", () => {
             ...mockContext.log,
             warn: (message: string) => {
               warnCalled = true;
-              expect(message).toContain(
-                "LiquidityPoolAggregator not found for pool",
-              );
+              expect(message).toContain("Pool not found for pool");
               expect(message).toContain(
                 "it should have been created by CLFactory",
               );
@@ -320,7 +307,7 @@ describe("PoolLauncherLogic", () => {
           },
         };
 
-        await linkLiquidityPoolAggregatorToPoolLauncher(
+        await linkPoolToPoolLauncher(
           poolAddress,
           chainId,
           mockContextWithWarn,
@@ -331,39 +318,29 @@ describe("PoolLauncherLogic", () => {
         expect(warnCalled).toBe(true);
 
         // Verify no entity was created or updated
-        const entity = mockDb.entities.LiquidityPoolAggregator.get(
-          PoolId(chainId, poolAddress),
-        );
+        const entity = mockDb.entities.Pool.get(PoolId(chainId, poolAddress));
         expect(entity).toBeUndefined();
       });
     });
 
     describe("with V2 factory", () => {
-      it("should successfully link existing LiquidityPoolAggregator to PoolLauncherPool", async () => {
-        // Create an existing LiquidityPoolAggregator (as if created by V2Factory)
-        const existingLiquidityPoolAggregator =
-          createMockLiquidityPoolAggregator({
-            poolAddress: poolAddress,
-            chainId: chainId,
-            name: "TEST/USDC",
-            reserve0: 1000000n,
-            reserve1: 2000000n,
-            totalLiquidityUSD: 3000000n,
-          });
+      it("should successfully link existing Pool to PoolLauncherPool", async () => {
+        // Create an existing Pool (as if created by V2Factory)
+        const existingPool = createMockPool({
+          poolAddress: poolAddress,
+          chainId: chainId,
+          name: "TEST/USDC",
+          reserve0: 1000000n,
+          reserve1: 2000000n,
+          totalLiquidityUSD: 3000000n,
+        });
 
-        mockDb = mockDb.entities.LiquidityPoolAggregator.set(
-          existingLiquidityPoolAggregator,
-        );
+        mockDb = mockDb.entities.Pool.set(existingPool);
 
-        await linkLiquidityPoolAggregatorToPoolLauncher(
-          poolAddress,
-          chainId,
-          mockContext,
-          "V2",
-        );
+        await linkPoolToPoolLauncher(poolAddress, chainId, mockContext, "V2");
 
         // Assert
-        const updatedEntity = mockDb.entities.LiquidityPoolAggregator.get(
+        const updatedEntity = mockDb.entities.Pool.get(
           PoolId(chainId, poolAddress),
         );
         expect(updatedEntity).toBeDefined();
@@ -383,7 +360,7 @@ describe("PoolLauncherLogic", () => {
         expect(updatedEntity?.gaugeIsAlive).toBe(true);
       });
 
-      it("should handle case where LiquidityPoolAggregator does not exist", async () => {
+      it("should handle case where Pool does not exist", async () => {
         let warnCalled = false;
         const mockContextWithWarn = {
           ...mockContext,
@@ -391,15 +368,13 @@ describe("PoolLauncherLogic", () => {
             ...mockContext.log,
             warn: (message: string) => {
               warnCalled = true;
-              expect(message).toContain(
-                "LiquidityPoolAggregator not found for pool",
-              );
+              expect(message).toContain("Pool not found for pool");
               expect(message).toContain("V2Factory");
             },
           },
         };
 
-        await linkLiquidityPoolAggregatorToPoolLauncher(
+        await linkPoolToPoolLauncher(
           poolAddress,
           chainId,
           mockContextWithWarn,
@@ -410,36 +385,23 @@ describe("PoolLauncherLogic", () => {
         expect(warnCalled).toBe(true);
 
         // Verify no entity was created or updated
-        const entity = mockDb.entities.LiquidityPoolAggregator.get(
-          PoolId(chainId, poolAddress),
-        );
+        const entity = mockDb.entities.Pool.get(PoolId(chainId, poolAddress));
         expect(entity).toBeUndefined();
       });
     });
 
     it("should handle different chain IDs correctly", async () => {
-      const existingLiquidityPoolAggregator = createMockLiquidityPoolAggregator(
-        {
-          poolAddress: poolAddress,
-          chainId: 10,
-        },
-      );
+      const existingPool = createMockPool({
+        poolAddress: poolAddress,
+        chainId: 10,
+      });
 
-      mockDb = mockDb.entities.LiquidityPoolAggregator.set(
-        existingLiquidityPoolAggregator,
-      );
+      mockDb = mockDb.entities.Pool.set(existingPool);
 
-      await linkLiquidityPoolAggregatorToPoolLauncher(
-        poolAddress,
-        10,
-        mockContext,
-        "CL",
-      );
+      await linkPoolToPoolLauncher(poolAddress, 10, mockContext, "CL");
 
       // Assert
-      const updatedEntity = mockDb.entities.LiquidityPoolAggregator.get(
-        PoolId(10, poolAddress),
-      );
+      const updatedEntity = mockDb.entities.Pool.get(PoolId(10, poolAddress));
       expect(updatedEntity).toBeDefined();
       expect(updatedEntity?.poolLauncherPoolId).toBe(PoolId(10, poolAddress));
     });

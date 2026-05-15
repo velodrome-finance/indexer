@@ -1,17 +1,16 @@
-import type { LiquidityPoolAggregator, Token } from "generated";
+import type { Token } from "generated";
 import type { MockInstance } from "vitest";
 import { MockDb, Pool } from "../../../generated/src/TestHelpers.gen";
 import { toChecksumAddress } from "../../../src/Constants";
+import type { Pool as PoolEntity } from "../../../src/EntityTypes";
 import * as PriceOracle from "../../../src/PriceOracle";
-import { type MockLiquidityPoolAggregator, setupCommon } from "./common";
+import { type MockPool, setupCommon } from "./common";
 
 describe("Pool Claim Event", () => {
   let mockToken0Data: Token;
   let mockToken1Data: Token;
-  let mockLiquidityPoolData: MockLiquidityPoolAggregator;
-  let createMockLiquidityPoolAggregator: ReturnType<
-    typeof setupCommon
-  >["createMockLiquidityPoolAggregator"];
+  let mockLiquidityPoolData: MockPool;
+  let createMockPool: ReturnType<typeof setupCommon>["createMockPool"];
   let mockDb: ReturnType<typeof MockDb.createMockDb>;
   let mockPriceOracle: MockInstance;
 
@@ -23,12 +22,12 @@ describe("Pool Claim Event", () => {
     const {
       mockToken0Data: token0,
       mockToken1Data: token1,
-      createMockLiquidityPoolAggregator: builder,
+      createMockPool: builder,
     } = setupCommon();
     mockToken0Data = token0;
     mockToken1Data = token1;
-    createMockLiquidityPoolAggregator = builder;
-    mockLiquidityPoolData = createMockLiquidityPoolAggregator({
+    createMockPool = builder;
+    mockLiquidityPoolData = createMockPool({
       gaugeAddress: gaugeAddress,
     });
 
@@ -68,12 +67,10 @@ describe("Pool Claim Event", () => {
       };
 
       let postEventDB: ReturnType<typeof MockDb.createMockDb>;
-      let updatedPool: LiquidityPoolAggregator | undefined;
+      let updatedPool: PoolEntity | undefined;
 
       beforeEach(async () => {
-        const updatedDB1 = mockDb.entities.LiquidityPoolAggregator.set(
-          mockLiquidityPoolData,
-        );
+        const updatedDB1 = mockDb.entities.Pool.set(mockLiquidityPoolData);
         const updatedDB2 = updatedDB1.entities.Token.set(
           mockToken0Data as Token,
         );
@@ -84,9 +81,7 @@ describe("Pool Claim Event", () => {
         const mockEvent = Pool.Claim.createMockEvent(eventData);
 
         postEventDB = await updatedDB3.processEvents([mockEvent]);
-        updatedPool = postEventDB.entities.LiquidityPoolAggregator.get(
-          mockLiquidityPoolData.id,
-        );
+        updatedPool = postEventDB.entities.Pool.get(mockLiquidityPoolData.id);
       });
 
       it("should update staked fees collected amounts", () => {
@@ -168,12 +163,10 @@ describe("Pool Claim Event", () => {
       };
 
       let postEventDB: ReturnType<typeof MockDb.createMockDb>;
-      let updatedPool: LiquidityPoolAggregator | undefined;
+      let updatedPool: PoolEntity | undefined;
 
       beforeEach(async () => {
-        const updatedDB1 = mockDb.entities.LiquidityPoolAggregator.set(
-          mockLiquidityPoolData,
-        );
+        const updatedDB1 = mockDb.entities.Pool.set(mockLiquidityPoolData);
         const updatedDB2 = updatedDB1.entities.Token.set(
           mockToken0Data as Token,
         );
@@ -184,9 +177,7 @@ describe("Pool Claim Event", () => {
         const mockEvent = Pool.Claim.createMockEvent(eventData);
 
         postEventDB = await updatedDB3.processEvents([mockEvent]);
-        updatedPool = postEventDB.entities.LiquidityPoolAggregator.get(
-          mockLiquidityPoolData.id,
-        );
+        updatedPool = postEventDB.entities.Pool.get(mockLiquidityPoolData.id);
       });
 
       it("should update unstaked fees collected amounts", () => {
@@ -250,9 +241,7 @@ describe("Pool Claim Event", () => {
           },
         };
 
-        const updatedDB1 = mockDb.entities.LiquidityPoolAggregator.set(
-          mockLiquidityPoolData,
-        );
+        const updatedDB1 = mockDb.entities.Pool.set(mockLiquidityPoolData);
         const updatedDB2 = updatedDB1.entities.Token.set(
           mockToken0Data as Token,
         );
@@ -263,7 +252,7 @@ describe("Pool Claim Event", () => {
         const mockEvent = Pool.Claim.createMockEvent(eventData);
 
         const postEventDB = await updatedDB3.processEvents([mockEvent]);
-        const updatedPool = postEventDB.entities.LiquidityPoolAggregator.get(
+        const updatedPool = postEventDB.entities.Pool.get(
           mockLiquidityPoolData.id,
         );
 
@@ -285,7 +274,7 @@ describe("Pool Claim Event", () => {
       });
 
       it("should handle case when gauge address is undefined", async () => {
-        const poolWithoutGauge = createMockLiquidityPoolAggregator({
+        const poolWithoutGauge = createMockPool({
           gaugeAddress: undefined,
         });
 
@@ -310,8 +299,7 @@ describe("Pool Claim Event", () => {
           },
         };
 
-        const updatedDB1 =
-          mockDb.entities.LiquidityPoolAggregator.set(poolWithoutGauge);
+        const updatedDB1 = mockDb.entities.Pool.set(poolWithoutGauge);
         const updatedDB2 = updatedDB1.entities.Token.set(
           mockToken0Data as Token,
         );
@@ -322,7 +310,7 @@ describe("Pool Claim Event", () => {
         const mockEvent = Pool.Claim.createMockEvent(eventData);
 
         const postEventDB = await updatedDB3.processEvents([mockEvent]);
-        const updatedPool = postEventDB.entities.LiquidityPoolAggregator.get(
+        const updatedPool = postEventDB.entities.Pool.get(
           mockLiquidityPoolData.id,
         );
 
@@ -364,7 +352,7 @@ describe("Pool Claim Event", () => {
 
       const postEventDB = await mockDb.processEvents([mockEvent]);
 
-      const pool = postEventDB.entities.LiquidityPoolAggregator.get(
+      const pool = postEventDB.entities.Pool.get(
         toChecksumAddress(eventData.mockEventData.srcAddress),
       );
 

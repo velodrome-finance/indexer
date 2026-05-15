@@ -1,10 +1,7 @@
-import type {
-  LiquidityPoolAggregator,
-  LiquidityPoolAggregatorSnapshot,
-  handlerContext,
-} from "generated";
+import type { handlerContext } from "generated";
 
-import { LiquidityPoolAggregatorSnapshotId } from "../Constants";
+import { PoolSnapshotId } from "../Constants";
+import type { Pool, PoolSnapshot } from "../EntityTypes";
 import {
   type SnapshotForPersist,
   SnapshotType,
@@ -13,18 +10,18 @@ import {
 } from "./Shared";
 
 /**
- * Creates an epoch-aligned snapshot of LiquidityPoolAggregator (no persistence).
- * @param entity - LiquidityPoolAggregator to snapshot
+ * Creates an epoch-aligned snapshot of Pool (no persistence).
+ * @param entity - Pool to snapshot
  * @param timestamp - Timestamp used to compute snapshot epoch
- * @returns Epoch-aligned LiquidityPoolAggregatorSnapshot
+ * @returns Epoch-aligned PoolSnapshot
  */
-export function createLiquidityPoolAggregatorSnapshot(
-  entity: LiquidityPoolAggregator,
+export function createPoolSnapshot(
+  entity: Pool,
   timestamp: Date,
-): LiquidityPoolAggregatorSnapshot {
+): PoolSnapshot {
   const epoch = getSnapshotEpoch(timestamp);
 
-  const snapshotId = LiquidityPoolAggregatorSnapshotId(
+  const snapshotId = PoolSnapshotId(
     entity.chainId,
     entity.poolAddress,
     epoch.getTime(),
@@ -109,20 +106,20 @@ export function createLiquidityPoolAggregatorSnapshot(
 }
 
 /**
- * Creates and persists an epoch-aligned snapshot of a LiquidityPoolAggregator.
- * @param entity - LiquidityPoolAggregator to snapshot
+ * Creates and persists an epoch-aligned snapshot of a Pool.
+ * @param entity - Pool to snapshot
  * @param timestamp - Timestamp used to compute snapshot epoch
  * @param context - Handler context
  * @returns void
  */
-export function setLiquidityPoolAggregatorSnapshot(
-  entity: LiquidityPoolAggregator,
+export function setPoolSnapshot(
+  entity: Pool,
   timestamp: Date,
   context: handlerContext,
 ): void {
   const snapshotForPersist: SnapshotForPersist = {
-    type: SnapshotType.LiquidityPoolAggregator,
-    snapshot: createLiquidityPoolAggregatorSnapshot(entity, timestamp),
+    type: SnapshotType.Pool,
+    snapshot: createPoolSnapshot(entity, timestamp),
   };
   persistSnapshot(snapshotForPersist, context);
 }
