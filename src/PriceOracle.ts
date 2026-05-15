@@ -4,6 +4,7 @@ import {
   CHAIN_CONSTANTS,
   MS_IN_AN_HOUR,
   PriceOracleType,
+  TEN_TO_THE_18_BI,
   TokenId,
 } from "./Constants";
 import {
@@ -29,6 +30,18 @@ export interface TokenPriceData {
 // issue body for the heuristic calibration.
 const PRICE_SPIKE_RATIO_THRESHOLD = 10n;
 const PRICE_SPIKE_STALENESS_MS = 14 * 24 * 60 * 60 * 1000;
+
+// Issue #728: locked-anchor poisoning defense. The #668 spike guard needs a
+// prior non-zero anchor to compare ≥10× against, so the very first non-zero
+// oracle read has nothing to validate it. If that read is inflated, the
+// locked anchor poisons every subsequent pool calc until the token is
+// reactively blacklisted (see PR #722). Cap rejects any first non-zero anchor
+// > $10K for non-BTC symbols. Empirical scan against the deployed indexer
+// found zero legitimate non-BTC tokens ever priced above $10K — every >$10K
+// observation was a known poison case handled by REBIND / BLACKLIST /
+// stablecoin pin. BTC symbols (WBTC, cbBTC, SolvBTC, …) are exempt because
+// they routinely price in the tens of thousands.
+const FIRST_FETCH_CAP = 10_000n * TEN_TO_THE_18_BI;
 
 /**
  * Creates and persists a Token entity at first sight, gated on the address
@@ -222,6 +235,30 @@ export async function refreshTokenPrice(
       blockNumber: roundedBlockNumber,
     });
     let currentPrice = priceData.pricePerUSDNew;
+
+    // Issue #728: cap-reject the first non-zero anchor for non-BTC symbols.
+    // The spike guard below requires anchor > 0, so without this gate a single
+    // inflated read at first sight permanently poisons the anchor. Bumping
+    // `lastUpdatedTimestamp` keeps the 1-hour throttle ticking so the next
+    // refresh retries. Conditions are ordered so the cheap bigint compares
+    // short-circuit before the symbol string allocation on the hot path.
+    if (
+      token.pricePerUSDNew === 0n &&
+      currentPrice > FIRST_FETCH_CAP &&
+      !token.symbol.toUpperCase().includes("BTC")
+    ) {
+      context.log.warn(
+        `[FIRST_FETCH_CAP] chain=${chainId} address=${token.address} symbol=${token.symbol} proposed=${currentPrice} cap=${FIRST_FETCH_CAP} — rejecting first anchor write, keeping price=0`,
+      );
+      const capped: Token = {
+        ...token,
+        ...healedMetadata,
+        pricePerUSDNew: 0n,
+        lastUpdatedTimestamp: new Date(blockTimestampMs),
+      };
+      context.Token.set(capped);
+      return capped;
+    }
 
     // Issue #668: reject refreshes that jump ≥10× vs a still-fresh accepted
     // anchor. First-fetch (anchor == 0) and stale-anchor (anchor older than
