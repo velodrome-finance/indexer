@@ -241,12 +241,16 @@ chains:
       - name: DynamicSwapFeeModule
         address:
           - 0xd9eE4FBeE92970509ec795062cA759F8B52d6720
+          - 0xbf571c205f45d29a99a9B5f0485E131D7E943f1c
       - name: CustomSwapFeeModule
         address:
           - 0x7361E9079920fb75496E9764A2665d8ee5049D5f
       - name: CustomUnstakedFeeModule
         address:
-          - 0xC565F7ba9c56b157Da983c4Db30e13F5f06C59D9 # Slipstream README (velodrome-finance fork)
+          - 0xC565F7ba9c56b157Da983c4Db30e13F5f06C59D9
+      - name: UnstakedFeeModule
+        address:
+          - 0x2B2A6209f813b360E0D8a006c73477D56e7a7f16
       - name: VeNFT
         address:
           - 0xFAf8FD17D9840595845582fCB047DF13f006787d
@@ -254,6 +258,7 @@ chains:
         address:
           - 0xbB5DFE1380333CEE4c2EeBd7202c80dE2256AdF4
           - 0x416b433906b1B72FA758e166e239c43d68dC6F29
+          - 0xf7f8ccce99Ca2896eC75D3A399D152dB96808399
       - name: FactoryRegistry
         address:
           - 0xF4c67CdEAaB8360370F41514d06e32CcD8aA1d7B
@@ -264,6 +269,10 @@ chains:
         address:
           - 0x548118C7E0B865C2CfA94D15EC86B666468ac758
           - 0xCc0bDDB707055e04e497aB22a59c2aF4391cd12F
+          - 0xe13Dd1fbA721Aa81a1826D9523AC9BC7d260c879
+      - name: CLGaugeFactoryV3
+        address:
+          - 0x9b23957290d8e4709fb1E1512EDc29E17C17DC99
       - name: RootCLPoolFactory
         address:
           - 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F
@@ -413,18 +422,27 @@ chains:
       - name: CustomSwapFeeModule
         address:
           - 0xbcAE2d4b4E8E34a4100e69E9C73af8214a89572e
+      - name: DynamicSwapFeeModule
+        address:
+          - 0xFFFeE309ea5bC4cc591cb37Da50182D7A8CB99B2
       - name: CustomUnstakedFeeModule
         address:
           - 0xb8E41Db4Be1F6249cEc64F48CE4349004442d5c5 # CLFactory.unstakedFeeModule()
+          - 0x21fcc0C421Ae0a5F6919535EcF000688a0413b92
       - name: NFPM
         address:
           - 0x991d5546C4B442B4c5fdc4c8B8b8d131DEB24702
+          - 0xefD0f78F93f578036AE34D52A813a4BE7D8D2D52
       - name: PoolFactory
         address:
           - 0x31832f2a97Fd20664D76Cc421207669b55CE4BC0
       - name: CLFactory
         address:
           - 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F
+          - 0x718E46d0962A66942E233760a8bd6038Ce54EdCD
+      - name: CLGaugeFactoryV3
+        address:
+          - 0x21dd3D2fe97ACD3bD4E597b515e572373f1C895D
       - name: Pool
         address:
       - name: SuperchainLeafVoter
@@ -463,18 +481,27 @@ chains:
       - name: CustomSwapFeeModule
         address:
           - 0x6812eefC19deB79D5191b52f4B763260d9F3C238
+      - name: DynamicSwapFeeModule
+        address:
+          - 0xbA3aEe516399388C779463183d00bB579f5041Ca
       - name: CustomUnstakedFeeModule
         address:
           - 0xFF02E0330bD42976754FB37CBFfd9549473E1E60 # CLFactory.unstakedFeeModule()
+          - 0xE5Db7C27a2C3DAcC1678a080aA3B4cC75F36329C
       - name: NFPM
         address:
           - 0x991d5546C4B442B4c5fdc4c8B8b8d131DEB24702
+          - 0xefD0f78F93f578036AE34D52A813a4BE7D8D2D52
       - name: PoolFactory
         address:
           - 0x31832f2a97Fd20664D76Cc421207669b55CE4BC0
       - name: CLFactory
         address:
           - 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F
+          - 0x718E46d0962A66942E233760a8bd6038Ce54EdCD
+      - name: CLGaugeFactoryV3
+        address:
+          - 0x21dd3D2fe97ACD3bD4E597b515e572373f1C895D
       - name: Pool
         address:
       - name: SuperchainLeafVoter
@@ -513,18 +540,27 @@ chains:
       - name: CustomSwapFeeModule
         address:
           - 0x6812eefC19deB79D5191b52f4B763260d9F3C238
+      - name: DynamicSwapFeeModule
+        address:
+          - 0xbA3aEe516399388C779463183d00bB579f5041Ca
       - name: CustomUnstakedFeeModule
         address:
           - 0xFF02E0330bD42976754FB37CBFfd9549473E1E60 # CLFactory.unstakedFeeModule()
+          - 0xE5Db7C27a2C3DAcC1678a080aA3B4cC75F36329C
       - name: NFPM
         address:
           - 0x991d5546C4B442B4c5fdc4c8B8b8d131DEB24702
+          - 0xefD0f78F93f578036AE34D52A813a4BE7D8D2D52
       - name: PoolFactory
         address:
           - 0x31832f2a97Fd20664D76Cc421207669b55CE4BC0
       - name: CLFactory
         address:
           - 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F
+          - 0x718E46d0962A66942E233760a8bd6038Ce54EdCD
+      - name: CLGaugeFactoryV3
+        address:
+          - 0x21dd3D2fe97ACD3bD4E597b515e572373f1C895D
       - name: Pool
         address:
       - name: SuperchainLeafVoter
@@ -567,18 +603,27 @@ chains:
       - name: CustomSwapFeeModule
         address:
           - 0x479Bec910d4025b4aC440ec27aCf28eac522242B
+      - name: DynamicSwapFeeModule
+        address:
+          - 0xF3a2a7168438792f6C688AE5374bE852C7ed0F35
       - name: CustomUnstakedFeeModule
         address:
           - 0x03Cd805861CC6D9891e4908BAcD0472a3341E90C # CLFactory.unstakedFeeModule()
+          - 0x151ff9D2D446d97b5Df0f456D0b550Ecff64cF59
       - name: NFPM
         address:
           - 0x991d5546C4B442B4c5fdc4c8B8b8d131DEB24702
+          - 0xefD0f78F93f578036AE34D52A813a4BE7D8D2D52
       - name: PoolFactory
         address:
           - 0x31832f2a97Fd20664D76Cc421207669b55CE4BC0
       - name: CLFactory
         address:
           - 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F
+          - 0x718E46d0962A66942E233760a8bd6038Ce54EdCD
+      - name: CLGaugeFactoryV3
+        address:
+          - 0x21dd3D2fe97ACD3bD4E597b515e572373f1C895D
       - name: Pool
         address:
       - name: SuperchainLeafVoter
@@ -615,18 +660,27 @@ chains:
       - name: CustomSwapFeeModule
         address:
           - 0xCB885Aa008031cBDb72447Bed78AF4f87a197126
+      - name: DynamicSwapFeeModule
+        address:
+          - 0xF3a2a7168438792f6C688AE5374bE852C7ed0F35
       - name: CustomUnstakedFeeModule
         address:
           - 0x916e0AD2d7e3f446A26b0333Ca37A9e8972030c5 # CLFactory.unstakedFeeModule()
+          - 0x151ff9D2D446d97b5Df0f456D0b550Ecff64cF59
       - name: NFPM
         address:
           - 0x991d5546C4B442B4c5fdc4c8B8b8d131DEB24702
+          - 0xefD0f78F93f578036AE34D52A813a4BE7D8D2D52
       - name: PoolFactory
         address:
           - 0x31832f2a97Fd20664D76Cc421207669b55CE4BC0
       - name: CLFactory
         address:
           - 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F
+          - 0x718E46d0962A66942E233760a8bd6038Ce54EdCD
+      - name: CLGaugeFactoryV3
+        address:
+          - 0x21dd3D2fe97ACD3bD4E597b515e572373f1C895D
       - name: Pool
         address:
       - name: ALMDeployFactoryV2
@@ -665,18 +719,27 @@ chains:
       - name: CustomSwapFeeModule
         address:
           - 0x6812eefC19deB79D5191b52f4B763260d9F3C238
+      - name: DynamicSwapFeeModule
+        address:
+          - 0xAd432b2ca49965266133F2bd4c17dc1Ec12f5DEB
       - name: CustomUnstakedFeeModule
         address:
           - 0xFF02E0330bD42976754FB37CBFfd9549473E1E60 # CLFactory.unstakedFeeModule()
+          - 0xbA3aEe516399388C779463183d00bB579f5041Ca
       - name: NFPM
         address:
           - 0x991d5546C4B442B4c5fdc4c8B8b8d131DEB24702
+          - 0xefD0f78F93f578036AE34D52A813a4BE7D8D2D52
       - name: PoolFactory
         address:
           - 0x31832f2a97Fd20664D76Cc421207669b55CE4BC0
       - name: CLFactory
         address:
           - 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F
+          - 0x718E46d0962A66942E233760a8bd6038Ce54EdCD
+      - name: CLGaugeFactoryV3
+        address:
+          - 0x21dd3D2fe97ACD3bD4E597b515e572373f1C895D
       - name: Pool
         address:
       - name: ALMDeployFactoryV2
@@ -715,18 +778,27 @@ chains:
       - name: CustomSwapFeeModule
         address:
           - 0xB0922e747e906B963dBdA37647DE1Aa709B35B2d
+      - name: DynamicSwapFeeModule
+        address:
+          - 0x151ff9D2D446d97b5Df0f456D0b550Ecff64cF59
       - name: CustomUnstakedFeeModule
         address:
           - 0x479Bec910d4025b4aC440ec27aCf28eac522242B # CLFactory.unstakedFeeModule()
+          - 0x89fF5F5c7C8e1E5565799b1EA31e241c4b19bBe8
       - name: NFPM
         address:
           - 0x991d5546C4B442B4c5fdc4c8B8b8d131DEB24702
+          - 0xefD0f78F93f578036AE34D52A813a4BE7D8D2D52
       - name: PoolFactory
         address:
           - 0x31832f2a97Fd20664D76Cc421207669b55CE4BC0
       - name: CLFactory
         address:
           - 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F
+          - 0x718E46d0962A66942E233760a8bd6038Ce54EdCD
+      - name: CLGaugeFactoryV3
+        address:
+          - 0x21dd3D2fe97ACD3bD4E597b515e572373f1C895D
       - name: Pool
         address:
       - name: SuperchainLeafVoter
@@ -757,18 +829,27 @@ chains:
       - name: CustomSwapFeeModule
         address:
           - 0x6812eefC19deB79D5191b52f4B763260d9F3C238
+      - name: DynamicSwapFeeModule
+        address:
+          - 0xbA3aEe516399388C779463183d00bB579f5041Ca
       - name: CustomUnstakedFeeModule
         address:
           - 0xFF02E0330bD42976754FB37CBFfd9549473E1E60 # CLFactory.unstakedFeeModule()
+          - 0xE5Db7C27a2C3DAcC1678a080aA3B4cC75F36329C
       - name: NFPM
         address:
           - 0x991d5546C4B442B4c5fdc4c8B8b8d131DEB24702
+          - 0xefD0f78F93f578036AE34D52A813a4BE7D8D2D52
       - name: PoolFactory
         address:
           - 0x31832f2a97Fd20664D76Cc421207669b55CE4BC0
       - name: CLFactory
         address:
           - 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F
+          - 0x718E46d0962A66942E233760a8bd6038Ce54EdCD
+      - name: CLGaugeFactoryV3
+        address:
+          - 0x21dd3D2fe97ACD3bD4E597b515e572373f1C895D
       - name: Pool
         address:
       - name: SuperchainLeafVoter
@@ -799,18 +880,27 @@ chains:
       - name: CustomSwapFeeModule
         address:
           - 0x6812eefC19deB79D5191b52f4B763260d9F3C238
+      - name: DynamicSwapFeeModule
+        address:
+          - 0xbA3aEe516399388C779463183d00bB579f5041Ca
       - name: CustomUnstakedFeeModule
         address:
           - 0xFF02E0330bD42976754FB37CBFfd9549473E1E60 # CLFactory.unstakedFeeModule()
+          - 0xE5Db7C27a2C3DAcC1678a080aA3B4cC75F36329C
       - name: NFPM
         address:
           - 0x991d5546C4B442B4c5fdc4c8B8b8d131DEB24702
+          - 0xefD0f78F93f578036AE34D52A813a4BE7D8D2D52
       - name: PoolFactory
         address:
           - 0x31832f2a97Fd20664D76Cc421207669b55CE4BC0
       - name: CLFactory
         address:
           - 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F
+          - 0x718E46d0962A66942E233760a8bd6038Ce54EdCD
+      - name: CLGaugeFactoryV3
+        address:
+          - 0x21dd3D2fe97ACD3bD4E597b515e572373f1C895D
       - name: Pool
         address:
       - name: SuperchainLeafVoter
@@ -849,18 +939,27 @@ chains:
       - name: CustomSwapFeeModule
         address:
           - 0x6812eefC19deB79D5191b52f4B763260d9F3C238
+      - name: DynamicSwapFeeModule
+        address:
+          - 0xAd432b2ca49965266133F2bd4c17dc1Ec12f5DEB
       - name: CustomUnstakedFeeModule
         address:
           - 0xFF02E0330bD42976754FB37CBFfd9549473E1E60 # CLFactory.unstakedFeeModule()
+          - 0xbA3aEe516399388C779463183d00bB579f5041Ca
       - name: NFPM
         address:
           - 0x991d5546C4B442B4c5fdc4c8B8b8d131DEB24702
+          - 0xefD0f78F93f578036AE34D52A813a4BE7D8D2D52
       - name: PoolFactory
         address:
           - 0x31832f2a97Fd20664D76Cc421207669b55CE4BC0
       - name: CLFactory
         address:
           - 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F
+          - 0x718E46d0962A66942E233760a8bd6038Ce54EdCD
+      - name: CLGaugeFactoryV3
+        address:
+          - 0x21dd3D2fe97ACD3bD4E597b515e572373f1C895D
       - name: Pool
         address:
       - name: SuperchainLeafVoter
