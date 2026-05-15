@@ -1062,6 +1062,219 @@ describe("PriceOracle", () => {
       });
     });
 
+    // Issue #728: locked-anchor poisoning defense. The #668 spike guard needs
+    // a prior non-zero anchor to compare ≥10× against, so the very first
+    // non-zero oracle read has nothing to validate it. If that first read is
+    // inflated, the locked anchor poisons every subsequent pool calc until
+    // the token is reactively blacklisted (see PR #722's pattern). Cap rejects
+    // any first non-zero anchor > $10K for non-BTC symbols and lets the next
+    // hourly refresh retry. Empirical scan: no legitimate non-BTC token has
+    // ever priced above $10K — every >$10K observation was a known poison
+    // case already handled by REBIND / BLACKLIST / stablecoin pin.
+    describe("first-fetch cap (issue #728)", () => {
+      const oneHourOneMinuteAgo = () =>
+        new Date(blockDatetime.getTime() - 61 * 60 * 1000);
+
+      beforeEach(() => {
+        vi.mocked(mockContext.Token?.set)?.mockClear();
+        vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mockClear();
+        vi.mocked(mockContext.log?.warn)?.mockClear();
+      });
+
+      it("rejects a non-BTC first-fetch above $10K and logs [FIRST_FETCH_CAP]", async () => {
+        // Anchor 0, oracle returns $50K for symbol "USDT" — must be rejected.
+        // Mirrors the PR #722 pattern (36 tokens, $13.8K to $2B inflated anchors).
+        const inflatedPrice = 50_000n * 10n ** 18n;
+
+        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
+          if ((effect as { name?: string }).name === "getTokenPrice") {
+            return { pricePerUSDNew: inflatedPrice };
+          }
+          return {};
+        });
+
+        await PriceOracle.refreshTokenPrice(
+          {
+            ...mockToken0Data,
+            symbol: "USDT",
+            pricePerUSDNew: 0n,
+            lastUpdatedTimestamp: oneHourOneMinuteAgo(),
+          },
+          blockNumber,
+          blockDatetime.getTime() / 1000,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
+          .lastCall?.[0] as Token;
+        expect(updatedToken.pricePerUSDNew).toBe(0n);
+        expect(
+          vi.mocked(mockContext.TokenPriceSnapshot?.set),
+        ).not.toHaveBeenCalled();
+        const warnCall = vi.mocked(mockContext.log?.warn)?.mock.lastCall;
+        expect(warnCall?.[0]).toContain("[FIRST_FETCH_CAP]");
+      });
+
+      it("accepts a BTC-symbol first-fetch above $10K", async () => {
+        // WBTC routinely prices in the tens of thousands; the cap must NOT
+        // reject any symbol containing "BTC". $80K is a realistic mid-cycle.
+        const btcPrice = 80_000n * 10n ** 18n;
+
+        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
+          if ((effect as { name?: string }).name === "getTokenPrice") {
+            return { pricePerUSDNew: btcPrice };
+          }
+          return {};
+        });
+
+        await PriceOracle.refreshTokenPrice(
+          {
+            ...mockToken0Data,
+            symbol: "WBTC",
+            pricePerUSDNew: 0n,
+            lastUpdatedTimestamp: oneHourOneMinuteAgo(),
+          },
+          blockNumber,
+          blockDatetime.getTime() / 1000,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
+          .lastCall?.[0] as Token;
+        expect(updatedToken.pricePerUSDNew).toBe(btcPrice);
+      });
+
+      it("matches the BTC substring case-insensitively (e.g. cbbtc, SolvBTC)", async () => {
+        // Substring match must be case-insensitive so lowercase variants like
+        // "cbbtc" and mixed-case "SolvBTC" both bypass the cap.
+        const btcPrice = 75_000n * 10n ** 18n;
+
+        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
+          if ((effect as { name?: string }).name === "getTokenPrice") {
+            return { pricePerUSDNew: btcPrice };
+          }
+          return {};
+        });
+
+        await PriceOracle.refreshTokenPrice(
+          {
+            ...mockToken0Data,
+            symbol: "cbbtc",
+            pricePerUSDNew: 0n,
+            lastUpdatedTimestamp: oneHourOneMinuteAgo(),
+          },
+          blockNumber,
+          blockDatetime.getTime() / 1000,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
+          .lastCall?.[0] as Token;
+        expect(updatedToken.pricePerUSDNew).toBe(btcPrice);
+      });
+
+      it("accepts a non-BTC first-fetch at exactly the $10K cap (boundary)", async () => {
+        // Cap is strictly greater-than: a $10,000.00 first-fetch must pass.
+        // Regression guard against off-by-one boundary regressions.
+        const exactCapPrice = 10_000n * 10n ** 18n;
+
+        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
+          if ((effect as { name?: string }).name === "getTokenPrice") {
+            return { pricePerUSDNew: exactCapPrice };
+          }
+          return {};
+        });
+
+        await PriceOracle.refreshTokenPrice(
+          {
+            ...mockToken0Data,
+            symbol: "USDT",
+            pricePerUSDNew: 0n,
+            lastUpdatedTimestamp: oneHourOneMinuteAgo(),
+          },
+          blockNumber,
+          blockDatetime.getTime() / 1000,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
+          .lastCall?.[0] as Token;
+        expect(updatedToken.pricePerUSDNew).toBe(exactCapPrice);
+      });
+
+      it("accepts a non-BTC first-fetch well below the cap", async () => {
+        // Sanity: ordinary first-fetches (a few dollars) must pass through
+        // untouched. Pins the common case so a refactor that gets the
+        // condition inverted is caught immediately.
+        const normalPrice = 2n * 10n ** 18n;
+
+        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
+          if ((effect as { name?: string }).name === "getTokenPrice") {
+            return { pricePerUSDNew: normalPrice };
+          }
+          return {};
+        });
+
+        await PriceOracle.refreshTokenPrice(
+          {
+            ...mockToken0Data,
+            symbol: "USDT",
+            pricePerUSDNew: 0n,
+            lastUpdatedTimestamp: oneHourOneMinuteAgo(),
+          },
+          blockNumber,
+          blockDatetime.getTime() / 1000,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
+          .lastCall?.[0] as Token;
+        expect(updatedToken.pricePerUSDNew).toBe(normalPrice);
+      });
+
+      it("does NOT cap subsequent (non-first) fetches; spike guard takes over", async () => {
+        // Token already has a non-zero anchor — the cap path is for the first
+        // anchor only. A 4× jump from $5K to $20K is below the 10× spike
+        // threshold, so it should be persisted as-is. Pins the AC line that
+        // subsequent fetches are NOT capped.
+        const anchorPrice = 5_000n * 10n ** 18n;
+        const newPrice = 20_000n * 10n ** 18n;
+
+        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
+          if ((effect as { name?: string }).name === "getTokenPrice") {
+            return { pricePerUSDNew: newPrice };
+          }
+          return {};
+        });
+
+        await PriceOracle.refreshTokenPrice(
+          {
+            ...mockToken0Data,
+            symbol: "USDT",
+            pricePerUSDNew: anchorPrice,
+            lastUpdatedTimestamp: oneHourOneMinuteAgo(),
+          },
+          blockNumber,
+          blockDatetime.getTime() / 1000,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
+          .lastCall?.[0] as Token;
+        expect(updatedToken.pricePerUSDNew).toBe(newPrice);
+        const warnCalls = vi.mocked(mockContext.log?.warn)?.mock.calls ?? [];
+        for (const [msg] of warnCalls) {
+          expect(msg).not.toContain("[FIRST_FETCH_CAP]");
+        }
+      });
+    });
+
     // Issue #694: V3 last-known-price fallback used `lastUpdatedTimestamp`
     // for two purposes — the 1-hour throttle and the 7-day staleness window
     // guarding the fallback. Because every refresh attempt (including those
