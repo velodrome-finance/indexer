@@ -3,7 +3,7 @@ import type { NonFungiblePosition, handlerContext } from "generated";
 import { MockDb } from "../../../generated/src/TestHelpers.gen";
 import {
   applyStakedPositionToEdges,
-  isPositionInRange,
+  deriveStakedLiquidityInRange,
 } from "../../../src/Aggregators/CLStakedLiquidity";
 import { type PoolData, updatePool } from "../../../src/Aggregators/Pool";
 import {
@@ -283,7 +283,7 @@ describe("NFPMCommonLogic", () => {
     const blockNumber = 123456;
 
     beforeEach(() => {
-      vi.mocked(isPositionInRange).mockReset();
+      vi.mocked(deriveStakedLiquidityInRange).mockReset();
       vi.mocked(updatePool).mockReset();
       vi.mocked(updatePool).mockResolvedValue(undefined);
       vi.mocked(calculatePositionAmountsFromLiquidity).mockReset();
@@ -300,8 +300,8 @@ describe("NFPMCommonLogic", () => {
       });
     });
 
-    it("should apply the liquidity delta to the aggregator edge list regardless of in-range status", async () => {
-      vi.mocked(isPositionInRange).mockReturnValue(false);
+    it("should apply the liquidity delta to the aggregator edge list", async () => {
+      vi.mocked(deriveStakedLiquidityInRange).mockReturnValue(0n);
 
       await updateStakedPositionLiquidity(
         stakedPosition,
@@ -322,8 +322,11 @@ describe("NFPMCommonLogic", () => {
       );
     });
 
-    it("should update total staked reserves and stakedLiquidityInRange when position is in range", async () => {
-      vi.mocked(isPositionInRange).mockReturnValue(true);
+    it("should derive stakedLiquidityInRange from updated edges at the current tick", async () => {
+      // Post-#719 the counter is no longer "current + delta"; it is rederived
+      // from the edges on every write, so the test pins the value the
+      // (mocked) deriveStakedLiquidityInRange returns.
+      vi.mocked(deriveStakedLiquidityInRange).mockReturnValue(6000n);
 
       await updateStakedPositionLiquidity(
         stakedPosition,
@@ -335,7 +338,13 @@ describe("NFPMCommonLogic", () => {
         blockNumber,
       );
 
-      expect(isPositionInRange).toHaveBeenCalledWith(-200n, 200n, 0n);
+      // Derivation is called with (currentTick, updatedEdges, updatedNets) —
+      // the edges/nets produced by the (mocked) applyStakedPositionToEdges.
+      expect(deriveStakedLiquidityInRange).toHaveBeenCalledWith(
+        0n,
+        [-200n, 200n],
+        [5000n, -5000n],
+      );
       expect(calculatePositionAmountsFromLiquidity).toHaveBeenCalledWith(
         5000n,
         sqrtPriceX96AtTick0,
@@ -344,7 +353,7 @@ describe("NFPMCommonLogic", () => {
       );
       expect(updatePool).toHaveBeenCalledWith(
         {
-          stakedLiquidityInRange: 6000n, // 1000 + 5000
+          stakedLiquidityInRange: 6000n, // pinned by the derive mock
           incrementalStakedReserve0: 100n, // direction=+1 * 100
           incrementalStakedReserve1: 200n, // direction=+1 * 200
           stakedTickEdges: [-200n, 200n],
@@ -360,7 +369,7 @@ describe("NFPMCommonLogic", () => {
     });
 
     it("should use negative direction for decrease (negative liquidityDelta)", async () => {
-      vi.mocked(isPositionInRange).mockReturnValue(true);
+      vi.mocked(deriveStakedLiquidityInRange).mockReturnValue(-2000n);
 
       await updateStakedPositionLiquidity(
         stakedPosition,
@@ -381,7 +390,7 @@ describe("NFPMCommonLogic", () => {
       );
       expect(updatePool).toHaveBeenCalledWith(
         {
-          stakedLiquidityInRange: -2000n, // 1000 + (-3000)
+          stakedLiquidityInRange: -2000n, // pinned by the derive mock (clamped at the aggregator)
           incrementalStakedReserve0: -100n, // direction=-1 * 100
           incrementalStakedReserve1: -200n, // direction=-1 * 200
           stakedTickEdges: [-200n, 200n],
@@ -396,8 +405,11 @@ describe("NFPMCommonLogic", () => {
       );
     });
 
-    it("should update total staked reserves but not stakedLiquidityInRange when position is out of range", async () => {
-      vi.mocked(isPositionInRange).mockReturnValue(false);
+    it("should always emit stakedLiquidityInRange from derivation, even when position is out of range at currentTick", async () => {
+      // Derivation is structural — there is no longer an "in-range" gate.
+      // The function pins the value (representing derive at an out-of-range
+      // tick, which would naturally be 0n for a single-position edge set).
+      vi.mocked(deriveStakedLiquidityInRange).mockReturnValue(0n);
 
       await updateStakedPositionLiquidity(
         stakedPosition,
@@ -417,7 +429,7 @@ describe("NFPMCommonLogic", () => {
       );
       expect(updatePool).toHaveBeenCalledWith(
         {
-          stakedLiquidityInRange: undefined, // not in range, so unchanged
+          stakedLiquidityInRange: 0n, // derived, not undefined
           incrementalStakedReserve0: 100n,
           incrementalStakedReserve1: 200n,
           stakedTickEdges: [-200n, 200n],
@@ -432,8 +444,11 @@ describe("NFPMCommonLogic", () => {
       );
     });
 
-    it("should persist edge-list updates even when sqrtPriceX96 is zero", async () => {
-      vi.mocked(isPositionInRange).mockReturnValue(true);
+    it("should persist edge-list updates AND derived counter even when sqrtPriceX96 is zero", async () => {
+      // Pre-#719 the sqrt=0 path skipped the counter update entirely (so
+      // pre-Initialize deposits drifted). Now the counter is derived even on
+      // the sqrt=0 early-exit path so the aggregator stays consistent.
+      vi.mocked(deriveStakedLiquidityInRange).mockReturnValue(42n);
 
       const poolDataZeroPrice: PoolData = {
         ...poolData,
@@ -460,6 +475,7 @@ describe("NFPMCommonLogic", () => {
         {
           stakedTickEdges: [-200n, 200n],
           stakedTickEdgeNets: [5000n, -5000n],
+          stakedLiquidityInRange: 42n, // derived even on sqrt=0 path (issue #719)
           hasStakes: true,
         },
         poolDataZeroPrice.liquidityPoolAggregator,

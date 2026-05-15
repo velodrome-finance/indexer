@@ -753,6 +753,102 @@ describe("Pool Functions", () => {
         expect(negReserveGuardLogs().length).toBe(2);
       });
     });
+
+    // Regression test for issue #719: stakedLiquidityInRange must never
+    // persist negative. Mirrors the #702 reserve-clamp shape but for the
+    // staked-in-range field. The aggregator emits [NEG_STAKED_LIQ_GUARD]
+    // with {poolAddress, chainId, priorStakedLiqInRange, replacement,
+    // clampedTo} when the diff would drive the field below zero.
+    describe("negative stakedLiquidityInRange clamp guard (issue #719)", () => {
+      const sameEpochAsTimestamp = () => timestamp;
+
+      const negStakedLiqGuardLogs = () => {
+        const warnMock = vi.mocked(mockContext.log?.warn);
+        const calls = warnMock?.mock.calls ?? [];
+        return calls.filter((args) =>
+          String(args[0] ?? "").includes("[NEG_STAKED_LIQ_GUARD]"),
+        );
+      };
+
+      const lastSet = (): Pool => {
+        const setMock = vi.mocked(mockContext.Pool?.set);
+        return setMock?.mock.lastCall?.[0] as Pool;
+      };
+
+      it("clamps stakedLiquidityInRange to 0n and logs guard when diff is negative", async () => {
+        await updatePool(
+          { stakedLiquidityInRange: -250n },
+          {
+            ...(liquidityPoolAggregator as Pool),
+            stakedLiquidityInRange: 100n,
+            lastSnapshotTimestamp: sameEpochAsTimestamp(),
+            lastUpdatedTimestamp: sameEpochAsTimestamp(),
+          },
+          timestamp,
+          mockContext as handlerContext,
+          8453,
+          blockNumber,
+        );
+
+        expect(lastSet().stakedLiquidityInRange).toBe(0n);
+
+        const logs = negStakedLiqGuardLogs();
+        expect(logs.length).toBe(1);
+        const msg = String(logs[0]?.[0] ?? "");
+        expect(msg).toContain("stakedLiquidityInRange");
+        expect(msg).toContain("priorStakedLiqInRange=100");
+        expect(msg).toContain("replacement=-250");
+        expect(msg).toContain("clampedTo=0");
+        expect(msg).toContain(
+          `chainId=${(liquidityPoolAggregator as Pool).chainId}`,
+        );
+        expect(msg).toContain(
+          `poolAddress=${(liquidityPoolAggregator as Pool).poolAddress}`,
+        );
+      });
+
+      it("clamps when current value is already negative and diff omits stakedLiquidityInRange", async () => {
+        // Simulates the legacy poisoned-state case: pool's persisted
+        // stakedLiquidityInRange is already < 0n from prior drift, and the
+        // current update doesn't supply a replacement. The clamp still fires
+        // because the post-replace value falls back to the negative current.
+        await updatePool(
+          {},
+          {
+            ...(liquidityPoolAggregator as Pool),
+            stakedLiquidityInRange: -1_000_000n,
+            lastSnapshotTimestamp: sameEpochAsTimestamp(),
+            lastUpdatedTimestamp: sameEpochAsTimestamp(),
+          },
+          timestamp,
+          mockContext as handlerContext,
+          8453,
+          blockNumber,
+        );
+
+        expect(lastSet().stakedLiquidityInRange).toBe(0n);
+        expect(negStakedLiqGuardLogs().length).toBe(1);
+      });
+
+      it("does not clamp or log when stakedLiquidityInRange stays non-negative", async () => {
+        await updatePool(
+          { stakedLiquidityInRange: 50n },
+          {
+            ...(liquidityPoolAggregator as Pool),
+            stakedLiquidityInRange: 100n,
+            lastSnapshotTimestamp: sameEpochAsTimestamp(),
+            lastUpdatedTimestamp: sameEpochAsTimestamp(),
+          },
+          timestamp,
+          mockContext as handlerContext,
+          8453,
+          blockNumber,
+        );
+
+        expect(lastSet().stakedLiquidityInRange).toBe(50n);
+        expect(negStakedLiqGuardLogs().length).toBe(0);
+      });
+    });
   });
 
   describe("Updating the Liquidity Pool Aggregator", () => {

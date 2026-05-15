@@ -622,11 +622,17 @@ describe("CLPoolSwapLogic", () => {
       );
     });
 
-    it("should compute staked reserve deltas proportionally", async () => {
+    it("should compute staked reserve deltas from edge state", async () => {
+      // Post-#719 stakedLiquidityInRange is derived from
+      // (oldTick, stakedTickEdges, stakedTickEdgeNets) rather than trusted
+      // from the cached seed. With an empty edge list, derive returns 0n
+      // regardless of what the legacy counter says.
       const poolWithStaked = {
         ...mockPool,
         tick: 500n, // Different from event tick (1000n) to trigger tick crossing
         tickSpacing: 200n,
+        // Cached counter is intentionally inconsistent with the empty edge
+        // list to demonstrate the structural heal.
         stakedLiquidityInRange: 200n,
       };
 
@@ -638,10 +644,8 @@ describe("CLPoolSwapLogic", () => {
         mockContext,
       );
 
-      // No tick entities exist → stakedLiquidityInRange stays 200n
-      // reserveDelta0/1 are proportioned by 200/1000000000000000000000 (event liquidity)
-      // With such small staked vs total, staked deltas will be ~0 due to bigint truncation
-      expect(result.liquidityPoolDiff.stakedLiquidityInRange).toBe(200n);
+      // derive(oldTick=500n, [], []) === 0n; the empty edge list IS the truth.
+      expect(result.liquidityPoolDiff.stakedLiquidityInRange).toBe(0n);
       expect(result.liquidityPoolDiff.incrementalStakedReserve0).toBeDefined();
       expect(result.liquidityPoolDiff.incrementalStakedReserve1).toBeDefined();
     });
@@ -665,12 +669,15 @@ describe("CLPoolSwapLogic", () => {
       expect(result.liquidityPoolDiff.stakedLiquidityInRange).toBe(0n);
     });
 
-    it("should skip tick crossings when tick unchanged", async () => {
+    it("should derive stakedLiquidityInRange from edges even when tick unchanged", async () => {
+      // Post-#719: the seed input is consulted only on early-exit paths;
+      // the normal walking path derives from edges at oldTick. With empty
+      // edges, derive yields 0n no matter what the cached counter says.
       const poolSameTick = {
         ...mockPool,
         tick: mockEvent.params.tick, // Same tick → no crossing
         tickSpacing: 200n,
-        stakedLiquidityInRange: 500n,
+        stakedLiquidityInRange: 500n, // intentionally stale vs empty edges
       };
 
       const result = await processCLPoolSwap(
@@ -681,8 +688,8 @@ describe("CLPoolSwapLogic", () => {
         mockContext,
       );
 
-      // No tick crossing → stakedLiquidityInRange unchanged
-      expect(result.liquidityPoolDiff.stakedLiquidityInRange).toBe(500n);
+      // No crossings + empty edges → derive(oldTick) = 0n.
+      expect(result.liquidityPoolDiff.stakedLiquidityInRange).toBe(0n);
     });
   });
 
