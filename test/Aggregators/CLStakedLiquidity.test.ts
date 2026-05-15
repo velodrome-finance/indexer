@@ -1,6 +1,7 @@
 import type { handlerContext } from "generated";
 import {
   applyStakedPositionToEdges,
+  deriveStakedLiquidityInRange,
   isPositionInRange,
   processTickCrossingsForStaked,
 } from "../../src/Aggregators/CLStakedLiquidity";
@@ -262,7 +263,13 @@ describe("CLStakedLiquidity", () => {
       } as unknown as handlerContext;
     });
 
-    it("should return unchanged when oldTick === newTick", async () => {
+    it("should derive the in-range counter from edges when oldTick === newTick", async () => {
+      // Even with no movement, the function re-derives stakedLiquidityInRange
+      // from edge state (issue #719): the cached `currentStakedLiqInRange`
+      // input is ignored on the normal path so prior drift heals on the next
+      // touch. Here edges=[100, 200] with nets=[300, -300] and oldTick=100
+      // ⇒ derive(100) = 300 (the tickLower at 100 is in-range, tickUpper at
+      // 200 has not been crossed yet). The 500n input is intentionally stale.
       const result = processTickCrossingsForStaked(
         CHAIN_ID,
         POOL_ADDRESS,
@@ -277,7 +284,7 @@ describe("CLStakedLiquidity", () => {
         [100n, 200n],
         [300n, -300n],
       );
-      expect(result.stakedLiquidityInRange).toBe(500n);
+      expect(result.stakedLiquidityInRange).toBe(300n);
       // Same sqrt → final segment is a no-op → zero deltas
       expect(result.stakedDelta0).toBe(0n);
       expect(result.stakedDelta1).toBe(0n);
@@ -399,7 +406,10 @@ describe("CLStakedLiquidity", () => {
     });
 
     it("should skip edges that fall outside the [oldTick, newTick] window", async () => {
-      // Edges exist at 200 and 400, but swap only crosses 200
+      // Edges exist at 200 and 400, but swap only crosses 200.
+      // derive(oldTick=100) = 0 (no edges <= 100); walker adds nets[200]=150
+      // crossing strictly above oldTick up to newTick=300 (400 is beyond).
+      // The 50n input is stale and ignored on the normal path (issue #719).
       const result = processTickCrossingsForStaked(
         CHAIN_ID,
         POOL_ADDRESS,
@@ -414,7 +424,7 @@ describe("CLStakedLiquidity", () => {
         [200n, 400n],
         [150n, -150n],
       );
-      expect(result.stakedLiquidityInRange).toBe(200n); // 50 + 150 (only 200 crossed, 400 is beyond newTick=300)
+      expect(result.stakedLiquidityInRange).toBe(150n); // derive(100)=0 + 150
     });
 
     it("should handle negative tick ranges", async () => {
@@ -436,7 +446,11 @@ describe("CLStakedLiquidity", () => {
     });
 
     it("should not cross the oldTick itself when going up (strict-above semantics)", async () => {
-      // oldTick=200, edge at 200 — since we search lowerBound(201), edge is skipped
+      // oldTick=200, edge at 200 — since we search lowerBound(201), edge is
+      // skipped. derive(200) on edges=[200],nets=[100] returns 100 (the
+      // tickLower at 200 is in-range by the upper-exclusive convention), so
+      // the walker starts at 100 and crosses no further edges. The seed `0n`
+      // input is stale and ignored on the normal path (issue #719).
       const result = processTickCrossingsForStaked(
         CHAIN_ID,
         POOL_ADDRESS,
@@ -451,7 +465,7 @@ describe("CLStakedLiquidity", () => {
         [200n],
         [100n],
       );
-      expect(result.stakedLiquidityInRange).toBe(0n);
+      expect(result.stakedLiquidityInRange).toBe(100n);
     });
 
     it("should include the oldTick boundary when going down (at-or-below semantics)", async () => {
@@ -924,6 +938,116 @@ describe("CLStakedLiquidity", () => {
         expect(result.stakedDelta0).toBe(0n);
         expect(result.stakedDelta1).toBe(0n);
       });
+    });
+  });
+
+  // Regression coverage for issue #719: the structural fix replaces the
+  // cached running counter `stakedLiquidityInRange` with derivation from the
+  // existing edge state at the current tick. These tests pin the derivation
+  // formula:
+  //   stakedLiquidityInRange = Σ stakedTickEdgeNets[i] where stakedTickEdges[i] <= currentTick
+  // The function must give the same answer the running counter *should* have
+  // tracked, but without any of the drift paths the counter exhibited (pre-
+  // Initialize deposit, edge-merge rejection, NFPM-mediated liquidity change
+  // between gauge deposit and withdraw).
+  describe("deriveStakedLiquidityInRange (#719)", () => {
+    it("returns 0n on empty edge list", () => {
+      expect(deriveStakedLiquidityInRange(0n, [], [])).toBe(0n);
+    });
+
+    it("returns 0n when currentTick is below every edge", () => {
+      // Position [100, 200]: edges=[100, 200], nets=[+L, -L]. currentTick=50
+      // is below both — no entry crossed, so 0.
+      expect(
+        deriveStakedLiquidityInRange(50n, [100n, 200n], [500n, -500n]),
+      ).toBe(0n);
+    });
+
+    it("returns liquidity when currentTick is in range (only tickLower crossed)", () => {
+      // currentTick=150 ≥ 100 (entered) but < 200 (not exited yet).
+      expect(
+        deriveStakedLiquidityInRange(150n, [100n, 200n], [500n, -500n]),
+      ).toBe(500n);
+    });
+
+    it("returns 0n when currentTick is above every edge (entered then exited)", () => {
+      // currentTick=300 ≥ 100 AND ≥ 200 ⇒ +L - L = 0.
+      expect(
+        deriveStakedLiquidityInRange(300n, [100n, 200n], [500n, -500n]),
+      ).toBe(0n);
+    });
+
+    it("includes an edge that equals currentTick (tickLower inclusive)", () => {
+      // Uniswap v3 convention: tickLower <= currentTick < tickUpper.
+      // deriveStakedLiquidityInRange uses edges[i] <= currentTick, so the
+      // tickLower edge is included when currentTick === tickLower.
+      expect(
+        deriveStakedLiquidityInRange(100n, [100n, 200n], [500n, -500n]),
+      ).toBe(500n);
+    });
+
+    it("excludes the tickUpper edge when currentTick === tickUpper (boundary exit)", () => {
+      // currentTick=200 ⇒ both edges <=200 ⇒ +L - L = 0. Matches the upper-
+      // exclusive convention in isPositionInRange.
+      expect(
+        deriveStakedLiquidityInRange(200n, [100n, 200n], [500n, -500n]),
+      ).toBe(0n);
+    });
+
+    it("sums multiple overlapping positions", () => {
+      // Position A: [100, 300], L=500; Position B: [200, 400], L=300.
+      // edges = [100, 200, 300, 400], nets = [+500, +300, -500, -300].
+      // At currentTick=250: A is in (entered at 100, not yet exited at 300),
+      // B is in (entered at 200, not yet exited at 400) ⇒ 500 + 300 = 800.
+      expect(
+        deriveStakedLiquidityInRange(
+          250n,
+          [100n, 200n, 300n, 400n],
+          [500n, 300n, -500n, -300n],
+        ),
+      ).toBe(800n);
+    });
+
+    it("handles negative ticks", () => {
+      // Position [-200, -100], L=500.
+      expect(
+        deriveStakedLiquidityInRange(-150n, [-200n, -100n], [500n, -500n]),
+      ).toBe(500n);
+      expect(
+        deriveStakedLiquidityInRange(-50n, [-200n, -100n], [500n, -500n]),
+      ).toBe(0n);
+    });
+
+    it("agrees with processTickCrossingsForStaked walking up from the lowest edge", () => {
+      // Build a non-trivial edge set and verify deriveStakedLiquidityInRange
+      // matches what processTickCrossingsForStaked produces by walking up from
+      // far below to the target tick.
+      const edges = [-200n, -100n, 100n, 300n];
+      const nets = [400n, 200n, -100n, -500n];
+      const target = 150n;
+
+      const noDbContext = {
+        log: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
+      } as unknown as handlerContext;
+
+      const walked = processTickCrossingsForStaked(
+        CHAIN_ID,
+        POOL_ADDRESS,
+        -500n,
+        target,
+        sqrtAt(-500n),
+        sqrtAt(target),
+        1n,
+        noDbContext,
+        0n,
+        true,
+        edges,
+        nets,
+      );
+
+      expect(deriveStakedLiquidityInRange(target, edges, nets)).toBe(
+        walked.stakedLiquidityInRange,
+      );
     });
   });
 });

@@ -1,7 +1,7 @@
 import type { NonFungiblePosition, handlerContext } from "generated";
 import {
   applyStakedPositionToEdges,
-  isPositionInRange,
+  deriveStakedLiquidityInRange,
 } from "../../Aggregators/CLStakedLiquidity";
 import type { PoolData } from "../../Aggregators/Pool";
 import { updatePool } from "../../Aggregators/Pool";
@@ -135,6 +135,16 @@ export async function updateStakedPositionLiquidity(
   const currentTick = liquidityPoolAggregator.tick ?? 0n;
   const sqrtPriceX96 = liquidityPoolAggregator.sqrtPriceX96 ?? 0n;
 
+  // Derive stakedLiquidityInRange from the (possibly updated) edge state at
+  // currentTick (issue #719). Applies on both the early-exit path (sqrt=0n)
+  // and the normal path, so NFPM-mediated liquidity changes between gauge
+  // deposit and withdraw can't desync the counter from the edges.
+  const stakedLiquidityInRange = deriveStakedLiquidityInRange(
+    currentTick,
+    stakedTickEdges,
+    stakedTickEdgeNets,
+  );
+
   if (sqrtPriceX96 === 0n) {
     // Defensive fallback: since velodrome-finance/indexer#654 wired
     // CLPool.Initialize to populate sqrtPriceX96/tick on the aggregator, a
@@ -144,7 +154,12 @@ export async function updateStakedPositionLiquidity(
     // established, but skip the amount math that would otherwise produce
     // garbage from sqrtPriceX96=0.
     await updatePool(
-      { stakedTickEdges, stakedTickEdgeNets, hasStakes },
+      {
+        stakedTickEdges,
+        stakedTickEdgeNets,
+        stakedLiquidityInRange,
+        hasStakes,
+      },
       liquidityPoolAggregator,
       timestamp,
       context,
@@ -165,15 +180,6 @@ export async function updateStakedPositionLiquidity(
   );
 
   const direction = liquidityDelta > 0n ? 1n : -1n;
-
-  // stakedLiquidityInRange only changes when the position is in range (drives swap proportional attribution)
-  const stakedLiquidityInRange = isPositionInRange(
-    position.tickLower,
-    position.tickUpper,
-    currentTick,
-  )
-    ? (liquidityPoolAggregator.stakedLiquidityInRange ?? 0n) + liquidityDelta
-    : undefined;
 
   const stakedDiff = {
     stakedLiquidityInRange,

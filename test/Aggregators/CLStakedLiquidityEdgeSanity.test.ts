@@ -1,7 +1,8 @@
-import type { Token } from "generated";
+import type { Token, handlerContext } from "generated";
 import { CLGauge, MockDb } from "../../generated/src/TestHelpers.gen";
 import {
   applyStakedPositionToEdges,
+  deriveStakedLiquidityInRange,
   processTickCrossingsForStaked,
 } from "../../src/Aggregators/CLStakedLiquidity";
 import {
@@ -9,6 +10,7 @@ import {
   PoolId,
   toChecksumAddress,
 } from "../../src/Constants";
+import { updateStakedPositionLiquidity } from "../../src/EventHandlers/NFPM/NFPMCommonLogic";
 import { setupCommon } from "../EventHandlers/Pool/common";
 import { sqrtAt } from "./common";
 
@@ -219,11 +221,13 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
     const oldTick = -400n;
     const newTick = 400n;
 
-    // Baseline: walk the map directly and sum liquidityNet for ticks strictly
-    // above oldTick through newTick.
+    // Baseline: walk the map directly and sum liquidityNet for ticks ≤ newTick.
+    // Post-#719, processTickCrossingsForStaked returns derive(newTick) rather
+    // than (seed + delta-across-window) — the function self-heals from edge
+    // state regardless of the cached seed.
     let baselineResult = 0n;
     for (const [tick, net] of baselineNet.entries()) {
-      if (tick > oldTick && tick <= newTick) {
+      if (tick <= newTick) {
         baselineResult += net;
       }
     }
@@ -262,18 +266,16 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
     ).length;
     expect(crossingCount).toBeGreaterThan(5);
 
-    // Also verify the OPPOSITE direction (price moving DOWN). Uniswap v3 sign
-    // convention: on a downward cross the pool does `liquidity -= net[T]`, which
-    // means the sparse walker must subtract (not add) across the same edges,
-    // and the window is `newTick < T <= oldTick` (at-or-below oldTick, strictly
-    // above newTick). Seeding stakedLiq with the result of the up-swap gives us
-    // round-trip parity: up then down should land back on the starting liquidity.
+    // Also verify the OPPOSITE direction (price moving DOWN). Post-#719 the
+    // walker is seeded from derive(oldTick), so the down-swap return value is
+    // derive(newTickDown) regardless of any seed input. Baseline computes
+    // derive(newTickDown) directly: sum of nets for ticks ≤ newTickDown.
     const oldTickDown = newTick;
     const newTickDown = oldTick;
-    let baselineDownResult = baselineResult;
+    let baselineDownResult = 0n;
     for (const [tick, net] of baselineNet.entries()) {
-      if (tick > newTickDown && tick <= oldTickDown) {
-        baselineDownResult -= net;
+      if (tick <= newTickDown) {
+        baselineDownResult += net;
       }
     }
 
@@ -293,8 +295,387 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
     );
 
     expect(downResult.stakedLiquidityInRange).toBe(baselineDownResult);
-    // Round-trip parity: up-swap then down-swap over the same window must
-    // return stakedLiq to its starting value (0n in this test).
-    expect(downResult.stakedLiquidityInRange).toBe(0n);
+    // Sanity: the round trip exits at derive(newTickDown), which on this
+    // edge set is non-zero because several positions have tickLower ≤ -400
+    // (tickLowers start at -500 and step up). The walker's seed input is
+    // no longer load-bearing (issue #719) — the return is purely a function
+    // of (newTickDown, edges, nets).
+    expect(downResult.stakedLiquidityInRange).toBeGreaterThan(0n);
+  });
+
+  // Regression coverage for issue #719: cover the three concrete drift paths
+  // from the bug report plus the closed-system invariant. Each test pins the
+  // structural property that the fix introduces:
+  //   stakedLiquidityInRange === deriveStakedLiquidityInRange(currentTick,
+  //                                                            stakedTickEdges,
+  //                                                            stakedTickEdgeNets)
+  // ALWAYS. The cached running counter is replaced by derivation, so the field
+  // never drifts away from the edge truth regardless of event ordering, gate
+  // outcomes, or NFPM-mediated liquidity changes during a stake.
+  describe("#719 drift paths", () => {
+    it("(c) gauge Deposit before pool Initialize derives counter from edge state", async () => {
+      // Pool has never seen Initialize: sqrtPriceX96=0n, tick=0n. The legacy
+      // gate `sqrtPriceX96 !== 0n` suppressed the counter update on deposit
+      // while still applying the position to the sparse edge nets — the first
+      // Swap on the pool then walked from a wrong baseline. The structural
+      // fix removes the counter/edges asymmetry by deriving the counter from
+      // edges at every write.
+      let mockDb = MockDb.createMockDb();
+      const liquidityPool = createMockPool({
+        isCL: true,
+        gaugeAddress,
+        sqrtPriceX96: 0n,
+        tick: 0n,
+        hasStakes: false,
+      });
+      mockDb = mockDb.entities.Pool.set(liquidityPool);
+      mockDb = mockDb.entities.Token.set(mockToken0Data as Token);
+      mockDb = mockDb.entities.Token.set(mockToken1Data as Token);
+
+      // Position spans tick 0 — it is in-range at the default tick=0n.
+      const tickLower = -100n;
+      const tickUpper = 100n;
+      const liquidity = 500n;
+      const tokenId = 1n;
+      mockDb = mockDb.entities.NonFungiblePosition.set(
+        createMockNonFungiblePosition({
+          tokenId,
+          nfpmAddress: defaultNfpmAddress,
+          pool: liquidityPool.poolAddress,
+          owner: userAddress,
+          tickLower,
+          tickUpper,
+          liquidity,
+        }),
+      );
+
+      const event = CLGauge.Deposit.createMockEvent({
+        user: userAddress,
+        tokenId,
+        liquidityToStake: liquidity,
+        mockEventData: {
+          srcAddress: gaugeAddress,
+          chainId,
+          block: {
+            number: 1,
+            timestamp: 1_700_000_000,
+            hash: `0x${"a".repeat(64)}`,
+          },
+        },
+      });
+
+      const resultDb = await mockDb.processEvents([event]);
+      const updated = resultDb.entities.Pool.get(
+        PoolId(chainId, liquidityPool.poolAddress),
+      );
+      expect(updated).toBeDefined();
+      if (!updated) return;
+
+      // Edges populated by applyStakedPositionToEdges.
+      expect(updated.stakedTickEdges).toEqual([tickLower, tickUpper]);
+      expect(updated.stakedTickEdgeNets).toEqual([liquidity, -liquidity]);
+      // Counter MUST equal derive(currentTick=0n, edges, nets):
+      //   edge -100 ≤ 0 → contributes +500
+      //   edge  100 > 0 → excluded
+      // ⇒ stakedLiquidityInRange = 500. Legacy gated path would leave 0n.
+      expect(updated.stakedLiquidityInRange).toBe(
+        deriveStakedLiquidityInRange(
+          updated.tick ?? 0n,
+          updated.stakedTickEdges,
+          updated.stakedTickEdgeNets,
+        ),
+      );
+      expect(updated.stakedLiquidityInRange).toBe(500n);
+    });
+
+    it("(d) edge-merge rejection heals a previously poisoned counter via derivation", async () => {
+      // Simulates the "edge map disagrees with counter" mode: the aggregator's
+      // stakedLiquidityInRange is poisoned (non-zero with empty edges) from
+      // prior drift, and an incoming Deposit gets rejected by
+      // applyStakedPositionToEdges (degenerate range: tickLower >= tickUpper).
+      // With derivation, the rejection still triggers a heal — the counter is
+      // overwritten with derive(currentTick, edges, nets), which on empty
+      // edges is 0. The legacy gated path skipped the counter on rejection,
+      // so the poison would persist.
+      let mockDb = MockDb.createMockDb();
+      const liquidityPool = createMockPool({
+        isCL: true,
+        gaugeAddress,
+        sqrtPriceX96: sqrtAt(0n),
+        tick: 0n,
+        hasStakes: false,
+        // Poisoned cached counter — edges are empty, so the truth is 0n.
+        stakedLiquidityInRange: 999_999n,
+        stakedTickEdges: [],
+        stakedTickEdgeNets: [],
+      });
+      mockDb = mockDb.entities.Pool.set(liquidityPool);
+      mockDb = mockDb.entities.Token.set(mockToken0Data as Token);
+      mockDb = mockDb.entities.Token.set(mockToken1Data as Token);
+
+      // Degenerate position (tickLower >= tickUpper). Real chains wouldn't
+      // mint this, but the rejection path is the structural concern — any
+      // future rejection cause (out-of-range ticks from an upstream bug,
+      // corrupt RPC data, etc.) must converge the counter to the edge truth.
+      const tokenId = 1n;
+      mockDb = mockDb.entities.NonFungiblePosition.set(
+        createMockNonFungiblePosition({
+          tokenId,
+          nfpmAddress: defaultNfpmAddress,
+          pool: liquidityPool.poolAddress,
+          owner: userAddress,
+          tickLower: 200n,
+          tickUpper: 100n,
+          liquidity: 500n,
+        }),
+      );
+
+      const event = CLGauge.Deposit.createMockEvent({
+        user: userAddress,
+        tokenId,
+        liquidityToStake: 500n,
+        mockEventData: {
+          srcAddress: gaugeAddress,
+          chainId,
+          block: {
+            number: 1,
+            timestamp: 1_700_000_000,
+            hash: `0x${"a".repeat(64)}`,
+          },
+        },
+      });
+
+      const resultDb = await mockDb.processEvents([event]);
+      const updated = resultDb.entities.Pool.get(
+        PoolId(chainId, liquidityPool.poolAddress),
+      );
+      expect(updated).toBeDefined();
+      if (!updated) return;
+
+      // Rejection means edges are unchanged (still empty).
+      expect(updated.stakedTickEdges).toEqual([]);
+      expect(updated.stakedTickEdgeNets).toEqual([]);
+      // The healing invariant: counter must equal derive at the current tick.
+      expect(updated.stakedLiquidityInRange).toBe(
+        deriveStakedLiquidityInRange(
+          updated.tick ?? 0n,
+          updated.stakedTickEdges,
+          updated.stakedTickEdgeNets,
+        ),
+      );
+      expect(updated.stakedLiquidityInRange).toBe(0n);
+    });
+
+    it("(e) NFPM IncreaseLiquidity while price is out of range heals the counter", async () => {
+      // The exact #719 path 3 asymmetry: gauge Deposit adds +L while price is
+      // in range (counter += L). Price moves out of range. NFPM
+      // IncreaseLiquidity bumps position liquidity, but the legacy gate
+      // `isPositionInRange(...)` skips the counter update while the edge
+      // nets still update via applyStakedPositionToEdges. With derivation,
+      // the counter is recomputed from the updated edges at the (out-of-range)
+      // tick — both edges land ≤ currentTick, so the nets sum to zero and the
+      // counter heals from "stale L" to "0".
+      const tickLower = -100n;
+      const tickUpper = 100n;
+      const positionLiquidity = 100n;
+      const tokenId = 7n;
+
+      const liquidityPool = createMockPool({
+        isCL: true,
+        gaugeAddress,
+        // Price is now ABOVE the position's range (tick=500 > tickUpper=100).
+        sqrtPriceX96: sqrtAt(500n),
+        tick: 500n,
+        hasStakes: true,
+        // Pre-deposit state: counter=positionLiquidity (correct WHILE in range
+        // — set as if the deposit fired earlier at a price in range).
+        stakedLiquidityInRange: positionLiquidity,
+        stakedTickEdges: [tickLower, tickUpper],
+        stakedTickEdgeNets: [positionLiquidity, -positionLiquidity],
+      });
+
+      // Position is already staked in gauge (so updateStakedPositionLiquidity
+      // is the function NFPM.IncreaseLiquidity would invoke for it).
+      const position = createMockNonFungiblePosition({
+        tokenId,
+        nfpmAddress: defaultNfpmAddress,
+        pool: liquidityPool.poolAddress,
+        owner: userAddress,
+        tickLower,
+        tickUpper,
+        liquidity: positionLiquidity,
+        isStakedInGauge: true,
+      });
+
+      // Drive updateStakedPositionLiquidity directly: it's the function NFPM
+      // delegates to for staked positions, and bypassing the full event chain
+      // keeps the test focused on the counter-update path the issue exposes.
+      const setSpy = vi.fn();
+      const mockContext = {
+        Pool: { set: setSpy },
+        PoolSnapshot: { set: vi.fn() },
+        Token: { get: vi.fn().mockResolvedValue(undefined) },
+        log: {
+          error: vi.fn(),
+          warn: vi.fn(),
+          info: vi.fn(),
+          debug: vi.fn(),
+        },
+      } as unknown as handlerContext;
+
+      const increaseDelta = 50n;
+      await updateStakedPositionLiquidity(
+        position,
+        // biome-ignore lint/suspicious/noExplicitAny: trimmed PoolData for test
+        { liquidityPoolAggregator: liquidityPool } as any,
+        increaseDelta,
+        mockContext,
+        new Date(1_700_000_000_000),
+        chainId,
+        1,
+      );
+
+      expect(setSpy).toHaveBeenCalledTimes(1);
+      const written = setSpy.mock.calls[0][0] as {
+        stakedLiquidityInRange: bigint;
+        stakedTickEdges: bigint[];
+        stakedTickEdgeNets: bigint[];
+        tick: bigint;
+      };
+
+      // Edges absorbed the +increaseDelta (consistent with applyStakedPositionToEdges).
+      expect(written.stakedTickEdges).toEqual([tickLower, tickUpper]);
+      expect(written.stakedTickEdgeNets).toEqual([
+        positionLiquidity + increaseDelta,
+        -(positionLiquidity + increaseDelta),
+      ]);
+      // The healing invariant at the post-write tick. With tick=500, both
+      // edges contribute → +(L+Δ) - (L+Δ) = 0. The legacy code would have
+      // kept the counter at `positionLiquidity` (stale).
+      expect(written.stakedLiquidityInRange).toBe(
+        deriveStakedLiquidityInRange(
+          written.tick ?? 0n,
+          written.stakedTickEdges,
+          written.stakedTickEdgeNets,
+        ),
+      );
+      expect(written.stakedLiquidityInRange).toBe(0n);
+    });
+
+    it("(f) edge-sanity invariant: gauge Deposit + Withdraw round-trips counter to 0n", async () => {
+      // AC item: after deposit + N swaps + withdraw the counter MUST land on
+      // 0n. Swaps are emulated by mutating the aggregator's tick between
+      // Deposit and Withdraw — the structural fix means the counter is
+      // recomputed from edges at every write, so any number of intervening
+      // tick moves cannot poison the round-trip.
+      let mockDb = MockDb.createMockDb();
+      const liquidityPool = createMockPool({
+        isCL: true,
+        gaugeAddress,
+        sqrtPriceX96: sqrtAt(0n),
+        tick: 0n,
+        hasStakes: false,
+      });
+      mockDb = mockDb.entities.Pool.set(liquidityPool);
+      mockDb = mockDb.entities.Token.set(mockToken0Data as Token);
+      mockDb = mockDb.entities.Token.set(mockToken1Data as Token);
+
+      const tickLower = -100n;
+      const tickUpper = 100n;
+      const liquidity = 500n;
+      const tokenId = 1n;
+      mockDb = mockDb.entities.NonFungiblePosition.set(
+        createMockNonFungiblePosition({
+          tokenId,
+          nfpmAddress: defaultNfpmAddress,
+          pool: liquidityPool.poolAddress,
+          owner: userAddress,
+          tickLower,
+          tickUpper,
+          liquidity,
+        }),
+      );
+
+      // 1) Deposit at in-range tick.
+      const depositEvent = CLGauge.Deposit.createMockEvent({
+        user: userAddress,
+        tokenId,
+        liquidityToStake: liquidity,
+        mockEventData: {
+          srcAddress: gaugeAddress,
+          chainId,
+          block: {
+            number: 1,
+            timestamp: 1_700_000_000,
+            hash: `0x${"a".repeat(64)}`,
+          },
+        },
+      });
+      let resultDb = await mockDb.processEvents([depositEvent]);
+
+      const postDeposit = resultDb.entities.Pool.get(
+        PoolId(chainId, liquidityPool.poolAddress),
+      );
+      expect(postDeposit).toBeDefined();
+      if (!postDeposit) return;
+      expect(postDeposit.stakedLiquidityInRange).toBe(
+        deriveStakedLiquidityInRange(
+          postDeposit.tick ?? 0n,
+          postDeposit.stakedTickEdges,
+          postDeposit.stakedTickEdgeNets,
+        ),
+      );
+
+      // 2) Emulate N "swaps" by jiggling tick across the range and out the
+      // far side. Each pause writes the new (sqrtPriceX96, tick) state the
+      // way a Swap handler would have. The invariant must hold at every step.
+      const tickJourney = [50n, 99n, 500n, -300n, 0n];
+      for (const t of tickJourney) {
+        const current = resultDb.entities.Pool.get(
+          PoolId(chainId, liquidityPool.poolAddress),
+        );
+        if (!current) throw new Error("aggregator vanished mid-journey");
+        resultDb = resultDb.entities.Pool.set({
+          ...current,
+          tick: t,
+          sqrtPriceX96: sqrtAt(t),
+        });
+      }
+
+      // 3) Withdraw at the final tick (back in range).
+      const withdrawEvent = CLGauge.Withdraw.createMockEvent({
+        user: userAddress,
+        tokenId,
+        liquidityToStake: liquidity,
+        mockEventData: {
+          srcAddress: gaugeAddress,
+          chainId,
+          block: {
+            number: 2,
+            timestamp: 1_700_100_000,
+            hash: `0x${"b".repeat(64)}`,
+          },
+        },
+      });
+      resultDb = await resultDb.processEvents([withdrawEvent]);
+
+      const postWithdraw = resultDb.entities.Pool.get(
+        PoolId(chainId, liquidityPool.poolAddress),
+      );
+      expect(postWithdraw).toBeDefined();
+      if (!postWithdraw) return;
+
+      // After the round-trip, edges and counter must be empty/zero.
+      expect(postWithdraw.stakedTickEdges).toEqual([]);
+      expect(postWithdraw.stakedTickEdgeNets).toEqual([]);
+      expect(postWithdraw.stakedLiquidityInRange).toBe(
+        deriveStakedLiquidityInRange(
+          postWithdraw.tick ?? 0n,
+          postWithdraw.stakedTickEdges,
+          postWithdraw.stakedTickEdgeNets,
+        ),
+      );
+      expect(postWithdraw.stakedLiquidityInRange).toBe(0n);
+    });
   });
 });

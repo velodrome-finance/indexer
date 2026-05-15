@@ -227,6 +227,41 @@ export function applyStakedPositionToEdges(
 }
 
 /**
+ * Derives `stakedLiquidityInRange` from the canonical edge state at a given
+ * tick — replaces the running counter that drifted in issue #719.
+ *
+ *   stakedLiquidityInRange = Σ stakedTickEdgeNets[i]  where stakedTickEdges[i] <= currentTick
+ *
+ * Equivalent to the Uniswap v3 liquidityNet sum across all ticks the pool has
+ * crossed going up. Uses the same upper-exclusive convention as
+ * `isPositionInRange` (a position with tickUpper === currentTick is OUT of
+ * range, so its net at tickUpper is included and cancels its tickLower entry).
+ *
+ * Cost: O(log E + K) — binary-search the upper bound, then sum the prefix.
+ * For per-pool edge counts up to a few thousand the prefix scan is a handful
+ * of microseconds; cheap enough to invoke on every staked-position write so
+ * the cached counter cannot drift from the edge truth.
+ *
+ * @param currentTick - The pool's current tick
+ * @param edges - Sorted-ascending stakedTickEdges from the aggregator
+ * @param nets - Parallel stakedTickEdgeNets (same length, same index)
+ * @returns Σ nets[i] for edges[i] <= currentTick; 0n on empty edge list
+ */
+export function deriveStakedLiquidityInRange(
+  currentTick: bigint,
+  edges: readonly bigint[],
+  nets: readonly bigint[],
+): bigint {
+  // First index strictly above currentTick — everything before it is in range.
+  const upper = lowerBound(edges, currentTick + 1n);
+  let sum = 0n;
+  for (let i = 0; i < upper; i++) {
+    sum += nets[i];
+  }
+  return sum;
+}
+
+/**
  * Per-segment Uniswap v3 swap math at constant L. The pool's sqrt price moves
  * from `segStart` to `segEnd` while staked liquidity in range is `stakedLiq`.
  *
@@ -321,7 +356,11 @@ function segmentStakedReserveDelta(
  * @param tickSpacing - Pool's tick spacing (used only to short-circuit when 0)
  * @param context - Envio handler context — used ONLY for context.log.error;
  *                  must not touch entity APIs (see note above)
- * @param currentStakedLiqInRange - Staked in-range liquidity before the swap
+ * @param currentStakedLiqInRange - Staked in-range liquidity before the swap.
+ *   Kept for signature stability and consulted ONLY on early-exit paths
+ *   (out-of-range ticks, uninitialized pool, zero sqrt prices); the normal
+ *   walking path seeds itself from `deriveStakedLiquidityInRange(oldTick, ...)`
+ *   so the swap heals any prior counter drift (issue #719).
  * @param hasStakes - Whether this pool has ever had a staked position
  * @param stakedTickEdges - Sorted, dedup'd tick edges from the aggregator
  * @param stakedTickEdgeNets - Parallel nets (same index as stakedTickEdges)
@@ -377,7 +416,16 @@ export function processTickCrossingsForStaked(
     };
   }
 
-  let stakedLiq = currentStakedLiqInRange;
+  // Seed the walker from canonical edge state (issue #719). The cached
+  // counter `currentStakedLiqInRange` can drift away from the truth in
+  // edge-merge rejection / pre-Initialize / NFPM-between-stake scenarios;
+  // re-deriving from edges at oldTick ensures the per-segment attribution
+  // and the returned counter both reflect what the staked share actually is.
+  let stakedLiq = deriveStakedLiquidityInRange(
+    oldTick,
+    stakedTickEdges,
+    stakedTickEdgeNets,
+  );
   let segStart = oldSqrtPriceX96;
   let stakedDelta0 = 0n;
   let stakedDelta1 = 0n;

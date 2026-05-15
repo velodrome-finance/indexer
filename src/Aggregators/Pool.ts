@@ -256,6 +256,11 @@ export async function updatePool(
     );
     diff.stakedTickEdges = undefined;
     diff.stakedTickEdgeNets = undefined;
+    // Issue #719: writer-side derivation means diff.stakedLiquidityInRange was
+    // computed from the now-rejected edge pair. Drop it too so the clamp block
+    // below falls back to current.stakedLiquidityInRange, preserving consistency
+    // between the retained edges and the persisted counter.
+    diff.stakedLiquidityInRange = undefined;
   } else if (
     edgesSet &&
     netsSet &&
@@ -268,6 +273,8 @@ export async function updatePool(
     );
     diff.stakedTickEdges = undefined;
     diff.stakedTickEdgeNets = undefined;
+    // Issue #719: see comment above — keep counter aligned with retained edges.
+    diff.stakedLiquidityInRange = undefined;
   }
 
   // Clamp reserve0 / reserve1 to >= 0n at the accumulator path (issue #702).
@@ -291,6 +298,23 @@ export async function updatePool(
   if (reserve1Sum < 0n) {
     context.log.warn(
       `[NEG_RESERVE_GUARD][updatePool] field=reserve1 poolAddress=${current.poolAddress} chainId=${current.chainId} priorReserve=${current.reserve1} delta=${reserve1Delta} clampedTo=${clampedReserve1}`,
+    );
+  }
+
+  // Clamp stakedLiquidityInRange to >= 0n at the accumulator path (issue #719).
+  // The structural fix at the three writer sites derives this field from edge
+  // state on every update; this tactical clamp is the belt-and-suspenders that
+  // guarantees a negative value can never persist, even if a future caller
+  // bypasses derivation or supplies a poisoned diff. Mirrors PR #718's
+  // reserve-clamp shape (see [NEG_RESERVE_GUARD] above) — same clamp-and-log
+  // pattern, different field.
+  const stakedLiqReplacement =
+    diff.stakedLiquidityInRange ?? current.stakedLiquidityInRange ?? 0n;
+  const clampedStakedLiquidityInRange =
+    stakedLiqReplacement < 0n ? 0n : stakedLiqReplacement;
+  if (stakedLiqReplacement < 0n) {
+    context.log.warn(
+      `[NEG_STAKED_LIQ_GUARD][updatePool] field=stakedLiquidityInRange poolAddress=${current.poolAddress} chainId=${current.chainId} priorStakedLiqInRange=${current.stakedLiquidityInRange} replacement=${stakedLiqReplacement} clampedTo=${clampedStakedLiquidityInRange}`,
     );
   }
 
@@ -415,8 +439,7 @@ export async function updatePool(
       diff.liquidityInRange ??
       (diff.incrementalLiquidityInRange ?? 0n) +
         (current.liquidityInRange ?? 0n),
-    stakedLiquidityInRange:
-      diff.stakedLiquidityInRange ?? current.stakedLiquidityInRange,
+    stakedLiquidityInRange: clampedStakedLiquidityInRange,
     stakedReserve0:
       (current.stakedReserve0 ?? 0n) + (diff.incrementalStakedReserve0 ?? 0n),
     stakedReserve1:

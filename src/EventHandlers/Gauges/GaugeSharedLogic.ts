@@ -1,7 +1,7 @@
 import type { handlerContext } from "generated";
 import {
   applyStakedPositionToEdges,
-  isPositionInRange,
+  deriveStakedLiquidityInRange,
 } from "../../Aggregators/CLStakedLiquidity";
 import type { PoolData } from "../../Aggregators/Pool";
 import {
@@ -95,20 +95,20 @@ async function computeCLStakedReservesOnGaugeEvent(
     );
   }
 
-  // stakedLiquidityInRange only changes when the position is in range (drives swap proportional attribution).
-  // Gate on sqrtPriceX96 !== 0n: before the pool's first Swap initializes price,
-  // `tick` falls back to 0n, which would falsely classify any position spanning
-  // tick 0 as "in range" and permanently poison stakedLiquidityInRange.
-  // Also gate on !edgesRejected: if applyStakedPositionToEdges rejected the merge,
-  // the sparse edge map is unchanged, so updating the running in-range total would
-  // make it disagree with the edge set the swap path crosses and drift permanently.
-  const stakedLiquidityInRange =
-    !edgesRejected &&
-    sqrtPriceX96 !== 0n &&
-    isPositionInRange(position.tickLower, position.tickUpper, currentTick)
-      ? (liquidityPoolAggregator.stakedLiquidityInRange ?? 0n) +
-        direction * position.liquidity
-      : undefined;
+  // Derive stakedLiquidityInRange from the (possibly updated) edge state at
+  // currentTick (issue #719). The previous gated running-counter approach
+  // dropped updates on three asymmetric paths — pre-Initialize deposit,
+  // edge-merge rejection, and out-of-range NFPM changes between stake and
+  // unstake — letting the counter drift away from the edges over time.
+  // Derivation guarantees the counter and edges stay consistent on every
+  // write, regardless of in-range / sqrt / rejection status; if the position
+  // was rejected, the unchanged arrays still produce the prior consistent
+  // value.
+  const stakedLiquidityInRange = deriveStakedLiquidityInRange(
+    currentTick,
+    stakedTickEdges,
+    stakedTickEdgeNets,
+  );
 
   // stakedReserve0/1 track ALL staked token holdings (in-range + out-of-range) for USD valuation.
   // Out-of-range positions still hold tokens (100% token0 if below, 100% token1 if above),
