@@ -29,6 +29,13 @@ export interface RebindTarget {
  * Issue #701: 67 inflated-price tokens on Base (chainId 8453, all
  * `decimals: 18`, many sharing symbols with canonical USDC/USDT/AERO at
  * unrelated addresses).
+ * Issue #721: XAUt0/Ink (gold-pegged, on-chain oracle reports ~$4.7K vs ~$2.5K
+ * spot; no canonical XAUt0 is priced on any indexed chain, so cross-chain rebind
+ * isn't available — blacklist is the only honest valuation until a priced source
+ * appears in the indexer footprint).
+ * Issue #721: KING/Swell (on-chain oracle reports $222 with no canonical
+ * cross-chain source identified; blacklist pending ground-truth pricing
+ * investigation and an eventual de-whitelist).
  */
 const BLACKLIST: ReadonlySet<string> = new Set([
   TokenId(10, toChecksumAddress("0x7909Bda52eAf7C3cc12745E727Eb527a485241D8")), // $Manatee / Optimism
@@ -40,6 +47,14 @@ const BLACKLIST: ReadonlySet<string> = new Set([
     1135,
     toChecksumAddress("0x3f608A49a3ab475dA7fBb167C1Be6b7a45cD7013"),
   ), // ION / Lisk
+  TokenId(
+    57073,
+    toChecksumAddress("0xF50258D3c1dd88946C567920B986A12e65b50dAc"),
+  ), // XAUt0 / Ink (issue #721)
+  TokenId(
+    1923,
+    toChecksumAddress("0xc2606AADe4bdd978a4fa5a6edb3b66657acEe6F8"),
+  ), // KING / Swell (issue #721)
   // Issue #701: inflated-price tokens on Base (chainId 8453) with pricePerUSDNew > 10^28
   TokenId(
     8453,
@@ -359,6 +374,25 @@ const REBINDS: ReadonlyArray<{
         chainId: 1923,
         address: toChecksumAddress(
           "0xc3eaCf0612346366Db554c991D7858716db09f58",
+        ),
+      },
+    ],
+  },
+  {
+    // Issue #721: SolvBTC on Ink -> SolvBTC on Base. Same Solv-issued 1:1 BTC
+    // wrapper; Base is whitelisted in Aerodrome and carries a deep SolvBTC/cbBTC
+    // pool that prices it cleanly. Ink's local oracle reports ~$450K vs ~$100K
+    // spot — driving $5.19B + $17.06M phantom TVL across two kBTC/SolvBTC CL
+    // pools because SolvBTC is whitelisted on Ink as a price anchor.
+    source: {
+      chainId: 8453,
+      address: toChecksumAddress("0x3B86Ad95859b6AB773f55f8d94B4b9d443EE931f"),
+    },
+    targets: [
+      {
+        chainId: 57073,
+        address: toChecksumAddress(
+          "0xaE4EFbc7736f963982aACb17EFA37fCBAb924cB3",
         ),
       },
     ],
