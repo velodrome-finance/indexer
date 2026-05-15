@@ -29,6 +29,12 @@ export interface RebindTarget {
  * Issue #701: 67 inflated-price tokens on Base (chainId 8453, all
  * `decimals: 18`, many sharing symbols with canonical USDC/USDT/AERO at
  * unrelated addresses).
+ * Issue #720: 12 inflated-price tokens on Optimism (10), Soneium (1868), and
+ * Unichain (130) — same shape as #701, drives phantom TVL outside Base. The
+ * whitelisted Tier-1 inflated tokens (rsETH/Swell, SolvBTC/Ink) are handled
+ * via canonical rebinds (see REBINDS below); XAUt0/Ink and KING/Swell were
+ * also whitelisted but have no canonical priced source on any indexed chain,
+ * so they fall under blacklist (see #721 below).
  * Issue #721: XAUt0/Ink (gold-pegged, on-chain oracle reports ~$4.7K vs ~$2.5K
  * spot; no canonical XAUt0 is priced on any indexed chain, so cross-chain rebind
  * isn't available — blacklist is the only honest valuation until a priced source
@@ -324,6 +330,23 @@ const BLACKLIST: ReadonlySet<string> = new Set([
     8453,
     toChecksumAddress("0xEBCc3B60ED7bD906463BFafEbF5F9b19b5b0Cb7c"),
   ), // ARASH
+  // Issue #720: inflated-price tokens on Optimism (chainId 10) with pricePerUSDNew > 10^28
+  TokenId(10, toChecksumAddress("0xc32e6bb2958e5633b2Bb9c49Dbbd22dB831c8c66")), // STABLECOIN
+  TokenId(10, toChecksumAddress("0x1eb8C65f5aFE1cBF62dfb2FD114809F0ec87EBFf")), // BITCOINBR
+  TokenId(10, toChecksumAddress("0xCb8e85c739B115FAE175e1F5741E1792cE2a2569")), // JEWT
+  TokenId(10, toChecksumAddress("0xFC366d0F92F5E03f25d867C82B451B89E17907a3")), // ET
+  TokenId(10, toChecksumAddress("0x350a791Bfc2C21F9Ed5d10980Dad2e2638ffa7f6")), // LINK (impostor)
+  TokenId(10, toChecksumAddress("0xf5ACDd10CD97Cb96c256A337e00478715Df55759")), // HKD (impostor — real HKD ~$0.13)
+  TokenId(10, toChecksumAddress("0x9d36F8f62347538440a212e9162f534f797542df")), // SATS
+  TokenId(10, toChecksumAddress("0xB9243C495117343981EC9f8AA2ABfFEe54396Fc0")), // USDpy (stable)
+  TokenId(10, toChecksumAddress("0xCF9326e24EBfFBEF22ce1050007A43A3c0B6DB55")), // sUSDC (stable)
+  // Issue #720: inflated-price token on Soneium (chainId 1868)
+  TokenId(
+    1868,
+    toChecksumAddress("0xAffEb8576b927050f5a3B6fbA43F360D2883A118"),
+  ), // SolvBTC.JUP
+  // Issue #720: inflated-price token on Unichain (chainId 130)
+  TokenId(130, toChecksumAddress("0x749Fb1c53bd3dC7269b42bc7ffDaB111532e664a")), // GUEDDY🌹♱
 ]);
 
 /**
