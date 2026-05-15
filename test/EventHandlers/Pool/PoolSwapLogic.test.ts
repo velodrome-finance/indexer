@@ -258,6 +258,43 @@ describe("PoolSwapLogic", () => {
       calculateTokenAmountUSDSpy.mockRestore();
     });
 
+    it("should pick the smaller-USD leg when one token's price is corrupted (#699)", () => {
+      // Reproduces issue #699: scam-token / poisoned-oracle case. token0 reports
+      // an absurdly inflated price (1e35 instead of 1e18), token1 is a healthy
+      // USDC ($1). Old behaviour picked token0 and contaminated totalVolumeUSD;
+      // new behaviour picks min(t0, t1) — the honest USDC-side amount.
+      const corruptedToken0: Token = {
+        ...mockToken0,
+        pricePerUSDNew: 100000000000000000000000000000000000n, // 1e35
+      };
+      const healthyToken1: Token = {
+        ...mockToken1,
+        pricePerUSDNew: 1n * 1000000000000000000n, // 1e18 ($1)
+        decimals: 6n,
+      };
+      const swapEvent: Pool_Swap_event = {
+        ...mockEvent,
+        params: {
+          ...mockEvent.params,
+          // token0: 1e18 raw units (1 token at 18 decimals)
+          amount0In: 1000000000000000000n,
+          amount1In: 0n,
+          amount0Out: 0n,
+          // token1: 1e6 raw units (1 USDC at 6 decimals = $1)
+          amount1Out: 1000000n,
+        },
+      };
+
+      const result = processPoolSwap(swapEvent, corruptedToken0, healthyToken1);
+
+      // token0UsdValue = (1e18 * 1e18 / 1e18) * 1e35 / 1e18 = 1e35 (corrupted)
+      // token1UsdValue = (1e6 * 1e18 / 1e6) * 1e18 / 1e18 = 1e18 (honest $1)
+      // min picks the honest leg.
+      expect(result.liquidityPoolDiff?.incrementalTotalVolumeUSD).toBe(
+        1000000000000000000n,
+      );
+    });
+
     it("should fallback to 0n when both token0UsdValue and token1UsdValue are undefined", () => {
       // Mock calculateTokenAmountUSD to return undefined for both tokens
       const calculateTokenAmountUSDSpy = vi.spyOn(

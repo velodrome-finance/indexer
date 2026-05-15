@@ -1,7 +1,10 @@
 import type { Pool_Swap_event, Token } from "generated";
 import type { LiquidityPoolAggregatorDiff } from "../../Aggregators/LiquidityPoolAggregator";
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
-import { calculateTokenAmountUSD } from "../../Helpers";
+import {
+  calculateTokenAmountUSD,
+  pickTrustedSwapVolumeUSD,
+} from "../../Helpers";
 
 export interface PoolSwapResult {
   liquidityPoolDiff: Partial<LiquidityPoolAggregatorDiff>;
@@ -33,11 +36,10 @@ export function processPoolSwap(
     token1Instance.pricePerUSDNew,
   );
 
-  // Calculate volume in USD (use token0 if available and non-zero, otherwise token1)
-  const volumeInUSD =
-    token0UsdValue !== undefined && token0UsdValue !== 0n
-      ? token0UsdValue
-      : (token1UsdValue ?? 0n);
+  // Pick the more-trusted USD leg — min when both are priced, fallback to the
+  // non-zero one otherwise. Guards against scam-token / poisoned-oracle
+  // inflation poisoning aggregate volume (issue #699).
+  const volumeInUSD = pickTrustedSwapVolumeUSD(token0UsdValue, token1UsdValue);
 
   // Calculate whitelisted volume (at least one token must be whitelisted,
   // consistent with calculateWhitelistedFeesUSD which uses the same rule)

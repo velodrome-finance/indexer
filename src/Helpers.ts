@@ -77,6 +77,32 @@ export function calculateTokenAmountUSD(
   return multiplyBase1e18(normalizedAmount, pricePerUSDNew);
 }
 
+/**
+ * Picks the more-trusted USD leg of a swap.
+ *
+ * When both legs are non-zero, returns the smaller value. Corrupted token
+ * prices (poisoned oracle paths, scam tokens) are universally *inflated*
+ * — see issue #699, where a fake-USDC's `pricePerUSDNew` of ~1.5e35 polluted
+ * `totalVolumeUSD` for any pool paired against it. The honest leg is reliably
+ * the smaller of the two. When only one leg is priced (the other is `0n` or
+ * `undefined`), falls back to that leg.
+ *
+ * @param token0UsdValue - Token0's USD leg, or `undefined` when token0 is unpriced
+ * @param token1UsdValue - Token1's USD leg, or `undefined` when token1 is unpriced
+ * @returns The picked volume in USD, or `0n` when neither leg is priced
+ */
+export function pickTrustedSwapVolumeUSD(
+  token0UsdValue: bigint | undefined,
+  token1UsdValue: bigint | undefined,
+): bigint {
+  const t0 = token0UsdValue ?? 0n;
+  const t1 = token1UsdValue ?? 0n;
+  if (t0 !== 0n && t1 !== 0n) return t0 < t1 ? t0 : t1;
+  if (t0 !== 0n) return t0;
+  if (t1 !== 0n) return t1;
+  return 0n;
+}
+
 // Helper function to get generate the pool name given token0 and token1 symbols and isStable boolean
 export function generatePoolName(
   token0Symbol: string,

@@ -29,6 +29,10 @@ describe("Pool Swap Event", () => {
     totalVolume1: 0n,
     expectedLPVolumeUSD0: 0n,
     expectedLPVolumeUSD1: 0n,
+    // Min-leg pick (#699): when both legs are priced, swap volume picks the
+    // smaller leg to resist scam-token oracle inflation.
+    expectedLPVolumeUSDMin: 0n,
+    expectedSwapVolumeUSDMin: 0n,
     totalVolumeUSDWhitelisted: 0n,
   };
 
@@ -76,19 +80,28 @@ describe("Pool Swap Event", () => {
       mockLiquidityPoolData.totalVolume1 + expectations.swapAmount1Out;
 
     // The code expects pricePerUSDNew to be normalized to 1e18
-    expectations.expectedLPVolumeUSD0 =
-      mockLiquidityPoolData.totalVolumeUSD +
+    const swapVolumeUSD0 =
       expectations.expectedNetAmount0 *
-        (TEN_TO_THE_18_BI / 10n ** mockToken0Data.decimals) *
-        (mockToken0Data.pricePerUSDNew / TEN_TO_THE_18_BI);
-
-    expectations.expectedLPVolumeUSD1 =
-      mockLiquidityPoolData.totalVolumeUSD +
+      (TEN_TO_THE_18_BI / 10n ** mockToken0Data.decimals) *
+      (mockToken0Data.pricePerUSDNew / TEN_TO_THE_18_BI);
+    const swapVolumeUSD1 =
       expectations.expectedNetAmount1 *
-        (TEN_TO_THE_18_BI / 10n ** mockToken1Data.decimals) *
-        (mockToken1Data.pricePerUSDNew / TEN_TO_THE_18_BI);
+      (TEN_TO_THE_18_BI / 10n ** mockToken1Data.decimals) *
+      (mockToken1Data.pricePerUSDNew / TEN_TO_THE_18_BI);
 
-    expectations.totalVolumeUSDWhitelisted = expectations.expectedLPVolumeUSD0;
+    expectations.expectedLPVolumeUSD0 =
+      mockLiquidityPoolData.totalVolumeUSD + swapVolumeUSD0;
+    expectations.expectedLPVolumeUSD1 =
+      mockLiquidityPoolData.totalVolumeUSD + swapVolumeUSD1;
+
+    expectations.expectedSwapVolumeUSDMin =
+      swapVolumeUSD0 < swapVolumeUSD1 ? swapVolumeUSD0 : swapVolumeUSD1;
+    expectations.expectedLPVolumeUSDMin =
+      mockLiquidityPoolData.totalVolumeUSD +
+      expectations.expectedSwapVolumeUSDMin;
+
+    expectations.totalVolumeUSDWhitelisted =
+      expectations.expectedLPVolumeUSDMin;
 
     mockPriceOracle = vi
       .spyOn(PriceOracle, "refreshTokenPrice")
@@ -142,7 +155,10 @@ describe("Pool Swap Event", () => {
       expect(userStats?.poolAddress).toBe(eventData.mockEventData.srcAddress);
       expect(userStats?.chainId).toBe(eventData.mockEventData.chainId);
       expect(userStats?.numberOfSwaps).toBe(1n);
-      expect(userStats?.totalSwapVolumeUSD).toBe(100000000000000000000n); // 100 tokens * 1 USD
+      // min(token0 = 100 * $1, token1 = 99 * $1) → 99 USDC-side amount
+      expect(userStats?.totalSwapVolumeUSD).toBe(
+        expectations.expectedSwapVolumeUSDMin,
+      );
       expect(userStats?.lastActivityTimestamp).toEqual(
         new Date(eventData.mockEventData.block.timestamp * 1000),
       );
@@ -153,7 +169,7 @@ describe("Pool Swap Event", () => {
       expect(updatedPool?.totalVolume0).toBe(expectations.totalVolume0);
       expect(updatedPool?.totalVolume1).toBe(expectations.totalVolume1);
       expect(updatedPool?.totalVolumeUSD).toBe(
-        expectations.expectedLPVolumeUSD0,
+        expectations.expectedLPVolumeUSDMin,
       );
       expect(updatedPool?.totalVolumeUSDWhitelisted).toBe(
         expectations.totalVolumeUSDWhitelisted,
