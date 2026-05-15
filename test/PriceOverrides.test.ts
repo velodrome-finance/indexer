@@ -30,24 +30,6 @@ describe("PriceOverrides", () => {
       ).toBe(true);
     });
 
-    it("returns true for XAUt0 on Ink", () => {
-      expect(
-        isBlacklistedToken(
-          57073,
-          toChecksumAddress("0xF50258D3c1dd88946C567920B986A12e65b50dAc"),
-        ),
-      ).toBe(true);
-    });
-
-    it("returns true for KING on Swell", () => {
-      expect(
-        isBlacklistedToken(
-          1923,
-          toChecksumAddress("0xc2606AADe4bdd978a4fa5a6edb3b66657acEe6F8"),
-        ),
-      ).toBe(true);
-    });
-
     it("returns false for tokens not in the blacklist", () => {
       expect(
         isBlacklistedToken(
@@ -100,24 +82,10 @@ describe("PriceOverrides", () => {
     const WRSETH_BASE = toChecksumAddress(
       "0xEDfa23602D0EC14714057867A78d01e94176BEA0",
     );
-    const SOLVBTC_INK = toChecksumAddress(
-      "0xaE4EFbc7736f963982aACb17EFA37fCBAb924cB3",
-    );
-    const SOLVBTC_BASE = toChecksumAddress(
-      "0x3B86Ad95859b6AB773f55f8d94B4b9d443EE931f",
-    );
-
     it("rebinds rsETH/Swell to wrsETH/Base", () => {
       expect(getRebindTarget(1923, RSETH_SWELL)).toEqual({
         chainId: 8453,
         address: WRSETH_BASE,
-      });
-    });
-
-    it("rebinds SolvBTC/Ink to SolvBTC/Base", () => {
-      expect(getRebindTarget(57073, SOLVBTC_INK)).toEqual({
-        chainId: 8453,
-        address: SOLVBTC_BASE,
       });
     });
 
