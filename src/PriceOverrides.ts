@@ -398,6 +398,31 @@ const REBINDS: ReadonlyArray<{
     ],
   },
   {
+    // Issue #721 follow-up: ezETH on Swell/Ink/Fraxtal/Mode/Base -> ezETH on
+    // Optimism. Renzo's ezETH is deployed at the same address across chains
+    // (`0x2416092f143378750bb29b79eD961ab195CcEea5`); Optimism's local oracle
+    // prices it cleanly at ~$2.5K while Swell reports $257 (~10x deflation).
+    // Source chain is Optimism because CHAIN_ANCHORS only covers OP + Base.
+    source: {
+      chainId: 10,
+      address: toChecksumAddress("0x2416092f143378750bb29b79eD961ab195CcEea5"),
+    },
+    targets: [
+      {
+        chainId: 1923,
+        address: toChecksumAddress(
+          "0x2416092f143378750bb29b79eD961ab195CcEea5",
+        ),
+      },
+      {
+        chainId: 57073,
+        address: toChecksumAddress(
+          "0x2416092f143378750bb29b79eD961ab195CcEea5",
+        ),
+      },
+    ],
+  },
+  {
     // XVELO on every superchain -> canonical VELO on Optimism
     source: {
       chainId: 10,
