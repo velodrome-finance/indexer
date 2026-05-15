@@ -1,6 +1,7 @@
-import type { LiquidityPoolAggregator, Token } from "generated";
+import type { Token } from "generated";
 import { CLPool } from "../../../generated/src/TestHelpers.gen";
 import { toChecksumAddress } from "../../../src/Constants";
+import type { Pool } from "../../../src/EntityTypes";
 import { processCLPoolMint } from "../../../src/EventHandlers/CLPool/CLPoolMintLogic";
 import { setupCommon } from "../Pool/common";
 
@@ -54,18 +55,18 @@ describe("CLPoolMintLogic", () => {
     lastUpdatedTimestamp: new Date(1000000 * 1000),
   };
 
-  const mockLiquidityPoolAggregator = {
+  const mockPool = {
     ...mockLiquidityPoolData,
     reserve0: 1000000000000000000n,
     reserve1: 2000000000000000000n,
     totalLiquidityUSD: 5000000000000000000n,
-  } as LiquidityPoolAggregator;
+  } as Pool;
 
   describe("processCLPoolMint", () => {
     it("should process mint event successfully with valid data", () => {
       const result = processCLPoolMint(
         mockEvent,
-        mockLiquidityPoolAggregator,
+        mockPool,
         mockToken0,
         mockToken1,
       );
@@ -87,7 +88,7 @@ describe("CLPoolMintLogic", () => {
     it("should calculate correct liquidity values for mint event", () => {
       const result = processCLPoolMint(
         mockEvent,
-        mockLiquidityPoolAggregator,
+        mockPool,
         mockToken0,
         mockToken1,
       );
@@ -112,7 +113,7 @@ describe("CLPoolMintLogic", () => {
 
       const result = processCLPoolMint(
         mockEvent,
-        mockLiquidityPoolAggregator,
+        mockPool,
         tokenWithDifferentDecimals,
         mockToken1,
       );
@@ -139,7 +140,7 @@ describe("CLPoolMintLogic", () => {
 
       const result = processCLPoolMint(
         eventWithZeroAmounts,
-        mockLiquidityPoolAggregator,
+        mockPool,
         mockToken0,
         mockToken1,
       );
@@ -155,10 +156,10 @@ describe("CLPoolMintLogic", () => {
       // mockEvent uses tickLower=100000, tickUpper=200000.
       // Place aggregator.tick mid-range so the position contributes its full L.
       const inRangeAggregator = {
-        ...mockLiquidityPoolAggregator,
+        ...mockPool,
         tick: 150000n,
         liquidityInRange: 7_000_000_000n,
-      } as LiquidityPoolAggregator;
+      } as Pool;
 
       const result = processCLPoolMint(
         mockEvent,
@@ -176,10 +177,10 @@ describe("CLPoolMintLogic", () => {
     });
 
     it("should not touch liquidityInRange when position is out of range (tick below tickLower)", () => {
-      // Default mockLiquidityPoolAggregator.tick = 0n, tickLower = 100000n → below.
+      // Default mockPool.tick = 0n, tickLower = 100000n → below.
       const result = processCLPoolMint(
         mockEvent,
-        mockLiquidityPoolAggregator,
+        mockPool,
         mockToken0,
         mockToken1,
       );
@@ -193,9 +194,9 @@ describe("CLPoolMintLogic", () => {
     it("should not touch liquidityInRange when position is out of range (tick at or above tickUpper)", () => {
       // tickUpper is exclusive: tick === tickUpper means out-of-range above.
       const aboveAggregator = {
-        ...mockLiquidityPoolAggregator,
+        ...mockPool,
         tick: 200000n,
-      } as LiquidityPoolAggregator;
+      } as Pool;
 
       const result = processCLPoolMint(
         mockEvent,
@@ -211,9 +212,9 @@ describe("CLPoolMintLogic", () => {
 
     it("should include the boundary at tickLower (inclusive)", () => {
       const atLowerAggregator = {
-        ...mockLiquidityPoolAggregator,
+        ...mockPool,
         tick: 100000n,
-      } as LiquidityPoolAggregator;
+      } as Pool;
 
       const result = processCLPoolMint(
         mockEvent,

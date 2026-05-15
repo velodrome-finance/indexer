@@ -1,10 +1,10 @@
 import { MockDb, Redistributor } from "../../../generated/src/TestHelpers.gen";
 import { toChecksumAddress } from "../../../src/Constants";
-import { type MockLiquidityPoolAggregator, setupCommon } from "../Pool/common";
+import { type MockPool, setupCommon } from "../Pool/common";
 import { makeRedistributorMockEventData } from "./common";
 
 describe("Redistributor Event Handlers", () => {
-  const { createMockLiquidityPoolAggregator } = setupCommon();
+  const { createMockPool } = setupCommon();
   const chainId = 8453; // Base
   const redistributorAddress = toChecksumAddress(
     "0xEe5b3C7b333e2870B746b3B2b168EF0958e55e15",
@@ -43,8 +43,8 @@ describe("Redistributor Event Handlers", () => {
   const seedPool = (
     existingForfeited = 0n,
     existingRedistributed = 0n,
-  ): MockLiquidityPoolAggregator =>
-    createMockLiquidityPoolAggregator({
+  ): MockPool =>
+    createMockPool({
       chainId,
       gaugeAddress,
       totalEmissionsForfeited: existingForfeited,
@@ -54,8 +54,7 @@ describe("Redistributor Event Handlers", () => {
   describe("Deposited event", () => {
     it("increments totalEmissionsForfeited on the gauge's pool", async () => {
       const pool = seedPool(10n);
-      const populatedDb =
-        MockDb.createMockDb().entities.LiquidityPoolAggregator.set(pool);
+      const populatedDb = MockDb.createMockDb().entities.Pool.set(pool);
       const amount = 1_234_567_890_000_000_000n;
 
       const mockEvent = Redistributor.Deposited.createMockEvent({
@@ -72,7 +71,7 @@ describe("Redistributor Event Handlers", () => {
       });
 
       const result = await populatedDb.processEvents([mockEvent]);
-      const updatedPool = result.entities.LiquidityPoolAggregator.get(pool.id);
+      const updatedPool = result.entities.Pool.get(pool.id);
 
       expect(updatedPool?.totalEmissionsForfeited).toBe(10n + amount);
       expect(updatedPool?.totalEmissionsRedistributed).toBe(0n);
@@ -81,8 +80,7 @@ describe("Redistributor Event Handlers", () => {
 
     it("no-ops when the gauge does not match any pool", async () => {
       const pool = seedPool();
-      const populatedDb =
-        MockDb.createMockDb().entities.LiquidityPoolAggregator.set(pool);
+      const populatedDb = MockDb.createMockDb().entities.Pool.set(pool);
 
       const mockEvent = Redistributor.Deposited.createMockEvent({
         gauge: unknownGaugeAddress,
@@ -98,24 +96,19 @@ describe("Redistributor Event Handlers", () => {
       });
 
       const result = await populatedDb.processEvents([mockEvent]);
-      const unchangedPool = result.entities.LiquidityPoolAggregator.get(
-        pool.id,
-      );
+      const unchangedPool = result.entities.Pool.get(pool.id);
 
       expect(unchangedPool?.totalEmissionsForfeited).toBe(0n);
       expect(unchangedPool?.totalEmissionsRedistributed).toBe(0n);
       // Guard against the handler synthesising a pool entity on gauge miss.
-      expect(
-        Array.from(result.entities.LiquidityPoolAggregator.getAll()).length,
-      ).toBe(1);
+      expect(Array.from(result.entities.Pool.getAll()).length).toBe(1);
     });
   });
 
   describe("Redistributed event", () => {
     it("increments totalEmissionsRedistributed on the gauge's pool", async () => {
       const pool = seedPool(0n, 3n);
-      const populatedDb =
-        MockDb.createMockDb().entities.LiquidityPoolAggregator.set(pool);
+      const populatedDb = MockDb.createMockDb().entities.Pool.set(pool);
       const amount = 42_000_000_000_000_000_000n;
 
       const mockEvent = Redistributor.Redistributed.createMockEvent({
@@ -132,7 +125,7 @@ describe("Redistributor Event Handlers", () => {
       });
 
       const result = await populatedDb.processEvents([mockEvent]);
-      const updatedPool = result.entities.LiquidityPoolAggregator.get(pool.id);
+      const updatedPool = result.entities.Pool.get(pool.id);
 
       expect(updatedPool?.totalEmissionsRedistributed).toBe(3n + amount);
       expect(updatedPool?.totalEmissionsForfeited).toBe(0n);
@@ -141,8 +134,7 @@ describe("Redistributor Event Handlers", () => {
 
     it("accumulates across multiple Redistributed events in the same tx", async () => {
       const pool = seedPool();
-      const populatedDb =
-        MockDb.createMockDb().entities.LiquidityPoolAggregator.set(pool);
+      const populatedDb = MockDb.createMockDb().entities.Pool.set(pool);
 
       const firstEvent = Redistributor.Redistributed.createMockEvent({
         sender: senderAddress,
@@ -170,7 +162,7 @@ describe("Redistributor Event Handlers", () => {
       });
 
       const result = await populatedDb.processEvents([firstEvent, secondEvent]);
-      const updatedPool = result.entities.LiquidityPoolAggregator.get(pool.id);
+      const updatedPool = result.entities.Pool.get(pool.id);
 
       expect(updatedPool?.totalEmissionsRedistributed).toBe(3n);
     });

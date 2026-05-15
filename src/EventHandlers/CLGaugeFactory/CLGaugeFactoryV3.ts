@@ -37,7 +37,7 @@ CLGaugeFactoryV3.SetDefaultMinStakeTime.handler(async ({ event, context }) => {
 
 CLGaugeFactoryV3.SetPoolMinStakeTime.handler(async ({ event, context }) => {
   const poolId = PoolId(event.chainId, event.params._pool);
-  const pool = await context.LiquidityPoolAggregator.get(poolId);
+  const pool = await context.Pool.get(poolId);
 
   if (!pool) {
     context.log.error(
@@ -46,7 +46,7 @@ CLGaugeFactoryV3.SetPoolMinStakeTime.handler(async ({ event, context }) => {
     return;
   }
 
-  context.LiquidityPoolAggregator.set({
+  context.Pool.set({
     ...pool,
     minStakeTime: event.params._minStakeTime,
     lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),

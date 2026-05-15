@@ -4,13 +4,13 @@ import type {
   Token,
   handlerContext,
 } from "generated";
-import type { LiquidityPoolAggregatorDiff } from "../../Aggregators/LiquidityPoolAggregator";
+import type { PoolDiff } from "../../Aggregators/Pool";
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import { CLPositionPendingPrincipalId } from "../../Constants";
 import { calculateTotalUSD, calculateWhitelistedFeesUSD } from "../../Helpers";
 
 export interface CLPoolCollectResult {
-  liquidityPoolDiff: Partial<LiquidityPoolAggregatorDiff>;
+  liquidityPoolDiff: Partial<PoolDiff>;
   userLiquidityDiff: Partial<UserStatsPerPoolDiff>;
 }
 

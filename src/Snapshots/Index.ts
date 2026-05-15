@@ -6,9 +6,9 @@ export {
   type SnapshotForPersist,
 } from "./Shared";
 export {
-  createLiquidityPoolAggregatorSnapshot,
-  setLiquidityPoolAggregatorSnapshot,
-} from "./LiquidityPoolAggregatorSnapshot";
+  createPoolSnapshot,
+  setPoolSnapshot,
+} from "./PoolSnapshot";
 export {
   createUserStatsPerPoolSnapshot,
   setUserStatsPerPoolSnapshot,

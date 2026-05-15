@@ -1,15 +1,11 @@
-import type {
-  CLPool_Burn_event,
-  LiquidityPoolAggregator,
-  Token,
-  handlerContext,
-} from "generated";
-import type { LiquidityPoolAggregatorDiff } from "../../Aggregators/LiquidityPoolAggregator";
+import type { CLPool_Burn_event, Token, handlerContext } from "generated";
+import type { PoolDiff } from "../../Aggregators/Pool";
 import { CLPositionPendingPrincipalId } from "../../Constants";
+import type { Pool } from "../../EntityTypes";
 import { calculateTotalUSD } from "../../Helpers";
 
 export interface CLPoolBurnResult {
-  liquidityPoolDiff: Partial<LiquidityPoolAggregatorDiff>;
+  liquidityPoolDiff: Partial<PoolDiff>;
 }
 
 /**
@@ -33,7 +29,7 @@ export interface CLPoolBurnResult {
  */
 export async function processCLPoolBurn(
   event: CLPool_Burn_event,
-  liquidityPoolAggregator: LiquidityPoolAggregator,
+  liquidityPoolAggregator: Pool,
   token0Instance: Token,
   token1Instance: Token,
   context: handlerContext,
@@ -61,7 +57,7 @@ export async function processCLPoolBurn(
     event.params.tickLower <= currentTick &&
     currentTick < event.params.tickUpper;
 
-  const liquidityPoolDiff: Partial<LiquidityPoolAggregatorDiff> = {
+  const liquidityPoolDiff: Partial<PoolDiff> = {
     incrementalReserve0: -event.params.amount0,
     incrementalReserve1: -event.params.amount1,
     currentTotalLiquidityUSD: currentTotalLiquidityUSD,

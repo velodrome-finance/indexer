@@ -63,17 +63,17 @@ describe("LPWrapperLogic", () => {
   const mockSqrtPriceX96 = 79228162514264337593543950336n; // sqrt(1) * 2^96
 
   let mockContext: handlerContext;
-  let mockLiquidityPoolAggregator: Mock;
+  let mockPool: Mock;
 
   beforeEach(() => {
-    mockLiquidityPoolAggregator = vi.fn().mockResolvedValue({
+    mockPool = vi.fn().mockResolvedValue({
       sqrtPriceX96: mockSqrtPriceX96,
       isCL: true,
     });
 
     mockContext = {
-      LiquidityPoolAggregator: {
-        get: mockLiquidityPoolAggregator,
+      Pool: {
+        get: mockPool,
       },
       log: {
         warn: vi.fn(),
@@ -196,8 +196,8 @@ describe("LPWrapperLogic", () => {
       // Result should be a calculated liquidity value (not the original)
       expect(result).not.toBe(wrapper.liquidity);
       expect(typeof result).toBe("bigint");
-      expect(mockLiquidityPoolAggregator).toHaveBeenCalledTimes(1);
-      expect(mockLiquidityPoolAggregator).toHaveBeenCalledWith(poolId);
+      expect(mockPool).toHaveBeenCalledTimes(1);
+      expect(mockPool).toHaveBeenCalledWith(poolId);
     });
 
     it("should return current liquidity if pool entity is not found", async () => {
@@ -212,7 +212,7 @@ describe("LPWrapperLogic", () => {
       const updatedAmount1 = 300n * 10n ** 6n;
 
       // Mock pool entity not found
-      mockLiquidityPoolAggregator.mockResolvedValue(null);
+      mockPool.mockResolvedValue(null);
 
       const result = await calculateLiquidityFromAmounts(
         wrapper,
@@ -228,7 +228,7 @@ describe("LPWrapperLogic", () => {
       // Should return current liquidity
       expect(result).toBe(wrapper.liquidity);
       expect(vi.mocked(mockContext.log.error)).toHaveBeenCalledTimes(1);
-      expect(mockLiquidityPoolAggregator).toHaveBeenCalledTimes(1);
+      expect(mockPool).toHaveBeenCalledTimes(1);
     });
 
     it("should return current liquidity if pool entity fetch throws error", async () => {
@@ -243,9 +243,7 @@ describe("LPWrapperLogic", () => {
       const updatedAmount1 = 300n * 10n ** 6n;
 
       // Mock pool entity fetch throws error
-      mockLiquidityPoolAggregator.mockRejectedValue(
-        new Error("Failed to fetch"),
-      );
+      mockPool.mockRejectedValue(new Error("Failed to fetch"));
 
       const result = await calculateLiquidityFromAmounts(
         wrapper,
@@ -275,7 +273,7 @@ describe("LPWrapperLogic", () => {
       const updatedAmount1 = 300n * 10n ** 6n;
 
       // Mock pool with undefined sqrtPriceX96
-      mockLiquidityPoolAggregator.mockResolvedValue({
+      mockPool.mockResolvedValue({
         sqrtPriceX96: undefined,
         isCL: true,
       });
@@ -311,7 +309,7 @@ describe("LPWrapperLogic", () => {
       const updatedAmount1 = 300n * 10n ** 6n;
 
       // Mock pool with sqrtPriceX96 = 0
-      mockLiquidityPoolAggregator.mockResolvedValue({
+      mockPool.mockResolvedValue({
         sqrtPriceX96: 0n,
         isCL: true,
       });
@@ -344,9 +342,7 @@ describe("LPWrapperLogic", () => {
       const updatedAmount1 = 300n * 10n ** 6n;
 
       // Throw unexpected error when fetching pool entity
-      mockLiquidityPoolAggregator.mockRejectedValue(
-        new Error("Unexpected error"),
-      );
+      mockPool.mockRejectedValue(new Error("Unexpected error"));
 
       const result = await calculateLiquidityFromAmounts(
         wrapper,
@@ -379,7 +375,7 @@ describe("LPWrapperLogic", () => {
       const updatedAmount1 = 300n * 10n ** 6n;
 
       // Mock pool entity fetch to throw error
-      mockLiquidityPoolAggregator.mockRejectedValue(new Error("Failed"));
+      mockPool.mockRejectedValue(new Error("Failed"));
 
       await calculateLiquidityFromAmounts(
         wrapper,
@@ -484,7 +480,7 @@ describe("LPWrapperLogic", () => {
         },
         UserStatsPerPoolSnapshot: { set: vi.fn() },
         ALM_LP_WrapperSnapshot: { set: vi.fn() },
-        LiquidityPoolAggregator: {
+        Pool: {
           get: vi.fn((poolAddr) => {
             if (poolAddr === poolId) {
               return Promise.resolve(mockPool);
@@ -626,7 +622,7 @@ describe("LPWrapperLogic", () => {
         },
         UserStatsPerPoolSnapshot: { set: vi.fn() },
         ALM_LP_WrapperSnapshot: { set: vi.fn() },
-        LiquidityPoolAggregator: {
+        Pool: {
           get: vi.fn((poolAddr) => {
             if (poolAddr === poolId) {
               return Promise.resolve(mockPool);
@@ -1280,7 +1276,7 @@ describe("LPWrapperLogic", () => {
         },
         UserStatsPerPoolSnapshot: { set: vi.fn() },
         ALM_LP_WrapperSnapshot: { set: vi.fn() },
-        LiquidityPoolAggregator: {
+        Pool: {
           get: vi.fn((poolAddr) => {
             if (poolAddr === poolId) {
               return Promise.resolve(mockPool);

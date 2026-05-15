@@ -1,6 +1,6 @@
 import type { Token } from "generated";
-import * as LiquidityPoolAggregatorModule from "../../../src/Aggregators/LiquidityPoolAggregator";
-import { PoolAddressField } from "../../../src/Aggregators/LiquidityPoolAggregator";
+import * as PoolModule from "../../../src/Aggregators/Pool";
+import { PoolAddressField } from "../../../src/Aggregators/Pool";
 import * as UserStatsPerPoolModule from "../../../src/Aggregators/UserStatsPerPool";
 import { toChecksumAddress } from "../../../src/Constants";
 import {
@@ -242,22 +242,15 @@ describe("VotingRewardSharedLogic", () => {
   describe("loadVotingRewardData", () => {
     it("should call loadPoolData and loadOrCreateUserData with pool.poolAddress not pool.id", async () => {
       const common = setupCommon();
-      const {
-        mockToken0Data,
-        mockToken1Data,
-        createMockLiquidityPoolAggregator,
-      } = common;
+      const { mockToken0Data, mockToken1Data, createMockPool } = common;
 
       const chainId = 10;
-      const pool = createMockLiquidityPoolAggregator({
+      const pool = createMockPool({
         chainId,
         bribeVotingRewardAddress: mockVotingRewardAddress,
       });
 
-      const loadPoolDataSpy = vi.spyOn(
-        LiquidityPoolAggregatorModule,
-        "loadPoolData",
-      );
+      const loadPoolDataSpy = vi.spyOn(PoolModule, "loadPoolData");
       const loadOrCreateUserDataSpy = vi.spyOn(
         UserStatsPerPoolModule,
         "loadOrCreateUserData",
@@ -266,7 +259,7 @@ describe("VotingRewardSharedLogic", () => {
       const userStatsStorage = new Map<string, unknown>();
       const context = {
         log: { error: () => {}, warn: () => {}, info: () => {} },
-        LiquidityPoolAggregator: {
+        Pool: {
           getWhere: async (q: {
             bribeVotingRewardAddress?: { _eq: string };
           }) =>

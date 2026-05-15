@@ -8,7 +8,7 @@ import {
 import { computeNonCLStakedUSD, concentratedLiquidityToUSD } from "../Helpers";
 import { getSnapshotEpoch, shouldSnapshot } from "../Snapshots/Shared";
 import { setUserStatsPerPoolSnapshot } from "../Snapshots/UserStatsPerPoolSnapshot";
-import type { PoolData } from "./LiquidityPoolAggregator";
+import type { PoolData } from "./Pool";
 
 export interface UserStatsPerPoolDiff {
   incrementalLpBalance: bigint;
@@ -187,7 +187,7 @@ export function createUserStatsPerPoolEntity(
 
 /**
  * Generic function to update UserStatsPerPool with any combination of fields
- * Similar to updateLiquidityPoolAggregator pattern.
+ * Similar to updatePool pattern.
  * Takes an epoch-aligned snapshot when entering a new snapshot epoch.
  */
 export async function updateUserStatsPerPool(
@@ -402,8 +402,7 @@ export async function updateUserStatsPerPool(
       let token1Instance = preloadedPoolData?.token1Instance;
       if (!poolEntity) {
         const poolId = PoolId(updated.chainId, updated.poolAddress);
-        poolEntity =
-          (await context.LiquidityPoolAggregator.get(poolId)) ?? undefined;
+        poolEntity = (await context.Pool.get(poolId)) ?? undefined;
         if (poolEntity) {
           [token0Instance, token1Instance] = await Promise.all([
             context.Token.get(poolEntity.token0_id),

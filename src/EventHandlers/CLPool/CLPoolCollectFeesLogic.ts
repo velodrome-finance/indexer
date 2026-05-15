@@ -1,10 +1,10 @@
 import type { CLPool_CollectFees_event, Token } from "generated";
-import type { LiquidityPoolAggregatorDiff } from "../../Aggregators/LiquidityPoolAggregator";
+import type { PoolDiff } from "../../Aggregators/Pool";
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import { calculateTotalUSD, calculateWhitelistedFeesUSD } from "../../Helpers";
 
 export interface CLPoolCollectFeesResult {
-  liquidityPoolDiff: Partial<LiquidityPoolAggregatorDiff>;
+  liquidityPoolDiff: Partial<PoolDiff>;
   userDiff: Partial<UserStatsPerPoolDiff>;
 }
 
@@ -14,7 +14,7 @@ export function processCLPoolCollectFees(
   token1Instance: Token | undefined,
 ): CLPoolCollectFeesResult {
   // Calculate the increment values (not new totals)
-  // updateLiquidityPoolAggregator expects increments and will add them to current values
+  // updatePool expects increments and will add them to current values
   const stakedFeesIncrementUSD = calculateTotalUSD(
     event.params.amount0,
     event.params.amount1,
@@ -33,7 +33,7 @@ export function processCLPoolCollectFees(
   // Gauge fees accumulate in gaugeFees.token0/token1 during swaps but are excluded from
   // reserves at swap time. When the gauge collects them, no reserve change is needed.
   // Therefore, CollectFees events should NOT affect reserves — only track fees collected.
-  // Return increments (not new totals) since updateLiquidityPoolAggregator will add them to current values
+  // Return increments (not new totals) since updatePool will add them to current values
   const liquidityPoolDiff = {
     incrementalTotalStakedFeesCollected0: event.params.amount0,
     incrementalTotalStakedFeesCollected1: event.params.amount1,

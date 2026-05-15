@@ -1,11 +1,11 @@
 import type {
   CLPool_Burn_event,
   CLPositionPendingPrincipal,
-  LiquidityPoolAggregator,
   Token,
   handlerContext,
 } from "generated";
 import { toChecksumAddress } from "../../../src/Constants";
+import type { Pool } from "../../../src/EntityTypes";
 import { processCLPoolBurn } from "../../../src/EventHandlers/CLPool/CLPoolBurnLogic";
 import { calculateTotalUSD } from "../../../src/Helpers";
 import { setupCommon } from "../Pool/common";
@@ -56,7 +56,7 @@ describe("CLPoolBurnLogic", () => {
     lastUpdatedTimestamp: new Date(1000000 * 1000),
   };
 
-  const mockLiquidityPoolAggregator: LiquidityPoolAggregator = {
+  const mockPool: Pool = {
     ...mockLiquidityPoolData,
     reserve0: 1000000n,
     reserve1: 3000000000000000000n,
@@ -80,7 +80,7 @@ describe("CLPoolBurnLogic", () => {
       const ctx = createMockContext();
       const result = await processCLPoolBurn(
         mockEvent,
-        mockLiquidityPoolAggregator,
+        mockPool,
         mockToken0,
         mockToken1,
         ctx,
@@ -95,13 +95,7 @@ describe("CLPoolBurnLogic", () => {
 
     it("should track burned principal in CLPositionPendingPrincipal", async () => {
       const ctx = createMockContext();
-      await processCLPoolBurn(
-        mockEvent,
-        mockLiquidityPoolAggregator,
-        mockToken0,
-        mockToken1,
-        ctx,
-      );
+      await processCLPoolBurn(mockEvent, mockPool, mockToken0, mockToken1, ctx);
 
       // Should have called set with burn amounts
       const setCall = vi.mocked(ctx.CLPositionPendingPrincipal.set).mock
@@ -117,13 +111,7 @@ describe("CLPoolBurnLogic", () => {
         pendingPrincipal1: 200000n,
       };
       const ctx = createMockContext(existingTracker);
-      await processCLPoolBurn(
-        mockEvent,
-        mockLiquidityPoolAggregator,
-        mockToken0,
-        mockToken1,
-        ctx,
-      );
+      await processCLPoolBurn(mockEvent, mockPool, mockToken0, mockToken1, ctx);
 
       const setCall = vi.mocked(ctx.CLPositionPendingPrincipal.set).mock
         .lastCall?.[0] as CLPositionPendingPrincipal;
@@ -133,8 +121,8 @@ describe("CLPoolBurnLogic", () => {
 
     it("should decrement liquidityInRange when tickLower <= aggregator.tick < tickUpper (in-range)", async () => {
       // mockEvent uses tickLower=-1000n, tickUpper=1000n; default aggregator.tick=0n is in range.
-      const inRangeAggregator: LiquidityPoolAggregator = {
-        ...mockLiquidityPoolAggregator,
+      const inRangeAggregator: Pool = {
+        ...mockPool,
         tick: 0n,
         liquidityInRange: 5_000_000n,
       };
@@ -156,8 +144,8 @@ describe("CLPoolBurnLogic", () => {
     });
 
     it("should not touch liquidityInRange on burn when out of range (tick below tickLower)", async () => {
-      const belowAggregator: LiquidityPoolAggregator = {
-        ...mockLiquidityPoolAggregator,
+      const belowAggregator: Pool = {
+        ...mockPool,
         tick: -5000n,
       };
       const ctx = createMockContext();
@@ -177,8 +165,8 @@ describe("CLPoolBurnLogic", () => {
     });
 
     it("should not touch liquidityInRange on burn when tick at tickUpper (exclusive)", async () => {
-      const atUpperAggregator: LiquidityPoolAggregator = {
-        ...mockLiquidityPoolAggregator,
+      const atUpperAggregator: Pool = {
+        ...mockPool,
         tick: 1000n,
       };
       const ctx = createMockContext();
@@ -204,7 +192,7 @@ describe("CLPoolBurnLogic", () => {
       const ctx = createMockContext();
       const result = await processCLPoolBurn(
         mockEvent,
-        mockLiquidityPoolAggregator,
+        mockPool,
         tokenWithDifferentDecimals,
         mockToken1,
         ctx,
@@ -214,8 +202,8 @@ describe("CLPoolBurnLogic", () => {
         incrementalReserve0: -mockEvent.params.amount0,
         incrementalReserve1: -mockEvent.params.amount1,
         currentTotalLiquidityUSD: calculateTotalUSD(
-          mockLiquidityPoolAggregator.reserve0 - mockEvent.params.amount0,
-          mockLiquidityPoolAggregator.reserve1 - mockEvent.params.amount1,
+          mockPool.reserve0 - mockEvent.params.amount0,
+          mockPool.reserve1 - mockEvent.params.amount1,
           tokenWithDifferentDecimals,
           mockToken1,
         ),

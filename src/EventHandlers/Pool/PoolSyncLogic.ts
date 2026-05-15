@@ -1,13 +1,10 @@
-import type {
-  LiquidityPoolAggregator,
-  Pool_Sync_event,
-  Token,
-} from "generated";
-import type { LiquidityPoolAggregatorDiff } from "../../Aggregators/LiquidityPoolAggregator";
+import type { Pool_Sync_event, Token } from "generated";
+import type { PoolDiff } from "../../Aggregators/Pool";
+import type { Pool } from "../../EntityTypes";
 import { calculateTotalUSD } from "../../Helpers";
 
 export interface PoolSyncResult {
-  liquidityPoolDiff: Partial<LiquidityPoolAggregatorDiff>;
+  liquidityPoolDiff: Partial<PoolDiff>;
 }
 
 /**
@@ -22,7 +19,7 @@ export interface PoolSyncResult {
  */
 export function processPoolSync(
   event: Pool_Sync_event,
-  liquidityPoolAggregator: LiquidityPoolAggregator,
+  liquidityPoolAggregator: Pool,
   token0Instance: Token | undefined,
   token1Instance: Token | undefined,
 ): PoolSyncResult {

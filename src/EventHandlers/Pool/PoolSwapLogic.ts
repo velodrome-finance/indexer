@@ -1,5 +1,5 @@
 import type { Pool_Swap_event, Token } from "generated";
-import type { LiquidityPoolAggregatorDiff } from "../../Aggregators/LiquidityPoolAggregator";
+import type { PoolDiff } from "../../Aggregators/Pool";
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import {
   calculateTokenAmountUSD,
@@ -7,7 +7,7 @@ import {
 } from "../../Helpers";
 
 export interface PoolSwapResult {
-  liquidityPoolDiff: Partial<LiquidityPoolAggregatorDiff>;
+  liquidityPoolDiff: Partial<PoolDiff>;
   userSwapDiff: Partial<UserStatsPerPoolDiff>;
 }
 

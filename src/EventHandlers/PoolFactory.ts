@@ -1,9 +1,6 @@
 import { PoolFactory } from "generated";
-import type { LiquidityPoolAggregator, Token } from "generated";
-import {
-  createLiquidityPoolAggregatorEntity,
-  updateLiquidityPoolAggregator,
-} from "../Aggregators/LiquidityPoolAggregator";
+import type { Token } from "generated";
+import { createPoolEntity, updatePool } from "../Aggregators/Pool";
 import {
   DEFAULT_SAMM_FEE_BPS,
   DEFAULT_VAMM_FEE_BPS,
@@ -13,6 +10,7 @@ import {
   TokenId,
 } from "../Constants";
 import { getRootPoolAddress } from "../Effects/RootPool";
+import type { Pool } from "../EntityTypes";
 import { createTokenEntity } from "../PriceOracle";
 import type { TokenEntityMapping } from "./../CustomTypes";
 import { flushPendingVotesAndDistributionsForRootPool } from "./Voter/CrossChainPendingResolution";
@@ -66,7 +64,7 @@ PoolFactory.PoolCreated.handler(async ({ event, context }) => {
       const created = createdTokens[i];
       if (created === null) {
         context.log.warn(
-          `[PoolFactory.PoolCreated] Skipping LiquidityPoolAggregator for pool ${event.params.pool} on chain ${event.chainId} — non-contract token side`,
+          `[PoolFactory.PoolCreated] Skipping Pool for pool ${event.params.pool} on chain ${event.chainId} — non-contract token side`,
         );
         return;
       }
@@ -85,7 +83,7 @@ PoolFactory.PoolCreated.handler(async ({ event, context }) => {
 
   const fee = event.params.stable ? DEFAULT_SAMM_FEE_BPS : DEFAULT_VAMM_FEE_BPS;
 
-  const pool = createLiquidityPoolAggregatorEntity({
+  const pool = createPoolEntity({
     poolAddress: event.params.pool,
     chainId: event.chainId,
     isCL: false,
@@ -100,8 +98,8 @@ PoolFactory.PoolCreated.handler(async ({ event, context }) => {
     currentFee: fee,
   });
 
-  // For new pool creation, set the entity directly (updateLiquidityPoolAggregator is for updates, not creation)
-  context.LiquidityPoolAggregator.set(pool);
+  // For new pool creation, set the entity directly (updatePool is for updates, not creation)
+  context.Pool.set(pool);
 
   // For non-Optimism and non-Base pools, set the RootPool_LeafPool entity
   // Mapping RootPool (on optimism) to Pool (on superchain)
@@ -151,19 +149,19 @@ PoolFactory.PoolCreated.handler(async ({ event, context }) => {
 
 PoolFactory.SetCustomFee.handler(async ({ event, context }) => {
   const poolId = PoolId(event.chainId, event.params.pool);
-  const poolEntity = await context.LiquidityPoolAggregator.get(poolId);
+  const poolEntity = await context.Pool.get(poolId);
 
   if (!poolEntity) {
     context.log.warn(`Pool ${poolId} not found for SetCustomFee event`);
     return;
   }
 
-  const diff: Partial<LiquidityPoolAggregator> = {
+  const diff: Partial<Pool> = {
     baseFee: BigInt(event.params.fee),
     currentFee: BigInt(event.params.fee), // When custom fee is set, both baseFee and currentFee are updated
   };
 
-  await updateLiquidityPoolAggregator(
+  await updatePool(
     diff,
     poolEntity,
     new Date(event.block.timestamp * 1000),

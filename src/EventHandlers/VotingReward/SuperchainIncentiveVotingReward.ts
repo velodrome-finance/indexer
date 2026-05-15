@@ -1,8 +1,5 @@
 import { SuperchainIncentiveVotingReward } from "generated";
-import {
-  PoolAddressField,
-  updateLiquidityPoolAggregator,
-} from "../../Aggregators/LiquidityPoolAggregator";
+import { PoolAddressField, updatePool } from "../../Aggregators/Pool";
 import { updateUserStatsPerPool } from "../../Aggregators/UserStatsPerPool";
 import {
   loadVotingRewardData,
@@ -43,7 +40,7 @@ SuperchainIncentiveVotingReward.ClaimRewards.handler(
 
     await Promise.all([
       result.poolDiff
-        ? updateLiquidityPoolAggregator(
+        ? updatePool(
             result.poolDiff,
             loadedData.poolData.liquidityPoolAggregator,
             new Date(data.timestamp * 1000),

@@ -6,13 +6,13 @@ import { toChecksumAddress } from "../../../src/Constants";
 import { setupCommon } from "../Pool/common";
 
 describe("CustomSwapFeeModule Events", () => {
-  const { createMockLiquidityPoolAggregator } = setupCommon();
+  const { createMockPool } = setupCommon();
   const moduleAddress = toChecksumAddress(
     "0xbcAE2d4b4E8E34a4100e69E9C73af8214a89572e",
   );
   const chainId = 42220; // Celo
 
-  const mockLiquidityPoolAggregator = createMockLiquidityPoolAggregator({
+  const mockPool = createMockPool({
     chainId: chainId,
   });
 
@@ -23,12 +23,10 @@ describe("CustomSwapFeeModule Events", () => {
       const fee = 300n;
 
       // Pre-populate pool in the mock database
-      const populatedDb = mockDb.entities.LiquidityPoolAggregator.set(
-        mockLiquidityPoolAggregator,
-      );
+      const populatedDb = mockDb.entities.Pool.set(mockPool);
 
       const mockEvent = CustomSwapFeeModule.SetCustomFee.createMockEvent({
-        pool: mockLiquidityPoolAggregator.poolAddress as `0x${string}`,
+        pool: mockPool.poolAddress as `0x${string}`,
         fee: fee,
         mockEventData: {
           block: {
@@ -59,12 +57,10 @@ describe("CustomSwapFeeModule Events", () => {
       const fee = 400n;
 
       // Pre-populate pool in the mock database
-      const populatedDb = mockDb.entities.LiquidityPoolAggregator.set(
-        mockLiquidityPoolAggregator,
-      );
+      const populatedDb = mockDb.entities.Pool.set(mockPool);
 
       const mockEvent = CustomSwapFeeModule.SetCustomFee.createMockEvent({
-        pool: mockLiquidityPoolAggregator.poolAddress as `0x${string}`,
+        pool: mockPool.poolAddress as `0x${string}`,
         fee: fee,
         mockEventData: {
           block: {
@@ -82,9 +78,7 @@ describe("CustomSwapFeeModule Events", () => {
       const result = await populatedDb.processEvents([mockEvent]);
 
       // Assert: Check that pool's baseFee was updated
-      const updatedPool = result.entities.LiquidityPoolAggregator.get(
-        mockLiquidityPoolAggregator.id,
-      );
+      const updatedPool = result.entities.Pool.get(mockPool.id);
       expect(updatedPool).toBeDefined();
       expect(updatedPool?.baseFee).toBe(fee);
       expect(updatedPool?.currentFee).toBe(fee);

@@ -3,8 +3,8 @@ import {
   toChecksumAddress,
 } from "../../src/Constants";
 import { createALMLPWrapperSnapshot } from "../../src/Snapshots/ALMLPWrapperSnapshot";
-import { createLiquidityPoolAggregatorSnapshot } from "../../src/Snapshots/LiquidityPoolAggregatorSnapshot";
 import { createNonFungiblePositionSnapshot } from "../../src/Snapshots/NonFungiblePositionSnapshot";
+import { createPoolSnapshot } from "../../src/Snapshots/PoolSnapshot";
 import {
   type SnapshotForPersist,
   SnapshotType,
@@ -79,26 +79,19 @@ describe("Snapshots Shared", () => {
   describe("persistSnapshot", () => {
     const oneHourMs = SNAPSHOT_INTERVAL_IN_MS;
 
-    it("should call LiquidityPoolAggregatorSnapshot.set when type is LiquidityPoolAggregator", () => {
+    it("should call PoolSnapshot.set when type is Pool", () => {
       const common = setupCommon();
       const context = common.createMockContext({
-        LiquidityPoolAggregatorSnapshot: { set: vi.fn() },
+        PoolSnapshot: { set: vi.fn() },
       });
-      const pool = common.createMockLiquidityPoolAggregator();
+      const pool = common.createMockPool();
       const timestamp = new Date(oneHourMs * 5);
-      const snapshot = createLiquidityPoolAggregatorSnapshot(pool, timestamp);
+      const snapshot = createPoolSnapshot(pool, timestamp);
 
-      persistSnapshot(
-        { type: SnapshotType.LiquidityPoolAggregator, snapshot },
-        context,
-      );
+      persistSnapshot({ type: SnapshotType.Pool, snapshot }, context);
 
-      expect(context.LiquidityPoolAggregatorSnapshot.set).toHaveBeenCalledTimes(
-        1,
-      );
-      expect(context.LiquidityPoolAggregatorSnapshot.set).toHaveBeenCalledWith(
-        snapshot,
-      );
+      expect(context.PoolSnapshot.set).toHaveBeenCalledTimes(1);
+      expect(context.PoolSnapshot.set).toHaveBeenCalledWith(snapshot);
     });
 
     it("should call UserStatsPerPoolSnapshot.set when type is UserStatsPerPool", () => {
@@ -228,7 +221,7 @@ describe("Snapshots Shared", () => {
     it("should hit default branch and not call any set when type is unknown (exhaustiveness)", () => {
       const common = setupCommon();
       const context = common.createMockContext({
-        LiquidityPoolAggregatorSnapshot: { set: vi.fn() },
+        PoolSnapshot: { set: vi.fn() },
         UserStatsPerPoolSnapshot: { set: vi.fn() },
         NonFungiblePositionSnapshot: { set: vi.fn() },
         ALM_LP_WrapperSnapshot: { set: vi.fn() },
@@ -243,9 +236,7 @@ describe("Snapshots Shared", () => {
 
       persistSnapshot(invalidItem, context);
 
-      expect(
-        context.LiquidityPoolAggregatorSnapshot.set,
-      ).not.toHaveBeenCalled();
+      expect(context.PoolSnapshot.set).not.toHaveBeenCalled();
       expect(context.UserStatsPerPoolSnapshot.set).not.toHaveBeenCalled();
       expect(context.NonFungiblePositionSnapshot.set).not.toHaveBeenCalled();
       expect(context.ALM_LP_WrapperSnapshot.set).not.toHaveBeenCalled();

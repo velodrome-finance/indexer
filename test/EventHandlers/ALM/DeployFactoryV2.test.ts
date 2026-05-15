@@ -8,10 +8,7 @@ import {
   NonFungiblePositionId,
   toChecksumAddress,
 } from "../../../src/Constants";
-import {
-  extendMockDbWithGetWhere,
-  setupLiquidityPoolAggregator,
-} from "../../testHelpers";
+import { extendMockDbWithGetWhere, setupPool } from "../../testHelpers";
 import { setupCommon } from "../Pool/common";
 
 describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
@@ -76,11 +73,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
       };
 
       mockDb = mockDb.entities.NonFungiblePosition.set(mockNFPM);
-      mockDb = setupLiquidityPoolAggregator(
-        mockDb,
-        mockLiquidityPoolData,
-        poolAddress,
-      );
+      mockDb = setupPool(mockDb, mockLiquidityPoolData, poolAddress);
 
       // Pre-populate with TotalSupplyLimitUpdated event
       const totalSupplyEventId = ALMLPWrapperId(chainId, lpWrapperAddress);
@@ -342,11 +335,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
       mockDb = mockDb.entities.NonFungiblePosition.set(matchingNFPM);
       mockDb = mockDb.entities.NonFungiblePosition.set(nonMatchingNFPM1);
       mockDb = mockDb.entities.NonFungiblePosition.set(nonMatchingNFPM2);
-      mockDb = setupLiquidityPoolAggregator(
-        mockDb,
-        mockLiquidityPoolData,
-        poolAddress,
-      );
+      mockDb = setupPool(mockDb, mockLiquidityPoolData, poolAddress);
 
       // Pre-populate with TotalSupplyLimitUpdated event
       const totalSupplyEventId = ALMLPWrapperId(chainId, lpWrapperAddress);
@@ -758,11 +747,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
 
       mockDb = mockDb.entities.NonFungiblePosition.set(matchingNFPM1);
       mockDb = mockDb.entities.NonFungiblePosition.set(matchingNFPM2);
-      mockDb = setupLiquidityPoolAggregator(
-        mockDb,
-        mockLiquidityPoolData,
-        poolAddress,
-      );
+      mockDb = setupPool(mockDb, mockLiquidityPoolData, poolAddress);
 
       // Pre-populate with TotalSupplyLimitUpdated event
       const totalSupplyEventId = ALMLPWrapperId(chainId, lpWrapperAddress);

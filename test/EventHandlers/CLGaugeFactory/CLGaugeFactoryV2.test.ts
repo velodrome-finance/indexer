@@ -3,11 +3,10 @@ import {
   MockDb,
 } from "../../../generated/src/TestHelpers.gen";
 import { toChecksumAddress } from "../../../src/Constants";
-import { type MockLiquidityPoolAggregator, setupCommon } from "../Pool/common";
+import { type MockPool, setupCommon } from "../Pool/common";
 
 describe("CLGaugeFactoryV2 Event Handlers", () => {
-  const { mockLiquidityPoolData, createMockLiquidityPoolAggregator } =
-    setupCommon();
+  const { mockLiquidityPoolData, createMockPool } = setupCommon();
   const chainId = 10;
   const mockGaugeFactoryAddress = toChecksumAddress(
     "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -170,17 +169,17 @@ describe("CLGaugeFactoryV2 Event Handlers", () => {
   });
 
   describe("SetEmissionCap Event Handler", () => {
-    let mockPoolWithGauge: MockLiquidityPoolAggregator;
+    let mockPoolWithGauge: MockPool;
     let mockDbWithGetWhere: typeof mockDb;
 
     beforeEach(() => {
       // Create a pool entity with a gauge address
-      mockPoolWithGauge = createMockLiquidityPoolAggregator({
+      mockPoolWithGauge = createMockPool({
         gaugeAddress: mockGaugeAddress,
         gaugeEmissionsCap: 0n, // Initial value
       });
 
-      mockDb = mockDb.entities.LiquidityPoolAggregator.set(mockPoolWithGauge);
+      mockDb = mockDb.entities.Pool.set(mockPoolWithGauge);
 
       // Set up mockDb with getWhere support for gaugeAddress filtering
       const storedPools = [mockPoolWithGauge];
@@ -189,8 +188,8 @@ describe("CLGaugeFactoryV2 Event Handlers", () => {
         ...mockDb,
         entities: {
           ...mockDb.entities,
-          LiquidityPoolAggregator: {
-            ...mockDb.entities.LiquidityPoolAggregator,
+          Pool: {
+            ...mockDb.entities.Pool,
             getWhere: {
               gaugeAddress: {
                 eq: async (gaugeAddr: string) => {
@@ -226,9 +225,7 @@ describe("CLGaugeFactoryV2 Event Handlers", () => {
 
       const result = await mockDbWithGetWhere.processEvents([mockEvent]);
 
-      const updatedPool = result.entities.LiquidityPoolAggregator.get(
-        mockLiquidityPoolData.id,
-      );
+      const updatedPool = result.entities.Pool.get(mockLiquidityPoolData.id);
 
       expect(updatedPool).toBeDefined();
 
@@ -264,11 +261,9 @@ describe("CLGaugeFactoryV2 Event Handlers", () => {
 
       // Update mockDb with the result entities
       mockDb = MockDb.createMockDb();
-      const pool1 = result1.entities.LiquidityPoolAggregator.get(
-        mockLiquidityPoolData.id,
-      );
+      const pool1 = result1.entities.Pool.get(mockLiquidityPoolData.id);
       if (pool1) {
-        mockDb = mockDb.entities.LiquidityPoolAggregator.set(pool1);
+        mockDb = mockDb.entities.Pool.set(pool1);
       }
 
       // Second update with different cap
@@ -290,9 +285,7 @@ describe("CLGaugeFactoryV2 Event Handlers", () => {
 
       const result2 = await mockDb.processEvents([mockEvent2]);
 
-      const updatedPool = result2.entities.LiquidityPoolAggregator.get(
-        mockLiquidityPoolData.id,
-      );
+      const updatedPool = result2.entities.Pool.get(mockLiquidityPoolData.id);
 
       expect(updatedPool).toBeDefined();
       if (!updatedPool) return;
@@ -313,8 +306,8 @@ describe("CLGaugeFactoryV2 Event Handlers", () => {
         ...mockDb,
         entities: {
           ...mockDb.entities,
-          LiquidityPoolAggregator: {
-            ...mockDb.entities.LiquidityPoolAggregator,
+          Pool: {
+            ...mockDb.entities.Pool,
             getWhere: {
               gaugeAddress: {
                 eq: async (_gaugeAddr: string) => {
@@ -344,9 +337,7 @@ describe("CLGaugeFactoryV2 Event Handlers", () => {
       const result = await mockDbWithEmptyGetWhere.processEvents([mockEvent]);
 
       // Pool should not be updated
-      const pool = result.entities.LiquidityPoolAggregator.get(
-        mockLiquidityPoolData.id,
-      );
+      const pool = result.entities.Pool.get(mockLiquidityPoolData.id);
 
       expect(pool).toBeDefined();
       if (!pool) return;
@@ -373,9 +364,7 @@ describe("CLGaugeFactoryV2 Event Handlers", () => {
 
       const result = await mockDbWithGetWhere.processEvents([mockEvent]);
 
-      const updatedPool = result.entities.LiquidityPoolAggregator.get(
-        mockLiquidityPoolData.id,
-      );
+      const updatedPool = result.entities.Pool.get(mockLiquidityPoolData.id);
 
       expect(updatedPool).toBeDefined();
       if (!updatedPool) return;

@@ -1,4 +1,4 @@
-import type { LiquidityPoolAggregator, Token } from "generated";
+import type { Token } from "generated";
 import type { PublicClient } from "viem";
 import type { MockInstance } from "vitest";
 import { MockDb, PoolFactory } from "../../generated/src/TestHelpers.gen";
@@ -11,6 +11,7 @@ import {
   toChecksumAddress,
 } from "../../src/Constants";
 import * as HelpersModule from "../../src/Effects/Helpers";
+import type { Pool } from "../../src/EntityTypes";
 import * as CrossChainPendingResolution from "../../src/EventHandlers/Voter/CrossChainPendingResolution";
 import * as PriceOracle from "../../src/PriceOracle";
 import { mutateChainConstants } from "../testHelpers";
@@ -21,7 +22,7 @@ describe("PoolFactory Events", () => {
     mockToken0Data,
     mockToken1Data,
     mockLiquidityPoolData,
-    createMockLiquidityPoolAggregator,
+    createMockPool,
   } = setupCommon();
   const poolAddress = mockLiquidityPoolData.poolAddress;
   // Real Optimism contracts (WETH, USDC.e) so the #677 hasContractBytecode
@@ -52,7 +53,7 @@ describe("PoolFactory Events", () => {
   }
 
   describe("PoolCreated event", () => {
-    let createdPool: LiquidityPoolAggregator | undefined;
+    let createdPool: Pool | undefined;
     let chainConstantsCleanup: (() => void) | undefined;
 
     const fraxtalChainId = 252;
@@ -81,9 +82,7 @@ describe("PoolFactory Events", () => {
         },
       });
       const result = await mockDb.processEvents([mockEvent]);
-      createdPool = result.entities.LiquidityPoolAggregator.get(
-        PoolId(chainId, poolAddress),
-      );
+      createdPool = result.entities.Pool.get(PoolId(chainId, poolAddress));
     });
 
     afterEach(() => {
@@ -103,7 +102,7 @@ describe("PoolFactory Events", () => {
     });
 
     // Issue #677 follow-up: when createTokenEntity returns null (bytecode
-    // gate confirmed the address is a non-contract), no LiquidityPoolAggregator
+    // gate confirmed the address is a non-contract), no Pool
     // is created so we don't persist a pool pointing at a token row that was
     // deliberately not written. Uses a placeholder address for token0 that
     // has no on-chain bytecode on Optimism.
@@ -113,7 +112,7 @@ describe("PoolFactory Events", () => {
     // (gate returns hasCode:true → token row created → assertion flips). Live
     // probe in the previous PR session confirmed the gate's correctness against
     // real RPCs; re-enable once effects are mockable under processEvents.
-    it.skip("should skip LiquidityPoolAggregator when token has no bytecode", async () => {
+    it.skip("should skip Pool when token has no bytecode", async () => {
       const noBytecodeToken = toChecksumAddress(
         "0x1111111111111111111111111111111111111111",
       );
@@ -133,9 +132,7 @@ describe("PoolFactory Events", () => {
         },
       });
       const result = await mockDb.processEvents([mockEvent]);
-      const pool = result.entities.LiquidityPoolAggregator.get(
-        PoolId(chainId, poolAddress),
-      );
+      const pool = result.entities.Pool.get(PoolId(chainId, poolAddress));
       expect(pool).toBeUndefined();
     });
 
@@ -162,9 +159,7 @@ describe("PoolFactory Events", () => {
         },
       });
       const result = await mockDb.processEvents([mockEvent]);
-      const pool = result.entities.LiquidityPoolAggregator.get(
-        PoolId(chainId, poolAddress),
-      );
+      const pool = result.entities.Pool.get(PoolId(chainId, poolAddress));
       expect(pool).toBeDefined();
     });
 
@@ -207,9 +202,7 @@ describe("PoolFactory Events", () => {
       });
       resetMockPriceOracle();
       const result = await mockDb.processEvents([mockEvent]);
-      const pool = result.entities.LiquidityPoolAggregator.get(
-        PoolId(chainId, poolAddress),
-      );
+      const pool = result.entities.Pool.get(PoolId(chainId, poolAddress));
       expect(pool?.factoryAddress).toBe(mockEvent.srcAddress);
     });
 
@@ -238,9 +231,7 @@ describe("PoolFactory Events", () => {
         },
       });
       const result = await mockDb.processEvents([mockEvent]);
-      const stablePool = result.entities.LiquidityPoolAggregator.get(
-        PoolId(chainId, poolAddress),
-      );
+      const stablePool = result.entities.Pool.get(PoolId(chainId, poolAddress));
 
       // Stable pools should use DEFAULT_SAMM_FEE_BPS
       expect(stablePool?.baseFee).toBe(DEFAULT_SAMM_FEE_BPS);
@@ -402,7 +393,7 @@ describe("PoolFactory Events", () => {
       const result = await mockDb.processEvents([mockEvent]);
 
       // Should still create the pool even if root pool address fetch fails
-      const createdPool = result.entities.LiquidityPoolAggregator.get(
+      const createdPool = result.entities.Pool.get(
         PoolId(fraxtalChainId, poolAddress),
       );
       expect(createdPool).toBeDefined();
@@ -452,7 +443,7 @@ describe("PoolFactory Events", () => {
       const result = await mockDb.processEvents([mockEvent]);
 
       // Should still create the pool
-      const createdPool = result.entities.LiquidityPoolAggregator.get(
+      const createdPool = result.entities.Pool.get(
         PoolId(fraxtalChainId, poolAddress),
       );
       expect(createdPool).toBeDefined();
@@ -525,15 +516,15 @@ describe("PoolFactory Events", () => {
   });
 
   describe("SetCustomFee event", () => {
-    it("should update the LiquidityPoolAggregator", async () => {
+    it("should update the Pool", async () => {
       // Setup - create a pool entity first
       let mockDb = MockDb.createMockDb();
-      const existingPool = createMockLiquidityPoolAggregator({
+      const existingPool = createMockPool({
         baseFee: undefined,
         currentFee: undefined,
         lastUpdatedTimestamp: new Date(900000 * 1000),
       });
-      mockDb = mockDb.entities.LiquidityPoolAggregator.set(existingPool);
+      mockDb = mockDb.entities.Pool.set(existingPool);
 
       const customFee = 500n; // 0.05% fee (500 basis points)
       const blockTimestamp = 2000000;
@@ -554,8 +545,8 @@ describe("PoolFactory Events", () => {
       // Execute
       const result = await mockDb.processEvents([mockEvent]);
 
-      // Assert - check LiquidityPoolAggregator was updated
-      const updatedPool = result.entities.LiquidityPoolAggregator.get(
+      // Assert - check Pool was updated
+      const updatedPool = result.entities.Pool.get(
         PoolId(chainId, poolAddress),
       );
       expect(updatedPool).toBeDefined();
@@ -575,12 +566,12 @@ describe("PoolFactory Events", () => {
       // Setup - create a pool entity with existing fees
       let mockDb = MockDb.createMockDb();
       const existingFee = 300n;
-      const existingPool = createMockLiquidityPoolAggregator({
+      const existingPool = createMockPool({
         baseFee: existingFee,
         currentFee: existingFee,
         lastUpdatedTimestamp: new Date(900000 * 1000),
       });
-      mockDb = mockDb.entities.LiquidityPoolAggregator.set(existingPool);
+      mockDb = mockDb.entities.Pool.set(existingPool);
 
       const newFee = 750n;
       const blockTimestamp = 2000000;
@@ -602,7 +593,7 @@ describe("PoolFactory Events", () => {
       const result = await mockDb.processEvents([mockEvent]);
 
       // Assert - check fees were updated
-      const updatedPool = result.entities.LiquidityPoolAggregator.get(
+      const updatedPool = result.entities.Pool.get(
         PoolId(chainId, poolAddress),
       );
       expect(updatedPool).toBeDefined();
@@ -637,10 +628,8 @@ describe("PoolFactory Events", () => {
       // Execute
       const result = await mockDb.processEvents([mockEvent]);
 
-      // Assert - LiquidityPoolAggregator should not be updated
-      const pool = result.entities.LiquidityPoolAggregator.get(
-        PoolId(10, nonExistentPoolAddress),
-      );
+      // Assert - Pool should not be updated
+      const pool = result.entities.Pool.get(PoolId(10, nonExistentPoolAddress));
       expect(pool).toBeUndefined();
     });
   });

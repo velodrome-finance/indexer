@@ -5,7 +5,7 @@ import {
   VeNFT,
   Voter,
 } from "generated/src/TestHelpers.gen";
-import * as LiquidityPoolAggregatorModule from "../../../src/Aggregators/LiquidityPoolAggregator";
+import * as PoolModule from "../../../src/Aggregators/Pool";
 import {
   CHAIN_CONSTANTS,
   PendingDistributionId,
@@ -22,7 +22,7 @@ import {
   toChecksumAddress,
 } from "../../../src/Constants";
 import { getTokensDeposited } from "../../../src/Effects/Voter";
-import { type MockLiquidityPoolAggregator, setupCommon } from "../Pool/common";
+import { type MockPool, setupCommon } from "../Pool/common";
 
 type MockUserStatsPerPool = ReturnType<
   ReturnType<typeof setupCommon>["createMockUserStatsPerPool"]
@@ -147,20 +147,20 @@ describe("Voter Events", () => {
 
     describe("when pool data exists", () => {
       let resultDB: ReturnType<typeof MockDb.createMockDb>;
-      let mockLiquidityPool: MockLiquidityPoolAggregator;
+      let mockLiquidityPool: MockPool;
       let mockUserStats: MockUserStatsPerPool;
       let mockVeNFTState: VeNFTState;
 
       beforeEach(async () => {
         const {
-          createMockLiquidityPoolAggregator,
+          createMockPool,
           mockToken0Data,
           mockToken1Data,
           createMockUserStatsPerPool,
           createMockVeNFTState,
         } = setupCommon();
 
-        mockLiquidityPool = createMockLiquidityPoolAggregator({
+        mockLiquidityPool = createMockPool({
           id: PoolId(chainId, poolAddress),
           chainId: chainId,
           poolAddress: poolAddress,
@@ -184,7 +184,7 @@ describe("Voter Events", () => {
         });
 
         // Setup mock database with required entities
-        mockDb = mockDb.entities.LiquidityPoolAggregator.set(mockLiquidityPool);
+        mockDb = mockDb.entities.Pool.set(mockLiquidityPool);
         mockDb = mockDb.entities.UserStatsPerPool.set(mockUserStats);
         mockDb = mockDb.entities.Token.set(mockToken0Data);
         mockDb = mockDb.entities.Token.set(mockToken1Data);
@@ -194,7 +194,7 @@ describe("Voter Events", () => {
       });
 
       it("should update liquidity pool aggregator with voting data", () => {
-        const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
+        const updatedPool = resultDB.entities.Pool.get(
           PoolId(chainId, poolAddress),
         );
         expect(updatedPool).toBeDefined();
@@ -244,27 +244,22 @@ describe("Voter Events", () => {
 
     describe("when pool data exists but VeNFTState is missing", () => {
       it("should return early without updating pool or creating vote entities", async () => {
-        const {
-          createMockLiquidityPoolAggregator,
-          mockToken0Data,
-          mockToken1Data,
-        } = setupCommon();
-        const poolWithZeroStaked = createMockLiquidityPoolAggregator({
+        const { createMockPool, mockToken0Data, mockToken1Data } =
+          setupCommon();
+        const poolWithZeroStaked = createMockPool({
           id: PoolId(chainId, poolAddress),
           chainId,
           poolAddress,
           veNFTamountStaked: 0n,
         });
         let db = MockDb.createMockDb();
-        db = db.entities.LiquidityPoolAggregator.set(poolWithZeroStaked);
+        db = db.entities.Pool.set(poolWithZeroStaked);
         db = db.entities.Token.set(mockToken0Data);
         db = db.entities.Token.set(mockToken1Data);
 
         const resultDB = await db.processEvents([mockEvent]);
 
-        const pool = resultDB.entities.LiquidityPoolAggregator.get(
-          PoolId(chainId, poolAddress),
-        );
+        const pool = resultDB.entities.Pool.get(PoolId(chainId, poolAddress));
         expect(pool?.veNFTamountStaked).toBe(0n);
         expect(
           Array.from(resultDB.entities.UserStatsPerPool.getAll()),
@@ -279,10 +274,8 @@ describe("Voter Events", () => {
       it("should return early without creating pool entities", async () => {
         const resultDB = await mockDb.processEvents([mockEvent]);
 
-        // Should not create LiquidityPoolAggregator entity
-        expect(
-          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
-        ).toHaveLength(0);
+        // Should not create Pool entity
+        expect(Array.from(resultDB.entities.Pool.getAll())).toHaveLength(0);
         expect(
           Array.from(resultDB.entities.UserStatsPerPool.getAll()),
         ).toHaveLength(0);
@@ -375,9 +368,7 @@ describe("Voter Events", () => {
         expect(pendingVote?.blockNumber).toBe(BigInt(blockNumber));
         expect(pendingVote?.transactionHash).toBe(txHash);
 
-        expect(
-          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
-        ).toHaveLength(0);
+        expect(Array.from(resultDB.entities.Pool.getAll())).toHaveLength(0);
         expect(
           Array.from(resultDB.entities.UserStatsPerPool.getAll()),
         ).toHaveLength(0);
@@ -431,9 +422,7 @@ describe("Voter Events", () => {
         expect(pendingVote?.eventType).toBe("Abstained");
         expect(pendingVote?.weight).toBe(100n);
 
-        expect(
-          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
-        ).toHaveLength(0);
+        expect(Array.from(resultDB.entities.Pool.getAll())).toHaveLength(0);
         expect(
           Array.from(resultDB.entities.UserStatsPerPool.getAll()),
         ).toHaveLength(0);
@@ -480,9 +469,7 @@ describe("Voter Events", () => {
         expect(Array.from(resultDB.entities.PendingVote.getAll())).toHaveLength(
           0,
         );
-        expect(
-          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
-        ).toHaveLength(0);
+        expect(Array.from(resultDB.entities.Pool.getAll())).toHaveLength(0);
         expect(
           Array.from(resultDB.entities.UserStatsPerPool.getAll()),
         ).toHaveLength(0);
@@ -529,9 +516,7 @@ describe("Voter Events", () => {
         expect(Array.from(resultDB.entities.PendingVote.getAll())).toHaveLength(
           0,
         );
-        expect(
-          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
-        ).toHaveLength(0);
+        expect(Array.from(resultDB.entities.Pool.getAll())).toHaveLength(0);
         expect(
           Array.from(resultDB.entities.UserStatsPerPool.getAll()),
         ).toHaveLength(0);
@@ -583,9 +568,7 @@ describe("Voter Events", () => {
         expect(Array.from(resultDB.entities.PendingVote.getAll())).toHaveLength(
           0,
         );
-        expect(
-          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
-        ).toHaveLength(0);
+        expect(Array.from(resultDB.entities.Pool.getAll())).toHaveLength(0);
       });
 
       it("drops Abstained silently without creating PendingVote", async () => {
@@ -621,9 +604,7 @@ describe("Voter Events", () => {
         expect(Array.from(resultDB.entities.PendingVote.getAll())).toHaveLength(
           0,
         );
-        expect(
-          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
-        ).toHaveLength(0);
+        expect(Array.from(resultDB.entities.Pool.getAll())).toHaveLength(0);
       });
     });
 
@@ -731,9 +712,7 @@ describe("Voter Events", () => {
         expect(
           Array.from(resultDB.entities.RootPool_LeafPool.getAll()),
         ).toHaveLength(0);
-        expect(
-          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
-        ).toHaveLength(0);
+        expect(Array.from(resultDB.entities.Pool.getAll())).toHaveLength(0);
       });
 
       it("should create PendingRootPoolMapping and PendingVote when RootPoolCreated then Abstained (no leaf pool yet)", async () => {
@@ -917,7 +896,7 @@ describe("Voter Events", () => {
       const realTimestamp = 1734595305;
       const rootChainId = 10; // Optimism
       const leafChainId = 252; // Fraxtal
-      let mockLeafPool: MockLiquidityPoolAggregator;
+      let mockLeafPool: MockPool;
       let mockUserStats: MockUserStatsPerPool;
       let mockVeNFTState: VeNFTState;
 
@@ -926,7 +905,7 @@ describe("Voter Events", () => {
           mockToken0Data,
           mockToken1Data,
           createMockUserStatsPerPool,
-          createMockLiquidityPoolAggregator,
+          createMockPool,
           createMockVeNFTState,
         } = setupCommon();
 
@@ -943,7 +922,7 @@ describe("Voter Events", () => {
         };
 
         // Create leaf pool using helper function
-        mockLeafPool = createMockLiquidityPoolAggregator({
+        mockLeafPool = createMockPool({
           id: PoolId(leafChainId, leafPoolAddress),
           chainId: leafChainId,
           poolAddress: leafPoolAddress,
@@ -984,7 +963,7 @@ describe("Voter Events", () => {
         };
 
         // Setup mock database with leaf pool and RootPool_LeafPool mapping
-        mockDb = mockDb.entities.LiquidityPoolAggregator.set(mockLeafPool);
+        mockDb = mockDb.entities.Pool.set(mockLeafPool);
         mockDb = mockDb.entities.RootPool_LeafPool.set(rootPoolLeafPool);
         mockDb = mockDb.entities.UserStatsPerPool.set(mockUserStats);
         mockDb = mockDb.entities.Token.set(leafToken0Data);
@@ -1013,7 +992,7 @@ describe("Voter Events", () => {
       });
 
       it("should update leaf pool aggregator with voting data", () => {
-        const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
+        const updatedPool = resultDB.entities.Pool.get(
           PoolId(leafChainId, leafPoolAddress),
         );
         expect(updatedPool).toBeDefined();
@@ -1045,7 +1024,7 @@ describe("Voter Events", () => {
           mockToken0Data,
           mockToken1Data,
           createMockUserStatsPerPool,
-          createMockLiquidityPoolAggregator,
+          createMockPool,
           createMockVeNFTState,
         } = setupCommon();
 
@@ -1053,7 +1032,7 @@ describe("Voter Events", () => {
           "0x3333333333333333333333333333333333333333",
         );
 
-        const liquidityPool = createMockLiquidityPoolAggregator({
+        const liquidityPool = createMockPool({
           id: PoolId(chainId, poolAddress),
           chainId: chainId,
           poolAddress: poolAddress,
@@ -1084,7 +1063,7 @@ describe("Voter Events", () => {
         });
 
         let db = MockDb.createMockDb();
-        db = db.entities.LiquidityPoolAggregator.set(liquidityPool);
+        db = db.entities.Pool.set(liquidityPool);
         db = db.entities.UserStatsPerPool.set(userStats);
         db = db.entities.Token.set(mockToken0Data);
         db = db.entities.Token.set(mockToken1Data);
@@ -1175,7 +1154,7 @@ describe("Voter Events", () => {
 
     describe("when pool data exists", () => {
       let resultDB: ReturnType<typeof MockDb.createMockDb>;
-      let mockLiquidityPool: MockLiquidityPoolAggregator;
+      let mockLiquidityPool: MockPool;
       let mockUserStats: MockUserStatsPerPool;
       let mockVeNFTState: VeNFTState;
       let mockVeNFTPoolVote: VeNFTPoolVote;
@@ -1184,13 +1163,13 @@ describe("Voter Events", () => {
         const {
           mockToken0Data,
           mockToken1Data,
-          createMockLiquidityPoolAggregator,
+          createMockPool,
           createMockUserStatsPerPool,
           createMockVeNFTState,
           createMockVeNFTPoolVote,
         } = setupCommon();
 
-        mockLiquidityPool = createMockLiquidityPoolAggregator({
+        mockLiquidityPool = createMockPool({
           id: PoolId(chainId, poolAddress),
           chainId: chainId,
           poolAddress: poolAddress,
@@ -1222,7 +1201,7 @@ describe("Voter Events", () => {
         });
 
         // Setup mock database with required entities
-        mockDb = mockDb.entities.LiquidityPoolAggregator.set(mockLiquidityPool);
+        mockDb = mockDb.entities.Pool.set(mockLiquidityPool);
         mockDb = mockDb.entities.UserStatsPerPool.set(mockUserStats);
         mockDb = mockDb.entities.Token.set(mockToken0Data);
         mockDb = mockDb.entities.Token.set(mockToken1Data);
@@ -1233,7 +1212,7 @@ describe("Voter Events", () => {
       });
 
       it("should update liquidity pool aggregator with total weight (absolute value)", () => {
-        const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
+        const updatedPool = resultDB.entities.Pool.get(
           PoolId(chainId, poolAddress),
         );
         expect(updatedPool).toBeDefined();
@@ -1271,26 +1250,21 @@ describe("Voter Events", () => {
 
     describe("when pool data exists but VeNFTState is missing", () => {
       it("should return early without updating pool or creating vote entities", async () => {
-        const {
-          createMockLiquidityPoolAggregator,
-          mockToken0Data,
-          mockToken1Data,
-        } = setupCommon();
-        const poolWithStaked = createMockLiquidityPoolAggregator({
+        const { createMockPool, mockToken0Data, mockToken1Data } =
+          setupCommon();
+        const poolWithStaked = createMockPool({
           id: PoolId(chainId, poolAddress),
           chainId,
           veNFTamountStaked: 1000n,
         });
         let db = MockDb.createMockDb();
-        db = db.entities.LiquidityPoolAggregator.set(poolWithStaked);
+        db = db.entities.Pool.set(poolWithStaked);
         db = db.entities.Token.set(mockToken0Data);
         db = db.entities.Token.set(mockToken1Data);
 
         const resultDB = await db.processEvents([mockEvent]);
 
-        const pool = resultDB.entities.LiquidityPoolAggregator.get(
-          PoolId(chainId, poolAddress),
-        );
+        const pool = resultDB.entities.Pool.get(PoolId(chainId, poolAddress));
         expect(pool?.veNFTamountStaked).toBe(1000n);
         expect(
           Array.from(resultDB.entities.UserStatsPerPool.getAll()),
@@ -1305,10 +1279,8 @@ describe("Voter Events", () => {
       it("should return early without creating pool entities", async () => {
         const resultDB = await mockDb.processEvents([mockEvent]);
 
-        // Should not create LiquidityPoolAggregator entity
-        expect(
-          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
-        ).toHaveLength(0);
+        // Should not create Pool entity
+        expect(Array.from(resultDB.entities.Pool.getAll())).toHaveLength(0);
         expect(
           Array.from(resultDB.entities.UserStatsPerPool.getAll()),
         ).toHaveLength(0);
@@ -1338,7 +1310,7 @@ describe("Voter Events", () => {
       const rootChainId = 10; // Optimism
       const leafChainId = 252; // Fraxtal
       const initialUserStaked = 50000000000000000000000n; // 50k tokens (18 decimals) - initial amount before withdrawal
-      let mockLeafPool: MockLiquidityPoolAggregator;
+      let mockLeafPool: MockPool;
       let mockUserStats: MockUserStatsPerPool;
       let mockVeNFTState: VeNFTState;
       let mockVeNFTPoolVote: VeNFTPoolVote;
@@ -1348,7 +1320,7 @@ describe("Voter Events", () => {
           mockToken0Data,
           mockToken1Data,
           createMockUserStatsPerPool,
-          createMockLiquidityPoolAggregator,
+          createMockPool,
           createMockVeNFTState,
           createMockVeNFTPoolVote,
         } = setupCommon();
@@ -1366,7 +1338,7 @@ describe("Voter Events", () => {
         };
 
         // Create leaf pool using helper function with initial staked amount
-        mockLeafPool = createMockLiquidityPoolAggregator({
+        mockLeafPool = createMockPool({
           id: PoolId(leafChainId, leafPoolAddress),
           chainId: leafChainId,
           poolAddress: leafPoolAddress,
@@ -1415,7 +1387,7 @@ describe("Voter Events", () => {
         };
 
         // Setup mock database with leaf pool and RootPool_LeafPool mapping
-        mockDb = mockDb.entities.LiquidityPoolAggregator.set(mockLeafPool);
+        mockDb = mockDb.entities.Pool.set(mockLeafPool);
         mockDb = mockDb.entities.RootPool_LeafPool.set(rootPoolLeafPool);
         mockDb = mockDb.entities.UserStatsPerPool.set(mockUserStats);
         mockDb = mockDb.entities.Token.set(leafToken0Data);
@@ -1445,7 +1417,7 @@ describe("Voter Events", () => {
       });
 
       it("should update leaf pool aggregator with total weight (absolute value)", () => {
-        const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
+        const updatedPool = resultDB.entities.Pool.get(
           PoolId(leafChainId, leafPoolAddress),
         );
 
@@ -1533,7 +1505,7 @@ describe("Voter Events", () => {
       const {
         mockToken0Data,
         mockToken1Data,
-        createMockLiquidityPoolAggregator,
+        createMockPool,
         createMockVeNFTState,
       } = setupCommon();
 
@@ -1565,7 +1537,7 @@ describe("Voter Events", () => {
         chainId: leafChainId,
       };
 
-      const leafPool = createMockLiquidityPoolAggregator({
+      const leafPool = createMockPool({
         id: PoolId(leafChainId, leafPoolAddress),
         chainId: leafChainId,
         poolAddress: leafPoolAddress,
@@ -1595,7 +1567,7 @@ describe("Voter Events", () => {
       };
 
       let db = MockDb.createMockDb();
-      db = db.entities.LiquidityPoolAggregator.set(leafPool);
+      db = db.entities.Pool.set(leafPool);
       db = db.entities.RootPool_LeafPool.set(rootPoolLeafPool);
       db = db.entities.Token.set(leafToken0Data);
       db = db.entities.Token.set(leafToken1Data);
@@ -1742,24 +1714,24 @@ describe("Voter Events", () => {
 
     describe("when pool entity exists", () => {
       let resultDB: ReturnType<typeof MockDb.createMockDb>;
-      let mockLiquidityPool: MockLiquidityPoolAggregator;
+      let mockLiquidityPool: MockPool;
 
       beforeEach(async () => {
-        const { createMockLiquidityPoolAggregator } = setupCommon();
+        const { createMockPool } = setupCommon();
 
-        mockLiquidityPool = createMockLiquidityPoolAggregator({
+        mockLiquidityPool = createMockPool({
           id: PoolId(chainId, poolAddress),
           chainId: chainId,
           gaugeAddress: "", // Initially empty
         });
 
-        mockDb = mockDb.entities.LiquidityPoolAggregator.set(mockLiquidityPool);
+        mockDb = mockDb.entities.Pool.set(mockLiquidityPool);
 
         resultDB = await mockDb.processEvents([mockEvent]);
       });
 
       it("should update pool entity with gauge address and voting reward addresses", () => {
-        const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
+        const updatedPool = resultDB.entities.Pool.get(
           PoolId(chainId, poolAddress),
         );
         expect(updatedPool).toBeDefined();
@@ -1780,9 +1752,7 @@ describe("Voter Events", () => {
       it("should create RootGauge_RootPool for cross-chain DistributeReward resolution", async () => {
         const resultDB = await mockDb.processEvents([mockEvent]);
 
-        expect(
-          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
-        ).toHaveLength(0);
+        expect(Array.from(resultDB.entities.Pool.getAll())).toHaveLength(0);
 
         const expectedId = RootGaugeRootPoolId(chainId, gaugeAddress);
         const rootGaugeRootPool =
@@ -1796,13 +1766,13 @@ describe("Voter Events", () => {
 
     describe("when pool factory is CL factory", () => {
       let resultDB: ReturnType<typeof MockDb.createMockDb>;
-      let mockLiquidityPool: MockLiquidityPoolAggregator;
+      let mockLiquidityPool: MockPool;
       let clFactoryEvent: ReturnType<typeof Voter.GaugeCreated.createMockEvent>;
 
       beforeEach(async () => {
-        const { createMockLiquidityPoolAggregator } = setupCommon();
+        const { createMockPool } = setupCommon();
 
-        mockLiquidityPool = createMockLiquidityPoolAggregator({
+        mockLiquidityPool = createMockPool({
           id: PoolId(chainId, poolAddress),
           chainId: chainId,
           gaugeAddress: "", // Initially empty
@@ -1841,13 +1811,13 @@ describe("Voter Events", () => {
           },
         });
 
-        mockDb = mockDb.entities.LiquidityPoolAggregator.set(mockLiquidityPool);
+        mockDb = mockDb.entities.Pool.set(mockLiquidityPool);
 
         resultDB = await mockDb.processEvents([clFactoryEvent]);
       });
 
       it("should update pool entity with gauge address (CL factory path)", () => {
-        const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
+        const updatedPool = resultDB.entities.Pool.get(
           PoolId(chainId, poolAddress),
         );
         expect(updatedPool).toBeDefined();
@@ -1891,7 +1861,7 @@ describe("Voter Events", () => {
 
     describe("when pool entity exists", () => {
       let resultDB: ReturnType<typeof MockDb.createMockDb>;
-      let mockLiquidityPool: MockLiquidityPoolAggregator;
+      let mockLiquidityPool: MockPool;
       const feeVotingRewardAddress = toChecksumAddress(
         "0x6572b2b30f63B960608f3aA5205711C558998398",
       );
@@ -1900,9 +1870,9 @@ describe("Voter Events", () => {
       );
 
       beforeEach(async () => {
-        const { createMockLiquidityPoolAggregator } = setupCommon();
+        const { createMockPool } = setupCommon();
 
-        mockLiquidityPool = createMockLiquidityPoolAggregator({
+        mockLiquidityPool = createMockPool({
           id: PoolId(chainId, poolAddress),
           chainId: chainId,
           gaugeAddress: gaugeAddress, // Initially has gauge address
@@ -1912,18 +1882,17 @@ describe("Voter Events", () => {
         });
 
         // Mock findPoolByGaugeAddress to return the pool
-        vi.spyOn(
-          LiquidityPoolAggregatorModule,
-          "findPoolByGaugeAddress",
-        ).mockResolvedValue(mockLiquidityPool);
+        vi.spyOn(PoolModule, "findPoolByGaugeAddress").mockResolvedValue(
+          mockLiquidityPool,
+        );
 
-        mockDb = mockDb.entities.LiquidityPoolAggregator.set(mockLiquidityPool);
+        mockDb = mockDb.entities.Pool.set(mockLiquidityPool);
 
         resultDB = await mockDb.processEvents([mockEvent]);
       });
 
       it("should set gaugeIsAlive to false but preserve gauge address and voting reward addresses as historical data", () => {
-        const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
+        const updatedPool = resultDB.entities.Pool.get(
           PoolId(chainId, poolAddress),
         );
         expect(updatedPool).toBeDefined();
@@ -1946,16 +1915,11 @@ describe("Voter Events", () => {
     describe("when pool entity does not exist", () => {
       it("should not create any entities", async () => {
         // Mock findPoolByGaugeAddress to return null
-        vi.spyOn(
-          LiquidityPoolAggregatorModule,
-          "findPoolByGaugeAddress",
-        ).mockResolvedValue(null);
+        vi.spyOn(PoolModule, "findPoolByGaugeAddress").mockResolvedValue(null);
 
         const resultDB = await mockDb.processEvents([mockEvent]);
 
-        expect(
-          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
-        ).toHaveLength(0);
+        expect(Array.from(resultDB.entities.Pool.getAll())).toHaveLength(0);
       });
     });
   });
@@ -1989,7 +1953,7 @@ describe("Voter Events", () => {
 
     describe("when pool entity exists", () => {
       let resultDB: ReturnType<typeof MockDb.createMockDb>;
-      let mockLiquidityPool: MockLiquidityPoolAggregator;
+      let mockLiquidityPool: MockPool;
       const feeVotingRewardAddress = toChecksumAddress(
         "0x6572b2b30f63B960608f3aA5205711C558998398",
       );
@@ -1998,9 +1962,9 @@ describe("Voter Events", () => {
       );
 
       beforeEach(async () => {
-        const { createMockLiquidityPoolAggregator } = setupCommon();
+        const { createMockPool } = setupCommon();
 
-        mockLiquidityPool = createMockLiquidityPoolAggregator({
+        mockLiquidityPool = createMockPool({
           id: PoolId(chainId, poolAddress),
           chainId: chainId,
           gaugeAddress: gaugeAddress, // Has gauge address
@@ -2010,18 +1974,17 @@ describe("Voter Events", () => {
         });
 
         // Mock findPoolByGaugeAddress to return the pool
-        vi.spyOn(
-          LiquidityPoolAggregatorModule,
-          "findPoolByGaugeAddress",
-        ).mockResolvedValue(mockLiquidityPool);
+        vi.spyOn(PoolModule, "findPoolByGaugeAddress").mockResolvedValue(
+          mockLiquidityPool,
+        );
 
-        mockDb = mockDb.entities.LiquidityPoolAggregator.set(mockLiquidityPool);
+        mockDb = mockDb.entities.Pool.set(mockLiquidityPool);
 
         resultDB = await mockDb.processEvents([mockEvent]);
       });
 
       it("should set gaugeIsAlive to true", () => {
-        const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
+        const updatedPool = resultDB.entities.Pool.get(
           PoolId(chainId, poolAddress),
         );
         expect(updatedPool).toBeDefined();
@@ -2035,16 +1998,11 @@ describe("Voter Events", () => {
     describe("when pool entity does not exist", () => {
       it("should not create any entities", async () => {
         // Mock findPoolByGaugeAddress to return null
-        vi.spyOn(
-          LiquidityPoolAggregatorModule,
-          "findPoolByGaugeAddress",
-        ).mockResolvedValue(null);
+        vi.spyOn(PoolModule, "findPoolByGaugeAddress").mockResolvedValue(null);
 
         const resultDB = await mockDb.processEvents([mockEvent]);
 
-        expect(
-          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
-        ).toHaveLength(0);
+        expect(Array.from(resultDB.entities.Pool.getAll())).toHaveLength(0);
       });
     });
   });
@@ -2201,7 +2159,7 @@ describe("Voter Events", () => {
       let updatedDB: ReturnType<typeof MockDb.createMockDb>;
       let cleanup: () => void;
 
-      const { createMockLiquidityPoolAggregator } = setupCommon();
+      const { createMockPool } = setupCommon();
 
       let expectations: {
         totalEmissions: bigint;
@@ -2211,7 +2169,7 @@ describe("Voter Events", () => {
       };
 
       beforeEach(async () => {
-        const liquidityPool = createMockLiquidityPoolAggregator({
+        const liquidityPool = createMockPool({
           id: PoolId(chainId, poolAddress),
           chainId: chainId,
           totalEmissions: 0n,
@@ -2236,15 +2194,13 @@ describe("Voter Events", () => {
         cleanup = cleanupFn;
 
         // Mock findPoolByGaugeAddress to return the pool
-        vi.spyOn(
-          LiquidityPoolAggregatorModule,
-          "findPoolByGaugeAddress",
-        ).mockResolvedValue(liquidityPool);
+        vi.spyOn(PoolModule, "findPoolByGaugeAddress").mockResolvedValue(
+          liquidityPool,
+        );
 
         // Set entities in the mock database
         updatedDB = mockDb.entities.Token.set(rewardToken);
-        updatedDB =
-          updatedDB.entities.LiquidityPoolAggregator.set(liquidityPool);
+        updatedDB = updatedDB.entities.Pool.set(liquidityPool);
 
         // Process the event
         resultDB = await updatedDB.processEvents([mockEvent]);
@@ -2256,8 +2212,7 @@ describe("Voter Events", () => {
 
       // TODO: Skip until envio migrates to createTestIndexer — vi.spyOn can't intercept tsx-loaded modules (alpha.18)
       it.skip("should update the liquidity pool aggregator with emissions data", () => {
-        const updatedPool =
-          resultDB.entities.LiquidityPoolAggregator.get(poolId);
+        const updatedPool = resultDB.entities.Pool.get(poolId);
         expect(updatedPool).toBeDefined();
         expect(updatedPool?.totalEmissions).toBe(expectations.totalEmissions);
         expect(updatedPool?.totalEmissionsUSD).toBe(
@@ -2272,8 +2227,7 @@ describe("Voter Events", () => {
       });
       // TODO: Skip until envio migrates to createTestIndexer — vi.spyOn can't intercept tsx-loaded modules (alpha.18)
       it.skip("should update the liquidity pool aggregator with votes deposited data", () => {
-        const updatedPool =
-          resultDB.entities.LiquidityPoolAggregator.get(poolId);
+        const updatedPool = resultDB.entities.Pool.get(poolId);
         expect(updatedPool).toBeDefined();
         expect(updatedPool?.totalVotesDeposited).toBe(
           expectations.getTokensDeposited,
@@ -2287,8 +2241,7 @@ describe("Voter Events", () => {
         expect(updatedPool?.gaugeAddress).toBe(gaugeAddress);
       });
       it("should not modify gaugeIsAlive (preserves existing value) when false", () => {
-        const updatedPool =
-          resultDB.entities.LiquidityPoolAggregator.get(poolId);
+        const updatedPool = resultDB.entities.Pool.get(poolId);
         expect(updatedPool).toBeDefined();
         expect(updatedPool?.gaugeIsAlive).toBe(false);
       });
@@ -2298,7 +2251,7 @@ describe("Voter Events", () => {
         let originalChainConstantsAlive: (typeof CHAIN_CONSTANTS)[typeof chainId];
 
         beforeEach(async () => {
-          const liquidityPool = createMockLiquidityPoolAggregator({
+          const liquidityPool = createMockPool({
             id: PoolId(chainId, poolAddress),
             chainId: chainId,
             totalEmissions: 0n,
@@ -2320,10 +2273,9 @@ describe("Voter Events", () => {
             lastUpdatedTimestamp: new Date(1000000 * 1000),
           } as Token;
 
-          vi.spyOn(
-            LiquidityPoolAggregatorModule,
-            "findPoolByGaugeAddress",
-          ).mockResolvedValue(liquidityPool);
+          vi.spyOn(PoolModule, "findPoolByGaugeAddress").mockResolvedValue(
+            liquidityPool,
+          );
 
           vi.spyOn(
             getTokensDeposited as unknown as EffectWithHandler<
@@ -2345,7 +2297,7 @@ describe("Voter Events", () => {
           };
 
           let db = mockDb.entities.Token.set(rewardToken);
-          db = db.entities.LiquidityPoolAggregator.set(liquidityPool);
+          db = db.entities.Pool.set(liquidityPool);
           resultDBWithAliveGauge = await db.processEvents([mockEvent]);
         });
 
@@ -2354,8 +2306,7 @@ describe("Voter Events", () => {
         });
 
         it("should not modify gaugeIsAlive (preserves existing value) when true", () => {
-          const updatedPool =
-            resultDBWithAliveGauge.entities.LiquidityPoolAggregator.get(poolId);
+          const updatedPool = resultDBWithAliveGauge.entities.Pool.get(poolId);
           expect(updatedPool).toBeDefined();
           expect(updatedPool?.gaugeIsAlive).toBe(true);
         });
@@ -2374,17 +2325,12 @@ describe("Voter Events", () => {
         };
 
         // Mock findPoolByGaugeAddress to return null (root gauge, no local pool)
-        vi.spyOn(
-          LiquidityPoolAggregatorModule,
-          "findPoolByGaugeAddress",
-        ).mockResolvedValue(null);
+        vi.spyOn(PoolModule, "findPoolByGaugeAddress").mockResolvedValue(null);
 
         const resultDB = await mockDb.processEvents([mockEvent]);
 
         // Should not create any pool entities when pool doesn't exist and no root-gauge mapping
-        expect(
-          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
-        ).toHaveLength(0);
+        expect(Array.from(resultDB.entities.Pool.getAll())).toHaveLength(0);
       });
 
       afterEach(() => {
@@ -2535,9 +2481,7 @@ describe("Voter Events", () => {
         expect(pendingDistribution?.gaugeAddress).toBe(gaugeAddress);
         expect(pendingDistribution?.amount).toBe(1000n * 10n ** 18n);
 
-        expect(
-          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
-        ).toHaveLength(0);
+        expect(Array.from(resultDB.entities.Pool.getAll())).toHaveLength(0);
       });
 
       afterEach(() => {
@@ -2553,10 +2497,7 @@ describe("Voter Events", () => {
           rewardToken: vi.fn().mockReturnValue(rewardTokenAddress),
         };
 
-        vi.spyOn(
-          LiquidityPoolAggregatorModule,
-          "findPoolByGaugeAddress",
-        ).mockResolvedValue(null);
+        vi.spyOn(PoolModule, "findPoolByGaugeAddress").mockResolvedValue(null);
 
         const rootPoolAddressForAmbiguous = poolAddress;
         const leafChainId = 252;
@@ -2657,9 +2598,7 @@ describe("Voter Events", () => {
         expect(pendingDistribution?.logIndex).toBe(logIndex);
 
         // Distribution was deferred; no pool should have been updated
-        expect(
-          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
-        ).toHaveLength(0);
+        expect(Array.from(resultDB.entities.Pool.getAll())).toHaveLength(0);
       });
     });
 
@@ -2724,9 +2663,7 @@ describe("Voter Events", () => {
         expect(
           Array.from(resultDB.entities.PendingDistribution.getAll()),
         ).toHaveLength(0);
-        expect(
-          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
-        ).toHaveLength(0);
+        expect(Array.from(resultDB.entities.Pool.getAll())).toHaveLength(0);
       });
     });
 
@@ -2744,15 +2681,12 @@ describe("Voter Events", () => {
 
       // TODO: Skip until envio migrates to createTestIndexer — vi.spyOn can't intercept tsx-loaded modules (alpha.18)
       it.skip("should apply distribution to leaf pool without overwriting gaugeAddress", async () => {
-        const {
-          createMockLiquidityPoolAggregator,
-          mockToken0Data,
-          mockToken1Data,
-        } = setupCommon();
+        const { createMockPool, mockToken0Data, mockToken1Data } =
+          setupCommon();
 
         const leafToken0Id = TokenId(leafChainId, mockToken0Data.address);
         const leafToken1Id = TokenId(leafChainId, mockToken1Data.address);
-        const leafPool = createMockLiquidityPoolAggregator({
+        const leafPool = createMockPool({
           id: leafPoolId,
           poolAddress: leafPoolAddress as `0x${string}`,
           chainId: leafChainId,
@@ -2791,10 +2725,7 @@ describe("Voter Events", () => {
           chainId: leafChainId,
         };
 
-        vi.spyOn(
-          LiquidityPoolAggregatorModule,
-          "findPoolByGaugeAddress",
-        ).mockResolvedValue(null);
+        vi.spyOn(PoolModule, "findPoolByGaugeAddress").mockResolvedValue(null);
 
         vi.spyOn(
           getTokensDeposited as unknown as EffectWithHandler<
@@ -2826,7 +2757,7 @@ describe("Voter Events", () => {
         let db = mockDb.entities.Token.set(rewardToken);
         db = db.entities.Token.set(leafToken0);
         db = db.entities.Token.set(leafToken1);
-        db = db.entities.LiquidityPoolAggregator.set(leafPool);
+        db = db.entities.Pool.set(leafPool);
         db = db.entities.RootGauge_RootPool.set({
           id: rootGaugeRootPoolId,
           rootChainId: chainId,
@@ -2843,8 +2774,7 @@ describe("Voter Events", () => {
 
         const resultDB = await db.processEvents([mockEvent]);
 
-        const updatedLeafPool =
-          resultDB.entities.LiquidityPoolAggregator.get(leafPoolId);
+        const updatedLeafPool = resultDB.entities.Pool.get(leafPoolId);
         expect(updatedLeafPool).toBeDefined();
         expect(updatedLeafPool?.totalEmissions).toBe(1000n * 10n ** 18n);
         expect(updatedLeafPool?.totalEmissionsUSD).toBe(2000n * 10n ** 18n);
@@ -2864,8 +2794,8 @@ describe("Voter Events", () => {
       let originalChainConstantsForRewardTest: (typeof CHAIN_CONSTANTS)[typeof chainId];
 
       it("should log warning and return early when reward token is missing", async () => {
-        const { createMockLiquidityPoolAggregator } = setupCommon();
-        const liquidityPool = createMockLiquidityPoolAggregator({
+        const { createMockPool } = setupCommon();
+        const liquidityPool = createMockPool({
           id: PoolId(chainId, poolAddress),
           chainId: chainId,
           totalEmissions: 0n, // Start with 0 to test that it remains unchanged
@@ -2879,25 +2809,19 @@ describe("Voter Events", () => {
         };
 
         // Mock findPoolByGaugeAddress to return the pool
-        vi.spyOn(
-          LiquidityPoolAggregatorModule,
-          "findPoolByGaugeAddress",
-        ).mockResolvedValue(liquidityPool);
+        vi.spyOn(PoolModule, "findPoolByGaugeAddress").mockResolvedValue(
+          liquidityPool,
+        );
 
         // Create a fresh database with only the liquidity pool, no reward token
         const freshDb = MockDb.createMockDb();
-        const testDb =
-          freshDb.entities.LiquidityPoolAggregator.set(liquidityPool);
+        const testDb = freshDb.entities.Pool.set(liquidityPool);
 
         const resultDB = await testDb.processEvents([mockEvent]);
 
         // Should not update any entities when reward token is missing
-        expect(
-          Array.from(resultDB.entities.LiquidityPoolAggregator.getAll()),
-        ).toHaveLength(1);
-        const pool = resultDB.entities.LiquidityPoolAggregator.get(
-          PoolId(chainId, poolAddress),
-        );
+        expect(Array.from(resultDB.entities.Pool.getAll())).toHaveLength(1);
+        const pool = resultDB.entities.Pool.get(PoolId(chainId, poolAddress));
         expect(pool?.totalEmissions).toBe(0n); // Should remain unchanged
       });
 

@@ -1,14 +1,14 @@
-import type { LiquidityPoolAggregator, handlerContext } from "generated";
+import type { handlerContext } from "generated";
 import {
   applyStakedPositionToEdges,
   isPositionInRange,
 } from "../../Aggregators/CLStakedLiquidity";
-import type { PoolData } from "../../Aggregators/LiquidityPoolAggregator";
+import type { PoolData } from "../../Aggregators/Pool";
 import {
   findPoolByGaugeAddress,
   loadPoolData,
-  updateLiquidityPoolAggregator,
-} from "../../Aggregators/LiquidityPoolAggregator";
+  updatePool,
+} from "../../Aggregators/Pool";
 import {
   loadOrCreateUserData,
   updateUserStatsPerPool,
@@ -18,6 +18,7 @@ import {
   NonFungiblePositionId,
   TokenId,
 } from "../../Constants";
+import type { Pool } from "../../EntityTypes";
 import {
   calculatePositionAmountsFromLiquidity,
   calculateTotalUSD,
@@ -49,7 +50,7 @@ export interface GaugeEventData {
  */
 async function computeCLStakedReservesOnGaugeEvent(
   data: GaugeEventData,
-  liquidityPoolAggregator: LiquidityPoolAggregator,
+  liquidityPoolAggregator: Pool,
   poolData: PoolData,
   context: handlerContext,
   direction: 1n | -1n,
@@ -160,7 +161,7 @@ async function computeCLStakedReservesOnGaugeEvent(
  */
 function computeNonCLStakedUSDIfAvailable(
   stakeAmount: bigint,
-  liquidityPoolAggregator: LiquidityPoolAggregator,
+  liquidityPoolAggregator: Pool,
   poolData: PoolData,
   context: handlerContext,
 ): bigint | undefined {
@@ -213,7 +214,7 @@ export async function findPoolOrSkipRootGauge(
   chainId: number,
   context: handlerContext,
   handlerName: string,
-): Promise<{ pool: LiquidityPoolAggregator } | null> {
+): Promise<{ pool: Pool } | null> {
   const pool = await findPoolByGaugeAddress(gaugeAddress, chainId, context);
   if (pool) {
     return { pool };
@@ -233,7 +234,7 @@ export async function findPoolOrSkipRootGauge(
  */
 function computeNonCLPoolStakedUSD(
   newPoolStake: bigint,
-  liquidityPoolAggregator: LiquidityPoolAggregator,
+  liquidityPoolAggregator: Pool,
   poolData: PoolData,
   context: handlerContext,
 ): bigint | undefined {
@@ -359,7 +360,7 @@ export async function processGaugeDeposit(
   };
 
   await Promise.all([
-    updateLiquidityPoolAggregator(
+    updatePool(
       poolDiff,
       liquidityPoolAggregator,
       timestamp,
@@ -479,7 +480,7 @@ export async function processGaugeWithdraw(
   };
 
   await Promise.all([
-    updateLiquidityPoolAggregator(
+    updatePool(
       poolDiff,
       liquidityPoolAggregator,
       timestamp,
@@ -575,7 +576,7 @@ export async function processGaugeClaimRewards(
 
   // Update pool and user entities in parallel
   await Promise.all([
-    updateLiquidityPoolAggregator(
+    updatePool(
       poolDiff,
       liquidityPoolAggregator,
       timestamp,

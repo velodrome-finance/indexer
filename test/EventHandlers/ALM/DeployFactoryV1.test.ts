@@ -8,10 +8,7 @@ import {
   NonFungiblePositionId,
   toChecksumAddress,
 } from "../../../src/Constants";
-import {
-  extendMockDbWithGetWhere,
-  setupLiquidityPoolAggregator,
-} from "../../testHelpers";
+import { extendMockDbWithGetWhere, setupPool } from "../../testHelpers";
 import { setupCommon } from "../Pool/common";
 
 describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
@@ -84,11 +81,7 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
       };
 
       mockDb = mockDb.entities.NonFungiblePosition.set(mockNFPM);
-      mockDb = setupLiquidityPoolAggregator(
-        mockDb,
-        mockLiquidityPoolData,
-        poolAddress,
-      );
+      mockDb = setupPool(mockDb, mockLiquidityPoolData, poolAddress);
 
       // Track entities for getWhere query
       const storedNFPMs = [mockNFPM];
@@ -307,11 +300,7 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
 
       mockDb = mockDb.entities.NonFungiblePosition.set(matchingNFPM);
       mockDb = mockDb.entities.NonFungiblePosition.set(nonMatchingNFPM);
-      mockDb = setupLiquidityPoolAggregator(
-        mockDb,
-        mockLiquidityPoolData,
-        poolAddress,
-      );
+      mockDb = setupPool(mockDb, mockLiquidityPoolData, poolAddress);
 
       const storedNFPMs = [matchingNFPM, nonMatchingNFPM];
 
@@ -402,11 +391,7 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
 
       mockDb = mockDb.entities.NonFungiblePosition.set(matchingNFPM1);
       mockDb = mockDb.entities.NonFungiblePosition.set(matchingNFPM2);
-      mockDb = setupLiquidityPoolAggregator(
-        mockDb,
-        mockLiquidityPoolData,
-        poolAddress,
-      );
+      mockDb = setupPool(mockDb, mockLiquidityPoolData, poolAddress);
 
       const storedNFPMs = [matchingNFPM1, matchingNFPM2];
 

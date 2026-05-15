@@ -5,8 +5,8 @@ import {
   findPoolByGaugeAddress,
   isMissingRootPoolMapping,
   loadPoolDataOrRootCLPool,
-  updateLiquidityPoolAggregator,
-} from "../../Aggregators/LiquidityPoolAggregator";
+  updatePool,
+} from "../../Aggregators/Pool";
 import {
   loadOrCreateUserData,
   updateUserStatsPerPool,
@@ -54,7 +54,7 @@ Voter.GaugeCreated.handler(async ({ event, context }) => {
   const poolId = PoolId(event.chainId, event.params.pool);
   const gaugeAddress = event.params.gauge;
 
-  const poolEntity = await context.LiquidityPoolAggregator.get(poolId);
+  const poolEntity = await context.Pool.get(poolId);
 
   if (poolEntity) {
     const poolUpdateDiff = {
@@ -65,7 +65,7 @@ Voter.GaugeCreated.handler(async ({ event, context }) => {
       lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
     };
 
-    await updateLiquidityPoolAggregator(
+    await updatePool(
       poolUpdateDiff,
       poolEntity,
       new Date(event.block.timestamp * 1000),
@@ -74,7 +74,7 @@ Voter.GaugeCreated.handler(async ({ event, context }) => {
       event.block.number,
     );
   } else {
-    // RootPool case: no LiquidityPoolAggregator on this chain
+    // RootPool case: no Pool on this chain
     // Store root gauge → root pool for DistributeReward cross-chain resolution
     const id = RootGaugeRootPoolId(event.chainId, event.params.gauge);
     context.RootGauge_RootPool.set({
@@ -164,7 +164,7 @@ Voter.Voted.handler(async ({ event, context }) => {
     );
 
   await Promise.all([
-    updateLiquidityPoolAggregator(
+    updatePool(
       poolVoteDiff,
       liquidityPoolAggregator,
       timestamp,
@@ -261,7 +261,7 @@ Voter.Abstained.handler(async ({ event, context }) => {
   ]);
 
   await Promise.all([
-    updateLiquidityPoolAggregator(
+    updatePool(
       poolVoteDiff,
       liquidityPoolAggregator,
       timestamp,
@@ -294,8 +294,7 @@ Voter.DistributeReward.handler(async ({ event, context }) => {
         context,
       );
       if (poolEntity) {
-        const pool =
-          (await context.LiquidityPoolAggregator.get(poolEntity.id)) ?? null;
+        const pool = (await context.Pool.get(poolEntity.id)) ?? null;
         return pool ? { pool, isCrossChain: false } : null;
       }
       return resolveLeafPoolForRootGauge(
@@ -377,7 +376,7 @@ Voter.DistributeReward.handler(async ({ event, context }) => {
     isCrossChainDistribution ? undefined : event.params.gauge,
   );
 
-  await updateLiquidityPoolAggregator(
+  await updatePool(
     poolDiff,
     currentLiquidityPool,
     new Date(timestampMs),
@@ -476,7 +475,7 @@ Voter.GaugeKilled.handler(async ({ event, context }) => {
       lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
     };
 
-    await updateLiquidityPoolAggregator(
+    await updatePool(
       poolUpdateDiff,
       poolEntity,
       new Date(event.block.timestamp * 1000),
@@ -501,7 +500,7 @@ Voter.GaugeRevived.handler(async ({ event, context }) => {
       lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
     };
 
-    await updateLiquidityPoolAggregator(
+    await updatePool(
       poolUpdateDiff,
       poolEntity,
       new Date(event.block.timestamp * 1000),

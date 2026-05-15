@@ -1,13 +1,10 @@
-import type {
-  CLPool_Mint_event,
-  LiquidityPoolAggregator,
-  Token,
-} from "generated";
-import type { LiquidityPoolAggregatorDiff } from "../../Aggregators/LiquidityPoolAggregator";
+import type { CLPool_Mint_event, Token } from "generated";
+import type { PoolDiff } from "../../Aggregators/Pool";
+import type { Pool } from "../../EntityTypes";
 import { calculateTotalUSD } from "../../Helpers";
 
 export interface CLPoolMintResult {
-  liquidityPoolDiff: Partial<LiquidityPoolAggregatorDiff>;
+  liquidityPoolDiff: Partial<PoolDiff>;
 }
 
 /**
@@ -28,7 +25,7 @@ export interface CLPoolMintResult {
  */
 export function processCLPoolMint(
   event: CLPool_Mint_event,
-  liquidityPoolAggregator: LiquidityPoolAggregator,
+  liquidityPoolAggregator: Pool,
   token0Instance: Token,
   token1Instance: Token,
 ): CLPoolMintResult {
@@ -49,7 +46,7 @@ export function processCLPoolMint(
     event.params.tickLower <= currentTick &&
     currentTick < event.params.tickUpper;
 
-  const liquidityPoolDiff: Partial<LiquidityPoolAggregatorDiff> = {
+  const liquidityPoolDiff: Partial<PoolDiff> = {
     incrementalReserve0: event.params.amount0,
     incrementalReserve1: event.params.amount1,
     currentTotalLiquidityUSD: currentTotalLiquidityUSD,

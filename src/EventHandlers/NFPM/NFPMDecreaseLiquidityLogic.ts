@@ -1,9 +1,9 @@
 import type { NFPM_DecreaseLiquidity_event, handlerContext } from "generated";
-import { loadPoolData } from "../../Aggregators/LiquidityPoolAggregator";
 import {
   type NonFungiblePositionDiff,
   updateNonFungiblePosition,
 } from "../../Aggregators/NonFungiblePosition";
+import { loadPoolData } from "../../Aggregators/Pool";
 import { NonFungiblePositionId } from "../../Constants";
 import {
   LiquidityChangeType,

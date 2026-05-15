@@ -3,8 +3,8 @@ import {
   applyStakedPositionToEdges,
   isPositionInRange,
 } from "../../Aggregators/CLStakedLiquidity";
-import type { PoolData } from "../../Aggregators/LiquidityPoolAggregator";
-import { updateLiquidityPoolAggregator } from "../../Aggregators/LiquidityPoolAggregator";
+import type { PoolData } from "../../Aggregators/Pool";
+import { updatePool } from "../../Aggregators/Pool";
 import {
   loadOrCreateUserData,
   updateUserStatsPerPool,
@@ -143,7 +143,7 @@ export async function updateStakedPositionLiquidity(
     // the edge-list update so the swap path has correct state once a price is
     // established, but skip the amount math that would otherwise produce
     // garbage from sqrtPriceX96=0.
-    await updateLiquidityPoolAggregator(
+    await updatePool(
       { stakedTickEdges, stakedTickEdgeNets, hasStakes },
       liquidityPoolAggregator,
       timestamp,
@@ -184,7 +184,7 @@ export async function updateStakedPositionLiquidity(
     hasStakes,
   };
 
-  await updateLiquidityPoolAggregator(
+  await updatePool(
     stakedDiff,
     liquidityPoolAggregator,
     timestamp,

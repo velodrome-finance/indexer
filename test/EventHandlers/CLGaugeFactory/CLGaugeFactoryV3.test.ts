@@ -5,11 +5,10 @@ import {
   MockDb,
 } from "../../../generated/src/TestHelpers.gen";
 import { PoolId, toChecksumAddress } from "../../../src/Constants";
-import { type MockLiquidityPoolAggregator, setupCommon } from "../Pool/common";
+import { type MockPool, setupCommon } from "../Pool/common";
 
 describe("CLGaugeFactoryV3 Event Handlers", () => {
-  const { mockLiquidityPoolData, createMockLiquidityPoolAggregator } =
-    setupCommon();
+  const { mockLiquidityPoolData, createMockPool } = setupCommon();
   const chainId = 8453; // Base — where V3 is deployed
   const v2FactoryAddress = toChecksumAddress(
     "0xB630227a79707D517320b6c0f885806389dFcbB3",
@@ -108,16 +107,16 @@ describe("CLGaugeFactoryV3 Event Handlers", () => {
   });
 
   describe("SetEmissionCap", () => {
-    let mockPoolWithGauge: MockLiquidityPoolAggregator;
+    let mockPoolWithGauge: MockPool;
     let mockDbWithGetWhere: typeof mockDb;
 
     beforeEach(() => {
-      mockPoolWithGauge = createMockLiquidityPoolAggregator({
+      mockPoolWithGauge = createMockPool({
         gaugeAddress: mockGaugeAddress,
         gaugeEmissionsCap: 0n,
       });
 
-      mockDb = mockDb.entities.LiquidityPoolAggregator.set(mockPoolWithGauge);
+      mockDb = mockDb.entities.Pool.set(mockPoolWithGauge);
 
       const storedPools = [mockPoolWithGauge];
 
@@ -125,8 +124,8 @@ describe("CLGaugeFactoryV3 Event Handlers", () => {
         ...mockDb,
         entities: {
           ...mockDb.entities,
-          LiquidityPoolAggregator: {
-            ...mockDb.entities.LiquidityPoolAggregator,
+          Pool: {
+            ...mockDb.entities.Pool,
             getWhere: {
               gaugeAddress: {
                 eq: async (gaugeAddr: string) =>
@@ -143,7 +142,7 @@ describe("CLGaugeFactoryV3 Event Handlers", () => {
       } as typeof mockDb;
     });
 
-    it("updates LiquidityPoolAggregator.gaugeEmissionsCap by gauge address", async () => {
+    it("updates Pool.gaugeEmissionsCap by gauge address", async () => {
       const event = CLGaugeFactoryV3.SetEmissionCap.createMockEvent({
         _gauge: mockGaugeAddress,
         _newEmissionCap: mockEmissionCap,
@@ -161,9 +160,7 @@ describe("CLGaugeFactoryV3 Event Handlers", () => {
 
       const result = await mockDbWithGetWhere.processEvents([event]);
 
-      const pool = result.entities.LiquidityPoolAggregator.get(
-        mockLiquidityPoolData.id,
-      );
+      const pool = result.entities.Pool.get(mockLiquidityPoolData.id);
       expect(pool).toBeDefined();
       if (!pool) return;
       expect(pool.gaugeEmissionsCap).toBe(mockEmissionCap);
@@ -176,8 +173,8 @@ describe("CLGaugeFactoryV3 Event Handlers", () => {
         ...mockDb,
         entities: {
           ...mockDb.entities,
-          LiquidityPoolAggregator: {
-            ...mockDb.entities.LiquidityPoolAggregator,
+          Pool: {
+            ...mockDb.entities.Pool,
             getWhere: {
               gaugeAddress: {
                 eq: async (_: string) => [],
@@ -204,9 +201,7 @@ describe("CLGaugeFactoryV3 Event Handlers", () => {
 
       const result = await emptyDb.processEvents([event]);
 
-      const pool = result.entities.LiquidityPoolAggregator.get(
-        mockLiquidityPoolData.id,
-      );
+      const pool = result.entities.Pool.get(mockLiquidityPoolData.id);
       expect(pool).toBeDefined();
       if (!pool) return;
       expect(pool.gaugeEmissionsCap).toBe(0n);
@@ -283,14 +278,14 @@ describe("CLGaugeFactoryV3 Event Handlers", () => {
     );
     const poolOnBaseId = PoolId(chainId, poolAddress);
 
-    it("sets minStakeTime on the matching LiquidityPoolAggregator", async () => {
-      const existingPool = createMockLiquidityPoolAggregator({
+    it("sets minStakeTime on the matching Pool", async () => {
+      const existingPool = createMockPool({
         id: poolOnBaseId,
         chainId,
         poolAddress: poolAddress as `0x${string}`,
         minStakeTime: 0n,
       });
-      const seeded = mockDb.entities.LiquidityPoolAggregator.set(existingPool);
+      const seeded = mockDb.entities.Pool.set(existingPool);
 
       const event = CLGaugeFactoryV3.SetPoolMinStakeTime.createMockEvent({
         _pool: poolAddress,
@@ -309,7 +304,7 @@ describe("CLGaugeFactoryV3 Event Handlers", () => {
 
       const result = await seeded.processEvents([event]);
 
-      const pool = result.entities.LiquidityPoolAggregator.get(poolOnBaseId);
+      const pool = result.entities.Pool.get(poolOnBaseId);
       expect(pool).toBeDefined();
       if (!pool) return;
       expect(pool.minStakeTime).toBe(3_600n);
@@ -335,7 +330,7 @@ describe("CLGaugeFactoryV3 Event Handlers", () => {
       const result = await mockDb.processEvents([event]);
 
       // Verify no pool entity was created for the missing pool — handler short-circuits.
-      const missingPool = result.entities.LiquidityPoolAggregator.get(
+      const missingPool = result.entities.Pool.get(
         PoolId(
           chainId,
           toChecksumAddress("0xdddddddddddddddddddddddddddddddddddddddd"),

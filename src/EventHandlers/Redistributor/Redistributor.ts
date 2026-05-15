@@ -1,20 +1,17 @@
 import { Redistributor, type handlerContext } from "generated";
-import {
-  type LiquidityPoolAggregatorDiff,
-  updateLiquidityPoolAggregator,
-} from "../../Aggregators/LiquidityPoolAggregator";
+import { type PoolDiff, updatePool } from "../../Aggregators/Pool";
 import { applyRedistributorConfigUpdate } from "./RedistributorConfigSharedLogic";
 
 type RedistributorCounterDelta = Partial<
   Pick<
-    LiquidityPoolAggregatorDiff,
+    PoolDiff,
     | "incrementalTotalEmissionsRedistributed"
     | "incrementalTotalEmissionsForfeited"
   >
 >;
 
 /**
- * Resolve the `LiquidityPoolAggregator` whose `gaugeAddress` matches the event's
+ * Resolve the `Pool` whose `gaugeAddress` matches the event's
  * gauge and apply a cumulative delta to one of the redistributor counters.
  *
  * Log-and-drop when no pool matches: Redistributor and the Voter/Gauge factories
@@ -39,7 +36,7 @@ async function applyRedistributorCounterDelta(
   blockNumber: number,
   context: handlerContext,
 ): Promise<void> {
-  const poolEntityList = await context.LiquidityPoolAggregator.getWhere({
+  const poolEntityList = await context.Pool.getWhere({
     gaugeAddress: { _eq: gauge },
   });
 
@@ -58,7 +55,7 @@ async function applyRedistributorCounterDelta(
 
   const poolEntity = poolEntityList[0];
 
-  await updateLiquidityPoolAggregator(
+  await updatePool(
     delta,
     poolEntity,
     new Date(blockTimestampSeconds * 1000),

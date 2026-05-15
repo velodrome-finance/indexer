@@ -12,7 +12,7 @@ describe("Pool Burn Event", () => {
     commonData = setupCommon();
 
     // Set up mock database with common data
-    const updatedDB1 = mockDb.entities.LiquidityPoolAggregator.set(
+    const updatedDB1 = mockDb.entities.Pool.set(
       commonData.mockLiquidityPoolData,
     );
     const updatedDB2 = updatedDB1.entities.Token.set(commonData.mockToken0Data);
@@ -41,7 +41,7 @@ describe("Pool Burn Event", () => {
     const result = await mockDb.processEvents([mockEvent]);
 
     // Verify that the liquidity pool aggregator was updated
-    const updatedAggregator = result.entities.LiquidityPoolAggregator.get(
+    const updatedAggregator = result.entities.Pool.get(
       commonData.mockLiquidityPoolData.id,
     );
     expect(updatedAggregator).toBeDefined();
@@ -69,7 +69,7 @@ describe("Pool Burn Event", () => {
       const updatedDB2 = updatedDB1.entities.Token.set(
         commonData.mockToken1Data,
       );
-      // Note: We intentionally don't set the LiquidityPoolAggregator
+      // Note: We intentionally don't set the Pool
 
       const mockEvent = Pool.Burn.createMockEvent({
         sender: toChecksumAddress("0x1111111111111111111111111111111111111111"),
@@ -92,7 +92,7 @@ describe("Pool Burn Event", () => {
       const postEventDB = await updatedDB2.processEvents([mockEvent]);
 
       // Pool should not exist
-      const pool = postEventDB.entities.LiquidityPoolAggregator.get(
+      const pool = postEventDB.entities.Pool.get(
         commonData.mockLiquidityPoolData.id,
       );
       expect(pool).toBeUndefined();

@@ -1,11 +1,10 @@
 import type { PoolLauncherPool, Token } from "generated";
 import { MockDb, V2PoolLauncher } from "generated/src/TestHelpers.gen";
 import { PoolId, TokenId, toChecksumAddress } from "../../../src/Constants";
-import { type MockLiquidityPoolAggregator, setupCommon } from "../Pool/common";
+import { type MockPool, setupCommon } from "../Pool/common";
 
 describe("V2PoolLauncher Events", () => {
-  const { createMockLiquidityPoolAggregator, mockToken0Data, mockToken1Data } =
-    setupCommon();
+  const { createMockPool, mockToken0Data, mockToken1Data } = setupCommon();
   const mockChainId = 10;
   const mockPoolAddress = toChecksumAddress(
     "0x1111111111111111111111111111111111111111",
@@ -56,11 +55,11 @@ describe("V2PoolLauncher Events", () => {
     isWhitelisted: true,
   };
 
-  let mockLiquidityPoolAggregator: MockLiquidityPoolAggregator;
+  let mockPool: MockPool;
   let mockDb: ReturnType<typeof MockDb.createMockDb>;
 
   beforeEach(() => {
-    mockLiquidityPoolAggregator = createMockLiquidityPoolAggregator({
+    mockPool = createMockPool({
       poolAddress: mockPoolAddress,
       chainId: mockChainId,
     });
@@ -68,13 +67,11 @@ describe("V2PoolLauncher Events", () => {
     mockDb = MockDb.createMockDb();
     mockDb = mockDb.entities.Token.set(mockToken0);
     mockDb = mockDb.entities.Token.set(mockToken1);
-    mockDb = mockDb.entities.LiquidityPoolAggregator.set(
-      mockLiquidityPoolAggregator,
-    );
+    mockDb = mockDb.entities.Pool.set(mockPool);
   });
 
   describe("V2PoolLauncher.Launch", () => {
-    it("should create a new PoolLauncherPool and link to LiquidityPoolAggregator", async () => {
+    it("should create a new PoolLauncherPool and link to Pool", async () => {
       const mockEvent = V2PoolLauncher.Launch.createMockEvent({
         pool: mockPoolAddress,
         sender: mockCreator,
@@ -108,11 +105,10 @@ describe("V2PoolLauncher Events", () => {
       expect(poolLauncherPool?.pairToken).toBe(mockPairToken);
       expect(poolLauncherPool?.isEmerging).toBe(false);
 
-      // Check that LiquidityPoolAggregator was linked
-      const liquidityPoolAggregator =
-        result.entities.LiquidityPoolAggregator.get(
-          PoolId(mockChainId, mockPoolAddress),
-        );
+      // Check that Pool was linked
+      const liquidityPoolAggregator = result.entities.Pool.get(
+        PoolId(mockChainId, mockPoolAddress),
+      );
       expect(liquidityPoolAggregator).toBeDefined();
       expect(liquidityPoolAggregator?.poolLauncherPoolId).toBe(
         PoolId(mockChainId, mockPoolAddress),

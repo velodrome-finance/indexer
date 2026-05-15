@@ -5,7 +5,7 @@ import {
 } from "../../../generated/src/TestHelpers.gen";
 import { TokenId, VeNFTId, toChecksumAddress } from "../../../src/Constants";
 import * as VotingRewardSharedLogic from "../../../src/EventHandlers/VotingReward/VotingRewardSharedLogic";
-import { type MockLiquidityPoolAggregator, setupCommon } from "../Pool/common";
+import { type MockPool, setupCommon } from "../Pool/common";
 
 describe("SuperchainIncentiveVotingReward Events", () => {
   const { mockToken0Data, mockToken1Data } = setupCommon();
@@ -22,7 +22,7 @@ describe("SuperchainIncentiveVotingReward Events", () => {
   const tokenId = 1n;
 
   let mockDb: ReturnType<typeof MockDb.createMockDb>;
-  let liquidityPool: MockLiquidityPoolAggregator;
+  let liquidityPool: MockPool;
   let userStats: ReturnType<
     ReturnType<typeof setupCommon>["createMockUserStatsPerPool"]
   >;
@@ -31,11 +31,10 @@ describe("SuperchainIncentiveVotingReward Events", () => {
 
   beforeEach(() => {
     mockDb = MockDb.createMockDb();
-    const { createMockUserStatsPerPool, createMockLiquidityPoolAggregator } =
-      setupCommon();
+    const { createMockUserStatsPerPool, createMockPool } = setupCommon();
 
     // Set up liquidity pool with bribe voting reward address
-    liquidityPool = createMockLiquidityPoolAggregator({
+    liquidityPool = createMockPool({
       chainId: chainId,
       bribeVotingRewardAddress: votingRewardAddress,
       feeVotingRewardAddress: "",
@@ -78,7 +77,7 @@ describe("SuperchainIncentiveVotingReward Events", () => {
     } as Token;
 
     // Set up entities in mock DB
-    mockDb = mockDb.entities.LiquidityPoolAggregator.set(liquidityPool);
+    mockDb = mockDb.entities.Pool.set(liquidityPool);
     mockDb = mockDb.entities.UserStatsPerPool.set(userStats);
     mockDb = mockDb.entities.VeNFTState.set(veNFT);
     mockDb = mockDb.entities.Token.set(mockToken0Data as Token);
@@ -144,9 +143,7 @@ describe("SuperchainIncentiveVotingReward Events", () => {
     });
 
     it("should update pool aggregator with bribe claimed", () => {
-      const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
-        liquidityPool.id,
-      );
+      const updatedPool = resultDB.entities.Pool.get(liquidityPool.id);
       expect(updatedPool).toBeDefined();
       expect(updatedPool?.totalBribeClaimed).toBe(1000000n);
       expect(updatedPool?.totalBribeClaimedUSD).toBe(1000000n);
@@ -171,17 +168,14 @@ describe("SuperchainIncentiveVotingReward Events", () => {
 
         // Create fresh mockDb with initial entities to avoid interference from parent's processEvents
         freshMockDb = MockDb.createMockDb();
-        freshMockDb =
-          freshMockDb.entities.LiquidityPoolAggregator.set(liquidityPool);
+        freshMockDb = freshMockDb.entities.Pool.set(liquidityPool);
         freshMockDb = freshMockDb.entities.UserStatsPerPool.set(userStats);
         freshMockDb = freshMockDb.entities.Token.set(rewardToken);
         resultDB = await freshMockDb.processEvents([mockEvent]);
       });
 
       it("should not update pool or user stats", () => {
-        const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
-          liquidityPool.id,
-        );
+        const updatedPool = resultDB.entities.Pool.get(liquidityPool.id);
         expect(updatedPool?.totalBribeClaimed).toBe(
           liquidityPool.totalBribeClaimed,
         );

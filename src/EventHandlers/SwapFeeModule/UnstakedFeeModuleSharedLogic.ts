@@ -1,8 +1,5 @@
 import type { handlerContext } from "generated";
-import {
-  type LiquidityPoolAggregatorDiff,
-  updateLiquidityPoolAggregator,
-} from "../../Aggregators/LiquidityPoolAggregator";
+import { type PoolDiff, updatePool } from "../../Aggregators/Pool";
 import { PoolId } from "../../Constants";
 
 export interface UnstakedFeeEventData {
@@ -35,18 +32,18 @@ export async function applyUnstakedFee(
   context: handlerContext,
 ): Promise<void> {
   const poolId = PoolId(data.chainId, data.poolAddress);
-  const pool = await context.LiquidityPoolAggregator.get(poolId);
+  const pool = await context.Pool.get(poolId);
 
   if (!pool) {
     context.log.warn(`Pool ${poolId} not found for ${data.logContext} event`);
     return;
   }
 
-  const diff: Partial<LiquidityPoolAggregatorDiff> = {
+  const diff: Partial<PoolDiff> = {
     unstakedFee: data.fee,
   };
 
-  await updateLiquidityPoolAggregator(
+  await updatePool(
     diff,
     pool,
     new Date(data.blockTimestamp * 1000),

@@ -5,14 +5,14 @@ import {
 } from "../../../generated/src/TestHelpers.gen";
 import { TokenId, toChecksumAddress } from "../../../src/Constants";
 import * as VotingRewardSharedLogic from "../../../src/EventHandlers/VotingReward/VotingRewardSharedLogic";
-import { type MockLiquidityPoolAggregator, setupCommon } from "../Pool/common";
+import { type MockPool, setupCommon } from "../Pool/common";
 
 describe("BribesVotingReward Events", () => {
   const {
     mockToken0Data,
     mockToken1Data,
     mockLiquidityPoolData,
-    createMockLiquidityPoolAggregator,
+    createMockPool,
     createMockUserStatsPerPool,
   } = setupCommon();
   const poolAddress = mockLiquidityPoolData.poolAddress;
@@ -28,7 +28,7 @@ describe("BribesVotingReward Events", () => {
   );
 
   let mockDb: ReturnType<typeof MockDb.createMockDb>;
-  let liquidityPool: MockLiquidityPoolAggregator;
+  let liquidityPool: MockPool;
   let userStats: ReturnType<
     ReturnType<typeof setupCommon>["createMockUserStatsPerPool"]
   >;
@@ -39,7 +39,7 @@ describe("BribesVotingReward Events", () => {
     mockDb = MockDb.createMockDb();
 
     // Set up liquidity pool with bribe voting reward address
-    liquidityPool = createMockLiquidityPoolAggregator({
+    liquidityPool = createMockPool({
       bribeVotingRewardAddress: toChecksumAddress(votingRewardAddress),
       feeVotingRewardAddress: "",
     });
@@ -66,7 +66,7 @@ describe("BribesVotingReward Events", () => {
     } as Token;
 
     // Set up entities in mock DB
-    mockDb = mockDb.entities.LiquidityPoolAggregator.set(liquidityPool);
+    mockDb = mockDb.entities.Pool.set(liquidityPool);
     mockDb = mockDb.entities.UserStatsPerPool.set(userStats);
     mockDb = mockDb.entities.Token.set(mockToken0Data as Token);
     mockDb = mockDb.entities.Token.set(mockToken1Data as Token);
@@ -116,9 +116,7 @@ describe("BribesVotingReward Events", () => {
     });
 
     it("should update pool aggregator with bribe claimed", () => {
-      const updatedPool = resultDB.entities.LiquidityPoolAggregator.get(
-        mockLiquidityPoolData.id,
-      );
+      const updatedPool = resultDB.entities.Pool.get(mockLiquidityPoolData.id);
       expect(updatedPool).toBeDefined();
       // The actual values depend on the price calculation, but should be updated
       expect(updatedPool?.totalBribeClaimed).toBeGreaterThan(0n);

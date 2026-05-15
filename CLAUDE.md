@@ -31,7 +31,7 @@ pnpm envio stop           # Stop the indexer
 ### Key Directories
 
 - **`src/EventHandlers/`** - Event handler registrations and business logic. Top-level files (e.g. `Pool.ts`, `CLPool.ts`) register handlers; subdirectories contain the actual logic (e.g. `Pool/PoolSwapLogic.ts`, `CLPool/CLPoolSwapLogic.ts`).
-- **`src/Aggregators/`** - Derived entity computations. `LiquidityPoolAggregator.ts` is the central aggregator (~24KB) that computes pool-level metrics (TVL, volume, fees, votes, emissions). Other aggregators: `UserStatsPerPool.ts`, `NonFungiblePosition.ts`, `VeNFTState.ts`, `VeNFTPoolVote.ts`, `ALMLPWrapper.ts`.
+- **`src/Aggregators/`** - Derived entity computations. `Pool.ts` is the central aggregator (~24KB) that computes pool-level metrics (TVL, volume, fees, votes, emissions). Other aggregators: `UserStatsPerPool.ts`, `NonFungiblePosition.ts`, `VeNFTState.ts`, `VeNFTPoolVote.ts`, `ALMLPWrapper.ts`.
 - **`src/Snapshots/`** - Hourly snapshot creation for all aggregated entities. Uses `Shared.ts` for common epoch-alignment logic.
 - **`src/Effects/`** - External calls (RPC, API) wrapped in Envio's Effect API for preload compatibility. `RpcGateway.ts` handles multi-chain RPC calls, `Token.ts` fetches token details/prices.
 - **`src/Constants.ts`** - Chain-specific constants, factory addresses, price connectors, RPC client setup. Exports `toChecksumAddress()`, chain constants map (`CHAIN_CONSTANTS`), and precision constants.
@@ -89,7 +89,7 @@ Every exported function in `src/**/*.ts` carries a JSDoc block with:
 - `@param name - description` for every parameter
 - `@returns description` — even for `Promise<void>`, summarize what was staged/written (e.g. "Promise that resolves once the upsert is staged")
 
-Match the style already in `src/Aggregators/LiquidityPoolAggregator.ts`, `src/EventHandlers/Gauges/GaugeSharedLogic.ts`, and `src/EventHandlers/CLGaugeFactory/CLGaugeFactorySharedLogic.ts`.
+Match the style already in `src/Aggregators/Pool.ts`, `src/EventHandlers/Gauges/GaugeSharedLogic.ts`, and `src/EventHandlers/CLGaugeFactory/CLGaugeFactorySharedLogic.ts`.
 
 ## Testing
 

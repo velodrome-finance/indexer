@@ -3,9 +3,10 @@ import {
   TickMath,
   maxLiquidityForAmounts,
 } from "@uniswap/v3-sdk";
-import type { LiquidityPoolAggregator, Token, handlerContext } from "generated";
+import type { Token, handlerContext } from "generated";
 import JSBI from "jsbi";
 import { toChecksumAddress } from "../src/Constants";
+import type { Pool } from "../src/EntityTypes";
 import {
   calculatePositionAmountsFromLiquidity,
   calculateTotalUSD,
@@ -926,13 +927,13 @@ describe("Helpers", () => {
       const reserve1 = 1000n * 10n ** 6n;
       const totalSupply = 1000n * 10n ** 18n;
 
-      const poolEntity: LiquidityPoolAggregator = {
+      const poolEntity: Pool = {
         ...mockPool,
         isCL: false,
         reserve0,
         reserve1,
         totalLPTokenSupply: totalSupply,
-      } as LiquidityPoolAggregator;
+      } as Pool;
 
       const amount0 = (stakeAmount * reserve0) / totalSupply;
       const amount1 = (stakeAmount * reserve1) / totalSupply;
@@ -965,7 +966,7 @@ describe("Helpers", () => {
         reserve0: 1000n,
         reserve1: 1000n,
         totalLPTokenSupply: 1000n,
-      } as LiquidityPoolAggregator;
+      } as Pool;
 
       const result = computeNonCLStakedUSD(
         0n,
@@ -988,7 +989,7 @@ describe("Helpers", () => {
         reserve0: 1000n,
         reserve1: 1000n,
         totalLPTokenSupply: 0n,
-      } as LiquidityPoolAggregator;
+      } as Pool;
 
       const result = computeNonCLStakedUSD(
         100n,
@@ -1011,7 +1012,7 @@ describe("Helpers", () => {
         reserve0: 1000n,
         reserve1: 1000n,
         totalLPTokenSupply: undefined,
-      } as unknown as LiquidityPoolAggregator;
+      } as unknown as Pool;
 
       const result = computeNonCLStakedUSD(
         100n,

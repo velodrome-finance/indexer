@@ -1,9 +1,6 @@
 import type { NonFungiblePosition, handlerContext } from "generated";
 import { MockDb, NFPM } from "../../../generated/src/TestHelpers.gen";
-import {
-  type PoolData,
-  loadPoolData,
-} from "../../../src/Aggregators/LiquidityPoolAggregator";
+import { type PoolData, loadPoolData } from "../../../src/Aggregators/Pool";
 import {
   NonFungiblePositionId,
   NonFungiblePositionSnapshotId,
@@ -20,10 +17,8 @@ import {
 import { getSnapshotEpoch } from "../../../src/Snapshots/Shared";
 import { defaultNfpmAddress } from "../Pool/common";
 
-vi.mock("../../../src/Aggregators/LiquidityPoolAggregator", async () => ({
-  ...(await vi.importActual(
-    "../../../src/Aggregators/LiquidityPoolAggregator",
-  )),
+vi.mock("../../../src/Aggregators/Pool", async () => ({
+  ...(await vi.importActual("../../../src/Aggregators/Pool")),
   loadPoolData: vi.fn(),
 }));
 
@@ -112,7 +107,7 @@ describe("NFPMDecreaseLiquidityLogic", () => {
 
     mockContext = {
       ...mockDb,
-      LiquidityPoolAggregator: {
+      Pool: {
         get: vi.fn().mockResolvedValue(undefined),
       },
       UserStatsPerPool: {

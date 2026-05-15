@@ -16,8 +16,8 @@ import type {
 import {
   type PoolData,
   loadPoolData,
-  updateLiquidityPoolAggregator,
-} from "../../Aggregators/LiquidityPoolAggregator";
+  updatePool,
+} from "../../Aggregators/Pool";
 import {
   loadOrCreateUserData,
   updateUserStatsPerPool,
@@ -76,7 +76,7 @@ export async function getPendingVotesByRootPool(
 }
 
 /**
- * Applies a single pending vote to the leaf pool: updates LiquidityPoolAggregator,
+ * Applies a single pending vote to the leaf pool: updates Pool,
  * UserStatsPerPool, and VeNFTPoolVote. Uses incremental pool update (current total + delta)
  * since we don't have the event's totalWeight.
  * @param context - The handler context
@@ -141,7 +141,7 @@ export async function processPendingVote(
   ]);
 
   await Promise.all([
-    updateLiquidityPoolAggregator(
+    updatePool(
       poolVoteDiff,
       leafPool,
       timestamp,
@@ -251,7 +251,7 @@ export async function processAllPendingVotesForRootPool(
 
   for (const pendingVote of pendingVotes) {
     // Reload leaf pool data each iteration: processPendingVote updates the pool (e.g. veNFTamountStaked)
-    // via updateLiquidityPoolAggregator, so the next vote must see the updated state to compute
+    // via updatePool, so the next vote must see the updated state to compute
     // the correct cumulative totalWeight.
     const currentLeafPoolData = await loadPoolData(
       leafPoolAddress,
@@ -300,7 +300,7 @@ export async function getPendingDistributionsByRootPool(
 
 /**
  * Applies a single pending distribution to the leaf pool: loads reward token, computes values,
- * builds LP diff (without gaugeAddress for cross-chain), and updates the LiquidityPoolAggregator.
+ * builds LP diff (without gaugeAddress for cross-chain), and updates the Pool.
  * @param context - The handler context
  * @param pending - The pending distribution to process
  * @param leafPoolAddress - The address of the leaf pool
@@ -365,7 +365,7 @@ export async function processPendingDistribution(
   const timestampMs = blockTimestamp * 1000;
   const poolDiff = buildPoolDiffFromDistribute(result, timestampMs, undefined);
 
-  await updateLiquidityPoolAggregator(
+  await updatePool(
     poolDiff,
     currentLiquidityPool,
     new Date(timestampMs),

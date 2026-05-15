@@ -57,9 +57,7 @@ describe("DynamicSwapFeeModule Events", () => {
       // Pre-populate tokens and pool in the mock database
       mockDb = mockDb.entities.Token.set(mockToken0Data);
       mockDb = mockDb.entities.Token.set(mockToken1Data);
-      mockDb = mockDb.entities.LiquidityPoolAggregator.set(
-        mockLiquidityPoolData,
-      );
+      mockDb = mockDb.entities.Pool.set(mockLiquidityPoolData);
 
       // Execute - Update baseFee
       let result = await mockDb.processEvents([
@@ -79,9 +77,7 @@ describe("DynamicSwapFeeModule Events", () => {
         }),
       ]);
 
-      let updatedPool = result.entities.LiquidityPoolAggregator.get(
-        mockLiquidityPoolData.id,
-      );
+      let updatedPool = result.entities.Pool.get(mockLiquidityPoolData.id);
 
       expect(updatedPool).toBeDefined();
       expect(updatedPool?.baseFee).toBe(baseFee);
@@ -109,9 +105,7 @@ describe("DynamicSwapFeeModule Events", () => {
         }),
       ]);
 
-      updatedPool = result.entities.LiquidityPoolAggregator.get(
-        mockLiquidityPoolData.id,
-      );
+      updatedPool = result.entities.Pool.get(mockLiquidityPoolData.id);
 
       expect(updatedPool).toBeDefined();
       // baseFee should be preserved from the previous event
@@ -140,9 +134,7 @@ describe("DynamicSwapFeeModule Events", () => {
         }),
       ]);
 
-      updatedPool = result.entities.LiquidityPoolAggregator.get(
-        mockLiquidityPoolData.id,
-      );
+      updatedPool = result.entities.Pool.get(mockLiquidityPoolData.id);
       expect(updatedPool).toBeDefined();
       // baseFee and scalingFactor should be preserved from previous events
       expect(updatedPool?.baseFee).toBe(baseFee);

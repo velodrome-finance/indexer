@@ -1,14 +1,9 @@
-import type {
-  LiquidityPoolAggregator,
-  Token,
-  VeNFTState,
-  handlerContext,
-} from "generated";
+import type { Token, VeNFTState, handlerContext } from "generated";
 import {
-  type LiquidityPoolAggregatorDiff,
+  type PoolDiff,
   loadPoolData,
-  updateLiquidityPoolAggregator,
-} from "../../Aggregators/LiquidityPoolAggregator";
+  updatePool,
+} from "../../Aggregators/Pool";
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import type { VeNFTPoolVoteDiff } from "../../Aggregators/VeNFTPoolVote";
 import {
@@ -17,6 +12,7 @@ import {
   isKnownSinkRootPool,
 } from "../../Constants";
 import { getTokensDeposited } from "../../Effects/Index";
+import type { Pool } from "../../EntityTypes";
 import {
   calculateTokenAmountUSD,
   normalizeTokenAmountTo1e18,
@@ -99,8 +95,8 @@ export function buildPoolDiffFromDistribute(
   result: VoterCommonResult,
   timestampMs: number,
   gaugeAddress?: string,
-): Partial<LiquidityPoolAggregatorDiff> {
-  const diff: Partial<LiquidityPoolAggregatorDiff> = {
+): Partial<PoolDiff> {
+  const diff: Partial<PoolDiff> = {
     totalVotesDeposited: result.tokensDeposited,
     totalVotesDepositedUSD: result.normalizedVotesDepositedAmountUsd,
     incrementalTotalEmissions: result.normalizedEmissionsAmount,
@@ -117,7 +113,7 @@ export function buildPoolDiffFromDistribute(
 /**
  * Resolves a root gauge (RootGauge/RootCLGauge on OP) to the corresponding leaf pool via
  * RootGauge_RootPool and RootPool_LeafPool. Used when DistributeReward fires for a gauge
- * that has no local LiquidityPoolAggregator (the real pool is on a leaf chain).
+ * that has no local Pool (the real pool is on a leaf chain).
  * @param context - The handler context
  * @param chainId - The chain ID
  * @param gaugeAddress - The address of the root gauge
@@ -127,7 +123,7 @@ export async function resolveLeafPoolForRootGauge(
   context: handlerContext,
   chainId: number,
   gaugeAddress: string,
-): Promise<{ pool: LiquidityPoolAggregator; isCrossChain: true } | null> {
+): Promise<{ pool: Pool; isCrossChain: true } | null> {
   const rootGaugeMapping = await context.RootGauge_RootPool.get(
     RootGaugeRootPoolId(chainId, gaugeAddress),
   );
@@ -174,7 +170,7 @@ export async function resolveLeafPoolForRootGauge(
 
 /**
  * Computes diffs for pool (absolute total), user stats and VeNFTPoolVote (incremental delta).
- * @param totalWeight - New total veNFT staked in pool (absolute; used for LiquidityPoolAggregator)
+ * @param totalWeight - New total veNFT staked in pool (absolute; used for Pool)
  * @param weight - Delta for this vote (used for UserStatsPerPool and VeNFTPoolVote)
  * @param veNFTState - The VeNFTState for the token
  * @param timestamp - The timestamp of the event
@@ -188,7 +184,7 @@ export function computeVoterRelatedEntitiesDiff(
   timestamp: Date,
   eventType: VoterEventType,
 ): {
-  poolVoteDiff: Partial<LiquidityPoolAggregatorDiff>;
+  poolVoteDiff: Partial<PoolDiff>;
   userStatsPerPoolDiff: Partial<UserStatsPerPoolDiff>;
   veNFTPoolVoteDiff: Partial<VeNFTPoolVoteDiff>;
 } {

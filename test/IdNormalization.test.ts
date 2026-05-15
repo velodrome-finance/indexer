@@ -5,7 +5,6 @@ import {
   ALMLPWrapperTransferInTxId,
   CLPoolMintEventId,
   CLPositionPendingPrincipalId,
-  LiquidityPoolAggregatorSnapshotId,
   MailboxMessageId,
   NonFungiblePositionId,
   NonFungiblePositionSnapshotId,
@@ -14,6 +13,7 @@ import {
   PendingRootPoolMappingId,
   PendingVoteId,
   PoolId,
+  PoolSnapshotId,
   PoolTransferInTxId,
   RootGaugeRootPoolId,
   RootPoolLeafPoolId,
@@ -162,8 +162,8 @@ describe("ID helpers preserve EIP-55 checksum input (issue #633)", () => {
       expected: `${CHAIN_ID}-${POOL}-${POOL_2}-${TICK_LOWER}-${TICK_UPPER}`,
     },
     {
-      name: "LiquidityPoolAggregatorSnapshotId",
-      actual: () => LiquidityPoolAggregatorSnapshotId(CHAIN_ID, POOL, EPOCH_MS),
+      name: "PoolSnapshotId",
+      actual: () => PoolSnapshotId(CHAIN_ID, POOL, EPOCH_MS),
       expected: `${CHAIN_ID}-${POOL}-${EPOCH_MS}`,
     },
     {

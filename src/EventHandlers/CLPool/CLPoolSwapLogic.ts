@@ -1,13 +1,9 @@
-import type {
-  CLPool_Swap_event,
-  LiquidityPoolAggregator,
-  Token,
-  handlerContext,
-} from "generated";
+import type { CLPool_Swap_event, Token, handlerContext } from "generated";
 import { processTickCrossingsForStaked } from "../../Aggregators/CLStakedLiquidity";
-import type { LiquidityPoolAggregatorDiff } from "../../Aggregators/LiquidityPoolAggregator";
+import type { PoolDiff } from "../../Aggregators/Pool";
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import { CL_FEE_SCALE } from "../../Constants";
+import type { Pool } from "../../EntityTypes";
 import {
   calculateTokenAmountUSD,
   calculateTotalUSD,
@@ -17,7 +13,7 @@ import {
 import { abs } from "../../Maths";
 
 export interface CLPoolSwapResult {
-  liquidityPoolDiff: Partial<LiquidityPoolAggregatorDiff>;
+  liquidityPoolDiff: Partial<PoolDiff>;
   userSwapDiff: Partial<UserStatsPerPoolDiff>;
 }
 
@@ -102,7 +98,7 @@ export function calculateSwapVolume(
  */
 export function calculateSwapFees(
   event: CLPool_Swap_event,
-  liquidityPoolAggregator: LiquidityPoolAggregator,
+  liquidityPoolAggregator: Pool,
   token0Instance: Token | undefined,
   token1Instance: Token | undefined,
   context: handlerContext,
@@ -176,7 +172,7 @@ export function calculateSwapFees(
  */
 function calculateSwapVolumeAndFees(
   event: CLPool_Swap_event,
-  liquidityPoolAggregator: LiquidityPoolAggregator,
+  liquidityPoolAggregator: Pool,
   token0Instance: Token | undefined,
   token1Instance: Token | undefined,
   context: handlerContext,
@@ -224,7 +220,7 @@ function calculateSwapVolumeAndFees(
  */
 export function calculateSwapLiquidityChanges(
   event: CLPool_Swap_event,
-  liquidityPoolAggregator: LiquidityPoolAggregator,
+  liquidityPoolAggregator: Pool,
   token0Instance: Token | undefined,
   token1Instance: Token | undefined,
   clFeeRate: bigint,
@@ -261,7 +257,7 @@ export function calculateSwapLiquidityChanges(
 
 export async function processCLPoolSwap(
   event: CLPool_Swap_event,
-  liquidityPoolAggregator: LiquidityPoolAggregator,
+  liquidityPoolAggregator: Pool,
   token0Instance: Token | undefined,
   token1Instance: Token | undefined,
   context: handlerContext,

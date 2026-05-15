@@ -18,7 +18,7 @@ RootCLPoolFactory.RootPoolCreated.handler(async ({ event, context }) => {
 
   const hash = rootPoolMatchingHash(leafChainId, token0, token1, tickSpacing);
 
-  const pools = await context.LiquidityPoolAggregator.getWhere({
+  const pools = await context.Pool.getWhere({
     rootPoolMatchingHash: { _eq: hash },
   });
 
@@ -34,14 +34,14 @@ RootCLPoolFactory.RootPoolCreated.handler(async ({ event, context }) => {
       rootPoolMatchingHash: hash,
     });
     context.log.warn(
-      `RootPoolCreated: no LiquidityPoolAggregator found for hash ${hash}. PendingRootPoolMapping stored for later reconciliation.`,
+      `RootPoolCreated: no Pool found for hash ${hash}. PendingRootPoolMapping stored for later reconciliation.`,
     );
     return;
   }
 
   if (pools.length !== 1) {
     context.log.error(
-      `Expected exactly one matching LiquidityPoolAggregator for RootPoolCreated: token0=${token0}, token1=${token1}, chainId=${leafChainId}, tickSpacing=${tickSpacing}`,
+      `Expected exactly one matching Pool for RootPoolCreated: token0=${token0}, token1=${token1}, chainId=${leafChainId}, tickSpacing=${tickSpacing}`,
     );
     return;
   }

@@ -55,12 +55,11 @@ export async function calculateLiquidityFromAmounts(
   try {
     // Load pool entity to get sqrtPriceX96
     const poolId = PoolId(chainId, poolAddress);
-    const liquidityPoolAggregator =
-      await context.LiquidityPoolAggregator.get(poolId);
+    const liquidityPoolAggregator = await context.Pool.get(poolId);
 
     if (!liquidityPoolAggregator) {
       context.log.error(
-        `[ALMLPWrapper.${eventType}] LiquidityPoolAggregator ${poolId} not found on chain ${chainId}. Skipping liquidity update.`,
+        `[ALMLPWrapper.${eventType}] Pool ${poolId} not found on chain ${chainId}. Skipping liquidity update.`,
       );
       return updatedLiquidity;
     }
@@ -306,8 +305,7 @@ export async function processDepositEvent(
 
   // Compute ΔL from event amounts (getLiquidityForAmounts) then wrapper.liquidity += ΔL
   const poolId = PoolId(chainId, pool);
-  const liquidityPoolAggregator =
-    await context.LiquidityPoolAggregator.get(poolId);
+  const liquidityPoolAggregator = await context.Pool.get(poolId);
   const sqrtPriceX96 = liquidityPoolAggregator?.sqrtPriceX96;
 
   let updatedLiquidity = ALMLPWrapperEntity.liquidity;
@@ -409,8 +407,7 @@ export async function processWithdrawEvent(
 
   // Compute ΔL from event amounts (getLiquidityForAmounts) then wrapper.liquidity -= ΔL
   const poolId = PoolId(chainId, pool);
-  const liquidityPoolAggregator =
-    await context.LiquidityPoolAggregator.get(poolId);
+  const liquidityPoolAggregator = await context.Pool.get(poolId);
   const sqrtPriceX96 = liquidityPoolAggregator?.sqrtPriceX96;
 
   let updatedLiquidity = ALMLPWrapperEntity.liquidity;

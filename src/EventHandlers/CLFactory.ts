@@ -72,8 +72,8 @@ CLFactory.PoolCreated.handler(async ({ event, context }) => {
     return;
   }
 
-  // For new pool creation, set the entity directly (updateLiquidityPoolAggregator is for updates, not creation)
-  context.LiquidityPoolAggregator.set(result.liquidityPoolAggregator);
+  // For new pool creation, set the entity directly (updatePool is for updates, not creation)
+  context.Pool.set(result.liquidityPoolAggregator);
 
   await flushPendingRootPoolMappingAndVotes(
     context,

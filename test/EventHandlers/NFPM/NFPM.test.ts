@@ -16,7 +16,7 @@ describe("NFPM Events", () => {
     mockToken0Data,
     mockToken1Data,
     mockLiquidityPoolData,
-    createMockLiquidityPoolAggregator,
+    createMockPool,
   } = setupCommon();
 
   let mockDb: ReturnType<typeof MockDb.createMockDb>;
@@ -57,7 +57,7 @@ describe("NFPM Events", () => {
     });
     mockDb = mockDb.entities.Token.set(mockToken0Data);
     mockDb = mockDb.entities.Token.set(mockToken1Data);
-    mockDb = mockDb.entities.LiquidityPoolAggregator.set(mockLiquidityPoolData);
+    mockDb = mockDb.entities.Pool.set(mockLiquidityPoolData);
   });
 
   afterEach(() => {
@@ -675,16 +675,14 @@ describe("NFPM Events", () => {
         id: TokenId(chainIdBase, token1Address),
         chainId: chainIdBase,
       };
-      const mockLiquidityPoolAggregatorBase = createMockLiquidityPoolAggregator(
-        {
-          chainId: chainIdBase,
-          poolAddress: poolAddressBase,
-          token0_id: mockToken0DataBase.id,
-          token1_id: mockToken1DataBase.id,
-          token0_address: token0Address,
-          token1_address: token1Address,
-        },
-      );
+      const mockPoolBase = createMockPool({
+        chainId: chainIdBase,
+        poolAddress: poolAddressBase,
+        token0_id: mockToken0DataBase.id,
+        token1_id: mockToken1DataBase.id,
+        token0_address: token0Address,
+        token1_address: token1Address,
+      });
       // Setup mockDb with both positions (same tokenId, different chains)
       const mockDbCrossChain = MockDb.createMockDb();
       const dbWithBasePosition =
@@ -698,10 +696,7 @@ describe("NFPM Events", () => {
       )
         .entities.Token.set(mockToken0DataBase)
         .entities.Token.set(mockToken1DataBase);
-      const finalDb =
-        dbWithBothChainsTokens.entities.LiquidityPoolAggregator.set(
-          mockLiquidityPoolAggregatorBase,
-        );
+      const finalDb = dbWithBothChainsTokens.entities.Pool.set(mockPoolBase);
 
       // Setup getWhere to return both positions when querying by tokenId
       const storedPositions = [positionBase, positionLisk];

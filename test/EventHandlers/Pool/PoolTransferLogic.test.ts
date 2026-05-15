@@ -1,11 +1,10 @@
 import type {
-  LiquidityPoolAggregator,
   Pool_Transfer_event,
   UserStatsPerPool,
   handlerContext,
 } from "generated";
 import type { MockInstance } from "vitest";
-import * as LiquidityPoolAggregatorModule from "../../../src/Aggregators/LiquidityPoolAggregator";
+import * as PoolModule from "../../../src/Aggregators/Pool";
 import * as UserStatsPerPoolModule from "../../../src/Aggregators/UserStatsPerPool";
 import {
   PoolTransferInTxId,
@@ -13,6 +12,7 @@ import {
   ZERO_ADDRESS,
   toChecksumAddress,
 } from "../../../src/Constants";
+import type { Pool } from "../../../src/EntityTypes";
 import {
   processPoolTransfer,
   storeTransferForMatching,
@@ -44,13 +44,13 @@ describe("PoolTransferLogic", () => {
 
   // Shared mock context
   let mockContext: handlerContext;
-  let mockLiquidityPoolAggregator: LiquidityPoolAggregator;
-  let updateLiquidityPoolAggregatorSpy: MockInstance;
+  let mockPool: Pool;
+  let updatePoolSpy: MockInstance;
   let updateUserStatsPerPoolSpy: MockInstance;
   let loadOrCreateUserDataSpy: MockInstance;
 
   beforeEach(() => {
-    mockLiquidityPoolAggregator = {
+    mockPool = {
       ...mockLiquidityPoolData,
       totalLPTokenSupply: 1000n * 10n ** 18n,
     };
@@ -61,7 +61,7 @@ describe("PoolTransferLogic", () => {
         warn: vi.fn(),
         info: vi.fn(),
       },
-      LiquidityPoolAggregator: {
+      Pool: {
         get: vi.fn(),
         set: vi.fn(),
       },
@@ -81,8 +81,8 @@ describe("PoolTransferLogic", () => {
     } as unknown as handlerContext;
 
     // Set up spies with mocks
-    updateLiquidityPoolAggregatorSpy = vi
-      .spyOn(LiquidityPoolAggregatorModule, "updateLiquidityPoolAggregator")
+    updatePoolSpy = vi
+      .spyOn(PoolModule, "updatePool")
       .mockResolvedValue(undefined);
 
     loadOrCreateUserDataSpy = vi
@@ -131,18 +131,18 @@ describe("PoolTransferLogic", () => {
         true, // isMint
         false, // isBurn
         LP_VALUE,
-        mockLiquidityPoolAggregator,
+        mockPool,
         TIMESTAMP_DATE,
         mockContext,
         CHAIN_ID,
         BLOCK_NUMBER,
       );
 
-      expect(updateLiquidityPoolAggregatorSpy).toHaveBeenCalledWith(
+      expect(updatePoolSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           incrementalTotalLPSupply: LP_VALUE,
         }),
-        mockLiquidityPoolAggregator,
+        mockPool,
         TIMESTAMP_DATE,
         mockContext,
         CHAIN_ID,
@@ -155,18 +155,18 @@ describe("PoolTransferLogic", () => {
         false, // isMint
         true, // isBurn
         LP_VALUE,
-        mockLiquidityPoolAggregator,
+        mockPool,
         TIMESTAMP_DATE,
         mockContext,
         CHAIN_ID,
         BLOCK_NUMBER,
       );
 
-      expect(updateLiquidityPoolAggregatorSpy).toHaveBeenCalledWith(
+      expect(updatePoolSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           incrementalTotalLPSupply: -LP_VALUE,
         }),
-        mockLiquidityPoolAggregator,
+        mockPool,
         TIMESTAMP_DATE,
         mockContext,
         CHAIN_ID,
@@ -179,14 +179,14 @@ describe("PoolTransferLogic", () => {
         false, // isMint
         false, // isBurn
         LP_VALUE,
-        mockLiquidityPoolAggregator,
+        mockPool,
         TIMESTAMP_DATE,
         mockContext,
         CHAIN_ID,
         BLOCK_NUMBER,
       );
 
-      expect(updateLiquidityPoolAggregatorSpy).not.toHaveBeenCalled();
+      expect(updatePoolSpy).not.toHaveBeenCalled();
     });
   });
 
@@ -420,14 +420,14 @@ describe("PoolTransferLogic", () => {
 
       await processPoolTransfer(
         event,
-        mockLiquidityPoolAggregator,
+        mockPool,
         POOL_ADDRESS,
         CHAIN_ID,
         mockContext,
         TIMESTAMP_DATE,
       );
 
-      expect(updateLiquidityPoolAggregatorSpy).toHaveBeenCalled();
+      expect(updatePoolSpy).toHaveBeenCalled();
       expect(updateUserStatsPerPoolSpy).toHaveBeenCalled();
       expect(mockContext.PoolTransferInTx.set).toHaveBeenCalled();
     });
@@ -445,14 +445,14 @@ describe("PoolTransferLogic", () => {
 
       await processPoolTransfer(
         event,
-        mockLiquidityPoolAggregator,
+        mockPool,
         POOL_ADDRESS,
         CHAIN_ID,
         mockContext,
         TIMESTAMP_DATE,
       );
 
-      expect(updateLiquidityPoolAggregatorSpy).toHaveBeenCalled();
+      expect(updatePoolSpy).toHaveBeenCalled();
       expect(updateUserStatsPerPoolSpy).toHaveBeenCalled();
       expect(mockContext.PoolTransferInTx.set).toHaveBeenCalled();
     });
@@ -466,7 +466,7 @@ describe("PoolTransferLogic", () => {
 
       await processPoolTransfer(
         event,
-        mockLiquidityPoolAggregator,
+        mockPool,
         POOL_ADDRESS,
         CHAIN_ID,
         mockContext,

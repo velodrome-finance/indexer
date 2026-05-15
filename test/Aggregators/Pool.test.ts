@@ -1,20 +1,21 @@
-import type { LiquidityPoolAggregator, Token, handlerContext } from "generated";
+import type { Token, handlerContext } from "generated";
 import {
   loadPoolData,
   loadPoolDataOrRootCLPool,
   updateDynamicFeePools,
-  updateLiquidityPoolAggregator,
-} from "../../src/Aggregators/LiquidityPoolAggregator";
+  updatePool,
+} from "../../src/Aggregators/Pool";
 import {
   type CHAIN_CONSTANTS,
-  LiquidityPoolAggregatorSnapshotId,
   PoolId,
+  PoolSnapshotId,
   RootPoolLeafPoolId,
   toChecksumAddress,
 } from "../../src/Constants";
 import { getSwapFee } from "../../src/Effects/SwapFee";
+import type { Pool } from "../../src/EntityTypes";
 import * as PriceOracle from "../../src/PriceOracle";
-import { setLiquidityPoolAggregatorSnapshot } from "../../src/Snapshots/LiquidityPoolAggregatorSnapshot";
+import { setPoolSnapshot } from "../../src/Snapshots/PoolSnapshot";
 import { getSnapshotEpoch } from "../../src/Snapshots/Shared";
 import { setupCommon } from "../EventHandlers/Pool/common";
 
@@ -22,16 +23,16 @@ import { setupCommon } from "../EventHandlers/Pool/common";
 type ReadContractMethod =
   (typeof CHAIN_CONSTANTS)[10]["eth_client"]["readContract"];
 
-describe("LiquidityPoolAggregator Functions", () => {
+describe("Pool Functions", () => {
   let mockContext: Partial<handlerContext>;
-  let liquidityPoolAggregator: Partial<LiquidityPoolAggregator>;
+  let liquidityPoolAggregator: Partial<Pool>;
   let timestamp: Date;
   const blockNumber = 131536921;
-  const { createMockLiquidityPoolAggregator } = setupCommon();
+  const { createMockPool } = setupCommon();
 
   beforeEach(() => {
     mockContext = {
-      LiquidityPoolAggregatorSnapshot: {
+      PoolSnapshot: {
         set: vi.fn(),
         get: vi.fn(),
         getOrThrow: vi.fn(),
@@ -39,7 +40,7 @@ describe("LiquidityPoolAggregator Functions", () => {
         deleteUnsafe: vi.fn(),
         getWhere: vi.fn().mockResolvedValue([]),
       },
-      LiquidityPoolAggregator: {
+      Pool: {
         set: vi.fn(),
         get: vi.fn(),
         getOrThrow: vi.fn(),
@@ -100,7 +101,7 @@ describe("LiquidityPoolAggregator Functions", () => {
         return {};
       }),
     };
-    liquidityPoolAggregator = createMockLiquidityPoolAggregator({
+    liquidityPoolAggregator = createMockPool({
       id: toChecksumAddress("0x1234567890123456789012345678901234567890"),
       name: "Test Pool",
       token0_id: "token0",
@@ -151,7 +152,7 @@ describe("LiquidityPoolAggregator Functions", () => {
   describe("updateDynamicFeePools", () => {
     it("should update the pool with current dynamic fee", async () => {
       const updatedPool = await updateDynamicFeePools(
-        liquidityPoolAggregator as LiquidityPoolAggregator,
+        liquidityPoolAggregator as Pool,
         mockContext as handlerContext,
         10,
         blockNumber,
@@ -165,7 +166,7 @@ describe("LiquidityPoolAggregator Functions", () => {
       const poolNoFactory = {
         ...liquidityPoolAggregator,
         factoryAddress: "",
-      } as LiquidityPoolAggregator;
+      } as Pool;
 
       const updatedPool = await updateDynamicFeePools(
         poolNoFactory,
@@ -191,7 +192,7 @@ describe("LiquidityPoolAggregator Functions", () => {
 
       // Should complete without throwing and skip update
       await updateDynamicFeePools(
-        liquidityPoolAggregator as LiquidityPoolAggregator,
+        liquidityPoolAggregator as Pool,
         mockContext as handlerContext,
         10,
         blockNumber,
@@ -220,7 +221,7 @@ describe("LiquidityPoolAggregator Functions", () => {
       const effectMock = vi.mocked(mockContext.effect ?? fallbackEffect);
 
       const updatedPool = await updateDynamicFeePools(
-        liquidityPoolAggregator as LiquidityPoolAggregator,
+        liquidityPoolAggregator as Pool,
         mockContext as handlerContext,
         8453,
         blockNumber,
@@ -233,17 +234,15 @@ describe("LiquidityPoolAggregator Functions", () => {
 
   describe("Snapshot Creation", () => {
     beforeEach(() => {
-      setLiquidityPoolAggregatorSnapshot(
-        liquidityPoolAggregator as LiquidityPoolAggregator,
+      setPoolSnapshot(
+        liquidityPoolAggregator as Pool,
         timestamp,
         mockContext as handlerContext,
       );
     });
 
     it("should create a snapshot of the liquidity pool aggregator", () => {
-      const mockSet = vi.mocked(
-        mockContext.LiquidityPoolAggregatorSnapshot?.set,
-      );
+      const mockSet = vi.mocked(mockContext.PoolSnapshot?.set);
       expect(mockSet).toHaveBeenCalledTimes(1);
       const snapshot = mockSet?.mock.calls[0]?.[0];
       expect(snapshot).toBeDefined();
@@ -253,7 +252,7 @@ describe("LiquidityPoolAggregator Functions", () => {
         throw new Error("test setup: chainId and poolAddress must be set");
       }
       expect(snapshot?.id).toBe(
-        LiquidityPoolAggregatorSnapshotId(
+        PoolSnapshotId(
           chainId,
           poolAddress,
           getSnapshotEpoch(timestamp).getTime(),
@@ -263,14 +262,14 @@ describe("LiquidityPoolAggregator Functions", () => {
     });
   });
 
-  describe("updateLiquidityPoolAggregator", () => {
+  describe("updatePool", () => {
     it("should overwrite totalLiquidityUSD when currentTotalLiquidityUSD is provided", async () => {
-      await updateLiquidityPoolAggregator(
+      await updatePool(
         {
           currentTotalLiquidityUSD: 777n,
         },
         {
-          ...(liquidityPoolAggregator as LiquidityPoolAggregator),
+          ...(liquidityPoolAggregator as Pool),
           totalLiquidityUSD: 100n,
         },
         timestamp,
@@ -279,19 +278,19 @@ describe("LiquidityPoolAggregator Functions", () => {
         blockNumber,
       );
 
-      const poolStore = mockContext.LiquidityPoolAggregator;
+      const poolStore = mockContext.Pool;
       if (!poolStore) {
-        throw new Error("test setup: LiquidityPoolAggregator store must exist");
+        throw new Error("test setup: Pool store must exist");
       }
       const setCalls = vi.mocked(poolStore.set).mock.calls;
       expect(setCalls.at(-1)?.[0]?.totalLiquidityUSD).toBe(777n);
     });
 
     it("should preserve totalLiquidityUSD when no overwrite is provided", async () => {
-      await updateLiquidityPoolAggregator(
+      await updatePool(
         {},
         {
-          ...(liquidityPoolAggregator as LiquidityPoolAggregator),
+          ...(liquidityPoolAggregator as Pool),
           totalLiquidityUSD: 100n,
         },
         timestamp,
@@ -300,9 +299,9 @@ describe("LiquidityPoolAggregator Functions", () => {
         blockNumber,
       );
 
-      const poolStore = mockContext.LiquidityPoolAggregator;
+      const poolStore = mockContext.Pool;
       if (!poolStore) {
-        throw new Error("test setup: LiquidityPoolAggregator store must exist");
+        throw new Error("test setup: Pool store must exist");
       }
       const setCalls = vi.mocked(poolStore.set).mock.calls;
       expect(setCalls.at(-1)?.[0]?.totalLiquidityUSD).toBe(100n);
@@ -314,10 +313,10 @@ describe("LiquidityPoolAggregator Functions", () => {
     // without waiting for the next swap.
     describe("liquidityInRange (issue #703)", () => {
       it("applies incrementalLiquidityInRange on top of current value", async () => {
-        await updateLiquidityPoolAggregator(
+        await updatePool(
           { incrementalLiquidityInRange: 1_000_000n },
           {
-            ...(liquidityPoolAggregator as LiquidityPoolAggregator),
+            ...(liquidityPoolAggregator as Pool),
             liquidityInRange: 5_000_000n,
           },
           timestamp,
@@ -326,25 +325,23 @@ describe("LiquidityPoolAggregator Functions", () => {
           blockNumber,
         );
 
-        const poolStore = mockContext.LiquidityPoolAggregator;
+        const poolStore = mockContext.Pool;
         if (!poolStore) {
-          throw new Error(
-            "test setup: LiquidityPoolAggregator store must exist",
-          );
+          throw new Error("test setup: Pool store must exist");
         }
         const setCalls = vi.mocked(poolStore.set).mock.calls;
-        const updated = setCalls.at(-1)?.[0] as LiquidityPoolAggregator;
+        const updated = setCalls.at(-1)?.[0] as Pool;
         expect(updated.liquidityInRange).toBe(6_000_000n);
       });
 
       it("absolute liquidityInRange (Swap authoritative reset) wins over incrementalLiquidityInRange", async () => {
-        await updateLiquidityPoolAggregator(
+        await updatePool(
           {
             liquidityInRange: 42n,
             incrementalLiquidityInRange: 1_000_000n,
           },
           {
-            ...(liquidityPoolAggregator as LiquidityPoolAggregator),
+            ...(liquidityPoolAggregator as Pool),
             liquidityInRange: 5_000_000n,
           },
           timestamp,
@@ -353,22 +350,20 @@ describe("LiquidityPoolAggregator Functions", () => {
           blockNumber,
         );
 
-        const poolStore = mockContext.LiquidityPoolAggregator;
+        const poolStore = mockContext.Pool;
         if (!poolStore) {
-          throw new Error(
-            "test setup: LiquidityPoolAggregator store must exist",
-          );
+          throw new Error("test setup: Pool store must exist");
         }
         const setCalls = vi.mocked(poolStore.set).mock.calls;
-        const updated = setCalls.at(-1)?.[0] as LiquidityPoolAggregator;
+        const updated = setCalls.at(-1)?.[0] as Pool;
         expect(updated.liquidityInRange).toBe(42n);
       });
 
       it("preserves current liquidityInRange when diff supplies neither field", async () => {
-        await updateLiquidityPoolAggregator(
+        await updatePool(
           {},
           {
-            ...(liquidityPoolAggregator as LiquidityPoolAggregator),
+            ...(liquidityPoolAggregator as Pool),
             liquidityInRange: 5_000_000n,
           },
           timestamp,
@@ -377,22 +372,20 @@ describe("LiquidityPoolAggregator Functions", () => {
           blockNumber,
         );
 
-        const poolStore = mockContext.LiquidityPoolAggregator;
+        const poolStore = mockContext.Pool;
         if (!poolStore) {
-          throw new Error(
-            "test setup: LiquidityPoolAggregator store must exist",
-          );
+          throw new Error("test setup: Pool store must exist");
         }
         const setCalls = vi.mocked(poolStore.set).mock.calls;
-        const updated = setCalls.at(-1)?.[0] as LiquidityPoolAggregator;
+        const updated = setCalls.at(-1)?.[0] as Pool;
         expect(updated.liquidityInRange).toBe(5_000_000n);
       });
 
       it("decrements via negative incrementalLiquidityInRange (Burn semantics)", async () => {
-        await updateLiquidityPoolAggregator(
+        await updatePool(
           { incrementalLiquidityInRange: -700_000n },
           {
-            ...(liquidityPoolAggregator as LiquidityPoolAggregator),
+            ...(liquidityPoolAggregator as Pool),
             liquidityInRange: 5_000_000n,
           },
           timestamp,
@@ -401,14 +394,12 @@ describe("LiquidityPoolAggregator Functions", () => {
           blockNumber,
         );
 
-        const poolStore = mockContext.LiquidityPoolAggregator;
+        const poolStore = mockContext.Pool;
         if (!poolStore) {
-          throw new Error(
-            "test setup: LiquidityPoolAggregator store must exist",
-          );
+          throw new Error("test setup: Pool store must exist");
         }
         const setCalls = vi.mocked(poolStore.set).mock.calls;
-        const updated = setCalls.at(-1)?.[0] as LiquidityPoolAggregator;
+        const updated = setCalls.at(-1)?.[0] as Pool;
         expect(updated.liquidityInRange).toBe(4_300_000n);
       });
     });
@@ -417,17 +408,17 @@ describe("LiquidityPoolAggregator Functions", () => {
       // Simulates the NFPMCommonLogic path where the edge list becomes empty
       // after a full unstake: the producer passes `hasStakes: undefined` (see
       // src/EventHandlers/NFPM/NFPMCommonLogic.ts:147, `stakedTickEdges.length > 0 ? true : undefined`).
-      // The monotonic-latch merge at LiquidityPoolAggregator.ts:390
+      // The monotonic-latch merge at Pool.ts:390
       // (`current.hasStakes || (diff.hasStakes ?? false)`) must keep the
       // prior `true` value regardless of the empty edge list.
-      await updateLiquidityPoolAggregator(
+      await updatePool(
         {
           hasStakes: undefined,
           stakedTickEdges: [],
           stakedTickEdgeNets: [],
         },
         {
-          ...(liquidityPoolAggregator as LiquidityPoolAggregator),
+          ...(liquidityPoolAggregator as Pool),
           hasStakes: true,
           stakedTickEdges: [100n, 200n],
           stakedTickEdgeNets: [500n, -500n],
@@ -438,12 +429,12 @@ describe("LiquidityPoolAggregator Functions", () => {
         blockNumber,
       );
 
-      const poolStore = mockContext.LiquidityPoolAggregator;
+      const poolStore = mockContext.Pool;
       if (!poolStore) {
-        throw new Error("test setup: LiquidityPoolAggregator store must exist");
+        throw new Error("test setup: Pool store must exist");
       }
       const setCalls = vi.mocked(poolStore.set).mock.calls;
-      const updated = setCalls.at(-1)?.[0] as LiquidityPoolAggregator;
+      const updated = setCalls.at(-1)?.[0] as Pool;
       expect(updated.hasStakes).toBe(true);
       // Edge arrays should still be replaced (empty) since the diff provides them.
       expect(updated.stakedTickEdges).toEqual([]);
@@ -473,10 +464,10 @@ describe("LiquidityPoolAggregator Functions", () => {
         new Date(timestamp.getTime() - 2 * 60 * 60 * 1000);
 
       it("warns at snapshot epoch when stakedReserve0 is negative", async () => {
-        await updateLiquidityPoolAggregator(
+        await updatePool(
           { incrementalStakedReserve0: -100n },
           {
-            ...(liquidityPoolAggregator as LiquidityPoolAggregator),
+            ...(liquidityPoolAggregator as Pool),
             isCL: true,
             stakedReserve0: 50n,
             stakedReserve1: 1000n,
@@ -493,10 +484,10 @@ describe("LiquidityPoolAggregator Functions", () => {
       });
 
       it("warns at snapshot epoch when stakedReserve1 is negative", async () => {
-        await updateLiquidityPoolAggregator(
+        await updatePool(
           { incrementalStakedReserve1: -100n },
           {
-            ...(liquidityPoolAggregator as LiquidityPoolAggregator),
+            ...(liquidityPoolAggregator as Pool),
             isCL: true,
             stakedReserve0: 1000n,
             stakedReserve1: 50n,
@@ -513,13 +504,13 @@ describe("LiquidityPoolAggregator Functions", () => {
       });
 
       it("does not warn when staked reserves stay non-negative after the diff", async () => {
-        await updateLiquidityPoolAggregator(
+        await updatePool(
           {
             incrementalStakedReserve0: -50n,
             incrementalStakedReserve1: -50n,
           },
           {
-            ...(liquidityPoolAggregator as LiquidityPoolAggregator),
+            ...(liquidityPoolAggregator as Pool),
             isCL: true,
             stakedReserve0: 100n,
             stakedReserve1: 100n,
@@ -536,13 +527,13 @@ describe("LiquidityPoolAggregator Functions", () => {
       });
 
       it("warns again at the next snapshot epoch while staked reserves remain negative", async () => {
-        await updateLiquidityPoolAggregator(
+        await updatePool(
           {
             incrementalStakedReserve0: -10n,
             incrementalStakedReserve1: -10n,
           },
           {
-            ...(liquidityPoolAggregator as LiquidityPoolAggregator),
+            ...(liquidityPoolAggregator as Pool),
             isCL: true,
             stakedReserve0: -100n,
             stakedReserve1: -100n,
@@ -560,13 +551,13 @@ describe("LiquidityPoolAggregator Functions", () => {
       });
 
       it("does not warn when reserves are negative but inside the same snapshot epoch (rate-limit gate)", async () => {
-        await updateLiquidityPoolAggregator(
+        await updatePool(
           {
             incrementalStakedReserve0: -10n,
             incrementalStakedReserve1: -10n,
           },
           {
-            ...(liquidityPoolAggregator as LiquidityPoolAggregator),
+            ...(liquidityPoolAggregator as Pool),
             isCL: true,
             stakedReserve0: -100n,
             stakedReserve1: -100n,
@@ -598,16 +589,16 @@ describe("LiquidityPoolAggregator Functions", () => {
         );
       };
 
-      const lastSet = (): LiquidityPoolAggregator => {
-        const setMock = vi.mocked(mockContext.LiquidityPoolAggregator?.set);
-        return setMock?.mock.lastCall?.[0] as LiquidityPoolAggregator;
+      const lastSet = (): Pool => {
+        const setMock = vi.mocked(mockContext.Pool?.set);
+        return setMock?.mock.lastCall?.[0] as Pool;
       };
 
       it("clamps reserve0 to 0n and logs guard when delta would drive it negative", async () => {
-        await updateLiquidityPoolAggregator(
+        await updatePool(
           { incrementalReserve0: -100n },
           {
-            ...(liquidityPoolAggregator as LiquidityPoolAggregator),
+            ...(liquidityPoolAggregator as Pool),
             reserve0: 50n,
             reserve1: 1000n,
             lastSnapshotTimestamp: sameEpochAsTimestamp(),
@@ -633,15 +624,15 @@ describe("LiquidityPoolAggregator Functions", () => {
         // parameter — those agree in practice (a reserve diff comes from the
         // pool's own chain) and the pool's chainId is what Hasura consumers query.
         expect(msg).toContain(
-          `chainId=${(liquidityPoolAggregator as LiquidityPoolAggregator).chainId}`,
+          `chainId=${(liquidityPoolAggregator as Pool).chainId}`,
         );
       });
 
       it("clamps reserve1 to 0n and logs guard when delta would drive it negative", async () => {
-        await updateLiquidityPoolAggregator(
+        await updatePool(
           { incrementalReserve1: -100n },
           {
-            ...(liquidityPoolAggregator as LiquidityPoolAggregator),
+            ...(liquidityPoolAggregator as Pool),
             reserve0: 1000n,
             reserve1: 50n,
             lastSnapshotTimestamp: sameEpochAsTimestamp(),
@@ -662,10 +653,10 @@ describe("LiquidityPoolAggregator Functions", () => {
       });
 
       it("does not clamp or log when reserves stay non-negative", async () => {
-        await updateLiquidityPoolAggregator(
+        await updatePool(
           { incrementalReserve0: -50n, incrementalReserve1: -50n },
           {
-            ...(liquidityPoolAggregator as LiquidityPoolAggregator),
+            ...(liquidityPoolAggregator as Pool),
             reserve0: 100n,
             reserve1: 100n,
             lastSnapshotTimestamp: sameEpochAsTimestamp(),
@@ -683,10 +674,10 @@ describe("LiquidityPoolAggregator Functions", () => {
       });
 
       it("clamps both reserves independently and logs once per field", async () => {
-        await updateLiquidityPoolAggregator(
+        await updatePool(
           { incrementalReserve0: -200n, incrementalReserve1: -200n },
           {
-            ...(liquidityPoolAggregator as LiquidityPoolAggregator),
+            ...(liquidityPoolAggregator as Pool),
             reserve0: 100n,
             reserve1: 100n,
             lastSnapshotTimestamp: sameEpochAsTimestamp(),
@@ -707,10 +698,10 @@ describe("LiquidityPoolAggregator Functions", () => {
       // clamp fires on every update that would underflow, not only at hour
       // boundaries, so a Burn-larger-than-Mint mid-epoch still gets caught.
       it("clamps mid-epoch (no snapshot boundary required)", async () => {
-        await updateLiquidityPoolAggregator(
+        await updatePool(
           { incrementalReserve0: -500n },
           {
-            ...(liquidityPoolAggregator as LiquidityPoolAggregator),
+            ...(liquidityPoolAggregator as Pool),
             reserve0: 100n,
             reserve1: 100n,
             // lastSnapshotTimestamp === timestamp → no snapshot this call.
@@ -735,14 +726,14 @@ describe("LiquidityPoolAggregator Functions", () => {
         // currentTotalLiquidityUSD comes from the producer (Burn handler) and
         // is passed through unchanged; the aggregator does not recompute it
         // from reserves. We assert the diff value lands on the entity.
-        await updateLiquidityPoolAggregator(
+        await updatePool(
           {
             incrementalReserve0: -1000n,
             incrementalReserve1: -1000n,
             currentTotalLiquidityUSD: 0n,
           },
           {
-            ...(liquidityPoolAggregator as LiquidityPoolAggregator),
+            ...(liquidityPoolAggregator as Pool),
             isCL: true,
             reserve0: 100n,
             reserve1: 100n,
@@ -788,9 +779,9 @@ describe("LiquidityPoolAggregator Functions", () => {
         totalVotesDepositedUSD: 3000n,
         incrementalTotalEmissions: 4000n,
       };
-      await updateLiquidityPoolAggregator(
+      await updatePool(
         diff,
-        liquidityPoolAggregator as LiquidityPoolAggregator,
+        liquidityPoolAggregator as Pool,
         timestamp,
         mockContext as handlerContext,
         10,
@@ -799,9 +790,8 @@ describe("LiquidityPoolAggregator Functions", () => {
     });
 
     it("should update the liquidity pool aggregator", () => {
-      const mockSet = vi.mocked(mockContext.LiquidityPoolAggregator?.set);
-      const updatedAggregator = mockSet?.mock
-        .calls[0]?.[0] as LiquidityPoolAggregator;
+      const mockSet = vi.mocked(mockContext.Pool?.set);
+      const updatedAggregator = mockSet?.mock.calls[0]?.[0] as Pool;
       expect(updatedAggregator.totalVolume0).toBe(diff.incrementalTotalVolume0);
       expect(updatedAggregator.totalVolume1).toBe(diff.incrementalTotalVolume1);
       expect(updatedAggregator.numberOfSwaps).toBe(
@@ -832,18 +822,16 @@ describe("LiquidityPoolAggregator Functions", () => {
       const effectSpy = vi.mocked(mockContext.effect);
       effectSpy.mockClear();
 
-      await updateLiquidityPoolAggregator(
+      await updatePool(
         diff,
-        liquidityPoolWithOldSnapshot as LiquidityPoolAggregator,
+        liquidityPoolWithOldSnapshot as Pool,
         currentTimestamp,
         mockContext as handlerContext,
         10,
         blockNumber,
       );
 
-      const mockSet = vi.mocked(
-        mockContext.LiquidityPoolAggregatorSnapshot?.set,
-      );
+      const mockSet = vi.mocked(mockContext.PoolSnapshot?.set);
       const snapshot = mockSet?.mock.calls[0]?.[0];
       expect(snapshot).toBeDefined();
 
@@ -872,18 +860,16 @@ describe("LiquidityPoolAggregator Functions", () => {
       const effectSpy = vi.mocked(mockContext.effect);
       effectSpy.mockClear();
 
-      await updateLiquidityPoolAggregator(
+      await updatePool(
         diff,
-        clPoolWithOldSnapshot as LiquidityPoolAggregator,
+        clPoolWithOldSnapshot as Pool,
         currentTimestamp,
         mockContext as handlerContext,
         10,
         blockNumber,
       );
 
-      const mockSet = vi.mocked(
-        mockContext.LiquidityPoolAggregatorSnapshot?.set,
-      );
+      const mockSet = vi.mocked(mockContext.PoolSnapshot?.set);
       const snapshot = mockSet?.mock.calls[0]?.[0];
       expect(snapshot).toBeDefined();
 
@@ -905,7 +891,7 @@ describe("LiquidityPoolAggregator Functions", () => {
         "0x1234567890123456789012345678901234567890",
       );
 
-      const clPool = createMockLiquidityPoolAggregator({
+      const clPool = createMockPool({
         poolAddress: poolAddr,
         chainId: 10,
         isCL: true,
@@ -960,8 +946,8 @@ describe("LiquidityPoolAggregator Functions", () => {
       const setMock = vi.fn();
       const ctx = {
         ...mockContext,
-        LiquidityPoolAggregator: {
-          ...mockContext.LiquidityPoolAggregator,
+        Pool: {
+          ...mockContext.Pool,
           set: setMock,
         },
         Token: {
@@ -974,17 +960,9 @@ describe("LiquidityPoolAggregator Functions", () => {
         },
       } as unknown as handlerContext;
 
-      await updateLiquidityPoolAggregator(
-        diff,
-        clPool,
-        currentTimestamp,
-        ctx,
-        10,
-        blockNumber,
-      );
+      await updatePool(diff, clPool, currentTimestamp, ctx, 10, blockNumber);
 
-      const updatedAggregator = setMock.mock
-        .calls[0]?.[0] as LiquidityPoolAggregator;
+      const updatedAggregator = setMock.mock.calls[0]?.[0] as Pool;
 
       // Should have computed staked USD from stakedReserve0/stakedReserve1 (not the stale 100n)
       expect(updatedAggregator.currentLiquidityStakedUSD).toBeGreaterThan(0n);
@@ -995,7 +973,7 @@ describe("LiquidityPoolAggregator Functions", () => {
       const oldTimestamp = new Date(Date.now() - 2 * 60 * 60 * 1000);
       const currentTimestamp = new Date();
 
-      const clPool = createMockLiquidityPoolAggregator({
+      const clPool = createMockPool({
         chainId: 10,
         isCL: true,
         lastSnapshotTimestamp: oldTimestamp,
@@ -1013,14 +991,7 @@ describe("LiquidityPoolAggregator Functions", () => {
         },
       } as unknown as handlerContext;
 
-      await updateLiquidityPoolAggregator(
-        diff,
-        clPool,
-        currentTimestamp,
-        ctx,
-        10,
-        blockNumber,
-      );
+      await updatePool(diff, clPool, currentTimestamp, ctx, 10, blockNumber);
 
       // getWhere should NOT have been called (skipped because staked == 0)
       expect(ctx.NonFungiblePosition.getWhere).not.toHaveBeenCalled();
@@ -1030,7 +1001,7 @@ describe("LiquidityPoolAggregator Functions", () => {
       const oldTimestamp = new Date(Date.now() - 2 * 60 * 60 * 1000);
       const currentTimestamp = new Date();
 
-      const clPool = createMockLiquidityPoolAggregator({
+      const clPool = createMockPool({
         chainId: 10,
         isCL: true,
         lastSnapshotTimestamp: oldTimestamp,
@@ -1044,8 +1015,8 @@ describe("LiquidityPoolAggregator Functions", () => {
       const setMock = vi.fn();
       const ctx = {
         ...mockContext,
-        LiquidityPoolAggregator: {
-          ...mockContext.LiquidityPoolAggregator,
+        Pool: {
+          ...mockContext.Pool,
           set: setMock,
         },
         NonFungiblePosition: {
@@ -1053,17 +1024,9 @@ describe("LiquidityPoolAggregator Functions", () => {
         },
       } as unknown as handlerContext;
 
-      await updateLiquidityPoolAggregator(
-        diff,
-        clPool,
-        currentTimestamp,
-        ctx,
-        10,
-        blockNumber,
-      );
+      await updatePool(diff, clPool, currentTimestamp, ctx, 10, blockNumber);
 
-      const updatedAggregator = setMock.mock
-        .calls[0]?.[0] as LiquidityPoolAggregator;
+      const updatedAggregator = setMock.mock.calls[0]?.[0] as Pool;
 
       // Stale USD should be cleared to 0
       expect(updatedAggregator.currentLiquidityStakedUSD).toBe(0n);
@@ -1075,7 +1038,7 @@ describe("LiquidityPoolAggregator Functions", () => {
       const oldTimestamp = new Date(Date.now() - 2 * 60 * 60 * 1000);
       const currentTimestamp = new Date();
 
-      const v2Pool = createMockLiquidityPoolAggregator({
+      const v2Pool = createMockPool({
         chainId: 10,
         isCL: false,
         lastSnapshotTimestamp: oldTimestamp,
@@ -1086,8 +1049,8 @@ describe("LiquidityPoolAggregator Functions", () => {
       const setMock = vi.fn();
       const ctx = {
         ...mockContext,
-        LiquidityPoolAggregator: {
-          ...mockContext.LiquidityPoolAggregator,
+        Pool: {
+          ...mockContext.Pool,
           set: setMock,
         },
         NonFungiblePosition: {
@@ -1095,21 +1058,13 @@ describe("LiquidityPoolAggregator Functions", () => {
         },
       } as unknown as handlerContext;
 
-      await updateLiquidityPoolAggregator(
-        diff,
-        v2Pool,
-        currentTimestamp,
-        ctx,
-        10,
-        blockNumber,
-      );
+      await updatePool(diff, v2Pool, currentTimestamp, ctx, 10, blockNumber);
 
       // getWhere should NOT have been called (non-CL pool)
       expect(ctx.NonFungiblePosition.getWhere).not.toHaveBeenCalled();
 
       // Staked USD should be preserved
-      const updatedAggregator = setMock.mock
-        .calls[0]?.[0] as LiquidityPoolAggregator;
+      const updatedAggregator = setMock.mock.calls[0]?.[0] as Pool;
       expect(updatedAggregator.currentLiquidityStakedUSD).toBe(100n);
     });
   });
@@ -1125,16 +1080,16 @@ describe("LiquidityPoolAggregator Functions", () => {
       new Date(timestamp.getTime() - 2 * 60 * 60 * 1000);
 
     it("warns at snapshot epoch when totalFeesGeneratedUSD exceeds 5% of totalVolumeUSD", async () => {
-      const pool = createMockLiquidityPoolAggregator({
+      const pool = createMockPool({
         totalVolumeUSD: 1_000n * 10n ** 18n,
         totalFeesGeneratedUSD: 0n,
         lastSnapshotTimestamp: previousEpoch(),
         lastUpdatedTimestamp: previousEpoch(),
       });
 
-      await updateLiquidityPoolAggregator(
+      await updatePool(
         { incrementalTotalFeesGeneratedUSD: 60n * 10n ** 18n },
-        pool as LiquidityPoolAggregator,
+        pool as Pool,
         timestamp,
         mockContext as handlerContext,
         10,
@@ -1150,16 +1105,16 @@ describe("LiquidityPoolAggregator Functions", () => {
     });
 
     it("does not warn when fees are below the 5% threshold", async () => {
-      const pool = createMockLiquidityPoolAggregator({
+      const pool = createMockPool({
         totalVolumeUSD: 1_000n * 10n ** 18n,
         totalFeesGeneratedUSD: 0n,
         lastSnapshotTimestamp: previousEpoch(),
         lastUpdatedTimestamp: previousEpoch(),
       });
 
-      await updateLiquidityPoolAggregator(
+      await updatePool(
         { incrementalTotalFeesGeneratedUSD: 10n * 10n ** 18n },
-        pool as LiquidityPoolAggregator,
+        pool as Pool,
         timestamp,
         mockContext as handlerContext,
         10,
@@ -1175,16 +1130,16 @@ describe("LiquidityPoolAggregator Functions", () => {
     });
 
     it("does not warn when totalVolumeUSD is zero (avoid div-by-zero noise)", async () => {
-      const pool = createMockLiquidityPoolAggregator({
+      const pool = createMockPool({
         totalVolumeUSD: 0n,
         totalFeesGeneratedUSD: 0n,
         lastSnapshotTimestamp: previousEpoch(),
         lastUpdatedTimestamp: previousEpoch(),
       });
 
-      await updateLiquidityPoolAggregator(
+      await updatePool(
         { incrementalTotalFeesGeneratedUSD: 10n * 10n ** 18n },
-        pool as LiquidityPoolAggregator,
+        pool as Pool,
         timestamp,
         mockContext as handlerContext,
         10,
@@ -1200,16 +1155,16 @@ describe("LiquidityPoolAggregator Functions", () => {
     });
 
     it("does not warn when divergent but inside the same snapshot epoch (rate-limit gate)", async () => {
-      const pool = createMockLiquidityPoolAggregator({
+      const pool = createMockPool({
         totalVolumeUSD: 1_000n * 10n ** 18n,
         totalFeesGeneratedUSD: 100n * 10n ** 18n,
         lastSnapshotTimestamp: timestamp,
         lastUpdatedTimestamp: timestamp,
       });
 
-      await updateLiquidityPoolAggregator(
+      await updatePool(
         { incrementalTotalFeesGeneratedUSD: 1n * 10n ** 18n },
-        pool as LiquidityPoolAggregator,
+        pool as Pool,
         timestamp,
         mockContext as handlerContext,
         10,
@@ -1262,11 +1217,9 @@ describe("LiquidityPoolAggregator Functions", () => {
         isWhitelisted: false,
       } as Token;
 
-      const mockLiquidityPoolGet = vi.mocked(
-        mockContext.LiquidityPoolAggregator?.get,
-      );
+      const mockLiquidityPoolGet = vi.mocked(mockContext.Pool?.get);
       mockLiquidityPoolGet?.mockResolvedValue(
-        liquidityPoolAggregator as unknown as LiquidityPoolAggregator,
+        liquidityPoolAggregator as unknown as Pool,
       );
 
       const mockTokenGet = vi.mocked(mockContext.Token?.get);
@@ -1621,9 +1574,7 @@ describe("LiquidityPoolAggregator Functions", () => {
     });
 
     it("should return null when pool is not found", async () => {
-      const mockLiquidityPoolGet = vi.mocked(
-        mockContext.LiquidityPoolAggregator?.get,
-      );
+      const mockLiquidityPoolGet = vi.mocked(mockContext.Pool?.get);
       mockLiquidityPoolGet?.mockResolvedValue(undefined);
 
       const result = await loadPoolData(
@@ -1696,7 +1647,7 @@ describe("LiquidityPoolAggregator Functions", () => {
     });
 
     it("should return pool data directly when pool exists", async () => {
-      const rootPool = createMockLiquidityPoolAggregator({
+      const rootPool = createMockPool({
         id: rootPoolId,
         chainId: chainId,
         token0_id: "token0",
@@ -1705,9 +1656,7 @@ describe("LiquidityPoolAggregator Functions", () => {
         token1_address: token1.address,
       });
 
-      const mockLiquidityPoolGet = vi.mocked(
-        mockContext.LiquidityPoolAggregator?.get,
-      );
+      const mockLiquidityPoolGet = vi.mocked(mockContext.Pool?.get);
       mockLiquidityPoolGet?.mockImplementation((address: string) => {
         if (address === rootPoolId) return Promise.resolve(rootPool);
         return Promise.resolve(undefined);
@@ -1746,7 +1695,7 @@ describe("LiquidityPoolAggregator Functions", () => {
     it("should load leaf pool data when root pool is not found but RootPool_LeafPool exists", async () => {
       const leafChainId = 252;
       const leafPoolId = PoolId(leafChainId, leafPoolAddress);
-      const leafPool = createMockLiquidityPoolAggregator({
+      const leafPool = createMockPool({
         id: leafPoolId,
         chainId: leafChainId,
         token0_id: "token0",
@@ -1768,9 +1717,7 @@ describe("LiquidityPoolAggregator Functions", () => {
         leafPoolAddress: leafPoolAddress,
       };
 
-      const mockLiquidityPoolGet = vi.mocked(
-        mockContext.LiquidityPoolAggregator?.get,
-      );
+      const mockLiquidityPoolGet = vi.mocked(mockContext.Pool?.get);
       mockLiquidityPoolGet?.mockImplementation((address: string) => {
         if (address === rootPoolId) return Promise.resolve(undefined);
         if (address === leafPoolId) return Promise.resolve(leafPool);
@@ -1819,7 +1766,7 @@ describe("LiquidityPoolAggregator Functions", () => {
         errorMessages?.some(
           (msg) =>
             typeof msg === "string" &&
-            msg.includes(`LiquidityPoolAggregator ${rootPoolId} not found`),
+            msg.includes(`Pool ${rootPoolId} not found`),
         ),
       ).toBe(false);
     });
@@ -1827,7 +1774,7 @@ describe("LiquidityPoolAggregator Functions", () => {
     it("should not forward blockNumber/blockTimestamp to leaf chain loadPoolData (cross-chain fix)", async () => {
       const leafChainId = 252;
       const leafPoolId = PoolId(leafChainId, leafPoolAddress);
-      const leafPool = createMockLiquidityPoolAggregator({
+      const leafPool = createMockPool({
         id: leafPoolId,
         chainId: leafChainId,
         token0_id: "token0",
@@ -1849,9 +1796,7 @@ describe("LiquidityPoolAggregator Functions", () => {
         leafPoolAddress: leafPoolAddress,
       };
 
-      const mockLiquidityPoolGet = vi.mocked(
-        mockContext.LiquidityPoolAggregator?.get,
-      );
+      const mockLiquidityPoolGet = vi.mocked(mockContext.Pool?.get);
       mockLiquidityPoolGet?.mockImplementation((address: string) => {
         if (address === leafPoolId) return Promise.resolve(leafPool);
         return Promise.resolve(undefined);
@@ -1891,9 +1836,7 @@ describe("LiquidityPoolAggregator Functions", () => {
     });
 
     it("should return MAPPING_NOT_FOUND when root pool not found and no RootPool_LeafPool exists", async () => {
-      const mockLiquidityPoolGet = vi.mocked(
-        mockContext.LiquidityPoolAggregator?.get,
-      );
+      const mockLiquidityPoolGet = vi.mocked(mockContext.Pool?.get);
       mockLiquidityPoolGet?.mockResolvedValue(undefined);
 
       const mockRootPoolLeafPoolGetWhere = vi.mocked(
@@ -1923,9 +1866,7 @@ describe("LiquidityPoolAggregator Functions", () => {
         errorMessages?.some(
           (msg) =>
             typeof msg === "string" &&
-            msg.includes(
-              `LiquidityPoolAggregator ${rootPoolId} not found on chain ${chainId}`,
-            ),
+            msg.includes(`Pool ${rootPoolId} not found on chain ${chainId}`),
         ),
       ).toBe(true);
     });
@@ -1959,9 +1900,7 @@ describe("LiquidityPoolAggregator Functions", () => {
         ),
       };
 
-      const mockLiquidityPoolGet = vi.mocked(
-        mockContext.LiquidityPoolAggregator?.get,
-      );
+      const mockLiquidityPoolGet = vi.mocked(mockContext.Pool?.get);
       mockLiquidityPoolGet?.mockResolvedValue(undefined);
 
       const mockRootPoolLeafPoolGetWhere = vi.mocked(
@@ -2011,9 +1950,7 @@ describe("LiquidityPoolAggregator Functions", () => {
         leafPoolAddress: leafPoolAddress,
       };
 
-      const mockLiquidityPoolGet = vi.mocked(
-        mockContext.LiquidityPoolAggregator?.get,
-      );
+      const mockLiquidityPoolGet = vi.mocked(mockContext.Pool?.get);
       mockLiquidityPoolGet?.mockResolvedValue(undefined);
 
       const mockRootPoolLeafPoolGetWhere = vi.mocked(
@@ -2054,9 +1991,7 @@ describe("LiquidityPoolAggregator Functions", () => {
       const mockRootPoolLeafPoolGetWhere = vi.mocked(
         mockContext.RootPool_LeafPool?.getWhere,
       );
-      const mockLiquidityPoolGet = vi.mocked(
-        mockContext.LiquidityPoolAggregator?.get,
-      );
+      const mockLiquidityPoolGet = vi.mocked(mockContext.Pool?.get);
       const mockErrorLog = vi.mocked(mockContext.log?.error);
       const mockWarnLog = vi.mocked(mockContext.log?.warn);
 

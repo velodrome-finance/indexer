@@ -1,9 +1,6 @@
-import type {
-  LiquidityPoolAggregator,
-  PoolLauncherPool,
-  handlerContext,
-} from "generated";
+import type { PoolLauncherPool, handlerContext } from "generated";
 import { PoolId } from "../../Constants";
+import type { Pool } from "../../EntityTypes";
 
 // Helper function to create or update PoolLauncherPool entity
 export async function processPoolLauncherPool(
@@ -52,31 +49,30 @@ export async function processPoolLauncherPool(
   return poolLauncherPool;
 }
 
-// Helper function to link existing LiquidityPoolAggregator to PoolLauncherPool
-export async function linkLiquidityPoolAggregatorToPoolLauncher(
+// Helper function to link existing Pool to PoolLauncherPool
+export async function linkPoolToPoolLauncher(
   poolAddress: string,
   chainId: number,
   context: handlerContext,
   factoryType: "CL" | "V2",
 ): Promise<void> {
-  // Load the existing LiquidityPoolAggregator (created by CLFactory or V2Factory)
+  // Load the existing Pool (created by CLFactory or V2Factory)
   const poolId = PoolId(chainId, poolAddress);
-  const existingLiquidityPoolAggregator =
-    await context.LiquidityPoolAggregator.get(poolId);
+  const existingPool = await context.Pool.get(poolId);
 
-  if (!existingLiquidityPoolAggregator) {
+  if (!existingPool) {
     context.log.warn(
-      `LiquidityPoolAggregator not found for pool ${poolId} - it should have been created by ${factoryType}Factory`,
+      `Pool not found for pool ${poolId} - it should have been created by ${factoryType}Factory`,
     );
     return;
   }
 
-  // Update the existing LiquidityPoolAggregator to link it to PoolLauncherPool
-  const updatedLiquidityPoolAggregator: LiquidityPoolAggregator = {
-    ...existingLiquidityPoolAggregator,
+  // Update the existing Pool to link it to PoolLauncherPool
+  const updatedPool: Pool = {
+    ...existingPool,
     poolLauncherPoolId: poolId,
     lastUpdatedTimestamp: new Date(),
   };
 
-  context.LiquidityPoolAggregator.set(updatedLiquidityPoolAggregator);
+  context.Pool.set(updatedPool);
 }

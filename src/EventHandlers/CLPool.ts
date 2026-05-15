@@ -1,9 +1,6 @@
 import { CLPool } from "generated";
-import {
-  loadPoolData,
-  updateLiquidityPoolAggregator,
-} from "../Aggregators/LiquidityPoolAggregator";
 import { createOUSDTSwapEntity } from "../Aggregators/OUSDTSwaps";
+import { loadPoolData, updatePool } from "../Aggregators/Pool";
 import {
   loadOrCreateUserData,
   updateUserStatsPerPool,
@@ -63,7 +60,7 @@ CLPool.Burn.handler(async ({ event, context }) => {
   );
   const timestamp = new Date(event.block.timestamp * 1000);
 
-  await updateLiquidityPoolAggregator(
+  await updatePool(
     result.liquidityPoolDiff,
     liquidityPoolAggregator,
     timestamp,
@@ -116,7 +113,7 @@ CLPool.Collect.handler(async ({ event, context }) => {
 
   // Update pool and user entities
   await Promise.all([
-    updateLiquidityPoolAggregator(
+    updatePool(
       poolDiff,
       liquidityPoolAggregator,
       timestamp,
@@ -173,7 +170,7 @@ CLPool.CollectFees.handler(async ({ event, context }) => {
 
   // Update pool and user entities
   await Promise.all([
-    updateLiquidityPoolAggregator(
+    updatePool(
       poolDiff,
       liquidityPoolAggregator,
       timestamp,
@@ -220,7 +217,7 @@ CLPool.Flash.handler(async ({ event, context }) => {
 
   // Update pool and user entities (only update user if there's volume)
   await Promise.all([
-    updateLiquidityPoolAggregator(
+    updatePool(
       poolDiff,
       liquidityPoolAggregator,
       timestamp,
@@ -262,7 +259,7 @@ CLPool.IncreaseObservationCardinalityNext.handler(
       lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
     };
 
-    await updateLiquidityPoolAggregator(
+    await updatePool(
       cardinalityDiff,
       liquidityPoolAggregator,
       new Date(event.block.timestamp * 1000),
@@ -315,7 +312,7 @@ CLPool.Mint.handler(async ({ event, context }) => {
   );
   const timestamp = new Date(event.block.timestamp * 1000);
 
-  await updateLiquidityPoolAggregator(
+  await updatePool(
     result.liquidityPoolDiff,
     liquidityPoolAggregator,
     timestamp,
@@ -380,7 +377,7 @@ CLPool.SetFeeProtocol.handler(async ({ event, context }) => {
     lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
   };
 
-  await updateLiquidityPoolAggregator(
+  await updatePool(
     feeProtocolDiff,
     liquidityPoolAggregator,
     new Date(event.block.timestamp * 1000),
@@ -431,7 +428,7 @@ CLPool.Swap.handler(async ({ event, context }) => {
 
   // Update pool and user entities
   await Promise.all([
-    updateLiquidityPoolAggregator(
+    updatePool(
       poolDiff,
       liquidityPoolAggregator,
       timestamp,

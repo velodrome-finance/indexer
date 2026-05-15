@@ -12,7 +12,7 @@ import {
   toChecksumAddress,
 } from "../../src/Constants";
 import { flushPendingVotesAndDistributionsForRootPool } from "../../src/EventHandlers/Voter/CrossChainPendingResolution";
-import { type MockLiquidityPoolAggregator, setupCommon } from "./Pool/common";
+import { type MockPool, setupCommon } from "./Pool/common";
 
 vi.mock(
   "../../src/EventHandlers/Voter/CrossChainPendingResolution",
@@ -73,13 +73,13 @@ describe("RootCLPoolFactory Events", () => {
 
     describe("when matching pool exists on leaf chain", () => {
       let resultDB: ReturnType<typeof MockDb.createMockDb>;
-      let mockLiquidityPool: MockLiquidityPoolAggregator;
+      let mockLiquidityPool: MockPool;
 
       beforeEach(async () => {
-        const { createMockLiquidityPoolAggregator } = setupCommon();
+        const { createMockPool } = setupCommon();
 
         // Create a pool on the leaf chain with matching token addresses and tickSpacing
-        mockLiquidityPool = createMockLiquidityPoolAggregator({
+        mockLiquidityPool = createMockPool({
           id: PoolId(leafChainId, leafPoolAddress),
           poolAddress: leafPoolAddress,
           chainId: leafChainId,
@@ -97,7 +97,7 @@ describe("RootCLPoolFactory Events", () => {
           ),
         });
 
-        mockDb = mockDb.entities.LiquidityPoolAggregator.set(mockLiquidityPool);
+        mockDb = mockDb.entities.Pool.set(mockLiquidityPool);
 
         resultDB = await mockDb.processEvents([mockEvent]);
       });
@@ -142,7 +142,7 @@ describe("RootCLPoolFactory Events", () => {
 
       beforeEach(async () => {
         const {
-          createMockLiquidityPoolAggregator,
+          createMockPool,
           createMockVeNFTState,
           mockToken0Data,
           mockToken1Data,
@@ -158,7 +158,7 @@ describe("RootCLPoolFactory Events", () => {
           id: TokenId(leafChainId, mockToken1Data.address),
           chainId: leafChainId,
         };
-        const mockLiquidityPool = createMockLiquidityPoolAggregator({
+        const mockLiquidityPool = createMockPool({
           id: PoolId(leafChainId, leafPoolAddress),
           poolAddress: leafPoolAddress,
           chainId: leafChainId,
@@ -194,7 +194,7 @@ describe("RootCLPoolFactory Events", () => {
           transactionHash: "0xhash",
         };
 
-        mockDb = mockDb.entities.LiquidityPoolAggregator.set(mockLiquidityPool);
+        mockDb = mockDb.entities.Pool.set(mockLiquidityPool);
         mockDb = mockDb.entities.Token.set(leafToken0);
         mockDb = mockDb.entities.Token.set(leafToken1);
         mockDb = mockDb.entities.VeNFTState.set(veNFTState);
@@ -219,7 +219,7 @@ describe("RootCLPoolFactory Events", () => {
         );
         expect(processedPendingVote).toBeUndefined();
 
-        const leafPool = resultDB.entities.LiquidityPoolAggregator.get(
+        const leafPool = resultDB.entities.Pool.get(
           PoolId(leafChainId, leafPoolAddress),
         );
         expect(leafPool?.veNFTamountStaked).toBe(voteWeight);
@@ -277,14 +277,14 @@ describe("RootCLPoolFactory Events", () => {
 
     describe("when multiple matching pools exist", () => {
       let resultDB: ReturnType<typeof MockDb.createMockDb>;
-      let mockLiquidityPool1: MockLiquidityPoolAggregator;
-      let mockLiquidityPool2: MockLiquidityPoolAggregator;
+      let mockLiquidityPool1: MockPool;
+      let mockLiquidityPool2: MockPool;
 
       beforeEach(async () => {
-        const { createMockLiquidityPoolAggregator } = setupCommon();
+        const { createMockPool } = setupCommon();
 
         // Create two pools with the same rootPoolMatchingHash
-        mockLiquidityPool1 = createMockLiquidityPoolAggregator({
+        mockLiquidityPool1 = createMockPool({
           id: PoolId(leafChainId, leafPoolAddress),
           poolAddress: leafPoolAddress,
           chainId: leafChainId,
@@ -303,7 +303,7 @@ describe("RootCLPoolFactory Events", () => {
         });
 
         // Different pool address
-        mockLiquidityPool2 = createMockLiquidityPoolAggregator({
+        mockLiquidityPool2 = createMockPool({
           id: PoolId(
             leafChainId,
             toChecksumAddress("0xFc00000000000000000000000000000000000001"),
@@ -326,10 +326,8 @@ describe("RootCLPoolFactory Events", () => {
           ),
         });
 
-        mockDb =
-          mockDb.entities.LiquidityPoolAggregator.set(mockLiquidityPool1);
-        mockDb =
-          mockDb.entities.LiquidityPoolAggregator.set(mockLiquidityPool2);
+        mockDb = mockDb.entities.Pool.set(mockLiquidityPool1);
+        mockDb = mockDb.entities.Pool.set(mockLiquidityPool2);
 
         resultDB = await mockDb.processEvents([mockEvent]);
       });

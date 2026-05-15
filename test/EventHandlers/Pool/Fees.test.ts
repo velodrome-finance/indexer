@@ -1,10 +1,7 @@
-import type {
-  LiquidityPoolAggregator,
-  Token,
-  UserStatsPerPool,
-} from "generated";
+import type { Token, UserStatsPerPool } from "generated";
 import { MockDb, Pool } from "../../../generated/src/TestHelpers.gen";
 import { UserStatsPerPoolId, toChecksumAddress } from "../../../src/Constants";
+import type { Pool as PoolEntity } from "../../../src/EntityTypes";
 import * as PoolFeesLogic from "../../../src/EventHandlers/Pool/PoolFeesLogic";
 import { setupCommon } from "./common";
 
@@ -40,16 +37,14 @@ describe("Pool Fees Event", () => {
 
   expectations.totalFeesUSDWhitelisted = expectations.totalFeesGeneratedUSD;
 
-  let updatedPool: LiquidityPoolAggregator | undefined;
+  let updatedPool: PoolEntity | undefined;
   let createdUserStats: UserStatsPerPool | undefined;
 
   beforeEach(async () => {
     mockDb = MockDb.createMockDb();
     updatedDB = mockDb.entities.Token.set(mockToken0Data as Token);
     updatedDB = updatedDB.entities.Token.set(mockToken1Data as Token);
-    updatedDB = updatedDB.entities.LiquidityPoolAggregator.set(
-      mockLiquidityPoolData,
-    );
+    updatedDB = updatedDB.entities.Pool.set(mockLiquidityPoolData);
 
     const mockEvent = Pool.Fees.createMockEvent({
       amount0: expectations.amount0In,
@@ -68,7 +63,7 @@ describe("Pool Fees Event", () => {
 
     const result = await updatedDB.processEvents([mockEvent]);
 
-    updatedPool = result.entities.LiquidityPoolAggregator.get(poolId);
+    updatedPool = result.entities.Pool.get(poolId);
     createdUserStats = result.entities.UserStatsPerPool.get(
       UserStatsPerPoolId(
         10,
@@ -78,12 +73,12 @@ describe("Pool Fees Event", () => {
     );
   });
 
-  it("should update LiquidityPoolAggregator", async () => {
+  it("should update Pool", async () => {
     expect(updatedPool).toBeDefined();
     expect(updatedPool?.lastUpdatedTimestamp).toEqual(new Date(1000000 * 1000));
   });
 
-  it("should update LiquidityPoolAggregator nominal fees", async () => {
+  it("should update Pool nominal fees", async () => {
     // For regular pools, fees are tracked as unstaked fees
     expect(updatedPool?.totalFeesGenerated0).toBe(
       mockLiquidityPoolData.totalFeesGenerated0 + expectations.amount0In,
@@ -93,13 +88,13 @@ describe("Pool Fees Event", () => {
     );
   });
 
-  it("should update LiquidityPoolAggregator total fees in USD", async () => {
+  it("should update Pool total fees in USD", async () => {
     expect(updatedPool?.totalFeesGeneratedUSD).toBe(
       expectations.totalFeesGeneratedUSD,
     );
   });
 
-  it("should update LiquidityPoolAggregator total fees in USD whitelisted", async () => {
+  it("should update Pool total fees in USD whitelisted", async () => {
     expect(updatedPool?.totalFeesUSDWhitelisted).toBe(
       expectations.totalFeesUSDWhitelisted,
     );
@@ -228,7 +223,7 @@ describe("Pool Fees Event", () => {
         mockToken0Data as Token,
       );
       const updatedDB2 = updatedDB1.entities.Token.set(mockToken1Data as Token);
-      // Note: We intentionally don't set the LiquidityPoolAggregator
+      // Note: We intentionally don't set the Pool
 
       const mockEvent = Pool.Fees.createMockEvent({
         amount0: 3n * 10n ** 18n,
@@ -248,7 +243,7 @@ describe("Pool Fees Event", () => {
       const postEventDB = await updatedDB2.processEvents([mockEvent]);
 
       // Pool should not exist
-      const pool = postEventDB.entities.LiquidityPoolAggregator.get(poolId);
+      const pool = postEventDB.entities.Pool.get(poolId);
       expect(pool).toBeUndefined();
 
       // User stats will still be created because loadOrCreateUserData is called in parallel
@@ -281,9 +276,7 @@ describe("Pool Fees Event", () => {
       const freshMockDb = MockDb.createMockDb();
       const testDB = freshMockDb.entities.Token.set(mockToken0Data as Token);
       const testDB2 = testDB.entities.Token.set(mockToken1Data as Token);
-      const testDB3 = testDB2.entities.LiquidityPoolAggregator.set(
-        mockLiquidityPoolData,
-      );
+      const testDB3 = testDB2.entities.Pool.set(mockLiquidityPoolData);
 
       // Mock processPoolFees to return undefined liquidityPoolDiff
       processSpy = vi.spyOn(PoolFeesLogic, "processPoolFees").mockReturnValue({
@@ -314,7 +307,7 @@ describe("Pool Fees Event", () => {
       const result = await testDB3.processEvents([mockEvent]);
 
       // Pool should not be updated since liquidityPoolDiff is undefined
-      const pool = result.entities.LiquidityPoolAggregator.get(poolId);
+      const pool = result.entities.Pool.get(poolId);
       expect(pool?.totalFeesGenerated0).toBe(
         mockLiquidityPoolData.totalFeesGenerated0,
       );
@@ -336,9 +329,7 @@ describe("Pool Fees Event", () => {
       const freshMockDb = MockDb.createMockDb();
       const testDB = freshMockDb.entities.Token.set(mockToken0Data as Token);
       const testDB2 = testDB.entities.Token.set(mockToken1Data as Token);
-      const testDB3 = testDB2.entities.LiquidityPoolAggregator.set(
-        mockLiquidityPoolData,
-      );
+      const testDB3 = testDB2.entities.Pool.set(mockLiquidityPoolData);
 
       // Mock processPoolFees to return undefined userDiff
       const processSpy = vi
@@ -372,7 +363,7 @@ describe("Pool Fees Event", () => {
       const result = await testDB3.processEvents([mockEvent]);
 
       // Pool should still be updated
-      const pool = result.entities.LiquidityPoolAggregator.get(poolId);
+      const pool = result.entities.Pool.get(poolId);
       expect(pool?.totalFeesGenerated0).toBe(
         mockLiquidityPoolData.totalFeesGenerated0 + 3n * 10n ** 18n,
       );

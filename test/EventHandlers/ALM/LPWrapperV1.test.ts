@@ -149,7 +149,7 @@ describe("ALMLPWrapperV1 Events", () => {
       expect(wrapper?.lpAmount).toBe(
         mockALMLPWrapperData.lpAmount + 1000n * TEN_TO_THE_18_BI,
       ); // 2000 + 1000 = 3000
-      // No LiquidityPoolAggregator in mockDb → sqrtPriceX96 undefined → liquidity unchanged
+      // No Pool in mockDb → sqrtPriceX96 undefined → liquidity unchanged
       expect(wrapper?.liquidity).toBe(mockALMLPWrapperData.liquidity);
       expect(wrapper?.lastUpdatedTimestamp).toEqual(new Date(1000000 * 1000));
     });
@@ -335,7 +335,7 @@ describe("ALMLPWrapperV1 Events", () => {
       const wrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
 
       expect(wrapper).toBeDefined();
-      // No LiquidityPoolAggregator in mockDb → sqrtPriceX96 undefined → liquidity unchanged
+      // No Pool in mockDb → sqrtPriceX96 undefined → liquidity unchanged
       expect(wrapper?.liquidity).toBe(mockALMLPWrapperData.liquidity);
       // lpAmount is decremented (aggregation from events)
       expect(wrapper?.lpAmount).toBe(1500n * TEN_TO_THE_18_BI); // 2000 - 500
