@@ -1,6 +1,5 @@
-import { SuperchainLeafVoter } from "generated";
-
-import type { Token } from "generated";
+import { indexer } from "envio";
+import type { Token } from "envio";
 import { findPoolByGaugeAddress, updatePool } from "../../Aggregators/Pool";
 import {
   PoolId,
@@ -10,97 +9,109 @@ import {
 } from "../../Constants";
 import { getTokenDetails, hasContractBytecode } from "../../Effects/Index";
 
-SuperchainLeafVoter.GaugeCreated.contractRegister(({ event, context }) => {
-  const pf = event.params.poolFactory;
-  if (SUPERCHAIN_LEAF_VOTER_CLPOOLS_FACTORY_LIST.includes(pf)) {
-    context.addCLGauge(event.params.gauge);
-  } else if (SUPERCHAIN_LEAF_VOTER_NONCL_POOLS_FACTORY_LIST.includes(pf)) {
-    context.addGauge(event.params.gauge);
-  }
+indexer.contractRegister(
+  { contract: "SuperchainLeafVoter", event: "GaugeCreated" },
+  async ({ event, context }) => {
+    const pf = event.params.poolFactory;
+    if (SUPERCHAIN_LEAF_VOTER_CLPOOLS_FACTORY_LIST.includes(pf)) {
+      context.chain.CLGauge.add(event.params.gauge);
+    } else if (SUPERCHAIN_LEAF_VOTER_NONCL_POOLS_FACTORY_LIST.includes(pf)) {
+      context.chain.Gauge.add(event.params.gauge);
+    }
 
-  context.addFeesVotingReward(event.params.feeVotingReward);
-  context.addSuperchainIncentiveVotingReward(
-    event.params.incentiveVotingReward,
-  );
-});
-
-SuperchainLeafVoter.GaugeCreated.handler(async ({ event, context }) => {
-  // Update the pool entity with the gauge address
-  const poolId = PoolId(event.chainId, event.params.pool);
-  const gaugeAddress = event.params.gauge;
-
-  const poolEntity = await context.Pool.get(poolId);
-
-  if (poolEntity) {
-    const poolUpdateDiff = {
-      gaugeAddress: gaugeAddress,
-      feeVotingRewardAddress: event.params.feeVotingReward,
-      bribeVotingRewardAddress: event.params.incentiveVotingReward,
-      gaugeIsAlive: true, // Newly created gauges are always alive
-      lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
-    };
-
-    await updatePool(
-      poolUpdateDiff,
-      poolEntity,
-      new Date(event.block.timestamp * 1000),
-      context,
-      event.chainId,
-      event.block.number,
+    context.chain.FeesVotingReward.add(event.params.feeVotingReward);
+    context.chain.SuperchainIncentiveVotingReward.add(
+      event.params.incentiveVotingReward,
     );
-  }
-});
+  },
+);
 
-SuperchainLeafVoter.GaugeKilled.handler(async ({ event, context }) => {
-  const poolEntity = await findPoolByGaugeAddress(
-    event.params.gauge,
-    event.chainId,
-    context,
-  );
-  const poolId = poolEntity?.id;
+indexer.onEvent(
+  { contract: "SuperchainLeafVoter", event: "GaugeCreated" },
+  async ({ event, context }) => {
+    // Update the pool entity with the gauge address
+    const poolId = PoolId(event.chainId, event.params.pool);
+    const gaugeAddress = event.params.gauge;
 
-  if (poolId) {
-    const poolUpdateDiff = {
-      gaugeIsAlive: false,
-      // Keep gaugeAddress, feeVotingRewardAddress and bribeVotingRewardAddress as historical data
-      lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
-    };
+    const poolEntity = await context.Pool.get(poolId);
 
-    await updatePool(
-      poolUpdateDiff,
-      poolEntity,
-      new Date(event.block.timestamp * 1000),
-      context,
+    if (poolEntity) {
+      const poolUpdateDiff = {
+        gaugeAddress: gaugeAddress,
+        feeVotingRewardAddress: event.params.feeVotingReward,
+        bribeVotingRewardAddress: event.params.incentiveVotingReward,
+        gaugeIsAlive: true, // Newly created gauges are always alive
+        lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
+      };
+
+      await updatePool(
+        poolUpdateDiff,
+        poolEntity,
+        new Date(event.block.timestamp * 1000),
+        context,
+        event.chainId,
+        event.block.number,
+      );
+    }
+  },
+);
+
+indexer.onEvent(
+  { contract: "SuperchainLeafVoter", event: "GaugeKilled" },
+  async ({ event, context }) => {
+    const poolEntity = await findPoolByGaugeAddress(
+      event.params.gauge,
       event.chainId,
-      event.block.number,
-    );
-  }
-});
-
-SuperchainLeafVoter.GaugeRevived.handler(async ({ event, context }) => {
-  const poolEntity = await findPoolByGaugeAddress(
-    event.params.gauge,
-    event.chainId,
-    context,
-  );
-  const poolId = poolEntity?.id;
-
-  if (poolId) {
-    const poolUpdateDiff = {
-      gaugeIsAlive: true,
-      lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
-    };
-
-    await updatePool(
-      poolUpdateDiff,
-      poolEntity,
-      new Date(event.block.timestamp * 1000),
       context,
-      event.chainId,
-      event.block.number,
     );
-  }
-});
+    const poolId = poolEntity?.id;
+
+    if (poolId) {
+      const poolUpdateDiff = {
+        gaugeIsAlive: false,
+        // Keep gaugeAddress, feeVotingRewardAddress and bribeVotingRewardAddress as historical data
+        lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
+      };
+
+      await updatePool(
+        poolUpdateDiff,
+        poolEntity,
+        new Date(event.block.timestamp * 1000),
+        context,
+        event.chainId,
+        event.block.number,
+      );
+    }
+  },
+);
+
+indexer.onEvent(
+  { contract: "SuperchainLeafVoter", event: "GaugeRevived" },
+  async ({ event, context }) => {
+    const poolEntity = await findPoolByGaugeAddress(
+      event.params.gauge,
+      event.chainId,
+      context,
+    );
+    const poolId = poolEntity?.id;
+
+    if (poolId) {
+      const poolUpdateDiff = {
+        gaugeIsAlive: true,
+        lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
+      };
+
+      await updatePool(
+        poolUpdateDiff,
+        poolEntity,
+        new Date(event.block.timestamp * 1000),
+        context,
+        event.chainId,
+        event.block.number,
+      );
+    }
+  },
+);
 
 /**
  * Handles the WhitelistToken event for the Voter contract.
@@ -119,55 +130,58 @@ SuperchainLeafVoter.GaugeRevived.handler(async ({ event, context }) => {
  * @param {Object} event - The event object containing details of the WhitelistToken event.
  * @param {Object} context - The context object used to interact with the data store.
  */
-SuperchainLeafVoter.WhitelistToken.handler(async ({ event, context }) => {
-  const token = await context.Token.get(
-    TokenId(event.chainId, event.params.token),
-  );
+indexer.onEvent(
+  { contract: "SuperchainLeafVoter", event: "WhitelistToken" },
+  async ({ event, context }) => {
+    const token = await context.Token.get(
+      TokenId(event.chainId, event.params.token),
+    );
 
-  // Update the Token entity in the DB, either by updating the existing one or creating a new one
-  if (token) {
-    const updatedToken: Token = {
-      ...token,
-      isWhitelisted: event.params._bool,
-      lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
-    };
+    // Update the Token entity in the DB, either by updating the existing one or creating a new one
+    if (token) {
+      const updatedToken: Token = {
+        ...token,
+        isWhitelisted: event.params._bool,
+        lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
+      };
 
-    context.Token.set(updatedToken as Token);
-    return;
-  }
-
-  try {
-    const { hasCode } = await context.effect(hasContractBytecode, {
-      address: event.params.token,
-      chainId: event.chainId,
-    });
-    if (!hasCode) {
-      context.log.warn(
-        `[SuperchainLeafVoter.WhitelistToken] Skipping Token row for non-contract address ${event.params.token} on chain ${event.chainId} (no deployed bytecode)`,
-      );
+      context.Token.set(updatedToken as Token);
       return;
     }
 
-    const tokenDetails = await context.effect(getTokenDetails, {
-      contractAddress: event.params.token,
-      chainId: event.chainId,
-    });
-    const updatedToken: Token = {
-      id: TokenId(event.chainId, event.params.token),
-      name: tokenDetails.name,
-      symbol: tokenDetails.symbol,
-      pricePerUSDNew: 0n,
-      address: event.params.token,
-      chainId: event.chainId,
-      decimals: BigInt(tokenDetails.decimals),
-      isWhitelisted: event.params._bool,
-      lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
-      lastSuccessfulPriceTimestamp: undefined,
-    };
-    context.Token.set(updatedToken);
-  } catch (error) {
-    context.log.error(
-      `Error in superchain leaf voter whitelist token event fetching token details for ${event.params.token} on chain ${event.chainId}: ${error}`,
-    );
-  }
-});
+    try {
+      const { hasCode } = await context.effect(hasContractBytecode, {
+        address: event.params.token,
+        chainId: event.chainId,
+      });
+      if (!hasCode) {
+        context.log.warn(
+          `[SuperchainLeafVoter.WhitelistToken] Skipping Token row for non-contract address ${event.params.token} on chain ${event.chainId} (no deployed bytecode)`,
+        );
+        return;
+      }
+
+      const tokenDetails = await context.effect(getTokenDetails, {
+        contractAddress: event.params.token,
+        chainId: event.chainId,
+      });
+      const updatedToken: Token = {
+        id: TokenId(event.chainId, event.params.token),
+        name: tokenDetails.name,
+        symbol: tokenDetails.symbol,
+        pricePerUSDNew: 0n,
+        address: event.params.token,
+        chainId: event.chainId,
+        decimals: BigInt(tokenDetails.decimals),
+        isWhitelisted: event.params._bool,
+        lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
+        lastSuccessfulPriceTimestamp: undefined,
+      };
+      context.Token.set(updatedToken);
+    } catch (error) {
+      context.log.error(
+        `Error in superchain leaf voter whitelist token event fetching token details for ${event.params.token} on chain ${event.chainId}: ${error}`,
+      );
+    }
+  },
+);

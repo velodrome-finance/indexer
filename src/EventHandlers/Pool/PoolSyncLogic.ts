@@ -1,6 +1,6 @@
-import type { Pool_Sync_event, Token } from "generated";
+import type { Token } from "envio";
 import type { PoolDiff } from "../../Aggregators/Pool";
-import type { Pool } from "../../EntityTypes";
+import type { Pool, Pool_Sync_event } from "../../EntityTypes";
 import { calculateTotalUSD } from "../../Helpers";
 
 export interface PoolSyncResult {

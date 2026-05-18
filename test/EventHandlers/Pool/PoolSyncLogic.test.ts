@@ -1,13 +1,17 @@
-import type { Pool_Sync_event, Token, handlerContext } from "generated";
+import type { Token } from "envio";
 import { toChecksumAddress } from "../../../src/Constants";
-import type { Pool } from "../../../src/EntityTypes";
+import type {
+  Pool,
+  Pool_Sync_event,
+  handlerContext,
+} from "../../../src/EntityTypes";
 import { processPoolSync } from "../../../src/EventHandlers/Pool/PoolSyncLogic";
 import { setupCommon } from "./common";
 
 describe("PoolSyncLogic", () => {
   const { mockLiquidityPoolData } = setupCommon();
 
-  const mockEvent: Pool_Sync_event = {
+  const mockEvent = {
     chainId: 10,
     block: {
       number: 123456,
@@ -23,7 +27,7 @@ describe("PoolSyncLogic", () => {
       reserve0: 1000n,
       reserve1: 2000n,
     },
-  };
+  } as Pool_Sync_event;
 
   const mockPool = {
     ...mockLiquidityPoolData,
@@ -169,13 +173,13 @@ describe("PoolSyncLogic", () => {
     });
 
     it("should handle zero amounts correctly", () => {
-      const mockEventWithZeroAmounts: Pool_Sync_event = {
+      const mockEventWithZeroAmounts = {
         ...mockEvent,
         params: {
           reserve0: 0n,
           reserve1: 0n,
         },
-      };
+      } as Pool_Sync_event;
 
       const result = processPoolSync(
         mockEventWithZeroAmounts,

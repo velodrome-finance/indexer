@@ -1,6 +1,7 @@
-import type { CLGaugeConfig, Token, handlerContext } from "generated";
+import type { CLGaugeConfig, Token } from "envio";
 import { PoolId, TokenId, isKnownSinkRootPool } from "../Constants";
 import { getSwapFee } from "../Effects/Index";
+import type { handlerContext } from "../EntityTypes";
 import type { Pool } from "../EntityTypes";
 import { calculateTotalUSD, generatePoolName } from "../Helpers";
 import { refreshTokenPrice } from "../PriceOracle";

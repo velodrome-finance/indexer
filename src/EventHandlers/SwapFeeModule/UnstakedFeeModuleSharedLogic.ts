@@ -1,6 +1,6 @@
-import type { handlerContext } from "generated";
 import { type PoolDiff, updatePool } from "../../Aggregators/Pool";
 import { PoolId } from "../../Constants";
+import type { handlerContext } from "../../EntityTypes";
 
 export interface UnstakedFeeEventData {
   poolAddress: string;

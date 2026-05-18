@@ -1,10 +1,9 @@
+import type { CLPositionPendingPrincipal, Token } from "envio";
+import { toChecksumAddress } from "../../../src/Constants";
 import type {
   CLPool_Collect_event,
-  CLPositionPendingPrincipal,
-  Token,
   handlerContext,
-} from "generated";
-import { toChecksumAddress } from "../../../src/Constants";
+} from "../../../src/EntityTypes";
 import { processCLPoolCollect } from "../../../src/EventHandlers/CLPool/CLPoolCollectLogic";
 import { setupCommon } from "../Pool/common";
 

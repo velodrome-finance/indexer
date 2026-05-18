@@ -1,5 +1,6 @@
-import { Redistributor, type handlerContext } from "generated";
+import { indexer } from "envio";
 import { type PoolDiff, updatePool } from "../../Aggregators/Pool";
+import type { handlerContext } from "../../EntityTypes";
 import { applyRedistributorConfigUpdate } from "./RedistributorConfigSharedLogic";
 
 type RedistributorCounterDelta = Partial<
@@ -65,44 +66,56 @@ async function applyRedistributorCounterDelta(
   );
 }
 
-Redistributor.Deposited.handler(async ({ event, context }) => {
-  await applyRedistributorCounterDelta(
-    event.params.gauge,
-    { incrementalTotalEmissionsForfeited: event.params.amount },
-    event.block.timestamp,
-    event.chainId,
-    event.block.number,
-    context,
-  );
-});
+indexer.onEvent(
+  { contract: "Redistributor", event: "Deposited" },
+  async ({ event, context }) => {
+    await applyRedistributorCounterDelta(
+      event.params.gauge,
+      { incrementalTotalEmissionsForfeited: event.params.amount },
+      event.block.timestamp,
+      event.chainId,
+      event.block.number,
+      context,
+    );
+  },
+);
 
-Redistributor.Redistributed.handler(async ({ event, context }) => {
-  await applyRedistributorCounterDelta(
-    event.params.gauge,
-    { incrementalTotalEmissionsRedistributed: event.params.amount },
-    event.block.timestamp,
-    event.chainId,
-    event.block.number,
-    context,
-  );
-});
+indexer.onEvent(
+  { contract: "Redistributor", event: "Redistributed" },
+  async ({ event, context }) => {
+    await applyRedistributorCounterDelta(
+      event.params.gauge,
+      { incrementalTotalEmissionsRedistributed: event.params.amount },
+      event.block.timestamp,
+      event.chainId,
+      event.block.number,
+      context,
+    );
+  },
+);
 
-Redistributor.SetKeeper.handler(async ({ event, context }) => {
-  await applyRedistributorConfigUpdate(
-    event.chainId,
-    event.srcAddress,
-    { keeper: event.params.keeper },
-    event.block.timestamp,
-    context,
-  );
-});
+indexer.onEvent(
+  { contract: "Redistributor", event: "SetKeeper" },
+  async ({ event, context }) => {
+    await applyRedistributorConfigUpdate(
+      event.chainId,
+      event.srcAddress,
+      { keeper: event.params.keeper },
+      event.block.timestamp,
+      context,
+    );
+  },
+);
 
-Redistributor.SetUpkeepManager.handler(async ({ event, context }) => {
-  await applyRedistributorConfigUpdate(
-    event.chainId,
-    event.srcAddress,
-    { upkeepManager: event.params.upkeepManager },
-    event.block.timestamp,
-    context,
-  );
-});
+indexer.onEvent(
+  { contract: "Redistributor", event: "SetUpkeepManager" },
+  async ({ event, context }) => {
+    await applyRedistributorConfigUpdate(
+      event.chainId,
+      event.srcAddress,
+      { upkeepManager: event.params.upkeepManager },
+      event.block.timestamp,
+      context,
+    );
+  },
+);

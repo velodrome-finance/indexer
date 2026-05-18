@@ -1,4 +1,5 @@
-import type { VeNFTState, VeNFTStateSnapshot, handlerContext } from "generated";
+import type { VeNFTState, VeNFTStateSnapshot } from "envio";
+import type { handlerContext } from "../EntityTypes";
 
 import { loadPoolVotesByVeNFT } from "../Aggregators/VeNFTPoolVote";
 import { VeNFTStateSnapshotId } from "../Constants";

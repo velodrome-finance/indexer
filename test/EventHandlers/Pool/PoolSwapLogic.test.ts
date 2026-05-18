@@ -1,5 +1,6 @@
-import type { Pool_Swap_event, Token } from "generated";
+import type { Token } from "envio";
 import { toChecksumAddress } from "../../../src/Constants";
+import type { Pool_Swap_event } from "../../../src/EntityTypes";
 import { processPoolSwap } from "../../../src/EventHandlers/Pool/PoolSwapLogic";
 import * as Helpers from "../../../src/Helpers";
 import { setupCommon } from "./common";
@@ -8,7 +9,7 @@ describe("PoolSwapLogic", () => {
   const { mockLiquidityPoolData, mockToken0Data, mockToken1Data } =
     setupCommon();
   // Shared mock event for all tests
-  const mockEvent: Pool_Swap_event = {
+  const mockEvent = {
     params: {
       sender: toChecksumAddress("0x1111111111111111111111111111111111111111"),
       to: toChecksumAddress("0x2222222222222222222222222222222222222222"),
@@ -28,7 +29,7 @@ describe("PoolSwapLogic", () => {
     },
     chainId: 10,
     logIndex: 1,
-  };
+  } as Pool_Swap_event;
 
   // Mock token instances
   const mockToken0: Token = {
@@ -81,7 +82,7 @@ describe("PoolSwapLogic", () => {
     });
 
     it("should calculate volume correctly when token1 has higher volume", () => {
-      const modifiedEvent: Pool_Swap_event = {
+      const modifiedEvent = {
         ...mockEvent,
         params: {
           ...mockEvent.params,
@@ -90,7 +91,7 @@ describe("PoolSwapLogic", () => {
           amount0Out: 100n,
           amount1Out: 5n,
         },
-      };
+      } as Pool_Swap_event;
 
       const result = processPoolSwap(modifiedEvent, mockToken0, mockToken1);
 
@@ -171,7 +172,7 @@ describe("PoolSwapLogic", () => {
 
   describe("Volume calculations", () => {
     it("should calculate net amounts correctly from event params", () => {
-      const swapEvent: Pool_Swap_event = {
+      const swapEvent = {
         ...mockEvent,
         params: {
           ...mockEvent.params,
@@ -180,7 +181,7 @@ describe("PoolSwapLogic", () => {
           amount1In: 200n,
           amount1Out: 400n,
         },
-      };
+      } as Pool_Swap_event;
 
       const result = processPoolSwap(swapEvent, mockToken0, mockToken1);
 
@@ -201,14 +202,14 @@ describe("PoolSwapLogic", () => {
     });
 
     it("should use token1 USD value when token0 is zero", () => {
-      const eventWithZeroToken0: Pool_Swap_event = {
+      const eventWithZeroToken0 = {
         ...mockEvent,
         params: {
           ...mockEvent.params,
           amount0In: 0n,
           amount0Out: 0n,
         },
-      };
+      } as Pool_Swap_event;
 
       const result = processPoolSwap(
         eventWithZeroToken0,
@@ -272,7 +273,7 @@ describe("PoolSwapLogic", () => {
         pricePerUSDNew: 1n * 1000000000000000000n, // 1e18 ($1)
         decimals: 6n,
       };
-      const swapEvent: Pool_Swap_event = {
+      const swapEvent = {
         ...mockEvent,
         params: {
           ...mockEvent.params,
@@ -283,7 +284,7 @@ describe("PoolSwapLogic", () => {
           // token1: 1e6 raw units (1 USDC at 6 decimals = $1)
           amount1Out: 1000000n,
         },
-      };
+      } as Pool_Swap_event;
 
       const result = processPoolSwap(swapEvent, corruptedToken0, healthyToken1);
 

@@ -1,4 +1,4 @@
-import type { Token, handlerContext } from "generated";
+import type { Token } from "generated";
 import {
   loadPoolData,
   loadPoolDataOrRootCLPool,
@@ -13,6 +13,7 @@ import {
   toChecksumAddress,
 } from "../../src/Constants";
 import { getSwapFee } from "../../src/Effects/SwapFee";
+import type { handlerContext } from "../../src/EntityTypes";
 import type { Pool } from "../../src/EntityTypes";
 import * as PriceOracle from "../../src/PriceOracle";
 import { setPoolSnapshot } from "../../src/Snapshots/PoolSnapshot";

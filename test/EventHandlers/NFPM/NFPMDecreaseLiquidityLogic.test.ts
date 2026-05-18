@@ -1,11 +1,11 @@
-import type { NonFungiblePosition, handlerContext } from "generated";
-import { MockDb, NFPM } from "../../../generated/src/TestHelpers.gen";
+import type { NonFungiblePosition } from "envio";
 import { type PoolData, loadPoolData } from "../../../src/Aggregators/Pool";
 import {
   NonFungiblePositionId,
   NonFungiblePositionSnapshotId,
   toChecksumAddress,
 } from "../../../src/Constants";
+import type { handlerContext } from "../../../src/EntityTypes";
 import {
   LiquidityChangeType,
   attributeLiquidityChangeToUserStatsPerPool,
@@ -79,36 +79,24 @@ describe("NFPMDecreaseLiquidityLogic", () => {
     isStakedInGauge: false,
   };
 
-  let mockDb: ReturnType<typeof MockDb.createMockDb>;
   let mockContext: handlerContext;
+  let storedPositions: Map<string, NonFungiblePosition>;
 
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.mocked(loadPoolData).mockResolvedValue(null);
     vi.mocked(attributeLiquidityChangeToUserStatsPerPool).mockResolvedValue();
-    mockDb = MockDb.createMockDb();
-    mockDb = mockDb.entities.NonFungiblePosition.set(mockPosition);
 
-    // Setup getWhere for tokenId queries
-    const storedPositions: NonFungiblePosition[] = [mockPosition];
-
-    // Store original set method to avoid recursion
-    const originalSet = mockDb.entities.NonFungiblePosition.set;
-
-    // Helper to track positions when they're set
-    const trackPosition = (entity: NonFungiblePosition) => {
-      const index = storedPositions.findIndex((p) => p.id === entity.id);
-      if (index >= 0) {
-        storedPositions[index] = entity;
-      } else {
-        storedPositions.push(entity);
-      }
-    };
+    storedPositions = new Map([[mockPosition.id, mockPosition]]);
 
     mockContext = {
-      ...mockDb,
       Pool: {
         get: vi.fn().mockResolvedValue(undefined),
+        getOrThrow: vi.fn(),
+        getWhere: vi.fn().mockResolvedValue([]),
+        getOrCreate: vi.fn(),
+        set: vi.fn(),
+        deleteUnsafe: vi.fn(),
       },
       UserStatsPerPool: {
         get: vi.fn().mockResolvedValue(undefined),
@@ -122,30 +110,42 @@ describe("NFPMDecreaseLiquidityLogic", () => {
         set: vi.fn(),
         get: vi.fn(),
         getWhere: vi.fn().mockResolvedValue([]),
+        getOrThrow: vi.fn(),
+        getOrCreate: vi.fn(),
+        deleteUnsafe: vi.fn(),
       },
       NonFungiblePositionSnapshot: {
         set: vi.fn(),
+        get: vi.fn(),
+        getWhere: vi.fn().mockResolvedValue([]),
+        getOrThrow: vi.fn(),
+        getOrCreate: vi.fn(),
+        deleteUnsafe: vi.fn(),
       },
       NonFungiblePosition: {
-        ...mockDb.entities.NonFungiblePosition,
         getWhere: vi
           .fn()
           .mockImplementation((filter: { tokenId?: { _eq?: bigint } }) =>
             Promise.resolve(
-              storedPositions.filter((p) => p.tokenId === filter?.tokenId?._eq),
+              Array.from(storedPositions.values()).filter(
+                (p) => p.tokenId === filter?.tokenId?._eq,
+              ),
             ),
           ),
-        set: (entity: NonFungiblePosition) => {
-          trackPosition(entity);
-          const updatedDb = originalSet(entity);
-          mockDb = updatedDb;
-          return updatedDb;
-        },
-        get: (id: string) => {
-          return mockDb.entities.NonFungiblePosition.get(id);
-        },
+        set: vi.fn().mockImplementation((entity: NonFungiblePosition) => {
+          storedPositions.set(entity.id, entity);
+        }),
+        get: vi
+          .fn()
+          .mockImplementation((id: string) =>
+            Promise.resolve(storedPositions.get(id)),
+          ),
+        getOrThrow: vi.fn(),
+        getOrCreate: vi.fn(),
+        deleteUnsafe: vi.fn(),
       },
       log: {
+        debug: vi.fn(),
         info: vi.fn(),
         warn: vi.fn(),
         error: vi.fn(),
@@ -155,22 +155,25 @@ describe("NFPMDecreaseLiquidityLogic", () => {
 
   describe("calculateDecreaseLiquidityDiff", () => {
     it("should calculate correct liquidity decrease", () => {
-      const mockEvent = NFPM.DecreaseLiquidity.createMockEvent({
-        tokenId: tokenId,
-        liquidity: 373020348524042n,
-        amount0: 0n,
-        amount1: 74592880586n,
-        mockEventData: {
-          block: {
-            timestamp: 1712065791,
-            number: 118233507,
-            hash: "0x0254451c8999a43d90b4efc69de225e676864561fc1eef2bfe6e1940d613e3f8",
-          },
-          chainId: chainId,
-          logIndex: 96,
-          srcAddress: nfpmAddress,
+      const mockEvent = {
+        params: {
+          tokenId: tokenId,
+          liquidity: 373020348524042n,
+          amount0: 0n,
+          amount1: 74592880586n,
         },
-      });
+        block: {
+          timestamp: 1712065791,
+          number: 118233507,
+          hash: "0x0254451c8999a43d90b4efc69de225e676864561fc1eef2bfe6e1940d613e3f8",
+        },
+        transaction: {
+          hash: "0x0254451c8999a43d90b4efc69de225e676864561fc1eef2bfe6e1940d613e3f8",
+        },
+        chainId: chainId,
+        logIndex: 96,
+        srcAddress: nfpmAddress,
+      } as unknown as Parameters<typeof calculateDecreaseLiquidityDiff>[0];
 
       const diff = calculateDecreaseLiquidityDiff(mockEvent);
 
@@ -179,22 +182,25 @@ describe("NFPMDecreaseLiquidityLogic", () => {
     });
 
     it("should handle zero liquidity decrease", () => {
-      const mockEvent = NFPM.DecreaseLiquidity.createMockEvent({
-        tokenId: tokenId,
-        liquidity: 0n,
-        amount0: 0n,
-        amount1: 0n,
-        mockEventData: {
-          block: {
-            timestamp: 1712065791,
-            number: 118233507,
-            hash: "0x0254451c8999a43d90b4efc69de225e676864561fc1eef2bfe6e1940d613e3f8",
-          },
-          chainId: chainId,
-          logIndex: 96,
-          srcAddress: nfpmAddress,
+      const mockEvent = {
+        params: {
+          tokenId: tokenId,
+          liquidity: 0n,
+          amount0: 0n,
+          amount1: 0n,
         },
-      });
+        block: {
+          timestamp: 1712065791,
+          number: 118233507,
+          hash: "0x0254451c8999a43d90b4efc69de225e676864561fc1eef2bfe6e1940d613e3f8",
+        },
+        transaction: {
+          hash: "0x0254451c8999a43d90b4efc69de225e676864561fc1eef2bfe6e1940d613e3f8",
+        },
+        chainId: chainId,
+        logIndex: 96,
+        srcAddress: nfpmAddress,
+      } as unknown as Parameters<typeof calculateDecreaseLiquidityDiff>[0];
 
       const diff = calculateDecreaseLiquidityDiff(mockEvent);
 
@@ -204,28 +210,29 @@ describe("NFPMDecreaseLiquidityLogic", () => {
 
   describe("processNFPMDecreaseLiquidity", () => {
     it("should process decrease liquidity event and update position", async () => {
-      const mockEvent = NFPM.DecreaseLiquidity.createMockEvent({
-        tokenId: tokenId,
-        liquidity: 373020348524042n,
-        amount0: 0n,
-        amount1: 74592880586n,
-        mockEventData: {
-          block: {
-            timestamp: 1712065791,
-            number: 118233507,
-            hash: "0x0254451c8999a43d90b4efc69de225e676864561fc1eef2bfe6e1940d613e3f8",
-          },
-          chainId: chainId,
-          logIndex: 96,
-          srcAddress: nfpmAddress,
+      const mockEvent = {
+        params: {
+          tokenId: tokenId,
+          liquidity: 373020348524042n,
+          amount0: 0n,
+          amount1: 74592880586n,
         },
-      });
+        block: {
+          timestamp: 1712065791,
+          number: 118233507,
+          hash: "0x0254451c8999a43d90b4efc69de225e676864561fc1eef2bfe6e1940d613e3f8",
+        },
+        transaction: {
+          hash: "0x0254451c8999a43d90b4efc69de225e676864561fc1eef2bfe6e1940d613e3f8",
+        },
+        chainId: chainId,
+        logIndex: 96,
+        srcAddress: nfpmAddress,
+      } as unknown as Parameters<typeof processNFPMDecreaseLiquidity>[0];
 
       await processNFPMDecreaseLiquidity(mockEvent, mockContext);
 
-      const updatedPosition = mockDb.entities.NonFungiblePosition.get(
-        mockPosition.id,
-      );
+      const updatedPosition = storedPositions.get(mockPosition.id);
       expect(updatedPosition).toBeDefined();
       if (!updatedPosition) return;
 
@@ -240,28 +247,29 @@ describe("NFPMDecreaseLiquidityLogic", () => {
 
     it("should handle partial liquidity decrease", async () => {
       const decreaseAmount = 100000000000000n; // Smaller than current liquidity
-      const mockEvent = NFPM.DecreaseLiquidity.createMockEvent({
-        tokenId: tokenId,
-        liquidity: decreaseAmount,
-        amount0: 0n,
-        amount1: 20000000000n,
-        mockEventData: {
-          block: {
-            timestamp: 1712065791,
-            number: 118233507,
-            hash: "0x0254451c8999a43d90b4efc69de225e676864561fc1eef2bfe6e1940d613e3f8",
-          },
-          chainId: chainId,
-          logIndex: 96,
-          srcAddress: nfpmAddress,
+      const mockEvent = {
+        params: {
+          tokenId: tokenId,
+          liquidity: decreaseAmount,
+          amount0: 0n,
+          amount1: 20000000000n,
         },
-      });
+        block: {
+          timestamp: 1712065791,
+          number: 118233507,
+          hash: "0x0254451c8999a43d90b4efc69de225e676864561fc1eef2bfe6e1940d613e3f8",
+        },
+        transaction: {
+          hash: "0x0254451c8999a43d90b4efc69de225e676864561fc1eef2bfe6e1940d613e3f8",
+        },
+        chainId: chainId,
+        logIndex: 96,
+        srcAddress: nfpmAddress,
+      } as unknown as Parameters<typeof processNFPMDecreaseLiquidity>[0];
 
       await processNFPMDecreaseLiquidity(mockEvent, mockContext);
 
-      const updatedPosition = mockDb.entities.NonFungiblePosition.get(
-        mockPosition.id,
-      );
+      const updatedPosition = storedPositions.get(mockPosition.id);
       expect(updatedPosition).toBeDefined();
       if (!updatedPosition) return;
 
@@ -273,22 +281,25 @@ describe("NFPMDecreaseLiquidityLogic", () => {
     });
 
     it("should log error and return early if position not found", async () => {
-      const mockEvent = NFPM.DecreaseLiquidity.createMockEvent({
-        tokenId: 999n, // Non-existent tokenId
-        liquidity: 100000000000000000n,
-        amount0: 0n,
-        amount1: 20000000000n,
-        mockEventData: {
-          block: {
-            timestamp: 1712065791,
-            number: 118233507,
-            hash: "0x0254451c8999a43d90b4efc69de225e676864561fc1eef2bfe6e1940d613e3f8",
-          },
-          chainId: chainId,
-          logIndex: 96,
-          srcAddress: nfpmAddress,
+      const mockEvent = {
+        params: {
+          tokenId: 999n, // Non-existent tokenId
+          liquidity: 100000000000000000n,
+          amount0: 0n,
+          amount1: 20000000000n,
         },
-      });
+        block: {
+          timestamp: 1712065791,
+          number: 118233507,
+          hash: "0x0254451c8999a43d90b4efc69de225e676864561fc1eef2bfe6e1940d613e3f8",
+        },
+        transaction: {
+          hash: "0x0254451c8999a43d90b4efc69de225e676864561fc1eef2bfe6e1940d613e3f8",
+        },
+        chainId: chainId,
+        logIndex: 96,
+        srcAddress: nfpmAddress,
+      } as unknown as Parameters<typeof processNFPMDecreaseLiquidity>[0];
 
       await processNFPMDecreaseLiquidity(mockEvent, mockContext);
 
@@ -301,28 +312,31 @@ describe("NFPMDecreaseLiquidityLogic", () => {
       ).not.toHaveBeenCalled();
 
       // Position should remain unchanged
-      const position = mockDb.entities.NonFungiblePosition.get(mockPosition.id);
+      const position = storedPositions.get(mockPosition.id);
       expect(position?.liquidity).toBe(mockPosition.liquidity);
     });
 
     it("does not call attributeLiquidityChangeToUserStatsPerPool when loadPoolData returns null", async () => {
       // loadPoolData left as beforeEach default (null)
-      const mockEvent = NFPM.DecreaseLiquidity.createMockEvent({
-        tokenId: tokenId,
-        liquidity: 373020348524042n,
-        amount0: 0n,
-        amount1: 74592880586n,
-        mockEventData: {
-          block: {
-            timestamp: 1712065791,
-            number: 118233507,
-            hash: "0x0254451c8999a43d90b4efc69de225e676864561fc1eef2bfe6e1940d613e3f8",
-          },
-          chainId: chainId,
-          logIndex: 96,
-          srcAddress: nfpmAddress,
+      const mockEvent = {
+        params: {
+          tokenId: tokenId,
+          liquidity: 373020348524042n,
+          amount0: 0n,
+          amount1: 74592880586n,
         },
-      });
+        block: {
+          timestamp: 1712065791,
+          number: 118233507,
+          hash: "0x0254451c8999a43d90b4efc69de225e676864561fc1eef2bfe6e1940d613e3f8",
+        },
+        transaction: {
+          hash: "0x0254451c8999a43d90b4efc69de225e676864561fc1eef2bfe6e1940d613e3f8",
+        },
+        chainId: chainId,
+        logIndex: 96,
+        srcAddress: nfpmAddress,
+      } as unknown as Parameters<typeof processNFPMDecreaseLiquidity>[0];
 
       await processNFPMDecreaseLiquidity(mockEvent, mockContext);
 
@@ -341,22 +355,25 @@ describe("NFPMDecreaseLiquidityLogic", () => {
           chainId,
         } as PoolData["liquidityPoolAggregator"],
       };
-      const mockEvent = NFPM.DecreaseLiquidity.createMockEvent({
-        tokenId: tokenId,
-        liquidity: 373020348524042n,
-        amount0: 0n,
-        amount1: 74592880586n,
-        mockEventData: {
-          block: {
-            timestamp: 1712065791,
-            number: 118233507,
-            hash: "0x0254451c8999a43d90b4efc69de225e676864561fc1eef2bfe6e1940d613e3f8",
-          },
-          chainId: chainId,
-          logIndex: 96,
-          srcAddress: nfpmAddress,
+      const mockEvent = {
+        params: {
+          tokenId: tokenId,
+          liquidity: 373020348524042n,
+          amount0: 0n,
+          amount1: 74592880586n,
         },
-      });
+        block: {
+          timestamp: 1712065791,
+          number: 118233507,
+          hash: "0x0254451c8999a43d90b4efc69de225e676864561fc1eef2bfe6e1940d613e3f8",
+        },
+        transaction: {
+          hash: "0x0254451c8999a43d90b4efc69de225e676864561fc1eef2bfe6e1940d613e3f8",
+        },
+        chainId: chainId,
+        logIndex: 96,
+        srcAddress: nfpmAddress,
+      } as unknown as Parameters<typeof processNFPMDecreaseLiquidity>[0];
 
       vi.mocked(loadPoolData).mockResolvedValue(mockPoolData);
       await processNFPMDecreaseLiquidity(mockEvent, mockContext);

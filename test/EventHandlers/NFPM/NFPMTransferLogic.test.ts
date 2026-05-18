@@ -2,9 +2,7 @@ import type {
   CLPoolMintEvent,
   NonFungiblePosition,
   TxCLPoolMintRegistry,
-  handlerContext,
-} from "generated";
-import { MockDb, NFPM } from "../../../generated/src/TestHelpers.gen";
+} from "envio";
 import { loadPoolData } from "../../../src/Aggregators/Pool";
 import type { PoolData } from "../../../src/Aggregators/Pool";
 import {
@@ -14,6 +12,7 @@ import {
   TxCLPoolMintRegistryId,
   toChecksumAddress,
 } from "../../../src/Constants";
+import type { handlerContext } from "../../../src/EntityTypes";
 import {
   LiquidityChangeType,
   attributeLiquidityChangeToUserStatsPerPool,
@@ -104,12 +103,9 @@ describe("NFPMTransferLogic", () => {
     };
   }
 
-  /** Resolve position after transfer (stored or DB). */
+  /** Resolve position after transfer (stored only). */
   function getPositionAfterTransfer() {
-    return (
-      storedPositions.find((p) => p.id === mockPosition.id) ??
-      mockDb.entities.NonFungiblePosition.get(mockPosition.id)
-    );
+    return storedPositions.find((p) => p.id === mockPosition.id);
   }
 
   // Default mock event data for mint transfers
@@ -176,9 +172,7 @@ describe("NFPMTransferLogic", () => {
     isStakedInGauge: false,
   };
 
-  let mockDb: ReturnType<typeof MockDb.createMockDb>;
   let mockContext: handlerContext;
-  let mockDbRef: { current: ReturnType<typeof MockDb.createMockDb> };
   let storedPositions: NonFungiblePosition[] = [];
   let storedMintEvents: CLPoolMintEvent[] = [];
   let storedRegistries: TxCLPoolMintRegistry[] = [];
@@ -192,68 +186,7 @@ describe("NFPMTransferLogic", () => {
     mintEvents: CLPoolMintEvent[] = [],
     registries: TxCLPoolMintRegistry[] = [],
   ): handlerContext {
-    const db = MockDb.createMockDb();
-    let currentDb = positions.reduce(
-      (acc, pos) => acc.entities.NonFungiblePosition.set(pos),
-      db,
-    );
-    currentDb = mintEvents.reduce(
-      (acc, event) => acc.entities.CLPoolMintEvent.set(event),
-      currentDb,
-    );
-
-    mockDbRef = { current: currentDb };
-
-    const originalSetPosition = currentDb.entities.NonFungiblePosition.set;
-    const originalSetMintEvent = currentDb.entities.CLPoolMintEvent.set;
-
-    const trackPosition = (entity: NonFungiblePosition) => {
-      const index = positions.findIndex((p) => p.id === entity.id);
-      if (index >= 0) {
-        positions[index] = entity;
-      } else {
-        positions.push(entity);
-      }
-    };
-
-    const trackMintEvent = (entity: CLPoolMintEvent) => {
-      const index = mintEvents.findIndex((e) => e.id === entity.id);
-      if (index >= 0) {
-        mintEvents[index] = entity;
-      } else {
-        mintEvents.push(entity);
-      }
-    };
-
-    // Wrap mockDb to track entities
-    currentDb = {
-      ...currentDb,
-      entities: {
-        ...currentDb.entities,
-        NonFungiblePosition: {
-          ...currentDb.entities.NonFungiblePosition,
-          set: (entity: NonFungiblePosition) => {
-            trackPosition(entity);
-            const updatedDb = originalSetPosition(entity);
-            mockDbRef.current = updatedDb;
-            return updatedDb;
-          },
-        },
-        CLPoolMintEvent: {
-          ...currentDb.entities.CLPoolMintEvent,
-          set: (entity: CLPoolMintEvent) => {
-            trackMintEvent(entity);
-            const updatedDb = originalSetMintEvent(entity);
-            mockDbRef.current = updatedDb;
-            return updatedDb;
-          },
-        },
-      },
-    } as typeof currentDb;
-    mockDbRef.current = currentDb;
-
     return {
-      ...currentDb,
       Pool: {
         get: vi.fn().mockImplementation((id: string) => {
           if (id !== PoolId(chainId, poolAddress)) {
@@ -271,6 +204,11 @@ describe("NFPMTransferLogic", () => {
             gaugeAddress: liquidityPoolEntity.gaugeAddress,
           });
         }),
+        getOrThrow: vi.fn(),
+        getWhere: vi.fn().mockResolvedValue([]),
+        getOrCreate: vi.fn(),
+        set: vi.fn(),
+        deleteUnsafe: vi.fn(),
       },
       UserStatsPerPool: {
         get: vi.fn().mockResolvedValue(undefined),
@@ -284,12 +222,19 @@ describe("NFPMTransferLogic", () => {
         set: vi.fn(),
         get: vi.fn(),
         getWhere: vi.fn().mockResolvedValue([]),
+        getOrThrow: vi.fn(),
+        getOrCreate: vi.fn(),
+        deleteUnsafe: vi.fn(),
       },
       NonFungiblePositionSnapshot: {
         set: vi.fn(),
+        get: vi.fn(),
+        getWhere: vi.fn().mockResolvedValue([]),
+        getOrThrow: vi.fn(),
+        getOrCreate: vi.fn(),
+        deleteUnsafe: vi.fn(),
       },
       NonFungiblePosition: {
-        ...currentDb.entities.NonFungiblePosition,
         getWhere: vi
           .fn()
           .mockImplementation((filter: { tokenId?: { _eq?: bigint } }) =>
@@ -297,76 +242,87 @@ describe("NFPMTransferLogic", () => {
               positions.filter((p) => p.tokenId === filter?.tokenId?._eq),
             ),
           ),
-        set: (entity: NonFungiblePosition) => {
-          trackPosition(entity);
-          const updatedDb =
-            mockDbRef.current.entities.NonFungiblePosition.set(entity);
-          mockDbRef.current = updatedDb;
-          mockDb = updatedDb;
-          return updatedDb;
-        },
-        get: (id: string) => {
-          const stored = positions.find((p) => p.id === id);
-          if (stored) {
-            return stored;
+        set: vi.fn().mockImplementation((entity: NonFungiblePosition) => {
+          const index = positions.findIndex((p) => p.id === entity.id);
+          if (index >= 0) {
+            positions[index] = entity;
+          } else {
+            positions.push(entity);
           }
-          return mockDbRef.current.entities.NonFungiblePosition.get(id);
-        },
-        deleteUnsafe: (id: string) => {
+        }),
+        get: vi
+          .fn()
+          .mockImplementation((id: string) =>
+            Promise.resolve(positions.find((p) => p.id === id)),
+          ),
+        getOrThrow: vi.fn(),
+        getOrCreate: vi.fn(),
+        deleteUnsafe: vi.fn().mockImplementation((id: string) => {
           const index = positions.findIndex((p) => p.id === id);
           if (index >= 0) {
             positions.splice(index, 1);
           }
-        },
+        }),
       },
       CLPoolMintEvent: {
-        ...currentDb.entities.CLPoolMintEvent,
-        set: (entity: CLPoolMintEvent) => {
-          trackMintEvent(entity);
-          const updatedDb =
-            mockDbRef.current.entities.CLPoolMintEvent.set(entity);
-          mockDbRef.current = updatedDb;
-          mockDb = updatedDb;
-          return updatedDb;
-        },
-        get: (id: string) => {
-          return mockDbRef.current.entities.CLPoolMintEvent.get(id);
-        },
-        deleteUnsafe: (id: string) => {
+        get: vi
+          .fn()
+          .mockImplementation((id: string) =>
+            Promise.resolve(mintEvents.find((e) => e.id === id)),
+          ),
+        set: vi.fn().mockImplementation((entity: CLPoolMintEvent) => {
+          const index = mintEvents.findIndex((e) => e.id === entity.id);
+          if (index >= 0) {
+            mintEvents[index] = entity;
+          } else {
+            mintEvents.push(entity);
+          }
+        }),
+        deleteUnsafe: vi.fn().mockImplementation((id: string) => {
           const index = mintEvents.findIndex((e) => e.id === id);
           if (index >= 0) {
             mintEvents.splice(index, 1);
           }
-        },
+        }),
+        getWhere: vi.fn().mockResolvedValue([]),
+        getOrThrow: vi.fn(),
+        getOrCreate: vi.fn(),
       },
       TxCLPoolMintRegistry: {
-        get: (id: string) =>
-          Promise.resolve(registries.find((r) => r.id === id)),
-        set: (entity: TxCLPoolMintRegistry) => {
+        get: vi
+          .fn()
+          .mockImplementation((id: string) =>
+            Promise.resolve(registries.find((r) => r.id === id)),
+          ),
+        set: vi.fn().mockImplementation((entity: TxCLPoolMintRegistry) => {
           const index = registries.findIndex((r) => r.id === entity.id);
           if (index >= 0) {
             registries[index] = entity;
           } else {
             registries.push(entity);
           }
-        },
-        deleteUnsafe: (id: string) => {
+        }),
+        deleteUnsafe: vi.fn().mockImplementation((id: string) => {
           const index = registries.findIndex((r) => r.id === id);
           if (index >= 0) {
             registries.splice(index, 1);
           }
-        },
+        }),
+        getOrThrow: vi.fn(),
+        getOrCreate: vi.fn(),
+        getWhere: vi.fn().mockResolvedValue([]),
       },
       log: {
         info: vi.fn(),
         warn: vi.fn(),
         error: vi.fn(),
+        debug: vi.fn(),
       },
     } as unknown as handlerContext;
   }
 
   /**
-   * Helper function to create a mock Transfer event
+   * Helper function to create a mock Transfer event (V3 shape)
    */
   function createMockTransferEvent(
     from: string,
@@ -381,15 +337,28 @@ describe("NFPMTransferLogic", () => {
       ? defaultMintTransferEventData
       : defaultRegularTransferEventData;
 
-    return NFPM.Transfer.createMockEvent({
-      from: from as `0x${string}`,
-      to: to as `0x${string}`,
-      tokenId: overrides.tokenId ?? tokenId,
-      mockEventData: {
-        ...defaultEventData,
-        ...overrides.mockEventData,
+    const eventData = {
+      ...defaultEventData,
+      ...overrides.mockEventData,
+    };
+
+    return {
+      params: {
+        from: from as `0x${string}`,
+        to: to as `0x${string}`,
+        tokenId: overrides.tokenId ?? tokenId,
       },
-    });
+      block: eventData.block,
+      transaction: {
+        hash:
+          (overrides.mockEventData as { transaction?: { hash: string } })
+            ?.transaction?.hash ?? eventData.block.hash,
+      },
+      chainId: eventData.chainId,
+      logIndex: eventData.logIndex,
+      srcAddress:
+        (eventData as { srcAddress?: `0x${string}` }).srcAddress ?? nfpmAddress,
+    } as unknown as Parameters<typeof processNFPMTransfer>[0];
   }
 
   beforeEach(() => {
@@ -402,7 +371,6 @@ describe("NFPMTransferLogic", () => {
       storedMintEvents,
       storedRegistries,
     );
-    mockDb = MockDb.createMockDb();
     vi.mocked(loadPoolData).mockResolvedValue(null);
     vi.mocked(attributeLiquidityChangeToUserStatsPerPool).mockClear();
     vi.mocked(attributeLiquidityChangeToUserStatsPerPool).mockResolvedValue();
@@ -410,19 +378,12 @@ describe("NFPMTransferLogic", () => {
 
   // Helper functions to set entities
   const setPosition = (entity: NonFungiblePosition) => {
-    // Add to storedPositions for getWhere queries
     const index = storedPositions.findIndex((p) => p.id === entity.id);
     if (index >= 0) {
       storedPositions[index] = entity;
     } else {
       storedPositions.push(entity);
     }
-    // Also add to mockDb
-    mockDb = mockDb.entities.NonFungiblePosition.set(entity);
-    if (mockDbRef) {
-      mockDbRef.current = mockDb;
-    }
-    return mockDb;
   };
 
   const setMintEvent = (entity: CLPoolMintEvent) => {
@@ -452,11 +413,6 @@ describe("NFPMTransferLogic", () => {
     } else {
       storedRegistries.push({ id: registryId, mintEventIds: [entity.id] });
     }
-    mockDb = mockDb.entities.CLPoolMintEvent.set(entity);
-    if (mockDbRef) {
-      mockDbRef.current = mockDb;
-    }
-    return mockDb;
   };
 
   describe("createPositionFromCLPoolMint", () => {
@@ -537,9 +493,7 @@ describe("NFPMTransferLogic", () => {
       await handleMintTransfer(mockEvent, mockContext, existingPosition);
 
       // Position should still exist with same ID
-      const position =
-        storedPositions.find((p) => p.id === mockPosition.id) ||
-        mockDbRef.current.entities.NonFungiblePosition.get(mockPosition.id);
+      const position = storedPositions.find((p) => p.id === mockPosition.id);
       expect(position).toBeDefined();
       if (!position) return;
       expect(position.id).toBe(mockPosition.id);
@@ -773,7 +727,8 @@ describe("NFPMTransferLogic", () => {
       await handleMintTransfer(transferB, mockContext, undefined);
 
       const positionB = storedPositions.find(
-        (p) => p.id === NonFungiblePositionId(chainId, nfpmAddress, tokenIdB),
+        (p) =>
+          p.pool === poolB && p.tokenId === tokenIdB && p.chainId === chainId,
       );
       expect(positionB).toBeDefined();
       expect(positionB?.mintLogIndex).toBe(30);
@@ -813,8 +768,8 @@ describe("NFPMTransferLogic", () => {
 
       await handleRegularTransfer(mockEvent, mockPosition, mockContext);
 
-      const updatedPosition = mockDb.entities.NonFungiblePosition.get(
-        mockPosition.id,
+      const updatedPosition = storedPositions.find(
+        (p) => p.id === mockPosition.id,
       );
       expect(updatedPosition).toBeDefined();
       if (!updatedPosition) return;
@@ -1071,9 +1026,7 @@ describe("NFPMTransferLogic", () => {
       await processNFPMTransfer(mockEvent, mockContext);
 
       const stableId = getStableId();
-      const createdPosition =
-        storedPositions.find((p) => p.id === stableId) ||
-        mockDbRef.current.entities.NonFungiblePosition.get(stableId);
+      const createdPosition = storedPositions.find((p) => p.id === stableId);
       expect(createdPosition).toBeDefined();
       if (!createdPosition) return;
       expect(createdPosition.tokenId).toBe(tokenId);
@@ -1092,9 +1045,9 @@ describe("NFPMTransferLogic", () => {
 
       await processNFPMTransfer(mockEvent, mockContext);
 
-      const updatedPosition =
-        storedPositions.find((p) => p.id === mockPosition.id) ||
-        mockDbRef.current.entities.NonFungiblePosition.get(mockPosition.id);
+      const updatedPosition = storedPositions.find(
+        (p) => p.id === mockPosition.id,
+      );
       expect(updatedPosition).toBeDefined();
       if (!updatedPosition) return;
       expect(updatedPosition.owner.toLowerCase()).toBe(userB.toLowerCase());
@@ -1153,7 +1106,7 @@ describe("NFPMTransferLogic", () => {
         expect.stringContaining("No CLPoolMintEvent found"),
       );
 
-      const position = mockDb.entities.NonFungiblePosition.get(getStableId());
+      const position = storedPositions.find((p) => p.id === getStableId());
       expect(position).toBeUndefined();
     });
 

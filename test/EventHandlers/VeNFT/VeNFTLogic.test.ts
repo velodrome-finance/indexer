@@ -1,19 +1,5 @@
+import type { UserStatsPerPool, VeNFTPoolVote, VeNFTState } from "envio";
 import type { MockInstance } from "vitest";
-import type {
-  UserStatsPerPool,
-  VeNFTPoolVote,
-  VeNFTState,
-  VeNFT_DepositManaged_event,
-  VeNFT_Deposit_event,
-  VeNFT_LockPermanent_event,
-  VeNFT_Merge_event,
-  VeNFT_Split_event,
-  VeNFT_Transfer_event,
-  VeNFT_UnlockPermanent_event,
-  VeNFT_WithdrawManaged_event,
-  VeNFT_Withdraw_event,
-  handlerContext,
-} from "../../../generated";
 import * as UserStatsPerPoolModule from "../../../src/Aggregators/UserStatsPerPool";
 import * as VeNFTPoolVoteAggregator from "../../../src/Aggregators/VeNFTPoolVote";
 import * as VeNFTStateAggregator from "../../../src/Aggregators/VeNFTState";
@@ -25,6 +11,18 @@ import {
   VeNFTPoolVoteId,
   toChecksumAddress,
 } from "../../../src/Constants";
+import type {
+  VeNFT_DepositManaged_event,
+  VeNFT_Deposit_event,
+  VeNFT_LockPermanent_event,
+  VeNFT_Merge_event,
+  VeNFT_Split_event,
+  VeNFT_Transfer_event,
+  VeNFT_UnlockPermanent_event,
+  VeNFT_WithdrawManaged_event,
+  VeNFT_Withdraw_event,
+  handlerContext,
+} from "../../../src/EntityTypes";
 import * as VeNFTLogic from "../../../src/EventHandlers/VeNFT/VeNFTLogic";
 
 describe("VeNFTLogic", () => {
@@ -64,27 +62,32 @@ describe("VeNFTLogic", () => {
     lastSnapshotTimestamp: undefined,
   };
 
-  const createMockDepositEvent = (): VeNFT_Deposit_event => ({
-    params: {
-      provider: toChecksumAddress("0x2222222222222222222222222222222222222222"),
-      tokenId: 1n,
-      value: 50n,
-      locktime: 200n,
-      depositType: 1n,
-      ts: 100n,
-    },
-    block: {
-      timestamp: 1000000,
-      number: 123456,
-      hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
-    },
-    chainId: 10,
-    logIndex: 1,
-    srcAddress: toChecksumAddress("0x3333333333333333333333333333333333333333"),
-    transaction: {
-      hash: "0x1111111111111111111111111111111111111111",
-    },
-  });
+  const createMockDepositEvent = (): VeNFT_Deposit_event =>
+    ({
+      params: {
+        provider: toChecksumAddress(
+          "0x2222222222222222222222222222222222222222",
+        ),
+        tokenId: 1n,
+        value: 50n,
+        locktime: 200n,
+        depositType: 1n,
+        ts: 100n,
+      },
+      block: {
+        timestamp: 1000000,
+        number: 123456,
+        hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+      },
+      chainId: 10,
+      logIndex: 1,
+      srcAddress: toChecksumAddress(
+        "0x3333333333333333333333333333333333333333",
+      ),
+      transaction: {
+        hash: "0x1111111111111111111111111111111111111111",
+      },
+    }) as unknown as VeNFT_Deposit_event;
 
   describe("processVeNFTDeposit", () => {
     beforeEach(() => {
@@ -725,7 +728,7 @@ describe("VeNFTLogic", () => {
       logIndex: 1,
       srcAddress: "0x3333",
       transaction: { hash: "0xabcd" },
-    } as VeNFT_Transfer_event;
+    } as unknown as VeNFT_Transfer_event;
 
     beforeEach(() => {
       loadPoolVotesSpy = vi.spyOn(
@@ -963,7 +966,7 @@ describe("VeNFTLogic", () => {
       logIndex: 1,
       srcAddress: "0x",
       transaction: { hash: "0x" },
-    } as VeNFT_Transfer_event;
+    } as unknown as VeNFT_Transfer_event;
 
     it("logs warn and skips update when previous owner UserStatsPerPool is missing", async () => {
       vi.mocked(mockContext.UserStatsPerPool?.get).mockResolvedValue(undefined);
@@ -1036,7 +1039,7 @@ describe("VeNFTLogic", () => {
       logIndex: 1,
       srcAddress: "0x",
       transaction: { hash: "0x" },
-    } as VeNFT_Transfer_event;
+    } as unknown as VeNFT_Transfer_event;
 
     it("skips update when new owner is zero address (burn)", async () => {
       const loadOrCreateSpy = vi.spyOn(

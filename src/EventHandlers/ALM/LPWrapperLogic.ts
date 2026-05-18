@@ -1,9 +1,5 @@
 import { TickMath, maxLiquidityForAmounts } from "@uniswap/v3-sdk";
-import type {
-  ALMLPWrapperTransferInTx,
-  ALM_LP_Wrapper,
-  handlerContext,
-} from "generated";
+import type { ALMLPWrapperTransferInTx, ALM_LP_Wrapper } from "envio";
 import JSBI from "jsbi";
 import { updateALMLPWrapper } from "../../Aggregators/ALMLPWrapper";
 import {
@@ -17,6 +13,7 @@ import {
   PoolId,
   ZERO_ADDRESS,
 } from "../../Constants";
+import type { handlerContext } from "../../EntityTypes";
 import { computeLiquidityDeltaFromAmounts } from "../../Helpers";
 
 interface MatchingBurnTransfer {

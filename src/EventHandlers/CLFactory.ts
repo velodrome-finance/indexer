@@ -1,4 +1,4 @@
-import { CLFactory } from "generated";
+import { indexer } from "envio";
 import { updateFeeToTickSpacingMapping } from "../Aggregators/FeeToTickSpacingMapping";
 import { FeeToTickSpacingMappingId, PoolId, TokenId } from "../Constants";
 import {
@@ -7,99 +7,109 @@ import {
 } from "./CLFactory/CLFactoryPoolCreatedLogic";
 import { processCLFactoryTickSpacingEnabled } from "./CLFactory/CLFactoryTickSpacingEnabledLogic";
 
-CLFactory.PoolCreated.contractRegister(({ event, context }) => {
-  context.addCLPool(event.params.pool);
-});
+indexer.contractRegister(
+  { contract: "CLFactory", event: "PoolCreated" },
+  async ({ event, context }) => {
+    context.chain.CLPool.add(event.params.pool);
+  },
+);
 
-CLFactory.PoolCreated.handler(async ({ event, context }) => {
-  // Load token instances and any buffered Initialize state. Aerodrome
-  // Slipstream emits CLPool.Initialize at a LOWER log index than this
-  // PoolCreated within the same tx, so the Initialize handler may already
-  // have buffered sqrtPriceX96/tick into CLPoolPendingInitialize.
-  const pendingInitializeId = PoolId(event.chainId, event.params.pool);
-  const [
-    poolToken0,
-    poolToken1,
-    CLGaugeConfig,
-    feeToTickSpacingMapping,
-    pendingInitialize,
-  ] = await Promise.all([
-    context.Token.get(TokenId(event.chainId, event.params.token0)),
-    context.Token.get(TokenId(event.chainId, event.params.token1)),
-    context.CLGaugeConfig.get(String(event.chainId)),
-    context.FeeToTickSpacingMapping.get(
-      FeeToTickSpacingMappingId(event.chainId, event.params.tickSpacing),
-    ),
-    context.CLPoolPendingInitialize.get(pendingInitializeId),
-  ]);
+indexer.onEvent(
+  { contract: "CLFactory", event: "PoolCreated" },
+  async ({ event, context }) => {
+    // Load token instances and any buffered Initialize state. Aerodrome
+    // Slipstream emits CLPool.Initialize at a LOWER log index than this
+    // PoolCreated within the same tx, so the Initialize handler may already
+    // have buffered sqrtPriceX96/tick into CLPoolPendingInitialize.
+    const pendingInitializeId = PoolId(event.chainId, event.params.pool);
+    const [
+      poolToken0,
+      poolToken1,
+      CLGaugeConfig,
+      feeToTickSpacingMapping,
+      pendingInitialize,
+    ] = await Promise.all([
+      context.Token.get(TokenId(event.chainId, event.params.token0)),
+      context.Token.get(TokenId(event.chainId, event.params.token1)),
+      context.CLGaugeConfig.get(String(event.chainId)),
+      context.FeeToTickSpacingMapping.get(
+        FeeToTickSpacingMappingId(event.chainId, event.params.tickSpacing),
+      ),
+      context.CLPoolPendingInitialize.get(pendingInitializeId),
+    ]);
 
-  // CLFactory emits TickSpacingEnabled events in its constructor, so feeToTickSpacingMapping should exist
-  if (!feeToTickSpacingMapping) {
-    context.log.error(
-      `FeeToTickSpacingMapping not found for tickSpacing ${event.params.tickSpacing} on chain ${event.chainId}. Pool creation cannot proceed.`,
+    // CLFactory emits TickSpacingEnabled events in its constructor, so feeToTickSpacingMapping should exist
+    if (!feeToTickSpacingMapping) {
+      context.log.error(
+        `FeeToTickSpacingMapping not found for tickSpacing ${event.params.tickSpacing} on chain ${event.chainId}. Pool creation cannot proceed.`,
+      );
+      return;
+    }
+
+    // Process the pool created event
+    const result = await processCLFactoryPoolCreated(
+      event,
+      event.srcAddress,
+      poolToken0,
+      poolToken1,
+      CLGaugeConfig,
+      feeToTickSpacingMapping,
+      context,
+      pendingInitialize
+        ? {
+            sqrtPriceX96: pendingInitialize.sqrtPriceX96,
+            tick: pendingInitialize.tick,
+          }
+        : undefined,
     );
-    return;
-  }
 
-  // Process the pool created event
-  const result = await processCLFactoryPoolCreated(
-    event,
-    event.srcAddress,
-    poolToken0,
-    poolToken1,
-    CLGaugeConfig,
-    feeToTickSpacingMapping,
-    context,
-    pendingInitialize
-      ? {
-          sqrtPriceX96: pendingInitialize.sqrtPriceX96,
-          tick: pendingInitialize.tick,
-        }
-      : undefined,
-  );
+    // Drop the buffer once consumed so it cannot leak into future blocks
+    // (also when we skip pool creation below, so a stale Initialize doesn't
+    // bleed into a future PoolCreated at the same address).
+    if (pendingInitialize) {
+      context.CLPoolPendingInitialize.deleteUnsafe(pendingInitializeId);
+    }
 
-  // Drop the buffer once consumed so it cannot leak into future blocks
-  // (also when we skip pool creation below, so a stale Initialize doesn't
-  // bleed into a future PoolCreated at the same address).
-  if (pendingInitialize) {
-    context.CLPoolPendingInitialize.deleteUnsafe(pendingInitializeId);
-  }
+    // Bytecode-gate (#677): processCLFactoryPoolCreated returns null when
+    // either token side is a non-contract, so we skip aggregator creation and
+    // any root-pool flush to avoid persisting dangling token references.
+    if (!result) {
+      return;
+    }
 
-  // Bytecode-gate (#677): processCLFactoryPoolCreated returns null when
-  // either token side is a non-contract, so we skip aggregator creation and
-  // any root-pool flush to avoid persisting dangling token references.
-  if (!result) {
-    return;
-  }
+    // For new pool creation, set the entity directly (updatePool is for updates, not creation)
+    context.Pool.set(result.liquidityPoolAggregator);
 
-  // For new pool creation, set the entity directly (updatePool is for updates, not creation)
-  context.Pool.set(result.liquidityPoolAggregator);
+    await flushPendingRootPoolMappingAndVotes(
+      context,
+      event.chainId,
+      event.params.token0,
+      event.params.token1,
+      event.params.tickSpacing,
+      event.params.pool,
+    );
+  },
+);
 
-  await flushPendingRootPoolMappingAndVotes(
-    context,
-    event.chainId,
-    event.params.token0,
-    event.params.token1,
-    event.params.tickSpacing,
-    event.params.pool,
-  );
-});
+indexer.onEvent(
+  { contract: "CLFactory", event: "TickSpacingEnabled" },
+  async ({ event, context }) => {
+    const feeToTickSpacingMapping =
+      await context.FeeToTickSpacingMapping.getOrCreate({
+        id: FeeToTickSpacingMappingId(event.chainId, event.params.tickSpacing),
+        chainId: event.chainId,
+        tickSpacing: event.params.tickSpacing,
+        fee: BigInt(event.params.fee),
+        lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
+      });
 
-CLFactory.TickSpacingEnabled.handler(async ({ event, context }) => {
-  const feeToTickSpacingMapping =
-    await context.FeeToTickSpacingMapping.getOrCreate({
-      id: FeeToTickSpacingMappingId(event.chainId, event.params.tickSpacing),
-      chainId: event.chainId,
-      tickSpacing: event.params.tickSpacing,
-      fee: BigInt(event.params.fee),
-      lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
-    });
+    const feeToTickSpacingMappingDiff =
+      processCLFactoryTickSpacingEnabled(event);
 
-  const feeToTickSpacingMappingDiff = processCLFactoryTickSpacingEnabled(event);
-
-  await updateFeeToTickSpacingMapping(
-    feeToTickSpacingMapping,
-    feeToTickSpacingMappingDiff,
-    context,
-  );
-});
+    await updateFeeToTickSpacingMapping(
+      feeToTickSpacingMapping,
+      feeToTickSpacingMappingDiff,
+      context,
+    );
+  },
+);

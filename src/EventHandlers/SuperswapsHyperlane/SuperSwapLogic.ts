@@ -4,9 +4,9 @@ import type {
   OUSDTSwaps,
   ProcessId_event,
   SuperSwap,
-  handlerContext,
-} from "generated";
+} from "envio";
 import { OUSDT_ADDRESS, SuperSwapId } from "../../Constants";
+import type { handlerContext } from "../../EntityTypes";
 
 /**
  * Builds a map from messageId to ProcessId event and collects unique destination transaction hashes.

@@ -1,10 +1,4 @@
-import type {
-  CLFactory_PoolCreated_event,
-  CLGaugeConfig,
-  FeeToTickSpacingMapping,
-  Token,
-  handlerContext,
-} from "generated";
+import type { CLGaugeConfig, FeeToTickSpacingMapping, Token } from "envio";
 import {
   FeeToTickSpacingMappingId,
   PendingRootPoolMappingId,
@@ -14,6 +8,10 @@ import {
   rootPoolMatchingHash,
   toChecksumAddress,
 } from "../../../src/Constants";
+import type {
+  CLFactory_PoolCreated_event,
+  handlerContext,
+} from "../../../src/EntityTypes";
 import {
   flushPendingRootPoolMappingAndVotes,
   processCLFactoryPoolCreated,
@@ -49,7 +47,9 @@ describe("CLFactoryPoolCreatedLogic", () => {
   });
 
   // Shared mock event for all tests
-  const mockEvent: CLFactory_PoolCreated_event = {
+  // V3: EvmBlock/EvmTransaction are wide structural types; cast through unknown
+  // for the partial shape used in Pattern B logic-direct tests.
+  const mockEvent = {
     params: {
       token0: toChecksumAddress("0x2222222222222222222222222222222222222222"),
       token1: toChecksumAddress("0x3333333333333333333333333333333333333333"),
@@ -67,7 +67,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
     },
     chainId: 10,
     logIndex: 1,
-  };
+  } as unknown as CLFactory_PoolCreated_event;
 
   // Shared constants
   const CHAIN_ID = 10;

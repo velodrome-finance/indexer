@@ -1,9 +1,4 @@
-import type {
-  CLPoolMintEvent,
-  NFPM_Transfer_event,
-  NonFungiblePosition,
-  handlerContext,
-} from "generated";
+import type { CLPoolMintEvent, NonFungiblePosition } from "envio";
 import { updateNonFungiblePosition } from "../../Aggregators/NonFungiblePosition";
 import { type PoolData, loadPoolData } from "../../Aggregators/Pool";
 import {
@@ -12,6 +7,7 @@ import {
   TxCLPoolMintRegistryId,
   ZERO_ADDRESS,
 } from "../../Constants";
+import type { NFPM_Transfer_event, handlerContext } from "../../EntityTypes";
 import { calculatePositionAmountsFromLiquidity } from "../../Helpers";
 import {
   LiquidityChangeType,

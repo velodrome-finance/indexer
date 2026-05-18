@@ -1,4 +1,4 @@
-import type { Token, UserStatsPerPool, handlerContext } from "generated";
+import type { Token, UserStatsPerPool } from "envio";
 import {
   PoolAddressField,
   type PoolDiff,
@@ -16,6 +16,7 @@ import {
   hasContractBytecode,
   roundBlockToInterval,
 } from "../../Effects/Index";
+import type { handlerContext } from "../../EntityTypes";
 import type { Pool } from "../../EntityTypes";
 import { calculateTokenAmountUSD } from "../../Helpers";
 import { refreshTokenPrice } from "../../PriceOracle";

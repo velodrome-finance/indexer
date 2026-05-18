@@ -1,8 +1,6 @@
-import {
-  DynamicSwapFeeModule,
-  MockDb,
-} from "../../../generated/src/TestHelpers.gen";
+import { createTestIndexer } from "envio";
 import { toChecksumAddress } from "../../../src/Constants";
+import { simulateEvent } from "../../testHelpers";
 import { setupCommon } from "../Pool/common";
 
 describe("DynamicSwapFeeModule Events", () => {
@@ -14,29 +12,23 @@ describe("DynamicSwapFeeModule Events", () => {
 
   describe("SecondsAgoSet event", () => {
     it("should create the DynamicFeeGlobalConfig entity", async () => {
-      // Setup
-      const mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
       const secondsAgo = 300n;
 
-      const mockEvent = DynamicSwapFeeModule.SecondsAgoSet.createMockEvent({
-        secondsAgo: secondsAgo,
-        mockEventData: {
-          block: {
-            timestamp: 1000000,
-            number: 123456,
-            hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
-          },
-          chainId: 10,
-          logIndex: 1,
-          srcAddress: moduleAddress,
+      await simulateEvent(indexer, 10, {
+        contract: "DynamicSwapFeeModule",
+        event: "SecondsAgoSet",
+        params: { secondsAgo },
+        block: {
+          timestamp: 1000000,
+          number: 123456,
+          hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
         },
+        srcAddress: moduleAddress,
+        logIndex: 1,
       });
 
-      // Execute
-      const result = await mockDb.processEvents([mockEvent]);
-
-      // Assert
-      const config = result.entities.DynamicFeeGlobalConfig.get(
+      const config = await indexer.DynamicFeeGlobalConfig.get(
         toChecksumAddress(moduleAddress),
       );
       expect(config).toBeDefined();
@@ -47,94 +39,87 @@ describe("DynamicSwapFeeModule Events", () => {
 
   describe("Dynamic Fee Update Events", () => {
     it("should update baseFee, scalingFactor, and feeCap fields on the pool entity", async () => {
-      // Setup
-      let mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
       const poolAddress = mockLiquidityPoolData.poolAddress;
       const baseFee = 400n;
       const scalingFactor = 10000000n;
       const feeCap = 2000n;
 
-      // Pre-populate tokens and pool in the mock database
-      mockDb = mockDb.entities.Token.set(mockToken0Data);
-      mockDb = mockDb.entities.Token.set(mockToken1Data);
-      mockDb = mockDb.entities.Pool.set(mockLiquidityPoolData);
+      // Pre-populate tokens and pool
+      indexer.Token.set(mockToken0Data);
+      indexer.Token.set(mockToken1Data);
+      // lastSnapshotTimestamp: undefined prevents Quirk 1 crash in shouldSnapshot.
+      // Pool entity types lastSnapshotTimestamp as Date (non-null) — cast to bypass.
+      indexer.Pool.set({
+        ...mockLiquidityPoolData,
+        lastSnapshotTimestamp: undefined,
+      } as unknown as Parameters<typeof indexer.Pool.set>[0]);
 
       // Execute - Update baseFee
-      let result = await mockDb.processEvents([
-        DynamicSwapFeeModule.CustomFeeSet.createMockEvent({
+      await simulateEvent(indexer, 10, {
+        contract: "DynamicSwapFeeModule",
+        event: "CustomFeeSet",
+        params: {
           pool: poolAddress as `0x${string}`,
           fee: baseFee,
-          mockEventData: {
-            block: {
-              timestamp: 1000000,
-              number: 123456,
-              hash: "0x1111111111111111111111111111111111111111111111111111111111111111",
-            },
-            chainId: 10,
-            logIndex: 1,
-            srcAddress: moduleAddress,
-          },
-        }),
-      ]);
+        },
+        block: {
+          timestamp: 1000000,
+          number: 123456,
+          hash: "0x1111111111111111111111111111111111111111111111111111111111111111",
+        },
+        srcAddress: moduleAddress,
+        logIndex: 1,
+      });
 
-      let updatedPool = result.entities.Pool.get(mockLiquidityPoolData.id);
-
+      let updatedPool = await indexer.Pool.get(mockLiquidityPoolData.id);
       expect(updatedPool).toBeDefined();
       expect(updatedPool?.baseFee).toBe(baseFee);
       expect(updatedPool?.scalingFactor).toBeUndefined();
       expect(updatedPool?.feeCap).toBeUndefined();
 
-      // Update mockDb with the result from the first event
-      mockDb = result;
-
-      // Execute - Update scalingFactor
-      result = await mockDb.processEvents([
-        DynamicSwapFeeModule.ScalingFactorSet.createMockEvent({
+      // Execute - Update scalingFactor (state persists on same indexer)
+      await simulateEvent(indexer, 10, {
+        contract: "DynamicSwapFeeModule",
+        event: "ScalingFactorSet",
+        params: {
           pool: poolAddress as `0x${string}`,
-          scalingFactor: scalingFactor,
-          mockEventData: {
-            block: {
-              timestamp: 1000000,
-              number: 123457,
-              hash: "0x2222222222222222222222222222222222222222222222222222222222222222",
-            },
-            chainId: 10,
-            logIndex: 2,
-            srcAddress: moduleAddress,
-          },
-        }),
-      ]);
+          scalingFactor,
+        },
+        block: {
+          timestamp: 1000000,
+          number: 123457,
+          hash: "0x2222222222222222222222222222222222222222222222222222222222222222",
+        },
+        srcAddress: moduleAddress,
+        logIndex: 2,
+      });
 
-      updatedPool = result.entities.Pool.get(mockLiquidityPoolData.id);
-
+      updatedPool = await indexer.Pool.get(mockLiquidityPoolData.id);
       expect(updatedPool).toBeDefined();
       // baseFee should be preserved from the previous event
       expect(updatedPool?.baseFee).toBe(baseFee);
       expect(updatedPool?.scalingFactor).toBe(scalingFactor);
       expect(updatedPool?.feeCap).toBeUndefined();
 
-      // Update mockDb with the result from the second event
-      mockDb = result;
-
       // Execute - Update feeCap
-      result = await mockDb.processEvents([
-        DynamicSwapFeeModule.FeeCapSet.createMockEvent({
+      await simulateEvent(indexer, 10, {
+        contract: "DynamicSwapFeeModule",
+        event: "FeeCapSet",
+        params: {
           pool: poolAddress as `0x${string}`,
-          feeCap: feeCap,
-          mockEventData: {
-            block: {
-              timestamp: 1000000,
-              number: 123458,
-              hash: "0x3333333333333333333333333333333333333333333333333333333333333333",
-            },
-            chainId: 10,
-            logIndex: 3,
-            srcAddress: moduleAddress,
-          },
-        }),
-      ]);
+          feeCap,
+        },
+        block: {
+          timestamp: 1000000,
+          number: 123458,
+          hash: "0x3333333333333333333333333333333333333333333333333333333333333333",
+        },
+        srcAddress: moduleAddress,
+        logIndex: 3,
+      });
 
-      updatedPool = result.entities.Pool.get(mockLiquidityPoolData.id);
+      updatedPool = await indexer.Pool.get(mockLiquidityPoolData.id);
       expect(updatedPool).toBeDefined();
       // baseFee and scalingFactor should be preserved from previous events
       expect(updatedPool?.baseFee).toBe(baseFee);

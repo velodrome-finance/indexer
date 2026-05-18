@@ -3,8 +3,8 @@ import type {
   VeNFTPoolVoteSnapshot,
   VeNFTState,
   VeNFTStateSnapshot,
-  handlerContext,
-} from "generated";
+} from "envio";
+import type { handlerContext } from "../EntityTypes";
 
 import { VeNFTPoolVoteSnapshotId } from "../Constants";
 import {

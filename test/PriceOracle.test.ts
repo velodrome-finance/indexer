@@ -1,7 +1,8 @@
 import { CHAIN_CONSTANTS, toChecksumAddress } from "../src/Constants";
 import * as PriceOracle from "../src/PriceOracle";
 
-import type { Token, handlerContext } from "generated";
+import type { Token } from "envio";
+import type { handlerContext } from "../src/EntityTypes";
 
 import { setupCommon } from "./EventHandlers/Pool/common";
 

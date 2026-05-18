@@ -1,7 +1,6 @@
 import { TickMath } from "@uniswap/v3-sdk";
-import type { Token, handlerContext } from "generated";
+import type { Token } from "envio";
 import type { PublicClient } from "viem";
-import { MockDb } from "../../../generated/src/TestHelpers.gen";
 import {
   CHAIN_CONSTANTS,
   NonFungiblePositionId,
@@ -9,6 +8,7 @@ import {
   UserStatsPerPoolId,
   toChecksumAddress,
 } from "../../../src/Constants";
+import type { handlerContext } from "../../../src/EntityTypes";
 import {
   type GaugeEventData,
   findPoolOrSkipRootGauge,
@@ -64,11 +64,19 @@ describe("GaugeSharedLogic", () => {
     ReturnType<typeof setupCommon>["createMockUserStatsPerPool"]
   >;
   let mockRewardToken: Token;
-  let mockDb: ReturnType<typeof MockDb.createMockDb>;
-  let updatedDB: ReturnType<typeof MockDb.createMockDb>;
+  // biome-ignore lint/suspicious/noExplicitAny: In-memory store for test entities — plain objects, not typed entities
+  let entityStore: Map<string, Map<string, any>>;
   // biome-ignore lint/suspicious/noExplicitAny: Mock context for testing - complex type intersection would be overly verbose
   let mockContext: any;
   let originalChainConstants: (typeof CHAIN_CONSTANTS)[typeof mockChainId];
+
+  // Helper to get store for an entity type
+  // biome-ignore lint/suspicious/noExplicitAny: Generic store accessor
+  function getStore(entity: string): Map<string, any> {
+    if (!entityStore.has(entity)) entityStore.set(entity, new Map());
+    // biome-ignore lint/suspicious/noExplicitAny: Map<string, any> used for flexible entity storage
+    return entityStore.get(entity) as Map<string, any>;
+  }
 
   beforeEach(() => {
     // Store original CHAIN_CONSTANTS before mutation to restore in afterEach
@@ -149,60 +157,62 @@ describe("GaugeSharedLogic", () => {
       isWhitelisted: true,
     };
 
-    mockDb = MockDb.createMockDb();
-    updatedDB = mockDb.entities.Pool.set(mockPool);
-    updatedDB = updatedDB.entities.Token.set(mockToken0);
-    updatedDB = updatedDB.entities.Token.set(mockToken1);
-    updatedDB = updatedDB.entities.Token.set(mockRewardToken);
-    updatedDB = updatedDB.entities.UserStatsPerPool.set(mockUserStatsPerPool);
+    // Use a plain Map-based in-memory store for Pattern B (no V3 round-trip)
+    entityStore = new Map();
+    getStore("Pool").set(mockPool.id, mockPool);
+    getStore("Token").set(mockToken0.id, mockToken0);
+    getStore("Token").set(mockToken1.id, mockToken1);
+    getStore("Token").set(mockRewardToken.id, mockRewardToken);
+    getStore("UserStatsPerPool").set(
+      mockUserStatsPerPool.id,
+      mockUserStatsPerPool,
+    );
 
     // Create a proper mock context
     mockContext = {
       Pool: {
-        get: (id: string) => updatedDB.entities.Pool.get(id),
+        get: (id: string) => Promise.resolve(getStore("Pool").get(id)),
         // biome-ignore lint/suspicious/noExplicitAny: Mock entity for testing
         set: (entity: any) => {
-          updatedDB = updatedDB.entities.Pool.set(entity);
-          return updatedDB;
+          getStore("Pool").set(entity.id, entity);
         },
         // biome-ignore lint/suspicious/noExplicitAny: Mock entity for testing
         getWhere: async (params: any) => {
           if (params.gaugeAddress?._eq) {
-            const pool = updatedDB.entities.Pool.get(mockPool.id);
-            return pool && pool.gaugeAddress === params.gaugeAddress._eq
-              ? [pool]
-              : [];
+            const store = getStore("Pool");
+            return Array.from(store.values()).filter(
+              (p) => p.gaugeAddress === params.gaugeAddress._eq,
+            );
           }
           return [];
         },
       },
       UserStatsPerPool: {
-        get: (id: string) => updatedDB.entities.UserStatsPerPool.get(id),
+        get: (id: string) =>
+          Promise.resolve(getStore("UserStatsPerPool").get(id)),
         // biome-ignore lint/suspicious/noExplicitAny: Mock entity for testing
         set: (entity: any) => {
-          updatedDB = updatedDB.entities.UserStatsPerPool.set(entity);
-          return updatedDB;
+          getStore("UserStatsPerPool").set(entity.id, entity);
         },
         // biome-ignore lint/suspicious/noExplicitAny: Mock entity for testing
         getWhere: async (params: any) => {
           if (params.userAddress?._eq) {
-            const userStats = updatedDB.entities.UserStatsPerPool.get(
-              mockUserStatsPerPool.id,
+            const store = getStore("UserStatsPerPool");
+            return Array.from(store.values()).filter(
+              (u) => u.userAddress === params.userAddress._eq,
             );
-            return userStats && userStats.userAddress === params.userAddress._eq
-              ? [userStats]
-              : [];
           }
           return [];
         },
       },
-      UserStatsPerPoolSnapshot: { set: () => {} },
+      UserStatsPerPoolSnapshot: {
+        set: () => {},
+      },
       Token: {
-        get: (id: string) => updatedDB.entities.Token.get(id),
+        get: (id: string) => Promise.resolve(getStore("Token").get(id)),
         // biome-ignore lint/suspicious/noExplicitAny: Mock entity for testing
         set: (entity: any) => {
-          updatedDB = updatedDB.entities.Token.set(entity);
-          return updatedDB;
+          getStore("Token").set(entity.id, entity);
         },
       },
       log: {
@@ -261,8 +271,8 @@ describe("GaugeSharedLogic", () => {
 
       await processGaugeDeposit(depositData, mockContext, "TestGaugeDeposit");
 
-      const updatedPool = updatedDB.entities.Pool.get(mockPool.id);
-      const updatedUser = updatedDB.entities.UserStatsPerPool.get(
+      const updatedPool = getStore("Pool").get(mockPool.id);
+      const updatedUser = getStore("UserStatsPerPool").get(
         mockUserStatsPerPool.id,
       );
 
@@ -298,8 +308,11 @@ describe("GaugeSharedLogic", () => {
         currentLiquidityStakedUSD: 333000000000000000000n,
       };
 
-      updatedDB = updatedDB.entities.Pool.set(mockPool);
-      updatedDB = updatedDB.entities.UserStatsPerPool.set(mockUserStatsPerPool);
+      getStore("Pool").set(mockPool.id, mockPool);
+      getStore("UserStatsPerPool").set(
+        mockUserStatsPerPool.id,
+        mockUserStatsPerPool,
+      );
 
       const depositData: GaugeEventData = {
         gaugeAddress: mockGaugeAddress,
@@ -312,8 +325,8 @@ describe("GaugeSharedLogic", () => {
 
       await processGaugeDeposit(depositData, mockContext, "TestGaugeDeposit");
 
-      const updatedPool = updatedDB.entities.Pool.get(mockPool.id);
-      const updatedUser = updatedDB.entities.UserStatsPerPool.get(
+      const updatedPool = getStore("Pool").get(mockPool.id);
+      const updatedUser = getStore("UserStatsPerPool").get(
         mockUserStatsPerPool.id,
       );
 
@@ -356,8 +369,8 @@ describe("GaugeSharedLogic", () => {
         "TestGaugeWithdraw",
       );
 
-      const updatedPool = updatedDB.entities.Pool.get(mockPool.id);
-      const updatedUser = updatedDB.entities.UserStatsPerPool.get(
+      const updatedPool = getStore("Pool").get(mockPool.id);
+      const updatedUser = getStore("UserStatsPerPool").get(
         mockUserStatsPerPool.id,
       );
 
@@ -403,8 +416,8 @@ describe("GaugeSharedLogic", () => {
         "TestGaugeWithdraw",
       );
 
-      const updatedPool = updatedDB.entities.Pool.get(mockPool.id);
-      const updatedUser = updatedDB.entities.UserStatsPerPool.get(
+      const updatedPool = getStore("Pool").get(mockPool.id);
+      const updatedUser = getStore("UserStatsPerPool").get(
         mockUserStatsPerPool.id,
       );
 
@@ -443,8 +456,8 @@ describe("GaugeSharedLogic", () => {
         mockContext,
         "TestGaugeWithdraw",
       );
-      const updatedPool = updatedDB.entities.Pool.get(mockPool.id);
-      const updatedUser = updatedDB.entities.UserStatsPerPool.get(
+      const updatedPool = getStore("Pool").get(mockPool.id);
+      const updatedUser = getStore("UserStatsPerPool").get(
         mockUserStatsPerPool.id,
       );
       expect(updatedPool?.currentLiquidityStaked).toBe(50000000000000000000n); // 100 - 50
@@ -478,8 +491,8 @@ describe("GaugeSharedLogic", () => {
         "TestGaugeClaimRewards",
       );
 
-      const updatedPool = updatedDB.entities.Pool.get(mockPool.id);
-      const updatedUser = updatedDB.entities.UserStatsPerPool.get(
+      const updatedPool = getStore("Pool").get(mockPool.id);
+      const updatedUser = getStore("UserStatsPerPool").get(
         mockUserStatsPerPool.id,
       );
 
@@ -662,7 +675,7 @@ describe("GaugeSharedLogic", () => {
       );
 
       expect(logErrorSpy).not.toHaveBeenCalled();
-      const updatedPool = updatedDB.entities.Pool.get(mockPool.id);
+      const updatedPool = getStore("Pool").get(mockPool.id);
       expect(updatedPool?.numberOfGaugeDeposits).toBe(0n);
     });
 
@@ -688,7 +701,7 @@ describe("GaugeSharedLogic", () => {
       );
 
       expect(logErrorSpy).not.toHaveBeenCalled();
-      const updatedPool = updatedDB.entities.Pool.get(mockPool.id);
+      const updatedPool = getStore("Pool").get(mockPool.id);
       expect(updatedPool?.numberOfGaugeWithdrawals).toBe(0n);
     });
 
@@ -714,7 +727,7 @@ describe("GaugeSharedLogic", () => {
       );
 
       expect(logErrorSpy).not.toHaveBeenCalled();
-      const updatedPool = updatedDB.entities.Pool.get(mockPool.id);
+      const updatedPool = getStore("Pool").get(mockPool.id);
       expect(updatedPool?.numberOfGaugeRewardClaims).toBe(0n);
     });
   });
@@ -736,8 +749,8 @@ describe("GaugeSharedLogic", () => {
       await processGaugeDeposit(depositData, mockContext, "TestGaugeDeposit");
 
       // Pool and user should remain unchanged
-      const updatedPool = updatedDB.entities.Pool.get(mockPool.id);
-      const updatedUser = updatedDB.entities.UserStatsPerPool.get(
+      const updatedPool = getStore("Pool").get(mockPool.id);
+      const updatedUser = getStore("UserStatsPerPool").get(
         mockUserStatsPerPool.id,
       );
 
@@ -772,8 +785,8 @@ describe("GaugeSharedLogic", () => {
       );
 
       // Pool and user should remain unchanged
-      const updatedPool = updatedDB.entities.Pool.get(mockPool.id);
-      const updatedUser = updatedDB.entities.UserStatsPerPool.get(
+      const updatedPool = getStore("Pool").get(mockPool.id);
+      const updatedUser = getStore("UserStatsPerPool").get(
         mockUserStatsPerPool.id,
       );
 
@@ -808,8 +821,8 @@ describe("GaugeSharedLogic", () => {
       );
 
       // Pool and user should remain unchanged
-      const updatedPool = updatedDB.entities.Pool.get(mockPool.id);
-      const updatedUser = updatedDB.entities.UserStatsPerPool.get(
+      const updatedPool = getStore("Pool").get(mockPool.id);
+      const updatedUser = getStore("UserStatsPerPool").get(
         mockUserStatsPerPool.id,
       );
 
@@ -844,8 +857,8 @@ describe("GaugeSharedLogic", () => {
       );
 
       // Pool and user should remain unchanged
-      const updatedPool = updatedDB.entities.Pool.get(mockPool.id);
-      const updatedUser = updatedDB.entities.UserStatsPerPool.get(
+      const updatedPool = getStore("Pool").get(mockPool.id);
+      const updatedUser = getStore("UserStatsPerPool").get(
         mockUserStatsPerPool.id,
       );
 
@@ -864,7 +877,7 @@ describe("GaugeSharedLogic", () => {
             if (id === TokenId(mockChainId, mockRewardToken.address)) {
               return Promise.resolve(undefined);
             }
-            return updatedDB.entities.Token.get(id);
+            return Promise.resolve(getStore("Token").get(id));
           },
         },
       };
@@ -886,8 +899,8 @@ describe("GaugeSharedLogic", () => {
       );
 
       // Pool and user should remain unchanged
-      const updatedPool = updatedDB.entities.Pool.get(mockPool.id);
-      const updatedUser = updatedDB.entities.UserStatsPerPool.get(
+      const updatedPool = getStore("Pool").get(mockPool.id);
+      const updatedUser = getStore("UserStatsPerPool").get(
         mockUserStatsPerPool.id,
       );
 
@@ -954,19 +967,20 @@ describe("GaugeSharedLogic", () => {
         [pos2.id, pos2],
       ]);
 
-      updatedDB = updatedDB.entities.Pool.set(clPool);
+      getStore("Pool").set(clPool.id, clPool);
 
       clMockContext = {
         ...mockContext,
         Pool: {
           ...mockContext.Pool,
+          get: (id: string) => Promise.resolve(getStore("Pool").get(id)),
           // biome-ignore lint/suspicious/noExplicitAny: Mock entity for testing
           getWhere: async (params: any) => {
             if (params.gaugeAddress?._eq) {
-              const pool = updatedDB.entities.Pool.get(clPool.id);
-              return pool && pool.gaugeAddress === params.gaugeAddress._eq
-                ? [pool]
-                : [];
+              const store = getStore("Pool");
+              return Array.from(store.values()).filter(
+                (p) => p.gaugeAddress === params.gaugeAddress._eq,
+              );
             }
             return [];
           },
@@ -994,7 +1008,7 @@ describe("GaugeSharedLogic", () => {
 
       await processGaugeDeposit(depositData, clMockContext, "CLGauge.Deposit");
 
-      const updatedUser = updatedDB.entities.UserStatsPerPool.get(
+      const updatedUser = getStore("UserStatsPerPool").get(
         mockUserStatsPerPool.id,
       );
       expect(updatedUser?.stakedCLPositionTokenIds).toEqual([mockTokenId1]);
@@ -1003,7 +1017,7 @@ describe("GaugeSharedLogic", () => {
 
     it("should set hasStakes=true on first CL deposit", async () => {
       // Before any deposit, the pool was created with hasStakes=false
-      const initialPool = updatedDB.entities.Pool.get(clPool.id);
+      const initialPool = getStore("Pool").get(clPool.id);
       expect(initialPool?.hasStakes).toBe(false);
 
       await processGaugeDeposit(
@@ -1020,7 +1034,7 @@ describe("GaugeSharedLogic", () => {
         "CLGauge.Deposit",
       );
 
-      const updatedPool = updatedDB.entities.Pool.get(clPool.id);
+      const updatedPool = getStore("Pool").get(clPool.id);
       expect(updatedPool?.hasStakes).toBe(true);
     });
 
@@ -1055,7 +1069,7 @@ describe("GaugeSharedLogic", () => {
         "CLGauge.Deposit",
       );
 
-      const updatedUser = updatedDB.entities.UserStatsPerPool.get(
+      const updatedUser = getStore("UserStatsPerPool").get(
         mockUserStatsPerPool.id,
       );
       expect(updatedUser?.stakedCLPositionTokenIds).toEqual([
@@ -1109,7 +1123,7 @@ describe("GaugeSharedLogic", () => {
         "CLGauge.Withdraw",
       );
 
-      const updatedUser = updatedDB.entities.UserStatsPerPool.get(
+      const updatedUser = getStore("UserStatsPerPool").get(
         mockUserStatsPerPool.id,
       );
       expect(updatedUser?.stakedCLPositionTokenIds).toEqual([mockTokenId2]);
@@ -1147,7 +1161,7 @@ describe("GaugeSharedLogic", () => {
         "CLGauge.Withdraw",
       );
 
-      const updatedUser = updatedDB.entities.UserStatsPerPool.get(
+      const updatedUser = getStore("UserStatsPerPool").get(
         mockUserStatsPerPool.id,
       );
       expect(updatedUser?.stakedCLPositionTokenIds).toEqual([]);

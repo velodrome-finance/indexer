@@ -1,4 +1,4 @@
-import type { Token, VeNFTState, handlerContext } from "generated";
+import type { Token, VeNFTState } from "envio";
 import {
   type PoolDiff,
   loadPoolData,
@@ -12,6 +12,7 @@ import {
   isKnownSinkRootPool,
 } from "../../Constants";
 import { getTokensDeposited } from "../../Effects/Index";
+import type { handlerContext } from "../../EntityTypes";
 import type { Pool } from "../../EntityTypes";
 import {
   calculateTokenAmountUSD,

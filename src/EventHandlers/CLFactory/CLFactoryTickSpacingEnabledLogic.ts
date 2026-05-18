@@ -1,7 +1,5 @@
-import type {
-  CLFactory_TickSpacingEnabled_event,
-  FeeToTickSpacingMapping,
-} from "generated";
+import type { FeeToTickSpacingMapping } from "envio";
+import type { CLFactory_TickSpacingEnabled_event } from "../../EntityTypes";
 
 export function processCLFactoryTickSpacingEnabled(
   event: CLFactory_TickSpacingEnabled_event,

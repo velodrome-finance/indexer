@@ -1,12 +1,13 @@
-import type { Pool_Fees_event, Token, handlerContext } from "generated";
+import type { Token } from "envio";
 import { toChecksumAddress } from "../../../src/Constants";
+import type { Pool_Fees_event, handlerContext } from "../../../src/EntityTypes";
 import { processPoolFees } from "../../../src/EventHandlers/Pool/PoolFeesLogic";
 import { setupCommon } from "./common";
 
 describe("PoolFeesLogic", () => {
   const { mockToken0Data, mockToken1Data } = setupCommon();
 
-  const mockEvent: Pool_Fees_event = {
+  const mockEvent = {
     chainId: 10,
     block: {
       number: 123456,
@@ -23,7 +24,7 @@ describe("PoolFeesLogic", () => {
       amount1: 2000n,
       sender: toChecksumAddress("0x1234567890123456789012345678901234567890"),
     },
-  };
+  } as Pool_Fees_event;
 
   let mockContext: handlerContext;
 
@@ -172,14 +173,14 @@ describe("PoolFeesLogic", () => {
         const feeBps = 5n;
         const feeAmount0 = (swapAmount0 * feeBps) / 10000n;
 
-        const feesEvent: Pool_Fees_event = {
+        const feesEvent = {
           ...mockEvent,
           params: {
             ...mockEvent.params,
             amount0: feeAmount0,
             amount1: 0n,
           },
-        };
+        } as Pool_Fees_event;
 
         const result = processPoolFees(feesEvent, usdt, sygx);
 

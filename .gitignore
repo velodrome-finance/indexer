@@ -29,6 +29,8 @@ benchmarks/
 artifacts
 cache
 generated
+.envio
+envio-env.d.ts
 logs
 *.bs.js
 build
@@ -38,6 +40,7 @@ build
 
 # Coverage
 .nyc_output/
+coverage/
 
 # Script results and local-only output directories
 scripts/results/

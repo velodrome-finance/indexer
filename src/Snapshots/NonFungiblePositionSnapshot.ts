@@ -1,8 +1,5 @@
-import type {
-  NonFungiblePosition,
-  NonFungiblePositionSnapshot,
-  handlerContext,
-} from "generated";
+import type { NonFungiblePosition, NonFungiblePositionSnapshot } from "envio";
+import type { handlerContext } from "../EntityTypes";
 
 import { NonFungiblePositionSnapshotId } from "../Constants";
 import {

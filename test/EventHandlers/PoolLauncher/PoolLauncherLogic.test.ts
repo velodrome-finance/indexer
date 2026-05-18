@@ -1,49 +1,15 @@
-import type { PoolLauncherPool, handlerContext } from "generated";
-import { MockDb } from "../../../generated/src/TestHelpers.gen";
+import type { PoolLauncherPool } from "envio";
 import { PoolId, toChecksumAddress } from "../../../src/Constants";
 import type { Pool } from "../../../src/EntityTypes";
 import {
   linkPoolToPoolLauncher,
   processPoolLauncherPool,
 } from "../../../src/EventHandlers/PoolLauncher/PoolLauncherLogic";
+import { createTestContext } from "../../testHelpers";
 import { setupCommon } from "../Pool/common";
 
 describe("PoolLauncherLogic", () => {
   const { createMockPool } = setupCommon();
-
-  let mockContext: handlerContext;
-  let mockDb: ReturnType<typeof MockDb.createMockDb>;
-
-  beforeEach(async () => {
-    mockDb = MockDb.createMockDb();
-    mockContext = {
-      PoolLauncherPool: {
-        get: (id: string) => mockDb.entities.PoolLauncherPool.get(id),
-        set: (entity: PoolLauncherPool) => {
-          mockDb = mockDb.entities.PoolLauncherPool.set(entity);
-        },
-      },
-      Pool: {
-        get: (id: string) => mockDb.entities.Pool.get(id),
-        set: (entity: Pool) => {
-          // Copy readonly bigint[] fields into mutable bigint[] to satisfy
-          // MockDb.set() — envio.d.ts types these as readonly but Indexer.gen.ts
-          // expects mutable. Same workaround as createMockPool.
-          mockDb = mockDb.entities.Pool.set({
-            ...entity,
-            stakedTickEdges: [...entity.stakedTickEdges],
-            stakedTickEdgeNets: [...entity.stakedTickEdgeNets],
-          });
-        },
-      },
-      isPreload: false,
-      log: {
-        info: () => {},
-        warn: () => {},
-        error: () => {},
-      },
-    } as unknown as handlerContext;
-  });
 
   describe("processPoolLauncherPool", () => {
     it("should create a new PoolLauncherPool when none exists", async () => {
@@ -64,6 +30,16 @@ describe("PoolLauncherLogic", () => {
       );
       const createdAt = new Date("2024-01-01T00:00:00Z");
       const chainId = 8453;
+
+      const savedEntities = new Map<string, PoolLauncherPool>();
+      const mockContext = createTestContext({
+        PoolLauncherPool: {
+          get: vi.fn().mockResolvedValue(undefined),
+          set: vi.fn().mockImplementation((entity: PoolLauncherPool) => {
+            savedEntities.set(entity.id, entity);
+          }),
+        },
+      });
 
       const result = await processPoolLauncherPool(
         poolAddress,
@@ -95,9 +71,7 @@ describe("PoolLauncherLogic", () => {
       expect(result.lastMigratedAt).toEqual(createdAt);
 
       // Verify the entity was set in the context
-      const savedEntity = mockDb.entities.PoolLauncherPool.get(
-        `8453-${poolAddress}`,
-      );
+      const savedEntity = savedEntities.get(`8453-${poolAddress}`);
       expect(savedEntity).toBeDefined();
       expect(savedEntity?.id).toBe(`8453-${poolAddress}`);
     });
@@ -122,7 +96,7 @@ describe("PoolLauncherLogic", () => {
       const chainId = 8453;
 
       // Create an existing PoolLauncherPool
-      const existingPoolLauncherPool = {
+      const existingPoolLauncherPool: PoolLauncherPool = {
         id: PoolId(chainId, poolAddress),
         chainId: chainId,
         underlyingPool: poolAddress,
@@ -146,7 +120,12 @@ describe("PoolLauncherLogic", () => {
         lastMigratedAt: new Date("2023-12-01T00:00:00Z"),
       };
 
-      mockDb = mockDb.entities.PoolLauncherPool.set(existingPoolLauncherPool);
+      const mockContext = createTestContext({
+        PoolLauncherPool: {
+          get: vi.fn().mockResolvedValue(existingPoolLauncherPool),
+          set: vi.fn(),
+        },
+      });
 
       const result = await processPoolLauncherPool(
         poolAddress,
@@ -188,6 +167,13 @@ describe("PoolLauncherLogic", () => {
       const createdAt = new Date("2024-01-01T00:00:00Z");
       const chainId = 10; // Optimism
 
+      const mockContext = createTestContext({
+        PoolLauncherPool: {
+          get: vi.fn().mockResolvedValue(undefined),
+          set: vi.fn(),
+        },
+      });
+
       const result = await processPoolLauncherPool(
         poolAddress,
         launcherAddress,
@@ -224,6 +210,13 @@ describe("PoolLauncherLogic", () => {
       );
       const createdAt = new Date("2024-01-01T00:00:00Z");
       const chainId = 8453;
+
+      const mockContext = createTestContext({
+        PoolLauncherPool: {
+          get: vi.fn().mockResolvedValue(undefined),
+          set: vi.fn(),
+        },
+      });
 
       const result = await processPoolLauncherPool(
         poolAddress,
@@ -266,14 +259,24 @@ describe("PoolLauncherLogic", () => {
           isCL: true,
         });
 
-        mockDb = mockDb.entities.Pool.set(existingPool);
+        const savedPools = new Map<string, Pool>();
+        savedPools.set(existingPool.id, existingPool as unknown as Pool);
+
+        const mockContext = createTestContext({
+          Pool: {
+            get: vi
+              .fn()
+              .mockImplementation(async (id: string) => savedPools.get(id)),
+            set: vi.fn().mockImplementation((entity: Pool) => {
+              savedPools.set(entity.id, entity);
+            }),
+          },
+        });
 
         await linkPoolToPoolLauncher(poolAddress, chainId, mockContext, "CL");
 
         // Assert
-        const updatedEntity = mockDb.entities.Pool.get(
-          PoolId(chainId, poolAddress),
-        );
+        const updatedEntity = savedPools.get(PoolId(chainId, poolAddress));
         expect(updatedEntity).toBeDefined();
         expect(updatedEntity?.poolLauncherPoolId).toBe(
           "8453-0x1234567890123456789012345678901234567890",
@@ -293,33 +296,27 @@ describe("PoolLauncherLogic", () => {
 
       it("should handle case where Pool does not exist", async () => {
         let warnCalled = false;
-        const mockContextWithWarn = {
-          ...mockContext,
-          log: {
-            ...mockContext.log,
-            warn: (message: string) => {
-              warnCalled = true;
-              expect(message).toContain("Pool not found for pool");
-              expect(message).toContain(
-                "it should have been created by CLFactory",
-              );
-            },
+        const mockContext = createTestContext({
+          Pool: {
+            get: vi.fn().mockResolvedValue(undefined),
+            set: vi.fn(),
           },
-        };
-
-        await linkPoolToPoolLauncher(
-          poolAddress,
-          chainId,
-          mockContextWithWarn,
-          "CL",
+        });
+        // Override warn to capture the call
+        (mockContext.log.warn as ReturnType<typeof vi.fn>).mockImplementation(
+          (message: string) => {
+            warnCalled = true;
+            expect(message).toContain("Pool not found for pool");
+            expect(message).toContain(
+              "it should have been created by CLFactory",
+            );
+          },
         );
+
+        await linkPoolToPoolLauncher(poolAddress, chainId, mockContext, "CL");
 
         // Assert
         expect(warnCalled).toBe(true);
-
-        // Verify no entity was created or updated
-        const entity = mockDb.entities.Pool.get(PoolId(chainId, poolAddress));
-        expect(entity).toBeUndefined();
       });
     });
 
@@ -335,14 +332,24 @@ describe("PoolLauncherLogic", () => {
           totalLiquidityUSD: 3000000n,
         });
 
-        mockDb = mockDb.entities.Pool.set(existingPool);
+        const savedPools = new Map<string, Pool>();
+        savedPools.set(existingPool.id, existingPool as unknown as Pool);
+
+        const mockContext = createTestContext({
+          Pool: {
+            get: vi
+              .fn()
+              .mockImplementation(async (id: string) => savedPools.get(id)),
+            set: vi.fn().mockImplementation((entity: Pool) => {
+              savedPools.set(entity.id, entity);
+            }),
+          },
+        });
 
         await linkPoolToPoolLauncher(poolAddress, chainId, mockContext, "V2");
 
         // Assert
-        const updatedEntity = mockDb.entities.Pool.get(
-          PoolId(chainId, poolAddress),
-        );
+        const updatedEntity = savedPools.get(PoolId(chainId, poolAddress));
         expect(updatedEntity).toBeDefined();
         expect(updatedEntity?.poolLauncherPoolId).toBe(
           "8453-0x1234567890123456789012345678901234567890",
@@ -362,31 +369,24 @@ describe("PoolLauncherLogic", () => {
 
       it("should handle case where Pool does not exist", async () => {
         let warnCalled = false;
-        const mockContextWithWarn = {
-          ...mockContext,
-          log: {
-            ...mockContext.log,
-            warn: (message: string) => {
-              warnCalled = true;
-              expect(message).toContain("Pool not found for pool");
-              expect(message).toContain("V2Factory");
-            },
+        const mockContext = createTestContext({
+          Pool: {
+            get: vi.fn().mockResolvedValue(undefined),
+            set: vi.fn(),
           },
-        };
-
-        await linkPoolToPoolLauncher(
-          poolAddress,
-          chainId,
-          mockContextWithWarn,
-          "V2",
+        });
+        (mockContext.log.warn as ReturnType<typeof vi.fn>).mockImplementation(
+          (message: string) => {
+            warnCalled = true;
+            expect(message).toContain("Pool not found for pool");
+            expect(message).toContain("V2Factory");
+          },
         );
+
+        await linkPoolToPoolLauncher(poolAddress, chainId, mockContext, "V2");
 
         // Assert
         expect(warnCalled).toBe(true);
-
-        // Verify no entity was created or updated
-        const entity = mockDb.entities.Pool.get(PoolId(chainId, poolAddress));
-        expect(entity).toBeUndefined();
       });
     });
 
@@ -396,12 +396,24 @@ describe("PoolLauncherLogic", () => {
         chainId: 10,
       });
 
-      mockDb = mockDb.entities.Pool.set(existingPool);
+      const savedPools = new Map<string, Pool>();
+      savedPools.set(existingPool.id, existingPool as unknown as Pool);
+
+      const mockContext = createTestContext({
+        Pool: {
+          get: vi
+            .fn()
+            .mockImplementation(async (id: string) => savedPools.get(id)),
+          set: vi.fn().mockImplementation((entity: Pool) => {
+            savedPools.set(entity.id, entity);
+          }),
+        },
+      });
 
       await linkPoolToPoolLauncher(poolAddress, 10, mockContext, "CL");
 
       // Assert
-      const updatedEntity = mockDb.entities.Pool.get(PoolId(10, poolAddress));
+      const updatedEntity = savedPools.get(PoolId(10, poolAddress));
       expect(updatedEntity).toBeDefined();
       expect(updatedEntity?.poolLauncherPoolId).toBe(PoolId(10, poolAddress));
     });

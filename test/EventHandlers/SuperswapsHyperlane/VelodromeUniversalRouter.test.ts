@@ -3,12 +3,8 @@ import type {
   OUSDTBridgedTransaction,
   OUSDTSwaps,
   ProcessId_event,
-} from "generated";
-import { vi } from "vitest";
-import {
-  MockDb,
-  VelodromeUniversalRouter,
-} from "../../../generated/src/TestHelpers.gen";
+} from "envio";
+import { createTestIndexer } from "envio";
 import {
   MailboxMessageId,
   OUSDTSwapsId,
@@ -16,6 +12,7 @@ import {
   SuperSwapId,
   toChecksumAddress,
 } from "../../../src/Constants";
+import { simulateEvent } from "../../testHelpers";
 
 describe("VelodromeUniversalRouter Event Handlers", () => {
   const chainId = 10; // Optimism
@@ -33,33 +30,34 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
 
   describe("UniversalRouterBridge event", () => {
     it("should create OUSDTBridgedTransaction entity when token is oUSDT", async () => {
-      const mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
 
-      const mockEvent =
-        VelodromeUniversalRouter.UniversalRouterBridge.createMockEvent({
+      await simulateEvent(indexer, chainId, {
+        contract: "VelodromeUniversalRouter",
+        event: "UniversalRouterBridge",
+        params: {
           token: OUSDT_ADDRESS,
           domain: BigInt(destinationDomain),
           sender: senderAddress,
           recipient: recipientAddress,
           amount: tokenAmount,
-          mockEventData: {
-            block: {
-              timestamp: blockTimestamp,
-              number: 123456,
-              hash: transactionHash,
-            },
-            chainId,
-            logIndex: 1,
-            transaction: {
-              hash: transactionHash,
-            },
-          },
-        });
-
-      const result = await mockDb.processEvents([mockEvent]);
+        },
+        block: {
+          timestamp: blockTimestamp,
+          number: 123456,
+          hash: transactionHash,
+        },
+        transaction: {
+          hash: transactionHash,
+        },
+        srcAddress: toChecksumAddress(
+          "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+        ),
+        logIndex: 1,
+      });
 
       const bridgedTransaction =
-        result.entities.OUSDTBridgedTransaction.get(transactionHash);
+        await indexer.OUSDTBridgedTransaction.get(transactionHash);
 
       expect(bridgedTransaction).toBeDefined();
       expect(bridgedTransaction?.id).toBe(transactionHash);
@@ -76,69 +74,71 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
     });
 
     it("should not create entity when token is not oUSDT", async () => {
-      const mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
       const otherTokenAddress = toChecksumAddress(
         "0x9999999999999999999999999999999999999999",
       );
 
-      const mockEvent =
-        VelodromeUniversalRouter.UniversalRouterBridge.createMockEvent({
+      await simulateEvent(indexer, chainId, {
+        contract: "VelodromeUniversalRouter",
+        event: "UniversalRouterBridge",
+        params: {
           token: otherTokenAddress,
           domain: BigInt(destinationDomain),
           sender: senderAddress,
           recipient: recipientAddress,
           amount: tokenAmount,
-          mockEventData: {
-            block: {
-              timestamp: blockTimestamp,
-              number: 123456,
-              hash: transactionHash,
-            },
-            chainId,
-            logIndex: 1,
-            transaction: {
-              hash: transactionHash,
-            },
-          },
-        });
-
-      const result = await mockDb.processEvents([mockEvent]);
+        },
+        block: {
+          timestamp: blockTimestamp,
+          number: 123456,
+          hash: transactionHash,
+        },
+        transaction: {
+          hash: transactionHash,
+        },
+        srcAddress: toChecksumAddress(
+          "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+        ),
+        logIndex: 1,
+      });
 
       const bridgedTransaction =
-        result.entities.OUSDTBridgedTransaction.get(transactionHash);
+        await indexer.OUSDTBridgedTransaction.get(transactionHash);
 
       expect(bridgedTransaction).toBeUndefined();
     });
 
     it("should normalize amount correctly using OUSDT_DECIMALS constant", async () => {
-      const mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
       const testAmount = 500n * 10n ** 6n; // 500 tokens with 6 decimals
 
-      const mockEvent =
-        VelodromeUniversalRouter.UniversalRouterBridge.createMockEvent({
+      await simulateEvent(indexer, chainId, {
+        contract: "VelodromeUniversalRouter",
+        event: "UniversalRouterBridge",
+        params: {
           token: OUSDT_ADDRESS,
           domain: BigInt(destinationDomain),
           sender: senderAddress,
           recipient: recipientAddress,
           amount: testAmount,
-          mockEventData: {
-            block: {
-              timestamp: blockTimestamp,
-              number: 123456,
-              hash: transactionHash,
-            },
-            chainId,
-            logIndex: 1,
-            transaction: {
-              hash: transactionHash,
-            },
-          },
-        });
-
-      const result = await mockDb.processEvents([mockEvent]);
+        },
+        block: {
+          timestamp: blockTimestamp,
+          number: 123456,
+          hash: transactionHash,
+        },
+        transaction: {
+          hash: transactionHash,
+        },
+        srcAddress: toChecksumAddress(
+          "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+        ),
+        logIndex: 1,
+      });
 
       const bridgedTransaction =
-        result.entities.OUSDTBridgedTransaction.get(transactionHash);
+        await indexer.OUSDTBridgedTransaction.get(transactionHash);
 
       expect(bridgedTransaction).toBeDefined();
       expect(bridgedTransaction?.amount).toBe(500n * 10n ** 6n); // Raw amount: 500 tokens with 6 decimals
@@ -157,80 +157,8 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
       "0x4444444444444444444444444444444444444444",
     );
 
-    type MockDbInstance = ReturnType<typeof MockDb.createMockDb>;
-
-    type GetWhereFilter = {
-      transactionHash?: { _eq?: string };
-      messageId?: { _eq?: string };
-    };
-
-    function makeGetWhereMock<T>(
-      items: T[],
-      filterKey: keyof GetWhereFilter,
-      getMatchValue: (item: T) => string,
-    ) {
-      return vi.fn().mockImplementation(async (filter: GetWhereFilter) => {
-        const value = filter[filterKey]?._eq;
-        if (value === undefined) return [];
-        return items.filter((item) => getMatchValue(item) === value);
-      });
-    }
-
-    function createMockDbWithGetWhere(
-      mockDb: MockDbInstance,
-      options: {
-        bridgedTransactions?: OUSDTBridgedTransaction[];
-        dispatchIdEvents?: DispatchId_event[];
-        processIdEvents?: ProcessId_event[];
-        swapEvents?: OUSDTSwaps[];
-      } = {},
-    ): MockDbInstance {
-      const bridgedTransactions = options.bridgedTransactions ?? [];
-      const dispatchIdEvents = options.dispatchIdEvents ?? [];
-      const processIdEvents = options.processIdEvents ?? [];
-      const swapEvents = options.swapEvents ?? [];
-      return {
-        ...mockDb,
-        entities: {
-          ...mockDb.entities,
-          OUSDTBridgedTransaction: {
-            ...mockDb.entities.OUSDTBridgedTransaction,
-            getWhere: makeGetWhereMock(
-              bridgedTransactions,
-              "transactionHash",
-              (e) => e.transactionHash,
-            ),
-          },
-          DispatchId_event: {
-            ...mockDb.entities.DispatchId_event,
-            getWhere: makeGetWhereMock(
-              dispatchIdEvents,
-              "transactionHash",
-              (e) => e.transactionHash,
-            ),
-          },
-          ProcessId_event: {
-            ...mockDb.entities.ProcessId_event,
-            getWhere: makeGetWhereMock(
-              processIdEvents,
-              "messageId",
-              (e) => e.messageId,
-            ),
-          },
-          OUSDTSwaps: {
-            ...mockDb.entities.OUSDTSwaps,
-            getWhere: makeGetWhereMock(
-              swapEvents,
-              "transactionHash",
-              (e) => e.transactionHash,
-            ),
-          },
-        },
-      } as MockDbInstance;
-    }
-
     it("should create SuperSwap entity when all required entities exist", async () => {
-      let mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
 
       // Create bridged transaction entity
       const existingBridgedTransaction: OUSDTBridgedTransaction = {
@@ -293,49 +221,35 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
         amountOut: 950n,
       };
 
-      // Populate internal store so handler can read entities (processEvents context uses this)
-      mockDb = mockDb.entities.OUSDTBridgedTransaction.set(
-        existingBridgedTransaction,
-      );
-      mockDb = mockDb.entities.DispatchId_event.set(dispatchIdEvent);
-      mockDb = mockDb.entities.ProcessId_event.set(processIdEvent);
-      mockDb = mockDb.entities.OUSDTSwaps.set(sourceSwapEvent);
-      mockDb = mockDb.entities.OUSDTSwaps.set(destinationSwapEvent);
+      // Seed all entities into the indexer
+      indexer.OUSDTBridgedTransaction.set(existingBridgedTransaction);
+      indexer.DispatchId_event.set(dispatchIdEvent);
+      indexer.ProcessId_event.set(processIdEvent);
+      indexer.OUSDTSwaps.set(sourceSwapEvent);
+      indexer.OUSDTSwaps.set(destinationSwapEvent);
 
-      const bridgedTransactions = [existingBridgedTransaction];
-      const dispatchIdEvents = [dispatchIdEvent];
-      const processIdEvents = [processIdEvent];
-      const swapEvents = [sourceSwapEvent, destinationSwapEvent];
-
-      const db = createMockDbWithGetWhere(mockDb, {
-        bridgedTransactions,
-        dispatchIdEvents,
-        processIdEvents,
-        swapEvents,
+      await simulateEvent(indexer, chainId, {
+        contract: "VelodromeUniversalRouter",
+        event: "CrossChainSwap",
+        params: {
+          destinationDomain: BigInt(destinationDomain),
+        },
+        block: {
+          timestamp: blockTimestamp,
+          number: 123457,
+          hash: transactionHash,
+        },
+        transaction: {
+          hash: transactionHash,
+        },
+        srcAddress: toChecksumAddress(
+          "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+        ),
+        logIndex: 2,
       });
 
-      const mockEvent = VelodromeUniversalRouter.CrossChainSwap.createMockEvent(
-        {
-          destinationDomain: BigInt(destinationDomain),
-          mockEventData: {
-            block: {
-              timestamp: blockTimestamp,
-              number: 123457,
-              hash: transactionHash,
-            },
-            chainId,
-            logIndex: 2,
-            transaction: {
-              hash: transactionHash,
-            },
-          },
-        },
-      );
-
-      const result = await db.processEvents([mockEvent]);
-
       const expectedSuperSwapId = SuperSwapId(messageId);
-      const superSwap = result.entities.SuperSwap.get(expectedSuperSwapId);
+      const superSwap = await indexer.SuperSwap.get(expectedSuperSwapId);
 
       expect(superSwap).toBeDefined();
       expect(superSwap?.id).toBe(expectedSuperSwapId);
@@ -348,39 +262,40 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
       expect(superSwap?.sourceChainTokenAmountSwapped).toBe(1000n);
       expect(superSwap?.destinationChainToken).toBe(tokenOutAddress);
       expect(superSwap?.destinationChainTokenAmountSwapped).toBe(950n);
-      expect(superSwap?.timestamp).toEqual(new Date(blockTimestamp * 1000));
+      expect(
+        new Date(superSwap?.timestamp as unknown as string).getTime(),
+      ).toBe(new Date(blockTimestamp * 1000).getTime());
     });
 
     it("should not create SuperSwap when no OUSDTBridgedTransaction exists", async () => {
-      const mockDb = MockDb.createMockDb();
-      const db = createMockDbWithGetWhere(mockDb);
+      const indexer = createTestIndexer();
 
-      const mockEvent = VelodromeUniversalRouter.CrossChainSwap.createMockEvent(
-        {
+      await simulateEvent(indexer, chainId, {
+        contract: "VelodromeUniversalRouter",
+        event: "CrossChainSwap",
+        params: {
           destinationDomain: BigInt(destinationDomain),
-          mockEventData: {
-            block: {
-              timestamp: blockTimestamp,
-              number: 123457,
-              hash: transactionHash,
-            },
-            chainId,
-            logIndex: 2,
-            transaction: {
-              hash: transactionHash,
-            },
-          },
         },
-      );
-
-      const result = await db.processEvents([mockEvent]);
+        block: {
+          timestamp: blockTimestamp,
+          number: 123457,
+          hash: transactionHash,
+        },
+        transaction: {
+          hash: transactionHash,
+        },
+        srcAddress: toChecksumAddress(
+          "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+        ),
+        logIndex: 2,
+      });
 
       // Verify that no SuperSwap was created when no bridged transaction exists
-      expect(Array.from(result.entities.SuperSwap.getAll())).toHaveLength(0);
+      expect(Array.from(await indexer.SuperSwap.getAll())).toHaveLength(0);
     });
 
     it("should not create SuperSwap when no DispatchId events exist", async () => {
-      let mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
 
       const existingBridgedTransaction: OUSDTBridgedTransaction = {
         id: transactionHash,
@@ -392,39 +307,34 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
         amount: 18116811000000000000n,
       };
 
-      mockDb = mockDb.entities.OUSDTBridgedTransaction.set(
-        existingBridgedTransaction,
-      );
+      indexer.OUSDTBridgedTransaction.set(existingBridgedTransaction);
 
-      const bridgedTransactions = [existingBridgedTransaction];
-      const db = createMockDbWithGetWhere(mockDb, { bridgedTransactions });
-
-      const mockEvent = VelodromeUniversalRouter.CrossChainSwap.createMockEvent(
-        {
+      await simulateEvent(indexer, chainId, {
+        contract: "VelodromeUniversalRouter",
+        event: "CrossChainSwap",
+        params: {
           destinationDomain: BigInt(destinationDomain),
-          mockEventData: {
-            block: {
-              timestamp: blockTimestamp,
-              number: 123457,
-              hash: transactionHash,
-            },
-            chainId,
-            logIndex: 2,
-            transaction: {
-              hash: transactionHash,
-            },
-          },
         },
-      );
-
-      const result = await db.processEvents([mockEvent]);
+        block: {
+          timestamp: blockTimestamp,
+          number: 123457,
+          hash: transactionHash,
+        },
+        transaction: {
+          hash: transactionHash,
+        },
+        srcAddress: toChecksumAddress(
+          "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+        ),
+        logIndex: 2,
+      });
 
       // Verify that no SuperSwap was created when no DispatchId events exist
-      expect(Array.from(result.entities.SuperSwap.getAll())).toHaveLength(0);
+      expect(Array.from(await indexer.SuperSwap.getAll())).toHaveLength(0);
     });
 
     it("should use the first bridged transaction when multiple exist", async () => {
-      let mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
       const anotherHash =
         "0xabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdef";
 
@@ -497,50 +407,35 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
         amountOut: 950n,
       };
 
-      mockDb = mockDb.entities.OUSDTBridgedTransaction.set(bridgedTransaction1);
-      mockDb = mockDb.entities.OUSDTBridgedTransaction.set(bridgedTransaction2);
-      mockDb = mockDb.entities.DispatchId_event.set(dispatchIdEvent);
-      mockDb = mockDb.entities.ProcessId_event.set(processIdEvent);
-      mockDb = mockDb.entities.OUSDTSwaps.set(sourceSwapEvent);
-      mockDb = mockDb.entities.OUSDTSwaps.set(destinationSwapEvent);
+      indexer.OUSDTBridgedTransaction.set(bridgedTransaction1);
+      indexer.OUSDTBridgedTransaction.set(bridgedTransaction2);
+      indexer.DispatchId_event.set(dispatchIdEvent);
+      indexer.ProcessId_event.set(processIdEvent);
+      indexer.OUSDTSwaps.set(sourceSwapEvent);
+      indexer.OUSDTSwaps.set(destinationSwapEvent);
 
-      const storedBridgedTransactions = [
-        bridgedTransaction1,
-        bridgedTransaction2,
-      ];
-      const dispatchIdEvents = [dispatchIdEvent];
-      const processIdEvents = [processIdEvent];
-      const swapEvents = [sourceSwapEvent, destinationSwapEvent];
-
-      const db = createMockDbWithGetWhere(mockDb, {
-        bridgedTransactions: storedBridgedTransactions,
-        dispatchIdEvents,
-        processIdEvents,
-        swapEvents,
+      await simulateEvent(indexer, chainId, {
+        contract: "VelodromeUniversalRouter",
+        event: "CrossChainSwap",
+        params: {
+          destinationDomain: BigInt(destinationDomain),
+        },
+        block: {
+          timestamp: blockTimestamp,
+          number: 123457,
+          hash: transactionHash,
+        },
+        transaction: {
+          hash: transactionHash,
+        },
+        srcAddress: toChecksumAddress(
+          "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+        ),
+        logIndex: 2,
       });
 
-      const mockEvent = VelodromeUniversalRouter.CrossChainSwap.createMockEvent(
-        {
-          destinationDomain: BigInt(destinationDomain),
-          mockEventData: {
-            block: {
-              timestamp: blockTimestamp,
-              number: 123457,
-              hash: transactionHash,
-            },
-            chainId,
-            logIndex: 2,
-            transaction: {
-              hash: transactionHash,
-            },
-          },
-        },
-      );
-
-      const result = await db.processEvents([mockEvent]);
-
       const expectedSuperSwapId = SuperSwapId(messageId);
-      const superSwap = result.entities.SuperSwap.get(expectedSuperSwapId);
+      const superSwap = await indexer.SuperSwap.get(expectedSuperSwapId);
 
       expect(superSwap).toBeDefined();
       // Should use the first transaction (amount 1000)

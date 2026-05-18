@@ -1,6 +1,6 @@
-import type { Token } from "generated";
+import type { Token } from "envio";
+import { createTestIndexer } from "envio";
 import type { MockInstance } from "vitest";
-import { MockDb, Pool } from "../../../generated/src/TestHelpers.gen";
 import {
   OUSDT_ADDRESS,
   PoolId,
@@ -11,6 +11,7 @@ import {
 } from "../../../src/Constants";
 import type { Pool as PoolEntity } from "../../../src/EntityTypes";
 import * as PriceOracle from "../../../src/PriceOracle";
+import { simulateEvent } from "../../testHelpers";
 import { setupCommon } from "./common";
 
 describe("Pool Swap Event", () => {
@@ -59,7 +60,7 @@ describe("Pool Swap Event", () => {
   };
 
   let mockPriceOracle: MockInstance;
-  let mockDb: ReturnType<typeof MockDb.createMockDb>;
+  let indexer: ReturnType<typeof createTestIndexer>;
 
   beforeEach(() => {
     const setupData = setupCommon();
@@ -110,7 +111,7 @@ describe("Pool Swap Event", () => {
         return args[0]; // Return the token that was passed in
       });
 
-    mockDb = MockDb.createMockDb();
+    indexer = createTestIndexer();
     eventData.amount0In = expectations.swapAmount0In;
     eventData.amount1Out = expectations.swapAmount1Out;
   });
@@ -120,31 +121,42 @@ describe("Pool Swap Event", () => {
   });
 
   describe("when both tokens exist", () => {
-    let postEventDB: ReturnType<typeof MockDb.createMockDb>;
     let updatedPool: PoolEntity | undefined;
 
     beforeEach(async () => {
-      const updatedDB1 = mockDb.entities.Pool.set({
+      indexer.Pool.set({
         ...mockLiquidityPoolData,
         stakedTickEdges: [...mockLiquidityPoolData.stakedTickEdges],
         stakedTickEdgeNets: [...mockLiquidityPoolData.stakedTickEdgeNets],
       });
-      const updatedDB2 = updatedDB1.entities.Token.set(mockToken0Data as Token);
-      const updatedDB3 = updatedDB2.entities.Token.set(mockToken1Data as Token);
+      indexer.Token.set(mockToken0Data as Token);
+      indexer.Token.set(mockToken1Data as Token);
 
-      const mockEvent = Pool.Swap.createMockEvent(eventData);
-
-      postEventDB = await updatedDB3.processEvents([mockEvent]);
-      updatedPool = postEventDB.entities.Pool.get(
+      await simulateEvent(indexer, eventData.mockEventData.chainId, {
+        contract: "Pool",
+        event: "Swap",
+        params: {
+          sender: eventData.sender,
+          to: eventData.to,
+          amount0In: eventData.amount0In,
+          amount1In: eventData.amount1In,
+          amount0Out: eventData.amount0Out,
+          amount1Out: eventData.amount1Out,
+        },
+        block: eventData.mockEventData.block,
+        srcAddress: eventData.mockEventData.srcAddress as `0x${string}`,
+        logIndex: eventData.mockEventData.logIndex,
+      });
+      updatedPool = (await indexer.Pool.get(
         PoolId(
           eventData.mockEventData.chainId,
           eventData.mockEventData.srcAddress,
         ),
-      );
+      )) as PoolEntity | undefined;
     });
 
     it("should update UserStatsPerPool with swap activity", async () => {
-      const userStats = postEventDB.entities.UserStatsPerPool.get(
+      const userStats = await indexer.UserStatsPerPool.get(
         UserStatsPerPoolId(
           eventData.mockEventData.chainId,
           eventData.sender,
@@ -160,8 +172,12 @@ describe("Pool Swap Event", () => {
       expect(userStats?.totalSwapVolumeUSD).toBe(
         expectations.expectedSwapVolumeUSDMin,
       );
-      expect(userStats?.lastActivityTimestamp).toEqual(
-        new Date(eventData.mockEventData.block.timestamp * 1000),
+      expect(
+        new Date(
+          userStats?.lastActivityTimestamp as unknown as string,
+        ).getTime(),
+      ).toBe(
+        new Date(eventData.mockEventData.block.timestamp * 1000).getTime(),
       );
     });
 
@@ -178,8 +194,12 @@ describe("Pool Swap Event", () => {
       expect(updatedPool?.numberOfSwaps).toBe(
         mockLiquidityPoolData.numberOfSwaps + 1n,
       );
-      expect(updatedPool?.lastUpdatedTimestamp).toEqual(
-        new Date(eventData.mockEventData.block.timestamp * 1000),
+      expect(
+        new Date(
+          updatedPool?.lastUpdatedTimestamp as unknown as string,
+        ).getTime(),
+      ).toBe(
+        new Date(eventData.mockEventData.block.timestamp * 1000).getTime(),
       );
     });
     // TODO: Skip until envio migrates to createTestIndexer — vi.spyOn can't intercept tsx-loaded modules (alpha.18)
@@ -196,17 +216,30 @@ describe("Pool Swap Event", () => {
 
   describe("when pool does not exist", () => {
     it("should return early without processing", async () => {
-      // Create a mockDb without the pool
-      const updatedDB1 = mockDb.entities.Token.set(mockToken0Data as Token);
-      const updatedDB2 = updatedDB1.entities.Token.set(mockToken1Data as Token);
+      // Create a fresh indexer without the pool
+      const freshIndexer = createTestIndexer();
+      freshIndexer.Token.set(mockToken0Data as Token);
+      freshIndexer.Token.set(mockToken1Data as Token);
       // Note: We intentionally don't set the Pool
 
-      const mockEvent = Pool.Swap.createMockEvent(eventData);
-
-      const postEventDB = await updatedDB2.processEvents([mockEvent]);
+      await simulateEvent(freshIndexer, eventData.mockEventData.chainId, {
+        contract: "Pool",
+        event: "Swap",
+        params: {
+          sender: eventData.sender,
+          to: eventData.to,
+          amount0In: eventData.amount0In,
+          amount1In: eventData.amount1In,
+          amount0Out: eventData.amount0Out,
+          amount1Out: eventData.amount1Out,
+        },
+        block: eventData.mockEventData.block,
+        srcAddress: eventData.mockEventData.srcAddress as `0x${string}`,
+        logIndex: eventData.mockEventData.logIndex,
+      });
 
       // Pool should not exist
-      const pool = postEventDB.entities.Pool.get(
+      const pool = await freshIndexer.Pool.get(
         PoolId(
           eventData.mockEventData.chainId,
           eventData.mockEventData.srcAddress,
@@ -216,7 +249,7 @@ describe("Pool Swap Event", () => {
 
       // User stats will still be created because loadOrCreateUserData is called in parallel
       // but they should have default/zero values since no swap processing occurred
-      const userStats = postEventDB.entities.UserStatsPerPool.get(
+      const userStats = await freshIndexer.UserStatsPerPool.get(
         UserStatsPerPoolId(
           eventData.mockEventData.chainId,
           eventData.sender,
@@ -247,20 +280,28 @@ describe("Pool Swap Event", () => {
         stakedTickEdgeNets: [...mockLiquidityPoolData.stakedTickEdgeNets],
       };
 
-      const updatedDB1 = mockDb.entities.Pool.set(poolWithOusdt);
-      const updatedDB2 = updatedDB1.entities.Token.set(ousdtToken as Token);
-      const updatedDB3 = updatedDB2.entities.Token.set(mockToken1Data as Token);
+      indexer.Pool.set(poolWithOusdt);
+      indexer.Token.set(ousdtToken as Token);
+      indexer.Token.set(mockToken1Data as Token);
 
-      const mockEvent = Pool.Swap.createMockEvent({
-        ...eventData,
-        amount0In: 100n * 10n ** 18n,
-        amount1Out: 99n * 10n ** 18n,
+      await simulateEvent(indexer, eventData.mockEventData.chainId, {
+        contract: "Pool",
+        event: "Swap",
+        params: {
+          sender: eventData.sender,
+          to: eventData.to,
+          amount0In: 100n * 10n ** 18n,
+          amount1In: 0n,
+          amount0Out: 0n,
+          amount1Out: 99n * 10n ** 18n,
+        },
+        block: eventData.mockEventData.block,
+        srcAddress: eventData.mockEventData.srcAddress as `0x${string}`,
+        logIndex: eventData.mockEventData.logIndex,
       });
 
-      const postEventDB = await updatedDB3.processEvents([mockEvent]);
-
       // Check that OUSDTSwap entity was created
-      const ousdtSwaps = Array.from(postEventDB.entities.OUSDTSwaps.getAll());
+      const ousdtSwaps = Array.from(await indexer.OUSDTSwaps.getAll());
       expect(ousdtSwaps.length).toBe(1);
       expect(ousdtSwaps[0]?.tokenInPool).toBe(ousdtAddress);
       expect(ousdtSwaps[0]?.amountIn).toBe(100n * 10n ** 18n);
@@ -282,22 +323,28 @@ describe("Pool Swap Event", () => {
         stakedTickEdgeNets: [...mockLiquidityPoolData.stakedTickEdgeNets],
       };
 
-      const updatedDB1 = mockDb.entities.Pool.set(poolWithOusdt);
-      const updatedDB2 = updatedDB1.entities.Token.set(mockToken0Data as Token);
-      const updatedDB3 = updatedDB2.entities.Token.set(ousdtToken as Token);
+      indexer.Pool.set(poolWithOusdt);
+      indexer.Token.set(mockToken0Data as Token);
+      indexer.Token.set(ousdtToken as Token);
 
-      const mockEvent = Pool.Swap.createMockEvent({
-        ...eventData,
-        amount0In: 0n, // Explicitly set to 0 to ensure token1 is the input
-        amount1In: 100n * 10n ** 18n,
-        amount0Out: 99n * 10n ** 18n,
-        amount1Out: 0n, // Explicitly set to 0
+      await simulateEvent(indexer, eventData.mockEventData.chainId, {
+        contract: "Pool",
+        event: "Swap",
+        params: {
+          sender: eventData.sender,
+          to: eventData.to,
+          amount0In: 0n, // Explicitly set to 0 to ensure token1 is the input
+          amount1In: 100n * 10n ** 18n,
+          amount0Out: 99n * 10n ** 18n,
+          amount1Out: 0n, // Explicitly set to 0
+        },
+        block: eventData.mockEventData.block,
+        srcAddress: eventData.mockEventData.srcAddress as `0x${string}`,
+        logIndex: eventData.mockEventData.logIndex,
       });
 
-      const postEventDB = await updatedDB3.processEvents([mockEvent]);
-
       // Check that OUSDTSwap entity was created
-      const ousdtSwaps = Array.from(postEventDB.entities.OUSDTSwaps.getAll());
+      const ousdtSwaps = Array.from(await indexer.OUSDTSwaps.getAll());
       expect(ousdtSwaps.length).toBe(1);
       expect(ousdtSwaps[0]?.tokenInPool).toBe(ousdtAddress);
       expect(ousdtSwaps[0]?.tokenOutPool).toBe(mockToken0Data.address);
@@ -306,20 +353,32 @@ describe("Pool Swap Event", () => {
     });
 
     it("should not create OUSDTSwap entity when neither token is OUSDT", async () => {
-      const updatedDB1 = mockDb.entities.Pool.set({
+      indexer.Pool.set({
         ...mockLiquidityPoolData,
         stakedTickEdges: [...mockLiquidityPoolData.stakedTickEdges],
         stakedTickEdgeNets: [...mockLiquidityPoolData.stakedTickEdgeNets],
       });
-      const updatedDB2 = updatedDB1.entities.Token.set(mockToken0Data as Token);
-      const updatedDB3 = updatedDB2.entities.Token.set(mockToken1Data as Token);
+      indexer.Token.set(mockToken0Data as Token);
+      indexer.Token.set(mockToken1Data as Token);
 
-      const mockEvent = Pool.Swap.createMockEvent(eventData);
-
-      const postEventDB = await updatedDB3.processEvents([mockEvent]);
+      await simulateEvent(indexer, eventData.mockEventData.chainId, {
+        contract: "Pool",
+        event: "Swap",
+        params: {
+          sender: eventData.sender,
+          to: eventData.to,
+          amount0In: eventData.amount0In,
+          amount1In: eventData.amount1In,
+          amount0Out: eventData.amount0Out,
+          amount1Out: eventData.amount1Out,
+        },
+        block: eventData.mockEventData.block,
+        srcAddress: eventData.mockEventData.srcAddress as `0x${string}`,
+        logIndex: eventData.mockEventData.logIndex,
+      });
 
       // Check that no OUSDTSwap entity was created
-      const ousdtSwaps = Array.from(postEventDB.entities.OUSDTSwaps.getAll());
+      const ousdtSwaps = Array.from(await indexer.OUSDTSwaps.getAll());
       expect(ousdtSwaps.length).toBe(0);
     });
   });

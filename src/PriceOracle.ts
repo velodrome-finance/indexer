@@ -1,4 +1,4 @@
-import type { Token, handlerContext } from "generated";
+import type { Token } from "envio";
 import { estimateBlockAtTimestamp } from "./ChainBlockTime";
 import {
   CHAIN_CONSTANTS,
@@ -12,6 +12,7 @@ import {
   hasContractBytecode,
   roundBlockToInterval,
 } from "./Effects/Index";
+import type { handlerContext } from "./EntityTypes";
 import { getRebindTarget, isBlacklistedToken } from "./PriceOverrides";
 import { setTokenPriceSnapshot } from "./Snapshots/TokenPriceSnapshot";
 export interface TokenPriceData {

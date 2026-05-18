@@ -1,6 +1,7 @@
-import type { Pool_Fees_event, Token } from "generated";
+import type { Token } from "envio";
 import type { PoolDiff } from "../../Aggregators/Pool";
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
+import type { Pool_Fees_event } from "../../EntityTypes";
 import { calculateTotalUSD, calculateWhitelistedFeesUSD } from "../../Helpers";
 
 export interface PoolFeesResult {

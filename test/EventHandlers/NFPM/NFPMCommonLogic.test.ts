@@ -1,6 +1,5 @@
 import { TickMath } from "@uniswap/v3-sdk";
-import type { NonFungiblePosition, handlerContext } from "generated";
-import { MockDb } from "../../../generated/src/TestHelpers.gen";
+import type { NonFungiblePosition } from "envio";
 import {
   applyStakedPositionToEdges,
   deriveStakedLiquidityInRange,
@@ -14,6 +13,7 @@ import {
   NonFungiblePositionId,
   toChecksumAddress,
 } from "../../../src/Constants";
+import type { handlerContext } from "../../../src/EntityTypes";
 import {
   LiquidityChangeType,
   attributeLiquidityChangeToUserStatsPerPool,
@@ -80,12 +80,9 @@ describe("NFPMCommonLogic", () => {
     nfpmAddress: nfpmAddressB,
   };
 
-  let mockDb: ReturnType<typeof MockDb.createMockDb>;
   let mockContext: handlerContext;
 
   beforeEach(() => {
-    mockDb = MockDb.createMockDb();
-
     const storedPositions: NonFungiblePosition[] = [
       mockPosition,
       mockPositionDifferentChain,
@@ -101,10 +98,13 @@ describe("NFPMCommonLogic", () => {
       });
 
     mockContext = {
-      ...mockDb,
       NonFungiblePosition: {
-        ...mockDb.entities.NonFungiblePosition,
+        get: vi.fn().mockResolvedValue(undefined),
+        getOrThrow: vi.fn(),
         getWhere: getWhereNonFungiblePosition,
+        getOrCreate: vi.fn(),
+        set: vi.fn(),
+        deleteUnsafe: vi.fn(),
       },
       UserStatsPerPool: {
         get: vi.fn().mockResolvedValue(undefined),
@@ -118,8 +118,12 @@ describe("NFPMCommonLogic", () => {
         set: vi.fn(),
         get: vi.fn(),
         getWhere: vi.fn().mockResolvedValue([]),
+        getOrThrow: vi.fn(),
+        getOrCreate: vi.fn(),
+        deleteUnsafe: vi.fn(),
       },
       log: {
+        debug: vi.fn(),
         info: vi.fn(),
         warn: vi.fn(),
         error: vi.fn(),

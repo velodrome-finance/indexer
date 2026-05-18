@@ -1,4 +1,3 @@
-import type { Pool_Transfer_event, handlerContext } from "generated";
 import { updatePool } from "../../Aggregators/Pool";
 import {
   loadOrCreateUserData,
@@ -9,6 +8,7 @@ import {
   TxPoolTransferRegistryId,
   ZERO_ADDRESS,
 } from "../../Constants";
+import type { Pool_Transfer_event, handlerContext } from "../../EntityTypes";
 import type { Pool } from "../../EntityTypes";
 
 /**

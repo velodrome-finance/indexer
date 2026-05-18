@@ -3,9 +3,10 @@ import {
   TickMath,
   maxLiquidityForAmounts,
 } from "@uniswap/v3-sdk";
-import type { Token, handlerContext } from "generated";
+import type { Token } from "envio";
 import JSBI from "jsbi";
 import { TEN_TO_THE_18_BI } from "./Constants";
+import type { handlerContext } from "./EntityTypes";
 import type { Pool } from "./EntityTypes";
 import { multiplyBase1e18 } from "./Maths";
 

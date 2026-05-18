@@ -1,4 +1,4 @@
-import type { VeNFTState, handlerContext } from "generated";
+import type { VeNFTState } from "generated";
 import {
   loadVeNFTState,
   updateVeNFTState,
@@ -8,6 +8,7 @@ import {
   VeNFTStateSnapshotId,
   toChecksumAddress,
 } from "../../src/Constants";
+import type { handlerContext } from "../../src/EntityTypes";
 import { getSnapshotEpoch } from "../../src/Snapshots/Shared";
 
 function getVeNFTStateStore(

@@ -1,8 +1,9 @@
-import type { CLPool_Swap_event, Token, handlerContext } from "generated";
+import type { Token } from "envio";
 import { processTickCrossingsForStaked } from "../../Aggregators/CLStakedLiquidity";
 import type { PoolDiff } from "../../Aggregators/Pool";
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import { CL_FEE_SCALE } from "../../Constants";
+import type { CLPool_Swap_event, handlerContext } from "../../EntityTypes";
 import type { Pool } from "../../EntityTypes";
 import {
   calculateTokenAmountUSD,

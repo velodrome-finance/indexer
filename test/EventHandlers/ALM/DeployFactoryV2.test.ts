@@ -1,14 +1,11 @@
-import type { NonFungiblePosition } from "generated";
-import {
-  ALMDeployFactoryV2,
-  MockDb,
-} from "../../../generated/src/TestHelpers.gen";
+import type { NonFungiblePosition } from "envio";
+import { createTestIndexer } from "envio";
 import {
   ALMLPWrapperId,
   NonFungiblePositionId,
   toChecksumAddress,
 } from "../../../src/Constants";
-import { extendMockDbWithGetWhere, setupPool } from "../../testHelpers";
+import { setupPool, simulateEvent } from "../../testHelpers";
 import { setupCommon } from "../Pool/common";
 
 describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
@@ -35,24 +32,18 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
   // sqrtPriceX96 is constant (calculated from tick 0 in setupCommon)
   const sqrtPriceX96 = mockLiquidityPoolData.sqrtPriceX96 ?? 0n;
 
-  const mockEventData = {
-    block: {
-      timestamp: blockTimestamp,
-      number: blockNumber,
-      hash: transactionHash,
-    },
-    chainId,
-    logIndex: 1,
-    transaction: {
-      hash: transactionHash,
-    },
+  const block = {
+    timestamp: blockTimestamp,
+    number: blockNumber,
+    hash: transactionHash,
   };
 
   describe("StrategyCreated event", () => {
     it("should create ALM_LP_Wrapper entity with strategy and position data", async () => {
-      let mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
 
       // Pre-populate with NonFungiblePosition (created by CLPool handlers)
+      // mintTransactionHash must match event.transaction.hash for getWhere to find it
       const mockNFPM: NonFungiblePosition = {
         id: NonFungiblePositionId(chainId, nfpmAddress, tokenId),
         chainId,
@@ -72,23 +63,17 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
         isStakedInGauge: false,
       };
 
-      mockDb = mockDb.entities.NonFungiblePosition.set(mockNFPM);
-      mockDb = setupPool(mockDb, mockLiquidityPoolData, poolAddress);
+      indexer.NonFungiblePosition.set(mockNFPM);
+      setupPool(indexer, mockLiquidityPoolData, poolAddress);
 
       // Pre-populate with TotalSupplyLimitUpdated event
       const totalSupplyEventId = ALMLPWrapperId(chainId, lpWrapperAddress);
-      mockDb = mockDb.entities.ALM_TotalSupplyLimitUpdated_event.set({
+      indexer.ALM_TotalSupplyLimitUpdated_event.set({
         id: totalSupplyEventId,
         lpWrapperAddress: toChecksumAddress(lpWrapperAddress),
         currentTotalSupplyLPTokens: 5000n * 10n ** 18n,
         transactionHash: transactionHash,
       });
-
-      // Track entities for getWhere query
-      const storedNFPMs = [mockNFPM];
-
-      // Extend mockDb to include getWhere for NonFungiblePosition
-      const mockDbWithGetWhere = extendMockDbWithGetWhere(mockDb, storedNFPMs);
 
       const strategyType = 1n;
       const tickNeighborhood = 100n;
@@ -102,40 +87,42 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
 
       // V2: params tuple has 5 elements: [pool, ammPosition (array), strategyParams (5 fields), lpWrapper, caller]
       // No synthetixFarm in V2
-      const mockEvent = ALMDeployFactoryV2.StrategyCreated.createMockEvent({
-        params: [
-          toChecksumAddress(poolAddress),
-          // ammPosition is an array with one element
-          [
+      await simulateEvent(indexer, chainId, {
+        contract: "ALMDeployFactoryV2",
+        event: "StrategyCreated",
+        params: {
+          params: [
+            toChecksumAddress(poolAddress),
+            // ammPosition is an array with one element
             [
-              toChecksumAddress(mockToken0Data.address),
-              toChecksumAddress(mockToken1Data.address),
-              property,
-              tickLower,
-              tickUpper,
-              liquidity,
+              [
+                toChecksumAddress(mockToken0Data.address),
+                toChecksumAddress(mockToken1Data.address),
+                property,
+                tickLower,
+                tickUpper,
+                liquidity,
+              ],
             ],
+            // strategyParams has 5 fields (includes maxLiquidityRatioDeviationX96)
+            [
+              strategyType,
+              tickNeighborhood,
+              tickSpacing,
+              width,
+              maxLiquidityRatioDeviationX96,
+            ],
+            toChecksumAddress(lpWrapperAddress),
+            toChecksumAddress(callerAddress),
           ],
-          // strategyParams has 5 fields (includes maxLiquidityRatioDeviationX96)
-          [
-            strategyType,
-            tickNeighborhood,
-            tickSpacing,
-            width,
-            maxLiquidityRatioDeviationX96,
-          ],
-          toChecksumAddress(lpWrapperAddress),
-          toChecksumAddress(callerAddress),
-        ],
-        mockEventData,
+        },
+        block,
+        transaction: { hash: transactionHash },
+        logIndex: 1,
       });
 
-      const result = await (mockDbWithGetWhere as typeof mockDb).processEvents([
-        mockEvent,
-      ]);
-
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
-      const createdWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
+      const createdWrapper = await indexer.ALM_LP_Wrapper.get(wrapperId);
 
       expect(createdWrapper).toBeDefined();
       expect(createdWrapper?.id).toBe(wrapperId);
@@ -161,140 +148,62 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
       expect(createdWrapper?.maxLiquidityRatioDeviationX96).toBe(
         maxLiquidityRatioDeviationX96,
       );
-      expect(createdWrapper?.creationTimestamp).toEqual(
-        new Date(blockTimestamp * 1000),
-      );
+      // Quirk 2: Date fields are returned as ISO strings from indexer
+      expect(
+        new Date(
+          createdWrapper?.creationTimestamp as unknown as string,
+        ).getTime(),
+      ).toBe(blockTimestamp * 1000);
       expect(createdWrapper?.strategyTransactionHash).toBe(transactionHash);
-      expect(createdWrapper?.lastUpdatedTimestamp).toEqual(
-        new Date(blockTimestamp * 1000),
-      );
+      expect(
+        new Date(
+          createdWrapper?.lastUpdatedTimestamp as unknown as string,
+        ).getTime(),
+      ).toBe(blockTimestamp * 1000);
     });
 
     it("should not create entity when NonFungiblePosition not found (empty array - covers ?.filter branch)", async () => {
-      const mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
+      // No NFP seeded → getWhere returns []
 
-      // Extend mockDb to include getWhere (returning empty array)
-      // This tests the branch where nonFungiblePositions?.filter() is called (not short-circuited)
-      // and returns [] (empty array), so ?? [] is NOT triggered
-      const mockDbWithGetWhere = extendMockDbWithGetWhere(
-        mockDb,
-        [],
-        async () => [],
-      );
-
-      const mockEvent = ALMDeployFactoryV2.StrategyCreated.createMockEvent({
-        params: [
-          poolAddress as `0x${string}`,
-          [
+      await simulateEvent(indexer, chainId, {
+        contract: "ALMDeployFactoryV2",
+        event: "StrategyCreated",
+        params: {
+          params: [
+            poolAddress as `0x${string}`,
             [
-              mockToken0Data.address as `0x${string}`,
-              mockToken1Data.address as `0x${string}`,
-              3000n,
-              -1000n,
-              1000n,
-              1000000n,
+              [
+                mockToken0Data.address as `0x${string}`,
+                mockToken1Data.address as `0x${string}`,
+                3000n,
+                -1000n,
+                1000n,
+                1000000n,
+              ],
             ],
+            [1n, 100n, 60n, 2000n, 79228162514264337593543950336n],
+            lpWrapperAddress,
+            callerAddress,
           ],
-          [1n, 100n, 60n, 2000n, 79228162514264337593543950336n],
-          lpWrapperAddress,
-          callerAddress,
-        ],
-        mockEventData,
+        },
+        block,
+        transaction: { hash: transactionHash },
+        logIndex: 1,
       });
-
-      const result = await (mockDbWithGetWhere as typeof mockDb).processEvents([
-        mockEvent,
-      ]);
 
       // Verify that no wrapper was created
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
-      const createdWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
+      const createdWrapper = await indexer.ALM_LP_Wrapper.get(wrapperId);
       expect(createdWrapper).toBeUndefined();
     });
 
-    it("should not create entity when NonFungiblePosition getWhere returns null (covers ?? [] branch)", async () => {
-      const mockDb = MockDb.createMockDb();
+    it.skip("should not create entity when NonFungiblePosition getWhere returns null (covers ?? [] branch)", async () => {}); // exercises a null-guard code path (??[]) that cannot be triggered via Pattern A. // TODO: V3 in-memory getWhere never returns null — always returns []. This test
 
-      // Extend mockDb to include getWhere (returning null to cover ?? [] branch)
-      const mockDbWithGetWhere = extendMockDbWithGetWhere(
-        mockDb,
-        [],
-        async () => null as NonFungiblePosition[] | null,
-      );
-
-      const mockEvent = ALMDeployFactoryV2.StrategyCreated.createMockEvent({
-        params: [
-          poolAddress as `0x${string}`,
-          [
-            [
-              mockToken0Data.address as `0x${string}`,
-              mockToken1Data.address as `0x${string}`,
-              3000n,
-              -1000n,
-              1000n,
-              1000000n,
-            ],
-          ],
-          [1n, 100n, 60n, 2000n, 79228162514264337593543950336n],
-          lpWrapperAddress,
-          callerAddress,
-        ],
-        mockEventData,
-      });
-
-      const result = await (mockDbWithGetWhere as typeof mockDb).processEvents([
-        mockEvent,
-      ]);
-
-      // Verify that no wrapper was created
-      const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
-      const createdWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
-      expect(createdWrapper).toBeUndefined();
-    });
-
-    it("should not create entity when NonFungiblePosition getWhere returns undefined (covers ?? [] branch)", async () => {
-      const mockDb = MockDb.createMockDb();
-
-      // Extend mockDb to include getWhere (returning undefined to cover ?? [] branch)
-      const mockDbWithGetWhere = extendMockDbWithGetWhere(
-        mockDb,
-        [],
-        async (_txHash: string) =>
-          undefined as NonFungiblePosition[] | undefined,
-      );
-
-      const mockEvent = ALMDeployFactoryV2.StrategyCreated.createMockEvent({
-        params: [
-          poolAddress as `0x${string}`,
-          [
-            [
-              mockToken0Data.address as `0x${string}`,
-              mockToken1Data.address as `0x${string}`,
-              3000n,
-              -1000n,
-              1000n,
-              1000000n,
-            ],
-          ],
-          [1n, 100n, 60n, 2000n, 79228162514264337593543950336n],
-          lpWrapperAddress,
-          callerAddress,
-        ],
-        mockEventData,
-      });
-
-      const result = await (mockDbWithGetWhere as typeof mockDb).processEvents([
-        mockEvent,
-      ]);
-
-      // Verify that no wrapper was created
-      const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
-      const createdWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
-      expect(createdWrapper).toBeUndefined();
-    });
+    it.skip("should not create entity when NonFungiblePosition getWhere returns undefined (covers ?? [] branch)", async () => {}); // exercises a null-guard code path (??[]) that cannot be triggered via Pattern A. // TODO: V3 in-memory getWhere never returns undefined — always returns []. This test
 
     it("should filter NonFungiblePosition by tickLower, tickUpper, liquidity, token0, and token1", async () => {
-      let mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
 
       // Create multiple NonFungiblePositions with same transaction hash but different properties
       const matchingNFPM: NonFungiblePosition = {
@@ -332,24 +241,19 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
         mintTransactionHash: transactionHash,
       };
 
-      mockDb = mockDb.entities.NonFungiblePosition.set(matchingNFPM);
-      mockDb = mockDb.entities.NonFungiblePosition.set(nonMatchingNFPM1);
-      mockDb = mockDb.entities.NonFungiblePosition.set(nonMatchingNFPM2);
-      mockDb = setupPool(mockDb, mockLiquidityPoolData, poolAddress);
+      indexer.NonFungiblePosition.set(matchingNFPM);
+      indexer.NonFungiblePosition.set(nonMatchingNFPM1);
+      indexer.NonFungiblePosition.set(nonMatchingNFPM2);
+      setupPool(indexer, mockLiquidityPoolData, poolAddress);
 
       // Pre-populate with TotalSupplyLimitUpdated event
       const totalSupplyEventId = ALMLPWrapperId(chainId, lpWrapperAddress);
-      mockDb = mockDb.entities.ALM_TotalSupplyLimitUpdated_event.set({
+      indexer.ALM_TotalSupplyLimitUpdated_event.set({
         id: totalSupplyEventId,
         lpWrapperAddress: toChecksumAddress(lpWrapperAddress),
         currentTotalSupplyLPTokens: 5000n * 10n ** 18n,
         transactionHash: transactionHash,
       });
-
-      // Track entities for getWhere query
-      const storedNFPMs = [matchingNFPM, nonMatchingNFPM1, nonMatchingNFPM2];
-
-      const mockDbWithGetWhere = extendMockDbWithGetWhere(mockDb, storedNFPMs);
 
       const strategyType = 1n;
       const tickNeighborhood = 100n;
@@ -363,40 +267,42 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
 
       // V2: params tuple has 5 elements: [pool, ammPosition (array), strategyParams (5 fields), lpWrapper, caller]
       // No synthetixFarm in V2
-      const mockEvent = ALMDeployFactoryV2.StrategyCreated.createMockEvent({
-        params: [
-          toChecksumAddress(poolAddress),
-          // ammPosition is an array with one element
-          [
+      await simulateEvent(indexer, chainId, {
+        contract: "ALMDeployFactoryV2",
+        event: "StrategyCreated",
+        params: {
+          params: [
+            toChecksumAddress(poolAddress),
+            // ammPosition is an array with one element
             [
-              toChecksumAddress(mockToken0Data.address),
-              toChecksumAddress(mockToken1Data.address),
-              property,
-              tickLower,
-              tickUpper,
-              liquidity,
+              [
+                toChecksumAddress(mockToken0Data.address),
+                toChecksumAddress(mockToken1Data.address),
+                property,
+                tickLower,
+                tickUpper,
+                liquidity,
+              ],
             ],
+            // strategyParams has 5 fields (includes maxLiquidityRatioDeviationX96)
+            [
+              strategyType,
+              tickNeighborhood,
+              tickSpacing,
+              width,
+              maxLiquidityRatioDeviationX96,
+            ],
+            toChecksumAddress(lpWrapperAddress),
+            toChecksumAddress(callerAddress),
           ],
-          // strategyParams has 5 fields (includes maxLiquidityRatioDeviationX96)
-          [
-            strategyType,
-            tickNeighborhood,
-            tickSpacing,
-            width,
-            maxLiquidityRatioDeviationX96,
-          ],
-          toChecksumAddress(lpWrapperAddress),
-          toChecksumAddress(callerAddress),
-        ],
-        mockEventData,
+        },
+        block,
+        transaction: { hash: transactionHash },
+        logIndex: 1,
       });
 
-      const result = await (mockDbWithGetWhere as typeof mockDb).processEvents([
-        mockEvent,
-      ]);
-
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
-      const createdWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
+      const createdWrapper = await indexer.ALM_LP_Wrapper.get(wrapperId);
 
       expect(createdWrapper).toBeDefined();
       // Should use the matching NFPM (matchingNFPM), not the others
@@ -406,7 +312,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
     });
 
     it("should filter out NonFungiblePosition with mismatched token0 (covers filter predicate branches)", async () => {
-      let mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
 
       // Create NonFungiblePosition with matching properties except token0
       const nonMatchingNFPM: NonFungiblePosition = {
@@ -428,45 +334,42 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
         isStakedInGauge: false,
       };
 
-      mockDb = mockDb.entities.NonFungiblePosition.set(nonMatchingNFPM);
+      indexer.NonFungiblePosition.set(nonMatchingNFPM);
 
-      // Track entities for getWhere query
-      const storedNFPMs = [nonMatchingNFPM];
-
-      const mockDbWithGetWhere = extendMockDbWithGetWhere(mockDb, storedNFPMs);
-
-      const mockEvent = ALMDeployFactoryV2.StrategyCreated.createMockEvent({
-        params: [
-          toChecksumAddress(poolAddress),
-          [
+      await simulateEvent(indexer, chainId, {
+        contract: "ALMDeployFactoryV2",
+        event: "StrategyCreated",
+        params: {
+          params: [
+            toChecksumAddress(poolAddress),
             [
-              toChecksumAddress(mockToken0Data.address), // Different from NFPM
-              toChecksumAddress(mockToken1Data.address),
-              3000n,
-              -1000n,
-              1000n,
-              1000000n,
+              [
+                toChecksumAddress(mockToken0Data.address), // Different from NFPM
+                toChecksumAddress(mockToken1Data.address),
+                3000n,
+                -1000n,
+                1000n,
+                1000000n,
+              ],
             ],
+            [1n, 100n, 60n, 2000n, 79228162514264337593543950336n],
+            toChecksumAddress(lpWrapperAddress),
+            toChecksumAddress(callerAddress),
           ],
-          [1n, 100n, 60n, 2000n, 79228162514264337593543950336n],
-          toChecksumAddress(lpWrapperAddress),
-          toChecksumAddress(callerAddress),
-        ],
-        mockEventData,
+        },
+        block,
+        transaction: { hash: transactionHash },
+        logIndex: 1,
       });
-
-      const result = await (mockDbWithGetWhere as typeof mockDb).processEvents([
-        mockEvent,
-      ]);
 
       // Verify that no wrapper was created (filter should exclude this NFPM)
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
-      const createdWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
+      const createdWrapper = await indexer.ALM_LP_Wrapper.get(wrapperId);
       expect(createdWrapper).toBeUndefined();
     });
 
     it("should filter out NonFungiblePosition with mismatched token1 (covers filter predicate branches)", async () => {
-      let mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
 
       // Create NonFungiblePosition with matching properties except token1
       const nonMatchingNFPM: NonFungiblePosition = {
@@ -488,45 +391,42 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
         isStakedInGauge: false,
       };
 
-      mockDb = mockDb.entities.NonFungiblePosition.set(nonMatchingNFPM);
+      indexer.NonFungiblePosition.set(nonMatchingNFPM);
 
-      // Track entities for getWhere query
-      const storedNFPMs = [nonMatchingNFPM];
-
-      const mockDbWithGetWhere = extendMockDbWithGetWhere(mockDb, storedNFPMs);
-
-      const mockEvent = ALMDeployFactoryV2.StrategyCreated.createMockEvent({
-        params: [
-          toChecksumAddress(poolAddress),
-          [
+      await simulateEvent(indexer, chainId, {
+        contract: "ALMDeployFactoryV2",
+        event: "StrategyCreated",
+        params: {
+          params: [
+            toChecksumAddress(poolAddress),
             [
-              toChecksumAddress(mockToken0Data.address),
-              toChecksumAddress(mockToken1Data.address), // Different from NFPM
-              3000n,
-              -1000n,
-              1000n,
-              1000000n,
+              [
+                toChecksumAddress(mockToken0Data.address),
+                toChecksumAddress(mockToken1Data.address), // Different from NFPM
+                3000n,
+                -1000n,
+                1000n,
+                1000000n,
+              ],
             ],
+            [1n, 100n, 60n, 2000n, 79228162514264337593543950336n],
+            toChecksumAddress(lpWrapperAddress),
+            toChecksumAddress(callerAddress),
           ],
-          [1n, 100n, 60n, 2000n, 79228162514264337593543950336n],
-          toChecksumAddress(lpWrapperAddress),
-          toChecksumAddress(callerAddress),
-        ],
-        mockEventData,
+        },
+        block,
+        transaction: { hash: transactionHash },
+        logIndex: 1,
       });
-
-      const result = await (mockDbWithGetWhere as typeof mockDb).processEvents([
-        mockEvent,
-      ]);
 
       // Verify that no wrapper was created (filter should exclude this NFPM)
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
-      const createdWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
+      const createdWrapper = await indexer.ALM_LP_Wrapper.get(wrapperId);
       expect(createdWrapper).toBeUndefined();
     });
 
     it("should filter out NonFungiblePosition with mismatched tickUpper (covers filter predicate branches)", async () => {
-      let mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
 
       // Create NonFungiblePosition with matching tickLower but different tickUpper
       const nonMatchingNFPM: NonFungiblePosition = {
@@ -548,45 +448,42 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
         isStakedInGauge: false,
       };
 
-      mockDb = mockDb.entities.NonFungiblePosition.set(nonMatchingNFPM);
+      indexer.NonFungiblePosition.set(nonMatchingNFPM);
 
-      // Track entities for getWhere query
-      const storedNFPMs = [nonMatchingNFPM];
-
-      const mockDbWithGetWhere = extendMockDbWithGetWhere(mockDb, storedNFPMs);
-
-      const mockEvent = ALMDeployFactoryV2.StrategyCreated.createMockEvent({
-        params: [
-          toChecksumAddress(poolAddress),
-          [
+      await simulateEvent(indexer, chainId, {
+        contract: "ALMDeployFactoryV2",
+        event: "StrategyCreated",
+        params: {
+          params: [
+            toChecksumAddress(poolAddress),
             [
-              toChecksumAddress(mockToken0Data.address),
-              toChecksumAddress(mockToken1Data.address),
-              3000n,
-              -1000n, // Matches NFPM
-              1000n, // Different from NFPM (2000n)
-              1000000n,
+              [
+                toChecksumAddress(mockToken0Data.address),
+                toChecksumAddress(mockToken1Data.address),
+                3000n,
+                -1000n, // Matches NFPM
+                1000n, // Different from NFPM (2000n)
+                1000000n,
+              ],
             ],
+            [1n, 100n, 60n, 2000n, 79228162514264337593543950336n],
+            toChecksumAddress(lpWrapperAddress),
+            toChecksumAddress(callerAddress),
           ],
-          [1n, 100n, 60n, 2000n, 79228162514264337593543950336n],
-          toChecksumAddress(lpWrapperAddress),
-          toChecksumAddress(callerAddress),
-        ],
-        mockEventData,
+        },
+        block,
+        transaction: { hash: transactionHash },
+        logIndex: 1,
       });
-
-      const result = await (mockDbWithGetWhere as typeof mockDb).processEvents([
-        mockEvent,
-      ]);
 
       // Verify that no wrapper was created (filter should exclude this NFPM)
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
-      const createdWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
+      const createdWrapper = await indexer.ALM_LP_Wrapper.get(wrapperId);
       expect(createdWrapper).toBeUndefined();
     });
 
     it("should not create entity when TotalSupplyLimitUpdated event not found (covers first part of OR condition)", async () => {
-      let mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
 
       // Pre-populate with NonFungiblePosition but NOT TotalSupplyLimitUpdated event
       const mockNFPM: NonFungiblePosition = {
@@ -608,45 +505,42 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
         isStakedInGauge: false,
       };
 
-      mockDb = mockDb.entities.NonFungiblePosition.set(mockNFPM);
+      indexer.NonFungiblePosition.set(mockNFPM);
 
-      // Track entities for getWhere query
-      const storedNFPMs = [mockNFPM];
-
-      const mockDbWithGetWhere = extendMockDbWithGetWhere(mockDb, storedNFPMs);
-
-      const mockEvent = ALMDeployFactoryV2.StrategyCreated.createMockEvent({
-        params: [
-          toChecksumAddress(poolAddress),
-          [
+      await simulateEvent(indexer, chainId, {
+        contract: "ALMDeployFactoryV2",
+        event: "StrategyCreated",
+        params: {
+          params: [
+            toChecksumAddress(poolAddress),
             [
-              toChecksumAddress(mockToken0Data.address),
-              toChecksumAddress(mockToken1Data.address),
-              3000n,
-              -1000n,
-              1000n,
-              1000000n,
+              [
+                toChecksumAddress(mockToken0Data.address),
+                toChecksumAddress(mockToken1Data.address),
+                3000n,
+                -1000n,
+                1000n,
+                1000000n,
+              ],
             ],
+            [1n, 100n, 60n, 2000n, 79228162514264337593543950336n],
+            toChecksumAddress(lpWrapperAddress),
+            toChecksumAddress(callerAddress),
           ],
-          [1n, 100n, 60n, 2000n, 79228162514264337593543950336n],
-          toChecksumAddress(lpWrapperAddress),
-          toChecksumAddress(callerAddress),
-        ],
-        mockEventData,
+        },
+        block,
+        transaction: { hash: transactionHash },
+        logIndex: 1,
       });
-
-      const result = await (mockDbWithGetWhere as typeof mockDb).processEvents([
-        mockEvent,
-      ]);
 
       // Verify that no wrapper was created
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
-      const createdWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
+      const createdWrapper = await indexer.ALM_LP_Wrapper.get(wrapperId);
       expect(createdWrapper).toBeUndefined();
     });
 
     it("should not create entity when TotalSupplyLimitUpdated event exists but transaction hash doesn't match (covers OR branch)", async () => {
-      let mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
 
       // Pre-populate with NonFungiblePosition
       const mockNFPM: NonFungiblePosition = {
@@ -668,55 +562,52 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
         isStakedInGauge: false,
       };
 
-      mockDb = mockDb.entities.NonFungiblePosition.set(mockNFPM);
+      indexer.NonFungiblePosition.set(mockNFPM);
 
       // Pre-populate with TotalSupplyLimitUpdated event but with different transaction hash
       // This tests the second part of the OR condition: event exists but hash doesn't match
       const totalSupplyEventId = ALMLPWrapperId(chainId, lpWrapperAddress);
-      mockDb = mockDb.entities.ALM_TotalSupplyLimitUpdated_event.set({
+      indexer.ALM_TotalSupplyLimitUpdated_event.set({
         id: totalSupplyEventId,
         lpWrapperAddress: toChecksumAddress(lpWrapperAddress),
         currentTotalSupplyLPTokens: 5000n * 10n ** 18n,
         transactionHash: "0xdifferenthash", // Different hash - tests second part of OR condition
       });
 
-      // Track entities for getWhere query
-      const storedNFPMs = [mockNFPM];
-
-      const mockDbWithGetWhere = extendMockDbWithGetWhere(mockDb, storedNFPMs);
-
-      const mockEvent = ALMDeployFactoryV2.StrategyCreated.createMockEvent({
-        params: [
-          toChecksumAddress(poolAddress),
-          [
+      await simulateEvent(indexer, chainId, {
+        contract: "ALMDeployFactoryV2",
+        event: "StrategyCreated",
+        params: {
+          params: [
+            toChecksumAddress(poolAddress),
             [
-              toChecksumAddress(mockToken0Data.address),
-              toChecksumAddress(mockToken1Data.address),
-              3000n,
-              -1000n,
-              1000n,
-              1000000n,
+              [
+                toChecksumAddress(mockToken0Data.address),
+                toChecksumAddress(mockToken1Data.address),
+                3000n,
+                -1000n,
+                1000n,
+                1000000n,
+              ],
             ],
+            [1n, 100n, 60n, 2000n, 79228162514264337593543950336n],
+            toChecksumAddress(lpWrapperAddress),
+            toChecksumAddress(callerAddress),
           ],
-          [1n, 100n, 60n, 2000n, 79228162514264337593543950336n],
-          toChecksumAddress(lpWrapperAddress),
-          toChecksumAddress(callerAddress),
-        ],
-        mockEventData,
+        },
+        block,
+        transaction: { hash: transactionHash },
+        logIndex: 1,
       });
-
-      const result = await (mockDbWithGetWhere as typeof mockDb).processEvents([
-        mockEvent,
-      ]);
 
       // Verify that no wrapper was created
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
-      const createdWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
+      const createdWrapper = await indexer.ALM_LP_Wrapper.get(wrapperId);
       expect(createdWrapper).toBeUndefined();
     });
 
     it("should handle multiple matching NonFungiblePositions and use the first one", async () => {
-      let mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
 
       // Create two NonFungiblePositions with identical matching properties
       const matchingNFPM1: NonFungiblePosition = {
@@ -745,50 +636,47 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
         mintLogIndex: 2,
       };
 
-      mockDb = mockDb.entities.NonFungiblePosition.set(matchingNFPM1);
-      mockDb = mockDb.entities.NonFungiblePosition.set(matchingNFPM2);
-      mockDb = setupPool(mockDb, mockLiquidityPoolData, poolAddress);
+      indexer.NonFungiblePosition.set(matchingNFPM1);
+      indexer.NonFungiblePosition.set(matchingNFPM2);
+      setupPool(indexer, mockLiquidityPoolData, poolAddress);
 
       // Pre-populate with TotalSupplyLimitUpdated event
       const totalSupplyEventId = ALMLPWrapperId(chainId, lpWrapperAddress);
-      mockDb = mockDb.entities.ALM_TotalSupplyLimitUpdated_event.set({
+      indexer.ALM_TotalSupplyLimitUpdated_event.set({
         id: totalSupplyEventId,
         lpWrapperAddress: toChecksumAddress(lpWrapperAddress),
         currentTotalSupplyLPTokens: 5000n * 10n ** 18n,
         transactionHash: transactionHash,
       });
 
-      // Track entities for getWhere query
-      const storedNFPMs = [matchingNFPM1, matchingNFPM2];
-
-      const mockDbWithGetWhere = extendMockDbWithGetWhere(mockDb, storedNFPMs);
-
-      const mockEvent = ALMDeployFactoryV2.StrategyCreated.createMockEvent({
-        params: [
-          toChecksumAddress(poolAddress),
-          [
+      await simulateEvent(indexer, chainId, {
+        contract: "ALMDeployFactoryV2",
+        event: "StrategyCreated",
+        params: {
+          params: [
+            toChecksumAddress(poolAddress),
             [
-              toChecksumAddress(mockToken0Data.address),
-              toChecksumAddress(mockToken1Data.address),
-              3000n,
-              -1000n,
-              1000n,
-              1000000n,
+              [
+                toChecksumAddress(mockToken0Data.address),
+                toChecksumAddress(mockToken1Data.address),
+                3000n,
+                -1000n,
+                1000n,
+                1000000n,
+              ],
             ],
+            [1n, 100n, 60n, 2000n, 79228162514264337593543950336n],
+            toChecksumAddress(lpWrapperAddress),
+            toChecksumAddress(callerAddress),
           ],
-          [1n, 100n, 60n, 2000n, 79228162514264337593543950336n],
-          toChecksumAddress(lpWrapperAddress),
-          toChecksumAddress(callerAddress),
-        ],
-        mockEventData,
+        },
+        block,
+        transaction: { hash: transactionHash },
+        logIndex: 1,
       });
 
-      const result = await (mockDbWithGetWhere as typeof mockDb).processEvents([
-        mockEvent,
-      ]);
-
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
-      const createdWrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
+      const createdWrapper = await indexer.ALM_LP_Wrapper.get(wrapperId);
 
       expect(createdWrapper).toBeDefined();
       // Should use the first matching NFPM (matchingNFPM1)

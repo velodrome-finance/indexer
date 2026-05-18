@@ -1,12 +1,8 @@
-import type {
-  CLPool_Collect_event,
-  CLPositionPendingPrincipal,
-  Token,
-  handlerContext,
-} from "generated";
+import type { CLPositionPendingPrincipal, Token } from "envio";
 import type { PoolDiff } from "../../Aggregators/Pool";
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import { CLPositionPendingPrincipalId } from "../../Constants";
+import type { CLPool_Collect_event, handlerContext } from "../../EntityTypes";
 import { calculateTotalUSD, calculateWhitelistedFeesUSD } from "../../Helpers";
 
 export interface CLPoolCollectResult {

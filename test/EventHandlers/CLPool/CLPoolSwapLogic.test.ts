@@ -1,5 +1,9 @@
-import type { CLPool_Swap_event, Token, handlerContext } from "generated";
+import type { Token } from "envio";
 import { TEN_TO_THE_18_BI, toChecksumAddress } from "../../../src/Constants";
+import type {
+  CLPool_Swap_event,
+  handlerContext,
+} from "../../../src/EntityTypes";
 import type { Pool } from "../../../src/EntityTypes";
 import {
   calculateSwapFees,

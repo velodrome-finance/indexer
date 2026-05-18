@@ -1,6 +1,7 @@
-import type { FeeToTickSpacingMapping, handlerContext } from "generated";
+import type { FeeToTickSpacingMapping } from "generated";
 import { updateFeeToTickSpacingMapping } from "../../src/Aggregators/FeeToTickSpacingMapping";
 import { FeeToTickSpacingMappingId } from "../../src/Constants";
+import type { handlerContext } from "../../src/EntityTypes";
 
 describe("FeeToTickSpacingMapping", () => {
   // Shared constants

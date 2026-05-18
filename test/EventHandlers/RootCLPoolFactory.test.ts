@@ -1,4 +1,4 @@
-import { MockDb, RootCLPoolFactory } from "generated/src/TestHelpers.gen";
+import { createTestIndexer } from "envio";
 import {
   PendingRootPoolMappingId,
   PendingVoteId,
@@ -12,6 +12,7 @@ import {
   toChecksumAddress,
 } from "../../src/Constants";
 import { flushPendingVotesAndDistributionsForRootPool } from "../../src/EventHandlers/Voter/CrossChainPendingResolution";
+import { simulateEvent } from "../testHelpers";
 import { type MockPool, setupCommon } from "./Pool/common";
 
 vi.mock(
@@ -30,10 +31,6 @@ vi.mock(
 
 describe("RootCLPoolFactory Events", () => {
   describe("RootPoolCreated Event", () => {
-    let mockDb: ReturnType<typeof MockDb.createMockDb>;
-    let mockEvent: ReturnType<
-      typeof RootCLPoolFactory.RootPoolCreated.createMockEvent
-    >;
     // The following values are taken from an actual real event
     const rootChainId = 10; // Optimism
     const leafChainId = 252; // Fraxtal
@@ -51,32 +48,20 @@ describe("RootCLPoolFactory Events", () => {
     );
     const tickSpacing = BigInt(100);
 
-    beforeEach(() => {
-      mockDb = MockDb.createMockDb();
-      mockEvent = RootCLPoolFactory.RootPoolCreated.createMockEvent({
-        token0,
-        token1,
-        tickSpacing,
-        chainid: BigInt(leafChainId),
-        pool: rootPoolAddress,
-        mockEventData: {
-          block: {
-            timestamp: 1000000,
-            number: 123456,
-            hash: "0xhash",
-          },
-          chainId: rootChainId,
-          logIndex: 1,
-        },
-      });
-    });
+    const sharedBlock = {
+      timestamp: 1000000,
+      number: 123456,
+      hash: "0xhash",
+    };
 
     describe("when matching pool exists on leaf chain", () => {
-      let resultDB: ReturnType<typeof MockDb.createMockDb>;
+      let indexer: ReturnType<typeof createTestIndexer>;
       let mockLiquidityPool: MockPool;
 
       beforeEach(async () => {
         const { createMockPool } = setupCommon();
+
+        indexer = createTestIndexer();
 
         // Create a pool on the leaf chain with matching token addresses and tickSpacing
         mockLiquidityPool = createMockPool({
@@ -97,13 +82,30 @@ describe("RootCLPoolFactory Events", () => {
           ),
         });
 
-        mockDb = mockDb.entities.Pool.set(mockLiquidityPool);
+        // lastSnapshotTimestamp: undefined prevents Quirk 1 crash in shouldSnapshot.
+        // Pool entity types lastSnapshotTimestamp as Date (non-null) — cast to bypass.
+        indexer.Pool.set({
+          ...mockLiquidityPool,
+          lastSnapshotTimestamp: undefined,
+        } as unknown as Parameters<typeof indexer.Pool.set>[0]);
 
-        resultDB = await mockDb.processEvents([mockEvent]);
+        await simulateEvent(indexer, rootChainId, {
+          contract: "RootCLPoolFactory",
+          event: "RootPoolCreated",
+          params: {
+            token0: token0 as `0x${string}`,
+            token1: token1 as `0x${string}`,
+            tickSpacing,
+            chainid: BigInt(leafChainId),
+            pool: rootPoolAddress as `0x${string}`,
+          },
+          block: sharedBlock,
+          logIndex: 1,
+        });
       });
 
-      it("should create RootPool_LeafPool entity", () => {
-        const rootPoolLeafPool = resultDB.entities.RootPool_LeafPool.get(
+      it("should create RootPool_LeafPool entity", async () => {
+        const rootPoolLeafPool = await indexer.RootPool_LeafPool.get(
           RootPoolLeafPoolId(
             rootChainId,
             leafChainId,
@@ -131,7 +133,7 @@ describe("RootCLPoolFactory Events", () => {
     });
 
     describe("when PendingVote(s) exist for the root pool", () => {
-      let resultDB: ReturnType<typeof MockDb.createMockDb>;
+      let indexer: ReturnType<typeof createTestIndexer>;
       const tokenId = 1n;
       const voteWeight = 100n;
       const ownerAddress = toChecksumAddress(
@@ -147,6 +149,8 @@ describe("RootCLPoolFactory Events", () => {
           mockToken0Data,
           mockToken1Data,
         } = setupCommon();
+
+        indexer = createTestIndexer();
 
         const leafToken0 = {
           ...mockToken0Data,
@@ -194,17 +198,34 @@ describe("RootCLPoolFactory Events", () => {
           transactionHash: "0xhash",
         };
 
-        mockDb = mockDb.entities.Pool.set(mockLiquidityPool);
-        mockDb = mockDb.entities.Token.set(leafToken0);
-        mockDb = mockDb.entities.Token.set(leafToken1);
-        mockDb = mockDb.entities.VeNFTState.set(veNFTState);
-        mockDb = mockDb.entities.PendingVote.set(pendingVote);
+        // lastSnapshotTimestamp: undefined prevents Quirk 1 crash in shouldSnapshot.
+        // Pool entity types lastSnapshotTimestamp as Date (non-null) — cast to bypass.
+        indexer.Pool.set({
+          ...mockLiquidityPool,
+          lastSnapshotTimestamp: undefined,
+        } as unknown as Parameters<typeof indexer.Pool.set>[0]);
+        indexer.Token.set(leafToken0);
+        indexer.Token.set(leafToken1);
+        indexer.VeNFTState.set(veNFTState);
+        indexer.PendingVote.set(pendingVote);
 
-        resultDB = await mockDb.processEvents([mockEvent]);
+        await simulateEvent(indexer, rootChainId, {
+          contract: "RootCLPoolFactory",
+          event: "RootPoolCreated",
+          params: {
+            token0: token0 as `0x${string}`,
+            token1: token1 as `0x${string}`,
+            tickSpacing,
+            chainid: BigInt(leafChainId),
+            pool: rootPoolAddress as `0x${string}`,
+          },
+          block: sharedBlock,
+          logIndex: 1,
+        });
       });
 
-      it("should create RootPool_LeafPool and flush pending votes to leaf pool", () => {
-        const rootPoolLeafPool = resultDB.entities.RootPool_LeafPool.get(
+      it("should create RootPool_LeafPool and flush pending votes to leaf pool", async () => {
+        const rootPoolLeafPool = await indexer.RootPool_LeafPool.get(
           RootPoolLeafPoolId(
             rootChainId,
             leafChainId,
@@ -214,24 +235,24 @@ describe("RootCLPoolFactory Events", () => {
         );
         expect(rootPoolLeafPool).toBeDefined();
 
-        const processedPendingVote = resultDB.entities.PendingVote.get(
+        const processedPendingVote = await indexer.PendingVote.get(
           PendingVoteId(rootChainId, rootPoolAddress, tokenId, "0xhash", 1),
         );
         expect(processedPendingVote).toBeUndefined();
 
-        const leafPool = resultDB.entities.Pool.get(
+        const leafPool = await indexer.Pool.get(
           PoolId(leafChainId, leafPoolAddress),
         );
         expect(leafPool?.veNFTamountStaked).toBe(voteWeight);
       });
 
-      it("should update UserStatsPerPool and VeNFTPoolVote for the vote owner on leaf pool", () => {
+      it("should update UserStatsPerPool and VeNFTPoolVote for the vote owner on leaf pool", async () => {
         const userStatsId = UserStatsPerPoolId(
           leafChainId,
           ownerAddress,
           leafPoolAddress,
         );
-        const userStats = resultDB.entities.UserStatsPerPool.get(userStatsId);
+        const userStats = await indexer.UserStatsPerPool.get(userStatsId);
         expect(userStats).toBeDefined();
         expect(userStats?.veNFTamountStaked).toBe(voteWeight);
 
@@ -240,8 +261,7 @@ describe("RootCLPoolFactory Events", () => {
           tokenId,
           leafPoolAddress,
         );
-        const veNFTPoolVote =
-          resultDB.entities.VeNFTPoolVote.get(veNFTPoolVoteId);
+        const veNFTPoolVote = await indexer.VeNFTPoolVote.get(veNFTPoolVoteId);
         expect(veNFTPoolVote).toBeDefined();
         expect(veNFTPoolVote?.veNFTamountStaked).toBe(voteWeight);
       });
@@ -249,17 +269,49 @@ describe("RootCLPoolFactory Events", () => {
 
     describe("when no matching pool exists", () => {
       it("should not create RootPool_LeafPool entity", async () => {
-        const resultDB = await mockDb.processEvents([mockEvent]);
+        const indexer = createTestIndexer();
+        await simulateEvent(indexer, rootChainId, {
+          contract: "RootCLPoolFactory",
+          event: "RootPoolCreated",
+          params: {
+            token0: token0 as `0x${string}`,
+            token1: token1 as `0x${string}`,
+            tickSpacing,
+            chainid: BigInt(leafChainId),
+            pool: rootPoolAddress as `0x${string}`,
+          },
+          block: sharedBlock,
+          logIndex: 1,
+        });
 
-        expect(
-          Array.from(resultDB.entities.RootPool_LeafPool.getAll()),
-        ).toHaveLength(0);
+        const rootPoolLeafPool = await indexer.RootPool_LeafPool.get(
+          RootPoolLeafPoolId(
+            rootChainId,
+            leafChainId,
+            rootPoolAddress,
+            leafPoolAddress,
+          ),
+        );
+        expect(rootPoolLeafPool).toBeUndefined();
       });
 
       it("should create PendingRootPoolMapping when no matching leaf pool exists", async () => {
-        const resultDB = await mockDb.processEvents([mockEvent]);
+        const indexer = createTestIndexer();
+        await simulateEvent(indexer, rootChainId, {
+          contract: "RootCLPoolFactory",
+          event: "RootPoolCreated",
+          params: {
+            token0: token0 as `0x${string}`,
+            token1: token1 as `0x${string}`,
+            tickSpacing,
+            chainid: BigInt(leafChainId),
+            pool: rootPoolAddress as `0x${string}`,
+          },
+          block: sharedBlock,
+          logIndex: 1,
+        });
 
-        const pendingMapping = resultDB.entities.PendingRootPoolMapping.get(
+        const pendingMapping = await indexer.PendingRootPoolMapping.get(
           PendingRootPoolMappingId(rootChainId, rootPoolAddress),
         );
         expect(pendingMapping).toBeDefined();
@@ -276,15 +328,15 @@ describe("RootCLPoolFactory Events", () => {
     });
 
     describe("when multiple matching pools exist", () => {
-      let resultDB: ReturnType<typeof MockDb.createMockDb>;
-      let mockLiquidityPool1: MockPool;
-      let mockLiquidityPool2: MockPool;
+      let indexer: ReturnType<typeof createTestIndexer>;
 
       beforeEach(async () => {
         const { createMockPool } = setupCommon();
 
+        indexer = createTestIndexer();
+
         // Create two pools with the same rootPoolMatchingHash
-        mockLiquidityPool1 = createMockPool({
+        const mockLiquidityPool1 = createMockPool({
           id: PoolId(leafChainId, leafPoolAddress),
           poolAddress: leafPoolAddress,
           chainId: leafChainId,
@@ -303,7 +355,7 @@ describe("RootCLPoolFactory Events", () => {
         });
 
         // Different pool address
-        mockLiquidityPool2 = createMockPool({
+        const mockLiquidityPool2 = createMockPool({
           id: PoolId(
             leafChainId,
             toChecksumAddress("0xFc00000000000000000000000000000000000001"),
@@ -326,16 +378,51 @@ describe("RootCLPoolFactory Events", () => {
           ),
         });
 
-        mockDb = mockDb.entities.Pool.set(mockLiquidityPool1);
-        mockDb = mockDb.entities.Pool.set(mockLiquidityPool2);
+        // lastSnapshotTimestamp: undefined prevents Quirk 1 crash in shouldSnapshot.
+        // Pool entity types lastSnapshotTimestamp as Date (non-null) — cast to bypass.
+        indexer.Pool.set({
+          ...mockLiquidityPool1,
+          lastSnapshotTimestamp: undefined,
+        } as unknown as Parameters<typeof indexer.Pool.set>[0]);
+        indexer.Pool.set({
+          ...mockLiquidityPool2,
+          lastSnapshotTimestamp: undefined,
+        } as unknown as Parameters<typeof indexer.Pool.set>[0]);
 
-        resultDB = await mockDb.processEvents([mockEvent]);
+        await simulateEvent(indexer, rootChainId, {
+          contract: "RootCLPoolFactory",
+          event: "RootPoolCreated",
+          params: {
+            token0: token0 as `0x${string}`,
+            token1: token1 as `0x${string}`,
+            tickSpacing,
+            chainid: BigInt(leafChainId),
+            pool: rootPoolAddress as `0x${string}`,
+          },
+          block: sharedBlock,
+          logIndex: 1,
+        });
       });
 
-      it("should not create RootPool_LeafPool entity", () => {
-        expect(
-          Array.from(resultDB.entities.RootPool_LeafPool.getAll()),
-        ).toHaveLength(0);
+      it("should not create RootPool_LeafPool entity", async () => {
+        const rootPoolLeafPool1 = await indexer.RootPool_LeafPool.get(
+          RootPoolLeafPoolId(
+            rootChainId,
+            leafChainId,
+            rootPoolAddress,
+            leafPoolAddress,
+          ),
+        );
+        const rootPoolLeafPool2 = await indexer.RootPool_LeafPool.get(
+          RootPoolLeafPoolId(
+            rootChainId,
+            leafChainId,
+            rootPoolAddress,
+            toChecksumAddress("0xFc00000000000000000000000000000000000001"),
+          ),
+        );
+        expect(rootPoolLeafPool1).toBeUndefined();
+        expect(rootPoolLeafPool2).toBeUndefined();
       });
     });
   });

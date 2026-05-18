@@ -1,5 +1,5 @@
-import type { Pool_Claim_event } from "generated";
 import { toChecksumAddress } from "../../../src/Constants";
+import type { Pool_Claim_event } from "../../../src/EntityTypes";
 import { processPoolClaim } from "../../../src/EventHandlers/Pool/PoolClaimLogic";
 import { calculateTotalUSD } from "../../../src/Helpers";
 import { setupCommon } from "./common";
@@ -11,7 +11,7 @@ describe("PoolClaimLogic", () => {
     common = setupCommon();
   });
 
-  const mockEvent: Pool_Claim_event = {
+  const mockEvent = {
     chainId: 10,
     block: {
       number: 123456,
@@ -31,7 +31,7 @@ describe("PoolClaimLogic", () => {
       amount0: 1000n,
       amount1: 2000n,
     },
-  };
+  } as Pool_Claim_event;
 
   const gaugeAddress = toChecksumAddress(
     "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",

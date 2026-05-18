@@ -1,4 +1,4 @@
-import { ALMLPWrapperV2, MockDb } from "../../../generated/src/TestHelpers.gen";
+import { createTestIndexer } from "envio";
 import {
   ALMLPWrapperId,
   TEN_TO_THE_6_BI,
@@ -6,6 +6,7 @@ import {
   UserStatsPerPoolId,
   toChecksumAddress,
 } from "../../../src/Constants";
+import { simulateEvent } from "../../testHelpers";
 import { setupCommon } from "../Pool/common";
 
 describe("ALMLPWrapperV2 Events", () => {
@@ -22,45 +23,47 @@ describe("ALMLPWrapperV2 Events", () => {
   const userA = toChecksumAddress("0xcccccccccccccccccccccccccccccccccccccccc");
   const userB = toChecksumAddress("0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
 
-  const mockEventData = {
-    block: {
-      timestamp: 1000000,
-      number: 123456,
-      hash: "0x1111111111111111111111111111111111111111111111111111111111111111",
-    },
-    chainId,
-    logIndex: 1,
-    srcAddress: lpWrapperAddress,
-    transaction: {
-      hash: "0x1111111111111111111111111111111111111111111111111111111111111111",
-    },
+  const blockTimestamp = 1000000;
+  const blockNumber = 123456;
+  const txHash =
+    "0x1111111111111111111111111111111111111111111111111111111111111111";
+
+  const block = {
+    timestamp: blockTimestamp,
+    number: blockNumber,
+    hash: txHash,
   };
 
   describe("Deposit Event", () => {
     it("should update existing ALM_LP_Wrapper entity when it exists", async () => {
-      let mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
 
       // Pre-populate with existing wrapper (created by StrategyCreated event)
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
-      mockDb = mockDb.entities.ALM_LP_Wrapper.set({
+      indexer.ALM_LP_Wrapper.set({
         ...mockALMLPWrapperData,
         id: wrapperId,
       });
 
       // V2: Deposit event has sender, recipient, pool, amount0, amount1, lpAmount, totalSupply
       // The handler only uses recipient (not sender), so we only need to provide recipient in the mock
-      const mockEvent = ALMLPWrapperV2.Deposit.createMockEvent({
-        recipient: userA,
-        pool: poolAddress as `0x${string}`,
-        lpAmount: 1000n * TEN_TO_THE_18_BI,
-        amount0: 500n * TEN_TO_THE_18_BI,
-        amount1: 250n * TEN_TO_THE_6_BI,
-        mockEventData,
+      await simulateEvent(indexer, chainId, {
+        contract: "ALMLPWrapperV2",
+        event: "Deposit",
+        params: {
+          recipient: userA,
+          pool: poolAddress as `0x${string}`,
+          lpAmount: 1000n * TEN_TO_THE_18_BI,
+          amount0: 500n * TEN_TO_THE_18_BI,
+          amount1: 250n * TEN_TO_THE_6_BI,
+        },
+        block,
+        transaction: { hash: txHash },
+        srcAddress: lpWrapperAddress,
+        logIndex: 1,
       });
 
-      const result = await mockDb.processEvents([mockEvent]);
-
-      const wrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
+      const wrapper = await indexer.ALM_LP_Wrapper.get(wrapperId);
 
       expect(wrapper).toBeDefined();
       expect(wrapper?.id).toBe(wrapperId);
@@ -71,56 +74,69 @@ describe("ALMLPWrapperV2 Events", () => {
       expect(wrapper?.lpAmount).toBe(
         mockALMLPWrapperData.lpAmount + 1000n * TEN_TO_THE_18_BI,
       ); // 2000 + 1000 = 3000
-      expect(wrapper?.lastUpdatedTimestamp).toEqual(new Date(1000000 * 1000));
+      // Quirk 2: Date fields returned as ISO strings
+      expect(
+        new Date(wrapper?.lastUpdatedTimestamp as unknown as string).getTime(),
+      ).toBe(blockTimestamp * 1000);
     });
 
     it("should not update when ALM_LP_Wrapper entity not found", async () => {
-      const mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
 
       // V2: Deposit event has sender, recipient, pool, amount0, amount1, lpAmount, totalSupply
       // The handler only uses recipient (not sender), so we only need to provide recipient in the mock
-      const mockEvent = ALMLPWrapperV2.Deposit.createMockEvent({
-        recipient: userA,
-        pool: poolAddress as `0x${string}`,
-        lpAmount: 1000n * TEN_TO_THE_18_BI,
-        amount0: 500n * TEN_TO_THE_18_BI,
-        amount1: 250n * TEN_TO_THE_6_BI,
-        mockEventData,
+      await simulateEvent(indexer, chainId, {
+        contract: "ALMLPWrapperV2",
+        event: "Deposit",
+        params: {
+          recipient: userA,
+          pool: poolAddress as `0x${string}`,
+          lpAmount: 1000n * TEN_TO_THE_18_BI,
+          amount0: 500n * TEN_TO_THE_18_BI,
+          amount1: 250n * TEN_TO_THE_6_BI,
+        },
+        block,
+        transaction: { hash: txHash },
+        srcAddress: lpWrapperAddress,
+        logIndex: 1,
       });
-
-      const result = await mockDb.processEvents([mockEvent]);
 
       // Verify that no wrapper was created
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
-      const wrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
+      const wrapper = await indexer.ALM_LP_Wrapper.get(wrapperId);
       expect(wrapper).toBeUndefined();
     });
 
     it("should create UserStatsPerPool entity if it doesn't exist", async () => {
-      let mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
 
       // Pre-populate with existing wrapper (created by StrategyCreated event)
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
-      mockDb = mockDb.entities.ALM_LP_Wrapper.set({
+      indexer.ALM_LP_Wrapper.set({
         ...mockALMLPWrapperData,
         id: wrapperId,
       });
 
       // V2: Deposit event has sender, recipient, pool, amount0, amount1, lpAmount, totalSupply
       // The handler only uses recipient (not sender), so we only need to provide recipient in the mock
-      const mockEvent = ALMLPWrapperV2.Deposit.createMockEvent({
-        recipient: userA,
-        pool: poolAddress as `0x${string}`,
-        lpAmount: 1000n * TEN_TO_THE_18_BI,
-        amount0: 500n * TEN_TO_THE_18_BI,
-        amount1: 250n * TEN_TO_THE_6_BI,
-        mockEventData,
+      await simulateEvent(indexer, chainId, {
+        contract: "ALMLPWrapperV2",
+        event: "Deposit",
+        params: {
+          recipient: userA,
+          pool: poolAddress as `0x${string}`,
+          lpAmount: 1000n * TEN_TO_THE_18_BI,
+          amount0: 500n * TEN_TO_THE_18_BI,
+          amount1: 250n * TEN_TO_THE_6_BI,
+        },
+        block,
+        transaction: { hash: txHash },
+        srcAddress: lpWrapperAddress,
+        logIndex: 1,
       });
 
-      const result = await mockDb.processEvents([mockEvent]);
-
       const userStatsId = UserStatsPerPoolId(chainId, userA, poolAddress);
-      const userStats = result.entities.UserStatsPerPool.get(userStatsId);
+      const userStats = await indexer.UserStatsPerPool.get(userStatsId);
 
       expect(userStats).toBeDefined();
       expect(userStats?.id).toBe(userStatsId);
@@ -132,18 +148,18 @@ describe("ALMLPWrapperV2 Events", () => {
     });
 
     it("should update existing UserStatsPerPool entity with cumulative values", async () => {
-      let mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
 
       // Pre-populate with existing wrapper (created by StrategyCreated event)
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
-      mockDb = mockDb.entities.ALM_LP_Wrapper.set({
+      indexer.ALM_LP_Wrapper.set({
         ...mockALMLPWrapperData,
         id: wrapperId,
       });
 
       // Pre-populate with existing user stats
       const userStatsId = UserStatsPerPoolId(chainId, userA, poolAddress);
-      mockDb = mockDb.entities.UserStatsPerPool.set(
+      indexer.UserStatsPerPool.set(
         createMockUserStatsPerPool({
           userAddress: userA,
           poolAddress: poolAddress,
@@ -154,54 +170,67 @@ describe("ALMLPWrapperV2 Events", () => {
 
       // V2: Deposit event has sender, recipient, pool, amount0, amount1, lpAmount, totalSupply
       // The handler only uses recipient (not sender), so we only need to provide recipient in the mock
-      const mockEvent = ALMLPWrapperV2.Deposit.createMockEvent({
-        recipient: userA,
-        pool: poolAddress as `0x${string}`,
-        lpAmount: 1000n * TEN_TO_THE_18_BI,
-        amount0: 500n * TEN_TO_THE_18_BI,
-        amount1: 250n * TEN_TO_THE_6_BI,
-        mockEventData,
+      await simulateEvent(indexer, chainId, {
+        contract: "ALMLPWrapperV2",
+        event: "Deposit",
+        params: {
+          recipient: userA,
+          pool: poolAddress as `0x${string}`,
+          lpAmount: 1000n * TEN_TO_THE_18_BI,
+          amount0: 500n * TEN_TO_THE_18_BI,
+          amount1: 250n * TEN_TO_THE_6_BI,
+        },
+        block,
+        transaction: { hash: txHash },
+        srcAddress: lpWrapperAddress,
+        logIndex: 1,
       });
 
-      const result = await mockDb.processEvents([mockEvent]);
-
-      const userStats = result.entities.UserStatsPerPool.get(userStatsId);
+      const userStats = await indexer.UserStatsPerPool.get(userStatsId);
 
       expect(userStats).toBeDefined();
       // ALM amounts are derived from LP share after deposit
       expect(userStats?.almLpAmount).toBe(1600n * TEN_TO_THE_18_BI); // 600 + 1000
-      expect(userStats?.lastActivityTimestamp).toEqual(
-        new Date(1000000 * 1000),
-      );
+      // Quirk 2: Date fields returned as ISO strings
+      expect(
+        new Date(
+          userStats?.lastActivityTimestamp as unknown as string,
+        ).getTime(),
+      ).toBe(blockTimestamp * 1000);
     });
 
     it("should update both ALM_LP_Wrapper and UserStatsPerPool in the same transaction", async () => {
-      let mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
 
       // Pre-populate with existing wrapper (created by StrategyCreated event)
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
-      mockDb = mockDb.entities.ALM_LP_Wrapper.set({
+      indexer.ALM_LP_Wrapper.set({
         ...mockALMLPWrapperData,
         id: wrapperId,
       });
 
       // V2: Deposit event has sender, recipient, pool, amount0, amount1, lpAmount, totalSupply
       // The handler only uses recipient (not sender), so we only need to provide recipient in the mock
-      const mockEvent = ALMLPWrapperV2.Deposit.createMockEvent({
-        recipient: userA,
-        pool: poolAddress as `0x${string}`,
-        lpAmount: 1000n * TEN_TO_THE_18_BI,
-        amount0: 500n * TEN_TO_THE_18_BI,
-        amount1: 250n * TEN_TO_THE_6_BI,
-        mockEventData,
+      await simulateEvent(indexer, chainId, {
+        contract: "ALMLPWrapperV2",
+        event: "Deposit",
+        params: {
+          recipient: userA,
+          pool: poolAddress as `0x${string}`,
+          lpAmount: 1000n * TEN_TO_THE_18_BI,
+          amount0: 500n * TEN_TO_THE_18_BI,
+          amount1: 250n * TEN_TO_THE_6_BI,
+        },
+        block,
+        transaction: { hash: txHash },
+        srcAddress: lpWrapperAddress,
+        logIndex: 1,
       });
-
-      const result = await mockDb.processEvents([mockEvent]);
 
       const userStatsId = UserStatsPerPoolId(chainId, userA, poolAddress);
 
-      const wrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
-      const userStats = result.entities.UserStatsPerPool.get(userStatsId);
+      const wrapper = await indexer.ALM_LP_Wrapper.get(wrapperId);
+      const userStats = await indexer.UserStatsPerPool.get(userStatsId);
 
       expect(wrapper).toBeDefined();
       expect(userStats).toBeDefined();
@@ -217,72 +246,85 @@ describe("ALMLPWrapperV2 Events", () => {
 
   describe("Withdraw Event", () => {
     it("should decrease amounts in existing ALM_LP_Wrapper entity", async () => {
-      let mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
 
       // Pre-populate with existing wrapper
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
-      mockDb = mockDb.entities.ALM_LP_Wrapper.set({
+      indexer.ALM_LP_Wrapper.set({
         ...mockALMLPWrapperData,
         id: wrapperId,
       });
 
       // V2: Withdraw event has sender, recipient, pool, amount0, amount1, lpAmount
       // The handler uses sender (not recipient), so we need to provide sender in the mock
-      const mockEvent = ALMLPWrapperV2.Withdraw.createMockEvent({
-        sender: userA,
-        pool: poolAddress as `0x${string}`,
-        lpAmount: 500n * TEN_TO_THE_18_BI,
-        amount0: 250n * TEN_TO_THE_18_BI,
-        amount1: 125n * TEN_TO_THE_6_BI,
-        mockEventData,
+      await simulateEvent(indexer, chainId, {
+        contract: "ALMLPWrapperV2",
+        event: "Withdraw",
+        params: {
+          sender: userA,
+          pool: poolAddress as `0x${string}`,
+          lpAmount: 500n * TEN_TO_THE_18_BI,
+          amount0: 250n * TEN_TO_THE_18_BI,
+          amount1: 125n * TEN_TO_THE_6_BI,
+        },
+        block,
+        transaction: { hash: txHash },
+        srcAddress: lpWrapperAddress,
+        logIndex: 1,
       });
 
-      const result = await mockDb.processEvents([mockEvent]);
-
-      const wrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
+      const wrapper = await indexer.ALM_LP_Wrapper.get(wrapperId);
 
       expect(wrapper).toBeDefined();
       expect(wrapper?.liquidity).toBeDefined();
       // lpAmount is decremented (aggregation from events)
       expect(wrapper?.lpAmount).toBe(1500n * TEN_TO_THE_18_BI); // 2000 - 500
-      expect(wrapper?.lastUpdatedTimestamp).toEqual(new Date(1000000 * 1000));
+      // Quirk 2: Date fields returned as ISO strings
+      expect(
+        new Date(wrapper?.lastUpdatedTimestamp as unknown as string).getTime(),
+      ).toBe(blockTimestamp * 1000);
     });
 
     it("should not update when ALM_LP_Wrapper entity not found", async () => {
-      const mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
 
       // V2: Withdraw event has sender, recipient, pool, amount0, amount1, lpAmount
       // The handler uses sender (not recipient), so we need to provide sender in the mock
-      const mockEvent = ALMLPWrapperV2.Withdraw.createMockEvent({
-        sender: userA,
-        pool: poolAddress as `0x${string}`,
-        lpAmount: 500n * TEN_TO_THE_18_BI,
-        amount0: 250n * TEN_TO_THE_18_BI,
-        amount1: 125n * TEN_TO_THE_6_BI,
-        mockEventData,
+      await simulateEvent(indexer, chainId, {
+        contract: "ALMLPWrapperV2",
+        event: "Withdraw",
+        params: {
+          sender: userA,
+          pool: poolAddress as `0x${string}`,
+          lpAmount: 500n * TEN_TO_THE_18_BI,
+          amount0: 250n * TEN_TO_THE_18_BI,
+          amount1: 125n * TEN_TO_THE_6_BI,
+        },
+        block,
+        transaction: { hash: txHash },
+        srcAddress: lpWrapperAddress,
+        logIndex: 1,
       });
-
-      const result = await mockDb.processEvents([mockEvent]);
 
       // Verify that no wrapper was created or updated
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
-      const wrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
+      const wrapper = await indexer.ALM_LP_Wrapper.get(wrapperId);
       expect(wrapper).toBeUndefined();
     });
 
     it("should update UserStatsPerPool entity for recipient with decreased amounts", async () => {
-      let mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
 
       // Pre-populate with existing wrapper (created by StrategyCreated event)
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
-      mockDb = mockDb.entities.ALM_LP_Wrapper.set({
+      indexer.ALM_LP_Wrapper.set({
         ...mockALMLPWrapperData,
         id: wrapperId,
       });
 
       // Pre-populate with existing user stats
       const userStatsId = UserStatsPerPoolId(chainId, userA, poolAddress);
-      mockDb = mockDb.entities.UserStatsPerPool.set(
+      indexer.UserStatsPerPool.set(
         createMockUserStatsPerPool({
           userAddress: userA,
           poolAddress: poolAddress,
@@ -293,35 +335,43 @@ describe("ALMLPWrapperV2 Events", () => {
 
       // V2: Withdraw event has sender, recipient, pool, amount0, amount1, lpAmount
       // The handler uses sender (not recipient), so we need to provide sender in the mock
-      const mockEvent = ALMLPWrapperV2.Withdraw.createMockEvent({
-        sender: userA,
-        pool: poolAddress as `0x${string}`,
-        lpAmount: 500n * TEN_TO_THE_18_BI,
-        amount0: 250n * TEN_TO_THE_18_BI,
-        amount1: 125n * TEN_TO_THE_6_BI,
-        mockEventData,
+      await simulateEvent(indexer, chainId, {
+        contract: "ALMLPWrapperV2",
+        event: "Withdraw",
+        params: {
+          sender: userA,
+          pool: poolAddress as `0x${string}`,
+          lpAmount: 500n * TEN_TO_THE_18_BI,
+          amount0: 250n * TEN_TO_THE_18_BI,
+          amount1: 125n * TEN_TO_THE_6_BI,
+        },
+        block,
+        transaction: { hash: txHash },
+        srcAddress: lpWrapperAddress,
+        logIndex: 1,
       });
 
-      const result = await mockDb.processEvents([mockEvent]);
-
-      const userStats = result.entities.UserStatsPerPool.get(userStatsId);
+      const userStats = await indexer.UserStatsPerPool.get(userStatsId);
 
       expect(userStats).toBeDefined();
       // ALM amounts are derived from LP share after withdrawal
       expect(userStats?.almLpAmount).toBe(1500n * TEN_TO_THE_18_BI); // 2000 - 500
-      expect(userStats?.lastActivityTimestamp).toEqual(
-        new Date(1000000 * 1000),
-      );
+      // Quirk 2: Date fields returned as ISO strings
+      expect(
+        new Date(
+          userStats?.lastActivityTimestamp as unknown as string,
+        ).getTime(),
+      ).toBe(blockTimestamp * 1000);
     });
   });
 
   describe("Transfer Event", () => {
     it("should update UserStatsPerPool for both sender and recipient", async () => {
-      let mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
 
       // Pre-populate with existing wrapper (required for Transfer to work)
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
-      mockDb = mockDb.entities.ALM_LP_Wrapper.set({
+      indexer.ALM_LP_Wrapper.set({
         ...mockALMLPWrapperData,
         id: wrapperId,
       });
@@ -330,7 +380,7 @@ describe("ALMLPWrapperV2 Events", () => {
       const userStatsFromId = UserStatsPerPoolId(chainId, userB, poolAddress);
       const userStatsToId = UserStatsPerPoolId(chainId, userA, poolAddress);
 
-      mockDb = mockDb.entities.UserStatsPerPool.set(
+      indexer.UserStatsPerPool.set(
         createMockUserStatsPerPool({
           userAddress: userB,
           poolAddress: poolAddress,
@@ -339,7 +389,7 @@ describe("ALMLPWrapperV2 Events", () => {
         }),
       );
 
-      mockDb = mockDb.entities.UserStatsPerPool.set(
+      indexer.UserStatsPerPool.set(
         createMockUserStatsPerPool({
           userAddress: userA,
           poolAddress: poolAddress,
@@ -349,45 +399,49 @@ describe("ALMLPWrapperV2 Events", () => {
       );
 
       const transferAmount = 1000n * TEN_TO_THE_18_BI;
-      const mockEvent = ALMLPWrapperV2.Transfer.createMockEvent({
-        from: userB,
-        to: userA,
-        value: transferAmount,
-        mockEventData,
+      await simulateEvent(indexer, chainId, {
+        contract: "ALMLPWrapperV2",
+        event: "Transfer",
+        params: {
+          from: userB,
+          to: userA,
+          value: transferAmount,
+        },
+        block,
+        transaction: { hash: txHash },
+        srcAddress: lpWrapperAddress,
+        logIndex: 1,
       });
 
-      const result = await mockDb.processEvents([mockEvent]);
-
       // Verify ALM_LP_Wrapper is unchanged (transfers don't affect pool-level liquidity)
-      const wrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
+      const wrapper = await indexer.ALM_LP_Wrapper.get(wrapperId);
       expect(wrapper).toBeDefined();
       expect(wrapper?.lpAmount).toBe(mockALMLPWrapperData.lpAmount);
 
       // Verify sender's almLpAmount decreased
-      const userStatsFrom =
-        result.entities.UserStatsPerPool.get(userStatsFromId);
+      const userStatsFrom = await indexer.UserStatsPerPool.get(userStatsFromId);
       expect(userStatsFrom).toBeDefined();
       expect(userStatsFrom?.almLpAmount).toBe(4000n * TEN_TO_THE_18_BI); // 5000 - 1000
 
-      const userStatsTo = result.entities.UserStatsPerPool.get(userStatsToId);
+      const userStatsTo = await indexer.UserStatsPerPool.get(userStatsToId);
       expect(userStatsTo).toBeDefined();
       expect(userStatsTo?.almLpAmount).toBe(3000n * TEN_TO_THE_18_BI); // 2000 + 1000
       expect(userStatsTo?.almAddress).toBe(lpWrapperAddress);
     });
 
     it("should handle transfer when recipient has no existing ALM position", async () => {
-      let mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
 
       // Pre-populate with existing wrapper
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
-      mockDb = mockDb.entities.ALM_LP_Wrapper.set({
+      indexer.ALM_LP_Wrapper.set({
         ...mockALMLPWrapperData,
         id: wrapperId,
       });
 
       // Pre-populate only sender's user stats
       const userStatsFromId = UserStatsPerPoolId(chainId, userB, poolAddress);
-      mockDb = mockDb.entities.UserStatsPerPool.set(
+      indexer.UserStatsPerPool.set(
         createMockUserStatsPerPool({
           userAddress: userB,
           poolAddress: poolAddress,
@@ -397,23 +451,27 @@ describe("ALMLPWrapperV2 Events", () => {
       );
 
       const transferAmount = 500n * TEN_TO_THE_18_BI;
-      const mockEvent = ALMLPWrapperV2.Transfer.createMockEvent({
-        from: userB,
-        to: userA,
-        value: transferAmount,
-        mockEventData,
+      await simulateEvent(indexer, chainId, {
+        contract: "ALMLPWrapperV2",
+        event: "Transfer",
+        params: {
+          from: userB,
+          to: userA,
+          value: transferAmount,
+        },
+        block,
+        transaction: { hash: txHash },
+        srcAddress: lpWrapperAddress,
+        logIndex: 1,
       });
 
-      const result = await mockDb.processEvents([mockEvent]);
-
       // Verify sender's almLpAmount decreased
-      const userStatsFrom =
-        result.entities.UserStatsPerPool.get(userStatsFromId);
+      const userStatsFrom = await indexer.UserStatsPerPool.get(userStatsFromId);
       expect(userStatsFrom?.almLpAmount).toBe(2500n * TEN_TO_THE_18_BI); // 3000 - 500
 
       // Verify recipient's almLpAmount was created and set to transfer amount
       const userStatsToId = UserStatsPerPoolId(chainId, userA, poolAddress);
-      const userStatsTo = result.entities.UserStatsPerPool.get(userStatsToId);
+      const userStatsTo = await indexer.UserStatsPerPool.get(userStatsToId);
       expect(userStatsTo).toBeDefined();
       expect(userStatsTo?.almLpAmount).toBe(500n * TEN_TO_THE_18_BI); // 0 + 500
       // Recipient's amounts are derived from LP share after transfer
@@ -421,38 +479,42 @@ describe("ALMLPWrapperV2 Events", () => {
     });
 
     it("should not update when ALM_LP_Wrapper entity not found", async () => {
-      const mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
 
-      const mockEvent = ALMLPWrapperV2.Transfer.createMockEvent({
-        from: userB,
-        to: userA,
-        value: 1000n * TEN_TO_THE_18_BI,
-        mockEventData,
+      await simulateEvent(indexer, chainId, {
+        contract: "ALMLPWrapperV2",
+        event: "Transfer",
+        params: {
+          from: userB,
+          to: userA,
+          value: 1000n * TEN_TO_THE_18_BI,
+        },
+        block,
+        transaction: { hash: txHash },
+        srcAddress: lpWrapperAddress,
+        logIndex: 1,
       });
-
-      const result = await mockDb.processEvents([mockEvent]);
 
       // Verify that no wrapper was created or updated
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
-      const wrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
+      const wrapper = await indexer.ALM_LP_Wrapper.get(wrapperId);
       expect(wrapper).toBeUndefined();
 
       // Verify that no user stats were created or updated
       const userStatsFromId = UserStatsPerPoolId(chainId, userB, poolAddress);
       const userStatsToId = UserStatsPerPoolId(chainId, userA, poolAddress);
-      const userStatsFrom =
-        result.entities.UserStatsPerPool.get(userStatsFromId);
-      const userStatsTo = result.entities.UserStatsPerPool.get(userStatsToId);
+      const userStatsFrom = await indexer.UserStatsPerPool.get(userStatsFromId);
+      const userStatsTo = await indexer.UserStatsPerPool.get(userStatsToId);
       expect(userStatsFrom).toBeUndefined();
       expect(userStatsTo).toBeUndefined();
     });
 
     it("should skip zero address transfers (mint/burn) to avoid double counting", async () => {
-      let mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
 
       // Pre-populate with existing wrapper
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
-      mockDb = mockDb.entities.ALM_LP_Wrapper.set({
+      indexer.ALM_LP_Wrapper.set({
         ...mockALMLPWrapperData,
         id: wrapperId,
       });
@@ -464,18 +526,22 @@ describe("ALMLPWrapperV2 Events", () => {
 
       // Mint: from zero address - handler should return early without updating UserStatsPerPool
       // Deposit/Withdraw events already handle mints/burns correctly
-      const mintEvent = ALMLPWrapperV2.Transfer.createMockEvent({
-        from: zeroAddress,
-        to: userA,
-        value: transferAmount,
-        mockEventData,
+      await simulateEvent(indexer, chainId, {
+        contract: "ALMLPWrapperV2",
+        event: "Transfer",
+        params: {
+          from: zeroAddress,
+          to: userA,
+          value: transferAmount,
+        },
+        block,
+        transaction: { hash: txHash },
+        srcAddress: lpWrapperAddress,
+        logIndex: 1,
       });
 
-      const mintResult = await mockDb.processEvents([mintEvent]);
-
       const toUserStatsId = UserStatsPerPoolId(chainId, userA, poolAddress);
-      const toUserStats =
-        mintResult.entities.UserStatsPerPool.get(toUserStatsId);
+      const toUserStats = await indexer.UserStatsPerPool.get(toUserStatsId);
 
       // Handler returns early for mints, so no UserStatsPerPool should be created/updated
       expect(toUserStats).toBeUndefined();
@@ -488,7 +554,7 @@ describe("ALMLPWrapperV2 Events", () => {
         burnerAddress,
         poolAddress,
       );
-      mockDb = mockDb.entities.UserStatsPerPool.set(
+      indexer.UserStatsPerPool.set(
         createMockUserStatsPerPool({
           userAddress: burnerAddress,
           poolAddress: poolAddress,
@@ -497,17 +563,22 @@ describe("ALMLPWrapperV2 Events", () => {
         }),
       );
 
-      const burnEvent = ALMLPWrapperV2.Transfer.createMockEvent({
-        from: burnerAddress,
-        to: zeroAddress,
-        value: transferAmount,
-        mockEventData,
+      await simulateEvent(indexer, chainId, {
+        contract: "ALMLPWrapperV2",
+        event: "Transfer",
+        params: {
+          from: burnerAddress,
+          to: zeroAddress,
+          value: transferAmount,
+        },
+        block,
+        transaction: { hash: txHash },
+        srcAddress: lpWrapperAddress,
+        logIndex: 2,
       });
 
-      const burnResult = await mockDb.processEvents([burnEvent]);
-
       const burnerUserStats =
-        burnResult.entities.UserStatsPerPool.get(burnerUserStatsId);
+        await indexer.UserStatsPerPool.get(burnerUserStatsId);
 
       // Handler returns early for burns, so UserStatsPerPool should remain unchanged
       expect(burnerUserStats).toBeDefined();
@@ -517,29 +588,34 @@ describe("ALMLPWrapperV2 Events", () => {
 
   describe("Edge Cases", () => {
     it("should handle zero amounts in Deposit", async () => {
-      let mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
 
       // Pre-populate with existing wrapper (created by StrategyCreated event)
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
-      mockDb = mockDb.entities.ALM_LP_Wrapper.set({
+      indexer.ALM_LP_Wrapper.set({
         ...mockALMLPWrapperData,
         id: wrapperId,
       });
 
       // V2: Deposit event has sender, recipient, pool, amount0, amount1, lpAmount, totalSupply
       // The handler only uses recipient (not sender), so we only need to provide recipient in the mock
-      const mockEvent = ALMLPWrapperV2.Deposit.createMockEvent({
-        recipient: userA,
-        pool: poolAddress as `0x${string}`,
-        lpAmount: 0n,
-        amount0: 0n,
-        amount1: 0n,
-        mockEventData,
+      await simulateEvent(indexer, chainId, {
+        contract: "ALMLPWrapperV2",
+        event: "Deposit",
+        params: {
+          recipient: userA,
+          pool: poolAddress as `0x${string}`,
+          lpAmount: 0n,
+          amount0: 0n,
+          amount1: 0n,
+        },
+        block,
+        transaction: { hash: txHash },
+        srcAddress: lpWrapperAddress,
+        logIndex: 1,
       });
 
-      const result = await mockDb.processEvents([mockEvent]);
-
-      const wrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
+      const wrapper = await indexer.ALM_LP_Wrapper.get(wrapperId);
 
       expect(wrapper).toBeDefined();
       // Zero amounts should add zero (no change to recalculated amounts)
@@ -548,11 +624,11 @@ describe("ALMLPWrapperV2 Events", () => {
     });
 
     it("should handle multiple deposits from different users", async () => {
-      let mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
 
       // Pre-populate with existing wrapper (created by StrategyCreated event)
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
-      mockDb = mockDb.entities.ALM_LP_Wrapper.set({
+      indexer.ALM_LP_Wrapper.set({
         ...mockALMLPWrapperData,
         id: wrapperId,
       });
@@ -564,36 +640,43 @@ describe("ALMLPWrapperV2 Events", () => {
       // First deposit
       // V2: Deposit event has sender, recipient, pool, amount0, amount1, lpAmount, totalSupply
       // The handler only uses recipient (not sender), so we only need to provide recipient in the mock
-      let mockEvent = ALMLPWrapperV2.Deposit.createMockEvent({
-        recipient: userA,
-        pool: poolAddress as `0x${string}`,
-        lpAmount: 1000n * TEN_TO_THE_18_BI,
-        amount0: 500n * TEN_TO_THE_18_BI,
-        amount1: 250n * TEN_TO_THE_6_BI,
-        mockEventData,
+      await simulateEvent(indexer, chainId, {
+        contract: "ALMLPWrapperV2",
+        event: "Deposit",
+        params: {
+          recipient: userA,
+          pool: poolAddress as `0x${string}`,
+          lpAmount: 1000n * TEN_TO_THE_18_BI,
+          amount0: 500n * TEN_TO_THE_18_BI,
+          amount1: 250n * TEN_TO_THE_6_BI,
+        },
+        block,
+        transaction: { hash: txHash },
+        srcAddress: lpWrapperAddress,
+        logIndex: 1,
       });
-
-      mockDb = await mockDb.processEvents([mockEvent]);
 
       // Second deposit from different user
-      mockEvent = ALMLPWrapperV2.Deposit.createMockEvent({
-        recipient: recipient2,
-        pool: poolAddress as `0x${string}`,
-        lpAmount: 2000n * TEN_TO_THE_18_BI,
-        amount0: 1000n * TEN_TO_THE_18_BI,
-        amount1: 500n * TEN_TO_THE_6_BI,
-        mockEventData: {
-          ...mockEventData,
-          block: {
-            ...mockEventData.block,
-            timestamp: 1000001,
-          },
+      await simulateEvent(indexer, chainId, {
+        contract: "ALMLPWrapperV2",
+        event: "Deposit",
+        params: {
+          recipient: recipient2,
+          pool: poolAddress as `0x${string}`,
+          lpAmount: 2000n * TEN_TO_THE_18_BI,
+          amount0: 1000n * TEN_TO_THE_18_BI,
+          amount1: 500n * TEN_TO_THE_6_BI,
         },
+        block: {
+          ...block,
+          timestamp: 1000001,
+        },
+        transaction: { hash: txHash },
+        srcAddress: lpWrapperAddress,
+        logIndex: 2,
       });
 
-      const result = await mockDb.processEvents([mockEvent]);
-
-      const wrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
+      const wrapper = await indexer.ALM_LP_Wrapper.get(wrapperId);
 
       expect(wrapper).toBeDefined();
       expect(wrapper?.liquidity).toBeDefined();
@@ -608,8 +691,8 @@ describe("ALMLPWrapperV2 Events", () => {
       const userStats1Id = UserStatsPerPoolId(chainId, userA, poolAddress);
       const userStats2Id = UserStatsPerPoolId(chainId, recipient2, poolAddress);
 
-      const userStats1 = result.entities.UserStatsPerPool.get(userStats1Id);
-      const userStats2 = result.entities.UserStatsPerPool.get(userStats2Id);
+      const userStats1 = await indexer.UserStatsPerPool.get(userStats1Id);
+      const userStats2 = await indexer.UserStatsPerPool.get(userStats2Id);
 
       expect(userStats1).toBeDefined();
       expect(userStats1?.almLpAmount).toBe(1000n * TEN_TO_THE_18_BI);
@@ -618,11 +701,11 @@ describe("ALMLPWrapperV2 Events", () => {
     });
 
     it("should handle deposit and withdrawal sequence correctly", async () => {
-      let mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
 
       // Pre-populate with existing wrapper
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
-      mockDb = mockDb.entities.ALM_LP_Wrapper.set({
+      indexer.ALM_LP_Wrapper.set({
         ...mockALMLPWrapperData,
         id: wrapperId,
       });
@@ -630,40 +713,45 @@ describe("ALMLPWrapperV2 Events", () => {
       // First deposit
       // V2: Deposit event has sender, recipient, pool, amount0, amount1, lpAmount, totalSupply
       // The handler only uses recipient (not sender), so we only need to provide recipient in the mock
-      let mockEvent = ALMLPWrapperV2.Deposit.createMockEvent({
-        recipient: userA,
-        pool: poolAddress as `0x${string}`,
-        lpAmount: 1000n * TEN_TO_THE_18_BI,
-        amount0: 500n * TEN_TO_THE_18_BI,
-        amount1: 250n * TEN_TO_THE_6_BI,
-        mockEventData,
+      await simulateEvent(indexer, chainId, {
+        contract: "ALMLPWrapperV2",
+        event: "Deposit",
+        params: {
+          recipient: userA,
+          pool: poolAddress as `0x${string}`,
+          lpAmount: 1000n * TEN_TO_THE_18_BI,
+          amount0: 500n * TEN_TO_THE_18_BI,
+          amount1: 250n * TEN_TO_THE_6_BI,
+        },
+        block,
+        transaction: { hash: txHash },
+        srcAddress: lpWrapperAddress,
+        logIndex: 1,
       });
-
-      let result = await mockDb.processEvents([mockEvent]);
-
-      mockDb = result;
 
       // Then withdraw
       // V2: Withdraw event has sender, recipient, pool, amount0, amount1, lpAmount
       // The handler uses sender (not recipient), so we need to provide sender in the mock
-      mockEvent = ALMLPWrapperV2.Withdraw.createMockEvent({
-        sender: userA,
-        pool: poolAddress as `0x${string}`,
-        lpAmount: 500n * TEN_TO_THE_18_BI,
-        amount0: 250n * TEN_TO_THE_18_BI,
-        amount1: 125n * TEN_TO_THE_6_BI,
-        mockEventData: {
-          ...mockEventData,
-          block: {
-            ...mockEventData.block,
-            timestamp: 1000001,
-          },
+      await simulateEvent(indexer, chainId, {
+        contract: "ALMLPWrapperV2",
+        event: "Withdraw",
+        params: {
+          sender: userA,
+          pool: poolAddress as `0x${string}`,
+          lpAmount: 500n * TEN_TO_THE_18_BI,
+          amount0: 250n * TEN_TO_THE_18_BI,
+          amount1: 125n * TEN_TO_THE_6_BI,
         },
+        block: {
+          ...block,
+          timestamp: 1000001,
+        },
+        transaction: { hash: txHash },
+        srcAddress: lpWrapperAddress,
+        logIndex: 2,
       });
 
-      result = await mockDb.processEvents([mockEvent]);
-
-      const wrapper = result.entities.ALM_LP_Wrapper.get(wrapperId);
+      const wrapper = await indexer.ALM_LP_Wrapper.get(wrapperId);
 
       expect(wrapper).toBeDefined();
       // lpAmount: initial 2000 + deposit 1000 - withdraw 500 = 2500
@@ -678,20 +766,25 @@ describe("ALMLPWrapperV2 Events", () => {
 
   describe("TotalSupplyLimitUpdated Event", () => {
     it("should create ALM_TotalSupplyLimitUpdated_event entity", async () => {
-      const mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
 
-      const mockEvent = ALMLPWrapperV2.TotalSupplyLimitUpdated.createMockEvent({
-        newTotalSupplyLimit: 10000n * TEN_TO_THE_18_BI,
-        totalSupplyLimitOld: 5000n * TEN_TO_THE_18_BI,
-        totalSupplyCurrent: 7500n * TEN_TO_THE_18_BI,
-        mockEventData,
+      await simulateEvent(indexer, chainId, {
+        contract: "ALMLPWrapperV2",
+        event: "TotalSupplyLimitUpdated",
+        params: {
+          newTotalSupplyLimit: 10000n * TEN_TO_THE_18_BI,
+          totalSupplyLimitOld: 5000n * TEN_TO_THE_18_BI,
+          totalSupplyCurrent: 7500n * TEN_TO_THE_18_BI,
+        },
+        block,
+        transaction: { hash: txHash },
+        srcAddress: lpWrapperAddress,
+        logIndex: 1,
       });
-
-      const result = await mockDb.processEvents([mockEvent]);
 
       const eventId = ALMLPWrapperId(chainId, lpWrapperAddress);
       const createdEvent =
-        result.entities.ALM_TotalSupplyLimitUpdated_event.get(eventId);
+        await indexer.ALM_TotalSupplyLimitUpdated_event.get(eventId);
 
       expect(createdEvent).toBeDefined();
       expect(createdEvent?.id).toBe(eventId);
@@ -700,16 +793,14 @@ describe("ALMLPWrapperV2 Events", () => {
         7500n * TEN_TO_THE_18_BI,
       );
       // Handler uses event.transaction.hash
-      expect(createdEvent?.transactionHash).toBe(
-        mockEventData.transaction.hash,
-      );
+      expect(createdEvent?.transactionHash).toBe(txHash);
     });
 
     it("should update existing ALM_TotalSupplyLimitUpdated_event entity", async () => {
-      let mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
 
       const eventId = ALMLPWrapperId(chainId, lpWrapperAddress);
-      mockDb = mockDb.entities.ALM_TotalSupplyLimitUpdated_event.set({
+      indexer.ALM_TotalSupplyLimitUpdated_event.set({
         id: eventId,
         lpWrapperAddress: lpWrapperAddress,
         currentTotalSupplyLPTokens: 5000n * TEN_TO_THE_18_BI,
@@ -718,22 +809,26 @@ describe("ALMLPWrapperV2 Events", () => {
 
       const newTransactionHash =
         "0x2222222222222222222222222222222222222222222222222222222222222222";
-      const mockEvent = ALMLPWrapperV2.TotalSupplyLimitUpdated.createMockEvent({
-        newTotalSupplyLimit: 10000n * TEN_TO_THE_18_BI,
-        totalSupplyLimitOld: 5000n * TEN_TO_THE_18_BI,
-        totalSupplyCurrent: 8000n * TEN_TO_THE_18_BI,
-        mockEventData: {
-          ...mockEventData,
-          transaction: {
-            hash: newTransactionHash,
-          },
+
+      await simulateEvent(indexer, chainId, {
+        contract: "ALMLPWrapperV2",
+        event: "TotalSupplyLimitUpdated",
+        params: {
+          newTotalSupplyLimit: 10000n * TEN_TO_THE_18_BI,
+          totalSupplyLimitOld: 5000n * TEN_TO_THE_18_BI,
+          totalSupplyCurrent: 8000n * TEN_TO_THE_18_BI,
         },
+        block: {
+          ...block,
+          hash: newTransactionHash,
+        },
+        transaction: { hash: newTransactionHash },
+        srcAddress: lpWrapperAddress,
+        logIndex: 1,
       });
 
-      const result = await mockDb.processEvents([mockEvent]);
-
       const updatedEvent =
-        result.entities.ALM_TotalSupplyLimitUpdated_event.get(eventId);
+        await indexer.ALM_TotalSupplyLimitUpdated_event.get(eventId);
 
       expect(updatedEvent).toBeDefined();
       expect(updatedEvent?.currentTotalSupplyLPTokens).toBe(

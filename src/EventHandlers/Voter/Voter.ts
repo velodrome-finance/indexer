@@ -1,6 +1,5 @@
-import { Voter } from "generated";
-
-import type { Token } from "generated";
+import { indexer } from "envio";
+import type { Token } from "envio";
 import {
   findPoolByGaugeAddress,
   isMissingRootPoolMapping,
@@ -37,356 +36,371 @@ import {
   resolveLeafPoolForRootGauge,
 } from "./VoterCommonLogic";
 
-Voter.GaugeCreated.contractRegister(({ event, context }) => {
-  const pf = event.params.poolFactory;
-  if (VOTER_CLPOOLS_FACTORY_LIST.includes(pf)) {
-    context.addCLGauge(event.params.gauge);
-  } else if (VOTER_NONCL_POOLS_FACTORY_LIST.includes(pf)) {
-    context.addGauge(event.params.gauge);
-  }
+indexer.contractRegister(
+  { contract: "Voter", event: "GaugeCreated" },
+  async ({ event, context }) => {
+    const pf = event.params.poolFactory;
+    if (VOTER_CLPOOLS_FACTORY_LIST.includes(pf)) {
+      context.chain.CLGauge.add(event.params.gauge);
+    } else if (VOTER_NONCL_POOLS_FACTORY_LIST.includes(pf)) {
+      context.chain.Gauge.add(event.params.gauge);
+    }
 
-  context.addFeesVotingReward(event.params.feeVotingReward);
-  context.addBribesVotingReward(event.params.bribeVotingReward);
-});
+    context.chain.FeesVotingReward.add(event.params.feeVotingReward);
+    context.chain.BribesVotingReward.add(event.params.bribeVotingReward);
+  },
+);
 
-Voter.GaugeCreated.handler(async ({ event, context }) => {
-  // Update the pool entity with the gauge address
-  const poolId = PoolId(event.chainId, event.params.pool);
-  const gaugeAddress = event.params.gauge;
+indexer.onEvent(
+  { contract: "Voter", event: "GaugeCreated" },
+  async ({ event, context }) => {
+    // Update the pool entity with the gauge address
+    const poolId = PoolId(event.chainId, event.params.pool);
+    const gaugeAddress = event.params.gauge;
 
-  const poolEntity = await context.Pool.get(poolId);
+    const poolEntity = await context.Pool.get(poolId);
 
-  if (poolEntity) {
-    const poolUpdateDiff = {
-      gaugeAddress: gaugeAddress,
-      feeVotingRewardAddress: event.params.feeVotingReward,
-      bribeVotingRewardAddress: event.params.bribeVotingReward,
-      gaugeIsAlive: true, // Newly created gauges are always alive
-      lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
-    };
+    if (poolEntity) {
+      const poolUpdateDiff = {
+        gaugeAddress: gaugeAddress,
+        feeVotingRewardAddress: event.params.feeVotingReward,
+        bribeVotingRewardAddress: event.params.bribeVotingReward,
+        gaugeIsAlive: true, // Newly created gauges are always alive
+        lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
+      };
 
-    await updatePool(
-      poolUpdateDiff,
-      poolEntity,
-      new Date(event.block.timestamp * 1000),
-      context,
-      event.chainId,
-      event.block.number,
-    );
-  } else {
-    // RootPool case: no Pool on this chain
-    // Store root gauge → root pool for DistributeReward cross-chain resolution
-    const id = RootGaugeRootPoolId(event.chainId, event.params.gauge);
-    context.RootGauge_RootPool.set({
-      id,
-      rootChainId: event.chainId,
-      rootGaugeAddress: event.params.gauge,
-      rootPoolAddress: event.params.pool,
-    });
-  }
-});
+      await updatePool(
+        poolUpdateDiff,
+        poolEntity,
+        new Date(event.block.timestamp * 1000),
+        context,
+        event.chainId,
+        event.block.number,
+      );
+    } else {
+      // RootPool case: no Pool on this chain
+      // Store root gauge → root pool for DistributeReward cross-chain resolution
+      const id = RootGaugeRootPoolId(event.chainId, event.params.gauge);
+      context.RootGauge_RootPool.set({
+        id,
+        rootChainId: event.chainId,
+        rootGaugeAddress: event.params.gauge,
+        rootPoolAddress: event.params.pool,
+      });
+    }
+  },
+);
 
 // Leads to a deposit of veNFT
-Voter.Voted.handler(async ({ event, context }) => {
-  const tokenId = event.params.tokenId;
-  const timestamp = new Date(event.block.timestamp * 1000);
-  const pool = event.params.pool;
-  const chainId = event.chainId;
+indexer.onEvent(
+  { contract: "Voter", event: "Voted" },
+  async ({ event, context }) => {
+    const tokenId = event.params.tokenId;
+    const timestamp = new Date(event.block.timestamp * 1000);
+    const pool = event.params.pool;
+    const chainId = event.chainId;
 
-  // Load pool data and token owner concurrently for better performance
-  const [poolResult, veNFTState] = await Promise.all([
-    loadPoolDataOrRootCLPool(
-      pool,
-      chainId,
-      context,
-      event.block.number,
-      event.block.timestamp,
-    ),
-    loadVeNFTState(chainId, tokenId, context),
-  ]);
-
-  if (!poolResult.ok) {
-    // If the root pool mapping cannot be loaded, create a pending vote for deferred processing
-    if (isMissingRootPoolMapping(poolResult)) {
-      if (!veNFTState) {
-        return;
-      }
-      createPendingVoteForDeferredProcessing(
-        context,
-        chainId,
+    // Load pool data and token owner concurrently for better performance
+    const [poolResult, veNFTState] = await Promise.all([
+      loadPoolDataOrRootCLPool(
         pool,
-        tokenId,
-        event.params.weight,
-        VoterEventType.VOTED,
-        timestamp,
+        chainId,
+        context,
         event.block.number,
-        event.transaction.hash,
-        event.logIndex,
-      );
+        event.block.timestamp,
+      ),
+      loadVeNFTState(chainId, tokenId, context),
+    ]);
+
+    if (!poolResult.ok) {
+      // If the root pool mapping cannot be loaded, create a pending vote for deferred processing
+      if (isMissingRootPoolMapping(poolResult)) {
+        if (!veNFTState) {
+          return;
+        }
+        createPendingVoteForDeferredProcessing(
+          context,
+          chainId,
+          pool,
+          tokenId,
+          event.params.weight,
+          VoterEventType.VOTED,
+          timestamp,
+          event.block.number,
+          event.transaction.hash,
+          event.logIndex,
+        );
+      }
+      return;
     }
-    return;
-  }
 
-  if (!veNFTState) {
-    return;
-  }
+    if (!veNFTState) {
+      return;
+    }
 
-  const poolData = poolResult.poolData;
-  const { liquidityPoolAggregator } = poolData;
-  const poolChainId = liquidityPoolAggregator.chainId;
-  const poolAddress = liquidityPoolAggregator.poolAddress;
+    const poolData = poolResult.poolData;
+    const { liquidityPoolAggregator } = poolData;
+    const poolChainId = liquidityPoolAggregator.chainId;
+    const poolAddress = liquidityPoolAggregator.poolAddress;
 
-  const [veNFTPoolVote, userStats] = await Promise.all([
-    loadOrCreateVeNFTPoolVote(
-      poolChainId,
-      tokenId,
-      poolAddress,
-      veNFTState,
-      context,
-      timestamp,
-    ),
-    loadOrCreateUserData(
-      veNFTState.owner,
-      poolAddress,
-      poolChainId,
-      context,
-      timestamp,
-    ),
-  ]);
+    const [veNFTPoolVote, userStats] = await Promise.all([
+      loadOrCreateVeNFTPoolVote(
+        poolChainId,
+        tokenId,
+        poolAddress,
+        veNFTState,
+        context,
+        timestamp,
+      ),
+      loadOrCreateUserData(
+        veNFTState.owner,
+        poolAddress,
+        poolChainId,
+        context,
+        timestamp,
+      ),
+    ]);
 
-  const { poolVoteDiff, userStatsPerPoolDiff, veNFTPoolVoteDiff } =
-    computeVoterRelatedEntitiesDiff(
-      event.params.totalWeight,
-      event.params.weight,
-      veNFTState,
-      timestamp,
-      VoterEventType.VOTED,
-    );
+    const { poolVoteDiff, userStatsPerPoolDiff, veNFTPoolVoteDiff } =
+      computeVoterRelatedEntitiesDiff(
+        event.params.totalWeight,
+        event.params.weight,
+        veNFTState,
+        timestamp,
+        VoterEventType.VOTED,
+      );
 
-  await Promise.all([
-    updatePool(
-      poolVoteDiff,
-      liquidityPoolAggregator,
-      timestamp,
-      context,
-      event.chainId,
-      event.block.number,
-    ),
-    updateUserStatsPerPool(
-      userStatsPerPoolDiff,
-      userStats,
-      context,
-      timestamp,
-      poolData,
-    ),
-    updateVeNFTPoolVote(veNFTPoolVoteDiff, veNFTPoolVote, context),
-  ]);
-});
+    await Promise.all([
+      updatePool(
+        poolVoteDiff,
+        liquidityPoolAggregator,
+        timestamp,
+        context,
+        event.chainId,
+        event.block.number,
+      ),
+      updateUserStatsPerPool(
+        userStatsPerPoolDiff,
+        userStats,
+        context,
+        timestamp,
+        poolData,
+      ),
+      updateVeNFTPoolVote(veNFTPoolVoteDiff, veNFTPoolVote, context),
+    ]);
+  },
+);
 
 // The opposite of the Voted event: effectively withdraws veNFT
-Voter.Abstained.handler(async ({ event, context }) => {
-  const tokenId = event.params.tokenId;
-  const timestamp = new Date(event.block.timestamp * 1000);
-  const pool = event.params.pool;
-  const chainId = event.chainId;
+indexer.onEvent(
+  { contract: "Voter", event: "Abstained" },
+  async ({ event, context }) => {
+    const tokenId = event.params.tokenId;
+    const timestamp = new Date(event.block.timestamp * 1000);
+    const pool = event.params.pool;
+    const chainId = event.chainId;
 
-  // Load pool data and token owner concurrently for better performance
-  const [poolResult, veNFTState] = await Promise.all([
-    loadPoolDataOrRootCLPool(
-      pool,
-      chainId,
-      context,
-      event.block.number,
-      event.block.timestamp,
-    ),
-    loadVeNFTState(chainId, tokenId, context),
-  ]);
-
-  // If the pool data (or root pool mapping) cannot be loaded, create a pending vote for deferred processing
-  if (!poolResult.ok) {
-    if (isMissingRootPoolMapping(poolResult)) {
-      if (!veNFTState) {
-        return;
-      }
-      createPendingVoteForDeferredProcessing(
-        context,
-        chainId,
+    // Load pool data and token owner concurrently for better performance
+    const [poolResult, veNFTState] = await Promise.all([
+      loadPoolDataOrRootCLPool(
         pool,
-        tokenId,
-        event.params.weight,
-        VoterEventType.ABSTAINED,
-        timestamp,
+        chainId,
+        context,
         event.block.number,
-        event.transaction.hash,
-        event.logIndex,
-      );
+        event.block.timestamp,
+      ),
+      loadVeNFTState(chainId, tokenId, context),
+    ]);
+
+    // If the pool data (or root pool mapping) cannot be loaded, create a pending vote for deferred processing
+    if (!poolResult.ok) {
+      if (isMissingRootPoolMapping(poolResult)) {
+        if (!veNFTState) {
+          return;
+        }
+        createPendingVoteForDeferredProcessing(
+          context,
+          chainId,
+          pool,
+          tokenId,
+          event.params.weight,
+          VoterEventType.ABSTAINED,
+          timestamp,
+          event.block.number,
+          event.transaction.hash,
+          event.logIndex,
+        );
+      }
+      return;
     }
-    return;
-  }
 
-  if (!veNFTState) {
-    return;
-  }
+    if (!veNFTState) {
+      return;
+    }
 
-  const poolData = poolResult.poolData;
-  const { liquidityPoolAggregator } = poolData;
-  const poolChainId = liquidityPoolAggregator.chainId;
-  const poolAddress = liquidityPoolAggregator.poolAddress;
+    const poolData = poolResult.poolData;
+    const { liquidityPoolAggregator } = poolData;
+    const poolChainId = liquidityPoolAggregator.chainId;
+    const poolAddress = liquidityPoolAggregator.poolAddress;
 
-  const { poolVoteDiff, userStatsPerPoolDiff, veNFTPoolVoteDiff } =
-    computeVoterRelatedEntitiesDiff(
-      event.params.totalWeight,
-      event.params.weight,
-      veNFTState,
-      timestamp,
-      VoterEventType.ABSTAINED,
+    const { poolVoteDiff, userStatsPerPoolDiff, veNFTPoolVoteDiff } =
+      computeVoterRelatedEntitiesDiff(
+        event.params.totalWeight,
+        event.params.weight,
+        veNFTState,
+        timestamp,
+        VoterEventType.ABSTAINED,
+      );
+
+    const [veNFTPoolVote, userStats] = await Promise.all([
+      loadOrCreateVeNFTPoolVote(
+        poolChainId,
+        tokenId,
+        poolAddress,
+        veNFTState,
+        context,
+        timestamp,
+      ),
+      loadOrCreateUserData(
+        veNFTState.owner,
+        poolAddress,
+        poolChainId,
+        context,
+        timestamp,
+      ),
+    ]);
+
+    await Promise.all([
+      updatePool(
+        poolVoteDiff,
+        liquidityPoolAggregator,
+        timestamp,
+        context,
+        event.chainId,
+        event.block.number,
+      ),
+      updateUserStatsPerPool(
+        userStatsPerPoolDiff,
+        userStats,
+        context,
+        timestamp,
+        poolData,
+      ),
+      updateVeNFTPoolVote(veNFTPoolVoteDiff, veNFTPoolVote, context),
+    ]);
+  },
+);
+
+indexer.onEvent(
+  { contract: "Voter", event: "DistributeReward" },
+  async ({ event, context }) => {
+    const eventChainId = event.chainId;
+    const rewardTokenAddress = CHAIN_CONSTANTS[eventChainId].rewardToken(
+      event.block.number,
     );
 
-  const [veNFTPoolVote, userStats] = await Promise.all([
-    loadOrCreateVeNFTPoolVote(
-      poolChainId,
-      tokenId,
-      poolAddress,
-      veNFTState,
-      context,
-      timestamp,
-    ),
-    loadOrCreateUserData(
-      veNFTState.owner,
-      poolAddress,
-      poolChainId,
-      context,
-      timestamp,
-    ),
-  ]);
-
-  await Promise.all([
-    updatePool(
-      poolVoteDiff,
-      liquidityPoolAggregator,
-      timestamp,
-      context,
-      event.chainId,
-      event.block.number,
-    ),
-    updateUserStatsPerPool(
-      userStatsPerPoolDiff,
-      userStats,
-      context,
-      timestamp,
-      poolData,
-    ),
-    updateVeNFTPoolVote(veNFTPoolVoteDiff, veNFTPoolVote, context),
-  ]);
-});
-
-Voter.DistributeReward.handler(async ({ event, context }) => {
-  const eventChainId = event.chainId;
-  const rewardTokenAddress = CHAIN_CONSTANTS[eventChainId].rewardToken(
-    event.block.number,
-  );
-
-  const [poolResult, rewardToken] = await Promise.all([
-    (async () => {
-      const poolEntity = await findPoolByGaugeAddress(
-        event.params.gauge,
-        eventChainId,
-        context,
-      );
-      if (poolEntity) {
-        const pool = (await context.Pool.get(poolEntity.id)) ?? null;
-        return pool ? { pool, isCrossChain: false } : null;
-      }
-      return resolveLeafPoolForRootGauge(
-        context,
-        eventChainId,
-        event.params.gauge,
-      );
-    })(),
-    context.Token.get(TokenId(eventChainId, rewardTokenAddress)),
-  ]);
-
-  if (!poolResult || !rewardToken) {
-    // If this is a root gauge but RootPool_LeafPool mapping is missing, defer for later processing
-    if (poolResult === null) {
-      const rootGaugeMapping = await context.RootGauge_RootPool.get(
-        RootGaugeRootPoolId(eventChainId, event.params.gauge),
-      );
-      if (rootGaugeMapping) {
-        if (
-          isKnownSinkRootPool(eventChainId, rootGaugeMapping.rootPoolAddress)
-        ) {
-          return;
+    const [poolResult, rewardToken] = await Promise.all([
+      (async () => {
+        const poolEntity = await findPoolByGaugeAddress(
+          event.params.gauge,
+          eventChainId,
+          context,
+        );
+        if (poolEntity) {
+          const pool = (await context.Pool.get(poolEntity.id)) ?? null;
+          return pool ? { pool, isCrossChain: false } : null;
         }
-        const rootPoolLeafPools =
-          (await context.RootPool_LeafPool.getWhere({
-            rootPoolAddress: { _eq: rootGaugeMapping.rootPoolAddress },
-          })) ?? [];
-        if (rootPoolLeafPools.length !== 1) {
-          const logIndex = event.logIndex;
-          context.PendingDistribution.set({
-            id: PendingDistributionId(
-              eventChainId,
-              rootGaugeMapping.rootPoolAddress,
-              event.block.number,
+        return resolveLeafPoolForRootGauge(
+          context,
+          eventChainId,
+          event.params.gauge,
+        );
+      })(),
+      context.Token.get(TokenId(eventChainId, rewardTokenAddress)),
+    ]);
+
+    if (!poolResult || !rewardToken) {
+      // If this is a root gauge but RootPool_LeafPool mapping is missing, defer for later processing
+      if (poolResult === null) {
+        const rootGaugeMapping = await context.RootGauge_RootPool.get(
+          RootGaugeRootPoolId(eventChainId, event.params.gauge),
+        );
+        if (rootGaugeMapping) {
+          if (
+            isKnownSinkRootPool(eventChainId, rootGaugeMapping.rootPoolAddress)
+          ) {
+            return;
+          }
+          const rootPoolLeafPools =
+            (await context.RootPool_LeafPool.getWhere({
+              rootPoolAddress: { _eq: rootGaugeMapping.rootPoolAddress },
+            })) ?? [];
+          if (rootPoolLeafPools.length !== 1) {
+            const logIndex = event.logIndex;
+            context.PendingDistribution.set({
+              id: PendingDistributionId(
+                eventChainId,
+                rootGaugeMapping.rootPoolAddress,
+                event.block.number,
+                logIndex,
+              ),
+              rootChainId: eventChainId,
+              rootPoolAddress: rootGaugeMapping.rootPoolAddress,
+              gaugeAddress: event.params.gauge,
+              amount: event.params.amount,
+              blockNumber: BigInt(event.block.number),
+              blockTimestamp: new Date(event.block.timestamp * 1000),
               logIndex,
-            ),
-            rootChainId: eventChainId,
-            rootPoolAddress: rootGaugeMapping.rootPoolAddress,
-            gaugeAddress: event.params.gauge,
-            amount: event.params.amount,
-            blockNumber: BigInt(event.block.number),
-            blockTimestamp: new Date(event.block.timestamp * 1000),
-            logIndex,
-          });
-          return;
+            });
+            return;
+          }
         }
       }
+      return;
     }
-    return;
-  }
 
-  const currentLiquidityPool = poolResult.pool;
-  const isCrossChainDistribution = poolResult.isCrossChain;
+    const currentLiquidityPool = poolResult.pool;
+    const isCrossChainDistribution = poolResult.isCrossChain;
 
-  // Refresh reward token price if it's zero (token was just created or price fetch failed previously)
-  // Or if more than 1h has passed since last update
-  const updatedRewardToken = await refreshTokenPrice(
-    rewardToken,
-    event.block.number,
-    event.block.timestamp,
-    eventChainId,
-    context,
-  );
+    // Refresh reward token price if it's zero (token was just created or price fetch failed previously)
+    // Or if more than 1h has passed since last update
+    const updatedRewardToken = await refreshTokenPrice(
+      rewardToken,
+      event.block.number,
+      event.block.timestamp,
+      eventChainId,
+      context,
+    );
 
-  const result = await computeVoterDistributeValues(
-    updatedRewardToken,
-    event.params.gauge,
-    event.params.amount,
-    event.block.number,
-    eventChainId,
-    context,
-    currentLiquidityPool.gaugeIsAlive ?? false,
-  );
+    const result = await computeVoterDistributeValues(
+      updatedRewardToken,
+      event.params.gauge,
+      event.params.amount,
+      event.block.number,
+      eventChainId,
+      context,
+      currentLiquidityPool.gaugeIsAlive ?? false,
+    );
 
-  const timestampMs = event.block.timestamp * 1000;
-  const poolDiff = buildPoolDiffFromDistribute(
-    result,
-    timestampMs,
-    isCrossChainDistribution ? undefined : event.params.gauge,
-  );
+    const timestampMs = event.block.timestamp * 1000;
+    const poolDiff = buildPoolDiffFromDistribute(
+      result,
+      timestampMs,
+      isCrossChainDistribution ? undefined : event.params.gauge,
+    );
 
-  await updatePool(
-    poolDiff,
-    currentLiquidityPool,
-    new Date(timestampMs),
-    context,
-    // For cross-chain distributions, pass eventChainId (OP) so the dynamic fee
-    // guard in updateDynamicFeePools detects the chain mismatch and skips.
-    isCrossChainDistribution ? eventChainId : currentLiquidityPool.chainId,
-    event.block.number,
-  );
-});
+    await updatePool(
+      poolDiff,
+      currentLiquidityPool,
+      new Date(timestampMs),
+      context,
+      // For cross-chain distributions, pass eventChainId (OP) so the dynamic fee
+      // guard in updateDynamicFeePools detects the chain mismatch and skips.
+      isCrossChainDistribution ? eventChainId : currentLiquidityPool.chainId,
+      event.block.number,
+    );
+  },
+);
 
 /**
  * Handles the WhitelistToken event for the Voter contract.
@@ -405,108 +419,117 @@ Voter.DistributeReward.handler(async ({ event, context }) => {
  * @param {Object} event - The event object containing details of the WhitelistToken event.
  * @param {Object} context - The context object used to interact with the data store.
  */
-Voter.WhitelistToken.handler(async ({ event, context }) => {
-  const token = await context.Token.get(
-    TokenId(event.chainId, event.params.token),
-  );
+indexer.onEvent(
+  { contract: "Voter", event: "WhitelistToken" },
+  async ({ event, context }) => {
+    const token = await context.Token.get(
+      TokenId(event.chainId, event.params.token),
+    );
 
-  // Update the Token entity in the DB, either by updating the existing one or creating a new one
-  if (token) {
-    const updatedToken: Token = {
-      ...token,
-      isWhitelisted: event.params._bool,
-      lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
-    };
+    // Update the Token entity in the DB, either by updating the existing one or creating a new one
+    if (token) {
+      const updatedToken: Token = {
+        ...token,
+        isWhitelisted: event.params._bool,
+        lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
+      };
 
-    context.Token.set(updatedToken as Token);
-    return;
-  }
-
-  try {
-    const { hasCode } = await context.effect(hasContractBytecode, {
-      address: event.params.token,
-      chainId: event.chainId,
-    });
-    if (!hasCode) {
-      context.log.warn(
-        `[Voter.WhitelistToken] Skipping Token row for non-contract address ${event.params.token} on chain ${event.chainId} (no deployed bytecode)`,
-      );
+      context.Token.set(updatedToken as Token);
       return;
     }
 
-    const tokenDetails = await context.effect(getTokenDetails, {
-      contractAddress: event.params.token,
-      chainId: event.chainId,
-    });
-    const updatedToken: Token = {
-      id: TokenId(event.chainId, event.params.token),
-      name: tokenDetails.name,
-      symbol: tokenDetails.symbol,
-      pricePerUSDNew: 0n,
-      address: event.params.token,
-      chainId: event.chainId,
-      decimals: BigInt(tokenDetails.decimals),
-      isWhitelisted: event.params._bool,
-      lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
-      lastSuccessfulPriceTimestamp: undefined,
-    };
-    context.Token.set(updatedToken);
-  } catch (error) {
-    context.log.error(
-      `Error in whitelist token event fetching token details for ${event.params.token} on chain ${event.chainId}: ${error}`,
-    );
-  }
-});
+    try {
+      const { hasCode } = await context.effect(hasContractBytecode, {
+        address: event.params.token,
+        chainId: event.chainId,
+      });
+      if (!hasCode) {
+        context.log.warn(
+          `[Voter.WhitelistToken] Skipping Token row for non-contract address ${event.params.token} on chain ${event.chainId} (no deployed bytecode)`,
+        );
+        return;
+      }
 
-Voter.GaugeKilled.handler(async ({ event, context }) => {
-  // Update the pool entity - mark gauge as not alive and clear gauge address
-  // Keep voting reward addresses as historical data
-  const poolEntity = await findPoolByGaugeAddress(
-    event.params.gauge,
-    event.chainId,
-    context,
-  );
-  const poolId = poolEntity?.id;
+      const tokenDetails = await context.effect(getTokenDetails, {
+        contractAddress: event.params.token,
+        chainId: event.chainId,
+      });
+      const updatedToken: Token = {
+        id: TokenId(event.chainId, event.params.token),
+        name: tokenDetails.name,
+        symbol: tokenDetails.symbol,
+        pricePerUSDNew: 0n,
+        address: event.params.token,
+        chainId: event.chainId,
+        decimals: BigInt(tokenDetails.decimals),
+        isWhitelisted: event.params._bool,
+        lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
+        lastSuccessfulPriceTimestamp: undefined,
+      };
+      context.Token.set(updatedToken);
+    } catch (error) {
+      context.log.error(
+        `Error in whitelist token event fetching token details for ${event.params.token} on chain ${event.chainId}: ${error}`,
+      );
+    }
+  },
+);
 
-  if (poolId) {
-    const poolUpdateDiff = {
-      gaugeIsAlive: false,
-      // Keep gaugeAddress, feeVotingRewardAddress and bribeVotingRewardAddress as historical data
-      lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
-    };
-
-    await updatePool(
-      poolUpdateDiff,
-      poolEntity,
-      new Date(event.block.timestamp * 1000),
-      context,
+indexer.onEvent(
+  { contract: "Voter", event: "GaugeKilled" },
+  async ({ event, context }) => {
+    // Update the pool entity - mark gauge as not alive and clear gauge address
+    // Keep voting reward addresses as historical data
+    const poolEntity = await findPoolByGaugeAddress(
+      event.params.gauge,
       event.chainId,
-      event.block.number,
-    );
-  }
-});
-
-Voter.GaugeRevived.handler(async ({ event, context }) => {
-  const poolEntity = await findPoolByGaugeAddress(
-    event.params.gauge,
-    event.chainId,
-    context,
-  );
-  const poolId = poolEntity?.id;
-
-  if (poolId) {
-    const poolUpdateDiff = {
-      gaugeIsAlive: true,
-      lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
-    };
-
-    await updatePool(
-      poolUpdateDiff,
-      poolEntity,
-      new Date(event.block.timestamp * 1000),
       context,
-      event.chainId,
-      event.block.number,
     );
-  }
-});
+    const poolId = poolEntity?.id;
+
+    if (poolId) {
+      const poolUpdateDiff = {
+        gaugeIsAlive: false,
+        // Keep gaugeAddress, feeVotingRewardAddress and bribeVotingRewardAddress as historical data
+        lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
+      };
+
+      await updatePool(
+        poolUpdateDiff,
+        poolEntity,
+        new Date(event.block.timestamp * 1000),
+        context,
+        event.chainId,
+        event.block.number,
+      );
+    }
+  },
+);
+
+indexer.onEvent(
+  { contract: "Voter", event: "GaugeRevived" },
+  async ({ event, context }) => {
+    const poolEntity = await findPoolByGaugeAddress(
+      event.params.gauge,
+      event.chainId,
+      context,
+    );
+    const poolId = poolEntity?.id;
+
+    if (poolId) {
+      const poolUpdateDiff = {
+        gaugeIsAlive: true,
+        lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
+      };
+
+      await updatePool(
+        poolUpdateDiff,
+        poolEntity,
+        new Date(event.block.timestamp * 1000),
+        context,
+        event.chainId,
+        event.block.number,
+      );
+    }
+  },
+);

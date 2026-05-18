@@ -1,4 +1,4 @@
-import type { handlerContext } from "generated";
+import type { handlerContext } from "../../EntityTypes";
 
 /**
  * Format the composite id for a `RedistributorConfig` row.

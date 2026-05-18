@@ -1,4 +1,5 @@
-import type { VeNFTState, handlerContext } from "generated";
+import type { VeNFTState } from "envio";
+import type { handlerContext } from "../EntityTypes";
 
 import { VeNFTId } from "../Constants";
 import { getSnapshotEpoch, shouldSnapshot } from "../Snapshots/Shared";

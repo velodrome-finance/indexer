@@ -8,11 +8,7 @@
  * CLFactory, PoolFactory, and RootCLPoolFactory when a new pool or mapping is created.
  */
 
-import type {
-  PendingDistribution,
-  PendingVote,
-  handlerContext,
-} from "generated";
+import type { PendingDistribution, PendingVote } from "envio";
 import {
   type PoolData,
   loadPoolData,
@@ -32,6 +28,7 @@ import {
   CrossChainPendingResolutionLogPrefix,
   TokenId,
 } from "../../Constants";
+import type { handlerContext } from "../../EntityTypes";
 import {
   logContextError,
   runAsyncWithErrorLog,

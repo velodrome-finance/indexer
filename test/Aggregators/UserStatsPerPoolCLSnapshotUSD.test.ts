@@ -1,5 +1,4 @@
 import { TickMath } from "@uniswap/v3-sdk";
-import type { handlerContext } from "generated";
 import {
   createUserStatsPerPoolEntity,
   updateUserStatsPerPool,
@@ -12,6 +11,7 @@ import {
   TokenId,
   toChecksumAddress,
 } from "../../src/Constants";
+import type { handlerContext } from "../../src/EntityTypes";
 import { setupCommon } from "../EventHandlers/Pool/common";
 
 /**

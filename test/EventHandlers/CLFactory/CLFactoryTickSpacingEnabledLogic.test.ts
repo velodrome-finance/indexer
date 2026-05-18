@@ -1,5 +1,5 @@
-import type { CLFactory_TickSpacingEnabled_event } from "generated";
 import { toChecksumAddress } from "../../../src/Constants";
+import type { CLFactory_TickSpacingEnabled_event } from "../../../src/EntityTypes";
 import { processCLFactoryTickSpacingEnabled } from "../../../src/EventHandlers/CLFactory/CLFactoryTickSpacingEnabledLogic";
 
 describe("CLFactoryTickSpacingEnabledLogic", () => {
@@ -18,28 +18,36 @@ describe("CLFactoryTickSpacingEnabledLogic", () => {
     "0x6666666666666666666666666666666666666666666666666666666666666666";
 
   const createMockEvent = (
-    overrides: Partial<CLFactory_TickSpacingEnabled_event> = {},
-  ): CLFactory_TickSpacingEnabled_event => ({
-    params: {
-      tickSpacing: TICK_SPACING,
-      fee: FEE,
-      ...overrides.params,
-    },
-    srcAddress: SRC_ADDRESS,
-    transaction: {
-      hash: TX_HASH,
-      ...overrides.transaction,
-    },
-    block: {
-      timestamp: BLOCK_TIMESTAMP,
-      number: BLOCK_NUMBER,
-      hash: BLOCK_HASH,
-      ...overrides.block,
-    },
-    chainId: CHAIN_ID,
-    logIndex: 1,
-    ...overrides,
-  });
+    overrides: {
+      params?: Partial<CLFactory_TickSpacingEnabled_event["params"]>;
+      transaction?: Partial<CLFactory_TickSpacingEnabled_event["transaction"]>;
+      block?: Partial<CLFactory_TickSpacingEnabled_event["block"]>;
+      chainId?: CLFactory_TickSpacingEnabled_event["chainId"];
+      logIndex?: number;
+      srcAddress?: CLFactory_TickSpacingEnabled_event["srcAddress"];
+    } = {},
+  ): CLFactory_TickSpacingEnabled_event =>
+    ({
+      params: {
+        tickSpacing: TICK_SPACING,
+        fee: FEE,
+        ...overrides.params,
+      },
+      srcAddress: SRC_ADDRESS,
+      transaction: {
+        hash: TX_HASH,
+        ...overrides.transaction,
+      },
+      block: {
+        timestamp: BLOCK_TIMESTAMP,
+        number: BLOCK_NUMBER,
+        hash: BLOCK_HASH,
+        ...overrides.block,
+      },
+      chainId: CHAIN_ID,
+      logIndex: 1,
+      ...overrides,
+    }) as unknown as CLFactory_TickSpacingEnabled_event;
 
   describe("processCLFactoryTickSpacingEnabled", () => {
     it("should return a diff with fee and lastUpdatedTimestamp", () => {

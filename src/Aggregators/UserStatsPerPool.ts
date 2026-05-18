@@ -1,4 +1,5 @@
-import type { UserStatsPerPool, handlerContext } from "generated";
+import type { UserStatsPerPool } from "envio";
+import type { handlerContext } from "../EntityTypes";
 
 import {
   NonFungiblePositionId,

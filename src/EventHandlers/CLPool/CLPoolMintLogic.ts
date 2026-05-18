@@ -1,5 +1,6 @@
-import type { CLPool_Mint_event, Token } from "generated";
+import type { Token } from "envio";
 import type { PoolDiff } from "../../Aggregators/Pool";
+import type { CLPool_Mint_event } from "../../EntityTypes";
 import type { Pool } from "../../EntityTypes";
 import { calculateTotalUSD } from "../../Helpers";
 

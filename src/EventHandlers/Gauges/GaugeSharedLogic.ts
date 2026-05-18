@@ -1,4 +1,3 @@
-import type { handlerContext } from "generated";
 import {
   applyStakedPositionToEdges,
   deriveStakedLiquidityInRange,
@@ -18,6 +17,7 @@ import {
   NonFungiblePositionId,
   TokenId,
 } from "../../Constants";
+import type { handlerContext } from "../../EntityTypes";
 import type { Pool } from "../../EntityTypes";
 import {
   calculatePositionAmountsFromLiquidity,

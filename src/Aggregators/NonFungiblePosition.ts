@@ -1,5 +1,5 @@
-import type { handlerContext } from "generated";
-import type { NonFungiblePosition } from "generated";
+import type { NonFungiblePosition } from "envio";
+import type { handlerContext } from "../EntityTypes";
 
 import { setNonFungiblePositionSnapshot } from "../Snapshots/NonFungiblePositionSnapshot";
 import { getSnapshotEpoch, shouldSnapshot } from "../Snapshots/Shared";

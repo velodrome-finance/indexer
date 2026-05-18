@@ -1,4 +1,5 @@
-import type { CLGaugeConfig, handlerContext } from "generated";
+import type { CLGaugeConfig } from "envio";
+import type { handlerContext } from "../../EntityTypes";
 
 /**
  * Build a fully-populated CLGaugeConfig row for a chain, spreading an existing

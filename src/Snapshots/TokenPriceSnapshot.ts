@@ -1,4 +1,5 @@
-import type { TokenPriceSnapshot, handlerContext } from "generated";
+import type { TokenPriceSnapshot } from "envio";
+import type { handlerContext } from "../EntityTypes";
 
 import { TokenIdByBlock } from "../Constants";
 import {

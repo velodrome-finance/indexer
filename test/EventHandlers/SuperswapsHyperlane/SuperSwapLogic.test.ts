@@ -4,7 +4,7 @@ import type {
   OUSDTSwaps,
   ProcessId_event,
   SuperSwap,
-} from "generated";
+} from "envio";
 import {
   MailboxMessageId,
   OUSDTSwapsId,

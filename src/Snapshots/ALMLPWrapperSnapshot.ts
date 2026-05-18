@@ -1,8 +1,5 @@
-import type {
-  ALM_LP_Wrapper,
-  ALM_LP_WrapperSnapshot,
-  handlerContext,
-} from "generated";
+import type { ALM_LP_Wrapper, ALM_LP_WrapperSnapshot } from "envio";
+import type { handlerContext } from "../EntityTypes";
 
 import { ALMLPWrapperSnapshotId } from "../Constants";
 import {

@@ -1,10 +1,4 @@
-import type {
-  CLFactory_PoolCreated_event,
-  CLGaugeConfig,
-  FeeToTickSpacingMapping,
-  Token,
-  handlerContext,
-} from "generated";
+import type { CLGaugeConfig, FeeToTickSpacingMapping, Token } from "envio";
 import { createPoolEntity } from "../../Aggregators/Pool";
 import {
   RootPoolLeafPoolId,
@@ -12,6 +6,10 @@ import {
   rootPoolMatchingHash,
 } from "../../Constants";
 import type { TokenEntityMapping } from "../../CustomTypes";
+import type {
+  CLFactory_PoolCreated_event,
+  handlerContext,
+} from "../../EntityTypes";
 import type { Pool } from "../../EntityTypes";
 import { createTokenEntity } from "../../PriceOracle";
 import { flushPendingVotesAndDistributionsForRootPool } from "../Voter/CrossChainPendingResolution";

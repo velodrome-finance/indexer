@@ -4,14 +4,15 @@ import type {
   OUSDTSwaps,
   ProcessId_event,
   SuperSwap,
-} from "generated";
-import { Mailbox, MockDb } from "../../../generated/src/TestHelpers.gen";
+} from "envio";
+import { createTestIndexer } from "envio";
 import {
   MailboxMessageId,
   OUSDTSwapsId,
   OUSDT_ADDRESS,
   toChecksumAddress,
 } from "../../../src/Constants";
+import { simulateEvent } from "../../testHelpers";
 
 describe("Mailbox Events", () => {
   const mailboxAddress = toChecksumAddress(
@@ -25,107 +26,84 @@ describe("Mailbox Events", () => {
   const messageId =
     "0xabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdef";
 
-  /**
-   * Merges the ProcessId_event from a processEvents result (if present) into a
-   * new MockDb. Used when chaining processEvents calls so the second run sees
-   * entities created by the first (e.g. when testing different chainIds, since
-   * processEvents does not support multiple chains in one call).
-   */
-  function mergeProcessIdEventResult(
-    result: {
-      entities: {
-        ProcessId_event: { get: (id: string) => ProcessId_event | undefined };
-      };
-    },
-    expectedId: string,
-  ): ReturnType<typeof MockDb.createMockDb> {
-    let db = MockDb.createMockDb();
-    const entity = result.entities.ProcessId_event.get(expectedId);
-    if (entity) {
-      db = db.entities.ProcessId_event.set(entity);
-    }
-    return db;
-  }
-
   describe("DispatchId event", () => {
     it("should create DispatchId_event entity with correct fields", async () => {
       // Setup
-      const mockDb = MockDb.createMockDb();
-      const mockEvent = Mailbox.DispatchId.createMockEvent({
-        messageId: messageId,
-        mockEventData: {
-          block: {
-            timestamp: blockTimestamp,
-            number: blockNumber,
-            hash: blockHash,
-          },
-          chainId: chainId,
-          logIndex: 1,
-          srcAddress: mailboxAddress,
+      const indexer = createTestIndexer();
+      const txHash =
+        "0x0000000000000000000000000000000000000000000000000000000000000001";
+
+      await simulateEvent(indexer, chainId, {
+        contract: "Mailbox",
+        event: "DispatchId",
+        params: {
+          messageId: messageId,
         },
+        block: {
+          timestamp: blockTimestamp,
+          number: blockNumber,
+          hash: blockHash,
+        },
+        transaction: {
+          hash: txHash,
+        },
+        srcAddress: mailboxAddress,
+        logIndex: 1,
       });
 
-      // Execute
-      const result = await mockDb.processEvents([mockEvent]);
-
       // Assert - check DispatchId_event was created
-      const expectedId = MailboxMessageId(
-        mockEvent.transaction.hash,
-        chainId,
-        messageId,
-      );
-      const entity = result.entities.DispatchId_event.get(expectedId);
+      const expectedId = MailboxMessageId(txHash, chainId, messageId);
+      const entity = await indexer.DispatchId_event.get(expectedId);
       expect(entity).toBeDefined();
       expect(entity?.id).toBe(expectedId);
       expect(entity?.chainId).toBe(chainId);
-      expect(entity?.transactionHash).toBe(mockEvent.transaction.hash);
+      expect(entity?.transactionHash).toBe(txHash);
       expect(entity?.messageId).toBe(messageId);
     });
 
     it("should create DispatchId_event with unique id per transaction", async () => {
       // Setup
-      const mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
       const transactionHash1 =
         "0x1111111111111111111111111111111111111111111111111111111111111111";
       const transactionHash2 =
         "0x2222222222222222222222222222222222222222222222222222222222222222";
 
-      const mockEvent1 = Mailbox.DispatchId.createMockEvent({
-        messageId: messageId,
-        mockEventData: {
-          block: {
-            timestamp: blockTimestamp,
-            number: blockNumber,
-            hash: blockHash,
-          },
-          chainId: chainId,
-          logIndex: 1,
-          srcAddress: mailboxAddress,
-          transaction: {
-            hash: transactionHash1,
-          },
+      await simulateEvent(indexer, chainId, {
+        contract: "Mailbox",
+        event: "DispatchId",
+        params: {
+          messageId: messageId,
         },
+        block: {
+          timestamp: blockTimestamp,
+          number: blockNumber,
+          hash: blockHash,
+        },
+        transaction: {
+          hash: transactionHash1,
+        },
+        srcAddress: mailboxAddress,
+        logIndex: 1,
       });
 
-      const mockEvent2 = Mailbox.DispatchId.createMockEvent({
-        messageId: messageId,
-        mockEventData: {
-          block: {
-            timestamp: blockTimestamp,
-            number: blockNumber + 1,
-            hash: blockHash,
-          },
-          chainId: chainId,
-          logIndex: 1,
-          srcAddress: mailboxAddress,
-          transaction: {
-            hash: transactionHash2,
-          },
+      await simulateEvent(indexer, chainId, {
+        contract: "Mailbox",
+        event: "DispatchId",
+        params: {
+          messageId: messageId,
         },
+        block: {
+          timestamp: blockTimestamp,
+          number: blockNumber + 1,
+          hash: blockHash,
+        },
+        transaction: {
+          hash: transactionHash2,
+        },
+        srcAddress: mailboxAddress,
+        logIndex: 1,
       });
-
-      // Execute
-      const result = await mockDb.processEvents([mockEvent1, mockEvent2]);
 
       // Assert - check both entities were created with different IDs
       const expectedId1 = MailboxMessageId(
@@ -138,8 +116,8 @@ describe("Mailbox Events", () => {
         chainId,
         messageId,
       );
-      const entity1 = result.entities.DispatchId_event.get(expectedId1);
-      const entity2 = result.entities.DispatchId_event.get(expectedId2);
+      const entity1 = await indexer.DispatchId_event.get(expectedId1);
+      const entity2 = await indexer.DispatchId_event.get(expectedId2);
 
       expect(entity1).toBeDefined();
       expect(entity2).toBeDefined();
@@ -150,57 +128,58 @@ describe("Mailbox Events", () => {
 
     it("should handle different messageIds correctly", async () => {
       // Setup
-      const mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
+      const txHash1 =
+        "0x0000000000000000000000000000000000000000000000000000000000000001";
+      const txHash2 =
+        "0x0000000000000000000000000000000000000000000000000000000000000002";
       const messageId1 =
         "0x1111111111111111111111111111111111111111111111111111111111111111";
       const messageId2 =
         "0x2222222222222222222222222222222222222222222222222222222222222222";
 
-      const mockEvent1 = Mailbox.DispatchId.createMockEvent({
-        messageId: messageId1,
-        mockEventData: {
-          block: {
-            timestamp: blockTimestamp,
-            number: blockNumber,
-            hash: blockHash,
-          },
-          chainId: chainId,
-          logIndex: 1,
-          srcAddress: mailboxAddress,
+      await simulateEvent(indexer, chainId, {
+        contract: "Mailbox",
+        event: "DispatchId",
+        params: {
+          messageId: messageId1,
         },
+        block: {
+          timestamp: blockTimestamp,
+          number: blockNumber,
+          hash: blockHash,
+        },
+        transaction: {
+          hash: txHash1,
+        },
+        srcAddress: mailboxAddress,
+        logIndex: 1,
       });
 
-      const mockEvent2 = Mailbox.DispatchId.createMockEvent({
-        messageId: messageId2,
-        mockEventData: {
-          block: {
-            timestamp: blockTimestamp,
-            number: blockNumber + 1,
-            hash: blockHash,
-          },
-          chainId: chainId,
-          logIndex: 1,
-          srcAddress: mailboxAddress,
+      await simulateEvent(indexer, chainId, {
+        contract: "Mailbox",
+        event: "DispatchId",
+        params: {
+          messageId: messageId2,
         },
+        block: {
+          timestamp: blockTimestamp,
+          number: blockNumber + 1,
+          hash: blockHash,
+        },
+        transaction: {
+          hash: txHash2,
+        },
+        srcAddress: mailboxAddress,
+        logIndex: 1,
       });
 
-      // Execute
-      const result = await mockDb.processEvents([mockEvent1, mockEvent2]);
-
-      const expectedId1 = MailboxMessageId(
-        mockEvent1.transaction.hash,
-        chainId,
-        messageId1,
-      );
+      const expectedId1 = MailboxMessageId(txHash1, chainId, messageId1);
+      const expectedId2 = MailboxMessageId(txHash2, chainId, messageId2);
 
       // Assert - check both entities were created with different messageIds
-      const expectedId2 = MailboxMessageId(
-        mockEvent2.transaction.hash,
-        chainId,
-        messageId2,
-      );
-      const entity1 = result.entities.DispatchId_event.get(expectedId1);
-      const entity2 = result.entities.DispatchId_event.get(expectedId2);
+      const entity1 = await indexer.DispatchId_event.get(expectedId1);
+      const entity2 = await indexer.DispatchId_event.get(expectedId2);
 
       expect(entity1).toBeDefined();
       expect(entity2).toBeDefined();
@@ -212,96 +191,94 @@ describe("Mailbox Events", () => {
   describe("ProcessId event", () => {
     it("should create ProcessId_event entity with correct fields", async () => {
       // Setup
-      const mockDb = MockDb.createMockDb();
-      const mockEvent = Mailbox.ProcessId.createMockEvent({
-        messageId: messageId,
-        mockEventData: {
-          block: {
-            timestamp: blockTimestamp,
-            number: blockNumber,
-            hash: blockHash,
-          },
-          chainId: chainId,
-          logIndex: 1,
-          srcAddress: mailboxAddress,
+      const indexer = createTestIndexer();
+      const txHash =
+        "0x0000000000000000000000000000000000000000000000000000000000000001";
+
+      await simulateEvent(indexer, chainId, {
+        contract: "Mailbox",
+        event: "ProcessId",
+        params: {
+          messageId: messageId,
         },
+        block: {
+          timestamp: blockTimestamp,
+          number: blockNumber,
+          hash: blockHash,
+        },
+        transaction: {
+          hash: txHash,
+        },
+        srcAddress: mailboxAddress,
+        logIndex: 1,
       });
 
-      // Execute
-      const result = await mockDb.processEvents([mockEvent]);
-
       // Assert - check ProcessId_event was created
-      const expectedId = MailboxMessageId(
-        mockEvent.transaction.hash,
-        chainId,
-        messageId,
-      );
-      const entity = result.entities.ProcessId_event.get(expectedId);
+      const expectedId = MailboxMessageId(txHash, chainId, messageId);
+      const entity = await indexer.ProcessId_event.get(expectedId);
       expect(entity).toBeDefined();
       expect(entity?.id).toBe(expectedId);
       expect(entity?.chainId).toBe(chainId);
-      expect(entity?.transactionHash).toBe(mockEvent.transaction.hash);
+      expect(entity?.transactionHash).toBe(txHash);
       expect(entity?.messageId).toBe(messageId);
     });
 
     it("should create ProcessId_event with unique id per transaction", async () => {
       // Setup
-      const mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
       const transactionHash1 =
         "0x1111111111111111111111111111111111111111111111111111111111111111";
       const transactionHash2 =
         "0x2222222222222222222222222222222222222222222222222222222222222222";
 
-      const mockEvent1 = Mailbox.ProcessId.createMockEvent({
-        messageId: messageId,
-        mockEventData: {
-          block: {
-            timestamp: blockTimestamp,
-            number: blockNumber,
-            hash: blockHash,
-          },
-          chainId: chainId,
-          logIndex: 1,
-          srcAddress: mailboxAddress,
-          transaction: {
-            hash: transactionHash1,
-          },
+      await simulateEvent(indexer, chainId, {
+        contract: "Mailbox",
+        event: "ProcessId",
+        params: {
+          messageId: messageId,
         },
+        block: {
+          timestamp: blockTimestamp,
+          number: blockNumber,
+          hash: blockHash,
+        },
+        transaction: {
+          hash: transactionHash1,
+        },
+        srcAddress: mailboxAddress,
+        logIndex: 1,
       });
 
-      const mockEvent2 = Mailbox.ProcessId.createMockEvent({
-        messageId: messageId,
-        mockEventData: {
-          block: {
-            timestamp: blockTimestamp,
-            number: blockNumber + 1,
-            hash: blockHash,
-          },
-          chainId: chainId,
-          logIndex: 1,
-          srcAddress: mailboxAddress,
-          transaction: {
-            hash: transactionHash2,
-          },
+      await simulateEvent(indexer, chainId, {
+        contract: "Mailbox",
+        event: "ProcessId",
+        params: {
+          messageId: messageId,
         },
+        block: {
+          timestamp: blockTimestamp,
+          number: blockNumber + 1,
+          hash: blockHash,
+        },
+        transaction: {
+          hash: transactionHash2,
+        },
+        srcAddress: mailboxAddress,
+        logIndex: 1,
       });
 
-      // Execute
-      const result = await mockDb.processEvents([mockEvent1, mockEvent2]);
       const expectedId1 = MailboxMessageId(
         transactionHash1,
         chainId,
         messageId,
       );
-
-      // Assert - check both entities were created with different IDs
       const expectedId2 = MailboxMessageId(
         transactionHash2,
         chainId,
         messageId,
       );
-      const entity1 = result.entities.ProcessId_event.get(expectedId1);
-      const entity2 = result.entities.ProcessId_event.get(expectedId2);
+      const entity1 = await indexer.ProcessId_event.get(expectedId1);
+      const entity2 = await indexer.ProcessId_event.get(expectedId2);
 
       expect(entity1).toBeDefined();
       expect(entity2).toBeDefined();
@@ -312,56 +289,58 @@ describe("Mailbox Events", () => {
 
     it("should handle different messageIds correctly", async () => {
       // Setup
-      const mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
+      const txHash1 =
+        "0x0000000000000000000000000000000000000000000000000000000000000001";
+      const txHash2 =
+        "0x0000000000000000000000000000000000000000000000000000000000000002";
       const messageId1 =
         "0x1111111111111111111111111111111111111111111111111111111111111111";
       const messageId2 =
         "0x2222222222222222222222222222222222222222222222222222222222222222";
 
-      const mockEvent1 = Mailbox.ProcessId.createMockEvent({
-        messageId: messageId1,
-        mockEventData: {
-          block: {
-            timestamp: blockTimestamp,
-            number: blockNumber,
-            hash: blockHash,
-          },
-          chainId: chainId,
-          logIndex: 1,
-          srcAddress: mailboxAddress,
+      await simulateEvent(indexer, chainId, {
+        contract: "Mailbox",
+        event: "ProcessId",
+        params: {
+          messageId: messageId1,
         },
+        block: {
+          timestamp: blockTimestamp,
+          number: blockNumber,
+          hash: blockHash,
+        },
+        transaction: {
+          hash: txHash1,
+        },
+        srcAddress: mailboxAddress,
+        logIndex: 1,
       });
 
-      const mockEvent2 = Mailbox.ProcessId.createMockEvent({
-        messageId: messageId2,
-        mockEventData: {
-          block: {
-            timestamp: blockTimestamp,
-            number: blockNumber + 1,
-            hash: blockHash,
-          },
-          chainId: chainId,
-          logIndex: 1,
-          srcAddress: mailboxAddress,
+      await simulateEvent(indexer, chainId, {
+        contract: "Mailbox",
+        event: "ProcessId",
+        params: {
+          messageId: messageId2,
         },
+        block: {
+          timestamp: blockTimestamp,
+          number: blockNumber + 1,
+          hash: blockHash,
+        },
+        transaction: {
+          hash: txHash2,
+        },
+        srcAddress: mailboxAddress,
+        logIndex: 1,
       });
 
-      // Execute
-      const result = await mockDb.processEvents([mockEvent1, mockEvent2]);
-      const expectedId1 = MailboxMessageId(
-        mockEvent1.transaction.hash,
-        chainId,
-        messageId1,
-      );
+      const expectedId1 = MailboxMessageId(txHash1, chainId, messageId1);
+      const expectedId2 = MailboxMessageId(txHash2, chainId, messageId2);
 
       // Assert - check both entities were created with different messageIds
-      const expectedId2 = MailboxMessageId(
-        mockEvent2.transaction.hash,
-        chainId,
-        messageId2,
-      );
-      const entity1 = result.entities.ProcessId_event.get(expectedId1);
-      const entity2 = result.entities.ProcessId_event.get(expectedId2);
+      const entity1 = await indexer.ProcessId_event.get(expectedId1);
+      const entity2 = await indexer.ProcessId_event.get(expectedId2);
 
       expect(entity1).toBeDefined();
       expect(entity2).toBeDefined();
@@ -371,56 +350,55 @@ describe("Mailbox Events", () => {
 
     it("should handle different chainIds correctly", async () => {
       // Setup
-      const mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
       const chainId1 = 10; // Optimism
       const chainId2 = 8453; // Base
+      const txHash1 =
+        "0x0000000000000000000000000000000000000000000000000000000000000001";
+      const txHash2 =
+        "0x0000000000000000000000000000000000000000000000000000000000000002";
 
-      const mockEvent1 = Mailbox.ProcessId.createMockEvent({
-        messageId: messageId,
-        mockEventData: {
-          block: {
-            timestamp: blockTimestamp,
-            number: blockNumber,
-            hash: blockHash,
-          },
-          chainId: chainId1,
-          logIndex: 1,
-          srcAddress: mailboxAddress,
+      await simulateEvent(indexer, chainId1, {
+        contract: "Mailbox",
+        event: "ProcessId",
+        params: {
+          messageId: messageId,
         },
+        block: {
+          timestamp: blockTimestamp,
+          number: blockNumber,
+          hash: blockHash,
+        },
+        transaction: {
+          hash: txHash1,
+        },
+        srcAddress: mailboxAddress,
+        logIndex: 1,
       });
 
-      const mockEvent2 = Mailbox.ProcessId.createMockEvent({
-        messageId: messageId,
-        mockEventData: {
-          block: {
-            timestamp: blockTimestamp,
-            number: blockNumber + 1,
-            hash: blockHash,
-          },
-          chainId: chainId2,
-          logIndex: 1,
-          srcAddress: mailboxAddress,
+      await simulateEvent(indexer, chainId2, {
+        contract: "Mailbox",
+        event: "ProcessId",
+        params: {
+          messageId: messageId,
         },
+        block: {
+          timestamp: blockTimestamp,
+          number: blockNumber + 1,
+          hash: blockHash,
+        },
+        transaction: {
+          hash: txHash2,
+        },
+        srcAddress: mailboxAddress,
+        logIndex: 1,
       });
-
-      // Execute - processEvents does not support multiple chainIds in one call, so run separately and merge
-      const result1 = await mockDb.processEvents([mockEvent1]);
-      const expectedId1 = MailboxMessageId(
-        mockEvent1.transaction.hash,
-        chainId1,
-        messageId,
-      );
-      const updatedMockDb = mergeProcessIdEventResult(result1, expectedId1);
-      const result2 = await updatedMockDb.processEvents([mockEvent2]);
 
       // Assert - check both entities were created with different chainIds
-      const expectedId2 = MailboxMessageId(
-        mockEvent2.transaction.hash,
-        chainId2,
-        messageId,
-      );
-      const entity1 = result2.entities.ProcessId_event.get(expectedId1);
-      const entity2 = result2.entities.ProcessId_event.get(expectedId2);
+      const expectedId1 = MailboxMessageId(txHash1, chainId1, messageId);
+      const expectedId2 = MailboxMessageId(txHash2, chainId2, messageId);
+      const entity1 = await indexer.ProcessId_event.get(expectedId1);
+      const entity2 = await indexer.ProcessId_event.get(expectedId2);
 
       expect(entity1).toBeDefined();
       expect(entity2).toBeDefined();
@@ -448,7 +426,7 @@ describe("Mailbox Events", () => {
 
     it("should create SuperSwap when ProcessId is processed and all required data exists", async () => {
       // Setup: Create all required entities
-      let mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
 
       // 1. Create DispatchId_event (source chain)
       const dispatchIdEvent: DispatchId_event = {
@@ -461,7 +439,7 @@ describe("Mailbox Events", () => {
         transactionHash: sourceTransactionHash,
         messageId: testMessageId,
       };
-      mockDb = mockDb.entities.DispatchId_event.set(dispatchIdEvent);
+      indexer.DispatchId_event.set(dispatchIdEvent);
 
       // 2. Create OUSDTBridgedTransaction
       const bridgedTransaction: OUSDTBridgedTransaction = {
@@ -475,7 +453,7 @@ describe("Mailbox Events", () => {
         ),
         amount: oUSDTAmount,
       };
-      mockDb = mockDb.entities.OUSDTBridgedTransaction.set(bridgedTransaction);
+      indexer.OUSDTBridgedTransaction.set(bridgedTransaction);
 
       // 3. Create ProcessId_event (destination chain) - this will be created by the handler
       // But we also need it for the lookup
@@ -489,7 +467,7 @@ describe("Mailbox Events", () => {
         transactionHash: destinationTransactionHash,
         messageId: testMessageId,
       };
-      mockDb = mockDb.entities.ProcessId_event.set(processIdEvent);
+      indexer.ProcessId_event.set(processIdEvent);
 
       // 4. Create source chain swap (tokenIn -> oUSDT)
       const sourceSwap: OUSDTSwaps = {
@@ -507,7 +485,7 @@ describe("Mailbox Events", () => {
         amountIn: 1000n,
         amountOut: oUSDTAmount,
       };
-      mockDb = mockDb.entities.OUSDTSwaps.set(sourceSwap);
+      indexer.OUSDTSwaps.set(sourceSwap);
 
       // 5. Create destination chain swap (oUSDT -> tokenOut)
       const destinationSwap: OUSDTSwaps = {
@@ -525,27 +503,26 @@ describe("Mailbox Events", () => {
         amountIn: oUSDTAmount,
         amountOut: 950n,
       };
-      mockDb = mockDb.entities.OUSDTSwaps.set(destinationSwap);
+      indexer.OUSDTSwaps.set(destinationSwap);
 
       // Execute: Process ProcessId event
-      const processIdMockEvent = Mailbox.ProcessId.createMockEvent({
-        messageId: testMessageId,
-        mockEventData: {
-          block: {
-            timestamp: blockTimestamp,
-            number: blockNumber,
-            hash: blockHash,
-          },
-          chainId: destinationChainId,
-          logIndex: 1,
-          srcAddress: mailboxAddress,
-          transaction: {
-            hash: destinationTransactionHash,
-          },
+      await simulateEvent(indexer, destinationChainId, {
+        contract: "Mailbox",
+        event: "ProcessId",
+        params: {
+          messageId: testMessageId,
         },
+        block: {
+          timestamp: blockTimestamp,
+          number: blockNumber,
+          hash: blockHash,
+        },
+        transaction: {
+          hash: destinationTransactionHash,
+        },
+        srcAddress: mailboxAddress,
+        logIndex: 1,
       });
-
-      const result = await mockDb.processEvents([processIdMockEvent]);
 
       // Assert: ProcessId_event was created
       const processIdEntityId = MailboxMessageId(
@@ -554,48 +531,47 @@ describe("Mailbox Events", () => {
         testMessageId,
       );
       const processIdEntity =
-        result.entities.ProcessId_event.get(processIdEntityId);
+        await indexer.ProcessId_event.get(processIdEntityId);
       expect(processIdEntity).toBeDefined();
       expect(processIdEntity?.messageId).toBe(testMessageId);
 
       // Assert: SuperSwap was created
-      const superSwaps = Array.from(
-        result.entities.SuperSwap.getAll(),
+      const superSwap = Array.from(
+        await indexer.SuperSwap.getAll(),
       ) as SuperSwap[];
-      expect(superSwaps).toHaveLength(1);
+      expect(superSwap).toHaveLength(1);
 
-      const superSwap = superSwaps[0];
-      expect(superSwap.originChainId).toBe(BigInt(sourceChainId));
-      expect(superSwap.destinationChainId).toBe(BigInt(destinationChainId));
-      expect(superSwap.oUSDTamount).toBe(oUSDTAmount);
-      expect(superSwap.sourceChainToken).toBe(tokenInAddress);
-      expect(superSwap.destinationChainToken).toBe(tokenOutAddress);
-      expect(superSwap.sourceChainTokenAmountSwapped).toBe(1000n);
-      expect(superSwap.destinationChainTokenAmountSwapped).toBe(950n);
+      const swap = superSwap[0];
+      expect(swap.originChainId).toBe(BigInt(sourceChainId));
+      expect(swap.destinationChainId).toBe(BigInt(destinationChainId));
+      expect(swap.oUSDTamount).toBe(oUSDTAmount);
+      expect(swap.sourceChainToken).toBe(tokenInAddress);
+      expect(swap.destinationChainToken).toBe(tokenOutAddress);
+      expect(swap.sourceChainTokenAmountSwapped).toBe(1000n);
+      expect(swap.destinationChainTokenAmountSwapped).toBe(950n);
     });
 
     it("should create ProcessId_event but not SuperSwap when DispatchId is missing", async () => {
       // Setup: Create ProcessId event without DispatchId
-      const mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
 
-      const processIdMockEvent = Mailbox.ProcessId.createMockEvent({
-        messageId: testMessageId,
-        mockEventData: {
-          block: {
-            timestamp: blockTimestamp,
-            number: blockNumber,
-            hash: blockHash,
-          },
-          chainId: destinationChainId,
-          logIndex: 1,
-          srcAddress: mailboxAddress,
-          transaction: {
-            hash: destinationTransactionHash,
-          },
+      await simulateEvent(indexer, destinationChainId, {
+        contract: "Mailbox",
+        event: "ProcessId",
+        params: {
+          messageId: testMessageId,
         },
+        block: {
+          timestamp: blockTimestamp,
+          number: blockNumber,
+          hash: blockHash,
+        },
+        transaction: {
+          hash: destinationTransactionHash,
+        },
+        srcAddress: mailboxAddress,
+        logIndex: 1,
       });
-
-      const result = await mockDb.processEvents([processIdMockEvent]);
 
       // Assert: ProcessId_event was created
       const processIdEntityId = MailboxMessageId(
@@ -604,17 +580,17 @@ describe("Mailbox Events", () => {
         testMessageId,
       );
       const processIdEntity =
-        result.entities.ProcessId_event.get(processIdEntityId);
+        await indexer.ProcessId_event.get(processIdEntityId);
       expect(processIdEntity).toBeDefined();
 
       // Assert: No SuperSwap was created (DispatchId missing)
-      const superSwaps = Array.from(result.entities.SuperSwap.getAll());
+      const superSwaps = Array.from(await indexer.SuperSwap.getAll());
       expect(superSwaps).toHaveLength(0);
     });
 
     it("should create ProcessId_event but not SuperSwap when OUSDTBridgedTransaction is missing", async () => {
       // Setup: Create DispatchId but no bridged transaction
-      let mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
 
       const dispatchIdEvent: DispatchId_event = {
         id: MailboxMessageId(
@@ -626,26 +602,25 @@ describe("Mailbox Events", () => {
         transactionHash: sourceTransactionHash,
         messageId: testMessageId,
       };
-      mockDb = mockDb.entities.DispatchId_event.set(dispatchIdEvent);
+      indexer.DispatchId_event.set(dispatchIdEvent);
 
-      const processIdMockEvent = Mailbox.ProcessId.createMockEvent({
-        messageId: testMessageId,
-        mockEventData: {
-          block: {
-            timestamp: blockTimestamp,
-            number: blockNumber,
-            hash: blockHash,
-          },
-          chainId: destinationChainId,
-          logIndex: 1,
-          srcAddress: mailboxAddress,
-          transaction: {
-            hash: destinationTransactionHash,
-          },
+      await simulateEvent(indexer, destinationChainId, {
+        contract: "Mailbox",
+        event: "ProcessId",
+        params: {
+          messageId: testMessageId,
         },
+        block: {
+          timestamp: blockTimestamp,
+          number: blockNumber,
+          hash: blockHash,
+        },
+        transaction: {
+          hash: destinationTransactionHash,
+        },
+        srcAddress: mailboxAddress,
+        logIndex: 1,
       });
-
-      const result = await mockDb.processEvents([processIdMockEvent]);
 
       // Assert: ProcessId_event was created
       const processIdEntityId = MailboxMessageId(
@@ -654,17 +629,17 @@ describe("Mailbox Events", () => {
         testMessageId,
       );
       const processIdEntity =
-        result.entities.ProcessId_event.get(processIdEntityId);
+        await indexer.ProcessId_event.get(processIdEntityId);
       expect(processIdEntity).toBeDefined();
 
       // Assert: No SuperSwap was created (bridged transaction missing)
-      const superSwaps = Array.from(result.entities.SuperSwap.getAll());
+      const superSwaps = Array.from(await indexer.SuperSwap.getAll());
       expect(superSwaps).toHaveLength(0);
     });
 
     it("should handle ProcessId event gracefully when source chain swaps are missing", async () => {
       // Setup: Create all entities except source swap
-      let mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
 
       const dispatchIdEvent: DispatchId_event = {
         id: MailboxMessageId(
@@ -676,7 +651,7 @@ describe("Mailbox Events", () => {
         transactionHash: sourceTransactionHash,
         messageId: testMessageId,
       };
-      mockDb = mockDb.entities.DispatchId_event.set(dispatchIdEvent);
+      indexer.DispatchId_event.set(dispatchIdEvent);
 
       const bridgedTransaction: OUSDTBridgedTransaction = {
         id: sourceTransactionHash,
@@ -689,7 +664,7 @@ describe("Mailbox Events", () => {
         ),
         amount: oUSDTAmount,
       };
-      mockDb = mockDb.entities.OUSDTBridgedTransaction.set(bridgedTransaction);
+      indexer.OUSDTBridgedTransaction.set(bridgedTransaction);
 
       const processIdEvent: ProcessId_event = {
         id: MailboxMessageId(
@@ -701,28 +676,27 @@ describe("Mailbox Events", () => {
         transactionHash: destinationTransactionHash,
         messageId: testMessageId,
       };
-      mockDb = mockDb.entities.ProcessId_event.set(processIdEvent);
+      indexer.ProcessId_event.set(processIdEvent);
 
       // Note: No source swap created
 
-      const processIdMockEvent = Mailbox.ProcessId.createMockEvent({
-        messageId: testMessageId,
-        mockEventData: {
-          block: {
-            timestamp: blockTimestamp,
-            number: blockNumber,
-            hash: blockHash,
-          },
-          chainId: destinationChainId,
-          logIndex: 1,
-          srcAddress: mailboxAddress,
-          transaction: {
-            hash: destinationTransactionHash,
-          },
+      await simulateEvent(indexer, destinationChainId, {
+        contract: "Mailbox",
+        event: "ProcessId",
+        params: {
+          messageId: testMessageId,
         },
+        block: {
+          timestamp: blockTimestamp,
+          number: blockNumber,
+          hash: blockHash,
+        },
+        transaction: {
+          hash: destinationTransactionHash,
+        },
+        srcAddress: mailboxAddress,
+        logIndex: 1,
       });
-
-      const result = await mockDb.processEvents([processIdMockEvent]);
 
       // Assert: ProcessId_event was created
       const processIdEntityId = MailboxMessageId(
@@ -731,11 +705,11 @@ describe("Mailbox Events", () => {
         testMessageId,
       );
       const processIdEntity =
-        result.entities.ProcessId_event.get(processIdEntityId);
+        await indexer.ProcessId_event.get(processIdEntityId);
       expect(processIdEntity).toBeDefined();
 
       // Assert: No SuperSwap was created (source swap missing)
-      const superSwaps = Array.from(result.entities.SuperSwap.getAll());
+      const superSwaps = Array.from(await indexer.SuperSwap.getAll());
       expect(superSwaps).toHaveLength(0);
     });
   });

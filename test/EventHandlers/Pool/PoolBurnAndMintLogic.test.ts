@@ -1,17 +1,15 @@
-import type {
-  PoolTransferInTx,
-  Pool_Burn_event,
-  Pool_Mint_event,
-  Token,
-  TxPoolTransferRegistry,
-  handlerContext,
-} from "generated";
+import type { PoolTransferInTx, Token, TxPoolTransferRegistry } from "envio";
 import {
   PoolTransferInTxId,
   TxPoolTransferRegistryId,
   ZERO_ADDRESS,
   toChecksumAddress,
 } from "../../../src/Constants";
+import type {
+  Pool_Burn_event,
+  Pool_Mint_event,
+  handlerContext,
+} from "../../../src/EntityTypes";
 import {
   extractRecipientAddress,
   findClosestPrecedingTransfer,
@@ -155,41 +153,43 @@ describe("PoolBurnAndMintLogic", () => {
   });
 
   // Helper to create mock Mint event
-  const createMockMintEvent = (logIndex: number): Pool_Mint_event => ({
-    chainId: CHAIN_ID,
-    block: {
-      number: BLOCK_NUMBER,
-      timestamp: TIMESTAMP,
-      hash: "0xblock",
-    },
-    logIndex,
-    srcAddress: POOL_ADDRESS as `0x${string}`,
-    transaction: { hash: TX_HASH },
-    params: {
-      sender: ROUTER_ADDRESS,
-      amount0: AMOUNT0,
-      amount1: AMOUNT1,
-    },
-  });
+  const createMockMintEvent = (logIndex: number): Pool_Mint_event =>
+    ({
+      chainId: CHAIN_ID,
+      block: {
+        number: BLOCK_NUMBER,
+        timestamp: TIMESTAMP,
+        hash: "0xblock",
+      },
+      logIndex,
+      srcAddress: POOL_ADDRESS as `0x${string}`,
+      transaction: { hash: TX_HASH },
+      params: {
+        sender: ROUTER_ADDRESS,
+        amount0: AMOUNT0,
+        amount1: AMOUNT1,
+      },
+    }) as Pool_Mint_event;
 
   // Helper to create mock Burn event
-  const createMockBurnEvent = (logIndex: number): Pool_Burn_event => ({
-    chainId: CHAIN_ID,
-    block: {
-      number: BLOCK_NUMBER,
-      timestamp: TIMESTAMP,
-      hash: "0xblock",
-    },
-    logIndex,
-    srcAddress: POOL_ADDRESS as `0x${string}`,
-    transaction: { hash: TX_HASH },
-    params: {
-      sender: ROUTER_ADDRESS,
-      to: USER_ADDRESS,
-      amount0: AMOUNT0,
-      amount1: AMOUNT1,
-    },
-  });
+  const createMockBurnEvent = (logIndex: number): Pool_Burn_event =>
+    ({
+      chainId: CHAIN_ID,
+      block: {
+        number: BLOCK_NUMBER,
+        timestamp: TIMESTAMP,
+        hash: "0xblock",
+      },
+      logIndex,
+      srcAddress: POOL_ADDRESS as `0x${string}`,
+      transaction: { hash: TX_HASH },
+      params: {
+        sender: ROUTER_ADDRESS,
+        to: USER_ADDRESS,
+        amount0: AMOUNT0,
+        amount1: AMOUNT1,
+      },
+    }) as Pool_Burn_event;
 
   describe("getTransfersInTx", () => {
     it("should filter transfers by txHash, chainId, pool, and event type", async () => {

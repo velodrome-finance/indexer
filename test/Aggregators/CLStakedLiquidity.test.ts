@@ -1,10 +1,10 @@
-import type { handlerContext } from "generated";
 import {
   applyStakedPositionToEdges,
   deriveStakedLiquidityInRange,
   isPositionInRange,
   processTickCrossingsForStaked,
 } from "../../src/Aggregators/CLStakedLiquidity";
+import type { handlerContext } from "../../src/EntityTypes";
 import { calculatePositionAmountsFromLiquidity } from "../../src/Helpers";
 import { sqrtAt } from "./common";
 

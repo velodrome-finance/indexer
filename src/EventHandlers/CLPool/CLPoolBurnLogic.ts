@@ -1,6 +1,7 @@
-import type { CLPool_Burn_event, Token, handlerContext } from "generated";
+import type { Token } from "envio";
 import type { PoolDiff } from "../../Aggregators/Pool";
 import { CLPositionPendingPrincipalId } from "../../Constants";
+import type { CLPool_Burn_event, handlerContext } from "../../EntityTypes";
 import type { Pool } from "../../EntityTypes";
 import { calculateTotalUSD } from "../../Helpers";
 

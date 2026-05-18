@@ -1,16 +1,15 @@
-import type {
-  PoolTransferInTx,
-  Pool_Burn_event,
-  Pool_Mint_event,
-  Token,
-  handlerContext,
-} from "generated";
+import type { PoolTransferInTx, Token } from "envio";
 import { type PoolData, updatePool } from "../../Aggregators/Pool";
 import {
   loadOrCreateUserData,
   updateUserStatsPerPool,
 } from "../../Aggregators/UserStatsPerPool";
 import { TxPoolTransferRegistryId } from "../../Constants";
+import type {
+  Pool_Burn_event,
+  Pool_Mint_event,
+  handlerContext,
+} from "../../EntityTypes";
 import { calculateTotalUSD } from "../../Helpers";
 
 export interface AttributionResult {

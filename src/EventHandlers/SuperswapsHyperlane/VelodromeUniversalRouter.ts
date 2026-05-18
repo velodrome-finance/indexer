@@ -1,11 +1,10 @@
-import {
-  type OUSDTBridgedTransaction,
-  VelodromeUniversalRouter,
-} from "generated";
+import { indexer } from "envio";
+import type { OUSDTBridgedTransaction } from "envio";
 import { OUSDT_ADDRESS } from "../../Constants";
 import { handleCrossChainSwapEvent } from "./SuperSwapLogic";
 
-VelodromeUniversalRouter.UniversalRouterBridge.handler(
+indexer.onEvent(
+  { contract: "VelodromeUniversalRouter", event: "UniversalRouterBridge" },
   async ({ event, context }) => {
     // Only process events that involve Open USDT (oUSDT)
     if (event.params.token !== OUSDT_ADDRESS) {
@@ -26,12 +25,15 @@ VelodromeUniversalRouter.UniversalRouterBridge.handler(
   },
 );
 
-VelodromeUniversalRouter.CrossChainSwap.handler(async ({ event, context }) => {
-  await handleCrossChainSwapEvent(
-    event.transaction.hash,
-    event.chainId,
-    event.params.destinationDomain,
-    event.block.timestamp,
-    context,
-  );
-});
+indexer.onEvent(
+  { contract: "VelodromeUniversalRouter", event: "CrossChainSwap" },
+  async ({ event, context }) => {
+    await handleCrossChainSwapEvent(
+      event.transaction.hash,
+      event.chainId,
+      event.params.destinationDomain,
+      event.block.timestamp,
+      context,
+    );
+  },
+);

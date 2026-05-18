@@ -1,10 +1,6 @@
-import {
-  CustomUnstakedFeeModule,
-  MockDb,
-  UnstakedFeeModule,
-} from "../../../generated/src/TestHelpers.gen";
+import { createTestIndexer } from "envio";
 import { toChecksumAddress } from "../../../src/Constants";
-import "../../eventHandlersRegistration";
+import { simulateEvent } from "../../testHelpers";
 import { setupCommon } from "../Pool/common";
 
 const GAUGE_CAPS_MODULE = toChecksumAddress(
@@ -23,24 +19,6 @@ const DEFAULT_BLOCK = {
   number: 123456,
   hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
 } as const;
-
-function createCustomFeeSetEvent(params: {
-  poolAddress: string;
-  fee: bigint;
-  srcAddress: string;
-  block?: { timestamp: number; number: number; hash: string };
-}) {
-  return UnstakedFeeModule.CustomFeeSet.createMockEvent({
-    pool: params.poolAddress as `0x${string}`,
-    fee: params.fee,
-    mockEventData: {
-      block: params.block ?? DEFAULT_BLOCK,
-      chainId: CHAIN_ID_BASE,
-      logIndex: 1,
-      srcAddress: params.srcAddress as `0x${string}`,
-    },
-  });
-}
 
 describe("UnstakedFeeModule Events", () => {
   let common: ReturnType<typeof setupCommon>;
@@ -71,20 +49,27 @@ describe("UnstakedFeeModule Events", () => {
     it.each(feeCases)(
       "should store $label on the pool",
       async ({ fee, srcAddress }) => {
+        const indexer = createTestIndexer();
+        // lastSnapshotTimestamp: undefined prevents Quirk 1 crash in shouldSnapshot
         const pool = common.createMockPool({
           chainId: CHAIN_ID_BASE,
+          lastSnapshotTimestamp: undefined,
         });
-        const populatedDb = MockDb.createMockDb().entities.Pool.set(pool);
+        indexer.Pool.set(pool);
 
-        const event = createCustomFeeSetEvent({
-          poolAddress: pool.poolAddress,
-          fee,
-          srcAddress,
+        await simulateEvent(indexer, CHAIN_ID_BASE, {
+          contract: "UnstakedFeeModule",
+          event: "CustomFeeSet",
+          params: {
+            pool: pool.poolAddress as `0x${string}`,
+            fee,
+          },
+          block: DEFAULT_BLOCK,
+          srcAddress: srcAddress as `0x${string}`,
+          logIndex: 1,
         });
 
-        const result = await populatedDb.processEvents([event]);
-
-        const updatedPool = result.entities.Pool.get(pool.id);
+        const updatedPool = await indexer.Pool.get(pool.id);
         expect(updatedPool).toBeDefined();
         expect(updatedPool?.unstakedFee).toBe(fee);
         // baseFee and currentFee must be orthogonal and untouched.
@@ -94,65 +79,72 @@ describe("UnstakedFeeModule Events", () => {
     );
 
     it("should no-op (not throw) when the pool aggregator does not exist", async () => {
-      const pool = common.createMockPool({
-        chainId: CHAIN_ID_BASE,
+      const indexer = createTestIndexer();
+      const pool = common.createMockPool({ chainId: CHAIN_ID_BASE });
+      // Pool not seeded
+
+      await simulateEvent(indexer, CHAIN_ID_BASE, {
+        contract: "UnstakedFeeModule",
+        event: "CustomFeeSet",
+        params: {
+          pool: pool.poolAddress as `0x${string}`,
+          fee: 500n,
+        },
+        block: DEFAULT_BLOCK,
+        srcAddress: GAUGE_CAPS_MODULE as `0x${string}`,
+        logIndex: 1,
       });
-      const mockDb = MockDb.createMockDb();
 
-      const event = createCustomFeeSetEvent({
-        poolAddress: pool.poolAddress,
-        fee: 500n,
-        srcAddress: GAUGE_CAPS_MODULE,
-      });
-
-      const result = await mockDb.processEvents([event]);
-
-      const updatedPool = result.entities.Pool.get(pool.id);
+      const updatedPool = await indexer.Pool.get(pool.id);
       expect(updatedPool).toBeUndefined();
     });
   });
 
   describe("Last-writer-wins across module deployments", () => {
     it("applies the most-recent event regardless of which module (Custom vs plain) fired it", async () => {
+      const indexer = createTestIndexer();
+      // lastSnapshotTimestamp: undefined prevents Quirk 1 crash in shouldSnapshot
       const pool = common.createMockPool({
         chainId: CHAIN_ID_BASE,
+        lastSnapshotTimestamp: undefined,
       });
-      let mockDb = MockDb.createMockDb();
-      mockDb = mockDb.entities.Pool.set(pool);
+      indexer.Pool.set(pool);
 
       // First: Initial CustomUnstakedFeeModule fires SetCustomFee with 300.
-      const initialEvent = CustomUnstakedFeeModule.SetCustomFee.createMockEvent(
-        {
+      await simulateEvent(indexer, CHAIN_ID_BASE, {
+        contract: "CustomUnstakedFeeModule",
+        event: "SetCustomFee",
+        params: {
           pool: pool.poolAddress as `0x${string}`,
           fee: 300n,
-          mockEventData: {
-            block: {
-              timestamp: 1000000,
-              number: 123456,
-              hash: "0x1111111111111111111111111111111111111111111111111111111111111111",
-            },
-            chainId: CHAIN_ID_BASE,
-            logIndex: 1,
-            srcAddress: INITIAL_CUSTOM_MODULE,
-          },
         },
-      );
-      mockDb = await mockDb.processEvents([initialEvent]);
+        block: {
+          timestamp: 1000000,
+          number: 123456,
+          hash: "0x1111111111111111111111111111111111111111111111111111111111111111",
+        },
+        srcAddress: INITIAL_CUSTOM_MODULE as `0x${string}`,
+        logIndex: 1,
+      });
 
       // Then: Gauges V3 UnstakedFeeModule fires CustomFeeSet with 700 on a later block.
-      const laterEvent = createCustomFeeSetEvent({
-        poolAddress: pool.poolAddress,
-        fee: 700n,
-        srcAddress: GAUGES_V3_MODULE,
+      await simulateEvent(indexer, CHAIN_ID_BASE, {
+        contract: "UnstakedFeeModule",
+        event: "CustomFeeSet",
+        params: {
+          pool: pool.poolAddress as `0x${string}`,
+          fee: 700n,
+        },
         block: {
           timestamp: 1000100,
           number: 123500,
           hash: "0x2222222222222222222222222222222222222222222222222222222222222222",
         },
+        srcAddress: GAUGES_V3_MODULE as `0x${string}`,
+        logIndex: 1,
       });
-      const result = await mockDb.processEvents([laterEvent]);
 
-      const updatedPool = result.entities.Pool.get(pool.id);
+      const updatedPool = await indexer.Pool.get(pool.id);
       expect(updatedPool?.unstakedFee).toBe(700n);
     });
   });

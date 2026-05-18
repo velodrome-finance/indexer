@@ -1,4 +1,5 @@
-import type { VeNFTPoolVote, VeNFTState, handlerContext } from "generated";
+import type { VeNFTPoolVote, VeNFTState } from "envio";
+import type { handlerContext } from "../EntityTypes";
 
 import { VeNFTPoolVoteId } from "../Constants";
 

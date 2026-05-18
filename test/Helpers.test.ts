@@ -3,9 +3,10 @@ import {
   TickMath,
   maxLiquidityForAmounts,
 } from "@uniswap/v3-sdk";
-import type { Token, handlerContext } from "generated";
+import type { Token } from "envio";
 import JSBI from "jsbi";
 import { toChecksumAddress } from "../src/Constants";
+import type { handlerContext } from "../src/EntityTypes";
 import type { Pool } from "../src/EntityTypes";
 import {
   calculatePositionAmountsFromLiquidity,

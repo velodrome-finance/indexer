@@ -1,5 +1,6 @@
-import type { CLPool_CollectFees_event, Token } from "generated";
+import type { Token } from "envio";
 import { toChecksumAddress } from "../../../src/Constants";
+import type { CLPool_CollectFees_event } from "../../../src/EntityTypes";
 import type { Pool } from "../../../src/EntityTypes";
 import { processCLPoolCollectFees } from "../../../src/EventHandlers/CLPool/CLPoolCollectFeesLogic";
 import { setupCommon } from "../Pool/common";
@@ -7,9 +8,8 @@ import { setupCommon } from "../Pool/common";
 describe("CLPoolCollectFeesLogic", () => {
   const { mockLiquidityPoolData, mockToken0Data, mockToken1Data } =
     setupCommon();
-  const mockEvent: CLPool_CollectFees_event = {
+  const mockEvent = {
     params: {
-      owner: toChecksumAddress("0x1111111111111111111111111111111111111111"),
       recipient: toChecksumAddress(
         "0x2222222222222222222222222222222222222222",
       ),
@@ -27,7 +27,7 @@ describe("CLPoolCollectFeesLogic", () => {
     transaction: {
       hash: "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
     },
-  } as CLPool_CollectFees_event;
+  } as unknown as CLPool_CollectFees_event;
 
   const mockPool: Pool = {
     ...mockLiquidityPoolData,

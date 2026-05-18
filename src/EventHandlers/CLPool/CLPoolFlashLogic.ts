@@ -1,6 +1,7 @@
-import type { CLPool_Flash_event, Token } from "generated";
+import type { Token } from "envio";
 import type { PoolDiff } from "../../Aggregators/Pool";
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
+import type { CLPool_Flash_event } from "../../EntityTypes";
 import { calculateTotalUSD } from "../../Helpers";
 
 export interface CLPoolFlashResult {

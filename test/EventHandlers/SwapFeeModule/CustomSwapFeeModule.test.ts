@@ -1,8 +1,6 @@
-import {
-  CustomSwapFeeModule,
-  MockDb,
-} from "../../../generated/src/TestHelpers.gen";
+import { createTestIndexer } from "envio";
 import { toChecksumAddress } from "../../../src/Constants";
+import { simulateEvent } from "../../testHelpers";
 import { setupCommon } from "../Pool/common";
 
 describe("CustomSwapFeeModule Events", () => {
@@ -12,39 +10,35 @@ describe("CustomSwapFeeModule Events", () => {
   );
   const chainId = 42220; // Celo
 
+  // lastSnapshotTimestamp: undefined prevents Quirk 1 crash in shouldSnapshot
   const mockPool = createMockPool({
     chainId: chainId,
+    lastSnapshotTimestamp: undefined,
   });
 
   describe("SetCustomFee event", () => {
     it("should create the DynamicFeeGlobalConfig entity", async () => {
-      // Setup
-      const mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
+      indexer.Pool.set(mockPool);
       const fee = 300n;
 
-      // Pre-populate pool in the mock database
-      const populatedDb = mockDb.entities.Pool.set(mockPool);
-
-      const mockEvent = CustomSwapFeeModule.SetCustomFee.createMockEvent({
-        pool: mockPool.poolAddress as `0x${string}`,
-        fee: fee,
-        mockEventData: {
-          block: {
-            timestamp: 1000000,
-            number: 123456,
-            hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
-          },
-          chainId: chainId,
-          logIndex: 1,
-          srcAddress: moduleAddress,
+      await simulateEvent(indexer, chainId, {
+        contract: "CustomSwapFeeModule",
+        event: "SetCustomFee",
+        params: {
+          pool: mockPool.poolAddress as `0x${string}`,
+          fee: fee,
         },
+        block: {
+          timestamp: 1000000,
+          number: 123456,
+          hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+        },
+        srcAddress: moduleAddress,
+        logIndex: 1,
       });
 
-      // Execute
-      const result = await populatedDb.processEvents([mockEvent]);
-
-      // Assert: Check that DynamicFeeGlobalConfig was created
-      const config = result.entities.DynamicFeeGlobalConfig.get(moduleAddress);
+      const config = await indexer.DynamicFeeGlobalConfig.get(moduleAddress);
       expect(config).toBeDefined();
       expect(config?.id).toBe(moduleAddress);
       expect(config?.chainId).toBe(chainId);
@@ -52,33 +46,27 @@ describe("CustomSwapFeeModule Events", () => {
     });
 
     it("should update the pool's baseFee", async () => {
-      // Setup
-      const mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
+      indexer.Pool.set(mockPool);
       const fee = 400n;
 
-      // Pre-populate pool in the mock database
-      const populatedDb = mockDb.entities.Pool.set(mockPool);
-
-      const mockEvent = CustomSwapFeeModule.SetCustomFee.createMockEvent({
-        pool: mockPool.poolAddress as `0x${string}`,
-        fee: fee,
-        mockEventData: {
-          block: {
-            timestamp: 1000000,
-            number: 123456,
-            hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
-          },
-          chainId: chainId,
-          logIndex: 1,
-          srcAddress: moduleAddress,
+      await simulateEvent(indexer, chainId, {
+        contract: "CustomSwapFeeModule",
+        event: "SetCustomFee",
+        params: {
+          pool: mockPool.poolAddress as `0x${string}`,
+          fee: fee,
         },
+        block: {
+          timestamp: 1000000,
+          number: 123456,
+          hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+        },
+        srcAddress: moduleAddress,
+        logIndex: 1,
       });
 
-      // Execute
-      const result = await populatedDb.processEvents([mockEvent]);
-
-      // Assert: Check that pool's baseFee was updated
-      const updatedPool = result.entities.Pool.get(mockPool.id);
+      const updatedPool = await indexer.Pool.get(mockPool.id);
       expect(updatedPool).toBeDefined();
       expect(updatedPool?.baseFee).toBe(fee);
       expect(updatedPool?.currentFee).toBe(fee);

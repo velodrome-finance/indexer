@@ -1,16 +1,4 @@
-import type {
-  VeNFTState,
-  VeNFT_DepositManaged_event,
-  VeNFT_Deposit_event,
-  VeNFT_LockPermanent_event,
-  VeNFT_Merge_event,
-  VeNFT_Split_event,
-  VeNFT_Transfer_event,
-  VeNFT_UnlockPermanent_event,
-  VeNFT_WithdrawManaged_event,
-  VeNFT_Withdraw_event,
-  handlerContext,
-} from "generated";
+import type { VeNFTState } from "envio";
 import {
   loadOrCreateUserData,
   loadUserStatsPerPool,
@@ -24,6 +12,18 @@ import {
   VeNFTId,
   ZERO_ADDRESS,
 } from "../../Constants";
+import type {
+  VeNFT_DepositManaged_event,
+  VeNFT_Deposit_event,
+  VeNFT_LockPermanent_event,
+  VeNFT_Merge_event,
+  VeNFT_Split_event,
+  VeNFT_Transfer_event,
+  VeNFT_UnlockPermanent_event,
+  VeNFT_WithdrawManaged_event,
+  VeNFT_Withdraw_event,
+  handlerContext,
+} from "../../EntityTypes";
 
 /**
  * Processes a VeNFT Deposit event: updates the VeNFTState with the new locktime,

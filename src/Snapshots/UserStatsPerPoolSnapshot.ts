@@ -1,8 +1,5 @@
-import type {
-  UserStatsPerPool,
-  UserStatsPerPoolSnapshot,
-  handlerContext,
-} from "generated";
+import type { UserStatsPerPool, UserStatsPerPoolSnapshot } from "envio";
+import type { handlerContext } from "../EntityTypes";
 
 import { UserStatsPerPoolSnapshotId } from "../Constants";
 import {

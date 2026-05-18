@@ -1,5 +1,6 @@
-import type { PoolLauncherPool, handlerContext } from "generated";
+import type { PoolLauncherPool } from "envio";
 import { PoolId } from "../../Constants";
+import type { handlerContext } from "../../EntityTypes";
 import type { Pool } from "../../EntityTypes";
 
 // Helper function to create or update PoolLauncherPool entity

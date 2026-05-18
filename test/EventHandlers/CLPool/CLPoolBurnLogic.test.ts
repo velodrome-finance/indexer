@@ -1,10 +1,9 @@
+import type { CLPositionPendingPrincipal, Token } from "envio";
+import { toChecksumAddress } from "../../../src/Constants";
 import type {
   CLPool_Burn_event,
-  CLPositionPendingPrincipal,
-  Token,
   handlerContext,
-} from "generated";
-import { toChecksumAddress } from "../../../src/Constants";
+} from "../../../src/EntityTypes";
 import type { Pool } from "../../../src/EntityTypes";
 import { processCLPoolBurn } from "../../../src/EventHandlers/CLPool/CLPoolBurnLogic";
 import { calculateTotalUSD } from "../../../src/Helpers";
