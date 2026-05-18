@@ -469,6 +469,74 @@ const BLACKLIST: ReadonlySet<string> = new Set([
     8453,
     toChecksumAddress("0x3F328768C598F6A685B0698E269E09B267C3EBdD"),
   ), // 🍕 (~$13.8K)
+  // Issue #731: second-pass audit extension — Base tokens driving the bulk of
+  // the $2.29-sextillion top-1000 Base V2 TVL inflation. All are Mode A
+  // locked-anchor shape (stored pricePerUSDNew on the order of $0.998-$128 vs
+  // realistic value ~$0.001-$0.005, or symbol-spoofs of legitimate USDC/BTC).
+  TokenId(
+    8453,
+    toChecksumAddress("0x047Cfd8f966F97c20528e5c1aEB549dB52F613ff"),
+  ), // HENLO (stored $128.57 vs ~$0.005 real)
+  TokenId(
+    8453,
+    toChecksumAddress("0x5C985C58562FA7b2F017490c72817ba4984313E7"),
+  ), // DE / Degen (stored $0.998 vs ~$0.001)
+  TokenId(
+    8453,
+    toChecksumAddress("0xf9fac6ccA82D7acea96Eb33880d628fdcbf07c96"),
+  ), // Ragdoll (variant 1)
+  TokenId(
+    8453,
+    toChecksumAddress("0xF5E89006CBeFf2dabCfda0Def5Bf45Ebe7f8429f"),
+  ), // Ragdoll (variant 2)
+  TokenId(
+    8453,
+    toChecksumAddress("0x0fb741B7203c610585206b8cb56E0a0b45062ff2"),
+  ), // CHIDO
+  TokenId(
+    8453,
+    toChecksumAddress("0x62b1473641f38AC7cD57054DB093a2008BB9C577"),
+  ), // AUD
+  TokenId(
+    8453,
+    toChecksumAddress("0xFC366d0F92F5E03f25d867C82B451B89E17907a3"),
+  ), // ET / Base (Optimism counterpart at same address already blacklisted via #720)
+  TokenId(
+    8453,
+    toChecksumAddress("0x52fA342C288060b37776caDF98D8f81C57EBA2B9"),
+  ), // USBA (variant 1)
+  TokenId(
+    8453,
+    toChecksumAddress("0xb0e400A463F1e0b20Eb831B32DC19eD32EF9Ce61"),
+  ), // USBA (variant 2)
+  TokenId(
+    8453,
+    toChecksumAddress("0x8feeE3Dc6F8bA55dd54228a909D883bE78422870"),
+  ), // TOORBOLG / GLOB-ROOT
+  TokenId(
+    8453,
+    toChecksumAddress("0xa7F9101d91121251d6bA7C1383B39a7f1321cDF3"),
+  ), // FD121
+  TokenId(
+    8453,
+    toChecksumAddress("0x9D848D49819897738FB82C4026414140fEED7eb2"),
+  ), // FDOTC
+  TokenId(
+    8453,
+    toChecksumAddress("0x5Bca90d1481081c36E6ac308e8ba5403D6c99e1b"),
+  ), // HTE
+  TokenId(
+    8453,
+    toChecksumAddress("0x4753ee21f0521B953e0Ac99449126dD457e85080"),
+  ), // PTTH
+  TokenId(
+    8453,
+    toChecksumAddress("0xEF708582Ab333d602aBcFc740410224352e71D83"),
+  ), // CTB
+  TokenId(
+    8453,
+    toChecksumAddress("0x44B6FBbA989F018c2C0fE7EE0bf4340B21255C2C"),
+  ), // ORC
 ]);
 
 /**

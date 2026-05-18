@@ -59,6 +59,30 @@ describe("PriceOverrides", () => {
       },
     );
 
+    it.each([
+      ["HENLO", "0x047Cfd8f966F97c20528e5c1aEB549dB52F613ff"],
+      ["DE / Degen", "0x5C985C58562FA7b2F017490c72817ba4984313E7"],
+      ["Ragdoll v1", "0xf9fac6ccA82D7acea96Eb33880d628fdcbf07c96"],
+      ["Ragdoll v2", "0xF5E89006CBeFf2dabCfda0Def5Bf45Ebe7f8429f"],
+      ["CHIDO", "0x0fb741B7203c610585206b8cb56E0a0b45062ff2"],
+      ["AUD", "0x62b1473641f38AC7cD57054DB093a2008BB9C577"],
+      ["ET / Base", "0xFC366d0F92F5E03f25d867C82B451B89E17907a3"],
+      ["USBA v1", "0x52fA342C288060b37776caDF98D8f81C57EBA2B9"],
+      ["USBA v2", "0xb0e400A463F1e0b20Eb831B32DC19eD32EF9Ce61"],
+      ["TOORBOLG", "0x8feeE3Dc6F8bA55dd54228a909D883bE78422870"],
+      ["FD121", "0xa7F9101d91121251d6bA7C1383B39a7f1321cDF3"],
+      ["FDOTC", "0x9D848D49819897738FB82C4026414140fEED7eb2"],
+      ["HTE", "0x5Bca90d1481081c36E6ac308e8ba5403D6c99e1b"],
+      ["PTTH", "0x4753ee21f0521B953e0Ac99449126dD457e85080"],
+      ["CTB", "0xEF708582Ab333d602aBcFc740410224352e71D83"],
+      ["ORC", "0x44B6FBbA989F018c2C0fE7EE0bf4340B21255C2C"],
+    ])(
+      "returns true for %s (Base inflated-price token, issue #731)",
+      (_, address) => {
+        expect(isBlacklistedToken(8453, toChecksumAddress(address))).toBe(true);
+      },
+    );
+
     it("does not blacklist the canonical AERO on Base", () => {
       expect(
         isBlacklistedToken(
