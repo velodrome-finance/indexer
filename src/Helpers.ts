@@ -85,22 +85,34 @@ export function calculateTokenAmountUSD(
  * prices (poisoned oracle paths, scam tokens) are universally *inflated*
  * — see issue #699, where a fake-USDC's `pricePerUSDNew` of ~1.5e35 polluted
  * `totalVolumeUSD` for any pool paired against it. The honest leg is reliably
- * the smaller of the two. When only one leg is priced (the other is `0n` or
- * `undefined`), falls back to that leg.
+ * the smaller of the two.
+ *
+ * When only one leg is priced (the other is `0n` or `undefined`), the
+ * single-leg fallback is only trusted when the priced token is whitelisted.
+ * For non-whitelisted single-leg cases the function returns `0n` — issue
+ * #737 documented a Ragdoll/RAGDOLL pair where token0's `pricePerUSDNew = 0`
+ * paired with token1's inflated $0.998 (non-whitelisted) yielded a
+ * $1.125e19 phantom volume. Restricting the fallback to whitelisted tokens
+ * closes that residual of #699.
  *
  * @param token0UsdValue - Token0's USD leg, or `undefined` when token0 is unpriced
  * @param token1UsdValue - Token1's USD leg, or `undefined` when token1 is unpriced
- * @returns The picked volume in USD, or `0n` when neither leg is priced
+ * @param token0IsWhitelisted - Whether token0 is on the canonical whitelist
+ * @param token1IsWhitelisted - Whether token1 is on the canonical whitelist
+ * @returns The picked volume in USD, or `0n` when neither leg is priced — or
+ *   when only one leg is priced and that leg's token is not whitelisted
  */
 export function pickTrustedSwapVolumeUSD(
   token0UsdValue: bigint | undefined,
   token1UsdValue: bigint | undefined,
+  token0IsWhitelisted: boolean,
+  token1IsWhitelisted: boolean,
 ): bigint {
   const t0 = token0UsdValue ?? 0n;
   const t1 = token1UsdValue ?? 0n;
   if (t0 !== 0n && t1 !== 0n) return t0 < t1 ? t0 : t1;
-  if (t0 !== 0n) return t0;
-  if (t1 !== 0n) return t1;
+  if (t0 !== 0n) return token0IsWhitelisted ? t0 : 0n;
+  if (t1 !== 0n) return token1IsWhitelisted ? t1 : 0n;
   return 0n;
 }
 
