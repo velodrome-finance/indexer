@@ -1063,34 +1063,38 @@ describe("PriceOracle", () => {
         expect(afterRecovery.pricePerUSDNew).toBe(recoveryPrice);
       });
 
-      it("rejects a DOWN-spike (≥10×) symmetrically", async () => {
-        // Anchor at $100; oracle returns $1 — 100× drop, must be rejected.
-        // Mirrors FXB20291231's Jan 2 2025 collapse to constant 485 wei.
+      it("accepts a DOWN candidate (≥10× drop) — asymmetric guard, issue #730", async () => {
+        // Issue #730: the failure modes are asymmetric. An upward
+        // false-accept (candidate wrongly high) self-heals on the next
+        // refresh; a downward false-reject (anchor wrongly high, candidate
+        // correct) is permanent — every subsequent correct reading is
+        // rejected forever. The DTF case (kept anchor $8.18, rejected
+        // candidate $0.000827 — within 2.4% of DefiLlama) is exactly this
+        // shape. Drop the symmetric branch so downward candidates are
+        // accepted immediately.
         const anchorPrice = 100n * 10n ** 18n;
-        const spikePrice = 1n * 10n ** 18n;
+        const recoveryPrice = 1n * 10n ** 18n;
 
         vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
           if ((effect as { name?: string }).name === "getTokenPrice") {
-            return { pricePerUSDNew: spikePrice };
+            return { pricePerUSDNew: recoveryPrice };
           }
           return {};
         });
 
-        const fetchedToken = {
-          ...mockToken0Data,
-          pricePerUSDNew: anchorPrice,
-          lastUpdatedTimestamp: oneHourOneMinuteAgo(),
-        };
-
         const result = await PriceOracle.refreshTokenPrice(
-          fetchedToken,
+          {
+            ...mockToken0Data,
+            pricePerUSDNew: anchorPrice,
+            lastUpdatedTimestamp: oneHourOneMinuteAgo(),
+          },
           blockNumber,
           blockDatetime.getTime() / 1000,
           chainId,
           mockContext as handlerContext,
         );
 
-        expect(result.pricePerUSDNew).toBe(anchorPrice);
+        expect(result.pricePerUSDNew).toBe(recoveryPrice);
       });
     });
 
