@@ -13,6 +13,7 @@ import {
   toChecksumAddress,
 } from "../../src/Constants";
 import { getSwapFee } from "../../src/Effects/SwapFee";
+import { roundBlockToInterval } from "../../src/Effects/Token";
 import type { Pool } from "../../src/EntityTypes";
 import * as PriceOracle from "../../src/PriceOracle";
 import { setPoolSnapshot } from "../../src/Snapshots/PoolSnapshot";
@@ -201,7 +202,8 @@ describe("Pool Functions", () => {
       // Should log a warning
       expect(vi.mocked(mockContext.log?.warn)).toHaveBeenCalled();
 
-      // Verify that the effect was called with the expected arguments
+      // Verify that the effect was called with the hour-rounded blockNumber
+      // (issue #749: cache key must be stable within an hour for L1/preload reuse)
       // biome-ignore lint/style/noNonNullAssertion: effect is verified to be defined above
       const effectMock = vi.mocked(mockContext.effect!);
       expect(effectMock).toHaveBeenCalledWith(getSwapFee, {
@@ -210,8 +212,49 @@ describe("Pool Functions", () => {
           "0x548118C7E0B865C2CfA94D15EC86B666468ac758",
         ),
         chainId: liquidityPoolAggregator.chainId,
-        blockNumber,
+        blockNumber: roundBlockToInterval(
+          blockNumber,
+          // biome-ignore lint/style/noNonNullAssertion: chainId is set in beforeEach
+          liquidityPoolAggregator.chainId!,
+        ),
       });
+    });
+
+    // Regression test for issue #749: getSwapFee's effect cache key must be
+    // hour-stable so preload dual-pass and re-index back-fills hit the cache
+    // instead of producing a new slot per raw block.
+    it("should pass an hour-rounded blockNumber so cache key is stable within the hour", async () => {
+      const blocksPerHour = 1800; // 2s blocks on Optimism (chainId 10)
+      const firstBlockInHour =
+        Math.floor(blockNumber / blocksPerHour) * blocksPerHour;
+      const lastBlockInHour = firstBlockInHour + blocksPerHour - 1;
+
+      await updateDynamicFeePools(
+        liquidityPoolAggregator as Pool,
+        mockContext as handlerContext,
+        10,
+        firstBlockInHour,
+      );
+      await updateDynamicFeePools(
+        liquidityPoolAggregator as Pool,
+        mockContext as handlerContext,
+        10,
+        lastBlockInHour,
+      );
+
+      // biome-ignore lint/style/noNonNullAssertion: effect is verified to be defined above
+      const effectMock = vi.mocked(mockContext.effect!);
+      const swapFeeCalls = effectMock.mock.calls.filter(
+        (call) => call[0] === getSwapFee,
+      );
+      expect(swapFeeCalls).toHaveLength(2);
+      const [firstCall, secondCall] = swapFeeCalls;
+      // biome-ignore lint/style/noNonNullAssertion: filtered for length 2 above
+      const firstInput = firstCall![1] as { blockNumber: number };
+      // biome-ignore lint/style/noNonNullAssertion: filtered for length 2 above
+      const secondInput = secondCall![1] as { blockNumber: number };
+      expect(firstInput.blockNumber).toBe(firstBlockInHour);
+      expect(secondInput.blockNumber).toBe(firstBlockInHour);
     });
 
     it("should skip dynamic fee updates when event chain doesn’t match pool chain", async () => {
