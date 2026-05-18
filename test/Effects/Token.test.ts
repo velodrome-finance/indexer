@@ -325,6 +325,7 @@ describe("Token Effects", () => {
     it("should return 0 price when oracle is not deployed", async () => {
       setupChainConstants(PriceOracleType.V3, { startBlock: 999999 });
       vi.mocked(TokenEffects.fetchTokenPrice).mockClear();
+      vi.mocked(mockEthClient.readContract).mockClear();
 
       const result = await mockContext.effect(getTokenPrice as never, {
         tokenAddress: TEST_TOKEN_ADDRESS,
@@ -337,6 +338,100 @@ describe("Token Effects", () => {
         priceOracleType: PriceOracleType.V3.toString(),
       });
       expect(TokenEffects.fetchTokenPrice).not.toHaveBeenCalled();
+      // Issue #748: pre-deploy short-circuits BEFORE any token-detail fetch,
+      // so no underlying eth_calls are issued (previously paid 6 metadata calls).
+      expect(mockEthClient.readContract).not.toHaveBeenCalled();
+    });
+
+    it("issue #748: when tokenDecimals is supplied, skips source-token fetchTokenDetails RPC", async () => {
+      setupChainConstants(PriceOracleType.V3);
+      // 1e18 in hex (V3 oracle return) → after normalization with src=8 dst=6:
+      // 1e18 * 10^8 / 10^6 = 1e20.
+      vi.mocked(mockEthClient.readContract).mockResolvedValue([
+        "0x0000000000000000000000000000000000000000000000000DE0B6B3A7640000",
+      ] as unknown as readonly bigint[]);
+
+      const result = await mockContext.effect(getTokenPrice as never, {
+        tokenAddress: TEST_TOKEN_ADDRESS,
+        chainId: TEST_CHAIN_ID,
+        blockNumber: TEST_BLOCK_NUMBER,
+        tokenDecimals: 8,
+      });
+
+      const readCalls = vi.mocked(mockEthClient.readContract).mock.calls;
+      const tokenDetailCalls = readCalls.filter((call: unknown[]) => {
+        const fn = (call[0] as { functionName?: string }).functionName;
+        return fn === "name" || fn === "decimals" || fn === "symbol";
+      });
+      // Zero name/decimals/symbol calls: source skipped via caller-supplied
+      // decimals, destination always reads chain.destinationTokenDecimals.
+      expect(tokenDetailCalls).toHaveLength(0);
+
+      expect(result).toEqual({
+        pricePerUSDNew: 10n ** 20n,
+        priceOracleType: PriceOracleType.V3.toString(),
+      });
+    });
+
+    it("issue #748: when tokenDecimals is absent, source-token fetchTokenDetails RPC still runs (cold-sync fallback)", async () => {
+      setupChainConstants(PriceOracleType.V3);
+      vi.mocked(mockEthClient.readContract)
+        .mockResolvedValueOnce("TKN" as unknown as string)
+        .mockResolvedValueOnce(8 as unknown as number)
+        .mockResolvedValueOnce("TKN" as unknown as string)
+        .mockResolvedValue([
+          "0x0000000000000000000000000000000000000000000000000DE0B6B3A7640000",
+        ] as unknown as readonly bigint[]);
+
+      const result = await mockContext.effect(getTokenPrice as never, {
+        tokenAddress: TEST_TOKEN_ADDRESS,
+        chainId: TEST_CHAIN_ID,
+        blockNumber: TEST_BLOCK_NUMBER,
+        // tokenDecimals intentionally omitted (cold-sync against unloaded source).
+      });
+
+      const readCalls = vi.mocked(mockEthClient.readContract).mock.calls;
+      const sourceTokenDetailCalls = readCalls.filter((call: unknown[]) => {
+        const arg = call[0] as { functionName?: string; address?: string };
+        const isTokenAddr =
+          (arg.address ?? "").toLowerCase() ===
+          TEST_TOKEN_ADDRESS.toLowerCase();
+        const isDetailFn =
+          arg.functionName === "name" ||
+          arg.functionName === "decimals" ||
+          arg.functionName === "symbol";
+        return isTokenAddr && isDetailFn;
+      });
+      expect(sourceTokenDetailCalls).toHaveLength(3);
+
+      // Fetched decimals=8 drives the same normalization → identical result.
+      expect(result).toEqual({
+        pricePerUSDNew: 10n ** 20n,
+        priceOracleType: PriceOracleType.V3.toString(),
+      });
+    });
+
+    it("issue #748: destination-token fetchTokenDetails RPC is never called (decimals come from chain constant)", async () => {
+      setupChainConstants(PriceOracleType.V3);
+      vi.mocked(mockEthClient.readContract).mockResolvedValue([
+        "0x0000000000000000000000000000000000000000000000000DE0B6B3A7640000",
+      ] as unknown as readonly bigint[]);
+
+      await mockContext.effect(getTokenPrice as never, {
+        tokenAddress: TEST_TOKEN_ADDRESS,
+        chainId: TEST_CHAIN_ID,
+        blockNumber: TEST_BLOCK_NUMBER,
+        tokenDecimals: 18,
+      });
+
+      const readCalls = vi.mocked(mockEthClient.readContract).mock.calls;
+      const destinationCalls = readCalls.filter((call: unknown[]) => {
+        const arg = call[0] as { address?: string };
+        return (
+          (arg.address ?? "").toLowerCase() === TEST_USDC_ADDRESS.toLowerCase()
+        );
+      });
+      expect(destinationCalls).toHaveLength(0);
     });
 
     it("should set context.cache = false when gateway signals usedDefault:true with a transient errorClass", async () => {
@@ -473,15 +568,13 @@ describe("Token Effects", () => {
           },
         ],
       });
-      // RpcGateway calls fetchTokenDetails x2 then fetchTokenPrice; set up 6 token-detail reads then oracle
+      // Issue #748: RpcGateway calls fetchTokenDetails for source only (3 reads)
+      // then fetchTokenPrice. Destination decimals come from chain constants now.
       const mockReadContract = vi.mocked(mockEthClient.readContract);
       mockReadContract
         .mockResolvedValueOnce("TKN" as unknown as string)
         .mockResolvedValueOnce(18 as unknown as number)
         .mockResolvedValueOnce("TKN" as unknown as string)
-        .mockResolvedValueOnce("USDC" as unknown as string)
-        .mockResolvedValueOnce(6 as unknown as number)
-        .mockResolvedValueOnce("USDC" as unknown as string)
         .mockResolvedValue([
           "0x0000000000000000000000000000000000000000000000001bc16d674ec80000",
         ] as unknown as readonly bigint[]);
@@ -493,7 +586,7 @@ describe("Token Effects", () => {
       });
 
       expect(mockReadContract).toHaveBeenCalled();
-      // First 6 calls are fetchTokenDetails (name, decimals, symbol x2); 7th is oracle
+      // First 3 calls are fetchTokenDetails (source only); 4th is oracle.
       const oracleCall = mockReadContract.mock.calls.find(
         (call: unknown[]) =>
           (call[0] as { functionName?: string }).functionName ===
