@@ -262,6 +262,78 @@ export function deriveStakedLiquidityInRange(
 }
 
 /**
+ * Derives `stakedReserve0`/`stakedReserve1` from the canonical edge state at a
+ * given sqrt price. Walks each segment between consecutive edges, accumulates
+ * the cumulative staked liquidity (Σ nets[0..i]), and adds the segment's
+ * Uniswap v3 amount contribution evaluated against `sqrtPriceX96`.
+ *
+ *   - Segment entirely above sqrt (sqrt <= sqrtLower): all token0 capacity.
+ *     amount0 += L * Q96 * (sqrtUpper - sqrtLower) / (sqrtLower * sqrtUpper)
+ *   - Segment entirely below sqrt (sqrt >= sqrtUpper): all token1 capacity.
+ *     amount1 += L * (sqrtUpper - sqrtLower) / Q96
+ *   - Segment straddles sqrt: split at sqrt and apply both formulas.
+ *
+ * Used to backfill staked reserves at `CLPool.Initialize` time for pools where
+ * one or more gauge Deposit / NFPM IncreaseLiquidity events fired while
+ * `sqrtPriceX96 === 0n` (e.g., the Initialize event was missed or fired in a
+ * different tx than `PoolCreated`). Those events update the edge map but the
+ * `sqrtPriceX96 !== 0n` gate in `computeCLStakedReservesOnGaugeEvent` /
+ * `updateStakedPositionLiquidity` skipped the per-event reserve increment, so
+ * the running counter was never anchored — leaving `stakedReserve0/1` stuck at
+ * 0 while edges represented real stakes. Subsequent swap-path per-segment
+ * attribution then accumulates relative to a missing anchor, and the
+ * gauge Withdraw decrement leaves a negative residue. Deriving from edges at
+ * Initialize plants the missing anchor so the lifecycle telescopes to zero.
+ *
+ * Cost: O(E) where E = edges.length. Invoked only at Initialize (once per pool)
+ * and in tests — never on the hot swap path.
+ *
+ * Short-circuits:
+ *   - `sqrtPriceX96 <= 0n`: returns (0, 0); reserves are undefined without a price.
+ *   - `edges.length < 2`: returns (0, 0); no segments to walk.
+ *
+ * @param sqrtPriceX96 - Pool's sqrt price (Q64.96) at the moment of derivation
+ * @param edges - Sorted-ascending stakedTickEdges
+ * @param nets - Parallel stakedTickEdgeNets (same length, same index)
+ * @returns `{ stakedReserve0, stakedReserve1 }` accumulated across all segments
+ */
+export function deriveStakedReservesFromEdges(
+  sqrtPriceX96: bigint,
+  edges: readonly bigint[],
+  nets: readonly bigint[],
+): { stakedReserve0: bigint; stakedReserve1: bigint } {
+  if (sqrtPriceX96 <= 0n || edges.length < 2) {
+    return { stakedReserve0: 0n, stakedReserve1: 0n };
+  }
+
+  let cumulativeL = 0n;
+  let stakedReserve0 = 0n;
+  let stakedReserve1 = 0n;
+
+  for (let i = 0; i < edges.length - 1; i++) {
+    cumulativeL += nets[i];
+    if (cumulativeL === 0n) continue;
+
+    const sqrtLower = sqrtRatioAtTick(edges[i]);
+    const sqrtUpper = sqrtRatioAtTick(edges[i + 1]);
+
+    if (sqrtPriceX96 <= sqrtLower) {
+      stakedReserve0 +=
+        (cumulativeL * Q96 * (sqrtUpper - sqrtLower)) / (sqrtLower * sqrtUpper);
+    } else if (sqrtPriceX96 >= sqrtUpper) {
+      stakedReserve1 += (cumulativeL * (sqrtUpper - sqrtLower)) / Q96;
+    } else {
+      stakedReserve0 +=
+        (cumulativeL * Q96 * (sqrtUpper - sqrtPriceX96)) /
+        (sqrtPriceX96 * sqrtUpper);
+      stakedReserve1 += (cumulativeL * (sqrtPriceX96 - sqrtLower)) / Q96;
+    }
+  }
+
+  return { stakedReserve0, stakedReserve1 };
+}
+
+/**
  * Per-segment Uniswap v3 swap math at constant L. The pool's sqrt price moves
  * from `segStart` to `segEnd` while staked liquidity in range is `stakedLiq`.
  *

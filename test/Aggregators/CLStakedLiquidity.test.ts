@@ -2,6 +2,7 @@ import type { handlerContext } from "generated";
 import {
   applyStakedPositionToEdges,
   deriveStakedLiquidityInRange,
+  deriveStakedReservesFromEdges,
   isPositionInRange,
   processTickCrossingsForStaked,
 } from "../../src/Aggregators/CLStakedLiquidity";
@@ -938,6 +939,435 @@ describe("CLStakedLiquidity", () => {
         expect(result.stakedDelta0).toBe(0n);
         expect(result.stakedDelta1).toBe(0n);
       });
+    });
+
+    /**
+     * Regression coverage for issue #732. The residue of #666: per-segment
+     * v3 attribution looks correct on a single swap, but 58 CL pools still
+     * exhibit negative `stakedReserve0/1` after currentLiquidityStaked has
+     * round-tripped to 0n. These tests exercise the running stakedReserve
+     * counter through full lifecycles (Deposit → swaps → Withdraw) the way
+     * the indexer assembles them — Deposit/Withdraw amounts come from
+     * `calculatePositionAmountsFromLiquidity` and swap deltas come from
+     * `processTickCrossingsForStaked`. The closed invariant: the three
+     * incremental contributions sum to zero (within bigint-truncation wei).
+     */
+    describe("#732 stakedReserve telescoping across full lifecycle", () => {
+      const noDbContext = {
+        log: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
+      } as unknown as handlerContext;
+
+      /**
+       * Walks a series of swaps and returns the accumulated stakedDelta0/1.
+       * Mirrors what the indexer does: for each swap event, call
+       * `processTickCrossingsForStaked(oldTick, newTick, oldSqrt, newSqrt, ...)`
+       * and add stakedDelta0/1 to the running counter.
+       */
+      function runSwaps(
+        ticks: bigint[],
+        edges: readonly bigint[],
+        nets: readonly bigint[],
+      ): { stakedDelta0: bigint; stakedDelta1: bigint; finalTick: bigint } {
+        let totalDelta0 = 0n;
+        let totalDelta1 = 0n;
+        for (let i = 0; i < ticks.length - 1; i++) {
+          const oldTick = ticks[i];
+          const newTick = ticks[i + 1];
+          const r = processTickCrossingsForStaked(
+            CHAIN_ID,
+            POOL_ADDRESS,
+            oldTick,
+            newTick,
+            sqrtAt(oldTick),
+            sqrtAt(newTick),
+            1n,
+            noDbContext,
+            deriveStakedLiquidityInRange(oldTick, edges, nets),
+            true,
+            edges,
+            nets,
+          );
+          totalDelta0 += r.stakedDelta0;
+          totalDelta1 += r.stakedDelta1;
+        }
+        return {
+          stakedDelta0: totalDelta0,
+          stakedDelta1: totalDelta1,
+          finalTick: ticks[ticks.length - 1],
+        };
+      }
+
+      it("(a) telescopes across many in-range swaps oscillating around the deposit tick", () => {
+        const L = 10n ** 18n;
+        const tickLower = -1000n;
+        const tickUpper = 1000n;
+        const depositTick = 0n;
+        const edges = [tickLower, tickUpper];
+        const nets = [L, -L];
+
+        // Many in-range swaps; final tick == deposit tick → zero net price move.
+        const journey = [0n, 100n, -200n, 300n, -400n, 500n, -100n, 0n];
+        const swaps = runSwaps(journey, edges, nets);
+        expect(swaps.finalTick).toBe(depositTick);
+
+        const deposit = calculatePositionAmountsFromLiquidity(
+          L,
+          sqrtAt(depositTick),
+          tickLower,
+          tickUpper,
+        );
+        const withdraw = calculatePositionAmountsFromLiquidity(
+          L,
+          sqrtAt(swaps.finalTick),
+          tickLower,
+          tickUpper,
+        );
+
+        const net0 = deposit.amount0 + swaps.stakedDelta0 - withdraw.amount0;
+        const net1 = deposit.amount1 + swaps.stakedDelta1 - withdraw.amount1;
+
+        // Closed-system invariant: stakedReserve must return to 0.
+        expect(net0).toBeGreaterThanOrEqual(-20n);
+        expect(net0).toBeLessThanOrEqual(20n);
+        expect(net1).toBeGreaterThanOrEqual(-20n);
+        expect(net1).toBeLessThanOrEqual(20n);
+      });
+
+      it("(b) telescopes when position exits range and re-enters before withdraw", () => {
+        const L = 10n ** 18n;
+        const tickLower = -100n;
+        const tickUpper = 100n;
+        const depositTick = 50n;
+        const edges = [tickLower, tickUpper];
+        const nets = [L, -L];
+
+        // Exit above (tick 200), then below (tick -200), then back into range.
+        const journey = [depositTick, 200n, 300n, -200n, -300n, 50n];
+        const swaps = runSwaps(journey, edges, nets);
+
+        const deposit = calculatePositionAmountsFromLiquidity(
+          L,
+          sqrtAt(depositTick),
+          tickLower,
+          tickUpper,
+        );
+        const withdraw = calculatePositionAmountsFromLiquidity(
+          L,
+          sqrtAt(swaps.finalTick),
+          tickLower,
+          tickUpper,
+        );
+
+        const net0 = deposit.amount0 + swaps.stakedDelta0 - withdraw.amount0;
+        const net1 = deposit.amount1 + swaps.stakedDelta1 - withdraw.amount1;
+
+        expect(net0).toBeGreaterThanOrEqual(-20n);
+        expect(net0).toBeLessThanOrEqual(20n);
+        expect(net1).toBeGreaterThanOrEqual(-20n);
+        expect(net1).toBeLessThanOrEqual(20n);
+      });
+
+      it("(c) telescopes when withdraw happens at an out-of-range tick (price above)", () => {
+        const L = 10n ** 18n;
+        const tickLower = -100n;
+        const tickUpper = 100n;
+        const depositTick = 50n;
+        const withdrawTick = 200n;
+        const edges = [tickLower, tickUpper];
+        const nets = [L, -L];
+
+        const journey = [depositTick, 99n, 101n, withdrawTick];
+        const swaps = runSwaps(journey, edges, nets);
+
+        const deposit = calculatePositionAmountsFromLiquidity(
+          L,
+          sqrtAt(depositTick),
+          tickLower,
+          tickUpper,
+        );
+        const withdraw = calculatePositionAmountsFromLiquidity(
+          L,
+          sqrtAt(swaps.finalTick),
+          tickLower,
+          tickUpper,
+        );
+
+        const net0 = deposit.amount0 + swaps.stakedDelta0 - withdraw.amount0;
+        const net1 = deposit.amount1 + swaps.stakedDelta1 - withdraw.amount1;
+
+        expect(net0).toBeGreaterThanOrEqual(-20n);
+        expect(net0).toBeLessThanOrEqual(20n);
+        expect(net1).toBeGreaterThanOrEqual(-20n);
+        expect(net1).toBeLessThanOrEqual(20n);
+      });
+
+      it("(d) WETH/OP-style scenario: deposit pre-Initialize → Initialize backfill → swaps → withdraw", () => {
+        // The exact #732 mechanism for an idle CL pool: gauge.Deposit fires
+        // BEFORE the pool's first Initialize-fed swap, so the deposit-side
+        // increment is silently dropped by the `sqrtPriceX96 !== 0n` gate in
+        // GaugeSharedLogic.computeCLStakedReservesOnGaugeEvent / NFPMCommon
+        // Logic.updateStakedPositionLiquidity. Edges are still applied, so
+        // the subsequent swap path's per-segment math walks them correctly.
+        // Without a backfill the drift lands at −P(L, sqrt_at_initialize).
+        //
+        // Fix: the `CLPool.Initialize` handler now derives `stakedReserve0/1`
+        // from the edge state via `deriveStakedReservesFromEdges` whenever the
+        // Pool already exists at Initialize time. That plants the missing
+        // anchor and lets the lifecycle telescope to zero again.
+        const L = 10n ** 18n;
+        const tickLower = -100n;
+        const tickUpper = 100n;
+        const initializeTick = 0n;
+        const withdrawTick = 50n;
+        const edges = [tickLower, tickUpper];
+        const nets = [L, -L];
+
+        // Pre-Initialize Deposit dropped both increments to 0n; the edges were
+        // still recorded. At Initialize, the fix derives the anchor from edges.
+        const anchored = deriveStakedReservesFromEdges(
+          sqrtAt(initializeTick),
+          edges,
+          nets,
+        );
+
+        // Swaps after Initialize (from initialize tick to withdraw tick).
+        const journey = [initializeTick, withdrawTick];
+        const swaps = runSwaps(journey, edges, nets);
+
+        const withdraw = calculatePositionAmountsFromLiquidity(
+          L,
+          sqrtAt(withdrawTick),
+          tickLower,
+          tickUpper,
+        );
+
+        const net0 =
+          anchored.stakedReserve0 + swaps.stakedDelta0 - withdraw.amount0;
+        const net1 =
+          anchored.stakedReserve1 + swaps.stakedDelta1 - withdraw.amount1;
+
+        // Closed-system invariant after the fix: lifecycle telescopes to zero.
+        expect(net0).toBeGreaterThanOrEqual(-20n);
+        expect(net0).toBeLessThanOrEqual(20n);
+        expect(net1).toBeGreaterThanOrEqual(-20n);
+        expect(net1).toBeLessThanOrEqual(20n);
+      });
+    });
+  });
+
+  // Regression coverage for issue #732: deriveStakedReservesFromEdges plants
+  // the missing reserve anchor at CLPool.Initialize for pools that received
+  // gauge Deposits / NFPM IncreaseLiquidity events while sqrtPriceX96 was 0n
+  // (the per-event reserve increment was gated off, leaving edges populated
+  // but reserves at 0). The derivation MUST equal the per-position
+  // calculatePositionAmountsFromLiquidity sum at the Initialize sqrt — that is
+  // the ground truth for what stakedReserve0/1 should have been when the
+  // gauge.Deposit events first fired.
+  describe("deriveStakedReservesFromEdges (#732)", () => {
+    it("returns 0 reserves on empty edge list", () => {
+      const result = deriveStakedReservesFromEdges(sqrtAt(0n), [], []);
+      expect(result.stakedReserve0).toBe(0n);
+      expect(result.stakedReserve1).toBe(0n);
+    });
+
+    it("returns 0 reserves when sqrtPriceX96 is 0n (no price available)", () => {
+      const L = 10n ** 18n;
+      const result = deriveStakedReservesFromEdges(0n, [-100n, 100n], [L, -L]);
+      expect(result.stakedReserve0).toBe(0n);
+      expect(result.stakedReserve1).toBe(0n);
+    });
+
+    it("matches calculatePositionAmountsFromLiquidity for a single in-range position", () => {
+      // Position [-100, 100], L; derivation at sqrtAt(0) (in range) must match
+      // the canonical per-position amounts within bigint-truncation tolerance.
+      const L = 10n ** 18n;
+      const tickLower = -100n;
+      const tickUpper = 100n;
+      const sqrtPriceX96 = sqrtAt(0n);
+
+      const derived = deriveStakedReservesFromEdges(
+        sqrtPriceX96,
+        [tickLower, tickUpper],
+        [L, -L],
+      );
+      const expected = calculatePositionAmountsFromLiquidity(
+        L,
+        sqrtPriceX96,
+        tickLower,
+        tickUpper,
+      );
+
+      expect(derived.stakedReserve0 - expected.amount0).toBeGreaterThanOrEqual(
+        -2n,
+      );
+      expect(derived.stakedReserve0 - expected.amount0).toBeLessThanOrEqual(2n);
+      expect(derived.stakedReserve1 - expected.amount1).toBeGreaterThanOrEqual(
+        -2n,
+      );
+      expect(derived.stakedReserve1 - expected.amount1).toBeLessThanOrEqual(2n);
+    });
+
+    it("matches calculatePositionAmountsFromLiquidity when price is below the position (all token0)", () => {
+      const L = 10n ** 18n;
+      const tickLower = 100n;
+      const tickUpper = 300n;
+      const sqrtPriceX96 = sqrtAt(0n);
+
+      const derived = deriveStakedReservesFromEdges(
+        sqrtPriceX96,
+        [tickLower, tickUpper],
+        [L, -L],
+      );
+      const expected = calculatePositionAmountsFromLiquidity(
+        L,
+        sqrtPriceX96,
+        tickLower,
+        tickUpper,
+      );
+
+      expect(derived.stakedReserve1).toBe(0n);
+      expect(expected.amount1).toBe(0n);
+      expect(derived.stakedReserve0 - expected.amount0).toBeGreaterThanOrEqual(
+        -2n,
+      );
+      expect(derived.stakedReserve0 - expected.amount0).toBeLessThanOrEqual(2n);
+    });
+
+    it("matches calculatePositionAmountsFromLiquidity when price is above the position (all token1)", () => {
+      const L = 10n ** 18n;
+      const tickLower = -300n;
+      const tickUpper = -100n;
+      const sqrtPriceX96 = sqrtAt(0n);
+
+      const derived = deriveStakedReservesFromEdges(
+        sqrtPriceX96,
+        [tickLower, tickUpper],
+        [L, -L],
+      );
+      const expected = calculatePositionAmountsFromLiquidity(
+        L,
+        sqrtPriceX96,
+        tickLower,
+        tickUpper,
+      );
+
+      expect(derived.stakedReserve0).toBe(0n);
+      expect(expected.amount0).toBe(0n);
+      expect(derived.stakedReserve1 - expected.amount1).toBeGreaterThanOrEqual(
+        -2n,
+      );
+      expect(derived.stakedReserve1 - expected.amount1).toBeLessThanOrEqual(2n);
+    });
+
+    it("sums contributions from multiple non-overlapping positions", () => {
+      // Position A: [-300, -100], L_A; Position B: [100, 300], L_B.
+      // At sqrtPriceX96 in the middle (sqrtAt(0)): A is below (all token1),
+      // B is above (all token0). Derived total = A.amount1 + B.amount0.
+      const L_A = 10n ** 18n;
+      const L_B = 2n * 10n ** 18n;
+      const sqrtPriceX96 = sqrtAt(0n);
+
+      const derived = deriveStakedReservesFromEdges(
+        sqrtPriceX96,
+        [-300n, -100n, 100n, 300n],
+        [L_A, -L_A, L_B, -L_B],
+      );
+      const a = calculatePositionAmountsFromLiquidity(
+        L_A,
+        sqrtPriceX96,
+        -300n,
+        -100n,
+      );
+      const b = calculatePositionAmountsFromLiquidity(
+        L_B,
+        sqrtPriceX96,
+        100n,
+        300n,
+      );
+
+      expect(
+        derived.stakedReserve0 - (a.amount0 + b.amount0),
+      ).toBeGreaterThanOrEqual(-2n);
+      expect(
+        derived.stakedReserve0 - (a.amount0 + b.amount0),
+      ).toBeLessThanOrEqual(2n);
+      expect(
+        derived.stakedReserve1 - (a.amount1 + b.amount1),
+      ).toBeGreaterThanOrEqual(-2n);
+      expect(
+        derived.stakedReserve1 - (a.amount1 + b.amount1),
+      ).toBeLessThanOrEqual(2n);
+    });
+
+    it("sums contributions from overlapping positions sharing edges", () => {
+      // Position A: [100, 300], L=500; Position B: [200, 400], L=300.
+      // edges = [100, 200, 300, 400], nets = [+500, +300, -500, -300].
+      // At sqrtPriceX96 in tick=250 (both in range): both contribute.
+      const sqrtPriceX96 = sqrtAt(250n);
+      const derived = deriveStakedReservesFromEdges(
+        sqrtPriceX96,
+        [100n, 200n, 300n, 400n],
+        [500n, 300n, -500n, -300n],
+      );
+      const a = calculatePositionAmountsFromLiquidity(
+        500n,
+        sqrtPriceX96,
+        100n,
+        300n,
+      );
+      const b = calculatePositionAmountsFromLiquidity(
+        300n,
+        sqrtPriceX96,
+        200n,
+        400n,
+      );
+      expect(
+        derived.stakedReserve0 - (a.amount0 + b.amount0),
+      ).toBeGreaterThanOrEqual(-3n);
+      expect(
+        derived.stakedReserve0 - (a.amount0 + b.amount0),
+      ).toBeLessThanOrEqual(3n);
+      expect(
+        derived.stakedReserve1 - (a.amount1 + b.amount1),
+      ).toBeGreaterThanOrEqual(-3n);
+      expect(
+        derived.stakedReserve1 - (a.amount1 + b.amount1),
+      ).toBeLessThanOrEqual(3n);
+    });
+
+    it("skips segments with cumulative L = 0n (gaps between non-overlapping positions)", () => {
+      // Same setup as the non-overlapping pair, but verify the gap segment
+      // [tick=-100, tick=100] (cumulative L=0) contributes nothing — otherwise
+      // we'd see a non-zero spurious term in either reserve.
+      const L_A = 10n ** 18n;
+      const L_B = 2n * 10n ** 18n;
+      const sqrtPriceX96 = sqrtAt(0n); // in the gap
+
+      const derived = deriveStakedReservesFromEdges(
+        sqrtPriceX96,
+        [-300n, -100n, 100n, 300n],
+        [L_A, -L_A, L_B, -L_B],
+      );
+
+      // No segment straddles the gap with non-zero L, so the in-range split
+      // formula must not have fired. Position A is fully below (all token1);
+      // Position B is fully above (all token0).
+      const a = calculatePositionAmountsFromLiquidity(
+        L_A,
+        sqrtPriceX96,
+        -300n,
+        -100n,
+      );
+      const b = calculatePositionAmountsFromLiquidity(
+        L_B,
+        sqrtPriceX96,
+        100n,
+        300n,
+      );
+      expect(a.amount0).toBe(0n);
+      expect(b.amount1).toBe(0n);
+      expect(derived.stakedReserve0).toBe(b.amount0);
+      expect(derived.stakedReserve1).toBe(a.amount1);
     });
   });
 

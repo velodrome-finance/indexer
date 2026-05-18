@@ -1,4 +1,8 @@
 import { CLPool } from "generated";
+import {
+  deriveStakedLiquidityInRange,
+  deriveStakedReservesFromEdges,
+} from "../Aggregators/CLStakedLiquidity";
 import { createOUSDTSwapEntity } from "../Aggregators/OUSDTSwaps";
 import { loadPoolData, updatePool } from "../Aggregators/Pool";
 import {
@@ -278,9 +282,46 @@ CLPool.IncreaseObservationCardinalityNext.handler(
 // apply it on creation and delete the entry. Closes the pre-first-swap
 // dead-zone where NFPM handlers silently dropped range math for positions
 // minted before any swap had occurred (see velodrome-finance/indexer#654).
+//
+// When the aggregator already exists (e.g., the Slipstream same-tx buffer was
+// lost, or a non-Slipstream factory emits Initialize in a later tx), apply
+// sqrtPriceX96/tick directly AND backfill `stakedReserve0/1` from the edge
+// state — pre-Initialize gauge Deposit / NFPM IncreaseLiquidity events update
+// the edge map but skip the per-event reserve increment when sqrtPriceX96 is
+// 0n. Without the backfill, the swap-path running counter never gets an anchor
+// and the lifetime telescoping (deposit + swap-deltas − withdraw) lands at
+// −P(L, sqrt_init) instead of 0, producing the residual negative drift on the
+// 58 CL pools from velodrome-finance/indexer#732.
 CLPool.Initialize.handler(async ({ event, context }) => {
+  const poolId = PoolId(event.chainId, event.srcAddress);
+  const existing = await context.Pool.get(poolId);
+
+  if (existing) {
+    const sqrtPriceX96 = event.params.sqrtPriceX96;
+    const tick = event.params.tick;
+    const { stakedReserve0, stakedReserve1 } = deriveStakedReservesFromEdges(
+      sqrtPriceX96,
+      existing.stakedTickEdges,
+      existing.stakedTickEdgeNets,
+    );
+    const stakedLiquidityInRange = deriveStakedLiquidityInRange(
+      tick,
+      existing.stakedTickEdges,
+      existing.stakedTickEdgeNets,
+    );
+    context.Pool.set({
+      ...existing,
+      sqrtPriceX96,
+      tick,
+      stakedReserve0,
+      stakedReserve1,
+      stakedLiquidityInRange,
+    });
+    return;
+  }
+
   context.CLPoolPendingInitialize.set({
-    id: PoolId(event.chainId, event.srcAddress),
+    id: poolId,
     chainId: event.chainId,
     poolAddress: event.srcAddress,
     sqrtPriceX96: event.params.sqrtPriceX96,

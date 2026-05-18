@@ -1,8 +1,9 @@
 import type { Token, handlerContext } from "generated";
-import { CLGauge, MockDb } from "../../generated/src/TestHelpers.gen";
+import { CLGauge, CLPool, MockDb } from "../../generated/src/TestHelpers.gen";
 import {
   applyStakedPositionToEdges,
   deriveStakedLiquidityInRange,
+  deriveStakedReservesFromEdges,
   processTickCrossingsForStaked,
 } from "../../src/Aggregators/CLStakedLiquidity";
 import {
@@ -11,6 +12,7 @@ import {
   toChecksumAddress,
 } from "../../src/Constants";
 import { updateStakedPositionLiquidity } from "../../src/EventHandlers/NFPM/NFPMCommonLogic";
+import { calculatePositionAmountsFromLiquidity } from "../../src/Helpers";
 import { setupCommon } from "../EventHandlers/Pool/common";
 import { sqrtAt } from "./common";
 
@@ -676,6 +678,189 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
         ),
       );
       expect(postWithdraw.stakedLiquidityInRange).toBe(0n);
+    });
+  });
+
+  // Regression coverage for issue #732: the residual of #666 — 58 CL pools
+  // with negative stakedReserve0/1 even after currentLiquidityStaked is back
+  // to 0n. The structural drift: gauge.Deposit / NFPM.IncreaseLiquidity events
+  // that fire while sqrtPriceX96 is 0n update the edge map but skip the per-
+  // event reserve increment (the `sqrtPriceX96 !== 0n` gate). The
+  // CLPool.Initialize handler now backfills stakedReserve0/1 from the edge
+  // state when the Pool already exists at Initialize time, planting the
+  // missing anchor so subsequent swap deltas + Withdraw decrement telescope to
+  // zero again.
+  describe("#732 pre-Initialize stake backfill at CLPool.Initialize", () => {
+    it("backfills stakedReserve0/1 from edges populated by a pre-Initialize gauge Deposit", async () => {
+      let mockDb = MockDb.createMockDb();
+
+      // Pool already exists (PoolCreated has run) but no Initialize has fired:
+      // sqrtPriceX96=0n, tick=0n. This is the structural pre-Initialize state
+      // where edge-modifying handlers update edges but skip reserve increments.
+      const liquidityPool = createMockPool({
+        isCL: true,
+        gaugeAddress,
+        sqrtPriceX96: 0n,
+        tick: 0n,
+        hasStakes: false,
+        stakedReserve0: 0n,
+        stakedReserve1: 0n,
+      });
+      mockDb = mockDb.entities.Pool.set(liquidityPool);
+      mockDb = mockDb.entities.Token.set(mockToken0Data as Token);
+      mockDb = mockDb.entities.Token.set(mockToken1Data as Token);
+
+      const tickLower = -100n;
+      const tickUpper = 100n;
+      const liquidity = 10n ** 18n;
+      const tokenId = 42n;
+      mockDb = mockDb.entities.NonFungiblePosition.set(
+        createMockNonFungiblePosition({
+          tokenId,
+          nfpmAddress: defaultNfpmAddress,
+          pool: liquidityPool.poolAddress,
+          owner: userAddress,
+          tickLower,
+          tickUpper,
+          liquidity,
+        }),
+      );
+
+      // 1) Pre-Initialize gauge Deposit: edges get the +L/-L pair, but the
+      //    `sqrtPriceX96 !== 0n` gate inside computeCLStakedReservesOnGaugeEvent
+      //    drops the per-event reserve increment.
+      const depositEvent = CLGauge.Deposit.createMockEvent({
+        user: userAddress,
+        tokenId,
+        liquidityToStake: liquidity,
+        mockEventData: {
+          srcAddress: gaugeAddress,
+          chainId,
+          block: {
+            number: 1,
+            timestamp: 1_700_000_000,
+            hash: `0x${"a".repeat(64)}`,
+          },
+        },
+      });
+      let resultDb = await mockDb.processEvents([depositEvent]);
+
+      const postDeposit = resultDb.entities.Pool.get(
+        PoolId(chainId, liquidityPool.poolAddress),
+      );
+      expect(postDeposit).toBeDefined();
+      if (!postDeposit) return;
+
+      // Edges absorbed the position; reserves stayed at 0n (the bug residue).
+      expect(postDeposit.stakedTickEdges).toEqual([tickLower, tickUpper]);
+      expect(postDeposit.stakedTickEdgeNets).toEqual([liquidity, -liquidity]);
+      expect(postDeposit.stakedReserve0 ?? 0n).toBe(0n);
+      expect(postDeposit.stakedReserve1 ?? 0n).toBe(0n);
+
+      // 2) CLPool.Initialize fires (e.g., Slipstream same-tx buffer missed, or
+      //    non-Slipstream factory). With the fix, the handler updates
+      //    sqrtPriceX96/tick on the existing Pool AND derives stakedReserve0/1
+      //    from the edge state. The anchor MUST equal what the gauge.Deposit
+      //    should have written if it had had a sqrt to compute against.
+      const initializeTick = 0n;
+      const initializeSqrt = sqrtAt(initializeTick);
+      const initializeEvent = CLPool.Initialize.createMockEvent({
+        sqrtPriceX96: initializeSqrt,
+        tick: initializeTick,
+        mockEventData: {
+          srcAddress: liquidityPool.poolAddress,
+          chainId,
+          block: {
+            number: 2,
+            timestamp: 1_700_000_100,
+            hash: `0x${"b".repeat(64)}`,
+          },
+        },
+      });
+      resultDb = await resultDb.processEvents([initializeEvent]);
+
+      const postInit = resultDb.entities.Pool.get(
+        PoolId(chainId, liquidityPool.poolAddress),
+      );
+      expect(postInit).toBeDefined();
+      if (!postInit) return;
+
+      // Initialize applied the opening price.
+      expect(postInit.sqrtPriceX96).toBe(initializeSqrt);
+      expect(postInit.tick).toBe(initializeTick);
+
+      // The anchor matches the canonical per-position amounts at sqrt_init —
+      // i.e., what gauge.Deposit should have written had it had a sqrt.
+      const expected = calculatePositionAmountsFromLiquidity(
+        liquidity,
+        initializeSqrt,
+        tickLower,
+        tickUpper,
+      );
+      expect(
+        (postInit.stakedReserve0 ?? 0n) - expected.amount0,
+      ).toBeGreaterThanOrEqual(-2n);
+      expect(
+        (postInit.stakedReserve0 ?? 0n) - expected.amount0,
+      ).toBeLessThanOrEqual(2n);
+      expect(
+        (postInit.stakedReserve1 ?? 0n) - expected.amount1,
+      ).toBeGreaterThanOrEqual(-2n);
+      expect(
+        (postInit.stakedReserve1 ?? 0n) - expected.amount1,
+      ).toBeLessThanOrEqual(2n);
+
+      // And the in-range counter heals to the derivation at the new tick.
+      expect(postInit.stakedLiquidityInRange).toBe(
+        deriveStakedLiquidityInRange(
+          postInit.tick ?? 0n,
+          postInit.stakedTickEdges,
+          postInit.stakedTickEdgeNets,
+        ),
+      );
+      // Sanity: a sum-of-derivations check on the same inputs lines up.
+      const sanity = deriveStakedReservesFromEdges(
+        initializeSqrt,
+        postInit.stakedTickEdges,
+        postInit.stakedTickEdgeNets,
+      );
+      expect(postInit.stakedReserve0).toBe(sanity.stakedReserve0);
+      expect(postInit.stakedReserve1).toBe(sanity.stakedReserve1);
+    });
+
+    it("still buffers Initialize when the Pool aggregator does not exist yet (Slipstream same-tx flow)", async () => {
+      // Slipstream emits CLPool.Initialize at a LOWER log index than the
+      // CLFactory.PoolCreated within the same tx, so the Initialize handler
+      // is expected to buffer into CLPoolPendingInitialize for PoolCreated to
+      // consume. The fix MUST preserve this path; otherwise newly-created CL
+      // pools would lose the opening-price routing (#654).
+      let mockDb = MockDb.createMockDb();
+      const newPoolAddress = toChecksumAddress(
+        "0x4444444444444444444444444444444444444444",
+      );
+      const initializeSqrt = sqrtAt(0n);
+      const initializeEvent = CLPool.Initialize.createMockEvent({
+        sqrtPriceX96: initializeSqrt,
+        tick: 0n,
+        mockEventData: {
+          srcAddress: newPoolAddress,
+          chainId,
+          block: {
+            number: 1,
+            timestamp: 1_700_000_000,
+            hash: `0x${"c".repeat(64)}`,
+          },
+        },
+      });
+
+      mockDb = await mockDb.processEvents([initializeEvent]);
+      const buffered = mockDb.entities.CLPoolPendingInitialize.get(
+        PoolId(chainId, newPoolAddress),
+      );
+      expect(buffered).toBeDefined();
+      if (!buffered) return;
+      expect(buffered.sqrtPriceX96).toBe(initializeSqrt);
+      expect(buffered.tick).toBe(0n);
     });
   });
 });
