@@ -264,6 +264,15 @@ export async function refreshTokenPrice(
     // anchor. First-fetch (anchor == 0) and stale-anchor (anchor older than
     // PRICE_SPIKE_STALENESS_MS) are exempt — neither shape can be a transient
     // oracle glitch poisoning a previously-good baseline.
+    //
+    // Issue #730: return early on rejection without writing back. The earlier
+    // implementation fell through to the final `Token.set` write below, which
+    // bumped `lastUpdatedTimestamp` (and `lastSuccessfulPriceTimestamp`) on
+    // every rejected refresh — that resets `anchorAgeMs` each time, making
+    // the 14-day staleness exit unreachable while refresh events keep
+    // arriving. Skipping the write here is the same fix shape PR #696 applied
+    // to the V3 fallback path for issue #694: the staleness clock must be
+    // anchored to the original accepted timestamp, not the latest attempt.
     const anchorPrice = token.pricePerUSDNew;
     const anchorAgeMs = token.lastUpdatedTimestamp
       ? blockTimestampMs - token.lastUpdatedTimestamp.getTime()
@@ -277,7 +286,7 @@ export async function refreshTokenPrice(
       context.log.warn(
         `[priceSpikeRejected] ${token.address} chain=${chainId} anchor=${anchorPrice} candidate=${currentPrice}`,
       );
-      currentPrice = anchorPrice;
+      return token;
     }
 
     // If price fetch returned 0, it could mean:

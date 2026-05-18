@@ -819,7 +819,7 @@ describe("PriceOracle", () => {
         vi.mocked(mockContext.log?.warn)?.mockClear();
       });
 
-      it("rejects an UP-spike (≥10×) and persists the previous accepted price", async () => {
+      it("rejects an UP-spike (≥10×) and preserves the previous accepted price", async () => {
         // Anchor at $1; oracle returns $100 — 100× jump, must be rejected.
         // Also pins the [priceSpikeRejected] warn line that downstream
         // observability (alerts, log scans) is expected to grep for.
@@ -839,7 +839,7 @@ describe("PriceOracle", () => {
           lastUpdatedTimestamp: oneHourOneMinuteAgo(),
         };
 
-        await PriceOracle.refreshTokenPrice(
+        const result = await PriceOracle.refreshTokenPrice(
           fetchedToken,
           blockNumber,
           blockDatetime.getTime() / 1000,
@@ -847,11 +847,47 @@ describe("PriceOracle", () => {
           mockContext as handlerContext,
         );
 
-        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
-          .lastCall?.[0] as Token;
-        expect(updatedToken.pricePerUSDNew).toBe(anchorPrice);
+        expect(result.pricePerUSDNew).toBe(anchorPrice);
         const warnCall = vi.mocked(mockContext.log?.warn)?.mock.lastCall;
         expect(warnCall?.[0]).toContain("[priceSpikeRejected]");
+      });
+
+      it("preserves lastUpdatedTimestamp on rejection so the 14-day staleness exit can fire", async () => {
+        // Issue #730: prior to the fix, the rejection branch bumped
+        // `lastUpdatedTimestamp` on every rejected refresh, which reset the
+        // `anchorAgeMs` clock. The 14-day staleness exit became unreachable
+        // while refresh events kept arriving — anchors stayed poisoned
+        // indefinitely (e.g. DTF 8.18 vs DefiLlama 0.0008466 for 111 days).
+        // After the fix, rejection is an early return that leaves the anchor
+        // timestamp intact, so anchor age grows monotonically and the exit
+        // fires once the window elapses.
+        const anchorPrice = 1n * 10n ** 18n;
+        const spikePrice = 100n * 10n ** 18n;
+        const anchorTimestamp = new Date(
+          blockDatetime.getTime() - 13 * 24 * 60 * 60 * 1000,
+        );
+
+        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
+          if ((effect as { name?: string }).name === "getTokenPrice") {
+            return { pricePerUSDNew: spikePrice };
+          }
+          return {};
+        });
+
+        const result = await PriceOracle.refreshTokenPrice(
+          {
+            ...mockToken0Data,
+            pricePerUSDNew: anchorPrice,
+            lastUpdatedTimestamp: anchorTimestamp,
+          },
+          blockNumber,
+          blockDatetime.getTime() / 1000,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        expect(result.lastUpdatedTimestamp).toEqual(anchorTimestamp);
+        expect(result.pricePerUSDNew).toBe(anchorPrice);
       });
 
       it("rejects an exact 10× boundary jump", async () => {
@@ -868,7 +904,7 @@ describe("PriceOracle", () => {
           return {};
         });
 
-        await PriceOracle.refreshTokenPrice(
+        const result = await PriceOracle.refreshTokenPrice(
           {
             ...mockToken0Data,
             pricePerUSDNew: anchorPrice,
@@ -880,9 +916,7 @@ describe("PriceOracle", () => {
           mockContext as handlerContext,
         );
 
-        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
-          .lastCall?.[0] as Token;
-        expect(updatedToken.pricePerUSDNew).toBe(anchorPrice);
+        expect(result.pricePerUSDNew).toBe(anchorPrice);
       });
 
       it("accepts a sub-threshold jump (5×) as a normal price update", async () => {
@@ -1048,7 +1082,7 @@ describe("PriceOracle", () => {
           lastUpdatedTimestamp: oneHourOneMinuteAgo(),
         };
 
-        await PriceOracle.refreshTokenPrice(
+        const result = await PriceOracle.refreshTokenPrice(
           fetchedToken,
           blockNumber,
           blockDatetime.getTime() / 1000,
@@ -1056,9 +1090,7 @@ describe("PriceOracle", () => {
           mockContext as handlerContext,
         );
 
-        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
-          .lastCall?.[0] as Token;
-        expect(updatedToken.pricePerUSDNew).toBe(anchorPrice);
+        expect(result.pricePerUSDNew).toBe(anchorPrice);
       });
     });
 
