@@ -28,14 +28,29 @@ describe("Pool Fees Event", () => {
       mockToken1Data.pricePerUSDNew) /
       10n ** mockToken1Data.decimals;
 
-  expectations.totalFeesGeneratedUSD =
-    mockLiquidityPoolData.totalFeesGeneratedUSD +
+  // After issue #733: totalFeesGeneratedUSD increments by the *trusted* (smaller
+  // / non-zero fallback) leg rather than the sum, mirroring the volume defense
+  // against poisoned/scam-token prices. The whitelisted variant continues to
+  // sum the whitelisted legs (separate filter, separate accumulator).
+  const token0LegUSD =
     (expectations.amount0In / 10n ** mockToken0Data.decimals) *
-      mockToken0Data.pricePerUSDNew +
+    mockToken0Data.pricePerUSDNew;
+  const token1LegUSD =
     (expectations.amount1In / 10n ** mockToken1Data.decimals) *
-      mockToken1Data.pricePerUSDNew;
+    mockToken1Data.pricePerUSDNew;
+  const trustedLegUSD =
+    token0LegUSD === 0n
+      ? token1LegUSD
+      : token1LegUSD === 0n
+        ? token0LegUSD
+        : token0LegUSD < token1LegUSD
+          ? token0LegUSD
+          : token1LegUSD;
+  expectations.totalFeesGeneratedUSD =
+    mockLiquidityPoolData.totalFeesGeneratedUSD + trustedLegUSD;
 
-  expectations.totalFeesUSDWhitelisted = expectations.totalFeesGeneratedUSD;
+  expectations.totalFeesUSDWhitelisted =
+    mockLiquidityPoolData.totalFeesUSDWhitelisted + token0LegUSD + token1LegUSD;
 
   let updatedPool: PoolEntity | undefined;
   let createdUserStats: UserStatsPerPool | undefined;
@@ -128,12 +143,9 @@ describe("Pool Fees Event", () => {
       expectations.amount1In,
     );
 
-    const expectedUserFeesUSD =
-      (expectations.amount0In / 10n ** mockToken0Data.decimals) *
-        mockToken0Data.pricePerUSDNew +
-      (expectations.amount1In / 10n ** mockToken1Data.decimals) *
-        mockToken1Data.pricePerUSDNew;
-    expect(createdUserStats?.totalFeesContributedUSD).toBe(expectedUserFeesUSD);
+    // Per issue #733, user fee USD now follows the trusted-leg pick, same as
+    // the pool's totalFeesGeneratedUSD increment.
+    expect(createdUserStats?.totalFeesContributedUSD).toBe(trustedLegUSD);
   });
 
   it("should set correct timestamps for UserStatsPerPool entity", async () => {

@@ -94,23 +94,25 @@ describe("PoolFeesLogic", () => {
     });
 
     describe("fee calculation", () => {
-      it("should calculate USD fees correctly", () => {
+      it("should pick the trusted (smaller) leg for totalFeesGeneratedUSD (issue #733)", () => {
         const result = processPoolFees(
           mockEvent,
           mockToken0Data,
           mockToken1Data,
         );
 
-        // Calculate expected USD values
-        // token0: 1000n (18 decimals) * 1 USD = 1000n USD (normalized to 1e18)
-        // token1: 2000n (6 decimals) * 1 USD = 2000n * 10^12 = 2000000000000000n USD (normalized to 1e18)
-        // totalFeesUSD = 1000n + 2000000000000000n = 2000000000001000n
-        // totalFeesUSDWhitelisted = same (both tokens are whitelisted)
-        const expectedToken0FeesUSD = 1000n; // 1000n * 10^18 / 10^18 * 1e18 / 1e18 = 1000n
-        const expectedToken1FeesUSD = 2000000000000000n; // 2000n * 10^18 / 10^6 * 1e18 / 1e18 = 2000000000000000n
-        const expectedTotalFeesUSD =
-          expectedToken0FeesUSD + expectedToken1FeesUSD; // 2000000000001000n
-        const expectedTotalFeesUSDWhitelisted = expectedTotalFeesUSD; // Both tokens are whitelisted
+        // Per-leg USD values (each priced independently):
+        //   token0: 1000n (18 decimals) * 1 USD → 1000n
+        //   token1: 2000n (6 decimals)  * 1 USD → 2_000_000_000_000_000n
+        // pickTrustedSwapVolumeUSD returns the smaller leg to defend against
+        // scam-token/poisoned-oracle inflation (issue #733).
+        const expectedToken0FeesUSD = 1000n;
+        const expectedTotalFeesUSD = expectedToken0FeesUSD;
+        // Whitelisted total still sums both whitelisted legs (whitelist filter
+        // is the existing defense for that field — separate from the #733 path).
+        const expectedToken1FeesUSD = 2000000000000000n;
+        const expectedTotalFeesUSDWhitelisted =
+          expectedToken0FeesUSD + expectedToken1FeesUSD;
 
         expect(result.liquidityPoolDiff).toBeDefined();
         expect(result.liquidityPoolDiff?.incrementalTotalFeesGeneratedUSD).toBe(
@@ -119,6 +121,35 @@ describe("PoolFeesLogic", () => {
         expect(
           result.liquidityPoolDiff?.incrementalTotalFeesUSDWhitelisted,
         ).toBe(expectedTotalFeesUSDWhitelisted);
+      });
+
+      // Regression for issue #733: a Fees event whose only non-zero leg is on
+      // a poisoned-price token must not inflate totalFeesGeneratedUSD through
+      // the legitimately-priced counterpart. Both legs are priced independently
+      // and the trusted (smaller / non-zero fallback) leg is taken.
+      it("should not inherit a poisoned-price leg when the counterpart leg is honest (issue #733)", () => {
+        const poisonedPrice = 10n ** 35n;
+        const poisonedToken0: Token = {
+          ...mockToken0Data,
+          pricePerUSDNew: poisonedPrice,
+        };
+        // Honest fee on token1 only; token0 (poisoned) amount is 0 in this event.
+        const event: Pool_Fees_event = {
+          ...mockEvent,
+          params: { ...mockEvent.params, amount0: 0n, amount1: 2000n },
+        };
+
+        const result = processPoolFees(event, poisonedToken0, mockToken1Data);
+
+        // Only the honest leg is non-zero, so the trusted-leg pick returns it
+        // and the poisoned price never enters the computation.
+        const honestLegUSD = 2000000000000000n;
+        expect(result.liquidityPoolDiff?.incrementalTotalFeesGeneratedUSD).toBe(
+          honestLegUSD,
+        );
+        expect(
+          result.liquidityPoolDiff?.incrementalTotalFeesGeneratedUSD ?? 0n,
+        ).toBeLessThan(poisonedPrice);
       });
 
       it("should handle different token decimals correctly", () => {

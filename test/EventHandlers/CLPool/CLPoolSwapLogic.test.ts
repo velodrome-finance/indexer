@@ -219,19 +219,30 @@ describe("CLPoolSwapLogic", () => {
   });
 
   describe("calculateSwapFees", () => {
+    // Pre-compute the trusted volume that the swap path produces for `mockEvent`
+    // so the fee-USD expectations below are tied to the same input the
+    // production wiring uses (`calculateSwapVolume` → `calculateSwapFees`).
+    const trustedVolumeForMockEvent = calculateSwapVolume(
+      mockEvent,
+      mockToken0,
+      mockToken1,
+    ).volumeInUSD;
+
     it("should calculate fees correctly with currentFee", () => {
       const result = calculateSwapFees(
         mockEvent,
         mockPool,
         mockToken0,
         mockToken1,
+        trustedVolumeForMockEvent,
         mockContext,
       );
 
       // Fee = 3000 (0.3% in 1e6 scale), only charged on input token (positive amount)
       // token0 (input, +1e18): (1e18 * 3000) / 1000000 = 3e15, normalized to 1e18: 3e15
       // token1 (output, -2e18): 0 (fees only on input side)
-      // USD: calculateTokenAmountUSD(3e15, 18, 1e18) = 3e15
+      // USD now derived from trusted volume: volumeInUSD ($1) × feeRate / scale
+      //        = 1e18 × 3000 / 1e6 = 3e15
       expect(result.swapFeesInToken0).toBe(3000000000000000n); // 3e15
       expect(result.swapFeesInToken1).toBe(0n); // output side — no fee
       expect(result.swapFeesInUSD).toBe(3000000000000000n); // 3e15
@@ -249,6 +260,7 @@ describe("CLPoolSwapLogic", () => {
         poolWithBaseFee,
         mockToken0,
         mockToken1,
+        trustedVolumeForMockEvent,
         mockContext,
       );
 
@@ -271,6 +283,7 @@ describe("CLPoolSwapLogic", () => {
         poolWithoutFee,
         mockToken0,
         mockToken1,
+        trustedVolumeForMockEvent,
         mockContext,
       );
 
@@ -298,6 +311,7 @@ describe("CLPoolSwapLogic", () => {
         mockPool,
         tokenWith6Decimals,
         mockToken1,
+        trustedVolumeForMockEvent,
         mockContext,
       );
 
@@ -308,36 +322,48 @@ describe("CLPoolSwapLogic", () => {
       expect(result.swapFeesInToken1).toBe(0n); // output side — no fee
     });
 
-    it("should calculate USD fees using token0 price when available", () => {
+    it("should derive USD fee from trusted volume rather than re-pricing the input leg", () => {
       const result = calculateSwapFees(
         mockEvent,
         mockPool,
         mockToken0,
         mockToken1,
+        trustedVolumeForMockEvent,
         mockContext,
       );
 
-      // Same fee calculation as first test: 3e15
-      expect(result.swapFeesInUSD).toBe(3000000000000000n); // 3e15
+      // volumeInUSD × feeRate / CL_FEE_SCALE = 1e18 × 3000 / 1e6 = 3e15
+      expect(result.swapFeesInUSD).toBe(
+        (trustedVolumeForMockEvent * CL_FEE_30) / 1000000n,
+      );
     });
 
-    it("should return zero USD fees when input token has no price and output has no fee", () => {
+    it("should still derive USD when input token has no price, falling back to the priced output leg via trusted volume", () => {
       const token0WithZeroPrice: Token = {
         ...mockToken0,
         pricePerUSDNew: 0n,
       };
+
+      // Volume defends via pickTrustedSwapVolumeUSD; fee inherits the defended volume.
+      const fallbackVolume = calculateSwapVolume(
+        mockEvent,
+        token0WithZeroPrice,
+        mockToken1,
+      ).volumeInUSD;
 
       const result = calculateSwapFees(
         mockEvent,
         mockPool,
         token0WithZeroPrice,
         mockToken1,
+        fallbackVolume,
         mockContext,
       );
 
-      // token0 is input (amount0 > 0) but price is 0 → can't price the fee
-      // token1 is output (amount1 < 0) → no fee computed
-      expect(result.swapFeesInUSD).toBe(0n);
+      expect(fallbackVolume).toBeGreaterThan(0n);
+      expect(result.swapFeesInUSD).toBe(
+        (fallbackVolume * CL_FEE_30) / 1000000n,
+      );
     });
 
     it("should return zero USD fees when both token prices are unavailable", () => {
@@ -355,10 +381,57 @@ describe("CLPoolSwapLogic", () => {
         mockPool,
         token0WithZeroPrice,
         token1WithoutPrice,
+        0n,
         mockContext,
       );
 
       expect(result.swapFeesInUSD).toBe(0n);
+    });
+
+    // Regression test for issue #733: a swap where the input token has a
+    // poisoned/scam price must not produce fee USD that exceeds volume × feeRate.
+    // Pre-fix, the input leg's inflated price was multiplied through the fee
+    // computation, producing totalFeesGeneratedUSD up to 10²³× totalVolumeUSD.
+    it("should bound fee USD by trusted volume × feeRate when the input token has a poisoned price (issue #733)", () => {
+      const poisonedPrice = 10n ** 35n; // matches scam-token price range from issue #699
+      const honestPrice = 1n * TEN_TO_THE_18_BI; // $1
+
+      const poisonedToken0: Token = {
+        ...mockToken0,
+        pricePerUSDNew: poisonedPrice,
+      };
+      const honestToken1: Token = {
+        ...mockToken1,
+        pricePerUSDNew: honestPrice,
+      };
+
+      const { volumeInUSD } = calculateSwapVolume(
+        mockEvent,
+        poisonedToken0,
+        honestToken1,
+      );
+
+      const { swapFeesInUSD } = calculateSwapFees(
+        mockEvent,
+        mockPool,
+        poisonedToken0,
+        honestToken1,
+        volumeInUSD,
+        mockContext,
+      );
+
+      // Volume defends by picking the smaller (honest) leg.
+      const honestLegUSD = 2n * TEN_TO_THE_18_BI; // |amount1|=2e18 × $1
+      expect(volumeInUSD).toBe(honestLegUSD);
+
+      // Fee respects the invariant: fees ≤ volume × feeRate.
+      expect(swapFeesInUSD).toBe((volumeInUSD * CL_FEE_30) / 1000000n);
+      expect(swapFeesInUSD * 1000000n).toBeLessThanOrEqual(
+        volumeInUSD * CL_FEE_30,
+      );
+
+      // And critically, fee USD does not inherit the poisoned price magnitude.
+      expect(swapFeesInUSD).toBeLessThan(poisonedPrice);
     });
   });
 
