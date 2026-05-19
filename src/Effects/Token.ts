@@ -97,6 +97,10 @@ function shouldSkipCacheOnDefault(
  * @param input.tokenAddress - Token to price.
  * @param input.chainId - Chain ID for oracle and RPC.
  * @param input.blockNumber - Block at which to read (often rounded via {@link roundBlockToInterval}).
+ * @param input.tokenDecimals - Optional source-token decimals (issue #748). When supplied,
+ *   skips the source-token `fetchTokenDetails` RPC (3 redundant `eth_call`s per cache miss).
+ *   Omit when the caller doesn't hold a trustworthy stored decimals (e.g. cross-chain
+ *   cold-sync against an unloaded source Token); the gateway falls back to fetching.
  * @returns Promise resolving to { pricePerUSDNew, priceOracleType }.
  */
 export const getTokenPrice = createEffect(
@@ -106,6 +110,7 @@ export const getTokenPrice = createEffect(
       tokenAddress: S.string,
       chainId: S.number,
       blockNumber: S.number,
+      tokenDecimals: S.optional(S.number),
     },
     output: {
       pricePerUSDNew: S.bigint,
@@ -120,6 +125,7 @@ export const getTokenPrice = createEffect(
       tokenAddress: input.tokenAddress,
       chainId: input.chainId,
       blockNumber: input.blockNumber,
+      tokenDecimals: input.tokenDecimals,
     });
 
     // Skip caching only on transient-RPC fallbacks (issue #691 + #692).

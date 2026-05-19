@@ -66,6 +66,11 @@ const RPC_GATEWAY_OPERATIONS = {
       tokenAddress: S.string,
       chainId: S.number,
       blockNumber: S.number,
+      // Source-token decimals supplied by the caller when known (issue #748).
+      // When present, skips the source-token fetchTokenDetails RPC (~3 eth_calls
+      // per cache miss). Absent on cross-chain cold-sync against an unloaded
+      // source Token; handler falls back to the fetch path.
+      tokenDecimals: S.optional(S.number),
     },
     outputSchema: {
       pricePerUSDNew: S.bigint,
@@ -162,6 +167,7 @@ type RpcGatewayInputPayloadByType = {
     tokenAddress: string;
     chainId: number;
     blockNumber: number;
+    tokenDecimals?: number;
   };
   [EffectType.GET_TOKENS_DEPOSITED]: {
     rewardTokenAddress: string;
@@ -377,7 +383,7 @@ async function handleGetTokenPrice(
   i: RpcGatewayInputByType[EffectType.GET_TOKEN_PRICE],
   context: RpcGatewayHandlerContext,
 ): Promise<RpcGatewayOutputByType[EffectType.GET_TOKEN_PRICE]> {
-  const { tokenAddress, chainId, blockNumber } = i;
+  const { tokenAddress, chainId, blockNumber, tokenDecimals } = i;
   const chain = CHAIN_CONSTANTS[chainId];
   if (!chain) {
     context.log.error(
@@ -411,16 +417,35 @@ async function handleGetTokenPrice(
     };
   }
 
-  const DESTINATION_TOKEN_DETAILS_FALLBACK = {
-    name: "DestinationToken",
-    symbol: "DestinationToken",
-    decimals: chain.destinationTokenDecimals,
-  };
+  // Issue #748: short-circuit pre-deploy BEFORE any token-detail fetch so
+  // chains/blocks before oracle deploy don't pay metadata calls just to return 0n.
+  // Pre-deploy zero is a real, cacheable answer (the oracle does not exist yet),
+  // not the fallback constant — keep usedDefault: false so the result stays in the cache.
+  const ORACLE_DEPLOYED = chain.oracle.startBlock <= blockNumber;
+  if (!ORACLE_DEPLOYED) {
+    return {
+      pricePerUSDNew: 0n,
+      priceOracleType: chain.oracle.getType(blockNumber).toString(),
+      usedDefault: false,
+      errorClass: undefined,
+    };
+  }
 
   const fallbackClient = createFallbackRpcClient(chainId);
 
-  const [tokenDetails, destinationTokenDetails] = await Promise.all([
-    executeRpcWithFallback(
+  // Issue #748: source token decimals come from the caller when known
+  // (skipping ~3 redundant eth_calls per cache miss). Destination decimals
+  // always come from chain.destinationTokenDecimals — the destination is
+  // constant per chain and name/symbol of it are never used downstream
+  // (only decimals feeds the V3/V4 normalization at the bottom of this fn).
+  const destinationTokenDecimals = chain.destinationTokenDecimals;
+  let sourceTokenDecimals: number;
+  let sourceTokenUsedDefault = false;
+  let sourceTokenErrorClass: ErrorType | undefined;
+  if (tokenDecimals !== undefined) {
+    sourceTokenDecimals = tokenDecimals;
+  } else {
+    const tokenDetails = await executeRpcWithFallback(
       context,
       rpcGatewayOpName(EffectType.GET_TOKEN_PRICE, "tokenDetails"),
       { contractAddress: tokenAddress, chainId },
@@ -429,29 +454,10 @@ async function handleGetTokenPrice(
       fallbackClient
         ? () => fetchTokenDetails(tokenAddress, fallbackClient)
         : undefined,
-    ),
-    executeRpcWithFallback(
-      context,
-      rpcGatewayOpName(EffectType.GET_TOKEN_PRICE, "destinationTokenDetails"),
-      { contractAddress: DESTINATION_TOKEN_ADDRESS, chainId },
-      DESTINATION_TOKEN_DETAILS_FALLBACK,
-      () => fetchTokenDetails(DESTINATION_TOKEN_ADDRESS, chain.eth_client),
-      fallbackClient
-        ? () => fetchTokenDetails(DESTINATION_TOKEN_ADDRESS, fallbackClient)
-        : undefined,
-    ),
-  ]);
-
-  const ORACLE_DEPLOYED = chain.oracle.startBlock <= blockNumber;
-  if (!ORACLE_DEPLOYED) {
-    // Pre-deploy zero is a real, cacheable answer (the oracle does not exist yet),
-    // not the fallback constant — keep usedDefault: false so the result stays in the cache.
-    return {
-      pricePerUSDNew: 0n,
-      priceOracleType: chain.oracle.getType(blockNumber).toString(),
-      usedDefault: false,
-      errorClass: undefined,
-    };
+    );
+    sourceTokenDecimals = tokenDetails.value.decimals;
+    sourceTokenUsedDefault = tokenDetails.usedDefault;
+    sourceTokenErrorClass = tokenDetails.errorClass;
   }
 
   const WETH_ADDRESS = chain.weth;
@@ -512,29 +518,27 @@ async function handleGetTokenPrice(
     priceData.priceOracleType === PriceOracleType.V4
   ) {
     currentPrice =
-      (priceData.pricePerUSDNew * 10n ** BigInt(tokenDetails.value.decimals)) /
-      10n ** BigInt(destinationTokenDetails.value.decimals);
+      (priceData.pricePerUSDNew * 10n ** BigInt(sourceTokenDecimals)) /
+      10n ** BigInt(destinationTokenDecimals);
   } else {
     currentPrice = priceData.pricePerUSDNew;
   }
 
   // Any leg that returned the fallback constant means the composed price is
-  // synthetic — the price RPC itself, or either token-details RPC backing the
-  // decimal conversion. OR all three so the outer effect can skip caching.
-  const usedDefault =
-    priceResult.usedDefault ||
-    tokenDetails.usedDefault ||
-    destinationTokenDetails.usedDefault;
+  // synthetic — the price RPC itself, or the source token-details RPC (when
+  // tokenDecimals wasn't supplied by the caller, #748). The destination side
+  // is no longer fetched — its decimals are read directly from chain
+  // constants — so it cannot contribute a fallback.
+  const usedDefault = priceResult.usedDefault || sourceTokenUsedDefault;
 
-  // Compose errorClass across the three legs: a single transient/network leg
-  // forces the whole result to look transient (less cacheable) even if the
-  // other legs reverted deterministically. Only when every defaulted leg is
-  // CONTRACT_REVERT does the composed result inherit the cacheable revert
-  // class. Stays null when no leg defaulted.
+  // Compose errorClass across the legs that actually fetched: a single
+  // transient/network leg forces the whole result to look transient (less
+  // cacheable) even if other legs reverted deterministically. Only when every
+  // defaulted leg is CONTRACT_REVERT does the composed result inherit the
+  // cacheable revert class. Stays null when no leg defaulted.
   const errorClass = mostCacheBlockingErrorClass(
     priceResult.errorClass,
-    tokenDetails.errorClass,
-    destinationTokenDetails.errorClass,
+    sourceTokenErrorClass,
   );
 
   return {

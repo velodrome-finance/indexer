@@ -191,6 +191,11 @@ export async function refreshTokenPrice(
           tokenAddress: rebindTarget.address,
           chainId: rebindTarget.chainId,
           blockNumber: sourceBlockRounded,
+          // Issue #748: pass source decimals when the source Token entity is
+          // already loaded so the gateway skips the source `fetchTokenDetails`
+          // RPC. When sourceToken is undefined (truly cold-sync), omit so the
+          // gateway falls back to fetching.
+          tokenDecimals: sourceToken ? Number(sourceToken.decimals) : undefined,
         });
         sourcePrice = prefetched.pricePerUSDNew;
       }
@@ -233,6 +238,11 @@ export async function refreshTokenPrice(
       tokenAddress: token.address,
       chainId,
       blockNumber: roundedBlockNumber,
+      // Issue #748: source-token decimals come from the stored Token entity
+      // (the same value downstream USD math consumes), so the gateway can
+      // skip the source `fetchTokenDetails` RPC (~3 redundant eth_calls per
+      // cache miss).
+      tokenDecimals: Number(token.decimals),
     });
     let currentPrice = priceData.pricePerUSDNew;
 
