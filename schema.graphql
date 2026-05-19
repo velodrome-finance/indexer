@@ -34,6 +34,13 @@ type Pool {
   totalVotesDeposited: BigInt! @config(precision: 76) # total votes deposited in veToken units
   totalVotesDepositedUSD: BigInt! @config(precision: 76) # total votes deposited in USD
   totalEmissions: BigInt! @config(precision: 76) # total emissions for the pool in reward token units (VELO form Optimism and AERO for Base)
+  # Cumulative across all DistributeReward events using the reward token's price at
+  # each event's block (incrementalTotalEmissionsUSD = amount × pricePerUSDNew, see
+  # src/EventHandlers/Voter/VoterCommonLogic.ts). For gauges that stopped emitting
+  # before the chain's V3 oracle reliably priced the reward token (AERO/Base pre
+  # 2024-06-14, VELO/OP pre 2024-01-10), this cumulative will be permanently $0
+  # even when totalEmissions > 0 — affects 188 legacy pools (143 Base + 45 OP).
+  # See issue #738 for context.
   totalEmissionsUSD: BigInt! @config(precision: 76) # total emissions for the pool in USD
   totalEmissionsRedistributed: BigInt! @config(precision: 76) # cumulative reward tokens this pool's gauge received from the Redistributor (Redistributed events)
   totalEmissionsForfeited: BigInt! @config(precision: 76) # cumulative reward tokens this pool's gauge forwarded to the Redistributor or minter because it was over its cap (Deposited events)
