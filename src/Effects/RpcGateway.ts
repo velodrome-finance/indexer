@@ -684,17 +684,14 @@ async function handleGetRootPoolAddress(
 }
 
 /**
- * Handles the HAS_CONTRACT_BYTECODE effect via `eth_getCode` + a `decimals()`
- * probe for ERC20-shape compliance (issues #677 / #736). Fail-open on RPC
- * errors (returns `hasCode: true`) so transient outages don't regress current
- * behavior at Token-row creation sites; the caller controls caching of
- * negative results. Deterministic reverts of `decimals()` are caught inside
- * the fetcher and surface as `hasCode: false, usedDefault: false`.
+ * Handles the HAS_CONTRACT_BYTECODE effect via `eth_getCode`.
+ * Fail-open on RPC errors (returns `hasCode: true`) so transient outages don't
+ * regress current behavior at Token-row creation sites; the caller controls
+ * caching of negative results.
  *
  * @param i - The input for the effect.
  * @param context - The context for the effect.
- * @returns Object with `hasCode: true` when bytecode is non-empty AND
- *   `decimals()` returns a valid uint8, `false` otherwise.
+ * @returns Object with `hasCode: true` when bytecode is non-empty, `false` otherwise.
  */
 async function handleHasContractBytecode(
   i: RpcGatewayInputByType[EffectType.HAS_CONTRACT_BYTECODE],

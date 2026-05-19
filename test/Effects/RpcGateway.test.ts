@@ -117,13 +117,10 @@ describe("RpcGateway", () => {
       ).toBeGreaterThanOrEqual(1);
     });
 
-    it("returns hasCode=true when getCode returns deployed bytecode and decimals() returns a valid uint8 (issues #677 / #736 gate)", async () => {
+    it("returns hasCode=true when getCode returns deployed bytecode (issue #677 gate)", async () => {
       vi.mocked(
         mockEthClient.getCode as unknown as ReturnType<typeof vi.fn>,
       ).mockResolvedValue("0x60806040");
-      vi.mocked(mockEthClient.readContract).mockResolvedValue(
-        18 as unknown as never,
-      );
 
       const result = await (
         rpcGateway as unknown as { handler: MockEffect["handler"] }
@@ -138,32 +135,6 @@ describe("RpcGateway", () => {
 
       expect(result).toEqual({
         hasCode: true,
-        usedDefault: false,
-        errorClass: undefined,
-      });
-    });
-
-    it("returns hasCode=false when bytecode exists but decimals() reverts (issue #736 non-ERC20 gate)", async () => {
-      vi.mocked(
-        mockEthClient.getCode as unknown as ReturnType<typeof vi.fn>,
-      ).mockResolvedValue("0x60806040");
-      vi.mocked(mockEthClient.readContract).mockRejectedValue(
-        new Error("execution reverted"),
-      );
-
-      const result = await (
-        rpcGateway as unknown as { handler: MockEffect["handler"] }
-      ).handler({
-        input: {
-          type: "hasContractBytecode",
-          chainId: TEST_CHAIN_ID,
-          address: TEST_CONTRACT_ADDRESS,
-        },
-        context: mockContext,
-      });
-
-      expect(result).toEqual({
-        hasCode: false,
         usedDefault: false,
         errorClass: undefined,
       });
