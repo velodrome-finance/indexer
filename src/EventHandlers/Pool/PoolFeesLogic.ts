@@ -51,7 +51,12 @@ export function processPoolFees(
         token1Instance.pricePerUSDNew,
       )
     : 0n;
-  const totalFeesUSD = pickTrustedSwapVolumeUSD(token0FeeUSD, token1FeeUSD);
+  const totalFeesUSD = pickTrustedSwapVolumeUSD(
+    token0FeeUSD,
+    token1FeeUSD,
+    token0Instance?.isWhitelisted ?? false,
+    token1Instance?.isWhitelisted ?? false,
+  );
 
   const totalFeesUSDWhitelisted = calculateWhitelistedFeesUSD(
     event.params.amount0,
