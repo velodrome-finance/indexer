@@ -36,10 +36,16 @@ export function processPoolSwap(
     token1Instance.pricePerUSDNew,
   );
 
-  // Pick the more-trusted USD leg — min when both are priced, fallback to the
-  // non-zero one otherwise. Guards against scam-token / poisoned-oracle
-  // inflation poisoning aggregate volume (issue #699).
-  const volumeInUSD = pickTrustedSwapVolumeUSD(token0UsdValue, token1UsdValue);
+  // Pick the more-trusted USD leg — min when both are priced; single-leg
+  // fallback is gated on the priced token being whitelisted, which guards
+  // against scam-token / poisoned-oracle inflation poisoning aggregate
+  // volume (issues #699 and #737).
+  const volumeInUSD = pickTrustedSwapVolumeUSD(
+    token0UsdValue,
+    token1UsdValue,
+    token0Instance.isWhitelisted,
+    token1Instance.isWhitelisted,
+  );
 
   // Calculate whitelisted volume (at least one token must be whitelisted,
   // consistent with calculateWhitelistedFeesUSD which uses the same rule)

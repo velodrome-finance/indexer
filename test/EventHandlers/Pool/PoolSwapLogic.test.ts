@@ -200,7 +200,7 @@ describe("PoolSwapLogic", () => {
       expect(result.liquidityPoolDiff?.incrementalTotalVolumeUSD).toBe(1000n);
     });
 
-    it("should use token1 USD value when token0 is zero", () => {
+    it("should use token1 USD value when token0 is zero AND token1 is whitelisted", () => {
       const eventWithZeroToken0: Pool_Swap_event = {
         ...mockEvent,
         params: {
@@ -210,6 +210,7 @@ describe("PoolSwapLogic", () => {
         },
       };
 
+      // mockToken0/mockToken1 both default to isWhitelisted: true
       const result = processPoolSwap(
         eventWithZeroToken0,
         mockToken0,
@@ -225,6 +226,32 @@ describe("PoolSwapLogic", () => {
       expect(result.liquidityPoolDiff?.incrementalTotalVolumeUSD).toBe(
         500000000000000n,
       );
+    });
+
+    it("returns 0 volume when token0 is zero AND token1 is not whitelisted (#737)", () => {
+      // Ragdoll-pair regression: pool with unpriced token0 + non-whitelisted
+      // priced token1 must not contribute any volume. The pool
+      // 8453-0x0129798a373f68b47AaE97d8562d861F10967650 produced a
+      // $1.125e19 phantom volume from exactly this shape.
+      const eventWithZeroToken0: Pool_Swap_event = {
+        ...mockEvent,
+        params: {
+          ...mockEvent.params,
+          amount0In: 0n,
+          amount0Out: 0n,
+        },
+      };
+
+      const result = processPoolSwap(
+        eventWithZeroToken0,
+        { ...mockToken0, isWhitelisted: false },
+        { ...mockToken1, isWhitelisted: false },
+      );
+
+      expect(result.liquidityPoolDiff?.incrementalTotalVolumeUSD).toBe(0n);
+      expect(
+        result.liquidityPoolDiff?.incrementalTotalVolumeUSDWhitelisted,
+      ).toBe(0n);
     });
 
     it("should handle undefined token0UsdValue when both tokens are whitelisted", () => {

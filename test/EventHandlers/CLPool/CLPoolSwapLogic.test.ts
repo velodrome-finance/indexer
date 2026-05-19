@@ -110,7 +110,10 @@ describe("CLPoolSwapLogic", () => {
       expect(result.volumeInUSDWhitelisted).toBe(0n); // Neither token is whitelisted
     });
 
-    it("should calculate volume using token1 when token0 value is zero", () => {
+    it("refuses single-leg fallback when the priced leg is not whitelisted (#737)", () => {
+      // token0 has amount=0 → unpriced. token1 priced ($4) but isWhitelisted=false.
+      // The Ragdoll-pair case: returning t1 here would let an unverified token's
+      // price (potentially inflated) poison aggregate volume. Expect 0n.
       const eventWithZeroToken0: CLPool_Swap_event = {
         ...mockEvent,
         params: { ...mockEvent.params, amount0: 0n },
@@ -120,6 +123,24 @@ describe("CLPoolSwapLogic", () => {
         eventWithZeroToken0,
         mockToken0,
         mockToken1,
+      );
+
+      expect(result.volumeInUSD).toBe(0n);
+    });
+
+    it("trusts single-leg fallback when the priced leg IS whitelisted", () => {
+      // Mirror of the #737 case, but with the priced token whitelisted:
+      // we trust the canonical-token amount as the swap's USD volume.
+      const eventWithZeroToken0: CLPool_Swap_event = {
+        ...mockEvent,
+        params: { ...mockEvent.params, amount0: 0n },
+      };
+      const whitelistedToken1: Token = { ...mockToken1, isWhitelisted: true };
+
+      const result = calculateSwapVolume(
+        eventWithZeroToken0,
+        mockToken0,
+        whitelistedToken1,
       );
 
       // token1: 2 tokens * $2 = $4
