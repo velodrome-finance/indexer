@@ -244,7 +244,7 @@ export async function refreshTokenPrice(
       // cache miss).
       tokenDecimals: Number(token.decimals),
     });
-    let currentPrice = priceData.pricePerUSDNew;
+    const currentPrice = priceData.pricePerUSDNew;
 
     // Issue #728: cap-reject the first non-zero anchor for non-BTC symbols.
     // The spike guard below requires anchor > 0, so without this gate a single
@@ -270,24 +270,37 @@ export async function refreshTokenPrice(
       return capped;
     }
 
-    // Issue #668: reject refreshes that jump ≥10× vs a still-fresh accepted
-    // anchor. First-fetch (anchor == 0) and stale-anchor (anchor older than
-    // PRICE_SPIKE_STALENESS_MS) are exempt — neither shape can be a transient
-    // oracle glitch poisoning a previously-good baseline.
+    // Issue #668: reject upward refreshes that jump ≥10× vs a still-fresh
+    // accepted anchor. First-fetch (anchor == 0) and stale-anchor (anchor
+    // older than PRICE_SPIKE_STALENESS_MS) are exempt — neither shape can
+    // be a transient oracle glitch poisoning a previously-good baseline.
+    //
+    // Issue #730: the guard is upward-only. The two directions have
+    // asymmetric failure costs:
+    //
+    // - Upward false-accept (candidate wrongly high) is brief; the next
+    //   refresh self-heals once the oracle returns to baseline.
+    // - Downward false-reject (anchor wrongly high, candidate correct) is
+    //   permanent; every subsequent correct reading keeps getting rejected
+    //   and the inflated anchor is held forever (DTF kept $8.18 vs
+    //   DefiLlama $0.0008466 for 111 days).
+    //
+    // Also returns early on rejection rather than writing back — the
+    // earlier fall-through bumped `lastUpdatedTimestamp` on every rejected
+    // refresh, resetting `anchorAgeMs` so the 14-day exit was unreachable.
+    // Same fix shape PR #696 applied to the V3 fallback path for #694.
     const anchorPrice = token.pricePerUSDNew;
     const anchorAgeMs = token.lastUpdatedTimestamp
       ? blockTimestampMs - token.lastUpdatedTimestamp.getTime()
       : Number.POSITIVE_INFINITY;
-    const ratioExceeds =
+    const upwardSpike =
       anchorPrice > 0n &&
-      currentPrice > 0n &&
-      (currentPrice >= anchorPrice * PRICE_SPIKE_RATIO_THRESHOLD ||
-        anchorPrice >= currentPrice * PRICE_SPIKE_RATIO_THRESHOLD);
-    if (ratioExceeds && anchorAgeMs < PRICE_SPIKE_STALENESS_MS) {
+      currentPrice >= anchorPrice * PRICE_SPIKE_RATIO_THRESHOLD;
+    if (upwardSpike && anchorAgeMs < PRICE_SPIKE_STALENESS_MS) {
       context.log.warn(
         `[priceSpikeRejected] ${token.address} chain=${chainId} anchor=${anchorPrice} candidate=${currentPrice}`,
       );
-      currentPrice = anchorPrice;
+      return token;
     }
 
     // If price fetch returned 0, it could mean:
