@@ -12,6 +12,13 @@ import {
 } from "../../Helpers";
 import { abs } from "../../Maths";
 
+// Issue #733 / regression of #670: fees USD must respect the fundamental AMM
+// invariant `cumulative_fees ≤ cumulative_volume × fee_ratio`. Pricing the fee
+// off the input leg's `pricePerUSDNew` inherits poisoned/scam-token prices that
+// the volume path already defends against via `pickTrustedSwapVolumeUSD` — this
+// produced 160 Base pools with `totalFeesGeneratedUSD` up to 10²³× volume.
+// Deriving fee USD from the already-trusted volume restores the invariant.
+
 export interface CLPoolSwapResult {
   liquidityPoolDiff: Partial<PoolDiff>;
   userSwapDiff: Partial<UserStatsPerPoolDiff>;
@@ -98,15 +105,31 @@ export function calculateSwapVolume(
 }
 
 /**
- * Calculates swap fees
- * Fees are stored in 1e18 precision (like USD values) to preserve accuracy
- * Exported for testing purposes only
+ * Calculates swap fees.
+ *
+ * Raw fee amounts (`swapFeesInToken0`, `swapFeesInToken1`) come directly from the
+ * input side of the swap and the pool's fee rate, normalized to 1e18 precision.
+ * USD value (`swapFeesInUSD`) is derived from the already-trusted `volumeInUSD`
+ * via `volumeInUSD × feeRate / CL_FEE_SCALE` — this enforces the AMM invariant
+ * `fees ≤ volume × feeRate` by construction and inherits the volume path's
+ * `pickTrustedSwapVolumeUSD` defense against poisoned-price tokens (issue #733).
+ *
+ * Exported for testing purposes only.
+ *
+ * @param event - CLPool Swap event
+ * @param liquidityPoolAggregator - Pool entity providing the fee rate
+ * @param token0Instance - Token0 for decimals lookup (price unused for USD)
+ * @param token1Instance - Token1 for decimals lookup (price unused for USD)
+ * @param volumeInUSD - Already-trusted swap volume in USD (from `calculateSwapVolume`)
+ * @param context - Handler context for error logging
+ * @returns Raw token-unit fees plus invariant-respecting USD fee
  */
 export function calculateSwapFees(
   event: CLPool_Swap_event,
   liquidityPoolAggregator: Pool,
   token0Instance: Token | undefined,
   token1Instance: Token | undefined,
+  volumeInUSD: bigint,
   context: handlerContext,
 ): SwapFees {
   // Get the current fee, falling back to baseFee if currentFee is undefined
@@ -149,21 +172,8 @@ export function calculateSwapFees(
     token1Decimals,
   );
 
-  // Calculate USD value from the input-side fee only
-  let swapFeesInUSD = 0n;
-  if (swapFeesInToken0Raw > 0n && token0Instance?.pricePerUSDNew) {
-    swapFeesInUSD = calculateTokenAmountUSD(
-      swapFeesInToken0Raw,
-      token0Decimals,
-      token0Instance.pricePerUSDNew,
-    );
-  } else if (swapFeesInToken1Raw > 0n && token1Instance?.pricePerUSDNew) {
-    swapFeesInUSD = calculateTokenAmountUSD(
-      swapFeesInToken1Raw,
-      token1Decimals,
-      token1Instance.pricePerUSDNew,
-    );
-  }
+  // Derive fee USD from trusted volume — see file header for the #733 rationale.
+  const swapFeesInUSD = (volumeInUSD * fee) / CL_FEE_SCALE;
 
   return {
     swapFeesInToken0,
@@ -195,6 +205,7 @@ function calculateSwapVolumeAndFees(
       liquidityPoolAggregator,
       token0Instance,
       token1Instance,
+      volumeInUSD,
       context,
     );
 
