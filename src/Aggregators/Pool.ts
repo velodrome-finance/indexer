@@ -1,6 +1,6 @@
 import type { CLGaugeConfig, Token, handlerContext } from "generated";
 import { PoolId, TokenId, isKnownSinkRootPool } from "../Constants";
-import { getSwapFee } from "../Effects/Index";
+import { getSwapFee, roundBlockToInterval } from "../Effects/Index";
 import type { Pool } from "../EntityTypes";
 import { calculateTotalUSD, generatePoolName } from "../Helpers";
 import { refreshTokenPrice } from "../PriceOracle";
@@ -194,11 +194,15 @@ export async function updateDynamicFeePools(
     return liquidityPoolAggregator;
   }
 
+  // Issue #749: round block to the hour boundary so the effect cache key is
+  // stable within an hour. Matches the pattern getTokenPrice uses
+  // (src/PriceOracle.ts) and lets preload dual-pass + re-index back-fills
+  // hit the cache instead of producing a fresh slot per raw block.
   const currentFee = await context.effect(getSwapFee, {
     poolAddress,
     factoryAddress,
     chainId,
-    blockNumber,
+    blockNumber: roundBlockToInterval(blockNumber, chainId),
   });
 
   if (currentFee === undefined) {
