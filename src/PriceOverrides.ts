@@ -537,6 +537,15 @@ const BLACKLIST: ReadonlySet<string> = new Set([
     8453,
     toChecksumAddress("0x44B6FBbA989F018c2C0fE7EE0bf4340B21255C2C"),
   ), // ORC
+  // Issue #731 follow-up: BAIBAI on Base. Oracle output is structurally
+  // broken — V4 returns ~$5e+8/token at recent blocks against a memecoin
+  // whose totalSupply is 10^15 raw (0.001 whole tokens at 18 decimals). The
+  // 8× jump from the stored $65M anchor → $528M oracle output is below the
+  // ≥10× spike-guard threshold, so neither #689 nor #742 catches it.
+  TokenId(
+    8453,
+    toChecksumAddress("0x23FA9a1a634222C03F3C02124242DFf56bD90787"),
+  ), // BAIBAI
 ]);
 
 /**

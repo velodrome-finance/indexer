@@ -76,6 +76,7 @@ describe("PriceOverrides", () => {
       ["PTTH", "0x4753ee21f0521B953e0Ac99449126dD457e85080"],
       ["CTB", "0xEF708582Ab333d602aBcFc740410224352e71D83"],
       ["ORC", "0x44B6FBbA989F018c2C0fE7EE0bf4340B21255C2C"],
+      ["BAIBAI", "0x23FA9a1a634222C03F3C02124242DFf56bD90787"],
     ])(
       "returns true for %s (Base inflated-price token, issue #731)",
       (_, address) => {
