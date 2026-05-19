@@ -364,19 +364,22 @@ describe("CLPoolSwapLogic", () => {
         ...mockToken0,
         pricePerUSDNew: 0n,
       };
+      // Single-leg fallback is gated on the priced token being whitelisted (#737/#740);
+      // the priced output leg here must be whitelisted for the fallback to surface.
+      const whitelistedToken1: Token = { ...mockToken1, isWhitelisted: true };
 
       // Volume defends via pickTrustedSwapVolumeUSD; fee inherits the defended volume.
       const fallbackVolume = calculateSwapVolume(
         mockEvent,
         token0WithZeroPrice,
-        mockToken1,
+        whitelistedToken1,
       ).volumeInUSD;
 
       const result = calculateSwapFees(
         mockEvent,
         mockPool,
         token0WithZeroPrice,
-        mockToken1,
+        whitelistedToken1,
         fallbackVolume,
         mockContext,
       );
