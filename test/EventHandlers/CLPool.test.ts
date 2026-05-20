@@ -509,7 +509,6 @@ describe("CLPool Events", () => {
             incrementalTotalStakedFeesCollected0: 50n,
             incrementalTotalStakedFeesCollected1: 75n,
             incrementalTotalStakedFeesCollectedUSD: 125n,
-            incrementalTotalFeesUSDWhitelisted: 125n,
             lastUpdatedTimestamp: new Date(1000000 * 1000),
           },
           userDiff: {

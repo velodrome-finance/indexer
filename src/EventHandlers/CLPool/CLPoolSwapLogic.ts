@@ -26,7 +26,6 @@ export interface CLPoolSwapResult {
 
 interface SwapVolume {
   volumeInUSD: bigint;
-  volumeInUSDWhitelisted: bigint;
 }
 
 interface SwapFees {
@@ -37,7 +36,6 @@ interface SwapFees {
 
 interface SwapVolumeAndFees {
   volumeInUSD: bigint;
-  volumeInUSDWhitelisted: bigint;
   swapFeesInToken0: bigint;
   swapFeesInToken1: bigint;
   swapFeesInUSD: bigint;
@@ -71,14 +69,8 @@ export function calculateSwapVolume(
 
   const volumeInUSD = pickTrustedSwapVolumeUSD(token0UsdValue, token1UsdValue);
 
-  // After #755 the WL/blacklist gate is enforced per leg above, so the
-  // *Whitelisted aggregate is equal to volumeInUSD. The schema field is kept
-  // for downstream backwards-compat.
-  const volumeInUSDWhitelisted = volumeInUSD;
-
   return {
     volumeInUSD,
-    volumeInUSDWhitelisted,
   };
 }
 
@@ -171,7 +163,7 @@ function calculateSwapVolumeAndFees(
   token1Instance: Token | undefined,
   context: handlerContext,
 ): SwapVolumeAndFees {
-  const { volumeInUSD, volumeInUSDWhitelisted } = calculateSwapVolume(
+  const { volumeInUSD } = calculateSwapVolume(
     event,
     token0Instance,
     token1Instance,
@@ -189,7 +181,6 @@ function calculateSwapVolumeAndFees(
 
   return {
     volumeInUSD,
-    volumeInUSDWhitelisted,
     swapFeesInToken0,
     swapFeesInToken1,
     swapFeesInUSD,
@@ -260,7 +251,6 @@ export async function processCLPoolSwap(
   // Calculate volume and fees
   const {
     volumeInUSD,
-    volumeInUSDWhitelisted,
     swapFeesInToken0,
     swapFeesInToken1,
     swapFeesInUSD,
@@ -311,7 +301,6 @@ export async function processCLPoolSwap(
     incrementalTotalVolume0: abs(event.params.amount0),
     incrementalTotalVolume1: abs(event.params.amount1),
     incrementalTotalVolumeUSD: volumeInUSD,
-    incrementalTotalVolumeUSDWhitelisted: volumeInUSDWhitelisted,
     incrementalTotalFeesGenerated0: swapFeesInToken0,
     incrementalTotalFeesGenerated1: swapFeesInToken1,
     incrementalTotalFeesGeneratedUSD: swapFeesInUSD,

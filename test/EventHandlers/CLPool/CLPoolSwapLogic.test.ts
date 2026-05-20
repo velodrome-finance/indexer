@@ -109,7 +109,6 @@ describe("CLPoolSwapLogic", () => {
       expect(result.volumeInUSD).toBe(ONE_USD); // 1 token * $1 = $1
       // After #755 the WL/blacklist gate is enforced per leg, so the
       // *Whitelisted aggregate equals volumeInUSD when at least one leg is trusted.
-      expect(result.volumeInUSDWhitelisted).toBe(result.volumeInUSD);
     });
 
     it("refuses single-leg fallback when the priced leg is not whitelisted (#737)", () => {
@@ -155,7 +154,6 @@ describe("CLPoolSwapLogic", () => {
       const result = calculateSwapVolume(mockEvent, undefined, undefined);
 
       expect(result.volumeInUSD).toBe(0n);
-      expect(result.volumeInUSDWhitelisted).toBe(0n);
     });
 
     it("should calculate whitelisted volume when both tokens are whitelisted", () => {
@@ -168,7 +166,6 @@ describe("CLPoolSwapLogic", () => {
         whitelistedToken1,
       );
 
-      expect(result.volumeInUSDWhitelisted).toBe(result.volumeInUSD);
     });
 
     it("should count whitelisted volume when only one token is whitelisted", () => {
@@ -179,7 +176,6 @@ describe("CLPoolSwapLogic", () => {
 
       const result = calculateSwapVolume(mockEvent, mockToken0, nonWLToken1);
 
-      expect(result.volumeInUSDWhitelisted).toBe(result.volumeInUSD);
     });
 
     it("should handle different token decimals correctly", () => {
@@ -670,9 +666,6 @@ describe("CLPoolSwapLogic", () => {
         mockContext,
       );
 
-      expect(
-        result.liquidityPoolDiff.incrementalTotalVolumeUSDWhitelisted,
-      ).toBe(result.liquidityPoolDiff.incrementalTotalVolumeUSD);
     });
 
     it("should use updated token prices when available", async () => {

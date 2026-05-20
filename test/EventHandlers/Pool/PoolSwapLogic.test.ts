@@ -116,9 +116,6 @@ describe("PoolSwapLogic", () => {
       // returns 0. The *Whitelisted aggregate mirrors total since the gate
       // is now enforced per leg upstream of the picker.
       expect(result.liquidityPoolDiff?.incrementalTotalVolumeUSD).toBe(0n);
-      expect(
-        result.liquidityPoolDiff?.incrementalTotalVolumeUSDWhitelisted,
-      ).toBe(0n);
     });
 
     it("should add to whitelisted volume when both tokens are whitelisted", () => {
@@ -133,9 +130,6 @@ describe("PoolSwapLogic", () => {
 
       // When both tokens are whitelisted, whitelisted volume should be added
       // Expected: 1000n USD (1000 USDT * 1 USD, uses token0 value)
-      expect(
-        result.liquidityPoolDiff?.incrementalTotalVolumeUSDWhitelisted,
-      ).toBe(1000n);
     });
 
     it("should count whitelisted volume when only one token is whitelisted", () => {
@@ -149,9 +143,6 @@ describe("PoolSwapLogic", () => {
       expect(result.userSwapDiff).toBeDefined();
 
       // "Any whitelisted" rule — consistent with calculateWhitelistedFeesUSD
-      expect(
-        result.liquidityPoolDiff?.incrementalTotalVolumeUSDWhitelisted,
-      ).toBe(result.liquidityPoolDiff?.incrementalTotalVolumeUSD);
     });
 
     it("should update token prices correctly", () => {
@@ -251,9 +242,6 @@ describe("PoolSwapLogic", () => {
       );
 
       expect(result.liquidityPoolDiff?.incrementalTotalVolumeUSD).toBe(0n);
-      expect(
-        result.liquidityPoolDiff?.incrementalTotalVolumeUSDWhitelisted,
-      ).toBe(0n);
     });
 
     it("should handle undefined token0UsdValue when both tokens are whitelisted", () => {
@@ -274,12 +262,6 @@ describe("PoolSwapLogic", () => {
 
       // When token0UsdValue is undefined but token1UsdValue is available,
       // volumeInUSDWhitelisted should fallback to token1UsdValue (500n) instead of undefined
-      expect(
-        result.liquidityPoolDiff?.incrementalTotalVolumeUSDWhitelisted,
-      ).toBe(500n);
-      expect(
-        result.liquidityPoolDiff?.incrementalTotalVolumeUSDWhitelisted,
-      ).not.toBeUndefined();
 
       // Total volume should also use token1 value as fallback
       expect(result.liquidityPoolDiff?.incrementalTotalVolumeUSD).toBe(500n);
@@ -342,12 +324,6 @@ describe("PoolSwapLogic", () => {
 
       // When both token0UsdValue and token1UsdValue are undefined,
       // volumeInUSDWhitelisted should fallback to 0n
-      expect(
-        result.liquidityPoolDiff?.incrementalTotalVolumeUSDWhitelisted,
-      ).toBe(0n);
-      expect(
-        result.liquidityPoolDiff?.incrementalTotalVolumeUSDWhitelisted,
-      ).not.toBeUndefined();
 
       // Total volume should also fallback to 0n
       expect(result.liquidityPoolDiff?.incrementalTotalVolumeUSD).toBe(0n);

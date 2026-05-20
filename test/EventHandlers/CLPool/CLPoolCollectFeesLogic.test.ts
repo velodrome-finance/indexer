@@ -48,8 +48,7 @@ describe("CLPoolCollectFeesLogic", () => {
     totalUnstakedFeesCollectedUSD: 0n,
     totalStakedFeesCollected0: 0n, // Override to 0 for this test
     totalStakedFeesCollected1: 0n, // Override to 0 for this test
-    totalStakedFeesCollectedUSD: 0n, // Override to 0 for this test
-    totalFeesUSDWhitelisted: 0n, // Override to 0 for this test
+    totalStakedFeesCollectedUSD: 0n, // Override to 0 for this test // Override to 0 for this test
     lastUpdatedTimestamp: new Date(1000000 * 1000),
     lastSnapshotTimestamp: new Date(1000000 * 1000),
   };
@@ -249,9 +248,6 @@ describe("CLPoolCollectFeesLogic", () => {
       ).toBe(4000000000000000000n);
       // mockToken1 is whitelisted, so its leg is included in whitelisted fees
       // (token1: 2 tokens * $2.00 = $4.00)
-      expect(result.liquidityPoolDiff.incrementalTotalFeesUSDWhitelisted).toBe(
-        4000000000000000000n,
-      );
     });
 
     it("should handle undefined token1Instance correctly", () => {
@@ -271,9 +267,6 @@ describe("CLPoolCollectFeesLogic", () => {
       ).toBe(1000000000000000000n);
       // mockToken0 is whitelisted, so its leg is included in whitelisted fees
       // (token0: 1 token * $1.00 = $1.00)
-      expect(result.liquidityPoolDiff.incrementalTotalFeesUSDWhitelisted).toBe(
-        1000000000000000000n,
-      );
     });
 
     it("should handle both tokens undefined", () => {
@@ -291,9 +284,6 @@ describe("CLPoolCollectFeesLogic", () => {
         result.liquidityPoolDiff.incrementalTotalStakedFeesCollectedUSD,
       ).toBe(0n);
       // Whitelisted fees should be 0
-      expect(result.liquidityPoolDiff.incrementalTotalFeesUSDWhitelisted).toBe(
-        0n,
-      );
     });
 
     it("should add to whitelisted fees when token0 is whitelisted", () => {
@@ -320,9 +310,6 @@ describe("CLPoolCollectFeesLogic", () => {
         result.liquidityPoolDiff.incrementalTotalStakedFeesCollectedUSD,
       ).toBe(1000000000000000000n);
       // Whitelisted fees identical to total under the gate: only token0 contributes.
-      expect(result.liquidityPoolDiff.incrementalTotalFeesUSDWhitelisted).toBe(
-        1000000000000000000n,
-      );
     });
 
     it("should add to whitelisted fees when token1 is whitelisted", () => {
@@ -349,9 +336,6 @@ describe("CLPoolCollectFeesLogic", () => {
         result.liquidityPoolDiff.incrementalTotalStakedFeesCollectedUSD,
       ).toBe(4000000000000000000n);
       // Whitelisted fees identical to total under the gate: only token1 contributes.
-      expect(result.liquidityPoolDiff.incrementalTotalFeesUSDWhitelisted).toBe(
-        4000000000000000000n,
-      );
     });
 
     it("should add to whitelisted fees when both tokens are whitelisted", () => {
@@ -380,13 +364,7 @@ describe("CLPoolCollectFeesLogic", () => {
         result.liquidityPoolDiff.incrementalTotalStakedFeesCollectedUSD,
       ).toBe(5000000000000000000n);
       // Whitelisted fees should include both: token0 (1 * $1.00 = $1.00) + token1 (2 * $2.00 = $4.00) = $5.00
-      expect(result.liquidityPoolDiff.incrementalTotalFeesUSDWhitelisted).toBe(
-        5000000000000000000n,
-      );
       // Whitelisted fees should equal total fees when both are whitelisted
-      expect(result.liquidityPoolDiff.incrementalTotalFeesUSDWhitelisted).toBe(
-        result.liquidityPoolDiff.incrementalTotalStakedFeesCollectedUSD,
-      );
     });
 
     it("should not add to whitelisted fees when tokens are not whitelisted", () => {
@@ -411,9 +389,6 @@ describe("CLPoolCollectFeesLogic", () => {
         result.liquidityPoolDiff.incrementalTotalStakedFeesCollectedUSD,
       ).toBe(0n);
       // Whitelisted fees mirror the gate's verdict: 0n when neither token is whitelisted.
-      expect(result.liquidityPoolDiff.incrementalTotalFeesUSDWhitelisted).toBe(
-        0n,
-      );
     });
 
     it("should only track staked fees, not unstaked fees", () => {

@@ -1,10 +1,7 @@
 import type { Pool_Fees_event, Token } from "generated";
 import type { PoolDiff } from "../../Aggregators/Pool";
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
-import {
-  calculateWhitelistedFeesUSD,
-  pickTrustedSwapVolumeUSD,
-} from "../../Helpers";
+import { pickTrustedSwapVolumeUSD } from "../../Helpers";
 import { getTrustedUSD } from "../../PriceTrust";
 
 export interface PoolFeesResult {
@@ -42,19 +39,11 @@ export function processPoolFees(
   const token1FeeUSD = getTrustedUSD(event.params.amount1, token1Instance);
   const totalFeesUSD = pickTrustedSwapVolumeUSD(token0FeeUSD, token1FeeUSD);
 
-  const totalFeesUSDWhitelisted = calculateWhitelistedFeesUSD(
-    event.params.amount0,
-    event.params.amount1,
-    token0Instance,
-    token1Instance,
-  );
-
   // Create liquidity pool diff
   const liquidityPoolDiff = {
     incrementalTotalFeesGenerated0: event.params.amount0,
     incrementalTotalFeesGenerated1: event.params.amount1,
     incrementalTotalFeesGeneratedUSD: totalFeesUSD,
-    incrementalTotalFeesUSDWhitelisted: totalFeesUSDWhitelisted,
     lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
   };
 

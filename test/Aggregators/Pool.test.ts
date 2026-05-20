@@ -124,14 +124,12 @@ describe("Pool Functions", () => {
       totalVolume0: 0n,
       totalVolume1: 0n,
       totalVolumeUSD: 0n,
-      totalVolumeUSDWhitelisted: 0n,
       totalUnstakedFeesCollected0: 0n,
       totalUnstakedFeesCollected1: 0n,
       totalStakedFeesCollected0: 0n,
       totalStakedFeesCollected1: 0n,
       totalUnstakedFeesCollectedUSD: 0n,
       totalStakedFeesCollectedUSD: 0n,
-      totalFeesUSDWhitelisted: 0n,
       numberOfSwaps: 0n,
       token0Price: 0n,
       token1Price: 0n,
@@ -900,8 +898,6 @@ describe("Pool Functions", () => {
       incrementalTotalVolume1: 0n,
       incrementalTotalVolumeUSD: 0n,
       incrementalNumberOfSwaps: 0n,
-      incrementalTotalVolumeUSDWhitelisted: 0n,
-      incrementalTotalFeesUSDWhitelisted: 0n,
       totalVotesDeposited: 0n,
       totalVotesDepositedUSD: 0n,
       incrementalTotalEmissions: 0n,
@@ -912,8 +908,6 @@ describe("Pool Functions", () => {
         incrementalTotalVolume1: 6000n,
         incrementalTotalVolumeUSD: 7000n,
         incrementalNumberOfSwaps: 11n,
-        incrementalTotalVolumeUSDWhitelisted: 8000n,
-        incrementalTotalFeesUSDWhitelisted: 9000n,
         totalVotesDeposited: 2000n,
         totalVotesDepositedUSD: 3000n,
         incrementalTotalEmissions: 4000n,
@@ -935,12 +929,6 @@ describe("Pool Functions", () => {
       expect(updatedAggregator.totalVolume1).toBe(diff.incrementalTotalVolume1);
       expect(updatedAggregator.numberOfSwaps).toBe(
         diff.incrementalNumberOfSwaps,
-      );
-      expect(updatedAggregator.totalVolumeUSDWhitelisted).toBe(
-        diff.incrementalTotalVolumeUSDWhitelisted,
-      );
-      expect(updatedAggregator.totalFeesUSDWhitelisted).toBe(
-        diff.incrementalTotalFeesUSDWhitelisted,
       );
     });
 

@@ -10,7 +10,6 @@ import type { Pool } from "../src/EntityTypes";
 import {
   calculatePositionAmountsFromLiquidity,
   calculateTotalUSD,
-  calculateWhitelistedFeesUSD,
   computeLiquidityDeltaFromAmounts,
   computeNonCLStakedUSD,
   concentratedLiquidityToUSD,
@@ -221,90 +220,6 @@ describe("Helpers", () => {
         2000000n,
         undefined,
         undefined,
-      );
-      expect(total).toBe(0n);
-    });
-  });
-
-  describe("calculateWhitelistedFeesUSD", () => {
-    const { mockToken0Data, mockToken1Data } = setupCommon();
-
-    it("should sum USD for both tokens when both are whitelisted", () => {
-      const amount0 = 1000000000000000000n;
-      const amount1 = 2000000000000000000n;
-      const total = calculateWhitelistedFeesUSD(
-        amount0,
-        amount1,
-        mockToken0Data,
-        mockToken1Data,
-      );
-      const expected = calculateTotalUSD(
-        amount0,
-        amount1,
-        mockToken0Data,
-        mockToken1Data,
-      );
-      expect(total).toBe(expected);
-    });
-
-    it("should include only token0 USD when only token0 is whitelisted", () => {
-      const amount0 = 1000000000000000000n;
-      const amount1 = 2000000000000000000n;
-      const token1NotWhitelisted: Token = {
-        ...mockToken1Data,
-        isWhitelisted: false,
-      };
-      const total = calculateWhitelistedFeesUSD(
-        amount0,
-        amount1,
-        mockToken0Data,
-        token1NotWhitelisted,
-      );
-      const expectedToken0USD = calculateTotalUSD(
-        amount0,
-        0n,
-        mockToken0Data,
-        undefined,
-      );
-      expect(total).toBe(expectedToken0USD);
-    });
-
-    it("should include only token1 USD when only token1 is whitelisted", () => {
-      const amount0 = 1000000000000000000n;
-      const amount1 = 2000000000000000000n;
-      const token0NotWhitelisted: Token = {
-        ...mockToken0Data,
-        isWhitelisted: false,
-      };
-      const total = calculateWhitelistedFeesUSD(
-        amount0,
-        amount1,
-        token0NotWhitelisted,
-        mockToken1Data,
-      );
-      const expectedToken1USD = calculateTotalUSD(
-        0n,
-        amount1,
-        undefined,
-        mockToken1Data,
-      );
-      expect(total).toBe(expectedToken1USD);
-    });
-
-    it("should return 0n when neither token is whitelisted", () => {
-      const token0NotWhitelisted: Token = {
-        ...mockToken0Data,
-        isWhitelisted: false,
-      };
-      const token1NotWhitelisted: Token = {
-        ...mockToken1Data,
-        isWhitelisted: false,
-      };
-      const total = calculateWhitelistedFeesUSD(
-        1000n,
-        2000n,
-        token0NotWhitelisted,
-        token1NotWhitelisted,
       );
       expect(total).toBe(0n);
     });

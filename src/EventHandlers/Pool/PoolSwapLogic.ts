@@ -30,18 +30,11 @@ export function processPoolSwap(
 
   const volumeInUSD = pickTrustedSwapVolumeUSD(token0UsdValue, token1UsdValue);
 
-  // After #755, the WL/blacklist gate is enforced per leg above, so the
-  // *Whitelisted aggregate is equal to volumeInUSD. The schema field is kept
-  // for downstream backwards-compat; consumers can migrate to the canonical
-  // `incrementalTotalVolumeUSD` field at their own pace.
-  const volumeInUSDWhitelisted = volumeInUSD;
-
   // Create liquidity pool diff
   const liquidityPoolDiff = {
     incrementalTotalVolume0: netAmount0,
     incrementalTotalVolume1: netAmount1,
     incrementalTotalVolumeUSD: volumeInUSD,
-    incrementalTotalVolumeUSDWhitelisted: volumeInUSDWhitelisted,
     token0Price: token0Instance.pricePerUSDNew,
     token1Price: token1Instance.pricePerUSDNew,
     incrementalNumberOfSwaps: 1n,
