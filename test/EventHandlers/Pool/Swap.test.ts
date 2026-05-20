@@ -100,7 +100,7 @@ describe("Pool Swap Event", () => {
       mockLiquidityPoolData.totalVolumeUSD +
       expectations.expectedSwapVolumeUSDMin;
 
-      expectations.expectedLPVolumeUSDMin;
+    expectations.expectedLPVolumeUSDMin;
 
     mockPriceOracle = vi
       .spyOn(PriceOracle, "refreshTokenPrice")

@@ -165,7 +165,6 @@ describe("CLPoolSwapLogic", () => {
         whitelistedToken0,
         whitelistedToken1,
       );
-
     });
 
     it("should count whitelisted volume when only one token is whitelisted", () => {
@@ -175,7 +174,6 @@ describe("CLPoolSwapLogic", () => {
       const nonWLToken1: Token = { ...mockToken1, isWhitelisted: false };
 
       const result = calculateSwapVolume(mockEvent, mockToken0, nonWLToken1);
-
     });
 
     it("should handle different token decimals correctly", () => {
@@ -665,7 +663,6 @@ describe("CLPoolSwapLogic", () => {
         whitelistedToken1,
         mockContext,
       );
-
     });
 
     it("should use updated token prices when available", async () => {

@@ -64,8 +64,14 @@ export function calculateSwapVolume(
   // Per-leg USD via PriceTrust gate (issue #755): untrusted legs contribute
   // 0n. The min pick then guards against scam-token / poisoned-oracle
   // inflation on the remaining trusted leg (issues #699, #737).
-  const token0UsdValue = getTrustedUSD(abs(event.params.amount0), token0Instance);
-  const token1UsdValue = getTrustedUSD(abs(event.params.amount1), token1Instance);
+  const token0UsdValue = getTrustedUSD(
+    abs(event.params.amount0),
+    token0Instance,
+  );
+  const token1UsdValue = getTrustedUSD(
+    abs(event.params.amount1),
+    token1Instance,
+  );
 
   const volumeInUSD = pickTrustedSwapVolumeUSD(token0UsdValue, token1UsdValue);
 
@@ -249,18 +255,14 @@ export async function processCLPoolSwap(
   context: handlerContext,
 ): Promise<CLPoolSwapResult> {
   // Calculate volume and fees
-  const {
-    volumeInUSD,
-    swapFeesInToken0,
-    swapFeesInToken1,
-    swapFeesInUSD,
-  } = calculateSwapVolumeAndFees(
-    event,
-    liquidityPoolAggregator,
-    token0Instance,
-    token1Instance,
-    context,
-  );
+  const { volumeInUSD, swapFeesInToken0, swapFeesInToken1, swapFeesInUSD } =
+    calculateSwapVolumeAndFees(
+      event,
+      liquidityPoolAggregator,
+      token0Instance,
+      token1Instance,
+      context,
+    );
 
   // Calculate liquidity and reserve changes (fees excluded from reserves — see function docs)
   const clFeeRate =
@@ -304,6 +306,10 @@ export async function processCLPoolSwap(
     incrementalTotalFeesGenerated0: swapFeesInToken0,
     incrementalTotalFeesGenerated1: swapFeesInToken1,
     incrementalTotalFeesGeneratedUSD: swapFeesInUSD,
+    // Token-price snapshots record observed state at this event, not a USD
+    // aggregate, so they are intentionally NOT routed through the #755 trust
+    // gate (see PriceTrust.ts). The downstream aggregate sites — volumeUSD,
+    // feesUSD, emissionsUSD, votesDepositedUSD, totalLiquidityUSD — are gated.
     token0Price:
       token0Instance?.pricePerUSDNew ?? liquidityPoolAggregator.token0Price,
     token1Price:

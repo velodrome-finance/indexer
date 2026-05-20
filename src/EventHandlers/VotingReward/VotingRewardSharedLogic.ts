@@ -18,10 +18,7 @@ import {
 } from "../../Effects/Index";
 import type { Pool } from "../../EntityTypes";
 import { refreshTokenPrice } from "../../PriceOracle";
-import {
-  getGateDecisionFromSignals,
-  getTrustedUSD,
-} from "../../PriceTrust";
+import { getGateDecisionFromSignals, getTrustedUSD } from "../../PriceTrust";
 
 export interface VotingRewardEventData {
   votingRewardAddress: string;

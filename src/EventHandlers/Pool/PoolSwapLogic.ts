@@ -35,6 +35,10 @@ export function processPoolSwap(
     incrementalTotalVolume0: netAmount0,
     incrementalTotalVolume1: netAmount1,
     incrementalTotalVolumeUSD: volumeInUSD,
+    // Token-price snapshots record observed state at this event, not a USD
+    // aggregate, so they are intentionally NOT routed through the #755 trust
+    // gate (see PriceTrust.ts). The downstream aggregate sites — volumeUSD,
+    // feesUSD, emissionsUSD, votesDepositedUSD, totalLiquidityUSD — are gated.
     token0Price: token0Instance.pricePerUSDNew,
     token1Price: token1Instance.pricePerUSDNew,
     incrementalNumberOfSwaps: 1n,

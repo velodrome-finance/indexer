@@ -48,7 +48,6 @@ describe("Pool Fees Event", () => {
   expectations.totalFeesGeneratedUSD =
     mockLiquidityPoolData.totalFeesGeneratedUSD + trustedLegUSD;
 
-
   let updatedPool: PoolEntity | undefined;
   let createdUserStats: UserStatsPerPool | undefined;
 
@@ -106,8 +105,7 @@ describe("Pool Fees Event", () => {
     );
   });
 
-  it("should update Pool total fees in USD whitelisted", async () => {
-  });
+  it("should update Pool total fees in USD whitelisted", async () => {});
 
   it("should create a new UserStatsPerPool entity", async () => {
     expect(createdUserStats).toBeDefined();
