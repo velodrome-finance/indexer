@@ -8,6 +8,7 @@ import JSBI from "jsbi";
 import { TEN_TO_THE_18_BI } from "./Constants";
 import type { Pool } from "./EntityTypes";
 import { multiplyBase1e18 } from "./Maths";
+import { getTrustedUSD } from "./PriceTrust";
 
 /**
  * Normalises an unknown value to an error message string.
@@ -158,12 +159,23 @@ export function sortByBlockThenLogIndex<T>(
 }
 
 /**
- * Calculates total USD from amounts and token prices
- * @param amount0 - Token0 amount
- * @param amount1 - Token1 amount
- * @param token0 - Token0 instance
- * @param token1 - Token1 instance
- * @returns Total USD
+ * Calculates total USD from amounts and token prices, gated by the
+ * {@link getTrustedUSD} price-trust seam (#755).
+ *
+ * Each leg is routed through `getTrustedUSD`, so a leg whose token fails the
+ * two-tier gate (`isWhitelisted = false` OR present in the operator
+ * BLACKLIST) contributes `0n` to the total. This closes the un-gated TVL
+ * contamination hole where a single poisoned non-WL token could inflate
+ * `totalLiquidityUSD` to astronomical values (see #755 empirical audit).
+ *
+ * Undefined token entities continue to contribute `0n`, matching the
+ * pre-migration behavior.
+ *
+ * @param amount0 - Token0 amount (raw, in token0's decimal base)
+ * @param amount1 - Token1 amount (raw, in token1's decimal base)
+ * @param token0 - Token0 instance; undefined or untrusted contributes 0n
+ * @param token1 - Token1 instance; undefined or untrusted contributes 0n
+ * @returns Total USD (1e18-base), summing only trusted legs
  */
 export function calculateTotalUSD(
   amount0: bigint,
@@ -171,25 +183,7 @@ export function calculateTotalUSD(
   token0: Token | undefined,
   token1: Token | undefined,
 ): bigint {
-  let totalUSD = 0n;
-
-  if (token0) {
-    totalUSD += calculateTokenAmountUSD(
-      amount0,
-      Number(token0.decimals),
-      token0.pricePerUSDNew,
-    );
-  }
-
-  if (token1) {
-    totalUSD += calculateTokenAmountUSD(
-      amount1,
-      Number(token1.decimals),
-      token1.pricePerUSDNew,
-    );
-  }
-
-  return totalUSD;
+  return getTrustedUSD(amount0, token0) + getTrustedUSD(amount1, token1);
 }
 
 /**

@@ -545,12 +545,19 @@ describe("CLPoolSwapLogic", () => {
   });
 
   describe("processCLPoolSwap", () => {
+    // TVL routes through calculateTotalUSD which is gated on PriceTrust (#755).
+    // File-level mockToken0/mockToken1 are deliberately non-WL for the #699/#737
+    // calculateSwapVolume regression tests above; for the TVL-asserting cases
+    // below we re-bind to whitelisted clones so the math is observable.
+    const wlToken0: Token = { ...mockToken0, isWhitelisted: true };
+    const wlToken1: Token = { ...mockToken1, isWhitelisted: true };
+
     it("should process swap event and calculate correct volumes and fees", async () => {
       const result = await processCLPoolSwap(
         mockEvent,
         mockPool,
-        mockToken0,
-        mockToken1,
+        wlToken0,
+        wlToken1,
         mockContext,
       );
 
@@ -595,8 +602,8 @@ describe("CLPoolSwapLogic", () => {
       const result = await processCLPoolSwap(
         eventWithZeroAmounts,
         mockPool,
-        mockToken0,
-        mockToken1,
+        wlToken0,
+        wlToken1,
         mockContext,
       );
 

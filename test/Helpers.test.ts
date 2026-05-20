@@ -5,7 +5,7 @@ import {
 } from "@uniswap/v3-sdk";
 import type { Token, handlerContext } from "generated";
 import JSBI from "jsbi";
-import { toChecksumAddress } from "../src/Constants";
+import { TokenId, toChecksumAddress } from "../src/Constants";
 import type { Pool } from "../src/EntityTypes";
 import {
   calculatePositionAmountsFromLiquidity,
@@ -109,6 +109,120 @@ describe("Helpers", () => {
 
       expect(logError).toHaveBeenCalledTimes(1);
       expect(logError).toHaveBeenCalledWith("Test message: string error");
+    });
+  });
+
+  describe("calculateTotalUSD (#755 trust gate)", () => {
+    const { mockToken0Data, mockToken1Data } = setupCommon();
+    const ION_LISK = toChecksumAddress(
+      "0x3f608A49a3ab475dA7fBb167C1Be6b7a45cD7013",
+    );
+
+    it("sums both legs when both tokens are trusted (WL + not blacklisted)", () => {
+      const amount0 = 1000000000000000000n; // 1.0 in 18-decimal
+      const amount1 = 2000000n; // 2.0 in 6-decimal
+      const total = calculateTotalUSD(
+        amount0,
+        amount1,
+        mockToken0Data,
+        mockToken1Data,
+      );
+      // 1 token0 * $1 + 2 token1 * $1 = $3, in 1e18-base
+      expect(total).toBe(3n * 1000000000000000000n);
+    });
+
+    it("zeros token0's leg when token0 is non-whitelisted", () => {
+      const amount0 = 1000000000000000000n;
+      const amount1 = 2000000n;
+      const token0NonWL: Token = {
+        ...mockToken0Data,
+        isWhitelisted: false,
+      };
+      const total = calculateTotalUSD(
+        amount0,
+        amount1,
+        token0NonWL,
+        mockToken1Data,
+      );
+      // Only token1 contributes: 2 * $1 = $2
+      expect(total).toBe(2n * 1000000000000000000n);
+    });
+
+    it("zeros token1's leg when token1 is non-whitelisted", () => {
+      const amount0 = 1000000000000000000n;
+      const amount1 = 2000000n;
+      const token1NonWL: Token = {
+        ...mockToken1Data,
+        isWhitelisted: false,
+      };
+      const total = calculateTotalUSD(
+        amount0,
+        amount1,
+        mockToken0Data,
+        token1NonWL,
+      );
+      // Only token0 contributes: 1 * $1 = $1
+      expect(total).toBe(1n * 1000000000000000000n);
+    });
+
+    it("returns 0n when both tokens are non-whitelisted", () => {
+      const token0NonWL: Token = {
+        ...mockToken0Data,
+        isWhitelisted: false,
+      };
+      const token1NonWL: Token = {
+        ...mockToken1Data,
+        isWhitelisted: false,
+      };
+      const total = calculateTotalUSD(
+        1000000000000000000n,
+        2000000n,
+        token0NonWL,
+        token1NonWL,
+      );
+      expect(total).toBe(0n);
+    });
+
+    it("zeros a WL token's leg when the token is BLACKLISTED", () => {
+      const amount0 = 1000000000000000000n;
+      const amount1 = 2000000n;
+      // ION on Lisk is WL'd by the protocol but operator-blacklisted (#671)
+      const blacklistedToken0: Token = {
+        ...mockToken0Data,
+        id: TokenId(1135, ION_LISK),
+        address: ION_LISK as `0x${string}`,
+        chainId: 1135,
+        isWhitelisted: true,
+      };
+      const total = calculateTotalUSD(
+        amount0,
+        amount1,
+        blacklistedToken0,
+        mockToken1Data,
+      );
+      // token0 gated to 0 by BLACKLIST; only token1 contributes
+      expect(total).toBe(2n * 1000000000000000000n);
+    });
+
+    it("treats undefined token entities as untrusted (contributes 0n)", () => {
+      const total = calculateTotalUSD(
+        1000000000000000000n,
+        2000000n,
+        undefined,
+        mockToken1Data,
+      );
+      // token0 undefined -> 0; only token1 contributes
+      expect(total).toBe(2n * 1000000000000000000n);
+    });
+
+    it("returns 0n when both token entities are undefined", () => {
+      const total = calculateTotalUSD(
+        1000000000000000000n,
+        2000000n,
+        undefined,
+        undefined,
+      );
+      expect(total).toBe(0n);
     });
   });
 

@@ -45,7 +45,7 @@ describe("CLPoolCollectLogic", () => {
     address: "0xtoken0",
     symbol: "TOKEN0",
     name: "Token 0",
-    isWhitelisted: false,
+    isWhitelisted: true,
     lastUpdatedTimestamp: new Date(1000000 * 1000),
   };
 
@@ -57,7 +57,7 @@ describe("CLPoolCollectLogic", () => {
     name: "Token 1",
     decimals: 18n,
     pricePerUSDNew: 2000000000000000000n,
-    isWhitelisted: false,
+    isWhitelisted: true,
     lastUpdatedTimestamp: new Date(1000000 * 1000),
   };
 
