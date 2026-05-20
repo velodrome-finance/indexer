@@ -801,6 +801,196 @@ describe("PriceOracle", () => {
         // Existing non-empty symbol must not be overwritten
         expect(updatedToken.symbol).toBe("USDT");
       });
+
+      // Issue #735: low-volume Base pools were left with `?` symbols because
+      // every event after PoolCreated landed inside the 1-hour throttle window,
+      // so heal (gated under the throttle short-circuit) never ran. Lifting
+      // heal above the throttle gate fixes the residual of #672/#675 without
+      // changing price-refresh cadence.
+      it("heals empty symbol even when the price-refresh throttle short-circuits (within 1 hour)", async () => {
+        const thirtyMinutesAgo = new Date(
+          blockDatetime.getTime() - 30 * 60 * 1000,
+        );
+        const fetchedToken = {
+          ...mockToken0Data,
+          symbol: "",
+          name: "",
+          lastUpdatedTimestamp: thirtyMinutesAgo,
+        };
+
+        await PriceOracle.refreshTokenPrice(
+          fetchedToken,
+          blockNumber,
+          blockDatetime.getTime() / 1000,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        // Heal wrote the populated metadata even though the price-refresh
+        // path short-circuited on the 30-minute throttle.
+        expect(vi.mocked(mockContext.Token?.set)).toHaveBeenCalledTimes(1);
+        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
+          .lastCall?.[0] as Token;
+        expect(updatedToken.symbol).toBe("TEST");
+        expect(updatedToken.name).toBe("Test Token");
+        // Price untouched — throttle still gates refresh and snapshot writes
+        expect(updatedToken.pricePerUSDNew).toBe(mockToken0Data.pricePerUSDNew);
+        expect(
+          vi.mocked(mockContext.TokenPriceSnapshot?.set),
+        ).not.toHaveBeenCalled();
+      });
+
+      // Issue #735 AC #4: a token whose on-chain symbol() legitimately returns
+      // "" must not retry-storm. With heal lifted above the throttle gate, an
+      // empty-overlay heal must not churn Token.set writes on every event.
+      it("does NOT churn Token.set when getTokenDetails returns empty (throttled refresh)", async () => {
+        vi.mocked(mockContext.effect)?.mockImplementation(
+          async (effect: unknown, _input: unknown) => {
+            const name = (effect as { name?: string }).name;
+            if (name === "getTokenDetails") {
+              return { name: "", decimals: 18, symbol: "" };
+            }
+            return {};
+          },
+        );
+
+        const thirtyMinutesAgo = new Date(
+          blockDatetime.getTime() - 30 * 60 * 1000,
+        );
+        const fetchedToken = {
+          ...mockToken0Data,
+          symbol: "",
+          name: "",
+          lastUpdatedTimestamp: thirtyMinutesAgo,
+        };
+
+        await PriceOracle.refreshTokenPrice(
+          fetchedToken,
+          blockNumber,
+          blockDatetime.getTime() / 1000,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        // No overlay produced AND refresh throttled — heal must not write.
+        expect(vi.mocked(mockContext.Token?.set)).not.toHaveBeenCalled();
+      });
+    });
+
+    // Issue #735: `healTokenMetadata` is exported so non-refresh handlers can
+    // heal directly without going through refreshTokenPrice. These tests pin
+    // the standalone semantics: idempotent on healed tokens, no Token.set
+    // churn when on-chain metadata is still empty, error-tolerant.
+    describe("healTokenMetadata (standalone heal export, issue #735)", () => {
+      beforeEach(() => {
+        vi.mocked(mockContext.Token?.set)?.mockClear();
+        vi.mocked(mockContext.effect)?.mockClear();
+        vi.mocked(mockContext.log?.error)?.mockClear();
+      });
+
+      it("heals an empty-symbol token and writes the result via Token.set", async () => {
+        const fetchedToken = { ...mockToken0Data, symbol: "", name: "" };
+
+        const healed = await PriceOracle.healTokenMetadata(
+          fetchedToken,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        expect(healed.symbol).toBe("TEST");
+        expect(healed.name).toBe("Test Token");
+        expect(vi.mocked(mockContext.Token?.set)).toHaveBeenCalledTimes(1);
+        expect(vi.mocked(mockContext.Token?.set)?.mock.lastCall?.[0]).toBe(
+          healed,
+        );
+      });
+
+      it("short-circuits without an effect call when symbol and name are already populated", async () => {
+        const fetchedToken = {
+          ...mockToken0Data,
+          symbol: "USDT",
+          name: "Tether USD",
+        };
+
+        const healed = await PriceOracle.healTokenMetadata(
+          fetchedToken,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        expect(healed).toBe(fetchedToken);
+        expect(mockContext.effect).not.toHaveBeenCalled();
+        expect(vi.mocked(mockContext.Token?.set)).not.toHaveBeenCalled();
+      });
+
+      it("returns the input unchanged and stages no write when getTokenDetails still returns empty", async () => {
+        vi.mocked(mockContext.effect)?.mockImplementation(
+          async (effect: unknown, _input: unknown) => {
+            const name = (effect as { name?: string }).name;
+            if (name === "getTokenDetails") {
+              return { name: "", decimals: 18, symbol: "" };
+            }
+            return {};
+          },
+        );
+
+        const fetchedToken = { ...mockToken0Data, symbol: "", name: "" };
+
+        const healed = await PriceOracle.healTokenMetadata(
+          fetchedToken,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        expect(healed).toBe(fetchedToken);
+        expect(vi.mocked(mockContext.Token?.set)).not.toHaveBeenCalled();
+      });
+
+      it("is idempotent across repeated calls on a healed token", async () => {
+        const fetchedToken = { ...mockToken0Data, symbol: "", name: "" };
+
+        const firstPass = await PriceOracle.healTokenMetadata(
+          fetchedToken,
+          chainId,
+          mockContext as handlerContext,
+        );
+        vi.mocked(mockContext.effect)?.mockClear();
+        vi.mocked(mockContext.Token?.set)?.mockClear();
+
+        const secondPass = await PriceOracle.healTokenMetadata(
+          firstPass,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        expect(secondPass).toBe(firstPass);
+        expect(mockContext.effect).not.toHaveBeenCalled();
+        expect(vi.mocked(mockContext.Token?.set)).not.toHaveBeenCalled();
+      });
+
+      it("logs and returns the input unchanged when getTokenDetails throws", async () => {
+        vi.mocked(mockContext.effect)?.mockImplementation(
+          async (effect: unknown, _input: unknown) => {
+            const name = (effect as { name?: string }).name;
+            if (name === "getTokenDetails") throw new Error("RPC down");
+            return {};
+          },
+        );
+
+        const fetchedToken = { ...mockToken0Data, symbol: "", name: "" };
+
+        const healed = await PriceOracle.healTokenMetadata(
+          fetchedToken,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        expect(healed).toBe(fetchedToken);
+        expect(vi.mocked(mockContext.Token?.set)).not.toHaveBeenCalled();
+        expect(vi.mocked(mockContext.log?.error)).toHaveBeenCalledWith(
+          expect.stringContaining("Error refreshing token metadata"),
+        );
+      });
     });
 
     // Issue #668: transient absurd oracle reads (e.g. Fraxtal V3 returning

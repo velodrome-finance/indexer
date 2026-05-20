@@ -133,29 +133,33 @@ export async function refreshTokenPrice(
 ): Promise<Token> {
   const blockTimestampMs = blockTimestamp * 1000;
 
+  // Issue #735: heal empty symbol/name on every refresh call regardless of the
+  // 1-hour price-refresh throttle. Tokens whose pool was created during a
+  // transient RPC failure (empty symbol) used to stay broken indefinitely
+  // when the only events on the pool fell inside the throttle window after
+  // creation; lifting heal above the throttle gate ensures the first
+  // observation after creation clears the empty metadata. The heal is
+  // idempotent — successive calls on a healed token short-circuit on the
+  // `symbol && name` guard inside {@link healTokenMetadata}.
+  const healed = await healTokenMetadata(token, chainId, context);
+
   // Issue #676: uniform 1-hour throttle for all tokens (regardless of current
   // price). RPC cost is bounded by the throttle plus Envio's hourly-rounded
   // effect cache key on `getTokenPrice`. Safe because we always bump
   // `lastUpdatedTimestamp` below, so the throttle advances even on $0 results.
   const shouldRefresh =
-    !token.lastUpdatedTimestamp ||
-    blockTimestampMs - token.lastUpdatedTimestamp.getTime() >= MS_IN_AN_HOUR;
+    !healed.lastUpdatedTimestamp ||
+    blockTimestampMs - healed.lastUpdatedTimestamp.getTime() >= MS_IN_AN_HOUR;
 
   if (!shouldRefresh) {
-    return token;
+    return healed;
   }
-
-  // Issue #672: heal empty symbol/name from a transient RPC failure at token
-  // creation. ERC20 metadata is otherwise treated as immutable, so a single
-  // failure during createTokenEntity persists `?` (empty symbol) forever.
-  const healedMetadata = await maybeHealMetadata(token, chainId, context);
 
   // Issue #669: blacklist + canonical rebind override the oracle for known-bad
   // (chain, token) pairs. See src/PriceOverrides.ts for rationale per token.
-  if (isBlacklistedToken(chainId, token.address)) {
+  if (isBlacklistedToken(chainId, healed.address)) {
     const updated: Token = {
-      ...token,
-      ...healedMetadata,
+      ...healed,
       pricePerUSDNew: 0n,
       lastUpdatedTimestamp: new Date(blockTimestampMs),
     };
@@ -163,7 +167,7 @@ export async function refreshTokenPrice(
     return updated;
   }
 
-  const rebindTarget = getRebindTarget(chainId, token.address);
+  const rebindTarget = getRebindTarget(chainId, healed.address);
   if (rebindTarget) {
     const sourceToken = await context.Token.get(
       TokenId(rebindTarget.chainId, rebindTarget.address),
@@ -202,24 +206,23 @@ export async function refreshTokenPrice(
     }
 
     const updated: Token = {
-      ...token,
-      ...healedMetadata,
+      ...healed,
       pricePerUSDNew: sourcePrice,
       lastUpdatedTimestamp: new Date(blockTimestampMs),
       lastSuccessfulPriceTimestamp:
         sourcePrice > 0n
           ? new Date(blockTimestampMs)
-          : token.lastSuccessfulPriceTimestamp,
+          : healed.lastSuccessfulPriceTimestamp,
     };
     context.Token.set(updated);
     if (sourcePrice > 0n) {
       setTokenPriceSnapshot(
-        token.address,
+        healed.address,
         chainId,
         blockNumber,
         new Date(blockTimestampMs),
         sourcePrice,
-        token.isWhitelisted,
+        healed.isWhitelisted,
         context,
       );
     }
@@ -231,18 +234,15 @@ export async function refreshTokenPrice(
     // Cache key is based on input parameters, so rounding must happen before effect call
     const roundedBlockNumber = roundBlockToInterval(blockNumber, chainId);
 
-    // ERC20 metadata is mostly immutable, but symbol/name may have been
-    // persisted as empty due to a transient RPC failure at createTokenEntity
-    // time (issue #672). Heal happens above this try block; price fetch below.
     const priceData = await context.effect(getTokenPrice, {
-      tokenAddress: token.address,
+      tokenAddress: healed.address,
       chainId,
       blockNumber: roundedBlockNumber,
       // Issue #748: source-token decimals come from the stored Token entity
       // (the same value downstream USD math consumes), so the gateway can
       // skip the source `fetchTokenDetails` RPC (~3 redundant eth_calls per
       // cache miss).
-      tokenDecimals: Number(token.decimals),
+      tokenDecimals: Number(healed.decimals),
     });
     const currentPrice = priceData.pricePerUSDNew;
 
@@ -253,16 +253,15 @@ export async function refreshTokenPrice(
     // refresh retries. Conditions are ordered so the cheap bigint compares
     // short-circuit before the symbol string allocation on the hot path.
     if (
-      token.pricePerUSDNew === 0n &&
+      healed.pricePerUSDNew === 0n &&
       currentPrice > FIRST_FETCH_CAP &&
-      !token.symbol.toUpperCase().includes("BTC")
+      !healed.symbol.toUpperCase().includes("BTC")
     ) {
       context.log.warn(
-        `[FIRST_FETCH_CAP] chain=${chainId} address=${token.address} symbol=${token.symbol} proposed=${currentPrice} cap=${FIRST_FETCH_CAP} — rejecting first anchor write, keeping price=0`,
+        `[FIRST_FETCH_CAP] chain=${chainId} address=${healed.address} symbol=${healed.symbol} proposed=${currentPrice} cap=${FIRST_FETCH_CAP} — rejecting first anchor write, keeping price=0`,
       );
       const capped: Token = {
-        ...token,
-        ...healedMetadata,
+        ...healed,
         pricePerUSDNew: 0n,
         lastUpdatedTimestamp: new Date(blockTimestampMs),
       };
@@ -289,18 +288,18 @@ export async function refreshTokenPrice(
     // earlier fall-through bumped `lastUpdatedTimestamp` on every rejected
     // refresh, resetting `anchorAgeMs` so the 14-day exit was unreachable.
     // Same fix shape PR #696 applied to the V3 fallback path for #694.
-    const anchorPrice = token.pricePerUSDNew;
-    const anchorAgeMs = token.lastUpdatedTimestamp
-      ? blockTimestampMs - token.lastUpdatedTimestamp.getTime()
+    const anchorPrice = healed.pricePerUSDNew;
+    const anchorAgeMs = healed.lastUpdatedTimestamp
+      ? blockTimestampMs - healed.lastUpdatedTimestamp.getTime()
       : Number.POSITIVE_INFINITY;
     const upwardSpike =
       anchorPrice > 0n &&
       currentPrice >= anchorPrice * PRICE_SPIKE_RATIO_THRESHOLD;
     if (upwardSpike && anchorAgeMs < PRICE_SPIKE_STALENESS_MS) {
       context.log.warn(
-        `[priceSpikeRejected] ${token.address} chain=${chainId} anchor=${anchorPrice} candidate=${currentPrice}`,
+        `[priceSpikeRejected] ${healed.address} chain=${chainId} anchor=${anchorPrice} candidate=${currentPrice}`,
       );
-      return token;
+      return healed;
     }
 
     // If price fetch returned 0, it could mean:
@@ -317,12 +316,12 @@ export async function refreshTokenPrice(
     // effectively never expire while a token was stuck in fallback.
     const shouldUseLastKnownPrice =
       currentPrice === 0n &&
-      token.pricePerUSDNew > 0n &&
-      token.lastSuccessfulPriceTimestamp &&
+      healed.pricePerUSDNew > 0n &&
+      healed.lastSuccessfulPriceTimestamp &&
       // Only use last known price if the LAST SUCCESSFUL write is relatively
       // recent (within 7 days). This prevents using very stale prices but
       // allows for temporary oracle issues.
-      blockTimestampMs - token.lastSuccessfulPriceTimestamp.getTime() <
+      blockTimestampMs - healed.lastSuccessfulPriceTimestamp.getTime() <
         7 * 24 * 60 * 60 * 1000;
 
     // V3 last-known-price fallback: V3 is the modern, mostly-reliable oracle,
@@ -335,8 +334,7 @@ export async function refreshTokenPrice(
         PriceOracleType.V3
     ) {
       const updatedToken: Token = {
-        ...token,
-        ...healedMetadata,
+        ...healed,
         lastUpdatedTimestamp: new Date(blockTimestampMs),
         // lastSuccessfulPriceTimestamp deliberately NOT bumped: this write
         // doesn't represent a fresh oracle success (#694).
@@ -346,60 +344,69 @@ export async function refreshTokenPrice(
     }
 
     const updatedToken: Token = {
-      ...token,
-      ...healedMetadata,
+      ...healed,
       pricePerUSDNew: currentPrice,
       lastUpdatedTimestamp: new Date(blockTimestampMs),
       lastSuccessfulPriceTimestamp:
         currentPrice > 0n
           ? new Date(blockTimestampMs)
-          : token.lastSuccessfulPriceTimestamp,
+          : healed.lastSuccessfulPriceTimestamp,
     };
     context.Token.set(updatedToken);
 
     setTokenPriceSnapshot(
-      token.address,
+      healed.address,
       chainId,
       blockNumber,
       new Date(blockTimestampMs),
       currentPrice,
-      token.isWhitelisted,
+      healed.isWhitelisted,
       context,
     );
     return updatedToken;
   } catch (error) {
     context.log.error(
-      `Error refreshing token price for ${token.address} on chain ${chainId}: ${error}`,
+      `Error refreshing token price for ${healed.address} on chain ${chainId}: ${error}`,
     );
-    // Return original token if refresh fails - this preserves the last known price
-    return token;
+    // Return healed token if price refresh fails — metadata heal still applies.
+    return healed;
   }
 }
 
 /**
  * Re-fetches ERC20 metadata when the stored Token entity has an empty symbol or
- * name (issue #672). createTokenEntity calls getTokenDetails exactly once per
- * pool's PoolCreated event, so a transient RPC failure persists `?` (empty
- * symbol) on the Token forever. The Effect already bypasses cache on empty
- * results, so a fresh call retries the underlying RPC.
+ * name (issues #672, #735). `createTokenEntity` calls `getTokenDetails` exactly
+ * once per pool's `PoolCreated` event, so a transient RPC failure persists `?`
+ * (empty symbol) on the Token forever.
  *
- * Returns an overlay containing only the fields that were empty on `token` and
- * came back non-empty from the RPC. Callers spread it: `{ ...token, ...healed }`.
+ * Exported so callers can heal outside the price-refresh path (issue #735):
+ * `refreshTokenPrice` runs this above the 1-hour throttle so the first Swap /
+ * Mint / Burn / Voter event after a pool's creation clears empty metadata,
+ * even when the event lands inside the throttle window. The standalone export
+ * keeps the door open for non-refresh handlers to call heal directly.
+ *
+ * Idempotent: once `symbol` and `name` are both populated the function
+ * short-circuits without an effect call. When `getTokenDetails` legitimately
+ * returns empty values (e.g. contract reverts on `symbol()`), the function
+ * stages no `Token.set` write — Envio's effect cache absorbs the deterministic
+ * `CONTRACT_REVERT` result, so subsequent events incur no extra RPC either.
+ *
  * Failures are logged but never thrown — metadata is display-only and must not
- * abort the price refresh.
+ * abort the calling event handler.
  *
  * @param token - Existing Token entity (read-only).
  * @param chainId - Chain to query.
- * @param context - Envio handler context for the effect call and logging.
- * @returns `{ symbol?, name? }` overlay; empty object if no heal applied.
+ * @param context - Envio handler context for the effect call, `Token.set`, and logging.
+ * @returns The healed Token entity (with overlaid `symbol`/`name`) when fresh
+ *          values were available; the original `token` reference otherwise.
  */
-async function maybeHealMetadata(
+export async function healTokenMetadata(
   token: Token,
   chainId: number,
   context: handlerContext,
-): Promise<{ symbol?: string; name?: string }> {
+): Promise<Token> {
   if (token.symbol && token.name) {
-    return {};
+    return token;
   }
 
   try {
@@ -410,11 +417,16 @@ async function maybeHealMetadata(
     const overlay: { symbol?: string; name?: string } = {};
     if (!token.symbol && details.symbol) overlay.symbol = details.symbol;
     if (!token.name && details.name) overlay.name = details.name;
-    return overlay;
+    if (overlay.symbol === undefined && overlay.name === undefined) {
+      return token;
+    }
+    const updated: Token = { ...token, ...overlay };
+    context.Token.set(updated);
+    return updated;
   } catch (error) {
     context.log.error(
       `Error refreshing token metadata for ${token.address} on chain ${chainId}: ${error}`,
     );
-    return {};
+    return token;
   }
 }
