@@ -237,6 +237,50 @@ describe("VotingRewardSharedLogic", () => {
           .lastUpdatedTimestamp,
       ).toBeUndefined();
     });
+
+    it("zeros bribe/fee reward USD when the reward token is non-whitelisted (#755 trust gate)", async () => {
+      // Slice 3d: pre-seed a non-WL token so the path skips the new-token
+      // branch (which hardcodes isWhitelisted: true). lastUpdatedTimestamp
+      // is aligned to mockTimestamp so refreshTokenPrice throttles and
+      // returns the token unchanged.
+      const nonWLToken: Token = {
+        id: `${mockChainId}-${mockRewardTokenAddress}`,
+        address: mockRewardTokenAddress as `0x${string}`,
+        chainId: mockChainId,
+        symbol: "NONWL",
+        name: "Non-Whitelisted",
+        decimals: 6n,
+        pricePerUSDNew: 1000000000000000000n, // $1 — would yield $1 USD if trusted
+        isWhitelisted: false,
+        lastUpdatedTimestamp: mockTimestamp,
+        lastSuccessfulPriceTimestamp: mockTimestamp,
+        priceTrustOutcome: "UNTRUSTED",
+        priceTrustReason: "NON_WL",
+      } as unknown as Token;
+      mockContext.Token.set(nonWLToken);
+
+      const data: VotingRewardClaimRewardsData = {
+        votingRewardAddress: mockVotingRewardAddress,
+        userAddress: mockUserAddress,
+        chainId: mockChainId,
+        blockNumber: 12345,
+        timestamp: Math.floor(mockTimestamp.getTime() / 1000),
+        reward: mockRewardTokenAddress,
+        amount: 1000000n,
+      };
+
+      const result = await processVotingRewardClaimRewards(
+        data,
+        mockContext,
+        PoolAddressField.BRIBE_VOTING_REWARD_ADDRESS,
+      );
+
+      // Raw amounts pass through; only USD is gated.
+      expect(result.poolDiff?.incrementalTotalBribeClaimed).toBe(1000000n);
+      expect(result.poolDiff?.incrementalTotalBribeClaimedUSD).toBe(0n);
+      expect(result.userDiff?.incrementalTotalBribeClaimed).toBe(1000000n);
+      expect(result.userDiff?.incrementalTotalBribeClaimedUSD).toBe(0n);
+    });
   });
 
   describe("loadVotingRewardData", () => {
