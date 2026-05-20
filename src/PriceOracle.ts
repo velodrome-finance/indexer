@@ -14,6 +14,7 @@ import {
   roundBlockToInterval,
 } from "./Effects/Index";
 import { getRebindTarget, isBlacklistedToken } from "./PriceOverrides";
+import { getGateDecisionFromSignals } from "./PriceTrust";
 import { setTokenPriceSnapshot } from "./Snapshots/TokenPriceSnapshot";
 export interface TokenPriceData {
   pricePerUSDNew: bigint;
@@ -84,6 +85,7 @@ export async function createTokenEntity(
     chainId,
   });
 
+  const decision = getGateDecisionFromSignals(chainId, tokenAddress, false);
   const tokenEntity: Token = {
     id: TokenId(chainId, tokenAddress),
     address: tokenAddress,
@@ -95,6 +97,8 @@ export async function createTokenEntity(
     lastUpdatedTimestamp: blockDatetime,
     lastSuccessfulPriceTimestamp: undefined,
     isWhitelisted: false,
+    priceTrustOutcome: decision.outcome,
+    priceTrustReason: decision.reason,
   };
 
   context.Token.set(tokenEntity);

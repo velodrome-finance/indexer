@@ -22,6 +22,10 @@ import {
 } from "../../../src/Constants";
 import type { Pool } from "../../../src/EntityTypes";
 import { calculateTokenAmountUSD } from "../../../src/Helpers";
+import {
+  PRICE_TRUST_OUTCOME,
+  PRICE_TRUST_REASON,
+} from "../../../src/PriceTrust";
 
 // Canonical NFPM used for mock NonFungiblePosition fixtures (Optimism-old NFPM).
 // Named `default*` rather than a SCREAMING_CASE module constant because it's the
@@ -71,6 +75,8 @@ export function setupCommon() {
     isWhitelisted: true,
     lastUpdatedTimestamp: new Date(),
     lastSuccessfulPriceTimestamp: new Date(),
+    priceTrustOutcome: PRICE_TRUST_OUTCOME.TRUSTED,
+    priceTrustReason: PRICE_TRUST_REASON.WL,
   };
 
   const mockToken1Data: Token = {
@@ -84,6 +90,8 @@ export function setupCommon() {
     isWhitelisted: true,
     lastUpdatedTimestamp: new Date(),
     lastSuccessfulPriceTimestamp: new Date(),
+    priceTrustOutcome: PRICE_TRUST_OUTCOME.TRUSTED,
+    priceTrustReason: PRICE_TRUST_REASON.WL,
   };
 
   // Not annotated as Pool to avoid readonly bigint[] vs bigint[] mismatch

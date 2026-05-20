@@ -19,6 +19,7 @@ import {
 import type { Pool } from "../../EntityTypes";
 import { calculateTokenAmountUSD } from "../../Helpers";
 import { refreshTokenPrice } from "../../PriceOracle";
+import { getGateDecisionFromSignals } from "../../PriceTrust";
 
 export interface VotingRewardEventData {
   votingRewardAddress: string;
@@ -124,6 +125,11 @@ export async function processVotingRewardClaimRewards(
       }),
     ]);
 
+    const decision = getGateDecisionFromSignals(
+      data.chainId,
+      data.reward,
+      true,
+    );
     const newToken: Token = {
       id: TokenId(data.chainId, data.reward),
       address: data.reward,
@@ -138,6 +144,8 @@ export async function processVotingRewardClaimRewards(
           ? new Date(data.timestamp * 1000)
           : undefined,
       isWhitelisted: true,
+      priceTrustOutcome: decision.outcome,
+      priceTrustReason: decision.reason,
     };
 
     context.Token.set(newToken);

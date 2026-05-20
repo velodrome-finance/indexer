@@ -24,6 +24,7 @@ import { getTokensDeposited } from "../../src/Effects/Voter";
 import type { Pool } from "../../src/EntityTypes";
 import * as CLFactoryPoolCreatedLogic from "../../src/EventHandlers/CLFactory/CLFactoryPoolCreatedLogic";
 import * as PriceOracle from "../../src/PriceOracle";
+import { PRICE_TRUST_OUTCOME, PRICE_TRUST_REASON } from "../../src/PriceTrust";
 import { setupCommon } from "./Pool/common";
 
 describe("CLFactory Events", () => {
@@ -103,6 +104,8 @@ describe("CLFactory Events", () => {
         isWhitelisted: false,
         lastUpdatedTimestamp: new Date(1000000 * 1000),
         lastSuccessfulPriceTimestamp: undefined,
+        priceTrustOutcome: PRICE_TRUST_OUTCOME.UNTRUSTED,
+        priceTrustReason: PRICE_TRUST_REASON.NON_WL,
       }),
     );
 
@@ -1131,6 +1134,8 @@ describe("CLFactory.PoolCreated ↔ CLPoolPendingInitialize buffer", () => {
         isWhitelisted: false,
         lastUpdatedTimestamp: new Date(1000000 * 1000),
         lastSuccessfulPriceTimestamp: undefined,
+        priceTrustOutcome: PRICE_TRUST_OUTCOME.UNTRUSTED,
+        priceTrustReason: PRICE_TRUST_REASON.NON_WL,
       }),
     );
   });

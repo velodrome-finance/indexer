@@ -1,6 +1,13 @@
 import type { Token } from "generated";
 import { TEN_TO_THE_18_BI, TokenId, toChecksumAddress } from "../src/Constants";
-import { getGateDecision, getTrustedUSD, isTrusted } from "../src/PriceTrust";
+import {
+  PRICE_TRUST_OUTCOME,
+  PRICE_TRUST_REASON,
+  getGateDecision,
+  getGateDecisionFromSignals,
+  getTrustedUSD,
+  isTrusted,
+} from "../src/PriceTrust";
 
 // Real BLACKLIST entries (from src/PriceOverrides.ts) used to exercise the
 // blacklist override path without rebuilding the override fixture.
@@ -17,6 +24,12 @@ const WETH_OP = toChecksumAddress("0x4200000000000000000000000000000000000006");
 function makeToken(overrides: Partial<Token> = {}): Token {
   const chainId = overrides.chainId ?? 10;
   const address = overrides.address ?? WETH_OP;
+  const isWhitelisted = overrides.isWhitelisted ?? true;
+  // Derive the stored gate decision from the fixture's own signals so the
+  // mock matches what prod will store after Token construction routes through
+  // PriceTrust.getGateDecisionFromSignals. Overrides spread last and can still
+  // pin specific values for tests that need to exercise stale-decision paths.
+  const decision = getGateDecisionFromSignals(chainId, address, isWhitelisted);
   return {
     id: TokenId(chainId, address),
     address: address as `0x${string}`,
@@ -25,9 +38,11 @@ function makeToken(overrides: Partial<Token> = {}): Token {
     chainId,
     decimals: 18n,
     pricePerUSDNew: 1n * TEN_TO_THE_18_BI,
-    isWhitelisted: true,
+    isWhitelisted,
     lastUpdatedTimestamp: new Date(),
     lastSuccessfulPriceTimestamp: new Date(),
+    priceTrustOutcome: decision.outcome,
+    priceTrustReason: decision.reason,
     ...overrides,
   };
 }
@@ -69,7 +84,8 @@ describe("PriceTrust", () => {
     it("returns trusted=true and reason='WL' for WL + not-BL", () => {
       expect(getGateDecision(makeToken())).toEqual({
         trusted: true,
-        reason: "WL",
+        outcome: PRICE_TRUST_OUTCOME.TRUSTED,
+        reason: PRICE_TRUST_REASON.WL,
       });
     });
 
@@ -81,14 +97,16 @@ describe("PriceTrust", () => {
       });
       expect(getGateDecision(token)).toEqual({
         trusted: false,
-        reason: "BLACKLISTED",
+        outcome: PRICE_TRUST_OUTCOME.UNTRUSTED,
+        reason: PRICE_TRUST_REASON.BLACKLISTED,
       });
     });
 
     it("returns trusted=false and reason='NON_WL' for non-WL (not blacklisted)", () => {
       expect(getGateDecision(makeToken({ isWhitelisted: false }))).toEqual({
         trusted: false,
-        reason: "NON_WL",
+        outcome: PRICE_TRUST_OUTCOME.UNTRUSTED,
+        reason: PRICE_TRUST_REASON.NON_WL,
       });
     });
 
@@ -100,14 +118,16 @@ describe("PriceTrust", () => {
       });
       expect(getGateDecision(token)).toEqual({
         trusted: false,
-        reason: "NON_WL",
+        outcome: PRICE_TRUST_OUTCOME.UNTRUSTED,
+        reason: PRICE_TRUST_REASON.NON_WL,
       });
     });
 
     it("returns trusted=false and reason='NON_WL' for undefined token", () => {
       expect(getGateDecision(undefined)).toEqual({
         trusted: false,
-        reason: "NON_WL",
+        outcome: PRICE_TRUST_OUTCOME.UNTRUSTED,
+        reason: PRICE_TRUST_REASON.NON_WL,
       });
     });
   });
