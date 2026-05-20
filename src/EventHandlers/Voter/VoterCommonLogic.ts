@@ -13,10 +13,8 @@ import {
 } from "../../Constants";
 import { getTokensDeposited } from "../../Effects/Index";
 import type { Pool } from "../../EntityTypes";
-import {
-  calculateTokenAmountUSD,
-  normalizeTokenAmountTo1e18,
-} from "../../Helpers";
+import { normalizeTokenAmountTo1e18 } from "../../Helpers";
+import { getTrustedUSD } from "../../PriceTrust";
 
 export interface VoterCommonResult {
   isAlive: boolean;
@@ -62,16 +60,14 @@ export async function computeVoterDistributeValues(
     rewardTokenDecimals,
   );
 
-  const normalizedEmissionsAmountUsd = calculateTokenAmountUSD(
+  const normalizedEmissionsAmountUsd = getTrustedUSD(
     amountEmittedRaw,
-    rewardTokenDecimals,
-    rewardToken.pricePerUSDNew,
+    rewardToken,
   );
 
-  const normalizedVotesDepositedAmountUsd = calculateTokenAmountUSD(
+  const normalizedVotesDepositedAmountUsd = getTrustedUSD(
     BigInt(tokensDeposited.toString()),
-    rewardTokenDecimals,
-    rewardToken.pricePerUSDNew,
+    rewardToken,
   );
 
   return {
