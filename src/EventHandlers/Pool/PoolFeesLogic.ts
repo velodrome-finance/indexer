@@ -2,10 +2,10 @@ import type { Pool_Fees_event, Token } from "generated";
 import type { PoolDiff } from "../../Aggregators/Pool";
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import {
-  calculateTokenAmountUSD,
   calculateWhitelistedFeesUSD,
   pickTrustedSwapVolumeUSD,
 } from "../../Helpers";
+import { getTrustedUSD } from "../../PriceTrust";
 
 export interface PoolFeesResult {
   liquidityPoolDiff?: Partial<PoolDiff>;
@@ -35,28 +35,12 @@ export function processPoolFees(
   token0Instance: Token | undefined,
   token1Instance: Token | undefined,
 ): PoolFeesResult {
-  // Symmetric defense with the volume path: price each leg independently, then
-  // pick the trusted (smaller / non-zero fallback) leg. Issue #733.
-  const token0FeeUSD = token0Instance
-    ? calculateTokenAmountUSD(
-        event.params.amount0,
-        Number(token0Instance.decimals),
-        token0Instance.pricePerUSDNew,
-      )
-    : 0n;
-  const token1FeeUSD = token1Instance
-    ? calculateTokenAmountUSD(
-        event.params.amount1,
-        Number(token1Instance.decimals),
-        token1Instance.pricePerUSDNew,
-      )
-    : 0n;
-  const totalFeesUSD = pickTrustedSwapVolumeUSD(
-    token0FeeUSD,
-    token1FeeUSD,
-    token0Instance?.isWhitelisted ?? false,
-    token1Instance?.isWhitelisted ?? false,
-  );
+  // Per-leg fee USD via PriceTrust gate (issue #755): untrusted legs
+  // contribute 0n. The min pick then enforces the #733 invariant that the
+  // fee USD is bounded by the trusted (smaller) leg.
+  const token0FeeUSD = getTrustedUSD(event.params.amount0, token0Instance);
+  const token1FeeUSD = getTrustedUSD(event.params.amount1, token1Instance);
+  const totalFeesUSD = pickTrustedSwapVolumeUSD(token0FeeUSD, token1FeeUSD);
 
   const totalFeesUSDWhitelisted = calculateWhitelistedFeesUSD(
     event.params.amount0,

@@ -101,7 +101,7 @@ describe("PoolSwapLogic", () => {
       expect(result.liquidityPoolDiff?.incrementalTotalVolumeUSD).toBe(102n);
     });
 
-    it("should not add to whitelisted volume when tokens are not whitelisted", () => {
+    it("zeros both total and whitelisted volume when neither token is whitelisted (#755 trust gate)", () => {
       const result = processPoolSwap(
         mockEvent,
         { ...mockToken0, isWhitelisted: false },
@@ -111,12 +111,14 @@ describe("PoolSwapLogic", () => {
       expect(result.liquidityPoolDiff).toBeDefined();
       expect(result.userSwapDiff).toBeDefined();
 
-      // When tokens are not whitelisted, whitelisted volume diff should be 0
+      // After #755, both legs are routed through PriceTrust.getTrustedUSD;
+      // when neither token is whitelisted both legs gate to 0n so the picker
+      // returns 0. The *Whitelisted aggregate mirrors total since the gate
+      // is now enforced per leg upstream of the picker.
+      expect(result.liquidityPoolDiff?.incrementalTotalVolumeUSD).toBe(0n);
       expect(
         result.liquidityPoolDiff?.incrementalTotalVolumeUSDWhitelisted,
       ).toBe(0n);
-      // But total volume should still be calculated: 1000n USD (1000 USDT * 1 USD, uses token0 value)
-      expect(result.liquidityPoolDiff?.incrementalTotalVolumeUSD).toBe(1000n);
     });
 
     it("should add to whitelisted volume when both tokens are whitelisted", () => {

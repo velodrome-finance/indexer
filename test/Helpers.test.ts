@@ -1144,40 +1144,31 @@ describe("Helpers", () => {
   });
 
   describe("pickTrustedSwapVolumeUSD", () => {
-    it("returns min when both legs are non-zero (whitelist irrelevant)", () => {
-      expect(pickTrustedSwapVolumeUSD(100n, 99n, true, true)).toBe(99n);
-      expect(pickTrustedSwapVolumeUSD(99n, 100n, true, true)).toBe(99n);
-      expect(pickTrustedSwapVolumeUSD(100n, 99n, false, false)).toBe(99n);
+    // After #755 slice 3e, the picker operates on pre-gated inputs: callers
+    // route per-leg USD through PriceTrust.getTrustedUSD so untrusted legs
+    // arrive as 0n. The picker is therefore a pure min/single-leg picker.
+    // The #737 single-leg-non-WL refusal is now enforced upstream — its
+    // regression intent is covered by PoolSwapLogic.test.ts and
+    // CLPoolSwapLogic.test.ts at the integration level.
+    it("returns min when both legs are non-zero", () => {
+      expect(pickTrustedSwapVolumeUSD(100n, 99n)).toBe(99n);
+      expect(pickTrustedSwapVolumeUSD(99n, 100n)).toBe(99n);
     });
 
-    it("falls back to the non-zero leg when one is zero and that leg is whitelisted", () => {
-      expect(pickTrustedSwapVolumeUSD(0n, 500n, true, true)).toBe(500n);
-      expect(pickTrustedSwapVolumeUSD(500n, 0n, true, true)).toBe(500n);
+    it("falls back to the non-zero leg when one is zero (single-leg fallback)", () => {
+      expect(pickTrustedSwapVolumeUSD(0n, 500n)).toBe(500n);
+      expect(pickTrustedSwapVolumeUSD(500n, 0n)).toBe(500n);
     });
 
-    it("returns 0n when only one leg is priced AND that leg is not whitelisted (#737)", () => {
-      // Ragdoll / RAGDOLL case: token0 unpriced, token1 priced but non-whitelisted.
-      // Old behaviour returned token1's value (potentially inflated). New behaviour
-      // returns 0n to refuse the suspect single-leg fallback.
-      expect(pickTrustedSwapVolumeUSD(0n, 500n, true, false)).toBe(0n);
-      // Symmetric: token1 unpriced, token0 priced but non-whitelisted.
-      expect(pickTrustedSwapVolumeUSD(500n, 0n, false, true)).toBe(0n);
-    });
-
-    it("treats undefined as zero (whitelisted fallback still allowed)", () => {
-      expect(pickTrustedSwapVolumeUSD(undefined, 500n, true, true)).toBe(500n);
-      expect(pickTrustedSwapVolumeUSD(500n, undefined, true, true)).toBe(500n);
-      // And refuses undefined-paired non-whitelisted single legs.
-      expect(pickTrustedSwapVolumeUSD(undefined, 500n, true, false)).toBe(0n);
-      expect(pickTrustedSwapVolumeUSD(500n, undefined, false, true)).toBe(0n);
+    it("treats undefined as zero", () => {
+      expect(pickTrustedSwapVolumeUSD(undefined, 500n)).toBe(500n);
+      expect(pickTrustedSwapVolumeUSD(500n, undefined)).toBe(500n);
     });
 
     it("returns 0n when both legs are zero/undefined", () => {
-      expect(pickTrustedSwapVolumeUSD(0n, 0n, true, true)).toBe(0n);
-      expect(pickTrustedSwapVolumeUSD(undefined, undefined, true, true)).toBe(
-        0n,
-      );
-      expect(pickTrustedSwapVolumeUSD(undefined, 0n, true, true)).toBe(0n);
+      expect(pickTrustedSwapVolumeUSD(0n, 0n)).toBe(0n);
+      expect(pickTrustedSwapVolumeUSD(undefined, undefined)).toBe(0n);
+      expect(pickTrustedSwapVolumeUSD(undefined, 0n)).toBe(0n);
     });
   });
 });
