@@ -1666,6 +1666,168 @@ describe("PriceOracle", () => {
       });
     });
 
+    // Issue #775: extending the #694 fallback to V1/V2. Before the fix, the
+    // V3-only gate let a transient gateway-fallback {pricePerUSDNew: 0n,
+    // usedDefault: true} overwrite a valid non-zero anchor on any V1/V2 block
+    // (Optimism V1/V2 ran from ~block 107.6M to ~125.5M — several months of
+    // exposure). Five canonical home-chain tokens (WETH-Base, WETH-OP,
+    // AERO-Base, VELO-OP, OP-OP) ended at $0 with isWhitelisted=true,
+    // poisoning ~$250M of cumulative volume in downstream USD aggregates.
+    // Same 7-day staleness window from #694 still bounds how stale we'll
+    // preserve.
+    describe("V1/V2 fallback staleness (issue #775)", () => {
+      // Optimism V1 oracle covers blocks ≤ 124076662 (see Constants.ts). Pick
+      // a block in the middle of the V1 window to exercise the V1 path.
+      const v1Block = 115_000_000;
+      // Optimism V2 oracle covers 124076662 < block ≤ 125484892.
+      const v2Block = 125_000_000;
+      const oneHourOneMinuteAgo = () =>
+        new Date(blockDatetime.getTime() - 61 * 60 * 1000);
+
+      beforeEach(() => {
+        vi.mocked(mockContext.Token?.set)?.mockClear();
+        vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mockClear();
+      });
+
+      it("applies the fallback on a V1 block when the last successful price is recent (<7d)", async () => {
+        const anchorPrice = 2_500n * 10n ** 18n; // WETH-OP shape
+        const recentSuccess = new Date(
+          blockDatetime.getTime() - 2 * 24 * 60 * 60 * 1000,
+        );
+        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
+          if ((effect as { name?: string }).name === "getTokenPrice") {
+            // Gateway-fallback shape: usedDefault=true → pricePerUSDNew=0n.
+            return { pricePerUSDNew: 0n };
+          }
+          return {};
+        });
+
+        const fetchedToken = {
+          ...mockToken0Data,
+          pricePerUSDNew: anchorPrice,
+          lastUpdatedTimestamp: oneHourOneMinuteAgo(),
+          lastSuccessfulPriceTimestamp: recentSuccess,
+        };
+
+        await PriceOracle.refreshTokenPrice(
+          fetchedToken,
+          v1Block,
+          blockDatetime.getTime() / 1000,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
+          .lastCall?.[0] as Token;
+        // Anchor preserved — this is the #775 regression check.
+        expect(updatedToken.pricePerUSDNew).toBe(anchorPrice);
+        // Throttle clock advances on every attempt (existing #694 behavior)
+        expect(updatedToken.lastUpdatedTimestamp.getTime()).toBe(
+          blockDatetime.getTime(),
+        );
+        // Last successful timestamp must NOT advance on a fallback write
+        expect(updatedToken.lastSuccessfulPriceTimestamp?.getTime()).toBe(
+          recentSuccess.getTime(),
+        );
+      });
+
+      it("applies the fallback on a V2 block when the last successful price is recent (<7d)", async () => {
+        const anchorPrice = 2_500n * 10n ** 18n;
+        const recentSuccess = new Date(
+          blockDatetime.getTime() - 2 * 24 * 60 * 60 * 1000,
+        );
+        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
+          if ((effect as { name?: string }).name === "getTokenPrice") {
+            return { pricePerUSDNew: 0n };
+          }
+          return {};
+        });
+
+        const fetchedToken = {
+          ...mockToken0Data,
+          pricePerUSDNew: anchorPrice,
+          lastUpdatedTimestamp: oneHourOneMinuteAgo(),
+          lastSuccessfulPriceTimestamp: recentSuccess,
+        };
+
+        await PriceOracle.refreshTokenPrice(
+          fetchedToken,
+          v2Block,
+          blockDatetime.getTime() / 1000,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
+          .lastCall?.[0] as Token;
+        expect(updatedToken.pricePerUSDNew).toBe(anchorPrice);
+      });
+
+      it("stops re-pinning on a V1 block once the last successful price is older than 7 days", async () => {
+        const anchorPrice = 2_500n * 10n ** 18n;
+        const eightDaysAgo = new Date(
+          blockDatetime.getTime() - 8 * 24 * 60 * 60 * 1000,
+        );
+        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
+          if ((effect as { name?: string }).name === "getTokenPrice") {
+            return { pricePerUSDNew: 0n };
+          }
+          return {};
+        });
+
+        const fetchedToken = {
+          ...mockToken0Data,
+          pricePerUSDNew: anchorPrice,
+          lastUpdatedTimestamp: oneHourOneMinuteAgo(),
+          lastSuccessfulPriceTimestamp: eightDaysAgo,
+        };
+
+        await PriceOracle.refreshTokenPrice(
+          fetchedToken,
+          v1Block,
+          blockDatetime.getTime() / 1000,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
+          .lastCall?.[0] as Token;
+        // 7-day window has expired — fallback must NOT apply. Write 0.
+        expect(updatedToken.pricePerUSDNew).toBe(0n);
+      });
+
+      it("preserves 0n on a V1 block when there is no prior anchor (no spurious fallback)", async () => {
+        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
+          if ((effect as { name?: string }).name === "getTokenPrice") {
+            return { pricePerUSDNew: 0n };
+          }
+          return {};
+        });
+
+        const fetchedToken = {
+          ...mockToken0Data,
+          pricePerUSDNew: 0n,
+          lastUpdatedTimestamp: oneHourOneMinuteAgo(),
+          lastSuccessfulPriceTimestamp: undefined,
+        };
+
+        await PriceOracle.refreshTokenPrice(
+          fetchedToken,
+          v1Block,
+          blockDatetime.getTime() / 1000,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
+          .lastCall?.[0] as Token;
+        // shouldUseLastKnownPrice requires anchor > 0n, so fallback is skipped
+        // — fall through to the normal write of 0n. No spurious value invented.
+        expect(updatedToken.pricePerUSDNew).toBe(0n);
+        expect(updatedToken.lastSuccessfulPriceTimestamp).toBeUndefined();
+      });
+    });
+
     describe("when price fetch fails", () => {
       let originalToken: Token;
       beforeEach(async () => {
