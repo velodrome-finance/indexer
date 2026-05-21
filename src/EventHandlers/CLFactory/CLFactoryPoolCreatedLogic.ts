@@ -126,6 +126,7 @@ export async function processCLFactoryPoolCreated(
       // CLFactoryPool constructor calls enableTickSpacing which emits TickSpacingEnabled event
       baseFee: feeToTickSpacingMapping.fee,
       currentFee: feeToTickSpacingMapping.fee,
+      createdBlockNumber: BigInt(event.block.number),
     });
 
     // Slipstream same-tx ordering: CLPool.Initialize buffered the opening

@@ -106,6 +106,9 @@ export function setupCommon() {
     token0_address: mockToken0Data.address as `0x${string}`,
     token1_address: mockToken1Data.address as `0x${string}`,
     isStable: false,
+    // Default mock createdBlockNumber: 0n so existing tests using arbitrary blockNumber values
+    // never hit the #759 minBlock clamp; tests covering the clamp set this explicitly.
+    createdBlockNumber: 0n,
     reserve0: 200n * TEN_TO_THE_18_BI,
     reserve1: 200n * TEN_TO_THE_6_BI,
     totalLPTokenSupply: 0n,

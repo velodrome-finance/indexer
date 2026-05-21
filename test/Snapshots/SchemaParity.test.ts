@@ -42,6 +42,10 @@ describe("Snapshot schema parity", () => {
         "factoryAddress",
         "nfpmAddress",
         "poolLauncherPoolId",
+        // Static creation-time metadata (#759): stamped once at PoolCreated and
+        // never changes — no analytical value in trending it hourly. Used only
+        // to clamp roundBlockToInterval above the pool's bytecode boundary.
+        "createdBlockNumber",
         // Control-flow latch for processTickCrossingsForStaked — once true, stays
         // true. No analytical value in trending it over time.
         "hasStakes",

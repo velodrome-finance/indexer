@@ -196,11 +196,19 @@ export async function updateDynamicFeePools(
   // stable within an hour. Matches the pattern getTokenPrice uses
   // (src/PriceOracle.ts) and lets preload dual-pass + re-index back-fills
   // hit the cache instead of producing a fresh slot per raw block.
+  // Issue #759: clamp the rounded block up to the pool's deployment block so
+  // SwapFeeModule reads never land before pool bytecode exists (would revert).
+  // The `?? BigInt(blockNumber)` fallback covers legacy pools indexed before
+  // the createdBlockNumber field was added (non-genesis-reindex / hot-deploy windows);
+  // Number(undefined) would yield NaN and break the Math.max clamp.
+  const minBlock = Number(
+    liquidityPoolAggregator.createdBlockNumber ?? BigInt(blockNumber),
+  );
   const currentFee = await context.effect(getSwapFee, {
     poolAddress,
     factoryAddress,
     chainId,
-    blockNumber: roundBlockToInterval(blockNumber, chainId),
+    blockNumber: roundBlockToInterval(blockNumber, chainId, minBlock),
   });
 
   if (currentFee === undefined) {
@@ -808,6 +816,10 @@ export function createPoolEntity(params: {
   nfpmAddress?: string | null;
   baseFee: bigint;
   currentFee: bigint;
+  // Block at which the pool was deployed (PoolCreated.event.block.number).
+  // Stamped once at creation and used by updateDynamicFeePools to clamp
+  // hour-rounded SwapFeeModule reads above the pool's bytecode boundary (#759).
+  createdBlockNumber: bigint;
 }): Pool {
   const {
     poolAddress,
@@ -825,6 +837,7 @@ export function createPoolEntity(params: {
     nfpmAddress,
     baseFee,
     currentFee,
+    createdBlockNumber,
   } = params;
 
   return {
@@ -843,6 +856,7 @@ export function createPoolEntity(params: {
     token0_address: token0Address,
     token1_address: token1Address,
     isStable: isStable,
+    createdBlockNumber: createdBlockNumber,
     tickSpacing: tickSpacing ? BigInt(tickSpacing) : 0n, // 0 for non-CL pools
     reserve0: 0n,
     reserve1: 0n,

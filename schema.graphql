@@ -9,6 +9,7 @@ type Pool {
   token1_address: String! # token1 address
   isStable: Boolean! # whether the pool is a stable AMM or a volatile AMM
   isCL: Boolean! # whether the pool is a CL pool
+  createdBlockNumber: BigInt! @config(precision: 76) # Block number at which PoolCreated fired; used to clamp roundBlockToInterval so getSwapFee/getTokenPrice never query before pool deployment (#759)
   tickSpacing: BigInt! @config(precision: 24) # Tick spacing of the pool; 0 for non-CL pools
   reserve0: BigInt! @config(precision: 76) # reserve of token0 in token units
   reserve1: BigInt! @config(precision: 76) # reserve of token1 in token units

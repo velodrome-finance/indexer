@@ -96,6 +96,7 @@ PoolFactory.PoolCreated.handler(async ({ event, context }) => {
     factoryAddress: event.srcAddress,
     baseFee: fee,
     currentFee: fee,
+    createdBlockNumber: BigInt(event.block.number),
   });
 
   // For new pool creation, set the entity directly (updatePool is for updates, not creation)
