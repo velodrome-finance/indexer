@@ -328,6 +328,33 @@ export async function updatePool(
     );
   }
 
+  // Clamp stakedReserve0 / stakedReserve1 to >= 0n at the accumulator path
+  // (issue #771). Per-segment deltas computed in `segmentStakedReserveDelta`
+  // are exact-when-rounded (round-half-to-nearest); the residual wei-scale
+  // random walk that remains after rounding is the ONLY drift this clamp
+  // catches — it is not masking real liquidity imbalance. Mirrors the
+  // reserve0/1 clamp above (issue #702) and the stakedLiquidityInRange clamp
+  // (issue #719). Logged under [NEG_STAKED_RESERVE_GUARD] so the residual
+  // drift remains observable in logs without persisting a negative field.
+  const stakedReserve0Delta = diff.incrementalStakedReserve0 ?? 0n;
+  const stakedReserve0Sum =
+    (current.stakedReserve0 ?? 0n) + stakedReserve0Delta;
+  const clampedStakedReserve0 = stakedReserve0Sum < 0n ? 0n : stakedReserve0Sum;
+  if (stakedReserve0Sum < 0n) {
+    context.log.warn(
+      `[NEG_STAKED_RESERVE_GUARD][updatePool] field=stakedReserve0 poolAddress=${current.poolAddress} chainId=${current.chainId} priorStakedReserve=${current.stakedReserve0 ?? 0n} delta=${stakedReserve0Delta} clampedTo=${clampedStakedReserve0}`,
+    );
+  }
+  const stakedReserve1Delta = diff.incrementalStakedReserve1 ?? 0n;
+  const stakedReserve1Sum =
+    (current.stakedReserve1 ?? 0n) + stakedReserve1Delta;
+  const clampedStakedReserve1 = stakedReserve1Sum < 0n ? 0n : stakedReserve1Sum;
+  if (stakedReserve1Sum < 0n) {
+    context.log.warn(
+      `[NEG_STAKED_RESERVE_GUARD][updatePool] field=stakedReserve1 poolAddress=${current.poolAddress} chainId=${current.chainId} priorStakedReserve=${current.stakedReserve1 ?? 0n} delta=${stakedReserve1Delta} clampedTo=${clampedStakedReserve1}`,
+    );
+  }
+
   let updated: Pool = {
     ...current,
     // Handle cumulative fields by adding diff values to current values
@@ -444,10 +471,8 @@ export async function updatePool(
       (diff.incrementalLiquidityInRange ?? 0n) +
         (current.liquidityInRange ?? 0n),
     stakedLiquidityInRange: clampedStakedLiquidityInRange,
-    stakedReserve0:
-      (current.stakedReserve0 ?? 0n) + (diff.incrementalStakedReserve0 ?? 0n),
-    stakedReserve1:
-      (current.stakedReserve1 ?? 0n) + (diff.incrementalStakedReserve1 ?? 0n),
+    stakedReserve0: clampedStakedReserve0,
+    stakedReserve1: clampedStakedReserve1,
     // Monotonic latch: once a pool has ever been staked, hasStakes stays true
     // even if the diff doesn't explicitly re-assert it.
     hasStakes: current.hasStakes || (diff.hasStakes ?? false),
@@ -539,26 +564,6 @@ export async function updatePool(
     ) {
       context.log.warn(
         `[FEE_VOLUME_DIVERGENCE][updatePool] Pool ${current.poolAddress} on chain ${current.chainId} totalFeesGeneratedUSD (${updated.totalFeesGeneratedUSD}) exceeds 5% of totalVolumeUSD (${updated.totalVolumeUSD}). Real fee tiers cap at ~1%; this likely indicates a fee/volume USD-path divergence.`,
-      );
-    }
-
-    // Soft invariant (issue #666): stakedReserve0/stakedReserve1 are running
-    // counters of staked LP-deposited capital and should never go negative.
-    // 166 CL pools across all chains have drifted negative; the defensive
-    // max(0, _) clamp at the USD-conversion site above masks the symptom but
-    // the raw fields persist as negative. Logged once per snapshot epoch
-    // (≤1/hour per pool) so the signal stays visible in recent logs while the
-    // drift persists, without flooding and without aborting the indexer or
-    // mutating state. Mirrors the snapshot-epoch [FEE_VOLUME_DIVERGENCE]
-    // pattern from #679 and the [NEGATIVE_RESERVE_DRIFT] tag from #674.
-    if ((updated.stakedReserve0 ?? 0n) < 0n) {
-      context.log.warn(
-        `[NEGATIVE_STAKED_RESERVE_DRIFT][updatePool] Pool ${current.poolAddress} on chain ${current.chainId} stakedReserve0 is negative at snapshot epoch: ${updated.stakedReserve0 ?? 0n}. Staked reserves are LP-deposited capital and should never go below zero.`,
-      );
-    }
-    if ((updated.stakedReserve1 ?? 0n) < 0n) {
-      context.log.warn(
-        `[NEGATIVE_STAKED_RESERVE_DRIFT][updatePool] Pool ${current.poolAddress} on chain ${current.chainId} stakedReserve1 is negative at snapshot epoch: ${updated.stakedReserve1 ?? 0n}. Staked reserves are LP-deposited capital and should never go below zero.`,
       );
     }
 

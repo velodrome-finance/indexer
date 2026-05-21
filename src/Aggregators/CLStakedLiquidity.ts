@@ -15,6 +15,35 @@ export const TICK_MAX = 887272n;
 const Q96 = 1n << 96n;
 
 /**
+ * BigInt division rounded half-away-from-zero (#771).
+ *
+ * JavaScript BigInt `/` truncates toward zero, which is asymmetric on signed
+ * values: 5n/2n is 2n, -5n/2n is -2n, both losing 0.5 of magnitude. Over many
+ * tick-crossing segments per swap the per-segment truncation accumulates as a
+ * random walk in `stakedReserve0/1`, eventually pushing the field wei-scale
+ * negative. Rounding half-away-from-zero removes the per-segment systematic
+ * bias so the residual error has mean 0 (CLT bound, not linear-in-N).
+ *
+ * Denominator must be strictly positive — the only callers pass `Q96` or
+ * `segStart * segEnd`, both unconditionally positive by Uniswap v3
+ * construction.
+ *
+ * @param numerator - Signed BigInt numerator
+ * @param denominator - Strictly positive BigInt denominator
+ * @returns numerator/denominator rounded half-away-from-zero
+ */
+export function divRoundNearest(
+  numerator: bigint,
+  denominator: bigint,
+): bigint {
+  const halfDenom = denominator / 2n;
+  if (numerator >= 0n) {
+    return (numerator + halfDenom) / denominator;
+  }
+  return (numerator - halfDenom) / denominator;
+}
+
+/**
  * Wraps `TickMath.getSqrtRatioAtTick` to return a bigint instead of JSBI.
  * Tick is clamped to the Uniswap v3 valid range upstream by every caller
  * (`processTickCrossingsForStaked` runs the bound check before the loop;
@@ -281,19 +310,29 @@ export function deriveStakedLiquidityInRange(
  * the caller before invocation to avoid wasted bigint multiplies on the hot
  * path.
  *
+ * Per-segment rounding uses `divRoundNearest` (half-away-from-zero) rather
+ * than BigInt's default truncation-toward-zero. Truncation is asymmetric on
+ * signed numerators — within a single swap every segment's numerator has the
+ * same sign, so per-segment errors all bias the accumulated `stakedReserve0/1`
+ * in one direction and the random walk grows wei-scale across many swaps.
+ * Half-away-from-zero rounding zeroes the per-segment systematic bias (#771).
+ *
  * @param stakedLiq - Staked liquidity active across this segment
  * @param segStart - sqrtPriceX96 at the start of the segment
  * @param segEnd - sqrtPriceX96 at the end of the segment
  * @returns Signed reserve deltas attributable to the staked share over this segment
  */
-function segmentStakedReserveDelta(
+export function segmentStakedReserveDelta(
   stakedLiq: bigint,
   segStart: bigint,
   segEnd: bigint,
 ): { stakedDelta0: bigint; stakedDelta1: bigint } {
   return {
-    stakedDelta0: (stakedLiq * (segStart - segEnd) * Q96) / (segStart * segEnd),
-    stakedDelta1: (stakedLiq * (segEnd - segStart)) / Q96,
+    stakedDelta0: divRoundNearest(
+      stakedLiq * (segStart - segEnd) * Q96,
+      segStart * segEnd,
+    ),
+    stakedDelta1: divRoundNearest(stakedLiq * (segEnd - segStart), Q96),
   };
 }
 
