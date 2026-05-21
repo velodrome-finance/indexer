@@ -100,8 +100,6 @@ describe("Pool Swap Event", () => {
       mockLiquidityPoolData.totalVolumeUSD +
       expectations.expectedSwapVolumeUSDMin;
 
-    expectations.expectedLPVolumeUSDMin;
-
     mockPriceOracle = vi
       .spyOn(PriceOracle, "refreshTokenPrice")
       .mockImplementation(async (...args) => {

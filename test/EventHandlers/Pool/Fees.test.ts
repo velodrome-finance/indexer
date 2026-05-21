@@ -105,8 +105,6 @@ describe("Pool Fees Event", () => {
     );
   });
 
-  it("should update Pool total fees in USD whitelisted", async () => {});
-
   it("should create a new UserStatsPerPool entity", async () => {
     expect(createdUserStats).toBeDefined();
     expect(createdUserStats?.id).toBe(
