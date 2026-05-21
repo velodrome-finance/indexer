@@ -9,20 +9,27 @@ export { fetchTokenDetails, fetchTokenPrice } from "./fetchers/Token";
  * Uses approximate block times: 2s for most L2s, 12s for Ethereum mainnet. Call before getTokenPrice
  * so the effect cache key is stable within the same hour.
  *
+ * When `minBlock` is supplied, the rounded result is clamped up to `minBlock`. This prevents
+ * callers (e.g. `updateDynamicFeePools` — issue #759) from querying contract state at a block
+ * earlier than the contract's deployment, which would revert with empty bytecode.
+ *
  * @param blockNumber - Block number to round.
  * @param chainId - Chain ID (1 = mainnet 12s blocks; others use 2s).
- * @returns The largest block number that is a multiple of (blocks per hour) and ≤ blockNumber.
+ * @param minBlock - Optional floor (typically the contract's deployment block) below which the rounded value will be clamped up.
+ * @returns The largest multiple of (blocks per hour) that is ≤ blockNumber, clamped up to minBlock when supplied.
  */
 export function roundBlockToInterval(
   blockNumber: number,
   chainId: number,
+  minBlock?: number,
 ): number {
   // Approximate block times per chain (in seconds)
   // Most L2s (Base, Optimism, Mode, etc.) are ~2 seconds
   // Ethereum mainnet is ~12 seconds
   const blockTimeSeconds = chainId === 1 ? 12 : 2;
   const blocksPerHour = Math.floor(3600 / blockTimeSeconds);
-  return Math.floor(blockNumber / blocksPerHour) * blocksPerHour;
+  const rounded = Math.floor(blockNumber / blocksPerHour) * blocksPerHour;
+  return minBlock === undefined ? rounded : Math.max(rounded, minBlock);
 }
 
 /**

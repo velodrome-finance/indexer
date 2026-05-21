@@ -66,6 +66,29 @@ describe("roundBlockToInterval", () => {
       expect(roundBlockToInterval(3599, 10)).toBe(1800);
     });
   });
+
+  // Issue #759: optional minBlock clamps the rounded result up to the pool's
+  // deployment block, so SwapFeeModule reads never query before bytecode exists.
+  describe("minBlock clamp (#759)", () => {
+    it("no-clamp: omitting minBlock preserves legacy behavior", () => {
+      expect(roundBlockToInterval(3920396, 1923)).toBe(3918600);
+      expect(roundBlockToInterval(3601, 1)).toBe(3600);
+    });
+
+    it("clamp-triggers: rounded < minBlock returns minBlock (Swell repro)", () => {
+      // Pool 0x818eC3...3F4653 deployed at Swell block 3920396; rounding to the
+      // 1800-block hour boundary would land at 3918600, before deployment.
+      // The clamp restores the deploy block so getSwapFee hits bytecode.
+      expect(roundBlockToInterval(3920396, 1923, 3920396)).toBe(3920396);
+    });
+
+    it("clamp-noop: rounded >= minBlock returns rounded (clamp is identity)", () => {
+      // First event in the hour after deployment: rounded === minBlock.
+      expect(roundBlockToInterval(3920396, 1923, 3918600)).toBe(3918600);
+      // Several hours after deployment: rounded > minBlock.
+      expect(roundBlockToInterval(3940000, 1923, 3920396)).toBe(3938400);
+    });
+  });
 });
 
 describe("Token Effects", () => {

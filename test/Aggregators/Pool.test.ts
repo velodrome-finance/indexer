@@ -271,6 +271,89 @@ describe("Pool Functions", () => {
       expect(updatedPool).toBe(liquidityPoolAggregator);
       expect(effectMock).not.toHaveBeenCalled();
     });
+
+    // Regression test for issue #759: rounding-before-deploy revert.
+    // For a pool whose deployment block falls inside an hour but after the
+    // hour's start, the legacy code would query getSwapFee at the (earlier)
+    // rounded boundary where pool bytecode is empty and the call reverts.
+    // The fix clamps the rounded block up to the pool's createdBlockNumber.
+    it("clamps the queried blockNumber up to createdBlockNumber to avoid pre-deploy reverts", async () => {
+      // Swell (chainId 1923 → 2s blocks → 1800/hour). Pool deployed at 3920396,
+      // hour boundary is 3918600 — before deployment. The mock throws if
+      // getSwapFee is invoked at a block earlier than createdBlockNumber.
+      expect(mockContext.effect).toBeDefined();
+      // biome-ignore lint/style/noNonNullAssertion: effect is verified to be defined above
+      const effectMock = vi.mocked(mockContext.effect!);
+      const createdBlockNumber = 3920396n;
+      effectMock.mockImplementation(async (effectFn, input) => {
+        if (effectFn === getSwapFee) {
+          const { blockNumber: queriedBlock } = input as {
+            blockNumber: number;
+          };
+          if (BigInt(queriedBlock) < createdBlockNumber) {
+            throw new Error(
+              `getSwapFee queried at ${queriedBlock}, before pool deployment ${createdBlockNumber}`,
+            );
+          }
+          return 100n;
+        }
+        return {};
+      });
+
+      const pool = {
+        ...liquidityPoolAggregator,
+        chainId: 1923,
+        createdBlockNumber,
+      } as Pool;
+
+      const updatedPool = await updateDynamicFeePools(
+        pool,
+        mockContext as handlerContext,
+        1923,
+        Number(createdBlockNumber),
+      );
+
+      expect(updatedPool.currentFee).toBe(100n);
+      const swapFeeCall = effectMock.mock.calls.find(
+        (call) => call[0] === getSwapFee,
+      );
+      expect(swapFeeCall).toBeDefined();
+      // biome-ignore lint/style/noNonNullAssertion: existence verified above
+      const input = swapFeeCall![1] as { blockNumber: number };
+      expect(input.blockNumber).toBe(Number(createdBlockNumber));
+    });
+
+    // Defensive fallback (#759 AC): legacy pools indexed before the
+    // createdBlockNumber schema field existed will read it back as undefined.
+    // `Number(undefined)` is NaN — without the `?? BigInt(blockNumber)` fallback,
+    // `Math.max(rounded, NaN)` returns NaN and crashes the SwapFeeModule call.
+    it("falls back to the event blockNumber when createdBlockNumber is undefined (legacy pool)", async () => {
+      const legacyPool = {
+        ...liquidityPoolAggregator,
+        chainId: 10,
+        createdBlockNumber: undefined,
+      } as unknown as Pool;
+
+      await updateDynamicFeePools(
+        legacyPool,
+        mockContext as handlerContext,
+        10,
+        blockNumber,
+      );
+
+      // biome-ignore lint/style/noNonNullAssertion: effect is verified to be defined above
+      const effectMock = vi.mocked(mockContext.effect!);
+      const swapFeeCall = effectMock.mock.calls.find(
+        (call) => call[0] === getSwapFee,
+      );
+      expect(swapFeeCall).toBeDefined();
+      // biome-ignore lint/style/noNonNullAssertion: existence verified above
+      const input = swapFeeCall![1] as { blockNumber: number };
+      // With fallback minBlock = blockNumber, the clamp restores the event block
+      // (rounded 131536800 would be less than the fallback 131536921).
+      expect(Number.isNaN(input.blockNumber)).toBe(false);
+      expect(input.blockNumber).toBe(blockNumber);
+    });
   });
 
   describe("Snapshot Creation", () => {
