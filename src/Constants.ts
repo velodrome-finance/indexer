@@ -704,9 +704,11 @@ const FRAXTAL_CONSTANTS: chainConstants = {
     startBlock: 12640176,
     updateDelta: 60 * 60, // 1 hour
     priceConnectors: FRAXTAL_PRICE_CONNECTORS,
-    v1v2ConnectorBlacklist: new Set([
-      "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189",
-    ]),
+    // oUSDT (0x1217…) is dropped from Fraxtal price connectors entirely
+    // (#764 follow-up): the contract at that address on Fraxtal is not the
+    // canonical Velodrome-bridged oUSDT, so it must not be a price connector
+    // here. With the connector gone, no V1/V2 blacklist entry is needed.
+    v1v2ConnectorBlacklist: new Set(),
   },
   rewardToken: (blockNumber: number) =>
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
