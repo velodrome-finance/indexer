@@ -374,6 +374,26 @@ type Token {
   lastUpdatedTimestamp: Timestamp! # timestamp of last refresh attempt (used by 1-hour throttle)
   lastSuccessfulPriceTimestamp: Timestamp # timestamp of last non-zero oracle write (used by 7-day fallback staleness window, #694)
   isWhitelisted: Boolean! # whether the token is whitelisted
+
+  # Price-trust gate per-token decision surface (issue #755 slice 2). Populated
+  # at every Token construction site (Voter.WhitelistToken, SuperchainLeafVoter
+  # .WhitelistToken, PriceOracle.createTokenEntity, VotingReward reward-token
+  # bootstrap) via `PriceTrust.getGateDecisionFromSignals`; subsequent refreshes
+  # preserve the stamped values via spread until slice-3+ aggregator paths
+  # re-evaluate via `PriceTrust.getGateDecision` at consume time. Null only on
+  # rows that predate the field's introduction.
+  #
+  # Stored as String (not enum) so values can extend without an Envio schema
+  # migration. The TypeScript value sets are pinned by the `PRICE_TRUST_OUTCOME`
+  # / `PRICE_TRUST_REASON` const objects in `src/PriceTrust.ts` — call sites
+  # should reference those constants rather than bare string literals.
+  #
+  # Trusted-USD aggregates are written into the existing `*USD` fields on Pool
+  # — no `*USDTrusted` companion fields. Per-chain rollback uses the migration
+  # mode flag introduced in slice 4; A/B comparison against pre-gate values is
+  # done offline via the diff script (issue #755 US #19).
+  priceTrustOutcome: String
+  priceTrustReason: String
 }
 
 # Snapshot of the Token entity

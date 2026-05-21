@@ -28,6 +28,7 @@ import {
 } from "../../Constants";
 import { getTokenDetails, hasContractBytecode } from "../../Effects/Index";
 import { refreshTokenPrice } from "../../PriceOracle";
+import { getGateDecisionFromSignals } from "../../PriceTrust";
 import {
   VoterEventType,
   buildPoolDiffFromDistribute,
@@ -438,6 +439,11 @@ Voter.WhitelistToken.handler(async ({ event, context }) => {
       contractAddress: event.params.token,
       chainId: event.chainId,
     });
+    const decision = getGateDecisionFromSignals(
+      event.chainId,
+      event.params.token,
+      event.params._bool,
+    );
     const updatedToken: Token = {
       id: TokenId(event.chainId, event.params.token),
       name: tokenDetails.name,
@@ -449,6 +455,8 @@ Voter.WhitelistToken.handler(async ({ event, context }) => {
       isWhitelisted: event.params._bool,
       lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
       lastSuccessfulPriceTimestamp: undefined,
+      priceTrustOutcome: decision.outcome,
+      priceTrustReason: decision.reason,
     };
     context.Token.set(updatedToken);
   } catch (error) {

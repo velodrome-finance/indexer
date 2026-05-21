@@ -20,6 +20,10 @@ import {
 } from "../../../src/EventHandlers/CLFactory/CLFactoryPoolCreatedLogic";
 import * as CrossChainPendingResolution from "../../../src/EventHandlers/Voter/CrossChainPendingResolution";
 import * as PriceOracle from "../../../src/PriceOracle";
+import {
+  PRICE_TRUST_OUTCOME,
+  PRICE_TRUST_REASON,
+} from "../../../src/PriceTrust";
 import { setupCommon } from "../Pool/common";
 
 describe("CLFactoryPoolCreatedLogic", () => {
@@ -40,6 +44,8 @@ describe("CLFactoryPoolCreatedLogic", () => {
         isWhitelisted: false,
         lastUpdatedTimestamp: new Date(1000000 * 1000),
         lastSuccessfulPriceTimestamp: undefined,
+        priceTrustOutcome: PRICE_TRUST_OUTCOME.UNTRUSTED,
+        priceTrustReason: PRICE_TRUST_REASON.NON_WL,
       }),
     );
   });

@@ -9,6 +9,7 @@ import {
   TokenId,
 } from "../../Constants";
 import { getTokenDetails, hasContractBytecode } from "../../Effects/Index";
+import { getGateDecisionFromSignals } from "../../PriceTrust";
 
 SuperchainLeafVoter.GaugeCreated.contractRegister(({ event, context }) => {
   const pf = event.params.poolFactory;
@@ -152,6 +153,11 @@ SuperchainLeafVoter.WhitelistToken.handler(async ({ event, context }) => {
       contractAddress: event.params.token,
       chainId: event.chainId,
     });
+    const decision = getGateDecisionFromSignals(
+      event.chainId,
+      event.params.token,
+      event.params._bool,
+    );
     const updatedToken: Token = {
       id: TokenId(event.chainId, event.params.token),
       name: tokenDetails.name,
@@ -163,6 +169,8 @@ SuperchainLeafVoter.WhitelistToken.handler(async ({ event, context }) => {
       isWhitelisted: event.params._bool,
       lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
       lastSuccessfulPriceTimestamp: undefined,
+      priceTrustOutcome: decision.outcome,
+      priceTrustReason: decision.reason,
     };
     context.Token.set(updatedToken);
   } catch (error) {

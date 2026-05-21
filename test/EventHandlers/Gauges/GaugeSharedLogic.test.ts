@@ -17,6 +17,10 @@ import {
   processGaugeDeposit,
   processGaugeWithdraw,
 } from "../../../src/EventHandlers/Gauges/GaugeSharedLogic";
+import {
+  PRICE_TRUST_OUTCOME,
+  PRICE_TRUST_REASON,
+} from "../../../src/PriceTrust";
 import { type MockPool, setupCommon } from "../Pool/common";
 
 describe("GaugeSharedLogic", () => {
@@ -147,6 +151,8 @@ describe("GaugeSharedLogic", () => {
       lastUpdatedTimestamp: mockTimestamp,
       lastSuccessfulPriceTimestamp: mockTimestamp,
       isWhitelisted: true,
+      priceTrustOutcome: PRICE_TRUST_OUTCOME.TRUSTED,
+      priceTrustReason: PRICE_TRUST_REASON.WL,
     };
 
     mockDb = MockDb.createMockDb();
