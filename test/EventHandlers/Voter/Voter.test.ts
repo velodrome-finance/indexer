@@ -22,6 +22,10 @@ import {
   toChecksumAddress,
 } from "../../../src/Constants";
 import { getTokensDeposited } from "../../../src/Effects/Voter";
+import {
+  PRICE_TRUST_OUTCOME,
+  PRICE_TRUST_REASON,
+} from "../../../src/PriceTrust";
 import { type MockPool, setupCommon } from "../Pool/common";
 
 type MockUserStatsPerPool = ReturnType<
@@ -2100,6 +2104,117 @@ describe("Voter Events", () => {
         expect(token?.lastUpdatedTimestamp?.getTime()).toBe(
           mockEvent.block.timestamp * 1000,
         );
+      });
+    });
+
+    describe("priceTrust recomputation on existing tokens (issue #761)", () => {
+      it("flips UNTRUSTED/NON_WL to TRUSTED/WL when WhitelistToken(true) lands", async () => {
+        const existing = {
+          id: TokenId(10, tokenAddress),
+          address: tokenAddress,
+          symbol: "TEST",
+          name: "TEST",
+          chainId: 10,
+          decimals: BigInt(18),
+          pricePerUSDNew: BigInt(10000000),
+          isWhitelisted: false,
+          priceTrustOutcome: PRICE_TRUST_OUTCOME.UNTRUSTED,
+          priceTrustReason: PRICE_TRUST_REASON.NON_WL,
+        } as Token;
+        const db = mockDb.entities.Token.set(existing);
+
+        const result = await db.processEvents([mockEvent]);
+        const token = result.entities.Token.get(TokenId(10, tokenAddress));
+
+        expect(token?.isWhitelisted).toBe(true);
+        expect(token?.priceTrustOutcome).toBe(PRICE_TRUST_OUTCOME.TRUSTED);
+        expect(token?.priceTrustReason).toBe(PRICE_TRUST_REASON.WL);
+      });
+
+      it("flips TRUSTED/WL to UNTRUSTED/NON_WL when WhitelistToken(false) lands", async () => {
+        const existing = {
+          id: TokenId(10, tokenAddress),
+          address: tokenAddress,
+          symbol: "TEST",
+          name: "TEST",
+          chainId: 10,
+          decimals: BigInt(18),
+          pricePerUSDNew: BigInt(10000000),
+          isWhitelisted: true,
+          priceTrustOutcome: PRICE_TRUST_OUTCOME.TRUSTED,
+          priceTrustReason: PRICE_TRUST_REASON.WL,
+        } as Token;
+        const db = mockDb.entities.Token.set(existing);
+
+        const dewhitelistEvent = Voter.WhitelistToken.createMockEvent({
+          whitelister: toChecksumAddress(
+            "0x1111111111111111111111111111111111111111",
+          ),
+          token: tokenAddress,
+          _bool: false,
+          mockEventData: {
+            block: {
+              number: 123456,
+              timestamp: 1000000,
+              hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+            },
+            chainId: 10,
+            logIndex: 1,
+          },
+        });
+
+        const result = await db.processEvents([dewhitelistEvent]);
+        const token = result.entities.Token.get(TokenId(10, tokenAddress));
+
+        expect(token?.isWhitelisted).toBe(false);
+        expect(token?.priceTrustOutcome).toBe(PRICE_TRUST_OUTCOME.UNTRUSTED);
+        expect(token?.priceTrustReason).toBe(PRICE_TRUST_REASON.NON_WL);
+      });
+
+      it("flags an existing blacklisted token UNTRUSTED/BLACKLISTED on WhitelistToken(true)", async () => {
+        // $Manatee on Optimism — present in src/PriceOverrides.ts BLACKLIST
+        const blacklistedAddress = toChecksumAddress(
+          "0x7909Bda52eAf7C3cc12745E727Eb527a485241D8",
+        );
+        const existing = {
+          id: TokenId(10, blacklistedAddress),
+          address: blacklistedAddress,
+          symbol: "MANATEE",
+          name: "MANATEE",
+          chainId: 10,
+          decimals: BigInt(18),
+          pricePerUSDNew: 0n,
+          isWhitelisted: false,
+          priceTrustOutcome: PRICE_TRUST_OUTCOME.UNTRUSTED,
+          priceTrustReason: PRICE_TRUST_REASON.NON_WL,
+        } as Token;
+        const db = mockDb.entities.Token.set(existing);
+
+        const whitelistEvent = Voter.WhitelistToken.createMockEvent({
+          whitelister: toChecksumAddress(
+            "0x1111111111111111111111111111111111111111",
+          ),
+          token: blacklistedAddress,
+          _bool: true,
+          mockEventData: {
+            block: {
+              number: 123456,
+              timestamp: 1000000,
+              hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+            },
+            chainId: 10,
+            logIndex: 1,
+          },
+        });
+
+        const result = await db.processEvents([whitelistEvent]);
+        const token = result.entities.Token.get(
+          TokenId(10, blacklistedAddress),
+        );
+
+        expect(token?.isWhitelisted).toBe(true);
+        expect(token?.priceTrustOutcome).toBe(PRICE_TRUST_OUTCOME.UNTRUSTED);
+        expect(token?.priceTrustReason).toBe(PRICE_TRUST_REASON.BLACKLISTED);
       });
     });
   });

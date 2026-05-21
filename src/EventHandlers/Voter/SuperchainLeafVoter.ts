@@ -127,9 +127,20 @@ SuperchainLeafVoter.WhitelistToken.handler(async ({ event, context }) => {
 
   // Update the Token entity in the DB, either by updating the existing one or creating a new one
   if (token) {
+    // Recompute the price-trust gate alongside isWhitelisted so the persisted
+    // priceTrustOutcome/priceTrustReason stay in lockstep with the whitelist
+    // signal. Without this, tokens first observed via pool events before
+    // their WhitelistToken event would stay UNTRUSTED/NON_WL forever (#761).
+    const decision = getGateDecisionFromSignals(
+      event.chainId,
+      event.params.token,
+      event.params._bool,
+    );
     const updatedToken: Token = {
       ...token,
       isWhitelisted: event.params._bool,
+      priceTrustOutcome: decision.outcome,
+      priceTrustReason: decision.reason,
       lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
     };
 

@@ -7,6 +7,10 @@ import {
   TokenId,
   toChecksumAddress,
 } from "../../../src/Constants";
+import {
+  PRICE_TRUST_OUTCOME,
+  PRICE_TRUST_REASON,
+} from "../../../src/PriceTrust";
 import { type MockPool, setupCommon } from "../Pool/common";
 
 describe("SuperchainLeafVoter Events", () => {
@@ -341,6 +345,125 @@ describe("SuperchainLeafVoter Events", () => {
             mockEvent.block.timestamp * 1000,
           );
         });
+      });
+    });
+
+    describe("priceTrust recomputation on existing tokens (issue #761)", () => {
+      it("flips UNTRUSTED/NON_WL to TRUSTED/WL when WhitelistToken(true) lands", async () => {
+        const whitelistEvent =
+          SuperchainLeafVoter.WhitelistToken.createMockEvent({
+            token: tokenAddress,
+            _bool: true,
+            mockEventData: {
+              block: {
+                number: 123456,
+                timestamp: 1000000,
+                hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+              },
+              chainId,
+              logIndex: 1,
+            },
+          });
+        const existing = {
+          id: TokenId(chainId, tokenAddress),
+          address: tokenAddress,
+          symbol: "TEST",
+          name: "TEST",
+          chainId,
+          decimals: BigInt(18),
+          pricePerUSDNew: BigInt(10000000),
+          isWhitelisted: false,
+          priceTrustOutcome: PRICE_TRUST_OUTCOME.UNTRUSTED,
+          priceTrustReason: PRICE_TRUST_REASON.NON_WL,
+        } as Token;
+        const db = mockDb.entities.Token.set(existing);
+
+        const result = await db.processEvents([whitelistEvent]);
+        const token = result.entities.Token.get(TokenId(chainId, tokenAddress));
+
+        expect(token?.isWhitelisted).toBe(true);
+        expect(token?.priceTrustOutcome).toBe(PRICE_TRUST_OUTCOME.TRUSTED);
+        expect(token?.priceTrustReason).toBe(PRICE_TRUST_REASON.WL);
+      });
+
+      it("flips TRUSTED/WL to UNTRUSTED/NON_WL when WhitelistToken(false) lands", async () => {
+        const dewhitelistEvent =
+          SuperchainLeafVoter.WhitelistToken.createMockEvent({
+            token: tokenAddress,
+            _bool: false,
+            mockEventData: {
+              block: {
+                number: 123456,
+                timestamp: 1000000,
+                hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+              },
+              chainId,
+              logIndex: 1,
+            },
+          });
+        const existing = {
+          id: TokenId(chainId, tokenAddress),
+          address: tokenAddress,
+          symbol: "TEST",
+          name: "TEST",
+          chainId,
+          decimals: BigInt(18),
+          pricePerUSDNew: BigInt(10000000),
+          isWhitelisted: true,
+          priceTrustOutcome: PRICE_TRUST_OUTCOME.TRUSTED,
+          priceTrustReason: PRICE_TRUST_REASON.WL,
+        } as Token;
+        const db = mockDb.entities.Token.set(existing);
+
+        const result = await db.processEvents([dewhitelistEvent]);
+        const token = result.entities.Token.get(TokenId(chainId, tokenAddress));
+
+        expect(token?.isWhitelisted).toBe(false);
+        expect(token?.priceTrustOutcome).toBe(PRICE_TRUST_OUTCOME.UNTRUSTED);
+        expect(token?.priceTrustReason).toBe(PRICE_TRUST_REASON.NON_WL);
+      });
+
+      it("flags an existing blacklisted token UNTRUSTED/BLACKLISTED on WhitelistToken(true)", async () => {
+        // $Manatee on Optimism — present in src/PriceOverrides.ts BLACKLIST
+        const blacklistedAddress = toChecksumAddress(
+          "0x7909Bda52eAf7C3cc12745E727Eb527a485241D8",
+        );
+        const whitelistEvent =
+          SuperchainLeafVoter.WhitelistToken.createMockEvent({
+            token: blacklistedAddress,
+            _bool: true,
+            mockEventData: {
+              block: {
+                number: 123456,
+                timestamp: 1000000,
+                hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+              },
+              chainId,
+              logIndex: 1,
+            },
+          });
+        const existing = {
+          id: TokenId(chainId, blacklistedAddress),
+          address: blacklistedAddress,
+          symbol: "MANATEE",
+          name: "MANATEE",
+          chainId,
+          decimals: BigInt(18),
+          pricePerUSDNew: 0n,
+          isWhitelisted: false,
+          priceTrustOutcome: PRICE_TRUST_OUTCOME.UNTRUSTED,
+          priceTrustReason: PRICE_TRUST_REASON.NON_WL,
+        } as Token;
+        const db = mockDb.entities.Token.set(existing);
+
+        const result = await db.processEvents([whitelistEvent]);
+        const token = result.entities.Token.get(
+          TokenId(chainId, blacklistedAddress),
+        );
+
+        expect(token?.isWhitelisted).toBe(true);
+        expect(token?.priceTrustOutcome).toBe(PRICE_TRUST_OUTCOME.UNTRUSTED);
+        expect(token?.priceTrustReason).toBe(PRICE_TRUST_REASON.BLACKLISTED);
       });
     });
   });
