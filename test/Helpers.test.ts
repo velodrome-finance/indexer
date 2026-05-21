@@ -5,12 +5,11 @@ import {
 } from "@uniswap/v3-sdk";
 import type { Token, handlerContext } from "generated";
 import JSBI from "jsbi";
-import { toChecksumAddress } from "../src/Constants";
+import { TokenId, toChecksumAddress } from "../src/Constants";
 import type { Pool } from "../src/EntityTypes";
 import {
   calculatePositionAmountsFromLiquidity,
   calculateTotalUSD,
-  calculateWhitelistedFeesUSD,
   computeLiquidityDeltaFromAmounts,
   computeNonCLStakedUSD,
   concentratedLiquidityToUSD,
@@ -112,85 +111,115 @@ describe("Helpers", () => {
     });
   });
 
-  describe("calculateWhitelistedFeesUSD", () => {
+  describe("calculateTotalUSD (#755 trust gate)", () => {
     const { mockToken0Data, mockToken1Data } = setupCommon();
+    const ION_LISK = toChecksumAddress(
+      "0x3f608A49a3ab475dA7fBb167C1Be6b7a45cD7013",
+    );
 
-    it("should sum USD for both tokens when both are whitelisted", () => {
-      const amount0 = 1000000000000000000n;
-      const amount1 = 2000000000000000000n;
-      const total = calculateWhitelistedFeesUSD(
+    it("sums both legs when both tokens are trusted (WL + not blacklisted)", () => {
+      const amount0 = 1000000000000000000n; // 1.0 in 18-decimal
+      const amount1 = 2000000n; // 2.0 in 6-decimal
+      const total = calculateTotalUSD(
         amount0,
         amount1,
         mockToken0Data,
         mockToken1Data,
       );
-      const expected = calculateTotalUSD(
-        amount0,
-        amount1,
-        mockToken0Data,
-        mockToken1Data,
-      );
-      expect(total).toBe(expected);
+      // 1 token0 * $1 + 2 token1 * $1 = $3, in 1e18-base
+      expect(total).toBe(3n * 1000000000000000000n);
     });
 
-    it("should include only token0 USD when only token0 is whitelisted", () => {
+    it("zeros token0's leg when token0 is non-whitelisted", () => {
       const amount0 = 1000000000000000000n;
-      const amount1 = 2000000000000000000n;
-      const token1NotWhitelisted: Token = {
-        ...mockToken1Data,
-        isWhitelisted: false,
-      };
-      const total = calculateWhitelistedFeesUSD(
-        amount0,
-        amount1,
-        mockToken0Data,
-        token1NotWhitelisted,
-      );
-      const expectedToken0USD = calculateTotalUSD(
-        amount0,
-        0n,
-        mockToken0Data,
-        undefined,
-      );
-      expect(total).toBe(expectedToken0USD);
-    });
-
-    it("should include only token1 USD when only token1 is whitelisted", () => {
-      const amount0 = 1000000000000000000n;
-      const amount1 = 2000000000000000000n;
-      const token0NotWhitelisted: Token = {
+      const amount1 = 2000000n;
+      const token0NonWL: Token = {
         ...mockToken0Data,
         isWhitelisted: false,
       };
-      const total = calculateWhitelistedFeesUSD(
+      const total = calculateTotalUSD(
         amount0,
         amount1,
-        token0NotWhitelisted,
+        token0NonWL,
         mockToken1Data,
       );
-      const expectedToken1USD = calculateTotalUSD(
-        0n,
-        amount1,
-        undefined,
-        mockToken1Data,
-      );
-      expect(total).toBe(expectedToken1USD);
+      // Only token1 contributes: 2 * $1 = $2
+      expect(total).toBe(2n * 1000000000000000000n);
     });
 
-    it("should return 0n when neither token is whitelisted", () => {
-      const token0NotWhitelisted: Token = {
-        ...mockToken0Data,
-        isWhitelisted: false,
-      };
-      const token1NotWhitelisted: Token = {
+    it("zeros token1's leg when token1 is non-whitelisted", () => {
+      const amount0 = 1000000000000000000n;
+      const amount1 = 2000000n;
+      const token1NonWL: Token = {
         ...mockToken1Data,
         isWhitelisted: false,
       };
-      const total = calculateWhitelistedFeesUSD(
-        1000n,
-        2000n,
-        token0NotWhitelisted,
-        token1NotWhitelisted,
+      const total = calculateTotalUSD(
+        amount0,
+        amount1,
+        mockToken0Data,
+        token1NonWL,
+      );
+      // Only token0 contributes: 1 * $1 = $1
+      expect(total).toBe(1n * 1000000000000000000n);
+    });
+
+    it("returns 0n when both tokens are non-whitelisted", () => {
+      const token0NonWL: Token = {
+        ...mockToken0Data,
+        isWhitelisted: false,
+      };
+      const token1NonWL: Token = {
+        ...mockToken1Data,
+        isWhitelisted: false,
+      };
+      const total = calculateTotalUSD(
+        1000000000000000000n,
+        2000000n,
+        token0NonWL,
+        token1NonWL,
+      );
+      expect(total).toBe(0n);
+    });
+
+    it("zeros a WL token's leg when the token is BLACKLISTED", () => {
+      const amount0 = 1000000000000000000n;
+      const amount1 = 2000000n;
+      // ION on Lisk is WL'd by the protocol but operator-blacklisted (#671)
+      const blacklistedToken0: Token = {
+        ...mockToken0Data,
+        id: TokenId(1135, ION_LISK),
+        address: ION_LISK as `0x${string}`,
+        chainId: 1135,
+        isWhitelisted: true,
+      };
+      const total = calculateTotalUSD(
+        amount0,
+        amount1,
+        blacklistedToken0,
+        mockToken1Data,
+      );
+      // token0 gated to 0 by BLACKLIST; only token1 contributes
+      expect(total).toBe(2n * 1000000000000000000n);
+    });
+
+    it("treats undefined token entities as untrusted (contributes 0n)", () => {
+      const total = calculateTotalUSD(
+        1000000000000000000n,
+        2000000n,
+        undefined,
+        mockToken1Data,
+      );
+      // token0 undefined -> 0; only token1 contributes
+      expect(total).toBe(2n * 1000000000000000000n);
+    });
+
+    it("returns 0n when both token entities are undefined", () => {
+      const total = calculateTotalUSD(
+        1000000000000000000n,
+        2000000n,
+        undefined,
+        undefined,
       );
       expect(total).toBe(0n);
     });
@@ -1030,40 +1059,31 @@ describe("Helpers", () => {
   });
 
   describe("pickTrustedSwapVolumeUSD", () => {
-    it("returns min when both legs are non-zero (whitelist irrelevant)", () => {
-      expect(pickTrustedSwapVolumeUSD(100n, 99n, true, true)).toBe(99n);
-      expect(pickTrustedSwapVolumeUSD(99n, 100n, true, true)).toBe(99n);
-      expect(pickTrustedSwapVolumeUSD(100n, 99n, false, false)).toBe(99n);
+    // After #755 slice 3e, the picker operates on pre-gated inputs: callers
+    // route per-leg USD through PriceTrust.getTrustedUSD so untrusted legs
+    // arrive as 0n. The picker is therefore a pure min/single-leg picker.
+    // The #737 single-leg-non-WL refusal is now enforced upstream — its
+    // regression intent is covered by PoolSwapLogic.test.ts and
+    // CLPoolSwapLogic.test.ts at the integration level.
+    it("returns min when both legs are non-zero", () => {
+      expect(pickTrustedSwapVolumeUSD(100n, 99n)).toBe(99n);
+      expect(pickTrustedSwapVolumeUSD(99n, 100n)).toBe(99n);
     });
 
-    it("falls back to the non-zero leg when one is zero and that leg is whitelisted", () => {
-      expect(pickTrustedSwapVolumeUSD(0n, 500n, true, true)).toBe(500n);
-      expect(pickTrustedSwapVolumeUSD(500n, 0n, true, true)).toBe(500n);
+    it("falls back to the non-zero leg when one is zero (single-leg fallback)", () => {
+      expect(pickTrustedSwapVolumeUSD(0n, 500n)).toBe(500n);
+      expect(pickTrustedSwapVolumeUSD(500n, 0n)).toBe(500n);
     });
 
-    it("returns 0n when only one leg is priced AND that leg is not whitelisted (#737)", () => {
-      // Ragdoll / RAGDOLL case: token0 unpriced, token1 priced but non-whitelisted.
-      // Old behaviour returned token1's value (potentially inflated). New behaviour
-      // returns 0n to refuse the suspect single-leg fallback.
-      expect(pickTrustedSwapVolumeUSD(0n, 500n, true, false)).toBe(0n);
-      // Symmetric: token1 unpriced, token0 priced but non-whitelisted.
-      expect(pickTrustedSwapVolumeUSD(500n, 0n, false, true)).toBe(0n);
-    });
-
-    it("treats undefined as zero (whitelisted fallback still allowed)", () => {
-      expect(pickTrustedSwapVolumeUSD(undefined, 500n, true, true)).toBe(500n);
-      expect(pickTrustedSwapVolumeUSD(500n, undefined, true, true)).toBe(500n);
-      // And refuses undefined-paired non-whitelisted single legs.
-      expect(pickTrustedSwapVolumeUSD(undefined, 500n, true, false)).toBe(0n);
-      expect(pickTrustedSwapVolumeUSD(500n, undefined, false, true)).toBe(0n);
+    it("treats undefined as zero", () => {
+      expect(pickTrustedSwapVolumeUSD(undefined, 500n)).toBe(500n);
+      expect(pickTrustedSwapVolumeUSD(500n, undefined)).toBe(500n);
     });
 
     it("returns 0n when both legs are zero/undefined", () => {
-      expect(pickTrustedSwapVolumeUSD(0n, 0n, true, true)).toBe(0n);
-      expect(pickTrustedSwapVolumeUSD(undefined, undefined, true, true)).toBe(
-        0n,
-      );
-      expect(pickTrustedSwapVolumeUSD(undefined, 0n, true, true)).toBe(0n);
+      expect(pickTrustedSwapVolumeUSD(0n, 0n)).toBe(0n);
+      expect(pickTrustedSwapVolumeUSD(undefined, undefined)).toBe(0n);
+      expect(pickTrustedSwapVolumeUSD(undefined, 0n)).toBe(0n);
     });
   });
 });

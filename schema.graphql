@@ -20,14 +20,12 @@ type Pool {
   totalFeesGenerated0: BigInt! @config(precision: 76) # total swap fees generated of token0 in token units
   totalFeesGenerated1: BigInt! @config(precision: 76) # total swap fees generated of token1 in token units
   totalFeesGeneratedUSD: BigInt! @config(precision: 76) # total swap fees of the pool in USD
-  totalVolumeUSDWhitelisted: BigInt! @config(precision: 76) # total swap volume of the pool in USD
   totalUnstakedFeesCollected0: BigInt! @config(precision: 76) # total fees collected from unstaked LPs (Collect events) in token0 units
   totalUnstakedFeesCollected1: BigInt! @config(precision: 76) # total fees collected from unstaked LPs (Collect events) in token1 units
   totalStakedFeesCollected0: BigInt! @config(precision: 76) # total fees collected from staked LPs (CollectFees events) in token0 units
   totalStakedFeesCollected1: BigInt! @config(precision: 76) # total fees collected from staked LPs (CollectFees events) in token1 units
   totalUnstakedFeesCollectedUSD: BigInt! @config(precision: 76) # total fees collected from unstaked LPs (Collect events) in USD
   totalStakedFeesCollectedUSD: BigInt! @config(precision: 76) # total fees collected from staked LPs (CollectFees events) in USD
-  totalFeesUSDWhitelisted: BigInt! @config(precision: 76) # total fees collected in USD
   numberOfSwaps: BigInt! @config(precision: 76) # total number of swaps in the pool
   token0Price: BigInt! @config(precision: 76) # price of token0 relative to token1
   token1Price: BigInt! @config(precision: 76) # price of token1 relative to token0
@@ -165,14 +163,12 @@ type PoolSnapshot {
   totalFeesGenerated0: BigInt! @config(precision: 76) # total swap fees generated of token0 in token units
   totalFeesGenerated1: BigInt! @config(precision: 76) # total swap fees generated of token1 in token units
   totalFeesGeneratedUSD: BigInt! @config(precision: 76) # total swap fees of the pool in USD
-  totalVolumeUSDWhitelisted: BigInt! @config(precision: 76) # total swap volume of the pool in USD
   totalUnstakedFeesCollected0: BigInt! @config(precision: 76) # total fees collected from unstaked LPs (Collect events) in token0 units
   totalUnstakedFeesCollected1: BigInt! @config(precision: 76) # total fees collected from unstaked LPs (Collect events) in token1 units
   totalStakedFeesCollected0: BigInt! @config(precision: 76) # total fees collected from staked LPs (CollectFees events) in token0 units
   totalStakedFeesCollected1: BigInt! @config(precision: 76) # total fees collected from staked LPs (CollectFees events) in token1 units
   totalUnstakedFeesCollectedUSD: BigInt! @config(precision: 76) # total fees collected from unstaked LPs (Collect events) in USD
   totalStakedFeesCollectedUSD: BigInt! @config(precision: 76) # total fees collected from staked LPs (CollectFees events) in USD
-  totalFeesUSDWhitelisted: BigInt! @config(precision: 76) # total fees collected in USD
   numberOfSwaps: BigInt! @config(precision: 76) # total number of swaps in the pool
   token0Price: BigInt! @config(precision: 76) # price of token0 relative to token1
   token1Price: BigInt! @config(precision: 76) # price of token1 relative to token0

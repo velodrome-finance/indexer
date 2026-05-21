@@ -159,6 +159,43 @@ describe("computeVoterDistributeValues", () => {
     expect(result.isAlive).toBe(false);
   });
 
+  it("zeros emissions + votes-deposited USD when reward token is non-whitelisted (#755 trust gate)", async () => {
+    // Slice 3c: a non-WL reward token whose price the indexer cannot trust
+    // contributes 0n to both USD aggregates, even when amount × price would
+    // otherwise yield a non-zero (potentially poisoned) value.
+    const token: Token = {
+      id: "token-non-wl",
+      address: toChecksumAddress("0x0000000000000000000000000000000000000004"),
+      chainId: 1,
+      decimals: 18n,
+      pricePerUSDNew: 2_000000000000000000n, // $2 — would yield $6/$10 if trusted
+      lastUpdatedTimestamp: new Date(0),
+      isWhitelisted: false,
+      name: "NONWL",
+      symbol: "NONWL",
+    } as unknown as Token;
+
+    const context = makeMockContext({
+      tokensDeposited: 5000000000000000000n,
+    });
+
+    const result = await computeVoterDistributeValues(
+      token,
+      toChecksumAddress("0x0000000000000000000000000000000000000abc"),
+      3000000000000000000n,
+      12345,
+      1,
+      context,
+      true,
+    );
+
+    // Raw normalised emission amount is unaffected — only the USD legs gate.
+    expect(result.normalizedEmissionsAmount).toBe(3000000000000000000n);
+    expect(result.tokensDeposited).toBe(5000000000000000000n);
+    expect(result.normalizedEmissionsAmountUsd).toBe(0n);
+    expect(result.normalizedVotesDepositedAmountUsd).toBe(0n);
+  });
+
   it("handles undefined tokensDeposited effect return by using default and logging error", async () => {
     const token: Token = {
       id: "token-undefined",

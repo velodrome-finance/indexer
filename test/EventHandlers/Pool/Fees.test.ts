@@ -16,7 +16,6 @@ describe("Pool Fees Event", () => {
     amount0In: 3n * 10n ** 18n,
     amount1In: 2n * 10n ** 6n,
     totalLiquidityUSD: 0n,
-    totalFeesUSDWhitelisted: 0n,
     totalFeesGeneratedUSD: 0n,
   };
 
@@ -48,9 +47,6 @@ describe("Pool Fees Event", () => {
           : token1LegUSD;
   expectations.totalFeesGeneratedUSD =
     mockLiquidityPoolData.totalFeesGeneratedUSD + trustedLegUSD;
-
-  expectations.totalFeesUSDWhitelisted =
-    mockLiquidityPoolData.totalFeesUSDWhitelisted + token0LegUSD + token1LegUSD;
 
   let updatedPool: PoolEntity | undefined;
   let createdUserStats: UserStatsPerPool | undefined;
@@ -106,12 +102,6 @@ describe("Pool Fees Event", () => {
   it("should update Pool total fees in USD", async () => {
     expect(updatedPool?.totalFeesGeneratedUSD).toBe(
       expectations.totalFeesGeneratedUSD,
-    );
-  });
-
-  it("should update Pool total fees in USD whitelisted", async () => {
-    expect(updatedPool?.totalFeesUSDWhitelisted).toBe(
-      expectations.totalFeesUSDWhitelisted,
     );
   });
 
@@ -351,7 +341,6 @@ describe("Pool Fees Event", () => {
             incrementalTotalFeesGenerated0: 3n * 10n ** 18n,
             incrementalTotalFeesGenerated1: 2n * 10n ** 6n,
             incrementalTotalFeesGeneratedUSD: 500n,
-            incrementalTotalFeesUSDWhitelisted: 500n,
             lastUpdatedTimestamp: new Date(1000000 * 1000),
           },
           userDiff: undefined, // Test the undefined branch

@@ -32,11 +32,9 @@ export interface PoolDiff {
   incrementalTotalVolume0: bigint;
   incrementalTotalVolume1: bigint;
   incrementalTotalVolumeUSD: bigint;
-  incrementalTotalVolumeUSDWhitelisted: bigint;
   incrementalTotalFeesGenerated0: bigint;
   incrementalTotalFeesGenerated1: bigint;
   incrementalTotalFeesGeneratedUSD: bigint;
-  incrementalTotalFeesUSDWhitelisted: bigint;
   incrementalTotalUnstakedFeesCollected0: bigint;
   incrementalTotalUnstakedFeesCollected1: bigint;
   incrementalTotalUnstakedFeesCollectedUSD: bigint;
@@ -335,12 +333,6 @@ export async function updatePool(
     totalVolume1: (diff.incrementalTotalVolume1 ?? 0n) + current.totalVolume1,
     totalVolumeUSD:
       (diff.incrementalTotalVolumeUSD ?? 0n) + current.totalVolumeUSD,
-    totalVolumeUSDWhitelisted:
-      (diff.incrementalTotalVolumeUSDWhitelisted ?? 0n) +
-      current.totalVolumeUSDWhitelisted,
-    totalFeesUSDWhitelisted:
-      (diff.incrementalTotalFeesUSDWhitelisted ?? 0n) +
-      current.totalFeesUSDWhitelisted,
     totalFeesGenerated0:
       (diff.incrementalTotalFeesGenerated0 ?? 0n) + current.totalFeesGenerated0,
     totalFeesGenerated1:
@@ -862,14 +854,12 @@ export function createPoolEntity(params: {
     totalFeesGenerated0: 0n,
     totalFeesGenerated1: 0n,
     totalFeesGeneratedUSD: 0n,
-    totalVolumeUSDWhitelisted: 0n,
     totalUnstakedFeesCollected0: 0n,
     totalUnstakedFeesCollected1: 0n,
     totalStakedFeesCollected0: 0n,
     totalStakedFeesCollected1: 0n,
     totalUnstakedFeesCollectedUSD: 0n,
     totalStakedFeesCollectedUSD: 0n,
-    totalFeesUSDWhitelisted: 0n,
     numberOfSwaps: 0n,
     token0Price: 0n,
     token1Price: 0n,

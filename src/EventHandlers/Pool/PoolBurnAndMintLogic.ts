@@ -286,6 +286,10 @@ export async function processPoolLiquidityEvent(
   // No updates to reserves are needed - Sync events handle reserve updates
   // Mint and burn functions always call _update method on the contract which always emits Sync event
   const poolDiff = {
+    // Token-price snapshots record observed state at this event, not a USD
+    // aggregate, so they are intentionally NOT routed through the #755 trust
+    // gate (see PriceTrust.ts). The downstream aggregate sites — volumeUSD,
+    // feesUSD, emissionsUSD, votesDepositedUSD, totalLiquidityUSD — are gated.
     token0Price: token0Instance.pricePerUSDNew,
     token1Price: token1Instance.pricePerUSDNew,
     lastUpdatedTimestamp: timestamp,

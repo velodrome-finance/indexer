@@ -7,7 +7,7 @@ import type {
 import type { PoolDiff } from "../../Aggregators/Pool";
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import { CLPositionPendingPrincipalId } from "../../Constants";
-import { calculateTotalUSD, calculateWhitelistedFeesUSD } from "../../Helpers";
+import { calculateTotalUSD } from "../../Helpers";
 
 export interface CLPoolCollectResult {
   liquidityPoolDiff: Partial<PoolDiff>;
@@ -93,15 +93,9 @@ export async function processCLPoolCollect(
     });
   }
 
-  // Calculate USD values from fee-only amounts
+  // Fee USD from fee-only amounts; calculateTotalUSD is trust-gated (#755),
+  // so untrusted legs contribute 0n.
   const unstakedFeesUSD = calculateTotalUSD(
-    fees0,
-    fees1,
-    token0Instance,
-    token1Instance,
-  );
-
-  const totalFeesUSDWhitelistedIncrement = calculateWhitelistedFeesUSD(
     fees0,
     fees1,
     token0Instance,
@@ -112,7 +106,6 @@ export async function processCLPoolCollect(
     incrementalTotalUnstakedFeesCollected0: fees0,
     incrementalTotalUnstakedFeesCollected1: fees1,
     incrementalTotalUnstakedFeesCollectedUSD: unstakedFeesUSD,
-    incrementalTotalFeesUSDWhitelisted: totalFeesUSDWhitelistedIncrement,
     lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
   };
   const userLiquidityDiff = {

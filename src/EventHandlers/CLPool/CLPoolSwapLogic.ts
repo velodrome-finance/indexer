@@ -5,12 +5,12 @@ import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import { CL_FEE_SCALE } from "../../Constants";
 import type { Pool } from "../../EntityTypes";
 import {
-  calculateTokenAmountUSD,
   calculateTotalUSD,
   normalizeTokenAmountTo1e18,
   pickTrustedSwapVolumeUSD,
 } from "../../Helpers";
 import { abs } from "../../Maths";
+import { getTrustedUSD } from "../../PriceTrust";
 
 // Issue #733 / regression of #670: fees USD must respect the fundamental AMM
 // invariant `cumulative_fees ≤ cumulative_volume × fee_ratio`. Pricing the fee
@@ -26,7 +26,6 @@ export interface CLPoolSwapResult {
 
 interface SwapVolume {
   volumeInUSD: bigint;
-  volumeInUSDWhitelisted: bigint;
 }
 
 interface SwapFees {
@@ -37,7 +36,6 @@ interface SwapFees {
 
 interface SwapVolumeAndFees {
   volumeInUSD: bigint;
-  volumeInUSDWhitelisted: bigint;
   swapFeesInToken0: bigint;
   swapFeesInToken1: bigint;
   swapFeesInUSD: bigint;
@@ -63,44 +61,22 @@ export function calculateSwapVolume(
   token0Instance: Token | undefined,
   token1Instance: Token | undefined,
 ): SwapVolume {
-  // Calculate volume in USD using already-refreshed token prices from loadPoolData
-  const token0UsdValue = token0Instance
-    ? calculateTokenAmountUSD(
-        abs(event.params.amount0),
-        Number(token0Instance.decimals),
-        token0Instance.pricePerUSDNew,
-      )
-    : 0n;
-
-  const token1UsdValue = token1Instance
-    ? calculateTokenAmountUSD(
-        abs(event.params.amount1),
-        Number(token1Instance.decimals),
-        token1Instance.pricePerUSDNew,
-      )
-    : 0n;
-
-  // Pick the more-trusted USD leg — min when both are priced; single-leg
-  // fallback is gated on the priced token being whitelisted, which guards
-  // against scam-token / poisoned-oracle inflation poisoning aggregate
-  // volume (issues #699 and #737).
-  const volumeInUSD = pickTrustedSwapVolumeUSD(
-    token0UsdValue,
-    token1UsdValue,
-    token0Instance?.isWhitelisted ?? false,
-    token1Instance?.isWhitelisted ?? false,
+  // Per-leg USD via PriceTrust gate (issue #755): untrusted legs contribute
+  // 0n. The min pick then guards against scam-token / poisoned-oracle
+  // inflation on the remaining trusted leg (issues #699, #737).
+  const token0UsdValue = getTrustedUSD(
+    abs(event.params.amount0),
+    token0Instance,
+  );
+  const token1UsdValue = getTrustedUSD(
+    abs(event.params.amount1),
+    token1Instance,
   );
 
-  // Calculate whitelisted volume (at least one token must be whitelisted,
-  // consistent with calculateWhitelistedFeesUSD which uses the same rule)
-  const volumeInUSDWhitelisted =
-    token0Instance?.isWhitelisted || token1Instance?.isWhitelisted
-      ? volumeInUSD
-      : 0n;
+  const volumeInUSD = pickTrustedSwapVolumeUSD(token0UsdValue, token1UsdValue);
 
   return {
     volumeInUSD,
-    volumeInUSDWhitelisted,
   };
 }
 
@@ -193,7 +169,7 @@ function calculateSwapVolumeAndFees(
   token1Instance: Token | undefined,
   context: handlerContext,
 ): SwapVolumeAndFees {
-  const { volumeInUSD, volumeInUSDWhitelisted } = calculateSwapVolume(
+  const { volumeInUSD } = calculateSwapVolume(
     event,
     token0Instance,
     token1Instance,
@@ -211,7 +187,6 @@ function calculateSwapVolumeAndFees(
 
   return {
     volumeInUSD,
-    volumeInUSDWhitelisted,
     swapFeesInToken0,
     swapFeesInToken1,
     swapFeesInUSD,
@@ -280,19 +255,14 @@ export async function processCLPoolSwap(
   context: handlerContext,
 ): Promise<CLPoolSwapResult> {
   // Calculate volume and fees
-  const {
-    volumeInUSD,
-    volumeInUSDWhitelisted,
-    swapFeesInToken0,
-    swapFeesInToken1,
-    swapFeesInUSD,
-  } = calculateSwapVolumeAndFees(
-    event,
-    liquidityPoolAggregator,
-    token0Instance,
-    token1Instance,
-    context,
-  );
+  const { volumeInUSD, swapFeesInToken0, swapFeesInToken1, swapFeesInUSD } =
+    calculateSwapVolumeAndFees(
+      event,
+      liquidityPoolAggregator,
+      token0Instance,
+      token1Instance,
+      context,
+    );
 
   // Calculate liquidity and reserve changes (fees excluded from reserves — see function docs)
   const clFeeRate =
@@ -333,10 +303,13 @@ export async function processCLPoolSwap(
     incrementalTotalVolume0: abs(event.params.amount0),
     incrementalTotalVolume1: abs(event.params.amount1),
     incrementalTotalVolumeUSD: volumeInUSD,
-    incrementalTotalVolumeUSDWhitelisted: volumeInUSDWhitelisted,
     incrementalTotalFeesGenerated0: swapFeesInToken0,
     incrementalTotalFeesGenerated1: swapFeesInToken1,
     incrementalTotalFeesGeneratedUSD: swapFeesInUSD,
+    // Token-price snapshots record observed state at this event, not a USD
+    // aggregate, so they are intentionally NOT routed through the #755 trust
+    // gate (see PriceTrust.ts). The downstream aggregate sites — volumeUSD,
+    // feesUSD, emissionsUSD, votesDepositedUSD, totalLiquidityUSD — are gated.
     token0Price:
       token0Instance?.pricePerUSDNew ?? liquidityPoolAggregator.token0Price,
     token1Price:

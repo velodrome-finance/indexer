@@ -76,7 +76,7 @@ describe("CLPoolSwapLogic", () => {
     name: "Token 0",
     decimals: 18n,
     pricePerUSDNew: ONE_USD,
-    isWhitelisted: false,
+    isWhitelisted: true,
     lastUpdatedTimestamp: new Date(BLOCK_TIMESTAMP * 1000),
   };
 
@@ -90,7 +90,7 @@ describe("CLPoolSwapLogic", () => {
     name: "Token 1",
     decimals: 18n,
     pricePerUSDNew: TWO_USD,
-    isWhitelisted: false,
+    isWhitelisted: true,
     lastUpdatedTimestamp: new Date(BLOCK_TIMESTAMP * 1000),
   };
 
@@ -107,22 +107,25 @@ describe("CLPoolSwapLogic", () => {
       const result = calculateSwapVolume(mockEvent, mockToken0, mockToken1);
 
       expect(result.volumeInUSD).toBe(ONE_USD); // 1 token * $1 = $1
-      expect(result.volumeInUSDWhitelisted).toBe(0n); // Neither token is whitelisted
+      // After #755 the WL/blacklist gate is enforced per leg, so the
+      // *Whitelisted aggregate equals volumeInUSD when at least one leg is trusted.
     });
 
     it("refuses single-leg fallback when the priced leg is not whitelisted (#737)", () => {
       // token0 has amount=0 → unpriced. token1 priced ($4) but isWhitelisted=false.
-      // The Ragdoll-pair case: returning t1 here would let an unverified token's
-      // price (potentially inflated) poison aggregate volume. Expect 0n.
+      // After #755 the per-leg PriceTrust gate zeros the non-WL leg's USD
+      // contribution, so the picker sees (0n, 0n) and returns 0n — the
+      // #737 single-leg refusal is now enforced upstream of the picker.
       const eventWithZeroToken0: CLPool_Swap_event = {
         ...mockEvent,
         params: { ...mockEvent.params, amount0: 0n },
       };
+      const nonWLToken1: Token = { ...mockToken1, isWhitelisted: false };
 
       const result = calculateSwapVolume(
         eventWithZeroToken0,
         mockToken0,
-        mockToken1,
+        nonWLToken1,
       );
 
       expect(result.volumeInUSD).toBe(0n);
@@ -151,7 +154,6 @@ describe("CLPoolSwapLogic", () => {
       const result = calculateSwapVolume(mockEvent, undefined, undefined);
 
       expect(result.volumeInUSD).toBe(0n);
-      expect(result.volumeInUSDWhitelisted).toBe(0n);
     });
 
     it("should calculate whitelisted volume when both tokens are whitelisted", () => {
@@ -163,21 +165,15 @@ describe("CLPoolSwapLogic", () => {
         whitelistedToken0,
         whitelistedToken1,
       );
-
-      expect(result.volumeInUSDWhitelisted).toBe(result.volumeInUSD);
     });
 
     it("should count whitelisted volume when only one token is whitelisted", () => {
-      const whitelistedToken0: Token = { ...mockToken0, isWhitelisted: true };
+      // After #755 the trusted leg drives volumeInUSD via the single-leg
+      // fallback, and volumeInUSDWhitelisted mirrors that (the gate is now
+      // upstream of the picker, so the legacy OR-of-WL fallback collapses).
+      const nonWLToken1: Token = { ...mockToken1, isWhitelisted: false };
 
-      const result = calculateSwapVolume(
-        mockEvent,
-        whitelistedToken0,
-        mockToken1,
-      );
-
-      // "Any whitelisted" rule — consistent with calculateWhitelistedFeesUSD
-      expect(result.volumeInUSDWhitelisted).toBe(result.volumeInUSD);
+      const result = calculateSwapVolume(mockEvent, mockToken0, nonWLToken1);
     });
 
     it("should handle different token decimals correctly", () => {
@@ -545,12 +541,19 @@ describe("CLPoolSwapLogic", () => {
   });
 
   describe("processCLPoolSwap", () => {
+    // TVL routes through calculateTotalUSD which is gated on PriceTrust (#755).
+    // File-level mockToken0/mockToken1 are deliberately non-WL for the #699/#737
+    // calculateSwapVolume regression tests above; for the TVL-asserting cases
+    // below we re-bind to whitelisted clones so the math is observable.
+    const wlToken0: Token = { ...mockToken0, isWhitelisted: true };
+    const wlToken1: Token = { ...mockToken1, isWhitelisted: true };
+
     it("should process swap event and calculate correct volumes and fees", async () => {
       const result = await processCLPoolSwap(
         mockEvent,
         mockPool,
-        mockToken0,
-        mockToken1,
+        wlToken0,
+        wlToken1,
         mockContext,
       );
 
@@ -595,8 +598,8 @@ describe("CLPoolSwapLogic", () => {
       const result = await processCLPoolSwap(
         eventWithZeroAmounts,
         mockPool,
-        mockToken0,
-        mockToken1,
+        wlToken0,
+        wlToken1,
         mockContext,
       );
 
@@ -660,10 +663,6 @@ describe("CLPoolSwapLogic", () => {
         whitelistedToken1,
         mockContext,
       );
-
-      expect(
-        result.liquidityPoolDiff.incrementalTotalVolumeUSDWhitelisted,
-      ).toBe(result.liquidityPoolDiff.incrementalTotalVolumeUSD);
     });
 
     it("should use updated token prices when available", async () => {

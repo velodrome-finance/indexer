@@ -59,6 +59,10 @@ export function processPoolSync(
     incrementalReserve0: reserve0Change,
     incrementalReserve1: reserve1Change,
     currentTotalLiquidityUSD,
+    // Token-price snapshots record observed state at this event, not a USD
+    // aggregate, so they are intentionally NOT routed through the #755 trust
+    // gate (see PriceTrust.ts). The downstream aggregate sites — volumeUSD,
+    // feesUSD, emissionsUSD, votesDepositedUSD, totalLiquidityUSD — are gated.
     token0Price:
       token0Instance?.pricePerUSDNew ?? liquidityPoolAggregator.token0Price,
     token1Price:

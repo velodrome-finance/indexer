@@ -1,10 +1,8 @@
 import type { Pool_Swap_event, Token } from "generated";
 import type { PoolDiff } from "../../Aggregators/Pool";
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
-import {
-  calculateTokenAmountUSD,
-  pickTrustedSwapVolumeUSD,
-} from "../../Helpers";
+import { pickTrustedSwapVolumeUSD } from "../../Helpers";
+import { getTrustedUSD } from "../../PriceTrust";
 
 export interface PoolSwapResult {
   liquidityPoolDiff: Partial<PoolDiff>;
@@ -24,42 +22,23 @@ export function processPoolSwap(
   const netAmount0 = event.params.amount0In + event.params.amount0Out;
   const netAmount1 = event.params.amount1In + event.params.amount1Out;
 
-  // Calculate USD values using already-refreshed token prices
-  const token0UsdValue = calculateTokenAmountUSD(
-    netAmount0,
-    Number(token0Instance.decimals),
-    token0Instance.pricePerUSDNew,
-  );
-  const token1UsdValue = calculateTokenAmountUSD(
-    netAmount1,
-    Number(token1Instance.decimals),
-    token1Instance.pricePerUSDNew,
-  );
+  // Per-leg USD via PriceTrust gate: untrusted legs contribute 0n. The min
+  // pick then guards against scam-token / poisoned-oracle inflation on the
+  // remaining trusted leg (issues #699, #737, #755).
+  const token0UsdValue = getTrustedUSD(netAmount0, token0Instance);
+  const token1UsdValue = getTrustedUSD(netAmount1, token1Instance);
 
-  // Pick the more-trusted USD leg — min when both are priced; single-leg
-  // fallback is gated on the priced token being whitelisted, which guards
-  // against scam-token / poisoned-oracle inflation poisoning aggregate
-  // volume (issues #699 and #737).
-  const volumeInUSD = pickTrustedSwapVolumeUSD(
-    token0UsdValue,
-    token1UsdValue,
-    token0Instance.isWhitelisted,
-    token1Instance.isWhitelisted,
-  );
-
-  // Calculate whitelisted volume (at least one token must be whitelisted,
-  // consistent with calculateWhitelistedFeesUSD which uses the same rule)
-  const volumeInUSDWhitelisted =
-    token0Instance.isWhitelisted || token1Instance.isWhitelisted
-      ? volumeInUSD
-      : 0n;
+  const volumeInUSD = pickTrustedSwapVolumeUSD(token0UsdValue, token1UsdValue);
 
   // Create liquidity pool diff
   const liquidityPoolDiff = {
     incrementalTotalVolume0: netAmount0,
     incrementalTotalVolume1: netAmount1,
     incrementalTotalVolumeUSD: volumeInUSD,
-    incrementalTotalVolumeUSDWhitelisted: volumeInUSDWhitelisted,
+    // Token-price snapshots record observed state at this event, not a USD
+    // aggregate, so they are intentionally NOT routed through the #755 trust
+    // gate (see PriceTrust.ts). The downstream aggregate sites — volumeUSD,
+    // feesUSD, emissionsUSD, votesDepositedUSD, totalLiquidityUSD — are gated.
     token0Price: token0Instance.pricePerUSDNew,
     token1Price: token1Instance.pricePerUSDNew,
     incrementalNumberOfSwaps: 1n,

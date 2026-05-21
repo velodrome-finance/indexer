@@ -118,9 +118,6 @@ describe("PoolFeesLogic", () => {
         expect(result.liquidityPoolDiff?.incrementalTotalFeesGeneratedUSD).toBe(
           expectedTotalFeesUSD,
         );
-        expect(
-          result.liquidityPoolDiff?.incrementalTotalFeesUSDWhitelisted,
-        ).toBe(expectedTotalFeesUSDWhitelisted);
       });
 
       // Regression for issue #733: a Fees event whose only non-zero leg is on

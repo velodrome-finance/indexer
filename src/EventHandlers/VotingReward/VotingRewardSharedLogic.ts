@@ -17,9 +17,8 @@ import {
   roundBlockToInterval,
 } from "../../Effects/Index";
 import type { Pool } from "../../EntityTypes";
-import { calculateTokenAmountUSD } from "../../Helpers";
 import { refreshTokenPrice } from "../../PriceOracle";
-import { getGateDecisionFromSignals } from "../../PriceTrust";
+import { getGateDecisionFromSignals, getTrustedUSD } from "../../PriceTrust";
 
 export interface VotingRewardEventData {
   votingRewardAddress: string;
@@ -161,11 +160,7 @@ export async function processVotingRewardClaimRewards(
   );
 
   // Convert reward amount to USD
-  const rewardAmountUSD = calculateTokenAmountUSD(
-    data.amount,
-    Number(updatedRewardToken.decimals),
-    updatedRewardToken.pricePerUSDNew,
-  );
+  const rewardAmountUSD = getTrustedUSD(data.amount, updatedRewardToken);
 
   // Determine if this is a bribe or fee reward
   const isBribe = field === PoolAddressField.BRIBE_VOTING_REWARD_ADDRESS;

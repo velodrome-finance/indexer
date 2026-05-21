@@ -113,7 +113,6 @@ export function setupCommon() {
     totalVolume0: 1n * TEN_TO_THE_18_BI,
     totalVolume1: 1n * TEN_TO_THE_6_BI,
     totalVolumeUSD: 10n * TEN_TO_THE_18_BI,
-    totalVolumeUSDWhitelisted: 10n * TEN_TO_THE_18_BI,
     totalFeesGenerated0: 100n * TEN_TO_THE_18_BI,
     totalFeesGenerated1: 200n * TEN_TO_THE_6_BI,
     // Calculate totalFeesGeneratedUSD using the same logic as calculateTotalUSD:
@@ -137,7 +136,6 @@ export function setupCommon() {
     totalStakedFeesCollected1: 0n,
     totalUnstakedFeesCollectedUSD: 300n * TEN_TO_THE_18_BI,
     totalStakedFeesCollectedUSD: 0n,
-    totalFeesUSDWhitelisted: 300n * TEN_TO_THE_18_BI,
     numberOfSwaps: 1n,
     token0Price: 1n * TEN_TO_THE_18_BI,
     token1Price: 1n * TEN_TO_THE_18_BI,
