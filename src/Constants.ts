@@ -45,10 +45,19 @@ export const toChecksumAddress = (address: string): `0x${string}` =>
   Web3.utils.toChecksumAddress(address) as `0x${string}`;
 
 // Note:
-// These pools factories addresses are hardcoded since we can't check the pool type from the Voter contract
+// These pools factories addresses are hardcoded since we can't check the pool type from the Voter contract.
+// MUST stay in sync with every CLFactory address listed under chains[id=8453|10].contracts.CLFactory.address
+// in config.yaml — see test/Constants.test.ts ("VOTER_CLPOOLS_FACTORY_LIST (#769)").
 export const VOTER_CLPOOLS_FACTORY_LIST: string[] = [
-  "0x5e7BB104d84c7CB9B682AaC2F3d509f5F406809A", // base
-  "0xCc0bDDB707055e04e497aB22a59c2aF4391cd12F", // optimism
+  // base
+  "0x5e7BB104d84c7CB9B682AaC2F3d509f5F406809A",
+  "0xaDe65c38CD4849aDBA595a4323a8C7DdfE89716a",
+  "0x9592CD9B267748cbfBDe90Ac9F7DF3c437A6d51B",
+  "0xf8f2eB4940CFE7d13603DDDD87f123820Fc061Ef",
+  // optimism
+  "0x548118C7E0B865C2CfA94D15EC86B666468ac758",
+  "0xCc0bDDB707055e04e497aB22a59c2aF4391cd12F",
+  "0xe13Dd1fbA721Aa81a1826D9523AC9BC7d260c879",
 ].map((x) => toChecksumAddress(x));
 
 export const VOTER_NONCL_POOLS_FACTORY_LIST: string[] = [

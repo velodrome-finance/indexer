@@ -1,6 +1,9 @@
+import fs from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   CHAIN_CONSTANTS,
+  VOTER_CLPOOLS_FACTORY_LIST,
   nfpmForCLPool,
   toChecksumAddress,
 } from "../src/Constants";
@@ -152,4 +155,60 @@ describe("oracle.v1v2ConnectorBlacklist (#688)", () => {
       }
     }
   });
+});
+
+describe("VOTER_CLPOOLS_FACTORY_LIST (#769)", () => {
+  // Voter.GaugeCreated branches on whether the emitting poolFactory is in
+  // VOTER_CLPOOLS_FACTORY_LIST. Any CLFactory wired into config.yaml but
+  // missing here causes the indexer to silently drop CLGauge Deposit/Withdraw
+  // events and drift stakedReserve0/1 negative — see issue #769.
+  function clFactoryAddressesFromConfigYaml(chainId: number): string[] {
+    const configPath = path.resolve(__dirname, "..", "config.yaml");
+    const lines = fs.readFileSync(configPath, "utf8").split("\n");
+
+    const chainHeaderRe = /^ {2}- id:\s*(\d+)/;
+    const contractNameRe = /^ {6}- name:\s*(\S+)/;
+    const bulletRe = /^ {10}- (0x[0-9a-fA-F]+)/;
+
+    let inChain = false;
+    let inCLFactory = false;
+    const collected: string[] = [];
+
+    for (const line of lines) {
+      const chainMatch = line.match(chainHeaderRe);
+      if (chainMatch) {
+        inChain = Number(chainMatch[1]) === chainId;
+        inCLFactory = false;
+        continue;
+      }
+      if (!inChain) continue;
+
+      const nameMatch = line.match(contractNameRe);
+      if (nameMatch) {
+        inCLFactory = nameMatch[1] === "CLFactory";
+        continue;
+      }
+
+      if (inCLFactory) {
+        const addrMatch = line.match(bulletRe);
+        if (addrMatch) collected.push(toChecksumAddress(addrMatch[1]));
+      }
+    }
+
+    return collected;
+  }
+
+  it.each([
+    [10, "Optimism"],
+    [8453, "Base"],
+  ])(
+    "covers every CLFactory address from config.yaml chain %s (%s)",
+    (chainId) => {
+      const expected = clFactoryAddressesFromConfigYaml(chainId as number);
+      expect(expected.length).toBeGreaterThan(0);
+      for (const address of expected) {
+        expect(VOTER_CLPOOLS_FACTORY_LIST).toContain(address);
+      }
+    },
+  );
 });
