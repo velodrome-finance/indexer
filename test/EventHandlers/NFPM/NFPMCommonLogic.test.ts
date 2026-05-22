@@ -252,8 +252,12 @@ describe("NFPMCommonLogic", () => {
   });
 
   describe("updateStakedPositionLiquidity", () => {
-    const { mockLiquidityPoolData, mockToken0Data, mockToken1Data } =
-      setupCommon();
+    const {
+      createMockUserStatsPerPool,
+      mockLiquidityPoolData,
+      mockToken0Data,
+      mockToken1Data,
+    } = setupCommon();
 
     const stakedPosition: NonFungiblePosition = {
       ...mockPosition,
@@ -385,14 +389,13 @@ describe("NFPMCommonLogic", () => {
       vi.mocked(deriveStakedLiquidityInRange).mockReturnValue(6000n);
       vi.mocked(loadOrCreateUserData).mockReset();
       vi.mocked(updateUserStatsPerPool).mockReset();
-      const mockUserData = {
+      const mockUserData = createMockUserStatsPerPool({
         userAddress: stakedPosition.owner,
-        poolAddress,
+        poolAddress: stakedPosition.pool,
         chainId,
         currentLiquidityStaked: 0n,
-      };
-      // biome-ignore lint/suspicious/noExplicitAny: minimal user-data shape for the mock
-      vi.mocked(loadOrCreateUserData).mockResolvedValue(mockUserData as any);
+      });
+      vi.mocked(loadOrCreateUserData).mockResolvedValue(mockUserData);
 
       await updateStakedPositionLiquidity(
         stakedPosition,

@@ -112,6 +112,9 @@ export async function attributeLiquidityChangeToUserStatsPerPool(
  * @param timestamp - Block timestamp
  * @param chainId - Chain ID
  * @param blockNumber - Block number
+ * @returns Promise that resolves once the pool's staked-tick edges, derived
+ *   stakedLiquidityInRange, staked reserves, and currentLiquidityStaked
+ *   counter are staged, alongside the staker's UserStatsPerPool counter.
  */
 export async function updateStakedPositionLiquidity(
   position: NonFungiblePosition,
