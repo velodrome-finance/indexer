@@ -1,4 +1,4 @@
-import type { Token } from "generated";
+import type { Token, handlerContext } from "generated";
 import { calculateTokenAmountUSD } from "./Helpers";
 import { isBlacklistedToken } from "./PriceOverrides";
 
@@ -121,15 +121,31 @@ export function getGateDecisionFromSignals(
 }
 
 /**
- * Gate decision from a Token entity. Thin wrapper over
- * {@link getGateDecisionFromSignals} for callers that already have a Token
- * loaded (typically aggregator paths in slice 3+).
+ * Gate decision from a Token entity, with an optional defensive heal-on-read
+ * (#762). Thin wrapper over {@link getGateDecisionFromSignals} for callers
+ * that already have a Token loaded.
+ *
+ * When `context` is provided and the Token's stored
+ * `priceTrustOutcome` / `priceTrustReason` disagree with the freshly-computed
+ * decision, the corrected entity is persisted via `context.Token.set`. This
+ * self-heals tokens stuck in the desync state described in #761 on the
+ * current deployment without requiring a re-replay. When `context` is
+ * omitted, the function is pure-read — useful for aggregator unit tests and
+ * any caller that does not want the implicit Token.set side effect.
+ *
+ * Idempotent: a token whose stored fields already match live signals
+ * triggers no write.
  *
  * @param token - Token entity. Undefined is reported as `NON_WL` (no
- *   whitelist attestation exists).
- * @returns `{ trusted, reason }` decision
+ *   whitelist attestation exists) and never triggers a heal write.
+ * @param context - Optional handler context. When provided, drift detected
+ *   between stored and freshly-computed gate fields is corrected in-place.
+ * @returns `{ trusted, outcome, reason }` decision derived from live signals
  */
-export function getGateDecision(token: Token | undefined): PriceTrustDecision {
+export function getGateDecision(
+  token: Token | undefined,
+  context?: handlerContext,
+): PriceTrustDecision {
   if (!token) {
     return {
       trusted: false,
@@ -137,9 +153,21 @@ export function getGateDecision(token: Token | undefined): PriceTrustDecision {
       reason: PRICE_TRUST_REASON.NON_WL,
     };
   }
-  return getGateDecisionFromSignals(
+  const fresh = getGateDecisionFromSignals(
     token.chainId,
     token.address,
     token.isWhitelisted,
   );
+  if (
+    context &&
+    (token.priceTrustOutcome !== fresh.outcome ||
+      token.priceTrustReason !== fresh.reason)
+  ) {
+    context.Token.set({
+      ...token,
+      priceTrustOutcome: fresh.outcome,
+      priceTrustReason: fresh.reason,
+    });
+  }
+  return fresh;
 }
