@@ -90,6 +90,21 @@ export async function attributeLiquidityChangeToUserStatsPerPool(
  * Updates the aggregator's staked-tick edge list and pool staked reserves when
  * a staked position's liquidity changes (IncreaseLiquidity or DecreaseLiquidity).
  *
+ * Also mirrors `liquidityDelta` onto the running `currentLiquidityStaked`
+ * counter on Pool and the staker's UserStatsPerPool (issue #780). Without
+ * this, the next gauge Withdraw arrives with `liquidityToStake =
+ * position.liquidity` reflecting in-flight Increase/Decrease deltas, while the
+ * indexer's running counter only received the original Deposit amount; the
+ * Withdraw guard at `GaugeSharedLogic.ts:419` then underflows and the edges
+ * decrement is dropped, leaving phantom positive residue in
+ * `stakedTickEdges`/`stakedTickEdgeNets` that swap re-derives forever.
+ *
+ * Position.owner is the real staker, not the gauge: `handleRegularTransfer`
+ * skips owner updates on gauge stake/unstake transfers (see
+ * `NFPMTransferLogic.ts:300-318`), so `loadOrCreateUserData(position.owner)`
+ * resolves the UserStatsPerPool that `processGaugeDeposit` originally
+ * incremented.
+ *
  * @param position - The NonFungiblePosition being modified
  * @param poolData - Pool data with liquidityPoolAggregator and token instances
  * @param liquidityDelta - Positive for increase, negative for decrease
@@ -97,6 +112,9 @@ export async function attributeLiquidityChangeToUserStatsPerPool(
  * @param timestamp - Block timestamp
  * @param chainId - Chain ID
  * @param blockNumber - Block number
+ * @returns Promise that resolves once the pool's staked-tick edges, derived
+ *   stakedLiquidityInRange, staked reserves, and currentLiquidityStaked
+ *   counter are staged, alongside the staker's UserStatsPerPool counter.
  */
 export async function updateStakedPositionLiquidity(
   position: NonFungiblePosition,
@@ -145,6 +163,22 @@ export async function updateStakedPositionLiquidity(
     stakedTickEdgeNets,
   );
 
+  // Issue #780: load and update the staker's UserStatsPerPool in parallel
+  // with the pool update so the gauge Withdraw guard's user-side check stays
+  // in sync. `position.owner` is the staker (not the gauge) because
+  // handleRegularTransfer skips owner updates on stake/unstake transfers.
+  const stakerUserData = await loadOrCreateUserData(
+    position.owner,
+    position.pool,
+    chainId,
+    context,
+    timestamp,
+  );
+  const userDiff = {
+    incrementalCurrentLiquidityStaked: liquidityDelta,
+    lastActivityTimestamp: timestamp,
+  };
+
   if (sqrtPriceX96 === 0n) {
     // Defensive fallback: since velodrome-finance/indexer#654 wired
     // CLPool.Initialize to populate sqrtPriceX96/tick on the aggregator, a
@@ -153,19 +187,29 @@ export async function updateStakedPositionLiquidity(
     // the edge-list update so the swap path has correct state once a price is
     // established, but skip the amount math that would otherwise produce
     // garbage from sqrtPriceX96=0.
-    await updatePool(
-      {
-        stakedTickEdges,
-        stakedTickEdgeNets,
-        stakedLiquidityInRange,
-        hasStakes,
-      },
-      liquidityPoolAggregator,
-      timestamp,
-      context,
-      chainId,
-      blockNumber,
-    );
+    await Promise.all([
+      updatePool(
+        {
+          incrementalCurrentLiquidityStaked: liquidityDelta,
+          stakedTickEdges,
+          stakedTickEdgeNets,
+          stakedLiquidityInRange,
+          hasStakes,
+        },
+        liquidityPoolAggregator,
+        timestamp,
+        context,
+        chainId,
+        blockNumber,
+      ),
+      updateUserStatsPerPool(
+        userDiff,
+        stakerUserData,
+        context,
+        timestamp,
+        poolData,
+      ),
+    ]);
     return;
   }
 
@@ -182,6 +226,7 @@ export async function updateStakedPositionLiquidity(
   const direction = liquidityDelta > 0n ? 1n : -1n;
 
   const stakedDiff = {
+    incrementalCurrentLiquidityStaked: liquidityDelta,
     stakedLiquidityInRange,
     incrementalStakedReserve0: direction * amount0,
     incrementalStakedReserve1: direction * amount1,
@@ -190,12 +235,21 @@ export async function updateStakedPositionLiquidity(
     hasStakes,
   };
 
-  await updatePool(
-    stakedDiff,
-    liquidityPoolAggregator,
-    timestamp,
-    context,
-    chainId,
-    blockNumber,
-  );
+  await Promise.all([
+    updatePool(
+      stakedDiff,
+      liquidityPoolAggregator,
+      timestamp,
+      context,
+      chainId,
+      blockNumber,
+    ),
+    updateUserStatsPerPool(
+      userDiff,
+      stakerUserData,
+      context,
+      timestamp,
+      poolData,
+    ),
+  ]);
 }
