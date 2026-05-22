@@ -1,5 +1,5 @@
 import type { Token, handlerContext } from "generated";
-import { CLGauge, MockDb } from "../../generated/src/TestHelpers.gen";
+import { CLGauge, MockDb, NFPM } from "../../generated/src/TestHelpers.gen";
 import {
   applyStakedPositionToEdges,
   deriveStakedLiquidityInRange,
@@ -511,10 +511,22 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
       // delegates to for staked positions, and bypassing the full event chain
       // keeps the test focused on the counter-update path the issue exposes.
       const setSpy = vi.fn();
+      // Issue #780: updateStakedPositionLiquidity now also touches the staker's
+      // UserStatsPerPool (Pool + user must move in lockstep for the gauge
+      // Withdraw guard). Mock the user-side entities so the path completes.
       const mockContext = {
         Pool: { set: setSpy },
         PoolSnapshot: { set: vi.fn() },
         Token: { get: vi.fn().mockResolvedValue(undefined) },
+        UserStatsPerPool: {
+          get: vi.fn().mockResolvedValue(undefined),
+          set: vi.fn(),
+        },
+        UserStatsPerPoolSnapshot: {
+          get: vi.fn().mockResolvedValue(undefined),
+          set: vi.fn(),
+          getWhere: vi.fn().mockResolvedValue([]),
+        },
         log: {
           error: vi.fn(),
           warn: vi.fn(),
@@ -675,6 +687,147 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
           postWithdraw.stakedTickEdgeNets,
         ),
       );
+      expect(postWithdraw.stakedLiquidityInRange).toBe(0n);
+    });
+
+    it("(g) [#780] Deposit + IncreaseLiquidity-while-staked + Withdraw round-trips counter and edges to zero", async () => {
+      // Reproduces the exact #780 mechanism from issue body:
+      // - Deposit at liquidity L0 → pool.currentLiquidityStaked = L0
+      // - NFPM.IncreaseLiquidity while staked bumps position.liquidity to L0+ΔL
+      // - Withdraw arrives with liquidityToStake = L0+ΔL (matches chain liquidity)
+      // - Pre-fix: pool.currentLiquidityStaked - (L0+ΔL) = -ΔL < 0n → guard fires,
+      //   edges decrement is dropped, stakedTickEdges/Nets pollute → stakedReserve0/1
+      //   leak forever (phantom positive residue scaling with ΔL).
+      // - Post-fix: updateStakedPositionLiquidity mirrors ΔL onto the counter so
+      //   the Withdraw guard passes and the round-trip balances to 0n.
+      let mockDb = MockDb.createMockDb();
+      const liquidityPool = createMockPool({
+        isCL: true,
+        gaugeAddress,
+        sqrtPriceX96: sqrtAt(0n),
+        tick: 0n,
+        hasStakes: false,
+        nfpmAddress: defaultNfpmAddress,
+      });
+      mockDb = mockDb.entities.Pool.set(liquidityPool);
+      mockDb = mockDb.entities.Token.set(mockToken0Data as Token);
+      mockDb = mockDb.entities.Token.set(mockToken1Data as Token);
+
+      const tickLower = -100n;
+      const tickUpper = 100n;
+      const initialLiquidity = 19_203_953_530_494n; // L0 from issue body's USDC/mooBIFI example
+      const increaseDelta = 141_500_788_681_522_563n; // ΔL from issue body
+      const tokenId = 31357n; // matches the issue body's example
+      mockDb = mockDb.entities.NonFungiblePosition.set(
+        createMockNonFungiblePosition({
+          tokenId,
+          nfpmAddress: defaultNfpmAddress,
+          pool: liquidityPool.poolAddress,
+          owner: userAddress,
+          tickLower,
+          tickUpper,
+          liquidity: initialLiquidity,
+          isStakedInGauge: false,
+        }),
+      );
+
+      // 1) Gauge Deposit at L0.
+      const depositEvent = CLGauge.Deposit.createMockEvent({
+        user: userAddress,
+        tokenId,
+        liquidityToStake: initialLiquidity,
+        mockEventData: {
+          srcAddress: gaugeAddress,
+          chainId,
+          block: {
+            number: 1,
+            timestamp: 1_700_000_000,
+            hash: `0x${"a".repeat(64)}`,
+          },
+        },
+      });
+      let resultDb = await mockDb.processEvents([depositEvent]);
+
+      const postDeposit = resultDb.entities.Pool.get(
+        PoolId(chainId, liquidityPool.poolAddress),
+      );
+      expect(postDeposit).toBeDefined();
+      if (!postDeposit) return;
+      expect(postDeposit.currentLiquidityStaked).toBe(initialLiquidity);
+
+      // 2) NFPM.IncreaseLiquidity while position is staked. Mirror the chain
+      // by bumping position.liquidity AND firing the IncreaseLiquidity event.
+      const positionAfterDeposit = resultDb.entities.NonFungiblePosition.get(
+        NonFungiblePositionId(chainId, defaultNfpmAddress, tokenId),
+      );
+      if (!positionAfterDeposit) throw new Error("position vanished");
+      // Gauge Deposit sets isStakedInGauge=true via NFPMTransfer in the real
+      // pipeline; here we set it explicitly to mirror that state.
+      resultDb = resultDb.entities.NonFungiblePosition.set({
+        ...positionAfterDeposit,
+        isStakedInGauge: true,
+      });
+
+      const increaseEvent = NFPM.IncreaseLiquidity.createMockEvent({
+        tokenId,
+        liquidity: increaseDelta,
+        amount0: 0n,
+        amount1: 0n,
+        mockEventData: {
+          srcAddress: defaultNfpmAddress,
+          chainId,
+          block: {
+            number: 2,
+            timestamp: 1_700_010_000,
+            hash: `0x${"c".repeat(64)}`,
+          },
+        },
+      });
+      resultDb = await resultDb.processEvents([increaseEvent]);
+
+      const postIncrease = resultDb.entities.Pool.get(
+        PoolId(chainId, liquidityPool.poolAddress),
+      );
+      expect(postIncrease).toBeDefined();
+      if (!postIncrease) return;
+      // The #780 fix: pool counter MUST track in-flight liquidity changes
+      // so the next Withdraw guard does not underflow.
+      expect(postIncrease.currentLiquidityStaked).toBe(
+        initialLiquidity + increaseDelta,
+      );
+
+      // 3) Withdraw arrives with liquidityToStake = position.liquidity =
+      // initialLiquidity + increaseDelta (mirroring how the gauge contract
+      // emits Withdraw with the chain-truth liquidity).
+      const withdrawEvent = CLGauge.Withdraw.createMockEvent({
+        user: userAddress,
+        tokenId,
+        liquidityToStake: initialLiquidity + increaseDelta,
+        mockEventData: {
+          srcAddress: gaugeAddress,
+          chainId,
+          block: {
+            number: 3,
+            timestamp: 1_700_100_000,
+            hash: `0x${"b".repeat(64)}`,
+          },
+        },
+      });
+      resultDb = await resultDb.processEvents([withdrawEvent]);
+
+      const postWithdraw = resultDb.entities.Pool.get(
+        PoolId(chainId, liquidityPool.poolAddress),
+      );
+      expect(postWithdraw).toBeDefined();
+      if (!postWithdraw) return;
+
+      // The round-trip must balance: counter = 0, edges empty, derive
+      // invariant holds. Pre-#780 this would leave the edge nets at +(L0+ΔL)
+      // and the counter at "L0 - (L0+ΔL) = guard fires, no decrement applied",
+      // leaving phantom edges and a stale counter forever.
+      expect(postWithdraw.currentLiquidityStaked).toBe(0n);
+      expect(postWithdraw.stakedTickEdges).toEqual([]);
+      expect(postWithdraw.stakedTickEdgeNets).toEqual([]);
       expect(postWithdraw.stakedLiquidityInRange).toBe(0n);
     });
   });

@@ -353,6 +353,11 @@ describe("NFPMCommonLogic", () => {
       );
       expect(updatePool).toHaveBeenCalledWith(
         {
+          // Issue #780: NFPM-mediated liquidity changes on a staked position
+          // must mirror onto the running currentLiquidityStaked counter so the
+          // gauge Withdraw guard's underflow check does not fire spuriously
+          // when Withdraw arrives with position.liquidity = Deposit + delta.
+          incrementalCurrentLiquidityStaked: 5000n,
           stakedLiquidityInRange: 6000n, // pinned by the derive mock
           incrementalStakedReserve0: 100n, // direction=+1 * 100
           incrementalStakedReserve1: 200n, // direction=+1 * 200
@@ -366,6 +371,52 @@ describe("NFPMCommonLogic", () => {
         chainId,
         blockNumber,
       );
+    });
+
+    it("[#780] should also mirror liquidityDelta onto the staker's UserStatsPerPool.currentLiquidityStaked", async () => {
+      // Issue #780: the gauge Withdraw guard at GaugeSharedLogic.ts:419
+      // checks BOTH pool and user newStake >= 0. Without the user-side
+      // mirror, an NFPM IncreaseLiquidity while staked would leave the
+      // user's currentLiquidityStaked at Deposit's amount while
+      // position.liquidity grew, and the subsequent Withdraw's guard would
+      // trip on the user side too. Position.owner is the real staker, not
+      // the gauge, because handleRegularTransfer skips owner updates on
+      // gauge stake/unstake transfers (see NFPMTransferLogic.ts:300-318).
+      vi.mocked(deriveStakedLiquidityInRange).mockReturnValue(6000n);
+      vi.mocked(loadOrCreateUserData).mockReset();
+      vi.mocked(updateUserStatsPerPool).mockReset();
+      const mockUserData = {
+        userAddress: stakedPosition.owner,
+        poolAddress,
+        chainId,
+        currentLiquidityStaked: 0n,
+      };
+      // biome-ignore lint/suspicious/noExplicitAny: minimal user-data shape for the mock
+      vi.mocked(loadOrCreateUserData).mockResolvedValue(mockUserData as any);
+
+      await updateStakedPositionLiquidity(
+        stakedPosition,
+        poolData,
+        5000n,
+        mockContext,
+        timestamp,
+        chainId,
+        blockNumber,
+      );
+
+      expect(loadOrCreateUserData).toHaveBeenCalledWith(
+        stakedPosition.owner,
+        stakedPosition.pool,
+        chainId,
+        mockContext,
+        timestamp,
+      );
+      expect(updateUserStatsPerPool).toHaveBeenCalledTimes(1);
+      const [userDiff] = vi.mocked(updateUserStatsPerPool).mock.calls[0];
+      expect(userDiff).toMatchObject({
+        incrementalCurrentLiquidityStaked: 5000n,
+        lastActivityTimestamp: timestamp,
+      });
     });
 
     it("should use negative direction for decrease (negative liquidityDelta)", async () => {
@@ -390,6 +441,10 @@ describe("NFPMCommonLogic", () => {
       );
       expect(updatePool).toHaveBeenCalledWith(
         {
+          // Issue #780: negative liquidityDelta must also flow through the
+          // running counter so DecreaseLiquidity-while-staked → Withdraw
+          // cycles balance the books on Pool + UserStatsPerPool too.
+          incrementalCurrentLiquidityStaked: -3000n,
           stakedLiquidityInRange: -2000n, // pinned by the derive mock (clamped at the aggregator)
           incrementalStakedReserve0: -100n, // direction=-1 * 100
           incrementalStakedReserve1: -200n, // direction=-1 * 200
@@ -429,6 +484,7 @@ describe("NFPMCommonLogic", () => {
       );
       expect(updatePool).toHaveBeenCalledWith(
         {
+          incrementalCurrentLiquidityStaked: 5000n, // #780: mirrored to counter
           stakedLiquidityInRange: 0n, // derived, not undefined
           incrementalStakedReserve0: 100n,
           incrementalStakedReserve1: 200n,
@@ -448,6 +504,9 @@ describe("NFPMCommonLogic", () => {
       // Pre-#719 the sqrt=0 path skipped the counter update entirely (so
       // pre-Initialize deposits drifted). Now the counter is derived even on
       // the sqrt=0 early-exit path so the aggregator stays consistent.
+      // Issue #780 also requires incrementalCurrentLiquidityStaked on this
+      // path so the Withdraw guard balances even if the pool was never
+      // Initialize'd in the indexed range.
       vi.mocked(deriveStakedLiquidityInRange).mockReturnValue(42n);
 
       const poolDataZeroPrice: PoolData = {
@@ -473,6 +532,7 @@ describe("NFPMCommonLogic", () => {
       // state once the pool is initialized.
       expect(updatePool).toHaveBeenCalledWith(
         {
+          incrementalCurrentLiquidityStaked: 5000n, // #780: mirrored on sqrt=0 path too
           stakedTickEdges: [-200n, 200n],
           stakedTickEdgeNets: [5000n, -5000n],
           stakedLiquidityInRange: 42n, // derived even on sqrt=0 path (issue #719)
