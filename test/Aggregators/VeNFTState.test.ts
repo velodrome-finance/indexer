@@ -260,6 +260,73 @@ describe("VeNFTState", () => {
       });
     });
 
+    describe("locktime=0 ∧ !isPermanent ∧ isAlive invariant guard", () => {
+      it("warns when the final state violates the permanent-lock invariant", async () => {
+        const freshState: VeNFTState = {
+          ...mockVeNFTState,
+          locktime: 0n,
+          isPermanent: false,
+          isAlive: true,
+        };
+        const violatingDiff = {
+          // Mirrors the pre-fix one-shot permanent-create pathology: a Deposit
+          // landing locktime=0 without inferring isPermanent.
+          locktime: 0n,
+          incrementalTotalValueLocked: 100n,
+          isAlive: true,
+        };
+
+        await updateVeNFTState(
+          violatingDiff,
+          freshState,
+          timestamp,
+          mockContext as handlerContext,
+        );
+
+        expect(mockContext.log?.warn).toHaveBeenCalledWith(
+          expect.stringContaining("[VENFT_LOCKSTATE_INVARIANT]"),
+        );
+      });
+
+      it("does not warn when the lock is a valid permanent (locktime=0 ∧ isPermanent)", async () => {
+        const permanentState: VeNFTState = {
+          ...mockVeNFTState,
+          locktime: 0n,
+          isPermanent: true,
+          isAlive: true,
+        };
+        const incrementOnly = { incrementalTotalValueLocked: 5n };
+
+        await updateVeNFTState(
+          incrementOnly,
+          permanentState,
+          timestamp,
+          mockContext as handlerContext,
+        );
+
+        expect(mockContext.log?.warn).not.toHaveBeenCalled();
+      });
+
+      it("does not warn when the lock is dead (locktime=0 ∧ !isAlive)", async () => {
+        const burnedState: VeNFTState = {
+          ...mockVeNFTState,
+          locktime: 0n,
+          isPermanent: false,
+          isAlive: false,
+        };
+        const noopDiff = {};
+
+        await updateVeNFTState(
+          noopDiff,
+          burnedState,
+          timestamp,
+          mockContext as handlerContext,
+        );
+
+        expect(mockContext.log?.warn).not.toHaveBeenCalled();
+      });
+    });
+
     describe("when updating with burn diff", () => {
       let result: VeNFTState;
       beforeEach(async () => {

@@ -74,5 +74,19 @@ export async function updateVeNFTState(
     };
   }
 
+  // Defensive invariant guard: by VotingEscrow semantics, locktime=0 is only
+  // valid for permanent locks. An alive non-permanent lock must have
+  // locktime > now. If we ever land in the impossible state, surface it so
+  // monitoring catches future regressions (see #776).
+  if (
+    veNFTState.locktime === 0n &&
+    !veNFTState.isPermanent &&
+    veNFTState.isAlive
+  ) {
+    context.log.warn(
+      `[VENFT_LOCKSTATE_INVARIANT] VeNFTState ${veNFTState.id} ended with locktime=0, isPermanent=false, isAlive=true`,
+    );
+  }
+
   context.VeNFTState.set(veNFTState);
 }

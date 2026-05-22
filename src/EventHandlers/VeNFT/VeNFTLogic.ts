@@ -29,6 +29,14 @@ import {
  * Processes a VeNFT Deposit event: updates the VeNFTState with the new locktime,
  * adds the deposited value to totalValueLocked, sets isAlive to true, and refreshes lastUpdatedTimestamp.
  *
+ * When `event.params.locktime === 0n`, the deposit is a permanent-lock create or an
+ * increase_amount on an already-permanent lock — by `VotingEscrow` semantics
+ * `end = 0` is only valid for permanent locks. We infer `isPermanent: true` so
+ * the one-shot `Transfer` + `Deposit(locktime=0)` flow (no separate `LockPermanent`)
+ * does not leave the entity in the impossible `locktime=0 ∧ !isPermanent ∧ isAlive`
+ * state. For `locktime > 0n` we leave the field undefined so the aggregator
+ * preserves the existing value.
+ *
  * @param event - The VeNFT Deposit event payload (locktime, value).
  * @param currentVeNFTState - The existing VeNFTState entity for this token.
  * @param context - Handler context for storage and logging.
@@ -45,6 +53,7 @@ export async function processVeNFTDeposit(
     locktime: event.params.locktime,
     incrementalTotalValueLocked: event.params.value,
     isAlive: true,
+    isPermanent: event.params.locktime === 0n ? true : undefined,
     lastUpdatedTimestamp: timestamp,
   };
 

@@ -109,9 +109,80 @@ describe("VeNFTLogic", () => {
           locktime: 200n,
           incrementalTotalValueLocked: 50n,
           isAlive: true,
+          isPermanent: undefined,
           lastUpdatedTimestamp: timestamp,
         },
         mockVeNFTState,
+        timestamp,
+        mockContext,
+      );
+    });
+
+    it("infers isPermanent=true on permanent-create (locktime=0) for a fresh entity", async () => {
+      const event = {
+        ...createMockDepositEvent(),
+        params: {
+          ...createMockDepositEvent().params,
+          locktime: 0n,
+        },
+      } as VeNFT_Deposit_event;
+      const timestamp = new Date(event.block.timestamp * 1000);
+      const freshState: VeNFTState = {
+        ...mockVeNFTState,
+        locktime: 0n,
+        isPermanent: false,
+        totalValueLocked: 0n,
+      };
+      const updateSpy = vi
+        .spyOn(VeNFTStateAggregator, "updateVeNFTState")
+        .mockResolvedValue(undefined);
+
+      await VeNFTLogic.processVeNFTDeposit(event, freshState, mockContext);
+
+      expect(updateSpy).toHaveBeenCalledWith(
+        {
+          locktime: 0n,
+          incrementalTotalValueLocked: 50n,
+          isAlive: true,
+          isPermanent: true,
+          lastUpdatedTimestamp: timestamp,
+        },
+        freshState,
+        timestamp,
+        mockContext,
+      );
+    });
+
+    it("keeps isPermanent=true when an increase_amount Deposit fires on an already-permanent lock", async () => {
+      const event = {
+        ...createMockDepositEvent(),
+        params: {
+          ...createMockDepositEvent().params,
+          locktime: 0n,
+          value: 25n,
+        },
+      } as VeNFT_Deposit_event;
+      const timestamp = new Date(event.block.timestamp * 1000);
+      const permanentState: VeNFTState = {
+        ...mockVeNFTState,
+        locktime: 0n,
+        isPermanent: true,
+      };
+      const updateSpy = vi
+        .spyOn(VeNFTStateAggregator, "updateVeNFTState")
+        .mockResolvedValue(undefined);
+
+      await VeNFTLogic.processVeNFTDeposit(event, permanentState, mockContext);
+
+      expect(updateSpy).toHaveBeenCalledWith(
+        {
+          locktime: 0n,
+          incrementalTotalValueLocked: 25n,
+          isAlive: true,
+          isPermanent: true,
+          lastUpdatedTimestamp: timestamp,
+        },
+        permanentState,
         timestamp,
         mockContext,
       );
