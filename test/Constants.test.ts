@@ -114,13 +114,22 @@ describe("oracle.v1v2ConnectorBlacklist (#688)", () => {
     expect(set.has("0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34")).toBe(false);
   });
 
-  it("populates Mode and Fraxtal V2 poison sets with oUSDT", () => {
+  it("populates the Mode V2 poison set with oUSDT", () => {
     expect(
       CHAIN_CONSTANTS[34443].oracle.v1v2ConnectorBlacklist.has(OUSDT),
     ).toBe(true);
-    expect(CHAIN_CONSTANTS[252].oracle.v1v2ConnectorBlacklist.has(OUSDT)).toBe(
-      true,
-    );
+  });
+
+  it("leaves Fraxtal's V2 blacklist empty after dropping oUSDT (#764)", () => {
+    // Fraxtal no longer lists 0x1217… as a price connector — the contract at
+    // that address on Fraxtal is not canonical oUSDT — so there is nothing
+    // for the V1/V2 blacklist to strip.
+    expect(CHAIN_CONSTANTS[252].oracle.v1v2ConnectorBlacklist.size).toBe(0);
+    expect(
+      CHAIN_CONSTANTS[252].oracle.priceConnectors.some(
+        (c) => c.address === OUSDT,
+      ),
+    ).toBe(false);
   });
 
   it("leaves V3-only chains with an empty blacklist", () => {
