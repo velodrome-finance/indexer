@@ -1,12 +1,6 @@
 import type { Token, handlerContext } from "generated";
 import { estimateBlockAtTimestamp } from "./ChainBlockTime";
-import {
-  CHAIN_CONSTANTS,
-  MS_IN_AN_HOUR,
-  PriceOracleType,
-  TEN_TO_THE_18_BI,
-  TokenId,
-} from "./Constants";
+import { MS_IN_AN_HOUR, TEN_TO_THE_18_BI, TokenId } from "./Constants";
 import {
   getTokenDetails,
   getTokenPrice,
@@ -117,9 +111,10 @@ export async function createTokenEntity(
  *   event for stuck tokens.
  * - `lastSuccessfulPriceTimestamp` advances ONLY when a non-zero price is
  *   persisted (main oracle write or rebind with a priced source). It drives
- *   the 7-day staleness window guarding the V3 last-known-price fallback —
+ *   the 7-day staleness window guarding the last-known-price fallback —
  *   so once a token enters fallback, the window can actually expire even
- *   with hourly retries.
+ *   with hourly retries. The fallback covers every oracle generation
+ *   (#775 extended it from V3-only to V1/V2 too).
  *
  * @param token - The token entity to refresh.
  * @param blockNumber - Block at which to fetch price (rounded to an hourly bucket for cache hits).
@@ -328,15 +323,14 @@ export async function refreshTokenPrice(
       blockTimestampMs - healed.lastSuccessfulPriceTimestamp.getTime() <
         7 * 24 * 60 * 60 * 1000;
 
-    // V3 last-known-price fallback: V3 is the modern, mostly-reliable oracle,
-    // but does throw transient $0 reads. Earlier V1/V2 windows are short and
-    // unreliable enough that fallback there would mask real failures, so we
-    // only trust the stored price as a substitute when V3 is the active oracle.
-    if (
-      shouldUseLastKnownPrice &&
-      CHAIN_CONSTANTS[chainId].oracle.getType(blockNumber) ===
-        PriceOracleType.V3
-    ) {
+    // Last-known-price fallback: every oracle generation throws transient $0
+    // reads (V3 from on-chain reverts; V1/V2 additionally when the RpcGateway
+    // returns its `{pricePerUSDNew: 0n, usedDefault: true}` fallback constant
+    // on RPC outage). Preserve a fresh anchor across any of those cases. The
+    // 7-day window on `lastSuccessfulPriceTimestamp` (#694) still bounds how
+    // long we'll pin a stale value. Originally gated to V3 only (#694); the
+    // V1/V2 exposure was confirmed in #775 (~$250M of Optimism volume zeroed).
+    if (shouldUseLastKnownPrice) {
       const updatedToken: Token = {
         ...healed,
         lastUpdatedTimestamp: new Date(blockTimestampMs),
