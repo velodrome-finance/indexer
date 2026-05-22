@@ -66,9 +66,16 @@ export const VOTER_NONCL_POOLS_FACTORY_LIST: string[] = [
 ].map((x) => toChecksumAddress(x));
 
 // Note:
-// These pools factories addresses are hardcoded since we can't check the pool type from the Voter contract
+// These pools factories addresses are hardcoded since we can't check the pool type
+// from the SuperchainLeafVoter contract.
+// MUST stay in sync with every CLFactory address listed under each superchain leaf
+// chain's contracts.CLFactory.address in config.yaml — see test/Constants.test.ts
+// ("config.yaml ↔ Constants.ts factory parity (#770, subsumes #769)").
+// Missing entries cause SuperchainLeafVoter.GaugeCreated to silently drop the gauge
+// from dynamic registration (same #769-class drift that hit VOTER_CLPOOLS_FACTORY_LIST).
 export const SUPERCHAIN_LEAF_VOTER_CLPOOLS_FACTORY_LIST: string[] = [
-  "0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F", // All superchain chains have this address
+  "0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F", // Slipstream V1 — all superchain leaves
+  "0x718E46d0962A66942E233760a8bd6038Ce54EdCD", // Slipstream gauge-V2 — all superchain leaves (added in #727)
 ].map((x) => toChecksumAddress(x));
 
 export const SUPERCHAIN_LEAF_VOTER_NONCL_POOLS_FACTORY_LIST: string[] = [
@@ -100,11 +107,13 @@ const CL_FACTORY_TO_NFPM: Record<string, string> = {
     toChecksumAddress("0x416b433906b1B72FA758e166e239c43d68dC6F29"),
 
   // Base — three CLFactories each with a dedicated NFPM, verified on-chain via
-  // NFPM.factory(). The newest Base CLFactory (0xf8f2eB49...) does not yet have
-  // a paired NFPM deployed, so pools from it fall through to null — this will
-  // resolve itself once a new NFPM is deployed and added here.
-  // TODO(nfpm): add Base V3-newest NFPM for 0xf8f2eB4940CFE7d13603DDDD87f123820Fc061Ef
-  //             once that factory ships with a paired NFPM.
+  // NFPM.factory(). Pools created by an unmapped factory fall through to null.
+  // TODO(nfpm): RPC-verify NFPM.factory() and add mappings for:
+  //   - 10-0xe13Dd1fbA721Aa81a1826D9523AC9BC7d260c879   (OP slipstream gauge-V2 CLFactory, likely 0xf7f8ccce…)
+  //   - 8453-0xf8f2eB4940CFE7d13603DDDD87f123820Fc061Ef (Base V3-newest CLFactory, paired NFPM in config.yaml is 0xe1f8cd9A…)
+  // Both are also whitelisted in test/Constants.test.ts "config.yaml ↔ Constants.ts
+  // factory parity (#770)" so the parity assertion passes — remove from that whitelist
+  // when the mappings land here.
   [`8453-${toChecksumAddress("0x5e7BB104d84c7CB9B682AaC2F3d509f5F406809A")}`]:
     toChecksumAddress("0x827922686190790b37229fd06084350E74485b72"),
   [`8453-${toChecksumAddress("0xaDe65c38CD4849aDBA595a4323a8C7DdfE89716a")}`]:
