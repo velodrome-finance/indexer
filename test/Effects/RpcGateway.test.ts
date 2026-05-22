@@ -598,4 +598,38 @@ describe("RpcGateway", () => {
       expect(a).toBe(b);
     });
   });
+
+  // Issue #763: USDe (0x5d3a1Ff2…) was registered with createdBlock=1, so the
+  // RpcGateway connector filter (c.createdBlock <= blockNumber) kept it in the
+  // V1 connector list for the entire Base pre-deploy window (3219857..15768547).
+  // The V1 oracle's path-finder then reverted on the empty USDe address, zeroing
+  // pricePerUSDNew for whitelisted Base tokens (TOSHI, DEGEN, BRETT, HIGHER, …)
+  // during Aug 2023 → Mar 2024. This test locks the createdBlock fix in place.
+  describe("Base price_connectors USDe deploy-block gate (#763)", () => {
+    const BASE_CHAIN_ID = 8453;
+    const USDE_ADDRESS = toChecksumAddress(
+      "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
+    );
+    const USDE_DEPLOY_BLOCK = 15768548;
+    const PRE_DEPLOY_BLOCK = 15293733;
+
+    const filteredAddresses = (blockNumber: number) =>
+      CHAIN_CONSTANTS[BASE_CHAIN_ID].oracle.priceConnectors
+        .filter((c) => c.createdBlock <= blockNumber)
+        .map((c) => c.address);
+
+    it("strips USDe from connectors at a Base pre-deploy block", () => {
+      expect(filteredAddresses(PRE_DEPLOY_BLOCK)).not.toContain(USDE_ADDRESS);
+    });
+
+    it("strips USDe one block before its deploy block", () => {
+      expect(filteredAddresses(USDE_DEPLOY_BLOCK - 1)).not.toContain(
+        USDE_ADDRESS,
+      );
+    });
+
+    it("includes USDe at its deploy block and after", () => {
+      expect(filteredAddresses(USDE_DEPLOY_BLOCK)).toContain(USDE_ADDRESS);
+    });
+  });
 });
