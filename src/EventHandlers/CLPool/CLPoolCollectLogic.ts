@@ -84,13 +84,21 @@ export async function processCLPoolCollect(
     tracker?.pendingPrincipal1 ?? 0n,
   );
 
-  // Update tracker with remaining principal (or clean up if fully drained)
+  // Update tracker with remaining principal, or delete it once fully drained so
+  // exhausted positions don't linger as dormant 0/0 rows (#789). A missing row
+  // reads back as 0 via `tracker?.pendingPrincipal0 ?? 0n`, so deletion is
+  // functionally identical to a 0/0 row, and a later Burn on the same identity
+  // re-creates the tracker from 0.
   if (tracker) {
-    context.CLPositionPendingPrincipal.set({
-      ...tracker,
-      pendingPrincipal0: remaining0,
-      pendingPrincipal1: remaining1,
-    });
+    if (remaining0 === 0n && remaining1 === 0n) {
+      context.CLPositionPendingPrincipal.deleteUnsafe(trackerId);
+    } else {
+      context.CLPositionPendingPrincipal.set({
+        ...tracker,
+        pendingPrincipal0: remaining0,
+        pendingPrincipal1: remaining1,
+      });
+    }
   }
 
   // Fee USD from fee-only amounts; calculateTotalUSD is trust-gated (#755),
