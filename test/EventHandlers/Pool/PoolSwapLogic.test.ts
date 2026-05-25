@@ -65,13 +65,13 @@ describe("PoolSwapLogic", () => {
         lastActivityTimestamp: new Date(1000000 * 1000),
       });
 
-      // Verify liquidity pool diff content
+      // Verify liquidity pool diff content. token0Price/token1Price are NOT
+      // asserted here: the Swap handler no longer writes the pool-internal ratio
+      // (Sync owns it, derived from reserves — #783).
       expect(result.liquidityPoolDiff).toMatchObject({
         incrementalTotalVolume0: 1000n, // netAmount0 (diff) - amount0In + amount0Out = 1000 + 0
         incrementalTotalVolume1: 500n, // netAmount1 (diff) - amount1In + amount1Out = 0 + 500
         incrementalNumberOfSwaps: 1n, // diff
-        token0Price: 1000000000000000000n, // from mockToken0.pricePerUSDNew
-        token1Price: 1000000000000000000n, // from mockToken1.pricePerUSDNew
       });
 
       // Check timestamp separately
@@ -145,20 +145,20 @@ describe("PoolSwapLogic", () => {
       // "Any whitelisted" rule — consistent with calculateWhitelistedFeesUSD
     });
 
-    it("should update token prices correctly", () => {
-      const updatedToken0 = {
+    it("does not write token0Price/token1Price — the pool-internal ratio is owned by the Sync handler (#783)", () => {
+      // A V2 swap always triggers _update → Sync in the same tx, and Sync
+      // derives the ratio from reserves. The Swap handler must NOT echo token
+      // oracle prices into the ratio, or an arbitrarily mispriced token would
+      // re-inflate it (the #783 bug). Even a 1e35 oracle price is ignored.
+      const corruptedToken0 = {
         ...mockToken0,
-        pricePerUSDNew: 2000000000000000000n,
-      }; // 2 USD
-      const updatedToken1 = {
-        ...mockToken1,
-        pricePerUSDNew: 3000000000000000000n,
-      }; // 3 USD
+        pricePerUSDNew: 100000000000000000000000000000000000n, // 1e35
+      };
 
-      const result = processPoolSwap(mockEvent, updatedToken0, updatedToken1);
+      const result = processPoolSwap(mockEvent, corruptedToken0, mockToken1);
 
-      expect(result.liquidityPoolDiff?.token0Price).toBe(2000000000000000000n);
-      expect(result.liquidityPoolDiff?.token1Price).toBe(3000000000000000000n);
+      expect(result.liquidityPoolDiff).not.toHaveProperty("token0Price");
+      expect(result.liquidityPoolDiff).not.toHaveProperty("token1Price");
     });
   });
 

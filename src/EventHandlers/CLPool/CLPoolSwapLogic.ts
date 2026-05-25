@@ -10,6 +10,7 @@ import {
   pickTrustedSwapVolumeUSD,
 } from "../../Helpers";
 import { abs } from "../../Maths";
+import { deriveCLPriceRatios, pickPriceRatios } from "../../PoolPriceRatio";
 import { getTrustedUSD } from "../../PriceTrust";
 
 // Issue #733 / regression of #670: fees USD must respect the fundamental AMM
@@ -298,6 +299,22 @@ export async function processCLPoolSwap(
       liquidityPoolAggregator.stakedTickEdgeNets,
     );
 
+  // token0Price/token1Price are the pool-internal exchange rate, derived from
+  // the swap's post-trade sqrtPriceX96 — NOT from token oracle prices. This
+  // keeps the ratio oracle-independent so a mispriced token (e.g. a non-WL
+  // scam token) can no longer inflate it without bound (#783). pickPriceRatios
+  // falls back to the last-known ratio per leg when decimals are unavailable.
+  const priceRatios = pickPriceRatios(
+    token0Instance && token1Instance
+      ? deriveCLPriceRatios(
+          event.params.sqrtPriceX96,
+          token0Instance.decimals,
+          token1Instance.decimals,
+        )
+      : { token0Price: 0n, token1Price: 0n },
+    liquidityPoolAggregator,
+  );
+
   // Build complete liquidity pool aggregator diff
   const liquidityPoolDiff = {
     incrementalTotalVolume0: abs(event.params.amount0),
@@ -306,14 +323,8 @@ export async function processCLPoolSwap(
     incrementalTotalFeesGenerated0: swapFeesInToken0,
     incrementalTotalFeesGenerated1: swapFeesInToken1,
     incrementalTotalFeesGeneratedUSD: swapFeesInUSD,
-    // Token-price snapshots record observed state at this event, not a USD
-    // aggregate, so they are intentionally NOT routed through the #755 trust
-    // gate (see PriceTrust.ts). The downstream aggregate sites — volumeUSD,
-    // feesUSD, emissionsUSD, votesDepositedUSD, totalLiquidityUSD — are gated.
-    token0Price:
-      token0Instance?.pricePerUSDNew ?? liquidityPoolAggregator.token0Price,
-    token1Price:
-      token1Instance?.pricePerUSDNew ?? liquidityPoolAggregator.token1Price,
+    token0Price: priceRatios.token0Price,
+    token1Price: priceRatios.token1Price,
     incrementalNumberOfSwaps: 1n,
     incrementalReserve0: reserveDelta0,
     incrementalReserve1: reserveDelta1,

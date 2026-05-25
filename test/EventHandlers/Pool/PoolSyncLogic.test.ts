@@ -2,6 +2,7 @@ import type { Pool_Sync_event, Token, handlerContext } from "generated";
 import { toChecksumAddress } from "../../../src/Constants";
 import type { Pool } from "../../../src/EntityTypes";
 import { processPoolSync } from "../../../src/EventHandlers/Pool/PoolSyncLogic";
+import { deriveV2PriceRatios } from "../../../src/PoolPriceRatio";
 import { setupCommon } from "./common";
 
 describe("PoolSyncLogic", () => {
@@ -96,8 +97,9 @@ describe("PoolSyncLogic", () => {
       expect(result.liquidityPoolDiff).toMatchObject({
         incrementalReserve0: 500n, // 1000n - 500n (incremental change)
         incrementalReserve1: 1000n, // 2000n - 1000n (incremental change)
-        token0Price: 1000000000000000000n,
-        token1Price: 2000000000000000000n,
+        // Derived from reserves (reserve0=1000 @6dp, reserve1=2000 @18dp), #783.
+        token0Price: 2000000n,
+        token1Price: 500000000000000000000000000000n,
       });
       expect(result.liquidityPoolDiff?.lastUpdatedTimestamp).toEqual(
         new Date(1000000 * 1000),
@@ -201,28 +203,39 @@ describe("PoolSyncLogic", () => {
       });
     });
 
-    it("should update token prices correctly", () => {
-      const mockToken0WithNewPrice = {
-        ...mockToken0,
-        pricePerUSDNew: 1500000000000000000n, // 1.5 USD
-      };
-
-      const mockToken1WithNewPrice = {
-        ...mockToken1,
-        pricePerUSDNew: 2500000000000000000n, // 2.5 USD
-      };
-
-      const result = processPoolSync(
-        mockEvent,
-        mockPool,
-        mockToken0WithNewPrice,
-        mockToken1WithNewPrice,
+    it("derives token0Price/token1Price from reserves, ignoring token oracle prices (#783)", () => {
+      // The ratios must equal the pure derivation from the synced reserves,
+      // not either token's oracle price.
+      const expected = deriveV2PriceRatios(
+        mockEvent.params.reserve0,
+        mockEvent.params.reserve1,
+        mockToken0.decimals,
+        mockToken1.decimals,
       );
 
-      expect(result.liquidityPoolDiff).toMatchObject({
-        token0Price: 1500000000000000000n,
-        token1Price: 2500000000000000000n,
-      });
+      const baseline = processPoolSync(
+        mockEvent,
+        mockPool,
+        mockToken0,
+        mockToken1,
+      );
+      expect(baseline.liquidityPoolDiff.token0Price).toBe(expected.token0Price);
+      expect(baseline.liquidityPoolDiff.token1Price).toBe(expected.token1Price);
+
+      // An arbitrarily mispriced token (EARN-style oracle inflation) must not
+      // move the pool-internal ratio.
+      const mispricedResult = processPoolSync(
+        mockEvent,
+        mockPool,
+        { ...mockToken0, pricePerUSDNew: 10n ** 40n },
+        mockToken1,
+      );
+      expect(mispricedResult.liquidityPoolDiff.token0Price).toBe(
+        expected.token0Price,
+      );
+      expect(mispricedResult.liquidityPoolDiff.token1Price).toBe(
+        expected.token1Price,
+      );
     });
   });
 });

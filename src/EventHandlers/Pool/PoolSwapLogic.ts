@@ -30,17 +30,17 @@ export function processPoolSwap(
 
   const volumeInUSD = pickTrustedSwapVolumeUSD(token0UsdValue, token1UsdValue);
 
-  // Create liquidity pool diff
+  // Create liquidity pool diff.
+  //
+  // token0Price/token1Price (the pool-internal exchange rate) are intentionally
+  // NOT written here. A V2 swap always calls _update → emits Sync in the same
+  // tx, and processPoolSync derives the ratio from reserves (#783). Echoing the
+  // token oracle prices here would re-inflate the ratio whenever a token is
+  // mispriced — exactly the bug #783 fixes — so the field is left to Sync.
   const liquidityPoolDiff = {
     incrementalTotalVolume0: netAmount0,
     incrementalTotalVolume1: netAmount1,
     incrementalTotalVolumeUSD: volumeInUSD,
-    // Token-price snapshots record observed state at this event, not a USD
-    // aggregate, so they are intentionally NOT routed through the #755 trust
-    // gate (see PriceTrust.ts). The downstream aggregate sites — volumeUSD,
-    // feesUSD, emissionsUSD, votesDepositedUSD, totalLiquidityUSD — are gated.
-    token0Price: token0Instance.pricePerUSDNew,
-    token1Price: token1Instance.pricePerUSDNew,
     incrementalNumberOfSwaps: 1n,
     lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
   };
