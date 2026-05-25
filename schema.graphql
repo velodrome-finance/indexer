@@ -244,12 +244,12 @@ type UserStatsPerPool {
 
   # Liquidity metrics
   lpBalance: BigInt! @config(precision: 76) # user's LP token balance (tracked from Transfer events)
-  totalLiquidityAddedUSD: BigInt! @config(precision: 76) # cumulative USD value of liquidity added (from IncreaseLiquidity events and Transfer ADD attribution)
-  totalLiquidityAddedToken0: BigInt! @config(precision: 76) # cumulative raw token0 amount added (sum of event.params.amount0 from IncreaseLiquidity + Transfer ADD). May differ from removed due to price movement between deposit and withdrawal
-  totalLiquidityAddedToken1: BigInt! @config(precision: 76) # cumulative raw token1 amount added (sum of event.params.amount1 from IncreaseLiquidity + Transfer ADD). May differ from removed due to price movement between deposit and withdrawal
-  totalLiquidityRemovedUSD: BigInt! @config(precision: 76) # cumulative USD value of liquidity removed (from DecreaseLiquidity events and Transfer REMOVE attribution)
-  totalLiquidityRemovedToken0: BigInt! @config(precision: 76) # cumulative raw token0 amount removed (sum of event.params.amount0 from DecreaseLiquidity + Transfer REMOVE). Can exceed totalLiquidityAddedToken0 due to price movement (impermanent loss rebalancing)
-  totalLiquidityRemovedToken1: BigInt! @config(precision: 76) # cumulative raw token1 amount removed (sum of event.params.amount1 from DecreaseLiquidity + Transfer REMOVE). Can exceed totalLiquidityAddedToken1 due to price movement (impermanent loss rebalancing)
+  totalLiquidityAddedUSD: BigInt! @config(precision: 76) # cumulative USD value of liquidity added (from IncreaseLiquidity events, Transfer ADD attribution, and direct non-NFPM CLPool.Mint)
+  totalLiquidityAddedToken0: BigInt! @config(precision: 76) # cumulative raw token0 amount added (sum of event.params.amount0 from IncreaseLiquidity + Transfer ADD + direct non-NFPM CLPool.Mint). May differ from removed due to price movement between deposit and withdrawal
+  totalLiquidityAddedToken1: BigInt! @config(precision: 76) # cumulative raw token1 amount added (sum of event.params.amount1 from IncreaseLiquidity + Transfer ADD + direct non-NFPM CLPool.Mint). May differ from removed due to price movement between deposit and withdrawal
+  totalLiquidityRemovedUSD: BigInt! @config(precision: 76) # cumulative USD value of liquidity removed (from DecreaseLiquidity events, Transfer REMOVE attribution, and direct non-NFPM CLPool.Burn)
+  totalLiquidityRemovedToken0: BigInt! @config(precision: 76) # cumulative raw token0 amount removed (sum of event.params.amount0 from DecreaseLiquidity + Transfer REMOVE + direct non-NFPM CLPool.Burn). Can exceed totalLiquidityAddedToken0 due to price movement (impermanent loss rebalancing)
+  totalLiquidityRemovedToken1: BigInt! @config(precision: 76) # cumulative raw token1 amount removed (sum of event.params.amount1 from DecreaseLiquidity + Transfer REMOVE + direct non-NFPM CLPool.Burn). Can exceed totalLiquidityAddedToken1 due to price movement (impermanent loss rebalancing)
 
   # Swap metrics
   numberOfSwaps: BigInt! @config(precision: 76) # number of swaps in this pool
