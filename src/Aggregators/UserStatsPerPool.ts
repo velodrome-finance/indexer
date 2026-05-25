@@ -390,11 +390,16 @@ export async function updateUserStatsPerPool(
         : current.lastActivityTimestamp,
   };
 
+  // Issue #782: lockstep invariant — zero staked liquidity cannot have USD value.
+  // Units and USD are updated by separate paths, so enforce agreement on every
+  // write rather than relying solely on snapshot-time recompute.
+  if (updated.currentLiquidityStaked === 0n) {
+    updated = { ...updated, currentLiquidityStakedUSD: 0n };
+  }
+
   if (shouldSnapshot(current.lastSnapshotTimestamp, timestamp)) {
-    // Compute staked USD for this user at snapshot time (both CL and non-CL)
-    if (updated.currentLiquidityStaked === 0n) {
-      updated = { ...updated, currentLiquidityStakedUSD: 0n };
-    } else if (updated.currentLiquidityStaked > 0n) {
+    // Recompute staked USD at snapshot time (both CL and non-CL).
+    if (updated.currentLiquidityStaked > 0n) {
       // Reuse caller-provided poolData when available (saves 3 redundant entity loads
       // per snapshot when the caller already loaded pool + token0 + token1).
       let poolEntity = preloadedPoolData?.liquidityPoolAggregator;
