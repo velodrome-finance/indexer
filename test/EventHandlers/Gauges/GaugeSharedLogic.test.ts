@@ -417,11 +417,10 @@ describe("GaugeSharedLogic", () => {
       expect(updatedPool?.currentLiquidityStaked).toBe(0n);
       expect(updatedPool?.currentLiquidityStakedUSD).toBe(0n);
       expect(updatedUser?.currentLiquidityStaked).toBe(0n);
-      // User staked USD was set to 200 at deposit snapshot; withdraw is in the same
-      // epoch so no new snapshot fires — value stays at deposit-time snapshot value
-      expect(updatedUser?.currentLiquidityStakedUSD).toBe(
-        200000000000000000000n,
-      );
+      // Issue #782: a full withdraw drives user units to 0, so the staked-USD
+      // lockstep invariant zeroes currentLiquidityStakedUSD on the live entity
+      // too — even though the withdraw is in the same epoch and no snapshot fires.
+      expect(updatedUser?.currentLiquidityStakedUSD).toBe(0n);
     });
 
     it("should derive non-negative currentLiquidityStakedUSD after deposit then partial withdraw", async () => {
