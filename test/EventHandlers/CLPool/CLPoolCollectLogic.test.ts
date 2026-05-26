@@ -1,15 +1,22 @@
 import type {
+  CLPool_Burn_event,
   CLPool_Collect_event,
   CLPositionPendingPrincipal,
   Token,
   handlerContext,
 } from "generated";
-import { toChecksumAddress } from "../../../src/Constants";
+import {
+  CLPositionPendingPrincipalId,
+  toChecksumAddress,
+} from "../../../src/Constants";
+import type { Pool } from "../../../src/EntityTypes";
+import { processCLPoolBurn } from "../../../src/EventHandlers/CLPool/CLPoolBurnLogic";
 import { processCLPoolCollect } from "../../../src/EventHandlers/CLPool/CLPoolCollectLogic";
 import { setupCommon } from "../Pool/common";
 
 describe("CLPoolCollectLogic", () => {
-  const { mockToken0Data, mockToken1Data } = setupCommon();
+  const { mockLiquidityPoolData, mockToken0Data, mockToken1Data } =
+    setupCommon();
 
   const POOL_ADDRESS = toChecksumAddress(
     "0x3333333333333333333333333333333333333333",
@@ -61,16 +68,23 @@ describe("CLPoolCollectLogic", () => {
     lastUpdatedTimestamp: new Date(1000000 * 1000),
   };
 
-  /** Creates a mock context with optional pending principal tracker */
+  /**
+   * Creates a mock context with optional pending principal tracker.
+   * The store is dynamic: `get` reflects the latest `set`/`deleteUnsafe`, so a
+   * real Burn → Collect sequence can be observed end-to-end.
+   */
   function createMockContext(
     tracker?: CLPositionPendingPrincipal | null,
   ): handlerContext {
     const storedTracker = { current: tracker ?? null };
     return {
       CLPositionPendingPrincipal: {
-        get: vi.fn().mockResolvedValue(storedTracker.current),
+        get: vi.fn(async () => storedTracker.current),
         set: vi.fn((t: CLPositionPendingPrincipal) => {
           storedTracker.current = t;
+        }),
+        deleteUnsafe: vi.fn((_id: string) => {
+          storedTracker.current = null;
         }),
       },
     } as unknown as handlerContext;
@@ -131,11 +145,11 @@ describe("CLPoolCollectLogic", () => {
         result.liquidityPoolDiff.incrementalTotalUnstakedFeesCollected1,
       ).toBe(500000000000000000n); // 0.5 token1
 
-      // Tracker should be fully drained
-      const setCall = vi.mocked(ctx.CLPositionPendingPrincipal.set).mock
-        .lastCall?.[0] as CLPositionPendingPrincipal;
-      expect(setCall.pendingPrincipal0).toBe(0n);
-      expect(setCall.pendingPrincipal1).toBe(0n);
+      // Fully drained → tracker row is deleted, not persisted at 0/0 (#789)
+      expect(ctx.CLPositionPendingPrincipal.deleteUnsafe).toHaveBeenCalledTimes(
+        1,
+      );
+      expect(ctx.CLPositionPendingPrincipal.set).not.toHaveBeenCalled();
     });
 
     it("should handle collect smaller than pending principal (partial collect)", async () => {
@@ -241,6 +255,127 @@ describe("CLPoolCollectLogic", () => {
 
       expect(result.liquidityPoolDiff).toBeDefined();
       expect(result.userLiquidityDiff).toBeDefined();
+    });
+  });
+
+  // End-to-end reconciliation: a real Burn writes principal under the position's
+  // tracker id, then a real Collect on the same identity drains it. Verifies the
+  // tracker is deleted on full drain rather than lingering at 0/0 (#789).
+  describe("tracker lifecycle (Burn → Collect)", () => {
+    // Burn must share position identity (chain, pool, owner, ticks) with the
+    // Collect mockEvent so both resolve to the same CLPositionPendingPrincipal id.
+    const burnEvent = {
+      chainId: mockEvent.chainId,
+      block: { number: 123455, timestamp: 999999 },
+      logIndex: 0,
+      srcAddress: POOL_ADDRESS,
+      transaction: {
+        hash: "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+      },
+      params: {
+        owner: mockEvent.params.owner,
+        tickLower: mockEvent.params.tickLower,
+        tickUpper: mockEvent.params.tickUpper,
+        amount: 0n,
+        amount0: 1000000000000000000n, // 1 token0 burned
+        amount1: 2000000000000000000n, // 2 token1 burned
+      },
+    } as unknown as CLPool_Burn_event;
+
+    const trackerId = CLPositionPendingPrincipalId(
+      mockEvent.chainId,
+      mockEvent.srcAddress,
+      mockEvent.params.owner,
+      mockEvent.params.tickLower,
+      mockEvent.params.tickUpper,
+    );
+
+    const burnPool: Pool = {
+      ...mockLiquidityPoolData,
+      reserve0: 1000000000000000000000n,
+      reserve1: 1000000000000000000000n,
+    };
+
+    it("Burn → full Collect leaves no row", async () => {
+      const ctx = createMockContext(null);
+      await processCLPoolBurn(burnEvent, burnPool, mockToken0, mockToken1, ctx);
+      // Collect amounts (1 / 2) exactly equal burned principal → full drain.
+      await processCLPoolCollect(mockEvent, mockToken0, mockToken1, ctx);
+
+      expect(ctx.CLPositionPendingPrincipal.deleteUnsafe).toHaveBeenCalledWith(
+        trackerId,
+      );
+      expect(await ctx.CLPositionPendingPrincipal.get(trackerId)).toBeNull();
+    });
+
+    it("Burn → partial Collect leaves a nonzero row", async () => {
+      const ctx = createMockContext(null);
+      // Burn 5 token0 / 10 token1, then collect only 1 / 2 → remainder persists.
+      const bigBurn = {
+        ...burnEvent,
+        params: {
+          ...burnEvent.params,
+          amount0: 5000000000000000000n,
+          amount1: 10000000000000000000n,
+        },
+      } as unknown as CLPool_Burn_event;
+      await processCLPoolBurn(bigBurn, burnPool, mockToken0, mockToken1, ctx);
+      const result = await processCLPoolCollect(
+        mockEvent,
+        mockToken0,
+        mockToken1,
+        ctx,
+      );
+
+      expect(
+        ctx.CLPositionPendingPrincipal.deleteUnsafe,
+      ).not.toHaveBeenCalled();
+      const row = await ctx.CLPositionPendingPrincipal.get(trackerId);
+      expect(row?.pendingPrincipal0).toBe(4000000000000000000n); // 5 - 1
+      expect(row?.pendingPrincipal1).toBe(8000000000000000000n); // 10 - 2
+      // Entire collect was principal → no fees isolated.
+      expect(
+        result.liquidityPoolDiff.incrementalTotalUnstakedFeesCollected0,
+      ).toBe(0n);
+      expect(
+        result.liquidityPoolDiff.incrementalTotalUnstakedFeesCollected1,
+      ).toBe(0n);
+    });
+
+    it("re-uses position identity after full drain (tracker re-created from 0)", async () => {
+      const ctx = createMockContext(null);
+      // First lifecycle: burn 1 / 2, collect 1 / 2 → tracker deleted.
+      await processCLPoolBurn(burnEvent, burnPool, mockToken0, mockToken1, ctx);
+      await processCLPoolCollect(mockEvent, mockToken0, mockToken1, ctx);
+      expect(await ctx.CLPositionPendingPrincipal.get(trackerId)).toBeNull();
+
+      // Second lifecycle on the same identity: a new Burn re-creates the tracker
+      // from 0, so the next Collect still isolates fees correctly
+      // (1 - 0.8 = 0.2 token0, 2 - 1.5 = 0.5 token1).
+      const reBurn = {
+        ...burnEvent,
+        params: {
+          ...burnEvent.params,
+          amount0: 800000000000000000n,
+          amount1: 1500000000000000000n,
+        },
+      } as unknown as CLPool_Burn_event;
+      await processCLPoolBurn(reBurn, burnPool, mockToken0, mockToken1, ctx);
+      const result = await processCLPoolCollect(
+        mockEvent,
+        mockToken0,
+        mockToken1,
+        ctx,
+      );
+
+      expect(
+        result.liquidityPoolDiff.incrementalTotalUnstakedFeesCollected0,
+      ).toBe(200000000000000000n); // 0.2 token0
+      expect(
+        result.liquidityPoolDiff.incrementalTotalUnstakedFeesCollected1,
+      ).toBe(500000000000000000n); // 0.5 token1
+      // Fully drained again → deleted again, no dormant row left behind.
+      expect(await ctx.CLPositionPendingPrincipal.get(trackerId)).toBeNull();
     });
   });
 });
