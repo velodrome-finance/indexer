@@ -14,9 +14,11 @@ import {
 import { processCLPoolBurn } from "./CLPool/CLPoolBurnLogic";
 import { processCLPoolCollectFees } from "./CLPool/CLPoolCollectFeesLogic";
 import { processCLPoolCollect } from "./CLPool/CLPoolCollectLogic";
+import { attributeDirectCLLiquidityChange } from "./CLPool/CLPoolDirectLiquidityLogic";
 import { processCLPoolFlash } from "./CLPool/CLPoolFlashLogic";
 import { processCLPoolMint } from "./CLPool/CLPoolMintLogic";
 import { processCLPoolSwap } from "./CLPool/CLPoolSwapLogic";
+import { LiquidityChangeType } from "./NFPM/NFPMCommonLogic";
 
 /**
  * Updates the liquidity-related metrics for a Concentrated Liquidity Pool.
@@ -36,7 +38,9 @@ import { processCLPoolSwap } from "./CLPool/CLPoolSwapLogic";
  */
 
 CLPool.Burn.handler(async ({ event, context }) => {
-  // Pool-only update; user liquidity removed is attributed from NFPM.DecreaseLiquidity
+  // Updates pool reserves; NFPM-routed burns are attributed to the holder via
+  // NFPM.DecreaseLiquidity, while direct (non-NFPM) burns are attributed to the
+  // owner below via attributeDirectCLLiquidityChange (#790).
   const poolData = await loadPoolData(
     event.srcAddress,
     event.chainId,
@@ -67,6 +71,17 @@ CLPool.Burn.handler(async ({ event, context }) => {
     context,
     event.chainId,
     event.block.number,
+  );
+
+  await attributeDirectCLLiquidityChange(
+    event.params.owner,
+    event.srcAddress,
+    poolData,
+    context,
+    event.params.amount0,
+    event.params.amount1,
+    event.block.timestamp,
+    LiquidityChangeType.REMOVE,
   );
 });
 
@@ -289,7 +304,9 @@ CLPool.Initialize.handler(async ({ event, context }) => {
 });
 
 CLPool.Mint.handler(async ({ event, context }) => {
-  // Pool-only update; user liquidity added is attributed from NFPM.Transfer (mint) and NFPM.IncreaseLiquidity
+  // Updates pool reserves; NFPM-routed mints are attributed to the holder via
+  // NFPM.Transfer (mint) and NFPM.IncreaseLiquidity, while direct (non-NFPM)
+  // mints are attributed to the owner below via attributeDirectCLLiquidityChange (#790).
   const poolData = await loadPoolData(
     event.srcAddress,
     event.chainId,
@@ -319,6 +336,17 @@ CLPool.Mint.handler(async ({ event, context }) => {
     context,
     event.chainId,
     event.block.number,
+  );
+
+  await attributeDirectCLLiquidityChange(
+    event.params.owner,
+    event.srcAddress,
+    poolData,
+    context,
+    event.params.amount0,
+    event.params.amount1,
+    event.block.timestamp,
+    LiquidityChangeType.ADD,
   );
 
   // Store CLPool.Mint data for NFPM.Transfer (mint) to consume and attribute UserStatsPerPool to event.params.to
