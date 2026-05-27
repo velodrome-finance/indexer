@@ -84,36 +84,6 @@ describe("PriceOverrides", () => {
       },
     );
 
-    // Issue #786: whitelisted tokens whose oracle route froze at a wrong-high
-    // but small per-token constant (invisible to the >$10^28 sweep). Blacklist
-    // is the immediate stopgap that trust-gates them out of USD aggregates.
-    it("returns true for PEPE on Base (frozen route, issue #786)", () => {
-      expect(
-        isBlacklistedToken(
-          8453,
-          toChecksumAddress("0x52b492a33E447Cdb854c7FC19F1e57E8BfA1777D"),
-        ),
-      ).toBe(true);
-    });
-
-    it("returns true for wOptiDoge on Optimism (frozen route, issue #786)", () => {
-      expect(
-        isBlacklistedToken(
-          10,
-          toChecksumAddress("0xC26921B5b9ee80773774d36C84328ccb22c3a819"),
-        ),
-      ).toBe(true);
-    });
-
-    it("scopes #786 entries by chainId (PEPE/Base not blacklisted on Optimism)", () => {
-      expect(
-        isBlacklistedToken(
-          10,
-          toChecksumAddress("0x52b492a33E447Cdb854c7FC19F1e57E8BfA1777D"),
-        ),
-      ).toBe(false);
-    });
-
     it("does not blacklist the canonical AERO on Base", () => {
       expect(
         isBlacklistedToken(

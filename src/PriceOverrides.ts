@@ -19,11 +19,6 @@ export interface RebindTarget {
  *
  *     Token(where: {pricePerUSDNew: {_gt: "10000000000000000000000000000"}})
  *
- * Not every entry fits that enumeration: issue #786 added two WHITELISTED
- * tokens whose oracle route froze at a wrong-high but SMALL per-token constant
- * (well under $10^28), invisible to the sweep above — see the #786 block at the
- * end of the list for that distinct failure mode.
- *
  * Issue #669: $Manatee (no real market; tBTC/$Manatee pool routes price through
  * tBTC and produces $76K-$92K; alETH/$Manatee disagrees with alUSD/$Manatee by 10x).
  * Issue #669: SQUID (oracle returns 0 at every stable read; the $13B contaminated
@@ -551,26 +546,6 @@ const BLACKLIST: ReadonlySet<string> = new Set([
     8453,
     toChecksumAddress("0x23FA9a1a634222C03F3C02124242DFf56bD90787"),
   ), // BAIBAI
-  // Issue #786: frozen oracle-route constants on WHITELISTED tokens. Distinct
-  // from every entry above (which are wrong-HIGH in absolute per-token terms
-  // and surface via the `pricePerUSDNew > 10^28` enumeration). Here the route
-  // returns a flat wrong-high constant that is SMALL per-token — PEPE froze at
-  // ~$0.259302, wOptiDoge at ~$0.0515 — so it is invisible to both the >$10^28
-  // sweep and the absolute price ceiling, and the spike-guard/re-anchor logic
-  // (#784/#785) cannot see it either: the oracle keeps returning the stuck
-  // value, so every read AGREES with the bad anchor (no upward disagreement to
-  // re-anchor against). Because both tokens are protocol-whitelisted, the
-  // frozen value leaks straight into USD aggregates (#786 reports ~$238B
-  // phantom TVL across WETH/PEPE, PEPE/GIZA, VELO/wOptiDoge, WETH/wOptiDoge).
-  // Blacklisting forces price 0 → trust-gated out of USD → pool TVL routes
-  // through the counterparty leg. The root question — WHY the connector route
-  // freezes at a constant for these two — is tracked as a separate
-  // investigation (see #786 cross-reference); this is the immediate stopgap.
-  TokenId(
-    8453,
-    toChecksumAddress("0x52b492a33E447Cdb854c7FC19F1e57E8BfA1777D"),
-  ), // PEPE / Base (whitelisted; frozen route)
-  TokenId(10, toChecksumAddress("0xC26921B5b9ee80773774d36C84328ccb22c3a819")), // wOptiDoge / Optimism (whitelisted; frozen route)
 ]);
 
 /**
