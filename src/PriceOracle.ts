@@ -38,25 +38,6 @@ const PRICE_SPIKE_STALENESS_MS = 14 * 24 * 60 * 60 * 1000;
 // they routinely price in the tens of thousands.
 const FIRST_FETCH_CAP = 10_000n * TEN_TO_THE_18_BI;
 
-// Issue #788: absolute price ceiling. The spike guard only protects a FRESH
-// anchor (younger than PRICE_SPIKE_STALENESS_MS); once a token idles past that
-// window its anchor is no longer trusted, so a read of ANY magnitude is
-// accepted — BPX/BPX6900 booked a $7.17e18-per-token read after 26 days idle
-// (the highest price the indexer has ever recorded). This is a hard upper
-// bound applied to every read regardless of anchor age. $1M/token sits ~10×
-// above BTC's range (WBTC ≈ $100K) and far below the $10^28 egregious-poison
-// gate. An oracle-cache audit of the deployed indexer (commit c9b8978, 4.77M
-// nonzero reads) found every persistent read above $1M to be an oracle glitch,
-// never a legitimate price — so no real token (BTC variants included)
-// approaches it, and no symbol exemption is needed, unlike FIRST_FETCH_CAP.
-// Deliberately a loose backstop, not a tight bound: glitch plateaus in the
-// $1K–$100K band — where legitimate high-value tokens also live — are left to
-// the anchor-relative spike guard, which rejects them as ≥10× jumps against a
-// fresh anchor. (The same audit showed re-anchoring those plateaus would
-// poison ~250 tokens; see issues #784/#785 for why a mechanical re-anchor was
-// rejected.)
-const MAX_ACCEPTED_PRICE = 1_000_000n * TEN_TO_THE_18_BI;
-
 /**
  * Creates and persists a Token entity at first sight, gated on the address
  * actually being a contract on-chain.
@@ -263,26 +244,6 @@ export async function refreshTokenPrice(
       tokenDecimals: Number(healed.decimals),
     });
     const currentPrice = priceData.pricePerUSDNew;
-
-    // Issue #788: absolute ceiling — reject any read above MAX_ACCEPTED_PRICE
-    // before the anchor-relative checks below, so it fires regardless of anchor
-    // state (first-fetch, fresh, or stale). The prior anchor is preserved; we
-    // only bump `lastUpdatedTimestamp` to re-arm the spike guard, so a smaller
-    // follow-up read is validated against the (still-fresh) anchor instead of
-    // slipping through the stale-anchor exemption — e.g. BPX's $7.17e18 read is
-    // rejected here, and the $40,766 read three hours later is then caught by
-    // the spike guard rather than accepted. No snapshot is written.
-    if (currentPrice > MAX_ACCEPTED_PRICE) {
-      context.log.warn(
-        `[MAX_PRICE_CEILING] chain=${chainId} address=${healed.address} symbol=${healed.symbol} proposed=${currentPrice} ceiling=${MAX_ACCEPTED_PRICE} — rejecting absurd read, keeping price=${healed.pricePerUSDNew}`,
-      );
-      const capped: Token = {
-        ...healed,
-        lastUpdatedTimestamp: new Date(blockTimestampMs),
-      };
-      context.Token.set(capped);
-      return capped;
-    }
 
     // Issue #728: cap-reject the first non-zero anchor for non-BTC symbols.
     // The spike guard below requires anchor > 0, so without this gate a single
