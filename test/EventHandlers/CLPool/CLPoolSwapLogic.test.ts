@@ -7,6 +7,7 @@ import {
   calculateSwapVolume,
   processCLPoolSwap,
 } from "../../../src/EventHandlers/CLPool/CLPoolSwapLogic";
+import { deriveCLPriceRatios } from "../../../src/PoolPriceRatio";
 import { setupCommon } from "../Pool/common";
 
 describe("CLPoolSwapLogic", () => {
@@ -665,26 +666,46 @@ describe("CLPoolSwapLogic", () => {
       );
     });
 
-    it("should use updated token prices when available", async () => {
-      const token0WithNewPrice: Token = {
-        ...mockToken0,
-        pricePerUSDNew: 1500000000000000000n,
-      };
-      const token1WithNewPrice: Token = {
-        ...mockToken1,
-        pricePerUSDNew: 2500000000000000000n,
-      };
+    it("derives token0Price/token1Price from sqrtPriceX96, ignoring token oracle prices (#783)", async () => {
+      // The ratios must equal the pure derivation from the swap's sqrtPriceX96,
+      // not either token's oracle price.
+      const expected = deriveCLPriceRatios(
+        mockEvent.params.sqrtPriceX96,
+        mockToken0.decimals,
+        mockToken1.decimals,
+      );
 
-      const result = await processCLPoolSwap(
+      const baseline = await processCLPoolSwap(
         mockEvent,
         mockPool,
-        token0WithNewPrice,
-        token1WithNewPrice,
+        mockToken0,
+        mockToken1,
         mockContext,
       );
 
-      expect(result.liquidityPoolDiff.token0Price).toBe(1500000000000000000n);
-      expect(result.liquidityPoolDiff.token1Price).toBe(2500000000000000000n);
+      expect(baseline.liquidityPoolDiff.token0Price).toBe(expected.token0Price);
+      expect(baseline.liquidityPoolDiff.token1Price).toBe(expected.token1Price);
+
+      // An arbitrarily mispriced token (EARN-style oracle inflation) must not
+      // move the pool-internal ratio.
+      const mispricedToken0: Token = {
+        ...mockToken0,
+        pricePerUSDNew: 10n ** 40n,
+      };
+      const mispricedResult = await processCLPoolSwap(
+        mockEvent,
+        mockPool,
+        mispricedToken0,
+        mockToken1,
+        mockContext,
+      );
+
+      expect(mispricedResult.liquidityPoolDiff.token0Price).toBe(
+        expected.token0Price,
+      );
+      expect(mispricedResult.liquidityPoolDiff.token1Price).toBe(
+        expected.token1Price,
+      );
     });
 
     it("should set correct timestamps", async () => {

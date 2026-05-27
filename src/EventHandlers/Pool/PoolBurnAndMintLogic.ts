@@ -281,17 +281,12 @@ export async function processPoolLiquidityEvent(
     context,
   );
 
-  // Update pool metrics (token prices only)
-  // DO NOT update totalLiquidityUSD here - TVL is computed from reserves in Sync handler
-  // No updates to reserves are needed - Sync events handle reserve updates
-  // Mint and burn functions always call _update method on the contract which always emits Sync event
+  // Mint and burn always call _update on the contract, which emits a Sync event
+  // in the same tx. Sync owns reserves, totalLiquidityUSD (computed from those
+  // reserves), AND the pool-internal price ratio (token0Price/token1Price,
+  // derived from reserves — #783). So this handler only bumps the activity
+  // timestamp; it must not echo token oracle prices into the ratio.
   const poolDiff = {
-    // Token-price snapshots record observed state at this event, not a USD
-    // aggregate, so they are intentionally NOT routed through the #755 trust
-    // gate (see PriceTrust.ts). The downstream aggregate sites — volumeUSD,
-    // feesUSD, emissionsUSD, votesDepositedUSD, totalLiquidityUSD — are gated.
-    token0Price: token0Instance.pricePerUSDNew,
-    token1Price: token1Instance.pricePerUSDNew,
     lastUpdatedTimestamp: timestamp,
   };
 

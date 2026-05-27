@@ -2,6 +2,7 @@ import type { Pool_Sync_event, Token } from "generated";
 import type { PoolDiff } from "../../Aggregators/Pool";
 import type { Pool } from "../../EntityTypes";
 import { calculateTotalUSD } from "../../Helpers";
+import { deriveV2PriceRatios, pickPriceRatios } from "../../PoolPriceRatio";
 
 export interface PoolSyncResult {
   liquidityPoolDiff: Partial<PoolDiff>;
@@ -55,18 +56,29 @@ export function processPoolSync(
     );
   }
 
+  // token0Price/token1Price are the pool-internal exchange rate, derived from
+  // the synced reserves — NOT from token oracle prices. This keeps the ratio
+  // oracle-independent so a mispriced token (e.g. a non-WL scam token) can no
+  // longer inflate it without bound (#783). pickPriceRatios falls back to the
+  // last-known ratio per leg when decimals are unavailable or reserves are zero.
+  const priceRatios = pickPriceRatios(
+    token0Instance && token1Instance
+      ? deriveV2PriceRatios(
+          event.params.reserve0,
+          event.params.reserve1,
+          token0Instance.decimals,
+          token1Instance.decimals,
+        )
+      : { token0Price: 0n, token1Price: 0n },
+    liquidityPoolAggregator,
+  );
+
   const liquidityPoolDiff = {
     incrementalReserve0: reserve0Change,
     incrementalReserve1: reserve1Change,
     currentTotalLiquidityUSD,
-    // Token-price snapshots record observed state at this event, not a USD
-    // aggregate, so they are intentionally NOT routed through the #755 trust
-    // gate (see PriceTrust.ts). The downstream aggregate sites — volumeUSD,
-    // feesUSD, emissionsUSD, votesDepositedUSD, totalLiquidityUSD — are gated.
-    token0Price:
-      token0Instance?.pricePerUSDNew ?? liquidityPoolAggregator.token0Price,
-    token1Price:
-      token1Instance?.pricePerUSDNew ?? liquidityPoolAggregator.token1Price,
+    token0Price: priceRatios.token0Price,
+    token1Price: priceRatios.token1Price,
     lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
   };
 
