@@ -102,10 +102,10 @@ Pool.Fees.handler(async ({ event, context }) => {
     return;
   }
 
-  const { liquidityPoolAggregator, token0Instance, token1Instance } = poolData;
+  const { liquidityPoolAggregator } = poolData;
 
   // Process fees event
-  const result = processPoolFees(event, token0Instance, token1Instance);
+  const result = processPoolFees(event);
 
   const { liquidityPoolDiff, userDiff } = result;
 
@@ -156,7 +156,12 @@ Pool.Swap.handler(async ({ event, context }) => {
   const { liquidityPoolAggregator, token0Instance, token1Instance } = poolData;
 
   // Process swap event
-  const result = processPoolSwap(event, token0Instance, token1Instance);
+  const result = processPoolSwap(
+    event,
+    liquidityPoolAggregator,
+    token0Instance,
+    token1Instance,
+  );
 
   const { liquidityPoolDiff, userSwapDiff } = result;
 

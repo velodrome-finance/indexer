@@ -5,8 +5,14 @@ import * as Helpers from "../../../src/Helpers";
 import { setupCommon } from "./common";
 
 describe("PoolSwapLogic", () => {
-  const { mockLiquidityPoolData, mockToken0Data, mockToken1Data } =
-    setupCommon();
+  const {
+    mockLiquidityPoolData,
+    mockToken0Data,
+    mockToken1Data,
+    createMockPool,
+  } = setupCommon();
+  // Pool with a typical V2 vAMM fee rate (30 = 0.30% on the 1e4 basis).
+  const mockPool = createMockPool({ currentFee: 30n });
   // Shared mock event for all tests
   const mockEvent: Pool_Swap_event = {
     params: {
@@ -50,7 +56,12 @@ describe("PoolSwapLogic", () => {
   describe("processPoolSwap", () => {
     it("should create entity and calculate swap updates for successful swap", () => {
       // Process the swap event
-      const result = processPoolSwap(mockEvent, mockToken0, mockToken1);
+      const result = processPoolSwap(
+        mockEvent,
+        mockPool,
+        mockToken0,
+        mockToken1,
+      );
 
       // Assertions
       expect(result.liquidityPoolDiff).toBeDefined();
@@ -92,7 +103,12 @@ describe("PoolSwapLogic", () => {
         },
       };
 
-      const result = processPoolSwap(modifiedEvent, mockToken0, mockToken1);
+      const result = processPoolSwap(
+        modifiedEvent,
+        mockPool,
+        mockToken0,
+        mockToken1,
+      );
 
       // Token0 has amount0In + amount0Out = 2n + 100n = 102n
       // Token1 has amount1In + amount1Out = 2000n + 5n = 2005n
@@ -104,6 +120,7 @@ describe("PoolSwapLogic", () => {
     it("zeros both total and whitelisted volume when neither token is whitelisted (#755 trust gate)", () => {
       const result = processPoolSwap(
         mockEvent,
+        mockPool,
         { ...mockToken0, isWhitelisted: false },
         { ...mockToken1, isWhitelisted: false },
       );
@@ -121,6 +138,7 @@ describe("PoolSwapLogic", () => {
     it("should add to whitelisted volume when both tokens are whitelisted", () => {
       const result = processPoolSwap(
         mockEvent,
+        mockPool,
         { ...mockToken0, isWhitelisted: true },
         { ...mockToken1, isWhitelisted: true },
       );
@@ -135,6 +153,7 @@ describe("PoolSwapLogic", () => {
     it("should count whitelisted volume when only one token is whitelisted", () => {
       const result = processPoolSwap(
         mockEvent,
+        mockPool,
         { ...mockToken0, isWhitelisted: true },
         { ...mockToken1, isWhitelisted: false },
       );
@@ -155,7 +174,12 @@ describe("PoolSwapLogic", () => {
         pricePerUSDNew: 100000000000000000000000000000000000n, // 1e35
       };
 
-      const result = processPoolSwap(mockEvent, corruptedToken0, mockToken1);
+      const result = processPoolSwap(
+        mockEvent,
+        mockPool,
+        corruptedToken0,
+        mockToken1,
+      );
 
       expect(result.liquidityPoolDiff).not.toHaveProperty("token0Price");
       expect(result.liquidityPoolDiff).not.toHaveProperty("token1Price");
@@ -175,7 +199,12 @@ describe("PoolSwapLogic", () => {
         },
       };
 
-      const result = processPoolSwap(swapEvent, mockToken0, mockToken1);
+      const result = processPoolSwap(
+        swapEvent,
+        mockPool,
+        mockToken0,
+        mockToken1,
+      );
 
       // Net amounts should be sum of in and out
       expect(result.liquidityPoolDiff?.incrementalTotalVolume0).toBe(800n); // 500 + 300
@@ -185,7 +214,12 @@ describe("PoolSwapLogic", () => {
     });
 
     it("should use token0 USD value when available and non-zero", () => {
-      const result = processPoolSwap(mockEvent, mockToken0, mockToken1);
+      const result = processPoolSwap(
+        mockEvent,
+        mockPool,
+        mockToken0,
+        mockToken1,
+      );
 
       expect(result.liquidityPoolDiff?.incrementalTotalVolume0).toBe(1000n);
       expect(result.liquidityPoolDiff?.incrementalTotalVolume1).toBe(500n);
@@ -206,6 +240,7 @@ describe("PoolSwapLogic", () => {
       // mockToken0/mockToken1 both default to isWhitelisted: true
       const result = processPoolSwap(
         eventWithZeroToken0,
+        mockPool,
         mockToken0,
         mockToken1,
       );
@@ -237,6 +272,7 @@ describe("PoolSwapLogic", () => {
 
       const result = processPoolSwap(
         eventWithZeroToken0,
+        mockPool,
         { ...mockToken0, isWhitelisted: false },
         { ...mockToken1, isWhitelisted: false },
       );
@@ -256,6 +292,7 @@ describe("PoolSwapLogic", () => {
 
       const result = processPoolSwap(
         mockEvent,
+        mockPool,
         { ...mockToken0, isWhitelisted: true },
         { ...mockToken1, isWhitelisted: true },
       );
@@ -296,7 +333,12 @@ describe("PoolSwapLogic", () => {
         },
       };
 
-      const result = processPoolSwap(swapEvent, corruptedToken0, healthyToken1);
+      const result = processPoolSwap(
+        swapEvent,
+        mockPool,
+        corruptedToken0,
+        healthyToken1,
+      );
 
       // token0UsdValue = (1e18 * 1e18 / 1e18) * 1e35 / 1e18 = 1e35 (corrupted)
       // token1UsdValue = (1e6 * 1e18 / 1e6) * 1e18 / 1e18 = 1e18 (honest $1)
@@ -318,6 +360,7 @@ describe("PoolSwapLogic", () => {
 
       const result = processPoolSwap(
         mockEvent,
+        mockPool,
         { ...mockToken0, isWhitelisted: true },
         { ...mockToken1, isWhitelisted: true },
       );
@@ -329,6 +372,146 @@ describe("PoolSwapLogic", () => {
       expect(result.liquidityPoolDiff?.incrementalTotalVolumeUSD).toBe(0n);
 
       calculateTokenAmountUSDSpy.mockRestore();
+    });
+  });
+
+  // Issue #797: V2 fee USD must be derived from trusted volume × currentFee /
+  // V2_FEE_SCALE at Swap time, mirroring the CL fee path (CLPoolSwapLogic).
+  // The V2 Fees event has only one non-zero leg (input side), so the old
+  // single-leg valuation flowed any poisoned/inconsistent input-leg price
+  // straight into totalFeesGeneratedUSD with no second leg to min against.
+  describe("V2 fee USD derived from trusted volume × rate (issue #797)", () => {
+    it("derives incrementalTotalFeesGeneratedUSD as volumeInUSD × currentFee / V2_FEE_SCALE", () => {
+      const pool = createMockPool({ currentFee: 30n }); // 0.30%
+      const result = processPoolSwap(mockEvent, pool, mockToken0, mockToken1);
+
+      // volumeInUSD = min(token0=1000n, token1=5e14) = 1000n (see existing tests)
+      // feeUSD = 1000 * 30 / 10000 = 3n
+      const expectedVolumeUSD = 1000n;
+      const expectedFeeUSD = (expectedVolumeUSD * 30n) / 10000n;
+      expect(result.liquidityPoolDiff?.incrementalTotalVolumeUSD).toBe(
+        expectedVolumeUSD,
+      );
+      expect(result.liquidityPoolDiff?.incrementalTotalFeesGeneratedUSD).toBe(
+        expectedFeeUSD,
+      );
+      expect(result.userSwapDiff?.incrementalTotalFeesContributedUSD).toBe(
+        expectedFeeUSD,
+      );
+    });
+
+    // Core #797 regression: an inflated/inconsistent fee-leg price must not
+    // inflate totalFeesGeneratedUSD. Because the new derivation reuses the
+    // already-min-protected volumeInUSD, the poisoned price is filtered out
+    // upstream and never reaches the fee aggregate.
+    it("ignores a poisoned fee-leg price by deriving from trusted volume", () => {
+      const poisonedPrice = 10n ** 35n; // 1e35 vs legitimate 1e18
+      const poisonedToken0: Token = {
+        ...mockToken0,
+        pricePerUSDNew: poisonedPrice,
+      };
+      const honestToken1: Token = {
+        ...mockToken1,
+        pricePerUSDNew: 1n * 10n ** 18n,
+        decimals: 6n,
+      };
+      // token0-input swap: amount0 is the fee leg. Pre-fix this leg's USD
+      // value (poisoned) would have been the fee USD; post-fix it is filtered
+      // by the volume min-pick before being multiplied by the rate.
+      const swapEvent: Pool_Swap_event = {
+        ...mockEvent,
+        params: {
+          ...mockEvent.params,
+          amount0In: 1000000000000000000n, // 1 token0 (18 decimals)
+          amount1In: 0n,
+          amount0Out: 0n,
+          amount1Out: 1000000n, // 1 USDC (6 decimals) → $1
+        },
+      };
+      const pool = createMockPool({ currentFee: 30n });
+
+      const result = processPoolSwap(
+        swapEvent,
+        pool,
+        poisonedToken0,
+        honestToken1,
+      );
+
+      // Trusted volume picks the honest $1 leg, so fee USD = $1 × 30 / 10000.
+      const expectedVolumeUSD = 1000000000000000000n; // 1e18 = $1
+      const expectedFeeUSD = (expectedVolumeUSD * 30n) / 10000n;
+      expect(result.liquidityPoolDiff?.incrementalTotalVolumeUSD).toBe(
+        expectedVolumeUSD,
+      );
+      expect(result.liquidityPoolDiff?.incrementalTotalFeesGeneratedUSD).toBe(
+        expectedFeeUSD,
+      );
+      expect(
+        result.liquidityPoolDiff?.incrementalTotalFeesGeneratedUSD ?? 0n,
+      ).toBeLessThan(poisonedPrice);
+    });
+
+    // Clean-pool sanity check: the new derivation matches what the AMM
+    // invariant says fees should be — fees = volume × rate, within bigint
+    // truncation. (This is the same shape as the existing PoolFeesLogic
+    // "fee ≤ 1% of volume invariant (#670)" test, ported to the Swap-time path.)
+    it("matches volume × rate exactly for a clean pool at 0.05% fee", () => {
+      const pool = createMockPool({ currentFee: 5n }); // 0.05% stable
+      const usdt: Token = {
+        ...mockToken0,
+        decimals: 6n,
+        pricePerUSDNew: 1n * 10n ** 18n,
+      };
+      const usdc: Token = {
+        ...mockToken1,
+        decimals: 6n,
+        pricePerUSDNew: 1n * 10n ** 18n,
+      };
+      const swapAmount0 = 1000n * 10n ** 6n; // $1000 token0-input
+      const swapEvent: Pool_Swap_event = {
+        ...mockEvent,
+        params: {
+          ...mockEvent.params,
+          amount0In: swapAmount0,
+          amount1In: 0n,
+          amount0Out: 0n,
+          amount1Out: 999n * 10n ** 6n, // ~$999 USDC out
+        },
+      };
+
+      const result = processPoolSwap(swapEvent, pool, usdt, usdc);
+
+      const volumeUSD =
+        result.liquidityPoolDiff?.incrementalTotalVolumeUSD ?? 0n;
+      const feeUSD =
+        result.liquidityPoolDiff?.incrementalTotalFeesGeneratedUSD ?? 0n;
+      expect(feeUSD).toBe((volumeUSD * 5n) / 10000n);
+      // Hard invariant: fee ≤ 1% of volume at any V2 rate up to 1%.
+      expect(feeUSD * 100n).toBeLessThanOrEqual(volumeUSD);
+    });
+
+    it("treats currentFee=0n as explicitly zero (does NOT fall back to baseFee)", () => {
+      // The `currentFee ?? baseFee` pattern (mirroring CLPoolSwapLogic) only
+      // falls through on null/undefined — 0n is a real value that a dynamic-
+      // fee module may set (e.g. promotional period). Honoring it matters
+      // because PoolFactory.SetCustomFee writes both fields in lockstep, so
+      // `baseFee=30n` here is a stale prior value, not a sensible fallback.
+      const pool = createMockPool({ currentFee: 0n, baseFee: 30n });
+      const result = processPoolSwap(mockEvent, pool, mockToken0, mockToken1);
+
+      expect(result.liquidityPoolDiff?.incrementalTotalFeesGeneratedUSD).toBe(
+        0n,
+      );
+    });
+
+    it("returns 0 fee USD when both currentFee and baseFee are 0n", () => {
+      const pool = createMockPool({ currentFee: 0n, baseFee: 0n });
+      const result = processPoolSwap(mockEvent, pool, mockToken0, mockToken1);
+
+      expect(result.liquidityPoolDiff?.incrementalTotalFeesGeneratedUSD).toBe(
+        0n,
+      );
+      expect(result.userSwapDiff?.incrementalTotalFeesContributedUSD).toBe(0n);
     });
   });
 });

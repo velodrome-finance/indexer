@@ -1,8 +1,20 @@
 import type { Pool_Swap_event, Token } from "generated";
 import type { PoolDiff } from "../../Aggregators/Pool";
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
+import { V2_FEE_SCALE } from "../../Constants";
+import type { Pool } from "../../EntityTypes";
 import { pickTrustedSwapVolumeUSD } from "../../Helpers";
 import { getTrustedUSD } from "../../PriceTrust";
+
+// Issue #797 (completes #733 / regression of #670): V2 fee USD must respect
+// the AMM invariant `cumulative_fees ≤ cumulative_volume × fee_ratio`. The V2
+// `Pool.Fees` event has only one non-zero leg (fee is taken on the input side),
+// so the prior single-leg `pickTrustedSwapVolumeUSD` valuation degenerated to
+// "return that one leg unclamped" and inflated/inconsistent input-leg prices
+// flowed straight into `totalFeesGeneratedUSD`. We now mirror the CL twin
+// (`CLPoolSwapLogic.calculateSwapFees`) and derive the USD fee at Swap time
+// from the already-min-protected `volumeInUSD`, multiplied by the pool's
+// current fee rate. `processPoolFees` is now USD-silent.
 
 export interface PoolSwapResult {
   liquidityPoolDiff: Partial<PoolDiff>;
@@ -10,11 +22,27 @@ export interface PoolSwapResult {
 }
 
 /**
- * Process swap event using already-refreshed token prices from loadPoolData
- * This matches CLPoolSwapLogic pattern
+ * Process a V2 Pool Swap event into pool + user diffs.
+ *
+ * Volume USD: per-leg `getTrustedUSD` then `pickTrustedSwapVolumeUSD` (min of
+ * trusted legs) — defends against scam-token / poisoned-oracle inflation
+ * (issues #699, #737, #755).
+ *
+ * Fee USD: `volumeInUSD × (currentFee ?? baseFee ?? 0n) / V2_FEE_SCALE` —
+ * inherits the volume path's min-protection by construction and tracks
+ * Custom/Dynamic fee-module changes via `currentFee` (issue #797, mirrors
+ * `CLPoolSwapLogic.calculateSwapFees`). `processPoolFees` no longer writes
+ * any USD field.
+ *
+ * @param event - V2 Pool Swap event
+ * @param liquidityPoolAggregator - Pool entity providing the fee rate
+ * @param token0Instance - Token0 entity with price + decimals + trust state
+ * @param token1Instance - Token1 entity with price + decimals + trust state
+ * @returns Pool + user diffs with raw token-unit volumes and trusted-leg USD volume + fee
  */
 export function processPoolSwap(
   event: Pool_Swap_event,
+  liquidityPoolAggregator: Pool,
   token0Instance: Token,
   token1Instance: Token,
 ): PoolSwapResult {
@@ -30,6 +58,11 @@ export function processPoolSwap(
 
   const volumeInUSD = pickTrustedSwapVolumeUSD(token0UsdValue, token1UsdValue);
 
+  // Derive fee USD from trusted volume — see file header for the #797 rationale.
+  const feeRate =
+    liquidityPoolAggregator.currentFee ?? liquidityPoolAggregator.baseFee ?? 0n;
+  const feeUSD = (volumeInUSD * feeRate) / V2_FEE_SCALE;
+
   // Create liquidity pool diff.
   //
   // token0Price/token1Price (the pool-internal exchange rate) are intentionally
@@ -41,6 +74,7 @@ export function processPoolSwap(
     incrementalTotalVolume0: netAmount0,
     incrementalTotalVolume1: netAmount1,
     incrementalTotalVolumeUSD: volumeInUSD,
+    incrementalTotalFeesGeneratedUSD: feeUSD,
     incrementalNumberOfSwaps: 1n,
     lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
   };
@@ -51,6 +85,7 @@ export function processPoolSwap(
     incrementalTotalSwapVolumeUSD: volumeInUSD,
     incrementalTotalSwapVolumeAmount0: netAmount0,
     incrementalTotalSwapVolumeAmount1: netAmount1,
+    incrementalTotalFeesContributedUSD: feeUSD,
     lastActivityTimestamp: new Date(event.block.timestamp * 1000),
   };
 

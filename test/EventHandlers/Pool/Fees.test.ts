@@ -16,7 +16,10 @@ describe("Pool Fees Event", () => {
     amount0In: 3n * 10n ** 18n,
     amount1In: 2n * 10n ** 6n,
     totalLiquidityUSD: 0n,
-    totalFeesGeneratedUSD: 0n,
+    // After issue #797: Fees no longer writes USD aggregates — they are
+    // derived in processPoolSwap from trusted volume × pool fee rate. So the
+    // pool's totalFeesGeneratedUSD is unchanged by a Fees event in isolation.
+    totalFeesGeneratedUSD: mockLiquidityPoolData.totalFeesGeneratedUSD,
   };
 
   expectations.totalLiquidityUSD =
@@ -26,27 +29,6 @@ describe("Pool Fees Event", () => {
     ((mockLiquidityPoolData.reserve1 - expectations.amount1In) *
       mockToken1Data.pricePerUSDNew) /
       10n ** mockToken1Data.decimals;
-
-  // After issue #733: totalFeesGeneratedUSD increments by the *trusted* (smaller
-  // / non-zero fallback) leg rather than the sum, mirroring the volume defense
-  // against poisoned/scam-token prices. The whitelisted variant continues to
-  // sum the whitelisted legs (separate filter, separate accumulator).
-  const token0LegUSD =
-    (expectations.amount0In / 10n ** mockToken0Data.decimals) *
-    mockToken0Data.pricePerUSDNew;
-  const token1LegUSD =
-    (expectations.amount1In / 10n ** mockToken1Data.decimals) *
-    mockToken1Data.pricePerUSDNew;
-  const trustedLegUSD =
-    token0LegUSD === 0n
-      ? token1LegUSD
-      : token1LegUSD === 0n
-        ? token0LegUSD
-        : token0LegUSD < token1LegUSD
-          ? token0LegUSD
-          : token1LegUSD;
-  expectations.totalFeesGeneratedUSD =
-    mockLiquidityPoolData.totalFeesGeneratedUSD + trustedLegUSD;
 
   let updatedPool: PoolEntity | undefined;
   let createdUserStats: UserStatsPerPool | undefined;
@@ -133,9 +115,9 @@ describe("Pool Fees Event", () => {
       expectations.amount1In,
     );
 
-    // Per issue #733, user fee USD now follows the trusted-leg pick, same as
-    // the pool's totalFeesGeneratedUSD increment.
-    expect(createdUserStats?.totalFeesContributedUSD).toBe(trustedLegUSD);
+    // Per issue #797: Fees no longer writes USD — user fee USD stays at the
+    // baseline 0n until a Swap on the same pool drives it.
+    expect(createdUserStats?.totalFeesContributedUSD).toBe(0n);
   });
 
   it("should set correct timestamps for UserStatsPerPool entity", async () => {

@@ -1,8 +1,6 @@
-import type { Pool_Fees_event, Token } from "generated";
+import type { Pool_Fees_event } from "generated";
 import type { PoolDiff } from "../../Aggregators/Pool";
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
-import { pickTrustedSwapVolumeUSD } from "../../Helpers";
-import { getTrustedUSD } from "../../PriceTrust";
 
 export interface PoolFeesResult {
   liquidityPoolDiff?: Partial<PoolDiff>;
@@ -10,46 +8,32 @@ export interface PoolFeesResult {
 }
 
 /**
- * Process fees event using already-refreshed token prices from loadPoolData.
+ * Process a V2 Pool Fees event into raw token-amount diffs only.
  *
- * For regular pools (non-CL), fees are tracked as unstaked fees since regular
- * pools don't have the staked/unstaked distinction that CL pools have.
- *
- * USD fee value uses `pickTrustedSwapVolumeUSD` (smaller of the two priced legs)
- * rather than summing both legs — Velodrome V2 takes the fee from the input
- * side only, so at most one leg is non-zero per event in practice. Summing
- * inherits poisoned/scam-token prices that volume already defends against
- * (issue #733, regression of #670). Picking the trusted leg keeps the fee/volume
- * USD paths symmetric.
+ * USD fee aggregates are deliberately NOT written here. Per issue #797 they
+ * are now derived in `processPoolSwap` from trusted volume × pool fee rate
+ * (`volumeInUSD × currentFee / V2_FEE_SCALE`), mirroring CL's path
+ * (`CLPoolSwapLogic.calculateSwapFees`) and completing the #733 / regression
+ * of #670 invariant `cumulative_fees ≤ cumulative_volume × fee_ratio`. The
+ * Fees event only carries the input-side leg, so its old single-leg
+ * `pickTrustedSwapVolumeUSD` valuation had no second leg to clamp against and
+ * leaked any inflated/inconsistent input price straight into the USD
+ * aggregate (1000/1000 `[FEE_VOLUME_DIVERGENCE]` warned pools on c9b8978 were V2).
  *
  * @param event - V2 Pool Fees event
- * @param token0Instance - Token0 entity with price and decimals
- * @param token1Instance - Token1 entity with price and decimals
- * @returns Pool and user diffs with raw token-unit fees and trusted-leg USD fee
+ * @returns Pool and user diffs with raw token-unit fee amounts only
  */
-export function processPoolFees(
-  event: Pool_Fees_event,
-  token0Instance: Token | undefined,
-  token1Instance: Token | undefined,
-): PoolFeesResult {
-  // Per-leg fee USD via PriceTrust gate (issue #755): untrusted legs
-  // contribute 0n. The min pick then enforces the #733 invariant that the
-  // fee USD is bounded by the trusted (smaller) leg.
-  const token0FeeUSD = getTrustedUSD(event.params.amount0, token0Instance);
-  const token1FeeUSD = getTrustedUSD(event.params.amount1, token1Instance);
-  const totalFeesUSD = pickTrustedSwapVolumeUSD(token0FeeUSD, token1FeeUSD);
-
-  // Create liquidity pool diff
+export function processPoolFees(event: Pool_Fees_event): PoolFeesResult {
+  // Create liquidity pool diff — raw token amounts only; USD fee is written
+  // in processPoolSwap (see file-top doc / issue #797).
   const liquidityPoolDiff = {
     incrementalTotalFeesGenerated0: event.params.amount0,
     incrementalTotalFeesGenerated1: event.params.amount1,
-    incrementalTotalFeesGeneratedUSD: totalFeesUSD,
     lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
   };
 
   // Prepare user diff data
   const userDiff = {
-    incrementalTotalFeesContributedUSD: totalFeesUSD,
     incrementalTotalFeesContributed0: event.params.amount0,
     incrementalTotalFeesContributed1: event.params.amount1,
     lastActivityTimestamp: new Date(event.block.timestamp * 1000),
