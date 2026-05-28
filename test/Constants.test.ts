@@ -369,4 +369,40 @@ describe("config.yaml ↔ Constants.ts factory parity (#770, subsumes #769)", ()
       },
     );
   });
+
+  describe("config.yaml NFPM list covers every NFPM mapped from a CLFactory (#795)", () => {
+    // The factory-side parity above ensures every CLFactory in config.yaml has a
+    // paired NFPM declared in CL_FACTORY_TO_NFPM (or is explicitly whitelisted).
+    // That is necessary but not sufficient: if the mapped NFPM is itself missing
+    // from config.yaml's NFPM address list, the indexer subscribes to the CLFactory
+    // but never subscribes to the NFPM's Transfer/IncreaseLiquidity/DecreaseLiquidity
+    // events. Downstream, NonFungiblePosition rows are never created for pools that
+    // factory spawns, computeCLStakedReservesOnGaugeEvent bails at `if (!position)`,
+    // and the #780/#781 currentLiquidityStaked mirror cannot run — producing a
+    // chronic "CLGauge.Withdraw: withdraw exceeds current stake" underflow when
+    // staked liquidity grows via NFPM IncreaseLiquidity (auto-compounders).
+    //
+    // This was the failure mode behind the Base 0xc741beb2… miss that #770's
+    // factory-only parity did not catch.
+    it.each([10, 8453, ...SUPERCHAIN_LEAF_CHAIN_IDS])(
+      "every NFPM that nfpmForCLPool resolves to on chain %i is registered in config.yaml NFPM",
+      (chainId) => {
+        const factories = configByChain.get(chainId)?.get("CLFactory") ?? [];
+        const nfpms = configByChain.get(chainId)?.get("NFPM") ?? [];
+        expect(
+          nfpms.length,
+          `config.yaml has no NFPM entries for chain ${chainId} — parser broken or chain has no CL deployment`,
+        ).toBeGreaterThan(0);
+
+        for (const factory of factories) {
+          const mappedNfpm = nfpmForCLPool(chainId, factory);
+          if (mappedNfpm === null) continue;
+          expect(
+            nfpms,
+            `chain ${chainId} CLFactory ${factory} maps to NFPM ${mappedNfpm}, but that NFPM is not in config.yaml — add it to chains[id=${chainId}].contracts.NFPM.address so the indexer subscribes to its Transfer/IncreaseLiquidity/DecreaseLiquidity events`,
+          ).toContain(mappedNfpm);
+        }
+      },
+    );
+  });
 });
