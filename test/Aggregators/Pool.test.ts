@@ -573,12 +573,21 @@ describe("Pool Functions", () => {
     // structural rounding fix in segmentStakedReserveDelta bounds the residual
     // drift so the clamp catches only sub-wei truncation noise, not real
     // liquidity imbalance.
-    describe("negative stakedReserve clamp guard (issue #771)", () => {
+    //
+    // Issue #802 splits the log LEVEL by USD-valued overshoot magnitude: the
+    // benign rounding residue (`-stakedReserveSum` valued via getTrustedUSD ≤
+    // $1,000) logs at `info` so it stops spamming the warn channel, while a
+    // genuinely large discard (> $1,000 USD) still surfaces at `warn` as a
+    // regression tripwire. The clamp-to-0n behaviour is identical for both.
+    // Missing or untrusted token entities safe-degrade to `info` (an unpriced
+    // token contributes 0n to the trusted USD value and cannot be a $1k+
+    // break).
+    describe("negative stakedReserve clamp guard (issue #771 / #802)", () => {
       const sameEpochAsTimestamp = () => timestamp;
 
-      const negStakedReserveGuardLogs = () => {
-        const warnMock = vi.mocked(mockContext.log?.warn);
-        const calls = warnMock?.mock.calls ?? [];
+      const negStakedReserveGuardLogs = (level: "warn" | "info") => {
+        const mock = vi.mocked(mockContext.log?.[level]);
+        const calls = mock?.mock.calls ?? [];
         return calls.filter((args) =>
           String(args[0] ?? "").includes("[NEG_STAKED_RESERVE_GUARD]"),
         );
@@ -589,7 +598,56 @@ describe("Pool Functions", () => {
         return setMock?.mock.lastCall?.[0] as Pool;
       };
 
-      it("clamps stakedReserve0 to 0n and logs guard when delta would drive it negative", async () => {
+      // Token mock helpers — getTrustedUSD requires a trusted (whitelisted,
+      // non-blacklisted) Token entity with non-zero pricePerUSDNew to return a
+      // non-zero USD value. Tests covering the warn/info threshold install
+      // these via mockContext.Token.get.
+      const TOKEN0_ID = "token0";
+      const TOKEN1_ID = "token1";
+      // chainId 8453 (Base) is not present in PriceOverrides BLACKLIST for
+      // these synthetic addresses, so the gate trusts the token solely on
+      // isWhitelisted = true.
+      const TOKEN0_ADDR = toChecksumAddress(
+        "0x1111111111111111111111111111111111111111",
+      );
+      const TOKEN1_ADDR = toChecksumAddress(
+        "0x2222222222222222222222222222222222222222",
+      );
+      const TEN_TO_THE_18_BI = 10n ** 18n;
+      const ONE_USD_PRICE = TEN_TO_THE_18_BI; // pricePerUSDNew == 1e18 ⇒ 1 USD/token
+      const makeTrustedToken = (
+        id: string,
+        address: string,
+        decimals: bigint,
+        pricePerUSDNew: bigint,
+      ): Token => ({
+        id,
+        address: address as `0x${string}`,
+        symbol: "MOCK",
+        name: "Mock Token",
+        decimals,
+        pricePerUSDNew,
+        chainId: 8453,
+        isWhitelisted: true,
+        lastUpdatedTimestamp: new Date(),
+        lastSuccessfulPriceTimestamp: new Date(),
+        priceTrustOutcome: "TRUSTED",
+        priceTrustReason: "WL",
+      });
+      const installTrustedTokens = () => {
+        // biome-ignore lint/style/noNonNullAssertion: Token store is set in beforeEach
+        vi.mocked(mockContext.Token!.get).mockImplementation(async (id) => {
+          if (id === TOKEN0_ID)
+            return makeTrustedToken(TOKEN0_ID, TOKEN0_ADDR, 18n, ONE_USD_PRICE);
+          if (id === TOKEN1_ID)
+            return makeTrustedToken(TOKEN1_ID, TOKEN1_ADDR, 18n, ONE_USD_PRICE);
+          return undefined;
+        });
+      };
+
+      it("clamps stakedReserve0 to 0n and emits guard at info when overshoot's USD value is sub-threshold (token unpriced — safe degrade)", async () => {
+        // Mock Token.get returns undefined by default → getTrustedUSD = 0n →
+        // overshoot valued at $0 → info (safe degrade per AC).
         await updatePool(
           { incrementalStakedReserve0: -100n },
           {
@@ -609,9 +667,10 @@ describe("Pool Functions", () => {
         expect(lastSet().stakedReserve0).toBe(0n);
         expect(lastSet().stakedReserve1).toBe(1000n);
 
-        const logs = negStakedReserveGuardLogs();
-        expect(logs.length).toBe(1);
-        const msg = String(logs[0]?.[0] ?? "");
+        const infoLogs = negStakedReserveGuardLogs("info");
+        expect(infoLogs.length).toBe(1);
+        expect(negStakedReserveGuardLogs("warn").length).toBe(0);
+        const msg = String(infoLogs[0]?.[0] ?? "");
         expect(msg).toContain("stakedReserve0");
         expect(msg).toContain("priorStakedReserve=50");
         expect(msg).toContain("delta=-100");
@@ -624,7 +683,7 @@ describe("Pool Functions", () => {
         );
       });
 
-      it("clamps stakedReserve1 to 0n and logs guard when delta would drive it negative", async () => {
+      it("clamps stakedReserve1 to 0n and emits guard at info when overshoot's USD value is sub-threshold (token unpriced — safe degrade)", async () => {
         await updatePool(
           { incrementalStakedReserve1: -100n },
           {
@@ -643,10 +702,11 @@ describe("Pool Functions", () => {
 
         expect(lastSet().stakedReserve0).toBe(1000n);
         expect(lastSet().stakedReserve1).toBe(0n);
-        expect(negStakedReserveGuardLogs().length).toBe(1);
-        expect(String(negStakedReserveGuardLogs()[0]?.[0] ?? "")).toContain(
-          "stakedReserve1",
-        );
+        expect(negStakedReserveGuardLogs("info").length).toBe(1);
+        expect(negStakedReserveGuardLogs("warn").length).toBe(0);
+        expect(
+          String(negStakedReserveGuardLogs("info")[0]?.[0] ?? ""),
+        ).toContain("stakedReserve1");
       });
 
       it("does not clamp or log when staked reserves stay non-negative", async () => {
@@ -671,10 +731,11 @@ describe("Pool Functions", () => {
 
         expect(lastSet().stakedReserve0).toBe(50n);
         expect(lastSet().stakedReserve1).toBe(50n);
-        expect(negStakedReserveGuardLogs().length).toBe(0);
+        expect(negStakedReserveGuardLogs("warn").length).toBe(0);
+        expect(negStakedReserveGuardLogs("info").length).toBe(0);
       });
 
-      it("clamps both stakedReserves independently and logs once per field", async () => {
+      it("clamps both stakedReserves independently and emits guard once per field", async () => {
         await updatePool(
           {
             incrementalStakedReserve0: -200n,
@@ -696,10 +757,13 @@ describe("Pool Functions", () => {
 
         expect(lastSet().stakedReserve0).toBe(0n);
         expect(lastSet().stakedReserve1).toBe(0n);
-        expect(negStakedReserveGuardLogs().length).toBe(2);
+        // Both fields tripped — both log at info because mock Token.get
+        // returns undefined (safe-degrade USD = $0 ≤ $1,000).
+        expect(negStakedReserveGuardLogs("info").length).toBe(2);
+        expect(negStakedReserveGuardLogs("warn").length).toBe(0);
       });
 
-      it("heals legacy poisoned state where current.stakedReserve is already negative", async () => {
+      it("heals legacy poisoned state where current.stakedReserve is already negative (logs at info — safe degrade)", async () => {
         // Simulates a pool that was indexed before the rounding/clamp fix and
         // persisted negative stakedReserve0/1. A subsequent update with a
         // zero delta still clamps to 0n on the next write — no manual
@@ -722,7 +786,166 @@ describe("Pool Functions", () => {
 
         expect(lastSet().stakedReserve0).toBe(0n);
         expect(lastSet().stakedReserve1).toBe(0n);
-        expect(negStakedReserveGuardLogs().length).toBe(2);
+        expect(negStakedReserveGuardLogs("info").length).toBe(2);
+        expect(negStakedReserveGuardLogs("warn").length).toBe(0);
+      });
+
+      // --- #802 USD-threshold split coverage ---
+
+      it("[#802] sub-$1,000 overshoot on a trusted-priced token logs at info, not warn", async () => {
+        installTrustedTokens();
+        // Token decimals=18, price=$1 ⇒ overshoot 100n raw units is worth
+        // 100n * 1e18 / 1e18 = 100n in 1e18-base USD — i.e. ~$1e-16, well
+        // under the $1,000 floor.
+        await updatePool(
+          { incrementalStakedReserve0: -100n },
+          {
+            ...(liquidityPoolAggregator as Pool),
+            isCL: true,
+            stakedReserve0: 50n,
+            stakedReserve1: 1000n,
+            lastSnapshotTimestamp: sameEpochAsTimestamp(),
+            lastUpdatedTimestamp: sameEpochAsTimestamp(),
+          },
+          timestamp,
+          mockContext as handlerContext,
+          8453,
+          blockNumber,
+        );
+
+        expect(lastSet().stakedReserve0).toBe(0n);
+        expect(negStakedReserveGuardLogs("info").length).toBe(1);
+        expect(negStakedReserveGuardLogs("warn").length).toBe(0);
+      });
+
+      it("[#802] above-$1,000 overshoot on a trusted-priced token logs at warn, not info", async () => {
+        installTrustedTokens();
+        // Token decimals=18, price=$1 ⇒ a 2_000n * 1e18 raw overshoot is
+        // worth $2,000 in 1e18-base USD — comfortably above the $1,000 floor.
+        const grossDelta = -(2_000n * TEN_TO_THE_18_BI);
+        await updatePool(
+          { incrementalStakedReserve0: grossDelta },
+          {
+            ...(liquidityPoolAggregator as Pool),
+            isCL: true,
+            stakedReserve0: 0n,
+            stakedReserve1: 0n,
+            lastSnapshotTimestamp: sameEpochAsTimestamp(),
+            lastUpdatedTimestamp: sameEpochAsTimestamp(),
+          },
+          timestamp,
+          mockContext as handlerContext,
+          8453,
+          blockNumber,
+        );
+
+        expect(lastSet().stakedReserve0).toBe(0n);
+        const warnLogs = negStakedReserveGuardLogs("warn");
+        expect(warnLogs.length).toBe(1);
+        expect(negStakedReserveGuardLogs("info").length).toBe(0);
+        const msg = String(warnLogs[0]?.[0] ?? "");
+        expect(msg).toContain("stakedReserve0");
+        expect(msg).toContain("clampedTo=0");
+        // Message content unchanged from pre-#802 (poolAddress / chainId /
+        // priorStakedReserve / delta / clampedTo).
+        expect(msg).toContain(
+          `chainId=${(liquidityPoolAggregator as Pool).chainId}`,
+        );
+        expect(msg).toContain(`delta=${grossDelta}`);
+      });
+
+      it("[#802] above-$1,000 overshoot routes via the correct token (stakedReserve1 → token1)", async () => {
+        // Asymmetric prices: token0 priced at $1, token1 at $1_000_000 — a
+        // 2n raw-unit overshoot on stakedReserve1 is worth $2M and MUST
+        // surface at warn. If the gate accidentally consulted token0 the
+        // overshoot would compute to $2 (info), so this test pins the
+        // per-field token mapping (token0_id → token0, token1_id → token1).
+        // biome-ignore lint/style/noNonNullAssertion: Token store is set in beforeEach
+        vi.mocked(mockContext.Token!.get).mockImplementation(async (id) => {
+          if (id === TOKEN0_ID)
+            return makeTrustedToken(
+              TOKEN0_ID,
+              TOKEN0_ADDR,
+              18n,
+              ONE_USD_PRICE, // $1
+            );
+          if (id === TOKEN1_ID)
+            return makeTrustedToken(
+              TOKEN1_ID,
+              TOKEN1_ADDR,
+              18n,
+              1_000_000n * ONE_USD_PRICE, // $1,000,000 per token
+            );
+          return undefined;
+        });
+        await updatePool(
+          { incrementalStakedReserve1: -(2n * TEN_TO_THE_18_BI) },
+          {
+            ...(liquidityPoolAggregator as Pool),
+            isCL: true,
+            stakedReserve0: 0n,
+            stakedReserve1: 0n,
+            lastSnapshotTimestamp: sameEpochAsTimestamp(),
+            lastUpdatedTimestamp: sameEpochAsTimestamp(),
+          },
+          timestamp,
+          mockContext as handlerContext,
+          8453,
+          blockNumber,
+        );
+
+        expect(lastSet().stakedReserve1).toBe(0n);
+        expect(negStakedReserveGuardLogs("warn").length).toBe(1);
+        expect(negStakedReserveGuardLogs("info").length).toBe(0);
+        expect(
+          String(negStakedReserveGuardLogs("warn")[0]?.[0] ?? ""),
+        ).toContain("stakedReserve1");
+      });
+
+      it("[#802] untrusted (non-whitelisted) token degrades to info even on a huge raw overshoot", async () => {
+        // Untrusted token ⇒ getTrustedUSD returns 0n regardless of
+        // raw-magnitude, so the level must safe-degrade to info. This is the
+        // documented AC ("an unpriced token cannot be a $1k+ break"):
+        // applied symmetrically to non-whitelisted tokens, since they fail
+        // the trust gate and contribute 0n to USD aggregates.
+        // biome-ignore lint/style/noNonNullAssertion: Token store is set in beforeEach
+        vi.mocked(mockContext.Token!.get).mockImplementation(async (id) => {
+          if (id === TOKEN0_ID) {
+            const t = makeTrustedToken(
+              TOKEN0_ID,
+              TOKEN0_ADDR,
+              18n,
+              ONE_USD_PRICE,
+            );
+            return {
+              ...t,
+              isWhitelisted: false,
+              priceTrustOutcome: "UNTRUSTED",
+              priceTrustReason: "NON_WL",
+            };
+          }
+          return undefined;
+        });
+        // A raw-magnitude overshoot that WOULD be worth $1e9 if trusted.
+        await updatePool(
+          { incrementalStakedReserve0: -(1_000_000_000n * TEN_TO_THE_18_BI) },
+          {
+            ...(liquidityPoolAggregator as Pool),
+            isCL: true,
+            stakedReserve0: 0n,
+            stakedReserve1: 0n,
+            lastSnapshotTimestamp: sameEpochAsTimestamp(),
+            lastUpdatedTimestamp: sameEpochAsTimestamp(),
+          },
+          timestamp,
+          mockContext as handlerContext,
+          8453,
+          blockNumber,
+        );
+
+        expect(lastSet().stakedReserve0).toBe(0n);
+        expect(negStakedReserveGuardLogs("info").length).toBe(1);
+        expect(negStakedReserveGuardLogs("warn").length).toBe(0);
       });
     });
 
