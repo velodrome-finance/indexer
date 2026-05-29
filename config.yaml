@@ -347,6 +347,7 @@ chains:
         address:
           - 0x827922686190790b37229fd06084350E74485b72
           - 0xa990C6a764b73BF43cee5Bb40339c3322FB9D55F
+          - 0xc741beb2156827704A1466575ccA1cBf726a1178 # NFPM paired with CLFactory 0x9592CD9B..d51B ("Another CL"); previously absent left these pools unindexed (#795)
           - 0xe1f8cd9AC4e4A65F54f38a5CdAfCA44f6dD68b53 # V3 NFPM (paired with newest CLFactory 0xf8f2eB..061Ef)
       - name: FactoryRegistry
         address:
