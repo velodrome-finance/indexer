@@ -214,6 +214,13 @@ export async function processCLPoolSwap(
   // edge map via deriveLiquidityInRange — so it stays correct even when the
   // price starts at a boundary tick where the cached liquidityInRange is 0, and
   // it walks initialized edges directly (binary search) with no per-tick step cap.
+  //
+  // Edge-map completeness: the seed comes from tickEdges (built by Mint/Burn from
+  // pool creation), NOT from the cached liquidityInRange. If the map is empty —
+  // e.g. a partial-history sync whose start block postdates the pool's Mints — the
+  // seed is 0n and swaps contribute no reserve delta. That is consistent with the
+  // reserve accumulator's full-history requirement (those pre-start Mints' principal
+  // would be absent from reserve0/1 too); a from-creation sync always has a complete map.
   const totalCrossings = processTickCrossings(
     event.chainId,
     event.srcAddress,

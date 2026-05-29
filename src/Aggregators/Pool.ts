@@ -365,6 +365,36 @@ export async function updatePool(
     diff.stakedLiquidityInRange = undefined;
   }
 
+  // Same invariant check for the TOTAL-liquidity parallel pair (tickEdges,
+  // tickEdgeNets), added with #803. CLPool Mint/Burn always set both together
+  // via applyPositionToEdges, but — as with the staked pair above — nothing in
+  // the type system enforces that on a future caller. A presence/length
+  // mismatch would silently desync the sparse map the swap path binary-searches
+  // for the fee-free reserve geometry, so log under [TICK_EDGE_DRIFT] and drop
+  // both. Unlike the staked counter, `liquidityInRange` is NOT derived from this
+  // map (it comes straight from event.params.liquidity), so it is left untouched.
+  const totalEdgesSet = diff.tickEdges !== undefined;
+  const totalNetsSet = diff.tickEdgeNets !== undefined;
+  if (totalEdgesSet !== totalNetsSet) {
+    context.log.error(
+      `[TICK_EDGE_DRIFT][updatePool] tickEdges and tickEdgeNets must be updated together (parallel arrays) for pool ${current.poolAddress} on chain ${current.chainId}. Got edges=${totalEdgesSet ? "set" : "unset"}, nets=${totalNetsSet ? "set" : "unset"}. Dropping both from this update; aggregator retains the prior consistent pair.`,
+    );
+    diff.tickEdges = undefined;
+    diff.tickEdgeNets = undefined;
+  } else if (
+    totalEdgesSet &&
+    totalNetsSet &&
+    // biome-ignore lint/style/noNonNullAssertion: totalEdgesSet/totalNetsSet narrow above
+    diff.tickEdges!.length !== diff.tickEdgeNets!.length
+  ) {
+    context.log.error(
+      // biome-ignore lint/style/noNonNullAssertion: totalEdgesSet/totalNetsSet narrow above
+      `[TICK_EDGE_DRIFT][updatePool] tickEdges/tickEdgeNets length mismatch for pool ${current.poolAddress} on chain ${current.chainId}: edges.length=${diff.tickEdges!.length}, nets.length=${diff.tickEdgeNets!.length}. Dropping both from this update; aggregator retains the prior consistent pair.`,
+    );
+    diff.tickEdges = undefined;
+    diff.tickEdgeNets = undefined;
+  }
+
   // Clamp reserve0 / reserve1 to >= 0n at the accumulator path (issue #702).
   // Reserves are LP-deposited capital and must never go negative; a Burn
   // larger than the cumulative Mint we observed would otherwise drive the

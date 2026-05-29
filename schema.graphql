@@ -65,7 +65,7 @@ type Pool {
   stakedReserve0: BigInt @config(precision: 76) # staked reserves in token0 raw units (running counter)
   stakedReserve1: BigInt @config(precision: 76) # staked reserves in token1 raw units (running counter)
   # True once any staked position has been recorded for this pool. Gates the
-  # per-swap staked-tick sweep in processTickCrossingsForStaked: pools that have
+  # per-swap staked-tick sweep in processTickCrossings: pools that have
   # never been staked skip the sweep entirely. Set on the first gauge Deposit.
   # One-way latch: does NOT clear if every staked position is later withdrawn.
   # A transiently-staked-then-fully-unstaked pool will keep running the sweep
@@ -80,14 +80,14 @@ type Pool {
   # allow scalars or named types — tuples don't exist at this layer.
   #
   # Maintained on gauge deposit / withdraw / NFPM staked-position liquidity
-  # changes. Consumed by processTickCrossingsForStaked via in-memory binary
+  # changes. Consumed by processTickCrossings via in-memory binary
   # search — no per-tick entity loads on the swap path, which breaks the OOM
   # chain-of-amplification from #648.
   stakedTickEdges: [BigInt!]!
   stakedTickEdgeNets: [BigInt!]!
   # Total-liquidity analog of stakedTickEdges/stakedTickEdgeNets: the pool's full
   # per-tick liquidityNet map (all positions, not just staked). Maintained on
-  # CLPool Mint/Burn; consumed by processTickCrossingsForStaked on the swap path
+  # CLPool Mint/Burn; consumed by processTickCrossings on the swap path
   # to compute the fee-free reserve delta from pool geometry (L·ΔsqrtPrice),
   # replacing the stale-fee approximation that drifts on dynamic-fee pools (#803).
   tickEdges: [BigInt!]!
