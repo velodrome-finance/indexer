@@ -2331,6 +2331,26 @@ describe("PriceOracle", () => {
 
         expect(vi.mocked(mockContext.Token?.set)).not.toHaveBeenCalled();
       });
+
+      it("#788: a hint above MAX_ACCEPTED_PRICE is not used as an anchor; the reasonable read is accepted instead", async () => {
+        const hint = usd(2_000_000); // > MAX_ACCEPTED_PRICE ($1M): glitched pool ratio
+        const read = usd(0.25); // reasonable read, out of band vs the glitched hint
+        const fetchedToken: Token = {
+          ...mockToken0Data,
+          pricePerUSDNew: 0n, // first fetch
+          symbol: "TEST",
+          lastUpdatedTimestamp: twoHoursAgo,
+        };
+
+        await refreshWithRead(read, fetchedToken, hint);
+
+        const written = vi.mocked(mockContext.Token?.set)?.mock
+          .lastCall?.[0] as Token;
+        // Hint exceeds the absolute ceiling → not usable ground truth, so the
+        // first-fetch branch is skipped and the read is anchored normally
+        // instead of writing a >$1M anchor from a glitched ratio.
+        expect(written?.pricePerUSDNew).toBe(read);
+      });
     });
   });
 });

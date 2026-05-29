@@ -319,10 +319,16 @@ export async function refreshTokenPrice(
     // read instead of locking onto the bad value. An in-band first read falls
     // through and is accepted normally; a $0 read is left to the existing
     // last-known/normal path (retry next refresh) rather than eagerly anchored.
+    //
+    // A hint above MAX_ACCEPTED_PRICE (#788) is itself the signal of a glitched
+    // pool ratio, so it is not usable ground truth: skip the override and let
+    // the read take the normal first-fetch path rather than writing a >$1M
+    // anchor that the ceiling at line 301 would reject from any other source.
     if (
       healed.pricePerUSDNew === 0n &&
       currentPrice > 0n &&
       hint > 0n &&
+      hint <= MAX_ACCEPTED_PRICE &&
       !withinRatioBand(currentPrice, hint)
     ) {
       context.log.info(
