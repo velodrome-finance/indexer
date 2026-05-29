@@ -167,6 +167,8 @@ export function setupCommon() {
     hasStakes: false,
     stakedTickEdges: [],
     stakedTickEdgeNets: [],
+    tickEdges: [],
+    tickEdgeNets: [],
     totalFlashLoanFees0: 0n,
     totalFlashLoanFees1: 0n,
     totalFlashLoanFeesUSD: 0n,
@@ -455,6 +457,10 @@ export function setupCommon() {
       stakedTickEdgeNets: [
         ...(overrides.stakedTickEdgeNets ??
           mockLiquidityPoolData.stakedTickEdgeNets),
+      ],
+      tickEdges: [...(overrides.tickEdges ?? mockLiquidityPoolData.tickEdges)],
+      tickEdgeNets: [
+        ...(overrides.tickEdgeNets ?? mockLiquidityPoolData.tickEdgeNets),
       ],
       poolAddress,
       chainId,

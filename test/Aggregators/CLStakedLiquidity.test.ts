@@ -1,11 +1,11 @@
 import type { handlerContext } from "generated";
 import {
-  applyStakedPositionToEdges,
-  deriveStakedLiquidityInRange,
+  applyPositionToEdges,
+  deriveLiquidityInRange,
   divRoundNearest,
   isPositionInRange,
-  processTickCrossingsForStaked,
-  segmentStakedReserveDelta,
+  processTickCrossings,
+  segmentReserveDelta,
 } from "../../src/Aggregators/CLStakedLiquidity";
 import { calculatePositionAmountsFromLiquidity } from "../../src/Helpers";
 import { sqrtAt } from "./common";
@@ -60,24 +60,18 @@ describe("CLStakedLiquidity", () => {
     });
   });
 
-  describe("applyStakedPositionToEdges", () => {
+  describe("applyPositionToEdges", () => {
     it("should insert both edges with correct signs on stake", () => {
-      const { edges, nets } = applyStakedPositionToEdges(
-        [],
-        [],
-        100n,
-        200n,
-        500n,
-      );
+      const { edges, nets } = applyPositionToEdges([], [], 100n, 200n, 500n);
       expect(edges).toEqual([100n, 200n]);
       expect(nets).toEqual([500n, -500n]);
     });
 
     it("should keep the list sorted when inserting into the middle", () => {
       // Start with an existing position at [0, 400]
-      const start = applyStakedPositionToEdges([], [], 0n, 400n, 100n);
+      const start = applyPositionToEdges([], [], 0n, 400n, 100n);
       // Insert a nested position at [100, 300]
-      const { edges, nets } = applyStakedPositionToEdges(
+      const { edges, nets } = applyPositionToEdges(
         start.edges,
         start.nets,
         100n,
@@ -89,8 +83,8 @@ describe("CLStakedLiquidity", () => {
     });
 
     it("should sum nets when two positions share an edge", () => {
-      const a = applyStakedPositionToEdges([], [], 100n, 200n, 500n);
-      const b = applyStakedPositionToEdges(a.edges, a.nets, 100n, 300n, 200n);
+      const a = applyPositionToEdges([], [], 100n, 200n, 500n);
+      const b = applyPositionToEdges(a.edges, a.nets, 100n, 300n, 200n);
       // tickLower=100 contributes +500 (A) + +200 (B) = +700
       // tickUpper=200 is only A: -500
       // tickUpper=300 is only B: -200
@@ -100,18 +94,18 @@ describe("CLStakedLiquidity", () => {
 
     it("should drop an edge when its net becomes zero", () => {
       // Stake then unstake the same position
-      const a = applyStakedPositionToEdges([], [], 100n, 200n, 500n);
-      const b = applyStakedPositionToEdges(a.edges, a.nets, 100n, 200n, -500n);
+      const a = applyPositionToEdges([], [], 100n, 200n, 500n);
+      const b = applyPositionToEdges(a.edges, a.nets, 100n, 200n, -500n);
       expect(b.edges).toEqual([]);
       expect(b.nets).toEqual([]);
     });
 
     it("should keep non-zero edges when a partial unstake leaves residual net", () => {
       // Two positions sharing tickLower=100
-      const a = applyStakedPositionToEdges([], [], 100n, 200n, 500n);
-      const b = applyStakedPositionToEdges(a.edges, a.nets, 100n, 300n, 200n);
+      const a = applyPositionToEdges([], [], 100n, 200n, 500n);
+      const b = applyPositionToEdges(a.edges, a.nets, 100n, 300n, 200n);
       // Unstake only one of them
-      const c = applyStakedPositionToEdges(b.edges, b.nets, 100n, 200n, -500n);
+      const c = applyPositionToEdges(b.edges, b.nets, 100n, 200n, -500n);
       // tickLower=100: +700 - 500 = +200
       // tickUpper=200: -500 + 500 = 0 → dropped
       // tickUpper=300: -200 (unchanged)
@@ -120,7 +114,7 @@ describe("CLStakedLiquidity", () => {
     });
 
     it("should ignore out-of-range ticks and tag them 'ticks_out_of_range'", () => {
-      const result = applyStakedPositionToEdges(
+      const result = applyPositionToEdges(
         [],
         [],
         -900000n, // below TICK_MIN
@@ -133,7 +127,7 @@ describe("CLStakedLiquidity", () => {
     });
 
     it("should ignore degenerate ranges and tag them 'degenerate_range'", () => {
-      const result = applyStakedPositionToEdges([], [], 200n, 100n, 500n);
+      const result = applyPositionToEdges([], [], 200n, 100n, 500n);
       expect(result.edges).toEqual([]);
       expect(result.nets).toEqual([]);
       expect(result.rejected).toBe("degenerate_range");
@@ -142,8 +136,8 @@ describe("CLStakedLiquidity", () => {
     it("should silently no-op on liquidityDelta=0 without a rejection tag", () => {
       // Zero-delta is a legitimate NFPM Mint-0 flow, not an invariant violation.
       // It must NOT log/alert — the caller treats `rejected: undefined` as success.
-      const seed = applyStakedPositionToEdges([], [], 100n, 200n, 500n);
-      const result = applyStakedPositionToEdges(
+      const seed = applyPositionToEdges([], [], 100n, 200n, 500n);
+      const result = applyPositionToEdges(
         seed.edges,
         seed.nets,
         100n,
@@ -161,12 +155,12 @@ describe("CLStakedLiquidity", () => {
       // other as tickLower, the residual can remain negative but non-zero.
       // Invariant under test: the edge MUST be preserved (not dropped just because
       // the net is negative) and the sort order MUST hold.
-      const a = applyStakedPositionToEdges([], [], 100n, 200n, 500n);
+      const a = applyPositionToEdges([], [], 100n, 200n, 500n);
       expect(a.edges).toEqual([100n, 200n]);
       expect(a.nets).toEqual([500n, -500n]);
 
       // Second position uses 200 as tickLower, stacking onto the existing -500 net.
-      const b = applyStakedPositionToEdges(a.edges, a.nets, 200n, 300n, 300n);
+      const b = applyPositionToEdges(a.edges, a.nets, 200n, 300n, 300n);
       // tickLower=100: +500 (A)
       // tickLower=200 from B adds +300 onto -500 (A's upper) = -200 (residual NEGATIVE, not dropped)
       // tickUpper=300 from B: -300
@@ -195,14 +189,14 @@ describe("CLStakedLiquidity", () => {
         { tl: 150n, tu: 250n, liq: 700n },
       ];
       for (const p of positions) {
-        const out = applyStakedPositionToEdges(edges, nets, p.tl, p.tu, p.liq);
+        const out = applyPositionToEdges(edges, nets, p.tl, p.tu, p.liq);
         edges = out.edges;
         nets = out.nets;
       }
       expect(edges.length).toBeGreaterThan(0);
       // Unstake each in reverse order
       for (const p of positions.slice().reverse()) {
-        const out = applyStakedPositionToEdges(edges, nets, p.tl, p.tu, -p.liq);
+        const out = applyPositionToEdges(edges, nets, p.tl, p.tu, -p.liq);
         edges = out.edges;
         nets = out.nets;
       }
@@ -211,10 +205,10 @@ describe("CLStakedLiquidity", () => {
     });
 
     it("should not mutate the input arrays", () => {
-      const input = applyStakedPositionToEdges([], [], 100n, 200n, 500n);
+      const input = applyPositionToEdges([], [], 100n, 200n, 500n);
       const frozenEdges = Object.freeze([...input.edges]);
       const frozenNets = Object.freeze([...input.nets]);
-      applyStakedPositionToEdges(frozenEdges, frozenNets, 300n, 400n, 100n);
+      applyPositionToEdges(frozenEdges, frozenNets, 300n, 400n, 100n);
       // Freeze throws on mutation; absence of throw proves no mutation happened.
       expect(frozenEdges).toEqual([100n, 200n]);
       expect(frozenNets).toEqual([500n, -500n]);
@@ -229,7 +223,7 @@ describe("CLStakedLiquidity", () => {
         const tu = BigInt(i * 10 + 50);
         const liq = BigInt(100 + i);
         positions.push({ tl, tu, liq });
-        const out = applyStakedPositionToEdges(edges, nets, tl, tu, liq);
+        const out = applyPositionToEdges(edges, nets, tl, tu, liq);
         edges = out.edges;
         nets = out.nets;
         // Monotone check after every event
@@ -240,7 +234,7 @@ describe("CLStakedLiquidity", () => {
       // Unstake half of them
       for (let i = 0; i < 25; i++) {
         const p = positions[i * 2];
-        const out = applyStakedPositionToEdges(edges, nets, p.tl, p.tu, -p.liq);
+        const out = applyPositionToEdges(edges, nets, p.tl, p.tu, -p.liq);
         edges = out.edges;
         nets = out.nets;
         for (let k = 1; k < edges.length; k++) {
@@ -251,7 +245,7 @@ describe("CLStakedLiquidity", () => {
     });
   });
 
-  describe("processTickCrossingsForStaked", () => {
+  describe("processTickCrossings", () => {
     let mockContext: handlerContext;
     let logErrorSpy: ReturnType<typeof vi.fn>;
 
@@ -274,7 +268,7 @@ describe("CLStakedLiquidity", () => {
       // touch. Here edges=[100, 200] with nets=[300, -300] and oldTick=100
       // ⇒ derive(100) = 300 (the tickLower at 100 is in-range, tickUpper at
       // 200 has not been crossed yet). The 500n input is intentionally stale.
-      const result = processTickCrossingsForStaked(
+      const result = processTickCrossings(
         CHAIN_ID,
         POOL_ADDRESS,
         100n,
@@ -288,14 +282,14 @@ describe("CLStakedLiquidity", () => {
         [100n, 200n],
         [300n, -300n],
       );
-      expect(result.stakedLiquidityInRange).toBe(300n);
+      expect(result.liquidityInRange).toBe(300n);
       // Same sqrt → final segment is a no-op → zero deltas
-      expect(result.stakedDelta0).toBe(0n);
-      expect(result.stakedDelta1).toBe(0n);
+      expect(result.delta0).toBe(0n);
+      expect(result.delta1).toBe(0n);
     });
 
     it("should return unchanged when tickSpacing is zero", async () => {
-      const result = processTickCrossingsForStaked(
+      const result = processTickCrossings(
         CHAIN_ID,
         POOL_ADDRESS,
         100n,
@@ -309,15 +303,15 @@ describe("CLStakedLiquidity", () => {
         [200n],
         [300n],
       );
-      expect(result.stakedLiquidityInRange).toBe(500n);
-      expect(result.stakedDelta0).toBe(0n);
-      expect(result.stakedDelta1).toBe(0n);
+      expect(result.liquidityInRange).toBe(500n);
+      expect(result.delta0).toBe(0n);
+      expect(result.delta1).toBe(0n);
     });
 
     it("should return unchanged when oldSqrtPriceX96 is zero (pre-Initialize)", async () => {
       // First swap on a pool whose sqrtPriceX96 was never set: cannot attribute,
       // accept zero deltas rather than divide by zero.
-      const result = processTickCrossingsForStaked(
+      const result = processTickCrossings(
         CHAIN_ID,
         POOL_ADDRESS,
         100n,
@@ -331,13 +325,13 @@ describe("CLStakedLiquidity", () => {
         [200n],
         [300n],
       );
-      expect(result.stakedLiquidityInRange).toBe(500n);
-      expect(result.stakedDelta0).toBe(0n);
-      expect(result.stakedDelta1).toBe(0n);
+      expect(result.liquidityInRange).toBe(500n);
+      expect(result.delta0).toBe(0n);
+      expect(result.delta1).toBe(0n);
     });
 
     it("should add stakedLiquidityNet when crossing up", async () => {
-      const result = processTickCrossingsForStaked(
+      const result = processTickCrossings(
         CHAIN_ID,
         POOL_ADDRESS,
         100n,
@@ -351,11 +345,11 @@ describe("CLStakedLiquidity", () => {
         [200n],
         [300n],
       );
-      expect(result.stakedLiquidityInRange).toBe(300n);
+      expect(result.liquidityInRange).toBe(300n);
     });
 
     it("should subtract stakedLiquidityNet when crossing down", async () => {
-      const result = processTickCrossingsForStaked(
+      const result = processTickCrossings(
         CHAIN_ID,
         POOL_ADDRESS,
         250n,
@@ -369,11 +363,11 @@ describe("CLStakedLiquidity", () => {
         [200n],
         [300n],
       );
-      expect(result.stakedLiquidityInRange).toBe(0n);
+      expect(result.liquidityInRange).toBe(0n);
     });
 
     it("should handle multiple tick crossings going up", async () => {
-      const result = processTickCrossingsForStaked(
+      const result = processTickCrossings(
         CHAIN_ID,
         POOL_ADDRESS,
         100n,
@@ -387,11 +381,11 @@ describe("CLStakedLiquidity", () => {
         [200n, 400n, 600n],
         [100n, 200n, -50n],
       );
-      expect(result.stakedLiquidityInRange).toBe(250n); // 0 + 100 + 200 - 50
+      expect(result.liquidityInRange).toBe(250n); // 0 + 100 + 200 - 50
     });
 
     it("should handle multiple tick crossings going down", async () => {
-      const result = processTickCrossingsForStaked(
+      const result = processTickCrossings(
         CHAIN_ID,
         POOL_ADDRESS,
         650n,
@@ -406,7 +400,7 @@ describe("CLStakedLiquidity", () => {
         [100n, 200n, -50n],
       );
       // 250 - (-50) - 200 - 100 = 250 + 50 - 200 - 100 = 0
-      expect(result.stakedLiquidityInRange).toBe(0n);
+      expect(result.liquidityInRange).toBe(0n);
     });
 
     it("should skip edges that fall outside the [oldTick, newTick] window", async () => {
@@ -414,7 +408,7 @@ describe("CLStakedLiquidity", () => {
       // derive(oldTick=100) = 0 (no edges <= 100); walker adds nets[200]=150
       // crossing strictly above oldTick up to newTick=300 (400 is beyond).
       // The 50n input is stale and ignored on the normal path (issue #719).
-      const result = processTickCrossingsForStaked(
+      const result = processTickCrossings(
         CHAIN_ID,
         POOL_ADDRESS,
         100n,
@@ -428,11 +422,11 @@ describe("CLStakedLiquidity", () => {
         [200n, 400n],
         [150n, -150n],
       );
-      expect(result.stakedLiquidityInRange).toBe(150n); // derive(100)=0 + 150
+      expect(result.liquidityInRange).toBe(150n); // derive(100)=0 + 150
     });
 
     it("should handle negative tick ranges", async () => {
-      const result = processTickCrossingsForStaked(
+      const result = processTickCrossings(
         CHAIN_ID,
         POOL_ADDRESS,
         -300n,
@@ -446,7 +440,7 @@ describe("CLStakedLiquidity", () => {
         [-200n],
         [500n],
       );
-      expect(result.stakedLiquidityInRange).toBe(500n);
+      expect(result.liquidityInRange).toBe(500n);
     });
 
     it("should not cross the oldTick itself when going up (strict-above semantics)", async () => {
@@ -455,7 +449,7 @@ describe("CLStakedLiquidity", () => {
       // tickLower at 200 is in-range by the upper-exclusive convention), so
       // the walker starts at 100 and crosses no further edges. The seed `0n`
       // input is stale and ignored on the normal path (issue #719).
-      const result = processTickCrossingsForStaked(
+      const result = processTickCrossings(
         CHAIN_ID,
         POOL_ADDRESS,
         200n,
@@ -469,12 +463,12 @@ describe("CLStakedLiquidity", () => {
         [200n],
         [100n],
       );
-      expect(result.stakedLiquidityInRange).toBe(100n);
+      expect(result.liquidityInRange).toBe(100n);
     });
 
     it("should include the oldTick boundary when going down (at-or-below semantics)", async () => {
       // oldTick=200, edge at 200 — going down includes it
-      const result = processTickCrossingsForStaked(
+      const result = processTickCrossings(
         CHAIN_ID,
         POOL_ADDRESS,
         200n,
@@ -488,13 +482,13 @@ describe("CLStakedLiquidity", () => {
         [200n],
         [100n],
       );
-      expect(result.stakedLiquidityInRange).toBe(0n); // 100 - 100
+      expect(result.liquidityInRange).toBe(0n); // 100 - 100
     });
 
     it("should handle tickSpacing of 1 without scanning per-tick (only edges drive the walk)", async () => {
       // Edges 101/102/103; spacing=1 means the old impl would sweep per-tick,
       // but the new impl only visits the edges that exist.
-      const result = processTickCrossingsForStaked(
+      const result = processTickCrossings(
         CHAIN_ID,
         POOL_ADDRESS,
         100n,
@@ -508,7 +502,7 @@ describe("CLStakedLiquidity", () => {
         [101n, 102n, 103n],
         [10n, 20n, -5n],
       );
-      expect(result.stakedLiquidityInRange).toBe(25n); // 0 + 10 + 20 - 5
+      expect(result.liquidityInRange).toBe(25n); // 0 + 10 + 20 - 5
     });
 
     describe("safety guards", () => {
@@ -517,7 +511,7 @@ describe("CLStakedLiquidity", () => {
         // so currentStakedLiqInRange MUST be 0n. Seed 0n to reflect that and
         // assert zero deltas — non-zero L would let the final-segment fallback
         // emit attribution despite the edge loop being skipped.
-        const result = processTickCrossingsForStaked(
+        const result = processTickCrossings(
           CHAIN_ID,
           POOL_ADDRESS,
           100n,
@@ -531,15 +525,15 @@ describe("CLStakedLiquidity", () => {
           [200n],
           [999n],
         );
-        expect(result.stakedLiquidityInRange).toBe(0n);
-        expect(result.stakedDelta0).toBe(0n);
-        expect(result.stakedDelta1).toBe(0n);
+        expect(result.liquidityInRange).toBe(0n);
+        expect(result.delta0).toBe(0n);
+        expect(result.delta1).toBe(0n);
       });
 
       it("should short-circuit when the edge list is empty (no staked positions)", async () => {
         // Precondition: empty edge list ⇒ no active staked positions ⇒
         // currentStakedLiqInRange MUST be 0n. Same reasoning as above.
-        const result = processTickCrossingsForStaked(
+        const result = processTickCrossings(
           CHAIN_ID,
           POOL_ADDRESS,
           100n,
@@ -553,15 +547,15 @@ describe("CLStakedLiquidity", () => {
           [],
           [],
         );
-        expect(result.stakedLiquidityInRange).toBe(0n);
-        expect(result.stakedDelta0).toBe(0n);
-        expect(result.stakedDelta1).toBe(0n);
+        expect(result.liquidityInRange).toBe(0n);
+        expect(result.delta0).toBe(0n);
+        expect(result.delta1).toBe(0n);
       });
 
       it("should bail and log when oldTick is below TICK_MIN", async () => {
         // oldTick out of range — pass dummy non-zero sqrt placeholders since
         // sqrtAt(out-of-range) would throw before we even reach the function.
-        const result = processTickCrossingsForStaked(
+        const result = processTickCrossings(
           CHAIN_ID,
           POOL_ADDRESS,
           -900000n,
@@ -575,9 +569,9 @@ describe("CLStakedLiquidity", () => {
           [200n],
           [300n],
         );
-        expect(result.stakedLiquidityInRange).toBe(500n);
-        expect(result.stakedDelta0).toBe(0n);
-        expect(result.stakedDelta1).toBe(0n);
+        expect(result.liquidityInRange).toBe(500n);
+        expect(result.delta0).toBe(0n);
+        expect(result.delta1).toBe(0n);
         expect(logErrorSpy).toHaveBeenCalledTimes(1);
         expect(logErrorSpy.mock.calls[0][0]).toContain(
           "out of Uniswap v3 range",
@@ -585,7 +579,7 @@ describe("CLStakedLiquidity", () => {
       });
 
       it("should bail and log when newTick is above TICK_MAX", async () => {
-        const result = processTickCrossingsForStaked(
+        const result = processTickCrossings(
           CHAIN_ID,
           POOL_ADDRESS,
           100n,
@@ -599,12 +593,12 @@ describe("CLStakedLiquidity", () => {
           [200n],
           [300n],
         );
-        expect(result.stakedLiquidityInRange).toBe(500n);
+        expect(result.liquidityInRange).toBe(500n);
         expect(logErrorSpy).toHaveBeenCalledTimes(1);
       });
 
       it("should accept boundary ticks at exactly TICK_MIN and TICK_MAX", async () => {
-        const result = processTickCrossingsForStaked(
+        const result = processTickCrossings(
           CHAIN_ID,
           POOL_ADDRESS,
           -887272n,
@@ -618,14 +612,14 @@ describe("CLStakedLiquidity", () => {
           [],
           [],
         );
-        expect(result.stakedLiquidityInRange).toBe(0n);
+        expect(result.liquidityInRange).toBe(0n);
         expect(logErrorSpy).not.toHaveBeenCalled();
       });
     });
 
     describe("per-segment reserve delta attribution (#666 fix)", () => {
       it("returns zero deltas when stakedLiq is zero throughout the swap", () => {
-        const result = processTickCrossingsForStaked(
+        const result = processTickCrossings(
           CHAIN_ID,
           POOL_ADDRESS,
           100n,
@@ -639,8 +633,8 @@ describe("CLStakedLiquidity", () => {
           [],
           [],
         );
-        expect(result.stakedDelta0).toBe(0n);
-        expect(result.stakedDelta1).toBe(0n);
+        expect(result.delta0).toBe(0n);
+        expect(result.delta1).toBe(0n);
       });
 
       it("matches calculatePositionAmountsFromLiquidity diff for an in-range single-segment swap", () => {
@@ -661,7 +655,7 @@ describe("CLStakedLiquidity", () => {
         const edges = [tickLower, tickUpper];
         const nets = [L, -L];
 
-        const result = processTickCrossingsForStaked(
+        const result = processTickCrossings(
           CHAIN_ID,
           POOL_ADDRESS,
           oldTick,
@@ -676,7 +670,7 @@ describe("CLStakedLiquidity", () => {
           nets,
         );
 
-        expect(result.stakedLiquidityInRange).toBe(L);
+        expect(result.liquidityInRange).toBe(L);
 
         const before = calculatePositionAmountsFromLiquidity(
           L,
@@ -696,14 +690,10 @@ describe("CLStakedLiquidity", () => {
         const expectedDelta0 = after.amount0 - before.amount0;
         const expectedDelta1 = after.amount1 - before.amount1;
         // Bigint truncation may differ by ≤1 wei vs the source helper.
-        expect(result.stakedDelta0 - expectedDelta0).toBeGreaterThanOrEqual(
-          -1n,
-        );
-        expect(result.stakedDelta0 - expectedDelta0).toBeLessThanOrEqual(1n);
-        expect(result.stakedDelta1 - expectedDelta1).toBeGreaterThanOrEqual(
-          -1n,
-        );
-        expect(result.stakedDelta1 - expectedDelta1).toBeLessThanOrEqual(1n);
+        expect(result.delta0 - expectedDelta0).toBeGreaterThanOrEqual(-1n);
+        expect(result.delta0 - expectedDelta0).toBeLessThanOrEqual(1n);
+        expect(result.delta1 - expectedDelta1).toBeGreaterThanOrEqual(-1n);
+        expect(result.delta1 - expectedDelta1).toBeLessThanOrEqual(1n);
       });
 
       it("attributes nothing past the boundary when the position exits range mid-swap", () => {
@@ -722,7 +712,7 @@ describe("CLStakedLiquidity", () => {
         const newSqrt = sqrtAt(newTick);
         const sqrtAtLower = sqrtAt(tickLower);
 
-        const result = processTickCrossingsForStaked(
+        const result = processTickCrossings(
           CHAIN_ID,
           POOL_ADDRESS,
           oldTick,
@@ -738,7 +728,7 @@ describe("CLStakedLiquidity", () => {
         );
 
         // Position fully exited going down → stakedLiq drops to 0
-        expect(result.stakedLiquidityInRange).toBe(0n);
+        expect(result.liquidityInRange).toBe(0n);
 
         // Expected delta = single segment from oldSqrt down to sqrtAtLower
         // with L active. Nothing attributed past the boundary.
@@ -756,14 +746,10 @@ describe("CLStakedLiquidity", () => {
         );
         const expectedDelta0 = atBoundary.amount0 - before.amount0;
         const expectedDelta1 = atBoundary.amount1 - before.amount1;
-        expect(result.stakedDelta0 - expectedDelta0).toBeGreaterThanOrEqual(
-          -1n,
-        );
-        expect(result.stakedDelta0 - expectedDelta0).toBeLessThanOrEqual(1n);
-        expect(result.stakedDelta1 - expectedDelta1).toBeGreaterThanOrEqual(
-          -1n,
-        );
-        expect(result.stakedDelta1 - expectedDelta1).toBeLessThanOrEqual(1n);
+        expect(result.delta0 - expectedDelta0).toBeGreaterThanOrEqual(-1n);
+        expect(result.delta0 - expectedDelta0).toBeLessThanOrEqual(1n);
+        expect(result.delta1 - expectedDelta1).toBeGreaterThanOrEqual(-1n);
+        expect(result.delta1 - expectedDelta1).toBeLessThanOrEqual(1n);
       });
 
       it("telescopes Deposit + swap + Withdraw to ~0 when the position exits range mid-swap (#666 invariant)", () => {
@@ -793,7 +779,7 @@ describe("CLStakedLiquidity", () => {
 
         // 2) Swap moves price down through the lower edge. Per-segment
         //    attribution credits only the in-range segment.
-        const swapResult = processTickCrossingsForStaked(
+        const swapResult = processTickCrossings(
           CHAIN_ID,
           POOL_ADDRESS,
           tickAtDeposit,
@@ -819,13 +805,9 @@ describe("CLStakedLiquidity", () => {
         );
 
         const net0 =
-          depositAmounts.amount0 +
-          swapResult.stakedDelta0 -
-          withdrawAmounts.amount0;
+          depositAmounts.amount0 + swapResult.delta0 - withdrawAmounts.amount0;
         const net1 =
-          depositAmounts.amount1 +
-          swapResult.stakedDelta1 -
-          withdrawAmounts.amount1;
+          depositAmounts.amount1 + swapResult.delta1 - withdrawAmounts.amount1;
 
         // Tolerance: a few wei from bigint truncation across the three steps.
         expect(net0).toBeGreaterThanOrEqual(-2n);
@@ -844,7 +826,7 @@ describe("CLStakedLiquidity", () => {
         const oldTick = 200n;
         const newTick = 300n;
 
-        const result = processTickCrossingsForStaked(
+        const result = processTickCrossings(
           CHAIN_ID,
           POOL_ADDRESS,
           oldTick,
@@ -859,9 +841,9 @@ describe("CLStakedLiquidity", () => {
           [L, -L],
         );
 
-        expect(result.stakedLiquidityInRange).toBe(0n);
-        expect(result.stakedDelta0).toBe(0n);
-        expect(result.stakedDelta1).toBe(0n);
+        expect(result.liquidityInRange).toBe(0n);
+        expect(result.delta0).toBe(0n);
+        expect(result.delta1).toBe(0n);
       });
 
       it("attributes only the in-range segment when the position enters range mid-swap", () => {
@@ -877,7 +859,7 @@ describe("CLStakedLiquidity", () => {
         const newSqrt = sqrtAt(newTick);
         const sqrtAtLower = sqrtAt(tickLower);
 
-        const result = processTickCrossingsForStaked(
+        const result = processTickCrossings(
           CHAIN_ID,
           POOL_ADDRESS,
           oldTick,
@@ -892,7 +874,7 @@ describe("CLStakedLiquidity", () => {
           [L, -L],
         );
 
-        expect(result.stakedLiquidityInRange).toBe(L);
+        expect(result.liquidityInRange).toBe(L);
 
         // Expected: single in-range segment from sqrtAt(-100) (boundary cross)
         // up to newSqrt. Equivalent to position-amounts diff at those prices.
@@ -910,14 +892,10 @@ describe("CLStakedLiquidity", () => {
         );
         const expectedDelta0 = after.amount0 - atBoundary.amount0;
         const expectedDelta1 = after.amount1 - atBoundary.amount1;
-        expect(result.stakedDelta0 - expectedDelta0).toBeGreaterThanOrEqual(
-          -1n,
-        );
-        expect(result.stakedDelta0 - expectedDelta0).toBeLessThanOrEqual(1n);
-        expect(result.stakedDelta1 - expectedDelta1).toBeGreaterThanOrEqual(
-          -1n,
-        );
-        expect(result.stakedDelta1 - expectedDelta1).toBeLessThanOrEqual(1n);
+        expect(result.delta0 - expectedDelta0).toBeGreaterThanOrEqual(-1n);
+        expect(result.delta0 - expectedDelta0).toBeLessThanOrEqual(1n);
+        expect(result.delta1 - expectedDelta1).toBeGreaterThanOrEqual(-1n);
+        expect(result.delta1 - expectedDelta1).toBeLessThanOrEqual(1n);
       });
 
       it("returns zero deltas when oldSqrt === newSqrt (no movement) regardless of tick", () => {
@@ -925,7 +903,7 @@ describe("CLStakedLiquidity", () => {
         // No reserve flow → no attribution.
         const L = 10n ** 18n;
         const sqrt = sqrtAt(0n);
-        const result = processTickCrossingsForStaked(
+        const result = processTickCrossings(
           CHAIN_ID,
           POOL_ADDRESS,
           -50n,
@@ -939,8 +917,8 @@ describe("CLStakedLiquidity", () => {
           [-100n, 100n],
           [L, -L],
         );
-        expect(result.stakedDelta0).toBe(0n);
-        expect(result.stakedDelta1).toBe(0n);
+        expect(result.delta0).toBe(0n);
+        expect(result.delta1).toBe(0n);
       });
     });
 
@@ -955,7 +933,7 @@ describe("CLStakedLiquidity", () => {
         //
         // Mirrors the production failure mode that left 30 CL pools with
         // negative stakedReserve0/1 values at snapshot epochs. After the
-        // fix (rounding inside segmentStakedReserveDelta + clamp at the
+        // fix (rounding inside segmentReserveDelta + clamp at the
         // aggregator write site) the final telescoping reserve totals must
         // be non-negative at all times.
         const L_A = 10n ** 18n;
@@ -971,7 +949,7 @@ describe("CLStakedLiquidity", () => {
         let edges: readonly bigint[] = [];
         let nets: readonly bigint[] = [];
         for (const p of positions) {
-          const applied = applyStakedPositionToEdges(
+          const applied = applyPositionToEdges(
             edges,
             nets,
             p.tickLower,
@@ -1030,7 +1008,7 @@ describe("CLStakedLiquidity", () => {
         let currentTick = startTick;
         for (let cycle = 0; cycle < 25; cycle++) {
           for (const target of trajectory) {
-            const result = processTickCrossingsForStaked(
+            const result = processTickCrossings(
               CHAIN_ID,
               POOL_ADDRESS,
               currentTick,
@@ -1044,8 +1022,8 @@ describe("CLStakedLiquidity", () => {
               edges,
               nets,
             );
-            const sum0 = stakedReserve0 + result.stakedDelta0;
-            const sum1 = stakedReserve1 + result.stakedDelta1;
+            const sum0 = stakedReserve0 + result.delta0;
+            const sum1 = stakedReserve1 + result.delta1;
             stakedReserve0 = sum0 < 0n ? 0n : sum0;
             stakedReserve1 = sum1 < 0n ? 0n : sum1;
             expect(stakedReserve0).toBeGreaterThanOrEqual(0n);
@@ -1081,7 +1059,7 @@ describe("CLStakedLiquidity", () => {
   });
 
   // Regression coverage for issue #771: per-segment BigInt division in
-  // `segmentStakedReserveDelta` truncated toward zero on signed numerators,
+  // `segmentReserveDelta` truncated toward zero on signed numerators,
   // accumulating sub-wei bias across thousands of tick-crossing segments per
   // swap. The fix routes the division through `divRoundNearest`, which rounds
   // half-away-from-zero so per-segment error has mean 0.
@@ -1127,34 +1105,34 @@ describe("CLStakedLiquidity", () => {
   // The segment formula is exact in real arithmetic — the rounding mode
   // chosen here governs the per-segment residual. Direct tests pin the
   // boundary cases that flip between truncation and round-half-to-nearest.
-  describe("segmentStakedReserveDelta (#771)", () => {
+  describe("segmentReserveDelta (#771)", () => {
     it("returns symmetric magnitudes for UP and DOWN moves at the same prices", () => {
       const L = 10n ** 18n;
       const segA = Q96;
       const segB = Q96 + Q96 / 100n;
-      const up = segmentStakedReserveDelta(L, segA, segB);
-      const down = segmentStakedReserveDelta(L, segB, segA);
-      expect(up.stakedDelta0).toBe(-down.stakedDelta0);
-      expect(up.stakedDelta1).toBe(-down.stakedDelta1);
+      const up = segmentReserveDelta(L, segA, segB);
+      const down = segmentReserveDelta(L, segB, segA);
+      expect(up.delta0).toBe(-down.delta0);
+      expect(up.delta1).toBe(-down.delta1);
     });
 
-    it("rounds half-away-from-zero on stakedDelta1 (matches the helper, not truncation)", () => {
-      // Construct an exact half-case: stakedLiq*(segEnd-segStart) = Q96/2
-      //   ⇒ stakedDelta1 = 0.5 in real arithmetic.
+    it("rounds half-away-from-zero on delta1 (matches the helper, not truncation)", () => {
+      // Construct an exact half-case: liq*(segEnd-segStart) = Q96/2
+      //   ⇒ delta1 = 0.5 in real arithmetic.
       // BigInt truncation toward zero would give 0n; the fix gives 1n.
       const stakedLiq = 1n;
       const segStart = Q96;
       const segEnd = Q96 + Q96 / 2n;
-      const seg = segmentStakedReserveDelta(stakedLiq, segStart, segEnd);
-      expect(seg.stakedDelta1).toBe(1n);
+      const seg = segmentReserveDelta(stakedLiq, segStart, segEnd);
+      expect(seg.delta1).toBe(1n);
 
-      const segDown = segmentStakedReserveDelta(stakedLiq, segEnd, segStart);
-      expect(segDown.stakedDelta1).toBe(-1n);
+      const segDown = segmentReserveDelta(stakedLiq, segEnd, segStart);
+      expect(segDown.delta1).toBe(-1n);
     });
 
-    it("rounds half-away-from-zero on stakedDelta0", () => {
-      // Construct an exact half-case on stakedDelta0:
-      //   stakedDelta0 = stakedLiq * (segStart - segEnd) * Q96 / (segStart * segEnd)
+    it("rounds half-away-from-zero on delta0", () => {
+      // Construct an exact half-case on delta0:
+      //   delta0 = liq * (segStart - segEnd) * Q96 / (segStart * segEnd)
       // Pick segStart = 2 * Q96, segEnd = 4 * Q96, stakedLiq = 1:
       //   numerator = 1 * (2Q96 - 4Q96) * Q96 = -2 * Q96^2
       //   denominator = 8 * Q96^2
@@ -1175,10 +1153,10 @@ describe("CLStakedLiquidity", () => {
       const stakedLiq = 10n ** 18n;
       const segStart = sqrtAt(0n);
       const segEnd = sqrtAt(100n);
-      const seg = segmentStakedReserveDelta(stakedLiq, segStart, segEnd);
+      const seg = segmentReserveDelta(stakedLiq, segStart, segEnd);
       // UP move ⇒ delta0 negative, delta1 positive.
-      expect(seg.stakedDelta0).toBeLessThan(0n);
-      expect(seg.stakedDelta1).toBeGreaterThan(0n);
+      expect(seg.delta0).toBeLessThan(0n);
+      expect(seg.delta1).toBeGreaterThan(0n);
     });
   });
 
@@ -1191,48 +1169,46 @@ describe("CLStakedLiquidity", () => {
   // tracked, but without any of the drift paths the counter exhibited (pre-
   // Initialize deposit, edge-merge rejection, NFPM-mediated liquidity change
   // between gauge deposit and withdraw).
-  describe("deriveStakedLiquidityInRange (#719)", () => {
+  describe("deriveLiquidityInRange (#719)", () => {
     it("returns 0n on empty edge list", () => {
-      expect(deriveStakedLiquidityInRange(0n, [], [])).toBe(0n);
+      expect(deriveLiquidityInRange(0n, [], [])).toBe(0n);
     });
 
     it("returns 0n when currentTick is below every edge", () => {
       // Position [100, 200]: edges=[100, 200], nets=[+L, -L]. currentTick=50
       // is below both — no entry crossed, so 0.
-      expect(
-        deriveStakedLiquidityInRange(50n, [100n, 200n], [500n, -500n]),
-      ).toBe(0n);
+      expect(deriveLiquidityInRange(50n, [100n, 200n], [500n, -500n])).toBe(0n);
     });
 
     it("returns liquidity when currentTick is in range (only tickLower crossed)", () => {
       // currentTick=150 ≥ 100 (entered) but < 200 (not exited yet).
-      expect(
-        deriveStakedLiquidityInRange(150n, [100n, 200n], [500n, -500n]),
-      ).toBe(500n);
+      expect(deriveLiquidityInRange(150n, [100n, 200n], [500n, -500n])).toBe(
+        500n,
+      );
     });
 
     it("returns 0n when currentTick is above every edge (entered then exited)", () => {
       // currentTick=300 ≥ 100 AND ≥ 200 ⇒ +L - L = 0.
-      expect(
-        deriveStakedLiquidityInRange(300n, [100n, 200n], [500n, -500n]),
-      ).toBe(0n);
+      expect(deriveLiquidityInRange(300n, [100n, 200n], [500n, -500n])).toBe(
+        0n,
+      );
     });
 
     it("includes an edge that equals currentTick (tickLower inclusive)", () => {
       // Uniswap v3 convention: tickLower <= currentTick < tickUpper.
-      // deriveStakedLiquidityInRange uses edges[i] <= currentTick, so the
+      // deriveLiquidityInRange uses edges[i] <= currentTick, so the
       // tickLower edge is included when currentTick === tickLower.
-      expect(
-        deriveStakedLiquidityInRange(100n, [100n, 200n], [500n, -500n]),
-      ).toBe(500n);
+      expect(deriveLiquidityInRange(100n, [100n, 200n], [500n, -500n])).toBe(
+        500n,
+      );
     });
 
     it("excludes the tickUpper edge when currentTick === tickUpper (boundary exit)", () => {
       // currentTick=200 ⇒ both edges <=200 ⇒ +L - L = 0. Matches the upper-
       // exclusive convention in isPositionInRange.
-      expect(
-        deriveStakedLiquidityInRange(200n, [100n, 200n], [500n, -500n]),
-      ).toBe(0n);
+      expect(deriveLiquidityInRange(200n, [100n, 200n], [500n, -500n])).toBe(
+        0n,
+      );
     });
 
     it("sums multiple overlapping positions", () => {
@@ -1241,7 +1217,7 @@ describe("CLStakedLiquidity", () => {
       // At currentTick=250: A is in (entered at 100, not yet exited at 300),
       // B is in (entered at 200, not yet exited at 400) ⇒ 500 + 300 = 800.
       expect(
-        deriveStakedLiquidityInRange(
+        deriveLiquidityInRange(
           250n,
           [100n, 200n, 300n, 400n],
           [500n, 300n, -500n, -300n],
@@ -1251,17 +1227,17 @@ describe("CLStakedLiquidity", () => {
 
     it("handles negative ticks", () => {
       // Position [-200, -100], L=500.
-      expect(
-        deriveStakedLiquidityInRange(-150n, [-200n, -100n], [500n, -500n]),
-      ).toBe(500n);
-      expect(
-        deriveStakedLiquidityInRange(-50n, [-200n, -100n], [500n, -500n]),
-      ).toBe(0n);
+      expect(deriveLiquidityInRange(-150n, [-200n, -100n], [500n, -500n])).toBe(
+        500n,
+      );
+      expect(deriveLiquidityInRange(-50n, [-200n, -100n], [500n, -500n])).toBe(
+        0n,
+      );
     });
 
-    it("agrees with processTickCrossingsForStaked walking up from the lowest edge", () => {
-      // Build a non-trivial edge set and verify deriveStakedLiquidityInRange
-      // matches what processTickCrossingsForStaked produces by walking up from
+    it("agrees with processTickCrossings walking up from the lowest edge", () => {
+      // Build a non-trivial edge set and verify deriveLiquidityInRange
+      // matches what processTickCrossings produces by walking up from
       // far below to the target tick.
       const edges = [-200n, -100n, 100n, 300n];
       const nets = [400n, 200n, -100n, -500n];
@@ -1271,7 +1247,7 @@ describe("CLStakedLiquidity", () => {
         log: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
       } as unknown as handlerContext;
 
-      const walked = processTickCrossingsForStaked(
+      const walked = processTickCrossings(
         CHAIN_ID,
         POOL_ADDRESS,
         -500n,
@@ -1286,8 +1262,8 @@ describe("CLStakedLiquidity", () => {
         nets,
       );
 
-      expect(deriveStakedLiquidityInRange(target, edges, nets)).toBe(
-        walked.stakedLiquidityInRange,
+      expect(deriveLiquidityInRange(target, edges, nets)).toBe(
+        walked.liquidityInRange,
       );
     });
   });

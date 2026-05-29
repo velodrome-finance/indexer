@@ -33,6 +33,8 @@ describe("PoolLauncherLogic", () => {
             ...entity,
             stakedTickEdges: [...entity.stakedTickEdges],
             stakedTickEdgeNets: [...entity.stakedTickEdgeNets],
+            tickEdges: [...entity.tickEdges],
+            tickEdgeNets: [...entity.tickEdgeNets],
           });
         },
       },

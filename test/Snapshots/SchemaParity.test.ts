@@ -46,17 +46,23 @@ describe("Snapshot schema parity", () => {
         // never changes — no analytical value in trending it hourly. Used only
         // to clamp roundBlockToInterval above the pool's bytecode boundary.
         "createdBlockNumber",
-        // Control-flow latch for processTickCrossingsForStaked — once true, stays
+        // Control-flow latch for processTickCrossings — once true, stays
         // true. No analytical value in trending it over time.
         "hasStakes",
         // Implementation detail of the #649 swap-path optimization: a sparse
         // in-memory liquidityNet list keyed by tick, consumed only by
-        // processTickCrossingsForStaked. Not snapshotted hourly — the arrays
+        // processTickCrossings. Not snapshotted hourly — the arrays
         // are derived state (sum-of-stakes per tick) and the per-stake history
         // is already captured by Gauge Deposit/Withdraw and NFPM
         // IncreaseLiquidity/DecreaseLiquidity events.
         "stakedTickEdges",
         "stakedTickEdgeNets",
+        // Total-liquidity analog of the staked edge map (#803), consumed by the
+        // swap path to derive the fee-free reserve delta. Same reasoning as the
+        // staked pair above: derived per-tick state, not an hourly metric — the
+        // underlying position history lives in CLPool Mint/Burn events.
+        "tickEdges",
+        "tickEdgeNets",
       ],
     ],
     ["UserStatsPerPool", ["firstActivityTimestamp", "lastSnapshotTimestamp"]],

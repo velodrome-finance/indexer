@@ -1,4 +1,5 @@
 import { CLPool } from "generated";
+import { applyPositionToEdges } from "../Aggregators/CLStakedLiquidity";
 import { createOUSDTSwapEntity } from "../Aggregators/OUSDTSwaps";
 import { loadPoolData, updatePool } from "../Aggregators/Pool";
 import {
@@ -62,6 +63,22 @@ CLPool.Burn.handler(async ({ event, context }) => {
     token1Instance,
     context,
   );
+  // #803: maintain the total per-tick liquidityNet map on every Burn so the swap
+  // path can integrate geometry over it. Burn removes liquidity → negative delta.
+  const burnEdges = applyPositionToEdges(
+    liquidityPoolAggregator.tickEdges,
+    liquidityPoolAggregator.tickEdgeNets,
+    event.params.tickLower,
+    event.params.tickUpper,
+    -event.params.amount,
+  );
+  if (burnEdges.rejected) {
+    context.log.error(
+      `[TICK_EDGE_DRIFT][CLPool.Burn] rejected=${burnEdges.rejected} pool=${event.srcAddress} chain=${event.chainId} tickLower=${event.params.tickLower} tickUpper=${event.params.tickUpper}`,
+    );
+  }
+  result.liquidityPoolDiff.tickEdges = burnEdges.edges;
+  result.liquidityPoolDiff.tickEdgeNets = burnEdges.nets;
   const timestamp = new Date(event.block.timestamp * 1000);
 
   await updatePool(
@@ -327,6 +344,22 @@ CLPool.Mint.handler(async ({ event, context }) => {
     token0Instance,
     token1Instance,
   );
+  // #803: maintain the total per-tick liquidityNet map on every Mint so the swap
+  // path can integrate geometry over it. Mint adds liquidity → positive delta.
+  const mintEdges = applyPositionToEdges(
+    liquidityPoolAggregator.tickEdges,
+    liquidityPoolAggregator.tickEdgeNets,
+    event.params.tickLower,
+    event.params.tickUpper,
+    event.params.amount,
+  );
+  if (mintEdges.rejected) {
+    context.log.error(
+      `[TICK_EDGE_DRIFT][CLPool.Mint] rejected=${mintEdges.rejected} pool=${event.srcAddress} chain=${event.chainId} tickLower=${event.params.tickLower} tickUpper=${event.params.tickUpper}`,
+    );
+  }
+  result.liquidityPoolDiff.tickEdges = mintEdges.edges;
+  result.liquidityPoolDiff.tickEdgeNets = mintEdges.nets;
   const timestamp = new Date(event.block.timestamp * 1000);
 
   await updatePool(

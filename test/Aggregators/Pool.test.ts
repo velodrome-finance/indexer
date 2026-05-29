@@ -565,12 +565,107 @@ describe("Pool Functions", () => {
       expect(updated.stakedTickEdgeNets).toEqual([]);
     });
 
+    // Issue #803: the TOTAL-liquidity parallel pair (tickEdges, tickEdgeNets)
+    // gets the same lockstep guard the staked pair has. A presence- or
+    // length-mismatched diff would silently desync the map the swap path
+    // binary-searches for the fee-free reserve geometry, so updatePool drops
+    // both edge fields, logs [TICK_EDGE_DRIFT], and retains the prior pair.
+    // Unlike the staked guard, liquidityInRange is NOT dropped (it comes from
+    // event.params.liquidity, not from this map).
+    it("drops tickEdges/tickEdgeNets together on a presence mismatch (#803)", async () => {
+      await updatePool(
+        {
+          tickEdges: [100n, 200n, 300n],
+          // tickEdgeNets intentionally omitted — half-written diff
+        },
+        {
+          ...(liquidityPoolAggregator as Pool),
+          tickEdges: [100n, 200n],
+          tickEdgeNets: [500n, -500n],
+        },
+        timestamp,
+        mockContext as handlerContext,
+        10,
+        blockNumber,
+      );
+
+      const poolStore = mockContext.Pool;
+      if (!poolStore) {
+        throw new Error("test setup: Pool store must exist");
+      }
+      const updated = vi.mocked(poolStore.set).mock.calls.at(-1)?.[0] as Pool;
+      // Prior consistent pair retained, not the half-written diff.
+      expect(updated.tickEdges).toEqual([100n, 200n]);
+      expect(updated.tickEdgeNets).toEqual([500n, -500n]);
+      expect(vi.mocked(mockContext.log?.error)).toHaveBeenCalledWith(
+        expect.stringContaining("[TICK_EDGE_DRIFT]"),
+      );
+    });
+
+    it("drops tickEdges/tickEdgeNets together on a length mismatch (#803)", async () => {
+      await updatePool(
+        {
+          tickEdges: [100n, 200n, 300n],
+          tickEdgeNets: [500n, -500n], // length 2 ≠ 3
+        },
+        {
+          ...(liquidityPoolAggregator as Pool),
+          tickEdges: [100n, 200n],
+          tickEdgeNets: [500n, -500n],
+        },
+        timestamp,
+        mockContext as handlerContext,
+        10,
+        blockNumber,
+      );
+
+      const poolStore = mockContext.Pool;
+      if (!poolStore) {
+        throw new Error("test setup: Pool store must exist");
+      }
+      const updated = vi.mocked(poolStore.set).mock.calls.at(-1)?.[0] as Pool;
+      expect(updated.tickEdges).toEqual([100n, 200n]);
+      expect(updated.tickEdgeNets).toEqual([500n, -500n]);
+      expect(vi.mocked(mockContext.log?.error)).toHaveBeenCalledWith(
+        expect.stringContaining("[TICK_EDGE_DRIFT]"),
+      );
+    });
+
+    it("writes a consistent tickEdges/tickEdgeNets pair through unchanged (#803)", async () => {
+      await updatePool(
+        {
+          tickEdges: [100n, 200n, 300n],
+          tickEdgeNets: [500n, -200n, -300n],
+        },
+        {
+          ...(liquidityPoolAggregator as Pool),
+          tickEdges: [100n, 200n],
+          tickEdgeNets: [500n, -500n],
+        },
+        timestamp,
+        mockContext as handlerContext,
+        10,
+        blockNumber,
+      );
+
+      const poolStore = mockContext.Pool;
+      if (!poolStore) {
+        throw new Error("test setup: Pool store must exist");
+      }
+      const updated = vi.mocked(poolStore.set).mock.calls.at(-1)?.[0] as Pool;
+      expect(updated.tickEdges).toEqual([100n, 200n, 300n]);
+      expect(updated.tickEdgeNets).toEqual([500n, -200n, -300n]);
+      expect(vi.mocked(mockContext.log?.error)).not.toHaveBeenCalledWith(
+        expect.stringContaining("[TICK_EDGE_DRIFT]"),
+      );
+    });
+
     // Regression test for issue #771: stakedReserve0/stakedReserve1 are
     // running counters of staked LP-deposited capital and must never persist
     // negative. The accumulator path clamps both fields to >= 0n and emits
     // [NEG_STAKED_RESERVE_GUARD] with {poolAddress, chainId, priorStakedReserve,
     // delta, clampedTo}. Mirrors the #702 [NEG_RESERVE_GUARD] shape; the
-    // structural rounding fix in segmentStakedReserveDelta bounds the residual
+    // structural rounding fix in segmentReserveDelta bounds the residual
     // drift so the clamp catches only sub-wei truncation noise, not real
     // liquidity imbalance.
     //

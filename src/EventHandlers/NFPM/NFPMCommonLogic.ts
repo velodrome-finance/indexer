@@ -1,7 +1,7 @@
 import type { NonFungiblePosition, handlerContext } from "generated";
 import {
-  applyStakedPositionToEdges,
-  deriveStakedLiquidityInRange,
+  applyPositionToEdges,
+  deriveLiquidityInRange,
 } from "../../Aggregators/CLStakedLiquidity";
 import type { PoolData } from "../../Aggregators/Pool";
 import { updatePool } from "../../Aggregators/Pool";
@@ -131,7 +131,7 @@ export async function updateStakedPositionLiquidity(
     edges: stakedTickEdges,
     nets: stakedTickEdgeNets,
     rejected: edgesRejected,
-  } = applyStakedPositionToEdges(
+  } = applyPositionToEdges(
     liquidityPoolAggregator.stakedTickEdges,
     liquidityPoolAggregator.stakedTickEdgeNets,
     position.tickLower,
@@ -140,7 +140,7 @@ export async function updateStakedPositionLiquidity(
   );
   if (edgesRejected) {
     context.log.error(
-      `[updateStakedPositionLiquidity] applyStakedPositionToEdges rejected position ${position.tokenId} on pool ${position.pool} chain ${chainId}: reason=${edgesRejected} tickLower=${position.tickLower} tickUpper=${position.tickUpper}. Edge list left unchanged.`,
+      `[updateStakedPositionLiquidity] applyPositionToEdges rejected position ${position.tokenId} on pool ${position.pool} chain ${chainId}: reason=${edgesRejected} tickLower=${position.tickLower} tickUpper=${position.tickUpper}. Edge list left unchanged.`,
     );
   }
 
@@ -157,7 +157,7 @@ export async function updateStakedPositionLiquidity(
   // currentTick (issue #719). Applies on both the early-exit path (sqrt=0n)
   // and the normal path, so NFPM-mediated liquidity changes between gauge
   // deposit and withdraw can't desync the counter from the edges.
-  const stakedLiquidityInRange = deriveStakedLiquidityInRange(
+  const stakedLiquidityInRange = deriveLiquidityInRange(
     currentTick,
     stakedTickEdges,
     stakedTickEdgeNets,

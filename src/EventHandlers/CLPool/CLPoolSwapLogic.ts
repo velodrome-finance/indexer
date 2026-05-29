@@ -1,5 +1,5 @@
 import type { CLPool_Swap_event, Token, handlerContext } from "generated";
-import { processTickCrossingsForStaked } from "../../Aggregators/CLStakedLiquidity";
+import { processTickCrossings } from "../../Aggregators/CLStakedLiquidity";
 import type { PoolDiff } from "../../Aggregators/Pool";
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import { CL_FEE_SCALE } from "../../Constants";
@@ -40,12 +40,6 @@ interface SwapVolumeAndFees {
   swapFeesInToken0: bigint;
   swapFeesInToken1: bigint;
   swapFeesInUSD: bigint;
-}
-
-interface SwapLiquidityChanges {
-  newReserve0: bigint;
-  newReserve1: bigint;
-  currentTotalLiquidityUSD: bigint;
 }
 
 /** Compute fee amount in native token units from a CL fee rate and a swap amount. */
@@ -194,60 +188,6 @@ function calculateSwapVolumeAndFees(
   };
 }
 
-/**
- * Calculates liquidity and reserve changes from a swap event.
- *
- * TVL definition: reserves track **LP-deposited capital only** (Mint/Burn/Swap rebalancing).
- * Swap fees are excluded because they are protocol/LP earnings, not deposited capital.
- * In the CLPool contract, swap event amounts (amount0/amount1) include fees — the fee
- * portion flows into gaugeFees or feeGrowthGlobal, not into any LP position's liquidity.
- * The fee is only charged on the **input token** (the positive amount side), confirmed by
- * SwapMath.computeSwapStep which computes feeAmount solely from amountIn.
- * We subtract the fee from the input side only so that:
- *   - Mint: reserves += deposited amounts
- *   - Burn: reserves -= withdrawn amounts (tokens stay in contract as tokensOwed until collect)
- *   - Swap: reserves += net rebalancing (input-side fee excluded, output side unchanged)
- *   - Collect/CollectFees: no reserve change (fees were never in reserves)
- *
- * Exported for testing purposes only.
- */
-export function calculateSwapLiquidityChanges(
-  event: CLPool_Swap_event,
-  liquidityPoolAggregator: Pool,
-  token0Instance: Token | undefined,
-  token1Instance: Token | undefined,
-  clFeeRate: bigint,
-): SwapLiquidityChanges {
-  // Subtract fees only from the input token (positive amount). The output token
-  // (negative amount) is not fee-charged — see SwapMath.computeSwapStep.
-  const reserveDelta0 =
-    event.params.amount0 > 0n
-      ? event.params.amount0 -
-        computeClFeeAmount(event.params.amount0, clFeeRate)
-      : event.params.amount0;
-  const reserveDelta1 =
-    event.params.amount1 > 0n
-      ? event.params.amount1 -
-        computeClFeeAmount(event.params.amount1, clFeeRate)
-      : event.params.amount1;
-
-  const newReserve0 = liquidityPoolAggregator.reserve0 + reserveDelta0;
-  const newReserve1 = liquidityPoolAggregator.reserve1 + reserveDelta1;
-
-  const currentTotalLiquidityUSD = calculateTotalUSD(
-    newReserve0,
-    newReserve1,
-    token0Instance,
-    token1Instance,
-  );
-
-  return {
-    newReserve0,
-    newReserve1,
-    currentTotalLiquidityUSD,
-  };
-}
-
 export async function processCLPoolSwap(
   event: CLPool_Swap_event,
   liquidityPoolAggregator: Pool,
@@ -265,39 +205,68 @@ export async function processCLPoolSwap(
       context,
     );
 
-  // Calculate liquidity and reserve changes (fees excluded from reserves — see function docs)
-  const clFeeRate =
-    liquidityPoolAggregator.currentFee ?? liquidityPoolAggregator.baseFee ?? 0n;
-  const { newReserve0, newReserve1, currentTotalLiquidityUSD } =
-    calculateSwapLiquidityChanges(
-      event,
-      liquidityPoolAggregator,
-      token0Instance,
-      token1Instance,
-      clFeeRate,
-    );
+  // #803: derive the swap's reserve delta from pool geometry (fee-free) rather
+  // than the stale-fee approximation `amount − currentFee·amount`. The pool's
+  // sqrtPrice move, integrated over the TOTAL per-tick liquidity map, is the
+  // exact principal token flow (Δ1 = L·ΔsqrtPrice/Q96, Δ0 = L·ΔsqrtPrice·Q96/
+  // (S_a·S_b)); the fee never moves the price, so it is excluded by construction.
+  // This is the same edge-walk as the staked share (#666), seeded from the total
+  // edge map via deriveLiquidityInRange — so it stays correct even when the
+  // price starts at a boundary tick where the cached liquidityInRange is 0, and
+  // it walks initialized edges directly (binary search) with no per-tick step cap.
+  //
+  // Edge-map completeness: the seed comes from tickEdges (built by Mint/Burn from
+  // pool creation), NOT from the cached liquidityInRange. If the map is empty —
+  // e.g. a partial-history sync whose start block postdates the pool's Mints — the
+  // seed is 0n and swaps contribute no reserve delta. That is consistent with the
+  // reserve accumulator's full-history requirement (those pre-start Mints' principal
+  // would be absent from reserve0/1 too); a from-creation sync always has a complete map.
+  const totalCrossings = processTickCrossings(
+    event.chainId,
+    event.srcAddress,
+    liquidityPoolAggregator.tick ?? 0n,
+    event.params.tick,
+    liquidityPoolAggregator.sqrtPriceX96 ?? 0n,
+    event.params.sqrtPriceX96,
+    liquidityPoolAggregator.tickSpacing,
+    context,
+    liquidityPoolAggregator.liquidityInRange ?? 0n,
+    liquidityPoolAggregator.tickEdges.length > 0,
+    liquidityPoolAggregator.tickEdges,
+    liquidityPoolAggregator.tickEdgeNets,
+    "total",
+  );
+  const reserveDelta0 = totalCrossings.delta0;
+  const reserveDelta1 = totalCrossings.delta1;
+  const newReserve0 = liquidityPoolAggregator.reserve0 + reserveDelta0;
+  const newReserve1 = liquidityPoolAggregator.reserve1 + reserveDelta1;
+  const currentTotalLiquidityUSD = calculateTotalUSD(
+    newReserve0,
+    newReserve1,
+    token0Instance,
+    token1Instance,
+  );
 
-  // Process tick crossings for staked liquidity tracking AND compute the
-  // per-segment staked share of the swap's reserve deltas. The walk and the
-  // attribution share the same edge sweep — see CLStakedLiquidity.ts for the
-  // per-segment Uniswap v3 math (fix for #666).
-  const reserveDelta0 = newReserve0 - liquidityPoolAggregator.reserve0;
-  const reserveDelta1 = newReserve1 - liquidityPoolAggregator.reserve1;
-  const { stakedLiquidityInRange, stakedDelta0, stakedDelta1 } =
-    processTickCrossingsForStaked(
-      event.chainId,
-      event.srcAddress,
-      liquidityPoolAggregator.tick ?? 0n,
-      event.params.tick,
-      liquidityPoolAggregator.sqrtPriceX96 ?? 0n,
-      event.params.sqrtPriceX96,
-      liquidityPoolAggregator.tickSpacing,
-      context,
-      liquidityPoolAggregator.stakedLiquidityInRange ?? 0n,
-      liquidityPoolAggregator.hasStakes,
-      liquidityPoolAggregator.stakedTickEdges,
-      liquidityPoolAggregator.stakedTickEdgeNets,
-    );
+  // Staked-share tracking (#666) — unchanged. Same edge-walk math, but over the
+  // staked-only edge map, producing the staked slice of the reserve deltas.
+  const {
+    liquidityInRange: stakedLiquidityInRange,
+    delta0: stakedDelta0,
+    delta1: stakedDelta1,
+  } = processTickCrossings(
+    event.chainId,
+    event.srcAddress,
+    liquidityPoolAggregator.tick ?? 0n,
+    event.params.tick,
+    liquidityPoolAggregator.sqrtPriceX96 ?? 0n,
+    event.params.sqrtPriceX96,
+    liquidityPoolAggregator.tickSpacing,
+    context,
+    liquidityPoolAggregator.stakedLiquidityInRange ?? 0n,
+    liquidityPoolAggregator.hasStakes,
+    liquidityPoolAggregator.stakedTickEdges,
+    liquidityPoolAggregator.stakedTickEdgeNets,
+  );
 
   // token0Price/token1Price are the pool-internal exchange rate, derived from
   // the swap's post-trade sqrtPriceX96 — NOT from token oracle prices. This

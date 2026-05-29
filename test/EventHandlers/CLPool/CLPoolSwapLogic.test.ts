@@ -1,9 +1,9 @@
+import { TickMath } from "@uniswap/v3-sdk";
 import type { CLPool_Swap_event, Token, handlerContext } from "generated";
 import { TEN_TO_THE_18_BI, toChecksumAddress } from "../../../src/Constants";
 import type { Pool } from "../../../src/EntityTypes";
 import {
   calculateSwapFees,
-  calculateSwapLiquidityChanges,
   calculateSwapVolume,
   processCLPoolSwap,
 } from "../../../src/EventHandlers/CLPool/CLPoolSwapLogic";
@@ -456,91 +456,6 @@ describe("CLPoolSwapLogic", () => {
     });
   });
 
-  describe("calculateSwapLiquidityChanges", () => {
-    it("should exclude fees from the input token and leave output unchanged", () => {
-      const result = calculateSwapLiquidityChanges(
-        mockEvent,
-        mockPool,
-        mockToken0,
-        mockToken1,
-        CL_FEE_30,
-      );
-      const fee0 = (1n * TEN_TO_THE_18_BI * CL_FEE_30) / 1000000n;
-      expect(result.newReserve0).toBe(
-        mockPool.reserve0 + 1n * TEN_TO_THE_18_BI - fee0,
-      );
-      expect(result.newReserve1).toBe(
-        mockPool.reserve1 - 2n * TEN_TO_THE_18_BI,
-      );
-    });
-
-    it("should not deduct fees when both amounts are negative (output)", () => {
-      const eventWithNegativeAmounts: CLPool_Swap_event = {
-        ...mockEvent,
-        params: {
-          ...mockEvent.params,
-          amount0: -5n * TEN_TO_THE_18_BI,
-          amount1: -3n * TEN_TO_THE_18_BI,
-        },
-      };
-      const result = calculateSwapLiquidityChanges(
-        eventWithNegativeAmounts,
-        mockPool,
-        mockToken0,
-        mockToken1,
-        CL_FEE_30,
-      );
-      expect(result.newReserve0).toBe(
-        mockPool.reserve0 - 5n * TEN_TO_THE_18_BI,
-      );
-      expect(result.newReserve1).toBe(
-        mockPool.reserve1 - 3n * TEN_TO_THE_18_BI,
-      );
-    });
-
-    it("should deduct fees from both sides when both amounts are positive", () => {
-      const eventWithPositiveAmounts: CLPool_Swap_event = {
-        ...mockEvent,
-        params: {
-          ...mockEvent.params,
-          amount0: 5n * TEN_TO_THE_18_BI,
-          amount1: 3n * TEN_TO_THE_18_BI,
-        },
-      };
-      const result = calculateSwapLiquidityChanges(
-        eventWithPositiveAmounts,
-        mockPool,
-        mockToken0,
-        mockToken1,
-        CL_FEE_30,
-      );
-      const fee0 = (5n * TEN_TO_THE_18_BI * CL_FEE_30) / 1000000n;
-      const fee1 = (3n * TEN_TO_THE_18_BI * CL_FEE_30) / 1000000n;
-      expect(result.newReserve0).toBe(
-        mockPool.reserve0 + 5n * TEN_TO_THE_18_BI - fee0,
-      );
-      expect(result.newReserve1).toBe(
-        mockPool.reserve1 + 3n * TEN_TO_THE_18_BI - fee1,
-      );
-    });
-
-    it("should not deduct fees when fee rate is zero", () => {
-      const result = calculateSwapLiquidityChanges(
-        mockEvent,
-        mockPool,
-        undefined,
-        undefined,
-        0n,
-      );
-      expect(result.newReserve0).toBe(
-        mockPool.reserve0 + mockEvent.params.amount0,
-      );
-      expect(result.newReserve1).toBe(
-        mockPool.reserve1 + mockEvent.params.amount1,
-      );
-    });
-  });
-
   describe("processCLPoolSwap", () => {
     // TVL routes through calculateTotalUSD which is gated on PriceTrust (#755).
     // File-level mockToken0/mockToken1 are deliberately non-WL for the #699/#737
@@ -573,11 +488,13 @@ describe("CLPoolSwapLogic", () => {
       expect(result.liquidityPoolDiff.incrementalTotalFeesGeneratedUSD).toBe(
         3000000000000000n,
       ); // 3e15
-      // TVL: reserves exclude the 0.3% fee on the input side (amount0 = +1e18)
-      // reserve0 = 10e18 + (1e18 - 3e15) = 10.997e18, reserve1 = 6e18 - 2e18 = 4e18
-      // TVL = 10.997 * $1 + 4 * $2 = $18.997
+      // Reserve deltas now derive from pool geometry, not `amount − fee` (#803).
+      // This mock has no tick-edge map (tickEdges: []), so the geometry seed is 0
+      // and the swap moves no principal → reserves stay 10e18 / 6e18.
+      // TVL = 10 * $1 + 6 * $2 = $22. (Geometry over a real edge map + price move
+      // is covered by the fee-independence test below.)
       expect(result.liquidityPoolDiff.currentTotalLiquidityUSD).toBe(
-        18997000000000000000n,
+        22n * TEN_TO_THE_18_BI,
       );
 
       expect(result.userSwapDiff.incrementalNumberOfSwaps).toBe(1n);
@@ -625,32 +542,60 @@ describe("CLPoolSwapLogic", () => {
       expect(result.liquidityPoolDiff.token1Price).toBe(mockPool.token1Price);
     });
 
-    it("should exclude fees from reserve increments (input side only)", async () => {
-      const eventWithPositiveAmounts: CLPool_Swap_event = {
+    it("derives reserve deltas from geometry, independent of the fee rate (#803)", async () => {
+      // #803: the swap reserve delta is now L·ΔsqrtPrice integrated over the tick
+      // map — fee-free by construction — replacing the old `amount − feeRate·amount`
+      // term whose stale hourly fee sample drifted on dynamic-fee pools. The
+      // defining property: changing the fee rate must NOT change the reserves.
+      const L = 1_000_000n * TEN_TO_THE_18_BI;
+      const sqrtAtTick = (t: number) =>
+        BigInt(TickMath.getSqrtRatioAtTick(t).toString());
+      // Pool at tick 0 with a single full-range position (in-range liquidity = L).
+      const geoBase: Pool = {
+        ...mockPool,
+        tick: 0n,
+        sqrtPriceX96: sqrtAtTick(0),
+        tickSpacing: 1n,
+        liquidityInRange: L,
+        tickEdges: [-887272n, 887272n],
+        tickEdgeNets: [L, -L],
+      };
+      // Swap moves the price up from tick 0 to tick 100 (stays within the range).
+      const geoEvent: CLPool_Swap_event = {
         ...mockEvent,
         params: {
           ...mockEvent.params,
-          amount0: 5n * TEN_TO_THE_18_BI,
-          amount1: 3n * TEN_TO_THE_18_BI,
+          tick: 100n,
+          sqrtPriceX96: sqrtAtTick(100),
         },
       };
 
-      const result = await processCLPoolSwap(
-        eventWithPositiveAmounts,
-        mockPool,
-        mockToken0,
-        mockToken1,
+      const hiFee = await processCLPoolSwap(
+        geoEvent,
+        { ...geoBase, currentFee: CL_FEE_100, baseFee: CL_FEE_100 },
+        wlToken0,
+        wlToken1,
+        mockContext,
+      );
+      const zeroFee = await processCLPoolSwap(
+        geoEvent,
+        { ...geoBase, currentFee: 0n, baseFee: 0n },
+        wlToken0,
+        wlToken1,
         mockContext,
       );
 
-      const fee0 = (5n * TEN_TO_THE_18_BI * CL_FEE_30) / 1000000n;
-      const fee1 = (3n * TEN_TO_THE_18_BI * CL_FEE_30) / 1000000n;
-      expect(result.liquidityPoolDiff.incrementalReserve0).toBe(
-        5n * TEN_TO_THE_18_BI - fee0,
+      // Fee-independence: identical reserve deltas at a 1% fee and at 0% fee.
+      expect(hiFee.liquidityPoolDiff.incrementalReserve0).toBe(
+        zeroFee.liquidityPoolDiff.incrementalReserve0,
       );
-      expect(result.liquidityPoolDiff.incrementalReserve1).toBe(
-        3n * TEN_TO_THE_18_BI - fee1,
+      expect(hiFee.liquidityPoolDiff.incrementalReserve1).toBe(
+        zeroFee.liquidityPoolDiff.incrementalReserve1,
       );
+      // Non-triviality: the up-move actually moved principal — token1 in (+),
+      // token0 out (−), matching the SqrtPriceMath sign convention.
+      expect(hiFee.liquidityPoolDiff.incrementalReserve1).toBeGreaterThan(0n);
+      expect(hiFee.liquidityPoolDiff.incrementalReserve0).toBeLessThan(0n);
     });
 
     it("should calculate whitelisted volume correctly", async () => {
