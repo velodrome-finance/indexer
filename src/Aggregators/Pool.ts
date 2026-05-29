@@ -1,14 +1,86 @@
 import type { CLGaugeConfig, Token, handlerContext } from "generated";
-import { PoolId, TokenId, isKnownSinkRootPool } from "../Constants";
+import {
+  PoolId,
+  TEN_TO_THE_18_BI,
+  TokenId,
+  isKnownSinkRootPool,
+} from "../Constants";
 import { getSwapFee, roundBlockToInterval } from "../Effects/Index";
 import type { Pool } from "../EntityTypes";
 import { calculateTotalUSD, generatePoolName } from "../Helpers";
 import { refreshTokenPrice } from "../PriceOracle";
+import { getTrustedUSD } from "../PriceTrust";
 import {
   getSnapshotEpoch,
   setPoolSnapshot,
   shouldSnapshot,
 } from "../Snapshots/Index";
+
+/**
+ * USD-valued floor (1e18-base) above which a `[NEG_STAKED_RESERVE_GUARD]`
+ * clamp escalates from `info` to `warn`. Issue #802.
+ *
+ * Background — the clamp catches two distinct populations:
+ *   1. Benign rounding residue. The `divRoundNearest` per-segment math (#771)
+ *      leaves a wei-scale random walk that surfaces on full-drain events. A
+ *      production audit (deployed commit c9b8978, endpoint
+ *      indexer.us.hyperindex.xyz/e38a72a/v1/graphql) found 2,227 clamps across
+ *      447 CL pools, summing to a total of $151 across ALL clamps, with a
+ *      single-event maximum of $115 (one WETH/cbBTC swap). 95.8% of clamps
+ *      were sub-$0.01; median was $0.00. The residue is bounded by per-segment
+ *      rounding and does NOT scale with position size.
+ *   2. A gross-magnitude overshoot, which would indicate a real staked-reserve
+ *      accounting break (e.g. a position whose reserves were never removed),
+ *      not rounding. Kept at `warn` as a regression tripwire.
+ *
+ * Threshold rationale — `$1,000` in 1e18-base. Comfortably above the observed
+ * benign maximum ($115, ~8.7× headroom) but below any plausible real leaked
+ * position, so genuine drift still surfaces on the warn channel.
+ *
+ * Why USD, not raw units — a raw-unit floor is decimals-blind: the same
+ * `1e7` floor would mean ~$10 for a 6-decimal stablecoin but ~$8,700 for
+ * 8-decimal cbBTC, which is incoherent as a severity signal. `updatePool`
+ * already loads both token entities and routes reserves through
+ * `getTrustedUSD` / `calculateTotalUSD` at the snapshot epoch, so a per-field
+ * USD valuation inside the (rare) clamp branch is idiomatic.
+ */
+const NEG_STAKED_RESERVE_WARN_FLOOR_USD = 1_000n * TEN_TO_THE_18_BI;
+
+/**
+ * Logs a `[NEG_STAKED_RESERVE_GUARD]` clamp event, choosing the log channel
+ * (`warn` vs `info`) by the USD value of the discarded overshoot.
+ *
+ * The clamp branch is rare in production (~2,227 events across 447 CL pools
+ * over the deployed indexer's history per the #802 audit), so the conditional
+ * Token.get load inside this helper is acceptable hot-path cost. Untrusted /
+ * missing / unpriced tokens contribute `0n` via `getTrustedUSD`, which
+ * naturally degrades the level decision to `info` (an unpriced token cannot
+ * be a $1k+ break).
+ *
+ * @param msg - Pre-formatted clamp message. Content is unchanged across both
+ *   log channels per #802 AC (poolAddress, chainId, priorStakedReserve,
+ *   delta, clampedTo).
+ * @param overshoot - Positive raw-unit magnitude of the discarded overshoot
+ *   (= `-stakedReserveSum` since `stakedReserveSum < 0n`).
+ * @param tokenId - Pool's token entity ID for the field that overflowed
+ *   (`token0_id` for stakedReserve0, `token1_id` for stakedReserve1).
+ * @param context - Handler context for Token entity load and log emission.
+ * @returns Promise that resolves once the log line is emitted.
+ */
+async function logNegStakedReserveGuard(
+  msg: string,
+  overshoot: bigint,
+  tokenId: string,
+  context: handlerContext,
+): Promise<void> {
+  const token = await context.Token.get(tokenId);
+  const overshootUSD = getTrustedUSD(overshoot, token ?? undefined);
+  if (overshootUSD > NEG_STAKED_RESERVE_WARN_FLOOR_USD) {
+    context.log.warn(msg);
+  } else {
+    context.log.info(msg);
+  }
+}
 
 /**
  * Enum for pool address field types
@@ -336,13 +408,21 @@ export async function updatePool(
   // reserve0/1 clamp above (issue #702) and the stakedLiquidityInRange clamp
   // (issue #719). Logged under [NEG_STAKED_RESERVE_GUARD] so the residual
   // drift remains observable in logs without persisting a negative field.
+  //
+  // Log LEVEL is split by USD-valued overshoot magnitude (#802): the benign
+  // rounding residue (≤ NEG_STAKED_RESERVE_WARN_FLOOR_USD) logs at `info` so
+  // it stops spamming the warn channel, while a gross-magnitude overshoot
+  // logs at `warn` as a regression tripwire. See the constant's doc comment.
   const stakedReserve0Delta = diff.incrementalStakedReserve0 ?? 0n;
   const stakedReserve0Sum =
     (current.stakedReserve0 ?? 0n) + stakedReserve0Delta;
   const clampedStakedReserve0 = stakedReserve0Sum < 0n ? 0n : stakedReserve0Sum;
   if (stakedReserve0Sum < 0n) {
-    context.log.warn(
+    await logNegStakedReserveGuard(
       `[NEG_STAKED_RESERVE_GUARD][updatePool] field=stakedReserve0 poolAddress=${current.poolAddress} chainId=${current.chainId} priorStakedReserve=${current.stakedReserve0 ?? 0n} delta=${stakedReserve0Delta} clampedTo=${clampedStakedReserve0}`,
+      -stakedReserve0Sum,
+      current.token0_id,
+      context,
     );
   }
   const stakedReserve1Delta = diff.incrementalStakedReserve1 ?? 0n;
@@ -350,8 +430,11 @@ export async function updatePool(
     (current.stakedReserve1 ?? 0n) + stakedReserve1Delta;
   const clampedStakedReserve1 = stakedReserve1Sum < 0n ? 0n : stakedReserve1Sum;
   if (stakedReserve1Sum < 0n) {
-    context.log.warn(
+    await logNegStakedReserveGuard(
       `[NEG_STAKED_RESERVE_GUARD][updatePool] field=stakedReserve1 poolAddress=${current.poolAddress} chainId=${current.chainId} priorStakedReserve=${current.stakedReserve1 ?? 0n} delta=${stakedReserve1Delta} clampedTo=${clampedStakedReserve1}`,
+      -stakedReserve1Sum,
+      current.token1_id,
+      context,
     );
   }
 
