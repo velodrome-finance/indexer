@@ -3,7 +3,7 @@ import { CLGauge, MockDb, NFPM } from "../../generated/src/TestHelpers.gen";
 import {
   applyStakedPositionToEdges,
   deriveStakedLiquidityInRange,
-  processTickCrossingsForStaked,
+  processTickCrossings,
 } from "../../src/Aggregators/CLStakedLiquidity";
 import {
   NonFungiblePositionId,
@@ -15,14 +15,14 @@ import { setupCommon } from "../EventHandlers/Pool/common";
 import { sqrtAt } from "./common";
 
 /**
- * Co-located sanity test for #649: replacing `processTickCrossingsForStaked`
+ * Co-located sanity test for #649: replacing `processTickCrossings`
  * fan-out with the sparse stakedTickEdges / stakedTickEdgeNets list on
  * Pool.
  *
  * Two assertions:
  *   (a) The edge list stays sorted + monotone under arbitrary gauge
  *       deposit/withdraw ordering across ≥200 synthetic events.
- *   (b) `processTickCrossingsForStaked` returns the same staked-liq-in-range
+ *   (b) `processTickCrossings` returns the same staked-liq-in-range
  *       delta as a pure in-test baseline map for a swap window that crosses
  *       multiple edges.
  */
@@ -182,7 +182,7 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
     }
   });
 
-  it("(b) processTickCrossingsForStaked returns the same in-range delta as a pure-map baseline across a swap window crossing multiple edges", async () => {
+  it("(b) processTickCrossings returns the same in-range delta as a pure-map baseline across a swap window crossing multiple edges", async () => {
     const mockPoolAddress = toChecksumAddress(`0x${"1".repeat(40)}`);
     // Build a realistic edge set by simulating 50 stake events and walking
     // the exact same events through a pure-map baseline.
@@ -222,7 +222,7 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
     const newTick = 400n;
 
     // Baseline: walk the map directly and sum liquidityNet for ticks ≤ newTick.
-    // Post-#719, processTickCrossingsForStaked returns derive(newTick) rather
+    // Post-#719, processTickCrossings returns derive(newTick) rather
     // than (seed + delta-across-window) — the function self-heals from edge
     // state regardless of the cached seed.
     let baselineResult = 0n;
@@ -243,7 +243,7 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
       // biome-ignore lint/suspicious/noExplicitAny: test-only shape
     } as any;
 
-    const newResult = processTickCrossingsForStaked(
+    const newResult = processTickCrossings(
       chainId,
       mockPoolAddress,
       oldTick,
@@ -258,7 +258,7 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
       nets,
     );
 
-    expect(newResult.stakedLiquidityInRange).toBe(baselineResult);
+    expect(newResult.liquidityInRange).toBe(baselineResult);
 
     // Sanity: the window actually crosses multiple edges.
     const crossingCount = edges.filter(
@@ -279,7 +279,7 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
       }
     }
 
-    const downResult = processTickCrossingsForStaked(
+    const downResult = processTickCrossings(
       chainId,
       mockPoolAddress,
       oldTickDown,
@@ -294,13 +294,13 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
       nets,
     );
 
-    expect(downResult.stakedLiquidityInRange).toBe(baselineDownResult);
+    expect(downResult.liquidityInRange).toBe(baselineDownResult);
     // Sanity: the round trip exits at derive(newTickDown), which on this
     // edge set is non-zero because several positions have tickLower ≤ -400
     // (tickLowers start at -500 and step up). The walker's seed input is
     // no longer load-bearing (issue #719) — the return is purely a function
     // of (newTickDown, edges, nets).
-    expect(downResult.stakedLiquidityInRange).toBeGreaterThan(0n);
+    expect(downResult.liquidityInRange).toBeGreaterThan(0n);
   });
 
   // Regression coverage for issue #719: cover the three concrete drift paths

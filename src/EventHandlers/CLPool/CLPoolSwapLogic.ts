@@ -1,5 +1,5 @@
 import type { CLPool_Swap_event, Token, handlerContext } from "generated";
-import { processTickCrossingsForStaked } from "../../Aggregators/CLStakedLiquidity";
+import { processTickCrossings } from "../../Aggregators/CLStakedLiquidity";
 import type { PoolDiff } from "../../Aggregators/Pool";
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import { CL_FEE_SCALE } from "../../Constants";
@@ -214,7 +214,7 @@ export async function processCLPoolSwap(
   // edge map via deriveStakedLiquidityInRange — so it stays correct even when the
   // price starts at a boundary tick where the cached liquidityInRange is 0, and
   // it walks initialized edges directly (binary search) with no per-tick step cap.
-  const totalCrossings = processTickCrossingsForStaked(
+  const totalCrossings = processTickCrossings(
     event.chainId,
     event.srcAddress,
     liquidityPoolAggregator.tick ?? 0n,
@@ -229,8 +229,8 @@ export async function processCLPoolSwap(
     liquidityPoolAggregator.tickEdgeNets,
     "total",
   );
-  const reserveDelta0 = totalCrossings.stakedDelta0;
-  const reserveDelta1 = totalCrossings.stakedDelta1;
+  const reserveDelta0 = totalCrossings.delta0;
+  const reserveDelta1 = totalCrossings.delta1;
   const newReserve0 = liquidityPoolAggregator.reserve0 + reserveDelta0;
   const newReserve1 = liquidityPoolAggregator.reserve1 + reserveDelta1;
   const currentTotalLiquidityUSD = calculateTotalUSD(
@@ -242,21 +242,24 @@ export async function processCLPoolSwap(
 
   // Staked-share tracking (#666) — unchanged. Same edge-walk math, but over the
   // staked-only edge map, producing the staked slice of the reserve deltas.
-  const { stakedLiquidityInRange, stakedDelta0, stakedDelta1 } =
-    processTickCrossingsForStaked(
-      event.chainId,
-      event.srcAddress,
-      liquidityPoolAggregator.tick ?? 0n,
-      event.params.tick,
-      liquidityPoolAggregator.sqrtPriceX96 ?? 0n,
-      event.params.sqrtPriceX96,
-      liquidityPoolAggregator.tickSpacing,
-      context,
-      liquidityPoolAggregator.stakedLiquidityInRange ?? 0n,
-      liquidityPoolAggregator.hasStakes,
-      liquidityPoolAggregator.stakedTickEdges,
-      liquidityPoolAggregator.stakedTickEdgeNets,
-    );
+  const {
+    liquidityInRange: stakedLiquidityInRange,
+    delta0: stakedDelta0,
+    delta1: stakedDelta1,
+  } = processTickCrossings(
+    event.chainId,
+    event.srcAddress,
+    liquidityPoolAggregator.tick ?? 0n,
+    event.params.tick,
+    liquidityPoolAggregator.sqrtPriceX96 ?? 0n,
+    event.params.sqrtPriceX96,
+    liquidityPoolAggregator.tickSpacing,
+    context,
+    liquidityPoolAggregator.stakedLiquidityInRange ?? 0n,
+    liquidityPoolAggregator.hasStakes,
+    liquidityPoolAggregator.stakedTickEdges,
+    liquidityPoolAggregator.stakedTickEdgeNets,
+  );
 
   // token0Price/token1Price are the pool-internal exchange rate, derived from
   // the swap's post-trade sqrtPriceX96 — NOT from token oracle prices. This

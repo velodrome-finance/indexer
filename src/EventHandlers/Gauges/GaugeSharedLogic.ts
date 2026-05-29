@@ -329,7 +329,7 @@ export async function processGaugeDeposit(
     stakedTickEdges,
     stakedTickEdgeNets,
     // Flip the CL pool's hasStakes latch on the first deposit. The latch gates the
-    // per-swap staked-tick sweep in processTickCrossingsForStaked. Non-CL pools
+    // per-swap staked-tick sweep in processTickCrossings. Non-CL pools
     // and already-latched CL pools leave this field alone. Also gate on an actual
     // edge list being produced: if computeCLStakedReservesOnGaugeEvent bailed
     // early or the edge merge was rejected, latching hasStakes would mark the
