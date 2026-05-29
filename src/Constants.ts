@@ -32,6 +32,14 @@ export const TEN_TO_THE_18_BI = BigInt(10 ** 18);
  */
 export const CL_FEE_SCALE = 1000000n;
 
+/**
+ * V2 pool fees use a 1e4 (basis-points-per-100) scale:
+ *   5 = 0.05% stable, 30 = 0.30% volatile, 100 = 1.00%
+ * Matches PoolFactory's DEFAULT_SAMM_FEE_BPS / DEFAULT_VAMM_FEE_BPS units
+ * and the `event.params.fee` passed into CustomSwapFeeModule's SetCustomFee.
+ */
+export const V2_FEE_SCALE = 10000n;
+
 export const SECONDS_IN_AN_HOUR = BigInt(3600);
 export const MS_IN_AN_HOUR = 3600 * 1000; // 3_600_000 ms
 export const SECONDS_IN_A_DAY = BigInt(86400);
