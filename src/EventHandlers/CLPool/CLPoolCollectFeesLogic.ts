@@ -22,7 +22,8 @@ export function processCLPoolCollectFees(
     token1Instance,
   );
 
-  // TVL definition: reserves track LP-deposited capital only (see calculateSwapLiquidityChanges).
+  // TVL definition: reserves track LP-deposited capital only (see the geometry
+  // reserve-delta derivation in processCLPoolSwap).
   // Gauge fees accumulate in gaugeFees.token0/token1 during swaps but are excluded from
   // reserves at swap time. When the gauge collects them, no reserve change is needed.
   // Therefore, CollectFees events should NOT affect reserves — only track fees collected.

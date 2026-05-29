@@ -400,9 +400,14 @@ export function segmentStakedReserveDelta(
  *   (out-of-range ticks, uninitialized pool, zero sqrt prices); the normal
  *   walking path seeds itself from `deriveStakedLiquidityInRange(oldTick, ...)`
  *   so the swap heals any prior counter drift (issue #719).
- * @param hasStakes - Whether this pool has ever had a staked position
+ * @param hasStakes - Whether the walker should cross intermediate edges (true
+ *   for the staked map when the pool has stakes; for the total map, pass
+ *   `tickEdges.length > 0`). When false, only the single final segment runs.
  * @param stakedTickEdges - Sorted, dedup'd tick edges from the aggregator
  * @param stakedTickEdgeNets - Parallel nets (same index as stakedTickEdges)
+ * @param callerLabel - Diagnostic tag for the out-of-range log so the staked
+ *   (#666) and total-reserve (#803) reuses of this walk are distinguishable.
+ *   Defaults to "staked" to keep existing callsites and the log string stable.
  * @returns Updated `stakedLiquidityInRange` and signed per-segment
  *          `stakedDelta0`/`stakedDelta1` (in pool-reserve sign convention:
  *          positive = added to pool, negative = removed)
@@ -420,6 +425,7 @@ export function processTickCrossingsForStaked(
   hasStakes: boolean,
   stakedTickEdges: readonly bigint[],
   stakedTickEdgeNets: readonly bigint[],
+  callerLabel = "staked",
 ): {
   stakedLiquidityInRange: bigint;
   stakedDelta0: bigint;
@@ -438,7 +444,7 @@ export function processTickCrossingsForStaked(
     newTick > TICK_MAX
   ) {
     context.log.error(
-      `[STAKED_TICK_DRIFT][processTickCrossingsForStaked] Tick out of Uniswap v3 range for pool ${poolAddress} on chain ${chainId}: oldTick=${oldTick}, newTick=${newTick}. Skipping crossing sweep to avoid runaway loop; stakedLiquidityInRange will be stale on this pool until a subsequent stake/unstake rebuilds it.`,
+      `[STAKED_TICK_DRIFT][processTickCrossingsForStaked:${callerLabel}] Tick out of Uniswap v3 range for pool ${poolAddress} on chain ${chainId}: oldTick=${oldTick}, newTick=${newTick}. Skipping crossing sweep to avoid runaway loop; stakedLiquidityInRange will be stale on this pool until a subsequent stake/unstake rebuilds it.`,
     );
     return {
       stakedLiquidityInRange: currentStakedLiqInRange,

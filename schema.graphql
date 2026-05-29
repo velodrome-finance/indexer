@@ -85,6 +85,13 @@ type Pool {
   # chain-of-amplification from #648.
   stakedTickEdges: [BigInt!]!
   stakedTickEdgeNets: [BigInt!]!
+  # Total-liquidity analog of stakedTickEdges/stakedTickEdgeNets: the pool's full
+  # per-tick liquidityNet map (all positions, not just staked). Maintained on
+  # CLPool Mint/Burn; consumed by processTickCrossingsForStaked on the swap path
+  # to compute the fee-free reserve delta from pool geometry (L·ΔsqrtPrice),
+  # replacing the stale-fee approximation that drifts on dynamic-fee pools (#803).
+  tickEdges: [BigInt!]!
+  tickEdgeNets: [BigInt!]!
   totalFlashLoanFees0: BigInt @config(precision: 76) # total flash loan fees collected in token0
   totalFlashLoanFees1: BigInt @config(precision: 76) # total flash loan fees collected in token1
   totalFlashLoanFeesUSD: BigInt @config(precision: 76) # total flash loan fees collected in USD

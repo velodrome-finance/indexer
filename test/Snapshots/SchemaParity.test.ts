@@ -57,6 +57,12 @@ describe("Snapshot schema parity", () => {
         // IncreaseLiquidity/DecreaseLiquidity events.
         "stakedTickEdges",
         "stakedTickEdgeNets",
+        // Total-liquidity analog of the staked edge map (#803), consumed by the
+        // swap path to derive the fee-free reserve delta. Same reasoning as the
+        // staked pair above: derived per-tick state, not an hourly metric — the
+        // underlying position history lives in CLPool Mint/Burn events.
+        "tickEdges",
+        "tickEdgeNets",
       ],
     ],
     ["UserStatsPerPool", ["firstActivityTimestamp", "lastSnapshotTimestamp"]],

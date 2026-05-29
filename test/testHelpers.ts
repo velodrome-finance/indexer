@@ -117,6 +117,8 @@ export function setupPool(
     // Array fields: force mutable bigint[] (envio.d.ts uses readonly; set() wants mutable).
     stakedTickEdges: [...mockLiquidityPoolData.stakedTickEdges],
     stakedTickEdgeNets: [...mockLiquidityPoolData.stakedTickEdgeNets],
+    tickEdges: [...mockLiquidityPoolData.tickEdges],
+    tickEdgeNets: [...mockLiquidityPoolData.tickEdgeNets],
   };
   return mockDb.entities.Pool.set(mockPool);
 }

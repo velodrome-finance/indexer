@@ -172,6 +172,12 @@ export interface PoolDiff {
   // envio.d.ts) without a copy.
   stakedTickEdges: readonly bigint[];
   stakedTickEdgeNets: readonly bigint[];
+  // Total-liquidity edge map (all positions). Same replace semantics as the
+  // staked pair above: CLPool Mint/Burn compute the full post-edit arrays via
+  // applyStakedPositionToEdges and pass them whole. Drives the fee-free swap
+  // reserve delta (#803).
+  tickEdges: readonly bigint[];
+  tickEdgeNets: readonly bigint[];
   totalVotesDeposited: bigint;
   totalVotesDepositedUSD: bigint;
   incrementalTotalBribeClaimed: bigint;
@@ -564,6 +570,8 @@ export async function updatePool(
     // `current.stakedTickEdgeNets` and must replace both together (parallel arrays).
     stakedTickEdges: diff.stakedTickEdges ?? current.stakedTickEdges,
     stakedTickEdgeNets: diff.stakedTickEdgeNets ?? current.stakedTickEdgeNets,
+    tickEdges: diff.tickEdges ?? current.tickEdges,
+    tickEdgeNets: diff.tickEdgeNets ?? current.tickEdgeNets,
     totalVotesDeposited:
       diff.totalVotesDeposited ?? current.totalVotesDeposited,
     totalVotesDepositedUSD:
@@ -988,6 +996,8 @@ export function createPoolEntity(params: {
     hasStakes: false,
     stakedTickEdges: [],
     stakedTickEdgeNets: [],
+    tickEdges: [],
+    tickEdgeNets: [],
     totalFlashLoanFees0: 0n,
     totalFlashLoanFees1: 0n,
     totalFlashLoanFeesUSD: 0n,
