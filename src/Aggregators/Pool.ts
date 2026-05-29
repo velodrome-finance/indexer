@@ -9,7 +9,7 @@ import { getSwapFee, roundBlockToInterval } from "../Effects/Index";
 import type { Pool } from "../EntityTypes";
 import { calculateTotalUSD, generatePoolName } from "../Helpers";
 import { refreshTokenPrice } from "../PriceOracle";
-import { getTrustedUSD } from "../PriceTrust";
+import { getPoolImpliedUSD, getTrustedUSD } from "../PriceTrust";
 import {
   getSnapshotEpoch,
   setPoolSnapshot,
@@ -751,6 +751,20 @@ export async function loadPoolData(
   let updatedToken0 = token0Instance;
   let updatedToken1 = token1Instance;
   if (blockNumber !== undefined && blockTimestamp !== undefined) {
+    // Pool-implied ground-truth hints (#784/#785): each token's oracle read is
+    // cross-checked against the *other* leg's trusted USD price derived from
+    // pool state (sqrtPriceX96 / reserves via the stored token0Price /
+    // token1Price). Inert (0n) when the counterparty fails the trust gate, so
+    // pools without a trusted leg behave exactly as before.
+    const token0Hint = getPoolImpliedUSD(
+      liquidityPoolAggregator.token0Price,
+      token1Instance,
+    );
+    const token1Hint = getPoolImpliedUSD(
+      liquidityPoolAggregator.token1Price,
+      token0Instance,
+    );
+
     // Wrap each refresh in a promise that catches errors individually
     const token0Refresh = refreshTokenPrice(
       token0Instance,
@@ -758,6 +772,7 @@ export async function loadPoolData(
       blockTimestamp,
       chainId,
       context,
+      token0Hint,
     ).catch((error) => {
       context.log.error(
         `[loadPoolData] Error refreshing token0 price for ${token0Instance.address} on chain ${chainId}: ${error}`,
@@ -771,6 +786,7 @@ export async function loadPoolData(
       blockTimestamp,
       chainId,
       context,
+      token1Hint,
     ).catch((error) => {
       context.log.error(
         `[loadPoolData] Error refreshing token1 price for ${token1Instance.address} on chain ${chainId}: ${error}`,

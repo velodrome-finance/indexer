@@ -2199,5 +2199,158 @@ describe("PriceOracle", () => {
         expect(detailsCall).toBeUndefined();
       });
     });
+
+    describe("pool-implied ground-truth re-anchor (#784/#785)", () => {
+      // USD price scaled by 1e18, matching `pricePerUSDNew`.
+      const usd = (n: number) => BigInt(Math.round(n * 1e6)) * 10n ** 12n;
+      const twoHoursAgo = new Date(
+        blockDatetime.getTime() - 2 * 60 * 60 * 1000,
+      );
+      const blockTimestamp = blockDatetime.getTime() / 1000;
+
+      const refreshWithRead = async (
+        read: bigint,
+        token: Token,
+        impliedPriceHint?: bigint,
+      ) => {
+        vi.mocked(mockContext.effect)?.mockImplementation(
+          async (effect: unknown) => {
+            const name = (effect as { name?: string }).name;
+            if (name === "getTokenPrice") return { pricePerUSDNew: read };
+            if (name === "getTokenDetails")
+              return { name: "Test", decimals: 18, symbol: "TEST" };
+            if (name === "hasContractBytecode") return { hasCode: true };
+            return {};
+          },
+        );
+        return PriceOracle.refreshTokenPrice(
+          token,
+          blockNumber,
+          blockTimestamp,
+          chainId,
+          mockContext as handlerContext,
+          impliedPriceHint,
+        );
+      };
+
+      it("#784: re-anchors a stuck-low anchor when the read corroborates the pool-implied hint", async () => {
+        const stuckLow = usd(0.0026); // bad downward-glitch anchor
+        const hint = usd(0.14); // pool-implied ground truth
+        const read = usd(0.14); // correct heal the upward-only guard rejects
+        const fetchedToken: Token = {
+          ...mockToken0Data,
+          pricePerUSDNew: stuckLow,
+          lastUpdatedTimestamp: twoHoursAgo, // fresh anchor → spike guard active
+          lastSuccessfulPriceTimestamp: twoHoursAgo,
+        };
+
+        await refreshWithRead(read, fetchedToken, hint);
+
+        const written = vi.mocked(mockContext.Token?.set)?.mock
+          .lastCall?.[0] as Token;
+        expect(written?.pricePerUSDNew).toBe(read);
+      });
+
+      it("#785: replaces a too-low first read with the pool-implied hint (no permanent low anchor)", async () => {
+        const hint = usd(0.25); // pool-implied true band
+        const read = usd(0.0014); // bad too-low first read
+        const fetchedToken: Token = {
+          ...mockToken0Data,
+          pricePerUSDNew: 0n, // first fetch
+          lastUpdatedTimestamp: twoHoursAgo,
+        };
+
+        await refreshWithRead(read, fetchedToken, hint);
+
+        const written = vi.mocked(mockContext.Token?.set)?.mock
+          .lastCall?.[0] as Token;
+        expect(written?.pricePerUSDNew).toBe(hint);
+      });
+
+      it("#785: replaces a too-high first read with the hint (supersedes FIRST_FETCH_CAP)", async () => {
+        const hint = usd(0.25); // pool-implied true band
+        const read = usd(50_000); // glitch-high first read, also > FIRST_FETCH_CAP
+        const fetchedToken: Token = {
+          ...mockToken0Data,
+          pricePerUSDNew: 0n, // first fetch
+          symbol: "TEST", // non-BTC: FIRST_FETCH_CAP would otherwise zero it
+          lastUpdatedTimestamp: twoHoursAgo,
+        };
+
+        await refreshWithRead(read, fetchedToken, hint);
+
+        const written = vi.mocked(mockContext.Token?.set)?.mock
+          .lastCall?.[0] as Token;
+        expect(written?.pricePerUSDNew).toBe(hint);
+      });
+
+      it("#728 intact: a too-high first read with NO hint is still rejected (kept at 0)", async () => {
+        const read = usd(50_000); // > FIRST_FETCH_CAP, non-BTC
+        const fetchedToken: Token = {
+          ...mockToken0Data,
+          pricePerUSDNew: 0n,
+          symbol: "TEST",
+          lastUpdatedTimestamp: twoHoursAgo,
+        };
+
+        await refreshWithRead(read, fetchedToken); // no hint
+
+        const written = vi.mocked(mockContext.Token?.set)?.mock
+          .lastCall?.[0] as Token;
+        expect(written?.pricePerUSDNew).toBe(0n);
+      });
+
+      it("false-positive guard: a glitch-high read is NOT re-anchored when the hint disagrees (#801 audit)", async () => {
+        const realPrice = usd(0.15); // correct, fresh anchor
+        const hint = usd(0.15); // pool-implied agrees with the anchor
+        const glitchHigh = usd(10_000); // sustained glitch-high read
+        const fetchedToken: Token = {
+          ...mockToken0Data,
+          pricePerUSDNew: realPrice,
+          lastUpdatedTimestamp: twoHoursAgo,
+          lastSuccessfulPriceTimestamp: twoHoursAgo,
+        };
+
+        await refreshWithRead(glitchHigh, fetchedToken, hint);
+
+        // Spike guard rejects → no write, correct anchor preserved.
+        expect(vi.mocked(mockContext.Token?.set)).not.toHaveBeenCalled();
+      });
+
+      it("inert without a hint: a stuck-low anchor's correct read is still rejected when no hint is supplied", async () => {
+        const stuckLow = usd(0.0026);
+        const read = usd(0.14); // correct heal, but no ground truth to corroborate
+        const fetchedToken: Token = {
+          ...mockToken0Data,
+          pricePerUSDNew: stuckLow,
+          lastUpdatedTimestamp: twoHoursAgo,
+          lastSuccessfulPriceTimestamp: twoHoursAgo,
+        };
+
+        await refreshWithRead(read, fetchedToken); // no hint → behaves as before
+
+        expect(vi.mocked(mockContext.Token?.set)).not.toHaveBeenCalled();
+      });
+
+      it("#788: a hint above MAX_ACCEPTED_PRICE is not used as an anchor; the reasonable read is accepted instead", async () => {
+        const hint = usd(2_000_000); // > MAX_ACCEPTED_PRICE ($1M): glitched pool ratio
+        const read = usd(0.25); // reasonable read, out of band vs the glitched hint
+        const fetchedToken: Token = {
+          ...mockToken0Data,
+          pricePerUSDNew: 0n, // first fetch
+          symbol: "TEST",
+          lastUpdatedTimestamp: twoHoursAgo,
+        };
+
+        await refreshWithRead(read, fetchedToken, hint);
+
+        const written = vi.mocked(mockContext.Token?.set)?.mock
+          .lastCall?.[0] as Token;
+        // Hint exceeds the absolute ceiling → not usable ground truth, so the
+        // first-fetch branch is skipped and the read is anchored normally
+        // instead of writing a >$1M anchor from a glitched ratio.
+        expect(written?.pricePerUSDNew).toBe(read);
+      });
+    });
   });
 });

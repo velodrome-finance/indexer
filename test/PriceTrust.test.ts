@@ -5,6 +5,7 @@ import {
   PRICE_TRUST_REASON,
   getGateDecision,
   getGateDecisionFromSignals,
+  getPoolImpliedUSD,
   getTrustedUSD,
   isTrusted,
 } from "../src/PriceTrust";
@@ -317,6 +318,39 @@ describe("PriceTrust", () => {
 
     it("returns 0n for an undefined token", () => {
       expect(getTrustedUSD(2n * TEN_TO_THE_18_BI, undefined)).toBe(0n);
+    });
+  });
+
+  describe("getPoolImpliedUSD", () => {
+    it("scales the pool price ratio by the counterparty's trusted USD price", () => {
+      // token0 worth 0.00005 of token1; token1 (WETH) priced $2000.
+      // implied token0 USD = 0.00005 * 2000 = $0.10.
+      const ratio1e18 = 50_000_000_000_000n; // 0.00005 * 1e18
+      const counterparty = makeToken({
+        isWhitelisted: true,
+        pricePerUSDNew: 2000n * TEN_TO_THE_18_BI,
+      });
+      expect(getPoolImpliedUSD(ratio1e18, counterparty)).toBe(
+        100_000_000_000_000_000n, // $0.10 * 1e18
+      );
+    });
+
+    it("returns 0n when the counterparty is untrusted (no ground truth)", () => {
+      const ratio1e18 = 50_000_000_000_000n;
+      const untrusted = makeToken({
+        isWhitelisted: false,
+        pricePerUSDNew: 2000n * TEN_TO_THE_18_BI,
+      });
+      expect(getPoolImpliedUSD(ratio1e18, untrusted)).toBe(0n);
+    });
+
+    it("returns 0n for a zero ratio or undefined counterparty", () => {
+      const trusted = makeToken({
+        isWhitelisted: true,
+        pricePerUSDNew: 2000n * TEN_TO_THE_18_BI,
+      });
+      expect(getPoolImpliedUSD(0n, trusted)).toBe(0n);
+      expect(getPoolImpliedUSD(50_000_000_000_000n, undefined)).toBe(0n);
     });
   });
 });
