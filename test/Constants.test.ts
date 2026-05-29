@@ -19,11 +19,17 @@ describe("nfpmForCLPool", () => {
   const OP_CL_FACTORY_NEW = toChecksumAddress(
     "0xCc0bDDB707055e04e497aB22a59c2aF4391cd12F",
   );
+  const OP_CL_FACTORY_GAUGE_V2 = toChecksumAddress(
+    "0xe13Dd1fbA721Aa81a1826D9523AC9BC7d260c879",
+  );
   const OP_NFPM_OLD = toChecksumAddress(
     "0xbB5DFE1380333CEE4c2EeBd7202c80dE2256AdF4",
   );
   const OP_NFPM_NEW = toChecksumAddress(
     "0x416b433906b1B72FA758e166e239c43d68dC6F29",
+  );
+  const OP_NFPM_GAUGE_V2 = toChecksumAddress(
+    "0xf7f8ccce99Ca2896eC75D3A399D152dB96808399",
   );
 
   const BASE_CL_FACTORY_OLD = toChecksumAddress(
@@ -47,37 +53,47 @@ describe("nfpmForCLPool", () => {
   const BASE_NFPM_V3 = toChecksumAddress(
     "0xc741beb2156827704A1466575ccA1cBf726a1178",
   );
+  const BASE_NFPM_V3_NEWEST = toChecksumAddress(
+    "0xe1f8cd9AC4e4A65F54f38a5CdAfCA44f6dD68b53",
+  );
 
-  const SUPERCHAIN_CL_FACTORY = toChecksumAddress(
+  const SUPERCHAIN_CL_FACTORY_V1 = toChecksumAddress(
     "0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F",
   );
-  const SUPERCHAIN_NFPM = toChecksumAddress(
+  const SUPERCHAIN_NFPM_V1 = toChecksumAddress(
     "0x991d5546C4B442B4c5fdc4c8B8b8d131DEB24702",
   );
+  const SUPERCHAIN_CL_FACTORY_V2 = toChecksumAddress(
+    "0x718E46d0962A66942E233760a8bd6038Ce54EdCD",
+  );
+  const SUPERCHAIN_NFPM_V2 = toChecksumAddress(
+    "0xefD0f78F93f578036AE34D52A813a4BE7D8D2D52",
+  );
 
-  it("disambiguates Optimism's two CLFactories to distinct NFPMs", () => {
+  it("disambiguates Optimism's three CLFactories to distinct NFPMs", () => {
     expect(nfpmForCLPool(10, OP_CL_FACTORY_OLD)).toBe(OP_NFPM_OLD);
     expect(nfpmForCLPool(10, OP_CL_FACTORY_NEW)).toBe(OP_NFPM_NEW);
+    expect(nfpmForCLPool(10, OP_CL_FACTORY_GAUGE_V2)).toBe(OP_NFPM_GAUGE_V2);
   });
 
   it("pairs Base CLFactories with their respective NFPMs", () => {
     expect(nfpmForCLPool(8453, BASE_CL_FACTORY_OLD)).toBe(BASE_NFPM_OLD);
     expect(nfpmForCLPool(8453, BASE_CL_FACTORY_NEW)).toBe(BASE_NFPM_NEW);
     expect(nfpmForCLPool(8453, BASE_CL_FACTORY_V3)).toBe(BASE_NFPM_V3);
+    expect(nfpmForCLPool(8453, BASE_CL_FACTORY_V3_NEWEST)).toBe(
+      BASE_NFPM_V3_NEWEST,
+    );
   });
 
-  it("returns null for the newest Base CLFactory pending NFPM deployment", () => {
-    // 0xf8f2eB... ships without a paired NFPM yet; callers should treat null
-    // as "unknown" and skip attribution until the mapping is filled in.
-    expect(nfpmForCLPool(8453, BASE_CL_FACTORY_V3_NEWEST)).toBeNull();
-  });
-
-  // Every superchain leaf shares the same CLFactory↔NFPM pair
+  // Every superchain leaf shares the same two CLFactory↔NFPM pairs (V1 and gauge-V2)
   it.each([1135, 34443, 42220, 1868, 130, 252, 57073, 1750, 1923, 5330])(
-    "returns the superchain NFPM for leaf chain %i",
+    "returns both superchain NFPMs for leaf chain %i",
     (chainId) => {
-      expect(nfpmForCLPool(chainId, SUPERCHAIN_CL_FACTORY)).toBe(
-        SUPERCHAIN_NFPM,
+      expect(nfpmForCLPool(chainId, SUPERCHAIN_CL_FACTORY_V1)).toBe(
+        SUPERCHAIN_NFPM_V1,
+      );
+      expect(nfpmForCLPool(chainId, SUPERCHAIN_CL_FACTORY_V2)).toBe(
+        SUPERCHAIN_NFPM_V2,
       );
     },
   );
@@ -313,33 +329,14 @@ describe("config.yaml ↔ Constants.ts factory parity (#770, subsumes #769)", ()
   });
 
   describe("nfpmForCLPool covers every (chainId, CLFactory) pair", () => {
-    // Some CLFactories are wired into config.yaml but don't yet have a paired NFPM
-    // declared in CL_FACTORY_TO_NFPM. They resolve to `null` from nfpmForCLPool;
-    // callers treat null as "unknown" and skip NFPM attribution for those pools.
-    //
-    // Each entry below records *why* the gap is currently tolerated. Resolve by
-    // adding the (chainId, factory) -> NFPM mapping in src/Constants.ts and
-    // removing the entry from this allowlist.
-    const UNMAPPED_CL_FACTORIES_BY_CHAIN: Record<number, Set<string>> = {
-      // Base: newest CLFactory (paired with CLGaugeFactoryV3). The matching NFPM
-      // 0xe1f8cd9A… is in config.yaml but has not yet been declared in
-      // CL_FACTORY_TO_NFPM. See TODO(nfpm) in src/Constants.ts.
-      8453: new Set([
-        toChecksumAddress("0xf8f2eB4940CFE7d13603DDDD87f123820Fc061Ef"),
-      ]),
-      // Optimism: slipstream gauge-V2 CLFactory added in #727. Likely pairs with
-      // the third OP NFPM (0xf7f8ccce…) but the pairing has not been on-chain
-      // verified via NFPM.factory(), so it is left unmapped.
-      10: new Set([
-        toChecksumAddress("0xe13Dd1fbA721Aa81a1826D9523AC9BC7d260c879"),
-      ]),
-    };
-    // Superchain leaves: slipstream gauge-V2 CLFactory deployed at
-    // 0x718E46d… on every leaf (#727). Likely pairs with the second leaf NFPM
-    // 0xefD0f78F…; unverified, so currently unmapped.
-    const UNMAPPED_SUPERCHAIN_CL_FACTORIES = new Set<string>([
-      toChecksumAddress("0x718E46d0962A66942E233760a8bd6038Ce54EdCD"),
-    ]);
+    // Allowlists for CLFactories that are wired into config.yaml but intentionally
+    // not paired in CL_FACTORY_TO_NFPM (e.g. pending on-chain verification of the
+    // NFPM lineage). When that happens, add the factory here with a comment
+    // explaining *why* the gap is tolerated; resolve by declaring the
+    // (chainId, factory) -> NFPM mapping in src/Constants.ts and emptying the
+    // allowlist again.
+    const UNMAPPED_CL_FACTORIES_BY_CHAIN: Record<number, Set<string>> = {};
+    const UNMAPPED_SUPERCHAIN_CL_FACTORIES = new Set<string>();
 
     it.each([10, 8453, ...SUPERCHAIN_LEAF_CHAIN_IDS])(
       "every CLFactory on chain %i is either mapped or explicitly unmapped",

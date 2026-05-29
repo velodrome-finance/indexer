@@ -100,45 +100,50 @@ export const ROOT_POOL_FACTORY_ADDRESS_OPTIMISM = toChecksumAddress(
  * to populate on newly created CL pools.
  */
 const CL_FACTORY_TO_NFPM: Record<string, string> = {
-  // Optimism — two NFPMs, two CLFactories. Paired by deployment order.
+  // Optimism — three NFPMs, three CLFactories. Each pairing verified on-chain
+  // via NFPM.factory().
   [`10-${toChecksumAddress("0x548118C7E0B865C2CfA94D15EC86B666468ac758")}`]:
     toChecksumAddress("0xbB5DFE1380333CEE4c2EeBd7202c80dE2256AdF4"),
   [`10-${toChecksumAddress("0xCc0bDDB707055e04e497aB22a59c2aF4391cd12F")}`]:
     toChecksumAddress("0x416b433906b1B72FA758e166e239c43d68dC6F29"),
+  // Slipstream gauge-V2 CLFactory (#727) ↔ third OP NFPM. Verified via NFPM.factory().
+  [`10-${toChecksumAddress("0xe13Dd1fbA721Aa81a1826D9523AC9BC7d260c879")}`]:
+    toChecksumAddress("0xf7f8ccce99Ca2896eC75D3A399D152dB96808399"),
 
-  // Base — three CLFactories each with a dedicated NFPM, verified on-chain via
-  // NFPM.factory(). Pools created by an unmapped factory fall through to null.
-  // TODO(nfpm): RPC-verify NFPM.factory() and add mappings for:
-  //   - 10-0xe13Dd1fbA721Aa81a1826D9523AC9BC7d260c879   (OP slipstream gauge-V2 CLFactory, likely 0xf7f8ccce…)
-  //   - 8453-0xf8f2eB4940CFE7d13603DDDD87f123820Fc061Ef (Base V3-newest CLFactory, paired NFPM in config.yaml is 0xe1f8cd9A…)
-  // Both are also whitelisted in test/Constants.test.ts "config.yaml ↔ Constants.ts
-  // factory parity (#770)" so the parity assertion passes — remove from that whitelist
-  // when the mappings land here.
+  // Base — four CLFactories each with a dedicated NFPM, verified on-chain via
+  // NFPM.factory().
   [`8453-${toChecksumAddress("0x5e7BB104d84c7CB9B682AaC2F3d509f5F406809A")}`]:
     toChecksumAddress("0x827922686190790b37229fd06084350E74485b72"),
   [`8453-${toChecksumAddress("0xaDe65c38CD4849aDBA595a4323a8C7DdfE89716a")}`]:
     toChecksumAddress("0xa990C6a764b73BF43cee5Bb40339c3322FB9D55F"),
   [`8453-${toChecksumAddress("0x9592CD9B267748cbfBDe90Ac9F7DF3c437A6d51B")}`]:
     toChecksumAddress("0xc741beb2156827704A1466575ccA1cBf726a1178"),
+  // Newest CLFactory (paired with CLGaugeFactoryV3) ↔ fourth Base NFPM. Verified.
+  [`8453-${toChecksumAddress("0xf8f2eB4940CFE7d13603DDDD87f123820Fc061Ef")}`]:
+    toChecksumAddress("0xe1f8cd9AC4e4A65F54f38a5CdAfCA44f6dD68b53"),
 };
 
 /**
- * All superchain leaf chains share the same CLFactory↔NFPM pair, so we match on
- * factory alone to avoid listing every chain ID explicitly.
+ * Every superchain leaf chain shares the same set of CLFactory↔NFPM pairs, so
+ * we match on factory alone to avoid listing every chain ID explicitly. There
+ * are currently two pairings: the original Slipstream V1 deployment, and the
+ * gauge-V2 deployment added in #727. Both verified on-chain via NFPM.factory().
  */
-const SUPERCHAIN_CL_FACTORY = toChecksumAddress(
-  "0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F",
-);
-const SUPERCHAIN_NFPM = toChecksumAddress(
-  "0x991d5546C4B442B4c5fdc4c8B8b8d131DEB24702",
-);
+const SUPERCHAIN_CL_FACTORY_TO_NFPM: Record<string, string> = {
+  [toChecksumAddress("0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F")]:
+    toChecksumAddress("0x991d5546C4B442B4c5fdc4c8B8b8d131DEB24702"),
+  [toChecksumAddress("0x718E46d0962A66942E233760a8bd6038Ce54EdCD")]:
+    toChecksumAddress("0xefD0f78F93f578036AE34D52A813a4BE7D8D2D52"),
+};
 
 /**
  * Resolve the canonical NFPM address for a CL pool from its (chainId, factoryAddress) pair.
  *
  * The NFPM contract owns position NFTs for CL pools created by its paired CLFactory.
  * On chains with a single NFPM/CLFactory this is trivially deterministic; on Optimism
- * (two NFPMs) we rely on the factory that emitted PoolCreated to pick the right one.
+ * (three NFPMs) and Base (four NFPMs) we rely on the factory that emitted PoolCreated
+ * to pick the right one. Superchain leaves share two CLFactory↔NFPM pairs matched on
+ * factory alone.
  *
  * @param chainId - Chain ID where the CL pool lives
  * @param factoryAddress - Address of the CLFactory that created the pool (event.srcAddress)
@@ -151,8 +156,7 @@ export function nfpmForCLPool(
   const checksummed = toChecksumAddress(factoryAddress);
   const explicit = CL_FACTORY_TO_NFPM[`${chainId}-${checksummed}`];
   if (explicit) return explicit;
-  if (checksummed === SUPERCHAIN_CL_FACTORY) return SUPERCHAIN_NFPM;
-  return null;
+  return SUPERCHAIN_CL_FACTORY_TO_NFPM[checksummed] ?? null;
 }
 
 export const OUSDT_ADDRESS = "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189";
