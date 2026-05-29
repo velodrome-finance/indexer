@@ -164,7 +164,7 @@ export interface PoolDiff {
   // Why replace (not incremental): the array is a sorted, dedup'd, no-zero
   // encoding of Uniswap v3's liquidityNet per tick. Splicing in a delta
   // requires a binary-search locate that only makes sense against the current
-  // state — producers already do it in applyStakedPositionToEdges, so the
+  // state — producers already do it in applyPositionToEdges, so the
   // aggregator just takes the result.
   //
   // Typed `readonly bigint[]` so callers can pass the value straight from the
@@ -174,7 +174,7 @@ export interface PoolDiff {
   stakedTickEdgeNets: readonly bigint[];
   // Total-liquidity edge map (all positions). Same replace semantics as the
   // staked pair above: CLPool Mint/Burn compute the full post-edit arrays via
-  // applyStakedPositionToEdges and pass them whole. Drives the fee-free swap
+  // applyPositionToEdges and pass them whole. Drives the fee-free swap
   // reserve delta (#803).
   tickEdges: readonly bigint[];
   tickEdgeNets: readonly bigint[];
@@ -329,7 +329,7 @@ export async function updatePool(
 ) {
   // Invariant check for the parallel-array pair (stakedTickEdges,
   // stakedTickEdgeNets). Writers are supposed to compute both together via
-  // applyStakedPositionToEdges (see src/Aggregators/CLStakedLiquidity.ts),
+  // applyPositionToEdges (see src/Aggregators/CLStakedLiquidity.ts),
   // but there's nothing in the type system that prevents a future caller
   // from setting one and forgetting the other. Diverging lengths would
   // silently desync the sparse map the swap path binary-searches, so log
@@ -407,7 +407,7 @@ export async function updatePool(
   }
 
   // Clamp stakedReserve0 / stakedReserve1 to >= 0n at the accumulator path
-  // (issue #771). Per-segment deltas computed in `segmentStakedReserveDelta`
+  // (issue #771). Per-segment deltas computed in `segmentReserveDelta`
   // are exact-when-rounded (round-half-to-nearest); the residual wei-scale
   // random walk that remains after rounding is the ONLY drift this clamp
   // catches — it is not masking real liquidity imbalance. Mirrors the

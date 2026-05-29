@@ -1,7 +1,7 @@
 import type { handlerContext } from "generated";
 import {
-  applyStakedPositionToEdges,
-  deriveStakedLiquidityInRange,
+  applyPositionToEdges,
+  deriveLiquidityInRange,
 } from "../../Aggregators/CLStakedLiquidity";
 import type { PoolData } from "../../Aggregators/Pool";
 import {
@@ -39,7 +39,7 @@ export interface GaugeEventData {
  * Computes the CL staked reserve deltas and updated pool staked USD when a position
  * is deposited to or withdrawn from a gauge. Applies the position's liquidity to the
  * aggregator's in-memory (stakedTickEdges, stakedTickEdgeNets) arrays via
- * applyStakedPositionToEdges and determines whether the position is in range.
+ * applyPositionToEdges and determines whether the position is in range.
  *
  * @param data - Gauge event data (must have tokenId for CL)
  * @param liquidityPoolAggregator - Current pool entity
@@ -82,7 +82,7 @@ async function computeCLStakedReservesOnGaugeEvent(
     edges: stakedTickEdges,
     nets: stakedTickEdgeNets,
     rejected: edgesRejected,
-  } = applyStakedPositionToEdges(
+  } = applyPositionToEdges(
     liquidityPoolAggregator.stakedTickEdges,
     liquidityPoolAggregator.stakedTickEdgeNets,
     position.tickLower,
@@ -91,7 +91,7 @@ async function computeCLStakedReservesOnGaugeEvent(
   );
   if (edgesRejected) {
     context.log.error(
-      `[computeCLStakedReservesOnGaugeEvent] applyStakedPositionToEdges rejected position ${data.tokenId} on pool ${liquidityPoolAggregator.poolAddress} chain ${data.chainId}: reason=${edgesRejected} tickLower=${position.tickLower} tickUpper=${position.tickUpper}. Edge list left unchanged.`,
+      `[computeCLStakedReservesOnGaugeEvent] applyPositionToEdges rejected position ${data.tokenId} on pool ${liquidityPoolAggregator.poolAddress} chain ${data.chainId}: reason=${edgesRejected} tickLower=${position.tickLower} tickUpper=${position.tickUpper}. Edge list left unchanged.`,
     );
   }
 
@@ -104,7 +104,7 @@ async function computeCLStakedReservesOnGaugeEvent(
   // write, regardless of in-range / sqrt / rejection status; if the position
   // was rejected, the unchanged arrays still produce the prior consistent
   // value.
-  const stakedLiquidityInRange = deriveStakedLiquidityInRange(
+  const stakedLiquidityInRange = deriveLiquidityInRange(
     currentTick,
     stakedTickEdges,
     stakedTickEdgeNets,

@@ -47,7 +47,7 @@ export function divRoundNearest(
  * Wraps `TickMath.getSqrtRatioAtTick` to return a bigint instead of JSBI.
  * Tick is clamped to the Uniswap v3 valid range upstream by every caller
  * (`processTickCrossings` runs the bound check before the loop;
- * edges in `stakedTickEdges` are enforced in-range by `applyStakedPositionToEdges`),
+ * edges in `stakedTickEdges` are enforced in-range by `applyPositionToEdges`),
  * so this helper trusts the input and does no validation.
  *
  * @param tick - Tick index (must be within [TICK_MIN, TICK_MAX])
@@ -159,7 +159,7 @@ function applyDeltaAtTick(
     return { edges: outEdges, nets: outNets };
   }
 
-  // Not present — insert. The caller (applyStakedPositionToEdges) already
+  // Not present — insert. The caller (applyPositionToEdges) already
   // rejects delta === 0n at its top guard, so reaching this branch with a
   // zero delta is unreachable by construction.
   // Build via push to keep V8 packed-elements kind (see note above).
@@ -179,7 +179,7 @@ function applyDeltaAtTick(
 }
 
 /**
- * Reason tag emitted by `applyStakedPositionToEdges` when it refuses to apply a
+ * Reason tag emitted by `applyPositionToEdges` when it refuses to apply a
  * position. Callers use this to log the anomaly while still receiving valid
  * (unchanged) arrays to assign into the aggregator diff.
  *   - "ticks_out_of_range": at least one tick is outside [TICK_MIN, TICK_MAX].
@@ -189,19 +189,20 @@ function applyDeltaAtTick(
  * `liquidityDelta === 0n` is a legitimate no-op (e.g., the Mint-0 case from
  * NFPM) and does NOT produce a rejection tag.
  */
-export type StakedEdgesRejection = "ticks_out_of_range" | "degenerate_range";
+export type EdgesRejection = "ticks_out_of_range" | "degenerate_range";
 
 /**
- * Applies a staked-position liquidity change ([tickLower, tickUpper] × liquidityDelta)
- * to the parallel (edges, nets) arrays. In-aggregator only — the swap path never
- * needs to load a per-tick entity.
+ * Applies a position's liquidity change ([tickLower, tickUpper] × liquidityDelta)
+ * to a parallel (edges, nets) tick map. Used for both the staked-only map
+ * (stake/unstake, #666/#719) and the pool's total map (CLPool Mint/Burn, #803).
+ * In-aggregator only — the swap path never needs to load a per-tick entity.
  *
  * Convention (mirrors Uniswap v3 per-tick liquidityNet):
  *   - At tickLower: net += liquidityDelta  (positions ENTER range on upward cross)
  *   - At tickUpper: net -= liquidityDelta  (positions EXIT range on upward cross)
  *
- * On stake:   liquidityDelta = +position.liquidity
- * On unstake: liquidityDelta = -position.liquidity
+ * liquidityDelta is positive when liquidity is added (stake, Mint) and negative
+ * when removed (unstake, Burn).
  *
  * When the inputs would violate an invariant (ticks outside Uniswap v3 range,
  * or tickLower >= tickUpper), the arrays are returned unchanged and `rejected`
@@ -216,13 +217,13 @@ export type StakedEdgesRejection = "ticks_out_of_range" | "degenerate_range";
  * @returns New parallel (edges, nets) arrays; `rejected` set when an invariant
  *          violation prevented the update
  */
-export function applyStakedPositionToEdges(
+export function applyPositionToEdges(
   edges: readonly bigint[],
   nets: readonly bigint[],
   tickLower: bigint,
   tickUpper: bigint,
   liquidityDelta: bigint,
-): { edges: bigint[]; nets: bigint[]; rejected?: StakedEdgesRejection } {
+): { edges: bigint[]; nets: bigint[]; rejected?: EdgesRejection } {
   if (liquidityDelta === 0n) {
     return { edges: edges.slice(), nets: nets.slice() };
   }
@@ -256,10 +257,12 @@ export function applyStakedPositionToEdges(
 }
 
 /**
- * Derives `stakedLiquidityInRange` from the canonical edge state at a given
- * tick — replaces the running counter that drifted in issue #719.
+ * Derives in-range liquidity from the canonical edge state at a given tick —
+ * replaces the running counter that drifted in issue #719. Used for both the
+ * staked map (deriving `stakedLiquidityInRange`) and the pool's total map
+ * (seeding the #803 swap-geometry walk).
  *
- *   stakedLiquidityInRange = Σ stakedTickEdgeNets[i]  where stakedTickEdges[i] <= currentTick
+ *   liquidityInRange = Σ nets[i]  where edges[i] <= currentTick
  *
  * Equivalent to the Uniswap v3 liquidityNet sum across all ticks the pool has
  * crossed going up. Uses the same upper-exclusive convention as
@@ -268,15 +271,15 @@ export function applyStakedPositionToEdges(
  *
  * Cost: O(log E + K) — binary-search the upper bound, then sum the prefix.
  * For per-pool edge counts up to a few thousand the prefix scan is a handful
- * of microseconds; cheap enough to invoke on every staked-position write so
- * the cached counter cannot drift from the edge truth.
+ * of microseconds; cheap enough to invoke on every edge-map write so the
+ * cached counter cannot drift from the edge truth.
  *
  * @param currentTick - The pool's current tick
- * @param edges - Sorted-ascending stakedTickEdges from the aggregator
- * @param nets - Parallel stakedTickEdgeNets (same length, same index)
+ * @param edges - Sorted-ascending tick edges from the aggregator
+ * @param nets - Parallel tick-edge nets (same length, same index)
  * @returns Σ nets[i] for edges[i] <= currentTick; 0n on empty edge list
  */
-export function deriveStakedLiquidityInRange(
+export function deriveLiquidityInRange(
   currentTick: bigint,
   edges: readonly bigint[],
   nets: readonly bigint[],
@@ -292,10 +295,10 @@ export function deriveStakedLiquidityInRange(
 
 /**
  * Per-segment Uniswap v3 swap math at constant L. The pool's sqrt price moves
- * from `segStart` to `segEnd` while staked liquidity in range is `stakedLiq`.
+ * from `segStart` to `segEnd` while in-range liquidity is `liq`.
  *
- *   stakedDelta0 = stakedLiq * (segStart - segEnd) * Q96 / (segStart * segEnd)
- *   stakedDelta1 = stakedLiq * (segEnd - segStart) / Q96
+ *   delta0 = liq * (segStart - segEnd) * Q96 / (segStart * segEnd)
+ *   delta1 = liq * (segEnd - segStart) / Q96
  *
  * Both expressions are signed and direction-agnostic: when sqrt moves UP
  * (segEnd > segStart), token0 leaves the pool (delta0 negative) and token1
@@ -303,36 +306,33 @@ export function deriveStakedLiquidityInRange(
  * sign convention of `event.params.amount0/amount1` on `CLPool.Swap` (positive
  * = into pool).
  *
- * The L_total of the pool cancels out of the staked-share formula, so callers
- * only need staked-edge state — not a parallel total-liquidity edge map.
+ * For the staked share the pool's L_total cancels out of the formula, so the
+ * staked caller passes only its staked in-range liquidity (no total-edge map);
+ * the total caller (#803) passes the pool's full in-range liquidity directly.
  *
- * No-op short-circuits (segStart === segEnd, stakedLiq === 0n) are handled by
- * the caller before invocation to avoid wasted bigint multiplies on the hot
- * path.
+ * No-op short-circuits (segStart === segEnd, liq === 0n) are handled by the
+ * caller before invocation to avoid wasted bigint multiplies on the hot path.
  *
  * Per-segment rounding uses `divRoundNearest` (half-away-from-zero) rather
  * than BigInt's default truncation-toward-zero. Truncation is asymmetric on
  * signed numerators — within a single swap every segment's numerator has the
- * same sign, so per-segment errors all bias the accumulated `stakedReserve0/1`
- * in one direction and the random walk grows wei-scale across many swaps.
+ * same sign, so per-segment errors all bias the accumulated reserve in one
+ * direction and the random walk grows wei-scale across many swaps.
  * Half-away-from-zero rounding zeroes the per-segment systematic bias (#771).
  *
- * @param stakedLiq - Staked liquidity active across this segment
+ * @param liq - In-range liquidity active across this segment
  * @param segStart - sqrtPriceX96 at the start of the segment
  * @param segEnd - sqrtPriceX96 at the end of the segment
- * @returns Signed reserve deltas attributable to the staked share over this segment
+ * @returns Signed per-segment reserve deltas (delta0, delta1)
  */
-export function segmentStakedReserveDelta(
-  stakedLiq: bigint,
+export function segmentReserveDelta(
+  liq: bigint,
   segStart: bigint,
   segEnd: bigint,
-): { stakedDelta0: bigint; stakedDelta1: bigint } {
+): { delta0: bigint; delta1: bigint } {
   return {
-    stakedDelta0: divRoundNearest(
-      stakedLiq * (segStart - segEnd) * Q96,
-      segStart * segEnd,
-    ),
-    stakedDelta1: divRoundNearest(stakedLiq * (segEnd - segStart), Q96),
+    delta0: divRoundNearest(liq * (segStart - segEnd) * Q96, segStart * segEnd),
+    delta1: divRoundNearest(liq * (segEnd - segStart), Q96),
   };
 }
 
@@ -402,7 +402,7 @@ export function segmentStakedReserveDelta(
  * @param currentLiquidityInRange - In-range liquidity before the swap. Kept for
  *   signature stability and consulted ONLY on early-exit paths (out-of-range
  *   ticks, uninitialized pool, zero sqrt prices); the normal walking path seeds
- *   itself from `deriveStakedLiquidityInRange(oldTick, ...)` so the swap heals
+ *   itself from `deriveLiquidityInRange(oldTick, ...)` so the swap heals
  *   any prior counter drift (issue #719).
  * @param walkEdges - Whether to cross intermediate edges. Pass `hasStakes` for
  *   the staked map, `tickEdges.length > 0` for the total map. When false, only
@@ -470,7 +470,7 @@ export function processTickCrossings(
   // edge-merge rejection / pre-Initialize / NFPM-between-stake scenarios;
   // re-deriving from edges at oldTick ensures the per-segment attribution
   // and the returned counter both reflect what the in-range liquidity actually is.
-  let liq = deriveStakedLiquidityInRange(oldTick, tickEdges, tickEdgeNets);
+  let liq = deriveLiquidityInRange(oldTick, tickEdges, tickEdgeNets);
   let segStart = oldSqrtPriceX96;
   let delta0 = 0n;
   let delta1 = 0n;
@@ -487,9 +487,9 @@ export function processTickCrossings(
         if (edgeTick > newTick) break;
         const segEnd = sqrtRatioAtTick(edgeTick);
         if (liq > 0n && segStart !== segEnd) {
-          const seg = segmentStakedReserveDelta(liq, segStart, segEnd);
-          delta0 += seg.stakedDelta0;
-          delta1 += seg.stakedDelta1;
+          const seg = segmentReserveDelta(liq, segStart, segEnd);
+          delta0 += seg.delta0;
+          delta1 += seg.delta1;
         }
         liq += tickEdgeNets[i];
         segStart = segEnd;
@@ -502,9 +502,9 @@ export function processTickCrossings(
         if (edgeTick <= newTick) break;
         const segEnd = sqrtRatioAtTick(edgeTick);
         if (liq > 0n && segStart !== segEnd) {
-          const seg = segmentStakedReserveDelta(liq, segStart, segEnd);
-          delta0 += seg.stakedDelta0;
-          delta1 += seg.stakedDelta1;
+          const seg = segmentReserveDelta(liq, segStart, segEnd);
+          delta0 += seg.delta0;
+          delta1 += seg.delta1;
         }
         liq -= tickEdgeNets[i];
         segStart = segEnd;
@@ -516,9 +516,9 @@ export function processTickCrossings(
   // Also covers the within-a-tick case (oldTick === newTick) where no edges
   // are walked and the entire swap is a single segment.
   if (liq > 0n && segStart !== newSqrtPriceX96) {
-    const seg = segmentStakedReserveDelta(liq, segStart, newSqrtPriceX96);
-    delta0 += seg.stakedDelta0;
-    delta1 += seg.stakedDelta1;
+    const seg = segmentReserveDelta(liq, segStart, newSqrtPriceX96);
+    delta0 += seg.delta0;
+    delta1 += seg.delta1;
   }
 
   return {

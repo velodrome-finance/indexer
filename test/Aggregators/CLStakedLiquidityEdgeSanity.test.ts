@@ -1,8 +1,8 @@
 import type { Token, handlerContext } from "generated";
 import { CLGauge, MockDb, NFPM } from "../../generated/src/TestHelpers.gen";
 import {
-  applyStakedPositionToEdges,
-  deriveStakedLiquidityInRange,
+  applyPositionToEdges,
+  deriveLiquidityInRange,
   processTickCrossings,
 } from "../../src/Aggregators/CLStakedLiquidity";
 import {
@@ -206,7 +206,7 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
       );
 
       // Under test: apply to the sparse edge list.
-      const out = applyStakedPositionToEdges(
+      const out = applyPositionToEdges(
         edges,
         nets,
         tickLower,
@@ -306,7 +306,7 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
   // Regression coverage for issue #719: cover the three concrete drift paths
   // from the bug report plus the closed-system invariant. Each test pins the
   // structural property that the fix introduces:
-  //   stakedLiquidityInRange === deriveStakedLiquidityInRange(currentTick,
+  //   stakedLiquidityInRange === deriveLiquidityInRange(currentTick,
   //                                                            stakedTickEdges,
   //                                                            stakedTickEdgeNets)
   // ALWAYS. The cached running counter is replaced by derivation, so the field
@@ -371,7 +371,7 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
       expect(updated).toBeDefined();
       if (!updated) return;
 
-      // Edges populated by applyStakedPositionToEdges.
+      // Edges populated by applyPositionToEdges.
       expect(updated.stakedTickEdges).toEqual([tickLower, tickUpper]);
       expect(updated.stakedTickEdgeNets).toEqual([liquidity, -liquidity]);
       // Counter MUST equal derive(currentTick=0n, edges, nets):
@@ -379,7 +379,7 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
       //   edge  100 > 0 → excluded
       // ⇒ stakedLiquidityInRange = 500. Legacy gated path would leave 0n.
       expect(updated.stakedLiquidityInRange).toBe(
-        deriveStakedLiquidityInRange(
+        deriveLiquidityInRange(
           updated.tick ?? 0n,
           updated.stakedTickEdges,
           updated.stakedTickEdgeNets,
@@ -392,7 +392,7 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
       // Simulates the "edge map disagrees with counter" mode: the aggregator's
       // stakedLiquidityInRange is poisoned (non-zero with empty edges) from
       // prior drift, and an incoming Deposit gets rejected by
-      // applyStakedPositionToEdges (degenerate range: tickLower >= tickUpper).
+      // applyPositionToEdges (degenerate range: tickLower >= tickUpper).
       // With derivation, the rejection still triggers a heal — the counter is
       // overwritten with derive(currentTick, edges, nets), which on empty
       // edges is 0. The legacy gated path skipped the counter on rejection,
@@ -457,7 +457,7 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
       expect(updated.stakedTickEdgeNets).toEqual([]);
       // The healing invariant: counter must equal derive at the current tick.
       expect(updated.stakedLiquidityInRange).toBe(
-        deriveStakedLiquidityInRange(
+        deriveLiquidityInRange(
           updated.tick ?? 0n,
           updated.stakedTickEdges,
           updated.stakedTickEdgeNets,
@@ -471,7 +471,7 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
       // in range (counter += L). Price moves out of range. NFPM
       // IncreaseLiquidity bumps position liquidity, but the legacy gate
       // `isPositionInRange(...)` skips the counter update while the edge
-      // nets still update via applyStakedPositionToEdges. With derivation,
+      // nets still update via applyPositionToEdges. With derivation,
       // the counter is recomputed from the updated edges at the (out-of-range)
       // tick — both edges land ≤ currentTick, so the nets sum to zero and the
       // counter heals from "stale L" to "0".
@@ -555,7 +555,7 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
         tick: bigint;
       };
 
-      // Edges absorbed the +increaseDelta (consistent with applyStakedPositionToEdges).
+      // Edges absorbed the +increaseDelta (consistent with applyPositionToEdges).
       expect(written.stakedTickEdges).toEqual([tickLower, tickUpper]);
       expect(written.stakedTickEdgeNets).toEqual([
         positionLiquidity + increaseDelta,
@@ -565,7 +565,7 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
       // edges contribute → +(L+Δ) - (L+Δ) = 0. The legacy code would have
       // kept the counter at `positionLiquidity` (stale).
       expect(written.stakedLiquidityInRange).toBe(
-        deriveStakedLiquidityInRange(
+        deriveLiquidityInRange(
           written.tick ?? 0n,
           written.stakedTickEdges,
           written.stakedTickEdgeNets,
@@ -631,7 +631,7 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
       expect(postDeposit).toBeDefined();
       if (!postDeposit) return;
       expect(postDeposit.stakedLiquidityInRange).toBe(
-        deriveStakedLiquidityInRange(
+        deriveLiquidityInRange(
           postDeposit.tick ?? 0n,
           postDeposit.stakedTickEdges,
           postDeposit.stakedTickEdgeNets,
@@ -681,7 +681,7 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
       expect(postWithdraw.stakedTickEdges).toEqual([]);
       expect(postWithdraw.stakedTickEdgeNets).toEqual([]);
       expect(postWithdraw.stakedLiquidityInRange).toBe(
-        deriveStakedLiquidityInRange(
+        deriveLiquidityInRange(
           postWithdraw.tick ?? 0n,
           postWithdraw.stakedTickEdges,
           postWithdraw.stakedTickEdgeNets,

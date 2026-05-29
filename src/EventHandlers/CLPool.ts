@@ -1,5 +1,5 @@
 import { CLPool } from "generated";
-import { applyStakedPositionToEdges } from "../Aggregators/CLStakedLiquidity";
+import { applyPositionToEdges } from "../Aggregators/CLStakedLiquidity";
 import { createOUSDTSwapEntity } from "../Aggregators/OUSDTSwaps";
 import { loadPoolData, updatePool } from "../Aggregators/Pool";
 import {
@@ -65,7 +65,7 @@ CLPool.Burn.handler(async ({ event, context }) => {
   );
   // #803: maintain the total per-tick liquidityNet map on every Burn so the swap
   // path can integrate geometry over it. Burn removes liquidity → negative delta.
-  const burnEdges = applyStakedPositionToEdges(
+  const burnEdges = applyPositionToEdges(
     liquidityPoolAggregator.tickEdges,
     liquidityPoolAggregator.tickEdgeNets,
     event.params.tickLower,
@@ -346,7 +346,7 @@ CLPool.Mint.handler(async ({ event, context }) => {
   );
   // #803: maintain the total per-tick liquidityNet map on every Mint so the swap
   // path can integrate geometry over it. Mint adds liquidity → positive delta.
-  const mintEdges = applyStakedPositionToEdges(
+  const mintEdges = applyPositionToEdges(
     liquidityPoolAggregator.tickEdges,
     liquidityPoolAggregator.tickEdgeNets,
     event.params.tickLower,

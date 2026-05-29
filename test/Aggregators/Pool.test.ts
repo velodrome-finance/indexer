@@ -570,7 +570,7 @@ describe("Pool Functions", () => {
     // negative. The accumulator path clamps both fields to >= 0n and emits
     // [NEG_STAKED_RESERVE_GUARD] with {poolAddress, chainId, priorStakedReserve,
     // delta, clampedTo}. Mirrors the #702 [NEG_RESERVE_GUARD] shape; the
-    // structural rounding fix in segmentStakedReserveDelta bounds the residual
+    // structural rounding fix in segmentReserveDelta bounds the residual
     // drift so the clamp catches only sub-wei truncation noise, not real
     // liquidity imbalance.
     //

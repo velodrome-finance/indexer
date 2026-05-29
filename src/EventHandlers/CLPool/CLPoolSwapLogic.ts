@@ -211,7 +211,7 @@ export async function processCLPoolSwap(
   // exact principal token flow (Δ1 = L·ΔsqrtPrice/Q96, Δ0 = L·ΔsqrtPrice·Q96/
   // (S_a·S_b)); the fee never moves the price, so it is excluded by construction.
   // This is the same edge-walk as the staked share (#666), seeded from the total
-  // edge map via deriveStakedLiquidityInRange — so it stays correct even when the
+  // edge map via deriveLiquidityInRange — so it stays correct even when the
   // price starts at a boundary tick where the cached liquidityInRange is 0, and
   // it walks initialized edges directly (binary search) with no per-tick step cap.
   const totalCrossings = processTickCrossings(
