@@ -1,5 +1,6 @@
 import type { Token, handlerContext } from "generated";
 import { calculateTokenAmountUSD } from "./Helpers";
+import { multiplyBase1e18 } from "./Maths";
 import { isBlacklistedToken } from "./PriceOverrides";
 
 /**
@@ -77,6 +78,37 @@ export function getTrustedUSD(
     Number(token.decimals),
     token.pricePerUSDNew,
   );
+}
+
+/**
+ * Pool-implied USD price (1e18-base) for one leg of a pool, derived from the
+ * pool's on-chain price ratio and the *counterparty* leg's trusted price. This
+ * is an independent ground-truth witness to the per-token oracle route: it
+ * comes from pool reserves / sqrtPriceX96, not from the route that can freeze
+ * or glitch (#784/#785).
+ *
+ * For token0 the caller passes the pool's `token0Price` (1e18-scaled
+ * token1-per-token0) and the token1 entity; for token1, `token1Price` and the
+ * token0 entity. Gated by {@link isTrusted}: an untrusted or undefined
+ * counterparty yields `0n` (no usable hint), so any consumer is inert unless
+ * the other leg is a whitelisted, non-blacklisted token whose price is
+ * reliable. A `0n` ratio (uninitialised pool) also yields `0n`.
+ *
+ * @param priceRatio1e18 - The priced token's value in counterparty units,
+ *   1e18-scaled (the pool entity's `token0Price` / `token1Price`).
+ * @param counterparty - The other token in the pool, carrying the trusted USD
+ *   price. Undefined or untrusted ⇒ `0n`.
+ * @returns USD-per-whole-token in 1e18-base (same scaling as `pricePerUSDNew`),
+ *   or `0n` when the counterparty fails the trust gate or the ratio is 0.
+ */
+export function getPoolImpliedUSD(
+  priceRatio1e18: bigint,
+  counterparty: Token | undefined,
+): bigint {
+  if (priceRatio1e18 <= 0n || !counterparty || !isTrusted(counterparty)) {
+    return 0n;
+  }
+  return multiplyBase1e18(priceRatio1e18, counterparty.pricePerUSDNew);
 }
 
 /**

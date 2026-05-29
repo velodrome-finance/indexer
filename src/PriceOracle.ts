@@ -57,6 +57,17 @@ const FIRST_FETCH_CAP = 10_000n * TEN_TO_THE_18_BI;
 // rejected.)
 const MAX_ACCEPTED_PRICE = 1_000_000n * TEN_TO_THE_18_BI;
 
+// Two positive prices "agree" when neither exceeds the other by the spike
+// ratio (10×) — the same loose band the upward spike guard uses. Reused by the
+// pool-implied ground-truth checks (#784/#785) to ask whether an oracle read
+// and a pool-implied hint corroborate each other. Zero on either side means
+// "no usable signal" → never agrees.
+const withinRatioBand = (a: bigint, b: bigint): boolean =>
+  a > 0n &&
+  b > 0n &&
+  a <= b * PRICE_SPIKE_RATIO_THRESHOLD &&
+  b <= a * PRICE_SPIKE_RATIO_THRESHOLD;
+
 /**
  * Creates and persists a Token entity at first sight, gated on the address
  * actually being a contract on-chain.
@@ -135,11 +146,22 @@ export async function createTokenEntity(
  *   with hourly retries. The fallback covers every oracle generation
  *   (#775 extended it from V3-only to V1/V2 too).
  *
+ * When a caller supplies `impliedPriceHint` — a pool-implied USD price derived
+ * from the counterparty leg's trusted price (see {@link getPoolImpliedUSD}) —
+ * it acts as an independent ground-truth witness against a poisoned anchor:
+ * a too-low first read is replaced by the hint (#785), and a stale-low anchor
+ * is re-anchored when the incoming read corroborates the hint while the anchor
+ * contradicts it (#784). Omitting the hint (the default) leaves every code
+ * path identical to before.
+ *
  * @param token - The token entity to refresh.
  * @param blockNumber - Block at which to fetch price (rounded to an hourly bucket for cache hits).
  * @param blockTimestamp - Block timestamp in seconds.
  * @param chainId - Chain the token lives on.
  * @param context - Envio handler context.
+ * @param impliedPriceHint - Optional pool-implied USD price (1e18-base, same
+ *   scaling as `pricePerUSDNew`) used as ground truth for the #784/#785 anchor
+ *   checks. `undefined` / `0n` ⇒ no hint, behavior unchanged.
  * @returns The updated token entity (or the unchanged input when throttled).
  */
 export async function refreshTokenPrice(
@@ -148,8 +170,12 @@ export async function refreshTokenPrice(
   blockTimestamp: number,
   chainId: number,
   context: handlerContext,
+  impliedPriceHint?: bigint,
 ): Promise<Token> {
   const blockTimestampMs = blockTimestamp * 1000;
+  // Pool-implied ground truth (#784/#785); 0n / undefined ⇒ no usable hint,
+  // leaving every check below inert (behavior identical to a hint-free refresh).
+  const hint = impliedPriceHint ?? 0n;
 
   // Issue #735: heal empty symbol/name on every refresh call regardless of the
   // 1-hour price-refresh throttle. Tokens whose pool was created during a
@@ -284,6 +310,43 @@ export async function refreshTokenPrice(
       return capped;
     }
 
+    // Issue #785: FIRST_FETCH_CAP (#728) only guards a too-HIGH first read; a
+    // too-LOW first read (LIFE: $0.0014 vs true ~$0.25) is accepted as the
+    // anchor and then freezes every later correct read as an upward spike,
+    // forever. When a trusted pool-implied hint exists at first sight, validate
+    // the first nonzero read against it: if it is out of band (too-low or
+    // too-high), anchor to the hint itself so the token recovers in a single
+    // read instead of locking onto the bad value. An in-band first read falls
+    // through and is accepted normally; a $0 read is left to the existing
+    // last-known/normal path (retry next refresh) rather than eagerly anchored.
+    if (
+      healed.pricePerUSDNew === 0n &&
+      currentPrice > 0n &&
+      hint > 0n &&
+      !withinRatioBand(currentPrice, hint)
+    ) {
+      context.log.info(
+        `[poolImpliedFirstFetch] chain=${chainId} address=${healed.address} symbol=${healed.symbol} firstRead=${currentPrice} hint=${hint} — first read out of band, anchoring to pool-implied hint`,
+      );
+      const anchored: Token = {
+        ...healed,
+        pricePerUSDNew: hint,
+        lastUpdatedTimestamp: new Date(blockTimestampMs),
+        lastSuccessfulPriceTimestamp: new Date(blockTimestampMs),
+      };
+      context.Token.set(anchored);
+      setTokenPriceSnapshot(
+        healed.address,
+        chainId,
+        blockNumber,
+        new Date(blockTimestampMs),
+        hint,
+        healed.isWhitelisted,
+        context,
+      );
+      return anchored;
+    }
+
     // Issue #728: cap-reject the first non-zero anchor for non-BTC symbols.
     // The spike guard below requires anchor > 0, so without this gate a single
     // inflated read at first sight permanently poisons the anchor. Bumping
@@ -334,10 +397,27 @@ export async function refreshTokenPrice(
       anchorPrice > 0n &&
       currentPrice >= anchorPrice * PRICE_SPIKE_RATIO_THRESHOLD;
     if (upwardSpike && anchorAgeMs < PRICE_SPIKE_STALENESS_MS) {
-      context.log.warn(
-        `[priceSpikeRejected] ${healed.address} chain=${chainId} anchor=${anchorPrice} candidate=${currentPrice}`,
+      // Issue #784: a downward glitch can poison the anchor (e.g. YGG read
+      // $0.0026 vs true $0.14), after which the upward-only guard rejects
+      // every correct heal for the full staleness window. When a trusted
+      // pool-implied hint corroborates the incoming read AND contradicts the
+      // stored anchor, the *anchor* is the outlier — re-anchor to the read
+      // instead of rejecting. The pool state is an independent witness (not the
+      // oracle route that produced the bad anchor), so it distinguishes a
+      // stuck-low anchor from a genuine transient spike — the discriminator the
+      // #801 cache audit showed a time-based re-anchor lacked.
+      const poolImpliedReanchor =
+        withinRatioBand(currentPrice, hint) &&
+        !withinRatioBand(anchorPrice, hint);
+      if (!poolImpliedReanchor) {
+        context.log.warn(
+          `[priceSpikeRejected] ${healed.address} chain=${chainId} anchor=${anchorPrice} candidate=${currentPrice}`,
+        );
+        return healed;
+      }
+      context.log.info(
+        `[poolImpliedReanchor] ${healed.address} chain=${chainId} anchor=${anchorPrice} candidate=${currentPrice} hint=${hint} — re-anchoring past stuck-low anchor`,
       );
-      return healed;
     }
 
     // If price fetch returned 0, it could mean:
