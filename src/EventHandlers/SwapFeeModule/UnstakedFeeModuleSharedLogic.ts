@@ -1,6 +1,7 @@
-import type { handlerContext } from "generated";
 import { type PoolDiff, updatePool } from "../../Aggregators/Pool";
 import { PoolId } from "../../Constants";
+import { getRehydrated } from "../../EntityTimestamps";
+import type { handlerContext } from "../../EntityTypes";
 
 export interface UnstakedFeeEventData {
   poolAddress: string;
@@ -32,7 +33,7 @@ export async function applyUnstakedFee(
   context: handlerContext,
 ): Promise<void> {
   const poolId = PoolId(data.chainId, data.poolAddress);
-  const pool = await context.Pool.get(poolId);
+  const pool = await getRehydrated(context.Pool, "Pool", poolId);
 
   if (!pool) {
     context.log.warn(`Pool ${poolId} not found for ${data.logContext} event`);

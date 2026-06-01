@@ -1,4 +1,4 @@
-import type { PendingVote, Token, VeNFTState, handlerContext } from "generated";
+import type { PendingVote, Token, VeNFTState } from "envio";
 import * as PoolModule from "../../../src/Aggregators/Pool";
 import {
   PendingVoteId,
@@ -9,6 +9,7 @@ import {
   getTokenDetails,
   getTokensDeposited,
 } from "../../../src/Effects/Index";
+import type { handlerContext } from "../../../src/EntityTypes";
 import type { Pool } from "../../../src/EntityTypes";
 import type { VoterCommonResult } from "../../../src/EventHandlers/Voter/VoterCommonLogic";
 import {

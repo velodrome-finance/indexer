@@ -1,4 +1,4 @@
-import { ALMLPWrapperV1 } from "generated";
+import { indexer } from "envio";
 import {
   processDepositEvent,
   processTransferEvent,
@@ -16,23 +16,26 @@ import {
  * Note: In V1, Deposit event has both `sender` and `recipient` fields.
  * The `recipient` is the one who receives the LP tokens and should have their stats updated.
  */
-ALMLPWrapperV1.Deposit.handler(async ({ event, context }) => {
-  const { recipient, pool, lpAmount, amount0, amount1 } = event.params;
-  const timestamp = new Date(event.block.timestamp * 1000);
+indexer.onEvent(
+  { contract: "ALMLPWrapperV1", event: "Deposit" },
+  async ({ event, context }) => {
+    const { recipient, pool, lpAmount, amount0, amount1 } = event.params;
+    const timestamp = new Date(event.block.timestamp * 1000);
 
-  await processDepositEvent(
-    recipient,
-    pool,
-    amount0,
-    amount1,
-    lpAmount,
-    event.srcAddress,
-    event.chainId,
-    event.block.number,
-    timestamp,
-    context,
-  );
-});
+    await processDepositEvent(
+      recipient,
+      pool,
+      amount0,
+      amount1,
+      lpAmount,
+      event.srcAddress,
+      event.chainId,
+      event.block.number,
+      timestamp,
+      context,
+    );
+  },
+);
 
 /**
  * Handler for ALM LP Wrapper Withdraw events
@@ -47,26 +50,29 @@ ALMLPWrapperV1.Deposit.handler(async ({ event, context }) => {
  * The above can be observed by the _burn function execution within _withdraw:
  * - msg.sender is the one whose tokens are being burned/withdrawn
  */
-ALMLPWrapperV1.Withdraw.handler(async ({ event, context }) => {
-  const { sender, pool, lpAmount, amount0, amount1 } = event.params;
-  const timestamp = new Date(event.block.timestamp * 1000);
+indexer.onEvent(
+  { contract: "ALMLPWrapperV1", event: "Withdraw" },
+  async ({ event, context }) => {
+    const { sender, pool, lpAmount, amount0, amount1 } = event.params;
+    const timestamp = new Date(event.block.timestamp * 1000);
 
-  await processWithdrawEvent(
-    sender,
-    pool,
-    amount0,
-    amount1,
-    lpAmount,
-    event.srcAddress,
-    event.chainId,
-    event.block.number,
-    timestamp,
-    context,
-    event.transaction.hash,
-    event.logIndex,
-    true, // isV1 = true for V1 wrapper
-  );
-});
+    await processWithdrawEvent(
+      sender,
+      pool,
+      amount0,
+      amount1,
+      lpAmount,
+      event.srcAddress,
+      event.chainId,
+      event.block.number,
+      timestamp,
+      context,
+      event.transaction.hash,
+      event.logIndex,
+      true, // isV1 = true for V1 wrapper
+    );
+  },
+);
 
 /**
  * Handler for ALM LP Wrapper Transfer events
@@ -84,21 +90,24 @@ ALMLPWrapperV1.Withdraw.handler(async ({ event, context }) => {
  * Note: If the wrapper doesn't exist, this will fail since Transfer events don't include pool info.
  * This is expected behavior - wrappers should be created via Deposit/Withdraw events first.
  */
-ALMLPWrapperV1.Transfer.handler(async ({ event, context }) => {
-  const { from, to, value } = event.params;
-  const timestamp = new Date(event.block.timestamp * 1000);
+indexer.onEvent(
+  { contract: "ALMLPWrapperV1", event: "Transfer" },
+  async ({ event, context }) => {
+    const { from, to, value } = event.params;
+    const timestamp = new Date(event.block.timestamp * 1000);
 
-  await processTransferEvent(
-    from,
-    to,
-    value,
-    event.srcAddress,
-    event.chainId,
-    event.transaction.hash,
-    event.logIndex,
-    event.block.number,
-    timestamp,
-    context,
-    true, // isV1 = true for V1 wrapper
-  );
-});
+    await processTransferEvent(
+      from,
+      to,
+      value,
+      event.srcAddress,
+      event.chainId,
+      event.transaction.hash,
+      event.logIndex,
+      event.block.number,
+      timestamp,
+      context,
+      true, // isV1 = true for V1 wrapper
+    );
+  },
+);

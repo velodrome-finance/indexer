@@ -6,8 +6,7 @@ import type {
   UserStatsPerPool,
   VeNFTPoolVote,
   VeNFTState,
-  handlerContext,
-} from "generated";
+} from "envio";
 import {
   ALMLPWrapperId,
   NonFungiblePositionId,
@@ -20,6 +19,7 @@ import {
   VeNFTPoolVoteId,
   toChecksumAddress,
 } from "../../../src/Constants";
+import type { handlerContext } from "../../../src/EntityTypes";
 import type { Pool } from "../../../src/EntityTypes";
 import { calculateTokenAmountUSD } from "../../../src/Helpers";
 import {

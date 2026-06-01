@@ -1,4 +1,4 @@
-import type { Pool_Claim_event, Token } from "generated";
+import type { EvmEvent, Token } from "envio";
 import type { PoolDiff } from "../../Aggregators/Pool";
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import { calculateTotalUSD } from "../../Helpers";
@@ -14,7 +14,7 @@ export interface PoolClaimResult {
  * Distinguishes between staked fees (claimed by gauge) and unstaked fees (claimed by regular users directly)
  */
 export function processPoolClaim(
-  event: Pool_Claim_event,
+  event: EvmEvent<"Pool", "Claim">,
   sender: string,
   gaugeAddress: string,
   token0Instance: Token | undefined,

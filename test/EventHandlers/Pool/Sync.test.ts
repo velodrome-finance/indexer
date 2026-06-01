@@ -1,5 +1,5 @@
-import type { Token } from "generated";
-import { MockDb, Pool } from "../../../generated/src/TestHelpers.gen";
+import type { Token } from "envio";
+import { createTestIndexer } from "envio";
 import {
   PoolId,
   TEN_TO_THE_18_BI,
@@ -15,6 +15,8 @@ describe("Pool Sync Event", () => {
     typeof setupCommon
   >["mockLiquidityPoolData"];
 
+  const chainId = 10 as const;
+
   const expectations = {
     reserveAmount0In: 0n,
     reserveAmount1In: 0n,
@@ -29,21 +31,12 @@ describe("Pool Sync Event", () => {
   const eventData = {
     reserve0: 0n,
     reserve1: 0n,
-    mockEventData: {
-      block: {
-        timestamp: 1000000,
-        number: 123456,
-        hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
-      },
-      chainId: 10,
-      logIndex: 1,
-      srcAddress: toChecksumAddress(
-        "0x3333333333333333333333333333333333333333",
-      ) as `0x${string}`,
-    },
+    srcAddress: toChecksumAddress(
+      "0x3333333333333333333333333333333333333333",
+    ) as `0x${string}`,
   };
 
-  let mockDb: ReturnType<typeof MockDb.createMockDb>;
+  let indexer: ReturnType<typeof createTestIndexer>;
 
   beforeEach(() => {
     const setupData = setupCommon();
@@ -76,31 +69,43 @@ describe("Pool Sync Event", () => {
     eventData.reserve0 = expectations.expectedReserve0;
     eventData.reserve1 = expectations.expectedReserve1;
 
-    mockDb = MockDb.createMockDb();
+    indexer = createTestIndexer();
   });
 
   describe("when both tokens exist", () => {
-    let postEventDB: ReturnType<typeof MockDb.createMockDb>;
-
     beforeEach(async () => {
-      const updatedDB1 = setupPool(
-        mockDb,
-        mockLiquidityPoolData,
-        eventData.mockEventData.srcAddress,
-      );
-      const updatedDB2 = updatedDB1.entities.Token.set(mockToken0Data);
-      const updatedDB3 = updatedDB2.entities.Token.set(mockToken1Data);
+      setupPool(indexer, mockLiquidityPoolData, eventData.srcAddress);
+      indexer.Token.set(mockToken0Data);
+      indexer.Token.set(mockToken1Data);
 
-      const mockEvent = Pool.Sync.createMockEvent(eventData);
-
-      postEventDB = await updatedDB3.processEvents([mockEvent]);
+      await indexer.process({
+        chains: {
+          [chainId]: {
+            simulate: [
+              {
+                contract: "Pool",
+                event: "Sync",
+                srcAddress: eventData.srcAddress,
+                logIndex: 1,
+                block: {
+                  timestamp: 1000000,
+                  number: 123456,
+                  hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                },
+                params: {
+                  reserve0: eventData.reserve0,
+                  reserve1: eventData.reserve1,
+                },
+              },
+            ],
+          },
+        },
+      });
     });
+
     it("should update reserves and usd liquidity", async () => {
-      const updatedPool = postEventDB.entities.Pool.get(
-        PoolId(
-          eventData.mockEventData.chainId,
-          eventData.mockEventData.srcAddress,
-        ),
+      const updatedPool = await indexer.Pool.get(
+        PoolId(chainId, eventData.srcAddress),
       );
       expect(updatedPool).toBeDefined();
       expect(updatedPool?.reserve0).toBe(expectations.expectedReserve0);
@@ -113,21 +118,38 @@ describe("Pool Sync Event", () => {
 
   describe("when pool does not exist", () => {
     it("should return early without processing", async () => {
-      // Create a mockDb without the pool
-      const updatedDB1 = mockDb.entities.Token.set(mockToken0Data);
-      const updatedDB2 = updatedDB1.entities.Token.set(mockToken1Data);
+      // Create a indexer without the pool
+      indexer.Token.set(mockToken0Data);
+      indexer.Token.set(mockToken1Data);
       // Note: We intentionally don't set the Pool
 
-      const mockEvent = Pool.Sync.createMockEvent(eventData);
-
-      const postEventDB = await updatedDB2.processEvents([mockEvent]);
+      await indexer.process({
+        chains: {
+          [chainId]: {
+            simulate: [
+              {
+                contract: "Pool",
+                event: "Sync",
+                srcAddress: eventData.srcAddress,
+                logIndex: 1,
+                block: {
+                  timestamp: 1000000,
+                  number: 123456,
+                  hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                },
+                params: {
+                  reserve0: eventData.reserve0,
+                  reserve1: eventData.reserve1,
+                },
+              },
+            ],
+          },
+        },
+      });
 
       // Pool should not exist
-      const pool = postEventDB.entities.Pool.get(
-        PoolId(
-          eventData.mockEventData.chainId,
-          eventData.mockEventData.srcAddress,
-        ),
+      const pool = await indexer.Pool.get(
+        PoolId(chainId, eventData.srcAddress),
       );
       expect(pool).toBeUndefined();
     });

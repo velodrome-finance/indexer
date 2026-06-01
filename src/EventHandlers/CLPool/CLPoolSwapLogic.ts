@@ -1,9 +1,9 @@
-import type { CLPool_Swap_event, Token, handlerContext } from "generated";
+import type { EvmEvent, Token } from "envio";
 import { processTickCrossings } from "../../Aggregators/CLStakedLiquidity";
 import type { PoolDiff } from "../../Aggregators/Pool";
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import { CL_FEE_SCALE } from "../../Constants";
-import type { Pool } from "../../EntityTypes";
+import type { Pool, handlerContext } from "../../EntityTypes";
 import {
   calculateTotalUSD,
   normalizeTokenAmountTo1e18,
@@ -52,7 +52,7 @@ function computeClFeeAmount(amount: bigint, feeRate: bigint): bigint {
  * Exported for testing purposes only
  */
 export function calculateSwapVolume(
-  event: CLPool_Swap_event,
+  event: EvmEvent<"CLPool", "Swap">,
   token0Instance: Token | undefined,
   token1Instance: Token | undefined,
 ): SwapVolume {
@@ -96,7 +96,7 @@ export function calculateSwapVolume(
  * @returns Raw token-unit fees plus invariant-respecting USD fee
  */
 export function calculateSwapFees(
-  event: CLPool_Swap_event,
+  event: EvmEvent<"CLPool", "Swap">,
   liquidityPoolAggregator: Pool,
   token0Instance: Token | undefined,
   token1Instance: Token | undefined,
@@ -158,7 +158,7 @@ export function calculateSwapFees(
  * Fees are stored in 1e18 precision (like USD values) to preserve accuracy
  */
 function calculateSwapVolumeAndFees(
-  event: CLPool_Swap_event,
+  event: EvmEvent<"CLPool", "Swap">,
   liquidityPoolAggregator: Pool,
   token0Instance: Token | undefined,
   token1Instance: Token | undefined,
@@ -189,7 +189,7 @@ function calculateSwapVolumeAndFees(
 }
 
 export async function processCLPoolSwap(
-  event: CLPool_Swap_event,
+  event: EvmEvent<"CLPool", "Swap">,
   liquidityPoolAggregator: Pool,
   token0Instance: Token | undefined,
   token1Instance: Token | undefined,

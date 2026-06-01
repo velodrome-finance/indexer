@@ -1,4 +1,4 @@
-import { MockDb, Pool } from "../../../generated/src/TestHelpers.gen";
+import { createTestIndexer } from "envio";
 import {
   UserStatsPerPoolId,
   ZERO_ADDRESS,
@@ -7,21 +7,25 @@ import {
 import { setupCommon } from "./common";
 
 describe("Pool Transfer Event", () => {
-  let mockDb: ReturnType<typeof MockDb.createMockDb>;
+  let indexer: ReturnType<typeof createTestIndexer>;
   let commonData: ReturnType<typeof setupCommon>;
   let poolAddress: string;
 
+  const chainId = 10 as const;
+  const txHash =
+    "0xabcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
+  const blockHash =
+    "0x1234567890123456789012345678901234567890123456789012345678901234";
+
   beforeEach(() => {
-    mockDb = MockDb.createMockDb();
+    indexer = createTestIndexer();
     commonData = setupCommon();
     poolAddress = commonData.mockLiquidityPoolData.poolAddress;
 
-    // Set up mock database with common data
-    const updatedDB1 = mockDb.entities.Pool.set(
-      commonData.mockLiquidityPoolData,
-    );
-    const updatedDB2 = updatedDB1.entities.Token.set(commonData.mockToken0Data);
-    mockDb = updatedDB2.entities.Token.set(commonData.mockToken1Data);
+    // Set up test indexer with common data
+    indexer.Pool.set(commonData.mockLiquidityPoolData);
+    indexer.Token.set(commonData.mockToken0Data);
+    indexer.Token.set(commonData.mockToken1Data);
   });
 
   it("should process mint transfer and update pool totalLPTokenSupply", async () => {
@@ -30,41 +34,51 @@ describe("Pool Transfer Event", () => {
     );
     const LP_VALUE = 500n * 10n ** 18n;
 
-    const mockEvent = Pool.Transfer.createMockEvent({
-      from: ZERO_ADDRESS,
-      to: userAddress,
-      value: LP_VALUE,
-      mockEventData: {
-        block: {
-          timestamp: 1000000,
-          number: 123456,
-          hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+    await indexer.process({
+      chains: {
+        [chainId]: {
+          simulate: [
+            {
+              contract: "Pool",
+              event: "Transfer",
+              srcAddress: poolAddress as `0x${string}`,
+              logIndex: 0,
+              block: {
+                timestamp: 1000000,
+                number: 123456,
+                hash: blockHash,
+              },
+              transaction: {
+                hash: txHash,
+              },
+              params: {
+                from: ZERO_ADDRESS,
+                to: userAddress,
+                value: LP_VALUE,
+              },
+            },
+          ],
         },
-        chainId: 10,
-        logIndex: 0,
-        srcAddress: poolAddress as `0x${string}`,
       },
     });
 
-    const result = await mockDb.processEvents([mockEvent]);
-
     // Verify pool aggregator was updated with new totalLPTokenSupply
-    const updatedAggregator = result.entities.Pool.get(
+    const updatedAggregator = await indexer.Pool.get(
       commonData.mockLiquidityPoolData.id,
     );
     expect(updatedAggregator).toBeDefined();
     expect(updatedAggregator?.totalLPTokenSupply).toBe(LP_VALUE);
 
     // Verify PoolTransferInTx entity was created for matching
-    const transferId = `10-${mockEvent.transaction.hash}-${poolAddress}-0`;
-    const storedTransfer = result.entities.PoolTransferInTx.get(transferId);
+    const transferId = `10-${txHash}-${poolAddress}-0`;
+    const storedTransfer = await indexer.PoolTransferInTx.get(transferId);
     expect(storedTransfer).toBeDefined();
     expect(storedTransfer?.isMint).toBe(true);
     expect(storedTransfer?.isBurn).toBe(false);
     expect(storedTransfer?.to).toBe(userAddress);
 
     // Verify user LP balance was updated
-    const userStats = result.entities.UserStatsPerPool.get(
+    const userStats = await indexer.UserStatsPerPool.get(
       UserStatsPerPoolId(10, userAddress, poolAddress),
     );
     expect(userStats).toBeDefined();
@@ -83,29 +97,38 @@ describe("Pool Transfer Event", () => {
       ...commonData.mockLiquidityPoolData,
       totalLPTokenSupply: INITIAL_SUPPLY,
     };
-    const updatedDB1 = mockDb.entities.Pool.set(poolWithSupply);
-    mockDb = updatedDB1;
+    indexer.Pool.set(poolWithSupply);
 
-    const mockEvent = Pool.Transfer.createMockEvent({
-      from: userAddress,
-      to: ZERO_ADDRESS,
-      value: LP_VALUE,
-      mockEventData: {
-        block: {
-          timestamp: 1000000,
-          number: 123456,
-          hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+    await indexer.process({
+      chains: {
+        [chainId]: {
+          simulate: [
+            {
+              contract: "Pool",
+              event: "Transfer",
+              srcAddress: poolAddress as `0x${string}`,
+              logIndex: 0,
+              block: {
+                timestamp: 1000000,
+                number: 123456,
+                hash: blockHash,
+              },
+              transaction: {
+                hash: txHash,
+              },
+              params: {
+                from: userAddress,
+                to: ZERO_ADDRESS,
+                value: LP_VALUE,
+              },
+            },
+          ],
         },
-        chainId: 10,
-        logIndex: 0,
-        srcAddress: poolAddress as `0x${string}`,
       },
     });
 
-    const result = await mockDb.processEvents([mockEvent]);
-
     // Verify pool aggregator was updated with reduced totalLPTokenSupply
-    const updatedAggregator = result.entities.Pool.get(
+    const updatedAggregator = await indexer.Pool.get(
       commonData.mockLiquidityPoolData.id,
     );
     expect(updatedAggregator).toBeDefined();
@@ -114,15 +137,15 @@ describe("Pool Transfer Event", () => {
     );
 
     // Verify PoolTransferInTx entity was created for matching
-    const transferId = `10-${mockEvent.transaction.hash}-${poolAddress}-0`;
-    const storedTransfer = result.entities.PoolTransferInTx.get(transferId);
+    const transferId = `10-${txHash}-${poolAddress}-0`;
+    const storedTransfer = await indexer.PoolTransferInTx.get(transferId);
     expect(storedTransfer).toBeDefined();
     expect(storedTransfer?.isMint).toBe(false);
     expect(storedTransfer?.isBurn).toBe(true);
     expect(storedTransfer?.from).toBe(userAddress);
 
     // Verify user LP balance was updated
-    const userStats = result.entities.UserStatsPerPool.get(
+    const userStats = await indexer.UserStatsPerPool.get(
       UserStatsPerPoolId(10, userAddress, poolAddress),
     );
     expect(userStats).toBeDefined();
@@ -138,45 +161,55 @@ describe("Pool Transfer Event", () => {
     );
     const LP_VALUE = 200n * 10n ** 18n;
 
-    const mockEvent = Pool.Transfer.createMockEvent({
-      from: senderAddress,
-      to: recipientAddress,
-      value: LP_VALUE,
-      mockEventData: {
-        block: {
-          timestamp: 1000000,
-          number: 123456,
-          hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+    await indexer.process({
+      chains: {
+        [chainId]: {
+          simulate: [
+            {
+              contract: "Pool",
+              event: "Transfer",
+              srcAddress: poolAddress as `0x${string}`,
+              logIndex: 0,
+              block: {
+                timestamp: 1000000,
+                number: 123456,
+                hash: blockHash,
+              },
+              transaction: {
+                hash: txHash,
+              },
+              params: {
+                from: senderAddress,
+                to: recipientAddress,
+                value: LP_VALUE,
+              },
+            },
+          ],
         },
-        chainId: 10,
-        logIndex: 0,
-        srcAddress: poolAddress as `0x${string}`,
       },
     });
 
-    const result = await mockDb.processEvents([mockEvent]);
-
     // Verify pool aggregator totalLPTokenSupply was NOT changed (regular transfer)
-    const updatedAggregator = result.entities.Pool.get(
+    const updatedAggregator = await indexer.Pool.get(
       commonData.mockLiquidityPoolData.id,
     );
     expect(updatedAggregator).toBeDefined();
     expect(updatedAggregator?.totalLPTokenSupply).toBe(0n);
 
     // Verify PoolTransferInTx entity was NOT created (regular transfers are not stored)
-    const transferId = `10-${mockEvent.transaction.hash}-${poolAddress}-0`;
-    const storedTransfer = result.entities.PoolTransferInTx.get(transferId);
+    const transferId = `10-${txHash}-${poolAddress}-0`;
+    const storedTransfer = await indexer.PoolTransferInTx.get(transferId);
     expect(storedTransfer).toBeUndefined();
 
     // Verify sender LP balance was decreased
-    const senderStats = result.entities.UserStatsPerPool.get(
+    const senderStats = await indexer.UserStatsPerPool.get(
       UserStatsPerPoolId(10, senderAddress, poolAddress),
     );
     expect(senderStats).toBeDefined();
     expect(senderStats?.lpBalance).toBe(-LP_VALUE);
 
     // Verify recipient LP balance was increased
-    const recipientStats = result.entities.UserStatsPerPool.get(
+    const recipientStats = await indexer.UserStatsPerPool.get(
       UserStatsPerPoolId(10, recipientAddress, poolAddress),
     );
     expect(recipientStats).toBeDefined();
@@ -185,44 +218,54 @@ describe("Pool Transfer Event", () => {
 
   describe("when pool does not exist", () => {
     it("should return early without processing", async () => {
-      // Create a fresh mockDb without the pool
-      const freshMockDb = MockDb.createMockDb();
-      const updatedDB1 = freshMockDb.entities.Token.set(
-        commonData.mockToken0Data,
-      );
-      const updatedDB2 = updatedDB1.entities.Token.set(
-        commonData.mockToken1Data,
-      );
+      // Create a fresh indexer without the pool
+      const freshIndexer = createTestIndexer();
+      freshIndexer.Token.set(commonData.mockToken0Data);
+      freshIndexer.Token.set(commonData.mockToken1Data);
       // Note: We intentionally don't set the Pool
 
-      const mockEvent = Pool.Transfer.createMockEvent({
-        from: toChecksumAddress("0x1111111111111111111111111111111111111111"),
-        to: toChecksumAddress("0x2222222222222222222222222222222222222222"),
-        value: 100n * 10n ** 18n,
-        mockEventData: {
-          block: {
-            timestamp: 1000000,
-            number: 123456,
-            hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+      await freshIndexer.process({
+        chains: {
+          [chainId]: {
+            simulate: [
+              {
+                contract: "Pool",
+                event: "Transfer",
+                srcAddress: poolAddress as `0x${string}`,
+                logIndex: 0,
+                block: {
+                  timestamp: 1000000,
+                  number: 123456,
+                  hash: blockHash,
+                },
+                transaction: {
+                  hash: txHash,
+                },
+                params: {
+                  from: toChecksumAddress(
+                    "0x1111111111111111111111111111111111111111",
+                  ),
+                  to: toChecksumAddress(
+                    "0x2222222222222222222222222222222222222222",
+                  ),
+                  value: 100n * 10n ** 18n,
+                },
+              },
+            ],
           },
-          chainId: 10,
-          logIndex: 0,
-          srcAddress: poolAddress as `0x${string}`,
         },
       });
 
-      const postEventDB = await updatedDB2.processEvents([mockEvent]);
-
       // Pool should not exist
-      const pool = postEventDB.entities.Pool.get(
+      const pool = await freshIndexer.Pool.get(
         commonData.mockLiquidityPoolData.id,
       );
       expect(pool).toBeUndefined();
 
       // No entities should be created
-      const transferId = `10-${mockEvent.transaction.hash}-${poolAddress}-0`;
+      const transferId = `10-${txHash}-${poolAddress}-0`;
       const storedTransfer =
-        postEventDB.entities.PoolTransferInTx.get(transferId);
+        await freshIndexer.PoolTransferInTx.get(transferId);
       expect(storedTransfer).toBeUndefined();
     });
   });

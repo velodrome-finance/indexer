@@ -1,4 +1,4 @@
-import { NFPM } from "generated";
+import { indexer } from "envio";
 import { processNFPMDecreaseLiquidity } from "./NFPMDecreaseLiquidityLogic";
 import { processNFPMIncreaseLiquidity } from "./NFPMIncreaseLiquidityLogic";
 import { processNFPMTransfer } from "./NFPMTransferLogic";
@@ -17,16 +17,25 @@ import { processNFPMTransfer } from "./NFPMTransferLogic";
  * @param {address} to - The address of the new owner of the token.
  * @param {uint256} tokenId - The ID of the token being transferred.
  */
-NFPM.Transfer.handler(async ({ event, context }) => {
-  await processNFPMTransfer(event, context);
-});
+indexer.onEvent(
+  { contract: "NFPM", event: "Transfer" },
+  async ({ event, context }) => {
+    await processNFPMTransfer(event, context);
+  },
+);
 
 // This event is emitted when mints and liquidity increases
 // However, mint-related entity creation of NonFungiblePosition is handled CLPool module
-NFPM.IncreaseLiquidity.handler(async ({ event, context }) => {
-  await processNFPMIncreaseLiquidity(event, context);
-});
+indexer.onEvent(
+  { contract: "NFPM", event: "IncreaseLiquidity" },
+  async ({ event, context }) => {
+    await processNFPMIncreaseLiquidity(event, context);
+  },
+);
 
-NFPM.DecreaseLiquidity.handler(async ({ event, context }) => {
-  await processNFPMDecreaseLiquidity(event, context);
-});
+indexer.onEvent(
+  { contract: "NFPM", event: "DecreaseLiquidity" },
+  async ({ event, context }) => {
+    await processNFPMDecreaseLiquidity(event, context);
+  },
+);

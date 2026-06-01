@@ -1,5 +1,5 @@
-import type { Token } from "generated";
-import { MockDb, SuperchainLeafVoter } from "generated/src/TestHelpers.gen";
+import type { Token } from "envio";
+import { createTestIndexer } from "envio";
 import * as PoolModule from "../../../src/Aggregators/Pool";
 import {
   SUPERCHAIN_LEAF_VOTER_CLPOOLS_FACTORY_LIST,
@@ -7,6 +7,7 @@ import {
   TokenId,
   toChecksumAddress,
 } from "../../../src/Constants";
+import { rehydrateTimestamps } from "../../../src/EntityTimestamps";
 import {
   PRICE_TRUST_OUTCOME,
   PRICE_TRUST_REASON,
@@ -25,52 +26,18 @@ describe("SuperchainLeafVoter Events", () => {
   const { createMockPool } = setupCommon();
 
   describe("GaugeCreated Event", () => {
-    let mockDb: ReturnType<typeof MockDb.createMockDb>;
-    let mockEvent: ReturnType<
-      typeof SuperchainLeafVoter.GaugeCreated.createMockEvent
-    >;
-    const chainId = 10;
+    const chainId = 10 as const;
     const poolAddress = toChecksumAddress(
       "0x478946BcD4a5a22b316470F5486fAfb928C0bA25",
     );
     const gaugeAddress = toChecksumAddress(
       "0xa75127121d28a9bf848f3b70e7eea26570aa7700",
     );
-
-    beforeEach(() => {
-      mockDb = MockDb.createMockDb();
-      mockEvent = SuperchainLeafVoter.GaugeCreated.createMockEvent({
-        poolFactory: toChecksumAddress(
-          "0xeAD23f606643E387a073D0EE8718602291ffaAeB",
-        ), // CL factory
-        votingRewardsFactory: toChecksumAddress(
-          "0x2222222222222222222222222222222222222222",
-        ),
-        gaugeFactory: toChecksumAddress(
-          "0x3333333333333333333333333333333333333333",
-        ),
-        pool: poolAddress,
-        incentiveVotingReward: toChecksumAddress(
-          "0x5555555555555555555555555555555555555555",
-        ),
-        feeVotingReward: toChecksumAddress(
-          "0x6666666666666666666666666666666666666666",
-        ),
-        gauge: gaugeAddress,
-        mockEventData: {
-          block: {
-            timestamp: 1000000,
-            number: 123456,
-            hash: "0xhash",
-          },
-          chainId: chainId,
-          logIndex: 1,
-        },
-      });
-    });
+    const blockTimestamp = 1000000;
+    const blockNumber = 123456;
 
     describe("when pool entity exists", () => {
-      let resultDB: ReturnType<typeof MockDb.createMockDb>;
+      let indexer: ReturnType<typeof createTestIndexer>;
       let mockLiquidityPool: MockPool;
 
       beforeEach(async () => {
@@ -80,13 +47,56 @@ describe("SuperchainLeafVoter Events", () => {
           gaugeAddress: "", // Initially empty
         });
 
-        mockDb = mockDb.entities.Pool.set(mockLiquidityPool);
+        indexer = createTestIndexer();
+        indexer.Pool.set(mockLiquidityPool);
 
-        resultDB = await mockDb.processEvents([mockEvent]);
+        await indexer.process({
+          chains: {
+            [chainId]: {
+              simulate: [
+                {
+                  contract: "SuperchainLeafVoter",
+                  event: "GaugeCreated",
+                  srcAddress: toChecksumAddress(
+                    "0x1111111111111111111111111111111111111111",
+                  ),
+                  logIndex: 1,
+                  block: {
+                    timestamp: blockTimestamp,
+                    number: blockNumber,
+                    hash: "0xhash",
+                  },
+                  params: {
+                    poolFactory: toChecksumAddress(
+                      "0xeAD23f606643E387a073D0EE8718602291ffaAeB",
+                    ), // CL factory
+                    votingRewardsFactory: toChecksumAddress(
+                      "0x2222222222222222222222222222222222222222",
+                    ),
+                    gaugeFactory: toChecksumAddress(
+                      "0x3333333333333333333333333333333333333333",
+                    ),
+                    pool: poolAddress,
+                    incentiveVotingReward: toChecksumAddress(
+                      "0x5555555555555555555555555555555555555555",
+                    ),
+                    feeVotingReward: toChecksumAddress(
+                      "0x6666666666666666666666666666666666666666",
+                    ),
+                    gauge: gaugeAddress,
+                  },
+                },
+              ],
+            },
+          },
+        });
       });
 
-      it("should update pool entity with gauge address and voting reward addresses", () => {
-        const updatedPool = resultDB.entities.Pool.get(mockLiquidityPool.id);
+      it("should update pool entity with gauge address and voting reward addresses", async () => {
+        const rawPool = await indexer.Pool.get(mockLiquidityPool.id);
+        const updatedPool = rawPool
+          ? rehydrateTimestamps("Pool", rawPool)
+          : undefined;
         expect(updatedPool).toBeDefined();
         expect(updatedPool?.gaugeAddress).toBe(gaugeAddress);
         expect(updatedPool?.feeVotingRewardAddress).toBe(
@@ -96,127 +106,169 @@ describe("SuperchainLeafVoter Events", () => {
           toChecksumAddress("0x5555555555555555555555555555555555555555"),
         );
         expect(updatedPool?.lastUpdatedTimestamp).toEqual(
-          new Date(1000000 * 1000),
+          new Date(blockTimestamp * 1000),
         );
       });
     });
 
     it("calls addCLGauge when poolFactory is in SUPERCHAIN_LEAF_VOTER_CLPOOLS_FACTORY_LIST", async () => {
       const poolFactoryFromList = SUPERCHAIN_LEAF_VOTER_CLPOOLS_FACTORY_LIST[0];
-      const mockDbEmpty = MockDb.createMockDb();
-      const eventWithCLFactory =
-        SuperchainLeafVoter.GaugeCreated.createMockEvent({
-          poolFactory: poolFactoryFromList as `0x${string}`,
-          votingRewardsFactory: toChecksumAddress(
-            "0x2222222222222222222222222222222222222222",
-          ),
-          gaugeFactory: toChecksumAddress(
-            "0x3333333333333333333333333333333333333333",
-          ),
-          pool: poolAddress,
-          incentiveVotingReward: toChecksumAddress(
-            "0x5555555555555555555555555555555555555555",
-          ),
-          feeVotingReward: toChecksumAddress(
-            "0x6666666666666666666666666666666666666666",
-          ),
-          gauge: gaugeAddress,
-          mockEventData: {
-            block: {
-              timestamp: 1000000,
-              number: 123456,
-              hash: "0xhash",
-            },
-            chainId: chainId,
-            logIndex: 1,
+      const clIndexer = createTestIndexer();
+
+      await clIndexer.process({
+        chains: {
+          [chainId]: {
+            simulate: [
+              {
+                contract: "SuperchainLeafVoter",
+                event: "GaugeCreated",
+                srcAddress: toChecksumAddress(
+                  "0x1111111111111111111111111111111111111111",
+                ),
+                logIndex: 1,
+                block: {
+                  timestamp: blockTimestamp,
+                  number: blockNumber,
+                  hash: "0xhash",
+                },
+                params: {
+                  poolFactory: poolFactoryFromList as `0x${string}`,
+                  votingRewardsFactory: toChecksumAddress(
+                    "0x2222222222222222222222222222222222222222",
+                  ),
+                  gaugeFactory: toChecksumAddress(
+                    "0x3333333333333333333333333333333333333333",
+                  ),
+                  pool: poolAddress,
+                  incentiveVotingReward: toChecksumAddress(
+                    "0x5555555555555555555555555555555555555555",
+                  ),
+                  feeVotingReward: toChecksumAddress(
+                    "0x6666666666666666666666666666666666666666",
+                  ),
+                  gauge: gaugeAddress,
+                },
+              },
+            ],
           },
-        });
+        },
+      });
 
-      const resultDB = await mockDbEmpty.processEvents([eventWithCLFactory]);
-
-      expect(resultDB).toBeDefined();
+      expect(clIndexer).toBeDefined();
     });
 
     it("calls addGauge when poolFactory is in SUPERCHAIN_LEAF_VOTER_NONCL_POOLS_FACTORY_LIST", async () => {
       const poolFactoryFromList =
         SUPERCHAIN_LEAF_VOTER_NONCL_POOLS_FACTORY_LIST[0];
-      const mockDbEmpty = MockDb.createMockDb();
-      const eventWithNonCLFactory =
-        SuperchainLeafVoter.GaugeCreated.createMockEvent({
-          poolFactory: poolFactoryFromList as `0x${string}`,
-          votingRewardsFactory: toChecksumAddress(
-            "0x2222222222222222222222222222222222222222",
-          ),
-          gaugeFactory: toChecksumAddress(
-            "0x3333333333333333333333333333333333333333",
-          ),
-          pool: poolAddress,
-          incentiveVotingReward: toChecksumAddress(
-            "0x5555555555555555555555555555555555555555",
-          ),
-          feeVotingReward: toChecksumAddress(
-            "0x6666666666666666666666666666666666666666",
-          ),
-          gauge: gaugeAddress,
-          mockEventData: {
-            block: {
-              timestamp: 1000000,
-              number: 123456,
-              hash: "0xhash",
-            },
-            chainId: chainId,
-            logIndex: 1,
+      const nonClIndexer = createTestIndexer();
+
+      await nonClIndexer.process({
+        chains: {
+          [chainId]: {
+            simulate: [
+              {
+                contract: "SuperchainLeafVoter",
+                event: "GaugeCreated",
+                srcAddress: toChecksumAddress(
+                  "0x1111111111111111111111111111111111111111",
+                ),
+                logIndex: 1,
+                block: {
+                  timestamp: blockTimestamp,
+                  number: blockNumber,
+                  hash: "0xhash",
+                },
+                params: {
+                  poolFactory: poolFactoryFromList as `0x${string}`,
+                  votingRewardsFactory: toChecksumAddress(
+                    "0x2222222222222222222222222222222222222222",
+                  ),
+                  gaugeFactory: toChecksumAddress(
+                    "0x3333333333333333333333333333333333333333",
+                  ),
+                  pool: poolAddress,
+                  incentiveVotingReward: toChecksumAddress(
+                    "0x5555555555555555555555555555555555555555",
+                  ),
+                  feeVotingReward: toChecksumAddress(
+                    "0x6666666666666666666666666666666666666666",
+                  ),
+                  gauge: gaugeAddress,
+                },
+              },
+            ],
           },
-        });
+        },
+      });
 
-      const resultDB = await mockDbEmpty.processEvents([eventWithNonCLFactory]);
-
-      expect(resultDB).toBeDefined();
+      expect(nonClIndexer).toBeDefined();
     });
 
     describe("when pool entity does not exist", () => {
       it("should not create any entities", async () => {
-        const resultDB = await mockDb.processEvents([mockEvent]);
+        const emptyIndexer = createTestIndexer();
 
-        expect(Array.from(resultDB.entities.Pool.getAll())).toHaveLength(0);
+        await emptyIndexer.process({
+          chains: {
+            [chainId]: {
+              simulate: [
+                {
+                  contract: "SuperchainLeafVoter",
+                  event: "GaugeCreated",
+                  srcAddress: toChecksumAddress(
+                    "0x1111111111111111111111111111111111111111",
+                  ),
+                  logIndex: 1,
+                  block: {
+                    timestamp: blockTimestamp,
+                    number: blockNumber,
+                    hash: "0xhash",
+                  },
+                  params: {
+                    poolFactory: toChecksumAddress(
+                      "0xeAD23f606643E387a073D0EE8718602291ffaAeB",
+                    ),
+                    votingRewardsFactory: toChecksumAddress(
+                      "0x2222222222222222222222222222222222222222",
+                    ),
+                    gaugeFactory: toChecksumAddress(
+                      "0x3333333333333333333333333333333333333333",
+                    ),
+                    pool: poolAddress,
+                    incentiveVotingReward: toChecksumAddress(
+                      "0x5555555555555555555555555555555555555555",
+                    ),
+                    feeVotingReward: toChecksumAddress(
+                      "0x6666666666666666666666666666666666666666",
+                    ),
+                    gauge: gaugeAddress,
+                  },
+                },
+              ],
+            },
+          },
+        });
+
+        const pools = await emptyIndexer.Pool.getAll();
+        expect(pools).toHaveLength(0);
       });
     });
   });
 
   describe("WhitelistToken Event", () => {
-    let mockDb: ReturnType<typeof MockDb.createMockDb>;
-    let mockEvent: ReturnType<
-      typeof SuperchainLeafVoter.WhitelistToken.createMockEvent
-    >;
-    const chainId = 10;
+    const chainId = 10 as const;
     // Real WETH on Optimism — has on-chain bytecode, so the #677
     // hasContractBytecode gate doesn't short-circuit Token creation.
     const tokenAddress = toChecksumAddress(
       "0x4200000000000000000000000000000000000006",
     );
-
-    beforeEach(async () => {
-      mockDb = MockDb.createMockDb();
-      mockEvent = SuperchainLeafVoter.WhitelistToken.createMockEvent({
-        token: tokenAddress,
-        _bool: true,
-        mockEventData: {
-          block: {
-            number: 123456,
-            timestamp: 1000000,
-            hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
-          },
-          chainId,
-          logIndex: 1,
-        },
-      });
-    });
+    const blockTimestamp = 1000000;
+    const blockNumber = 123456;
 
     describe("when token already exists", () => {
       const expectedPricePerUSDNew = BigInt(10000000);
-      let resultDB: ReturnType<typeof MockDb.createMockDb>;
 
-      beforeEach(async () => {
+      it("should update the existing token entity", async () => {
         const token: Token = {
           id: TokenId(chainId, tokenAddress),
           address: tokenAddress,
@@ -226,73 +278,108 @@ describe("SuperchainLeafVoter Events", () => {
           decimals: BigInt(18),
           pricePerUSDNew: expectedPricePerUSDNew,
           isWhitelisted: false,
+          lastUpdatedTimestamp: new Date(0),
         } as Token;
 
-        const updatedDb = mockDb.entities.Token.set(token);
+        const indexer = createTestIndexer();
+        indexer.Token.set(token);
 
-        resultDB = await updatedDb.processEvents([mockEvent]);
-      });
+        await indexer.process({
+          chains: {
+            [chainId]: {
+              simulate: [
+                {
+                  contract: "SuperchainLeafVoter",
+                  event: "WhitelistToken",
+                  srcAddress: toChecksumAddress(
+                    "0x1111111111111111111111111111111111111111",
+                  ),
+                  logIndex: 1,
+                  block: {
+                    number: blockNumber,
+                    timestamp: blockTimestamp,
+                    hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                  },
+                  params: {
+                    token: tokenAddress,
+                    _bool: true,
+                  },
+                },
+              ],
+            },
+          },
+        });
 
-      it("should update the existing token entity", () => {
-        const token = resultDB.entities.Token.get(
+        const rawToken = await indexer.Token.get(
           TokenId(chainId, tokenAddress),
         );
-        expect(token).toBeDefined();
-        expect(token?.isWhitelisted).toBe(true);
-        expect(token?.pricePerUSDNew).toBe(expectedPricePerUSDNew);
-        expect(token?.lastUpdatedTimestamp).toBeInstanceOf(Date);
-        expect(token?.lastUpdatedTimestamp?.getTime()).toBe(
-          mockEvent.block.timestamp * 1000,
+        const updatedToken = rawToken
+          ? rehydrateTimestamps("Token", rawToken)
+          : undefined;
+        expect(updatedToken).toBeDefined();
+        expect(updatedToken?.isWhitelisted).toBe(true);
+        expect(updatedToken?.pricePerUSDNew).toBe(expectedPricePerUSDNew);
+        expect(updatedToken?.lastUpdatedTimestamp).toBeInstanceOf(Date);
+        expect(updatedToken?.lastUpdatedTimestamp?.getTime()).toBe(
+          blockTimestamp * 1000,
         );
       });
     });
 
     describe("when token does not exist yet", () => {
-      let resultDB: ReturnType<typeof MockDb.createMockDb>;
+      it("should create a new Token entity with whitelisted flag", async () => {
+        const indexer = createTestIndexer();
 
-      beforeEach(async () => {
-        resultDB = await mockDb.processEvents([mockEvent]);
-      });
+        await indexer.process({
+          chains: {
+            [chainId]: {
+              simulate: [
+                {
+                  contract: "SuperchainLeafVoter",
+                  event: "WhitelistToken",
+                  srcAddress: toChecksumAddress(
+                    "0x1111111111111111111111111111111111111111",
+                  ),
+                  logIndex: 1,
+                  block: {
+                    number: blockNumber,
+                    timestamp: blockTimestamp,
+                    hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                  },
+                  params: {
+                    token: tokenAddress,
+                    _bool: true,
+                  },
+                },
+              ],
+            },
+          },
+        });
 
-      it("should create a new Token entity with whitelisted flag", () => {
-        const token = resultDB.entities.Token.get(
+        const rawToken = await indexer.Token.get(
           TokenId(chainId, tokenAddress),
         );
-        expect(token).toBeDefined();
-        expect(token?.isWhitelisted).toBe(true);
-        expect(token?.pricePerUSDNew).toBe(0n);
-        expect(typeof token?.name).toBe("string");
-        expect(typeof token?.symbol).toBe("string");
-        expect(token?.address).toBe(tokenAddress);
-        expect(token?.lastUpdatedTimestamp).toBeInstanceOf(Date);
-        expect(token?.lastUpdatedTimestamp?.getTime()).toBe(
-          mockEvent.block.timestamp * 1000,
+        const createdToken = rawToken
+          ? rehydrateTimestamps("Token", rawToken)
+          : undefined;
+        expect(createdToken).toBeDefined();
+        expect(createdToken?.isWhitelisted).toBe(true);
+        expect(createdToken?.pricePerUSDNew).toBe(0n);
+        expect(typeof createdToken?.name).toBe("string");
+        expect(typeof createdToken?.symbol).toBe("string");
+        expect(createdToken?.address).toBe(tokenAddress);
+        expect(createdToken?.lastUpdatedTimestamp).toBeInstanceOf(Date);
+        expect(createdToken?.lastUpdatedTimestamp?.getTime()).toBe(
+          blockTimestamp * 1000,
         );
       });
     });
 
     describe("when _bool is false (de-whitelisting)", () => {
-      beforeEach(() => {
-        mockEvent = SuperchainLeafVoter.WhitelistToken.createMockEvent({
-          token: tokenAddress,
-          _bool: false,
-          mockEventData: {
-            block: {
-              number: 123456,
-              timestamp: 1000000,
-              hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
-            },
-            chainId,
-            logIndex: 1,
-          },
-        });
-      });
-
       describe("when token already exists and is whitelisted", () => {
         const expectedPricePerUSDNew = BigInt(10000000);
-        let resultDB: ReturnType<typeof MockDb.createMockDb>;
 
-        beforeEach(async () => {
+        it("should update the existing token entity to de-whitelist it", async () => {
           const token: Token = {
             id: TokenId(chainId, tokenAddress),
             address: tokenAddress,
@@ -302,47 +389,99 @@ describe("SuperchainLeafVoter Events", () => {
             decimals: BigInt(18),
             pricePerUSDNew: expectedPricePerUSDNew,
             isWhitelisted: true, // Initially whitelisted
+            lastUpdatedTimestamp: new Date(0),
           } as Token;
 
-          const updatedDb = mockDb.entities.Token.set(token);
+          const indexer = createTestIndexer();
+          indexer.Token.set(token);
 
-          resultDB = await updatedDb.processEvents([mockEvent]);
-        });
+          await indexer.process({
+            chains: {
+              [chainId]: {
+                simulate: [
+                  {
+                    contract: "SuperchainLeafVoter",
+                    event: "WhitelistToken",
+                    srcAddress: toChecksumAddress(
+                      "0x1111111111111111111111111111111111111111",
+                    ),
+                    logIndex: 1,
+                    block: {
+                      number: blockNumber,
+                      timestamp: blockTimestamp,
+                      hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                    },
+                    params: {
+                      token: tokenAddress,
+                      _bool: false,
+                    },
+                  },
+                ],
+              },
+            },
+          });
 
-        it("should update the existing token entity to de-whitelist it", () => {
-          const token = resultDB.entities.Token.get(
+          const rawToken = await indexer.Token.get(
             TokenId(chainId, tokenAddress),
           );
-          expect(token).toBeDefined();
-          expect(token?.isWhitelisted).toBe(false);
-          expect(token?.pricePerUSDNew).toBe(expectedPricePerUSDNew);
-          expect(token?.lastUpdatedTimestamp).toBeInstanceOf(Date);
-          expect(token?.lastUpdatedTimestamp?.getTime()).toBe(
-            mockEvent.block.timestamp * 1000,
+          const updatedToken = rawToken
+            ? rehydrateTimestamps("Token", rawToken)
+            : undefined;
+          expect(updatedToken).toBeDefined();
+          expect(updatedToken?.isWhitelisted).toBe(false);
+          expect(updatedToken?.pricePerUSDNew).toBe(expectedPricePerUSDNew);
+          expect(updatedToken?.lastUpdatedTimestamp).toBeInstanceOf(Date);
+          expect(updatedToken?.lastUpdatedTimestamp?.getTime()).toBe(
+            blockTimestamp * 1000,
           );
         });
       });
 
       describe("when token does not exist yet", () => {
-        let resultDB: ReturnType<typeof MockDb.createMockDb>;
+        it("should create a new Token entity with isWhitelisted set to false", async () => {
+          const indexer = createTestIndexer();
 
-        beforeEach(async () => {
-          resultDB = await mockDb.processEvents([mockEvent]);
-        });
+          await indexer.process({
+            chains: {
+              [chainId]: {
+                simulate: [
+                  {
+                    contract: "SuperchainLeafVoter",
+                    event: "WhitelistToken",
+                    srcAddress: toChecksumAddress(
+                      "0x1111111111111111111111111111111111111111",
+                    ),
+                    logIndex: 1,
+                    block: {
+                      number: blockNumber,
+                      timestamp: blockTimestamp,
+                      hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                    },
+                    params: {
+                      token: tokenAddress,
+                      _bool: false,
+                    },
+                  },
+                ],
+              },
+            },
+          });
 
-        it("should create a new Token entity with isWhitelisted set to false", () => {
-          const token = resultDB.entities.Token.get(
+          const rawToken = await indexer.Token.get(
             TokenId(chainId, tokenAddress),
           );
-          expect(token).toBeDefined();
-          expect(token?.isWhitelisted).toBe(false);
-          expect(token?.pricePerUSDNew).toBe(0n);
-          expect(typeof token?.name).toBe("string");
-          expect(typeof token?.symbol).toBe("string");
-          expect(token?.address).toBe(tokenAddress);
-          expect(token?.lastUpdatedTimestamp).toBeInstanceOf(Date);
-          expect(token?.lastUpdatedTimestamp?.getTime()).toBe(
-            mockEvent.block.timestamp * 1000,
+          const createdToken = rawToken
+            ? rehydrateTimestamps("Token", rawToken)
+            : undefined;
+          expect(createdToken).toBeDefined();
+          expect(createdToken?.isWhitelisted).toBe(false);
+          expect(createdToken?.pricePerUSDNew).toBe(0n);
+          expect(typeof createdToken?.name).toBe("string");
+          expect(typeof createdToken?.symbol).toBe("string");
+          expect(createdToken?.address).toBe(tokenAddress);
+          expect(createdToken?.lastUpdatedTimestamp).toBeInstanceOf(Date);
+          expect(createdToken?.lastUpdatedTimestamp?.getTime()).toBe(
+            blockTimestamp * 1000,
           );
         });
       });
@@ -350,20 +489,6 @@ describe("SuperchainLeafVoter Events", () => {
 
     describe("priceTrust recomputation on existing tokens (issue #761)", () => {
       it("flips UNTRUSTED/NON_WL to TRUSTED/WL when WhitelistToken(true) lands", async () => {
-        const whitelistEvent =
-          SuperchainLeafVoter.WhitelistToken.createMockEvent({
-            token: tokenAddress,
-            _bool: true,
-            mockEventData: {
-              block: {
-                number: 123456,
-                timestamp: 1000000,
-                hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
-              },
-              chainId,
-              logIndex: 1,
-            },
-          });
         const existing = {
           id: TokenId(chainId, tokenAddress),
           address: tokenAddress,
@@ -375,32 +500,45 @@ describe("SuperchainLeafVoter Events", () => {
           isWhitelisted: false,
           priceTrustOutcome: PRICE_TRUST_OUTCOME.UNTRUSTED,
           priceTrustReason: PRICE_TRUST_REASON.NON_WL,
+          lastUpdatedTimestamp: new Date(0),
         } as Token;
-        const db = mockDb.entities.Token.set(existing);
 
-        const result = await db.processEvents([whitelistEvent]);
-        const token = result.entities.Token.get(TokenId(chainId, tokenAddress));
+        const indexer = createTestIndexer();
+        indexer.Token.set(existing);
 
+        await indexer.process({
+          chains: {
+            [chainId]: {
+              simulate: [
+                {
+                  contract: "SuperchainLeafVoter",
+                  event: "WhitelistToken",
+                  srcAddress: toChecksumAddress(
+                    "0x1111111111111111111111111111111111111111",
+                  ),
+                  logIndex: 1,
+                  block: {
+                    number: blockNumber,
+                    timestamp: blockTimestamp,
+                    hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                  },
+                  params: {
+                    token: tokenAddress,
+                    _bool: true,
+                  },
+                },
+              ],
+            },
+          },
+        });
+
+        const token = await indexer.Token.get(TokenId(chainId, tokenAddress));
         expect(token?.isWhitelisted).toBe(true);
         expect(token?.priceTrustOutcome).toBe(PRICE_TRUST_OUTCOME.TRUSTED);
         expect(token?.priceTrustReason).toBe(PRICE_TRUST_REASON.WL);
       });
 
       it("flips TRUSTED/WL to UNTRUSTED/NON_WL when WhitelistToken(false) lands", async () => {
-        const dewhitelistEvent =
-          SuperchainLeafVoter.WhitelistToken.createMockEvent({
-            token: tokenAddress,
-            _bool: false,
-            mockEventData: {
-              block: {
-                number: 123456,
-                timestamp: 1000000,
-                hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
-              },
-              chainId,
-              logIndex: 1,
-            },
-          });
         const existing = {
           id: TokenId(chainId, tokenAddress),
           address: tokenAddress,
@@ -412,12 +550,39 @@ describe("SuperchainLeafVoter Events", () => {
           isWhitelisted: true,
           priceTrustOutcome: PRICE_TRUST_OUTCOME.TRUSTED,
           priceTrustReason: PRICE_TRUST_REASON.WL,
+          lastUpdatedTimestamp: new Date(0),
         } as Token;
-        const db = mockDb.entities.Token.set(existing);
 
-        const result = await db.processEvents([dewhitelistEvent]);
-        const token = result.entities.Token.get(TokenId(chainId, tokenAddress));
+        const indexer = createTestIndexer();
+        indexer.Token.set(existing);
 
+        await indexer.process({
+          chains: {
+            [chainId]: {
+              simulate: [
+                {
+                  contract: "SuperchainLeafVoter",
+                  event: "WhitelistToken",
+                  srcAddress: toChecksumAddress(
+                    "0x1111111111111111111111111111111111111111",
+                  ),
+                  logIndex: 1,
+                  block: {
+                    number: blockNumber,
+                    timestamp: blockTimestamp,
+                    hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                  },
+                  params: {
+                    token: tokenAddress,
+                    _bool: false,
+                  },
+                },
+              ],
+            },
+          },
+        });
+
+        const token = await indexer.Token.get(TokenId(chainId, tokenAddress));
         expect(token?.isWhitelisted).toBe(false);
         expect(token?.priceTrustOutcome).toBe(PRICE_TRUST_OUTCOME.UNTRUSTED);
         expect(token?.priceTrustReason).toBe(PRICE_TRUST_REASON.NON_WL);
@@ -428,20 +593,6 @@ describe("SuperchainLeafVoter Events", () => {
         const blacklistedAddress = toChecksumAddress(
           "0x7909Bda52eAf7C3cc12745E727Eb527a485241D8",
         );
-        const whitelistEvent =
-          SuperchainLeafVoter.WhitelistToken.createMockEvent({
-            token: blacklistedAddress,
-            _bool: true,
-            mockEventData: {
-              block: {
-                number: 123456,
-                timestamp: 1000000,
-                hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
-              },
-              chainId,
-              logIndex: 1,
-            },
-          });
         const existing = {
           id: TokenId(chainId, blacklistedAddress),
           address: blacklistedAddress,
@@ -453,14 +604,41 @@ describe("SuperchainLeafVoter Events", () => {
           isWhitelisted: false,
           priceTrustOutcome: PRICE_TRUST_OUTCOME.UNTRUSTED,
           priceTrustReason: PRICE_TRUST_REASON.NON_WL,
+          lastUpdatedTimestamp: new Date(0),
         } as Token;
-        const db = mockDb.entities.Token.set(existing);
 
-        const result = await db.processEvents([whitelistEvent]);
-        const token = result.entities.Token.get(
+        const indexer = createTestIndexer();
+        indexer.Token.set(existing);
+
+        await indexer.process({
+          chains: {
+            [chainId]: {
+              simulate: [
+                {
+                  contract: "SuperchainLeafVoter",
+                  event: "WhitelistToken",
+                  srcAddress: toChecksumAddress(
+                    "0x1111111111111111111111111111111111111111",
+                  ),
+                  logIndex: 1,
+                  block: {
+                    number: blockNumber,
+                    timestamp: blockTimestamp,
+                    hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                  },
+                  params: {
+                    token: blacklistedAddress,
+                    _bool: true,
+                  },
+                },
+              ],
+            },
+          },
+        });
+
+        const token = await indexer.Token.get(
           TokenId(chainId, blacklistedAddress),
         );
-
         expect(token?.isWhitelisted).toBe(true);
         expect(token?.priceTrustOutcome).toBe(PRICE_TRUST_OUTCOME.UNTRUSTED);
         expect(token?.priceTrustReason).toBe(PRICE_TRUST_REASON.BLACKLISTED);
@@ -469,37 +647,17 @@ describe("SuperchainLeafVoter Events", () => {
   });
 
   describe("GaugeKilled Event", () => {
-    let mockDb: ReturnType<typeof MockDb.createMockDb>;
-    let mockEvent: ReturnType<
-      typeof SuperchainLeafVoter.GaugeKilled.createMockEvent
-    >;
-    const chainId = 10;
+    const chainId = 10 as const;
     const poolAddress = toChecksumAddress(
       "0x478946BcD4a5a22b316470F5486fAfb928C0bA25",
     );
     const gaugeAddress = toChecksumAddress(
       "0xa75127121d28a9bf848f3b70e7eea26570aa7700",
     );
-
-    beforeEach(() => {
-      mockDb = MockDb.createMockDb();
-      mockEvent = SuperchainLeafVoter.GaugeKilled.createMockEvent({
-        gauge: gaugeAddress,
-        mockEventData: {
-          block: {
-            number: 123456,
-            timestamp: 1000000,
-            hash: "0xhash",
-          },
-          chainId: chainId,
-          logIndex: 1,
-        },
-      });
-    });
+    const blockTimestamp = 1000000;
+    const blockNumber = 123456;
 
     describe("when pool entity exists", () => {
-      let resultDB: ReturnType<typeof MockDb.createMockDb>;
-      let mockLiquidityPool: MockPool;
       const feeVotingRewardAddress = toChecksumAddress(
         "0x6572b2b30f63B960608f3aA5205711C558998398",
       );
@@ -507,8 +665,8 @@ describe("SuperchainLeafVoter Events", () => {
         "0xc9eEBCD281d9A4c0839Eb643216caa80a68b88B1",
       );
 
-      beforeEach(async () => {
-        mockLiquidityPool = createMockPool({
+      it("should set gaugeIsAlive to false but preserve gauge address and voting reward addresses as historical data", async () => {
+        const mockLiquidityPool = createMockPool({
           poolAddress: poolAddress,
           chainId: chainId,
           gaugeAddress: gaugeAddress, // Initially has gauge address
@@ -522,13 +680,38 @@ describe("SuperchainLeafVoter Events", () => {
           mockLiquidityPool,
         );
 
-        mockDb = mockDb.entities.Pool.set(mockLiquidityPool);
+        const indexer = createTestIndexer();
+        indexer.Pool.set(mockLiquidityPool);
 
-        resultDB = await mockDb.processEvents([mockEvent]);
-      });
+        await indexer.process({
+          chains: {
+            [chainId]: {
+              simulate: [
+                {
+                  contract: "SuperchainLeafVoter",
+                  event: "GaugeKilled",
+                  srcAddress: toChecksumAddress(
+                    "0x1111111111111111111111111111111111111111",
+                  ),
+                  logIndex: 1,
+                  block: {
+                    number: blockNumber,
+                    timestamp: blockTimestamp,
+                    hash: "0xhash",
+                  },
+                  params: {
+                    gauge: gaugeAddress,
+                  },
+                },
+              ],
+            },
+          },
+        });
 
-      it("should set gaugeIsAlive to false but preserve gauge address and voting reward addresses as historical data", () => {
-        const updatedPool = resultDB.entities.Pool.get(mockLiquidityPool.id);
+        const rawPool = await indexer.Pool.get(mockLiquidityPool.id);
+        const updatedPool = rawPool
+          ? rehydrateTimestamps("Pool", rawPool)
+          : undefined;
         expect(updatedPool).toBeDefined();
         expect(updatedPool?.gaugeIsAlive).toBe(false); // Should be set to false
         // Gauge address should be preserved as historical data
@@ -541,7 +724,7 @@ describe("SuperchainLeafVoter Events", () => {
           bribeVotingRewardAddress,
         );
         expect(updatedPool?.lastUpdatedTimestamp).toEqual(
-          new Date(1000000 * 1000),
+          new Date(blockTimestamp * 1000),
         );
       });
     });
@@ -551,45 +734,51 @@ describe("SuperchainLeafVoter Events", () => {
         // Mock findPoolByGaugeAddress to return null
         vi.spyOn(PoolModule, "findPoolByGaugeAddress").mockResolvedValue(null);
 
-        const resultDB = await mockDb.processEvents([mockEvent]);
+        const indexer = createTestIndexer();
 
-        expect(Array.from(resultDB.entities.Pool.getAll())).toHaveLength(0);
+        await indexer.process({
+          chains: {
+            [chainId]: {
+              simulate: [
+                {
+                  contract: "SuperchainLeafVoter",
+                  event: "GaugeKilled",
+                  srcAddress: toChecksumAddress(
+                    "0x1111111111111111111111111111111111111111",
+                  ),
+                  logIndex: 1,
+                  block: {
+                    number: blockNumber,
+                    timestamp: blockTimestamp,
+                    hash: "0xhash",
+                  },
+                  params: {
+                    gauge: gaugeAddress,
+                  },
+                },
+              ],
+            },
+          },
+        });
+
+        const pools = await indexer.Pool.getAll();
+        expect(pools).toHaveLength(0);
       });
     });
   });
 
   describe("GaugeRevived Event", () => {
-    let mockDb: ReturnType<typeof MockDb.createMockDb>;
-    let mockEvent: ReturnType<
-      typeof SuperchainLeafVoter.GaugeRevived.createMockEvent
-    >;
-    const chainId = 10;
+    const chainId = 10 as const;
     const poolAddress = toChecksumAddress(
       "0x478946BcD4a5a22b316470F5486fAfb928C0bA25",
     );
     const gaugeAddress = toChecksumAddress(
       "0xa75127121d28a9bf848f3b70e7eea26570aa7700",
     );
-
-    beforeEach(() => {
-      mockDb = MockDb.createMockDb();
-      mockEvent = SuperchainLeafVoter.GaugeRevived.createMockEvent({
-        gauge: gaugeAddress,
-        mockEventData: {
-          block: {
-            number: 123456,
-            timestamp: 1000000,
-            hash: "0xhash",
-          },
-          chainId: chainId,
-          logIndex: 1,
-        },
-      });
-    });
+    const blockTimestamp = 1000000;
+    const blockNumber = 123456;
 
     describe("when pool entity exists", () => {
-      let resultDB: ReturnType<typeof MockDb.createMockDb>;
-      let mockLiquidityPool: MockPool;
       const feeVotingRewardAddress = toChecksumAddress(
         "0x6572b2b30f63B960608f3aA5205711C558998398",
       );
@@ -597,8 +786,8 @@ describe("SuperchainLeafVoter Events", () => {
         "0xc9eEBCD281d9A4c0839Eb643216caa80a68b88B1",
       );
 
-      beforeEach(async () => {
-        mockLiquidityPool = createMockPool({
+      it("should set gaugeIsAlive to true", async () => {
+        const mockLiquidityPool = createMockPool({
           poolAddress: poolAddress,
           chainId: chainId,
           gaugeAddress: gaugeAddress, // Has gauge address
@@ -612,17 +801,42 @@ describe("SuperchainLeafVoter Events", () => {
           mockLiquidityPool,
         );
 
-        mockDb = mockDb.entities.Pool.set(mockLiquidityPool);
+        const indexer = createTestIndexer();
+        indexer.Pool.set(mockLiquidityPool);
 
-        resultDB = await mockDb.processEvents([mockEvent]);
-      });
+        await indexer.process({
+          chains: {
+            [chainId]: {
+              simulate: [
+                {
+                  contract: "SuperchainLeafVoter",
+                  event: "GaugeRevived",
+                  srcAddress: toChecksumAddress(
+                    "0x1111111111111111111111111111111111111111",
+                  ),
+                  logIndex: 1,
+                  block: {
+                    number: blockNumber,
+                    timestamp: blockTimestamp,
+                    hash: "0xhash",
+                  },
+                  params: {
+                    gauge: gaugeAddress,
+                  },
+                },
+              ],
+            },
+          },
+        });
 
-      it("should set gaugeIsAlive to true", () => {
-        const updatedPool = resultDB.entities.Pool.get(mockLiquidityPool.id);
+        const rawPool = await indexer.Pool.get(mockLiquidityPool.id);
+        const updatedPool = rawPool
+          ? rehydrateTimestamps("Pool", rawPool)
+          : undefined;
         expect(updatedPool).toBeDefined();
         expect(updatedPool?.gaugeIsAlive).toBe(true); // Should be set to true
         expect(updatedPool?.lastUpdatedTimestamp).toEqual(
-          new Date(1000000 * 1000),
+          new Date(blockTimestamp * 1000),
         );
       });
     });
@@ -632,9 +846,35 @@ describe("SuperchainLeafVoter Events", () => {
         // Mock findPoolByGaugeAddress to return null
         vi.spyOn(PoolModule, "findPoolByGaugeAddress").mockResolvedValue(null);
 
-        const resultDB = await mockDb.processEvents([mockEvent]);
+        const indexer = createTestIndexer();
 
-        expect(Array.from(resultDB.entities.Pool.getAll())).toHaveLength(0);
+        await indexer.process({
+          chains: {
+            [chainId]: {
+              simulate: [
+                {
+                  contract: "SuperchainLeafVoter",
+                  event: "GaugeRevived",
+                  srcAddress: toChecksumAddress(
+                    "0x1111111111111111111111111111111111111111",
+                  ),
+                  logIndex: 1,
+                  block: {
+                    number: blockNumber,
+                    timestamp: blockTimestamp,
+                    hash: "0xhash",
+                  },
+                  params: {
+                    gauge: gaugeAddress,
+                  },
+                },
+              ],
+            },
+          },
+        });
+
+        const pools = await indexer.Pool.getAll();
+        expect(pools).toHaveLength(0);
       });
     });
   });

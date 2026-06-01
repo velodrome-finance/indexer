@@ -1,4 +1,5 @@
-import type { handlerContext } from "generated";
+import { getRehydrated } from "../../EntityTimestamps";
+import type { handlerContext } from "../../EntityTypes";
 
 /**
  * Format the composite id for a `RedistributorConfig` row.
@@ -37,7 +38,11 @@ export async function applyRedistributorConfigUpdate(
   const id = redistributorConfigId(chainId, redistributorAddress);
   const timestamp = new Date(blockTimestampSeconds * 1000);
 
-  const existing = await context.RedistributorConfig.get(id);
+  const existing = await getRehydrated(
+    context.RedistributorConfig,
+    "RedistributorConfig",
+    id,
+  );
   context.RedistributorConfig.set({
     ...(existing ?? {
       id,

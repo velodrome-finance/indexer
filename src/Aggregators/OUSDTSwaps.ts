@@ -1,5 +1,6 @@
-import type { Token, handlerContext } from "generated";
+import type { Token } from "envio";
 import { OUSDTSwapsId } from "../Constants";
+import type { handlerContext } from "../EntityTypes";
 
 /**
  * Creates an OUSDTSwaps entity for swap events.

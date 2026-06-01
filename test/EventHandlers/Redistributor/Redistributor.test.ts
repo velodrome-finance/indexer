@@ -1,11 +1,12 @@
-import { MockDb, Redistributor } from "../../../generated/src/TestHelpers.gen";
+import { createTestIndexer } from "envio";
 import { toChecksumAddress } from "../../../src/Constants";
+import { rehydrateTimestamps } from "../../../src/EntityTimestamps";
 import { type MockPool, setupCommon } from "../Pool/common";
 import { makeRedistributorMockEventData } from "./common";
 
 describe("Redistributor Event Handlers", () => {
   const { createMockPool } = setupCommon();
-  const chainId = 8453; // Base
+  const chainId = 8453 as const; // Base
   const redistributorAddress = toChecksumAddress(
     "0xEe5b3C7b333e2870B746b3B2b168EF0958e55e15",
   );
@@ -54,24 +55,41 @@ describe("Redistributor Event Handlers", () => {
   describe("Deposited event", () => {
     it("increments totalEmissionsForfeited on the gauge's pool", async () => {
       const pool = seedPool(10n);
-      const populatedDb = MockDb.createMockDb().entities.Pool.set(pool);
+      const indexer = createTestIndexer();
+      indexer.Pool.set(pool);
       const amount = 1_234_567_890_000_000_000n;
 
-      const mockEvent = Redistributor.Deposited.createMockEvent({
-        gauge: gaugeAddress,
-        to: redistributorAddress,
-        amount,
-        mockEventData: buildMockEventData({
-          blockNumber: 987654,
-          timestamp: 1_700_000_000,
-          blockHash:
-            "0xblockhashblockhashblockhashblockhashblockhashblockhashblockhash0",
-          logIndex: 7,
-        }),
+      const eventData = buildMockEventData({
+        blockNumber: 987654,
+        timestamp: 1_700_000_000,
+        blockHash:
+          "0xblockhashblockhashblockhashblockhashblockhashblockhashblockhash0",
+        logIndex: 7,
       });
 
-      const result = await populatedDb.processEvents([mockEvent]);
-      const updatedPool = result.entities.Pool.get(pool.id);
+      await indexer.process({
+        chains: {
+          [chainId]: {
+            simulate: [
+              {
+                contract: "Redistributor",
+                event: "Deposited",
+                srcAddress: redistributorAddress,
+                logIndex: eventData.logIndex,
+                block: eventData.block,
+                transaction: eventData.transaction,
+                params: {
+                  gauge: gaugeAddress,
+                  to: redistributorAddress,
+                  amount,
+                },
+              },
+            ],
+          },
+        },
+      });
+
+      const updatedPool = await indexer.Pool.get(pool.id);
 
       expect(updatedPool?.totalEmissionsForfeited).toBe(10n + amount);
       expect(updatedPool?.totalEmissionsRedistributed).toBe(0n);
@@ -80,52 +98,87 @@ describe("Redistributor Event Handlers", () => {
 
     it("no-ops when the gauge does not match any pool", async () => {
       const pool = seedPool();
-      const populatedDb = MockDb.createMockDb().entities.Pool.set(pool);
+      const indexer = createTestIndexer();
+      indexer.Pool.set(pool);
 
-      const mockEvent = Redistributor.Deposited.createMockEvent({
-        gauge: unknownGaugeAddress,
-        to: redistributorAddress,
-        amount: 123n,
-        mockEventData: buildMockEventData({
-          blockNumber: 987654,
-          timestamp: 1_700_000_050,
-          blockHash:
-            "0xblockhashblockhashblockhashblockhashblockhashblockhashblockhash1",
-          logIndex: 1,
-        }),
+      const eventData = buildMockEventData({
+        blockNumber: 987654,
+        timestamp: 1_700_000_050,
+        blockHash:
+          "0xblockhashblockhashblockhashblockhashblockhashblockhashblockhash1",
+        logIndex: 1,
       });
 
-      const result = await populatedDb.processEvents([mockEvent]);
-      const unchangedPool = result.entities.Pool.get(pool.id);
+      await indexer.process({
+        chains: {
+          [chainId]: {
+            simulate: [
+              {
+                contract: "Redistributor",
+                event: "Deposited",
+                srcAddress: redistributorAddress,
+                logIndex: eventData.logIndex,
+                block: eventData.block,
+                transaction: eventData.transaction,
+                params: {
+                  gauge: unknownGaugeAddress,
+                  to: redistributorAddress,
+                  amount: 123n,
+                },
+              },
+            ],
+          },
+        },
+      });
+
+      const unchangedPool = await indexer.Pool.get(pool.id);
 
       expect(unchangedPool?.totalEmissionsForfeited).toBe(0n);
       expect(unchangedPool?.totalEmissionsRedistributed).toBe(0n);
       // Guard against the handler synthesising a pool entity on gauge miss.
-      expect(Array.from(result.entities.Pool.getAll()).length).toBe(1);
+      const allPools = await indexer.Pool.getAll();
+      expect(allPools.length).toBe(1);
     });
   });
 
   describe("Redistributed event", () => {
     it("increments totalEmissionsRedistributed on the gauge's pool", async () => {
       const pool = seedPool(0n, 3n);
-      const populatedDb = MockDb.createMockDb().entities.Pool.set(pool);
+      const indexer = createTestIndexer();
+      indexer.Pool.set(pool);
       const amount = 42_000_000_000_000_000_000n;
 
-      const mockEvent = Redistributor.Redistributed.createMockEvent({
-        sender: senderAddress,
-        gauge: gaugeAddress,
-        amount,
-        mockEventData: buildMockEventData({
-          blockNumber: 987700,
-          timestamp: 1_700_000_100,
-          blockHash:
-            "0xblockhashblockhashblockhashblockhashblockhashblockhashblockhash2",
-          logIndex: 12,
-        }),
+      const eventData = buildMockEventData({
+        blockNumber: 987700,
+        timestamp: 1_700_000_100,
+        blockHash:
+          "0xblockhashblockhashblockhashblockhashblockhashblockhashblockhash2",
+        logIndex: 12,
       });
 
-      const result = await populatedDb.processEvents([mockEvent]);
-      const updatedPool = result.entities.Pool.get(pool.id);
+      await indexer.process({
+        chains: {
+          [chainId]: {
+            simulate: [
+              {
+                contract: "Redistributor",
+                event: "Redistributed",
+                srcAddress: redistributorAddress,
+                logIndex: eventData.logIndex,
+                block: eventData.block,
+                transaction: eventData.transaction,
+                params: {
+                  sender: senderAddress,
+                  gauge: gaugeAddress,
+                  amount,
+                },
+              },
+            ],
+          },
+        },
+      });
+
+      const updatedPool = await indexer.Pool.get(pool.id);
 
       expect(updatedPool?.totalEmissionsRedistributed).toBe(3n + amount);
       expect(updatedPool?.totalEmissionsForfeited).toBe(0n);
@@ -134,35 +187,60 @@ describe("Redistributor Event Handlers", () => {
 
     it("accumulates across multiple Redistributed events in the same tx", async () => {
       const pool = seedPool();
-      const populatedDb = MockDb.createMockDb().entities.Pool.set(pool);
+      const indexer = createTestIndexer();
+      indexer.Pool.set(pool);
 
-      const firstEvent = Redistributor.Redistributed.createMockEvent({
-        sender: senderAddress,
-        gauge: gaugeAddress,
-        amount: 1n,
-        mockEventData: buildMockEventData({
-          blockNumber: 1,
-          timestamp: 1_700_000_200,
-          blockHash:
-            "0xblockhashblockhashblockhashblockhashblockhashblockhashblockhash3",
-          logIndex: 1,
-        }),
+      const firstEventData = buildMockEventData({
+        blockNumber: 1,
+        timestamp: 1_700_000_200,
+        blockHash:
+          "0xblockhashblockhashblockhashblockhashblockhashblockhashblockhash3",
+        logIndex: 1,
       });
-      const secondEvent = Redistributor.Redistributed.createMockEvent({
-        sender: senderAddress,
-        gauge: gaugeAddress,
-        amount: 2n,
-        mockEventData: buildMockEventData({
-          blockNumber: 1,
-          timestamp: 1_700_000_200,
-          blockHash:
-            "0xblockhashblockhashblockhashblockhashblockhashblockhashblockhash3",
-          logIndex: 2,
-        }),
+      const secondEventData = buildMockEventData({
+        blockNumber: 1,
+        timestamp: 1_700_000_200,
+        blockHash:
+          "0xblockhashblockhashblockhashblockhashblockhashblockhashblockhash3",
+        logIndex: 2,
       });
 
-      const result = await populatedDb.processEvents([firstEvent, secondEvent]);
-      const updatedPool = result.entities.Pool.get(pool.id);
+      await indexer.process({
+        chains: {
+          [chainId]: {
+            simulate: [
+              {
+                contract: "Redistributor",
+                event: "Redistributed",
+                srcAddress: redistributorAddress,
+                logIndex: firstEventData.logIndex,
+                block: firstEventData.block,
+                transaction: firstEventData.transaction,
+                params: {
+                  sender: senderAddress,
+                  gauge: gaugeAddress,
+                  amount: 1n,
+                },
+              },
+              {
+                contract: "Redistributor",
+                event: "Redistributed",
+                srcAddress: redistributorAddress,
+                logIndex: secondEventData.logIndex,
+                block: secondEventData.block,
+                transaction: secondEventData.transaction,
+                params: {
+                  sender: senderAddress,
+                  gauge: gaugeAddress,
+                  amount: 2n,
+                },
+              },
+            ],
+          },
+        },
+      });
+
+      const updatedPool = await indexer.Pool.get(pool.id);
 
       expect(updatedPool?.totalEmissionsRedistributed).toBe(3n);
     });
@@ -170,24 +248,42 @@ describe("Redistributor Event Handlers", () => {
 
   describe("SetKeeper / SetUpkeepManager", () => {
     it("SetKeeper creates a RedistributorConfig with keeper set and upkeepManager empty", async () => {
-      const mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
       const blockTimestamp = 1_700_000_300;
 
-      const mockEvent = Redistributor.SetKeeper.createMockEvent({
-        keeper: keeperAddress,
-        mockEventData: buildMockEventData({
-          blockNumber: 10,
-          timestamp: blockTimestamp,
-          blockHash:
-            "0xblockhashblockhashblockhashblockhashblockhashblockhashblockhash4",
-          logIndex: 1,
-        }),
+      const eventData = buildMockEventData({
+        blockNumber: 10,
+        timestamp: blockTimestamp,
+        blockHash:
+          "0xblockhashblockhashblockhashblockhashblockhashblockhashblockhash4",
+        logIndex: 1,
       });
 
-      const result = await mockDb.processEvents([mockEvent]);
+      await indexer.process({
+        chains: {
+          [chainId]: {
+            simulate: [
+              {
+                contract: "Redistributor",
+                event: "SetKeeper",
+                srcAddress: redistributorAddress,
+                logIndex: eventData.logIndex,
+                block: eventData.block,
+                transaction: eventData.transaction,
+                params: {
+                  keeper: keeperAddress,
+                },
+              },
+            ],
+          },
+        },
+      });
 
       const configId = `${chainId}-${redistributorAddress}`;
-      const config = result.entities.RedistributorConfig.get(configId);
+      const rawConfig = await indexer.RedistributorConfig.get(configId);
+      const config = rawConfig
+        ? rehydrateTimestamps("RedistributorConfig", rawConfig)
+        : undefined;
       expect(config).toBeDefined();
       expect(config?.chainId).toBe(chainId);
       expect(config?.redistributorAddress).toBe(redistributorAddress);
@@ -199,35 +295,61 @@ describe("Redistributor Event Handlers", () => {
     });
 
     it("SetUpkeepManager after SetKeeper preserves the keeper and updates only upkeepManager", async () => {
-      const mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
       const firstTs = 1_700_000_400;
       const secondTs = 1_700_000_500;
 
-      const setKeeper = Redistributor.SetKeeper.createMockEvent({
-        keeper: keeperAddress,
-        mockEventData: buildMockEventData({
-          blockNumber: 20,
-          timestamp: firstTs,
-          blockHash:
-            "0xblockhashblockhashblockhashblockhashblockhashblockhashblockhash5",
-          logIndex: 1,
-        }),
+      const firstEventData = buildMockEventData({
+        blockNumber: 20,
+        timestamp: firstTs,
+        blockHash:
+          "0xblockhashblockhashblockhashblockhashblockhashblockhashblockhash5",
+        logIndex: 1,
       });
-      const setUpkeep = Redistributor.SetUpkeepManager.createMockEvent({
-        upkeepManager: upkeepManagerAddress,
-        mockEventData: buildMockEventData({
-          blockNumber: 21,
-          timestamp: secondTs,
-          blockHash:
-            "0xblockhashblockhashblockhashblockhashblockhashblockhashblockhash6",
-          logIndex: 1,
-        }),
+      const secondEventData = buildMockEventData({
+        blockNumber: 21,
+        timestamp: secondTs,
+        blockHash:
+          "0xblockhashblockhashblockhashblockhashblockhashblockhashblockhash6",
+        logIndex: 1,
       });
 
-      const result = await mockDb.processEvents([setKeeper, setUpkeep]);
+      await indexer.process({
+        chains: {
+          [chainId]: {
+            simulate: [
+              {
+                contract: "Redistributor",
+                event: "SetKeeper",
+                srcAddress: redistributorAddress,
+                logIndex: firstEventData.logIndex,
+                block: firstEventData.block,
+                transaction: firstEventData.transaction,
+                params: {
+                  keeper: keeperAddress,
+                },
+              },
+              {
+                contract: "Redistributor",
+                event: "SetUpkeepManager",
+                srcAddress: redistributorAddress,
+                logIndex: secondEventData.logIndex,
+                block: secondEventData.block,
+                transaction: secondEventData.transaction,
+                params: {
+                  upkeepManager: upkeepManagerAddress,
+                },
+              },
+            ],
+          },
+        },
+      });
 
       const configId = `${chainId}-${redistributorAddress}`;
-      const config = result.entities.RedistributorConfig.get(configId);
+      const rawConfig = await indexer.RedistributorConfig.get(configId);
+      const config = rawConfig
+        ? rehydrateTimestamps("RedistributorConfig", rawConfig)
+        : undefined;
       expect(config).toBeDefined();
       expect(config?.keeper).toBe(keeperAddress);
       expect(config?.upkeepManager).toBe(upkeepManagerAddress);
@@ -235,35 +357,61 @@ describe("Redistributor Event Handlers", () => {
     });
 
     it("SetUpkeepManager before SetKeeper seeds the config with keeper empty and later SetKeeper preserves upkeepManager", async () => {
-      const mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
       const firstTs = 1_700_000_600;
       const secondTs = 1_700_000_700;
 
-      const setUpkeep = Redistributor.SetUpkeepManager.createMockEvent({
-        upkeepManager: upkeepManagerAddress,
-        mockEventData: buildMockEventData({
-          blockNumber: 30,
-          timestamp: firstTs,
-          blockHash:
-            "0xblockhashblockhashblockhashblockhashblockhashblockhashblockhash7",
-          logIndex: 1,
-        }),
+      const firstEventData = buildMockEventData({
+        blockNumber: 30,
+        timestamp: firstTs,
+        blockHash:
+          "0xblockhashblockhashblockhashblockhashblockhashblockhashblockhash7",
+        logIndex: 1,
       });
-      const setKeeper = Redistributor.SetKeeper.createMockEvent({
-        keeper: keeperAddress,
-        mockEventData: buildMockEventData({
-          blockNumber: 31,
-          timestamp: secondTs,
-          blockHash:
-            "0xblockhashblockhashblockhashblockhashblockhashblockhashblockhash8",
-          logIndex: 1,
-        }),
+      const secondEventData = buildMockEventData({
+        blockNumber: 31,
+        timestamp: secondTs,
+        blockHash:
+          "0xblockhashblockhashblockhashblockhashblockhashblockhashblockhash8",
+        logIndex: 1,
       });
 
-      const result = await mockDb.processEvents([setUpkeep, setKeeper]);
+      await indexer.process({
+        chains: {
+          [chainId]: {
+            simulate: [
+              {
+                contract: "Redistributor",
+                event: "SetUpkeepManager",
+                srcAddress: redistributorAddress,
+                logIndex: firstEventData.logIndex,
+                block: firstEventData.block,
+                transaction: firstEventData.transaction,
+                params: {
+                  upkeepManager: upkeepManagerAddress,
+                },
+              },
+              {
+                contract: "Redistributor",
+                event: "SetKeeper",
+                srcAddress: redistributorAddress,
+                logIndex: secondEventData.logIndex,
+                block: secondEventData.block,
+                transaction: secondEventData.transaction,
+                params: {
+                  keeper: keeperAddress,
+                },
+              },
+            ],
+          },
+        },
+      });
 
       const configId = `${chainId}-${redistributorAddress}`;
-      const config = result.entities.RedistributorConfig.get(configId);
+      const rawConfig = await indexer.RedistributorConfig.get(configId);
+      const config = rawConfig
+        ? rehydrateTimestamps("RedistributorConfig", rawConfig)
+        : undefined;
       expect(config).toBeDefined();
       expect(config?.keeper).toBe(keeperAddress);
       expect(config?.upkeepManager).toBe(upkeepManagerAddress);

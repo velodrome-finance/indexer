@@ -1,7 +1,7 @@
 import { TickMath } from "@uniswap/v3-sdk";
-import type { CLPool_Swap_event, Token, handlerContext } from "generated";
+import type { EvmEvent, Token } from "envio";
 import { TEN_TO_THE_18_BI, toChecksumAddress } from "../../../src/Constants";
-import type { Pool } from "../../../src/EntityTypes";
+import type { Pool, handlerContext } from "../../../src/EntityTypes";
 import {
   calculateSwapFees,
   calculateSwapVolume,
@@ -25,7 +25,7 @@ describe("CLPoolSwapLogic", () => {
     "0x1234567890123456789012345678901234567890",
   );
 
-  const mockEvent: CLPool_Swap_event = {
+  const mockEvent: EvmEvent<"CLPool", "Swap"> = {
     params: {
       sender: toChecksumAddress("0x1111111111111111111111111111111111111111"),
       recipient: toChecksumAddress(
@@ -48,7 +48,7 @@ describe("CLPoolSwapLogic", () => {
     transaction: {
       hash: "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
     },
-  } as CLPool_Swap_event;
+  } as EvmEvent<"CLPool", "Swap">;
 
   const mockPool: Pool = {
     ...mockLiquidityPoolData,
@@ -117,7 +117,7 @@ describe("CLPoolSwapLogic", () => {
       // After #755 the per-leg PriceTrust gate zeros the non-WL leg's USD
       // contribution, so the picker sees (0n, 0n) and returns 0n — the
       // #737 single-leg refusal is now enforced upstream of the picker.
-      const eventWithZeroToken0: CLPool_Swap_event = {
+      const eventWithZeroToken0: EvmEvent<"CLPool", "Swap"> = {
         ...mockEvent,
         params: { ...mockEvent.params, amount0: 0n },
       };
@@ -135,7 +135,7 @@ describe("CLPoolSwapLogic", () => {
     it("trusts single-leg fallback when the priced leg IS whitelisted", () => {
       // Mirror of the #737 case, but with the priced token whitelisted:
       // we trust the canonical-token amount as the swap's USD volume.
-      const eventWithZeroToken0: CLPool_Swap_event = {
+      const eventWithZeroToken0: EvmEvent<"CLPool", "Swap"> = {
         ...mockEvent,
         params: { ...mockEvent.params, amount0: 0n },
       };
@@ -183,7 +183,7 @@ describe("CLPoolSwapLogic", () => {
         decimals: 6n,
         pricePerUSDNew: ONE_USD,
       };
-      const eventWith6Decimals: CLPool_Swap_event = {
+      const eventWith6Decimals: EvmEvent<"CLPool", "Swap"> = {
         ...mockEvent,
         params: {
           ...mockEvent.params,
@@ -214,7 +214,7 @@ describe("CLPoolSwapLogic", () => {
         decimals: 6n,
         pricePerUSDNew: ONE_USD, // $1
       };
-      const swapEvent: CLPool_Swap_event = {
+      const swapEvent: EvmEvent<"CLPool", "Swap"> = {
         ...mockEvent,
         params: {
           ...mockEvent.params,
@@ -508,7 +508,7 @@ describe("CLPoolSwapLogic", () => {
     });
 
     it("should handle zero amounts correctly", async () => {
-      const eventWithZeroAmounts: CLPool_Swap_event = {
+      const eventWithZeroAmounts: EvmEvent<"CLPool", "Swap"> = {
         ...mockEvent,
         params: { ...mockEvent.params, amount0: 0n, amount1: 0n },
       };
@@ -561,7 +561,7 @@ describe("CLPoolSwapLogic", () => {
         tickEdgeNets: [L, -L],
       };
       // Swap moves the price up from tick 0 to tick 100 (stays within the range).
-      const geoEvent: CLPool_Swap_event = {
+      const geoEvent: EvmEvent<"CLPool", "Swap"> = {
         ...mockEvent,
         params: {
           ...mockEvent.params,

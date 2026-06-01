@@ -1,6 +1,7 @@
-import type { CLPool_Burn_event, Token, handlerContext } from "generated";
+import type { EvmEvent, Token } from "envio";
 import type { PoolDiff } from "../../Aggregators/Pool";
 import { CLPositionPendingPrincipalId } from "../../Constants";
+import type { handlerContext } from "../../EntityTypes";
 import type { Pool } from "../../EntityTypes";
 import { calculateTotalUSD } from "../../Helpers";
 
@@ -28,7 +29,7 @@ export interface CLPoolBurnResult {
  * @returns Pool diff with reserve decrements, updated TVL, and (if in range) negative incrementalLiquidityInRange
  */
 export async function processCLPoolBurn(
-  event: CLPool_Burn_event,
+  event: EvmEvent<"CLPool", "Burn">,
   liquidityPoolAggregator: Pool,
   token0Instance: Token,
   token1Instance: Token,
@@ -78,7 +79,7 @@ export async function processCLPoolBurn(
  * @param context - Handler context for entity reads/writes
  */
 async function trackBurnedPrincipal(
-  event: CLPool_Burn_event,
+  event: EvmEvent<"CLPool", "Burn">,
   context: handlerContext,
 ): Promise<void> {
   const trackerId = CLPositionPendingPrincipalId(

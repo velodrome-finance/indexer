@@ -1,5 +1,5 @@
-import type { Token } from "generated";
-import { CLPool, MockDb } from "../../../generated/src/TestHelpers.gen";
+import type { Token } from "envio";
+import { createTestIndexer } from "envio";
 import {
   TEN_TO_THE_6_BI,
   TEN_TO_THE_18_BI,
@@ -15,7 +15,7 @@ describe("CLPool direct (non-NFPM) liquidity attribution (#790)", () => {
   const { mockToken0Data, mockToken1Data, createMockPool, defaultNfpmAddress } =
     setupCommon();
 
-  const chainId = 10;
+  const chainId = 10 as const;
   // A vault/strategy that calls CLPool.mint() directly (the issue's real example owner).
   const vaultOwner = toChecksumAddress(
     "0xa0f688905ef05ea853c35131b4899a613b4ba644",
@@ -31,38 +31,45 @@ describe("CLPool direct (non-NFPM) liquidity attribution (#790)", () => {
   // Trust-gated USD: normalize each leg to 1e18-base @ $1 → 500e18 + 300e18.
   const expectedUSD = 800n * TEN_TO_THE_18_BI;
 
-  let mockDb: ReturnType<typeof MockDb.createMockDb>;
+  let indexer: ReturnType<typeof createTestIndexer>;
   let pool: ReturnType<typeof createMockPool>;
 
   beforeEach(() => {
-    mockDb = MockDb.createMockDb();
+    indexer = createTestIndexer();
     // CL pool → createMockPool defaults nfpmAddress to defaultNfpmAddress.
     pool = createMockPool({ isCL: true });
-    mockDb = mockDb.entities.Pool.set(pool);
-    mockDb = mockDb.entities.Token.set(mockToken0Data as Token);
-    mockDb = mockDb.entities.Token.set(mockToken1Data as Token);
+    indexer.Pool.set(pool);
+    indexer.Token.set(mockToken0Data as Token);
+    indexer.Token.set(mockToken1Data as Token);
   });
 
   it("attributes a direct Mint to the owner's UserStatsPerPool added-flow", async () => {
-    const mintEvent = CLPool.Mint.createMockEvent({
-      owner: vaultOwner,
-      tickLower: -100000n,
-      tickUpper: 100000n,
-      amount: 1000000n,
-      amount0,
-      amount1,
-      mockEventData: {
-        block: { timestamp: 1000000, number: 123456, hash: blockHash },
-        chainId,
-        logIndex: 1,
-        srcAddress: pool.poolAddress as `0x${string}`,
-        transaction: { hash: txHash },
+    await indexer.process({
+      chains: {
+        [chainId]: {
+          simulate: [
+            {
+              contract: "CLPool",
+              event: "Mint",
+              srcAddress: pool.poolAddress as `0x${string}`,
+              logIndex: 1,
+              block: { timestamp: 1000000, number: 123456, hash: blockHash },
+              transaction: { hash: txHash },
+              params: {
+                owner: vaultOwner,
+                tickLower: -100000n,
+                tickUpper: 100000n,
+                amount: 1000000n,
+                amount0,
+                amount1,
+              },
+            },
+          ],
+        },
       },
     });
 
-    const result = await mockDb.processEvents([mintEvent]);
-
-    const stats = result.entities.UserStatsPerPool.get(
+    const stats = await indexer.UserStatsPerPool.get(
       UserStatsPerPoolId(chainId, vaultOwner, pool.poolAddress),
     );
     expect(stats).toBeDefined();
@@ -71,7 +78,7 @@ describe("CLPool direct (non-NFPM) liquidity attribution (#790)", () => {
     expect(stats?.totalLiquidityAddedUSD).toBe(expectedUSD);
 
     // AC#3: pool reserves/TVL behavior is unchanged — reserves still increment.
-    const updatedPool = result.entities.Pool.get(pool.id);
+    const updatedPool = await indexer.Pool.get(pool.id);
     expect(updatedPool?.reserve0).toBe(pool.reserve0 + amount0);
     expect(updatedPool?.reserve1).toBe(pool.reserve1 + amount1);
   });
@@ -80,25 +87,32 @@ describe("CLPool direct (non-NFPM) liquidity attribution (#790)", () => {
     // owner === pool.nfpmAddress → this mint is the NFPM's, already credited to
     // the real holder via NFPM.Transfer/IncreaseLiquidity. Attributing here would
     // create a bogus row on the NFPM contract and double-count the flow.
-    const mintEvent = CLPool.Mint.createMockEvent({
-      owner: defaultNfpmAddress,
-      tickLower: -100000n,
-      tickUpper: 100000n,
-      amount: 1000000n,
-      amount0,
-      amount1,
-      mockEventData: {
-        block: { timestamp: 1000000, number: 123456, hash: blockHash },
-        chainId,
-        logIndex: 1,
-        srcAddress: pool.poolAddress as `0x${string}`,
-        transaction: { hash: txHash },
+    await indexer.process({
+      chains: {
+        [chainId]: {
+          simulate: [
+            {
+              contract: "CLPool",
+              event: "Mint",
+              srcAddress: pool.poolAddress as `0x${string}`,
+              logIndex: 1,
+              block: { timestamp: 1000000, number: 123456, hash: blockHash },
+              transaction: { hash: txHash },
+              params: {
+                owner: defaultNfpmAddress,
+                tickLower: -100000n,
+                tickUpper: 100000n,
+                amount: 1000000n,
+                amount0,
+                amount1,
+              },
+            },
+          ],
+        },
       },
     });
 
-    const result = await mockDb.processEvents([mintEvent]);
-
-    const nfpmStats = result.entities.UserStatsPerPool.get(
+    const nfpmStats = await indexer.UserStatsPerPool.get(
       UserStatsPerPoolId(chainId, defaultNfpmAddress, pool.poolAddress),
     );
     expect(nfpmStats).toBeUndefined();
@@ -107,40 +121,48 @@ describe("CLPool direct (non-NFPM) liquidity attribution (#790)", () => {
   it("attributes a direct mint-then-burn to matching added/removed flows", async () => {
     // AC#4: a direct (owner ∉ NFPM) mint followed by a burn of the same size by
     // the same owner produces equal added and removed flows.
-    const mintEvent = CLPool.Mint.createMockEvent({
-      owner: vaultOwner,
-      tickLower: -100000n,
-      tickUpper: 100000n,
-      amount: 1000000n,
-      amount0,
-      amount1,
-      mockEventData: {
-        block: { timestamp: 1000000, number: 123456, hash: blockHash },
-        chainId,
-        logIndex: 1,
-        srcAddress: pool.poolAddress as `0x${string}`,
-        transaction: { hash: txHash },
-      },
-    });
-    const burnEvent = CLPool.Burn.createMockEvent({
-      owner: vaultOwner,
-      tickLower: -100000n,
-      tickUpper: 100000n,
-      amount: 1000000n,
-      amount0,
-      amount1,
-      mockEventData: {
-        block: { timestamp: 1000100, number: 123457, hash: blockHash },
-        chainId,
-        logIndex: 2,
-        srcAddress: pool.poolAddress as `0x${string}`,
-        transaction: { hash: txHash },
+    await indexer.process({
+      chains: {
+        [chainId]: {
+          simulate: [
+            {
+              contract: "CLPool",
+              event: "Mint",
+              srcAddress: pool.poolAddress as `0x${string}`,
+              logIndex: 1,
+              block: { timestamp: 1000000, number: 123456, hash: blockHash },
+              transaction: { hash: txHash },
+              params: {
+                owner: vaultOwner,
+                tickLower: -100000n,
+                tickUpper: 100000n,
+                amount: 1000000n,
+                amount0,
+                amount1,
+              },
+            },
+            {
+              contract: "CLPool",
+              event: "Burn",
+              srcAddress: pool.poolAddress as `0x${string}`,
+              logIndex: 2,
+              block: { timestamp: 1000100, number: 123457, hash: blockHash },
+              transaction: { hash: txHash },
+              params: {
+                owner: vaultOwner,
+                tickLower: -100000n,
+                tickUpper: 100000n,
+                amount: 1000000n,
+                amount0,
+                amount1,
+              },
+            },
+          ],
+        },
       },
     });
 
-    const result = await mockDb.processEvents([mintEvent, burnEvent]);
-
-    const stats = result.entities.UserStatsPerPool.get(
+    const stats = await indexer.UserStatsPerPool.get(
       UserStatsPerPoolId(chainId, vaultOwner, pool.poolAddress),
     );
     expect(stats).toBeDefined();
@@ -160,27 +182,34 @@ describe("CLPool direct (non-NFPM) liquidity attribution (#790)", () => {
     // risk crediting an NFPM-routed flow to the wrong row (AC#2). Self-heals
     // once the factory→NFPM mapping is added.
     const unmappedPool = { ...pool, nfpmAddress: undefined };
-    mockDb = mockDb.entities.Pool.set(unmappedPool);
+    indexer.Pool.set(unmappedPool);
 
-    const mintEvent = CLPool.Mint.createMockEvent({
-      owner: vaultOwner,
-      tickLower: -100000n,
-      tickUpper: 100000n,
-      amount: 1000000n,
-      amount0,
-      amount1,
-      mockEventData: {
-        block: { timestamp: 1000000, number: 123456, hash: blockHash },
-        chainId,
-        logIndex: 1,
-        srcAddress: pool.poolAddress as `0x${string}`,
-        transaction: { hash: txHash },
+    await indexer.process({
+      chains: {
+        [chainId]: {
+          simulate: [
+            {
+              contract: "CLPool",
+              event: "Mint",
+              srcAddress: pool.poolAddress as `0x${string}`,
+              logIndex: 1,
+              block: { timestamp: 1000000, number: 123456, hash: blockHash },
+              transaction: { hash: txHash },
+              params: {
+                owner: vaultOwner,
+                tickLower: -100000n,
+                tickUpper: 100000n,
+                amount: 1000000n,
+                amount0,
+                amount1,
+              },
+            },
+          ],
+        },
       },
     });
 
-    const result = await mockDb.processEvents([mintEvent]);
-
-    const stats = result.entities.UserStatsPerPool.get(
+    const stats = await indexer.UserStatsPerPool.get(
       UserStatsPerPoolId(chainId, vaultOwner, pool.poolAddress),
     );
     expect(stats).toBeUndefined();

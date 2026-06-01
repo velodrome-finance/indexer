@@ -1,5 +1,6 @@
-import type { Token, handlerContext } from "generated";
+import type { Token } from "envio";
 import { TEN_TO_THE_18_BI, TokenId, toChecksumAddress } from "../src/Constants";
+import type { handlerContext } from "../src/EntityTypes";
 import {
   PRICE_TRUST_OUTCOME,
   PRICE_TRUST_REASON,

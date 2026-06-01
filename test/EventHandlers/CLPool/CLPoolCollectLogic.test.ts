@@ -1,15 +1,10 @@
-import type {
-  CLPool_Burn_event,
-  CLPool_Collect_event,
-  CLPositionPendingPrincipal,
-  Token,
-  handlerContext,
-} from "generated";
+import type { EvmEvent } from "envio";
+import type { CLPositionPendingPrincipal, Token } from "envio";
 import {
   CLPositionPendingPrincipalId,
   toChecksumAddress,
 } from "../../../src/Constants";
-import type { Pool } from "../../../src/EntityTypes";
+import type { Pool, handlerContext } from "../../../src/EntityTypes";
 import { processCLPoolBurn } from "../../../src/EventHandlers/CLPool/CLPoolBurnLogic";
 import { processCLPoolCollect } from "../../../src/EventHandlers/CLPool/CLPoolCollectLogic";
 import { setupCommon } from "../Pool/common";
@@ -22,7 +17,7 @@ describe("CLPoolCollectLogic", () => {
     "0x3333333333333333333333333333333333333333",
   );
 
-  const mockEvent: CLPool_Collect_event = {
+  const mockEvent: EvmEvent<"CLPool", "Collect"> = {
     params: {
       owner: toChecksumAddress("0x1111111111111111111111111111111111111111"),
       recipient: toChecksumAddress(
@@ -44,7 +39,7 @@ describe("CLPoolCollectLogic", () => {
     transaction: {
       hash: "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
     },
-  } as CLPool_Collect_event;
+  } as EvmEvent<"CLPool", "Collect">;
 
   const mockToken0: Token = {
     ...mockToken0Data,
@@ -186,7 +181,7 @@ describe("CLPoolCollectLogic", () => {
     });
 
     it("should handle zero collect amounts correctly", async () => {
-      const eventWithZeroAmounts: CLPool_Collect_event = {
+      const eventWithZeroAmounts: EvmEvent<"CLPool", "Collect"> = {
         ...mockEvent,
         params: { ...mockEvent.params, amount0: 0n, amount1: 0n },
       };
@@ -280,7 +275,7 @@ describe("CLPoolCollectLogic", () => {
         amount0: 1000000000000000000n, // 1 token0 burned
         amount1: 2000000000000000000n, // 2 token1 burned
       },
-    } as unknown as CLPool_Burn_event;
+    } as unknown as EvmEvent<"CLPool", "Burn">;
 
     const trackerId = CLPositionPendingPrincipalId(
       mockEvent.chainId,
@@ -318,7 +313,7 @@ describe("CLPoolCollectLogic", () => {
           amount0: 5000000000000000000n,
           amount1: 10000000000000000000n,
         },
-      } as unknown as CLPool_Burn_event;
+      } as unknown as EvmEvent<"CLPool", "Burn">;
       await processCLPoolBurn(bigBurn, burnPool, mockToken0, mockToken1, ctx);
       const result = await processCLPoolCollect(
         mockEvent,
@@ -359,7 +354,7 @@ describe("CLPoolCollectLogic", () => {
           amount0: 800000000000000000n,
           amount1: 1500000000000000000n,
         },
-      } as unknown as CLPool_Burn_event;
+      } as unknown as EvmEvent<"CLPool", "Burn">;
       await processCLPoolBurn(reBurn, burnPool, mockToken0, mockToken1, ctx);
       const result = await processCLPoolCollect(
         mockEvent,

@@ -5,8 +5,7 @@ import type {
   UserStatsPerPool,
   VeNFTPoolVote,
   VeNFTState,
-  handlerContext,
-} from "generated";
+} from "envio";
 import type { PoolData } from "../../../src/Aggregators/Pool";
 import * as PoolModule from "../../../src/Aggregators/Pool";
 import * as UserStatsPerPoolModule from "../../../src/Aggregators/UserStatsPerPool";
@@ -22,6 +21,7 @@ import {
   VeNFTId,
   toChecksumAddress,
 } from "../../../src/Constants";
+import type { handlerContext } from "../../../src/EntityTypes";
 import type { Pool } from "../../../src/EntityTypes";
 import {
   deleteProcessedPendingDistribution,

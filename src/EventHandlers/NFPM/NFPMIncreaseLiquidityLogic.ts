@@ -1,15 +1,13 @@
-import type {
-  CLPoolMintEvent,
-  NFPM_IncreaseLiquidity_event,
-  NonFungiblePosition,
-  handlerContext,
-} from "generated";
+import type { EvmEvent } from "envio";
+import type { CLPoolMintEvent, NonFungiblePosition } from "envio";
 import {
   type NonFungiblePositionDiff,
   updateNonFungiblePosition,
 } from "../../Aggregators/NonFungiblePosition";
 import { loadPoolData } from "../../Aggregators/Pool";
 import { NonFungiblePositionId, TxCLPoolMintRegistryId } from "../../Constants";
+import { getRehydrated } from "../../EntityTimestamps";
+import type { handlerContext } from "../../EntityTypes";
 import {
   LiquidityChangeType,
   attributeLiquidityChangeToUserStatsPerPool,
@@ -25,7 +23,7 @@ import {
  * @returns Partial position object containing the updated liquidity and timestamp fields
  */
 export function calculateIncreaseLiquidityDiff(
-  event: NFPM_IncreaseLiquidity_event,
+  event: EvmEvent<"NFPM", "IncreaseLiquidity">,
 ): Partial<NonFungiblePositionDiff> {
   const blockDatetime = new Date(event.block.timestamp * 1000);
 
@@ -53,12 +51,14 @@ export function calculateIncreaseLiquidityDiff(
  * @returns Promise that resolves once the position update, orphan-mint cleanup, and downstream attributions are staged
  */
 export async function processNFPMIncreaseLiquidity(
-  event: NFPM_IncreaseLiquidity_event,
+  event: EvmEvent<"NFPM", "IncreaseLiquidity">,
   context: handlerContext,
 ): Promise<void> {
   // Transfer (relative to mint) runs before IncreaseLiquidity, so the stable position
   // should already exist. Direct O(1) lookup via (chainId, nfpmAddress, tokenId).
-  const position = await context.NonFungiblePosition.get(
+  const position = await getRehydrated(
+    context.NonFungiblePosition,
+    "NonFungiblePosition",
     NonFungiblePositionId(
       event.chainId,
       event.srcAddress,
@@ -102,7 +102,9 @@ export async function processNFPMIncreaseLiquidity(
   if (registry && registry.mintEventIds.length > 0) {
     const mintEventsInTx = (
       await Promise.all(
-        registry.mintEventIds.map((id) => context.CLPoolMintEvent.get(id)),
+        registry.mintEventIds.map((id) =>
+          getRehydrated(context.CLPoolMintEvent, "CLPoolMintEvent", id),
+        ),
       )
     ).filter((m): m is CLPoolMintEvent => m !== undefined);
 

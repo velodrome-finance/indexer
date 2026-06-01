@@ -1,10 +1,12 @@
-import type { NFPM_DecreaseLiquidity_event, handlerContext } from "generated";
+import type { EvmEvent } from "envio";
 import {
   type NonFungiblePositionDiff,
   updateNonFungiblePosition,
 } from "../../Aggregators/NonFungiblePosition";
 import { loadPoolData } from "../../Aggregators/Pool";
 import { NonFungiblePositionId } from "../../Constants";
+import { getRehydrated } from "../../EntityTimestamps";
+import type { handlerContext } from "../../EntityTypes";
 import {
   LiquidityChangeType,
   attributeLiquidityChangeToUserStatsPerPool,
@@ -20,7 +22,7 @@ import {
  * @returns Partial position object containing the updated liquidity and timestamp fields
  */
 export function calculateDecreaseLiquidityDiff(
-  event: NFPM_DecreaseLiquidity_event,
+  event: EvmEvent<"NFPM", "DecreaseLiquidity">,
 ): Partial<NonFungiblePositionDiff> {
   const blockDatetime = new Date(event.block.timestamp * 1000);
 
@@ -47,12 +49,14 @@ export function calculateDecreaseLiquidityDiff(
  * @param context - The handler context
  */
 export async function processNFPMDecreaseLiquidity(
-  event: NFPM_DecreaseLiquidity_event,
+  event: EvmEvent<"NFPM", "DecreaseLiquidity">,
   context: handlerContext,
 ): Promise<void> {
   // Transfer runs before DecreaseLiquidity, so the stable position should already exist.
   // Direct O(1) lookup via (chainId, nfpmAddress, tokenId).
-  const position = await context.NonFungiblePosition.get(
+  const position = await getRehydrated(
+    context.NonFungiblePosition,
+    "NonFungiblePosition",
     NonFungiblePositionId(
       event.chainId,
       event.srcAddress,

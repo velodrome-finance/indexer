@@ -1,15 +1,12 @@
-import type {
-  CLPoolMintEvent,
-  NonFungiblePosition,
-  handlerContext,
-} from "generated";
-import { MockDb, NFPM } from "../../../generated/src/TestHelpers.gen";
+import type { CLPoolMintEvent, NonFungiblePosition } from "envio";
+import type { EvmEvent } from "envio";
 import { type PoolData, loadPoolData } from "../../../src/Aggregators/Pool";
 import {
   CLPoolMintEventId,
   NonFungiblePositionId,
   toChecksumAddress,
 } from "../../../src/Constants";
+import type { handlerContext } from "../../../src/EntityTypes";
 import {
   LiquidityChangeType,
   attributeLiquidityChangeToUserStatsPerPool,
@@ -78,9 +75,12 @@ describe("NFPMIncreaseLiquidityLogic", () => {
     chainId: chainId,
     logIndex: 10,
     srcAddress: nfpmAddress,
+    transaction: {
+      hash: "0x2067933cb279a762d577c482ae8304772ad4c2ef35d744a21c2bfd2a3a86fc26",
+    },
   };
 
-  let mockDb: ReturnType<typeof MockDb.createMockDb>;
+  let entityStore: Map<string, NonFungiblePosition>;
   let mockContext: handlerContext;
   let storedPositions: NonFungiblePosition[];
   let storedMintEvents: CLPoolMintEvent[];
@@ -102,17 +102,17 @@ describe("NFPMIncreaseLiquidityLogic", () => {
       registryState.set(key, list);
     }
 
-    const db = MockDb.createMockDb();
-    let currentDb = positions.reduce(
-      (acc, pos) => acc.entities.NonFungiblePosition.set(pos),
-      db,
-    );
-    currentDb = mintEvents.reduce(
-      (acc, event) => acc.entities.CLPoolMintEvent.set(event),
-      currentDb,
-    );
+    // Seed entity store from positions
+    entityStore = new Map<string, NonFungiblePosition>();
+    for (const pos of positions) {
+      entityStore.set(pos.id, pos);
+    }
 
-    const originalSet = currentDb.entities.NonFungiblePosition.set;
+    const mintEventStore = new Map<string, CLPoolMintEvent>();
+    for (const m of mintEvents) {
+      mintEventStore.set(m.id, m);
+    }
+
     const trackPosition = (entity: NonFungiblePosition) => {
       const index = positions.findIndex((p) => p.id === entity.id);
       if (index >= 0) {
@@ -120,10 +120,10 @@ describe("NFPMIncreaseLiquidityLogic", () => {
       } else {
         positions.push(entity);
       }
+      entityStore.set(entity.id, entity);
     };
 
     return {
-      ...currentDb,
       Pool: {
         get: vi.fn().mockResolvedValue(undefined),
       },
@@ -144,7 +144,6 @@ describe("NFPMIncreaseLiquidityLogic", () => {
         set: vi.fn(),
       },
       NonFungiblePosition: {
-        ...currentDb.entities.NonFungiblePosition,
         getWhere: vi
           .fn()
           .mockImplementation((filter: { tokenId?: { _eq?: bigint } }) =>
@@ -154,25 +153,28 @@ describe("NFPMIncreaseLiquidityLogic", () => {
           ),
         set: (entity: NonFungiblePosition) => {
           trackPosition(entity);
-          const updatedDb = originalSet(entity);
-          mockDb = updatedDb;
-          return updatedDb;
         },
         get: (id: string) => {
-          return mockDb.entities.NonFungiblePosition.get(id);
+          return Promise.resolve(entityStore.get(id));
         },
+        getOrThrow: vi.fn(),
+        getOrCreate: vi.fn(),
+        deleteUnsafe: vi.fn(),
       },
       CLPoolMintEvent: {
-        ...currentDb.entities.CLPoolMintEvent,
         deleteUnsafe: (id: string) => {
           const index = mintEvents.findIndex((e) => e.id === id);
           if (index >= 0) {
             mintEvents.splice(index, 1);
           }
+          mintEventStore.delete(id);
         },
         get: (id: string) => {
-          return mockDb.entities.CLPoolMintEvent.get(id);
+          return Promise.resolve(mintEventStore.get(id));
         },
+        set: vi.fn(),
+        getOrThrow: vi.fn(),
+        getWhere: vi.fn(),
         // biome-ignore lint/suspicious/noExplicitAny: Mock for testing
       } as any,
       TxCLPoolMintRegistry: {
@@ -209,19 +211,32 @@ describe("NFPMIncreaseLiquidityLogic", () => {
       tokenId?: bigint;
       amount0?: bigint;
       amount1?: bigint;
-      mockEventData?: typeof defaultMockEventData;
+      mockEventData?: Partial<typeof defaultMockEventData> & {
+        transaction?: { hash: string };
+      };
     } = {},
-  ) {
-    return NFPM.IncreaseLiquidity.createMockEvent({
-      tokenId: overrides.tokenId ?? tokenId,
-      liquidity: liquidity,
-      amount0: overrides.amount0 ?? 18500000000n,
-      amount1: overrides.amount1 ?? 15171806313n,
-      mockEventData: {
-        ...defaultMockEventData,
-        ...overrides.mockEventData,
+  ): EvmEvent<"NFPM", "IncreaseLiquidity"> {
+    const eventData = {
+      ...defaultMockEventData,
+      ...overrides.mockEventData,
+      // If override has a transaction, merge it; otherwise keep default
+      transaction:
+        overrides.mockEventData?.transaction ??
+        defaultMockEventData.transaction,
+    };
+    return {
+      params: {
+        tokenId: overrides.tokenId ?? tokenId,
+        liquidity: liquidity,
+        amount0: overrides.amount0 ?? 18500000000n,
+        amount1: overrides.amount1 ?? 15171806313n,
       },
-    });
+      block: eventData.block,
+      chainId: eventData.chainId,
+      logIndex: eventData.logIndex,
+      srcAddress: eventData.srcAddress,
+      transaction: eventData.transaction,
+    } as unknown as EvmEvent<"NFPM", "IncreaseLiquidity">;
   }
 
   beforeEach(() => {
@@ -231,8 +246,8 @@ describe("NFPMIncreaseLiquidityLogic", () => {
     storedPositions = [mockPosition];
     storedMintEvents = [];
     mockContext = createMockContext(storedPositions, storedMintEvents);
-    mockDb = MockDb.createMockDb();
-    mockDb = mockDb.entities.NonFungiblePosition.set(mockPosition);
+    entityStore = new Map<string, NonFungiblePosition>();
+    entityStore.set(mockPosition.id, mockPosition);
   });
 
   describe("calculateIncreaseLiquidityDiff", () => {
@@ -266,9 +281,7 @@ describe("NFPMIncreaseLiquidityLogic", () => {
 
       await processNFPMIncreaseLiquidity(mockEvent, mockContext);
 
-      const updatedPosition = mockDb.entities.NonFungiblePosition.get(
-        mockPosition.id,
-      );
+      const updatedPosition = entityStore.get(mockPosition.id);
       expect(updatedPosition).toBeDefined();
       if (!updatedPosition) return;
 
@@ -307,9 +320,7 @@ describe("NFPMIncreaseLiquidityLogic", () => {
 
       await processNFPMIncreaseLiquidity(secondEvent, mockContext);
 
-      const updatedPosition = mockDb.entities.NonFungiblePosition.get(
-        mockPosition.id,
-      );
+      const updatedPosition = entityStore.get(mockPosition.id);
       expect(updatedPosition).toBeDefined();
       if (!updatedPosition) return;
 
@@ -350,22 +361,15 @@ describe("NFPMIncreaseLiquidityLogic", () => {
       // Recreate context with the mint event
       storedMintEvents = [mockMintEvent];
       mockContext = createMockContext(storedPositions, storedMintEvents);
-      mockDb = MockDb.createMockDb();
-      mockDb = mockDb.entities.NonFungiblePosition.set(mockPosition);
-      mockDb = mockDb.entities.CLPoolMintEvent.set(mockMintEvent);
 
-      const mockEvent = NFPM.IncreaseLiquidity.createMockEvent({
-        tokenId: tokenId,
-        liquidity: increaseAmount,
-        amount0: 18500000000n,
-        amount1: 15171806313n,
+      const mockEvent = createMockIncreaseLiquidityEvent(increaseAmount, {
         mockEventData: {
-          ...defaultMockEventData,
           block: {
             ...defaultMockEventData.block,
             hash: transactionHash,
           },
           logIndex: increaseLogIndex,
+          srcAddress: nfpmAddress,
           transaction: {
             hash: transactionHash,
           },
@@ -412,15 +416,8 @@ describe("NFPMIncreaseLiquidityLogic", () => {
 
       storedMintEvents = [nonMatchingMintEvent];
       mockContext = createMockContext(storedPositions, storedMintEvents);
-      mockDb = MockDb.createMockDb();
-      mockDb = mockDb.entities.NonFungiblePosition.set(mockPosition);
-      mockDb = mockDb.entities.CLPoolMintEvent.set(nonMatchingMintEvent);
 
-      const mockEvent = NFPM.IncreaseLiquidity.createMockEvent({
-        tokenId: tokenId,
-        liquidity: increaseAmount,
-        amount0: 18500000000n,
-        amount1: 15171806313n,
+      const mockEvent = createMockIncreaseLiquidityEvent(increaseAmount, {
         mockEventData: {
           ...defaultMockEventData,
           logIndex: increaseLogIndex,
@@ -498,24 +495,15 @@ describe("NFPMIncreaseLiquidityLogic", () => {
       // Recreate context with multiple mint events
       storedMintEvents = [mockMintEvent1, mockMintEvent2, mockMintEvent3];
       mockContext = createMockContext(storedPositions, storedMintEvents);
-      mockDb = MockDb.createMockDb();
-      mockDb = mockDb.entities.NonFungiblePosition.set(mockPosition);
-      mockDb = mockDb.entities.CLPoolMintEvent.set(mockMintEvent1);
-      mockDb = mockDb.entities.CLPoolMintEvent.set(mockMintEvent2);
-      mockDb = mockDb.entities.CLPoolMintEvent.set(mockMintEvent3);
 
-      const mockEvent = NFPM.IncreaseLiquidity.createMockEvent({
-        tokenId: tokenId,
-        liquidity: increaseAmount,
-        amount0: 18500000000n,
-        amount1: 15171806313n,
+      const mockEvent = createMockIncreaseLiquidityEvent(increaseAmount, {
         mockEventData: {
-          ...defaultMockEventData,
           block: {
             ...defaultMockEventData.block,
             hash: transactionHash,
           },
           logIndex: increaseLogIndex,
+          srcAddress: nfpmAddress,
           transaction: {
             hash: transactionHash,
           },
@@ -571,7 +559,7 @@ describe("NFPMIncreaseLiquidityLogic", () => {
       );
 
       // Position should remain unchanged
-      const position = mockDb.entities.NonFungiblePosition.get(mockPosition.id);
+      const position = entityStore.get(mockPosition.id);
       expect(position?.liquidity).toBe(mockPosition.liquidity);
     });
 

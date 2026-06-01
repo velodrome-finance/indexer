@@ -1,10 +1,7 @@
-import type {
-  CLFactory_TickSpacingEnabled_event,
-  FeeToTickSpacingMapping,
-} from "generated";
+import type { EvmEvent, FeeToTickSpacingMapping } from "envio";
 
 export function processCLFactoryTickSpacingEnabled(
-  event: CLFactory_TickSpacingEnabled_event,
+  event: EvmEvent<"CLFactory", "TickSpacingEnabled">,
 ): Partial<FeeToTickSpacingMapping> {
   const feeToTickSpacingMappingDiff = {
     fee: BigInt(event.params.fee),

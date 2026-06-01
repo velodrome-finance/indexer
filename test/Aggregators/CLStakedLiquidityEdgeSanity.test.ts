@@ -1,5 +1,5 @@
-import type { Token, handlerContext } from "generated";
-import { CLGauge, MockDb, NFPM } from "../../generated/src/TestHelpers.gen";
+import type { Token } from "envio";
+import { createTestIndexer } from "envio";
 import {
   applyPositionToEdges,
   deriveLiquidityInRange,
@@ -10,9 +10,33 @@ import {
   PoolId,
   toChecksumAddress,
 } from "../../src/Constants";
+import { rehydrateTimestamps } from "../../src/EntityTimestamps";
+import type { handlerContext } from "../../src/EntityTypes";
 import { updateStakedPositionLiquidity } from "../../src/EventHandlers/NFPM/NFPMCommonLogic";
 import { setupCommon } from "../EventHandlers/Pool/common";
 import { sqrtAt } from "./common";
+
+/**
+ * Copies the relevant entity store from one test indexer to another,
+ * rehydrating Timestamp fields. createTestIndexer does not support a 2nd
+ * process() on the same indexer — batch-1 entities round-trip their Date
+ * fields to strings and the write serializer throws (date.toISOString) — so
+ * tests that apply sequential event batches run each batch on a fresh indexer
+ * and carry state forward with this helper.
+ */
+async function carryStore(
+  from: ReturnType<typeof createTestIndexer>,
+  to: ReturnType<typeof createTestIndexer>,
+): Promise<void> {
+  for (const e of await from.Pool.getAll())
+    to.Pool.set(rehydrateTimestamps("Pool", e));
+  for (const e of await from.Token.getAll())
+    to.Token.set(rehydrateTimestamps("Token", e));
+  for (const e of await from.NonFungiblePosition.getAll())
+    to.NonFungiblePosition.set(rehydrateTimestamps("NonFungiblePosition", e));
+  for (const e of await from.UserStatsPerPool.getAll())
+    to.UserStatsPerPool.set(rehydrateTimestamps("UserStatsPerPool", e));
+}
 
 /**
  * Co-located sanity test for #649: replacing `processTickCrossings`
@@ -34,7 +58,7 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
     createMockNonFungiblePosition,
     defaultNfpmAddress,
   } = setupCommon();
-  const chainId = 10;
+  const chainId = 10 as const;
   const gaugeAddress = toChecksumAddress(
     "0x5555555555555555555555555555555555555555",
   );
@@ -43,7 +67,7 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
   );
 
   it("(a) stakedTickEdges stays sorted + monotone across 150 interleaved gauge Deposit/Withdraw events", async () => {
-    let mockDb = MockDb.createMockDb();
+    const indexer = createTestIndexer();
 
     const liquidityPool = createMockPool({
       isCL: true,
@@ -51,9 +75,9 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
       hasStakes: false,
     });
 
-    mockDb = mockDb.entities.Pool.set(liquidityPool);
-    mockDb = mockDb.entities.Token.set(mockToken0Data as Token);
-    mockDb = mockDb.entities.Token.set(mockToken1Data as Token);
+    indexer.Pool.set(liquidityPool);
+    indexer.Token.set(mockToken0Data as Token);
+    indexer.Token.set(mockToken1Data as Token);
 
     // 100 synthetic positions with varied tick ranges — enough for sorted-insert
     // collisions and removals to exercise the invariants.
@@ -72,61 +96,68 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
         tickUpper,
         liquidity,
       });
-      mockDb = mockDb.entities.NonFungiblePosition.set(position);
+      indexer.NonFungiblePosition.set(position);
     }
 
     // Interleave Deposit and Withdraw events: deposit all, then withdraw half
     // in a non-sorted order. 150 total events (100 deposits + 50 withdraws).
-    const depositEvents = [];
+    const depositSimulate = [];
     for (let i = 0; i < POSITIONS; i++) {
       const tokenId = BigInt(i + 1);
-      depositEvents.push(
-        CLGauge.Deposit.createMockEvent({
+      depositSimulate.push({
+        contract: "CLGauge" as const,
+        event: "Deposit" as const,
+        srcAddress: gaugeAddress as `0x${string}`,
+        logIndex: i,
+        block: {
+          number: 1_000_000 + i,
+          timestamp: 1_700_000_000 + i,
+          hash: `0x${"a".repeat(64)}`,
+        },
+        params: {
           user: userAddress,
           tokenId,
           liquidityToStake: BigInt(1000 + i),
-          mockEventData: {
-            srcAddress: gaugeAddress,
-            chainId,
-            block: {
-              number: 1_000_000 + i,
-              timestamp: 1_700_000_000 + i,
-              hash: `0x${"a".repeat(64)}`,
-            },
-          },
-        }),
-      );
+        },
+      });
     }
 
     // Withdraw a pseudo-random half of them (deterministic order via i*7 mod).
-    const withdrawEvents = [];
+    const withdrawSimulate = [];
     for (let i = 0; i < POSITIONS; i++) {
       if (i % 2 !== 0) continue;
       const pick = ((i * 7) % POSITIONS) + 1;
       const tokenId = BigInt(pick);
-      withdrawEvents.push(
-        CLGauge.Withdraw.createMockEvent({
+      withdrawSimulate.push({
+        contract: "CLGauge" as const,
+        event: "Withdraw" as const,
+        srcAddress: gaugeAddress as `0x${string}`,
+        logIndex: i,
+        block: {
+          number: 2_000_000 + i,
+          timestamp: 1_700_100_000 + i,
+          hash: `0x${"b".repeat(64)}`,
+        },
+        params: {
           user: userAddress,
           tokenId,
           liquidityToStake: BigInt(1000 + pick - 1),
-          mockEventData: {
-            srcAddress: gaugeAddress,
-            chainId,
-            block: {
-              number: 2_000_000 + i,
-              timestamp: 1_700_100_000 + i,
-              hash: `0x${"b".repeat(64)}`,
-            },
-          },
-        }),
-      );
+        },
+      });
     }
 
-    const events = [...depositEvents, ...withdrawEvents];
-    expect(events.length).toBeGreaterThanOrEqual(150);
+    const allSimulate = [...depositSimulate, ...withdrawSimulate];
+    expect(allSimulate.length).toBeGreaterThanOrEqual(150);
 
-    const resultDb = await mockDb.processEvents(events);
-    const updated = resultDb.entities.Pool.get(
+    await indexer.process({
+      chains: {
+        [chainId]: {
+          simulate: allSimulate,
+        },
+      },
+    });
+
+    const updated = await indexer.Pool.get(
       PoolId(chainId, liquidityPool.poolAddress),
     );
 
@@ -320,7 +351,7 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
       // Swap on the pool then walked from a wrong baseline. The structural
       // fix removes the counter/edges asymmetry by deriving the counter from
       // edges at every write.
-      let mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
       const liquidityPool = createMockPool({
         isCL: true,
         gaugeAddress,
@@ -328,16 +359,16 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
         tick: 0n,
         hasStakes: false,
       });
-      mockDb = mockDb.entities.Pool.set(liquidityPool);
-      mockDb = mockDb.entities.Token.set(mockToken0Data as Token);
-      mockDb = mockDb.entities.Token.set(mockToken1Data as Token);
+      indexer.Pool.set(liquidityPool);
+      indexer.Token.set(mockToken0Data as Token);
+      indexer.Token.set(mockToken1Data as Token);
 
       // Position spans tick 0 — it is in-range at the default tick=0n.
       const tickLower = -100n;
       const tickUpper = 100n;
       const liquidity = 500n;
       const tokenId = 1n;
-      mockDb = mockDb.entities.NonFungiblePosition.set(
+      indexer.NonFungiblePosition.set(
         createMockNonFungiblePosition({
           tokenId,
           nfpmAddress: defaultNfpmAddress,
@@ -349,23 +380,32 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
         }),
       );
 
-      const event = CLGauge.Deposit.createMockEvent({
-        user: userAddress,
-        tokenId,
-        liquidityToStake: liquidity,
-        mockEventData: {
-          srcAddress: gaugeAddress,
-          chainId,
-          block: {
-            number: 1,
-            timestamp: 1_700_000_000,
-            hash: `0x${"a".repeat(64)}`,
+      await indexer.process({
+        chains: {
+          [chainId]: {
+            simulate: [
+              {
+                contract: "CLGauge",
+                event: "Deposit",
+                srcAddress: gaugeAddress as `0x${string}`,
+                logIndex: 0,
+                block: {
+                  number: 1,
+                  timestamp: 1_700_000_000,
+                  hash: `0x${"a".repeat(64)}`,
+                },
+                params: {
+                  user: userAddress,
+                  tokenId,
+                  liquidityToStake: liquidity,
+                },
+              },
+            ],
           },
         },
       });
 
-      const resultDb = await mockDb.processEvents([event]);
-      const updated = resultDb.entities.Pool.get(
+      const updated = await indexer.Pool.get(
         PoolId(chainId, liquidityPool.poolAddress),
       );
       expect(updated).toBeDefined();
@@ -397,7 +437,7 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
       // overwritten with derive(currentTick, edges, nets), which on empty
       // edges is 0. The legacy gated path skipped the counter on rejection,
       // so the poison would persist.
-      let mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
       const liquidityPool = createMockPool({
         isCL: true,
         gaugeAddress,
@@ -409,16 +449,16 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
         stakedTickEdges: [],
         stakedTickEdgeNets: [],
       });
-      mockDb = mockDb.entities.Pool.set(liquidityPool);
-      mockDb = mockDb.entities.Token.set(mockToken0Data as Token);
-      mockDb = mockDb.entities.Token.set(mockToken1Data as Token);
+      indexer.Pool.set(liquidityPool);
+      indexer.Token.set(mockToken0Data as Token);
+      indexer.Token.set(mockToken1Data as Token);
 
       // Degenerate position (tickLower >= tickUpper). Real chains wouldn't
       // mint this, but the rejection path is the structural concern — any
       // future rejection cause (out-of-range ticks from an upstream bug,
       // corrupt RPC data, etc.) must converge the counter to the edge truth.
       const tokenId = 1n;
-      mockDb = mockDb.entities.NonFungiblePosition.set(
+      indexer.NonFungiblePosition.set(
         createMockNonFungiblePosition({
           tokenId,
           nfpmAddress: defaultNfpmAddress,
@@ -430,23 +470,32 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
         }),
       );
 
-      const event = CLGauge.Deposit.createMockEvent({
-        user: userAddress,
-        tokenId,
-        liquidityToStake: 500n,
-        mockEventData: {
-          srcAddress: gaugeAddress,
-          chainId,
-          block: {
-            number: 1,
-            timestamp: 1_700_000_000,
-            hash: `0x${"a".repeat(64)}`,
+      await indexer.process({
+        chains: {
+          [chainId]: {
+            simulate: [
+              {
+                contract: "CLGauge",
+                event: "Deposit",
+                srcAddress: gaugeAddress as `0x${string}`,
+                logIndex: 0,
+                block: {
+                  number: 1,
+                  timestamp: 1_700_000_000,
+                  hash: `0x${"a".repeat(64)}`,
+                },
+                params: {
+                  user: userAddress,
+                  tokenId,
+                  liquidityToStake: 500n,
+                },
+              },
+            ],
           },
         },
       });
 
-      const resultDb = await mockDb.processEvents([event]);
-      const updated = resultDb.entities.Pool.get(
+      const updated = await indexer.Pool.get(
         PoolId(chainId, liquidityPool.poolAddress),
       );
       expect(updated).toBeDefined();
@@ -580,7 +629,7 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
       // Deposit and Withdraw — the structural fix means the counter is
       // recomputed from edges at every write, so any number of intervening
       // tick moves cannot poison the round-trip.
-      let mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
       const liquidityPool = createMockPool({
         isCL: true,
         gaugeAddress,
@@ -588,15 +637,15 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
         tick: 0n,
         hasStakes: false,
       });
-      mockDb = mockDb.entities.Pool.set(liquidityPool);
-      mockDb = mockDb.entities.Token.set(mockToken0Data as Token);
-      mockDb = mockDb.entities.Token.set(mockToken1Data as Token);
+      indexer.Pool.set(liquidityPool);
+      indexer.Token.set(mockToken0Data as Token);
+      indexer.Token.set(mockToken1Data as Token);
 
       const tickLower = -100n;
       const tickUpper = 100n;
       const liquidity = 500n;
       const tokenId = 1n;
-      mockDb = mockDb.entities.NonFungiblePosition.set(
+      indexer.NonFungiblePosition.set(
         createMockNonFungiblePosition({
           tokenId,
           nfpmAddress: defaultNfpmAddress,
@@ -609,23 +658,32 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
       );
 
       // 1) Deposit at in-range tick.
-      const depositEvent = CLGauge.Deposit.createMockEvent({
-        user: userAddress,
-        tokenId,
-        liquidityToStake: liquidity,
-        mockEventData: {
-          srcAddress: gaugeAddress,
-          chainId,
-          block: {
-            number: 1,
-            timestamp: 1_700_000_000,
-            hash: `0x${"a".repeat(64)}`,
+      await indexer.process({
+        chains: {
+          [chainId]: {
+            simulate: [
+              {
+                contract: "CLGauge",
+                event: "Deposit",
+                srcAddress: gaugeAddress as `0x${string}`,
+                logIndex: 0,
+                block: {
+                  number: 1,
+                  timestamp: 1_700_000_000,
+                  hash: `0x${"a".repeat(64)}`,
+                },
+                params: {
+                  user: userAddress,
+                  tokenId,
+                  liquidityToStake: liquidity,
+                },
+              },
+            ],
           },
         },
       });
-      let resultDb = await mockDb.processEvents([depositEvent]);
 
-      const postDeposit = resultDb.entities.Pool.get(
+      const postDeposit = await indexer.Pool.get(
         PoolId(chainId, liquidityPool.poolAddress),
       );
       expect(postDeposit).toBeDefined();
@@ -638,16 +696,22 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
         ),
       );
 
+      // Withdraw runs on a FRESH indexer carrying the post-Deposit state; a 2nd
+      // process() on the same indexer is unsupported (see carryStore).
+      const indexer2 = createTestIndexer();
+      await carryStore(indexer, indexer2);
+
       // 2) Emulate N "swaps" by jiggling tick across the range and out the
       // far side. Each pause writes the new (sqrtPriceX96, tick) state the
       // way a Swap handler would have. The invariant must hold at every step.
       const tickJourney = [50n, 99n, 500n, -300n, 0n];
       for (const t of tickJourney) {
-        const current = resultDb.entities.Pool.get(
+        const rawCurrent = await indexer2.Pool.get(
           PoolId(chainId, liquidityPool.poolAddress),
         );
-        if (!current) throw new Error("aggregator vanished mid-journey");
-        resultDb = resultDb.entities.Pool.set({
+        if (!rawCurrent) throw new Error("aggregator vanished mid-journey");
+        const current = rehydrateTimestamps("Pool", rawCurrent);
+        indexer2.Pool.set({
           ...current,
           tick: t,
           sqrtPriceX96: sqrtAt(t),
@@ -655,23 +719,32 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
       }
 
       // 3) Withdraw at the final tick (back in range).
-      const withdrawEvent = CLGauge.Withdraw.createMockEvent({
-        user: userAddress,
-        tokenId,
-        liquidityToStake: liquidity,
-        mockEventData: {
-          srcAddress: gaugeAddress,
-          chainId,
-          block: {
-            number: 2,
-            timestamp: 1_700_100_000,
-            hash: `0x${"b".repeat(64)}`,
+      await indexer2.process({
+        chains: {
+          [chainId]: {
+            simulate: [
+              {
+                contract: "CLGauge",
+                event: "Withdraw",
+                srcAddress: gaugeAddress as `0x${string}`,
+                logIndex: 0,
+                block: {
+                  number: 2,
+                  timestamp: 1_700_100_000,
+                  hash: `0x${"b".repeat(64)}`,
+                },
+                params: {
+                  user: userAddress,
+                  tokenId,
+                  liquidityToStake: liquidity,
+                },
+              },
+            ],
           },
         },
       });
-      resultDb = await resultDb.processEvents([withdrawEvent]);
 
-      const postWithdraw = resultDb.entities.Pool.get(
+      const postWithdraw = await indexer2.Pool.get(
         PoolId(chainId, liquidityPool.poolAddress),
       );
       expect(postWithdraw).toBeDefined();
@@ -700,7 +773,7 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
       //   leak forever (phantom positive residue scaling with ΔL).
       // - Post-fix: updateStakedPositionLiquidity mirrors ΔL onto the counter so
       //   the Withdraw guard passes and the round-trip balances to 0n.
-      let mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
       const liquidityPool = createMockPool({
         isCL: true,
         gaugeAddress,
@@ -709,16 +782,16 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
         hasStakes: false,
         nfpmAddress: defaultNfpmAddress,
       });
-      mockDb = mockDb.entities.Pool.set(liquidityPool);
-      mockDb = mockDb.entities.Token.set(mockToken0Data as Token);
-      mockDb = mockDb.entities.Token.set(mockToken1Data as Token);
+      indexer.Pool.set(liquidityPool);
+      indexer.Token.set(mockToken0Data as Token);
+      indexer.Token.set(mockToken1Data as Token);
 
       const tickLower = -100n;
       const tickUpper = 100n;
       const initialLiquidity = 19_203_953_530_494n; // L0 from issue body's USDC/mooBIFI example
       const increaseDelta = 141_500_788_681_522_563n; // ΔL from issue body
       const tokenId = 31357n; // matches the issue body's example
-      mockDb = mockDb.entities.NonFungiblePosition.set(
+      indexer.NonFungiblePosition.set(
         createMockNonFungiblePosition({
           tokenId,
           nfpmAddress: defaultNfpmAddress,
@@ -732,23 +805,32 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
       );
 
       // 1) Gauge Deposit at L0.
-      const depositEvent = CLGauge.Deposit.createMockEvent({
-        user: userAddress,
-        tokenId,
-        liquidityToStake: initialLiquidity,
-        mockEventData: {
-          srcAddress: gaugeAddress,
-          chainId,
-          block: {
-            number: 1,
-            timestamp: 1_700_000_000,
-            hash: `0x${"a".repeat(64)}`,
+      await indexer.process({
+        chains: {
+          [chainId]: {
+            simulate: [
+              {
+                contract: "CLGauge",
+                event: "Deposit",
+                srcAddress: gaugeAddress as `0x${string}`,
+                logIndex: 0,
+                block: {
+                  number: 1,
+                  timestamp: 1_700_000_000,
+                  hash: `0x${"a".repeat(64)}`,
+                },
+                params: {
+                  user: userAddress,
+                  tokenId,
+                  liquidityToStake: initialLiquidity,
+                },
+              },
+            ],
           },
         },
       });
-      let resultDb = await mockDb.processEvents([depositEvent]);
 
-      const postDeposit = resultDb.entities.Pool.get(
+      const postDeposit = await indexer.Pool.get(
         PoolId(chainId, liquidityPool.poolAddress),
       );
       expect(postDeposit).toBeDefined();
@@ -757,35 +839,54 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
 
       // 2) NFPM.IncreaseLiquidity while position is staked. Mirror the chain
       // by bumping position.liquidity AND firing the IncreaseLiquidity event.
-      const positionAfterDeposit = resultDb.entities.NonFungiblePosition.get(
+      const rawPositionAfterDeposit = await indexer.NonFungiblePosition.get(
         NonFungiblePositionId(chainId, defaultNfpmAddress, tokenId),
       );
-      if (!positionAfterDeposit) throw new Error("position vanished");
+      if (!rawPositionAfterDeposit) throw new Error("position vanished");
+      const positionAfterDeposit = rehydrateTimestamps(
+        "NonFungiblePosition",
+        rawPositionAfterDeposit,
+      );
       // Gauge Deposit sets isStakedInGauge=true via NFPMTransfer in the real
       // pipeline; here we set it explicitly to mirror that state.
-      resultDb = resultDb.entities.NonFungiblePosition.set({
+      indexer.NonFungiblePosition.set({
         ...positionAfterDeposit,
         isStakedInGauge: true,
       });
 
-      const increaseEvent = NFPM.IncreaseLiquidity.createMockEvent({
-        tokenId,
-        liquidity: increaseDelta,
-        amount0: 0n,
-        amount1: 0n,
-        mockEventData: {
-          srcAddress: defaultNfpmAddress,
-          chainId,
-          block: {
-            number: 2,
-            timestamp: 1_700_010_000,
-            hash: `0x${"c".repeat(64)}`,
+      // IncreaseLiquidity runs on a fresh indexer carrying the post-Deposit
+      // state (a 2nd process() on the same indexer is unsupported — see
+      // carryStore).
+      const indexer2 = createTestIndexer();
+      await carryStore(indexer, indexer2);
+
+      await indexer2.process({
+        chains: {
+          [chainId]: {
+            simulate: [
+              {
+                contract: "NFPM",
+                event: "IncreaseLiquidity",
+                srcAddress: defaultNfpmAddress as `0x${string}`,
+                logIndex: 0,
+                block: {
+                  number: 2,
+                  timestamp: 1_700_010_000,
+                  hash: `0x${"c".repeat(64)}`,
+                },
+                params: {
+                  tokenId,
+                  liquidity: increaseDelta,
+                  amount0: 0n,
+                  amount1: 0n,
+                },
+              },
+            ],
           },
         },
       });
-      resultDb = await resultDb.processEvents([increaseEvent]);
 
-      const postIncrease = resultDb.entities.Pool.get(
+      const postIncrease = await indexer2.Pool.get(
         PoolId(chainId, liquidityPool.poolAddress),
       );
       expect(postIncrease).toBeDefined();
@@ -799,23 +900,35 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
       // 3) Withdraw arrives with liquidityToStake = position.liquidity =
       // initialLiquidity + increaseDelta (mirroring how the gauge contract
       // emits Withdraw with the chain-truth liquidity).
-      const withdrawEvent = CLGauge.Withdraw.createMockEvent({
-        user: userAddress,
-        tokenId,
-        liquidityToStake: initialLiquidity + increaseDelta,
-        mockEventData: {
-          srcAddress: gaugeAddress,
-          chainId,
-          block: {
-            number: 3,
-            timestamp: 1_700_100_000,
-            hash: `0x${"b".repeat(64)}`,
+      const indexer3 = createTestIndexer();
+      await carryStore(indexer2, indexer3);
+
+      await indexer3.process({
+        chains: {
+          [chainId]: {
+            simulate: [
+              {
+                contract: "CLGauge",
+                event: "Withdraw",
+                srcAddress: gaugeAddress as `0x${string}`,
+                logIndex: 0,
+                block: {
+                  number: 3,
+                  timestamp: 1_700_100_000,
+                  hash: `0x${"b".repeat(64)}`,
+                },
+                params: {
+                  user: userAddress,
+                  tokenId,
+                  liquidityToStake: initialLiquidity + increaseDelta,
+                },
+              },
+            ],
           },
         },
       });
-      resultDb = await resultDb.processEvents([withdrawEvent]);
 
-      const postWithdraw = resultDb.entities.Pool.get(
+      const postWithdraw = await indexer3.Pool.get(
         PoolId(chainId, liquidityPool.poolAddress),
       );
       expect(postWithdraw).toBeDefined();

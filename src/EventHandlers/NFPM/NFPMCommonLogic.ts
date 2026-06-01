@@ -1,4 +1,4 @@
-import type { NonFungiblePosition, handlerContext } from "generated";
+import type { NonFungiblePosition } from "envio";
 import {
   applyPositionToEdges,
   deriveLiquidityInRange,
@@ -9,6 +9,7 @@ import {
   loadOrCreateUserData,
   updateUserStatsPerPool,
 } from "../../Aggregators/UserStatsPerPool";
+import type { handlerContext } from "../../EntityTypes";
 import {
   calculatePositionAmountsFromLiquidity,
   calculateTotalUSD,

@@ -1,4 +1,4 @@
-import type { Pool_Fees_event } from "generated";
+import type { EvmEvent } from "envio";
 import type { PoolDiff } from "../../Aggregators/Pool";
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 
@@ -23,7 +23,9 @@ export interface PoolFeesResult {
  * @param event - V2 Pool Fees event
  * @returns Pool and user diffs with raw token-unit fee amounts only
  */
-export function processPoolFees(event: Pool_Fees_event): PoolFeesResult {
+export function processPoolFees(
+  event: EvmEvent<"Pool", "Fees">,
+): PoolFeesResult {
   // Create liquidity pool diff — raw token amounts only; USD fee is written
   // in processPoolSwap (see file-top doc / issue #797).
   const liquidityPoolDiff = {

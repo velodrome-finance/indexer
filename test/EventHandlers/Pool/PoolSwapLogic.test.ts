@@ -1,4 +1,4 @@
-import type { Pool_Swap_event, Token } from "generated";
+import type { EvmEvent, Token } from "envio";
 import { toChecksumAddress } from "../../../src/Constants";
 import { processPoolSwap } from "../../../src/EventHandlers/Pool/PoolSwapLogic";
 import * as Helpers from "../../../src/Helpers";
@@ -14,7 +14,7 @@ describe("PoolSwapLogic", () => {
   // Pool with a typical V2 vAMM fee rate (30 = 0.30% on the 1e4 basis).
   const mockPool = createMockPool({ currentFee: 30n });
   // Shared mock event for all tests
-  const mockEvent: Pool_Swap_event = {
+  const mockEvent = {
     params: {
       sender: toChecksumAddress("0x1111111111111111111111111111111111111111"),
       to: toChecksumAddress("0x2222222222222222222222222222222222222222"),
@@ -34,7 +34,7 @@ describe("PoolSwapLogic", () => {
     },
     chainId: 10,
     logIndex: 1,
-  };
+  } as unknown as EvmEvent<"Pool", "Swap">;
 
   // Mock token instances
   const mockToken0: Token = {
@@ -92,7 +92,7 @@ describe("PoolSwapLogic", () => {
     });
 
     it("should calculate volume correctly when token1 has higher volume", () => {
-      const modifiedEvent: Pool_Swap_event = {
+      const modifiedEvent: EvmEvent<"Pool", "Swap"> = {
         ...mockEvent,
         params: {
           ...mockEvent.params,
@@ -188,7 +188,7 @@ describe("PoolSwapLogic", () => {
 
   describe("Volume calculations", () => {
     it("should calculate net amounts correctly from event params", () => {
-      const swapEvent: Pool_Swap_event = {
+      const swapEvent: EvmEvent<"Pool", "Swap"> = {
         ...mockEvent,
         params: {
           ...mockEvent.params,
@@ -228,7 +228,7 @@ describe("PoolSwapLogic", () => {
     });
 
     it("should use token1 USD value when token0 is zero AND token1 is whitelisted", () => {
-      const eventWithZeroToken0: Pool_Swap_event = {
+      const eventWithZeroToken0: EvmEvent<"Pool", "Swap"> = {
         ...mockEvent,
         params: {
           ...mockEvent.params,
@@ -261,7 +261,7 @@ describe("PoolSwapLogic", () => {
       // priced token1 must not contribute any volume. The pool
       // 8453-0x0129798a373f68b47AaE97d8562d861F10967650 produced a
       // $1.125e19 phantom volume from exactly this shape.
-      const eventWithZeroToken0: Pool_Swap_event = {
+      const eventWithZeroToken0: EvmEvent<"Pool", "Swap"> = {
         ...mockEvent,
         params: {
           ...mockEvent.params,
@@ -320,7 +320,7 @@ describe("PoolSwapLogic", () => {
         pricePerUSDNew: 1n * 1000000000000000000n, // 1e18 ($1)
         decimals: 6n,
       };
-      const swapEvent: Pool_Swap_event = {
+      const swapEvent: EvmEvent<"Pool", "Swap"> = {
         ...mockEvent,
         params: {
           ...mockEvent.params,
@@ -418,7 +418,7 @@ describe("PoolSwapLogic", () => {
       // token0-input swap: amount0 is the fee leg. Pre-fix this leg's USD
       // value (poisoned) would have been the fee USD; post-fix it is filtered
       // by the volume min-pick before being multiplied by the rate.
-      const swapEvent: Pool_Swap_event = {
+      const swapEvent: EvmEvent<"Pool", "Swap"> = {
         ...mockEvent,
         params: {
           ...mockEvent.params,
@@ -468,7 +468,7 @@ describe("PoolSwapLogic", () => {
         pricePerUSDNew: 1n * 10n ** 18n,
       };
       const swapAmount0 = 1000n * 10n ** 6n; // $1000 token0-input
-      const swapEvent: Pool_Swap_event = {
+      const swapEvent: EvmEvent<"Pool", "Swap"> = {
         ...mockEvent,
         params: {
           ...mockEvent.params,

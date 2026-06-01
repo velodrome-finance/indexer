@@ -1,4 +1,4 @@
-import type { Pool_Transfer_event, handlerContext } from "generated";
+import type { EvmEvent } from "envio";
 import { updatePool } from "../../Aggregators/Pool";
 import {
   loadOrCreateUserData,
@@ -9,6 +9,7 @@ import {
   TxPoolTransferRegistryId,
   ZERO_ADDRESS,
 } from "../../Constants";
+import type { handlerContext } from "../../EntityTypes";
 import type { Pool } from "../../EntityTypes";
 
 /**
@@ -238,7 +239,7 @@ export async function storeTransferForMatching(
  * Updates pool totalLPTokenSupply, user LP balances, and stores mint/burn transfers for matching
  */
 export async function processPoolTransfer(
-  event: Pool_Transfer_event,
+  event: EvmEvent<"Pool", "Transfer">,
   liquidityPoolAggregator: Pool,
   poolAddress: string,
   chainId: number,

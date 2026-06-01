@@ -1,6 +1,9 @@
-import type { VeNFTState, handlerContext } from "generated";
+import type { VeNFTState } from "envio";
+
+import type { handlerContext } from "../EntityTypes";
 
 import { VeNFTId } from "../Constants";
+import { getRehydrated } from "../EntityTimestamps";
 import { getSnapshotEpoch, shouldSnapshot } from "../Snapshots/Shared";
 import { setVeNFTStateSnapshot } from "../Snapshots/VeNFTStateSnapshot";
 
@@ -24,7 +27,7 @@ export async function loadVeNFTState(
   context: handlerContext,
 ): Promise<VeNFTState | undefined> {
   const id = VeNFTId(chainId, tokenId);
-  const veNFTState = await context.VeNFTState.get(id);
+  const veNFTState = await getRehydrated(context.VeNFTState, "VeNFTState", id);
 
   if (!veNFTState) {
     context.log.warn(`[loadVeNFTState] VeNFTState ${id} not found`);
