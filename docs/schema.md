@@ -34,7 +34,7 @@ Latest-state entities that hold the headline metrics most consumers query.
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{poolAddress} (PoolId) |
-| `chainId` | `Int!` |  |
+| `chainId` | `Int!` | chain id |
 | `poolAddress` | `String!` | address of the pool |
 | `name` | `String!` | name of the pool |
 | `token0_id` | `String!` | token0 id |
@@ -83,9 +83,9 @@ Latest-state entities that hold the headline metrics most consumers query.
 | `stakedReserve1` | `BigInt` | staked reserves in token1 raw units (running counter) |
 | `hasStakes` | `Boolean!` | True once any staked position has been recorded for this pool. Gates the per-swap staked-tick sweep in processTickCrossings: pools that have never been staked skip the sweep entirely. Set on the first gauge Deposit. One-way latch: does NOT clear if every staked position is later withdrawn. A transiently-staked-then-fully-unstaked pool will keep running the sweep (with zero contributions). The structural fix that makes the residual cost negligible is tracked in #649 (sparse stakedTickEdges list); until it lands, the latch is "accept a degenerate case to avoid the bookkeeping of clearing". |
 | `stakedTickEdges` | `[BigInt!]!` | Parallel arrays encoding Uniswap v3's per-tick liquidityNet for the staked subset. Sorted ascending by tick, dedup'd, no zero-net entries. Same length, same index: (stakedTickEdges[i], stakedTickEdgeNets[i]) is one (tick, net) pair. Two arrays instead of one list-of-structs because GraphQL lists only allow scalars or named types — tuples don't exist at this layer. Maintained on gauge deposit / withdraw / NFPM staked-position liquidity changes. Consumed by processTickCrossings via in-memory binary search — no per-tick entity loads on the swap path, which breaks the OOM chain-of-amplification from #648. |
-| `stakedTickEdgeNets` | `[BigInt!]!` |  |
+| `stakedTickEdgeNets` | `[BigInt!]!` | Per-tick liquidityNet for the staked subset; paired index-for-index with stakedTickEdges (see stakedTickEdges). |
 | `tickEdges` | `[BigInt!]!` | Total-liquidity analog of stakedTickEdges/stakedTickEdgeNets: the pool's full per-tick liquidityNet map (all positions, not just staked). Maintained on CLPool Mint/Burn; consumed by processTickCrossings on the swap path to compute the fee-free reserve delta from pool geometry (L·ΔsqrtPrice), replacing the stale-fee approximation that drifts on dynamic-fee pools (#803). |
-| `tickEdgeNets` | `[BigInt!]!` |  |
+| `tickEdgeNets` | `[BigInt!]!` | Per-tick liquidityNet for all positions; paired index-for-index with tickEdges (see tickEdges). |
 | `totalFlashLoanFees0` | `BigInt` | total flash loan fees collected in token0 |
 | `totalFlashLoanFees1` | `BigInt` | total flash loan fees collected in token1 |
 | `totalFlashLoanFeesUSD` | `BigInt` | total flash loan fees collected in USD |
@@ -129,14 +129,14 @@ Entity that tracks the latest state of the token entity By nature this entity sa
 | `address` | `String!` | token address _(indexed)_ |
 | `symbol` | `String!` | token symbol |
 | `name` | `String!` | token name |
-| `chainId` | `Int!` |  _(indexed)_ |
+| `chainId` | `Int!` | chain id _(indexed)_ |
 | `decimals` | `BigInt!` | number of decimals |
 | `pricePerUSDNew` | `BigInt!` | price of token per USD |
 | `lastUpdatedTimestamp` | `Timestamp!` | timestamp of last refresh attempt (used by 1-hour throttle) |
 | `lastSuccessfulPriceTimestamp` | `Timestamp` | timestamp of last non-zero oracle write (used by 7-day fallback staleness window, #694) |
 | `isWhitelisted` | `Boolean!` | whether the token is whitelisted |
 | `priceTrustOutcome` | `String` | Price-trust gate per-token decision surface (issue #755 slice 2). Populated at every Token construction site (Voter.WhitelistToken, SuperchainLeafVoter .WhitelistToken, PriceOracle.createTokenEntity, VotingReward reward-token bootstrap) via `PriceTrust.getGateDecisionFromSignals`; subsequent refreshes preserve the stamped values via spread until slice-3+ aggregator paths re-evaluate via `PriceTrust.getGateDecision` at consume time. Null only on rows that predate the field's introduction. Stored as String (not enum) so values can extend without an Envio schema migration. The TypeScript value sets are pinned by the `PRICE_TRUST_OUTCOME` / `PRICE_TRUST_REASON` const objects in `src/PriceTrust.ts` — call sites should reference those constants rather than bare string literals. Trusted-USD aggregates are written into the existing `*USD` fields on Pool — no `*USDTrusted` companion fields. Per-chain rollback uses the migration mode flag introduced in slice 4; A/B comparison against pre-gate values is done offline via the diff script (issue #755 US #19). |
-| `priceTrustReason` | `String` |  |
+| `priceTrustReason` | `String` | Reason code paired with priceTrustOutcome; values pinned by PRICE_TRUST_REASON in src/PriceTrust.ts (see priceTrustOutcome). |
 
 ### UserStatsPerPool
 
@@ -145,9 +145,9 @@ Entity for tracking user activity and positions in specific pools
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{userAddress}-{poolAddress} (UserStatsPerPoolId) |
-| `userAddress` | `String!` |  _(indexed)_ |
-| `poolAddress` | `String!` |  _(indexed)_ |
-| `chainId` | `Int!` |  |
+| `userAddress` | `String!` | user wallet address _(indexed)_ |
+| `poolAddress` | `String!` | address of the pool these stats are scoped to _(indexed)_ |
+| `chainId` | `Int!` | chain id |
 | `lpBalance` | `BigInt!` | user's LP token balance (tracked from Transfer events) |
 | `totalLiquidityAddedUSD` | `BigInt!` | cumulative USD value of liquidity added (from IncreaseLiquidity events, Transfer ADD attribution, and direct non-NFPM CLPool.Mint) |
 | `totalLiquidityAddedToken0` | `BigInt!` | cumulative raw token0 amount added (sum of event.params.amount0 from IncreaseLiquidity + Transfer ADD + direct non-NFPM CLPool.Mint). May differ from removed due to price movement between deposit and withdrawal |
@@ -218,26 +218,26 @@ Tracks relevant data for each NFT minted: each NFT represents a concentrated pos
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{tokenId} (VeNFTId) |
-| `chainId` | `Int!` |  |
-| `tokenId` | `BigInt!` |  |
-| `owner` | `String!` |  |
-| `locktime` | `BigInt!` |  |
-| `isPermanent` | `Boolean!` |  |
-| `lastUpdatedTimestamp` | `Timestamp!` |  |
-| `totalValueLocked` | `BigInt!` |  |
-| `isAlive` | `Boolean!` |  |
+| `chainId` | `Int!` | chain id |
+| `tokenId` | `BigInt!` | veNFT token ID |
+| `owner` | `String!` | current owner address of the veNFT |
+| `locktime` | `BigInt!` | lock expiry timestamp (seconds); 0 for permanent locks |
+| `isPermanent` | `Boolean!` | whether the lock is permanent (never expires) |
+| `lastUpdatedTimestamp` | `Timestamp!` | timestamp of last update |
+| `totalValueLocked` | `BigInt!` | amount of governance token locked in the veNFT |
+| `isAlive` | `Boolean!` | whether the veNFT still exists (false after burn/withdraw) |
 | `lastSnapshotTimestamp` | `Timestamp` | nullable - null means never snapshotted |
-| `votesPerPool` | `[VeNFTPoolVote!]!` |  _(derived)_ |
+| `votesPerPool` | `[VeNFTPoolVote!]!` | reverse relation: this veNFT's per-pool vote allocations _(derived)_ |
 
 ### VeNFTPoolVote
 
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{tokenId}-{poolAddress} (VeNFTPoolVoteId) |
-| `poolAddress` | `String!` |  _(indexed)_ |
-| `veNFTamountStaked` | `BigInt!` |  |
-| `veNFTState` | `VeNFTState!` |  _(indexed)_ |
-| `lastUpdatedTimestamp` | `Timestamp!` |  |
+| `poolAddress` | `String!` | pool this veNFT allocated votes to _(indexed)_ |
+| `veNFTamountStaked` | `BigInt!` | vote weight this veNFT allocated to the pool, in veToken units |
+| `veNFTState` | `VeNFTState!` | the veNFT that cast this vote _(indexed)_ |
+| `lastUpdatedTimestamp` | `Timestamp!` | timestamp of last update |
 
 ### ALM_LP_Wrapper
 
@@ -285,7 +285,7 @@ Snapshot of the LiquidityPool entity
 | `token0_address` | `String!` | token0 address |
 | `token1_address` | `String!` | token1 address |
 | `isStable` | `Boolean!` | whether the pool is a stable AMM or a volatile AMM |
-| `isCL` | `Boolean!` |  |
+| `isCL` | `Boolean!` | whether the pool is a CL pool |
 | `reserve0` | `BigInt!` | reserve of token0 in token units |
 | `reserve1` | `BigInt!` | reserve of token1 in token units |
 | `totalLPTokenSupply` | `BigInt!` | total supply of LP tokens (tracked from Transfer events) |
@@ -359,7 +359,7 @@ Snapshot of the Token entity
 | `id` | `ID!` | Format: {chainId}-{address}-{blockNumber} (TokenIdByBlock) |
 | `address` | `String!` | Address of the token _(indexed)_ |
 | `pricePerUSDNew` | `BigInt!` | price of token per USD |
-| `chainId` | `Int!` |  |
+| `chainId` | `Int!` | chain id |
 | `isWhitelisted` | `Boolean!` | whether the token is whitelisted |
 | `lastUpdatedTimestamp` | `Timestamp!` | Timestamp of the last update _(indexed)_ |
 
@@ -370,49 +370,49 @@ Snapshot of UserStatsPerPool at an epoch (invariant fields + position params for
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{userAddress}-{poolAddress}-{epochMs} (UserStatsPerPoolSnapshotId) |
-| `userAddress` | `String!` |  _(indexed)_ |
-| `poolAddress` | `String!` |  _(indexed)_ |
-| `chainId` | `Int!` |  |
-| `timestamp` | `Timestamp!` |  _(indexed)_ |
-| `lpBalance` | `BigInt!` |  |
-| `totalLiquidityAddedUSD` | `BigInt!` |  |
-| `totalLiquidityAddedToken0` | `BigInt!` |  |
-| `totalLiquidityAddedToken1` | `BigInt!` |  |
-| `totalLiquidityRemovedUSD` | `BigInt!` |  |
-| `totalLiquidityRemovedToken0` | `BigInt!` |  |
-| `totalLiquidityRemovedToken1` | `BigInt!` |  |
-| `numberOfSwaps` | `BigInt!` |  |
-| `totalSwapVolumeAmount0` | `BigInt!` |  |
-| `totalSwapVolumeAmount1` | `BigInt!` |  |
-| `totalSwapVolumeUSD` | `BigInt!` |  |
-| `totalFeesContributedUSD` | `BigInt!` |  |
-| `totalFeesContributed0` | `BigInt!` |  |
-| `totalFeesContributed1` | `BigInt!` |  |
-| `numberOfFlashLoans` | `BigInt!` |  |
-| `totalFlashLoanVolumeUSD` | `BigInt!` |  |
-| `numberOfGaugeDeposits` | `BigInt!` |  |
-| `numberOfGaugeWithdrawals` | `BigInt!` |  |
-| `numberOfGaugeRewardClaims` | `BigInt!` |  |
-| `totalGaugeRewardsClaimedUSD` | `BigInt!` |  |
-| `totalGaugeRewardsClaimed` | `BigInt!` |  |
-| `totalStakedFeesCollected0` | `BigInt!` |  |
-| `totalStakedFeesCollected1` | `BigInt!` |  |
-| `totalStakedFeesCollectedUSD` | `BigInt!` |  |
-| `totalUnstakedFeesCollected0` | `BigInt!` |  |
-| `totalUnstakedFeesCollected1` | `BigInt!` |  |
-| `totalUnstakedFeesCollectedUSD` | `BigInt!` |  |
-| `currentLiquidityStaked` | `BigInt!` |  |
-| `currentLiquidityStakedUSD` | `BigInt!` |  |
-| `stakedCLPositionTokenIds` | `[BigInt!]!` |  |
-| `totalBribeClaimed` | `BigInt!` |  |
-| `totalBribeClaimedUSD` | `BigInt!` |  |
-| `totalFeeRewardClaimed` | `BigInt!` |  |
-| `totalFeeRewardClaimedUSD` | `BigInt!` |  |
-| `veNFTamountStaked` | `BigInt!` |  |
-| `almAddress` | `String!` |  |
-| `almLpAmount` | `BigInt!` |  |
-| `lastAlmActivityTimestamp` | `Timestamp!` |  |
-| `lastActivityTimestamp` | `Timestamp!` |  |
+| `userAddress` | `String!` | user wallet address _(indexed)_ |
+| `poolAddress` | `String!` | address of the pool these stats are scoped to _(indexed)_ |
+| `chainId` | `Int!` | chain id |
+| `timestamp` | `Timestamp!` | snapshot epoch timestamp _(indexed)_ |
+| `lpBalance` | `BigInt!` | user's LP token balance at snapshot time |
+| `totalLiquidityAddedUSD` | `BigInt!` | cumulative USD value of liquidity added |
+| `totalLiquidityAddedToken0` | `BigInt!` | cumulative raw token0 amount added |
+| `totalLiquidityAddedToken1` | `BigInt!` | cumulative raw token1 amount added |
+| `totalLiquidityRemovedUSD` | `BigInt!` | cumulative USD value of liquidity removed |
+| `totalLiquidityRemovedToken0` | `BigInt!` | cumulative raw token0 amount removed |
+| `totalLiquidityRemovedToken1` | `BigInt!` | cumulative raw token1 amount removed |
+| `numberOfSwaps` | `BigInt!` | number of swaps the user made in this pool |
+| `totalSwapVolumeAmount0` | `BigInt!` | swap volume denominated in token0 in this pool |
+| `totalSwapVolumeAmount1` | `BigInt!` | swap volume denominated in token1 in this pool |
+| `totalSwapVolumeUSD` | `BigInt!` | swap volume in USD in this pool |
+| `totalFeesContributedUSD` | `BigInt!` | total fees contributed in USD (fees paid by the user in swaps) |
+| `totalFeesContributed0` | `BigInt!` | total fees contributed in token0 |
+| `totalFeesContributed1` | `BigInt!` | total fees contributed in token1 |
+| `numberOfFlashLoans` | `BigInt!` | number of flash loan swaps in this pool |
+| `totalFlashLoanVolumeUSD` | `BigInt!` | flash loan swap volume in USD in this pool |
+| `numberOfGaugeDeposits` | `BigInt!` | number of gauge deposits (staking) |
+| `numberOfGaugeWithdrawals` | `BigInt!` | number of gauge withdrawals (unstaking) |
+| `numberOfGaugeRewardClaims` | `BigInt!` | number of gauge reward claims |
+| `totalGaugeRewardsClaimedUSD` | `BigInt!` | total gauge rewards claimed in USD |
+| `totalGaugeRewardsClaimed` | `BigInt!` | total gauge rewards claimed in token units |
+| `totalStakedFeesCollected0` | `BigInt!` | pool fees (token0) collected by this user from staked position (CollectFees) |
+| `totalStakedFeesCollected1` | `BigInt!` | pool fees (token1) collected by this user from staked position (CollectFees) |
+| `totalStakedFeesCollectedUSD` | `BigInt!` | pool fees in USD collected by this user from staked position (CollectFees) |
+| `totalUnstakedFeesCollected0` | `BigInt!` | pool fees (token0) collected by this user from unstaked position (Collect) |
+| `totalUnstakedFeesCollected1` | `BigInt!` | pool fees (token1) collected by this user from unstaked position (Collect) |
+| `totalUnstakedFeesCollectedUSD` | `BigInt!` | pool fees in USD collected by this user from unstaked position (Collect) |
+| `currentLiquidityStaked` | `BigInt!` | current liquidity staked in gauge in token units |
+| `currentLiquidityStakedUSD` | `BigInt!` | current liquidity staked in gauge in USD |
+| `stakedCLPositionTokenIds` | `[BigInt!]!` | tokenIds of CL positions staked in gauge at snapshot time |
+| `totalBribeClaimed` | `BigInt!` | total amount of bribe rewards claimed by this user for this pool |
+| `totalBribeClaimedUSD` | `BigInt!` | total USD value of bribe rewards claimed by this user for this pool |
+| `totalFeeRewardClaimed` | `BigInt!` | total amount of fee rewards claimed by this user for this pool |
+| `totalFeeRewardClaimedUSD` | `BigInt!` | total USD value of fee rewards claimed by this user for this pool |
+| `veNFTamountStaked` | `BigInt!` | amount of veNFT staked by this user for this pool |
+| `almAddress` | `String!` | Address of ALM LP Wrapper the user interacts with (empty string if none) |
+| `almLpAmount` | `BigInt!` | Number of ALM LP tokens held by the user |
+| `lastAlmActivityTimestamp` | `Timestamp!` | last ALM-related activity timestamp |
+| `lastActivityTimestamp` | `Timestamp!` | last activity in this pool |
 
 ### NonFungiblePositionSnapshot
 
@@ -421,21 +421,21 @@ Snapshot of NonFungiblePosition at an epoch (full state for historical queries /
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{nfpmAddress}-{tokenId}-{epochMs} (NonFungiblePositionSnapshotId). nfpmAddress disambiguates intra-chain tokenId collisions across multiple NFPMs (e.g. Optimism has two). |
-| `chainId` | `Int!` |  |
-| `tokenId` | `BigInt!` |  _(indexed)_ |
-| `nfpmAddress` | `String!` |  _(indexed)_ |
-| `owner` | `String!` |  _(indexed)_ |
-| `pool` | `String!` |  _(indexed)_ |
-| `tickLower` | `BigInt!` |  |
-| `tickUpper` | `BigInt!` |  |
-| `token0` | `String!` |  |
-| `token1` | `String!` |  |
-| `liquidity` | `BigInt!` |  |
-| `mintTransactionHash` | `String!` |  _(indexed)_ |
-| `mintLogIndex` | `Int!` |  |
-| `lastUpdatedTimestamp` | `Timestamp!` |  |
-| `isStakedInGauge` | `Boolean!` |  |
-| `timestamp` | `Timestamp!` |  _(indexed)_ |
+| `chainId` | `Int!` | chain id where the NFT exists |
+| `tokenId` | `BigInt!` | token ID of the NFT _(indexed)_ |
+| `nfpmAddress` | `String!` | address of the NFPM contract that emitted the Transfer _(indexed)_ |
+| `owner` | `String!` | checksum address of the owner at snapshot time _(indexed)_ |
+| `pool` | `String!` | address of the CL pool this position belongs to _(indexed)_ |
+| `tickLower` | `BigInt!` | lower tick of the position range |
+| `tickUpper` | `BigInt!` | upper tick of the position range |
+| `token0` | `String!` | address of token0 in the position |
+| `token1` | `String!` | address of token1 in the position |
+| `liquidity` | `BigInt!` | liquidity value of the position at snapshot time |
+| `mintTransactionHash` | `String!` | transaction hash of the NFT mint transaction _(indexed)_ |
+| `mintLogIndex` | `Int!` | log index of the CLPool.Mint event (for placeholder matching) |
+| `lastUpdatedTimestamp` | `Timestamp!` | timestamp of last update before this snapshot |
+| `isStakedInGauge` | `Boolean!` | whether the position is staked in the pool's gauge at snapshot time |
+| `timestamp` | `Timestamp!` | snapshot epoch timestamp _(indexed)_ |
 
 ### VeNFTStateSnapshot
 
@@ -444,29 +444,29 @@ Snapshot of VeNFTState at an epoch (full state for historical queries)
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{tokenId}-{epochMs} (VeNFTStateSnapshotId) |
-| `chainId` | `Int!` |  |
-| `tokenId` | `BigInt!` |  _(indexed)_ |
-| `owner` | `String!` |  _(indexed)_ |
-| `locktime` | `BigInt!` |  |
-| `isPermanent` | `Boolean!` |  |
-| `lastUpdatedTimestamp` | `Timestamp!` |  |
-| `totalValueLocked` | `BigInt!` |  |
-| `isAlive` | `Boolean!` |  |
-| `timestamp` | `Timestamp!` |  _(indexed)_ |
-| `votesPerPool` | `[VeNFTPoolVoteSnapshot!]!` |  _(derived)_ |
+| `chainId` | `Int!` | chain id |
+| `tokenId` | `BigInt!` | veNFT token ID _(indexed)_ |
+| `owner` | `String!` | owner address at snapshot time _(indexed)_ |
+| `locktime` | `BigInt!` | lock expiry timestamp (seconds); 0 for permanent locks |
+| `isPermanent` | `Boolean!` | whether the lock is permanent (never expires) |
+| `lastUpdatedTimestamp` | `Timestamp!` | timestamp of last update before this snapshot |
+| `totalValueLocked` | `BigInt!` | amount of governance token locked in the veNFT |
+| `isAlive` | `Boolean!` | whether the veNFT still exists at snapshot time |
+| `timestamp` | `Timestamp!` | snapshot epoch timestamp _(indexed)_ |
+| `votesPerPool` | `[VeNFTPoolVoteSnapshot!]!` | reverse relation: this veNFT's per-pool vote allocations at snapshot time _(derived)_ |
 
 ### VeNFTPoolVoteSnapshot
 
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{tokenId}-{poolAddress}-{epochMs} |
-| `chainId` | `Int!` |  |
-| `tokenId` | `BigInt!` |  |
-| `poolAddress` | `String!` |  _(indexed)_ |
-| `veNFTamountStaked` | `BigInt!` |  |
-| `lastUpdatedTimestamp` | `Timestamp!` |  |
-| `timestamp` | `Timestamp!` |  _(indexed)_ |
-| `veNFTStateSnapshot` | `VeNFTStateSnapshot!` |  _(indexed)_ |
+| `chainId` | `Int!` | chain id |
+| `tokenId` | `BigInt!` | veNFT token ID |
+| `poolAddress` | `String!` | pool this veNFT allocated votes to _(indexed)_ |
+| `veNFTamountStaked` | `BigInt!` | vote weight allocated to the pool, in veToken units |
+| `lastUpdatedTimestamp` | `Timestamp!` | timestamp of last update before this snapshot |
+| `timestamp` | `Timestamp!` | snapshot epoch timestamp _(indexed)_ |
+| `veNFTStateSnapshot` | `VeNFTStateSnapshot!` | the veNFT-state snapshot this vote belongs to _(indexed)_ |
 
 ### ALM_LP_WrapperSnapshot
 
@@ -475,26 +475,26 @@ Snapshot of ALM_LP_Wrapper at an epoch (full state for historical queries / reco
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{wrapperAddress}-{epochMs} (ALMLPWrapperSnapshotId) |
-| `wrapper` | `String!` |  _(indexed)_ |
-| `pool` | `String!` |  _(indexed)_ |
-| `chainId` | `Int!` |  |
-| `token0` | `String!` |  |
-| `token1` | `String!` |  |
-| `lpAmount` | `BigInt!` |  |
-| `lastUpdatedTimestamp` | `Timestamp!` |  |
-| `tokenId` | `BigInt!` |  _(indexed)_ |
-| `tickLower` | `BigInt!` |  |
-| `tickUpper` | `BigInt!` |  |
-| `property` | `BigInt!` |  |
-| `liquidity` | `BigInt!` |  |
-| `strategyType` | `BigInt!` |  |
-| `tickNeighborhood` | `BigInt!` |  |
-| `tickSpacing` | `BigInt!` |  |
-| `positionWidth` | `BigInt!` |  |
-| `maxLiquidityRatioDeviationX96` | `BigInt!` |  |
-| `creationTimestamp` | `Timestamp!` |  |
-| `strategyTransactionHash` | `String!` |  _(indexed)_ |
-| `timestamp` | `Timestamp!` |  _(indexed)_ |
+| `wrapper` | `String!` | address of the ALM LP wrapper _(indexed)_ |
+| `pool` | `String!` | address of the pool this wrapper is associated with _(indexed)_ |
+| `chainId` | `Int!` | chain id |
+| `token0` | `String!` | address of token0 |
+| `token1` | `String!` | address of token1 |
+| `lpAmount` | `BigInt!` | total LP tokens wrapped at snapshot time |
+| `lastUpdatedTimestamp` | `Timestamp!` | timestamp of last update before this snapshot |
+| `tokenId` | `BigInt!` | strategy/position tokenId _(indexed)_ |
+| `tickLower` | `BigInt!` | lower tick bound of the position's price range |
+| `tickUpper` | `BigInt!` | upper tick bound of the position's price range |
+| `property` | `BigInt!` | pool property parameter from the AMM position struct |
+| `liquidity` | `BigInt!` | liquidity currently in the AMM position |
+| `strategyType` | `BigInt!` | type/kind of ALM strategy in use |
+| `tickNeighborhood` | `BigInt!` | tick neighborhood parameter for the strategy |
+| `tickSpacing` | `BigInt!` | tick spacing for the strategy |
+| `positionWidth` | `BigInt!` | width parameter for the strategy (position size in ticks) |
+| `maxLiquidityRatioDeviationX96` | `BigInt!` | max allowed liquidity ratio deviation (X96 fixed point) |
+| `creationTimestamp` | `Timestamp!` | timestamp when the strategy was created |
+| `strategyTransactionHash` | `String!` | transaction hash of the StrategyCreated event _(indexed)_ |
+| `timestamp` | `Timestamp!` | snapshot epoch timestamp _(indexed)_ |
 
 ## Config & registry
 
@@ -515,7 +515,7 @@ Chain-wide configuration and cross-chain mapping tables.
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: contract address (DynamicSwapFeeModule) |
-| `chainId` | `Int!` |  _(indexed)_ |
+| `chainId` | `Int!` | chain id _(indexed)_ |
 | `secondsAgo` | `BigInt` | The amount of time used to calculate price change |
 
 ### CLGaugeConfig
@@ -525,7 +525,7 @@ Stores chain-wide CLGauge config data — default emissions cap, default min-sta
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: stringified chainId (e.g. "8453" for Base) |
-| `defaultEmissionsCap` | `BigInt!` |  |
+| `defaultEmissionsCap` | `BigInt!` | Chain-wide default gauge emissions cap; applied when a pool's gauge has no SetEmissionsCap override. |
 | `defaultMinStakeTime` | `BigInt!` | Chain-wide default LP stake lockup (seconds), set via CLGaugeFactoryV3.SetDefaultMinStakeTime. 0 before V3. |
 | `penaltyRate` | `BigInt!` | Early-unstake penalty rate in basis points, set via CLGaugeFactoryV3.SetPenaltyRate. 0 before V3. |
 | `lastUpdatedTimestamp` | `Timestamp!` | Timestamp of the last CLGaugeConfig update |
@@ -537,7 +537,7 @@ Should be updated by TickSpacingEnabled event emitted by CLFactory contract It a
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{tickSpacing} (FeeToTickSpacingMappingId) |
-| `chainId` | `Int!` |  _(indexed)_ |
+| `chainId` | `Int!` | chain id _(indexed)_ |
 | `tickSpacing` | `BigInt!` | Tick spacing value _(indexed)_ |
 | `fee` | `BigInt!` | Fee value for this tick spacing |
 | `lastUpdatedTimestamp` | `Timestamp!` | Timestamp when this mapping was last updated |
@@ -549,11 +549,11 @@ Singleton config state per Redistributor contract, updated by SetKeeper / SetUpk
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{redistributorAddress} |
-| `chainId` | `Int!` |  _(indexed)_ |
+| `chainId` | `Int!` | chain id _(indexed)_ |
 | `redistributorAddress` | `String!` | Redistributor contract address |
 | `keeper` | `String!` | Current keeper address (empty string until SetKeeper fires) |
 | `upkeepManager` | `String!` | Current upkeep manager address (empty string until SetUpkeepManager fires) |
-| `lastUpdatedTimestamp` | `Timestamp!` |  |
+| `lastUpdatedTimestamp` | `Timestamp!` | Timestamp of the last config update |
 
 ### RootPool_LeafPool
 
@@ -587,21 +587,21 @@ One per underlying pool (per chain) launched or migrated via Pool Launcher
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{underlyingPool} |
-| `chainId` | `Int!` |  |
+| `chainId` | `Int!` | chain id |
 | `underlyingPool` | `Bytes!` | pool address |
 | `launcher` | `String!` | PoolLauncher contract address (the one that created or currently manages) |
 | `creator` | `String!` | msg.sender at Launch |
 | `poolLauncherToken` | `Bytes!` | the "project" token |
 | `pairToken` | `Bytes!` | whitelisted pair (e.g., WETH, USDC) |
-| `createdAt` | `Timestamp!` |  |
+| `createdAt` | `Timestamp!` | timestamp the pool was launched |
 | `isEmerging` | `Boolean!` | current flag |
 | `lastFlagUpdateAt` | `Timestamp!` | timestamp of last flag change |
 | `migratedFrom` | `String!` | previous underlying pool (if this was target in Migrate) |
 | `migratedTo` | `String!` | next underlying pool (if later migrated away) |
 | `oldLocker` | `String!` | source locker in migration |
 | `newLocker` | `String!` | target locker from migration |
-| `lastMigratedAt` | `Timestamp!` |  |
-| `poolStats` | `[Pool!]!` |  _(derived)_ |
+| `lastMigratedAt` | `Timestamp!` | timestamp of the most recent migration |
+| `poolStats` | `[Pool!]!` | reverse relation: Pool aggregates launched under this PoolLauncherPool _(derived)_ |
 
 ### PoolLauncherConfig
 
@@ -609,7 +609,7 @@ One per underlying pool (per chain) launched or migrated via Pool Launcher
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{poolLauncherAddress} (PoolId with launcher contract as address) |
 | `version` | `String!` | "CL" for concentrated liquidity, "V2" for V2 pools |
-| `pairableTokens` | `[String!]` |  |
+| `pairableTokens` | `[String!]` | Whitelisted tokens an emerging-token pool may be paired against on this launcher |
 
 ## Cross-chain superswaps (Hyperlane)
 
@@ -703,10 +703,10 @@ Deferred CL pool initialization state: stored when CLPool.Initialize fires BEFOR
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{poolAddress} (PoolId) |
-| `chainId` | `Int!` |  |
-| `poolAddress` | `String!` |  |
-| `sqrtPriceX96` | `BigInt!` |  |
-| `tick` | `BigInt!` |  |
+| `chainId` | `Int!` | chain id |
+| `poolAddress` | `String!` | address of the CL pool awaiting PoolCreated |
+| `sqrtPriceX96` | `BigInt!` | initial sqrt price (Q96 fixed point) from the Initialize event |
+| `tick` | `BigInt!` | initial tick from the Initialize event |
 
 ### PendingRootPoolMapping
 
@@ -745,20 +745,20 @@ Temporary entity for storing CLPool.Mint event data until consumed by NFPM.Trans
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}_{poolAddress}_{txHash}_{logIndex} |
-| `chainId` | `Int!` |  _(indexed)_ |
-| `pool` | `String!` |  _(indexed)_ |
-| `owner` | `String!` |  |
-| `tickLower` | `BigInt!` |  |
-| `tickUpper` | `BigInt!` |  |
-| `liquidity` | `BigInt!` |  |
-| `amount0` | `BigInt!` |  |
-| `amount1` | `BigInt!` |  |
-| `token0` | `String!` |  |
-| `token1` | `String!` |  |
-| `transactionHash` | `String!` |  _(indexed)_ |
-| `logIndex` | `Int!` |  |
+| `chainId` | `Int!` | chain id _(indexed)_ |
+| `pool` | `String!` | address of the CL pool the Mint fired on _(indexed)_ |
+| `owner` | `String!` | position owner from the Mint event |
+| `tickLower` | `BigInt!` | lower tick of the minted range |
+| `tickUpper` | `BigInt!` | upper tick of the minted range |
+| `liquidity` | `BigInt!` | liquidity minted |
+| `amount0` | `BigInt!` | raw token0 amount deposited |
+| `amount1` | `BigInt!` | raw token1 amount deposited |
+| `token0` | `String!` | address of token0 |
+| `token1` | `String!` | address of token1 |
+| `transactionHash` | `String!` | transaction hash of the Mint event _(indexed)_ |
+| `logIndex` | `Int!` | log index of the Mint event within the transaction |
 | `consumedByTokenId` | `BigInt` | Set when consumed (null = unconsumed) _(indexed)_ |
-| `createdAt` | `Timestamp!` |  |
+| `createdAt` | `Timestamp!` | timestamp the buffer row was created |
 
 ### CLPositionPendingPrincipal
 
@@ -768,7 +768,7 @@ Tracks burned principal per CL position that hasn't been collected yet. Used to 
 | ----- | ---- | ----------- |
 | `id` | `ID!` | {chainId}-{poolAddress}-{owner}-{tickLower}-{tickUpper} |
 | `pendingPrincipal0` | `BigInt!` | Principal from Burn events not yet drained by Collect. Accumulates across multiple Burns; reduced when Collect fires. |
-| `pendingPrincipal1` | `BigInt!` |  |
+| `pendingPrincipal1` | `BigInt!` | token1 counterpart of pendingPrincipal0 (see pendingPrincipal0). |
 
 ### TxCLPoolMintRegistry
 
@@ -795,17 +795,17 @@ Temporary entity for matching Mint/Burn with Transfer events Only stores mint/bu
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{txHash}-{poolAddress}-{logIndex} |
-| `chainId` | `Int!` |  _(indexed)_ |
-| `txHash` | `String!` |  _(indexed)_ |
-| `pool` | `String!` |  _(indexed)_ |
-| `logIndex` | `Int!` |  |
-| `blockNumber` | `BigInt!` |  |
-| `from` | `String!` |  |
-| `to` | `String!` |  |
-| `value` | `BigInt!` |  |
+| `chainId` | `Int!` | chain id _(indexed)_ |
+| `txHash` | `String!` | transaction hash containing the transfer _(indexed)_ |
+| `pool` | `String!` | address of the pool whose LP token was transferred _(indexed)_ |
+| `logIndex` | `Int!` | log index of the Transfer event within the transaction |
+| `blockNumber` | `BigInt!` | block number of the transfer |
+| `from` | `String!` | sender address (0x0 for mints) |
+| `to` | `String!` | recipient address (0x0 for burns) |
+| `value` | `BigInt!` | LP token amount transferred |
 | `isMint` | `Boolean!` | from == 0x0 |
 | `isBurn` | `Boolean!` | to == 0x0 |
-| `timestamp` | `Timestamp!` |  |
+| `timestamp` | `Timestamp!` | block timestamp of the transfer |
 
 ### ALMLPWrapperTransferInTx
 
@@ -814,17 +814,17 @@ Temporary entity for matching Withdraw events with Transfer events (burns) Simil
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{txHash}-{wrapperAddress}-{logIndex} |
-| `chainId` | `Int!` |  _(indexed)_ |
-| `txHash` | `String!` |  _(indexed)_ |
-| `wrapperAddress` | `String!` |  _(indexed)_ |
-| `logIndex` | `Int!` |  |
-| `blockNumber` | `BigInt!` |  |
-| `from` | `String!` |  |
-| `to` | `String!` |  |
-| `value` | `BigInt!` |  |
+| `chainId` | `Int!` | chain id _(indexed)_ |
+| `txHash` | `String!` | transaction hash containing the transfer _(indexed)_ |
+| `wrapperAddress` | `String!` | address of the ALM LP wrapper whose token was transferred _(indexed)_ |
+| `logIndex` | `Int!` | log index of the Transfer event within the transaction |
+| `blockNumber` | `BigInt!` | block number of the transfer |
+| `from` | `String!` | sender address (0x0 for mints) |
+| `to` | `String!` | recipient address (0x0 for burns) |
+| `value` | `BigInt!` | LP token amount transferred |
 | `isBurn` | `Boolean!` | to == 0x0 |
 | `consumedByLogIndex` | `Int` | logIndex of the Withdraw event that consumed this transfer (undefined if unused) |
-| `timestamp` | `Timestamp!` |  |
+| `timestamp` | `Timestamp!` | block timestamp of the transfer |
 
 ### ALM_TotalSupplyLimitUpdated_event
 
