@@ -1,65 +1,194 @@
-## Multi-chain indexer for Velodrome V2 and Aerodrome
+# Velodrome V2 & Aerodrome multi-chain indexer
 
-This repo contains the indexer for [Velodrome V2](https://velodrome.finance/) and
-[Aerodrome](https://aerodrome.finance/) across multiple chains.
-The indexer is written in TypeScript using the Envio indexing platform.
+This repository contains the multi-chain blockchain indexer for
+[Velodrome V2](https://velodrome.finance/) (Optimism) and
+[Aerodrome](https://aerodrome.finance/) (Base), plus their superchain
+deployments. It is written in TypeScript on the
+[Envio HyperIndex](https://docs.envio.dev/) platform (v3 alpha) and indexes
+pools, gauges, voting, veNFTs, concentrated-liquidity positions, automated
+liquidity management, pool launchers, and cross-chain swaps into a Postgres
+database.
 
-## Project Structure
+> This is an Envio HyperIndex project — **not** a TheGraph subgraph.
 
-- `config.yaml` - Defines contracts to index and events to track across multiple chains
-- `schema.graphql` - Defines the entity structure for the database
-- `src/EventHandlers/*.ts` - Contains the business logic for processing blockchain events
-- `src/cache.ts` - Implements caching for blockchain data to reduce RPC calls
-- `.env` - Contains configuration variables (copy from `.env.example` and customize)
+## Supported chains
 
-## Key Files in `src/`
+Networks are defined in `config.yaml`:
 
-- `Constants.ts` - Contains chain-specific constants and configurations
-- `Erc20.ts` - Helpers for working with ERC20 tokens
-- `PriceOracle.ts` - Functions for fetching and managing token prices
-- `Store.ts` - Functions for managing pool address mappings
+| Chain     | Chain ID | Chain     | Chain ID |
+| --------- | -------- | --------- | -------- |
+| Optimism  | 10       | Lisk      | 1135     |
+| Base      | 8453     | Unichain  | 130      |
+| Celo      | 42220    | Fraxtal   | 252      |
+| Soneium   | 1868     | Metal     | 1750     |
+| Ink       | 57073    | Superseed | 5330     |
+| Mode      | 34443    | Swell     | 1923     |
+
+## Prerequisites
+
+- [Node.js](https://nodejs.org/) **22+** (see `engines` in `package.json`)
+- [pnpm](https://pnpm.io/) **9+**
+- [Docker](https://www.docker.com/) — `pnpm dev` runs Postgres and the Envio
+  runtime in containers
 
 ## Installation
-
-Make sure you have [pnpm](https://pnpm.io/) installed (version 9.x+ recommended).
 
 ```bash
 pnpm install
 ```
 
-## Running the Indexer
+## Configuration
 
-Envio provides a simple development workflow:
+Copy the example environment file and fill in the values:
 
 ```bash
-# Generate code based on your schema and config
-pnpm envio codegen
-
-# Start the indexer (eg. inside the existing running container) ...
-pnpm envio start
-# Or, automatically sets up docker containers and starts indexing
-pnpm dev
+cp .env.example .env
 ```
 
-To stop the indexer:
+`.env` holds:
+
+- `ENVIO_API_TOKEN` — Envio API token
+- `ENVIO_PG_MAX_CONNECTIONS` — Postgres connection cap (recommended for v3)
+- `ENVIO_<CHAIN>_RPC_URL` — one RPC URL per chain, used for on-chain reads that
+  fall outside HyperSync (e.g. `ENVIO_OPTIMISM_RPC_URL`, `ENVIO_BASE_RPC_URL`)
+
+## Running the indexer
+
+```bash
+# 1. Generate types from schema.graphql + config.yaml
+#    (MUST be re-run after changing either file)
+pnpm envio codegen
+
+# 2a. Spin up Docker containers and start indexing
+pnpm dev
+
+# 2b. ...or start the indexer inside an already-running container
+pnpm envio start
+```
+
+Stop the indexer:
 
 ```bash
 pnpm envio stop
 ```
 
-## Testing / QA
+For headless / CI runs (no terminal UI):
 
 ```bash
-# Runs any linters/formatters, use pnpm qa --write to apply changes
-pnpm qa
-# Runs tests
-pnpm test
+TUI_OFF=true pnpm dev
 ```
+
+## Testing, type-checking & QA
+
+```bash
+tsc --noEmit                          # Type-check (run after any TypeScript change)
+pnpm test                             # Full test suite with coverage (Vitest)
+pnpm test:file test/path/to/file.ts   # Run a single test file
+pnpm test:grep "pattern"              # Run tests matching a name pattern
+pnpm qa                               # Lint + format check (Biome); `pnpm qa --write` to apply fixes
+```
+
+Tests live under `test/`, mirroring the `src/` layout
+(`Aggregators/`, `Effects/`, `EventHandlers/`, `Snapshots/`).
+
+## Architecture
+
+### Data flow
+
+`config.yaml` declares the contracts and events to index per chain → Envio
+generates types from `schema.graphql` → handlers in `src/EventHandlers/`
+process events → aggregators in `src/Aggregators/` compute derived state →
+`src/Snapshots/` captures hourly snapshots. External reads (RPC/API) are wrapped
+in Envio's Effect API (`src/Effects/`) so they stay correct across preload runs.
+
+### Repository layout
+
+```
+config.yaml        Contracts, events, and networks indexed per chain
+schema.graphql     Entity (database) definitions
+abis/              Contract ABIs referenced by config.yaml
+src/               Indexer source (see below)
+test/              Vitest suites mirroring src/
+scripts/           One-off analysis, benchmarking, and price-oracle tooling
+docs/agents/       Agent workflow docs (issue tracker, triage labels, domain)
+generated/         Auto-generated by `pnpm envio codegen` (git-ignored)
+```
+
+### `src/` layout
+
+Top-level modules:
+
+- `Constants.ts` — chain-specific constants, factory addresses, price
+  connectors, RPC client setup, `toChecksumAddress()`, `CHAIN_CONSTANTS`
+- `Helpers.ts` — shared utilities (error handling, USD conversions,
+  concentrated-liquidity position math via the Uniswap v3 SDK)
+- `Maths.ts` — fixed-point / BigInt math helpers
+- `PriceOracle.ts` — token price fetching with hourly refresh
+- `PriceOverrides.ts` — manual price pins and the token blacklist
+- `PriceTrust.ts` — price-trust gating used by USD valuation
+- `PoolPriceRatio.ts` — derives `token0Price` / `token1Price` from pool state
+- `ChainBlockTime.ts` — per-chain block-time helpers
+- `CustomTypes.ts` / `EntityTypes.ts` — shared TypeScript types
+
+Subdirectories:
+
+- `EventHandlers/` — handler registrations and business logic. Top-level files
+  (e.g. `Pool.ts`, `CLPool.ts`) register handlers; domain subdirectories hold
+  the logic (`Pool/`, `CLPool/`, `Gauges/`, `Voter/`, `VotingReward/`,
+  `VeNFT/`, `NFPM/`, `ALM/`, `PoolLauncher/`, `SwapFeeModule/`,
+  `SuperswapsHyperlane/`, `Redistributor/`, `CLFactory/`, `CLGaugeFactory/`)
+- `Aggregators/` — derived-entity computation. `Pool.ts` is the central
+  aggregator (TVL, volume, fees, votes, emissions); others cover
+  `UserStatsPerPool`, `NonFungiblePosition`, `VeNFTState`, `VeNFTPoolVote`,
+  `ALMLPWrapper`, `CLStakedLiquidity`, `OUSDTSwaps`
+- `Snapshots/` — hourly snapshot creation for aggregated entities, with
+  epoch-alignment logic in `Shared.ts`
+- `Effects/` — external calls (RPC/API) behind Envio's Effect API.
+  `RpcGateway.ts` handles multi-chain RPC; `Token.ts`, `SwapFee.ts`,
+  `Bytecode.ts`, `RootPool.ts`, `Voter.ts` wrap specific reads
+- `constants/` — static reference data (whitelisted-token lists, price
+  connectors, stablecoins)
+
+### Indexed contract domains
+
+- **Pools** — V2 AMM (`Pool`) and concentrated liquidity (`CLPool`)
+- **Factories** — `PoolFactory`, `CLFactory`, `RootCLPoolFactory`,
+  `FactoryRegistry`
+- **Gauges** — `Gauge` (V2) and `CLGauge` (CL), plus `CLGaugeFactoryV2/V3`
+- **Voting** — `Voter`, `SuperchainLeafVoter`, and the fee/bribe/incentive
+  `VotingReward` contracts (`FeesVotingReward`, `BribesVotingReward`,
+  `SuperchainIncentiveVotingReward`)
+- **veNFT** — vote-escrowed NFT tracking (deposits, withdrawals, merges, splits)
+- **NFPM** — Non-Fungible Position Manager for CL positions
+- **ALM** — Automated Liquidity Management (`ALMDeployFactoryV1/V2`, `ALMCore`,
+  `ALMLPWrapperV1/V2`)
+- **Pool launchers** — `CLPoolLauncher`, `V2PoolLauncher`
+- **Swap-fee modules** — `DynamicSwapFeeModule`, `CustomSwapFeeModule`,
+  `UnstakedFeeModule`, `CustomUnstakedFeeModule`
+- **Superswaps / Hyperlane** — cross-chain swap tracking
+  (`VelodromeUniversalRouter`, `Mailbox`)
+- **Redistributor**
+
+### Entity ID conventions
+
+- Pool IDs: `{chainId}-{poolAddress}`
+- Token IDs: `{chainId}-{tokenAddress}`
+- Snapshot IDs: `{entityId}-{epochMs}`
+- Always checksum addresses with `toChecksumAddress()` from `src/Constants.ts`
+
+## Conventions
+
+- **Linting/formatting** uses [Biome](https://biomejs.dev/) (not Prettier/ESLint)
+  — space indentation, double quotes, organized imports. Run `pnpm qa` before
+  committing.
+- See `CLAUDE.md` for the full set of Envio-specific patterns (immutable entity
+  updates, the Effect API, dynamically registered contracts, amount
+  normalization) and file-naming conventions.
 
 ## Documentation
 
-For comprehensive documentation on the Envio indexing platform, please refer to:
-
-- [Envio Documentation](https://llm-docs.envio.dev/docs/HyperIndex/contract-state)
-- [Event Handlers Documentation](https://docs.envio.dev/docs/event-handlers)
-- [Dynamic Contracts Documentation](https://docs.envio.dev/docs/dynamic-contracts)
+- [Envio HyperIndex docs](https://docs.envio.dev/)
+- [Event handlers](https://docs.envio.dev/docs/event-handlers)
+- [Dynamic contracts](https://docs.envio.dev/docs/dynamic-contracts)
+- `CLAUDE.md` — in-repo architecture and contributor guide
+- `docs/agents/` — issue-tracker, triage-label, and domain workflow docs
