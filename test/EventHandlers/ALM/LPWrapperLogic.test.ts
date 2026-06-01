@@ -1,8 +1,4 @@
-import type {
-  ALMLPWrapperTransferInTx,
-  ALM_LP_Wrapper,
-  handlerContext,
-} from "generated";
+import type { ALMLPWrapperTransferInTx, ALM_LP_Wrapper } from "envio";
 import type { Mock } from "vitest";
 import {
   ALMLPWrapperId,
@@ -13,6 +9,7 @@ import {
   ZERO_ADDRESS,
   toChecksumAddress,
 } from "../../../src/Constants";
+import type { handlerContext } from "../../../src/EntityTypes";
 import {
   calculateLiquidityFromAmounts,
   deriveUserAmounts,

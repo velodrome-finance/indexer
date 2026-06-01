@@ -1,4 +1,5 @@
-import type { Token, handlerContext } from "generated";
+import type { Token } from "envio";
+import type { handlerContext } from "./EntityTypes";
 import { calculateTokenAmountUSD } from "./Helpers";
 import { multiplyBase1e18 } from "./Maths";
 import { isBlacklistedToken } from "./PriceOverrides";

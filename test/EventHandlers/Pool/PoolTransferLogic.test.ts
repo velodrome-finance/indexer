@@ -1,8 +1,4 @@
-import type {
-  Pool_Transfer_event,
-  UserStatsPerPool,
-  handlerContext,
-} from "generated";
+import type { EvmEvent, UserStatsPerPool } from "envio";
 import type { MockInstance } from "vitest";
 import * as PoolModule from "../../../src/Aggregators/Pool";
 import * as UserStatsPerPoolModule from "../../../src/Aggregators/UserStatsPerPool";
@@ -12,7 +8,7 @@ import {
   ZERO_ADDRESS,
   toChecksumAddress,
 } from "../../../src/Constants";
-import type { Pool } from "../../../src/EntityTypes";
+import type { Pool, handlerContext } from "../../../src/EntityTypes";
 import {
   processPoolTransfer,
   storeTransferForMatching,
@@ -108,22 +104,23 @@ describe("PoolTransferLogic", () => {
     to: string,
     value: bigint,
     logIndex: number = LOG_INDEX,
-  ): Pool_Transfer_event => ({
-    chainId: CHAIN_ID,
-    block: {
-      number: BLOCK_NUMBER,
-      timestamp: TIMESTAMP,
-      hash: "0xblock",
-    },
-    logIndex,
-    srcAddress: POOL_ADDRESS as `0x${string}`,
-    transaction: { hash: TX_HASH },
-    params: {
-      from: from as `0x${string}`,
-      to: to as `0x${string}`,
-      value,
-    },
-  });
+  ): EvmEvent<"Pool", "Transfer"> =>
+    ({
+      chainId: CHAIN_ID,
+      block: {
+        number: BLOCK_NUMBER,
+        timestamp: TIMESTAMP,
+        hash: "0xblock",
+      },
+      logIndex,
+      srcAddress: POOL_ADDRESS as `0x${string}`,
+      transaction: { hash: TX_HASH },
+      params: {
+        from: from as `0x${string}`,
+        to: to as `0x${string}`,
+        value,
+      },
+    }) as unknown as EvmEvent<"Pool", "Transfer">;
 
   describe("updatePoolTotalSupply", () => {
     it("should increment totalLPTokenSupply for mint transfers", async () => {

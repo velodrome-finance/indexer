@@ -1,4 +1,4 @@
-import type { Token, handlerContext } from "generated";
+import type { Token } from "envio";
 import { estimateBlockAtTimestamp } from "./ChainBlockTime";
 import { MS_IN_AN_HOUR, TEN_TO_THE_18_BI, TokenId } from "./Constants";
 import {
@@ -7,6 +7,8 @@ import {
   hasContractBytecode,
   roundBlockToInterval,
 } from "./Effects/Index";
+import { getRehydrated } from "./EntityTimestamps";
+import type { handlerContext } from "./EntityTypes";
 import { getRebindTarget, isBlacklistedToken } from "./PriceOverrides";
 import { getGateDecisionFromSignals } from "./PriceTrust";
 import { setTokenPriceSnapshot } from "./Snapshots/TokenPriceSnapshot";
@@ -213,7 +215,9 @@ export async function refreshTokenPrice(
 
   const rebindTarget = getRebindTarget(chainId, healed.address);
   if (rebindTarget) {
-    const sourceToken = await context.Token.get(
+    const sourceToken = await getRehydrated(
+      context.Token,
+      "Token",
       TokenId(rebindTarget.chainId, rebindTarget.address),
     );
     let sourcePrice = sourceToken?.pricePerUSDNew ?? 0n;

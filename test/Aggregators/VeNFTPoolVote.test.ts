@@ -1,4 +1,4 @@
-import type { VeNFTPoolVote, VeNFTState, handlerContext } from "generated";
+import type { VeNFTPoolVote, VeNFTState } from "envio";
 import {
   loadOrCreateVeNFTPoolVote,
   loadPoolVotesByVeNFT,
@@ -10,6 +10,7 @@ import {
   VeNFTPoolVoteId,
   toChecksumAddress,
 } from "../../src/Constants";
+import type { handlerContext } from "../../src/EntityTypes";
 
 function getVeNFTPoolVoteStore(
   ctx: Partial<handlerContext>,

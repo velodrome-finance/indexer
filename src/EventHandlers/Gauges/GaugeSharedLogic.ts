@@ -1,4 +1,3 @@
-import type { handlerContext } from "generated";
 import {
   applyPositionToEdges,
   deriveLiquidityInRange,
@@ -18,6 +17,8 @@ import {
   NonFungiblePositionId,
   TokenId,
 } from "../../Constants";
+import { getRehydrated } from "../../EntityTimestamps";
+import type { handlerContext } from "../../EntityTypes";
 import type { Pool } from "../../EntityTypes";
 import {
   calculatePositionAmountsFromLiquidity,
@@ -69,7 +70,9 @@ async function computeCLStakedReservesOnGaugeEvent(
   const nfpmAddress = liquidityPoolAggregator.nfpmAddress;
   if (!nfpmAddress) return {};
 
-  const position = await context.NonFungiblePosition.get(
+  const position = await getRehydrated(
+    context.NonFungiblePosition,
+    "NonFungiblePosition",
     NonFungiblePositionId(data.chainId, nfpmAddress, data.tokenId),
   );
   if (!position) return {};
@@ -532,7 +535,11 @@ export async function processGaugeClaimRewards(
       context,
       timestamp,
     ),
-    context.Token.get(TokenId(data.chainId, rewardTokenAddress)),
+    getRehydrated(
+      context.Token,
+      "Token",
+      TokenId(data.chainId, rewardTokenAddress),
+    ),
   ]);
 
   if (!poolData) {

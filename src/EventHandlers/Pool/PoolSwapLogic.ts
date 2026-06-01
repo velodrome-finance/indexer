@@ -1,4 +1,4 @@
-import type { Pool_Swap_event, Token } from "generated";
+import type { EvmEvent, Token } from "envio";
 import type { PoolDiff } from "../../Aggregators/Pool";
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import { V2_FEE_SCALE } from "../../Constants";
@@ -41,7 +41,7 @@ export interface PoolSwapResult {
  * @returns Pool + user diffs with raw token-unit volumes and trusted-leg USD volume + fee
  */
 export function processPoolSwap(
-  event: Pool_Swap_event,
+  event: EvmEvent<"Pool", "Swap">,
   liquidityPoolAggregator: Pool,
   token0Instance: Token,
   token1Instance: Token,

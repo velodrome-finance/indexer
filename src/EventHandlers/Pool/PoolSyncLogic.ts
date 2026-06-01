@@ -1,4 +1,4 @@
-import type { Pool_Sync_event, Token } from "generated";
+import type { EvmEvent, Token } from "envio";
 import type { PoolDiff } from "../../Aggregators/Pool";
 import type { Pool } from "../../EntityTypes";
 import { calculateTotalUSD } from "../../Helpers";
@@ -19,7 +19,7 @@ export interface PoolSyncResult {
  * the Sync event, regardless of any intermediate Mint/Burn updates.
  */
 export function processPoolSync(
-  event: Pool_Sync_event,
+  event: EvmEvent<"Pool", "Sync">,
   liquidityPoolAggregator: Pool,
   token0Instance: Token | undefined,
   token1Instance: Token | undefined,

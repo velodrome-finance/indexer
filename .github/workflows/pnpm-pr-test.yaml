@@ -39,33 +39,20 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
 
-      # Install base deps first (generated doesn't exist yet)
-      - name: Install dependencies (base)
-        run: pnpm install --no-frozen-lockfile --filter '!generated'
+      # Single package: envio v3.0.2 codegen emits .envio/types.d.ts, not a `generated` workspace
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
 
-      # Make sure codegen and any nested pnpm calls can update the lockfile
-      - name: Relax pnpm lockfile (project config)
-        run: |
-          pnpm config set frozen-lockfile false --location=project
-          pnpm config set prefer-frozen-lockfile false --location=project
-
-      # Run codegen. Also unset CI for this step to avoid pnpm's CI default frozen mode.
+      # envio v3.0.2 codegen writes type declarations to .envio/types.d.ts (gitignored),
+      # consumed via the `envio` package — no `generated/` directory is produced.
       - name: Generate types
-        env:
-          CI: ""                                  # disable pnpm's implicit frozen mode
-          PNPM_CONFIG_FROZEN_LOCKFILE: "false"    # belt-and-suspenders
         run: |
           pnpm run codegen
-          # Fail fast if codegen didn't produce expected files
-          test -f generated/src/Types.ts || (echo "Types.ts missing after codegen" && exit 1)
+          # Fail fast if codegen didn't produce the type declarations
+          test -f .envio/types.d.ts || (echo ".envio/types.d.ts missing after codegen" && exit 1)
 
-      # Now that generated/package.json exists, install across all workspaces
-      - name: Install dependencies (after codegen)
-        run: pnpm -r install --no-frozen-lockfile
-
-      # Optional build (keep if your repo expects compiled output before QA/tests)
       - name: Build
-        run: pnpm -r build
+        run: pnpm run build
 
       - name: QA
         run: pnpm run qa

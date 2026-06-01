@@ -1,6 +1,7 @@
-import type { UserStatsPerPool, handlerContext } from "generated";
+import type { UserStatsPerPool } from "envio";
 import { updateUserStatsPerPool } from "../../src/Aggregators/UserStatsPerPool";
 import { toChecksumAddress } from "../../src/Constants";
+import type { handlerContext } from "../../src/EntityTypes";
 import { setupCommon } from "../EventHandlers/Pool/common";
 
 describe("UserStatsPerPool Liquidity Logic", () => {

@@ -1,16 +1,12 @@
-import type {
-  PoolTransferInTx,
-  Pool_Burn_event,
-  Pool_Mint_event,
-  Token,
-  handlerContext,
-} from "generated";
+import type { EvmEvent, PoolTransferInTx, Token } from "envio";
 import { type PoolData, updatePool } from "../../Aggregators/Pool";
 import {
   loadOrCreateUserData,
   updateUserStatsPerPool,
 } from "../../Aggregators/UserStatsPerPool";
 import { TxPoolTransferRegistryId } from "../../Constants";
+import { getRehydrated } from "../../EntityTimestamps";
+import type { handlerContext } from "../../EntityTypes";
 import { calculateTotalUSD } from "../../Helpers";
 
 export interface AttributionResult {
@@ -49,7 +45,9 @@ export async function getTransfersInTx(
 
   const transfers = (
     await Promise.all(
-      registry.transferIds.map((id) => context.PoolTransferInTx.get(id)),
+      registry.transferIds.map((id) =>
+        getRehydrated(context.PoolTransferInTx, "PoolTransferInTx", id),
+      ),
     )
   ).filter((t): t is PoolTransferInTx => t !== undefined);
 
@@ -172,7 +170,7 @@ export function extractRecipientAddress(
  * @returns User address and total liquidity USD, or undefined if no match found
  */
 export async function findTransferAndAttribute(
-  event: Pool_Mint_event | Pool_Burn_event,
+  event: EvmEvent<"Pool", "Mint"> | EvmEvent<"Pool", "Burn">,
   poolAddress: string,
   chainId: number,
   txHash: string,
@@ -255,7 +253,7 @@ export async function findTransferAndAttribute(
  * @param isMint - Whether this is a Mint event (true) or Burn event (false)
  */
 export async function processPoolLiquidityEvent(
-  event: Pool_Mint_event | Pool_Burn_event,
+  event: EvmEvent<"Pool", "Mint"> | EvmEvent<"Pool", "Burn">,
   poolData: PoolData,
   poolAddress: string,
   chainId: number,

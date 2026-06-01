@@ -1,4 +1,6 @@
-import type { CLGaugeConfig, handlerContext } from "generated";
+import type { CLGaugeConfig } from "envio";
+import { getRehydrated, getWhereRehydrated } from "../../EntityTimestamps";
+import type { handlerContext } from "../../EntityTypes";
 
 /**
  * Build a fully-populated CLGaugeConfig row for a chain, spreading an existing
@@ -44,7 +46,11 @@ export async function applySetDefaultCap(
   blockTimestampSeconds: number,
   context: handlerContext,
 ): Promise<void> {
-  const existing = await context.CLGaugeConfig.get(String(chainId));
+  const existing = await getRehydrated(
+    context.CLGaugeConfig,
+    "CLGaugeConfig",
+    String(chainId),
+  );
   context.CLGaugeConfig.set(
     mergeCLGaugeConfig(
       chainId,
@@ -70,7 +76,11 @@ export async function applySetDefaultMinStakeTime(
   blockTimestampSeconds: number,
   context: handlerContext,
 ): Promise<void> {
-  const existing = await context.CLGaugeConfig.get(String(chainId));
+  const existing = await getRehydrated(
+    context.CLGaugeConfig,
+    "CLGaugeConfig",
+    String(chainId),
+  );
   context.CLGaugeConfig.set(
     mergeCLGaugeConfig(
       chainId,
@@ -96,7 +106,11 @@ export async function applySetPenaltyRate(
   blockTimestampSeconds: number,
   context: handlerContext,
 ): Promise<void> {
-  const existing = await context.CLGaugeConfig.get(String(chainId));
+  const existing = await getRehydrated(
+    context.CLGaugeConfig,
+    "CLGaugeConfig",
+    String(chainId),
+  );
   context.CLGaugeConfig.set(
     mergeCLGaugeConfig(
       chainId,
@@ -124,7 +138,7 @@ export async function applySetEmissionCap(
   factoryLogPrefix: string,
   context: handlerContext,
 ): Promise<void> {
-  const poolEntityList = await context.Pool.getWhere({
+  const poolEntityList = await getWhereRehydrated(context.Pool, "Pool", {
     gaugeAddress: { _eq: gauge },
   });
 

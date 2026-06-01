@@ -1,6 +1,7 @@
-import type { NonFungiblePosition, handlerContext } from "generated";
+import type { NonFungiblePosition } from "envio";
 import { updateNonFungiblePosition } from "../../src/Aggregators/NonFungiblePosition";
 import { NonFungiblePositionId, toChecksumAddress } from "../../src/Constants";
+import type { handlerContext } from "../../src/EntityTypes";
 import { getSnapshotEpoch } from "../../src/Snapshots/Shared";
 import { defaultNfpmAddress } from "../EventHandlers/Pool/common";
 

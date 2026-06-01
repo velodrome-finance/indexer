@@ -1,5 +1,5 @@
 import { TickMath } from "@uniswap/v3-sdk";
-import type { handlerContext } from "generated";
+import type { handlerContext } from "../EntityTypes";
 
 /**
  * Uniswap v3 absolute tick range. Any tick outside [TICK_MIN, TICK_MAX] is

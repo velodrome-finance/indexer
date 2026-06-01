@@ -1,6 +1,7 @@
-import type { ALM_LP_Wrapper, handlerContext } from "generated";
+import type { ALM_LP_Wrapper } from "envio";
 import { updateALMLPWrapper } from "../../src/Aggregators/ALMLPWrapper";
 import { TEN_TO_THE_18_BI } from "../../src/Constants";
+import type { handlerContext } from "../../src/EntityTypes";
 import { setupCommon } from "../EventHandlers/Pool/common";
 
 describe("ALMLPWrapper Aggregator", () => {

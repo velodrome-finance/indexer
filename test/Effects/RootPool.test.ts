@@ -1,4 +1,4 @@
-import type { logger as Envio_logger } from "envio/src/Envio.gen";
+import type { Logger as Envio_logger } from "envio";
 import type { PublicClient } from "viem";
 import { CHAIN_CONSTANTS, toChecksumAddress } from "../../src/Constants";
 import {

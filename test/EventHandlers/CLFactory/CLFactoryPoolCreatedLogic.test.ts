@@ -1,10 +1,5 @@
-import type {
-  CLFactory_PoolCreated_event,
-  CLGaugeConfig,
-  FeeToTickSpacingMapping,
-  Token,
-  handlerContext,
-} from "generated";
+import type { EvmEvent } from "envio";
+import type { CLGaugeConfig, FeeToTickSpacingMapping, Token } from "envio";
 import {
   FeeToTickSpacingMappingId,
   PendingRootPoolMappingId,
@@ -14,6 +9,7 @@ import {
   rootPoolMatchingHash,
   toChecksumAddress,
 } from "../../../src/Constants";
+import type { handlerContext } from "../../../src/EntityTypes";
 import {
   flushPendingRootPoolMappingAndVotes,
   processCLFactoryPoolCreated,
@@ -55,7 +51,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
   });
 
   // Shared mock event for all tests
-  const mockEvent: CLFactory_PoolCreated_event = {
+  const mockEvent = {
     params: {
       token0: toChecksumAddress("0x2222222222222222222222222222222222222222"),
       token1: toChecksumAddress("0x3333333333333333333333333333333333333333"),
@@ -73,7 +69,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
     },
     chainId: 10,
     logIndex: 1,
-  };
+  } as unknown as EvmEvent<"CLFactory", "PoolCreated">;
 
   // Shared constants
   const CHAIN_ID = 10;
@@ -225,13 +221,13 @@ describe("CLFactoryPoolCreatedLogic", () => {
     });
 
     it("should handle different tick spacing values", async () => {
-      const mockEventWithDifferentTickSpacing: CLFactory_PoolCreated_event = {
+      const mockEventWithDifferentTickSpacing = {
         ...mockEvent,
         params: {
           ...mockEvent.params,
           tickSpacing: 200n,
         },
-      };
+      } as unknown as EvmEvent<"CLFactory", "PoolCreated">;
 
       // For different tick spacing, use a different mapping
       const mappingForTickSpacing200: FeeToTickSpacingMapping = {
@@ -328,10 +324,10 @@ describe("CLFactoryPoolCreatedLogic", () => {
     });
 
     it("should handle different chain IDs correctly", async () => {
-      const mockEventWithDifferentChainId: CLFactory_PoolCreated_event = {
+      const mockEventWithDifferentChainId = {
         ...mockEvent,
         chainId: 8453, // Base
-      };
+      } as unknown as EvmEvent<"CLFactory", "PoolCreated">;
 
       // For different chain ID, use a different mapping
       const mappingForBase: FeeToTickSpacingMapping = {
@@ -660,13 +656,13 @@ describe("CLFactoryPoolCreatedLogic", () => {
     ])(
       "should use correct fee for tick spacing $tickSpacing with fee $fee",
       async ({ tickSpacing, fee }) => {
-        const eventWithTickSpacing: CLFactory_PoolCreated_event = {
+        const eventWithTickSpacing = {
           ...mockEvent,
           params: {
             ...mockEvent.params,
             tickSpacing,
           },
-        };
+        } as unknown as EvmEvent<"CLFactory", "PoolCreated">;
 
         const mapping: FeeToTickSpacingMapping = {
           id: FeeToTickSpacingMappingId(CHAIN_ID, tickSpacing),

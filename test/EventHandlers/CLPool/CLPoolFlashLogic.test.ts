@@ -1,4 +1,4 @@
-import type { CLPool_Flash_event, Token } from "generated";
+import type { EvmEvent, Token } from "envio";
 import { TEN_TO_THE_18_BI, toChecksumAddress } from "../../../src/Constants";
 import { processCLPoolFlash } from "../../../src/EventHandlers/CLPool/CLPoolFlashLogic";
 import { setupCommon } from "../Pool/common";
@@ -27,7 +27,7 @@ describe("CLPoolFlashLogic", () => {
       paid0: 1000n, // Fees paid
       paid1: 500n, // Fees paid
     },
-  } satisfies Partial<CLPool_Flash_event> as unknown as CLPool_Flash_event;
+  } as unknown as EvmEvent<"CLPool", "Flash">;
 
   const mockToken0: Token = {
     ...mockToken0Data,
@@ -116,7 +116,7 @@ describe("CLPoolFlashLogic", () => {
     });
 
     it("should handle zero amounts correctly", () => {
-      const eventWithZeroAmounts: CLPool_Flash_event = {
+      const eventWithZeroAmounts: EvmEvent<"CLPool", "Flash"> = {
         ...mockEvent,
         params: {
           ...mockEvent.params,

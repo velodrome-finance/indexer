@@ -1,10 +1,5 @@
-import {
-  CustomUnstakedFeeModule,
-  MockDb,
-  UnstakedFeeModule,
-} from "../../../generated/src/TestHelpers.gen";
+import { createTestIndexer } from "envio";
 import { toChecksumAddress } from "../../../src/Constants";
-import "../../eventHandlersRegistration";
 import { setupCommon } from "../Pool/common";
 
 const GAUGE_CAPS_MODULE = toChecksumAddress(
@@ -16,31 +11,13 @@ const GAUGES_V3_MODULE = toChecksumAddress(
 const INITIAL_CUSTOM_MODULE = toChecksumAddress(
   "0x0AD08370c76Ff426F534bb2AFFD9b5555338ee68",
 );
-const CHAIN_ID_BASE = 8453;
+const CHAIN_ID_BASE = 8453 as const;
 
 const DEFAULT_BLOCK = {
   timestamp: 1000000,
   number: 123456,
   hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
 } as const;
-
-function createCustomFeeSetEvent(params: {
-  poolAddress: string;
-  fee: bigint;
-  srcAddress: string;
-  block?: { timestamp: number; number: number; hash: string };
-}) {
-  return UnstakedFeeModule.CustomFeeSet.createMockEvent({
-    pool: params.poolAddress as `0x${string}`,
-    fee: params.fee,
-    mockEventData: {
-      block: params.block ?? DEFAULT_BLOCK,
-      chainId: CHAIN_ID_BASE,
-      logIndex: 1,
-      srcAddress: params.srcAddress as `0x${string}`,
-    },
-  });
-}
 
 describe("UnstakedFeeModule Events", () => {
   let common: ReturnType<typeof setupCommon>;
@@ -74,17 +51,30 @@ describe("UnstakedFeeModule Events", () => {
         const pool = common.createMockPool({
           chainId: CHAIN_ID_BASE,
         });
-        const populatedDb = MockDb.createMockDb().entities.Pool.set(pool);
+        const indexer = createTestIndexer();
+        indexer.Pool.set(pool);
 
-        const event = createCustomFeeSetEvent({
-          poolAddress: pool.poolAddress,
-          fee,
-          srcAddress,
+        await indexer.process({
+          chains: {
+            [CHAIN_ID_BASE]: {
+              simulate: [
+                {
+                  contract: "UnstakedFeeModule",
+                  event: "CustomFeeSet",
+                  srcAddress: srcAddress,
+                  logIndex: 1,
+                  block: DEFAULT_BLOCK,
+                  params: {
+                    pool: pool.poolAddress as `0x${string}`,
+                    fee,
+                  },
+                },
+              ],
+            },
+          },
         });
 
-        const result = await populatedDb.processEvents([event]);
-
-        const updatedPool = result.entities.Pool.get(pool.id);
+        const updatedPool = await indexer.Pool.get(pool.id);
         expect(updatedPool).toBeDefined();
         expect(updatedPool?.unstakedFee).toBe(fee);
         // baseFee and currentFee must be orthogonal and untouched.
@@ -97,17 +87,29 @@ describe("UnstakedFeeModule Events", () => {
       const pool = common.createMockPool({
         chainId: CHAIN_ID_BASE,
       });
-      const mockDb = MockDb.createMockDb();
+      const indexer = createTestIndexer();
 
-      const event = createCustomFeeSetEvent({
-        poolAddress: pool.poolAddress,
-        fee: 500n,
-        srcAddress: GAUGE_CAPS_MODULE,
+      await indexer.process({
+        chains: {
+          [CHAIN_ID_BASE]: {
+            simulate: [
+              {
+                contract: "UnstakedFeeModule",
+                event: "CustomFeeSet",
+                srcAddress: GAUGE_CAPS_MODULE,
+                logIndex: 1,
+                block: DEFAULT_BLOCK,
+                params: {
+                  pool: pool.poolAddress as `0x${string}`,
+                  fee: 500n,
+                },
+              },
+            ],
+          },
+        },
       });
 
-      const result = await mockDb.processEvents([event]);
-
-      const updatedPool = result.entities.Pool.get(pool.id);
+      const updatedPool = await indexer.Pool.get(pool.id);
       expect(updatedPool).toBeUndefined();
     });
   });
@@ -117,42 +119,67 @@ describe("UnstakedFeeModule Events", () => {
       const pool = common.createMockPool({
         chainId: CHAIN_ID_BASE,
       });
-      let mockDb = MockDb.createMockDb();
-      mockDb = mockDb.entities.Pool.set(pool);
 
       // First: Initial CustomUnstakedFeeModule fires SetCustomFee with 300.
-      const initialEvent = CustomUnstakedFeeModule.SetCustomFee.createMockEvent(
-        {
-          pool: pool.poolAddress as `0x${string}`,
-          fee: 300n,
-          mockEventData: {
-            block: {
-              timestamp: 1000000,
-              number: 123456,
-              hash: "0x1111111111111111111111111111111111111111111111111111111111111111",
-            },
-            chainId: CHAIN_ID_BASE,
-            logIndex: 1,
-            srcAddress: INITIAL_CUSTOM_MODULE,
+      const indexer1 = createTestIndexer();
+      indexer1.Pool.set(pool);
+
+      await indexer1.process({
+        chains: {
+          [CHAIN_ID_BASE]: {
+            simulate: [
+              {
+                contract: "CustomUnstakedFeeModule",
+                event: "SetCustomFee",
+                srcAddress: INITIAL_CUSTOM_MODULE,
+                logIndex: 1,
+                block: {
+                  timestamp: 1000000,
+                  number: 123456,
+                  hash: "0x1111111111111111111111111111111111111111111111111111111111111111",
+                },
+                params: {
+                  pool: pool.poolAddress as `0x${string}`,
+                  fee: 300n,
+                },
+              },
+            ],
           },
         },
-      );
-      mockDb = await mockDb.processEvents([initialEvent]);
+      });
+
+      const afterFirst = await indexer1.Pool.get(pool.id);
 
       // Then: Gauges V3 UnstakedFeeModule fires CustomFeeSet with 700 on a later block.
-      const laterEvent = createCustomFeeSetEvent({
-        poolAddress: pool.poolAddress,
-        fee: 700n,
-        srcAddress: GAUGES_V3_MODULE,
-        block: {
-          timestamp: 1000100,
-          number: 123500,
-          hash: "0x2222222222222222222222222222222222222222222222222222222222222222",
+      // Fresh indexer seeded with state after the first event
+      const indexer2 = createTestIndexer();
+      indexer2.Pool.set({ ...pool, unstakedFee: afterFirst?.unstakedFee });
+
+      await indexer2.process({
+        chains: {
+          [CHAIN_ID_BASE]: {
+            simulate: [
+              {
+                contract: "UnstakedFeeModule",
+                event: "CustomFeeSet",
+                srcAddress: GAUGES_V3_MODULE,
+                logIndex: 1,
+                block: {
+                  timestamp: 1000100,
+                  number: 123500,
+                  hash: "0x2222222222222222222222222222222222222222222222222222222222222222",
+                },
+                params: {
+                  pool: pool.poolAddress as `0x${string}`,
+                  fee: 700n,
+                },
+              },
+            ],
+          },
         },
       });
-      const result = await mockDb.processEvents([laterEvent]);
 
-      const updatedPool = result.entities.Pool.get(pool.id);
+      const updatedPool = await indexer2.Pool.get(pool.id);
       expect(updatedPool?.unstakedFee).toBe(700n);
     });
   });

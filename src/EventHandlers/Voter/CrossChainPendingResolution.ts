@@ -8,11 +8,7 @@
  * CLFactory, PoolFactory, and RootCLPoolFactory when a new pool or mapping is created.
  */
 
-import type {
-  PendingDistribution,
-  PendingVote,
-  handlerContext,
-} from "generated";
+import type { PendingDistribution, PendingVote } from "envio";
 import {
   type PoolData,
   loadPoolData,
@@ -32,6 +28,8 @@ import {
   CrossChainPendingResolutionLogPrefix,
   TokenId,
 } from "../../Constants";
+import { getRehydrated, getWhereRehydrated } from "../../EntityTimestamps";
+import type { handlerContext } from "../../EntityTypes";
 import {
   logContextError,
   runAsyncWithErrorLog,
@@ -59,7 +57,7 @@ export async function getPendingVotesByRootPool(
   rootPoolAddress: string,
 ): Promise<PendingVote[]> {
   const list =
-    (await context.PendingVote.getWhere({
+    (await getWhereRehydrated(context.PendingVote, "PendingVote", {
       rootPoolAddress: { _eq: rootPoolAddress },
     })) ?? [];
   const getLogIndexFromId = (id: string): number => {
@@ -288,9 +286,13 @@ export async function getPendingDistributionsByRootPool(
   rootPoolAddress: string,
 ): Promise<PendingDistribution[]> {
   const list =
-    (await context.PendingDistribution.getWhere({
-      rootPoolAddress: { _eq: rootPoolAddress },
-    })) ?? [];
+    (await getWhereRehydrated(
+      context.PendingDistribution,
+      "PendingDistribution",
+      {
+        rootPoolAddress: { _eq: rootPoolAddress },
+      },
+    )) ?? [];
   return sortByBlockThenLogIndex(
     list,
     (a) => Number(a.blockNumber),
@@ -325,7 +327,9 @@ export async function processPendingDistribution(
 
   const rewardTokenAddress =
     CHAIN_CONSTANTS[rootChainId].rewardToken(blockNumber);
-  const rewardToken = await context.Token.get(
+  const rewardToken = await getRehydrated(
+    context.Token,
+    "Token",
     TokenId(rootChainId, rewardTokenAddress),
   );
   if (!rewardToken) {

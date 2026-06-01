@@ -1,4 +1,4 @@
-import type { Token, UserStatsPerPool, handlerContext } from "generated";
+import type { Token, UserStatsPerPool } from "envio";
 import {
   PoolAddressField,
   type PoolDiff,
@@ -16,6 +16,8 @@ import {
   hasContractBytecode,
   roundBlockToInterval,
 } from "../../Effects/Index";
+import { getRehydrated } from "../../EntityTimestamps";
+import type { handlerContext } from "../../EntityTypes";
 import type { Pool } from "../../EntityTypes";
 import { refreshTokenPrice } from "../../PriceOracle";
 import { getGateDecisionFromSignals, getTrustedUSD } from "../../PriceTrust";
@@ -67,7 +69,7 @@ export async function processVotingRewardClaimRewards(
 ): Promise<VotingRewardClaimRewardsResult> {
   // Get reward token and refresh price (refreshTokenPrice handles the update internally)
   const rewardTokenId = TokenId(data.chainId, data.reward);
-  let rewardToken = await context.Token.get(rewardTokenId);
+  let rewardToken = await getRehydrated(context.Token, "Token", rewardTokenId);
 
   if (!rewardToken) {
     context.log.warn(

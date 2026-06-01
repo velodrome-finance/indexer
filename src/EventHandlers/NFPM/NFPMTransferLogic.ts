@@ -1,9 +1,4 @@
-import type {
-  CLPoolMintEvent,
-  NFPM_Transfer_event,
-  NonFungiblePosition,
-  handlerContext,
-} from "generated";
+import type { CLPoolMintEvent, EvmEvent, NonFungiblePosition } from "envio";
 import { updateNonFungiblePosition } from "../../Aggregators/NonFungiblePosition";
 import { type PoolData, loadPoolData } from "../../Aggregators/Pool";
 import {
@@ -12,6 +7,8 @@ import {
   TxCLPoolMintRegistryId,
   ZERO_ADDRESS,
 } from "../../Constants";
+import { getRehydrated } from "../../EntityTimestamps";
+import type { handlerContext } from "../../EntityTypes";
 import { calculatePositionAmountsFromLiquidity } from "../../Helpers";
 import {
   LiquidityChangeType,
@@ -90,7 +87,7 @@ export async function createPositionFromCLPoolMint(
  * @returns Promise that resolves once the definitive position is staged, the consumed CLPoolMintEvent deleted, and the registry row pruned
  */
 export async function handleMintTransfer(
-  event: NFPM_Transfer_event,
+  event: EvmEvent<"NFPM", "Transfer">,
   context: handlerContext,
   existingPosition: NonFungiblePosition | undefined,
 ): Promise<void> {
@@ -114,7 +111,9 @@ export async function handleMintTransfer(
 
   const mintEvents = (
     await Promise.all(
-      registry.mintEventIds.map((id) => context.CLPoolMintEvent.get(id)),
+      registry.mintEventIds.map((id) =>
+        getRehydrated(context.CLPoolMintEvent, "CLPoolMintEvent", id),
+      ),
     )
   ).filter((m): m is CLPoolMintEvent => m !== undefined);
 
@@ -208,7 +207,7 @@ export function isGaugeTransfer(
  * @param poolData - The pool data
  */
 export async function attributeTransferToUserStatsPerPool(
-  event: NFPM_Transfer_event,
+  event: EvmEvent<"NFPM", "Transfer">,
   position: NonFungiblePosition,
   context: handlerContext,
   poolData: PoolData,
@@ -272,7 +271,7 @@ export async function attributeTransferToUserStatsPerPool(
  * @param context - The handler context
  */
 export async function handleRegularTransfer(
-  event: NFPM_Transfer_event,
+  event: EvmEvent<"NFPM", "Transfer">,
   position: NonFungiblePosition,
   context: handlerContext,
 ): Promise<void> {
@@ -281,7 +280,9 @@ export async function handleRegularTransfer(
 
   // TODO: Refactor loadPoolData() to support partial results so handlers that only
   // need pool-level fields (like gaugeAddress) do not need a separate pool lookup.
-  const poolEntity = await context.Pool.get(
+  const poolEntity = await getRehydrated(
+    context.Pool,
+    "Pool",
     PoolId(event.chainId, position.pool),
   );
 
@@ -373,12 +374,14 @@ export async function handleRegularTransfer(
  * @param context - The handler context
  */
 export async function processNFPMTransfer(
-  event: NFPM_Transfer_event,
+  event: EvmEvent<"NFPM", "Transfer">,
   context: handlerContext,
 ): Promise<void> {
   // Direct O(1) lookup via stable ID (chainId, nfpmAddress, tokenId).
   // event.srcAddress is the NFPM contract that emitted the Transfer.
-  const position = await context.NonFungiblePosition.get(
+  const position = await getRehydrated(
+    context.NonFungiblePosition,
+    "NonFungiblePosition",
     NonFungiblePositionId(
       event.chainId,
       event.srcAddress,

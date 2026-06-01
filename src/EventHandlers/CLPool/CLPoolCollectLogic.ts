@@ -1,12 +1,8 @@
-import type {
-  CLPool_Collect_event,
-  CLPositionPendingPrincipal,
-  Token,
-  handlerContext,
-} from "generated";
+import type { CLPositionPendingPrincipal, EvmEvent, Token } from "envio";
 import type { PoolDiff } from "../../Aggregators/Pool";
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import { CLPositionPendingPrincipalId } from "../../Constants";
+import type { handlerContext } from "../../EntityTypes";
 import { calculateTotalUSD } from "../../Helpers";
 
 export interface CLPoolCollectResult {
@@ -59,7 +55,7 @@ function isolateFees(
  * @returns Pool and user diffs with fee-only amounts
  */
 export async function processCLPoolCollect(
-  event: CLPool_Collect_event,
+  event: EvmEvent<"CLPool", "Collect">,
   token0Instance: Token | undefined,
   token1Instance: Token | undefined,
   context: handlerContext,

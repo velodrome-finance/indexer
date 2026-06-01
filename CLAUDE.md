@@ -17,7 +17,7 @@ vitest run test/path.ts   # Run a single test file
 vitest run -t "pattern"   # Run tests matching a name pattern
 biome check               # Lint + format check
 biome check --fix --unsafe # Auto-fix lint/format issues
-pnpm dev                  # Start indexer with Docker (TUI_OFF=true pnpm dev for CI)
+pnpm dev                  # Start indexer with Docker (ENVIO_TUI=false pnpm dev for CI)
 pnpm envio start          # Start indexer in existing container
 pnpm envio stop           # Stop the indexer
 ```

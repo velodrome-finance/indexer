@@ -4,9 +4,10 @@ import type {
   OUSDTSwaps,
   ProcessId_event,
   SuperSwap,
-  handlerContext,
-} from "generated";
+} from "envio";
 import { OUSDT_ADDRESS, SuperSwapId } from "../../Constants";
+import { getRehydrated } from "../../EntityTimestamps";
+import type { handlerContext } from "../../EntityTypes";
 
 /**
  * Builds a map from messageId to ProcessId event and collects unique destination transaction hashes.
@@ -211,7 +212,11 @@ export async function createSuperSwapEntity(
   const superSwapId = SuperSwapId(messageId);
 
   // Check if SuperSwap already exists (idempotency check)
-  const existingSuperSwap = await context.SuperSwap.get(superSwapId);
+  const existingSuperSwap = await getRehydrated(
+    context.SuperSwap,
+    "SuperSwap",
+    superSwapId,
+  );
   if (existingSuperSwap) {
     return;
   }

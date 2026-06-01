@@ -1,10 +1,13 @@
-import type { UserStatsPerPool, handlerContext } from "generated";
+import type { UserStatsPerPool } from "envio";
+
+import type { handlerContext } from "../EntityTypes";
 
 import {
   NonFungiblePositionId,
   PoolId,
   UserStatsPerPoolId,
 } from "../Constants";
+import { getRehydrated } from "../EntityTimestamps";
 import { computeNonCLStakedUSD, concentratedLiquidityToUSD } from "../Helpers";
 import { getSnapshotEpoch, shouldSnapshot } from "../Snapshots/Shared";
 import { setUserStatsPerPoolSnapshot } from "../Snapshots/UserStatsPerPoolSnapshot";
@@ -69,7 +72,7 @@ export async function loadUserStatsPerPool(
   context: handlerContext,
 ): Promise<UserStatsPerPool | undefined> {
   const id = UserStatsPerPoolId(chainId, userAddress, poolAddress);
-  return context.UserStatsPerPool.get(id);
+  return getRehydrated(context.UserStatsPerPool, "UserStatsPerPool", id);
 }
 
 /**
@@ -407,11 +410,12 @@ export async function updateUserStatsPerPool(
       let token1Instance = preloadedPoolData?.token1Instance;
       if (!poolEntity) {
         const poolId = PoolId(updated.chainId, updated.poolAddress);
-        poolEntity = (await context.Pool.get(poolId)) ?? undefined;
+        poolEntity =
+          (await getRehydrated(context.Pool, "Pool", poolId)) ?? undefined;
         if (poolEntity) {
           [token0Instance, token1Instance] = await Promise.all([
-            context.Token.get(poolEntity.token0_id),
-            context.Token.get(poolEntity.token1_id),
+            getRehydrated(context.Token, "Token", poolEntity.token0_id),
+            getRehydrated(context.Token, "Token", poolEntity.token1_id),
           ]);
         }
       }
@@ -433,7 +437,9 @@ export async function updateUserStatsPerPool(
           const nfpmAddress = poolEntity.nfpmAddress;
           const positions = await Promise.all(
             updated.stakedCLPositionTokenIds.map((tokenId) =>
-              context.NonFungiblePosition.get(
+              getRehydrated(
+                context.NonFungiblePosition,
+                "NonFungiblePosition",
                 NonFungiblePositionId(updated.chainId, nfpmAddress, tokenId),
               ),
             ),

@@ -1,5 +1,4 @@
 import { TickMath } from "@uniswap/v3-sdk";
-import type { handlerContext } from "generated";
 import {
   createUserStatsPerPoolEntity,
   updateUserStatsPerPool,

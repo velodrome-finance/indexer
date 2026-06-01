@@ -29,6 +29,8 @@ benchmarks/
 artifacts
 cache
 generated
+.envio
+envio-env.d.ts
 logs
 *.bs.js
 build

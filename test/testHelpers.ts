@@ -1,62 +1,10 @@
-import type { NonFungiblePosition } from "generated";
+import type { createTestIndexer } from "envio";
 import type { PublicClient } from "viem";
-import type { MockDb } from "../generated/src/TestHelpers.gen";
-import { CHAIN_CONSTANTS, PoolId, toChecksumAddress } from "../src/Constants";
+import { CHAIN_CONSTANTS, PoolId } from "../src/Constants";
 import type { Pool } from "../src/EntityTypes";
 
 /** Cast string to V3 Address type for mock event data */
 export const asAddress = (s: string): `0x${string}` => s as `0x${string}`;
-
-/**
- * Extends mockDb with getWhere functionality for NonFungiblePosition queries
- * @param mockDb - The base mock database
- * @param storedNFPMs - Array of NonFungiblePosition entities to query from (defaults to empty array)
- * @param mintTransactionHashHandler - Optional custom handler for mintTransactionHash queries.
- *   If not provided, filters storedNFPMs by transaction hash.
- * @returns Extended mockDb with getWhere functionality
- */
-export function extendMockDbWithGetWhere(
-  mockDb: ReturnType<typeof MockDb.createMockDb>,
-  storedNFPMs: NonFungiblePosition[] = [],
-  mintTransactionHashHandler?: (
-    txHash: string,
-  ) => Promise<NonFungiblePosition[] | null | undefined>,
-) {
-  return {
-    ...mockDb,
-    entities: {
-      ...mockDb.entities,
-      NonFungiblePosition: {
-        ...mockDb.entities.NonFungiblePosition,
-        getWhere: vi.fn().mockImplementation(
-          async (filter: {
-            tokenId?: { _eq: bigint };
-            mintTransactionHash?: { _eq: string };
-          }) => {
-            if (filter.mintTransactionHash?._eq !== undefined) {
-              const result = mintTransactionHashHandler
-                ? await mintTransactionHashHandler(
-                    filter.mintTransactionHash._eq,
-                  )
-                : storedNFPMs.filter(
-                    (entity) =>
-                      entity.mintTransactionHash ===
-                      filter.mintTransactionHash?._eq,
-                  );
-              return result ?? [];
-            }
-            if (filter.tokenId?._eq !== undefined) {
-              return storedNFPMs.filter(
-                (entity) => entity.tokenId === filter.tokenId?._eq,
-              );
-            }
-            return [];
-          },
-        ),
-      },
-    },
-  };
-}
 
 /**
  * Mutates CHAIN_CONSTANTS for a specific chainId and returns the original value
@@ -95,30 +43,29 @@ export function mutateChainConstants(
 }
 
 /**
- * Helper function to set up Pool on a mockDb.
- * Returns the updated mockDb.
+ * Helper function to seed a Pool on the test indexer.
  *
- * @param mockDb - The mock database to update
+ * @param indexer - The test indexer to seed
  * @param mockLiquidityPoolData - Base liquidity pool data
  * @param poolAddress - The pool address
- * @returns The updated mockDb with Pool set
+ * @returns void; the Pool is staged on the indexer in place
  */
 export function setupPool(
-  mockDb: ReturnType<typeof MockDb.createMockDb>,
+  indexer: ReturnType<typeof createTestIndexer>,
   mockLiquidityPoolData: Pool,
   poolAddress: string,
-): ReturnType<typeof MockDb.createMockDb> {
+): void {
   const poolId = PoolId(mockLiquidityPoolData.chainId, poolAddress);
   const mockPool = {
     ...mockLiquidityPoolData,
     id: poolId,
     poolAddress: poolAddress,
     isCL: mockLiquidityPoolData.isCL ?? true,
-    // Array fields: force mutable bigint[] (envio.d.ts uses readonly; set() wants mutable).
+    // Array fields: force mutable bigint[] (envio types use readonly; set() wants mutable).
     stakedTickEdges: [...mockLiquidityPoolData.stakedTickEdges],
     stakedTickEdgeNets: [...mockLiquidityPoolData.stakedTickEdgeNets],
     tickEdges: [...mockLiquidityPoolData.tickEdges],
     tickEdgeNets: [...mockLiquidityPoolData.tickEdgeNets],
   };
-  return mockDb.entities.Pool.set(mockPool);
+  indexer.Pool.set(mockPool);
 }

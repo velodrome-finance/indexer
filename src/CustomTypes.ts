@@ -1,4 +1,4 @@
-import type { Token } from "generated";
+import type { Token } from "envio";
 
 // Ensure units is an array of valid unit types
 export type validUnit =

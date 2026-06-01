@@ -1,4 +1,4 @@
-import type { Token, handlerContext } from "generated";
+import type { Token } from "envio";
 import {
   loadPoolData,
   loadPoolDataOrRootCLPool,
@@ -14,7 +14,7 @@ import {
 } from "../../src/Constants";
 import { getSwapFee } from "../../src/Effects/SwapFee";
 import { roundBlockToInterval } from "../../src/Effects/Token";
-import type { Pool } from "../../src/EntityTypes";
+import type { Pool, handlerContext } from "../../src/EntityTypes";
 import * as PriceOracle from "../../src/PriceOracle";
 import { setPoolSnapshot } from "../../src/Snapshots/PoolSnapshot";
 import { getSnapshotEpoch } from "../../src/Snapshots/Shared";

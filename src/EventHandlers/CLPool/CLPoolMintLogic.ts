@@ -1,4 +1,5 @@
-import type { CLPool_Mint_event, Token } from "generated";
+import type { EvmEvent } from "envio";
+import type { Token } from "envio";
 import type { PoolDiff } from "../../Aggregators/Pool";
 import type { Pool } from "../../EntityTypes";
 import { calculateTotalUSD } from "../../Helpers";
@@ -24,7 +25,7 @@ export interface CLPoolMintResult {
  * @returns Pool diff with reserve increments and, if in range, incrementalLiquidityInRange
  */
 export function processCLPoolMint(
-  event: CLPool_Mint_event,
+  event: EvmEvent<"CLPool", "Mint">,
   liquidityPoolAggregator: Pool,
   token0Instance: Token,
   token1Instance: Token,

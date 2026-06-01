@@ -1,5 +1,5 @@
-import type { Token } from "generated";
-import { MockDb, Voter } from "generated/src/TestHelpers.gen";
+import type { Token } from "envio";
+import { createTestIndexer } from "envio";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   CHAIN_CONSTANTS,
@@ -25,7 +25,7 @@ import { setupCommon } from "../Pool/common";
  * `mockDb.processEvents` without spying.
  */
 describe("Voter.DistributeReward → totalEmissionsUSD regression (#673)", () => {
-  const chainId = 10; // Optimism
+  const chainId = 10 as const; // Optimism
   const voterAddress = toChecksumAddress(
     "0x41C914ee0c7E1A5edCD0295623e6dC557B5aBf3C",
   );
@@ -70,23 +70,6 @@ describe("Voter.DistributeReward → totalEmissionsUSD regression (#673)", () =>
     } as Token;
   }
 
-  function makeDistributeRewardEvent(amount: bigint) {
-    return Voter.DistributeReward.createMockEvent({
-      gauge: gaugeAddress,
-      amount,
-      mockEventData: {
-        block: {
-          number: blockNumber,
-          timestamp: blockTimestamp,
-          hash: "0xblockhash",
-        },
-        chainId,
-        logIndex: 0,
-        srcAddress: voterAddress,
-      },
-    });
-  }
-
   it("writes totalEmissionsUSD = emission * reward-token price when price is non-zero", async () => {
     const { createMockPool } = setupCommon();
     const liquidityPool = createMockPool({
@@ -103,17 +86,35 @@ describe("Voter.DistributeReward → totalEmissionsUSD regression (#673)", () =>
     const amountEmitted = 1000n * 10n ** 18n; // 1000 VELO
     const expectedEmissionsUSD = 2000n * 10n ** 18n; // 1000 * $2
 
-    let db = MockDb.createMockDb();
-    db = db.entities.Token.set(rewardToken);
-    db = db.entities.Pool.set(liquidityPool);
+    const indexer = createTestIndexer();
+    indexer.Token.set(rewardToken);
+    indexer.Pool.set(liquidityPool);
 
-    const resultDB = await db.processEvents([
-      makeDistributeRewardEvent(amountEmitted),
-    ]);
+    await indexer.process({
+      chains: {
+        [chainId]: {
+          simulate: [
+            {
+              contract: "Voter",
+              event: "DistributeReward",
+              srcAddress: voterAddress,
+              logIndex: 0,
+              block: {
+                number: blockNumber,
+                timestamp: blockTimestamp,
+                hash: "0xblockhash",
+              },
+              params: {
+                gauge: gaugeAddress,
+                amount: amountEmitted,
+              },
+            },
+          ],
+        },
+      },
+    });
 
-    const updatedPool = resultDB.entities.Pool.get(
-      PoolId(chainId, poolAddress),
-    );
+    const updatedPool = await indexer.Pool.get(PoolId(chainId, poolAddress));
     expect(updatedPool?.totalEmissions).toBe(amountEmitted);
     expect(updatedPool?.totalEmissionsUSD).toBe(expectedEmissionsUSD);
   });
@@ -140,20 +141,38 @@ describe("Voter.DistributeReward → totalEmissionsUSD regression (#673)", () =>
     });
     const amountEmitted = 1000n * 10n ** 18n;
 
-    let db = MockDb.createMockDb();
+    const indexer = createTestIndexer();
     // Seed pool tokens too — proving the handler doesn't fall back to them.
-    db = db.entities.Token.set(mockToken0Data);
-    db = db.entities.Token.set(mockToken1Data);
-    db = db.entities.Token.set(rewardToken);
-    db = db.entities.Pool.set(liquidityPool);
+    indexer.Token.set(mockToken0Data);
+    indexer.Token.set(mockToken1Data);
+    indexer.Token.set(rewardToken);
+    indexer.Pool.set(liquidityPool);
 
-    const resultDB = await db.processEvents([
-      makeDistributeRewardEvent(amountEmitted),
-    ]);
+    await indexer.process({
+      chains: {
+        [chainId]: {
+          simulate: [
+            {
+              contract: "Voter",
+              event: "DistributeReward",
+              srcAddress: voterAddress,
+              logIndex: 0,
+              block: {
+                number: blockNumber,
+                timestamp: blockTimestamp,
+                hash: "0xblockhash",
+              },
+              params: {
+                gauge: gaugeAddress,
+                amount: amountEmitted,
+              },
+            },
+          ],
+        },
+      },
+    });
 
-    const updatedPool = resultDB.entities.Pool.get(
-      PoolId(chainId, poolAddress),
-    );
+    const updatedPool = await indexer.Pool.get(PoolId(chainId, poolAddress));
     expect(updatedPool?.totalEmissionsUSD).toBe(7000n * 10n ** 18n);
   });
 
@@ -184,17 +203,35 @@ describe("Voter.DistributeReward → totalEmissionsUSD regression (#673)", () =>
     });
     const amountEmitted = 1000n * 10n ** 18n;
 
-    let db = MockDb.createMockDb();
-    db = db.entities.Token.set(rewardToken);
-    db = db.entities.Pool.set(liquidityPool);
+    const indexer = createTestIndexer();
+    indexer.Token.set(rewardToken);
+    indexer.Pool.set(liquidityPool);
 
-    const resultDB = await db.processEvents([
-      makeDistributeRewardEvent(amountEmitted),
-    ]);
+    await indexer.process({
+      chains: {
+        [chainId]: {
+          simulate: [
+            {
+              contract: "Voter",
+              event: "DistributeReward",
+              srcAddress: voterAddress,
+              logIndex: 0,
+              block: {
+                number: blockNumber,
+                timestamp: blockTimestamp,
+                hash: "0xblockhash",
+              },
+              params: {
+                gauge: gaugeAddress,
+                amount: amountEmitted,
+              },
+            },
+          ],
+        },
+      },
+    });
 
-    const updatedPool = resultDB.entities.Pool.get(
-      PoolId(chainId, poolAddress),
-    );
+    const updatedPool = await indexer.Pool.get(PoolId(chainId, poolAddress));
     expect(updatedPool?.totalEmissions).toBe(amountEmitted);
     expect(updatedPool?.totalEmissionsUSD).toBe(0n);
   });

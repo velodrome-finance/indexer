@@ -1,5 +1,4 @@
-import type { Token } from "generated";
-import { CLPool } from "../../../generated/src/TestHelpers.gen";
+import type { EvmEvent, Token } from "envio";
 import { toChecksumAddress } from "../../../src/Constants";
 import type { Pool } from "../../../src/EntityTypes";
 import { processCLPoolMint } from "../../../src/EventHandlers/CLPool/CLPoolMintLogic";
@@ -9,29 +8,28 @@ describe("CLPoolMintLogic", () => {
   const { mockLiquidityPoolData, mockToken0Data, mockToken1Data } =
     setupCommon();
 
-  const mockEvent = CLPool.Mint.createMockEvent({
-    owner: toChecksumAddress("0x1111111111111111111111111111111111111111"),
-    tickLower: 100000n,
-    tickUpper: 200000n,
-    amount: 1000000000000000000n, // 1 token
-    amount0: 500000000000000000n, // 0.5 token
-    amount1: 300000000000000000n, // 0.3 token
-    mockEventData: {
-      block: {
-        timestamp: 1000000,
-        number: 123456,
-        hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
-      },
-      chainId: 10,
-      logIndex: 1,
-      srcAddress: toChecksumAddress(
-        "0x3333333333333333333333333333333333333333",
-      ),
-      transaction: {
-        hash: "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
-      },
+  const mockEvent = {
+    params: {
+      sender: toChecksumAddress("0x1111111111111111111111111111111111111111"),
+      owner: toChecksumAddress("0x1111111111111111111111111111111111111111"),
+      tickLower: 100000n,
+      tickUpper: 200000n,
+      amount: 1000000000000000000n, // 1 token
+      amount0: 500000000000000000n, // 0.5 token
+      amount1: 300000000000000000n, // 0.3 token
     },
-  });
+    block: {
+      timestamp: 1000000,
+      number: 123456,
+      hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+    },
+    chainId: 10,
+    logIndex: 1,
+    srcAddress: toChecksumAddress("0x3333333333333333333333333333333333333333"),
+    transaction: {
+      hash: "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+    },
+  } as unknown as EvmEvent<"CLPool", "Mint">;
 
   const mockToken0: Token = {
     ...mockToken0Data,
@@ -122,21 +120,22 @@ describe("CLPoolMintLogic", () => {
     });
 
     it("should handle zero amounts correctly", () => {
-      const eventWithZeroAmounts = CLPool.Mint.createMockEvent({
-        owner: mockEvent.params.owner,
-        tickLower: mockEvent.params.tickLower,
-        tickUpper: mockEvent.params.tickUpper,
-        amount: mockEvent.params.amount,
-        amount0: 0n,
-        amount1: 0n,
-        mockEventData: {
-          block: mockEvent.block,
-          chainId: mockEvent.chainId,
-          logIndex: mockEvent.logIndex,
-          srcAddress: mockEvent.srcAddress,
-          transaction: mockEvent.transaction,
+      const eventWithZeroAmounts = {
+        params: {
+          sender: mockEvent.params.sender,
+          owner: mockEvent.params.owner,
+          tickLower: mockEvent.params.tickLower,
+          tickUpper: mockEvent.params.tickUpper,
+          amount: mockEvent.params.amount,
+          amount0: 0n,
+          amount1: 0n,
         },
-      });
+        block: mockEvent.block,
+        chainId: mockEvent.chainId,
+        logIndex: mockEvent.logIndex,
+        srcAddress: mockEvent.srcAddress,
+        transaction: mockEvent.transaction,
+      } as unknown as EvmEvent<"CLPool", "Mint">;
 
       const result = processCLPoolMint(
         eventWithZeroAmounts,
