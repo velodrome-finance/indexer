@@ -1,9 +1,5 @@
 import { TickMath, maxLiquidityForAmounts } from "@uniswap/v3-sdk";
-import type {
-  ALMLPWrapperTransferInTx,
-  ALM_LP_Wrapper,
-  handlerContext,
-} from "generated";
+import type { ALMLPWrapperTransferInTx, ALM_LP_Wrapper } from "envio";
 import JSBI from "jsbi";
 import { updateALMLPWrapper } from "../../Aggregators/ALMLPWrapper";
 import {
@@ -17,6 +13,8 @@ import {
   PoolId,
   ZERO_ADDRESS,
 } from "../../Constants";
+import { getRehydrated, getWhereRehydrated } from "../../EntityTimestamps";
+import type { handlerContext } from "../../EntityTypes";
 import { computeLiquidityDeltaFromAmounts } from "../../Helpers";
 
 interface MatchingBurnTransfer {
@@ -55,7 +53,11 @@ export async function calculateLiquidityFromAmounts(
   try {
     // Load pool entity to get sqrtPriceX96
     const poolId = PoolId(chainId, poolAddress);
-    const liquidityPoolAggregator = await context.Pool.get(poolId);
+    const liquidityPoolAggregator = await getRehydrated(
+      context.Pool,
+      "Pool",
+      poolId,
+    );
 
     if (!liquidityPoolAggregator) {
       context.log.error(
@@ -152,7 +154,11 @@ export async function loadALMLPWrapper(
   context: handlerContext,
 ): Promise<ALM_LP_Wrapper | null> {
   const lpWrapperId = ALMLPWrapperId(chainId, srcAddress);
-  const ALMLPWrapperEntity = await context.ALM_LP_Wrapper.get(lpWrapperId);
+  const ALMLPWrapperEntity = await getRehydrated(
+    context.ALM_LP_Wrapper,
+    "ALM_LP_Wrapper",
+    lpWrapperId,
+  );
 
   if (!ALMLPWrapperEntity) {
     context.log.error(
@@ -183,9 +189,13 @@ export async function getMatchingBurnTransferInTx(
   withdrawLogIndex: number,
   context: handlerContext,
 ): Promise<MatchingBurnTransfer | undefined> {
-  const transfersInTxHash = await context.ALMLPWrapperTransferInTx.getWhere({
-    txHash: { _eq: txHash },
-  });
+  const transfersInTxHash = await getWhereRehydrated(
+    context.ALMLPWrapperTransferInTx,
+    "ALMLPWrapperTransferInTx",
+    {
+      txHash: { _eq: txHash },
+    },
+  );
 
   const matchingBurns = (transfersInTxHash ?? []).filter(
     (t: ALMLPWrapperTransferInTx) =>
@@ -249,9 +259,11 @@ async function getActualLpAmountForV1(
     const actualLpAmount = matchingBurn.value;
 
     // Mark the transfer as consumed
-    const transferEntity = await (
-      context as handlerContext
-    ).ALMLPWrapperTransferInTx.get(matchingBurn.id);
+    const transferEntity = await getRehydrated(
+      (context as handlerContext).ALMLPWrapperTransferInTx,
+      "ALMLPWrapperTransferInTx",
+      matchingBurn.id,
+    );
     if (transferEntity) {
       (context as handlerContext).ALMLPWrapperTransferInTx.set({
         ...transferEntity,
@@ -305,7 +317,11 @@ export async function processDepositEvent(
 
   // Compute ΔL from event amounts (getLiquidityForAmounts) then wrapper.liquidity += ΔL
   const poolId = PoolId(chainId, pool);
-  const liquidityPoolAggregator = await context.Pool.get(poolId);
+  const liquidityPoolAggregator = await getRehydrated(
+    context.Pool,
+    "Pool",
+    poolId,
+  );
   const sqrtPriceX96 = liquidityPoolAggregator?.sqrtPriceX96;
 
   let updatedLiquidity = ALMLPWrapperEntity.liquidity;
@@ -407,7 +423,11 @@ export async function processWithdrawEvent(
 
   // Compute ΔL from event amounts (getLiquidityForAmounts) then wrapper.liquidity -= ΔL
   const poolId = PoolId(chainId, pool);
-  const liquidityPoolAggregator = await context.Pool.get(poolId);
+  const liquidityPoolAggregator = await getRehydrated(
+    context.Pool,
+    "Pool",
+    poolId,
+  );
   const sqrtPriceX96 = liquidityPoolAggregator?.sqrtPriceX96;
 
   let updatedLiquidity = ALMLPWrapperEntity.liquidity;

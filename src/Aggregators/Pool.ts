@@ -1,4 +1,4 @@
-import type { CLGaugeConfig, Token, handlerContext } from "generated";
+import type { CLGaugeConfig, Token } from "envio";
 import {
   PoolId,
   TEN_TO_THE_18_BI,
@@ -6,6 +6,8 @@ import {
   isKnownSinkRootPool,
 } from "../Constants";
 import { getSwapFee, roundBlockToInterval } from "../Effects/Index";
+import { getRehydrated, getWhereRehydrated } from "../EntityTimestamps";
+import type { handlerContext } from "../EntityTypes";
 import type { Pool } from "../EntityTypes";
 import { calculateTotalUSD, generatePoolName } from "../Helpers";
 import { refreshTokenPrice } from "../PriceOracle";
@@ -73,7 +75,7 @@ async function logNegStakedReserveGuard(
   tokenId: string,
   context: handlerContext,
 ): Promise<void> {
-  const token = await context.Token.get(tokenId);
+  const token = await getRehydrated(context.Token, "Token", tokenId);
   const overshootUSD = getTrustedUSD(overshoot, token ?? undefined);
   if (overshootUSD > NEG_STAKED_RESERVE_WARN_FLOOR_USD) {
     context.log.warn(msg);
@@ -656,8 +658,8 @@ export async function updatePool(
         updated = { ...updated, currentLiquidityStakedUSD: 0n };
       } else {
         const [token0Instance, token1Instance] = await Promise.all([
-          context.Token.get(updated.token0_id),
-          context.Token.get(updated.token1_id),
+          getRehydrated(context.Token, "Token", updated.token0_id),
+          getRehydrated(context.Token, "Token", updated.token1_id),
         ]);
         updated = {
           ...updated,
@@ -719,15 +721,19 @@ export async function loadPoolData(
 ): Promise<PoolData | null> {
   const poolId = PoolId(chainId, poolAddress);
   // Load liquidity pool aggregator and token instances efficiently
-  const liquidityPoolAggregator = await context.Pool.get(poolId);
+  const liquidityPoolAggregator = await getRehydrated(
+    context.Pool,
+    "Pool",
+    poolId,
+  );
 
   // Load token instances concurrently using the pool's token IDs
   const [token0Instance, token1Instance] = await Promise.all([
     liquidityPoolAggregator
-      ? context.Token.get(liquidityPoolAggregator.token0_id)
+      ? getRehydrated(context.Token, "Token", liquidityPoolAggregator.token0_id)
       : Promise.resolve(undefined),
     liquidityPoolAggregator
-      ? context.Token.get(liquidityPoolAggregator.token1_id)
+      ? getRehydrated(context.Token, "Token", liquidityPoolAggregator.token1_id)
       : Promise.resolve(undefined),
   ]);
 
@@ -904,7 +910,7 @@ export async function findPoolByField(
   context: handlerContext,
   field: PoolAddressField,
 ): Promise<Pool | null> {
-  const pools = await context.Pool.getWhere({
+  const pools = await getWhereRehydrated(context.Pool, "Pool", {
     [field]: { _eq: address },
   });
 

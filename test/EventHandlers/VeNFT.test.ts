@@ -1,4 +1,4 @@
-import { MockDb, VeNFT } from "../../generated/src/TestHelpers.gen";
+import { createTestIndexer } from "envio";
 import * as VeNFTStateModule from "../../src/Aggregators/VeNFTState";
 import {
   SECONDS_IN_A_WEEK,
@@ -7,12 +7,13 @@ import {
   VeNFTId,
   toChecksumAddress,
 } from "../../src/Constants";
+import { rehydrateTimestamps } from "../../src/EntityTimestamps";
 import * as VeNFTLogic from "../../src/EventHandlers/VeNFT/VeNFTLogic";
 import { setupCommon } from "./Pool/common";
 
 describe("VeNFT Events", () => {
-  let mockDb: ReturnType<typeof MockDb.createMockDb>;
-  const chainId = 10;
+  let indexer: ReturnType<typeof createTestIndexer>;
+  const chainId = 10 as const;
   const tokenId = 1n;
 
   const mockVeNFTState = {
@@ -29,121 +30,53 @@ describe("VeNFT Events", () => {
   };
 
   beforeEach(() => {
-    mockDb = MockDb.createMockDb();
-    mockDb = mockDb.entities.VeNFTState.set({ ...mockVeNFTState });
-  });
-
-  describe("Transfer Event", () => {
-    const eventData = {
-      provider: toChecksumAddress("0x1111111111111111111111111111111111111111"),
-      from: toChecksumAddress("0x1111111111111111111111111111111111111111"),
-      to: toChecksumAddress("0x2222222222222222222222222222222222222222"),
-      tokenId: 1n,
-      timestamp: 1n,
-      chainId: 10,
-      mockEventData: {
-        block: {
-          timestamp: 1000000,
-          number: 123456,
-          hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
-        },
-        chainId: 10,
-        logIndex: 1,
-        srcAddress: toChecksumAddress(
-          "0x3333333333333333333333333333333333333333",
-        ),
-      },
-    };
-
-    let postEventDB: ReturnType<typeof MockDb.createMockDb>;
-    let mockEvent: ReturnType<typeof VeNFT.Transfer.createMockEvent>;
-
-    beforeEach(async () => {
-      vi.spyOn(VeNFTStateModule, "updateVeNFTState").mockResolvedValue(
-        undefined,
-      );
-      vi.spyOn(VeNFTLogic, "processVeNFTTransfer");
-      vi.spyOn(VeNFTLogic, "reassignVeNFTVotesOnTransfer").mockResolvedValue(
-        undefined,
-      );
-
-      mockEvent = VeNFT.Transfer.createMockEvent(eventData);
-      postEventDB = await mockDb.processEvents([mockEvent]);
-    });
-
-    afterEach(() => {
-      vi.restoreAllMocks();
-    });
-
-    // TODO: Skip until envio migrates to createTestIndexer — vi.spyOn can't intercept tsx-loaded modules (alpha.18)
-    it.skip("should call processVeNFTTransfer with the correct arguments", () => {
-      const processVeNFTTransferMock = vi.mocked(
-        VeNFTLogic.processVeNFTTransfer,
-      );
-      expect(processVeNFTTransferMock).toHaveBeenCalled();
-      // Handlers may run multiple times (preload + normal), so check if called at least once
-      expect(processVeNFTTransferMock.mock.calls.length).toBeGreaterThanOrEqual(
-        1,
-      );
-      const calledWith = processVeNFTTransferMock.mock.calls[0];
-      expect(calledWith[0]).toEqual(mockEvent);
-      expect(calledWith[1]).toEqual(mockVeNFTState);
-    });
-
-    // TODO: Skip until envio migrates to createTestIndexer — vi.spyOn can't intercept tsx-loaded modules (alpha.18)
-    it.skip("should call updateVeNFTState with the correct arguments", () => {
-      const updateVeNFTStateMock = vi.mocked(VeNFTStateModule.updateVeNFTState);
-      expect(updateVeNFTStateMock).toHaveBeenCalled();
-      // Handlers may run multiple times (preload + normal), so check if called at least once
-      expect(updateVeNFTStateMock.mock.calls.length).toBeGreaterThanOrEqual(1);
-      const timestamp = new Date(mockEvent.block.timestamp * 1000);
-      const calledWith = updateVeNFTStateMock.mock.calls[0];
-      expect(calledWith[0]).toEqual({
-        owner: eventData.to,
-        lastUpdatedTimestamp: timestamp,
-        isAlive: true,
-      });
-      expect(calledWith[1]).toEqual(mockVeNFTState);
-      expect(calledWith[2]).toEqual(new Date(mockEvent.block.timestamp * 1000));
-    });
+    indexer = createTestIndexer();
+    indexer.VeNFTState.set({ ...mockVeNFTState });
   });
 
   describe("Transfer Event - Minting", () => {
     const mintEventData = {
-      provider: toChecksumAddress("0x1111111111111111111111111111111111111111"),
       from: toChecksumAddress("0x0000000000000000000000000000000000000000"),
       to: toChecksumAddress("0x2222222222222222222222222222222222222222"),
       tokenId: 2n,
-      timestamp: 1n,
-      chainId: 10,
-      mockEventData: {
-        block: {
-          timestamp: 1000000,
-          number: 123456,
-          hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
-        },
-        chainId: 10,
-        logIndex: 1,
-        srcAddress: toChecksumAddress(
-          "0x3333333333333333333333333333333333333333",
-        ),
-      },
     };
 
-    let postEventDB: ReturnType<typeof MockDb.createMockDb>;
-    let mockEvent: ReturnType<typeof VeNFT.Transfer.createMockEvent>;
-
-    beforeEach(async () => {
-      // Create a fresh mockDb without the VeNFT for this tokenId
-      const freshMockDb = MockDb.createMockDb();
-      mockEvent = VeNFT.Transfer.createMockEvent(mintEventData);
-      postEventDB = await freshMockDb.processEvents([mockEvent]);
-    });
-
     it("should create VeNFTState entity when minting (from zero address)", async () => {
-      const createdVeNFT = postEventDB.entities.VeNFTState.get(
+      // Create a fresh indexer without the VeNFT for this tokenId
+      const mintIndexer = createTestIndexer();
+      await mintIndexer.process({
+        chains: {
+          [chainId]: {
+            simulate: [
+              {
+                contract: "VeNFT",
+                event: "Transfer",
+                srcAddress: toChecksumAddress(
+                  "0x3333333333333333333333333333333333333333",
+                ),
+                logIndex: 1,
+                block: {
+                  timestamp: 1000000,
+                  number: 123456,
+                  hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                },
+                params: {
+                  from: mintEventData.from,
+                  to: mintEventData.to,
+                  tokenId: mintEventData.tokenId,
+                },
+              },
+            ],
+          },
+        },
+      });
+
+      const rawCreatedVeNFT = await mintIndexer.VeNFTState.get(
         VeNFTId(chainId, mintEventData.tokenId),
       );
+      const createdVeNFT = rawCreatedVeNFT
+        ? rehydrateTimestamps("VeNFTState", rawCreatedVeNFT)
+        : undefined;
 
       expect(createdVeNFT).toBeDefined();
       expect(createdVeNFT?.id).toBe(VeNFTId(chainId, mintEventData.tokenId));
@@ -154,7 +87,7 @@ describe("VeNFT Events", () => {
       expect(createdVeNFT?.totalValueLocked).toBe(0n);
       expect(createdVeNFT?.isAlive).toBe(true);
       expect(createdVeNFT?.lastUpdatedTimestamp).toEqual(
-        new Date(mintEventData.mockEventData.block.timestamp * 1000),
+        new Date(1000000 * 1000),
       );
     });
   });
@@ -214,39 +147,52 @@ describe("VeNFT Events", () => {
         lastUpdatedTimestamp: new Date(0),
       });
 
-      let db = MockDb.createMockDb();
-      db = db.entities.VeNFTState.set(veNFT);
-      db = db.entities.UserStatsPerPool.set(oldUserStats);
-      db = db.entities.UserStatsPerPool.set(newUserStats);
-      db = db.entities.VeNFTPoolVote.set(veNFTPoolVote);
+      const reassignIndexer = createTestIndexer();
+      reassignIndexer.VeNFTState.set(veNFT);
+      reassignIndexer.UserStatsPerPool.set(oldUserStats);
+      reassignIndexer.UserStatsPerPool.set(newUserStats);
+      reassignIndexer.VeNFTPoolVote.set(veNFTPoolVote);
 
-      const transferEvent = VeNFT.Transfer.createMockEvent({
-        from: oldOwner,
-        to: newOwner,
-        tokenId,
-        mockEventData: {
-          block: {
-            timestamp: 1000000,
-            number: 123456,
-            hash: "0xhash",
+      await reassignIndexer.process({
+        chains: {
+          [chainId]: {
+            simulate: [
+              {
+                contract: "VeNFT",
+                event: "Transfer",
+                srcAddress: oldOwner,
+                logIndex: 1,
+                block: {
+                  timestamp: 1000000,
+                  number: 123456,
+                  hash: "0xhash",
+                },
+                params: {
+                  from: oldOwner,
+                  to: newOwner,
+                  tokenId,
+                },
+              },
+            ],
           },
-          chainId: chainId,
-          logIndex: 1,
-          srcAddress: oldOwner,
         },
       });
 
-      const resultDB = await db.processEvents([transferEvent]);
-
-      const updatedOldUserStats = resultDB.entities.UserStatsPerPool.get(
+      const updatedOldUserStats = await reassignIndexer.UserStatsPerPool.get(
         UserStatsPerPoolId(chainId, oldOwner, poolAddress),
       );
-      const updatedNewUserStats = resultDB.entities.UserStatsPerPool.get(
+      const updatedNewUserStats = await reassignIndexer.UserStatsPerPool.get(
         UserStatsPerPoolId(chainId, newOwner, poolAddress),
       );
 
       expect(updatedOldUserStats?.veNFTamountStaked).toBe(0n);
       expect(updatedNewUserStats?.veNFTamountStaked).toBe(voteAmount);
+
+      // updateVeNFTState writes owner = event.params.to on a (non-mint) Transfer.
+      const updatedVeNFT = await reassignIndexer.VeNFTState.get(
+        VeNFTId(chainId, tokenId),
+      );
+      expect(updatedVeNFT?.owner).toBe(newOwner);
     });
 
     it("should reassign votes across multiple pools", async () => {
@@ -322,43 +268,50 @@ describe("VeNFT Events", () => {
         lastUpdatedTimestamp: new Date(0),
       });
 
-      let db = MockDb.createMockDb();
-      db = db.entities.VeNFTState.set(veNFT);
-      db = db.entities.UserStatsPerPool.set(oldUserStatsA);
-      db = db.entities.UserStatsPerPool.set(oldUserStatsB);
-      db = db.entities.UserStatsPerPool.set(newUserStatsA);
-      db = db.entities.UserStatsPerPool.set(newUserStatsB);
-      db = db.entities.VeNFTPoolVote.set(tokenVotesA);
-      db = db.entities.VeNFTPoolVote.set(tokenVotesB);
+      const multiPoolIndexer = createTestIndexer();
+      multiPoolIndexer.VeNFTState.set(veNFT);
+      multiPoolIndexer.UserStatsPerPool.set(oldUserStatsA);
+      multiPoolIndexer.UserStatsPerPool.set(oldUserStatsB);
+      multiPoolIndexer.UserStatsPerPool.set(newUserStatsA);
+      multiPoolIndexer.UserStatsPerPool.set(newUserStatsB);
+      multiPoolIndexer.VeNFTPoolVote.set(tokenVotesA);
+      multiPoolIndexer.VeNFTPoolVote.set(tokenVotesB);
 
-      const transferEvent = VeNFT.Transfer.createMockEvent({
-        from: oldOwner,
-        to: newOwner,
-        tokenId,
-        mockEventData: {
-          block: {
-            timestamp: 1000000,
-            number: 123456,
-            hash: "0xhash",
+      await multiPoolIndexer.process({
+        chains: {
+          [chainId]: {
+            simulate: [
+              {
+                contract: "VeNFT",
+                event: "Transfer",
+                srcAddress: oldOwner,
+                logIndex: 1,
+                block: {
+                  timestamp: 1000000,
+                  number: 123456,
+                  hash: "0xhash",
+                },
+                params: {
+                  from: oldOwner,
+                  to: newOwner,
+                  tokenId,
+                },
+              },
+            ],
           },
-          chainId: chainId,
-          logIndex: 1,
-          srcAddress: oldOwner,
         },
       });
 
-      const resultDB = await db.processEvents([transferEvent]);
-
-      const updatedOldA = resultDB.entities.UserStatsPerPool.get(
+      const updatedOldA = await multiPoolIndexer.UserStatsPerPool.get(
         UserStatsPerPoolId(chainId, oldOwner, poolA),
       );
-      const updatedOldB = resultDB.entities.UserStatsPerPool.get(
+      const updatedOldB = await multiPoolIndexer.UserStatsPerPool.get(
         UserStatsPerPoolId(chainId, oldOwner, poolB),
       );
-      const updatedNewA = resultDB.entities.UserStatsPerPool.get(
+      const updatedNewA = await multiPoolIndexer.UserStatsPerPool.get(
         UserStatsPerPoolId(chainId, newOwner, poolA),
       );
-      const updatedNewB = resultDB.entities.UserStatsPerPool.get(
+      const updatedNewB = await multiPoolIndexer.UserStatsPerPool.get(
         UserStatsPerPoolId(chainId, newOwner, poolB),
       );
 
@@ -406,35 +359,42 @@ describe("VeNFT Events", () => {
         lastUpdatedTimestamp: new Date(0),
       });
 
-      let db = MockDb.createMockDb();
-      db = db.entities.VeNFTState.set(veNFT);
-      db = db.entities.UserStatsPerPool.set(oldUserStats);
-      db = db.entities.VeNFTPoolVote.set(tokenVotes);
+      const burnIndexer = createTestIndexer();
+      burnIndexer.VeNFTState.set(veNFT);
+      burnIndexer.UserStatsPerPool.set(oldUserStats);
+      burnIndexer.VeNFTPoolVote.set(tokenVotes);
 
-      const burnEvent = VeNFT.Transfer.createMockEvent({
-        from: oldOwner,
-        to: zeroAddress,
-        tokenId,
-        mockEventData: {
-          block: {
-            timestamp: 1000000,
-            number: 123456,
-            hash: "0xhash",
+      await burnIndexer.process({
+        chains: {
+          [chainId]: {
+            simulate: [
+              {
+                contract: "VeNFT",
+                event: "Transfer",
+                srcAddress: oldOwner,
+                logIndex: 1,
+                block: {
+                  timestamp: 1000000,
+                  number: 123456,
+                  hash: "0xhash",
+                },
+                params: {
+                  from: oldOwner,
+                  to: zeroAddress,
+                  tokenId,
+                },
+              },
+            ],
           },
-          chainId: chainId,
-          logIndex: 1,
-          srcAddress: oldOwner,
         },
       });
 
-      const resultDB = await db.processEvents([burnEvent]);
-
-      const updatedOldUserStats = resultDB.entities.UserStatsPerPool.get(
+      const updatedOldUserStats = await burnIndexer.UserStatsPerPool.get(
         UserStatsPerPoolId(chainId, oldOwner, poolAddress),
       );
       expect(updatedOldUserStats?.veNFTamountStaked).toBe(0n);
 
-      const newOwnerStats = resultDB.entities.UserStatsPerPool.get(
+      const newOwnerStats = await burnIndexer.UserStatsPerPool.get(
         UserStatsPerPoolId(chainId, zeroAddress, poolAddress),
       );
       expect(newOwnerStats).toBeUndefined();
@@ -470,33 +430,40 @@ describe("VeNFT Events", () => {
         lastActivityTimestamp: new Date(0),
       });
 
-      let db = MockDb.createMockDb();
-      db = db.entities.VeNFTState.set(veNFT);
-      db = db.entities.UserStatsPerPool.set(oldUserStats);
+      const noVotesIndexer = createTestIndexer();
+      noVotesIndexer.VeNFTState.set(veNFT);
+      noVotesIndexer.UserStatsPerPool.set(oldUserStats);
 
-      const transferEvent = VeNFT.Transfer.createMockEvent({
-        from: oldOwner,
-        to: newOwner,
-        tokenId,
-        mockEventData: {
-          block: {
-            timestamp: 1000000,
-            number: 123456,
-            hash: "0xhash",
+      await noVotesIndexer.process({
+        chains: {
+          [chainId]: {
+            simulate: [
+              {
+                contract: "VeNFT",
+                event: "Transfer",
+                srcAddress: oldOwner,
+                logIndex: 1,
+                block: {
+                  timestamp: 1000000,
+                  number: 123456,
+                  hash: "0xhash",
+                },
+                params: {
+                  from: oldOwner,
+                  to: newOwner,
+                  tokenId,
+                },
+              },
+            ],
           },
-          chainId: chainId,
-          logIndex: 1,
-          srcAddress: oldOwner,
         },
       });
 
-      const resultDB = await db.processEvents([transferEvent]);
-
-      const updatedOldUserStats = resultDB.entities.UserStatsPerPool.get(
+      const updatedOldUserStats = await noVotesIndexer.UserStatsPerPool.get(
         UserStatsPerPoolId(chainId, oldOwner, poolAddress),
       );
       expect(updatedOldUserStats?.veNFTamountStaked).toBe(123n);
-      const newOwnerStats = resultDB.entities.UserStatsPerPool.get(
+      const newOwnerStats = await noVotesIndexer.UserStatsPerPool.get(
         UserStatsPerPoolId(chainId, newOwner, poolAddress),
       );
       expect(newOwnerStats).toBeUndefined();
@@ -509,22 +476,7 @@ describe("VeNFT Events", () => {
       tokenId: 1n,
       value: 1n,
       ts: 1n,
-      mockEventData: {
-        block: {
-          timestamp: 1000000,
-          number: 123456,
-          hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
-        },
-        chainId: 10,
-        logIndex: 1,
-        srcAddress: toChecksumAddress(
-          "0x3333333333333333333333333333333333333333",
-        ),
-      },
     };
-
-    let postEventDB: ReturnType<typeof MockDb.createMockDb>;
-    let mockEvent: ReturnType<typeof VeNFT.Withdraw.createMockEvent>;
 
     beforeEach(async () => {
       vi.spyOn(VeNFTStateModule, "updateVeNFTState").mockResolvedValue(
@@ -532,55 +484,91 @@ describe("VeNFT Events", () => {
       );
       vi.spyOn(VeNFTLogic, "processVeNFTWithdraw");
 
-      mockEvent = VeNFT.Withdraw.createMockEvent(eventData);
-      postEventDB = await mockDb.processEvents([mockEvent]);
+      await indexer.process({
+        chains: {
+          [chainId]: {
+            simulate: [
+              {
+                contract: "VeNFT",
+                event: "Withdraw",
+                srcAddress: toChecksumAddress(
+                  "0x3333333333333333333333333333333333333333",
+                ),
+                logIndex: 1,
+                block: {
+                  timestamp: 1000000,
+                  number: 123456,
+                  hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                },
+                params: {
+                  provider: eventData.provider,
+                  tokenId: eventData.tokenId,
+                  value: eventData.value,
+                  ts: eventData.ts,
+                },
+              },
+            ],
+          },
+        },
+      });
     });
 
     afterEach(() => {
       vi.restoreAllMocks();
     });
 
-    // TODO: Skip until envio migrates to createTestIndexer — vi.spyOn can't intercept tsx-loaded modules (alpha.18)
-    it.skip("should call processVeNFTWithdraw with the correct arguments", () => {
-      const processVeNFTWithdrawMock = vi.mocked(
-        VeNFTLogic.processVeNFTWithdraw,
+    it("should update VeNFTState on withdraw", async () => {
+      // mockVeNFTState seeded in outer beforeEach: tokenId=1n, totalValueLocked=1n, locktime=1n, isAlive=true
+      // processVeNFTWithdraw applies incrementalTotalValueLocked = -value = -1n
+      // => totalValueLocked = 1n + (-1n) = 0n
+      // isAlive is not set by withdraw => stays true
+      // locktime is not set by withdraw => stays 1n
+      // lastUpdatedTimestamp = new Date(1000000 * 1000)
+      const raw = await indexer.VeNFTState.get(
+        VeNFTId(chainId, eventData.tokenId),
       );
-      expect(processVeNFTWithdrawMock).toHaveBeenCalled();
-      // Handlers may run multiple times (preload + normal), so check if called at least once
-      expect(processVeNFTWithdrawMock.mock.calls.length).toBeGreaterThanOrEqual(
-        1,
-      );
-      const calledWith = processVeNFTWithdrawMock.mock.calls[0];
-      expect(calledWith[0]).toEqual(mockEvent);
-      expect(calledWith[1]).toEqual(mockVeNFTState);
-    });
-
-    // TODO: Skip until envio migrates to createTestIndexer — vi.spyOn can't intercept tsx-loaded modules (alpha.18)
-    it.skip("should call updateVeNFTState with the correct arguments", () => {
-      const updateVeNFTStateMock = vi.mocked(VeNFTStateModule.updateVeNFTState);
-      expect(updateVeNFTStateMock).toHaveBeenCalled();
-      // Handlers may run multiple times (preload + normal), so check if called at least once
-      expect(updateVeNFTStateMock.mock.calls.length).toBeGreaterThanOrEqual(1);
-      const timestamp = new Date(mockEvent.block.timestamp * 1000);
-      const calledWith = updateVeNFTStateMock.mock.calls[0];
-      expect(calledWith[0]).toEqual({
-        incrementalTotalValueLocked: -eventData.value,
-        lastUpdatedTimestamp: timestamp,
-      });
-      expect(calledWith[1]).toEqual(mockVeNFTState);
-      expect(calledWith[2]).toEqual(new Date(mockEvent.block.timestamp * 1000));
+      const v = raw ? rehydrateTimestamps("VeNFTState", raw) : undefined;
+      expect(v).toBeDefined();
+      expect(v?.totalValueLocked).toBe(0n);
+      expect(v?.isAlive).toBe(true);
+      expect(v?.locktime).toBe(1n);
+      expect(v?.lastUpdatedTimestamp).toEqual(new Date(1000000 * 1000));
     });
 
     it("should not call processVeNFTWithdraw when VeNFTState is not found", async () => {
-      const dbWithoutVeNFTState = MockDb.createMockDb();
-      const withdrawEvent = VeNFT.Withdraw.createMockEvent(eventData);
+      const emptyIndexer = createTestIndexer();
+      await emptyIndexer.process({
+        chains: {
+          [chainId]: {
+            simulate: [
+              {
+                contract: "VeNFT",
+                event: "Withdraw",
+                srcAddress: toChecksumAddress(
+                  "0x3333333333333333333333333333333333333333",
+                ),
+                logIndex: 1,
+                block: {
+                  timestamp: 1000000,
+                  number: 123456,
+                  hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                },
+                params: {
+                  provider: eventData.provider,
+                  tokenId: eventData.tokenId,
+                  value: eventData.value,
+                  ts: eventData.ts,
+                },
+              },
+            ],
+          },
+        },
+      });
 
-      const resultDB = await dbWithoutVeNFTState.processEvents([withdrawEvent]);
-
-      expect(resultDB).toBeDefined();
-      expect(
-        resultDB.entities.VeNFTState.get(VeNFTId(chainId, eventData.tokenId)),
-      ).toBeUndefined();
+      const veNFT = await emptyIndexer.VeNFTState.get(
+        VeNFTId(chainId, eventData.tokenId),
+      );
+      expect(veNFT).toBeUndefined();
     });
   });
 
@@ -592,22 +580,7 @@ describe("VeNFT Events", () => {
       locktime: 1n,
       depositType: 1n,
       ts: 1n,
-      mockEventData: {
-        block: {
-          timestamp: 1000000,
-          number: 123456,
-          hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
-        },
-        chainId: 10,
-        logIndex: 1,
-        srcAddress: toChecksumAddress(
-          "0x3333333333333333333333333333333333333333",
-        ),
-      },
     };
-
-    let postEventDB: ReturnType<typeof MockDb.createMockDb>;
-    let mockEvent: ReturnType<typeof VeNFT.Deposit.createMockEvent>;
 
     beforeEach(async () => {
       vi.spyOn(VeNFTStateModule, "updateVeNFTState").mockResolvedValue(
@@ -615,55 +588,97 @@ describe("VeNFT Events", () => {
       );
       vi.spyOn(VeNFTLogic, "processVeNFTDeposit");
 
-      mockEvent = VeNFT.Deposit.createMockEvent(eventData);
-      postEventDB = await mockDb.processEvents([mockEvent]);
+      await indexer.process({
+        chains: {
+          [chainId]: {
+            simulate: [
+              {
+                contract: "VeNFT",
+                event: "Deposit",
+                srcAddress: toChecksumAddress(
+                  "0x3333333333333333333333333333333333333333",
+                ),
+                logIndex: 1,
+                block: {
+                  timestamp: 1000000,
+                  number: 123456,
+                  hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                },
+                params: {
+                  provider: eventData.provider,
+                  tokenId: eventData.tokenId,
+                  value: eventData.value,
+                  locktime: eventData.locktime,
+                  depositType: eventData.depositType,
+                  ts: eventData.ts,
+                },
+              },
+            ],
+          },
+        },
+      });
     });
 
     afterEach(() => {
       vi.restoreAllMocks();
     });
 
-    // TODO: Skip until envio migrates to createTestIndexer — vi.spyOn can't intercept tsx-loaded modules (alpha.18)
-    it.skip("should call processVeNFTDeposit with the correct arguments", () => {
-      const processVeNFTDepositMock = vi.mocked(VeNFTLogic.processVeNFTDeposit);
-      expect(processVeNFTDepositMock).toHaveBeenCalled();
-      // Handlers may run multiple times (preload + normal), so check if called at least once
-      expect(processVeNFTDepositMock.mock.calls.length).toBeGreaterThanOrEqual(
-        1,
+    it("should update VeNFTState on deposit", async () => {
+      // mockVeNFTState seeded in outer beforeEach: tokenId=1n, totalValueLocked=1n, locktime=1n, isPermanent=false, isAlive=true
+      // processVeNFTDeposit applies incrementalTotalValueLocked = value = 1n
+      // => totalValueLocked = 1n + 1n = 2n
+      // locktime = event.params.locktime = 1n (unchanged)
+      // isPermanent: locktime=1n ≠ 0n so isPermanent=undefined => aggregator keeps existing false
+      // isAlive = true (set explicitly by deposit)
+      // lastUpdatedTimestamp = new Date(1000000 * 1000)
+      const raw = await indexer.VeNFTState.get(
+        VeNFTId(chainId, eventData.tokenId),
       );
-      const calledWith = processVeNFTDepositMock.mock.calls[0];
-      expect(calledWith[0]).toEqual(mockEvent);
-      expect(calledWith[1]).toEqual(mockVeNFTState);
-    });
-
-    // TODO: Skip until envio migrates to createTestIndexer — vi.spyOn can't intercept tsx-loaded modules (alpha.18)
-    it.skip("should call updateVeNFTState with the correct arguments", () => {
-      const updateVeNFTStateMock = vi.mocked(VeNFTStateModule.updateVeNFTState);
-      expect(updateVeNFTStateMock).toHaveBeenCalled();
-      // Handlers may run multiple times (preload + normal), so check if called at least once
-      expect(updateVeNFTStateMock.mock.calls.length).toBeGreaterThanOrEqual(1);
-      const timestamp = new Date(mockEvent.block.timestamp * 1000);
-      const calledWith = updateVeNFTStateMock.mock.calls[0];
-      expect(calledWith[0]).toEqual({
-        locktime: eventData.locktime,
-        incrementalTotalValueLocked: eventData.value,
-        isAlive: true,
-        lastUpdatedTimestamp: timestamp,
-      });
-      expect(calledWith[1]).toEqual(mockVeNFTState);
-      expect(calledWith[2]).toEqual(new Date(mockEvent.block.timestamp * 1000));
+      const v = raw ? rehydrateTimestamps("VeNFTState", raw) : undefined;
+      expect(v).toBeDefined();
+      expect(v?.totalValueLocked).toBe(2n);
+      expect(v?.locktime).toBe(1n);
+      expect(v?.isPermanent).toBe(false);
+      expect(v?.isAlive).toBe(true);
+      expect(v?.lastUpdatedTimestamp).toEqual(new Date(1000000 * 1000));
     });
 
     it("should not call processVeNFTDeposit when VeNFTState is not found", async () => {
-      const dbWithoutVeNFTState = MockDb.createMockDb();
-      const depositEvent = VeNFT.Deposit.createMockEvent(eventData);
+      const emptyIndexer = createTestIndexer();
+      await emptyIndexer.process({
+        chains: {
+          [chainId]: {
+            simulate: [
+              {
+                contract: "VeNFT",
+                event: "Deposit",
+                srcAddress: toChecksumAddress(
+                  "0x3333333333333333333333333333333333333333",
+                ),
+                logIndex: 1,
+                block: {
+                  timestamp: 1000000,
+                  number: 123456,
+                  hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                },
+                params: {
+                  provider: eventData.provider,
+                  tokenId: eventData.tokenId,
+                  value: eventData.value,
+                  locktime: eventData.locktime,
+                  depositType: eventData.depositType,
+                  ts: eventData.ts,
+                },
+              },
+            ],
+          },
+        },
+      });
 
-      const resultDB = await dbWithoutVeNFTState.processEvents([depositEvent]);
-
-      expect(resultDB).toBeDefined();
-      expect(
-        resultDB.entities.VeNFTState.get(VeNFTId(chainId, eventData.tokenId)),
-      ).toBeUndefined();
+      const veNFT = await emptyIndexer.VeNFTState.get(
+        VeNFTId(chainId, eventData.tokenId),
+      );
+      expect(veNFT).toBeUndefined();
     });
   });
 
@@ -672,8 +687,8 @@ describe("VeNFT Events", () => {
       const owner = toChecksumAddress(
         "0x2222222222222222222222222222222222222222",
       );
-      let db = MockDb.createMockDb();
-      db = db.entities.VeNFTState.set({
+      const splitIndexer = createTestIndexer();
+      splitIndexer.VeNFTState.set({
         ...mockVeNFTState,
         id: VeNFTId(chainId, 11n),
         tokenId: 11n,
@@ -688,60 +703,91 @@ describe("VeNFT Events", () => {
           number: 123456,
           hash: "0xsplit",
         },
-        chainId,
         logIndex,
         srcAddress: owner,
       });
 
-      const resultDB = await db.processEvents([
-        VeNFT.Transfer.createMockEvent({
-          from: owner,
-          to: toChecksumAddress("0x0000000000000000000000000000000000000000"),
-          tokenId: 11n,
-          mockEventData: mockEventData(1),
-        }),
-        VeNFT.Transfer.createMockEvent({
-          from: toChecksumAddress("0x0000000000000000000000000000000000000000"),
-          to: owner,
-          tokenId: 12n,
-          mockEventData: mockEventData(2),
-        }),
-        VeNFT.Transfer.createMockEvent({
-          from: toChecksumAddress("0x0000000000000000000000000000000000000000"),
-          to: owner,
-          tokenId: 13n,
-          mockEventData: mockEventData(3),
-        }),
-        VeNFT.Split.createMockEvent({
-          _from: 11n,
-          _tokenId1: 12n,
-          _tokenId2: 13n,
-          _sender: owner,
-          _splitAmount1: 30n,
-          _splitAmount2: 70n,
-          _locktime: 777n,
-          _ts: 555n,
-          mockEventData: mockEventData(4),
-        }),
-        VeNFT.Withdraw.createMockEvent({
-          provider: owner,
-          tokenId: 12n,
-          value: 30n,
-          ts: 556n,
-          mockEventData: mockEventData(5),
-        }),
-      ]);
+      await splitIndexer.process({
+        chains: {
+          [chainId]: {
+            simulate: [
+              {
+                contract: "VeNFT",
+                event: "Transfer",
+                ...mockEventData(1),
+                params: {
+                  from: owner,
+                  to: toChecksumAddress(
+                    "0x0000000000000000000000000000000000000000",
+                  ),
+                  tokenId: 11n,
+                },
+              },
+              {
+                contract: "VeNFT",
+                event: "Transfer",
+                ...mockEventData(2),
+                params: {
+                  from: toChecksumAddress(
+                    "0x0000000000000000000000000000000000000000",
+                  ),
+                  to: owner,
+                  tokenId: 12n,
+                },
+              },
+              {
+                contract: "VeNFT",
+                event: "Transfer",
+                ...mockEventData(3),
+                params: {
+                  from: toChecksumAddress(
+                    "0x0000000000000000000000000000000000000000",
+                  ),
+                  to: owner,
+                  tokenId: 13n,
+                },
+              },
+              {
+                contract: "VeNFT",
+                event: "Split",
+                ...mockEventData(4),
+                params: {
+                  _from: 11n,
+                  _tokenId1: 12n,
+                  _tokenId2: 13n,
+                  _sender: owner,
+                  _splitAmount1: 30n,
+                  _splitAmount2: 70n,
+                  _locktime: 777n,
+                  _ts: 555n,
+                },
+              },
+              {
+                contract: "VeNFT",
+                event: "Withdraw",
+                ...mockEventData(5),
+                params: {
+                  provider: owner,
+                  tokenId: 12n,
+                  value: 30n,
+                  ts: 556n,
+                },
+              },
+            ],
+          },
+        },
+      });
 
       expect(
-        resultDB.entities.VeNFTState.get(VeNFTId(chainId, 11n))
+        (await splitIndexer.VeNFTState.get(VeNFTId(chainId, 11n)))
           ?.totalValueLocked,
       ).toBe(0n);
       expect(
-        resultDB.entities.VeNFTState.get(VeNFTId(chainId, 12n))
+        (await splitIndexer.VeNFTState.get(VeNFTId(chainId, 12n)))
           ?.totalValueLocked,
       ).toBe(0n);
       expect(
-        resultDB.entities.VeNFTState.get(VeNFTId(chainId, 13n))
+        (await splitIndexer.VeNFTState.get(VeNFTId(chainId, 13n)))
           ?.totalValueLocked,
       ).toBe(70n);
     });
@@ -752,8 +798,8 @@ describe("VeNFT Events", () => {
       const owner = toChecksumAddress(
         "0x2222222222222222222222222222222222222222",
       );
-      let db = MockDb.createMockDb();
-      db = db.entities.VeNFTState.set({
+      const mergeIndexer = createTestIndexer();
+      mergeIndexer.VeNFTState.set({
         ...mockVeNFTState,
         id: VeNFTId(chainId, 21n),
         tokenId: 21n,
@@ -761,7 +807,7 @@ describe("VeNFT Events", () => {
         locktime: 999n,
         totalValueLocked: 100n,
       });
-      db = db.entities.VeNFTState.set({
+      mergeIndexer.VeNFTState.set({
         ...mockVeNFTState,
         id: VeNFTId(chainId, 22n),
         tokenId: 22n,
@@ -776,44 +822,63 @@ describe("VeNFT Events", () => {
           number: 123456,
           hash: "0xmerge",
         },
-        chainId,
         logIndex,
         srcAddress: owner,
       });
 
-      const resultDB = await db.processEvents([
-        VeNFT.Transfer.createMockEvent({
-          from: owner,
-          to: toChecksumAddress("0x0000000000000000000000000000000000000000"),
-          tokenId: 21n,
-          mockEventData: mockEventData(1),
-        }),
-        VeNFT.Merge.createMockEvent({
-          _sender: owner,
-          _from: 21n,
-          _to: 22n,
-          _amountFrom: 100n,
-          _amountTo: 40n,
-          _amountFinal: 140n,
-          _locktime: 888n,
-          _ts: 777n,
-          mockEventData: mockEventData(2),
-        }),
-        VeNFT.Withdraw.createMockEvent({
-          provider: owner,
-          tokenId: 22n,
-          value: 140n,
-          ts: 778n,
-          mockEventData: mockEventData(3),
-        }),
-      ]);
+      await mergeIndexer.process({
+        chains: {
+          [chainId]: {
+            simulate: [
+              {
+                contract: "VeNFT",
+                event: "Transfer",
+                ...mockEventData(1),
+                params: {
+                  from: owner,
+                  to: toChecksumAddress(
+                    "0x0000000000000000000000000000000000000000",
+                  ),
+                  tokenId: 21n,
+                },
+              },
+              {
+                contract: "VeNFT",
+                event: "Merge",
+                ...mockEventData(2),
+                params: {
+                  _sender: owner,
+                  _from: 21n,
+                  _to: 22n,
+                  _amountFrom: 100n,
+                  _amountTo: 40n,
+                  _amountFinal: 140n,
+                  _locktime: 888n,
+                  _ts: 777n,
+                },
+              },
+              {
+                contract: "VeNFT",
+                event: "Withdraw",
+                ...mockEventData(3),
+                params: {
+                  provider: owner,
+                  tokenId: 22n,
+                  value: 140n,
+                  ts: 778n,
+                },
+              },
+            ],
+          },
+        },
+      });
 
       expect(
-        resultDB.entities.VeNFTState.get(VeNFTId(chainId, 21n))
+        (await mergeIndexer.VeNFTState.get(VeNFTId(chainId, 21n)))
           ?.totalValueLocked,
       ).toBe(0n);
       expect(
-        resultDB.entities.VeNFTState.get(VeNFTId(chainId, 22n))
+        (await mergeIndexer.VeNFTState.get(VeNFTId(chainId, 22n)))
           ?.totalValueLocked,
       ).toBe(0n);
     });
@@ -824,8 +889,8 @@ describe("VeNFT Events", () => {
       const owner = toChecksumAddress(
         "0x2222222222222222222222222222222222222222",
       );
-      let db = MockDb.createMockDb();
-      db = db.entities.VeNFTState.set({
+      const managedIndexer = createTestIndexer();
+      managedIndexer.VeNFTState.set({
         ...mockVeNFTState,
         id: VeNFTId(chainId, 31n),
         tokenId: 31n,
@@ -833,7 +898,7 @@ describe("VeNFT Events", () => {
         locktime: 0n,
         totalValueLocked: 80n,
       });
-      db = db.entities.VeNFTState.set({
+      managedIndexer.VeNFTState.set({
         ...mockVeNFTState,
         id: VeNFTId(chainId, 32n),
         tokenId: 32n,
@@ -852,39 +917,52 @@ describe("VeNFT Events", () => {
           number: 123456,
           hash: "0xmanaged",
         },
-        chainId,
         logIndex,
         srcAddress: owner,
       });
 
-      const resultDB = await db.processEvents([
-        VeNFT.DepositManaged.createMockEvent({
-          _owner: owner,
-          _tokenId: 31n,
-          _mTokenId: 32n,
-          _weight: 80n,
-          _ts: 1n,
-          mockEventData: mockEventData(1),
-        }),
-        VeNFT.WithdrawManaged.createMockEvent({
-          _owner: owner,
-          _tokenId: 31n,
-          _mTokenId: 32n,
-          _weight: 80n,
-          _ts: withdrawTs,
-          mockEventData: mockEventData(2),
-        }),
-      ]);
+      await managedIndexer.process({
+        chains: {
+          [chainId]: {
+            simulate: [
+              {
+                contract: "VeNFT",
+                event: "DepositManaged",
+                ...mockEventData(1),
+                params: {
+                  _owner: owner,
+                  _tokenId: 31n,
+                  _mTokenId: 32n,
+                  _weight: 80n,
+                  _ts: 1n,
+                },
+              },
+              {
+                contract: "VeNFT",
+                event: "WithdrawManaged",
+                ...mockEventData(2),
+                params: {
+                  _owner: owner,
+                  _tokenId: 31n,
+                  _mTokenId: 32n,
+                  _weight: 80n,
+                  _ts: withdrawTs,
+                },
+              },
+            ],
+          },
+        },
+      });
 
       expect(
-        resultDB.entities.VeNFTState.get(VeNFTId(chainId, 31n))
+        (await managedIndexer.VeNFTState.get(VeNFTId(chainId, 31n)))
           ?.totalValueLocked,
       ).toBe(80n);
       expect(
-        resultDB.entities.VeNFTState.get(VeNFTId(chainId, 31n))?.locktime,
+        (await managedIndexer.VeNFTState.get(VeNFTId(chainId, 31n)))?.locktime,
       ).toBe(expectedLocktime);
       expect(
-        resultDB.entities.VeNFTState.get(VeNFTId(chainId, 32n))
+        (await managedIndexer.VeNFTState.get(VeNFTId(chainId, 32n)))
           ?.totalValueLocked,
       ).toBe(200n);
     });

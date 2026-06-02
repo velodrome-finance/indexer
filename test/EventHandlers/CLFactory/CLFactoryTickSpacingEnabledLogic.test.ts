@@ -1,4 +1,4 @@
-import type { CLFactory_TickSpacingEnabled_event } from "generated";
+import type { EvmEvent } from "envio";
 import { toChecksumAddress } from "../../../src/Constants";
 import { processCLFactoryTickSpacingEnabled } from "../../../src/EventHandlers/CLFactory/CLFactoryTickSpacingEnabledLogic";
 
@@ -18,28 +18,32 @@ describe("CLFactoryTickSpacingEnabledLogic", () => {
     "0x6666666666666666666666666666666666666666666666666666666666666666";
 
   const createMockEvent = (
-    overrides: Partial<CLFactory_TickSpacingEnabled_event> = {},
-  ): CLFactory_TickSpacingEnabled_event => ({
-    params: {
-      tickSpacing: TICK_SPACING,
-      fee: FEE,
-      ...overrides.params,
-    },
-    srcAddress: SRC_ADDRESS,
-    transaction: {
-      hash: TX_HASH,
-      ...overrides.transaction,
-    },
-    block: {
-      timestamp: BLOCK_TIMESTAMP,
-      number: BLOCK_NUMBER,
-      hash: BLOCK_HASH,
-      ...overrides.block,
-    },
-    chainId: CHAIN_ID,
-    logIndex: 1,
-    ...overrides,
-  });
+    overrides: Partial<{
+      params: { tickSpacing: bigint; fee: bigint };
+      transaction: { hash: string };
+      block: { timestamp: number; number: number; hash: string };
+    }> = {},
+  ): EvmEvent<"CLFactory", "TickSpacingEnabled"> =>
+    ({
+      params: {
+        tickSpacing: TICK_SPACING,
+        fee: FEE,
+        ...overrides.params,
+      },
+      srcAddress: SRC_ADDRESS,
+      transaction: {
+        hash: TX_HASH,
+        ...overrides.transaction,
+      },
+      block: {
+        timestamp: BLOCK_TIMESTAMP,
+        number: BLOCK_NUMBER,
+        hash: BLOCK_HASH,
+        ...overrides.block,
+      },
+      chainId: CHAIN_ID,
+      logIndex: 1,
+    }) as unknown as EvmEvent<"CLFactory", "TickSpacingEnabled">;
 
   describe("processCLFactoryTickSpacingEnabled", () => {
     it("should return a diff with fee and lastUpdatedTimestamp", () => {

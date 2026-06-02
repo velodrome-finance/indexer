@@ -1,4 +1,5 @@
-import type { FeeToTickSpacingMapping, handlerContext } from "generated";
+import type { FeeToTickSpacingMapping } from "envio";
+import type { handlerContext } from "../EntityTypes";
 
 export async function updateFeeToTickSpacingMapping(
   current: FeeToTickSpacingMapping,

@@ -1,4 +1,4 @@
-import type { CLPool_CollectFees_event, Token } from "generated";
+import type { EvmEvent, Token } from "envio";
 import type { PoolDiff } from "../../Aggregators/Pool";
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import { calculateTotalUSD } from "../../Helpers";
@@ -9,7 +9,7 @@ export interface CLPoolCollectFeesResult {
 }
 
 export function processCLPoolCollectFees(
-  event: CLPool_CollectFees_event,
+  event: EvmEvent<"CLPool", "CollectFees">,
   token0Instance: Token | undefined,
   token1Instance: Token | undefined,
 ): CLPoolCollectFeesResult {

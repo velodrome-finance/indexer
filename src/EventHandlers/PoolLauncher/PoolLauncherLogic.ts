@@ -1,6 +1,8 @@
-import type { PoolLauncherPool, handlerContext } from "generated";
+import type { PoolLauncherPool } from "envio";
 import { PoolId } from "../../Constants";
+import { getRehydrated } from "../../EntityTimestamps";
 import type { Pool } from "../../EntityTypes";
+import type { handlerContext } from "../../EntityTypes";
 
 // Helper function to create or update PoolLauncherPool entity
 export async function processPoolLauncherPool(
@@ -15,7 +17,11 @@ export async function processPoolLauncherPool(
 ): Promise<PoolLauncherPool> {
   const poolId = PoolId(chainId, poolAddress);
 
-  let poolLauncherPool = await context.PoolLauncherPool.get(poolId);
+  let poolLauncherPool = await getRehydrated(
+    context.PoolLauncherPool,
+    "PoolLauncherPool",
+    poolId,
+  );
 
   if (!poolLauncherPool) {
     // Create new PoolLauncherPool
@@ -58,7 +64,7 @@ export async function linkPoolToPoolLauncher(
 ): Promise<void> {
   // Load the existing Pool (created by CLFactory or V2Factory)
   const poolId = PoolId(chainId, poolAddress);
-  const existingPool = await context.Pool.get(poolId);
+  const existingPool = await getRehydrated(context.Pool, "Pool", poolId);
 
   if (!existingPool) {
     context.log.warn(

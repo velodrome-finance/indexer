@@ -1,4 +1,4 @@
-import { SuperchainIncentiveVotingReward } from "generated";
+import { indexer } from "envio";
 import { PoolAddressField, updatePool } from "../../Aggregators/Pool";
 import { updateUserStatsPerPool } from "../../Aggregators/UserStatsPerPool";
 import {
@@ -6,7 +6,8 @@ import {
   processVotingRewardClaimRewards,
 } from "./VotingRewardSharedLogic";
 
-SuperchainIncentiveVotingReward.ClaimRewards.handler(
+indexer.onEvent(
+  { contract: "SuperchainIncentiveVotingReward", event: "ClaimRewards" },
   async ({ event, context }) => {
     const data = {
       votingRewardAddress: event.srcAddress,

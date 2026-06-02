@@ -1,6 +1,5 @@
 import { TickMath } from "@uniswap/v3-sdk";
-import type { NonFungiblePosition, handlerContext } from "generated";
-import { MockDb } from "../../../generated/src/TestHelpers.gen";
+import type { NonFungiblePosition } from "envio";
 import {
   applyPositionToEdges,
   deriveLiquidityInRange,
@@ -14,6 +13,7 @@ import {
   NonFungiblePositionId,
   toChecksumAddress,
 } from "../../../src/Constants";
+import type { handlerContext } from "../../../src/EntityTypes";
 import {
   LiquidityChangeType,
   attributeLiquidityChangeToUserStatsPerPool,
@@ -80,12 +80,9 @@ describe("NFPMCommonLogic", () => {
     nfpmAddress: nfpmAddressB,
   };
 
-  let mockDb: ReturnType<typeof MockDb.createMockDb>;
   let mockContext: handlerContext;
 
   beforeEach(() => {
-    mockDb = MockDb.createMockDb();
-
     const storedPositions: NonFungiblePosition[] = [
       mockPosition,
       mockPositionDifferentChain,
@@ -101,9 +98,12 @@ describe("NFPMCommonLogic", () => {
       });
 
     mockContext = {
-      ...mockDb,
       NonFungiblePosition: {
-        ...mockDb.entities.NonFungiblePosition,
+        get: vi.fn(),
+        set: vi.fn(),
+        getOrThrow: vi.fn(),
+        getOrCreate: vi.fn(),
+        deleteUnsafe: vi.fn(),
         getWhere: getWhereNonFungiblePosition,
       },
       UserStatsPerPool: {

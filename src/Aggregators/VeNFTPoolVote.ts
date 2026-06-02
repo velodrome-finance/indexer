@@ -1,6 +1,9 @@
-import type { VeNFTPoolVote, VeNFTState, handlerContext } from "generated";
+import type { VeNFTPoolVote, VeNFTState } from "envio";
+
+import type { handlerContext } from "../EntityTypes";
 
 import { VeNFTPoolVoteId } from "../Constants";
+import { getRehydrated, getWhereRehydrated } from "../EntityTimestamps";
 
 export interface VeNFTPoolVoteDiff {
   poolAddress: string;
@@ -24,16 +27,20 @@ export async function loadVeNFTPoolVote(
   context: handlerContext,
 ): Promise<VeNFTPoolVote | undefined> {
   const id = VeNFTPoolVoteId(chainId, tokenId, poolAddress);
-  return context.VeNFTPoolVote.get(id);
+  return getRehydrated(context.VeNFTPoolVote, "VeNFTPoolVote", id);
 }
 
 export async function loadPoolVotesByVeNFT(
   veNFTState: VeNFTState,
   context: handlerContext,
 ): Promise<VeNFTPoolVote[]> {
-  const votesByState = await context.VeNFTPoolVote.getWhere({
-    veNFTState_id: { _eq: veNFTState.id },
-  });
+  const votesByState = await getWhereRehydrated(
+    context.VeNFTPoolVote,
+    "VeNFTPoolVote",
+    {
+      veNFTState_id: { _eq: veNFTState.id },
+    },
+  );
 
   return votesByState ?? [];
 }

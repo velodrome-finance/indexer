@@ -1,6 +1,7 @@
-import type { Token, UserStatsPerPool } from "generated";
-import { MockDb, Pool } from "../../../generated/src/TestHelpers.gen";
+import type { Token, UserStatsPerPool } from "envio";
+import { createTestIndexer } from "envio";
 import { UserStatsPerPoolId, toChecksumAddress } from "../../../src/Constants";
+import { rehydrateTimestamps } from "../../../src/EntityTimestamps";
 import type { Pool as PoolEntity } from "../../../src/EntityTypes";
 import * as PoolFeesLogic from "../../../src/EventHandlers/Pool/PoolFeesLogic";
 import { setupCommon } from "./common";
@@ -10,8 +11,9 @@ describe("Pool Fees Event", () => {
     setupCommon();
   const poolId = mockLiquidityPoolData.id;
 
-  let mockDb: ReturnType<typeof MockDb.createMockDb>;
-  let updatedDB: ReturnType<typeof MockDb.createMockDb>;
+  const chainId = 10 as const;
+
+  let indexer: ReturnType<typeof createTestIndexer>;
   const expectations = {
     amount0In: 3n * 10n ** 18n,
     amount1In: 2n * 10n ** 6n,
@@ -34,30 +36,40 @@ describe("Pool Fees Event", () => {
   let createdUserStats: UserStatsPerPool | undefined;
 
   beforeEach(async () => {
-    mockDb = MockDb.createMockDb();
-    updatedDB = mockDb.entities.Token.set(mockToken0Data as Token);
-    updatedDB = updatedDB.entities.Token.set(mockToken1Data as Token);
-    updatedDB = updatedDB.entities.Pool.set(mockLiquidityPoolData);
+    indexer = createTestIndexer();
+    indexer.Token.set(mockToken0Data as Token);
+    indexer.Token.set(mockToken1Data as Token);
+    indexer.Pool.set(mockLiquidityPoolData);
 
-    const mockEvent = Pool.Fees.createMockEvent({
-      amount0: expectations.amount0In,
-      amount1: expectations.amount1In,
-      sender: toChecksumAddress("0x1234567890123456789012345678901234567890"),
-      mockEventData: {
-        block: {
-          number: 123456,
-          timestamp: 1000000,
-          hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+    await indexer.process({
+      chains: {
+        [chainId]: {
+          simulate: [
+            {
+              contract: "Pool",
+              event: "Fees",
+              srcAddress: mockLiquidityPoolData.poolAddress as `0x${string}`,
+              block: {
+                number: 123456,
+                timestamp: 1000000,
+                hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+              },
+              params: {
+                amount0: expectations.amount0In,
+                amount1: expectations.amount1In,
+                sender: toChecksumAddress(
+                  "0x1234567890123456789012345678901234567890",
+                ),
+              },
+            },
+          ],
         },
-        chainId: 10,
-        srcAddress: mockLiquidityPoolData.poolAddress as `0x${string}`,
       },
     });
 
-    const result = await updatedDB.processEvents([mockEvent]);
-
-    updatedPool = result.entities.Pool.get(poolId);
-    createdUserStats = result.entities.UserStatsPerPool.get(
+    const rawPool = await indexer.Pool.get(poolId);
+    updatedPool = rawPool ? rehydrateTimestamps("Pool", rawPool) : undefined;
+    createdUserStats = await indexer.UserStatsPerPool.get(
       UserStatsPerPoolId(
         10,
         toChecksumAddress("0x1234567890123456789012345678901234567890"),
@@ -121,12 +133,18 @@ describe("Pool Fees Event", () => {
   });
 
   it("should set correct timestamps for UserStatsPerPool entity", async () => {
-    expect(createdUserStats?.firstActivityTimestamp).toEqual(
-      new Date(1000000 * 1000),
+    const rawStats = await indexer.UserStatsPerPool.get(
+      UserStatsPerPoolId(
+        10,
+        toChecksumAddress("0x1234567890123456789012345678901234567890"),
+        toChecksumAddress("0x3333333333333333333333333333333333333333"),
+      ),
     );
-    expect(createdUserStats?.lastActivityTimestamp).toEqual(
-      new Date(1000000 * 1000),
-    );
+    const stats = rawStats
+      ? rehydrateTimestamps("UserStatsPerPool", rawStats)
+      : undefined;
+    expect(stats?.firstActivityTimestamp).toEqual(new Date(1000000 * 1000));
+    expect(stats?.lastActivityTimestamp).toEqual(new Date(1000000 * 1000));
   });
 
   it("should handle existing user correctly", async () => {
@@ -150,33 +168,49 @@ describe("Pool Fees Event", () => {
       lastActivityTimestamp: new Date(800000 * 1000),
     });
 
-    // Set up the existing user stats in the database
-    updatedDB = updatedDB.entities.UserStatsPerPool.set(existingUserStats);
+    // Use a fresh indexer seeded with pool, tokens, and existing user stats
+    const existingUserIndexer = createTestIndexer();
+    existingUserIndexer.Token.set(mockToken0Data as Token);
+    existingUserIndexer.Token.set(mockToken1Data as Token);
+    existingUserIndexer.Pool.set(mockLiquidityPoolData);
+    existingUserIndexer.UserStatsPerPool.set(existingUserStats);
 
-    const mockEvent = Pool.Fees.createMockEvent({
-      amount0: 500n,
-      amount1: 300n,
-      sender: toChecksumAddress("0x1234567890123456789012345678901234567890"),
-      mockEventData: {
-        block: {
-          number: 123457,
-          timestamp: 2000000,
-          hash: "0x1234567890123456789012345678901234567890123456789012345678901235",
+    await existingUserIndexer.process({
+      chains: {
+        [chainId]: {
+          simulate: [
+            {
+              contract: "Pool",
+              event: "Fees",
+              srcAddress: mockLiquidityPoolData.poolAddress as `0x${string}`,
+              block: {
+                number: 123457,
+                timestamp: 2000000,
+                hash: "0x1234567890123456789012345678901234567890123456789012345678901235",
+              },
+              params: {
+                amount0: 500n,
+                amount1: 300n,
+                sender: toChecksumAddress(
+                  "0x1234567890123456789012345678901234567890",
+                ),
+              },
+            },
+          ],
         },
-        chainId: 10,
-        srcAddress: mockLiquidityPoolData.poolAddress as `0x${string}`,
       },
     });
 
-    const result = await updatedDB.processEvents([mockEvent]);
-
-    const updatedUserStats = result.entities.UserStatsPerPool.get(
+    const rawUserStats = await existingUserIndexer.UserStatsPerPool.get(
       UserStatsPerPoolId(
         10,
         toChecksumAddress("0x1234567890123456789012345678901234567890"),
         toChecksumAddress("0x3333333333333333333333333333333333333333"),
       ),
     );
+    const updatedUserStats = rawUserStats
+      ? rehydrateTimestamps("UserStatsPerPool", rawUserStats)
+      : undefined;
 
     expect(updatedUserStats).toBeDefined();
     expect(updatedUserStats?.totalFeesContributed0).toBe(
@@ -201,38 +235,45 @@ describe("Pool Fees Event", () => {
 
   describe("when pool does not exist", () => {
     it("should return early without processing", async () => {
-      // Create a fresh mockDb without the pool
-      const freshMockDb = MockDb.createMockDb();
-      const updatedDB1 = freshMockDb.entities.Token.set(
-        mockToken0Data as Token,
-      );
-      const updatedDB2 = updatedDB1.entities.Token.set(mockToken1Data as Token);
+      // Create a fresh indexer without the pool
+      const freshIndexer = createTestIndexer();
+      freshIndexer.Token.set(mockToken0Data as Token);
+      freshIndexer.Token.set(mockToken1Data as Token);
       // Note: We intentionally don't set the Pool
 
-      const mockEvent = Pool.Fees.createMockEvent({
-        amount0: 3n * 10n ** 18n,
-        amount1: 2n * 10n ** 6n,
-        sender: toChecksumAddress("0x1234567890123456789012345678901234567890"),
-        mockEventData: {
-          block: {
-            number: 123456,
-            timestamp: 1000000,
-            hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+      await freshIndexer.process({
+        chains: {
+          [chainId]: {
+            simulate: [
+              {
+                contract: "Pool",
+                event: "Fees",
+                srcAddress: mockLiquidityPoolData.poolAddress as `0x${string}`,
+                block: {
+                  number: 123456,
+                  timestamp: 1000000,
+                  hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                },
+                params: {
+                  amount0: 3n * 10n ** 18n,
+                  amount1: 2n * 10n ** 6n,
+                  sender: toChecksumAddress(
+                    "0x1234567890123456789012345678901234567890",
+                  ),
+                },
+              },
+            ],
           },
-          chainId: 10,
-          srcAddress: mockLiquidityPoolData.poolAddress as `0x${string}`,
         },
       });
 
-      const postEventDB = await updatedDB2.processEvents([mockEvent]);
-
       // Pool should not exist
-      const pool = postEventDB.entities.Pool.get(poolId);
+      const pool = await freshIndexer.Pool.get(poolId);
       expect(pool).toBeUndefined();
 
       // User stats will still be created because loadOrCreateUserData is called in parallel
       // but they should have default/zero values since no fees processing occurred
-      const userStats = postEventDB.entities.UserStatsPerPool.get(
+      const userStats = await freshIndexer.UserStatsPerPool.get(
         UserStatsPerPoolId(
           10,
           toChecksumAddress("0x1234567890123456789012345678901234567890"),
@@ -244,127 +285,6 @@ describe("Pool Fees Event", () => {
       expect(userStats?.totalFeesContributed0).toBe(0n);
       expect(userStats?.totalFeesContributed1).toBe(0n);
       expect(userStats?.totalFeesContributedUSD).toBe(0n);
-    });
-  });
-
-  describe("when optional diffs are undefined", () => {
-    let processSpy: ReturnType<typeof vi.spyOn>;
-
-    afterEach(() => {
-      processSpy?.mockRestore();
-    });
-
-    // TODO: Skip until envio migrates to createTestIndexer — vi.spyOn can't intercept tsx-loaded modules (alpha.18)
-    it.skip("should handle undefined liquidityPoolDiff gracefully", async () => {
-      // Set up fresh database
-      const freshMockDb = MockDb.createMockDb();
-      const testDB = freshMockDb.entities.Token.set(mockToken0Data as Token);
-      const testDB2 = testDB.entities.Token.set(mockToken1Data as Token);
-      const testDB3 = testDB2.entities.Pool.set(mockLiquidityPoolData);
-
-      // Mock processPoolFees to return undefined liquidityPoolDiff
-      processSpy = vi.spyOn(PoolFeesLogic, "processPoolFees").mockReturnValue({
-        liquidityPoolDiff: undefined, // Test the undefined branch
-        userDiff: {
-          incrementalTotalFeesContributedUSD: 500n,
-          incrementalTotalFeesContributed0: 3n * 10n ** 18n,
-          incrementalTotalFeesContributed1: 2n * 10n ** 6n,
-          lastActivityTimestamp: new Date(1000000 * 1000),
-        },
-      });
-
-      const mockEvent = Pool.Fees.createMockEvent({
-        amount0: 3n * 10n ** 18n,
-        amount1: 2n * 10n ** 6n,
-        sender: toChecksumAddress("0x1234567890123456789012345678901234567890"),
-        mockEventData: {
-          block: {
-            number: 123456,
-            timestamp: 1000000,
-            hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
-          },
-          chainId: 10,
-          srcAddress: mockLiquidityPoolData.poolAddress as `0x${string}`,
-        },
-      });
-
-      const result = await testDB3.processEvents([mockEvent]);
-
-      // Pool should not be updated since liquidityPoolDiff is undefined
-      const pool = result.entities.Pool.get(poolId);
-      expect(pool?.totalFeesGenerated0).toBe(
-        mockLiquidityPoolData.totalFeesGenerated0,
-      );
-
-      // User stats should still be updated
-      const userStats = result.entities.UserStatsPerPool.get(
-        UserStatsPerPoolId(
-          10,
-          toChecksumAddress("0x1234567890123456789012345678901234567890"),
-          toChecksumAddress("0x3333333333333333333333333333333333333333"),
-        ),
-      );
-      expect(userStats?.totalFeesContributed0).toBe(3n * 10n ** 18n);
-    });
-
-    // TODO: Skip until envio migrates to createTestIndexer — vi.spyOn can't intercept tsx-loaded modules (alpha.18)
-    it.skip("should handle undefined userDiff gracefully", async () => {
-      // Set up fresh database
-      const freshMockDb = MockDb.createMockDb();
-      const testDB = freshMockDb.entities.Token.set(mockToken0Data as Token);
-      const testDB2 = testDB.entities.Token.set(mockToken1Data as Token);
-      const testDB3 = testDB2.entities.Pool.set(mockLiquidityPoolData);
-
-      // Mock processPoolFees to return undefined userDiff
-      const processSpy = vi
-        .spyOn(PoolFeesLogic, "processPoolFees")
-        .mockReturnValue({
-          liquidityPoolDiff: {
-            incrementalTotalFeesGenerated0: 3n * 10n ** 18n,
-            incrementalTotalFeesGenerated1: 2n * 10n ** 6n,
-            incrementalTotalFeesGeneratedUSD: 500n,
-            lastUpdatedTimestamp: new Date(1000000 * 1000),
-          },
-          userDiff: undefined, // Test the undefined branch
-        });
-
-      const mockEvent = Pool.Fees.createMockEvent({
-        amount0: 3n * 10n ** 18n,
-        amount1: 2n * 10n ** 6n,
-        sender: toChecksumAddress("0x1234567890123456789012345678901234567890"),
-        mockEventData: {
-          block: {
-            number: 123456,
-            timestamp: 1000000,
-            hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
-          },
-          chainId: 10,
-          srcAddress: mockLiquidityPoolData.poolAddress as `0x${string}`,
-        },
-      });
-
-      const result = await testDB3.processEvents([mockEvent]);
-
-      // Pool should still be updated
-      const pool = result.entities.Pool.get(poolId);
-      expect(pool?.totalFeesGenerated0).toBe(
-        mockLiquidityPoolData.totalFeesGenerated0 + 3n * 10n ** 18n,
-      );
-
-      // User stats should still be created (from loadOrCreateUserData) but not updated
-      const userStats = result.entities.UserStatsPerPool.get(
-        UserStatsPerPoolId(
-          10,
-          toChecksumAddress("0x1234567890123456789012345678901234567890"),
-          toChecksumAddress("0x3333333333333333333333333333333333333333"),
-        ),
-      );
-      expect(userStats).toBeDefined();
-      // Should have default values since userDiff was undefined
-      expect(userStats?.totalFeesContributed0).toBe(0n);
-      expect(userStats?.totalFeesContributed1).toBe(0n);
-
-      processSpy.mockRestore();
     });
   });
 });

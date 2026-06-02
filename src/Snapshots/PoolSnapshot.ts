@@ -1,4 +1,4 @@
-import type { handlerContext } from "generated";
+import type { handlerContext } from "../EntityTypes";
 
 import { PoolSnapshotId } from "../Constants";
 import type { Pool, PoolSnapshot } from "../EntityTypes";

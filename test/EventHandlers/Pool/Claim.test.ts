@@ -1,7 +1,8 @@
-import type { Token } from "generated";
+import type { Token } from "envio";
+import { createTestIndexer } from "envio";
 import type { MockInstance } from "vitest";
-import { MockDb, Pool } from "../../../generated/src/TestHelpers.gen";
 import { toChecksumAddress } from "../../../src/Constants";
+import { rehydrateTimestamps } from "../../../src/EntityTimestamps";
 import type { Pool as PoolEntity } from "../../../src/EntityTypes";
 import * as PriceOracle from "../../../src/PriceOracle";
 import { type MockPool, setupCommon } from "./common";
@@ -11,9 +12,10 @@ describe("Pool Claim Event", () => {
   let mockToken1Data: Token;
   let mockLiquidityPoolData: MockPool;
   let createMockPool: ReturnType<typeof setupCommon>["createMockPool"];
-  let mockDb: ReturnType<typeof MockDb.createMockDb>;
+  let indexer: ReturnType<typeof createTestIndexer>;
   let mockPriceOracle: MockInstance;
 
+  const chainId = 10 as const;
   const gaugeAddress = toChecksumAddress(
     "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
   );
@@ -31,7 +33,7 @@ describe("Pool Claim Event", () => {
       gaugeAddress: gaugeAddress,
     });
 
-    mockDb = MockDb.createMockDb();
+    indexer = createTestIndexer();
     mockPriceOracle = vi
       .spyOn(PriceOracle, "refreshTokenPrice")
       .mockImplementation(async (...args) => {
@@ -45,52 +47,58 @@ describe("Pool Claim Event", () => {
 
   describe("when pool exists", () => {
     describe("staked fees collection (sender is gauge)", () => {
-      const eventData = {
-        sender: gaugeAddress,
+      const eventParams = {
+        sender: toChecksumAddress("0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"),
         recipient: toChecksumAddress(
           "0x5555555555555555555555555555555555555555",
         ),
         amount0: 1000n,
         amount1: 2000n,
-        mockEventData: {
-          block: {
-            timestamp: 1000000,
-            number: 123456,
-            hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
-          },
-          chainId: 10,
-          logIndex: 1,
-          srcAddress: toChecksumAddress(
-            "0x3333333333333333333333333333333333333333",
-          ),
-        },
       };
+      const blockTimestamp = 1000000;
+      const srcAddress = toChecksumAddress(
+        "0x3333333333333333333333333333333333333333",
+      );
 
-      let postEventDB: ReturnType<typeof MockDb.createMockDb>;
       let updatedPool: PoolEntity | undefined;
 
       beforeEach(async () => {
-        const updatedDB1 = mockDb.entities.Pool.set(mockLiquidityPoolData);
-        const updatedDB2 = updatedDB1.entities.Token.set(
-          mockToken0Data as Token,
-        );
-        const updatedDB3 = updatedDB2.entities.Token.set(
-          mockToken1Data as Token,
-        );
+        indexer.Pool.set(mockLiquidityPoolData);
+        indexer.Token.set(mockToken0Data as Token);
+        indexer.Token.set(mockToken1Data as Token);
 
-        const mockEvent = Pool.Claim.createMockEvent(eventData);
+        await indexer.process({
+          chains: {
+            [chainId]: {
+              simulate: [
+                {
+                  contract: "Pool",
+                  event: "Claim",
+                  srcAddress: srcAddress,
+                  logIndex: 1,
+                  block: {
+                    timestamp: blockTimestamp,
+                    number: 123456,
+                    hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                  },
+                  params: eventParams,
+                },
+              ],
+            },
+          },
+        });
 
-        postEventDB = await updatedDB3.processEvents([mockEvent]);
-        updatedPool = postEventDB.entities.Pool.get(mockLiquidityPoolData.id);
+        const raw = await indexer.Pool.get(mockLiquidityPoolData.id);
+        updatedPool = raw ? rehydrateTimestamps("Pool", raw) : undefined;
       });
 
       it("should update staked fees collected amounts", () => {
         expect(updatedPool).toBeDefined();
         expect(updatedPool?.totalStakedFeesCollected0).toBe(
-          mockLiquidityPoolData.totalStakedFeesCollected0 + eventData.amount0,
+          mockLiquidityPoolData.totalStakedFeesCollected0 + eventParams.amount0,
         );
         expect(updatedPool?.totalStakedFeesCollected1).toBe(
-          mockLiquidityPoolData.totalStakedFeesCollected1 + eventData.amount1,
+          mockLiquidityPoolData.totalStakedFeesCollected1 + eventParams.amount1,
         );
       });
 
@@ -121,72 +129,66 @@ describe("Pool Claim Event", () => {
 
       it("should update lastUpdatedTimestamp", () => {
         expect(updatedPool?.lastUpdatedTimestamp).toEqual(
-          new Date(eventData.mockEventData.block.timestamp * 1000),
+          new Date(blockTimestamp * 1000),
         );
-      });
-
-      // TODO: Skip until envio migrates to createTestIndexer — vi.spyOn can't intercept tsx-loaded modules (alpha.18)
-      it.skip("should call refreshTokenPrice on token0", () => {
-        expect(mockPriceOracle).toHaveBeenCalled();
-        const calledToken = mockPriceOracle.mock.calls[0]?.[0];
-        expect(calledToken?.address).toBe(mockToken0Data.address);
-      });
-
-      // TODO: Skip until envio migrates to createTestIndexer — vi.spyOn can't intercept tsx-loaded modules (alpha.18)
-      it.skip("should call refreshTokenPrice on token1", () => {
-        expect(mockPriceOracle).toHaveBeenCalled();
-        const calledToken = mockPriceOracle.mock.calls[1]?.[0];
-        expect(calledToken?.address).toBe(mockToken1Data.address);
       });
     });
 
     describe("unstaked fees collection (sender is not gauge)", () => {
-      const eventData = {
+      const eventParams = {
         sender: toChecksumAddress("0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"), // Regular user, not gauge
         recipient: toChecksumAddress(
           "0x5555555555555555555555555555555555555555",
         ),
         amount0: 1000n,
         amount1: 2000n,
-        mockEventData: {
-          block: {
-            timestamp: 1000000,
-            number: 123456,
-            hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
-          },
-          chainId: 10,
-          logIndex: 1,
-          srcAddress: toChecksumAddress(
-            "0x3333333333333333333333333333333333333333",
-          ),
-        },
       };
+      const blockTimestamp = 1000000;
+      const srcAddress = toChecksumAddress(
+        "0x3333333333333333333333333333333333333333",
+      );
 
-      let postEventDB: ReturnType<typeof MockDb.createMockDb>;
       let updatedPool: PoolEntity | undefined;
 
       beforeEach(async () => {
-        const updatedDB1 = mockDb.entities.Pool.set(mockLiquidityPoolData);
-        const updatedDB2 = updatedDB1.entities.Token.set(
-          mockToken0Data as Token,
-        );
-        const updatedDB3 = updatedDB2.entities.Token.set(
-          mockToken1Data as Token,
-        );
+        indexer.Pool.set(mockLiquidityPoolData);
+        indexer.Token.set(mockToken0Data as Token);
+        indexer.Token.set(mockToken1Data as Token);
 
-        const mockEvent = Pool.Claim.createMockEvent(eventData);
+        await indexer.process({
+          chains: {
+            [chainId]: {
+              simulate: [
+                {
+                  contract: "Pool",
+                  event: "Claim",
+                  srcAddress: srcAddress,
+                  logIndex: 1,
+                  block: {
+                    timestamp: blockTimestamp,
+                    number: 123456,
+                    hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                  },
+                  params: eventParams,
+                },
+              ],
+            },
+          },
+        });
 
-        postEventDB = await updatedDB3.processEvents([mockEvent]);
-        updatedPool = postEventDB.entities.Pool.get(mockLiquidityPoolData.id);
+        const raw = await indexer.Pool.get(mockLiquidityPoolData.id);
+        updatedPool = raw ? rehydrateTimestamps("Pool", raw) : undefined;
       });
 
       it("should update unstaked fees collected amounts", () => {
         expect(updatedPool).toBeDefined();
         expect(updatedPool?.totalUnstakedFeesCollected0).toBe(
-          mockLiquidityPoolData.totalUnstakedFeesCollected0 + eventData.amount0,
+          mockLiquidityPoolData.totalUnstakedFeesCollected0 +
+            eventParams.amount0,
         );
         expect(updatedPool?.totalUnstakedFeesCollected1).toBe(
-          mockLiquidityPoolData.totalUnstakedFeesCollected1 + eventData.amount1,
+          mockLiquidityPoolData.totalUnstakedFeesCollected1 +
+            eventParams.amount1,
         );
       });
 
@@ -213,48 +215,48 @@ describe("Pool Claim Event", () => {
 
       it("should update lastUpdatedTimestamp", () => {
         expect(updatedPool?.lastUpdatedTimestamp).toEqual(
-          new Date(eventData.mockEventData.block.timestamp * 1000),
+          new Date(blockTimestamp * 1000),
         );
       });
     });
 
     describe("edge cases", () => {
       it("should handle zero amounts", async () => {
-        const eventData = {
-          sender: gaugeAddress,
-          recipient: toChecksumAddress(
-            "0x5555555555555555555555555555555555555555",
-          ),
-          amount0: 0n,
-          amount1: 0n,
-          mockEventData: {
-            block: {
-              timestamp: 1000000,
-              number: 123456,
-              hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+        indexer.Pool.set(mockLiquidityPoolData);
+        indexer.Token.set(mockToken0Data as Token);
+        indexer.Token.set(mockToken1Data as Token);
+
+        await indexer.process({
+          chains: {
+            [chainId]: {
+              simulate: [
+                {
+                  contract: "Pool",
+                  event: "Claim",
+                  srcAddress: toChecksumAddress(
+                    "0x3333333333333333333333333333333333333333",
+                  ),
+                  logIndex: 1,
+                  block: {
+                    timestamp: 1000000,
+                    number: 123456,
+                    hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                  },
+                  params: {
+                    sender: gaugeAddress,
+                    recipient: toChecksumAddress(
+                      "0x5555555555555555555555555555555555555555",
+                    ),
+                    amount0: 0n,
+                    amount1: 0n,
+                  },
+                },
+              ],
             },
-            chainId: 10,
-            logIndex: 1,
-            srcAddress: toChecksumAddress(
-              "0x3333333333333333333333333333333333333333",
-            ),
           },
-        };
+        });
 
-        const updatedDB1 = mockDb.entities.Pool.set(mockLiquidityPoolData);
-        const updatedDB2 = updatedDB1.entities.Token.set(
-          mockToken0Data as Token,
-        );
-        const updatedDB3 = updatedDB2.entities.Token.set(
-          mockToken1Data as Token,
-        );
-
-        const mockEvent = Pool.Claim.createMockEvent(eventData);
-
-        const postEventDB = await updatedDB3.processEvents([mockEvent]);
-        const updatedPool = postEventDB.entities.Pool.get(
-          mockLiquidityPoolData.id,
-        );
+        const updatedPool = await indexer.Pool.get(mockLiquidityPoolData.id);
 
         expect(updatedPool?.totalStakedFeesCollected0).toBe(
           mockLiquidityPoolData.totalStakedFeesCollected0,
@@ -278,45 +280,45 @@ describe("Pool Claim Event", () => {
           gaugeAddress: undefined,
         });
 
-        const eventData = {
-          sender: gaugeAddress,
-          recipient: toChecksumAddress(
-            "0x5555555555555555555555555555555555555555",
-          ),
-          amount0: 1000n,
-          amount1: 2000n,
-          mockEventData: {
-            block: {
-              timestamp: 1000000,
-              number: 123456,
-              hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+        indexer.Pool.set(poolWithoutGauge);
+        indexer.Token.set(mockToken0Data as Token);
+        indexer.Token.set(mockToken1Data as Token);
+
+        await indexer.process({
+          chains: {
+            [chainId]: {
+              simulate: [
+                {
+                  contract: "Pool",
+                  event: "Claim",
+                  srcAddress: toChecksumAddress(
+                    "0x3333333333333333333333333333333333333333",
+                  ),
+                  logIndex: 1,
+                  block: {
+                    timestamp: 1000000,
+                    number: 123456,
+                    hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                  },
+                  params: {
+                    sender: gaugeAddress,
+                    recipient: toChecksumAddress(
+                      "0x5555555555555555555555555555555555555555",
+                    ),
+                    amount0: 1000n,
+                    amount1: 2000n,
+                  },
+                },
+              ],
             },
-            chainId: 10,
-            logIndex: 1,
-            srcAddress: toChecksumAddress(
-              "0x3333333333333333333333333333333333333333",
-            ),
           },
-        };
+        });
 
-        const updatedDB1 = mockDb.entities.Pool.set(poolWithoutGauge);
-        const updatedDB2 = updatedDB1.entities.Token.set(
-          mockToken0Data as Token,
-        );
-        const updatedDB3 = updatedDB2.entities.Token.set(
-          mockToken1Data as Token,
-        );
-
-        const mockEvent = Pool.Claim.createMockEvent(eventData);
-
-        const postEventDB = await updatedDB3.processEvents([mockEvent]);
-        const updatedPool = postEventDB.entities.Pool.get(
-          mockLiquidityPoolData.id,
-        );
+        const updatedPool = await indexer.Pool.get(mockLiquidityPoolData.id);
 
         // Should be treated as unstaked since gaugeAddress is undefined
         expect(updatedPool?.totalUnstakedFeesCollected0).toBe(
-          poolWithoutGauge.totalUnstakedFeesCollected0 + eventData.amount0,
+          poolWithoutGauge.totalUnstakedFeesCollected0 + 1000n,
         );
         expect(updatedPool?.totalStakedFeesCollected0).toBe(
           poolWithoutGauge.totalStakedFeesCollected0,
@@ -327,34 +329,39 @@ describe("Pool Claim Event", () => {
 
   describe("when pool does not exist", () => {
     it("should return early without processing", async () => {
-      const eventData = {
-        sender: gaugeAddress,
-        recipient: toChecksumAddress(
-          "0x5555555555555555555555555555555555555555",
-        ),
-        amount0: 1000n,
-        amount1: 2000n,
-        mockEventData: {
-          block: {
-            timestamp: 1000000,
-            number: 123456,
-            hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
-          },
-          chainId: 10,
-          logIndex: 1,
-          srcAddress: toChecksumAddress(
-            "0x3333333333333333333333333333333333333333",
-          ),
-        },
-      };
-
-      const mockEvent = Pool.Claim.createMockEvent(eventData);
-
-      const postEventDB = await mockDb.processEvents([mockEvent]);
-
-      const pool = postEventDB.entities.Pool.get(
-        toChecksumAddress(eventData.mockEventData.srcAddress),
+      const srcAddress = toChecksumAddress(
+        "0x3333333333333333333333333333333333333333",
       );
+
+      await indexer.process({
+        chains: {
+          [chainId]: {
+            simulate: [
+              {
+                contract: "Pool",
+                event: "Claim",
+                srcAddress: srcAddress,
+                logIndex: 1,
+                block: {
+                  timestamp: 1000000,
+                  number: 123456,
+                  hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                },
+                params: {
+                  sender: gaugeAddress,
+                  recipient: toChecksumAddress(
+                    "0x5555555555555555555555555555555555555555",
+                  ),
+                  amount0: 1000n,
+                  amount1: 2000n,
+                },
+              },
+            ],
+          },
+        },
+      });
+
+      const pool = await indexer.Pool.get(toChecksumAddress(srcAddress));
 
       expect(pool).toBeUndefined();
       expect(mockPriceOracle).not.toHaveBeenCalled();

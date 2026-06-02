@@ -1,9 +1,10 @@
-import type { Pool_Fees_event, handlerContext } from "generated";
+import type { EvmEvent } from "envio";
 import { toChecksumAddress } from "../../../src/Constants";
+import type { handlerContext } from "../../../src/EntityTypes";
 import { processPoolFees } from "../../../src/EventHandlers/Pool/PoolFeesLogic";
 
 describe("PoolFeesLogic", () => {
-  const mockEvent: Pool_Fees_event = {
+  const mockEvent = {
     chainId: 10,
     block: {
       number: 123456,
@@ -20,7 +21,7 @@ describe("PoolFeesLogic", () => {
       amount1: 2000n,
       sender: toChecksumAddress("0x1234567890123456789012345678901234567890"),
     },
-  };
+  } as unknown as EvmEvent<"Pool", "Fees">;
 
   let mockContext: handlerContext;
 
@@ -78,10 +79,10 @@ describe("PoolFeesLogic", () => {
     });
 
     it("handles a single-leg fees event (amount1=0)", () => {
-      const event: Pool_Fees_event = {
+      const event = {
         ...mockEvent,
         params: { ...mockEvent.params, amount0: 1000n, amount1: 0n },
-      };
+      } as unknown as EvmEvent<"Pool", "Fees">;
 
       const result = processPoolFees(event);
 

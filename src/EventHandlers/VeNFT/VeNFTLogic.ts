@@ -1,16 +1,4 @@
-import type {
-  VeNFTState,
-  VeNFT_DepositManaged_event,
-  VeNFT_Deposit_event,
-  VeNFT_LockPermanent_event,
-  VeNFT_Merge_event,
-  VeNFT_Split_event,
-  VeNFT_Transfer_event,
-  VeNFT_UnlockPermanent_event,
-  VeNFT_WithdrawManaged_event,
-  VeNFT_Withdraw_event,
-  handlerContext,
-} from "generated";
+import type { EvmEvent, VeNFTState } from "envio";
 import {
   loadOrCreateUserData,
   loadUserStatsPerPool,
@@ -24,6 +12,8 @@ import {
   VeNFTId,
   ZERO_ADDRESS,
 } from "../../Constants";
+import { getRehydrated } from "../../EntityTimestamps";
+import type { handlerContext } from "../../EntityTypes";
 
 /**
  * Processes a VeNFT Deposit event: updates the VeNFTState with the new locktime,
@@ -43,7 +33,7 @@ import {
  * @returns Resolves when the state has been persisted (no value).
  */
 export async function processVeNFTDeposit(
-  event: VeNFT_Deposit_event,
+  event: EvmEvent<"VeNFT", "Deposit">,
   currentVeNFTState: VeNFTState,
   context: handlerContext,
 ): Promise<void> {
@@ -71,7 +61,7 @@ export async function processVeNFTDeposit(
  * @returns Resolves when the state has been persisted (no value).
  */
 export async function processVeNFTWithdraw(
-  event: VeNFT_Withdraw_event,
+  event: EvmEvent<"VeNFT", "Withdraw">,
   currentVeNFTState: VeNFTState,
   context: handlerContext,
 ): Promise<void> {
@@ -98,7 +88,7 @@ export async function processVeNFTWithdraw(
  * @returns Resolves when the state has been persisted (no value).
  */
 export async function processVeNFTLockPermanent(
-  event: VeNFT_LockPermanent_event,
+  event: EvmEvent<"VeNFT", "LockPermanent">,
   currentVeNFTState: VeNFTState,
   context: handlerContext,
 ): Promise<void> {
@@ -125,7 +115,7 @@ export async function processVeNFTLockPermanent(
  * @returns Resolves when the state has been persisted (no value).
  */
 export async function processVeNFTUnlockPermanent(
-  event: VeNFT_UnlockPermanent_event,
+  event: EvmEvent<"VeNFT", "UnlockPermanent">,
   currentVeNFTState: VeNFTState,
   context: handlerContext,
 ): Promise<void> {
@@ -151,7 +141,7 @@ export async function processVeNFTUnlockPermanent(
  * @returns Resolves when reassignment and state update are persisted (no value).
  */
 export async function processVeNFTTransfer(
-  event: VeNFT_Transfer_event,
+  event: EvmEvent<"VeNFT", "Transfer">,
   currentVeNFTState: VeNFTState,
   context: handlerContext,
 ): Promise<void> {
@@ -235,7 +225,7 @@ function getStandardLockEnd(ts: bigint): bigint {
  * @param context - Handler context used to persist both reconciled entities.
  */
 export async function processVeNFTMerge(
-  event: VeNFT_Merge_event,
+  event: EvmEvent<"VeNFT", "Merge">,
   fromVeNFTState: VeNFTState,
   toVeNFTState: VeNFTState,
   context: handlerContext,
@@ -275,7 +265,7 @@ export async function processVeNFTMerge(
  * @param context - Handler context used to persist all three reconciled entities.
  */
 export async function processVeNFTSplit(
-  event: VeNFT_Split_event,
+  event: EvmEvent<"VeNFT", "Split">,
   fromVeNFTState: VeNFTState,
   token1VeNFTState: VeNFTState,
   token2VeNFTState: VeNFTState,
@@ -336,7 +326,7 @@ export async function processVeNFTSplit(
  * @param context - Handler context used to persist both reconciled entities.
  */
 export async function processVeNFTDepositManaged(
-  event: VeNFT_DepositManaged_event,
+  event: EvmEvent<"VeNFT", "DepositManaged">,
   tokenVeNFTState: VeNFTState,
   managedVeNFTState: VeNFTState,
   context: handlerContext,
@@ -385,7 +375,7 @@ export async function processVeNFTDepositManaged(
  * @param context - Handler context used to persist both reconciled entities.
  */
 export async function processVeNFTWithdrawManaged(
-  event: VeNFT_WithdrawManaged_event,
+  event: EvmEvent<"VeNFT", "WithdrawManaged">,
   tokenVeNFTState: VeNFTState,
   managedVeNFTState: VeNFTState,
   context: handlerContext,
@@ -434,7 +424,7 @@ export async function processVeNFTWithdrawManaged(
  * @returns The VeNFTState for the token, or undefined if the entity could not be loaded after mint.
  */
 export async function handleMintTransfer(
-  event: VeNFT_Transfer_event,
+  event: EvmEvent<"VeNFT", "Transfer">,
   context: handlerContext,
 ): Promise<VeNFTState | undefined> {
   // VeNFT minting operation
@@ -455,7 +445,9 @@ export async function handleMintTransfer(
     });
   }
 
-  const veNFTState = await context.VeNFTState.get(
+  const veNFTState = await getRehydrated(
+    context.VeNFTState,
+    "VeNFTState",
     VeNFTId(event.chainId, event.params.tokenId),
   );
 
@@ -480,7 +472,7 @@ export async function handleMintTransfer(
  * @returns Resolves when all UserStatsPerPool updates for the reassignment are done (no value).
  */
 export async function reassignVeNFTVotesOnTransfer(
-  event: VeNFT_Transfer_event,
+  event: EvmEvent<"VeNFT", "Transfer">,
   veNFTState: VeNFTState,
   context: handlerContext,
 ): Promise<void> {
@@ -538,7 +530,7 @@ export async function reassignVeNFTVotesOnTransfer(
  * @returns Resolves when the previous owner's UserStatsPerPool has been updated, or immediately if no row or zero amount.
  */
 export async function updatePreviousOwnerUserStatsOnTransfer(
-  event: VeNFT_Transfer_event,
+  event: EvmEvent<"VeNFT", "Transfer">,
   previousOwnerAddress: string,
   poolAddress: string,
   poolChainId: number,
@@ -589,7 +581,7 @@ export async function updatePreviousOwnerUserStatsOnTransfer(
  * @returns Resolves when the new owner's UserStatsPerPool has been updated, or immediately if burn.
  */
 export async function updateNewOwnerUserStatsOnTransfer(
-  event: VeNFT_Transfer_event,
+  event: EvmEvent<"VeNFT", "Transfer">,
   newOwnerAddress: string,
   poolAddress: string,
   poolChainId: number,

@@ -1,10 +1,5 @@
-import type {
-  CLFactory_PoolCreated_event,
-  CLGaugeConfig,
-  FeeToTickSpacingMapping,
-  Token,
-  handlerContext,
-} from "generated";
+import type { EvmEvent } from "envio";
+import type { CLGaugeConfig, FeeToTickSpacingMapping, Token } from "envio";
 import { createPoolEntity } from "../../Aggregators/Pool";
 import {
   RootPoolLeafPoolId,
@@ -12,6 +7,7 @@ import {
   rootPoolMatchingHash,
 } from "../../Constants";
 import type { TokenEntityMapping } from "../../CustomTypes";
+import type { handlerContext } from "../../EntityTypes";
 import type { Pool } from "../../EntityTypes";
 import { createTokenEntity } from "../../PriceOracle";
 import { flushPendingVotesAndDistributionsForRootPool } from "../Voter/CrossChainPendingResolution";
@@ -53,7 +49,7 @@ export interface CLPoolPendingInitializeInput {
  *   dangling token references are persisted.
  */
 export async function processCLFactoryPoolCreated(
-  event: CLFactory_PoolCreated_event,
+  event: EvmEvent<"CLFactory", "PoolCreated">,
   factoryAddress: string,
   poolToken0: Token | undefined,
   poolToken1: Token | undefined,

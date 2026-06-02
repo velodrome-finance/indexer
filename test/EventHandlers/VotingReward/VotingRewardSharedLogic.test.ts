@@ -1,4 +1,4 @@
-import type { Token } from "generated";
+import type { Token } from "envio";
 import * as PoolModule from "../../../src/Aggregators/Pool";
 import { PoolAddressField } from "../../../src/Aggregators/Pool";
 import * as UserStatsPerPoolModule from "../../../src/Aggregators/UserStatsPerPool";
@@ -343,7 +343,7 @@ describe("VotingRewardSharedLogic", () => {
             userStatsStorage.set(entity.id, entity);
           },
         },
-      } as unknown as import("generated").handlerContext;
+      } as unknown as import("../../../src/EntityTypes").handlerContext;
 
       const data = {
         votingRewardAddress: mockVotingRewardAddress,

@@ -1,11 +1,7 @@
-import type {
-  CLPool_Burn_event,
-  CLPositionPendingPrincipal,
-  Token,
-  handlerContext,
-} from "generated";
+import type { EvmEvent } from "envio";
+import type { CLPositionPendingPrincipal, Token } from "envio";
 import { toChecksumAddress } from "../../../src/Constants";
-import type { Pool } from "../../../src/EntityTypes";
+import type { Pool, handlerContext } from "../../../src/EntityTypes";
 import { processCLPoolBurn } from "../../../src/EventHandlers/CLPool/CLPoolBurnLogic";
 import { calculateTotalUSD } from "../../../src/Helpers";
 import { setupCommon } from "../Pool/common";
@@ -32,7 +28,7 @@ describe("CLPoolBurnLogic", () => {
       amount0: 500000n,
       amount1: 300000n,
     },
-  } as unknown as CLPool_Burn_event;
+  } as unknown as EvmEvent<"CLPool", "Burn">;
 
   const mockToken0: Token = {
     ...mockToken0Data,

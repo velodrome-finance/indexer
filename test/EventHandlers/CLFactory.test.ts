@@ -1,11 +1,5 @@
-import type { CLGaugeConfig, Token } from "generated";
-import type { MockInstance } from "vitest";
-import {
-  CLFactory,
-  MockDb,
-  RootCLPoolFactory,
-  Voter,
-} from "../../generated/src/TestHelpers.gen";
+import type { CLGaugeConfig, Token } from "envio";
+import { createTestIndexer } from "envio";
 import {
   CHAIN_CONSTANTS,
   FeeToTickSpacingMappingId,
@@ -20,17 +14,13 @@ import {
   rootPoolMatchingHash,
   toChecksumAddress,
 } from "../../src/Constants";
-import { getTokensDeposited } from "../../src/Effects/Voter";
-import type { Pool } from "../../src/EntityTypes";
-import * as CLFactoryPoolCreatedLogic from "../../src/EventHandlers/CLFactory/CLFactoryPoolCreatedLogic";
-import * as PriceOracle from "../../src/PriceOracle";
-import { PRICE_TRUST_OUTCOME, PRICE_TRUST_REASON } from "../../src/PriceTrust";
+import { rehydrateTimestamps } from "../../src/EntityTimestamps";
 import { setupCommon } from "./Pool/common";
 
 describe("CLFactory Events", () => {
   const { mockToken0Data, mockToken1Data } = setupCommon();
   // Use Base (8453) — chainId-keyed CLGaugeConfig has a row for 8453 via CLGaugeFactoryV2
-  const chainId = 8453;
+  const chainId = 8453 as const;
   const poolAddress = toChecksumAddress(
     "0x3333333333333333333333333333333333333333",
   );
@@ -48,13 +38,13 @@ describe("CLFactory Events", () => {
     lastUpdatedTimestamp: new Date(1000000 * 1000),
   });
 
-  function setupMockDbWithEntities(
-    db: ReturnType<typeof MockDb.createMockDb>,
+  function setupIndexerWithEntities(
+    indexer: ReturnType<typeof createTestIndexer>,
     options: {
       includeFeeToTickSpacing?: boolean;
       clGaugeConfigChainId?: number;
     } = {},
-  ): ReturnType<typeof MockDb.createMockDb> {
+  ): void {
     const { includeFeeToTickSpacing = true, clGaugeConfigChainId = chainId } =
       options;
     const token0ForBase = {
@@ -67,8 +57,8 @@ describe("CLFactory Events", () => {
       id: TokenId(chainId, mockToken1Data.address),
       chainId: chainId,
     } satisfies Token;
-    let updated =
-      db.entities.Token.set(token0ForBase).entities.Token.set(token1ForBase);
+    indexer.Token.set(token0ForBase);
+    indexer.Token.set(token1ForBase);
     const clGaugeConfig = {
       id: String(clGaugeConfigChainId),
       defaultEmissionsCap: 0n,
@@ -76,208 +66,140 @@ describe("CLFactory Events", () => {
       penaltyRate: 0n,
       lastUpdatedTimestamp: new Date(1000000 * 1000),
     } satisfies CLGaugeConfig;
-    updated = updated.entities.CLGaugeConfig.set(clGaugeConfig);
+    indexer.CLGaugeConfig.set(clGaugeConfig);
     if (includeFeeToTickSpacing) {
       const feeToTickSpacingMapping = createFeeToTickSpacingMapping();
-      updated = updated.entities.FeeToTickSpacingMapping.set(
-        feeToTickSpacingMapping,
-      );
+      indexer.FeeToTickSpacingMapping.set(feeToTickSpacingMapping);
     }
-    return updated;
   }
 
-  let processSpy: MockInstance<
-    typeof CLFactoryPoolCreatedLogic.processCLFactoryPoolCreated
-  >;
-
-  beforeEach(() => {
-    // Mock createTokenEntity in case it's called for missing tokens
-    vi.spyOn(PriceOracle, "createTokenEntity").mockImplementation(
-      async (address: string) => ({
-        id: TokenId(chainId, address),
-        address: address,
-        symbol: "",
-        name: "Mock Token",
-        decimals: 18n,
-        pricePerUSDNew: 1000000000000000000n,
-        chainId: chainId,
-        isWhitelisted: false,
-        lastUpdatedTimestamp: new Date(1000000 * 1000),
-        lastSuccessfulPriceTimestamp: undefined,
-        priceTrustOutcome: PRICE_TRUST_OUTCOME.UNTRUSTED,
-        priceTrustReason: PRICE_TRUST_REASON.NON_WL,
-      }),
-    );
-
-    processSpy = vi
-      .spyOn(CLFactoryPoolCreatedLogic, "processCLFactoryPoolCreated")
-      .mockImplementation(
-        async (
-          event,
-          _factoryAddress,
-          token0,
-          token1,
-          clGaugeConfig,
-          feeToTickSpacingMapping,
-        ) => {
-          const mapping = feeToTickSpacingMapping as
-            | { fee?: bigint }
-            | undefined;
-          return {
-            liquidityPoolAggregator: {
-              id: PoolId(chainId, poolAddress),
-              chainId: chainId,
-              token0_id: TokenId(chainId, token0Address),
-              token1_id: TokenId(chainId, token1Address),
-              token0_address: token0Address,
-              token1_address: token1Address,
-              isStable: false,
-              isCL: true,
-              baseFee: mapping?.fee,
-              currentFee: mapping?.fee,
-              lastUpdatedTimestamp: new Date(1000000 * 1000),
-              veNFTamountStaked: 0n,
-            } as Pool,
-          };
-        },
-      );
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
   describe("PoolCreated event", () => {
-    let mockDb: ReturnType<typeof MockDb.createMockDb>;
-    let mockEvent: ReturnType<typeof CLFactory.PoolCreated.createMockEvent>;
-    let resultDB: ReturnType<typeof MockDb.createMockDb>;
+    let indexer: ReturnType<typeof createTestIndexer>;
 
     beforeEach(async () => {
-      mockDb = MockDb.createMockDb();
-      mockDb = setupMockDbWithEntities(mockDb);
+      indexer = createTestIndexer();
+      setupIndexerWithEntities(indexer);
 
-      mockEvent = CLFactory.PoolCreated.createMockEvent({
-        token0: token0Address as `0x${string}`,
-        token1: token1Address as `0x${string}`,
-        pool: poolAddress,
-        tickSpacing: TICK_SPACING,
-        mockEventData: {
-          block: {
-            number: 1000000,
-            timestamp: 1000000,
-            hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+      await indexer.process({
+        chains: {
+          [chainId]: {
+            simulate: [
+              {
+                contract: "CLFactory",
+                event: "PoolCreated",
+                srcAddress: poolAddress as `0x${string}`,
+                logIndex: 1,
+                block: {
+                  number: 1000000,
+                  timestamp: 1000000,
+                  hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                },
+                params: {
+                  token0: token0Address as `0x${string}`,
+                  token1: token1Address as `0x${string}`,
+                  pool: poolAddress,
+                  tickSpacing: TICK_SPACING,
+                },
+              },
+            ],
           },
-          chainId: chainId,
-          logIndex: 1,
         },
       });
-
-      resultDB = await mockDb.processEvents([mockEvent]);
     });
 
-    // TODO: Skip until envio migrates to createTestIndexer — vi.spyOn can't intercept tsx-loaded modules (alpha.18)
-    it.skip("should call processCLFactoryPoolCreated with correct parameters", () => {
-      // processCLFactoryPoolCreated(event, factoryAddress, poolToken0, poolToken1, CLGaugeConfig, feeToTickSpacingMapping, context)
-      expect(processSpy).toHaveBeenCalled();
-      const callArgs = processSpy.mock.calls[0];
-      expect(callArgs[0]).toEqual(mockEvent);
-      expect(callArgs[1]).toEqual(mockEvent.srcAddress); // factoryAddress
-      expect(callArgs[2]).toEqual(
-        expect.objectContaining({
-          address: mockToken0Data.address,
-          chainId: chainId,
-        }),
-      );
-      expect(callArgs[3]).toEqual(
-        expect.objectContaining({
-          address: mockToken1Data.address,
-          chainId: chainId,
-        }),
-      );
-      expect(callArgs[4]).toEqual(
-        expect.objectContaining({
-          id: String(chainId),
-        }),
-      );
-      expect(callArgs[5]).toEqual(
-        expect.objectContaining({
-          id: FeeToTickSpacingMappingId(chainId, TICK_SPACING),
-          fee: 500n,
-        }),
-      );
-      // Verify context was passed as 7th argument
-      expect(callArgs[6]).toBeDefined();
-    });
-
-    it("should set the liquidity pool aggregator entity", () => {
-      const pool = resultDB.entities.Pool.get(PoolId(chainId, poolAddress));
+    it("should set the liquidity pool aggregator entity", async () => {
+      const pool = await indexer.Pool.get(PoolId(chainId, poolAddress));
       expect(pool).toBeDefined();
       expect(pool?.id).toBe(PoolId(chainId, poolAddress));
       expect(pool?.chainId).toBe(chainId);
       expect(pool?.isCL).toBe(true);
     });
 
-    // TODO: Skip until envio migrates to createTestIndexer — vi.spyOn can't intercept tsx-loaded modules (alpha.18)
-    it.skip("should process event even during preload phase", async () => {
-      // Create a mock context that simulates preload
-      let preloadMockDb = MockDb.createMockDb();
-      preloadMockDb = setupMockDbWithEntities(preloadMockDb);
-
-      // Reset spy to track calls
-      processSpy.mockClear();
+    it("should process event even during preload phase", async () => {
+      const preloadIndexer = createTestIndexer();
+      setupIndexerWithEntities(preloadIndexer);
 
       // Verify the mapping exists before processing (using the same key format as the handler)
       const mappingKey = FeeToTickSpacingMappingId(chainId, TICK_SPACING);
       const mappingBefore =
-        preloadMockDb.entities.FeeToTickSpacingMapping.get(mappingKey);
+        await preloadIndexer.FeeToTickSpacingMapping.get(mappingKey);
       expect(mappingBefore).toBeDefined(); // Verify mapping exists before processing
 
       // Handlers now run during both preload and normal phases
-      const result = await preloadMockDb.processEvents([mockEvent]);
+      await preloadIndexer.process({
+        chains: {
+          [chainId]: {
+            simulate: [
+              {
+                contract: "CLFactory",
+                event: "PoolCreated",
+                srcAddress: poolAddress as `0x${string}`,
+                logIndex: 1,
+                block: {
+                  number: 1000000,
+                  timestamp: 1000000,
+                  hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                },
+                params: {
+                  token0: token0Address as `0x${string}`,
+                  token1: token1Address as `0x${string}`,
+                  pool: poolAddress,
+                  tickSpacing: TICK_SPACING,
+                },
+              },
+            ],
+          },
+        },
+      });
 
       // Verify that the handler ran (pool should be created if mapping exists)
-      const pool = result.entities.Pool.get(PoolId(chainId, poolAddress));
+      const pool = await preloadIndexer.Pool.get(PoolId(chainId, poolAddress));
 
       // Since we verified the mapping exists, the handler should have run and created the pool
       expect(pool).toBeDefined();
-      // The handler should have called processCLFactoryPoolCreated
-      // Note: The spy may be called multiple times (preload + normal), so check at least once
-      expect(processSpy).toHaveBeenCalled();
     });
 
-    // TODO: Skip until envio migrates to createTestIndexer — vi.spyOn can't intercept tsx-loaded modules (alpha.18)
-    it.skip("should load token0, token1, CLGaugeConfig, and FeeToTickSpacingMapping in parallel", () => {
-      // Verify that the handler loads all four entities and passes factoryAddress
-      // processCLFactoryPoolCreated(event, factoryAddress, poolToken0, poolToken1, CLGaugeConfig, feeToTickSpacingMapping, context)
-      expect(processSpy).toHaveBeenCalled();
-      expect(processSpy.mock.calls.length).toBeGreaterThanOrEqual(1);
-      const callArgs = processSpy.mock.calls[0];
-      expect(callArgs[1]).toBeDefined(); // factoryAddress
-      expect(callArgs[2]).toBeDefined(); // token0
-      expect(callArgs[3]).toBeDefined(); // token1
-      const clGaugeConfig = callArgs[4];
-      expect(clGaugeConfig).toBeDefined(); // CLGaugeConfig
-      expect(clGaugeConfig?.id).toBe(String(chainId));
-      const feeToTickSpacingMapping = callArgs[5] as { fee?: bigint };
-      expect(feeToTickSpacingMapping).toBeDefined(); // FeeToTickSpacingMapping
-      expect(feeToTickSpacingMapping?.fee).toBe(500n);
-    });
-
-    it("should set baseFee and currentFee from FeeToTickSpacingMapping when mapping exists", () => {
-      const pool = resultDB.entities.Pool.get(PoolId(chainId, poolAddress));
+    it("should set baseFee and currentFee from FeeToTickSpacingMapping when mapping exists", async () => {
+      const pool = await indexer.Pool.get(PoolId(chainId, poolAddress));
       expect(pool?.baseFee).toBe(500n);
       expect(pool?.currentFee).toBe(500n);
     });
 
     it("should handle missing FeeToTickSpacingMapping gracefully", async () => {
-      let mockDbWithoutMapping = MockDb.createMockDb();
-      mockDbWithoutMapping = setupMockDbWithEntities(mockDbWithoutMapping, {
+      const indexerNoMapping = createTestIndexer();
+      setupIndexerWithEntities(indexerNoMapping, {
         includeFeeToTickSpacing: false,
       });
 
-      const result = await mockDbWithoutMapping.processEvents([mockEvent]);
+      await indexerNoMapping.process({
+        chains: {
+          [chainId]: {
+            simulate: [
+              {
+                contract: "CLFactory",
+                event: "PoolCreated",
+                srcAddress: poolAddress as `0x${string}`,
+                logIndex: 1,
+                block: {
+                  number: 1000000,
+                  timestamp: 1000000,
+                  hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                },
+                params: {
+                  token0: token0Address as `0x${string}`,
+                  token1: token1Address as `0x${string}`,
+                  pool: poolAddress,
+                  tickSpacing: TICK_SPACING,
+                },
+              },
+            ],
+          },
+        },
+      });
 
-      const pool = result.entities.Pool.get(PoolId(chainId, poolAddress));
+      const pool = await indexerNoMapping.Pool.get(
+        PoolId(chainId, poolAddress),
+      );
       // When mapping doesn't exist, handler returns early and no pool is created
       expect(pool).toBeUndefined();
     });
@@ -306,13 +228,37 @@ describe("CLFactory Events", () => {
           rootPoolMatchingHash: hash,
         };
 
-        let db = MockDb.createMockDb();
-        db = setupMockDbWithEntities(db);
-        db = db.entities.PendingRootPoolMapping.set(pendingMapping);
+        const idx = createTestIndexer();
+        setupIndexerWithEntities(idx);
+        idx.PendingRootPoolMapping.set(pendingMapping);
 
-        const result = await db.processEvents([mockEvent]);
+        await idx.process({
+          chains: {
+            [chainId]: {
+              simulate: [
+                {
+                  contract: "CLFactory",
+                  event: "PoolCreated",
+                  srcAddress: poolAddress as `0x${string}`,
+                  logIndex: 1,
+                  block: {
+                    number: 1000000,
+                    timestamp: 1000000,
+                    hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                  },
+                  params: {
+                    token0: token0Address as `0x${string}`,
+                    token1: token1Address as `0x${string}`,
+                    pool: poolAddress,
+                    tickSpacing: TICK_SPACING,
+                  },
+                },
+              ],
+            },
+          },
+        });
 
-        const rootPoolLeafPool = result.entities.RootPool_LeafPool.get(
+        const rootPoolLeafPool = await idx.RootPool_LeafPool.get(
           RootPoolLeafPoolId(
             rootChainId,
             chainId,
@@ -325,26 +271,14 @@ describe("CLFactory Events", () => {
         expect(rootPoolLeafPool?.leafPoolAddress).toBe(poolAddress);
         expect(rootPoolLeafPool?.leafChainId).toBe(chainId);
 
-        const stillPending = result.entities.PendingRootPoolMapping.get(
+        const stillPending = await idx.PendingRootPoolMapping.get(
           pendingMapping.id,
         );
         expect(stillPending).toBeUndefined();
       });
 
       it("should flush pending votes when PendingVote and VeNFTState exist", async () => {
-        const { createMockPool, createMockVeNFTState } = setupCommon();
-        const fullPool = createMockPool({
-          id: PoolId(chainId, poolAddress),
-          chainId,
-          token0_id: TokenId(chainId, token0Address),
-          token1_id: TokenId(chainId, token1Address),
-          token0_address: token0Address,
-          token1_address: token1Address,
-          veNFTamountStaked: 0n,
-        });
-        processSpy.mockImplementation(async () => ({
-          liquidityPoolAggregator: fullPool,
-        }));
+        const { createMockVeNFTState } = setupCommon();
 
         const hash = rootPoolMatchingHash(
           chainId,
@@ -364,9 +298,12 @@ describe("CLFactory Events", () => {
         };
         const tokenId = 1n;
         const voteWeight = 100n;
-        const timestampMs = (mockEvent.block.timestamp as number) * 1000;
-        const txHash = mockEvent.transaction?.hash ?? "0xhash";
-        const logIndex = mockEvent.logIndex ?? 1;
+        const blockTimestamp = 1000000;
+        const blockNumber = 1000000;
+        const blockHash =
+          "0x1234567890123456789012345678901234567890123456789012345678901234";
+        const txHash = blockHash;
+        const logIndex = 1;
         const pendingVote = {
           id: PendingVoteId(
             rootChainId,
@@ -380,8 +317,8 @@ describe("CLFactory Events", () => {
           tokenId,
           weight: voteWeight,
           eventType: "Voted",
-          timestamp: new Date(timestampMs),
-          blockNumber: BigInt(mockEvent.block.number),
+          timestamp: new Date(blockTimestamp * 1000),
+          blockNumber: BigInt(blockNumber),
           transactionHash: txHash,
         };
         const ownerAddress = toChecksumAddress(
@@ -394,15 +331,39 @@ describe("CLFactory Events", () => {
           owner: ownerAddress,
         });
 
-        let db = MockDb.createMockDb();
-        db = setupMockDbWithEntities(db);
-        db = db.entities.PendingRootPoolMapping.set(pendingMapping);
-        db = db.entities.PendingVote.set(pendingVote);
-        db = db.entities.VeNFTState.set(veNFTState);
+        const idx = createTestIndexer();
+        setupIndexerWithEntities(idx);
+        idx.PendingRootPoolMapping.set(pendingMapping);
+        idx.PendingVote.set(pendingVote);
+        idx.VeNFTState.set(veNFTState);
 
-        const result = await db.processEvents([mockEvent]);
+        await idx.process({
+          chains: {
+            [chainId]: {
+              simulate: [
+                {
+                  contract: "CLFactory",
+                  event: "PoolCreated",
+                  srcAddress: poolAddress as `0x${string}`,
+                  logIndex,
+                  block: {
+                    number: blockNumber,
+                    timestamp: blockTimestamp,
+                    hash: blockHash,
+                  },
+                  params: {
+                    token0: token0Address as `0x${string}`,
+                    token1: token1Address as `0x${string}`,
+                    pool: poolAddress,
+                    tickSpacing: TICK_SPACING,
+                  },
+                },
+              ],
+            },
+          },
+        });
 
-        const rootPoolLeafPool = result.entities.RootPool_LeafPool.get(
+        const rootPoolLeafPool = await idx.RootPool_LeafPool.get(
           RootPoolLeafPoolId(
             rootChainId,
             chainId,
@@ -412,19 +373,17 @@ describe("CLFactory Events", () => {
         );
         expect(rootPoolLeafPool).toBeDefined();
 
-        const processedPendingVote = result.entities.PendingVote.get(
-          pendingVote.id,
-        );
+        const processedPendingVote = await idx.PendingVote.get(pendingVote.id);
         expect(processedPendingVote).toBeUndefined();
 
-        const leafPool = result.entities.Pool.get(PoolId(chainId, poolAddress));
+        const leafPool = await idx.Pool.get(PoolId(chainId, poolAddress));
         expect(leafPool?.veNFTamountStaked).toBe(voteWeight);
       });
     });
 
     describe("full E2E: root ahead then leaf catches up (flush)", () => {
-      const rootChainId = 10;
-      const leafChainId = 252; // Fraxtal
+      const rootChainId = 10 as const;
+      const leafChainId = 252 as const; // Fraxtal
       const rootPoolAddress = toChecksumAddress(
         "0xC4Cbb0ba3c902Fb4b49B3844230354d45C779F74",
       );
@@ -435,15 +394,15 @@ describe("CLFactory Events", () => {
       const blockNumber = 1000000;
       const txHash =
         "0x1234567890123456789012345678901234567890123456789012345678901234";
+
       function setupLeafChainEntities(
-        db: ReturnType<typeof MockDb.createMockDb>,
+        idx: ReturnType<typeof createTestIndexer>,
         leafChain: number,
-        leafPoolAddress: string,
         leafToken0: string,
         leafToken1: string,
         tickSpacing: bigint,
         fee: bigint = FEE,
-      ): ReturnType<typeof MockDb.createMockDb> {
+      ): void {
         const token0ForLeaf = {
           ...mockToken0Data,
           id: TokenId(leafChain, leafToken0),
@@ -456,10 +415,8 @@ describe("CLFactory Events", () => {
           address: toChecksumAddress(leafToken1),
           chainId: leafChain,
         } satisfies Token;
-        let updated =
-          db.entities.Token.set(token0ForLeaf).entities.Token.set(
-            token1ForLeaf,
-          );
+        idx.Token.set(token0ForLeaf);
+        idx.Token.set(token1ForLeaf);
         const clGaugeConfig = {
           id: String(leafChain),
           defaultEmissionsCap: 0n,
@@ -467,7 +424,7 @@ describe("CLFactory Events", () => {
           penaltyRate: 0n,
           lastUpdatedTimestamp: new Date(1000000 * 1000),
         } satisfies CLGaugeConfig;
-        updated = updated.entities.CLGaugeConfig.set(clGaugeConfig);
+        idx.CLGaugeConfig.set(clGaugeConfig);
         const feeToTickSpacingMapping = {
           id: FeeToTickSpacingMappingId(leafChain, tickSpacing),
           chainId: leafChain,
@@ -475,15 +432,12 @@ describe("CLFactory Events", () => {
           fee,
           lastUpdatedTimestamp: new Date(1000000 * 1000),
         };
-        updated = updated.entities.FeeToTickSpacingMapping.set(
-          feeToTickSpacingMapping,
-        );
-        return updated;
+        idx.FeeToTickSpacingMapping.set(feeToTickSpacingMapping);
       }
 
       function setupCrossChainFlushE2E(options: {
-        rootChainId: number;
-        leafChainId: number;
+        rootChainId: typeof rootChainId;
+        leafChainId: typeof leafChainId;
         rootPoolAddress: string;
         leafPoolAddress: string;
         blockTimestamp: number;
@@ -508,52 +462,56 @@ describe("CLFactory Events", () => {
           fee = FEE,
         } = options;
 
-        let db = MockDb.createMockDb();
-        db = setupLeafChainEntities(db, lcid, lpa, t0, t1, ts2, fee);
+        const idx = createTestIndexer();
+        setupLeafChainEntities(idx, lcid, t0, t1, ts2, fee);
 
-        const rootPoolCreatedEvent =
-          RootCLPoolFactory.RootPoolCreated.createMockEvent({
+        const rootPoolCreatedSimulate = {
+          contract: "RootCLPoolFactory" as const,
+          event: "RootPoolCreated" as const,
+          srcAddress: rpa as `0x${string}`,
+          logIndex: 1,
+          block: { timestamp: ts, number: bn, hash },
+          params: {
             token0: t0 as `0x${string}`,
             token1: t1 as `0x${string}`,
             tickSpacing: ts2,
             chainid: BigInt(lcid),
             pool: rpa as `0x${string}`,
-            mockEventData: {
-              block: { timestamp: ts, number: bn, hash },
-              chainId: rcid,
-              logIndex: 1,
-            },
-          });
+          },
+        };
 
-        const createClFactoryPoolCreatedEvent = (
+        const createClFactoryPoolCreatedSimulate = (
           blockOffset = 1,
           timestampOffset = 1,
-        ) =>
-          CLFactory.PoolCreated.createMockEvent({
+        ) => ({
+          contract: "CLFactory" as const,
+          event: "PoolCreated" as const,
+          srcAddress: lpa as `0x${string}`,
+          logIndex: 1,
+          block: {
+            number: bn + blockOffset,
+            timestamp: ts + timestampOffset,
+            hash,
+          },
+          params: {
             token0: t0 as `0x${string}`,
             token1: t1 as `0x${string}`,
             pool: lpa as `0x${string}`,
             tickSpacing: ts2,
-            mockEventData: {
-              block: {
-                number: bn + blockOffset,
-                timestamp: ts + timestampOffset,
-                hash,
-              },
-              chainId: lcid,
-              logIndex: 1,
-            },
-          });
+          },
+        });
 
         return {
-          db,
-          rootPoolCreatedEvent,
-          createClFactoryPoolCreatedEvent,
+          indexer: idx,
+          rootPoolCreatedSimulate,
+          createClFactoryPoolCreatedSimulate,
+          rcid,
+          lcid,
         };
       }
 
       it("should flush PendingRootPoolMapping and PendingVote when processing RootPoolCreated, Voted, then CLFactory.PoolCreated (two processEvents: root chain 10, leaf chain 252)", async () => {
-        const { createMockPool, createMockVeNFTState } = setupCommon();
+        const { createMockVeNFTState } = setupCommon();
         const voteTokenId = 1n;
         const voteWeight = 100n;
         const ownerAddress = toChecksumAddress(
@@ -574,19 +532,6 @@ describe("CLFactory Events", () => {
         });
 
         {
-          const fullPool = createMockPool({
-            id: PoolId(leafChainId, leafPoolAddress),
-            chainId: leafChainId,
-            token0_id: TokenId(leafChainId, token0Address),
-            token1_id: TokenId(leafChainId, token1Address),
-            token0_address: token0Address,
-            token1_address: token1Address,
-            veNFTamountStaked: 0n,
-          });
-          processSpy.mockImplementation(async (_event, ..._rest) => ({
-            liquidityPoolAggregator: fullPool,
-          }));
-
           const veNFTState = createMockVeNFTState({
             id: VeNFTId(rootChainId, voteTokenId),
             chainId: rootChainId,
@@ -594,46 +539,84 @@ describe("CLFactory Events", () => {
             owner: ownerAddress,
           });
 
-          const db = e2e.db.entities.VeNFTState.set(veNFTState);
+          e2e.indexer.VeNFTState.set(veNFTState);
 
-          const votedEvent = Voter.Voted.createMockEvent({
-            voter: ownerAddress,
-            pool: rootPoolAddress,
-            tokenId: voteTokenId,
-            weight: voteWeight,
-            totalWeight: 1000n,
-            mockEventData: {
-              block: {
-                number: blockNumber,
-                timestamp: blockTimestamp,
-                hash: txHash,
+          // Root chain first: RootPoolCreated + Voted create the
+          // PendingRootPoolMapping + PendingVote.
+          await e2e.indexer.process({
+            chains: {
+              [rootChainId]: {
+                simulate: [
+                  e2e.rootPoolCreatedSimulate,
+                  {
+                    contract: "Voter",
+                    event: "Voted",
+                    srcAddress: toChecksumAddress(
+                      "0x41C914ee0c7E1A5edCD0295623e6dC557B5aBf3C",
+                    ) as `0x${string}`,
+                    logIndex: 2,
+                    block: {
+                      number: blockNumber,
+                      timestamp: blockTimestamp,
+                      hash: txHash,
+                    },
+                    transaction: { hash: txHash },
+                    params: {
+                      voter: ownerAddress,
+                      pool: rootPoolAddress,
+                      tokenId: voteTokenId,
+                      weight: voteWeight,
+                      totalWeight: 1000n,
+                    },
+                  },
+                ],
               },
-              chainId: rootChainId,
-              logIndex: 2,
-              transaction: { hash: txHash },
             },
           });
 
-          const afterRoot = await db.processEvents([
-            e2e.rootPoolCreatedEvent,
-            votedEvent,
-          ]);
+          // The leaf CLFactory.PoolCreated runs on a FRESH indexer carrying the
+          // post-root state. createTestIndexer supports only ONE process() per
+          // indexer (a 2nd process(), or a 2nd chain in the same process(),
+          // re-persists batch-1 entities whose Timestamp fields have
+          // round-tripped to strings and the writer throws date.toISOString).
+          // Re-seeding the rehydrated entities reproduces the "root ahead, leaf
+          // catches up" world the leaf event flushes.
+          const leafIndexer = createTestIndexer();
+          for (const e of await e2e.indexer.Token.getAll())
+            leafIndexer.Token.set(rehydrateTimestamps("Token", e));
+          for (const e of await e2e.indexer.CLGaugeConfig.getAll())
+            leafIndexer.CLGaugeConfig.set(
+              rehydrateTimestamps("CLGaugeConfig", e),
+            );
+          for (const e of await e2e.indexer.FeeToTickSpacingMapping.getAll())
+            leafIndexer.FeeToTickSpacingMapping.set(
+              rehydrateTimestamps("FeeToTickSpacingMapping", e),
+            );
+          for (const e of await e2e.indexer.VeNFTState.getAll())
+            leafIndexer.VeNFTState.set(rehydrateTimestamps("VeNFTState", e));
+          for (const e of await e2e.indexer.PendingVote.getAll())
+            leafIndexer.PendingVote.set(rehydrateTimestamps("PendingVote", e));
+          // PendingRootPoolMapping has no Timestamp field — copy as-is.
+          for (const e of await e2e.indexer.PendingRootPoolMapping.getAll())
+            leafIndexer.PendingRootPoolMapping.set(e);
 
-          const clFactoryPoolCreatedEvent = e2e.createClFactoryPoolCreatedEvent(
-            1,
-            1,
-          );
+          const clFactoryPoolCreatedSimulate =
+            e2e.createClFactoryPoolCreatedSimulate(1, 1);
 
-          const result = await afterRoot.processEvents([
-            clFactoryPoolCreatedEvent,
-          ]);
+          await leafIndexer.process({
+            chains: {
+              [leafChainId]: {
+                simulate: [clFactoryPoolCreatedSimulate],
+              },
+            },
+          });
 
-          const stillPending = result.entities.PendingRootPoolMapping.get(
+          const stillPending = await leafIndexer.PendingRootPoolMapping.get(
             PendingRootPoolMappingId(rootChainId, rootPoolAddress),
           );
           expect(stillPending).toBeUndefined();
 
-          const rootPoolLeafPool = result.entities.RootPool_LeafPool.get(
+          const rootPoolLeafPool = await leafIndexer.RootPool_LeafPool.get(
             RootPoolLeafPoolId(
               rootChainId,
               leafChainId,
@@ -643,12 +626,12 @@ describe("CLFactory Events", () => {
           );
           expect(rootPoolLeafPool).toBeDefined();
 
-          const processedPendingVote = result.entities.PendingVote.get(
+          const processedPendingVote = await leafIndexer.PendingVote.get(
             PendingVoteId(rootChainId, rootPoolAddress, voteTokenId, txHash, 2),
           );
           expect(processedPendingVote).toBeUndefined();
 
-          const leafPool = result.entities.Pool.get(
+          const leafPool = await leafIndexer.Pool.get(
             PoolId(leafChainId, leafPoolAddress),
           );
           expect(leafPool).toBeDefined();
@@ -656,215 +639,22 @@ describe("CLFactory Events", () => {
         }
       });
 
-      // TODO: Skip until envio migrates to createTestIndexer — vi.spyOn can't intercept tsx-loaded modules (alpha.18)
-      it.skip("should flush PendingDistribution when processing RootPoolCreated, GaugeCreated, DistributeReward, then CLFactory.PoolCreated (cross-chain E2E)", async () => {
-        const gaugeAddress = toChecksumAddress(
-          "0xa75127121d28a9bf848f3b70e7eea26570aa7700",
-        );
-        const leafGaugeAddress = toChecksumAddress(
-          "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-        );
-        const { createMockPool, createMockToken } = setupCommon();
-        const distAmount = 1000n * 10n ** 18n;
-        const tokensDepositedMock = 500n * 10n ** 18n;
-
-        const rewardTokenAddress =
-          CHAIN_CONSTANTS[rootChainId].rewardToken(blockNumber);
-        const rewardToken = createMockToken({
-          id: TokenId(rootChainId, rewardTokenAddress),
-          address: toChecksumAddress(rewardTokenAddress),
-          symbol: "VELO",
-          name: "VELO",
-          chainId: rootChainId,
-          decimals: 18n,
-          pricePerUSDNew: 2n * 10n ** 18n,
-          isWhitelisted: true,
-          lastUpdatedTimestamp: new Date(blockTimestamp * 1000),
-        });
-
-        vi.spyOn(
-          getTokensDeposited as unknown as {
-            handler: (args: { input: unknown }) => Promise<bigint | undefined>;
-          },
-          "handler",
-        ).mockImplementation(async () => tokensDepositedMock);
-
-        const e2e = setupCrossChainFlushE2E({
-          rootChainId,
-          leafChainId,
-          rootPoolAddress,
-          leafPoolAddress,
-          blockTimestamp,
-          blockNumber,
-          txHash,
-          token0Address,
-          token1Address,
-          tickSpacing: TICK_SPACING,
-        });
-
-        {
-          const fullPool = createMockPool({
-            id: PoolId(leafChainId, leafPoolAddress),
-            chainId: leafChainId,
-            token0_id: TokenId(leafChainId, token0Address),
-            token1_id: TokenId(leafChainId, token1Address),
-            token0_address: token0Address,
-            token1_address: token1Address,
-            veNFTamountStaked: 0n,
-            totalEmissions: 0n,
-            totalEmissionsUSD: 0n,
-            totalVotesDeposited: 0n,
-            totalVotesDepositedUSD: 0n,
-            gaugeAddress: leafGaugeAddress,
-          });
-          processSpy.mockImplementation(async (_event, ..._rest) => ({
-            liquidityPoolAggregator: fullPool,
-          }));
-
-          const db = e2e.db.entities.Token.set(rewardToken);
-
-          const gaugeCreatedEvent = Voter.GaugeCreated.createMockEvent({
-            poolFactory: toChecksumAddress(
-              "0xCc0bDDB707055e04e497aB22a59c2aF4391cd12F",
-            ),
-            votingRewardsFactory: toChecksumAddress(
-              "0x2222222222222222222222222222222222222222",
-            ),
-            gaugeFactory: toChecksumAddress(
-              "0x3333333333333333333333333333333333333333",
-            ),
-            pool: rootPoolAddress,
-            bribeVotingReward: toChecksumAddress(
-              "0x5555555555555555555555555555555555555555",
-            ),
-            feeVotingReward: toChecksumAddress(
-              "0x6666666666666666666666666666666666666666",
-            ),
-            gauge: gaugeAddress,
-            creator: toChecksumAddress(
-              "0x7777777777777777777777777777777777777777",
-            ),
-            mockEventData: {
-              block: {
-                number: blockNumber,
-                timestamp: blockTimestamp,
-                hash: txHash,
-              },
-              chainId: rootChainId,
-              logIndex: 2,
-            },
-          });
-          const distributeRewardEvent = Voter.DistributeReward.createMockEvent({
-            gauge: gaugeAddress,
-            amount: distAmount,
-            mockEventData: {
-              block: {
-                number: blockNumber,
-                timestamp: blockTimestamp,
-                hash: txHash,
-              },
-              chainId: rootChainId,
-              logIndex: 3,
-              srcAddress: toChecksumAddress(
-                "0x41C914ee0c7E1A5edCD0295623e6dC557B5aBf3C",
-              ),
-            },
-          });
-
-          const afterRoot = await db.processEvents([
-            e2e.rootPoolCreatedEvent,
-            gaugeCreatedEvent,
-            distributeRewardEvent,
-          ]);
-
-          expect(
-            afterRoot.entities.PendingRootPoolMapping.get(
-              PendingRootPoolMappingId(rootChainId, rootPoolAddress),
-            ),
-          ).toBeDefined();
-          expect(
-            afterRoot.entities.RootGauge_RootPool.get(
-              RootGaugeRootPoolId(rootChainId, gaugeAddress),
-            ),
-          ).toBeDefined();
-          const pendingDistId = PendingDistributionId(
-            rootChainId,
-            rootPoolAddress,
-            blockNumber,
-            3,
-          );
-          expect(
-            afterRoot.entities.PendingDistribution.get(pendingDistId),
-          ).toBeDefined();
-
-          const clFactoryPoolCreatedEvent = e2e.createClFactoryPoolCreatedEvent(
-            1,
-            1,
-          );
-
-          const result = await afterRoot.processEvents([
-            clFactoryPoolCreatedEvent,
-          ]);
-
-          expect(
-            result.entities.PendingRootPoolMapping.get(
-              PendingRootPoolMappingId(rootChainId, rootPoolAddress),
-            ),
-          ).toBeUndefined();
-          expect(
-            result.entities.RootPool_LeafPool.get(
-              RootPoolLeafPoolId(
-                rootChainId,
-                leafChainId,
-                rootPoolAddress,
-                leafPoolAddress,
-              ),
-            ),
-          ).toBeDefined();
-          expect(
-            result.entities.PendingDistribution.get(pendingDistId),
-          ).toBeUndefined();
-
-          const leafPool = result.entities.Pool.get(
-            PoolId(leafChainId, leafPoolAddress),
-          );
-          expect(leafPool).toBeDefined();
-          expect(leafPool?.totalEmissions).toBe(distAmount);
-          expect(leafPool?.totalVotesDeposited).toBe(tokensDepositedMock);
-          expect(leafPool?.gaugeAddress).toBe(leafGaugeAddress);
-          vi.restoreAllMocks();
-        }
-      });
-
       it("should flush multiple PendingVotes for same root pool when CLFactory.PoolCreated is processed", async () => {
-        const rootPoolAddress = toChecksumAddress(
+        const rootPoolAddressMulti = toChecksumAddress(
           "0xC4Cbb0ba3c902Fb4b49B3844230354d45C779F74",
         );
-        const { createMockPool, createMockVeNFTState } = setupCommon();
+        const { createMockVeNFTState } = setupCommon();
         const voteWeight1 = 100n;
         const voteWeight2 = 200n;
         const tokenId1 = 1n;
         const tokenId2 = 2n;
-        const timestampMs = (mockEvent.block.timestamp as number) * 1000;
+        const blockTimestampMs = blockTimestamp * 1000;
         const ownerAddress1 = toChecksumAddress(
           "0x2222222222222222222222222222222222222222",
         );
         const ownerAddress2 = toChecksumAddress(
           "0x3333333333333333333333333333333333333333",
         );
-
-        const fullPool = createMockPool({
-          id: PoolId(chainId, poolAddress),
-          chainId,
-          token0_id: TokenId(chainId, token0Address),
-          token1_id: TokenId(chainId, token1Address),
-          token0_address: token0Address,
-          token1_address: token1Address,
-          veNFTamountStaked: 0n,
-        });
-        processSpy.mockImplementation(async () => ({
-          liquidityPoolAggregator: fullPool,
-        }));
 
         const hash = rootPoolMatchingHash(
           chainId,
@@ -873,37 +663,51 @@ describe("CLFactory Events", () => {
           TICK_SPACING,
         );
         const pendingMapping = {
-          id: PendingRootPoolMappingId(chainId, rootPoolAddress),
+          id: PendingRootPoolMappingId(chainId, rootPoolAddressMulti),
           rootChainId: chainId,
-          rootPoolAddress,
+          rootPoolAddress: rootPoolAddressMulti,
           leafChainId: chainId,
           token0: token0Address,
           token1: token1Address,
           tickSpacing: TICK_SPACING,
           rootPoolMatchingHash: hash,
         };
-        const txHash = mockEvent.transaction?.hash ?? "0xhash";
+        const blockHash =
+          "0x1234567890123456789012345678901234567890123456789012345678901234";
+        const txHashMulti = blockHash;
         const pendingVote1 = {
-          id: PendingVoteId(chainId, rootPoolAddress, tokenId1, txHash, 1),
+          id: PendingVoteId(
+            chainId,
+            rootPoolAddressMulti,
+            tokenId1,
+            txHashMulti,
+            1,
+          ),
           chainId,
-          rootPoolAddress,
+          rootPoolAddress: rootPoolAddressMulti,
           tokenId: tokenId1,
           weight: voteWeight1,
           eventType: "Voted",
-          timestamp: new Date(timestampMs),
-          blockNumber: BigInt(mockEvent.block.number),
-          transactionHash: txHash,
+          timestamp: new Date(blockTimestampMs),
+          blockNumber: BigInt(blockNumber),
+          transactionHash: txHashMulti,
         };
         const pendingVote2 = {
-          id: PendingVoteId(chainId, rootPoolAddress, tokenId2, txHash, 2),
+          id: PendingVoteId(
+            chainId,
+            rootPoolAddressMulti,
+            tokenId2,
+            txHashMulti,
+            2,
+          ),
           chainId,
-          rootPoolAddress,
+          rootPoolAddress: rootPoolAddressMulti,
           tokenId: tokenId2,
           weight: voteWeight2,
           eventType: "Voted",
-          timestamp: new Date(timestampMs + 1),
-          blockNumber: BigInt(mockEvent.block.number),
-          transactionHash: txHash,
+          timestamp: new Date(blockTimestampMs + 1),
+          blockNumber: BigInt(blockNumber),
+          transactionHash: txHashMulti,
         };
         const veNFTState1 = createMockVeNFTState({
           id: VeNFTId(chainId, tokenId1),
@@ -918,29 +722,54 @@ describe("CLFactory Events", () => {
           owner: ownerAddress2,
         });
 
-        let db = MockDb.createMockDb();
-        db = setupMockDbWithEntities(db);
-        db = db.entities.PendingRootPoolMapping.set(pendingMapping);
-        db = db.entities.PendingVote.set(pendingVote1);
-        db = db.entities.PendingVote.set(pendingVote2);
-        db = db.entities.VeNFTState.set(veNFTState1);
-        db = db.entities.VeNFTState.set(veNFTState2);
+        const idx = createTestIndexer();
+        setupIndexerWithEntities(idx);
+        idx.PendingRootPoolMapping.set(pendingMapping);
+        idx.PendingVote.set(pendingVote1);
+        idx.PendingVote.set(pendingVote2);
+        idx.VeNFTState.set(veNFTState1);
+        idx.VeNFTState.set(veNFTState2);
 
-        const result = await db.processEvents([mockEvent]);
+        await idx.process({
+          chains: {
+            [chainId]: {
+              simulate: [
+                {
+                  contract: "CLFactory",
+                  event: "PoolCreated",
+                  srcAddress: poolAddress as `0x${string}`,
+                  logIndex: 1,
+                  block: {
+                    number: blockNumber,
+                    timestamp: blockTimestamp,
+                    hash: blockHash,
+                  },
+                  params: {
+                    token0: token0Address as `0x${string}`,
+                    token1: token1Address as `0x${string}`,
+                    pool: poolAddress,
+                    tickSpacing: TICK_SPACING,
+                  },
+                },
+              ],
+            },
+          },
+        });
 
-        expect(
-          result.entities.PendingVote.get(pendingVote1.id),
-        ).toBeUndefined();
-        expect(
-          result.entities.PendingVote.get(pendingVote2.id),
-        ).toBeUndefined();
+        expect(await idx.PendingVote.get(pendingVote1.id)).toBeUndefined();
+        expect(await idx.PendingVote.get(pendingVote2.id)).toBeUndefined();
 
-        const rootPoolLeafPool = result.entities.RootPool_LeafPool.get(
-          RootPoolLeafPoolId(chainId, chainId, rootPoolAddress, poolAddress),
+        const rootPoolLeafPool = await idx.RootPool_LeafPool.get(
+          RootPoolLeafPoolId(
+            chainId,
+            chainId,
+            rootPoolAddressMulti,
+            poolAddress,
+          ),
         );
         expect(rootPoolLeafPool).toBeDefined();
 
-        const leafPool = result.entities.Pool.get(PoolId(chainId, poolAddress));
+        const leafPool = await idx.Pool.get(PoolId(chainId, poolAddress));
         expect(leafPool).toBeDefined();
         expect(leafPool?.veNFTamountStaked).toBe(voteWeight1 + voteWeight2);
       });
@@ -949,7 +778,7 @@ describe("CLFactory Events", () => {
 
   describe("TickSpacingEnabled event", () => {
     // Shared constants
-    const CHAIN_ID = 10;
+    const CHAIN_ID = 10 as const;
     const TICK_SPACING = 100n;
     const FEE = 500n;
     const BLOCK_TIMESTAMP = 1000000;
@@ -957,44 +786,45 @@ describe("CLFactory Events", () => {
     const BLOCK_HASH =
       "0x1234567890123456789012345678901234567890123456789012345678901234";
 
-    let mockDb: ReturnType<typeof MockDb.createMockDb>;
-
-    const createMockEvent = (
-      tickSpacing: bigint,
-      fee: bigint,
-      overrides: {
-        chainId?: number;
-        timestamp?: number;
-        number?: number;
-        logIndex?: number;
-      } = {},
-    ) => {
-      return CLFactory.TickSpacingEnabled.createMockEvent({
-        tickSpacing,
-        fee,
-        mockEventData: {
-          block: {
-            timestamp: overrides.timestamp ?? BLOCK_TIMESTAMP,
-            number: overrides.number ?? BLOCK_NUMBER,
-            hash: BLOCK_HASH,
-          },
-          chainId: overrides.chainId ?? CHAIN_ID,
-          logIndex: overrides.logIndex ?? 1,
-        },
-      });
-    };
+    let indexer: ReturnType<typeof createTestIndexer>;
 
     beforeEach(() => {
-      mockDb = MockDb.createMockDb();
+      indexer = createTestIndexer();
     });
 
     it("should create a new mapping when it doesn't exist", async () => {
       const mappingId = FeeToTickSpacingMappingId(CHAIN_ID, TICK_SPACING);
-      const mockEvent = createMockEvent(TICK_SPACING, FEE);
 
-      const result = await mockDb.processEvents([mockEvent]);
+      await indexer.process({
+        chains: {
+          [CHAIN_ID]: {
+            simulate: [
+              {
+                contract: "CLFactory",
+                event: "TickSpacingEnabled",
+                srcAddress: toChecksumAddress(
+                  "0x1111111111111111111111111111111111111111",
+                ) as `0x${string}`,
+                logIndex: 1,
+                block: {
+                  timestamp: BLOCK_TIMESTAMP,
+                  number: BLOCK_NUMBER,
+                  hash: BLOCK_HASH,
+                },
+                params: {
+                  tickSpacing: TICK_SPACING,
+                  fee: FEE,
+                },
+              },
+            ],
+          },
+        },
+      });
 
-      const mapping = result.entities.FeeToTickSpacingMapping.get(mappingId);
+      const rawMapping = await indexer.FeeToTickSpacingMapping.get(mappingId);
+      const mapping = rawMapping
+        ? rehydrateTimestamps("FeeToTickSpacingMapping", rawMapping)
+        : undefined;
       expect(mapping).toBeDefined();
       expect(mapping?.id).toBe(mappingId);
       expect(mapping?.chainId).toBe(CHAIN_ID);
@@ -1020,18 +850,39 @@ describe("CLFactory Events", () => {
         fee: oldFee,
         lastUpdatedTimestamp: new Date(oldTimestamp * 1000),
       };
-      mockDb = mockDb.entities.FeeToTickSpacingMapping.set(existingMapping);
+      indexer.FeeToTickSpacingMapping.set(existingMapping);
 
-      const mockEvent = createMockEvent(TICK_SPACING, newFee, {
-        timestamp: newTimestamp,
-        number: 123457,
-        logIndex: 2,
+      await indexer.process({
+        chains: {
+          [CHAIN_ID]: {
+            simulate: [
+              {
+                contract: "CLFactory",
+                event: "TickSpacingEnabled",
+                srcAddress: toChecksumAddress(
+                  "0x1111111111111111111111111111111111111111",
+                ) as `0x${string}`,
+                logIndex: 2,
+                block: {
+                  timestamp: newTimestamp,
+                  number: 123457,
+                  hash: BLOCK_HASH,
+                },
+                params: {
+                  tickSpacing: TICK_SPACING,
+                  fee: newFee,
+                },
+              },
+            ],
+          },
+        },
       });
 
-      const result = await mockDb.processEvents([mockEvent]);
-
-      const updatedMapping =
-        result.entities.FeeToTickSpacingMapping.get(mappingId);
+      const rawUpdatedMapping =
+        await indexer.FeeToTickSpacingMapping.get(mappingId);
+      const updatedMapping = rawUpdatedMapping
+        ? rehydrateTimestamps("FeeToTickSpacingMapping", rawUpdatedMapping)
+        : undefined;
       expect(updatedMapping).toBeDefined();
       expect(updatedMapping?.fee).toBe(newFee);
       expect(updatedMapping?.lastUpdatedTimestamp).toEqual(
@@ -1047,21 +898,21 @@ describe("CLFactory Events", () => {
       {
         name: "different tick spacings on same chain",
         mappings: [
-          { tickSpacing: 100n, fee: 500n, chainId: CHAIN_ID },
-          { tickSpacing: 200n, fee: 300n, chainId: CHAIN_ID },
+          { tickSpacing: 100n, fee: 500n, chainId: CHAIN_ID as number },
+          { tickSpacing: 200n, fee: 300n, chainId: CHAIN_ID as number },
         ],
       },
       {
         name: "same tick spacing on different chains",
         mappings: [
-          { tickSpacing: TICK_SPACING, fee: 500n, chainId: 10 },
-          { tickSpacing: TICK_SPACING, fee: 400n, chainId: 8453 },
+          { tickSpacing: TICK_SPACING, fee: 500n, chainId: 10 as number },
+          { tickSpacing: TICK_SPACING, fee: 400n, chainId: 8453 as number },
         ],
       },
     ])(
       "should handle multiple mappings correctly: $name",
       async ({ mappings }) => {
-        let result = mockDb;
+        const multiIndexer = createTestIndexer();
         const expectedMappings: Array<{
           id: string;
           chainId: number;
@@ -1069,6 +920,12 @@ describe("CLFactory Events", () => {
           fee: bigint;
         }> = [];
 
+        // Group events by chainId so same-chain events go in a single process() call
+        const byChain = new Map<
+          number,
+          Array<(typeof mappings)[number] & { logIndex: number }>
+        >();
+        let logCounter = 0;
         for (const mapping of mappings) {
           const mappingId = FeeToTickSpacingMappingId(
             mapping.chainId,
@@ -1080,17 +937,40 @@ describe("CLFactory Events", () => {
             tickSpacing: mapping.tickSpacing,
             fee: mapping.fee,
           });
+          const chain = byChain.get(mapping.chainId) ?? [];
+          chain.push({ ...mapping, logIndex: ++logCounter });
+          byChain.set(mapping.chainId, chain);
+        }
 
-          const mockEvent = createMockEvent(mapping.tickSpacing, mapping.fee, {
-            chainId: mapping.chainId,
+        for (const [cid, chainMappings] of byChain) {
+          await multiIndexer.process({
+            chains: {
+              [cid]: {
+                simulate: chainMappings.map((m) => ({
+                  contract: "CLFactory" as const,
+                  event: "TickSpacingEnabled" as const,
+                  srcAddress: toChecksumAddress(
+                    "0x1111111111111111111111111111111111111111",
+                  ) as `0x${string}`,
+                  logIndex: m.logIndex,
+                  block: {
+                    timestamp: BLOCK_TIMESTAMP,
+                    number: BLOCK_NUMBER,
+                    hash: BLOCK_HASH,
+                  },
+                  params: {
+                    tickSpacing: m.tickSpacing,
+                    fee: m.fee,
+                  },
+                })),
+              },
+            },
           });
-
-          result = await result.processEvents([mockEvent]);
         }
 
         // Verify all mappings were created correctly
         for (const expected of expectedMappings) {
-          const mapping = result.entities.FeeToTickSpacingMapping.get(
+          const mapping = await multiIndexer.FeeToTickSpacingMapping.get(
             expected.id,
           );
           expect(mapping).toBeDefined();
@@ -1108,11 +988,10 @@ describe("CLFactory Events", () => {
 // CLPool.Initialize buffers sqrtPriceX96/tick into CLPoolPendingInitialize;
 // CLFactory.PoolCreated must consume that buffer when constructing the
 // aggregator so the aggregator is born with the correct opening price, then
-// delete the buffer entry. This describe runs without the global processSpy
-// mock so it exercises the real processCLFactoryPoolCreated.
+// delete the buffer entry.
 describe("CLFactory.PoolCreated ↔ CLPoolPendingInitialize buffer", () => {
   const { mockToken0Data, mockToken1Data } = setupCommon();
-  const chainId = 8453;
+  const chainId = 8453 as const;
   const poolAddress = toChecksumAddress(
     "0x565aecF84b5d30a6E79a5CEf3f0dA0Fc4280dEBC",
   );
@@ -1121,32 +1000,7 @@ describe("CLFactory.PoolCreated ↔ CLPoolPendingInitialize buffer", () => {
   const sqrtPriceX96 = 79228162514264337593543950336n; // sqrt(1) << 96
   const tick = -887n;
 
-  beforeEach(() => {
-    vi.spyOn(PriceOracle, "createTokenEntity").mockImplementation(
-      async (address: string) => ({
-        id: TokenId(chainId, address),
-        address: address,
-        symbol: "",
-        name: "Mock Token",
-        decimals: 18n,
-        pricePerUSDNew: 1000000000000000000n,
-        chainId: chainId,
-        isWhitelisted: false,
-        lastUpdatedTimestamp: new Date(1000000 * 1000),
-        lastSuccessfulPriceTimestamp: undefined,
-        priceTrustOutcome: PRICE_TRUST_OUTCOME.UNTRUSTED,
-        priceTrustReason: PRICE_TRUST_REASON.NON_WL,
-      }),
-    );
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  function seedDb(
-    db: ReturnType<typeof MockDb.createMockDb>,
-  ): ReturnType<typeof MockDb.createMockDb> {
+  function seedIndexer(idx: ReturnType<typeof createTestIndexer>): void {
     const token0 = {
       ...mockToken0Data,
       id: TokenId(chainId, mockToken0Data.address),
@@ -1157,29 +1011,29 @@ describe("CLFactory.PoolCreated ↔ CLPoolPendingInitialize buffer", () => {
       id: TokenId(chainId, mockToken1Data.address),
       chainId,
     } satisfies Token;
-    return db.entities.Token.set(token0)
-      .entities.Token.set(token1)
-      .entities.CLGaugeConfig.set({
-        id: String(chainId),
-        defaultEmissionsCap: 0n,
-        defaultMinStakeTime: 0n,
-        penaltyRate: 0n,
-        lastUpdatedTimestamp: new Date(1000000 * 1000),
-      } satisfies CLGaugeConfig)
-      .entities.FeeToTickSpacingMapping.set({
-        id: FeeToTickSpacingMappingId(chainId, TICK_SPACING),
-        chainId,
-        tickSpacing: TICK_SPACING,
-        fee: FEE,
-        lastUpdatedTimestamp: new Date(1000000 * 1000),
-      });
+    idx.Token.set(token0);
+    idx.Token.set(token1);
+    idx.CLGaugeConfig.set({
+      id: String(chainId),
+      defaultEmissionsCap: 0n,
+      defaultMinStakeTime: 0n,
+      penaltyRate: 0n,
+      lastUpdatedTimestamp: new Date(1000000 * 1000),
+    } satisfies CLGaugeConfig);
+    idx.FeeToTickSpacingMapping.set({
+      id: FeeToTickSpacingMappingId(chainId, TICK_SPACING),
+      chainId,
+      tickSpacing: TICK_SPACING,
+      fee: FEE,
+      lastUpdatedTimestamp: new Date(1000000 * 1000),
+    });
   }
 
   it("creates the aggregator with the buffered sqrtPriceX96/tick when CLPoolPendingInitialize is present", async () => {
-    let mockDb = MockDb.createMockDb();
-    mockDb = seedDb(mockDb);
+    const indexer = createTestIndexer();
+    seedIndexer(indexer);
     // Pre-seed the buffer as if CLPool.Initialize had run first.
-    mockDb = mockDb.entities.CLPoolPendingInitialize.set({
+    indexer.CLPoolPendingInitialize.set({
       id: PoolId(chainId, poolAddress),
       chainId,
       poolAddress,
@@ -1187,25 +1041,33 @@ describe("CLFactory.PoolCreated ↔ CLPoolPendingInitialize buffer", () => {
       tick,
     });
 
-    const event = CLFactory.PoolCreated.createMockEvent({
-      token0: mockToken0Data.address as `0x${string}`,
-      token1: mockToken1Data.address as `0x${string}`,
-      pool: poolAddress,
-      tickSpacing: TICK_SPACING,
-      mockEventData: {
-        block: {
-          number: 13901333,
-          timestamp: 1700000000,
-          hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+    await indexer.process({
+      chains: {
+        [chainId]: {
+          simulate: [
+            {
+              contract: "CLFactory",
+              event: "PoolCreated",
+              srcAddress: poolAddress as `0x${string}`,
+              logIndex: 313,
+              block: {
+                number: 13901333,
+                timestamp: 1700000000,
+                hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+              },
+              params: {
+                token0: mockToken0Data.address as `0x${string}`,
+                token1: mockToken1Data.address as `0x${string}`,
+                pool: poolAddress,
+                tickSpacing: TICK_SPACING,
+              },
+            },
+          ],
         },
-        chainId,
-        logIndex: 313,
       },
     });
 
-    const resultDB = await mockDb.processEvents([event]);
-
-    const pool = resultDB.entities.Pool.get(PoolId(chainId, poolAddress));
+    const pool = await indexer.Pool.get(PoolId(chainId, poolAddress));
     expect(pool).toBeDefined();
     if (!pool) return;
     expect(pool.sqrtPriceX96).toBe(sqrtPriceX96);
@@ -1213,9 +1075,9 @@ describe("CLFactory.PoolCreated ↔ CLPoolPendingInitialize buffer", () => {
   });
 
   it("deletes CLPoolPendingInitialize after consuming it", async () => {
-    let mockDb = MockDb.createMockDb();
-    mockDb = seedDb(mockDb);
-    mockDb = mockDb.entities.CLPoolPendingInitialize.set({
+    const indexer = createTestIndexer();
+    seedIndexer(indexer);
+    indexer.CLPoolPendingInitialize.set({
       id: PoolId(chainId, poolAddress),
       chainId,
       poolAddress,
@@ -1223,54 +1085,68 @@ describe("CLFactory.PoolCreated ↔ CLPoolPendingInitialize buffer", () => {
       tick,
     });
 
-    const event = CLFactory.PoolCreated.createMockEvent({
-      token0: mockToken0Data.address as `0x${string}`,
-      token1: mockToken1Data.address as `0x${string}`,
-      pool: poolAddress,
-      tickSpacing: TICK_SPACING,
-      mockEventData: {
-        block: {
-          number: 13901333,
-          timestamp: 1700000000,
-          hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+    await indexer.process({
+      chains: {
+        [chainId]: {
+          simulate: [
+            {
+              contract: "CLFactory",
+              event: "PoolCreated",
+              srcAddress: poolAddress as `0x${string}`,
+              logIndex: 313,
+              block: {
+                number: 13901333,
+                timestamp: 1700000000,
+                hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+              },
+              params: {
+                token0: mockToken0Data.address as `0x${string}`,
+                token1: mockToken1Data.address as `0x${string}`,
+                pool: poolAddress,
+                tickSpacing: TICK_SPACING,
+              },
+            },
+          ],
         },
-        chainId,
-        logIndex: 313,
       },
     });
 
-    const resultDB = await mockDb.processEvents([event]);
-
     expect(
-      resultDB.entities.CLPoolPendingInitialize.get(
-        PoolId(chainId, poolAddress),
-      ),
+      await indexer.CLPoolPendingInitialize.get(PoolId(chainId, poolAddress)),
     ).toBeUndefined();
   });
 
   it("creates the aggregator with default 0n sqrtPriceX96/tick when no buffer is present (pre-Slipstream factories)", async () => {
-    let mockDb = MockDb.createMockDb();
-    mockDb = seedDb(mockDb);
+    const indexer = createTestIndexer();
+    seedIndexer(indexer);
 
-    const event = CLFactory.PoolCreated.createMockEvent({
-      token0: mockToken0Data.address as `0x${string}`,
-      token1: mockToken1Data.address as `0x${string}`,
-      pool: poolAddress,
-      tickSpacing: TICK_SPACING,
-      mockEventData: {
-        block: {
-          number: 13901333,
-          timestamp: 1700000000,
-          hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+    await indexer.process({
+      chains: {
+        [chainId]: {
+          simulate: [
+            {
+              contract: "CLFactory",
+              event: "PoolCreated",
+              srcAddress: poolAddress as `0x${string}`,
+              logIndex: 313,
+              block: {
+                number: 13901333,
+                timestamp: 1700000000,
+                hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+              },
+              params: {
+                token0: mockToken0Data.address as `0x${string}`,
+                token1: mockToken1Data.address as `0x${string}`,
+                pool: poolAddress,
+                tickSpacing: TICK_SPACING,
+              },
+            },
+          ],
         },
-        chainId,
-        logIndex: 313,
       },
     });
 
-    const resultDB = await mockDb.processEvents([event]);
-
-    const pool = resultDB.entities.Pool.get(PoolId(chainId, poolAddress));
+    const pool = await indexer.Pool.get(PoolId(chainId, poolAddress));
     expect(pool).toBeDefined();
     if (!pool) return;
     expect(pool.sqrtPriceX96).toBe(0n);

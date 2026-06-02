@@ -1,4 +1,4 @@
-import type { Pool_Claim_event } from "generated";
+import type { EvmEvent } from "envio";
 import { toChecksumAddress } from "../../../src/Constants";
 import { processPoolClaim } from "../../../src/EventHandlers/Pool/PoolClaimLogic";
 import { calculateTotalUSD } from "../../../src/Helpers";
@@ -11,7 +11,7 @@ describe("PoolClaimLogic", () => {
     common = setupCommon();
   });
 
-  const mockEvent: Pool_Claim_event = {
+  const mockEvent = {
     chainId: 10,
     block: {
       number: 123456,
@@ -31,7 +31,7 @@ describe("PoolClaimLogic", () => {
       amount0: 1000n,
       amount1: 2000n,
     },
-  };
+  } as unknown as EvmEvent<"Pool", "Claim">;
 
   const gaugeAddress = toChecksumAddress(
     "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
@@ -185,14 +185,14 @@ describe("PoolClaimLogic", () => {
 
       it("should handle zero amounts", () => {
         // Arrange
-        const zeroAmountEvent: Pool_Claim_event = {
+        const zeroAmountEvent = {
           ...mockEvent,
           params: {
             ...mockEvent.params,
             amount0: 0n,
             amount1: 0n,
           },
-        };
+        } as unknown as EvmEvent<"Pool", "Claim">;
 
         // Act
         const result = processPoolClaim(

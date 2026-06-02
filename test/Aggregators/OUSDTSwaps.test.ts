@@ -1,7 +1,8 @@
-import type { Token, handlerContext } from "generated";
+import type { Token } from "envio";
 import { type Mock, vi } from "vitest";
 import { createOUSDTSwapEntity } from "../../src/Aggregators/OUSDTSwaps";
 import { OUSDTSwapsId } from "../../src/Constants";
+import type { handlerContext } from "../../src/EntityTypes";
 import { setupCommon } from "../EventHandlers/Pool/common";
 
 describe("OUSDTSwaps", () => {

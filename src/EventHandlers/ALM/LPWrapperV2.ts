@@ -1,4 +1,4 @@
-import { ALMLPWrapperV2 } from "generated";
+import { indexer } from "envio";
 import { ALMLPWrapperId } from "../../Constants";
 import {
   processDepositEvent,
@@ -14,23 +14,26 @@ import {
  * 2. Updates the user-level UserStatsPerPool entity for the recipient
  *    (who receives the LP tokens) with their ALM position
  */
-ALMLPWrapperV2.Deposit.handler(async ({ event, context }) => {
-  const { recipient, pool, amount0, amount1, lpAmount } = event.params;
-  const timestamp = new Date(event.block.timestamp * 1000);
+indexer.onEvent(
+  { contract: "ALMLPWrapperV2", event: "Deposit" },
+  async ({ event, context }) => {
+    const { recipient, pool, amount0, amount1, lpAmount } = event.params;
+    const timestamp = new Date(event.block.timestamp * 1000);
 
-  await processDepositEvent(
-    recipient,
-    pool,
-    amount0,
-    amount1,
-    lpAmount,
-    event.srcAddress,
-    event.chainId,
-    event.block.number,
-    timestamp,
-    context,
-  );
-});
+    await processDepositEvent(
+      recipient,
+      pool,
+      amount0,
+      amount1,
+      lpAmount,
+      event.srcAddress,
+      event.chainId,
+      event.block.number,
+      timestamp,
+      context,
+    );
+  },
+);
 
 /**
  * Handler for ALM LP Wrapper Withdraw events
@@ -40,26 +43,29 @@ ALMLPWrapperV2.Deposit.handler(async ({ event, context }) => {
  * 2. Updates the user-level UserStatsPerPool entity for the sender
  *    (who withdraws and receives tokens) with their reduced ALM position
  */
-ALMLPWrapperV2.Withdraw.handler(async ({ event, context }) => {
-  const { sender, pool, amount0, amount1, lpAmount } = event.params;
-  const timestamp = new Date(event.block.timestamp * 1000);
+indexer.onEvent(
+  { contract: "ALMLPWrapperV2", event: "Withdraw" },
+  async ({ event, context }) => {
+    const { sender, pool, amount0, amount1, lpAmount } = event.params;
+    const timestamp = new Date(event.block.timestamp * 1000);
 
-  await processWithdrawEvent(
-    sender,
-    pool,
-    amount0,
-    amount1,
-    lpAmount,
-    event.srcAddress,
-    event.chainId,
-    event.block.number,
-    timestamp,
-    context,
-    event.transaction.hash,
-    event.logIndex,
-    false, // isV1 = false for V2 wrapper
-  );
-});
+    await processWithdrawEvent(
+      sender,
+      pool,
+      amount0,
+      amount1,
+      lpAmount,
+      event.srcAddress,
+      event.chainId,
+      event.block.number,
+      timestamp,
+      context,
+      event.transaction.hash,
+      event.logIndex,
+      false, // isV1 = false for V2 wrapper
+    );
+  },
+);
 
 /**
  * Handler for ALM LP Wrapper Transfer events
@@ -77,24 +83,27 @@ ALMLPWrapperV2.Withdraw.handler(async ({ event, context }) => {
  * Note: If the wrapper doesn't exist, this will fail since Transfer events don't include pool info.
  * This is expected behavior - wrappers should be created via Deposit/Withdraw events first.
  */
-ALMLPWrapperV2.Transfer.handler(async ({ event, context }) => {
-  const { from, to, value } = event.params;
-  const timestamp = new Date(event.block.timestamp * 1000);
+indexer.onEvent(
+  { contract: "ALMLPWrapperV2", event: "Transfer" },
+  async ({ event, context }) => {
+    const { from, to, value } = event.params;
+    const timestamp = new Date(event.block.timestamp * 1000);
 
-  await processTransferEvent(
-    from,
-    to,
-    value,
-    event.srcAddress,
-    event.chainId,
-    event.transaction.hash,
-    event.logIndex,
-    event.block.number,
-    timestamp,
-    context,
-    false, // isV1 = false for V2 wrapper
-  );
-});
+    await processTransferEvent(
+      from,
+      to,
+      value,
+      event.srcAddress,
+      event.chainId,
+      event.transaction.hash,
+      event.logIndex,
+      event.block.number,
+      timestamp,
+      context,
+      false, // isV1 = false for V2 wrapper
+    );
+  },
+);
 
 /**
  * Handler for ALM LP Wrapper TotalSupplyLimitUpdated events
@@ -102,17 +111,20 @@ ALMLPWrapperV2.Transfer.handler(async ({ event, context }) => {
  * Persists the current LP token supply for a wrapper so other handlers
  * (e.g., StrategyCreated) can seed `lpAmount` from the latest supply.
  */
-ALMLPWrapperV2.TotalSupplyLimitUpdated.handler(async ({ event, context }) => {
-  const { totalSupplyCurrent } = event.params;
+indexer.onEvent(
+  { contract: "ALMLPWrapperV2", event: "TotalSupplyLimitUpdated" },
+  async ({ event, context }) => {
+    const { totalSupplyCurrent } = event.params;
 
-  const ALM_TotalSupplyLimitUpdated_event = {
-    id: ALMLPWrapperId(event.chainId, event.srcAddress),
-    lpWrapperAddress: event.srcAddress,
-    currentTotalSupplyLPTokens: totalSupplyCurrent,
-    transactionHash: event.transaction.hash,
-  };
+    const ALM_TotalSupplyLimitUpdated_event = {
+      id: ALMLPWrapperId(event.chainId, event.srcAddress),
+      lpWrapperAddress: event.srcAddress,
+      currentTotalSupplyLPTokens: totalSupplyCurrent,
+      transactionHash: event.transaction.hash,
+    };
 
-  context.ALM_TotalSupplyLimitUpdated_event.set(
-    ALM_TotalSupplyLimitUpdated_event,
-  );
-});
+    context.ALM_TotalSupplyLimitUpdated_event.set(
+      ALM_TotalSupplyLimitUpdated_event,
+    );
+  },
+);

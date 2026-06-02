@@ -1,4 +1,3 @@
-import type { handlerContext } from "generated";
 import {
   applyPositionToEdges,
   deriveLiquidityInRange,
@@ -7,6 +6,7 @@ import {
   processTickCrossings,
   segmentReserveDelta,
 } from "../../src/Aggregators/CLStakedLiquidity";
+import type { handlerContext } from "../../src/EntityTypes";
 import { calculatePositionAmountsFromLiquidity } from "../../src/Helpers";
 import { sqrtAt } from "./common";
 

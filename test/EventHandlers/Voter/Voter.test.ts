@@ -1,10 +1,5 @@
-import type { Token, VeNFTPoolVote, VeNFTState } from "generated";
-import {
-  MockDb,
-  RootCLPoolFactory,
-  VeNFT,
-  Voter,
-} from "generated/src/TestHelpers.gen";
+import type { Token, VeNFTPoolVote, VeNFTState } from "envio";
+import { createTestIndexer } from "envio";
 import * as PoolModule from "../../../src/Aggregators/Pool";
 import {
   CHAIN_CONSTANTS,
@@ -22,6 +17,7 @@ import {
   toChecksumAddress,
 } from "../../../src/Constants";
 import { getTokensDeposited } from "../../../src/Effects/Voter";
+import { rehydrateTimestamps } from "../../../src/EntityTimestamps";
 import {
   PRICE_TRUST_OUTCOME,
   PRICE_TRUST_REASON,
@@ -115,9 +111,8 @@ describe("Voter Events", () => {
   });
 
   describe("Voted Event", () => {
-    let mockDb: ReturnType<typeof MockDb.createMockDb>;
-    let mockEvent: ReturnType<typeof Voter.Voted.createMockEvent>;
-    const chainId = 10; // Optimism
+    let indexer: ReturnType<typeof createTestIndexer>;
+    const chainId = 10 as const;
     const poolAddress = toChecksumAddress(
       "0x478946BcD4a5a22b316470F5486fAfb928C0bA25",
     );
@@ -130,27 +125,10 @@ describe("Voter Events", () => {
     );
 
     beforeEach(() => {
-      mockDb = MockDb.createMockDb();
-      mockEvent = Voter.Voted.createMockEvent({
-        voter: voterAddress,
-        pool: poolAddress,
-        tokenId: tokenId,
-        weight: 100n,
-        totalWeight: 1000n,
-        mockEventData: {
-          block: {
-            number: 123456,
-            timestamp: 1000000,
-            hash: "0xhash",
-          },
-          chainId: chainId,
-          logIndex: 1,
-        },
-      });
+      indexer = createTestIndexer();
     });
 
     describe("when pool data exists", () => {
-      let resultDB: ReturnType<typeof MockDb.createMockDb>;
       let mockLiquidityPool: MockPool;
       let mockUserStats: MockUserStatsPerPool;
       let mockVeNFTState: VeNFTState;
@@ -188,19 +166,38 @@ describe("Voter Events", () => {
         });
 
         // Setup mock database with required entities
-        mockDb = mockDb.entities.Pool.set(mockLiquidityPool);
-        mockDb = mockDb.entities.UserStatsPerPool.set(mockUserStats);
-        mockDb = mockDb.entities.Token.set(mockToken0Data);
-        mockDb = mockDb.entities.Token.set(mockToken1Data);
-        mockDb = mockDb.entities.VeNFTState.set(mockVeNFTState);
+        indexer.Pool.set(mockLiquidityPool);
+        indexer.UserStatsPerPool.set(mockUserStats);
+        indexer.Token.set(mockToken0Data);
+        indexer.Token.set(mockToken1Data);
+        indexer.VeNFTState.set(mockVeNFTState);
 
-        resultDB = await mockDb.processEvents([mockEvent]);
+        await indexer.process({
+          chains: {
+            [chainId]: {
+              simulate: [
+                {
+                  contract: "Voter",
+                  event: "Voted",
+                  logIndex: 1,
+                  block: { number: 123456, timestamp: 1000000, hash: "0xhash" },
+                  params: {
+                    voter: voterAddress,
+                    pool: poolAddress,
+                    tokenId: tokenId,
+                    weight: 100n,
+                    totalWeight: 1000n,
+                  },
+                },
+              ],
+            },
+          },
+        });
       });
 
-      it("should update liquidity pool aggregator with voting data", () => {
-        const updatedPool = resultDB.entities.Pool.get(
-          PoolId(chainId, poolAddress),
-        );
+      it("should update liquidity pool aggregator with voting data", async () => {
+        const raw = await indexer.Pool.get(PoolId(chainId, poolAddress));
+        const updatedPool = raw ? rehydrateTimestamps("Pool", raw) : undefined;
         expect(updatedPool).toBeDefined();
         expect(updatedPool?.veNFTamountStaked).toBe(1000n);
         expect(updatedPool?.lastUpdatedTimestamp).toEqual(
@@ -208,14 +205,16 @@ describe("Voter Events", () => {
         );
       });
 
-      it("should update user stats per pool with voting data", () => {
+      it("should update user stats per pool with voting data", async () => {
         const userStatsId = UserStatsPerPoolId(
           chainId,
           ownerAddress,
           poolAddress,
         );
-        const updatedUserStats =
-          resultDB.entities.UserStatsPerPool.get(userStatsId);
+        const rawStats = await indexer.UserStatsPerPool.get(userStatsId);
+        const updatedUserStats = rawStats
+          ? rehydrateTimestamps("UserStatsPerPool", rawStats)
+          : undefined;
         expect(updatedUserStats).toBeDefined();
         expect(updatedUserStats?.veNFTamountStaked).toBe(100n);
         expect(updatedUserStats?.lastActivityTimestamp).toEqual(
@@ -223,20 +222,22 @@ describe("Voter Events", () => {
         );
       });
 
-      it("should attribute votes to tokenId owner, not voter", () => {
+      it("should attribute votes to tokenId owner, not voter", async () => {
         const voterStatsId = UserStatsPerPoolId(
           chainId,
           voterAddress,
           poolAddress,
         );
-        const voterStats = resultDB.entities.UserStatsPerPool.get(voterStatsId);
+        const voterStats = await indexer.UserStatsPerPool.get(voterStatsId);
         expect(voterStats).toBeUndefined();
       });
 
-      it("should create VeNFTPoolVote entity", () => {
+      it("should create VeNFTPoolVote entity", async () => {
         const veNFTPoolVoteId = VeNFTPoolVoteId(chainId, tokenId, poolAddress);
-        const veNFTPoolVote =
-          resultDB.entities.VeNFTPoolVote.get(veNFTPoolVoteId);
+        const rawVote = await indexer.VeNFTPoolVote.get(veNFTPoolVoteId);
+        const veNFTPoolVote = rawVote
+          ? rehydrateTimestamps("VeNFTPoolVote", rawVote)
+          : undefined;
         expect(veNFTPoolVote).toBeDefined();
         expect(veNFTPoolVote?.poolAddress).toBe(poolAddress);
         expect(veNFTPoolVote?.veNFTamountStaked).toBe(100n);
@@ -256,36 +257,72 @@ describe("Voter Events", () => {
           poolAddress,
           veNFTamountStaked: 0n,
         });
-        let db = MockDb.createMockDb();
-        db = db.entities.Pool.set(poolWithZeroStaked);
-        db = db.entities.Token.set(mockToken0Data);
-        db = db.entities.Token.set(mockToken1Data);
+        const db = createTestIndexer();
+        db.Pool.set(poolWithZeroStaked);
+        db.Token.set(mockToken0Data);
+        db.Token.set(mockToken1Data);
 
-        const resultDB = await db.processEvents([mockEvent]);
+        await db.process({
+          chains: {
+            [chainId]: {
+              simulate: [
+                {
+                  contract: "Voter",
+                  event: "Voted",
+                  logIndex: 1,
+                  block: { number: 123456, timestamp: 1000000, hash: "0xhash" },
+                  params: {
+                    voter: voterAddress,
+                    pool: poolAddress,
+                    tokenId: tokenId,
+                    weight: 100n,
+                    totalWeight: 1000n,
+                  },
+                },
+              ],
+            },
+          },
+        });
 
-        const pool = resultDB.entities.Pool.get(PoolId(chainId, poolAddress));
+        const pool = await db.Pool.get(PoolId(chainId, poolAddress));
         expect(pool?.veNFTamountStaked).toBe(0n);
-        expect(
-          Array.from(resultDB.entities.UserStatsPerPool.getAll()),
-        ).toHaveLength(0);
-        expect(
-          Array.from(resultDB.entities.VeNFTPoolVote.getAll()),
-        ).toHaveLength(0);
+        expect(Array.from(await db.UserStatsPerPool.getAll())).toHaveLength(0);
+        expect(Array.from(await db.VeNFTPoolVote.getAll())).toHaveLength(0);
       });
     });
 
     describe("when pool data does not exist", () => {
       it("should return early without creating pool entities", async () => {
-        const resultDB = await mockDb.processEvents([mockEvent]);
+        await indexer.process({
+          chains: {
+            [chainId]: {
+              simulate: [
+                {
+                  contract: "Voter",
+                  event: "Voted",
+                  logIndex: 1,
+                  block: { number: 123456, timestamp: 1000000, hash: "0xhash" },
+                  params: {
+                    voter: voterAddress,
+                    pool: poolAddress,
+                    tokenId: tokenId,
+                    weight: 100n,
+                    totalWeight: 1000n,
+                  },
+                },
+              ],
+            },
+          },
+        });
 
         // Should not create Pool entity
-        expect(Array.from(resultDB.entities.Pool.getAll())).toHaveLength(0);
+        expect(Array.from(await indexer.Pool.getAll())).toHaveLength(0);
         expect(
-          Array.from(resultDB.entities.UserStatsPerPool.getAll()),
+          Array.from(await indexer.UserStatsPerPool.getAll()),
         ).toHaveLength(0);
-        expect(
-          Array.from(resultDB.entities.VeNFTPoolVote.getAll()),
-        ).toHaveLength(0);
+        expect(Array.from(await indexer.VeNFTPoolVote.getAll())).toHaveLength(
+          0,
+        );
       });
     });
 
@@ -331,29 +368,35 @@ describe("Voter Events", () => {
           owner: ownerAddress,
         });
         // Cross-chain: root pool has PendingRootPoolMapping but no leaf yet -> MAPPING_NOT_FOUND -> create PendingVote
-        mockDb = mockDb.entities.VeNFTState.set(mockVeNFTState);
-        mockDb = mockDb.entities.PendingRootPoolMapping.set(
-          makePendingMapping(),
-        );
-        mockEvent = Voter.Voted.createMockEvent({
-          voter: voterAddress,
-          pool: rootPoolAddress,
-          tokenId,
-          weight: 100n,
-          totalWeight: 1000n,
-          mockEventData: {
-            block: {
-              number: blockNumber,
-              timestamp: blockTimestamp,
-              hash: txHash,
+        indexer.VeNFTState.set(mockVeNFTState);
+        indexer.PendingRootPoolMapping.set(makePendingMapping());
+
+        await indexer.process({
+          chains: {
+            [chainId]: {
+              simulate: [
+                {
+                  contract: "Voter",
+                  event: "Voted",
+                  logIndex: 1,
+                  transaction: { hash: txHash },
+                  block: {
+                    number: blockNumber,
+                    timestamp: blockTimestamp,
+                    hash: txHash,
+                  },
+                  params: {
+                    voter: voterAddress,
+                    pool: rootPoolAddress,
+                    tokenId,
+                    weight: 100n,
+                    totalWeight: 1000n,
+                  },
+                },
+              ],
             },
-            chainId,
-            logIndex: 1,
-            transaction: { hash: txHash },
           },
         });
-
-        const resultDB = await mockDb.processEvents([mockEvent]);
 
         const expectedPendingId = PendingVoteId(
           chainId,
@@ -362,8 +405,7 @@ describe("Voter Events", () => {
           txHash,
           1,
         );
-        const pendingVote =
-          resultDB.entities.PendingVote.get(expectedPendingId);
+        const pendingVote = await indexer.PendingVote.get(expectedPendingId);
         expect(pendingVote).toBeDefined();
         expect(pendingVote?.rootPoolAddress).toBe(rootPoolAddress);
         expect(pendingVote?.tokenId).toBe(tokenId);
@@ -372,13 +414,13 @@ describe("Voter Events", () => {
         expect(pendingVote?.blockNumber).toBe(BigInt(blockNumber));
         expect(pendingVote?.transactionHash).toBe(txHash);
 
-        expect(Array.from(resultDB.entities.Pool.getAll())).toHaveLength(0);
+        expect(Array.from(await indexer.Pool.getAll())).toHaveLength(0);
         expect(
-          Array.from(resultDB.entities.UserStatsPerPool.getAll()),
+          Array.from(await indexer.UserStatsPerPool.getAll()),
         ).toHaveLength(0);
-        expect(
-          Array.from(resultDB.entities.VeNFTPoolVote.getAll()),
-        ).toHaveLength(0);
+        expect(Array.from(await indexer.VeNFTPoolVote.getAll())).toHaveLength(
+          0,
+        );
       });
 
       it("should create PendingVote for Abstained and not update pool entities", async () => {
@@ -389,29 +431,36 @@ describe("Voter Events", () => {
           tokenId,
           owner: ownerAddress,
         });
-        mockDb = mockDb.entities.VeNFTState.set(mockVeNFTState);
-        mockDb = mockDb.entities.PendingRootPoolMapping.set(
-          makePendingMapping(),
-        );
-        const abstainedEvent = Voter.Abstained.createMockEvent({
-          voter: voterAddress,
-          pool: rootPoolAddress,
-          tokenId,
-          weight: 100n,
-          totalWeight: 1000n,
-          mockEventData: {
-            block: {
-              number: blockNumber,
-              timestamp: blockTimestamp,
-              hash: txHash,
+        const db2 = createTestIndexer();
+        db2.VeNFTState.set(mockVeNFTState);
+        db2.PendingRootPoolMapping.set(makePendingMapping());
+
+        await db2.process({
+          chains: {
+            [chainId]: {
+              simulate: [
+                {
+                  contract: "Voter",
+                  event: "Abstained",
+                  logIndex: 1,
+                  transaction: { hash: txHash },
+                  block: {
+                    number: blockNumber,
+                    timestamp: blockTimestamp,
+                    hash: txHash,
+                  },
+                  params: {
+                    voter: voterAddress,
+                    pool: rootPoolAddress,
+                    tokenId,
+                    weight: 100n,
+                    totalWeight: 1000n,
+                  },
+                },
+              ],
             },
-            chainId,
-            logIndex: 1,
-            transaction: { hash: txHash },
           },
         });
-
-        const resultDB = await mockDb.processEvents([abstainedEvent]);
 
         const expectedPendingId = PendingVoteId(
           chainId,
@@ -420,45 +469,47 @@ describe("Voter Events", () => {
           txHash,
           1,
         );
-        const pendingVote =
-          resultDB.entities.PendingVote.get(expectedPendingId);
+        const pendingVote = await db2.PendingVote.get(expectedPendingId);
         expect(pendingVote).toBeDefined();
         expect(pendingVote?.eventType).toBe("Abstained");
         expect(pendingVote?.weight).toBe(100n);
 
-        expect(Array.from(resultDB.entities.Pool.getAll())).toHaveLength(0);
-        expect(
-          Array.from(resultDB.entities.UserStatsPerPool.getAll()),
-        ).toHaveLength(0);
-        expect(
-          Array.from(resultDB.entities.VeNFTPoolVote.getAll()),
-        ).toHaveLength(0);
+        expect(Array.from(await db2.Pool.getAll())).toHaveLength(0);
+        expect(Array.from(await db2.UserStatsPerPool.getAll())).toHaveLength(0);
+        expect(Array.from(await db2.VeNFTPoolVote.getAll())).toHaveLength(0);
       });
 
       it("should not create PendingVote for Voted when RootPool_LeafPool mapping is missing and veNFTState is missing", async () => {
         // Deferred path: missing root pool mapping. No VeNFTState in DB -> must not create PendingVote.
-        mockDb = mockDb.entities.PendingRootPoolMapping.set(
-          makePendingMapping(),
-        );
-        mockEvent = Voter.Voted.createMockEvent({
-          voter: voterAddress,
-          pool: rootPoolAddress,
-          tokenId,
-          weight: 100n,
-          totalWeight: 1000n,
-          mockEventData: {
-            block: {
-              number: blockNumber,
-              timestamp: blockTimestamp,
-              hash: txHash,
+        const db3 = createTestIndexer();
+        db3.PendingRootPoolMapping.set(makePendingMapping());
+
+        await db3.process({
+          chains: {
+            [chainId]: {
+              simulate: [
+                {
+                  contract: "Voter",
+                  event: "Voted",
+                  logIndex: 1,
+                  transaction: { hash: txHash },
+                  block: {
+                    number: blockNumber,
+                    timestamp: blockTimestamp,
+                    hash: txHash,
+                  },
+                  params: {
+                    voter: voterAddress,
+                    pool: rootPoolAddress,
+                    tokenId,
+                    weight: 100n,
+                    totalWeight: 1000n,
+                  },
+                },
+              ],
             },
-            chainId,
-            logIndex: 1,
-            transaction: { hash: txHash },
           },
         });
-
-        const resultDB = await mockDb.processEvents([mockEvent]);
 
         const expectedPendingId = PendingVoteId(
           chainId,
@@ -467,45 +518,45 @@ describe("Voter Events", () => {
           txHash,
           1,
         );
-        const pendingVote =
-          resultDB.entities.PendingVote.get(expectedPendingId);
+        const pendingVote = await db3.PendingVote.get(expectedPendingId);
         expect(pendingVote).toBeUndefined();
-        expect(Array.from(resultDB.entities.PendingVote.getAll())).toHaveLength(
-          0,
-        );
-        expect(Array.from(resultDB.entities.Pool.getAll())).toHaveLength(0);
-        expect(
-          Array.from(resultDB.entities.UserStatsPerPool.getAll()),
-        ).toHaveLength(0);
-        expect(
-          Array.from(resultDB.entities.VeNFTPoolVote.getAll()),
-        ).toHaveLength(0);
+        expect(Array.from(await db3.PendingVote.getAll())).toHaveLength(0);
+        expect(Array.from(await db3.Pool.getAll())).toHaveLength(0);
+        expect(Array.from(await db3.UserStatsPerPool.getAll())).toHaveLength(0);
+        expect(Array.from(await db3.VeNFTPoolVote.getAll())).toHaveLength(0);
       });
 
       it("should not create PendingVote for Abstained when RootPool_LeafPool mapping is missing and veNFTState is missing", async () => {
         // Deferred path: missing root pool mapping. No VeNFTState in DB -> must not create PendingVote.
-        mockDb = mockDb.entities.PendingRootPoolMapping.set(
-          makePendingMapping(),
-        );
-        const abstainedEvent = Voter.Abstained.createMockEvent({
-          voter: voterAddress,
-          pool: rootPoolAddress,
-          tokenId,
-          weight: 100n,
-          totalWeight: 1000n,
-          mockEventData: {
-            block: {
-              number: blockNumber,
-              timestamp: blockTimestamp,
-              hash: txHash,
+        const db4 = createTestIndexer();
+        db4.PendingRootPoolMapping.set(makePendingMapping());
+
+        await db4.process({
+          chains: {
+            [chainId]: {
+              simulate: [
+                {
+                  contract: "Voter",
+                  event: "Abstained",
+                  logIndex: 1,
+                  transaction: { hash: txHash },
+                  block: {
+                    number: blockNumber,
+                    timestamp: blockTimestamp,
+                    hash: txHash,
+                  },
+                  params: {
+                    voter: voterAddress,
+                    pool: rootPoolAddress,
+                    tokenId,
+                    weight: 100n,
+                    totalWeight: 1000n,
+                  },
+                },
+              ],
             },
-            chainId,
-            logIndex: 1,
-            transaction: { hash: txHash },
           },
         });
-
-        const resultDB = await mockDb.processEvents([abstainedEvent]);
 
         const expectedPendingId = PendingVoteId(
           chainId,
@@ -514,19 +565,12 @@ describe("Voter Events", () => {
           txHash,
           1,
         );
-        const pendingVote =
-          resultDB.entities.PendingVote.get(expectedPendingId);
+        const pendingVote = await db4.PendingVote.get(expectedPendingId);
         expect(pendingVote).toBeUndefined();
-        expect(Array.from(resultDB.entities.PendingVote.getAll())).toHaveLength(
-          0,
-        );
-        expect(Array.from(resultDB.entities.Pool.getAll())).toHaveLength(0);
-        expect(
-          Array.from(resultDB.entities.UserStatsPerPool.getAll()),
-        ).toHaveLength(0);
-        expect(
-          Array.from(resultDB.entities.VeNFTPoolVote.getAll()),
-        ).toHaveLength(0);
+        expect(Array.from(await db4.PendingVote.getAll())).toHaveLength(0);
+        expect(Array.from(await db4.Pool.getAll())).toHaveLength(0);
+        expect(Array.from(await db4.UserStatsPerPool.getAll())).toHaveLength(0);
+        expect(Array.from(await db4.VeNFTPoolVote.getAll())).toHaveLength(0);
       });
     });
 
@@ -547,32 +591,37 @@ describe("Voter Events", () => {
           tokenId,
           owner: ownerAddress,
         });
-        mockDb = mockDb.entities.VeNFTState.set(mockVeNFTState);
+        indexer.VeNFTState.set(mockVeNFTState);
 
-        const votedEvent = Voter.Voted.createMockEvent({
-          voter: voterAddress,
-          pool: sinkRootPoolAddress,
-          tokenId,
-          weight: 100n,
-          totalWeight: 1000n,
-          mockEventData: {
-            block: {
-              number: 123456,
-              timestamp: 1000000,
-              hash: "0xsinkhash",
+        await indexer.process({
+          chains: {
+            [chainId]: {
+              simulate: [
+                {
+                  contract: "Voter",
+                  event: "Voted",
+                  logIndex: 1,
+                  transaction: { hash: "0xsinkhash" },
+                  block: {
+                    number: 123456,
+                    timestamp: 1000000,
+                    hash: "0xsinkhash",
+                  },
+                  params: {
+                    voter: voterAddress,
+                    pool: sinkRootPoolAddress,
+                    tokenId,
+                    weight: 100n,
+                    totalWeight: 1000n,
+                  },
+                },
+              ],
             },
-            chainId,
-            logIndex: 1,
-            transaction: { hash: "0xsinkhash" },
           },
         });
 
-        const resultDB = await mockDb.processEvents([votedEvent]);
-
-        expect(Array.from(resultDB.entities.PendingVote.getAll())).toHaveLength(
-          0,
-        );
-        expect(Array.from(resultDB.entities.Pool.getAll())).toHaveLength(0);
+        expect(Array.from(await indexer.PendingVote.getAll())).toHaveLength(0);
+        expect(Array.from(await indexer.Pool.getAll())).toHaveLength(0);
       });
 
       it("drops Abstained silently without creating PendingVote", async () => {
@@ -583,32 +632,40 @@ describe("Voter Events", () => {
           tokenId,
           owner: ownerAddress,
         });
-        mockDb = mockDb.entities.VeNFTState.set(mockVeNFTState);
+        const sinkIndexer = createTestIndexer();
+        sinkIndexer.VeNFTState.set(mockVeNFTState);
 
-        const abstainedEvent = Voter.Abstained.createMockEvent({
-          voter: voterAddress,
-          pool: sinkRootPoolAddress,
-          tokenId,
-          weight: 100n,
-          totalWeight: 1000n,
-          mockEventData: {
-            block: {
-              number: 123456,
-              timestamp: 1000000,
-              hash: "0xsinkhash",
+        await sinkIndexer.process({
+          chains: {
+            [chainId]: {
+              simulate: [
+                {
+                  contract: "Voter",
+                  event: "Abstained",
+                  logIndex: 1,
+                  transaction: { hash: "0xsinkhash" },
+                  block: {
+                    number: 123456,
+                    timestamp: 1000000,
+                    hash: "0xsinkhash",
+                  },
+                  params: {
+                    voter: voterAddress,
+                    pool: sinkRootPoolAddress,
+                    tokenId,
+                    weight: 100n,
+                    totalWeight: 1000n,
+                  },
+                },
+              ],
             },
-            chainId,
-            logIndex: 1,
-            transaction: { hash: "0xsinkhash" },
           },
         });
 
-        const resultDB = await mockDb.processEvents([abstainedEvent]);
-
-        expect(Array.from(resultDB.entities.PendingVote.getAll())).toHaveLength(
+        expect(Array.from(await sinkIndexer.PendingVote.getAll())).toHaveLength(
           0,
         );
-        expect(Array.from(resultDB.entities.Pool.getAll())).toHaveLength(0);
+        expect(Array.from(await sinkIndexer.Pool.getAll())).toHaveLength(0);
       });
     });
 
@@ -641,50 +698,54 @@ describe("Voter Events", () => {
           tokenId: voteTokenId,
           owner: ownerAddress,
         });
-        let db = MockDb.createMockDb();
-        db = db.entities.VeNFTState.set(mockVeNFTState);
+        const db = createTestIndexer();
+        db.VeNFTState.set(mockVeNFTState);
 
-        const rootPoolCreatedEvent =
-          RootCLPoolFactory.RootPoolCreated.createMockEvent({
-            token0,
-            token1,
-            tickSpacing,
-            chainid: BigInt(leafChainId),
-            pool: rootPoolAddress,
-            mockEventData: {
-              block: {
-                timestamp: blockTimestamp,
-                number: blockNumber,
-                hash: txHash,
-              },
-              chainId: rootChainId,
-              logIndex: 1,
+        await db.process({
+          chains: {
+            [rootChainId as 10]: {
+              simulate: [
+                {
+                  contract: "RootCLPoolFactory",
+                  event: "RootPoolCreated",
+                  logIndex: 1,
+                  block: {
+                    timestamp: blockTimestamp,
+                    number: blockNumber,
+                    hash: txHash,
+                  },
+                  params: {
+                    token0,
+                    token1,
+                    tickSpacing,
+                    chainid: BigInt(leafChainId),
+                    pool: rootPoolAddress,
+                  },
+                },
+                {
+                  contract: "Voter",
+                  event: "Voted",
+                  logIndex: 2,
+                  transaction: { hash: txHash },
+                  block: {
+                    number: blockNumber,
+                    timestamp: blockTimestamp,
+                    hash: txHash,
+                  },
+                  params: {
+                    voter: voterAddress,
+                    pool: rootPoolAddress,
+                    tokenId: voteTokenId,
+                    weight: voteWeight,
+                    totalWeight,
+                  },
+                },
+              ],
             },
-          });
-        const votedEvent = Voter.Voted.createMockEvent({
-          voter: voterAddress,
-          pool: rootPoolAddress,
-          tokenId: voteTokenId,
-          weight: voteWeight,
-          totalWeight,
-          mockEventData: {
-            block: {
-              number: blockNumber,
-              timestamp: blockTimestamp,
-              hash: txHash,
-            },
-            chainId: rootChainId,
-            logIndex: 2,
-            transaction: { hash: txHash },
           },
         });
 
-        const resultDB = await db.processEvents([
-          rootPoolCreatedEvent,
-          votedEvent,
-        ]);
-
-        const pendingMapping = resultDB.entities.PendingRootPoolMapping.get(
+        const pendingMapping = await db.PendingRootPoolMapping.get(
           PendingRootPoolMappingId(rootChainId, rootPoolAddress),
         );
         expect(pendingMapping).toBeDefined();
@@ -705,18 +766,14 @@ describe("Voter Events", () => {
           txHash,
           2,
         );
-        const pendingVote = resultDB.entities.PendingVote.get(
-          expectedPendingVoteId,
-        );
+        const pendingVote = await db.PendingVote.get(expectedPendingVoteId);
         expect(pendingVote).toBeDefined();
         expect(pendingVote?.rootPoolAddress).toBe(rootPoolAddress);
         expect(pendingVote?.eventType).toBe("Voted");
         expect(pendingVote?.weight).toBe(voteWeight);
 
-        expect(
-          Array.from(resultDB.entities.RootPool_LeafPool.getAll()),
-        ).toHaveLength(0);
-        expect(Array.from(resultDB.entities.Pool.getAll())).toHaveLength(0);
+        expect(Array.from(await db.RootPool_LeafPool.getAll())).toHaveLength(0);
+        expect(Array.from(await db.Pool.getAll())).toHaveLength(0);
       });
 
       it("should create PendingRootPoolMapping and PendingVote when RootPoolCreated then Abstained (no leaf pool yet)", async () => {
@@ -727,50 +784,54 @@ describe("Voter Events", () => {
           tokenId: voteTokenId,
           owner: ownerAddress,
         });
-        let db = MockDb.createMockDb();
-        db = db.entities.VeNFTState.set(mockVeNFTState);
+        const db = createTestIndexer();
+        db.VeNFTState.set(mockVeNFTState);
 
-        const rootPoolCreatedEvent =
-          RootCLPoolFactory.RootPoolCreated.createMockEvent({
-            token0,
-            token1,
-            tickSpacing,
-            chainid: BigInt(leafChainId),
-            pool: rootPoolAddress,
-            mockEventData: {
-              block: {
-                timestamp: blockTimestamp,
-                number: blockNumber,
-                hash: txHash,
-              },
-              chainId: rootChainId,
-              logIndex: 1,
+        await db.process({
+          chains: {
+            [rootChainId as 10]: {
+              simulate: [
+                {
+                  contract: "RootCLPoolFactory",
+                  event: "RootPoolCreated",
+                  logIndex: 1,
+                  block: {
+                    timestamp: blockTimestamp,
+                    number: blockNumber,
+                    hash: txHash,
+                  },
+                  params: {
+                    token0,
+                    token1,
+                    tickSpacing,
+                    chainid: BigInt(leafChainId),
+                    pool: rootPoolAddress,
+                  },
+                },
+                {
+                  contract: "Voter",
+                  event: "Abstained",
+                  logIndex: 2,
+                  transaction: { hash: txHash },
+                  block: {
+                    number: blockNumber,
+                    timestamp: blockTimestamp,
+                    hash: txHash,
+                  },
+                  params: {
+                    voter: voterAddress,
+                    pool: rootPoolAddress,
+                    tokenId: voteTokenId,
+                    weight: voteWeight,
+                    totalWeight,
+                  },
+                },
+              ],
             },
-          });
-        const abstainedEvent = Voter.Abstained.createMockEvent({
-          voter: voterAddress,
-          pool: rootPoolAddress,
-          tokenId: voteTokenId,
-          weight: voteWeight,
-          totalWeight,
-          mockEventData: {
-            block: {
-              number: blockNumber,
-              timestamp: blockTimestamp,
-              hash: txHash,
-            },
-            chainId: rootChainId,
-            logIndex: 2,
-            transaction: { hash: txHash },
           },
         });
 
-        const resultDB = await db.processEvents([
-          rootPoolCreatedEvent,
-          abstainedEvent,
-        ]);
-
-        const pendingMapping = resultDB.entities.PendingRootPoolMapping.get(
+        const pendingMapping = await db.PendingRootPoolMapping.get(
           PendingRootPoolMappingId(rootChainId, rootPoolAddress),
         );
         expect(pendingMapping).toBeDefined();
@@ -782,15 +843,11 @@ describe("Voter Events", () => {
           txHash,
           2,
         );
-        const pendingVote = resultDB.entities.PendingVote.get(
-          expectedPendingVoteId,
-        );
+        const pendingVote = await db.PendingVote.get(expectedPendingVoteId);
         expect(pendingVote).toBeDefined();
         expect(pendingVote?.eventType).toBe("Abstained");
 
-        expect(
-          Array.from(resultDB.entities.RootPool_LeafPool.getAll()),
-        ).toHaveLength(0);
+        expect(Array.from(await db.RootPool_LeafPool.getAll())).toHaveLength(0);
       });
     });
 
@@ -821,68 +878,67 @@ describe("Voter Events", () => {
           tokenId: voteTokenId,
           owner: ownerAddress,
         });
-        let db = MockDb.createMockDb();
-        db = db.entities.VeNFTState.set(mockVeNFTState);
+        const db = createTestIndexer();
+        db.VeNFTState.set(mockVeNFTState);
 
-        const votedEvent = Voter.Voted.createMockEvent({
-          voter: voterAddress,
-          pool: rootPoolAddress,
-          tokenId: voteTokenId,
-          weight: 100n,
-          totalWeight: 1000n,
-          mockEventData: {
-            block: {
-              number: blockNumber,
-              timestamp: blockTimestamp,
-              hash: txHash,
+        await db.process({
+          chains: {
+            [rootChainId as 10]: {
+              simulate: [
+                {
+                  contract: "Voter",
+                  event: "Voted",
+                  logIndex: 1,
+                  transaction: { hash: txHash },
+                  block: {
+                    number: blockNumber,
+                    timestamp: blockTimestamp,
+                    hash: txHash,
+                  },
+                  params: {
+                    voter: voterAddress,
+                    pool: rootPoolAddress,
+                    tokenId: voteTokenId,
+                    weight: 100n,
+                    totalWeight: 1000n,
+                  },
+                },
+                {
+                  contract: "RootCLPoolFactory",
+                  event: "RootPoolCreated",
+                  logIndex: 2,
+                  block: {
+                    timestamp: blockTimestamp + 1,
+                    number: blockNumber + 1,
+                    hash: txHash,
+                  },
+                  params: {
+                    token0,
+                    token1,
+                    tickSpacing,
+                    chainid: BigInt(leafChainId),
+                    pool: rootPoolAddress,
+                  },
+                },
+              ],
             },
-            chainId: rootChainId,
-            logIndex: 1,
-            transaction: { hash: txHash },
           },
         });
-        const rootPoolCreatedEvent =
-          RootCLPoolFactory.RootPoolCreated.createMockEvent({
-            token0,
-            token1,
-            tickSpacing,
-            chainid: BigInt(leafChainId),
-            pool: rootPoolAddress,
-            mockEventData: {
-              block: {
-                timestamp: blockTimestamp + 1,
-                number: blockNumber + 1,
-                hash: txHash,
-              },
-              chainId: rootChainId,
-              logIndex: 2,
-            },
-          });
-
-        const resultDB = await db.processEvents([
-          votedEvent,
-          rootPoolCreatedEvent,
-        ]);
 
         // create PendingVote whenever mapping is missing; RootPoolCreated then adds PendingRootPoolMapping
-        expect(Array.from(resultDB.entities.PendingVote.getAll())).toHaveLength(
-          1,
-        );
+        expect(Array.from(await db.PendingVote.getAll())).toHaveLength(1);
 
-        const pendingMapping = resultDB.entities.PendingRootPoolMapping.get(
+        const pendingMapping = await db.PendingRootPoolMapping.get(
           PendingRootPoolMappingId(rootChainId, rootPoolAddress),
         );
         expect(pendingMapping).toBeDefined();
         expect(pendingMapping?.rootPoolAddress).toBe(rootPoolAddress);
 
-        expect(
-          Array.from(resultDB.entities.RootPool_LeafPool.getAll()),
-        ).toHaveLength(0);
+        expect(Array.from(await db.RootPool_LeafPool.getAll())).toHaveLength(0);
       });
     });
 
     describe("when pool is a RootCLPool", () => {
-      let resultDB: ReturnType<typeof MockDb.createMockDb>;
       // Real data from actual event
       // Event available here: https://optimistic.etherscan.io/tx/0x133260f0f7bf0a06d262f09b064a35d3c63178c6b5fd8e4798ba780f357dc7bd#eventlog#94
       const rootPoolAddress = toChecksumAddress(
@@ -898,7 +954,7 @@ describe("Voter Events", () => {
       const realWeight = 6887909874294904273927n;
       const realTotalWeight = 8343366589203809137097720n;
       const realTimestamp = 1734595305;
-      const rootChainId = 10; // Optimism
+      const rootChainId = 10 as const;
       const leafChainId = 252; // Fraxtal
       let mockLeafPool: MockPool;
       let mockUserStats: MockUserStatsPerPool;
@@ -967,38 +1023,45 @@ describe("Voter Events", () => {
         };
 
         // Setup mock database with leaf pool and RootPool_LeafPool mapping
-        mockDb = mockDb.entities.Pool.set(mockLeafPool);
-        mockDb = mockDb.entities.RootPool_LeafPool.set(rootPoolLeafPool);
-        mockDb = mockDb.entities.UserStatsPerPool.set(mockUserStats);
-        mockDb = mockDb.entities.Token.set(leafToken0Data);
-        mockDb = mockDb.entities.Token.set(leafToken1Data);
-        mockDb = mockDb.entities.VeNFTState.set(mockVeNFTState);
+        indexer.Pool.set(mockLeafPool);
+        indexer.RootPool_LeafPool.set(rootPoolLeafPool);
+        indexer.UserStatsPerPool.set(mockUserStats);
+        indexer.Token.set(leafToken0Data);
+        indexer.Token.set(leafToken1Data);
+        indexer.VeNFTState.set(mockVeNFTState);
 
-        // Update event to use real data
-        mockEvent = Voter.Voted.createMockEvent({
-          voter: realVoterAddress,
-          pool: rootPoolAddress,
-          tokenId: realTokenId,
-          weight: realWeight,
-          totalWeight: realTotalWeight,
-          mockEventData: {
-            block: {
-              number: 123456,
-              timestamp: realTimestamp,
-              hash: "0xhash",
+        await indexer.process({
+          chains: {
+            [rootChainId]: {
+              simulate: [
+                {
+                  contract: "Voter",
+                  event: "Voted",
+                  logIndex: 1,
+                  block: {
+                    number: 123456,
+                    timestamp: realTimestamp,
+                    hash: "0xhash",
+                  },
+                  params: {
+                    voter: realVoterAddress,
+                    pool: rootPoolAddress,
+                    tokenId: realTokenId,
+                    weight: realWeight,
+                    totalWeight: realTotalWeight,
+                  },
+                },
+              ],
             },
-            chainId: rootChainId,
-            logIndex: 1,
           },
         });
-
-        resultDB = await mockDb.processEvents([mockEvent]);
       });
 
-      it("should update leaf pool aggregator with voting data", () => {
-        const updatedPool = resultDB.entities.Pool.get(
+      it("should update leaf pool aggregator with voting data", async () => {
+        const raw = await indexer.Pool.get(
           PoolId(leafChainId, leafPoolAddress),
         );
+        const updatedPool = raw ? rehydrateTimestamps("Pool", raw) : undefined;
         expect(updatedPool).toBeDefined();
         expect(updatedPool?.veNFTamountStaked).toBe(realTotalWeight);
         expect(updatedPool?.lastUpdatedTimestamp).toEqual(
@@ -1006,14 +1069,16 @@ describe("Voter Events", () => {
         );
       });
 
-      it("should update user stats per pool with voting data", () => {
+      it("should update user stats per pool with voting data", async () => {
         const userStatsId = UserStatsPerPoolId(
           leafChainId,
           realVoterAddress,
           leafPoolAddress,
         );
-        const updatedUserStats =
-          resultDB.entities.UserStatsPerPool.get(userStatsId);
+        const rawStats = await indexer.UserStatsPerPool.get(userStatsId);
+        const updatedUserStats = rawStats
+          ? rehydrateTimestamps("UserStatsPerPool", rawStats)
+          : undefined;
         expect(updatedUserStats).toBeDefined();
         expect(updatedUserStats?.veNFTamountStaked).toBe(realWeight);
         expect(updatedUserStats?.lastActivityTimestamp).toEqual(
@@ -1066,53 +1131,54 @@ describe("Voter Events", () => {
           owner,
         });
 
-        let db = MockDb.createMockDb();
-        db = db.entities.Pool.set(liquidityPool);
-        db = db.entities.UserStatsPerPool.set(userStats);
-        db = db.entities.Token.set(mockToken0Data);
-        db = db.entities.Token.set(mockToken1Data);
-        db = db.entities.VeNFTState.set(veNFT1);
-        db = db.entities.VeNFTState.set(veNFT2);
+        const db = createTestIndexer();
+        db.Pool.set(liquidityPool);
+        db.UserStatsPerPool.set(userStats);
+        db.Token.set(mockToken0Data);
+        db.Token.set(mockToken1Data);
+        db.VeNFTState.set(veNFT1);
+        db.VeNFTState.set(veNFT2);
 
-        const voteEvent1 = Voter.Voted.createMockEvent({
-          voter: voterAddress,
-          pool: poolAddress,
-          tokenId: 1n,
-          weight: 100n,
-          totalWeight: 1000n,
-          mockEventData: {
-            block: {
-              number: 123456,
-              timestamp: 1000000,
-              hash: "0xhash",
+        await db.process({
+          chains: {
+            [chainId]: {
+              simulate: [
+                {
+                  contract: "Voter",
+                  event: "Voted",
+                  logIndex: 1,
+                  block: { number: 123456, timestamp: 1000000, hash: "0xhash" },
+                  params: {
+                    voter: voterAddress,
+                    pool: poolAddress,
+                    tokenId: 1n,
+                    weight: 100n,
+                    totalWeight: 1000n,
+                  },
+                },
+                {
+                  contract: "Voter",
+                  event: "Voted",
+                  logIndex: 2,
+                  block: {
+                    number: 123457,
+                    timestamp: 1000001,
+                    hash: "0xhash2",
+                  },
+                  params: {
+                    voter: voterAddress,
+                    pool: poolAddress,
+                    tokenId: 2n,
+                    weight: 200n,
+                    totalWeight: 1100n,
+                  },
+                },
+              ],
             },
-            chainId: chainId,
-            logIndex: 1,
           },
         });
 
-        const voteEvent2 = Voter.Voted.createMockEvent({
-          voter: voterAddress,
-          pool: poolAddress,
-          tokenId: 2n,
-          weight: 200n,
-          totalWeight: 1100n,
-          mockEventData: {
-            block: {
-              number: 123457,
-              timestamp: 1000001,
-              hash: "0xhash2",
-            },
-            chainId: chainId,
-            logIndex: 2,
-          },
-        });
-
-        const dbAfterFirst = await db.processEvents([voteEvent1]);
-
-        const dbAfterSecond = await dbAfterFirst.processEvents([voteEvent2]);
-
-        const updatedUserStats = dbAfterSecond.entities.UserStatsPerPool.get(
+        const updatedUserStats = await db.UserStatsPerPool.get(
           UserStatsPerPoolId(chainId, owner, poolAddress),
         );
         expect(updatedUserStats).toBeDefined();
@@ -1122,9 +1188,8 @@ describe("Voter Events", () => {
   });
 
   describe("Abstained Event", () => {
-    let mockDb: ReturnType<typeof MockDb.createMockDb>;
-    let mockEvent: ReturnType<typeof Voter.Abstained.createMockEvent>;
-    const chainId = 10; // Optimism
+    let indexer: ReturnType<typeof createTestIndexer>;
+    const chainId = 10 as const;
     const poolAddress = toChecksumAddress(
       "0x478946BcD4a5a22b316470F5486fAfb928C0bA25",
     );
@@ -1137,27 +1202,10 @@ describe("Voter Events", () => {
     );
 
     beforeEach(() => {
-      mockDb = MockDb.createMockDb();
-      mockEvent = Voter.Abstained.createMockEvent({
-        voter: voterAddress,
-        pool: poolAddress,
-        tokenId: tokenId,
-        weight: 100n,
-        totalWeight: 1000n,
-        mockEventData: {
-          block: {
-            number: 123456,
-            timestamp: 1000000,
-            hash: "0xhash",
-          },
-          chainId: chainId,
-          logIndex: 1,
-        },
-      });
+      indexer = createTestIndexer();
     });
 
     describe("when pool data exists", () => {
-      let resultDB: ReturnType<typeof MockDb.createMockDb>;
       let mockLiquidityPool: MockPool;
       let mockUserStats: MockUserStatsPerPool;
       let mockVeNFTState: VeNFTState;
@@ -1205,20 +1253,39 @@ describe("Voter Events", () => {
         });
 
         // Setup mock database with required entities
-        mockDb = mockDb.entities.Pool.set(mockLiquidityPool);
-        mockDb = mockDb.entities.UserStatsPerPool.set(mockUserStats);
-        mockDb = mockDb.entities.Token.set(mockToken0Data);
-        mockDb = mockDb.entities.Token.set(mockToken1Data);
-        mockDb = mockDb.entities.VeNFTState.set(mockVeNFTState);
-        mockDb = mockDb.entities.VeNFTPoolVote.set(mockVeNFTPoolVote);
+        indexer.Pool.set(mockLiquidityPool);
+        indexer.UserStatsPerPool.set(mockUserStats);
+        indexer.Token.set(mockToken0Data);
+        indexer.Token.set(mockToken1Data);
+        indexer.VeNFTState.set(mockVeNFTState);
+        indexer.VeNFTPoolVote.set(mockVeNFTPoolVote);
 
-        resultDB = await mockDb.processEvents([mockEvent]);
+        await indexer.process({
+          chains: {
+            [chainId]: {
+              simulate: [
+                {
+                  contract: "Voter",
+                  event: "Abstained",
+                  logIndex: 1,
+                  block: { number: 123456, timestamp: 1000000, hash: "0xhash" },
+                  params: {
+                    voter: voterAddress,
+                    pool: poolAddress,
+                    tokenId: tokenId,
+                    weight: 100n,
+                    totalWeight: 1000n,
+                  },
+                },
+              ],
+            },
+          },
+        });
       });
 
-      it("should update liquidity pool aggregator with total weight (absolute value)", () => {
-        const updatedPool = resultDB.entities.Pool.get(
-          PoolId(chainId, poolAddress),
-        );
+      it("should update liquidity pool aggregator with total weight (absolute value)", async () => {
+        const raw = await indexer.Pool.get(PoolId(chainId, poolAddress));
+        const updatedPool = raw ? rehydrateTimestamps("Pool", raw) : undefined;
         expect(updatedPool).toBeDefined();
         // totalWeight is the absolute total veNFT staked in pool, replacing previous value
         expect(updatedPool?.veNFTamountStaked).toBe(1000n); // event.params.totalWeight
@@ -1227,14 +1294,16 @@ describe("Voter Events", () => {
         );
       });
 
-      it("should decrease user stats veNFT amount staked (negative weight)", () => {
+      it("should decrease user stats veNFT amount staked (negative weight)", async () => {
         const userStatsId = UserStatsPerPoolId(
           chainId,
           ownerAddress,
           poolAddress,
         );
-        const updatedUserStats =
-          resultDB.entities.UserStatsPerPool.get(userStatsId);
+        const rawStats = await indexer.UserStatsPerPool.get(userStatsId);
+        const updatedUserStats = rawStats
+          ? rehydrateTimestamps("UserStatsPerPool", rawStats)
+          : undefined;
         expect(updatedUserStats).toBeDefined();
         // weight is subtracted (negative because it's a withdrawal)
         expect(updatedUserStats?.veNFTamountStaked).toBe(100n); // 200n - 100n
@@ -1243,10 +1312,9 @@ describe("Voter Events", () => {
         );
       });
 
-      it("should decrement tokenId pool votes", () => {
+      it("should decrement tokenId pool votes", async () => {
         const veNFTPoolVoteId = VeNFTPoolVoteId(chainId, tokenId, poolAddress);
-        const veNFTPoolVote =
-          resultDB.entities.VeNFTPoolVote.get(veNFTPoolVoteId);
+        const veNFTPoolVote = await indexer.VeNFTPoolVote.get(veNFTPoolVoteId);
         expect(veNFTPoolVote).toBeDefined();
         expect(veNFTPoolVote?.veNFTamountStaked).toBe(100n); // 200n - 100n
       });
@@ -1261,41 +1329,76 @@ describe("Voter Events", () => {
           chainId,
           veNFTamountStaked: 1000n,
         });
-        let db = MockDb.createMockDb();
-        db = db.entities.Pool.set(poolWithStaked);
-        db = db.entities.Token.set(mockToken0Data);
-        db = db.entities.Token.set(mockToken1Data);
+        const db = createTestIndexer();
+        db.Pool.set(poolWithStaked);
+        db.Token.set(mockToken0Data);
+        db.Token.set(mockToken1Data);
 
-        const resultDB = await db.processEvents([mockEvent]);
+        await db.process({
+          chains: {
+            [chainId]: {
+              simulate: [
+                {
+                  contract: "Voter",
+                  event: "Abstained",
+                  logIndex: 1,
+                  block: { number: 123456, timestamp: 1000000, hash: "0xhash" },
+                  params: {
+                    voter: voterAddress,
+                    pool: poolAddress,
+                    tokenId: tokenId,
+                    weight: 100n,
+                    totalWeight: 1000n,
+                  },
+                },
+              ],
+            },
+          },
+        });
 
-        const pool = resultDB.entities.Pool.get(PoolId(chainId, poolAddress));
+        const pool = await db.Pool.get(PoolId(chainId, poolAddress));
         expect(pool?.veNFTamountStaked).toBe(1000n);
-        expect(
-          Array.from(resultDB.entities.UserStatsPerPool.getAll()),
-        ).toHaveLength(0);
-        expect(
-          Array.from(resultDB.entities.VeNFTPoolVote.getAll()),
-        ).toHaveLength(0);
+        expect(Array.from(await db.UserStatsPerPool.getAll())).toHaveLength(0);
+        expect(Array.from(await db.VeNFTPoolVote.getAll())).toHaveLength(0);
       });
     });
 
     describe("when pool data does not exist", () => {
       it("should return early without creating pool entities", async () => {
-        const resultDB = await mockDb.processEvents([mockEvent]);
+        await indexer.process({
+          chains: {
+            [chainId]: {
+              simulate: [
+                {
+                  contract: "Voter",
+                  event: "Abstained",
+                  logIndex: 1,
+                  block: { number: 123456, timestamp: 1000000, hash: "0xhash" },
+                  params: {
+                    voter: voterAddress,
+                    pool: poolAddress,
+                    tokenId: tokenId,
+                    weight: 100n,
+                    totalWeight: 1000n,
+                  },
+                },
+              ],
+            },
+          },
+        });
 
         // Should not create Pool entity
-        expect(Array.from(resultDB.entities.Pool.getAll())).toHaveLength(0);
+        expect(Array.from(await indexer.Pool.getAll())).toHaveLength(0);
         expect(
-          Array.from(resultDB.entities.UserStatsPerPool.getAll()),
+          Array.from(await indexer.UserStatsPerPool.getAll()),
         ).toHaveLength(0);
-        expect(
-          Array.from(resultDB.entities.VeNFTPoolVote.getAll()),
-        ).toHaveLength(0);
+        expect(Array.from(await indexer.VeNFTPoolVote.getAll())).toHaveLength(
+          0,
+        );
       });
     });
 
     describe("when pool is a RootCLPool", () => {
-      let resultDB: ReturnType<typeof MockDb.createMockDb>;
       // Real data from actual Abstained event
       // Event available here: https://optimistic.etherscan.io/tx/0x133260f0f7bf0a06d262f09b064a35d3c63178c6b5fd8e4798ba780f357dc7bd#eventlog#61
       const rootPoolAddress = toChecksumAddress(
@@ -1311,7 +1414,7 @@ describe("Voter Events", () => {
       const realWeight = 22328957523870653419264n;
       const realTotalWeight = 2586327170227043887618593n;
       const realTimestamp = 1734595305;
-      const rootChainId = 10; // Optimism
+      const rootChainId = 10 as const;
       const leafChainId = 252; // Fraxtal
       const initialUserStaked = 50000000000000000000000n; // 50k tokens (18 decimals) - initial amount before withdrawal
       let mockLeafPool: MockPool;
@@ -1391,39 +1494,46 @@ describe("Voter Events", () => {
         };
 
         // Setup mock database with leaf pool and RootPool_LeafPool mapping
-        mockDb = mockDb.entities.Pool.set(mockLeafPool);
-        mockDb = mockDb.entities.RootPool_LeafPool.set(rootPoolLeafPool);
-        mockDb = mockDb.entities.UserStatsPerPool.set(mockUserStats);
-        mockDb = mockDb.entities.Token.set(leafToken0Data);
-        mockDb = mockDb.entities.Token.set(leafToken1Data);
-        mockDb = mockDb.entities.VeNFTState.set(mockVeNFTState);
-        mockDb = mockDb.entities.VeNFTPoolVote.set(mockVeNFTPoolVote);
+        indexer.Pool.set(mockLeafPool);
+        indexer.RootPool_LeafPool.set(rootPoolLeafPool);
+        indexer.UserStatsPerPool.set(mockUserStats);
+        indexer.Token.set(leafToken0Data);
+        indexer.Token.set(leafToken1Data);
+        indexer.VeNFTState.set(mockVeNFTState);
+        indexer.VeNFTPoolVote.set(mockVeNFTPoolVote);
 
-        // Update event to use real data
-        mockEvent = Voter.Abstained.createMockEvent({
-          voter: realVoterAddress,
-          pool: rootPoolAddress,
-          tokenId: realTokenId,
-          weight: realWeight,
-          totalWeight: realTotalWeight,
-          mockEventData: {
-            block: {
-              number: 123456,
-              timestamp: realTimestamp,
-              hash: "0xhash",
+        await indexer.process({
+          chains: {
+            [rootChainId]: {
+              simulate: [
+                {
+                  contract: "Voter",
+                  event: "Abstained",
+                  logIndex: 1,
+                  block: {
+                    number: 123456,
+                    timestamp: realTimestamp,
+                    hash: "0xhash",
+                  },
+                  params: {
+                    voter: realVoterAddress,
+                    pool: rootPoolAddress,
+                    tokenId: realTokenId,
+                    weight: realWeight,
+                    totalWeight: realTotalWeight,
+                  },
+                },
+              ],
             },
-            chainId: rootChainId,
-            logIndex: 1,
           },
         });
-
-        resultDB = await mockDb.processEvents([mockEvent]);
       });
 
-      it("should update leaf pool aggregator with total weight (absolute value)", () => {
-        const updatedPool = resultDB.entities.Pool.get(
+      it("should update leaf pool aggregator with total weight (absolute value)", async () => {
+        const raw = await indexer.Pool.get(
           PoolId(leafChainId, leafPoolAddress),
         );
+        const updatedPool = raw ? rehydrateTimestamps("Pool", raw) : undefined;
 
         expect(updatedPool).toBeDefined();
         // totalWeight is the absolute total veNFT staked in pool, replacing previous value
@@ -1433,14 +1543,16 @@ describe("Voter Events", () => {
         );
       });
 
-      it("should decrease user stats veNFT amount staked (negative weight)", () => {
+      it("should decrease user stats veNFT amount staked (negative weight)", async () => {
         const userStatsId = UserStatsPerPoolId(
           leafChainId,
           realVoterAddress,
           leafPoolAddress,
         );
-        const updatedUserStats =
-          resultDB.entities.UserStatsPerPool.get(userStatsId);
+        const rawStats = await indexer.UserStatsPerPool.get(userStatsId);
+        const updatedUserStats = rawStats
+          ? rehydrateTimestamps("UserStatsPerPool", rawStats)
+          : undefined;
         expect(updatedUserStats).toBeDefined();
         // weight is subtracted (negative because it's a withdrawal)
         const expectedStaked = initialUserStaked - realWeight;
@@ -1450,19 +1562,18 @@ describe("Voter Events", () => {
         );
       });
 
-      it("should zero out veNFT pool votes", () => {
+      it("should zero out veNFT pool votes", async () => {
         const veNFTPoolVoteId = VeNFTPoolVoteId(
           leafChainId,
           realTokenId,
           leafPoolAddress,
         );
-        const veNFTPoolVote =
-          resultDB.entities.VeNFTPoolVote.get(veNFTPoolVoteId);
+        const veNFTPoolVote = await indexer.VeNFTPoolVote.get(veNFTPoolVoteId);
         expect(veNFTPoolVote).toBeDefined();
         expect(veNFTPoolVote?.veNFTamountStaked).toBe(0n);
       });
 
-      it("should key VeNFTPoolVote and UserStatsPerPool by leaf pool (real pool) not root pool", () => {
+      it("should key VeNFTPoolVote and UserStatsPerPool by leaf pool (real pool) not root pool", async () => {
         const rootUserStatsId = UserStatsPerPoolId(
           rootChainId,
           realVoterAddress,
@@ -1474,10 +1585,10 @@ describe("Voter Events", () => {
           rootPoolAddress,
         );
         expect(
-          resultDB.entities.UserStatsPerPool.get(rootUserStatsId),
+          await indexer.UserStatsPerPool.get(rootUserStatsId),
         ).toBeUndefined();
         expect(
-          resultDB.entities.VeNFTPoolVote.get(rootVeNFTPoolVoteId),
+          await indexer.VeNFTPoolVote.get(rootVeNFTPoolVoteId),
         ).toBeUndefined();
 
         const leafUserStatsId = UserStatsPerPoolId(
@@ -1491,9 +1602,9 @@ describe("Voter Events", () => {
           leafPoolAddress,
         );
         const leafUserStats =
-          resultDB.entities.UserStatsPerPool.get(leafUserStatsId);
+          await indexer.UserStatsPerPool.get(leafUserStatsId);
         const leafVeNFTPoolVote =
-          resultDB.entities.VeNFTPoolVote.get(leafVeNFTPoolVoteId);
+          await indexer.VeNFTPoolVote.get(leafVeNFTPoolVoteId);
         expect(leafUserStats).toBeDefined();
         expect(leafVeNFTPoolVote).toBeDefined();
         expect(leafUserStats?.veNFTamountStaked).toBe(
@@ -1570,77 +1681,70 @@ describe("Voter Events", () => {
         leafPoolAddress,
       };
 
-      let db = MockDb.createMockDb();
-      db = db.entities.Pool.set(leafPool);
-      db = db.entities.RootPool_LeafPool.set(rootPoolLeafPool);
-      db = db.entities.Token.set(leafToken0Data);
-      db = db.entities.Token.set(leafToken1Data);
-      db = db.entities.VeNFTState.set(veNFTState);
+      // indexer for intermediate state check (vote + transfer only)
+      const transferIndexer = createTestIndexer();
+      transferIndexer.Pool.set(leafPool);
+      transferIndexer.RootPool_LeafPool.set(rootPoolLeafPool);
+      transferIndexer.Token.set(leafToken0Data);
+      transferIndexer.Token.set(leafToken1Data);
+      transferIndexer.VeNFTState.set(veNFTState);
 
-      const voteEvent = Voter.Voted.createMockEvent({
-        voter: oldOwner,
-        pool: rootPoolAddress,
-        tokenId,
-        weight: voteWeight,
-        totalWeight: voteWeight,
-        mockEventData: {
-          block: {
-            number: 129471197,
-            timestamp: 1734541171,
-            hash: "0xvote",
+      await transferIndexer.process({
+        chains: {
+          [rootChainId as 10]: {
+            simulate: [
+              {
+                contract: "Voter",
+                event: "Voted",
+                logIndex: 123,
+                block: {
+                  number: 129471197,
+                  timestamp: 1734541171,
+                  hash: "0xvote",
+                },
+                params: {
+                  voter: oldOwner,
+                  pool: rootPoolAddress,
+                  tokenId,
+                  weight: voteWeight,
+                  totalWeight: voteWeight,
+                },
+              },
+              {
+                contract: "VeNFT",
+                event: "Transfer",
+                logIndex: 8,
+                srcAddress: toChecksumAddress(
+                  "0xFAf8FD17D9840595845582fCB047DF13f006787d",
+                ),
+                block: {
+                  number: 129598042,
+                  timestamp: 1734794861,
+                  hash: "0xtransfer",
+                },
+                params: {
+                  from: oldOwner,
+                  to: newOwner,
+                  tokenId,
+                },
+              },
+            ],
           },
-          chainId: rootChainId,
-          logIndex: 123,
         },
       });
 
-      const transferEvent = VeNFT.Transfer.createMockEvent({
-        from: oldOwner,
-        to: newOwner,
-        tokenId,
-        mockEventData: {
-          block: {
-            number: 129598042,
-            timestamp: 1734794861,
-            hash: "0xtransfer",
-          },
-          chainId: rootChainId,
-          logIndex: 8,
-          srcAddress: toChecksumAddress(
-            "0xFAf8FD17D9840595845582fCB047DF13f006787d",
-          ),
-        },
-      });
-
-      const abstainEvent = Voter.Abstained.createMockEvent({
-        voter: newOwner,
-        pool: rootPoolAddress,
-        tokenId,
-        weight: voteWeight,
-        totalWeight: 0n,
-        mockEventData: {
-          block: {
-            number: 129598518,
-            timestamp: 1734795813,
-            hash: "0xabstain",
-          },
-          chainId: rootChainId,
-          logIndex: 24,
-        },
-      });
-
-      const dbAfterVote = await db.processEvents([voteEvent]);
-      const dbAfterTransfer = await dbAfterVote.processEvents([transferEvent]);
-      const resultDB = await dbAfterTransfer.processEvents([abstainEvent]);
-
-      const oldOwnerStatsAfterTransfer =
-        dbAfterTransfer.entities.UserStatsPerPool.get(
-          UserStatsPerPoolId(leafChainId, oldOwner, leafPoolAddress),
-        );
-      const newOwnerStatsAfterTransfer =
-        dbAfterTransfer.entities.UserStatsPerPool.get(
-          UserStatsPerPoolId(leafChainId, newOwner, leafPoolAddress),
-        );
+      const rawOldAfter = await transferIndexer.UserStatsPerPool.get(
+        UserStatsPerPoolId(leafChainId, oldOwner, leafPoolAddress),
+      );
+      const rawNewAfter = await transferIndexer.UserStatsPerPool.get(
+        UserStatsPerPoolId(leafChainId, newOwner, leafPoolAddress),
+      );
+      const oldOwnerStatsAfterTransfer = rawOldAfter
+        ? rehydrateTimestamps("UserStatsPerPool", rawOldAfter)
+        : undefined;
+      const newOwnerStatsAfterTransfer = rawNewAfter
+        ? rehydrateTimestamps("UserStatsPerPool", rawNewAfter)
+        : undefined;
 
       expect(oldOwnerStatsAfterTransfer?.veNFTamountStaked).toBe(0n);
       expect(newOwnerStatsAfterTransfer?.veNFTamountStaked).toBe(voteWeight);
@@ -1648,13 +1752,88 @@ describe("Voter Events", () => {
         new Date(1734794861 * 1000),
       );
 
-      const finalOldOwnerStats = resultDB.entities.UserStatsPerPool.get(
+      // indexer for full run (vote + transfer + abstain)
+      const fullIndexer = createTestIndexer();
+      fullIndexer.Pool.set(leafPool);
+      fullIndexer.RootPool_LeafPool.set(rootPoolLeafPool);
+      fullIndexer.Token.set(leafToken0Data);
+      fullIndexer.Token.set(leafToken1Data);
+      fullIndexer.VeNFTState.set(veNFTState);
+
+      await fullIndexer.process({
+        chains: {
+          [rootChainId as 10]: {
+            simulate: [
+              {
+                contract: "Voter",
+                event: "Voted",
+                logIndex: 123,
+                block: {
+                  number: 129471197,
+                  timestamp: 1734541171,
+                  hash: "0xvote",
+                },
+                params: {
+                  voter: oldOwner,
+                  pool: rootPoolAddress,
+                  tokenId,
+                  weight: voteWeight,
+                  totalWeight: voteWeight,
+                },
+              },
+              {
+                contract: "VeNFT",
+                event: "Transfer",
+                logIndex: 8,
+                srcAddress: toChecksumAddress(
+                  "0xFAf8FD17D9840595845582fCB047DF13f006787d",
+                ),
+                block: {
+                  number: 129598042,
+                  timestamp: 1734794861,
+                  hash: "0xtransfer",
+                },
+                params: {
+                  from: oldOwner,
+                  to: newOwner,
+                  tokenId,
+                },
+              },
+              {
+                contract: "Voter",
+                event: "Abstained",
+                logIndex: 24,
+                block: {
+                  number: 129598518,
+                  timestamp: 1734795813,
+                  hash: "0xabstain",
+                },
+                params: {
+                  voter: newOwner,
+                  pool: rootPoolAddress,
+                  tokenId,
+                  weight: voteWeight,
+                  totalWeight: 0n,
+                },
+              },
+            ],
+          },
+        },
+      });
+
+      const rawFinalOld = await fullIndexer.UserStatsPerPool.get(
         UserStatsPerPoolId(leafChainId, oldOwner, leafPoolAddress),
       );
-      const finalNewOwnerStats = resultDB.entities.UserStatsPerPool.get(
+      const rawFinalNew = await fullIndexer.UserStatsPerPool.get(
         UserStatsPerPoolId(leafChainId, newOwner, leafPoolAddress),
       );
-      const finalPoolVote = resultDB.entities.VeNFTPoolVote.get(
+      const finalOldOwnerStats = rawFinalOld
+        ? rehydrateTimestamps("UserStatsPerPool", rawFinalOld)
+        : undefined;
+      const finalNewOwnerStats = rawFinalNew
+        ? rehydrateTimestamps("UserStatsPerPool", rawFinalNew)
+        : undefined;
+      const finalPoolVote = await fullIndexer.VeNFTPoolVote.get(
         VeNFTPoolVoteId(leafChainId, tokenId, leafPoolAddress),
       );
 
@@ -1671,53 +1850,40 @@ describe("Voter Events", () => {
   });
 
   describe("GaugeCreated Event", () => {
-    let mockDb: ReturnType<typeof MockDb.createMockDb>;
-    let mockEvent: ReturnType<typeof Voter.GaugeCreated.createMockEvent>;
-    const chainId = 10;
+    let indexer: ReturnType<typeof createTestIndexer>;
+    const chainId = 10 as const;
     const poolAddress = toChecksumAddress(
       "0x478946BcD4a5a22b316470F5486fAfb928C0bA25",
     );
     const gaugeAddress = toChecksumAddress(
       "0xa75127121d28a9bf848f3b70e7eea26570aa7700",
     );
+    const gaugeCreatedParams = {
+      poolFactory: toChecksumAddress(
+        "0x420DD381b31aEf6683db6B902084cB0FFECe40Da",
+      ), // VAMM factory
+      votingRewardsFactory: toChecksumAddress(
+        "0x2222222222222222222222222222222222222222",
+      ),
+      gaugeFactory: toChecksumAddress(
+        "0x3333333333333333333333333333333333333333",
+      ),
+      pool: poolAddress,
+      bribeVotingReward: toChecksumAddress(
+        "0x5555555555555555555555555555555555555555",
+      ),
+      feeVotingReward: toChecksumAddress(
+        "0x6666666666666666666666666666666666666666",
+      ),
+      gauge: gaugeAddress,
+      creator: toChecksumAddress("0x7777777777777777777777777777777777777777"),
+    };
 
     beforeEach(() => {
-      mockDb = MockDb.createMockDb();
-      mockEvent = Voter.GaugeCreated.createMockEvent({
-        poolFactory: toChecksumAddress(
-          "0x420DD381b31aEf6683db6B902084cB0FFECe40Da",
-        ), // VAMM factory
-        votingRewardsFactory: toChecksumAddress(
-          "0x2222222222222222222222222222222222222222",
-        ),
-        gaugeFactory: toChecksumAddress(
-          "0x3333333333333333333333333333333333333333",
-        ),
-        pool: poolAddress,
-        bribeVotingReward: toChecksumAddress(
-          "0x5555555555555555555555555555555555555555",
-        ),
-        feeVotingReward: toChecksumAddress(
-          "0x6666666666666666666666666666666666666666",
-        ),
-        gauge: gaugeAddress,
-        creator: toChecksumAddress(
-          "0x7777777777777777777777777777777777777777",
-        ),
-        mockEventData: {
-          block: {
-            number: 123456,
-            timestamp: 1000000,
-            hash: "0xhash",
-          },
-          chainId: chainId,
-          logIndex: 1,
-        },
-      });
+      indexer = createTestIndexer();
     });
 
     describe("when pool entity exists", () => {
-      let resultDB: ReturnType<typeof MockDb.createMockDb>;
       let mockLiquidityPool: MockPool;
 
       beforeEach(async () => {
@@ -1729,15 +1895,28 @@ describe("Voter Events", () => {
           gaugeAddress: "", // Initially empty
         });
 
-        mockDb = mockDb.entities.Pool.set(mockLiquidityPool);
+        indexer.Pool.set(mockLiquidityPool);
 
-        resultDB = await mockDb.processEvents([mockEvent]);
+        await indexer.process({
+          chains: {
+            [chainId]: {
+              simulate: [
+                {
+                  contract: "Voter",
+                  event: "GaugeCreated",
+                  logIndex: 1,
+                  block: { number: 123456, timestamp: 1000000, hash: "0xhash" },
+                  params: gaugeCreatedParams,
+                },
+              ],
+            },
+          },
+        });
       });
 
-      it("should update pool entity with gauge address and voting reward addresses", () => {
-        const updatedPool = resultDB.entities.Pool.get(
-          PoolId(chainId, poolAddress),
-        );
+      it("should update pool entity with gauge address and voting reward addresses", async () => {
+        const raw = await indexer.Pool.get(PoolId(chainId, poolAddress));
+        const updatedPool = raw ? rehydrateTimestamps("Pool", raw) : undefined;
         expect(updatedPool).toBeDefined();
         expect(updatedPool?.gaugeAddress).toBe(gaugeAddress);
         expect(updatedPool?.feeVotingRewardAddress).toBe(
@@ -1754,13 +1933,27 @@ describe("Voter Events", () => {
 
     describe("when pool entity does not exist (RootPool case)", () => {
       it("should create RootGauge_RootPool for cross-chain DistributeReward resolution", async () => {
-        const resultDB = await mockDb.processEvents([mockEvent]);
+        await indexer.process({
+          chains: {
+            [chainId]: {
+              simulate: [
+                {
+                  contract: "Voter",
+                  event: "GaugeCreated",
+                  logIndex: 1,
+                  block: { number: 123456, timestamp: 1000000, hash: "0xhash" },
+                  params: gaugeCreatedParams,
+                },
+              ],
+            },
+          },
+        });
 
-        expect(Array.from(resultDB.entities.Pool.getAll())).toHaveLength(0);
+        expect(Array.from(await indexer.Pool.getAll())).toHaveLength(0);
 
         const expectedId = RootGaugeRootPoolId(chainId, gaugeAddress);
         const rootGaugeRootPool =
-          resultDB.entities.RootGauge_RootPool.get(expectedId);
+          await indexer.RootGauge_RootPool.get(expectedId);
         expect(rootGaugeRootPool).toBeDefined();
         expect(rootGaugeRootPool?.rootChainId).toBe(chainId);
         expect(rootGaugeRootPool?.rootGaugeAddress).toBe(gaugeAddress);
@@ -1769,9 +1962,7 @@ describe("Voter Events", () => {
     });
 
     describe("when pool factory is CL factory", () => {
-      let resultDB: ReturnType<typeof MockDb.createMockDb>;
       let mockLiquidityPool: MockPool;
-      let clFactoryEvent: ReturnType<typeof Voter.GaugeCreated.createMockEvent>;
 
       beforeEach(async () => {
         const { createMockPool } = setupCommon();
@@ -1782,46 +1973,49 @@ describe("Voter Events", () => {
           gaugeAddress: "", // Initially empty
         });
 
+        indexer.Pool.set(mockLiquidityPool);
+
         // Create event with CL factory address (from CLPOOLS_FACTORY_LIST)
-        clFactoryEvent = Voter.GaugeCreated.createMockEvent({
-          poolFactory: toChecksumAddress(
-            "0xCc0bDDB707055e04e497aB22a59c2aF4391cd12F",
-          ), // CL factory (optimism)
-          votingRewardsFactory: toChecksumAddress(
-            "0x2222222222222222222222222222222222222222",
-          ),
-          gaugeFactory: toChecksumAddress(
-            "0x3333333333333333333333333333333333333333",
-          ),
-          pool: poolAddress,
-          bribeVotingReward: toChecksumAddress(
-            "0x5555555555555555555555555555555555555555",
-          ),
-          feeVotingReward: toChecksumAddress(
-            "0x6666666666666666666666666666666666666666",
-          ),
-          gauge: gaugeAddress,
-          creator: toChecksumAddress(
-            "0x7777777777777777777777777777777777777777",
-          ),
-          mockEventData: {
-            block: {
-              number: 123456,
-              timestamp: 1000000,
-              hash: "0xhash",
+        await indexer.process({
+          chains: {
+            [chainId]: {
+              simulate: [
+                {
+                  contract: "Voter",
+                  event: "GaugeCreated",
+                  logIndex: 1,
+                  block: { number: 123456, timestamp: 1000000, hash: "0xhash" },
+                  params: {
+                    poolFactory: toChecksumAddress(
+                      "0xCc0bDDB707055e04e497aB22a59c2aF4391cd12F",
+                    ), // CL factory (optimism)
+                    votingRewardsFactory: toChecksumAddress(
+                      "0x2222222222222222222222222222222222222222",
+                    ),
+                    gaugeFactory: toChecksumAddress(
+                      "0x3333333333333333333333333333333333333333",
+                    ),
+                    pool: poolAddress,
+                    bribeVotingReward: toChecksumAddress(
+                      "0x5555555555555555555555555555555555555555",
+                    ),
+                    feeVotingReward: toChecksumAddress(
+                      "0x6666666666666666666666666666666666666666",
+                    ),
+                    gauge: gaugeAddress,
+                    creator: toChecksumAddress(
+                      "0x7777777777777777777777777777777777777777",
+                    ),
+                  },
+                },
+              ],
             },
-            chainId: chainId,
-            logIndex: 1,
           },
         });
-
-        mockDb = mockDb.entities.Pool.set(mockLiquidityPool);
-
-        resultDB = await mockDb.processEvents([clFactoryEvent]);
       });
 
-      it("should update pool entity with gauge address (CL factory path)", () => {
-        const updatedPool = resultDB.entities.Pool.get(
+      it("should update pool entity with gauge address (CL factory path)", async () => {
+        const updatedPool = await indexer.Pool.get(
           PoolId(chainId, poolAddress),
         );
         expect(updatedPool).toBeDefined();
@@ -1837,9 +2031,8 @@ describe("Voter Events", () => {
   });
 
   describe("GaugeKilled Event", () => {
-    let mockDb: ReturnType<typeof MockDb.createMockDb>;
-    let mockEvent: ReturnType<typeof Voter.GaugeKilled.createMockEvent>;
-    const chainId = 10;
+    let indexer: ReturnType<typeof createTestIndexer>;
+    const chainId = 10 as const;
     const poolAddress = toChecksumAddress(
       "0x478946BcD4a5a22b316470F5486fAfb928C0bA25",
     );
@@ -1848,23 +2041,10 @@ describe("Voter Events", () => {
     );
 
     beforeEach(() => {
-      mockDb = MockDb.createMockDb();
-      mockEvent = Voter.GaugeKilled.createMockEvent({
-        gauge: gaugeAddress,
-        mockEventData: {
-          block: {
-            number: 123456,
-            timestamp: 1000000,
-            hash: "0xhash",
-          },
-          chainId: chainId,
-          logIndex: 1,
-        },
-      });
+      indexer = createTestIndexer();
     });
 
     describe("when pool entity exists", () => {
-      let resultDB: ReturnType<typeof MockDb.createMockDb>;
       let mockLiquidityPool: MockPool;
       const feeVotingRewardAddress = toChecksumAddress(
         "0x6572b2b30f63B960608f3aA5205711C558998398",
@@ -1890,15 +2070,28 @@ describe("Voter Events", () => {
           mockLiquidityPool,
         );
 
-        mockDb = mockDb.entities.Pool.set(mockLiquidityPool);
+        indexer.Pool.set(mockLiquidityPool);
 
-        resultDB = await mockDb.processEvents([mockEvent]);
+        await indexer.process({
+          chains: {
+            [chainId]: {
+              simulate: [
+                {
+                  contract: "Voter",
+                  event: "GaugeKilled",
+                  logIndex: 1,
+                  block: { number: 123456, timestamp: 1000000, hash: "0xhash" },
+                  params: { gauge: gaugeAddress },
+                },
+              ],
+            },
+          },
+        });
       });
 
-      it("should set gaugeIsAlive to false but preserve gauge address and voting reward addresses as historical data", () => {
-        const updatedPool = resultDB.entities.Pool.get(
-          PoolId(chainId, poolAddress),
-        );
+      it("should set gaugeIsAlive to false but preserve gauge address and voting reward addresses as historical data", async () => {
+        const raw = await indexer.Pool.get(PoolId(chainId, poolAddress));
+        const updatedPool = raw ? rehydrateTimestamps("Pool", raw) : undefined;
         expect(updatedPool).toBeDefined();
         expect(updatedPool?.gaugeIsAlive).toBe(false); // Should be set to false
         // Gauge address should be preserved as historical data
@@ -1921,17 +2114,30 @@ describe("Voter Events", () => {
         // Mock findPoolByGaugeAddress to return null
         vi.spyOn(PoolModule, "findPoolByGaugeAddress").mockResolvedValue(null);
 
-        const resultDB = await mockDb.processEvents([mockEvent]);
+        await indexer.process({
+          chains: {
+            [chainId]: {
+              simulate: [
+                {
+                  contract: "Voter",
+                  event: "GaugeKilled",
+                  logIndex: 1,
+                  block: { number: 123456, timestamp: 1000000, hash: "0xhash" },
+                  params: { gauge: gaugeAddress },
+                },
+              ],
+            },
+          },
+        });
 
-        expect(Array.from(resultDB.entities.Pool.getAll())).toHaveLength(0);
+        expect(Array.from(await indexer.Pool.getAll())).toHaveLength(0);
       });
     });
   });
 
   describe("GaugeRevived Event", () => {
-    let mockDb: ReturnType<typeof MockDb.createMockDb>;
-    let mockEvent: ReturnType<typeof Voter.GaugeRevived.createMockEvent>;
-    const chainId = 10;
+    let indexer: ReturnType<typeof createTestIndexer>;
+    const chainId = 10 as const;
     const poolAddress = toChecksumAddress(
       "0x478946BcD4a5a22b316470F5486fAfb928C0bA25",
     );
@@ -1940,23 +2146,10 @@ describe("Voter Events", () => {
     );
 
     beforeEach(() => {
-      mockDb = MockDb.createMockDb();
-      mockEvent = Voter.GaugeRevived.createMockEvent({
-        gauge: gaugeAddress,
-        mockEventData: {
-          block: {
-            number: 123456,
-            timestamp: 1000000,
-            hash: "0xhash",
-          },
-          chainId: chainId,
-          logIndex: 1,
-        },
-      });
+      indexer = createTestIndexer();
     });
 
     describe("when pool entity exists", () => {
-      let resultDB: ReturnType<typeof MockDb.createMockDb>;
       let mockLiquidityPool: MockPool;
       const feeVotingRewardAddress = toChecksumAddress(
         "0x6572b2b30f63B960608f3aA5205711C558998398",
@@ -1982,15 +2175,28 @@ describe("Voter Events", () => {
           mockLiquidityPool,
         );
 
-        mockDb = mockDb.entities.Pool.set(mockLiquidityPool);
+        indexer.Pool.set(mockLiquidityPool);
 
-        resultDB = await mockDb.processEvents([mockEvent]);
+        await indexer.process({
+          chains: {
+            [chainId]: {
+              simulate: [
+                {
+                  contract: "Voter",
+                  event: "GaugeRevived",
+                  logIndex: 1,
+                  block: { number: 123456, timestamp: 1000000, hash: "0xhash" },
+                  params: { gauge: gaugeAddress },
+                },
+              ],
+            },
+          },
+        });
       });
 
-      it("should set gaugeIsAlive to true", () => {
-        const updatedPool = resultDB.entities.Pool.get(
-          PoolId(chainId, poolAddress),
-        );
+      it("should set gaugeIsAlive to true", async () => {
+        const raw = await indexer.Pool.get(PoolId(chainId, poolAddress));
+        const updatedPool = raw ? rehydrateTimestamps("Pool", raw) : undefined;
         expect(updatedPool).toBeDefined();
         expect(updatedPool?.gaugeIsAlive).toBe(true); // Should be set to true
         expect(updatedPool?.lastUpdatedTimestamp).toEqual(
@@ -2004,48 +2210,52 @@ describe("Voter Events", () => {
         // Mock findPoolByGaugeAddress to return null
         vi.spyOn(PoolModule, "findPoolByGaugeAddress").mockResolvedValue(null);
 
-        const resultDB = await mockDb.processEvents([mockEvent]);
+        await indexer.process({
+          chains: {
+            [chainId]: {
+              simulate: [
+                {
+                  contract: "Voter",
+                  event: "GaugeRevived",
+                  logIndex: 1,
+                  block: { number: 123456, timestamp: 1000000, hash: "0xhash" },
+                  params: { gauge: gaugeAddress },
+                },
+              ],
+            },
+          },
+        });
 
-        expect(Array.from(resultDB.entities.Pool.getAll())).toHaveLength(0);
+        expect(Array.from(await indexer.Pool.getAll())).toHaveLength(0);
       });
     });
   });
 
   describe("WhitelistToken event", () => {
-    let resultDB: ReturnType<typeof MockDb.createMockDb>;
-    let mockDb: ReturnType<typeof MockDb.createMockDb>;
-    let mockEvent: ReturnType<typeof Voter.WhitelistToken.createMockEvent>;
     // Real WETH on Optimism — has on-chain bytecode, so the #677
     // hasContractBytecode gate doesn't short-circuit Token creation.
     const tokenAddress = toChecksumAddress(
       "0x4200000000000000000000000000000000000006",
     );
+    const wlChainId = 10 as const;
+    const wlBlockTimestamp = 1000000;
+    const wlWhitelistParams = {
+      whitelister: toChecksumAddress(
+        "0x1111111111111111111111111111111111111111",
+      ),
+      token: tokenAddress,
+      _bool: true,
+    };
+    const wlBlock = {
+      number: 123456,
+      timestamp: wlBlockTimestamp,
+      hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+    };
 
-    beforeEach(async () => {
-      mockDb = MockDb.createMockDb();
-      mockEvent = Voter.WhitelistToken.createMockEvent({
-        whitelister: toChecksumAddress(
-          "0x1111111111111111111111111111111111111111",
-        ),
-        token: tokenAddress,
-        _bool: true,
-        mockEventData: {
-          block: {
-            number: 123456,
-            timestamp: 1000000,
-            hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
-          },
-          chainId: 10,
-          logIndex: 1,
-        },
-      });
-    });
     describe("if token is in the db", () => {
       const expectedPricePerUSDNew = BigInt(10000000);
-      let expectedId: string;
-      beforeEach(async () => {
-        // Note token doesn't have lastUpdatedTimestamp due to bug in codegen.
-        // Will cast during the set call.
+
+      async function setupInDbIndexer() {
         const token = {
           id: TokenId(10, tokenAddress),
           address: tokenAddress,
@@ -2055,58 +2265,47 @@ describe("Voter Events", () => {
           decimals: BigInt(18),
           pricePerUSDNew: expectedPricePerUSDNew,
           isWhitelisted: false,
+          lastUpdatedTimestamp: new Date(0),
         };
-
-        const updatedDB1 = mockDb.entities.Token.set(token as Token);
-
-        resultDB = await updatedDB1.processEvents([mockEvent]);
-
-        expectedId = TokenId(10, tokenAddress);
-      });
+        const idx = createTestIndexer();
+        idx.Token.set(token as Token);
+        await idx.process({
+          chains: {
+            [wlChainId]: {
+              simulate: [
+                {
+                  contract: "Voter",
+                  event: "WhitelistToken",
+                  logIndex: 1,
+                  block: wlBlock,
+                  params: wlWhitelistParams,
+                },
+              ],
+            },
+          },
+        });
+        return idx;
+      }
 
       it("should update the token entity", async () => {
-        const token = resultDB.entities.Token.get(TokenId(10, tokenAddress));
-        expect(token?.id).toBe(expectedId);
+        const idx = await setupInDbIndexer();
+        const raw = await idx.Token.get(TokenId(10, tokenAddress));
+        const token = raw ? rehydrateTimestamps("Token", raw) : undefined;
+        expect(token?.id).toBe(TokenId(10, tokenAddress));
         expect(token?.isWhitelisted).toBe(true);
         expect(token?.pricePerUSDNew).toBe(expectedPricePerUSDNew);
       });
 
       it("should update lastUpdatedTimestamp when updating existing token", async () => {
-        const token = resultDB.entities.Token.get(TokenId(10, tokenAddress));
+        const idx = await setupInDbIndexer();
+        const raw = await idx.Token.get(TokenId(10, tokenAddress));
+        const token = raw ? rehydrateTimestamps("Token", raw) : undefined;
         expect(token?.lastUpdatedTimestamp).toBeInstanceOf(Date);
         expect(token?.lastUpdatedTimestamp?.getTime()).toBe(
-          mockEvent.block.timestamp * 1000,
+          wlBlockTimestamp * 1000,
         );
       });
     });
-    describe("if token is not in the db", () => {
-      let resultDB: ReturnType<typeof MockDb.createMockDb>;
-      let expectedId: string;
-      beforeEach(async () => {
-        resultDB = await mockDb.processEvents([mockEvent]);
-
-        expectedId = TokenId(10, tokenAddress);
-      });
-
-      it("should create a new Token entity", async () => {
-        const token = resultDB.entities.Token.get(TokenId(10, tokenAddress));
-        expect(token?.id).toBe(expectedId);
-        expect(token?.isWhitelisted).toBe(true);
-        expect(token?.pricePerUSDNew).toBe(0n);
-        expect(typeof token?.name).toBe("string");
-        expect(typeof token?.symbol).toBe("string");
-        expect(token?.address).toBe(tokenAddress);
-      });
-
-      it("should set lastUpdatedTimestamp when creating new token", async () => {
-        const token = resultDB.entities.Token.get(TokenId(10, tokenAddress));
-        expect(token?.lastUpdatedTimestamp).toBeInstanceOf(Date);
-        expect(token?.lastUpdatedTimestamp?.getTime()).toBe(
-          mockEvent.block.timestamp * 1000,
-        );
-      });
-    });
-
     describe("priceTrust recomputation on existing tokens (issue #761)", () => {
       it("flips UNTRUSTED/NON_WL to TRUSTED/WL when WhitelistToken(true) lands", async () => {
         const existing = {
@@ -2118,13 +2317,29 @@ describe("Voter Events", () => {
           decimals: BigInt(18),
           pricePerUSDNew: BigInt(10000000),
           isWhitelisted: false,
+          lastUpdatedTimestamp: new Date(0),
           priceTrustOutcome: PRICE_TRUST_OUTCOME.UNTRUSTED,
           priceTrustReason: PRICE_TRUST_REASON.NON_WL,
         } as Token;
-        const db = mockDb.entities.Token.set(existing);
+        const db = createTestIndexer();
+        db.Token.set(existing);
 
-        const result = await db.processEvents([mockEvent]);
-        const token = result.entities.Token.get(TokenId(10, tokenAddress));
+        await db.process({
+          chains: {
+            [wlChainId]: {
+              simulate: [
+                {
+                  contract: "Voter",
+                  event: "WhitelistToken",
+                  logIndex: 1,
+                  block: wlBlock,
+                  params: wlWhitelistParams,
+                },
+              ],
+            },
+          },
+        });
+        const token = await db.Token.get(TokenId(10, tokenAddress));
 
         expect(token?.isWhitelisted).toBe(true);
         expect(token?.priceTrustOutcome).toBe(PRICE_TRUST_OUTCOME.TRUSTED);
@@ -2141,30 +2356,35 @@ describe("Voter Events", () => {
           decimals: BigInt(18),
           pricePerUSDNew: BigInt(10000000),
           isWhitelisted: true,
+          lastUpdatedTimestamp: new Date(0),
           priceTrustOutcome: PRICE_TRUST_OUTCOME.TRUSTED,
           priceTrustReason: PRICE_TRUST_REASON.WL,
         } as Token;
-        const db = mockDb.entities.Token.set(existing);
+        const db = createTestIndexer();
+        db.Token.set(existing);
 
-        const dewhitelistEvent = Voter.WhitelistToken.createMockEvent({
-          whitelister: toChecksumAddress(
-            "0x1111111111111111111111111111111111111111",
-          ),
-          token: tokenAddress,
-          _bool: false,
-          mockEventData: {
-            block: {
-              number: 123456,
-              timestamp: 1000000,
-              hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+        await db.process({
+          chains: {
+            [wlChainId]: {
+              simulate: [
+                {
+                  contract: "Voter",
+                  event: "WhitelistToken",
+                  logIndex: 1,
+                  block: wlBlock,
+                  params: {
+                    whitelister: toChecksumAddress(
+                      "0x1111111111111111111111111111111111111111",
+                    ),
+                    token: tokenAddress,
+                    _bool: false,
+                  },
+                },
+              ],
             },
-            chainId: 10,
-            logIndex: 1,
           },
         });
-
-        const result = await db.processEvents([dewhitelistEvent]);
-        const token = result.entities.Token.get(TokenId(10, tokenAddress));
+        const token = await db.Token.get(TokenId(10, tokenAddress));
 
         expect(token?.isWhitelisted).toBe(false);
         expect(token?.priceTrustOutcome).toBe(PRICE_TRUST_OUTCOME.UNTRUSTED);
@@ -2185,32 +2405,35 @@ describe("Voter Events", () => {
           decimals: BigInt(18),
           pricePerUSDNew: 0n,
           isWhitelisted: false,
+          lastUpdatedTimestamp: new Date(0),
           priceTrustOutcome: PRICE_TRUST_OUTCOME.UNTRUSTED,
           priceTrustReason: PRICE_TRUST_REASON.NON_WL,
         } as Token;
-        const db = mockDb.entities.Token.set(existing);
+        const db = createTestIndexer();
+        db.Token.set(existing);
 
-        const whitelistEvent = Voter.WhitelistToken.createMockEvent({
-          whitelister: toChecksumAddress(
-            "0x1111111111111111111111111111111111111111",
-          ),
-          token: blacklistedAddress,
-          _bool: true,
-          mockEventData: {
-            block: {
-              number: 123456,
-              timestamp: 1000000,
-              hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+        await db.process({
+          chains: {
+            [wlChainId]: {
+              simulate: [
+                {
+                  contract: "Voter",
+                  event: "WhitelistToken",
+                  logIndex: 1,
+                  block: wlBlock,
+                  params: {
+                    whitelister: toChecksumAddress(
+                      "0x1111111111111111111111111111111111111111",
+                    ),
+                    token: blacklistedAddress,
+                    _bool: true,
+                  },
+                },
+              ],
             },
-            chainId: 10,
-            logIndex: 1,
           },
         });
-
-        const result = await db.processEvents([whitelistEvent]);
-        const token = result.entities.Token.get(
-          TokenId(10, blacklistedAddress),
-        );
+        const token = await db.Token.get(TokenId(10, blacklistedAddress));
 
         expect(token?.isWhitelisted).toBe(true);
         expect(token?.priceTrustOutcome).toBe(PRICE_TRUST_OUTCOME.UNTRUSTED);
@@ -2220,9 +2443,6 @@ describe("Voter Events", () => {
   });
 
   describe("DistributeReward Event", () => {
-    let mockDb: ReturnType<typeof MockDb.createMockDb>;
-    let mockEvent: ReturnType<typeof Voter.DistributeReward.createMockEvent>;
-
     /**
      * Constants for the Distribute Reward event test. Note that we can use real
      * poolAddress and gaugeAddresses to make the call work.
@@ -2233,7 +2453,7 @@ describe("Voter Events", () => {
      *
      * @see {@link ../../.cache/guagetopool-10.json} for a mapping between gauge and pool that exists.
      */
-    const chainId = 10; // Optimism
+    const chainId = 10 as const;
     const voterAddress = toChecksumAddress(
       "0x41C914ee0c7E1A5edCD0295623e6dC557B5aBf3C",
     );
@@ -2245,33 +2465,25 @@ describe("Voter Events", () => {
       "0xa75127121d28a9bf848f3b70e7eea26570aa7700",
     );
     const blockNumber = 128357873;
+    const distributeBlock = {
+      number: blockNumber,
+      timestamp: 1000000,
+      hash: "0xblockhash",
+    };
+    const distributeSimulate = {
+      contract: "Voter" as const,
+      event: "DistributeReward" as const,
+      logIndex: 0,
+      srcAddress: voterAddress,
+      block: distributeBlock,
+      params: { gauge: gaugeAddress, amount: 1000n * 10n ** 18n },
+    };
 
     const rewardTokenAddress =
       CHAIN_CONSTANTS[chainId].rewardToken(blockNumber);
 
-    beforeEach(() => {
-      mockDb = MockDb.createMockDb();
-
-      // Setup the mock event
-      mockEvent = Voter.DistributeReward.createMockEvent({
-        gauge: gaugeAddress,
-        amount: 1000n * 10n ** 18n, // 1000 tokens with 18 decimals
-        mockEventData: {
-          block: {
-            number: blockNumber,
-            timestamp: 1000000,
-            hash: "0xblockhash",
-          },
-          chainId: chainId,
-          logIndex: 0,
-          srcAddress: voterAddress,
-        },
-      });
-    });
-
     describe("when reward token and liquidity pool exist", () => {
-      let resultDB: ReturnType<typeof MockDb.createMockDb>;
-      let updatedDB: ReturnType<typeof MockDb.createMockDb>;
+      let indexer: ReturnType<typeof createTestIndexer>;
       let cleanup: () => void;
 
       const { createMockPool } = setupCommon();
@@ -2313,56 +2525,29 @@ describe("Voter Events", () => {
           liquidityPool,
         );
 
-        // Set entities in the mock database
-        updatedDB = mockDb.entities.Token.set(rewardToken);
-        updatedDB = updatedDB.entities.Pool.set(liquidityPool);
+        indexer = createTestIndexer();
+        indexer.Token.set(rewardToken);
+        indexer.Pool.set(liquidityPool);
 
-        // Process the event
-        resultDB = await updatedDB.processEvents([mockEvent]);
+        await indexer.process({
+          chains: {
+            [chainId]: { simulate: [distributeSimulate] },
+          },
+        });
       });
 
       afterEach(() => {
         cleanup();
       });
 
-      // TODO: Skip until envio migrates to createTestIndexer — vi.spyOn can't intercept tsx-loaded modules (alpha.18)
-      it.skip("should update the liquidity pool aggregator with emissions data", () => {
-        const updatedPool = resultDB.entities.Pool.get(poolId);
-        expect(updatedPool).toBeDefined();
-        expect(updatedPool?.totalEmissions).toBe(expectations.totalEmissions);
-        expect(updatedPool?.totalEmissionsUSD).toBe(
-          expectations.totalEmissionsUSD,
-        );
-        expect(updatedPool?.totalVotesDeposited).toBe(
-          expectations.getTokensDeposited,
-        );
-        expect(updatedPool?.lastUpdatedTimestamp).toEqual(
-          new Date(1000000 * 1000),
-        );
-      });
-      // TODO: Skip until envio migrates to createTestIndexer — vi.spyOn can't intercept tsx-loaded modules (alpha.18)
-      it.skip("should update the liquidity pool aggregator with votes deposited data", () => {
-        const updatedPool = resultDB.entities.Pool.get(poolId);
-        expect(updatedPool).toBeDefined();
-        expect(updatedPool?.totalVotesDeposited).toBe(
-          expectations.getTokensDeposited,
-        );
-        expect(updatedPool?.totalVotesDepositedUSD).toBe(
-          expectations.getTokensDepositedUSD,
-        );
-        expect(updatedPool?.lastUpdatedTimestamp).toEqual(
-          new Date(1000000 * 1000),
-        );
-        expect(updatedPool?.gaugeAddress).toBe(gaugeAddress);
-      });
-      it("should not modify gaugeIsAlive (preserves existing value) when false", () => {
-        const updatedPool = resultDB.entities.Pool.get(poolId);
+      it("should not modify gaugeIsAlive (preserves existing value) when false", async () => {
+        const updatedPool = await indexer.Pool.get(poolId);
         expect(updatedPool).toBeDefined();
         expect(updatedPool?.gaugeIsAlive).toBe(false);
       });
 
       describe("when pool has gaugeIsAlive true", () => {
-        let resultDBWithAliveGauge: ReturnType<typeof MockDb.createMockDb>;
+        let aliveIndexer: ReturnType<typeof createTestIndexer>;
         let originalChainConstantsAlive: (typeof CHAIN_CONSTANTS)[typeof chainId];
 
         beforeEach(async () => {
@@ -2411,17 +2596,22 @@ describe("Voter Events", () => {
             rewardToken: vi.fn().mockReturnValue(rewardTokenAddress),
           };
 
-          let db = mockDb.entities.Token.set(rewardToken);
-          db = db.entities.Pool.set(liquidityPool);
-          resultDBWithAliveGauge = await db.processEvents([mockEvent]);
+          aliveIndexer = createTestIndexer();
+          aliveIndexer.Token.set(rewardToken);
+          aliveIndexer.Pool.set(liquidityPool);
+          await aliveIndexer.process({
+            chains: {
+              [chainId]: { simulate: [distributeSimulate] },
+            },
+          });
         });
 
         afterEach(() => {
           CHAIN_CONSTANTS[chainId] = originalChainConstantsAlive;
         });
 
-        it("should not modify gaugeIsAlive (preserves existing value) when true", () => {
-          const updatedPool = resultDBWithAliveGauge.entities.Pool.get(poolId);
+        it("should not modify gaugeIsAlive (preserves existing value) when true", async () => {
+          const updatedPool = await aliveIndexer.Pool.get(poolId);
           expect(updatedPool).toBeDefined();
           expect(updatedPool?.gaugeIsAlive).toBe(true);
         });
@@ -2442,10 +2632,15 @@ describe("Voter Events", () => {
         // Mock findPoolByGaugeAddress to return null (root gauge, no local pool)
         vi.spyOn(PoolModule, "findPoolByGaugeAddress").mockResolvedValue(null);
 
-        const resultDB = await mockDb.processEvents([mockEvent]);
+        const db = createTestIndexer();
+        await db.process({
+          chains: {
+            [chainId]: { simulate: [distributeSimulate] },
+          },
+        });
 
         // Should not create any pool entities when pool doesn't exist and no root-gauge mapping
-        expect(Array.from(resultDB.entities.Pool.getAll())).toHaveLength(0);
+        expect(Array.from(await db.Pool.getAll())).toHaveLength(0);
       });
 
       afterEach(() => {
@@ -2504,82 +2699,83 @@ describe("Voter Events", () => {
           lastUpdatedTimestamp: new Date(blockTimestamp * 1000),
         } as Token;
 
-        let db = MockDb.createMockDb();
-        db = db.entities.Token.set(rewardToken);
+        const db = createTestIndexer();
+        db.Token.set(rewardToken);
 
-        const rootPoolCreatedEvent =
-          RootCLPoolFactory.RootPoolCreated.createMockEvent({
-            token0: token0 as `0x${string}`,
-            token1: token1 as `0x${string}`,
-            tickSpacing,
-            chainid: BigInt(leafChainId),
-            pool: rootPoolAddress,
-            mockEventData: {
-              block: {
-                timestamp: blockTimestamp,
-                number: blockNumberForRoot,
-                hash: txHash,
-              },
-              chainId: chainId,
-              logIndex: 1,
+        await db.process({
+          chains: {
+            [chainId]: {
+              simulate: [
+                {
+                  contract: "RootCLPoolFactory",
+                  event: "RootPoolCreated",
+                  logIndex: 1,
+                  block: {
+                    timestamp: blockTimestamp,
+                    number: blockNumberForRoot,
+                    hash: txHash,
+                  },
+                  params: {
+                    token0: token0 as `0x${string}`,
+                    token1: token1 as `0x${string}`,
+                    tickSpacing,
+                    chainid: BigInt(leafChainId),
+                    pool: rootPoolAddress,
+                  },
+                },
+                {
+                  contract: "Voter",
+                  event: "GaugeCreated",
+                  logIndex: 2,
+                  block: {
+                    number: blockNumberForRoot,
+                    timestamp: blockTimestamp,
+                    hash: txHash,
+                  },
+                  params: {
+                    poolFactory: toChecksumAddress(
+                      "0xCc0bDDB707055e04e497aB22a59c2aF4391cd12F",
+                    ),
+                    votingRewardsFactory: toChecksumAddress(
+                      "0x2222222222222222222222222222222222222222",
+                    ),
+                    gaugeFactory: toChecksumAddress(
+                      "0x3333333333333333333333333333333333333333",
+                    ),
+                    pool: rootPoolAddress,
+                    bribeVotingReward: toChecksumAddress(
+                      "0x5555555555555555555555555555555555555555",
+                    ),
+                    feeVotingReward: toChecksumAddress(
+                      "0x6666666666666666666666666666666666666666",
+                    ),
+                    gauge: gaugeAddress,
+                    creator: toChecksumAddress(
+                      "0x7777777777777777777777777777777777777777",
+                    ),
+                  },
+                },
+                {
+                  contract: "Voter",
+                  event: "DistributeReward",
+                  logIndex: 3,
+                  srcAddress: toChecksumAddress(
+                    "0x41C914ee0c7E1A5edCD0295623e6dC557B5aBf3C",
+                  ),
+                  block: {
+                    number: blockNumberForRoot,
+                    timestamp: blockTimestamp,
+                    hash: txHash,
+                  },
+                  params: { gauge: gaugeAddress, amount: 1000n * 10n ** 18n },
+                },
+              ],
             },
-          });
-        const gaugeCreatedEvent = Voter.GaugeCreated.createMockEvent({
-          poolFactory: toChecksumAddress(
-            "0xCc0bDDB707055e04e497aB22a59c2aF4391cd12F",
-          ),
-          votingRewardsFactory: toChecksumAddress(
-            "0x2222222222222222222222222222222222222222",
-          ),
-          gaugeFactory: toChecksumAddress(
-            "0x3333333333333333333333333333333333333333",
-          ),
-          pool: rootPoolAddress,
-          bribeVotingReward: toChecksumAddress(
-            "0x5555555555555555555555555555555555555555",
-          ),
-          feeVotingReward: toChecksumAddress(
-            "0x6666666666666666666666666666666666666666",
-          ),
-          gauge: gaugeAddress,
-          creator: toChecksumAddress(
-            "0x7777777777777777777777777777777777777777",
-          ),
-          mockEventData: {
-            block: {
-              number: blockNumberForRoot,
-              timestamp: blockTimestamp,
-              hash: txHash,
-            },
-            chainId: chainId,
-            logIndex: 2,
           },
         });
-        const distributeRewardEvent = Voter.DistributeReward.createMockEvent({
-          gauge: gaugeAddress,
-          amount: 1000n * 10n ** 18n,
-          mockEventData: {
-            block: {
-              number: blockNumberForRoot,
-              timestamp: blockTimestamp,
-              hash: txHash,
-            },
-            chainId: chainId,
-            logIndex: 3,
-            srcAddress: toChecksumAddress(
-              "0x41C914ee0c7E1A5edCD0295623e6dC557B5aBf3C",
-            ),
-          },
-        });
-
-        const resultDB = await db.processEvents([
-          rootPoolCreatedEvent,
-          gaugeCreatedEvent,
-          distributeRewardEvent,
-        ]);
 
         expect(
-          resultDB.entities.RootGauge_RootPool.get(
+          await db.RootGauge_RootPool.get(
             RootGaugeRootPoolId(chainId, gaugeAddress),
           ),
         ).toBeDefined();
@@ -2591,12 +2787,12 @@ describe("Voter Events", () => {
           3,
         );
         const pendingDistribution =
-          resultDB.entities.PendingDistribution.get(pendingDistId);
+          await db.PendingDistribution.get(pendingDistId);
         expect(pendingDistribution).toBeDefined();
         expect(pendingDistribution?.gaugeAddress).toBe(gaugeAddress);
         expect(pendingDistribution?.amount).toBe(1000n * 10n ** 18n);
 
-        expect(Array.from(resultDB.entities.Pool.getAll())).toHaveLength(0);
+        expect(Array.from(await db.Pool.getAll())).toHaveLength(0);
       });
 
       afterEach(() => {
@@ -2651,39 +2847,22 @@ describe("Voter Events", () => {
           leafPoolAddressB,
         );
 
-        const distributeRewardEvent = Voter.DistributeReward.createMockEvent({
-          gauge: gaugeAddress,
-          amount: 1000n * 10n ** 18n,
-          mockEventData: {
-            block: {
-              number: blockNumberForRoot,
-              timestamp: 1000000,
-              hash: "0xblockhash",
-            },
-            chainId: chainId,
-            logIndex,
-            srcAddress: toChecksumAddress(
-              "0x41C914ee0c7E1A5edCD0295623e6dC557B5aBf3C",
-            ),
-          },
-        });
-
-        let db = MockDb.createMockDb();
-        db = db.entities.Token.set(rewardToken);
-        db = db.entities.RootGauge_RootPool.set({
+        const db = createTestIndexer();
+        db.Token.set(rewardToken);
+        db.RootGauge_RootPool.set({
           id: rootGaugeRootPoolId,
           rootChainId: chainId,
           rootGaugeAddress: gaugeAddress,
           rootPoolAddress: rootPoolAddressForAmbiguous,
         });
-        db = db.entities.RootPool_LeafPool.set({
+        db.RootPool_LeafPool.set({
           id: rootPoolLeafPoolIdA,
           rootChainId: chainId,
           rootPoolAddress: rootPoolAddressForAmbiguous,
           leafChainId,
           leafPoolAddress: leafPoolAddressA,
         });
-        db = db.entities.RootPool_LeafPool.set({
+        db.RootPool_LeafPool.set({
           id: rootPoolLeafPoolIdB,
           rootChainId: chainId,
           rootPoolAddress: rootPoolAddressForAmbiguous,
@@ -2691,7 +2870,28 @@ describe("Voter Events", () => {
           leafPoolAddress: leafPoolAddressB,
         });
 
-        const resultDB = await db.processEvents([distributeRewardEvent]);
+        await db.process({
+          chains: {
+            [chainId]: {
+              simulate: [
+                {
+                  contract: "Voter",
+                  event: "DistributeReward",
+                  logIndex,
+                  srcAddress: toChecksumAddress(
+                    "0x41C914ee0c7E1A5edCD0295623e6dC557B5aBf3C",
+                  ),
+                  block: {
+                    number: blockNumberForRoot,
+                    timestamp: 1000000,
+                    hash: "0xblockhash",
+                  },
+                  params: { gauge: gaugeAddress, amount: 1000n * 10n ** 18n },
+                },
+              ],
+            },
+          },
+        });
 
         const pendingDistId = PendingDistributionId(
           chainId,
@@ -2700,7 +2900,7 @@ describe("Voter Events", () => {
           logIndex,
         );
         const pendingDistribution =
-          resultDB.entities.PendingDistribution.get(pendingDistId);
+          await db.PendingDistribution.get(pendingDistId);
         expect(pendingDistribution).toBeDefined();
         expect(pendingDistribution?.gaugeAddress).toBe(gaugeAddress);
         expect(pendingDistribution?.amount).toBe(1000n * 10n ** 18n);
@@ -2713,7 +2913,7 @@ describe("Voter Events", () => {
         expect(pendingDistribution?.logIndex).toBe(logIndex);
 
         // Distribution was deferred; no pool should have been updated
-        expect(Array.from(resultDB.entities.Pool.getAll())).toHaveLength(0);
+        expect(Array.from(await db.Pool.getAll())).toHaveLength(0);
       });
     });
 
@@ -2740,33 +2940,37 @@ describe("Voter Events", () => {
           lastUpdatedTimestamp: new Date(1000000 * 1000),
         } as Token;
 
-        const distributeRewardEvent = Voter.DistributeReward.createMockEvent({
-          gauge: gaugeAddress,
-          amount: 1000n * 10n ** 18n,
-          mockEventData: {
-            block: {
-              number: blockNumberForSink,
-              timestamp: 1000000,
-              hash: "0xblockhash",
-            },
-            chainId: chainId,
-            logIndex,
-            srcAddress: voterAddress,
-          },
-        });
-
-        let db = MockDb.createMockDb();
-        db = db.entities.Token.set(rewardToken);
-        db = db.entities.RootGauge_RootPool.set({
+        const db = createTestIndexer();
+        db.Token.set(rewardToken);
+        db.RootGauge_RootPool.set({
           id: RootGaugeRootPoolId(chainId, gaugeAddress),
           rootChainId: chainId,
           rootGaugeAddress: gaugeAddress,
           rootPoolAddress: sinkRootPoolAddress,
         });
 
-        const resultDB = await db.processEvents([distributeRewardEvent]);
+        await db.process({
+          chains: {
+            [chainId]: {
+              simulate: [
+                {
+                  contract: "Voter",
+                  event: "DistributeReward",
+                  logIndex,
+                  srcAddress: voterAddress,
+                  block: {
+                    number: blockNumberForSink,
+                    timestamp: 1000000,
+                    hash: "0xblockhash",
+                  },
+                  params: { gauge: gaugeAddress, amount: 1000n * 10n ** 18n },
+                },
+              ],
+            },
+          },
+        });
 
-        const pendingDistribution = resultDB.entities.PendingDistribution.get(
+        const pendingDistribution = await db.PendingDistribution.get(
           PendingDistributionId(
             chainId,
             sinkRootPoolAddress,
@@ -2775,133 +2979,10 @@ describe("Voter Events", () => {
           ),
         );
         expect(pendingDistribution).toBeUndefined();
-        expect(
-          Array.from(resultDB.entities.PendingDistribution.getAll()),
-        ).toHaveLength(0);
-        expect(Array.from(resultDB.entities.Pool.getAll())).toHaveLength(0);
-      });
-    });
-
-    describe("when gauge is root gauge and RootGauge_RootPool + RootPool_LeafPool exist", () => {
-      const leafChainId = 252;
-      const rootPoolAddress = poolAddress;
-      const leafPoolAddress = toChecksumAddress(
-        "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      );
-      const leafPoolId = PoolId(leafChainId, leafPoolAddress);
-      const leafGaugeAddress = toChecksumAddress(
-        "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-      );
-      let originalChainConstantsCrossChain: (typeof CHAIN_CONSTANTS)[typeof chainId];
-
-      // TODO: Skip until envio migrates to createTestIndexer — vi.spyOn can't intercept tsx-loaded modules (alpha.18)
-      it.skip("should apply distribution to leaf pool without overwriting gaugeAddress", async () => {
-        const { createMockPool, mockToken0Data, mockToken1Data } =
-          setupCommon();
-
-        const leafToken0Id = TokenId(leafChainId, mockToken0Data.address);
-        const leafToken1Id = TokenId(leafChainId, mockToken1Data.address);
-        const leafPool = createMockPool({
-          id: leafPoolId,
-          poolAddress: leafPoolAddress as `0x${string}`,
-          chainId: leafChainId,
-          token0_id: leafToken0Id,
-          token1_id: leafToken1Id,
-          token0_address: mockToken0Data.address as `0x${string}`,
-          token1_address: mockToken1Data.address as `0x${string}`,
-          totalEmissions: 0n,
-          totalEmissionsUSD: 0n,
-          totalVotesDeposited: 0n,
-          totalVotesDepositedUSD: 0n,
-          gaugeAddress: leafGaugeAddress,
-          gaugeIsAlive: true,
-        });
-
-        const rewardToken: Token = {
-          id: TokenId(chainId, rewardTokenAddress),
-          address: rewardTokenAddress,
-          symbol: "VELO",
-          name: "VELO",
-          chainId: chainId,
-          decimals: 18n,
-          pricePerUSDNew: 2n * 10n ** 18n,
-          isWhitelisted: true,
-          lastUpdatedTimestamp: new Date(1000000 * 1000),
-        } as Token;
-
-        const leafToken0: Token = {
-          ...mockToken0Data,
-          id: leafToken0Id,
-          chainId: leafChainId,
-        };
-        const leafToken1: Token = {
-          ...mockToken1Data,
-          id: leafToken1Id,
-          chainId: leafChainId,
-        };
-
-        vi.spyOn(PoolModule, "findPoolByGaugeAddress").mockResolvedValue(null);
-
-        vi.spyOn(
-          getTokensDeposited as unknown as EffectWithHandler<
-            {
-              rewardTokenAddress: string;
-              gaugeAddress: string;
-              blockNumber: number;
-              eventChainId: number;
-            },
-            bigint | undefined
-          >,
-          "handler",
-        ).mockImplementation(async () => 500n * 10n ** 18n);
-
-        originalChainConstantsCrossChain = CHAIN_CONSTANTS[chainId];
-        CHAIN_CONSTANTS[chainId] = {
-          ...originalChainConstantsCrossChain,
-          rewardToken: vi.fn().mockReturnValue(rewardTokenAddress),
-        };
-
-        const rootGaugeRootPoolId = RootGaugeRootPoolId(chainId, gaugeAddress);
-        const rootPoolLeafPoolId = RootPoolLeafPoolId(
-          chainId,
-          leafChainId,
-          rootPoolAddress,
-          leafPoolAddress,
+        expect(Array.from(await db.PendingDistribution.getAll())).toHaveLength(
+          0,
         );
-
-        let db = mockDb.entities.Token.set(rewardToken);
-        db = db.entities.Token.set(leafToken0);
-        db = db.entities.Token.set(leafToken1);
-        db = db.entities.Pool.set(leafPool);
-        db = db.entities.RootGauge_RootPool.set({
-          id: rootGaugeRootPoolId,
-          rootChainId: chainId,
-          rootGaugeAddress: gaugeAddress,
-          rootPoolAddress: rootPoolAddress,
-        });
-        db = db.entities.RootPool_LeafPool.set({
-          id: rootPoolLeafPoolId,
-          rootChainId: chainId,
-          rootPoolAddress: rootPoolAddress,
-          leafChainId,
-          leafPoolAddress,
-        });
-
-        const resultDB = await db.processEvents([mockEvent]);
-
-        const updatedLeafPool = resultDB.entities.Pool.get(leafPoolId);
-        expect(updatedLeafPool).toBeDefined();
-        expect(updatedLeafPool?.totalEmissions).toBe(1000n * 10n ** 18n);
-        expect(updatedLeafPool?.totalEmissionsUSD).toBe(2000n * 10n ** 18n);
-        expect(updatedLeafPool?.totalVotesDeposited).toBe(500n * 10n ** 18n);
-        // Cross-chain path must not overwrite leaf pool's gauge
-        expect(updatedLeafPool?.gaugeAddress).toBe(leafGaugeAddress);
-      });
-
-      afterEach(() => {
-        if (originalChainConstantsCrossChain !== undefined) {
-          CHAIN_CONSTANTS[chainId] = originalChainConstantsCrossChain;
-        }
+        expect(Array.from(await db.Pool.getAll())).toHaveLength(0);
       });
     });
 
@@ -2929,14 +3010,18 @@ describe("Voter Events", () => {
         );
 
         // Create a fresh database with only the liquidity pool, no reward token
-        const freshDb = MockDb.createMockDb();
-        const testDb = freshDb.entities.Pool.set(liquidityPool);
+        const freshDb = createTestIndexer();
+        freshDb.Pool.set(liquidityPool);
 
-        const resultDB = await testDb.processEvents([mockEvent]);
+        await freshDb.process({
+          chains: {
+            [chainId]: { simulate: [distributeSimulate] },
+          },
+        });
 
         // Should not update any entities when reward token is missing
-        expect(Array.from(resultDB.entities.Pool.getAll())).toHaveLength(1);
-        const pool = resultDB.entities.Pool.get(PoolId(chainId, poolAddress));
+        expect(Array.from(await freshDb.Pool.getAll())).toHaveLength(1);
+        const pool = await freshDb.Pool.get(PoolId(chainId, poolAddress));
         expect(pool?.totalEmissions).toBe(0n); // Should remain unchanged
       });
 

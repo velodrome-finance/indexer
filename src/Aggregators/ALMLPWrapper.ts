@@ -1,4 +1,6 @@
-import type { ALM_LP_Wrapper, handlerContext } from "generated";
+import type { ALM_LP_Wrapper } from "envio";
+
+import type { handlerContext } from "../EntityTypes";
 
 import { setALMLPWrapperSnapshot } from "../Snapshots/ALMLPWrapperSnapshot";
 import { getSnapshotEpoch, shouldSnapshot } from "../Snapshots/Shared";

@@ -1,11 +1,12 @@
-import type { PoolLauncherPool, Token } from "generated";
-import { MockDb, V2PoolLauncher } from "generated/src/TestHelpers.gen";
+import type { PoolLauncherPool, Token } from "envio";
+import { createTestIndexer } from "envio";
 import { PoolId, TokenId, toChecksumAddress } from "../../../src/Constants";
+import { rehydrateTimestamps } from "../../../src/EntityTimestamps";
 import { type MockPool, setupCommon } from "../Pool/common";
 
 describe("V2PoolLauncher Events", () => {
   const { createMockPool, mockToken0Data, mockToken1Data } = setupCommon();
-  const mockChainId = 10;
+  const mockChainId = 10 as const;
   const mockPoolAddress = toChecksumAddress(
     "0x1111111111111111111111111111111111111111",
   );
@@ -56,7 +57,7 @@ describe("V2PoolLauncher Events", () => {
   };
 
   let mockPool: MockPool;
-  let mockDb: ReturnType<typeof MockDb.createMockDb>;
+  let indexer: ReturnType<typeof createTestIndexer>;
 
   beforeEach(() => {
     mockPool = createMockPool({
@@ -64,39 +65,52 @@ describe("V2PoolLauncher Events", () => {
       chainId: mockChainId,
     });
 
-    mockDb = MockDb.createMockDb();
-    mockDb = mockDb.entities.Token.set(mockToken0);
-    mockDb = mockDb.entities.Token.set(mockToken1);
-    mockDb = mockDb.entities.Pool.set(mockPool);
+    indexer = createTestIndexer();
+    indexer.Token.set(mockToken0);
+    indexer.Token.set(mockToken1);
+    indexer.Pool.set(mockPool);
   });
 
   describe("V2PoolLauncher.Launch", () => {
     it("should create a new PoolLauncherPool and link to Pool", async () => {
-      const mockEvent = V2PoolLauncher.Launch.createMockEvent({
-        pool: mockPoolAddress,
-        sender: mockCreator,
-        poolLauncherToken: mockPoolLauncherToken,
-        poolLauncherPool: [
-          1000000n,
-          mockPairToken,
-          mockPoolLauncherToken,
-          mockPoolAddress,
-        ],
-        mockEventData: {
-          block: {
-            timestamp: 1000000,
+      await indexer.process({
+        chains: {
+          [mockChainId]: {
+            simulate: [
+              {
+                contract: "V2PoolLauncher",
+                event: "Launch",
+                srcAddress: mockLauncherAddress,
+                logIndex: 1,
+                block: {
+                  timestamp: 1000000,
+                  number: 123456,
+                  hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                },
+                params: {
+                  pool: mockPoolAddress,
+                  sender: mockCreator,
+                  poolLauncherToken: mockPoolLauncherToken,
+                  poolLauncherPool: {
+                    createdAt: 1000000n,
+                    pool: mockPairToken,
+                    poolLauncherToken: mockPoolLauncherToken,
+                    tokenToPair: mockPoolAddress,
+                  },
+                },
+              },
+            ],
           },
-          srcAddress: mockLauncherAddress,
-          chainId: mockChainId,
         },
       });
 
-      const result = await mockDb.processEvents([mockEvent]);
-
       // Check that PoolLauncherPool was created
-      const poolLauncherPool = result.entities.PoolLauncherPool.get(
+      const rawPool = await indexer.PoolLauncherPool.get(
         PoolId(mockChainId, mockPoolAddress),
       );
+      const poolLauncherPool = rawPool
+        ? rehydrateTimestamps("PoolLauncherPool", rawPool)
+        : undefined;
       expect(poolLauncherPool).toBeDefined();
       expect(poolLauncherPool?.underlyingPool).toBe(mockPoolAddress);
       expect(poolLauncherPool?.launcher).toBe(mockLauncherAddress);
@@ -106,7 +120,7 @@ describe("V2PoolLauncher Events", () => {
       expect(poolLauncherPool?.isEmerging).toBe(false);
 
       // Check that Pool was linked
-      const liquidityPoolAggregator = result.entities.Pool.get(
+      const liquidityPoolAggregator = await indexer.Pool.get(
         PoolId(mockChainId, mockPoolAddress),
       );
       expect(liquidityPoolAggregator).toBeDefined();
@@ -150,33 +164,46 @@ describe("V2PoolLauncher Events", () => {
         chainId: mockChainId,
       };
 
-      mockDb = mockDb.entities.PoolLauncherPool.set(existingPoolLauncherPool);
+      indexer.PoolLauncherPool.set(existingPoolLauncherPool);
 
-      const mockEvent = V2PoolLauncher.Migrate.createMockEvent({
-        underlyingPool,
-        locker: oldLocker,
-        newLocker,
-        newPoolLauncherPool: [
-          1000000n,
-          mockPairToken,
-          mockPoolLauncherToken,
-          newPoolAddress,
-        ],
-        mockEventData: {
-          block: {
-            timestamp: 1000000,
+      await indexer.process({
+        chains: {
+          [mockChainId]: {
+            simulate: [
+              {
+                contract: "V2PoolLauncher",
+                event: "Migrate",
+                srcAddress: mockLauncherAddress,
+                logIndex: 1,
+                block: {
+                  timestamp: 1000000,
+                  number: 123456,
+                  hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                },
+                params: {
+                  underlyingPool,
+                  locker: oldLocker,
+                  newLocker,
+                  newPoolLauncherPool: {
+                    createdAt: 1000000n,
+                    pool: mockPairToken,
+                    poolLauncherToken: mockPoolLauncherToken,
+                    tokenToPair: newPoolAddress,
+                  },
+                },
+              },
+            ],
           },
-          srcAddress: mockLauncherAddress,
-          chainId: mockChainId,
         },
       });
 
-      const result = await mockDb.processEvents([mockEvent]);
-
       // Check that original PoolLauncherPool was updated with migration info
-      const originalPoolLauncherPool = result.entities.PoolLauncherPool.get(
+      const rawOriginal = await indexer.PoolLauncherPool.get(
         PoolId(mockChainId, underlyingPool),
       );
+      const originalPoolLauncherPool = rawOriginal
+        ? rehydrateTimestamps("PoolLauncherPool", rawOriginal)
+        : undefined;
       expect(originalPoolLauncherPool).toBeDefined();
       expect(originalPoolLauncherPool?.migratedTo).toBe(newPoolAddress);
       expect(originalPoolLauncherPool?.oldLocker).toBe(oldLocker);
@@ -184,9 +211,12 @@ describe("V2PoolLauncher Events", () => {
       expect(originalPoolLauncherPool?.lastMigratedAt).toEqual(mockTimestamp);
 
       // Check that new PoolLauncherPool was created
-      const newPoolLauncherPool = result.entities.PoolLauncherPool.get(
+      const rawNew = await indexer.PoolLauncherPool.get(
         PoolId(mockChainId, newPoolAddress),
       );
+      const newPoolLauncherPool = rawNew
+        ? rehydrateTimestamps("PoolLauncherPool", rawNew)
+        : undefined;
       expect(newPoolLauncherPool).toBeDefined();
       expect(newPoolLauncherPool?.underlyingPool).toBe(newPoolAddress);
       expect(newPoolLauncherPool?.creator).toBe(mockCreator); // Should keep original creator
@@ -210,34 +240,44 @@ describe("V2PoolLauncher Events", () => {
         "0x4444444444444444444444444444444444444444",
       );
 
-      const mockEvent = V2PoolLauncher.Migrate.createMockEvent({
-        underlyingPool,
-        locker: oldLocker,
-        newLocker,
-        newPoolLauncherPool: [
-          1000000n,
-          mockPairToken,
-          mockPoolLauncherToken,
-          newPoolAddress,
-        ],
-        mockEventData: {
-          block: {
-            timestamp: 1000000,
+      await indexer.process({
+        chains: {
+          [mockChainId]: {
+            simulate: [
+              {
+                contract: "V2PoolLauncher",
+                event: "Migrate",
+                srcAddress: mockLauncherAddress,
+                logIndex: 1,
+                block: {
+                  timestamp: 1000000,
+                  number: 123456,
+                  hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                },
+                params: {
+                  underlyingPool,
+                  locker: oldLocker,
+                  newLocker,
+                  newPoolLauncherPool: {
+                    createdAt: 1000000n,
+                    pool: mockPairToken,
+                    poolLauncherToken: mockPoolLauncherToken,
+                    tokenToPair: newPoolAddress,
+                  },
+                },
+              },
+            ],
           },
-          srcAddress: mockLauncherAddress,
-          chainId: mockChainId,
         },
       });
 
-      const result = await mockDb.processEvents([mockEvent]);
-
       // Should not create any PoolLauncherPool entities since original doesn't exist
-      const originalPoolLauncherPool = result.entities.PoolLauncherPool.get(
+      const originalPoolLauncherPool = await indexer.PoolLauncherPool.get(
         PoolId(mockChainId, underlyingPool),
       );
       expect(originalPoolLauncherPool).toBeUndefined();
 
-      const newPoolLauncherPool = result.entities.PoolLauncherPool.get(
+      const newPoolLauncherPool = await indexer.PoolLauncherPool.get(
         PoolId(mockChainId, newPoolAddress),
       );
       expect(newPoolLauncherPool).toBeUndefined();
@@ -264,45 +304,68 @@ describe("V2PoolLauncher Events", () => {
         chainId: mockChainId,
       };
 
-      mockDb = mockDb.entities.PoolLauncherPool.set(existingPoolLauncherPool);
+      indexer.PoolLauncherPool.set(existingPoolLauncherPool);
 
-      const mockEvent = V2PoolLauncher.EmergingFlagged.createMockEvent({
-        pool: mockPoolAddress,
-        mockEventData: {
-          block: {
-            timestamp: 1000000,
+      await indexer.process({
+        chains: {
+          [mockChainId]: {
+            simulate: [
+              {
+                contract: "V2PoolLauncher",
+                event: "EmergingFlagged",
+                srcAddress: mockLauncherAddress,
+                logIndex: 1,
+                block: {
+                  timestamp: 1000000,
+                  number: 123456,
+                  hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                },
+                params: {
+                  pool: mockPoolAddress,
+                },
+              },
+            ],
           },
-          srcAddress: mockLauncherAddress,
-          chainId: mockChainId,
         },
       });
 
-      const result = await mockDb.processEvents([mockEvent]);
-
-      const poolLauncherPool = result.entities.PoolLauncherPool.get(
+      const rawPool = await indexer.PoolLauncherPool.get(
         PoolId(mockChainId, mockPoolAddress),
       );
+      const poolLauncherPool = rawPool
+        ? rehydrateTimestamps("PoolLauncherPool", rawPool)
+        : undefined;
       expect(poolLauncherPool).toBeDefined();
       expect(poolLauncherPool?.isEmerging).toBe(true);
       expect(poolLauncherPool?.lastFlagUpdateAt).toEqual(mockTimestamp);
     });
 
     it("should handle flagging when PoolLauncherPool doesn't exist", async () => {
-      const mockEvent = V2PoolLauncher.EmergingFlagged.createMockEvent({
-        pool: mockPoolAddress,
-        mockEventData: {
-          block: {
-            timestamp: 1000000,
+      await indexer.process({
+        chains: {
+          [mockChainId]: {
+            simulate: [
+              {
+                contract: "V2PoolLauncher",
+                event: "EmergingFlagged",
+                srcAddress: mockLauncherAddress,
+                logIndex: 1,
+                block: {
+                  timestamp: 1000000,
+                  number: 123456,
+                  hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                },
+                params: {
+                  pool: mockPoolAddress,
+                },
+              },
+            ],
           },
-          srcAddress: mockLauncherAddress,
-          chainId: mockChainId,
         },
       });
 
-      const result = await mockDb.processEvents([mockEvent]);
-
       // Should not create any PoolLauncherPool entities
-      const poolLauncherPool = result.entities.PoolLauncherPool.get(
+      const poolLauncherPool = await indexer.PoolLauncherPool.get(
         PoolId(mockChainId, mockPoolAddress),
       );
       expect(poolLauncherPool).toBeUndefined();
@@ -329,45 +392,68 @@ describe("V2PoolLauncher Events", () => {
         chainId: mockChainId,
       };
 
-      mockDb = mockDb.entities.PoolLauncherPool.set(existingPoolLauncherPool);
+      indexer.PoolLauncherPool.set(existingPoolLauncherPool);
 
-      const mockEvent = V2PoolLauncher.EmergingUnflagged.createMockEvent({
-        pool: mockPoolAddress,
-        mockEventData: {
-          block: {
-            timestamp: 1000000,
+      await indexer.process({
+        chains: {
+          [mockChainId]: {
+            simulate: [
+              {
+                contract: "V2PoolLauncher",
+                event: "EmergingUnflagged",
+                srcAddress: mockLauncherAddress,
+                logIndex: 1,
+                block: {
+                  timestamp: 1000000,
+                  number: 123456,
+                  hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                },
+                params: {
+                  pool: mockPoolAddress,
+                },
+              },
+            ],
           },
-          srcAddress: mockLauncherAddress,
-          chainId: mockChainId,
         },
       });
 
-      const result = await mockDb.processEvents([mockEvent]);
-
-      const poolLauncherPool = result.entities.PoolLauncherPool.get(
+      const rawPool = await indexer.PoolLauncherPool.get(
         PoolId(mockChainId, mockPoolAddress),
       );
+      const poolLauncherPool = rawPool
+        ? rehydrateTimestamps("PoolLauncherPool", rawPool)
+        : undefined;
       expect(poolLauncherPool).toBeDefined();
       expect(poolLauncherPool?.isEmerging).toBe(false);
       expect(poolLauncherPool?.lastFlagUpdateAt).toEqual(mockTimestamp);
     });
 
     it("should handle unflagging when PoolLauncherPool doesn't exist", async () => {
-      const mockEvent = V2PoolLauncher.EmergingUnflagged.createMockEvent({
-        pool: mockPoolAddress,
-        mockEventData: {
-          block: {
-            timestamp: 1000000,
+      await indexer.process({
+        chains: {
+          [mockChainId]: {
+            simulate: [
+              {
+                contract: "V2PoolLauncher",
+                event: "EmergingUnflagged",
+                srcAddress: mockLauncherAddress,
+                logIndex: 1,
+                block: {
+                  timestamp: 1000000,
+                  number: 123456,
+                  hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                },
+                params: {
+                  pool: mockPoolAddress,
+                },
+              },
+            ],
           },
-          srcAddress: mockLauncherAddress,
-          chainId: mockChainId,
         },
       });
 
-      const result = await mockDb.processEvents([mockEvent]);
-
       // Should not create any PoolLauncherPool entities
-      const poolLauncherPool = result.entities.PoolLauncherPool.get(
+      const poolLauncherPool = await indexer.PoolLauncherPool.get(
         PoolId(mockChainId, mockPoolAddress),
       );
       expect(poolLauncherPool).toBeUndefined();
@@ -394,26 +480,39 @@ describe("V2PoolLauncher Events", () => {
         chainId: mockChainId,
       };
 
-      mockDb = mockDb.entities.PoolLauncherPool.set(existingPoolLauncherPool);
+      indexer.PoolLauncherPool.set(existingPoolLauncherPool);
 
       const newTimestamp = 1000000n;
-      const mockEvent = V2PoolLauncher.CreationTimestampSet.createMockEvent({
-        pool: mockPoolAddress,
-        createdAt: newTimestamp,
-        mockEventData: {
-          block: {
-            timestamp: 1000000,
+      await indexer.process({
+        chains: {
+          [mockChainId]: {
+            simulate: [
+              {
+                contract: "V2PoolLauncher",
+                event: "CreationTimestampSet",
+                srcAddress: mockLauncherAddress,
+                logIndex: 1,
+                block: {
+                  timestamp: 1000000,
+                  number: 123456,
+                  hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                },
+                params: {
+                  pool: mockPoolAddress,
+                  createdAt: newTimestamp,
+                },
+              },
+            ],
           },
-          srcAddress: mockLauncherAddress,
-          chainId: mockChainId,
         },
       });
 
-      const result = await mockDb.processEvents([mockEvent]);
-
-      const poolLauncherPool = result.entities.PoolLauncherPool.get(
+      const rawPool = await indexer.PoolLauncherPool.get(
         PoolId(mockChainId, mockPoolAddress),
       );
+      const poolLauncherPool = rawPool
+        ? rehydrateTimestamps("PoolLauncherPool", rawPool)
+        : undefined;
       expect(poolLauncherPool).toBeDefined();
       expect(poolLauncherPool?.createdAt).toEqual(
         new Date(Number(newTimestamp) * 1000),
@@ -422,22 +521,32 @@ describe("V2PoolLauncher Events", () => {
 
     it("should handle timestamp update when PoolLauncherPool doesn't exist", async () => {
       const newTimestamp = 1000000n;
-      const mockEvent = V2PoolLauncher.CreationTimestampSet.createMockEvent({
-        pool: mockPoolAddress,
-        createdAt: newTimestamp,
-        mockEventData: {
-          block: {
-            timestamp: 1000000,
+      await indexer.process({
+        chains: {
+          [mockChainId]: {
+            simulate: [
+              {
+                contract: "V2PoolLauncher",
+                event: "CreationTimestampSet",
+                srcAddress: mockLauncherAddress,
+                logIndex: 1,
+                block: {
+                  timestamp: 1000000,
+                  number: 123456,
+                  hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                },
+                params: {
+                  pool: mockPoolAddress,
+                  createdAt: newTimestamp,
+                },
+              },
+            ],
           },
-          srcAddress: mockLauncherAddress,
-          chainId: mockChainId,
         },
       });
 
-      const result = await mockDb.processEvents([mockEvent]);
-
       // Should not create any PoolLauncherPool entities
-      const poolLauncherPool = result.entities.PoolLauncherPool.get(
+      const poolLauncherPool = await indexer.PoolLauncherPool.get(
         PoolId(mockChainId, mockPoolAddress),
       );
       expect(poolLauncherPool).toBeUndefined();
@@ -451,21 +560,31 @@ describe("V2PoolLauncher Events", () => {
       );
       const configId = PoolId(mockChainId, mockLauncherAddress);
 
-      const mockEvent = V2PoolLauncher.PairableTokenAdded.createMockEvent({
-        token: tokenAddress,
-        mockEventData: {
-          block: {
-            timestamp: 1000000,
+      await indexer.process({
+        chains: {
+          [mockChainId]: {
+            simulate: [
+              {
+                contract: "V2PoolLauncher",
+                event: "PairableTokenAdded",
+                srcAddress: mockLauncherAddress,
+                logIndex: 1,
+                block: {
+                  timestamp: 1000000,
+                  number: 123456,
+                  hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                },
+                params: {
+                  token: tokenAddress,
+                },
+              },
+            ],
           },
-          srcAddress: mockLauncherAddress,
-          chainId: mockChainId,
         },
       });
 
-      const result = await mockDb.processEvents([mockEvent]);
-
       // Should create new PoolLauncherConfig
-      const config = result.entities.PoolLauncherConfig.get(configId);
+      const config = await indexer.PoolLauncherConfig.get(configId);
       expect(config).toBeDefined();
       expect(config?.id).toBe(configId);
       expect(config?.version).toBe("V2");
@@ -487,23 +606,33 @@ describe("V2PoolLauncher Events", () => {
         version: "V2",
         pairableTokens: [existingToken],
       };
-      mockDb = mockDb.entities.PoolLauncherConfig.set(existingConfig);
+      indexer.PoolLauncherConfig.set(existingConfig);
 
-      const mockEvent = V2PoolLauncher.PairableTokenAdded.createMockEvent({
-        token: newToken,
-        mockEventData: {
-          block: {
-            timestamp: 1000000,
+      await indexer.process({
+        chains: {
+          [mockChainId]: {
+            simulate: [
+              {
+                contract: "V2PoolLauncher",
+                event: "PairableTokenAdded",
+                srcAddress: mockLauncherAddress,
+                logIndex: 1,
+                block: {
+                  timestamp: 1000000,
+                  number: 123456,
+                  hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                },
+                params: {
+                  token: newToken,
+                },
+              },
+            ],
           },
-          srcAddress: mockLauncherAddress,
-          chainId: mockChainId,
         },
       });
 
-      const result = await mockDb.processEvents([mockEvent]);
-
       // Should update existing PoolLauncherConfig
-      const config = result.entities.PoolLauncherConfig.get(configId);
+      const config = await indexer.PoolLauncherConfig.get(configId);
       expect(config).toBeDefined();
       expect(config?.id).toBe(configId);
       expect(config?.version).toBe("V2");
@@ -522,23 +651,33 @@ describe("V2PoolLauncher Events", () => {
         version: "V2",
         pairableTokens: [tokenAddress],
       };
-      mockDb = mockDb.entities.PoolLauncherConfig.set(existingConfig);
+      indexer.PoolLauncherConfig.set(existingConfig);
 
-      const mockEvent = V2PoolLauncher.PairableTokenAdded.createMockEvent({
-        token: tokenAddress,
-        mockEventData: {
-          block: {
-            timestamp: 1000000,
+      await indexer.process({
+        chains: {
+          [mockChainId]: {
+            simulate: [
+              {
+                contract: "V2PoolLauncher",
+                event: "PairableTokenAdded",
+                srcAddress: mockLauncherAddress,
+                logIndex: 1,
+                block: {
+                  timestamp: 1000000,
+                  number: 123456,
+                  hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                },
+                params: {
+                  token: tokenAddress,
+                },
+              },
+            ],
           },
-          srcAddress: mockLauncherAddress,
-          chainId: mockChainId,
         },
       });
 
-      const result = await mockDb.processEvents([mockEvent]);
-
       // Should not add duplicate token
-      const config = result.entities.PoolLauncherConfig.get(configId);
+      const config = await indexer.PoolLauncherConfig.get(configId);
       expect(config).toBeDefined();
       expect(config?.pairableTokens).toEqual([tokenAddress]);
     });
@@ -560,23 +699,33 @@ describe("V2PoolLauncher Events", () => {
         version: "V2",
         pairableTokens: [tokenToRemove, remainingToken],
       };
-      mockDb = mockDb.entities.PoolLauncherConfig.set(existingConfig);
+      indexer.PoolLauncherConfig.set(existingConfig);
 
-      const mockEvent = V2PoolLauncher.PairableTokenRemoved.createMockEvent({
-        token: tokenToRemove,
-        mockEventData: {
-          block: {
-            timestamp: 1000000,
+      await indexer.process({
+        chains: {
+          [mockChainId]: {
+            simulate: [
+              {
+                contract: "V2PoolLauncher",
+                event: "PairableTokenRemoved",
+                srcAddress: mockLauncherAddress,
+                logIndex: 1,
+                block: {
+                  timestamp: 1000000,
+                  number: 123456,
+                  hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                },
+                params: {
+                  token: tokenToRemove,
+                },
+              },
+            ],
           },
-          srcAddress: mockLauncherAddress,
-          chainId: mockChainId,
         },
       });
 
-      const result = await mockDb.processEvents([mockEvent]);
-
       // Should update PoolLauncherConfig by removing the token
-      const config = result.entities.PoolLauncherConfig.get(configId);
+      const config = await indexer.PoolLauncherConfig.get(configId);
       expect(config).toBeDefined();
       expect(config?.id).toBe(configId);
       expect(config?.version).toBe("V2");
@@ -589,21 +738,31 @@ describe("V2PoolLauncher Events", () => {
       );
       const configId = PoolId(mockChainId, mockLauncherAddress);
 
-      const mockEvent = V2PoolLauncher.PairableTokenRemoved.createMockEvent({
-        token: tokenAddress,
-        mockEventData: {
-          block: {
-            timestamp: 1000000,
+      await indexer.process({
+        chains: {
+          [mockChainId]: {
+            simulate: [
+              {
+                contract: "V2PoolLauncher",
+                event: "PairableTokenRemoved",
+                srcAddress: mockLauncherAddress,
+                logIndex: 1,
+                block: {
+                  timestamp: 1000000,
+                  number: 123456,
+                  hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                },
+                params: {
+                  token: tokenAddress,
+                },
+              },
+            ],
           },
-          srcAddress: mockLauncherAddress,
-          chainId: mockChainId,
         },
       });
 
-      const result = await mockDb.processEvents([mockEvent]);
-
       // Should not create any config when trying to remove from non-existent config
-      const config = result.entities.PoolLauncherConfig.get(configId);
+      const config = await indexer.PoolLauncherConfig.get(configId);
       expect(config).toBeUndefined();
     });
 
@@ -622,23 +781,33 @@ describe("V2PoolLauncher Events", () => {
         version: "V2",
         pairableTokens: [existingToken],
       };
-      mockDb = mockDb.entities.PoolLauncherConfig.set(existingConfig);
+      indexer.PoolLauncherConfig.set(existingConfig);
 
-      const mockEvent = V2PoolLauncher.PairableTokenRemoved.createMockEvent({
-        token: nonExistentToken,
-        mockEventData: {
-          block: {
-            timestamp: 1000000,
+      await indexer.process({
+        chains: {
+          [mockChainId]: {
+            simulate: [
+              {
+                contract: "V2PoolLauncher",
+                event: "PairableTokenRemoved",
+                srcAddress: mockLauncherAddress,
+                logIndex: 1,
+                block: {
+                  timestamp: 1000000,
+                  number: 123456,
+                  hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                },
+                params: {
+                  token: nonExistentToken,
+                },
+              },
+            ],
           },
-          srcAddress: mockLauncherAddress,
-          chainId: mockChainId,
         },
       });
 
-      const result = await mockDb.processEvents([mockEvent]);
-
       // Should keep existing tokens unchanged
-      const config = result.entities.PoolLauncherConfig.get(configId);
+      const config = await indexer.PoolLauncherConfig.get(configId);
       expect(config).toBeDefined();
       expect(config?.pairableTokens).toEqual([existingToken]);
     });
@@ -661,52 +830,72 @@ describe("V2PoolLauncher Events", () => {
           toChecksumAddress("0x2222222222222222222222222222222222222222"),
         ],
       };
-      mockDb = mockDb.entities.PoolLauncherConfig.set(existingConfig);
+      indexer.PoolLauncherConfig.set(existingConfig);
 
-      const mockEvent = V2PoolLauncher.NewPoolLauncherSet.createMockEvent({
-        newPoolLauncher,
-        mockEventData: {
-          block: {
-            timestamp: 1000000,
+      await indexer.process({
+        chains: {
+          [mockChainId]: {
+            simulate: [
+              {
+                contract: "V2PoolLauncher",
+                event: "NewPoolLauncherSet",
+                srcAddress: mockLauncherAddress,
+                logIndex: 1,
+                block: {
+                  timestamp: 1000000,
+                  number: 123456,
+                  hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                },
+                params: {
+                  newPoolLauncher,
+                },
+              },
+            ],
           },
-          srcAddress: mockLauncherAddress,
-          chainId: mockChainId,
         },
       });
 
-      const result = await mockDb.processEvents([mockEvent]);
-
       // Should create new config with updated ID
-      const newConfig = result.entities.PoolLauncherConfig.get(newConfigId);
+      const newConfig = await indexer.PoolLauncherConfig.get(newConfigId);
       expect(newConfig).toBeDefined();
       expect(newConfig?.id).toBe(newConfigId);
       expect(newConfig?.version).toBe("V2");
       expect(newConfig?.pairableTokens).toEqual(existingConfig.pairableTokens);
 
       // Old config should still exist (we're not deleting it)
-      const oldConfig = result.entities.PoolLauncherConfig.get(oldConfigId);
+      const oldConfig = await indexer.PoolLauncherConfig.get(oldConfigId);
       expect(oldConfig).toBeDefined();
     });
 
     it("should handle pool launcher change when no existing config", async () => {
-      const mockEvent = V2PoolLauncher.NewPoolLauncherSet.createMockEvent({
-        newPoolLauncher,
-        mockEventData: {
-          block: {
-            timestamp: 1000000,
+      await indexer.process({
+        chains: {
+          [mockChainId]: {
+            simulate: [
+              {
+                contract: "V2PoolLauncher",
+                event: "NewPoolLauncherSet",
+                srcAddress: mockLauncherAddress,
+                logIndex: 1,
+                block: {
+                  timestamp: 1000000,
+                  number: 123456,
+                  hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                },
+                params: {
+                  newPoolLauncher,
+                },
+              },
+            ],
           },
-          srcAddress: mockLauncherAddress,
-          chainId: mockChainId,
         },
       });
 
-      const result = await mockDb.processEvents([mockEvent]);
-
       // Should not create any config when no existing config exists
-      const newConfig = result.entities.PoolLauncherConfig.get(newConfigId);
+      const newConfig = await indexer.PoolLauncherConfig.get(newConfigId);
       expect(newConfig).toBeUndefined();
 
-      const oldConfig = result.entities.PoolLauncherConfig.get(oldConfigId);
+      const oldConfig = await indexer.PoolLauncherConfig.get(oldConfigId);
       expect(oldConfig).toBeUndefined();
     });
   });

@@ -1,5 +1,5 @@
-import type { handlerContext } from "generated";
 import type { PoolData } from "../../Aggregators/Pool";
+import type { handlerContext } from "../../EntityTypes";
 import {
   type LiquidityChangeType,
   attributeLiquidityChangeToUserStatsPerPool,

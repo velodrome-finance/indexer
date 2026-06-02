@@ -5,8 +5,9 @@ import type {
   UserStatsPerPoolSnapshot,
   VeNFTPoolVoteSnapshot,
   VeNFTStateSnapshot,
-  handlerContext,
-} from "generated";
+} from "envio";
+
+import type { handlerContext } from "../EntityTypes";
 
 import { SNAPSHOT_INTERVAL_IN_MS } from "../Constants";
 import type { PoolSnapshot } from "../EntityTypes";

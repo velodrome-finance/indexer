@@ -1,6 +1,6 @@
-import type { PoolLauncherPool, handlerContext } from "generated";
-import { MockDb } from "../../../generated/src/TestHelpers.gen";
+import type { PoolLauncherPool } from "envio";
 import { PoolId, toChecksumAddress } from "../../../src/Constants";
+import type { handlerContext } from "../../../src/EntityTypes";
 import type { Pool } from "../../../src/EntityTypes";
 import {
   linkPoolToPoolLauncher,
@@ -12,30 +12,23 @@ describe("PoolLauncherLogic", () => {
   const { createMockPool } = setupCommon();
 
   let mockContext: handlerContext;
-  let mockDb: ReturnType<typeof MockDb.createMockDb>;
+  let poolLauncherPools: Map<string, PoolLauncherPool>;
+  let pools: Map<string, Pool>;
 
   beforeEach(async () => {
-    mockDb = MockDb.createMockDb();
+    poolLauncherPools = new Map();
+    pools = new Map();
     mockContext = {
       PoolLauncherPool: {
-        get: (id: string) => mockDb.entities.PoolLauncherPool.get(id),
+        get: (id: string) => Promise.resolve(poolLauncherPools.get(id)),
         set: (entity: PoolLauncherPool) => {
-          mockDb = mockDb.entities.PoolLauncherPool.set(entity);
+          poolLauncherPools.set(entity.id, entity);
         },
       },
       Pool: {
-        get: (id: string) => mockDb.entities.Pool.get(id),
+        get: (id: string) => Promise.resolve(pools.get(id)),
         set: (entity: Pool) => {
-          // Copy readonly bigint[] fields into mutable bigint[] to satisfy
-          // MockDb.set() — envio.d.ts types these as readonly but Indexer.gen.ts
-          // expects mutable. Same workaround as createMockPool.
-          mockDb = mockDb.entities.Pool.set({
-            ...entity,
-            stakedTickEdges: [...entity.stakedTickEdges],
-            stakedTickEdgeNets: [...entity.stakedTickEdgeNets],
-            tickEdges: [...entity.tickEdges],
-            tickEdgeNets: [...entity.tickEdgeNets],
-          });
+          pools.set(entity.id, entity);
         },
       },
       isPreload: false,
@@ -97,9 +90,7 @@ describe("PoolLauncherLogic", () => {
       expect(result.lastMigratedAt).toEqual(createdAt);
 
       // Verify the entity was set in the context
-      const savedEntity = mockDb.entities.PoolLauncherPool.get(
-        `8453-${poolAddress}`,
-      );
+      const savedEntity = poolLauncherPools.get(`8453-${poolAddress}`);
       expect(savedEntity).toBeDefined();
       expect(savedEntity?.id).toBe(`8453-${poolAddress}`);
     });
@@ -124,7 +115,7 @@ describe("PoolLauncherLogic", () => {
       const chainId = 8453;
 
       // Create an existing PoolLauncherPool
-      const existingPoolLauncherPool = {
+      const existingPoolLauncherPool: PoolLauncherPool = {
         id: PoolId(chainId, poolAddress),
         chainId: chainId,
         underlyingPool: poolAddress,
@@ -148,7 +139,10 @@ describe("PoolLauncherLogic", () => {
         lastMigratedAt: new Date("2023-12-01T00:00:00Z"),
       };
 
-      mockDb = mockDb.entities.PoolLauncherPool.set(existingPoolLauncherPool);
+      poolLauncherPools.set(
+        existingPoolLauncherPool.id,
+        existingPoolLauncherPool,
+      );
 
       const result = await processPoolLauncherPool(
         poolAddress,
@@ -268,14 +262,12 @@ describe("PoolLauncherLogic", () => {
           isCL: true,
         });
 
-        mockDb = mockDb.entities.Pool.set(existingPool);
+        pools.set(existingPool.id, existingPool);
 
         await linkPoolToPoolLauncher(poolAddress, chainId, mockContext, "CL");
 
         // Assert
-        const updatedEntity = mockDb.entities.Pool.get(
-          PoolId(chainId, poolAddress),
-        );
+        const updatedEntity = pools.get(PoolId(chainId, poolAddress));
         expect(updatedEntity).toBeDefined();
         expect(updatedEntity?.poolLauncherPoolId).toBe(
           "8453-0x1234567890123456789012345678901234567890",
@@ -320,7 +312,7 @@ describe("PoolLauncherLogic", () => {
         expect(warnCalled).toBe(true);
 
         // Verify no entity was created or updated
-        const entity = mockDb.entities.Pool.get(PoolId(chainId, poolAddress));
+        const entity = pools.get(PoolId(chainId, poolAddress));
         expect(entity).toBeUndefined();
       });
     });
@@ -337,14 +329,12 @@ describe("PoolLauncherLogic", () => {
           totalLiquidityUSD: 3000000n,
         });
 
-        mockDb = mockDb.entities.Pool.set(existingPool);
+        pools.set(existingPool.id, existingPool);
 
         await linkPoolToPoolLauncher(poolAddress, chainId, mockContext, "V2");
 
         // Assert
-        const updatedEntity = mockDb.entities.Pool.get(
-          PoolId(chainId, poolAddress),
-        );
+        const updatedEntity = pools.get(PoolId(chainId, poolAddress));
         expect(updatedEntity).toBeDefined();
         expect(updatedEntity?.poolLauncherPoolId).toBe(
           "8453-0x1234567890123456789012345678901234567890",
@@ -387,7 +377,7 @@ describe("PoolLauncherLogic", () => {
         expect(warnCalled).toBe(true);
 
         // Verify no entity was created or updated
-        const entity = mockDb.entities.Pool.get(PoolId(chainId, poolAddress));
+        const entity = pools.get(PoolId(chainId, poolAddress));
         expect(entity).toBeUndefined();
       });
     });
@@ -398,12 +388,12 @@ describe("PoolLauncherLogic", () => {
         chainId: 10,
       });
 
-      mockDb = mockDb.entities.Pool.set(existingPool);
+      pools.set(existingPool.id, existingPool);
 
       await linkPoolToPoolLauncher(poolAddress, 10, mockContext, "CL");
 
       // Assert
-      const updatedEntity = mockDb.entities.Pool.get(PoolId(10, poolAddress));
+      const updatedEntity = pools.get(PoolId(10, poolAddress));
       expect(updatedEntity).toBeDefined();
       expect(updatedEntity?.poolLauncherPoolId).toBe(PoolId(10, poolAddress));
     });

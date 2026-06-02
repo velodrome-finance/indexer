@@ -17,7 +17,7 @@ vitest run test/path.ts   # Run a single test file
 vitest run -t "pattern"   # Run tests matching a name pattern
 biome check               # Lint + format check
 biome check --fix --unsafe # Auto-fix lint/format issues
-pnpm dev                  # Start indexer with Docker (TUI_OFF=true pnpm dev for CI)
+pnpm dev                  # Start indexer with Docker (ENVIO_TUI=false pnpm dev for CI)
 pnpm envio start          # Start indexer in existing container
 pnpm envio stop           # Stop the indexer
 ```
@@ -37,7 +37,7 @@ pnpm envio stop           # Stop the indexer
 - **`src/Constants.ts`** - Chain-specific constants, factory addresses, price connectors, RPC client setup. Exports `toChecksumAddress()`, chain constants map (`CHAIN_CONSTANTS`), and precision constants.
 - **`src/Helpers.ts`** - Shared utilities (error handling, CL position calculations using Uniswap v3 SDK, USD conversions).
 - **`src/PriceOracle.ts`** - Token price fetching with hourly refresh intervals.
-- **`generated/`** - Auto-generated code from `pnpm envio codegen`. Never edit manually.
+- **`.envio/types.d.ts`** - Auto-generated types from `pnpm envio codegen` (gitignored), surfaced through the `envio` package. Never edit manually. (Envio v3.0.2 emits no `generated/` directory.)
 
 ### Contract Domains
 
@@ -97,7 +97,7 @@ Tests live in `test/` mirroring the `src/` structure. Uses Vitest with threaded 
 
 - **Shared test harness**: `test/EventHandlers/Pool/common.ts` provides `setupCommon()` with mock entities, builders (`createMock*`), and `createMockContext`. Use it instead of constructing entities from scratch.
 - **Handler registration**: Test files calling `mockDb.processEvents()` must import the registration module (`import "../eventHandlersRegistration"` or `"../../eventHandlersRegistration"`).
-- **Mock events**: Use generated mock API (e.g. `Pool.Swap.createMockEvent({ ... })`).
+- **Mock events**: Simulate events inline through `createTestIndexer()` (from the `envio` package): `indexer.process({ chains: { [chainId]: { simulate: [{ contract, event, params, block, ... }] } } })`. There is no `generated/` mock-event API.
 - **Addresses in tests**: Must be checksummed via `toChecksumAddress()`.
 
 ## Lint/Format
