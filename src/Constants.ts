@@ -651,7 +651,7 @@ const SONEIUM_CONSTANTS: chainConstants = {
     getAddress: (priceOracleType: PriceOracleType) => {
       return "0xe58920a8c684CD3d6dCaC2a41b12998e4CB17EfE";
     },
-    startBlock: 1863998, // TODO: Get start block
+    startBlock: 1863998, // #821: V3 oracle deploy block, RPC-verified (eth_getCode binary-search)
     updateDelta: 60 * 60, // 1 hour
     priceConnectors: SONEIUM_PRICE_CONNECTORS,
     v1v2ConnectorBlacklist: new Set(),
