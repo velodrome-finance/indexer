@@ -13,6 +13,7 @@ import { processPoolFees } from "./Pool/PoolFeesLogic";
 import { processPoolSwap } from "./Pool/PoolSwapLogic";
 import { processPoolSync } from "./Pool/PoolSyncLogic";
 import { processPoolTransfer } from "./Pool/PoolTransferLogic";
+import { resolveSwapInitiator } from "./SwapInitiatorSharedLogic";
 
 indexer.onEvent(
   { contract: "Pool", event: "Mint" },
@@ -98,7 +99,8 @@ indexer.onEvent(
         event.block.timestamp,
       ),
       loadOrCreateUserData(
-        event.params.sender,
+        // #814: the tx signer, not params.sender (the router for routed swaps).
+        resolveSwapInitiator(event),
         event.srcAddress,
         event.chainId,
         context,
@@ -159,7 +161,8 @@ indexer.onEvent(
         event.block.timestamp,
       ),
       loadOrCreateUserData(
-        event.params.sender,
+        // #814: the tx signer, not params.sender (the router for routed swaps).
+        resolveSwapInitiator(event),
         event.srcAddress,
         event.chainId,
         context,

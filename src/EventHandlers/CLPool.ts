@@ -20,6 +20,7 @@ import { processCLPoolFlash } from "./CLPool/CLPoolFlashLogic";
 import { processCLPoolMint } from "./CLPool/CLPoolMintLogic";
 import { processCLPoolSwap } from "./CLPool/CLPoolSwapLogic";
 import { LiquidityChangeType } from "./NFPM/NFPMCommonLogic";
+import { resolveSwapInitiator } from "./SwapInitiatorSharedLogic";
 
 /**
  * Updates the liquidity-related metrics for a Concentrated Liquidity Pool.
@@ -494,7 +495,8 @@ indexer.onEvent(
         event.block.timestamp,
       ),
       loadOrCreateUserData(
-        event.params.sender,
+        // #814: the tx signer, not params.sender (the router for routed swaps).
+        resolveSwapInitiator(event),
         event.srcAddress,
         event.chainId,
         context,

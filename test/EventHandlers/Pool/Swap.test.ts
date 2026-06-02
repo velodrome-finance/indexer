@@ -188,6 +188,69 @@ describe("Pool Swap Event", () => {
     });
   });
 
+  // #814: per-user swap stats must accrue to the transaction signer (the
+  // user), not params.sender — which for routed swaps is the router/aggregator
+  // contract. `from` is lower-cased here to also prove it is checksummed
+  // before being used as the UserStatsPerPool key.
+  describe("attribution target (#814)", () => {
+    const router = toChecksumAddress(
+      "0x4444444444444444444444444444444444444444",
+    );
+    const userLower = "0xaaaabbbbccccddddeeeeffff0000111122223333";
+    const userChecksummed = toChecksumAddress(userLower);
+
+    beforeEach(async () => {
+      indexer.Pool.set({
+        ...mockLiquidityPoolData,
+        stakedTickEdges: [...mockLiquidityPoolData.stakedTickEdges],
+        stakedTickEdgeNets: [...mockLiquidityPoolData.stakedTickEdgeNets],
+      });
+      indexer.Token.set(mockToken0Data as Token);
+      indexer.Token.set(mockToken1Data as Token);
+
+      await indexer.process({
+        chains: {
+          [chainId]: {
+            simulate: [
+              {
+                contract: "Pool",
+                event: "Swap",
+                srcAddress: srcAddress,
+                logIndex: 1,
+                block: {
+                  timestamp: blockTimestamp,
+                  number: blockNumber,
+                  hash: blockHash,
+                },
+                transaction: { from: userLower },
+                params: { ...eventParams, sender: router },
+              },
+            ],
+          },
+        },
+      });
+    });
+
+    it("attributes swap volume and count to tx.from (the user)", async () => {
+      const stats = await indexer.UserStatsPerPool.get(
+        UserStatsPerPoolId(chainId, userChecksummed, srcAddress),
+      );
+      expect(stats).toBeDefined();
+      expect(stats?.userAddress).toBe(userChecksummed);
+      expect(stats?.numberOfSwaps).toBe(1n);
+      expect(stats?.totalSwapVolumeUSD).toBe(
+        expectations.expectedSwapVolumeUSDMin,
+      );
+    });
+
+    it("does not attribute the swap to params.sender (the router)", async () => {
+      const routerStats = await indexer.UserStatsPerPool.get(
+        UserStatsPerPoolId(chainId, router, srcAddress),
+      );
+      expect(routerStats).toBeUndefined();
+    });
+  });
+
   describe("when pool does not exist", () => {
     it("should return early without processing", async () => {
       // Create a mockDb without the pool
