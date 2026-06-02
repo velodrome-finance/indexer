@@ -70,8 +70,32 @@ describe("VotingRewardSharedLogic", () => {
     };
   });
 
+  // Post-#815, first-sighting reward tokens default to isWhitelisted: false, so
+  // a trusted USD valuation requires the WhitelistToken handler to have run
+  // first. These USD-math tests pre-seed an already-whitelisted, priced token;
+  // lastUpdatedTimestamp aligned to mockTimestamp throttles refreshTokenPrice so
+  // the seeded price passes through unchanged.
+  const seedWhitelistedToken = (decimals: bigint) => {
+    mockContext.Token.set({
+      id: `${mockChainId}-${mockRewardTokenAddress}`,
+      address: mockRewardTokenAddress,
+      chainId: mockChainId,
+      symbol: "TEST",
+      name: "Test Token",
+      decimals,
+      pricePerUSDNew: 1000000000000000000n, // $1
+      isWhitelisted: true,
+      lastUpdatedTimestamp: mockTimestamp,
+      lastSuccessfulPriceTimestamp: mockTimestamp,
+      priceTrustOutcome: "TRUSTED",
+      priceTrustReason: "WL",
+    });
+  };
+
   describe("processVotingRewardClaimRewards", () => {
     it("should calculate USD values correctly for bribe rewards", async () => {
+      seedWhitelistedToken(6n);
+
       const data: VotingRewardClaimRewardsData = {
         votingRewardAddress: mockVotingRewardAddress,
         userAddress: mockUserAddress,
@@ -107,6 +131,8 @@ describe("VotingRewardSharedLogic", () => {
     });
 
     it("should distinguish between bribe and fee rewards", async () => {
+      seedWhitelistedToken(6n);
+
       const data: VotingRewardClaimRewardsData = {
         votingRewardAddress: mockVotingRewardAddress,
         userAddress: mockUserAddress,
@@ -142,27 +168,8 @@ describe("VotingRewardSharedLogic", () => {
     });
 
     it("should handle different token decimals correctly", async () => {
-      // Mock a token with 18 decimals
-      mockContext.effect = async (fn: { name: string }, params: unknown) => {
-        if (fn.name === "getTokenPrice") {
-          return {
-            pricePerUSDNew: 1000000000000000000n, // 1 USD
-            priceOracleType: "v3",
-          };
-        }
-        // Mock getTokenDetails effect for token creation
-        if (fn.name === "getTokenDetails") {
-          return {
-            name: "Test Token",
-            symbol: "TEST",
-            decimals: 18,
-          };
-        }
-        if (fn.name === "hasContractBytecode") {
-          return { hasCode: true };
-        }
-        return {};
-      };
+      // Pre-seed an 18-decimal whitelisted token.
+      seedWhitelistedToken(18n);
 
       const data: VotingRewardClaimRewardsData = {
         votingRewardAddress: mockVotingRewardAddress,
@@ -297,6 +304,61 @@ describe("VotingRewardSharedLogic", () => {
         expect(result.userDiff?.[usdKey]).toBe(0n);
       },
     );
+
+    it("first-sighting non-whitelisted reward token with an inflated price contributes 0n USD and is not whitelisted (#815)", async () => {
+      // No pre-seed: exercise the first-sighting bootstrap branch. The old code
+      // hardcoded isWhitelisted: true and persisted the raw oracle read, so an
+      // inflated price was recorded as trusted and poisoned bribe USD. The fix
+      // routes the branch through createTokenEntity (gate=false, price 0n), so
+      // the token defaults untrusted and getTrustedUSD contributes 0n.
+      //
+      // The inflated getTokenPrice mock is a deliberate poison pill: the fixed
+      // path must never fetch or persist it — createTokenEntity writes 0n and
+      // the immediately-throttled refreshTokenPrice makes no oracle call — so
+      // the assertions below stay 0n / false. If the bootstrap ever regresses
+      // to fetching + persisting the raw price, this read makes it fail loudly.
+      const INFLATED_PRICE = 1_000_000_000n * 1_000_000_000_000_000_000n; // $1e9
+      mockContext.effect = async (fn: { name: string }) => {
+        if (fn.name === "getTokenPrice") {
+          return { pricePerUSDNew: INFLATED_PRICE, priceOracleType: "v3" };
+        }
+        if (fn.name === "getTokenDetails") {
+          return { name: "Inflated", symbol: "INFL", decimals: 6 };
+        }
+        if (fn.name === "hasContractBytecode") return { hasCode: true };
+        return {};
+      };
+
+      const data: VotingRewardClaimRewardsData = {
+        votingRewardAddress: mockVotingRewardAddress,
+        userAddress: mockUserAddress,
+        chainId: mockChainId,
+        blockNumber: 12345,
+        timestamp: Math.floor(mockTimestamp.getTime() / 1000),
+        reward: mockRewardTokenAddress,
+        amount: 1000000n,
+      };
+
+      const result = await processVotingRewardClaimRewards(
+        data,
+        mockContext,
+        PoolAddressField.BRIBE_VOTING_REWARD_ADDRESS,
+      );
+
+      // Raw amount passes through; the untrusted price contributes 0n USD.
+      expect(result.poolDiff?.incrementalTotalBribeClaimed).toBe(1000000n);
+      expect(result.poolDiff?.incrementalTotalBribeClaimedUSD).toBe(0n);
+      expect(result.userDiff?.incrementalTotalBribeClaimedUSD).toBe(0n);
+
+      // The bootstrapped token defaults to NOT whitelisted (mirrors
+      // createTokenEntity); the raw inflated oracle read is never persisted.
+      const created = await mockContext.Token.get(
+        `${mockChainId}-${mockRewardTokenAddress}`,
+      );
+      expect(created?.isWhitelisted).toBe(false);
+      expect(created?.pricePerUSDNew).toBe(0n);
+      expect(created?.priceTrustOutcome).toBe("UNTRUSTED");
+    });
   });
 
   describe("loadVotingRewardData", () => {
