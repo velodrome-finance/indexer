@@ -62,7 +62,6 @@ describe("ALMLPWrapperV1 Events", () => {
       to: zeroAddress,
       value: actualBurnedAmount,
       isBurn: true,
-      consumedByLogIndex: undefined,
       timestamp: new Date(blockTimestamp * 1000),
     });
   }

@@ -986,7 +986,6 @@ describe("LPWrapperLogic", () => {
       expect(storedTransfer.to).toBe(ZERO_ADDRESS);
       expect(storedTransfer.value).toBe(burnValue);
       expect(storedTransfer.isBurn).toBe(true);
-      expect(storedTransfer.consumedByLogIndex).toBeUndefined();
     });
 
     it("should not store burn Transfer event for V2 wrapper", async () => {
@@ -1045,7 +1044,6 @@ describe("LPWrapperLogic", () => {
         isBurn: true,
         logIndex: 50,
         value: 1000n * TEN_TO_THE_18_BI,
-        consumedByLogIndex: undefined,
       };
 
       const otherBurn = {
@@ -1056,7 +1054,6 @@ describe("LPWrapperLogic", () => {
         isBurn: true,
         logIndex: 60,
         value: 2000n * TEN_TO_THE_18_BI,
-        consumedByLogIndex: undefined,
       };
 
       const nonMatchingBurn = {
@@ -1067,7 +1064,6 @@ describe("LPWrapperLogic", () => {
         isBurn: true,
         logIndex: 80,
         value: 3000n * TEN_TO_THE_18_BI,
-        consumedByLogIndex: undefined,
       };
 
       vi.mocked(
@@ -1110,34 +1106,6 @@ describe("LPWrapperLogic", () => {
       expect(result).toBeUndefined();
     });
 
-    it("should filter out consumed transfers", async () => {
-      const consumedBurn = {
-        id: ALMLPWrapperTransferInTxId(chainId, txHash, srcAddress, 50),
-        chainId: chainId,
-        wrapperAddress: srcAddress,
-        from: sender,
-        isBurn: true,
-        logIndex: 50,
-        value: 1000n * TEN_TO_THE_18_BI,
-        consumedByLogIndex: 90, // Already consumed
-      };
-
-      vi.mocked(
-        mockContext.ALMLPWrapperTransferInTx?.getWhere,
-      ).mockResolvedValue([consumedBurn] as ALMLPWrapperTransferInTx[]);
-
-      const result = await getMatchingBurnTransferInTx(
-        txHash,
-        sender,
-        chainId,
-        srcAddress,
-        withdrawLogIndex,
-        mockContext,
-      );
-
-      expect(result).toBeUndefined();
-    });
-
     it("should filter out transfers with logIndex >= withdrawLogIndex", async () => {
       const futureBurn = {
         id: ALMLPWrapperTransferInTxId(chainId, txHash, srcAddress, 150),
@@ -1147,7 +1115,6 @@ describe("LPWrapperLogic", () => {
         isBurn: true,
         logIndex: 150, // After withdraw event
         value: 1000n * TEN_TO_THE_18_BI,
-        consumedByLogIndex: undefined,
       };
 
       vi.mocked(
@@ -1175,7 +1142,6 @@ describe("LPWrapperLogic", () => {
         isBurn: true,
         logIndex: 30,
         value: 1000n * TEN_TO_THE_18_BI,
-        consumedByLogIndex: undefined,
       };
 
       const burn2 = {
@@ -1186,7 +1152,6 @@ describe("LPWrapperLogic", () => {
         isBurn: true,
         logIndex: 70,
         value: 2000n * TEN_TO_THE_18_BI,
-        consumedByLogIndex: undefined,
       };
 
       const burn3 = {
@@ -1197,7 +1162,6 @@ describe("LPWrapperLogic", () => {
         isBurn: true,
         logIndex: 90,
         value: 3000n * TEN_TO_THE_18_BI,
-        consumedByLogIndex: undefined,
       };
 
       vi.mocked(
@@ -1231,7 +1195,6 @@ describe("LPWrapperLogic", () => {
         isBurn: true,
         logIndex: 50,
         value: 1000n * TEN_TO_THE_18_BI,
-        consumedByLogIndex: undefined,
       };
 
       vi.mocked(
@@ -1285,6 +1248,7 @@ describe("LPWrapperLogic", () => {
           getWhere: vi.fn().mockResolvedValue([]),
           get: vi.fn(),
           set: vi.fn(),
+          deleteUnsafe: vi.fn(),
         },
         log: {
           warn: vi.fn(),
@@ -1324,7 +1288,6 @@ describe("LPWrapperLogic", () => {
         isBurn: true,
         logIndex: transferLogIndex,
         value: actualBurnedAmount,
-        consumedByLogIndex: undefined,
       };
 
       const transferEntity = {
@@ -1386,14 +1349,19 @@ describe("LPWrapperLogic", () => {
           : 0n;
       expect(wrapperUpdate.liquidity).toBe(expectedLiquidity);
 
-      // Verify Transfer event was marked as consumed
+      // Verify the matched burn Transfer was hard-deleted on consumption,
+      // replacing the old soft-consume marker so the scratch row does not leak
+      // (mirrors PoolTransferInTx / CLPositionPendingPrincipal).
+      expect(
+        vi.mocked(mockContext.ALMLPWrapperTransferInTx?.deleteUnsafe),
+      ).toHaveBeenCalledTimes(1);
+      expect(
+        vi.mocked(mockContext.ALMLPWrapperTransferInTx?.deleteUnsafe),
+      ).toHaveBeenCalledWith(matchingBurn.id);
+      // It must replace, not supplement, the marker: no soft-consume set remains.
       expect(
         vi.mocked(mockContext.ALMLPWrapperTransferInTx?.set),
-      ).toHaveBeenCalledTimes(1);
-      const consumedTransfer = vi.mocked(
-        mockContext.ALMLPWrapperTransferInTx?.set,
-      ).mock.calls[0][0];
-      expect(consumedTransfer.consumedByLogIndex).toBe(withdrawLogIndex);
+      ).not.toHaveBeenCalled();
     });
 
     it("should use 0n for V1 withdraw when no matching burn found", async () => {

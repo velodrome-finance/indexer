@@ -842,7 +842,6 @@ type ALMLPWrapperTransferInTx {
   to: String! # recipient address (0x0 for burns)
   value: BigInt! @config(precision: 76) # LP token amount transferred
   isBurn: Boolean! # to == 0x0
-  consumedByLogIndex: Int # logIndex of the Withdraw event that consumed this transfer (undefined if unused)
   timestamp: Timestamp! # block timestamp of the transfer
 }
 

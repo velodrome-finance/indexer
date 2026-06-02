@@ -203,8 +203,7 @@ export async function getMatchingBurnTransferInTx(
       t.wrapperAddress === wrapperAddress &&
       t.from === sender &&
       t.isBurn === true &&
-      t.logIndex < withdrawLogIndex &&
-      (t.consumedByLogIndex === null || t.consumedByLogIndex === undefined),
+      t.logIndex < withdrawLogIndex,
   );
 
   if (matchingBurns.length === 0) {
@@ -258,18 +257,13 @@ async function getActualLpAmountForV1(
     // Use the actual burned amount from Transfer event
     const actualLpAmount = matchingBurn.value;
 
-    // Mark the transfer as consumed
-    const transferEntity = await getRehydrated(
-      (context as handlerContext).ALMLPWrapperTransferInTx,
-      "ALMLPWrapperTransferInTx",
-      matchingBurn.id,
-    );
-    if (transferEntity) {
-      (context as handlerContext).ALMLPWrapperTransferInTx.set({
-        ...transferEntity,
-        consumedByLogIndex: logIndex,
-      });
-    }
+    // Hard-delete the matched burn on consumption. This handler is the sole
+    // reader of ALMLPWrapperTransferInTx, so deleting both prevents the burn
+    // from being re-matched by a later Withdraw in the same tx (the deleted
+    // row drops out of the subsequent getWhere) and stops the scratch table
+    // from growing without bound — mirroring the PoolTransferInTx (#629) /
+    // CLPositionPendingPrincipal (#789) delete-on-consume pattern.
+    context.ALMLPWrapperTransferInTx.deleteUnsafe(matchingBurn.id);
 
     return actualLpAmount;
   }
@@ -514,7 +508,6 @@ function storeBurnTransferForMatching(
     to: to,
     value: value,
     isBurn: true, // Only storing burns
-    consumedByLogIndex: undefined, // Initially unused
     timestamp: timestamp,
   });
 }
