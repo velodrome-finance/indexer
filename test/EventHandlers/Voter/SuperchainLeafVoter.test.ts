@@ -326,55 +326,6 @@ describe("SuperchainLeafVoter Events", () => {
       });
     });
 
-    describe("when token does not exist yet", () => {
-      it("should create a new Token entity with whitelisted flag", async () => {
-        const indexer = createTestIndexer();
-
-        await indexer.process({
-          chains: {
-            [chainId]: {
-              simulate: [
-                {
-                  contract: "SuperchainLeafVoter",
-                  event: "WhitelistToken",
-                  srcAddress: toChecksumAddress(
-                    "0x1111111111111111111111111111111111111111",
-                  ),
-                  logIndex: 1,
-                  block: {
-                    number: blockNumber,
-                    timestamp: blockTimestamp,
-                    hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
-                  },
-                  params: {
-                    token: tokenAddress,
-                    _bool: true,
-                  },
-                },
-              ],
-            },
-          },
-        });
-
-        const rawToken = await indexer.Token.get(
-          TokenId(chainId, tokenAddress),
-        );
-        const createdToken = rawToken
-          ? rehydrateTimestamps("Token", rawToken)
-          : undefined;
-        expect(createdToken).toBeDefined();
-        expect(createdToken?.isWhitelisted).toBe(true);
-        expect(createdToken?.pricePerUSDNew).toBe(0n);
-        expect(typeof createdToken?.name).toBe("string");
-        expect(typeof createdToken?.symbol).toBe("string");
-        expect(createdToken?.address).toBe(tokenAddress);
-        expect(createdToken?.lastUpdatedTimestamp).toBeInstanceOf(Date);
-        expect(createdToken?.lastUpdatedTimestamp?.getTime()).toBe(
-          blockTimestamp * 1000,
-        );
-      });
-    });
-
     describe("when _bool is false (de-whitelisting)", () => {
       describe("when token already exists and is whitelisted", () => {
         const expectedPricePerUSDNew = BigInt(10000000);

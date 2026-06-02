@@ -2306,50 +2306,6 @@ describe("Voter Events", () => {
         );
       });
     });
-    describe("if token is not in the db", () => {
-      async function setupNotInDbIndexer() {
-        const idx = createTestIndexer();
-        await idx.process({
-          chains: {
-            [wlChainId]: {
-              simulate: [
-                {
-                  contract: "Voter",
-                  event: "WhitelistToken",
-                  logIndex: 1,
-                  block: wlBlock,
-                  params: wlWhitelistParams,
-                },
-              ],
-            },
-          },
-        });
-        return idx;
-      }
-
-      it("should create a new Token entity", async () => {
-        const idx = await setupNotInDbIndexer();
-        const raw = await idx.Token.get(TokenId(10, tokenAddress));
-        const token = raw ? rehydrateTimestamps("Token", raw) : undefined;
-        expect(token?.id).toBe(TokenId(10, tokenAddress));
-        expect(token?.isWhitelisted).toBe(true);
-        expect(token?.pricePerUSDNew).toBe(0n);
-        expect(typeof token?.name).toBe("string");
-        expect(typeof token?.symbol).toBe("string");
-        expect(token?.address).toBe(tokenAddress);
-      });
-
-      it("should set lastUpdatedTimestamp when creating new token", async () => {
-        const idx = await setupNotInDbIndexer();
-        const raw = await idx.Token.get(TokenId(10, tokenAddress));
-        const token = raw ? rehydrateTimestamps("Token", raw) : undefined;
-        expect(token?.lastUpdatedTimestamp).toBeInstanceOf(Date);
-        expect(token?.lastUpdatedTimestamp?.getTime()).toBe(
-          wlBlockTimestamp * 1000,
-        );
-      });
-    });
-
     describe("priceTrust recomputation on existing tokens (issue #761)", () => {
       it("flips UNTRUSTED/NON_WL to TRUSTED/WL when WhitelistToken(true) lands", async () => {
         const existing = {

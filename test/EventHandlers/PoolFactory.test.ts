@@ -1,7 +1,6 @@
 import type { Token } from "envio";
 import { createTestIndexer } from "envio";
 import type { PublicClient } from "viem";
-import type { MockInstance } from "vitest";
 import {
   DEFAULT_SAMM_FEE_BPS,
   DEFAULT_VAMM_FEE_BPS,
@@ -10,11 +9,9 @@ import {
   TokenId,
   toChecksumAddress,
 } from "../../src/Constants";
-import * as HelpersModule from "../../src/Effects/Helpers";
 import { rehydrateTimestamps } from "../../src/EntityTimestamps";
 import type { Pool } from "../../src/EntityTypes";
 import * as CrossChainPendingResolution from "../../src/EventHandlers/Voter/CrossChainPendingResolution";
-import * as PriceOracle from "../../src/PriceOracle";
 import { mutateChainConstants } from "../testHelpers";
 import { setupCommon } from "./Pool/common";
 
@@ -43,18 +40,31 @@ describe("PoolFactory Events", () => {
     "0xF1046053aa5682b4F9a81b5481394DA16BE5FF5a",
   );
 
-  let mockPriceOracle: MockInstance;
-
   /**
-   * Helper function to reset and reconfigure the mockPriceOracle mock
-   * This avoids repetition across multiple test cases
+   * Pre-seed the pool's two Token entities so the PoolCreated handler finds them
+   * already present and skips createTokenEntity. Otherwise createTokenEntity fires a
+   * real RPC call inside the createTestIndexer worker thread (a main-thread vi.spyOn
+   * is inert there), making these handler-state tests slow and network-dependent.
+   *
+   * @param idx - the test indexer to seed
+   * @param cid - chain id the PoolCreated event is simulated on
    */
-  function resetMockPriceOracle(): void {
-    mockPriceOracle.mockClear();
-    mockPriceOracle.mockImplementation(async (...args) => {
-      if (args[0] === token0Address) return mockToken0Data as Token;
-      return mockToken1Data as Token;
-    });
+  function seedPoolTokens(
+    idx: ReturnType<typeof createTestIndexer>,
+    cid: number,
+  ): void {
+    idx.Token.set({
+      ...mockToken0Data,
+      id: TokenId(cid, token0Address),
+      address: token0Address,
+      chainId: cid,
+    } as Token);
+    idx.Token.set({
+      ...mockToken1Data,
+      id: TokenId(cid, token1Address),
+      address: token1Address,
+      chainId: cid,
+    } as Token);
   }
 
   describe("PoolCreated event", () => {
@@ -67,11 +77,8 @@ describe("PoolFactory Events", () => {
     );
 
     beforeEach(async () => {
-      vi.spyOn(HelpersModule, "sleep").mockResolvedValue(undefined);
-      mockPriceOracle = vi.spyOn(PriceOracle, "createTokenEntity");
-      resetMockPriceOracle();
-
       const indexer = createTestIndexer();
+      seedPoolTokens(indexer, chainId);
       await indexer.process({
         chains: {
           [chainId]: {
@@ -110,79 +117,6 @@ describe("PoolFactory Events", () => {
       }
     });
 
-    it("should create token entities", async () => {
-      // Use a fresh indexer to probe Token entity creation independently of beforeEach
-      const indexer = createTestIndexer();
-      await indexer.process({
-        chains: {
-          [chainId]: {
-            simulate: [
-              {
-                contract: "PoolFactory",
-                event: "PoolCreated",
-                srcAddress: poolAddress,
-                logIndex: 1,
-                block: {
-                  timestamp: 1000000,
-                  number: 123456,
-                  hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
-                },
-                params: {
-                  token0: token0Address as `0x${string}`,
-                  token1: token1Address as `0x${string}`,
-                  pool: poolAddress as `0x${string}`,
-                  stable: false,
-                },
-              },
-            ],
-          },
-        },
-      });
-      const token0 = await indexer.Token.get(TokenId(chainId, token0Address));
-      const token1 = await indexer.Token.get(TokenId(chainId, token1Address));
-      expect(token0).toBeDefined();
-      expect(token1).toBeDefined();
-      expect(token0?.address).toBe(token0Address);
-      expect(token1?.address).toBe(token1Address);
-    });
-
-    it("should continue when createTokenEntity rejects for one token", async () => {
-      mockPriceOracle.mockImplementation(async (address: string) => {
-        if (address === token0Address) {
-          throw new Error("fetch failed");
-        }
-        return mockToken1Data as Token;
-      });
-      const indexer = createTestIndexer();
-      await indexer.process({
-        chains: {
-          [chainId]: {
-            simulate: [
-              {
-                contract: "PoolFactory",
-                event: "PoolCreated",
-                srcAddress: poolAddress,
-                logIndex: 1,
-                block: {
-                  timestamp: 1000000,
-                  number: 123456,
-                  hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
-                },
-                params: {
-                  token0: token0Address as `0x${string}`,
-                  token1: token1Address as `0x${string}`,
-                  pool: poolAddress as `0x${string}`,
-                  stable: false,
-                },
-              },
-            ],
-          },
-        },
-      });
-      const pool = await indexer.Pool.get(PoolId(chainId, poolAddress));
-      expect(pool).toBeDefined();
-    });
-
     it("should create a new LiquidityPool entity and Token entities", async () => {
       expect(createdPool).toBeDefined();
       expect(createdPool?.isStable).toBe(false);
@@ -206,7 +140,7 @@ describe("PoolFactory Events", () => {
 
     it("should set factoryAddress to event.srcAddress for non-CL pools", async () => {
       const indexer = createTestIndexer();
-      resetMockPriceOracle();
+      seedPoolTokens(indexer, chainId);
       await indexer.process({
         chains: {
           [chainId]: {
@@ -243,9 +177,8 @@ describe("PoolFactory Events", () => {
     });
 
     it("should set baseFee and currentFee for stable pools (sAMM)", async () => {
-      resetMockPriceOracle();
-
       const indexer = createTestIndexer();
+      seedPoolTokens(indexer, chainId);
       await indexer.process({
         chains: {
           [chainId]: {
@@ -279,9 +212,8 @@ describe("PoolFactory Events", () => {
     });
 
     it("should NOT create RootPool_LeafPool for Optimism (chainId 10)", async () => {
-      resetMockPriceOracle();
-
       const indexer = createTestIndexer();
+      seedPoolTokens(indexer, chainId);
       await indexer.process({
         chains: {
           [chainId]: {
@@ -314,10 +246,9 @@ describe("PoolFactory Events", () => {
     });
 
     it("should NOT create RootPool_LeafPool for Base (chainId 8453)", async () => {
-      resetMockPriceOracle();
-
       const baseChainId = 8453 as const;
       const indexer = createTestIndexer();
+      seedPoolTokens(indexer, baseChainId);
       await indexer.process({
         chains: {
           [baseChainId]: {
