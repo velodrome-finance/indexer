@@ -89,7 +89,9 @@ describe("Pool Fees Event", () => {
       mockLiquidityPoolData.totalFeesGenerated0 + expectations.amount0In,
     );
     expect(updatedPool?.totalFeesGenerated1).toBe(
-      mockLiquidityPoolData.totalFeesGenerated1 + expectations.amount1In,
+      // token1 has 6 decimals; the raw fee is normalized to a 1e18 base (#812)
+      mockLiquidityPoolData.totalFeesGenerated1 +
+        expectations.amount1In * 10n ** 12n,
     );
   });
 
@@ -124,7 +126,8 @@ describe("Pool Fees Event", () => {
       expectations.amount0In,
     );
     expect(createdUserStats?.totalFeesContributed1).toBe(
-      expectations.amount1In,
+      // token1 (6 decimals) raw fee normalized to a 1e18 base (#812)
+      expectations.amount1In * 10n ** 12n,
     );
 
     // Per issue #797: Fees no longer writes USD — user fee USD stays at the
@@ -217,7 +220,8 @@ describe("Pool Fees Event", () => {
       existingUserStats.totalFeesContributed0 + 500n,
     );
     expect(updatedUserStats?.totalFeesContributed1).toBe(
-      existingUserStats.totalFeesContributed1 + 300n,
+      // token1 (6 decimals): 300 raw → 300 * 1e12 on a 1e18 base (#812)
+      existingUserStats.totalFeesContributed1 + 300n * 10n ** 12n,
     );
     expect(updatedUserStats?.numberOfSwaps).toBe(
       existingUserStats.numberOfSwaps,

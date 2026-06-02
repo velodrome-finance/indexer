@@ -1,5 +1,9 @@
 import type { EvmEvent, Token } from "envio";
-import { toChecksumAddress } from "../../../src/Constants";
+import {
+  FEE_SCALE,
+  toCanonicalFeeScale,
+  toChecksumAddress,
+} from "../../../src/Constants";
 import { processPoolSwap } from "../../../src/EventHandlers/Pool/PoolSwapLogic";
 import * as Helpers from "../../../src/Helpers";
 import { setupCommon } from "./common";
@@ -11,8 +15,11 @@ describe("PoolSwapLogic", () => {
     mockToken1Data,
     createMockPool,
   } = setupCommon();
-  // Pool with a typical V2 vAMM fee rate (30 = 0.30% on the 1e4 basis).
-  const mockPool = createMockPool({ currentFee: 30n });
+  // Pool with a typical V2 vAMM fee rate (0.30%), stored in the canonical
+  // FEE_SCALE (1e6) like production after issue #812.
+  const mockPool = createMockPool({
+    currentFee: toCanonicalFeeScale(30n, false),
+  });
   // Shared mock event for all tests
   const mockEvent = {
     params: {
@@ -376,19 +383,22 @@ describe("PoolSwapLogic", () => {
   });
 
   // Issue #797: V2 fee USD must be derived from trusted volume × currentFee /
-  // V2_FEE_SCALE at Swap time, mirroring the CL fee path (CLPoolSwapLogic).
+  // FEE_SCALE at Swap time, mirroring the CL fee path (CLPoolSwapLogic).
   // The V2 Fees event has only one non-zero leg (input side), so the old
   // single-leg valuation flowed any poisoned/inconsistent input-leg price
   // straight into totalFeesGeneratedUSD with no second leg to min against.
   describe("V2 fee USD derived from trusted volume × rate (issue #797)", () => {
-    it("derives incrementalTotalFeesGeneratedUSD as volumeInUSD × currentFee / V2_FEE_SCALE", () => {
-      const pool = createMockPool({ currentFee: 30n }); // 0.30%
+    it("derives incrementalTotalFeesGeneratedUSD as volumeInUSD × currentFee / FEE_SCALE", () => {
+      const pool = createMockPool({
+        currentFee: toCanonicalFeeScale(30n, false),
+      }); // 0.30%
       const result = processPoolSwap(mockEvent, pool, mockToken0, mockToken1);
 
       // volumeInUSD = min(token0=1000n, token1=5e14) = 1000n (see existing tests)
-      // feeUSD = 1000 * 30 / 10000 = 3n
+      // feeUSD = 1000 * 3000 / 1e6 = 3n (0.30% on the canonical FEE_SCALE)
       const expectedVolumeUSD = 1000n;
-      const expectedFeeUSD = (expectedVolumeUSD * 30n) / 10000n;
+      const expectedFeeUSD =
+        (expectedVolumeUSD * toCanonicalFeeScale(30n, false)) / FEE_SCALE;
       expect(result.liquidityPoolDiff?.incrementalTotalVolumeUSD).toBe(
         expectedVolumeUSD,
       );
@@ -428,7 +438,9 @@ describe("PoolSwapLogic", () => {
           amount1Out: 1000000n, // 1 USDC (6 decimals) → $1
         },
       };
-      const pool = createMockPool({ currentFee: 30n });
+      const pool = createMockPool({
+        currentFee: toCanonicalFeeScale(30n, false),
+      });
 
       const result = processPoolSwap(
         swapEvent,
@@ -437,9 +449,10 @@ describe("PoolSwapLogic", () => {
         honestToken1,
       );
 
-      // Trusted volume picks the honest $1 leg, so fee USD = $1 × 30 / 10000.
+      // Trusted volume picks the honest $1 leg: fee USD = $1 × 3000 / 1e6.
       const expectedVolumeUSD = 1000000000000000000n; // 1e18 = $1
-      const expectedFeeUSD = (expectedVolumeUSD * 30n) / 10000n;
+      const expectedFeeUSD =
+        (expectedVolumeUSD * toCanonicalFeeScale(30n, false)) / FEE_SCALE;
       expect(result.liquidityPoolDiff?.incrementalTotalVolumeUSD).toBe(
         expectedVolumeUSD,
       );
@@ -456,7 +469,9 @@ describe("PoolSwapLogic", () => {
     // truncation. (This is the same shape as the existing PoolFeesLogic
     // "fee ≤ 1% of volume invariant (#670)" test, ported to the Swap-time path.)
     it("matches volume × rate exactly for a clean pool at 0.05% fee", () => {
-      const pool = createMockPool({ currentFee: 5n }); // 0.05% stable
+      const pool = createMockPool({
+        currentFee: toCanonicalFeeScale(5n, false),
+      }); // 0.05% stable
       const usdt: Token = {
         ...mockToken0,
         decimals: 6n,
@@ -485,7 +500,9 @@ describe("PoolSwapLogic", () => {
         result.liquidityPoolDiff?.incrementalTotalVolumeUSD ?? 0n;
       const feeUSD =
         result.liquidityPoolDiff?.incrementalTotalFeesGeneratedUSD ?? 0n;
-      expect(feeUSD).toBe((volumeUSD * 5n) / 10000n);
+      expect(feeUSD).toBe(
+        (volumeUSD * toCanonicalFeeScale(5n, false)) / FEE_SCALE,
+      );
       // Hard invariant: fee ≤ 1% of volume at any V2 rate up to 1%.
       expect(feeUSD * 100n).toBeLessThanOrEqual(volumeUSD);
     });

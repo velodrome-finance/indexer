@@ -1,7 +1,7 @@
 import { indexer } from "envio";
 import type { DynamicFeeGlobalConfig } from "envio";
 import { updatePool } from "../../Aggregators/Pool";
-import { PoolId } from "../../Constants";
+import { PoolId, toCanonicalFeeScale } from "../../Constants";
 import { getRehydrated } from "../../EntityTimestamps";
 import type { Pool } from "../../EntityTypes";
 
@@ -16,9 +16,16 @@ indexer.onEvent(
       return;
     }
 
+    // Lift to canonical FEE_SCALE (1e6). Keyed on pool.isCL so the stored fee
+    // matches the single divisor regardless of which pool type the module
+    // targets (issue #812).
+    const canonicalFee = toCanonicalFeeScale(
+      BigInt(event.params.fee),
+      pool.isCL,
+    );
     const diff: Partial<Pool> = {
-      baseFee: BigInt(event.params.fee),
-      currentFee: BigInt(event.params.fee),
+      baseFee: canonicalFee,
+      currentFee: canonicalFee,
     };
 
     await updatePool(

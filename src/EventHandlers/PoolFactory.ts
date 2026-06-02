@@ -8,6 +8,7 @@ import {
   ROOT_POOL_FACTORY_ADDRESS_OPTIMISM,
   RootPoolLeafPoolId,
   TokenId,
+  toCanonicalFeeScale,
 } from "../Constants";
 import { getRootPoolAddress } from "../Effects/RootPool";
 import { getRehydrated } from "../EntityTimestamps";
@@ -95,9 +96,12 @@ indexer.onEvent(
       }
     }
 
-    const fee = event.params.stable
-      ? DEFAULT_SAMM_FEE_BPS
-      : DEFAULT_VAMM_FEE_BPS;
+    // V2 PoolFactory reports fees in basis points; lift to canonical FEE_SCALE
+    // (1e6) so V2 and CL share one stored scale + divisor (issue #812).
+    const fee = toCanonicalFeeScale(
+      event.params.stable ? DEFAULT_SAMM_FEE_BPS : DEFAULT_VAMM_FEE_BPS,
+      false,
+    );
 
     const pool = createPoolEntity({
       poolAddress: event.params.pool,
@@ -181,9 +185,16 @@ indexer.onEvent(
       return;
     }
 
+    // V2 SetCustomFee carries the fee in basis points; lift to FEE_SCALE (1e6).
+    // poolEntity.isCL is always false here (PoolFactory only owns V2 pools) — we
+    // still key on it so the canonical-scale rule is uniform across write sites.
+    const canonicalFee = toCanonicalFeeScale(
+      BigInt(event.params.fee),
+      poolEntity.isCL,
+    );
     const diff: Partial<Pool> = {
-      baseFee: BigInt(event.params.fee),
-      currentFee: BigInt(event.params.fee), // When custom fee is set, both baseFee and currentFee are updated
+      baseFee: canonicalFee,
+      currentFee: canonicalFee, // When custom fee is set, both baseFee and currentFee are updated
     };
 
     await updatePool(

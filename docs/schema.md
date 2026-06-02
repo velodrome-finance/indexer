@@ -52,8 +52,8 @@ Latest-state entities that hold the headline metrics most consumers query.
 | `totalVolume0` | `BigInt!` | total swap volume of token0 in token units |
 | `totalVolume1` | `BigInt!` | total swap volume of token1 in token units |
 | `totalVolumeUSD` | `BigInt!` | total swap volume of the pool in USD |
-| `totalFeesGenerated0` | `BigInt!` | total swap fees generated of token0 in token units |
-| `totalFeesGenerated1` | `BigInt!` | total swap fees generated of token1 in token units |
+| `totalFeesGenerated0` | `BigInt!` | total swap fees generated of token0, 1e18-normalized token units (same scale on V2 & CL — issue #812) |
+| `totalFeesGenerated1` | `BigInt!` | total swap fees generated of token1, 1e18-normalized token units (same scale on V2 & CL — issue #812) |
 | `totalFeesGeneratedUSD` | `BigInt!` | total swap fees of the pool in USD |
 | `totalUnstakedFeesCollected0` | `BigInt!` | total fees collected from unstaked LPs (Collect events) in token0 units |
 | `totalUnstakedFeesCollected1` | `BigInt!` | total fees collected from unstaked LPs (Collect events) in token1 units |
@@ -109,10 +109,10 @@ Latest-state entities that hold the headline metrics most consumers query.
 | `totalFeeRewardClaimed` | `BigInt!` | total fee rewards claimed by users in token units |
 | `totalFeeRewardClaimedUSD` | `BigInt!` | total fee rewards claimed by users in USD |
 | `veNFTamountStaked` | `BigInt!` | total amount of veNFT staked for this pool |
-| `baseFee` | `BigInt!` | Current base fee set for pool |
+| `baseFee` | `BigInt!` | Current base fee, FEE_SCALE 1e6 (hundredths of a basis point); single fee divisor across V2 & CL — issue #812 |
 | `feeCap` | `BigInt` | Current fee cap for pool |
 | `scalingFactor` | `BigInt` | Current scaling factor for pool |
-| `currentFee` | `BigInt!` | Current fee for pool (base + dynamic) |
+| `currentFee` | `BigInt!` | Current fee (base + dynamic), FEE_SCALE 1e6; single fee divisor across V2 & CL — issue #812 |
 | `unstakedFee` | `BigInt` | Raw customFee value last emitted by an UnstakedFeeModule for this pool (CL pools only). 0 = no override (factory default applies), 420 = explicit 0% fee (ZERO_FEE_INDICATOR), else fee rate with 6-decimal precision (e.g. 500_000 = 50%). Null = never set. |
 | `poolLauncherPoolId` | `String` | ID of the PoolLauncherPool entity if this pool was launched via Pool Launcher |
 | `factoryAddress` | `String` | Address of the factory that created this pool (e.g. CLFactory for CL pools, set from PoolCreated event) |
@@ -160,8 +160,8 @@ Entity for tracking user activity and positions in specific pools
 | `totalSwapVolumeAmount1` | `BigInt!` | swap volume denominated in token1 in this pool |
 | `totalSwapVolumeUSD` | `BigInt!` | swap volume in USD in this pool |
 | `totalFeesContributedUSD` | `BigInt!` | total fees contributed in USD (from swaps made by the user - essentially fees paid by the user in swaps) |
-| `totalFeesContributed0` | `BigInt!` | total fees contributed in token0 (from swaps made by the user - essentially fees paid by the user in swaps) |
-| `totalFeesContributed1` | `BigInt!` | total fees contributed in token1 (from swaps made by the user - essentially fees paid by the user in swaps) |
+| `totalFeesContributed0` | `BigInt!` | total fees contributed in token0, 1e18-normalized (fees paid by the user in swaps; same scale on V2 & CL — issue #812) |
+| `totalFeesContributed1` | `BigInt!` | total fees contributed in token1, 1e18-normalized (fees paid by the user in swaps; same scale on V2 & CL — issue #812) |
 | `numberOfFlashLoans` | `BigInt!` | number of flash loan swaps in this pool |
 | `totalFlashLoanVolumeUSD` | `BigInt!` | flash loan swap volume in USD in this pool |
 | `numberOfGaugeDeposits` | `BigInt!` | number of gauge deposits (staking) |
@@ -293,8 +293,8 @@ Snapshot of the LiquidityPool entity
 | `totalVolume0` | `BigInt!` | total swap volume of token0 in token units |
 | `totalVolume1` | `BigInt!` | total swap volume of token1 in token units |
 | `totalVolumeUSD` | `BigInt!` | total swap volume of the pool in USD |
-| `totalFeesGenerated0` | `BigInt!` | total swap fees generated of token0 in token units |
-| `totalFeesGenerated1` | `BigInt!` | total swap fees generated of token1 in token units |
+| `totalFeesGenerated0` | `BigInt!` | total swap fees generated of token0, 1e18-normalized token units (same scale on V2 & CL — issue #812) |
+| `totalFeesGenerated1` | `BigInt!` | total swap fees generated of token1, 1e18-normalized token units (same scale on V2 & CL — issue #812) |
 | `totalFeesGeneratedUSD` | `BigInt!` | total swap fees of the pool in USD |
 | `totalUnstakedFeesCollected0` | `BigInt!` | total fees collected from unstaked LPs (Collect events) in token0 units |
 | `totalUnstakedFeesCollected1` | `BigInt!` | total fees collected from unstaked LPs (Collect events) in token1 units |
@@ -344,10 +344,10 @@ Snapshot of the LiquidityPool entity
 | `totalFeeRewardClaimed` | `BigInt!` | total fee rewards claimed by users in token units |
 | `totalFeeRewardClaimedUSD` | `BigInt!` | total fee rewards claimed by users in USD |
 | `veNFTamountStaked` | `BigInt!` | total amount of veNFT staked for this pool |
-| `baseFee` | `BigInt!` | Current base fee set for pool |
+| `baseFee` | `BigInt!` | Current base fee, FEE_SCALE 1e6 (hundredths of a basis point); single fee divisor across V2 & CL — issue #812 |
 | `feeCap` | `BigInt` | Current fee cap for pool |
 | `scalingFactor` | `BigInt` | Current scaling factor for pool |
-| `currentFee` | `BigInt!` | Current fee for pool (base + dynamic) |
+| `currentFee` | `BigInt!` | Current fee (base + dynamic), FEE_SCALE 1e6; single fee divisor across V2 & CL — issue #812 |
 | `unstakedFee` | `BigInt` | Raw customFee value last emitted by an UnstakedFeeModule for this pool (see Pool for semantics) |
 
 ### TokenPriceSnapshot
@@ -386,8 +386,8 @@ Snapshot of UserStatsPerPool at an epoch (invariant fields + position params for
 | `totalSwapVolumeAmount1` | `BigInt!` | swap volume denominated in token1 in this pool |
 | `totalSwapVolumeUSD` | `BigInt!` | swap volume in USD in this pool |
 | `totalFeesContributedUSD` | `BigInt!` | total fees contributed in USD (fees paid by the user in swaps) |
-| `totalFeesContributed0` | `BigInt!` | total fees contributed in token0 |
-| `totalFeesContributed1` | `BigInt!` | total fees contributed in token1 |
+| `totalFeesContributed0` | `BigInt!` | total fees contributed in token0, 1e18-normalized (same scale on V2 & CL — issue #812) |
+| `totalFeesContributed1` | `BigInt!` | total fees contributed in token1, 1e18-normalized (same scale on V2 & CL — issue #812) |
 | `numberOfFlashLoans` | `BigInt!` | number of flash loan swaps in this pool |
 | `totalFlashLoanVolumeUSD` | `BigInt!` | flash loan swap volume in USD in this pool |
 | `numberOfGaugeDeposits` | `BigInt!` | number of gauge deposits (staking) |

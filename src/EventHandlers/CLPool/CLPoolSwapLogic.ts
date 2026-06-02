@@ -2,7 +2,7 @@ import type { EvmEvent, Token } from "envio";
 import { processTickCrossings } from "../../Aggregators/CLStakedLiquidity";
 import type { PoolDiff } from "../../Aggregators/Pool";
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
-import { CL_FEE_SCALE } from "../../Constants";
+import { FEE_SCALE } from "../../Constants";
 import type { Pool, handlerContext } from "../../EntityTypes";
 import {
   calculateTotalUSD,
@@ -44,7 +44,7 @@ interface SwapVolumeAndFees {
 
 /** Compute fee amount in native token units from a CL fee rate and a swap amount. */
 function computeClFeeAmount(amount: bigint, feeRate: bigint): bigint {
-  return (abs(amount) * feeRate) / CL_FEE_SCALE;
+  return (abs(amount) * feeRate) / FEE_SCALE;
 }
 
 /**
@@ -81,7 +81,7 @@ export function calculateSwapVolume(
  * Raw fee amounts (`swapFeesInToken0`, `swapFeesInToken1`) come directly from the
  * input side of the swap and the pool's fee rate, normalized to 1e18 precision.
  * USD value (`swapFeesInUSD`) is derived from the already-trusted `volumeInUSD`
- * via `volumeInUSD × feeRate / CL_FEE_SCALE` — this enforces the AMM invariant
+ * via `volumeInUSD × feeRate / FEE_SCALE` — this enforces the AMM invariant
  * `fees ≤ volume × feeRate` by construction and inherits the volume path's
  * `pickTrustedSwapVolumeUSD` defense against poisoned-price tokens (issue #733).
  *
@@ -144,7 +144,7 @@ export function calculateSwapFees(
   );
 
   // Derive fee USD from trusted volume — see file header for the #733 rationale.
-  const swapFeesInUSD = (volumeInUSD * fee) / CL_FEE_SCALE;
+  const swapFeesInUSD = (volumeInUSD * fee) / FEE_SCALE;
 
   return {
     swapFeesInToken0,

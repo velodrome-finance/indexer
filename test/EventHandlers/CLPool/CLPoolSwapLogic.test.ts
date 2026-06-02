@@ -350,7 +350,7 @@ describe("CLPoolSwapLogic", () => {
         mockContext,
       );
 
-      // volumeInUSD × feeRate / CL_FEE_SCALE = 1e18 × 3000 / 1e6 = 3e15
+      // volumeInUSD × feeRate / FEE_SCALE = 1e18 × 3000 / 1e6 = 3e15
       expect(result.swapFeesInUSD).toBe(
         (trustedVolumeForMockEvent * CL_FEE_30) / 1000000n,
       );

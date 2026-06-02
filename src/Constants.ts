@@ -27,18 +27,37 @@ export const TEN_TO_THE_6_BI = BigInt(10 ** 6);
 export const TEN_TO_THE_18_BI = BigInt(10 ** 18);
 
 /**
- * CL pool fees use a 1e6 scale (hundredths of a basis point):
- *   100 = 0.01%, 500 = 0.05%, 3000 = 0.30%, 10000 = 1.00%
+ * Canonical pool-fee scale: 1e6, "hundredths of a basis point".
+ *
+ * Every Pool stores `baseFee`/`currentFee` in this scale, and every fee
+ * derivation divides by it — a single divisor across V2 (AMM) and CL pools
+ * (issue #812). Examples:
+ *   100 = 0.01%, 500 = 0.05%, 3000 = 0.30%, 10000 = 1.00%, 1_000_000 = 100%
+ *
+ * On-chain, CL (Slipstream) pools already report fees in 1e6, whereas V2 pools
+ * report in basis points (1e4). {@link toCanonicalFeeScale} lifts V2 bps values
+ * into FEE_SCALE at write time so the stored field and this divisor always agree.
  */
-export const CL_FEE_SCALE = 1000000n;
+export const FEE_SCALE = 1000000n;
+
+/** Multiplier converting an on-chain V2 basis-point fee (1e4) into {@link FEE_SCALE} (1e6). */
+export const BPS_TO_FEE_SCALE = 100n;
 
 /**
- * V2 pool fees use a 1e4 (basis-points-per-100) scale:
- *   5 = 0.05% stable, 30 = 0.30% volatile, 100 = 1.00%
- * Matches PoolFactory's DEFAULT_SAMM_FEE_BPS / DEFAULT_VAMM_FEE_BPS units
- * and the `event.params.fee` passed into CustomSwapFeeModule's SetCustomFee.
+ * Normalize a raw on-chain pool fee to the canonical {@link FEE_SCALE} (1e6).
+ *
+ * CL pools already emit fees in FEE_SCALE and are returned unchanged. V2 (AMM)
+ * pools emit fees in basis points (1e4) and are multiplied by
+ * {@link BPS_TO_FEE_SCALE}. Keyed on `isCL` so a single stored scale — and a
+ * single divisor — holds across both pool types (issue #812).
+ *
+ * @param rawFee - Fee as emitted on-chain (basis points for V2, 1e6 for CL)
+ * @param isCL - Whether the owning pool is a concentrated-liquidity pool
+ * @returns The fee expressed in FEE_SCALE (1e6)
  */
-export const V2_FEE_SCALE = 10000n;
+export function toCanonicalFeeScale(rawFee: bigint, isCL: boolean): bigint {
+  return isCL ? rawFee : rawFee * BPS_TO_FEE_SCALE;
+}
 
 export const SECONDS_IN_AN_HOUR = BigInt(3600);
 export const MS_IN_AN_HOUR = 3600 * 1000; // 3_600_000 ms
