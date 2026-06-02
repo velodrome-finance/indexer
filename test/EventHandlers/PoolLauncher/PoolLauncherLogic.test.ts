@@ -95,6 +95,46 @@ describe("PoolLauncherLogic", () => {
       expect(savedEntity?.id).toBe(`8453-${poolAddress}`);
     });
 
+    it("should record migratedFrom when created as a Migrate target (#818)", async () => {
+      const poolAddress = toChecksumAddress(
+        "0x1234567890123456789012345678901234567890",
+      );
+      const launcherAddress = toChecksumAddress(
+        "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+      );
+      const creator = toChecksumAddress(
+        "0x1111111111111111111111111111111111111111",
+      );
+      const poolLauncherToken = toChecksumAddress(
+        "0x2222222222222222222222222222222222222222",
+      );
+      const pairToken = toChecksumAddress(
+        "0x3333333333333333333333333333333333333333",
+      );
+      const sourcePool = toChecksumAddress(
+        "0x9999999999999999999999999999999999999999",
+      );
+      const createdAt = new Date("2024-01-01T00:00:00Z");
+      const chainId = 8453;
+
+      const result = await processPoolLauncherPool(
+        poolAddress,
+        launcherAddress,
+        creator,
+        poolLauncherToken,
+        pairToken,
+        createdAt,
+        chainId,
+        mockContext,
+        sourcePool,
+      );
+
+      // The migrated target back-links to its source pool; migratedTo stays empty
+      // until this pool is itself migrated away.
+      expect(result.migratedFrom).toBe(sourcePool);
+      expect(result.migratedTo).toBe("");
+    });
+
     it("should update an existing PoolLauncherPool", async () => {
       const poolAddress = toChecksumAddress(
         "0x1234567890123456789012345678901234567890",

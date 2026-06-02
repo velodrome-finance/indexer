@@ -77,6 +77,7 @@ indexer.onEvent(
         timestamp,
         event.chainId,
         context,
+        underlyingPool, // #818: record the source pool as migratedFrom on the target
       );
 
       // Link existing Pool to PoolLauncherPool for migrated pool
