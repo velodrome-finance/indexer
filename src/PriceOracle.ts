@@ -11,7 +11,11 @@ import { getRehydrated } from "./EntityTimestamps";
 import type { handlerContext } from "./EntityTypes";
 import { getRebindTarget, isBlacklistedToken } from "./PriceOverrides";
 import { getGateDecisionFromSignals } from "./PriceTrust";
-import { setTokenPriceSnapshot } from "./Snapshots/TokenPriceSnapshot";
+import {
+  PRICE_SOURCE,
+  type PriceSource,
+  setTokenPriceSnapshot,
+} from "./Snapshots/TokenPriceSnapshot";
 export interface TokenPriceData {
   pricePerUSDNew: bigint;
   decimals: bigint;
@@ -201,6 +205,27 @@ export async function refreshTokenPrice(
     return healed;
   }
 
+  // Issue #822: every non-throttle exit below records a per-block
+  // TokenPriceSnapshot so the series has no holes on reject/fallback/override
+  // ticks (the throttle return above is the sole snapshot-free exit — no tick
+  // occurred). `priceSource` tags which branch produced the price; the
+  // carried/zeroed/fresh price is passed per call. Any future early-return
+  // added below must call this too.
+  const snapshotTokenPrice = (
+    pricePerUSDNew: bigint,
+    priceSource: PriceSource,
+  ): void =>
+    setTokenPriceSnapshot(
+      healed.address,
+      chainId,
+      blockNumber,
+      new Date(blockTimestampMs),
+      pricePerUSDNew,
+      healed.isWhitelisted,
+      priceSource,
+      context,
+    );
+
   // Issue #669: blacklist + canonical rebind override the oracle for known-bad
   // (chain, token) pairs. See src/PriceOverrides.ts for rationale per token.
   if (isBlacklistedToken(chainId, healed.address)) {
@@ -210,6 +235,7 @@ export async function refreshTokenPrice(
       lastUpdatedTimestamp: new Date(blockTimestampMs),
     };
     context.Token.set(updated);
+    snapshotTokenPrice(0n, PRICE_SOURCE.OVERRIDE);
     return updated;
   }
 
@@ -263,17 +289,9 @@ export async function refreshTokenPrice(
           : healed.lastSuccessfulPriceTimestamp,
     };
     context.Token.set(updated);
-    if (sourcePrice > 0n) {
-      setTokenPriceSnapshot(
-        healed.address,
-        chainId,
-        blockNumber,
-        new Date(blockTimestampMs),
-        sourcePrice,
-        healed.isWhitelisted,
-        context,
-      );
-    }
+    // Issue #822: snapshot every rebind tick, including sourcePrice === 0n
+    // (previously gated on > 0n), so a cold-sync rebind isn't a hole.
+    snapshotTokenPrice(sourcePrice, PRICE_SOURCE.REBIND);
     return updated;
   }
 
@@ -301,7 +319,8 @@ export async function refreshTokenPrice(
     // follow-up read is validated against the (still-fresh) anchor instead of
     // slipping through the stale-anchor exemption — e.g. BPX's $7.17e18 read is
     // rejected here, and the $40,766 read three hours later is then caught by
-    // the spike guard rather than accepted. No snapshot is written.
+    // the spike guard rather than accepted. Issue #822: a `carried` snapshot of
+    // the preserved anchor is still written so the rejected tick isn't a hole.
     if (currentPrice > MAX_ACCEPTED_PRICE) {
       context.log.info(
         `[MAX_PRICE_CEILING] chain=${chainId} address=${healed.address} symbol=${healed.symbol} proposed=${currentPrice} ceiling=${MAX_ACCEPTED_PRICE} — rejecting absurd read, keeping price=${healed.pricePerUSDNew}`,
@@ -311,6 +330,7 @@ export async function refreshTokenPrice(
         lastUpdatedTimestamp: new Date(blockTimestampMs),
       };
       context.Token.set(capped);
+      snapshotTokenPrice(healed.pricePerUSDNew, PRICE_SOURCE.CARRIED);
       return capped;
     }
 
@@ -345,15 +365,11 @@ export async function refreshTokenPrice(
         lastSuccessfulPriceTimestamp: new Date(blockTimestampMs),
       };
       context.Token.set(anchored);
-      setTokenPriceSnapshot(
-        healed.address,
-        chainId,
-        blockNumber,
-        new Date(blockTimestampMs),
-        hint,
-        healed.isWhitelisted,
-        context,
-      );
+      // Issue #822: a pool-implied first-fetch anchors to the hint rather than
+      // the raw oracle read, so it carries its own `pool-implied` tag — still a
+      // successful write (it bumps lastSuccessfulPriceTimestamp), but one a
+      // consumer can distinguish from a straight-from-oracle `fresh` read.
+      snapshotTokenPrice(hint, PRICE_SOURCE.POOL_IMPLIED);
       return anchored;
     }
 
@@ -377,6 +393,7 @@ export async function refreshTokenPrice(
         lastUpdatedTimestamp: new Date(blockTimestampMs),
       };
       context.Token.set(capped);
+      snapshotTokenPrice(0n, PRICE_SOURCE.CARRIED);
       return capped;
     }
 
@@ -423,6 +440,10 @@ export async function refreshTokenPrice(
         context.log.warn(
           `[priceSpikeRejected] ${healed.address} chain=${chainId} anchor=${anchorPrice} candidate=${currentPrice}`,
         );
+        // Issue #822: snapshot the carried anchor (token returned unchanged —
+        // #730 keeps lastUpdatedTimestamp pinned) so the rejected tick isn't a
+        // hole in the per-block series.
+        snapshotTokenPrice(healed.pricePerUSDNew, PRICE_SOURCE.CARRIED);
         return healed;
       }
       context.log.info(
@@ -467,6 +488,7 @@ export async function refreshTokenPrice(
         // doesn't represent a fresh oracle success (#694).
       };
       context.Token.set(updatedToken);
+      snapshotTokenPrice(healed.pricePerUSDNew, PRICE_SOURCE.CARRIED);
       return updatedToken;
     }
 
@@ -480,21 +502,15 @@ export async function refreshTokenPrice(
           : healed.lastSuccessfulPriceTimestamp,
     };
     context.Token.set(updatedToken);
-
-    setTokenPriceSnapshot(
-      healed.address,
-      chainId,
-      blockNumber,
-      new Date(blockTimestampMs),
-      currentPrice,
-      healed.isWhitelisted,
-      context,
-    );
+    snapshotTokenPrice(currentPrice, PRICE_SOURCE.FRESH);
     return updatedToken;
   } catch (error) {
     context.log.error(
       `Error refreshing token price for ${healed.address} on chain ${chainId}: ${error}`,
     );
+    // Issue #822: even on a transient error the tick happened, so snapshot the
+    // carried price (healed token returned unchanged), tagged `carried`.
+    snapshotTokenPrice(healed.pricePerUSDNew, PRICE_SOURCE.CARRIED);
     // Return healed token if price refresh fails — metadata heal still applies.
     return healed;
   }

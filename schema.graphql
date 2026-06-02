@@ -408,6 +408,20 @@ type TokenPriceSnapshot {
   chainId: Int! # chain id
   isWhitelisted: Boolean! # whether the token is whitelisted
   lastUpdatedTimestamp: Timestamp! @index # Timestamp of the last update
+  # Issue #822: provenance of pricePerUSDNew for this tick — which branch of
+  # refreshTokenPrice produced it: `fresh` (oracle read accepted as-is),
+  # `pool-implied` (first-fetch anchored to the pool-implied hint, not the raw
+  # read), `rebind` (cross-chain copy), `override` (blacklist → 0), or `carried`
+  # (prior price kept on a reject/fallback/error tick).
+  # NOTE for consumers: a row now exists for EVERY non-throttle tick, so the
+  # series includes carried and zeroed prices (override / cold rebind / capped
+  # first-fetch all write 0) that previously left gaps — filter to
+  # `fresh`/`pool-implied`/`rebind` (or pricePerUSDNew > 0) to recover only
+  # freshly-accepted prices.
+  # Nullable: rows written before this field existed have no source. Stored as
+  # String (not an enum) so the set can extend without an Envio schema migration;
+  # the value set is pinned by PRICE_SOURCE in src/Snapshots/TokenPriceSnapshot.ts.
+  priceSource: String
 }
 
 # Tracks relevant data for each NFT minted: each NFT represents a concentrated position in a pool

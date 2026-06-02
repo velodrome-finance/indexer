@@ -196,6 +196,8 @@ describe("PriceOracle", () => {
           testLastUpdated.getTime(),
         );
         expect(tokenPrice?.isWhitelisted).toBe(mockToken0Data.isWhitelisted);
+        // Issue #822: a fresh oracle success is tagged `fresh`.
+        expect(tokenPrice?.priceSource).toBe("fresh");
       });
     });
 
@@ -405,9 +407,12 @@ describe("PriceOracle", () => {
 
         expect(result.pricePerUSDNew).toBe(0n);
         expect(vi.mocked(mockContext.effect)).not.toHaveBeenCalled();
-        expect(
-          vi.mocked(mockContext.TokenPriceSnapshot?.set),
-        ).not.toHaveBeenCalled();
+        // Issue #822: the blacklist tick must still leave a snapshot, tagged
+        // `override`, recording the forced $0 price — no hole in the series.
+        const snapshot = vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mock
+          .lastCall?.[0];
+        expect(snapshot?.priceSource).toBe("override");
+        expect(snapshot?.pricePerUSDNew).toBe(0n);
       });
 
       it("rebind: copies price from the source chain's Token entity", async () => {
@@ -553,9 +558,12 @@ describe("PriceOracle", () => {
           expect.objectContaining({ name: "getTokenPrice" }),
           expect.objectContaining({ chainId: 10 }),
         );
-        expect(
-          vi.mocked(mockContext.TokenPriceSnapshot?.set),
-        ).not.toHaveBeenCalled();
+        // Issue #822: a rebind that resolves to 0 still leaves a snapshot,
+        // tagged `rebind` — the tick happened, so it isn't a hole.
+        const snapshot = vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mock
+          .lastCall?.[0];
+        expect(snapshot?.priceSource).toBe("rebind");
+        expect(snapshot?.pricePerUSDNew).toBe(0n);
       });
     });
 
@@ -1043,6 +1051,38 @@ describe("PriceOracle", () => {
         expect(warnCall?.[0]).toContain("[priceSpikeRejected]");
       });
 
+      it("still emits a TokenPriceSnapshot tagged 'carried' on a spike-rejected tick (issue #822)", async () => {
+        // Issue #822: a rejected refresh must still leave a per-block snapshot,
+        // tagged `carried`, holding the anchor price it kept — otherwise the
+        // exact volatile hours one wants to inspect have holes in the series.
+        const anchorPrice = 1n * 10n ** 18n;
+        const spikePrice = 100n * 10n ** 18n;
+
+        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
+          if ((effect as { name?: string }).name === "getTokenPrice") {
+            return { pricePerUSDNew: spikePrice };
+          }
+          return {};
+        });
+
+        await PriceOracle.refreshTokenPrice(
+          {
+            ...mockToken0Data,
+            pricePerUSDNew: anchorPrice,
+            lastUpdatedTimestamp: oneHourOneMinuteAgo(),
+          },
+          blockNumber,
+          blockDatetime.getTime() / 1000,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        const snapshot = vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mock
+          .lastCall?.[0];
+        expect(snapshot?.priceSource).toBe("carried");
+        expect(snapshot?.pricePerUSDNew).toBe(anchorPrice);
+      });
+
       it("preserves lastUpdatedTimestamp on rejection so the 14-day staleness exit can fire", async () => {
         // Issue #730: prior to the fix, the rejection branch bumped
         // `lastUpdatedTimestamp` on every rejected refresh, which reset the
@@ -1336,9 +1376,12 @@ describe("PriceOracle", () => {
         const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
           .lastCall?.[0] as Token;
         expect(updatedToken.pricePerUSDNew).toBe(0n);
-        expect(
-          vi.mocked(mockContext.TokenPriceSnapshot?.set),
-        ).not.toHaveBeenCalled();
+        // Issue #822: a capped first-fetch still leaves a snapshot, tagged
+        // `carried`, holding the kept $0 anchor.
+        const snapshot = vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mock
+          .lastCall?.[0];
+        expect(snapshot?.priceSource).toBe("carried");
+        expect(snapshot?.pricePerUSDNew).toBe(0n);
         const warnCall = vi.mocked(mockContext.log?.warn)?.mock.lastCall;
         expect(warnCall?.[0]).toContain("[FIRST_FETCH_CAP]");
       });
@@ -1548,12 +1591,15 @@ describe("PriceOracle", () => {
           mockContext as handlerContext,
         );
 
-        // Anchor preserved, timestamp re-armed to now, no snapshot.
+        // Anchor preserved, timestamp re-armed to now.
         expect(result.pricePerUSDNew).toBe(anchorPrice);
         expect(result.lastUpdatedTimestamp).toEqual(blockDatetime);
-        expect(
-          vi.mocked(mockContext.TokenPriceSnapshot?.set),
-        ).not.toHaveBeenCalled();
+        // Issue #822: the rejected tick still leaves a snapshot, tagged
+        // `carried`, holding the preserved anchor price.
+        const snapshot = vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mock
+          .lastCall?.[0];
+        expect(snapshot?.priceSource).toBe("carried");
+        expect(snapshot?.pricePerUSDNew).toBe(anchorPrice);
         const infoCall = vi.mocked(mockContext.log?.info)?.mock.lastCall;
         expect(infoCall?.[0]).toContain("[MAX_PRICE_CEILING]");
       });
@@ -1765,6 +1811,69 @@ describe("PriceOracle", () => {
         expect(updatedToken.lastSuccessfulPriceTimestamp?.getTime()).toBe(
           recentSuccess.getTime(),
         );
+      });
+
+      it("still emits a snapshot tagged 'carried' on a last-known-price fallback tick (issue #822)", async () => {
+        // Issue #822 AC: a fallback tick (oracle 0, recent anchor reused) must
+        // leave a per-block snapshot holding the carried anchor.
+        const anchorPrice = 2n * 10n ** 18n;
+        const recentSuccess = new Date(
+          blockDatetime.getTime() - 2 * 24 * 60 * 60 * 1000,
+        );
+        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
+          if ((effect as { name?: string }).name === "getTokenPrice") {
+            return { pricePerUSDNew: 0n };
+          }
+          return {};
+        });
+
+        await PriceOracle.refreshTokenPrice(
+          {
+            ...mockToken0Data,
+            pricePerUSDNew: anchorPrice,
+            lastUpdatedTimestamp: oneHourOneMinuteAgo(),
+            lastSuccessfulPriceTimestamp: recentSuccess,
+          },
+          v3Block,
+          blockDatetime.getTime() / 1000,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        const snapshot = vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mock
+          .lastCall?.[0];
+        expect(snapshot?.priceSource).toBe("carried");
+        expect(snapshot?.pricePerUSDNew).toBe(anchorPrice);
+      });
+
+      it("still emits a snapshot tagged 'carried' when the oracle effect throws (issue #822)", async () => {
+        // Issue #822: the catch path (transient RPC error) returns the healed
+        // token unchanged but must still record a per-block snapshot of the
+        // price the token carries, so error ticks aren't holes.
+        const anchorPrice = 2n * 10n ** 18n;
+        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
+          if ((effect as { name?: string }).name === "getTokenPrice") {
+            throw new Error("RPC exploded");
+          }
+          return {};
+        });
+
+        await PriceOracle.refreshTokenPrice(
+          {
+            ...mockToken0Data,
+            pricePerUSDNew: anchorPrice,
+            lastUpdatedTimestamp: oneHourOneMinuteAgo(),
+          },
+          blockNumber,
+          blockDatetime.getTime() / 1000,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        const snapshot = vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mock
+          .lastCall?.[0];
+        expect(snapshot?.priceSource).toBe("carried");
+        expect(snapshot?.pricePerUSDNew).toBe(anchorPrice);
       });
 
       it("stops re-pinning once last successful price is older than 7 days, even with hourly retries (regression)", async () => {
@@ -2266,6 +2375,13 @@ describe("PriceOracle", () => {
         const written = vi.mocked(mockContext.Token?.set)?.mock
           .lastCall?.[0] as Token;
         expect(written?.pricePerUSDNew).toBe(hint);
+        // Issue #822: anchoring to the hint is tagged `pool-implied`, distinct
+        // from a straight-from-oracle `fresh` read, so a consumer can tell a
+        // pool-derived anchor apart from a raw oracle price.
+        const snapshot = vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mock
+          .lastCall?.[0];
+        expect(snapshot?.priceSource).toBe("pool-implied");
+        expect(snapshot?.pricePerUSDNew).toBe(hint);
       });
 
       it("#785: replaces a too-high first read with the hint (supersedes FIRST_FETCH_CAP)", async () => {
@@ -2352,6 +2468,249 @@ describe("PriceOracle", () => {
         // instead of writing a >$1M anchor from a glitched ratio.
         expect(written?.pricePerUSDNew).toBe(read);
       });
+    });
+
+    // Issue #822: the provenance invariant, in one place. Every NON-throttle
+    // return of refreshTokenPrice must emit exactly one TokenPriceSnapshot,
+    // tagged by the branch that produced the price. This is the machine-enforced
+    // form of the "Any future early-return added below must call this too"
+    // comment in src/PriceOracle.ts: a new return that forgets to snapshot drops
+    // a row (count 0) and a stray double-snapshot adds one (count 2) — either
+    // fails here. The throttle early-return is the sole snapshot-free exit and is
+    // covered separately above ("does not refresh while inside the 1-hour
+    // throttle window").
+    describe("Issue #822: every non-throttle return emits exactly one tagged snapshot", () => {
+      const usd = (n: number) => BigInt(Math.round(n * 1e6)) * 10n ** 12n;
+      const blockTimestamp = blockDatetime.getTime() / 1000;
+      const oneHourOneMinuteAgo = () =>
+        new Date(blockDatetime.getTime() - 61 * 60 * 1000);
+
+      // Real override-table entries (mirroring the blacklist/rebind tests above)
+      // so the two pre-oracle branches are driven through the same overrides
+      // production uses, not a hand-mocked predicate.
+      const MANATEE_OP = toChecksumAddress(
+        "0x7909Bda52eAf7C3cc12745E727Eb527a485241D8",
+      );
+      const RSETH_SWELL = toChecksumAddress(
+        "0xc3eaCf0612346366Db554c991D7858716db09f58",
+      );
+      const WRSETH_BASE = toChecksumAddress(
+        "0xEDfa23602D0EC14714057867A78d01e94176BEA0",
+      );
+      const rebindSourcePrice = 2_443n * 10n ** 18n;
+
+      const setOracleRead = (read: bigint) =>
+        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
+          if ((effect as { name?: string }).name === "getTokenPrice") {
+            return { pricePerUSDNew: read };
+          }
+          return {};
+        });
+
+      beforeEach(() => {
+        vi.mocked(mockContext.Token?.set)?.mockClear();
+        vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mockClear();
+        vi.mocked(mockContext.Token?.get)?.mockReset();
+        vi.mocked(mockContext.Token?.get)?.mockResolvedValue(undefined);
+      });
+
+      // Each scenario wires the inputs that route refreshTokenPrice to exactly
+      // one non-throttle return, then declares the price + tag that return must
+      // snapshot.
+      const scenarios: {
+        name: string;
+        prepare: () => { token: Token; chainId: number; hint?: bigint };
+        expectedTag: string;
+        expectedPrice: bigint;
+      }[] = [
+        {
+          name: "blacklist → override (0)",
+          prepare: () => ({
+            token: {
+              ...mockToken0Data,
+              address: MANATEE_OP,
+              pricePerUSDNew: 388_328n * 10n ** 18n,
+              lastUpdatedTimestamp: oneHourOneMinuteAgo(),
+            },
+            chainId: 10, // Optimism, where $Manatee is blacklisted
+          }),
+          expectedTag: "override",
+          expectedPrice: 0n,
+        },
+        {
+          name: "rebind → rebind (source price)",
+          prepare: () => {
+            vi.mocked(mockContext.Token?.get)?.mockImplementation(async (id) =>
+              id === `8453-${WRSETH_BASE}`
+                ? ({ pricePerUSDNew: rebindSourcePrice } as Token)
+                : undefined,
+            );
+            return {
+              token: {
+                ...mockToken0Data,
+                address: RSETH_SWELL,
+                pricePerUSDNew: 3_620_000n * 10n ** 18n,
+                lastUpdatedTimestamp: oneHourOneMinuteAgo(),
+              },
+              chainId: 1923, // Swell, where rsETH rebinds to wrsETH/Base
+            };
+          },
+          expectedTag: "rebind",
+          expectedPrice: rebindSourcePrice,
+        },
+        {
+          name: "absolute ceiling → carried (anchor)",
+          prepare: () => {
+            setOracleRead(10n ** 30n); // far above the $1M ceiling
+            return {
+              token: {
+                ...mockToken0Data,
+                symbol: "BPX",
+                pricePerUSDNew: 137n * 10n ** 12n, // $0.000137 anchor
+                lastUpdatedTimestamp: oneHourOneMinuteAgo(),
+              },
+              chainId: 10,
+            };
+          },
+          expectedTag: "carried",
+          expectedPrice: 137n * 10n ** 12n,
+        },
+        {
+          name: "pool-implied first-fetch → pool-implied (hint)",
+          prepare: () => {
+            setOracleRead(usd(0.0014)); // too-low first read, out of band
+            return {
+              token: {
+                ...mockToken0Data,
+                pricePerUSDNew: 0n,
+                lastUpdatedTimestamp: oneHourOneMinuteAgo(),
+              },
+              chainId: 10,
+              hint: usd(0.25),
+            };
+          },
+          expectedTag: "pool-implied",
+          expectedPrice: usd(0.25),
+        },
+        {
+          name: "first-fetch cap → carried (0)",
+          prepare: () => {
+            setOracleRead(50_000n * 10n ** 18n); // > FIRST_FETCH_CAP, < ceiling
+            return {
+              token: {
+                ...mockToken0Data,
+                symbol: "USDT", // non-BTC
+                pricePerUSDNew: 0n,
+                lastUpdatedTimestamp: oneHourOneMinuteAgo(),
+              },
+              chainId: 10, // no hint → not the pool-implied path
+            };
+          },
+          expectedTag: "carried",
+          expectedPrice: 0n,
+        },
+        {
+          name: "spike rejection → carried (anchor)",
+          prepare: () => {
+            setOracleRead(100n * 10n ** 18n); // 100× the still-fresh anchor
+            return {
+              token: {
+                ...mockToken0Data,
+                pricePerUSDNew: 1n * 10n ** 18n,
+                lastUpdatedTimestamp: oneHourOneMinuteAgo(),
+                lastSuccessfulPriceTimestamp: oneHourOneMinuteAgo(),
+              },
+              chainId: 10,
+            };
+          },
+          expectedTag: "carried",
+          expectedPrice: 1n * 10n ** 18n,
+        },
+        {
+          name: "last-known fallback → carried (anchor)",
+          prepare: () => {
+            setOracleRead(0n); // transient $0 read
+            return {
+              token: {
+                ...mockToken0Data,
+                pricePerUSDNew: 2n * 10n ** 18n,
+                lastUpdatedTimestamp: oneHourOneMinuteAgo(),
+                lastSuccessfulPriceTimestamp: new Date(
+                  blockDatetime.getTime() - 24 * 60 * 60 * 1000, // 1d ago (<7d)
+                ),
+              },
+              chainId: 10,
+            };
+          },
+          expectedTag: "carried",
+          expectedPrice: 2n * 10n ** 18n,
+        },
+        {
+          name: "oracle success → fresh (read)",
+          prepare: () => {
+            setOracleRead(3n * 10n ** 18n); // 1.5× anchor: accepted, not a spike
+            return {
+              token: {
+                ...mockToken0Data,
+                pricePerUSDNew: 2n * 10n ** 18n,
+                lastUpdatedTimestamp: oneHourOneMinuteAgo(),
+                lastSuccessfulPriceTimestamp: oneHourOneMinuteAgo(),
+              },
+              chainId: 10,
+            };
+          },
+          expectedTag: "fresh",
+          expectedPrice: 3n * 10n ** 18n,
+        },
+        {
+          name: "oracle throws → carried (anchor)",
+          prepare: () => {
+            vi.mocked(mockContext.effect)?.mockImplementation(
+              async (effect) => {
+                if ((effect as { name?: string }).name === "getTokenPrice") {
+                  throw new Error("transient RPC failure");
+                }
+                return {};
+              },
+            );
+            return {
+              token: {
+                ...mockToken0Data,
+                pricePerUSDNew: 2n * 10n ** 18n,
+                lastUpdatedTimestamp: oneHourOneMinuteAgo(),
+              },
+              chainId: 10,
+            };
+          },
+          expectedTag: "carried",
+          expectedPrice: 2n * 10n ** 18n,
+        },
+      ];
+
+      it.each(scenarios)(
+        "$name",
+        async ({ prepare, expectedTag, expectedPrice }) => {
+          const { token, chainId: scenarioChainId, hint } = prepare();
+
+          await PriceOracle.refreshTokenPrice(
+            token,
+            blockNumber,
+            blockTimestamp,
+            scenarioChainId,
+            mockContext as handlerContext,
+            hint,
+          );
+
+          // The invariant: exactly one snapshot per non-throttle return.
+          expect(
+            vi.mocked(mockContext.TokenPriceSnapshot?.set),
+          ).toHaveBeenCalledTimes(1);
+          const snapshot = vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mock
+            .lastCall?.[0];
+          expect(snapshot?.priceSource).toBe(expectedTag);
+          expect(snapshot?.pricePerUSDNew).toBe(expectedPrice);
+        },
+      );
     });
   });
 });
