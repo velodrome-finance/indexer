@@ -1,4 +1,4 @@
-import type { Token, UserStatsPerPool } from "envio";
+import type { UserStatsPerPool } from "envio";
 import {
   PoolAddressField,
   type PoolDiff,
@@ -10,17 +10,11 @@ import {
   loadOrCreateUserData,
 } from "../../Aggregators/UserStatsPerPool";
 import { TokenId } from "../../Constants";
-import {
-  getTokenDetails,
-  getTokenPrice,
-  hasContractBytecode,
-  roundBlockToInterval,
-} from "../../Effects/Index";
 import { getRehydrated } from "../../EntityTimestamps";
 import type { handlerContext } from "../../EntityTypes";
 import type { Pool } from "../../EntityTypes";
-import { refreshTokenPrice } from "../../PriceOracle";
-import { getGateDecisionFromSignals, getTrustedUSD } from "../../PriceTrust";
+import { createTokenEntity, refreshTokenPrice } from "../../PriceOracle";
+import { getTrustedUSD } from "../../PriceTrust";
 
 export interface VotingRewardEventData {
   votingRewardAddress: string;
@@ -45,14 +39,22 @@ export interface VotingRewardClaimRewardsResult {
  * VotingReward contract. Pure: returns incremental diffs to be staged by the
  * caller, no DB writes.
  *
- * Side effects: on a first-sighting reward token, runs the bytecode gate (#677)
- * to filter EOA / non-contract addresses, and otherwise stages `context.Token.set`
- * for the new token row after fetching details + price in parallel.
+ * Side effects: on a first-sighting reward token, delegates to the canonical
+ * {@link createTokenEntity}, which runs the bytecode gate (#677) to filter
+ * EOA / non-contract addresses and stages `context.Token.set` with the
+ * price-trust gate applied — `isWhitelisted` defaults to `false` (#815) rather
+ * than being hardcoded `true`, and `pricePerUSDNew` is persisted as `0n`. That
+ * `0n` + untrusted state is what makes {@link getTrustedUSD} contribute `0n` for
+ * a first-seen reward token — NOT a guarded oracle read. The bootstrap
+ * `refreshTokenPrice` below is throttled (createTokenEntity just stamped
+ * `lastUpdatedTimestamp` to this block, so `shouldRefresh` is false), so it
+ * makes no oracle call here; `FIRST_FETCH_CAP` + the spike guard first engage on
+ * a later (≥1h) claim, which owns the first actual priced read.
  *
- * When the bytecode gate rejects the reward address, zero-valued diffs are
- * returned so the pool/user entities still get a `lastUpdatedTimestamp` /
- * `lastActivityTimestamp` bump without persisting USD attribution against a
- * non-existent token.
+ * When `createTokenEntity` rejects the reward address (no deployed bytecode,
+ * returns `null`), zero-valued diffs are returned so the pool/user entities
+ * still get a `lastUpdatedTimestamp` / `lastActivityTimestamp` bump without
+ * persisting USD attribution against a non-existent token.
  *
  * @param data - The claim payload (reward token address, amount, block, chain, user).
  * @param context - The handler context (used for Token storage, effects, logging).
@@ -72,18 +74,24 @@ export async function processVotingRewardClaimRewards(
   let rewardToken = await getRehydrated(context.Token, "Token", rewardTokenId);
 
   if (!rewardToken) {
-    context.log.warn(
-      `[processVotingRewardClaimRewards] Reward token not found for ${data.reward} on chain ${data.chainId}`,
+    // First sighting: route through the canonical createTokenEntity so the
+    // reward token gets the same treatment as every other first-seen token —
+    // the #677 bytecode gate, `isWhitelisted: false` from the price-trust gate
+    // (#815, not a hardcoded `true`), and `pricePerUSDNew: 0n`. That `0n` +
+    // untrusted state is what zeros getTrustedUSD on first sight; the
+    // refreshTokenPrice call below is throttled (createTokenEntity just stamped
+    // this block), so it makes NO oracle call here — FIRST_FETCH_CAP + the spike
+    // guard first engage on a later (≥1h) claim.
+    const created = await createTokenEntity(
+      data.reward,
+      data.chainId,
+      data.blockNumber,
+      context,
+      data.timestamp,
     );
-
-    const { hasCode } = await context.effect(hasContractBytecode, {
-      address: data.reward,
-      chainId: data.chainId,
-    });
-    if (!hasCode) {
-      context.log.warn(
-        `[processVotingRewardClaimRewards] Skipping Token row and reward USD for non-contract address ${data.reward} on chain ${data.chainId} (no deployed bytecode)`,
-      );
+    if (!created) {
+      // No deployed bytecode (#677): skip USD attribution but still bump the
+      // pool/user activity timestamps.
       const zeroIncrementals = {
         incrementalTotalBribeClaimedUSD: 0n,
         incrementalTotalFeeRewardClaimedUSD: 0n,
@@ -99,56 +107,7 @@ export async function processVotingRewardClaimRewards(
         },
       };
     }
-
-    context.log.warn(
-      "[processVotingRewardClaimRewards] Using separate effects to get token data and then creating Token entity",
-    );
-
-    // Round block number to nearest hour interval for better cache hits
-    // Cache key is based on input parameters, so rounding must happen before effect call
-    const roundedBlockNumber = roundBlockToInterval(
-      data.blockNumber,
-      data.chainId,
-    );
-
-    // Fetch token details and price in parallel
-    const [rewardTokenDetails, priceData] = await Promise.all([
-      context.effect(getTokenDetails, {
-        contractAddress: data.reward,
-        chainId: data.chainId,
-      }),
-      context.effect(getTokenPrice, {
-        tokenAddress: data.reward,
-        chainId: data.chainId,
-        blockNumber: roundedBlockNumber, // Use rounded block for cache key
-      }),
-    ]);
-
-    const decision = getGateDecisionFromSignals(
-      data.chainId,
-      data.reward,
-      true,
-    );
-    const newToken: Token = {
-      id: TokenId(data.chainId, data.reward),
-      address: data.reward,
-      name: rewardTokenDetails.name,
-      symbol: rewardTokenDetails.symbol,
-      chainId: data.chainId,
-      decimals: BigInt(rewardTokenDetails.decimals),
-      pricePerUSDNew: priceData.pricePerUSDNew,
-      lastUpdatedTimestamp: new Date(data.timestamp * 1000),
-      lastSuccessfulPriceTimestamp:
-        priceData.pricePerUSDNew > 0n
-          ? new Date(data.timestamp * 1000)
-          : undefined,
-      isWhitelisted: true,
-      priceTrustOutcome: decision.outcome,
-      priceTrustReason: decision.reason,
-    };
-
-    context.Token.set(newToken);
-    rewardToken = newToken;
+    rewardToken = created;
   }
 
   const updatedRewardToken = await refreshTokenPrice(
