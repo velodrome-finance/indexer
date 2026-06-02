@@ -506,11 +506,22 @@ export async function refreshTokenPrice(
  * once per pool's `PoolCreated` event, so a transient RPC failure persists `?`
  * (empty symbol) on the Token forever.
  *
- * Exported so callers can heal outside the price-refresh path (issue #735):
- * `refreshTokenPrice` runs this above the 1-hour throttle so the first Swap /
- * Mint / Burn / Voter event after a pool's creation clears empty metadata,
- * even when the event lands inside the throttle window. The standalone export
- * keeps the door open for non-refresh handlers to call heal directly.
+ * Also re-derives a fallback-origin `decimals` (issue #820): when the stored
+ * row carries the full TOKEN_DETAILS_FALLBACK fingerprint (empty symbol AND
+ * empty name — the only shape under which `decimals` is the stubbed 18 rather
+ * than a real read) and a genuine fresh read reports a different value, the
+ * corrected decimals is overlaid alongside symbol/name. A row missing only one
+ * of symbol/name had a real creation-time read (a failed read replaces all
+ * three fields with the fallback) so its decimals is left untouched, as is a
+ * legitimately 18-decimal token — which has a symbol and never reaches this
+ * path.
+ *
+ * Exported so callers can heal outside the price-refresh path (issues #735,
+ * #820): `refreshTokenPrice` runs this above the 1-hour throttle so the first
+ * Swap / Mint / Burn / Voter event after a pool's creation clears empty
+ * metadata even when the event lands inside the throttle window, and the
+ * `WhitelistToken` handlers call it so whitelisted tokens that never hit
+ * `refreshTokenPrice` (never a pool/reward token) still heal.
  *
  * Idempotent: once `symbol` and `name` are both populated the function
  * short-circuits without an effect call. When `getTokenDetails` legitimately
@@ -524,8 +535,9 @@ export async function refreshTokenPrice(
  * @param token - Existing Token entity (read-only).
  * @param chainId - Chain to query.
  * @param context - Envio handler context for the effect call, `Token.set`, and logging.
- * @returns The healed Token entity (with overlaid `symbol`/`name`) when fresh
- *          values were available; the original `token` reference otherwise.
+ * @returns The healed Token entity (with overlaid `symbol` / `name` and, for a
+ *          fallback-origin row, `decimals`) when fresh values were available;
+ *          the original `token` reference otherwise.
  */
 export async function healTokenMetadata(
   token: Token,
@@ -541,10 +553,40 @@ export async function healTokenMetadata(
       contractAddress: token.address,
       chainId,
     });
-    const overlay: { symbol?: string; name?: string } = {};
+    const overlay: { symbol?: string; name?: string; decimals?: bigint } = {};
     if (!token.symbol && details.symbol) overlay.symbol = details.symbol;
     if (!token.name && details.name) overlay.name = details.name;
-    if (overlay.symbol === undefined && overlay.name === undefined) {
+    // Issue #820: re-derive a fallback-origin `decimals`. It is written once at
+    // creation and was never healed, so a token created from the
+    // TOKEN_DETAILS_FALLBACK constant (transient RPC failure or full contract
+    // revert ⇒ empty symbol AND empty name AND the stubbed decimals=18) stayed
+    // mis-scaled by 10^(18-real) forever for a non-18 token (USDC=6, WBTC=8).
+    // The fingerprint is BOTH symbol and name empty — the exact fallback shape.
+    // A failed `getTokenDetails` replaces all three fields with the fallback
+    // constant, so a row missing only one of symbol/name had a real
+    // creation-time read and its decimals is trusted and left untouched; a
+    // legitimately 18-decimal token has a symbol and never reaches this heal
+    // path. A non-empty `details.symbol` marks the fresh read as genuine (a
+    // fallback read returns an empty symbol), so a differing decimals is
+    // adopted only from a real read. (Deferred edge: a token whose `decimals()`
+    // alone returns null while name/symbol succeed keeps the fetcher's
+    // substituted 18 — its symbol is non-empty so it skips this heal; catching
+    // it needs the effect to surface `usedDefault`. Out of scope for this P3
+    // fix; #736's bytecode/decimals probe filters most such tokens.)
+    const freshDecimals = BigInt(details.decimals);
+    if (
+      !token.symbol &&
+      !token.name &&
+      details.symbol &&
+      freshDecimals !== token.decimals
+    ) {
+      overlay.decimals = freshDecimals;
+    }
+    if (
+      overlay.symbol === undefined &&
+      overlay.name === undefined &&
+      overlay.decimals === undefined
+    ) {
       return token;
     }
     const updated: Token = { ...token, ...overlay };

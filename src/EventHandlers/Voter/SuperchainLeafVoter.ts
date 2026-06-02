@@ -9,6 +9,7 @@ import {
 } from "../../Constants";
 import { getTokenDetails, hasContractBytecode } from "../../Effects/Index";
 import { getRehydrated } from "../../EntityTimestamps";
+import { healTokenMetadata } from "../../PriceOracle";
 import { getGateDecisionFromSignals } from "../../PriceTrust";
 
 indexer.contractRegister(
@@ -143,6 +144,15 @@ indexer.onEvent(
 
     // Update the Token entity in the DB, either by updating the existing one or creating a new one
     if (token) {
+      // Issue #820: heal frozen metadata (empty symbol/name, fallback-origin
+      // decimals) for whitelisted tokens that may never hit refreshTokenPrice —
+      // a token that is never a pool or reward token never reaches the heal
+      // lifted above the throttle there. WhitelistToken is the one recurring
+      // path such tokens traverse, mirroring the #761 priceTrust recompute
+      // below. healTokenMetadata short-circuits without an RPC once symbol+name
+      // are populated, so the common (already-healed) case stays free.
+      const healed = await healTokenMetadata(token, event.chainId, context);
+
       // Recompute the price-trust gate alongside isWhitelisted so the persisted
       // priceTrustOutcome/priceTrustReason stay in lockstep with the whitelist
       // signal. Without this, tokens first observed via pool events before
@@ -153,7 +163,7 @@ indexer.onEvent(
         event.params._bool,
       );
       const updatedToken: Token = {
-        ...token,
+        ...healed,
         isWhitelisted: event.params._bool,
         priceTrustOutcome: decision.outcome,
         priceTrustReason: decision.reason,
