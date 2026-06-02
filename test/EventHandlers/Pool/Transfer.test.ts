@@ -144,12 +144,13 @@ describe("Pool Transfer Event", () => {
     expect(storedTransfer?.isBurn).toBe(true);
     expect(storedTransfer?.from).toBe(userAddress);
 
-    // Verify user LP balance was updated
+    // Burn from a holder we never credited (existed before the indexer start
+    // block): lpBalance clamps to 0n rather than persisting negative (issue #816).
     const userStats = await indexer.UserStatsPerPool.get(
       UserStatsPerPoolId(10, userAddress, poolAddress),
     );
     expect(userStats).toBeDefined();
-    expect(userStats?.lpBalance).toBe(-LP_VALUE);
+    expect(userStats?.lpBalance).toBe(0n);
   });
 
   it("should process regular transfer and update both user balances", async () => {
@@ -201,12 +202,13 @@ describe("Pool Transfer Event", () => {
     const storedTransfer = await indexer.PoolTransferInTx.get(transferId);
     expect(storedTransfer).toBeUndefined();
 
-    // Verify sender LP balance was decreased
+    // Sender had no credited balance (pre-indexer holder): lpBalance clamps to
+    // 0n rather than persisting negative (issue #816).
     const senderStats = await indexer.UserStatsPerPool.get(
       UserStatsPerPoolId(10, senderAddress, poolAddress),
     );
     expect(senderStats).toBeDefined();
-    expect(senderStats?.lpBalance).toBe(-LP_VALUE);
+    expect(senderStats?.lpBalance).toBe(0n);
 
     // Verify recipient LP balance was increased
     const recipientStats = await indexer.UserStatsPerPool.get(

@@ -169,13 +169,16 @@ describe("ALMLPWrapper Aggregator", () => {
         expect(result.lpAmount).toBe(1000n * TEN_TO_THE_18_BI);
       });
 
-      it("should handle withdraw correctly (negative lpAmount)", async () => {
+      it("clamps lpAmount to 0n instead of persisting a negative (issue #816)", async () => {
         const emptyWrapper: ALM_LP_Wrapper = {
           ...mockALMLPWrapperData,
           lpAmount: 0n,
           liquidity: 0n,
         };
 
+        // V1-withdraw fallback can subtract more than was added: a V1 `Withdraw`
+        // emits the input parameter, not the actual burned amount, so a withdraw
+        // can exceed accumulated deposits and drive the counter negative.
         const withdrawDiff = {
           incrementalLpAmount: -500n * TEN_TO_THE_18_BI,
           liquidity: 0n,
@@ -191,7 +194,15 @@ describe("ALMLPWrapper Aggregator", () => {
         const mockSet = vi.mocked(mockContext.ALM_LP_Wrapper?.set);
         const result = mockSet?.mock.calls[0]?.[0] as ALM_LP_Wrapper;
 
-        expect(result.lpAmount).toBe(-500n * TEN_TO_THE_18_BI); // 0 - 500
+        expect(result.lpAmount).toBe(0n); // clamped, not -500
+
+        const warn = vi.mocked(mockContext.log?.warn);
+        expect(warn).toHaveBeenCalledTimes(1);
+        const msg = warn?.mock.calls[0]?.[0] as string;
+        expect(msg).toContain("[NEG_ALM_LP_AMOUNT_GUARD]");
+        expect(msg).toContain("priorLpAmount=0");
+        expect(msg).toContain(`delta=${-500n * TEN_TO_THE_18_BI}`);
+        expect(msg).toContain("clampedTo=0");
       });
     });
 

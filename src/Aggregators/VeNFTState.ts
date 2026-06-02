@@ -54,6 +54,22 @@ export async function updateVeNFTState(
       ? diff.lastSnapshotTimestamp
       : current.lastSnapshotTimestamp;
 
+  // Clamp totalValueLocked to >= 0n on write (issue #816). A decrement can land
+  // on a zero-initialised shell — the matching deposit that should have populated
+  // the balance was never indexed — so the raw subtraction would persist as a
+  // negative TVL. Clamp-and-log mirrors [NEG_RESERVE_GUARD] in Aggregators/Pool.ts;
+  // [NEG_VENFT_TVL_GUARD] keeps the underflow observable. Breadcrumb only — no
+  // deeper deposit-backfill fix unless a symptom is observed (issue #816 AC).
+  const totalValueLockedRaw =
+    (diff.incrementalTotalValueLocked ?? 0n) + current.totalValueLocked;
+  const clampedTotalValueLocked =
+    totalValueLockedRaw < 0n ? 0n : totalValueLockedRaw;
+  if (totalValueLockedRaw < 0n) {
+    context.log.warn(
+      `[NEG_VENFT_TVL_GUARD][updateVeNFTState] field=totalValueLocked id=${current.id} priorTVL=${current.totalValueLocked} delta=${diff.incrementalTotalValueLocked ?? 0n} clampedTo=${clampedTotalValueLocked}`,
+    );
+  }
+
   let veNFTState: VeNFTState = {
     ...current,
     id: diff.id ?? VeNFTId(current.chainId, current.tokenId),
@@ -63,8 +79,7 @@ export async function updateVeNFTState(
     locktime: diff.locktime ?? current.locktime, // lockTime of the deposit action
     isPermanent: diff.isPermanent ?? current.isPermanent,
     lastUpdatedTimestamp: timestamp,
-    totalValueLocked:
-      (diff.incrementalTotalValueLocked ?? 0n) + current.totalValueLocked,
+    totalValueLocked: clampedTotalValueLocked,
     isAlive: diff.isAlive ?? current.isAlive,
     lastSnapshotTimestamp,
   };

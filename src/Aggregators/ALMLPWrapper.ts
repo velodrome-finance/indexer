@@ -25,12 +25,28 @@ export async function updateALMLPWrapper(
   timestamp: Date,
   context: handlerContext,
 ): Promise<void> {
+  // Clamp lpAmount to >= 0n on write (issue #816). The V1-withdraw fallback can
+  // subtract more than was added: a V1 `Withdraw` emits the input parameter, not
+  // the actual burned amount (see getActualLpAmountForV1 in
+  // src/EventHandlers/ALM/LPWrapperLogic.ts), so a withdraw can exceed the
+  // deposits we accumulated and drive the counter negative. Clamp-and-log mirrors
+  // [NEG_RESERVE_GUARD] in Aggregators/Pool.ts; [NEG_ALM_LP_AMOUNT_GUARD] keeps
+  // the underflow observable. Breadcrumb only — no deeper V1 fix unless a symptom
+  // is observed (issue #816 AC).
+  const lpAmountRaw =
+    diff.incrementalLpAmount !== undefined
+      ? diff.incrementalLpAmount + current.lpAmount
+      : current.lpAmount;
+  const clampedLpAmount = lpAmountRaw < 0n ? 0n : lpAmountRaw;
+  if (lpAmountRaw < 0n) {
+    context.log.warn(
+      `[NEG_ALM_LP_AMOUNT_GUARD][updateALMLPWrapper] field=lpAmount id=${current.id} priorLpAmount=${current.lpAmount} delta=${diff.incrementalLpAmount ?? 0n} clampedTo=${clampedLpAmount}`,
+    );
+  }
+
   let updated: ALM_LP_Wrapper = {
     ...current,
-    lpAmount:
-      diff.incrementalLpAmount !== undefined
-        ? diff.incrementalLpAmount + current.lpAmount
-        : current.lpAmount,
+    lpAmount: clampedLpAmount,
     tokenId: diff.tokenId !== undefined ? diff.tokenId : current.tokenId,
     liquidity:
       diff.liquidity !== undefined ? diff.liquidity : current.liquidity,

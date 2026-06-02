@@ -200,6 +200,39 @@ export async function updateUserStatsPerPool(
   timestamp: Date,
   preloadedPoolData?: PoolData,
 ): Promise<UserStatsPerPool> {
+  // Clamp lpBalance to >= 0n on write (issue #816). A holder that existed before
+  // this chain's indexer start block surfaces first as a transfer-out: we debit
+  // an LP balance we never credited, so the running counter would go negative
+  // permanently. Clamp-and-log mirrors [NEG_RESERVE_GUARD] in Aggregators/Pool.ts;
+  // [NEG_LP_BALANCE_GUARD] keeps the underflow observable.
+  const lpBalanceRaw =
+    diff.incrementalLpBalance !== undefined
+      ? current.lpBalance + diff.incrementalLpBalance
+      : current.lpBalance;
+  const clampedLpBalance = lpBalanceRaw < 0n ? 0n : lpBalanceRaw;
+  if (lpBalanceRaw < 0n) {
+    context.log.warn(
+      `[NEG_LP_BALANCE_GUARD][updateUserStatsPerPool] field=lpBalance userAddress=${current.userAddress} poolAddress=${current.poolAddress} chainId=${current.chainId} priorLpBalance=${current.lpBalance} delta=${diff.incrementalLpBalance ?? 0n} clampedTo=${clampedLpBalance}`,
+    );
+  }
+
+  // Clamp almLpAmount to >= 0n on write (issue #816). The ALM V1-withdraw fallback
+  // can subtract more than was added: a V1 `Withdraw` emits the input parameter,
+  // not the actual burned amount (see getActualLpAmountForV1 in
+  // src/EventHandlers/ALM/LPWrapperLogic.ts), so a withdraw can exceed accumulated
+  // deposits and drive the counter negative. Breadcrumb only — no deeper V1 fix
+  // unless a symptom is observed (issue #816 AC).
+  const almLpAmountRaw =
+    diff.incrementalAlmLpAmount !== undefined
+      ? current.almLpAmount + diff.incrementalAlmLpAmount
+      : current.almLpAmount;
+  const clampedAlmLpAmount = almLpAmountRaw < 0n ? 0n : almLpAmountRaw;
+  if (almLpAmountRaw < 0n) {
+    context.log.warn(
+      `[NEG_ALM_LP_AMOUNT_GUARD][updateUserStatsPerPool] field=almLpAmount userAddress=${current.userAddress} poolAddress=${current.poolAddress} chainId=${current.chainId} priorAlmLpAmount=${current.almLpAmount} delta=${diff.incrementalAlmLpAmount ?? 0n} clampedTo=${clampedAlmLpAmount}`,
+    );
+  }
+
   let updated: UserStatsPerPool = {
     ...current,
     totalLiquidityAddedUSD:
@@ -232,10 +265,7 @@ export async function updateUserStatsPerPool(
         ? current.totalLiquidityRemovedToken1 +
           diff.incrementalTotalLiquidityRemovedToken1
         : current.totalLiquidityRemovedToken1,
-    lpBalance:
-      diff.incrementalLpBalance !== undefined
-        ? current.lpBalance + diff.incrementalLpBalance
-        : current.lpBalance,
+    lpBalance: clampedLpBalance,
 
     totalFeesContributed0:
       diff.incrementalTotalFeesContributed0 !== undefined
@@ -375,10 +405,7 @@ export async function updateUserStatsPerPool(
         : current.totalFeeRewardClaimedUSD,
 
     // ALM metrics
-    almLpAmount:
-      diff.incrementalAlmLpAmount !== undefined
-        ? current.almLpAmount + diff.incrementalAlmLpAmount
-        : current.almLpAmount,
+    almLpAmount: clampedAlmLpAmount,
     almAddress:
       diff.almAddress !== undefined ? diff.almAddress : current.almAddress,
 
