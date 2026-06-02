@@ -6,6 +6,7 @@ raw_events: false
 field_selection:
   transaction_fields:
     - "hash"
+    - "from"
 contracts:
   - name: FactoryRegistry
     abi_file_path: abis/FactoryRegistry.json

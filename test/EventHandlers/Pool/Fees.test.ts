@@ -233,6 +233,72 @@ describe("Pool Fees Event", () => {
     );
   });
 
+  // #814: fee contributions are the fee-leg of a swap and must accrue to the
+  // transaction signer (the user), not params.sender (the router for routed
+  // swaps). `from` is lower-cased to also prove it is checksummed before keying.
+  describe("attribution target (#814)", () => {
+    const router = toChecksumAddress(
+      "0x1234567890123456789012345678901234567890",
+    );
+    const userLower = "0xaaaabbbbccccddddeeeeffff0000111122223333";
+    const userChecksummed = toChecksumAddress(userLower);
+    const poolAddress = toChecksumAddress(
+      "0x3333333333333333333333333333333333333333",
+    );
+
+    let attributed: UserStatsPerPool | undefined;
+    let routerRow: UserStatsPerPool | undefined;
+
+    beforeEach(async () => {
+      const feesIndexer = createTestIndexer();
+      feesIndexer.Token.set(mockToken0Data as Token);
+      feesIndexer.Token.set(mockToken1Data as Token);
+      feesIndexer.Pool.set(mockLiquidityPoolData);
+
+      await feesIndexer.process({
+        chains: {
+          [chainId]: {
+            simulate: [
+              {
+                contract: "Pool",
+                event: "Fees",
+                srcAddress: mockLiquidityPoolData.poolAddress as `0x${string}`,
+                block: {
+                  number: 123456,
+                  timestamp: 1000000,
+                  hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                },
+                transaction: { from: userLower },
+                params: {
+                  amount0: expectations.amount0In,
+                  amount1: expectations.amount1In,
+                  sender: router,
+                },
+              },
+            ],
+          },
+        },
+      });
+
+      attributed = await feesIndexer.UserStatsPerPool.get(
+        UserStatsPerPoolId(10, userChecksummed, poolAddress),
+      );
+      routerRow = await feesIndexer.UserStatsPerPool.get(
+        UserStatsPerPoolId(10, router, poolAddress),
+      );
+    });
+
+    it("attributes fee contributions to tx.from (the user)", () => {
+      expect(attributed).toBeDefined();
+      expect(attributed?.totalFeesContributed0).toBe(expectations.amount0In);
+      expect(attributed?.totalFeesContributed1).toBe(expectations.amount1In);
+    });
+
+    it("does not attribute fee contributions to params.sender (the router)", () => {
+      expect(routerRow).toBeUndefined();
+    });
+  });
+
   describe("when pool does not exist", () => {
     it("should return early without processing", async () => {
       // Create a fresh indexer without the pool
