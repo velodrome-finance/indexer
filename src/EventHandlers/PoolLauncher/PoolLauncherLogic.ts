@@ -4,7 +4,25 @@ import { getRehydrated } from "../../EntityTimestamps";
 import type { Pool } from "../../EntityTypes";
 import type { handlerContext } from "../../EntityTypes";
 
-// Helper function to create or update PoolLauncherPool entity
+/**
+ * Creates or updates the PoolLauncherPool entity for a launched or migrated pool.
+ *
+ * On create, `migratedFrom` records the source pool when this pool is the target of a
+ * Migrate (and stays "" for Launch-created pools). On update, the existing `migratedFrom`
+ * is preserved by the spread — migration lineage is stamped only at creation, so
+ * re-processing an already-known pool never rewrites it.
+ *
+ * @param poolAddress - underlying pool address; becomes the entity's underlyingPool and (with chainId) its id
+ * @param launcherAddress - pool launcher contract that emitted the event
+ * @param creator - original launch sender (preserved across migration)
+ * @param poolLauncherToken - the launched "project" token
+ * @param pairToken - whitelisted pair token (e.g. WETH, USDC)
+ * @param createdAt - block timestamp of the triggering event
+ * @param chainId - chain the pool lives on
+ * @param context - Envio handler context used to read and stage the entity
+ * @param migratedFrom - source underlying pool when created as a Migrate target; "" for Launch
+ * @returns the created or updated PoolLauncherPool (already staged via context.PoolLauncherPool.set)
+ */
 export async function processPoolLauncherPool(
   poolAddress: string,
   launcherAddress: string,
@@ -14,6 +32,7 @@ export async function processPoolLauncherPool(
   createdAt: Date,
   chainId: number,
   context: handlerContext,
+  migratedFrom = "",
 ): Promise<PoolLauncherPool> {
   const poolId = PoolId(chainId, poolAddress);
 
@@ -36,7 +55,7 @@ export async function processPoolLauncherPool(
       createdAt,
       isEmerging: false,
       lastFlagUpdateAt: createdAt,
-      migratedFrom: "",
+      migratedFrom,
       migratedTo: "",
       oldLocker: "",
       newLocker: "",

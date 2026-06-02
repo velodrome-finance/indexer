@@ -118,6 +118,8 @@ describe("V2PoolLauncher Events", () => {
       expect(poolLauncherPool?.poolLauncherToken).toBe(mockPoolLauncherToken);
       expect(poolLauncherPool?.pairToken).toBe(mockPairToken);
       expect(poolLauncherPool?.isEmerging).toBe(false);
+      // #818: Launch-created pools are not migration targets — migratedFrom stays empty.
+      expect(poolLauncherPool?.migratedFrom).toBe("");
 
       // Check that Pool was linked
       const liquidityPoolAggregator = await indexer.Pool.get(
@@ -209,6 +211,9 @@ describe("V2PoolLauncher Events", () => {
       expect(originalPoolLauncherPool?.oldLocker).toBe(oldLocker);
       expect(originalPoolLauncherPool?.newLocker).toBe(newLocker);
       expect(originalPoolLauncherPool?.lastMigratedAt).toEqual(mockTimestamp);
+      // The source is a Migrate source, not a target: its own migratedFrom
+      // stays empty (only migratedTo is set on the source).
+      expect(originalPoolLauncherPool?.migratedFrom).toBe("");
 
       // Check that new PoolLauncherPool was created
       const rawNew = await indexer.PoolLauncherPool.get(
@@ -224,6 +229,8 @@ describe("V2PoolLauncher Events", () => {
         mockPoolLauncherToken,
       );
       expect(newPoolLauncherPool?.pairToken).toBe(mockPairToken);
+      // #818: the migrated target records its source pool as migratedFrom.
+      expect(newPoolLauncherPool?.migratedFrom).toBe(underlyingPool);
     });
 
     it("should handle migration when PoolLauncherPool doesn't exist", async () => {
