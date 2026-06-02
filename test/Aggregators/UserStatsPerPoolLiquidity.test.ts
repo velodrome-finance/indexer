@@ -250,4 +250,77 @@ describe("UserStatsPerPool Liquidity Logic", () => {
       expect(result.totalLiquidityRemovedUSD).toBe(0n);
     });
   });
+
+  describe("Negative counter clamps (issue #816)", () => {
+    let clampContext: handlerContext;
+    let warn: ReturnType<typeof vi.fn>;
+
+    beforeEach(() => {
+      warn = vi.fn();
+      clampContext = common.createMockContext({
+        UserStatsPerPool: { set: async () => {} },
+        UserStatsPerPoolSnapshot: { set: vi.fn() },
+        log: { error: vi.fn(), warn, info: vi.fn() },
+      });
+    });
+
+    it("clamps lpBalance to 0n instead of persisting a negative", async () => {
+      // Holder existed before this chain's indexer start block: the first event
+      // we observe is a transfer-out, debiting a balance we never credited.
+      const userStats: UserStatsPerPool = {
+        ...createMockUserStats(),
+        lpBalance: 0n,
+      };
+
+      const result = await updateUserStatsPerPool(
+        {
+          incrementalLpBalance: -50n,
+          lastActivityTimestamp: mockTimestamp,
+        },
+        userStats,
+        clampContext,
+        mockTimestamp,
+      );
+
+      expect(result.lpBalance).toBe(0n);
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining("[NEG_LP_BALANCE_GUARD]"),
+      );
+      const msg = warn.mock.calls
+        .map((c) => c[0] as string)
+        .find((m) => m.includes("[NEG_LP_BALANCE_GUARD]"));
+      expect(msg).toContain("priorLpBalance=0");
+      expect(msg).toContain("delta=-50");
+      expect(msg).toContain("clampedTo=0");
+    });
+
+    it("clamps almLpAmount to 0n instead of persisting a negative", async () => {
+      // ALM V1-withdraw fallback can subtract more than was added.
+      const userStats: UserStatsPerPool = {
+        ...createMockUserStats(),
+        almLpAmount: 100n,
+      };
+
+      const result = await updateUserStatsPerPool(
+        {
+          incrementalAlmLpAmount: -500n,
+          lastActivityTimestamp: mockTimestamp,
+        },
+        userStats,
+        clampContext,
+        mockTimestamp,
+      );
+
+      expect(result.almLpAmount).toBe(0n);
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining("[NEG_ALM_LP_AMOUNT_GUARD]"),
+      );
+      const msg = warn.mock.calls
+        .map((c) => c[0] as string)
+        .find((m) => m.includes("[NEG_ALM_LP_AMOUNT_GUARD]"));
+      expect(msg).toContain("priorAlmLpAmount=100");
+      expect(msg).toContain("delta=-500");
+      expect(msg).toContain("clampedTo=0");
+    });
+  });
 });

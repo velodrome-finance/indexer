@@ -167,6 +167,48 @@ describe("VeNFTState", () => {
       });
     });
 
+    describe("when a decrement drives totalValueLocked negative (issue #816)", () => {
+      let result: VeNFTState;
+      beforeEach(async () => {
+        // Zero-initialised shell: a decrement is processed against state the
+        // matching deposit never populated (e.g. the deposit was not indexed),
+        // so the raw subtraction would persist as a negative balance.
+        const zeroShell: VeNFTState = {
+          ...mockVeNFTState,
+          totalValueLocked: 0n,
+        };
+        const overdraftDiff = {
+          incrementalTotalValueLocked: -100n,
+        };
+
+        await updateVeNFTState(
+          overdraftDiff,
+          zeroShell,
+          timestamp,
+          mockContext as handlerContext,
+        );
+        const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
+        result = mockSet?.mock.calls[0]?.[0] as VeNFTState;
+      });
+
+      it("clamps totalValueLocked to 0n instead of persisting a negative", () => {
+        expect(result.totalValueLocked).toBe(0n);
+      });
+
+      it("emits a [NEG_VENFT_TVL_GUARD] warn log with diagnostic fields", () => {
+        const warn = vi.mocked(mockContext.log?.warn);
+        expect(warn).toHaveBeenCalledWith(
+          expect.stringContaining("[NEG_VENFT_TVL_GUARD]"),
+        );
+        const msg = warn?.mock.calls
+          .map((c) => c[0] as string)
+          .find((m) => m.includes("[NEG_VENFT_TVL_GUARD]"));
+        expect(msg).toContain("priorTVL=0");
+        expect(msg).toContain("delta=-100");
+        expect(msg).toContain("clampedTo=0");
+      });
+    });
+
     describe("when updating with transfer diff", () => {
       let result: VeNFTState;
       beforeEach(async () => {
