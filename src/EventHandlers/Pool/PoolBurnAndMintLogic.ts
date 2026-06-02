@@ -12,6 +12,10 @@ import { calculateTotalUSD } from "../../Helpers";
 export interface AttributionResult {
   recipient: string | undefined;
   totalLiquidityUSD: bigint;
+  /** Raw token0 amount from the Mint/Burn event (#810). */
+  amount0: bigint;
+  /** Raw token1 amount from the Mint/Burn event (#810). */
+  amount1: bigint;
 }
 
 /**
@@ -167,7 +171,7 @@ export function extractRecipientAddress(
  * @param token0Instance - Token0 instance
  * @param token1Instance - Token1 instance
  * @param context - Handler context
- * @returns User address and total liquidity USD, or undefined if no match found
+ * @returns User address, total liquidity USD, and the raw token0/token1 event amounts, or undefined if no match found
  */
 export async function findTransferAndAttribute(
   event: EvmEvent<"Pool", "Mint"> | EvmEvent<"Pool", "Burn">,
@@ -238,6 +242,8 @@ export async function findTransferAndAttribute(
   return {
     recipient,
     totalLiquidityUSD,
+    amount0: event.params.amount0,
+    amount1: event.params.amount1,
   };
 }
 
@@ -297,8 +303,10 @@ export async function processPoolLiquidityEvent(
     blockNumber,
   );
 
-  // Update user stats (actual user, not router) if we found a match
-  // This is the ONLY place where incrementalTotalLiquidityAddedUSD/RemovedUSD is set
+  // Update user stats (actual user, not router) if we found a match.
+  // This is the ONLY place the V2 per-LP liquidity deltas are set:
+  // incrementalTotalLiquidityAdded/RemovedUSD plus the raw added/removed
+  // token0/1 amounts (#810), mirroring the CL/NFPM path in NFPMCommonLogic.
   if (attributionResult?.recipient) {
     const userData = await loadOrCreateUserData(
       attributionResult.recipient,
@@ -312,11 +320,15 @@ export async function processPoolLiquidityEvent(
       ? {
           incrementalTotalLiquidityAddedUSD:
             attributionResult.totalLiquidityUSD,
+          incrementalTotalLiquidityAddedToken0: attributionResult.amount0,
+          incrementalTotalLiquidityAddedToken1: attributionResult.amount1,
           lastActivityTimestamp: timestamp,
         }
       : {
           incrementalTotalLiquidityRemovedUSD:
             attributionResult.totalLiquidityUSD,
+          incrementalTotalLiquidityRemovedToken0: attributionResult.amount0,
+          incrementalTotalLiquidityRemovedToken1: attributionResult.amount1,
           lastActivityTimestamp: timestamp,
         };
 

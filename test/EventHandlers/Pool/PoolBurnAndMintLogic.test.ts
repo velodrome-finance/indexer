@@ -3,10 +3,12 @@ import type {
   PoolTransferInTx,
   Token,
   TxPoolTransferRegistry,
+  UserStatsPerPool,
 } from "envio";
 import {
   PoolTransferInTxId,
   TxPoolTransferRegistryId,
+  UserStatsPerPoolId,
   ZERO_ADDRESS,
   toChecksumAddress,
 } from "../../../src/Constants";
@@ -1065,6 +1067,80 @@ describe("PoolBurnAndMintLogic", () => {
       expect(mockContext.PoolTransferInTx.deleteUnsafe).toHaveBeenCalledWith(
         userMintTransfer.id,
       );
+    });
+
+    it("V2 Mint then Burn credits the user's raw added/removed token0/1 on UserStatsPerPool (issue #810)", async () => {
+      // Stateful UserStatsPerPool so the same user entity persists across the
+      // Mint and the Burn. The default mock's get() returns undefined, which
+      // would mint a fresh zeroed entity on each call and hide accumulation.
+      const userStore = new Map<string, UserStatsPerPool>();
+      // Back the UserStatsPerPool store with userStore. mockContext's property
+      // is read-only, so spread a new context rather than reassigning it; the
+      // PoolTransferInTx/registry mocks carry over and stay stateful.
+      const statefulContext = {
+        ...mockContext,
+        UserStatsPerPool: {
+          get: vi.fn(async (id: string) => userStore.get(id)),
+          set: vi.fn((entity: UserStatsPerPool) => {
+            userStore.set(entity.id, entity);
+          }),
+        },
+      } as unknown as handlerContext;
+
+      // One tx carrying both LP Transfers: a mint Transfer (to USER) at
+      // logIndex 1 and a burn Transfer (from USER) at logIndex 3. The lazy
+      // registry seeder covers both; each event consumes its own.
+      mockPoolTransferInTx = [
+        createMockTransfer(
+          1,
+          ZERO_ADDRESS,
+          USER_ADDRESS,
+          LP_VALUE,
+          true,
+          false,
+        ),
+        createMockTransfer(
+          3,
+          USER_ADDRESS,
+          ZERO_ADDRESS,
+          LP_VALUE,
+          false,
+          true,
+        ),
+      ];
+
+      await processPoolLiquidityEvent(
+        createMockMintEvent(2),
+        mockPoolData,
+        POOL_ADDRESS,
+        CHAIN_ID,
+        statefulContext,
+        TIMESTAMP_DATE,
+        BLOCK_NUMBER,
+        true,
+      );
+      await processPoolLiquidityEvent(
+        createMockBurnEvent(4),
+        mockPoolData,
+        POOL_ADDRESS,
+        CHAIN_ID,
+        statefulContext,
+        TIMESTAMP_DATE,
+        BLOCK_NUMBER,
+        false,
+      );
+
+      const stats = userStore.get(
+        UserStatsPerPoolId(CHAIN_ID, USER_ADDRESS, POOL_ADDRESS),
+      );
+      expect(stats).toBeDefined();
+      // The raw token amounts must thread through the V2 attribution path the
+      // same way the CL/NFPM path sets them (NFPMCommonLogic.ts). Before the
+      // fix the V2 userDiff set only the USD keys, so these stayed at 0n.
+      expect(stats?.totalLiquidityAddedToken0).toBe(AMOUNT0);
+      expect(stats?.totalLiquidityAddedToken1).toBe(AMOUNT1);
+      expect(stats?.totalLiquidityRemovedToken0).toBe(AMOUNT0);
+      expect(stats?.totalLiquidityRemovedToken1).toBe(AMOUNT1);
     });
   });
 });
