@@ -126,6 +126,8 @@ describe("SuperSwapLogic", () => {
     const swapMap = new Map<string, OUSDTSwaps[]>();
     const logWarnings: string[] = [];
     const superSwaps = new Map<string, SuperSwap>();
+    const deletedDispatchIds = new Set<string>();
+    const deletedProcessIds = new Set<string>();
 
     // Group ProcessId events by messageId
     for (const event of processIdEvents) {
@@ -140,12 +142,20 @@ describe("SuperSwapLogic", () => {
     }
 
     return {
+      DispatchId_event: {
+        deleteUnsafe: (id: string) => {
+          deletedDispatchIds.add(id);
+        },
+      },
       ProcessId_event: {
         // biome-ignore lint/suspicious/noExplicitAny: test mock context needs flexibility
         getWhere: async (params: any) => {
           if (params.messageId?._eq)
             return processIdMap.get(params.messageId._eq) || [];
           return [];
+        },
+        deleteUnsafe: (id: string) => {
+          deletedProcessIds.add(id);
         },
       },
       OUSDTSwaps: {
@@ -174,6 +184,8 @@ describe("SuperSwapLogic", () => {
       },
       getWarnings: () => logWarnings,
       getSuperSwaps: () => superSwaps,
+      getDeletedDispatchIds: () => deletedDispatchIds,
+      getDeletedProcessIds: () => deletedProcessIds,
       // biome-ignore lint/suspicious/noExplicitAny: test mock context needs flexibility
     } as any;
   };
@@ -245,6 +257,205 @@ describe("SuperSwapLogic", () => {
       expect(superSwap.destinationChainToken).toBe(tokenOutAddress);
       expect(superSwap.destinationChainTokenAmountSwapped).toBe(950n);
       expect(superSwap.timestamp).toEqual(new Date(blockTimestamp * 1000));
+    });
+
+    it("should delete the matched DispatchId/ProcessId pair once the SuperSwap is created (#817 Part B)", async () => {
+      const sourceChainMessageIdEntities: DispatchId_event[] = [
+        createDispatchIdEvent(transactionHash, chainId, messageId1),
+      ];
+      const processIdResults: ProcessId_event[][] = [
+        [
+          createProcessIdEvent(
+            destinationTxHash,
+            Number(destinationDomain),
+            messageId1,
+          ),
+        ],
+      ];
+      const sourceSwap = createOUSDTSwap(
+        transactionHash,
+        chainId,
+        tokenInAddress,
+        1000n,
+        oUSDTAddress,
+        oUSDTAmount,
+      );
+      const destinationSwap = createOUSDTSwap(
+        destinationTxHash,
+        Number(destinationDomain),
+        oUSDTAddress,
+        oUSDTAmount,
+        tokenOutAddress,
+        950n,
+      );
+      const context = createMockContext(processIdResults.flat(), [
+        sourceSwap,
+        destinationSwap,
+      ]);
+
+      await processCrossChainSwap(
+        sourceChainMessageIdEntities,
+        processIdResults,
+        mockBridgedTransaction,
+        transactionHash,
+        chainId,
+        destinationDomain,
+        blockTimestamp,
+        context,
+      );
+
+      // SuperSwap created → its DispatchId/ProcessId correlators are consumed
+      // and hard-deleted so the Mailbox scratch tables stop growing (#817 Part B).
+      expect(context.getSuperSwaps().size).toBe(1);
+      expect([...context.getDeletedDispatchIds()]).toEqual([
+        MailboxMessageId(transactionHash, chainId, messageId1),
+      ]);
+      expect([...context.getDeletedProcessIds()]).toEqual([
+        MailboxMessageId(
+          destinationTxHash,
+          Number(destinationDomain),
+          messageId1,
+        ),
+      ]);
+    });
+
+    it("should retain unmatched DispatchId rows for other messageIds in the same source tx (#817 Part B)", async () => {
+      // Two messageIds dispatched in one source tx; only messageId1 has a
+      // matching ProcessId + destination swap, so only its pair is deleted.
+      const sourceChainMessageIdEntities: DispatchId_event[] = [
+        createDispatchIdEvent(transactionHash, chainId, messageId1),
+        createDispatchIdEvent(transactionHash, chainId, messageId2),
+      ];
+      const processIdResults: ProcessId_event[][] = [
+        [
+          createProcessIdEvent(
+            destinationTxHash,
+            Number(destinationDomain),
+            messageId1,
+          ),
+        ],
+        [],
+      ];
+      const sourceSwap = createOUSDTSwap(
+        transactionHash,
+        chainId,
+        tokenInAddress,
+        1000n,
+        oUSDTAddress,
+        oUSDTAmount,
+      );
+      const destinationSwap = createOUSDTSwap(
+        destinationTxHash,
+        Number(destinationDomain),
+        oUSDTAddress,
+        oUSDTAmount,
+        tokenOutAddress,
+        950n,
+      );
+      const context = createMockContext(processIdResults.flat(), [
+        sourceSwap,
+        destinationSwap,
+      ]);
+
+      await processCrossChainSwap(
+        sourceChainMessageIdEntities,
+        processIdResults,
+        mockBridgedTransaction,
+        transactionHash,
+        chainId,
+        destinationDomain,
+        blockTimestamp,
+        context,
+      );
+
+      expect(context.getSuperSwaps().size).toBe(1);
+      const deletedDispatch = context.getDeletedDispatchIds();
+      expect(
+        deletedDispatch.has(
+          MailboxMessageId(transactionHash, chainId, messageId1),
+        ),
+      ).toBe(true);
+      expect(
+        deletedDispatch.has(
+          MailboxMessageId(transactionHash, chainId, messageId2),
+        ),
+      ).toBe(false);
+    });
+
+    it("should stay idempotent when re-processed after the pair was deleted (#817 Part B backfill/replay)", async () => {
+      const sourceChainMessageIdEntities: DispatchId_event[] = [
+        createDispatchIdEvent(transactionHash, chainId, messageId1),
+      ];
+      const processIdResults: ProcessId_event[][] = [
+        [
+          createProcessIdEvent(
+            destinationTxHash,
+            Number(destinationDomain),
+            messageId1,
+          ),
+        ],
+      ];
+      const sourceSwap = createOUSDTSwap(
+        transactionHash,
+        chainId,
+        tokenInAddress,
+        1000n,
+        oUSDTAddress,
+        oUSDTAmount,
+      );
+      const destinationSwap = createOUSDTSwap(
+        destinationTxHash,
+        Number(destinationDomain),
+        oUSDTAddress,
+        oUSDTAmount,
+        tokenOutAddress,
+        950n,
+      );
+      const context = createMockContext(processIdResults.flat(), [
+        sourceSwap,
+        destinationSwap,
+      ]);
+
+      // Process the same events twice (simulates a backfill / reorg re-apply).
+      // The second pass must not create a duplicate SuperSwap and must not throw.
+      await processCrossChainSwap(
+        sourceChainMessageIdEntities,
+        processIdResults,
+        mockBridgedTransaction,
+        transactionHash,
+        chainId,
+        destinationDomain,
+        blockTimestamp,
+        context,
+      );
+      await processCrossChainSwap(
+        sourceChainMessageIdEntities,
+        processIdResults,
+        mockBridgedTransaction,
+        transactionHash,
+        chainId,
+        destinationDomain,
+        blockTimestamp,
+        context,
+      );
+
+      expect(context.getSuperSwaps().size).toBe(1);
+      expect(
+        context
+          .getDeletedDispatchIds()
+          .has(MailboxMessageId(transactionHash, chainId, messageId1)),
+      ).toBe(true);
+      expect(
+        context
+          .getDeletedProcessIds()
+          .has(
+            MailboxMessageId(
+              destinationTxHash,
+              Number(destinationDomain),
+              messageId1,
+            ),
+          ),
+      ).toBe(true);
     });
 
     it("should create single SuperSwap when multiple destination swaps exist but only one has oUSDT", async () => {
@@ -1576,6 +1787,8 @@ describe("SuperSwapLogic", () => {
       const logWarnings: string[] = [];
       const logErrors: Array<{ message: string; error?: unknown }> = [];
       const superSwaps = new Map<string, SuperSwap>();
+      const deletedDispatchIds = new Set<string>();
+      const deletedProcessIds = new Set<string>();
 
       for (const event of dispatchIdEvents) {
         const existing = dispatchIdByTxHash.get(event.transactionHash) || [];
@@ -1605,6 +1818,17 @@ describe("SuperSwapLogic", () => {
               return dispatchIdByTxHash.get(params.transactionHash._eq) || [];
             return [];
           },
+          // Mutates the map so a subsequent getWhere reflects the deletion,
+          // modeling the real in-memory store's in-batch delete semantics.
+          deleteUnsafe: (id: string) => {
+            deletedDispatchIds.add(id);
+            for (const [txHash, events] of dispatchIdByTxHash) {
+              dispatchIdByTxHash.set(
+                txHash,
+                events.filter((event) => event.id !== id),
+              );
+            }
+          },
         },
         ProcessId_event: {
           // biome-ignore lint/suspicious/noExplicitAny: test mock context needs flexibility
@@ -1612,6 +1836,15 @@ describe("SuperSwapLogic", () => {
             if (params.messageId?._eq)
               return processIdMap.get(params.messageId._eq) || [];
             return [];
+          },
+          deleteUnsafe: (id: string) => {
+            deletedProcessIds.add(id);
+            for (const [mid, events] of processIdMap) {
+              processIdMap.set(
+                mid,
+                events.filter((event) => event.id !== id),
+              );
+            }
           },
         },
         OUSDTBridgedTransaction: {
@@ -1649,6 +1882,8 @@ describe("SuperSwapLogic", () => {
         getWarnings: () => logWarnings,
         getErrors: () => logErrors,
         getSuperSwaps: () => superSwaps,
+        getDeletedDispatchIds: () => deletedDispatchIds,
+        getDeletedProcessIds: () => deletedProcessIds,
         // biome-ignore lint/suspicious/noExplicitAny: test mock context needs flexibility
       } as any;
     };
@@ -1704,6 +1939,89 @@ describe("SuperSwapLogic", () => {
       expect(superSwap.oUSDTamount).toBe(oUSDTAmount);
       expect(superSwap.sourceChainToken).toBe(tokenInAddress);
       expect(superSwap.destinationChainToken).toBe(tokenOutAddress);
+      expect(context.getErrors()).toHaveLength(0);
+      expect(context.getWarnings()).toHaveLength(0);
+    });
+
+    it("should keep cross-chain stitching intact after the matched pair is deleted, on backfill/replay (#817 Part B, AC3)", async () => {
+      // NOTE: the v3 createTestIndexer harness cannot simulate a true block-level
+      // reorg, so this exercises the handler-observable behaviour a reorg/backfill
+      // produces — the same CrossChainSwap is processed again after its
+      // DispatchId/ProcessId pair was already consumed and deleted. The mock's
+      // deleteUnsafe removes the rows from the getWhere-backing maps (mirroring
+      // the real in-memory store), so the replay sees them gone. Stitching must
+      // survive: no duplicate SuperSwap, no error/warning, deleted rows stay gone.
+      const dispatchIdEvent = createDispatchIdEvent(
+        transactionHash,
+        chainId,
+        messageId1,
+      );
+      const processIdEvent = createProcessIdEvent(
+        destinationTxHash,
+        Number(destinationDomain),
+        messageId1,
+      );
+      const sourceSwap = createOUSDTSwap(
+        transactionHash,
+        chainId,
+        tokenInAddress,
+        1000n,
+        oUSDTAddress,
+        oUSDTAmount,
+      );
+      const destinationSwap = createOUSDTSwap(
+        destinationTxHash,
+        Number(destinationDomain),
+        oUSDTAddress,
+        oUSDTAmount,
+        tokenOutAddress,
+        950n,
+      );
+      const context = createHandlerMockContext(
+        [dispatchIdEvent],
+        [processIdEvent],
+        [mockBridgedTransaction],
+        [sourceSwap, destinationSwap],
+      );
+
+      // First pass: SuperSwap stitched + matched pair consumed/deleted.
+      await handleCrossChainSwapEvent(
+        transactionHash,
+        chainId,
+        destinationDomain,
+        blockTimestamp,
+        context,
+      );
+      expect(context.getSuperSwaps().size).toBe(1);
+      expect(
+        context
+          .getDeletedDispatchIds()
+          .has(MailboxMessageId(transactionHash, chainId, messageId1)),
+      ).toBe(true);
+      expect(
+        context
+          .getDeletedProcessIds()
+          .has(
+            MailboxMessageId(
+              destinationTxHash,
+              Number(destinationDomain),
+              messageId1,
+            ),
+          ),
+      ).toBe(true);
+
+      // Backfill / reorg re-apply: reprocess the same source event. The DispatchId
+      // correlator was deleted, so the handler finds nothing to stitch and safely
+      // no-ops — the existing SuperSwap is preserved, with no duplicate and no
+      // error/warning.
+      await handleCrossChainSwapEvent(
+        transactionHash,
+        chainId,
+        destinationDomain,
+        blockTimestamp,
+        context,
+      );
+      expect(context.getSuperSwaps().size).toBe(1);
       expect(context.getErrors()).toHaveLength(0);
       expect(context.getWarnings()).toHaveLength(0);
     });

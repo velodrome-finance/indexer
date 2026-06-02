@@ -605,7 +605,9 @@ describe("Mailbox Events", () => {
         },
       });
 
-      // Assert: ProcessId_event was created
+      // Assert: once the SuperSwap is created, the matched DispatchId_event /
+      // ProcessId_event correlators are consumed and hard-deleted (#817 Part B),
+      // so they no longer linger in the scratch tables.
       const processIdEntityId = MailboxMessageId(
         destinationTransactionHash,
         destinationChainId,
@@ -613,8 +615,16 @@ describe("Mailbox Events", () => {
       );
       const processIdEntity =
         await indexer.ProcessId_event.get(processIdEntityId);
-      expect(processIdEntity).toBeDefined();
-      expect(processIdEntity?.messageId).toBe(testMessageId);
+      expect(processIdEntity).toBeUndefined();
+
+      const dispatchIdEntityId = MailboxMessageId(
+        sourceTransactionHash,
+        sourceChainId,
+        testMessageId,
+      );
+      const dispatchIdEntity =
+        await indexer.DispatchId_event.get(dispatchIdEntityId);
+      expect(dispatchIdEntity).toBeUndefined();
 
       // Assert: SuperSwap was created
       const superSwapsRaw = await indexer.SuperSwap.getAll();

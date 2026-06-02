@@ -239,6 +239,42 @@ export async function createSuperSwapEntity(
 }
 
 /**
+ * Deletes the matched DispatchId_event / ProcessId_event correlator pair for a
+ * messageId whose SuperSwap has been confirmed created (or already exists).
+ *
+ * Only the matched pair is removed — other (unmatched) messageIds dispatched in
+ * the same source transaction are retained for their own not-yet-created
+ * SuperSwaps. Deletion is idempotent (deleteUnsafe on an already-removed id is a
+ * no-op), so a backfill / reorg re-apply that re-reaches this point is safe.
+ * This stops the Mailbox scratch tables from growing without bound (#817 Part B),
+ * mirroring the delete-on-consume pattern used for PoolTransferInTx (#629).
+ *
+ * @param matchingMessageId - The messageId whose SuperSwap was just created
+ * @param sourceChainMessageIdEntities - DispatchId events from the source transaction
+ * @param messageIdToProcessId - Map from messageId to its ProcessId event
+ * @param context - Handler context for entity operations
+ * @returns Nothing; stages the matched pair's deletion
+ */
+function deleteConsumedMailboxPair(
+  matchingMessageId: string,
+  sourceChainMessageIdEntities: DispatchId_event[],
+  messageIdToProcessId: Map<string, ProcessId_event>,
+  context: handlerContext,
+): void {
+  const dispatchEntity = sourceChainMessageIdEntities.find(
+    (entity) => entity.messageId === matchingMessageId,
+  );
+  if (dispatchEntity) {
+    context.DispatchId_event.deleteUnsafe(dispatchEntity.id);
+  }
+
+  const processEntity = messageIdToProcessId.get(matchingMessageId);
+  if (processEntity) {
+    context.ProcessId_event.deleteUnsafe(processEntity.id);
+  }
+}
+
+/**
  * Processes cross-chain swap events to create SuperSwap entities.
  * Maps DispatchId events to ProcessId events, loads swap data, and creates SuperSwap entities.
  *
@@ -308,6 +344,18 @@ export async function processCrossChainSwap(
     destinationSwapData.destinationChainToken,
     destinationSwapData.destinationChainTokenAmountSwapped,
     blockTimestamp,
+    context,
+  );
+
+  // The SuperSwap for matchingMessageId is now confirmed to exist (just created
+  // or idempotently pre-existing), so its DispatchId/ProcessId correlators are
+  // consumed and can be deleted to stop the Mailbox scratch tables from growing.
+  // Only the matched pair is removed; unmatched messageIds in this source tx are
+  // retained for their own not-yet-created SuperSwaps (#817 Part B).
+  deleteConsumedMailboxPair(
+    destinationSwapData.matchingMessageId,
+    sourceChainMessageIdEntities,
+    messageIdToProcessId,
     context,
   );
 }
