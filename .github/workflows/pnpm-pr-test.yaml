@@ -39,9 +39,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
 
-      # Single package: envio v3.0.2 codegen emits .envio/types.d.ts, not a `generated` workspace
+      # Single package: envio v3.0.2 codegen emits .envio/types.d.ts, not a `generated` workspace,
+      # so there is nothing to regenerate at install time — use a frozen lockfile for
+      # reproducible installs that fail on lockfile drift.
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       # envio v3.0.2 codegen writes type declarations to .envio/types.d.ts (gitignored),
       # consumed via the `envio` package — no `generated/` directory is produced.
