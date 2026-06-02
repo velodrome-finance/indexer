@@ -1,6 +1,7 @@
 import { indexer } from "envio";
 import type { OUSDTBridgedTransaction } from "envio";
 import { OUSDT_ADDRESS } from "../../Constants";
+import { domainToChainId } from "./HyperlaneDomain";
 import { handleCrossChainSwapEvent } from "./SuperSwapLogic";
 
 indexer.onEvent(
@@ -15,7 +16,7 @@ indexer.onEvent(
       id: event.transaction.hash,
       transactionHash: event.transaction.hash,
       originChainId: BigInt(event.chainId),
-      destinationChainId: event.params.domain,
+      destinationChainId: domainToChainId(event.params.domain),
       sender: event.params.sender,
       recipient: event.params.recipient,
       amount: event.params.amount,
@@ -31,7 +32,7 @@ indexer.onEvent(
     await handleCrossChainSwapEvent(
       event.transaction.hash,
       event.chainId,
-      event.params.destinationDomain,
+      domainToChainId(event.params.destinationDomain),
       event.block.timestamp,
       context,
     );

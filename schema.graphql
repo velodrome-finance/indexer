@@ -609,7 +609,7 @@ type PoolLauncherConfig {
 type SuperSwap {
   id: ID! # Format: {messageId} — globally unique Hyperlane message identifier
   originChainId: BigInt! @config(precision: 24) # Chain ID where the swap originated
-  destinationChainId: BigInt! @config(precision: 24) # Chain ID of the swap target/recipient
+  destinationChainId: BigInt! @config(precision: 24) # Resolved EVM chain ID of the swap target/recipient (mapped from the Hyperlane domain via domainToChainId)
   sender: String! # Original sender address initiating the swap
   recipient: String! # The recipient address on the destination chain
   oUSDTamount: BigInt! @config(precision: 76) # Amount of oUSDT swapped (already normalized to token decimals)
@@ -624,7 +624,7 @@ type OUSDTBridgedTransaction {
   id: ID! # Format: transaction hash (unique per bridge tx)
   transactionHash: String! @index # Transaction hash
   originChainId: BigInt! @config(precision: 24) # Chain ID where the bridge transaction originated
-  destinationChainId: BigInt! @config(precision: 24) # Chain ID where the bridge transaction is destined
+  destinationChainId: BigInt! @config(precision: 24) # Resolved EVM chain ID the bridge transaction is destined for (mapped from the Hyperlane domain via domainToChainId)
   sender: String! # Address that initiated the bridge transaction
   recipient: String! # Address that will receive the bridged tokens
   amount: BigInt! @config(precision: 76) # Amount of oUSDT tokens being bridged

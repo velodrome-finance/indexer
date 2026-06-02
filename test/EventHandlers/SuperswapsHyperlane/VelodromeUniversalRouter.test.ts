@@ -78,6 +78,48 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
       expect(bridgedTransaction?.amount).toBe(1000n * 10n ** 6n); // Raw amount: 1000 tokens with 6 decimals
     });
 
+    it("should resolve a divergent Hyperlane domain to its chainId (Metal 1000001750 -> 1750)", async () => {
+      const indexer = createTestIndexer();
+      const metalHyperlaneDomain = 1000001750n; // Metal's Hyperlane domainId
+      const metalChainId = 1750n; // Metal's EVM chainId
+
+      await indexer.process({
+        chains: {
+          [chainId]: {
+            simulate: [
+              {
+                contract: "VelodromeUniversalRouter",
+                event: "UniversalRouterBridge",
+                logIndex: 1,
+                block: {
+                  timestamp: blockTimestamp,
+                  number: 123456,
+                  hash: transactionHash,
+                },
+                transaction: {
+                  hash: transactionHash,
+                },
+                params: {
+                  token: OUSDT_ADDRESS,
+                  domain: metalHyperlaneDomain,
+                  sender: senderAddress,
+                  recipient: recipientAddress,
+                  amount: tokenAmount,
+                },
+              },
+            ],
+          },
+        },
+      });
+
+      const bridgedTransaction =
+        await indexer.OUSDTBridgedTransaction.get(transactionHash);
+
+      expect(bridgedTransaction).toBeDefined();
+      // Must store the resolved chainId (1750), not the raw Hyperlane domain (1000001750).
+      expect(bridgedTransaction?.destinationChainId).toBe(metalChainId);
+    });
+
     it("should not create entity when token is not oUSDT", async () => {
       const indexer = createTestIndexer();
       const otherTokenAddress = toChecksumAddress(
@@ -286,6 +328,107 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
       expect(superSwap?.destinationChainToken).toBe(tokenOutAddress);
       expect(superSwap?.destinationChainTokenAmountSwapped).toBe(950n);
       expect(superSwap?.timestamp).toEqual(new Date(blockTimestamp * 1000));
+    });
+
+    it("should store the resolved chainId on SuperSwap for a Metal-destined CrossChainSwap (domain 1000001750 -> 1750)", async () => {
+      const indexer = createTestIndexer();
+      const metalHyperlaneDomain = 1000001750n; // Metal's Hyperlane domainId
+      const metalChainId = 1750; // Metal's EVM chainId
+
+      // Bridged transaction already carries the resolved chainId (post-fix producer).
+      const existingBridgedTransaction: OUSDTBridgedTransaction = {
+        id: transactionHash,
+        transactionHash: transactionHash,
+        originChainId: BigInt(chainId),
+        destinationChainId: BigInt(metalChainId),
+        sender: senderAddress.toLowerCase(),
+        recipient: recipientAddress.toLowerCase(),
+        amount: 18116811000000000000n,
+      };
+
+      const dispatchIdEvent: DispatchId_event = {
+        id: MailboxMessageId(transactionHash, chainId, messageId),
+        chainId: chainId,
+        transactionHash: transactionHash,
+        messageId: messageId,
+      };
+
+      const processIdEvent: ProcessId_event = {
+        id: MailboxMessageId(destinationTxHash, metalChainId, messageId),
+        chainId: metalChainId,
+        transactionHash: destinationTxHash,
+        messageId: messageId,
+      };
+
+      const sourceSwapEvent: OUSDTSwaps = {
+        id: OUSDTSwapsId(
+          transactionHash,
+          chainId,
+          tokenInAddress,
+          1000n,
+          OUSDT_ADDRESS,
+          existingBridgedTransaction.amount,
+        ),
+        transactionHash: transactionHash,
+        tokenInPool: tokenInAddress,
+        tokenOutPool: OUSDT_ADDRESS,
+        amountIn: 1000n,
+        amountOut: existingBridgedTransaction.amount,
+      };
+
+      const destinationSwapEvent: OUSDTSwaps = {
+        id: OUSDTSwapsId(
+          destinationTxHash,
+          metalChainId,
+          OUSDT_ADDRESS,
+          existingBridgedTransaction.amount,
+          tokenOutAddress,
+          950n,
+        ),
+        transactionHash: destinationTxHash,
+        tokenInPool: OUSDT_ADDRESS,
+        tokenOutPool: tokenOutAddress,
+        amountIn: existingBridgedTransaction.amount,
+        amountOut: 950n,
+      };
+
+      indexer.OUSDTBridgedTransaction.set(existingBridgedTransaction);
+      indexer.DispatchId_event.set(dispatchIdEvent);
+      indexer.ProcessId_event.set(processIdEvent);
+      indexer.OUSDTSwaps.set(sourceSwapEvent);
+      indexer.OUSDTSwaps.set(destinationSwapEvent);
+
+      await indexer.process({
+        chains: {
+          [chainId]: {
+            simulate: [
+              {
+                contract: "VelodromeUniversalRouter",
+                event: "CrossChainSwap",
+                logIndex: 2,
+                block: {
+                  timestamp: blockTimestamp,
+                  number: 123457,
+                  hash: transactionHash,
+                },
+                transaction: {
+                  hash: transactionHash,
+                },
+                params: {
+                  destinationDomain: metalHyperlaneDomain,
+                },
+              },
+            ],
+          },
+        },
+      });
+
+      const superSwap = await indexer.SuperSwap.get(SuperSwapId(messageId));
+
+      expect(superSwap).toBeDefined();
+      expect(superSwap?.originChainId).toBe(BigInt(chainId));
+      // SuperSwap must store the resolved chainId, not the raw Hyperlane domain.
+      expect(superSwap?.destinationChainId).toBe(BigInt(metalChainId));
     });
 
     it("should not create SuperSwap when no OUSDTBridgedTransaction exists", async () => {
