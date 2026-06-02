@@ -32,7 +32,7 @@ type Pool {
   token1Price: BigInt! @config(precision: 76) # price of token1 relative to token0
   totalVotesDeposited: BigInt! @config(precision: 76) # total votes deposited in veToken units
   totalVotesDepositedUSD: BigInt! @config(precision: 76) # total votes deposited in USD
-  totalEmissions: BigInt! @config(precision: 76) # total emissions for the pool in reward token units (VELO form Optimism and AERO for Base)
+  totalEmissions: BigInt! @config(precision: 76) # total emissions for the pool in reward token units (VELO form Optimism and AERO for Base); 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813)
   # Cumulative across all DistributeReward events using the reward token's price at
   # each event's block (incrementalTotalEmissionsUSD = amount × pricePerUSDNew, see
   # src/EventHandlers/Voter/VoterCommonLogic.ts). For gauges that stopped emitting
@@ -41,8 +41,8 @@ type Pool {
   # even when totalEmissions > 0 — affects 188 legacy pools (143 Base + 45 OP).
   # See issue #738 for context.
   totalEmissionsUSD: BigInt! @config(precision: 76) # total emissions for the pool in USD
-  totalEmissionsRedistributed: BigInt! @config(precision: 76) # cumulative reward tokens this pool's gauge received from the Redistributor (Redistributed events)
-  totalEmissionsForfeited: BigInt! @config(precision: 76) # cumulative reward tokens this pool's gauge forwarded to the Redistributor or minter because it was over its cap (Deposited events)
+  totalEmissionsRedistributed: BigInt! @config(precision: 76) # cumulative reward tokens this pool's gauge received from the Redistributor (Redistributed events); AERO/VELO 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813)
+  totalEmissionsForfeited: BigInt! @config(precision: 76) # cumulative reward tokens this pool's gauge forwarded to the Redistributor or minter because it was over its cap (Deposited events); AERO/VELO 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813)
 
   lastUpdatedTimestamp: Timestamp! # timestamp of last update
   lastSnapshotTimestamp: Timestamp! # timestamp of last snapshot
@@ -107,17 +107,15 @@ type Pool {
   numberOfGaugeWithdrawals: BigInt! @config(precision: 76) # number of gauge withdrawals (unstaking)
   numberOfGaugeRewardClaims: BigInt! @config(precision: 76) # number of gauge reward claims
   totalGaugeRewardsClaimedUSD: BigInt! @config(precision: 76) # total gauge rewards claimed in USD
-  totalGaugeRewardsClaimed: BigInt! @config(precision: 76) # total gauge rewards claimed in token units
+  totalGaugeRewardsClaimed: BigInt! @config(precision: 76) # total gauge rewards claimed in reward-token units — AERO on Base, VELO on Optimism (18-dec); single reward token per chain, coherent within a chain, NOT summable across chains (see #813)
   currentLiquidityStaked: BigInt! @config(precision: 76) # current liquidity staked in gauge in token units
   currentLiquidityStakedUSD: BigInt! @config(precision: 76) # current liquidity staked in gauge in USD
 
   # Voting Reward fields
   bribeVotingRewardAddress: String @index # address of the bribe voting reward contract for this pool
-  totalBribeClaimed: BigInt! @config(precision: 76) # total bribes claimed by users in token units
-  totalBribeClaimedUSD: BigInt! @config(precision: 76) # total bribes claimed by users in USD
+  totalBribeClaimedUSD: BigInt! @config(precision: 76) # total bribes claimed by users in USD (canonical cross-token aggregate; raw token-unit sum dropped in #813 — bribes are arbitrary heterogeneous tokens)
   feeVotingRewardAddress: String @index # address of the fee voting reward contract for this pool
-  totalFeeRewardClaimed: BigInt! @config(precision: 76) # total fee rewards claimed by users in token units
-  totalFeeRewardClaimedUSD: BigInt! @config(precision: 76) # total fee rewards claimed by users in USD
+  totalFeeRewardClaimedUSD: BigInt! @config(precision: 76) # total fee rewards claimed by users in USD (canonical cross-token aggregate; raw token-unit sum dropped in #813 — fee rewards mix the pool's two fee tokens)
   veNFTamountStaked: BigInt! @config(precision: 76) # total amount of veNFT staked for this pool
 
   # Dynamic Fee fields
@@ -182,10 +180,10 @@ type PoolSnapshot {
   token1Price: BigInt! @config(precision: 76) # price of token1 relative to token0
   totalVotesDeposited: BigInt! @config(precision: 76) # total votes deposited in veToken units
   totalVotesDepositedUSD: BigInt! @config(precision: 76) # total votes deposited in USD
-  totalEmissions: BigInt! @config(precision: 76) # total emissions for the pool in reward token units (VELO form Optimism and AERO for Base)
+  totalEmissions: BigInt! @config(precision: 76) # total emissions for the pool in reward token units (VELO form Optimism and AERO for Base); 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813)
   totalEmissionsUSD: BigInt! @config(precision: 76) # total emissions for the pool in USD
-  totalEmissionsRedistributed: BigInt! @config(precision: 76) # cumulative reward tokens this pool's gauge received from the Redistributor at snapshot time
-  totalEmissionsForfeited: BigInt! @config(precision: 76) # cumulative reward tokens this pool's gauge forwarded to the Redistributor or minter at snapshot time
+  totalEmissionsRedistributed: BigInt! @config(precision: 76) # cumulative reward tokens this pool's gauge received from the Redistributor at snapshot time; AERO/VELO 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813)
+  totalEmissionsForfeited: BigInt! @config(precision: 76) # cumulative reward tokens this pool's gauge forwarded to the Redistributor or minter at snapshot time; AERO/VELO 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813)
 
   gaugeIsAlive: Boolean! # whether the gauge is alive
   gaugeAddress: String @index # address of the gauge for this pool
@@ -195,7 +193,7 @@ type PoolSnapshot {
   numberOfGaugeWithdrawals: BigInt! @config(precision: 76) # number of gauge withdrawals (unstaking)
   numberOfGaugeRewardClaims: BigInt! @config(precision: 76) # number of gauge reward claims
   totalGaugeRewardsClaimedUSD: BigInt! @config(precision: 76) # total gauge rewards claimed in USD
-  totalGaugeRewardsClaimed: BigInt! @config(precision: 76) # total gauge rewards claimed in token units
+  totalGaugeRewardsClaimed: BigInt! @config(precision: 76) # total gauge rewards claimed in reward-token units — AERO on Base, VELO on Optimism (18-dec); single reward token per chain, coherent within a chain, NOT summable across chains (see #813)
   currentLiquidityStaked: BigInt! @config(precision: 76) # current liquidity staked in gauge in token units
   currentLiquidityStakedUSD: BigInt! @config(precision: 76) # current liquidity staked in gauge in USD
   timestamp: Timestamp! # timestamp of last update
@@ -225,11 +223,9 @@ type PoolSnapshot {
 
   # Voting Reward fields
   bribeVotingRewardAddress: String @index # address of the bribe voting reward contract for this pool
-  totalBribeClaimed: BigInt! @config(precision: 76) # total bribes claimed by users in token units
-  totalBribeClaimedUSD: BigInt! @config(precision: 76) # total bribes claimed by users in USD
+  totalBribeClaimedUSD: BigInt! @config(precision: 76) # total bribes claimed by users in USD (canonical cross-token aggregate; raw token-unit sum dropped in #813 — bribes are arbitrary heterogeneous tokens)
   feeVotingRewardAddress: String @index # address of the fee voting reward contract for this pool
-  totalFeeRewardClaimed: BigInt! @config(precision: 76) # total fee rewards claimed by users in token units
-  totalFeeRewardClaimedUSD: BigInt! @config(precision: 76) # total fee rewards claimed by users in USD
+  totalFeeRewardClaimedUSD: BigInt! @config(precision: 76) # total fee rewards claimed by users in USD (canonical cross-token aggregate; raw token-unit sum dropped in #813 — fee rewards mix the pool's two fee tokens)
   veNFTamountStaked: BigInt! @config(precision: 76) # total amount of veNFT staked for this pool
 
   # Dynamic Fee fields
@@ -276,7 +272,7 @@ type UserStatsPerPool {
   numberOfGaugeWithdrawals: BigInt! @config(precision: 76) # number of gauge withdrawals (unstaking)
   numberOfGaugeRewardClaims: BigInt! @config(precision: 76) # number of gauge reward claims
   totalGaugeRewardsClaimedUSD: BigInt! @config(precision: 76) # total gauge rewards claimed in USD
-  totalGaugeRewardsClaimed: BigInt! @config(precision: 76) # total gauge rewards claimed in token units
+  totalGaugeRewardsClaimed: BigInt! @config(precision: 76) # total gauge rewards claimed in reward-token units — AERO on Base, VELO on Optimism (18-dec); single reward token per chain, coherent within a chain, NOT summable across chains (see #813)
   totalStakedFeesCollected0: BigInt! @config(precision: 76) # pool fees (token0) collected by this user from staked position (CollectFees)
   totalStakedFeesCollected1: BigInt! @config(precision: 76) # pool fees (token1) collected by this user from staked position (CollectFees)
   totalStakedFeesCollectedUSD: BigInt! @config(precision: 76) # pool fees in USD collected by this user from staked position (CollectFees) - position earned vs totalGaugeRewardsClaimed (emissions received)
@@ -288,10 +284,8 @@ type UserStatsPerPool {
   stakedCLPositionTokenIds: [BigInt!]! # tokenIds of CL positions currently staked in gauge (maintained on deposit/withdraw, enables O(1) primary-key lookups per position at snapshot time)
 
   # Voting metrics
-  totalBribeClaimed: BigInt! @config(precision: 76) # total amount of bribe rewards claimed by this user for this pool
-  totalBribeClaimedUSD: BigInt! @config(precision: 76) # total USD value of bribe rewards claimed by this user for this pool
-  totalFeeRewardClaimed: BigInt! @config(precision: 76) # total amount of fee rewards claimed by this user for this pool
-  totalFeeRewardClaimedUSD: BigInt! @config(precision: 76) # total USD value of fee rewards claimed by this user for this pool
+  totalBribeClaimedUSD: BigInt! @config(precision: 76) # total USD value of bribe rewards claimed by this user for this pool (canonical cross-token aggregate; raw token-unit sum dropped in #813 — bribes are arbitrary heterogeneous tokens)
+  totalFeeRewardClaimedUSD: BigInt! @config(precision: 76) # total USD value of fee rewards claimed by this user for this pool (canonical cross-token aggregate; raw token-unit sum dropped in #813 — fee rewards mix the pool's two fee tokens)
   veNFTamountStaked: BigInt! @config(precision: 76) # amount of veNFT staked by this user for this pool
 
   # ALM metrics
@@ -340,7 +334,7 @@ type UserStatsPerPoolSnapshot {
   numberOfGaugeWithdrawals: BigInt! @config(precision: 76) # number of gauge withdrawals (unstaking)
   numberOfGaugeRewardClaims: BigInt! @config(precision: 76) # number of gauge reward claims
   totalGaugeRewardsClaimedUSD: BigInt! @config(precision: 76) # total gauge rewards claimed in USD
-  totalGaugeRewardsClaimed: BigInt! @config(precision: 76) # total gauge rewards claimed in token units
+  totalGaugeRewardsClaimed: BigInt! @config(precision: 76) # total gauge rewards claimed in reward-token units — AERO on Base, VELO on Optimism (18-dec); single reward token per chain, coherent within a chain, NOT summable across chains (see #813)
   totalStakedFeesCollected0: BigInt! @config(precision: 76) # pool fees (token0) collected by this user from staked position (CollectFees)
   totalStakedFeesCollected1: BigInt! @config(precision: 76) # pool fees (token1) collected by this user from staked position (CollectFees)
   totalStakedFeesCollectedUSD: BigInt! @config(precision: 76) # pool fees in USD collected by this user from staked position (CollectFees)
@@ -352,10 +346,8 @@ type UserStatsPerPoolSnapshot {
   stakedCLPositionTokenIds: [BigInt!]! # tokenIds of CL positions staked in gauge at snapshot time
 
   # Voting metrics
-  totalBribeClaimed: BigInt! @config(precision: 76) # total amount of bribe rewards claimed by this user for this pool
-  totalBribeClaimedUSD: BigInt! @config(precision: 76) # total USD value of bribe rewards claimed by this user for this pool
-  totalFeeRewardClaimed: BigInt! @config(precision: 76) # total amount of fee rewards claimed by this user for this pool
-  totalFeeRewardClaimedUSD: BigInt! @config(precision: 76) # total USD value of fee rewards claimed by this user for this pool
+  totalBribeClaimedUSD: BigInt! @config(precision: 76) # total USD value of bribe rewards claimed by this user for this pool (canonical cross-token aggregate; raw token-unit sum dropped in #813 — bribes are arbitrary heterogeneous tokens)
+  totalFeeRewardClaimedUSD: BigInt! @config(precision: 76) # total USD value of fee rewards claimed by this user for this pool (canonical cross-token aggregate; raw token-unit sum dropped in #813 — fee rewards mix the pool's two fee tokens)
   veNFTamountStaked: BigInt! @config(precision: 76) # amount of veNFT staked by this user for this pool
 
   # ALM metrics

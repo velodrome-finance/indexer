@@ -57,10 +57,10 @@ export interface VotingRewardClaimRewardsResult {
  * @param data - The claim payload (reward token address, amount, block, chain, user).
  * @param context - The handler context (used for Token storage, effects, logging).
  * @param field - Which VotingReward role the event originated from (fee vs bribe).
- *   Selects whether the amount accumulates into `incrementalTotalBribeClaimed*`
- *   or `incrementalTotalFeeRewardClaimed*`.
- * @returns Promise resolving to `{ poolDiff, userDiff }` — incremental amounts +
- *   USD attribution to merge into the pool aggregator and the user stats row.
+ *   Selects whether the reward's USD value accumulates into
+ *   `incrementalTotalBribeClaimedUSD` or `incrementalTotalFeeRewardClaimedUSD`.
+ * @returns Promise resolving to `{ poolDiff, userDiff }` — incremental USD
+ *   attribution to merge into the pool aggregator and the user stats row.
  */
 export async function processVotingRewardClaimRewards(
   data: VotingRewardClaimRewardsData,
@@ -85,9 +85,7 @@ export async function processVotingRewardClaimRewards(
         `[processVotingRewardClaimRewards] Skipping Token row and reward USD for non-contract address ${data.reward} on chain ${data.chainId} (no deployed bytecode)`,
       );
       const zeroIncrementals = {
-        incrementalTotalBribeClaimed: 0n,
         incrementalTotalBribeClaimedUSD: 0n,
-        incrementalTotalFeeRewardClaimed: 0n,
         incrementalTotalFeeRewardClaimedUSD: 0n,
       };
       return {
@@ -168,17 +166,13 @@ export async function processVotingRewardClaimRewards(
   const isBribe = field === PoolAddressField.BRIBE_VOTING_REWARD_ADDRESS;
 
   const poolDiff = {
-    incrementalTotalBribeClaimed: isBribe ? data.amount : 0n,
     incrementalTotalBribeClaimedUSD: isBribe ? rewardAmountUSD : 0n,
-    incrementalTotalFeeRewardClaimed: isBribe ? 0n : data.amount,
     incrementalTotalFeeRewardClaimedUSD: isBribe ? 0n : rewardAmountUSD,
     lastUpdatedTimestamp: new Date(data.timestamp * 1000),
   };
 
   const userDiff = {
-    incrementalTotalBribeClaimed: isBribe ? data.amount : 0n,
     incrementalTotalBribeClaimedUSD: isBribe ? rewardAmountUSD : 0n,
-    incrementalTotalFeeRewardClaimed: isBribe ? 0n : data.amount,
     incrementalTotalFeeRewardClaimedUSD: isBribe ? 0n : rewardAmountUSD,
     lastActivityTimestamp: new Date(data.timestamp * 1000),
   };

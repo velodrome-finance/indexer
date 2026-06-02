@@ -118,13 +118,13 @@ describe("BribesVotingReward Events", () => {
       const updatedPool = await indexer.Pool.get(mockLiquidityPoolData.id);
       expect(updatedPool).toBeDefined();
       // The actual values depend on the price calculation, but should be updated
-      expect(updatedPool?.totalBribeClaimed).toBeGreaterThan(0n);
+      expect(updatedPool?.totalBribeClaimedUSD).toBeGreaterThan(0n);
     });
 
     it("should update user stats with bribe claimed", async () => {
       const updatedUser = await indexer.UserStatsPerPool.get(userStats.id);
       expect(updatedUser).toBeDefined();
-      expect(updatedUser?.totalBribeClaimed).toBeGreaterThan(0n);
+      expect(updatedUser?.totalBribeClaimedUSD).toBeGreaterThan(0n);
     });
   });
 });

@@ -47,9 +47,7 @@ export interface UserStatsPerPoolDiff {
   /** Non-cumulative: overwrite list of CL position tokenIds currently staked in gauge. Maintained on gauge deposit (append) and withdraw (remove). */
   stakedCLPositionTokenIds?: readonly bigint[];
   incrementalVeNFTamountStaked: bigint;
-  incrementalTotalBribeClaimed: bigint;
   incrementalTotalBribeClaimedUSD: bigint;
-  incrementalTotalFeeRewardClaimed: bigint;
   incrementalTotalFeeRewardClaimedUSD: bigint;
   almAddress: string;
   incrementalAlmLpAmount: bigint;
@@ -170,10 +168,8 @@ export function createUserStatsPerPoolEntity(
     // Voting metrics
     veNFTamountStaked: 0n,
 
-    // Voting Reward Claims
-    totalBribeClaimed: 0n,
+    // Voting Reward Claims (USD aggregate only; raw token-unit sum dropped in #813)
     totalBribeClaimedUSD: 0n,
-    totalFeeRewardClaimed: 0n,
     totalFeeRewardClaimedUSD: 0n,
 
     // ALM metrics - initialized to empty/zero values
@@ -355,19 +351,11 @@ export async function updateUserStatsPerPool(
         ? current.veNFTamountStaked + diff.incrementalVeNFTamountStaked
         : current.veNFTamountStaked,
 
-    // Voting Reward Claims - cumulative fields
-    totalBribeClaimed:
-      diff.incrementalTotalBribeClaimed !== undefined
-        ? current.totalBribeClaimed + diff.incrementalTotalBribeClaimed
-        : current.totalBribeClaimed,
+    // Voting Reward Claims - cumulative USD aggregate (raw token-unit sum dropped in #813)
     totalBribeClaimedUSD:
       diff.incrementalTotalBribeClaimedUSD !== undefined
         ? current.totalBribeClaimedUSD + diff.incrementalTotalBribeClaimedUSD
         : current.totalBribeClaimedUSD,
-    totalFeeRewardClaimed:
-      diff.incrementalTotalFeeRewardClaimed !== undefined
-        ? current.totalFeeRewardClaimed + diff.incrementalTotalFeeRewardClaimed
-        : current.totalFeeRewardClaimed,
     totalFeeRewardClaimedUSD:
       diff.incrementalTotalFeeRewardClaimedUSD !== undefined
         ? current.totalFeeRewardClaimedUSD +
