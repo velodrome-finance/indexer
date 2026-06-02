@@ -55,12 +55,27 @@ export async function processPoolLauncherPool(
   return poolLauncherPool;
 }
 
-// Helper function to link existing Pool to PoolLauncherPool
+/**
+ * Links an existing Pool (created by CLFactory or V2Factory) to its
+ * PoolLauncherPool by stamping `poolLauncherPoolId` onto the Pool entity.
+ *
+ * `lastUpdatedTimestamp` is taken from the caller's block-derived time rather
+ * than `new Date()`, so the field stays deterministic across re-index runs
+ * (see #819).
+ *
+ * @param poolAddress - Address of the underlying Pool to link.
+ * @param chainId - Chain the Pool lives on; combined with `poolAddress` into the entity id.
+ * @param context - Envio handler context used to read/write the Pool entity.
+ * @param factoryType - Which factory created the Pool ("CL" or "V2"); used only for the not-found warning.
+ * @param lastUpdatedTimestamp - Block-derived time (`new Date(event.block.timestamp * 1000)`) to stamp onto the Pool.
+ * @returns Promise that resolves once the linked Pool upsert is staged (no-op if the Pool does not exist yet).
+ */
 export async function linkPoolToPoolLauncher(
   poolAddress: string,
   chainId: number,
   context: handlerContext,
   factoryType: "CL" | "V2",
+  lastUpdatedTimestamp: Date,
 ): Promise<void> {
   // Load the existing Pool (created by CLFactory or V2Factory)
   const poolId = PoolId(chainId, poolAddress);
@@ -77,7 +92,7 @@ export async function linkPoolToPoolLauncher(
   const updatedPool: Pool = {
     ...existingPool,
     poolLauncherPoolId: poolId,
-    lastUpdatedTimestamp: new Date(),
+    lastUpdatedTimestamp,
   };
 
   context.Pool.set(updatedPool);
