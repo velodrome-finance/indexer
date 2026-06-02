@@ -31,7 +31,13 @@ indexer.onEvent(
     );
 
     // Link existing Pool to PoolLauncherPool
-    await linkPoolToPoolLauncher(poolAddress, event.chainId, context, "CL");
+    await linkPoolToPoolLauncher(
+      poolAddress,
+      event.chainId,
+      context,
+      "CL",
+      createdAt,
+    );
   },
 );
 
@@ -86,6 +92,7 @@ indexer.onEvent(
         event.chainId,
         context,
         "CL",
+        timestamp,
       );
     } else {
       context.log.warn(

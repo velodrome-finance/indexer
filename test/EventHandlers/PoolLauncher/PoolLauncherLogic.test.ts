@@ -304,7 +304,14 @@ describe("PoolLauncherLogic", () => {
 
         pools.set(existingPool.id, existingPool);
 
-        await linkPoolToPoolLauncher(poolAddress, chainId, mockContext, "CL");
+        const blockTimestamp = new Date("2024-06-01T12:00:00Z");
+        await linkPoolToPoolLauncher(
+          poolAddress,
+          chainId,
+          mockContext,
+          "CL",
+          blockTimestamp,
+        );
 
         // Assert
         const updatedEntity = pools.get(PoolId(chainId, poolAddress));
@@ -312,7 +319,7 @@ describe("PoolLauncherLogic", () => {
         expect(updatedEntity?.poolLauncherPoolId).toBe(
           "8453-0x1234567890123456789012345678901234567890",
         );
-        expect(updatedEntity?.lastUpdatedTimestamp).toBeInstanceOf(Date);
+        expect(updatedEntity?.lastUpdatedTimestamp).toEqual(blockTimestamp);
 
         // Verify all other fields remain unchanged
         expect(updatedEntity?.id).toBe(PoolId(chainId, poolAddress));
@@ -346,6 +353,7 @@ describe("PoolLauncherLogic", () => {
           chainId,
           mockContextWithWarn,
           "CL",
+          new Date("2024-06-01T12:00:00Z"),
         );
 
         // Assert
@@ -371,7 +379,14 @@ describe("PoolLauncherLogic", () => {
 
         pools.set(existingPool.id, existingPool);
 
-        await linkPoolToPoolLauncher(poolAddress, chainId, mockContext, "V2");
+        const blockTimestamp = new Date("2024-06-01T12:00:00Z");
+        await linkPoolToPoolLauncher(
+          poolAddress,
+          chainId,
+          mockContext,
+          "V2",
+          blockTimestamp,
+        );
 
         // Assert
         const updatedEntity = pools.get(PoolId(chainId, poolAddress));
@@ -379,7 +394,7 @@ describe("PoolLauncherLogic", () => {
         expect(updatedEntity?.poolLauncherPoolId).toBe(
           "8453-0x1234567890123456789012345678901234567890",
         );
-        expect(updatedEntity?.lastUpdatedTimestamp).toBeInstanceOf(Date);
+        expect(updatedEntity?.lastUpdatedTimestamp).toEqual(blockTimestamp);
 
         // Verify all other fields remain unchanged
         expect(updatedEntity?.id).toBe(PoolId(chainId, poolAddress));
@@ -411,6 +426,7 @@ describe("PoolLauncherLogic", () => {
           chainId,
           mockContextWithWarn,
           "V2",
+          new Date("2024-06-01T12:00:00Z"),
         );
 
         // Assert
@@ -430,12 +446,45 @@ describe("PoolLauncherLogic", () => {
 
       pools.set(existingPool.id, existingPool);
 
-      await linkPoolToPoolLauncher(poolAddress, 10, mockContext, "CL");
+      await linkPoolToPoolLauncher(
+        poolAddress,
+        10,
+        mockContext,
+        "CL",
+        new Date("2024-06-01T12:00:00Z"),
+      );
 
       // Assert
       const updatedEntity = pools.get(PoolId(10, poolAddress));
       expect(updatedEntity).toBeDefined();
       expect(updatedEntity?.poolLauncherPoolId).toBe(PoolId(10, poolAddress));
+    });
+
+    it("stamps the block-derived lastUpdatedTimestamp it is given, not the host wall-clock (deterministic across re-index)", async () => {
+      const existingPool = createMockPool({
+        poolAddress: poolAddress,
+        chainId: chainId,
+        isCL: true,
+      });
+
+      pools.set(existingPool.id, existingPool);
+
+      // Block time of the event being (re)processed — fixed and deterministic.
+      const blockTimestamp = new Date("2024-06-01T12:00:00Z");
+
+      await linkPoolToPoolLauncher(
+        poolAddress,
+        chainId,
+        mockContext,
+        "CL",
+        blockTimestamp,
+      );
+
+      // Must equal the block-derived value passed in, proving the field is not
+      // stamped from new Date() (host clock); re-indexing the same history then
+      // yields a stable lastUpdatedTimestamp. See #819.
+      const updatedEntity = pools.get(PoolId(chainId, poolAddress));
+      expect(updatedEntity?.lastUpdatedTimestamp).toEqual(blockTimestamp);
     });
   });
 });
