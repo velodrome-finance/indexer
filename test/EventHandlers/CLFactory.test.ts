@@ -1,6 +1,5 @@
 import type { CLGaugeConfig, Token } from "envio";
 import { createTestIndexer } from "envio";
-import type { MockInstance } from "vitest";
 import {
   CHAIN_CONSTANTS,
   FeeToTickSpacingMappingId,
@@ -15,12 +14,7 @@ import {
   rootPoolMatchingHash,
   toChecksumAddress,
 } from "../../src/Constants";
-import { getTokensDeposited } from "../../src/Effects/Voter";
 import { rehydrateTimestamps } from "../../src/EntityTimestamps";
-import type { Pool } from "../../src/EntityTypes";
-import * as CLFactoryPoolCreatedLogic from "../../src/EventHandlers/CLFactory/CLFactoryPoolCreatedLogic";
-import * as PriceOracle from "../../src/PriceOracle";
-import { PRICE_TRUST_OUTCOME, PRICE_TRUST_REASON } from "../../src/PriceTrust";
 import { setupCommon } from "./Pool/common";
 
 describe("CLFactory Events", () => {
@@ -78,67 +72,6 @@ describe("CLFactory Events", () => {
       indexer.FeeToTickSpacingMapping.set(feeToTickSpacingMapping);
     }
   }
-
-  let processSpy: MockInstance<
-    typeof CLFactoryPoolCreatedLogic.processCLFactoryPoolCreated
-  >;
-
-  beforeEach(() => {
-    // Mock createTokenEntity in case it's called for missing tokens
-    vi.spyOn(PriceOracle, "createTokenEntity").mockImplementation(
-      async (address: string) => ({
-        id: TokenId(chainId, address),
-        address: address,
-        symbol: "",
-        name: "Mock Token",
-        decimals: 18n,
-        pricePerUSDNew: 1000000000000000000n,
-        chainId: chainId,
-        isWhitelisted: false,
-        lastUpdatedTimestamp: new Date(1000000 * 1000),
-        lastSuccessfulPriceTimestamp: undefined,
-        priceTrustOutcome: PRICE_TRUST_OUTCOME.UNTRUSTED,
-        priceTrustReason: PRICE_TRUST_REASON.NON_WL,
-      }),
-    );
-
-    processSpy = vi
-      .spyOn(CLFactoryPoolCreatedLogic, "processCLFactoryPoolCreated")
-      .mockImplementation(
-        async (
-          event,
-          _factoryAddress,
-          token0,
-          token1,
-          clGaugeConfig,
-          feeToTickSpacingMapping,
-        ) => {
-          const mapping = feeToTickSpacingMapping as
-            | { fee?: bigint }
-            | undefined;
-          return {
-            liquidityPoolAggregator: {
-              id: PoolId(chainId, poolAddress),
-              chainId: chainId,
-              token0_id: TokenId(chainId, token0Address),
-              token1_id: TokenId(chainId, token1Address),
-              token0_address: token0Address,
-              token1_address: token1Address,
-              isStable: false,
-              isCL: true,
-              baseFee: mapping?.fee,
-              currentFee: mapping?.fee,
-              lastUpdatedTimestamp: new Date(1000000 * 1000),
-              veNFTamountStaked: 0n,
-            } as Pool,
-          };
-        },
-      );
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
 
   describe("PoolCreated event", () => {
     let indexer: ReturnType<typeof createTestIndexer>;
@@ -345,19 +278,7 @@ describe("CLFactory Events", () => {
       });
 
       it("should flush pending votes when PendingVote and VeNFTState exist", async () => {
-        const { createMockPool, createMockVeNFTState } = setupCommon();
-        const fullPool = createMockPool({
-          id: PoolId(chainId, poolAddress),
-          chainId,
-          token0_id: TokenId(chainId, token0Address),
-          token1_id: TokenId(chainId, token1Address),
-          token0_address: token0Address,
-          token1_address: token1Address,
-          veNFTamountStaked: 0n,
-        });
-        processSpy.mockImplementation(async () => ({
-          liquidityPoolAggregator: fullPool,
-        }));
+        const { createMockVeNFTState } = setupCommon();
 
         const hash = rootPoolMatchingHash(
           chainId,
@@ -590,7 +511,7 @@ describe("CLFactory Events", () => {
       }
 
       it("should flush PendingRootPoolMapping and PendingVote when processing RootPoolCreated, Voted, then CLFactory.PoolCreated (two processEvents: root chain 10, leaf chain 252)", async () => {
-        const { createMockPool, createMockVeNFTState } = setupCommon();
+        const { createMockVeNFTState } = setupCommon();
         const voteTokenId = 1n;
         const voteWeight = 100n;
         const ownerAddress = toChecksumAddress(
@@ -611,19 +532,6 @@ describe("CLFactory Events", () => {
         });
 
         {
-          const fullPool = createMockPool({
-            id: PoolId(leafChainId, leafPoolAddress),
-            chainId: leafChainId,
-            token0_id: TokenId(leafChainId, token0Address),
-            token1_id: TokenId(leafChainId, token1Address),
-            token0_address: token0Address,
-            token1_address: token1Address,
-            veNFTamountStaked: 0n,
-          });
-          processSpy.mockImplementation(async (_event, ..._rest) => ({
-            liquidityPoolAggregator: fullPool,
-          }));
-
           const veNFTState = createMockVeNFTState({
             id: VeNFTId(rootChainId, voteTokenId),
             chainId: rootChainId,
@@ -735,7 +643,7 @@ describe("CLFactory Events", () => {
         const rootPoolAddressMulti = toChecksumAddress(
           "0xC4Cbb0ba3c902Fb4b49B3844230354d45C779F74",
         );
-        const { createMockPool, createMockVeNFTState } = setupCommon();
+        const { createMockVeNFTState } = setupCommon();
         const voteWeight1 = 100n;
         const voteWeight2 = 200n;
         const tokenId1 = 1n;
@@ -747,19 +655,6 @@ describe("CLFactory Events", () => {
         const ownerAddress2 = toChecksumAddress(
           "0x3333333333333333333333333333333333333333",
         );
-
-        const fullPool = createMockPool({
-          id: PoolId(chainId, poolAddress),
-          chainId,
-          token0_id: TokenId(chainId, token0Address),
-          token1_id: TokenId(chainId, token1Address),
-          token0_address: token0Address,
-          token1_address: token1Address,
-          veNFTamountStaked: 0n,
-        });
-        processSpy.mockImplementation(async () => ({
-          liquidityPoolAggregator: fullPool,
-        }));
 
         const hash = rootPoolMatchingHash(
           chainId,
@@ -1093,8 +988,7 @@ describe("CLFactory Events", () => {
 // CLPool.Initialize buffers sqrtPriceX96/tick into CLPoolPendingInitialize;
 // CLFactory.PoolCreated must consume that buffer when constructing the
 // aggregator so the aggregator is born with the correct opening price, then
-// delete the buffer entry. This describe runs without the global processSpy
-// mock so it exercises the real processCLFactoryPoolCreated.
+// delete the buffer entry.
 describe("CLFactory.PoolCreated ↔ CLPoolPendingInitialize buffer", () => {
   const { mockToken0Data, mockToken1Data } = setupCommon();
   const chainId = 8453 as const;
@@ -1105,29 +999,6 @@ describe("CLFactory.PoolCreated ↔ CLPoolPendingInitialize buffer", () => {
   const FEE = 500n;
   const sqrtPriceX96 = 79228162514264337593543950336n; // sqrt(1) << 96
   const tick = -887n;
-
-  beforeEach(() => {
-    vi.spyOn(PriceOracle, "createTokenEntity").mockImplementation(
-      async (address: string) => ({
-        id: TokenId(chainId, address),
-        address: address,
-        symbol: "",
-        name: "Mock Token",
-        decimals: 18n,
-        pricePerUSDNew: 1000000000000000000n,
-        chainId: chainId,
-        isWhitelisted: false,
-        lastUpdatedTimestamp: new Date(1000000 * 1000),
-        lastSuccessfulPriceTimestamp: undefined,
-        priceTrustOutcome: PRICE_TRUST_OUTCOME.UNTRUSTED,
-        priceTrustReason: PRICE_TRUST_REASON.NON_WL,
-      }),
-    );
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
 
   function seedIndexer(idx: ReturnType<typeof createTestIndexer>): void {
     const token0 = {
