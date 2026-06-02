@@ -177,6 +177,20 @@ describe("oracle.v1v2ConnectorBlacklist (#688)", () => {
   });
 });
 
+describe("oracle.startBlock (#821)", () => {
+  // Drift guard for the Soneium V3 oracle deploy block, mirroring the
+  // price_connectors.json createdBlock snapshot in test/PriceConnectors.test.ts
+  // (#764/#768). startBlock floors every Soneium token price to 0n below it
+  // (src/Effects/RpcGateway.ts), so a wrong value either zero-prices a real gap
+  // (too late) or triggers reverting pre-deploy RPC calls (too early). 1863998
+  // is the on-chain deploy block, RPC-verified via eth_getCode binary-search
+  // (code absent @1863997, present @1863998; deployed 2025-01-14). Any edit to
+  // the constant must update this expectation rather than regress to a TODO.
+  it("pins the Soneium oracle to its RPC-verified deploy block", () => {
+    expect(CHAIN_CONSTANTS[1868].oracle.startBlock).toBe(1863998);
+  });
+});
+
 /**
  * Parses config.yaml's `chains[]` blocks into a `chainId -> contractName -> addresses[]`
  * map of checksummed addresses. Used by the parity assertions below (#770) to detect
