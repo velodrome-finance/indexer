@@ -91,6 +91,23 @@ describe("PriceOracle", () => {
     return {};
   };
 
+  // Issue #820 test helper: install a getTokenDetails override while delegating
+  // every other effect to the default implementation, so a test only states the
+  // metadata it cares about.
+  const overrideTokenDetails = (result: {
+    name: string;
+    decimals: number;
+    symbol: string;
+  }) => {
+    vi.mocked(mockContext.effect)?.mockImplementation(
+      async (effect: unknown, input: unknown) => {
+        const name = (effect as { name?: string }).name;
+        if (name === "getTokenDetails") return result;
+        return defaultEffectImplementation(effect, input);
+      },
+    );
+  };
+
   beforeEach(() => {
     // Reset effect mock to default implementation before each test
     vi.mocked(mockContext.effect)?.mockImplementation(
@@ -991,6 +1008,120 @@ describe("PriceOracle", () => {
         expect(vi.mocked(mockContext.log?.error)).toHaveBeenCalledWith(
           expect.stringContaining("Error refreshing token metadata"),
         );
+      });
+
+      // Issue #820: a Token created from the TOKEN_DETAILS_FALLBACK constant
+      // (empty symbol + empty name + the stubbed decimals=18, written on a
+      // transient RPC failure or full contract revert at creation) used to keep
+      // the fallback 18 forever — heal overlaid only symbol/name, mis-scaling a
+      // non-18 token (USDC=6, WBTC=8) by 10^(18-real). Heal now re-derives a
+      // fallback-origin decimals in the same pass that repopulates symbol/name.
+      it("heals a fallback-origin decimals when a later read returns a different value", async () => {
+        overrideTokenDetails({ name: "USD Coin", decimals: 6, symbol: "USDC" });
+
+        const fallbackToken = {
+          ...mockToken0Data,
+          symbol: "",
+          name: "",
+          decimals: 18n,
+        };
+
+        const healed = await PriceOracle.healTokenMetadata(
+          fallbackToken,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        expect(healed.symbol).toBe("USDC");
+        expect(healed.name).toBe("USD Coin");
+        expect(healed.decimals).toBe(6n);
+        expect(vi.mocked(mockContext.Token?.set)).toHaveBeenCalledTimes(1);
+        expect(vi.mocked(mockContext.Token?.set)?.mock.lastCall?.[0]).toBe(
+          healed,
+        );
+      });
+
+      // Issue #820 fingerprint guard: a row missing ONLY the name (symbol +
+      // decimals were read successfully at creation — the fetcher is
+      // all-or-nothing) is not fallback-origin, so its decimals must stand even
+      // if a later read reports a different value. The `!token.name` half of
+      // the gate is load-bearing here; without it a stored 6 would be clobbered.
+      it("does not touch decimals for a name-only-empty row even when a later read differs", async () => {
+        overrideTokenDetails({
+          name: "USD Coin",
+          decimals: 18,
+          symbol: "USDC",
+        });
+
+        const nameOnlyEmpty = {
+          ...mockToken0Data,
+          symbol: "USDC",
+          name: "",
+          decimals: 6n,
+        };
+
+        const healed = await PriceOracle.healTokenMetadata(
+          nameOnlyEmpty,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        expect(healed.name).toBe("USD Coin");
+        expect(healed.symbol).toBe("USDC");
+        expect(healed.decimals).toBe(6n);
+      });
+
+      // Issue #820 (AC: "a frozen-name token heals on read"): a token whose
+      // name is empty but whose symbol + decimals are intact heals just the
+      // name, leaving the other fields untouched.
+      it("heals a frozen (empty) name on read without disturbing symbol or decimals", async () => {
+        overrideTokenDetails({ name: "USD Coin", decimals: 6, symbol: "USDC" });
+
+        const frozenName = {
+          ...mockToken0Data,
+          symbol: "USDC",
+          name: "",
+          decimals: 6n,
+        };
+
+        const healed = await PriceOracle.healTokenMetadata(
+          frozenName,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        expect(healed.name).toBe("USD Coin");
+        expect(healed.symbol).toBe("USDC");
+        expect(healed.decimals).toBe(6n);
+        expect(vi.mocked(mockContext.Token?.set)).toHaveBeenCalledTimes(1);
+      });
+
+      // Issue #820 difference guard: a full-fallback row whose real decimals
+      // genuinely is 18 (e.g. WETH) heals symbol/name but writes no decimals
+      // change — the `!==` check keeps the value stable rather than churning it.
+      it("leaves decimals at 18 when a fallback-origin row's real decimals is also 18", async () => {
+        overrideTokenDetails({
+          name: "Wrapped Ether",
+          decimals: 18,
+          symbol: "WETH",
+        });
+
+        const fallbackToken = {
+          ...mockToken0Data,
+          symbol: "",
+          name: "",
+          decimals: 18n,
+        };
+
+        const healed = await PriceOracle.healTokenMetadata(
+          fallbackToken,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        expect(healed.symbol).toBe("WETH");
+        expect(healed.name).toBe("Wrapped Ether");
+        expect(healed.decimals).toBe(18n);
       });
     });
 
