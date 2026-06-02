@@ -7,6 +7,7 @@ import {
   PoolId,
   RootPoolLeafPoolId,
   TokenId,
+  toCanonicalFeeScale,
   toChecksumAddress,
 } from "../../src/Constants";
 import { rehydrateTimestamps } from "../../src/EntityTimestamps";
@@ -133,9 +134,13 @@ describe("PoolFactory Events", () => {
     });
 
     it("should set baseFee and currentFee for non-CL pools (vAMM)", () => {
-      // Non-CL pools should always have baseFee and currentFee set
-      expect(createdPool?.baseFee).toBe(DEFAULT_VAMM_FEE_BPS);
-      expect(createdPool?.currentFee).toBe(DEFAULT_VAMM_FEE_BPS);
+      // V2 bps defaults are lifted to canonical FEE_SCALE (1e6) at write (#812).
+      expect(createdPool?.baseFee).toBe(
+        toCanonicalFeeScale(DEFAULT_VAMM_FEE_BPS, false),
+      );
+      expect(createdPool?.currentFee).toBe(
+        toCanonicalFeeScale(DEFAULT_VAMM_FEE_BPS, false),
+      );
     });
 
     it("should set factoryAddress to event.srcAddress for non-CL pools", async () => {
@@ -206,9 +211,13 @@ describe("PoolFactory Events", () => {
       });
       const stablePool = await indexer.Pool.get(PoolId(chainId, poolAddress));
 
-      // Stable pools should use DEFAULT_SAMM_FEE_BPS
-      expect(stablePool?.baseFee).toBe(DEFAULT_SAMM_FEE_BPS);
-      expect(stablePool?.currentFee).toBe(DEFAULT_SAMM_FEE_BPS);
+      // Stable pools use DEFAULT_SAMM_FEE_BPS, lifted to FEE_SCALE (#812)
+      expect(stablePool?.baseFee).toBe(
+        toCanonicalFeeScale(DEFAULT_SAMM_FEE_BPS, false),
+      );
+      expect(stablePool?.currentFee).toBe(
+        toCanonicalFeeScale(DEFAULT_SAMM_FEE_BPS, false),
+      );
     });
 
     it("should NOT create RootPool_LeafPool for Optimism (chainId 10)", async () => {
@@ -328,8 +337,11 @@ describe("PoolFactory Events", () => {
         ? rehydrateTimestamps("Pool", rawPool)
         : undefined;
       expect(updatedPool).toBeDefined();
-      expect(updatedPool?.baseFee).toBe(customFee);
-      expect(updatedPool?.currentFee).toBe(customFee);
+      // V2 SetCustomFee bps lifted to canonical FEE_SCALE (1e6) at write (#812)
+      expect(updatedPool?.baseFee).toBe(toCanonicalFeeScale(customFee, false));
+      expect(updatedPool?.currentFee).toBe(
+        toCanonicalFeeScale(customFee, false),
+      );
       expect(updatedPool?.lastUpdatedTimestamp).toEqual(
         new Date(blockTimestamp * 1000),
       );
@@ -385,8 +397,8 @@ describe("PoolFactory Events", () => {
         ? rehydrateTimestamps("Pool", rawPool)
         : undefined;
       expect(updatedPool).toBeDefined();
-      expect(updatedPool?.baseFee).toBe(newFee);
-      expect(updatedPool?.currentFee).toBe(newFee);
+      expect(updatedPool?.baseFee).toBe(toCanonicalFeeScale(newFee, false));
+      expect(updatedPool?.currentFee).toBe(toCanonicalFeeScale(newFee, false));
       expect(updatedPool?.baseFee).not.toBe(existingFee);
       expect(updatedPool?.lastUpdatedTimestamp).toEqual(
         new Date(blockTimestamp * 1000),

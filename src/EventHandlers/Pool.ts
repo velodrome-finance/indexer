@@ -110,10 +110,11 @@ indexer.onEvent(
       return;
     }
 
-    const { liquidityPoolAggregator } = poolData;
+    const { liquidityPoolAggregator, token0Instance, token1Instance } =
+      poolData;
 
     // Process fees event
-    const result = processPoolFees(event);
+    const result = processPoolFees(event, token0Instance, token1Instance);
 
     const { liquidityPoolDiff, userDiff } = result;
 

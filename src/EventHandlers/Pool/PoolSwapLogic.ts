@@ -1,7 +1,7 @@
 import type { EvmEvent, Token } from "envio";
 import type { PoolDiff } from "../../Aggregators/Pool";
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
-import { V2_FEE_SCALE } from "../../Constants";
+import { FEE_SCALE } from "../../Constants";
 import type { Pool } from "../../EntityTypes";
 import { pickTrustedSwapVolumeUSD } from "../../Helpers";
 import { getTrustedUSD } from "../../PriceTrust";
@@ -28,7 +28,7 @@ export interface PoolSwapResult {
  * trusted legs) — defends against scam-token / poisoned-oracle inflation
  * (issues #699, #737, #755).
  *
- * Fee USD: `volumeInUSD × (currentFee ?? baseFee ?? 0n) / V2_FEE_SCALE` —
+ * Fee USD: `volumeInUSD × (currentFee ?? baseFee ?? 0n) / FEE_SCALE` —
  * inherits the volume path's min-protection by construction and tracks
  * Custom/Dynamic fee-module changes via `currentFee` (issue #797, mirrors
  * `CLPoolSwapLogic.calculateSwapFees`). `processPoolFees` no longer writes
@@ -61,7 +61,7 @@ export function processPoolSwap(
   // Derive fee USD from trusted volume — see file header for the #797 rationale.
   const feeRate =
     liquidityPoolAggregator.currentFee ?? liquidityPoolAggregator.baseFee ?? 0n;
-  const feeUSD = (volumeInUSD * feeRate) / V2_FEE_SCALE;
+  const feeUSD = (volumeInUSD * feeRate) / FEE_SCALE;
 
   // Create liquidity pool diff.
   //

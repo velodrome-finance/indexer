@@ -18,8 +18,8 @@ type Pool {
   totalVolume0: BigInt! @config(precision: 76) # total swap volume of token0 in token units
   totalVolume1: BigInt! @config(precision: 76) # total swap volume of token1 in token units
   totalVolumeUSD: BigInt! @config(precision: 76) # total swap volume of the pool in USD
-  totalFeesGenerated0: BigInt! @config(precision: 76) # total swap fees generated of token0 in token units
-  totalFeesGenerated1: BigInt! @config(precision: 76) # total swap fees generated of token1 in token units
+  totalFeesGenerated0: BigInt! @config(precision: 76) # total swap fees generated of token0, 1e18-normalized token units (same scale on V2 & CL — issue #812)
+  totalFeesGenerated1: BigInt! @config(precision: 76) # total swap fees generated of token1, 1e18-normalized token units (same scale on V2 & CL — issue #812)
   totalFeesGeneratedUSD: BigInt! @config(precision: 76) # total swap fees of the pool in USD
   totalUnstakedFeesCollected0: BigInt! @config(precision: 76) # total fees collected from unstaked LPs (Collect events) in token0 units
   totalUnstakedFeesCollected1: BigInt! @config(precision: 76) # total fees collected from unstaked LPs (Collect events) in token1 units
@@ -119,10 +119,10 @@ type Pool {
   veNFTamountStaked: BigInt! @config(precision: 76) # total amount of veNFT staked for this pool
 
   # Dynamic Fee fields
-  baseFee: BigInt! @config(precision: 24) # Current base fee set for pool
+  baseFee: BigInt! @config(precision: 24) # Current base fee, FEE_SCALE 1e6 (hundredths of a basis point); single fee divisor across V2 & CL — issue #812
   feeCap: BigInt @config(precision: 76) # Current fee cap for pool
   scalingFactor: BigInt @config(precision: 76) # Current scaling factor for pool
-  currentFee: BigInt! @config(precision: 76) # Current fee for pool (base + dynamic)
+  currentFee: BigInt! @config(precision: 76) # Current fee (base + dynamic), FEE_SCALE 1e6; single fee divisor across V2 & CL — issue #812
 
   # Unstaked Fee fields
   # Raw customFee value last emitted by an UnstakedFeeModule for this pool (CL pools only).
@@ -166,8 +166,8 @@ type PoolSnapshot {
   totalVolume0: BigInt! @config(precision: 76) # total swap volume of token0 in token units
   totalVolume1: BigInt! @config(precision: 76) # total swap volume of token1 in token units
   totalVolumeUSD: BigInt! @config(precision: 76) # total swap volume of the pool in USD
-  totalFeesGenerated0: BigInt! @config(precision: 76) # total swap fees generated of token0 in token units
-  totalFeesGenerated1: BigInt! @config(precision: 76) # total swap fees generated of token1 in token units
+  totalFeesGenerated0: BigInt! @config(precision: 76) # total swap fees generated of token0, 1e18-normalized token units (same scale on V2 & CL — issue #812)
+  totalFeesGenerated1: BigInt! @config(precision: 76) # total swap fees generated of token1, 1e18-normalized token units (same scale on V2 & CL — issue #812)
   totalFeesGeneratedUSD: BigInt! @config(precision: 76) # total swap fees of the pool in USD
   totalUnstakedFeesCollected0: BigInt! @config(precision: 76) # total fees collected from unstaked LPs (Collect events) in token0 units
   totalUnstakedFeesCollected1: BigInt! @config(precision: 76) # total fees collected from unstaked LPs (Collect events) in token1 units
@@ -229,10 +229,10 @@ type PoolSnapshot {
   veNFTamountStaked: BigInt! @config(precision: 76) # total amount of veNFT staked for this pool
 
   # Dynamic Fee fields
-  baseFee: BigInt! @config(precision: 24) # Current base fee set for pool
+  baseFee: BigInt! @config(precision: 24) # Current base fee, FEE_SCALE 1e6 (hundredths of a basis point); single fee divisor across V2 & CL — issue #812
   feeCap: BigInt @config(precision: 76) # Current fee cap for pool
   scalingFactor: BigInt @config(precision: 76) # Current scaling factor for pool
-  currentFee: BigInt! @config(precision: 76) # Current fee for pool (base + dynamic)
+  currentFee: BigInt! @config(precision: 76) # Current fee (base + dynamic), FEE_SCALE 1e6; single fee divisor across V2 & CL — issue #812
 
   # Unstaked Fee fields
   unstakedFee: BigInt @config(precision: 24) # Raw customFee value last emitted by an UnstakedFeeModule for this pool (see Pool for semantics)
@@ -260,8 +260,8 @@ type UserStatsPerPool {
   totalSwapVolumeAmount1: BigInt! @config(precision: 76) # swap volume denominated in token1 in this pool
   totalSwapVolumeUSD: BigInt! @config(precision: 76) # swap volume in USD in this pool
   totalFeesContributedUSD: BigInt! @config(precision: 76) # total fees contributed in USD (from swaps made by the user - essentially fees paid by the user in swaps)
-  totalFeesContributed0: BigInt! @config(precision: 76) # total fees contributed in token0 (from swaps made by the user - essentially fees paid by the user in swaps)
-  totalFeesContributed1: BigInt! @config(precision: 76) # total fees contributed in token1 (from swaps made by the user - essentially fees paid by the user in swaps)
+  totalFeesContributed0: BigInt! @config(precision: 76) # total fees contributed in token0, 1e18-normalized (fees paid by the user in swaps; same scale on V2 & CL — issue #812)
+  totalFeesContributed1: BigInt! @config(precision: 76) # total fees contributed in token1, 1e18-normalized (fees paid by the user in swaps; same scale on V2 & CL — issue #812)
 
   # Flash swap metrics
   numberOfFlashLoans: BigInt! @config(precision: 76) # number of flash loan swaps in this pool
@@ -322,8 +322,8 @@ type UserStatsPerPoolSnapshot {
   totalSwapVolumeAmount1: BigInt! @config(precision: 76) # swap volume denominated in token1 in this pool
   totalSwapVolumeUSD: BigInt! @config(precision: 76) # swap volume in USD in this pool
   totalFeesContributedUSD: BigInt! @config(precision: 76) # total fees contributed in USD (fees paid by the user in swaps)
-  totalFeesContributed0: BigInt! @config(precision: 76) # total fees contributed in token0
-  totalFeesContributed1: BigInt! @config(precision: 76) # total fees contributed in token1
+  totalFeesContributed0: BigInt! @config(precision: 76) # total fees contributed in token0, 1e18-normalized (same scale on V2 & CL — issue #812)
+  totalFeesContributed1: BigInt! @config(precision: 76) # total fees contributed in token1, 1e18-normalized (same scale on V2 & CL — issue #812)
 
   # Flash swap metrics
   numberOfFlashLoans: BigInt! @config(precision: 76) # number of flash loan swaps in this pool

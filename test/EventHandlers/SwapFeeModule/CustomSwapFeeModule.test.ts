@@ -1,5 +1,5 @@
 import { createTestIndexer } from "envio";
-import { toChecksumAddress } from "../../../src/Constants";
+import { toCanonicalFeeScale, toChecksumAddress } from "../../../src/Constants";
 import { setupCommon } from "../Pool/common";
 
 describe("CustomSwapFeeModule Events", () => {
@@ -88,11 +88,18 @@ describe("CustomSwapFeeModule Events", () => {
         },
       });
 
-      // Assert: Check that pool's baseFee was updated
+      // Assert: Check that pool's baseFee was updated. mockPool is a V2 pool
+      // (isCL=false), so the basis-point fee is lifted to canonical FEE_SCALE
+      // (1e6) at write — issue #812. (A CL pool's fee, already in FEE_SCALE,
+      // would be stored unchanged.)
       const updatedPool = await indexer.Pool.get(mockPool.id);
       expect(updatedPool).toBeDefined();
-      expect(updatedPool?.baseFee).toBe(fee);
-      expect(updatedPool?.currentFee).toBe(fee);
+      expect(updatedPool?.baseFee).toBe(
+        toCanonicalFeeScale(fee, mockPool.isCL),
+      );
+      expect(updatedPool?.currentFee).toBe(
+        toCanonicalFeeScale(fee, mockPool.isCL),
+      );
     });
   });
 });
