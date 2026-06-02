@@ -1,5 +1,6 @@
 import { TokenIdByBlock, toChecksumAddress } from "../../src/Constants";
 import {
+  PRICE_SOURCE,
   createTokenPriceSnapshot,
   setTokenPriceSnapshot,
 } from "../../src/Snapshots/TokenPriceSnapshot";
@@ -15,6 +16,7 @@ describe("TokenPriceSnapshot", () => {
   const lastUpdatedTimestamp = new Date(1000000 * 1000);
   const pricePerUSDNew = 1000000000000000000n;
   const isWhitelisted = true;
+  const priceSource = PRICE_SOURCE.FRESH;
 
   beforeEach(() => {
     common = setupCommon();
@@ -30,6 +32,7 @@ describe("TokenPriceSnapshot", () => {
         lastUpdatedTimestamp,
         pricePerUSDNew,
         isWhitelisted,
+        priceSource,
       );
 
       expect(snapshot.id).toBe(TokenIdByBlock(chainId, address, blockNumber));
@@ -43,6 +46,7 @@ describe("TokenPriceSnapshot", () => {
         lastUpdatedTimestamp,
         pricePerUSDNew,
         isWhitelisted,
+        priceSource,
       );
 
       expect(snapshot.address).toBe(address);
@@ -50,6 +54,7 @@ describe("TokenPriceSnapshot", () => {
       expect(snapshot.pricePerUSDNew).toBe(pricePerUSDNew);
       expect(snapshot.isWhitelisted).toBe(isWhitelisted);
       expect(snapshot.lastUpdatedTimestamp).toBe(lastUpdatedTimestamp);
+      expect(snapshot.priceSource).toBe(priceSource);
     });
 
     it("should handle isWhitelisted false", () => {
@@ -60,9 +65,24 @@ describe("TokenPriceSnapshot", () => {
         lastUpdatedTimestamp,
         pricePerUSDNew,
         false,
+        priceSource,
       );
 
       expect(snapshot.isWhitelisted).toBe(false);
+    });
+
+    it("should carry the provenance tag it is given", () => {
+      const snapshot = createTokenPriceSnapshot(
+        address,
+        chainId,
+        blockNumber,
+        lastUpdatedTimestamp,
+        pricePerUSDNew,
+        isWhitelisted,
+        PRICE_SOURCE.CARRIED,
+      );
+
+      expect(snapshot.priceSource).toBe("carried");
     });
   });
 
@@ -78,6 +98,7 @@ describe("TokenPriceSnapshot", () => {
       lastUpdatedTimestamp,
       pricePerUSDNew,
       isWhitelisted,
+      priceSource,
       context,
     );
 
@@ -101,6 +122,7 @@ describe("TokenPriceSnapshot", () => {
       lastUpdatedTimestamp,
       pricePerUSDNew,
       isWhitelisted,
+      priceSource,
       context,
     );
 
@@ -112,6 +134,7 @@ describe("TokenPriceSnapshot", () => {
         pricePerUSDNew,
         isWhitelisted,
         lastUpdatedTimestamp,
+        priceSource,
       }),
     );
   });
@@ -128,6 +151,7 @@ describe("TokenPriceSnapshot", () => {
       lastUpdatedTimestamp,
       pricePerUSDNew,
       false,
+      priceSource,
       context,
     );
 

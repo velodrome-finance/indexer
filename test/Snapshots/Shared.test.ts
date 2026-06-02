@@ -12,7 +12,10 @@ import {
   persistSnapshot,
   shouldSnapshot,
 } from "../../src/Snapshots/Shared";
-import { createTokenPriceSnapshot } from "../../src/Snapshots/TokenPriceSnapshot";
+import {
+  PRICE_SOURCE,
+  createTokenPriceSnapshot,
+} from "../../src/Snapshots/TokenPriceSnapshot";
 import { createUserStatsPerPoolSnapshot } from "../../src/Snapshots/UserStatsPerPoolSnapshot";
 import { createVeNFTPoolVoteSnapshot } from "../../src/Snapshots/VeNFTPoolVoteSnapshot";
 import { createVeNFTStateSnapshot } from "../../src/Snapshots/VeNFTStateSnapshot";
@@ -210,6 +213,7 @@ describe("Snapshots Shared", () => {
         lastUpdatedTimestamp,
         pricePerUSDNew,
         isWhitelisted,
+        PRICE_SOURCE.FRESH,
       );
 
       persistSnapshot({ type: SnapshotType.TokenPrice, snapshot }, context);
