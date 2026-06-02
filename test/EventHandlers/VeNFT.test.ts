@@ -187,6 +187,12 @@ describe("VeNFT Events", () => {
 
       expect(updatedOldUserStats?.veNFTamountStaked).toBe(0n);
       expect(updatedNewUserStats?.veNFTamountStaked).toBe(voteAmount);
+
+      // updateVeNFTState writes owner = event.params.to on a (non-mint) Transfer.
+      const updatedVeNFT = await reassignIndexer.VeNFTState.get(
+        VeNFTId(chainId, tokenId),
+      );
+      expect(updatedVeNFT?.owner).toBe(newOwner);
     });
 
     it("should reassign votes across multiple pools", async () => {

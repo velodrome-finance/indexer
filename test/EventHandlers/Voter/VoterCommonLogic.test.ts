@@ -278,6 +278,10 @@ describe("buildPoolDiffFromDistribute", () => {
     const diff = buildPoolDiffFromDistribute(res, ts);
     expect(diff.totalVotesDeposited).toBe(5n);
     expect(diff.gaugeAddress).toBeUndefined();
+    // The key must be ABSENT, not present-with-undefined: a cross-chain
+    // DistributeReward spreads this diff onto the existing leaf pool, so the
+    // leaf's gaugeAddress is preserved only because the key is omitted here.
+    expect(Object.hasOwn(diff, "gaugeAddress")).toBe(false);
   });
 });
 
