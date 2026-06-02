@@ -182,9 +182,7 @@ export interface PoolDiff {
   tickEdgeNets: readonly bigint[];
   totalVotesDeposited: bigint;
   totalVotesDepositedUSD: bigint;
-  incrementalTotalBribeClaimed: bigint;
   incrementalTotalBribeClaimedUSD: bigint;
-  incrementalTotalFeeRewardClaimed: bigint;
   incrementalTotalFeeRewardClaimedUSD: bigint;
   veNFTamountStaked: bigint;
   baseFee: bigint;
@@ -609,15 +607,10 @@ export async function updatePool(
     totalVotesDepositedUSD:
       diff.totalVotesDepositedUSD ?? current.totalVotesDepositedUSD,
 
-    // Voting Reward Claims - cumulative fields
-    totalBribeClaimed:
-      (diff.incrementalTotalBribeClaimed ?? 0n) + current.totalBribeClaimed,
+    // Voting Reward Claims - cumulative USD aggregate (raw token-unit sum dropped in #813)
     totalBribeClaimedUSD:
       (diff.incrementalTotalBribeClaimedUSD ?? 0n) +
       current.totalBribeClaimedUSD,
-    totalFeeRewardClaimed:
-      (diff.incrementalTotalFeeRewardClaimed ?? 0n) +
-      current.totalFeeRewardClaimed,
     totalFeeRewardClaimedUSD:
       (diff.incrementalTotalFeeRewardClaimedUSD ?? 0n) +
       current.totalFeeRewardClaimedUSD,
@@ -1065,10 +1058,8 @@ export function createPoolEntity(params: {
     currentLiquidityStakedUSD: 0n,
     // Voting Reward fields
     bribeVotingRewardAddress: "",
-    totalBribeClaimed: 0n,
     totalBribeClaimedUSD: 0n,
     feeVotingRewardAddress: "",
-    totalFeeRewardClaimed: 0n,
     totalFeeRewardClaimedUSD: 0n,
     veNFTamountStaked: 0n,
     // Pool Launcher relationship (undefined for pools not launched via PoolLauncher)

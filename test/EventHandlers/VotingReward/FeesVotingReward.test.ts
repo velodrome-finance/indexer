@@ -116,13 +116,13 @@ describe("FeesVotingReward Events", () => {
       const updatedPool = await indexer.Pool.get(mockLiquidityPoolData.id);
       expect(updatedPool).toBeDefined();
       // The actual values depend on the price calculation, but should be updated
-      expect(updatedPool?.totalFeeRewardClaimed).toBeGreaterThan(0n);
+      expect(updatedPool?.totalFeeRewardClaimedUSD).toBeGreaterThan(0n);
     });
 
     it("should update user stats with fee reward claimed", async () => {
       const updatedUser = await indexer.UserStatsPerPool.get(userStats.id);
       expect(updatedUser).toBeDefined();
-      expect(updatedUser?.totalFeeRewardClaimed).toBeGreaterThan(0n);
+      expect(updatedUser?.totalFeeRewardClaimedUSD).toBeGreaterThan(0n);
     });
   });
 });

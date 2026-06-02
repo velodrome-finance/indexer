@@ -90,17 +90,13 @@ describe("VotingRewardSharedLogic", () => {
 
       // For bribe rewards, should populate bribe fields
       expect(result.poolDiff).toMatchObject({
-        incrementalTotalBribeClaimed: 1000000n,
         incrementalTotalBribeClaimedUSD: 1000000000000000000n, // 1 USD in 18 decimals
-        incrementalTotalFeeRewardClaimed: 0n,
         incrementalTotalFeeRewardClaimedUSD: 0n,
         lastUpdatedTimestamp: mockTimestamp,
       });
 
       expect(result.userDiff).toMatchObject({
-        incrementalTotalBribeClaimed: 1000000n,
         incrementalTotalBribeClaimedUSD: 1000000000000000000n,
-        incrementalTotalFeeRewardClaimed: 0n,
         incrementalTotalFeeRewardClaimedUSD: 0n,
         lastActivityTimestamp: mockTimestamp,
       });
@@ -125,17 +121,13 @@ describe("VotingRewardSharedLogic", () => {
 
       // For fee rewards, should populate fee fields
       expect(result.poolDiff).toMatchObject({
-        incrementalTotalBribeClaimed: 0n,
         incrementalTotalBribeClaimedUSD: 0n,
-        incrementalTotalFeeRewardClaimed: 2000000n,
         incrementalTotalFeeRewardClaimedUSD: 2000000000000000000n, // 2 USD in 18 decimals
         lastUpdatedTimestamp: mockTimestamp,
       });
 
       expect(result.userDiff).toMatchObject({
-        incrementalTotalBribeClaimed: 0n,
         incrementalTotalBribeClaimedUSD: 0n,
-        incrementalTotalFeeRewardClaimed: 2000000n,
         incrementalTotalFeeRewardClaimedUSD: 2000000000000000000n,
         lastActivityTimestamp: mockTimestamp,
       });
@@ -224,9 +216,7 @@ describe("VotingRewardSharedLogic", () => {
       );
 
       expect(tokenSetCalled).toBe(false);
-      expect(result.poolDiff?.incrementalTotalBribeClaimed).toBe(0n);
       expect(result.poolDiff?.incrementalTotalBribeClaimedUSD).toBe(0n);
-      expect(result.userDiff?.incrementalTotalBribeClaimed).toBe(0n);
       expect(result.userDiff?.incrementalTotalBribeClaimedUSD).toBe(0n);
       // Skip-path shape must mirror the normal path: poolDiff carries
       // lastUpdatedTimestamp, userDiff carries lastActivityTimestamp only.
@@ -242,18 +232,16 @@ describe("VotingRewardSharedLogic", () => {
       {
         branch: "bribe",
         field: PoolAddressField.BRIBE_VOTING_REWARD_ADDRESS,
-        rawKey: "incrementalTotalBribeClaimed" as const,
         usdKey: "incrementalTotalBribeClaimedUSD" as const,
       },
       {
         branch: "fee",
         field: PoolAddressField.FEE_VOTING_REWARD_ADDRESS,
-        rawKey: "incrementalTotalFeeRewardClaimed" as const,
         usdKey: "incrementalTotalFeeRewardClaimedUSD" as const,
       },
     ])(
       "zeros $branch reward USD when the reward token is non-whitelisted (#755 trust gate)",
-      async ({ field, rawKey, usdKey }) => {
+      async ({ field, usdKey }) => {
         // Slice 3d: pre-seed a non-WL token so the path skips the new-token
         // branch (which hardcodes isWhitelisted: true). lastUpdatedTimestamp
         // is aligned to mockTimestamp so refreshTokenPrice throttles and
@@ -290,10 +278,8 @@ describe("VotingRewardSharedLogic", () => {
           field,
         );
 
-        // Raw amounts pass through; only USD is gated.
-        expect(result.poolDiff?.[rawKey]).toBe(1000000n);
+        // USD is gated to 0 for non-whitelisted tokens (raw token-unit field dropped in #813).
         expect(result.poolDiff?.[usdKey]).toBe(0n);
-        expect(result.userDiff?.[rawKey]).toBe(1000000n);
         expect(result.userDiff?.[usdKey]).toBe(0n);
       },
     );

@@ -66,10 +66,10 @@ Latest-state entities that hold the headline metrics most consumers query.
 | `token1Price` | `BigInt!` | price of token1 relative to token0 |
 | `totalVotesDeposited` | `BigInt!` | total votes deposited in veToken units |
 | `totalVotesDepositedUSD` | `BigInt!` | total votes deposited in USD |
-| `totalEmissions` | `BigInt!` | total emissions for the pool in reward token units (VELO form Optimism and AERO for Base) |
+| `totalEmissions` | `BigInt!` | total emissions for the pool in reward token units (VELO form Optimism and AERO for Base); 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813) |
 | `totalEmissionsUSD` | `BigInt!` | total emissions for the pool in USD |
-| `totalEmissionsRedistributed` | `BigInt!` | cumulative reward tokens this pool's gauge received from the Redistributor (Redistributed events) |
-| `totalEmissionsForfeited` | `BigInt!` | cumulative reward tokens this pool's gauge forwarded to the Redistributor or minter because it was over its cap (Deposited events) |
+| `totalEmissionsRedistributed` | `BigInt!` | cumulative reward tokens this pool's gauge received from the Redistributor (Redistributed events); AERO/VELO 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813) |
+| `totalEmissionsForfeited` | `BigInt!` | cumulative reward tokens this pool's gauge forwarded to the Redistributor or minter because it was over its cap (Deposited events); AERO/VELO 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813) |
 | `lastUpdatedTimestamp` | `Timestamp!` | timestamp of last update |
 | `lastSnapshotTimestamp` | `Timestamp!` | timestamp of last snapshot |
 | `feeProtocol0` | `BigInt` | protocol fee % for token0. Set via SetFeeProtocol (governance-gated admin call). Uniformly 0 across all Slipstream pools as of 2026-05: Aerodrome/Velodrome governance has not activated protocol fees. The handler (src/EventHandlers/CLPool.ts) is wired correctly; the field will populate only when (and if) governance turns the toggle on. Slipstream's slot0() does not pack feeProtocol and the pool exposes no feeProtocol() getter, so the on-chain SetFeeProtocol event is the only source. |
@@ -99,15 +99,13 @@ Latest-state entities that hold the headline metrics most consumers query.
 | `numberOfGaugeWithdrawals` | `BigInt!` | number of gauge withdrawals (unstaking) |
 | `numberOfGaugeRewardClaims` | `BigInt!` | number of gauge reward claims |
 | `totalGaugeRewardsClaimedUSD` | `BigInt!` | total gauge rewards claimed in USD |
-| `totalGaugeRewardsClaimed` | `BigInt!` | total gauge rewards claimed in token units |
+| `totalGaugeRewardsClaimed` | `BigInt!` | total gauge rewards claimed in reward-token units — AERO on Base, VELO on Optimism (18-dec); single reward token per chain, coherent within a chain, NOT summable across chains (see #813) |
 | `currentLiquidityStaked` | `BigInt!` | current liquidity staked in gauge in token units |
 | `currentLiquidityStakedUSD` | `BigInt!` | current liquidity staked in gauge in USD |
 | `bribeVotingRewardAddress` | `String` | address of the bribe voting reward contract for this pool _(indexed)_ |
-| `totalBribeClaimed` | `BigInt!` | total bribes claimed by users in token units |
-| `totalBribeClaimedUSD` | `BigInt!` | total bribes claimed by users in USD |
+| `totalBribeClaimedUSD` | `BigInt!` | total bribes claimed by users in USD (canonical cross-token aggregate; raw token-unit sum dropped in #813 — bribes are arbitrary heterogeneous tokens) |
 | `feeVotingRewardAddress` | `String` | address of the fee voting reward contract for this pool _(indexed)_ |
-| `totalFeeRewardClaimed` | `BigInt!` | total fee rewards claimed by users in token units |
-| `totalFeeRewardClaimedUSD` | `BigInt!` | total fee rewards claimed by users in USD |
+| `totalFeeRewardClaimedUSD` | `BigInt!` | total fee rewards claimed by users in USD (canonical cross-token aggregate; raw token-unit sum dropped in #813 — fee rewards mix the pool's two fee tokens) |
 | `veNFTamountStaked` | `BigInt!` | total amount of veNFT staked for this pool |
 | `baseFee` | `BigInt!` | Current base fee set for pool |
 | `feeCap` | `BigInt` | Current fee cap for pool |
@@ -168,7 +166,7 @@ Entity for tracking user activity and positions in specific pools
 | `numberOfGaugeWithdrawals` | `BigInt!` | number of gauge withdrawals (unstaking) |
 | `numberOfGaugeRewardClaims` | `BigInt!` | number of gauge reward claims |
 | `totalGaugeRewardsClaimedUSD` | `BigInt!` | total gauge rewards claimed in USD |
-| `totalGaugeRewardsClaimed` | `BigInt!` | total gauge rewards claimed in token units |
+| `totalGaugeRewardsClaimed` | `BigInt!` | total gauge rewards claimed in reward-token units — AERO on Base, VELO on Optimism (18-dec); single reward token per chain, coherent within a chain, NOT summable across chains (see #813) |
 | `totalStakedFeesCollected0` | `BigInt!` | pool fees (token0) collected by this user from staked position (CollectFees) |
 | `totalStakedFeesCollected1` | `BigInt!` | pool fees (token1) collected by this user from staked position (CollectFees) |
 | `totalStakedFeesCollectedUSD` | `BigInt!` | pool fees in USD collected by this user from staked position (CollectFees) - position earned vs totalGaugeRewardsClaimed (emissions received) |
@@ -178,10 +176,8 @@ Entity for tracking user activity and positions in specific pools
 | `currentLiquidityStaked` | `BigInt!` | current liquidity staked in gauge in token units |
 | `currentLiquidityStakedUSD` | `BigInt!` | current liquidity staked in gauge in USD |
 | `stakedCLPositionTokenIds` | `[BigInt!]!` | tokenIds of CL positions currently staked in gauge (maintained on deposit/withdraw, enables O(1) primary-key lookups per position at snapshot time) |
-| `totalBribeClaimed` | `BigInt!` | total amount of bribe rewards claimed by this user for this pool |
-| `totalBribeClaimedUSD` | `BigInt!` | total USD value of bribe rewards claimed by this user for this pool |
-| `totalFeeRewardClaimed` | `BigInt!` | total amount of fee rewards claimed by this user for this pool |
-| `totalFeeRewardClaimedUSD` | `BigInt!` | total USD value of fee rewards claimed by this user for this pool |
+| `totalBribeClaimedUSD` | `BigInt!` | total USD value of bribe rewards claimed by this user for this pool (canonical cross-token aggregate; raw token-unit sum dropped in #813 — bribes are arbitrary heterogeneous tokens) |
+| `totalFeeRewardClaimedUSD` | `BigInt!` | total USD value of fee rewards claimed by this user for this pool (canonical cross-token aggregate; raw token-unit sum dropped in #813 — fee rewards mix the pool's two fee tokens) |
 | `veNFTamountStaked` | `BigInt!` | amount of veNFT staked by this user for this pool |
 | `almAddress` | `String!` | Address of ALM LP Wrapper (if the user interacts with it; otherwise defaults to "") |
 | `almLpAmount` | `BigInt!` | Number of LP tokens |
@@ -307,10 +303,10 @@ Snapshot of the LiquidityPool entity
 | `token1Price` | `BigInt!` | price of token1 relative to token0 |
 | `totalVotesDeposited` | `BigInt!` | total votes deposited in veToken units |
 | `totalVotesDepositedUSD` | `BigInt!` | total votes deposited in USD |
-| `totalEmissions` | `BigInt!` | total emissions for the pool in reward token units (VELO form Optimism and AERO for Base) |
+| `totalEmissions` | `BigInt!` | total emissions for the pool in reward token units (VELO form Optimism and AERO for Base); 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813) |
 | `totalEmissionsUSD` | `BigInt!` | total emissions for the pool in USD |
-| `totalEmissionsRedistributed` | `BigInt!` | cumulative reward tokens this pool's gauge received from the Redistributor at snapshot time |
-| `totalEmissionsForfeited` | `BigInt!` | cumulative reward tokens this pool's gauge forwarded to the Redistributor or minter at snapshot time |
+| `totalEmissionsRedistributed` | `BigInt!` | cumulative reward tokens this pool's gauge received from the Redistributor at snapshot time; AERO/VELO 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813) |
+| `totalEmissionsForfeited` | `BigInt!` | cumulative reward tokens this pool's gauge forwarded to the Redistributor or minter at snapshot time; AERO/VELO 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813) |
 | `gaugeIsAlive` | `Boolean!` | whether the gauge is alive |
 | `gaugeAddress` | `String` | address of the gauge for this pool _(indexed)_ |
 | `gaugeEmissionsCap` | `BigInt` | Emissions cap for gauge |
@@ -319,7 +315,7 @@ Snapshot of the LiquidityPool entity
 | `numberOfGaugeWithdrawals` | `BigInt!` | number of gauge withdrawals (unstaking) |
 | `numberOfGaugeRewardClaims` | `BigInt!` | number of gauge reward claims |
 | `totalGaugeRewardsClaimedUSD` | `BigInt!` | total gauge rewards claimed in USD |
-| `totalGaugeRewardsClaimed` | `BigInt!` | total gauge rewards claimed in token units |
+| `totalGaugeRewardsClaimed` | `BigInt!` | total gauge rewards claimed in reward-token units — AERO on Base, VELO on Optimism (18-dec); single reward token per chain, coherent within a chain, NOT summable across chains (see #813) |
 | `currentLiquidityStaked` | `BigInt!` | current liquidity staked in gauge in token units |
 | `currentLiquidityStakedUSD` | `BigInt!` | current liquidity staked in gauge in USD |
 | `timestamp` | `Timestamp!` | timestamp of last update |
@@ -338,11 +334,9 @@ Snapshot of the LiquidityPool entity
 | `totalFlashLoanVolumeUSD` | `BigInt` | total flash loan volume in USD |
 | `numberOfFlashLoans` | `BigInt` | total number of flash loans |
 | `bribeVotingRewardAddress` | `String` | address of the bribe voting reward contract for this pool _(indexed)_ |
-| `totalBribeClaimed` | `BigInt!` | total bribes claimed by users in token units |
-| `totalBribeClaimedUSD` | `BigInt!` | total bribes claimed by users in USD |
+| `totalBribeClaimedUSD` | `BigInt!` | total bribes claimed by users in USD (canonical cross-token aggregate; raw token-unit sum dropped in #813 — bribes are arbitrary heterogeneous tokens) |
 | `feeVotingRewardAddress` | `String` | address of the fee voting reward contract for this pool _(indexed)_ |
-| `totalFeeRewardClaimed` | `BigInt!` | total fee rewards claimed by users in token units |
-| `totalFeeRewardClaimedUSD` | `BigInt!` | total fee rewards claimed by users in USD |
+| `totalFeeRewardClaimedUSD` | `BigInt!` | total fee rewards claimed by users in USD (canonical cross-token aggregate; raw token-unit sum dropped in #813 — fee rewards mix the pool's two fee tokens) |
 | `veNFTamountStaked` | `BigInt!` | total amount of veNFT staked for this pool |
 | `baseFee` | `BigInt!` | Current base fee set for pool |
 | `feeCap` | `BigInt` | Current fee cap for pool |
@@ -394,7 +388,7 @@ Snapshot of UserStatsPerPool at an epoch (invariant fields + position params for
 | `numberOfGaugeWithdrawals` | `BigInt!` | number of gauge withdrawals (unstaking) |
 | `numberOfGaugeRewardClaims` | `BigInt!` | number of gauge reward claims |
 | `totalGaugeRewardsClaimedUSD` | `BigInt!` | total gauge rewards claimed in USD |
-| `totalGaugeRewardsClaimed` | `BigInt!` | total gauge rewards claimed in token units |
+| `totalGaugeRewardsClaimed` | `BigInt!` | total gauge rewards claimed in reward-token units — AERO on Base, VELO on Optimism (18-dec); single reward token per chain, coherent within a chain, NOT summable across chains (see #813) |
 | `totalStakedFeesCollected0` | `BigInt!` | pool fees (token0) collected by this user from staked position (CollectFees) |
 | `totalStakedFeesCollected1` | `BigInt!` | pool fees (token1) collected by this user from staked position (CollectFees) |
 | `totalStakedFeesCollectedUSD` | `BigInt!` | pool fees in USD collected by this user from staked position (CollectFees) |
@@ -404,10 +398,8 @@ Snapshot of UserStatsPerPool at an epoch (invariant fields + position params for
 | `currentLiquidityStaked` | `BigInt!` | current liquidity staked in gauge in token units |
 | `currentLiquidityStakedUSD` | `BigInt!` | current liquidity staked in gauge in USD |
 | `stakedCLPositionTokenIds` | `[BigInt!]!` | tokenIds of CL positions staked in gauge at snapshot time |
-| `totalBribeClaimed` | `BigInt!` | total amount of bribe rewards claimed by this user for this pool |
-| `totalBribeClaimedUSD` | `BigInt!` | total USD value of bribe rewards claimed by this user for this pool |
-| `totalFeeRewardClaimed` | `BigInt!` | total amount of fee rewards claimed by this user for this pool |
-| `totalFeeRewardClaimedUSD` | `BigInt!` | total USD value of fee rewards claimed by this user for this pool |
+| `totalBribeClaimedUSD` | `BigInt!` | total USD value of bribe rewards claimed by this user for this pool (canonical cross-token aggregate; raw token-unit sum dropped in #813 — bribes are arbitrary heterogeneous tokens) |
+| `totalFeeRewardClaimedUSD` | `BigInt!` | total USD value of fee rewards claimed by this user for this pool (canonical cross-token aggregate; raw token-unit sum dropped in #813 — fee rewards mix the pool's two fee tokens) |
 | `veNFTamountStaked` | `BigInt!` | amount of veNFT staked by this user for this pool |
 | `almAddress` | `String!` | Address of ALM LP Wrapper the user interacts with (empty string if none) |
 | `almLpAmount` | `BigInt!` | Number of ALM LP tokens held by the user |

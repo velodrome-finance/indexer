@@ -106,11 +106,9 @@ describe("SuperchainIncentiveVotingReward Events", () => {
         "processVotingRewardClaimRewards",
       ).mockResolvedValue({
         poolDiff: {
-          incrementalTotalBribeClaimed: 1000000n,
           incrementalTotalBribeClaimedUSD: 1000000n,
         },
         userDiff: {
-          incrementalTotalBribeClaimed: 1000000n,
           incrementalTotalBribeClaimedUSD: 1000000n,
         },
       });
@@ -144,14 +142,12 @@ describe("SuperchainIncentiveVotingReward Events", () => {
     it("should update pool aggregator with bribe claimed", async () => {
       const updatedPool = await indexer.Pool.get(liquidityPool.id);
       expect(updatedPool).toBeDefined();
-      expect(updatedPool?.totalBribeClaimed).toBe(1000000n);
       expect(updatedPool?.totalBribeClaimedUSD).toBe(1000000n);
     });
 
     it("should update user stats with bribe claimed", async () => {
       const updatedUser = await indexer.UserStatsPerPool.get(userStats.id);
       expect(updatedUser).toBeDefined();
-      expect(updatedUser?.totalBribeClaimed).toBe(1000000n);
       expect(updatedUser?.totalBribeClaimedUSD).toBe(1000000n);
     });
 
@@ -195,15 +191,15 @@ describe("SuperchainIncentiveVotingReward Events", () => {
         });
 
         const updatedPool = await freshIndexer.Pool.get(liquidityPool.id);
-        expect(updatedPool?.totalBribeClaimed).toBe(
-          liquidityPool.totalBribeClaimed,
+        expect(updatedPool?.totalBribeClaimedUSD).toBe(
+          liquidityPool.totalBribeClaimedUSD,
         );
 
         const updatedUser = await freshIndexer.UserStatsPerPool.get(
           userStats.id,
         );
-        expect(updatedUser?.totalBribeClaimed).toBe(
-          userStats.totalBribeClaimed,
+        expect(updatedUser?.totalBribeClaimedUSD).toBe(
+          userStats.totalBribeClaimedUSD,
         );
       });
     });
