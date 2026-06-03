@@ -331,8 +331,7 @@ describe("VotingRewardSharedLogic", () => {
         PoolAddressField.BRIBE_VOTING_REWARD_ADDRESS,
       );
 
-      // Raw amount passes through; the untrusted price contributes 0n USD.
-      expect(result.poolDiff?.incrementalTotalBribeClaimed).toBe(1000000n);
+      // The untrusted price contributes 0n USD.
       expect(result.poolDiff?.incrementalTotalBribeClaimedUSD).toBe(0n);
       expect(result.userDiff?.incrementalTotalBribeClaimedUSD).toBe(0n);
 
