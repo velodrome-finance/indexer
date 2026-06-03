@@ -21,6 +21,31 @@ export function getErrorMessage(err: unknown): string {
 }
 
 /**
+ * Coerces the result of an effect declared with `output: S.optional(S.bigint)`
+ * to `bigint | undefined`.
+ *
+ * Works around an envio v3.1.0-rc.x regression in the effect cache: a cached
+ * effect with an *optional* output returns the ReScript nested-option sentinel
+ * `{ BS_PRIVATE_NESTED_SOME_NONE: 0 }` instead of JS `undefined` on a cache hit
+ * of a "no value" (None) result. The in-memory effect cache stores
+ * `option<output>` — here `option<option<bigint>>` — and `LoadManager.call`
+ * returns it on a hit without unwrapping the outer option, so `Some(None)`
+ * leaks through (envio 3.0.2 returned `undefined` directly). Consumers that
+ * branch on `=== undefined` / `?? fallback` would otherwise treat the sentinel
+ * as a real value and crash — persisting a non-bigint into an entity field
+ * (write-batch schema error) or calling `.toString()` on the object.
+ *
+ * A genuine bigint passes through untouched (only `Some(None)` is boxed; real
+ * values stay unboxed), so this is a no-op once the leak is fixed upstream.
+ *
+ * @param result - Raw value from `context.effect(<optional-bigint effect>)`
+ * @returns The bigint when present, otherwise `undefined`
+ */
+export function optionalBigintEffect(result: unknown): bigint | undefined {
+  return typeof result === "bigint" ? result : undefined;
+}
+
+/**
  * Logs an error via context. If err is provided, appends ": " + getErrorMessage(err) to the message.
  * @param context - The handler context
  * @param message - The message to log
