@@ -1,54 +1,56 @@
-# Querying the indexer — a consumer's guide
+# Querying the indexer: a consumer's guide
 
-How to go from "I've never seen this indexer" to pulling real answers out of it.
-This is the **data-consumer** view: the GraphQL API, the handful of scaling
-rules you must know, and copy-paste recipes for the questions people actually
-ask. For the architecture / how-it's-built view, see
-[`README.md`](../README.md); for the exhaustive field-by-field reference, see
-[`docs/schema.md`](schema.md).
+A practical guide to querying the indexer and interpreting its output, written
+for consumers who have not worked with it before. It covers the GraphQL API, the
+value-scaling rules that must be applied to every numeric field, example queries
+for common questions, and the data caveats that most affect interpretation. For
+the architecture and build instructions, see [`README.md`](../README.md). For
+the exhaustive field-by-field reference, see [`docs/schema.md`](schema.md).
 
-## What the indexer gives you
+## What the indexer provides
 
 The indexer ingests on-chain events for Velodrome V2 (Optimism) and Aerodrome
-(Base) plus their superchain deployments, and serves the **derived state** as a
-GraphQL API over Postgres. You don't deal with raw logs — you query clean,
-aggregated entities like "this pool's TVL, volume, and fees" or "this wallet's
-position in this pool".
+(Base), together with their superchain deployments, and serves the derived state
+as a GraphQL API over Postgres. Consumers do not work with raw logs. They query
+clean, aggregated entities such as a pool's TVL, volume, and fees, or a wallet's
+position in a pool.
 
-Every row is scoped to a `chainId`, so the same API answers questions for all
+Every row is scoped to a `chainId`, so a single API answers questions for all
 [supported chains](../README.md#supported-chains) at once.
 
 ### Three kinds of entity
 
-The 39 entity types fall into three buckets — knowing which is which saves you
-from querying the wrong thing:
+The 39 entity types fall into three categories. Identifying the category of an
+entity prevents querying the wrong one.
 
 | Kind | What it is | Examples | Use it for |
 | ---- | ---------- | -------- | ---------- |
-| **Latest-state aggregates** | One row per thing, always holding the *current* value | `Pool`, `Token`, `UserStatsPerPool`, `NonFungiblePosition`, `VeNFTState`, `ALM_LP_Wrapper` | "What is X right now?" |
-| **Snapshots** | Hourly, epoch-aligned copies of an aggregate | `PoolSnapshot`, `TokenPriceSnapshot`, `UserStatsPerPoolSnapshot`, … | "How did X change over time?" (charts, TVL history) |
-| **Internal buffers** | Short-lived bookkeeping rows the indexer uses to correlate events; mostly deleted once consumed | `PoolTransferInTx`, `CLPoolMintEvent`, `Pending*`, `Tx*Registry` | **Ignore these** — not meant for consumers |
+| **Latest-state aggregates** | One row per thing, always holding the current value | `Pool`, `Token`, `UserStatsPerPool`, `NonFungiblePosition`, `VeNFTState`, `ALM_LP_Wrapper` | The current value of an entity |
+| **Snapshots** | Hourly, epoch-aligned copies of an aggregate | `PoolSnapshot`, `TokenPriceSnapshot`, `UserStatsPerPoolSnapshot`, … | Historical and time-series queries (charts, TVL over time) |
+| **Internal buffers** | Short-lived bookkeeping rows used to correlate events, mostly deleted once consumed | `PoolTransferInTx`, `CLPoolMintEvent`, `Pending*`, `Tx*Registry` | Not intended for consumers |
 
 The buffers are listed under
 [*Internal buffers & deferred state*](schema.md#internal-buffers--deferred-state)
-in the schema reference. If a table name ends in `_event`, `InTx`, `Registry`,
-`Pending*`, or `Mint`/`Initialize` placeholders, it's plumbing — skip it.
+in the schema reference. A table whose name ends in `_event`, `InTx`, or
+`Registry`, begins with `Pending`, or is a `Mint` or `Initialize` placeholder is
+internal bookkeeping and is not intended for consumers.
 
 ## Where to query
 
-The indexer exposes a **Hasura GraphQL** endpoint. Hasura auto-generates one
-query field per entity, plus filtering, ordering, pagination, and aggregation —
-no custom resolvers to learn.
+The indexer exposes a Hasura GraphQL endpoint. Hasura auto-generates one query
+field per entity, together with filtering, ordering, pagination, and
+aggregation. There are no custom resolvers.
 
-- **Local dev** (`pnpm dev`): GraphQL at `http://localhost:8080/v1/graphql`,
-  interactive console at `http://localhost:8080/console` (default admin secret
-  `testing`). The console's GraphiQL tab is the fastest way to explore — it has
-  autocomplete and the full schema browser.
-- **Hosted deployment**: your deployment serves the same GraphQL endpoint at a
-  public URL. Point any GraphQL client (Apollo, urql, `graphql-request`, plain
-  `fetch`, or `curl`) at it.
+- **Local development** (`pnpm dev`): the GraphQL endpoint is served at
+  `http://localhost:8080/v1/graphql` and the interactive console at
+  `http://localhost:8080/console` (default admin secret `testing`). The
+  console's GraphiQL tab is the most efficient way to explore the schema. It
+  provides autocomplete and a schema browser.
+- **Hosted deployment**: the deployment serves the same GraphQL endpoint at a
+  public URL. Any GraphQL client (Apollo, urql, `graphql-request`, `fetch`, or
+  `curl`) can query it.
 
-A request is just an HTTP POST:
+A request is an HTTP POST:
 
 ```bash
 curl -s https://<your-endpoint>/v1/graphql \
@@ -58,50 +60,52 @@ curl -s https://<your-endpoint>/v1/graphql \
 
 ## Query basics
 
-Hasura gives every entity these arguments:
+Hasura provides the following arguments on every entity:
 
 - `where: { field: { _eq / _gt / _lt / _gte / _lte / _in / _ilike: value } }` — filter
 - `order_by: { field: desc | asc }` — sort
 - `limit` / `offset` — paginate
 - `distinct_on: [field]` — deduplicate
 
-…and, **if your deployment enables Hasura aggregations**, an `_aggregate`
-companion field (`Pool_aggregate`) for `sum`, `count`, `avg`, `min`, `max`
-without pulling every row. Some deployments disable server-side aggregation — if
-`Pool_aggregate` isn't in the schema, fetch the rows and sum client-side.
+Where the deployment enables Hasura aggregations, each entity also has an
+`_aggregate` companion field (`Pool_aggregate`) for `sum`, `count`, `avg`,
+`min`, and `max` without retrieving every row. Some deployments disable
+server-side aggregation. If `Pool_aggregate` is absent from the schema, retrieve
+the rows and sum them client-side.
 
-Two things to expect in responses:
+Two characteristics of the response are worth noting:
 
-- **`BigInt` fields come back as strings** (e.g. `"1234500000000000000"`), because
-  the values exceed JS's safe integer range. Parse them with a big-number library,
-  not `Number()`.
+- **`BigInt` fields are returned as strings** (for example
+  `"1234500000000000000"`), because the values exceed the safe integer range in
+  JavaScript. Parse them with a big-number library rather than `Number()`.
 - **Entity names are used verbatim** as the query field (`Pool`, not `pools`).
 
-## The 5 scaling rules (read this before trusting any number)
+## The five scaling rules
 
-Almost every "the numbers look wrong" question is a scaling mistake. Raw values
-are fixed-point integers; you divide to get a human number. There are only five
-rules:
+Most reports of incorrect numbers are scaling mistakes. Raw values are
+fixed-point integers, and a division converts them to a human-readable number.
+There are five rules.
 
-| Field group | Scale | To get a human number |
-| ----------- | ----- | --------------------- |
-| **USD fields** — anything ending in `USD` (`totalLiquidityUSD`, `totalVolumeUSD`, `totalFeesGeneratedUSD`, `*ClaimedUSD`, …) | `1e18` | `value / 1e18` → dollars |
-| **Raw token amounts** — `reserve0/1`, `totalVolume0/1`, `lpBalance`, `totalLiquidityAdded/RemovedToken0/1`, `oUSDTamount`, … | `10^token.decimals` | `value / 10^decimals` → whole tokens |
-| **Token prices** — `Token.pricePerUSDNew` | `1e18` | `value / 1e18` → **USD per whole token** (the name says "per USD" but it is USD-per-token) |
-| **Pool price ratios** — `Pool.token0Price` / `token1Price` | `1e18` (already decimal-adjusted) | `value / 1e18` → whole counter-token per whole token |
-| **Fee *rates*** — `baseFee`, `currentFee` | `FEE_SCALE = 1e6` (hundredths of a basis point) | `value / 1e6` → fraction; `value / 1e4` → percent (e.g. `3000` → 0.30%) |
+| Field group | Scale | To obtain a human-readable number |
+| ----------- | ----- | --------------------------------- |
+| **USD fields** — any field ending in `USD` (`totalLiquidityUSD`, `totalVolumeUSD`, `totalFeesGeneratedUSD`, `*ClaimedUSD`, …) | `1e18` | `value / 1e18` gives dollars |
+| **Raw token amounts** — `reserve0/1`, `totalVolume0/1`, `lpBalance`, `totalLiquidityAdded/RemovedToken0/1`, `oUSDTamount`, … | `10^token.decimals` | `value / 10^decimals` gives whole tokens |
+| **Token prices** — `Token.pricePerUSDNew` | `1e18` | `value / 1e18` gives the USD price of one whole token. Despite the field name, the value is USD-per-token. |
+| **Pool price ratios** — `Pool.token0Price` / `token1Price` | `1e18`, already decimal-adjusted | `value / 1e18` gives whole counter-token per whole token |
+| **Fee rates** — `baseFee`, `currentFee` | `FEE_SCALE = 1e6` (hundredths of a basis point) | `value / 1e6` gives a fraction. `value / 1e4` gives a percentage (for example, `3000` is 0.30%). |
 
-**One exception to the raw-token rule:** the four fee-*amount* fields
-`totalFeesGenerated0/1` and `totalFeesContributed0/1` are **`1e18`-normalized**,
-not raw decimals (issue #812 / [ADR 0001](adr/0001-canonical-fee-field-scaling.md)),
-so divide them by `1e18` regardless of token decimals. The
-`totalStaked/UnstakedFeesCollected0/1` fields are still raw token units. When in
-doubt, each field's exact scale is in its [`schema.md`](schema.md) description.
+The four fee-amount fields `totalFeesGenerated0/1` and `totalFeesContributed0/1`
+are an exception to the raw-token rule. They are `1e18`-normalized rather than
+raw decimals (issue #812,
+[ADR 0001](adr/0001-canonical-fee-field-scaling.md)), so divide them by `1e18`
+regardless of token decimals. The `totalStakedFeesCollected0/1` and
+`totalUnstakedFeesCollected0/1` fields remain raw token units. Each field's exact
+scale is documented in its [`schema.md`](schema.md) description.
 
-## Recipes
+## Example queries
 
-Real questions → queries you can paste into the console (Base = `chainId: 8453`,
-Optimism = `10`).
+The following queries map common questions to GraphQL and can be pasted into the
+console. Base is `chainId: 8453` and Optimism is `chainId: 10`.
 
 ### Top 10 pools by TVL on a chain
 
@@ -127,9 +131,9 @@ query TopPools {
 
 ### One pool's current state, with its tokens
 
-`token0_id` / `token1_id` are `{chainId}-{address}` keys into `Token`. Either
-fetch the tokens in a second query by id, or use the nested relationship if your
-deployment exposes it (`token0 { symbol pricePerUSDNew }`).
+`token0_id` and `token1_id` are `{chainId}-{address}` keys into `Token`.
+Retrieve the tokens in a second query by id, or use the nested relationship if
+the deployment exposes it (`token0 { symbol pricePerUSDNew }`).
 
 ```graphql
 query OnePool {
@@ -147,9 +151,9 @@ query OnePool {
 }
 ```
 
-### A pool's TVL / volume history (for a chart)
+### A pool's TVL and volume history (for a chart)
 
-Snapshots are hourly. Filter the pool's snapshots by time and read them in order.
+Snapshots are hourly. Filter a pool's snapshots by time and read them in order.
 
 ```graphql
 query PoolHistory {
@@ -178,7 +182,7 @@ query TokenPrice {
     decimals
     pricePerUSDNew         # ÷ 1e18 → USD per token
     isWhitelisted
-    priceTrustOutcome      # see "Trust the price?" below
+    priceTrustOutcome      # see the caveats below
   }
   TokenPriceSnapshot(
     where: { chainId: { _eq: 8453 }, address: { _eq: "0x..." } }
@@ -186,15 +190,15 @@ query TokenPrice {
   ) {
     lastUpdatedTimestamp
     pricePerUSDNew
-    priceSource            # filter to fresh / pool-implied / rebind for real reads
+    priceSource            # filter to fresh / pool-implied / rebind for accepted reads
   }
 }
 ```
 
-### Everything a wallet has done in a pool
+### A wallet's full activity in a pool
 
-`UserStatsPerPool` is one row per `(user, pool)` — liquidity, swaps, fees paid,
-gauge rewards, votes, ALM, all in one place.
+`UserStatsPerPool` holds one row per `(user, pool)`, covering liquidity, swaps,
+fees paid, gauge rewards, votes, and ALM in a single entity.
 
 ```graphql
 query UserInPool {
@@ -233,7 +237,7 @@ query UserPositions {
 }
 ```
 
-### veNFT locks and how they voted
+### veNFT locks and their vote allocations
 
 ```graphql
 query VeNFT {
@@ -250,7 +254,7 @@ query VeNFT {
 }
 ```
 
-### Bribes & fee rewards on a pool
+### Bribes and fee rewards on a pool
 
 ```graphql
 query PoolIncentives {
@@ -258,18 +262,18 @@ query PoolIncentives {
     name
     totalBribeClaimedUSD       # ÷ 1e18
     totalFeeRewardClaimedUSD   # ÷ 1e18
-    totalEmissionsUSD          # ÷ 1e18  (see caveat below)
+    totalEmissionsUSD          # ÷ 1e18  (see the caveats below)
     bribeVotingRewardAddress
     feeVotingRewardAddress
   }
 }
 ```
 
-### Total TVL across a chain (aggregate, no row dump)
+### Total TVL across a chain
 
-Works only where the deployment exposes Hasura aggregations. If `Pool_aggregate`
-isn't in the schema, fetch every pool on the chain (paginating with
-`limit`/`offset`) and sum `totalLiquidityUSD` client-side instead.
+This query requires a deployment that exposes Hasura aggregations. If
+`Pool_aggregate` is absent from the schema, retrieve every pool on the chain
+(paginating with `limit` and `offset`) and sum `totalLiquidityUSD` client-side.
 
 ```graphql
 query ChainTVL {
@@ -297,47 +301,48 @@ query SuperSwaps {
 }
 ```
 
-## Caveats a consumer must know
+## Caveats
 
-These are the non-obvious things that bite people. None are bugs — they're
-properties of the data.
+The following are non-obvious properties of the data rather than defects.
 
-- **Trust the price before trusting the USD.** USD values are gated by a
-  price-trust system: a token whose price can't be trusted contributes **$0** to
-  USD aggregates rather than a garbage number. Check `Token.priceTrustOutcome` /
-  `priceTrustReason` and `isWhitelisted` when a USD figure looks suspiciously
-  low or zero. On `TokenPriceSnapshot`, filter `priceSource` to
-  `fresh` / `pool-implied` / `rebind` (or `pricePerUSDNew > 0`) to drop carried
-  and zeroed ticks.
-- **Some legacy pools show `totalEmissionsUSD = 0` despite real emissions.**
+- **Verify price trust before relying on a USD value.** USD values are gated by
+  a price-trust system. A token whose price cannot be trusted contributes `$0` to
+  USD aggregates rather than an unreliable figure. Check
+  `Token.priceTrustOutcome`, `priceTrustReason`, and `isWhitelisted` when a USD
+  value is unexpectedly low or zero. On `TokenPriceSnapshot`, filter
+  `priceSource` to `fresh`, `pool-implied`, or `rebind` (or `pricePerUSDNew > 0`)
+  to exclude carried and zeroed ticks.
+- **Some legacy pools report `totalEmissionsUSD = 0` despite real emissions.**
   Gauges that stopped emitting before the chain's price oracle could value the
-  reward token (AERO/Base pre-2024-06-14, VELO/OP pre-2024-01-10) are
-  permanently `$0` in USD even though `totalEmissions` (token units) is non-zero.
-  188 pools are affected (issue #738).
-- **Reward-token amounts are per-chain, not cross-chain summable.** Fields like
-  `totalEmissions`, `totalGaugeRewardsClaimed`, `totalEmissionsRedistributed`
-  are in the chain's single reward token (AERO on Base, VELO on Optimism), 18-dec.
-  Summing them across chains is meaningless — sum the `*USD` companions instead
-  (issue #813).
-- **Bribe/fee-reward raw token-unit sums don't exist.** Because bribes are
-  arbitrary heterogeneous tokens, only the `*USD` aggregates
-  (`totalBribeClaimedUSD`, `totalFeeRewardClaimedUSD`) are kept — there is no
+  reward token (AERO on Base before 2024-06-14, VELO on Optimism before
+  2024-01-10) are permanently `$0` in USD even though `totalEmissions` in token
+  units is non-zero. 188 pools are affected (issue #738).
+- **Reward-token amounts are per-chain and are not summable across chains.**
+  Fields such as `totalEmissions`, `totalGaugeRewardsClaimed`, and
+  `totalEmissionsRedistributed` are denominated in the chain's single reward
+  token (AERO on Base, VELO on Optimism), 18-dec. Summing them across chains is
+  not meaningful. Sum the `*USD` companion fields instead (issue #813).
+- **Raw token-unit sums for bribes and fee rewards are not stored.** Because
+  bribes are arbitrary heterogeneous tokens, only the `*USD` aggregates
+  (`totalBribeClaimedUSD`, `totalFeeRewardClaimedUSD`) are retained. There is no
   raw token-amount counterpart (issue #813).
 - **Snapshots are hourly and epoch-aligned**, not per-event. For a value at an
-  exact block, read the latest-state aggregate; for trends, read the snapshot
+  exact block, read the latest-state aggregate. For trends, read the snapshot
   series. A snapshot's `timestamp` is the epoch it represents.
-- **Addresses are stored checksummed.** Match them exactly (or use `_ilike` for
-  case-insensitive matching). Entity `id`s are deterministic strings —
-  `{chainId}-{address}` for pools/tokens, `{chainId}-{userAddress}-{poolAddress}`
-  for user stats, `{entityId}-{epochMs}` for snapshots. Each entity's exact `id`
-  format is on its `id` field in [`schema.md`](schema.md).
+- **Addresses are stored checksummed.** Match them exactly, or use `_ilike` for
+  case-insensitive matching. Entity `id`s are deterministic strings:
+  `{chainId}-{address}` for pools and tokens,
+  `{chainId}-{userAddress}-{poolAddress}` for user stats, and
+  `{entityId}-{epochMs}` for snapshots. Each entity's exact `id` format is
+  documented on its `id` field in [`schema.md`](schema.md).
 
-## Pointers
+## Further reference
 
 - [`docs/schema.md`](schema.md) — every entity and field, with per-field scale
   and `id` format
-- [`README.md`](../README.md) — architecture, supported chains, how to run it
-- [ADR 0001](adr/0001-canonical-fee-field-scaling.md) — why fee fields are scaled
-  the way they are
+- [`README.md`](../README.md) — architecture, supported chains, and how to run
+  the indexer
+- [ADR 0001](adr/0001-canonical-fee-field-scaling.md) — the rationale for the
+  fee-field scaling
 - [Envio HyperIndex docs](https://docs.envio.dev/) — the underlying platform and
   its Hasura GraphQL layer

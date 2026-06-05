@@ -199,9 +199,9 @@ descriptions for every field — is in
 [`scripts/generate-schema-docs.ts`](scripts/generate-schema-docs.ts)
 (`pnpm tsx scripts/generate-schema-docs.ts` to regenerate).
 
-If you just want to **query the data** (not build the indexer), start with
-**[`docs/querying.md`](docs/querying.md)** — the consumer's guide to the GraphQL
-API, the value-scaling rules, and copy-paste query recipes.
+Consumers who want to **query the data** rather than build the indexer should
+start with **[`docs/querying.md`](docs/querying.md)**, the consumer's guide to
+the GraphQL API, the value-scaling rules, and example queries.
 
 ### Conventions
 
@@ -256,7 +256,7 @@ API, the value-scaling rules, and copy-paste query recipes.
 - [Event handlers](https://docs.envio.dev/docs/event-handlers)
 - [Dynamic contracts](https://docs.envio.dev/docs/dynamic-contracts)
 - [`docs/querying.md`](docs/querying.md) — consumer's guide: querying the
-  GraphQL API, value scaling, and recipes
+  GraphQL API, value scaling, and example queries
 - [`docs/schema.md`](docs/schema.md) — complete entity & field reference
 - [`CLAUDE.md`](CLAUDE.md) — in-repo architecture and contributor guide
 - [`docs/agents/`](docs/agents/) — issue-tracker, triage-label, and domain
