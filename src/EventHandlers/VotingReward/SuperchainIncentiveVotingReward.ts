@@ -11,12 +11,12 @@ indexer.onEvent(
   async ({ event, context }) => {
     const data = {
       votingRewardAddress: event.srcAddress,
-      userAddress: event.params._sender,
+      userAddress: event.params.from,
       chainId: event.chainId,
       blockNumber: event.block.number,
       timestamp: event.block.timestamp,
-      reward: event.params._reward,
-      amount: event.params._amount,
+      reward: event.params.reward,
+      amount: event.params.amount,
     };
 
     const loadedData = await loadVotingRewardData(
