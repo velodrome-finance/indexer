@@ -14,6 +14,7 @@ import {
   computeLiquidityDeltaFromAmounts,
   computeNonCLStakedUSD,
   concentratedLiquidityToUSD,
+  optionalBigintEffect,
   pickTrustedSwapVolumeUSD,
   runAsyncWithErrorLog,
   sortByBlockThenLogIndex,
@@ -22,6 +23,24 @@ import { setupCommon } from "./EventHandlers/Pool/common";
 
 describe("Helpers", () => {
   const Q96 = 2n ** 96n;
+
+  describe("optionalBigintEffect", () => {
+    it("passes a genuine bigint through unchanged", () => {
+      expect(optionalBigintEffect(500n)).toBe(500n);
+      expect(optionalBigintEffect(0n)).toBe(0n);
+    });
+
+    it("maps undefined to undefined", () => {
+      expect(optionalBigintEffect(undefined)).toBeUndefined();
+    });
+
+    it("maps the envio v3.1.0-rc.x nested-option sentinel (Some(None)) to undefined", () => {
+      // ReScript's runtime encoding of Some(None) for an option<option<bigint>>
+      // — what a cached S.optional(S.bigint) effect leaks on a None cache hit.
+      const sentinel = { BS_PRIVATE_NESTED_SOME_NONE: 0 };
+      expect(optionalBigintEffect(sentinel)).toBeUndefined();
+    });
+  });
 
   describe("sortByBlockThenLogIndex", () => {
     it("should sort by block number ascending when blocks differ", () => {
