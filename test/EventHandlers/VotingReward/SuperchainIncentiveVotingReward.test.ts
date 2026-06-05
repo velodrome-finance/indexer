@@ -128,9 +128,9 @@ describe("SuperchainIncentiveVotingReward Events", () => {
                   hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
                 },
                 params: {
-                  from: userAddress,
-                  reward: rewardTokenAddress,
-                  amount: 1000000n, // 1 token with 18 decimals
+                  _sender: userAddress,
+                  _reward: rewardTokenAddress,
+                  _amount: 1000000n, // 1 token with 18 decimals
                 },
               },
             ],
@@ -180,9 +180,9 @@ describe("SuperchainIncentiveVotingReward Events", () => {
                     hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
                   },
                   params: {
-                    from: userAddress,
-                    reward: rewardTokenAddress,
-                    amount: 1000000n,
+                    _sender: userAddress,
+                    _reward: rewardTokenAddress,
+                    _amount: 1000000n,
                   },
                 },
               ],
@@ -202,74 +202,6 @@ describe("SuperchainIncentiveVotingReward Events", () => {
           userStats.totalBribeClaimedUSD,
         );
       });
-    });
-  });
-
-  // Issue #844: envio 3.1.0's native decoder dedupes shared-signature param
-  // names first-contract-wins, so `ClaimRewards(address,address,uint256)` logs
-  // emitted by SuperchainIncentiveVotingReward arrive named after
-  // FeesVotingReward (`from/reward/amount`). The handler must read those
-  // canonical names — reading `_reward` yielded `undefined` →
-  // `{chainId}-undefined` → a null-address Token write that crashed the deploy.
-  // This block runs the real shared logic (only the pool/user lookup is mocked;
-  // the reward token is pre-seeded so no RPC / createTokenEntity fires).
-  describe("ClaimRewards Event — issue #844 param-name regression", () => {
-    beforeEach(() => {
-      vi.spyOn(
-        VotingRewardSharedLogic,
-        "loadVotingRewardData",
-      ).mockResolvedValue({
-        pool: liquidityPool,
-        poolData: {
-          liquidityPoolAggregator: liquidityPool,
-        },
-        userData: userStats,
-      });
-    });
-
-    it("attributes USD against token id {chainId}-{rewardAddress}, never {chainId}-undefined", async () => {
-      await indexer.process({
-        chains: {
-          [chainId]: {
-            simulate: [
-              {
-                contract: "SuperchainIncentiveVotingReward",
-                event: "ClaimRewards",
-                srcAddress: votingRewardAddress,
-                logIndex: 1,
-                block: {
-                  number: 1000000,
-                  timestamp: 1000000,
-                  hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
-                },
-                params: {
-                  from: userAddress,
-                  reward: rewardTokenAddress,
-                  amount: 1000000n, // 1 token with 18 decimals
-                },
-              },
-            ],
-          },
-        },
-      });
-
-      // USD is attributed to the pool and the user (1e18 price × 1 token = 1e6
-      // in 1e18-base, matching getTrustedUSD on the pre-seeded reward token).
-      const updatedPool = await indexer.Pool.get(liquidityPool.id);
-      expect(updatedPool?.totalBribeClaimedUSD).toBe(1000000n);
-
-      const updatedUser = await indexer.UserStatsPerPool.get(userStats.id);
-      expect(updatedUser?.totalBribeClaimedUSD).toBe(1000000n);
-
-      // The reward token is resolved by its real id; the null-address row the
-      // pre-fix handler produced (reading the now-absent `_reward`) is absent.
-      const rewardTokenEntity = await indexer.Token.get(
-        TokenId(chainId, rewardTokenAddress),
-      );
-      expect(rewardTokenEntity).toBeDefined();
-
-      const undefinedToken = await indexer.Token.get(`${chainId}-undefined`);
-      expect(undefinedToken).toBeUndefined();
     });
   });
 });

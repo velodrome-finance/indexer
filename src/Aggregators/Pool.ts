@@ -9,11 +9,7 @@ import { getSwapFee, roundBlockToInterval } from "../Effects/Index";
 import { getRehydrated, getWhereRehydrated } from "../EntityTimestamps";
 import type { handlerContext } from "../EntityTypes";
 import type { Pool } from "../EntityTypes";
-import {
-  calculateTotalUSD,
-  generatePoolName,
-  optionalBigintEffect,
-} from "../Helpers";
+import { calculateTotalUSD, generatePoolName } from "../Helpers";
 import { refreshTokenPrice } from "../PriceOracle";
 import { getPoolImpliedUSD, getTrustedUSD } from "../PriceTrust";
 import {
@@ -286,14 +282,12 @@ export async function updateDynamicFeePools(
   const minBlock = Number(
     liquidityPoolAggregator.createdBlockNumber ?? BigInt(blockNumber),
   );
-  const currentFee = optionalBigintEffect(
-    await context.effect(getSwapFee, {
-      poolAddress,
-      factoryAddress,
-      chainId,
-      blockNumber: roundBlockToInterval(blockNumber, chainId, minBlock),
-    }),
-  );
+  const currentFee = await context.effect(getSwapFee, {
+    poolAddress,
+    factoryAddress,
+    chainId,
+    blockNumber: roundBlockToInterval(blockNumber, chainId, minBlock),
+  });
 
   if (currentFee === undefined) {
     context.log.warn(

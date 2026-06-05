@@ -14,10 +14,7 @@ import {
 import { getTokensDeposited } from "../../Effects/Index";
 import type { handlerContext } from "../../EntityTypes";
 import type { Pool } from "../../EntityTypes";
-import {
-  normalizeTokenAmountTo1e18,
-  optionalBigintEffect,
-} from "../../Helpers";
+import { normalizeTokenAmountTo1e18 } from "../../Helpers";
 import { getTrustedUSD } from "../../PriceTrust";
 
 export interface VoterCommonResult {
@@ -42,14 +39,12 @@ export async function computeVoterDistributeValues(
   context: handlerContext,
   gaugeIsAlive: boolean,
 ): Promise<VoterCommonResult> {
-  const tokensDepositedResult = optionalBigintEffect(
-    await context.effect(getTokensDeposited, {
-      rewardTokenAddress: rewardToken.address,
-      gaugeAddress,
-      blockNumber,
-      eventChainId: chainId,
-    }),
-  );
+  const tokensDepositedResult = await context.effect(getTokensDeposited, {
+    rewardTokenAddress: rewardToken.address,
+    gaugeAddress,
+    blockNumber,
+    eventChainId: chainId,
+  });
 
   const tokensDeposited = tokensDepositedResult ?? 0n;
 
