@@ -295,7 +295,10 @@ describe("Pool Fees Event", () => {
     it("attributes fee contributions to tx.from (the user)", () => {
       expect(attributed).toBeDefined();
       expect(attributed?.totalFeesContributed0).toBe(expectations.amount0In);
-      expect(attributed?.totalFeesContributed1).toBe(expectations.amount1In);
+      expect(attributed?.totalFeesContributed1).toBe(
+        // token1 (6 decimals) raw fee normalized to a 1e18 base (#812)
+        expectations.amount1In * 10n ** 12n,
+      );
     });
 
     it("does not attribute fee contributions to params.sender (the router)", () => {
