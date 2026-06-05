@@ -2306,6 +2306,42 @@ describe("Voter Events", () => {
         );
       });
     });
+    describe("when token address is invalid (issue #845)", () => {
+      // Mirror of the SuperchainLeafVoter guard: a decoder mismatch (#844) can
+      // feed an empty/garbage address into the new-token branch. Without the
+      // guard, hasContractBytecode fail-opens to `true` once RPCs are
+      // exhausted, so the handler would persist a Token with the malformed id
+      // `${chainId}-`. The guard must skip instead.
+      it("does not persist a Token for an empty-string token", async () => {
+        const idx = createTestIndexer();
+
+        await idx.process({
+          chains: {
+            [wlChainId]: {
+              simulate: [
+                {
+                  contract: "Voter",
+                  event: "WhitelistToken",
+                  logIndex: 1,
+                  block: wlBlock,
+                  params: {
+                    whitelister: toChecksumAddress(
+                      "0x1111111111111111111111111111111111111111",
+                    ),
+                    token: "" as `0x${string}`,
+                    _bool: true,
+                  },
+                },
+              ],
+            },
+          },
+        });
+
+        const tokens = await idx.Token.getAll();
+        expect(tokens).toHaveLength(0);
+      });
+    });
+
     describe("priceTrust recomputation on existing tokens (issue #761)", () => {
       it("flips UNTRUSTED/NON_WL to TRUSTED/WL when WhitelistToken(true) lands", async () => {
         const existing = {

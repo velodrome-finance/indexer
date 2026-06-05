@@ -1,6 +1,11 @@
 import type { Token } from "envio";
 import { estimateBlockAtTimestamp } from "./ChainBlockTime";
-import { MS_IN_AN_HOUR, TEN_TO_THE_18_BI, TokenId } from "./Constants";
+import {
+  MS_IN_AN_HOUR,
+  TEN_TO_THE_18_BI,
+  TokenId,
+  isValidEvmAddress,
+} from "./Constants";
 import {
   getTokenDetails,
   getTokenPrice,
@@ -88,7 +93,8 @@ const withinRatioBand = (a: bigint, b: bigint): boolean =>
  * @param blockNumber - Block at which the entity is being created.
  * @param context - Envio handler context for effects + Token.set.
  * @param blockTimestamp - Block timestamp in seconds; stored as `lastUpdatedTimestamp`.
- * @returns The created Token entity, or `null` when the address has no deployed bytecode.
+ * @returns The created Token entity, or `null` when the address is invalid (issue
+ *   #845) or has no deployed bytecode.
  */
 export async function createTokenEntity(
   tokenAddress: string,
@@ -97,6 +103,18 @@ export async function createTokenEntity(
   context: handlerContext,
   blockTimestamp: number,
 ): Promise<Token | null> {
+  // Issue #845: defense-in-depth. Refuse to build a Token from a missing or
+  // malformed address before any effect runs — a decoder mismatch (e.g. #844)
+  // that yields `undefined`/garbage here would otherwise persist a `{chainId}-
+  // undefined` row and crash the whole write batch on the NOT-NULL id. Skip +
+  // warn instead, mirroring the #677 bytecode-gate skip; callers handle `null`.
+  if (!isValidEvmAddress(tokenAddress)) {
+    context.log.warn(
+      `[createTokenEntity] Skipping Token row for invalid address ${tokenAddress} on chain ${chainId}`,
+    );
+    return null;
+  }
+
   const blockDatetime = new Date(blockTimestamp * 1000);
 
   const { hasCode } = await context.effect(hasContractBytecode, {

@@ -438,6 +438,79 @@ describe("SuperchainLeafVoter Events", () => {
       });
     });
 
+    describe("when token address is invalid (issue #845)", () => {
+      // A decoder mismatch (#844) can feed an empty/garbage address into the
+      // new-token branch. Without the guard, hasContractBytecode fail-opens to
+      // `true` once RPCs are exhausted, so the handler would persist a Token
+      // with the malformed id `${chainId}-`. The guard must skip instead.
+      it("does not persist a Token for an empty-string token", async () => {
+        const indexer = createTestIndexer();
+
+        await indexer.process({
+          chains: {
+            [chainId]: {
+              simulate: [
+                {
+                  contract: "SuperchainLeafVoter",
+                  event: "WhitelistToken",
+                  srcAddress: toChecksumAddress(
+                    "0x1111111111111111111111111111111111111111",
+                  ),
+                  logIndex: 1,
+                  block: {
+                    number: blockNumber,
+                    timestamp: blockTimestamp,
+                    hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                  },
+                  params: {
+                    token: "" as `0x${string}`,
+                    _bool: true,
+                  },
+                },
+              ],
+            },
+          },
+        });
+
+        const tokens = await indexer.Token.getAll();
+        expect(tokens).toHaveLength(0);
+      });
+
+      it("does not persist a Token for a non-hex token", async () => {
+        const indexer = createTestIndexer();
+
+        await indexer.process({
+          chains: {
+            [chainId]: {
+              simulate: [
+                {
+                  contract: "SuperchainLeafVoter",
+                  event: "WhitelistToken",
+                  srcAddress: toChecksumAddress(
+                    "0x1111111111111111111111111111111111111111",
+                  ),
+                  logIndex: 1,
+                  block: {
+                    number: blockNumber,
+                    timestamp: blockTimestamp,
+                    hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                  },
+                  params: {
+                    token:
+                      "0xZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ" as `0x${string}`,
+                    _bool: true,
+                  },
+                },
+              ],
+            },
+          },
+        });
+
+        const tokens = await indexer.Token.getAll();
+        expect(tokens).toHaveLength(0);
+      });
+    });
+
     describe("priceTrust recomputation on existing tokens (issue #761)", () => {
       it("flips UNTRUSTED/NON_WL to TRUSTED/WL when WhitelistToken(true) lands", async () => {
         const existing = {

@@ -1,5 +1,5 @@
 import dotenv from "dotenv";
-import { http, createPublicClient } from "viem";
+import { http, createPublicClient, isAddress } from "viem";
 import type { Chain, PublicClient } from "viem";
 import {
   base,
@@ -70,6 +70,24 @@ export const SNAPSHOT_INTERVAL_IN_MS = 60 * 60 * 1000;
 
 export const toChecksumAddress = (address: string): `0x${string}` =>
   Web3.utils.toChecksumAddress(address) as `0x${string}`;
+
+/**
+ * Defense-in-depth address validator (issue #845): true only when `address`
+ * is a well-formed EVM address (`0x` + 40 hex chars). Returns `false` — never
+ * throws — for `undefined`, `null`, empty string, or any non-hex/wrong-length
+ * input, so token-creation choke points can skip persisting a `Token` with a
+ * garbage id instead of crashing the write batch on a NOT-NULL violation.
+ *
+ * Uses viem's `isAddress` in non-strict mode: format-only, no checksum
+ * requirement, so a legitimately-lowercase address still validates.
+ *
+ * @param address - Candidate address, possibly missing/garbage from a decoder mismatch.
+ * @returns `true` iff `address` is a syntactically valid EVM address.
+ */
+export const isValidEvmAddress = (
+  address: string | undefined | null,
+): boolean =>
+  typeof address === "string" && isAddress(address, { strict: false });
 
 // Note:
 // These pools factories addresses are hardcoded since we can't check the pool type from the Voter contract.

@@ -2441,6 +2441,51 @@ describe("PriceOracle", () => {
       });
     });
 
+    describe("when address is invalid (issue #845)", () => {
+      // `undefined` is the real #844 decoder-mismatch case. The full
+      // invalid-input truth table (empty string, non-hex, wrong length) is
+      // covered against the validator itself in test/Constants.test.ts; here we
+      // only need to prove the handler's reaction to an invalid address.
+      const badAddress = undefined as unknown as string;
+
+      it("returns null and does not call Token.set", async () => {
+        const token = await PriceOracle.createTokenEntity(
+          badAddress,
+          chainId,
+          blockNumber,
+          mockContext as handlerContext,
+          blockTimestamp,
+        );
+
+        expect(token).toBeNull();
+        expect(vi.mocked(mockContext.Token?.set)).not.toHaveBeenCalled();
+      });
+
+      it("does not call any effect (guard runs before effects)", async () => {
+        await PriceOracle.createTokenEntity(
+          badAddress,
+          chainId,
+          blockNumber,
+          mockContext as handlerContext,
+          blockTimestamp,
+        );
+
+        expect(vi.mocked(mockContext.effect)).not.toHaveBeenCalled();
+      });
+
+      it("logs a warning", async () => {
+        await PriceOracle.createTokenEntity(
+          badAddress,
+          chainId,
+          blockNumber,
+          mockContext as handlerContext,
+          blockTimestamp,
+        );
+
+        expect(vi.mocked(mockContext.log?.warn)).toHaveBeenCalled();
+      });
+    });
+
     describe("pool-implied ground-truth re-anchor (#784/#785)", () => {
       // USD price scaled by 1e18, matching `pricePerUSDNew`.
       const usd = (n: number) => BigInt(Math.round(n * 1e6)) * 10n ** 12n;

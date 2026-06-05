@@ -25,6 +25,7 @@ import {
   VOTER_CLPOOLS_FACTORY_LIST,
   VOTER_NONCL_POOLS_FACTORY_LIST,
   isKnownSinkRootPool,
+  isValidEvmAddress,
 } from "../../Constants";
 import { getTokenDetails, hasContractBytecode } from "../../Effects/Index";
 import { getRehydrated } from "../../EntityTimestamps";
@@ -465,6 +466,18 @@ indexer.onEvent(
       };
 
       context.Token.set(updatedToken as Token);
+      return;
+    }
+
+    // Issue #845: defense-in-depth. A decoder mismatch (e.g. #844) can deliver
+    // an `undefined`/garbage token here; persisting it would write a Token with
+    // a malformed `${chainId}-` id (hasContractBytecode fail-opens to `true`
+    // once RPCs are exhausted, so the bytecode gate below would not catch it).
+    // Skip + warn before any effect runs, mirroring createTokenEntity's guard.
+    if (!isValidEvmAddress(event.params.token)) {
+      context.log.warn(
+        `[Voter.WhitelistToken] Skipping Token row for invalid address ${event.params.token} on chain ${event.chainId}`,
+      );
       return;
     }
 

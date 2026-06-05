@@ -8,6 +8,7 @@ import {
   SUPERCHAIN_LEAF_VOTER_NONCL_POOLS_FACTORY_LIST,
   VOTER_CLPOOLS_FACTORY_LIST,
   VOTER_NONCL_POOLS_FACTORY_LIST,
+  isValidEvmAddress,
   nfpmForCLPool,
   toChecksumAddress,
 } from "../src/Constants";
@@ -415,5 +416,57 @@ describe("config.yaml ↔ Constants.ts factory parity (#770, subsumes #769)", ()
         }
       },
     );
+  });
+});
+
+// Issue #845: defense-in-depth address validator used by the token-creation
+// choke points to refuse persisting a Token with a missing/garbage address.
+describe("isValidEvmAddress", () => {
+  it("returns false for undefined", () => {
+    expect(isValidEvmAddress(undefined)).toBe(false);
+  });
+
+  it("returns false for null", () => {
+    expect(isValidEvmAddress(null)).toBe(false);
+  });
+
+  it("returns false for an empty string", () => {
+    expect(isValidEvmAddress("")).toBe(false);
+  });
+
+  it("returns false for a non-hex string", () => {
+    expect(
+      isValidEvmAddress("0xZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ"),
+    ).toBe(false);
+    expect(isValidEvmAddress("not-an-address")).toBe(false);
+  });
+
+  it("returns false for a wrong-length hex string (missing 0x / too short / too long)", () => {
+    // 40 hex chars but no 0x prefix
+    expect(isValidEvmAddress("1111111111111111111111111111111111111111")).toBe(
+      false,
+    );
+    // 39 hex chars after 0x
+    expect(isValidEvmAddress("0x111111111111111111111111111111111111111")).toBe(
+      false,
+    );
+    // 41 hex chars after 0x
+    expect(
+      isValidEvmAddress("0x11111111111111111111111111111111111111111"),
+    ).toBe(false);
+  });
+
+  it("returns true for a correctly checksummed address", () => {
+    expect(
+      isValidEvmAddress(
+        toChecksumAddress("0x4200000000000000000000000000000000000006"),
+      ),
+    ).toBe(true);
+  });
+
+  it("returns true for a valid lowercase address (no checksum requirement)", () => {
+    expect(
+      isValidEvmAddress("0x4200000000000000000000000000000000000006"),
+    ).toBe(true);
   });
 });
