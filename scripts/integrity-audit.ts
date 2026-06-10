@@ -105,20 +105,51 @@ async function gql<T>(
   query: string,
   variables: Record<string, unknown> = {},
 ): Promise<T> {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ query, variables }),
-  });
-  if (!res.ok) {
-    throw new Error(`GraphQL HTTP ${res.status}: ${await res.text()}`);
+  // Hasura occasionally returns 5xx on expensive queries; retry transient
+  // failures with backoff. Validation errors (4xx) and GraphQL errors fall
+  // through immediately.
+  const backoffsMs = [2_000, 5_000, 10_000];
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= backoffsMs.length; attempt++) {
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ query, variables }),
+      });
+      if (!res.ok) {
+        const isTransient = res.status >= 500;
+        const msg = `GraphQL HTTP ${res.status}: ${await res.text()}`;
+        if (isTransient && attempt < backoffsMs.length) {
+          lastErr = new Error(msg);
+          await new Promise((r) => setTimeout(r, backoffsMs[attempt]));
+          continue;
+        }
+        throw new Error(msg);
+      }
+      const body = (await res.json()) as { data?: T; errors?: unknown };
+      if (body.errors) {
+        throw new Error(`GraphQL errors: ${JSON.stringify(body.errors)}`);
+      }
+      if (!body.data) throw new Error("GraphQL: empty data");
+      return body.data;
+    } catch (err) {
+      // Network-level failures (fetch rejection) are also worth retrying.
+      const msg = err instanceof Error ? err.message : String(err);
+      const isNetwork =
+        msg.includes("fetch failed") ||
+        msg.includes("ECONNRESET") ||
+        msg.includes("ETIMEDOUT") ||
+        msg.includes("UND_ERR");
+      if (isNetwork && attempt < backoffsMs.length) {
+        lastErr = err;
+        await new Promise((r) => setTimeout(r, backoffsMs[attempt]));
+        continue;
+      }
+      throw err;
+    }
   }
-  const body = (await res.json()) as { data?: T; errors?: unknown };
-  if (body.errors) {
-    throw new Error(`GraphQL errors: ${JSON.stringify(body.errors)}`);
-  }
-  if (!body.data) throw new Error("GraphQL: empty data");
-  return body.data;
+  throw lastErr instanceof Error ? lastErr : new Error("gql: retries exhausted");
 }
 
 // ----------------------------------------------------------------------------
@@ -226,7 +257,7 @@ type PoolRow = {
   lastUpdatedTimestamp: string;
 };
 
-const POOL_FIELDS = `
+const POOL_FIELDS_COMMON = `
   id chainId poolAddress name isStable isCL
   reserve0 reserve1 totalLPTokenSupply totalLiquidityUSD
   totalVolume0 totalVolume1 totalVolumeUSD
@@ -239,8 +270,11 @@ const POOL_FIELDS = `
   currentLiquidityStaked currentLiquidityStakedUSD
   sqrtPriceX96 tick liquidityInRange stakedLiquidityInRange
   stakedReserve0 stakedReserve1
-  tickEdges tickEdgeNets stakedTickEdges stakedTickEdgeNets
   feeCap lastUpdatedTimestamp
+`;
+// Added by #808; absent from the c9b8978 OLD schema.
+const POOL_FIELDS_NEW_ONLY = `
+  tickEdges tickEdgeNets stakedTickEdges stakedTickEdgeNets
 `;
 
 type TokenRow = {
@@ -329,18 +363,31 @@ const VENFT_FIELDS = `
 async function sampleTopPools(
   url: string,
   chainId: number,
+  source: "OLD" | "NEW",
 ): Promise<PoolRow[]> {
+  const fields =
+    source === "NEW"
+      ? `${POOL_FIELDS_COMMON} ${POOL_FIELDS_NEW_ONLY}`
+      : POOL_FIELDS_COMMON;
   const q = `query($chainId: Int!, $limit: Int!) {
     Pool(
       where: { chainId: { _eq: $chainId } }
       order_by: { totalLiquidityUSD: desc }
       limit: $limit
-    ) { ${POOL_FIELDS} }
+    ) { ${fields} }
   }`;
   const data = await gql<{ Pool: PoolRow[] }>(url, q, {
     chainId,
     limit: POOLS_PER_CHAIN * 4, // headroom for category mixing
   });
+  if (source === "OLD") {
+    for (const p of data.Pool) {
+      p.tickEdges ??= [];
+      p.tickEdgeNets ??= [];
+      p.stakedTickEdges ??= [];
+      p.stakedTickEdgeNets ??= [];
+    }
+  }
   return data.Pool;
 }
 
@@ -1049,6 +1096,14 @@ type SampleCounts = {
   base795Probe: number;
 };
 
+function cell(v: string | null | undefined): string {
+  if (v == null || v === "") return "";
+  // Markdown tables only support inline cell content; collapse embedded
+  // newlines (common in viem RPC error notes) and escape pipes so a single
+  // logical row stays on one physical line.
+  return v.replace(/\r?\n/g, " <br> ").replace(/\s{2,}/g, " ").replace(/\|/g, "\\|");
+}
+
 function renderReport(counts: SampleCounts): string {
   const byClass: Record<Classification, Finding[]> = {
     NEW_REGRESSION: [],
@@ -1129,7 +1184,7 @@ function renderReport(counts: SampleCounts): string {
       lines.push("| --- | --- | --- | --- | --- | --- |");
       for (const f of group.slice(0, 100)) {
         lines.push(
-          `| ${f.chainId} | \`${f.entityId}\` | ${f.oldValue ?? ""} | ${f.newValue ?? ""} | ${f.onchain ?? ""} | ${f.note ?? ""} |`,
+          `| ${f.chainId} | \`${f.entityId}\` | ${cell(f.oldValue)} | ${cell(f.newValue)} | ${cell(f.onchain)} | ${cell(f.note)} |`,
         );
       }
       if (group.length > 100) {
@@ -1232,8 +1287,8 @@ async function main(): Promise<void> {
 
     process.stderr.write("  fetching pools (OLD/NEW)...\n");
     const [oldPools, newPools] = await Promise.all([
-      sampleTopPools(OLD_URL, chainId),
-      sampleTopPools(NEW_URL, chainId),
+      sampleTopPools(OLD_URL, chainId, "OLD"),
+      sampleTopPools(NEW_URL, chainId, "NEW"),
     ]);
     counts.oldPools += oldPools.length;
     counts.newPools += newPools.length;
