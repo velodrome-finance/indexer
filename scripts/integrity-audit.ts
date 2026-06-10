@@ -10,9 +10,11 @@
  *   - OPEN_GAP           wrong on both (e.g. #707 SuperSwap)
  *
  * Usage:
- *   OLD_GRAPHQL_URL=https://indexer.us.hyperindex.xyz/e38a72a/v1/graphql \
- *   NEW_GRAPHQL_URL=https://indexer.us.hyperindex.xyz/8179a7a/v1/graphql \
- *   pnpm tsx scripts/integrity-audit.ts > docs/audits/2026-06-10-integrity-vs-c9b8978.md
+ *   NEW_GRAPHQL_URL=https://indexer.us.hyperindex.xyz/<new-slug>/v1/graphql \
+ *   pnpm dlx tsx scripts/integrity-audit.ts > docs/audits/<report>.md
+ *
+ * OLD_GRAPHQL_URL is optional and defaults to the c9b8978 reference
+ * deployment (https://indexer.us.hyperindex.xyz/e38a72a/v1/graphql).
  *
  * RPC URLs come from .env (ENVIO_<CHAIN>_RPC_URL). Chains with no configured
  * RPC are silently skipped for on-chain checks (GraphQL checks still run).
@@ -108,7 +110,7 @@ async function gql<T>(
   // Hasura occasionally returns 5xx on expensive queries; retry transient
   // failures with backoff. Validation errors (4xx) and GraphQL errors fall
   // through immediately.
-  const backoffsMs = [2_000, 5_000, 10_000];
+  const backoffsMs = [2_000, 5_000, 10_000, 20_000];
   let lastErr: unknown;
   for (let attempt = 0; attempt <= backoffsMs.length; attempt++) {
     try {
@@ -149,7 +151,10 @@ async function gql<T>(
       throw err;
     }
   }
-  throw lastErr instanceof Error ? lastErr : new Error("gql: retries exhausted");
+  if (lastErr instanceof Error) {
+    throw lastErr;
+  }
+  throw new Error("gql: retries exhausted");
 }
 
 // ----------------------------------------------------------------------------
@@ -1101,7 +1106,10 @@ function cell(v: string | null | undefined): string {
   // Markdown tables only support inline cell content; collapse embedded
   // newlines (common in viem RPC error notes) and escape pipes so a single
   // logical row stays on one physical line.
-  return v.replace(/\r?\n/g, " <br> ").replace(/\s{2,}/g, " ").replace(/\|/g, "\\|");
+  return v
+    .replace(/\r?\n/g, " <br> ")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\|/g, "\\|");
 }
 
 function renderReport(counts: SampleCounts): string {

@@ -6,14 +6,32 @@ model.
 
 ## Running an audit
 
+`NEW_GRAPHQL_URL` is required; `OLD_GRAPHQL_URL` is optional and defaults
+to the `c9b8978` reference deployment handled by
+`scripts/integrity-audit.ts`. Override `OLD_GRAPHQL_URL` only when
+comparing against a different baseline.
+
 ```bash
-OLD_GRAPHQL_URL=https://indexer.us.hyperindex.xyz/<old-slug>/v1/graphql \
 NEW_GRAPHQL_URL=https://indexer.us.hyperindex.xyz/<new-slug>/v1/graphql \
-pnpm dlx tsx scripts/integrity-audit.ts > docs/audits/$(date +%F)-integrity-vs-<old-commit>.md
+  pnpm dlx tsx scripts/integrity-audit.ts \
+  > docs/audits/$(date +%F)-integrity-vs-<old-commit>.md
+
+# OLD_GRAPHQL_URL=https://indexer.us.hyperindex.xyz/<old-slug>/v1/graphql  # optional override
 ```
 
-The script reads RPC URLs from `.env` (`ENVIO_*_RPC_URL`). Chains with no
-configured RPC silently skip on-chain checks; GraphQL checks still run.
+Convert the markdown report to a self-contained dark-themed HTML page
+with `scripts/audit-md-to-html.ts` (input markdown path followed by
+output HTML path):
+
+```bash
+pnpm dlx tsx scripts/audit-md-to-html.ts \
+  docs/audits/$(date +%F)-integrity-vs-<old-commit>.md \
+  docs/audits/$(date +%F)-integrity-vs-<old-commit>.html
+```
+
+`scripts/integrity-audit.ts` reads RPC URLs from `.env` (`ENVIO_*_RPC_URL`).
+Chains with no configured RPC silently skip on-chain checks; GraphQL
+checks still run.
 
 ## Findings model
 

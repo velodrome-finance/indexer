@@ -18,7 +18,13 @@ if (!inputPath || !outputPath) {
   process.exit(1);
 }
 
-const md = readFileSync(inputPath, "utf-8");
+let md: string;
+try {
+  md = readFileSync(inputPath, "utf-8");
+} catch (err) {
+  const msg = err instanceof Error ? err.message : String(err);
+  throw new Error(`[audit-md-to-html] failed to read ${inputPath}: ${msg}`);
+}
 
 // ----------------------------------------------------------------------------
 // Inline rendering
@@ -84,7 +90,11 @@ while (i < lines.length) {
   }
 
   // GFM table: current line is header + next line is delim
-  if (line.includes("|") && i + 1 < lines.length && isTableDelim(lines[i + 1])) {
+  if (
+    line.includes("|") &&
+    i + 1 < lines.length &&
+    isTableDelim(lines[i + 1])
+  ) {
     const header = splitRow(line);
     i += 2; // skip header + delim
     const rows: string[][] = [];
@@ -237,5 +247,10 @@ ${html.join("\n")}
 </html>
 `;
 
-writeFileSync(outputPath, out);
+try {
+  writeFileSync(outputPath, out);
+} catch (err) {
+  const msg = err instanceof Error ? err.message : String(err);
+  throw new Error(`[audit-md-to-html] failed to write ${outputPath}: ${msg}`);
+}
 process.stderr.write(`wrote ${outputPath}\n`);
