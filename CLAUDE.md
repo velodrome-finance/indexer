@@ -70,6 +70,30 @@ The indexer tracks these protocol domains, each with its own event handlers:
 - **Addresses**: Use lowercase keys in config objects for `.toLowerCase()` lookups. Always checksum addresses for entity storage.
 - **Amount normalization**: Always normalize token amounts to a common decimal base before arithmetic across different tokens.
 
+## Storage
+
+Postgres is the only enabled backend today. ClickHouse dual-write scaffolding is in place but **commented out** in `config.yaml`. To turn it on:
+
+1. Uncomment the `storage:` block in `config.yaml`:
+
+   ```yaml
+   storage:
+     postgres: true
+     clickhouse: true
+   ```
+
+2. Add an `@storage(...)` directive to every entity in `schema.graphql`. envio 3.1.1 requires explicit per-entity routing whenever two backends are enabled — codegen will list any missing entities. Postgres-only entities use `@storage(postgres: true)`; dual-write entities use `@storage(postgres: true, clickhouse: true)`.
+
+3. Set the ClickHouse env vars (Envio Hosted ClickHouse in production):
+   - `ENVIO_CLICKHOUSE_HOST`
+   - `ENVIO_CLICKHOUSE_DATABASE`
+   - `ENVIO_CLICKHOUSE_USERNAME`
+   - `ENVIO_CLICKHOUSE_PASSWORD`
+
+   Placeholders live in `.env.example`.
+
+The object-form `postgres: { default: true }` shortcut that avoids per-entity directives is only on Envio `main` (not released as of envio 3.1.2) — recheck the [storage docs](https://docs.envio.dev/docs/HyperIndex/configuration-file#storage) before relying on it.
+
 ## Conventions
 
 ### File naming under `src/EventHandlers/`
