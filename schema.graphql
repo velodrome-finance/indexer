@@ -674,7 +674,9 @@ type ProcessId_event @storage(postgres: true, clickhouse: true) {
   messageId: String! @index # Unique message ID identifying the cross-chain message in Hyperlane (matches DispatchId messageId)
 }
 
-type ALM_TotalSupplyLimitUpdated_event @storage(postgres: true, clickhouse: true) {
+type ALM_TotalSupplyLimitUpdated_event
+  @storage(postgres: true, clickhouse: true)
+{
   id: ID! # Format: {chainId}-{lpWrapperAddress} (ALMLPWrapperId)
   lpWrapperAddress: String! # LP Wrapper associated to the event
   currentTotalSupplyLPTokens: BigInt! @config(precision: 76) # Current supply of LP tokens for the pool, emitted by the event
