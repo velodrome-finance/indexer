@@ -1,4 +1,4 @@
-type Pool {
+type Pool @storage(postgres: true, clickhouse: true) {
   id: ID! # Format: {chainId}-{poolAddress} (PoolId)
   chainId: Int! # chain id
   poolAddress: String! # address of the pool
@@ -148,7 +148,7 @@ type Pool {
 }
 
 # Snapshot of the LiquidityPool entity
-type PoolSnapshot {
+type PoolSnapshot @storage(postgres: true, clickhouse: true) {
   id: ID! # Format: {chainId}-{poolAddress}-{epochMs} (PoolId-epochMs, epochMs from getSnapshotEpoch)
   chainId: Int! # chain id
   name: String! # name of the pool
@@ -239,7 +239,7 @@ type PoolSnapshot {
 }
 
 # Entity for tracking user activity and positions in specific pools
-type UserStatsPerPool {
+type UserStatsPerPool @storage(postgres: true, clickhouse: true) {
   id: ID! # Format: {chainId}-{userAddress}-{poolAddress} (UserStatsPerPoolId)
   userAddress: String! @index # user wallet address
   poolAddress: String! @index # address of the pool these stats are scoped to
@@ -300,7 +300,7 @@ type UserStatsPerPool {
 }
 
 # Snapshot of UserStatsPerPool at an epoch (invariant fields + position params for recomputation)
-type UserStatsPerPoolSnapshot {
+type UserStatsPerPoolSnapshot @storage(postgres: true, clickhouse: true) {
   id: ID! # Format: {chainId}-{userAddress}-{poolAddress}-{epochMs} (UserStatsPerPoolSnapshotId)
   userAddress: String! @index # user wallet address
   poolAddress: String! @index # address of the pool these stats are scoped to
@@ -359,7 +359,7 @@ type UserStatsPerPoolSnapshot {
 
 # Entity that tracks the latest state of the token entity
 # By nature this entity saves the latest state of the token, and its state at different times should be attained from the snapshot entities
-type Token {
+type Token @storage(postgres: true, clickhouse: true) {
   id: ID! # Format: {chainId}-{address} (TokenId)
   address: String! @index # token address
   symbol: String! # token symbol
@@ -393,7 +393,7 @@ type Token {
 }
 
 # Snapshot of the Token entity
-type TokenPriceSnapshot {
+type TokenPriceSnapshot @storage(postgres: true, clickhouse: true) {
   id: ID! # Format: {chainId}-{address}-{blockNumber} (TokenIdByBlock)
   address: String! @index # Address of the token
   pricePerUSDNew: BigInt! @config(precision: 76) # price of token per USD
@@ -418,7 +418,7 @@ type TokenPriceSnapshot {
 
 # Tracks relevant data for each NFT minted: each NFT represents a concentrated position in a pool
 # Note: amount0, amount1, amountUSD are derived fields computed on-demand from liquidity + sqrtPriceX96 + ticks
-type NonFungiblePosition {
+type NonFungiblePosition @storage(postgres: true, clickhouse: true) {
   id: ID! # Format: {chainId}-{nfpmAddress}-{tokenId} (NonFungiblePositionId). Natural key is (NFPM, tokenId); pool is metadata and preserved as a field. nfpmAddress disambiguates intra-chain tokenId collisions across multiple NFPMs (e.g. Optimism has two).
   chainId: Int! # Chain ID where the NFT exists
   tokenId: BigInt! @index # Token ID of the NFT (from Transfer event)
@@ -438,7 +438,7 @@ type NonFungiblePosition {
 }
 
 # Snapshot of NonFungiblePosition at an epoch (full state for historical queries / recomputation)
-type NonFungiblePositionSnapshot {
+type NonFungiblePositionSnapshot @storage(postgres: true, clickhouse: true) {
   id: ID! # Format: {chainId}-{nfpmAddress}-{tokenId}-{epochMs} (NonFungiblePositionSnapshotId). nfpmAddress disambiguates intra-chain tokenId collisions across multiple NFPMs (e.g. Optimism has two).
   chainId: Int! # chain id where the NFT exists
   tokenId: BigInt! @index # token ID of the NFT
@@ -457,7 +457,7 @@ type NonFungiblePositionSnapshot {
   timestamp: Timestamp! @index # snapshot epoch timestamp
 }
 
-type VeNFTState {
+type VeNFTState @storage(postgres: true, clickhouse: true) {
   id: ID! # Format: {chainId}-{tokenId} (VeNFTId)
   chainId: Int! # chain id
   tokenId: BigInt! @config(precision: 76) # veNFT token ID
@@ -472,7 +472,7 @@ type VeNFTState {
 }
 
 # Snapshot of VeNFTState at an epoch (full state for historical queries)
-type VeNFTStateSnapshot {
+type VeNFTStateSnapshot @storage(postgres: true, clickhouse: true) {
   id: ID! # Format: {chainId}-{tokenId}-{epochMs} (VeNFTStateSnapshotId)
   chainId: Int! # chain id
   tokenId: BigInt! @index # veNFT token ID
@@ -488,7 +488,7 @@ type VeNFTStateSnapshot {
     @derivedFrom(field: "veNFTStateSnapshot")
 }
 
-type VeNFTPoolVote {
+type VeNFTPoolVote @storage(postgres: true, clickhouse: true) {
   id: ID! # Format: {chainId}-{tokenId}-{poolAddress} (VeNFTPoolVoteId)
   poolAddress: String! @index # pool this veNFT allocated votes to
   veNFTamountStaked: BigInt! @config(precision: 76) # vote weight this veNFT allocated to the pool, in veToken units
@@ -496,7 +496,7 @@ type VeNFTPoolVote {
   lastUpdatedTimestamp: Timestamp! # timestamp of last update
 }
 
-type VeNFTPoolVoteSnapshot {
+type VeNFTPoolVoteSnapshot @storage(postgres: true, clickhouse: true) {
   id: ID! # Format: {chainId}-{tokenId}-{poolAddress}-{epochMs}
   chainId: Int! # chain id
   tokenId: BigInt! @config(precision: 76) # veNFT token ID
@@ -511,7 +511,7 @@ type VeNFTPoolVoteSnapshot {
 # Tracks both the LP wrapper state (aggregated deposits/withdrawals) and the strategy position state
 # Relationship: 1 LP wrapper per pool, 1 strategy per LP wrapper, 1 tokenId per strategy, 1 AMM position per tokenId (1:1:1:1 relationship)
 # Therefore this single entity tracks everything for the wrapper and its strategy
-type ALM_LP_Wrapper {
+type ALM_LP_Wrapper @storage(postgres: true, clickhouse: true) {
   id: ID! # Format: {chainId}-{wrapperAddress} (ALMLPWrapperId)
   chainId: Int! # The blockchain network ID where this wrapper exists
   pool: String! @index # Address of the pool this ALM wrapper is associated with
@@ -541,7 +541,7 @@ type ALM_LP_Wrapper {
 }
 
 # Snapshot of ALM_LP_Wrapper at an epoch (full state for historical queries / recomputation)
-type ALM_LP_WrapperSnapshot {
+type ALM_LP_WrapperSnapshot @storage(postgres: true, clickhouse: true) {
   id: ID! # Format: {chainId}-{wrapperAddress}-{epochMs} (ALMLPWrapperSnapshotId)
   wrapper: String! @index # address of the ALM LP wrapper
   pool: String! @index # address of the pool this wrapper is associated with
@@ -565,7 +565,7 @@ type ALM_LP_WrapperSnapshot {
   timestamp: Timestamp! @index # snapshot epoch timestamp
 }
 
-type FactoryRegistryConfig {
+type FactoryRegistryConfig @storage(postgres: true, clickhouse: true) {
   id: ID! # Format: {srcAddress}_{chainId} (factory registry contract address)
   currentActivePoolFactory: String! # Address of the currently active pool factory (creates vAMM/sAMM or CL pools)
   currentActiveVotingRewardsFactory: String! # Address of the currently active voting rewards factory (creates fee and bribe voting reward contracts)
@@ -573,14 +573,14 @@ type FactoryRegistryConfig {
   lastUpdatedTimestamp: Timestamp! # Timestamp when the factory registry configuration was last updated
 }
 
-type DynamicFeeGlobalConfig {
+type DynamicFeeGlobalConfig @storage(postgres: true, clickhouse: true) {
   id: ID! # Format: contract address (DynamicSwapFeeModule)
   chainId: Int! @index # chain id
   secondsAgo: BigInt @config(precision: 32) # The amount of time used to calculate price change
 }
 
 # One per underlying pool (per chain) launched or migrated via Pool Launcher
-type PoolLauncherPool {
+type PoolLauncherPool @storage(postgres: true, clickhouse: true) {
   id: ID! # Format: {chainId}-{underlyingPool}
   chainId: Int! # chain id
   underlyingPool: Bytes! # pool address
@@ -602,7 +602,7 @@ type PoolLauncherPool {
   poolStats: [Pool!]! @derivedFrom(field: "poolLauncherPoolId") # reverse relation: Pool aggregates launched under this PoolLauncherPool
 }
 
-type PoolLauncherConfig {
+type PoolLauncherConfig @storage(postgres: true, clickhouse: true) {
   id: ID! # Format: {chainId}-{poolLauncherAddress} (PoolId with launcher contract as address)
   version: String! # "CL" for concentrated liquidity, "V2" for V2 pools
   pairableTokens: [String!] # Whitelisted tokens an emerging-token pool may be paired against on this launcher
@@ -612,7 +612,7 @@ type PoolLauncherConfig {
 # 1. Original asset is swapped for oUSDT on the source chain.
 # 2. The oUSDT is then bridged through Hyperlane to the destination chain.
 # 3. Bridged oUSDT is then swapped into the preferred asset on the destination chain.
-type SuperSwap {
+type SuperSwap @storage(postgres: true, clickhouse: true) {
   id: ID! # Format: {messageId} — globally unique Hyperlane message identifier
   originChainId: BigInt! @config(precision: 24) # Chain ID where the swap originated
   destinationChainId: BigInt! @config(precision: 24) # Resolved EVM chain ID of the swap target/recipient (mapped from the Hyperlane domain via domainToChainId)
@@ -626,7 +626,7 @@ type SuperSwap {
   timestamp: Timestamp! # Block timestamp of the swap event
 }
 
-type OUSDTBridgedTransaction {
+type OUSDTBridgedTransaction @storage(postgres: true, clickhouse: true) {
   id: ID! # Format: transaction hash (unique per bridge tx)
   transactionHash: String! @index # Transaction hash
   originChainId: BigInt! @config(precision: 24) # Chain ID where the bridge transaction originated
@@ -638,7 +638,7 @@ type OUSDTBridgedTransaction {
 
 # Registering each event related from/to oUSDT. Needed for filtering and eventual registration of source/destination token
 # and corresponding amounts during superswaps execution
-type OUSDTSwaps {
+type OUSDTSwaps @storage(postgres: true, clickhouse: true) {
   id: ID! # Format: {transactionHash}_{chainId}_{tokenInPool}_{amountIn}_{tokenOutPool}_{amountOut}
   transactionHash: String! @index # Transaction hash of the swap transaction
   tokenInPool: String! # Token that goes into the pool after swap
@@ -652,7 +652,7 @@ type OUSDTSwaps {
 # handler can resolve it with a direct get() without a per-chain lookup constant.
 # Last-writer-wins across gauge factory generations (V2, V3, ...) — the row
 # reflects the most recent chain-wide defaults.
-type CLGaugeConfig {
+type CLGaugeConfig @storage(postgres: true, clickhouse: true) {
   id: ID! # Format: stringified chainId (e.g. "8453" for Base)
   defaultEmissionsCap: BigInt! @config(precision: 24) # Chain-wide default gauge emissions cap; applied when a pool's gauge has no SetEmissionsCap override.
   defaultMinStakeTime: BigInt! @config(precision: 24) # Chain-wide default LP stake lockup (seconds), set via CLGaugeFactoryV3.SetDefaultMinStakeTime. 0 before V3.
@@ -660,28 +660,28 @@ type CLGaugeConfig {
   lastUpdatedTimestamp: Timestamp! # Timestamp of the last CLGaugeConfig update
 }
 
-type DispatchId_event {
+type DispatchId_event @storage(postgres: true, clickhouse: true) {
   id: ID! # Format: {transactionHash}_{chainId}_{messageId}
   chainId: Int! # Chain ID where the message was dispatched (origin chain)
   transactionHash: String! @index # Transaction hash of the dispatch transaction
   messageId: String! @index # Unique message ID identifying the cross-chain message in Hyperlane
 }
 
-type ProcessId_event {
+type ProcessId_event @storage(postgres: true, clickhouse: true) {
   id: ID! # Format: {transactionHash}_{chainId}_{messageId}
   chainId: Int! # Chain ID where the message was processed (destination chain)
   transactionHash: String! @index # Transaction hash of the process transaction
   messageId: String! @index # Unique message ID identifying the cross-chain message in Hyperlane (matches DispatchId messageId)
 }
 
-type ALM_TotalSupplyLimitUpdated_event {
+type ALM_TotalSupplyLimitUpdated_event @storage(postgres: true, clickhouse: true) {
   id: ID! # Format: {chainId}-{lpWrapperAddress} (ALMLPWrapperId)
   lpWrapperAddress: String! # LP Wrapper associated to the event
   currentTotalSupplyLPTokens: BigInt! @config(precision: 76) # Current supply of LP tokens for the pool, emitted by the event
   transactionHash: String! # Transaction hash of the event
 }
 
-type RootPool_LeafPool {
+type RootPool_LeafPool @storage(postgres: true, clickhouse: true) {
   id: ID! # Format: {rootChainId}-{leafChainId}-{rootPoolAddress}-{leafPoolAddress} (RootPoolLeafPoolId)
   rootChainId: Int! # Optimism chain ID
   rootPoolAddress: String! @index # Placeholder contract that isn't a real pool (i.e., doesn't allow for LP, swap, etc). Mainly just for registring purposes
@@ -690,7 +690,7 @@ type RootPool_LeafPool {
 }
 
 # Maps root gauge (RootGauge/RootCLGauge on OP) to root pool for DistributeReward cross-chain resolution
-type RootGauge_RootPool {
+type RootGauge_RootPool @storage(postgres: true, clickhouse: true) {
   id: ID! # Unique identifier, formatted as {rootChainId}-{rootGaugeAddress}
   rootChainId: Int! # Chain ID of the root chain (typically Optimism)
   rootGaugeAddress: String! @index # Address of the root gauge contract on the root chain
@@ -698,7 +698,7 @@ type RootGauge_RootPool {
 }
 
 # Deferred vote: stored when Voted/Abstained fires but RootPool_LeafPool mapping does not exist yet
-type PendingVote {
+type PendingVote @storage(postgres: true, clickhouse: true) {
   id: ID! # Format: {chainId}-{rootPoolAddress}-{tokenId}-{txHash}-{logIndex}
   chainId: Int! # Chain ID for which the vote was intended
   rootPoolAddress: String! @index # Address of the root pool being voted on
@@ -716,7 +716,7 @@ type PendingVote {
 # (and at a LOWER log index than) PoolCreated from the factory, so Envio
 # delivers Initialize first. PoolCreated reads this buffer when constructing
 # the new aggregator and deletes the entry afterwards.
-type CLPoolPendingInitialize {
+type CLPoolPendingInitialize @storage(postgres: true, clickhouse: true) {
   id: ID! # Format: {chainId}-{poolAddress} (PoolId)
   chainId: Int! # chain id
   poolAddress: String! # address of the CL pool awaiting PoolCreated
@@ -725,7 +725,7 @@ type CLPoolPendingInitialize {
 }
 
 # Deferred RootPool->LeafPool mapping: stored when RootPoolCreated fires but no Pool exists yet
-type PendingRootPoolMapping {
+type PendingRootPoolMapping @storage(postgres: true, clickhouse: true) {
   id: ID! # Format: {rootChainId}-{rootPoolAddress}
   rootChainId: Int! # Chain ID where the root pool exists (typically Optimism)
   rootPoolAddress: String! # Address of the root pool (matches RootPool_LeafPool)
@@ -737,7 +737,7 @@ type PendingRootPoolMapping {
 }
 
 # Deferred distribution: stored when DistributeReward fires for a root gauge but RootPool_LeafPool mapping does not exist yet
-type PendingDistribution {
+type PendingDistribution @storage(postgres: true, clickhouse: true) {
   id: ID! # Format: {rootChainId}-{rootPoolAddress}-{blockNumber}-{logIndex}
   rootChainId: Int! # Chain ID where the root gauge and pool exist
   rootPoolAddress: String! @index # Address of the root pool (matches RootPool_LeafPool)
@@ -752,7 +752,7 @@ type PendingDistribution {
 # It allows to initialise currentFee field for all CLPools
 # CLPool fees can then be modified by either CustomSwapFeeModule or DynamicSwapFeeModule
 # The same tick spacing can be enabled multiple times (to update the fee), so this entity is updated, not created new
-type FeeToTickSpacingMapping {
+type FeeToTickSpacingMapping @storage(postgres: true, clickhouse: true) {
   id: ID! # Format: {chainId}-{tickSpacing} (FeeToTickSpacingMappingId)
   chainId: Int! @index # chain id
   tickSpacing: BigInt! @config(precision: 24) @index # Tick spacing value
@@ -765,7 +765,7 @@ type FeeToTickSpacingMapping {
 # However, the transfer event doesn't have all the necessary data (e.g. tickLower, tickUpper, etc).
 # This is where CLpoolMintEvent comes in
 # Deleted immediately after consumption
-type CLPoolMintEvent {
+type CLPoolMintEvent @storage(postgres: true, clickhouse: true) {
   id: ID! # Format: {chainId}_{poolAddress}_{txHash}_{logIndex}
   chainId: Int! @index # chain id
   pool: String! @index # address of the CL pool the Mint fired on
@@ -789,7 +789,7 @@ type CLPoolMintEvent {
 #
 # Flow: Burn adds principal here → Collect subtracts it → remainder = fees.
 # Keyed by contract-level position identity (pool + owner + tick range).
-type CLPositionPendingPrincipal {
+type CLPositionPendingPrincipal @storage(postgres: true, clickhouse: true) {
   id: ID! # {chainId}-{poolAddress}-{owner}-{tickLower}-{tickUpper}
   # Principal from Burn events not yet drained by Collect.
   # Accumulates across multiple Burns; reduced when Collect fires.
@@ -802,7 +802,7 @@ type CLPositionPendingPrincipal {
 # The consumer knows chainId + txHash; it reads this row and then PK-gets each event by id.
 # Cleaned up as events are consumed: ids are removed on consumption and the row is deleted
 # when the last id is removed.
-type TxCLPoolMintRegistry {
+type TxCLPoolMintRegistry @storage(postgres: true, clickhouse: true) {
   id: ID! # Format: {chainId}-{txHash}
   mintEventIds: [String!]! # CLPoolMintEvent ids produced in this tx, in insertion order
 }
@@ -811,14 +811,14 @@ type TxCLPoolMintRegistry {
 # on PoolTransferInTx.getWhere({ txHash }) in the Pool.Mint / Pool.Burn consumer.
 # The consumer knows chainId + txHash + pool; it reads this row and then PK-gets
 # each transfer by id. Rows are pruned on consumption and deleted when empty.
-type TxPoolTransferRegistry {
+type TxPoolTransferRegistry @storage(postgres: true, clickhouse: true) {
   id: ID! # Format: {chainId}-{txHash}-{poolAddress}
   transferIds: [String!]! # PoolTransferInTx ids produced in this (tx, pool), in insertion order
 }
 
 # Temporary entity for matching Mint/Burn with Transfer events
 # Only stores mint/burn transfers (isMint || isBurn) to reduce storage
-type PoolTransferInTx {
+type PoolTransferInTx @storage(postgres: true, clickhouse: true) {
   id: ID! # Format: {chainId}-{txHash}-{poolAddress}-{logIndex}
   chainId: Int! @index # chain id
   txHash: String! @index # transaction hash containing the transfer
@@ -837,7 +837,7 @@ type PoolTransferInTx {
 # Similar to PoolTransferInTx but for ALM LP Wrapper
 # Only needed for burns (to = 0x0) since Deposit events emit the correct minted amount
 # Needed for LPWrapper V1 Withdraw event handler fix
-type ALMLPWrapperTransferInTx {
+type ALMLPWrapperTransferInTx @storage(postgres: true, clickhouse: true) {
   id: ID! # Format: {chainId}-{txHash}-{wrapperAddress}-{logIndex}
   chainId: Int! @index # chain id
   txHash: String! @index # transaction hash containing the transfer
@@ -858,7 +858,7 @@ type ALMLPWrapperTransferInTx {
 # Redistributed and Deposited events are folded into Pool
 # counters (totalEmissionsRedistributed / totalEmissionsForfeited) via a
 # gauge→pool lookup; they have no dedicated entity.
-type RedistributorConfig {
+type RedistributorConfig @storage(postgres: true, clickhouse: true) {
   id: ID! # Format: {chainId}-{redistributorAddress}
   chainId: Int! @index # chain id
   redistributorAddress: String! # Redistributor contract address

@@ -3,26 +3,10 @@ name: Velodrome_v2
 description: Multi-chain indexer for Velodrome V2 on Optimism and Aerodrome on Base
 rollback_on_reorg: true
 raw_events: false
-# Dual-write storage (scaffolding — disabled by default).
-#
-# Uncomment the `storage:` block below to enable ClickHouse alongside Postgres.
-# Postgres remains primary; ClickHouse is an additional sink for analytics.
-#
-# In envio 3.1.1, enabling two backends ALSO requires routing every entity in
-# schema.graphql via an @storage directive, e.g.
-#   type Pool @storage(postgres: true) { ... }
-#   type PoolSnapshot @storage(postgres: true, clickhouse: true) { ... }
-# Object-form `postgres: { default: true }` (which would avoid per-entity
-# directives) is only available on Envio main, not in any released version
-# at time of writing — track in package.json before relying on it.
-#
-# Env vars required (see .env.example):
-#   ENVIO_CLICKHOUSE_HOST, ENVIO_CLICKHOUSE_DATABASE,
-#   ENVIO_CLICKHOUSE_USERNAME, ENVIO_CLICKHOUSE_PASSWORD
 # Docs: https://docs.envio.dev/docs/HyperIndex/configuration-file#storage
-# storage:
-#   postgres: true
-#   clickhouse: true
+storage:
+  postgres: true
+  clickhouse: true
 field_selection:
   transaction_fields:
     - "hash"
