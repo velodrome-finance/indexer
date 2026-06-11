@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 function parseSchemaTypes(
   schemaText: string,
 ): Map<string, Map<string, string>> {
-  const typePattern = /type\s+(\w+)\s*\{([\s\S]*?)\n\}/g;
+  const typePattern = /type\s+(\w+)[^{]*\{([\s\S]*?)\n\}/g;
   const fieldPattern = /^\s*(\w+)\s*:\s*([^\s]+)/;
   const types = new Map<string, Map<string, string>>();
 
