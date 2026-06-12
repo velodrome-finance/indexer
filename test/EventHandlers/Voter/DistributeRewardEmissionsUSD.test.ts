@@ -66,6 +66,11 @@ describe("Voter.DistributeReward → totalEmissionsUSD regression (#673)", () =>
       isWhitelisted: true,
       // Match block timestamp so refreshTokenPrice is a no-op (avoids real RPC).
       lastUpdatedTimestamp: new Date(blockTimestamp * 1000),
+      // Issue #862: required in lockstep with `lastUpdatedTimestamp` for a
+      // whitelisted token carrying a real price — the heal-on-read path
+      // bypasses the throttle when `lastSuccessfulPriceTimestamp` is null,
+      // which would zero out the seeded price.
+      lastSuccessfulPriceTimestamp: new Date(blockTimestamp * 1000),
       ...overrides,
     } as Token;
   }

@@ -386,6 +386,122 @@ describe("PriceOracle", () => {
       });
     });
 
+    describe("Issue #862: heal-on-read for whitelisted tokens with null lastSuccessfulPriceTimestamp", () => {
+      // The 2026-06-11 integrity audit found 436 whitelisted tokens stuck with
+      // `lastSuccessfulPriceTimestamp = null` despite their `lastUpdatedTimestamp`
+      // having advanced (the 1-hour throttle was bumping the latter on every $0
+      // / fallback / reject tick, leaving the former indefinitely null). The
+      // heal-on-read path bypasses the throttle on this exact shape so the
+      // token can recover the next time any event touches it, instead of
+      // waiting for the next hourly window AND a transient-condition clear.
+      it("bypasses the 1-hour throttle when isWhitelisted and lastSuccessfulPriceTimestamp is null", async () => {
+        vi.mocked(mockContext.Token?.set)?.mockClear();
+        vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mockClear();
+
+        // Throttle would normally apply: lastUpdatedTimestamp 30 minutes ago.
+        const thirtyMinutesAgo = new Date(
+          blockDatetime.getTime() - 30 * 60 * 1000,
+        );
+        const fetchedToken = {
+          ...mockToken0Data,
+          isWhitelisted: true,
+          pricePerUSDNew: 0n,
+          lastUpdatedTimestamp: thirtyMinutesAgo,
+          lastSuccessfulPriceTimestamp: undefined,
+        };
+        const blockTimestamp = blockDatetime.getTime() / 1000;
+
+        await PriceOracle.refreshTokenPrice(
+          fetchedToken,
+          blockNumber,
+          blockTimestamp,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        // Throttle bypassed → oracle was hit and a fresh price persisted.
+        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
+          .lastCall?.[0] as Token;
+        expect(updatedToken).toBeDefined();
+        expect(updatedToken.pricePerUSDNew).toBe(
+          mockTokenPriceData.pricePerUSDNew,
+        );
+        expect(updatedToken.lastSuccessfulPriceTimestamp).toBeInstanceOf(Date);
+        // Snapshot is written on the non-throttle exit (the fresh oracle path).
+        const snapshot = vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mock
+          .lastCall?.[0];
+        expect(snapshot?.priceSource).toBe("fresh");
+      });
+
+      it("keeps the throttle for whitelisted tokens that have already had a successful price write", async () => {
+        // Negative control: once the heal succeeds, the throttle should re-engage
+        // on subsequent intra-hour events so the indexer doesn't re-hit RPC on
+        // every event for the rest of the hour.
+        vi.mocked(mockContext.Token?.set)?.mockClear();
+        vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mockClear();
+
+        const thirtyMinutesAgo = new Date(
+          blockDatetime.getTime() - 30 * 60 * 1000,
+        );
+        const fetchedToken = {
+          ...mockToken0Data,
+          isWhitelisted: true,
+          pricePerUSDNew: 1n * 10n ** 18n,
+          lastUpdatedTimestamp: thirtyMinutesAgo,
+          // A successful write has already landed → no heal needed.
+          lastSuccessfulPriceTimestamp: thirtyMinutesAgo,
+        };
+        const blockTimestamp = blockDatetime.getTime() / 1000;
+
+        await PriceOracle.refreshTokenPrice(
+          fetchedToken,
+          blockNumber,
+          blockTimestamp,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        expect(vi.mocked(mockContext.Token?.set)).not.toHaveBeenCalled();
+        expect(
+          vi.mocked(mockContext.TokenPriceSnapshot?.set),
+        ).not.toHaveBeenCalled();
+      });
+
+      it("keeps the throttle for non-whitelisted tokens with null lastSuccessfulPriceTimestamp", async () => {
+        // Negative control: the heal is scoped to the WHITELIST × null shape.
+        // Non-whitelisted tokens with null `lastSuccessfulPriceTimestamp` are
+        // common (every fresh token starts there) and the indexer must not
+        // start hitting the oracle on every event for them.
+        vi.mocked(mockContext.Token?.set)?.mockClear();
+        vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mockClear();
+
+        const thirtyMinutesAgo = new Date(
+          blockDatetime.getTime() - 30 * 60 * 1000,
+        );
+        const fetchedToken = {
+          ...mockToken0Data,
+          isWhitelisted: false,
+          pricePerUSDNew: 0n,
+          lastUpdatedTimestamp: thirtyMinutesAgo,
+          lastSuccessfulPriceTimestamp: undefined,
+        };
+        const blockTimestamp = blockDatetime.getTime() / 1000;
+
+        await PriceOracle.refreshTokenPrice(
+          fetchedToken,
+          blockNumber,
+          blockTimestamp,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        expect(vi.mocked(mockContext.Token?.set)).not.toHaveBeenCalled();
+        expect(
+          vi.mocked(mockContext.TokenPriceSnapshot?.set),
+        ).not.toHaveBeenCalled();
+      });
+    });
+
     describe("Override path: blacklist + rebind (issue #669)", () => {
       // Issue #669: tokens whose on-chain oracle is structurally unusable get
       // either forced to 0 (blacklist) or copied from another chain's already-
