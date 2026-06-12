@@ -19,6 +19,15 @@ import { getTrustedUSD } from "../../PriceTrust";
 // the volume path already defends against via `pickTrustedSwapVolumeUSD` — this
 // produced 160 Base pools with `totalFeesGeneratedUSD` up to 10²³× volume.
 // Deriving fee USD from the already-trusted volume restores the invariant.
+//
+// Issue #861: pricing the fee from `min(t0_USD, t1_USD)` (the volume defender)
+// systematically undercounts generated-fee USD by the per-swap slippage, so
+// cumulative `totalFeesCollectedUSD` (priced from the actually-claimed
+// input-side amounts at Collect time) drifted above `totalFeesGeneratedUSD`
+// on 1,313 pools (Base + OP). The fee on-chain is charged on the INPUT leg,
+// so the honest USD valuation is the input leg's trusted USD × feeRate. The
+// min-pick fallback is preserved when the input leg is untrusted so the
+// #733/#797 scam-token defence survives.
 
 export interface CLPoolSwapResult {
   liquidityPoolDiff: Partial<PoolDiff>;
@@ -80,10 +89,12 @@ export function calculateSwapVolume(
  *
  * Raw fee amounts (`swapFeesInToken0`, `swapFeesInToken1`) come directly from the
  * input side of the swap and the pool's fee rate, normalized to 1e18 precision.
- * USD value (`swapFeesInUSD`) is derived from the already-trusted `volumeInUSD`
- * via `volumeInUSD × feeRate / FEE_SCALE` — this enforces the AMM invariant
- * `fees ≤ volume × feeRate` by construction and inherits the volume path's
- * `pickTrustedSwapVolumeUSD` defense against poisoned-price tokens (issue #733).
+ * USD value (`swapFeesInUSD`) is derived from the input-leg's trusted USD —
+ * `inputUsdValue × feeRate / FEE_SCALE` — restoring the AMM invariant
+ * `cumulative_fees ≤ cumulative_collected` after slippage drift (issue #861).
+ * Falls back to the min-protected `volumeInUSD` when the input leg is
+ * untrusted, preserving the `pickTrustedSwapVolumeUSD` defence against
+ * poisoned-price tokens (issue #733).
  *
  * Exported for testing purposes only.
  *
@@ -143,8 +154,36 @@ export function calculateSwapFees(
     token1Decimals,
   );
 
-  // Derive fee USD from trusted volume — see file header for the #733 rationale.
-  const swapFeesInUSD = (volumeInUSD * fee) / FEE_SCALE;
+  // Derive fee USD from the INPUT leg's trusted USD (where the fee was
+  // actually charged on-chain), but only when it agrees with the other leg
+  // within SLIPPAGE_TOLERANCE (10×) — well above realistic AMM slippage but
+  // small enough to catch poisoned prices that are typically 1e10× or worse.
+  // When input is untrusted OR is wildly out of band with the counterparty,
+  // fall back to the min-protected `volumeInUSD` so #733/#797's scam-token
+  // defence survives. See file header for the #861 rationale.
+  //
+  // Token-price guards: `getTrustedUSD` would crash on a token whose
+  // `pricePerUSDNew` is undefined (latent invariant in PriceTrust.ts) — the
+  // pre-condition is enforced inline here so this fix does not regress test
+  // fixtures that simulate broken-price states.
+  const inputIsToken0 = event.params.amount0 > 0n;
+  const safeTrustedUSD = (amount: bigint, token: Token | undefined): bigint => {
+    if (!token || token.pricePerUSDNew === undefined) return 0n;
+    return getTrustedUSD(amount, token);
+  };
+  const inputUsdValue = inputIsToken0
+    ? safeTrustedUSD(abs(event.params.amount0), token0Instance)
+    : safeTrustedUSD(abs(event.params.amount1), token1Instance);
+  const counterUsdValue = inputIsToken0
+    ? safeTrustedUSD(abs(event.params.amount1), token1Instance)
+    : safeTrustedUSD(abs(event.params.amount0), token0Instance);
+  const SLIPPAGE_TOLERANCE = 10n;
+  const inputIsCredible =
+    inputUsdValue !== 0n &&
+    (counterUsdValue === 0n ||
+      inputUsdValue <= counterUsdValue * SLIPPAGE_TOLERANCE);
+  const feeBaseUSD = inputIsCredible ? inputUsdValue : volumeInUSD;
+  const swapFeesInUSD = (feeBaseUSD * fee) / FEE_SCALE;
 
   return {
     swapFeesInToken0,

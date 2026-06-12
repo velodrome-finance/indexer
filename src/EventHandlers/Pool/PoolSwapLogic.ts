@@ -15,6 +15,15 @@ import { getTrustedUSD } from "../../PriceTrust";
 // (`CLPoolSwapLogic.calculateSwapFees`) and derive the USD fee at Swap time
 // from the already-min-protected `volumeInUSD`, multiplied by the pool's
 // current fee rate. `processPoolFees` is now USD-silent.
+//
+// Issue #861: the min-of-trusted-legs pick on `volumeInUSD` systematically
+// undercounts generated-fee USD by the per-swap slippage (output_USD <
+// input_USD by the slippage), so cumulative `totalFeesCollectedUSD` (priced
+// from the actually-claimed input-side amounts at Claim time) drifted above
+// `totalFeesGeneratedUSD` on 1,313 pools (Base + OP). The fee on-chain is
+// charged on the INPUT leg, so the honest USD valuation is the input leg's
+// trusted USD × feeRate. We keep the min-pick fallback when the input leg is
+// untrusted so the #733/#797 scam-token defense survives.
 
 export interface PoolSwapResult {
   liquidityPoolDiff: Partial<PoolDiff>;
@@ -28,11 +37,13 @@ export interface PoolSwapResult {
  * trusted legs) — defends against scam-token / poisoned-oracle inflation
  * (issues #699, #737, #755).
  *
- * Fee USD: `volumeInUSD × (currentFee ?? baseFee ?? 0n) / FEE_SCALE` —
- * inherits the volume path's min-protection by construction and tracks
- * Custom/Dynamic fee-module changes via `currentFee` (issue #797, mirrors
- * `CLPoolSwapLogic.calculateSwapFees`). `processPoolFees` no longer writes
- * any USD field.
+ * Fee USD: `inputUsdValue × (currentFee ?? baseFee ?? 0n) / FEE_SCALE` where
+ * `inputUsdValue` is the trusted USD of the swap's input leg (the side fees
+ * are actually charged on, on-chain). Falls back to the min-protected
+ * `volumeInUSD` when the input leg is untrusted so the #733/#797 scam-token
+ * defense survives. Tracks Custom/Dynamic fee-module changes via `currentFee`.
+ * `processPoolFees` no longer writes any USD field. See issue #861 for the
+ * fix to the slippage-induced collected > generated drift.
  *
  * @param event - V2 Pool Swap event
  * @param liquidityPoolAggregator - Pool entity providing the fee rate
@@ -58,10 +69,29 @@ export function processPoolSwap(
 
   const volumeInUSD = pickTrustedSwapVolumeUSD(token0UsdValue, token1UsdValue);
 
-  // Derive fee USD from trusted volume — see file header for the #797 rationale.
+  // Derive fee USD from the INPUT-side trusted USD (where the fee is actually
+  // charged on-chain), but only when it agrees with the other leg within
+  // SLIPPAGE_TOLERANCE (10×) — well above realistic AMM slippage but small
+  // enough to catch poisoned prices that are typically 1e10× or worse. When
+  // input is untrusted OR is wildly out of band with the counterparty, fall
+  // back to the min-protected `volumeInUSD` so #733/#797's scam-token defence
+  // survives. See file header for the #861 rationale.
   const feeRate =
     liquidityPoolAggregator.currentFee ?? liquidityPoolAggregator.baseFee ?? 0n;
-  const feeUSD = (volumeInUSD * feeRate) / FEE_SCALE;
+  // `?? 0n` because the trust gate sometimes returns undefined under mocked
+  // calculateTokenAmountUSD paths in tests; treating undefined as untrusted
+  // keeps the bigint arithmetic safe.
+  const inputUsdValue =
+    (event.params.amount0In > 0n ? token0UsdValue : token1UsdValue) ?? 0n;
+  const counterUsdValue =
+    (event.params.amount0In > 0n ? token1UsdValue : token0UsdValue) ?? 0n;
+  const SLIPPAGE_TOLERANCE = 10n;
+  const inputIsCredible =
+    inputUsdValue !== 0n &&
+    (counterUsdValue === 0n ||
+      inputUsdValue <= counterUsdValue * SLIPPAGE_TOLERANCE);
+  const feeBaseUSD = inputIsCredible ? inputUsdValue : volumeInUSD;
+  const feeUSD = (feeBaseUSD * feeRate) / FEE_SCALE;
 
   // Create liquidity pool diff.
   //

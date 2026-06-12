@@ -464,11 +464,14 @@ describe("PoolSwapLogic", () => {
       ).toBeLessThan(poisonedPrice);
     });
 
-    // Clean-pool sanity check: the new derivation matches what the AMM
-    // invariant says fees should be — fees = volume × rate, within bigint
-    // truncation. (This is the same shape as the existing PoolFeesLogic
-    // "fee ≤ 1% of volume invariant (#670)" test, ported to the Swap-time path.)
-    it("matches volume × rate exactly for a clean pool at 0.05% fee", () => {
+    // Clean-pool sanity check: post-#861, fee USD is derived from the INPUT
+    // leg's trusted USD (where the fee is actually charged on-chain), not
+    // from the min-picked volume. For a 1% slippage swap at 0.05% fee the
+    // honest fee equals input × rate, exceeding volume × rate by the
+    // slippage amount. The min-pick is preserved as a fallback only when
+    // the input leg is untrusted OR is far enough out-of-band with the
+    // counterparty (10× tolerance) to look poisoned.
+    it("derives fee from input × rate on a clean stable pair (#861)", () => {
       const pool = createMockPool({
         currentFee: toCanonicalFeeScale(5n, false),
       }); // 0.05% stable
@@ -500,11 +503,17 @@ describe("PoolSwapLogic", () => {
         result.liquidityPoolDiff?.incrementalTotalVolumeUSD ?? 0n;
       const feeUSD =
         result.liquidityPoolDiff?.incrementalTotalFeesGeneratedUSD ?? 0n;
-      expect(feeUSD).toBe(
-        (volumeUSD * toCanonicalFeeScale(5n, false)) / FEE_SCALE,
+      // Volume is min-picked = $999. Fee USD is now input-priced = $1000 × 0.05%.
+      const expectedInputUSD = 1000n * 10n ** 18n; // 1e18-base $1000
+      const expectedFeeUSD =
+        (expectedInputUSD * toCanonicalFeeScale(5n, false)) / FEE_SCALE;
+      expect(feeUSD).toBe(expectedFeeUSD);
+      // Hard invariant: fee ≤ 1% of volume at any V2 rate up to 1% (the
+      // input-priced fee exceeds volume × rate only by the slippage delta;
+      // the cap still holds at any realistic AMM rate ≤ 1%).
+      expect(feeUSD * 100n).toBeLessThanOrEqual(
+        volumeUSD + volumeUSD / 100n + 1n,
       );
-      // Hard invariant: fee ≤ 1% of volume at any V2 rate up to 1%.
-      expect(feeUSD * 100n).toBeLessThanOrEqual(volumeUSD);
     });
 
     it("treats currentFee=0n as explicitly zero (does NOT fall back to baseFee)", () => {
