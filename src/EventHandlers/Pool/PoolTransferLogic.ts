@@ -58,7 +58,15 @@ export async function updatePoolTotalSupply(
 }
 
 /**
- * Update user LP balances based on transfer type (mint, burn, or regular transfer)
+ * Update user LP balances based on transfer type (mint, burn, or regular transfer).
+ *
+ * Skips any side of the transfer whose address equals the pool's `gaugeAddress`:
+ * the gauge holds LP tokens on behalf of stakers, so treating it as a user
+ * created phantom UserStatsPerPool rows with `lpBalance > 0` and
+ * `totalLiquidityAdded*` = 0 (issue #850). Real per-user stake accounting
+ * already happens via `Gauge.Deposit`/`Withdraw` in
+ * `src/EventHandlers/Gauges/GaugeSharedLogic.ts`. Mirrors the CL filter
+ * `isGaugeTransfer` in `src/EventHandlers/NFPM/NFPMTransferLogic.ts`.
  * @param isMint - Whether this is a mint transfer (from == 0x0)
  * @param isBurn - Whether this is a burn transfer (to == 0x0)
  * @param from - Transfer sender address
@@ -68,6 +76,7 @@ export async function updatePoolTotalSupply(
  * @param chainId - Chain ID
  * @param context - Handler context
  * @param timestamp - Event timestamp
+ * @param gaugeAddress - Pool's gauge address (undefined if no gauge); used to skip gauge sides
  */
 export async function updateUserLpBalances(
   isMint: boolean,
@@ -79,9 +88,14 @@ export async function updateUserLpBalances(
   chainId: number,
   context: handlerContext,
   timestamp: Date,
+  gaugeAddress?: string,
 ): Promise<void> {
+  const isGauge = (addr: string): boolean =>
+    gaugeAddress !== undefined && addr === gaugeAddress;
+
   if (isMint) {
-    // Mint: add to recipient
+    // Mint: add to recipient (skip if recipient is the gauge; #850)
+    if (isGauge(to)) return;
     const recipientData = await loadOrCreateUserData(
       to,
       poolAddress,
@@ -97,7 +111,8 @@ export async function updateUserLpBalances(
 
     await updateUserStatsPerPool(userDiff, recipientData, context, timestamp);
   } else if (isBurn) {
-    // Burn: subtract from sender
+    // Burn: subtract from sender (skip if sender is the gauge; #850)
+    if (isGauge(from)) return;
     const senderData = await loadOrCreateUserData(
       from,
       poolAddress,
@@ -113,9 +128,10 @@ export async function updateUserLpBalances(
 
     await updateUserStatsPerPool(userDiff, senderData, context, timestamp);
   } else {
-    // Regular transfer: update both
+    // Regular transfer: update both (each side independently skipped if gauge; #850)
     // Handle self-transfer case (from === to) to avoid conflicting updates
     if (from.toLowerCase() === to.toLowerCase()) {
+      if (isGauge(from)) return;
       // Self-transfer: only update lastActivityTimestamp, balance remains unchanged
       const userData = await loadOrCreateUserData(
         from,
@@ -133,24 +149,55 @@ export async function updateUserLpBalances(
       await updateUserStatsPerPool(userDiff, userData, context, timestamp);
     } else {
       // Regular transfer between different addresses
-      const [senderData, recipientData] = await Promise.all([
-        loadOrCreateUserData(from, poolAddress, chainId, context, timestamp),
-        loadOrCreateUserData(to, poolAddress, chainId, context, timestamp),
-      ]);
+      const fromIsGauge = isGauge(from);
+      const toIsGauge = isGauge(to);
 
-      const userDiffFrom = {
-        incrementalLpBalance: -value,
-        lastActivityTimestamp: timestamp,
-      };
-      const userDiffTo = {
-        incrementalLpBalance: value,
-        lastActivityTimestamp: timestamp,
-      };
-
-      await Promise.all([
-        updateUserStatsPerPool(userDiffFrom, senderData, context, timestamp),
-        updateUserStatsPerPool(userDiffTo, recipientData, context, timestamp),
-      ]);
+      const promises: Promise<unknown>[] = [];
+      if (!fromIsGauge) {
+        promises.push(
+          (async () => {
+            const senderData = await loadOrCreateUserData(
+              from,
+              poolAddress,
+              chainId,
+              context,
+              timestamp,
+            );
+            await updateUserStatsPerPool(
+              {
+                incrementalLpBalance: -value,
+                lastActivityTimestamp: timestamp,
+              },
+              senderData,
+              context,
+              timestamp,
+            );
+          })(),
+        );
+      }
+      if (!toIsGauge) {
+        promises.push(
+          (async () => {
+            const recipientData = await loadOrCreateUserData(
+              to,
+              poolAddress,
+              chainId,
+              context,
+              timestamp,
+            );
+            await updateUserStatsPerPool(
+              {
+                incrementalLpBalance: value,
+                lastActivityTimestamp: timestamp,
+              },
+              recipientData,
+              context,
+              timestamp,
+            );
+          })(),
+        );
+      }
+      await Promise.all(promises);
     }
   }
 }
@@ -264,7 +311,8 @@ export async function processPoolTransfer(
     event.block.number,
   );
 
-  // 2. Update user LP balances
+  // 2. Update user LP balances (skip the gauge side to avoid phantom
+  // UserStatsPerPool rows for the staking contract itself; #850)
   await updateUserLpBalances(
     isMint,
     isBurn,
@@ -275,6 +323,7 @@ export async function processPoolTransfer(
     chainId,
     context,
     timestamp,
+    liquidityPoolAggregator.gaugeAddress ?? undefined,
   );
 
   // 3. Store transfer in temporary entity for Mint/Burn matching
