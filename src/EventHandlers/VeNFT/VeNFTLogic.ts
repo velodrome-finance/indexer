@@ -181,12 +181,14 @@ async function reconcileVeNFTState(
     totalValueLocked: bigint;
     owner?: string;
     locktime?: bigint;
+    isPermanent?: boolean;
     isAlive?: boolean;
   },
 ): Promise<void> {
   const veNFTStateDiff = {
     owner: target.owner,
     locktime: target.locktime,
+    isPermanent: target.isPermanent,
     isAlive: target.isAlive,
     incrementalTotalValueLocked:
       target.totalValueLocked - currentVeNFTState.totalValueLocked,
@@ -385,6 +387,13 @@ export async function processVeNFTWithdrawManaged(
   const tokenVeNFTStateDiff = {
     totalValueLocked: event.params._weight,
     locktime: getStandardLockEnd(event.params._ts),
+    // WithdrawManaged rebuilds the lock as a fresh timed position on-chain:
+    // `_withdrawManaged` writes `LockedBalance(amount, ts + MAXTIME, false)`.
+    // Force `isPermanent = false` to mirror that; otherwise a token that was
+    // permanent before being deposited into the managed lock keeps the stale
+    // flag and lands in the impossible `isPermanent=true ∧ locktime>0` state
+    // (issue #852).
+    isPermanent: false,
     isAlive: true,
   };
 
