@@ -71,6 +71,11 @@ describe("SuperchainIncentiveVotingReward Events", () => {
       pricePerUSDNew: 1n * 10n ** 18n, // 1 USD
       isWhitelisted: true,
       lastUpdatedTimestamp: new Date(1000000 * 1000),
+      // Issue #862: a whitelisted token with a real price has, by construction,
+      // had at least one successful oracle write — `lastSuccessfulPriceTimestamp`
+      // must be set in lockstep with `lastUpdatedTimestamp` for the throttle to
+      // preserve `pricePerUSDNew` (the heal-on-read otherwise bypasses it).
+      lastSuccessfulPriceTimestamp: new Date(1000000 * 1000),
     } as Token;
 
     // Set up entities in test indexer
