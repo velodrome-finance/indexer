@@ -605,7 +605,7 @@ type PoolLauncherPool {
 type PoolLauncherConfig {
   id: ID! # Format: {chainId}-{poolLauncherAddress} (PoolId with launcher contract as address)
   version: String! # "CL" for concentrated liquidity, "V2" for V2 pools
-  pairableTokens: [String!] # Whitelisted tokens an emerging-token pool may be paired against on this launcher
+  pairableTokens: [String!]! # Whitelisted tokens an emerging-token pool may be paired against on this launcher
 }
 
 # A superswap is characterized by 3 steps:
