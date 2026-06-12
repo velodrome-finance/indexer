@@ -288,6 +288,65 @@ describe("PoolFactory Events", () => {
       const rootPoolLeafPools = await indexer.RootPool_LeafPool.getAll();
       expect(rootPoolLeafPools).toHaveLength(0);
     });
+
+    // Regression for #864 (FACTORY_POOL_COUNT_GAP). Before the fix, when the
+    // #677 bytecode gate confirmed one token side was a non-contract,
+    // createTokenEntity returned `null` and the V2 handler early-returned —
+    // dropping the Pool entity even though the factory had authoritatively
+    // registered it on-chain. The Base V2 audit found 3 pools missing this way.
+    // Now: the gate still skips the Token row, but the Pool is persisted with
+    // an empty symbol on the offending side.
+    it("creates the Pool even when one token side is a non-contract (#864)", async () => {
+      // 0x...dEaD is an EOA on Optimism; eth_getCode returns 0x so the bytecode
+      // gate in createTokenEntity returns null for that side.
+      const eoaTokenAddress = toChecksumAddress(
+        "0x000000000000000000000000000000000000dEaD",
+      );
+      const indexer = createTestIndexer();
+      // Only pre-seed token0 — token1 must traverse createTokenEntity/the gate.
+      indexer.Token.set({
+        ...mockToken0Data,
+        id: TokenId(chainId, token0Address),
+        address: token0Address,
+        chainId,
+      } as Token);
+
+      await indexer.process({
+        chains: {
+          [chainId]: {
+            simulate: [
+              {
+                contract: "PoolFactory",
+                event: "PoolCreated",
+                srcAddress: poolAddress,
+                logIndex: 1,
+                block: {
+                  timestamp: 1000000,
+                  number: 123456,
+                  hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                },
+                params: {
+                  token0: token0Address as `0x${string}`,
+                  token1: eoaTokenAddress as `0x${string}`,
+                  pool: poolAddress as `0x${string}`,
+                  stable: false,
+                },
+              },
+            ],
+          },
+        },
+      });
+
+      const pool = await indexer.Pool.get(PoolId(chainId, poolAddress));
+      expect(pool).toBeDefined();
+      // Pool keeps the on-chain token1 address; only the Token row is skipped.
+      expect(pool?.token1_address).toBe(eoaTokenAddress);
+      // No Token row created for the EOA side (the gate still wins there).
+      const eoaToken = await indexer.Token.get(
+        TokenId(chainId, eoaTokenAddress),
+      );
+      expect(eoaToken).toBeUndefined();
+    });
   });
 
   describe("SetCustomFee event", () => {
