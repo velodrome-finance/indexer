@@ -70,6 +70,19 @@ The indexer tracks these protocol domains, each with its own event handlers:
 - **Addresses**: Use lowercase keys in config objects for `.toLowerCase()` lookups. Always checksum addresses for entity storage.
 - **Amount normalization**: Always normalize token amounts to a common decimal base before arithmetic across different tokens.
 
+## Storage
+
+Dual-write Postgres + ClickHouse is enabled. The `storage:` block in `config.yaml` marks both backends with `default: true`, so every entity in `schema.graphql` is auto-routed to both — no `@storage` annotation is needed unless you want to override the default routing for a specific entity. (Requires envio ≥ 3.2.0.)
+
+ClickHouse env vars (Envio Hosted ClickHouse in production, placeholders in `.env.example`):
+
+- `ENVIO_CLICKHOUSE_HOST`
+- `ENVIO_CLICKHOUSE_DATABASE`
+- `ENVIO_CLICKHOUSE_USERNAME`
+- `ENVIO_CLICKHOUSE_PASSWORD`
+
+Docs: https://docs.envio.dev/docs/HyperIndex/configuration-file#storage
+
 ## Conventions
 
 ### File naming under `src/EventHandlers/`

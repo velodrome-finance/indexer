@@ -78,22 +78,24 @@ indexer.onEvent(
       for (let i = 0; i < missingTokenMappings.length; i++) {
         const created = createdTokens[i];
         if (created === null) {
+          // Bytecode gate (#677) rejected the token side: skip the Token row but
+          // STILL create the Pool — the factory has authoritatively registered
+          // it (closes #864). Dropping the pool here orphans every downstream
+          // entity (snapshots, user-stats) for an on-chain reality.
           context.log.warn(
-            `[PoolFactory.PoolCreated] Skipping Pool for pool ${event.params.pool} on chain ${event.chainId} — non-contract token side`,
+            `[PoolFactory.PoolCreated] Pool ${event.params.pool} on chain ${event.chainId} has non-contract token side ${missingTokenMappings[i].address}; persisting Pool with empty symbol on that side`,
           );
-          return;
-        }
-        if (created !== undefined) {
+        } else if (created !== undefined) {
           missingTokenMappings[i].tokenInstance = created;
         }
       }
     }
 
-    // Build symbol array
-    for (const poolTokenAddressMapping of poolTokenAddressMappings) {
-      if (poolTokenAddressMapping.tokenInstance) {
-        poolTokenSymbols.push(poolTokenAddressMapping.tokenInstance.symbol);
-      }
+    // Build symbol array — index-based so a missing token instance does not
+    // shift the other token's symbol into the wrong slot (#864).
+    for (let i = 0; i < poolTokenAddressMappings.length; i++) {
+      poolTokenSymbols[i] =
+        poolTokenAddressMappings[i].tokenInstance?.symbol ?? "";
     }
 
     // V2 PoolFactory reports fees in basis points; lift to canonical FEE_SCALE

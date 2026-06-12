@@ -62,8 +62,10 @@ const NEG_STAKED_RESERVE_WARN_FLOOR_USD = 1_000n * TEN_TO_THE_18_BI;
  * @param msg - Pre-formatted clamp message. Content is unchanged across both
  *   log channels per #802 AC (poolAddress, chainId, priorStakedReserve,
  *   delta, clampedTo).
- * @param overshoot - Positive raw-unit magnitude of the discarded overshoot
- *   (= `-stakedReserveSum` since `stakedReserveSum < 0n`).
+ * @param overshoot - Positive raw-unit magnitude of the discarded overshoot.
+ *   For the lower-bound clamp (#771), this is `-stakedReserveSum` since
+ *   `stakedReserveSum < 0n`. For the upper-bound clamp (#854,
+ *   `stakedReserve_i > reserve_i`), this is `stakedReserve_i - reserve_i`.
  * @param tokenId - Pool's token entity ID for the field that overflowed
  *   (`token0_id` for stakedReserve0, `token1_id` for stakedReserve1).
  * @param context - Handler context for Token entity load and log emission.
@@ -419,6 +421,22 @@ export async function updatePool(
     );
   }
 
+  // Clamp totalLiquidityUSD to >= 0n at the accumulator path (issue #856).
+  // CL Swap/Burn producers compute currentTotalLiquidityUSD from a synthetic
+  // running newReserve0/1 (current ± delta) BEFORE the reserve clamp above,
+  // so wei-scale tick-crossing drift can briefly drive that sum negative even
+  // though reserves themselves end up clamped to 0n. The negative residue
+  // then propagates into totalLiquidityUSD on write. Mirrors the reserve
+  // clamp shape — clamp-and-log, never persist a negative.
+  const tluReplacement =
+    diff.currentTotalLiquidityUSD ?? current.totalLiquidityUSD;
+  const clampedTotalLiquidityUSD = tluReplacement < 0n ? 0n : tluReplacement;
+  if (tluReplacement < 0n) {
+    context.log.warn(
+      `[NEG_TLU_GUARD][updatePool] field=totalLiquidityUSD poolAddress=${current.poolAddress} chainId=${current.chainId} priorTLU=${current.totalLiquidityUSD} replacement=${tluReplacement} clampedTo=${clampedTotalLiquidityUSD}`,
+    );
+  }
+
   // Clamp stakedLiquidityInRange to >= 0n at the accumulator path (issue #719).
   // The structural fix at the three writer sites derives this field from edge
   // state on every update; this tactical clamp is the belt-and-suspenders that
@@ -474,6 +492,40 @@ export async function updatePool(
     );
   }
 
+  // Upper-bound clamp: staked reserves are a SUBSET of total reserves and
+  // must not exceed them (issue #854). `reserve0/1` and `stakedReserve0/1`
+  // accumulate via independent calls to `divRoundNearest` per-segment math —
+  // one over the pool's total tick-edge map (#803), one over the staked-only
+  // map (#666) — so their wei-scale rounding residues drift in different
+  // directions and can leave `stakedReserve_i > reserve_i` on full-drain
+  // swaps. Mirrors the lower-bound clamp above (#771); same accumulator-noise
+  // assumption (per-segment exact-when-rounded), same clamp-and-log shape,
+  // same USD-magnitude split for the log channel via `logNegStakedReserveGuard`.
+  const finalStakedReserve0 =
+    clampedStakedReserve0 > clampedReserve0
+      ? clampedReserve0
+      : clampedStakedReserve0;
+  if (clampedStakedReserve0 > clampedReserve0) {
+    await logNegStakedReserveGuard(
+      `[OVER_STAKED_RESERVE_GUARD][updatePool] field=stakedReserve0 poolAddress=${current.poolAddress} chainId=${current.chainId} priorStakedReserve=${current.stakedReserve0 ?? 0n} delta=${stakedReserve0Delta} reserve=${clampedReserve0} clampedTo=${finalStakedReserve0}`,
+      clampedStakedReserve0 - clampedReserve0,
+      current.token0_id,
+      context,
+    );
+  }
+  const finalStakedReserve1 =
+    clampedStakedReserve1 > clampedReserve1
+      ? clampedReserve1
+      : clampedStakedReserve1;
+  if (clampedStakedReserve1 > clampedReserve1) {
+    await logNegStakedReserveGuard(
+      `[OVER_STAKED_RESERVE_GUARD][updatePool] field=stakedReserve1 poolAddress=${current.poolAddress} chainId=${current.chainId} priorStakedReserve=${current.stakedReserve1 ?? 0n} delta=${stakedReserve1Delta} reserve=${clampedReserve1} clampedTo=${finalStakedReserve1}`,
+      clampedStakedReserve1 - clampedReserve1,
+      current.token1_id,
+      context,
+    );
+  }
+
   let updated: Pool = {
     ...current,
     // Handle cumulative fields by adding diff values to current values
@@ -481,8 +533,7 @@ export async function updatePool(
     reserve1: clampedReserve1,
     totalLPTokenSupply:
       (diff.incrementalTotalLPSupply ?? 0n) + current.totalLPTokenSupply,
-    totalLiquidityUSD:
-      diff.currentTotalLiquidityUSD ?? current.totalLiquidityUSD,
+    totalLiquidityUSD: clampedTotalLiquidityUSD,
     totalVolume0: (diff.incrementalTotalVolume0 ?? 0n) + current.totalVolume0,
     totalVolume1: (diff.incrementalTotalVolume1 ?? 0n) + current.totalVolume1,
     totalVolumeUSD:
@@ -590,8 +641,8 @@ export async function updatePool(
       (diff.incrementalLiquidityInRange ?? 0n) +
         (current.liquidityInRange ?? 0n),
     stakedLiquidityInRange: clampedStakedLiquidityInRange,
-    stakedReserve0: clampedStakedReserve0,
-    stakedReserve1: clampedStakedReserve1,
+    stakedReserve0: finalStakedReserve0,
+    stakedReserve1: finalStakedReserve1,
     // Monotonic latch: once a pool has ever been staked, hasStakes stays true
     // even if the diff doesn't explicitly re-assert it.
     hasStakes: current.hasStakes || (diff.hasStakes ?? false),
@@ -627,6 +678,16 @@ export async function updatePool(
 
     lastUpdatedTimestamp: timestamp,
   };
+
+  // Issue #857 (residual of #782): lockstep invariant — zero staked liquidity
+  // cannot have USD value. Mirror of the UserStatsPerPool clamp added in #792.
+  // On the gauge withdraw path, computeCLStakedReservesOnGaugeEvent early-returns
+  // {} (no poolStakedUSD) when tokenId is undefined, nfpmAddress is missing, or
+  // the position cannot be rehydrated, leaving the pool's USD companion sticky
+  // across a full unstake. Enforce on every write so no future caller can drift.
+  if (updated.currentLiquidityStaked === 0n) {
+    updated = { ...updated, currentLiquidityStakedUSD: 0n };
+  }
 
   // Snapshot only when we've entered a new epoch (hour); use epoch-aligned timestamp so we don't drift
   if (shouldSnapshot(current.lastSnapshotTimestamp, timestamp)) {

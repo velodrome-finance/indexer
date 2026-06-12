@@ -382,6 +382,7 @@ describe("VeNFTLogic", () => {
         1,
         {
           locktime: 0n,
+          isPermanent: undefined,
           isAlive: false,
           incrementalTotalValueLocked: -100n,
           lastUpdatedTimestamp: timestamp,
@@ -395,6 +396,7 @@ describe("VeNFTLogic", () => {
         2,
         {
           locktime: 500n,
+          isPermanent: undefined,
           isAlive: true,
           incrementalTotalValueLocked: 100n,
           lastUpdatedTimestamp: timestamp,
@@ -468,6 +470,7 @@ describe("VeNFTLogic", () => {
         1,
         {
           locktime: 0n,
+          isPermanent: undefined,
           isAlive: false,
           incrementalTotalValueLocked: -100n,
           lastUpdatedTimestamp: timestamp,
@@ -481,6 +484,7 @@ describe("VeNFTLogic", () => {
         2,
         {
           locktime: 700n,
+          isPermanent: undefined,
           isAlive: true,
           incrementalTotalValueLocked: 30n,
           lastUpdatedTimestamp: timestamp,
@@ -494,6 +498,7 @@ describe("VeNFTLogic", () => {
         3,
         {
           locktime: 700n,
+          isPermanent: undefined,
           isAlive: true,
           incrementalTotalValueLocked: 70n,
           lastUpdatedTimestamp: timestamp,
@@ -555,6 +560,7 @@ describe("VeNFTLogic", () => {
         1,
         {
           locktime: undefined,
+          isPermanent: undefined,
           isAlive: undefined,
           incrementalTotalValueLocked: -80n,
           lastUpdatedTimestamp: timestamp,
@@ -568,6 +574,7 @@ describe("VeNFTLogic", () => {
         2,
         {
           locktime: undefined,
+          isPermanent: undefined,
           isAlive: undefined,
           incrementalTotalValueLocked: 80n,
           lastUpdatedTimestamp: timestamp,
@@ -632,6 +639,7 @@ describe("VeNFTLogic", () => {
         1,
         {
           locktime: expectedLocktime,
+          isPermanent: false,
           isAlive: true,
           incrementalTotalValueLocked: 80n,
           lastUpdatedTimestamp: timestamp,
@@ -645,12 +653,78 @@ describe("VeNFTLogic", () => {
         2,
         {
           locktime: undefined,
+          isPermanent: undefined,
           isAlive: undefined,
           incrementalTotalValueLocked: -80n,
           lastUpdatedTimestamp: timestamp,
           owner: undefined,
         },
         managedState,
+        timestamp,
+        mockContext,
+      );
+    });
+
+    it("clears stale isPermanent=true when restoring a previously-permanent token (#852)", async () => {
+      // Pathology: token was permanent, then deposited into a managed lock
+      // (TVL→0, isPermanent kept true). When it later gets withdrawn from the
+      // managed lock, on-chain `_withdrawManaged` rebuilds the lock as
+      // `(amount, ts+MAXTIME, isPermanent=false)`. Pre-fix the handler kept
+      // the stale `isPermanent=true`, producing the impossible
+      // `isPermanent=true ∧ locktime>0` state flagged by issue #852.
+      const tokenState: VeNFTState = {
+        ...mockVeNFTState,
+        tokenId: 1n,
+        totalValueLocked: 0n,
+        locktime: 0n,
+        isPermanent: true,
+      };
+      const managedState: VeNFTState = {
+        ...mockVeNFTState,
+        id: VeNFTId(10, 2n),
+        tokenId: 2n,
+        totalValueLocked: 280n,
+      };
+      const event = {
+        params: {
+          _owner: mockVeNFTState.owner,
+          _tokenId: 1n,
+          _mTokenId: 2n,
+          _weight: 80n,
+          _ts: 123456n,
+        },
+        block: { timestamp: 1000000, number: 1, hash: "0x1234" },
+        chainId: 10,
+        logIndex: 1,
+        srcAddress: toChecksumAddress(
+          "0x3333333333333333333333333333333333333333",
+        ),
+        transaction: { hash: "0xabcd" },
+      } as unknown as EvmEvent<"VeNFT", "WithdrawManaged">;
+      const timestamp = new Date(event.block.timestamp * 1000);
+      const expectedLocktime =
+        ((123456n + SECONDS_IN_FOUR_YEARS) / SECONDS_IN_A_WEEK) *
+        SECONDS_IN_A_WEEK;
+      const updateSpy = vi
+        .spyOn(VeNFTStateAggregator, "updateVeNFTState")
+        .mockResolvedValue(undefined);
+
+      await VeNFTLogic.processVeNFTWithdrawManaged(
+        event,
+        tokenState,
+        managedState,
+        mockContext,
+      );
+
+      expect(updateSpy).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          locktime: expectedLocktime,
+          isPermanent: false,
+          isAlive: true,
+          incrementalTotalValueLocked: 80n,
+        }),
+        tokenState,
         timestamp,
         mockContext,
       );

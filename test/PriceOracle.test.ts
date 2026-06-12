@@ -386,6 +386,122 @@ describe("PriceOracle", () => {
       });
     });
 
+    describe("Issue #862: heal-on-read for whitelisted tokens with null lastSuccessfulPriceTimestamp", () => {
+      // The 2026-06-11 integrity audit found 436 whitelisted tokens stuck with
+      // `lastSuccessfulPriceTimestamp = null` despite their `lastUpdatedTimestamp`
+      // having advanced (the 1-hour throttle was bumping the latter on every $0
+      // / fallback / reject tick, leaving the former indefinitely null). The
+      // heal-on-read path bypasses the throttle on this exact shape so the
+      // token can recover the next time any event touches it, instead of
+      // waiting for the next hourly window AND a transient-condition clear.
+      it("bypasses the 1-hour throttle when isWhitelisted and lastSuccessfulPriceTimestamp is null", async () => {
+        vi.mocked(mockContext.Token?.set)?.mockClear();
+        vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mockClear();
+
+        // Throttle would normally apply: lastUpdatedTimestamp 30 minutes ago.
+        const thirtyMinutesAgo = new Date(
+          blockDatetime.getTime() - 30 * 60 * 1000,
+        );
+        const fetchedToken = {
+          ...mockToken0Data,
+          isWhitelisted: true,
+          pricePerUSDNew: 0n,
+          lastUpdatedTimestamp: thirtyMinutesAgo,
+          lastSuccessfulPriceTimestamp: undefined,
+        };
+        const blockTimestamp = blockDatetime.getTime() / 1000;
+
+        await PriceOracle.refreshTokenPrice(
+          fetchedToken,
+          blockNumber,
+          blockTimestamp,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        // Throttle bypassed → oracle was hit and a fresh price persisted.
+        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
+          .lastCall?.[0] as Token;
+        expect(updatedToken).toBeDefined();
+        expect(updatedToken.pricePerUSDNew).toBe(
+          mockTokenPriceData.pricePerUSDNew,
+        );
+        expect(updatedToken.lastSuccessfulPriceTimestamp).toBeInstanceOf(Date);
+        // Snapshot is written on the non-throttle exit (the fresh oracle path).
+        const snapshot = vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mock
+          .lastCall?.[0];
+        expect(snapshot?.priceSource).toBe("fresh");
+      });
+
+      it("keeps the throttle for whitelisted tokens that have already had a successful price write", async () => {
+        // Negative control: once the heal succeeds, the throttle should re-engage
+        // on subsequent intra-hour events so the indexer doesn't re-hit RPC on
+        // every event for the rest of the hour.
+        vi.mocked(mockContext.Token?.set)?.mockClear();
+        vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mockClear();
+
+        const thirtyMinutesAgo = new Date(
+          blockDatetime.getTime() - 30 * 60 * 1000,
+        );
+        const fetchedToken = {
+          ...mockToken0Data,
+          isWhitelisted: true,
+          pricePerUSDNew: 1n * 10n ** 18n,
+          lastUpdatedTimestamp: thirtyMinutesAgo,
+          // A successful write has already landed → no heal needed.
+          lastSuccessfulPriceTimestamp: thirtyMinutesAgo,
+        };
+        const blockTimestamp = blockDatetime.getTime() / 1000;
+
+        await PriceOracle.refreshTokenPrice(
+          fetchedToken,
+          blockNumber,
+          blockTimestamp,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        expect(vi.mocked(mockContext.Token?.set)).not.toHaveBeenCalled();
+        expect(
+          vi.mocked(mockContext.TokenPriceSnapshot?.set),
+        ).not.toHaveBeenCalled();
+      });
+
+      it("keeps the throttle for non-whitelisted tokens with null lastSuccessfulPriceTimestamp", async () => {
+        // Negative control: the heal is scoped to the WHITELIST × null shape.
+        // Non-whitelisted tokens with null `lastSuccessfulPriceTimestamp` are
+        // common (every fresh token starts there) and the indexer must not
+        // start hitting the oracle on every event for them.
+        vi.mocked(mockContext.Token?.set)?.mockClear();
+        vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mockClear();
+
+        const thirtyMinutesAgo = new Date(
+          blockDatetime.getTime() - 30 * 60 * 1000,
+        );
+        const fetchedToken = {
+          ...mockToken0Data,
+          isWhitelisted: false,
+          pricePerUSDNew: 0n,
+          lastUpdatedTimestamp: thirtyMinutesAgo,
+          lastSuccessfulPriceTimestamp: undefined,
+        };
+        const blockTimestamp = blockDatetime.getTime() / 1000;
+
+        await PriceOracle.refreshTokenPrice(
+          fetchedToken,
+          blockNumber,
+          blockTimestamp,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        expect(vi.mocked(mockContext.Token?.set)).not.toHaveBeenCalled();
+        expect(
+          vi.mocked(mockContext.TokenPriceSnapshot?.set),
+        ).not.toHaveBeenCalled();
+      });
+    });
+
     describe("Override path: blacklist + rebind (issue #669)", () => {
       // Issue #669: tokens whose on-chain oracle is structurally unusable get
       // either forced to 0 (blacklist) or copied from another chain's already-
@@ -2842,6 +2958,90 @@ describe("PriceOracle", () => {
           expect(snapshot?.pricePerUSDNew).toBe(expectedPrice);
         },
       );
+    });
+
+    // Issue #863 (audit follow-up to #822): the wall-clock E-2 check flags
+    // any whitelisted token whose latest TokenPriceSnapshot is > 2 h old.
+    // That shape is too loose: snapshots fire only on event-driven refresh
+    // ticks, so an inactive token legitimately has no fresh snapshot. The
+    // pair of tests below pins the two halves of the actual #822 contract
+    // — throttle skips snapshot, every event-driven tick on an active token
+    // writes one — so a future refactor that breaks either half is caught.
+    describe("Issue #863: snapshot cadence is per-tick, not wall-clock", () => {
+      const oneHourOneMinuteAgo = () =>
+        new Date(blockDatetime.getTime() - 61 * 60 * 1000);
+
+      beforeEach(() => {
+        vi.mocked(mockContext.Token?.set)?.mockClear();
+        vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mockClear();
+      });
+
+      it("a throttled refresh writes no snapshot — wall-clock gaps on idle tokens are not bugs", async () => {
+        // The throttle return is the spec's sole snapshot-free exit
+        // ("no tick occurred"). E-2's wall-clock probe will flag idle
+        // whitelisted tokens because of this, but that is by design — not
+        // an indexer bug to chase.
+        const thirtyMinutesAgo = new Date(
+          blockDatetime.getTime() - 30 * 60 * 1000,
+        );
+        await PriceOracle.refreshTokenPrice(
+          {
+            ...mockToken0Data,
+            pricePerUSDNew: 2n * 10n ** 18n,
+            lastUpdatedTimestamp: thirtyMinutesAgo,
+          },
+          blockNumber,
+          blockDatetime.getTime() / 1000,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        expect(
+          vi.mocked(mockContext.TokenPriceSnapshot?.set),
+        ).not.toHaveBeenCalled();
+      });
+
+      it("three event-driven refreshes spaced > 1 h apart produce three snapshots", async () => {
+        // Per-event positive case: an *active* token sees one snapshot per
+        // non-throttle tick. The TokenIdByBlock id uses the block number, so
+        // three distinct refreshes at three distinct blocks yield three
+        // distinct snapshot rows.
+        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
+          if ((effect as { name?: string }).name === "getTokenPrice") {
+            return { pricePerUSDNew: 2n * 10n ** 18n };
+          }
+          return {};
+        });
+        const baseTs = blockDatetime.getTime() / 1000;
+
+        let carry: Token = {
+          ...mockToken0Data,
+          pricePerUSDNew: 2n * 10n ** 18n,
+          lastUpdatedTimestamp: oneHourOneMinuteAgo(),
+          lastSuccessfulPriceTimestamp: oneHourOneMinuteAgo(),
+        };
+        // Three ticks, each > 1 h after the previous lastUpdatedTimestamp,
+        // each at a distinct block to exercise per-block snapshot IDs.
+        for (const offsetHours of [0, 2, 4]) {
+          carry = await PriceOracle.refreshTokenPrice(
+            carry,
+            blockNumber + offsetHours,
+            baseTs + offsetHours * 60 * 60,
+            chainId,
+            mockContext as handlerContext,
+          );
+        }
+
+        expect(
+          vi.mocked(mockContext.TokenPriceSnapshot?.set),
+        ).toHaveBeenCalledTimes(3);
+        // Each snapshot uses TokenIdByBlock — three distinct block numbers,
+        // three distinct ids, no per-block collision.
+        const ids = vi
+          .mocked(mockContext.TokenPriceSnapshot?.set)
+          ?.mock.calls.map(([snap]) => snap?.id);
+        expect(new Set(ids).size).toBe(3);
+      });
     });
   });
 });

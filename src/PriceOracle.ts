@@ -152,6 +152,14 @@ export async function createTokenEntity(
  *   with hourly retries. The fallback covers every oracle generation
  *   (#775 extended it from V3-only to V1/V2 too).
  *
+ * Issue #862: the throttle is bypassed for whitelisted tokens that have never
+ * recorded a successful price write (`isWhitelisted && !lastSuccessfulPriceTimestamp`).
+ * Without the bypass the first $0 read of a freshly-whitelisted token bumps
+ * `lastUpdatedTimestamp` and re-throttles every subsequent event in the same
+ * hour, leaving the token stuck at $0 for as long as the transient condition
+ * persists. The Envio effect cache amortises the extra attempts into one RPC
+ * per hourly block bucket per (chain, token).
+ *
  * When a caller supplies `impliedPriceHint` — a pool-implied USD price derived
  * from the counterparty leg's trusted price (see {@link getPoolImpliedUSD}) —
  * it acts as an independent ground-truth witness against a poisoned anchor:
@@ -193,11 +201,42 @@ export async function refreshTokenPrice(
   // `symbol && name` guard inside {@link healTokenMetadata}.
   const healed = await healTokenMetadata(token, chainId, context);
 
+  // Issue #862: heal-on-read for whitelisted tokens that have never recorded a
+  // successful price write. `isWhitelisted = true` is the protocol's promise of
+  // a reliable on-chain pricing route, so the invariant
+  // `isWhitelisted && lastSuccessfulPriceTimestamp == null` should never hold
+  // once the token has been observed. The throttle below bumps
+  // `lastUpdatedTimestamp` on every attempt (including $0 / fallback / reject
+  // ticks), so a whitelisted token whose very first refresh produced a $0 read
+  // (transient RPC, oracle not deployed, etc.) is otherwise re-throttled on
+  // every subsequent event in the same hour — and once the next hour lands the
+  // pattern can recur if the same transient condition still holds, leaving the
+  // token stuck. Bypassing the throttle on this exact shape (whitelisted AND
+  // never-successful) forces one extra refresh attempt per qualifying event
+  // until the gate finally clears; the Envio effect cache (hourly-rounded
+  // block bucket on `getTokenPrice`) absorbs the redundant work into one RPC
+  // per hour. Bounded by the count of stuck whitelisted tokens (~hundreds at
+  // worst — see audit), not the event firehose.
+  const forceRefreshForStuckWhitelisted =
+    healed.isWhitelisted && !healed.lastSuccessfulPriceTimestamp;
+
   // Issue #676: uniform 1-hour throttle for all tokens (regardless of current
   // price). RPC cost is bounded by the throttle plus Envio's hourly-rounded
   // effect cache key on `getTokenPrice`. Safe because we always bump
   // `lastUpdatedTimestamp` below, so the throttle advances even on $0 results.
+  //
+  // Issue #863 (audit cross-reference): `refreshTokenPrice` is invoked only
+  // from event handlers — `Aggregators/Pool.ts` (every Swap/Mint/Burn/Sync),
+  // `Voter.ts` / `VotingRewardSharedLogic.ts` (every reward event), and
+  // `CrossChainPendingResolution.ts`. There is no background ticker. A
+  // whitelisted token whose pools see no events for >1 h legitimately produces
+  // no new snapshot in that window — gaps measured against wall-clock time
+  // (the E-2 audit check) are NOT a contract violation unless the token
+  // *also* shows recent event activity (see also #862, where the upstream
+  // cause is the absence of a `refreshTokenPrice` call at all for some
+  // whitelisted-but-inactive tokens).
   const shouldRefresh =
+    forceRefreshForStuckWhitelisted ||
     !healed.lastUpdatedTimestamp ||
     blockTimestampMs - healed.lastUpdatedTimestamp.getTime() >= MS_IN_AN_HOUR;
 

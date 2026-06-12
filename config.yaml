@@ -3,6 +3,12 @@ name: Velodrome_v2
 description: Multi-chain indexer for Velodrome V2 on Optimism and Aerodrome on Base
 rollback_on_reorg: true
 raw_events: false
+# Docs: https://docs.envio.dev/docs/HyperIndex/configuration-file#storage
+storage:
+  postgres:
+    default: true
+  clickhouse:
+    default: true
 field_selection:
   transaction_fields:
     - "hash"
