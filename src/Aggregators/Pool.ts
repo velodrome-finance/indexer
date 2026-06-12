@@ -628,6 +628,16 @@ export async function updatePool(
     lastUpdatedTimestamp: timestamp,
   };
 
+  // Issue #857 (residual of #782): lockstep invariant — zero staked liquidity
+  // cannot have USD value. Mirror of the UserStatsPerPool clamp added in #792.
+  // On the gauge withdraw path, computeCLStakedReservesOnGaugeEvent early-returns
+  // {} (no poolStakedUSD) when tokenId is undefined, nfpmAddress is missing, or
+  // the position cannot be rehydrated, leaving the pool's USD companion sticky
+  // across a full unstake. Enforce on every write so no future caller can drift.
+  if (updated.currentLiquidityStaked === 0n) {
+    updated = { ...updated, currentLiquidityStakedUSD: 0n };
+  }
+
   // Snapshot only when we've entered a new epoch (hour); use epoch-aligned timestamp so we don't drift
   if (shouldSnapshot(current.lastSnapshotTimestamp, timestamp)) {
     // Only update dynamic fees for CL pools (they use dynamic fee modules)
