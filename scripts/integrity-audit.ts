@@ -160,6 +160,34 @@ async function gql<T>(
   throw new Error("gql: retries exhausted");
 }
 
+/**
+ * Read the indexer's most recently fully-processed block height for a chain.
+ *
+ * On-chain checks must pin RPC reads to this block (not chain head) so the
+ * indexer's stored reserves and the RPC's `getReserves()` are sampled at the
+ * same point in time. Without this pin, the V2_RESERVE_MISMATCH and
+ * CL_RESERVE_DRIFT flags become inherently racy on actively-indexed
+ * deployments — every Sync between the indexer's head and the chain's head
+ * looks like a "mismatch" (issue #853).
+ *
+ * @param url - GraphQL endpoint
+ * @param chainId - Chain id to look up
+ * @returns Latest processed block as bigint, or undefined when chain has no row
+ */
+export async function fetchLatestProcessedBlock(
+  url: string,
+  chainId: number,
+): Promise<bigint | undefined> {
+  const q = `query($chainId: Int!) {
+    chain_metadata(where: { chain_id: { _eq: $chainId } }) { latest_processed_block }
+  }`;
+  const data = await gql<{
+    chain_metadata: { latest_processed_block: number | string }[];
+  }>(url, q, { chainId });
+  const row = data.chain_metadata[0];
+  return row == null ? undefined : BigInt(row.latest_processed_block);
+}
+
 // ----------------------------------------------------------------------------
 // Concurrency helper
 // ----------------------------------------------------------------------------
@@ -728,11 +756,18 @@ function checkPoolInvariants(
   }
 }
 
-async function checkPoolOnchain(pool: PoolRow): Promise<void> {
+export async function checkPoolOnchain(
+  pool: PoolRow,
+  latestProcessedBlock: bigint | undefined,
+): Promise<void> {
   const chain = CHAIN_CONSTANTS[pool.chainId];
   if (!chain) return;
   const client = chain.eth_client;
   const addr = pool.poolAddress as `0x${string}`;
+  // Pin all RPC reads to the indexer's last fully-processed block (#853) so
+  // the indexer's stored state and the RPC view sample the same point in
+  // time; otherwise active pools always look "out of sync".
+  const blockNumber = latestProcessedBlock;
 
   try {
     if (!pool.isCL) {
@@ -741,6 +776,7 @@ async function checkPoolOnchain(pool: PoolRow): Promise<void> {
         address: addr,
         abi: POOL_ABI,
         functionName: "getReserves",
+        blockNumber,
       })) as readonly [bigint, bigint, bigint];
       const [r0, r1] = result;
       const storedR0 = asBigInt(pool.reserve0);
@@ -754,7 +790,7 @@ async function checkPoolOnchain(pool: PoolRow): Promise<void> {
           entityId: pool.id,
           newValue: `${storedR0},${storedR1}`,
           onchain: `${r0},${r1}`,
-          note: "V2 reserves diverge from getReserves() at latest block",
+          note: "V2 reserves diverge from getReserves() at indexer's latest processed block",
         });
       }
       return;
@@ -769,12 +805,14 @@ async function checkPoolOnchain(pool: PoolRow): Promise<void> {
         abi: ERC20_BALANCEOF,
         functionName: "balanceOf",
         args: [addr],
+        blockNumber,
       }) as Promise<bigint>,
       client.readContract({
         address: pool.token1_address as `0x${string}`,
         abi: ERC20_BALANCEOF,
         functionName: "balanceOf",
         args: [addr],
+        blockNumber,
       }) as Promise<bigint>,
     ]);
     const expected0 = bal0 - asBigInt(pool.totalStakedFeesCollected0);
@@ -1241,6 +1279,9 @@ function indexById<T extends { id: string }>(rows: T[]): Map<string, T> {
 }
 
 async function main(): Promise<void> {
+  // Defensive — the CLI entry below also checks NEW_URL, but main() needs the
+  // narrow-to-string for the per-chain GraphQL helpers downstream.
+  if (!NEW_URL) throw new Error("NEW_GRAPHQL_URL is required");
   process.stderr.write(`OLD: ${OLD_URL}\n`);
   process.stderr.write(`NEW: ${NEW_URL}\n`);
 
@@ -1341,18 +1382,25 @@ async function main(): Promise<void> {
       checkPoolInvariants(p, undefined, "OLD");
     }
 
-    // On-chain checks for NEW pools (subset: 10 V2 + 10 CL static-fee)
+    // On-chain checks for NEW pools (subset: 10 V2 + 10 CL static-fee).
+    // Pin RPC reads to the indexer's latest_processed_block (#853): without
+    // this pin, every Sync between the indexer's head and the chain's head
+    // surfaces as a false-positive V2_RESERVE_MISMATCH / CL_RESERVE_DRIFT.
     const v2Sample = newPools.filter((p) => !p.isCL).slice(0, 10);
     const clStaticSample = newPools
       .filter((p) => p.isCL && p.feeCap == null)
       .slice(0, 10);
     const onchainSample = [...v2Sample, ...clStaticSample];
     if (onchainSample.length > 0) {
+      const latestProcessedBlock = await fetchLatestProcessedBlock(
+        NEW_URL,
+        chainId,
+      );
       process.stderr.write(
-        `  on-chain check (${onchainSample.length} pools)...\n`,
+        `  on-chain check (${onchainSample.length} pools @ block ${latestProcessedBlock ?? "head"})...\n`,
       );
       await mapConcurrent(onchainSample, 5, async (p) => {
-        await checkPoolOnchain(p);
+        await checkPoolOnchain(p, latestProcessedBlock);
       });
     }
 
