@@ -72,7 +72,7 @@ The indexer tracks these protocol domains, each with its own event handlers:
 
 ## Storage
 
-Dual-write Postgres + ClickHouse is enabled. The `storage:` block in `config.yaml` declares both backends and every entity in `schema.graphql` carries `@storage(postgres: true, clickhouse: true)` (envio requires explicit per-entity routing whenever two backends are enabled).
+Dual-write Postgres + ClickHouse is enabled. The `storage:` block in `config.yaml` marks both backends with `default: true`, so every entity in `schema.graphql` is auto-routed to both — no `@storage` annotation is needed unless you want to override the default routing for a specific entity. (Requires envio ≥ 3.2.0.)
 
 ClickHouse env vars (Envio Hosted ClickHouse in production, placeholders in `.env.example`):
 
