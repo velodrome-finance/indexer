@@ -301,6 +301,170 @@ describe("PoolTransferLogic", () => {
         TIMESTAMP_DATE,
       );
     });
+
+    // Regression: issue #850. Without the gauge-address filter, depositing
+    // (Transfer from USER → GAUGE) or withdrawing (GAUGE → USER) LP tokens
+    // would create a phantom UserStatsPerPool row keyed on the gauge contract
+    // with `lpBalance > 0` and `totalLiquidityAdded* = 0`. Per-user stake
+    // accounting already happens via Gauge.Deposit/Withdraw — the gauge is
+    // not a user.
+    describe("gauge filtering (#850)", () => {
+      const GAUGE_ADDRESS = toChecksumAddress(
+        "0x4444444444444444444444444444444444444444",
+      );
+
+      it("should skip the recipient when MINT credits the gauge", async () => {
+        await updateUserLpBalances(
+          true, // isMint
+          false, // isBurn
+          ZERO_ADDRESS,
+          GAUGE_ADDRESS, // mint-to-gauge edge case
+          LP_VALUE,
+          POOL_ADDRESS,
+          CHAIN_ID,
+          mockContext,
+          TIMESTAMP_DATE,
+          GAUGE_ADDRESS,
+        );
+
+        expect(loadOrCreateUserDataSpy).not.toHaveBeenCalled();
+        expect(updateUserStatsPerPoolSpy).not.toHaveBeenCalled();
+      });
+
+      it("should skip the sender when BURN debits the gauge", async () => {
+        await updateUserLpBalances(
+          false, // isMint
+          true, // isBurn
+          GAUGE_ADDRESS, // burn-from-gauge edge case
+          ZERO_ADDRESS,
+          LP_VALUE,
+          POOL_ADDRESS,
+          CHAIN_ID,
+          mockContext,
+          TIMESTAMP_DATE,
+          GAUGE_ADDRESS,
+        );
+
+        expect(loadOrCreateUserDataSpy).not.toHaveBeenCalled();
+        expect(updateUserStatsPerPoolSpy).not.toHaveBeenCalled();
+      });
+
+      it("should update only the user (not the gauge) when staking: USER -> GAUGE", async () => {
+        await updateUserLpBalances(
+          false, // isMint
+          false, // isBurn
+          USER_ADDRESS,
+          GAUGE_ADDRESS, // stake: user transfers LP to gauge
+          LP_VALUE,
+          POOL_ADDRESS,
+          CHAIN_ID,
+          mockContext,
+          TIMESTAMP_DATE,
+          GAUGE_ADDRESS,
+        );
+
+        expect(loadOrCreateUserDataSpy).toHaveBeenCalledTimes(1);
+        expect(loadOrCreateUserDataSpy).toHaveBeenCalledWith(
+          USER_ADDRESS,
+          POOL_ADDRESS,
+          CHAIN_ID,
+          mockContext,
+          TIMESTAMP_DATE,
+        );
+        expect(updateUserStatsPerPoolSpy).toHaveBeenCalledTimes(1);
+        expect(updateUserStatsPerPoolSpy).toHaveBeenCalledWith(
+          expect.objectContaining({ incrementalLpBalance: -LP_VALUE }),
+          expect.anything(),
+          mockContext,
+          TIMESTAMP_DATE,
+        );
+      });
+
+      it("should update only the user (not the gauge) when unstaking: GAUGE -> USER", async () => {
+        await updateUserLpBalances(
+          false, // isMint
+          false, // isBurn
+          GAUGE_ADDRESS, // unstake: gauge transfers LP back to user
+          USER_ADDRESS,
+          LP_VALUE,
+          POOL_ADDRESS,
+          CHAIN_ID,
+          mockContext,
+          TIMESTAMP_DATE,
+          GAUGE_ADDRESS,
+        );
+
+        expect(loadOrCreateUserDataSpy).toHaveBeenCalledTimes(1);
+        expect(loadOrCreateUserDataSpy).toHaveBeenCalledWith(
+          USER_ADDRESS,
+          POOL_ADDRESS,
+          CHAIN_ID,
+          mockContext,
+          TIMESTAMP_DATE,
+        );
+        expect(updateUserStatsPerPoolSpy).toHaveBeenCalledTimes(1);
+        expect(updateUserStatsPerPoolSpy).toHaveBeenCalledWith(
+          expect.objectContaining({ incrementalLpBalance: LP_VALUE }),
+          expect.anything(),
+          mockContext,
+          TIMESTAMP_DATE,
+        );
+      });
+
+      it("should skip a self-transfer when both sides are the gauge", async () => {
+        await updateUserLpBalances(
+          false, // isMint
+          false, // isBurn
+          GAUGE_ADDRESS,
+          GAUGE_ADDRESS,
+          LP_VALUE,
+          POOL_ADDRESS,
+          CHAIN_ID,
+          mockContext,
+          TIMESTAMP_DATE,
+          GAUGE_ADDRESS,
+        );
+
+        expect(loadOrCreateUserDataSpy).not.toHaveBeenCalled();
+        expect(updateUserStatsPerPoolSpy).not.toHaveBeenCalled();
+      });
+
+      it("should still update both sides on a regular transfer when neither side is the gauge", async () => {
+        await updateUserLpBalances(
+          false, // isMint
+          false, // isBurn
+          USER_ADDRESS,
+          RECIPIENT_ADDRESS,
+          LP_VALUE,
+          POOL_ADDRESS,
+          CHAIN_ID,
+          mockContext,
+          TIMESTAMP_DATE,
+          GAUGE_ADDRESS,
+        );
+
+        expect(loadOrCreateUserDataSpy).toHaveBeenCalledTimes(2);
+        expect(updateUserStatsPerPoolSpy).toHaveBeenCalledTimes(2);
+      });
+
+      it("should preserve current behaviour when gaugeAddress is undefined (no gauge wired yet)", async () => {
+        await updateUserLpBalances(
+          false, // isMint
+          false, // isBurn
+          USER_ADDRESS,
+          RECIPIENT_ADDRESS,
+          LP_VALUE,
+          POOL_ADDRESS,
+          CHAIN_ID,
+          mockContext,
+          TIMESTAMP_DATE,
+          undefined,
+        );
+
+        expect(loadOrCreateUserDataSpy).toHaveBeenCalledTimes(2);
+        expect(updateUserStatsPerPoolSpy).toHaveBeenCalledTimes(2);
+      });
+    });
   });
 
   describe("storeTransferForMatching", () => {
@@ -471,6 +635,49 @@ describe("PoolTransferLogic", () => {
       );
 
       expect(updateUserStatsPerPoolSpy).toHaveBeenCalledTimes(2); // Both sender and recipient
+      expect(mockContext.PoolTransferInTx.set).not.toHaveBeenCalled();
+    });
+
+    // Regression: issue #850. End-to-end check that a gauge-stake Transfer
+    // (USER → GAUGE) routed through processPoolTransfer threads the pool's
+    // gaugeAddress into updateUserLpBalances and only credits the user.
+    it("should skip the gauge side when processing a stake Transfer (USER -> GAUGE) [#850]", async () => {
+      const GAUGE_ADDRESS = toChecksumAddress(
+        "0x4444444444444444444444444444444444444444",
+      );
+      const event = createMockTransferEvent(
+        USER_ADDRESS,
+        GAUGE_ADDRESS,
+        LP_VALUE,
+      );
+
+      await processPoolTransfer(
+        event,
+        { ...mockPool, gaugeAddress: GAUGE_ADDRESS },
+        POOL_ADDRESS,
+        CHAIN_ID,
+        mockContext,
+        TIMESTAMP_DATE,
+      );
+
+      // Pool totalLPTokenSupply is not touched on regular transfers.
+      expect(updatePoolSpy).not.toHaveBeenCalled();
+      // Only the user side is credited; the gauge side is skipped.
+      expect(loadOrCreateUserDataSpy).toHaveBeenCalledTimes(1);
+      expect(loadOrCreateUserDataSpy).toHaveBeenCalledWith(
+        USER_ADDRESS,
+        POOL_ADDRESS,
+        CHAIN_ID,
+        mockContext,
+        TIMESTAMP_DATE,
+      );
+      expect(updateUserStatsPerPoolSpy).toHaveBeenCalledTimes(1);
+      expect(updateUserStatsPerPoolSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ incrementalLpBalance: -LP_VALUE }),
+        expect.anything(),
+        mockContext,
+        TIMESTAMP_DATE,
+      );
       expect(mockContext.PoolTransferInTx.set).not.toHaveBeenCalled();
     });
   });
