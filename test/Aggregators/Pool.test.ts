@@ -748,6 +748,13 @@ describe("Pool Functions", () => {
           {
             ...(liquidityPoolAggregator as Pool),
             isCL: true,
+            // reserve0/1 set above stakedReserve0/1 to satisfy the #854
+            // upper-bound invariant (staked is a subset of total); without
+            // this the new OVER_STAKED_RESERVE_GUARD would clamp the
+            // unrelated stakedReserve1 down to 0 and mask the lower-bound
+            // assertion under test.
+            reserve0: 10_000n,
+            reserve1: 10_000n,
             stakedReserve0: 50n,
             stakedReserve1: 1000n,
             lastSnapshotTimestamp: sameEpochAsTimestamp(),
@@ -784,6 +791,10 @@ describe("Pool Functions", () => {
           {
             ...(liquidityPoolAggregator as Pool),
             isCL: true,
+            // reserve0/1 set above stakedReserve0/1 to satisfy the #854
+            // upper-bound invariant; see sibling test for rationale.
+            reserve0: 10_000n,
+            reserve1: 10_000n,
             stakedReserve0: 1000n,
             stakedReserve1: 50n,
             lastSnapshotTimestamp: sameEpochAsTimestamp(),
@@ -813,6 +824,10 @@ describe("Pool Functions", () => {
           {
             ...(liquidityPoolAggregator as Pool),
             isCL: true,
+            // reserve0/1 set above stakedReserve0/1 to satisfy the #854
+            // upper-bound invariant; see sibling tests for rationale.
+            reserve0: 10_000n,
+            reserve1: 10_000n,
             stakedReserve0: 100n,
             stakedReserve1: 100n,
             lastSnapshotTimestamp: sameEpochAsTimestamp(),
@@ -1041,6 +1056,99 @@ describe("Pool Functions", () => {
         expect(lastSet().stakedReserve0).toBe(0n);
         expect(negStakedReserveGuardLogs("info").length).toBe(1);
         expect(negStakedReserveGuardLogs("warn").length).toBe(0);
+      });
+    });
+
+    // Regression test for issue #854: stakedReserve0/1 must never exceed
+    // reserve0/1 (staked is a subset of total). The total-reserve and
+    // staked-reserve accumulators run independent `divRoundNearest`
+    // per-segment passes — over the pool's full tick map (#803) and the
+    // staked-only map (#666) respectively — so their wei-scale rounding
+    // residues can leave `stakedReserve_i > reserve_i` on full-drain swaps.
+    // The upper-bound clamp at the accumulator path clamps
+    // `stakedReserve_i = min(stakedReserve_i, reserve_i)` and emits
+    // [OVER_STAKED_RESERVE_GUARD] with the same USD-magnitude log-level
+    // split as the lower-bound clamp (#771 / #802).
+    describe("over-staked reserve clamp guard (issue #854)", () => {
+      const sameEpochAsTimestamp = () => timestamp;
+
+      const overStakedReserveGuardLogs = (level: "warn" | "info") => {
+        const mock = vi.mocked(mockContext.log?.[level]);
+        const calls = mock?.mock.calls ?? [];
+        return calls.filter((args) =>
+          String(args[0] ?? "").includes("[OVER_STAKED_RESERVE_GUARD]"),
+        );
+      };
+
+      const lastSet = (): Pool => {
+        const setMock = vi.mocked(mockContext.Pool?.set);
+        return setMock?.mock.lastCall?.[0] as Pool;
+      };
+
+      it("clamps stakedReserve1 to reserve1 when wei-scale rounding leaves staked > total (reproduces 10-0x844B drift)", async () => {
+        // Field values lifted from the deployed-indexer snapshot reported in
+        // #854 (10-0x844BdA8C…): reserve1=1.8e22, stakedReserve1 drifts ~3.9e15
+        // above it. With a 0-delta update the upper-bound clamp must pull
+        // stakedReserve1 back down to reserve1, matching the on-chain invariant.
+        const reserve1 = 18425260124867999206688n;
+        const priorStakedReserve1 = 18425264052148983809444n;
+        await updatePool(
+          {},
+          {
+            ...(liquidityPoolAggregator as Pool),
+            isCL: true,
+            reserve0: 24670167986310698043n,
+            reserve1,
+            stakedReserve0: 24492612720183636798n,
+            stakedReserve1: priorStakedReserve1,
+            lastSnapshotTimestamp: sameEpochAsTimestamp(),
+            lastUpdatedTimestamp: sameEpochAsTimestamp(),
+          },
+          timestamp,
+          mockContext as handlerContext,
+          8453,
+          blockNumber,
+        );
+
+        // Invariant restored: staked ≤ total on both legs.
+        expect(lastSet().stakedReserve1).toBe(reserve1);
+        expect(lastSet().stakedReserve0).toBeLessThanOrEqual(
+          lastSet().reserve0,
+        );
+        // Single guard fires (token unpriced → safe-degrade to info per #802).
+        const infoLogs = overStakedReserveGuardLogs("info");
+        expect(infoLogs.length).toBe(1);
+        expect(overStakedReserveGuardLogs("warn").length).toBe(0);
+        const msg = String(infoLogs[0]?.[0] ?? "");
+        expect(msg).toContain("stakedReserve1");
+        expect(msg).toContain(`priorStakedReserve=${priorStakedReserve1}`);
+        expect(msg).toContain(`reserve=${reserve1}`);
+        expect(msg).toContain(`clampedTo=${reserve1}`);
+      });
+
+      it("does not clamp or log when stakedReserves stay <= reserves", async () => {
+        await updatePool(
+          {},
+          {
+            ...(liquidityPoolAggregator as Pool),
+            isCL: true,
+            reserve0: 1000n,
+            reserve1: 1000n,
+            stakedReserve0: 500n,
+            stakedReserve1: 800n,
+            lastSnapshotTimestamp: sameEpochAsTimestamp(),
+            lastUpdatedTimestamp: sameEpochAsTimestamp(),
+          },
+          timestamp,
+          mockContext as handlerContext,
+          8453,
+          blockNumber,
+        );
+
+        expect(lastSet().stakedReserve0).toBe(500n);
+        expect(lastSet().stakedReserve1).toBe(800n);
+        expect(overStakedReserveGuardLogs("warn").length).toBe(0);
+        expect(overStakedReserveGuardLogs("info").length).toBe(0);
       });
     });
 
