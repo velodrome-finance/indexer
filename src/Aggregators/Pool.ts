@@ -421,6 +421,22 @@ export async function updatePool(
     );
   }
 
+  // Clamp totalLiquidityUSD to >= 0n at the accumulator path (issue #856).
+  // CL Swap/Burn producers compute currentTotalLiquidityUSD from a synthetic
+  // running newReserve0/1 (current ± delta) BEFORE the reserve clamp above,
+  // so wei-scale tick-crossing drift can briefly drive that sum negative even
+  // though reserves themselves end up clamped to 0n. The negative residue
+  // then propagates into totalLiquidityUSD on write. Mirrors the reserve
+  // clamp shape — clamp-and-log, never persist a negative.
+  const tluReplacement =
+    diff.currentTotalLiquidityUSD ?? current.totalLiquidityUSD;
+  const clampedTotalLiquidityUSD = tluReplacement < 0n ? 0n : tluReplacement;
+  if (tluReplacement < 0n) {
+    context.log.warn(
+      `[NEG_TLU_GUARD][updatePool] field=totalLiquidityUSD poolAddress=${current.poolAddress} chainId=${current.chainId} priorTLU=${current.totalLiquidityUSD} replacement=${tluReplacement} clampedTo=${clampedTotalLiquidityUSD}`,
+    );
+  }
+
   // Clamp stakedLiquidityInRange to >= 0n at the accumulator path (issue #719).
   // The structural fix at the three writer sites derives this field from edge
   // state on every update; this tactical clamp is the belt-and-suspenders that
@@ -517,8 +533,7 @@ export async function updatePool(
     reserve1: clampedReserve1,
     totalLPTokenSupply:
       (diff.incrementalTotalLPSupply ?? 0n) + current.totalLPTokenSupply,
-    totalLiquidityUSD:
-      diff.currentTotalLiquidityUSD ?? current.totalLiquidityUSD,
+    totalLiquidityUSD: clampedTotalLiquidityUSD,
     totalVolume0: (diff.incrementalTotalVolume0 ?? 0n) + current.totalVolume0,
     totalVolume1: (diff.incrementalTotalVolume1 ?? 0n) + current.totalVolume1,
     totalVolumeUSD:
