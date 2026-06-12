@@ -60,9 +60,14 @@ const NEG_TLU_EXEMPT: ReadonlySet<string> = new Set([
   `8453-${toChecksumAddress("0x8Eea4BC2c84167ECF54Bef4d0bbd7eD0CE558686")}`,
 ]);
 
-// Base NFPM at the centre of the #795 indexing-gap fix.
+// Base NFPM at the centre of the #795 indexing-gap fix. This is the real
+// on-chain NFPM paired with CLFactory 0x9592CD9B…d51B ("Another CL") — same
+// address registered in config.yaml's Base NFPM block and CL_FACTORY_TO_NFPM
+// (src/Constants.ts). Previously this constant held an unrelated dead address
+// (no bytecode on Base), which caused the probe to always report 0 rows and
+// fire a false-positive [BASE_NFPM_GAP_795] regression (#858).
 const BASE_NFPM_795 = toChecksumAddress(
-  "0xc741beb2Bd293f8acfA8d4D02B58FB22a6d8aF54",
+  "0xc741beb2156827704A1466575ccA1cBf726a1178",
 );
 
 // Metal Hyperlane domain that should map to chainId 1750 (#811).
