@@ -36,13 +36,11 @@ const ABIS = join(__dirname, "..", "abis");
 const OLD_URL =
   process.env.OLD_GRAPHQL_URL ??
   "https://indexer.us.hyperindex.xyz/e38a72a/v1/graphql";
-const NEW_URL = process.env.NEW_GRAPHQL_URL;
-if (!NEW_URL) {
-  console.error(
-    "NEW_GRAPHQL_URL is required (set OLD_GRAPHQL_URL to override the c9b8978 default).",
-  );
-  process.exit(1);
-}
+// `?? ""` keeps the binding `string`-typed for the rest of the module so the
+// script body type-checks. The empty string is only ever reached when the
+// module is imported (e.g. by tests), and the script-mode entry point below
+// runs an explicit non-empty check before invoking main().
+const NEW_URL: string = process.env.NEW_GRAPHQL_URL ?? "";
 
 const CHAIN_IDS = [
   10, 8453, 34443, 1135, 252, 1750, 1868, 57073, 130, 42220, 1923, 5330,
@@ -287,7 +285,7 @@ const POOL_FIELDS_NEW_ONLY = `
   tickEdges tickEdgeNets stakedTickEdges stakedTickEdgeNets
 `;
 
-type TokenRow = {
+export type TokenRow = {
   id: string;
   chainId: number;
   address: string;
@@ -840,6 +838,34 @@ function absBI(x: bigint): bigint {
 const PRICE_CEILING_1M = 10n ** 24n; // $1M scaled by 1e18
 const PRICE_INFLATED = 10n ** 28n;
 
+/**
+ * Returns true when a whitelisted token's persisted price-trust fields
+ * disagree with the two-tier gate's correct outcome (#761/#855).
+ *
+ * Per the gate (#755, src/PriceTrust.ts): WL && !BLACKLISTED ⇒ TRUSTED;
+ * WL && BLACKLISTED ⇒ UNTRUSTED/BLACKLISTED is the correct intentional
+ * outcome (operator override for WL'd tokens with broken oracles). Drift
+ * is only present when a WL token is UNTRUSTED for a non-BLACKLISTED
+ * reason. Non-whitelisted tokens, and rows with no persisted outcome yet,
+ * never count as drift.
+ *
+ * @param tok - Token row from the audit's GraphQL query
+ * @returns true when the row violates the lockstep invariant
+ */
+export function hasWhitelistTrustDrift(
+  tok: Pick<
+    TokenRow,
+    "isWhitelisted" | "priceTrustOutcome" | "priceTrustReason"
+  >,
+): boolean {
+  if (!tok.isWhitelisted) return false;
+  if (tok.priceTrustOutcome == null) return false;
+  const isTrusted =
+    tok.priceTrustOutcome === "trusted" || tok.priceTrustOutcome === "TRUSTED";
+  if (isTrusted) return false;
+  return tok.priceTrustReason !== "BLACKLISTED";
+}
+
 function checkTokenInvariants(
   tok: TokenRow,
   oldTok: TokenRow | undefined,
@@ -871,22 +897,16 @@ function checkTokenInvariants(
   }
 
   // priceTrustOutcome lockstep with isWhitelisted (#761).
-  // Whitelisted tokens must be trusted; non-whitelisted may be trusted or not.
-  if (tok.isWhitelisted && tok.priceTrustOutcome != null) {
-    if (
-      tok.priceTrustOutcome !== "trusted" &&
-      tok.priceTrustOutcome !== "TRUSTED"
-    ) {
-      record({
-        flag: "[WHITELIST_TRUST_DRIFT]",
-        classification: "NEW_REGRESSION",
-        entity: ent,
-        chainId: tok.chainId,
-        entityId: tok.id,
-        newValue: tok.priceTrustOutcome,
-        note: "Whitelisted but priceTrustOutcome != trusted (#761)",
-      });
-    }
+  if (hasWhitelistTrustDrift(tok)) {
+    record({
+      flag: "[WHITELIST_TRUST_DRIFT]",
+      classification: "NEW_REGRESSION",
+      entity: ent,
+      chainId: tok.chainId,
+      entityId: tok.id,
+      newValue: `${tok.priceTrustOutcome}/${tok.priceTrustReason ?? "null"}`,
+      note: "Whitelisted but priceTrustOutcome != trusted and reason != BLACKLISTED (#761)",
+    });
   }
 
   // priceTrustOutcome should be non-null. We can't reliably detect "pre-field"
@@ -1428,9 +1448,22 @@ async function main(): Promise<void> {
   process.stdout.write("\n");
 }
 
-main().catch((err) => {
-  process.stderr.write(
-    `\nFATAL: ${err instanceof Error ? err.stack : String(err)}\n`,
-  );
-  process.exit(1);
-});
+// Run main() only when invoked as a script, not when imported by tests.
+// Importing the module merely exposes the pure helpers (hasWhitelistTrustDrift,
+// TokenRow, etc.) without firing the audit pipeline.
+const isInvokedAsScript =
+  process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
+if (isInvokedAsScript) {
+  if (NEW_URL === "") {
+    console.error(
+      "NEW_GRAPHQL_URL is required (set OLD_GRAPHQL_URL to override the c9b8978 default).",
+    );
+    process.exit(1);
+  }
+  main().catch((err) => {
+    process.stderr.write(
+      `\nFATAL: ${err instanceof Error ? err.stack : String(err)}\n`,
+    );
+    process.exit(1);
+  });
+}
