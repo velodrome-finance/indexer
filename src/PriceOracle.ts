@@ -224,6 +224,17 @@ export async function refreshTokenPrice(
   // price). RPC cost is bounded by the throttle plus Envio's hourly-rounded
   // effect cache key on `getTokenPrice`. Safe because we always bump
   // `lastUpdatedTimestamp` below, so the throttle advances even on $0 results.
+  //
+  // Issue #863 (audit cross-reference): `refreshTokenPrice` is invoked only
+  // from event handlers — `Aggregators/Pool.ts` (every Swap/Mint/Burn/Sync),
+  // `Voter.ts` / `VotingRewardSharedLogic.ts` (every reward event), and
+  // `CrossChainPendingResolution.ts`. There is no background ticker. A
+  // whitelisted token whose pools see no events for >1 h legitimately produces
+  // no new snapshot in that window — gaps measured against wall-clock time
+  // (the E-2 audit check) are NOT a contract violation unless the token
+  // *also* shows recent event activity (see also #862, where the upstream
+  // cause is the absence of a `refreshTokenPrice` call at all for some
+  // whitelisted-but-inactive tokens).
   const shouldRefresh =
     forceRefreshForStuckWhitelisted ||
     !healed.lastUpdatedTimestamp ||

@@ -2959,5 +2959,89 @@ describe("PriceOracle", () => {
         },
       );
     });
+
+    // Issue #863 (audit follow-up to #822): the wall-clock E-2 check flags
+    // any whitelisted token whose latest TokenPriceSnapshot is > 2 h old.
+    // That shape is too loose: snapshots fire only on event-driven refresh
+    // ticks, so an inactive token legitimately has no fresh snapshot. The
+    // pair of tests below pins the two halves of the actual #822 contract
+    // — throttle skips snapshot, every event-driven tick on an active token
+    // writes one — so a future refactor that breaks either half is caught.
+    describe("Issue #863: snapshot cadence is per-tick, not wall-clock", () => {
+      const oneHourOneMinuteAgo = () =>
+        new Date(blockDatetime.getTime() - 61 * 60 * 1000);
+
+      beforeEach(() => {
+        vi.mocked(mockContext.Token?.set)?.mockClear();
+        vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mockClear();
+      });
+
+      it("a throttled refresh writes no snapshot — wall-clock gaps on idle tokens are not bugs", async () => {
+        // The throttle return is the spec's sole snapshot-free exit
+        // ("no tick occurred"). E-2's wall-clock probe will flag idle
+        // whitelisted tokens because of this, but that is by design — not
+        // an indexer bug to chase.
+        const thirtyMinutesAgo = new Date(
+          blockDatetime.getTime() - 30 * 60 * 1000,
+        );
+        await PriceOracle.refreshTokenPrice(
+          {
+            ...mockToken0Data,
+            pricePerUSDNew: 2n * 10n ** 18n,
+            lastUpdatedTimestamp: thirtyMinutesAgo,
+          },
+          blockNumber,
+          blockDatetime.getTime() / 1000,
+          chainId,
+          mockContext as handlerContext,
+        );
+
+        expect(
+          vi.mocked(mockContext.TokenPriceSnapshot?.set),
+        ).not.toHaveBeenCalled();
+      });
+
+      it("three event-driven refreshes spaced > 1 h apart produce three snapshots", async () => {
+        // Per-event positive case: an *active* token sees one snapshot per
+        // non-throttle tick. The TokenIdByBlock id uses the block number, so
+        // three distinct refreshes at three distinct blocks yield three
+        // distinct snapshot rows.
+        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
+          if ((effect as { name?: string }).name === "getTokenPrice") {
+            return { pricePerUSDNew: 2n * 10n ** 18n };
+          }
+          return {};
+        });
+        const baseTs = blockDatetime.getTime() / 1000;
+
+        let carry: Token = {
+          ...mockToken0Data,
+          pricePerUSDNew: 2n * 10n ** 18n,
+          lastUpdatedTimestamp: oneHourOneMinuteAgo(),
+          lastSuccessfulPriceTimestamp: oneHourOneMinuteAgo(),
+        };
+        // Three ticks, each > 1 h after the previous lastUpdatedTimestamp,
+        // each at a distinct block to exercise per-block snapshot IDs.
+        for (const offsetHours of [0, 2, 4]) {
+          carry = await PriceOracle.refreshTokenPrice(
+            carry,
+            blockNumber + offsetHours,
+            baseTs + offsetHours * 60 * 60,
+            chainId,
+            mockContext as handlerContext,
+          );
+        }
+
+        expect(
+          vi.mocked(mockContext.TokenPriceSnapshot?.set),
+        ).toHaveBeenCalledTimes(3);
+        // Each snapshot uses TokenIdByBlock — three distinct block numbers,
+        // three distinct ids, no per-block collision.
+        const ids = vi
+          .mocked(mockContext.TokenPriceSnapshot?.set)
+          ?.mock.calls.map(([snap]) => snap?.id);
+        expect(new Set(ids).size).toBe(3);
+      });
+    });
   });
 });
