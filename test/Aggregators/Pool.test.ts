@@ -1224,6 +1224,78 @@ describe("Pool Functions", () => {
       });
     });
 
+    // Regression test for issue #856: totalLiquidityUSD must never persist
+    // negative. CL Swap/Burn handlers compute currentTotalLiquidityUSD from a
+    // synthetic newReserve0/1 = current ± delta BEFORE the reserve clamp at
+    // the accumulator path, so wei-scale tick-crossing drift (or a Burn that
+    // exceeds the cumulative Mint) can produce a sub-cent negative USD even
+    // though the reserves themselves end up at 0n. The aggregator clamps
+    // totalLiquidityUSD to >= 0n and emits [NEG_TLU_GUARD] with
+    // {poolAddress, chainId, priorTLU, replacement, clampedTo}.
+    describe("negative totalLiquidityUSD clamp guard (issue #856)", () => {
+      const sameEpochAsTimestamp = () => timestamp;
+
+      const negTluGuardLogs = () => {
+        const warnMock = vi.mocked(mockContext.log?.warn);
+        const calls = warnMock?.mock.calls ?? [];
+        return calls.filter((args) =>
+          String(args[0] ?? "").includes("[NEG_TLU_GUARD]"),
+        );
+      };
+
+      const lastSet = (): Pool => {
+        const setMock = vi.mocked(mockContext.Pool?.set);
+        return setMock?.mock.lastCall?.[0] as Pool;
+      };
+
+      it("clamps totalLiquidityUSD to 0n and logs guard when diff supplies a sub-cent negative", async () => {
+        // Mirrors the 2 Fraxtal CL pools reported in #856: the producer
+        // computed currentTotalLiquidityUSD from a pre-clamp newReserve that
+        // briefly went negative, leaking a tiny negative residue here.
+        await updatePool(
+          { currentTotalLiquidityUSD: -20970n },
+          {
+            ...(liquidityPoolAggregator as Pool),
+            isCL: true,
+            totalLiquidityUSD: 0n,
+            lastSnapshotTimestamp: sameEpochAsTimestamp(),
+            lastUpdatedTimestamp: sameEpochAsTimestamp(),
+          },
+          timestamp,
+          mockContext as handlerContext,
+          252,
+          blockNumber,
+        );
+
+        expect(lastSet().totalLiquidityUSD).toBe(0n);
+        const logs = negTluGuardLogs();
+        expect(logs.length).toBe(1);
+        const msg = String(logs[0]?.[0] ?? "");
+        expect(msg).toContain("totalLiquidityUSD");
+        expect(msg).toContain("replacement=-20970");
+        expect(msg).toContain("clampedTo=0");
+      });
+
+      it("does not clamp or log when currentTotalLiquidityUSD is zero or positive", async () => {
+        await updatePool(
+          { currentTotalLiquidityUSD: 5000n },
+          {
+            ...(liquidityPoolAggregator as Pool),
+            totalLiquidityUSD: 0n,
+            lastSnapshotTimestamp: sameEpochAsTimestamp(),
+            lastUpdatedTimestamp: sameEpochAsTimestamp(),
+          },
+          timestamp,
+          mockContext as handlerContext,
+          8453,
+          blockNumber,
+        );
+
+        expect(lastSet().totalLiquidityUSD).toBe(5000n);
+        expect(negTluGuardLogs().length).toBe(0);
+      });
+    });
+
     // Regression test for issue #719: stakedLiquidityInRange must never
     // persist negative. Mirrors the #702 reserve-clamp shape but for the
     // staked-in-range field. The aggregator emits [NEG_STAKED_LIQ_GUARD]
