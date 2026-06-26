@@ -3,7 +3,7 @@ import type { PoolDiff } from "../../Aggregators/Pool";
 import { CLPositionPendingPrincipalId } from "../../Constants";
 import type { handlerContext } from "../../EntityTypes";
 import type { Pool } from "../../EntityTypes";
-import { calculateTotalUSD } from "../../Helpers";
+import { calculateLiquidityUSD } from "../../Helpers";
 
 export interface CLPoolBurnResult {
   liquidityPoolDiff: Partial<PoolDiff>;
@@ -40,11 +40,16 @@ export async function processCLPoolBurn(
   // until collect(), but are no longer part of any LP position's liquidity).
   const newReserve0 = liquidityPoolAggregator.reserve0 - event.params.amount0;
   const newReserve1 = liquidityPoolAggregator.reserve1 - event.params.amount1;
-  const currentTotalLiquidityUSD = calculateTotalUSD(
+  // Issue #892: directional TVL cap against a hard-anchor counterparty. Burn
+  // does not move the price, so the stored pool ratio is the correct witness.
+  const currentTotalLiquidityUSD = calculateLiquidityUSD(
     newReserve0,
     newReserve1,
     token0Instance,
     token1Instance,
+    liquidityPoolAggregator.token0Price,
+    liquidityPoolAggregator.token1Price,
+    liquidityPoolAggregator.chainId,
   );
 
   // Track burned principal so Collect can isolate fees.

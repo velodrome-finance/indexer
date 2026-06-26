@@ -9,7 +9,20 @@ import { TEN_TO_THE_18_BI } from "./Constants";
 import type { handlerContext } from "./EntityTypes";
 import type { Pool } from "./EntityTypes";
 import { multiplyBase1e18 } from "./Maths";
-import { getTrustedUSD } from "./PriceTrust";
+import { getHardAnchorUnitUSD, getTrustedUSD } from "./PriceTrust";
+
+// Directional TVL cap (issue #892). A pool leg is re-valued at its pool-implied
+// price only when its oracle price exceeds that implied price by more than this
+// ratio. Reuses the 10× band of the #668 price-spike guard.
+const TVL_CAP_RATIO = 10n;
+
+// Minimum anchor-leg reserve USD (1e18-base) for the directional cap to engage.
+// Below this the pool is too thin for its spot ratio to be a trustworthy
+// witness — a drained / edge pool's implied price can blow up in either
+// direction (the #784/#785 failure mode). $1,000 isolated the live LFI/USDC
+// poison on Base while leaving every drained-stablecoin false positive (e.g.
+// Swell USDe/rUSDC) untouched.
+const TVL_CAP_ANCHOR_FLOOR_USD = 1_000n * TEN_TO_THE_18_BI;
 
 /**
  * Normalises an unknown value to an error message string.
@@ -181,6 +194,137 @@ export function calculateTotalUSD(
   token1: Token | undefined,
 ): bigint {
   return getTrustedUSD(amount0, token0) + getTrustedUSD(amount1, token1);
+}
+
+/**
+ * One leg of {@link calculateLiquidityUSD}: token T's trusted USD value, capped
+ * to its pool-implied value when its hard-anchor counterparty C shows that T's
+ * oracle price is more than {@link TVL_CAP_RATIO}× too high (issue #892).
+ *
+ * Returns the untouched {@link getTrustedUSD} value unless ALL of:
+ *  - T is trusted and contributes a positive USD leg (untrusted ⇒ already 0n),
+ *  - the pool ratio for T-in-C is positive,
+ *  - C is a hard anchor we can value (stablecoin = $1, WETH = oracle price),
+ *  - C's reserve is worth ≥ `$1,000` (thin-pool guard),
+ *  - and T's oracle price exceeds the pool-implied price by > 10×.
+ * When they hold, T is re-valued at the pool-implied price. The cap is
+ * downward-only by construction (it fires on oracle ≫ implied), so it can only
+ * deflate an inflated leg toward the liquid pool's truth, never inflate a
+ * correct one.
+ *
+ * @param amountT - Raw reserve of the priced leg T (token's decimal base)
+ * @param tokenT - The priced leg's token (undefined / untrusted ⇒ 0n)
+ * @param amountC - Raw reserve of the counterparty leg C (candidate anchor)
+ * @param tokenC - The counterparty token
+ * @param ratioTinC - Price of T in C units, 1e18-scaled (`Pool.token0Price` when
+ *   T = token0, `Pool.token1Price` when T = token1)
+ * @param chainId - Chain the pool lives on (for the hard-anchor lookup)
+ * @returns T's USD contribution (1e18-base): trusted, or pool-implied when capped
+ */
+function cappedLegUSD(
+  amountT: bigint,
+  tokenT: Token | undefined,
+  amountC: bigint,
+  tokenC: Token | undefined,
+  ratioTinC: bigint,
+  chainId: number,
+): bigint {
+  const trustedUSD = getTrustedUSD(amountT, tokenT);
+  // Nothing to cap: untrusted / zero leg, no priced T, or no usable pool ratio.
+  if (trustedUSD <= 0n || !tokenT || ratioTinC <= 0n) return trustedUSD;
+
+  // The counterparty must be a hard anchor we can value ($1 pin for stablecoins,
+  // oracle price for WETH; 0n ⇒ not an anchor or unpriced WETH).
+  const anchorUnitUSD = getHardAnchorUnitUSD(chainId, tokenC);
+  if (anchorUnitUSD <= 0n || !tokenC) return trustedUSD;
+
+  // Thin/drained-pool guard: the spot ratio is only a trustworthy witness when
+  // the anchor leg holds real liquidity.
+  const anchorReserveUSD = calculateTokenAmountUSD(
+    amountC,
+    Number(tokenC.decimals),
+    anchorUnitUSD,
+  );
+  if (anchorReserveUSD < TVL_CAP_ANCHOR_FLOOR_USD) return trustedUSD;
+
+  // Pool-implied USD price of T: ratio(T in C units) × USD(C).
+  const impliedPriceT = multiplyBase1e18(ratioTinC, anchorUnitUSD);
+  if (impliedPriceT <= 0n) return trustedUSD;
+
+  // Directional, downward-only: only cap when the oracle is > 10× the implied.
+  if (tokenT.pricePerUSDNew > impliedPriceT * TVL_CAP_RATIO) {
+    return calculateTokenAmountUSD(
+      amountT,
+      Number(tokenT.decimals),
+      impliedPriceT,
+    );
+  }
+  return trustedUSD;
+}
+
+/**
+ * Pool TVL valuation with a directional, downward-only sanity cap against a
+ * hard-anchor counterparty (issue #892).
+ *
+ * Identical to {@link calculateTotalUSD} (each leg routed through the
+ * {@link getTrustedUSD} trust gate) EXCEPT that a leg whose counterparty is a
+ * stablecoin / WETH hard anchor (see `isHardAnchor`) and whose oracle price
+ * exceeds the pool-implied price by more than 10× is re-valued at the implied
+ * price. This catches a persistently poisoned but whitelisted oracle — e.g.
+ * LFI/USDC on Base reading ~$23 against a pool implying ~$0.00006, inflating
+ * one pool's TVL to ~$26B — that the global spike / re-anchor guards
+ * (#668/#784/#785) cannot heal because the bad value is stable, not a spike.
+ *
+ * Safety properties:
+ *  - **Directional & downward-only** — the cap fires only on `oracle ≫ implied`,
+ *    so it can only LOWER a leg toward the liquid pool's truth, never raise it.
+ *    A drained-pool ratio that blows up HIGH (oracle ≪ implied — e.g. a $1
+ *    stablecoin whose edge pool implies $254K) does not trigger it, so it is
+ *    regression-safe.
+ *  - **Anchor-gated, liquidity-floored** — only against a stablecoin / WETH
+ *    anchor holding ≥ `$1,000`, never an arbitrary trusted counterparty. This
+ *    avoids the broad false-positive set a naive "re-anchor on any 10× gap"
+ *    produced (#784/#785).
+ *  - **TVL-only** — does NOT mutate the token's global `pricePerUSDNew`, so
+ *    price snapshots, volume, fees, and reward USD are untouched.
+ *
+ * @param amount0 - Token0 amount (raw, token0 decimal base) — pool reserve0
+ * @param amount1 - Token1 amount (raw, token1 decimal base) — pool reserve1
+ * @param token0 - Token0 entity; undefined / untrusted contributes 0n
+ * @param token1 - Token1 entity; undefined / untrusted contributes 0n
+ * @param token0Price - Pool ratio: price of token0 in token1 units, 1e18-scaled
+ *   (`Pool.token0Price`); implies token0's USD when token1 is the anchor
+ * @param token1Price - Pool ratio: price of token1 in token0 units, 1e18-scaled
+ *   (`Pool.token1Price`); implies token1's USD when token0 is the anchor
+ * @param chainId - Chain the pool lives on (for the hard-anchor lookup)
+ * @returns Total pool USD (1e18-base), summing each leg's trusted-or-capped value
+ */
+export function calculateLiquidityUSD(
+  amount0: bigint,
+  amount1: bigint,
+  token0: Token | undefined,
+  token1: Token | undefined,
+  token0Price: bigint,
+  token1Price: bigint,
+  chainId: number,
+): bigint {
+  const usd0 = cappedLegUSD(
+    amount0,
+    token0,
+    amount1,
+    token1,
+    token0Price,
+    chainId,
+  );
+  const usd1 = cappedLegUSD(
+    amount1,
+    token1,
+    amount0,
+    token0,
+    token1Price,
+    chainId,
+  );
+  return usd0 + usd1;
 }
 
 /**

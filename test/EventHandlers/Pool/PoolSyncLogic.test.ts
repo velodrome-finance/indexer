@@ -1,5 +1,9 @@
 import type { EvmEvent, Token } from "envio";
-import { toChecksumAddress } from "../../../src/Constants";
+import {
+  TEN_TO_THE_18_BI,
+  TokenId,
+  toChecksumAddress,
+} from "../../../src/Constants";
 import type { Pool, handlerContext } from "../../../src/EntityTypes";
 import { processPoolSync } from "../../../src/EventHandlers/Pool/PoolSyncLogic";
 import { deriveV2PriceRatios } from "../../../src/PoolPriceRatio";
@@ -235,6 +239,63 @@ describe("PoolSyncLogic", () => {
       );
       expect(mispricedResult.liquidityPoolDiff.token1Price).toBe(
         expected.token1Price,
+      );
+    });
+
+    it("caps TVL against a stablecoin anchor using the freshly-derived V2 ratio (issue #892)", () => {
+      const BASE = 8453;
+      const LFI = toChecksumAddress(
+        "0x3722264aB15a1dfCe5a5af89e6547F7949A8ABA3",
+      );
+      const USDC = toChecksumAddress(
+        "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      );
+
+      const lfiToken = {
+        ...mockToken0,
+        id: TokenId(BASE, LFI),
+        address: LFI,
+        symbol: "LFI",
+        name: "LFI",
+        chainId: BASE,
+        decimals: 18n,
+        pricePerUSDNew: 24n * TEN_TO_THE_18_BI, // poisoned oracle ~$24
+      } as Token;
+      const usdcToken = {
+        ...mockToken1,
+        id: TokenId(BASE, USDC),
+        address: USDC,
+        symbol: "USDC",
+        name: "USD Coin",
+        chainId: BASE,
+        decimals: 6n,
+        pricePerUSDNew: 1n * TEN_TO_THE_18_BI,
+      } as Token;
+
+      const basePool = {
+        ...mockPool,
+        chainId: BASE,
+        isCL: false,
+        token0_id: TokenId(BASE, LFI),
+        token1_id: TokenId(BASE, USDC),
+      } as Pool;
+
+      // Sync sets absolute reserves: 1e9 LFI vs $60,000 USDC. The derived V2
+      // ratio implies LFI ≈ $0.00006 against the $1 USDC anchor.
+      const syncEvent = {
+        ...mockEvent,
+        chainId: BASE,
+        params: {
+          reserve0: 1_000_000_000n * TEN_TO_THE_18_BI, // 1e9 LFI
+          reserve1: 60_000n * 1_000_000n, // $60,000 USDC (≥ floor)
+        },
+      } as unknown as EvmEvent<"Pool", "Sync">;
+
+      const result = processPoolSync(syncEvent, basePool, lfiToken, usdcToken);
+
+      // LFI leg capped to implied $60,000; USDC leg $60,000 → $120,000 total.
+      expect(result.liquidityPoolDiff.currentTotalLiquidityUSD).toBe(
+        120_000n * TEN_TO_THE_18_BI,
       );
     });
   });

@@ -1,5 +1,9 @@
 import type { EvmEvent, Token } from "envio";
-import { toChecksumAddress } from "../../../src/Constants";
+import {
+  TEN_TO_THE_18_BI,
+  TokenId,
+  toChecksumAddress,
+} from "../../../src/Constants";
 import type { Pool } from "../../../src/EntityTypes";
 import { processCLPoolMint } from "../../../src/EventHandlers/CLPool/CLPoolMintLogic";
 import { setupCommon } from "../Pool/common";
@@ -224,6 +228,84 @@ describe("CLPoolMintLogic", () => {
 
       expect(result.liquidityPoolDiff.incrementalLiquidityInRange).toBe(
         1000000000000000000n,
+      );
+    });
+
+    it("caps TVL against a stablecoin anchor on a Base LFI/USDC pool (issue #892)", () => {
+      const BASE = 8453;
+      const LFI = toChecksumAddress(
+        "0x3722264aB15a1dfCe5a5af89e6547F7949A8ABA3",
+      );
+      const USDC = toChecksumAddress(
+        "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      );
+
+      const lfiToken: Token = {
+        ...mockToken0Data,
+        id: TokenId(BASE, LFI),
+        address: LFI as `0x${string}`,
+        symbol: "LFI",
+        name: "LFI",
+        chainId: BASE,
+        decimals: 18n,
+        pricePerUSDNew: 24n * TEN_TO_THE_18_BI, // poisoned oracle ~$24
+        isWhitelisted: true,
+      };
+      const usdcToken: Token = {
+        ...mockToken1Data,
+        id: TokenId(BASE, USDC),
+        address: USDC as `0x${string}`,
+        symbol: "USDC",
+        name: "USD Coin",
+        chainId: BASE,
+        decimals: 6n,
+        pricePerUSDNew: 1n * TEN_TO_THE_18_BI,
+        isWhitelisted: true,
+      };
+
+      // CL pool carries the stored ratio (Mint does not move the price); the
+      // ratio implies LFI ≈ $0.00006 against the $1 USDC anchor.
+      const basePool = {
+        ...mockLiquidityPoolData,
+        chainId: BASE,
+        isCL: true,
+        token0_id: TokenId(BASE, LFI),
+        token1_id: TokenId(BASE, USDC),
+        reserve0: 1_000_000_000n * TEN_TO_THE_18_BI, // 1e9 LFI
+        reserve1: 4_000n * 1_000_000n, // $4,000 USDC (≥ floor)
+        token0Price: 60_000_000_000_000n, // 6e13 → implies LFI = $0.00006
+        token1Price: 16_000_000_000_000_000_000_000n,
+      } as Pool;
+
+      // Zero-amount mint: reserves stay put so the assertion targets the cap.
+      const zeroMint = {
+        params: {
+          sender: toChecksumAddress(
+            "0x1111111111111111111111111111111111111111",
+          ),
+          owner: toChecksumAddress(
+            "0x1111111111111111111111111111111111111111",
+          ),
+          tickLower: -100n,
+          tickUpper: 100n,
+          amount: 0n,
+          amount0: 0n,
+          amount1: 0n,
+        },
+        block: { timestamp: 1000000, number: 123456, hash: "0xfeed" },
+        chainId: BASE,
+        logIndex: 1,
+        srcAddress: toChecksumAddress(
+          "0x8343C68279587498526114e6385F0a87f248E0D9",
+        ),
+        transaction: { hash: "0xbeef" },
+      } as unknown as EvmEvent<"CLPool", "Mint">;
+
+      const result = processCLPoolMint(zeroMint, basePool, lfiToken, usdcToken);
+
+      // LFI leg capped to implied $60,000; USDC leg $4,000 → $64,000 total.
+      expect(result.liquidityPoolDiff.currentTotalLiquidityUSD).toBe(
+        64_000n * TEN_TO_THE_18_BI,
       );
     });
   });

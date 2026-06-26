@@ -137,11 +137,28 @@ describe("PriceOverrides", () => {
     const WRSETH_BASE = toChecksumAddress(
       "0xEDfa23602D0EC14714057867A78d01e94176BEA0",
     );
+    const WETH_OP_STACK = toChecksumAddress(
+      "0x4200000000000000000000000000000000000006",
+    );
     it("rebinds rsETH/Swell to wrsETH/Base", () => {
       expect(getRebindTarget(1923, RSETH_SWELL)).toEqual({
         chainId: 8453,
         address: WRSETH_BASE,
       });
+    });
+
+    it("rebinds WETH/Metal to WETH/Optimism (issue #892)", () => {
+      expect(getRebindTarget(1750, WETH_OP_STACK)).toEqual({
+        chainId: 10,
+        address: WETH_OP_STACK,
+      });
+    });
+
+    it("does not rebind WETH on other OP-stack chains (Base, source Optimism)", () => {
+      // The #892 rebind targets Metal only; the same WETH address on Base must
+      // keep its local price, and Optimism is the source (not a target).
+      expect(getRebindTarget(8453, WETH_OP_STACK)).toBeUndefined();
+      expect(getRebindTarget(10, WETH_OP_STACK)).toBeUndefined();
     });
 
     it.each([

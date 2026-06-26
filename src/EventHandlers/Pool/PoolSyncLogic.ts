@@ -1,7 +1,7 @@
 import type { EvmEvent, Token } from "envio";
 import type { PoolDiff } from "../../Aggregators/Pool";
 import type { Pool } from "../../EntityTypes";
-import { calculateTotalUSD } from "../../Helpers";
+import { calculateLiquidityUSD } from "../../Helpers";
 import { deriveV2PriceRatios, pickPriceRatios } from "../../PoolPriceRatio";
 
 export interface PoolSyncResult {
@@ -24,6 +24,24 @@ export function processPoolSync(
   token0Instance: Token | undefined,
   token1Instance: Token | undefined,
 ): PoolSyncResult {
+  // token0Price/token1Price are the pool-internal exchange rate, derived from
+  // the synced reserves — NOT from token oracle prices. This keeps the ratio
+  // oracle-independent so a mispriced token (e.g. a non-WL scam token) can no
+  // longer inflate it without bound (#783). pickPriceRatios falls back to the
+  // last-known ratio per leg when decimals are unavailable or reserves are zero.
+  // Computed before the reserve branches so the #892 TVL cap below can use it.
+  const priceRatios = pickPriceRatios(
+    token0Instance && token1Instance
+      ? deriveV2PriceRatios(
+          event.params.reserve0,
+          event.params.reserve1,
+          token0Instance.decimals,
+          token1Instance.decimals,
+        )
+      : { token0Price: 0n, token1Price: 0n },
+    liquidityPoolAggregator,
+  );
+
   // Handle different scenarios based on token availability and amounts
   let reserve0Change: bigint;
   let reserve1Change: bigint;
@@ -48,30 +66,18 @@ export function processPoolSync(
 
     // totalLiquidityUSD is non-cumulative: overwrite it using the absolute
     // post-sync reserves rather than applying a delta from the previous value.
-    currentTotalLiquidityUSD = calculateTotalUSD(
+    // Issue #892: directional TVL cap against a hard-anchor counterparty, using
+    // the freshly-derived pool ratio as the implied-price witness.
+    currentTotalLiquidityUSD = calculateLiquidityUSD(
       event.params.reserve0,
       event.params.reserve1,
       token0Instance,
       token1Instance,
+      priceRatios.token0Price,
+      priceRatios.token1Price,
+      liquidityPoolAggregator.chainId,
     );
   }
-
-  // token0Price/token1Price are the pool-internal exchange rate, derived from
-  // the synced reserves — NOT from token oracle prices. This keeps the ratio
-  // oracle-independent so a mispriced token (e.g. a non-WL scam token) can no
-  // longer inflate it without bound (#783). pickPriceRatios falls back to the
-  // last-known ratio per leg when decimals are unavailable or reserves are zero.
-  const priceRatios = pickPriceRatios(
-    token0Instance && token1Instance
-      ? deriveV2PriceRatios(
-          event.params.reserve0,
-          event.params.reserve1,
-          token0Instance.decimals,
-          token1Instance.decimals,
-        )
-      : { token0Price: 0n, token1Price: 0n },
-    liquidityPoolAggregator,
-  );
 
   const liquidityPoolDiff = {
     incrementalReserve0: reserve0Change,
