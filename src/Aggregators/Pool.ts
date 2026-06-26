@@ -705,10 +705,19 @@ export async function updatePool(
         )),
       };
 
-      // Compute CL staked USD from running staked reserves — O(1) instead of O(N) position scan
+      // Compute CL staked USD from running staked reserves — O(1) instead of O(N) position scan.
+      // Issue #890 (residual of #857): currentLiquidityStaked and stakedReserve0/1
+      // are independent accumulators, so a full unstake drives units to 0n while the
+      // reserves can still hold wei-scale dust. Gate the recompute on staked units so
+      // that dust can't value to a non-zero USD and overwrite the lockstep clamp
+      // applied above — `currentLiquidityStaked === 0n ⇒ currentLiquidityStakedUSD === 0n`
+      // must hold after the snapshot recompute too, not only on the live write path.
       const stakedReserve0 = updated.stakedReserve0 ?? 0n;
       const stakedReserve1 = updated.stakedReserve1 ?? 0n;
-      if (stakedReserve0 <= 0n && stakedReserve1 <= 0n) {
+      if (
+        updated.currentLiquidityStaked === 0n ||
+        (stakedReserve0 <= 0n && stakedReserve1 <= 0n)
+      ) {
         updated = { ...updated, currentLiquidityStakedUSD: 0n };
       } else {
         const [token0Instance, token1Instance] = await Promise.all([
