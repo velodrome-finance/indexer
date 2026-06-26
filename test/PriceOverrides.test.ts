@@ -114,11 +114,34 @@ describe("PriceOverrides", () => {
       ).toBe(false);
     });
 
+    // Issue #901: 0x940A319B… (symbol DEUS, 874M supply) is a SEPARATE real token
+    // from canonical DEUS Finance — same symbol, anchor frozen at ~$0.528 vs
+    // ~$0.0229 pool-implied (#786 frozen-anchor class, not a worthless spoof).
+    // Blacklist forces its price to 0 so the inflated VIRTUAL/DEUS TVL routes
+    // through the counterparty leg.
+    it("returns true for the frozen-anchor DEUS token on Base (issue #901)", () => {
+      expect(
+        isBlacklistedToken(
+          8453,
+          toChecksumAddress("0x940A319B75861014A220D9c6c144d108552B089B"),
+        ),
+      ).toBe(true);
+    });
+
     it("does not blacklist the canonical AERO on Base", () => {
       expect(
         isBlacklistedToken(
           8453,
           toChecksumAddress("0x940181a94A35A4569E4529A3CDfB74e38FD98631"),
+        ),
+      ).toBe(false);
+    });
+
+    it("does not blacklist the canonical DEUS Finance token on Base (issue #901)", () => {
+      expect(
+        isBlacklistedToken(
+          8453,
+          toChecksumAddress("0xDE5ed76E7c05eC5e4572CfC88d1ACEA165109E44"),
         ),
       ).toBe(false);
     });
