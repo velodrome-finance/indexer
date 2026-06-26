@@ -740,8 +740,8 @@ describe("UserStatsPerPool Aggregator", () => {
 
       // Should not query positions (non-CL pool)
       expect(snapshotCtx.NonFungiblePosition.getWhere).not.toHaveBeenCalled();
-      // Non-CL staked USD is computed at snapshot time via pro-rata
-      // With default mock pool (totalLPTokenSupply=0), computeNonCLStakedUSD returns 0
+      // Non-CL staked USD is the staked share of totalLiquidityUSD; the default
+      // mock pool has totalLPTokenSupply=0, so the supply>0 guard yields 0.
       expect(result.currentLiquidityStakedUSD).toBe(0n);
     });
 
@@ -771,6 +771,9 @@ describe("UserStatsPerPool Aggregator", () => {
         reserve0: 1000000000n, // 1000 tokens (6 decimals)
         reserve1: 1000000000n,
         totalLPTokenSupply: 1000000000000000000000n, // 1000 LP tokens
+        // Capped TVL, set consistent with reserves (1000 + 1000 @ $1 = $2000) so
+        // the staked share derives to the same value the reserve math would.
+        totalLiquidityUSD: 2000000000000000000000n, // $2000
       });
 
       const mockToken0 = {
@@ -807,9 +810,52 @@ describe("UserStatsPerPool Aggregator", () => {
         currentTimestamp,
       );
 
-      // 100 LP / 1000 total * 1000 reserve0 = 100 tokens (6 dec) → normalized to 18 dec = 100e18
-      // USD: 100e18 * 1e18 / 1e18 = 100e18 per token, total = 200e18
+      // Staked share of the (capped) total: $2000 * 100 LP / 1000 LP = $200.
       expect(result.currentLiquidityStakedUSD).toBe(200000000000000000000n);
+    });
+
+    it("derives non-CL per-user staked USD from the capped total, not the uncapped reserves (#892-capped pool)", async () => {
+      const { createMockUserStatsPerPool, createMockPool } = setupCommon();
+      const oldTimestamp = new Date(Date.now() - 2 * 60 * 60 * 1000);
+      const currentTimestamp = new Date();
+
+      const existingUserStats = createMockUserStatsPerPool({
+        userAddress: mockUserAddress,
+        poolAddress: mockPoolAddress,
+        chainId: mockChainId,
+        currentLiquidityStaked: 100000000000000000000n, // 100 LP (10% of supply)
+        currentLiquidityStakedUSD: 0n,
+        lastSnapshotTimestamp: oldTimestamp,
+      });
+
+      // Reserves would imply ~$2000 uncapped, but #892 deflated totalLiquidityUSD
+      // to $100 at Sync (poisoned-oracle token). The per-user share must follow
+      // the capped total: $100 * 100/1000 = $10, NOT the uncapped $200.
+      const cappedPool = createMockPool({
+        poolAddress: mockPoolAddress,
+        chainId: mockChainId,
+        isCL: false,
+        reserve0: 1000000000n,
+        reserve1: 1000000000n,
+        totalLPTokenSupply: 1000000000000000000000n, // 1000 LP
+        totalLiquidityUSD: 100000000000000000000n, // $100, #892-capped
+      });
+
+      const snapshotCtx = {
+        ...mockContext,
+        Pool: { get: vi.fn().mockResolvedValue(cappedPool) },
+        Token: { get: vi.fn().mockResolvedValue(undefined) },
+        NonFungiblePosition: { getWhere: vi.fn() },
+      } as unknown as handlerContext;
+
+      const result = await updateUserStatsPerPool(
+        { lastActivityTimestamp: currentTimestamp },
+        existingUserStats,
+        snapshotCtx,
+        currentTimestamp,
+      );
+
+      expect(result.currentLiquidityStakedUSD).toBe(10000000000000000000n); // $10
     });
 
     it("should NOT compute staked USD at snapshot time when LPA is not found", async () => {

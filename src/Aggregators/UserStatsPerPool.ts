@@ -8,7 +8,7 @@ import {
   UserStatsPerPoolId,
 } from "../Constants";
 import { getRehydrated } from "../EntityTimestamps";
-import { computeNonCLStakedUSD, concentratedLiquidityToUSD } from "../Helpers";
+import { concentratedLiquidityToUSD } from "../Helpers";
 import { getSnapshotEpoch, shouldSnapshot } from "../Snapshots/Shared";
 import { setUserStatsPerPoolSnapshot } from "../Snapshots/UserStatsPerPoolSnapshot";
 import type { PoolData } from "./Pool";
@@ -435,11 +435,6 @@ export async function updateUserStatsPerPool(
         }
       }
       if (poolEntity) {
-        const poolData = {
-          liquidityPoolAggregator: poolEntity,
-          token0Instance: token0Instance ?? undefined,
-          token1Instance: token1Instance ?? undefined,
-        };
         if (
           poolEntity.isCL &&
           poolEntity.sqrtPriceX96 &&
@@ -474,12 +469,22 @@ export async function updateUserStatsPerPool(
           }
           updated = { ...updated, currentLiquidityStakedUSD: stakedUSD };
         } else if (!poolEntity.isCL) {
-          const stakedUSD = computeNonCLStakedUSD(
-            updated.currentLiquidityStaked,
-            poolEntity,
-            poolData,
-            context,
-          );
+          // Issue #899 residual: per-user non-CL staked USD must share the pool's
+          // #892-capped totalLiquidityUSD basis. Derive the user's staked share as
+          // a fraction of the capped total — totalLiquidityUSD × min(staked, supply)
+          // / supply — rather than re-valuing reserves through the uncapped
+          // computeNonCLStakedUSD path, which would re-inject the inflated
+          // DEUS-class oracle. min(staked, supply) bounds the fraction at 1; summed
+          // across users this reconciles with the pool's currentLiquidityStakedUSD.
+          const supply = poolEntity.totalLPTokenSupply;
+          const stakedShare =
+            updated.currentLiquidityStaked < supply
+              ? updated.currentLiquidityStaked
+              : supply;
+          const stakedUSD =
+            supply > 0n
+              ? (poolEntity.totalLiquidityUSD * stakedShare) / supply
+              : 0n;
           updated = { ...updated, currentLiquidityStakedUSD: stakedUSD };
         }
       }

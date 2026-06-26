@@ -861,6 +861,24 @@ export async function updatePool(
     };
   }
 
+  // Issue #899 residual: staked liquidity is a subset of total liquidity, so its
+  // USD companion can never exceed totalLiquidityUSD. The snapshot recompute
+  // above already derives V2 staked from the (#892-capped) total — ≤ total by
+  // construction — but the *live* entity between snapshots is written by the
+  // gauge path (computeNonCLPoolStakedUSD / CL computeCLStakedReservesOnGaugeEvent)
+  // through the UNCAPPED calculateTotalUSD, so on a #892-capped pool it can land
+  // above the capped total. Clamp on every write, regardless of which path wrote
+  // it — the USD analog of the units lockstep above (#857) and the #891
+  // staked ≤ liquidityInRange clamp. One-directional (only lowers), so it can
+  // never inflate a correct value; a transient stale-low total just under-counts
+  // staked until the next Sync (the accepted #891 tradeoff).
+  if (updated.currentLiquidityStakedUSD > updated.totalLiquidityUSD) {
+    updated = {
+      ...updated,
+      currentLiquidityStakedUSD: updated.totalLiquidityUSD,
+    };
+  }
+
   context.Pool.set(updated);
 }
 

@@ -113,7 +113,10 @@ describe("GaugeSharedLogic", () => {
       isStable: true,
       reserve0: 1000000000n, // 1000 tokens (6 decimals) - enough for 100 LP tokens to represent 100 tokens each
       reserve1: 1000000000n, // 1000 tokens (6 decimals)
-      totalLiquidityUSD: 2000000000000000000000000n, // 2M USD in 18 decimals
+      // $2000 — consistent with reserves (1000 token0 + 1000 token1 at $1). The
+      // per-user/pool staked-USD (#899 residual) now derives from this capped
+      // total, so it must agree with the reserves rather than be an arbitrary value.
+      totalLiquidityUSD: 2000000000000000000000n,
       token0Price: 1000000000000000000n,
       token1Price: 1000000000000000000n,
       gaugeAddress: mockGaugeAddress,
