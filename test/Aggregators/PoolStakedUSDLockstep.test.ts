@@ -390,6 +390,73 @@ describe("Pool staked-USD recompute on the non-CL snapshot path (issue #899)", (
     );
   });
 
+  it("clamps the live currentLiquidityStakedUSD to totalLiquidityUSD when the gauge path writes an uncapped value (no snapshot crossing)", async () => {
+    // Residual of #899: between hourly snapshots the live entity is written by
+    // the gauge path (computeNonCLPoolStakedUSD → uncapped calculateTotalUSD).
+    // On a #892-capped pool that value can land above the capped totalLiquidityUSD
+    // (DEUS-class), so the persisted Pool row shows staked > total until the next
+    // snapshot. A diff carrying that inflated USD (same-epoch ⇒ no snapshot
+    // recompute) must be clamped to total on the way out.
+    const pool = common.createMockPool({
+      poolAddress,
+      chainId,
+      isCL: false,
+      // same epoch as the update below -> shouldSnapshot is false, no recompute
+      lastSnapshotTimestamp: lastSnapshot,
+      lastUpdatedTimestamp: lastSnapshot,
+      currentLiquidityStaked: 50n * TEN_TO_THE_18_BI,
+      totalLiquidityUSD: 100n * TEN_TO_THE_18_BI, // #892-capped
+      currentLiquidityStakedUSD: 0n,
+    });
+
+    const setMock = vi.fn();
+    const ctx = buildMockContext(setMock);
+
+    await updatePool(
+      // gauge-path diff carrying an uncapped staked-USD above the capped total
+      { currentLiquidityStakedUSD: 300n * TEN_TO_THE_18_BI },
+      pool,
+      lastSnapshot, // same epoch -> live path, no snapshot block
+      ctx,
+      chainId,
+      131_536_921,
+    );
+
+    const updated = setMock.mock.calls[0]?.[0] as Pool;
+    expect(updated.currentLiquidityStakedUSD).toBe(100n * TEN_TO_THE_18_BI);
+    expect(updated.currentLiquidityStakedUSD).toBeLessThanOrEqual(
+      updated.totalLiquidityUSD,
+    );
+  });
+
+  it("leaves a live currentLiquidityStakedUSD already ≤ total unchanged (clamp is one-directional)", async () => {
+    const pool = common.createMockPool({
+      poolAddress,
+      chainId,
+      isCL: false,
+      lastSnapshotTimestamp: lastSnapshot,
+      lastUpdatedTimestamp: lastSnapshot,
+      currentLiquidityStaked: 50n * TEN_TO_THE_18_BI,
+      totalLiquidityUSD: 400n * TEN_TO_THE_18_BI,
+      currentLiquidityStakedUSD: 0n,
+    });
+
+    const setMock = vi.fn();
+    const ctx = buildMockContext(setMock);
+
+    await updatePool(
+      { currentLiquidityStakedUSD: 200n * TEN_TO_THE_18_BI }, // ≤ total
+      pool,
+      lastSnapshot,
+      ctx,
+      chainId,
+      131_536_921,
+    );
+
+    const updated = setMock.mock.calls[0]?.[0] as Pool;
+    expect(updated.currentLiquidityStakedUSD).toBe(200n * TEN_TO_THE_18_BI);
+  });
+
   it("preserves the prior staked USD when totalLPTokenSupply is transiently 0 (no overwrite to 0)", async () => {
     // supply === 0n with a positive stake is an inconsistent transient (e.g. a
     // full-burn Sync while the staked-units counter lags). Dividing by it is
