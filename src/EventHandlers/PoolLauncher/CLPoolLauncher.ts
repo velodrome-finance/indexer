@@ -15,7 +15,7 @@ indexer.onEvent(
     const creator = event.params.sender;
     const poolLauncherToken = event.params.poolLauncherToken;
     // poolLauncherPool struct fields: { createdAt, pool, poolLauncherToken, tokenToPair }
-    const pairToken = event.params.poolLauncherPool.pool;
+    const pairToken = event.params.poolLauncherPool.tokenToPair;
     const createdAt = new Date(event.block.timestamp * 1000);
 
     // Create or update PoolLauncherPool entity
@@ -48,10 +48,10 @@ indexer.onEvent(
     const oldLocker = event.params.locker;
     const newLocker = event.params.newLocker;
     // newPoolLauncherPool struct fields: { createdAt, pool, poolLauncherToken, tokenToPair }
-    const newPoolAddress = event.params.newPoolLauncherPool.tokenToPair;
+    const newPoolAddress = event.params.newPoolLauncherPool.pool;
     const poolLauncherToken =
       event.params.newPoolLauncherPool.poolLauncherToken;
-    const pairToken = event.params.newPoolLauncherPool.pool;
+    const pairToken = event.params.newPoolLauncherPool.tokenToPair;
     const timestamp = new Date(event.block.timestamp * 1000);
 
     const poolId = PoolId(event.chainId, underlyingPool);
