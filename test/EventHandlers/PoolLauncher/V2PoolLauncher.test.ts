@@ -93,9 +93,9 @@ describe("V2PoolLauncher Events", () => {
                   poolLauncherToken: mockPoolLauncherToken,
                   poolLauncherPool: {
                     createdAt: 1000000n,
-                    pool: mockPairToken,
+                    pool: mockPoolAddress,
                     poolLauncherToken: mockPoolLauncherToken,
-                    tokenToPair: mockPoolAddress,
+                    tokenToPair: mockPairToken,
                   },
                 },
               },
@@ -116,7 +116,14 @@ describe("V2PoolLauncher Events", () => {
       expect(poolLauncherPool?.launcher).toBe(mockLauncherAddress);
       expect(poolLauncherPool?.creator).toBe(mockCreator);
       expect(poolLauncherPool?.poolLauncherToken).toBe(mockPoolLauncherToken);
+      // #900: pairToken is the struct's tokenToPair leg, never the pool's own
+      // address. The bug read `.pool`, so pairToken equalled underlyingPool and
+      // joined to Token as null. tokenToPair (mockPairToken) differs from the pool
+      // address, so these assertions fail against the pre-fix handler.
       expect(poolLauncherPool?.pairToken).toBe(mockPairToken);
+      expect(poolLauncherPool?.pairToken).not.toBe(
+        poolLauncherPool?.underlyingPool,
+      );
       expect(poolLauncherPool?.isEmerging).toBe(false);
       // #818: Launch-created pools are not migration targets — migratedFrom stays empty.
       expect(poolLauncherPool?.migratedFrom).toBe("");
@@ -188,9 +195,9 @@ describe("V2PoolLauncher Events", () => {
                   newLocker,
                   newPoolLauncherPool: {
                     createdAt: 1000000n,
-                    pool: mockPairToken,
+                    pool: newPoolAddress,
                     poolLauncherToken: mockPoolLauncherToken,
-                    tokenToPair: newPoolAddress,
+                    tokenToPair: mockPairToken,
                   },
                 },
               },
@@ -267,9 +274,9 @@ describe("V2PoolLauncher Events", () => {
                   newLocker,
                   newPoolLauncherPool: {
                     createdAt: 1000000n,
-                    pool: mockPairToken,
+                    pool: newPoolAddress,
                     poolLauncherToken: mockPoolLauncherToken,
-                    tokenToPair: newPoolAddress,
+                    tokenToPair: mockPairToken,
                   },
                 },
               },
