@@ -791,6 +791,50 @@ export async function updatePool(
           ),
         };
       }
+    } else if (
+      updated.currentLiquidityStaked > 0n &&
+      updated.totalLPTokenSupply > 0n
+    ) {
+      // Issue #899: V2 (non-CL) pools must refresh currentLiquidityStakedUSD at
+      // the snapshot boundary too. CL pools recompute from the running
+      // stakedReserve0/1 accumulators above; V2 has no such running staked
+      // reserves, so derive the staked USD as the staked-LP fraction of the
+      // pool's already-valued totalLiquidityUSD:
+      //
+      //     stakedUSD = totalLiquidityUSD × min(staked, supply) / supply
+      //
+      // Sharing totalLiquidityUSD's valuation basis is what makes the invariant
+      // currentLiquidityStakedUSD ≤ totalLiquidityUSD hold by construction for
+      // the snapshot row written here (the live entity between snapshots is still
+      // written by the gauge path's uncapped computeNonCLStakedUSD — a pre-
+      // existing condition this branch re-caps at each hourly boundary):
+      //  - totalLiquidityUSD is already trust-gated AND #892-directional-capped
+      //    at Sync (PoolSyncLogic). Re-valuing reserves here through the UNCAPPED
+      //    calculateTotalUSD path instead would re-inject the inflated dollar
+      //    figure #892 suppresses on whitelisted-but-poisoned-oracle pools
+      //    (DEUS-class), pushing staked above the capped total every snapshot.
+      //  - clamping the numerator to `supply` bounds the fraction at 1, guarding
+      //    the accumulator-drift case (staked units transiently exceeding supply
+      //    from a missed LP Transfer) the CL #890/#891 guards cover.
+      //
+      // Floor division only ever rounds staked DOWN, never above total. The
+      // phantom case (un-whitelisted V2 pool whose totalLiquidityUSD already
+      // re-gated to 0) self-heals: 0 × fraction = 0. The currentLiquidityStaked
+      // === 0n ⇒ USD = 0n lockstep clamp above covers the zero-stake case, and
+      // the supply > 0n gate preserves the prior value (matching the gauge
+      // path's computeNonCLStakedUSDIfAvailable) rather than overwriting to 0
+      // when supply is transiently 0. Pure O(1) arithmetic — no token reads,
+      // only at hourly snapshot boundaries, never per swap.
+      const supply = updated.totalLPTokenSupply;
+      const stakedShare =
+        updated.currentLiquidityStaked < supply
+          ? updated.currentLiquidityStaked
+          : supply;
+      updated = {
+        ...updated,
+        currentLiquidityStakedUSD:
+          (updated.totalLiquidityUSD * stakedShare) / supply,
+      };
     }
 
     setPoolSnapshot(updated, timestamp, context);
