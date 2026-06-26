@@ -7,7 +7,10 @@ import {
   updateUserStatsPerPool,
 } from "../Aggregators/UserStatsPerPool";
 import { OUSDT_ADDRESS } from "../Constants";
-import { processPoolLiquidityEvent } from "./Pool/PoolBurnAndMintLogic";
+import {
+  processPoolLiquidityEvent,
+  processPoolMintWithRecipient,
+} from "./Pool/PoolBurnAndMintLogic";
 import { processPoolClaim } from "./Pool/PoolClaimLogic";
 import { processPoolFees } from "./Pool/PoolFeesLogic";
 import { processPoolSwap } from "./Pool/PoolSwapLogic";
@@ -45,6 +48,41 @@ indexer.onEvent(
       timestamp,
       event.block.number,
       true, // isMint
+    );
+  },
+);
+
+// Superchain-leaf V2 pools emit a 4-arg Mint(sender, to, amount0, amount1)
+// instead of the canonical 3-arg form, so Pool.Mint never fired on those chains
+// and per-LP added* counters stayed 0 (#886). The recipient is in the event, so
+// this path skips Transfer matching and attributes directly to `to`.
+indexer.onEvent(
+  { contract: "Pool", event: "MintWithRecipient" },
+  async ({ event, context }) => {
+    const poolAddress = event.srcAddress;
+    const chainId = event.chainId;
+    const timestamp = new Date(event.block.timestamp * 1000);
+
+    const poolData = await loadPoolData(
+      poolAddress,
+      chainId,
+      context,
+      event.block.number,
+      event.block.timestamp,
+    );
+
+    if (!poolData) {
+      return;
+    }
+
+    await processPoolMintWithRecipient(
+      event,
+      poolData,
+      poolAddress,
+      chainId,
+      context,
+      timestamp,
+      event.block.number,
     );
   },
 );
