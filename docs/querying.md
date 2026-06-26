@@ -309,9 +309,17 @@ The following are non-obvious properties of the data rather than defects.
   a price-trust system. A token whose price cannot be trusted contributes `$0` to
   USD aggregates rather than an unreliable figure. Check
   `Token.priceTrustOutcome`, `priceTrustReason`, and `isWhitelisted` when a USD
-  value is unexpectedly low or zero. On `TokenPriceSnapshot`, filter
-  `priceSource` to `fresh`, `pool-implied`, or `rebind` (or `pricePerUSDNew > 0`)
-  to exclude carried and zeroed ticks.
+  value is unexpectedly low or zero. A token is trusted when it is either
+  protocol-whitelisted **or** a configured price connector for its chain — and
+  not operator-blacklisted. `priceTrustReason` records which: `WL`
+  (protocol-whitelisted), `CONNECTOR` (a canonical base asset — WETH, USDC, the
+  chain's gov token — trusted without a `WhitelistToken` event, issue #898),
+  `BLACKLISTED`, or `NON_WL` (no trust signal). This is why USD is populated on
+  leaf chains that never whitelisted tokens on-chain (e.g. **Mode**, **Swell**)
+  and on WETH-paired pools on **Soneium**/**Metal** — connector legs count even
+  when `isWhitelisted` is `false`. On `TokenPriceSnapshot`, filter `priceSource`
+  to `fresh`, `pool-implied`, or `rebind` (or `pricePerUSDNew > 0`) to exclude
+  carried and zeroed ticks.
 - **Some legacy pools report `totalEmissionsUSD = 0` despite real emissions.**
   Gauges that stopped emitting before the chain's price oracle could value the
   reward token (AERO on Base before 2024-06-14, VELO on Optimism before

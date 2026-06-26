@@ -21,11 +21,16 @@ export type PriceTrustOutcome =
  * Centralised values for the per-token `priceTrustReason` schema field.
  *
  * - `WL` — protocol-whitelisted and not in the operator BLACKLIST (trusted)
- * - `BLACKLISTED` — protocol-whitelisted but operator BLACKLIST overrides
- * - `NON_WL` — not protocol-whitelisted (regardless of BLACKLIST membership)
+ * - `CONNECTOR` — not protocol-whitelisted, but a configured price connector on
+ *   its chain and not in the operator BLACKLIST (trusted, #898)
+ * - `BLACKLISTED` — has a positive trust signal (whitelist and/or connector) but
+ *   the operator BLACKLIST overrides it
+ * - `NON_WL` — no positive trust signal: neither whitelisted nor a connector
+ *   (regardless of BLACKLIST membership)
  */
 export const PRICE_TRUST_REASON = {
   WL: "WL",
+  CONNECTOR: "CONNECTOR",
   NON_WL: "NON_WL",
   BLACKLISTED: "BLACKLISTED",
 } as const;
@@ -39,14 +44,53 @@ export interface PriceTrustDecision {
 }
 
 /**
- * Two-tier price-trust gate. Returns true iff the token is on-chain
- * whitelisted by the protocol's Voter contract AND is not present in the
+ * Per-chain set of lowercased price-connector addresses, built once at module
+ * load from {@link CHAIN_CONSTANTS}. Mirrors the eager-Map idiom used for
+ * `PRICE_REBIND` in PriceOverrides — so the hot trust gate ({@link isTrusted},
+ * consulted on every swap leg) does an O(1) membership test instead of
+ * re-scanning and re-lowercasing each chain's connector array per call.
+ */
+const CONNECTOR_SETS: ReadonlyMap<number, ReadonlySet<string>> = new Map(
+  Object.entries(CHAIN_CONSTANTS).map(([chainId, constants]) => [
+    Number(chainId),
+    new Set(
+      constants.oracle.priceConnectors.map((c) => c.address.toLowerCase()),
+    ),
+  ]),
+);
+
+/**
+ * Whether `address` is one of `chainId`'s configured price connectors — the
+ * canonical base assets (WETH, USDC, the chain's gov token, …) the oracle
+ * already uses to derive every other token's price (src/constants/
+ * price_connectors.json, surfaced as `CHAIN_CONSTANTS[chainId].oracle
+ * .priceConnectors`).
+ *
+ * A token the indexer trusts enough to *derive* prices from is, by the same
+ * token, trustworthy enough to *value* — so connector membership is a positive
+ * trust signal alongside the protocol whitelist (#898). This recovers
+ * whole-chain USD on leaf deployments (Mode/Swell) that never captured a
+ * `WhitelistToken` event, and WETH-paired TVL on Soneium/Metal.
+ *
+ * @param chainId - Chain the token lives on
+ * @param address - Token address (any case; compared lowercased)
+ * @returns true iff the address is a configured connector on the chain; false
+ *   for unknown chains
+ */
+export function isConnectorToken(chainId: number, address: string): boolean {
+  return CONNECTOR_SETS.get(chainId)?.has(address.toLowerCase()) ?? false;
+}
+
+/**
+ * Price-trust gate. Returns true iff the token has a positive trust signal —
+ * protocol whitelist (`WhitelistToken` events) OR membership in its chain's
+ * configured price connectors (#898) — AND is not present in the
  * operator-maintained BLACKLIST override.
  *
- * The gate consults only signals the indexer already has: the Token entity's
- * `isWhitelisted` (sourced from `WhitelistToken` events) and the static
- * BLACKLIST set in `PriceOverrides`. No RPC, no entity reads, no heuristics
- * — pure function, O(1).
+ * Delegates to {@link getGateDecisionFromSignals} so this live gate and the
+ * persisted `priceTrustOutcome` / `priceTrustReason` fields can never diverge.
+ * The gate consults only signals the indexer already has (no RPC, no entity
+ * reads): O(1) given the eagerly-built {@link isConnectorToken} lookup.
  *
  * @param token - Token entity from the indexer. Undefined inputs are
  *   treated as untrusted (the indexer cannot trust what it does not have).
@@ -55,8 +99,11 @@ export interface PriceTrustDecision {
  */
 export function isTrusted(token: Token | undefined): boolean {
   if (!token) return false;
-  if (!token.isWhitelisted) return false;
-  return !isBlacklistedToken(token.chainId, token.address);
+  return getGateDecisionFromSignals(
+    token.chainId,
+    token.address,
+    token.isWhitelisted,
+  ).trusted;
 }
 
 /**
@@ -187,21 +234,31 @@ export function getHardAnchorUnitUSD(
  * `priceTrustOutcome` / `priceTrustReason` fields are populated in lockstep
  * with `isWhitelisted` rather than left null until the first aggregator consult.
  *
- * Reason precedence: `NON_WL` dominates `BLACKLISTED` when both apply, since
- * the protocol-whitelist signal is the load-bearing one — a token's path to
- * trust runs through whitelisting, not through removing a blacklist entry.
+ * Trust requires a positive signal: protocol whitelist OR a configured price
+ * connector (#898). The operator BLACKLIST overrides either signal downward.
  *
- * @param chainId - Chain ID for BLACKLIST lookup
- * @param address - Token address (EIP-55 checksum) for BLACKLIST lookup
+ * Reason precedence:
+ *  - No positive signal at all ⇒ `NON_WL` — and BLACKLIST membership is
+ *    irrelevant here (there is nothing to override), preserving the pre-#898
+ *    semantic that a non-whitelisted, non-connector token reports `NON_WL` even
+ *    when blacklisted.
+ *  - A positive signal exists but the address is blacklisted ⇒ `BLACKLISTED`
+ *    (operator override beats both whitelist and connector).
+ *  - Otherwise trusted, tagged `WL` when whitelisted (the stronger provenance)
+ *    or `CONNECTOR` when trusted solely by connector membership.
+ *
+ * @param chainId - Chain ID for BLACKLIST + connector lookup
+ * @param address - Token address (EIP-55 checksum) for BLACKLIST + connector lookup
  * @param isWhitelisted - Protocol-whitelist signal from the Voter contract
- * @returns `{ trusted, reason }` decision
+ * @returns `{ trusted, outcome, reason }` decision
  */
 export function getGateDecisionFromSignals(
   chainId: number,
   address: string,
   isWhitelisted: boolean,
 ): PriceTrustDecision {
-  if (!isWhitelisted) {
+  const isConnector = isConnectorToken(chainId, address);
+  if (!isWhitelisted && !isConnector) {
     return {
       trusted: false,
       outcome: PRICE_TRUST_OUTCOME.UNTRUSTED,
@@ -218,7 +275,9 @@ export function getGateDecisionFromSignals(
   return {
     trusted: true,
     outcome: PRICE_TRUST_OUTCOME.TRUSTED,
-    reason: PRICE_TRUST_REASON.WL,
+    reason: isWhitelisted
+      ? PRICE_TRUST_REASON.WL
+      : PRICE_TRUST_REASON.CONNECTOR,
   };
 }
 

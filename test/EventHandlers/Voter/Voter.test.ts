@@ -2347,6 +2347,60 @@ describe("Voter Events", () => {
       });
 
       it("flips TRUSTED/WL to UNTRUSTED/NON_WL when WhitelistToken(false) lands", async () => {
+        // SNX on Optimism: real on-chain bytecode but NOT a price connector, so
+        // de-whitelisting fully untrusts it. (WETH — the block's shared
+        // tokenAddress — would stay TRUSTED/CONNECTOR under #898; covered next.)
+        const nonConnectorToken = toChecksumAddress(
+          "0x8700dAec35aF8Ff88c16BdF0418774CB3D7599B4",
+        );
+        const existing = {
+          id: TokenId(10, nonConnectorToken),
+          address: nonConnectorToken,
+          symbol: "TEST",
+          name: "TEST",
+          chainId: 10,
+          decimals: BigInt(18),
+          pricePerUSDNew: BigInt(10000000),
+          isWhitelisted: true,
+          lastUpdatedTimestamp: new Date(0),
+          priceTrustOutcome: PRICE_TRUST_OUTCOME.TRUSTED,
+          priceTrustReason: PRICE_TRUST_REASON.WL,
+        } as Token;
+        const db = createTestIndexer();
+        db.Token.set(existing);
+
+        await db.process({
+          chains: {
+            [wlChainId]: {
+              simulate: [
+                {
+                  contract: "Voter",
+                  event: "WhitelistToken",
+                  logIndex: 1,
+                  block: wlBlock,
+                  params: {
+                    whitelister: toChecksumAddress(
+                      "0x1111111111111111111111111111111111111111",
+                    ),
+                    token: nonConnectorToken,
+                    _bool: false,
+                  },
+                },
+              ],
+            },
+          },
+        });
+        const token = await db.Token.get(TokenId(10, nonConnectorToken));
+
+        expect(token?.isWhitelisted).toBe(false);
+        expect(token?.priceTrustOutcome).toBe(PRICE_TRUST_OUTCOME.UNTRUSTED);
+        expect(token?.priceTrustReason).toBe(PRICE_TRUST_REASON.NON_WL);
+      });
+
+      it("keeps a connector TRUSTED/CONNECTOR when WhitelistToken(false) lands (#898)", async () => {
+        // WETH is a configured price connector on Optimism, so de-whitelisting
+        // it does NOT untrust it — connector membership is an independent trust
+        // signal. isWhitelisted still flips to false.
         const existing = {
           id: TokenId(10, tokenAddress),
           address: tokenAddress,
@@ -2387,8 +2441,8 @@ describe("Voter Events", () => {
         const token = await db.Token.get(TokenId(10, tokenAddress));
 
         expect(token?.isWhitelisted).toBe(false);
-        expect(token?.priceTrustOutcome).toBe(PRICE_TRUST_OUTCOME.UNTRUSTED);
-        expect(token?.priceTrustReason).toBe(PRICE_TRUST_REASON.NON_WL);
+        expect(token?.priceTrustOutcome).toBe(PRICE_TRUST_OUTCOME.TRUSTED);
+        expect(token?.priceTrustReason).toBe(PRICE_TRUST_REASON.CONNECTOR);
       });
 
       it("flags an existing blacklisted token UNTRUSTED/BLACKLISTED on WhitelistToken(true)", async () => {
