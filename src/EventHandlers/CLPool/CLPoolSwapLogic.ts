@@ -5,7 +5,7 @@ import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import { FEE_SCALE } from "../../Constants";
 import type { Pool, handlerContext } from "../../EntityTypes";
 import {
-  calculateTotalUSD,
+  calculateLiquidityUSD,
   normalizeTokenAmountTo1e18,
   pickTrustedSwapVolumeUSD,
 } from "../../Helpers";
@@ -279,12 +279,6 @@ export async function processCLPoolSwap(
   const reserveDelta1 = totalCrossings.delta1;
   const newReserve0 = liquidityPoolAggregator.reserve0 + reserveDelta0;
   const newReserve1 = liquidityPoolAggregator.reserve1 + reserveDelta1;
-  const currentTotalLiquidityUSD = calculateTotalUSD(
-    newReserve0,
-    newReserve1,
-    token0Instance,
-    token1Instance,
-  );
 
   // Staked-share tracking (#666) — unchanged. Same edge-walk math, but over the
   // staked-only edge map, producing the staked slice of the reserve deltas.
@@ -321,6 +315,19 @@ export async function processCLPoolSwap(
         )
       : { token0Price: 0n, token1Price: 0n },
     liquidityPoolAggregator,
+  );
+
+  // Issue #892: directional TVL cap against a hard-anchor counterparty. Computed
+  // after priceRatios so the cap uses the swap's post-trade pool ratio (the same
+  // ratio written to the diff) as the pool-implied witness.
+  const currentTotalLiquidityUSD = calculateLiquidityUSD(
+    newReserve0,
+    newReserve1,
+    token0Instance,
+    token1Instance,
+    priceRatios.token0Price,
+    priceRatios.token1Price,
+    event.chainId,
   );
 
   // Build complete liquidity pool aggregator diff

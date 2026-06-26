@@ -5,10 +5,11 @@ import {
 } from "@uniswap/v3-sdk";
 import type { Token } from "envio";
 import JSBI from "jsbi";
-import { TokenId, toChecksumAddress } from "../src/Constants";
+import { TEN_TO_THE_18_BI, TokenId, toChecksumAddress } from "../src/Constants";
 import type { handlerContext } from "../src/EntityTypes";
 import type { Pool } from "../src/EntityTypes";
 import {
+  calculateLiquidityUSD,
   calculatePositionAmountsFromLiquidity,
   calculateTotalUSD,
   computeLiquidityDeltaFromAmounts,
@@ -223,6 +224,174 @@ describe("Helpers", () => {
         undefined,
       );
       expect(total).toBe(0n);
+    });
+  });
+
+  describe("calculateLiquidityUSD (#892 directional TVL cap)", () => {
+    const { createMockToken } = setupCommon();
+    const BASE = 8453;
+    // USDC is Base's destinationToken (excluded from the stablecoins set), WETH
+    // the canonical connector, LFI the live poisoned whitelisted token, and
+    // NON_ANCHOR a trusted-but-not-anchor address.
+    const USDC = toChecksumAddress(
+      "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    );
+    const WETH = toChecksumAddress(
+      "0x4200000000000000000000000000000000000006",
+    );
+    const LFI = toChecksumAddress("0x3722264aB15a1dfCe5a5af89e6547F7949A8ABA3");
+    const NON_ANCHOR = toChecksumAddress(
+      "0x4444444444444444444444444444444444444444",
+    );
+
+    const mk = (
+      address: string,
+      decimals: bigint,
+      pricePerUSDNew: bigint,
+      isWhitelisted = true,
+    ): Token =>
+      createMockToken({
+        id: TokenId(BASE, address),
+        address: address as `0x${string}`,
+        chainId: BASE,
+        decimals,
+        pricePerUSDNew,
+        isWhitelisted,
+      });
+
+    it("caps a poisoned leg against a stablecoin anchor (the LFI/USDC defect)", () => {
+      const lfi = mk(LFI, 18n, 24n * TEN_TO_THE_18_BI); // oracle $24 (poisoned)
+      const usdc = mk(USDC, 6n, 1n * TEN_TO_THE_18_BI); // $1 (destination token)
+      const lfiReserve = 1_000_000_000n * TEN_TO_THE_18_BI; // 1e9 LFI
+      const usdcReserve = 4_000n * 1_000_000n; // $4,000 (≥ floor)
+      const token0Price = 60_000_000_000_000n; // 6e13 → pool implies LFI = $0.00006
+      const token1Price = 16_000_000_000_000_000_000_000n; // USDC-in-LFI (unused: LFI is not an anchor)
+
+      const capped = calculateLiquidityUSD(
+        lfiReserve,
+        usdcReserve,
+        lfi,
+        usdc,
+        token0Price,
+        token1Price,
+        BASE,
+      );
+      // LFI leg re-valued at implied $0.00006 → $60,000; USDC leg $4,000.
+      expect(capped).toBe(64_000n * TEN_TO_THE_18_BI);
+      // Sanity: the un-capped oracle path would have produced > $24B.
+      const uncapped = calculateTotalUSD(lfiReserve, usdcReserve, lfi, usdc);
+      expect(uncapped > 24_000_000_000n * TEN_TO_THE_18_BI).toBe(true);
+    });
+
+    it("does NOT cap a correct leg whose pool ratio implies a broken-HIGH price (USDe drained-pool regression)", () => {
+      // A $1 stablecoin in a drained pool against a real USDC anchor: the spot
+      // ratio blows up HIGH (implies $254K), but oracle ($1) ≪ implied, so the
+      // downward-only cap must NOT fire — it would corrupt $1 → $254K.
+      const usde = mk(NON_ANCHOR, 18n, 1n * TEN_TO_THE_18_BI); // $1, non-anchor token
+      const usdc = mk(USDC, 6n, 1n * TEN_TO_THE_18_BI);
+      const usdeReserve = 1n * TEN_TO_THE_18_BI; // 1 USDe
+      const usdcReserve = 300_000n * 1_000_000n; // $300,000 (floor passes)
+      const token0Price = 254_000n * TEN_TO_THE_18_BI; // pool implies USDe = $254,000
+
+      const capped = calculateLiquidityUSD(
+        usdeReserve,
+        usdcReserve,
+        usde,
+        usdc,
+        token0Price,
+        4_000_000_000_000n, // unused
+        BASE,
+      );
+      // USDe leg stays $1; total = $1 + $300,000 — identical to the un-capped sum.
+      expect(capped).toBe(300_001n * TEN_TO_THE_18_BI);
+      expect(capped).toBe(
+        calculateTotalUSD(usdeReserve, usdcReserve, usde, usdc),
+      );
+    });
+
+    it("caps a poisoned leg against a WETH anchor", () => {
+      const poison = mk(NON_ANCHOR, 18n, 10n * TEN_TO_THE_18_BI); // oracle $10 (poisoned)
+      const weth = mk(WETH, 18n, 1_600n * TEN_TO_THE_18_BI); // $1,600
+      const poisonReserve = 1_000_000n * TEN_TO_THE_18_BI; // 1e6 poison
+      const wethReserve = 1n * TEN_TO_THE_18_BI; // 1 WETH = $1,600 (≥ floor)
+      const token0Price = 625_000_000_000n; // 6.25e11 → implies poison = $0.001
+
+      const capped = calculateLiquidityUSD(
+        poisonReserve,
+        wethReserve,
+        poison,
+        weth,
+        token0Price,
+        1n, // unused (WETH is the anchor)
+        BASE,
+      );
+      // poison leg → 1e6 × $0.001 = $1,000; WETH leg $1,600.
+      expect(capped).toBe(2_600n * TEN_TO_THE_18_BI);
+    });
+
+    it("does NOT cap when the anchor leg holds < $1,000 of reserve (dead-pool guard)", () => {
+      const lfi = mk(LFI, 18n, 24n * TEN_TO_THE_18_BI);
+      const usdc = mk(USDC, 6n, 1n * TEN_TO_THE_18_BI);
+      const lfiReserve = 1_000_000_000n * TEN_TO_THE_18_BI;
+      const usdcReserve = 100n * 1_000_000n; // $100 < $1,000 floor
+
+      const result = calculateLiquidityUSD(
+        lfiReserve,
+        usdcReserve,
+        lfi,
+        usdc,
+        60_000_000_000_000n,
+        0n,
+        BASE,
+      );
+      // Floor blocks the cap; identical to the un-capped (poisoned) sum.
+      expect(result).toBe(
+        calculateTotalUSD(lfiReserve, usdcReserve, lfi, usdc),
+      );
+    });
+
+    it("does NOT cap when the oracle/implied gap is ≤ 10× (boundary; normal pools untouched)", () => {
+      const tok = mk(NON_ANCHOR, 18n, 10n * TEN_TO_THE_18_BI); // oracle $10
+      const usdc = mk(USDC, 6n, 1n * TEN_TO_THE_18_BI);
+      const tokReserve = 1_000n * TEN_TO_THE_18_BI;
+      const usdcReserve = 4_000n * 1_000_000n; // floor passes
+      const token0Price = 1n * TEN_TO_THE_18_BI; // implies $1 → oracle is exactly 10×
+
+      const result = calculateLiquidityUSD(
+        tokReserve,
+        usdcReserve,
+        tok,
+        usdc,
+        token0Price,
+        0n,
+        BASE,
+      );
+      // 10× is not > 10×, so no cap: token leg = 1,000 × $10 = $10,000; USDC $4,000.
+      expect(result).toBe(14_000n * TEN_TO_THE_18_BI);
+      expect(result).toBe(
+        calculateTotalUSD(tokReserve, usdcReserve, tok, usdc),
+      );
+    });
+
+    it("does NOT cap when the counterparty is not a hard anchor", () => {
+      const lfi = mk(LFI, 18n, 24n * TEN_TO_THE_18_BI);
+      const other = mk(NON_ANCHOR, 18n, 1n * TEN_TO_THE_18_BI); // trusted but not an anchor
+      const lfiReserve = 1_000_000_000n * TEN_TO_THE_18_BI;
+      const otherReserve = 1_000_000n * TEN_TO_THE_18_BI;
+
+      const result = calculateLiquidityUSD(
+        lfiReserve,
+        otherReserve,
+        lfi,
+        other,
+        60_000_000_000_000n,
+        1n * TEN_TO_THE_18_BI,
+        BASE,
+      );
+      // No hard anchor → no cap; identical to the un-capped sum.
+      expect(result).toBe(
+        calculateTotalUSD(lfiReserve, otherReserve, lfi, other),
+      );
     });
   });
 

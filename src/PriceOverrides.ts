@@ -672,6 +672,27 @@ const REBINDS: ReadonlyArray<{
     ],
   },
   {
+    // Issue #892: WETH on Metal -> WETH on Optimism. Both are the canonical
+    // OP-stack WETH at `0x4200…0006`. Metal's local oracle prices everything
+    // against oUSDT, which reads structurally high (~+28%), inflating Metal WETH
+    // to ~$2,005 vs the ~$1,565 cross-chain consensus. Optimism prices WETH
+    // cleanly; copying it makes WETH a trustworthy hard anchor on Metal for the
+    // directional TVL cap (Piece 1). The broader Metal oUSDT unit inflation is a
+    // separate, sub-10× follow-up.
+    source: {
+      chainId: 10,
+      address: toChecksumAddress("0x4200000000000000000000000000000000000006"),
+    },
+    targets: [
+      {
+        chainId: 1750,
+        address: toChecksumAddress(
+          "0x4200000000000000000000000000000000000006",
+        ),
+      },
+    ],
+  },
+  {
     // XVELO on every superchain -> canonical VELO on Optimism
     source: {
       chainId: 10,

@@ -6,10 +6,30 @@ import {
   PRICE_TRUST_REASON,
   getGateDecision,
   getGateDecisionFromSignals,
+  getHardAnchorUnitUSD,
   getPoolImpliedUSD,
   getTrustedUSD,
+  isHardAnchor,
   isTrusted,
 } from "../src/PriceTrust";
+
+// Real anchor + non-anchor addresses on Base (chainId 8453) used by the #892
+// hard-anchor helpers. USDC is the chain's `destinationToken` (excluded from the
+// stablecoins set by buildStablecoinSet), DAI is a member of that set, WETH is
+// the canonical OP-stack connector, and LFI is a non-anchor whitelisted token.
+const BASE = 8453;
+const BASE_USDC = toChecksumAddress(
+  "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+);
+const BASE_DAI = toChecksumAddress(
+  "0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb",
+);
+const BASE_WETH = toChecksumAddress(
+  "0x4200000000000000000000000000000000000006",
+);
+const LFI_BASE = toChecksumAddress(
+  "0x3722264aB15a1dfCe5a5af89e6547F7949A8ABA3",
+);
 
 /**
  * Minimal mock for the slice of {@link handlerContext} that
@@ -352,6 +372,81 @@ describe("PriceTrust", () => {
       });
       expect(getPoolImpliedUSD(0n, trusted)).toBe(0n);
       expect(getPoolImpliedUSD(50_000_000_000_000n, undefined)).toBe(0n);
+    });
+  });
+
+  describe("isHardAnchor (#892)", () => {
+    it("returns true for the chain's destination token (USDC/Base)", () => {
+      // USDC is the destinationToken — excluded from the stablecoins set, so
+      // this proves the explicit destinationToken check is load-bearing.
+      expect(isHardAnchor(BASE, BASE_USDC)).toBe(true);
+    });
+
+    it("returns true for a stablecoin-set member (DAI/Base)", () => {
+      expect(isHardAnchor(BASE, BASE_DAI)).toBe(true);
+    });
+
+    it("returns true for the chain's WETH connector", () => {
+      expect(isHardAnchor(BASE, BASE_WETH)).toBe(true);
+    });
+
+    it("is case-insensitive on the address", () => {
+      expect(isHardAnchor(BASE, BASE_USDC.toLowerCase())).toBe(true);
+    });
+
+    it("returns false for a non-anchor whitelisted token (LFI/Base)", () => {
+      expect(isHardAnchor(BASE, LFI_BASE)).toBe(false);
+    });
+
+    it("returns false for an unknown chain", () => {
+      expect(isHardAnchor(999999, BASE_USDC)).toBe(false);
+    });
+  });
+
+  describe("getHardAnchorUnitUSD (#892)", () => {
+    it("pins a destination-token stablecoin to $1, ignoring its oracle price", () => {
+      const usdc = makeToken({
+        chainId: BASE,
+        address: BASE_USDC,
+        decimals: 6n,
+        // Deliberately wrong oracle value — the $1 pin must override it.
+        pricePerUSDNew: 999n * TEN_TO_THE_18_BI,
+      });
+      expect(getHardAnchorUnitUSD(BASE, usdc)).toBe(TEN_TO_THE_18_BI);
+    });
+
+    it("pins a stablecoin-set member to $1", () => {
+      const dai = makeToken({
+        chainId: BASE,
+        address: BASE_DAI,
+        decimals: 18n,
+      });
+      expect(getHardAnchorUnitUSD(BASE, dai)).toBe(TEN_TO_THE_18_BI);
+    });
+
+    it("values WETH at its oracle pricePerUSDNew", () => {
+      const weth = makeToken({
+        chainId: BASE,
+        address: BASE_WETH,
+        decimals: 18n,
+        pricePerUSDNew: 1600n * TEN_TO_THE_18_BI,
+      });
+      expect(getHardAnchorUnitUSD(BASE, weth)).toBe(1600n * TEN_TO_THE_18_BI);
+    });
+
+    it("returns 0n for a non-anchor token", () => {
+      const lfi = makeToken({
+        chainId: BASE,
+        address: LFI_BASE,
+        pricePerUSDNew: 24n * TEN_TO_THE_18_BI,
+      });
+      expect(getHardAnchorUnitUSD(BASE, lfi)).toBe(0n);
+    });
+
+    it("returns 0n for an undefined token and for an unknown chain", () => {
+      expect(getHardAnchorUnitUSD(BASE, undefined)).toBe(0n);
+      const usdc = makeToken({ chainId: BASE, address: BASE_USDC });
+      expect(getHardAnchorUnitUSD(999999, usdc)).toBe(0n);
     });
   });
 });

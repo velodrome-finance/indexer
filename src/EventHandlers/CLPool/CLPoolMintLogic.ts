@@ -2,7 +2,7 @@ import type { EvmEvent } from "envio";
 import type { Token } from "envio";
 import type { PoolDiff } from "../../Aggregators/Pool";
 import type { Pool } from "../../EntityTypes";
-import { calculateTotalUSD } from "../../Helpers";
+import { calculateLiquidityUSD } from "../../Helpers";
 
 export interface CLPoolMintResult {
   liquidityPoolDiff: Partial<PoolDiff>;
@@ -34,11 +34,16 @@ export function processCLPoolMint(
   // Mint deposits new capital into the pool — always increases reserves.
   const newReserve0 = liquidityPoolAggregator.reserve0 + event.params.amount0;
   const newReserve1 = liquidityPoolAggregator.reserve1 + event.params.amount1;
-  const currentTotalLiquidityUSD = calculateTotalUSD(
+  // Issue #892: directional TVL cap against a hard-anchor counterparty. Mint
+  // does not move the price, so the stored pool ratio is the correct witness.
+  const currentTotalLiquidityUSD = calculateLiquidityUSD(
     newReserve0,
     newReserve1,
     token0Instance,
     token1Instance,
+    liquidityPoolAggregator.token0Price,
+    liquidityPoolAggregator.token1Price,
+    liquidityPoolAggregator.chainId,
   );
 
   const currentTick = liquidityPoolAggregator.tick;

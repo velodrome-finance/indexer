@@ -1,4 +1,5 @@
 import type { Token } from "envio";
+import { CHAIN_CONSTANTS, TEN_TO_THE_18_BI } from "./Constants";
 import type { handlerContext } from "./EntityTypes";
 import { calculateTokenAmountUSD } from "./Helpers";
 import { multiplyBase1e18 } from "./Maths";
@@ -110,6 +111,74 @@ export function getPoolImpliedUSD(
     return 0n;
   }
   return multiplyBase1e18(priceRatio1e18, counterparty.pricePerUSDNew);
+}
+
+/**
+ * Whether `address` is a "hard anchor" on `chainId` — a token whose USD value
+ * is structurally reliable enough to use as ground truth for the directional
+ * TVL cap (#892): the chain's USDC `destinationToken`, any configured
+ * stablecoin, or the chain's canonical WETH connector.
+ *
+ * Stricter than {@link isTrusted}: being protocol-whitelisted is not enough; a
+ * hard anchor is one of the few tokens the indexer treats as a USD yardstick.
+ * Stablecoins are valued at a hard $1 pin and WETH at its own oracle price (see
+ * {@link getHardAnchorUnitUSD}).
+ *
+ * `destinationToken` is checked explicitly because `buildStablecoinSet`
+ * (src/Constants.ts) deliberately EXCLUDES it from `stablecoins` — it is the
+ * oracle's pricing target, not a connector — yet it is the primary stablecoin
+ * on every chain (USDC on Optimism/Base, oUSDT on Lisk/Metal, …).
+ *
+ * @param chainId - Chain the token lives on
+ * @param address - Token address (any case; compared lowercased)
+ * @returns true iff the address is a stablecoin / destination token or WETH on
+ *   the chain; false for unknown chains
+ */
+export function isHardAnchor(chainId: number, address: string): boolean {
+  const constants = CHAIN_CONSTANTS[chainId];
+  if (!constants) return false;
+  const lower = address.toLowerCase();
+  return (
+    lower === constants.destinationToken.toLowerCase() ||
+    constants.stablecoins.has(lower) ||
+    lower === constants.weth.toLowerCase()
+  );
+}
+
+/**
+ * USD value of one whole unit of a hard-anchor token (1e18-base), or `0n` when
+ * the token is not a hard anchor on the chain or cannot be valued.
+ *
+ * Stablecoins and the chain's `destinationToken` are pinned to exactly $1 —
+ * deliberately NOT their oracle `pricePerUSDNew`, so a drifting or poisoned
+ * stablecoin oracle can never move the anchor used to sanity-check other legs.
+ * WETH is valued at its oracle `pricePerUSDNew`; an unpriced WETH (`0n`) returns
+ * `0n`, which makes every downstream cap check inert (an unusable anchor).
+ *
+ * @param chainId - Chain the token lives on
+ * @param token - Candidate anchor token (carries address + pricePerUSDNew).
+ *   Undefined ⇒ `0n`.
+ * @returns `$1` (1e18-base) for a stablecoin / destination anchor, WETH's oracle
+ *   price for the WETH anchor, or `0n` when `token` is not a hard anchor
+ */
+export function getHardAnchorUnitUSD(
+  chainId: number,
+  token: Token | undefined,
+): bigint {
+  if (!token) return 0n;
+  const constants = CHAIN_CONSTANTS[chainId];
+  if (!constants) return 0n;
+  const lower = token.address.toLowerCase();
+  if (
+    lower === constants.destinationToken.toLowerCase() ||
+    constants.stablecoins.has(lower)
+  ) {
+    return TEN_TO_THE_18_BI; // hard $1 pin
+  }
+  if (lower === constants.weth.toLowerCase()) {
+    return token.pricePerUSDNew; // WETH oracle price (0n ⇒ anchor unusable)
+  }
+  return 0n;
 }
 
 /**
