@@ -571,6 +571,27 @@ const BLACKLIST: ReadonlySet<string> = new Set([
     toChecksumAddress("0x52b492a33E447Cdb854c7FC19F1e57E8BfA1777D"),
   ), // PEPE / Base (whitelisted; frozen route)
   TokenId(10, toChecksumAddress("0xC26921B5b9ee80773774d36C84328ccb22c3a819")), // wOptiDoge / Optimism (whitelisted; frozen route)
+  // Issue #901: the Base token at 0x940A319B… (symbol DEUS, 874M supply) is a
+  // SEPARATE, REAL token from canonical DEUS Finance — it merely shares the DEUS
+  // symbol. Canonical DEUS lives at 0xDE5ed76E7c05eC5e4572CfC88d1ACEA165109E44 on
+  // Base, is priced correctly (~$2.31), and is left untouched. The 0x940A319B
+  // token is whitelisted with a price anchor FROZEN at ~$0.528 while its own
+  // VIRTUAL/USDC pools imply ~$0.0229 (a 23× overprice) — the same frozen-anchor
+  // failure mode as the #786 PEPE/wOptiDoge entries above, not a worthless spoof.
+  // The frozen anchor inflates the VIRTUAL/DEUS V2 pool TVL to ~$8.2M (true
+  // ~$683k); #892/#897's directional cap misses it because VIRTUAL isn't a
+  // hard-anchor (stablecoin/WETH) counterparty. With no price-pin mechanism and
+  // nothing priced at ~$0.0229 to rebind to, blacklisting (price → 0) is the only
+  // available lever. It is lossy: it also zeroes the token's real ~$0.0229 leg, so
+  // the pool then UNDERCOUNTS (~$341k) instead of reporting the true ~$683k — a
+  // ~2× undercount accepted in place of a ~12× overcount, pending a proper
+  // re-anchor mechanism (tracked with the #786 frozen-route root cause). Volume
+  // and fees are unaffected: the min-of-legs picker and 10× out-of-band fee guard
+  // already discard the bad price; only TVL (sum-of-legs, ungated) was wrong.
+  TokenId(
+    8453,
+    toChecksumAddress("0x940A319B75861014A220D9c6c144d108552B089B"),
+  ), // DEUS (real token, frozen anchor 23× high; distinct from canonical DEUS Finance)
 ]);
 
 /**
