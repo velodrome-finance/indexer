@@ -452,11 +452,10 @@ describe("CLFactoryPoolCreatedLogic", () => {
       );
 
       // The function should complete successfully (errors are logged but don't stop processing)
-      // When token creation fails, symbols will be undefined
+      // When token creation throws on both sides, each falls back to an empty
+      // symbol so the name never contains "undefined" (#865).
       expect(result?.liquidityPoolAggregator).toBeDefined();
-      expect(result?.liquidityPoolAggregator.name).toBe(
-        "CL-60 AMM - undefined/undefined",
-      );
+      expect(result?.liquidityPoolAggregator.name).toBe("CL-60 AMM - /");
     });
 
     it("should set all initial values correctly for new pool", async () => {
@@ -750,6 +749,42 @@ describe("CLFactoryPoolCreatedLogic", () => {
         });
       },
     );
+
+    // Issue #865 follow-up (PR #894 review): the bytecode-gate `null` path
+    // writes an empty symbol, but a *thrown* createTokenEntity error (e.g. a
+    // transient RPC failure, which is distinct from a confirmed non-contract)
+    // must not leave the slot `undefined` — that would persist a pool name like
+    // "CL-60 AMM - USDT/undefined". The catch must fall back to "" as well,
+    // matching the V2 PoolFactory symbol assembly (`?? ""`).
+    it("persists the Pool with an empty symbol when token fetch throws (#865)", async () => {
+      vi.restoreAllMocks();
+      vi.spyOn(PriceOracle, "createTokenEntity").mockImplementation(
+        async (address: string) => {
+          if (address === mockEvent.params.token0)
+            return mockToken0Data as Token;
+          // token1 fetch throws instead of returning a gate null.
+          throw new Error("transient RPC failure");
+        },
+      );
+
+      const result = await processCLFactoryPoolCreated(
+        mockEvent,
+        mockEvent.srcAddress,
+        undefined,
+        undefined,
+        undefined,
+        mockFeeToTickSpacingMapping,
+        mockContext,
+      );
+
+      // Empty (not "undefined") symbol on the throwing side.
+      expect(result.liquidityPoolAggregator).toMatchObject({
+        id: LEAF_POOL_ID,
+        name: "CL-60 AMM - USDT/",
+        ...expectedTokenFields,
+        isCL: true,
+      });
+    });
   });
 
   describe("flushPendingRootPoolMappingAndVotes", () => {

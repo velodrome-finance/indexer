@@ -100,6 +100,10 @@ export async function processCLFactoryPoolCreated(
           context.log.error(
             `Error in cl factory fetching token details for ${poolTokenAddressMapping.address} on chain ${event.chainId}: ${error}`,
           );
+          // A thrown fetch (transient RPC failure, distinct from the gate's
+          // null) must still leave a defined symbol so the Pool name doesn't
+          // become "…/undefined"; fall back to "" like the null branch (#865).
+          poolTokenSymbols[index] = "";
         }
       } else {
         poolTokenSymbols[index] = poolTokenAddressMapping.tokenInstance.symbol;
