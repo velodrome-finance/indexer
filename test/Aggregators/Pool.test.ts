@@ -10,6 +10,7 @@ import {
   PoolId,
   PoolSnapshotId,
   RootPoolLeafPoolId,
+  TEN_TO_THE_18_BI,
   toChecksumAddress,
 } from "../../src/Constants";
 import { getSwapFee } from "../../src/Effects/SwapFee";
@@ -2041,16 +2042,21 @@ describe("Pool Functions", () => {
       expect(ctx.NonFungiblePosition.getWhere).not.toHaveBeenCalled();
     });
 
-    it("should NOT recompute staked USD for non-CL pools at snapshot time", async () => {
+    it("should recompute staked USD for non-CL pools at snapshot time (issue #899)", async () => {
       const oldTimestamp = new Date(Date.now() - 2 * 60 * 60 * 1000);
       const currentTimestamp = new Date();
 
+      // Default mock totalLiquidityUSD is $400; half the LP supply is staked, so
+      // the staked share is $200. The stale 100n baked at an old gauge event
+      // must be refreshed to that fraction of total — not preserved (the #899
+      // regression). Derived from totalLiquidityUSD, so no token reads.
       const v2Pool = createMockPool({
         chainId: 10,
         isCL: false,
         lastSnapshotTimestamp: oldTimestamp,
-        currentLiquidityStaked: 5000n,
-        currentLiquidityStakedUSD: 100n,
+        totalLPTokenSupply: 100n * TEN_TO_THE_18_BI,
+        currentLiquidityStaked: 50n * TEN_TO_THE_18_BI, // half of supply
+        currentLiquidityStakedUSD: 100n, // stale residue from an old gauge event
       });
 
       const setMock = vi.fn();
@@ -2067,12 +2073,19 @@ describe("Pool Functions", () => {
 
       await updatePool(diff, v2Pool, currentTimestamp, ctx, 10, blockNumber);
 
-      // getWhere should NOT have been called (non-CL pool)
+      // getWhere should NOT have been called (non-CL pools never query NFPM
+      // positions; the recompute derives from totalLiquidityUSD instead)
       expect(ctx.NonFungiblePosition.getWhere).not.toHaveBeenCalled();
 
-      // Staked USD should be preserved
+      // Stale staked USD refreshed to the staked fraction of total:
+      // 400e18 × 50e18 / 100e18 = 200e18, and stays ≤ totalLiquidityUSD.
       const updatedAggregator = setMock.mock.calls[0]?.[0] as Pool;
-      expect(updatedAggregator.currentLiquidityStakedUSD).toBe(100n);
+      expect(updatedAggregator.currentLiquidityStakedUSD).toBe(
+        200n * TEN_TO_THE_18_BI,
+      );
+      expect(updatedAggregator.currentLiquidityStakedUSD).toBeLessThanOrEqual(
+        updatedAggregator.totalLiquidityUSD,
+      );
     });
   });
 
