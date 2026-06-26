@@ -304,40 +304,166 @@ export async function processPoolLiquidityEvent(
   );
 
   // Update user stats (actual user, not router) if we found a match.
-  // This is the ONLY place the V2 per-LP liquidity deltas are set:
-  // incrementalTotalLiquidityAdded/RemovedUSD plus the raw added/removed
-  // token0/1 amounts (#810), mirroring the CL/NFPM path in NFPMCommonLogic.
   if (attributionResult?.recipient) {
-    const userData = await loadOrCreateUserData(
+    await attributeLiquidityDelta(
       attributionResult.recipient,
+      attributionResult.totalLiquidityUSD,
+      attributionResult.amount0,
+      attributionResult.amount1,
+      isMint,
+      poolData,
       poolAddress,
       chainId,
       context,
       timestamp,
     );
+  }
+}
 
-    const userDiff = isMint
-      ? {
-          incrementalTotalLiquidityAddedUSD:
-            attributionResult.totalLiquidityUSD,
-          incrementalTotalLiquidityAddedToken0: attributionResult.amount0,
-          incrementalTotalLiquidityAddedToken1: attributionResult.amount1,
-          lastActivityTimestamp: timestamp,
-        }
-      : {
-          incrementalTotalLiquidityRemovedUSD:
-            attributionResult.totalLiquidityUSD,
-          incrementalTotalLiquidityRemovedToken0: attributionResult.amount0,
-          incrementalTotalLiquidityRemovedToken1: attributionResult.amount1,
-          lastActivityTimestamp: timestamp,
-        };
+/**
+ * Attribute a per-LP liquidity delta (USD + raw token0/1 amounts) to the
+ * recipient's UserStatsPerPool. This is the shared tail of both V2 liquidity
+ * paths: the canonical 3-arg Mint/Burn (recipient resolved by Transfer
+ * matching) and the superchain-leaf 4-arg Mint (recipient carried in the event
+ * itself, #886). This is the ONLY place the V2 per-LP liquidity deltas are set:
+ * incrementalTotalLiquidityAdded/RemovedUSD plus the raw added/removed token0/1
+ * amounts (#810), mirroring the CL/NFPM path in NFPMCommonLogic.
+ *
+ * @param recipient - The actual LP whose stats advance (not the router)
+ * @param totalLiquidityUSD - USD value of the deposited/withdrawn amounts
+ * @param amount0 - Raw token0 amount from the Mint/Burn event
+ * @param amount1 - Raw token1 amount from the Mint/Burn event
+ * @param isMint - Whether this is a Mint (added) or Burn (removed)
+ * @param poolData - Preloaded pool data (aggregator + token instances)
+ * @param poolAddress - Pool address
+ * @param chainId - Chain ID
+ * @param context - Handler context
+ * @param timestamp - Event timestamp
+ * @returns Promise that resolves once the UserStatsPerPool upsert is staged
+ */
+export async function attributeLiquidityDelta(
+  recipient: string,
+  totalLiquidityUSD: bigint,
+  amount0: bigint,
+  amount1: bigint,
+  isMint: boolean,
+  poolData: PoolData,
+  poolAddress: string,
+  chainId: number,
+  context: handlerContext,
+  timestamp: Date,
+): Promise<void> {
+  const userData = await loadOrCreateUserData(
+    recipient,
+    poolAddress,
+    chainId,
+    context,
+    timestamp,
+  );
 
-    await updateUserStatsPerPool(
-      userDiff,
-      userData,
-      context,
-      timestamp,
-      poolData,
-    );
+  const userDiff = isMint
+    ? {
+        incrementalTotalLiquidityAddedUSD: totalLiquidityUSD,
+        incrementalTotalLiquidityAddedToken0: amount0,
+        incrementalTotalLiquidityAddedToken1: amount1,
+        lastActivityTimestamp: timestamp,
+      }
+    : {
+        incrementalTotalLiquidityRemovedUSD: totalLiquidityUSD,
+        incrementalTotalLiquidityRemovedToken0: amount0,
+        incrementalTotalLiquidityRemovedToken1: amount1,
+        lastActivityTimestamp: timestamp,
+      };
+
+  await updateUserStatsPerPool(
+    userDiff,
+    userData,
+    context,
+    timestamp,
+    poolData,
+  );
+}
+
+/**
+ * Process the superchain-leaf 4-arg Pool Mint (#886). Leaf V2 pools emit
+ * `Mint(address indexed sender, address indexed to, uint256 amount0, uint256 amount1)`
+ * (distinct topic0 from the canonical 3-arg Mint), carrying the LP recipient
+ * directly — so no Transfer matching is needed. Canonical OP/Base pools emit
+ * the 3-arg Mint instead, making the two mutually exclusive per pool (no double
+ * count). Bumps only the pool activity timestamp (the paired Sync still owns
+ * reserves, totalLiquidityUSD and the price ratio — #783), then attributes the
+ * added liquidity to `event.params.to`. Finally purges the mint-side
+ * PoolTransferInTx rows for this (tx, pool): they are written by
+ * processPoolTransfer for the 3-arg Mint's Transfer matching, which never fires
+ * on leaf chains, so without this they would accumulate unbounded.
+ *
+ * @param event - The 4-arg MintWithRecipient event
+ * @param poolData - Preloaded pool data (aggregator + token instances)
+ * @param poolAddress - Pool address
+ * @param chainId - Chain ID
+ * @param context - Handler context
+ * @param timestamp - Event timestamp
+ * @param blockNumber - Block number
+ * @returns Promise that resolves once the pool bump, user upsert and mint-transfer purge are staged
+ */
+export async function processPoolMintWithRecipient(
+  event: EvmEvent<"Pool", "MintWithRecipient">,
+  poolData: PoolData,
+  poolAddress: string,
+  chainId: number,
+  context: handlerContext,
+  timestamp: Date,
+  blockNumber: number,
+): Promise<void> {
+  const { liquidityPoolAggregator, token0Instance, token1Instance } = poolData;
+  const txHash = event.transaction.hash;
+
+  await updatePool(
+    { lastUpdatedTimestamp: timestamp },
+    liquidityPoolAggregator,
+    timestamp,
+    context,
+    chainId,
+    blockNumber,
+  );
+
+  const totalLiquidityUSD = calculateTotalUSD(
+    event.params.amount0,
+    event.params.amount1,
+    token0Instance,
+    token1Instance,
+  );
+
+  await attributeLiquidityDelta(
+    event.params.to,
+    totalLiquidityUSD,
+    event.params.amount0,
+    event.params.amount1,
+    true, // isMint
+    poolData,
+    poolAddress,
+    chainId,
+    context,
+    timestamp,
+  );
+
+  // Consume the mint-side PoolTransferInTx rows for this (tx, pool) so they
+  // don't leak. processPoolTransfer records every LP-token mint Transfer for
+  // the canonical 3-arg Mint's Transfer matching, but that handler never fires
+  // on superchain-leaf chains (they emit only this 4-arg form), so nothing else
+  // would ever delete them — they would accumulate unbounded. The recipient is
+  // already in the event, so we don't need them for matching; just purge.
+  // Burn rows (isBurn) are left untouched for the Burn handler.
+  const registryId = TxPoolTransferRegistryId(chainId, txHash, poolAddress);
+  const mintTransfers = await getTransfersInTx(
+    txHash,
+    chainId,
+    poolAddress,
+    true, // isMint
+    context,
+  );
+  for (const transfer of mintTransfers) {
+    context.PoolTransferInTx.deleteUnsafe(transfer.id);
+    await pruneRegistryOnConsume(registryId, transfer.id, context);
   }
 }

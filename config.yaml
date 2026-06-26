@@ -75,6 +75,11 @@ contracts:
     handler: src/EventHandlers/Pool.ts
     events:
       - event: Mint
+      # Superchain-leaf V2 pools emit a 4-arg Mint with the LP recipient (#886).
+      # Canonical OP/Base pools emit the 3-arg Mint above instead, so the two
+      # are mutually exclusive per pool (distinct topic0) — no double count.
+      - event: "Mint(address indexed sender, address indexed to, uint256 amount0, uint256 amount1)"
+        name: MintWithRecipient
       - event: Burn
       - event: Fees
       - event: Claim
