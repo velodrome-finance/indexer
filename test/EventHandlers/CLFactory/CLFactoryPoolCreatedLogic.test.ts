@@ -687,22 +687,46 @@ describe("CLFactoryPoolCreatedLogic", () => {
       },
     );
 
-    // Issue #677 follow-up: when createTokenEntity returns null (bytecode gate
-    // confirmed the address is a non-contract), the function must return null
-    // so the caller skips persisting an aggregator with a dangling token_id.
+    // Issue #865 (CL_FACTORY_POOL_COUNT_GAP): when createTokenEntity returns
+    // null (the #677 bytecode gate confirmed the address is a non-contract), the
+    // CL factory must STILL persist the Pool — CLFactory has authoritatively
+    // registered it on-chain. The gated side just gets an empty symbol and no
+    // Token row, mirroring the V2 PoolFactory fix (#864/#880). Before the fix
+    // this returned null and the handler dropped the pool (Base: 22 CL pools
+    // missing). The non-gated side's symbol must stay in its own slot.
     it.each([
-      { side: "token0", failsToken0: true, failsToken1: false },
-      { side: "token1", failsToken0: false, failsToken1: true },
-      { side: "both", failsToken0: true, failsToken1: true },
+      {
+        side: "token0",
+        failsToken0: true,
+        failsToken1: false,
+        name: "CL-60 AMM - /USDC",
+      },
+      {
+        side: "token1",
+        failsToken0: false,
+        failsToken1: true,
+        name: "CL-60 AMM - USDT/",
+      },
+      {
+        side: "both",
+        failsToken0: true,
+        failsToken1: true,
+        name: "CL-60 AMM - /",
+      },
     ])(
-      "returns null when bytecode gate skips $side",
-      async ({ failsToken0, failsToken1 }) => {
+      "persists the Pool with an empty symbol when the bytecode gate skips $side (#865)",
+      async ({ failsToken0, failsToken1, name }) => {
         vi.restoreAllMocks();
+        // token0 -> USDT, token1 -> USDC on the non-gated side; null on the
+        // gated side. Returning the matching mock per address keeps each side's
+        // symbol in its own slot (index-based assembly, the #864 concern).
         vi.spyOn(PriceOracle, "createTokenEntity").mockImplementation(
           async (address: string) => {
-            if (address === mockEvent.params.token0 && failsToken0) return null;
-            if (address === mockEvent.params.token1 && failsToken1) return null;
-            return mockToken0Data as Token;
+            if (address === mockEvent.params.token0)
+              return failsToken0 ? null : (mockToken0Data as Token);
+            if (address === mockEvent.params.token1)
+              return failsToken1 ? null : (mockToken1Data as Token);
+            return null;
           },
         );
 
@@ -716,7 +740,14 @@ describe("CLFactoryPoolCreatedLogic", () => {
           mockContext,
         );
 
-        expect(result).toBeNull();
+        // Pool is persisted (not dropped); on-chain token addresses preserved;
+        // empty symbol only on the gated side(s).
+        expect(result.liquidityPoolAggregator).toMatchObject({
+          id: LEAF_POOL_ID,
+          name,
+          ...expectedTokenFields,
+          isCL: true,
+        });
       },
     );
   });
