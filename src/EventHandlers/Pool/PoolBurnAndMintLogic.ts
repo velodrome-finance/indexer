@@ -392,7 +392,10 @@ export async function attributeLiquidityDelta(
  * the 3-arg Mint instead, making the two mutually exclusive per pool (no double
  * count). Bumps only the pool activity timestamp (the paired Sync still owns
  * reserves, totalLiquidityUSD and the price ratio — #783), then attributes the
- * added liquidity to `event.params.to`.
+ * added liquidity to `event.params.to`. Finally purges the mint-side
+ * PoolTransferInTx rows for this (tx, pool): they are written by
+ * processPoolTransfer for the 3-arg Mint's Transfer matching, which never fires
+ * on leaf chains, so without this they would accumulate unbounded.
  *
  * @param event - The 4-arg MintWithRecipient event
  * @param poolData - Preloaded pool data (aggregator + token instances)
@@ -401,7 +404,7 @@ export async function attributeLiquidityDelta(
  * @param context - Handler context
  * @param timestamp - Event timestamp
  * @param blockNumber - Block number
- * @returns Promise that resolves once the pool bump and user upsert are staged
+ * @returns Promise that resolves once the pool bump, user upsert and mint-transfer purge are staged
  */
 export async function processPoolMintWithRecipient(
   event: EvmEvent<"Pool", "MintWithRecipient">,
@@ -413,6 +416,7 @@ export async function processPoolMintWithRecipient(
   blockNumber: number,
 ): Promise<void> {
   const { liquidityPoolAggregator, token0Instance, token1Instance } = poolData;
+  const txHash = event.transaction.hash;
 
   await updatePool(
     { lastUpdatedTimestamp: timestamp },
@@ -442,4 +446,24 @@ export async function processPoolMintWithRecipient(
     context,
     timestamp,
   );
+
+  // Consume the mint-side PoolTransferInTx rows for this (tx, pool) so they
+  // don't leak. processPoolTransfer records every LP-token mint Transfer for
+  // the canonical 3-arg Mint's Transfer matching, but that handler never fires
+  // on superchain-leaf chains (they emit only this 4-arg form), so nothing else
+  // would ever delete them — they would accumulate unbounded. The recipient is
+  // already in the event, so we don't need them for matching; just purge.
+  // Burn rows (isBurn) are left untouched for the Burn handler.
+  const registryId = TxPoolTransferRegistryId(chainId, txHash, poolAddress);
+  const mintTransfers = await getTransfersInTx(
+    txHash,
+    chainId,
+    poolAddress,
+    true, // isMint
+    context,
+  );
+  for (const transfer of mintTransfers) {
+    context.PoolTransferInTx.deleteUnsafe(transfer.id);
+    await pruneRegistryOnConsume(registryId, transfer.id, context);
+  }
 }

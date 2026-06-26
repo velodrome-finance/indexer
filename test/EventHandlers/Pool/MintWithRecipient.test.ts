@@ -1,8 +1,11 @@
 import { createTestIndexer } from "envio";
 import {
+  PoolTransferInTxId,
   TEN_TO_THE_6_BI,
   TEN_TO_THE_18_BI,
+  TxPoolTransferRegistryId,
   UserStatsPerPoolId,
+  ZERO_ADDRESS,
   toChecksumAddress,
 } from "../../../src/Constants";
 import { calculateTotalUSD } from "../../../src/Helpers";
@@ -99,6 +102,72 @@ describe("Pool MintWithRecipient Event (#886 superchain-leaf 4-arg Mint)", () =>
       ),
     );
     expect(senderStats).toBeUndefined();
+  });
+
+  it("purges the mint-side PoolTransferInTx + registry rows for its tx (no leaf leak)", async () => {
+    const txHash = `0x${"ab".repeat(32)}`;
+    const pool = commonData.mockLiquidityPoolData.poolAddress;
+
+    await indexer.process({
+      chains: {
+        [chainId]: {
+          simulate: [
+            // 1) LP-token mint Transfer (from 0x0) — records a PoolTransferInTx
+            //    row + registry entry for the (never-firing on leaf) 3-arg Mint.
+            {
+              contract: "Pool",
+              event: "Transfer",
+              srcAddress: pool as `0x${string}`,
+              logIndex: 0,
+              block: {
+                timestamp: 1000000,
+                number: 123456,
+                hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+              },
+              transaction: { hash: txHash },
+              params: {
+                from: ZERO_ADDRESS,
+                to: recipient,
+                value: 500n * TEN_TO_THE_18_BI,
+              },
+            },
+            // 2) The 4-arg leaf Mint in the same tx.
+            {
+              contract: "Pool",
+              event: "MintWithRecipient",
+              srcAddress: pool as `0x${string}`,
+              logIndex: 1,
+              block: {
+                timestamp: 1000000,
+                number: 123456,
+                hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+              },
+              transaction: { hash: txHash },
+              params: { sender, to: recipient, amount0, amount1 },
+            },
+          ],
+        },
+      },
+    });
+
+    // The mint Transfer row and its registry entry must be purged — otherwise
+    // they would accumulate forever on leaf chains.
+    expect(
+      await indexer.PoolTransferInTx.get(
+        PoolTransferInTxId(chainId, txHash, pool, 0),
+      ),
+    ).toBeUndefined();
+    expect(
+      await indexer.TxPoolTransferRegistry.get(
+        TxPoolTransferRegistryId(chainId, txHash, pool),
+      ),
+    ).toBeUndefined();
+
+    // Attribution still happened.
+    const userStats = await indexer.UserStatsPerPool.get(
+      UserStatsPerPoolId(chainId, recipient, pool),
+    );
+    expect(userStats?.totalLiquidityAddedToken0).toBe(amount0);
   });
 
   it("bumps the pool activity timestamp but leaves reserves to Sync", async () => {
