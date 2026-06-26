@@ -454,6 +454,64 @@ export async function updatePool(
     );
   }
 
+  // Resolve the FINAL liquidityInRange persisted this update up-front so the
+  // upper-bound clamp below — and the object literal further down — compare
+  // against the exact value being written, not a stale prior. #703 semantics:
+  // an absolute diff.liquidityInRange (Swap-authoritative) wins; otherwise the
+  // incremental Mint/Burn delta lands on top of the carried value. (current
+  // and the increment are nullable, hence the `?? 0n` coalesces.)
+  const liquidityInRangeReplacement =
+    diff.liquidityInRange ??
+    (diff.incrementalLiquidityInRange ?? 0n) + (current.liquidityInRange ?? 0n);
+  // Clamp liquidityInRange to >= 0n (issue #891 follow-up). In-range liquidity
+  // is physically non-negative, but a Burn underflow (or accumulated
+  // tick-crossing drift) can drive the running value below zero. This was the
+  // only in-range/reserve field in updatePool lacking a floor — its siblings
+  // reserve0/1 (#702), stakedReserve0/1 (#771/#854), totalLiquidityUSD (#856)
+  // and stakedLiquidityInRange (#719) all clamp here. A negative total would
+  // also corrupt snapshots / gauge-share AND become a negative CEILING for the
+  // #891 staked clamp below (re-introducing a negative staked counter), so we
+  // floor it first — which keeps that clamp a faithful mirror of the reserve
+  // clamp, whose ceiling clampedReserve0 is already >= 0n. Clamp-and-log,
+  // mirroring [NEG_TLU_GUARD].
+  const finalLiquidityInRange =
+    liquidityInRangeReplacement < 0n ? 0n : liquidityInRangeReplacement;
+  if (liquidityInRangeReplacement < 0n) {
+    context.log.warn(
+      `[NEG_LIQ_IN_RANGE_GUARD][updatePool] field=liquidityInRange poolAddress=${current.poolAddress} chainId=${current.chainId} priorLiquidityInRange=${current.liquidityInRange} replacement=${liquidityInRangeReplacement} clampedTo=${finalLiquidityInRange}`,
+    );
+  }
+
+  // Upper-bound clamp: staked in-range liquidity is a SUBSET of the pool's
+  // total in-range liquidity and must never exceed it (issue #891). The staked
+  // value is derived from the staked-only tick-edge map (#719) while
+  // liquidityInRange is the Swap-authoritative total (#703); the two maps drift
+  // independently, so on tick-crossings the staked value can be left above the
+  // total (3 Superseed CL pools were observed in this state). Mirrors the
+  // [OVER_STAKED_RESERVE_GUARD] reserve clamp (#854): clamp
+  // stakedLiquidityInRange = min(stakedLiquidityInRange, liquidityInRange) and
+  // log the overshoot. `finalLiquidityInRange` is already floored >= 0n above
+  // (like the reserve clamp's clampedReserve0 ceiling), so the min() can never
+  // persist a negative staked value; the >= 0n lower clamp (#719) still applies.
+  const finalStakedLiquidityInRange =
+    clampedStakedLiquidityInRange > finalLiquidityInRange
+      ? finalLiquidityInRange
+      : clampedStakedLiquidityInRange;
+  if (clampedStakedLiquidityInRange > finalLiquidityInRange) {
+    // Log LEVEL split (mirrors #802's reserve-guard split): a zero total (pool
+    // pre-Swap/pre-init, or a Burn underflow floored to 0n above) is the benign
+    // #719 self-healing transient where a freshly-derived staked counter is
+    // briefly capped to 0n; log it at `info` so it doesn't flood the warn
+    // channel. A genuine overshoot against a POPULATED (> 0n) total — the #891
+    // Superseed case — stays at `warn` as a real-divergence tripwire.
+    const guardMsg = `[OVER_STAKED_LIQ_GUARD][updatePool] field=stakedLiquidityInRange poolAddress=${current.poolAddress} chainId=${current.chainId} priorStakedLiqInRange=${current.stakedLiquidityInRange} replacement=${clampedStakedLiquidityInRange} liquidityInRange=${finalLiquidityInRange} clampedTo=${finalStakedLiquidityInRange}`;
+    if (finalLiquidityInRange > 0n) {
+      context.log.warn(guardMsg);
+    } else {
+      context.log.info(guardMsg);
+    }
+  }
+
   // Clamp stakedReserve0 / stakedReserve1 to >= 0n at the accumulator path
   // (issue #771). Per-segment deltas computed in `segmentReserveDelta`
   // are exact-when-rounded (round-half-to-nearest); the residual wei-scale
@@ -635,12 +693,11 @@ export async function updatePool(
     // are reflected without waiting for the next swap. Absolute wins if both
     // are set in the same diff. `current.liquidityInRange` is nullable on the
     // entity (see schema.graphql:50); coalesce to 0n so a pre-first-swap pool
-    // can still accept Mint/Burn increments.
-    liquidityInRange:
-      diff.liquidityInRange ??
-      (diff.incrementalLiquidityInRange ?? 0n) +
-        (current.liquidityInRange ?? 0n),
-    stakedLiquidityInRange: clampedStakedLiquidityInRange,
+    // can still accept Mint/Burn increments. Resolved above as
+    // `finalLiquidityInRange` so the #891 over-clamp bounds against the same
+    // value that is persisted here.
+    liquidityInRange: finalLiquidityInRange,
+    stakedLiquidityInRange: finalStakedLiquidityInRange,
     stakedReserve0: finalStakedReserve0,
     stakedReserve1: finalStakedReserve1,
     // Monotonic latch: once a pool has ever been staked, hasStakes stays true
