@@ -490,6 +490,68 @@ describe("SuperchainLeafVoter Events", () => {
       });
 
       it("flips TRUSTED/WL to UNTRUSTED/NON_WL when WhitelistToken(false) lands", async () => {
+        // SNX on Optimism: real on-chain bytecode but NOT a price connector, so
+        // de-whitelisting fully untrusts it. (WETH — the block's shared
+        // tokenAddress — would stay TRUSTED/CONNECTOR under #898; that case is
+        // covered by the next test.)
+        const nonConnectorToken = toChecksumAddress(
+          "0x8700dAec35aF8Ff88c16BdF0418774CB3D7599B4",
+        );
+        const existing = {
+          id: TokenId(chainId, nonConnectorToken),
+          address: nonConnectorToken,
+          symbol: "TEST",
+          name: "TEST",
+          chainId,
+          decimals: BigInt(18),
+          pricePerUSDNew: BigInt(10000000),
+          isWhitelisted: true,
+          priceTrustOutcome: PRICE_TRUST_OUTCOME.TRUSTED,
+          priceTrustReason: PRICE_TRUST_REASON.WL,
+          lastUpdatedTimestamp: new Date(0),
+        } as Token;
+
+        const indexer = createTestIndexer();
+        indexer.Token.set(existing);
+
+        await indexer.process({
+          chains: {
+            [chainId]: {
+              simulate: [
+                {
+                  contract: "SuperchainLeafVoter",
+                  event: "WhitelistToken",
+                  srcAddress: toChecksumAddress(
+                    "0x1111111111111111111111111111111111111111",
+                  ),
+                  logIndex: 1,
+                  block: {
+                    number: blockNumber,
+                    timestamp: blockTimestamp,
+                    hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                  },
+                  params: {
+                    token: nonConnectorToken,
+                    _bool: false,
+                  },
+                },
+              ],
+            },
+          },
+        });
+
+        const token = await indexer.Token.get(
+          TokenId(chainId, nonConnectorToken),
+        );
+        expect(token?.isWhitelisted).toBe(false);
+        expect(token?.priceTrustOutcome).toBe(PRICE_TRUST_OUTCOME.UNTRUSTED);
+        expect(token?.priceTrustReason).toBe(PRICE_TRUST_REASON.NON_WL);
+      });
+
+      it("keeps a connector TRUSTED/CONNECTOR when WhitelistToken(false) lands (#898)", async () => {
+        // WETH is a configured price connector on Optimism, so de-whitelisting
+        // it does NOT untrust it — connector membership is an independent trust
+        // signal. isWhitelisted still flips to false.
         const existing = {
           id: TokenId(chainId, tokenAddress),
           address: tokenAddress,
@@ -535,8 +597,8 @@ describe("SuperchainLeafVoter Events", () => {
 
         const token = await indexer.Token.get(TokenId(chainId, tokenAddress));
         expect(token?.isWhitelisted).toBe(false);
-        expect(token?.priceTrustOutcome).toBe(PRICE_TRUST_OUTCOME.UNTRUSTED);
-        expect(token?.priceTrustReason).toBe(PRICE_TRUST_REASON.NON_WL);
+        expect(token?.priceTrustOutcome).toBe(PRICE_TRUST_OUTCOME.TRUSTED);
+        expect(token?.priceTrustReason).toBe(PRICE_TRUST_REASON.CONNECTOR);
       });
 
       it("flags an existing blacklisted token UNTRUSTED/BLACKLISTED on WhitelistToken(true)", async () => {
