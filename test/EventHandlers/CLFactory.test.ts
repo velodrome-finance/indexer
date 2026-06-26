@@ -204,6 +204,73 @@ describe("CLFactory Events", () => {
       expect(pool).toBeUndefined();
     });
 
+    // Regression for #865 (CL_FACTORY_POOL_COUNT_GAP). Before the fix, when the
+    // #677 bytecode gate confirmed one token side was a non-contract,
+    // createTokenEntity returned null and the CL handler dropped the Pool even
+    // though CLFactory had authoritatively registered it on-chain (Base audit:
+    // 22 CL pools missing). Now the gate skips only the Token row; the Pool is
+    // persisted with an empty symbol on the offending side. Mirrors #864 (V2).
+    it("creates the Pool even when one token side is a non-contract (#865)", async () => {
+      // 0x...dEaD is an EOA on Base; eth_getCode returns 0x so the bytecode gate
+      // in createTokenEntity returns null for that side.
+      const eoaTokenAddress = toChecksumAddress(
+        "0x000000000000000000000000000000000000dEaD",
+      );
+      const idx = createTestIndexer();
+      // Seed token0 + config/mapping, but NOT token1 — token1 must traverse
+      // createTokenEntity and hit the gate.
+      idx.Token.set({
+        ...mockToken0Data,
+        id: TokenId(chainId, mockToken0Data.address),
+        chainId,
+      } as Token);
+      idx.CLGaugeConfig.set({
+        id: String(chainId),
+        defaultEmissionsCap: 0n,
+        defaultMinStakeTime: 0n,
+        penaltyRate: 0n,
+        lastUpdatedTimestamp: new Date(1000000 * 1000),
+      } satisfies CLGaugeConfig);
+      idx.FeeToTickSpacingMapping.set(createFeeToTickSpacingMapping());
+
+      await idx.process({
+        chains: {
+          [chainId]: {
+            simulate: [
+              {
+                contract: "CLFactory",
+                event: "PoolCreated",
+                srcAddress: poolAddress as `0x${string}`,
+                logIndex: 1,
+                block: {
+                  number: 1000000,
+                  timestamp: 1000000,
+                  hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                },
+                params: {
+                  token0: token0Address as `0x${string}`,
+                  token1: eoaTokenAddress as `0x${string}`,
+                  pool: poolAddress,
+                  tickSpacing: TICK_SPACING,
+                },
+              },
+            ],
+          },
+        },
+      });
+
+      const pool = await idx.Pool.get(PoolId(chainId, poolAddress));
+      expect(pool).toBeDefined();
+      expect(pool?.isCL).toBe(true);
+      // Empty symbol on the gated (EOA) side; token0's symbol stays in its slot.
+      expect(pool?.name).toBe("CL-60 AMM - USDT/");
+      // Pool keeps the on-chain token1 address; only the Token row is skipped.
+      expect(pool?.token1_address).toBe(eoaTokenAddress);
+      // No Token row created for the EOA side (the gate still wins there).
+      const eoaToken = await idx.Token.get(TokenId(chainId, eoaTokenAddress));
+      expect(eoaToken).toBeUndefined();
+    });
+
     describe("when PendingRootPoolMapping exists for the same rootPoolMatchingHash", () => {
       const rootChainId = 10;
       const rootPoolAddress = toChecksumAddress(

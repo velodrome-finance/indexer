@@ -43,10 +43,11 @@ export interface CLPoolPendingInitializeInput {
  * @param feeToTickSpacingMapping - FeeToTickSpacingMapping for this pool's tick spacing
  * @param context - The handler context
  * @param pendingInitialize - Optional opening price buffered by CLPool.Initialize
- * @returns The constructed aggregator, or `null` when the bytecode gate (#677)
- *   confirmed either token side is a non-contract — caller should skip
- *   `context.Pool.set` and any root-pool flush so no
- *   dangling token references are persisted.
+ * @returns The constructed aggregator. The pool is persisted even when a token
+ *   side fails the #677 bytecode gate (#865, mirroring the V2 PoolFactory fix
+ *   #864/#880): that side is left with an empty symbol and no Token row rather
+ *   than dropping the whole pool, which would orphan every downstream entity
+ *   (snapshots, user-stats, gauge/vote state).
  */
 export async function processCLFactoryPoolCreated(
   event: EvmEvent<"CLFactory", "PoolCreated">,
@@ -57,7 +58,7 @@ export async function processCLFactoryPoolCreated(
   feeToTickSpacingMapping: FeeToTickSpacingMapping,
   context: handlerContext,
   pendingInitialize?: CLPoolPendingInitializeInput,
-): Promise<CLFactoryPoolCreatedResult | null> {
+): Promise<CLFactoryPoolCreatedResult> {
   try {
     const poolTokenSymbols: string[] = [];
     const poolTokenAddressMappings: TokenEntityMapping[] = [
@@ -82,17 +83,27 @@ export async function processCLFactoryPoolCreated(
             event.block.timestamp,
           );
           if (created === null) {
+            // Bytecode gate (#677) rejected this token side: skip the Token row
+            // but STILL persist the Pool (#865, mirroring the V2 PoolFactory fix
+            // #864/#880). CLFactory has authoritatively registered the pool
+            // on-chain; dropping it orphans every downstream entity (snapshots,
+            // user-stats, gauge/vote state). Leave an empty symbol on this side.
             context.log.warn(
-              `[CLFactory.PoolCreated] Skipping Pool for pool ${event.params.pool} on chain ${event.chainId} — non-contract token side`,
+              `[CLFactory.PoolCreated] Pool ${event.params.pool} on chain ${event.chainId} has non-contract token side ${poolTokenAddressMapping.address}; persisting Pool with empty symbol on that side`,
             );
-            return null;
+            poolTokenSymbols[index] = "";
+          } else {
+            poolTokenAddressMapping.tokenInstance = created;
+            poolTokenSymbols[index] = created.symbol;
           }
-          poolTokenAddressMapping.tokenInstance = created;
-          poolTokenSymbols[index] = created.symbol;
         } catch (error) {
           context.log.error(
             `Error in cl factory fetching token details for ${poolTokenAddressMapping.address} on chain ${event.chainId}: ${error}`,
           );
+          // A thrown fetch (transient RPC failure, distinct from the gate's
+          // null) must still leave a defined symbol so the Pool name doesn't
+          // become "…/undefined"; fall back to "" like the null branch (#865).
+          poolTokenSymbols[index] = "";
         }
       } else {
         poolTokenSymbols[index] = poolTokenAddressMapping.tokenInstance.symbol;
