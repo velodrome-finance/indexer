@@ -211,7 +211,7 @@ query UserInPool {
   ) {
     poolAddress
     lpBalance
-    currentLiquidityStakedUSD   # per-user: as-of-last-activity, 0 may mean stale — see caveats
+    currentLiquidityStakedUSD   # per-user: as-of-last-activity, $0 may mean stale — see caveats
     totalSwapVolumeUSD
     totalFeesContributedUSD
     totalGaugeRewardsClaimedUSD
@@ -320,8 +320,9 @@ The following are non-obvious properties of the data rather than defects.
   it under-counts the pool's staked-USD by ~12–31%, and a large share of stakers
   read exactly `$0`. For a current figure, read per-user staked **units**
   (`currentLiquidityStaked`) and value them yourself, or use pool-level
-  `Pool.currentLiquidityStakedUSD` (maintained live). Treat `$0` as "possibly
-  stale," not "no stake" (issue #902).
+  `Pool.currentLiquidityStakedUSD` (live for CL pools; V2 pool-level staked-USD
+  has its own staleness, see #899). Treat `$0` as "possibly stale," not "no
+  stake" (issue #902).
 - **Some legacy pools report `totalEmissionsUSD = 0` despite real emissions.**
   Gauges that stopped emitting before the chain's price oracle could value the
   reward token (AERO on Base before 2024-06-14, VELO on Optimism before
