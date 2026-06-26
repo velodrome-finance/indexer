@@ -1486,6 +1486,10 @@ describe("Pool Functions", () => {
           {
             ...(liquidityPoolAggregator as Pool),
             stakedLiquidityInRange: 100n,
+            // Keep total in-range liquidity above the staked replacement so the
+            // #891 upper clamp doesn't fire — this test isolates the lower-bound
+            // (>= 0n) clamp's no-op behaviour on a non-negative value.
+            liquidityInRange: 1000n,
             lastSnapshotTimestamp: sameEpochAsTimestamp(),
             lastUpdatedTimestamp: sameEpochAsTimestamp(),
           },
@@ -1497,6 +1501,273 @@ describe("Pool Functions", () => {
 
         expect(lastSet().stakedLiquidityInRange).toBe(50n);
         expect(negStakedLiqGuardLogs().length).toBe(0);
+      });
+    });
+
+    // Regression test for issue #891: stakedLiquidityInRange must never exceed
+    // liquidityInRange — staked in-range liquidity is a SUBSET of the pool's
+    // total in-range liquidity. The staked-only tick-edge map (#719) and the
+    // Swap-authoritative total (#703) drift independently, so on tick-crossings
+    // the staked value can be left above the total (3 Superseed CL pools were
+    // observed in this state, the worst a 2.7× overshoot). The upper-bound
+    // clamp pulls it back to liquidityInRange and emits [OVER_STAKED_LIQ_GUARD]
+    // with {poolAddress, chainId, priorStakedLiqInRange, replacement,
+    // liquidityInRange, clampedTo}. Mirrors the [OVER_STAKED_RESERVE_GUARD]
+    // reserve clamp (#854); the lower-bound >= 0n clamp (#719) still applies.
+    describe("over-staked stakedLiquidityInRange clamp guard (issue #891)", () => {
+      const sameEpochAsTimestamp = () => timestamp;
+
+      const overStakedLiqGuardLogs = (level: "warn" | "info") => {
+        const mock = vi.mocked(mockContext.log?.[level]);
+        const calls = mock?.mock.calls ?? [];
+        return calls.filter((args) =>
+          String(args[0] ?? "").includes("[OVER_STAKED_LIQ_GUARD]"),
+        );
+      };
+
+      const lastSet = (): Pool => {
+        const setMock = vi.mocked(mockContext.Pool?.set);
+        return setMock?.mock.lastCall?.[0] as Pool;
+      };
+
+      it("clamps stakedLiquidityInRange down to liquidityInRange when the replacement exceeds it (reproduces Superseed 0xDaC2 2.7× overshoot)", async () => {
+        // Field values lifted from the #891 audit (5330-0xDaC26c3f…): the
+        // staked-in-range replacement is ~2.7× the pool's total in-range
+        // liquidity. The upper-bound clamp must pull staked back down to the
+        // liquidityInRange written in this same update.
+        const liquidityInRange = 728_496_859_484_955n;
+        const stakedReplacement = 1_959_834_779_580_129n;
+        await updatePool(
+          {
+            stakedLiquidityInRange: stakedReplacement,
+            liquidityInRange,
+          },
+          {
+            ...(liquidityPoolAggregator as Pool),
+            isCL: true,
+            stakedLiquidityInRange: 0n,
+            liquidityInRange: 0n,
+            lastSnapshotTimestamp: sameEpochAsTimestamp(),
+            lastUpdatedTimestamp: sameEpochAsTimestamp(),
+          },
+          timestamp,
+          mockContext as handlerContext,
+          5330,
+          blockNumber,
+        );
+
+        // Invariant restored: staked in-range ≤ total in-range.
+        expect(lastSet().stakedLiquidityInRange).toBe(liquidityInRange);
+        expect(lastSet().liquidityInRange).toBe(liquidityInRange);
+
+        // Genuine overshoot against a POPULATED total → warn channel.
+        const logs = overStakedLiqGuardLogs("warn");
+        expect(logs.length).toBe(1);
+        expect(overStakedLiqGuardLogs("info").length).toBe(0);
+        const msg = String(logs[0]?.[0] ?? "");
+        expect(msg).toContain("stakedLiquidityInRange");
+        expect(msg).toContain(`replacement=${stakedReplacement}`);
+        expect(msg).toContain(`liquidityInRange=${liquidityInRange}`);
+        expect(msg).toContain(`clampedTo=${liquidityInRange}`);
+        expect(msg).toContain(
+          `poolAddress=${(liquidityPoolAggregator as Pool).poolAddress}`,
+        );
+        expect(msg).toContain(
+          `chainId=${(liquidityPoolAggregator as Pool).chainId}`,
+        );
+      });
+
+      it("clamps against the CARRIED liquidityInRange when the diff omits it (not a stale prior)", async () => {
+        // The diff bumps stakedLiquidityInRange but does not supply a fresh
+        // liquidityInRange, so the persisted total is the carried current
+        // (700n). The clamp must bound staked against THAT value — the one
+        // actually being written — pulling 1000n down to 700n.
+        await updatePool(
+          { stakedLiquidityInRange: 1000n },
+          {
+            ...(liquidityPoolAggregator as Pool),
+            isCL: true,
+            stakedLiquidityInRange: 0n,
+            liquidityInRange: 700n,
+            lastSnapshotTimestamp: sameEpochAsTimestamp(),
+            lastUpdatedTimestamp: sameEpochAsTimestamp(),
+          },
+          timestamp,
+          mockContext as handlerContext,
+          5330,
+          blockNumber,
+        );
+
+        expect(lastSet().stakedLiquidityInRange).toBe(700n);
+        expect(lastSet().liquidityInRange).toBe(700n);
+        // Carried total is positive → warn channel.
+        expect(overStakedLiqGuardLogs("warn").length).toBe(1);
+        expect(overStakedLiqGuardLogs("info").length).toBe(0);
+      });
+
+      it("does not clamp or log when stakedLiquidityInRange stays <= liquidityInRange", async () => {
+        await updatePool(
+          {
+            stakedLiquidityInRange: 500n,
+            liquidityInRange: 1000n,
+          },
+          {
+            ...(liquidityPoolAggregator as Pool),
+            isCL: true,
+            stakedLiquidityInRange: 0n,
+            liquidityInRange: 0n,
+            lastSnapshotTimestamp: sameEpochAsTimestamp(),
+            lastUpdatedTimestamp: sameEpochAsTimestamp(),
+          },
+          timestamp,
+          mockContext as handlerContext,
+          5330,
+          blockNumber,
+        );
+
+        expect(lastSet().stakedLiquidityInRange).toBe(500n);
+        expect(lastSet().liquidityInRange).toBe(1000n);
+        expect(overStakedLiqGuardLogs("warn").length).toBe(0);
+        expect(overStakedLiqGuardLogs("info").length).toBe(0);
+      });
+
+      it("cannot drive stakedLiquidityInRange negative: the floored total is the ceiling", async () => {
+        // An in-range Burn whose magnitude exceeds the carried total would drive
+        // the total negative; liquidityInRange is now floored to 0n (see the
+        // [NEG_LIQ_IN_RANGE_GUARD] block), so the staked clamp's ceiling is
+        // always >= 0n and min(staked, total) can never persist a NEGATIVE
+        // staked value (which would otherwise defeat the #719 lower clamp).
+        await updatePool(
+          {
+            stakedLiquidityInRange: 500n,
+            incrementalLiquidityInRange: -100n,
+          },
+          {
+            ...(liquidityPoolAggregator as Pool),
+            isCL: true,
+            stakedLiquidityInRange: 0n,
+            liquidityInRange: 0n,
+            lastSnapshotTimestamp: sameEpochAsTimestamp(),
+            lastUpdatedTimestamp: sameEpochAsTimestamp(),
+          },
+          timestamp,
+          mockContext as handlerContext,
+          5330,
+          blockNumber,
+        );
+
+        // Total floored to 0n; staked floored to 0n (never negative).
+        expect(lastSet().liquidityInRange).toBe(0n);
+        expect(lastSet().stakedLiquidityInRange).toBe(0n);
+        // staked capped against a (floored) zero total → benign info, not warn.
+        expect(overStakedLiqGuardLogs("warn").length).toBe(0);
+        expect(overStakedLiqGuardLogs("info").length).toBe(1);
+      });
+
+      it("logs the benign zero-total transient (#719 gauge Deposit before first Swap) on info, not warn", async () => {
+        // A gauge Deposit derives a positive staked counter before the pool's
+        // total liquidityInRange has been established (still 0n). Capping staked
+        // to 0n here is the expected self-healing transient — it must not spam
+        // the warn channel (mirrors #802's reserve-guard level split).
+        await updatePool(
+          { stakedLiquidityInRange: 500n },
+          {
+            ...(liquidityPoolAggregator as Pool),
+            isCL: true,
+            stakedLiquidityInRange: 0n,
+            liquidityInRange: 0n,
+            lastSnapshotTimestamp: sameEpochAsTimestamp(),
+            lastUpdatedTimestamp: sameEpochAsTimestamp(),
+          },
+          timestamp,
+          mockContext as handlerContext,
+          5330,
+          blockNumber,
+        );
+
+        expect(lastSet().stakedLiquidityInRange).toBe(0n);
+        expect(lastSet().liquidityInRange).toBe(0n);
+        expect(overStakedLiqGuardLogs("info").length).toBe(1);
+        expect(overStakedLiqGuardLogs("warn").length).toBe(0);
+      });
+    });
+
+    // Regression test for the #891 follow-up: liquidityInRange must never
+    // persist negative. It was the only in-range/reserve field in updatePool
+    // without a >= 0n floor (reserves #702, stakedReserves #771/#854, TLU #856,
+    // stakedLiquidityInRange #719 all clamp). A Burn underflow / tick-crossing
+    // drift can drive it below zero, corrupting snapshots and gauge-share, and —
+    // as the #891 staked clamp's ceiling — re-introducing a negative staked
+    // counter. Clamp-and-log under [NEG_LIQ_IN_RANGE_GUARD], mirroring
+    // [NEG_TLU_GUARD] (#856).
+    describe("negative liquidityInRange clamp guard (issue #891 / #856-analog)", () => {
+      const sameEpochAsTimestamp = () => timestamp;
+
+      const negLiqInRangeGuardLogs = () => {
+        const warnMock = vi.mocked(mockContext.log?.warn);
+        const calls = warnMock?.mock.calls ?? [];
+        return calls.filter((args) =>
+          String(args[0] ?? "").includes("[NEG_LIQ_IN_RANGE_GUARD]"),
+        );
+      };
+
+      const lastSet = (): Pool => {
+        const setMock = vi.mocked(mockContext.Pool?.set);
+        return setMock?.mock.lastCall?.[0] as Pool;
+      };
+
+      it("clamps liquidityInRange to 0n and logs guard when an in-range Burn underflows it", async () => {
+        await updatePool(
+          { incrementalLiquidityInRange: -100n },
+          {
+            ...(liquidityPoolAggregator as Pool),
+            isCL: true,
+            liquidityInRange: 50n,
+            stakedLiquidityInRange: 0n,
+            lastSnapshotTimestamp: sameEpochAsTimestamp(),
+            lastUpdatedTimestamp: sameEpochAsTimestamp(),
+          },
+          timestamp,
+          mockContext as handlerContext,
+          5330,
+          blockNumber,
+        );
+
+        expect(lastSet().liquidityInRange).toBe(0n);
+
+        const logs = negLiqInRangeGuardLogs();
+        expect(logs.length).toBe(1);
+        const msg = String(logs[0]?.[0] ?? "");
+        expect(msg).toContain("field=liquidityInRange");
+        expect(msg).toContain("priorLiquidityInRange=50");
+        expect(msg).toContain("replacement=-50");
+        expect(msg).toContain("clampedTo=0");
+        expect(msg).toContain(
+          `poolAddress=${(liquidityPoolAggregator as Pool).poolAddress}`,
+        );
+        expect(msg).toContain(
+          `chainId=${(liquidityPoolAggregator as Pool).chainId}`,
+        );
+      });
+
+      it("does not clamp or log when liquidityInRange stays non-negative", async () => {
+        await updatePool(
+          { incrementalLiquidityInRange: 100n },
+          {
+            ...(liquidityPoolAggregator as Pool),
+            isCL: true,
+            liquidityInRange: 50n,
+            lastSnapshotTimestamp: sameEpochAsTimestamp(),
+            lastUpdatedTimestamp: sameEpochAsTimestamp(),
+          },
+          timestamp,
+          mockContext as handlerContext,
+          5330,
+          blockNumber,
+        );
+
+        expect(lastSet().liquidityInRange).toBe(150n);
+        expect(negLiqInRangeGuardLogs().length).toBe(0);
       });
     });
   });

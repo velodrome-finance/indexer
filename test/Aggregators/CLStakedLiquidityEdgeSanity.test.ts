@@ -358,6 +358,11 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
         sqrtPriceX96: 0n,
         tick: 0n,
         hasStakes: false,
+        // The staked position is part of the pool's total in-range liquidity,
+        // so seed liquidityInRange to cover it. Without this the #891 upper
+        // clamp (staked ≤ total) would cap the derived counter to 0n and mask
+        // the #719 derivation this test exercises.
+        liquidityInRange: 500n,
       });
       indexer.Pool.set(liquidityPool);
       indexer.Token.set(mockToken0Data as Token);
@@ -636,6 +641,11 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
         sqrtPriceX96: sqrtAt(0n),
         tick: 0n,
         hasStakes: false,
+        // The staked position is part of the pool's total in-range liquidity,
+        // so seed liquidityInRange to cover it. Without this the #891 upper
+        // clamp (staked ≤ total) would cap the derived counter to 0n and mask
+        // the #719 round-trip this test exercises.
+        liquidityInRange: 500n,
       });
       indexer.Pool.set(liquidityPool);
       indexer.Token.set(mockToken0Data as Token);
