@@ -1,7 +1,7 @@
 import { TickMath } from "@uniswap/v3-sdk";
 import type { EvmEvent, Token } from "envio";
 import { TEN_TO_THE_18_BI, toChecksumAddress } from "../../../src/Constants";
-import type { Pool, handlerContext } from "../../../src/EntityTypes";
+import type { Pool, EvmOnEventContext } from "../../../src/EntityTypes";
 import {
   calculateSwapFees,
   calculateSwapVolume,
@@ -95,13 +95,13 @@ describe("CLPoolSwapLogic", () => {
     lastUpdatedTimestamp: new Date(BLOCK_TIMESTAMP * 1000),
   };
 
-  const mockContext: handlerContext = {
+  const mockContext: EvmOnEventContext = {
     log: {
       error: vi.fn(),
       warn: vi.fn(),
       info: vi.fn(),
     },
-  } as unknown as handlerContext;
+  } as unknown as EvmOnEventContext;
 
   describe("calculateSwapVolume", () => {
     it("should calculate volume using token0 when available and non-zero", () => {

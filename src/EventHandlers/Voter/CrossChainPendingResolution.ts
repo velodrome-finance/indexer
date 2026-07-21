@@ -29,7 +29,7 @@ import {
   TokenId,
 } from "../../Constants";
 import { getRehydrated, getWhereRehydrated } from "../../EntityTimestamps";
-import type { handlerContext } from "../../EntityTypes";
+import type { EvmOnEventContext } from "../../EntityTypes";
 import {
   logContextError,
   runAsyncWithErrorLog,
@@ -53,7 +53,7 @@ import {
  * @returns Pending votes sorted by block number (and log index when available)
  */
 export async function getPendingVotesByRootPool(
-  context: handlerContext,
+  context: EvmOnEventContext,
   rootPoolAddress: string,
 ): Promise<PendingVote[]> {
   const list =
@@ -83,7 +83,7 @@ export async function getPendingVotesByRootPool(
  * @returns true if the vote was applied, false if skipped (e.g. veNFTState not found)
  */
 export async function processPendingVote(
-  context: handlerContext,
+  context: EvmOnEventContext,
   pendingVote: PendingVote,
   leafPoolData: PoolData,
 ): Promise<boolean> {
@@ -162,7 +162,7 @@ export async function processPendingVote(
  * @returns void
  */
 export function deleteProcessedPendingVote(
-  context: handlerContext,
+  context: EvmOnEventContext,
   pendingVote: PendingVote,
 ): void {
   context.PendingVote.deleteUnsafe(pendingVote.id);
@@ -178,10 +178,10 @@ export function deleteProcessedPendingVote(
  * @param itemId - Item id for error messages
  */
 async function tryProcessAndDeletePending<T>(
-  context: handlerContext,
+  context: EvmOnEventContext,
   item: T,
   runProcess: () => Promise<boolean>,
-  deleteFn: (ctx: handlerContext, it: T) => void,
+  deleteFn: (ctx: EvmOnEventContext, it: T) => void,
   logPrefix: string,
   itemId: string,
 ): Promise<void> {
@@ -217,7 +217,7 @@ async function tryProcessAndDeletePending<T>(
  * @returns void
  */
 export async function processAllPendingVotesForRootPool(
-  context: handlerContext,
+  context: EvmOnEventContext,
   rootPoolAddress: string,
 ): Promise<void> {
   const rootPoolLeafPools =
@@ -282,7 +282,7 @@ export async function processAllPendingVotesForRootPool(
  * @returns The pending distributions sorted by block number and log index
  */
 export async function getPendingDistributionsByRootPool(
-  context: handlerContext,
+  context: EvmOnEventContext,
   rootPoolAddress: string,
 ): Promise<PendingDistribution[]> {
   const list =
@@ -310,7 +310,7 @@ export async function getPendingDistributionsByRootPool(
  * @returns true if the distribution was applied, false if skipped (e.g. reward token or leaf pool data not found)
  */
 export async function processPendingDistribution(
-  context: handlerContext,
+  context: EvmOnEventContext,
   pending: PendingDistribution,
   leafPoolAddress: string,
   leafChainId: number,
@@ -388,7 +388,7 @@ export async function processPendingDistribution(
  * @returns void
  */
 export function deleteProcessedPendingDistribution(
-  context: handlerContext,
+  context: EvmOnEventContext,
   pending: PendingDistribution,
 ): void {
   context.PendingDistribution.deleteUnsafe(pending.id);
@@ -402,7 +402,7 @@ export function deleteProcessedPendingDistribution(
  * @returns void
  */
 export async function processAllPendingDistributionsForRootPool(
-  context: handlerContext,
+  context: EvmOnEventContext,
   rootPoolAddress: string,
 ): Promise<void> {
   const rootPoolLeafPools =
@@ -450,7 +450,7 @@ export async function processAllPendingDistributionsForRootPool(
  * @returns void
  */
 export async function flushPendingVotesAndDistributionsForRootPool(
-  context: handlerContext,
+  context: EvmOnEventContext,
   rootPoolAddress: string,
   logPrefix: string,
 ): Promise<void> {

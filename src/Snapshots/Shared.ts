@@ -1,13 +1,6 @@
-import type {
-  ALM_LP_WrapperSnapshot,
-  NonFungiblePositionSnapshot,
-  TokenPriceSnapshot,
-  UserStatsPerPoolSnapshot,
-  VeNFTPoolVoteSnapshot,
-  VeNFTStateSnapshot,
-} from "envio";
+import type { ALM_LP_WrapperSnapshot, NonFungiblePositionSnapshot, TokenPriceSnapshot, UserStatsPerPoolSnapshot, VeNFTPoolVoteSnapshot, VeNFTStateSnapshot } from "envio";
 
-import type { handlerContext } from "../EntityTypes";
+import type { EvmOnEventContext } from "../EntityTypes";
 
 import { SNAPSHOT_INTERVAL_IN_MS } from "../Constants";
 import type { PoolSnapshot } from "../EntityTypes";
@@ -82,7 +75,7 @@ export function shouldSnapshot(
  */
 export function persistSnapshot(
   item: SnapshotForPersist,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): void {
   switch (item.type) {
     case SnapshotType.Pool:

@@ -32,13 +32,17 @@
     "@uniswap/sdk-core": "^7.9.0",
     "@uniswap/v3-sdk": "3.29.1",
     "dotenv": "^16.4.5",
-    "envio": "3.2.0",
+    "envio": "3.2.1",
     "jsbi": "^4.3.2",
     "viem": "2.24.3",
     "web3": "^4.16.0"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["@biomejs/biome", "esbuild", "keccak"],
+    "onlyBuiltDependencies": [
+      "@biomejs/biome",
+      "esbuild",
+      "keccak"
+    ],
     "overrides": {
       "esbuild": "0.27.4"
     }

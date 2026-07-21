@@ -8,7 +8,7 @@ import {
   ZERO_ADDRESS,
   toChecksumAddress,
 } from "../../../src/Constants";
-import type { Pool, handlerContext } from "../../../src/EntityTypes";
+import type { Pool, EvmOnEventContext } from "../../../src/EntityTypes";
 import {
   processPoolTransfer,
   storeTransferForMatching,
@@ -39,7 +39,7 @@ describe("PoolTransferLogic", () => {
   const LOG_INDEX = 1;
 
   // Shared mock context
-  let mockContext: handlerContext;
+  let mockContext: EvmOnEventContext;
   let mockPool: Pool;
   let updatePoolSpy: MockInstance;
   let updateUserStatsPerPoolSpy: MockInstance;
@@ -74,7 +74,7 @@ describe("PoolTransferLogic", () => {
         set: vi.fn(),
         deleteUnsafe: vi.fn(),
       },
-    } as unknown as handlerContext;
+    } as unknown as EvmOnEventContext;
 
     // Set up spies with mocks
     updatePoolSpy = vi

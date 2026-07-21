@@ -12,7 +12,7 @@ import {
   isKnownSinkRootPool,
 } from "../../Constants";
 import { getTokensDeposited } from "../../Effects/Index";
-import type { handlerContext } from "../../EntityTypes";
+import type { EvmOnEventContext } from "../../EntityTypes";
 import type { Pool } from "../../EntityTypes";
 import { normalizeTokenAmountTo1e18 } from "../../Helpers";
 import { getTrustedUSD } from "../../PriceTrust";
@@ -36,7 +36,7 @@ export async function computeVoterDistributeValues(
   amountEmittedRaw: bigint, // event.params.amount (reward token units)
   blockNumber: number,
   chainId: number,
-  context: handlerContext,
+  context: EvmOnEventContext,
   gaugeIsAlive: boolean,
 ): Promise<VoterCommonResult> {
   const tokensDepositedResult = await context.effect(getTokensDeposited, {
@@ -117,7 +117,7 @@ export function buildPoolDiffFromDistribute(
  * @returns The leaf pool and isCrossChain: true, or null if resolution fails (logs warning).
  */
 export async function resolveLeafPoolForRootGauge(
-  context: handlerContext,
+  context: EvmOnEventContext,
   chainId: number,
   gaugeAddress: string,
 ): Promise<{ pool: Pool; isCrossChain: true } | null> {
@@ -226,7 +226,7 @@ export function computeVoterRelatedEntitiesDiff(
  * @returns void
  */
 export function createPendingVoteForDeferredProcessing(
-  context: handlerContext,
+  context: EvmOnEventContext,
   chainId: number,
   rootPoolAddress: string,
   tokenId: bigint,

@@ -1,10 +1,4 @@
-import type {
-  EvmEvent,
-  PoolTransferInTx,
-  Token,
-  TxPoolTransferRegistry,
-  UserStatsPerPool,
-} from "envio";
+import type { EvmEvent, PoolTransferInTx, TxPoolTransferRegistry, UserStatsPerPool } from "envio";
 import {
   PoolTransferInTxId,
   TxPoolTransferRegistryId,
@@ -12,7 +6,7 @@ import {
   ZERO_ADDRESS,
   toChecksumAddress,
 } from "../../../src/Constants";
-import type { handlerContext } from "../../../src/EntityTypes";
+import type { EvmOnEventContext } from "../../../src/EntityTypes";
 import {
   extractRecipientAddress,
   findClosestPrecedingTransfer,
@@ -50,7 +44,7 @@ describe("PoolBurnAndMintLogic", () => {
   const TIMESTAMP_DATE = new Date(TIMESTAMP * 1000);
 
   // Shared mock context
-  let mockContext: handlerContext;
+  let mockContext: EvmOnEventContext;
   let mockPoolTransferInTx: PoolTransferInTx[];
   let mockRegistries: TxPoolTransferRegistry[];
   let registrySeeded: boolean;
@@ -129,7 +123,7 @@ describe("PoolBurnAndMintLogic", () => {
         set: vi.fn(),
       },
       UserStatsPerPoolSnapshot: { set: vi.fn() },
-    } as unknown as handlerContext;
+    } as unknown as EvmOnEventContext;
   });
 
   // Helper to create mock transfer
@@ -1085,7 +1079,7 @@ describe("PoolBurnAndMintLogic", () => {
             userStore.set(entity.id, entity);
           }),
         },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       // One tx carrying both LP Transfers: a mint Transfer (to USER) at
       // logIndex 1 and a burn Transfer (from USER) at logIndex 3. The lazy

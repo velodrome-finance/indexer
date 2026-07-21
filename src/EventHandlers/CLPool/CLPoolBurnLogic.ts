@@ -1,7 +1,7 @@
 import type { EvmEvent, Token } from "envio";
 import type { PoolDiff } from "../../Aggregators/Pool";
 import { CLPositionPendingPrincipalId } from "../../Constants";
-import type { handlerContext } from "../../EntityTypes";
+import type { EvmOnEventContext } from "../../EntityTypes";
 import type { Pool } from "../../EntityTypes";
 import { calculateLiquidityUSD } from "../../Helpers";
 
@@ -33,7 +33,7 @@ export async function processCLPoolBurn(
   liquidityPoolAggregator: Pool,
   token0Instance: Token,
   token1Instance: Token,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<CLPoolBurnResult> {
   // TVL definition: reserves track LP-deposited capital only.
   // Burn removes capital from a position (tokens stay in contract as tokensOwed
@@ -85,7 +85,7 @@ export async function processCLPoolBurn(
  */
 async function trackBurnedPrincipal(
   event: EvmEvent<"CLPool", "Burn">,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<void> {
   const trackerId = CLPositionPendingPrincipalId(
     event.chainId,

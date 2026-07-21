@@ -11,7 +11,7 @@ import {
 } from "../../Aggregators/UserStatsPerPool";
 import { TokenId } from "../../Constants";
 import { getRehydrated } from "../../EntityTimestamps";
-import type { handlerContext } from "../../EntityTypes";
+import type { EvmOnEventContext } from "../../EntityTypes";
 import type { Pool } from "../../EntityTypes";
 import { createTokenEntity, refreshTokenPrice } from "../../PriceOracle";
 import { getTrustedUSD } from "../../PriceTrust";
@@ -66,7 +66,7 @@ export interface VotingRewardClaimRewardsResult {
  */
 export async function processVotingRewardClaimRewards(
   data: VotingRewardClaimRewardsData,
-  context: handlerContext,
+  context: EvmOnEventContext,
   field: PoolAddressField,
 ): Promise<VotingRewardClaimRewardsResult> {
   // Get reward token and refresh price (refreshTokenPrice handles the update internally)
@@ -148,7 +148,7 @@ export async function processVotingRewardClaimRewards(
  */
 export async function loadVotingRewardData(
   data: VotingRewardEventData,
-  context: handlerContext,
+  context: EvmOnEventContext,
   handlerName: string,
   field: PoolAddressField,
 ): Promise<{

@@ -9,7 +9,7 @@ import {
   getTokenDetails,
   getTokensDeposited,
 } from "../../../src/Effects/Index";
-import type { handlerContext } from "../../../src/EntityTypes";
+import type { EvmOnEventContext } from "../../../src/EntityTypes";
 import type { Pool } from "../../../src/EntityTypes";
 import type { VoterCommonResult } from "../../../src/EventHandlers/Voter/VoterCommonLogic";
 import {
@@ -27,7 +27,7 @@ function makeMockContext(effects: {
   tokenDetails?: { name: string; symbol: string; decimals: number };
   logs?: { warns: string[]; infos: string[]; errors: string[] };
   capturedSets?: Token[];
-}): handlerContext {
+}): EvmOnEventContext {
   const logs = effects.logs || { warns: [], infos: [], errors: [] };
   const capturedSets = effects.capturedSets || [];
   const tokenGet = effects.tokenGet;
@@ -66,7 +66,7 @@ function makeMockContext(effects: {
       info: (msg: unknown) => logs.infos.push(String(msg)),
       error: (msg: unknown) => logs.errors.push(String(msg)),
     },
-  } as unknown as handlerContext;
+  } as unknown as EvmOnEventContext;
 }
 
 describe("computeVoterDistributeValues", () => {
@@ -354,7 +354,7 @@ describe("createPendingVoteForDeferredProcessing", () => {
   const logIndex = 1;
 
   function makePendingVoteContext(): {
-    context: handlerContext;
+    context: EvmOnEventContext;
     pendingVoteSets: PendingVote[];
     warns: string[];
   } {
@@ -371,7 +371,7 @@ describe("createPendingVoteForDeferredProcessing", () => {
         info: () => {},
         error: () => {},
       },
-    } as unknown as handlerContext;
+    } as unknown as EvmOnEventContext;
     return { context, pendingVoteSets, warns };
   }
 
@@ -455,7 +455,7 @@ describe("resolveLeafPoolForRootGauge", () => {
     /** When true, getWhere returns null (covers ?? [] branch). */
     getWhereReturnsNull?: boolean;
     warns?: string[];
-  }): handlerContext {
+  }): EvmOnEventContext {
     const warns = overrides.warns ?? [];
     const rootGaugeMapping = overrides.rootGaugeMapping ?? null;
     const rootPoolLeafPools = overrides.rootPoolLeafPools ?? [];
@@ -478,10 +478,10 @@ describe("resolveLeafPoolForRootGauge", () => {
         info: vi.fn(),
         error: vi.fn(),
       },
-    } as unknown as handlerContext;
+    } as unknown as EvmOnEventContext;
   }
 
-  const runResolve = (context: handlerContext) =>
+  const runResolve = (context: EvmOnEventContext) =>
     resolveLeafPoolForRootGauge(context, chainId, gaugeAddress);
 
   beforeEach(() => {

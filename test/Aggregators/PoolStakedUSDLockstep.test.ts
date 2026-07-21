@@ -1,6 +1,6 @@
 import { updatePool } from "../../src/Aggregators/Pool";
 import { TEN_TO_THE_18_BI, toChecksumAddress } from "../../src/Constants";
-import type { Pool, handlerContext } from "../../src/EntityTypes";
+import type { Pool, EvmOnEventContext } from "../../src/EntityTypes";
 import { setupCommon } from "../EventHandlers/Pool/common";
 
 /**
@@ -43,7 +43,7 @@ describe("Pool staked-USD lockstep on live path (issue #857)", () => {
     return common.createMockContext({
       Pool: { set: setMock },
       log: { error: () => {}, warn: () => {}, info: () => {} },
-    }) as unknown as handlerContext;
+    }) as unknown as EvmOnEventContext;
   }
 
   it("zeroes currentLiquidityStakedUSD on a full unstake even when the diff omits the USD field (CL pool)", async () => {
@@ -197,7 +197,7 @@ describe("Pool staked-USD lockstep on the CL snapshot recompute path (issue #890
         ),
       },
       log: { error: () => {}, warn: () => {}, info: () => {} },
-    }) as unknown as handlerContext;
+    }) as unknown as EvmOnEventContext;
     // `effect` is a top-level context fn, not an entity store, so it's attached
     // after construction. getSwapFee (via updateDynamicFeePools) -> undefined
     // skips the dynamic-fee update; the test only exercises the staked-USD recompute.
@@ -321,7 +321,7 @@ describe("Pool staked-USD recompute on the non-CL snapshot path (issue #899)", (
       Pool: { set: setMock },
       PoolSnapshot: { set: vi.fn() },
       log: { error: () => {}, warn: () => {}, info: () => {} },
-    }) as unknown as handlerContext;
+    }) as unknown as EvmOnEventContext;
   }
 
   it("recomputes currentLiquidityStakedUSD as the staked fraction of total at the snapshot boundary, restoring staked ≤ total (V2 pool)", async () => {

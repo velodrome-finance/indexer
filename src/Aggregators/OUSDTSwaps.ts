@@ -1,6 +1,6 @@
 import type { Token } from "envio";
 import { OUSDTSwapsId } from "../Constants";
-import type { handlerContext } from "../EntityTypes";
+import type { EvmOnEventContext } from "../EntityTypes";
 
 /**
  * Creates an OUSDTSwaps entity for swap events.
@@ -15,7 +15,7 @@ export function createOUSDTSwapEntity(
   amount0Out: bigint,
   amount1In: bigint,
   amount1Out: bigint,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): void {
   if (!token0Instance || !token1Instance) {
     return;

@@ -1,6 +1,6 @@
 import type { UserStatsPerPool, UserStatsPerPoolSnapshot } from "envio";
 
-import type { handlerContext } from "../EntityTypes";
+import type { EvmOnEventContext } from "../EntityTypes";
 
 import { UserStatsPerPoolSnapshotId } from "../Constants";
 import {
@@ -83,7 +83,7 @@ export function createUserStatsPerPoolSnapshot(
 export function setUserStatsPerPoolSnapshot(
   entity: UserStatsPerPool,
   timestamp: Date,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): void {
   const snapshotForPersist: SnapshotForPersist = {
     type: SnapshotType.UserStatsPerPool,

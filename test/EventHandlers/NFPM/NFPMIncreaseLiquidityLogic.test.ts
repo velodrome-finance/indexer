@@ -6,7 +6,7 @@ import {
   NonFungiblePositionId,
   toChecksumAddress,
 } from "../../../src/Constants";
-import type { handlerContext } from "../../../src/EntityTypes";
+import type { EvmOnEventContext } from "../../../src/EntityTypes";
 import {
   LiquidityChangeType,
   attributeLiquidityChangeToUserStatsPerPool,
@@ -81,7 +81,7 @@ describe("NFPMIncreaseLiquidityLogic", () => {
   };
 
   let entityStore: Map<string, NonFungiblePosition>;
-  let mockContext: handlerContext;
+  let mockContext: EvmOnEventContext;
   let storedPositions: NonFungiblePosition[];
   let storedMintEvents: CLPoolMintEvent[];
   let registryState: Map<string, string[]>;
@@ -92,7 +92,7 @@ describe("NFPMIncreaseLiquidityLogic", () => {
   function createMockContext(
     positions: NonFungiblePosition[] = [mockPosition],
     mintEvents: CLPoolMintEvent[] = [],
-  ): handlerContext {
+  ): EvmOnEventContext {
     // (Re)seed registry state from mintEvents: one row per (chainId, txHash).
     registryState = new Map<string, string[]>();
     for (const m of mintEvents) {
@@ -199,7 +199,7 @@ describe("NFPMIncreaseLiquidityLogic", () => {
         warn: vi.fn(),
         error: vi.fn(),
       },
-    } as unknown as handlerContext;
+    } as unknown as EvmOnEventContext;
   }
 
   /**

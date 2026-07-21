@@ -10,11 +10,11 @@ import {
   VeNFTPoolVoteId,
   toChecksumAddress,
 } from "../../src/Constants";
-import type { handlerContext } from "../../src/EntityTypes";
+import type { EvmOnEventContext } from "../../src/EntityTypes";
 
 function getVeNFTPoolVoteStore(
-  ctx: Partial<handlerContext>,
-): NonNullable<handlerContext["VeNFTPoolVote"]> {
+  ctx: Partial<EvmOnEventContext>,
+): NonNullable<EvmOnEventContext["VeNFTPoolVote"]> {
   const store = ctx.VeNFTPoolVote;
   if (!store) throw new Error("test setup: VeNFTPoolVote mock required");
   return store;
@@ -46,7 +46,7 @@ describe("VeNFTPoolVote", () => {
     lastUpdatedTimestamp: new Date(2000),
   } as VeNFTPoolVote;
 
-  let mockContext: Partial<handlerContext>;
+  let mockContext: Partial<EvmOnEventContext>;
 
   beforeEach(() => {
     mockContext = {
@@ -64,7 +64,7 @@ describe("VeNFTPoolVote", () => {
         warn: vi.fn(),
         debug: vi.fn(),
       },
-    } as unknown as handlerContext;
+    } as unknown as EvmOnEventContext;
   });
 
   afterEach(() => {
@@ -87,7 +87,7 @@ describe("VeNFTPoolVote", () => {
         chainId,
         tokenId,
         poolAddress,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
       );
 
       expect(result).toEqual(mockVeNFTPoolVote);
@@ -105,7 +105,7 @@ describe("VeNFTPoolVote", () => {
         chainId,
         tokenId,
         poolAddress,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
       );
 
       expect(result).toBeUndefined();
@@ -119,7 +119,7 @@ describe("VeNFTPoolVote", () => {
 
       const result = await loadPoolVotesByVeNFT(
         mockVeNFTState,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
       );
 
       expect(result).toEqual([]);
@@ -136,7 +136,7 @@ describe("VeNFTPoolVote", () => {
 
       const result = await loadPoolVotesByVeNFT(
         mockVeNFTState,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
       );
 
       expect(result).toEqual(votes);
@@ -149,7 +149,7 @@ describe("VeNFTPoolVote", () => {
 
       const result = await loadPoolVotesByVeNFT(
         mockVeNFTState,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
       );
 
       expect(result).toEqual([]);
@@ -167,7 +167,7 @@ describe("VeNFTPoolVote", () => {
         tokenId,
         poolAddress,
         mockVeNFTState,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
         timestamp,
       );
 
@@ -193,7 +193,7 @@ describe("VeNFTPoolVote", () => {
       const result = await updateVeNFTPoolVote(
         diff,
         mockVeNFTPoolVote,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
       );
 
       expect(result.veNFTamountStaked).toBe(150n); // 100n + 50n
@@ -213,7 +213,7 @@ describe("VeNFTPoolVote", () => {
       const result = await updateVeNFTPoolVote(
         diff,
         mockVeNFTPoolVote,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
       );
 
       expect(result.veNFTamountStaked).toBe(70n); // 100n - 30n
@@ -227,7 +227,7 @@ describe("VeNFTPoolVote", () => {
       const result = await updateVeNFTPoolVote(
         diff,
         mockVeNFTPoolVote,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
       );
 
       expect(result.veNFTamountStaked).toBe(100n);
@@ -242,7 +242,7 @@ describe("VeNFTPoolVote", () => {
       const result = await updateVeNFTPoolVote(
         diff,
         mockVeNFTPoolVote,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
       );
 
       expect(result.veNFTamountStaked).toBe(110n);

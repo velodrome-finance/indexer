@@ -6,7 +6,7 @@ import {
 import type { Token } from "envio";
 import JSBI from "jsbi";
 import { TEN_TO_THE_18_BI } from "./Constants";
-import type { handlerContext } from "./EntityTypes";
+import type { EvmOnEventContext } from "./EntityTypes";
 import type { Pool } from "./EntityTypes";
 import { multiplyBase1e18 } from "./Maths";
 import { getHardAnchorUnitUSD, getTrustedUSD } from "./PriceTrust";
@@ -41,7 +41,7 @@ export function getErrorMessage(err: unknown): string {
  * @returns void
  */
 export function logContextError(
-  context: handlerContext,
+  context: EvmOnEventContext,
   message: string,
   err?: unknown,
 ): void {
@@ -61,7 +61,7 @@ export function logContextError(
  * @returns void
  */
 export async function runAsyncWithErrorLog(
-  context: handlerContext,
+  context: EvmOnEventContext,
   message: string,
   fn: () => Promise<void>,
 ): Promise<void> {
@@ -450,7 +450,7 @@ export function computeNonCLStakedUSD(
     token0Instance?: Token;
     token1Instance?: Token;
   },
-  _context: handlerContext,
+  _context: EvmOnEventContext,
 ): bigint {
   if (stakeAmount <= 0n) {
     return 0n;

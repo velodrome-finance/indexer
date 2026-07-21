@@ -9,7 +9,7 @@ import {
   ZERO_ADDRESS,
   toChecksumAddress,
 } from "../../../src/Constants";
-import type { handlerContext } from "../../../src/EntityTypes";
+import type { EvmOnEventContext } from "../../../src/EntityTypes";
 import {
   calculateLiquidityFromAmounts,
   deriveUserAmounts,
@@ -59,7 +59,7 @@ describe("LPWrapperLogic", () => {
   // Mock sqrtPriceX96 value (Q64.96 format)
   const mockSqrtPriceX96 = 79228162514264337593543950336n; // sqrt(1) * 2^96
 
-  let mockContext: handlerContext;
+  let mockContext: EvmOnEventContext;
   let mockPool: Mock;
 
   beforeEach(() => {
@@ -77,7 +77,7 @@ describe("LPWrapperLogic", () => {
         error: vi.fn(),
         info: vi.fn(),
       },
-    } as unknown as handlerContext;
+    } as unknown as EvmOnEventContext;
   });
 
   afterEach(() => {
@@ -392,7 +392,7 @@ describe("LPWrapperLogic", () => {
   });
 
   describe("loadALMLPWrapper", () => {
-    let mockContext: handlerContext;
+    let mockContext: EvmOnEventContext;
     const srcAddress = toChecksumAddress(
       "0x0000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     );
@@ -406,7 +406,7 @@ describe("LPWrapperLogic", () => {
         log: {
           error: vi.fn(),
         },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
     });
 
     it("should return wrapper entity when found", async () => {
@@ -452,7 +452,7 @@ describe("LPWrapperLogic", () => {
   });
 
   describe("processDepositEvent", () => {
-    let mockContext: handlerContext;
+    let mockContext: EvmOnEventContext;
     const recipient = toChecksumAddress(
       "0xcccccccccccccccccccccccccccccccccccccccc",
     );
@@ -489,7 +489,7 @@ describe("LPWrapperLogic", () => {
           warn: vi.fn(),
           error: vi.fn(),
         },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
     });
 
     it("should process deposit event successfully", async () => {
@@ -599,7 +599,7 @@ describe("LPWrapperLogic", () => {
   });
 
   describe("processWithdrawEvent", () => {
-    let mockContext: handlerContext;
+    let mockContext: EvmOnEventContext;
     const withdrawLpAmount = 500n * TEN_TO_THE_18_BI;
 
     beforeEach(() => {
@@ -631,7 +631,7 @@ describe("LPWrapperLogic", () => {
           warn: vi.fn(),
           error: vi.fn(),
         },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
     });
 
     it("should process withdraw event successfully", async () => {
@@ -746,7 +746,7 @@ describe("LPWrapperLogic", () => {
   });
 
   describe("processTransferEvent", () => {
-    let mockContext: handlerContext;
+    let mockContext: EvmOnEventContext;
 
     beforeEach(() => {
       mockContext = {
@@ -762,7 +762,7 @@ describe("LPWrapperLogic", () => {
         log: {
           error: vi.fn(),
         },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
     });
 
     it("should process transfer event successfully", async () => {
@@ -1020,7 +1020,7 @@ describe("LPWrapperLogic", () => {
   });
 
   describe("getMatchingBurnTransferInTx", () => {
-    let mockContext: handlerContext;
+    let mockContext: EvmOnEventContext;
 
     beforeEach(() => {
       mockContext = {
@@ -1217,7 +1217,7 @@ describe("LPWrapperLogic", () => {
   });
 
   describe("processWithdrawEvent - V1 with Transfer matching", () => {
-    let mockContext: handlerContext;
+    let mockContext: EvmOnEventContext;
 
     beforeEach(() => {
       const mockPool = {

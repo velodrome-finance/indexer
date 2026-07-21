@@ -1,7 +1,7 @@
 import { type PoolDiff, updatePool } from "../../Aggregators/Pool";
 import { PoolId } from "../../Constants";
 import { getRehydrated } from "../../EntityTimestamps";
-import type { handlerContext } from "../../EntityTypes";
+import type { EvmOnEventContext } from "../../EntityTypes";
 
 export interface UnstakedFeeEventData {
   poolAddress: string;
@@ -30,7 +30,7 @@ export interface UnstakedFeeEventData {
  */
 export async function applyUnstakedFee(
   data: UnstakedFeeEventData,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<void> {
   const poolId = PoolId(data.chainId, data.poolAddress);
   const pool = await getRehydrated(context.Pool, "Pool", poolId);

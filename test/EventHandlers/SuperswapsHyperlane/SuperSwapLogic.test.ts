@@ -1,10 +1,4 @@
-import type {
-  DispatchId_event,
-  OUSDTBridgedTransaction,
-  OUSDTSwaps,
-  ProcessId_event,
-  SuperSwap,
-} from "envio";
+import type { DispatchId_event, OUSDTBridgedTransaction, OUSDTSwaps, ProcessId_event, SuperSwap } from "envio";
 import {
   MailboxMessageId,
   OUSDTSwapsId,

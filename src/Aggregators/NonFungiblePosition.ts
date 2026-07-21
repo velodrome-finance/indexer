@@ -1,6 +1,6 @@
 import type { NonFungiblePosition } from "envio";
 
-import type { handlerContext } from "../EntityTypes";
+import type { EvmOnEventContext } from "../EntityTypes";
 
 import { setNonFungiblePositionSnapshot } from "../Snapshots/NonFungiblePositionSnapshot";
 import { getSnapshotEpoch, shouldSnapshot } from "../Snapshots/Shared";
@@ -35,7 +35,7 @@ export interface NonFungiblePositionDiff {
 export function updateNonFungiblePosition(
   diff: Partial<NonFungiblePositionDiff>,
   current: NonFungiblePosition,
-  context: handlerContext,
+  context: EvmOnEventContext,
   timestamp: Date,
 ): void {
   const delta = diff.incrementalLiquidity ?? 0n;

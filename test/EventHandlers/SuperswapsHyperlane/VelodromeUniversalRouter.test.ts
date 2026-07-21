@@ -1,9 +1,4 @@
-import type {
-  DispatchId_event,
-  OUSDTBridgedTransaction,
-  OUSDTSwaps,
-  ProcessId_event,
-} from "envio";
+import type { DispatchId_event, OUSDTBridgedTransaction, OUSDTSwaps, ProcessId_event } from "envio";
 import { createTestIndexer } from "envio";
 import {
   MailboxMessageId,

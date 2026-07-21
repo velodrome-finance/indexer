@@ -8,7 +8,7 @@ import {
   UserStatsPerPoolId,
   toChecksumAddress,
 } from "../../../src/Constants";
-import type { handlerContext } from "../../../src/EntityTypes";
+import type { EvmOnEventContext } from "../../../src/EntityTypes";
 import {
   type GaugeEventData,
   findPoolOrSkipRootGauge,
@@ -541,7 +541,7 @@ describe("GaugeSharedLogic", () => {
 
       const result = await isRootGauge(
         rootGaugeAddress,
-        contextWithRootGauge as unknown as handlerContext,
+        contextWithRootGauge as unknown as EvmOnEventContext,
       );
       expect(result).toBe(true);
     });
@@ -552,7 +552,7 @@ describe("GaugeSharedLogic", () => {
       );
       const result = await isRootGauge(
         unknownGauge,
-        mockContext as unknown as handlerContext,
+        mockContext as unknown as EvmOnEventContext,
       );
       expect(result).toBe(false);
     });
@@ -563,7 +563,7 @@ describe("GaugeSharedLogic", () => {
       const result = await findPoolOrSkipRootGauge(
         mockGaugeAddress,
         mockChainId,
-        mockContext as unknown as handlerContext,
+        mockContext as unknown as EvmOnEventContext,
         "TestHandler",
       );
       expect(result).not.toBeNull();
@@ -592,7 +592,7 @@ describe("GaugeSharedLogic", () => {
               : [],
         },
         log: { ...mockContext.log, error: vi.fn() },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       const result = await findPoolOrSkipRootGauge(
         rootGaugeAddress,
@@ -612,7 +612,7 @@ describe("GaugeSharedLogic", () => {
       const ctx = {
         ...mockContext,
         log: { ...mockContext.log, error: logErrorSpy },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       const result = await findPoolOrSkipRootGauge(
         unknownGauge,
@@ -650,7 +650,7 @@ describe("GaugeSharedLogic", () => {
                 ]
               : [],
         },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
     }
 
     it("should skip deposit without error when gauge is root gauge", async () => {
@@ -780,7 +780,7 @@ describe("GaugeSharedLogic", () => {
       // Should not throw, but should log error and return early
       await processGaugeDeposit(
         depositData,
-        mockContextWithNullPool as unknown as handlerContext,
+        mockContextWithNullPool as unknown as EvmOnEventContext,
         "TestGaugeDeposit",
       );
 
@@ -816,7 +816,7 @@ describe("GaugeSharedLogic", () => {
       // Should not throw, but should log error and return early
       await processGaugeWithdraw(
         withdrawData,
-        mockContextWithNullPool as unknown as handlerContext,
+        mockContextWithNullPool as unknown as EvmOnEventContext,
         "TestGaugeWithdraw",
       );
 
@@ -852,7 +852,7 @@ describe("GaugeSharedLogic", () => {
       // Should not throw, but should log error and return early
       await processGaugeClaimRewards(
         claimData,
-        mockContextWithNullPool as unknown as handlerContext,
+        mockContextWithNullPool as unknown as EvmOnEventContext,
         "TestGaugeClaimRewards",
       );
 
@@ -894,7 +894,7 @@ describe("GaugeSharedLogic", () => {
       // Should not throw, but should log error and return early
       await processGaugeClaimRewards(
         claimData,
-        mockContextWithNullRewardToken as unknown as handlerContext,
+        mockContextWithNullRewardToken as unknown as EvmOnEventContext,
         "TestGaugeClaimRewards",
       );
 

@@ -1,14 +1,14 @@
 import type { ALM_LP_Wrapper } from "envio";
 import { updateALMLPWrapper } from "../../src/Aggregators/ALMLPWrapper";
 import { TEN_TO_THE_18_BI } from "../../src/Constants";
-import type { handlerContext } from "../../src/EntityTypes";
+import type { EvmOnEventContext } from "../../src/EntityTypes";
 import { setupCommon } from "../EventHandlers/Pool/common";
 
 describe("ALMLPWrapper Aggregator", () => {
   const { mockALMLPWrapperData } = setupCommon();
   const timestamp = new Date(1000000 * 1000);
 
-  let mockContext: Partial<handlerContext>;
+  let mockContext: Partial<EvmOnEventContext>;
 
   beforeEach(() => {
     mockContext = {
@@ -22,7 +22,7 @@ describe("ALMLPWrapper Aggregator", () => {
       },
       ALM_LP_WrapperSnapshot: {
         set: vi.fn(),
-      } as unknown as handlerContext["ALM_LP_WrapperSnapshot"],
+      } as unknown as EvmOnEventContext["ALM_LP_WrapperSnapshot"],
       log: {
         error: vi.fn(),
         info: vi.fn(),
@@ -50,7 +50,7 @@ describe("ALMLPWrapper Aggregator", () => {
           depositDiff,
           mockALMLPWrapperData,
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const mockSet = vi.mocked(mockContext.ALM_LP_Wrapper?.set);
@@ -86,7 +86,7 @@ describe("ALMLPWrapper Aggregator", () => {
           withdrawDiff,
           mockALMLPWrapperData,
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const mockSet = vi.mocked(mockContext.ALM_LP_Wrapper?.set);
@@ -113,7 +113,7 @@ describe("ALMLPWrapper Aggregator", () => {
           partialDiff,
           mockALMLPWrapperData,
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const mockSet = vi.mocked(mockContext.ALM_LP_Wrapper?.set);
@@ -132,7 +132,7 @@ describe("ALMLPWrapper Aggregator", () => {
           zeroDiff,
           mockALMLPWrapperData,
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const mockSet = vi.mocked(mockContext.ALM_LP_Wrapper?.set);
@@ -159,7 +159,7 @@ describe("ALMLPWrapper Aggregator", () => {
           depositDiff,
           emptyWrapper,
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const mockSet = vi.mocked(mockContext.ALM_LP_Wrapper?.set);
@@ -188,7 +188,7 @@ describe("ALMLPWrapper Aggregator", () => {
           withdrawDiff,
           emptyWrapper,
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const mockSet = vi.mocked(mockContext.ALM_LP_Wrapper?.set);
@@ -217,7 +217,7 @@ describe("ALMLPWrapper Aggregator", () => {
           diffWithUndefined,
           mockALMLPWrapperData,
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const mockSet = vi.mocked(mockContext.ALM_LP_Wrapper?.set);
@@ -237,7 +237,7 @@ describe("ALMLPWrapper Aggregator", () => {
           diffWithUndefinedLiquidity,
           mockALMLPWrapperData,
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const mockSet = vi.mocked(mockContext.ALM_LP_Wrapper?.set);
@@ -259,7 +259,7 @@ describe("ALMLPWrapper Aggregator", () => {
           largeDiff,
           mockALMLPWrapperData,
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const mockSet = vi.mocked(mockContext.ALM_LP_Wrapper?.set);
@@ -282,7 +282,7 @@ describe("ALMLPWrapper Aggregator", () => {
           depositDiff,
           mockALMLPWrapperData,
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         expect(
@@ -299,7 +299,7 @@ describe("ALMLPWrapper Aggregator", () => {
           depositDiff,
           mockALMLPWrapperData,
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const mockSet = vi.mocked(mockContext.ALM_LP_Wrapper?.set);
@@ -331,7 +331,7 @@ describe("ALMLPWrapper Aggregator", () => {
           rebalanceDiff,
           mockALMLPWrapperData,
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const mockSet = vi.mocked(mockContext.ALM_LP_Wrapper?.set);
@@ -374,7 +374,7 @@ describe("ALMLPWrapper Aggregator", () => {
           partialRebalanceDiff,
           mockALMLPWrapperData,
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const mockSet = vi.mocked(mockContext.ALM_LP_Wrapper?.set);

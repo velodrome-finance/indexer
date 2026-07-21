@@ -15,7 +15,7 @@ import {
 } from "../../src/Constants";
 import { getSwapFee } from "../../src/Effects/SwapFee";
 import { roundBlockToInterval } from "../../src/Effects/Token";
-import type { Pool, handlerContext } from "../../src/EntityTypes";
+import type { Pool, EvmOnEventContext } from "../../src/EntityTypes";
 import * as PriceOracle from "../../src/PriceOracle";
 import { setPoolSnapshot } from "../../src/Snapshots/PoolSnapshot";
 import { getSnapshotEpoch } from "../../src/Snapshots/Shared";
@@ -26,7 +26,7 @@ type ReadContractMethod =
   (typeof CHAIN_CONSTANTS)[10]["eth_client"]["readContract"];
 
 describe("Pool Functions", () => {
-  let mockContext: Partial<handlerContext>;
+  let mockContext: Partial<EvmOnEventContext>;
   let liquidityPoolAggregator: Partial<Pool>;
   let timestamp: Date;
   const blockNumber = 131536921;
@@ -153,7 +153,7 @@ describe("Pool Functions", () => {
     it("should update the pool with current dynamic fee", async () => {
       const updatedPool = await updateDynamicFeePools(
         liquidityPoolAggregator as Pool,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
         10,
         blockNumber,
       );
@@ -170,7 +170,7 @@ describe("Pool Functions", () => {
 
       const updatedPool = await updateDynamicFeePools(
         poolNoFactory,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
         10,
         blockNumber,
       );
@@ -193,7 +193,7 @@ describe("Pool Functions", () => {
       // Should complete without throwing and skip update
       await updateDynamicFeePools(
         liquidityPoolAggregator as Pool,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
         10,
         blockNumber,
       );
@@ -230,13 +230,13 @@ describe("Pool Functions", () => {
 
       await updateDynamicFeePools(
         liquidityPoolAggregator as Pool,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
         10,
         firstBlockInHour,
       );
       await updateDynamicFeePools(
         liquidityPoolAggregator as Pool,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
         10,
         lastBlockInHour,
       );
@@ -264,7 +264,7 @@ describe("Pool Functions", () => {
 
       const updatedPool = await updateDynamicFeePools(
         liquidityPoolAggregator as Pool,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
         8453,
         blockNumber,
       );
@@ -309,7 +309,7 @@ describe("Pool Functions", () => {
 
       const updatedPool = await updateDynamicFeePools(
         pool,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
         1923,
         Number(createdBlockNumber),
       );
@@ -337,7 +337,7 @@ describe("Pool Functions", () => {
 
       await updateDynamicFeePools(
         legacyPool,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
         10,
         blockNumber,
       );
@@ -362,7 +362,7 @@ describe("Pool Functions", () => {
       setPoolSnapshot(
         liquidityPoolAggregator as Pool,
         timestamp,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
       );
     });
 
@@ -398,7 +398,7 @@ describe("Pool Functions", () => {
           totalLiquidityUSD: 100n,
         },
         timestamp,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
         10,
         blockNumber,
       );
@@ -419,7 +419,7 @@ describe("Pool Functions", () => {
           totalLiquidityUSD: 100n,
         },
         timestamp,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
         10,
         blockNumber,
       );
@@ -445,7 +445,7 @@ describe("Pool Functions", () => {
             liquidityInRange: 5_000_000n,
           },
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
           10,
           blockNumber,
         );
@@ -470,7 +470,7 @@ describe("Pool Functions", () => {
             liquidityInRange: 5_000_000n,
           },
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
           10,
           blockNumber,
         );
@@ -492,7 +492,7 @@ describe("Pool Functions", () => {
             liquidityInRange: 5_000_000n,
           },
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
           10,
           blockNumber,
         );
@@ -514,7 +514,7 @@ describe("Pool Functions", () => {
             liquidityInRange: 5_000_000n,
           },
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
           10,
           blockNumber,
         );
@@ -549,7 +549,7 @@ describe("Pool Functions", () => {
           stakedTickEdgeNets: [500n, -500n],
         },
         timestamp,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
         10,
         blockNumber,
       );
@@ -585,7 +585,7 @@ describe("Pool Functions", () => {
           tickEdgeNets: [500n, -500n],
         },
         timestamp,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
         10,
         blockNumber,
       );
@@ -615,7 +615,7 @@ describe("Pool Functions", () => {
           tickEdgeNets: [500n, -500n],
         },
         timestamp,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
         10,
         blockNumber,
       );
@@ -644,7 +644,7 @@ describe("Pool Functions", () => {
           tickEdgeNets: [500n, -500n],
         },
         timestamp,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
         10,
         blockNumber,
       );
@@ -762,7 +762,7 @@ describe("Pool Functions", () => {
             lastUpdatedTimestamp: sameEpochAsTimestamp(),
           },
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
           8453,
           blockNumber,
         );
@@ -802,7 +802,7 @@ describe("Pool Functions", () => {
             lastUpdatedTimestamp: sameEpochAsTimestamp(),
           },
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
           8453,
           blockNumber,
         );
@@ -835,7 +835,7 @@ describe("Pool Functions", () => {
             lastUpdatedTimestamp: sameEpochAsTimestamp(),
           },
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
           8453,
           blockNumber,
         );
@@ -861,7 +861,7 @@ describe("Pool Functions", () => {
             lastUpdatedTimestamp: sameEpochAsTimestamp(),
           },
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
           8453,
           blockNumber,
         );
@@ -890,7 +890,7 @@ describe("Pool Functions", () => {
             lastUpdatedTimestamp: sameEpochAsTimestamp(),
           },
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
           8453,
           blockNumber,
         );
@@ -919,7 +919,7 @@ describe("Pool Functions", () => {
             lastUpdatedTimestamp: sameEpochAsTimestamp(),
           },
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
           8453,
           blockNumber,
         );
@@ -945,7 +945,7 @@ describe("Pool Functions", () => {
             lastUpdatedTimestamp: sameEpochAsTimestamp(),
           },
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
           8453,
           blockNumber,
         );
@@ -1000,7 +1000,7 @@ describe("Pool Functions", () => {
             lastUpdatedTimestamp: sameEpochAsTimestamp(),
           },
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
           8453,
           blockNumber,
         );
@@ -1049,7 +1049,7 @@ describe("Pool Functions", () => {
             lastUpdatedTimestamp: sameEpochAsTimestamp(),
           },
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
           8453,
           blockNumber,
         );
@@ -1106,7 +1106,7 @@ describe("Pool Functions", () => {
             lastUpdatedTimestamp: sameEpochAsTimestamp(),
           },
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
           8453,
           blockNumber,
         );
@@ -1141,7 +1141,7 @@ describe("Pool Functions", () => {
             lastUpdatedTimestamp: sameEpochAsTimestamp(),
           },
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
           8453,
           blockNumber,
         );
@@ -1184,7 +1184,7 @@ describe("Pool Functions", () => {
             lastUpdatedTimestamp: sameEpochAsTimestamp(),
           },
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
           8453,
           blockNumber,
         );
@@ -1218,7 +1218,7 @@ describe("Pool Functions", () => {
             lastUpdatedTimestamp: sameEpochAsTimestamp(),
           },
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
           8453,
           blockNumber,
         );
@@ -1242,7 +1242,7 @@ describe("Pool Functions", () => {
             lastUpdatedTimestamp: sameEpochAsTimestamp(),
           },
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
           8453,
           blockNumber,
         );
@@ -1263,7 +1263,7 @@ describe("Pool Functions", () => {
             lastUpdatedTimestamp: sameEpochAsTimestamp(),
           },
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
           8453,
           blockNumber,
         );
@@ -1288,7 +1288,7 @@ describe("Pool Functions", () => {
             lastUpdatedTimestamp: sameEpochAsTimestamp(),
           },
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
           8453,
           blockNumber,
         );
@@ -1321,7 +1321,7 @@ describe("Pool Functions", () => {
             lastUpdatedTimestamp: sameEpochAsTimestamp(),
           },
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
           8453,
           blockNumber,
         );
@@ -1371,7 +1371,7 @@ describe("Pool Functions", () => {
             lastUpdatedTimestamp: sameEpochAsTimestamp(),
           },
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
           252,
           blockNumber,
         );
@@ -1395,7 +1395,7 @@ describe("Pool Functions", () => {
             lastUpdatedTimestamp: sameEpochAsTimestamp(),
           },
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
           8453,
           blockNumber,
         );
@@ -1436,7 +1436,7 @@ describe("Pool Functions", () => {
             lastUpdatedTimestamp: sameEpochAsTimestamp(),
           },
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
           8453,
           blockNumber,
         );
@@ -1472,7 +1472,7 @@ describe("Pool Functions", () => {
             lastUpdatedTimestamp: sameEpochAsTimestamp(),
           },
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
           8453,
           blockNumber,
         );
@@ -1495,7 +1495,7 @@ describe("Pool Functions", () => {
             lastUpdatedTimestamp: sameEpochAsTimestamp(),
           },
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
           8453,
           blockNumber,
         );
@@ -1552,7 +1552,7 @@ describe("Pool Functions", () => {
             lastUpdatedTimestamp: sameEpochAsTimestamp(),
           },
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
           5330,
           blockNumber,
         );
@@ -1594,7 +1594,7 @@ describe("Pool Functions", () => {
             lastUpdatedTimestamp: sameEpochAsTimestamp(),
           },
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
           5330,
           blockNumber,
         );
@@ -1621,7 +1621,7 @@ describe("Pool Functions", () => {
             lastUpdatedTimestamp: sameEpochAsTimestamp(),
           },
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
           5330,
           blockNumber,
         );
@@ -1652,7 +1652,7 @@ describe("Pool Functions", () => {
             lastUpdatedTimestamp: sameEpochAsTimestamp(),
           },
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
           5330,
           blockNumber,
         );
@@ -1681,7 +1681,7 @@ describe("Pool Functions", () => {
             lastUpdatedTimestamp: sameEpochAsTimestamp(),
           },
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
           5330,
           blockNumber,
         );
@@ -1729,7 +1729,7 @@ describe("Pool Functions", () => {
             lastUpdatedTimestamp: sameEpochAsTimestamp(),
           },
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
           5330,
           blockNumber,
         );
@@ -1762,7 +1762,7 @@ describe("Pool Functions", () => {
             lastUpdatedTimestamp: sameEpochAsTimestamp(),
           },
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
           5330,
           blockNumber,
         );
@@ -1797,7 +1797,7 @@ describe("Pool Functions", () => {
         diff,
         liquidityPoolAggregator as Pool,
         timestamp,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
         10,
         blockNumber,
       );
@@ -1834,7 +1834,7 @@ describe("Pool Functions", () => {
         diff,
         liquidityPoolWithOldSnapshot as Pool,
         currentTimestamp,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
         10,
         blockNumber,
       );
@@ -1872,7 +1872,7 @@ describe("Pool Functions", () => {
         diff,
         clPoolWithOldSnapshot as Pool,
         currentTimestamp,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
         10,
         blockNumber,
       );
@@ -1966,7 +1966,7 @@ describe("Pool Functions", () => {
             return undefined;
           }),
         },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       await updatePool(diff, clPool, currentTimestamp, ctx, 10, blockNumber);
 
@@ -1997,7 +1997,7 @@ describe("Pool Functions", () => {
         NonFungiblePosition: {
           getWhere: vi.fn().mockResolvedValue([]),
         },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       await updatePool(diff, clPool, currentTimestamp, ctx, 10, blockNumber);
 
@@ -2030,7 +2030,7 @@ describe("Pool Functions", () => {
         NonFungiblePosition: {
           getWhere: vi.fn().mockResolvedValue([]),
         },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       await updatePool(diff, clPool, currentTimestamp, ctx, 10, blockNumber);
 
@@ -2069,7 +2069,7 @@ describe("Pool Functions", () => {
         NonFungiblePosition: {
           getWhere: vi.fn().mockResolvedValue([]),
         },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       await updatePool(diff, v2Pool, currentTimestamp, ctx, 10, blockNumber);
 
@@ -2111,7 +2111,7 @@ describe("Pool Functions", () => {
         { incrementalTotalFeesGeneratedUSD: 60n * 10n ** 18n },
         pool as Pool,
         timestamp,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
         10,
         blockNumber,
       );
@@ -2136,7 +2136,7 @@ describe("Pool Functions", () => {
         { incrementalTotalFeesGeneratedUSD: 10n * 10n ** 18n },
         pool as Pool,
         timestamp,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
         10,
         blockNumber,
       );
@@ -2161,7 +2161,7 @@ describe("Pool Functions", () => {
         { incrementalTotalFeesGeneratedUSD: 10n * 10n ** 18n },
         pool as Pool,
         timestamp,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
         10,
         blockNumber,
       );
@@ -2186,7 +2186,7 @@ describe("Pool Functions", () => {
         { incrementalTotalFeesGeneratedUSD: 1n * 10n ** 18n },
         pool as Pool,
         timestamp,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
         10,
         blockNumber,
       );
@@ -2260,7 +2260,7 @@ describe("Pool Functions", () => {
       const result = await loadPoolData(
         poolAddress,
         chainId,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
       );
 
       expect(result).not.toBeNull();
@@ -2330,7 +2330,7 @@ describe("Pool Functions", () => {
       const result = await loadPoolData(
         poolAddress,
         chainId,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
         blockNumber,
         blockTimestamp,
       );
@@ -2369,7 +2369,7 @@ describe("Pool Functions", () => {
       const result = await loadPoolData(
         poolAddress,
         chainId,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
         blockNumber,
         blockTimestamp,
       );
@@ -2461,7 +2461,7 @@ describe("Pool Functions", () => {
       const result = await loadPoolData(
         poolAddress,
         chainId,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
         blockNumber,
         blockTimestamp,
       );
@@ -2526,7 +2526,7 @@ describe("Pool Functions", () => {
       const result = await loadPoolData(
         poolAddress,
         chainId,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
         blockNumber,
         blockTimestamp,
       );
@@ -2552,7 +2552,7 @@ describe("Pool Functions", () => {
       const result = await loadPoolData(
         poolAddress,
         chainId,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
         blockNumber,
         blockTimestamp,
       );
@@ -2580,7 +2580,7 @@ describe("Pool Functions", () => {
       const result = await loadPoolData(
         poolAddress,
         chainId,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
         blockNumber,
         blockTimestamp,
       );
@@ -2600,7 +2600,7 @@ describe("Pool Functions", () => {
       const result = await loadPoolData(
         poolAddress,
         chainId,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
       );
 
       expect(result).toBeNull();
@@ -2615,7 +2615,7 @@ describe("Pool Functions", () => {
       const result = await loadPoolData(
         poolAddress,
         chainId,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
       );
 
       expect(result).toBeNull();
@@ -2692,7 +2692,7 @@ describe("Pool Functions", () => {
       const result = await loadPoolDataOrRootCLPool(
         rootPoolAddress,
         chainId,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
       );
 
       expect(result.ok).toBe(true);
@@ -2761,7 +2761,7 @@ describe("Pool Functions", () => {
       const result = await loadPoolDataOrRootCLPool(
         rootPoolAddress,
         chainId,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
       );
 
       expect(result.ok).toBe(true);
@@ -2840,7 +2840,7 @@ describe("Pool Functions", () => {
       const result = await loadPoolDataOrRootCLPool(
         rootPoolAddress,
         chainId,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
         rootBlockNumber,
         rootBlockTimestamp,
       );
@@ -2868,7 +2868,7 @@ describe("Pool Functions", () => {
       const result = await loadPoolDataOrRootCLPool(
         rootPoolAddress,
         chainId,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
       );
 
       expect(result.ok).toBe(false);
@@ -2936,7 +2936,7 @@ describe("Pool Functions", () => {
       const result = await loadPoolDataOrRootCLPool(
         rootPoolAddress,
         chainId,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
       );
 
       expect(result.ok).toBe(false);
@@ -2983,7 +2983,7 @@ describe("Pool Functions", () => {
       const result = await loadPoolDataOrRootCLPool(
         rootPoolAddress,
         chainId,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
       );
 
       expect(result.ok).toBe(false);
@@ -3018,7 +3018,7 @@ describe("Pool Functions", () => {
       const result = await loadPoolDataOrRootCLPool(
         sinkRootPoolAddress,
         sinkChainId,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
       );
 
       expect(result.ok).toBe(false);

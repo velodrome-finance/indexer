@@ -13,7 +13,7 @@ import {
   NonFungiblePositionId,
   toChecksumAddress,
 } from "../../../src/Constants";
-import type { handlerContext } from "../../../src/EntityTypes";
+import type { EvmOnEventContext } from "../../../src/EntityTypes";
 import {
   LiquidityChangeType,
   attributeLiquidityChangeToUserStatsPerPool,
@@ -80,7 +80,7 @@ describe("NFPMCommonLogic", () => {
     nfpmAddress: nfpmAddressB,
   };
 
-  let mockContext: handlerContext;
+  let mockContext: EvmOnEventContext;
 
   beforeEach(() => {
     const storedPositions: NonFungiblePosition[] = [
@@ -124,7 +124,7 @@ describe("NFPMCommonLogic", () => {
         warn: vi.fn(),
         error: vi.fn(),
       },
-    } as unknown as handlerContext;
+    } as unknown as EvmOnEventContext;
   });
 
   // Regression for #621: the new stable ID for NonFungiblePosition is

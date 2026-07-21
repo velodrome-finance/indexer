@@ -1,6 +1,6 @@
 import type { UserStatsPerPool } from "envio";
 
-import type { handlerContext } from "../EntityTypes";
+import type { EvmOnEventContext } from "../EntityTypes";
 
 import {
   NonFungiblePositionId,
@@ -67,7 +67,7 @@ export async function loadUserStatsPerPool(
   userAddress: string,
   poolAddress: string,
   chainId: number,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<UserStatsPerPool | undefined> {
   const id = UserStatsPerPoolId(chainId, userAddress, poolAddress);
   return getRehydrated(context.UserStatsPerPool, "UserStatsPerPool", id);
@@ -87,7 +87,7 @@ export async function loadOrCreateUserData(
   userAddress: string,
   poolAddress: string,
   chainId: number,
-  context: handlerContext,
+  context: EvmOnEventContext,
   timestamp: Date,
 ): Promise<UserStatsPerPool> {
   let existingStats = await loadUserStatsPerPool(
@@ -192,7 +192,7 @@ export function createUserStatsPerPoolEntity(
 export async function updateUserStatsPerPool(
   diff: Partial<UserStatsPerPoolDiff>,
   current: UserStatsPerPool,
-  context: handlerContext,
+  context: EvmOnEventContext,
   timestamp: Date,
   preloadedPoolData?: PoolData,
 ): Promise<UserStatsPerPool> {

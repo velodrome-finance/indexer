@@ -1,13 +1,7 @@
-import type {
-  DispatchId_event,
-  OUSDTBridgedTransaction,
-  OUSDTSwaps,
-  ProcessId_event,
-  SuperSwap,
-} from "envio";
+import type { DispatchId_event, OUSDTBridgedTransaction, OUSDTSwaps, ProcessId_event, SuperSwap } from "envio";
 import { OUSDT_ADDRESS, SuperSwapId } from "../../Constants";
 import { getRehydrated } from "../../EntityTimestamps";
-import type { handlerContext } from "../../EntityTypes";
+import type { EvmOnEventContext } from "../../EntityTypes";
 
 /**
  * Builds a map from messageId to ProcessId event and collects unique destination transaction hashes.
@@ -44,7 +38,7 @@ export function buildMessageIdToProcessIdMap(
  */
 export async function findSourceSwapWithOUSDT(
   transactionHash: string,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<{
   swap: OUSDTSwaps;
   sourceChainToken: string;
@@ -96,7 +90,7 @@ export async function findSourceSwapWithOUSDT(
  */
 export async function loadDestinationSwaps(
   destinationTransactionHashes: Set<string>,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<Map<string, OUSDTSwaps[]>> {
   const transactionHashesArray = Array.from(destinationTransactionHashes);
   const swapPromises = transactionHashesArray.map((txHash) =>
@@ -207,7 +201,7 @@ export async function createSuperSwapEntity(
   destinationChainToken: string,
   destinationChainTokenAmountSwapped: bigint,
   blockTimestamp: number,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<void> {
   const superSwapId = SuperSwapId(messageId);
 
@@ -259,7 +253,7 @@ function deleteConsumedMailboxPair(
   matchingMessageId: string,
   sourceChainMessageIdEntities: DispatchId_event[],
   messageIdToProcessId: Map<string, ProcessId_event>,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): void {
   const dispatchEntity = sourceChainMessageIdEntities.find(
     (entity) => entity.messageId === matchingMessageId,
@@ -297,7 +291,7 @@ export async function processCrossChainSwap(
   chainId: number,
   destinationDomain: bigint,
   blockTimestamp: number,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<void> {
   // Build messageId to ProcessId mapping
   const { messageIdToProcessId, destinationTransactionHashes } =
@@ -377,7 +371,7 @@ export async function handleCrossChainSwapEvent(
   chainId: number,
   destinationDomain: bigint,
   blockTimestamp: number,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<void> {
   const [oUSDTBridgedTransactions, sourceChainMessageIdEntities] =
     await Promise.all([
@@ -451,7 +445,7 @@ export async function handleCrossChainSwapEvent(
 export async function attemptSuperSwapCreationFromProcessId(
   messageId: string,
   blockTimestamp: number,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<void> {
   try {
     // Find matching DispatchId_event by messageId

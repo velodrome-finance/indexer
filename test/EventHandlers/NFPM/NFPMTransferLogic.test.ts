@@ -1,8 +1,4 @@
-import type {
-  CLPoolMintEvent,
-  NonFungiblePosition,
-  TxCLPoolMintRegistry,
-} from "envio";
+import type { CLPoolMintEvent, NonFungiblePosition, TxCLPoolMintRegistry } from "envio";
 import type { EvmEvent } from "envio";
 import { loadPoolData } from "../../../src/Aggregators/Pool";
 import type { PoolData } from "../../../src/Aggregators/Pool";
@@ -13,7 +9,7 @@ import {
   TxCLPoolMintRegistryId,
   toChecksumAddress,
 } from "../../../src/Constants";
-import type { handlerContext } from "../../../src/EntityTypes";
+import type { EvmOnEventContext } from "../../../src/EntityTypes";
 import {
   LiquidityChangeType,
   attributeLiquidityChangeToUserStatsPerPool,
@@ -180,7 +176,7 @@ describe("NFPMTransferLogic", () => {
   };
 
   let entityStore: Map<string, NonFungiblePosition>;
-  let mockContext: handlerContext;
+  let mockContext: EvmOnEventContext;
   let storedPositions: NonFungiblePosition[] = [];
   let storedMintEvents: CLPoolMintEvent[] = [];
   let storedRegistries: TxCLPoolMintRegistry[] = [];
@@ -193,7 +189,7 @@ describe("NFPMTransferLogic", () => {
     positions: NonFungiblePosition[] = [],
     mintEvents: CLPoolMintEvent[] = [],
     registries: TxCLPoolMintRegistry[] = [],
-  ): handlerContext {
+  ): EvmOnEventContext {
     // Seed entity store from positions
     entityStore = new Map<string, NonFungiblePosition>();
     for (const pos of positions) {
@@ -321,7 +317,7 @@ describe("NFPMTransferLogic", () => {
         warn: vi.fn(),
         error: vi.fn(),
       },
-    } as unknown as handlerContext;
+    } as unknown as EvmOnEventContext;
   }
 
   /**
@@ -591,7 +587,7 @@ describe("NFPMTransferLogic", () => {
           ).TxCLPoolMintRegistry,
           get: vi.fn().mockResolvedValue(undefined),
         },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       const mockEvent = createMockTransferEvent(zeroAddress, ownerAddress);
 

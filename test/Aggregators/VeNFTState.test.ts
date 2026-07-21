@@ -8,19 +8,19 @@ import {
   VeNFTStateSnapshotId,
   toChecksumAddress,
 } from "../../src/Constants";
-import type { handlerContext } from "../../src/EntityTypes";
+import type { EvmOnEventContext } from "../../src/EntityTypes";
 import { getSnapshotEpoch } from "../../src/Snapshots/Shared";
 
 function getVeNFTStateStore(
-  ctx: Partial<handlerContext>,
-): NonNullable<handlerContext["VeNFTState"]> {
+  ctx: Partial<EvmOnEventContext>,
+): NonNullable<EvmOnEventContext["VeNFTState"]> {
   const store = ctx.VeNFTState;
   if (!store) throw new Error("test setup: VeNFTState mock required");
   return store;
 }
 
 describe("VeNFTState", () => {
-  let mockContext: Partial<handlerContext>;
+  let mockContext: Partial<EvmOnEventContext>;
   const mockVeNFTState: VeNFTState = {
     id: VeNFTId(10, 1n),
     chainId: 10,
@@ -47,13 +47,13 @@ describe("VeNFTState", () => {
       },
       VeNFTStateSnapshot: {
         set: vi.fn(),
-      } as unknown as handlerContext["VeNFTStateSnapshot"],
+      } as unknown as EvmOnEventContext["VeNFTStateSnapshot"],
       VeNFTPoolVote: {
         getWhere: vi.fn().mockResolvedValue([]),
-      } as unknown as handlerContext["VeNFTPoolVote"],
+      } as unknown as EvmOnEventContext["VeNFTPoolVote"],
       VeNFTPoolVoteSnapshot: {
         set: vi.fn(),
-      } as unknown as handlerContext["VeNFTPoolVoteSnapshot"],
+      } as unknown as EvmOnEventContext["VeNFTPoolVoteSnapshot"],
       log: {
         error: vi.fn(),
         info: vi.fn(),
@@ -82,7 +82,7 @@ describe("VeNFTState", () => {
       const result = await loadVeNFTState(
         10,
         1n,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
       );
 
       expect(result).toEqual(mockVeNFTState);
@@ -97,7 +97,7 @@ describe("VeNFTState", () => {
       const result = await loadVeNFTState(
         10,
         99n,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
       );
 
       expect(result).toBeUndefined();
@@ -127,7 +127,7 @@ describe("VeNFTState", () => {
           depositDiff,
           mockVeNFTState,
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
         const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
         expect(mockSet).toBeDefined();
@@ -155,7 +155,7 @@ describe("VeNFTState", () => {
           withdrawDiff,
           mockVeNFTState,
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
         const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
         expect(mockSet).toBeDefined();
@@ -185,7 +185,7 @@ describe("VeNFTState", () => {
           overdraftDiff,
           zeroShell,
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
         const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
         result = mockSet?.mock.calls[0]?.[0] as VeNFTState;
@@ -223,7 +223,7 @@ describe("VeNFTState", () => {
           transferDiff,
           mockVeNFTState,
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
         const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
         expect(mockSet).toBeDefined();
@@ -248,7 +248,7 @@ describe("VeNFTState", () => {
           lockDiff,
           mockVeNFTState,
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
@@ -272,7 +272,7 @@ describe("VeNFTState", () => {
           unlockDiff,
           permanentState,
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
@@ -293,7 +293,7 @@ describe("VeNFTState", () => {
           incrementOnly,
           permanentState,
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
@@ -323,7 +323,7 @@ describe("VeNFTState", () => {
           violatingDiff,
           freshState,
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         expect(mockContext.log?.warn).toHaveBeenCalledWith(
@@ -344,7 +344,7 @@ describe("VeNFTState", () => {
           incrementOnly,
           permanentState,
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         expect(mockContext.log?.warn).not.toHaveBeenCalled();
@@ -363,7 +363,7 @@ describe("VeNFTState", () => {
           noopDiff,
           burnedState,
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         expect(mockContext.log?.warn).not.toHaveBeenCalled();
@@ -384,7 +384,7 @@ describe("VeNFTState", () => {
           burnDiff,
           mockVeNFTState,
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
         const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
         expect(mockSet).toBeDefined();
@@ -424,7 +424,7 @@ describe("VeNFTState", () => {
           depositDiff,
           emptyVeNFT,
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
         const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
         expect(mockSet).toBeDefined();
@@ -444,7 +444,7 @@ describe("VeNFTState", () => {
           depositDiff,
           mockVeNFTState, // lastSnapshotTimestamp: undefined
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
         const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
         const updated = mockSet.mock.calls[0][0] as VeNFTState;
@@ -481,7 +481,7 @@ describe("VeNFTState", () => {
           depositDiff,
           stateWithSnapshot,
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
         const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
         const updated = mockSet.mock.calls[0][0] as VeNFTState;
@@ -502,7 +502,7 @@ describe("VeNFTState", () => {
           depositDiff,
           stateWithOlderSnapshot,
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
         const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
         const updated = mockSet.mock.calls[0][0] as VeNFTState;
@@ -524,7 +524,7 @@ describe("VeNFTState", () => {
           depositDiff,
           stateWithNewerSnapshot,
           timestamp,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
         const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
         const updated = mockSet.mock.calls[0][0] as VeNFTState;

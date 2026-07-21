@@ -1,5 +1,5 @@
 import type { PoolData } from "../../Aggregators/Pool";
-import type { handlerContext } from "../../EntityTypes";
+import type { EvmOnEventContext } from "../../EntityTypes";
 import {
   type LiquidityChangeType,
   attributeLiquidityChangeToUserStatsPerPool,
@@ -41,7 +41,7 @@ export async function attributeDirectCLLiquidityChange(
   owner: string,
   poolAddress: string,
   poolData: PoolData,
-  context: handlerContext,
+  context: EvmOnEventContext,
   amount0: bigint,
   amount1: bigint,
   blockTimestamp: number,

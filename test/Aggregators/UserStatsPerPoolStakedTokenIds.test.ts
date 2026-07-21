@@ -4,12 +4,12 @@ import {
   updateUserStatsPerPool,
 } from "../../src/Aggregators/UserStatsPerPool";
 import { toChecksumAddress } from "../../src/Constants";
-import type { handlerContext } from "../../src/EntityTypes";
+import type { EvmOnEventContext } from "../../src/EntityTypes";
 import { setupCommon } from "../EventHandlers/Pool/common";
 
 describe("UserStatsPerPool stakedCLPositionTokenIds", () => {
   let common: ReturnType<typeof setupCommon>;
-  let mockContext: handlerContext;
+  let mockContext: EvmOnEventContext;
 
   const mockUserAddress = toChecksumAddress(
     "0x1234567890123456789012345678901234567890",

@@ -2,7 +2,7 @@ import type { PoolLauncherPool } from "envio";
 import { PoolId } from "../../Constants";
 import { getRehydrated } from "../../EntityTimestamps";
 import type { Pool } from "../../EntityTypes";
-import type { handlerContext } from "../../EntityTypes";
+import type { EvmOnEventContext } from "../../EntityTypes";
 
 /**
  * Creates or updates the PoolLauncherPool entity for a launched or migrated pool.
@@ -31,7 +31,7 @@ export async function processPoolLauncherPool(
   pairToken: string,
   createdAt: Date,
   chainId: number,
-  context: handlerContext,
+  context: EvmOnEventContext,
   migratedFrom = "",
 ): Promise<PoolLauncherPool> {
   const poolId = PoolId(chainId, poolAddress);
@@ -92,7 +92,7 @@ export async function processPoolLauncherPool(
 export async function linkPoolToPoolLauncher(
   poolAddress: string,
   chainId: number,
-  context: handlerContext,
+  context: EvmOnEventContext,
   factoryType: "CL" | "V2",
   lastUpdatedTimestamp: Date,
 ): Promise<void> {

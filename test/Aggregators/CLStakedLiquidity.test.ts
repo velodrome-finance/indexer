@@ -6,7 +6,7 @@ import {
   processTickCrossings,
   segmentReserveDelta,
 } from "../../src/Aggregators/CLStakedLiquidity";
-import type { handlerContext } from "../../src/EntityTypes";
+import type { EvmOnEventContext } from "../../src/EntityTypes";
 import { calculatePositionAmountsFromLiquidity } from "../../src/Helpers";
 import { sqrtAt } from "./common";
 
@@ -246,7 +246,7 @@ describe("CLStakedLiquidity", () => {
   });
 
   describe("processTickCrossings", () => {
-    let mockContext: handlerContext;
+    let mockContext: EvmOnEventContext;
     let logErrorSpy: ReturnType<typeof vi.fn>;
 
     beforeEach(() => {
@@ -258,7 +258,7 @@ describe("CLStakedLiquidity", () => {
           info: vi.fn(),
           debug: vi.fn(),
         },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
     });
 
     it("should derive the in-range counter from edges when oldTick === newTick", async () => {
@@ -989,7 +989,7 @@ describe("CLStakedLiquidity", () => {
             info: vi.fn(),
             debug: vi.fn(),
           },
-        } as unknown as handlerContext;
+        } as unknown as EvmOnEventContext;
         const trajectory = [
           250n,
           -300n,
@@ -1245,7 +1245,7 @@ describe("CLStakedLiquidity", () => {
 
       const noDbContext = {
         log: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       const walked = processTickCrossings(
         CHAIN_ID,

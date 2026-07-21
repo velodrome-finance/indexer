@@ -1,11 +1,4 @@
-import type {
-  PendingDistribution,
-  PendingVote,
-  RootPool_LeafPool,
-  UserStatsPerPool,
-  VeNFTPoolVote,
-  VeNFTState,
-} from "envio";
+import type { PendingDistribution, PendingVote, RootPool_LeafPool, UserStatsPerPool, VeNFTPoolVote, VeNFTState } from "envio";
 import type { PoolData } from "../../../src/Aggregators/Pool";
 import * as PoolModule from "../../../src/Aggregators/Pool";
 import * as UserStatsPerPoolModule from "../../../src/Aggregators/UserStatsPerPool";
@@ -21,7 +14,7 @@ import {
   VeNFTId,
   toChecksumAddress,
 } from "../../../src/Constants";
-import type { handlerContext } from "../../../src/EntityTypes";
+import type { EvmOnEventContext } from "../../../src/EntityTypes";
 import type { Pool } from "../../../src/EntityTypes";
 import {
   deleteProcessedPendingDistribution,
@@ -109,7 +102,7 @@ describe("CrossChainPendingResolution", () => {
     mockVeNFTState: VeNFTState;
     mockUserStats: UserStatsPerPool;
     mockVeNFTPoolVote: VeNFTPoolVote;
-    context: handlerContext;
+    context: EvmOnEventContext;
     updatePoolSpy: ReturnType<typeof vi.spyOn>;
     updateUserSpy: ReturnType<typeof vi.spyOn>;
     updateVoteSpy: ReturnType<typeof vi.spyOn>;
@@ -166,7 +159,7 @@ describe("CrossChainPendingResolution", () => {
     const context = {
       VeNFTState: { get: vi.fn() },
       Pool: { set: vi.fn() },
-    } as unknown as handlerContext;
+    } as unknown as EvmOnEventContext;
 
     return {
       pendingVote,
@@ -198,7 +191,7 @@ describe("CrossChainPendingResolution", () => {
       const getWhere = vi.fn().mockResolvedValue(pendingVotes);
       const context = {
         PendingVote: { getWhere },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       const result = await getPendingVotesByRootPool(context, rootPoolAddress);
 
@@ -214,7 +207,7 @@ describe("CrossChainPendingResolution", () => {
       const getWhere = vi.fn().mockResolvedValue(null);
       const context = {
         PendingVote: { getWhere },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       const result = await getPendingVotesByRootPool(context, rootPoolAddress);
 
@@ -229,7 +222,7 @@ describe("CrossChainPendingResolution", () => {
       const getWhere = vi.fn().mockResolvedValue([pendingWithNumberTimestamp]);
       const context = {
         PendingVote: { getWhere },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       const result = await getPendingVotesByRootPool(context, rootPoolAddress);
 
@@ -251,7 +244,7 @@ describe("CrossChainPendingResolution", () => {
       const getWhere = vi.fn().mockResolvedValue([secondBlock, firstBlock]);
       const context = {
         PendingVote: { getWhere },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       const result = await getPendingVotesByRootPool(context, rootPoolAddress);
 
@@ -279,7 +272,7 @@ describe("CrossChainPendingResolution", () => {
         .mockResolvedValue([voteLogIndex3, voteLogIndex1, voteLogIndex2]);
       const context = {
         PendingVote: { getWhere },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       const result = await getPendingVotesByRootPool(context, rootPoolAddress);
 
@@ -310,7 +303,7 @@ describe("CrossChainPendingResolution", () => {
       const context = {
         VeNFTState: { get: VeNFTStateGet },
         log: { warn: vi.fn() },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       const result = await processPendingVote(
         context,
@@ -431,7 +424,7 @@ describe("CrossChainPendingResolution", () => {
       const deleteUnsafe = vi.fn();
       const context = {
         PendingVote: { deleteUnsafe },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       deleteProcessedPendingVote(context, pendingVote);
 
@@ -445,7 +438,7 @@ describe("CrossChainPendingResolution", () => {
       const getWhere = vi.fn().mockResolvedValue([]);
       const context = {
         RootPool_LeafPool: { getWhere },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       await processAllPendingVotesForRootPool(context, rootPoolAddress);
 
@@ -458,7 +451,7 @@ describe("CrossChainPendingResolution", () => {
       const getWhere = vi.fn().mockResolvedValue(null);
       const context = {
         RootPool_LeafPool: { getWhere },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       await processAllPendingVotesForRootPool(context, rootPoolAddress);
 
@@ -496,7 +489,7 @@ describe("CrossChainPendingResolution", () => {
       const getWhere = vi.fn().mockResolvedValue([mapping1, mapping2]);
       const context = {
         RootPool_LeafPool: { getWhere },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       await processAllPendingVotesForRootPool(context, rootPoolAddress);
     });
@@ -523,7 +516,7 @@ describe("CrossChainPendingResolution", () => {
         log: {
           error: vi.fn(),
         },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       await processAllPendingVotesForRootPool(context, rootPoolAddress);
     });
@@ -581,7 +574,7 @@ describe("CrossChainPendingResolution", () => {
             ),
         },
         log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       await processAllPendingVotesForRootPool(context, rootPoolAddress);
 
@@ -636,7 +629,7 @@ describe("CrossChainPendingResolution", () => {
             ),
         },
         log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       await processAllPendingVotesForRootPool(context, rootPoolAddress);
 
@@ -744,7 +737,7 @@ describe("CrossChainPendingResolution", () => {
           warn: vi.fn(),
           error: (msg: unknown) => errors.push(String(msg)),
         },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       await processAllPendingVotesForRootPool(context, rootPoolAddress);
 
@@ -853,7 +846,7 @@ describe("CrossChainPendingResolution", () => {
           warn: vi.fn(),
           error: (msg: unknown) => errors.push(String(msg)),
         },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       await processAllPendingVotesForRootPool(context, rootPoolAddress);
 
@@ -879,7 +872,7 @@ describe("CrossChainPendingResolution", () => {
         RootPool_LeafPool: { getWhere: getWhereRootPoolLeafPool },
         PendingVote: { getWhere: getWherePendingVote },
         PendingDistribution: { getWhere: getWherePendingDistribution },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       await flushPendingVotesAndDistributionsForRootPool(
         context,
@@ -908,7 +901,7 @@ describe("CrossChainPendingResolution", () => {
         log: { error: logError },
         RootPool_LeafPool: { getWhere: getWhereRootPoolLeafPool },
         PendingDistribution: { getWhere: getWherePendingDistribution },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       await expect(
         flushPendingVotesAndDistributionsForRootPool(
@@ -945,7 +938,7 @@ describe("CrossChainPendingResolution", () => {
         log: { error: logError, warn: logWarn },
         RootPool_LeafPool: { getWhere: getWhereRootPoolLeafPool },
         PendingDistribution: { getWhere: getWherePendingDistribution },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       await expect(
         flushPendingVotesAndDistributionsForRootPool(
@@ -981,7 +974,7 @@ describe("CrossChainPendingResolution", () => {
       const getWhere = vi.fn().mockResolvedValue([laterBlock, earlierBlock]);
       const context = {
         PendingDistribution: { getWhere },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       const result = await getPendingDistributionsByRootPool(
         context,
@@ -1010,7 +1003,7 @@ describe("CrossChainPendingResolution", () => {
       const getWhere = vi.fn().mockResolvedValue([first, second]);
       const context = {
         PendingDistribution: { getWhere },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       const result = await getPendingDistributionsByRootPool(
         context,
@@ -1026,7 +1019,7 @@ describe("CrossChainPendingResolution", () => {
       const getWhere = vi.fn().mockResolvedValue(null);
       const context = {
         PendingDistribution: { getWhere },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       const result = await getPendingDistributionsByRootPool(
         context,
@@ -1052,7 +1045,7 @@ describe("CrossChainPendingResolution", () => {
       const tokenGet = vi.fn().mockResolvedValue(undefined);
       const context = {
         Token: { get: tokenGet },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       const result = await processPendingDistribution(
         context,
@@ -1086,7 +1079,7 @@ describe("CrossChainPendingResolution", () => {
         .mockResolvedValue(null);
       const context = {
         Token: { get: tokenGet },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       const result = await processPendingDistribution(
         context,
@@ -1156,7 +1149,7 @@ describe("CrossChainPendingResolution", () => {
           get: vi.fn().mockResolvedValue(mockRewardToken),
         },
         log: { warn: vi.fn(), error: vi.fn() },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       const result = await processPendingDistribution(
         context,
@@ -1195,7 +1188,7 @@ describe("CrossChainPendingResolution", () => {
       const deleteUnsafe = vi.fn();
       const context = {
         PendingDistribution: { deleteUnsafe },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       deleteProcessedPendingDistribution(context, pending);
 
@@ -1209,7 +1202,7 @@ describe("CrossChainPendingResolution", () => {
       const getWhere = vi.fn().mockResolvedValue([]);
       const context = {
         RootPool_LeafPool: { getWhere },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       await processAllPendingDistributionsForRootPool(context, rootPoolAddress);
 
@@ -1222,7 +1215,7 @@ describe("CrossChainPendingResolution", () => {
       const getWhere = vi.fn().mockResolvedValue(null);
       const context = {
         RootPool_LeafPool: { getWhere },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       await processAllPendingDistributionsForRootPool(context, rootPoolAddress);
 
@@ -1260,7 +1253,7 @@ describe("CrossChainPendingResolution", () => {
       const getWhere = vi.fn().mockResolvedValue([mapping1, mapping2]);
       const context = {
         RootPool_LeafPool: { getWhere },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       await processAllPendingDistributionsForRootPool(context, rootPoolAddress);
     });
@@ -1330,7 +1323,7 @@ describe("CrossChainPendingResolution", () => {
         },
         Token: { get: vi.fn().mockResolvedValue(mockRewardToken) },
         log: { warn: vi.fn(), error: vi.fn() },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       await processAllPendingDistributionsForRootPool(context, rootPoolAddress);
 
@@ -1368,7 +1361,7 @@ describe("CrossChainPendingResolution", () => {
         },
         Token: { get: tokenGet },
         log: { warn: vi.fn(), error: vi.fn() },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       await processAllPendingDistributionsForRootPool(context, rootPoolAddress);
 
@@ -1459,7 +1452,7 @@ describe("CrossChainPendingResolution", () => {
           warn: vi.fn(),
           error: (msg: unknown) => errors.push(String(msg)),
         },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       await processAllPendingDistributionsForRootPool(context, rootPoolAddress);
 
@@ -1542,7 +1535,7 @@ describe("CrossChainPendingResolution", () => {
           warn: vi.fn(),
           error: (msg: unknown) => errors.push(String(msg)),
         },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       await processAllPendingDistributionsForRootPool(context, rootPoolAddress);
 

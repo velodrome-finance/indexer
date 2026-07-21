@@ -1,6 +1,6 @@
 import type { EvmEvent, Token } from "envio";
 import { toChecksumAddress } from "../../../src/Constants";
-import type { handlerContext } from "../../../src/EntityTypes";
+import type { EvmOnEventContext } from "../../../src/EntityTypes";
 import { processPoolFees } from "../../../src/EventHandlers/Pool/PoolFeesLogic";
 import { setupCommon } from "./common";
 
@@ -28,7 +28,7 @@ describe("PoolFeesLogic", () => {
     },
   } as unknown as EvmEvent<"Pool", "Fees">;
 
-  let mockContext: handlerContext;
+  let mockContext: EvmOnEventContext;
 
   beforeEach(() => {
     mockContext = {
@@ -37,7 +37,7 @@ describe("PoolFeesLogic", () => {
         warn: () => {},
         info: () => {},
       },
-    } as unknown as handlerContext;
+    } as unknown as EvmOnEventContext;
   });
 
   describe("processPoolFees", () => {

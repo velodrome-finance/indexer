@@ -7,7 +7,7 @@ import {
 } from "../Constants";
 import { getSwapFee, roundBlockToInterval } from "../Effects/Index";
 import { getRehydrated, getWhereRehydrated } from "../EntityTimestamps";
-import type { handlerContext } from "../EntityTypes";
+import type { EvmOnEventContext } from "../EntityTypes";
 import type { Pool } from "../EntityTypes";
 import { calculateTotalUSD, generatePoolName } from "../Helpers";
 import { refreshTokenPrice } from "../PriceOracle";
@@ -75,7 +75,7 @@ async function logNegStakedReserveGuard(
   msg: string,
   overshoot: bigint,
   tokenId: string,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<void> {
   const token = await getRehydrated(context.Token, "Token", tokenId);
   const overshootUSD = getTrustedUSD(overshoot, token ?? undefined);
@@ -253,7 +253,7 @@ export function isMissingRootPoolMapping(
  */
 export async function updateDynamicFeePools(
   liquidityPoolAggregator: Pool,
-  context: handlerContext,
+  context: EvmOnEventContext,
   eventChainId: number,
   blockNumber: number,
 ): Promise<Pool> {
@@ -325,7 +325,7 @@ export async function updatePool(
   diff: Partial<PoolDiff>,
   current: Pool,
   timestamp: Date,
-  context: handlerContext,
+  context: EvmOnEventContext,
   eventChainId: number,
   blockNumber: number,
 ) {
@@ -897,7 +897,7 @@ export async function updatePool(
 export async function loadPoolData(
   poolAddress: string,
   chainId: number,
-  context: handlerContext,
+  context: EvmOnEventContext,
   blockNumber?: number,
   blockTimestamp?: number,
 ): Promise<PoolData | null> {
@@ -1009,7 +1009,7 @@ export async function loadPoolData(
 export async function loadPoolDataOrRootCLPool(
   poolAddress: string,
   chainId: number,
-  context: handlerContext,
+  context: EvmOnEventContext,
   blockNumber?: number,
   blockTimestamp?: number,
 ): Promise<LoadPoolDataOrRootCLPoolResult> {
@@ -1089,7 +1089,7 @@ export async function loadPoolDataOrRootCLPool(
 export async function findPoolByField(
   address: string,
   chainId: number,
-  context: handlerContext,
+  context: EvmOnEventContext,
   field: PoolAddressField,
 ): Promise<Pool | null> {
   const pools = await getWhereRehydrated(context.Pool, "Pool", {
@@ -1112,7 +1112,7 @@ export async function findPoolByField(
 export async function findPoolByGaugeAddress(
   gaugeAddress: string,
   chainId: number,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<Pool | null> {
   return findPoolByField(
     gaugeAddress,

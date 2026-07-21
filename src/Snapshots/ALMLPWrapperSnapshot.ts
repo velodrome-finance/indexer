@@ -1,6 +1,6 @@
 import type { ALM_LP_Wrapper, ALM_LP_WrapperSnapshot } from "envio";
 
-import type { handlerContext } from "../EntityTypes";
+import type { EvmOnEventContext } from "../EntityTypes";
 
 import { ALMLPWrapperSnapshotId } from "../Constants";
 import {
@@ -64,7 +64,7 @@ export function createALMLPWrapperSnapshot(
 export function setALMLPWrapperSnapshot(
   entity: ALM_LP_Wrapper,
   timestamp: Date,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): void {
   const snapshotForPersist: SnapshotForPersist = {
     type: SnapshotType.ALMLPWrapper,

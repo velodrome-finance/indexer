@@ -1,12 +1,12 @@
 import type { UserStatsPerPool } from "envio";
 import { updateUserStatsPerPool } from "../../src/Aggregators/UserStatsPerPool";
 import { toChecksumAddress } from "../../src/Constants";
-import type { handlerContext } from "../../src/EntityTypes";
+import type { EvmOnEventContext } from "../../src/EntityTypes";
 import { setupCommon } from "../EventHandlers/Pool/common";
 
 describe("UserStatsPerPool Liquidity Logic", () => {
   let common: ReturnType<typeof setupCommon>;
-  let mockContext: handlerContext;
+  let mockContext: EvmOnEventContext;
 
   const mockUserAddress = toChecksumAddress(
     "0x1234567890123456789012345678901234567890",
@@ -252,7 +252,7 @@ describe("UserStatsPerPool Liquidity Logic", () => {
   });
 
   describe("Negative counter clamps (issue #816)", () => {
-    let clampContext: handlerContext;
+    let clampContext: EvmOnEventContext;
     let warn: ReturnType<typeof vi.fn>;
 
     beforeEach(() => {

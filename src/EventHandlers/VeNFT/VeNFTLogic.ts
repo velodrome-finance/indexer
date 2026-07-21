@@ -13,7 +13,7 @@ import {
   ZERO_ADDRESS,
 } from "../../Constants";
 import { getRehydrated } from "../../EntityTimestamps";
-import type { handlerContext } from "../../EntityTypes";
+import type { EvmOnEventContext } from "../../EntityTypes";
 
 /**
  * Processes a VeNFT Deposit event: updates the VeNFTState with the new locktime,
@@ -35,7 +35,7 @@ import type { handlerContext } from "../../EntityTypes";
 export async function processVeNFTDeposit(
   event: EvmEvent<"VeNFT", "Deposit">,
   currentVeNFTState: VeNFTState,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<void> {
   const timestamp = new Date(event.block.timestamp * 1000);
 
@@ -63,7 +63,7 @@ export async function processVeNFTDeposit(
 export async function processVeNFTWithdraw(
   event: EvmEvent<"VeNFT", "Withdraw">,
   currentVeNFTState: VeNFTState,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<void> {
   const timestamp = new Date(event.block.timestamp * 1000);
 
@@ -90,7 +90,7 @@ export async function processVeNFTWithdraw(
 export async function processVeNFTLockPermanent(
   event: EvmEvent<"VeNFT", "LockPermanent">,
   currentVeNFTState: VeNFTState,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<void> {
   const timestamp = new Date(event.block.timestamp * 1000);
 
@@ -117,7 +117,7 @@ export async function processVeNFTLockPermanent(
 export async function processVeNFTUnlockPermanent(
   event: EvmEvent<"VeNFT", "UnlockPermanent">,
   currentVeNFTState: VeNFTState,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<void> {
   const timestamp = new Date(event.block.timestamp * 1000);
 
@@ -143,7 +143,7 @@ export async function processVeNFTUnlockPermanent(
 export async function processVeNFTTransfer(
   event: EvmEvent<"VeNFT", "Transfer">,
   currentVeNFTState: VeNFTState,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<void> {
   const timestamp = new Date(event.block.timestamp * 1000);
 
@@ -176,7 +176,7 @@ export async function processVeNFTTransfer(
 async function reconcileVeNFTState(
   currentVeNFTState: VeNFTState,
   timestamp: Date,
-  context: handlerContext,
+  context: EvmOnEventContext,
   target: {
     totalValueLocked: bigint;
     owner?: string;
@@ -230,7 +230,7 @@ export async function processVeNFTMerge(
   event: EvmEvent<"VeNFT", "Merge">,
   fromVeNFTState: VeNFTState,
   toVeNFTState: VeNFTState,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<void> {
   const timestamp = new Date(event.block.timestamp * 1000);
 
@@ -271,7 +271,7 @@ export async function processVeNFTSplit(
   fromVeNFTState: VeNFTState,
   token1VeNFTState: VeNFTState,
   token2VeNFTState: VeNFTState,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<void> {
   const timestamp = new Date(event.block.timestamp * 1000);
 
@@ -331,7 +331,7 @@ export async function processVeNFTDepositManaged(
   event: EvmEvent<"VeNFT", "DepositManaged">,
   tokenVeNFTState: VeNFTState,
   managedVeNFTState: VeNFTState,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<void> {
   const timestamp = new Date(event.block.timestamp * 1000);
 
@@ -380,7 +380,7 @@ export async function processVeNFTWithdrawManaged(
   event: EvmEvent<"VeNFT", "WithdrawManaged">,
   tokenVeNFTState: VeNFTState,
   managedVeNFTState: VeNFTState,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<void> {
   const timestamp = new Date(event.block.timestamp * 1000);
 
@@ -434,7 +434,7 @@ export async function processVeNFTWithdrawManaged(
  */
 export async function handleMintTransfer(
   event: EvmEvent<"VeNFT", "Transfer">,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<VeNFTState | undefined> {
   // VeNFT minting operation
   if (event.params.from === ZERO_ADDRESS) {
@@ -483,7 +483,7 @@ export async function handleMintTransfer(
 export async function reassignVeNFTVotesOnTransfer(
   event: EvmEvent<"VeNFT", "Transfer">,
   veNFTState: VeNFTState,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<void> {
   const previousOwner = veNFTState.owner;
   const newOwner = event.params.to;
@@ -544,7 +544,7 @@ export async function updatePreviousOwnerUserStatsOnTransfer(
   poolAddress: string,
   poolChainId: number,
   voteDecreaseAmount: bigint,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<void> {
   const timestamp = new Date(event.block.timestamp * 1000);
 
@@ -595,7 +595,7 @@ export async function updateNewOwnerUserStatsOnTransfer(
   poolAddress: string,
   poolChainId: number,
   voteIncreaseAmount: bigint,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<void> {
   const timestamp = new Date(event.block.timestamp * 1000);
   const isBurn = newOwnerAddress === ZERO_ADDRESS;

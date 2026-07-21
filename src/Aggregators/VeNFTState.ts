@@ -1,6 +1,6 @@
 import type { VeNFTState } from "envio";
 
-import type { handlerContext } from "../EntityTypes";
+import type { EvmOnEventContext } from "../EntityTypes";
 
 import { VeNFTId } from "../Constants";
 import { getRehydrated } from "../EntityTimestamps";
@@ -24,7 +24,7 @@ export interface VeNFTStateDiff {
 export async function loadVeNFTState(
   chainId: number,
   tokenId: bigint,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<VeNFTState | undefined> {
   const id = VeNFTId(chainId, tokenId);
   const veNFTState = await getRehydrated(context.VeNFTState, "VeNFTState", id);
@@ -44,7 +44,7 @@ export async function updateVeNFTState(
   diff: Partial<VeNFTStateDiff>,
   current: VeNFTState,
   timestamp: Date,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<void> {
   const lastSnapshotTimestamp =
     diff.lastSnapshotTimestamp !== undefined &&

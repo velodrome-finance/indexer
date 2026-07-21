@@ -1,10 +1,10 @@
 import type { FeeToTickSpacingMapping } from "envio";
-import type { handlerContext } from "../EntityTypes";
+import type { EvmOnEventContext } from "../EntityTypes";
 
 export async function updateFeeToTickSpacingMapping(
   current: FeeToTickSpacingMapping,
   diff: Partial<FeeToTickSpacingMapping>,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<void> {
   const updated: FeeToTickSpacingMapping = {
     ...current,

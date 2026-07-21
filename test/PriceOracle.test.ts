@@ -2,7 +2,7 @@ import { CHAIN_CONSTANTS, toChecksumAddress } from "../src/Constants";
 import * as PriceOracle from "../src/PriceOracle";
 
 import type { Token } from "envio";
-import type { handlerContext } from "../src/EntityTypes";
+import type { EvmOnEventContext } from "../src/EntityTypes";
 
 import { setupCommon } from "./EventHandlers/Pool/common";
 
@@ -58,7 +58,7 @@ describe("PriceOracle", () => {
         },
       },
     },
-  } as unknown as Partial<handlerContext>;
+  } as unknown as Partial<EvmOnEventContext>;
 
   const chainId = 10; // Optimism
   const startBlock = CHAIN_CONSTANTS[chainId].oracle.startBlock;
@@ -140,7 +140,7 @@ describe("PriceOracle", () => {
           blockNumber,
           blockTimestamp,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
       });
       it("should not update prices if the update interval hasn't passed", async () => {
@@ -165,7 +165,7 @@ describe("PriceOracle", () => {
           blockNumber,
           blockTimestamp,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
       });
       it("should not refresh price when only 30 minutes have passed", async () => {
@@ -190,7 +190,7 @@ describe("PriceOracle", () => {
           blockNumber,
           blockTimestamp,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
         updatedToken = vi.mocked(mockContext.Token?.set)?.mock
           .lastCall?.[0] as Token;
@@ -236,7 +236,7 @@ describe("PriceOracle", () => {
           blockNumber,
           blockTimestamp,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
       });
       it("does not refresh while inside the 1-hour throttle window", () => {
@@ -280,7 +280,7 @@ describe("PriceOracle", () => {
           preOracleBlock,
           blockTimestamp,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
@@ -311,7 +311,7 @@ describe("PriceOracle", () => {
           postOracleBlock,
           blockTimestamp,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
@@ -347,7 +347,7 @@ describe("PriceOracle", () => {
           blockNumber,
           blockTimestamp,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
@@ -372,7 +372,7 @@ describe("PriceOracle", () => {
           blockNumber,
           blockTimestamp,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
         updatedToken = vi.mocked(mockContext.Token?.set)?.mock
           .lastCall?.[0] as Token;
@@ -416,7 +416,7 @@ describe("PriceOracle", () => {
           blockNumber,
           blockTimestamp,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         // Throttle bypassed → oracle was hit and a fresh price persisted.
@@ -458,7 +458,7 @@ describe("PriceOracle", () => {
           blockNumber,
           blockTimestamp,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         expect(vi.mocked(mockContext.Token?.set)).not.toHaveBeenCalled();
@@ -492,7 +492,7 @@ describe("PriceOracle", () => {
           blockNumber,
           blockTimestamp,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         expect(vi.mocked(mockContext.Token?.set)).not.toHaveBeenCalled();
@@ -535,7 +535,7 @@ describe("PriceOracle", () => {
           blockNumber,
           blockDatetime.getTime() / 1000,
           10, // Optimism, where $Manatee is blacklisted
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         expect(result.pricePerUSDNew).toBe(0n);
@@ -575,7 +575,7 @@ describe("PriceOracle", () => {
           blockNumber,
           blockDatetime.getTime() / 1000,
           1923, // Swell, where rsETH rebinds to wrsETH/Base
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         expect(result.pricePerUSDNew).toBe(sourcePrice);
@@ -642,7 +642,7 @@ describe("PriceOracle", () => {
           blockNumber,
           postAnchorTimestamp,
           252, // Fraxtal — XVELO rebinds to VELO/OP
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         expect(result.pricePerUSDNew).toBe(sourcePrice);
@@ -681,7 +681,7 @@ describe("PriceOracle", () => {
           blockNumber,
           postAnchorTimestamp,
           252, // Fraxtal
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         // Prefetched 0 — write 0. We MUST NOT fall through to the local
@@ -729,7 +729,7 @@ describe("PriceOracle", () => {
           blockNumber,
           blockDatetime.getTime() / 1000,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
@@ -756,7 +756,7 @@ describe("PriceOracle", () => {
           blockNumber,
           blockDatetime.getTime() / 1000,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const detailsCall = vi
@@ -792,7 +792,7 @@ describe("PriceOracle", () => {
           blockNumber,
           blockDatetime.getTime() / 1000,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
@@ -826,7 +826,7 @@ describe("PriceOracle", () => {
           blockNumber,
           blockDatetime.getTime() / 1000,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
@@ -867,7 +867,7 @@ describe("PriceOracle", () => {
           blockNumber,
           blockDatetime.getTime() / 1000,
           10,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
@@ -913,7 +913,7 @@ describe("PriceOracle", () => {
           blockNumber,
           blockDatetime.getTime() / 1000,
           1923,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
@@ -934,7 +934,7 @@ describe("PriceOracle", () => {
           blockNumber,
           blockDatetime.getTime() / 1000,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
@@ -965,7 +965,7 @@ describe("PriceOracle", () => {
           blockNumber,
           blockDatetime.getTime() / 1000,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         // Heal wrote the populated metadata even though the price-refresh
@@ -1011,7 +1011,7 @@ describe("PriceOracle", () => {
           blockNumber,
           blockDatetime.getTime() / 1000,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         // No overlay produced AND refresh throttled — heal must not write.
@@ -1036,7 +1036,7 @@ describe("PriceOracle", () => {
         const healed = await PriceOracle.healTokenMetadata(
           fetchedToken,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         expect(healed.symbol).toBe("TEST");
@@ -1057,7 +1057,7 @@ describe("PriceOracle", () => {
         const healed = await PriceOracle.healTokenMetadata(
           fetchedToken,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         expect(healed).toBe(fetchedToken);
@@ -1081,7 +1081,7 @@ describe("PriceOracle", () => {
         const healed = await PriceOracle.healTokenMetadata(
           fetchedToken,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         expect(healed).toBe(fetchedToken);
@@ -1094,7 +1094,7 @@ describe("PriceOracle", () => {
         const firstPass = await PriceOracle.healTokenMetadata(
           fetchedToken,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
         vi.mocked(mockContext.effect)?.mockClear();
         vi.mocked(mockContext.Token?.set)?.mockClear();
@@ -1102,7 +1102,7 @@ describe("PriceOracle", () => {
         const secondPass = await PriceOracle.healTokenMetadata(
           firstPass,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         expect(secondPass).toBe(firstPass);
@@ -1124,7 +1124,7 @@ describe("PriceOracle", () => {
         const healed = await PriceOracle.healTokenMetadata(
           fetchedToken,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         expect(healed).toBe(fetchedToken);
@@ -1153,7 +1153,7 @@ describe("PriceOracle", () => {
         const healed = await PriceOracle.healTokenMetadata(
           fallbackToken,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         expect(healed.symbol).toBe("USDC");
@@ -1187,7 +1187,7 @@ describe("PriceOracle", () => {
         const healed = await PriceOracle.healTokenMetadata(
           nameOnlyEmpty,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         expect(healed.name).toBe("USD Coin");
@@ -1211,7 +1211,7 @@ describe("PriceOracle", () => {
         const healed = await PriceOracle.healTokenMetadata(
           frozenName,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         expect(healed.name).toBe("USD Coin");
@@ -1240,7 +1240,7 @@ describe("PriceOracle", () => {
         const healed = await PriceOracle.healTokenMetadata(
           fallbackToken,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         expect(healed.symbol).toBe("WETH");
@@ -1290,7 +1290,7 @@ describe("PriceOracle", () => {
           blockNumber,
           blockDatetime.getTime() / 1000,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         expect(result.pricePerUSDNew).toBe(anchorPrice);
@@ -1321,7 +1321,7 @@ describe("PriceOracle", () => {
           blockNumber,
           blockDatetime.getTime() / 1000,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const snapshot = vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mock
@@ -1361,7 +1361,7 @@ describe("PriceOracle", () => {
           blockNumber,
           blockDatetime.getTime() / 1000,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         expect(result.lastUpdatedTimestamp).toEqual(anchorTimestamp);
@@ -1391,7 +1391,7 @@ describe("PriceOracle", () => {
           blockNumber,
           blockDatetime.getTime() / 1000,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         expect(result.pricePerUSDNew).toBe(anchorPrice);
@@ -1420,7 +1420,7 @@ describe("PriceOracle", () => {
           blockNumber,
           blockDatetime.getTime() / 1000,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
@@ -1450,7 +1450,7 @@ describe("PriceOracle", () => {
           blockNumber,
           blockDatetime.getTime() / 1000,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
@@ -1486,7 +1486,7 @@ describe("PriceOracle", () => {
           blockNumber,
           blockDatetime.getTime() / 1000,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
@@ -1518,7 +1518,7 @@ describe("PriceOracle", () => {
           blockNumber,
           blockDatetime.getTime() / 1000,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
         expect(afterSpike.pricePerUSDNew).toBe(anchorPrice);
 
@@ -1536,7 +1536,7 @@ describe("PriceOracle", () => {
           blockNumber,
           oneHourLater,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
         expect(afterRecovery.pricePerUSDNew).toBe(recoveryPrice);
       });
@@ -1569,7 +1569,7 @@ describe("PriceOracle", () => {
           blockNumber,
           blockDatetime.getTime() / 1000,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         expect(result.pricePerUSDNew).toBe(recoveryPrice);
@@ -1617,7 +1617,7 @@ describe("PriceOracle", () => {
           blockNumber,
           blockDatetime.getTime() / 1000,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
@@ -1655,7 +1655,7 @@ describe("PriceOracle", () => {
           blockNumber,
           blockDatetime.getTime() / 1000,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
@@ -1685,7 +1685,7 @@ describe("PriceOracle", () => {
           blockNumber,
           blockDatetime.getTime() / 1000,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
@@ -1715,7 +1715,7 @@ describe("PriceOracle", () => {
           blockNumber,
           blockDatetime.getTime() / 1000,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
@@ -1746,7 +1746,7 @@ describe("PriceOracle", () => {
           blockNumber,
           blockDatetime.getTime() / 1000,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
@@ -1779,7 +1779,7 @@ describe("PriceOracle", () => {
           blockNumber,
           blockDatetime.getTime() / 1000,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
@@ -1835,7 +1835,7 @@ describe("PriceOracle", () => {
           blockNumber,
           blockDatetime.getTime() / 1000,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         // Anchor preserved, timestamp re-armed to now.
@@ -1871,7 +1871,7 @@ describe("PriceOracle", () => {
           blockNumber,
           blockDatetime.getTime() / 1000,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
@@ -1911,7 +1911,7 @@ describe("PriceOracle", () => {
           blockNumber,
           blockDatetime.getTime() / 1000,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         expect(result.pricePerUSDNew).toBe(90_000n * 10n ** 18n);
@@ -1937,7 +1937,7 @@ describe("PriceOracle", () => {
           blockNumber,
           blockDatetime.getTime() / 1000,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
@@ -1973,7 +1973,7 @@ describe("PriceOracle", () => {
           blockNumber,
           blockDatetime.getTime() / 1000,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
         expect(afterCeiling.pricePerUSDNew).toBe(anchorPrice);
 
@@ -1989,7 +1989,7 @@ describe("PriceOracle", () => {
           blockNumber,
           threeHoursLater,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         // Still pinned to the sane anchor — the absurd read never poisoned it
@@ -2044,7 +2044,7 @@ describe("PriceOracle", () => {
           v3Block,
           blockDatetime.getTime() / 1000,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
@@ -2084,7 +2084,7 @@ describe("PriceOracle", () => {
           v3Block,
           blockDatetime.getTime() / 1000,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const snapshot = vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mock
@@ -2114,7 +2114,7 @@ describe("PriceOracle", () => {
           blockNumber,
           blockDatetime.getTime() / 1000,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const snapshot = vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mock
@@ -2150,7 +2150,7 @@ describe("PriceOracle", () => {
           v3Block,
           blockDatetime.getTime() / 1000,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
@@ -2180,7 +2180,7 @@ describe("PriceOracle", () => {
           v3Block,
           blockDatetime.getTime() / 1000,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
@@ -2216,7 +2216,7 @@ describe("PriceOracle", () => {
           v3Block,
           blockDatetime.getTime() / 1000,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
@@ -2274,7 +2274,7 @@ describe("PriceOracle", () => {
           v1Block,
           blockDatetime.getTime() / 1000,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
@@ -2315,7 +2315,7 @@ describe("PriceOracle", () => {
           v2Block,
           blockDatetime.getTime() / 1000,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
@@ -2347,7 +2347,7 @@ describe("PriceOracle", () => {
           v1Block,
           blockDatetime.getTime() / 1000,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
@@ -2376,7 +2376,7 @@ describe("PriceOracle", () => {
           v1Block,
           blockDatetime.getTime() / 1000,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
@@ -2421,7 +2421,7 @@ describe("PriceOracle", () => {
           blockNumber,
           blockTimestamp,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
       });
       it("should log error when price fetch fails", async () => {
@@ -2461,7 +2461,7 @@ describe("PriceOracle", () => {
         tokenAddress,
         chainId,
         blockNumber,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
         blockTimestamp,
       );
 
@@ -2481,7 +2481,7 @@ describe("PriceOracle", () => {
         tokenAddress,
         chainId,
         blockNumber,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
         blockTimestamp,
       );
 
@@ -2497,7 +2497,7 @@ describe("PriceOracle", () => {
         tokenAddress,
         chainId,
         blockNumber,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
         blockTimestamp,
       );
 
@@ -2531,7 +2531,7 @@ describe("PriceOracle", () => {
           tokenAddress,
           chainId,
           blockNumber,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
           blockTimestamp,
         );
 
@@ -2544,7 +2544,7 @@ describe("PriceOracle", () => {
           tokenAddress,
           chainId,
           blockNumber,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
           blockTimestamp,
         );
 
@@ -2585,7 +2585,7 @@ describe("PriceOracle", () => {
           blockNumber,
           blockTimestamp,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
           impliedPriceHint,
         );
       };
@@ -2944,7 +2944,7 @@ describe("PriceOracle", () => {
             blockNumber,
             blockTimestamp,
             scenarioChainId,
-            mockContext as handlerContext,
+            mockContext as EvmOnEventContext,
             hint,
           );
 
@@ -2993,7 +2993,7 @@ describe("PriceOracle", () => {
           blockNumber,
           blockDatetime.getTime() / 1000,
           chainId,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         expect(
@@ -3028,7 +3028,7 @@ describe("PriceOracle", () => {
             blockNumber + offsetHours,
             baseTs + offsetHours * 60 * 60,
             chainId,
-            mockContext as handlerContext,
+            mockContext as EvmOnEventContext,
           );
         }
 

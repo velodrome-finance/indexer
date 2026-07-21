@@ -1,6 +1,6 @@
 import type { PoolLauncherPool } from "envio";
 import { PoolId, toChecksumAddress } from "../../../src/Constants";
-import type { handlerContext } from "../../../src/EntityTypes";
+import type { EvmOnEventContext } from "../../../src/EntityTypes";
 import type { Pool } from "../../../src/EntityTypes";
 import {
   linkPoolToPoolLauncher,
@@ -11,7 +11,7 @@ import { setupCommon } from "../Pool/common";
 describe("PoolLauncherLogic", () => {
   const { createMockPool } = setupCommon();
 
-  let mockContext: handlerContext;
+  let mockContext: EvmOnEventContext;
   let poolLauncherPools: Map<string, PoolLauncherPool>;
   let pools: Map<string, Pool>;
 
@@ -37,7 +37,7 @@ describe("PoolLauncherLogic", () => {
         warn: () => {},
         error: () => {},
       },
-    } as unknown as handlerContext;
+    } as unknown as EvmOnEventContext;
   });
 
   describe("processPoolLauncherPool", () => {

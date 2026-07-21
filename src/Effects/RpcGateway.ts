@@ -250,7 +250,7 @@ export type RpcGatewayOutputByType = {
 export type RpcGatewayOutput = RpcGatewayOutputByType[EffectType];
 
 /** Context passed to gateway handler functions (log + optional cache). */
-type RpcGatewayHandlerContext = {
+type RpcGatewayEvmOnEventContext = {
   cache?: boolean;
   log: {
     error: (msg: string, err: Error) => void;
@@ -283,7 +283,7 @@ export const rpcGateway = createEffect(
   },
   async ({ input, context }) => {
     const i = input as RpcGatewayInput;
-    const ctx: RpcGatewayHandlerContext = context;
+    const ctx: RpcGatewayEvmOnEventContext = context;
     switch (i.type) {
       case EffectType.GET_TOKEN_DETAILS:
         return await handleGetTokenDetails(i, ctx);
@@ -344,7 +344,7 @@ export async function callRpcGateway<T extends EffectType>(
  */
 async function handleGetTokenDetails(
   i: RpcGatewayInputByType[EffectType.GET_TOKEN_DETAILS],
-  context: RpcGatewayHandlerContext,
+  context: RpcGatewayEvmOnEventContext,
 ): Promise<RpcGatewayOutputByType[EffectType.GET_TOKEN_DETAILS]> {
   const operationName = rpcGatewayOpName(EffectType.GET_TOKEN_DETAILS);
   const logDetails = { contractAddress: i.contractAddress, chainId: i.chainId };
@@ -381,7 +381,7 @@ async function handleGetTokenDetails(
  */
 async function handleGetTokenPrice(
   i: RpcGatewayInputByType[EffectType.GET_TOKEN_PRICE],
-  context: RpcGatewayHandlerContext,
+  context: RpcGatewayEvmOnEventContext,
 ): Promise<RpcGatewayOutputByType[EffectType.GET_TOKEN_PRICE]> {
   const { tokenAddress, chainId, blockNumber, tokenDecimals } = i;
   const chain = CHAIN_CONSTANTS[chainId];
@@ -575,7 +575,7 @@ function mostCacheBlockingErrorClass(
  */
 async function handleGetTokensDeposited(
   i: RpcGatewayInputByType[EffectType.GET_TOKENS_DEPOSITED],
-  context: RpcGatewayHandlerContext,
+  context: RpcGatewayEvmOnEventContext,
 ): Promise<RpcGatewayOutputByType[EffectType.GET_TOKENS_DEPOSITED]> {
   const operationName = rpcGatewayOpName(EffectType.GET_TOKENS_DEPOSITED);
   const logDetails = {
@@ -615,7 +615,7 @@ async function handleGetTokensDeposited(
  */
 async function handleGetSwapFee(
   i: RpcGatewayInputByType[EffectType.GET_SWAP_FEE],
-  context: RpcGatewayHandlerContext,
+  context: RpcGatewayEvmOnEventContext,
 ): Promise<RpcGatewayOutputByType[EffectType.GET_SWAP_FEE]> {
   const operationName = rpcGatewayOpName(EffectType.GET_SWAP_FEE);
   const logDetails = {
@@ -656,7 +656,7 @@ async function handleGetSwapFee(
  */
 async function handleGetRootPoolAddress(
   i: RpcGatewayInputByType[EffectType.GET_ROOT_POOL_ADDRESS],
-  context: RpcGatewayHandlerContext,
+  context: RpcGatewayEvmOnEventContext,
 ): Promise<RpcGatewayOutputByType[EffectType.GET_ROOT_POOL_ADDRESS]> {
   const operationName = rpcGatewayOpName(EffectType.GET_ROOT_POOL_ADDRESS);
   const logDetails = { chainId: i.chainId, factory: i.factory };
@@ -702,7 +702,7 @@ async function handleGetRootPoolAddress(
  */
 async function handleHasContractBytecode(
   i: RpcGatewayInputByType[EffectType.HAS_CONTRACT_BYTECODE],
-  context: RpcGatewayHandlerContext,
+  context: RpcGatewayEvmOnEventContext,
 ): Promise<RpcGatewayOutputByType[EffectType.HAS_CONTRACT_BYTECODE]> {
   const operationName = rpcGatewayOpName(EffectType.HAS_CONTRACT_BYTECODE);
   const logDetails = { address: i.address, chainId: i.chainId };

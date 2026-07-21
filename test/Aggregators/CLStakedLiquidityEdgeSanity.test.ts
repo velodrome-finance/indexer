@@ -11,7 +11,7 @@ import {
   toChecksumAddress,
 } from "../../src/Constants";
 import { rehydrateTimestamps } from "../../src/EntityTimestamps";
-import type { handlerContext } from "../../src/EntityTypes";
+import type { EvmOnEventContext } from "../../src/EntityTypes";
 import { updateStakedPositionLiquidity } from "../../src/EventHandlers/NFPM/NFPMCommonLogic";
 import { setupCommon } from "../EventHandlers/Pool/common";
 import { sqrtAt } from "./common";
@@ -587,7 +587,7 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
           info: vi.fn(),
           debug: vi.fn(),
         },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       const increaseDelta = 50n;
       await updateStakedPositionLiquidity(

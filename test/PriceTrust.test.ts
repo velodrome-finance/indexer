@@ -1,6 +1,6 @@
 import type { Token } from "envio";
 import { TEN_TO_THE_18_BI, TokenId, toChecksumAddress } from "../src/Constants";
-import type { handlerContext } from "../src/EntityTypes";
+import type { EvmOnEventContext } from "../src/EntityTypes";
 import { isBlacklistedToken } from "../src/PriceOverrides";
 import {
   PRICE_TRUST_OUTCOME,
@@ -35,13 +35,13 @@ const LFI_BASE = toChecksumAddress(
 );
 
 /**
- * Minimal mock for the slice of {@link handlerContext} that
+ * Minimal mock for the slice of {@link EvmOnEventContext} that
  * {@link getGateDecision}'s heal-on-read path touches. Records `Token.set`
  * calls in `writes` so tests can assert exact entity payloads and whether
  * any write fired at all.
  */
 function makeMockContext(): {
-  context: handlerContext;
+  context: EvmOnEventContext;
   writes: Token[];
 } {
   const writes: Token[] = [];
@@ -51,7 +51,7 @@ function makeMockContext(): {
         writes.push(token);
       },
     },
-  } as unknown as handlerContext;
+  } as unknown as EvmOnEventContext;
   return { context, writes };
 }
 

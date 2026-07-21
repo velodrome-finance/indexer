@@ -4,7 +4,7 @@ import {
   CLPositionPendingPrincipalId,
   toChecksumAddress,
 } from "../../../src/Constants";
-import type { Pool, handlerContext } from "../../../src/EntityTypes";
+import type { Pool, EvmOnEventContext } from "../../../src/EntityTypes";
 import { processCLPoolBurn } from "../../../src/EventHandlers/CLPool/CLPoolBurnLogic";
 import { processCLPoolCollect } from "../../../src/EventHandlers/CLPool/CLPoolCollectLogic";
 import { setupCommon } from "../Pool/common";
@@ -70,7 +70,7 @@ describe("CLPoolCollectLogic", () => {
    */
   function createMockContext(
     tracker?: CLPositionPendingPrincipal | null,
-  ): handlerContext {
+  ): EvmOnEventContext {
     const storedTracker = { current: tracker ?? null };
     return {
       CLPositionPendingPrincipal: {
@@ -82,7 +82,7 @@ describe("CLPoolCollectLogic", () => {
           storedTracker.current = null;
         }),
       },
-    } as unknown as handlerContext;
+    } as unknown as EvmOnEventContext;
   }
 
   describe("processCLPoolCollect", () => {

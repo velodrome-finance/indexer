@@ -18,7 +18,7 @@ import {
   TokenId,
 } from "../../Constants";
 import { getRehydrated } from "../../EntityTimestamps";
-import type { handlerContext } from "../../EntityTypes";
+import type { EvmOnEventContext } from "../../EntityTypes";
 import type { Pool } from "../../EntityTypes";
 import {
   calculatePositionAmountsFromLiquidity,
@@ -53,7 +53,7 @@ async function computeCLStakedReservesOnGaugeEvent(
   data: GaugeEventData,
   liquidityPoolAggregator: Pool,
   poolData: PoolData,
-  context: handlerContext,
+  context: EvmOnEventContext,
   direction: 1n | -1n,
 ): Promise<{
   poolStakedUSD?: bigint;
@@ -166,7 +166,7 @@ function computeNonCLStakedUSDIfAvailable(
   stakeAmount: bigint,
   liquidityPoolAggregator: Pool,
   poolData: PoolData,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): bigint | undefined {
   if (stakeAmount <= 0n) {
     return 0n;
@@ -196,7 +196,7 @@ function computeNonCLStakedUSDIfAvailable(
  */
 export async function isRootGauge(
   gaugeAddress: string,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<boolean> {
   const mappings = await context.RootGauge_RootPool.getWhere({
     rootGaugeAddress: { _eq: gaugeAddress },
@@ -215,7 +215,7 @@ export async function isRootGauge(
 export async function findPoolOrSkipRootGauge(
   gaugeAddress: string,
   chainId: number,
-  context: handlerContext,
+  context: EvmOnEventContext,
   handlerName: string,
 ): Promise<{ pool: Pool } | null> {
   const pool = await findPoolByGaugeAddress(gaugeAddress, chainId, context);
@@ -239,7 +239,7 @@ function computeNonCLPoolStakedUSD(
   newPoolStake: bigint,
   liquidityPoolAggregator: Pool,
   poolData: PoolData,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): bigint | undefined {
   return computeNonCLStakedUSDIfAvailable(
     newPoolStake,
@@ -254,7 +254,7 @@ function computeNonCLPoolStakedUSD(
  */
 export async function processGaugeDeposit(
   data: GaugeEventData,
-  context: handlerContext,
+  context: EvmOnEventContext,
   handlerName: string,
 ): Promise<void> {
   const result = await findPoolOrSkipRootGauge(
@@ -380,7 +380,7 @@ export async function processGaugeDeposit(
  */
 export async function processGaugeWithdraw(
   data: GaugeEventData,
-  context: handlerContext,
+  context: EvmOnEventContext,
   handlerName: string,
 ): Promise<void> {
   const result = await findPoolOrSkipRootGauge(
@@ -500,7 +500,7 @@ export async function processGaugeWithdraw(
  */
 export async function processGaugeClaimRewards(
   data: GaugeEventData,
-  context: handlerContext,
+  context: EvmOnEventContext,
   handlerName: string,
 ): Promise<void> {
   const result = await findPoolOrSkipRootGauge(

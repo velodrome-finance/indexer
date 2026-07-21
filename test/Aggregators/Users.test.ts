@@ -8,7 +8,7 @@ import {
   UserStatsPerPoolId,
   toChecksumAddress,
 } from "../../src/Constants";
-import type { handlerContext } from "../../src/EntityTypes";
+import type { EvmOnEventContext } from "../../src/EntityTypes";
 import { setupCommon } from "../EventHandlers/Pool/common";
 
 describe("UserStatsPerPool Aggregator", () => {
@@ -52,7 +52,7 @@ describe("UserStatsPerPool Aggregator", () => {
   });
 
   describe("updateUserStatsPerPool", () => {
-    let mockContext: handlerContext;
+    let mockContext: EvmOnEventContext;
 
     beforeEach(() => {
       mockContext = {
@@ -62,13 +62,13 @@ describe("UserStatsPerPool Aggregator", () => {
         },
         UserStatsPerPoolSnapshot: {
           set: vi.fn(),
-        } as unknown as handlerContext["UserStatsPerPoolSnapshot"],
+        } as unknown as EvmOnEventContext["UserStatsPerPoolSnapshot"],
         log: {
           error: () => {},
           warn: () => {},
           info: () => {},
         },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
     });
 
     it("should handle liquidity addition correctly", async () => {
@@ -605,7 +605,7 @@ describe("UserStatsPerPool Aggregator", () => {
           warn: () => {},
           info: () => {},
         },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       const result = await updateUserStatsPerPool(
         { lastActivityTimestamp: currentTimestamp },
@@ -641,7 +641,7 @@ describe("UserStatsPerPool Aggregator", () => {
         NonFungiblePosition: {
           getWhere: vi.fn(),
         },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       await updateUserStatsPerPool(
         { lastActivityTimestamp: currentTimestamp },
@@ -683,7 +683,7 @@ describe("UserStatsPerPool Aggregator", () => {
         NonFungiblePosition: {
           getWhere: vi.fn(),
         },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       await updateUserStatsPerPool(
         { lastActivityTimestamp: currentTimestamp },
@@ -729,7 +729,7 @@ describe("UserStatsPerPool Aggregator", () => {
         NonFungiblePosition: {
           getWhere: vi.fn(),
         },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       const result = await updateUserStatsPerPool(
         { lastActivityTimestamp: currentTimestamp },
@@ -801,7 +801,7 @@ describe("UserStatsPerPool Aggregator", () => {
         NonFungiblePosition: {
           getWhere: vi.fn(),
         },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       const result = await updateUserStatsPerPool(
         { lastActivityTimestamp: currentTimestamp },
@@ -846,7 +846,7 @@ describe("UserStatsPerPool Aggregator", () => {
         Pool: { get: vi.fn().mockResolvedValue(cappedPool) },
         Token: { get: vi.fn().mockResolvedValue(undefined) },
         NonFungiblePosition: { getWhere: vi.fn() },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       const result = await updateUserStatsPerPool(
         { lastActivityTimestamp: currentTimestamp },
@@ -880,7 +880,7 @@ describe("UserStatsPerPool Aggregator", () => {
         NonFungiblePosition: {
           getWhere: vi.fn(),
         },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       const result = await updateUserStatsPerPool(
         { lastActivityTimestamp: currentTimestamp },
@@ -927,7 +927,7 @@ describe("UserStatsPerPool Aggregator", () => {
         NonFungiblePosition: {
           getWhere: vi.fn(),
         },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       const result = await updateUserStatsPerPool(
         { lastActivityTimestamp: currentTimestamp },
