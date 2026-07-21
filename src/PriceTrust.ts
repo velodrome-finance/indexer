@@ -1,6 +1,6 @@
 import type { Token } from "envio";
 import { CHAIN_CONSTANTS, TEN_TO_THE_18_BI } from "./Constants";
-import type { handlerContext } from "./EntityTypes";
+import type { EvmOnEventContext } from "./EntityTypes";
 import { calculateTokenAmountUSD } from "./Helpers";
 import { multiplyBase1e18 } from "./Maths";
 import { isBlacklistedToken } from "./PriceOverrides";
@@ -305,7 +305,7 @@ export function getGateDecisionFromSignals(
  */
 export function getGateDecision(
   token: Token | undefined,
-  context?: handlerContext,
+  context?: EvmOnEventContext,
 ): PriceTrustDecision {
   if (!token) {
     return {

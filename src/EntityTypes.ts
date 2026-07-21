@@ -6,15 +6,15 @@
 //    `generated` barrel. HyperIndex v3 drops per-contract value namespaces in
 //    favor of the single `indexer` value, so the plain `envio` re-export is now
 //    unambiguous and this module stays the single project-side path for them.
-// 2. Alias the unified handler context type (see `handlerContext` below).
+// 2. Alias the unified handler context type (see `EvmOnEventContext` below).
 import type { EvmOnEventContext } from "envio";
 
 export type { Pool, PoolSnapshot } from "envio";
 
 /**
  * Unified handler-context type used throughout the aggregators, snapshots, and
- * event-handler logic. HyperIndex v3 renamed the generated `handlerContext`
+ * event-handler logic. HyperIndex v3 renamed the generated `EvmOnEventContext`
  * type to `EvmOnEventContext`; this alias preserves the project's long-standing
  * name across its ~500 call sites, keeping the v3 migration surgical.
  */
-export type handlerContext = EvmOnEventContext;
+export type EvmOnEventContext = EvmOnEventContext;

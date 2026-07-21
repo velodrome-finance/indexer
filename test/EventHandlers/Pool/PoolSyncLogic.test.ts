@@ -4,7 +4,7 @@ import {
   TokenId,
   toChecksumAddress,
 } from "../../../src/Constants";
-import type { Pool, handlerContext } from "../../../src/EntityTypes";
+import type { Pool, EvmOnEventContext } from "../../../src/EntityTypes";
 import { processPoolSync } from "../../../src/EventHandlers/Pool/PoolSyncLogic";
 import { deriveV2PriceRatios } from "../../../src/PoolPriceRatio";
 import { setupCommon } from "./common";
@@ -85,7 +85,7 @@ describe("PoolSyncLogic", () => {
       warn: () => {},
       info: () => {},
     },
-  } as unknown as handlerContext;
+  } as unknown as EvmOnEventContext;
 
   describe("processPoolSync", () => {
     it("should create entity and calculate sync updates for successful sync", () => {

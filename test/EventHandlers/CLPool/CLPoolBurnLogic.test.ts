@@ -1,7 +1,7 @@
 import type { EvmEvent } from "envio";
 import type { CLPositionPendingPrincipal, Token } from "envio";
 import { toChecksumAddress } from "../../../src/Constants";
-import type { Pool, handlerContext } from "../../../src/EntityTypes";
+import type { Pool, EvmOnEventContext } from "../../../src/EntityTypes";
 import { processCLPoolBurn } from "../../../src/EventHandlers/CLPool/CLPoolBurnLogic";
 import { calculateTotalUSD } from "../../../src/Helpers";
 import { setupCommon } from "../Pool/common";
@@ -62,13 +62,13 @@ describe("CLPoolBurnLogic", () => {
   /** Creates a mock context that tracks CLPositionPendingPrincipal get/set */
   function createMockContext(
     existingTracker?: CLPositionPendingPrincipal | null,
-  ): handlerContext {
+  ): EvmOnEventContext {
     return {
       CLPositionPendingPrincipal: {
         get: vi.fn().mockResolvedValue(existingTracker ?? null),
         set: vi.fn(),
       },
-    } as unknown as handlerContext;
+    } as unknown as EvmOnEventContext;
   }
 
   describe("processCLPoolBurn", () => {

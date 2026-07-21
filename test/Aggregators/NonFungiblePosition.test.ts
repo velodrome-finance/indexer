@@ -1,12 +1,12 @@
 import type { NonFungiblePosition } from "envio";
 import { updateNonFungiblePosition } from "../../src/Aggregators/NonFungiblePosition";
 import { NonFungiblePositionId, toChecksumAddress } from "../../src/Constants";
-import type { handlerContext } from "../../src/EntityTypes";
+import type { EvmOnEventContext } from "../../src/EntityTypes";
 import { getSnapshotEpoch } from "../../src/Snapshots/Shared";
 import { defaultNfpmAddress } from "../EventHandlers/Pool/common";
 
 describe("NonFungiblePosition", () => {
-  let mockContext: Partial<handlerContext>;
+  let mockContext: Partial<EvmOnEventContext>;
   const transactionHash =
     "0x1234567890123456789012345678901234567890123456789012345678901234";
   const poolAddress = toChecksumAddress(
@@ -37,7 +37,7 @@ describe("NonFungiblePosition", () => {
     mockContext = {
       NonFungiblePositionSnapshot: {
         set: vi.fn(),
-      } as unknown as handlerContext["NonFungiblePositionSnapshot"],
+      } as unknown as EvmOnEventContext["NonFungiblePositionSnapshot"],
       NonFungiblePosition: {
         set: vi.fn(),
         get: vi.fn(),
@@ -77,7 +77,7 @@ describe("NonFungiblePosition", () => {
         updateNonFungiblePosition(
           transferDiff,
           mockNonFungiblePosition,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
           timestamp,
         );
         const mockSet = vi.mocked(mockContext.NonFungiblePosition?.set);
@@ -114,7 +114,7 @@ describe("NonFungiblePosition", () => {
         updateNonFungiblePosition(
           increaseDiff,
           mockNonFungiblePosition,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
           timestamp,
         );
         const mockSet = vi.mocked(mockContext.NonFungiblePosition?.set);
@@ -145,7 +145,7 @@ describe("NonFungiblePosition", () => {
         updateNonFungiblePosition(
           decreaseDiff,
           mockNonFungiblePosition,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
           timestamp,
         );
         const mockSet = vi.mocked(mockContext.NonFungiblePosition?.set);
@@ -178,7 +178,7 @@ describe("NonFungiblePosition", () => {
         updateNonFungiblePosition(
           overdraftDiff,
           mockNonFungiblePosition,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
           timestamp,
         );
         const mockSet = vi.mocked(mockContext.NonFungiblePosition?.set);

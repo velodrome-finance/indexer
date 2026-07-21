@@ -14,7 +14,7 @@ import {
   ZERO_ADDRESS,
 } from "../../Constants";
 import { getRehydrated, getWhereRehydrated } from "../../EntityTimestamps";
-import type { handlerContext } from "../../EntityTypes";
+import type { EvmOnEventContext } from "../../EntityTypes";
 import { computeLiquidityDeltaFromAmounts } from "../../Helpers";
 
 interface MatchingBurnTransfer {
@@ -44,7 +44,7 @@ export async function calculateLiquidityFromAmounts(
   poolAddress: string,
   chainId: number,
   blockNumber: number,
-  context: handlerContext,
+  context: EvmOnEventContext,
   eventType: string,
 ): Promise<bigint> {
   // Default to current liquidity if calculation fails
@@ -151,7 +151,7 @@ export function deriveUserAmounts(
 export async function loadALMLPWrapper(
   srcAddress: string,
   chainId: number,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<ALM_LP_Wrapper | null> {
   const lpWrapperId = ALMLPWrapperId(chainId, srcAddress);
   const ALMLPWrapperEntity = await getRehydrated(
@@ -187,7 +187,7 @@ export async function getMatchingBurnTransferInTx(
   chainId: number,
   wrapperAddress: string,
   withdrawLogIndex: number,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<MatchingBurnTransfer | undefined> {
   const transfersInTxHash = await getWhereRehydrated(
     context.ALMLPWrapperTransferInTx,
@@ -242,7 +242,7 @@ async function getActualLpAmountForV1(
   sender: string,
   srcAddress: string,
   logIndex: number,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<bigint> {
   const matchingBurn = await getMatchingBurnTransferInTx(
     txHash,
@@ -297,7 +297,7 @@ export async function processDepositEvent(
   chainId: number,
   blockNumber: number,
   timestamp: Date,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<void> {
   // Load wrapper and user stats in parallel since pool address is available from event params
   const [ALMLPWrapperEntity, userStats] = await Promise.all([
@@ -384,7 +384,7 @@ export async function processWithdrawEvent(
   chainId: number,
   blockNumber: number,
   timestamp: Date,
-  context: handlerContext,
+  context: EvmOnEventContext,
   txHash: string,
   logIndex: number,
   isV1: boolean,
@@ -489,7 +489,7 @@ function storeBurnTransferForMatching(
   to: string,
   value: bigint,
   timestamp: Date,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): void {
   const transferId = ALMLPWrapperTransferInTxId(
     chainId,
@@ -497,7 +497,7 @@ function storeBurnTransferForMatching(
     wrapperAddress,
     logIndex,
   );
-  (context as handlerContext).ALMLPWrapperTransferInTx.set({
+  (context as EvmOnEventContext).ALMLPWrapperTransferInTx.set({
     id: transferId,
     chainId: chainId,
     txHash: txHash,
@@ -537,7 +537,7 @@ export async function processTransferEvent(
   logIndex: number,
   blockNumber: number,
   timestamp: Date,
-  context: handlerContext,
+  context: EvmOnEventContext,
   isV1: boolean,
 ): Promise<void> {
   // Store burn events (to == 0x0) for matching with Withdraw events (V1 only needs this)

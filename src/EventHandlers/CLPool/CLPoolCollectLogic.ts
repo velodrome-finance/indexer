@@ -2,7 +2,7 @@ import type { CLPositionPendingPrincipal, EvmEvent, Token } from "envio";
 import type { PoolDiff } from "../../Aggregators/Pool";
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import { CLPositionPendingPrincipalId } from "../../Constants";
-import type { handlerContext } from "../../EntityTypes";
+import type { EvmOnEventContext } from "../../EntityTypes";
 import { calculateTotalUSD } from "../../Helpers";
 
 export interface CLPoolCollectResult {
@@ -58,7 +58,7 @@ export async function processCLPoolCollect(
   event: EvmEvent<"CLPool", "Collect">,
   token0Instance: Token | undefined,
   token1Instance: Token | undefined,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<CLPoolCollectResult> {
   // Load pending principal tracked by the Burn handler
   const trackerId = CLPositionPendingPrincipalId(

@@ -1,5 +1,5 @@
 import type { VeNFTState, VeNFTStateSnapshot } from "envio";
-import type { handlerContext } from "../EntityTypes";
+import type { EvmOnEventContext } from "../EntityTypes";
 
 import { loadPoolVotesByVeNFT } from "../Aggregators/VeNFTPoolVote";
 import { VeNFTStateSnapshotId } from "../Constants";
@@ -51,7 +51,7 @@ export function createVeNFTStateSnapshot(
 export async function setVeNFTStateSnapshot(
   entity: VeNFTState,
   timestamp: Date,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<void> {
   const snapshot = createVeNFTStateSnapshot(entity, timestamp);
   const snapshotForPersist: SnapshotForPersist = {

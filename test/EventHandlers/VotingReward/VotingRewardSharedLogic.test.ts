@@ -390,7 +390,7 @@ describe("VotingRewardSharedLogic", () => {
             userStatsStorage.set(entity.id, entity);
           },
         },
-      } as unknown as import("../../../src/EntityTypes").handlerContext;
+      } as unknown as import("../../../src/EntityTypes").EvmOnEventContext;
 
       const data = {
         votingRewardAddress: mockVotingRewardAddress,

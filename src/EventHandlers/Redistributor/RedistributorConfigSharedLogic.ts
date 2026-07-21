@@ -1,5 +1,5 @@
 import { getRehydrated } from "../../EntityTimestamps";
-import type { handlerContext } from "../../EntityTypes";
+import type { EvmOnEventContext } from "../../EntityTypes";
 
 /**
  * Format the composite id for a `RedistributorConfig` row.
@@ -33,7 +33,7 @@ export async function applyRedistributorConfigUpdate(
   redistributorAddress: string,
   patch: { keeper?: string; upkeepManager?: string },
   blockTimestampSeconds: number,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<void> {
   const id = redistributorConfigId(chainId, redistributorAddress);
   const timestamp = new Date(blockTimestampSeconds * 1000);

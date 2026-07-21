@@ -1,7 +1,7 @@
 import { indexer } from "envio";
 import { type PoolDiff, updatePool } from "../../Aggregators/Pool";
 import { rehydrateTimestamps } from "../../EntityTimestamps";
-import type { handlerContext } from "../../EntityTypes";
+import type { EvmOnEventContext } from "../../EntityTypes";
 import { applyRedistributorConfigUpdate } from "./RedistributorConfigSharedLogic";
 
 type RedistributorCounterDelta = Partial<
@@ -36,7 +36,7 @@ async function applyRedistributorCounterDelta(
   blockTimestampSeconds: number,
   eventChainId: number,
   blockNumber: number,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<void> {
   const poolEntityList = await context.Pool.getWhere({
     gaugeAddress: { _eq: gauge },

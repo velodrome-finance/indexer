@@ -1,4 +1,4 @@
-import type { handlerContext } from "../EntityTypes";
+import type { EvmOnEventContext } from "../EntityTypes";
 
 import { PoolSnapshotId } from "../Constants";
 import type { Pool, PoolSnapshot } from "../EntityTypes";
@@ -111,7 +111,7 @@ export function createPoolSnapshot(
 export function setPoolSnapshot(
   entity: Pool,
   timestamp: Date,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): void {
   const snapshotForPersist: SnapshotForPersist = {
     type: SnapshotType.Pool,

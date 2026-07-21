@@ -2,7 +2,7 @@ import type { Token } from "envio";
 import { type Mock, vi } from "vitest";
 import { createOUSDTSwapEntity } from "../../src/Aggregators/OUSDTSwaps";
 import { OUSDTSwapsId } from "../../src/Constants";
-import type { handlerContext } from "../../src/EntityTypes";
+import type { EvmOnEventContext } from "../../src/EntityTypes";
 import { setupCommon } from "../EventHandlers/Pool/common";
 
 describe("OUSDTSwaps", () => {
@@ -11,7 +11,7 @@ describe("OUSDTSwaps", () => {
   const transactionHash =
     "0x1234567890123456789012345678901234567890123456789012345678901234";
 
-  let mockContext: Partial<handlerContext>;
+  let mockContext: Partial<EvmOnEventContext>;
   let mockOUSDTSwapsSet: Mock;
 
   beforeEach(() => {
@@ -49,7 +49,7 @@ describe("OUSDTSwaps", () => {
           amount0Out,
           amount1In,
           amount1Out,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         expect(mockOUSDTSwapsSet).toHaveBeenCalledTimes(1);
@@ -88,7 +88,7 @@ describe("OUSDTSwaps", () => {
           amount0Out,
           amount1In,
           amount1Out,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         expect(mockOUSDTSwapsSet).toHaveBeenCalledTimes(1);
@@ -127,7 +127,7 @@ describe("OUSDTSwaps", () => {
           amount0Out,
           amount1In,
           amount1Out,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         expect(mockOUSDTSwapsSet).not.toHaveBeenCalled();
@@ -150,7 +150,7 @@ describe("OUSDTSwaps", () => {
           amount0Out,
           amount1In,
           amount1Out,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         expect(mockOUSDTSwapsSet).not.toHaveBeenCalled();
@@ -173,7 +173,7 @@ describe("OUSDTSwaps", () => {
           amount0Out,
           amount1In,
           amount1Out,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         expect(mockOUSDTSwapsSet).not.toHaveBeenCalled();
@@ -196,7 +196,7 @@ describe("OUSDTSwaps", () => {
           amount0Out,
           amount1In,
           amount1Out,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         expect(mockOUSDTSwapsSet).not.toHaveBeenCalled();
@@ -219,7 +219,7 @@ describe("OUSDTSwaps", () => {
           amount0Out,
           amount1In,
           amount1Out,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         expect(mockOUSDTSwapsSet).toHaveBeenCalledTimes(1);
@@ -253,7 +253,7 @@ describe("OUSDTSwaps", () => {
           amount0Out,
           amount1In,
           amount1Out,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         expect(mockOUSDTSwapsSet).toHaveBeenCalledTimes(1);

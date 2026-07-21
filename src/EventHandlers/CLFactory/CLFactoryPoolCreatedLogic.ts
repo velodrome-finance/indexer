@@ -7,7 +7,7 @@ import {
   rootPoolMatchingHash,
 } from "../../Constants";
 import type { TokenEntityMapping } from "../../CustomTypes";
-import type { handlerContext } from "../../EntityTypes";
+import type { EvmOnEventContext } from "../../EntityTypes";
 import type { Pool } from "../../EntityTypes";
 import { createTokenEntity } from "../../PriceOracle";
 import { flushPendingVotesAndDistributionsForRootPool } from "../Voter/CrossChainPendingResolution";
@@ -56,7 +56,7 @@ export async function processCLFactoryPoolCreated(
   poolToken1: Token | undefined,
   CLGaugeConfig: CLGaugeConfig | undefined,
   feeToTickSpacingMapping: FeeToTickSpacingMapping,
-  context: handlerContext,
+  context: EvmOnEventContext,
   pendingInitialize?: CLPoolPendingInitializeInput,
 ): Promise<CLFactoryPoolCreatedResult> {
   try {
@@ -170,7 +170,7 @@ export async function processCLFactoryPoolCreated(
  * @returns void
  */
 export async function flushPendingRootPoolMappingAndVotes(
-  context: handlerContext,
+  context: EvmOnEventContext,
   leafChainId: number,
   token0: string,
   token1: string,

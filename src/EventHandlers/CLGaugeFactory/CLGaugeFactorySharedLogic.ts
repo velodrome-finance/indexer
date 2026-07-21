@@ -1,6 +1,6 @@
 import type { CLGaugeConfig } from "envio";
 import { getRehydrated, getWhereRehydrated } from "../../EntityTimestamps";
-import type { handlerContext } from "../../EntityTypes";
+import type { EvmOnEventContext } from "../../EntityTypes";
 
 /**
  * Build a fully-populated CLGaugeConfig row for a chain, spreading an existing
@@ -44,7 +44,7 @@ export async function applySetDefaultCap(
   chainId: number,
   newDefaultCap: bigint,
   blockTimestampSeconds: number,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<void> {
   const existing = await getRehydrated(
     context.CLGaugeConfig,
@@ -74,7 +74,7 @@ export async function applySetDefaultMinStakeTime(
   chainId: number,
   newMinStakeTime: bigint,
   blockTimestampSeconds: number,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<void> {
   const existing = await getRehydrated(
     context.CLGaugeConfig,
@@ -104,7 +104,7 @@ export async function applySetPenaltyRate(
   chainId: number,
   newPenaltyRate: bigint,
   blockTimestampSeconds: number,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<void> {
   const existing = await getRehydrated(
     context.CLGaugeConfig,
@@ -136,7 +136,7 @@ export async function applySetEmissionCap(
   newEmissionCap: bigint,
   blockTimestampSeconds: number,
   factoryLogPrefix: string,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<void> {
   const poolEntityList = await getWhereRehydrated(context.Pool, "Pool", {
     gaugeAddress: { _eq: gauge },

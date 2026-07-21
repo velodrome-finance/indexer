@@ -9,7 +9,7 @@ import {
   rootPoolMatchingHash,
   toChecksumAddress,
 } from "../../../src/Constants";
-import type { handlerContext } from "../../../src/EntityTypes";
+import type { EvmOnEventContext } from "../../../src/EntityTypes";
 import {
   flushPendingRootPoolMappingAndVotes,
   processCLFactoryPoolCreated,
@@ -93,7 +93,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
       error: () => {},
       warn: () => {},
     },
-  } as unknown as handlerContext;
+  } as unknown as EvmOnEventContext;
 
   describe("processCLFactoryPoolCreated", () => {
     const expectedTokenFields = {
@@ -817,7 +817,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         PendingRootPoolMapping: { getWhere, deleteUnsafe },
         RootPool_LeafPool: { set },
         log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       await flushPendingRootPoolMappingAndVotes(
         context,
@@ -858,7 +858,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
           PendingRootPoolMapping: { getWhere, deleteUnsafe },
           RootPool_LeafPool: { set },
           log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-        } as unknown as handlerContext;
+        } as unknown as EvmOnEventContext;
 
         await flushPendingRootPoolMappingAndVotes(
           context,
@@ -917,7 +917,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         PendingRootPoolMapping: { getWhere, deleteUnsafe },
         RootPool_LeafPool: { set },
         log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       await flushPendingRootPoolMappingAndVotes(
         context,
@@ -986,7 +986,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         RootPool_LeafPool: { set, getWhere: getWhereRootPoolLeafPool },
         PendingDistribution: { getWhere: vi.fn().mockResolvedValue([]) },
         log: { info: vi.fn(), warn: vi.fn(), error: logError },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
 
       await expect(
         flushPendingRootPoolMappingAndVotes(

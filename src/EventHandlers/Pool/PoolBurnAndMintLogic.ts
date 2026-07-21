@@ -6,7 +6,7 @@ import {
 } from "../../Aggregators/UserStatsPerPool";
 import { TxPoolTransferRegistryId } from "../../Constants";
 import { getRehydrated } from "../../EntityTimestamps";
-import type { handlerContext } from "../../EntityTypes";
+import type { EvmOnEventContext } from "../../EntityTypes";
 import { calculateTotalUSD } from "../../Helpers";
 
 export interface AttributionResult {
@@ -39,7 +39,7 @@ export async function getTransfersInTx(
   chainId: number,
   poolAddress: string,
   isMint: boolean,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<PoolTransferInTx[]> {
   const registryId = TxPoolTransferRegistryId(chainId, txHash, poolAddress);
   const registry = await context.TxPoolTransferRegistry.get(registryId);
@@ -76,7 +76,7 @@ export async function getTransfersInTx(
 async function pruneRegistryOnConsume(
   registryId: string,
   transferId: string,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<void> {
   const registry = await context.TxPoolTransferRegistry.get(registryId);
   if (!registry) return;
@@ -182,7 +182,7 @@ export async function findTransferAndAttribute(
   isMint: boolean,
   token0Instance: Token,
   token1Instance: Token,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<AttributionResult | undefined> {
   // Find matching Transfer event
   // Rule: Find Transfer where isMint/isBurn matches, logIndex < eventLogIndex, same tx+pool+chainId
@@ -263,7 +263,7 @@ export async function processPoolLiquidityEvent(
   poolData: PoolData,
   poolAddress: string,
   chainId: number,
-  context: handlerContext,
+  context: EvmOnEventContext,
   timestamp: Date,
   blockNumber: number,
   isMint: boolean,
@@ -350,7 +350,7 @@ export async function attributeLiquidityDelta(
   poolData: PoolData,
   poolAddress: string,
   chainId: number,
-  context: handlerContext,
+  context: EvmOnEventContext,
   timestamp: Date,
 ): Promise<void> {
   const userData = await loadOrCreateUserData(
@@ -411,7 +411,7 @@ export async function processPoolMintWithRecipient(
   poolData: PoolData,
   poolAddress: string,
   chainId: number,
-  context: handlerContext,
+  context: EvmOnEventContext,
   timestamp: Date,
   blockNumber: number,
 ): Promise<void> {

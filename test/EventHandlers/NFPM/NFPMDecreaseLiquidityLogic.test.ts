@@ -6,7 +6,7 @@ import {
   NonFungiblePositionSnapshotId,
   toChecksumAddress,
 } from "../../../src/Constants";
-import type { handlerContext } from "../../../src/EntityTypes";
+import type { EvmOnEventContext } from "../../../src/EntityTypes";
 import {
   LiquidityChangeType,
   attributeLiquidityChangeToUserStatsPerPool,
@@ -37,7 +37,7 @@ describe("NFPMDecreaseLiquidityLogic", () => {
   const nfpmAddress = defaultNfpmAddress;
   const blockTimestamp = new Date(1712065791 * 1000);
 
-  function expectSnapshotSet(context: handlerContext, liquidity: bigint): void {
+  function expectSnapshotSet(context: EvmOnEventContext, liquidity: bigint): void {
     const epoch = getSnapshotEpoch(blockTimestamp);
     expect(context.NonFungiblePositionSnapshot.set).toHaveBeenCalledTimes(1);
     expect(context.NonFungiblePositionSnapshot.set).toHaveBeenCalledWith(
@@ -81,7 +81,7 @@ describe("NFPMDecreaseLiquidityLogic", () => {
   };
 
   let entityStore: Map<string, NonFungiblePosition>;
-  let mockContext: handlerContext;
+  let mockContext: EvmOnEventContext;
 
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -148,7 +148,7 @@ describe("NFPMDecreaseLiquidityLogic", () => {
         warn: vi.fn(),
         error: vi.fn(),
       },
-    } as unknown as handlerContext;
+    } as unknown as EvmOnEventContext;
   });
 
   describe("calculateDecreaseLiquidityDiff", () => {

@@ -6,7 +6,7 @@ import {
   toCanonicalFeeScale,
   toChecksumAddress,
 } from "../../src/Constants";
-import type { Pool, handlerContext } from "../../src/EntityTypes";
+import type { Pool, EvmOnEventContext } from "../../src/EntityTypes";
 import { calculateSwapFees } from "../../src/EventHandlers/CLPool/CLPoolSwapLogic";
 import { processPoolFees } from "../../src/EventHandlers/Pool/PoolFeesLogic";
 import { setupCommon } from "./Pool/common";
@@ -29,7 +29,7 @@ describe("Issue #812: fee-field scaling parity across V2 and CL", () => {
 
   const ctx = {
     log: { error: () => undefined, warn: () => undefined },
-  } as unknown as handlerContext;
+  } as unknown as EvmOnEventContext;
 
   // An economically identical fee: 0.50 of the 6-decimal token.
   const HALF_TOKEN6_RAW = 5n * (TEN_TO_THE_6_BI / 10n); // 0.50 * 1e6 = 500_000

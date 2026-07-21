@@ -1,9 +1,4 @@
-import type {
-  EvmEvent,
-  UserStatsPerPool,
-  VeNFTPoolVote,
-  VeNFTState,
-} from "envio";
+import type { EvmEvent, UserStatsPerPool, VeNFTPoolVote, VeNFTState } from "envio";
 import type { MockInstance } from "vitest";
 import * as UserStatsPerPoolModule from "../../../src/Aggregators/UserStatsPerPool";
 import * as VeNFTPoolVoteAggregator from "../../../src/Aggregators/VeNFTPoolVote";
@@ -16,7 +11,7 @@ import {
   VeNFTPoolVoteId,
   toChecksumAddress,
 } from "../../../src/Constants";
-import type { handlerContext } from "../../../src/EntityTypes";
+import type { EvmOnEventContext } from "../../../src/EntityTypes";
 import * as VeNFTLogic from "../../../src/EventHandlers/VeNFT/VeNFTLogic";
 
 describe("VeNFTLogic", () => {
@@ -41,7 +36,7 @@ describe("VeNFTLogic", () => {
     VeNFTPoolVote: mockVeNFTPoolVoteStore,
     UserStatsPerPool: mockUserStatsStore,
     UserStatsPerPoolSnapshot: { set: vi.fn() },
-  } as unknown as handlerContext;
+  } as unknown as EvmOnEventContext;
 
   const mockVeNFTState: VeNFTState = {
     id: VeNFTId(10, 1n),

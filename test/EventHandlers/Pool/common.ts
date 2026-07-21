@@ -1,12 +1,5 @@
 import { TickMath } from "@uniswap/v3-sdk";
-import type {
-  ALM_LP_Wrapper,
-  NonFungiblePosition,
-  Token,
-  UserStatsPerPool,
-  VeNFTPoolVote,
-  VeNFTState,
-} from "envio";
+import type { ALM_LP_Wrapper, NonFungiblePosition, Token, UserStatsPerPool, VeNFTPoolVote, VeNFTState } from "envio";
 import {
   ALMLPWrapperId,
   NonFungiblePositionId,
@@ -19,7 +12,7 @@ import {
   VeNFTPoolVoteId,
   toChecksumAddress,
 } from "../../../src/Constants";
-import type { handlerContext } from "../../../src/EntityTypes";
+import type { EvmOnEventContext } from "../../../src/EntityTypes";
 import type { Pool } from "../../../src/EntityTypes";
 import { calculateTokenAmountUSD } from "../../../src/Helpers";
 import {
@@ -521,14 +514,14 @@ export function setupCommon() {
   }
 
   /**
-   * Builds a minimal handlerContext with only the given entities.
+   * Builds a minimal EvmOnEventContext with only the given entities.
    * Each key is an entity name (e.g. "VeNFTStateSnapshot"); each value is an object with the methods to mock (e.g. { set: vi.fn() }).
    * Use for snapshot tests and any test that only needs to spy on entity methods.
    */
   function createMockContext(
     entities: Record<string, Record<string, unknown>>,
-  ): handlerContext {
-    return { ...entities } as unknown as handlerContext;
+  ): EvmOnEventContext {
+    return { ...entities } as unknown as EvmOnEventContext;
   }
 
   return {

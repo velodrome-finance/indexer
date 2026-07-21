@@ -1,11 +1,6 @@
-import type {
-  VeNFTPoolVote,
-  VeNFTPoolVoteSnapshot,
-  VeNFTState,
-  VeNFTStateSnapshot,
-} from "envio";
+import type { VeNFTPoolVote, VeNFTPoolVoteSnapshot, VeNFTState, VeNFTStateSnapshot } from "envio";
 
-import type { handlerContext } from "../EntityTypes";
+import type { EvmOnEventContext } from "../EntityTypes";
 
 import { VeNFTPoolVoteSnapshotId } from "../Constants";
 import {
@@ -62,7 +57,7 @@ export function setVeNFTPoolVoteSnapshot(
   veNFTState: VeNFTState,
   veNFTStateSnapshot: VeNFTStateSnapshot,
   timestamp: Date,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): void {
   const snapshotForPersist: SnapshotForPersist = {
     type: SnapshotType.VeNFTPoolVote,

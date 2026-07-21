@@ -1,6 +1,6 @@
 import type { NonFungiblePosition, NonFungiblePositionSnapshot } from "envio";
 
-import type { handlerContext } from "../EntityTypes";
+import type { EvmOnEventContext } from "../EntityTypes";
 
 import { NonFungiblePositionSnapshotId } from "../Constants";
 import {
@@ -57,7 +57,7 @@ export function createNonFungiblePositionSnapshot(
 export function setNonFungiblePositionSnapshot(
   entity: NonFungiblePosition,
   timestamp: Date,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): void {
   const snapshotForPersist: SnapshotForPersist = {
     type: SnapshotType.NonFungiblePosition,

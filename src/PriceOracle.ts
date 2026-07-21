@@ -8,7 +8,7 @@ import {
   roundBlockToInterval,
 } from "./Effects/Index";
 import { getRehydrated } from "./EntityTimestamps";
-import type { handlerContext } from "./EntityTypes";
+import type { EvmOnEventContext } from "./EntityTypes";
 import { getRebindTarget, isBlacklistedToken } from "./PriceOverrides";
 import { getGateDecisionFromSignals } from "./PriceTrust";
 import {
@@ -94,7 +94,7 @@ export async function createTokenEntity(
   tokenAddress: string,
   chainId: number,
   blockNumber: number,
-  context: handlerContext,
+  context: EvmOnEventContext,
   blockTimestamp: number,
 ): Promise<Token | null> {
   const blockDatetime = new Date(blockTimestamp * 1000);
@@ -183,7 +183,7 @@ export async function refreshTokenPrice(
   blockNumber: number,
   blockTimestamp: number,
   chainId: number,
-  context: handlerContext,
+  context: EvmOnEventContext,
   impliedPriceHint?: bigint,
 ): Promise<Token> {
   const blockTimestampMs = blockTimestamp * 1000;
@@ -597,7 +597,7 @@ export async function refreshTokenPrice(
 export async function healTokenMetadata(
   token: Token,
   chainId: number,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<Token> {
   if (token.symbol && token.name) {
     return token;

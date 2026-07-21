@@ -3,7 +3,7 @@ import { processTickCrossings } from "../../Aggregators/CLStakedLiquidity";
 import type { PoolDiff } from "../../Aggregators/Pool";
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import { FEE_SCALE } from "../../Constants";
-import type { Pool, handlerContext } from "../../EntityTypes";
+import type { Pool, EvmOnEventContext } from "../../EntityTypes";
 import {
   calculateLiquidityUSD,
   normalizeTokenAmountTo1e18,
@@ -112,7 +112,7 @@ export function calculateSwapFees(
   token0Instance: Token | undefined,
   token1Instance: Token | undefined,
   volumeInUSD: bigint,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): SwapFees {
   // Get the current fee, falling back to baseFee if currentFee is undefined
   const fee =
@@ -201,7 +201,7 @@ function calculateSwapVolumeAndFees(
   liquidityPoolAggregator: Pool,
   token0Instance: Token | undefined,
   token1Instance: Token | undefined,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): SwapVolumeAndFees {
   const { volumeInUSD } = calculateSwapVolume(
     event,
@@ -232,7 +232,7 @@ export async function processCLPoolSwap(
   liquidityPoolAggregator: Pool,
   token0Instance: Token | undefined,
   token1Instance: Token | undefined,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<CLPoolSwapResult> {
   // Calculate volume and fees
   const { volumeInUSD, swapFeesInToken0, swapFeesInToken1, swapFeesInUSD } =

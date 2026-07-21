@@ -1,7 +1,7 @@
 import type { FeeToTickSpacingMapping } from "envio";
 import { updateFeeToTickSpacingMapping } from "../../src/Aggregators/FeeToTickSpacingMapping";
 import { FeeToTickSpacingMappingId } from "../../src/Constants";
-import type { handlerContext } from "../../src/EntityTypes";
+import type { EvmOnEventContext } from "../../src/EntityTypes";
 
 describe("FeeToTickSpacingMapping", () => {
   // Shared constants
@@ -11,7 +11,7 @@ describe("FeeToTickSpacingMapping", () => {
   const INITIAL_TIMESTAMP = 1000000;
   const MAPPING_ID = FeeToTickSpacingMappingId(CHAIN_ID, TICK_SPACING);
 
-  let mockContext: Partial<handlerContext>;
+  let mockContext: Partial<EvmOnEventContext>;
   let currentMapping: FeeToTickSpacingMapping;
 
   beforeEach(() => {
@@ -51,7 +51,7 @@ describe("FeeToTickSpacingMapping", () => {
       await updateFeeToTickSpacingMapping(
         currentMapping,
         diff,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
       );
 
       const mockSet = vi.mocked(mockContext.FeeToTickSpacingMapping?.set);
@@ -98,7 +98,7 @@ describe("FeeToTickSpacingMapping", () => {
         await updateFeeToTickSpacingMapping(
           currentMapping,
           testCase.diff,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const updatedMapping = mockSet?.mock
@@ -120,7 +120,7 @@ describe("FeeToTickSpacingMapping", () => {
       await updateFeeToTickSpacingMapping(
         currentMapping,
         diff,
-        mockContext as handlerContext,
+        mockContext as EvmOnEventContext,
       );
 
       const mockSet = vi.mocked(mockContext.FeeToTickSpacingMapping?.set);
@@ -156,7 +156,7 @@ describe("FeeToTickSpacingMapping", () => {
         await updateFeeToTickSpacingMapping(
           currentMapping,
           testCase.diff,
-          mockContext as handlerContext,
+          mockContext as EvmOnEventContext,
         );
 
         const updatedMapping = mockSet?.mock

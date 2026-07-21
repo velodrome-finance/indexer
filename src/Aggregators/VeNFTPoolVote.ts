@@ -1,6 +1,6 @@
 import type { VeNFTPoolVote, VeNFTState } from "envio";
 
-import type { handlerContext } from "../EntityTypes";
+import type { EvmOnEventContext } from "../EntityTypes";
 
 import { VeNFTPoolVoteId } from "../Constants";
 import { getRehydrated, getWhereRehydrated } from "../EntityTimestamps";
@@ -24,7 +24,7 @@ export async function loadVeNFTPoolVote(
   chainId: number,
   tokenId: bigint,
   poolAddress: string,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<VeNFTPoolVote | undefined> {
   const id = VeNFTPoolVoteId(chainId, tokenId, poolAddress);
   return getRehydrated(context.VeNFTPoolVote, "VeNFTPoolVote", id);
@@ -32,7 +32,7 @@ export async function loadVeNFTPoolVote(
 
 export async function loadPoolVotesByVeNFT(
   veNFTState: VeNFTState,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<VeNFTPoolVote[]> {
   const votesByState = await getWhereRehydrated(
     context.VeNFTPoolVote,
@@ -54,7 +54,7 @@ export async function loadOrCreateVeNFTPoolVote(
   tokenId: bigint,
   poolAddress: string,
   veNFTState: VeNFTState,
-  context: handlerContext,
+  context: EvmOnEventContext,
   timestamp: Date,
 ): Promise<VeNFTPoolVote> {
   const veNFTPoolVotes = await context.VeNFTPoolVote.getOrCreate({
@@ -74,7 +74,7 @@ export async function loadOrCreateVeNFTPoolVote(
 export async function updateVeNFTPoolVote(
   diff: Partial<VeNFTPoolVoteDiff>,
   current: VeNFTPoolVote,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<VeNFTPoolVote> {
   const updated: VeNFTPoolVote = {
     ...current,

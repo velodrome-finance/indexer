@@ -8,7 +8,7 @@ import {
   ZERO_ADDRESS,
 } from "../../Constants";
 import { getRehydrated } from "../../EntityTimestamps";
-import type { handlerContext } from "../../EntityTypes";
+import type { EvmOnEventContext } from "../../EntityTypes";
 import { calculatePositionAmountsFromLiquidity } from "../../Helpers";
 import {
   LiquidityChangeType,
@@ -34,7 +34,7 @@ export async function createPositionFromCLPoolMint(
   nfpmAddress: string,
   chainId: number,
   blockTimestamp: number,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<void> {
   // Create definitive NonFungiblePosition with stable ID via NonFungiblePositionId().
   // Key is (chainId, nfpmAddress, tokenId) — pool is metadata, not part of the identity.
@@ -88,7 +88,7 @@ export async function createPositionFromCLPoolMint(
  */
 export async function handleMintTransfer(
   event: EvmEvent<"NFPM", "Transfer">,
-  context: handlerContext,
+  context: EvmOnEventContext,
   existingPosition: NonFungiblePosition | undefined,
 ): Promise<void> {
   // If position already exists, nothing to do (shouldn't happen for new mints)
@@ -209,7 +209,7 @@ export function isGaugeTransfer(
 export async function attributeTransferToUserStatsPerPool(
   event: EvmEvent<"NFPM", "Transfer">,
   position: NonFungiblePosition,
-  context: handlerContext,
+  context: EvmOnEventContext,
   poolData: PoolData,
 ): Promise<void> {
   const sqrtPriceX96 = poolData.liquidityPoolAggregator.sqrtPriceX96;
@@ -273,7 +273,7 @@ export async function attributeTransferToUserStatsPerPool(
 export async function handleRegularTransfer(
   event: EvmEvent<"NFPM", "Transfer">,
   position: NonFungiblePosition,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<void> {
   const timestamp = event.block.timestamp;
   const updateTimestamp = new Date(timestamp * 1000);
@@ -375,7 +375,7 @@ export async function handleRegularTransfer(
  */
 export async function processNFPMTransfer(
   event: EvmEvent<"NFPM", "Transfer">,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<void> {
   // Direct O(1) lookup via stable ID (chainId, nfpmAddress, tokenId).
   // event.srcAddress is the NFPM contract that emitted the Transfer.

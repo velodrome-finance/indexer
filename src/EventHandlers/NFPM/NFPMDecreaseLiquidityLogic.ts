@@ -6,7 +6,7 @@ import {
 import { loadPoolData } from "../../Aggregators/Pool";
 import { NonFungiblePositionId } from "../../Constants";
 import { getRehydrated } from "../../EntityTimestamps";
-import type { handlerContext } from "../../EntityTypes";
+import type { EvmOnEventContext } from "../../EntityTypes";
 import {
   LiquidityChangeType,
   attributeLiquidityChangeToUserStatsPerPool,
@@ -50,7 +50,7 @@ export function calculateDecreaseLiquidityDiff(
  */
 export async function processNFPMDecreaseLiquidity(
   event: EvmEvent<"NFPM", "DecreaseLiquidity">,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<void> {
   // Transfer runs before DecreaseLiquidity, so the stable position should already exist.
   // Direct O(1) lookup via (chainId, nfpmAddress, tokenId).

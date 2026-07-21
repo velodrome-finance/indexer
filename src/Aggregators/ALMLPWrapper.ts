@@ -1,6 +1,6 @@
 import type { ALM_LP_Wrapper } from "envio";
 
-import type { handlerContext } from "../EntityTypes";
+import type { EvmOnEventContext } from "../EntityTypes";
 
 import { setALMLPWrapperSnapshot } from "../Snapshots/ALMLPWrapperSnapshot";
 import { getSnapshotEpoch, shouldSnapshot } from "../Snapshots/Shared";
@@ -23,7 +23,7 @@ export async function updateALMLPWrapper(
   diff: Partial<ALM_LP_WrapperDiff>,
   current: ALM_LP_Wrapper,
   timestamp: Date,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<void> {
   // Clamp lpAmount to >= 0n on write (issue #816). The V1-withdraw fallback can
   // subtract more than was added: a V1 `Withdraw` emits the input parameter, not

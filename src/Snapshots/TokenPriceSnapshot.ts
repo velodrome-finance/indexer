@@ -1,6 +1,6 @@
 import type { TokenPriceSnapshot } from "envio";
 
-import type { handlerContext } from "../EntityTypes";
+import type { EvmOnEventContext } from "../EntityTypes";
 
 import { TokenIdByBlock } from "../Constants";
 import {
@@ -87,7 +87,7 @@ export function setTokenPriceSnapshot(
   pricePerUSDNew: bigint,
   isWhitelisted: boolean,
   priceSource: PriceSource,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): void {
   const snapshotForPersist: SnapshotForPersist = {
     type: SnapshotType.TokenPrice,

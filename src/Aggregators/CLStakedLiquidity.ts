@@ -1,5 +1,5 @@
 import { TickMath } from "@uniswap/v3-sdk";
-import type { handlerContext } from "../EntityTypes";
+import type { EvmOnEventContext } from "../EntityTypes";
 
 /**
  * Uniswap v3 absolute tick range. Any tick outside [TICK_MIN, TICK_MAX] is
@@ -424,7 +424,7 @@ export function processTickCrossings(
   oldSqrtPriceX96: bigint,
   newSqrtPriceX96: bigint,
   tickSpacing: bigint,
-  context: handlerContext,
+  context: EvmOnEventContext,
   currentLiquidityInRange: bigint,
   walkEdges: boolean,
   tickEdges: readonly bigint[],

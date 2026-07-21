@@ -9,7 +9,7 @@ import {
   loadOrCreateUserData,
   updateUserStatsPerPool,
 } from "../../Aggregators/UserStatsPerPool";
-import type { handlerContext } from "../../EntityTypes";
+import type { EvmOnEventContext } from "../../EntityTypes";
 import {
   calculatePositionAmountsFromLiquidity,
   calculateTotalUSD,
@@ -41,7 +41,7 @@ export async function attributeLiquidityChangeToUserStatsPerPool(
   owner: string,
   poolAddress: string,
   poolData: PoolData,
-  context: handlerContext,
+  context: EvmOnEventContext,
   amount0: bigint,
   amount1: bigint,
   blockTimestamp: number,
@@ -121,7 +121,7 @@ export async function updateStakedPositionLiquidity(
   position: NonFungiblePosition,
   poolData: PoolData,
   liquidityDelta: bigint,
-  context: handlerContext,
+  context: EvmOnEventContext,
   timestamp: Date,
   chainId: number,
   blockNumber: number,

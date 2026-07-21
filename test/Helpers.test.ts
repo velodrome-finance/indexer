@@ -6,7 +6,7 @@ import {
 import type { Token } from "envio";
 import JSBI from "jsbi";
 import { TEN_TO_THE_18_BI, TokenId, toChecksumAddress } from "../src/Constants";
-import type { handlerContext } from "../src/EntityTypes";
+import type { EvmOnEventContext } from "../src/EntityTypes";
 import type { Pool } from "../src/EntityTypes";
 import {
   calculateLiquidityUSD,
@@ -72,7 +72,7 @@ describe("Helpers", () => {
       const logError = vi.fn();
       const context = {
         log: { error: logError },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
       const fn = vi.fn().mockResolvedValue(undefined);
 
       await runAsyncWithErrorLog(context, "Test message", fn);
@@ -85,7 +85,7 @@ describe("Helpers", () => {
       const logError = vi.fn();
       const context = {
         log: { error: logError },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
       const err = new Error("Something failed");
       const fn = vi.fn().mockRejectedValue(err);
 
@@ -101,7 +101,7 @@ describe("Helpers", () => {
       const logError = vi.fn();
       const context = {
         log: { error: logError },
-      } as unknown as handlerContext;
+      } as unknown as EvmOnEventContext;
       const fn = vi.fn().mockRejectedValue("string error");
 
       await expect(
@@ -1118,7 +1118,7 @@ describe("Helpers", () => {
     } = setupCommon();
     const mockContext = {
       log: { warn: () => {}, error: () => {}, info: () => {}, debug: () => {} },
-    } as unknown as handlerContext;
+    } as unknown as EvmOnEventContext;
 
     it("should compute proportional USD from stake, reserves and totalSupply", () => {
       const stakeAmount = 100n * 10n ** 18n;

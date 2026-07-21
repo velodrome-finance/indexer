@@ -9,7 +9,7 @@ import {
   TxPoolTransferRegistryId,
   ZERO_ADDRESS,
 } from "../../Constants";
-import type { handlerContext } from "../../EntityTypes";
+import type { EvmOnEventContext } from "../../EntityTypes";
 import type { Pool } from "../../EntityTypes";
 
 /**
@@ -29,7 +29,7 @@ export async function updatePoolTotalSupply(
   value: bigint,
   liquidityPoolAggregator: Pool,
   timestamp: Date,
-  context: handlerContext,
+  context: EvmOnEventContext,
   eventChainId: number,
   blockNumber: number,
 ): Promise<void> {
@@ -86,7 +86,7 @@ export async function updateUserLpBalances(
   value: bigint,
   poolAddress: string,
   chainId: number,
-  context: handlerContext,
+  context: EvmOnEventContext,
   timestamp: Date,
   gaugeAddress?: string,
 ): Promise<void> {
@@ -241,7 +241,7 @@ export async function storeTransferForMatching(
   to: string,
   value: bigint,
   timestamp: Date,
-  context: handlerContext,
+  context: EvmOnEventContext,
 ): Promise<void> {
   // Only store mint/burn transfers (not regular transfers) to reduce storage
   if (isMint || isBurn) {
@@ -290,7 +290,7 @@ export async function processPoolTransfer(
   liquidityPoolAggregator: Pool,
   poolAddress: string,
   chainId: number,
-  context: handlerContext,
+  context: EvmOnEventContext,
   timestamp: Date,
 ): Promise<void> {
   const { from, to, value } = event.params;
