@@ -2,6 +2,7 @@ import type { Token } from "envio";
 import { createTestIndexer } from "envio";
 import { TokenId, toChecksumAddress } from "../../../src/Constants";
 import * as VotingRewardSharedLogic from "../../../src/EventHandlers/VotingReward/VotingRewardSharedLogic";
+import { registerVoterGauge } from "../../registerDynamicContracts";
 import { type MockPool, setupCommon } from "../Pool/common";
 
 describe("FeesVotingReward Events", () => {
@@ -29,9 +30,12 @@ describe("FeesVotingReward Events", () => {
   let userStats: ReturnType<typeof createMockUserStatsPerPool>;
   let rewardToken: Token;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.restoreAllMocks();
     indexer = createTestIndexer();
+    await registerVoterGauge(indexer, chainId, {
+      feeVotingReward: votingRewardAddress,
+    });
 
     // Set up liquidity pool with fee voting reward address
     liquidityPool = createMockPool({

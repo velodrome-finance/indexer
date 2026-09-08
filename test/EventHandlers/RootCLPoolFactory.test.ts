@@ -36,6 +36,12 @@ describe("RootCLPoolFactory Events", () => {
     const rootPoolAddress = toChecksumAddress(
       "0xC4Cbb0ba3c902Fb4b49B3844230354d45C779F74",
     );
+    // RootPoolCreated is emitted by the factory, not by the pool it creates.
+    // An event only routes to a contract when its source address is one
+    // configured for that chain.
+    const rootCLPoolFactoryAddress = toChecksumAddress(
+      "0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F",
+    );
     const leafPoolAddress = toChecksumAddress(
       "0x3BBdBAD64b383885031c4d9C8Afe0C3327d79888",
     );
@@ -83,7 +89,7 @@ describe("RootCLPoolFactory Events", () => {
                 {
                   contract: "RootCLPoolFactory",
                   event: "RootPoolCreated",
-                  srcAddress: rootPoolAddress,
+                  srcAddress: rootCLPoolFactoryAddress,
                   logIndex: 1,
                   block: {
                     timestamp: 1000000,
@@ -199,7 +205,7 @@ describe("RootCLPoolFactory Events", () => {
                 {
                   contract: "RootCLPoolFactory",
                   event: "RootPoolCreated",
-                  srcAddress: rootPoolAddress,
+                  srcAddress: rootCLPoolFactoryAddress,
                   logIndex: 1,
                   block: {
                     timestamp: blockTimestamp,
@@ -274,7 +280,7 @@ describe("RootCLPoolFactory Events", () => {
                 {
                   contract: "RootCLPoolFactory",
                   event: "RootPoolCreated",
-                  srcAddress: rootPoolAddress,
+                  srcAddress: rootCLPoolFactoryAddress,
                   logIndex: 1,
                   block: {
                     timestamp: 1000000,
@@ -308,7 +314,7 @@ describe("RootCLPoolFactory Events", () => {
                 {
                   contract: "RootCLPoolFactory",
                   event: "RootPoolCreated",
-                  srcAddress: rootPoolAddress,
+                  srcAddress: rootCLPoolFactoryAddress,
                   logIndex: 1,
                   block: {
                     timestamp: 1000000,
@@ -406,7 +412,7 @@ describe("RootCLPoolFactory Events", () => {
                 {
                   contract: "RootCLPoolFactory",
                   event: "RootPoolCreated",
-                  srcAddress: rootPoolAddress,
+                  srcAddress: rootCLPoolFactoryAddress,
                   logIndex: 1,
                   block: {
                     timestamp: 1000000,

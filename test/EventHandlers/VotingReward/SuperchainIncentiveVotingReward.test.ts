@@ -2,6 +2,7 @@ import type { Token, VeNFTState } from "envio";
 import { createTestIndexer } from "envio";
 import { TokenId, VeNFTId, toChecksumAddress } from "../../../src/Constants";
 import * as VotingRewardSharedLogic from "../../../src/EventHandlers/VotingReward/VotingRewardSharedLogic";
+import { registerLeafVoterGauge } from "../../registerDynamicContracts";
 import { type MockPool, setupCommon } from "../Pool/common";
 
 describe("SuperchainIncentiveVotingReward Events", () => {
@@ -26,8 +27,11 @@ describe("SuperchainIncentiveVotingReward Events", () => {
   let rewardToken: Token;
   let veNFT: VeNFTState;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     indexer = createTestIndexer();
+    await registerLeafVoterGauge(indexer, chainId, {
+      incentiveVotingReward: votingRewardAddress,
+    });
     const { createMockUserStatsPerPool, createMockPool } = setupCommon();
 
     // Set up liquidity pool with bribe voting reward address
@@ -166,6 +170,9 @@ describe("SuperchainIncentiveVotingReward Events", () => {
 
         // Create fresh indexer with initial entities to avoid interference from parent's processEvents
         const freshIndexer = createTestIndexer();
+        await registerLeafVoterGauge(freshIndexer, chainId, {
+          incentiveVotingReward: votingRewardAddress,
+        });
         freshIndexer.Pool.set(liquidityPool);
         freshIndexer.UserStatsPerPool.set(userStats);
         freshIndexer.Token.set(rewardToken);

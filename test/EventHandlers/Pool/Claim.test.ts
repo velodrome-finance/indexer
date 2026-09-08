@@ -5,6 +5,7 @@ import { toChecksumAddress } from "../../../src/Constants";
 import { rehydrateTimestamps } from "../../../src/EntityTimestamps";
 import type { Pool as PoolEntity } from "../../../src/EntityTypes";
 import * as PriceOracle from "../../../src/PriceOracle";
+import { registerPool } from "../../registerDynamicContracts";
 import { type MockPool, setupCommon } from "./common";
 
 describe("Pool Claim Event", () => {
@@ -19,8 +20,11 @@ describe("Pool Claim Event", () => {
   const gaugeAddress = toChecksumAddress(
     "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
   );
+  const poolSrcAddress = toChecksumAddress(
+    "0x3333333333333333333333333333333333333333",
+  );
 
-  beforeEach(() => {
+  beforeEach(async () => {
     const {
       mockToken0Data: token0,
       mockToken1Data: token1,
@@ -34,6 +38,9 @@ describe("Pool Claim Event", () => {
     });
 
     indexer = createTestIndexer();
+    // Register before the spy so the factory replay's own price lookups are
+    // not recorded against `mockPriceOracle`.
+    await registerPool(indexer, chainId, poolSrcAddress);
     mockPriceOracle = vi
       .spyOn(PriceOracle, "refreshTokenPrice")
       .mockImplementation(async (...args) => {

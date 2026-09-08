@@ -24,9 +24,15 @@ describe("SuperchainLeafVoter Events", () => {
   });
 
   const { createMockPool } = setupCommon();
+  // SuperchainLeafVoter is deployed only on the superchain leaves, at the same
+  // address on each. An event only routes to a contract when its source
+  // address is one configured for that chain.
+  const leafVoterAddress = toChecksumAddress(
+    "0x97cDBCe21B6fd0585d29E539B1B99dAd328a1123",
+  );
 
   describe("GaugeCreated Event", () => {
-    const chainId = 10 as const;
+    const chainId = 252 as const; // Fraxtal — a superchain leaf
     const poolAddress = toChecksumAddress(
       "0x478946BcD4a5a22b316470F5486fAfb928C0bA25",
     );
@@ -57,9 +63,7 @@ describe("SuperchainLeafVoter Events", () => {
                 {
                   contract: "SuperchainLeafVoter",
                   event: "GaugeCreated",
-                  srcAddress: toChecksumAddress(
-                    "0x1111111111111111111111111111111111111111",
-                  ),
+                  srcAddress: leafVoterAddress,
                   logIndex: 1,
                   block: {
                     timestamp: blockTimestamp,
@@ -122,9 +126,7 @@ describe("SuperchainLeafVoter Events", () => {
               {
                 contract: "SuperchainLeafVoter",
                 event: "GaugeCreated",
-                srcAddress: toChecksumAddress(
-                  "0x1111111111111111111111111111111111111111",
-                ),
+                srcAddress: leafVoterAddress,
                 logIndex: 1,
                 block: {
                   timestamp: blockTimestamp,
@@ -169,9 +171,7 @@ describe("SuperchainLeafVoter Events", () => {
               {
                 contract: "SuperchainLeafVoter",
                 event: "GaugeCreated",
-                srcAddress: toChecksumAddress(
-                  "0x1111111111111111111111111111111111111111",
-                ),
+                srcAddress: leafVoterAddress,
                 logIndex: 1,
                 block: {
                   timestamp: blockTimestamp,
@@ -215,9 +215,7 @@ describe("SuperchainLeafVoter Events", () => {
                 {
                   contract: "SuperchainLeafVoter",
                   event: "GaugeCreated",
-                  srcAddress: toChecksumAddress(
-                    "0x1111111111111111111111111111111111111111",
-                  ),
+                  srcAddress: leafVoterAddress,
                   logIndex: 1,
                   block: {
                     timestamp: blockTimestamp,
@@ -256,9 +254,11 @@ describe("SuperchainLeafVoter Events", () => {
   });
 
   describe("WhitelistToken Event", () => {
-    const chainId = 10 as const;
-    // Real WETH on Optimism — has on-chain bytecode, so the #677
-    // hasContractBytecode gate doesn't short-circuit Token creation.
+    // Lisk — a superchain leaf whose price-connector list contains WETH and
+    // whose blacklist has an entry, so the priceTrust cases below are real.
+    const chainId = 1135 as const;
+    // WETH on Lisk — has on-chain bytecode, so the #677 hasContractBytecode
+    // gate doesn't short-circuit Token creation, and it is a price connector.
     const tokenAddress = toChecksumAddress(
       "0x4200000000000000000000000000000000000006",
     );
@@ -291,9 +291,7 @@ describe("SuperchainLeafVoter Events", () => {
                 {
                   contract: "SuperchainLeafVoter",
                   event: "WhitelistToken",
-                  srcAddress: toChecksumAddress(
-                    "0x1111111111111111111111111111111111111111",
-                  ),
+                  srcAddress: leafVoterAddress,
                   logIndex: 1,
                   block: {
                     number: blockNumber,
@@ -353,9 +351,7 @@ describe("SuperchainLeafVoter Events", () => {
                   {
                     contract: "SuperchainLeafVoter",
                     event: "WhitelistToken",
-                    srcAddress: toChecksumAddress(
-                      "0x1111111111111111111111111111111111111111",
-                    ),
+                    srcAddress: leafVoterAddress,
                     logIndex: 1,
                     block: {
                       number: blockNumber,
@@ -399,9 +395,7 @@ describe("SuperchainLeafVoter Events", () => {
                   {
                     contract: "SuperchainLeafVoter",
                     event: "WhitelistToken",
-                    srcAddress: toChecksumAddress(
-                      "0x1111111111111111111111111111111111111111",
-                    ),
+                    srcAddress: leafVoterAddress,
                     logIndex: 1,
                     block: {
                       number: blockNumber,
@@ -464,9 +458,7 @@ describe("SuperchainLeafVoter Events", () => {
                 {
                   contract: "SuperchainLeafVoter",
                   event: "WhitelistToken",
-                  srcAddress: toChecksumAddress(
-                    "0x1111111111111111111111111111111111111111",
-                  ),
+                  srcAddress: leafVoterAddress,
                   logIndex: 1,
                   block: {
                     number: blockNumber,
@@ -521,9 +513,7 @@ describe("SuperchainLeafVoter Events", () => {
                 {
                   contract: "SuperchainLeafVoter",
                   event: "WhitelistToken",
-                  srcAddress: toChecksumAddress(
-                    "0x1111111111111111111111111111111111111111",
-                  ),
+                  srcAddress: leafVoterAddress,
                   logIndex: 1,
                   block: {
                     number: blockNumber,
@@ -576,9 +566,7 @@ describe("SuperchainLeafVoter Events", () => {
                 {
                   contract: "SuperchainLeafVoter",
                   event: "WhitelistToken",
-                  srcAddress: toChecksumAddress(
-                    "0x1111111111111111111111111111111111111111",
-                  ),
+                  srcAddress: leafVoterAddress,
                   logIndex: 1,
                   block: {
                     number: blockNumber,
@@ -603,14 +591,15 @@ describe("SuperchainLeafVoter Events", () => {
 
       it("flags an existing blacklisted token UNTRUSTED/BLACKLISTED on WhitelistToken(true)", async () => {
         // $Manatee on Optimism — present in src/PriceOverrides.ts BLACKLIST
+        // ION / Lisk — the blacklist entry for this chain.
         const blacklistedAddress = toChecksumAddress(
-          "0x7909Bda52eAf7C3cc12745E727Eb527a485241D8",
+          "0x3f608A49a3ab475dA7fBb167C1Be6b7a45cD7013",
         );
         const existing = {
           id: TokenId(chainId, blacklistedAddress),
           address: blacklistedAddress,
-          symbol: "MANATEE",
-          name: "MANATEE",
+          symbol: "ION",
+          name: "ION",
           chainId,
           decimals: BigInt(18),
           pricePerUSDNew: 0n,
@@ -630,9 +619,7 @@ describe("SuperchainLeafVoter Events", () => {
                 {
                   contract: "SuperchainLeafVoter",
                   event: "WhitelistToken",
-                  srcAddress: toChecksumAddress(
-                    "0x1111111111111111111111111111111111111111",
-                  ),
+                  srcAddress: leafVoterAddress,
                   logIndex: 1,
                   block: {
                     number: blockNumber,
@@ -660,7 +647,7 @@ describe("SuperchainLeafVoter Events", () => {
   });
 
   describe("GaugeKilled Event", () => {
-    const chainId = 10 as const;
+    const chainId = 252 as const; // Fraxtal — a superchain leaf
     const poolAddress = toChecksumAddress(
       "0x478946BcD4a5a22b316470F5486fAfb928C0bA25",
     );
@@ -703,9 +690,7 @@ describe("SuperchainLeafVoter Events", () => {
                 {
                   contract: "SuperchainLeafVoter",
                   event: "GaugeKilled",
-                  srcAddress: toChecksumAddress(
-                    "0x1111111111111111111111111111111111111111",
-                  ),
+                  srcAddress: leafVoterAddress,
                   logIndex: 1,
                   block: {
                     number: blockNumber,
@@ -756,9 +741,7 @@ describe("SuperchainLeafVoter Events", () => {
                 {
                   contract: "SuperchainLeafVoter",
                   event: "GaugeKilled",
-                  srcAddress: toChecksumAddress(
-                    "0x1111111111111111111111111111111111111111",
-                  ),
+                  srcAddress: leafVoterAddress,
                   logIndex: 1,
                   block: {
                     number: blockNumber,
@@ -781,7 +764,7 @@ describe("SuperchainLeafVoter Events", () => {
   });
 
   describe("GaugeRevived Event", () => {
-    const chainId = 10 as const;
+    const chainId = 252 as const; // Fraxtal — a superchain leaf
     const poolAddress = toChecksumAddress(
       "0x478946BcD4a5a22b316470F5486fAfb928C0bA25",
     );
@@ -824,9 +807,7 @@ describe("SuperchainLeafVoter Events", () => {
                 {
                   contract: "SuperchainLeafVoter",
                   event: "GaugeRevived",
-                  srcAddress: toChecksumAddress(
-                    "0x1111111111111111111111111111111111111111",
-                  ),
+                  srcAddress: leafVoterAddress,
                   logIndex: 1,
                   block: {
                     number: blockNumber,
@@ -868,9 +849,7 @@ describe("SuperchainLeafVoter Events", () => {
                 {
                   contract: "SuperchainLeafVoter",
                   event: "GaugeRevived",
-                  srcAddress: toChecksumAddress(
-                    "0x1111111111111111111111111111111111111111",
-                  ),
+                  srcAddress: leafVoterAddress,
                   logIndex: 1,
                   block: {
                     number: blockNumber,

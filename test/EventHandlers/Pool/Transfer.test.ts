@@ -4,6 +4,7 @@ import {
   ZERO_ADDRESS,
   toChecksumAddress,
 } from "../../../src/Constants";
+import { registerPool } from "../../registerDynamicContracts";
 import { setupCommon } from "./common";
 
 describe("Pool Transfer Event", () => {
@@ -17,10 +18,11 @@ describe("Pool Transfer Event", () => {
   const blockHash =
     "0x1234567890123456789012345678901234567890123456789012345678901234";
 
-  beforeEach(() => {
+  beforeEach(async () => {
     indexer = createTestIndexer();
     commonData = setupCommon();
     poolAddress = commonData.mockLiquidityPoolData.poolAddress;
+    await registerPool(indexer, chainId, poolAddress);
 
     // Set up test indexer with common data
     indexer.Pool.set(commonData.mockLiquidityPoolData);
@@ -218,13 +220,18 @@ describe("Pool Transfer Event", () => {
     expect(recipientStats?.lpBalance).toBe(LP_VALUE);
   });
 
-  describe("when pool does not exist", () => {
+  describe("when pool data cannot be loaded", () => {
     it("should return early without processing", async () => {
-      // Create a fresh indexer without the pool
+      // Note: we intentionally don't seed the Pool. `registerPool` had to
+      // replay `PoolFactory.PoolCreated` to put the address on the chain, and
+      // that handler always writes a Pool row — so the row here is the factory
+      // default, pointing at token ids that were never created. `loadPoolData`
+      // returns null on that missing-token branch, which is the early return
+      // under test.
       const freshIndexer = createTestIndexer();
+      await registerPool(freshIndexer, chainId, poolAddress);
       freshIndexer.Token.set(commonData.mockToken0Data);
       freshIndexer.Token.set(commonData.mockToken1Data);
-      // Note: We intentionally don't set the Pool
 
       await freshIndexer.process({
         chains: {
@@ -258,11 +265,12 @@ describe("Pool Transfer Event", () => {
         },
       });
 
-      // Pool should not exist
+      // The transfer never reached the pool: the factory row is untouched.
       const pool = await freshIndexer.Pool.get(
         commonData.mockLiquidityPoolData.id,
       );
-      expect(pool).toBeUndefined();
+      expect(pool).toBeDefined();
+      expect(pool?.totalLiquidityUSD).toBe(0n);
 
       // No entities should be created
       const transferId = `10-${txHash}-${poolAddress}-0`;

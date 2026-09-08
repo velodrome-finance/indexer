@@ -12,6 +12,11 @@ describe("ALMCore Rebalance Event", () => {
   } = setupCommon();
   const chainId = mockLiquidityPoolData.chainId as 10;
   const poolAddress = mockLiquidityPoolData.poolAddress;
+  // The configured Optimism ALMCore. An event only routes to a contract
+  // when its source address is one configured for that chain.
+  const almCoreAddress = toChecksumAddress(
+    "0x0000000cE42D4981513060aB7E50B9e5e2D19AF1",
+  );
   const wrapperAddress = mockALMLPWrapperData.id.split("_")[0];
   const transactionHash =
     "0x1234567890123456789012345678901234567890123456789012345678901234";
@@ -42,7 +47,7 @@ describe("ALMCore Rebalance Event", () => {
               {
                 contract: "ALMCore",
                 event: "Rebalance",
-                srcAddress: poolAddress,
+                srcAddress: almCoreAddress,
                 logIndex: 1,
                 block: {
                   timestamp: blockTimestamp,
@@ -106,7 +111,7 @@ describe("ALMCore Rebalance Event", () => {
               {
                 contract: "ALMCore",
                 event: "Rebalance",
-                srcAddress: poolAddress,
+                srcAddress: almCoreAddress,
                 logIndex: 1,
                 block: {
                   timestamp: blockTimestamp,
@@ -176,7 +181,7 @@ describe("ALMCore Rebalance Event", () => {
               {
                 contract: "ALMCore",
                 event: "Rebalance",
-                srcAddress: poolAddress,
+                srcAddress: almCoreAddress,
                 logIndex: 1,
                 block: {
                   timestamp: blockTimestamp,
@@ -239,7 +244,7 @@ describe("ALMCore Rebalance Event", () => {
               {
                 contract: "ALMCore",
                 event: "Rebalance",
-                srcAddress: poolAddress,
+                srcAddress: almCoreAddress,
                 logIndex: 1,
                 block: {
                   timestamp: blockTimestamp,

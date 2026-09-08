@@ -15,6 +15,12 @@ describe("VeNFT Events", () => {
   let indexer: ReturnType<typeof createTestIndexer>;
   const chainId = 10 as const;
   const tokenId = 1n;
+  // Every VeNFT event is emitted by the VeNFT contract itself. An event only
+  // routes to a contract when its source address is one configured for that
+  // chain, so the fixtures use the configured Optimism deployment.
+  const veNFTAddress = toChecksumAddress(
+    "0xFAf8FD17D9840595845582fCB047DF13f006787d",
+  );
 
   const mockVeNFTState = {
     id: VeNFTId(chainId, tokenId),
@@ -51,9 +57,7 @@ describe("VeNFT Events", () => {
               {
                 contract: "VeNFT",
                 event: "Transfer",
-                srcAddress: toChecksumAddress(
-                  "0x3333333333333333333333333333333333333333",
-                ),
+                srcAddress: veNFTAddress,
                 logIndex: 1,
                 block: {
                   timestamp: 1000000,
@@ -160,7 +164,7 @@ describe("VeNFT Events", () => {
               {
                 contract: "VeNFT",
                 event: "Transfer",
-                srcAddress: oldOwner,
+                srcAddress: veNFTAddress,
                 logIndex: 1,
                 block: {
                   timestamp: 1000000,
@@ -284,7 +288,7 @@ describe("VeNFT Events", () => {
               {
                 contract: "VeNFT",
                 event: "Transfer",
-                srcAddress: oldOwner,
+                srcAddress: veNFTAddress,
                 logIndex: 1,
                 block: {
                   timestamp: 1000000,
@@ -371,7 +375,7 @@ describe("VeNFT Events", () => {
               {
                 contract: "VeNFT",
                 event: "Transfer",
-                srcAddress: oldOwner,
+                srcAddress: veNFTAddress,
                 logIndex: 1,
                 block: {
                   timestamp: 1000000,
@@ -441,7 +445,7 @@ describe("VeNFT Events", () => {
               {
                 contract: "VeNFT",
                 event: "Transfer",
-                srcAddress: oldOwner,
+                srcAddress: veNFTAddress,
                 logIndex: 1,
                 block: {
                   timestamp: 1000000,
@@ -491,9 +495,7 @@ describe("VeNFT Events", () => {
               {
                 contract: "VeNFT",
                 event: "Withdraw",
-                srcAddress: toChecksumAddress(
-                  "0x3333333333333333333333333333333333333333",
-                ),
+                srcAddress: veNFTAddress,
                 logIndex: 1,
                 block: {
                   timestamp: 1000000,
@@ -544,9 +546,7 @@ describe("VeNFT Events", () => {
               {
                 contract: "VeNFT",
                 event: "Withdraw",
-                srcAddress: toChecksumAddress(
-                  "0x3333333333333333333333333333333333333333",
-                ),
+                srcAddress: veNFTAddress,
                 logIndex: 1,
                 block: {
                   timestamp: 1000000,
@@ -595,9 +595,7 @@ describe("VeNFT Events", () => {
               {
                 contract: "VeNFT",
                 event: "Deposit",
-                srcAddress: toChecksumAddress(
-                  "0x3333333333333333333333333333333333333333",
-                ),
+                srcAddress: veNFTAddress,
                 logIndex: 1,
                 block: {
                   timestamp: 1000000,
@@ -652,9 +650,7 @@ describe("VeNFT Events", () => {
               {
                 contract: "VeNFT",
                 event: "Deposit",
-                srcAddress: toChecksumAddress(
-                  "0x3333333333333333333333333333333333333333",
-                ),
+                srcAddress: veNFTAddress,
                 logIndex: 1,
                 block: {
                   timestamp: 1000000,
@@ -704,7 +700,7 @@ describe("VeNFT Events", () => {
           hash: "0xsplit",
         },
         logIndex,
-        srcAddress: owner,
+        srcAddress: veNFTAddress,
       });
 
       await splitIndexer.process({
@@ -823,7 +819,7 @@ describe("VeNFT Events", () => {
           hash: "0xmerge",
         },
         logIndex,
-        srcAddress: owner,
+        srcAddress: veNFTAddress,
       });
 
       await mergeIndexer.process({
@@ -918,7 +914,7 @@ describe("VeNFT Events", () => {
           hash: "0xmanaged",
         },
         logIndex,
-        srcAddress: owner,
+        srcAddress: veNFTAddress,
       });
 
       await managedIndexer.process({
