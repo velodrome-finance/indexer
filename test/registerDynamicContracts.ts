@@ -141,6 +141,24 @@ type GaugeRegistration = {
 };
 
 /**
+ * `Voter.GaugeCreated.poolFactory` decides whether the gauge is registered as a
+ * `CLGauge` or a `Gauge`, by membership of the two factory lists. Those lists
+ * pool both chains' deployments, so picking an arbitrary entry would hand a
+ * chain-10 registration a Base factory — routing would still work, but the
+ * fixture would describe something that cannot happen on that chain. Pin the
+ * per-chain deployment instead.
+ */
+const VOTER_CL_POOL_FACTORY_BY_CHAIN: Record<number, string> = {
+  10: toChecksumAddress("0x548118C7E0B865C2CfA94D15EC86B666468ac758"),
+  8453: toChecksumAddress("0x5e7BB104d84c7CB9B682AaC2F3d509f5F406809A"),
+};
+
+const VOTER_NONCL_POOL_FACTORY_BY_CHAIN: Record<number, string> = {
+  10: toChecksumAddress("0xF1046053aa5682b4F9a81b5481394DA16BE5FF5a"),
+  8453: toChecksumAddress("0x420DD381b31aEf6683db6B902084cB0FFECe40Da"),
+};
+
+/**
  * Register a gauge and its voting rewards via `Voter.GaugeCreated`.
  * `Voter` is configured on Optimism (10) and Base (8453); the other chains use
  * {@link registerLeafVoterGauge}.
@@ -151,8 +169,25 @@ export async function registerVoterGauge(
   reg: GaugeRegistration,
 ): Promise<void> {
   const poolFactory = reg.isCL
-    ? VOTER_CLPOOLS_FACTORY_LIST[0]
-    : VOTER_NONCL_POOLS_FACTORY_LIST[0];
+    ? VOTER_CL_POOL_FACTORY_BY_CHAIN[chainId]
+    : VOTER_NONCL_POOL_FACTORY_BY_CHAIN[chainId];
+  if (!poolFactory) {
+    throw new Error(
+      `registerVoterGauge: Voter is not configured on chain ${chainId}. Use registerLeafVoterGauge for the superchain leaves.`,
+    );
+  }
+  // The handler routes on list membership, so a drifted address here would
+  // silently register nothing. Fail loudly instead.
+  const list = reg.isCL
+    ? VOTER_CLPOOLS_FACTORY_LIST
+    : VOTER_NONCL_POOLS_FACTORY_LIST;
+  if (!list.includes(poolFactory)) {
+    throw new Error(
+      `registerVoterGauge: ${poolFactory} is missing from the ${
+        reg.isCL ? "CL" : "non-CL"
+      } Voter factory list; the handler would not register the gauge.`,
+    );
+  }
   await replay(indexer, chainId, (block) => [
     {
       contract: "Voter",

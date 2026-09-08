@@ -1,7 +1,7 @@
 import type { Token } from "envio";
 import { createTestIndexer } from "envio";
 import type { MockInstance } from "vitest";
-import { toChecksumAddress } from "../../../src/Constants";
+import { PoolId, toChecksumAddress } from "../../../src/Constants";
 import { rehydrateTimestamps } from "../../../src/EntityTimestamps";
 import type { Pool as PoolEntity } from "../../../src/EntityTypes";
 import * as PriceOracle from "../../../src/PriceOracle";
@@ -334,11 +334,15 @@ describe("Pool Claim Event", () => {
     });
   });
 
-  describe("when pool does not exist", () => {
+  describe("when pool data cannot be loaded", () => {
     it("should return early without processing", async () => {
-      const srcAddress = toChecksumAddress(
-        "0x3333333333333333333333333333333333333333",
-      );
+      // Note: we intentionally don't seed the Pool. `registerPool` had to
+      // replay `PoolFactory.PoolCreated` to put the address on the chain, and
+      // that handler always writes a Pool row — so the row here is the factory
+      // default, pointing at token ids that were never created. `loadPoolData`
+      // returns null on that missing-token branch, which is the early return
+      // under test.
+      const srcAddress = poolSrcAddress;
 
       await indexer.process({
         chains: {
@@ -368,9 +372,14 @@ describe("Pool Claim Event", () => {
         },
       });
 
-      const pool = await indexer.Pool.get(toChecksumAddress(srcAddress));
+      // The claim never reached the pool: the factory row is untouched.
+      const pool = await indexer.Pool.get(PoolId(chainId, srcAddress));
 
-      expect(pool).toBeUndefined();
+      expect(pool).toBeDefined();
+      expect(pool?.totalStakedFeesCollected0).toBe(0n);
+      expect(pool?.totalStakedFeesCollected1).toBe(0n);
+      expect(pool?.totalUnstakedFeesCollected0).toBe(0n);
+      expect(pool?.totalUnstakedFeesCollected1).toBe(0n);
       expect(mockPriceOracle).not.toHaveBeenCalled();
     });
   });
