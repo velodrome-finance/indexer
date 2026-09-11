@@ -550,6 +550,15 @@ describe("NFPM Events", () => {
     const chainIdBase = 8453 as const; // Base
     const chainIdLisk = 1135 as const; // Lisk
     const sameTokenId = 42n; // Same tokenId on both chains
+    // Each chain runs its own NFPM deployment. An event only routes to a
+    // contract when its source address is one configured for that chain, so
+    // these fixtures must use the per-chain NFPM rather than Optimism's.
+    const nfpmAddressBase = toChecksumAddress(
+      "0x827922686190790b37229fd06084350E74485b72",
+    );
+    const nfpmAddressLisk = toChecksumAddress(
+      "0x991d5546C4B442B4c5fdc4c8B8b8d131DEB24702",
+    );
     const poolAddressBase = toChecksumAddress(
       "0x0000000000000000000000000000000000000001",
     );
@@ -559,10 +568,10 @@ describe("NFPM Events", () => {
 
     // Position on Base (chain 8453)
     const positionBase = {
-      id: NonFungiblePositionId(chainIdBase, nfpmAddress, sameTokenId),
+      id: NonFungiblePositionId(chainIdBase, nfpmAddressBase, sameTokenId),
       chainId: chainIdBase,
       tokenId: sameTokenId,
-      nfpmAddress: nfpmAddress,
+      nfpmAddress: nfpmAddressBase,
       owner: toChecksumAddress("0x1111111111111111111111111111111111111111"),
       pool: poolAddressBase,
       tickUpper: 100n,
@@ -579,10 +588,10 @@ describe("NFPM Events", () => {
 
     // Position on Lisk (chain 1135) with same tokenId
     const positionLisk = {
-      id: NonFungiblePositionId(chainIdLisk, nfpmAddress, sameTokenId),
+      id: NonFungiblePositionId(chainIdLisk, nfpmAddressLisk, sameTokenId),
       chainId: chainIdLisk,
       tokenId: sameTokenId,
-      nfpmAddress: nfpmAddress,
+      nfpmAddress: nfpmAddressLisk,
       owner: toChecksumAddress("0x2222222222222222222222222222222222222222"),
       pool: poolAddressLisk,
       tickUpper: 200n,
@@ -702,7 +711,7 @@ describe("NFPM Events", () => {
               {
                 contract: "NFPM",
                 event: "Transfer",
-                srcAddress: nfpmAddress,
+                srcAddress: nfpmAddressBase,
                 logIndex: 1,
                 block: {
                   timestamp: 1000000,
@@ -727,10 +736,10 @@ describe("NFPM Events", () => {
       // Should only update the Base position, not the Lisk position
       const updatedBasePosition =
         await crossChainIndexer.NonFungiblePosition.get(
-          NonFungiblePositionId(chainIdBase, nfpmAddress, sameTokenId),
+          NonFungiblePositionId(chainIdBase, nfpmAddressBase, sameTokenId),
         );
       const liskPosition = await crossChainIndexer.NonFungiblePosition.get(
-        NonFungiblePositionId(chainIdLisk, nfpmAddress, sameTokenId),
+        NonFungiblePositionId(chainIdLisk, nfpmAddressLisk, sameTokenId),
       );
 
       expect(updatedBasePosition).toBeDefined();
@@ -784,7 +793,7 @@ describe("NFPM Events", () => {
               {
                 contract: "NFPM",
                 event: "IncreaseLiquidity",
-                srcAddress: nfpmAddress,
+                srcAddress: nfpmAddressBase,
                 logIndex: 1,
                 block: {
                   timestamp: 1000000,
@@ -809,10 +818,10 @@ describe("NFPM Events", () => {
       // Should only update the Base position
       const updatedBasePosition =
         await crossChainIndexer.NonFungiblePosition.get(
-          NonFungiblePositionId(chainIdBase, nfpmAddress, sameTokenId),
+          NonFungiblePositionId(chainIdBase, nfpmAddressBase, sameTokenId),
         );
       const liskPosition = await crossChainIndexer.NonFungiblePosition.get(
-        NonFungiblePositionId(chainIdLisk, nfpmAddress, sameTokenId),
+        NonFungiblePositionId(chainIdLisk, nfpmAddressLisk, sameTokenId),
       );
 
       expect(updatedBasePosition).toBeDefined();
@@ -863,7 +872,7 @@ describe("NFPM Events", () => {
               {
                 contract: "NFPM",
                 event: "DecreaseLiquidity",
-                srcAddress: nfpmAddress,
+                srcAddress: nfpmAddressLisk,
                 logIndex: 1,
                 block: {
                   timestamp: 1000000,
@@ -887,11 +896,11 @@ describe("NFPM Events", () => {
 
       // Should only update the Lisk position
       const basePosition = await crossChainIndexer.NonFungiblePosition.get(
-        NonFungiblePositionId(chainIdBase, nfpmAddress, sameTokenId),
+        NonFungiblePositionId(chainIdBase, nfpmAddressBase, sameTokenId),
       );
       const updatedLiskPosition =
         await crossChainIndexer.NonFungiblePosition.get(
-          NonFungiblePositionId(chainIdLisk, nfpmAddress, sameTokenId),
+          NonFungiblePositionId(chainIdLisk, nfpmAddressLisk, sameTokenId),
         );
 
       expect(updatedLiskPosition).toBeDefined();
@@ -940,7 +949,7 @@ describe("NFPM Events", () => {
               {
                 contract: "NFPM",
                 event: "IncreaseLiquidity",
-                srcAddress: nfpmAddress,
+                srcAddress: nfpmAddressBase,
                 logIndex: 1,
                 block: {
                   timestamp: 1000000,
@@ -965,7 +974,7 @@ describe("NFPM Events", () => {
       // Verify: Base position should be updated (correct position was found and used)
       const updatedBasePosition =
         await crossChainIndexer.NonFungiblePosition.get(
-          NonFungiblePositionId(chainIdBase, nfpmAddress, sameTokenId),
+          NonFungiblePositionId(chainIdBase, nfpmAddressBase, sameTokenId),
         );
       expect(updatedBasePosition).toBeDefined();
       if (!updatedBasePosition) return;
@@ -976,7 +985,7 @@ describe("NFPM Events", () => {
 
       // Verify: Lisk position should remain unchanged (wrong position was NOT used)
       const liskPosition = await crossChainIndexer.NonFungiblePosition.get(
-        NonFungiblePositionId(chainIdLisk, nfpmAddress, sameTokenId),
+        NonFungiblePositionId(chainIdLisk, nfpmAddressLisk, sameTokenId),
       );
       expect(liskPosition).toBeDefined();
       if (!liskPosition) return;

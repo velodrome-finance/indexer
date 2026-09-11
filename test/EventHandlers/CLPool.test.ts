@@ -14,6 +14,7 @@ import * as CLPoolCollectLogic from "../../src/EventHandlers/CLPool/CLPoolCollec
 import * as CLPoolFlashLogic from "../../src/EventHandlers/CLPool/CLPoolFlashLogic";
 import * as CLPoolMintLogic from "../../src/EventHandlers/CLPool/CLPoolMintLogic";
 import * as CLPoolSwapLogic from "../../src/EventHandlers/CLPool/CLPoolSwapLogic";
+import { registerCLPool } from "../registerDynamicContracts";
 import { type MockPool, setupCommon } from "./Pool/common";
 
 describe("CLPool Events", () => {
@@ -35,13 +36,14 @@ describe("CLPool Events", () => {
   let liquidityPool: MockPool;
   let userStats: ReturnType<typeof createMockUserStatsPerPool>;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     indexer = createTestIndexer();
 
     // Set up liquidity pool
     liquidityPool = createMockPool({
       isCL: true,
     });
+    await registerCLPool(indexer, chainId, liquidityPool.poolAddress);
 
     // Set up user stats with all required fields
     userStats = createMockUserStatsPerPool({
@@ -152,6 +154,7 @@ describe("CLPool Events", () => {
 
     it("should return early if pool data not found", async () => {
       const emptyIndexer = createTestIndexer();
+      await registerCLPool(emptyIndexer, chainId, liquidityPool.poolAddress);
       await emptyIndexer.process({
         chains: {
           [chainId]: {
@@ -203,6 +206,7 @@ describe("CLPool Events", () => {
       };
 
       const ousdtIndexer = createTestIndexer();
+      await registerCLPool(ousdtIndexer, chainId, liquidityPool.poolAddress);
       ousdtIndexer.Pool.set(ousdtPool);
       ousdtIndexer.Token.set(ousdtToken);
       ousdtIndexer.Token.set(mockToken1Data as Token);
@@ -260,6 +264,7 @@ describe("CLPool Events", () => {
       };
 
       const ousdtIndexer2 = createTestIndexer();
+      await registerCLPool(ousdtIndexer2, chainId, liquidityPool.poolAddress);
       ousdtIndexer2.Pool.set(ousdtToken1Pool);
       ousdtIndexer2.Token.set(mockToken0Data as Token);
       ousdtIndexer2.Token.set(ousdtToken);
@@ -324,6 +329,7 @@ describe("CLPool Events", () => {
       };
 
       const ousdtIndexer = createTestIndexer();
+      await registerCLPool(ousdtIndexer, chainId, liquidityPool.poolAddress);
       ousdtIndexer.Pool.set(ousdtPool);
       ousdtIndexer.Token.set(ousdtToken);
       ousdtIndexer.Token.set(mockToken1Data as Token);
@@ -376,6 +382,7 @@ describe("CLPool Events", () => {
 
       // Test with negative amount0 (amount0Out path)
       const ousdtIndexer2 = createTestIndexer();
+      await registerCLPool(ousdtIndexer2, chainId, liquidityPool.poolAddress);
       ousdtIndexer2.Pool.set(ousdtPool);
       ousdtIndexer2.Token.set(ousdtToken);
       ousdtIndexer2.Token.set(mockToken1Data as Token);
@@ -489,6 +496,7 @@ describe("CLPool Events", () => {
 
     it("should return early if pool data not found", async () => {
       const emptyIndexer = createTestIndexer();
+      await registerCLPool(emptyIndexer, chainId, liquidityPool.poolAddress);
       await emptyIndexer.process({
         chains: {
           [chainId]: {
@@ -588,6 +596,7 @@ describe("CLPool Events", () => {
 
     it("should return early if pool data not found", async () => {
       const emptyIndexer = createTestIndexer();
+      await registerCLPool(emptyIndexer, chainId, liquidityPool.poolAddress);
       await emptyIndexer.process({
         chains: {
           [chainId]: {
@@ -697,6 +706,7 @@ describe("CLPool Events", () => {
 
     it("should return early if pool data not found", async () => {
       const emptyIndexer = createTestIndexer();
+      await registerCLPool(emptyIndexer, chainId, liquidityPool.poolAddress);
       await emptyIndexer.process({
         chains: {
           [chainId]: {
@@ -802,6 +812,7 @@ describe("CLPool Events", () => {
 
     it("should return early if pool data not found", async () => {
       const emptyIndexer = createTestIndexer();
+      await registerCLPool(emptyIndexer, chainId, liquidityPool.poolAddress);
       await emptyIndexer.process({
         chains: {
           [chainId]: {
@@ -988,6 +999,7 @@ describe("CLPool Events", () => {
 
     it("should return early if pool data not found", async () => {
       const emptyIndexer = createTestIndexer();
+      await registerCLPool(emptyIndexer, chainId, liquidityPool.poolAddress);
       await emptyIndexer.process({
         chains: {
           [chainId]: {
@@ -1111,6 +1123,7 @@ describe("CLPool Events", () => {
 
     it("should return early if pool data not found", async () => {
       const emptyIndexer = createTestIndexer();
+      await registerCLPool(emptyIndexer, chainId, liquidityPool.poolAddress);
       await emptyIndexer.process({
         chains: {
           [chainId]: {
@@ -1177,6 +1190,7 @@ describe("CLPool Events", () => {
 
     it("should return early if pool data not found", async () => {
       const emptyIndexer = createTestIndexer();
+      await registerCLPool(emptyIndexer, chainId, liquidityPool.poolAddress);
       await emptyIndexer.process({
         chains: {
           [chainId]: {
@@ -1218,6 +1232,7 @@ describe("CLPool Events", () => {
         "0x9999999999999999999999999999999999999999",
       );
       const initIndexer = createTestIndexer();
+      await registerCLPool(initIndexer, chainId, pool);
       await initIndexer.process({
         chains: {
           [chainId]: {

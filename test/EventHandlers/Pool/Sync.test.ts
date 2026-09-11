@@ -5,6 +5,7 @@ import {
   TEN_TO_THE_18_BI,
   toChecksumAddress,
 } from "../../../src/Constants";
+import { registerPool } from "../../registerDynamicContracts";
 import { setupPool } from "../../testHelpers";
 import { setupCommon } from "./common";
 
@@ -38,7 +39,7 @@ describe("Pool Sync Event", () => {
 
   let indexer: ReturnType<typeof createTestIndexer>;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     const setupData = setupCommon();
     mockToken0Data = setupData.mockToken0Data;
     mockToken1Data = setupData.mockToken1Data;
@@ -70,6 +71,7 @@ describe("Pool Sync Event", () => {
     eventData.reserve1 = expectations.expectedReserve1;
 
     indexer = createTestIndexer();
+    await registerPool(indexer, chainId, eventData.srcAddress);
   });
 
   describe("when both tokens exist", () => {
@@ -116,12 +118,16 @@ describe("Pool Sync Event", () => {
     });
   });
 
-  describe("when pool does not exist", () => {
+  describe("when pool data cannot be loaded", () => {
     it("should return early without processing", async () => {
-      // Create a indexer without the pool
+      // Note: we intentionally don't seed the Pool. `registerPool` had to
+      // replay `PoolFactory.PoolCreated` to put `srcAddress` on the chain, and
+      // that handler always writes a Pool row — so the row here is the factory
+      // default, pointing at token ids that were never created. `loadPoolData`
+      // returns null on that missing-token branch, which is the early return
+      // under test.
       indexer.Token.set(mockToken0Data);
       indexer.Token.set(mockToken1Data);
-      // Note: We intentionally don't set the Pool
 
       await indexer.process({
         chains: {
@@ -147,11 +153,13 @@ describe("Pool Sync Event", () => {
         },
       });
 
-      // Pool should not exist
+      // The sync never reached the pool: the factory-created row is untouched.
       const pool = await indexer.Pool.get(
         PoolId(chainId, eventData.srcAddress),
       );
-      expect(pool).toBeUndefined();
+      expect(pool).toBeDefined();
+      expect(pool?.reserve0).toBe(0n);
+      expect(pool?.reserve1).toBe(0n);
     });
   });
 });

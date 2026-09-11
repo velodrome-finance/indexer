@@ -12,6 +12,7 @@ import {
 import { rehydrateTimestamps } from "../../../src/EntityTimestamps";
 import type { Pool as PoolEntity } from "../../../src/EntityTypes";
 import * as PriceOracle from "../../../src/PriceOracle";
+import { registerPool } from "../../registerDynamicContracts";
 import { setupCommon } from "./common";
 
 describe("Pool Swap Event", () => {
@@ -59,7 +60,7 @@ describe("Pool Swap Event", () => {
   let mockPriceOracle: MockInstance;
   let indexer: ReturnType<typeof createTestIndexer>;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     const setupData = setupCommon();
     mockToken0Data = setupData.mockToken0Data;
     mockToken1Data = setupData.mockToken1Data;
@@ -106,6 +107,7 @@ describe("Pool Swap Event", () => {
       });
 
     indexer = createTestIndexer();
+    await registerPool(indexer, chainId, srcAddress);
     eventParams.amount0In = expectations.swapAmount0In;
     eventParams.amount1Out = expectations.swapAmount1Out;
   });
@@ -251,12 +253,17 @@ describe("Pool Swap Event", () => {
     });
   });
 
-  describe("when pool does not exist", () => {
+  describe("when pool data cannot be loaded", () => {
     it("should return early without processing", async () => {
-      // Create a mockDb without the pool
+      // Note: we intentionally don't seed the Pool. `registerPool` had to
+      // replay `PoolFactory.PoolCreated` to put `srcAddress` on the chain, and
+      // that handler always writes a Pool row — so the row here is the factory
+      // default, pointing at token ids that were never created. `loadPoolData`
+      // returns null on that missing-token branch, which is the early return
+      // under test. (The missing-Pool branch is covered against a mocked
+      // `loadPoolData` in the *Logic tests.)
       indexer.Token.set(mockToken0Data as Token);
       indexer.Token.set(mockToken1Data as Token);
-      // Note: We intentionally don't set the Pool
 
       await indexer.process({
         chains: {
@@ -279,9 +286,12 @@ describe("Pool Swap Event", () => {
         },
       });
 
-      // Pool should not exist
+      // The swap never reached the pool: the factory-created row is untouched.
       const pool = await indexer.Pool.get(PoolId(chainId, srcAddress));
-      expect(pool).toBeUndefined();
+      expect(pool).toBeDefined();
+      expect(pool?.totalVolume0).toBe(0n);
+      expect(pool?.totalVolume1).toBe(0n);
+      expect(pool?.numberOfSwaps).toBe(0n);
 
       // User stats will still be created because loadOrCreateUserData is called in parallel
       // but they should have default/zero values since no swap processing occurred

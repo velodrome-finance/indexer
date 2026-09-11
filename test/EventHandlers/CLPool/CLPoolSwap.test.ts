@@ -2,6 +2,7 @@ import { createTestIndexer } from "envio";
 import type { MockInstance } from "vitest";
 import { UserStatsPerPoolId, toChecksumAddress } from "../../../src/Constants";
 import * as PriceOracle from "../../../src/PriceOracle";
+import { registerCLPool } from "../../registerDynamicContracts";
 import { setupCommon } from "../Pool/common";
 
 // #814: per-user swap stats must accrue to the transaction signer (the user),
@@ -22,11 +23,15 @@ describe("CLPool Swap Event — attribution target (#814)", () => {
   const userChecksummed = toChecksumAddress(userLower);
 
   beforeEach(async () => {
+    indexer = createTestIndexer();
+    // Register before the spy so the factory replay's own price lookups are
+    // not recorded against `mockPriceOracle`.
+    await registerCLPool(indexer, chainId, poolAddress);
+
     mockPriceOracle = vi
       .spyOn(PriceOracle, "refreshTokenPrice")
       .mockImplementation(async (...args) => args[0]);
 
-    indexer = createTestIndexer();
     indexer.Pool.set(mockLiquidityPoolData);
     indexer.Token.set(mockToken0Data);
     indexer.Token.set(mockToken1Data);

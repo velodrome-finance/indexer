@@ -10,8 +10,10 @@ describe("V2PoolLauncher Events", () => {
   const mockPoolAddress = toChecksumAddress(
     "0x1111111111111111111111111111111111111111",
   );
+  // The configured Optimism V2PoolLauncher. An event only routes to a contract when
+  // its source address is one configured for that chain.
   const mockLauncherAddress = toChecksumAddress(
-    "0x2222222222222222222222222222222222222222",
+    "0x8B8025D4cD620BB89e196D32851d4c6E5B74AA60",
   );
   const mockCreator = toChecksumAddress(
     "0x3333333333333333333333333333333333333333",

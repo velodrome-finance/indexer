@@ -1,5 +1,6 @@
 import { createTestIndexer } from "envio";
 import { CLPoolMintEventId, toChecksumAddress } from "../../../src/Constants";
+import { registerCLPool } from "../../registerDynamicContracts";
 import { setupCommon } from "../Pool/common";
 
 describe("CLPool Mint Event Handler", () => {
@@ -14,8 +15,9 @@ describe("CLPool Mint Event Handler", () => {
   const transactionHash =
     "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890";
 
-  beforeEach(() => {
+  beforeEach(async () => {
     indexer = createTestIndexer();
+    await registerCLPool(indexer, chainId, poolAddress);
 
     // Set up indexer with required entities
     indexer.Pool.set(mockLiquidityPoolData);

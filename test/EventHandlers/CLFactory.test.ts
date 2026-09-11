@@ -17,6 +17,17 @@ import {
 import { rehydrateTimestamps } from "../../src/EntityTimestamps";
 import { setupCommon } from "./Pool/common";
 
+// An event only routes to a contract when its source address is one configured
+// for that chain in config.yaml, so these fixtures use the real deployments.
+const CL_FACTORY_ADDRESS_BY_CHAIN: Record<number, string> = {
+  10: toChecksumAddress("0x548118C7E0B865C2CfA94D15EC86B666468ac758"),
+  8453: toChecksumAddress("0x5e7BB104d84c7CB9B682AaC2F3d509f5F406809A"),
+  252: toChecksumAddress("0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F"),
+};
+const ROOT_CL_POOL_FACTORY_ADDRESS_OPTIMISM = toChecksumAddress(
+  "0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F",
+);
+
 describe("CLFactory Events", () => {
   const { mockToken0Data, mockToken1Data } = setupCommon();
   // Use Base (8453) — chainId-keyed CLGaugeConfig has a row for 8453 via CLGaugeFactoryV2
@@ -87,7 +98,9 @@ describe("CLFactory Events", () => {
               {
                 contract: "CLFactory",
                 event: "PoolCreated",
-                srcAddress: poolAddress as `0x${string}`,
+                srcAddress: CL_FACTORY_ADDRESS_BY_CHAIN[
+                  chainId
+                ] as `0x${string}`,
                 logIndex: 1,
                 block: {
                   number: 1000000,
@@ -133,7 +146,9 @@ describe("CLFactory Events", () => {
               {
                 contract: "CLFactory",
                 event: "PoolCreated",
-                srcAddress: poolAddress as `0x${string}`,
+                srcAddress: CL_FACTORY_ADDRESS_BY_CHAIN[
+                  chainId
+                ] as `0x${string}`,
                 logIndex: 1,
                 block: {
                   number: 1000000,
@@ -178,7 +193,9 @@ describe("CLFactory Events", () => {
               {
                 contract: "CLFactory",
                 event: "PoolCreated",
-                srcAddress: poolAddress as `0x${string}`,
+                srcAddress: CL_FACTORY_ADDRESS_BY_CHAIN[
+                  chainId
+                ] as `0x${string}`,
                 logIndex: 1,
                 block: {
                   number: 1000000,
@@ -240,7 +257,9 @@ describe("CLFactory Events", () => {
               {
                 contract: "CLFactory",
                 event: "PoolCreated",
-                srcAddress: poolAddress as `0x${string}`,
+                srcAddress: CL_FACTORY_ADDRESS_BY_CHAIN[
+                  chainId
+                ] as `0x${string}`,
                 logIndex: 1,
                 block: {
                   number: 1000000,
@@ -306,7 +325,9 @@ describe("CLFactory Events", () => {
                 {
                   contract: "CLFactory",
                   event: "PoolCreated",
-                  srcAddress: poolAddress as `0x${string}`,
+                  srcAddress: CL_FACTORY_ADDRESS_BY_CHAIN[
+                    chainId
+                  ] as `0x${string}`,
                   logIndex: 1,
                   block: {
                     number: 1000000,
@@ -411,7 +432,9 @@ describe("CLFactory Events", () => {
                 {
                   contract: "CLFactory",
                   event: "PoolCreated",
-                  srcAddress: poolAddress as `0x${string}`,
+                  srcAddress: CL_FACTORY_ADDRESS_BY_CHAIN[
+                    chainId
+                  ] as `0x${string}`,
                   logIndex,
                   block: {
                     number: blockNumber,
@@ -535,7 +558,7 @@ describe("CLFactory Events", () => {
         const rootPoolCreatedSimulate = {
           contract: "RootCLPoolFactory" as const,
           event: "RootPoolCreated" as const,
-          srcAddress: rpa as `0x${string}`,
+          srcAddress: ROOT_CL_POOL_FACTORY_ADDRESS_OPTIMISM as `0x${string}`,
           logIndex: 1,
           block: { timestamp: ts, number: bn, hash },
           params: {
@@ -553,7 +576,7 @@ describe("CLFactory Events", () => {
         ) => ({
           contract: "CLFactory" as const,
           event: "PoolCreated" as const,
-          srcAddress: lpa as `0x${string}`,
+          srcAddress: CL_FACTORY_ADDRESS_BY_CHAIN[lcid] as `0x${string}`,
           logIndex: 1,
           block: {
             number: bn + blockOffset,
@@ -804,7 +827,9 @@ describe("CLFactory Events", () => {
                 {
                   contract: "CLFactory",
                   event: "PoolCreated",
-                  srcAddress: poolAddress as `0x${string}`,
+                  srcAddress: CL_FACTORY_ADDRESS_BY_CHAIN[
+                    chainId
+                  ] as `0x${string}`,
                   logIndex: 1,
                   block: {
                     number: blockNumber,
@@ -869,9 +894,9 @@ describe("CLFactory Events", () => {
               {
                 contract: "CLFactory",
                 event: "TickSpacingEnabled",
-                srcAddress: toChecksumAddress(
-                  "0x1111111111111111111111111111111111111111",
-                ) as `0x${string}`,
+                srcAddress: CL_FACTORY_ADDRESS_BY_CHAIN[
+                  CHAIN_ID
+                ] as `0x${string}`,
                 logIndex: 1,
                 block: {
                   timestamp: BLOCK_TIMESTAMP,
@@ -926,9 +951,9 @@ describe("CLFactory Events", () => {
               {
                 contract: "CLFactory",
                 event: "TickSpacingEnabled",
-                srcAddress: toChecksumAddress(
-                  "0x1111111111111111111111111111111111111111",
-                ) as `0x${string}`,
+                srcAddress: CL_FACTORY_ADDRESS_BY_CHAIN[
+                  CHAIN_ID
+                ] as `0x${string}`,
                 logIndex: 2,
                 block: {
                   timestamp: newTimestamp,
@@ -1016,9 +1041,7 @@ describe("CLFactory Events", () => {
                 simulate: chainMappings.map((m) => ({
                   contract: "CLFactory" as const,
                   event: "TickSpacingEnabled" as const,
-                  srcAddress: toChecksumAddress(
-                    "0x1111111111111111111111111111111111111111",
-                  ) as `0x${string}`,
+                  srcAddress: CL_FACTORY_ADDRESS_BY_CHAIN[cid] as `0x${string}`,
                   logIndex: m.logIndex,
                   block: {
                     timestamp: BLOCK_TIMESTAMP,
@@ -1115,7 +1138,7 @@ describe("CLFactory.PoolCreated ↔ CLPoolPendingInitialize buffer", () => {
             {
               contract: "CLFactory",
               event: "PoolCreated",
-              srcAddress: poolAddress as `0x${string}`,
+              srcAddress: CL_FACTORY_ADDRESS_BY_CHAIN[chainId] as `0x${string}`,
               logIndex: 313,
               block: {
                 number: 13901333,
@@ -1159,7 +1182,7 @@ describe("CLFactory.PoolCreated ↔ CLPoolPendingInitialize buffer", () => {
             {
               contract: "CLFactory",
               event: "PoolCreated",
-              srcAddress: poolAddress as `0x${string}`,
+              srcAddress: CL_FACTORY_ADDRESS_BY_CHAIN[chainId] as `0x${string}`,
               logIndex: 313,
               block: {
                 number: 13901333,
@@ -1194,7 +1217,7 @@ describe("CLFactory.PoolCreated ↔ CLPoolPendingInitialize buffer", () => {
             {
               contract: "CLFactory",
               event: "PoolCreated",
-              srcAddress: poolAddress as `0x${string}`,
+              srcAddress: CL_FACTORY_ADDRESS_BY_CHAIN[chainId] as `0x${string}`,
               logIndex: 313,
               block: {
                 number: 13901333,

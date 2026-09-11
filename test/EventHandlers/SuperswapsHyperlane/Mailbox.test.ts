@@ -400,6 +400,10 @@ describe("Mailbox Events", () => {
       // Setup
       const chainId1 = 10 as const; // Optimism
       const chainId2 = 8453 as const; // Base
+      // Base runs its own Mailbox deployment.
+      const baseMailboxAddress = toChecksumAddress(
+        "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
+      );
       const sharedTxHash =
         "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
 
@@ -447,7 +451,7 @@ describe("Mailbox Events", () => {
               {
                 contract: "Mailbox",
                 event: "ProcessId",
-                srcAddress: mailboxAddress,
+                srcAddress: baseMailboxAddress,
                 logIndex: 1,
                 block: {
                   timestamp: blockTimestamp,
@@ -482,7 +486,12 @@ describe("Mailbox Events", () => {
 
   describe("ProcessId event - SuperSwap creation integration", () => {
     const sourceChainId = 10 as const; // Optimism
-    const destinationChainId = 252 as const; // Lisk
+    const destinationChainId = 252 as const; // Fraxtal
+    // Each chain runs its own Mailbox deployment; an event only routes to a
+    // contract when its source address is one configured for that chain.
+    const destinationMailboxAddress = toChecksumAddress(
+      "0x2f9DB5616fa3fAd1aB06cB2C906830BA63d135e3",
+    );
     const sourceTransactionHash =
       "0x1234567890123456789012345678901234567890123456789012345678901234";
     const destinationTransactionHash =
@@ -586,7 +595,7 @@ describe("Mailbox Events", () => {
               {
                 contract: "Mailbox",
                 event: "ProcessId",
-                srcAddress: mailboxAddress,
+                srcAddress: destinationMailboxAddress,
                 logIndex: 1,
                 block: {
                   timestamp: blockTimestamp,
@@ -654,7 +663,7 @@ describe("Mailbox Events", () => {
               {
                 contract: "Mailbox",
                 event: "ProcessId",
-                srcAddress: mailboxAddress,
+                srcAddress: destinationMailboxAddress,
                 logIndex: 1,
                 block: {
                   timestamp: blockTimestamp,
@@ -711,7 +720,7 @@ describe("Mailbox Events", () => {
               {
                 contract: "Mailbox",
                 event: "ProcessId",
-                srcAddress: mailboxAddress,
+                srcAddress: destinationMailboxAddress,
                 logIndex: 1,
                 block: {
                   timestamp: blockTimestamp,
@@ -795,7 +804,7 @@ describe("Mailbox Events", () => {
               {
                 contract: "Mailbox",
                 event: "ProcessId",
-                srcAddress: mailboxAddress,
+                srcAddress: destinationMailboxAddress,
                 logIndex: 1,
                 block: {
                   timestamp: blockTimestamp,

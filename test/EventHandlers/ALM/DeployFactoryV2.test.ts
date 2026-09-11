@@ -18,6 +18,11 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
   } = setupCommon();
   const chainId = mockLiquidityPoolData.chainId as 10;
   const poolAddress = mockLiquidityPoolData.poolAddress;
+  // The configured Optimism ALMDeployFactoryV2. An event only routes to a contract
+  // when its source address is one configured for that chain.
+  const almDeployFactoryAddress = toChecksumAddress(
+    "0xE46EC96906fc6dEC53De25F013639969Fe10180d",
+  );
   const lpWrapperAddress = toChecksumAddress(
     "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   );
@@ -86,7 +91,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
               {
                 contract: "ALMDeployFactoryV2",
                 event: "StrategyCreated",
-                srcAddress: poolAddress,
+                srcAddress: almDeployFactoryAddress,
                 logIndex: 1,
                 block: {
                   timestamp: blockTimestamp,
@@ -179,7 +184,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
               {
                 contract: "ALMDeployFactoryV2",
                 event: "StrategyCreated",
-                srcAddress: poolAddress,
+                srcAddress: almDeployFactoryAddress,
                 logIndex: 1,
                 block: {
                   timestamp: blockTimestamp,
@@ -239,7 +244,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
               {
                 contract: "ALMDeployFactoryV2",
                 event: "StrategyCreated",
-                srcAddress: poolAddress,
+                srcAddress: almDeployFactoryAddress,
                 logIndex: 1,
                 block: {
                   timestamp: blockTimestamp,
@@ -299,7 +304,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
               {
                 contract: "ALMDeployFactoryV2",
                 event: "StrategyCreated",
-                srcAddress: poolAddress,
+                srcAddress: almDeployFactoryAddress,
                 logIndex: 1,
                 block: {
                   timestamp: blockTimestamp,
@@ -416,7 +421,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
               {
                 contract: "ALMDeployFactoryV2",
                 event: "StrategyCreated",
-                srcAddress: poolAddress,
+                srcAddress: almDeployFactoryAddress,
                 logIndex: 1,
                 block: {
                   timestamp: blockTimestamp,
@@ -498,7 +503,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
               {
                 contract: "ALMDeployFactoryV2",
                 event: "StrategyCreated",
-                srcAddress: poolAddress,
+                srcAddress: almDeployFactoryAddress,
                 logIndex: 1,
                 block: {
                   timestamp: blockTimestamp,
@@ -577,7 +582,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
               {
                 contract: "ALMDeployFactoryV2",
                 event: "StrategyCreated",
-                srcAddress: poolAddress,
+                srcAddress: almDeployFactoryAddress,
                 logIndex: 1,
                 block: {
                   timestamp: blockTimestamp,
@@ -656,7 +661,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
               {
                 contract: "ALMDeployFactoryV2",
                 event: "StrategyCreated",
-                srcAddress: poolAddress,
+                srcAddress: almDeployFactoryAddress,
                 logIndex: 1,
                 block: {
                   timestamp: blockTimestamp,
@@ -735,7 +740,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
               {
                 contract: "ALMDeployFactoryV2",
                 event: "StrategyCreated",
-                srcAddress: poolAddress,
+                srcAddress: almDeployFactoryAddress,
                 logIndex: 1,
                 block: {
                   timestamp: blockTimestamp,
@@ -824,7 +829,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
               {
                 contract: "ALMDeployFactoryV2",
                 event: "StrategyCreated",
-                srcAddress: poolAddress,
+                srcAddress: almDeployFactoryAddress,
                 logIndex: 1,
                 block: {
                   timestamp: blockTimestamp,
@@ -921,7 +926,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
               {
                 contract: "ALMDeployFactoryV2",
                 event: "StrategyCreated",
-                srcAddress: poolAddress,
+                srcAddress: almDeployFactoryAddress,
                 logIndex: 1,
                 block: {
                   timestamp: blockTimestamp,
