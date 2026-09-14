@@ -7,6 +7,7 @@ import {
   toChecksumAddress,
 } from "../../../src/Constants";
 import { rehydrateTimestamps } from "../../../src/EntityTimestamps";
+import { registerALMLPWrapperV2 } from "../../registerDynamicContracts";
 import { setupCommon } from "../Pool/common";
 
 describe("ALMLPWrapperV2 Events", () => {
@@ -31,6 +32,7 @@ describe("ALMLPWrapperV2 Events", () => {
   describe("Deposit Event", () => {
     it("should update existing ALM_LP_Wrapper entity when it exists", async () => {
       const indexer = createTestIndexer();
+      await registerALMLPWrapperV2(indexer, chainId, lpWrapperAddress);
 
       // Pre-populate with existing wrapper (created by StrategyCreated event)
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
@@ -90,6 +92,7 @@ describe("ALMLPWrapperV2 Events", () => {
 
     it("should not update when ALM_LP_Wrapper entity not found", async () => {
       const indexer = createTestIndexer();
+      await registerALMLPWrapperV2(indexer, chainId, lpWrapperAddress);
 
       // V2: Deposit event has sender, recipient, pool, amount0, amount1, lpAmount, totalSupply
       // The handler only uses recipient (not sender), so we only need to provide recipient in the mock
@@ -131,6 +134,7 @@ describe("ALMLPWrapperV2 Events", () => {
 
     it("should create UserStatsPerPool entity if it doesn't exist", async () => {
       const indexer = createTestIndexer();
+      await registerALMLPWrapperV2(indexer, chainId, lpWrapperAddress);
 
       // Pre-populate with existing wrapper (created by StrategyCreated event)
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
@@ -185,6 +189,7 @@ describe("ALMLPWrapperV2 Events", () => {
 
     it("should update existing UserStatsPerPool entity with cumulative values", async () => {
       const indexer = createTestIndexer();
+      await registerALMLPWrapperV2(indexer, chainId, lpWrapperAddress);
 
       // Pre-populate with existing wrapper (created by StrategyCreated event)
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
@@ -251,6 +256,7 @@ describe("ALMLPWrapperV2 Events", () => {
 
     it("should update both ALM_LP_Wrapper and UserStatsPerPool in the same transaction", async () => {
       const indexer = createTestIndexer();
+      await registerALMLPWrapperV2(indexer, chainId, lpWrapperAddress);
 
       // Pre-populate with existing wrapper (created by StrategyCreated event)
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
@@ -314,6 +320,7 @@ describe("ALMLPWrapperV2 Events", () => {
   describe("Withdraw Event", () => {
     it("should decrease amounts in existing ALM_LP_Wrapper entity", async () => {
       const indexer = createTestIndexer();
+      await registerALMLPWrapperV2(indexer, chainId, lpWrapperAddress);
 
       // Pre-populate with existing wrapper
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
@@ -368,6 +375,7 @@ describe("ALMLPWrapperV2 Events", () => {
 
     it("should not update when ALM_LP_Wrapper entity not found", async () => {
       const indexer = createTestIndexer();
+      await registerALMLPWrapperV2(indexer, chainId, lpWrapperAddress);
 
       // V2: Withdraw event has sender, recipient, pool, amount0, amount1, lpAmount
       // The handler uses sender (not recipient), so we need to provide sender in the mock
@@ -409,6 +417,7 @@ describe("ALMLPWrapperV2 Events", () => {
 
     it("should update UserStatsPerPool entity for recipient with decreased amounts", async () => {
       const indexer = createTestIndexer();
+      await registerALMLPWrapperV2(indexer, chainId, lpWrapperAddress);
 
       // Pre-populate with existing wrapper (created by StrategyCreated event)
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
@@ -477,6 +486,7 @@ describe("ALMLPWrapperV2 Events", () => {
   describe("Transfer Event", () => {
     it("should update UserStatsPerPool for both sender and recipient", async () => {
       const indexer = createTestIndexer();
+      await registerALMLPWrapperV2(indexer, chainId, lpWrapperAddress);
 
       // Pre-populate with existing wrapper (required for Transfer to work)
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
@@ -555,6 +565,7 @@ describe("ALMLPWrapperV2 Events", () => {
 
     it("should handle transfer when recipient has no existing ALM position", async () => {
       const indexer = createTestIndexer();
+      await registerALMLPWrapperV2(indexer, chainId, lpWrapperAddress);
 
       // Pre-populate with existing wrapper
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
@@ -619,6 +630,7 @@ describe("ALMLPWrapperV2 Events", () => {
 
     it("should not update when ALM_LP_Wrapper entity not found", async () => {
       const indexer = createTestIndexer();
+      await registerALMLPWrapperV2(indexer, chainId, lpWrapperAddress);
 
       await indexer.process({
         chains: {
@@ -665,6 +677,7 @@ describe("ALMLPWrapperV2 Events", () => {
     it("should skip zero address transfers (mint/burn) to avoid double counting", async () => {
       // Mint scenario: fresh indexer — from zero address, no UserStatsPerPool should be created
       const mintIndexer = createTestIndexer();
+      await registerALMLPWrapperV2(mintIndexer, chainId, lpWrapperAddress);
 
       // Pre-populate with existing wrapper
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
@@ -716,6 +729,7 @@ describe("ALMLPWrapperV2 Events", () => {
 
       // Burn scenario: fresh indexer — to zero address, UserStatsPerPool should remain unchanged
       const burnIndexer = createTestIndexer();
+      await registerALMLPWrapperV2(burnIndexer, chainId, lpWrapperAddress);
       const burnerAddress = userB;
       const burnerUserStatsId = UserStatsPerPoolId(
         chainId,
@@ -776,6 +790,7 @@ describe("ALMLPWrapperV2 Events", () => {
   describe("Edge Cases", () => {
     it("should handle zero amounts in Deposit", async () => {
       const indexer = createTestIndexer();
+      await registerALMLPWrapperV2(indexer, chainId, lpWrapperAddress);
 
       // Pre-populate with existing wrapper (created by StrategyCreated event)
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
@@ -826,6 +841,7 @@ describe("ALMLPWrapperV2 Events", () => {
 
     it("should handle multiple deposits from different users", async () => {
       const indexer = createTestIndexer();
+      await registerALMLPWrapperV2(indexer, chainId, lpWrapperAddress);
 
       // Pre-populate with existing wrapper (created by StrategyCreated event)
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
@@ -916,6 +932,7 @@ describe("ALMLPWrapperV2 Events", () => {
 
     it("should handle deposit and withdrawal sequence correctly", async () => {
       const indexer = createTestIndexer();
+      await registerALMLPWrapperV2(indexer, chainId, lpWrapperAddress);
 
       // Pre-populate with existing wrapper
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
@@ -992,6 +1009,7 @@ describe("ALMLPWrapperV2 Events", () => {
   describe("TotalSupplyLimitUpdated Event", () => {
     it("should create ALM_TotalSupplyLimitUpdated_event entity", async () => {
       const indexer = createTestIndexer();
+      await registerALMLPWrapperV2(indexer, chainId, lpWrapperAddress);
 
       await indexer.process({
         chains: {
@@ -1037,6 +1055,7 @@ describe("ALMLPWrapperV2 Events", () => {
 
     it("should update existing ALM_TotalSupplyLimitUpdated_event entity", async () => {
       const indexer = createTestIndexer();
+      await registerALMLPWrapperV2(indexer, chainId, lpWrapperAddress);
 
       const eventId = ALMLPWrapperId(chainId, lpWrapperAddress);
       indexer.ALM_TotalSupplyLimitUpdated_event.set({

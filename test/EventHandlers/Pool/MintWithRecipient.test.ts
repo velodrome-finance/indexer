@@ -9,6 +9,7 @@ import {
   toChecksumAddress,
 } from "../../../src/Constants";
 import { calculateTotalUSD } from "../../../src/Helpers";
+import { registerPool } from "../../registerDynamicContracts";
 import { setupCommon } from "./common";
 
 // #886: superchain-leaf V2 pools emit a 4-arg Mint(sender, to, amount0, amount1)
@@ -29,9 +30,14 @@ describe("Pool MintWithRecipient Event (#886 superchain-leaf 4-arg Mint)", () =>
   const amount0 = 1000n * TEN_TO_THE_18_BI; // token0 has 18 decimals, $1 -> $1000
   const amount1 = 2000n * TEN_TO_THE_6_BI; // token1 has 6 decimals, $1 -> $2000
 
-  beforeEach(() => {
+  beforeEach(async () => {
     indexer = createTestIndexer();
     commonData = setupCommon();
+    await registerPool(
+      indexer,
+      chainId,
+      commonData.mockLiquidityPoolData.poolAddress,
+    );
 
     indexer.Pool.set(commonData.mockLiquidityPoolData);
     indexer.Token.set(commonData.mockToken0Data);

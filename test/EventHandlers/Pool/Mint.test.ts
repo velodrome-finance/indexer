@@ -1,6 +1,7 @@
 import { createTestIndexer } from "envio";
 import { toChecksumAddress } from "../../../src/Constants";
 import * as PoolBurnAndMintLogic from "../../../src/EventHandlers/Pool/PoolBurnAndMintLogic";
+import { registerPool } from "../../registerDynamicContracts";
 import { setupCommon } from "./common";
 
 describe("Pool Mint Event", () => {
@@ -9,9 +10,14 @@ describe("Pool Mint Event", () => {
 
   const chainId = 10 as const;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     indexer = createTestIndexer();
     commonData = setupCommon();
+    await registerPool(
+      indexer,
+      chainId,
+      commonData.mockLiquidityPoolData.poolAddress,
+    );
 
     // Set up test indexer with common data
     indexer.Pool.set(commonData.mockLiquidityPoolData);
@@ -71,13 +77,22 @@ describe("Pool Mint Event", () => {
     );
   });
 
-  describe("when pool does not exist", () => {
+  describe("when pool data cannot be loaded", () => {
     it("should return early without processing", async () => {
-      // Create a fresh indexer without the pool
+      // Note: we intentionally don't seed the Pool. `registerPool` had to
+      // replay `PoolFactory.PoolCreated` to put the address on the chain, and
+      // that handler always writes a Pool row — so the row here is the factory
+      // default, pointing at token ids that were never created. `loadPoolData`
+      // returns null on that missing-token branch, which is the early return
+      // under test.
       const freshIndexer = createTestIndexer();
+      await registerPool(
+        freshIndexer,
+        chainId,
+        commonData.mockLiquidityPoolData.poolAddress,
+      );
       freshIndexer.Token.set(commonData.mockToken0Data);
       freshIndexer.Token.set(commonData.mockToken1Data);
-      // Note: We intentionally don't set the Pool
 
       await freshIndexer.process({
         chains: {
@@ -107,11 +122,13 @@ describe("Pool Mint Event", () => {
         },
       });
 
-      // Pool should not exist
+      // The mint never reached the pool: the factory-created row is untouched.
       const pool = await freshIndexer.Pool.get(
         commonData.mockLiquidityPoolData.id,
       );
-      expect(pool).toBeUndefined();
+      expect(pool).toBeDefined();
+      expect(pool?.reserve0).toBe(0n);
+      expect(pool?.reserve1).toBe(0n);
 
       // User stats will NOT be created when pool doesn't exist (early return)
       // and no transfer match is found

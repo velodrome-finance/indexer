@@ -8,6 +8,7 @@ import {
   toChecksumAddress,
 } from "../../../src/Constants";
 import { rehydrateTimestamps } from "../../../src/EntityTimestamps";
+import { registerALMLPWrapperV1 } from "../../registerDynamicContracts";
 import { setupCommon } from "../Pool/common";
 
 describe("ALMLPWrapperV1 Events", () => {
@@ -69,6 +70,7 @@ describe("ALMLPWrapperV1 Events", () => {
   describe("Deposit Event", () => {
     it("should update existing ALM_LP_Wrapper entity when it exists", async () => {
       const indexer = createTestIndexer();
+      await registerALMLPWrapperV1(indexer, chainId, lpWrapperAddress);
 
       // Pre-populate with existing wrapper (created by StrategyCreated event)
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
@@ -128,6 +130,7 @@ describe("ALMLPWrapperV1 Events", () => {
 
     it("should not update when ALM_LP_Wrapper entity not found", async () => {
       const indexer = createTestIndexer();
+      await registerALMLPWrapperV1(indexer, chainId, lpWrapperAddress);
 
       await indexer.process({
         chains: {
@@ -168,6 +171,7 @@ describe("ALMLPWrapperV1 Events", () => {
 
     it("should create UserStatsPerPool entity if it doesn't exist", async () => {
       const indexer = createTestIndexer();
+      await registerALMLPWrapperV1(indexer, chainId, lpWrapperAddress);
 
       // Pre-populate with existing wrapper (created by StrategyCreated event)
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
@@ -226,6 +230,7 @@ describe("ALMLPWrapperV1 Events", () => {
 
     it("should update existing UserStatsPerPool entity with cumulative values", async () => {
       const indexer = createTestIndexer();
+      await registerALMLPWrapperV1(indexer, chainId, lpWrapperAddress);
 
       // Pre-populate with existing wrapper (created by StrategyCreated event)
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
@@ -295,6 +300,7 @@ describe("ALMLPWrapperV1 Events", () => {
 
     it("should update both ALM_LP_Wrapper and UserStatsPerPool in the same transaction", async () => {
       const indexer = createTestIndexer();
+      await registerALMLPWrapperV1(indexer, chainId, lpWrapperAddress);
 
       // Pre-populate with existing wrapper (created by StrategyCreated event)
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
@@ -358,6 +364,7 @@ describe("ALMLPWrapperV1 Events", () => {
   describe("Withdraw Event", () => {
     it("should decrease amounts in existing ALM_LP_Wrapper entity", async () => {
       const indexer = createTestIndexer();
+      await registerALMLPWrapperV1(indexer, chainId, lpWrapperAddress);
 
       // Pre-populate with existing wrapper
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
@@ -417,6 +424,7 @@ describe("ALMLPWrapperV1 Events", () => {
 
     it("should not update when ALM_LP_Wrapper entity not found", async () => {
       const indexer = createTestIndexer();
+      await registerALMLPWrapperV1(indexer, chainId, lpWrapperAddress);
 
       await indexer.process({
         chains: {
@@ -457,6 +465,7 @@ describe("ALMLPWrapperV1 Events", () => {
 
     it("should reduce UserStatsPerPool almLpAmount to zero after full withdrawal", async () => {
       const indexer = createTestIndexer();
+      await registerALMLPWrapperV1(indexer, chainId, lpWrapperAddress);
 
       // Pre-populate with existing wrapper
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
@@ -527,6 +536,7 @@ describe("ALMLPWrapperV1 Events", () => {
 
     it("should update existing UserStatsPerPool entity with decreased values", async () => {
       const indexer = createTestIndexer();
+      await registerALMLPWrapperV1(indexer, chainId, lpWrapperAddress);
 
       // Pre-populate with existing wrapper
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
@@ -609,6 +619,7 @@ describe("ALMLPWrapperV1 Events", () => {
 
     it("should update UserStatsPerPool for both sender and recipient", async () => {
       const indexer = createTestIndexer();
+      await registerALMLPWrapperV1(indexer, chainId, lpWrapperAddress);
 
       // Pre-populate with existing wrapper (required for Transfer events to get pool address)
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
@@ -679,6 +690,7 @@ describe("ALMLPWrapperV1 Events", () => {
 
     it("should not update when ALM_LP_Wrapper entity not found", async () => {
       const indexer = createTestIndexer();
+      await registerALMLPWrapperV1(indexer, chainId, lpWrapperAddress);
 
       const transferAmount = 500n * TEN_TO_THE_18_BI;
 
@@ -722,6 +734,7 @@ describe("ALMLPWrapperV1 Events", () => {
 
     it("should create UserStatsPerPool for recipient if it doesn't exist", async () => {
       const indexer = createTestIndexer();
+      await registerALMLPWrapperV1(indexer, chainId, lpWrapperAddress);
 
       // Pre-populate with existing wrapper
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
@@ -791,6 +804,7 @@ describe("ALMLPWrapperV1 Events", () => {
     it("should skip zero address transfers (mint/burn) to avoid double counting", async () => {
       // Mint scenario: fresh indexer — from zero address, no UserStatsPerPool should be created
       const mintIndexer = createTestIndexer();
+      await registerALMLPWrapperV1(mintIndexer, chainId, lpWrapperAddress);
 
       // Pre-populate with existing wrapper
       const wrapperId = ALMLPWrapperId(chainId, lpWrapperAddress);
@@ -842,6 +856,7 @@ describe("ALMLPWrapperV1 Events", () => {
 
       // Burn scenario: fresh indexer — to zero address, UserStatsPerPool should remain unchanged
       const burnIndexer = createTestIndexer();
+      await registerALMLPWrapperV1(burnIndexer, chainId, lpWrapperAddress);
       const burnerAddress = fromAddress;
       const burnerUserStatsId = UserStatsPerPoolId(
         chainId,

@@ -4,6 +4,7 @@ import { UserStatsPerPoolId, toChecksumAddress } from "../../../src/Constants";
 import { rehydrateTimestamps } from "../../../src/EntityTimestamps";
 import type { Pool as PoolEntity } from "../../../src/EntityTypes";
 import * as PoolFeesLogic from "../../../src/EventHandlers/Pool/PoolFeesLogic";
+import { registerPool } from "../../registerDynamicContracts";
 import { setupCommon } from "./common";
 
 describe("Pool Fees Event", () => {
@@ -37,6 +38,7 @@ describe("Pool Fees Event", () => {
 
   beforeEach(async () => {
     indexer = createTestIndexer();
+    await registerPool(indexer, chainId, mockLiquidityPoolData.poolAddress);
     indexer.Token.set(mockToken0Data as Token);
     indexer.Token.set(mockToken1Data as Token);
     indexer.Pool.set(mockLiquidityPoolData);
@@ -173,6 +175,11 @@ describe("Pool Fees Event", () => {
 
     // Use a fresh indexer seeded with pool, tokens, and existing user stats
     const existingUserIndexer = createTestIndexer();
+    await registerPool(
+      existingUserIndexer,
+      chainId,
+      mockLiquidityPoolData.poolAddress,
+    );
     existingUserIndexer.Token.set(mockToken0Data as Token);
     existingUserIndexer.Token.set(mockToken1Data as Token);
     existingUserIndexer.Pool.set(mockLiquidityPoolData);
@@ -255,6 +262,11 @@ describe("Pool Fees Event", () => {
 
     beforeEach(async () => {
       const feesIndexer = createTestIndexer();
+      await registerPool(
+        feesIndexer,
+        chainId,
+        mockLiquidityPoolData.poolAddress,
+      );
       feesIndexer.Token.set(mockToken0Data as Token);
       feesIndexer.Token.set(mockToken1Data as Token);
       feesIndexer.Pool.set(mockLiquidityPoolData);
@@ -306,13 +318,22 @@ describe("Pool Fees Event", () => {
     });
   });
 
-  describe("when pool does not exist", () => {
+  describe("when pool data cannot be loaded", () => {
     it("should return early without processing", async () => {
-      // Create a fresh indexer without the pool
+      // Note: we intentionally don't seed the Pool. `registerPool` had to
+      // replay `PoolFactory.PoolCreated` to put the address on the chain, and
+      // that handler always writes a Pool row — so the row here is the factory
+      // default, pointing at token ids that were never created. `loadPoolData`
+      // returns null on that missing-token branch, which is the early return
+      // under test.
       const freshIndexer = createTestIndexer();
+      await registerPool(
+        freshIndexer,
+        chainId,
+        mockLiquidityPoolData.poolAddress,
+      );
       freshIndexer.Token.set(mockToken0Data as Token);
       freshIndexer.Token.set(mockToken1Data as Token);
-      // Note: We intentionally don't set the Pool
 
       await freshIndexer.process({
         chains: {
@@ -340,9 +361,11 @@ describe("Pool Fees Event", () => {
         },
       });
 
-      // Pool should not exist
+      // The fees event never reached the pool: the factory row is untouched.
       const pool = await freshIndexer.Pool.get(poolId);
-      expect(pool).toBeUndefined();
+      expect(pool).toBeDefined();
+      expect(pool?.totalFeesGenerated0).toBe(0n);
+      expect(pool?.totalFeesGenerated1).toBe(0n);
 
       // User stats will still be created because loadOrCreateUserData is called in parallel
       // but they should have default/zero values since no fees processing occurred

@@ -1,5 +1,6 @@
 import { createTestIndexer } from "envio";
 import { toChecksumAddress } from "../../../src/Constants";
+import { registerVoterGauge } from "../../registerDynamicContracts";
 
 describe("Gauge Event Handlers", () => {
   const mockChainId = 10 as const;
@@ -12,8 +13,12 @@ describe("Gauge Event Handlers", () => {
 
   let indexer: ReturnType<typeof createTestIndexer>;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     indexer = createTestIndexer();
+    await registerVoterGauge(indexer, mockChainId, {
+      gauge: mockGaugeAddress,
+      isCL: false,
+    });
   });
 
   describe("Event Data Mapping", () => {

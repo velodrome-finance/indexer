@@ -6,6 +6,7 @@ import {
   UserStatsPerPoolId,
   toChecksumAddress,
 } from "../../../src/Constants";
+import { registerCLPool } from "../../registerDynamicContracts";
 import { setupCommon } from "../Pool/common";
 
 // Issue #790: direct (non-NFPM) CLPool.Mint/Burn flows must be attributed to the
@@ -34,10 +35,11 @@ describe("CLPool direct (non-NFPM) liquidity attribution (#790)", () => {
   let indexer: ReturnType<typeof createTestIndexer>;
   let pool: ReturnType<typeof createMockPool>;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     indexer = createTestIndexer();
     // CL pool → createMockPool defaults nfpmAddress to defaultNfpmAddress.
     pool = createMockPool({ isCL: true });
+    await registerCLPool(indexer, chainId, pool.poolAddress);
     indexer.Pool.set(pool);
     indexer.Token.set(mockToken0Data as Token);
     indexer.Token.set(mockToken1Data as Token);

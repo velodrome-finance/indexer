@@ -7,8 +7,10 @@ describe("CLGaugeFactoryV2 Event Handlers", () => {
   const { mockLiquidityPoolData, createMockPool } = setupCommon();
   // CLGaugeFactoryV2 is only deployed on Base (8453)
   const chainId = 8453 as const;
+  // The configured Base CLGaugeFactoryV2. An event only routes to a contract
+  // when its source address is one configured for that chain.
   const mockGaugeFactoryAddress = toChecksumAddress(
-    "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "0xB630227a79707D517320b6c0f885806389dFcbB3",
   );
   const mockGaugeAddress = toChecksumAddress(
     "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",

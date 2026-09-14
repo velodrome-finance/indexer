@@ -9,6 +9,7 @@ import {
 import { rehydrateTimestamps } from "../../../src/EntityTimestamps";
 import type { Pool as PoolEntity } from "../../../src/EntityTypes";
 import * as PriceOracle from "../../../src/PriceOracle";
+import { registerPool } from "../../registerDynamicContracts";
 import { type MockPool, setupCommon } from "./common";
 
 /**
@@ -52,7 +53,7 @@ describe("Pool fees collected ≤ generated invariant (#861)", () => {
   const blockHash =
     "0x1234567890123456789012345678901234567890123456789012345678901234";
 
-  beforeEach(() => {
+  beforeEach(async () => {
     const setup = setupCommon();
     mockToken0Data = setup.mockToken0Data;
     mockToken1Data = setup.mockToken1Data;
@@ -75,11 +76,14 @@ describe("Pool fees collected ≤ generated invariant (#861)", () => {
       totalStakedFeesCollectedUSD: 0n,
     });
 
+    indexer = createTestIndexer();
+    // Register before the spy so the factory replay's own price lookups are
+    // not recorded against `mockPriceOracle`.
+    await registerPool(indexer, chainId, srcAddress);
+
     mockPriceOracle = vi
       .spyOn(PriceOracle, "refreshTokenPrice")
       .mockImplementation(async (...args) => args[0]);
-
-    indexer = createTestIndexer();
   });
 
   afterEach(() => {

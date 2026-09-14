@@ -40,6 +40,11 @@ describe("PoolFactory Events", () => {
   const poolFactoryAddress = toChecksumAddress(
     "0xF1046053aa5682b4F9a81b5481394DA16BE5FF5a",
   );
+  // Base runs its own PoolFactory deployment; an event is only routed to a
+  // contract when its source address is one configured for that chain.
+  const basePoolFactoryAddress = toChecksumAddress(
+    "0x420DD381b31aEf6683db6B902084cB0FFECe40Da",
+  );
 
   /**
    * Pre-seed the pool's two Token entities so the PoolCreated handler finds them
@@ -87,7 +92,7 @@ describe("PoolFactory Events", () => {
               {
                 contract: "PoolFactory",
                 event: "PoolCreated",
-                srcAddress: poolAddress,
+                srcAddress: poolFactoryAddress,
                 logIndex: 1,
                 block: {
                   timestamp: 1000000,
@@ -153,7 +158,7 @@ describe("PoolFactory Events", () => {
               {
                 contract: "PoolFactory",
                 event: "PoolCreated",
-                srcAddress: poolAddress,
+                srcAddress: poolFactoryAddress,
                 logIndex: 1,
                 block: {
                   timestamp: 1000000,
@@ -172,7 +177,7 @@ describe("PoolFactory Events", () => {
         },
       });
       const pool = await indexer.Pool.get(PoolId(chainId, poolAddress));
-      expect(pool?.factoryAddress).toBe(poolAddress);
+      expect(pool?.factoryAddress).toBe(poolFactoryAddress);
     });
 
     // US-1 acceptance: V2 (non-CL) pools do not carry an NFPM — leave nfpmAddress unset.
@@ -191,7 +196,7 @@ describe("PoolFactory Events", () => {
               {
                 contract: "PoolFactory",
                 event: "PoolCreated",
-                srcAddress: poolAddress,
+                srcAddress: poolFactoryAddress,
                 logIndex: 1,
                 block: {
                   timestamp: 1000000,
@@ -230,7 +235,7 @@ describe("PoolFactory Events", () => {
               {
                 contract: "PoolFactory",
                 event: "PoolCreated",
-                srcAddress: poolAddress,
+                srcAddress: poolFactoryAddress,
                 logIndex: 1,
                 block: {
                   timestamp: 1000000,
@@ -265,7 +270,7 @@ describe("PoolFactory Events", () => {
               {
                 contract: "PoolFactory",
                 event: "PoolCreated",
-                srcAddress: poolAddress,
+                srcAddress: basePoolFactoryAddress,
                 logIndex: 1,
                 block: {
                   timestamp: 1000000,
@@ -318,7 +323,7 @@ describe("PoolFactory Events", () => {
               {
                 contract: "PoolFactory",
                 event: "PoolCreated",
-                srcAddress: poolAddress,
+                srcAddress: poolFactoryAddress,
                 logIndex: 1,
                 block: {
                   timestamp: 1000000,

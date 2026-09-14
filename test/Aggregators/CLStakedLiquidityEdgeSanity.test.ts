@@ -14,6 +14,7 @@ import { rehydrateTimestamps } from "../../src/EntityTimestamps";
 import type { handlerContext } from "../../src/EntityTypes";
 import { updateStakedPositionLiquidity } from "../../src/EventHandlers/NFPM/NFPMCommonLogic";
 import { setupCommon } from "../EventHandlers/Pool/common";
+import { registerVoterGauge } from "../registerDynamicContracts";
 import { sqrtAt } from "./common";
 
 /**
@@ -68,6 +69,10 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
 
   it("(a) stakedTickEdges stays sorted + monotone across 150 interleaved gauge Deposit/Withdraw events", async () => {
     const indexer = createTestIndexer();
+    await registerVoterGauge(indexer, chainId, {
+      gauge: gaugeAddress,
+      isCL: true,
+    });
 
     const liquidityPool = createMockPool({
       isCL: true,
@@ -352,6 +357,10 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
       // fix removes the counter/edges asymmetry by deriving the counter from
       // edges at every write.
       const indexer = createTestIndexer();
+      await registerVoterGauge(indexer, chainId, {
+        gauge: gaugeAddress,
+        isCL: true,
+      });
       const liquidityPool = createMockPool({
         isCL: true,
         gaugeAddress,
@@ -443,6 +452,10 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
       // edges is 0. The legacy gated path skipped the counter on rejection,
       // so the poison would persist.
       const indexer = createTestIndexer();
+      await registerVoterGauge(indexer, chainId, {
+        gauge: gaugeAddress,
+        isCL: true,
+      });
       const liquidityPool = createMockPool({
         isCL: true,
         gaugeAddress,
@@ -635,6 +648,10 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
       // recomputed from edges at every write, so any number of intervening
       // tick moves cannot poison the round-trip.
       const indexer = createTestIndexer();
+      await registerVoterGauge(indexer, chainId, {
+        gauge: gaugeAddress,
+        isCL: true,
+      });
       const liquidityPool = createMockPool({
         isCL: true,
         gaugeAddress,
@@ -709,6 +726,10 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
       // Withdraw runs on a FRESH indexer carrying the post-Deposit state; a 2nd
       // process() on the same indexer is unsupported (see carryStore).
       const indexer2 = createTestIndexer();
+      await registerVoterGauge(indexer2, chainId, {
+        gauge: gaugeAddress,
+        isCL: true,
+      });
       await carryStore(indexer, indexer2);
 
       // 2) Emulate N "swaps" by jiggling tick across the range and out the
@@ -784,6 +805,10 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
       // - Post-fix: updateStakedPositionLiquidity mirrors ΔL onto the counter so
       //   the Withdraw guard passes and the round-trip balances to 0n.
       const indexer = createTestIndexer();
+      await registerVoterGauge(indexer, chainId, {
+        gauge: gaugeAddress,
+        isCL: true,
+      });
       const liquidityPool = createMockPool({
         isCL: true,
         gaugeAddress,
@@ -868,6 +893,10 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
       // state (a 2nd process() on the same indexer is unsupported — see
       // carryStore).
       const indexer2 = createTestIndexer();
+      await registerVoterGauge(indexer2, chainId, {
+        gauge: gaugeAddress,
+        isCL: true,
+      });
       await carryStore(indexer, indexer2);
 
       await indexer2.process({
@@ -911,6 +940,10 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
       // initialLiquidity + increaseDelta (mirroring how the gauge contract
       // emits Withdraw with the chain-truth liquidity).
       const indexer3 = createTestIndexer();
+      await registerVoterGauge(indexer3, chainId, {
+        gauge: gaugeAddress,
+        isCL: true,
+      });
       await carryStore(indexer2, indexer3);
 
       await indexer3.process({
