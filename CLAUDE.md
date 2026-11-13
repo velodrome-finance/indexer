@@ -155,7 +155,7 @@ Match the style already in `src/Aggregators/Pool.ts`, `src/EventHandlers/Gauges/
 Tests live in `test/` mirroring the `src/` structure. Uses Vitest with threaded parallelism and 120s timeout.
 
 - **Shared test harness**: `test/EventHandlers/Pool/common.ts` provides `setupCommon()` with mock entities, builders (`createMock*`), and `createMockContext`. Use it instead of constructing entities from scratch.
-- **Handler registration**: Test files calling `mockDb.processEvents()` must import the registration module (`import "../eventHandlersRegistration"` or `"../../eventHandlersRegistration"`).
+- **Handler registration**: The test indexer loads every handler listed in `config.yaml` by itself. Never import a handler module (`src/EventHandlers/*.ts`) from a test: its handlers are then registered twice and run twice per event, silently (enviodev/hyperindex#1820). `test/eventHandlersRegistration.ts` is an empty module kept for the tests that still import it.
 - **Mock events**: Simulate events inline through `createTestIndexer()` (from the `envio` package): `indexer.process({ chains: { [chainId]: { simulate: [{ contract, event, params, block, ... }] } } })`. There is no `generated/` mock-event API.
 - **Addresses in tests**: Must be checksummed via `toChecksumAddress()`.
 

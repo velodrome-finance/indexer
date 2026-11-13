@@ -606,6 +606,8 @@ chains:
         address:
           - 0xd4C1905BB1D26BC93DAC913e13CaCC278CdCC80D
   - id: 8453 # Base
+    # 0.2 s blocks: at the head, fetch about every 2 s of chain time instead of every block.
+    block_throttle: 10
     # RPC fallback: takes over at the head when HyperSync stalls (it did on Lisk,
     # Swell and Superseed in 2026). Ignored when the variable is unset.
     rpc:
@@ -774,6 +776,8 @@ chains:
           - 0x11a53f31Bf406de59fCf9613E1922bd3E283A4B4 # Slipstream README — Gauge Caps Deployment
           - 0xEe5b3C7b333e2870B746b3B2b168EF0958e55e15 # Slipstream README — Gauges V3 Deployment (current)
   - id: 42220 # Celo
+    # 1 s blocks: at the head, fetch about every 2 s of chain time instead of every block.
+    block_throttle: 2
     # RPC fallback: takes over at the head when HyperSync stalls (it did on Lisk,
     # Swell and Superseed in 2026). Ignored when the variable is unset.
     rpc:
@@ -908,6 +912,8 @@ chains:
         address:
           - 0x3a464f746D23Ab22155710f44dB16dcA53e0775E
   - id: 57073 # Ink
+    # 1 s blocks: at the head, fetch about every 2 s of chain time instead of every block.
+    block_throttle: 2
     # RPC fallback: takes over at the head when HyperSync stalls (it did on Lisk,
     # Swell and Superseed in 2026). Ignored when the variable is unset.
     rpc:
@@ -1152,6 +1158,8 @@ chains:
         address:
           - 0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7
   - id: 130 # Unichain
+    # 1 s blocks: at the head, fetch about every 2 s of chain time instead of every block.
+    block_throttle: 2
     # RPC fallback: takes over at the head when HyperSync stalls (it did on Lisk,
     # Swell and Superseed in 2026). Ignored when the variable is unset.
     rpc:
@@ -1529,6 +1537,8 @@ chains:
       - name: CLPool
         address:
   - id: 42161 # Arbitrum (Aero only)
+    # 0.25 s blocks: at the head, fetch about every 2 s of chain time instead of every block.
+    block_throttle: 8
     # RPC fallback: takes over at the head when HyperSync stalls (it did on Lisk,
     # Swell and Superseed in 2026). Ignored when the variable is unset.
     rpc:
