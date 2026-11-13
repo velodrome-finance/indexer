@@ -108,6 +108,13 @@ class CH:
                     time.sleep(min(60, 10 * (attempt + 1)))
                     continue
                 raise ClickHouseError(f"{e.code}: {msg}\n--- query ---\n{sql[:4000]}") from None
+            except (urllib.error.URLError, ConnectionError, TimeoutError) as e:
+                # server restarting (e.g. a stack redeploy): wait for it
+                if attempt < RETRIES:
+                    log(f"    ClickHouse unreachable ({e}), retrying in 30s")
+                    time.sleep(30)
+                    continue
+                raise
         raise AssertionError("unreachable")
 
     def execute(self, sql: str, settings: dict | None = None) -> dict:
@@ -454,6 +461,7 @@ def install(ctx: Ctx, force_rebuild=False):
     for e in ENTITIES:
         if ctx.has_source(e):
             ch.execute(rmv_ddl(ctx, e, instance))
+            ch.execute(f"SYSTEM START VIEW {q(ctx.db)}.{q(rmv_name(e))}")  # a verify cut off leaves it stopped
     for s in view_statements(ctx):
         ch.execute(s)
     meta_set(

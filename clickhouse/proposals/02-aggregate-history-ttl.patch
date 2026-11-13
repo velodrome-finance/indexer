@@ -1,0 +1,35 @@
+--- a/schema.graphql
++++ b/schema.graphql
+@@ -1,4 +1,4 @@
+-type Pool {
++type Pool @storage(postgres: true, clickhouse: { ttl: "lastUpdatedTimestamp + INTERVAL 30 DAY" }) {
+   id: ID! # Format: {chainId}-{poolAddress} (PoolId)
+   chainId: Int! # chain id
+   poolAddress: String! # address of the pool
+@@ -229,7 +229,7 @@
+ }
+ 
+ # Entity for tracking user activity and positions in specific pools
+-type UserStatsPerPool {
++type UserStatsPerPool @storage(postgres: true, clickhouse: { ttl: "lastActivityTimestamp + INTERVAL 30 DAY" }) {
+   id: ID! # Format: {chainId}-{userAddress}-{poolAddress} (UserStatsPerPoolId)
+   userAddress: String! @index # user wallet address
+   poolAddress: String! @index # address of the pool these stats are scoped to
+@@ -349,7 +349,7 @@
+ 
+ # Entity that tracks the latest state of the token entity
+ # By nature this entity saves the latest state of the token, and its state at different times should be attained from the snapshot entities
+-type Token {
++type Token @storage(postgres: true, clickhouse: { ttl: "lastUpdatedTimestamp + INTERVAL 30 DAY" }) {
+   id: ID! # Format: {chainId}-{address} (TokenId)
+   address: String! @index # token address
+   symbol: String! # token symbol
+@@ -425,7 +425,7 @@
+ 
+ # Tracks relevant data for each NFT minted: each NFT represents a concentrated position in a pool
+ # Note: amount0, amount1, amountUSD are derived fields computed on-demand from liquidity + sqrtPriceX96 + ticks
+-type NonFungiblePosition {
++type NonFungiblePosition @storage(postgres: true, clickhouse: { ttl: "lastUpdatedTimestamp + INTERVAL 30 DAY" }) {
+   id: ID! # Format: {chainId}-{nfpmAddress}-{tokenId} (NonFungiblePositionId). Natural key is (NFPM, tokenId); pool is metadata and preserved as a field. nfpmAddress disambiguates intra-chain tokenId collisions across multiple NFPMs (e.g. Optimism has two).
+   chainId: Int! # Chain ID where the NFT exists
+   tokenId: BigInt! @index # Token ID of the NFT (from Transfer event)
