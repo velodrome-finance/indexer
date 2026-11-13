@@ -1,6 +1,9 @@
 import { indexer } from "envio";
-import { type PoolDiff, updatePool } from "../../Aggregators/Pool";
-import { rehydrateTimestamps } from "../../EntityTimestamps";
+import {
+  type PoolDiff,
+  findPoolByGaugeAddress,
+  updatePool,
+} from "../../Aggregators/Pool";
 import type { handlerContext } from "../../EntityTypes";
 import { applyRedistributorConfigUpdate } from "./RedistributorConfigSharedLogic";
 
@@ -13,8 +16,10 @@ type RedistributorCounterDelta = Partial<
 >;
 
 /**
- * Resolve the `Pool` whose `gaugeAddress` matches the event's
- * gauge and apply a cumulative delta to one of the redistributor counters.
+ * Resolve the `Pool` on the event's chain whose `gaugeAddress` matches the
+ * event's gauge and apply a cumulative delta to one of the redistributor
+ * counters. Pools on other chains that happen to share the gauge address are
+ * never matched.
  *
  * Log-and-drop when no pool matches: Redistributor and the Voter/Gauge factories
  * are same-chain, so `Voter.GaugeCreated` must have indexed before any
@@ -38,24 +43,18 @@ async function applyRedistributorCounterDelta(
   blockNumber: number,
   context: handlerContext,
 ): Promise<void> {
-  const poolEntityList = await context.Pool.getWhere({
-    gaugeAddress: { _eq: gauge },
-  });
+  // Pool.gaugeAddress is a bare address and gauge addresses repeat across
+  // chains, so the lookup must stay on the event's chain (findPoolByGaugeAddress
+  // filters by chainId); the first row of an unfiltered match could be another
+  // chain's pool.
+  const poolEntity = await findPoolByGaugeAddress(gauge, eventChainId, context);
 
-  if (!poolEntityList || poolEntityList.length === 0) {
+  if (!poolEntity) {
     context.log.error(
-      `[Redistributor] Pool entity not found for gauge ${gauge}`,
+      `[Redistributor] Pool entity not found for gauge ${gauge} on chain ${eventChainId}`,
     );
     return;
   }
-
-  if (poolEntityList.length > 1) {
-    context.log.warn(
-      `[Redistributor] Multiple pools found for gauge ${gauge}, using first match`,
-    );
-  }
-
-  const poolEntity = rehydrateTimestamps("Pool", poolEntityList[0]);
 
   await updatePool(
     delta,

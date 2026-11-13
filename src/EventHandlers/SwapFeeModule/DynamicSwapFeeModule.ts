@@ -5,6 +5,7 @@ import { PoolId } from "../../Constants";
 import { getRehydrated } from "../../EntityTimestamps";
 import type { Pool } from "../../EntityTypes";
 import { resolveCustomSwapFee } from "./CustomSwapFeeSharedLogic";
+import { DynamicFeeGlobalConfigId } from "./DynamicFeeGlobalConfigSharedLogic";
 
 indexer.onEvent(
   { contract: "DynamicSwapFeeModule", event: "CustomFeeSet" },
@@ -49,7 +50,7 @@ indexer.onEvent(
   async ({ event, context }) => {
     // secondsAgo is a global setting for the DynamicSwapFeeModule
     // Store it in the DynamicFeeGlobalConfig entity
-    const configId = event.srcAddress;
+    const configId = DynamicFeeGlobalConfigId(event.chainId, event.srcAddress);
 
     const config: DynamicFeeGlobalConfig = {
       id: configId,

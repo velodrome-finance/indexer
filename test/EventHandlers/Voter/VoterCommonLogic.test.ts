@@ -451,14 +451,21 @@ describe("resolveLeafPoolForRootGauge", () => {
 
   function makeResolveContext(overrides: {
     rootGaugeMapping?: { rootPoolAddress: string } | null;
-    rootPoolLeafPools?: { leafPoolAddress: string; leafChainId: number }[];
+    rootPoolLeafPools?: {
+      leafPoolAddress: string;
+      leafChainId: number;
+      rootChainId?: number;
+    }[];
     /** When true, getWhere returns null (covers ?? [] branch). */
     getWhereReturnsNull?: boolean;
     warns?: string[];
   }): handlerContext {
     const warns = overrides.warns ?? [];
     const rootGaugeMapping = overrides.rootGaugeMapping ?? null;
-    const rootPoolLeafPools = overrides.rootPoolLeafPools ?? [];
+    // Mappings default to the root chain the resolution runs on.
+    const rootPoolLeafPools = (overrides.rootPoolLeafPools ?? []).map(
+      (mapping) => ({ rootChainId: chainId, ...mapping }),
+    );
     const getWhereValue = overrides.getWhereReturnsNull
       ? null
       : rootPoolLeafPools;
@@ -593,6 +600,52 @@ describe("resolveLeafPoolForRootGauge", () => {
     expect(
       vi.mocked(context.RootPool_LeafPool.getWhere),
     ).not.toHaveBeenCalled();
+  });
+
+  it("ignores a RootPool_LeafPool mapping whose root side is another chain", async () => {
+    const loadPoolDataSpy = vi.spyOn(PoolModule, "loadPoolData");
+    const warns: string[] = [];
+    const context = makeResolveContext({
+      rootGaugeMapping: { rootPoolAddress },
+      rootPoolLeafPools: [{ leafPoolAddress, leafChainId, rootChainId: 8453 }],
+      warns,
+    });
+
+    const result = await runResolve(context);
+
+    expect(result).toBeNull();
+    expect(warns).toHaveLength(1);
+    expect(warns[0]).toContain("count: 0");
+    expect(loadPoolDataSpy).not.toHaveBeenCalled();
+  });
+
+  it("selects the mapping for its own root chain when another chain has one for the same address", async () => {
+    const mockPool = {
+      id: `${leafChainId}-${leafPoolAddress}`,
+      poolAddress: leafPoolAddress,
+      chainId: leafChainId,
+    } as unknown as Pool;
+    vi.spyOn(PoolModule, "loadPoolData").mockResolvedValue({
+      liquidityPoolAggregator: mockPool,
+      token0Instance: {} as Token,
+      token1Instance: {} as Token,
+    });
+    const context = makeResolveContext({
+      rootGaugeMapping: { rootPoolAddress },
+      rootPoolLeafPools: [
+        { leafPoolAddress: "0x111", leafChainId: 57073, rootChainId: 8453 },
+        { leafPoolAddress, leafChainId },
+      ],
+    });
+
+    const result = await runResolve(context);
+
+    expect(result?.pool).toBe(mockPool);
+    expect(PoolModule.loadPoolData).toHaveBeenCalledWith(
+      leafPoolAddress,
+      leafChainId,
+      context,
+    );
   });
 
   it("returns leaf pool and isCrossChain when resolution succeeds", async () => {

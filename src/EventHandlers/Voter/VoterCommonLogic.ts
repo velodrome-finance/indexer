@@ -134,10 +134,14 @@ export async function resolveLeafPoolForRootGauge(
   if (isKnownSinkRootPool(chainId, rootPoolAddress)) {
     return null;
   }
-  const rootPoolLeafPools =
+  // Deliberately cross-chain: the root pool on this (root) chain resolves to
+  // its leaf pool on another chain. The lookup is by bare address, so keep
+  // only mappings whose root side is this chain.
+  const rootPoolLeafPools = (
     (await context.RootPool_LeafPool.getWhere({
       rootPoolAddress: { _eq: rootPoolAddress },
-    })) ?? [];
+    })) ?? []
+  ).filter((mapping) => mapping.rootChainId === chainId);
   if (rootPoolLeafPools.length !== 1) {
     context.log.warn(
       `[resolveLeafPoolForRootGauge] Root gauge ${gaugeAddress} maps to root pool ${rootPoolAddress} but RootPool_LeafPool mapping not found or ambiguous (count: ${rootPoolLeafPools.length}) on chain ${chainId}`,
