@@ -218,6 +218,10 @@
       "0x7f9adfbd38b669f03d1d11000bc76b9aaea28a81": {
         "pools": 2,
         "swaps": null
+      },
+      "0x9151434b16b9763660705744891fa906f660ecc5": {
+        "pools": 2,
+        "swaps": null
       }
     },
     "tokenPools": {
@@ -235,6 +239,10 @@
       },
       "0x7f9adfbd38b669f03d1d11000bc76b9aaea28a81": {
         "pools": 3,
+        "swaps": null
+      },
+      "0x9151434b16b9763660705744891fa906f660ecc5": {
+        "pools": 8,
         "swaps": null
       }
     }
@@ -407,9 +415,17 @@
     "poolsDiscovered": 136,
     "swapsCounted": true,
     "wethPairs": {
+      "0x102d758f688a4c1c5a80b116bd945d4455460282": {
+        "pools": 2,
+        "swaps": 1341246
+      },
       "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189": {
         "pools": 2,
         "swaps": 396048
+      },
+      "0x3a337a6ada9d885b6ad95ec48f9b75f197b5ae35": {
+        "pools": 2,
+        "swaps": 978026
       },
       "0x7f9adfbd38b669f03d1d11000bc76b9aaea28a81": {
         "pools": 2,
@@ -421,9 +437,17 @@
       }
     },
     "tokenPools": {
+      "0x102d758f688a4c1c5a80b116bd945d4455460282": {
+        "pools": 14,
+        "swaps": 3616923
+      },
       "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189": {
         "pools": 10,
         "swaps": 803977
+      },
+      "0x3a337a6ada9d885b6ad95ec48f9b75f197b5ae35": {
+        "pools": 15,
+        "swaps": 12767619
       },
       "0x4200000000000000000000000000000000000006": {
         "pools": 47,
@@ -447,6 +471,10 @@
         "pools": 2,
         "swaps": null
       },
+      "0x102d758f688a4c1c5a80b116bd945d4455460282": {
+        "pools": 1,
+        "swaps": null
+      },
       "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189": {
         "pools": 1,
         "swaps": null
@@ -463,6 +491,10 @@
     "tokenPools": {
       "0x0000baa0b1678229863c0a941c1056b83a1955f5": {
         "pools": 24,
+        "swaps": null
+      },
+      "0x102d758f688a4c1c5a80b116bd945d4455460282": {
+        "pools": 4,
         "swaps": null
       },
       "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189": {
@@ -832,6 +864,10 @@
       "0x48065fbbe25f71c9282ddf5e1cd6d6a887483d5e": {
         "pools": 8,
         "swaps": 6471239
+      },
+      "0x765de816845861e75a25fca122bb6898b8b1282a": {
+        "pools": 6,
+        "swaps": 1428871
       },
       "0x7f9adfbd38b669f03d1d11000bc76b9aaea28a81": {
         "pools": 3,

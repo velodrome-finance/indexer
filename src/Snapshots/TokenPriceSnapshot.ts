@@ -25,7 +25,8 @@ import {
  *                depth comparison (`pricingSourceTokenId`, `pricingDepthUSD`
  *                say which token and how deep; ADR 0004)
  * - `override` — forced to 0 by the operator blacklist
- * - `carried`  — nothing qualified; the prior price is kept (last success < 7 days ago)
+ * - `carried`  — nothing qualified; the prior price is kept (last success < 7 days
+ *                ago; any age for tier 1, see `lastSuccessfulPriceTimestamp`)
  * - `unpriced` — nothing qualified and nothing fresh to carry; price is 0
  *
  * Earlier rows may carry tags that are no longer produced: `rebind` (the ADR
@@ -70,6 +71,12 @@ export interface TokenPriceSnapshotInput {
   readonly pricingViaTokenId?: string;
   /** Two-hop ticks only: the pool that priced the peer. */
   readonly pricingViaPoolId?: string;
+  /**
+   * The token's last successful price after this tick. Equal to `timestamp`
+   * on `pinned` / `pool` / `canonical` ticks; on `carried` ticks it dates the
+   * carried price (tier 1 carries without expiry, ADR 0007).
+   */
+  readonly lastSuccessfulPriceTimestamp?: Date;
 }
 
 /**
@@ -114,6 +121,7 @@ export function createTokenPriceSnapshot(
     pricingHops: input.pricingHops,
     pricingViaTokenId: input.pricingViaTokenId,
     pricingViaPoolId: input.pricingViaPoolId,
+    lastSuccessfulPriceTimestamp: input.lastSuccessfulPriceTimestamp,
   };
 }
 

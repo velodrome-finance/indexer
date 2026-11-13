@@ -56,7 +56,8 @@ export const MAX_ACCEPTED_PRICE = 1_000_000n * ONE_USD;
 /**
  * How long a token keeps its last successful price when no route qualifies.
  * Once `lastSuccessfulPriceTimestamp` is older than this the price drops to 0:
- * a token whose liquidity has left must stop inflating TVL (#694).
+ * a token whose liquidity has left must stop inflating TVL (#694). Tier 1 is
+ * exempt (see {@link carriesWithoutExpiry}).
  */
 export const PRICE_CARRY_WINDOW_MS = 7 * 24 * MS_IN_AN_HOUR;
 
@@ -192,6 +193,29 @@ export function getPricingTier(chainId: number, address: string): PricingTier {
   if (lower === sets.weth) return PRICING_TIER.WETH;
   if (sets.connectors.has(lower)) return PRICING_TIER.CONNECTOR;
   return PRICING_TIER.OTHER;
+}
+
+/**
+ * Whether a token of this tier keeps its last price indefinitely when no route
+ * qualifies, instead of dropping to 0 after {@link PRICE_CARRY_WINDOW_MS}
+ * (ADR 0007, "When every route fails").
+ *
+ * Only tier 1, the chain's WETH (frxETH on Fraxtal): ETH is a deep, real
+ * market everywhere, so a stale WETH price is off by ETH's move since the last
+ * success, while 0 removes half of every WETH pair's TVL and the USD of every
+ * token priced through it. Its canonical source cannot serve a backfill on
+ * a leaf chain (the source chain runs behind it in time), so carrying is the
+ * only route for the hours between the local market draining and the head.
+ * Connectors (tier 2) include volatile alts whose stale price can be off by
+ * an order of magnitude, and tier-0 tokens never carry; both keep the 7-day
+ * rule. The staleness stays visible: `priceSource = carried` and
+ * `TokenPriceSnapshot.lastSuccessfulPriceTimestamp`.
+ *
+ * @param tier - The token's pricing tier
+ * @returns true when the carry never expires
+ */
+export function carriesWithoutExpiry(tier: PricingTier): boolean {
+  return tier === PRICING_TIER.WETH;
 }
 
 /**

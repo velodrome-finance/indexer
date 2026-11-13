@@ -23,6 +23,7 @@ import {
   PRICE_REFRESH_INTERVAL_MS,
   PRICING_TIER,
   type PricingTier,
+  carriesWithoutExpiry,
   getMinPricingDepthUSD,
   getPinnedPrice,
   getPricingTier,
@@ -288,7 +289,12 @@ async function refreshDueTokenPrice(
     resolution = { kind: "none" };
   }
 
-  const applied = applyPriceResolution(healed, resolution, blockTimestampMs);
+  const applied = applyPriceResolution(
+    healed,
+    resolution,
+    blockTimestampMs,
+    carriesWithoutExpiry(getPricingTier(chainId, healed.address)),
+  );
   context.Token.set(applied.token);
   setTokenPriceSnapshot(
     {
@@ -304,6 +310,7 @@ async function refreshDueTokenPrice(
       pricingHops: applied.pricingHops,
       pricingViaTokenId: applied.pricingViaTokenId,
       pricingViaPoolId: applied.pricingViaPoolId,
+      lastSuccessfulPriceTimestamp: applied.token.lastSuccessfulPriceTimestamp,
     },
     context,
   );

@@ -77,7 +77,7 @@ export const ENTITY_TIMESTAMP_FIELDS = {
   RedistributorConfig: ["lastUpdatedTimestamp"],
   SuperSwap: ["timestamp"],
   Token: ["lastUpdatedTimestamp", "lastSuccessfulPriceTimestamp"],
-  TokenPriceSnapshot: ["lastUpdatedTimestamp"],
+  TokenPriceSnapshot: ["lastUpdatedTimestamp", "lastSuccessfulPriceTimestamp"],
   UserStatsPerPool: [
     "lastAlmActivityTimestamp",
     "firstActivityTimestamp",

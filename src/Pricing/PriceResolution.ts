@@ -94,20 +94,23 @@ export function isPriceRefreshDue(
  * When nothing qualifies (`none`), the last price is carried while the last
  * success is under {@link PRICE_CARRY_WINDOW_MS} old, so missing data never
  * zeroes a good price; past the window it drops to 0 (`unpriced`) so a token
- * whose liquidity has left stops inflating TVL. `override` zeroes the price
- * without touching the success clock.
+ * whose liquidity has left stops inflating TVL. With `carryWithoutExpiry`
+ * (tier 1, see `carriesWithoutExpiry`) a positive price is carried however old
+ * it is. `override` zeroes the price without touching the success clock.
  *
  * Pure: no reads, no writes.
  *
  * @param token - The token being refreshed
  * @param resolution - What the refresh found
  * @param blockTimestampMs - Current block timestamp in milliseconds
+ * @param carryWithoutExpiry - Carry a positive price past the 7-day window
  * @returns The updated token plus snapshot provenance
  */
 export function applyPriceResolution(
   token: Token,
   resolution: PriceResolution,
   blockTimestampMs: number,
+  carryWithoutExpiry = false,
 ): AppliedPrice {
   const now = new Date(blockTimestampMs);
   const success = (
@@ -160,7 +163,8 @@ export function applyPriceResolution(
       const carry =
         token.pricePerUSDNew > 0n &&
         lastSuccess !== undefined &&
-        blockTimestampMs - lastSuccess.getTime() < PRICE_CARRY_WINDOW_MS;
+        (carryWithoutExpiry ||
+          blockTimestampMs - lastSuccess.getTime() < PRICE_CARRY_WINDOW_MS);
       return {
         token: {
           ...token,

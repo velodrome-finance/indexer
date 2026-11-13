@@ -406,6 +406,30 @@ describe("PriceOracle", () => {
         });
       });
 
+      it("keeps the chain's WETH (tier 1) at its last price however old, with the age on the snapshot", async () => {
+        const lastSuccess = NOW - 60 * DAY_S;
+        const store = opStore({
+          tokens: [makeToken(OP, OP_WETH, 18n, USD(2_400), lastSuccess)],
+          pricingPools: { [TokenId(OP, OP_WETH)]: [] },
+        });
+        const weth = await refresh(store, OP, OP_WETH);
+        expect(weth.pricePerUSDNew).toBe(USD(2_400));
+        expect(snapshotsFor(store, OP_WETH)[0]).toMatchObject({
+          priceSource: "carried",
+          pricePerUSDNew: USD(2_400),
+          lastSuccessfulPriceTimestamp: new Date(lastSuccess * 1000),
+        });
+      });
+
+      it("records the success time on a fresh snapshot", async () => {
+        const store = opStore();
+        await refresh(store, OP, OP_WETH);
+        expect(snapshotsFor(store, OP_WETH)[0]).toMatchObject({
+          priceSource: "pool",
+          lastSuccessfulPriceTimestamp: new Date(NOW * 1000),
+        });
+      });
+
       it("treats a failed store read as 'nothing qualified' and logs it", async () => {
         const store = opStore({
           tokens: [makeToken(OP, OP_TOKEN_X, 18n, USD(7), NOW - DAY_S)],
