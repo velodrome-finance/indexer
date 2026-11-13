@@ -61,6 +61,9 @@ contracts:
       - event: Transfer
       - event: IncreaseLiquidity
       - event: DecreaseLiquidity
+      # Carries the tokenId CLPool.Collect lacks: credits the fees CLPool.Collect
+      # isolated to the position owner instead of the NFPM contract.
+      - event: Collect
   - name: VeNFT
     abi_file_path: abis/VeNFT.json
     handler: src/EventHandlers/VeNFT/VeNFT.ts

@@ -27,6 +27,7 @@ import { processCLPoolFlash } from "./CLPool/CLPoolFlashLogic";
 import { processCLPoolMint } from "./CLPool/CLPoolMintLogic";
 import { processCLPoolSwap } from "./CLPool/CLPoolSwapLogic";
 import { recordAeroNFPMMint } from "./NFPM/AeroNFPMLogic";
+import { stageNFPMCollectFees } from "./NFPM/NFPMCollectLogic";
 import { LiquidityChangeType } from "./NFPM/NFPMCommonLogic";
 import { resolveSwapInitiator } from "./SwapInitiatorSharedLogic";
 
@@ -182,14 +183,17 @@ indexer.onEvent(
     const { liquidityPoolAggregator, token0Instance, token1Instance } =
       poolData;
 
-    // On Aero pools an NFPM position's fees are credited to the position's
-    // owner by AeroNFPM.Collect (per-position principal), so the NFPM contract
-    // (this event's `owner`) gets no UserStatsPerPool row. Legacy pools still
-    // credit the NFPM contract: the legacy NFPMs' Collect is not indexed.
-    const creditOwner = !(
-      liquidityPoolAggregator.deployment === POOL_DEPLOYMENT.AERO &&
-      event.params.owner === liquidityPoolAggregator.nfpmAddress
-    );
+    // An NFPM position's `owner` here is the NFPM contract, which gets no
+    // UserStatsPerPool row. On Aero pools AeroNFPM.Collect credits the
+    // position's owner (per-position principal). On legacy pools the fees
+    // isolated here are handed to the NFPM.Collect that follows in this tx,
+    // which knows the tokenId and so the owner (NFPMCollectLogic.ts).
+    const ownerIsNfpm =
+      event.params.owner === liquidityPoolAggregator.nfpmAddress;
+    const handToNfpmCollect =
+      ownerIsNfpm &&
+      liquidityPoolAggregator.deployment !== POOL_DEPLOYMENT.AERO;
+    const creditOwner = !ownerIsNfpm;
 
     // Process the collect event — isolates fees from burned principal
     const [result, userData] = await Promise.all([
@@ -207,6 +211,19 @@ indexer.onEvent(
 
     const poolDiff = result.liquidityPoolDiff;
     const userDiff = result.userLiquidityDiff;
+
+    if (handToNfpmCollect) {
+      await stageNFPMCollectFees(
+        event.chainId,
+        event.transaction.hash,
+        event.params.owner,
+        event.srcAddress,
+        userDiff.incrementalTotalUnstakedFeesCollected0 ?? 0n,
+        userDiff.incrementalTotalUnstakedFeesCollected1 ?? 0n,
+        userDiff.incrementalTotalUnstakedFeesCollectedUSD ?? 0n,
+        context,
+      );
+    }
 
     // Update pool and user entities
     await Promise.all([

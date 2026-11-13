@@ -1333,6 +1333,20 @@ export const V2SwapFeesInTxId = (
   poolAddress: string,
 ) => `${chainId}-${txHash}-${poolAddress}`;
 
+/** Entity ID for NFPMCollectFeesInTx: the fees of a legacy-NFPM position,
+ * handed from CLPool.Collect to the NFPM.Collect that follows it in the same
+ * tx. Format: {chainId}-{txHash}-{nfpmAddress}
+ * @param chainId - Chain ID of the tx
+ * @param txHash - Transaction hash
+ * @param nfpmAddress - The NFPM (CLPool.Collect's `owner`, NFPM.Collect's emitter; EIP-55 checksummed)
+ * @returns string Combined ID.
+ */
+export const NFPMCollectFeesInTxId = (
+  chainId: number,
+  txHash: string,
+  nfpmAddress: string,
+) => `${chainId}-${txHash}-${nfpmAddress}`;
+
 /** Entity ID for PoolFactoryDefaultFee. Format: {chainId}-{factoryAddress}-{stable|volatile}
  * @param chainId - Chain ID of the factory
  * @param factoryAddress - V2 pool factory (EIP-55 checksummed)

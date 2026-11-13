@@ -1,4 +1,5 @@
 import { indexer } from "envio";
+import { processNFPMCollect } from "./NFPMCollectLogic";
 import { processNFPMDecreaseLiquidity } from "./NFPMDecreaseLiquidityLogic";
 import { processNFPMIncreaseLiquidity } from "./NFPMIncreaseLiquidityLogic";
 import { processNFPMTransfer } from "./NFPMTransferLogic";
@@ -37,5 +38,14 @@ indexer.onEvent(
   { contract: "NFPM", event: "DecreaseLiquidity" },
   async ({ event, context }) => {
     await processNFPMDecreaseLiquidity(event, context);
+  },
+);
+
+// Credits the fees the preceding CLPool.Collect isolated to the position's
+// owner (CLPool.Collect only knows the NFPM contract). See NFPMCollectLogic.ts.
+indexer.onEvent(
+  { contract: "NFPM", event: "Collect" },
+  async ({ event, context }) => {
+    await processNFPMCollect(event, context);
   },
 );
