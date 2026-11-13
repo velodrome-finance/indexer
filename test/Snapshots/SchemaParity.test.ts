@@ -63,6 +63,9 @@ describe("Snapshot schema parity", () => {
         // underlying position history lives in CLPool Mint/Burn events.
         "tickEdges",
         "tickEdgeNets",
+        // Diagnostic counter of CL swaps whose fee fell back to the stored
+        // rate (tick-map drift); read off the live Pool, not trended hourly.
+        "numberOfSwapFeeFallbacks",
       ],
     ],
     ["UserStatsPerPool", ["firstActivityTimestamp", "lastSnapshotTimestamp"]],

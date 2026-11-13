@@ -9,6 +9,10 @@ export { fetchSwapFee } from "./fetchers/SwapFee";
  * Effect to get the swap fee of a CL pool from the factory that created it,
  * at a historical block (`CLFactory.getSwapFee(pool)`).
  *
+ * No handler calls this: CL swap fees are derived from each swap's own price
+ * move (src/Aggregators/CLSwapFee.ts, ADR 0001 amendment). Kept for
+ * `scripts/smoke-effects.ts`.
+ *
  * Returns `undefined` when no endpoint answered or the call reverted; the
  * caller then keeps the pool's previous fee. An `undefined` caused by an RPC
  * failure is not cached (see {@link createRpcEffect}), so a later run retries.

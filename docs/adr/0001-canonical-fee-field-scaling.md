@@ -50,3 +50,54 @@ CL on-chain representation and what `getSwapFee` returns.
   served fee changes from e.g. `30`→`3000`; consumers reading it as basis points
   must switch to ÷`FEE_SCALE` (1e6). This is the one outward-facing change.
 - Parity is pinned by `test/EventHandlers/FeeFieldScaling.test.ts`.
+
+## Amendment (2026-11): CL fees derived from the swap; custom-fee sentinels
+
+The scale is unchanged. What changed is where the CL rate comes from, and what
+`baseFee` / `currentFee` mean on CL pools.
+
+**Before.** Every CL pool's `currentFee` was refreshed by an archive `eth_call`
+(`CLFactory.getSwapFee(pool)`, effect `getSwapFee`) once per pool per active
+hour, at the snapshot boundary, and each swap's fee was `amountIn × currentFee`.
+That was the dominant RPC cost of a sync, it lagged dynamic-fee pools by up to
+about two hours (the refresh ran after the triggering swap was priced), and the
+start-of-hour read could overwrite a fee an earlier event in the same batch had
+just set.
+
+**Now.** A Slipstream swap takes `principal + fee` on the input token, and the
+fee never moves the price. The Swap handler already integrates the price move
+over the pool's tick map (`processTickCrossings(…, "total")`), which gives the
+principal, so `feeIn = amountIn − principalIn` exactly
+(`src/Aggregators/CLSwapFee.ts`). `totalFeesGenerated0/1/USD` and the user's
+`totalFeesContributed0/1/USD` come from that difference; the USD value is the
+input leg's trusted USD × `feeIn / amountIn`. No CL handler calls `getSwapFee`;
+the effect is kept only for `scripts/smoke-effects.ts`.
+`scripts/verify-cl-fee-derivation.ts` checked the derivation against the
+factory's `getSwapFee` on static- and dynamic-fee pools on Base and Optimism.
+
+Drift guard: if the walk's ending in-range liquidity differs from the event's
+`liquidity`, or the derived fee is negative or above 10% of `amountIn`, that
+swap is valued with the stored rate (`currentFee ?? baseFee`) instead,
+`Pool.numberOfSwapFeeFallbacks` is incremented, and the pool's first such swap
+logs one `[CL_SWAP_FEE_FALLBACK]` warning.
+
+Field meanings (FEE_SCALE 1e6 throughout):
+
+| Field | V2 pool | CL pool |
+| --- | --- | --- |
+| `baseFee` | configured fee (factory default or `SetCustomFee`) | configured nominal fee: tick-spacing default, `CustomSwapFeeModule` fee, or `DynamicSwapFeeModule` custom base fee (a dynamic pool charges this plus a TWAP-volatility part, up to `feeCap`) |
+| `currentFee` | = `baseFee` | effective rate of the latest swap with `amountIn ≥ 1e7` raw units, `feeIn / amountIn` rounded to nearest; smaller swaps are too coarse to measure a rate and leave it unchanged. Seeded from `baseFee` at creation and by `CustomSwapFeeModule.SetCustomFee`; used as the fallback rate |
+
+`PoolSnapshot.baseFee` / `currentFee` copy these at the hour boundary, so a CL
+snapshot's `currentFee` is the rate the last sizeable swap before the boundary
+paid (previously: a `getSwapFee` read at the hour's first block).
+
+**Custom-fee sentinels.** On the V2 `PoolFactory`, the CL `CustomSwapFeeModule`
+and the CL `DynamicSwapFeeModule`, `ZERO_FEE_INDICATOR()` is 420: a custom fee
+of 420 charges 0%, and a custom fee of 0 means "no override, use the default"
+(V2: the factory's stable / volatile fee; CL: `tickSpacingToFee`). Confirmed with
+`scripts/verify-fee-sentinels.ts` (state-overridden `getFee` calls on Base and
+Optimism). The three handlers now store what the contract charges
+(`resolveCustomSwapFee` in `src/EventHandlers/SwapFeeModule/CustomSwapFeeSharedLogic.ts`)
+instead of the raw value. As of 2026-11-13 no indexed chain has ever emitted
+either value, so this changes no current data.

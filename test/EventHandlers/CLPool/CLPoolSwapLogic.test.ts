@@ -1,5 +1,6 @@
 import { TickMath } from "@uniswap/v3-sdk";
 import type { EvmEvent, Token } from "envio";
+import { segmentReserveDelta } from "../../../src/Aggregators/CLStakedLiquidity";
 import { TEN_TO_THE_18_BI, toChecksumAddress } from "../../../src/Constants";
 import type { Pool, handlerContext } from "../../../src/EntityTypes";
 import {
@@ -253,7 +254,6 @@ describe("CLPoolSwapLogic", () => {
         mockToken0,
         mockToken1,
         trustedVolumeForMockEvent,
-        mockContext,
       );
 
       // Fee = 3000 (0.3% in 1e6 scale), only charged on input token (positive amount)
@@ -279,7 +279,6 @@ describe("CLPoolSwapLogic", () => {
         mockToken0,
         mockToken1,
         trustedVolumeForMockEvent,
-        mockContext,
       );
 
       // Fee = 10000 (1% in 1e6 scale), only charged on input token (positive amount)
@@ -289,7 +288,7 @@ describe("CLPoolSwapLogic", () => {
       expect(result.swapFeesInToken1).toBe(0n); // output side — no fee
     });
 
-    it("should return zero fees when both currentFee and baseFee are undefined", () => {
+    it("should return zero fees without logging when both currentFee and baseFee are undefined", () => {
       const poolWithoutFee = {
         ...mockPool,
         currentFee: undefined,
@@ -302,20 +301,13 @@ describe("CLPoolSwapLogic", () => {
         mockToken0,
         mockToken1,
         trustedVolumeForMockEvent,
-        mockContext,
       );
 
       expect(result.swapFeesInToken0).toBe(0n);
       expect(result.swapFeesInToken1).toBe(0n);
       expect(result.swapFeesInUSD).toBe(0n);
-      expect(mockContext.log.error).toHaveBeenCalled();
-      // Log should include actual values for diagnostics
-      expect(mockContext.log.error).toHaveBeenCalledWith(
-        expect.stringContaining("undefined"),
-      );
-      expect(mockContext.log.error).toHaveBeenCalledWith(
-        expect.stringContaining(poolWithoutFee.id),
-      );
+      // A zero / missing rate is a zero-fee pool, not an error (no per-swap log).
+      expect(mockContext.log.error).not.toHaveBeenCalled();
     });
 
     it("should handle different token decimals correctly", () => {
@@ -330,7 +322,6 @@ describe("CLPoolSwapLogic", () => {
         tokenWith6Decimals,
         mockToken1,
         trustedVolumeForMockEvent,
-        mockContext,
       );
 
       // Fee = 3000 (0.3% in 1e6 scale), only charged on input token (positive amount)
@@ -347,7 +338,6 @@ describe("CLPoolSwapLogic", () => {
         mockToken0,
         mockToken1,
         trustedVolumeForMockEvent,
-        mockContext,
       );
 
       // volumeInUSD × feeRate / FEE_SCALE = 1e18 × 3000 / 1e6 = 3e15
@@ -378,7 +368,6 @@ describe("CLPoolSwapLogic", () => {
         token0WithZeroPrice,
         whitelistedToken1,
         fallbackVolume,
-        mockContext,
       );
 
       expect(fallbackVolume).toBeGreaterThan(0n);
@@ -403,7 +392,6 @@ describe("CLPoolSwapLogic", () => {
         token0WithZeroPrice,
         token1WithoutPrice,
         0n,
-        mockContext,
       );
 
       expect(result.swapFeesInUSD).toBe(0n);
@@ -438,7 +426,6 @@ describe("CLPoolSwapLogic", () => {
         poisonedToken0,
         honestToken1,
         volumeInUSD,
-        mockContext,
       );
 
       // Volume defends by picking the smaller (honest) leg.
@@ -752,6 +739,186 @@ describe("CLPoolSwapLogic", () => {
 
       // No crossings + empty edges → derive(oldTick) = 0n.
       expect(result.liquidityPoolDiff.stakedLiquidityInRange).toBe(0n);
+    });
+  });
+
+  // The swap fee is derived from the swap itself: amountIn − principalIn, where
+  // the principal is the price move integrated over the tick map. No RPC.
+  describe("swap-derived fee", () => {
+    const wlToken0: Token = { ...mockToken0, isWhitelisted: true };
+    const wlToken1: Token = { ...mockToken1, isWhitelisted: true };
+    const L = 1_000_000n * TEN_TO_THE_18_BI;
+    const sqrtAtTick = (t: number) =>
+      BigInt(TickMath.getSqrtRatioAtTick(t).toString());
+    // Full-range position at tick 0; plus a position on [50, 150) so the walk
+    // to tick 100 crosses an initialized tick (liquidity L → 2L).
+    const pool: Pool = {
+      ...mockPool,
+      tick: 0n,
+      sqrtPriceX96: sqrtAtTick(0),
+      tickSpacing: 1n,
+      liquidityInRange: L,
+      tickEdges: [-887272n, 50n, 150n, 887272n],
+      tickEdgeNets: [L, L, -L, -L],
+      currentFee: 3000n,
+      baseFee: 3000n,
+      numberOfSwapFeeFallbacks: 0n,
+    };
+    // Principal for a token1-in move from tick 0 to tick 100, as the indexer
+    // walk computes it (two segments: L over [0, 50], 2L over [50, 100]).
+    const principal1 =
+      segmentReserveDelta(L, sqrtAtTick(0), sqrtAtTick(50)).delta1 +
+      segmentReserveDelta(2n * L, sqrtAtTick(50), sqrtAtTick(100)).delta1;
+    const principal0 =
+      segmentReserveDelta(L, sqrtAtTick(0), sqrtAtTick(50)).delta0 +
+      segmentReserveDelta(2n * L, sqrtAtTick(50), sqrtAtTick(100)).delta0;
+    // Slipstream charges fee = principal · f / (1e6 − f), rounded up.
+    const chainFee = (principal: bigint, f: bigint) =>
+      (principal * f + (1_000_000n - f) - 1n) / (1_000_000n - f);
+    const swapEvent = (
+      amount1: bigint,
+      liquidity = 2n * L,
+    ): EvmEvent<"CLPool", "Swap"> => ({
+      ...mockEvent,
+      params: {
+        ...mockEvent.params,
+        amount0: principal0, // negative: token0 out
+        amount1,
+        tick: 100n,
+        sqrtPriceX96: sqrtAtTick(100),
+        liquidity,
+      },
+    });
+    const freshContext = () =>
+      ({
+        log: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
+      }) as unknown as handlerContext;
+
+    it("records amountIn − principal as the fee, ignoring the stored rate, and sets currentFee", async () => {
+      const fee = chainFee(principal1, 500n); // 0.05% charged on chain
+      const ctx = freshContext();
+      const result = await processCLPoolSwap(
+        swapEvent(principal1 + fee),
+        pool, // stored rate 3000 must NOT be used
+        wlToken0,
+        wlToken1,
+        ctx,
+      );
+      const d = result.liquidityPoolDiff;
+      expect(d.incrementalTotalFeesGenerated1).toBe(fee); // 18 decimals
+      expect(d.incrementalTotalFeesGenerated0).toBe(0n);
+      expect(result.userSwapDiff.incrementalTotalFeesContributed1).toBe(fee);
+      expect(d.currentFee).toBe(500n);
+      expect(d.incrementalNumberOfSwapFeeFallbacks).toBe(0n);
+      // USD = input leg USD × fee / amountIn ($2 per token1).
+      const inputUSD = ((principal1 + fee) * TWO_USD) / TEN_TO_THE_18_BI;
+      expect(d.incrementalTotalFeesGeneratedUSD).toBe(
+        (inputUSD * fee) / (principal1 + fee),
+      );
+      expect(result.userSwapDiff.incrementalTotalFeesContributedUSD).toBe(
+        d.incrementalTotalFeesGeneratedUSD,
+      );
+      expect(ctx.log.warn).not.toHaveBeenCalled();
+      expect(ctx.log.error).not.toHaveBeenCalled();
+    });
+
+    it("tracks a dynamic fee swap to swap", async () => {
+      for (const f of [131n, 177n, 2000n]) {
+        const fee = chainFee(principal1, f);
+        const result = await processCLPoolSwap(
+          swapEvent(principal1 + fee),
+          pool,
+          wlToken0,
+          wlToken1,
+          freshContext(),
+        );
+        expect(result.liquidityPoolDiff.currentFee).toBe(f);
+        expect(result.liquidityPoolDiff.incrementalTotalFeesGenerated1).toBe(
+          fee,
+        );
+      }
+    });
+
+    it("handles a zero-fee pool without logging and sets currentFee to 0", async () => {
+      const ctx = freshContext();
+      const result = await processCLPoolSwap(
+        swapEvent(principal1),
+        { ...pool, currentFee: 0n, baseFee: 0n },
+        wlToken0,
+        wlToken1,
+        ctx,
+      );
+      expect(result.liquidityPoolDiff.incrementalTotalFeesGenerated1).toBe(0n);
+      expect(result.liquidityPoolDiff.incrementalTotalFeesGeneratedUSD).toBe(
+        0n,
+      );
+      expect(result.liquidityPoolDiff.currentFee).toBe(0n);
+      expect(ctx.log.error).not.toHaveBeenCalled();
+      expect(ctx.log.warn).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["liquidity_mismatch", (fee: bigint) => swapEvent(principal1 + fee, L)],
+      ["negative_fee", () => swapEvent(principal1 - 1_000_000n)],
+      ["fee_above_cap", () => swapEvent(principal1 * 2n)],
+    ] as const)(
+      "falls back to the stored rate on %s, counts it and logs once per pool",
+      async (reason, makeEvent) => {
+        const ev = makeEvent(chainFee(principal1, 500n));
+        const amountIn = ev.params.amount1;
+        const ctx = freshContext();
+        const result = await processCLPoolSwap(
+          ev,
+          pool,
+          wlToken0,
+          wlToken1,
+          ctx,
+        );
+        const d = result.liquidityPoolDiff;
+        expect(d.incrementalTotalFeesGenerated1).toBe(
+          (amountIn * 3000n) / 1_000_000n,
+        );
+        expect(d.incrementalNumberOfSwapFeeFallbacks).toBe(1n);
+        expect(d.currentFee).toBeUndefined();
+        expect(ctx.log.warn).toHaveBeenCalledTimes(1);
+        expect(ctx.log.warn).toHaveBeenCalledWith(
+          expect.stringContaining("[CL_SWAP_FEE_FALLBACK]"),
+        );
+        expect(ctx.log.warn).toHaveBeenCalledWith(
+          expect.stringContaining(`reason=${reason}`),
+        );
+
+        // A pool that already fell back once does not log again.
+        const ctx2 = freshContext();
+        const again = await processCLPoolSwap(
+          ev,
+          { ...pool, numberOfSwapFeeFallbacks: 1n },
+          wlToken0,
+          wlToken1,
+          ctx2,
+        );
+        expect(
+          again.liquidityPoolDiff.incrementalNumberOfSwapFeeFallbacks,
+        ).toBe(1n);
+        expect(ctx2.log.warn).not.toHaveBeenCalled();
+      },
+    );
+
+    it("falls back when the tick map is empty (partial-history sync)", async () => {
+      const fee = chainFee(principal1, 500n);
+      const result = await processCLPoolSwap(
+        swapEvent(principal1 + fee),
+        { ...pool, tickEdges: [], tickEdgeNets: [] },
+        wlToken0,
+        wlToken1,
+        freshContext(),
+      );
+      expect(result.liquidityPoolDiff.incrementalNumberOfSwapFeeFallbacks).toBe(
+        1n,
+      );
+      expect(result.liquidityPoolDiff.incrementalTotalFeesGenerated1).toBe(
+        ((principal1 + fee) * 3000n) / 1_000_000n,
+      );
     });
   });
 

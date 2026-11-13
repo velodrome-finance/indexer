@@ -140,6 +140,7 @@ export function setupCommon() {
     totalUnstakedFeesCollectedUSD: 300n * TEN_TO_THE_18_BI,
     totalStakedFeesCollectedUSD: 0n,
     numberOfSwaps: 1n,
+    numberOfSwapFeeFallbacks: 0n,
     token0Price: 1n * TEN_TO_THE_18_BI,
     token1Price: 1n * TEN_TO_THE_18_BI,
     totalVotesDeposited: 1n,

@@ -5,7 +5,6 @@ import {
   TokenId,
   isKnownSinkRootPool,
 } from "../Constants";
-import { getSwapFee, roundBlockToInterval } from "../Effects/Index";
 import { getRehydrated, getWhereRehydrated } from "../EntityTimestamps";
 import type { handlerContext } from "../EntityTypes";
 import type { Pool } from "../EntityTypes";
@@ -118,6 +117,9 @@ export interface PoolDiff {
   incrementalTotalStakedFeesCollected1: bigint;
   incrementalTotalStakedFeesCollectedUSD: bigint;
   incrementalNumberOfSwaps: bigint;
+  // CL swaps valued with the stored rate because the swap-derived fee was
+  // rejected (see src/Aggregators/CLSwapFee.ts).
+  incrementalNumberOfSwapFeeFallbacks: bigint;
   incrementalTotalEmissions: bigint;
   incrementalTotalEmissionsUSD: bigint;
   incrementalTotalEmissionsRedistributed: bigint;
@@ -244,69 +246,6 @@ export function isMissingRootPoolMapping(
 }
 
 /**
- * Update the dynamic fee pools data from the swap module.
- * @param liquidityPoolAggregator
- * @param context
- * @param blockNumber
- * @param eventChainId
- * @returns The updated liquidity pool aggregator, or the original if chain mismatch occurs
- */
-export async function updateDynamicFeePools(
-  liquidityPoolAggregator: Pool,
-  context: handlerContext,
-  eventChainId: number,
-  blockNumber: number,
-): Promise<Pool> {
-  const poolAddress = liquidityPoolAggregator.poolAddress;
-  const chainId = liquidityPoolAggregator.chainId;
-
-  if (chainId !== eventChainId) {
-    return liquidityPoolAggregator;
-  }
-
-  const factoryAddress = liquidityPoolAggregator.factoryAddress;
-  if (!factoryAddress || factoryAddress === "") {
-    context.log.warn(
-      `[updateDynamicFeePools] Pool ${poolAddress} on chain ${chainId} has no factoryAddress. No update to currentFee will be performed.`,
-    );
-    return liquidityPoolAggregator;
-  }
-
-  // Issue #749: round block to the hour boundary so the effect cache key is
-  // stable within an hour and preload dual-pass + re-index back-fills hit
-  // the cache instead of producing a fresh slot per raw block.
-  // Issue #759: clamp the rounded block up to the pool's deployment block so
-  // SwapFeeModule reads never land before pool bytecode exists (would revert).
-  // The `?? BigInt(blockNumber)` fallback covers legacy pools indexed before
-  // the createdBlockNumber field was added (non-genesis-reindex / hot-deploy windows);
-  // Number(undefined) would yield NaN and break the Math.max clamp.
-  const minBlock = Number(
-    liquidityPoolAggregator.createdBlockNumber ?? BigInt(blockNumber),
-  );
-  const currentFee = await context.effect(getSwapFee, {
-    poolAddress,
-    factoryAddress,
-    chainId,
-    blockNumber: roundBlockToInterval(blockNumber, chainId, minBlock),
-  });
-
-  if (currentFee === undefined) {
-    context.log.warn(
-      `[updateDynamicFeePools] Failed to fetch fee for pool ${poolAddress} on chain ${chainId}, skipping update`,
-    );
-    return liquidityPoolAggregator;
-  }
-
-  // Update the current fee in the pool entity
-  const updatedPool = {
-    ...liquidityPoolAggregator,
-    currentFee,
-  };
-
-  return updatedPool;
-}
-
-/**
  * Updates the state of a Pool with new data and manages snapshots.
  *
  * This function applies a set of changes (diff) to the current state of a liquidity pool
@@ -317,16 +256,19 @@ export async function updateDynamicFeePools(
  * @param current - The current state of the liquidity pool aggregator.
  * @param timestamp - The current timestamp when the update is applied.
  * @param context - The handler context used to store the updated state and snapshots.
- * @param eventChainId - The chain ID of the event that triggered the update.
- * @param blockNumber - The block number of the event that triggered the update.
+ * @param _eventChainId - The chain ID of the event that triggered the update.
+ *   Unused since the per-hour CL fee RPC was removed; kept so callers are unchanged.
+ * @param _blockNumber - The block number of the event that triggered the update.
+ *   Unused for the same reason.
+ * @returns Promise that resolves once the Pool upsert (and any snapshot) is staged
  */
 export async function updatePool(
   diff: Partial<PoolDiff>,
   current: Pool,
   timestamp: Date,
   context: handlerContext,
-  eventChainId: number,
-  blockNumber: number,
+  _eventChainId: number,
+  _blockNumber: number,
 ) {
   // Invariant check for the parallel-array pair (stakedTickEdges,
   // stakedTickEdgeNets). Writers are supposed to compute both together via
@@ -624,6 +566,9 @@ export async function updatePool(
       current.totalStakedFeesCollectedUSD,
     numberOfSwaps:
       (diff.incrementalNumberOfSwaps ?? 0n) + current.numberOfSwaps,
+    numberOfSwapFeeFallbacks:
+      (diff.incrementalNumberOfSwapFeeFallbacks ?? 0n) +
+      (current.numberOfSwapFeeFallbacks ?? 0n),
     totalEmissions:
       (diff.incrementalTotalEmissions ?? 0n) + current.totalEmissions,
     totalEmissionsUSD:
@@ -747,20 +692,10 @@ export async function updatePool(
 
   // Snapshot only when we've entered a new epoch (hour); use epoch-aligned timestamp so we don't drift
   if (shouldSnapshot(current.lastSnapshotTimestamp, timestamp)) {
-    // Only update dynamic fees for CL pools (they use dynamic fee modules)
-    // Non-CL pools have their fees fixed at a certain constant level. It can change over time, but we fetch that change
-    // through events.
+    // CL currentFee is maintained by the Swap handler from each swap's own
+    // price move (src/Aggregators/CLSwapFee.ts); there is no per-hour RPC
+    // refresh any more, so a snapshot never changes a fee.
     if (updated.isCL) {
-      updated = {
-        ...updated,
-        ...(await updateDynamicFeePools(
-          updated,
-          context,
-          eventChainId,
-          blockNumber,
-        )),
-      };
-
       // Compute CL staked USD from running staked reserves — O(1) instead of O(N) position scan.
       // Issue #890 (residual of #857): currentLiquidityStaked and stakedReserve0/1
       // are independent accumulators, so a full unstake drives units to 0n while the
@@ -1131,8 +1066,7 @@ export function createPoolEntity(params: {
   baseFee: bigint;
   currentFee: bigint;
   // Block at which the pool was deployed (PoolCreated.event.block.number).
-  // Stamped once at creation and used by updateDynamicFeePools to clamp
-  // hour-rounded SwapFeeModule reads above the pool's bytecode boundary (#759).
+  // Stamped once at creation (#759).
   createdBlockNumber: bigint;
 }): Pool {
   const {
@@ -1189,6 +1123,7 @@ export function createPoolEntity(params: {
     totalUnstakedFeesCollectedUSD: 0n,
     totalStakedFeesCollectedUSD: 0n,
     numberOfSwaps: 0n,
+    numberOfSwapFeeFallbacks: 0n,
     token0Price: 0n,
     token1Price: 0n,
     totalEmissions: 0n,

@@ -4,6 +4,7 @@ import { updatePool } from "../../Aggregators/Pool";
 import { PoolId } from "../../Constants";
 import { getRehydrated } from "../../EntityTimestamps";
 import type { Pool } from "../../EntityTypes";
+import { resolveCustomSwapFee } from "./CustomSwapFeeSharedLogic";
 
 indexer.onEvent(
   { contract: "DynamicSwapFeeModule", event: "CustomFeeSet" },
@@ -16,8 +17,20 @@ indexer.onEvent(
       return;
     }
 
+    // The custom base fee the module charges (FEE_SCALE 1e6): 420 is the
+    // zero-fee indicator, 0 resets to the tick-spacing default. The dynamic
+    // part on top of it is measured per swap into currentFee.
+    const baseFee = await resolveCustomSwapFee(
+      BigInt(event.params.fee),
+      pool,
+      true,
+      context,
+    );
+    if (baseFee === undefined) {
+      return;
+    }
     const diff: Partial<Pool> = {
-      baseFee: BigInt(event.params.fee),
+      baseFee,
     };
 
     await updatePool(

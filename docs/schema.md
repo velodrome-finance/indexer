@@ -43,7 +43,7 @@ Latest-state entities that hold the headline metrics most consumers query.
 | `token1_address` | `String!` | token1 address |
 | `isStable` | `Boolean!` | whether the pool is a stable AMM or a volatile AMM |
 | `isCL` | `Boolean!` | whether the pool is a CL pool |
-| `createdBlockNumber` | `BigInt!` | Block number at which PoolCreated fired; used to clamp roundBlockToInterval so getSwapFee/getTokenPrice never query before pool deployment (#759) |
+| `createdBlockNumber` | `BigInt!` | Block number at which PoolCreated fired (#759); creation-time metadata |
 | `tickSpacing` | `BigInt!` | Tick spacing of the pool; 0 for non-CL pools |
 | `reserve0` | `BigInt!` | reserve of token0 in token units |
 | `reserve1` | `BigInt!` | reserve of token1 in token units |
@@ -62,6 +62,7 @@ Latest-state entities that hold the headline metrics most consumers query.
 | `totalUnstakedFeesCollectedUSD` | `BigInt!` | total fees collected from unstaked LPs (Collect events) in USD |
 | `totalStakedFeesCollectedUSD` | `BigInt!` | total fees collected from staked LPs (CollectFees events) in USD |
 | `numberOfSwaps` | `BigInt!` | total number of swaps in the pool |
+| `numberOfSwapFeeFallbacks` | `BigInt!` | CL only: swaps whose fee could not be derived from the swap (tick-map walk disagreed with the event's liquidity, or the derived fee was negative or above 10% of the input) and were valued with the stored currentFee instead. Should stay 0 on a from-creation sync |
 | `token0Price` | `BigInt!` | price of token0 relative to token1 |
 | `token1Price` | `BigInt!` | price of token1 relative to token0 |
 | `totalVotesDeposited` | `BigInt!` | total votes deposited in veToken units |
@@ -107,10 +108,10 @@ Latest-state entities that hold the headline metrics most consumers query.
 | `feeVotingRewardAddress` | `String` | address of the fee voting reward contract for this pool _(indexed)_ |
 | `totalFeeRewardClaimedUSD` | `BigInt!` | total fee rewards claimed by users in USD (canonical cross-token aggregate; raw token-unit sum dropped in #813 — fee rewards mix the pool's two fee tokens) |
 | `veNFTamountStaked` | `BigInt!` | total amount of veNFT staked for this pool |
-| `baseFee` | `BigInt!` | Current base fee, FEE_SCALE 1e6 (hundredths of a basis point); single fee divisor across V2 & CL — issue #812 |
+| `baseFee` | `BigInt!` | Configured (nominal) fee, FEE_SCALE 1e6 (hundredths of a basis point; single divisor across V2 & CL, issue #812). V2: factory default or SetCustomFee. CL: tick-spacing default, CustomSwapFeeModule fee, or DynamicSwapFeeModule custom base fee (a dynamic pool charges this plus a TWAP-volatility part, up to feeCap). Custom-fee sentinels resolved as the contracts do: 420 = 0%, 0 = default (ADR 0001) |
 | `feeCap` | `BigInt` | Current fee cap for pool |
 | `scalingFactor` | `BigInt` | Current scaling factor for pool |
-| `currentFee` | `BigInt!` | Current fee (base + dynamic), FEE_SCALE 1e6; single fee divisor across V2 & CL — issue #812 |
+| `currentFee` | `BigInt!` | Fee rate charged, FEE_SCALE 1e6 (issue #812). V2: the configured fee (= baseFee). CL: effective rate of the latest swap with input >= 1e7 raw units, derived from the swap itself ((amountIn - principal) / amountIn, rounded to nearest); seeded from baseFee at creation and on CustomSwapFeeModule.SetCustomFee; also the fallback rate for a swap whose fee cannot be derived (ADR 0001) |
 | `unstakedFee` | `BigInt` | Raw customFee value last emitted by an UnstakedFeeModule for this pool (CL pools only). 0 = no override (factory default applies), 420 = explicit 0% fee (ZERO_FEE_INDICATOR), else fee rate with 6-decimal precision (e.g. 500_000 = 50%). Null = never set. |
 | `poolLauncherPoolId` | `String` | ID of the PoolLauncherPool entity if this pool was launched via Pool Launcher |
 | `factoryAddress` | `String` | Address of the factory that created this pool (e.g. CLFactory for CL pools, set from PoolCreated event) |
@@ -338,10 +339,10 @@ Snapshot of the LiquidityPool entity
 | `feeVotingRewardAddress` | `String` | address of the fee voting reward contract for this pool _(indexed)_ |
 | `totalFeeRewardClaimedUSD` | `BigInt!` | total fee rewards claimed by users in USD (canonical cross-token aggregate; raw token-unit sum dropped in #813 — fee rewards mix the pool's two fee tokens) |
 | `veNFTamountStaked` | `BigInt!` | total amount of veNFT staked for this pool |
-| `baseFee` | `BigInt!` | Current base fee, FEE_SCALE 1e6 (hundredths of a basis point); single fee divisor across V2 & CL — issue #812 |
+| `baseFee` | `BigInt!` | Configured (nominal) fee, FEE_SCALE 1e6 (hundredths of a basis point; single divisor across V2 & CL, issue #812). V2: factory default or SetCustomFee. CL: tick-spacing default, CustomSwapFeeModule fee, or DynamicSwapFeeModule custom base fee (a dynamic pool charges this plus a TWAP-volatility part, up to feeCap). Custom-fee sentinels resolved as the contracts do: 420 = 0%, 0 = default (ADR 0001) |
 | `feeCap` | `BigInt` | Current fee cap for pool |
 | `scalingFactor` | `BigInt` | Current scaling factor for pool |
-| `currentFee` | `BigInt!` | Current fee (base + dynamic), FEE_SCALE 1e6; single fee divisor across V2 & CL — issue #812 |
+| `currentFee` | `BigInt!` | Fee rate charged, FEE_SCALE 1e6 (issue #812). V2: the configured fee (= baseFee). CL: effective rate of the latest swap with input >= 1e7 raw units, derived from the swap itself ((amountIn - principal) / amountIn, rounded to nearest); seeded from baseFee at creation and on CustomSwapFeeModule.SetCustomFee; also the fallback rate for a swap whose fee cannot be derived (ADR 0001) |
 | `unstakedFee` | `BigInt` | Raw customFee value last emitted by an UnstakedFeeModule for this pool (see Pool for semantics) |
 
 ### TokenPriceSnapshot
