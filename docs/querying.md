@@ -32,16 +32,20 @@ query {
 }
 ```
 
-For Aero pools, swaps, liquidity, positions and prices are indexed; gauge,
-emission and vote fields keep their defaults until Aero gauges and governance
-are indexed (see the field notes in the [schema reference](schema.md#pool)).
+For Aero pools, swaps, liquidity, positions, prices and gauge staking
+(`gaugeAddress`, `gaugeIsAlive`, `currentLiquidityStaked*`, staked positions)
+are in the shared entities. Aero emissions, allocations and governance have
+their own `Aero*` / `SAero*` entities because their semantics differ; the
+legacy emission and vote fields keep their defaults on AERO pools. See
+[Aero gauges, emissions and governance](#aero-gauges-emissions-and-governance).
 
 Every row is scoped to a `chainId`, so a single API answers questions for all
 [supported chains](../README.md#supported-chains) at once.
 
 ### Three kinds of entity
 
-The 45 entity types fall into three categories. Identifying the category of an
+The entity types fall into four categories (append-only Aero event rows are
+the fourth; see [below](#aero-gauges-emissions-and-governance)). Identifying the category of an
 entity prevents querying the wrong one.
 
 | Kind | What it is | Examples | Use it for |
@@ -324,6 +328,102 @@ query SuperSwaps {
   }
 }
 ```
+
+## Aero gauges, emissions and governance
+
+Aero replaced weekly veNFT votes with continuously allocated sAERO and
+emissions minted on claim ([ADR 0006](adr/0006-aero-gauges-and-governance.md)).
+The entities follow three conventions:
+
+- **Every row belongs to the chain its events came from.** sAERO and the root
+  Voter's allocation ledger are on Base (8453). Each chain's LeafVoter books its
+  own gauge allocations. Root and leaf are not reconciled by the indexer (a
+  dispatch can be in flight or rejected), so join them in the query.
+- **Emission amounts are in the chain's reward token**: AERO on Base, xAERO
+  elsewhere, both 18 decimals and redeemable 1:1, so they sum across chains as
+  AERO-equivalent (but not with the legacy VELO / AERO v1 emission fields).
+  Allocations are undecayed AERO amounts; voting power at time `t` is the amount
+  for a permanent stake, else `amount × (stakeEnd − t) / 126,144,000`.
+- **Event rows and snapshots live in ClickHouse** (`AeroGaugeStakeEvent`,
+  `AeroEmissionsEvent`, `AeroAllocationEvent`, `SAeroPositionEvent`,
+  `AeroVotingRewardsEvent`, `AeroRedemptionEvent`, `AeroMinterEvent`,
+  `AeroMigrationEvent`, hourly `AeroGaugeSnapshot`, `AeroLeafVoterStateSnapshot`,
+  `SAeroEscrowStateSnapshot`, `AeroMinterSnapshot`). The current-state entities
+  (`AeroGauge`, `SAeroPosition`, `AeroLeafAllocation`, …) are in both stores and
+  on GraphQL. In ClickHouse every entity is a view returning the latest
+  version of each row, and `BigInt` columns are strings: cast them
+  (`toUInt256(amount)`, `toInt256(...)` for signed fields) before summing.
+
+| Question | Entity |
+| --- | --- |
+| A pool's gauge, rewards manager, cap, weight, emissions credited / minted / forfeited | `AeroGauge` (`pool_id` = `Pool.id`) |
+| Emissions per gauge over time | `AeroGaugeSnapshot` (cumulative; diff consecutive hours) |
+| A wallet's claims, penalties and deferred emissions | `AeroEmissionsEvent` (`account`) |
+| Stake / unstake history | `AeroGaugeStakeEvent`; current stake on `UserStatsPerPool` / `NonFungiblePosition.isStakedInGauge` |
+| xAERO minted, redeemed and outstanding per chain | `AeroLeafVoterState`; redemptions in `AeroRedemptionEvent` |
+| sAERO positions and supply | `SAeroPosition`, `SAeroEscrowState`, history in `SAeroPositionEvent` |
+| Where a position's power is booked (per chain, Base view) | `AeroRootAllocation` (`targetChainId` 0 = idle CHAIN0) |
+| A position's allocation per gauge on a chain | `AeroLeafAllocation` (current), `AeroAllocationEvent` (history) |
+| Gauge weight | `AeroGauge.totalAllocated` (undecayed), `lastGaugeWeight` (decayed, at last settlement) |
+| Fees and incentives for allocators | `AeroVotingRewardsManager`, `AeroIncentiveProgram`, `AeroVotingRewardsEvent` |
+| AERO minted by the Minter | `AeroMinterState`, `AeroMinterSnapshot` |
+| Legacy veAERO / veVELO migrated | `AeroMigrationTotals`, `AeroMigrationEvent` |
+
+Top Aero gauges on a chain by emissions minted:
+
+```graphql
+query TopAeroGauges {
+  AeroGauge(
+    where: { chainId: { _eq: 8453 } }
+    order_by: { totalEmissionsMinted: desc }
+    limit: 10
+  ) {
+    gaugeAddress poolAddress isCL emissionCap
+    totalAllocated lastGaugeWeight          # AERO, ÷ 1e18
+    totalEmissionsCredited totalEmissionsMinted totalEmissionsForfeited  # reward token, ÷ 1e18
+    totalEmissionsMintedUSD                  # ÷ 1e18
+  }
+}
+```
+
+A position's allocations everywhere (root view on Base, leaf books per chain):
+
+```graphql
+query PositionAllocations($tokenId: numeric!) {
+  AeroRootAllocation(where: { tokenId: { _eq: $tokenId }, amount: { _gt: 0 } }) {
+    targetChainId amount
+  }
+  AeroLeafAllocation(where: { tokenId: { _eq: $tokenId }, allocated: { _gt: 0 } }) {
+    chainId gaugeAddress poolAddress allocated
+  }
+}
+```
+
+Emissions minted per chain per day (ClickHouse; cumulative snapshot at the
+end of each day, differenced):
+
+```sql
+SELECT chainId, day,
+       minted_cum - lagInFrame(minted_cum, 1, toUInt256(0))
+         OVER (PARTITION BY chainId ORDER BY day) AS minted
+FROM (
+  SELECT chainId, toDate(timestamp) AS day,
+         max(toUInt256(totalEmissionsMinted)) AS minted_cum
+  FROM AeroLeafVoterStateSnapshot
+  GROUP BY chainId, day
+)
+ORDER BY day, chainId;
+```
+
+Notes:
+
+- `Pool.gaugeIsAlive` on an AERO pool means "activated and emission cap > 0";
+  a cap of 0 is Aero's only way to switch a gauge off.
+- `AeroGauge.emissionCap` is null until the first cap event or settlement: the
+  factory's default cap applies (never 0).
+- Base claims are redeemed to AERO automatically; those internal redemptions
+  are counted on the totals but have no `AeroRedemptionEvent` row.
+- Delegation of sAERO votes is not indexed.
 
 ## Caveats
 
