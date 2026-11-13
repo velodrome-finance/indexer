@@ -46,7 +46,7 @@ export async function checkGaugeTotals(ctx: CheckContext): Promise<void> {
     "gauge.staked",
     ctx.chainId,
     "Pool.currentLiquidityStaked equals the gauge's stake at the pinned block: V2 Σ Deposit − Σ Withdraw (= Gauge.totalSupply(), checked on-chain for a sample); CL Σ liquidity of the NFTs the gauge holds (NFPM replay). CL stakedLiquidityInRange equals Σ L of staked in-range positions; stakedReserve0/1 equal the token amounts of the staked positions at the current price.",
-    "Liquidity: exact. stakedReserve0/1: absolute 2 wei per staked position or relative 1e-3: the indexer keeps a running counter updated on every swap with per-segment rounding (the wei-scale drift #802 documents), so it drifts by a few units per thousand swaps.",
+    "Liquidity: exact. stakedReserve0/1: absolute 2 units per staked position plus 1 unit per pool swap, or relative 1e-3: the indexer keeps a running counter that every swap moves with per-segment rounding (the wei-scale drift #802 documents).",
   );
   const byPool = gaugesByPool(ctx);
   let poolsWithGauges = 0;
@@ -132,7 +132,10 @@ export async function checkGaugeTotals(ctx: CheckContext): Promise<void> {
         {},
         d,
       );
-      const tol = { abs: 2n * BigInt(nfts.length) + 1n, rel: 1e-3 };
+      const tol = {
+        abs: 2n * BigInt(nfts.length) + BigInt(p.swaps) + 1n,
+        rel: 1e-3,
+      };
       staked.cmp(`${pool}.stakedReserve0`, big(r.stakedReserve0), a0, tol, d);
       staked.cmp(`${pool}.stakedReserve1`, big(r.stakedReserve1), a1, tol, d);
     }
