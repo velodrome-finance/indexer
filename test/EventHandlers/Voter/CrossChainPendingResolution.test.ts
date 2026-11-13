@@ -1436,7 +1436,7 @@ describe("CrossChainPendingResolution", () => {
       expect(tokenGet).toHaveBeenCalledWith(
         TokenId(
           rootChainId,
-          CHAIN_CONSTANTS[rootChainId].rewardToken(
+          getLegacyConstants(rootChainId).rewardToken(
             Number(rootChainPending.blockNumber),
           ),
         ),

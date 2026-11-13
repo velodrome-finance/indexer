@@ -845,10 +845,13 @@ export async function loadPoolDataOrRootCLPool(
     };
   }
 
-  const rootPoolLeafPools =
+  // The mapping is looked up by bare address, so keep only rows whose root
+  // chain is the chain this event came from.
+  const rootPoolLeafPools = (
     (await context.RootPool_LeafPool.getWhere({
       rootPoolAddress: { _eq: poolAddress },
-    })) ?? [];
+    })) ?? []
+  ).filter((mapping) => mapping.rootChainId === chainId);
 
   if (rootPoolLeafPools.length === 0) {
     const poolData = await loadPoolData(
