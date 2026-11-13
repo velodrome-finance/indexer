@@ -1294,6 +1294,32 @@ export const CLPoolMintEventId = (
   logIndex: number,
 ) => `${chainId}-${poolAddress}-${txHash}-${logIndex}`;
 
+/** Entity ID for AeroNFPMMintPool: every value an Aero NFPM IncreaseLiquidity
+ * repeats from the CLPool.Mint it caused, so the IncreaseLiquidity handler finds
+ * the pool by primary key.
+ * Format: {chainId}-{txHash}-{nfpmAddress}-{tickLower}-{tickUpper}-{liquidity}-{amount0}-{amount1}
+ * @param chainId - Chain ID of the tx
+ * @param txHash - Transaction hash
+ * @param nfpmAddress - The NFPM (the Mint's `owner`, the IncreaseLiquidity's emitter; EIP-55 checksummed)
+ * @param tickLower - Lower tick of the range
+ * @param tickUpper - Upper tick of the range
+ * @param liquidity - Liquidity minted
+ * @param amount0 - Raw token0 amount paid
+ * @param amount1 - Raw token1 amount paid
+ * @returns string Combined ID.
+ */
+export const AeroNFPMMintPoolId = (
+  chainId: number,
+  txHash: string,
+  nfpmAddress: string,
+  tickLower: bigint,
+  tickUpper: bigint,
+  liquidity: bigint,
+  amount0: bigint,
+  amount1: bigint,
+) =>
+  `${chainId}-${txHash}-${nfpmAddress}-${tickLower}-${tickUpper}-${liquidity}-${amount0}-${amount1}`;
+
 /** Entity ID for TxCLPoolMintRegistry. Format: {chainId}-{txHash}.
  * Keyed by transaction (not pool) because the NFPM.Transfer(mint) consumer only
  * knows chainId + txHash at lookup time; filtering by pool/logIndex happens on

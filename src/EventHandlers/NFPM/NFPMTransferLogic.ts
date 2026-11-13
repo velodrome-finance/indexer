@@ -15,6 +15,11 @@ import {
   attributeLiquidityChangeToUserStatsPerPool,
 } from "./NFPMCommonLogic";
 
+/** Transfer from a legacy NFPM or the Aero NFPM (same ERC-721 event). */
+export type NFPMTransferEvent =
+  | EvmEvent<"NFPM", "Transfer">
+  | EvmEvent<"AeroNFPM", "Transfer">;
+
 /**
  * Creates a definitive NonFungiblePosition entity from a CLPoolMintEvent and deletes the temporary event.
  * Creates a new entity with stable ID via NonFungiblePositionId() using data from the CLPoolMintEvent.
@@ -207,7 +212,7 @@ export function isGaugeTransfer(
  * @param poolData - The pool data
  */
 export async function attributeTransferToUserStatsPerPool(
-  event: EvmEvent<"NFPM", "Transfer">,
+  event: NFPMTransferEvent,
   position: NonFungiblePosition,
   context: handlerContext,
   poolData: PoolData,
@@ -271,7 +276,7 @@ export async function attributeTransferToUserStatsPerPool(
  * @param context - The handler context
  */
 export async function handleRegularTransfer(
-  event: EvmEvent<"NFPM", "Transfer">,
+  event: NFPMTransferEvent,
   position: NonFungiblePosition,
   context: handlerContext,
 ): Promise<void> {

@@ -14,6 +14,7 @@ import {
 import {
   CLPoolMintEventId,
   OUSDT_ADDRESS,
+  POOL_DEPLOYMENT,
   PoolId,
   TxCLPoolMintRegistryId,
 } from "../Constants";
@@ -25,6 +26,7 @@ import { attributeDirectCLLiquidityChange } from "./CLPool/CLPoolDirectLiquidity
 import { processCLPoolFlash } from "./CLPool/CLPoolFlashLogic";
 import { processCLPoolMint } from "./CLPool/CLPoolMintLogic";
 import { processCLPoolSwap } from "./CLPool/CLPoolSwapLogic";
+import { recordAeroNFPMMint } from "./NFPM/AeroNFPMLogic";
 import { LiquidityChangeType } from "./NFPM/NFPMCommonLogic";
 import { resolveSwapInitiator } from "./SwapInitiatorSharedLogic";
 
@@ -165,22 +167,13 @@ indexer.onEvent(
   { contract: "CLPool", event: "Collect" },
   async ({ event, context }) => {
     const timestamp = new Date(event.block.timestamp * 1000);
-    const [poolData, userData] = await Promise.all([
-      loadPoolData(
-        event.srcAddress,
-        event.chainId,
-        context,
-        event.block.number,
-        event.block.timestamp,
-      ),
-      loadOrCreateUserData(
-        event.params.owner, // Fees should be attributed to the owner, not the recipient
-        event.srcAddress,
-        event.chainId,
-        context,
-        timestamp,
-      ),
-    ]);
+    const poolData = await loadPoolData(
+      event.srcAddress,
+      event.chainId,
+      context,
+      event.block.number,
+      event.block.timestamp,
+    );
 
     if (!poolData) {
       return;
@@ -189,13 +182,28 @@ indexer.onEvent(
     const { liquidityPoolAggregator, token0Instance, token1Instance } =
       poolData;
 
-    // Process the collect event — isolates fees from burned principal
-    const result = await processCLPoolCollect(
-      event,
-      token0Instance,
-      token1Instance,
-      context,
+    // On Aero pools an NFPM position's fees are credited to the position's
+    // owner by AeroNFPM.Collect (per-position principal), so the NFPM contract
+    // (this event's `owner`) gets no UserStatsPerPool row. Legacy pools still
+    // credit the NFPM contract: the legacy NFPMs' Collect is not indexed.
+    const creditOwner = !(
+      liquidityPoolAggregator.deployment === POOL_DEPLOYMENT.AERO &&
+      event.params.owner === liquidityPoolAggregator.nfpmAddress
     );
+
+    // Process the collect event — isolates fees from burned principal
+    const [result, userData] = await Promise.all([
+      processCLPoolCollect(event, token0Instance, token1Instance, context),
+      creditOwner
+        ? loadOrCreateUserData(
+            event.params.owner, // Fees should be attributed to the owner, not the recipient
+            event.srcAddress,
+            event.chainId,
+            context,
+            timestamp,
+          )
+        : undefined,
+    ]);
 
     const poolDiff = result.liquidityPoolDiff;
     const userDiff = result.userLiquidityDiff;
@@ -210,7 +218,17 @@ indexer.onEvent(
         event.chainId,
         event.block.number,
       ),
-      updateUserStatsPerPool(userDiff, userData, context, timestamp, poolData),
+      ...(userData
+        ? [
+            updateUserStatsPerPool(
+              userDiff,
+              userData,
+              context,
+              timestamp,
+              poolData,
+            ),
+          ]
+        : []),
     ]);
   },
 );
@@ -479,6 +497,24 @@ indexer.onEvent(
       event.block.timestamp,
       LiquidityChangeType.ADD,
     );
+
+    // Aero pools: the Aero NFPM's IncreaseLiquidity carries the range, so only
+    // the pool needs handing over, keyed by the values both events carry
+    // (AeroNFPMLogic.ts). Direct (non-NFPM) mints were attributed above.
+    if (liquidityPoolAggregator.deployment === POOL_DEPLOYMENT.AERO) {
+      if (event.params.owner === liquidityPoolAggregator.nfpmAddress) {
+        await recordAeroNFPMMint(
+          event.chainId,
+          event.transaction.hash,
+          event.srcAddress,
+          event.params.owner,
+          event.params,
+          event.logIndex,
+          context,
+        );
+      }
+      return;
+    }
 
     // Store CLPool.Mint data for NFPM.Transfer (mint) to consume and attribute UserStatsPerPool to event.params.to
     const mintEventId = CLPoolMintEventId(

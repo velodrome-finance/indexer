@@ -425,7 +425,7 @@ type NonFungiblePosition {
   id: ID! # Format: {chainId}-{nfpmAddress}-{tokenId} (NonFungiblePositionId). Natural key is (NFPM, tokenId); pool is metadata and preserved as a field. nfpmAddress disambiguates intra-chain tokenId collisions across multiple NFPMs (e.g. Optimism has two).
   chainId: Int! # Chain ID where the NFT exists
   tokenId: BigInt! @index # Token ID of the NFT (from Transfer event)
-  nfpmAddress: String! @index # Address of the NFPM contract that emitted the Transfer; disambiguates intra-chain tokenId collisions across multiple NFPMs (e.g. Optimism has two)
+  nfpmAddress: String! @index # Address of the NFPM contract that emitted the Transfer (a legacy NFPM or the Aero NFPM); disambiguates intra-chain tokenId collisions across multiple NFPMs (e.g. Optimism has two)
   owner: String! @index # Checksum address of the current owner (from Transfer event)
   pool: String! @index # Address of the CL pool this position belongs to
   tickUpper: BigInt! @config(precision: 24) # Upper tick of the position range
@@ -434,10 +434,10 @@ type NonFungiblePosition {
   token1: String! # Address of token1 in the position
   liquidity: BigInt! @config(precision: 76) # Current liquidity value of the position
   mintTransactionHash: String! @index # Transaction hash of the NFT mint transaction
-  mintLogIndex: Int! # Log index of CLPool.Mint event (for placeholder matching)
+  mintLogIndex: Int! # Log index of the CLPool.Mint the position was created from (legacy NFPMs: matched at NFPM.Transfer; Aero NFPM: matched at IncreaseLiquidity by range, liquidity and amounts)
   lastUpdatedTimestamp: Timestamp! # Timestamp of last update
   lastSnapshotTimestamp: Timestamp # nullable - null means never snapshotted
-  isStakedInGauge: Boolean! # Set from NFPM.Transfer to/from the pool's gauge; owner is not updated on gauge transfers so we need this to know staked vs not.
+  isStakedInGauge: Boolean! # Set from NFPM.Transfer to/from the pool's gauge; owner is not updated on gauge transfers so we need this to know staked vs not. Always false on Aero positions until Aero gauges are indexed (an Aero position staked in a gauge is owned by the gauge until then)
 }
 
 # Snapshot of NonFungiblePosition at an epoch (full state for historical queries / recomputation)
@@ -861,6 +861,40 @@ type CLPositionPendingPrincipal
   # Accumulates across multiple Burns; reduced when Collect fires.
   pendingPrincipal0: BigInt! @config(precision: 76)
   pendingPrincipal1: BigInt! @config(precision: 76) # token1 counterpart of pendingPrincipal0 (see pendingPrincipal0).
+}
+
+# Aero NFPM position creation, step 1 of 2 (src/EventHandlers/NFPM/AeroNFPMLogic.ts).
+# The Aero NFPM's IncreaseLiquidity carries the tick range but not the pool. A CLPool.Mint on
+# an Aero pool whose owner is the pool's NFPM stores its pool here, keyed by every value the
+# NFPM's IncreaseLiquidity repeats, so IncreaseLiquidity finds the pool by primary key (no scan,
+# no positional guess). Deleted by that IncreaseLiquidity (mints and increases alike).
+type AeroNFPMMintPool @storage(postgres: true, clickhouse: false) @internal {
+  id: ID! # {chainId}-{txHash}-{nfpmAddress}-{tickLower}-{tickUpper}-{liquidity}-{amount0}-{amount1} (AeroNFPMMintPoolId)
+  pools: [String!]! # CL pool address of each matching Mint in the tx, in log order (one entry unless two pools received identical mints)
+  mintLogIndexes: [Int!]! # log index of each of those Mints (parallel to pools)
+}
+
+# Aero NFPM position creation, step 2 of 2: the recipient of NFPM.Transfer(mint), held until
+# the same tx's IncreaseLiquidity creates the NonFungiblePosition (the Transfer has the owner
+# but no range or pool; IncreaseLiquidity has the range but no owner). Deleted on creation.
+type AeroNFPMPendingMint @storage(postgres: true, clickhouse: false) @internal {
+  id: ID! # Same as the position's id: {chainId}-{nfpmAddress}-{tokenId} (NonFungiblePositionId)
+  owner: String! # recipient of the mint Transfer
+  transactionHash: String! # mint transaction
+}
+
+# Principal removed from an NFPM position (NFPM.DecreaseLiquidity amounts) and not yet collected.
+# The NFPM's Collect pays principal plus fees, so Collect minus this is the position's fees.
+# Per position (tokenId), unlike CLPositionPendingPrincipal, which is per pool-level position
+# (pool + owner + range) and therefore shared by every NFPM position with the same range.
+# Used for the Aero NFPM; deleted when fully drained.
+type NFPMPositionPendingPrincipal
+  @storage(postgres: true, clickhouse: false)
+  @internal
+{
+  id: ID! # Same as the position's id: {chainId}-{nfpmAddress}-{tokenId} (NonFungiblePositionId)
+  pendingPrincipal0: BigInt! @config(precision: 76) # token0 principal awaiting Collect
+  pendingPrincipal1: BigInt! @config(precision: 76) # token1 principal awaiting Collect
 }
 
 # Per-transaction registry of CLPoolMintEvent IDs, used to skip the index scan

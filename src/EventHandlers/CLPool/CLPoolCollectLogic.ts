@@ -22,7 +22,7 @@ export interface CLPoolCollectResult {
  * @param pendingPrincipal - Accumulated burn principal for this position
  * @returns Object with the fee-only amount and the updated pending principal
  */
-function isolateFees(
+export function isolateFees(
   collectAmount: bigint,
   pendingPrincipal: bigint,
 ): { fees: bigint; remainingPrincipal: bigint } {

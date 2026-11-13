@@ -108,6 +108,13 @@ contracts:
     handler: src/EventHandlers/AeroPoolFactory.ts
     events:
       - event: "PoolCreated(address indexed token0, address indexed token1, address pool, uint256 poolCount)"
+  - name: AeroNFPM
+    handler: src/EventHandlers/NFPM/AeroNFPM.ts
+    events:
+      - event: "Transfer(address indexed from, address indexed to, uint256 indexed tokenId)"
+      - event: "IncreaseLiquidity(uint256 indexed tokenId, uint128 liquidity, uint256 amount0, uint256 amount1, int24 tickLower, int24 tickUpper)"
+      - event: "DecreaseLiquidity(uint256 indexed tokenId, uint128 liquidity, uint256 amount0, uint256 amount1)"
+      - event: "Collect(uint256 indexed tokenId, address recipient, uint256 amount0, uint256 amount1)"
   - name: DynamicSwapFeeHook
     handler: src/EventHandlers/SwapFeeModule/DynamicSwapFeeHook.ts
     events:
@@ -298,6 +305,9 @@ chains:
       - name: AeroVolatilePoolFactory
         address:
           - 0x8E6a9FCd1d638CC760Ffba397605Fe3355dE76D2
+      - name: AeroNFPM
+        address:
+          - 0x4857DB576eE0e45F10525eC59527BfD10beeC60b
       - name: DynamicSwapFeeHook
         address:
           - 0xC0ed888AfE87ed1AcF01D9f19bB850159e3ce434
@@ -407,6 +417,9 @@ chains:
       - name: AeroVolatilePoolFactory
         address:
           - 0x8E6a9FCd1d638CC760Ffba397605Fe3355dE76D2
+      - name: AeroNFPM
+        address:
+          - 0x4857DB576eE0e45F10525eC59527BfD10beeC60b
       - name: DynamicSwapFeeHook
         address:
           - 0xC0ed888AfE87ed1AcF01D9f19bB850159e3ce434
@@ -657,6 +670,9 @@ chains:
       - name: AeroVolatilePoolFactory
         address:
           - 0x8E6a9FCd1d638CC760Ffba397605Fe3355dE76D2
+      - name: AeroNFPM
+        address:
+          - 0x4857DB576eE0e45F10525eC59527BfD10beeC60b
       - name: DynamicSwapFeeHook
         address:
           - 0xC0ed888AfE87ed1AcF01D9f19bB850159e3ce434
@@ -1170,6 +1186,9 @@ chains:
       - name: AeroVolatilePoolFactory
         address:
           - 0x8E6a9FCd1d638CC760Ffba397605Fe3355dE76D2
+      - name: AeroNFPM
+        address:
+          - 0x4857DB576eE0e45F10525eC59527BfD10beeC60b
       - name: DynamicSwapFeeHook
         address:
           - 0xC0ed888AfE87ed1AcF01D9f19bB850159e3ce434
@@ -1199,6 +1218,9 @@ chains:
       - name: AeroVolatilePoolFactory
         address:
           - 0x8E6a9FCd1d638CC760Ffba397605Fe3355dE76D2
+      - name: AeroNFPM
+        address:
+          - 0x4857DB576eE0e45F10525eC59527BfD10beeC60b
       - name: DynamicSwapFeeHook
         address:
           - 0xC0ed888AfE87ed1AcF01D9f19bB850159e3ce434
@@ -1230,6 +1252,9 @@ chains:
       - name: AeroVolatilePoolFactory
         address:
           - 0x8E6a9FCd1d638CC760Ffba397605Fe3355dE76D2
+      - name: AeroNFPM
+        address:
+          - 0x4857DB576eE0e45F10525eC59527BfD10beeC60b
       - name: DynamicSwapFeeHook
         address:
           - 0xC0ed888AfE87ed1AcF01D9f19bB850159e3ce434
@@ -1264,6 +1289,10 @@ chains:
         address:
           - 0x8E6a9FCd1d638CC760Ffba397605Fe3355dE76D2
           - 0x9bc8b3F60D349d687Fb44A018967025E3741F9a5 # lite launch
+      - name: AeroNFPM
+        address:
+          - 0x4857DB576eE0e45F10525eC59527BfD10beeC60b
+          - 0xc84bB45D43CD25D02b83B4C085eaA4e08da8f473 # lite launch
       - name: DynamicSwapFeeHook
         address:
           - 0xC0ed888AfE87ed1AcF01D9f19bB850159e3ce434

@@ -115,6 +115,45 @@ export async function registerCLPools(
   );
 }
 
+/** Aero CLFactory per chain (config.yaml `AeroCLFactory`, first address). */
+const AERO_CL_FACTORY_BY_CHAIN: Record<number, string> = {
+  8453: toChecksumAddress("0x9CB220581b91b0C83223012FE69688b92aD07a76"),
+  10: toChecksumAddress("0xfeaB42D90055db3a0616249f76B6002D72266778"),
+  42161: toChecksumAddress("0x88a60ee77392577c355C0acb2A8d476D5a4EC03a"),
+  1: toChecksumAddress("0xF4Fd2E6c5B60c5b365cd1B96DD6245E6D60414c2"),
+  57073: toChecksumAddress("0x7660BF2aDefC687C22906112ca323d60A00358cF"),
+  4663: toChecksumAddress("0xc63d7338c178e805c544B8f897066bD3BBcBE136"),
+  5042: toChecksumAddress("0x7F83235643181E440433400a027618Cd50879751"),
+};
+
+/**
+ * Register Aero `CLPool` addresses via `AeroCLFactory.PoolCreated` (one
+ * replay: a second replay at the same start block would not be routed). The
+ * replayed handler finds no tick-spacing fee and creates no Pool; seed the
+ * Pool fixtures (deployment AERO) afterwards.
+ */
+export async function registerAeroCLPools(
+  indexer: TestIndexer,
+  chainId: number,
+  poolAddresses: string[],
+): Promise<void> {
+  await replay(indexer, chainId, (block) =>
+    poolAddresses.map((pool, logIndex) => ({
+      contract: "AeroCLFactory",
+      event: "PoolCreated",
+      srcAddress: AERO_CL_FACTORY_BY_CHAIN[chainId],
+      block,
+      logIndex,
+      params: {
+        token0: ZERO_ADDRESS,
+        token1: ZERO_ADDRESS,
+        tickSpacing: 1n,
+        pool,
+      },
+    })),
+  );
+}
+
 /** Register a single `CLPool` address. */
 export async function registerCLPool(
   indexer: TestIndexer,

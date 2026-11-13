@@ -13,6 +13,11 @@ import {
   updateStakedPositionLiquidity,
 } from "./NFPMCommonLogic";
 
+/** DecreaseLiquidity from a legacy NFPM or the Aero NFPM (same signature). */
+export type NFPMDecreaseLiquidityEvent =
+  | EvmEvent<"NFPM", "DecreaseLiquidity">
+  | EvmEvent<"AeroNFPM", "DecreaseLiquidity">;
+
 /**
  * Calculates the liquidity diff for a DecreaseLiquidity event.
  * Computes new liquidity by subtracting the event's liquidity from the current liquidity.
@@ -22,7 +27,7 @@ import {
  * @returns Partial position object containing the updated liquidity and timestamp fields
  */
 export function calculateDecreaseLiquidityDiff(
-  event: EvmEvent<"NFPM", "DecreaseLiquidity">,
+  event: NFPMDecreaseLiquidityEvent,
 ): Partial<NonFungiblePositionDiff> {
   const blockDatetime = new Date(event.block.timestamp * 1000);
 
@@ -49,7 +54,7 @@ export function calculateDecreaseLiquidityDiff(
  * @param context - The handler context
  */
 export async function processNFPMDecreaseLiquidity(
-  event: EvmEvent<"NFPM", "DecreaseLiquidity">,
+  event: NFPMDecreaseLiquidityEvent,
   context: handlerContext,
 ): Promise<void> {
   // Transfer runs before DecreaseLiquidity, so the stable position should already exist.
