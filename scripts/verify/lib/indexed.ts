@@ -139,7 +139,7 @@ export class Indexed {
             ? "t"
             : v === "false"
               ? "f"
-              : v !== null && v.startsWith("[") && v.endsWith("]")
+              : v?.startsWith("[") && v.endsWith("]")
                 ? `{${v.slice(1, -1).replace(/'/g, "")}}`
                 : v;
       }
