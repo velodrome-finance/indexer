@@ -88,7 +88,7 @@ async function main(): Promise<number> {
       if (!tb.has(table) || (onlyTables && !onlyTables.includes(table)))
         continue;
       const filter = cols.has("chainId")
-        ? `chainId = ${chainId}`
+        ? `(chainId = ${chainId} OR startsWith(id, '${chainId}-'))` // DELETE rows carry only the id (chainId 0)
         : `startsWith(id, '${chainId}-')`;
       const [sa, sb] = await Promise.all([
         stateAt(a.ch, table, cpA, filter),

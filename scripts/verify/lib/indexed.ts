@@ -121,7 +121,7 @@ export class Indexed {
     );
     const hasChain = cols.some((c) => c.name === "chainId");
     const filter = hasChain
-      ? `chainId = ${chainId}`
+      ? `(chainId = ${chainId} OR startsWith(id, '${chainId}-'))` // DELETE rows carry only the id (chainId 0)
       : `startsWith(id, '${chainId}-')`;
     const cond = `envio_checkpoint_id <= ${cp} AND ${filter}`;
     const rows = await this.ch.query(
