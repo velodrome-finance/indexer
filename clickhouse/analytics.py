@@ -16,7 +16,7 @@ Connection (no secrets in the repo; the same variables envio itself reads):
     ENVIO_CLICKHOUSE_HOST       http(s)://host:port of the ClickHouse HTTP interface
     ENVIO_CLICKHOUSE_USERNAME   a user that may read the indexer database and create the analytics one
     ENVIO_CLICKHOUSE_PASSWORD
-    ENVIO_CLICKHOUSE_DATABASE   the indexer's database (the source; never written)
+    ENVIO_CLICKHOUSE_DATABASE   the indexer's database (the source; only history-ttl --apply writes to it)
     ANALYTICS_DATABASE          optional; default analytics_<indexer database>
 CLICKHOUSE_URL / CLICKHOUSE_USER / CLICKHOUSE_PASSWORD / CLICKHOUSE_SOURCE_DATABASE override them.
 
@@ -26,7 +26,6 @@ Python 3.9+ standard library only. See docs/clickhouse.md.
 from __future__ import annotations
 
 import argparse
-import base64
 import hashlib
 import json
 import os
@@ -611,7 +610,8 @@ def install(ctx: Ctx, force_rebuild=False):
             "installed_frontier": str(frontier),
         },
     )
-    log(f"installed {ctx.db}: {len(ENTITIES)} tables, {len(view_statements(ctx))} views; refresh every {REFRESH_EVERY}")
+    n_tables = sum(1 for e in ENTITIES if ctx.has_source(e))
+    log(f"installed {ctx.db}: {n_tables} tables, {len(view_statements(ctx))} views; refresh every {REFRESH_EVERY}")
 
 
 def refresh(ctx: Ctx):
