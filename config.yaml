@@ -140,6 +140,91 @@ contracts:
     handler: src/EventHandlers/AeroTokenRegistry.ts
     events:
       - event: "ListingSet(address indexed token, bool listed)"
+  # --- Aero gauges, staking and emissions (phase 2, ADR 0006) ---
+  # Signatures from the MIT interface files (IGaugeManager, IGaugeFactory,
+  # ICLGaugeFactory, ILeafVoter, IV2Gauge, ICLGauge, IGauge,
+  # IVotingRewardsManager, ICustomFeeModule), each checked against real logs.
+  # Gauges and rewards managers are registered dynamically: the gauge
+  # factories' GaugeCreated register AeroCLGauge / AeroV2Gauge, the
+  # GaugeManager's GaugeCreated registers AeroVotingRewardsManager.
+  - name: AeroGaugeManager
+    handler: src/EventHandlers/Aero/AeroGaugeManager.ts
+    events:
+      - event: "GaugeCreated(address indexed target, address indexed gauge, address indexed module, address gaugeFactory, address votingRewardsManager, address creator, bool activated)"
+  - name: AeroCLGaugeFactory
+    handler: src/EventHandlers/Aero/AeroGaugeFactory.ts
+    events:
+      - event: "GaugeCreated(address indexed gauge, address indexed pool, bool isPool)"
+      - event: "EmissionCapSet(address indexed gauge, uint128 cap, address indexed caller)"
+      - event: "DefaultCapSet(uint128 cap)"
+      - event: "OperatorCapRangeSet(uint128 minCap, uint128 maxCap)"
+      - event: "MaxShareCapSet(uint256 cap)"
+      - event: "ReferralConfigSet(address indexed gauge, address indexed referral, uint256 share)"
+      - event: "PenaltyConfigSet(uint256 minStakeBlocks, uint256 penaltyRate)"
+      - event: "MinStakeBlocksSet(address indexed gauge, uint256 minStakeBlocks)"
+      - event: "EmergencyWithdrawEnabledSet(bool enabled)"
+  - name: AeroV2GaugeFactory
+    handler: src/EventHandlers/Aero/AeroGaugeFactory.ts
+    events:
+      - event: "GaugeCreated(address indexed gauge, address indexed pool, bool isPool)"
+      - event: "EmissionCapSet(address indexed gauge, uint128 cap, address indexed caller)"
+      - event: "DefaultCapSet(uint128 cap)"
+      - event: "OperatorCapRangeSet(uint128 minCap, uint128 maxCap)"
+      - event: "MaxShareCapSet(uint256 cap)"
+      - event: "ReferralConfigSet(address indexed gauge, address indexed referral, uint256 share)"
+      - event: "PenaltyConfigSet(uint256 minStakeBlocks, uint256 penaltyRate)"
+      - event: "MinStakeBlocksSet(address indexed gauge, uint256 minStakeBlocks)"
+      - event: "EmergencyWithdrawEnabledSet(bool enabled)"
+  - name: AeroCLGauge
+    handler: src/EventHandlers/Aero/AeroGauge.ts
+    events:
+      - event: "Deposit(address indexed caller, address indexed user, uint256 indexed tokenId, uint128 liquidityToStake)"
+      - event: "Withdraw(address indexed caller, address indexed user, uint256 indexed tokenId, uint128 liquidityToStake)"
+      - event: "EmergencyWithdraw(address indexed user, uint256 indexed tokenId, uint128 liquidityToStake)"
+      - event: "EmissionsClaimed(address indexed account, uint256 indexed tokenId, address indexed recipient, uint256 rewardAmount)"
+      - event: "EmissionsDeferred(address indexed account, uint256 indexed tokenId, uint256 rewardAmount)"
+      - event: "ReferralEmissionsDeferred(address indexed account, uint256 indexed tokenId, address indexed referral, uint256 amount)"
+      - event: "DeferredEmissionsClaimed(address indexed account, address indexed recipient, uint256 amount)"
+      - event: "ReferralEmissionsClaimed(address indexed referral, address indexed recipient, uint256 amount)"
+      - event: "EarlyWithdrawPenalty(address indexed from, uint256 indexed tokenId, uint256 penalty)"
+      - event: "ClaimFees(address indexed caller, uint256 claimed0, uint256 claimed1)"
+  - name: AeroV2Gauge
+    handler: src/EventHandlers/Aero/AeroGauge.ts
+    events:
+      - event: "Deposit(address indexed caller, address indexed account, uint256 amount)"
+      - event: "Withdraw(address indexed caller, address indexed account, uint256 amount)"
+      - event: "EmergencyWithdraw(address indexed account, uint256 amount)"
+      - event: "EmissionsClaimed(address indexed account, address indexed recipient, uint256 rewardAmount)"
+      - event: "EmissionsDeferred(address indexed account, uint256 rewardAmount)"
+      - event: "ReferralEmissionsDeferred(address indexed account, address indexed referral, uint256 amount)"
+      - event: "DeferredEmissionsClaimed(address indexed account, address indexed recipient, uint256 amount)"
+      - event: "ReferralEmissionsClaimed(address indexed referral, address indexed recipient, uint256 amount)"
+      - event: "EarlyWithdrawPenalty(address indexed account, uint256 penalty)"
+      - event: "ClaimFees(address indexed caller, uint256 claimed0, uint256 claimed1)"
+  # Same address on every chain (Base included). Its claim-forwarding events
+  # (FeeClaimSucceeded, IncentiveClaimSucceeded) are not indexed: the rewards
+  # managers' own ClaimFees / ClaimIncentives carry the amounts.
+  - name: AeroLeafVoter
+    handler: src/EventHandlers/Aero/AeroLeafVoter.ts
+    events:
+      - event: "GaugeRegistered(address indexed gauge, bool activated, uint48 registrationCursor)"
+      - event: "GaugeActivated(address indexed gauge, uint48 activationCursor)"
+      - event: "GaugeCapSettled(address indexed gauge, uint128 effectiveShare, uint128 surplusDelta, uint128 cap, uint256 gaugeWeight)"
+      - event: "EmissionsMinted(address indexed gauge, address[] recipients, uint128[] amounts)"
+      - event: "EmissionsForfeited(address indexed gauge, uint128 amount)"
+      - event: "Redeemed(address indexed redeemer, address indexed recipient, uint256 amount)"
+      - event: "ChainStatusSet(uint8 status)"
+  - name: AeroVotingRewardsManager
+    handler: src/EventHandlers/Aero/AeroVotingRewardsManager.ts
+    events:
+      - event: "FeesCollected(address indexed gauge, address indexed token, uint256 amount)"
+  # Aero CustomUnstakedFeeModule (Slipstream V3): same CustomFeeSet as the
+  # legacy UnstakedFeeModule, same semantics (0 = default, 420 = 0%).
+  - name: AeroUnstakedFeeModule
+    abi_file_path: abis/UnstakedFeeModule.json
+    handler: src/EventHandlers/Aero/AeroUnstakedFeeModule.ts
+    events:
+      - event: CustomFeeSet
   - name: Voter
     abi_file_path: abis/VoterV2.json
     handler: src/EventHandlers/Voter/Voter.ts
@@ -328,6 +413,29 @@ chains:
       - name: AeroTokenRegistry
         address:
           - 0x564665E023390097f46EA9662a6061a5d700A7E1
+      # Aero gauges and emissions (phase 2): deployment-addresses/{leaf,gaugestack,cl}-<chain>.json
+      - name: AeroGaugeManager
+        address:
+          - 0xbF234b32c5e58868243A4a14831626f3EdE7b183
+      - name: AeroLeafVoter
+        address:
+          - 0x382409fad8503FbCdbB27A4211551fa03e884078
+      - name: AeroCLGaugeFactory
+        address:
+          - 0xf437f62053ACB121665b8fDBfeA8F214FB8E589d
+      - name: AeroV2GaugeFactory
+        address:
+          - 0x3924b18EDd37267dab6eDd99a3Bb339bf2b668fD # stable pools
+          - 0x1B5D13975371806D699dC616A96D15B8eD26e5Ca # volatile pools
+      - name: AeroUnstakedFeeModule
+        address:
+          - 0xcc421483cd131a8FD6b68c37E46f244dbec4F797
+      - name: AeroCLGauge
+        address:
+      - name: AeroV2Gauge
+        address:
+      - name: AeroVotingRewardsManager
+        address:
       - name: V2CustomFeeModule
         address:
           - 0x0195fC76Da986D66B2A468133a1be41E90893Da6 # stable pools
@@ -443,6 +551,29 @@ chains:
       - name: AeroTokenRegistry
         address:
           - 0x564665E023390097f46EA9662a6061a5d700A7E1
+      # Aero gauges and emissions (phase 2): deployment-addresses/{leaf,gaugestack,cl}-<chain>.json
+      - name: AeroGaugeManager
+        address:
+          - 0xbF234b32c5e58868243A4a14831626f3EdE7b183
+      - name: AeroLeafVoter
+        address:
+          - 0x382409fad8503FbCdbB27A4211551fa03e884078
+      - name: AeroCLGaugeFactory
+        address:
+          - 0xf437f62053ACB121665b8fDBfeA8F214FB8E589d
+      - name: AeroV2GaugeFactory
+        address:
+          - 0x1e0f776E88649285f99e65Fa599aD6e0f9D97800 # stable pools
+          - 0x9FBCf2Df0DC553ce40Ef63963Bff465b76792B7E # volatile pools
+      - name: AeroUnstakedFeeModule
+        address:
+          - 0xcc421483cd131a8FD6b68c37E46f244dbec4F797
+      - name: AeroCLGauge
+        address:
+      - name: AeroV2Gauge
+        address:
+      - name: AeroVotingRewardsManager
+        address:
       - name: V2CustomFeeModule
         address:
           - 0x0195fC76Da986D66B2A468133a1be41E90893Da6 # stable pools
@@ -705,6 +836,29 @@ chains:
       - name: AeroTokenRegistry
         address:
           - 0x564665E023390097f46EA9662a6061a5d700A7E1
+      # Aero gauges and emissions (phase 2): deployment-addresses/{leaf,gaugestack,cl}-<chain>.json
+      - name: AeroGaugeManager
+        address:
+          - 0xbF234b32c5e58868243A4a14831626f3EdE7b183
+      - name: AeroLeafVoter
+        address:
+          - 0x382409fad8503FbCdbB27A4211551fa03e884078
+      - name: AeroCLGaugeFactory
+        address:
+          - 0xf437f62053ACB121665b8fDBfeA8F214FB8E589d
+      - name: AeroV2GaugeFactory
+        address:
+          - 0xd9eF1acdca62010e93370f5932E3deD127E65396 # stable pools
+          - 0x1733cD126a227066963E9B636Ad49898d1224741 # volatile pools
+      - name: AeroUnstakedFeeModule
+        address:
+          - 0xcc421483cd131a8FD6b68c37E46f244dbec4F797
+      - name: AeroCLGauge
+        address:
+      - name: AeroV2Gauge
+        address:
+      - name: AeroVotingRewardsManager
+        address:
       - name: V2CustomFeeModule
         address:
           - 0x0195fC76Da986D66B2A468133a1be41E90893Da6 # stable pools
@@ -1243,6 +1397,29 @@ chains:
       - name: AeroTokenRegistry
         address:
           - 0x564665E023390097f46EA9662a6061a5d700A7E1
+      # Aero gauges and emissions (phase 2): deployment-addresses/{leaf,gaugestack,cl}-<chain>.json
+      - name: AeroGaugeManager
+        address:
+          - 0xbF234b32c5e58868243A4a14831626f3EdE7b183
+      - name: AeroLeafVoter
+        address:
+          - 0x382409fad8503FbCdbB27A4211551fa03e884078
+      - name: AeroCLGaugeFactory
+        address:
+          - 0xf437f62053ACB121665b8fDBfeA8F214FB8E589d
+      - name: AeroV2GaugeFactory
+        address:
+          - 0xCCe24256a8a6070A9E308f23E044C87C343F98Cd # stable pools
+          - 0x7F83235643181E440433400a027618Cd50879751 # volatile pools
+      - name: AeroUnstakedFeeModule
+        address:
+          - 0xcc421483cd131a8FD6b68c37E46f244dbec4F797
+      - name: AeroCLGauge
+        address:
+      - name: AeroV2Gauge
+        address:
+      - name: AeroVotingRewardsManager
+        address:
       - name: V2CustomFeeModule
         address:
           - 0x0195fC76Da986D66B2A468133a1be41E90893Da6 # stable pools
@@ -1278,6 +1455,29 @@ chains:
       - name: AeroTokenRegistry
         address:
           - 0x564665E023390097f46EA9662a6061a5d700A7E1
+      # Aero gauges and emissions (phase 2): deployment-addresses/{leaf,gaugestack,cl}-<chain>.json
+      - name: AeroGaugeManager
+        address:
+          - 0xbF234b32c5e58868243A4a14831626f3EdE7b183
+      - name: AeroLeafVoter
+        address:
+          - 0x382409fad8503FbCdbB27A4211551fa03e884078
+      - name: AeroCLGaugeFactory
+        address:
+          - 0xf437f62053ACB121665b8fDBfeA8F214FB8E589d
+      - name: AeroV2GaugeFactory
+        address:
+          - 0x94AF9F874e92F05F42aE55FfC793b9F4f5FFc135 # stable pools
+          - 0xBbdDdd5ac17a672B360D2dBAa996468aDBEF8692 # volatile pools
+      - name: AeroUnstakedFeeModule
+        address:
+          - 0xcc421483cd131a8FD6b68c37E46f244dbec4F797
+      - name: AeroCLGauge
+        address:
+      - name: AeroV2Gauge
+        address:
+      - name: AeroVotingRewardsManager
+        address:
       - name: V2CustomFeeModule
         address:
           - 0x0195fC76Da986D66B2A468133a1be41E90893Da6 # stable pools
@@ -1315,6 +1515,29 @@ chains:
       - name: AeroTokenRegistry
         address:
           - 0x564665E023390097f46EA9662a6061a5d700A7E1
+      # Aero gauges and emissions (phase 2): deployment-addresses/{leaf,gaugestack,cl}-<chain>.json
+      - name: AeroGaugeManager
+        address:
+          - 0xbF234b32c5e58868243A4a14831626f3EdE7b183
+      - name: AeroLeafVoter
+        address:
+          - 0x382409fad8503FbCdbB27A4211551fa03e884078
+      - name: AeroCLGaugeFactory
+        address:
+          - 0xf437f62053ACB121665b8fDBfeA8F214FB8E589d
+      - name: AeroV2GaugeFactory
+        address:
+          - 0x1733cD126a227066963E9B636Ad49898d1224741 # stable pools
+          - 0xCCe24256a8a6070A9E308f23E044C87C343F98Cd # volatile pools
+      - name: AeroUnstakedFeeModule
+        address:
+          - 0xcc421483cd131a8FD6b68c37E46f244dbec4F797
+      - name: AeroCLGauge
+        address:
+      - name: AeroV2Gauge
+        address:
+      - name: AeroVotingRewardsManager
+        address:
       - name: V2CustomFeeModule
         address:
           - 0x0195fC76Da986D66B2A468133a1be41E90893Da6 # stable pools
@@ -1357,6 +1580,31 @@ chains:
       - name: AeroTokenRegistry
         address:
           - 0x564665E023390097f46EA9662a6061a5d700A7E1
+      # Aero gauges and emissions (phase 2): deployment-addresses/{leaf,gaugestack,cl}-<chain>.json
+      - name: AeroGaugeManager
+        address:
+          - 0xbF234b32c5e58868243A4a14831626f3EdE7b183
+      - name: AeroLeafVoter
+        address:
+          - 0x382409fad8503FbCdbB27A4211551fa03e884078
+      - name: AeroCLGaugeFactory
+        address:
+          - 0xf437f62053ACB121665b8fDBfeA8F214FB8E589d
+          - 0xa02d1F4E4243ff0d350F478c44B0Fd37c7bF848C # lite launch (clliteupgrade-arc.json)
+      - name: AeroV2GaugeFactory
+        address:
+          - 0x9520C671C767B170c9f04e523B4e68c5d537779b # stable pools
+          - 0xBDcB4929b19EBcfEE5eFE100B829c9B35C16d8F8 # volatile pools
+      - name: AeroUnstakedFeeModule
+        address:
+          - 0xcc421483cd131a8FD6b68c37E46f244dbec4F797
+          - 0xbE10EDB242bd83f42653383D906478BcA0CBB8b5 # lite launch (clliteupgrade-arc.json)
+      - name: AeroCLGauge
+        address:
+      - name: AeroV2Gauge
+        address:
+      - name: AeroVotingRewardsManager
+        address:
       - name: V2CustomFeeModule
         address:
           - 0x0195fC76Da986D66B2A468133a1be41E90893Da6 # stable pools

@@ -1002,3 +1002,256 @@ type RedistributorConfig {
   upkeepManager: String! # Current upkeep manager address (empty string until SetUpkeepManager fires)
   lastUpdatedTimestamp: Timestamp! # Timestamp of the last config update
 }
+
+# ============================================================================
+# Aero (MetaDEX) gauges, staking and emissions (phase 2; docs/adr/0006-aero-gauges-and-governance.md)
+#
+# Every entity in this section belongs to the chain its events come from: no Aero handler reads
+# or writes another chain's rows. Emission amounts are in the chain's Aero reward token
+# (`AeroGauge.rewardToken`): AERO (0x3f5b…a4Ee) on Base, the chain's xAERO receipt token
+# elsewhere. Both have 18 decimals and xAERO is redeemable 1:1 for AERO on Base, so amounts are
+# summable across chains as AERO-equivalent (but not with the legacy VELO / AERO v1 fields).
+# USD values use the reward token's stored price on the event's chain at the event's block.
+# ============================================================================
+
+# One Aero gauge (CL or V2) on one chain. Created when the gauge factory emits GaugeCreated,
+# completed by GaugeManager.GaugeCreated (rewards manager, module, creator) and the LeafVoter's
+# GaugeRegistered / GaugeActivated. The gauge's pool gets Pool.gaugeAddress, so staking flows
+# through the shared Pool / UserStatsPerPool / NonFungiblePosition staking fields.
+#
+# Emission counters mirror the LeafVoter's per-gauge state (`gaugeStates(gauge)`):
+# totalEmissionsCredited = ceiling, totalEmissionsMinted = claimed, totalEmissionsForfeited =
+# surplus. credited - minted - forfeited is what the gauge can still pay out.
+type AeroGauge {
+  id: ID! # Format: {chainId}-{gaugeAddress} (AeroGaugeId)
+  chainId: Int! @index # chain id
+  gaugeAddress: String! @index # gauge contract
+  pool_id: String! @index # Pool id ({chainId}-{poolAddress}) of the gauge's target; the Pool row exists when the target is an indexed Aero pool
+  poolAddress: String! @index # the gauge's target (pool) address
+  isCL: Boolean! # true when created by the CL gauge factory (positions are NFPM NFTs), false for V2 gauges (LP tokens)
+  isPool: Boolean! # gauge factory's isPool flag (false for a gauge on a non-pool staking token)
+  gaugeFactory: String! @index # gauge factory that deployed the gauge
+  votingRewardsManager: String @index # VotingRewardsManager (fees and incentives for allocators); set by GaugeManager.GaugeCreated
+  creationModule: String # GaugeManager module that requested the gauge
+  creator: String # informational creator the module reported
+  rewardToken: String! # token the gauge's LPs receive (AERO on Base, xAERO elsewhere)
+  createdBlockNumber: BigInt! @config(precision: 76) # block of the factory GaugeCreated
+  createdTimestamp: Timestamp! # block time of the factory GaugeCreated
+  createdTransactionHash: String! # creation transaction
+  isRegistered: Boolean! # LeafVoter.GaugeRegistered seen (the LeafVoter settles and pays it)
+  isActivated: Boolean! # LeafVoter.GaugeActivated seen: allocations route to it (before activation they park on the zero gauge and earn nothing)
+  activatedTimestamp: Timestamp # block time of activation
+  # Per-second emission cap in reward-token wei (EmissionCapSet, refreshed from every GaugeCapSettled).
+  # Null until the first EmissionCapSet / GaugeCapSettled: the factory's default cap applies, which is
+  # never 0. 0 = deactivated: the gauge earns nothing, allocations to it park idle, its accrual goes to
+  # surplus and its fees are not collected. Aero gauges have no other kill / deactivate mechanism.
+  emissionCap: BigInt @config(precision: 76)
+  emissionCapUpdatedTimestamp: Timestamp # block time of the last cap change
+  minStakeBlocks: BigInt @config(precision: 76) # per-gauge minimum stake (blocks) override (MinStakeBlocksSet); null = the factory's AeroGaugeFactory.minStakeBlocks
+  referral: String # referral that receives `referralShare` of every LP claim (ReferralConfigSet); null when none
+  referralShare: BigInt @config(precision: 24) # referral share in pips (1e6 = 100%); null when none
+  lastGaugeWeight: BigInt! @config(precision: 76) # voting power (decayed sAERO weight, 18 decimals) on the gauge at its last LeafVoter settlement (GaugeCapSettled.gaugeWeight)
+  lastSettlementTimestamp: Timestamp # block time of the last GaugeCapSettled
+  totalAllocated: BigInt! @config(precision: 76) # sum of sAERO allocations booked on this gauge by this chain's LeafVoter, in AERO (undecayed nominal amounts; phase 3, see AeroLeafAllocation)
+  totalEmissionsCredited: BigInt! @config(precision: 76) # sum of GaugeCapSettled.effectiveShare: emissions the LeafVoter credited to the gauge (= gaugeStates.ceiling)
+  totalCapSurplus: BigInt! @config(precision: 76) # sum of GaugeCapSettled.surplusDelta: accrual above the cap, sent to the chain surplus instead of the gauge
+  totalEmissionsForfeited: BigInt! @config(precision: 76) # sum of LeafVoter.EmissionsForfeited: credited emissions the gauge returned (accrued while no staked liquidity was in range, early-withdraw penalties) (= gaugeStates.surplus)
+  totalEmissionsMinted: BigInt! @config(precision: 76) # sum of LeafVoter.EmissionsMinted: emissions minted on claim (= gaugeStates.claimed); equals LP claims + deferred claims + referral claims
+  totalEmissionsMintedUSD: BigInt! @config(precision: 76) # USD (1e18) of totalEmissionsMinted at each mint's block
+  totalEmissionsClaimed: BigInt! @config(precision: 76) # LP claims paid at once (EmissionsClaimed)
+  totalDeferredEmissionsClaimed: BigInt! @config(precision: 76) # earlier deferred LP emissions paid out (DeferredEmissionsClaimed)
+  totalEmissionsDeferred: BigInt! @config(precision: 76) # LP emissions stored because the mint failed during a withdrawal (EmissionsDeferred)
+  totalReferralEmissionsDeferred: BigInt! @config(precision: 76) # referral cut stored for the referral (ReferralEmissionsDeferred)
+  totalReferralEmissionsClaimed: BigInt! @config(precision: 76) # referral emissions paid out (ReferralEmissionsClaimed)
+  totalEarlyWithdrawPenalty: BigInt! @config(precision: 76) # emissions forfeited by LPs who claimed or withdrew inside the minimum stake window (EarlyWithdrawPenalty); part of totalEmissionsForfeited
+  numberOfClaims: BigInt! @config(precision: 76) # EmissionsClaimed events
+  numberOfDeposits: BigInt! @config(precision: 76) # Deposit events
+  numberOfWithdrawals: BigInt! @config(precision: 76) # Withdraw and EmergencyWithdraw events
+  totalFeesClaimed0: BigInt! @config(precision: 76) # staked-liquidity pool fees (token0, raw units) the gauge sent to its VotingRewardsManager (gauge ClaimFees)
+  totalFeesClaimed1: BigInt! @config(precision: 76) # as totalFeesClaimed0, token1
+  totalFeesClaimedUSD: BigInt! @config(precision: 76) # USD (1e18) of totalFeesClaimed0/1 at each claim's block (trusted prices only)
+  lastUpdatedTimestamp: Timestamp! # block time of the last change
+  lastSnapshotTimestamp: Timestamp # epoch of the last AeroGaugeSnapshot; null = never snapshotted
+}
+
+# Hourly snapshot of AeroGauge (written at the first change in each hour, after the change), for
+# emissions, weight and cap time series. ClickHouse only.
+type AeroGaugeSnapshot @storage(postgres: false, clickhouse: true) {
+  id: ID! # Format: {chainId}-{gaugeAddress}-{epochMs}
+  chainId: Int! # chain id
+  gaugeAddress: String! @index # gauge
+  poolAddress: String! @index # the gauge's pool
+  isCL: Boolean! # CL or V2 gauge
+  timestamp: Timestamp! @index # snapshot epoch (hour)
+  isActivated: Boolean! # see AeroGauge
+  emissionCap: BigInt @config(precision: 76) # see AeroGauge
+  lastGaugeWeight: BigInt! @config(precision: 76) # see AeroGauge
+  totalAllocated: BigInt! @config(precision: 76) # see AeroGauge
+  totalEmissionsCredited: BigInt! @config(precision: 76) # see AeroGauge
+  totalCapSurplus: BigInt! @config(precision: 76) # see AeroGauge
+  totalEmissionsForfeited: BigInt! @config(precision: 76) # see AeroGauge
+  totalEmissionsMinted: BigInt! @config(precision: 76) # see AeroGauge
+  totalEmissionsMintedUSD: BigInt! @config(precision: 76) # see AeroGauge
+  totalEarlyWithdrawPenalty: BigInt! @config(precision: 76) # see AeroGauge
+  totalFeesClaimed0: BigInt! @config(precision: 76) # see AeroGauge
+  totalFeesClaimed1: BigInt! @config(precision: 76) # see AeroGauge
+  totalFeesClaimedUSD: BigInt! @config(precision: 76) # see AeroGauge
+}
+
+# A gauge's referral configured inside its factory's createGauge, whose ReferralConfigSet is
+# emitted before the factory's GaugeCreated. The GaugeCreated reads it by primary key and deletes it.
+type AeroGaugePendingReferral
+  @storage(postgres: true, clickhouse: false)
+  @internal
+{
+  id: ID! # Same as the gauge's id: {chainId}-{gaugeAddress} (AeroGaugeId)
+  referral: String! # referral address
+  referralShare: BigInt! @config(precision: 24) # referral share, pips
+}
+
+# Configuration of one Aero gauge factory (CL or V2) on one chain, from its own events. The
+# default cap is not emitted at deployment, so defaultCap is null until a DefaultCapSet.
+type AeroGaugeFactory {
+  id: ID! # Format: {chainId}-{factoryAddress}
+  chainId: Int! @index # chain id
+  factoryAddress: String! # gauge factory
+  isCL: Boolean! # CL gauge factory (true) or V2 gauge factory (false)
+  defaultCap: BigInt @config(precision: 76) # per-second cap new gauges start with (DefaultCapSet); null = never emitted (set at deployment)
+  operatorMinCap: BigInt @config(precision: 76) # lowest cap the cap operator may set (OperatorCapRangeSet)
+  operatorMaxCap: BigInt @config(precision: 76) # highest cap the cap operator may set (OperatorCapRangeSet)
+  minStakeBlocks: BigInt @config(precision: 76) # default minimum stake in blocks before a claim or withdrawal is penalty-free (PenaltyConfigSet)
+  penaltyRate: BigInt @config(precision: 24) # early-withdraw penalty in pips (1e6 = 100%) of the accrued emissions (PenaltyConfigSet); 0 = no penalty
+  maxShareCap: BigInt @config(precision: 24) # ceiling on per-gauge referral shares, pips (MaxShareCapSet)
+  emergencyWithdrawEnabled: Boolean! # EmergencyWithdrawEnabledSet; while true LPs can exit without touching the LeafVoter (losing unsettled emissions)
+  numberOfGauges: Int! # gauges this factory created
+  lastUpdatedTimestamp: Timestamp! # block time of the last change
+}
+
+# The Aero LeafVoter of one chain (same address on every chain, Base included): its
+# configuration and chain-level emission totals. Phase 3 adds the allocation fields.
+type AeroLeafVoterState {
+  id: ID! # Format: {chainId}
+  chainId: Int! # chain id
+  leafVoter: String! # LeafVoter address
+  rewardToken: String! # token claims pay (AERO on Base, xAERO elsewhere)
+  chainStatus: Int # LeafVoter ChainStatusSet: 1 Active, 2 Paused, 3 Suspended, 4 Sunset; null = never set (Active since construction)
+  totalEmissionsCredited: BigInt! @config(precision: 76) # sum of GaugeCapSettled.effectiveShare over real gauges
+  totalCapSurplus: BigInt! @config(precision: 76) # sum of GaugeCapSettled.surplusDelta, the zero gauge (idle allocations) included
+  totalIdleSurplus: BigInt! @config(precision: 76) # the part of totalCapSurplus settled on the zero gauge: emissions of allocations parked idle or on unroutable gauges
+  totalEmissionsForfeited: BigInt! @config(precision: 76) # sum of EmissionsForfeited (gauges)
+  totalEmissionsMinted: BigInt! @config(precision: 76) # sum of EmissionsMinted: receipt tokens minted on claims (on Base redeemed to AERO in the same transaction)
+  totalEmissionsMintedUSD: BigInt! @config(precision: 76) # USD (1e18) of totalEmissionsMinted at each mint
+  totalRedeemed: BigInt! @config(precision: 76) # sum of Redeemed: receipt tokens burned to redeem AERO on Base
+  numberOfRedemptions: BigInt! @config(precision: 76) # Redeemed events
+  receiptTokenSupply: BigInt! @config(precision: 76) # totalEmissionsMinted - totalRedeemed: xAERO outstanding (on Base: xAERO whose redemption the RootEmissionsHandler deferred)
+  lastUpdatedTimestamp: Timestamp! # block time of the last change
+  lastSnapshotTimestamp: Timestamp # epoch of the last AeroLeafVoterStateSnapshot
+}
+
+# Hourly snapshot of AeroLeafVoterState (chain-level emission totals). ClickHouse only.
+type AeroLeafVoterStateSnapshot @storage(postgres: false, clickhouse: true) {
+  id: ID! # Format: {chainId}-{epochMs}
+  chainId: Int! @index # chain id
+  timestamp: Timestamp! @index # snapshot epoch (hour)
+  totalEmissionsCredited: BigInt! @config(precision: 76) # see AeroLeafVoterState
+  totalCapSurplus: BigInt! @config(precision: 76) # see AeroLeafVoterState
+  totalIdleSurplus: BigInt! @config(precision: 76) # see AeroLeafVoterState
+  totalEmissionsForfeited: BigInt! @config(precision: 76) # see AeroLeafVoterState
+  totalEmissionsMinted: BigInt! @config(precision: 76) # see AeroLeafVoterState
+  totalEmissionsMintedUSD: BigInt! @config(precision: 76) # see AeroLeafVoterState
+  totalRedeemed: BigInt! @config(precision: 76) # see AeroLeafVoterState
+  receiptTokenSupply: BigInt! @config(precision: 76) # see AeroLeafVoterState
+}
+
+# The VotingRewardsManager of one Aero gauge: the pool fees its gauge collects from staked
+# liquidity, the incentive programs funded for allocators, and what sAERO allocators claim.
+type AeroVotingRewardsManager {
+  id: ID! # Format: {chainId}-{votingRewardsManagerAddress}
+  chainId: Int! @index # chain id
+  address: String! @index # VotingRewardsManager
+  gaugeAddress: String! @index # its gauge
+  poolAddress: String! @index # the gauge's pool
+  totalFeesCollectedUSD: BigInt! @config(precision: 76) # USD (1e18) of FeesCollected (pool fees pulled from the gauge), trusted prices at each block
+  numberOfFeeCollections: BigInt! @config(precision: 76) # FeesCollected events (one per token)
+  lastUpdatedTimestamp: Timestamp! # block time of the last change
+}
+
+# One row per Aero gauge Deposit, Withdraw or EmergencyWithdraw. ClickHouse only.
+type AeroGaugeStakeEvent @storage(postgres: false, clickhouse: true) {
+  id: ID! # Format: {chainId}-{txHash}-{logIndex}
+  chainId: Int! # chain id
+  kind: String! # DEPOSIT | WITHDRAW | EMERGENCY_WITHDRAW (values pinned by AERO_STAKE_EVENT_KIND)
+  gaugeAddress: String! @index # gauge
+  poolAddress: String! @index # the gauge's pool
+  isCL: Boolean! # CL (amount = liquidity L, tokenId set) or V2 (amount = LP tokens)
+  account: String! @index # staked owner (CL _user / V2 _account)
+  caller: String # transaction-level caller (Deposit / Withdraw _caller); null on EmergencyWithdraw
+  tokenId: BigInt @config(precision: 76) # CL position NFT; null on V2 gauges
+  amount: BigInt! @config(precision: 76) # liquidity (CL) or LP tokens (V2) staked or unstaked
+  blockNumber: BigInt! @config(precision: 76) # block number
+  timestamp: Timestamp! @index # block time
+  transactionHash: String! # transaction
+}
+
+# One row per Aero gauge emissions event per LP: claims, deferrals, referral legs, early-withdraw
+# penalties. Mints, forfeits and settlements are per gauge on AeroGauge / AeroGaugeSnapshot.
+# ClickHouse only.
+type AeroEmissionsEvent @storage(postgres: false, clickhouse: true) {
+  id: ID! # Format: {chainId}-{txHash}-{logIndex}
+  chainId: Int! # chain id
+  # CLAIMED (EmissionsClaimed: paid to recipient), DEFERRED (EmissionsDeferred: stored after a failed
+  # mint), DEFERRED_CLAIMED (DeferredEmissionsClaimed), REFERRAL_DEFERRED (ReferralEmissionsDeferred:
+  # the referral's cut of an LP claim), REFERRAL_CLAIMED (ReferralEmissionsClaimed),
+  # EARLY_WITHDRAW_PENALTY (EarlyWithdrawPenalty: forfeited by the LP). Pinned by AERO_EMISSIONS_EVENT_KIND.
+  kind: String!
+  gaugeAddress: String! @index # gauge
+  poolAddress: String! @index # the gauge's pool
+  account: String! @index # LP staker (REFERRAL_DEFERRED: the LP whose claim paid the referral; REFERRAL_CLAIMED: the referral)
+  recipient: String # recipient of a paid amount (CLAIMED, DEFERRED_CLAIMED, REFERRAL_CLAIMED)
+  referral: String # referral address (REFERRAL_DEFERRED)
+  tokenId: BigInt @config(precision: 76) # CL position NFT (per-position CL events); null otherwise
+  amount: BigInt! @config(precision: 76) # reward-token amount (18 decimals)
+  amountUSD: BigInt! @config(precision: 76) # USD (1e18) at the reward token's stored price
+  rewardToken: String! # AERO (Base) or xAERO
+  blockNumber: BigInt! @config(precision: 76) # block number
+  timestamp: Timestamp! @index # block time
+  transactionHash: String! # transaction
+}
+
+# One row per redemption step. Phase 2: INITIATED (LeafVoter.Redeemed: xAERO burned on a leaf chain
+# for AERO on Base). On Base the RootEmissionsHandler redeems every claim automatically; those
+# internal redemptions are counted on AeroLeafVoterState but get no row. Phase 3 adds the root side.
+# ClickHouse only.
+type AeroRedemptionEvent @storage(postgres: false, clickhouse: true) {
+  id: ID! # Format: {chainId}-{txHash}-{logIndex}
+  chainId: Int! # chain the event was emitted on
+  kind: String! # INITIATED | PROCESSED | DEFERRED | BUFFER_DRAWN | DONATED | SURPLUS_SPENT (pinned by AERO_REDEMPTION_EVENT_KIND)
+  sourceChainId: Int! # chain whose receipt tokens are redeemed (INITIATED: the emitting chain; root kinds: the event's chain id)
+  redeemer: String # address whose xAERO was burned (INITIATED)
+  recipient: String @index # AERO recipient on Base
+  amount: BigInt! @config(precision: 76) # 18-decimal amount (xAERO burned / AERO minted or paid)
+  surplusReported: BigInt @config(precision: 76) # PROCESSED: the chain's reported surplus high-water mark after the redeem
+  blockNumber: BigInt! @config(precision: 76) # block number
+  timestamp: Timestamp! @index # block time
+  transactionHash: String! # transaction
+}
+
+# One row per VotingRewardsManager flow. Phase 2: FEES_COLLECTED (pool fees of staked liquidity
+# pulled from the gauge into the manager, per token). Phase 3 adds the allocator side. ClickHouse only.
+type AeroVotingRewardsEvent @storage(postgres: false, clickhouse: true) {
+  id: ID! # Format: {chainId}-{txHash}-{logIndex}
+  chainId: Int! # chain id
+  kind: String! # FEES_COLLECTED | FEES_CLAIMED | INCENTIVE_CREATED | INCENTIVE_CLAIMED | INCENTIVE_SWEPT (pinned by AERO_VOTING_REWARDS_EVENT_KIND)
+  votingRewardsManager: String! @index # VotingRewardsManager
+  gaugeAddress: String! @index # its gauge
+  poolAddress: String! @index # the gauge's pool
+  tokenId: BigInt @config(precision: 76) # sAERO position (claims)
+  recipient: String @index # claim recipient (claims)
+  token: String # token moved; null on INCENTIVE_CLAIMED / INCENTIVE_SWEPT rows whose program is unknown
+  programId: BigInt @config(precision: 76) # incentive program (INCENTIVE_*)
+  amount: BigInt! @config(precision: 76) # raw token amount
+  amountUSD: BigInt! @config(precision: 76) # USD (1e18) at the token's stored price on this chain; 0 when the token is untrusted or not indexed
+  blockNumber: BigInt! @config(precision: 76) # block number
+  timestamp: Timestamp! @index # block time
+  transactionHash: String! # transaction
+}
