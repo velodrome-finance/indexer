@@ -34,7 +34,17 @@ export class Indexed {
    * @returns Promise resolving when connected
    */
   async connect(): Promise<void> {
-    await this.pg.connect();
+    // A shared Postgres can be at max_connections while indexers start; wait for a slot.
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await this.pg.connect();
+        return;
+      } catch (e) {
+        if (!/too many clients|53300/.test(String(e)) || attempt >= 30) throw e;
+        await new Promise((r) => setTimeout(r, 10_000));
+        (this as { pg: PgClient }).pg = new PgClient(this.target.pg);
+      }
+    }
   }
 
   /**
