@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  clSpotPrice0,
   deriveCLPriceRatios,
   deriveV2PriceRatios,
+  deriveV2StablePriceRatios,
   pickPriceRatios,
+  poolSpotPrice0,
+  v2StableSpotPrice0,
+  v2VolatileSpotPrice0,
 } from "../src/PoolPriceRatio";
 
 const TEN_TO_THE_18 = 10n ** 18n;
@@ -96,5 +101,102 @@ describe("pickPriceRatios", () => {
     expect(
       pickPriceRatios({ token0Price: 0n, token1Price: 0n }, lastKnown),
     ).toEqual(lastKnown);
+  });
+});
+
+describe("deriveV2StablePriceRatios (sAMM x³y + xy³)", () => {
+  it("is exactly 1:1 for a balanced pool, across 6/18 decimals", () => {
+    // 1M USDC (6 dec) vs 1M DAI (18 dec)
+    expect(
+      deriveV2StablePriceRatios(
+        1_000_000n * 10n ** 6n,
+        1_000_000n * TEN_TO_THE_18,
+        6n,
+        18n,
+      ),
+    ).toEqual({ token0Price: TEN_TO_THE_18, token1Price: TEN_TO_THE_18 });
+  });
+
+  it("uses the curve's marginal price for an imbalanced pool", () => {
+    // x = 1, y = 2 (whole units): dy/dx = y(3x²+y²)/(x(x²+3y²)) = 14/13.
+    const { token0Price, token1Price } = deriveV2StablePriceRatios(
+      1_000_000n * 10n ** 6n,
+      2_000_000n * TEN_TO_THE_18,
+      6n,
+      18n,
+    );
+    expect(token0Price).toBe((14n * TEN_TO_THE_18) / 13n);
+    expect(token1Price).toBe((13n * TEN_TO_THE_18) / 14n);
+    // The constant-product ratio would have said 2.0.
+    expect(deriveV2PriceRatios(1n, 2n, 0n, 0n).token0Price).toBe(
+      2n * TEN_TO_THE_18,
+    );
+  });
+
+  it("handles 0- and 8-decimal tokens exactly", () => {
+    // 3 whole units of a 0-dec token vs 3 whole units of an 8-dec token.
+    expect(deriveV2StablePriceRatios(3n, 3n * 10n ** 8n, 0n, 8n)).toEqual({
+      token0Price: TEN_TO_THE_18,
+      token1Price: TEN_TO_THE_18,
+    });
+  });
+
+  it("returns zeros for an empty pool", () => {
+    expect(deriveV2StablePriceRatios(0n, 5n, 18n, 18n)).toEqual({
+      token0Price: 0n,
+      token1Price: 0n,
+    });
+  });
+});
+
+describe("spot price fractions", () => {
+  it("v2VolatileSpotPrice0 folds decimals into an exact fraction", () => {
+    // 1M USDC (6) vs 10 WBTC (8): 1 USDC = 1e-5 WBTC.
+    const f = v2VolatileSpotPrice0(10n ** 12n, 10n ** 9n, 6n, 8n);
+    if (!f) throw new Error("expected a fraction");
+    expect((f.num * 100_000n) / f.den).toBe(1n);
+    expect((f.num * 100_000n) % f.den).toBe(0n);
+  });
+
+  it("clSpotPrice0 is (sqrtPriceX96/2^96)² decimal-adjusted", () => {
+    const f = clSpotPrice0(20_000n * Q96, 6n, 18n);
+    if (!f) throw new Error("expected a fraction");
+    // raw 4e8 wei per micro-USDC → 0.0004 WETH per USDC, exactly
+    expect((f.num * 10_000n) / f.den).toBe(4n);
+    expect((f.num * 10_000n) % f.den).toBe(0n);
+  });
+
+  it("rejects pools without a defined price", () => {
+    expect(v2StableSpotPrice0(1n, 0n, 18n, 18n)).toBeUndefined();
+    expect(v2VolatileSpotPrice0(0n, 1n, 18n, 18n)).toBeUndefined();
+    expect(clSpotPrice0(0n, 18n, 18n)).toBeUndefined();
+  });
+
+  it("poolSpotPrice0 dispatches on pool kind", () => {
+    const reserves = { reserve0: TEN_TO_THE_18, reserve1: 2n * TEN_TO_THE_18 };
+    expect(
+      poolSpotPrice0({ isCL: false, isStable: false, ...reserves }, 18n, 18n),
+    ).toEqual(
+      v2VolatileSpotPrice0(reserves.reserve0, reserves.reserve1, 18n, 18n),
+    );
+    expect(
+      poolSpotPrice0({ isCL: false, isStable: true, ...reserves }, 18n, 18n),
+    ).toEqual(
+      v2StableSpotPrice0(reserves.reserve0, reserves.reserve1, 18n, 18n),
+    );
+    expect(
+      poolSpotPrice0(
+        { isCL: true, isStable: false, ...reserves, sqrtPriceX96: Q96 },
+        18n,
+        18n,
+      ),
+    ).toEqual(clSpotPrice0(Q96, 18n, 18n));
+    expect(
+      poolSpotPrice0(
+        { isCL: true, isStable: false, ...reserves, sqrtPriceX96: undefined },
+        18n,
+        18n,
+      ),
+    ).toBeUndefined();
   });
 });

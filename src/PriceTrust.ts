@@ -2,7 +2,6 @@ import type { Token } from "envio";
 import { CHAIN_CONSTANTS, TEN_TO_THE_18_BI } from "./Constants";
 import type { handlerContext } from "./EntityTypes";
 import { calculateTokenAmountUSD } from "./Helpers";
-import { multiplyBase1e18 } from "./Maths";
 import { isBlacklistedToken } from "./PriceOverrides";
 
 /**
@@ -61,10 +60,10 @@ const CONNECTOR_SETS: ReadonlyMap<number, ReadonlySet<string>> = new Map(
 
 /**
  * Whether `address` is one of `chainId`'s configured price connectors — the
- * canonical base assets (WETH, USDC, the chain's gov token, …) the oracle
- * already uses to derive every other token's price (src/constants/
- * price_connectors.json, surfaced as `CHAIN_CONSTANTS[chainId].oracle
- * .priceConnectors`).
+ * canonical base assets (WETH, USDC, the chain's gov token, …) every other
+ * token's price is derived through (src/constants/price_connectors.json,
+ * surfaced as `CHAIN_CONSTANTS[chainId].oracle.priceConnectors`; tiers 0–2 of
+ * the pool-derived pricing in docs/adr/0003-pool-derived-token-prices.md).
  *
  * A token the indexer trusts enough to *derive* prices from is, by the same
  * token, trustworthy enough to *value* — so connector membership is a positive
@@ -130,37 +129,6 @@ export function getTrustedUSD(
 }
 
 /**
- * Pool-implied USD price (1e18-base) for one leg of a pool, derived from the
- * pool's on-chain price ratio and the *counterparty* leg's trusted price. This
- * is an independent ground-truth witness to the per-token oracle route: it
- * comes from pool reserves / sqrtPriceX96, not from the route that can freeze
- * or glitch (#784/#785).
- *
- * For token0 the caller passes the pool's `token0Price` (1e18-scaled
- * token1-per-token0) and the token1 entity; for token1, `token1Price` and the
- * token0 entity. Gated by {@link isTrusted}: an untrusted or undefined
- * counterparty yields `0n` (no usable hint), so any consumer is inert unless
- * the other leg is a whitelisted, non-blacklisted token whose price is
- * reliable. A `0n` ratio (uninitialised pool) also yields `0n`.
- *
- * @param priceRatio1e18 - The priced token's value in counterparty units,
- *   1e18-scaled (the pool entity's `token0Price` / `token1Price`).
- * @param counterparty - The other token in the pool, carrying the trusted USD
- *   price. Undefined or untrusted ⇒ `0n`.
- * @returns USD-per-whole-token in 1e18-base (same scaling as `pricePerUSDNew`),
- *   or `0n` when the counterparty fails the trust gate or the ratio is 0.
- */
-export function getPoolImpliedUSD(
-  priceRatio1e18: bigint,
-  counterparty: Token | undefined,
-): bigint {
-  if (priceRatio1e18 <= 0n || !counterparty || !isTrusted(counterparty)) {
-    return 0n;
-  }
-  return multiplyBase1e18(priceRatio1e18, counterparty.pricePerUSDNew);
-}
-
-/**
  * Whether `address` is a "hard anchor" on `chainId` — a token whose USD value
  * is structurally reliable enough to use as ground truth for the directional
  * TVL cap (#892): the chain's USDC `destinationToken`, any configured
@@ -168,12 +136,12 @@ export function getPoolImpliedUSD(
  *
  * Stricter than {@link isTrusted}: being protocol-whitelisted is not enough; a
  * hard anchor is one of the few tokens the indexer treats as a USD yardstick.
- * Stablecoins are valued at a hard $1 pin and WETH at its own oracle price (see
+ * Stablecoins are valued at a hard $1 pin and WETH at its own stored price (see
  * {@link getHardAnchorUnitUSD}).
  *
  * `destinationToken` is checked explicitly because `buildStablecoinSet`
  * (src/Constants.ts) deliberately EXCLUDES it from `stablecoins` — it is the
- * oracle's pricing target, not a connector — yet it is the primary stablecoin
+ * pricing target, not a connector — yet it is the primary stablecoin
  * on every chain (USDC on Optimism/Base, oUSDT on Lisk/Metal, …).
  *
  * @param chainId - Chain the token lives on
@@ -196,16 +164,17 @@ export function isHardAnchor(chainId: number, address: string): boolean {
  * USD value of one whole unit of a hard-anchor token (1e18-base), or `0n` when
  * the token is not a hard anchor on the chain or cannot be valued.
  *
- * Stablecoins and the chain's `destinationToken` are pinned to exactly $1 —
- * deliberately NOT their oracle `pricePerUSDNew`, so a drifting or poisoned
- * stablecoin oracle can never move the anchor used to sanity-check other legs.
- * WETH is valued at its oracle `pricePerUSDNew`; an unpriced WETH (`0n`) returns
- * `0n`, which makes every downstream cap check inert (an unusable anchor).
+ * Stablecoins and the chain's `destinationToken` are pinned to exactly $1
+ * regardless of their stored `pricePerUSDNew` (which the pricing code also pins
+ * to $1, ADR 0003), so the anchor used to sanity-check other legs can never
+ * drift. WETH is valued at its stored, pool-derived `pricePerUSDNew`; an
+ * unpriced WETH (`0n`) returns `0n`, which makes every downstream cap check
+ * inert (an unusable anchor).
  *
  * @param chainId - Chain the token lives on
  * @param token - Candidate anchor token (carries address + pricePerUSDNew).
  *   Undefined ⇒ `0n`.
- * @returns `$1` (1e18-base) for a stablecoin / destination anchor, WETH's oracle
+ * @returns `$1` (1e18-base) for a stablecoin / destination anchor, WETH's stored
  *   price for the WETH anchor, or `0n` when `token` is not a hard anchor
  */
 export function getHardAnchorUnitUSD(
@@ -223,7 +192,7 @@ export function getHardAnchorUnitUSD(
     return TEN_TO_THE_18_BI; // hard $1 pin
   }
   if (lower === constants.weth.toLowerCase()) {
-    return token.pricePerUSDNew; // WETH oracle price (0n ⇒ anchor unusable)
+    return token.pricePerUSDNew; // WETH stored price (0n ⇒ anchor unusable)
   }
   return 0n;
 }

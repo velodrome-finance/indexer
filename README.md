@@ -144,11 +144,13 @@ Top-level modules:
 - `Helpers.ts` — shared utilities (error handling, USD conversions,
   concentrated-liquidity position math via the Uniswap v3 SDK)
 - `Maths.ts` — fixed-point / BigInt math helpers
-- `PriceOracle.ts` — token price fetching with hourly refresh
-- `PriceOverrides.ts` — manual price pins and the token blacklist
+- `PriceOracle.ts` — hourly token price refresh from indexed pool state (no
+  RPC; see `docs/adr/0003-pool-derived-token-prices.md`), token creation and
+  metadata heal
+- `PriceOverrides.ts` — token blacklist and cross-chain rebind fallbacks
 - `PriceTrust.ts` — price-trust gating used by USD valuation
-- `PoolPriceRatio.ts` — derives `token0Price` / `token1Price` from pool state
-- `ChainBlockTime.ts` — per-chain block-time helpers
+- `PoolPriceRatio.ts` — spot prices from pool state (CL `sqrtPriceX96`, V2
+  volatile reserve ratio, V2 stable sAMM curve)
 - `CustomTypes.ts` / `EntityTypes.ts` — shared TypeScript types
 
 Subdirectories:
@@ -162,6 +164,9 @@ Subdirectories:
   aggregator (TVL, volume, fees, votes, emissions); others cover
   `UserStatsPerPool`, `NonFungiblePosition`, `VeNFTState`, `VeNFTPoolVote`,
   `ALMLPWrapper`, `CLStakedLiquidity`, `OUSDTSwaps`
+- `Pricing/` — pool-derived pricing: tiers and thresholds
+  (`PricingConfig.ts`), candidate pools and deepest-pool selection
+  (`PoolRoute.ts`), throttle / carry / 7-day expiry (`PriceResolution.ts`)
 - `Snapshots/` — hourly snapshot creation for aggregated entities, with
   epoch-alignment logic in `Shared.ts`
 - `Effects/` — external calls (RPC/API) behind Envio's Effect API.

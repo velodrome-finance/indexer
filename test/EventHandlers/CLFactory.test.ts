@@ -128,6 +128,67 @@ describe("CLFactory Events", () => {
       expect(pool?.isCL).toBe(true);
     });
 
+    it("registers no pricing candidate when both tokens share a tier", async () => {
+      // 0x1111… / 0x2222… are both tier-3 tokens on Base.
+      expect(
+        await indexer.TokenPricingPools.get(TokenId(chainId, token0Address)),
+      ).toBeUndefined();
+      expect(
+        await indexer.TokenPricingPools.get(TokenId(chainId, token1Address)),
+      ).toBeUndefined();
+    });
+
+    it("registers the pool as a pricing candidate for the higher-tier side (ADR 0003)", async () => {
+      const baseWeth = toChecksumAddress(
+        "0x4200000000000000000000000000000000000006",
+      );
+      const clPool = toChecksumAddress(
+        "0x4444444444444444444444444444444444444444",
+      );
+      const idx = createTestIndexer();
+      setupIndexerWithEntities(idx);
+      idx.Token.set({
+        ...mockToken1Data,
+        id: TokenId(chainId, baseWeth),
+        address: baseWeth,
+        chainId,
+      } satisfies Token);
+      await idx.process({
+        chains: {
+          [chainId]: {
+            simulate: [
+              {
+                contract: "CLFactory",
+                event: "PoolCreated",
+                srcAddress: CL_FACTORY_ADDRESS_BY_CHAIN[
+                  chainId
+                ] as `0x${string}`,
+                logIndex: 1,
+                block: {
+                  number: 1000000,
+                  timestamp: 1000000,
+                  hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                },
+                params: {
+                  token0: token0Address as `0x${string}`, // tier 3
+                  token1: baseWeth as `0x${string}`, // tier 1
+                  pool: clPool,
+                  tickSpacing: TICK_SPACING,
+                },
+              },
+            ],
+          },
+        },
+      });
+      expect(
+        (await idx.TokenPricingPools.get(TokenId(chainId, token0Address)))
+          ?.pools,
+      ).toEqual([PoolId(chainId, clPool)]);
+      expect(
+        await idx.TokenPricingPools.get(TokenId(chainId, baseWeth)),
+      ).toBeUndefined();
+    });
+
     it("should process event even during preload phase", async () => {
       const preloadIndexer = createTestIndexer();
       setupIndexerWithEntities(preloadIndexer);

@@ -1,78 +1,56 @@
 import type { Token } from "envio";
-import { estimateBlockAtTimestamp } from "./ChainBlockTime";
-import { MS_IN_AN_HOUR, TEN_TO_THE_18_BI, TokenId } from "./Constants";
-import {
-  getTokenDetails,
-  getTokenPrice,
-  hasContractBytecode,
-  roundBlockToInterval,
-} from "./Effects/Index";
+import { TokenId } from "./Constants";
+import { getTokenDetails, hasContractBytecode } from "./Effects/Index";
 import { getRehydrated } from "./EntityTimestamps";
 import type { handlerContext } from "./EntityTypes";
+import type { Pool } from "./EntityTypes";
 import { getRebindTarget, isBlacklistedToken } from "./PriceOverrides";
 import { getGateDecisionFromSignals } from "./PriceTrust";
 import {
-  PRICE_SOURCE,
-  type PriceSource,
-  setTokenPriceSnapshot,
-} from "./Snapshots/TokenPriceSnapshot";
-export interface TokenPriceData {
-  pricePerUSDNew: bigint;
-  decimals: bigint;
+  type PricingCandidate,
+  buildPricingCandidate,
+  selectPricingCandidate,
+} from "./Pricing/PoolRoute";
+import {
+  type PriceResolution,
+  applyPriceResolution,
+  isPriceRefreshDue,
+} from "./Pricing/PriceResolution";
+import {
+  MAX_ACCEPTED_PRICE,
+  PRICE_CARRY_WINDOW_MS,
+  PRICING_TIER,
+  type PricingTier,
+  getMinPricingDepthUSD,
+  getPinnedPrice,
+  getPricingTier,
+} from "./Pricing/PricingConfig";
+import { setTokenPriceSnapshot } from "./Snapshots/TokenPriceSnapshot";
+
+/**
+ * Price fields for a Token row created at `createdAt`: tier-0 tokens (the
+ * chain's destination token and stablecoins) are born at their $1 pin with a
+ * matching success stamp, everything else at 0 with no success yet. Shared by
+ * every Token construction site so a stablecoin first seen through
+ * `WhitelistToken` is not valued at $0 for its first (throttled) hour.
+ *
+ * @param chainId - Chain the token lives on
+ * @param address - Token address
+ * @param createdAt - Creation block time (callers also stamp it as `lastUpdatedTimestamp`)
+ * @returns `pricePerUSDNew` and `lastSuccessfulPriceTimestamp` for the new row
+ */
+export function initialTokenPriceFields(
+  chainId: number,
+  address: string,
+  createdAt: Date,
+): Pick<Token, "pricePerUSDNew" | "lastSuccessfulPriceTimestamp"> {
+  const pinned = isBlacklistedToken(chainId, address)
+    ? undefined
+    : getPinnedPrice(chainId, address);
+  return pinned
+    ? { pricePerUSDNew: pinned, lastSuccessfulPriceTimestamp: createdAt }
+    : { pricePerUSDNew: 0n, lastSuccessfulPriceTimestamp: undefined };
 }
-
-// Issue #668: receiver-side guard against transient absurd oracle reads. The
-// Fraxtal V3 oracle has historically returned values 15–30 OOM away from the
-// surrounding baseline for sfrxETH and FXB20291231; persisting any one of
-// those readings permanently poisons cumulative pool aggregates because
-// volume/fees are append-only. We treat the on-chain oracle as untrusted
-// input: any refresh whose ratio against the last accepted price exceeds
-// 10× is rejected as long as the anchor is still fresh (≤ 14 days). See the
-// issue body for the heuristic calibration.
-const PRICE_SPIKE_RATIO_THRESHOLD = 10n;
-const PRICE_SPIKE_STALENESS_MS = 14 * 24 * 60 * 60 * 1000;
-
-// Issue #728: locked-anchor poisoning defense. The #668 spike guard needs a
-// prior non-zero anchor to compare ≥10× against, so the very first non-zero
-// oracle read has nothing to validate it. If that read is inflated, the
-// locked anchor poisons every subsequent pool calc until the token is
-// reactively blacklisted (see PR #722). Cap rejects any first non-zero anchor
-// > $10K for non-BTC symbols. Empirical scan against the deployed indexer
-// found zero legitimate non-BTC tokens ever priced above $10K — every >$10K
-// observation was a known poison case handled by REBIND / BLACKLIST /
-// stablecoin pin. BTC symbols (WBTC, cbBTC, SolvBTC, …) are exempt because
-// they routinely price in the tens of thousands.
-const FIRST_FETCH_CAP = 10_000n * TEN_TO_THE_18_BI;
-
-// Issue #788: absolute price ceiling. The spike guard only protects a FRESH
-// anchor (younger than PRICE_SPIKE_STALENESS_MS); once a token idles past that
-// window its anchor is no longer trusted, so a read of ANY magnitude is
-// accepted — BPX/BPX6900 booked a $7.17e18-per-token read after 26 days idle
-// (the highest price the indexer has ever recorded). This is a hard upper
-// bound applied to every read regardless of anchor age. $1M/token sits ~10×
-// above BTC's range (WBTC ≈ $100K) and far below the $10^28 egregious-poison
-// gate. An oracle-cache audit of the deployed indexer (commit c9b8978, 4.77M
-// nonzero reads) found every persistent read above $1M to be an oracle glitch,
-// never a legitimate price — so no real token (BTC variants included)
-// approaches it, and no symbol exemption is needed, unlike FIRST_FETCH_CAP.
-// Deliberately a loose backstop, not a tight bound: glitch plateaus in the
-// $1K–$100K band — where legitimate high-value tokens also live — are left to
-// the anchor-relative spike guard, which rejects them as ≥10× jumps against a
-// fresh anchor. (The same audit showed re-anchoring those plateaus would
-// poison ~250 tokens; see issues #784/#785 for why a mechanical re-anchor was
-// rejected.)
-const MAX_ACCEPTED_PRICE = 1_000_000n * TEN_TO_THE_18_BI;
-
-// Two positive prices "agree" when neither exceeds the other by the spike
-// ratio (10×) — the same loose band the upward spike guard uses. Reused by the
-// pool-implied ground-truth checks (#784/#785) to ask whether an oracle read
-// and a pool-implied hint corroborate each other. Zero on either side means
-// "no usable signal" → never agrees.
-const withinRatioBand = (a: bigint, b: bigint): boolean =>
-  a > 0n &&
-  b > 0n &&
-  a <= b * PRICE_SPIKE_RATIO_THRESHOLD &&
-  b <= a * PRICE_SPIKE_RATIO_THRESHOLD;
 
 /**
  * Creates and persists a Token entity at first sight, gated on the address
@@ -82,6 +60,12 @@ const withinRatioBand = (a: bigint, b: bigint): boolean =>
  * contracts) used to write Token rows with empty `symbol`/`name` from the
  * static fallback in {@link getTokenDetails}. The bytecode gate filters them
  * here so callers see `null` and can skip downstream work.
+ *
+ * Tier-0 tokens (the chain's destination token and stablecoins) are born at
+ * their $1 pin, so the first hour after creation — during which the refresh is
+ * throttled by the creation stamp — does not value them at $0. Every other
+ * token starts at 0 and gets its first pool-derived price at its first
+ * refresh in a later hour (its own new pool has no reserves yet anyway).
  *
  * @param tokenAddress - Address of the token contract.
  * @param chainId - Chain ID where the token lives.
@@ -123,9 +107,8 @@ export async function createTokenEntity(
     name: tokenDetails.name, // Now using the actual name from token details
     chainId: chainId,
     decimals: BigInt(tokenDetails.decimals),
-    pricePerUSDNew: BigInt(0),
+    ...initialTokenPriceFields(chainId, tokenAddress, blockDatetime),
     lastUpdatedTimestamp: blockDatetime,
-    lastSuccessfulPriceTimestamp: undefined,
     isWhitelisted: false,
     priceTrustOutcome: decision.outcome,
     priceTrustReason: decision.reason,
@@ -136,47 +119,41 @@ export async function createTokenEntity(
 }
 
 /**
- * Refreshes a token's price subject to a uniform 1-hour throttle, dispatching
- * to blacklist, cross-chain rebind, or on-chain oracle paths as configured.
+ * Refreshes a token's USD price from indexed pool state, at most once per
+ * token per clock hour (docs/adr/0003-pool-derived-token-prices.md). No RPC is
+ * involved: the price comes from pools already in the store.
  *
- * Two clocks are tracked independently (issue #694):
+ * Resolution order on a due refresh:
  *
- * - `lastUpdatedTimestamp` advances on EVERY refresh attempt (including $0
- *   reads and fallback writes). It drives the 1-hour throttle at the top of
- *   this function, ensuring we don't re-hit the oracle on every subsequent
- *   event for stuck tokens.
- * - `lastSuccessfulPriceTimestamp` advances ONLY when a non-zero price is
- *   persisted (main oracle write or rebind with a priced source). It drives
- *   the 7-day staleness window guarding the last-known-price fallback —
- *   so once a token enters fallback, the window can actually expire even
- *   with hourly retries. The fallback covers every oracle generation
- *   (#775 extended it from V3-only to V1/V2 too).
+ * 1. Operator blacklist (src/PriceOverrides.ts) → 0 (`override`).
+ * 2. Tier 0 (destination token / stablecoins) → exactly $1 (`pinned`).
+ * 3. Pool route: every pool registered for the token in `TokenPricingPools`
+ *    (counterparty in a strictly lower tier) offers a candidate price =
+ *    pool ratio × counterparty USD price. Each counterparty is refreshed first
+ *    when it is itself due, so the token is never priced off a stale
+ *    counterparty; the tier rule bounds that recursion at three levels. The
+ *    deepest candidate passing the depth floor, the 1000× imbalance bound and
+ *    the $1M ceiling wins (`pool`).
+ * 4. Cross-chain rebind (e.g. XVELO on leaf chains → Optimism VELO): when no
+ *    local pool qualifies, copy the source token's stored price if it is
+ *    positive and was successfully set within the carry window (`rebind`).
+ * 5. Nothing qualified: carry the last price while its last success is under
+ *    7 days old (`carried`), else 0 (`unpriced`).
  *
- * Issue #862: the throttle is bypassed for whitelisted tokens that have never
- * recorded a successful price write (`isWhitelisted && !lastSuccessfulPriceTimestamp`).
- * Without the bypass the first $0 read of a freshly-whitelisted token bumps
- * `lastUpdatedTimestamp` and re-throttles every subsequent event in the same
- * hour, leaving the token stuck at $0 for as long as the transient condition
- * persists. The Envio effect cache amortises the extra attempts into one RPC
- * per hourly block bucket per (chain, token).
+ * Two clocks (#694): `lastUpdatedTimestamp` advances on every due refresh
+ * (it is the throttle); `lastSuccessfulPriceTimestamp` only on steps 2–4.
+ * Every due refresh writes exactly one TokenPriceSnapshot, keyed by the clock
+ * hour; a throttled call writes nothing.
  *
- * When a caller supplies `impliedPriceHint` — a pool-implied USD price derived
- * from the counterparty leg's trusted price (see {@link getPoolImpliedUSD}) —
- * it acts as an independent ground-truth witness against a poisoned anchor:
- * a too-low first read is replaced by the hint (#785), and a stale-low anchor
- * is re-anchored when the incoming read corroborates the hint while the anchor
- * contradicts it (#784). Omitting the hint (the default) leaves every code
- * path identical to before.
+ * Token metadata is healed (#735) on every call, throttled or not.
  *
  * @param token - The token entity to refresh.
- * @param blockNumber - Block at which to fetch price (rounded to an hourly bucket for cache hits).
+ * @param blockNumber - Block of the triggering event (kept for call-site
+ *   compatibility; pricing reads current store state, not a block).
  * @param blockTimestamp - Block timestamp in seconds.
  * @param chainId - Chain the token lives on.
  * @param context - Envio handler context.
- * @param impliedPriceHint - Optional pool-implied USD price (1e18-base, same
- *   scaling as `pricePerUSDNew`) used as ground truth for the #784/#785 anchor
- *   checks. `undefined` / `0n` ⇒ no hint, behavior unchanged.
- * @returns The updated token entity (or the unchanged input when throttled).
+ * @returns The updated token entity (or the healed input when throttled).
  */
 export async function refreshTokenPrice(
   token: Token,
@@ -184,375 +161,216 @@ export async function refreshTokenPrice(
   blockTimestamp: number,
   chainId: number,
   context: handlerContext,
-  impliedPriceHint?: bigint,
 ): Promise<Token> {
-  const blockTimestampMs = blockTimestamp * 1000;
-  // Pool-implied ground truth (#784/#785); 0n / undefined ⇒ no usable hint,
-  // leaving every check below inert (behavior identical to a hint-free refresh).
-  const hint = impliedPriceHint ?? 0n;
-
-  // Issue #735: heal empty symbol/name on every refresh call regardless of the
-  // 1-hour price-refresh throttle. Tokens whose pool was created during a
-  // transient RPC failure (empty symbol) used to stay broken indefinitely
-  // when the only events on the pool fell inside the throttle window after
-  // creation; lifting heal above the throttle gate ensures the first
-  // observation after creation clears the empty metadata. The heal is
-  // idempotent — successive calls on a healed token short-circuit on the
-  // `symbol && name` guard inside {@link healTokenMetadata}.
   const healed = await healTokenMetadata(token, chainId, context);
-
-  // Issue #862: heal-on-read for whitelisted tokens that have never recorded a
-  // successful price write. `isWhitelisted = true` is the protocol's promise of
-  // a reliable on-chain pricing route, so the invariant
-  // `isWhitelisted && lastSuccessfulPriceTimestamp == null` should never hold
-  // once the token has been observed. The throttle below bumps
-  // `lastUpdatedTimestamp` on every attempt (including $0 / fallback / reject
-  // ticks), so a whitelisted token whose very first refresh produced a $0 read
-  // (transient RPC, oracle not deployed, etc.) is otherwise re-throttled on
-  // every subsequent event in the same hour — and once the next hour lands the
-  // pattern can recur if the same transient condition still holds, leaving the
-  // token stuck. Bypassing the throttle on this exact shape (whitelisted AND
-  // never-successful) forces one extra refresh attempt per qualifying event
-  // until the gate finally clears; the Envio effect cache (hourly-rounded
-  // block bucket on `getTokenPrice`) absorbs the redundant work into one RPC
-  // per hour. Bounded by the count of stuck whitelisted tokens (~hundreds at
-  // worst — see audit), not the event firehose.
-  const forceRefreshForStuckWhitelisted =
-    healed.isWhitelisted && !healed.lastSuccessfulPriceTimestamp;
-
-  // Issue #676: uniform 1-hour throttle for all tokens (regardless of current
-  // price). RPC cost is bounded by the throttle plus Envio's hourly-rounded
-  // effect cache key on `getTokenPrice`. Safe because we always bump
-  // `lastUpdatedTimestamp` below, so the throttle advances even on $0 results.
-  //
-  // Issue #863 (audit cross-reference): `refreshTokenPrice` is invoked only
-  // from event handlers — `Aggregators/Pool.ts` (every Swap/Mint/Burn/Sync),
-  // `Voter.ts` / `VotingRewardSharedLogic.ts` (every reward event), and
-  // `CrossChainPendingResolution.ts`. There is no background ticker. A
-  // whitelisted token whose pools see no events for >1 h legitimately produces
-  // no new snapshot in that window — gaps measured against wall-clock time
-  // (the E-2 audit check) are NOT a contract violation unless the token
-  // *also* shows recent event activity (see also #862, where the upstream
-  // cause is the absence of a `refreshTokenPrice` call at all for some
-  // whitelisted-but-inactive tokens).
-  const shouldRefresh =
-    forceRefreshForStuckWhitelisted ||
-    !healed.lastUpdatedTimestamp ||
-    blockTimestampMs - healed.lastUpdatedTimestamp.getTime() >= MS_IN_AN_HOUR;
-
-  if (!shouldRefresh) {
+  const blockTimestampMs = blockTimestamp * 1000;
+  if (!isPriceRefreshDue(healed.lastUpdatedTimestamp, blockTimestampMs)) {
     return healed;
   }
 
-  // Issue #822: every non-throttle exit below records a per-block
-  // TokenPriceSnapshot so the series has no holes on reject/fallback/override
-  // ticks (the throttle return above is the sole snapshot-free exit — no tick
-  // occurred). `priceSource` tags which branch produced the price; the
-  // carried/zeroed/fresh price is passed per call. Any future early-return
-  // added below must call this too.
-  const snapshotTokenPrice = (
-    pricePerUSDNew: bigint,
-    priceSource: PriceSource,
-  ): void =>
-    setTokenPriceSnapshot(
-      healed.address,
-      chainId,
+  let resolution: PriceResolution;
+  try {
+    resolution = await resolveTokenPrice(
+      healed,
       blockNumber,
-      new Date(blockTimestampMs),
-      pricePerUSDNew,
-      healed.isWhitelisted,
-      priceSource,
+      blockTimestamp,
+      chainId,
       context,
     );
-
-  // Issue #669: blacklist + canonical rebind override the oracle for known-bad
-  // (chain, token) pairs. See src/PriceOverrides.ts for rationale per token.
-  if (isBlacklistedToken(chainId, healed.address)) {
-    const updated: Token = {
-      ...healed,
-      pricePerUSDNew: 0n,
-      lastUpdatedTimestamp: new Date(blockTimestampMs),
-    };
-    context.Token.set(updated);
-    snapshotTokenPrice(0n, PRICE_SOURCE.OVERRIDE);
-    return updated;
-  }
-
-  const rebindTarget = getRebindTarget(chainId, healed.address);
-  if (rebindTarget) {
-    const sourceToken = await getRehydrated(
-      context.Token,
-      "Token",
-      TokenId(rebindTarget.chainId, rebindTarget.address),
-    );
-    let sourcePrice = sourceToken?.pricePerUSDNew ?? 0n;
-
-    // Cold-sync gap: the source chain's indexer hasn't priced the source token
-    // yet (e.g. Swell handler at T runs while OP indexer is still behind T).
-    // Reach across to the source chain's oracle directly. The effect cache
-    // key is (tokenAddress, chainId, blockNumber), and we round to the same
-    // hour bucket the source chain's own indexer will use — so when the
-    // source catches up its native refresh hits this cache slot for free.
-    // Worked example walked through in test/PriceOracle.test.ts.
-    if (sourcePrice === 0n) {
-      const estimatedSourceBlock = estimateBlockAtTimestamp(
-        rebindTarget.chainId,
-        blockTimestamp,
-      );
-      if (estimatedSourceBlock !== undefined) {
-        const sourceBlockRounded = roundBlockToInterval(
-          estimatedSourceBlock,
-          rebindTarget.chainId,
-        );
-        const prefetched = await context.effect(getTokenPrice, {
-          tokenAddress: rebindTarget.address,
-          chainId: rebindTarget.chainId,
-          blockNumber: sourceBlockRounded,
-          // Issue #748: pass source decimals when the source Token entity is
-          // already loaded so the gateway skips the source `fetchTokenDetails`
-          // RPC. When sourceToken is undefined (truly cold-sync), omit so the
-          // gateway falls back to fetching.
-          tokenDecimals: sourceToken ? Number(sourceToken.decimals) : undefined,
-        });
-        sourcePrice = prefetched.pricePerUSDNew;
-      }
-    }
-
-    const updated: Token = {
-      ...healed,
-      pricePerUSDNew: sourcePrice,
-      lastUpdatedTimestamp: new Date(blockTimestampMs),
-      lastSuccessfulPriceTimestamp:
-        sourcePrice > 0n
-          ? new Date(blockTimestampMs)
-          : healed.lastSuccessfulPriceTimestamp,
-    };
-    context.Token.set(updated);
-    // Issue #822: snapshot every rebind tick, including sourcePrice === 0n
-    // (previously gated on > 0n), so a cold-sync rebind isn't a hole.
-    snapshotTokenPrice(sourcePrice, PRICE_SOURCE.REBIND);
-    return updated;
-  }
-
-  try {
-    // Round block number to nearest hour interval for better cache hits
-    // Cache key is based on input parameters, so rounding must happen before effect call
-    const roundedBlockNumber = roundBlockToInterval(blockNumber, chainId);
-
-    const priceData = await context.effect(getTokenPrice, {
-      tokenAddress: healed.address,
-      chainId,
-      blockNumber: roundedBlockNumber,
-      // Issue #748: source-token decimals come from the stored Token entity
-      // (the same value downstream USD math consumes), so the gateway can
-      // skip the source `fetchTokenDetails` RPC (~3 redundant eth_calls per
-      // cache miss).
-      tokenDecimals: Number(healed.decimals),
-    });
-    const currentPrice = priceData.pricePerUSDNew;
-
-    // Issue #788: absolute ceiling — reject any read above MAX_ACCEPTED_PRICE
-    // before the anchor-relative checks below, so it fires regardless of anchor
-    // state (first-fetch, fresh, or stale). The prior anchor is preserved; we
-    // only bump `lastUpdatedTimestamp` to re-arm the spike guard, so a smaller
-    // follow-up read is validated against the (still-fresh) anchor instead of
-    // slipping through the stale-anchor exemption — e.g. BPX's $7.17e18 read is
-    // rejected here, and the $40,766 read three hours later is then caught by
-    // the spike guard rather than accepted. Issue #822: a `carried` snapshot of
-    // the preserved anchor is still written so the rejected tick isn't a hole.
-    if (currentPrice > MAX_ACCEPTED_PRICE) {
-      context.log.info(
-        `[MAX_PRICE_CEILING] chain=${chainId} address=${healed.address} symbol=${healed.symbol} proposed=${currentPrice} ceiling=${MAX_ACCEPTED_PRICE} — rejecting absurd read, keeping price=${healed.pricePerUSDNew}`,
-      );
-      const capped: Token = {
-        ...healed,
-        lastUpdatedTimestamp: new Date(blockTimestampMs),
-      };
-      context.Token.set(capped);
-      snapshotTokenPrice(healed.pricePerUSDNew, PRICE_SOURCE.CARRIED);
-      return capped;
-    }
-
-    // Issue #785: FIRST_FETCH_CAP (#728) only guards a too-HIGH first read; a
-    // too-LOW first read (LIFE: $0.0014 vs true ~$0.25) is accepted as the
-    // anchor and then freezes every later correct read as an upward spike,
-    // forever. When a trusted pool-implied hint exists at first sight, validate
-    // the first nonzero read against it: if it is out of band (too-low or
-    // too-high), anchor to the hint itself so the token recovers in a single
-    // read instead of locking onto the bad value. An in-band first read falls
-    // through and is accepted normally; a $0 read is left to the existing
-    // last-known/normal path (retry next refresh) rather than eagerly anchored.
-    //
-    // A hint above MAX_ACCEPTED_PRICE (#788) is itself the signal of a glitched
-    // pool ratio, so it is not usable ground truth: skip the override and let
-    // the read take the normal first-fetch path rather than writing a >$1M
-    // anchor that the ceiling at line 301 would reject from any other source.
-    if (
-      healed.pricePerUSDNew === 0n &&
-      currentPrice > 0n &&
-      hint > 0n &&
-      hint <= MAX_ACCEPTED_PRICE &&
-      !withinRatioBand(currentPrice, hint)
-    ) {
-      context.log.info(
-        `[poolImpliedFirstFetch] chain=${chainId} address=${healed.address} symbol=${healed.symbol} firstRead=${currentPrice} hint=${hint} — first read out of band, anchoring to pool-implied hint`,
-      );
-      const anchored: Token = {
-        ...healed,
-        pricePerUSDNew: hint,
-        lastUpdatedTimestamp: new Date(blockTimestampMs),
-        lastSuccessfulPriceTimestamp: new Date(blockTimestampMs),
-      };
-      context.Token.set(anchored);
-      // Issue #822: a pool-implied first-fetch anchors to the hint rather than
-      // the raw oracle read, so it carries its own `pool-implied` tag — still a
-      // successful write (it bumps lastSuccessfulPriceTimestamp), but one a
-      // consumer can distinguish from a straight-from-oracle `fresh` read.
-      snapshotTokenPrice(hint, PRICE_SOURCE.POOL_IMPLIED);
-      return anchored;
-    }
-
-    // Issue #728: cap-reject the first non-zero anchor for non-BTC symbols.
-    // The spike guard below requires anchor > 0, so without this gate a single
-    // inflated read at first sight permanently poisons the anchor. Bumping
-    // `lastUpdatedTimestamp` keeps the 1-hour throttle ticking so the next
-    // refresh retries. Conditions are ordered so the cheap bigint compares
-    // short-circuit before the symbol string allocation on the hot path.
-    if (
-      healed.pricePerUSDNew === 0n &&
-      currentPrice > FIRST_FETCH_CAP &&
-      !healed.symbol.toUpperCase().includes("BTC")
-    ) {
-      context.log.warn(
-        `[FIRST_FETCH_CAP] chain=${chainId} address=${healed.address} symbol=${healed.symbol} proposed=${currentPrice} cap=${FIRST_FETCH_CAP} — rejecting first anchor write, keeping price=0`,
-      );
-      const capped: Token = {
-        ...healed,
-        pricePerUSDNew: 0n,
-        lastUpdatedTimestamp: new Date(blockTimestampMs),
-      };
-      context.Token.set(capped);
-      snapshotTokenPrice(0n, PRICE_SOURCE.CARRIED);
-      return capped;
-    }
-
-    // Issue #668: reject upward refreshes that jump ≥10× vs a still-fresh
-    // accepted anchor. First-fetch (anchor == 0) and stale-anchor (anchor
-    // older than PRICE_SPIKE_STALENESS_MS) are exempt — neither shape can
-    // be a transient oracle glitch poisoning a previously-good baseline.
-    //
-    // Issue #730: the guard is upward-only. The two directions have
-    // asymmetric failure costs:
-    //
-    // - Upward false-accept (candidate wrongly high) is brief; the next
-    //   refresh self-heals once the oracle returns to baseline.
-    // - Downward false-reject (anchor wrongly high, candidate correct) is
-    //   permanent; every subsequent correct reading keeps getting rejected
-    //   and the inflated anchor is held forever (DTF kept $8.18 vs
-    //   DefiLlama $0.0008466 for 111 days).
-    //
-    // Also returns early on rejection rather than writing back — the
-    // earlier fall-through bumped `lastUpdatedTimestamp` on every rejected
-    // refresh, resetting `anchorAgeMs` so the 14-day exit was unreachable.
-    // Same fix shape PR #696 applied to the V3 fallback path for #694.
-    const anchorPrice = healed.pricePerUSDNew;
-    const anchorAgeMs = healed.lastUpdatedTimestamp
-      ? blockTimestampMs - healed.lastUpdatedTimestamp.getTime()
-      : Number.POSITIVE_INFINITY;
-    const upwardSpike =
-      anchorPrice > 0n &&
-      currentPrice >= anchorPrice * PRICE_SPIKE_RATIO_THRESHOLD;
-    if (upwardSpike && anchorAgeMs < PRICE_SPIKE_STALENESS_MS) {
-      // Issue #784: a downward glitch can poison the anchor (e.g. YGG read
-      // $0.0026 vs true $0.14), after which the upward-only guard rejects
-      // every correct heal for the full staleness window. When a trusted
-      // pool-implied hint corroborates the incoming read AND contradicts the
-      // stored anchor, the *anchor* is the outlier — re-anchor to the read
-      // instead of rejecting. The pool state is an independent witness (not the
-      // oracle route that produced the bad anchor), so it distinguishes a
-      // stuck-low anchor from a genuine transient spike — the discriminator the
-      // #801 cache audit showed a time-based re-anchor lacked.
-      const poolImpliedReanchor =
-        withinRatioBand(currentPrice, hint) &&
-        !withinRatioBand(anchorPrice, hint);
-      if (!poolImpliedReanchor) {
-        context.log.warn(
-          `[priceSpikeRejected] ${healed.address} chain=${chainId} anchor=${anchorPrice} candidate=${currentPrice}`,
-        );
-        // Issue #822: snapshot the carried anchor (token returned unchanged —
-        // #730 keeps lastUpdatedTimestamp pinned) so the rejected tick isn't a
-        // hole in the per-block series.
-        snapshotTokenPrice(healed.pricePerUSDNew, PRICE_SOURCE.CARRIED);
-        return healed;
-      }
-      context.log.info(
-        `[poolImpliedReanchor] ${healed.address} chain=${chainId} anchor=${anchorPrice} candidate=${currentPrice} hint=${hint} — re-anchoring past stuck-low anchor`,
-      );
-    }
-
-    // If price fetch returned 0, it could mean:
-    // 1. No price path exists in the oracle (token not configured)
-    // 2. Historical state unavailable (RPC limitation)
-    //
-    // If we have a previous non-zero price, use it as fallback.
-    // This works in harmony with Envio's effect caching - if the effect cache has a previous
-    // successful result, it will be used. But if it returns 0, we fall back to the token's stored price.
-    //
-    // Issue #694: gate the staleness window on `lastSuccessfulPriceTimestamp`,
-    // not `lastUpdatedTimestamp`. The latter advances on every attempt
-    // (including fallback writes), which previously made the window
-    // effectively never expire while a token was stuck in fallback.
-    const shouldUseLastKnownPrice =
-      currentPrice === 0n &&
-      healed.pricePerUSDNew > 0n &&
-      healed.lastSuccessfulPriceTimestamp &&
-      // Only use last known price if the LAST SUCCESSFUL write is relatively
-      // recent (within 7 days). This prevents using very stale prices but
-      // allows for temporary oracle issues.
-      blockTimestampMs - healed.lastSuccessfulPriceTimestamp.getTime() <
-        7 * 24 * 60 * 60 * 1000;
-
-    // Last-known-price fallback: every oracle generation throws transient $0
-    // reads (V3 from on-chain reverts; V1/V2 additionally when the RpcGateway
-    // returns its `{pricePerUSDNew: 0n, usedDefault: true}` fallback constant
-    // on RPC outage). Preserve a fresh anchor across any of those cases. The
-    // 7-day window on `lastSuccessfulPriceTimestamp` (#694) still bounds how
-    // long we'll pin a stale value. Originally gated to V3 only (#694); the
-    // V1/V2 exposure was confirmed in #775 (~$250M of Optimism volume zeroed).
-    if (shouldUseLastKnownPrice) {
-      const updatedToken: Token = {
-        ...healed,
-        lastUpdatedTimestamp: new Date(blockTimestampMs),
-        // lastSuccessfulPriceTimestamp deliberately NOT bumped: this write
-        // doesn't represent a fresh oracle success (#694).
-      };
-      context.Token.set(updatedToken);
-      snapshotTokenPrice(healed.pricePerUSDNew, PRICE_SOURCE.CARRIED);
-      return updatedToken;
-    }
-
-    const updatedToken: Token = {
-      ...healed,
-      pricePerUSDNew: currentPrice,
-      lastUpdatedTimestamp: new Date(blockTimestampMs),
-      lastSuccessfulPriceTimestamp:
-        currentPrice > 0n
-          ? new Date(blockTimestampMs)
-          : healed.lastSuccessfulPriceTimestamp,
-    };
-    context.Token.set(updatedToken);
-    snapshotTokenPrice(currentPrice, PRICE_SOURCE.FRESH);
-    return updatedToken;
   } catch (error) {
+    // A failed store read must not abort the handler or zero the price:
+    // treat it as "nothing qualified" so the carry rule applies.
     context.log.error(
-      `Error refreshing token price for ${healed.address} on chain ${chainId}: ${error}`,
+      `[refreshTokenPrice] Error resolving price for ${healed.address} on chain ${chainId}: ${error}`,
     );
-    // Issue #822: even on a transient error the tick happened, so snapshot the
-    // carried price (healed token returned unchanged), tagged `carried`.
-    snapshotTokenPrice(healed.pricePerUSDNew, PRICE_SOURCE.CARRIED);
-    // Return healed token if price refresh fails — metadata heal still applies.
-    return healed;
+    resolution = { kind: "none" };
   }
+
+  const applied = applyPriceResolution(healed, resolution, blockTimestampMs);
+  context.Token.set(applied.token);
+  setTokenPriceSnapshot(
+    {
+      address: applied.token.address,
+      chainId,
+      timestamp: new Date(blockTimestampMs),
+      pricePerUSDNew: applied.token.pricePerUSDNew,
+      isWhitelisted: applied.token.isWhitelisted,
+      priceSource: applied.priceSource,
+      pricingPoolId: applied.pricingPoolId,
+      pricingDepthUSD: applied.pricingDepthUSD,
+    },
+    context,
+  );
+  return applied.token;
+}
+
+/**
+ * Decides how a due refresh prices `token` (steps 1–4 of
+ * {@link refreshTokenPrice}); carry / expiry is applied afterwards by
+ * `applyPriceResolution`.
+ *
+ * @param token - The token being refreshed (already healed)
+ * @param blockNumber - Block of the triggering event (passed to counterparty refreshes)
+ * @param blockTimestamp - Block timestamp in seconds
+ * @param chainId - Chain the token lives on
+ * @param context - Envio handler context
+ * @returns The resolution
+ */
+async function resolveTokenPrice(
+  token: Token,
+  blockNumber: number,
+  blockTimestamp: number,
+  chainId: number,
+  context: handlerContext,
+): Promise<PriceResolution> {
+  if (isBlacklistedToken(chainId, token.address)) {
+    return { kind: "override" };
+  }
+
+  const tier = getPricingTier(chainId, token.address);
+  if (tier === PRICING_TIER.PINNED) {
+    return { kind: "pinned" };
+  }
+
+  const best = await findPoolRoute(
+    token,
+    tier,
+    blockNumber,
+    blockTimestamp,
+    chainId,
+    context,
+  );
+  if (best) {
+    return {
+      kind: "pool",
+      priceUSD: best.priceUSD,
+      poolId: best.poolId,
+      depthUSD: best.depthUSD,
+    };
+  }
+
+  const rebindPrice = await findRebindPrice(
+    token,
+    chainId,
+    blockTimestamp * 1000,
+    context,
+  );
+  if (rebindPrice !== undefined) {
+    return { kind: "rebind", priceUSD: rebindPrice };
+  }
+
+  return { kind: "none" };
+}
+
+/**
+ * Loads the token's registered pricing pools and their counterparties,
+ * refreshes each counterparty that is due, and selects the deepest qualifying
+ * candidate. Reads are issued together with `Promise.all` so Envio's preload
+ * pass batches them.
+ *
+ * Counterparties are re-checked against the tier rule here as well as at
+ * registration, so even a stale or hand-edited `TokenPricingPools` row cannot
+ * make the recursion cyclic.
+ *
+ * @param token - The token being priced
+ * @param tier - The token's pricing tier
+ * @param blockNumber - Block of the triggering event
+ * @param blockTimestamp - Block timestamp in seconds
+ * @param chainId - Chain the token lives on
+ * @param context - Envio handler context
+ * @returns The winning candidate, or `undefined` when none qualifies
+ */
+async function findPoolRoute(
+  token: Token,
+  tier: PricingTier,
+  blockNumber: number,
+  blockTimestamp: number,
+  chainId: number,
+  context: handlerContext,
+): Promise<PricingCandidate | undefined> {
+  const registered = await context.TokenPricingPools.get(token.id);
+  const poolIds = registered?.pools ?? [];
+  if (poolIds.length === 0) return undefined;
+
+  const pools = (
+    await Promise.all(
+      poolIds.map((id) => getRehydrated(context.Pool, "Pool", id)),
+    )
+  ).filter((pool): pool is Pool => pool !== undefined);
+
+  const counterpartyIdOf = (pool: Pool): string =>
+    pool.token0_id === token.id ? pool.token1_id : pool.token0_id;
+  const counterpartyIds = [...new Set(pools.map(counterpartyIdOf))];
+  const counterparties = await Promise.all(
+    counterpartyIds.map((id) => getRehydrated(context.Token, "Token", id)),
+  );
+
+  const refreshed = await Promise.all(
+    counterparties.map((counterparty) =>
+      counterparty && getPricingTier(chainId, counterparty.address) < tier
+        ? refreshTokenPrice(
+            counterparty,
+            blockNumber,
+            blockTimestamp,
+            chainId,
+            context,
+          )
+        : undefined,
+    ),
+  );
+  const counterpartyById = new Map<string, Token>();
+  for (const counterparty of refreshed) {
+    if (counterparty) counterpartyById.set(counterparty.id, counterparty);
+  }
+
+  const candidates: PricingCandidate[] = [];
+  for (const pool of pools) {
+    const counterparty = counterpartyById.get(counterpartyIdOf(pool));
+    if (!counterparty) continue;
+    const candidate = buildPricingCandidate(pool, token, counterparty);
+    if (candidate) candidates.push(candidate);
+  }
+  return selectPricingCandidate(candidates, getMinPricingDepthUSD(chainId));
+}
+
+/**
+ * Cross-chain rebind fallback (src/PriceOverrides.ts `REBINDS`): the source
+ * token's stored price, when it is positive, within the absolute ceiling, and
+ * was last successfully set within the carry window of this block. The source
+ * is never refreshed from here (its chain has its own block clock) and the
+ * on-chain oracle is never consulted.
+ *
+ * @param token - The token being priced
+ * @param chainId - Chain the token lives on
+ * @param blockTimestampMs - Current block timestamp in milliseconds
+ * @param context - Envio handler context
+ * @returns The source price, or `undefined` when there is no rebind or the
+ *   source has no usable price
+ */
+async function findRebindPrice(
+  token: Token,
+  chainId: number,
+  blockTimestampMs: number,
+  context: handlerContext,
+): Promise<bigint | undefined> {
+  const target = getRebindTarget(chainId, token.address);
+  if (!target) return undefined;
+  const source = await getRehydrated(
+    context.Token,
+    "Token",
+    TokenId(target.chainId, target.address),
+  );
+  const lastSuccess = source?.lastSuccessfulPriceTimestamp;
+  if (
+    !source ||
+    source.pricePerUSDNew <= 0n ||
+    source.pricePerUSDNew > MAX_ACCEPTED_PRICE ||
+    !lastSuccess ||
+    blockTimestampMs - lastSuccess.getTime() >= PRICE_CARRY_WINDOW_MS
+  ) {
+    return undefined;
+  }
+  return source.pricePerUSDNew;
 }
 
 /**

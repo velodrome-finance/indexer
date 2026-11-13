@@ -1,4 +1,4 @@
-import type { Token } from "envio";
+import type { Token, TokenPricingPools } from "envio";
 import { createTestIndexer } from "envio";
 import type { PublicClient } from "viem";
 import {
@@ -75,6 +75,8 @@ describe("PoolFactory Events", () => {
 
   describe("PoolCreated event", () => {
     let createdPool: Pool | undefined;
+    let token0PricingPools: TokenPricingPools | undefined;
+    let token1PricingPools: TokenPricingPools | undefined;
     let chainConstantsCleanup: (() => void) | undefined;
 
     const fraxtalChainId = 252;
@@ -112,6 +114,16 @@ describe("PoolFactory Events", () => {
       });
       const rawPool = await indexer.Pool.get(PoolId(chainId, poolAddress));
       createdPool = rawPool ? rehydrateTimestamps("Pool", rawPool) : undefined;
+      [token0PricingPools, token1PricingPools] = await Promise.all([
+        indexer.TokenPricingPools.get(TokenId(chainId, token0Address)),
+        indexer.TokenPricingPools.get(TokenId(chainId, token1Address)),
+      ]);
+    });
+
+    it("registers the pool as a pricing candidate for WETH only (ADR 0003)", () => {
+      // WETH (tier 1) / USDC.e (tier-0 stablecoin): only the higher tier gains it.
+      expect(token0PricingPools?.pools).toEqual([PoolId(chainId, poolAddress)]);
+      expect(token1PricingPools).toBeUndefined();
     });
 
     afterEach(() => {

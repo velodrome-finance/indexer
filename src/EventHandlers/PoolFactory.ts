@@ -14,6 +14,7 @@ import { getRootPoolAddress } from "../Effects/RootPool";
 import { getRehydrated } from "../EntityTimestamps";
 import type { Pool } from "../EntityTypes";
 import { createTokenEntity } from "../PriceOracle";
+import { registerPricingPool } from "../Pricing/PoolRoute";
 import type { TokenEntityMapping } from "./../CustomTypes";
 import { flushPendingVotesAndDistributionsForRootPool } from "./Voter/CrossChainPendingResolution";
 
@@ -123,6 +124,17 @@ indexer.onEvent(
 
     // For new pool creation, set the entity directly (updatePool is for updates, not creation)
     context.Pool.set(pool);
+
+    // Record the pool as a pricing candidate for whichever side sits in the
+    // higher pricing tier (ADR 0003). Done before the leaf-chain root-pool
+    // lookup below, whose failure paths return early.
+    await registerPricingPool(
+      context,
+      event.chainId,
+      event.params.pool,
+      event.params.token0,
+      event.params.token1,
+    );
 
     // For non-Optimism and non-Base pools, set the RootPool_LeafPool entity
     // Mapping RootPool (on optimism) to Pool (on superchain)

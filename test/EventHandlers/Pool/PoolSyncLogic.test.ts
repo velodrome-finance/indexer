@@ -6,7 +6,10 @@ import {
 } from "../../../src/Constants";
 import type { Pool, handlerContext } from "../../../src/EntityTypes";
 import { processPoolSync } from "../../../src/EventHandlers/Pool/PoolSyncLogic";
-import { deriveV2PriceRatios } from "../../../src/PoolPriceRatio";
+import {
+  deriveV2PriceRatios,
+  deriveV2StablePriceRatios,
+} from "../../../src/PoolPriceRatio";
 import { setupCommon } from "./common";
 
 describe("PoolSyncLogic", () => {
@@ -205,6 +208,32 @@ describe("PoolSyncLogic", () => {
         token0Price: mockPool.token0Price,
         token1Price: mockPool.token1Price,
       });
+    });
+
+    it("derives a stable pool's ratios from the sAMM curve, not the reserve ratio (ADR 0003)", () => {
+      const stablePool = { ...mockPool, isStable: true } as Pool;
+      const expected = deriveV2StablePriceRatios(
+        mockEvent.params.reserve0,
+        mockEvent.params.reserve1,
+        mockToken0.decimals,
+        mockToken1.decimals,
+      );
+      const result = processPoolSync(
+        mockEvent,
+        stablePool,
+        mockToken0,
+        mockToken1,
+      );
+      expect(result.liquidityPoolDiff.token0Price).toBe(expected.token0Price);
+      expect(result.liquidityPoolDiff.token1Price).toBe(expected.token1Price);
+      expect(result.liquidityPoolDiff.token0Price).not.toBe(
+        deriveV2PriceRatios(
+          mockEvent.params.reserve0,
+          mockEvent.params.reserve1,
+          mockToken0.decimals,
+          mockToken1.decimals,
+        ).token0Price,
+      );
     });
 
     it("derives token0Price/token1Price from reserves, ignoring token oracle prices (#783)", () => {

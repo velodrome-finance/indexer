@@ -201,20 +201,14 @@ describe("Snapshots Shared", () => {
       const address = toChecksumAddress(
         "0x1111111111111111111111111111111111111111",
       );
-      const chainId = 10;
-      const blockNumber = 500000;
-      const lastUpdatedTimestamp = new Date(1000000 * 1000);
-      const pricePerUSDNew = 1000000000000000000n;
-      const isWhitelisted = true;
-      const snapshot = createTokenPriceSnapshot(
+      const snapshot = createTokenPriceSnapshot({
         address,
-        chainId,
-        blockNumber,
-        lastUpdatedTimestamp,
-        pricePerUSDNew,
-        isWhitelisted,
-        PRICE_SOURCE.FRESH,
-      );
+        chainId: 10,
+        timestamp: new Date(1000000 * 1000),
+        pricePerUSDNew: 1000000000000000000n,
+        isWhitelisted: true,
+        priceSource: PRICE_SOURCE.PINNED,
+      });
 
       persistSnapshot({ type: SnapshotType.TokenPrice, snapshot }, context);
 

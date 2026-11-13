@@ -1,3047 +1,673 @@
-import { CHAIN_CONSTANTS, toChecksumAddress } from "../src/Constants";
-import * as PriceOracle from "../src/PriceOracle";
-
 import type { Token } from "envio";
+import { PoolId, TokenId, toChecksumAddress } from "../src/Constants";
 import type { handlerContext } from "../src/EntityTypes";
+import * as PriceOracle from "../src/PriceOracle";
+import { TokenPriceSnapshotId } from "../src/Snapshots/TokenPriceSnapshot";
+import {
+  DAY_S,
+  E18,
+  HOUR_S,
+  HOUR_START_S,
+  LISK,
+  LISK_USDT,
+  OP,
+  OP_MANATEE,
+  OP_TOKEN_X,
+  OP_USDC,
+  OP_VELO,
+  OP_WETH,
+  Q96,
+  USD,
+  XVELO,
+  createPricingStore,
+  makePool,
+  makeToken,
+} from "./Pricing/pricingHarness";
 
-import { setupCommon } from "./EventHandlers/Pool/common";
+const addr = (n: number): string =>
+  toChecksumAddress(`0x${n.toString(16).padStart(40, "0")}`);
+
+const P_WETH_USDC = addr(0xa1); // CL USDC/WETH: WETH = $2,500, $1M a side
+const P_VELO_WETH = addr(0xa2); // V2 WETH/VELO: VELO = $0.10, $250K WETH side
+const P_X_VELO = addr(0xa3); // V2 X/VELO: X = $0.05, $50K VELO side
+const P_X_USDC = addr(0xa4); // V2 USDC/X: X = $0.20, $2K USDC side (below the $5K floor)
+const P_X_WETH = addr(0xa5); // V2 X/WETH: X = $0.06, $500K WETH side
+
+/** Event time: 10 minutes into a clock hour. */
+const NOW = HOUR_START_S + 10 * 60;
+/** Two hours before NOW: every seeded token is due. */
+const STALE = NOW - 2 * HOUR_S;
+
+function poolWethUsdc() {
+  // token0 = USDC (0x0b2C…), token1 = WETH (0x4200…); raw price 4e8 → $2,500.
+  return makePool(OP, P_WETH_USDC, OP_USDC, OP_WETH, {
+    isCL: true,
+    sqrtPriceX96: 20_000n * Q96,
+    reserve0: 1_000_000n * 10n ** 6n,
+    reserve1: 400n * E18,
+  });
+}
+function poolVeloWeth() {
+  // token0 = WETH, token1 = VELO: 100 WETH ($250K) vs 2.5M VELO → $0.10.
+  return makePool(OP, P_VELO_WETH, OP_WETH, OP_VELO, {
+    reserve0: 100n * E18,
+    reserve1: 2_500_000n * E18,
+  });
+}
+function poolXVelo() {
+  // token0 = X, token1 = VELO: 1M X vs 500K VELO ($50K) → X = 0.5 VELO = $0.05.
+  return makePool(OP, P_X_VELO, OP_TOKEN_X, OP_VELO, {
+    reserve0: 1_000_000n * E18,
+    reserve1: 500_000n * E18,
+  });
+}
+function poolXUsdc() {
+  // token0 = USDC, token1 = X: $2K vs 10K X → $0.20, but under the floor.
+  return makePool(OP, P_X_USDC, OP_USDC, OP_TOKEN_X, {
+    reserve0: 2_000n * 10n ** 6n,
+    reserve1: 10_000n * E18,
+  });
+}
+function poolXWeth() {
+  // token0 = X, token1 = WETH: 200 WETH ($500K) vs 8.33M X → $0.06.
+  return makePool(OP, P_X_WETH, OP_TOKEN_X, OP_WETH, {
+    reserve0: (25_000_000n * E18) / 3n,
+    reserve1: 200n * E18,
+  });
+}
+
+/** A standard Optimism store: USDC, WETH (stale $2,000), VELO (stale $0.08), X. */
+function opStore(
+  overrides: {
+    tokens?: Token[];
+    extraPools?: ReturnType<typeof makePool>[];
+    pricingPools?: Record<string, string[]>;
+  } = {},
+) {
+  const tokens = [
+    makeToken(OP, OP_USDC, 6n, USD(1), STALE),
+    makeToken(OP, OP_WETH, 18n, USD(2_000), STALE),
+    makeToken(OP, OP_VELO, 18n, (8n * E18) / 100n, STALE),
+    makeToken(OP, OP_TOKEN_X, 18n, 0n, STALE),
+  ];
+  const byId = new Map(tokens.map((t) => [t.id, t]));
+  for (const t of overrides.tokens ?? []) byId.set(t.id, t);
+  return createPricingStore({
+    tokens: [...byId.values()],
+    pools: [
+      poolWethUsdc(),
+      poolVeloWeth(),
+      poolXVelo(),
+      poolXUsdc(),
+      ...(overrides.extraPools ?? []),
+    ],
+    pricingPools: overrides.pricingPools ?? {
+      [TokenId(OP, OP_WETH)]: [PoolId(OP, P_WETH_USDC)],
+      [TokenId(OP, OP_VELO)]: [PoolId(OP, P_VELO_WETH)],
+      [TokenId(OP, OP_TOKEN_X)]: [PoolId(OP, P_X_USDC), PoolId(OP, P_X_VELO)],
+    },
+  });
+}
+
+async function refresh(
+  store: ReturnType<typeof createPricingStore>,
+  chainId: number,
+  address: string,
+  timestamp = NOW,
+): Promise<Token> {
+  const token = store.tokens.get(TokenId(chainId, address));
+  if (!token) throw new Error(`no token ${address}`);
+  return PriceOracle.refreshTokenPrice(
+    token,
+    123,
+    timestamp,
+    chainId,
+    store.context,
+  );
+}
+
+const snapshotsFor = (
+  store: ReturnType<typeof createPricingStore>,
+  address: string,
+) => store.snapshots.filter((s) => s.address === address);
 
 describe("PriceOracle", () => {
-  const mockContext = {
-    effect: vi.fn(),
-    log: {
-      info: vi.fn(),
-      error: vi.fn(),
-      warn: vi.fn(),
-      debug: vi.fn(),
-    },
-    Token: {
-      set: vi.fn(),
-      get: vi.fn(),
-      getOrThrow: vi.fn(),
-      getOrCreate: vi.fn(),
-      deleteUnsafe: vi.fn(),
-      getWhere: {
-        address: {
-          eq: vi.fn(),
-          gt: vi.fn(),
-          lt: vi.fn(),
-        },
-        chainId: {
-          eq: vi.fn(),
-          gt: vi.fn(),
-          lt: vi.fn(),
-        },
-      },
-    },
-    TokenPriceSnapshot: {
-      set: vi.fn(),
-      get: vi.fn(),
-      getOrThrow: vi.fn(),
-      getOrCreate: vi.fn(),
-      deleteUnsafe: vi.fn(),
-      getWhere: {
-        address: {
-          eq: vi.fn(),
-          gt: vi.fn(),
-          lt: vi.fn(),
-        },
-        chainId: {
-          eq: vi.fn(),
-          gt: vi.fn(),
-          lt: vi.fn(),
-        },
-        lastUpdatedTimestamp: {
-          eq: vi.fn(),
-          gt: vi.fn(),
-          lt: vi.fn(),
-        },
-      },
-    },
-  } as unknown as Partial<handlerContext>;
-
-  const chainId = 10; // Optimism
-  const startBlock = CHAIN_CONSTANTS[chainId].oracle.startBlock;
-  const blockNumber = startBlock + 1;
-  const blockDatetime = new Date("2023-01-01T00:00:00Z");
-
-  const { mockToken0Data } = setupCommon();
-
-  const defaultEffectImplementation = async (
-    effect: unknown,
-    input: unknown,
-  ) => {
-    // Mock the effect calls for testing (effect has .name at runtime from createEffect)
-    const name = (effect as { name?: string }).name;
-    if (name === "getTokenPrice") {
-      return {
-        pricePerUSDNew: 2n * 10n ** 18n,
-      };
-    }
-    if (name === "getTokenDetails") {
-      return {
-        name: "Test Token",
-        decimals: 18,
-        symbol: "TEST",
-      };
-    }
-    if (name === "hasContractBytecode") {
-      return { hasCode: true };
-    }
-    return {};
-  };
-
-  // Issue #820 test helper: install a getTokenDetails override while delegating
-  // every other effect to the default implementation, so a test only states the
-  // metadata it cares about.
-  const overrideTokenDetails = (result: {
-    name: string;
-    decimals: number;
-    symbol: string;
-  }) => {
-    vi.mocked(mockContext.effect)?.mockImplementation(
-      async (effect: unknown, input: unknown) => {
-        const name = (effect as { name?: string }).name;
-        if (name === "getTokenDetails") return result;
-        return defaultEffectImplementation(effect, input);
-      },
-    );
-  };
-
-  beforeEach(() => {
-    // Reset effect mock to default implementation before each test
-    vi.mocked(mockContext.effect)?.mockImplementation(
-      defaultEffectImplementation,
-    );
-  });
-
-  afterEach(() => {
-    vi.clearAllMocks();
-  });
-
   describe("refreshTokenPrice", () => {
-    let testLastUpdated: Date;
+    describe("strict hourly throttle", () => {
+      it("does nothing when the token was already refreshed this clock hour", async () => {
+        const store = opStore({
+          tokens: [makeToken(OP, OP_TOKEN_X, 18n, USD(1), HOUR_START_S + 60)],
+        });
+        const before = store.tokens.get(TokenId(OP, OP_TOKEN_X));
+        const result = await refresh(store, OP, OP_TOKEN_X);
+        expect(result).toBe(before);
+        expect(store.context.Token.set).not.toHaveBeenCalled();
+        expect(store.snapshots).toHaveLength(0);
+        expect(store.context.TokenPricingPools.get).not.toHaveBeenCalled();
+      });
 
-    const mockTokenPriceData = {
-      pricePerUSDNew: 2n * 10n ** 18n,
-      decimals: mockToken0Data.decimals,
-    };
+      it("has no bypass for whitelisted tokens that were never priced", async () => {
+        // Formerly (#862) such tokens refreshed and snapshotted on every event.
+        const neverPriced = makeToken(OP, OP_TOKEN_X, 18n, 0n, NOW - 60, {
+          isWhitelisted: true,
+          lastSuccessfulPriceTimestamp: undefined,
+        });
+        const store = opStore({ tokens: [neverPriced] });
+        await refresh(store, OP, OP_TOKEN_X);
+        expect(store.snapshots).toHaveLength(0);
+      });
 
-    describe("if the update interval hasn't passed", () => {
-      beforeEach(async () => {
-        testLastUpdated = new Date(blockDatetime.getTime());
-        const fetchedToken = {
-          ...mockToken0Data,
-          lastUpdatedTimestamp: testLastUpdated,
-        };
-        const blockTimestamp = blockDatetime.getTime() / 1000;
-        await PriceOracle.refreshTokenPrice(
-          fetchedToken,
-          blockNumber,
-          blockTimestamp,
-          chainId,
-          mockContext as handlerContext,
-        );
-      });
-      it("should not update prices if the update interval hasn't passed", async () => {
-        expect(vi.mocked(mockContext.Token?.set)).not.toHaveBeenCalled();
-        expect(
-          vi.mocked(mockContext.TokenPriceSnapshot?.set),
-        ).not.toHaveBeenCalled();
-      });
-    });
-    describe("if less than 1 hour has passed (e.g. 30 minutes)", () => {
-      beforeEach(async () => {
-        const thirtyMinutesAgo = new Date(
-          blockDatetime.getTime() - 30 * 60 * 1000,
-        );
-        const fetchedToken = {
-          ...mockToken0Data,
-          lastUpdatedTimestamp: thirtyMinutesAgo,
-        };
-        const blockTimestamp = blockDatetime.getTime() / 1000;
-        await PriceOracle.refreshTokenPrice(
-          fetchedToken,
-          blockNumber,
-          blockTimestamp,
-          chainId,
-          mockContext as handlerContext,
-        );
-      });
-      it("should not refresh price when only 30 minutes have passed", async () => {
-        expect(vi.mocked(mockContext.Token?.set)).not.toHaveBeenCalled();
-        expect(
-          vi.mocked(mockContext.TokenPriceSnapshot?.set),
-        ).not.toHaveBeenCalled();
-      });
-    });
-    describe("if the update interval has passed", () => {
-      let updatedToken: Token;
-      let testLastUpdated: Date;
-      beforeEach(async () => {
-        testLastUpdated = new Date(blockDatetime.getTime() - 61 * 60 * 1000);
-        const fetchedToken = {
-          ...mockToken0Data,
-          lastUpdatedTimestamp: testLastUpdated,
-        };
-        const blockTimestamp = blockDatetime.getTime() / 1000;
-        await PriceOracle.refreshTokenPrice(
-          fetchedToken,
-          blockNumber,
-          blockTimestamp,
-          chainId,
-          mockContext as handlerContext,
-        );
-        updatedToken = vi.mocked(mockContext.Token?.set)?.mock
-          .lastCall?.[0] as Token;
-      });
-      it("should update prices if the update interval has passed", async () => {
-        expect(updatedToken.pricePerUSDNew).toBe(
-          mockTokenPriceData.pricePerUSDNew,
-        );
-        expect(updatedToken.lastUpdatedTimestamp.getTime()).toBeGreaterThan(
-          testLastUpdated.getTime(),
-        );
-      });
-      it("should create a new TokenPriceSnapshot entity", async () => {
-        const tokenPrice = vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mock
-          .lastCall?.[0];
-        expect(tokenPrice?.pricePerUSDNew).toBe(
-          mockTokenPriceData.pricePerUSDNew,
-        );
-        expect(tokenPrice?.lastUpdatedTimestamp.getTime()).toBeGreaterThan(
-          testLastUpdated.getTime(),
-        );
-        expect(tokenPrice?.isWhitelisted).toBe(mockToken0Data.isWhitelisted);
-        // Issue #822: a fresh oracle success is tagged `fresh`.
-        expect(tokenPrice?.priceSource).toBe("fresh");
-      });
-    });
-
-    describe("when pricePerUSDNew is 0n and <1h has passed", () => {
-      // Issue #676: $0 tokens are now subject to the same 1-hour throttle as
-      // non-zero tokens. The effect cache rounds to hourly block buckets, so
-      // within an hour we'd hit the cache anyway — gating here avoids the
-      // extra Token.set and snapshot write.
-      beforeEach(async () => {
-        vi.mocked(mockContext.Token?.set)?.mockClear();
-        const fetchedToken = {
-          ...mockToken0Data,
-          pricePerUSDNew: 0n,
-          lastUpdatedTimestamp: new Date(blockDatetime.getTime()),
-        };
-        const blockTimestamp = blockDatetime.getTime() / 1000;
-        await PriceOracle.refreshTokenPrice(
-          fetchedToken,
-          blockNumber,
-          blockTimestamp,
-          chainId,
-          mockContext as handlerContext,
-        );
-      });
-      it("does not refresh while inside the 1-hour throttle window", () => {
-        expect(vi.mocked(mockContext.Token?.set)).not.toHaveBeenCalled();
-        expect(
-          vi.mocked(mockContext.TokenPriceSnapshot?.set),
-        ).not.toHaveBeenCalled();
-      });
-    });
-
-    describe("lastUpdatedTimestamp advances on every $0 attempt", () => {
-      // Issue #676: the 1-hour throttle is gated on lastUpdatedTimestamp, so
-      // it must move forward even when the oracle keeps returning $0 —
-      // otherwise an active $0 token would be re-refreshed on every event,
-      // wasting writes. This also subsumes the #673 pre-oracle fix (timestamp
-      // no longer needs an oracle-deployed gate; it always advances).
-      const zeroPriceEffects = async (effect: unknown, _input: unknown) => {
-        const name = (effect as { name?: string }).name;
-        if (name === "getTokenPrice") return { pricePerUSDNew: 0n };
-        if (name === "getTokenDetails") {
-          return { name: "VELO", decimals: 18, symbol: "VELO" };
+      it("writes at most one snapshot per token per clock hour", async () => {
+        const store = opStore();
+        for (const minute of [10, 11, 25, 59]) {
+          await refresh(store, OP, OP_TOKEN_X, HOUR_START_S + minute * 60);
         }
-        return {};
+        expect(snapshotsFor(store, OP_TOKEN_X)).toHaveLength(1);
+        expect(snapshotsFor(store, OP_WETH)).toHaveLength(1);
+
+        await refresh(store, OP, OP_TOKEN_X, HOUR_START_S + HOUR_S + 5);
+        const xSnapshots = snapshotsFor(store, OP_TOKEN_X);
+        expect(xSnapshots).toHaveLength(2);
+        expect(new Set(xSnapshots.map((s) => s.id)).size).toBe(2);
+        expect(xSnapshots[1].id).toBe(
+          TokenPriceSnapshotId(
+            OP,
+            OP_TOKEN_X,
+            new Date((HOUR_START_S + HOUR_S) * 1000),
+          ),
+        );
+      });
+
+      it("a blacklisted token is throttled like any other", async () => {
+        const store = createPricingStore({
+          tokens: [makeToken(OP, OP_MANATEE, 18n, 0n, STALE)],
+        });
+        await refresh(store, OP, OP_MANATEE, NOW);
+        await refresh(store, OP, OP_MANATEE, NOW + 60);
+        await refresh(store, OP, OP_MANATEE, NOW + 120);
+        expect(store.snapshots).toHaveLength(1);
+      });
+    });
+
+    describe("tier 0", () => {
+      it("pins a stablecoin at exactly $1 without reading pools", async () => {
+        const store = opStore({
+          tokens: [makeToken(OP, OP_USDC, 6n, 0n, STALE)],
+        });
+        const usdc = await refresh(store, OP, OP_USDC);
+        expect(usdc.pricePerUSDNew).toBe(USD(1));
+        expect(usdc.lastSuccessfulPriceTimestamp).toEqual(new Date(NOW * 1000));
+        expect(store.context.TokenPricingPools.get).not.toHaveBeenCalled();
+        expect(store.snapshots[0]).toMatchObject({
+          priceSource: "pinned",
+          pricePerUSDNew: USD(1),
+        });
+      });
+    });
+
+    describe("pool route", () => {
+      it("prices WETH through its tier-0 pool and records pool + depth", async () => {
+        const store = opStore();
+        const weth = await refresh(store, OP, OP_WETH);
+        expect(weth.pricePerUSDNew).toBe(USD(2_500));
+        expect(weth.lastUpdatedTimestamp).toEqual(new Date(NOW * 1000));
+        expect(weth.lastSuccessfulPriceTimestamp).toEqual(new Date(NOW * 1000));
+        expect(store.tokens.get(TokenId(OP, OP_WETH))).toEqual(weth);
+        expect(snapshotsFor(store, OP_WETH)).toEqual([
+          expect.objectContaining({
+            id: TokenPriceSnapshotId(OP, OP_WETH, new Date(NOW * 1000)),
+            pricePerUSDNew: USD(2_500),
+            priceSource: "pool",
+            pricingPoolId: PoolId(OP, P_WETH_USDC),
+            pricingDepthUSD: USD(1_000_000),
+            lastUpdatedTimestamp: new Date(NOW * 1000),
+          }),
+        ]);
+      });
+
+      it("refreshes due counterparties first, down the tiers (X → VELO → WETH → USDC)", async () => {
+        const store = opStore();
+        const x = await refresh(store, OP, OP_TOKEN_X);
+
+        // WETH re-priced to $2,500 before VELO used it; VELO to $0.10 before X.
+        expect(store.tokens.get(TokenId(OP, OP_WETH))?.pricePerUSDNew).toBe(
+          USD(2_500),
+        );
+        expect(store.tokens.get(TokenId(OP, OP_VELO))?.pricePerUSDNew).toBe(
+          E18 / 10n,
+        );
+        // X through VELO at the fresh $0.10 (the stale $0.08 would give $0.04).
+        expect(x.pricePerUSDNew).toBe((5n * E18) / 100n);
+        // Snapshot order proves the ordering: each counterparty before its user.
+        expect(store.snapshots.map((s) => s.address)).toEqual([
+          OP_USDC,
+          OP_WETH,
+          OP_VELO,
+          OP_TOKEN_X,
+        ]);
+        expect(snapshotsFor(store, OP_TOKEN_X)[0]).toMatchObject({
+          priceSource: "pool",
+          pricingPoolId: PoolId(OP, P_X_VELO),
+          pricingDepthUSD: USD(50_000),
+        });
+      });
+
+      it("does not re-refresh a counterparty already refreshed this hour", async () => {
+        const store = opStore({
+          tokens: [makeToken(OP, OP_VELO, 18n, E18 / 10n, NOW - 60)],
+        });
+        await refresh(store, OP, OP_TOKEN_X);
+        expect(snapshotsFor(store, OP_VELO)).toHaveLength(0);
+        expect(snapshotsFor(store, OP_WETH)).toHaveLength(0);
+        expect(store.tokens.get(TokenId(OP, OP_TOKEN_X))?.pricePerUSDNew).toBe(
+          (5n * E18) / 100n,
+        );
+      });
+
+      it("takes the deepest qualifying pool", async () => {
+        const store = opStore({
+          extraPools: [poolXWeth()],
+          pricingPools: {
+            [TokenId(OP, OP_WETH)]: [PoolId(OP, P_WETH_USDC)],
+            [TokenId(OP, OP_VELO)]: [PoolId(OP, P_VELO_WETH)],
+            [TokenId(OP, OP_TOKEN_X)]: [
+              PoolId(OP, P_X_USDC),
+              PoolId(OP, P_X_VELO),
+              PoolId(OP, P_X_WETH),
+            ],
+          },
+        });
+        const x = await refresh(store, OP, OP_TOKEN_X);
+        expect(x.pricePerUSDNew).toBe((6n * E18) / 100n);
+        expect(snapshotsFor(store, OP_TOKEN_X)[0]).toMatchObject({
+          pricingPoolId: PoolId(OP, P_X_WETH),
+          pricingDepthUSD: USD(500_000),
+        });
+      });
+
+      it("skips a deep pool whose token side is over 1000x its counterparty side", async () => {
+        // A V2 volatile pool is always value-balanced at its spot price, so the
+        // bound bites on CL (one-sided ranges). sqrtPrice = Q96/2 → X = 0.25
+        // WETH = $625; 1M X ($625M) against 200 WETH ($500K) is 1250x.
+        const poisoned = makePool(OP, P_X_WETH, OP_TOKEN_X, OP_WETH, {
+          isCL: true,
+          sqrtPriceX96: Q96 / 2n,
+          reserve0: 1_000_000n * E18,
+          reserve1: 200n * E18,
+        });
+        const store = opStore({
+          extraPools: [poisoned],
+          pricingPools: {
+            [TokenId(OP, OP_WETH)]: [PoolId(OP, P_WETH_USDC)],
+            [TokenId(OP, OP_VELO)]: [PoolId(OP, P_VELO_WETH)],
+            [TokenId(OP, OP_TOKEN_X)]: [
+              PoolId(OP, P_X_VELO),
+              PoolId(OP, P_X_WETH),
+            ],
+          },
+        });
+        const x = await refresh(store, OP, OP_TOKEN_X);
+        expect(x.pricePerUSDNew).toBe((5n * E18) / 100n);
+        expect(snapshotsFor(store, OP_TOKEN_X)[0].pricingPoolId).toBe(
+          PoolId(OP, P_X_VELO),
+        );
+      });
+
+      it("ignores a registered pool whose counterparty is not in a lower tier", async () => {
+        // A corrupt row listing VELO/WETH under WETH must not recurse into VELO.
+        const store = opStore({
+          pricingPools: {
+            [TokenId(OP, OP_WETH)]: [
+              PoolId(OP, P_VELO_WETH),
+              PoolId(OP, P_WETH_USDC),
+            ],
+            [TokenId(OP, OP_VELO)]: [PoolId(OP, P_VELO_WETH)],
+          },
+        });
+        const weth = await refresh(store, OP, OP_WETH);
+        expect(weth.pricePerUSDNew).toBe(USD(2_500));
+        expect(snapshotsFor(store, OP_VELO)).toHaveLength(0);
+      });
+
+      it("never calls an RPC effect", async () => {
+        const store = opStore();
+        await refresh(store, OP, OP_TOKEN_X);
+        expect(store.effectCalls).toEqual([]);
+      });
+    });
+
+    describe("missing data never zeroes a good price", () => {
+      const onlyShallowPool = {
+        [TokenId(OP, OP_TOKEN_X)]: [PoolId(OP, P_X_USDC)],
       };
 
-      it("advances the timestamp when oracle is not yet deployed (#673 regression)", async () => {
-        vi.mocked(mockContext.Token?.set)?.mockClear();
-        vi.mocked(mockContext.effect)?.mockImplementation(zeroPriceEffects);
-
-        const preOracleBlock = startBlock - 1;
-        const creationDate = new Date(blockDatetime.getTime());
-        const fetchedToken = {
-          ...mockToken0Data,
-          pricePerUSDNew: 0n,
-          lastUpdatedTimestamp: creationDate,
-        };
-        const blockTimestamp = blockDatetime.getTime() / 1000 + 60 * 60;
-
-        await PriceOracle.refreshTokenPrice(
-          fetchedToken,
-          preOracleBlock,
-          blockTimestamp,
-          chainId,
-          mockContext as handlerContext,
+      it("carries the last price when no pool qualifies", async () => {
+        const lastSuccess = NOW - 3 * DAY_S;
+        const store = opStore({
+          tokens: [makeToken(OP, OP_TOKEN_X, 18n, USD(7), lastSuccess)],
+          pricingPools: onlyShallowPool,
+        });
+        const x = await refresh(store, OP, OP_TOKEN_X);
+        expect(x.pricePerUSDNew).toBe(USD(7));
+        expect(x.lastUpdatedTimestamp).toEqual(new Date(NOW * 1000));
+        expect(x.lastSuccessfulPriceTimestamp).toEqual(
+          new Date(lastSuccess * 1000),
         );
-
-        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
-          .lastCall?.[0] as Token;
-        expect(updatedToken.pricePerUSDNew).toBe(0n);
-        expect(updatedToken.lastUpdatedTimestamp.getTime()).toBe(
-          blockTimestamp * 1000,
-        );
+        expect(snapshotsFor(store, OP_TOKEN_X)[0]).toMatchObject({
+          priceSource: "carried",
+          pricePerUSDNew: USD(7),
+          pricingPoolId: undefined,
+        });
       });
 
-      it("advances the timestamp post-oracle when price stays $0 (so the throttle ticks forward)", async () => {
-        vi.mocked(mockContext.Token?.set)?.mockClear();
-        vi.mocked(mockContext.effect)?.mockImplementation(zeroPriceEffects);
+      it("carries when the counterparty has no price", async () => {
+        const lastSuccess = NOW - DAY_S;
+        const store = opStore({
+          tokens: [
+            makeToken(OP, OP_TOKEN_X, 18n, USD(7), lastSuccess),
+            makeToken(OP, OP_VELO, 18n, 0n, NOW - 60), // unpriced, not due
+          ],
+          pricingPools: { [TokenId(OP, OP_TOKEN_X)]: [PoolId(OP, P_X_VELO)] },
+        });
+        const x = await refresh(store, OP, OP_TOKEN_X);
+        expect(x.pricePerUSDNew).toBe(USD(7));
+        expect(snapshotsFor(store, OP_TOKEN_X)[0].priceSource).toBe("carried");
+      });
 
-        const postOracleBlock = startBlock + 1;
-        const earlierTimestamp = new Date(
-          blockDatetime.getTime() - 5 * 24 * 60 * 60 * 1000,
-        );
-        const fetchedToken = {
-          ...mockToken0Data,
+      it("drops to 0 after 7 days without a successful price", async () => {
+        const store = opStore({
+          tokens: [makeToken(OP, OP_TOKEN_X, 18n, USD(7), NOW - 7 * DAY_S)],
+          pricingPools: onlyShallowPool,
+        });
+        const x = await refresh(store, OP, OP_TOKEN_X);
+        expect(x.pricePerUSDNew).toBe(0n);
+        expect(snapshotsFor(store, OP_TOKEN_X)[0]).toMatchObject({
+          priceSource: "unpriced",
           pricePerUSDNew: 0n,
-          lastUpdatedTimestamp: earlierTimestamp,
-        };
-        const blockTimestamp = blockDatetime.getTime() / 1000;
+        });
+      });
 
-        await PriceOracle.refreshTokenPrice(
-          fetchedToken,
-          postOracleBlock,
-          blockTimestamp,
-          chainId,
-          mockContext as handlerContext,
+      it("treats a failed store read as 'nothing qualified' and logs it", async () => {
+        const store = opStore({
+          tokens: [makeToken(OP, OP_TOKEN_X, 18n, USD(7), NOW - DAY_S)],
+        });
+        vi.mocked(store.context.TokenPricingPools.get).mockRejectedValueOnce(
+          new Error("db down"),
         );
-
-        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
-          .lastCall?.[0] as Token;
-        expect(updatedToken.pricePerUSDNew).toBe(0n);
-        expect(updatedToken.lastUpdatedTimestamp.getTime()).toBe(
-          blockTimestamp * 1000,
+        const x = await refresh(store, OP, OP_TOKEN_X);
+        expect(x.pricePerUSDNew).toBe(USD(7));
+        expect(snapshotsFor(store, OP_TOKEN_X)[0].priceSource).toBe("carried");
+        expect(store.context.log.error).toHaveBeenCalledWith(
+          expect.stringContaining("db down"),
         );
       });
     });
 
-    describe("Issue #676: $0 tokens stale for >30d are still retried (hourly throttle only)", () => {
-      // The previous 30-day $0 backoff trapped tokens whose first price
-      // attempt happened during a broken-oracle window (e.g. WETH/USDC/OP on
-      // Optimism, stuck at $0 since 2023). Replaced with a uniform 1-hour
-      // throttle: cost is bounded by Envio's effect cache (hourly-rounded
-      // block buckets) and the 1-hour gate, so we no longer need to "stop
-      // retrying" — every hourly window gets a fresh fetch attempt.
-      it("retries the oracle when a $0 token has been stale for 31 days", async () => {
-        vi.mocked(mockContext.Token?.set)?.mockClear();
-
-        const thirtyOneDaysAgo = new Date(
-          blockDatetime.getTime() - 31 * 24 * 60 * 60 * 1000,
+    describe("blacklist", () => {
+      it("forces a blacklisted token to 0 without reading its pools", async () => {
+        const store = createPricingStore({
+          tokens: [makeToken(OP, OP_MANATEE, 18n, USD(80_000), STALE)],
+          pricingPools: { [TokenId(OP, OP_MANATEE)]: [PoolId(OP, P_X_USDC)] },
+        });
+        const manatee = await refresh(store, OP, OP_MANATEE);
+        expect(manatee.pricePerUSDNew).toBe(0n);
+        expect(manatee.lastSuccessfulPriceTimestamp).toEqual(
+          new Date(STALE * 1000),
         );
-        const fetchedToken = {
-          ...mockToken0Data,
-          pricePerUSDNew: 0n,
-          lastUpdatedTimestamp: thirtyOneDaysAgo,
-        };
-        const blockTimestamp = blockDatetime.getTime() / 1000;
-        await PriceOracle.refreshTokenPrice(
-          fetchedToken,
-          blockNumber,
-          blockTimestamp,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
-          .lastCall?.[0] as Token;
-        expect(vi.mocked(mockContext.Token?.set)).toHaveBeenCalled();
-        expect(updatedToken.pricePerUSDNew).toBe(
-          mockTokenPriceData.pricePerUSDNew,
-        );
+        expect(store.context.TokenPricingPools.get).not.toHaveBeenCalled();
+        expect(store.snapshots[0].priceSource).toBe("override");
       });
     });
 
-    describe("when lastUpdatedTimestamp is missing", () => {
-      let updatedToken: Token;
-      beforeEach(async () => {
-        const fetchedToken = {
-          ...mockToken0Data,
-          lastUpdatedTimestamp: undefined,
-        } as unknown as Token;
-        const blockTimestamp = blockDatetime.getTime() / 1000;
-        await PriceOracle.refreshTokenPrice(
-          fetchedToken,
-          blockNumber,
-          blockTimestamp,
-          chainId,
-          mockContext as handlerContext,
-        );
-        updatedToken = vi.mocked(mockContext.Token?.set)?.mock
-          .lastCall?.[0] as Token;
+    describe("cross-chain rebind (XVELO on Lisk → Optimism VELO)", () => {
+      const P_XVELO_USDT = addr(0xb1);
+      const opVelo = (price: bigint, at: number) =>
+        makeToken(OP, OP_VELO, 18n, price, at);
+
+      function liskStore(opts: { localPool: boolean; veloAt?: number }) {
+        // token0 = USDT (0x05D0…), token1 = XVELO (0x7f9A…): $20K vs 160K → $0.125.
+        const pool = makePool(LISK, P_XVELO_USDT, LISK_USDT, XVELO, {
+          reserve0: 20_000n * 10n ** 6n,
+          reserve1: 160_000n * E18,
+        });
+        return createPricingStore({
+          tokens: [
+            makeToken(LISK, LISK_USDT, 6n, USD(1), STALE),
+            makeToken(LISK, XVELO, 18n, USD(1) / 20n, NOW - 2 * DAY_S),
+            opVelo(E18 / 10n, opts.veloAt ?? NOW - HOUR_S),
+          ],
+          pools: [pool],
+          pricingPools: opts.localPool
+            ? { [TokenId(LISK, XVELO)]: [PoolId(LISK, P_XVELO_USDT)] }
+            : {},
+        });
+      }
+
+      it("prefers a qualifying local pool route", async () => {
+        const store = liskStore({ localPool: true });
+        const xvelo = await refresh(store, LISK, XVELO);
+        expect(xvelo.pricePerUSDNew).toBe(E18 / 8n);
+        expect(store.snapshots.at(-1)).toMatchObject({
+          priceSource: "pool",
+          pricingPoolId: PoolId(LISK, P_XVELO_USDT),
+        });
       });
-      it("should refresh price when lastUpdatedTimestamp is missing", async () => {
-        expect(vi.mocked(mockContext.Token?.set)).toHaveBeenCalled();
-        expect(updatedToken.pricePerUSDNew).toBe(
-          mockTokenPriceData.pricePerUSDNew,
+
+      it("falls back to the source token's stored price", async () => {
+        const store = liskStore({ localPool: false });
+        const xvelo = await refresh(store, LISK, XVELO);
+        expect(xvelo.pricePerUSDNew).toBe(E18 / 10n);
+        expect(xvelo.lastSuccessfulPriceTimestamp).toEqual(
+          new Date(NOW * 1000),
         );
-        expect(updatedToken.lastUpdatedTimestamp).toBeInstanceOf(Date);
+        expect(store.snapshots.at(-1)?.priceSource).toBe("rebind");
+        // The source is read, never refreshed from the target chain.
+        expect(snapshotsFor(store, OP_VELO)).toHaveLength(0);
+        expect(store.effectCalls).toEqual([]);
+      });
+
+      it("carries instead of copying a source whose last success is 7+ days old", async () => {
+        const store = liskStore({ localPool: false, veloAt: NOW - 8 * DAY_S });
+        const xvelo = await refresh(store, LISK, XVELO);
+        expect(xvelo.pricePerUSDNew).toBe(USD(1) / 20n);
+        expect(store.snapshots.at(-1)?.priceSource).toBe("carried");
       });
     });
 
-    describe("Issue #862: heal-on-read for whitelisted tokens with null lastSuccessfulPriceTimestamp", () => {
-      // The 2026-06-11 integrity audit found 436 whitelisted tokens stuck with
-      // `lastSuccessfulPriceTimestamp = null` despite their `lastUpdatedTimestamp`
-      // having advanced (the 1-hour throttle was bumping the latter on every $0
-      // / fallback / reject tick, leaving the former indefinitely null). The
-      // heal-on-read path bypasses the throttle on this exact shape so the
-      // token can recover the next time any event touches it, instead of
-      // waiting for the next hourly window AND a transient-condition clear.
-      it("bypasses the 1-hour throttle when isWhitelisted and lastSuccessfulPriceTimestamp is null", async () => {
-        vi.mocked(mockContext.Token?.set)?.mockClear();
-        vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mockClear();
-
-        // Throttle would normally apply: lastUpdatedTimestamp 30 minutes ago.
-        const thirtyMinutesAgo = new Date(
-          blockDatetime.getTime() - 30 * 60 * 1000,
-        );
-        const fetchedToken = {
-          ...mockToken0Data,
-          isWhitelisted: true,
-          pricePerUSDNew: 0n,
-          lastUpdatedTimestamp: thirtyMinutesAgo,
-          lastSuccessfulPriceTimestamp: undefined,
-        };
-        const blockTimestamp = blockDatetime.getTime() / 1000;
-
-        await PriceOracle.refreshTokenPrice(
-          fetchedToken,
-          blockNumber,
-          blockTimestamp,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        // Throttle bypassed → oracle was hit and a fresh price persisted.
-        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
-          .lastCall?.[0] as Token;
-        expect(updatedToken).toBeDefined();
-        expect(updatedToken.pricePerUSDNew).toBe(
-          mockTokenPriceData.pricePerUSDNew,
-        );
-        expect(updatedToken.lastSuccessfulPriceTimestamp).toBeInstanceOf(Date);
-        // Snapshot is written on the non-throttle exit (the fresh oracle path).
-        const snapshot = vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mock
-          .lastCall?.[0];
-        expect(snapshot?.priceSource).toBe("fresh");
-      });
-
-      it("keeps the throttle for whitelisted tokens that have already had a successful price write", async () => {
-        // Negative control: once the heal succeeds, the throttle should re-engage
-        // on subsequent intra-hour events so the indexer doesn't re-hit RPC on
-        // every event for the rest of the hour.
-        vi.mocked(mockContext.Token?.set)?.mockClear();
-        vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mockClear();
-
-        const thirtyMinutesAgo = new Date(
-          blockDatetime.getTime() - 30 * 60 * 1000,
-        );
-        const fetchedToken = {
-          ...mockToken0Data,
-          isWhitelisted: true,
-          pricePerUSDNew: 1n * 10n ** 18n,
-          lastUpdatedTimestamp: thirtyMinutesAgo,
-          // A successful write has already landed → no heal needed.
-          lastSuccessfulPriceTimestamp: thirtyMinutesAgo,
-        };
-        const blockTimestamp = blockDatetime.getTime() / 1000;
-
-        await PriceOracle.refreshTokenPrice(
-          fetchedToken,
-          blockNumber,
-          blockTimestamp,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        expect(vi.mocked(mockContext.Token?.set)).not.toHaveBeenCalled();
-        expect(
-          vi.mocked(mockContext.TokenPriceSnapshot?.set),
-        ).not.toHaveBeenCalled();
-      });
-
-      it("keeps the throttle for non-whitelisted tokens with null lastSuccessfulPriceTimestamp", async () => {
-        // Negative control: the heal is scoped to the WHITELIST × null shape.
-        // Non-whitelisted tokens with null `lastSuccessfulPriceTimestamp` are
-        // common (every fresh token starts there) and the indexer must not
-        // start hitting the oracle on every event for them.
-        vi.mocked(mockContext.Token?.set)?.mockClear();
-        vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mockClear();
-
-        const thirtyMinutesAgo = new Date(
-          blockDatetime.getTime() - 30 * 60 * 1000,
-        );
-        const fetchedToken = {
-          ...mockToken0Data,
-          isWhitelisted: false,
-          pricePerUSDNew: 0n,
-          lastUpdatedTimestamp: thirtyMinutesAgo,
-          lastSuccessfulPriceTimestamp: undefined,
-        };
-        const blockTimestamp = blockDatetime.getTime() / 1000;
-
-        await PriceOracle.refreshTokenPrice(
-          fetchedToken,
-          blockNumber,
-          blockTimestamp,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        expect(vi.mocked(mockContext.Token?.set)).not.toHaveBeenCalled();
-        expect(
-          vi.mocked(mockContext.TokenPriceSnapshot?.set),
-        ).not.toHaveBeenCalled();
-      });
-    });
-
-    describe("Override path: blacklist + rebind (issue #669)", () => {
-      // Issue #669: tokens whose on-chain oracle is structurally unusable get
-      // either forced to 0 (blacklist) or copied from another chain's already-
-      // priced Token entity (rebind). Both paths bypass the *local* on-chain
-      // oracle entirely. The rebind path may dispatch a single cross-chain
-      // `getTokenPrice` against the SOURCE chain when the local Token entity
-      // for the source token hasn't been priced yet (cold-sync gap).
-      const oneHourAndOneMinuteAgo = () =>
-        new Date(blockDatetime.getTime() - 61 * 60 * 1000);
-
-      beforeEach(() => {
-        vi.mocked(mockContext.Token?.set)?.mockClear();
-        vi.mocked(mockContext.Token?.get)?.mockReset();
-        vi.mocked(mockContext.effect)?.mockClear();
-        vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mockClear();
-      });
-
-      it("blacklisted token: forces price to 0 and skips the oracle entirely", async () => {
-        const MANATEE_OP = toChecksumAddress(
-          "0x7909Bda52eAf7C3cc12745E727Eb527a485241D8",
-        );
-        const fetchedToken = {
-          ...mockToken0Data,
-          address: MANATEE_OP,
-          pricePerUSDNew: 388_328n * 10n ** 18n, // contaminated baseline
-          lastUpdatedTimestamp: oneHourAndOneMinuteAgo(),
-        };
-
-        const result = await PriceOracle.refreshTokenPrice(
-          fetchedToken,
-          blockNumber,
-          blockDatetime.getTime() / 1000,
-          10, // Optimism, where $Manatee is blacklisted
-          mockContext as handlerContext,
-        );
-
-        expect(result.pricePerUSDNew).toBe(0n);
-        expect(vi.mocked(mockContext.effect)).not.toHaveBeenCalled();
-        // Issue #822: the blacklist tick must still leave a snapshot, tagged
-        // `override`, recording the forced $0 price — no hole in the series.
-        const snapshot = vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mock
-          .lastCall?.[0];
-        expect(snapshot?.priceSource).toBe("override");
-        expect(snapshot?.pricePerUSDNew).toBe(0n);
-      });
-
-      it("rebind: copies price from the source chain's Token entity", async () => {
-        const RSETH_SWELL = toChecksumAddress(
-          "0xc3eaCf0612346366Db554c991D7858716db09f58",
-        );
-        const WRSETH_BASE = toChecksumAddress(
-          "0xEDfa23602D0EC14714057867A78d01e94176BEA0",
-        );
-        const sourcePrice = 2_443n * 10n ** 18n;
-        vi.mocked(mockContext.Token?.get)?.mockImplementation(async (id) => {
-          if (id === `8453-${WRSETH_BASE}`) {
-            return { pricePerUSDNew: sourcePrice } as Token;
-          }
-          return undefined;
-        });
-
-        const fetchedToken = {
-          ...mockToken0Data,
-          address: RSETH_SWELL,
-          pricePerUSDNew: 3_620_000n * 10n ** 18n, // corrupt baseline ($3.62M)
-          lastUpdatedTimestamp: oneHourAndOneMinuteAgo(),
-        };
-
-        const result = await PriceOracle.refreshTokenPrice(
-          fetchedToken,
-          blockNumber,
-          blockDatetime.getTime() / 1000,
-          1923, // Swell, where rsETH rebinds to wrsETH/Base
-          mockContext as handlerContext,
-        );
-
-        expect(result.pricePerUSDNew).toBe(sourcePrice);
-        expect(vi.mocked(mockContext.effect)).not.toHaveBeenCalled();
-        // Snapshot should fire when source has a non-zero price
-        expect(
-          vi.mocked(mockContext.TokenPriceSnapshot?.set),
-        ).toHaveBeenCalled();
-      });
-
-      // Worked example for the cross-chain prefetch:
-      //   Fraxtal handler firing at wall-clock T (block 9_999_999 on Fraxtal)
-      //   wants the price of XVELO (which rebinds to VELO/OP).
-      //   Local Token entity for VELO/OP is unpriced (OP indexer is behind).
-      //   → estimateBlockAtTimestamp(10, T)  estimates VELO/OP's block at T
-      //   → roundBlockToInterval(estimate, 10) snaps to a 1-hour bucket
-      //   → context.effect(getTokenPrice, { tokenAddress: VELO_OP, chainId: 10, blockNumber: snapped })
-      //   When the OP indexer eventually refreshes VELO at any block in that
-      //   same hour, it rounds to the same bucket → cache hit, zero extra RPCs.
-      // Both rebind sources (OP, Base) anchor in mid-2023, so prefetch tests
-      // pick a timestamp comfortably after both: 2023-11-16 (~unix 1_700_100_000).
-      const postAnchorTimestamp = 1_700_100_000;
-      const postAnchorDate = new Date(postAnchorTimestamp * 1000);
-      const postAnchorOneHourAgo = () =>
-        new Date(postAnchorDate.getTime() - 61 * 60 * 1000);
-
-      it("rebind with unpriced source: prefetches the source chain's oracle", async () => {
-        const XVELO = toChecksumAddress(
-          "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
-        );
-        const VELO_OP = toChecksumAddress(
-          "0x9560e827aF36c94D2Ac33a39bCE1Fe78631088Db",
-        );
-        const sourcePrice = 5n * 10n ** 17n; // $0.50
-
-        // Local Token entity for VELO/OP not yet priced (cold-sync gap).
-        vi.mocked(mockContext.Token?.get)?.mockResolvedValue(undefined);
-
-        // Source-chain prefetch returns the live VELO/OP price.
-        vi.mocked(mockContext.effect)?.mockImplementation(
-          async (effect, input) => {
-            const name = (effect as { name?: string }).name;
-            const args = input as { tokenAddress?: string; chainId?: number };
-            if (
-              name === "getTokenPrice" &&
-              args.chainId === 10 &&
-              args.tokenAddress === VELO_OP
-            ) {
-              return { pricePerUSDNew: sourcePrice, priceOracleType: "V3" };
-            }
-            return { pricePerUSDNew: 0n, priceOracleType: "V1" };
-          },
-        );
-
-        const fetchedToken = {
-          ...mockToken0Data,
-          address: XVELO,
-          pricePerUSDNew: 0n,
-          lastUpdatedTimestamp: postAnchorOneHourAgo(),
-        };
-
-        const result = await PriceOracle.refreshTokenPrice(
-          fetchedToken,
-          blockNumber,
-          postAnchorTimestamp,
-          252, // Fraxtal — XVELO rebinds to VELO/OP
-          mockContext as handlerContext,
-        );
-
-        expect(result.pricePerUSDNew).toBe(sourcePrice);
-        // The effect must dispatch against the SOURCE chain (10), not the
-        // local chain (252). That's what makes the cache key reusable when
-        // the OP indexer eventually catches up.
-        expect(vi.mocked(mockContext.effect)).toHaveBeenCalledWith(
-          expect.objectContaining({ name: "getTokenPrice" }),
-          expect.objectContaining({ tokenAddress: VELO_OP, chainId: 10 }),
-        );
-        expect(
-          vi.mocked(mockContext.TokenPriceSnapshot?.set),
-        ).toHaveBeenCalled();
-      });
-
-      it("rebind with unpriced source AND prefetch returns 0: writes 0 (no fall-through to local oracle)", async () => {
-        const XVELO = toChecksumAddress(
-          "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
-        );
-        vi.mocked(mockContext.Token?.get)?.mockResolvedValue(undefined);
-        // Source-chain prefetch also returns 0 (no price path on source oracle).
-        vi.mocked(mockContext.effect)?.mockResolvedValue({
-          pricePerUSDNew: 0n,
-          priceOracleType: "V3",
-        });
-
-        const fetchedToken = {
-          ...mockToken0Data,
-          address: XVELO,
-          pricePerUSDNew: 0n,
-          lastUpdatedTimestamp: postAnchorOneHourAgo(),
-        };
-
-        const result = await PriceOracle.refreshTokenPrice(
-          fetchedToken,
-          blockNumber,
-          postAnchorTimestamp,
-          252, // Fraxtal
-          mockContext as handlerContext,
-        );
-
-        // Prefetched 0 — write 0. We MUST NOT fall through to the local
-        // (corrupt) oracle: that's the whole point of the rebind.
-        expect(result.pricePerUSDNew).toBe(0n);
-        expect(vi.mocked(mockContext.effect)).toHaveBeenCalledWith(
-          expect.objectContaining({ name: "getTokenPrice" }),
-          expect.objectContaining({ chainId: 10 }),
-        );
-        // Issue #822: a rebind that resolves to 0 still leaves a snapshot,
-        // tagged `rebind` — the tick happened, so it isn't a hole.
-        const snapshot = vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mock
-          .lastCall?.[0];
-        expect(snapshot?.priceSource).toBe("rebind");
-        expect(snapshot?.pricePerUSDNew).toBe(0n);
-      });
-    });
-
-    describe("Metadata heal: empty symbol/name (issue #672)", () => {
-      // Issue #672: Soneium pools display tokens with `?` (empty symbol). Root
-      // cause is a transient RPC failure during the single createTokenEntity
-      // call when the pool's PoolCreated event was first seen — the empty
-      // symbol/name was persisted and never re-fetched, since ERC20 metadata
-      // was treated as immutable. Heal path: whenever refreshTokenPrice runs
-      // and observes an empty symbol or name, re-fetch via getTokenDetails
-      // and overlay the healed fields onto the Token entity.
-      const oneHourAndOneMinuteAgo = () =>
-        new Date(blockDatetime.getTime() - 61 * 60 * 1000);
-
-      beforeEach(() => {
-        vi.mocked(mockContext.Token?.set)?.mockClear();
-        vi.mocked(mockContext.effect)?.mockClear();
-        vi.mocked(mockContext.log?.error)?.mockClear();
-      });
-
-      it("heals empty symbol on refresh by calling getTokenDetails and writing the value", async () => {
-        const fetchedToken = {
-          ...mockToken0Data,
-          symbol: "",
-          name: "Tether USD",
-          lastUpdatedTimestamp: oneHourAndOneMinuteAgo(),
-        };
-        await PriceOracle.refreshTokenPrice(
-          fetchedToken,
-          blockNumber,
-          blockDatetime.getTime() / 1000,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
-          .lastCall?.[0] as Token;
-        expect(updatedToken.symbol).toBe("TEST");
-        // getTokenDetails must have been invoked
-        const detailsCall = vi
-          .mocked(mockContext.effect)
-          ?.mock.calls.find(
-            (c) => (c[0] as { name?: string }).name === "getTokenDetails",
-          );
-        expect(detailsCall).toBeDefined();
-      });
-
-      it("does NOT call getTokenDetails when symbol and name are already populated", async () => {
-        const fetchedToken = {
-          ...mockToken0Data,
-          symbol: "USDT",
-          name: "Tether USD",
-          lastUpdatedTimestamp: oneHourAndOneMinuteAgo(),
-        };
-        await PriceOracle.refreshTokenPrice(
-          fetchedToken,
-          blockNumber,
-          blockDatetime.getTime() / 1000,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        const detailsCall = vi
-          .mocked(mockContext.effect)
-          ?.mock.calls.find(
-            (c) => (c[0] as { name?: string }).name === "getTokenDetails",
-          );
-        expect(detailsCall).toBeUndefined();
-      });
-
-      it("preserves the existing empty symbol when getTokenDetails still returns empty", async () => {
-        vi.mocked(mockContext.effect)?.mockImplementation(
-          async (effect: unknown, _input: unknown) => {
-            const name = (effect as { name?: string }).name;
-            if (name === "getTokenDetails") {
-              return { name: "", decimals: 18, symbol: "" };
-            }
-            if (name === "getTokenPrice") {
-              return { pricePerUSDNew: 2n * 10n ** 18n };
-            }
-            return {};
-          },
-        );
-
-        const fetchedToken = {
-          ...mockToken0Data,
-          symbol: "",
-          name: "",
-          lastUpdatedTimestamp: oneHourAndOneMinuteAgo(),
-        };
-        await PriceOracle.refreshTokenPrice(
-          fetchedToken,
-          blockNumber,
-          blockDatetime.getTime() / 1000,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
-          .lastCall?.[0] as Token;
-        expect(updatedToken.symbol).toBe("");
-        expect(updatedToken.name).toBe("");
-      });
-
-      it("does NOT abort price refresh when getTokenDetails throws", async () => {
-        vi.mocked(mockContext.effect)?.mockImplementation(
-          async (effect: unknown, _input: unknown) => {
-            const name = (effect as { name?: string }).name;
-            if (name === "getTokenDetails") {
-              throw new Error("RPC down");
-            }
-            if (name === "getTokenPrice") {
-              return { pricePerUSDNew: 2n * 10n ** 18n };
-            }
-            return {};
-          },
-        );
-
-        const fetchedToken = {
-          ...mockToken0Data,
-          symbol: "",
-          name: "",
-          lastUpdatedTimestamp: oneHourAndOneMinuteAgo(),
-        };
-        await PriceOracle.refreshTokenPrice(
-          fetchedToken,
-          blockNumber,
-          blockDatetime.getTime() / 1000,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
-          .lastCall?.[0] as Token;
-        // Price should still update; symbol/name preserved as empty
-        expect(updatedToken.pricePerUSDNew).toBe(2n * 10n ** 18n);
-        expect(updatedToken.symbol).toBe("");
-        // Metadata error should be logged
-        expect(vi.mocked(mockContext.log?.error)).toHaveBeenCalledWith(
-          expect.stringContaining("Error refreshing token metadata"),
-        );
-      });
-
-      it("heals symbol on the blacklist path (token forced to 0 still gets symbol)", async () => {
-        const MANATEE_OP = toChecksumAddress(
-          "0x7909Bda52eAf7C3cc12745E727Eb527a485241D8",
-        );
-        vi.mocked(mockContext.effect)?.mockImplementation(
-          async (effect: unknown, _input: unknown) => {
-            const name = (effect as { name?: string }).name;
-            if (name === "getTokenDetails") {
-              return { name: "$Manatee", decimals: 18, symbol: "MANATEE" };
-            }
-            return {};
-          },
-        );
-
-        const fetchedToken = {
-          ...mockToken0Data,
-          address: MANATEE_OP,
-          symbol: "",
-          name: "",
-          pricePerUSDNew: 388_328n * 10n ** 18n,
-          lastUpdatedTimestamp: oneHourAndOneMinuteAgo(),
-        };
-        await PriceOracle.refreshTokenPrice(
-          fetchedToken,
-          blockNumber,
-          blockDatetime.getTime() / 1000,
-          10,
-          mockContext as handlerContext,
-        );
-
-        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
-          .lastCall?.[0] as Token;
-        expect(updatedToken.symbol).toBe("MANATEE");
-        expect(updatedToken.pricePerUSDNew).toBe(0n);
-      });
-
-      it("heals symbol on the rebind path", async () => {
-        const RSETH_SWELL = toChecksumAddress(
-          "0xc3eaCf0612346366Db554c991D7858716db09f58",
-        );
-        const WRSETH_BASE = toChecksumAddress(
-          "0xEDfa23602D0EC14714057867A78d01e94176BEA0",
-        );
-        const sourcePrice = 2_443n * 10n ** 18n;
-
-        vi.mocked(mockContext.Token?.get)?.mockImplementation(async (id) => {
-          if (id === `8453-${WRSETH_BASE}`) {
-            return { pricePerUSDNew: sourcePrice } as Token;
-          }
-          return undefined;
-        });
-        vi.mocked(mockContext.effect)?.mockImplementation(
-          async (effect: unknown, _input: unknown) => {
-            const name = (effect as { name?: string }).name;
-            if (name === "getTokenDetails") {
-              return { name: "rsETH", decimals: 18, symbol: "rsETH" };
-            }
-            return {};
-          },
-        );
-
-        const fetchedToken = {
-          ...mockToken0Data,
-          address: RSETH_SWELL,
-          symbol: "",
-          name: "",
-          lastUpdatedTimestamp: oneHourAndOneMinuteAgo(),
-        };
-        await PriceOracle.refreshTokenPrice(
-          fetchedToken,
-          blockNumber,
-          blockDatetime.getTime() / 1000,
-          1923,
-          mockContext as handlerContext,
-        );
-
-        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
-          .lastCall?.[0] as Token;
-        expect(updatedToken.symbol).toBe("rsETH");
-        expect(updatedToken.pricePerUSDNew).toBe(sourcePrice);
-      });
-
-      it("heals empty name when symbol is already populated", async () => {
-        const fetchedToken = {
-          ...mockToken0Data,
-          symbol: "USDT",
-          name: "",
-          lastUpdatedTimestamp: oneHourAndOneMinuteAgo(),
-        };
-        await PriceOracle.refreshTokenPrice(
-          fetchedToken,
-          blockNumber,
-          blockDatetime.getTime() / 1000,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
-          .lastCall?.[0] as Token;
-        expect(updatedToken.name).toBe("Test Token");
-        // Existing non-empty symbol must not be overwritten
-        expect(updatedToken.symbol).toBe("USDT");
-      });
-
-      // Issue #735: low-volume Base pools were left with `?` symbols because
-      // every event after PoolCreated landed inside the 1-hour throttle window,
-      // so heal (gated under the throttle short-circuit) never ran. Lifting
-      // heal above the throttle gate fixes the residual of #672/#675 without
-      // changing price-refresh cadence.
-      it("heals empty symbol even when the price-refresh throttle short-circuits (within 1 hour)", async () => {
-        const thirtyMinutesAgo = new Date(
-          blockDatetime.getTime() - 30 * 60 * 1000,
-        );
-        const fetchedToken = {
-          ...mockToken0Data,
-          symbol: "",
-          name: "",
-          lastUpdatedTimestamp: thirtyMinutesAgo,
-        };
-
-        await PriceOracle.refreshTokenPrice(
-          fetchedToken,
-          blockNumber,
-          blockDatetime.getTime() / 1000,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        // Heal wrote the populated metadata even though the price-refresh
-        // path short-circuited on the 30-minute throttle.
-        expect(vi.mocked(mockContext.Token?.set)).toHaveBeenCalledTimes(1);
-        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
-          .lastCall?.[0] as Token;
-        expect(updatedToken.symbol).toBe("TEST");
-        expect(updatedToken.name).toBe("Test Token");
-        // Price untouched — throttle still gates refresh and snapshot writes
-        expect(updatedToken.pricePerUSDNew).toBe(mockToken0Data.pricePerUSDNew);
-        expect(
-          vi.mocked(mockContext.TokenPriceSnapshot?.set),
-        ).not.toHaveBeenCalled();
-      });
-
-      // Issue #735 AC #4: a token whose on-chain symbol() legitimately returns
-      // "" must not retry-storm. With heal lifted above the throttle gate, an
-      // empty-overlay heal must not churn Token.set writes on every event.
-      it("does NOT churn Token.set when getTokenDetails returns empty (throttled refresh)", async () => {
-        vi.mocked(mockContext.effect)?.mockImplementation(
-          async (effect: unknown, _input: unknown) => {
-            const name = (effect as { name?: string }).name;
-            if (name === "getTokenDetails") {
-              return { name: "", decimals: 18, symbol: "" };
-            }
-            return {};
-          },
-        );
-
-        const thirtyMinutesAgo = new Date(
-          blockDatetime.getTime() - 30 * 60 * 1000,
-        );
-        const fetchedToken = {
-          ...mockToken0Data,
-          symbol: "",
-          name: "",
-          lastUpdatedTimestamp: thirtyMinutesAgo,
-        };
-
-        await PriceOracle.refreshTokenPrice(
-          fetchedToken,
-          blockNumber,
-          blockDatetime.getTime() / 1000,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        // No overlay produced AND refresh throttled — heal must not write.
-        expect(vi.mocked(mockContext.Token?.set)).not.toHaveBeenCalled();
-      });
-    });
-
-    // Issue #735: `healTokenMetadata` is exported so non-refresh handlers can
-    // heal directly without going through refreshTokenPrice. These tests pin
-    // the standalone semantics: idempotent on healed tokens, no Token.set
-    // churn when on-chain metadata is still empty, error-tolerant.
-    describe("healTokenMetadata (standalone heal export, issue #735)", () => {
-      beforeEach(() => {
-        vi.mocked(mockContext.Token?.set)?.mockClear();
-        vi.mocked(mockContext.effect)?.mockClear();
-        vi.mocked(mockContext.log?.error)?.mockClear();
-      });
-
-      it("heals an empty-symbol token and writes the result via Token.set", async () => {
-        const fetchedToken = { ...mockToken0Data, symbol: "", name: "" };
-
-        const healed = await PriceOracle.healTokenMetadata(
-          fetchedToken,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        expect(healed.symbol).toBe("TEST");
-        expect(healed.name).toBe("Test Token");
-        expect(vi.mocked(mockContext.Token?.set)).toHaveBeenCalledTimes(1);
-        expect(vi.mocked(mockContext.Token?.set)?.mock.lastCall?.[0]).toBe(
-          healed,
-        );
-      });
-
-      it("short-circuits without an effect call when symbol and name are already populated", async () => {
-        const fetchedToken = {
-          ...mockToken0Data,
-          symbol: "USDT",
-          name: "Tether USD",
-        };
-
-        const healed = await PriceOracle.healTokenMetadata(
-          fetchedToken,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        expect(healed).toBe(fetchedToken);
-        expect(mockContext.effect).not.toHaveBeenCalled();
-        expect(vi.mocked(mockContext.Token?.set)).not.toHaveBeenCalled();
-      });
-
-      it("returns the input unchanged and stages no write when getTokenDetails still returns empty", async () => {
-        vi.mocked(mockContext.effect)?.mockImplementation(
-          async (effect: unknown, _input: unknown) => {
-            const name = (effect as { name?: string }).name;
-            if (name === "getTokenDetails") {
-              return { name: "", decimals: 18, symbol: "" };
-            }
-            return {};
-          },
-        );
-
-        const fetchedToken = { ...mockToken0Data, symbol: "", name: "" };
-
-        const healed = await PriceOracle.healTokenMetadata(
-          fetchedToken,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        expect(healed).toBe(fetchedToken);
-        expect(vi.mocked(mockContext.Token?.set)).not.toHaveBeenCalled();
-      });
-
-      it("is idempotent across repeated calls on a healed token", async () => {
-        const fetchedToken = { ...mockToken0Data, symbol: "", name: "" };
-
-        const firstPass = await PriceOracle.healTokenMetadata(
-          fetchedToken,
-          chainId,
-          mockContext as handlerContext,
-        );
-        vi.mocked(mockContext.effect)?.mockClear();
-        vi.mocked(mockContext.Token?.set)?.mockClear();
-
-        const secondPass = await PriceOracle.healTokenMetadata(
-          firstPass,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        expect(secondPass).toBe(firstPass);
-        expect(mockContext.effect).not.toHaveBeenCalled();
-        expect(vi.mocked(mockContext.Token?.set)).not.toHaveBeenCalled();
-      });
-
-      it("logs and returns the input unchanged when getTokenDetails throws", async () => {
-        vi.mocked(mockContext.effect)?.mockImplementation(
-          async (effect: unknown, _input: unknown) => {
-            const name = (effect as { name?: string }).name;
-            if (name === "getTokenDetails") throw new Error("RPC down");
-            return {};
-          },
-        );
-
-        const fetchedToken = { ...mockToken0Data, symbol: "", name: "" };
-
-        const healed = await PriceOracle.healTokenMetadata(
-          fetchedToken,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        expect(healed).toBe(fetchedToken);
-        expect(vi.mocked(mockContext.Token?.set)).not.toHaveBeenCalled();
-        expect(vi.mocked(mockContext.log?.error)).toHaveBeenCalledWith(
-          expect.stringContaining("Error refreshing token metadata"),
-        );
-      });
-
-      // Issue #820: a Token created from the TOKEN_DETAILS_FALLBACK constant
-      // (empty symbol + empty name + the stubbed decimals=18, written on a
-      // transient RPC failure or full contract revert at creation) used to keep
-      // the fallback 18 forever — heal overlaid only symbol/name, mis-scaling a
-      // non-18 token (USDC=6, WBTC=8) by 10^(18-real). Heal now re-derives a
-      // fallback-origin decimals in the same pass that repopulates symbol/name.
-      it("heals a fallback-origin decimals when a later read returns a different value", async () => {
-        overrideTokenDetails({ name: "USD Coin", decimals: 6, symbol: "USDC" });
-
-        const fallbackToken = {
-          ...mockToken0Data,
-          symbol: "",
-          name: "",
-          decimals: 18n,
-        };
-
-        const healed = await PriceOracle.healTokenMetadata(
-          fallbackToken,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        expect(healed.symbol).toBe("USDC");
-        expect(healed.name).toBe("USD Coin");
-        expect(healed.decimals).toBe(6n);
-        expect(vi.mocked(mockContext.Token?.set)).toHaveBeenCalledTimes(1);
-        expect(vi.mocked(mockContext.Token?.set)?.mock.lastCall?.[0]).toBe(
-          healed,
-        );
-      });
-
-      // Issue #820 fingerprint guard: a row missing ONLY the name (symbol +
-      // decimals were read successfully at creation — the fetcher is
-      // all-or-nothing) is not fallback-origin, so its decimals must stand even
-      // if a later read reports a different value. The `!token.name` half of
-      // the gate is load-bearing here; without it a stored 6 would be clobbered.
-      it("does not touch decimals for a name-only-empty row even when a later read differs", async () => {
-        overrideTokenDetails({
-          name: "USD Coin",
-          decimals: 18,
-          symbol: "USDC",
-        });
-
-        const nameOnlyEmpty = {
-          ...mockToken0Data,
-          symbol: "USDC",
-          name: "",
-          decimals: 6n,
-        };
-
-        const healed = await PriceOracle.healTokenMetadata(
-          nameOnlyEmpty,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        expect(healed.name).toBe("USD Coin");
-        expect(healed.symbol).toBe("USDC");
-        expect(healed.decimals).toBe(6n);
-      });
-
-      // Issue #820 (AC: "a frozen-name token heals on read"): a token whose
-      // name is empty but whose symbol + decimals are intact heals just the
-      // name, leaving the other fields untouched.
-      it("heals a frozen (empty) name on read without disturbing symbol or decimals", async () => {
-        overrideTokenDetails({ name: "USD Coin", decimals: 6, symbol: "USDC" });
-
-        const frozenName = {
-          ...mockToken0Data,
-          symbol: "USDC",
-          name: "",
-          decimals: 6n,
-        };
-
-        const healed = await PriceOracle.healTokenMetadata(
-          frozenName,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        expect(healed.name).toBe("USD Coin");
-        expect(healed.symbol).toBe("USDC");
-        expect(healed.decimals).toBe(6n);
-        expect(vi.mocked(mockContext.Token?.set)).toHaveBeenCalledTimes(1);
-      });
-
-      // Issue #820 difference guard: a full-fallback row whose real decimals
-      // genuinely is 18 (e.g. WETH) heals symbol/name but writes no decimals
-      // change — the `!==` check keeps the value stable rather than churning it.
-      it("leaves decimals at 18 when a fallback-origin row's real decimals is also 18", async () => {
-        overrideTokenDetails({
-          name: "Wrapped Ether",
-          decimals: 18,
-          symbol: "WETH",
-        });
-
-        const fallbackToken = {
-          ...mockToken0Data,
-          symbol: "",
-          name: "",
-          decimals: 18n,
-        };
-
-        const healed = await PriceOracle.healTokenMetadata(
-          fallbackToken,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        expect(healed.symbol).toBe("WETH");
-        expect(healed.name).toBe("Wrapped Ether");
-        expect(healed.decimals).toBe(18n);
-      });
-    });
-
-    // Issue #668: transient absurd oracle reads (e.g. Fraxtal V3 returning
-    // ~$7.59e30 per sfrxETH on 2024-12-18) permanently poison cumulative
-    // pool aggregates. The receiver-side guard rejects refreshes whose ratio
-    // against the last accepted price exceeds PRICE_SPIKE_RATIO_THRESHOLD,
-    // provided the anchor is still fresh. See the issue body for the
-    // calibration of 10× and the 14-day staleness window.
-    describe("price-spike rejection (issue #668)", () => {
-      const oneHourOneMinuteAgo = () =>
-        new Date(blockDatetime.getTime() - 61 * 60 * 1000);
-
-      beforeEach(() => {
-        vi.mocked(mockContext.Token?.set)?.mockClear();
-        vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mockClear();
-        vi.mocked(mockContext.log?.warn)?.mockClear();
-      });
-
-      it("rejects an UP-spike (≥10×) and preserves the previous accepted price", async () => {
-        // Anchor at $1; oracle returns $100 — 100× jump, must be rejected.
-        // Also pins the [priceSpikeRejected] warn line that downstream
-        // observability (alerts, log scans) is expected to grep for.
-        const anchorPrice = 1n * 10n ** 18n;
-        const spikePrice = 100n * 10n ** 18n;
-
-        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
-          if ((effect as { name?: string }).name === "getTokenPrice") {
-            return { pricePerUSDNew: spikePrice };
-          }
-          return {};
-        });
-
-        const fetchedToken = {
-          ...mockToken0Data,
-          pricePerUSDNew: anchorPrice,
-          lastUpdatedTimestamp: oneHourOneMinuteAgo(),
-        };
-
-        const result = await PriceOracle.refreshTokenPrice(
-          fetchedToken,
-          blockNumber,
-          blockDatetime.getTime() / 1000,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        expect(result.pricePerUSDNew).toBe(anchorPrice);
-        const warnCall = vi.mocked(mockContext.log?.warn)?.mock.lastCall;
-        expect(warnCall?.[0]).toContain("[priceSpikeRejected]");
-      });
-
-      it("still emits a TokenPriceSnapshot tagged 'carried' on a spike-rejected tick (issue #822)", async () => {
-        // Issue #822: a rejected refresh must still leave a per-block snapshot,
-        // tagged `carried`, holding the anchor price it kept — otherwise the
-        // exact volatile hours one wants to inspect have holes in the series.
-        const anchorPrice = 1n * 10n ** 18n;
-        const spikePrice = 100n * 10n ** 18n;
-
-        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
-          if ((effect as { name?: string }).name === "getTokenPrice") {
-            return { pricePerUSDNew: spikePrice };
-          }
-          return {};
-        });
-
-        await PriceOracle.refreshTokenPrice(
-          {
-            ...mockToken0Data,
-            pricePerUSDNew: anchorPrice,
-            lastUpdatedTimestamp: oneHourOneMinuteAgo(),
-          },
-          blockNumber,
-          blockDatetime.getTime() / 1000,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        const snapshot = vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mock
-          .lastCall?.[0];
-        expect(snapshot?.priceSource).toBe("carried");
-        expect(snapshot?.pricePerUSDNew).toBe(anchorPrice);
-      });
-
-      it("preserves lastUpdatedTimestamp on rejection so the 14-day staleness exit can fire", async () => {
-        // Issue #730: prior to the fix, the rejection branch bumped
-        // `lastUpdatedTimestamp` on every rejected refresh, which reset the
-        // `anchorAgeMs` clock. The 14-day staleness exit became unreachable
-        // while refresh events kept arriving — anchors stayed poisoned
-        // indefinitely (e.g. DTF 8.18 vs DefiLlama 0.0008466 for 111 days).
-        // After the fix, rejection is an early return that leaves the anchor
-        // timestamp intact, so anchor age grows monotonically and the exit
-        // fires once the window elapses.
-        const anchorPrice = 1n * 10n ** 18n;
-        const spikePrice = 100n * 10n ** 18n;
-        const anchorTimestamp = new Date(
-          blockDatetime.getTime() - 13 * 24 * 60 * 60 * 1000,
-        );
-
-        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
-          if ((effect as { name?: string }).name === "getTokenPrice") {
-            return { pricePerUSDNew: spikePrice };
-          }
-          return {};
-        });
-
-        const result = await PriceOracle.refreshTokenPrice(
-          {
-            ...mockToken0Data,
-            pricePerUSDNew: anchorPrice,
-            lastUpdatedTimestamp: anchorTimestamp,
-          },
-          blockNumber,
-          blockDatetime.getTime() / 1000,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        expect(result.lastUpdatedTimestamp).toEqual(anchorTimestamp);
-        expect(result.pricePerUSDNew).toBe(anchorPrice);
-      });
-
-      it("rejects an exact 10× boundary jump", async () => {
-        // Boundary case: candidate is exactly 10× the anchor. Spec is "≥10×",
-        // so this must still reject. Regression guard against off-by-one
-        // boundary regressions.
-        const anchorPrice = 1n * 10n ** 18n;
-        const boundaryPrice = 10n * 10n ** 18n;
-
-        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
-          if ((effect as { name?: string }).name === "getTokenPrice") {
-            return { pricePerUSDNew: boundaryPrice };
-          }
-          return {};
-        });
-
-        const result = await PriceOracle.refreshTokenPrice(
-          {
-            ...mockToken0Data,
-            pricePerUSDNew: anchorPrice,
-            lastUpdatedTimestamp: oneHourOneMinuteAgo(),
-          },
-          blockNumber,
-          blockDatetime.getTime() / 1000,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        expect(result.pricePerUSDNew).toBe(anchorPrice);
-      });
-
-      it("accepts a sub-threshold jump (5×) as a normal price update", async () => {
-        // Anchor at $1; oracle returns $5 — under 10× threshold, must accept.
-        const anchorPrice = 1n * 10n ** 18n;
-        const newPrice = 5n * 10n ** 18n;
-
-        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
-          if ((effect as { name?: string }).name === "getTokenPrice") {
-            return { pricePerUSDNew: newPrice };
-          }
-          return {};
-        });
-
-        const fetchedToken = {
-          ...mockToken0Data,
-          pricePerUSDNew: anchorPrice,
-          lastUpdatedTimestamp: oneHourOneMinuteAgo(),
-        };
-
-        await PriceOracle.refreshTokenPrice(
-          fetchedToken,
-          blockNumber,
-          blockDatetime.getTime() / 1000,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
-          .lastCall?.[0] as Token;
-        expect(updatedToken.pricePerUSDNew).toBe(newPrice);
-      });
-
-      it("accepts a first-fetch (anchor == 0) as ground truth regardless of magnitude", async () => {
-        // No prior accepted price — accept whatever the oracle returns.
-        const newPrice = 1000n * 10n ** 18n; // $1000
-
-        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
-          if ((effect as { name?: string }).name === "getTokenPrice") {
-            return { pricePerUSDNew: newPrice };
-          }
-          return {};
-        });
-
-        const fetchedToken = {
-          ...mockToken0Data,
-          pricePerUSDNew: 0n,
-          lastUpdatedTimestamp: oneHourOneMinuteAgo(),
-        };
-
-        await PriceOracle.refreshTokenPrice(
-          fetchedToken,
-          blockNumber,
-          blockDatetime.getTime() / 1000,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
-          .lastCall?.[0] as Token;
-        expect(updatedToken.pricePerUSDNew).toBe(newPrice);
-      });
-
-      it("accepts a 10×+ jump when the anchor is older than the staleness window", async () => {
-        // Anchor 15 days old (> 14d window) — slow legitimate drift can't be
-        // permanently frozen. A 100× jump is accepted because the prior
-        // anchor is no longer trusted as a recent baseline.
-        const anchorPrice = 1n * 10n ** 18n;
-        const newPrice = 100n * 10n ** 18n;
-        const fifteenDaysAgo = new Date(
-          blockDatetime.getTime() - 15 * 24 * 60 * 60 * 1000,
-        );
-
-        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
-          if ((effect as { name?: string }).name === "getTokenPrice") {
-            return { pricePerUSDNew: newPrice };
-          }
-          return {};
-        });
-
-        const fetchedToken = {
-          ...mockToken0Data,
-          pricePerUSDNew: anchorPrice,
-          lastUpdatedTimestamp: fifteenDaysAgo,
-        };
-
-        await PriceOracle.refreshTokenPrice(
-          fetchedToken,
-          blockNumber,
-          blockDatetime.getTime() / 1000,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
-          .lastCall?.[0] as Token;
-        expect(updatedToken.pricePerUSDNew).toBe(newPrice);
-      });
-
-      it("accepts the recovery snapshot once the oracle returns to baseline", async () => {
-        // Sequence mirrors sfrxETH around 2024-12-18: anchor $1, oracle
-        // briefly returns $100 (rejected, anchor preserved), then returns
-        // ~$1.02 (1.02× — accepted).
-        const anchorPrice = 1n * 10n ** 18n;
-        const spikePrice = 100n * 10n ** 18n;
-        const recoveryPrice = 102n * 10n ** 16n; // $1.02
-
-        // First refresh — spike, rejected.
-        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
-          if ((effect as { name?: string }).name === "getTokenPrice") {
-            return { pricePerUSDNew: spikePrice };
-          }
-          return {};
-        });
-        const afterSpike = await PriceOracle.refreshTokenPrice(
-          {
-            ...mockToken0Data,
-            pricePerUSDNew: anchorPrice,
-            lastUpdatedTimestamp: oneHourOneMinuteAgo(),
-          },
-          blockNumber,
-          blockDatetime.getTime() / 1000,
-          chainId,
-          mockContext as handlerContext,
-        );
-        expect(afterSpike.pricePerUSDNew).toBe(anchorPrice);
-
-        // Second refresh — recovery, accepted. Use the returned token shape
-        // so the anchor reflects what was actually persisted.
-        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
-          if ((effect as { name?: string }).name === "getTokenPrice") {
-            return { pricePerUSDNew: recoveryPrice };
-          }
-          return {};
-        });
-        const oneHourLater = blockDatetime.getTime() / 1000 + 61 * 60;
-        const afterRecovery = await PriceOracle.refreshTokenPrice(
-          afterSpike,
-          blockNumber,
-          oneHourLater,
-          chainId,
-          mockContext as handlerContext,
-        );
-        expect(afterRecovery.pricePerUSDNew).toBe(recoveryPrice);
-      });
-
-      it("accepts a DOWN candidate (≥10× drop) — asymmetric guard, issue #730", async () => {
-        // Issue #730: the failure modes are asymmetric. An upward
-        // false-accept (candidate wrongly high) self-heals on the next
-        // refresh; a downward false-reject (anchor wrongly high, candidate
-        // correct) is permanent — every subsequent correct reading is
-        // rejected forever. The DTF case (kept anchor $8.18, rejected
-        // candidate $0.000827 — within 2.4% of DefiLlama) is exactly this
-        // shape. Drop the symmetric branch so downward candidates are
-        // accepted immediately.
-        const anchorPrice = 100n * 10n ** 18n;
-        const recoveryPrice = 1n * 10n ** 18n;
-
-        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
-          if ((effect as { name?: string }).name === "getTokenPrice") {
-            return { pricePerUSDNew: recoveryPrice };
-          }
-          return {};
-        });
-
-        const result = await PriceOracle.refreshTokenPrice(
-          {
-            ...mockToken0Data,
-            pricePerUSDNew: anchorPrice,
-            lastUpdatedTimestamp: oneHourOneMinuteAgo(),
-          },
-          blockNumber,
-          blockDatetime.getTime() / 1000,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        expect(result.pricePerUSDNew).toBe(recoveryPrice);
-      });
-    });
-
-    // Issue #728: locked-anchor poisoning defense. The #668 spike guard needs
-    // a prior non-zero anchor to compare ≥10× against, so the very first
-    // non-zero oracle read has nothing to validate it. If that first read is
-    // inflated, the locked anchor poisons every subsequent pool calc until
-    // the token is reactively blacklisted (see PR #722's pattern). Cap rejects
-    // any first non-zero anchor > $10K for non-BTC symbols and lets the next
-    // hourly refresh retry. Empirical scan: no legitimate non-BTC token has
-    // ever priced above $10K — every >$10K observation was a known poison
-    // case already handled by REBIND / BLACKLIST / stablecoin pin.
-    describe("first-fetch cap (issue #728)", () => {
-      const oneHourOneMinuteAgo = () =>
-        new Date(blockDatetime.getTime() - 61 * 60 * 1000);
-
-      beforeEach(() => {
-        vi.mocked(mockContext.Token?.set)?.mockClear();
-        vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mockClear();
-        vi.mocked(mockContext.log?.warn)?.mockClear();
-      });
-
-      it("rejects a non-BTC first-fetch above $10K and logs [FIRST_FETCH_CAP]", async () => {
-        // Anchor 0, oracle returns $50K for symbol "USDT" — must be rejected.
-        // Mirrors the PR #722 pattern (36 tokens, $13.8K to $2B inflated anchors).
-        const inflatedPrice = 50_000n * 10n ** 18n;
-
-        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
-          if ((effect as { name?: string }).name === "getTokenPrice") {
-            return { pricePerUSDNew: inflatedPrice };
-          }
-          return {};
-        });
-
-        await PriceOracle.refreshTokenPrice(
-          {
-            ...mockToken0Data,
-            symbol: "USDT",
-            pricePerUSDNew: 0n,
-            lastUpdatedTimestamp: oneHourOneMinuteAgo(),
-          },
-          blockNumber,
-          blockDatetime.getTime() / 1000,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
-          .lastCall?.[0] as Token;
-        expect(updatedToken.pricePerUSDNew).toBe(0n);
-        // Issue #822: a capped first-fetch still leaves a snapshot, tagged
-        // `carried`, holding the kept $0 anchor.
-        const snapshot = vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mock
-          .lastCall?.[0];
-        expect(snapshot?.priceSource).toBe("carried");
-        expect(snapshot?.pricePerUSDNew).toBe(0n);
-        const warnCall = vi.mocked(mockContext.log?.warn)?.mock.lastCall;
-        expect(warnCall?.[0]).toContain("[FIRST_FETCH_CAP]");
-      });
-
-      it("accepts a BTC-symbol first-fetch above $10K", async () => {
-        // WBTC routinely prices in the tens of thousands; the cap must NOT
-        // reject any symbol containing "BTC". $80K is a realistic mid-cycle.
-        const btcPrice = 80_000n * 10n ** 18n;
-
-        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
-          if ((effect as { name?: string }).name === "getTokenPrice") {
-            return { pricePerUSDNew: btcPrice };
-          }
-          return {};
-        });
-
-        await PriceOracle.refreshTokenPrice(
-          {
-            ...mockToken0Data,
-            symbol: "WBTC",
-            pricePerUSDNew: 0n,
-            lastUpdatedTimestamp: oneHourOneMinuteAgo(),
-          },
-          blockNumber,
-          blockDatetime.getTime() / 1000,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
-          .lastCall?.[0] as Token;
-        expect(updatedToken.pricePerUSDNew).toBe(btcPrice);
-      });
-
-      it("matches the BTC substring case-insensitively (e.g. cbbtc, SolvBTC)", async () => {
-        // Substring match must be case-insensitive so lowercase variants like
-        // "cbbtc" and mixed-case "SolvBTC" both bypass the cap.
-        const btcPrice = 75_000n * 10n ** 18n;
-
-        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
-          if ((effect as { name?: string }).name === "getTokenPrice") {
-            return { pricePerUSDNew: btcPrice };
-          }
-          return {};
-        });
-
-        await PriceOracle.refreshTokenPrice(
-          {
-            ...mockToken0Data,
-            symbol: "cbbtc",
-            pricePerUSDNew: 0n,
-            lastUpdatedTimestamp: oneHourOneMinuteAgo(),
-          },
-          blockNumber,
-          blockDatetime.getTime() / 1000,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
-          .lastCall?.[0] as Token;
-        expect(updatedToken.pricePerUSDNew).toBe(btcPrice);
-      });
-
-      it("accepts a non-BTC first-fetch at exactly the $10K cap (boundary)", async () => {
-        // Cap is strictly greater-than: a $10,000.00 first-fetch must pass.
-        // Regression guard against off-by-one boundary regressions.
-        const exactCapPrice = 10_000n * 10n ** 18n;
-
-        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
-          if ((effect as { name?: string }).name === "getTokenPrice") {
-            return { pricePerUSDNew: exactCapPrice };
-          }
-          return {};
-        });
-
-        await PriceOracle.refreshTokenPrice(
-          {
-            ...mockToken0Data,
-            symbol: "USDT",
-            pricePerUSDNew: 0n,
-            lastUpdatedTimestamp: oneHourOneMinuteAgo(),
-          },
-          blockNumber,
-          blockDatetime.getTime() / 1000,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
-          .lastCall?.[0] as Token;
-        expect(updatedToken.pricePerUSDNew).toBe(exactCapPrice);
-      });
-
-      it("accepts a non-BTC first-fetch well below the cap", async () => {
-        // Sanity: ordinary first-fetches (a few dollars) must pass through
-        // untouched. Pins the common case so a refactor that gets the
-        // condition inverted is caught immediately.
-        const normalPrice = 2n * 10n ** 18n;
-
-        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
-          if ((effect as { name?: string }).name === "getTokenPrice") {
-            return { pricePerUSDNew: normalPrice };
-          }
-          return {};
-        });
-
-        await PriceOracle.refreshTokenPrice(
-          {
-            ...mockToken0Data,
-            symbol: "USDT",
-            pricePerUSDNew: 0n,
-            lastUpdatedTimestamp: oneHourOneMinuteAgo(),
-          },
-          blockNumber,
-          blockDatetime.getTime() / 1000,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
-          .lastCall?.[0] as Token;
-        expect(updatedToken.pricePerUSDNew).toBe(normalPrice);
-      });
-
-      it("does NOT cap subsequent (non-first) fetches; spike guard takes over", async () => {
-        // Token already has a non-zero anchor — the cap path is for the first
-        // anchor only. A 4× jump from $5K to $20K is below the 10× spike
-        // threshold, so it should be persisted as-is. Pins the AC line that
-        // subsequent fetches are NOT capped.
-        const anchorPrice = 5_000n * 10n ** 18n;
-        const newPrice = 20_000n * 10n ** 18n;
-
-        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
-          if ((effect as { name?: string }).name === "getTokenPrice") {
-            return { pricePerUSDNew: newPrice };
-          }
-          return {};
-        });
-
-        await PriceOracle.refreshTokenPrice(
-          {
-            ...mockToken0Data,
-            symbol: "USDT",
-            pricePerUSDNew: anchorPrice,
-            lastUpdatedTimestamp: oneHourOneMinuteAgo(),
-          },
-          blockNumber,
-          blockDatetime.getTime() / 1000,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
-          .lastCall?.[0] as Token;
-        expect(updatedToken.pricePerUSDNew).toBe(newPrice);
-        const warnCalls = vi.mocked(mockContext.log?.warn)?.mock.calls ?? [];
-        for (const [msg] of warnCalls) {
-          expect(msg).not.toContain("[FIRST_FETCH_CAP]");
-        }
-      });
-    });
-
-    // Issue #788: absolute price ceiling. The spike guard only protects a
-    // fresh anchor; a token idle past the staleness window has no anchor to
-    // compare against, so an arbitrarily large read used to be accepted. BPX
-    // booked a $7.17e18/token read after 26 days idle. MAX_ACCEPTED_PRICE
-    // ($1M/token) rejects any read above it regardless of anchor age.
-    describe("absolute price ceiling (issue #788)", () => {
-      const oneHourOneMinuteAgo = () =>
-        new Date(blockDatetime.getTime() - 61 * 60 * 1000);
-      const ceiling = 1_000_000n * 10n ** 18n; // $1M/token
-
-      beforeEach(() => {
-        vi.mocked(mockContext.Token?.set)?.mockClear();
-        vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mockClear();
-        vi.mocked(mockContext.log?.warn)?.mockClear();
-        vi.mocked(mockContext.log?.info)?.mockClear();
-      });
-
-      it("rejects an absurd read on a stale anchor, preserves the anchor, and logs [MAX_PRICE_CEILING]", async () => {
-        // BPX/BPX6900: anchor $0.000137, idle 26 days, oracle returns
-        // $7.17e18/token (the highest price the indexer ever recorded).
-        const anchorPrice = 137n * 10n ** 12n; // $0.000137
-        const absurdPrice = 7_170_000_000_000_000_000n * 10n ** 18n; // $7.17e18
-        const twentySixDaysAgo = new Date(
-          blockDatetime.getTime() - 26 * 24 * 60 * 60 * 1000,
-        );
-
-        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
-          if ((effect as { name?: string }).name === "getTokenPrice") {
-            return { pricePerUSDNew: absurdPrice };
-          }
-          return {};
-        });
-
-        const result = await PriceOracle.refreshTokenPrice(
-          {
-            ...mockToken0Data,
-            symbol: "BPX",
-            pricePerUSDNew: anchorPrice,
-            lastUpdatedTimestamp: twentySixDaysAgo,
-          },
-          blockNumber,
-          blockDatetime.getTime() / 1000,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        // Anchor preserved, timestamp re-armed to now.
-        expect(result.pricePerUSDNew).toBe(anchorPrice);
-        expect(result.lastUpdatedTimestamp).toEqual(blockDatetime);
-        // Issue #822: the rejected tick still leaves a snapshot, tagged
-        // `carried`, holding the preserved anchor price.
-        const snapshot = vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mock
-          .lastCall?.[0];
-        expect(snapshot?.priceSource).toBe("carried");
-        expect(snapshot?.pricePerUSDNew).toBe(anchorPrice);
-        const infoCall = vi.mocked(mockContext.log?.info)?.mock.lastCall;
-        expect(infoCall?.[0]).toContain("[MAX_PRICE_CEILING]");
-      });
-
-      it("rejects an absurd first-fetch (anchor 0) via the ceiling, before FIRST_FETCH_CAP", async () => {
-        const absurdPrice = 10n ** 30n; // $1e12/token — far above the ceiling
-
-        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
-          if ((effect as { name?: string }).name === "getTokenPrice") {
-            return { pricePerUSDNew: absurdPrice };
-          }
-          return {};
-        });
-
-        await PriceOracle.refreshTokenPrice(
-          {
-            ...mockToken0Data,
-            symbol: "USDT",
-            pricePerUSDNew: 0n,
-            lastUpdatedTimestamp: oneHourOneMinuteAgo(),
-          },
-          blockNumber,
-          blockDatetime.getTime() / 1000,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
-          .lastCall?.[0] as Token;
-        expect(updatedToken.pricePerUSDNew).toBe(0n);
-        const infoCalls = vi.mocked(mockContext.log?.info)?.mock.calls ?? [];
-        const infoMessages = infoCalls.map(([msg]) => msg);
-        const warnCalls = vi.mocked(mockContext.log?.warn)?.mock.calls ?? [];
-        const warnMessages = warnCalls.map(([msg]) => msg);
-        expect(
-          infoMessages.some((m) => m?.includes("[MAX_PRICE_CEILING]")),
-        ).toBe(true);
-        expect(warnMessages.some((m) => m?.includes("[FIRST_FETCH_CAP]"))).toBe(
-          false,
-        );
-      });
-
-      it("rejects even a BTC-symbol read above the ceiling (no symbol exemption, unlike FIRST_FETCH_CAP)", async () => {
-        // FIRST_FETCH_CAP exempts BTC; the absolute ceiling does NOT — a BTC
-        // oracle glitch into the millions must still be rejected.
-        const absurdBtcPrice = ceiling + 1n;
-
-        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
-          if ((effect as { name?: string }).name === "getTokenPrice") {
-            return { pricePerUSDNew: absurdBtcPrice };
-          }
-          return {};
-        });
-
-        const result = await PriceOracle.refreshTokenPrice(
-          {
-            ...mockToken0Data,
-            symbol: "WBTC",
-            pricePerUSDNew: 90_000n * 10n ** 18n, // $90K anchor
-            lastUpdatedTimestamp: oneHourOneMinuteAgo(),
-          },
-          blockNumber,
-          blockDatetime.getTime() / 1000,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        expect(result.pricePerUSDNew).toBe(90_000n * 10n ** 18n);
-        const infoCall = vi.mocked(mockContext.log?.info)?.mock.lastCall;
-        expect(infoCall?.[0]).toContain("[MAX_PRICE_CEILING]");
-      });
-
-      it("accepts a BTC-symbol first-fetch at exactly the $1M ceiling (boundary, > not >=)", async () => {
-        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
-          if ((effect as { name?: string }).name === "getTokenPrice") {
-            return { pricePerUSDNew: ceiling };
-          }
-          return {};
-        });
-
-        await PriceOracle.refreshTokenPrice(
-          {
-            ...mockToken0Data,
-            symbol: "WBTC",
-            pricePerUSDNew: 0n,
-            lastUpdatedTimestamp: oneHourOneMinuteAgo(),
-          },
-          blockNumber,
-          blockDatetime.getTime() / 1000,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
-          .lastCall?.[0] as Token;
-        expect(updatedToken.pricePerUSDNew).toBe(ceiling);
-      });
-
-      it("re-arms the spike guard: the smaller follow-up read after a ceiling rejection is then caught by the spike guard", async () => {
-        // BPX AC sequence: $7.17e18 rejected by the ceiling (bumps the
-        // timestamp), then $40,766 three hours later — below the ceiling but
-        // ~3e8× the $0.000137 anchor, so the now-fresh anchor lets the spike
-        // guard reject it instead of the stale-anchor exemption accepting it.
-        const anchorPrice = 137n * 10n ** 12n; // $0.000137
-        const absurdPrice = 7_170_000_000_000_000_000n * 10n ** 18n; // $7.17e18
-        const followUpPrice = 40_766n * 10n ** 18n; // $40,766
-        const twentySixDaysAgo = new Date(
-          blockDatetime.getTime() - 26 * 24 * 60 * 60 * 1000,
-        );
-
-        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
-          if ((effect as { name?: string }).name === "getTokenPrice") {
-            return { pricePerUSDNew: absurdPrice };
-          }
-          return {};
-        });
-        const afterCeiling = await PriceOracle.refreshTokenPrice(
-          {
-            ...mockToken0Data,
-            symbol: "BPX",
-            pricePerUSDNew: anchorPrice,
-            lastUpdatedTimestamp: twentySixDaysAgo,
-          },
-          blockNumber,
-          blockDatetime.getTime() / 1000,
-          chainId,
-          mockContext as handlerContext,
-        );
-        expect(afterCeiling.pricePerUSDNew).toBe(anchorPrice);
-
-        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
-          if ((effect as { name?: string }).name === "getTokenPrice") {
-            return { pricePerUSDNew: followUpPrice };
-          }
-          return {};
-        });
-        const threeHoursLater = blockDatetime.getTime() / 1000 + 3 * 60 * 60;
-        const afterFollowUp = await PriceOracle.refreshTokenPrice(
-          afterCeiling,
-          blockNumber,
-          threeHoursLater,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        // Still pinned to the sane anchor — the absurd read never poisoned it
-        // and the follow-up was rejected by the re-armed spike guard.
-        expect(afterFollowUp.pricePerUSDNew).toBe(anchorPrice);
-      });
-    });
-
-    // Issue #694: V3 last-known-price fallback used `lastUpdatedTimestamp`
-    // for two purposes — the 1-hour throttle and the 7-day staleness window
-    // guarding the fallback. Because every refresh attempt (including those
-    // that fall back) bumps `lastUpdatedTimestamp`, the 7-day window was
-    // effectively reset each hour. Once a token entered fallback, the stored
-    // non-zero price would pin indefinitely even if the oracle never
-    // recovered. Fix: introduce `lastSuccessfulPriceTimestamp`, only bumped
-    // on non-zero oracle writes; fallback's staleness window reads from it.
-    describe("V3 fallback staleness (issue #694)", () => {
-      // V3 oracle on Optimism starts at block 125484892. Use a post-V3 block
-      // so the V3 fallback branch in refreshTokenPrice is exercised.
-      const v3Block = 125484893;
-      const oneHourOneMinuteAgo = () =>
-        new Date(blockDatetime.getTime() - 61 * 60 * 1000);
-
-      beforeEach(() => {
-        vi.mocked(mockContext.Token?.set)?.mockClear();
-        vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mockClear();
-      });
-
-      it("applies the V3 fallback when the last successful price is recent (<7d) even though lastUpdatedTimestamp keeps advancing", async () => {
-        const anchorPrice = 2n * 10n ** 18n;
-        const recentSuccess = new Date(
-          blockDatetime.getTime() - 2 * 24 * 60 * 60 * 1000,
-        );
-        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
-          if ((effect as { name?: string }).name === "getTokenPrice") {
-            return { pricePerUSDNew: 0n };
-          }
-          return {};
-        });
-
-        const fetchedToken = {
-          ...mockToken0Data,
-          pricePerUSDNew: anchorPrice,
-          // Throttle clock is recent (1h ago), but the LAST SUCCESSFUL write
-          // was 2 days ago — fallback should apply.
-          lastUpdatedTimestamp: oneHourOneMinuteAgo(),
-          lastSuccessfulPriceTimestamp: recentSuccess,
-        };
-
-        await PriceOracle.refreshTokenPrice(
-          fetchedToken,
-          v3Block,
-          blockDatetime.getTime() / 1000,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
-          .lastCall?.[0] as Token;
-        expect(updatedToken.pricePerUSDNew).toBe(anchorPrice);
-        // Throttle clock advances on every attempt (existing behavior)
-        expect(updatedToken.lastUpdatedTimestamp.getTime()).toBe(
-          blockDatetime.getTime(),
-        );
-        // Last successful timestamp must NOT advance on a fallback write
-        expect(updatedToken.lastSuccessfulPriceTimestamp?.getTime()).toBe(
-          recentSuccess.getTime(),
-        );
-      });
-
-      it("still emits a snapshot tagged 'carried' on a last-known-price fallback tick (issue #822)", async () => {
-        // Issue #822 AC: a fallback tick (oracle 0, recent anchor reused) must
-        // leave a per-block snapshot holding the carried anchor.
-        const anchorPrice = 2n * 10n ** 18n;
-        const recentSuccess = new Date(
-          blockDatetime.getTime() - 2 * 24 * 60 * 60 * 1000,
-        );
-        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
-          if ((effect as { name?: string }).name === "getTokenPrice") {
-            return { pricePerUSDNew: 0n };
-          }
-          return {};
-        });
-
-        await PriceOracle.refreshTokenPrice(
-          {
-            ...mockToken0Data,
-            pricePerUSDNew: anchorPrice,
-            lastUpdatedTimestamp: oneHourOneMinuteAgo(),
-            lastSuccessfulPriceTimestamp: recentSuccess,
-          },
-          v3Block,
-          blockDatetime.getTime() / 1000,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        const snapshot = vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mock
-          .lastCall?.[0];
-        expect(snapshot?.priceSource).toBe("carried");
-        expect(snapshot?.pricePerUSDNew).toBe(anchorPrice);
-      });
-
-      it("still emits a snapshot tagged 'carried' when the oracle effect throws (issue #822)", async () => {
-        // Issue #822: the catch path (transient RPC error) returns the healed
-        // token unchanged but must still record a per-block snapshot of the
-        // price the token carries, so error ticks aren't holes.
-        const anchorPrice = 2n * 10n ** 18n;
-        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
-          if ((effect as { name?: string }).name === "getTokenPrice") {
-            throw new Error("RPC exploded");
-          }
-          return {};
-        });
-
-        await PriceOracle.refreshTokenPrice(
-          {
-            ...mockToken0Data,
-            pricePerUSDNew: anchorPrice,
-            lastUpdatedTimestamp: oneHourOneMinuteAgo(),
-          },
-          blockNumber,
-          blockDatetime.getTime() / 1000,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        const snapshot = vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mock
-          .lastCall?.[0];
-        expect(snapshot?.priceSource).toBe("carried");
-        expect(snapshot?.pricePerUSDNew).toBe(anchorPrice);
-      });
-
-      it("stops re-pinning once last successful price is older than 7 days, even with hourly retries (regression)", async () => {
-        const anchorPrice = 2n * 10n ** 18n;
-        const eightDaysAgo = new Date(
-          blockDatetime.getTime() - 8 * 24 * 60 * 60 * 1000,
-        );
-        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
-          if ((effect as { name?: string }).name === "getTokenPrice") {
-            return { pricePerUSDNew: 0n };
-          }
-          return {};
-        });
-
-        const fetchedToken = {
-          ...mockToken0Data,
-          pricePerUSDNew: anchorPrice,
-          // Throttle clock has been ticking forward hourly under fallback —
-          // imagine the most recent retry was 1h+1min ago. lastSuccessful
-          // hasn't moved since the last real oracle hit, which is now 8d old.
-          lastUpdatedTimestamp: oneHourOneMinuteAgo(),
-          lastSuccessfulPriceTimestamp: eightDaysAgo,
-        };
-
-        await PriceOracle.refreshTokenPrice(
-          fetchedToken,
-          v3Block,
-          blockDatetime.getTime() / 1000,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
-          .lastCall?.[0] as Token;
-        // 7-day window has expired — fallback must NOT apply. Write 0.
-        expect(updatedToken.pricePerUSDNew).toBe(0n);
-      });
-
-      it("bumps lastSuccessfulPriceTimestamp on a successful non-zero write", async () => {
-        const newPrice = 3n * 10n ** 18n;
-        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
-          if ((effect as { name?: string }).name === "getTokenPrice") {
-            return { pricePerUSDNew: newPrice };
-          }
-          return {};
-        });
-
-        const fetchedToken = {
-          ...mockToken0Data,
-          pricePerUSDNew: 0n,
-          lastUpdatedTimestamp: oneHourOneMinuteAgo(),
-          lastSuccessfulPriceTimestamp: undefined,
-        };
-
-        await PriceOracle.refreshTokenPrice(
-          fetchedToken,
-          v3Block,
-          blockDatetime.getTime() / 1000,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
-          .lastCall?.[0] as Token;
-        expect(updatedToken.pricePerUSDNew).toBe(newPrice);
-        expect(updatedToken.lastSuccessfulPriceTimestamp?.getTime()).toBe(
-          blockDatetime.getTime(),
-        );
-      });
-
-      it("does NOT bump lastSuccessfulPriceTimestamp when oracle returns 0 and no fallback is used", async () => {
-        // First-priced token: anchor is 0 (never priced), oracle still 0 →
-        // shouldn't qualify as a successful write.
-        const earlierTimestamp = new Date(
-          blockDatetime.getTime() - 2 * 60 * 60 * 1000,
-        );
-        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
-          if ((effect as { name?: string }).name === "getTokenPrice") {
-            return { pricePerUSDNew: 0n };
-          }
-          return {};
-        });
-
-        const fetchedToken = {
-          ...mockToken0Data,
-          pricePerUSDNew: 0n,
-          lastUpdatedTimestamp: earlierTimestamp,
-          lastSuccessfulPriceTimestamp: undefined,
-        };
-
-        await PriceOracle.refreshTokenPrice(
-          fetchedToken,
-          v3Block,
-          blockDatetime.getTime() / 1000,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
-          .lastCall?.[0] as Token;
-        expect(updatedToken.pricePerUSDNew).toBe(0n);
-        expect(updatedToken.lastSuccessfulPriceTimestamp).toBeUndefined();
-      });
-    });
-
-    // Issue #775: extending the #694 fallback to V1/V2. Before the fix, the
-    // V3-only gate let a transient gateway-fallback {pricePerUSDNew: 0n,
-    // usedDefault: true} overwrite a valid non-zero anchor on any V1/V2 block
-    // (Optimism V1/V2 ran from ~block 107.6M to ~125.5M — several months of
-    // exposure). Five canonical home-chain tokens (WETH-Base, WETH-OP,
-    // AERO-Base, VELO-OP, OP-OP) ended at $0 with isWhitelisted=true,
-    // poisoning ~$250M of cumulative volume in downstream USD aggregates.
-    // Same 7-day staleness window from #694 still bounds how stale we'll
-    // preserve.
-    describe("V1/V2 fallback staleness (issue #775)", () => {
-      // Optimism V1 oracle covers blocks ≤ 124076662 (see Constants.ts). Pick
-      // a block in the middle of the V1 window to exercise the V1 path.
-      const v1Block = 115_000_000;
-      // Optimism V2 oracle covers 124076662 < block ≤ 125484892.
-      const v2Block = 125_000_000;
-      const oneHourOneMinuteAgo = () =>
-        new Date(blockDatetime.getTime() - 61 * 60 * 1000);
-
-      beforeEach(() => {
-        vi.mocked(mockContext.Token?.set)?.mockClear();
-        vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mockClear();
-      });
-
-      it("applies the fallback on a V1 block when the last successful price is recent (<7d)", async () => {
-        const anchorPrice = 2_500n * 10n ** 18n; // WETH-OP shape
-        const recentSuccess = new Date(
-          blockDatetime.getTime() - 2 * 24 * 60 * 60 * 1000,
-        );
-        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
-          if ((effect as { name?: string }).name === "getTokenPrice") {
-            // Gateway-fallback shape: usedDefault=true → pricePerUSDNew=0n.
-            return { pricePerUSDNew: 0n };
-          }
-          return {};
-        });
-
-        const fetchedToken = {
-          ...mockToken0Data,
-          pricePerUSDNew: anchorPrice,
-          lastUpdatedTimestamp: oneHourOneMinuteAgo(),
-          lastSuccessfulPriceTimestamp: recentSuccess,
-        };
-
-        await PriceOracle.refreshTokenPrice(
-          fetchedToken,
-          v1Block,
-          blockDatetime.getTime() / 1000,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
-          .lastCall?.[0] as Token;
-        // Anchor preserved — this is the #775 regression check.
-        expect(updatedToken.pricePerUSDNew).toBe(anchorPrice);
-        // Throttle clock advances on every attempt (existing #694 behavior)
-        expect(updatedToken.lastUpdatedTimestamp.getTime()).toBe(
-          blockDatetime.getTime(),
-        );
-        // Last successful timestamp must NOT advance on a fallback write
-        expect(updatedToken.lastSuccessfulPriceTimestamp?.getTime()).toBe(
-          recentSuccess.getTime(),
-        );
-      });
-
-      it("applies the fallback on a V2 block when the last successful price is recent (<7d)", async () => {
-        const anchorPrice = 2_500n * 10n ** 18n;
-        const recentSuccess = new Date(
-          blockDatetime.getTime() - 2 * 24 * 60 * 60 * 1000,
-        );
-        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
-          if ((effect as { name?: string }).name === "getTokenPrice") {
-            return { pricePerUSDNew: 0n };
-          }
-          return {};
-        });
-
-        const fetchedToken = {
-          ...mockToken0Data,
-          pricePerUSDNew: anchorPrice,
-          lastUpdatedTimestamp: oneHourOneMinuteAgo(),
-          lastSuccessfulPriceTimestamp: recentSuccess,
-        };
-
-        await PriceOracle.refreshTokenPrice(
-          fetchedToken,
-          v2Block,
-          blockDatetime.getTime() / 1000,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
-          .lastCall?.[0] as Token;
-        expect(updatedToken.pricePerUSDNew).toBe(anchorPrice);
-      });
-
-      it("stops re-pinning on a V1 block once the last successful price is older than 7 days", async () => {
-        const anchorPrice = 2_500n * 10n ** 18n;
-        const eightDaysAgo = new Date(
-          blockDatetime.getTime() - 8 * 24 * 60 * 60 * 1000,
-        );
-        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
-          if ((effect as { name?: string }).name === "getTokenPrice") {
-            return { pricePerUSDNew: 0n };
-          }
-          return {};
-        });
-
-        const fetchedToken = {
-          ...mockToken0Data,
-          pricePerUSDNew: anchorPrice,
-          lastUpdatedTimestamp: oneHourOneMinuteAgo(),
-          lastSuccessfulPriceTimestamp: eightDaysAgo,
-        };
-
-        await PriceOracle.refreshTokenPrice(
-          fetchedToken,
-          v1Block,
-          blockDatetime.getTime() / 1000,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
-          .lastCall?.[0] as Token;
-        // 7-day window has expired — fallback must NOT apply. Write 0.
-        expect(updatedToken.pricePerUSDNew).toBe(0n);
-      });
-
-      it("preserves 0n on a V1 block when there is no prior anchor (no spurious fallback)", async () => {
-        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
-          if ((effect as { name?: string }).name === "getTokenPrice") {
-            return { pricePerUSDNew: 0n };
-          }
-          return {};
-        });
-
-        const fetchedToken = {
-          ...mockToken0Data,
-          pricePerUSDNew: 0n,
-          lastUpdatedTimestamp: oneHourOneMinuteAgo(),
-          lastSuccessfulPriceTimestamp: undefined,
-        };
-
-        await PriceOracle.refreshTokenPrice(
-          fetchedToken,
-          v1Block,
-          blockDatetime.getTime() / 1000,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        const updatedToken = vi.mocked(mockContext.Token?.set)?.mock
-          .lastCall?.[0] as Token;
-        // shouldUseLastKnownPrice requires anchor > 0n, so fallback is skipped
-        // — fall through to the normal write of 0n. No spurious value invented.
-        expect(updatedToken.pricePerUSDNew).toBe(0n);
-        expect(updatedToken.lastSuccessfulPriceTimestamp).toBeUndefined();
-      });
-    });
-
-    describe("when price fetch fails", () => {
-      let originalToken: Token;
-      beforeEach(async () => {
-        // Reset mockContext first
-        vi.mocked(mockContext.Token?.set)?.mockClear();
-        vi.mocked(mockContext.log?.error)?.mockClear();
-
-        // Override effect mock to throw only for getTokenPrice
-        // Since refreshTokenPrice calls both effects in parallel, we need to check
-        // the effect name and throw conditionally rather than using mockImplementationOnce
-        vi.mocked(mockContext.effect)?.mockImplementation(
-          async (effect: unknown, input: unknown) => {
-            if ((effect as { name?: string }).name === "getTokenPrice") {
-              throw new Error("Price fetch failed");
-            }
-            // Use default implementation for other effects
-            return defaultEffectImplementation(effect, input);
-          },
-        );
-
-        const testLastUpdated = new Date(
-          blockDatetime.getTime() - 61 * 60 * 1000,
-        );
-        originalToken = {
-          ...mockToken0Data,
-          lastUpdatedTimestamp: testLastUpdated,
-        } as Token;
-        const blockTimestamp = blockDatetime.getTime() / 1000;
-        await PriceOracle.refreshTokenPrice(
-          originalToken,
-          blockNumber,
-          blockTimestamp,
-          chainId,
-          mockContext as handlerContext,
-        );
-      });
-      it("should log error when price fetch fails", async () => {
-        // Should log error
-        expect(vi.mocked(mockContext.log?.error)).toHaveBeenCalled();
-        const errorCall = vi.mocked(mockContext.log?.error)?.mock.lastCall;
-        expect(errorCall?.[0]).toContain("Error refreshing token price");
-      });
-      it("should not update token when price fetch fails", async () => {
-        // Token.set should not be called when error occurs
-        // The function catches the error and returns the original token
-        const setCalls = vi.mocked(mockContext.Token?.set)?.mock.calls;
-        // Filter out any calls from previous tests
-        const errorRelatedCalls = setCalls?.filter(
-          (call) => call[0]?.address === originalToken.address,
-        );
-        expect(errorRelatedCalls).toHaveLength(0);
-      });
+    it("heals empty metadata even when the price refresh is throttled (#735)", async () => {
+      const store = opStore({
+        tokens: [
+          makeToken(OP, OP_TOKEN_X, 18n, USD(1), NOW - 60, {
+            symbol: "",
+            name: "",
+          }),
+        ],
+      });
+      const x = await refresh(store, OP, OP_TOKEN_X);
+      expect(x.symbol).toBe("HEAL");
+      expect(store.effectCalls).toEqual(["getTokenDetails"]);
+      expect(store.snapshots).toHaveLength(0);
     });
   });
 
   describe("createTokenEntity", () => {
-    const tokenAddress = toChecksumAddress(
-      "0x1111111111111111111111111111111111111111",
-    );
-    const blockNumber = 1000000;
-    const blockTimestamp = Math.floor(blockDatetime.getTime() / 1000);
+    const blockTimestamp = HOUR_START_S + 600;
 
-    beforeEach(() => {
-      // Reset mocks
-      vi.mocked(mockContext.Token?.set)?.mockClear();
-      vi.mocked(mockContext.effect)?.mockClear();
-    });
-
-    it("should create a token entity with correct fields", async () => {
+    it("creates the token at price 0 with no success stamp", async () => {
+      const store = createPricingStore({});
       const token = await PriceOracle.createTokenEntity(
-        tokenAddress,
-        chainId,
-        blockNumber,
-        mockContext as handlerContext,
+        OP_TOKEN_X,
+        OP,
+        1_000_000,
+        store.context,
         blockTimestamp,
       );
-
       if (!token) throw new Error("expected token to be created");
-      expect(token.address).toBe(tokenAddress);
-      expect(token.symbol).toBe("TEST");
-      expect(token.name).toBe("Test Token");
-      expect(token.decimals).toBe(18n);
-      expect(token.pricePerUSDNew).toBe(0n);
-      expect(token.chainId).toBe(chainId);
-      expect(token.isWhitelisted).toBe(false);
-      expect(token.lastUpdatedTimestamp).toBeInstanceOf(Date);
+      expect(token).toMatchObject({
+        id: TokenId(OP, OP_TOKEN_X),
+        address: OP_TOKEN_X,
+        chainId: OP,
+        symbol: "HEAL",
+        name: "Healed",
+        decimals: 18n,
+        pricePerUSDNew: 0n,
+        isWhitelisted: false,
+        lastUpdatedTimestamp: new Date(blockTimestamp * 1000),
+        lastSuccessfulPriceTimestamp: undefined,
+        priceTrustOutcome: "UNTRUSTED",
+        priceTrustReason: "NON_WL",
+      });
+      expect(store.tokens.get(token.id)).toBe(token);
     });
 
-    it("should call Token.set with the created entity", async () => {
-      await PriceOracle.createTokenEntity(
-        tokenAddress,
-        chainId,
-        blockNumber,
-        mockContext as handlerContext,
+    it("creates a tier-0 stablecoin at its $1 pin", async () => {
+      const store = createPricingStore({});
+      const token = await PriceOracle.createTokenEntity(
+        OP_USDC,
+        OP,
+        1_000_000,
+        store.context,
         blockTimestamp,
       );
-
-      expect(vi.mocked(mockContext.Token?.set)).toHaveBeenCalledTimes(1);
-      const setToken = vi.mocked(mockContext.Token?.set)?.mock
-        .lastCall?.[0] as Token;
-      expect(setToken.address).toBe(tokenAddress);
-      expect(setToken.pricePerUSDNew).toBe(0n);
+      expect(token?.pricePerUSDNew).toBe(USD(1));
+      expect(token?.lastSuccessfulPriceTimestamp).toEqual(
+        new Date(blockTimestamp * 1000),
+      );
     });
 
-    it("should call getTokenDetails effect", async () => {
-      await PriceOracle.createTokenEntity(
-        tokenAddress,
-        chainId,
-        blockNumber,
-        mockContext as handlerContext,
+    it("returns null and writes nothing when the address has no bytecode (#677)", async () => {
+      const store = createPricingStore({});
+      vi.mocked(store.context.effect).mockImplementation((async (effect: {
+        name?: string;
+      }) => {
+        store.effectCalls.push(effect.name ?? "");
+        if (effect.name === "hasContractBytecode") return { hasCode: false };
+        throw new Error("getTokenDetails must not be called");
+      }) as never);
+      const token = await PriceOracle.createTokenEntity(
+        OP_TOKEN_X,
+        OP,
+        1_000_000,
+        store.context,
         blockTimestamp,
       );
+      expect(token).toBeNull();
+      expect(store.context.Token.set).not.toHaveBeenCalled();
+      expect(store.effectCalls).toEqual(["hasContractBytecode"]);
+    });
+  });
 
-      const detailsCall = vi
-        .mocked(mockContext.effect)
-        ?.mock.calls.find(
-          (c) => (c[0] as { name?: string }).name === "getTokenDetails",
-        );
-      expect(detailsCall).toBeDefined();
+  describe("initialTokenPriceFields", () => {
+    const createdAt = new Date(HOUR_START_S * 1000);
+
+    it("pins tier-0 tokens and stamps the success clock", () => {
       expect(
-        (detailsCall?.[1] as { contractAddress: string }).contractAddress,
-      ).toBe(tokenAddress);
-      expect((detailsCall?.[1] as { chainId: number }).chainId).toBe(chainId);
-    });
-
-    describe("when address has no bytecode (EOA / non-contract)", () => {
-      beforeEach(() => {
-        vi.mocked(mockContext.effect)?.mockImplementation(
-          async (effect: unknown) => {
-            const name = (effect as { name?: string }).name;
-            if (name === "hasContractBytecode") return { hasCode: false };
-            if (name === "getTokenDetails")
-              return { name: "Test Token", decimals: 18, symbol: "TEST" };
-            return {};
-          },
-        );
-      });
-
-      it("returns null and does not call Token.set", async () => {
-        const token = await PriceOracle.createTokenEntity(
-          tokenAddress,
-          chainId,
-          blockNumber,
-          mockContext as handlerContext,
-          blockTimestamp,
-        );
-
-        expect(token).toBeNull();
-        expect(vi.mocked(mockContext.Token?.set)).not.toHaveBeenCalled();
-      });
-
-      it("does not call getTokenDetails when bytecode is empty", async () => {
-        await PriceOracle.createTokenEntity(
-          tokenAddress,
-          chainId,
-          blockNumber,
-          mockContext as handlerContext,
-          blockTimestamp,
-        );
-
-        const detailsCall = vi
-          .mocked(mockContext.effect)
-          ?.mock.calls.find(
-            (c) => (c[0] as { name?: string }).name === "getTokenDetails",
-          );
-        expect(detailsCall).toBeUndefined();
+        PriceOracle.initialTokenPriceFields(OP, OP_USDC, createdAt),
+      ).toEqual({
+        pricePerUSDNew: USD(1),
+        lastSuccessfulPriceTimestamp: createdAt,
       });
     });
 
-    describe("pool-implied ground-truth re-anchor (#784/#785)", () => {
-      // USD price scaled by 1e18, matching `pricePerUSDNew`.
-      const usd = (n: number) => BigInt(Math.round(n * 1e6)) * 10n ** 12n;
-      const twoHoursAgo = new Date(
-        blockDatetime.getTime() - 2 * 60 * 60 * 1000,
-      );
-      const blockTimestamp = blockDatetime.getTime() / 1000;
-
-      const refreshWithRead = async (
-        read: bigint,
-        token: Token,
-        impliedPriceHint?: bigint,
-      ) => {
-        vi.mocked(mockContext.effect)?.mockImplementation(
-          async (effect: unknown) => {
-            const name = (effect as { name?: string }).name;
-            if (name === "getTokenPrice") return { pricePerUSDNew: read };
-            if (name === "getTokenDetails")
-              return { name: "Test", decimals: 18, symbol: "TEST" };
-            if (name === "hasContractBytecode") return { hasCode: true };
-            return {};
-          },
-        );
-        return PriceOracle.refreshTokenPrice(
-          token,
-          blockNumber,
-          blockTimestamp,
-          chainId,
-          mockContext as handlerContext,
-          impliedPriceHint,
-        );
-      };
-
-      it("#784: re-anchors a stuck-low anchor when the read corroborates the pool-implied hint", async () => {
-        const stuckLow = usd(0.0026); // bad downward-glitch anchor
-        const hint = usd(0.14); // pool-implied ground truth
-        const read = usd(0.14); // correct heal the upward-only guard rejects
-        const fetchedToken: Token = {
-          ...mockToken0Data,
-          pricePerUSDNew: stuckLow,
-          lastUpdatedTimestamp: twoHoursAgo, // fresh anchor → spike guard active
-          lastSuccessfulPriceTimestamp: twoHoursAgo,
-        };
-
-        await refreshWithRead(read, fetchedToken, hint);
-
-        const written = vi.mocked(mockContext.Token?.set)?.mock
-          .lastCall?.[0] as Token;
-        expect(written?.pricePerUSDNew).toBe(read);
-      });
-
-      it("#785: replaces a too-low first read with the pool-implied hint (no permanent low anchor)", async () => {
-        const hint = usd(0.25); // pool-implied true band
-        const read = usd(0.0014); // bad too-low first read
-        const fetchedToken: Token = {
-          ...mockToken0Data,
-          pricePerUSDNew: 0n, // first fetch
-          lastUpdatedTimestamp: twoHoursAgo,
-        };
-
-        await refreshWithRead(read, fetchedToken, hint);
-
-        const written = vi.mocked(mockContext.Token?.set)?.mock
-          .lastCall?.[0] as Token;
-        expect(written?.pricePerUSDNew).toBe(hint);
-        // Issue #822: anchoring to the hint is tagged `pool-implied`, distinct
-        // from a straight-from-oracle `fresh` read, so a consumer can tell a
-        // pool-derived anchor apart from a raw oracle price.
-        const snapshot = vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mock
-          .lastCall?.[0];
-        expect(snapshot?.priceSource).toBe("pool-implied");
-        expect(snapshot?.pricePerUSDNew).toBe(hint);
-      });
-
-      it("#785: replaces a too-high first read with the hint (supersedes FIRST_FETCH_CAP)", async () => {
-        const hint = usd(0.25); // pool-implied true band
-        const read = usd(50_000); // glitch-high first read, also > FIRST_FETCH_CAP
-        const fetchedToken: Token = {
-          ...mockToken0Data,
-          pricePerUSDNew: 0n, // first fetch
-          symbol: "TEST", // non-BTC: FIRST_FETCH_CAP would otherwise zero it
-          lastUpdatedTimestamp: twoHoursAgo,
-        };
-
-        await refreshWithRead(read, fetchedToken, hint);
-
-        const written = vi.mocked(mockContext.Token?.set)?.mock
-          .lastCall?.[0] as Token;
-        expect(written?.pricePerUSDNew).toBe(hint);
-      });
-
-      it("#728 intact: a too-high first read with NO hint is still rejected (kept at 0)", async () => {
-        const read = usd(50_000); // > FIRST_FETCH_CAP, non-BTC
-        const fetchedToken: Token = {
-          ...mockToken0Data,
-          pricePerUSDNew: 0n,
-          symbol: "TEST",
-          lastUpdatedTimestamp: twoHoursAgo,
-        };
-
-        await refreshWithRead(read, fetchedToken); // no hint
-
-        const written = vi.mocked(mockContext.Token?.set)?.mock
-          .lastCall?.[0] as Token;
-        expect(written?.pricePerUSDNew).toBe(0n);
-      });
-
-      it("false-positive guard: a glitch-high read is NOT re-anchored when the hint disagrees (#801 audit)", async () => {
-        const realPrice = usd(0.15); // correct, fresh anchor
-        const hint = usd(0.15); // pool-implied agrees with the anchor
-        const glitchHigh = usd(10_000); // sustained glitch-high read
-        const fetchedToken: Token = {
-          ...mockToken0Data,
-          pricePerUSDNew: realPrice,
-          lastUpdatedTimestamp: twoHoursAgo,
-          lastSuccessfulPriceTimestamp: twoHoursAgo,
-        };
-
-        await refreshWithRead(glitchHigh, fetchedToken, hint);
-
-        // Spike guard rejects → no write, correct anchor preserved.
-        expect(vi.mocked(mockContext.Token?.set)).not.toHaveBeenCalled();
-      });
-
-      it("inert without a hint: a stuck-low anchor's correct read is still rejected when no hint is supplied", async () => {
-        const stuckLow = usd(0.0026);
-        const read = usd(0.14); // correct heal, but no ground truth to corroborate
-        const fetchedToken: Token = {
-          ...mockToken0Data,
-          pricePerUSDNew: stuckLow,
-          lastUpdatedTimestamp: twoHoursAgo,
-          lastSuccessfulPriceTimestamp: twoHoursAgo,
-        };
-
-        await refreshWithRead(read, fetchedToken); // no hint → behaves as before
-
-        expect(vi.mocked(mockContext.Token?.set)).not.toHaveBeenCalled();
-      });
-
-      it("#788: a hint above MAX_ACCEPTED_PRICE is not used as an anchor; the reasonable read is accepted instead", async () => {
-        const hint = usd(2_000_000); // > MAX_ACCEPTED_PRICE ($1M): glitched pool ratio
-        const read = usd(0.25); // reasonable read, out of band vs the glitched hint
-        const fetchedToken: Token = {
-          ...mockToken0Data,
-          pricePerUSDNew: 0n, // first fetch
-          symbol: "TEST",
-          lastUpdatedTimestamp: twoHoursAgo,
-        };
-
-        await refreshWithRead(read, fetchedToken, hint);
-
-        const written = vi.mocked(mockContext.Token?.set)?.mock
-          .lastCall?.[0] as Token;
-        // Hint exceeds the absolute ceiling → not usable ground truth, so the
-        // first-fetch branch is skipped and the read is anchored normally
-        // instead of writing a >$1M anchor from a glitched ratio.
-        expect(written?.pricePerUSDNew).toBe(read);
+    it("starts everything else at 0", () => {
+      expect(
+        PriceOracle.initialTokenPriceFields(OP, OP_WETH, createdAt),
+      ).toEqual({
+        pricePerUSDNew: 0n,
+        lastSuccessfulPriceTimestamp: undefined,
       });
     });
+  });
 
-    // Issue #822: the provenance invariant, in one place. Every NON-throttle
-    // return of refreshTokenPrice must emit exactly one TokenPriceSnapshot,
-    // tagged by the branch that produced the price. This is the machine-enforced
-    // form of the "Any future early-return added below must call this too"
-    // comment in src/PriceOracle.ts: a new return that forgets to snapshot drops
-    // a row (count 0) and a stray double-snapshot adds one (count 2) — either
-    // fails here. The throttle early-return is the sole snapshot-free exit and is
-    // covered separately above ("does not refresh while inside the 1-hour
-    // throttle window").
-    describe("Issue #822: every non-throttle return emits exactly one tagged snapshot", () => {
-      const usd = (n: number) => BigInt(Math.round(n * 1e6)) * 10n ** 12n;
-      const blockTimestamp = blockDatetime.getTime() / 1000;
-      const oneHourOneMinuteAgo = () =>
-        new Date(blockDatetime.getTime() - 61 * 60 * 1000);
+  describe("healTokenMetadata (#735, #820)", () => {
+    const base = makeToken(OP, OP_TOKEN_X, 18n, USD(1), HOUR_START_S);
 
-      // Real override-table entries (mirroring the blacklist/rebind tests above)
-      // so the two pre-oracle branches are driven through the same overrides
-      // production uses, not a hand-mocked predicate.
-      const MANATEE_OP = toChecksumAddress(
-        "0x7909Bda52eAf7C3cc12745E727Eb527a485241D8",
+    function contextWithDetails(
+      details: { name: string; symbol: string; decimals: number } | Error = {
+        name: "Test Token",
+        symbol: "TEST",
+        decimals: 18,
+      },
+    ) {
+      const store = createPricingStore({});
+      vi.mocked(store.context.effect).mockImplementation((async () => {
+        if (details instanceof Error) throw details;
+        return details;
+      }) as never);
+      return store.context as handlerContext;
+    }
+
+    it("heals an empty-symbol token and writes the result", async () => {
+      const context = contextWithDetails();
+      const healed = await PriceOracle.healTokenMetadata(
+        { ...base, symbol: "", name: "" },
+        OP,
+        context,
       );
-      const RSETH_SWELL = toChecksumAddress(
-        "0xc3eaCf0612346366Db554c991D7858716db09f58",
-      );
-      const WRSETH_BASE = toChecksumAddress(
-        "0xEDfa23602D0EC14714057867A78d01e94176BEA0",
-      );
-      const rebindSourcePrice = 2_443n * 10n ** 18n;
+      expect(healed.symbol).toBe("TEST");
+      expect(healed.name).toBe("Test Token");
+      expect(context.Token.set).toHaveBeenCalledWith(healed);
+    });
 
-      const setOracleRead = (read: bigint) =>
-        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
-          if ((effect as { name?: string }).name === "getTokenPrice") {
-            return { pricePerUSDNew: read };
-          }
-          return {};
-        });
+    it("short-circuits without an effect call when metadata is populated", async () => {
+      const context = contextWithDetails();
+      const healed = await PriceOracle.healTokenMetadata(base, OP, context);
+      expect(healed).toBe(base);
+      expect(context.effect).not.toHaveBeenCalled();
+      expect(context.Token.set).not.toHaveBeenCalled();
+    });
 
-      beforeEach(() => {
-        vi.mocked(mockContext.Token?.set)?.mockClear();
-        vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mockClear();
-        vi.mocked(mockContext.Token?.get)?.mockReset();
-        vi.mocked(mockContext.Token?.get)?.mockResolvedValue(undefined);
+    it("stages no write when the fresh read is still empty", async () => {
+      const context = contextWithDetails({
+        name: "",
+        symbol: "",
+        decimals: 18,
       });
+      const input = { ...base, symbol: "", name: "" };
+      expect(await PriceOracle.healTokenMetadata(input, OP, context)).toBe(
+        input,
+      );
+      expect(context.Token.set).not.toHaveBeenCalled();
+    });
 
-      // Each scenario wires the inputs that route refreshTokenPrice to exactly
-      // one non-throttle return, then declares the price + tag that return must
-      // snapshot.
-      const scenarios: {
-        name: string;
-        prepare: () => { token: Token; chainId: number; hint?: bigint };
-        expectedTag: string;
-        expectedPrice: bigint;
-      }[] = [
-        {
-          name: "blacklist → override (0)",
-          prepare: () => ({
-            token: {
-              ...mockToken0Data,
-              address: MANATEE_OP,
-              pricePerUSDNew: 388_328n * 10n ** 18n,
-              lastUpdatedTimestamp: oneHourOneMinuteAgo(),
-            },
-            chainId: 10, // Optimism, where $Manatee is blacklisted
-          }),
-          expectedTag: "override",
-          expectedPrice: 0n,
-        },
-        {
-          name: "rebind → rebind (source price)",
-          prepare: () => {
-            vi.mocked(mockContext.Token?.get)?.mockImplementation(async (id) =>
-              id === `8453-${WRSETH_BASE}`
-                ? ({ pricePerUSDNew: rebindSourcePrice } as Token)
-                : undefined,
-            );
-            return {
-              token: {
-                ...mockToken0Data,
-                address: RSETH_SWELL,
-                pricePerUSDNew: 3_620_000n * 10n ** 18n,
-                lastUpdatedTimestamp: oneHourOneMinuteAgo(),
-              },
-              chainId: 1923, // Swell, where rsETH rebinds to wrsETH/Base
-            };
-          },
-          expectedTag: "rebind",
-          expectedPrice: rebindSourcePrice,
-        },
-        {
-          name: "absolute ceiling → carried (anchor)",
-          prepare: () => {
-            setOracleRead(10n ** 30n); // far above the $1M ceiling
-            return {
-              token: {
-                ...mockToken0Data,
-                symbol: "BPX",
-                pricePerUSDNew: 137n * 10n ** 12n, // $0.000137 anchor
-                lastUpdatedTimestamp: oneHourOneMinuteAgo(),
-              },
-              chainId: 10,
-            };
-          },
-          expectedTag: "carried",
-          expectedPrice: 137n * 10n ** 12n,
-        },
-        {
-          name: "pool-implied first-fetch → pool-implied (hint)",
-          prepare: () => {
-            setOracleRead(usd(0.0014)); // too-low first read, out of band
-            return {
-              token: {
-                ...mockToken0Data,
-                pricePerUSDNew: 0n,
-                lastUpdatedTimestamp: oneHourOneMinuteAgo(),
-              },
-              chainId: 10,
-              hint: usd(0.25),
-            };
-          },
-          expectedTag: "pool-implied",
-          expectedPrice: usd(0.25),
-        },
-        {
-          name: "first-fetch cap → carried (0)",
-          prepare: () => {
-            setOracleRead(50_000n * 10n ** 18n); // > FIRST_FETCH_CAP, < ceiling
-            return {
-              token: {
-                ...mockToken0Data,
-                symbol: "USDT", // non-BTC
-                pricePerUSDNew: 0n,
-                lastUpdatedTimestamp: oneHourOneMinuteAgo(),
-              },
-              chainId: 10, // no hint → not the pool-implied path
-            };
-          },
-          expectedTag: "carried",
-          expectedPrice: 0n,
-        },
-        {
-          name: "spike rejection → carried (anchor)",
-          prepare: () => {
-            setOracleRead(100n * 10n ** 18n); // 100× the still-fresh anchor
-            return {
-              token: {
-                ...mockToken0Data,
-                pricePerUSDNew: 1n * 10n ** 18n,
-                lastUpdatedTimestamp: oneHourOneMinuteAgo(),
-                lastSuccessfulPriceTimestamp: oneHourOneMinuteAgo(),
-              },
-              chainId: 10,
-            };
-          },
-          expectedTag: "carried",
-          expectedPrice: 1n * 10n ** 18n,
-        },
-        {
-          name: "last-known fallback → carried (anchor)",
-          prepare: () => {
-            setOracleRead(0n); // transient $0 read
-            return {
-              token: {
-                ...mockToken0Data,
-                pricePerUSDNew: 2n * 10n ** 18n,
-                lastUpdatedTimestamp: oneHourOneMinuteAgo(),
-                lastSuccessfulPriceTimestamp: new Date(
-                  blockDatetime.getTime() - 24 * 60 * 60 * 1000, // 1d ago (<7d)
-                ),
-              },
-              chainId: 10,
-            };
-          },
-          expectedTag: "carried",
-          expectedPrice: 2n * 10n ** 18n,
-        },
-        {
-          name: "oracle success → fresh (read)",
-          prepare: () => {
-            setOracleRead(3n * 10n ** 18n); // 1.5× anchor: accepted, not a spike
-            return {
-              token: {
-                ...mockToken0Data,
-                pricePerUSDNew: 2n * 10n ** 18n,
-                lastUpdatedTimestamp: oneHourOneMinuteAgo(),
-                lastSuccessfulPriceTimestamp: oneHourOneMinuteAgo(),
-              },
-              chainId: 10,
-            };
-          },
-          expectedTag: "fresh",
-          expectedPrice: 3n * 10n ** 18n,
-        },
-        {
-          name: "oracle throws → carried (anchor)",
-          prepare: () => {
-            vi.mocked(mockContext.effect)?.mockImplementation(
-              async (effect) => {
-                if ((effect as { name?: string }).name === "getTokenPrice") {
-                  throw new Error("transient RPC failure");
-                }
-                return {};
-              },
-            );
-            return {
-              token: {
-                ...mockToken0Data,
-                pricePerUSDNew: 2n * 10n ** 18n,
-                lastUpdatedTimestamp: oneHourOneMinuteAgo(),
-              },
-              chainId: 10,
-            };
-          },
-          expectedTag: "carried",
-          expectedPrice: 2n * 10n ** 18n,
-        },
-      ];
-
-      it.each(scenarios)(
-        "$name",
-        async ({ prepare, expectedTag, expectedPrice }) => {
-          const { token, chainId: scenarioChainId, hint } = prepare();
-
-          await PriceOracle.refreshTokenPrice(
-            token,
-            blockNumber,
-            blockTimestamp,
-            scenarioChainId,
-            mockContext as handlerContext,
-            hint,
-          );
-
-          // The invariant: exactly one snapshot per non-throttle return.
-          expect(
-            vi.mocked(mockContext.TokenPriceSnapshot?.set),
-          ).toHaveBeenCalledTimes(1);
-          const snapshot = vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mock
-            .lastCall?.[0];
-          expect(snapshot?.priceSource).toBe(expectedTag);
-          expect(snapshot?.pricePerUSDNew).toBe(expectedPrice);
-        },
+    it("logs and returns the input when getTokenDetails throws", async () => {
+      const context = contextWithDetails(new Error("RPC down"));
+      const input = { ...base, symbol: "", name: "" };
+      expect(await PriceOracle.healTokenMetadata(input, OP, context)).toBe(
+        input,
+      );
+      expect(context.log.error).toHaveBeenCalledWith(
+        expect.stringContaining("Error refreshing token metadata"),
       );
     });
 
-    // Issue #863 (audit follow-up to #822): the wall-clock E-2 check flags
-    // any whitelisted token whose latest TokenPriceSnapshot is > 2 h old.
-    // That shape is too loose: snapshots fire only on event-driven refresh
-    // ticks, so an inactive token legitimately has no fresh snapshot. The
-    // pair of tests below pins the two halves of the actual #822 contract
-    // — throttle skips snapshot, every event-driven tick on an active token
-    // writes one — so a future refactor that breaks either half is caught.
-    describe("Issue #863: snapshot cadence is per-tick, not wall-clock", () => {
-      const oneHourOneMinuteAgo = () =>
-        new Date(blockDatetime.getTime() - 61 * 60 * 1000);
-
-      beforeEach(() => {
-        vi.mocked(mockContext.Token?.set)?.mockClear();
-        vi.mocked(mockContext.TokenPriceSnapshot?.set)?.mockClear();
+    it("re-derives a fallback-origin decimals (#820)", async () => {
+      const context = contextWithDetails({
+        name: "USD Coin",
+        symbol: "USDC",
+        decimals: 6,
       });
+      const healed = await PriceOracle.healTokenMetadata(
+        { ...base, symbol: "", name: "", decimals: 18n },
+        OP,
+        context,
+      );
+      expect(healed.decimals).toBe(6n);
+    });
 
-      it("a throttled refresh writes no snapshot — wall-clock gaps on idle tokens are not bugs", async () => {
-        // The throttle return is the spec's sole snapshot-free exit
-        // ("no tick occurred"). E-2's wall-clock probe will flag idle
-        // whitelisted tokens because of this, but that is by design — not
-        // an indexer bug to chase.
-        const thirtyMinutesAgo = new Date(
-          blockDatetime.getTime() - 30 * 60 * 1000,
-        );
-        await PriceOracle.refreshTokenPrice(
-          {
-            ...mockToken0Data,
-            pricePerUSDNew: 2n * 10n ** 18n,
-            lastUpdatedTimestamp: thirtyMinutesAgo,
-          },
-          blockNumber,
-          blockDatetime.getTime() / 1000,
-          chainId,
-          mockContext as handlerContext,
-        );
-
-        expect(
-          vi.mocked(mockContext.TokenPriceSnapshot?.set),
-        ).not.toHaveBeenCalled();
+    it("leaves decimals alone when only the name was missing (#820)", async () => {
+      const context = contextWithDetails({
+        name: "USD Coin",
+        symbol: "USDC",
+        decimals: 18,
       });
-
-      it("three event-driven refreshes spaced > 1 h apart produce three snapshots", async () => {
-        // Per-event positive case: an *active* token sees one snapshot per
-        // non-throttle tick. The TokenIdByBlock id uses the block number, so
-        // three distinct refreshes at three distinct blocks yield three
-        // distinct snapshot rows.
-        vi.mocked(mockContext.effect)?.mockImplementation(async (effect) => {
-          if ((effect as { name?: string }).name === "getTokenPrice") {
-            return { pricePerUSDNew: 2n * 10n ** 18n };
-          }
-          return {};
-        });
-        const baseTs = blockDatetime.getTime() / 1000;
-
-        let carry: Token = {
-          ...mockToken0Data,
-          pricePerUSDNew: 2n * 10n ** 18n,
-          lastUpdatedTimestamp: oneHourOneMinuteAgo(),
-          lastSuccessfulPriceTimestamp: oneHourOneMinuteAgo(),
-        };
-        // Three ticks, each > 1 h after the previous lastUpdatedTimestamp,
-        // each at a distinct block to exercise per-block snapshot IDs.
-        for (const offsetHours of [0, 2, 4]) {
-          carry = await PriceOracle.refreshTokenPrice(
-            carry,
-            blockNumber + offsetHours,
-            baseTs + offsetHours * 60 * 60,
-            chainId,
-            mockContext as handlerContext,
-          );
-        }
-
-        expect(
-          vi.mocked(mockContext.TokenPriceSnapshot?.set),
-        ).toHaveBeenCalledTimes(3);
-        // Each snapshot uses TokenIdByBlock — three distinct block numbers,
-        // three distinct ids, no per-block collision.
-        const ids = vi
-          .mocked(mockContext.TokenPriceSnapshot?.set)
-          ?.mock.calls.map(([snap]) => snap?.id);
-        expect(new Set(ids).size).toBe(3);
-      });
+      const healed = await PriceOracle.healTokenMetadata(
+        { ...base, symbol: "USDC", name: "", decimals: 6n },
+        OP,
+        context,
+      );
+      expect(healed.name).toBe("USD Coin");
+      expect(healed.decimals).toBe(6n);
     });
   });
 });

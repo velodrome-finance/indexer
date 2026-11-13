@@ -15,6 +15,7 @@ import {
   computeLiquidityDeltaFromAmounts,
   computeNonCLStakedUSD,
   concentratedLiquidityToUSD,
+  normalizeTokenAmountTo1e18,
   pickTrustedSwapVolumeUSD,
   runAsyncWithErrorLog,
   sortByBlockThenLogIndex,
@@ -1254,6 +1255,31 @@ describe("Helpers", () => {
       expect(pickTrustedSwapVolumeUSD(0n, 0n)).toBe(0n);
       expect(pickTrustedSwapVolumeUSD(undefined, undefined)).toBe(0n);
       expect(pickTrustedSwapVolumeUSD(undefined, 0n)).toBe(0n);
+    });
+  });
+
+  describe("normalizeTokenAmountTo1e18", () => {
+    it("scales 6-, 8- and 18-decimal amounts to 1e18", () => {
+      expect(normalizeTokenAmountTo1e18(5n * 10n ** 6n, 6)).toBe(
+        5n * TEN_TO_THE_18_BI,
+      );
+      expect(normalizeTokenAmountTo1e18(5n * 10n ** 8n, 8)).toBe(
+        5n * TEN_TO_THE_18_BI,
+      );
+      expect(normalizeTokenAmountTo1e18(5n * TEN_TO_THE_18_BI, 18)).toBe(
+        5n * TEN_TO_THE_18_BI,
+      );
+    });
+
+    it("treats a 0-decimal amount as whole units (previously left unscaled, i.e. read as 18 decimals)", () => {
+      expect(normalizeTokenAmountTo1e18(5n, 0)).toBe(5n * TEN_TO_THE_18_BI);
+    });
+
+    it("stays exact above 22 decimals", () => {
+      // 10 ** 24 as a JS number is not exactly 1e24.
+      expect(normalizeTokenAmountTo1e18(7n * 10n ** 24n, 24)).toBe(
+        7n * TEN_TO_THE_18_BI,
+      );
     });
   });
 });

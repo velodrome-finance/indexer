@@ -6,7 +6,7 @@
 
 # Entity & field reference
 
-Generated from [`schema.graphql`](../schema.graphql). The schema defines **39 entity types**; each becomes a queryable table in the indexer's database.
+Generated from [`schema.graphql`](../schema.graphql). The schema defines **40 entity types**; each becomes a queryable table in the indexer's database.
 
 ## Reading this reference
 
@@ -23,7 +23,7 @@ Generated from [`schema.graphql`](../schema.graphql). The schema defines **39 en
 - **Config & registry** — [FactoryRegistryConfig](#factoryregistryconfig), [DynamicFeeGlobalConfig](#dynamicfeeglobalconfig), [CLGaugeConfig](#clgaugeconfig), [FeeToTickSpacingMapping](#feetotickspacingmapping), [RedistributorConfig](#redistributorconfig), [RootPool_LeafPool](#rootpool_leafpool), [RootGauge_RootPool](#rootgauge_rootpool)
 - **Pool launcher** — [PoolLauncherPool](#poollauncherpool), [PoolLauncherConfig](#poollauncherconfig)
 - **Cross-chain superswaps (Hyperlane)** — [SuperSwap](#superswap), [OUSDTBridgedTransaction](#ousdtbridgedtransaction), [OUSDTSwaps](#ousdtswaps), [DispatchId_event](#dispatchid_event), [ProcessId_event](#processid_event)
-- **Internal buffers & deferred state** — [PendingVote](#pendingvote), [CLPoolPendingInitialize](#clpoolpendinginitialize), [PendingRootPoolMapping](#pendingrootpoolmapping), [PendingDistribution](#pendingdistribution), [CLPoolMintEvent](#clpoolmintevent), [CLPositionPendingPrincipal](#clpositionpendingprincipal), [TxCLPoolMintRegistry](#txclpoolmintregistry), [TxPoolTransferRegistry](#txpooltransferregistry), [PoolTransferInTx](#pooltransferintx), [ALMLPWrapperTransferInTx](#almlpwrappertransferintx), [ALM_TotalSupplyLimitUpdated_event](#alm_totalsupplylimitupdated_event)
+- **Internal buffers & deferred state** — [PendingVote](#pendingvote), [CLPoolPendingInitialize](#clpoolpendinginitialize), [PendingRootPoolMapping](#pendingrootpoolmapping), [PendingDistribution](#pendingdistribution), [CLPoolMintEvent](#clpoolmintevent), [CLPositionPendingPrincipal](#clpositionpendingprincipal), [TxCLPoolMintRegistry](#txclpoolmintregistry), [TokenPricingPools](#tokenpricingpools), [TxPoolTransferRegistry](#txpooltransferregistry), [PoolTransferInTx](#pooltransferintx), [ALMLPWrapperTransferInTx](#almlpwrappertransferintx), [ALM_TotalSupplyLimitUpdated_event](#alm_totalsupplylimitupdated_event)
 
 ## Core aggregates
 
@@ -130,8 +130,8 @@ Entity that tracks the latest state of the token entity By nature this entity sa
 | `chainId` | `Int!` | chain id _(indexed)_ |
 | `decimals` | `BigInt!` | number of decimals |
 | `pricePerUSDNew` | `BigInt!` | price of token per USD |
-| `lastUpdatedTimestamp` | `Timestamp!` | timestamp of last refresh attempt (used by 1-hour throttle) |
-| `lastSuccessfulPriceTimestamp` | `Timestamp` | timestamp of last non-zero oracle write (used by 7-day fallback staleness window, #694) |
+| `lastUpdatedTimestamp` | `Timestamp!` | timestamp of last price refresh attempt (drives the once-per-clock-hour throttle; see src/PriceOracle.ts) |
+| `lastSuccessfulPriceTimestamp` | `Timestamp` | timestamp of last successful price (pinned / pool route / rebind); drives the 7-day carry window (#694, docs/adr/0003) |
 | `isWhitelisted` | `Boolean!` | whether the token is whitelisted |
 | `priceTrustOutcome` | `String` | Price-trust gate per-token decision surface (issue #755 slice 2). Populated at every Token construction site (Voter.WhitelistToken, SuperchainLeafVoter .WhitelistToken, PriceOracle.createTokenEntity, VotingReward reward-token bootstrap) via `PriceTrust.getGateDecisionFromSignals`; subsequent refreshes preserve the stamped values via spread until slice-3+ aggregator paths re-evaluate via `PriceTrust.getGateDecision` at consume time. Null only on rows that predate the field's introduction. Stored as String (not enum) so values can extend without an Envio schema migration. The TypeScript value sets are pinned by the `PRICE_TRUST_OUTCOME` / `PRICE_TRUST_REASON` const objects in `src/PriceTrust.ts` — call sites should reference those constants rather than bare string literals. Trusted-USD aggregates are written into the existing `*USD` fields on Pool — no `*USDTrusted` companion fields. Per-chain rollback uses the migration mode flag introduced in slice 4; A/B comparison against pre-gate values is done offline via the diff script (issue #755 US #19). |
 | `priceTrustReason` | `String` | Reason code paired with priceTrustOutcome; values pinned by PRICE_TRUST_REASON in src/PriceTrust.ts (see priceTrustOutcome). |
@@ -346,16 +346,19 @@ Snapshot of the LiquidityPool entity
 
 ### TokenPriceSnapshot
 
-Snapshot of the Token entity
+Snapshot of the Token entity, written at most once per token per clock hour by the price refresh in src/PriceOracle.ts (docs/adr/0003-pool-derived-token-prices.md).
 
 | Field | Type | Description |
 | ----- | ---- | ----------- |
-| `id` | `ID!` | Format: {chainId}-{address}-{blockNumber} (TokenIdByBlock) |
+| `id` | `ID!` | Format: {chainId}-{address}-{epochMs} (TokenPriceSnapshotId; epochMs = hour bucket of the refresh). Rows written before ADR 0003 used {chainId}-{address}-{blockNumber}. |
 | `address` | `String!` | Address of the token _(indexed)_ |
 | `pricePerUSDNew` | `BigInt!` | price of token per USD |
 | `chainId` | `Int!` | chain id |
 | `isWhitelisted` | `Boolean!` | whether the token is whitelisted |
 | `lastUpdatedTimestamp` | `Timestamp!` | Timestamp of the last update _(indexed)_ |
+| `priceSource` | `String` | Provenance of pricePerUSDNew for this tick (ADR 0003): `pinned` (stablecoin / destination token at exactly $1), `pool` (derived from the deepest qualifying pool; see pricingPoolId / pricingDepthUSD), `rebind` (copied from the configured cross-chain source token's stored price), `override` (operator blacklist -> 0), `carried` (no route qualified; prior price kept, last success < 7 days ago) or `unpriced` (no route qualified and nothing fresh to carry -> 0). Rows written before ADR 0003 carry the oracle-era tags `fresh` / `pool-implied`, or no tag at all. Stored as String (not an enum) so the set can extend without an Envio schema migration; the value set is pinned by PRICE_SOURCE in src/Snapshots/TokenPriceSnapshot.ts. |
+| `pricingPoolId` | `String` | Pool id ({chainId}-{poolAddress}) the price was derived through; set only when priceSource = `pool` |
+| `pricingDepthUSD` | `BigInt` | Counterparty-side reserve of pricingPoolId valued in USD (1e18-base) at refresh time; set only when priceSource = `pool` |
 
 ### UserStatsPerPoolSnapshot
 
@@ -770,6 +773,15 @@ Per-transaction registry of CLPoolMintEvent IDs, used to skip the index scan on 
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{txHash} |
 | `mintEventIds` | `[String!]!` | CLPoolMintEvent ids produced in this tx, in insertion order |
+
+### TokenPricingPools
+
+Per-token list of pools the token can be priced through (ADR 0003). A pool is appended at creation (V2 PoolFactory / CL CLFactory PoolCreated) for each side whose counterparty sits in a strictly lower pricing tier, so the lists stay small (only connector-side pools qualify) and pricing is acyclic. Handler-only scratch state: never on Token, never in ClickHouse, hidden from the API.
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | `ID!` | Format: {chainId}-{address} (TokenId); the same id as the Token it belongs to |
+| `pools` | `[String!]!` | Pool ids ({chainId}-{poolAddress}), in creation order |
 
 ### TxPoolTransferRegistry
 

@@ -66,6 +66,14 @@ describe("Pool Functions", () => {
         deleteUnsafe: vi.fn(),
         getWhere: vi.fn().mockResolvedValue([]),
       },
+      TokenPricingPools: {
+        set: vi.fn(),
+        get: vi.fn().mockResolvedValue(undefined),
+        getOrThrow: vi.fn(),
+        getOrCreate: vi.fn(),
+        deleteUnsafe: vi.fn(),
+        getWhere: vi.fn().mockResolvedValue([]),
+      },
       RootPool_LeafPool: {
         set: vi.fn(),
         get: vi.fn(),
@@ -2273,59 +2281,47 @@ describe("Pool Functions", () => {
       expect(mockTokenSet).not.toHaveBeenCalled();
     });
 
-    it("should refresh token prices when block data is provided and prices are stale", async () => {
+    it("should refresh stale token prices from pool state, once each, without RPC", async () => {
       const blockNumber = 1000000;
       const blockTimestamp = Math.floor(Date.now() / 1000); // Current time
-      const newPrice0 = 1500000n; // $1.50
-      const newPrice1 = 2500000n; // $2.50
-
-      // Mock effect to return new prices and token details
-      expect(mockContext.effect).toBeDefined();
-      vi
-        // biome-ignore lint/style/noNonNullAssertion: effect is verified to be defined above
-        .mocked(mockContext.effect!)
-        // biome-ignore lint/suspicious/noExplicitAny: effect mock implementation needs flexible types
-        .mockImplementation(async (effectFn: any, input: any) => {
-          if (effectFn.name === "getTokenPrice") {
-            if (
-              input.tokenAddress.toLowerCase() === token0.address.toLowerCase()
-            ) {
-              return {
-                pricePerUSDNew: newPrice0,
-              };
-            }
-            if (
-              input.tokenAddress.toLowerCase() === token1.address.toLowerCase()
-            ) {
-              return {
-                pricePerUSDNew: newPrice1,
-              };
-            }
-          }
-          if (effectFn.name === "getTokenDetails") {
-            if (
-              input.contractAddress.toLowerCase() ===
-              token0.address.toLowerCase()
-            ) {
-              return {
-                name: token0.name,
-                symbol: token0.symbol,
-                decimals: Number(token0.decimals),
-              };
-            }
-            if (
-              input.contractAddress.toLowerCase() ===
-              token1.address.toLowerCase()
-            ) {
-              return {
-                name: token1.name,
-                symbol: token1.symbol,
-                decimals: Number(token1.decimals),
-              };
-            }
-          }
-          return {};
-        });
+      const tokenWethAddress = toChecksumAddress(
+        "0x4200000000000000000000000000000000000006",
+      );
+      const usdcAddress = toChecksumAddress(
+        "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+      );
+      // token0 = USDC (tier 0, pinned), token1 = WETH priced through this pool.
+      token0 = {
+        ...token0,
+        id: `10-${usdcAddress}`,
+        address: usdcAddress,
+        decimals: 6n,
+        pricePerUSDNew: 0n,
+      };
+      token1 = {
+        ...token1,
+        id: `10-${tokenWethAddress}`,
+        address: tokenWethAddress,
+      };
+      const pool = {
+        ...liquidityPoolAggregator,
+        token0_id: token0.id,
+        token1_id: token1.id,
+        isCL: false,
+        isStable: false,
+        reserve0: 2_500_000n * 10n ** 6n,
+        reserve1: 1_000n * 10n ** 18n,
+      } as unknown as Pool;
+      vi.mocked(mockContext.Pool?.get)?.mockResolvedValue(pool);
+      vi.mocked(mockContext.Token?.get)?.mockImplementation((id: string) =>
+        Promise.resolve(
+          id === token0.id ? token0 : id === token1.id ? token1 : undefined,
+        ),
+      );
+      vi.mocked(mockContext.TokenPricingPools?.get)?.mockImplementation(
+        async (id: string) =>
+          id === token1.id ? { id, pools: [pool.id] } : undefined,
+      );
 
       const result = await loadPoolData(
         poolAddress,
@@ -2336,18 +2332,24 @@ describe("Pool Functions", () => {
       );
 
       expect(result).not.toBeNull();
-      expect(result?.token0Instance.pricePerUSDNew).toBe(newPrice0);
-      expect(result?.token1Instance.pricePerUSDNew).toBe(newPrice1);
+      expect(result?.token0Instance.pricePerUSDNew).toBe(10n ** 18n); // $1 pin
+      expect(result?.token1Instance.pricePerUSDNew).toBe(2_500n * 10n ** 18n);
       expect(result?.token0Instance.lastUpdatedTimestamp).toBeInstanceOf(Date);
       expect(result?.token1Instance.lastUpdatedTimestamp).toBeInstanceOf(Date);
 
-      // Token.set should be called for both tokens
-      const mockTokenSet = vi.mocked(mockContext.Token?.set);
-      expect(mockTokenSet).toHaveBeenCalledTimes(2);
+      // No RPC: the oracle effect is never called.
+      const effectNames = vi
+        .mocked(mockContext.effect)
+        ?.mock.calls.map((c) => (c[0] as { name?: string }).name);
+      expect(effectNames).not.toContain("getTokenPrice");
 
-      // TokenPriceSnapshot.set should be called for both tokens
-      const mockSnapshotSet = vi.mocked(mockContext.TokenPriceSnapshot?.set);
-      expect(mockSnapshotSet).toHaveBeenCalledTimes(2);
+      // At most one snapshot per token per hour. (This static Token.get mock
+      // never reflects writes, so USDC is ticked again as WETH's counterparty;
+      // both writes share the hour's snapshot id.)
+      const snapshotIds = vi
+        .mocked(mockContext.TokenPriceSnapshot?.set)
+        ?.mock.calls.map((c) => (c[0] as { id: string }).id);
+      expect(new Set(snapshotIds).size).toBe(2);
     });
 
     it("should not refresh token prices when they are recent (less than 1 hour)", async () => {
@@ -2406,122 +2408,40 @@ describe("Pool Functions", () => {
         return Promise.resolve(undefined);
       });
 
-      const blockNumber = 1000000;
-      const blockTimestamp = Math.floor(now.getTime() / 1000);
-      const newPrice0 = 1000000n; // $1.00
-
-      // Mock effect to return new price and token details
-      expect(mockContext.effect).toBeDefined();
-      vi
-        // biome-ignore lint/style/noNonNullAssertion: effect is verified to be defined above
-        .mocked(mockContext.effect!)
-        // biome-ignore lint/suspicious/noExplicitAny: effect mock implementation needs flexible types
-        .mockImplementation(async (effectFn: any, input: any) => {
-          if (effectFn.name === "getTokenPrice") {
-            if (
-              input.tokenAddress.toLowerCase() === token0.address.toLowerCase()
-            ) {
-              return {
-                pricePerUSDNew: newPrice0,
-              };
-            }
-            if (
-              input.tokenAddress.toLowerCase() === token1.address.toLowerCase()
-            ) {
-              return {
-                pricePerUSDNew: token1.pricePerUSDNew,
-              };
-            }
-          }
-          if (effectFn.name === "getTokenDetails") {
-            if (
-              input.contractAddress.toLowerCase() ===
-              token0.address.toLowerCase()
-            ) {
-              return {
-                name: token0.name,
-                symbol: token0.symbol,
-                decimals: Number(token0.decimals),
-              };
-            }
-            if (
-              input.contractAddress.toLowerCase() ===
-              token1.address.toLowerCase()
-            ) {
-              return {
-                name: token1.name,
-                symbol: token1.symbol,
-                decimals: Number(token1.decimals),
-              };
-            }
-          }
-          return {};
-        });
-
       const result = await loadPoolData(
         poolAddress,
         chainId,
         mockContext as handlerContext,
-        blockNumber,
-        blockTimestamp,
+        1000000,
+        Math.floor(now.getTime() / 1000),
       );
 
       expect(result).not.toBeNull();
-      // token0 was $0 + stale → refresh fires
-      expect(result?.token0Instance.pricePerUSDNew).toBe(newPrice0);
+      // token0 was stale → one refresh tick (its pricing pools are looked up)
+      expect(mockContext.TokenPricingPools?.get).toHaveBeenCalledWith("token0");
+      expect(result?.token0Instance.lastUpdatedTimestamp).toEqual(now);
       // token1 has a recent timestamp → throttled
-      expect(result?.token1Instance.pricePerUSDNew).toBe(token1.pricePerUSDNew);
+      expect(mockContext.TokenPricingPools?.get).not.toHaveBeenCalledWith(
+        "token1",
+      );
+      expect(result?.token1Instance).toBe(token1);
 
       const mockTokenSet = vi.mocked(mockContext.Token?.set);
       expect(mockTokenSet).toHaveBeenCalledTimes(1);
     });
 
-    it("should handle price refresh errors gracefully", async () => {
+    it("should carry prices and log when a pricing read fails", async () => {
       const blockNumber = 1000000;
       const blockTimestamp = Math.floor(Date.now() / 1000);
-
-      // Mock effect to throw error for token0, return price for token1
-      expect(mockContext.effect).toBeDefined();
-      // biome-ignore lint/style/noNonNullAssertion: effect is verified to be defined above
-      const effectMock = vi.mocked(mockContext.effect!);
-      // biome-ignore lint/suspicious/noExplicitAny: effect mock implementation needs flexible types
-      effectMock.mockImplementation(async (effectFn: any, input: any) => {
-        if (effectFn.name === "getTokenPrice") {
-          if (
-            input.tokenAddress.toLowerCase() === token0.address.toLowerCase()
-          ) {
-            throw new Error("Price fetch failed");
-          }
-          if (
-            input.tokenAddress.toLowerCase() === token1.address.toLowerCase()
-          ) {
-            return {
-              pricePerUSDNew: 3000000n,
-            };
-          }
-        }
-        if (effectFn.name === "getTokenDetails") {
-          if (
-            input.contractAddress.toLowerCase() === token0.address.toLowerCase()
-          ) {
-            return {
-              name: token0.name,
-              symbol: token0.symbol,
-              decimals: Number(token0.decimals),
-            };
-          }
-          if (
-            input.contractAddress.toLowerCase() === token1.address.toLowerCase()
-          ) {
-            return {
-              name: token1.name,
-              symbol: token1.symbol,
-              decimals: Number(token1.decimals),
-            };
-          }
-        }
-        return {};
-      });
+      const lastSuccess = new Date(Date.now() - 2 * 60 * 60 * 1000);
+      token0 = { ...token0, lastSuccessfulPriceTimestamp: lastSuccess };
+      token1 = { ...token1, lastSuccessfulPriceTimestamp: lastSuccess };
+      vi.mocked(mockContext.TokenPricingPools?.get)?.mockImplementation(
+        async (id: string) => {
+          if (id === "token0") throw new Error("pricing read failed");
+          return undefined;
+        },
+      );
 
       const result = await loadPoolData(
         poolAddress,
@@ -2532,14 +2452,14 @@ describe("Pool Functions", () => {
       );
 
       expect(result).not.toBeNull();
-      // token0 should remain unchanged (error handled)
+      // Neither token has a qualifying pool, so both carry their last price
+      // (last success 2h ago, inside the 7-day window).
       expect(result?.token0Instance.pricePerUSDNew).toBe(token0.pricePerUSDNew);
-      // token1 should be refreshed successfully
-      expect(result?.token1Instance.pricePerUSDNew).toBe(3000000n);
-
-      // Error should be logged
+      expect(result?.token1Instance.pricePerUSDNew).toBe(token1.pricePerUSDNew);
       const mockErrorLog = vi.mocked(mockContext.log?.error);
-      expect(mockErrorLog).toHaveBeenCalled();
+      expect(mockErrorLog).toHaveBeenCalledWith(
+        expect.stringContaining("pricing read failed"),
+      );
     });
 
     it("should return original token0 and log error when token0 price refresh rejects", async () => {

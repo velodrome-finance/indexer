@@ -7,8 +7,8 @@ const Q192 = 2n ** 192n;
  * A pool's internal exchange-rate pair, both as 1e18 fixed-point BigInts.
  *
  * These are derived purely from the pool's own state (reserves for V2,
- * `sqrtPriceX96` for CL) and are therefore independent of the token price
- * oracle. The field semantics match `Pool.token0Price` / `Pool.token1Price`
+ * `sqrtPriceX96` for CL) and are therefore independent of any token's USD
+ * price. The field semantics match `Pool.token0Price` / `Pool.token1Price`
  * in schema.graphql.
  */
 export interface PoolPriceRatios {
@@ -19,15 +19,174 @@ export interface PoolPriceRatios {
 }
 
 /**
- * Derives a V2 (constant-product) pool's internal price ratios from its reserves.
+ * An exact spot price as a fraction `num / den`, in whole-token units:
+ * how many whole token1 one whole token0 is worth. Kept unreduced and
+ * undivided so callers can fold further factors (a USD price, a 1e18 scale)
+ * into the numerator before the single trailing division — no intermediate
+ * truncation, which matters for very cheap tokens.
+ */
+export interface SpotPriceFraction {
+  readonly num: bigint;
+  readonly den: bigint;
+}
+
+/**
+ * Spot price of token0 in token1 for a V2 volatile (constant-product,
+ * `x·y = k`) pool: `(reserve1 / 10^d1) / (reserve0 / 10^d0)`.
  *
- * The marginal price of token0 in token1 units is `reserve1 / reserve0`,
- * decimal-adjusted to whole-token units and scaled to 1e18 fixed point.
- * `token1Price` is the exact reciprocal ratio (computed independently from the
- * same reserves rather than from `token0Price`, to avoid compounding rounding).
+ * @param reserve0 - Reserve of token0 in raw token units
+ * @param reserve1 - Reserve of token1 in raw token units
+ * @param decimals0 - Decimals of token0 (0 is a valid value)
+ * @param decimals1 - Decimals of token1 (0 is a valid value)
+ * @returns The exact fraction, or `undefined` when either reserve is
+ *   non-positive (an empty pool has no defined price).
+ */
+export function v2VolatileSpotPrice0(
+  reserve0: bigint,
+  reserve1: bigint,
+  decimals0: bigint,
+  decimals1: bigint,
+): SpotPriceFraction | undefined {
+  if (reserve0 <= 0n || reserve1 <= 0n) return undefined;
+  return {
+    num: reserve1 * 10n ** decimals0,
+    den: reserve0 * 10n ** decimals1,
+  };
+}
+
+/**
+ * Spot (marginal) price of token0 in token1 for a V2 stable (sAMM) pool.
  *
- * All multiplications are applied before the single trailing division so the
- * result keeps maximum integer precision (no intermediate truncation).
+ * Velodrome/Aerodrome stable pools trade on `k = x³y + xy³` where `x`, `y` are
+ * the reserves normalised to whole-token units (`Pool._k` scales each reserve
+ * by `1e18 / 10^decimals` before applying the curve). The marginal price is the
+ * slope of the invariant curve:
+ *
+ *     dy/dx = (∂k/∂x) / (∂k/∂y) = (3x²y + y³) / (x³ + 3xy²)
+ *           = y·(3x² + y²) / (x·(x² + 3y²))
+ *
+ * which is exactly 1 for a balanced pool and moves far less than the
+ * constant-product ratio `y/x` as the pool becomes imbalanced (x = 2y gives
+ * 0.93, not 0.5).
+ *
+ * The expression is homogeneous of degree 0 in (x, y), so instead of dividing
+ * each reserve by its own `10^decimals` (and truncating) both are multiplied by
+ * the common factor `10^d0 · 10^d1`: `x' = reserve0 · 10^d1`,
+ * `y' = reserve1 · 10^d0`. The result is exact for any decimals pair,
+ * including 0-decimal tokens.
+ *
+ * @param reserve0 - Reserve of token0 in raw token units
+ * @param reserve1 - Reserve of token1 in raw token units
+ * @param decimals0 - Decimals of token0 (0 is a valid value)
+ * @param decimals1 - Decimals of token1 (0 is a valid value)
+ * @returns The exact fraction, or `undefined` when either reserve is
+ *   non-positive.
+ */
+export function v2StableSpotPrice0(
+  reserve0: bigint,
+  reserve1: bigint,
+  decimals0: bigint,
+  decimals1: bigint,
+): SpotPriceFraction | undefined {
+  if (reserve0 <= 0n || reserve1 <= 0n) return undefined;
+  const x = reserve0 * 10n ** decimals1;
+  const y = reserve1 * 10n ** decimals0;
+  return {
+    num: y * (3n * x * x + y * y),
+    den: x * (x * x + 3n * y * y),
+  };
+}
+
+/**
+ * Spot price of token0 in token1 for a CL (Uniswap-v3-style) pool:
+ * `(sqrtPriceX96 / 2^96)² · 10^d0 / 10^d1`.
+ *
+ * @param sqrtPriceX96 - Current pool sqrt price as Q64.96 fixed point
+ * @param decimals0 - Decimals of token0 (0 is a valid value)
+ * @param decimals1 - Decimals of token1 (0 is a valid value)
+ * @returns The exact fraction, or `undefined` when `sqrtPriceX96` is
+ *   non-positive (an uninitialised pool has no defined price).
+ */
+export function clSpotPrice0(
+  sqrtPriceX96: bigint,
+  decimals0: bigint,
+  decimals1: bigint,
+): SpotPriceFraction | undefined {
+  if (sqrtPriceX96 <= 0n) return undefined;
+  return {
+    num: sqrtPriceX96 * sqrtPriceX96 * 10n ** decimals0,
+    den: Q192 * 10n ** decimals1,
+  };
+}
+
+/**
+ * Spot price of token0 in token1 for any pool kind, dispatching on the pool's
+ * shape: CL pools use `sqrtPriceX96`, V2 stable pools the sAMM marginal price,
+ * V2 volatile pools the reserve ratio.
+ *
+ * @param pool - The pool state the price is read from
+ * @param pool.isCL - Whether the pool is a CL pool
+ * @param pool.isStable - Whether a V2 pool is a stable (sAMM) pool
+ * @param pool.reserve0 - Reserve of token0 in raw token units (V2)
+ * @param pool.reserve1 - Reserve of token1 in raw token units (V2)
+ * @param pool.sqrtPriceX96 - Current sqrt price (CL); nullish ⇒ uninitialised
+ * @param decimals0 - Decimals of token0
+ * @param decimals1 - Decimals of token1
+ * @returns The exact fraction, or `undefined` when the pool has no defined price
+ */
+export function poolSpotPrice0(
+  pool: {
+    readonly isCL: boolean;
+    readonly isStable: boolean;
+    readonly reserve0: bigint;
+    readonly reserve1: bigint;
+    readonly sqrtPriceX96?: bigint | null;
+  },
+  decimals0: bigint,
+  decimals1: bigint,
+): SpotPriceFraction | undefined {
+  if (pool.isCL) {
+    return clSpotPrice0(pool.sqrtPriceX96 ?? 0n, decimals0, decimals1);
+  }
+  if (pool.isStable) {
+    return v2StableSpotPrice0(
+      pool.reserve0,
+      pool.reserve1,
+      decimals0,
+      decimals1,
+    );
+  }
+  return v2VolatileSpotPrice0(
+    pool.reserve0,
+    pool.reserve1,
+    decimals0,
+    decimals1,
+  );
+}
+
+/**
+ * Converts an exact token0-in-token1 fraction into the 1e18-scaled ratio pair.
+ * `token1Price` is the reciprocal, computed independently from the same
+ * fraction rather than from `token0Price`, so neither leg compounds the other's
+ * rounding.
+ *
+ * @param fraction - Exact spot price of token0 in token1, or `undefined`
+ * @returns The 1e18-scaled ratio pair, or `{0n, 0n}` when `fraction` is undefined
+ */
+function ratiosFromFraction(
+  fraction: SpotPriceFraction | undefined,
+): PoolPriceRatios {
+  if (!fraction) return { token0Price: 0n, token1Price: 0n };
+  return {
+    token0Price: (fraction.num * TEN_TO_THE_18_BI) / fraction.den,
+    token1Price: (fraction.den * TEN_TO_THE_18_BI) / fraction.num,
+  };
+}
+
+/**
+ * Derives a V2 volatile (constant-product) pool's internal price ratios from
+ * its reserves: `token0Price = reserve1 / reserve0`, decimal-adjusted to
+ * whole-token units and scaled to 1e18.
  *
  * @param reserve0 - Reserve of token0 in raw token units
  * @param reserve1 - Reserve of token1 in raw token units
@@ -42,29 +201,37 @@ export function deriveV2PriceRatios(
   decimals0: bigint,
   decimals1: bigint,
 ): PoolPriceRatios {
-  if (reserve0 <= 0n || reserve1 <= 0n) {
-    return { token0Price: 0n, token1Price: 0n };
-  }
-  const scale0 = 10n ** decimals0;
-  const scale1 = 10n ** decimals1;
-  const token0Price =
-    (reserve1 * scale0 * TEN_TO_THE_18_BI) / (reserve0 * scale1);
-  const token1Price =
-    (reserve0 * scale1 * TEN_TO_THE_18_BI) / (reserve1 * scale0);
-  return { token0Price, token1Price };
+  return ratiosFromFraction(
+    v2VolatileSpotPrice0(reserve0, reserve1, decimals0, decimals1),
+  );
 }
 
 /**
- * Derives a CL (Uniswap-v3-style) pool's internal price ratios from `sqrtPriceX96`.
+ * Derives a V2 stable (sAMM, `x³y + xy³`) pool's internal price ratios from its
+ * reserves using the curve's marginal price (see {@link v2StableSpotPrice0}).
  *
- * The raw on-chain price (token1 per token0, in smallest units) is
- * `(sqrtPriceX96 / 2^96)^2`; decimal-adjusting to whole-token units and scaling
- * to 1e18 fixed point gives `token0Price`. `token1Price` is the reciprocal
- * ratio, computed independently from the same `sqrtPriceX96`.
- *
- * Squaring is done before dividing by `2^192` (and all decimal/scale factors
- * are folded into the numerator) so the single trailing division keeps maximum
- * integer precision.
+ * @param reserve0 - Reserve of token0 in raw token units
+ * @param reserve1 - Reserve of token1 in raw token units
+ * @param decimals0 - Decimals of token0
+ * @param decimals1 - Decimals of token1
+ * @returns The 1e18-scaled ratio pair, or `{0n, 0n}` when either reserve is
+ *   non-positive.
+ */
+export function deriveV2StablePriceRatios(
+  reserve0: bigint,
+  reserve1: bigint,
+  decimals0: bigint,
+  decimals1: bigint,
+): PoolPriceRatios {
+  return ratiosFromFraction(
+    v2StableSpotPrice0(reserve0, reserve1, decimals0, decimals1),
+  );
+}
+
+/**
+ * Derives a CL (Uniswap-v3-style) pool's internal price ratios from
+ * `sqrtPriceX96`: `token0Price = (sqrtPriceX96 / 2^96)²`, decimal-adjusted to
+ * whole-token units and scaled to 1e18.
  *
  * @param sqrtPriceX96 - Current pool sqrt price as Q64.96 fixed point
  * @param decimals0 - Decimals of token0
@@ -77,15 +244,7 @@ export function deriveCLPriceRatios(
   decimals0: bigint,
   decimals1: bigint,
 ): PoolPriceRatios {
-  if (sqrtPriceX96 <= 0n) {
-    return { token0Price: 0n, token1Price: 0n };
-  }
-  const scale0 = 10n ** decimals0;
-  const scale1 = 10n ** decimals1;
-  const priceX192 = sqrtPriceX96 * sqrtPriceX96;
-  const token0Price = (priceX192 * scale0 * TEN_TO_THE_18_BI) / (Q192 * scale1);
-  const token1Price = (Q192 * scale1 * TEN_TO_THE_18_BI) / (priceX192 * scale0);
-  return { token0Price, token1Price };
+  return ratiosFromFraction(clSpotPrice0(sqrtPriceX96, decimals0, decimals1));
 }
 
 /**
