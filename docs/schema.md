@@ -6,7 +6,7 @@
 
 # Entity & field reference
 
-Generated from [`schema.graphql`](../schema.graphql). The schema defines **75 entity types**; each becomes a queryable table in the indexer's database.
+Generated from [`schema.graphql`](../schema.graphql). The schema defines **76 entity types**; each becomes a queryable table in the indexer's database.
 
 ## Reading this reference
 
@@ -26,6 +26,7 @@ Generated from [`schema.graphql`](../schema.graphql). The schema defines **75 en
 - **Aero gauges, staking & emissions** — [AeroGauge](#aerogauge), [AeroGaugeFactory](#aerogaugefactory), [AeroLeafVoterState](#aeroleafvoterstate), [AeroVotingRewardsManager](#aerovotingrewardsmanager), [AeroIncentiveProgram](#aeroincentiveprogram), [AeroGaugeSnapshot](#aerogaugesnapshot), [AeroLeafVoterStateSnapshot](#aeroleafvoterstatesnapshot), [AeroGaugeStakeEvent](#aerogaugestakeevent), [AeroEmissionsEvent](#aeroemissionsevent), [AeroRedemptionEvent](#aeroredemptionevent), [AeroVotingRewardsEvent](#aerovotingrewardsevent)
 - **Aero governance** — [SAeroPosition](#saeroposition), [SAeroEscrowState](#saeroescrowstate), [SAeroEscrowStateSnapshot](#saeroescrowstatesnapshot), [SAeroPositionEvent](#saeropositionevent), [AeroRootAllocation](#aerorootallocation), [AeroRootGaugeVote](#aerorootgaugevote), [AeroRootChainState](#aerorootchainstate), [AeroLeafTokenState](#aeroleaftokenstate), [AeroLeafAllocation](#aeroleafallocation), [AeroAllocationEvent](#aeroallocationevent), [AeroMinterState](#aerominterstate), [AeroMinterSnapshot](#aeromintersnapshot), [AeroMinterEvent](#aerominterevent), [AeroMigrationTotals](#aeromigrationtotals), [AeroMigrationEvent](#aeromigrationevent)
 - **Internal buffers & deferred state** — [PendingVote](#pendingvote), [CLPoolPendingInitialize](#clpoolpendinginitialize), [PendingRootPoolMapping](#pendingrootpoolmapping), [PendingDistribution](#pendingdistribution), [PoolTickMap](#pooltickmap), [CLPoolMintEvent](#clpoolmintevent), [CLPositionPendingPrincipal](#clpositionpendingprincipal), [TxCLPoolMintRegistry](#txclpoolmintregistry), [AeroNFPMMintPool](#aeronfpmmintpool), [AeroNFPMPendingMint](#aeronfpmpendingmint), [AeroGaugePendingReferral](#aerogaugependingreferral), [NFPMPositionPendingPrincipal](#nfpmpositionpendingprincipal), [V2SwapFeesInTx](#v2swapfeesintx), [TokenPricingPools](#tokenpricingpools), [TxPoolTransferRegistry](#txpooltransferregistry), [PoolTransferInTx](#pooltransferintx), [ALMLPWrapperTransferInTx](#almlpwrappertransferintx), [ALM_TotalSupplyLimitUpdated_event](#alm_totalsupplylimitupdated_event)
+- **Other** — [NFPMCollectFeesInTx](#nfpmcollectfeesintx)
 
 ## Core aggregates
 
@@ -1437,8 +1438,6 @@ Principal removed from an NFPM position (NFPM.DecreaseLiquidity amounts) and not
 
 ### V2SwapFeesInTx
 
-V2 swap fee hand-over. A V2 pool emits Fees(sender, amount0, amount1) for the fee it takes on each input token, before the swap's Sync and Swap in the same transaction. The Fees handler adds the amounts here and the Swap handler reads (by primary key) and deletes them, so a swap's fee USD and effective rate come from the fee actually charged. Deleted by the Swap.
-
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{txHash}-{poolAddress} (V2SwapFeesInTxId) |
@@ -1465,7 +1464,7 @@ Per-(tx, pool) registry of PoolTransferInTx ids, used to skip the index scan on 
 
 ### PoolTransferInTx
 
-Temporary entity for matching Mint/Burn with Transfer events Only stores mint/burn transfers (isMint || isBurn) to reduce storage
+Temporary entity for matching Mint/Burn with Transfer events Only stores mint/burn transfers (isMint || isBurn) and LP returns (LP sent into the pool, both flags false; the Burn credits their `from`, #911) to reduce storage
 
 | Field | Type | Description |
 | ----- | ---- | ----------- |
@@ -1508,3 +1507,19 @@ Temporary entity for matching Withdraw events with Transfer events (burns) Simil
 | `lpWrapperAddress` | `String!` | LP Wrapper associated to the event |
 | `currentTotalSupplyLPTokens` | `BigInt!` | Current supply of LP tokens for the pool, emitted by the event |
 | `transactionHash` | `String!` | Transaction hash of the event |
+
+## Other
+
+Entities not yet categorized in scripts/generate-schema-docs.ts.
+
+### NFPMCollectFeesInTx
+
+V2 swap fee hand-over. A V2 pool emits Fees(sender, amount0, amount1) for the fee it takes on each input token, before the swap's Sync and Swap in the same transaction. The Fees handler adds the amounts here and the Swap handler reads (by primary key) and deletes them, so a swap's fee USD and effective rate come from the fee actually charged. Deleted by the Swap. Fees of a legacy-NFPM position, isolated by CLPool.Collect (whose `owner` is the NFPM contract) and handed to the NFPM.Collect that follows in the same tx, which credits them to the position's owner and deletes the row.
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | `ID!` | Format: {chainId}-{txHash}-{nfpmAddress} (NFPMCollectFeesInTxId) |
+| `pool` | `String!` | the CL pool whose Collect isolated the fees |
+| `fees0` | `BigInt!` | raw token0 fees |
+| `fees1` | `BigInt!` | raw token1 fees |
+| `feesUSD` | `BigInt!` | USD of the fees at CLPool.Collect, 1e18 |

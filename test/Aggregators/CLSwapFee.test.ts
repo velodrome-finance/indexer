@@ -109,4 +109,59 @@ describe("deriveCLSwapFee", () => {
     });
     expect(at).toMatchObject({ ok: true, feeRate: 100_000n });
   });
+
+  // Real dust swaps on Arc pool 0x72dff32c…8506 (Aero), all 32 of its
+  // fallbacks: Slipstream rounds the fee up, so a swap of a few wei pays 1 wei.
+  describe("dust swaps whose 1-wei fee is above 10% of the input", () => {
+    it("accepts block 22246148: amount1 = 8 wei, price move worth 7 wei, fee 1 wei", () => {
+      // L = 5045175576823008, √P 141379045363969075072011 → …473895306410244:
+      // L·Δ√P / 2^96 = 6.99999… → principal1 7.
+      const r = deriveCLSwapFee({
+        amount0: -2198300797601n,
+        amount1: 8n,
+        principal0: -2198300797601n,
+        principal1: 7n,
+        walkEndLiquidity: 5045175576823008n,
+        eventLiquidity: 5045175576823008n,
+      });
+      expect(r).toEqual({
+        ok: true,
+        feeAmount0: 0n,
+        feeAmount1: 1n,
+        amountIn: 8n,
+        feeRate: undefined,
+      });
+    });
+
+    it("accepts block 21930747: 1 wei in, price unmoved, the whole wei is fee", () => {
+      const r = deriveCLSwapFee({
+        amount0: 0n,
+        amount1: 1n,
+        principal0: 0n,
+        principal1: 0n,
+        walkEndLiquidity: 3070123232655090n,
+        eventLiquidity: 3070123232655090n,
+      });
+      expect(r).toMatchObject({ ok: true, feeAmount1: 1n, amountIn: 1n });
+    });
+
+    it("still rejects 2 wei of fee on a dust swap, and normal swaps keep the 10% cap", () => {
+      expect(
+        deriveCLSwapFee({
+          ...base,
+          principal1: 6n,
+          amount0: -1n,
+          amount1: 8n,
+        }),
+      ).toMatchObject({ ok: false, reason: "fee_above_cap", derivedFee: 2n });
+      expect(
+        deriveCLSwapFee({
+          ...base,
+          principal1: 9n,
+          amount0: -1n,
+          amount1: 11n,
+        }),
+      ).toMatchObject({ ok: false, reason: "fee_above_cap", derivedFee: 2n });
+    });
+  });
 });

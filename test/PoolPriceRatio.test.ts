@@ -1,3 +1,4 @@
+import { TickMath } from "@uniswap/v3-sdk";
 import { describe, expect, it } from "vitest";
 import {
   clSpotPrice0,
@@ -91,16 +92,115 @@ describe("pickPriceRatios", () => {
     expect(pickPriceRatios(derived, lastKnown)).toEqual(derived);
   });
 
-  it("falls back to the last-known value only for the leg that derives to 0n", () => {
+  it("keeps a derived 0n leg when the other leg is positive: the price is defined, below 1e-18", () => {
     expect(
       pickPriceRatios({ token0Price: 0n, token1Price: 7n }, lastKnown),
-    ).toEqual({ token0Price: 100n, token1Price: 7n });
+    ).toEqual({ token0Price: 0n, token1Price: 7n });
+    expect(
+      pickPriceRatios({ token0Price: 7n, token1Price: 0n }, lastKnown),
+    ).toEqual({ token0Price: 7n, token1Price: 0n });
   });
 
   it("returns the last-known ratios when the derivation is fully undefined (both 0n)", () => {
     expect(
       pickPriceRatios({ token0Price: 0n, token1Price: 0n }, lastKnown),
     ).toEqual(lastKnown);
+  });
+
+  // oUSDT/USDC.e on Soneium (CL pool 0x024a0d37…9092, both 6 decimals), drained
+  // to the lower bound by its last swap (block 29415909, tx 0xa06f1167…):
+  // sqrtPriceX96 = 4295128740 (MIN_SQRT_RATIO + 1), tick −887272, liquidity 0.
+  // The pool kept the token0Price of its previous swap, 1.000894…
+  it("drained CL pool at the lower tick bound: token0Price 0, token1Price the true ratio", () => {
+    const sqrtPriceX96 = 4295128740n;
+    const derived = deriveCLPriceRatios(sqrtPriceX96, 6n, 6n);
+    const stale = {
+      token0Price: 1000894562367959267n,
+      token1Price: 999106236064553946n,
+    };
+    const picked = pickPriceRatios(derived, stale);
+    expect(picked.token0Price).toBe(0n);
+    expect(picked.token1Price).toBe(
+      (2n ** 192n * TEN_TO_THE_18) / (sqrtPriceX96 * sqrtPriceX96),
+    );
+    expect(picked.token1Price).toBeGreaterThan(10n ** 56n);
+  });
+
+  it("CL pool at the upper tick bound: token1Price 0, token0Price the true ratio", () => {
+    // MAX_SQRT_RATIO − 1, the highest price a swap can reach (tick 887271).
+    const sqrtPriceX96 = 1461446703485210103287273052203988822378723970341n;
+    const picked = pickPriceRatios(
+      deriveCLPriceRatios(sqrtPriceX96, 18n, 18n),
+      lastKnown,
+    );
+    expect(picked.token1Price).toBe(0n);
+    expect(picked.token0Price).toBe(
+      (sqrtPriceX96 * sqrtPriceX96 * TEN_TO_THE_18) / 2n ** 192n,
+    );
+  });
+
+  it("V2 pool with one reserve 1e18× the other: the cheap leg is 0, not stale", () => {
+    const picked = pickPriceRatios(
+      deriveV2PriceRatios(10n ** 37n, 1n, 18n, 18n),
+      lastKnown,
+    );
+    expect(picked).toEqual({ token0Price: 0n, token1Price: 10n ** 55n });
+  });
+
+  it("is bit-identical to the previous per-leg rule whenever both legs are positive", () => {
+    // The rule before the tick-bound fix: each non-positive leg fell back to
+    // its last-known value independently.
+    const previous = (
+      d: { token0Price: bigint; token1Price: bigint },
+      l: { token0Price: bigint; token1Price: bigint },
+    ) => ({
+      token0Price: d.token0Price > 0n ? d.token0Price : l.token0Price,
+      token1Price: d.token1Price > 0n ? d.token1Price : l.token1Price,
+    });
+    const decimals: [bigint, bigint][] = [
+      [18n, 18n],
+      [6n, 18n],
+      [18n, 6n],
+      [6n, 6n],
+      [0n, 8n],
+    ];
+    let compared = 0;
+    let differs = 0;
+    // CL: sqrt prices from every 9973rd tick across the full range, both bounds.
+    const sqrtPrices: bigint[] = [];
+    for (let tick = -887272; tick <= 887272; tick += 9973) {
+      sqrtPrices.push(BigInt(TickMath.getSqrtRatioAtTick(tick).toString()));
+    }
+    sqrtPrices.push(4295128739n, 4295128740n, Q96, Q96 + 1n);
+    for (const [d0, d1] of decimals) {
+      const cases = [
+        ...sqrtPrices.map((s) => deriveCLPriceRatios(s, d0, d1)),
+        ...[1n, 7n, 10n ** 6n, 10n ** 18n, 10n ** 30n].flatMap((r0) =>
+          [3n, 10n ** 9n, 10n ** 21n].flatMap((r1) => [
+            deriveV2PriceRatios(r0, r1, d0, d1),
+            deriveV2StablePriceRatios(r0, r1, d0, d1),
+          ]),
+        ),
+      ];
+      for (const derived of cases) {
+        const now = pickPriceRatios(derived, lastKnown);
+        if (derived.token0Price > 0n && derived.token1Price > 0n) {
+          compared++;
+          expect(now).toEqual(previous(derived, lastKnown));
+        } else if (
+          now.token0Price !== previous(derived, lastKnown).token0Price ||
+          now.token1Price !== previous(derived, lastKnown).token1Price
+        ) {
+          // Only a defined price with one leg below 1e-18 changes.
+          differs++;
+          expect(derived.token0Price === 0n).not.toBe(
+            derived.token1Price === 0n,
+          );
+        }
+      }
+    }
+    expect(compared).toBeGreaterThan(500);
+    expect(differs).toBeGreaterThan(0);
   });
 });
 

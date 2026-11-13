@@ -929,6 +929,17 @@ type NFPMPositionPendingPrincipal
 # on each input token, before the swap's Sync and Swap in the same transaction. The Fees
 # handler adds the amounts here and the Swap handler reads (by primary key) and deletes them,
 # so a swap's fee USD and effective rate come from the fee actually charged. Deleted by the Swap.
+# Fees of a legacy-NFPM position, isolated by CLPool.Collect (whose `owner` is the
+# NFPM contract) and handed to the NFPM.Collect that follows in the same tx, which
+# credits them to the position's owner and deletes the row.
+type NFPMCollectFeesInTx @storage(postgres: true, clickhouse: false) @internal {
+  id: ID! # Format: {chainId}-{txHash}-{nfpmAddress} (NFPMCollectFeesInTxId)
+  pool: String! # the CL pool whose Collect isolated the fees
+  fees0: BigInt! @config(precision: 76) # raw token0 fees
+  fees1: BigInt! @config(precision: 76) # raw token1 fees
+  feesUSD: BigInt! @config(precision: 76) # USD of the fees at CLPool.Collect, 1e18
+}
+
 type V2SwapFeesInTx @storage(postgres: true, clickhouse: false) @internal {
   id: ID! # Format: {chainId}-{txHash}-{poolAddress} (V2SwapFeesInTxId)
   fee0: BigInt! @config(precision: 76) # raw token0 fee of the pending swap
@@ -961,7 +972,8 @@ type TxPoolTransferRegistry
 }
 
 # Temporary entity for matching Mint/Burn with Transfer events
-# Only stores mint/burn transfers (isMint || isBurn) to reduce storage
+# Only stores mint/burn transfers (isMint || isBurn) and LP returns (LP sent into
+# the pool, both flags false; the Burn credits their `from`, #911) to reduce storage
 type PoolTransferInTx @storage(postgres: true, clickhouse: false) @internal {
   id: ID! # Format: {chainId}-{txHash}-{poolAddress}-{logIndex}
   chainId: Int! @index # chain id

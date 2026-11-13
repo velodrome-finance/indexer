@@ -647,6 +647,40 @@ describe("CLPoolSwapLogic", () => {
       );
     });
 
+    it("writes token0Price 0, not the previous ratio, for a swap that drains the pool to the lower tick bound", async () => {
+      // Last swap of oUSDT/USDC.e on Soneium (pool 0x024a0d37…9092, block
+      // 29415909): sqrtPriceX96 = MIN_SQRT_RATIO + 1, tick −887272, liquidity 0.
+      const sqrtPriceX96 = 4295128740n;
+      const usd6a: Token = { ...wlToken0, decimals: 6n };
+      const usd6b: Token = { ...wlToken1, decimals: 6n };
+      const drained = await processCLPoolSwap(
+        {
+          ...mockEvent,
+          params: {
+            ...mockEvent.params,
+            amount0: 11340n,
+            amount1: -11308n,
+            sqrtPriceX96,
+            liquidity: 0n,
+            tick: -887272n,
+          },
+        },
+        {
+          ...mockPool,
+          token0Price: 1000894562367959267n,
+          token1Price: 999106236064553946n,
+        },
+        usd6a,
+        usd6b,
+        mockContext,
+      );
+
+      expect(drained.liquidityPoolDiff.token0Price).toBe(0n);
+      expect(drained.liquidityPoolDiff.token1Price).toBe(
+        deriveCLPriceRatios(sqrtPriceX96, 6n, 6n).token1Price,
+      );
+    });
+
     it("should set correct timestamps", async () => {
       const result = await processCLPoolSwap(
         mockEvent,
