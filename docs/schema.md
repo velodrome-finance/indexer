@@ -361,6 +361,9 @@ Snapshot of the Token entity, written at most once per token per clock hour by t
 | `pricingPoolId` | `String` | Pool id ({chainId}-{poolAddress}) the price was derived through; set only when priceSource = `pool` |
 | `pricingDepthUSD` | `BigInt` | USD depth (1e18-base) of the winning candidate: pricingPoolId's counterparty-side reserve, or the canonical source token's stored depth; set only when priceSource = `pool` or `canonical` |
 | `pricingSourceTokenId` | `String` | Token id ({chainId}-{address}) of the canonical source whose stored price was used; set only when priceSource = `canonical` |
+| `pricingHops` | `Int` | Route length when priceSource = `pool` / `canonical`: 1 = direct (pool against a lower-tier token, or canonical source), 2 = two-hop through a tier-3 peer that has a direct pool route (ADR 0006); then pricingPoolId is the peer pool and pricingDepthUSD the weaker of the two hops |
+| `pricingViaTokenId` | `String` | Two-hop only: token id ({chainId}-{address}) of the tier-3 peer the price went through |
+| `pricingViaPoolId` | `String` | Two-hop only: pool id of the peer's own direct route |
 
 ### UserStatsPerPoolSnapshot
 
